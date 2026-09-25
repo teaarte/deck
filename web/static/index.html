@@ -79,7 +79,7 @@ function renderActions(actions, ctx) {
 async function sendAction(event, ctx) {
   const c = event.context;
   const input = {};
-  for (const [k, v] of Object.entries(c.params || {})) input[k] = typeof v === "string" && v.startsWith("$record.") ? ctx?.[v.slice(8)] : v;
+  Object.assign(input, resolve(c.params, ctx) || {});
   try { const r = await cmd(c.command, input); status(r.process ? `started process ${r.process}` : "done"); }
   catch (e) { status(e.message, true); }
 }
@@ -121,9 +121,17 @@ async function renderAsks() {
   for (const a of asks) {
     const div = el("div", { class: "ask" }, el("div", {}, el("strong", {}, a.kind === "question" ? "Question" : "Confirm"), " · process " + a.process));
     if (a.kind === "question") {
-      for (const q of a.payload.questions || []) {
+      const qs = a.payload.questions || [];
+      const picked = {};
+      const pick = (q, value, btn) => {
+        picked[q.question] = value;
+        for (const b of btn?.parentElement?.children || []) b.className = b === btn ? "primary" : "";
+        if (qs.every(x => x.question in picked)) answer(a.id, picked);
+      };
+      for (const q of qs) {
         div.append(el("div", {}, q.question));
-        div.append(el("div", {}, ...(q.options || []).map(o => el("button", { onclick: () => answer(a.id, { [q.question]: o.label }) }, o.label))));
+        div.append(el("div", {}, ...(q.options || []).map(o => el("button", { onclick: e => pick(q, o.label, e.target) }, o.label)),
+          el("button", { onclick: e => { const t = prompt(q.question); if (t) pick(q, t, e.target); } }, "Other…")));
       }
     } else {
       div.append(el("div", { class: "muted" }, a.text));

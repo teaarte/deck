@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/expr-lang/expr"
@@ -240,8 +241,10 @@ func (c *Collection) RecordKey(data map[string]any) (string, error) {
 	switch v := out.(type) {
 	case string:
 		key = v
-	case int, int64, float64, bool:
+	case int, int64, bool:
 		key = fmt.Sprint(v)
+	case float64:
+		key = strconv.FormatFloat(v, 'f', -1, 64)
 	default:
 		return "", fmt.Errorf("key of %q must be a string or number, got %T", c.Name, out)
 	}
@@ -299,6 +302,43 @@ func compileSchema(name string, raw json.RawMessage) (*jsonschema.Schema, error)
 		return nil, err
 	}
 	return c.Compile(url)
+}
+
+// DecodeObject parses one JSON object, keeping integers exact as int64.
+func DecodeObject(b []byte) (map[string]any, error) {
+	dec := json.NewDecoder(bytes.NewReader(b))
+	dec.UseNumber()
+	var m map[string]any
+	if err := dec.Decode(&m); err != nil {
+		return nil, err
+	}
+	if m == nil {
+		return nil, errors.New("not a JSON object")
+	}
+	if dec.More() {
+		return nil, errors.New("extra data after the JSON object")
+	}
+	return exactNumbers(m).(map[string]any), nil
+}
+
+func exactNumbers(v any) any {
+	switch x := v.(type) {
+	case json.Number:
+		if i, err := x.Int64(); err == nil {
+			return i
+		}
+		f, _ := x.Float64()
+		return f
+	case map[string]any:
+		for k, e := range x {
+			x[k] = exactNumbers(e)
+		}
+	case []any:
+		for i, e := range x {
+			x[i] = exactNumbers(e)
+		}
+	}
+	return v
 }
 
 // normalize round-trips a value through JSON so numbers and maps have the types the validator expects.

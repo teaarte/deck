@@ -253,8 +253,7 @@ func ConfirmPayload(tool string, input map[string]any) string {
 
 func (g *Gateway) confirm(ctx context.Context, s *Session, in approveInput) decision {
 	payload := ConfirmPayload(in.ToolName, in.Input)
-	if a, err := g.st.Q.FindApproval(ctx, db.FindApprovalParams{ProcessID: s.ProcessID, Payload: payload}); err == nil {
-		_ = g.st.Q.MarkAskUsed(ctx, a.ID)
+	if _, err := g.st.Q.ConsumeApproval(ctx, db.ConsumeApprovalParams{ProcessID: s.ProcessID, Payload: payload}); err == nil {
 		g.log(ctx, s, in.ToolName, "external", "done", payload)
 		return decision{Behavior: "allow", UpdatedInput: in.Input}
 	}

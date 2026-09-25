@@ -66,6 +66,9 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	if err := a.Reconcile(ctx); err != nil {
+		slog.Error("reconcile triggers", "err", err)
+	}
 	if err := a.Runner.ResumeInterrupted(ctx); err != nil {
 		slog.Error("resume interrupted", "err", err)
 	}
@@ -87,10 +90,10 @@ func run() error {
 
 func loadToken(path string) (string, error) {
 	b, err := os.ReadFile(path)
-	if err == nil {
-		return strings.TrimSpace(string(b)), nil
+	if tok := strings.TrimSpace(string(b)); err == nil && len(tok) >= 32 {
+		return tok, nil
 	}
-	if !errors.Is(err, os.ErrNotExist) {
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return "", err
 	}
 	raw := make([]byte, 24)

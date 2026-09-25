@@ -60,7 +60,7 @@ func New(cfg Config, p provider.Provider) (*App, error) {
 	a.Registry = registry.New(a.projectCommands)
 	a.addBuiltins()
 	a.Gateway = gateway.New(gateway.Config{QuestionWait: cfg.QuestionWait, ConfirmWait: cfg.ConfirmWait}, st, a.Asks, a.Bus, a.Registry)
-	a.Runner = process.NewRunner(st, a.Gateway, a.Bus, p, filepath.Join(cfg.Home, "runs"), cfg.MCPBase, a.Manifest)
+	a.Runner = process.NewRunner(st, a.Gateway, a.Bus, p, filepath.Join(cfg.Home, "runs"), cfg.MCPBase, a)
 	a.Scheduler = trigger.New(st, a)
 	a.Asks.OnLateAnswer(a.lateAnswer)
 	return a, nil
@@ -169,12 +169,9 @@ func (a *App) CreateProject(ctx context.Context, act registry.Actor, name string
 				return err
 			}
 		}
-		return nil
+		return a.Scheduler.Sync(ctx, q, p.ID, m)
 	})
 	if err != nil {
-		return db.Project{}, err
-	}
-	if err := a.Scheduler.Sync(ctx, p.ID, m); err != nil {
 		return db.Project{}, err
 	}
 	a.Bus.Publish("projects")
@@ -191,14 +188,13 @@ func (a *App) SaveManifest(ctx context.Context, act registry.Actor, p db.Project
 	defer a.manifestMu.Unlock()
 	var n int64
 	err = a.Store.Tx(ctx, func(q *db.Queries) error {
-		_, n, err = a.SaveDocument(ctx, q, DocRef{ProjectID: p.ID, Name: ManifestName}, KindManifest, string(raw), act.Author(), reason)
-		return err
+		if _, n, err = a.SaveDocument(ctx, q, DocRef{ProjectID: p.ID, Name: ManifestName}, KindManifest, string(raw), act.Author(), reason); err != nil {
+			return err
+		}
+		return a.Scheduler.Sync(ctx, q, p.ID, m)
 	})
 	if err != nil {
 		return 0, err
-	}
-	if err := a.Scheduler.Sync(ctx, p.ID, m); err != nil {
-		return n, err
 	}
 	a.Bus.Publish("projects")
 	return n, nil
@@ -210,6 +206,30 @@ func (a *App) Manifest(ctx context.Context, projectID int64) (*manifest.Manifest
 		return nil, err
 	}
 	return manifest.Parse([]byte(raw))
+}
+
+// Reconcile brings stored triggers in line with the current manifests; run it on start.
+func (a *App) Reconcile(ctx context.Context) error {
+	ps, err := a.Store.Q.ListProjects(ctx)
+	if err != nil {
+		return err
+	}
+	for _, p := range ps {
+		m, err := a.Manifest(ctx, p.ID)
+		if err != nil {
+			slog.Error("reconcile triggers", "project", p.Name, "err", err)
+			continue
+		}
+		if err := a.Scheduler.Sync(ctx, a.Store.Q, p.ID, m); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Prompt is the current md prompt of a project; empty when it has none.
+func (a *App) Prompt(ctx context.Context, projectID int64) (string, error) {
+	return a.DocumentText(ctx, projectID, KindPrompt, PromptName)
 }
 
 // lateAnswer delivers an answer nobody was waiting for live; Deliver ignores processes that are not parked.

@@ -88,10 +88,15 @@ UPDATE ask SET state = 'expired', delivered = 1 WHERE process_id = ? AND state =
 -- name: ExpireStaleConfirms :many
 UPDATE ask SET state = 'expired' WHERE kind = 'confirm' AND state = 'open' AND created_at < ? RETURNING *;
 
--- name: FindApproval :one
-SELECT * FROM ask
-WHERE process_id = ? AND kind = 'confirm' AND state = 'answered' AND answer = 'allow' AND used = 0 AND payload = ?
-ORDER BY id LIMIT 1;
+-- name: ConsumeApproval :one
+UPDATE ask SET used = 1, delivered = 1
+WHERE id = (
+    SELECT a.id FROM ask a
+    WHERE a.process_id = sqlc.arg(process_id) AND a.kind = 'confirm' AND a.state = 'answered' AND a.answer = 'allow'
+      AND a.used = 0 AND a.payload = sqlc.arg(payload)
+    ORDER BY a.id LIMIT 1)
+AND used = 0
+RETURNING *;
 
 -- name: MarkAskUsed :exec
 UPDATE ask SET used = 1, delivered = 1 WHERE id = ?;

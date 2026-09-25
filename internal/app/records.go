@@ -28,8 +28,8 @@ func (a *App) UpsertJSONL(ctx context.Context, projectID int64, m *manifest.Mani
 		if text == "" {
 			continue
 		}
-		var r map[string]any
-		if err := json.Unmarshal([]byte(text), &r); err != nil {
+		r, err := manifest.DecodeObject([]byte(text))
+		if err != nil {
 			out.Errors = append(out.Errors, fmt.Sprintf("line %d: not a JSON object: %v", line, err))
 			continue
 		}
@@ -101,8 +101,7 @@ type RecordView struct {
 func recordView(r db.Record, c *manifest.Collection) RecordView {
 	v := RecordView{ID: r.ID, Collection: r.Collection, Key: r.Key, Data: json.RawMessage(r.Data), UpdatedAt: r.UpdatedAt}
 	if c != nil {
-		var data map[string]any
-		if json.Unmarshal([]byte(r.Data), &data) == nil {
+		if data, err := manifest.DecodeObject([]byte(r.Data)); err == nil {
 			v.Title = c.RecordTitle(data)
 		}
 	}

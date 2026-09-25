@@ -87,6 +87,41 @@ func (q *Queries) CloseOpenAsksOfProcess(ctx context.Context, processID int64) e
 	return err
 }
 
+const consumeApproval = `-- name: ConsumeApproval :one
+UPDATE ask SET used = 1, delivered = 1
+WHERE id = (
+    SELECT a.id FROM ask a
+    WHERE a.process_id = ?1 AND a.kind = 'confirm' AND a.state = 'answered' AND a.answer = 'allow'
+      AND a.used = 0 AND a.payload = ?2
+    ORDER BY a.id LIMIT 1)
+AND used = 0
+RETURNING id, process_id, kind, text, payload, answer, state, delivered, used, created_at, answered_at
+`
+
+type ConsumeApprovalParams struct {
+	ProcessID int64
+	Payload   string
+}
+
+func (q *Queries) ConsumeApproval(ctx context.Context, arg ConsumeApprovalParams) (Ask, error) {
+	row := q.db.QueryRowContext(ctx, consumeApproval, arg.ProcessID, arg.Payload)
+	var i Ask
+	err := row.Scan(
+		&i.ID,
+		&i.ProcessID,
+		&i.Kind,
+		&i.Text,
+		&i.Payload,
+		&i.Answer,
+		&i.State,
+		&i.Delivered,
+		&i.Used,
+		&i.CreatedAt,
+		&i.AnsweredAt,
+	)
+	return i, err
+}
+
 const createAsk = `-- name: CreateAsk :one
 INSERT INTO ask (process_id, kind, text, payload) VALUES (?, ?, ?, ?) RETURNING id, process_id, kind, text, payload, answer, state, delivered, used, created_at, answered_at
 `
@@ -333,36 +368,6 @@ func (q *Queries) ExpireStaleConfirms(ctx context.Context, createdAt string) ([]
 		return nil, err
 	}
 	return items, nil
-}
-
-const findApproval = `-- name: FindApproval :one
-SELECT id, process_id, kind, text, payload, answer, state, delivered, used, created_at, answered_at FROM ask
-WHERE process_id = ? AND kind = 'confirm' AND state = 'answered' AND answer = 'allow' AND used = 0 AND payload = ?
-ORDER BY id LIMIT 1
-`
-
-type FindApprovalParams struct {
-	ProcessID int64
-	Payload   string
-}
-
-func (q *Queries) FindApproval(ctx context.Context, arg FindApprovalParams) (Ask, error) {
-	row := q.db.QueryRowContext(ctx, findApproval, arg.ProcessID, arg.Payload)
-	var i Ask
-	err := row.Scan(
-		&i.ID,
-		&i.ProcessID,
-		&i.Kind,
-		&i.Text,
-		&i.Payload,
-		&i.Answer,
-		&i.State,
-		&i.Delivered,
-		&i.Used,
-		&i.CreatedAt,
-		&i.AnsweredAt,
-	)
-	return i, err
 }
 
 const findDocument = `-- name: FindDocument :one

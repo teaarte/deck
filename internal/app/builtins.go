@@ -7,6 +7,7 @@ import (
 	"errors"
 
 	"deck2/internal/ask"
+	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
 )
@@ -406,8 +407,8 @@ func (a *App) recordUpdate(ctx context.Context, act registry.Actor, in struct {
 	if err := a.inside(act, rec.ProjectID); err != nil {
 		return nil, err
 	}
-	var data map[string]any
-	if err := json.Unmarshal([]byte(in.Data), &data); err != nil {
+	data, err := manifest.DecodeObject([]byte(in.Data))
+	if err != nil {
 		return nil, registry.Invalid("deck: data is not a JSON object: %v", err)
 	}
 	m, err := a.Manifest(ctx, rec.ProjectID)

@@ -151,7 +151,7 @@ func parse(r io.Reader, req provider.Request) (res provider.Result, gotResult bo
 			gotResult = true
 			res.Text = l.Result
 			res.IsError = l.IsError
-			if len(l.StructuredOutput) > 0 && string(l.StructuredOutput) != "null" {
+			if len(l.StructuredOutput) > 0 {
 				res.Structured = l.StructuredOutput
 			}
 		}

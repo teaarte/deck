@@ -2,7 +2,6 @@ package screen
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -47,7 +46,7 @@ func Render(ctx context.Context, st *store.Store, projectID int64, project strin
 			}
 			comp := map[string]any{"id": id, "component": "Table", "title": b.Title, "rows": map[string]any{"path": "/" + id}, "columns": cols}
 			if len(b.Actions) > 0 {
-				comp["rowActions"] = actions(project, b.Actions)
+				comp["rowActions"] = rowActions(project, b.Actions)
 			}
 			components = append(components, comp)
 		case "actions":
@@ -71,6 +70,51 @@ func actions(project string, as []manifest.Action) []map[string]any {
 	return out
 }
 
+// rowActions bind each action's params to a per-row path, filled by resolve with $record values.
+func rowActions(project string, as []manifest.Action) []map[string]any {
+	out := actions(project, as)
+	for j := range out {
+		ctx := out[j]["action"].(map[string]any)["event"].(map[string]any)["context"].(map[string]any)
+		ctx["params"] = map[string]any{"path": fmt.Sprintf("a%d", j)}
+	}
+	return out
+}
+
+func actionParams(params map[string]string, id int64, env map[string]any) map[string]any {
+	out := map[string]any{}
+	for k, v := range params {
+		field, ok := strings.CutPrefix(v, "$record.")
+		switch {
+		case !ok:
+			out[k] = v
+		case field == "id":
+			out[k] = id
+		default:
+			out[k] = env[field]
+		}
+	}
+	return out
+}
+
+func less(a, b any) bool {
+	fa, aok := number(a)
+	fb, bok := number(b)
+	if aok && bok {
+		return fa < fb
+	}
+	return fmt.Sprint(a) < fmt.Sprint(b)
+}
+
+func number(v any) (float64, bool) {
+	switch x := v.(type) {
+	case int64:
+		return float64(x), true
+	case float64:
+		return x, true
+	}
+	return 0, false
+}
+
 func resolve(ctx context.Context, st *store.Store, projectID int64, b manifest.Block) ([]map[string]any, error) {
 	recs, err := st.Q.ListRecords(ctx, db.ListRecordsParams{ProjectID: projectID, Collection: b.Source.Collection})
 	if err != nil {
@@ -82,8 +126,8 @@ func resolve(ctx context.Context, st *store.Store, projectID int64, b manifest.B
 	}
 	rows := make([]row, 0, len(recs))
 	for _, r := range recs {
-		env := map[string]any{}
-		if err := json.Unmarshal([]byte(r.Data), &env); err != nil {
+		env, err := manifest.DecodeObject([]byte(r.Data))
+		if err != nil {
 			continue
 		}
 		env["_id"] = r.ID
@@ -105,16 +149,18 @@ func resolve(ctx context.Context, st *store.Store, projectID int64, b manifest.B
 			}
 			out[fmt.Sprintf("c%d", j)] = v
 		}
+		for j, a := range b.Actions {
+			out[fmt.Sprintf("a%d", j)] = actionParams(a.Params, r.ID, env)
+		}
 		rows = append(rows, row{env: env, out: out})
 	}
 	if s := b.Source.Sort; s != "" {
 		field, desc := strings.TrimPrefix(s, "-"), strings.HasPrefix(s, "-")
 		sort.SliceStable(rows, func(i, j int) bool {
-			less := fmt.Sprint(rows[i].env[field]) < fmt.Sprint(rows[j].env[field])
 			if desc {
-				return !less && fmt.Sprint(rows[i].env[field]) != fmt.Sprint(rows[j].env[field])
+				return less(rows[j].env[field], rows[i].env[field])
 			}
-			return less
+			return less(rows[i].env[field], rows[j].env[field])
 		})
 	}
 	if b.Source.Limit > 0 && len(rows) > b.Source.Limit {

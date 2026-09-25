@@ -35,18 +35,22 @@ type Runner struct {
 	provider provider.Provider
 	runsDir  string
 	mcpBase  string
-	manifest ManifestLoader
+	projects Projects
 
 	ctx    context.Context
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
 }
 
-type ManifestLoader func(ctx context.Context, projectID int64) (*manifest.Manifest, error)
+// Projects gives the runner the current manifest and md prompt of a project.
+type Projects interface {
+	Manifest(ctx context.Context, projectID int64) (*manifest.Manifest, error)
+	Prompt(ctx context.Context, projectID int64) (string, error)
+}
 
-func NewRunner(st *store.Store, gw *gateway.Gateway, bus *events.Bus, p provider.Provider, runsDir, mcpBase string, load ManifestLoader) *Runner {
+func NewRunner(st *store.Store, gw *gateway.Gateway, bus *events.Bus, p provider.Provider, runsDir, mcpBase string, projects Projects) *Runner {
 	ctx, cancel := context.WithCancel(context.Background())
-	return &Runner{st: st, gw: gw, bus: bus, provider: p, runsDir: runsDir, mcpBase: mcpBase, manifest: load, ctx: ctx, cancel: cancel}
+	return &Runner{st: st, gw: gw, bus: bus, provider: p, runsDir: runsDir, mcpBase: mcpBase, projects: projects, ctx: ctx, cancel: cancel}
 }
 
 // Shutdown interrupts running providers and waits; interrupted processes stay running and resume on next start.
@@ -77,7 +81,11 @@ func (r *Runner) Start(ctx context.Context, projectID int64, command string, inp
 		return 0, err
 	}
 	r.bus.Publish("processes")
-	r.spawn(p.ID, projectID, cmd, buildPrompt(proj.Name, m, cmd, string(in)), "")
+	instructions, err := r.projects.Prompt(ctx, projectID)
+	if err != nil {
+		return 0, err
+	}
+	r.spawn(p.ID, projectID, cmd, buildPrompt(proj.Name, instructions, m, cmd, string(in)), "", nil)
 	return p.ID, nil
 }
 
@@ -92,13 +100,23 @@ func (r *Runner) Deliver(ctx context.Context, processID int64) error {
 	if err != nil || n == 0 {
 		return err
 	}
-	for _, a := range pending {
-		_ = r.st.Q.MarkAskDelivered(ctx, a.ID)
+	if err := r.resume(ctx, processID, deliveryMessage(pending), askIDs(pending)); err != nil {
+		r.finish(ctx, processID, StateError, "", false, "resume after answer: "+err.Error())
+		return err
 	}
-	return r.resume(ctx, processID, deliveryMessage(pending))
+	return nil
 }
 
-// ResumeInterrupted continues processes left running by a previous deck instance.
+func askIDs(as []db.Ask) []int64 {
+	ids := make([]int64, 0, len(as))
+	for _, a := range as {
+		ids = append(ids, a.ID)
+	}
+	return ids
+}
+
+// ResumeInterrupted continues processes left running by a previous deck instance, with any answers
+// they had not received yet, and delivers answers that reached parked processes before the restart.
 func (r *Runner) ResumeInterrupted(ctx context.Context) error {
 	ps, err := r.st.Q.ListProcessesByState(ctx, StateRunning)
 	if err != nil {
@@ -109,15 +127,31 @@ func (r *Runner) ResumeInterrupted(ctx context.Context) error {
 			r.finish(ctx, p.ID, StateInterrupted, "", false, "deck restarted before the session started")
 			continue
 		}
-		if err := r.resume(ctx, p.ID, "deck restarted, continue where you stopped."); err != nil {
+		msg := "deck restarted, continue where you stopped."
+		pending, err := r.st.Q.ListUndeliveredAsks(ctx, p.ID)
+		if err != nil {
+			return err
+		}
+		if len(pending) > 0 {
+			msg = "deck restarted. " + deliveryMessage(pending)
+		}
+		if err := r.resume(ctx, p.ID, msg, askIDs(pending)); err != nil {
 			r.finish(ctx, p.ID, StateInterrupted, "", false, err.Error())
 		}
+	}
+	parked, err := r.st.Q.ListProcessesByState(ctx, StateWaitingAnswer)
+	if err != nil {
+		return err
+	}
+	for _, p := range parked {
+		_ = r.Deliver(ctx, p.ID)
 	}
 	return nil
 }
 
 // resume spawns the provider on the existing session; the caller has already set the state to running.
-func (r *Runner) resume(ctx context.Context, processID int64, message string) error {
+// The asks are marked delivered right before the provider starts.
+func (r *Runner) resume(ctx context.Context, processID int64, message string, asks []int64) error {
 	p, err := r.st.Q.GetProcess(ctx, processID)
 	if err != nil {
 		return err
@@ -134,19 +168,19 @@ func (r *Runner) resume(ctx context.Context, processID int64, message string) er
 		return fmt.Errorf("command %q no longer exists", p.Command)
 	}
 	r.bus.Publish("processes")
-	r.spawn(processID, p.ProjectID, cmd, message, p.SessionID)
+	r.spawn(processID, p.ProjectID, cmd, message, p.SessionID, asks)
 	return nil
 }
 
-func (r *Runner) spawn(processID, projectID int64, cmd *manifest.Command, prompt, resume string) {
+func (r *Runner) spawn(processID, projectID int64, cmd *manifest.Command, prompt, resume string, asks []int64) {
 	r.wg.Add(1)
 	go func() {
 		defer r.wg.Done()
-		r.run(processID, projectID, cmd, prompt, resume)
+		r.run(processID, projectID, cmd, prompt, resume, asks)
 	}()
 }
 
-func (r *Runner) run(processID, projectID int64, cmd *manifest.Command, prompt, resume string) {
+func (r *Runner) run(processID, projectID int64, cmd *manifest.Command, prompt, resume string, asks []int64) {
 	ctx := r.ctx
 	bg := context.WithoutCancel(ctx)
 	dir := filepath.Join(r.runsDir, fmt.Sprint(processID))
@@ -168,6 +202,9 @@ func (r *Runner) run(processID, projectID int64, cmd *manifest.Command, prompt, 
 		OnSession: func(id string) {
 			_ = r.st.Q.SetProcessSession(bg, db.SetProcessSessionParams{SessionID: id, ID: processID})
 		},
+	}
+	for _, id := range asks {
+		_ = r.st.Q.MarkAskDelivered(bg, id)
 	}
 	for attempt := 0; ; attempt++ {
 		res, err := r.provider.Run(ctx, req)
@@ -256,7 +293,7 @@ func (r *Runner) load(ctx context.Context, projectID int64) (db.Project, *manife
 	if err != nil {
 		return proj, nil, err
 	}
-	m, err := r.manifest(ctx, projectID)
+	m, err := r.projects.Manifest(ctx, projectID)
 	return proj, m, err
 }
 
@@ -281,9 +318,12 @@ func deliveryMessage(asks []db.Ask) string {
 	return b.String()
 }
 
-func buildPrompt(project string, m *manifest.Manifest, cmd *manifest.Command, input string) string {
+func buildPrompt(project, instructions string, m *manifest.Manifest, cmd *manifest.Command, input string) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "You are running command %q of deck project %q.\n\n", cmd.Name, project)
+	if strings.TrimSpace(instructions) != "" {
+		fmt.Fprintf(&b, "Project instructions:\n%s\n\nCommand instructions:\n", strings.TrimSpace(instructions))
+	}
 	b.WriteString(cmd.Executor.Prompt)
 	fmt.Fprintf(&b, "\n\nInput: %s\n", input)
 	if len(m.Collections) > 0 {

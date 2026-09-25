@@ -43,7 +43,7 @@ func (s *Server) auth(next http.Handler) http.Handler {
 		if got == "" {
 			got = "Bearer " + r.URL.Query().Get("token")
 		}
-		if subtle.ConstantTimeCompare([]byte(got), []byte("Bearer "+s.token)) != 1 {
+		if s.token == "" || subtle.ConstantTimeCompare([]byte(got), []byte("Bearer "+s.token)) != 1 {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}

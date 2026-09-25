@@ -20,7 +20,10 @@ import (
 	"deck2/web"
 )
 
-func short(c *app.Config) { c.QuestionWait = 100 * time.Millisecond; c.ConfirmWait = 100 * time.Millisecond }
+func short(c *app.Config) {
+	c.QuestionWait = 100 * time.Millisecond
+	c.ConfirmWait = 100 * time.Millisecond
+}
 
 func askQuestion(ctx context.Context, c *Call, q string) map[string]any {
 	return c.Approve(ctx, "AskUserQuestion", map[string]any{"questions": []map[string]any{{"question": q}}})
@@ -90,7 +93,9 @@ func TestTwoLateAnswersResumeOnce(t *testing.T) {
 
 func TestProviderErrorMarksProcessError(t *testing.T) {
 	e := newEnv(t, nil)
-	e.Fake.script = func(ctx context.Context, c *Call) provider.Result { return provider.Result{IsError: true, Text: "boom"} }
+	e.Fake.script = func(ctx context.Context, c *Call) provider.Result {
+		return provider.Result{IsError: true, Text: "boom"}
+	}
 	p := e.createProject("ideas", ideasManifest)
 	got := e.waitState(e.run(p, "collect"), "error", "done")
 	if got.State != "error" {
@@ -239,4 +244,3 @@ func TestDuplicateTriggerIsRejected(t *testing.T) {
 }
 
 func itoa(n int64) string { b, _ := json.Marshal(n); return string(b) }
-

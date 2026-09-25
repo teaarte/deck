@@ -1,5 +1,5 @@
 -- name: CreateAsk :one
-INSERT INTO ask (process_id, kind, text, payload) VALUES (?, ?, ?, ?) RETURNING *;
+INSERT INTO ask (process_id, kind, text, payload, expires_at) VALUES (?, ?, ?, ?, ?) RETURNING *;
 
 
 -- name: GetAsk :one
@@ -25,11 +25,11 @@ WHERE id = ? AND state = 'open';
 
 
 -- name: ListOpenAsksOfProcess :many
-SELECT * FROM ask WHERE process_id = ? AND state = 'open' ORDER BY id;
+SELECT * FROM ask WHERE process_id = ? AND state = 'open' AND kind != 'warning' ORDER BY id;
 
 
 -- name: ListUndeliveredAsks :many
-SELECT * FROM ask WHERE process_id = ? AND state IN ('answered', 'expired') AND delivered = 0 ORDER BY id;
+SELECT * FROM ask WHERE process_id = ? AND state IN ('answered', 'expired') AND delivered = 0 AND kind != 'warning' ORDER BY id;
 
 
 -- name: MarkAskDelivered :exec
@@ -41,11 +41,11 @@ UPDATE ask SET state = 'expired' WHERE id = ? AND state = 'open';
 
 
 -- name: CloseOpenAsksOfProcess :exec
-UPDATE ask SET state = 'expired', delivered = 1 WHERE process_id = ? AND state = 'open';
+UPDATE ask SET state = 'expired', delivered = 1 WHERE process_id = ? AND state = 'open' AND kind != 'warning';
 
 
 -- name: ExpireStaleConfirms :many
-UPDATE ask SET state = 'expired' WHERE kind = 'confirm' AND state = 'open' AND created_at < ? RETURNING *;
+UPDATE ask SET state = 'expired' WHERE kind = 'confirm' AND state = 'open' AND expires_at <= CAST(sqlc.arg(now) AS TEXT) RETURNING *;
 
 
 -- name: ConsumeApproval :one

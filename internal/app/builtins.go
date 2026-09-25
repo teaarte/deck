@@ -107,6 +107,30 @@ func (a *App) addBuiltins() {
 	add("process_get", "Process status", "Returns the state and result of a process.", everyone,
 		registry.Params(registry.P("process", "process", "Process id")), registry.Typed(a.processGet))
 
+	add("process_stop", "Stop process", "Stops a process; a running agent is killed and what it did so far stays.", ownerSide,
+		registry.Params(registry.P("process", "process", "Process id")), registry.Typed(a.processStop))
+	add("process_rework", "Send back for rework", "Sends a finished agent process back to the same session with a remark; changed artifacts get new revisions.", ownerSide,
+		registry.Params(registry.P("process", "process", "Process id"), registry.P("remark", "text", "What to change")),
+		registry.Typed(a.processRework))
+	add("process_log", "Process log", "Returns the last events of a process that is still open.", everyone,
+		registry.Params(registry.P("process", "process", "Process id"), registry.Opt("limit", "integer", "At most this many events")),
+		registry.Typed(a.processLog))
+
+	add("run_later", "Run later", "Runs a project command once at the given time; a run missed while deck was down runs after it starts.", everyone,
+		registry.Params(registry.P("command", "string", "Command name, project.command"), registry.P("at", "datetime", "When to run"),
+			registry.Opt("params", "text", "Command input as a JSON object")),
+		registry.Typed(a.runLater))
+	add("run_later_cancel", "Cancel run later", "Cancels a run scheduled with run later.", everyone,
+		registry.Params(registry.P("trigger", "integer", "Trigger id")), registry.Typed(a.runLaterCancel))
+	add("triggers_list", "Schedule", "Lists triggers with their next run, pause and the state of their last run.", everyone,
+		registry.Params(projectOpt), registry.Typed(a.triggersList))
+	add("trigger_pause", "Pause trigger", "Pauses or resumes one trigger; a resumed schedule does not catch up its pause.", ownerSide,
+		registry.Params(registry.P("trigger", "integer", "Trigger id"), registry.P("paused", "boolean", "Pause when true, resume when false")),
+		registry.Typed(a.triggerPause))
+	add("project_pause", "Pause project", "Pauses or resumes every trigger of a project, including triggers added later.", ownerSide,
+		registry.Params(registry.P("project", "project", "Project name"), registry.P("paused", "boolean", "Pause when true, resume when false")),
+		registry.Typed(a.projectPause))
+
 	add("asks_list", "Waiting for you", "Lists open questions and confirmations for the owner.", ownerSide,
 		registry.Params(), registry.Typed(a.asksList))
 	add("health_list", "Health", "Lists the health of providers and other dependencies with the last error.", ownerSide,

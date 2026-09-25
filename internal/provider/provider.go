@@ -18,6 +18,8 @@ type Request struct {
 	SessionID string
 	Resume    bool
 	OnEvent   func(Event)
+	// OnStart gets the id of the process group the provider runs in, so a later deck can kill it.
+	OnStart func(pgid int)
 }
 
 // Event is an event of the process itself; events of the provider's sub-agents are not reported.
@@ -28,7 +30,8 @@ type Event struct {
 }
 
 type Result struct {
-	SessionID  string
+	SessionID string
+	// Structured is the result by the schema; JSON null means there was nothing to do.
 	Structured json.RawMessage
 	Text       string
 	IsError    bool
@@ -46,4 +49,9 @@ type Provider interface {
 	// QuestionTool names the provider tool that asks the owner a blocking question, or is empty.
 	QuestionTool() string
 	Run(ctx context.Context, req Request) (Result, error)
+}
+
+// Reaper kills a process group an earlier deck left running, if it still runs the given session.
+type Reaper interface {
+	Reap(pgid int, session string)
 }

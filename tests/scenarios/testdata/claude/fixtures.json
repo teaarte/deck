@@ -7,5 +7,6 @@
   "ratelimit_rejected.jsonl": {"cli": "2.1.281", "date": "2026-09-25", "kind": "synthetic"},
   "two_results.jsonl": {"cli": "2.1.281", "date": "2026-09-25", "kind": "synthetic", "note": "ok.jsonl with its result repeated"},
   "foreign_session.jsonl": {"cli": "2.1.281", "date": "2026-09-25", "kind": "synthetic", "note": "ok.jsonl with another session id"},
-  "error.jsonl": {"cli": "2.1.281", "date": "2026-09-25", "kind": "synthetic", "note": "ok.jsonl ending in an error result"}
+  "error.jsonl": {"cli": "2.1.281", "date": "2026-09-25", "kind": "synthetic", "note": "ok.jsonl ending in an error result"},
+  "empty_result.jsonl": {"cli": "2.1.281", "date": "2026-09-25", "kind": "real", "note": "--json-schema wrapped as {result: schema | null}; the model had nothing to do"}
 }

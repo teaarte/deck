@@ -37,7 +37,9 @@ type Actor struct {
 	Kind      string
 	Workspace int64
 	ProjectID int64
+	// ProcessID is the calling agent's process, or for a trigger the process whose finish fired it.
 	ProcessID int64
+	TriggerID int64
 }
 
 // Author is the actor as recorded in document revisions.
@@ -180,24 +182,33 @@ func (r *Registry) Lookup(ctx context.Context, workspace int64, name string) (*C
 
 // Invoke checks the caller, validates the input against the command schema and runs the command.
 func (r *Registry) Invoke(ctx context.Context, a Actor, name string, input json.RawMessage) (any, error) {
-	c, err := r.Lookup(ctx, a.Workspace, name)
+	c, input, err := r.Check(ctx, a, name, input)
 	if err != nil {
 		return nil, err
 	}
+	return c.Handler(ctx, a, input)
+}
+
+// Check does everything Invoke does except running the command.
+func (r *Registry) Check(ctx context.Context, a Actor, name string, input json.RawMessage) (*Command, json.RawMessage, error) {
+	c, err := r.Lookup(ctx, a.Workspace, name)
+	if err != nil {
+		return nil, nil, err
+	}
 	if err := r.allowed(a, c); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if len(bytes.TrimSpace(input)) == 0 {
 		input = json.RawMessage(`{}`)
 	}
 	v, err := jsonschema.UnmarshalJSON(bytes.NewReader(input))
 	if err != nil {
-		return nil, Invalid("deck: input of %s is not JSON: %v", name, err)
+		return nil, nil, Invalid("deck: input of %s is not JSON: %v", name, err)
 	}
 	if err := c.schema.Validate(v); err != nil {
-		return nil, Invalid("deck: input of %s does not match its schema: %v", name, err)
+		return nil, nil, Invalid("deck: input of %s does not match its schema: %v", name, err)
 	}
-	return c.Handler(ctx, a, input)
+	return c, input, nil
 }
 
 func (r *Registry) allowed(a Actor, c *Command) error {

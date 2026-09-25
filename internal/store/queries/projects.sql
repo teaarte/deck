@@ -17,3 +17,7 @@ SELECT * FROM project ORDER BY name;
 -- name: ListWorkspaceProjects :many
 SELECT * FROM project WHERE workspace_id = ? ORDER BY name;
 
+
+
+-- name: SetProjectPaused :exec
+UPDATE project SET paused = ? WHERE id = ?;

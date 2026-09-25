@@ -155,7 +155,7 @@ func TestRealClaudeCodePermission(t *testing.T) {
 			time.Sleep(300 * time.Millisecond)
 		}
 		got := e.process(id)
-		b, _ := os.ReadFile(filepath.Join(home, "runs", itoa(id), "marker.txt"))
+		b, _ := os.ReadFile(filepath.Join(home, "runs", itoa(id), "work", "marker.txt"))
 		t.Logf("%s -> state %s, file %q, result %q", tc.answer, got.State, strings.TrimSpace(string(b)), got.Result)
 		if got.State != "done" || strings.TrimSpace(string(b)) != tc.wantFile {
 			t.Fatalf("answer %q: state %s, file %q", tc.answer, got.State, b)

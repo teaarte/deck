@@ -2,6 +2,7 @@ package ask
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"sync"
@@ -17,6 +18,8 @@ const (
 	KindConfirm  = "confirm"
 	// KindLogin asks the owner to log the provider in again and pick one of LoginAnswers.
 	KindLogin = "login"
+	// KindWarning tells the owner about something deck refused to do; no process waits for it.
+	KindWarning = "warning"
 )
 
 const (
@@ -28,37 +31,41 @@ var LoginAnswers = []string{LoginRetry, LoginNewSession}
 
 var ErrNotOpen = errors.New("ask is not open")
 
-// Broker stores owner-facing asks and lets a live caller block until the owner answers.
+// Broker stores owner-facing asks and lets a live caller block until the owner answers. Waits end by the
+// deck clock, checked at least every Poll, so a sleep of the machine does not stretch them.
 type Broker struct {
-	st  *store.Store
-	bus *events.Bus
+	st   *store.Store
+	bus  *events.Bus
+	now  func() time.Time
+	Poll time.Duration
 
 	mu      sync.Mutex
 	waiters map[int64]chan string
 	late    func(ctx context.Context, a db.Ask)
 }
 
-func NewBroker(st *store.Store, bus *events.Bus) *Broker {
-	return &Broker{st: st, bus: bus, waiters: map[int64]chan string{}}
+func NewBroker(st *store.Store, bus *events.Bus, now func() time.Time) *Broker {
+	return &Broker{st: st, bus: bus, now: now, Poll: time.Second, waiters: map[int64]chan string{}}
 }
 
 // OnLateAnswer is called when an answer arrives and nobody is waiting live (the process has already stopped).
 func (b *Broker) OnLateAnswer(f func(ctx context.Context, a db.Ask)) { b.late = f }
 
-func (b *Broker) Create(ctx context.Context, processID int64, kind, text string, payload any) (db.Ask, error) {
+// Create stores an ask; a zero expires means it never expires by itself.
+func (b *Broker) Create(ctx context.Context, processID int64, kind, text string, payload any, expires time.Time) (db.Ask, error) {
 	raw, err := json.Marshal(payload)
 	if err != nil {
 		return db.Ask{}, err
 	}
-	return b.CreateRaw(ctx, processID, kind, text, string(raw))
+	return b.CreateRaw(ctx, processID, kind, text, string(raw), expires)
 }
 
 // CreateRaw stores an ask with a payload that is already JSON, so it can be matched byte for byte later.
-func (b *Broker) CreateRaw(ctx context.Context, processID int64, kind, text, payload string) (db.Ask, error) {
+func (b *Broker) CreateRaw(ctx context.Context, processID int64, kind, text, payload string, expires time.Time) (db.Ask, error) {
 	var a db.Ask
 	err := b.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		var err error
-		a, err = q.CreateAsk(ctx, db.CreateAskParams{ProcessID: processID, Kind: kind, Text: text, Payload: payload})
+		a, err = q.CreateAsk(ctx, db.CreateAskParams{ProcessID: processID, Kind: kind, Text: text, Payload: payload, ExpiresAt: At(expires)})
 		return err
 	})
 	if err != nil {
@@ -71,22 +78,27 @@ func (b *Broker) CreateRaw(ctx context.Context, processID int64, kind, text, pay
 	return a, nil
 }
 
-// Wait blocks until the ask is answered, the timeout passes or ctx ends; ok is false without an answer.
-func (b *Broker) Wait(ctx context.Context, id int64, timeout time.Duration) (answer string, ok bool) {
+// Wait blocks until the ask is answered, the deck clock reaches until or ctx ends; ok is false without an answer.
+func (b *Broker) Wait(ctx context.Context, id int64, until time.Time) (answer string, ok bool) {
 	b.mu.Lock()
 	ch := b.waiters[id]
 	b.mu.Unlock()
 	if ch == nil {
 		return "", false
 	}
-	t := time.NewTimer(timeout)
-	defer t.Stop()
-	select {
-	case a := <-ch:
-		b.drop(id)
-		return a, true
-	case <-t.C:
-	case <-ctx.Done():
+wait:
+	for left := until.Sub(b.now()); left > 0; left = until.Sub(b.now()) {
+		t := time.NewTimer(min(left, b.Poll))
+		select {
+		case a := <-ch:
+			t.Stop()
+			b.drop(id)
+			return a, true
+		case <-t.C:
+		case <-ctx.Done():
+			t.Stop()
+			break wait
+		}
 	}
 	b.drop(id)
 	select {
@@ -95,6 +107,14 @@ func (b *Broker) Wait(ctx context.Context, id int64, timeout time.Duration) (ans
 	default:
 		return "", false
 	}
+}
+
+// At is a stored deadline; the zero time is none.
+func At(t time.Time) sql.NullString {
+	if t.IsZero() {
+		return sql.NullString{}
+	}
+	return sql.NullString{String: store.Time(t), Valid: true}
 }
 
 func (b *Broker) drop(id int64) {

@@ -99,7 +99,32 @@ type Env struct {
 	App   *app.App
 	Fake  *Fake
 	URL   string
+	Clock *Clock
 	names map[int64]string
+}
+
+// Clock is the deck clock of a test: it stands still until the test moves it.
+type Clock struct {
+	mu  sync.Mutex
+	now time.Time
+}
+
+func (c *Clock) Now() time.Time {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.now
+}
+
+func (c *Clock) Add(d time.Duration) time.Time {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.now = c.now.Add(d)
+	return c.now
+}
+
+// withClock runs deck on a test clock that starts at start.
+func withClock(clock *Clock) func(*app.Config) {
+	return func(c *app.Config) { c.Now = clock.Now }
 }
 
 func newEnv(t *testing.T, script Script, cfg ...func(*app.Config)) *Env {
@@ -123,6 +148,7 @@ func newEnvWith(t *testing.T, home string, p provider.Provider, cfg ...func(*app
 	if err != nil {
 		t.Fatal(err)
 	}
+	a.Asks.Poll = 20 * time.Millisecond
 	ts.Config.Handler = api.New(a, token, web.FS()).Handler()
 	ts.Start()
 	t.Cleanup(func() {

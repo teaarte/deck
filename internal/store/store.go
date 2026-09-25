@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"embed"
 	"fmt"
+	"time"
 
 	"github.com/pressly/goose/v3"
 	_ "modernc.org/sqlite"
@@ -20,6 +21,11 @@ type Store struct {
 	DB *sql.DB
 	Q  *db.Queries
 }
+
+// TimeLayout is how deck stores times as text; the text sorts like the times.
+const TimeLayout = "2006-01-02T15:04:05.000Z"
+
+func Time(t time.Time) string { return t.UTC().Format(TimeLayout) }
 
 // DefaultWorkspace is the workspace the owner's token opens; migrations create it.
 const DefaultWorkspace = 1

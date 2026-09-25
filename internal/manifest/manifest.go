@@ -342,6 +342,9 @@ func (c *Command) ValidateResult(v any) error {
 }
 
 // InputSchema is the input schema of the command; an empty object when it declares none.
+// RetryKey is the optional input field of every command: a call with the key of a running process returns it.
+const RetryKey = "retry_key"
+
 func (c *Command) InputSchema() json.RawMessage {
 	if len(c.Input) == 0 {
 		return json.RawMessage(`{"type":"object","properties":{},"additionalProperties":false}`)

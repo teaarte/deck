@@ -20,6 +20,7 @@ type Ask struct {
 	Used       int64
 	CreatedAt  string
 	AnsweredAt sql.NullString
+	ExpiresAt  sql.NullString
 }
 
 type Card struct {
@@ -72,19 +73,28 @@ type Health struct {
 }
 
 type Process struct {
-	ID          int64
-	ProjectID   int64
-	Command     string
-	State       string
-	Provider    string
-	SessionID   string
-	Input       string
-	Result      string
-	NotBySchema int64
-	Error       string
-	StartedAt   string
-	FinishedAt  sql.NullString
-	StartNote   string
+	ID            int64
+	ProjectID     int64
+	Command       string
+	State         string
+	Provider      string
+	SessionID     string
+	Input         string
+	Result        string
+	NotBySchema   int64
+	Error         string
+	StartedAt     string
+	FinishedAt    sql.NullString
+	StartNote     string
+	ParentID      sql.NullInt64
+	Depth         int64
+	TriggerID     sql.NullInt64
+	RetryKey      string
+	Pgid          int64
+	CeilingMs     int64
+	DeadlineMs    sql.NullInt64
+	OutputMs      int64
+	SilentSinceMs sql.NullInt64
 }
 
 type Project struct {
@@ -93,6 +103,7 @@ type Project struct {
 	CreatedAt   string
 	WorkspaceID int64
 	Status      string
+	Paused      int64
 }
 
 type Record struct {
@@ -117,11 +128,16 @@ type ToolCall struct {
 }
 
 type TriggerState struct {
-	ProjectID int64
-	Command   string
-	Cron      string
-	NextRunAt string
-	Params    string
+	ID            int64
+	ProjectID     int64
+	Command       string
+	Kind          string
+	Spec          string
+	Params        string
+	NextRunAt     sql.NullString
+	Paused        int64
+	SkipMissed    int64
+	LastProcessID sql.NullInt64
 }
 
 type Workspace struct {

@@ -1,0 +1,233 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://deck2.local/schemas/manifest.json",
+  "title": "deck project manifest",
+  "description": "Structure of a deck project: data collections, commands and their executors, triggers, tools, rights, board and screens. Behaviour lives in md documents and skills; this file only wires them.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version"],
+  "properties": {
+    "version": {"const": 2, "description": "Manifest format version."},
+    "description": {"type": "string", "description": "One line: what the project does. The first line of the project md prompt is used when this is empty."},
+    "collections": {"type": "array", "items": {"$ref": "#/$defs/collection"}},
+    "commands": {"type": "array", "items": {"$ref": "#/$defs/command"}},
+    "scripts": {"type": "array", "items": {"$ref": "#/$defs/script"}},
+    "triggers": {"type": "array", "items": {"$ref": "#/$defs/trigger"}},
+    "tools": {"$ref": "#/$defs/tools"},
+    "allowed_external": {"type": "array", "items": {"type": "string"}, "uniqueItems": true,
+      "description": "External tools and commands that run without the owner's confirmation. Only the owner widens this list."},
+    "domains": {"$ref": "#/$defs/domains"},
+    "board": {"$ref": "#/$defs/board"},
+    "screens": {"type": "array", "items": {"$ref": "#/$defs/screen"}},
+    "menu": {"type": "array", "items": {"$ref": "#/$defs/name"}, "uniqueItems": true, "description": "Screen names in menu order."},
+    "autonomy": {"enum": ["suggest", "auto"], "default": "suggest",
+      "description": "suggest: reversible actions wait for the owner; auto: they run at once and are reported."},
+    "master_events": {"type": "boolean", "default": false, "description": "Send project events to the master agent."},
+    "reads": {"type": "array", "items": {"$ref": "#/$defs/read"}, "description": "Data of other projects this project may read."}
+  },
+  "$defs": {
+    "name": {"type": "string", "pattern": "^[a-z][a-z0-9_-]{0,39}$"},
+    "expr": {"type": "string", "minLength": 1, "description": "expr-lang expression over record fields."},
+    "class": {"enum": ["internal", "reversible", "external"]},
+    "schema": {"type": "object", "description": "JSON Schema (draft 2020-12)."},
+    "collection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "description", "schema", "key"],
+      "properties": {
+        "name": {"$ref": "#/$defs/name"},
+        "description": {"type": "string", "minLength": 1, "description": "Human description of one record."},
+        "schema": {"$ref": "#/$defs/schema", "description": "JSON Schema of a record."},
+        "key": {"$ref": "#/$defs/expr", "description": "Uniqueness key, e.g. url. A record with an existing key updates it."},
+        "display": {"$ref": "#/$defs/expr", "description": "Display name of a record, e.g. company + ' — ' + role."},
+        "immutable": {"type": "array", "items": {"type": "string"}, "uniqueItems": true,
+          "description": "Fields that cannot change after the record is created."},
+        "retention_days": {"type": "integer", "minimum": 1, "description": "Records older than this are deleted."},
+        "file_retention_days": {"type": "integer", "minimum": 1, "description": "Files of records older than this are deleted."},
+        "migration": {"$ref": "#/$defs/name", "description": "Script that converts records (JSONL in, JSONL out) when this revision changes the schema or key incompatibly."}
+      }
+    },
+    "command": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "title", "description", "class", "executor"],
+      "properties": {
+        "name": {"$ref": "#/$defs/name"},
+        "title": {"type": "string", "minLength": 1, "description": "Human name, a few words."},
+        "description": {"type": "string", "minLength": 1, "description": "What it does, one sentence."},
+        "class": {"$ref": "#/$defs/class"},
+        "input": {"$ref": "#/$defs/schema", "description": "Flat object schema; parameters are string, number, integer, boolean, date, choice, file or a reference."},
+        "result": {"$ref": "#/$defs/schema", "description": "Schema of the result; null always means nothing to do."},
+        "callers": {"type": "array", "items": {"enum": ["owner", "master", "agent", "trigger"]}, "uniqueItems": true, "minItems": 1},
+        "requires": {"type": "array", "uniqueItems": true, "items": {"enum": ["tools", "sandbox", "resume", "live_input", "intercept", "images", "structured_output", "no_cloud"]}},
+        "provider": {"type": "string", "description": "Suggested provider; the owner picks the real one in settings."},
+        "timeout_minutes": {"type": "integer", "minimum": 1, "maximum": 240},
+        "executor": {"$ref": "#/$defs/executor"}
+      }
+    },
+    "executor": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type"],
+          "properties": {
+            "type": {"const": "agent"},
+            "prompt": {"type": "string", "minLength": 1},
+            "prompt_file": {"type": "string", "minLength": 1, "description": "Project document with the md prompt."},
+            "skills": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+          },
+          "oneOf": [{"required": ["prompt"]}, {"required": ["prompt_file"]}]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "script"],
+          "properties": {"type": {"const": "script"}, "script": {"$ref": "#/$defs/name"}}
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "tool"],
+          "properties": {
+            "type": {"const": "tool"},
+            "tool": {"type": "string", "minLength": 1},
+            "params": {"type": "object", "description": "Tool arguments; string values may use $input.<field>."}
+          }
+        }
+      ]
+    },
+    "script": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "file", "runtime"],
+      "properties": {
+        "name": {"$ref": "#/$defs/name"},
+        "file": {"type": "string", "minLength": 1, "description": "Project document holding the script source."},
+        "runtime": {"enum": ["python", "node", "bash", "exec"]},
+        "packages": {"type": "array", "items": {"type": "string"}, "uniqueItems": true, "description": "pip packages for python, npm packages for node."},
+        "programs": {"type": "array", "items": {"type": "string"}, "uniqueItems": true, "description": "Programs that must exist on the machine."},
+        "timeout_minutes": {"type": "integer", "minimum": 1, "maximum": 60}
+      }
+    },
+    "trigger": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["command"],
+      "properties": {
+        "command": {"$ref": "#/$defs/name"},
+        "cron": {"type": "string", "minLength": 1, "description": "Five-field cron in local time."},
+        "lane": {"type": "string", "minLength": 1, "description": "Runs when a card enters this board lane; the command gets the card id as input field card."},
+        "after": {"$ref": "#/$defs/name", "description": "Runs when this command of the project finishes with a non-null result; the command gets the finished process id as input field process."},
+        "params": {"type": "object", "description": "Fixed input fields for the command."},
+        "skip_missed": {"type": "boolean", "default": false}
+      },
+      "oneOf": [{"required": ["cron"]}, {"required": ["lane"]}, {"required": ["after"]}]
+    },
+    "tools": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "http": {"type": "array", "items": {"$ref": "#/$defs/http_tool"}},
+        "mcp": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {"servers": {"type": "object", "propertyNames": {"$ref": "#/$defs/name"}, "additionalProperties": {"$ref": "#/$defs/mcp_server"}}}
+        }
+      }
+    },
+    "http_tool": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "description", "method", "url", "class"],
+      "properties": {
+        "name": {"$ref": "#/$defs/name"},
+        "title": {"type": "string"},
+        "description": {"type": "string", "minLength": 1},
+        "method": {"enum": ["GET", "POST", "PUT", "PATCH", "DELETE"]},
+        "url": {"type": "string", "minLength": 1, "description": "URL template; {field} takes input fields."},
+        "headers": {"type": "object", "additionalProperties": {"type": "string"}, "description": "Values may use $secret.<name> and {field}."},
+        "body": {"description": "Body template: JSON with {field} placeholders, or {\"file\": \"<input field>\"} to send a file."},
+        "input": {"$ref": "#/$defs/schema"},
+        "result": {"$ref": "#/$defs/schema"},
+        "class": {"$ref": "#/$defs/class"},
+        "auth": {"$ref": "#/$defs/auth"},
+        "confirm_ttl_minutes": {"type": "integer", "minimum": 1}
+      }
+    },
+    "auth": {
+      "oneOf": [
+        {"type": "object", "additionalProperties": false, "required": ["type", "secret"],
+          "properties": {"type": {"const": "secret"}, "secret": {"type": "string"}, "header": {"type": "string", "default": "Authorization"},
+            "prefix": {"type": "string", "default": "Bearer "}}},
+        {"type": "object", "additionalProperties": false, "required": ["type", "auth_url", "token_url", "client_id", "client_secret"],
+          "properties": {"type": {"const": "oauth2"}, "auth_url": {"type": "string"}, "token_url": {"type": "string"},
+            "client_id": {"type": "string", "description": "Secret name."}, "client_secret": {"type": "string", "description": "Secret name."},
+            "scopes": {"type": "array", "items": {"type": "string"}}}}
+      ]
+    },
+    "mcp_server": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "command": {"type": "string"},
+        "args": {"type": "array", "items": {"type": "string"}},
+        "env": {"type": "object", "additionalProperties": {"type": "string"}},
+        "url": {"type": "string"},
+        "toolFilter": {"type": "array", "items": {"type": "string"}, "description": "Only these tools are exposed."},
+        "classes": {"type": "object", "additionalProperties": {"$ref": "#/$defs/class"}, "description": "Class per tool; unlisted tools are external."}
+      },
+      "oneOf": [{"required": ["command"]}, {"required": ["url"]}]
+    },
+    "domains": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "read": {"type": "array", "items": {"type": "string"}, "uniqueItems": true, "description": "Hosts to read; also the network allowlist of scripts."},
+        "act": {"type": "array", "items": {"type": "string"}, "uniqueItems": true, "description": "Hosts where the browser may click, type and submit."}
+      }
+    },
+    "board": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["lanes"],
+      "properties": {
+        "lanes": {"type": "array", "minItems": 1, "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name"],
+          "properties": {
+            "name": {"type": "string", "minLength": 1},
+            "role": {"enum": ["inbox", "ready", "running", "review", "done"]}
+          }
+        }}
+      }
+    },
+    "read": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["project"],
+      "properties": {
+        "project": {"type": "string"},
+        "collections": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "documents": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+      }
+    },
+    "screen": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "title", "blocks"],
+      "properties": {
+        "name": {"$ref": "#/$defs/name"},
+        "title": {"type": "string", "minLength": 1},
+        "blocks": {"type": "array", "items": {"$ref": "#/$defs/block"}}
+      }
+    },
+    "block": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {"type": {"type": "string"}},
+      "description": "A block of the screen catalog; the catalog schema checks each type."
+    }
+  }
+}

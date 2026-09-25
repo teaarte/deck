@@ -2,6 +2,7 @@ package trigger
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"time"
 
@@ -33,7 +34,9 @@ func New(st *store.Store, s Starter) *Scheduler {
 func (s *Scheduler) Sync(ctx context.Context, q *db.Queries, projectID int64, m *manifest.Manifest) error {
 	keep := map[[2]string]bool{}
 	for _, t := range m.Triggers {
-		keep[[2]string{t.Command, t.Cron}] = true
+		if t.Cron != "" {
+			keep[[2]string{t.Command, t.Cron}] = true
+		}
 	}
 	old, err := q.ListProjectTriggers(ctx, projectID)
 	if err != nil {
@@ -47,12 +50,16 @@ func (s *Scheduler) Sync(ctx context.Context, q *db.Queries, projectID int64, m 
 		}
 	}
 	for _, t := range m.Triggers {
+		if t.Cron == "" {
+			continue
+		}
 		sched, err := manifest.CronParser.Parse(t.Cron)
 		if err != nil {
 			return err
 		}
 		next := sched.Next(s.Now().In(time.Local)).UTC().Format(timeLayout)
-		if err := q.UpsertTrigger(ctx, db.UpsertTriggerParams{ProjectID: projectID, Command: t.Command, Cron: t.Cron, NextRunAt: next}); err != nil {
+		params, _ := json.Marshal(orEmpty(t.Params))
+		if err := q.UpsertTrigger(ctx, db.UpsertTriggerParams{ProjectID: projectID, Command: t.Command, Cron: t.Cron, NextRunAt: next, Params: string(params)}); err != nil {
 			return err
 		}
 	}
@@ -73,7 +80,9 @@ func (s *Scheduler) Tick(ctx context.Context) {
 			slog.Error("trigger cron", "command", t.Command, "err", err)
 			continue
 		}
-		if _, err := s.start.Start(ctx, t.ProjectID, t.Command, map[string]any{"trigger": "cron"}); err != nil {
+		params := map[string]any{}
+		_ = json.Unmarshal([]byte(t.Params), &params)
+		if _, err := s.start.Start(ctx, t.ProjectID, t.Command, params); err != nil {
 			slog.Error("trigger start", "command", t.Command, "err", err)
 		}
 		next := sched.Next(now.In(time.Local)).UTC().Format(timeLayout)
@@ -81,4 +90,11 @@ func (s *Scheduler) Tick(ctx context.Context) {
 			slog.Error("trigger next", "err", err)
 		}
 	}
+}
+
+func orEmpty(p map[string]any) map[string]any {
+	if p == nil {
+		return map[string]any{}
+	}
+	return p
 }

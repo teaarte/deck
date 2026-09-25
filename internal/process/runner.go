@@ -14,6 +14,7 @@ import (
 	"deck2/internal/gateway"
 	"deck2/internal/manifest"
 	"deck2/internal/provider"
+	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
 )
@@ -46,6 +47,7 @@ type Runner struct {
 type Projects interface {
 	Manifest(ctx context.Context, projectID int64) (*manifest.Manifest, error)
 	Prompt(ctx context.Context, projectID int64) (string, error)
+	Text(ctx context.Context, projectID int64, name string) (string, error)
 }
 
 func NewRunner(st *store.Store, gw *gateway.Gateway, bus *events.Bus, p provider.Provider, runsDir, mcpBase string, projects Projects) *Runner {
@@ -71,6 +73,18 @@ func (r *Runner) Start(ctx context.Context, projectID int64, command string, inp
 	if cmd == nil {
 		return 0, fmt.Errorf("project %q has no command %q", proj.Name, command)
 	}
+	if cmd.Executor.Type != "agent" {
+		return 0, registry.Invalid("deck: %s executors are not available yet", cmd.Executor.Type)
+	}
+	body := cmd.Executor.Prompt
+	if cmd.Executor.PromptFile != "" {
+		if body, err = r.projects.Text(ctx, projectID, cmd.Executor.PromptFile); err != nil {
+			return 0, err
+		}
+		if strings.TrimSpace(body) == "" {
+			return 0, registry.Invalid("deck: prompt file %q of %s is missing or empty", cmd.Executor.PromptFile, command)
+		}
+	}
 	if input == nil {
 		input = map[string]any{}
 	}
@@ -85,7 +99,7 @@ func (r *Runner) Start(ctx context.Context, projectID int64, command string, inp
 	if err != nil {
 		return 0, err
 	}
-	r.spawn(p.ID, projectID, cmd, buildPrompt(proj.Name, instructions, m, cmd, string(in)), "", nil)
+	r.spawn(p.ID, projectID, cmd, buildPrompt(proj.Name, instructions, body, m, cmd, string(in)), "", nil)
 	return p.ID, nil
 }
 
@@ -196,7 +210,7 @@ func (r *Runner) run(processID, projectID int64, cmd *manifest.Command, prompt, 
 	defer r.gw.Unregister(tok)
 
 	req := provider.Request{
-		Cwd: dir, Prompt: prompt, ResultSchema: cmd.ResultSchema,
+		Cwd: dir, Prompt: prompt, ResultSchema: cmd.Result,
 		MCPURL: r.mcpBase + "/mcp/" + tok, AllowedTools: r.gw.AllowedTools(tok), PermissionMCP: gateway.PermissionTool(),
 		ResumeSession: resume,
 		OnSession: func(id string) {
@@ -226,7 +240,7 @@ func (r *Runner) run(processID, projectID int64, cmd *manifest.Command, prompt, 
 		verr := validate(cmd, res.Structured)
 		if verr == nil {
 			result := res.Text
-			if len(cmd.ResultSchema) > 0 {
+			if len(cmd.Result) > 0 {
 				result = string(res.Structured)
 			}
 			r.finish(bg, processID, StateDone, result, false, "")
@@ -264,7 +278,7 @@ func (r *Runner) park(ctx context.Context, processID int64) {
 }
 
 func validate(cmd *manifest.Command, structured json.RawMessage) error {
-	if len(cmd.ResultSchema) == 0 {
+	if len(cmd.Result) == 0 {
 		return nil
 	}
 	if len(structured) == 0 {
@@ -318,13 +332,13 @@ func deliveryMessage(asks []db.Ask) string {
 	return b.String()
 }
 
-func buildPrompt(project, instructions string, m *manifest.Manifest, cmd *manifest.Command, input string) string {
+func buildPrompt(project, instructions, body string, m *manifest.Manifest, cmd *manifest.Command, input string) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "You are running command %q of deck project %q.\n\n", cmd.Name, project)
 	if strings.TrimSpace(instructions) != "" {
 		fmt.Fprintf(&b, "Project instructions:\n%s\n\nCommand instructions:\n", strings.TrimSpace(instructions))
 	}
-	b.WriteString(cmd.Executor.Prompt)
+	b.WriteString(body)
 	fmt.Fprintf(&b, "\n\nInput: %s\n", input)
 	if len(m.Collections) > 0 {
 		b.WriteString("\nCollections of this project (write with the records_upsert tool of the deck MCP server, records as JSONL):\n")

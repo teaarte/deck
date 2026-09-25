@@ -19,6 +19,15 @@ RETURNING *;
 -- name: ListRecords :many
 SELECT * FROM record WHERE project_id = ? AND collection = ? ORDER BY id;
 
+-- name: GetRecordByKey :one
+SELECT * FROM record WHERE project_id = ? AND collection = ? AND key = ?;
+
+-- name: CountRecords :many
+SELECT collection, COUNT(*) AS n FROM record WHERE project_id = ? GROUP BY collection;
+
+-- name: DeleteCollection :execrows
+DELETE FROM record WHERE project_id = ? AND collection = ?;
+
 -- name: GetRecord :one
 SELECT * FROM record WHERE id = ?;
 
@@ -108,8 +117,8 @@ INSERT INTO tool_call (process_id, project_id, tool, class, outcome, params) VAL
 SELECT * FROM tool_call WHERE process_id = ? ORDER BY id;
 
 -- name: UpsertTrigger :exec
-INSERT INTO trigger_state (project_id, command, cron, next_run_at) VALUES (?, ?, ?, ?)
-ON CONFLICT (project_id, command, cron) DO NOTHING;
+INSERT INTO trigger_state (project_id, command, cron, next_run_at, params) VALUES (?, ?, ?, ?, ?)
+ON CONFLICT (project_id, command, cron) DO UPDATE SET params = excluded.params;
 
 -- name: ListProjectTriggers :many
 SELECT * FROM trigger_state WHERE project_id = ?;

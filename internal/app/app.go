@@ -42,7 +42,7 @@ type App struct {
 	Runner    *process.Runner
 	Scheduler *trigger.Scheduler
 
-	manifestMu sync.Mutex
+	manifestMu sync.RWMutex
 }
 
 var projectName = regexp.MustCompile(`^[a-z][a-z0-9-]{0,39}$`)
@@ -118,8 +118,7 @@ func (a *App) projectCommands(ctx context.Context, name string) ([]*registry.Com
 		for _, c := range m.Commands {
 			cmd := &registry.Command{
 				Name: p.Name + "." + c.Name, Title: c.Title, Description: c.Description, Class: c.Class,
-				Input: json.RawMessage(`{"type":"object"}`), Result: c.ResultSchema, ProjectID: p.ID,
-				Callers: []string{registry.Owner, registry.Master, registry.Agent, registry.Trigger},
+				Input: c.InputSchema(), Result: c.Result, ProjectID: p.ID, Callers: c.Callable(),
 				Handler: a.startHandler(p.ID, c.Name),
 			}
 			if err := registry.Prepare(cmd); err != nil {
@@ -152,9 +151,12 @@ func (a *App) CreateProject(ctx context.Context, act registry.Actor, name string
 	if _, err := a.Store.Q.GetProjectByName(ctx, name); err == nil {
 		return db.Project{}, registry.Invalid("deck: project %q already exists", name)
 	}
-	m, err := manifest.Parse(raw)
+	m, raw, err := parseManifest(raw)
 	if err != nil {
-		return db.Project{}, registry.Invalid("deck: %v", err)
+		return db.Project{}, err
+	}
+	if err := a.checkManifest(ctx, 0, name, m); err != nil {
+		return db.Project{}, err
 	}
 	var p db.Project
 	err = a.Store.Tx(ctx, func(q *db.Queries) error {
@@ -180,12 +182,15 @@ func (a *App) CreateProject(ctx context.Context, act registry.Actor, name string
 
 // SaveManifest validates a manifest, stores it as a new revision and resyncs triggers.
 func (a *App) SaveManifest(ctx context.Context, act registry.Actor, p db.Project, raw []byte, reason string) (int64, error) {
-	m, err := manifest.Parse(raw)
+	m, raw, err := parseManifest(raw)
 	if err != nil {
-		return 0, registry.Invalid("deck: %v", err)
+		return 0, err
 	}
 	a.manifestMu.Lock()
 	defer a.manifestMu.Unlock()
+	if err := a.checkManifest(ctx, p.ID, p.Name, m); err != nil {
+		return 0, err
+	}
 	var n int64
 	err = a.Store.Tx(ctx, func(q *db.Queries) error {
 		if _, n, err = a.SaveDocument(ctx, q, DocRef{ProjectID: p.ID, Name: ManifestName}, KindManifest, string(raw), act.Author(), reason); err != nil {
@@ -198,6 +203,30 @@ func (a *App) SaveManifest(ctx context.Context, act registry.Actor, p db.Project
 	}
 	a.Bus.Publish("projects")
 	return n, nil
+}
+
+// withRecords runs a record write under the current manifest; manifest saves wait for it.
+func (a *App) withRecords(ctx context.Context, projectID int64, f func(m *manifest.Manifest) error) error {
+	a.manifestMu.RLock()
+	defer a.manifestMu.RUnlock()
+	m, err := a.Manifest(ctx, projectID)
+	if err != nil {
+		return err
+	}
+	return f(m)
+}
+
+// parseManifest validates a manifest and returns the text to store: upgraded to the current format.
+func parseManifest(raw []byte) (*manifest.Manifest, []byte, error) {
+	m, err := manifest.Parse(raw)
+	if err != nil {
+		return nil, nil, registry.Invalid("deck: %v", err)
+	}
+	up, _, err := manifest.Upgrade(raw)
+	if err != nil {
+		return nil, nil, registry.Invalid("deck: %v", err)
+	}
+	return m, up, nil
 }
 
 func (a *App) Manifest(ctx context.Context, projectID int64) (*manifest.Manifest, error) {
@@ -225,6 +254,18 @@ func (a *App) Reconcile(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+// Text is the current text of a project document by name, of any kind; empty when missing.
+func (a *App) Text(ctx context.Context, projectID int64, name string) (string, error) {
+	d, err := a.Store.Q.FindDocument(ctx, db.FindDocumentParams{WorkspaceID: 1, ProjectID: projectID, Name: name})
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return a.DocumentText(ctx, projectID, d.Kind, name)
 }
 
 // Prompt is the current md prompt of a project; empty when it has none.

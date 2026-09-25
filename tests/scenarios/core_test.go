@@ -13,17 +13,17 @@ import (
 )
 
 const ideasManifest = `{
-  "version": 1,
+  "version": 2,
   "description": "Ideas of the day",
   "collections": [{
-    "name": "ideas", "description": "Short ideas", "key": "title", "title": "title",
+    "name": "ideas", "description": "Short ideas", "key": "title", "display": "title",
     "schema": {"type": "object", "properties": {"title": {"type": "string"}, "score": {"type": "integer"}, "topic": {"type": "string"}},
                "required": ["title", "score"]}
   }],
   "commands": [{
     "name": "collect", "title": "Collect ideas", "description": "Writes ideas", "class": "internal",
     "executor": {"type": "agent", "prompt": "Write three ideas into the ideas collection."},
-    "result_schema": {"type": "object", "properties": {"written": {"type": "integer"}}, "required": ["written"]}
+    "result": {"type": "object", "properties": {"written": {"type": "integer"}}, "required": ["written"]}
   }],
   "triggers": [{"command": "collect", "cron": "0 9 * * *"}],
   "screens": [{

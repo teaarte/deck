@@ -66,6 +66,9 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	if err := a.UpgradeManifests(ctx); err != nil {
+		slog.Error("upgrade manifests", "err", err)
+	}
 	if err := a.Reconcile(ctx); err != nil {
 		slog.Error("reconcile triggers", "err", err)
 	}

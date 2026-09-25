@@ -80,8 +80,8 @@ func TestEmptyTokenDoesNotOpenTheAPI(t *testing.T) {
 }
 
 const numbersManifest = `{
-  "version": 1,
-  "collections": [{"name": "items", "description": "Items", "key": "id", "title": "name",
+  "version": 2,
+  "collections": [{"name": "items", "description": "Items", "key": "id", "display": "name",
     "schema": {"type": "object", "properties": {"id": {"type": "integer"}, "name": {"type": "string"}, "score": {"type": "number"}}, "required": ["id"]}}],
   "commands": [{"name": "pick", "title": "Pick", "description": "Picks an item", "class": "internal",
     "executor": {"type": "agent", "prompt": "Pick."}}],

@@ -18,17 +18,17 @@ import (
 )
 
 const realManifest = `{
-  "version": 1,
+  "version": 2,
   "description": "Ideas of the day",
   "collections": [{
-    "name": "ideas", "description": "Short ideas", "key": "title", "title": "title",
+    "name": "ideas", "description": "Short ideas", "key": "title", "display": "title",
     "schema": {"type": "object", "properties": {"title": {"type": "string"}, "score": {"type": "integer"}, "topic": {"type": "string"}},
                "required": ["title", "score", "topic"]}
   }],
   "commands": [{
     "name": "collect", "title": "Collect ideas", "description": "Writes ideas", "class": "internal",
     "executor": {"type": "agent", "prompt": "First ask the owner with the AskUserQuestion tool which topic to use, with exactly two options: go and rust. Then write two short project ideas about the chosen topic into the ideas collection using the records_upsert tool (score 1-10, topic = the chosen topic). Do not use any other tools. Finish with the number of records written."},
-    "result_schema": {"type": "object", "properties": {"written": {"type": "integer"}}, "required": ["written"]}
+    "result": {"type": "object", "properties": {"written": {"type": "integer"}}, "required": ["written"]}
   }],
   "triggers": [],
   "screens": [{"name": "main", "title": "Ideas", "blocks": [{"type": "table", "title": "Ideas",
@@ -98,7 +98,7 @@ func TestRealClaudeCodeQuestionResume(t *testing.T) {
 }
 
 const bashManifest = `{
-  "version": 1,
+  "version": 2,
   "description": "Permission check",
   "collections": [],
   "commands": [{

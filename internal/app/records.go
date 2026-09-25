@@ -56,6 +56,14 @@ func (a *App) UpsertRecords(ctx context.Context, projectID int64, m *manifest.Ma
 			out.Errors = append(out.Errors, fmt.Sprintf("records[%d]: %v", i, err))
 			continue
 		}
+		if prev, err := a.Store.Q.GetRecordByKey(ctx, db.GetRecordByKeyParams{ProjectID: projectID, Collection: collection, Key: key}); err == nil {
+			if old, err := manifest.DecodeObject([]byte(prev.Data)); err == nil {
+				if err := c.CheckImmutable(old, r); err != nil {
+					out.Errors = append(out.Errors, fmt.Sprintf("records[%d]: %v", i, err))
+					continue
+				}
+			}
+		}
 		data, _ := json.Marshal(r)
 		if _, err := a.Store.Q.UpsertRecord(ctx, db.UpsertRecordParams{ProjectID: projectID, Collection: collection, Key: key, Data: string(data)}); err != nil {
 			return out, err
@@ -80,6 +88,11 @@ func (a *App) UpdateRecord(ctx context.Context, rec db.Record, m *manifest.Manif
 	}
 	if key != rec.Key {
 		return registry.Invalid("deck: the change would move the record key from %q to %q; key fields cannot change", rec.Key, key)
+	}
+	if old, err := manifest.DecodeObject([]byte(rec.Data)); err == nil {
+		if err := c.CheckImmutable(old, data); err != nil {
+			return registry.Invalid("deck: %v", err)
+		}
 	}
 	b, _ := json.Marshal(data)
 	if err := a.Store.Q.UpdateRecordData(ctx, db.UpdateRecordDataParams{Data: string(b), ID: rec.ID}); err != nil {

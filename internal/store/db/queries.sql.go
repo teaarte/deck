@@ -122,6 +122,38 @@ func (q *Queries) ConsumeApproval(ctx context.Context, arg ConsumeApprovalParams
 	return i, err
 }
 
+const countRecords = `-- name: CountRecords :many
+SELECT collection, COUNT(*) AS n FROM record WHERE project_id = ? GROUP BY collection
+`
+
+type CountRecordsRow struct {
+	Collection string
+	N          int64
+}
+
+func (q *Queries) CountRecords(ctx context.Context, projectID int64) ([]CountRecordsRow, error) {
+	rows, err := q.db.QueryContext(ctx, countRecords, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CountRecordsRow
+	for rows.Next() {
+		var i CountRecordsRow
+		if err := rows.Scan(&i.Collection, &i.N); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const createAsk = `-- name: CreateAsk :one
 INSERT INTO ask (process_id, kind, text, payload) VALUES (?, ?, ?, ?) RETURNING id, process_id, kind, text, payload, answer, state, delivered, used, created_at, answered_at
 `
@@ -272,6 +304,23 @@ func (q *Queries) CurrentText(ctx context.Context, arg CurrentTextParams) (strin
 	return text, err
 }
 
+const deleteCollection = `-- name: DeleteCollection :execrows
+DELETE FROM record WHERE project_id = ? AND collection = ?
+`
+
+type DeleteCollectionParams struct {
+	ProjectID  int64
+	Collection string
+}
+
+func (q *Queries) DeleteCollection(ctx context.Context, arg DeleteCollectionParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteCollection, arg.ProjectID, arg.Collection)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const deleteTrigger = `-- name: DeleteTrigger :exec
 DELETE FROM trigger_state WHERE project_id = ? AND command = ? AND cron = ?
 `
@@ -288,7 +337,7 @@ func (q *Queries) DeleteTrigger(ctx context.Context, arg DeleteTriggerParams) er
 }
 
 const dueTriggers = `-- name: DueTriggers :many
-SELECT project_id, command, cron, next_run_at FROM trigger_state WHERE next_run_at <= ? ORDER BY next_run_at
+SELECT project_id, command, cron, next_run_at, params FROM trigger_state WHERE next_run_at <= ? ORDER BY next_run_at
 `
 
 func (q *Queries) DueTriggers(ctx context.Context, nextRunAt string) ([]TriggerState, error) {
@@ -305,6 +354,7 @@ func (q *Queries) DueTriggers(ctx context.Context, nextRunAt string) ([]TriggerS
 			&i.Command,
 			&i.Cron,
 			&i.NextRunAt,
+			&i.Params,
 		); err != nil {
 			return nil, err
 		}
@@ -539,6 +589,31 @@ SELECT id, project_id, collection, "key", data, created_at, updated_at FROM reco
 
 func (q *Queries) GetRecord(ctx context.Context, id int64) (Record, error) {
 	row := q.db.QueryRowContext(ctx, getRecord, id)
+	var i Record
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.Collection,
+		&i.Key,
+		&i.Data,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getRecordByKey = `-- name: GetRecordByKey :one
+SELECT id, project_id, collection, "key", data, created_at, updated_at FROM record WHERE project_id = ? AND collection = ? AND key = ?
+`
+
+type GetRecordByKeyParams struct {
+	ProjectID  int64
+	Collection string
+	Key        string
+}
+
+func (q *Queries) GetRecordByKey(ctx context.Context, arg GetRecordByKeyParams) (Record, error) {
+	row := q.db.QueryRowContext(ctx, getRecordByKey, arg.ProjectID, arg.Collection, arg.Key)
 	var i Record
 	err := row.Scan(
 		&i.ID,
@@ -829,7 +904,7 @@ func (q *Queries) ListProcessesFiltered(ctx context.Context, arg ListProcessesFi
 }
 
 const listProjectTriggers = `-- name: ListProjectTriggers :many
-SELECT project_id, command, cron, next_run_at FROM trigger_state WHERE project_id = ?
+SELECT project_id, command, cron, next_run_at, params FROM trigger_state WHERE project_id = ?
 `
 
 func (q *Queries) ListProjectTriggers(ctx context.Context, projectID int64) ([]TriggerState, error) {
@@ -846,6 +921,7 @@ func (q *Queries) ListProjectTriggers(ctx context.Context, projectID int64) ([]T
 			&i.Command,
 			&i.Cron,
 			&i.NextRunAt,
+			&i.Params,
 		); err != nil {
 			return nil, err
 		}
@@ -1217,8 +1293,8 @@ func (q *Queries) UpsertRecord(ctx context.Context, arg UpsertRecordParams) (Rec
 }
 
 const upsertTrigger = `-- name: UpsertTrigger :exec
-INSERT INTO trigger_state (project_id, command, cron, next_run_at) VALUES (?, ?, ?, ?)
-ON CONFLICT (project_id, command, cron) DO NOTHING
+INSERT INTO trigger_state (project_id, command, cron, next_run_at, params) VALUES (?, ?, ?, ?, ?)
+ON CONFLICT (project_id, command, cron) DO UPDATE SET params = excluded.params
 `
 
 type UpsertTriggerParams struct {
@@ -1226,6 +1302,7 @@ type UpsertTriggerParams struct {
 	Command   string
 	Cron      string
 	NextRunAt string
+	Params    string
 }
 
 func (q *Queries) UpsertTrigger(ctx context.Context, arg UpsertTriggerParams) error {
@@ -1234,6 +1311,7 @@ func (q *Queries) UpsertTrigger(ctx context.Context, arg UpsertTriggerParams) er
 		arg.Command,
 		arg.Cron,
 		arg.NextRunAt,
+		arg.Params,
 	)
 	return err
 }

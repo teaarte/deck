@@ -3,62 +3,155 @@ package manifest
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
+	"reflect"
+	"slices"
 	"strconv"
-	"strings"
 
 	"github.com/expr-lang/expr"
 	"github.com/expr-lang/expr/vm"
 	"github.com/robfig/cron/v3"
 	"github.com/santhosh-tekuri/jsonschema/v6"
+
+	"deck2/schemas"
 )
 
-const FormatVersion = 1
+const FormatVersion = 2
 
 type Manifest struct {
-	Version     int          `json:"version"`
-	Description string       `json:"description"`
-	Collections []Collection `json:"collections"`
-	Commands    []Command    `json:"commands"`
-	Triggers    []Trigger    `json:"triggers"`
-	Screens     []Screen     `json:"screens"`
+	Version         int          `json:"version"`
+	Description     string       `json:"description,omitempty"`
+	Collections     []Collection `json:"collections,omitempty"`
+	Commands        []Command    `json:"commands,omitempty"`
+	Scripts         []Script     `json:"scripts,omitempty"`
+	Triggers        []Trigger    `json:"triggers,omitempty"`
+	Tools           Tools        `json:"tools,omitzero"`
+	AllowedExternal []string     `json:"allowed_external,omitempty"`
+	Domains         Domains      `json:"domains,omitzero"`
+	Board           *Board       `json:"board,omitempty"`
+	Screens         []Screen     `json:"screens,omitempty"`
+	Menu            []string     `json:"menu,omitempty"`
+	Autonomy        string       `json:"autonomy,omitempty"`
+	MasterEvents    bool         `json:"master_events,omitempty"`
+	Reads           []Read       `json:"reads,omitempty"`
 
 	collections map[string]*Collection
 	commands    map[string]*Command
+	scripts     map[string]*Script
 }
 
 type Collection struct {
-	Name        string          `json:"name"`
-	Description string          `json:"description"`
-	Key         string          `json:"key"`
-	Title       string          `json:"title"`
-	Schema      json.RawMessage `json:"schema"`
+	Name              string          `json:"name"`
+	Description       string          `json:"description"`
+	Schema            json.RawMessage `json:"schema"`
+	Key               string          `json:"key"`
+	Display           string          `json:"display,omitempty"`
+	Immutable         []string        `json:"immutable,omitempty"`
+	RetentionDays     int             `json:"retention_days,omitempty"`
+	FileRetentionDays int             `json:"file_retention_days,omitempty"`
+	Migration         string          `json:"migration,omitempty"`
 
-	keyProg   *vm.Program
-	titleProg *vm.Program
-	schema    *jsonschema.Schema
+	fields      []string
+	keyFields   []string
+	keyProg     *vm.Program
+	displayProg *vm.Program
+	schema      *jsonschema.Schema
 }
 
 type Command struct {
-	Name         string          `json:"name"`
-	Title        string          `json:"title"`
-	Description  string          `json:"description"`
-	Class        string          `json:"class"`
-	Executor     Executor        `json:"executor"`
-	ResultSchema json.RawMessage `json:"result_schema"`
+	Name           string          `json:"name"`
+	Title          string          `json:"title"`
+	Description    string          `json:"description"`
+	Class          string          `json:"class"`
+	Input          json.RawMessage `json:"input,omitempty"`
+	Result         json.RawMessage `json:"result,omitempty"`
+	Callers        []string        `json:"callers,omitempty"`
+	Requires       []string        `json:"requires,omitempty"`
+	Provider       string          `json:"provider,omitempty"`
+	TimeoutMinutes int             `json:"timeout_minutes,omitempty"`
+	Executor       Executor        `json:"executor"`
 
-	resultSchema *jsonschema.Schema
+	input  *jsonschema.Schema
+	result *jsonschema.Schema
 }
 
 type Executor struct {
-	Type   string `json:"type"`
-	Prompt string `json:"prompt"`
+	Type       string         `json:"type"`
+	Prompt     string         `json:"prompt,omitempty"`
+	PromptFile string         `json:"prompt_file,omitempty"`
+	Skills     []string       `json:"skills,omitempty"`
+	Script     string         `json:"script,omitempty"`
+	Tool       string         `json:"tool,omitempty"`
+	Params     map[string]any `json:"params,omitempty"`
+}
+
+type Script struct {
+	Name           string   `json:"name"`
+	File           string   `json:"file"`
+	Runtime        string   `json:"runtime"`
+	Packages       []string `json:"packages,omitempty"`
+	Programs       []string `json:"programs,omitempty"`
+	TimeoutMinutes int      `json:"timeout_minutes,omitempty"`
 }
 
 type Trigger struct {
-	Command string `json:"command"`
-	Cron    string `json:"cron"`
+	Command    string         `json:"command"`
+	Cron       string         `json:"cron,omitempty"`
+	Lane       string         `json:"lane,omitempty"`
+	After      string         `json:"after,omitempty"`
+	Params     map[string]any `json:"params,omitempty"`
+	SkipMissed bool           `json:"skip_missed,omitempty"`
+}
+
+type Tools struct {
+	HTTP []HTTPTool `json:"http,omitempty"`
+	MCP  struct {
+		Servers map[string]MCPServer `json:"servers,omitempty"`
+	} `json:"mcp,omitzero"`
+}
+
+type HTTPTool struct {
+	Name              string            `json:"name"`
+	Title             string            `json:"title,omitempty"`
+	Description       string            `json:"description"`
+	Method            string            `json:"method"`
+	URL               string            `json:"url"`
+	Headers           map[string]string `json:"headers,omitempty"`
+	Body              json.RawMessage   `json:"body,omitempty"`
+	Input             json.RawMessage   `json:"input,omitempty"`
+	Result            json.RawMessage   `json:"result,omitempty"`
+	Class             string            `json:"class"`
+	Auth              json.RawMessage   `json:"auth,omitempty"`
+	ConfirmTTLMinutes int               `json:"confirm_ttl_minutes,omitempty"`
+}
+
+type MCPServer struct {
+	Command    string            `json:"command,omitempty"`
+	Args       []string          `json:"args,omitempty"`
+	Env        map[string]string `json:"env,omitempty"`
+	URL        string            `json:"url,omitempty"`
+	ToolFilter []string          `json:"toolFilter,omitempty"`
+	Classes    map[string]string `json:"classes,omitempty"`
+}
+
+type Domains struct {
+	Read []string `json:"read,omitempty"`
+	Act  []string `json:"act,omitempty"`
+}
+
+type Board struct {
+	Lanes []Lane `json:"lanes"`
+}
+
+type Lane struct {
+	Name string `json:"name"`
+	Role string `json:"role,omitempty"`
+}
+
+type Read struct {
+	Project     string   `json:"project"`
+	Collections []string `json:"collections,omitempty"`
+	Documents   []string `json:"documents,omitempty"`
 }
 
 type Screen struct {
@@ -69,7 +162,7 @@ type Screen struct {
 
 type Block struct {
 	Type    string   `json:"type"`
-	Title   string   `json:"title"`
+	Title   string   `json:"title,omitempty"`
 	Source  *Source  `json:"source,omitempty"`
 	Columns []Column `json:"columns,omitempty"`
 	Actions []Action `json:"actions,omitempty"`
@@ -95,14 +188,29 @@ type Action struct {
 
 var CronParser = cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor)
 
-var classes = map[string]bool{"internal": true, "reversible": true, "external": true}
+var formatSchema = func() *jsonschema.Schema {
+	s, err := compileSchema("deck-manifest", schemas.Manifest)
+	if err != nil {
+		panic(err)
+	}
+	return s
+}()
 
-// Parse decodes and validates a manifest: schema shape, references, expressions, JSON schemas, cron.
+// Parse upgrades an older format, checks the manifest schema, then references, expressions and schemas.
 func Parse(raw []byte) (*Manifest, error) {
-	dec := json.NewDecoder(bytes.NewReader(raw))
-	dec.DisallowUnknownFields()
+	up, _, err := Upgrade(raw)
+	if err != nil {
+		return nil, err
+	}
+	doc, err := jsonschema.UnmarshalJSON(bytes.NewReader(up))
+	if err != nil {
+		return nil, fmt.Errorf("manifest: %w", err)
+	}
+	if err := formatSchema.Validate(doc); err != nil {
+		return nil, fmt.Errorf("manifest does not match the format: %w", err)
+	}
 	var m Manifest
-	if err := dec.Decode(&m); err != nil {
+	if err := json.Unmarshal(up, &m); err != nil {
 		return nil, fmt.Errorf("manifest: %w", err)
 	}
 	if err := m.compile(); err != nil {
@@ -111,113 +219,9 @@ func Parse(raw []byte) (*Manifest, error) {
 	return &m, nil
 }
 
-func (m *Manifest) compile() error {
-	var errs []error
-	fail := func(format string, a ...any) { errs = append(errs, fmt.Errorf(format, a...)) }
-
-	if m.Version != FormatVersion {
-		fail("version: want %d, got %d", FormatVersion, m.Version)
-	}
-	m.collections = map[string]*Collection{}
-	for i := range m.Collections {
-		c := &m.Collections[i]
-		if c.Name == "" {
-			fail("collections[%d]: name is required", i)
-			continue
-		}
-		if m.collections[c.Name] != nil {
-			fail("collection %q: duplicate", c.Name)
-		}
-		m.collections[c.Name] = c
-		var err error
-		if c.keyProg, err = compileExpr(c.Key); err != nil {
-			fail("collection %q key: %v", c.Name, err)
-		}
-		if c.Title != "" {
-			if c.titleProg, err = compileExpr(c.Title); err != nil {
-				fail("collection %q title: %v", c.Name, err)
-			}
-		}
-		if c.schema, err = compileSchema("collection-"+c.Name, c.Schema); err != nil {
-			fail("collection %q schema: %v", c.Name, err)
-		}
-	}
-	m.commands = map[string]*Command{}
-	for i := range m.Commands {
-		c := &m.Commands[i]
-		if c.Name == "" || strings.Contains(c.Name, ".") {
-			fail("commands[%d]: name is required and must not contain '.'", i)
-			continue
-		}
-		if m.commands[c.Name] != nil {
-			fail("command %q: duplicate", c.Name)
-		}
-		m.commands[c.Name] = c
-		if strings.TrimSpace(c.Title) == "" || strings.TrimSpace(c.Description) == "" {
-			fail("command %q: title and description are required", c.Name)
-		}
-		if !classes[c.Class] {
-			fail("command %q: class must be internal, reversible or external", c.Name)
-		}
-		if c.Executor.Type != "agent" {
-			fail("command %q: executor type %q is not supported", c.Name, c.Executor.Type)
-		}
-		if strings.TrimSpace(c.Executor.Prompt) == "" {
-			fail("command %q: executor prompt is required", c.Name)
-		}
-		if len(c.ResultSchema) > 0 {
-			var err error
-			if c.resultSchema, err = compileSchema("result-"+c.Name, c.ResultSchema); err != nil {
-				fail("command %q result_schema: %v", c.Name, err)
-			}
-		}
-	}
-	seenTriggers := map[Trigger]bool{}
-	for i, t := range m.Triggers {
-		if seenTriggers[t] {
-			fail("triggers[%d]: duplicate trigger for %q", i, t.Command)
-		}
-		seenTriggers[t] = true
-		if m.commands[t.Command] == nil {
-			fail("triggers[%d]: unknown command %q", i, t.Command)
-		}
-		if _, err := CronParser.Parse(t.Cron); err != nil {
-			fail("triggers[%d]: cron %q: %v", i, t.Cron, err)
-		}
-	}
-	for _, s := range m.Screens {
-		for j, b := range s.Blocks {
-			where := fmt.Sprintf("screen %q block %d", s.Name, j)
-			switch b.Type {
-			case "table":
-				if b.Source == nil || m.collections[b.Source.Collection] == nil {
-					fail("%s: unknown collection", where)
-				} else if b.Source.Where != "" {
-					if _, err := compileExpr(b.Source.Where); err != nil {
-						fail("%s where: %v", where, err)
-					}
-				}
-				for _, c := range b.Columns {
-					if _, err := compileExpr(c.Bind); err != nil {
-						fail("%s column %q: %v", where, c.Label, err)
-					}
-				}
-			case "actions":
-			default:
-				fail("%s: unknown block type %q", where, b.Type)
-			}
-			for _, a := range b.Actions {
-				if m.commands[a.Command] == nil {
-					fail("%s action %q: unknown command %q", where, a.Label, a.Command)
-				}
-			}
-		}
-	}
-	return errors.Join(errs...)
-}
-
 func (m *Manifest) Collection(name string) *Collection { return m.collections[name] }
 func (m *Manifest) Command(name string) *Command       { return m.commands[name] }
+func (m *Manifest) Script(name string) *Script         { return m.scripts[name] }
 
 func (m *Manifest) Screen(name string) *Screen {
 	for i := range m.Screens {
@@ -228,11 +232,24 @@ func (m *Manifest) Screen(name string) *Screen {
 	return nil
 }
 
-// Key computes the uniqueness key of a record after validating it against the collection schema.
-func (c *Collection) RecordKey(data map[string]any) (string, error) {
+// Validate checks a record against the collection schema.
+func (c *Collection) Validate(data map[string]any) error {
 	if err := c.schema.Validate(normalize(data)); err != nil {
-		return "", fmt.Errorf("record does not match schema of %q: %w", c.Name, err)
+		return fmt.Errorf("record does not match schema of %q: %w", c.Name, err)
 	}
+	return nil
+}
+
+// RecordKey computes the uniqueness key of a record after validating it against the collection schema.
+func (c *Collection) RecordKey(data map[string]any) (string, error) {
+	if err := c.Validate(data); err != nil {
+		return "", err
+	}
+	return c.KeyOf(data)
+}
+
+// KeyOf computes the key without schema validation.
+func (c *Collection) KeyOf(data map[string]any) (string, error) {
 	out, err := expr.Run(c.keyProg, data)
 	if err != nil {
 		return "", fmt.Errorf("key of %q: %w", c.Name, err)
@@ -256,100 +273,45 @@ func (c *Collection) RecordKey(data map[string]any) (string, error) {
 
 // RecordTitle is the display name of a record; empty when the collection declares none.
 func (c *Collection) RecordTitle(data map[string]any) string {
-	if c.titleProg == nil {
+	if c.displayProg == nil {
 		return ""
 	}
-	out, err := expr.Run(c.titleProg, data)
+	out, err := expr.Run(c.displayProg, data)
 	if err != nil || out == nil {
 		return ""
 	}
 	return fmt.Sprint(out)
 }
 
+// CheckImmutable refuses changes of immutable and key fields between the stored and the new record.
+func (c *Collection) CheckImmutable(old, next map[string]any) error {
+	for _, f := range append(slices.Clone(c.Immutable), c.keyFields...) {
+		if !reflect.DeepEqual(normalize(old[f]), normalize(next[f])) {
+			return fmt.Errorf("field %q of %q cannot change after the record is created", f, c.Name)
+		}
+	}
+	return nil
+}
+
 func (c *Command) ValidateResult(v any) error {
-	if c.resultSchema == nil {
+	if c.result == nil {
 		return nil
 	}
-	return c.resultSchema.Validate(normalize(v))
+	return c.result.Validate(normalize(v))
 }
 
-func compileExpr(src string) (*vm.Program, error) {
-	if strings.TrimSpace(src) == "" {
-		return nil, errors.New("expression is empty")
+// InputSchema is the input schema of the command; an empty object when it declares none.
+func (c *Command) InputSchema() json.RawMessage {
+	if len(c.Input) == 0 {
+		return json.RawMessage(`{"type":"object","properties":{},"additionalProperties":false}`)
 	}
-	return expr.Compile(src, expr.AllowUndefinedVariables())
+	return c.Input
 }
 
-func Eval(src string, env map[string]any) (any, error) {
-	p, err := compileExpr(src)
-	if err != nil {
-		return nil, err
+// Callable reports who may call the command; everyone when it declares nothing.
+func (c *Command) Callable() []string {
+	if len(c.Callers) == 0 {
+		return []string{"owner", "master", "agent", "trigger"}
 	}
-	return expr.Run(p, env)
-}
-
-func compileSchema(name string, raw json.RawMessage) (*jsonschema.Schema, error) {
-	if len(raw) == 0 {
-		return nil, errors.New("schema is required")
-	}
-	doc, err := jsonschema.UnmarshalJSON(bytes.NewReader(raw))
-	if err != nil {
-		return nil, err
-	}
-	c := jsonschema.NewCompiler()
-	url := "mem://" + name + ".json"
-	if err := c.AddResource(url, doc); err != nil {
-		return nil, err
-	}
-	return c.Compile(url)
-}
-
-// DecodeObject parses one JSON object, keeping integers exact as int64.
-func DecodeObject(b []byte) (map[string]any, error) {
-	dec := json.NewDecoder(bytes.NewReader(b))
-	dec.UseNumber()
-	var m map[string]any
-	if err := dec.Decode(&m); err != nil {
-		return nil, err
-	}
-	if m == nil {
-		return nil, errors.New("not a JSON object")
-	}
-	if dec.More() {
-		return nil, errors.New("extra data after the JSON object")
-	}
-	return exactNumbers(m).(map[string]any), nil
-}
-
-func exactNumbers(v any) any {
-	switch x := v.(type) {
-	case json.Number:
-		if i, err := x.Int64(); err == nil {
-			return i
-		}
-		f, _ := x.Float64()
-		return f
-	case map[string]any:
-		for k, e := range x {
-			x[k] = exactNumbers(e)
-		}
-	case []any:
-		for i, e := range x {
-			x[i] = exactNumbers(e)
-		}
-	}
-	return v
-}
-
-// normalize round-trips a value through JSON so numbers and maps have the types the validator expects.
-func normalize(v any) any {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return v
-	}
-	out, err := jsonschema.UnmarshalJSON(bytes.NewReader(b))
-	if err != nil {
-		return v
-	}
-	return out
+	return c.Callers
 }

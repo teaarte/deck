@@ -93,6 +93,7 @@ type TriggerState struct {
 	Command   string
 	Cron      string
 	NextRunAt string
+	Params    string
 }
 
 type Workspace struct {

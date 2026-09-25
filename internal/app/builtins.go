@@ -10,6 +10,7 @@ import (
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
+	"deck2/schemas"
 )
 
 var (
@@ -34,6 +35,10 @@ func (a *App) addBuiltins() {
 		registry.Typed(a.projectCreate))
 	add("manifest_get", "Get manifest", "Returns the current manifest of a project.", everyone,
 		registry.Params(projectOpt), registry.Typed(a.manifestGet))
+	add("manifest_format", "Manifest format", "Returns the JSON Schema of project manifests.", everyone,
+		registry.Params(), registry.Typed(func(context.Context, registry.Actor, struct{}) (any, error) {
+			return json.RawMessage(schemas.Manifest), nil
+		}))
 	add("manifest_save", "Save manifest", "Validates a manifest and stores it as a new revision.", ownerSide,
 		registry.Params(registry.P("project", "project", "Project name"), registry.P("manifest", "text", "Manifest JSON"),
 			registry.Opt("reason", "string", "Why it changed")),
@@ -69,6 +74,12 @@ func (a *App) addBuiltins() {
 	add("record_update", "Edit record", "Replaces the data of one record; key fields cannot change.", everyone,
 		registry.Params(registry.P("record", "record", "Record id"), registry.P("data", "text", "New record JSON")),
 		registry.Typed(a.recordUpdate))
+
+	r.Add(&registry.Command{Name: registry.Builtin + ".collection_delete", Title: "Delete collection records",
+		Description: "Deletes every record of a collection, so the collection can be removed from the manifest.",
+		Class:       registry.External, Callers: ownerOnly,
+		Input:   registry.Params(registry.P("project", "project", "Project name"), registry.P("collection", "string", "Collection name")),
+		Handler: registry.Typed(a.collectionDelete)})
 
 	add("processes_list", "List processes", "Lists recent processes, newest first.", everyone,
 		registry.Params(projectOpt, registry.Opt("state", "string", "Only this state"), registry.Opt("limit", "integer", "At most this many")),
@@ -114,6 +125,8 @@ type projectView struct {
 	Status      string       `json:"status"`
 	Description string       `json:"description"`
 	Screens     []screenView `json:"screens"`
+
+	ManifestError string `json:"manifest_error,omitempty"`
 }
 
 type screenView struct {
@@ -129,7 +142,9 @@ func (a *App) projectsList(ctx context.Context, _ registry.Actor, _ struct{}) (a
 	out := make([]projectView, 0, len(ps))
 	for _, p := range ps {
 		v := projectView{ID: p.ID, Name: p.Name, Status: p.Status, Screens: []screenView{}}
-		if m, err := a.Manifest(ctx, p.ID); err == nil {
+		if m, err := a.Manifest(ctx, p.ID); err != nil {
+			v.ManifestError = err.Error()
+		} else {
 			v.Description = m.Description
 			for _, s := range m.Screens {
 				v.Screens = append(v.Screens, screenView{Name: s.Name, Title: s.Title})
@@ -386,11 +401,12 @@ func (a *App) recordsUpsert(ctx context.Context, act registry.Actor, in struct{ 
 	if err != nil {
 		return nil, err
 	}
-	m, err := a.Manifest(ctx, p.ID)
-	if err != nil {
-		return nil, err
-	}
-	return a.UpsertJSONL(ctx, p.ID, m, in.Collection, in.Records)
+	var out UpsertResult
+	err = a.withRecords(ctx, p.ID, func(m *manifest.Manifest) error {
+		out, err = a.UpsertJSONL(ctx, p.ID, m, in.Collection, in.Records)
+		return err
+	})
+	return out, err
 }
 
 func (a *App) recordUpdate(ctx context.Context, act registry.Actor, in struct {
@@ -411,11 +427,10 @@ func (a *App) recordUpdate(ctx context.Context, act registry.Actor, in struct {
 	if err != nil {
 		return nil, registry.Invalid("deck: data is not a JSON object: %v", err)
 	}
-	m, err := a.Manifest(ctx, rec.ProjectID)
+	err = a.withRecords(ctx, rec.ProjectID, func(m *manifest.Manifest) error {
+		return a.UpdateRecord(ctx, rec, m, data)
+	})
 	if err != nil {
-		return nil, err
-	}
-	if err := a.UpdateRecord(ctx, rec, m, data); err != nil {
 		return nil, err
 	}
 	return map[string]any{"ok": true}, nil

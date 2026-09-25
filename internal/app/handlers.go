@@ -202,8 +202,11 @@ func (a *App) documentGet(ctx context.Context, act registry.Actor, in struct {
 
 func (a *App) documentSave(ctx context.Context, act registry.Actor, in struct {
 	Name, Kind, Text, Project, Reason string
-	Record                            int64
+	Record, Card                      int64
 }) (any, error) {
+	if in.Record != 0 && in.Card != 0 {
+		return nil, registry.Invalid("deck: a document belongs to a record or a card, not both")
+	}
 	if in.Kind == KindManifest {
 		return nil, registry.Invalid("deck: save manifests with deck.manifest_save")
 	}
@@ -226,6 +229,16 @@ func (a *App) documentSave(ctx context.Context, act registry.Actor, in struct {
 				return err
 			}
 			ref.OwnerKind, ref.OwnerID = "record", rec.ID
+		}
+		if in.Card != 0 {
+			c, err := q.GetCard(ctx, in.Card)
+			if errors.Is(err, sql.ErrNoRows) || err == nil && (s.Project == 0 || c.ProjectID != s.Project) {
+				return registry.NotFound("deck: no card %d in this project", in.Card)
+			}
+			if err != nil {
+				return err
+			}
+			ref.OwnerKind, ref.OwnerID = "card", c.ID
 		}
 		d, _, err = SaveDocument(ctx, q, ref, in.Kind, in.Text, act.Author(), in.Reason)
 		return err

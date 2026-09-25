@@ -85,8 +85,10 @@ func (a *App) lateAnswer(ctx context.Context, q db.Ask) {
 	}
 }
 
-// Sweep expires confirmations older than ConfirmTTL and tells the waiting processes.
+// Sweep removes cards deleted long enough ago, expires confirmations older than ConfirmTTL and tells the
+// waiting processes.
 func (a *App) Sweep(ctx context.Context, now time.Time) {
+	a.purgeCards(ctx, now)
 	if a.Cfg.ConfirmTTL <= 0 {
 		return
 	}

@@ -50,7 +50,8 @@ func (a *App) addBuiltins() {
 		registry.Params(registry.P("name", "string", "Document name (path), e.g. notes/criteria.md"),
 			registry.Param{Name: "kind", Type: "enum", Desc: "Document kind", Enum: DocumentKinds},
 			registry.P("text", "text", "Full new text"), projectOpt,
-			registry.Opt("record", "record", "Record the document belongs to"), registry.Opt("reason", "string", "Why it changed")),
+			registry.Opt("record", "record", "Record the document belongs to"), registry.Opt("card", "card", "Card the document belongs to"),
+			registry.Opt("reason", "string", "Why it changed")),
 		registry.Typed(a.documentSave))
 	add("document_revisions", "Document history", "Lists revisions of a document: who, when and why.", everyone,
 		registry.Params(registry.P("document", "document", "Document id")), registry.Typed(a.documentRevisions))
@@ -69,6 +70,30 @@ func (a *App) addBuiltins() {
 	add("record_update", "Edit record", "Replaces the data of one record; key fields cannot change.", everyone,
 		registry.Params(registry.P("record", "record", "Record id"), registry.P("data", "text", "New record JSON")),
 		registry.Typed(a.recordUpdate))
+
+	add("cards_list", "Board", "Returns the board of a project: lanes in order with their cards by rank, and recently deleted cards when asked.", everyone,
+		registry.Params(projectOpt, registry.Opt("deleted", "boolean", "Also list deleted cards that can still be restored")),
+		registry.Typed(a.cardsList))
+	add("card_get", "Get card", "Returns one card with the cards it waits for.", everyone,
+		registry.Params(registry.P("card", "card", "Card id")), registry.Typed(a.cardGet))
+	add("card_create", "Create card", "Creates a card at the end of a lane; without a lane it lands in the inbox lane.", everyone,
+		registry.Params(projectOpt, registry.P("title", "string", "Card title"), registry.Opt("text", "text", "Card text, markdown"),
+			registry.Opt("lane", "string", "Lane name"), registry.Opt("record", "record", "Record the card works on"),
+			registry.Opt("waits", "card[]", "Cards this one waits for")),
+		registry.Typed(a.cardCreate))
+	add("card_update", "Edit card", "Changes the title, text, record or the cards a card waits for; omitted fields stay.", everyone,
+		registry.Params(registry.P("card", "card", "Card id"), registry.Opt("title", "string", "New title"),
+			registry.Opt("text", "text", "New text, markdown"), registry.Opt("record", "record", "Record the card works on; 0 unlinks it"),
+			registry.Opt("waits", "card[]", "All cards this one waits for; an empty list clears them")),
+		registry.Typed(a.cardUpdate))
+	add("card_move", "Move card", "Moves a card to a lane, before another card or to the end; entering a lane starts its commands.", everyone,
+		registry.Params(registry.P("card", "card", "Card id"), registry.P("lane", "string", "Lane name"),
+			registry.Opt("before", "card", "Place before this card of the lane; the end when omitted")),
+		registry.Typed(a.cardMove))
+	add("card_delete", "Delete card", "Deletes a card; it can be restored for a day.", everyone,
+		registry.Params(registry.P("card", "card", "Card id")), registry.Typed(a.cardDelete))
+	add("card_restore", "Restore card", "Brings a deleted card back to its lane, or to the inbox lane when that lane is gone.", everyone,
+		registry.Params(registry.P("card", "card", "Card id")), registry.Typed(a.cardRestore))
 
 	r.Add(&registry.Command{Name: registry.Builtin + ".collection_delete", Title: "Delete collection records",
 		Description: "Deletes every record of a collection, so the collection can be removed from the manifest.",

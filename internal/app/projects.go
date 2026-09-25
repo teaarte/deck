@@ -132,6 +132,9 @@ func (a *App) SaveManifest(ctx context.Context, act registry.Actor, p db.Project
 		if err := checkRecords(ctx, q, p, pm.m); err != nil {
 			return err
 		}
+		if err := checkLanes(ctx, q, p, pm.m); err != nil {
+			return err
+		}
 		if _, n, err = SaveDocument(ctx, q, DocRef{Scope: projectScope(p), Name: ManifestName}, KindManifest, string(pm.text), act.Author(), reason); err != nil {
 			return err
 		}

@@ -9,7 +9,7 @@ Protocol facts about Claude Code: `docs/spikes/claude-code.md`. Stage 1 plan: `d
 - Run: `DECK_HOME=/tmp/deckhome ./deck` (prints the URL with the access token)
 - Tests: `go test -race ./...`
 - Real Claude Code end-to-end test: `DECK_REAL_CLI=1 go test ./tests/scenarios -run TestRealClaudeCode -v`
-- Regenerate SQL code after editing `internal/store/queries.sql` or migrations: `sqlc generate`
+- Regenerate SQL code after editing `internal/store/queries/*.sql` (one file per area) or migrations: `sqlc generate`
 
 ## Layout
 
@@ -17,7 +17,7 @@ Protocol facts about Claude Code: `docs/spikes/claude-code.md`. Stage 1 plan: `d
 - `internal/store` — SQLite, goose migrations, sqlc queries (`db/` is generated)
 - `internal/registry` — command registry: every input (API, MCP, triggers) calls commands through it;
   input schemas limited to App Intents types
-- `internal/app` — wiring, builtin `deck.*` commands, projects, documents with revisions, records
+- `internal/app` — wiring, builtin `deck.*` commands, projects, documents with revisions, records, cards and board
 - `internal/manifest` — project manifest: parsing, validation, expressions
 - `internal/gateway` — deck MCP server per process: permission prompts, questions, confirmations, registry
   commands as tools

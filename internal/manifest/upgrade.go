@@ -4,6 +4,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"regexp"
+	"slices"
+	"strings"
 )
 
 var upgrades = map[int]func(m map[string]any){
@@ -27,6 +30,54 @@ var upgrades = map[int]func(m map[string]any){
 	2: func(m map[string]any) {
 		delete(m, "description")
 	},
+	3: func(m map[string]any) {
+		board, _ := m["board"].(map[string]any)
+		if board == nil {
+			return
+		}
+		names := map[string]string{}
+		taken := map[string]bool{}
+		lanes := items(board["lanes"])
+		runRoles := 0
+		for _, l := range lanes {
+			if slices.Contains(RunRoles, fmt.Sprint(l["role"])) {
+				runRoles++
+			}
+		}
+		for i, l := range lanes {
+			if runRoles < len(RunRoles) && slices.Contains(RunRoles, fmt.Sprint(l["role"])) {
+				delete(l, "role")
+			}
+			old, _ := l["name"].(string)
+			role, _ := l["role"].(string)
+			name := laneName(old, role, i, taken)
+			taken[name] = true
+			names[old] = name
+			l["title"], l["name"] = old, name
+		}
+		for _, t := range items(m["triggers"]) {
+			if lane, ok := t["lane"].(string); ok && names[lane] != "" {
+				t["lane"] = names[lane]
+			}
+		}
+	},
+}
+
+var laneSlug = regexp.MustCompile(`[^a-z0-9]+`)
+
+// laneName makes a stable lane name from a human one: a slug, else the role, else lane-<n>.
+func laneName(title, role string, i int, taken map[string]bool) string {
+	name := strings.Trim(laneSlug.ReplaceAllString(strings.ToLower(title), "-"), "-")
+	if name == "" || name[0] < 'a' || name[0] > 'z' || len(name) > 40 || taken[name] {
+		name = role
+	}
+	if name == "" || taken[name] {
+		name = fmt.Sprintf("lane-%d", i+1)
+	}
+	for n := 2; taken[name]; n++ {
+		name = fmt.Sprintf("lane-%d-%d", i+1, n)
+	}
+	return name
 }
 
 // dropEmpty removes keys whose value is null, an empty string or an empty list.

@@ -18,7 +18,7 @@ import (
 )
 
 const realManifest = `{
-  "version": 3,
+  "version": 4,
   "collections": [{
     "name": "ideas", "description": "Short ideas", "key": "title", "display": "title",
     "schema": {"type": "object", "properties": {"title": {"type": "string"}, "score": {"type": "integer"}, "topic": {"type": "string"}},
@@ -97,7 +97,7 @@ func TestRealClaudeCodeQuestionResume(t *testing.T) {
 }
 
 const bashManifest = `{
-  "version": 3,
+  "version": 4,
   "collections": [],
   "commands": [{
     "name": "mark", "title": "Mark", "description": "Writes a marker file with Bash", "class": "internal",

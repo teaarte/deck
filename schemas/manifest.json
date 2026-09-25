@@ -7,7 +7,7 @@
   "additionalProperties": false,
   "required": ["version"],
   "properties": {
-    "version": {"const": 3, "description": "Manifest format version."},
+    "version": {"const": 4, "description": "Manifest format version."},
     "collections": {"type": "array", "items": {"$ref": "#/$defs/collection"}},
     "commands": {"type": "array", "items": {"$ref": "#/$defs/command"}},
     "scripts": {"type": "array", "items": {"$ref": "#/$defs/script"}},
@@ -116,7 +116,7 @@
       "properties": {
         "command": {"$ref": "#/$defs/name"},
         "cron": {"type": "string", "minLength": 1, "description": "Five-field cron in local time."},
-        "lane": {"type": "string", "minLength": 1, "description": "Runs when a card enters this board lane; the command gets the card id as input field card."},
+        "lane": {"$ref": "#/$defs/name", "description": "Runs when a card enters this board lane (by name); the command gets the card id as input field card."},
         "after": {"$ref": "#/$defs/name", "description": "Runs when this command of the project finishes with a non-null result; the command gets the finished process id as input field process."},
         "params": {"type": "object", "description": "Fixed input fields for the command."},
         "skip_missed": {"type": "boolean", "default": false}
@@ -194,10 +194,12 @@
         "lanes": {"type": "array", "minItems": 1, "items": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["name"],
+          "required": ["name", "title"],
           "properties": {
-            "name": {"type": "string", "minLength": 1},
-            "role": {"enum": ["inbox", "ready", "running", "review", "done"]}
+            "name": {"$ref": "#/$defs/name", "description": "Stable lane name that cards and lane triggers refer to; renaming it removes the lane."},
+            "title": {"type": "string", "minLength": 1, "description": "Human lane name; change it freely."},
+            "role": {"enum": ["inbox", "ready", "running", "review", "done"],
+              "description": "What deck relies on: new cards land in inbox; code runs need ready, running and review together. One lane per role."}
           }
         }}
       }

@@ -13,7 +13,7 @@ import (
 )
 
 const fullManifest = `{
-  "version": 3,
+  "version": 4,
   "collections": [
     {"name": "sources", "description": "A page to watch", "key": "url", "display": "url",
      "schema": {"type": "object", "properties": {"url": {"type": "string"}, "status": {"type": "string"}}, "required": ["url"]}},
@@ -41,7 +41,7 @@ const fullManifest = `{
   "triggers": [
     {"command": "collect", "cron": "0 8 * * *"},
     {"command": "rate", "after": "collect", "params": {"limit": 20}},
-    {"command": "rate", "lane": "Share"}
+    {"command": "rate", "lane": "share"}
   ],
   "tools": {
     "http": [{"name": "post_link", "description": "Posts a link", "method": "POST", "url": "https://feed.example.com/api/links",
@@ -52,7 +52,7 @@ const fullManifest = `{
   },
   "allowed_external": ["post_link"],
   "domains": {"read": ["news.example.com"], "act": []},
-  "board": {"lanes": [{"name": "Found", "role": "inbox"}, {"name": "Share"}, {"name": "Done", "role": "done"}]},
+  "board": {"lanes": [{"name": "found", "title": "Found", "role": "inbox"}, {"name": "share", "title": "Share"}, {"name": "done", "title": "Done", "role": "done"}]},
   "screens": [{"name": "main", "title": "Links", "blocks": [{"type": "table", "title": "Best",
     "source": {"collection": "links", "where": "score >= 7", "sort": "-score", "limit": 20},
     "columns": [{"label": "Title", "bind": "title"}, {"label": "Score", "bind": "score"}],
@@ -94,14 +94,17 @@ func TestManifestReferencesAreChecked(t *testing.T) {
 		{"unknown field", `"menu": ["main"]`, `"menu": ["main"], "colour": "red"`, "colour"},
 		{"trigger cycle", `{"command": "rate", "after": "collect", "params": {"limit": 20}}`,
 			`{"command": "rate", "after": "collect", "params": {"limit": 20}}, {"command": "collect", "after": "rate"}`, "cycle: collect → rate → collect"},
-		{"unknown lane", `"lane": "Share"`, `"lane": "Later"`, `unknown lane "Later"`},
+		{"unknown lane", `"lane": "share"`, `"lane": "later"`, `unknown lane "later"`},
 		{"trigger params", `"params": {"limit": 20}`, `"params": {"limit": "many"}`, "params do not match"},
 		{"nested input", `"properties": {"limit": {"type": "integer"}, "card"`, `"properties": {"limit": {"type": "object"}, "card"`, "App Intents"},
 		{"lane input", `"card": {"type": "integer", "format": "card"},`, ``, `must declare input field "card"`},
 		{"unknown script", `"script": "parse"}`, `"script": "scrape"}`, `unknown script "scrape"`},
 		{"unknown tool", `"tool": "post_link"`, `"tool": "post_it"`, `unknown tool "post_it"`},
 		{"unknown external", `"allowed_external": ["post_link"]`, `"allowed_external": ["mail"]`, `"mail" is neither`},
-		{"duplicate role", `{"name": "Share"}`, `{"name": "Share", "role": "inbox"}`, `role "inbox"`},
+		{"duplicate role", `"title": "Share"}`, `"title": "Share", "role": "inbox"}`, `role "inbox"`},
+		{"duplicate lane", `{"name": "done", "title": "Done"`, `{"name": "share", "title": "Done"`, `duplicate lane "share"`},
+		{"partial run roles", `"title": "Share"}`, `"title": "Share", "role": "ready"}`, `missing running, review`},
+		{"lane title", `"title": "Share"}`, `"title": ""}`, `title`},
 		{"key field", `"key": "url", "display": "title`, `"key": "link", "display": "title`, `unknown field "link"`},
 		{"where field", `"where": "score >= 7"`, `"where": "rating >= 7"`, `unknown field "rating"`},
 		{"sort field", `"sort": "-score"`, `"sort": "-rank"`, `unknown field "rank"`},
@@ -175,7 +178,7 @@ func TestOldManifestFormatIsUpgraded(t *testing.T) {
 	p := e.createProject("ideas", ideasV1)
 	var cur struct{ Manifest string }
 	e.must("deck.manifest_get", map[string]any{"project": "ideas"}, &cur)
-	if !strings.Contains(cur.Manifest, `"version": 3`) || !strings.Contains(cur.Manifest, `"display": "title"`) || strings.Contains(cur.Manifest, "result_schema") {
+	if !strings.Contains(cur.Manifest, `"version": 4`) || !strings.Contains(cur.Manifest, `"display": "title"`) || strings.Contains(cur.Manifest, "result_schema") {
 		t.Fatalf("saved v1 manifest must be stored upgraded:\n%s", cur.Manifest)
 	}
 
@@ -198,7 +201,7 @@ func TestOldManifestFormatIsUpgraded(t *testing.T) {
 	var doc struct{ Document int64 }
 	e.must("deck.manifest_get", map[string]any{"project": "ideas"}, &doc)
 	e.must("deck.document_revisions", map[string]any{"document": doc.Document}, &revs)
-	if len(revs) != 3 || revs[0].Author != "deck" || !strings.Contains(revs[0].Reason, "version 3") {
+	if len(revs) != 3 || revs[0].Author != "deck" || !strings.Contains(revs[0].Reason, "version 4") {
 		t.Fatalf("startup upgrade must add a deck revision, got %+v", revs)
 	}
 	if err := e.App.UpgradeManifests(ctx); err != nil {

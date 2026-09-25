@@ -283,6 +283,17 @@ func (m *Manifest) checkBoard(fail func(string, ...any)) {
 			roles[l.Role] = true
 		}
 	}
+	var have, miss []string
+	for _, r := range RunRoles {
+		if roles[r] {
+			have = append(have, r)
+		} else {
+			miss = append(miss, r)
+		}
+	}
+	if len(have) > 0 && len(miss) > 0 {
+		fail("board: code runs need lanes with roles %s together; missing %s", strings.Join(RunRoles, ", "), strings.Join(miss, ", "))
+	}
 }
 
 func (m *Manifest) checkScreens(fail func(string, ...any)) {

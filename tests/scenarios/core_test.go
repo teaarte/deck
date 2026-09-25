@@ -13,7 +13,7 @@ import (
 )
 
 const ideasManifest = `{
-  "version": 3,
+  "version": 4,
   "collections": [{
     "name": "ideas", "description": "Short ideas", "key": "title", "display": "title",
     "schema": {"type": "object", "properties": {"title": {"type": "string"}, "score": {"type": "integer"}, "topic": {"type": "string"}},

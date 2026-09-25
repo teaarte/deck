@@ -23,11 +23,18 @@ var scalarFormats = map[string][]string{
 // CheckInput verifies that an input schema is a flat object whose parameters have App Intents types.
 func CheckInput(raw json.RawMessage) error {
 	var s struct {
-		Type       string                     `json:"type"`
-		Properties map[string]json.RawMessage `json:"properties"`
+		Type                 string                     `json:"type"`
+		Properties           map[string]json.RawMessage `json:"properties"`
+		AdditionalProperties json.RawMessage            `json:"additionalProperties"`
 	}
 	if err := json.Unmarshal(raw, &s); err != nil {
 		return err
+	}
+	if err := onlyKeys(raw, rootKeys); err != nil {
+		return err
+	}
+	if len(s.AdditionalProperties) > 0 && string(s.AdditionalProperties) != "false" && string(s.AdditionalProperties) != "true" {
+		return fmt.Errorf("additionalProperties must be true or false")
 	}
 	if s.Type != "object" {
 		return fmt.Errorf("input must be an object, got %q", s.Type)
@@ -45,7 +52,36 @@ func CheckInput(raw json.RawMessage) error {
 	return nil
 }
 
+var (
+	rootKeys  = []string{"$schema", "type", "title", "description", "properties", "required", "additionalProperties"}
+	paramKeys = []string{"type", "format", "enum", "items", "title", "description", "default", "examples",
+		"minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum", "multipleOf", "minLength", "maxLength", "pattern",
+		"minItems", "maxItems", "uniqueItems"}
+)
+
+// onlyKeys refuses schema keywords outside the allowed ones, so composition cannot smuggle nested types in.
+func onlyKeys(raw json.RawMessage, allowed []string) error {
+	var m map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &m); err != nil {
+		return err
+	}
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		if !slices.Contains(allowed, k) {
+			return fmt.Errorf("schema keyword %q is not allowed in command input", k)
+		}
+	}
+	return nil
+}
+
 func checkParam(raw json.RawMessage, allowList bool) error {
+	if err := onlyKeys(raw, paramKeys); err != nil {
+		return err
+	}
 	var p struct {
 		Type   string            `json:"type"`
 		Format string            `json:"format"`

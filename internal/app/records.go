@@ -32,7 +32,7 @@ func UpsertJSONL(ctx context.Context, q *db.Queries, projectID int64, m *manifes
 		}
 		r, err := manifest.DecodeObject([]byte(text))
 		if err != nil {
-			out.Errors = append(out.Errors, fmt.Sprintf("line %d: not a JSON object: %v", line, err))
+			out.Errors = append(out.Errors, fmt.Sprintf("line %d: %v", line, err))
 			continue
 		}
 		recs = append(recs, r)

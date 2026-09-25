@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -63,9 +64,10 @@ func (r *Runner) Shutdown() {
 
 func (r *Runner) Wait() { r.wg.Wait() }
 
-// Start creates a process for a project command and runs it in the background.
-func (r *Runner) Start(ctx context.Context, projectID int64, command string, input map[string]any) (int64, error) {
-	proj, m, err := r.load(ctx, projectID)
+// Start creates a process for a command of the manifest revision the caller was authorized against and
+// runs it in the background.
+func (r *Runner) Start(ctx context.Context, projectID int64, m *manifest.Manifest, command string, input map[string]any) (int64, error) {
+	proj, err := r.st.Q.GetProject(ctx, projectID)
 	if err != nil {
 		return 0, err
 	}
@@ -89,8 +91,13 @@ func (r *Runner) Start(ctx context.Context, projectID int64, command string, inp
 		input = map[string]any{}
 	}
 	in, _ := json.Marshal(input)
-	p, err := r.st.Q.CreateProcess(ctx, db.CreateProcessParams{ProjectID: projectID, Command: command, State: StateRunning,
-		Provider: r.provider.Name(), Input: string(in)})
+	var p db.Process
+	err = r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		var err error
+		p, err = q.CreateProcess(ctx, db.CreateProcessParams{ProjectID: projectID, Command: command, State: StateRunning,
+			Provider: r.provider.Name(), Input: string(in)})
+		return err
+	})
 	if err != nil {
 		return 0, err
 	}
@@ -110,7 +117,12 @@ func (r *Runner) Deliver(ctx context.Context, processID int64) error {
 	if err != nil || len(pending) == 0 {
 		return err
 	}
-	n, err := r.st.Q.ClaimProcess(ctx, db.ClaimProcessParams{ToState: StateRunning, ID: processID, FromState: StateWaitingAnswer})
+	var n int64
+	err = r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		var err error
+		n, err = q.ClaimProcess(ctx, db.ClaimProcessParams{ToState: StateRunning, ID: processID, FromState: StateWaitingAnswer})
+		return err
+	})
 	if err != nil || n == 0 {
 		return err
 	}
@@ -219,7 +231,9 @@ func (r *Runner) run(processID, projectID int64, cmd *manifest.Command, prompt, 
 		MCPURL: r.mcpBase + "/mcp/" + tok, AllowedTools: r.gw.AllowedTools(tok), PermissionMCP: gateway.PermissionTool(),
 		ResumeSession: resume,
 		OnSession: func(id string) {
-			_ = r.st.Q.SetProcessSession(bg, db.SetProcessSessionParams{SessionID: id, ID: processID})
+			_ = r.st.Tx(bg, func(ctx context.Context, q *db.Queries) error {
+				return q.SetProcessSession(ctx, db.SetProcessSessionParams{SessionID: id, ID: processID})
+			})
 		},
 	}
 	for attempt := 0; ; attempt++ {
@@ -227,9 +241,14 @@ func (r *Runner) run(processID, projectID int64, cmd *manifest.Command, prompt, 
 		if ctx.Err() != nil {
 			return
 		}
-		for _, id := range asks {
-			_ = r.st.Q.MarkAskDelivered(bg, id)
-		}
+		_ = r.st.Tx(bg, func(ctx context.Context, q *db.Queries) error {
+			for _, id := range asks {
+				if err := q.MarkAskDelivered(ctx, id); err != nil {
+					return err
+				}
+			}
+			return nil
+		})
 		asks = nil
 		if err != nil {
 			r.finish(bg, processID, StateError, "", false, err.Error())
@@ -276,7 +295,9 @@ func (r *Runner) blocked(ctx context.Context, processID int64) bool {
 
 // park moves the process to waiting_answer and immediately delivers answers that arrived while it was running.
 func (r *Runner) park(ctx context.Context, processID int64) {
-	_ = r.st.Q.SetProcessState(ctx, db.SetProcessStateParams{State: StateWaitingAnswer, ID: processID})
+	_ = r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		return q.SetProcessState(ctx, db.SetProcessStateParams{State: StateWaitingAnswer, ID: processID})
+	})
 	r.bus.Publish("processes")
 	if err := r.Deliver(ctx, processID); err != nil {
 		r.finish(ctx, processID, StateError, "", false, "resume after answer: "+err.Error())
@@ -302,8 +323,15 @@ func (r *Runner) finish(ctx context.Context, processID int64, state, result stri
 	if notBySchema {
 		nbs = 1
 	}
-	_ = r.st.Q.FinishProcess(ctx, db.FinishProcessParams{State: state, Result: result, NotBySchema: nbs, Error: errText, ID: processID})
-	_ = r.st.Q.CloseOpenAsksOfProcess(ctx, processID)
+	err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		if err := q.FinishProcess(ctx, db.FinishProcessParams{State: state, Result: result, NotBySchema: nbs, Error: errText, ID: processID}); err != nil {
+			return err
+		}
+		return q.CloseOpenAsksOfProcess(ctx, processID)
+	})
+	if err != nil {
+		slog.Error("finish process", "process", processID, "err", err)
+	}
 	r.bus.Publish("processes")
 	r.bus.Publish("asks")
 }

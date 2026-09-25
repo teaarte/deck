@@ -106,8 +106,27 @@ func PermissionTool() string { return qualified(ApproveTool) }
 
 func qualified(tool string) string { return "mcp__" + ServerName + "__" + tool }
 
-// ServeHTTP expects paths of the form /mcp/<token>.
-func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) { g.handler.ServeHTTP(w, r) }
+// ServeHTTP expects paths of the form /mcp/<token>; an existing MCP session is served only under its own token.
+func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if sid := r.Header.Get("Mcp-Session-Id"); sid != "" && !g.owns(r, sid) {
+		http.Error(w, "deck: no such session for this process", http.StatusNotFound)
+		return
+	}
+	g.handler.ServeHTTP(w, r)
+}
+
+func (g *Gateway) owns(r *http.Request, sid string) bool {
+	srv := g.serverFor(r)
+	if srv == nil {
+		return false
+	}
+	for s := range srv.Sessions() {
+		if s.ID() == sid {
+			return true
+		}
+	}
+	return false
+}
 
 func (g *Gateway) serverFor(r *http.Request) *mcp.Server {
 	tok := strings.TrimPrefix(r.URL.Path, "/mcp/")
@@ -119,7 +138,7 @@ func (g *Gateway) serverFor(r *http.Request) *mcp.Server {
 	return nil
 }
 
-// alive reports whether the process behind the token is still running; MCP sessions outlive Unregister.
+// alive reports whether the process behind the token is still running, for calls that arrived before Unregister.
 func (g *Gateway) alive(tok string) bool {
 	g.mu.Lock()
 	defer g.mu.Unlock()
@@ -225,7 +244,7 @@ func (g *Gateway) question(ctx context.Context, s *Session, in approveInput) dec
 	if !ok {
 		return decision{Behavior: "deny", Message: "deck: the owner has not answered yet." + stopAndWait}
 	}
-	_ = g.st.Q.MarkAskDelivered(ctx, a.ID)
+	g.delivered(ctx, a.ID)
 	upd := map[string]any{}
 	for k, v := range in.Input {
 		upd[k] = v
@@ -254,7 +273,11 @@ func ConfirmPayload(tool string, input map[string]any) string {
 
 func (g *Gateway) confirm(ctx context.Context, s *Session, in approveInput) decision {
 	payload := ConfirmPayload(in.ToolName, in.Input)
-	if _, err := g.st.Q.ConsumeApproval(ctx, db.ConsumeApprovalParams{ProcessID: s.ProcessID, Payload: payload}); err == nil {
+	consumed := g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		_, err := q.ConsumeApproval(ctx, db.ConsumeApprovalParams{ProcessID: s.ProcessID, Payload: payload})
+		return err
+	})
+	if consumed == nil {
 		g.log(ctx, s, in.ToolName, "external", "done", payload)
 		return decision{Behavior: "allow", UpdatedInput: in.Input}
 	}
@@ -270,13 +293,19 @@ func (g *Gateway) confirm(ctx context.Context, s *Session, in approveInput) deci
 		return decision{Behavior: "deny", Message: "deck: waiting for the owner to confirm this call; it was not made." + stopAndWait}
 	}
 	if answer == "allow" {
-		if n, err := g.st.Q.UseApproval(ctx, a.ID); err != nil || n == 0 {
+		var n int64
+		err := g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+			var err error
+			n, err = q.UseApproval(ctx, a.ID)
+			return err
+		})
+		if err != nil || n == 0 {
 			return decision{Behavior: "deny", Message: "deck: this approval was already used by an identical call."}
 		}
 		g.log(ctx, s, in.ToolName, "external", "done", "")
 		return decision{Behavior: "allow", UpdatedInput: in.Input}
 	}
-	_ = g.st.Q.MarkAskDelivered(ctx, a.ID)
+	g.delivered(ctx, a.ID)
 	g.log(ctx, s, in.ToolName, "external", "rejected", "")
 	return decision{Behavior: "deny", Message: RejectMessage(answer)}
 }
@@ -291,7 +320,13 @@ func RejectMessage(answer string) string {
 }
 
 func (g *Gateway) log(ctx context.Context, s *Session, tool, class, outcome, params string) {
-	_ = g.st.Q.LogToolCall(ctx, db.LogToolCallParams{ProcessID: s.ProcessID, ProjectID: s.ProjectID, Tool: tool, Class: class, Outcome: outcome, Params: params})
+	_ = g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		return q.LogToolCall(ctx, db.LogToolCallParams{ProcessID: s.ProcessID, ProjectID: s.ProjectID, Tool: tool, Class: class, Outcome: outcome, Params: params})
+	})
+}
+
+func (g *Gateway) delivered(ctx context.Context, ask int64) {
+	_ = g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error { return q.MarkAskDelivered(ctx, ask) })
 }
 
 func truncate(s string, n int) string {

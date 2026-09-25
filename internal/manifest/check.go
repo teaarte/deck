@@ -59,8 +59,11 @@ func (m *Manifest) compileCollections(fail func(string, ...any)) {
 			fail("collection %q key: %v", c.Name, err)
 		}
 		c.keyFields = exprFields(c.Key, c.fields)
+		if hasLet(c.Key) {
+			fail("collection %q key: variables (let) are not allowed in a key", c.Name)
+		}
 		if c.Display != "" {
-			if c.displayProg, err = compileExpr(c.Display, c.fields); err != nil {
+			if c.displayProg, err = compileField(c.Display, c.fields); err != nil {
 				fail("collection %q display: %v", c.Name, err)
 			}
 		}
@@ -320,7 +323,7 @@ func (m *Manifest) checkScreens(fail func(string, ...any)) {
 					fields = append(slices.Clone(fields), "_id", "_updated")
 				}
 				if b.Source.Where != "" {
-					if _, err := compileExpr(b.Source.Where, fields); err != nil {
+					if _, err := compileField(b.Source.Where, fields); err != nil {
 						fail("%s where: %v", where, err)
 					}
 				}
@@ -328,7 +331,7 @@ func (m *Manifest) checkScreens(fail func(string, ...any)) {
 					fail("%s sort: unknown field %q", where, sortField)
 				}
 				for _, col := range b.Columns {
-					if _, err := compileExpr(col.Bind, fields); err != nil {
+					if _, err := compileField(col.Bind, fields); err != nil {
 						fail("%s column %q: %v", where, col.Label, err)
 					}
 				}

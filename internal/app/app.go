@@ -92,7 +92,12 @@ func (a *App) Sweep(ctx context.Context, now time.Time) {
 	if a.Cfg.ConfirmTTL <= 0 {
 		return
 	}
-	expired, err := a.Store.Q.ExpireStaleConfirms(ctx, now.Add(-a.Cfg.ConfirmTTL).UTC().Format("2006-01-02T15:04:05.000Z"))
+	var expired []db.Ask
+	err := a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		var err error
+		expired, err = q.ExpireStaleConfirms(ctx, now.Add(-a.Cfg.ConfirmTTL).UTC().Format("2006-01-02T15:04:05.000Z"))
+		return err
+	})
 	if err != nil {
 		slog.Error("expire confirmations", "err", err)
 		return

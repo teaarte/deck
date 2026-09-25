@@ -15,3 +15,5 @@ func D() {}
 
 // A short fact; "// not a comment" in a string below is ignored.
 var s = "// FR-99 inside a string"
+
+func E(st *Store) { st.Q.FinishProcess(nil, 1) }

@@ -210,7 +210,9 @@ func Parse(raw []byte) (*Manifest, error) {
 		return nil, fmt.Errorf("manifest does not match the format: %w", err)
 	}
 	var m Manifest
-	if err := json.Unmarshal(up, &m); err != nil {
+	dec := json.NewDecoder(bytes.NewReader(up))
+	dec.UseNumber()
+	if err := dec.Decode(&m); err != nil {
 		return nil, fmt.Errorf("manifest: %w", err)
 	}
 	if err := m.compile(); err != nil {

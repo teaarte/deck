@@ -369,7 +369,7 @@ func (a *App) projectCommands(ctx context.Context, workspace int64, name string)
 			cmd := &registry.Command{
 				Name: p.Name + "." + c.Name, Title: c.Title, Description: c.Description, Class: c.Class,
 				Input: c.InputSchema(), Result: c.Result, ProjectID: p.ID, Callers: c.Callable(),
-				Handler: a.startHandler(p.ID, c.Name),
+				Handler: a.startHandler(p.ID, m, c.Name),
 			}
 			if err := registry.Prepare(cmd); err != nil {
 				slog.Error("project command", "command", cmd.Name, "err", err)
@@ -381,11 +381,14 @@ func (a *App) projectCommands(ctx context.Context, workspace int64, name string)
 	return out, nil
 }
 
-func (a *App) startHandler(projectID int64, command string) registry.Handler {
+// startHandler runs a command of the manifest the registry checked the call against.
+func (a *App) startHandler(projectID int64, m *manifest.Manifest, command string) registry.Handler {
 	return func(ctx context.Context, _ registry.Actor, raw json.RawMessage) (any, error) {
-		input := map[string]any{}
-		_ = json.Unmarshal(raw, &input)
-		id, err := a.Runner.Start(ctx, projectID, command, input)
+		input, err := manifest.DecodeObject(raw)
+		if err != nil {
+			return nil, registry.Invalid("deck: input: %v", err)
+		}
+		id, err := a.Runner.Start(ctx, projectID, m, command, input)
 		if err != nil {
 			return nil, err
 		}

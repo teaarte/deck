@@ -80,13 +80,19 @@ func (s *Scheduler) Tick(ctx context.Context) {
 			slog.Error("trigger cron", "command", t.Command, "err", err)
 			continue
 		}
-		params := map[string]any{}
-		_ = json.Unmarshal([]byte(t.Params), &params)
+		params, err := manifest.DecodeObject([]byte(t.Params))
+		if err != nil {
+			slog.Error("trigger params", "command", t.Command, "err", err)
+			continue
+		}
 		if _, err := s.start.Start(ctx, t.ProjectID, t.Command, params); err != nil {
 			slog.Error("trigger start", "command", t.Command, "err", err)
 		}
 		next := sched.Next(now.In(time.Local)).UTC().Format(timeLayout)
-		if err := s.st.Q.SetTriggerNext(ctx, db.SetTriggerNextParams{NextRunAt: next, ProjectID: t.ProjectID, Command: t.Command, Cron: t.Cron}); err != nil {
+		err = s.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+			return q.SetTriggerNext(ctx, db.SetTriggerNextParams{NextRunAt: next, ProjectID: t.ProjectID, Command: t.Command, Cron: t.Cron})
+		})
+		if err != nil {
 			slog.Error("trigger next", "err", err)
 		}
 	}

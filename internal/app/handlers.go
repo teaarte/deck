@@ -388,7 +388,14 @@ func (a *App) recordUpdate(ctx context.Context, act registry.Actor, in struct {
 		return nil, err
 	}
 	err = a.writeRecords(ctx, p, func(ctx context.Context, q *db.Queries, m *manifest.Manifest) error {
-		return UpdateRecord(ctx, q, rec, m, data)
+		cur, err := q.GetRecord(ctx, rec.ID)
+		if errors.Is(err, sql.ErrNoRows) || err == nil && cur.ProjectID != p.ID {
+			return registry.NotFound("deck: record %d no longer exists", rec.ID)
+		}
+		if err != nil {
+			return err
+		}
+		return UpdateRecord(ctx, q, cur, m, data)
 	})
 	if err != nil {
 		return nil, err

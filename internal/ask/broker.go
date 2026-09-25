@@ -46,7 +46,12 @@ func (b *Broker) Create(ctx context.Context, processID int64, kind, text string,
 
 // CreateRaw stores an ask with a payload that is already JSON, so it can be matched byte for byte later.
 func (b *Broker) CreateRaw(ctx context.Context, processID int64, kind, text, payload string) (db.Ask, error) {
-	a, err := b.st.Q.CreateAsk(ctx, db.CreateAskParams{ProcessID: processID, Kind: kind, Text: text, Payload: payload})
+	var a db.Ask
+	err := b.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		var err error
+		a, err = q.CreateAsk(ctx, db.CreateAskParams{ProcessID: processID, Kind: kind, Text: text, Payload: payload})
+		return err
+	})
 	if err != nil {
 		return db.Ask{}, err
 	}
@@ -90,7 +95,12 @@ func (b *Broker) drop(id int64) {
 }
 
 func (b *Broker) Answer(ctx context.Context, id int64, answer string) error {
-	n, err := b.st.Q.AnswerAsk(ctx, db.AnswerAskParams{Answer: answer, ID: id})
+	var n int64
+	err := b.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		var err error
+		n, err = q.AnswerAsk(ctx, db.AnswerAskParams{Answer: answer, ID: id})
+		return err
+	})
 	if err != nil {
 		return err
 	}

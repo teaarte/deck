@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>deck</title>
+<style>
+  body { font: 15px/1.4 -apple-system, system-ui, sans-serif; margin: 0; background: #f6f6f4; color: #222; }
+  header { padding: 12px 16px; background: #222; color: #fff; display: flex; gap: 16px; align-items: center; }
+  header select { font: inherit; }
+  main { display: grid; grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr); gap: 16px; padding: 16px; }
+  @media (max-width: 800px) { main { grid-template-columns: 1fr; } }
+  section { background: #fff; border-radius: 8px; padding: 12px 16px; box-shadow: 0 1px 2px #0001; margin-bottom: 16px; }
+  h2 { font-size: 15px; margin: 0 0 8px; }
+  table { border-collapse: collapse; width: 100%; }
+  td, th { text-align: left; padding: 6px 8px; border-bottom: 1px solid #eee; vertical-align: top; }
+  button { font: inherit; padding: 4px 10px; border-radius: 6px; border: 1px solid #bbb; background: #fff; cursor: pointer; }
+  button.primary { background: #222; color: #fff; border-color: #222; }
+  .ask { border-left: 3px solid #d80; padding: 6px 10px; margin-bottom: 10px; }
+  .muted { color: #888; font-size: 13px; }
+  .error { color: #b00; }
+  .state-running, .state-waiting_answer { color: #d80; }
+  .state-done { color: #080; }
+  .state-error, .state-interrupted { color: #b00; }
+</style>
+</head>
+<body>
+<header><strong>deck</strong><select id="screen"></select><span id="status" class="muted"></span></header>
+<main>
+  <div id="surface"></div>
+  <div>
+    <section><h2>Waiting for you</h2><div id="asks" class="muted">nothing</div></section>
+    <section><h2>Processes</h2><div id="procs"></div></section>
+  </div>
+</main>
+<script>
+const params = new URLSearchParams(location.search);
+let token = params.get("token") || localStorage.getItem("deck-token") || "";
+if (params.get("token")) { localStorage.setItem("deck-token", token); history.replaceState(null, "", location.pathname); }
+if (!token) { token = prompt("deck token") || ""; localStorage.setItem("deck-token", token); }
+
+const api = async (path, opts = {}) => {
+  const r = await fetch(path, { ...opts, headers: { "Authorization": "Bearer " + token, "Content-Type": "application/json" } });
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+};
+const el = (tag, attrs = {}, ...kids) => {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) k.startsWith("on") ? e.addEventListener(k.slice(2), v) : e.setAttribute(k, v);
+  for (const k of kids) e.append(k instanceof Node ? k : document.createTextNode(k ?? ""));
+  return e;
+};
+
+let current = null;
+
+async function loadProjects() {
+  const ps = await api("/api/projects");
+  const sel = document.getElementById("screen");
+  sel.innerHTML = "";
+  for (const p of ps) for (const s of p.screens || []) sel.append(el("option", { value: p.id + "/" + s.name }, p.name + " · " + (s.title || s.name)));
+  if (!current && sel.options.length) current = sel.options[0].value;
+  if (current) sel.value = current;
+  sel.onchange = () => { current = sel.value; renderScreen(); };
+}
+
+function resolve(value, scope) {
+  if (value && typeof value === "object" && "path" in value) return value.path.startsWith("/") ? pointer(model, value.path) : scope?.[value.path];
+  return value;
+}
+function pointer(obj, path) { return path.split("/").slice(1).reduce((o, k) => o?.[k], obj); }
+
+let model = {};
+
+function renderActions(actions, ctx) {
+  return el("span", {}, ...actions.map(a => el("button", { onclick: () => sendAction(a.action.event, ctx) }, a.label)));
+}
+
+async function sendAction(event, ctx) {
+  const [projectID] = current.split("/");
+  const c = event.context;
+  const input = {};
+  for (const [k, v] of Object.entries(c.params || {})) input[k] = typeof v === "string" && v.startsWith("$record.") ? ctx?.[v.slice(8)] : v;
+  try { const r = await api(`/api/projects/${projectID}/commands/${c.command}`, { method: "POST", body: JSON.stringify(input) }); status(`started process ${r.process}`); }
+  catch (e) { status(e.message, true); }
+}
+
+const catalog = {
+  Column: (c, byId) => el("div", {}, ...c.children.map(id => render(byId[id], byId))),
+  Text: c => el("p", { class: c.variant || "" }, resolve(c.text)),
+  Actions: c => el("section", {}, el("h2", {}, c.title || ""), renderActions(c.actions)),
+  Table: c => {
+    const rows = resolve(c.rows) || [];
+    const head = el("tr", {}, ...c.columns.map(col => el("th", {}, col.label)), c.rowActions ? el("th") : "");
+    const body = rows.map(r => el("tr", {}, ...c.columns.map(col => el("td", {}, String(resolve(col.value, r) ?? ""))),
+      c.rowActions ? el("td", {}, renderActions(c.rowActions, r)) : ""));
+    return el("section", {}, el("h2", {}, c.title || ""), rows.length ? el("table", {}, head, ...body) : el("p", { class: "muted" }, "empty"));
+  },
+};
+function render(c, byId) { return (catalog[c.component] || (() => el("p", { class: "muted" }, "open in web: " + c.component)))(c, byId); }
+
+async function renderScreen() {
+  if (!current) return;
+  const [id, name] = current.split("/");
+  const msgs = await api(`/api/projects/${id}/screens/${name}`);
+  let comps = [];
+  for (const m of msgs) {
+    if (m.updateComponents) comps = m.updateComponents.components;
+    if (m.updateDataModel) model = m.updateDataModel.value;
+  }
+  const byId = Object.fromEntries(comps.map(c => [c.id, c]));
+  const s = document.getElementById("surface");
+  s.innerHTML = "";
+  if (byId.root) s.append(render(byId.root, byId));
+}
+
+async function renderAsks() {
+  const asks = await api("/api/asks");
+  const box = document.getElementById("asks");
+  box.innerHTML = "";
+  if (!asks.length) { box.textContent = "nothing"; return; }
+  for (const a of asks) {
+    const div = el("div", { class: "ask" }, el("div", {}, el("strong", {}, a.kind === "question" ? "Question" : "Confirm"), " · process " + a.process));
+    if (a.kind === "question") {
+      for (const q of a.payload.questions || []) {
+        div.append(el("div", {}, q.question));
+        div.append(el("div", {}, ...(q.options || []).map(o => el("button", { onclick: () => answer(a.id, { [q.question]: o.label }) }, o.label))));
+      }
+    } else {
+      div.append(el("div", { class: "muted" }, a.text));
+      div.append(el("div", {}, el("button", { class: "primary", onclick: () => answer(a.id, "allow") }, "Allow once"),
+        el("button", { onclick: () => answer(a.id, "deny:" + (prompt("Why not? (optional)") || "")) }, "No")));
+    }
+    box.append(div);
+  }
+}
+async function answer(id, value) {
+  try { await api(`/api/asks/${id}/answer`, { method: "POST", body: JSON.stringify({ answer: typeof value === "string" ? value : JSON.stringify(value) }) }); }
+  catch (e) { status(e.message, true); }
+}
+
+async function renderProcs() {
+  const ps = await api("/api/processes");
+  const box = document.getElementById("procs");
+  box.innerHTML = "";
+  for (const p of ps.slice(0, 15)) box.append(el("div", {}, `#${p.id} ${p.command} `, el("span", { class: "state-" + p.state }, p.state),
+    p.not_by_schema ? el("span", { class: "error" }, " · not by schema") : "", p.error ? el("div", { class: "muted error" }, p.error) : ""));
+}
+
+function status(text, err) { const s = document.getElementById("status"); s.textContent = text; s.className = err ? "error" : "muted"; }
+
+async function refresh(topic) {
+  try {
+    if (!topic || topic === "projects") await loadProjects();
+    if (!topic || topic === "collection" || topic === "projects") await renderScreen();
+    if (!topic || topic === "asks") await renderAsks();
+    if (!topic || topic === "processes") { await renderProcs(); await renderScreen(); }
+  } catch (e) { status(e.message, true); }
+}
+
+refresh();
+const es = new EventSource("/api/events?token=" + encodeURIComponent(token));
+es.onmessage = e => refresh(e.data);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });
+</script>
+</body>
+</html>

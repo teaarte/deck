@@ -1,0 +1,5 @@
+/deck
+/.deck-mcp.json
+*.db
+*.db-*
+.DS_Store

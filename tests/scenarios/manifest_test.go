@@ -109,6 +109,8 @@ func TestManifestReferencesAreChecked(t *testing.T) {
 		{"action field", `"params": {"url": "$record.url"}`, `"params": {"url": "$record.href"}`, `unknown field "href"`},
 		{"immutable field", `"immutable": ["found_at"]`, `"immutable": ["seen_at"]`, `unknown field "seen_at"`},
 		{"menu", `"menu": ["main"]`, `"menu": ["home"]`, `unknown screen "home"`},
+		{"unknown function", `"display": "title + ' (' + site + ')'"`, `"display": "shout(title)"`, `unknown function "shout"`},
+		{"action params", `"params": {"url": "$record.url"}`, `"params": {"link": "$record.url"}`, `needs param "url"`},
 		{"reads project", `"master_events": false`, `"master_events": false, "reads": [{"project": "nope"}]`, `no project "nope"`},
 		{"reads collection", `"master_events": false`, `"master_events": false, "reads": [{"project": "other", "collections": ["nope"]}]`, `no collection "nope"`},
 		{"trigger caller", `"callers": ["agent", "owner"], "executor": {"type": "script"`, `"callers": ["agent"], "executor": {"type": "script"`, ""},

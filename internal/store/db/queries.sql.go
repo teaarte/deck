@@ -321,6 +321,21 @@ func (q *Queries) DeleteCollection(ctx context.Context, arg DeleteCollectionPara
 	return result.RowsAffected()
 }
 
+const deleteRecordDocuments = `-- name: DeleteRecordDocuments :exec
+DELETE FROM document WHERE owner_kind = 'record'
+AND owner_id IN (SELECT r.id FROM record r WHERE r.project_id = ?1 AND r.collection = ?2)
+`
+
+type DeleteRecordDocumentsParams struct {
+	ProjectID  int64
+	Collection string
+}
+
+func (q *Queries) DeleteRecordDocuments(ctx context.Context, arg DeleteRecordDocumentsParams) error {
+	_, err := q.db.ExecContext(ctx, deleteRecordDocuments, arg.ProjectID, arg.Collection)
+	return err
+}
+
 const deleteTrigger = `-- name: DeleteTrigger :exec
 DELETE FROM trigger_state WHERE project_id = ? AND command = ? AND cron = ?
 `
@@ -1244,18 +1259,31 @@ func (q *Queries) SetTriggerNext(ctx context.Context, arg SetTriggerNextParams) 
 	return err
 }
 
-const updateRecordData = `-- name: UpdateRecordData :exec
-UPDATE record SET data = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?
+const updateRecordData = `-- name: UpdateRecordData :execrows
+UPDATE record SET data = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+WHERE id = ? AND project_id = ? AND collection = ? AND key = ?
 `
 
 type UpdateRecordDataParams struct {
-	Data string
-	ID   int64
+	Data       string
+	ID         int64
+	ProjectID  int64
+	Collection string
+	Key        string
 }
 
-func (q *Queries) UpdateRecordData(ctx context.Context, arg UpdateRecordDataParams) error {
-	_, err := q.db.ExecContext(ctx, updateRecordData, arg.Data, arg.ID)
-	return err
+func (q *Queries) UpdateRecordData(ctx context.Context, arg UpdateRecordDataParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateRecordData,
+		arg.Data,
+		arg.ID,
+		arg.ProjectID,
+		arg.Collection,
+		arg.Key,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const upsertRecord = `-- name: UpsertRecord :one
@@ -1314,4 +1342,16 @@ func (q *Queries) UpsertTrigger(ctx context.Context, arg UpsertTriggerParams) er
 		arg.Params,
 	)
 	return err
+}
+
+const useApproval = `-- name: UseApproval :execrows
+UPDATE ask SET used = 1, delivered = 1 WHERE id = ? AND used = 0
+`
+
+func (q *Queries) UseApproval(ctx context.Context, id int64) (int64, error) {
+	result, err := q.db.ExecContext(ctx, useApproval, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }

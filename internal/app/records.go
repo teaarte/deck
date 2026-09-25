@@ -3,7 +3,9 @@ package app
 import (
 	"bufio"
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -50,25 +52,36 @@ func (a *App) UpsertRecords(ctx context.Context, projectID int64, m *manifest.Ma
 		return UpsertResult{}, registry.Invalid("deck: unknown collection %q", collection)
 	}
 	var out UpsertResult
-	for i, r := range recs {
-		key, err := c.RecordKey(r)
-		if err != nil {
-			out.Errors = append(out.Errors, fmt.Sprintf("records[%d]: %v", i, err))
-			continue
-		}
-		if prev, err := a.Store.Q.GetRecordByKey(ctx, db.GetRecordByKeyParams{ProjectID: projectID, Collection: collection, Key: key}); err == nil {
-			if old, err := manifest.DecodeObject([]byte(prev.Data)); err == nil {
-				if err := c.CheckImmutable(old, r); err != nil {
-					out.Errors = append(out.Errors, fmt.Sprintf("records[%d]: %v", i, err))
-					continue
-				}
+	err := a.Store.Tx(ctx, func(q *db.Queries) error {
+		for i, r := range recs {
+			key, err := c.RecordKey(r)
+			if err != nil {
+				out.Errors = append(out.Errors, fmt.Sprintf("records[%d]: %v", i, err))
+				continue
 			}
+			prev, err := q.GetRecordByKey(ctx, db.GetRecordByKeyParams{ProjectID: projectID, Collection: collection, Key: key})
+			switch {
+			case err == nil:
+				old, derr := manifest.DecodeObject([]byte(prev.Data))
+				if derr == nil {
+					if err := c.CheckImmutable(old, r); err != nil {
+						out.Errors = append(out.Errors, fmt.Sprintf("records[%d]: %v", i, err))
+						continue
+					}
+				}
+			case !errors.Is(err, sql.ErrNoRows):
+				return err
+			}
+			data, _ := json.Marshal(r)
+			if _, err := q.UpsertRecord(ctx, db.UpsertRecordParams{ProjectID: projectID, Collection: collection, Key: key, Data: string(data)}); err != nil {
+				return err
+			}
+			out.Written++
 		}
-		data, _ := json.Marshal(r)
-		if _, err := a.Store.Q.UpsertRecord(ctx, db.UpsertRecordParams{ProjectID: projectID, Collection: collection, Key: key, Data: string(data)}); err != nil {
-			return out, err
-		}
-		out.Written++
+		return nil
+	})
+	if err != nil {
+		return UpsertResult{}, err
 	}
 	if out.Written > 0 {
 		a.Bus.Publish("collection")
@@ -76,7 +89,7 @@ func (a *App) UpsertRecords(ctx context.Context, projectID int64, m *manifest.Ma
 	return out, nil
 }
 
-// UpdateRecord replaces the data of a record; the key must stay the same.
+// UpdateRecord replaces the data of a record; the key and immutable fields must stay the same.
 func (a *App) UpdateRecord(ctx context.Context, rec db.Record, m *manifest.Manifest, data map[string]any) error {
 	c := m.Collection(rec.Collection)
 	if c == nil {
@@ -95,8 +108,12 @@ func (a *App) UpdateRecord(ctx context.Context, rec db.Record, m *manifest.Manif
 		}
 	}
 	b, _ := json.Marshal(data)
-	if err := a.Store.Q.UpdateRecordData(ctx, db.UpdateRecordDataParams{Data: string(b), ID: rec.ID}); err != nil {
+	n, err := a.Store.Q.UpdateRecordData(ctx, db.UpdateRecordDataParams{Data: string(b), ID: rec.ID, ProjectID: rec.ProjectID, Collection: rec.Collection, Key: rec.Key})
+	if err != nil {
 		return err
+	}
+	if n == 0 {
+		return registry.NotFound("deck: record %d no longer exists", rec.ID)
 	}
 	a.Bus.Publish("collection")
 	return nil

@@ -25,14 +25,19 @@ SELECT * FROM record WHERE project_id = ? AND collection = ? AND key = ?;
 -- name: CountRecords :many
 SELECT collection, COUNT(*) AS n FROM record WHERE project_id = ? GROUP BY collection;
 
+-- name: DeleteRecordDocuments :exec
+DELETE FROM document WHERE owner_kind = 'record'
+AND owner_id IN (SELECT r.id FROM record r WHERE r.project_id = sqlc.arg(project_id) AND r.collection = sqlc.arg(collection));
+
 -- name: DeleteCollection :execrows
 DELETE FROM record WHERE project_id = ? AND collection = ?;
 
 -- name: GetRecord :one
 SELECT * FROM record WHERE id = ?;
 
--- name: UpdateRecordData :exec
-UPDATE record SET data = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?;
+-- name: UpdateRecordData :execrows
+UPDATE record SET data = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+WHERE id = ? AND project_id = ? AND collection = ? AND key = ?;
 
 -- name: CreateProcess :one
 INSERT INTO process (project_id, command, state, provider, input) VALUES (?, ?, ?, ?, ?) RETURNING *;
@@ -109,6 +114,9 @@ RETURNING *;
 
 -- name: MarkAskUsed :exec
 UPDATE ask SET used = 1, delivered = 1 WHERE id = ?;
+
+-- name: UseApproval :execrows
+UPDATE ask SET used = 1, delivered = 1 WHERE id = ? AND used = 0;
 
 -- name: LogToolCall :exec
 INSERT INTO tool_call (process_id, project_id, tool, class, outcome, params) VALUES (?, ?, ?, ?, ?, ?);

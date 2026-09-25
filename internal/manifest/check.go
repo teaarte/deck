@@ -1,6 +1,7 @@
 package manifest
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
@@ -332,8 +333,8 @@ func (m *Manifest) checkScreens(fail func(string, ...any)) {
 				fail("%s: unknown block type %q", where, b.Type)
 			}
 			for _, a := range b.Actions {
-				if m.commands[a.Command] == nil {
-					fail("%s action %q: unknown command %q", where, a.Label, a.Command)
+				if err := m.checkAction(a); err != nil {
+					fail("%s action %q: %v", where, a.Label, err)
 				}
 			}
 		}
@@ -343,4 +344,32 @@ func (m *Manifest) checkScreens(fail func(string, ...any)) {
 			fail("menu: unknown screen %q", name)
 		}
 	}
+}
+
+// checkAction verifies that a screen button can call its command: the owner may call it and the params
+// cover the required input fields and nothing else.
+func (m *Manifest) checkAction(a Action) error {
+	c := m.commands[a.Command]
+	if c == nil {
+		return fmt.Errorf("unknown command %q", a.Command)
+	}
+	if !slices.Contains(c.Callable(), "owner") {
+		return fmt.Errorf("command %q cannot be called by the owner", a.Command)
+	}
+	var in struct {
+		Properties map[string]json.RawMessage `json:"properties"`
+		Required   []string                   `json:"required"`
+	}
+	_ = json.Unmarshal(c.InputSchema(), &in)
+	for _, r := range in.Required {
+		if _, ok := a.Params[r]; !ok {
+			return fmt.Errorf("command %q needs param %q", a.Command, r)
+		}
+	}
+	for k := range a.Params {
+		if _, ok := in.Properties[k]; !ok {
+			return fmt.Errorf("command %q has no input field %q", a.Command, k)
+		}
+	}
+	return nil
 }

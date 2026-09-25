@@ -269,7 +269,9 @@ func (g *Gateway) confirm(ctx context.Context, s *Session, in approveInput) deci
 		return decision{Behavior: "deny", Message: "deck: waiting for the owner to confirm this call; it was not made." + stopAndWait}
 	}
 	if answer == "allow" {
-		_ = g.st.Q.MarkAskUsed(ctx, a.ID)
+		if n, err := g.st.Q.UseApproval(ctx, a.ID); err != nil || n == 0 {
+			return decision{Behavior: "deny", Message: "deck: this approval was already used by an identical call."}
+		}
 		g.log(ctx, s, in.ToolName, "external", "done", "")
 		return decision{Behavior: "allow", UpdatedInput: in.Input}
 	}

@@ -5,11 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/big"
 	"slices"
 	"strings"
 
 	"github.com/expr-lang/expr"
 	"github.com/expr-lang/expr/ast"
+	"github.com/expr-lang/expr/builtin"
 	"github.com/expr-lang/expr/parser"
 	"github.com/expr-lang/expr/vm"
 	"github.com/santhosh-tekuri/jsonschema/v6"
@@ -33,10 +35,21 @@ func compileExpr(src string, fields []string) (*vm.Program, error) {
 			}
 		}
 	}
+	tree, err := parser.Parse(src)
+	if err != nil {
+		return nil, err
+	}
+	v := &names{callees: map[*ast.IdentifierNode]bool{}, lets: map[string]bool{}}
+	ast.Walk(&tree.Node, v)
+	for id := range v.callees {
+		if _, ok := builtin.Index[id.Value]; !ok {
+			return nil, fmt.Errorf("unknown function %q", id.Value)
+		}
+	}
 	return expr.Compile(src, expr.AllowUndefinedVariables())
 }
 
-// exprFields lists the fields an expression reads, out of the given ones.
+// exprFields lists the fields an expression reads, out of the given ones; any name when fields is nil.
 func exprFields(src string, fields []string) []string {
 	tree, err := parser.Parse(src)
 	if err != nil {
@@ -46,7 +59,7 @@ func exprFields(src string, fields []string) []string {
 	ast.Walk(&tree.Node, v)
 	var out []string
 	for _, id := range v.ids {
-		if !v.callees[id] && !v.lets[id.Value] && slices.Contains(fields, id.Value) && !slices.Contains(out, id.Value) {
+		if !v.callees[id] && !v.lets[id.Value] && (fields == nil || slices.Contains(fields, id.Value)) && !slices.Contains(out, id.Value) {
 			out = append(out, id.Value)
 		}
 	}
@@ -133,6 +146,9 @@ func exactNumbers(v any) any {
 	case json.Number:
 		if i, err := x.Int64(); err == nil {
 			return i
+		}
+		if r, ok := new(big.Rat).SetString(x.String()); ok && r.IsInt() && r.Num().IsInt64() {
+			return r.Num().Int64()
 		}
 		f, _ := x.Float64()
 		return f

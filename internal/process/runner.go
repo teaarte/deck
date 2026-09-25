@@ -164,7 +164,7 @@ func (r *Runner) ResumeInterrupted(ctx context.Context) error {
 }
 
 // resume spawns the provider on the existing session; the caller has already set the state to running.
-// The asks are marked delivered right before the provider starts.
+// The asks are marked delivered once the provider returns, so a crash before that delivers them again.
 func (r *Runner) resume(ctx context.Context, processID int64, message string, asks []int64) error {
 	p, err := r.st.Q.GetProcess(ctx, processID)
 	if err != nil {
@@ -217,14 +217,15 @@ func (r *Runner) run(processID, projectID int64, cmd *manifest.Command, prompt, 
 			_ = r.st.Q.SetProcessSession(bg, db.SetProcessSessionParams{SessionID: id, ID: processID})
 		},
 	}
-	for _, id := range asks {
-		_ = r.st.Q.MarkAskDelivered(bg, id)
-	}
 	for attempt := 0; ; attempt++ {
 		res, err := r.provider.Run(ctx, req)
 		if ctx.Err() != nil {
 			return
 		}
+		for _, id := range asks {
+			_ = r.st.Q.MarkAskDelivered(bg, id)
+		}
+		asks = nil
 		if err != nil {
 			r.finish(bg, processID, StateError, "", false, err.Error())
 			return

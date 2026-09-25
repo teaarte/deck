@@ -130,6 +130,13 @@ async function renderAsks() {
       };
       for (const q of qs) {
         div.append(el("div", {}, q.question));
+        if (q.multiSelect) {
+          const chosen = new Set();
+          const toggle = (label, btn) => { chosen.has(label) ? chosen.delete(label) : chosen.add(label); btn.className = chosen.has(label) ? "primary" : ""; };
+          div.append(el("div", {}, ...(q.options || []).map(o => el("button", { onclick: e => toggle(o.label, e.target) }, o.label)),
+            el("button", { onclick: e => chosen.size && pick(q, [...chosen].join(", "), null) }, "Done")));
+          continue;
+        }
         div.append(el("div", {}, ...(q.options || []).map(o => el("button", { onclick: e => pick(q, o.label, e.target) }, o.label)),
           el("button", { onclick: e => { const t = prompt(q.question); if (t) pick(q, t, e.target); } }, "Other…")));
       }

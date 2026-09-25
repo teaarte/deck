@@ -176,7 +176,14 @@ func (a *App) collectionDelete(ctx context.Context, act registry.Actor, in struc
 	if err != nil {
 		return nil, err
 	}
-	n, err := a.Store.Q.DeleteCollection(ctx, db.DeleteCollectionParams{ProjectID: p.ID, Collection: in.Collection})
+	var n int64
+	err = a.Store.Tx(ctx, func(q *db.Queries) error {
+		if err := q.DeleteRecordDocuments(ctx, db.DeleteRecordDocumentsParams{ProjectID: p.ID, Collection: in.Collection}); err != nil {
+			return err
+		}
+		n, err = q.DeleteCollection(ctx, db.DeleteCollectionParams{ProjectID: p.ID, Collection: in.Collection})
+		return err
+	})
 	if err != nil {
 		return nil, err
 	}

@@ -265,16 +265,17 @@ func (q *Queries) CreateProcess(ctx context.Context, arg CreateProcessParams) (P
 }
 
 const createProject = `-- name: CreateProject :one
-INSERT INTO project (name, status) VALUES (?, ?) RETURNING id, name, created_at, workspace_id, status
+INSERT INTO project (workspace_id, name, status) VALUES (?, ?, ?) RETURNING id, name, created_at, workspace_id, status
 `
 
 type CreateProjectParams struct {
-	Name   string
-	Status string
+	WorkspaceID int64
+	Name        string
+	Status      string
 }
 
 func (q *Queries) CreateProject(ctx context.Context, arg CreateProjectParams) (Project, error) {
-	row := q.db.QueryRowContext(ctx, createProject, arg.Name, arg.Status)
+	row := q.db.QueryRowContext(ctx, createProject, arg.WorkspaceID, arg.Name, arg.Status)
 	var i Project
 	err := row.Scan(
 		&i.ID,
@@ -287,21 +288,33 @@ func (q *Queries) CreateProject(ctx context.Context, arg CreateProjectParams) (P
 }
 
 const currentText = `-- name: CurrentText :one
-SELECT r.text FROM document d JOIN document_revision r ON r.document_id = d.id AND r.n = d.current
-WHERE d.project_id = ? AND d.kind = ? AND d.name = ? AND d.owner_kind = '' AND d.workspace_id = 1
+SELECT d.kind, r.text FROM document d JOIN document_revision r ON r.document_id = d.id AND r.n = d.current
+WHERE d.workspace_id = ? AND d.project_id = ? AND d.name = ? AND d.owner_kind = '' AND d.owner_id = 0
+  AND (?4 = '' OR d.kind = ?4)
 `
 
 type CurrentTextParams struct {
-	ProjectID int64
-	Kind      string
-	Name      string
+	WorkspaceID int64
+	ProjectID   int64
+	Name        string
+	Kind        interface{}
 }
 
-func (q *Queries) CurrentText(ctx context.Context, arg CurrentTextParams) (string, error) {
-	row := q.db.QueryRowContext(ctx, currentText, arg.ProjectID, arg.Kind, arg.Name)
-	var text string
-	err := row.Scan(&text)
-	return text, err
+type CurrentTextRow struct {
+	Kind string
+	Text string
+}
+
+func (q *Queries) CurrentText(ctx context.Context, arg CurrentTextParams) (CurrentTextRow, error) {
+	row := q.db.QueryRowContext(ctx, currentText,
+		arg.WorkspaceID,
+		arg.ProjectID,
+		arg.Name,
+		arg.Kind,
+	)
+	var i CurrentTextRow
+	err := row.Scan(&i.Kind, &i.Text)
+	return i, err
 }
 
 const deleteCollection = `-- name: DeleteCollection :execrows
@@ -517,6 +530,17 @@ func (q *Queries) GetAsk(ctx context.Context, id int64) (Ask, error) {
 		&i.AnsweredAt,
 	)
 	return i, err
+}
+
+const getAskWorkspace = `-- name: GetAskWorkspace :one
+SELECT j.workspace_id FROM ask a JOIN process p ON p.id = a.process_id JOIN project j ON j.id = p.project_id WHERE a.id = ?
+`
+
+func (q *Queries) GetAskWorkspace(ctx context.Context, id int64) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getAskWorkspace, id)
+	var workspace_id int64
+	err := row.Scan(&workspace_id)
+	return workspace_id, err
 }
 
 const getDocument = `-- name: GetDocument :one
@@ -871,19 +895,26 @@ func (q *Queries) ListProcessesByState(ctx context.Context, state string) ([]Pro
 
 const listProcessesFiltered = `-- name: ListProcessesFiltered :many
 SELECT id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at FROM process
-WHERE (?1 = 0 OR project_id = ?1)
-  AND (?2 = '' OR state = ?2)
-ORDER BY id DESC LIMIT ?3
+WHERE project_id IN (SELECT id FROM project WHERE workspace_id = ?1)
+  AND (?2 = 0 OR project_id = ?2)
+  AND (?3 = '' OR state = ?3)
+ORDER BY id DESC LIMIT ?4
 `
 
 type ListProcessesFilteredParams struct {
-	ProjectID interface{}
-	State     interface{}
-	Lim       int64
+	WorkspaceID int64
+	ProjectID   interface{}
+	State       interface{}
+	Lim         int64
 }
 
 func (q *Queries) ListProcessesFiltered(ctx context.Context, arg ListProcessesFilteredParams) ([]Process, error) {
-	rows, err := q.db.QueryContext(ctx, listProcessesFiltered, arg.ProjectID, arg.State, arg.Lim)
+	rows, err := q.db.QueryContext(ctx, listProcessesFiltered,
+		arg.WorkspaceID,
+		arg.ProjectID,
+		arg.State,
+		arg.Lim,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -1128,6 +1159,79 @@ func (q *Queries) ListUndeliveredAsks(ctx context.Context, processID int64) ([]A
 			&i.Used,
 			&i.CreatedAt,
 			&i.AnsweredAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWorkspaceOpenAsks = `-- name: ListWorkspaceOpenAsks :many
+SELECT a.id, a.process_id, a.kind, a.text, a.payload, a.answer, a.state, a.delivered, a.used, a.created_at, a.answered_at FROM ask a JOIN process p ON p.id = a.process_id JOIN project j ON j.id = p.project_id
+WHERE a.state = 'open' AND j.workspace_id = ? ORDER BY a.id
+`
+
+func (q *Queries) ListWorkspaceOpenAsks(ctx context.Context, workspaceID int64) ([]Ask, error) {
+	rows, err := q.db.QueryContext(ctx, listWorkspaceOpenAsks, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Ask
+	for rows.Next() {
+		var i Ask
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProcessID,
+			&i.Kind,
+			&i.Text,
+			&i.Payload,
+			&i.Answer,
+			&i.State,
+			&i.Delivered,
+			&i.Used,
+			&i.CreatedAt,
+			&i.AnsweredAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWorkspaceProjects = `-- name: ListWorkspaceProjects :many
+SELECT id, name, created_at, workspace_id, status FROM project WHERE workspace_id = ? ORDER BY name
+`
+
+func (q *Queries) ListWorkspaceProjects(ctx context.Context, workspaceID int64) ([]Project, error) {
+	rows, err := q.db.QueryContext(ctx, listWorkspaceProjects, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Project
+	for rows.Next() {
+		var i Project
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.CreatedAt,
+			&i.WorkspaceID,
+			&i.Status,
 		); err != nil {
 			return nil, err
 		}

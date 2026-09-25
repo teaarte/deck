@@ -33,10 +33,11 @@ var FreeBuiltins = []string{"Read", "Glob", "Grep", "TodoWrite", "StructuredOutp
 type Session struct {
 	ProcessID int64
 	ProjectID int64
+	Workspace int64
 }
 
 func (s *Session) actor() registry.Actor {
-	return registry.Actor{Kind: registry.Agent, ProjectID: s.ProjectID, ProcessID: s.ProcessID}
+	return registry.Actor{Kind: registry.Agent, Workspace: s.Workspace, ProjectID: s.ProjectID, ProcessID: s.ProcessID}
 }
 
 type Config struct {

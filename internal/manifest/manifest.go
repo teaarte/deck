@@ -16,11 +16,10 @@ import (
 	"deck2/schemas"
 )
 
-const FormatVersion = 2
+const FormatVersion = 3
 
 type Manifest struct {
 	Version         int          `json:"version"`
-	Description     string       `json:"description,omitempty"`
 	Collections     []Collection `json:"collections,omitempty"`
 	Commands        []Command    `json:"commands,omitempty"`
 	Scripts         []Script     `json:"scripts,omitempty"`

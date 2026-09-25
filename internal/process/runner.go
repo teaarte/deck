@@ -202,7 +202,12 @@ func (r *Runner) run(processID, projectID int64, cmd *manifest.Command, prompt, 
 		r.finish(bg, processID, StateError, "", false, err.Error())
 		return
 	}
-	tok, err := r.gw.Register(bg, &gateway.Session{ProcessID: processID, ProjectID: projectID})
+	proj, err := r.st.Q.GetProject(bg, projectID)
+	if err != nil {
+		r.finish(bg, processID, StateError, "", false, err.Error())
+		return
+	}
+	tok, err := r.gw.Register(bg, &gateway.Session{ProcessID: processID, ProjectID: projectID, Workspace: proj.WorkspaceID})
 	if err != nil {
 		r.finish(bg, processID, StateError, "", false, err.Error())
 		return

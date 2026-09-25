@@ -1,5 +1,5 @@
 -- name: CreateProject :one
-INSERT INTO project (name, status) VALUES (?, ?) RETURNING *;
+INSERT INTO project (workspace_id, name, status) VALUES (?, ?, ?) RETURNING *;
 
 -- name: GetProject :one
 SELECT * FROM project WHERE id = ?;
@@ -9,6 +9,9 @@ SELECT * FROM project WHERE name = ?;
 
 -- name: ListProjects :many
 SELECT * FROM project ORDER BY name;
+
+-- name: ListWorkspaceProjects :many
+SELECT * FROM project WHERE workspace_id = ? ORDER BY name;
 
 -- name: UpsertRecord :one
 INSERT INTO record (project_id, collection, key, data) VALUES (?, ?, ?, ?)
@@ -50,7 +53,8 @@ SELECT * FROM process ORDER BY id DESC LIMIT ?;
 
 -- name: ListProcessesFiltered :many
 SELECT * FROM process
-WHERE (sqlc.arg(project_id) = 0 OR project_id = sqlc.arg(project_id))
+WHERE project_id IN (SELECT id FROM project WHERE workspace_id = sqlc.arg(workspace_id))
+  AND (sqlc.arg(project_id) = 0 OR project_id = sqlc.arg(project_id))
   AND (sqlc.arg(state) = '' OR state = sqlc.arg(state))
 ORDER BY id DESC LIMIT sqlc.arg(lim);
 
@@ -79,6 +83,13 @@ SELECT * FROM ask WHERE id = ?;
 
 -- name: ListOpenAsks :many
 SELECT * FROM ask WHERE state = 'open' ORDER BY id;
+
+-- name: ListWorkspaceOpenAsks :many
+SELECT a.* FROM ask a JOIN process p ON p.id = a.process_id JOIN project j ON j.id = p.project_id
+WHERE a.state = 'open' AND j.workspace_id = ? ORDER BY a.id;
+
+-- name: GetAskWorkspace :one
+SELECT j.workspace_id FROM ask a JOIN process p ON p.id = a.process_id JOIN project j ON j.id = p.project_id WHERE a.id = ?;
 
 -- name: AnswerAsk :execrows
 UPDATE ask SET answer = ?, state = 'answered', answered_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
@@ -171,5 +182,6 @@ SELECT * FROM document_revision WHERE document_id = ? AND n = ?;
 SELECT id, document_id, n, author, reason, created_at FROM document_revision WHERE document_id = ? ORDER BY n DESC;
 
 -- name: CurrentText :one
-SELECT r.text FROM document d JOIN document_revision r ON r.document_id = d.id AND r.n = d.current
-WHERE d.project_id = ? AND d.kind = ? AND d.name = ? AND d.owner_kind = '' AND d.workspace_id = 1;
+SELECT d.kind, r.text FROM document d JOIN document_revision r ON r.document_id = d.id AND r.n = d.current
+WHERE d.workspace_id = ? AND d.project_id = ? AND d.name = ? AND d.owner_kind = '' AND d.owner_id = 0
+  AND (sqlc.arg(kind) = '' OR d.kind = sqlc.arg(kind));

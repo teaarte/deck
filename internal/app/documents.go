@@ -29,12 +29,24 @@ const (
 
 var docSegment = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
 
-// DocRef locates a document: project 0 is the workspace, OwnerKind binds it to a record or card.
+// Scope is where documents live: a project of a workspace, or the workspace itself when Project is 0.
+type Scope struct {
+	Workspace int64
+	Project   int64
+}
+
+func projectScope(p db.Project) Scope { return Scope{Workspace: p.WorkspaceID, Project: p.ID} }
+
+// DocRef locates a document; OwnerKind binds it to a record or card.
 type DocRef struct {
-	ProjectID int64
+	Scope
 	OwnerKind string
 	OwnerID   int64
 	Name      string
+}
+
+func (r DocRef) find() db.FindDocumentParams {
+	return db.FindDocumentParams{WorkspaceID: r.Workspace, ProjectID: r.Project, OwnerKind: r.OwnerKind, OwnerID: r.OwnerID, Name: r.Name}
 }
 
 func checkDocName(name string) error {
@@ -67,20 +79,24 @@ func checkDocText(kind, name, text string) error {
 }
 
 // SaveDocument writes a new revision and makes it current, creating the document on first save.
-func (a *App) SaveDocument(ctx context.Context, q *db.Queries, ref DocRef, kind, text, author, reason string) (db.Document, int64, error) {
+func SaveDocument(ctx context.Context, q *db.Queries, ref DocRef, kind, text, author, reason string) (db.Document, int64, error) {
 	if !slices.Contains(DocumentKinds, kind) {
 		return db.Document{}, 0, registry.Invalid("deck: unknown document kind %q; one of %s", kind, strings.Join(DocumentKinds, ", "))
 	}
 	if err := checkDocName(ref.Name); err != nil {
 		return db.Document{}, 0, err
 	}
+	if want, ok := reservedNames[ref.Name]; ok && ref.OwnerKind == "" && kind != want {
+		return db.Document{}, 0, registry.Invalid("deck: %q is reserved for the %s document", ref.Name, want)
+	}
 	if err := checkDocText(kind, ref.Name, text); err != nil {
 		return db.Document{}, 0, err
 	}
-	d, err := q.FindDocument(ctx, db.FindDocumentParams{WorkspaceID: 1, ProjectID: ref.ProjectID, OwnerKind: ref.OwnerKind, OwnerID: ref.OwnerID, Name: ref.Name})
+	d, err := q.FindDocument(ctx, ref.find())
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
-		d, err = q.CreateDocument(ctx, db.CreateDocumentParams{WorkspaceID: 1, ProjectID: ref.ProjectID, OwnerKind: ref.OwnerKind, OwnerID: ref.OwnerID, Kind: kind, Name: ref.Name})
+		d, err = q.CreateDocument(ctx, db.CreateDocumentParams{WorkspaceID: ref.Workspace, ProjectID: ref.Project,
+			OwnerKind: ref.OwnerKind, OwnerID: ref.OwnerID, Kind: kind, Name: ref.Name})
 		if err != nil {
 			return d, 0, err
 		}
@@ -103,28 +119,31 @@ func (a *App) SaveDocument(ctx context.Context, q *db.Queries, ref DocRef, kind,
 	return d, n, nil
 }
 
-// DocumentText returns the current text of a project document such as the manifest or prompt.
-func (a *App) DocumentText(ctx context.Context, projectID int64, kind, name string) (string, error) {
-	t, err := a.Store.Q.CurrentText(ctx, db.CurrentTextParams{ProjectID: projectID, Kind: kind, Name: name})
+// currentText returns the current text of a document of the given kind ("" for any); empty when missing.
+func currentText(ctx context.Context, q *db.Queries, s Scope, kind, name string) (string, error) {
+	row, err := q.CurrentText(ctx, db.CurrentTextParams{WorkspaceID: s.Workspace, ProjectID: s.Project, Name: name, Kind: kind})
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", nil
 	}
-	return t, err
+	return row.Text, err
 }
 
-func (a *App) document(ctx context.Context, id int64) (db.Document, error) {
-	d, err := a.Store.Q.GetDocument(ctx, id)
+// reservedNames bind document names the core reads to their kind.
+var reservedNames = map[string]string{ManifestName: KindManifest, PromptName: KindPrompt}
+
+func getDocument(ctx context.Context, q *db.Queries, id int64) (db.Document, error) {
+	d, err := q.GetDocument(ctx, id)
 	if errors.Is(err, sql.ErrNoRows) {
 		return d, registry.NotFound("deck: no document %d", id)
 	}
 	return d, err
 }
 
-func (a *App) revision(ctx context.Context, d db.Document, n int64) (db.DocumentRevision, error) {
+func getRevision(ctx context.Context, q *db.Queries, d db.Document, n int64) (db.DocumentRevision, error) {
 	if n == 0 {
 		n = d.Current
 	}
-	r, err := a.Store.Q.GetRevision(ctx, db.GetRevisionParams{DocumentID: d.ID, N: n})
+	r, err := q.GetRevision(ctx, db.GetRevisionParams{DocumentID: d.ID, N: n})
 	if errors.Is(err, sql.ErrNoRows) {
 		return r, registry.NotFound("deck: document %d has no revision %d", d.ID, n)
 	}
@@ -136,4 +155,10 @@ func revertReason(n int64, reason string) string {
 		return fmt.Sprintf("revert to revision %d", n)
 	}
 	return fmt.Sprintf("revert to revision %d: %s", n, reason)
+}
+
+// description is the first line of a project prompt, without a markdown heading mark.
+func description(prompt string) string {
+	line, _, _ := strings.Cut(strings.TrimSpace(prompt), "\n")
+	return strings.TrimSpace(strings.TrimLeft(line, "# "))
 }

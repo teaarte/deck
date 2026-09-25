@@ -13,8 +13,7 @@ import (
 )
 
 const fullManifest = `{
-  "version": 2,
-  "description": "Links worth reading",
+  "version": 3,
   "collections": [
     {"name": "sources", "description": "A page to watch", "key": "url", "display": "url",
      "schema": {"type": "object", "properties": {"url": {"type": "string"}, "status": {"type": "string"}}, "required": ["url"]}},
@@ -176,13 +175,13 @@ func TestOldManifestFormatIsUpgraded(t *testing.T) {
 	p := e.createProject("ideas", ideasV1)
 	var cur struct{ Manifest string }
 	e.must("deck.manifest_get", map[string]any{"project": "ideas"}, &cur)
-	if !strings.Contains(cur.Manifest, `"version": 2`) || !strings.Contains(cur.Manifest, `"display": "title"`) || strings.Contains(cur.Manifest, "result_schema") {
+	if !strings.Contains(cur.Manifest, `"version": 3`) || !strings.Contains(cur.Manifest, `"display": "title"`) || strings.Contains(cur.Manifest, "result_schema") {
 		t.Fatalf("saved v1 manifest must be stored upgraded:\n%s", cur.Manifest)
 	}
 
 	ctx := context.Background()
-	err := e.App.Store.Tx(ctx, func(q *db.Queries) error {
-		_, _, err := e.App.SaveDocument(ctx, q, app.DocRef{ProjectID: p, Name: app.ManifestName}, app.KindManifest, ideasV1, "owner", "stored by an old deck")
+	err := e.App.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		_, _, err := app.SaveDocument(ctx, q, app.DocRef{Scope: app.Scope{Workspace: 1, Project: p}, Name: app.ManifestName}, app.KindManifest, ideasV1, "owner", "stored by an old deck")
 		return err
 	})
 	if err != nil {
@@ -199,7 +198,7 @@ func TestOldManifestFormatIsUpgraded(t *testing.T) {
 	var doc struct{ Document int64 }
 	e.must("deck.manifest_get", map[string]any{"project": "ideas"}, &doc)
 	e.must("deck.document_revisions", map[string]any{"document": doc.Document}, &revs)
-	if len(revs) != 3 || revs[0].Author != "deck" || !strings.Contains(revs[0].Reason, "version 2") {
+	if len(revs) != 3 || revs[0].Author != "deck" || !strings.Contains(revs[0].Reason, "version 3") {
 		t.Fatalf("startup upgrade must add a deck revision, got %+v", revs)
 	}
 	if err := e.App.UpgradeManifests(ctx); err != nil {

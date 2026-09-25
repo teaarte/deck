@@ -13,6 +13,7 @@ import (
 	"deck2/internal/app"
 	"deck2/internal/registry"
 	"deck2/internal/screen"
+	"deck2/internal/store"
 )
 
 type Server struct {
@@ -51,7 +52,7 @@ func (s *Server) auth(next http.Handler) http.Handler {
 	})
 }
 
-var owner = registry.Actor{Kind: registry.Owner}
+var owner = registry.Actor{Kind: registry.Owner, Workspace: store.DefaultWorkspace}
 
 func (s *Server) listCommands(w http.ResponseWriter, r *http.Request) {
 	cmds, err := s.app.Registry.List(r.Context(), owner)
@@ -83,7 +84,7 @@ func (s *Server) getScreen(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p, err := s.app.Store.Q.GetProject(r.Context(), id)
-	if err != nil {
+	if err != nil || p.WorkspaceID != owner.Workspace {
 		http.Error(w, "no such project", http.StatusNotFound)
 		return
 	}

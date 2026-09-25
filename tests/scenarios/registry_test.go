@@ -106,7 +106,9 @@ type docView struct {
 
 func TestManifestRevisionsAndRevert(t *testing.T) {
 	e := newEnv(t, nil)
-	p := e.createProject("ideas", ideasManifest)
+	var created struct{ ID int64 }
+	e.must("deck.project_create", map[string]any{"name": "ideas", "manifest": ideasManifest, "prompt": "# Ideas of the day\nShort ideas for a solo developer."}, &created)
+	p := created.ID
 	var projects []struct {
 		Name, Description string
 		Screens           []struct{ Name string }
@@ -126,7 +128,7 @@ func TestManifestRevisionsAndRevert(t *testing.T) {
 		t.Fatalf("removed trigger must be dropped, got %+v", ts)
 	}
 
-	code, out := e.call("deck.manifest_save", map[string]any{"project": "ideas", "manifest": `{"version": 2, "commands": [{"name": "x"}]}`})
+	code, out := e.call("deck.manifest_save", map[string]any{"project": "ideas", "manifest": `{"version": 3, "commands": [{"name": "x"}]}`})
 	if code != 422 || !strings.Contains(string(out), "title") || !strings.Contains(string(out), "executor") {
 		t.Fatalf("invalid manifest: want 422 with reason, got %d %s", code, out)
 	}

@@ -28,6 +28,7 @@ Protocol facts about Claude Code: `docs/spikes/claude-code.md`. Stage 1 plan: `d
 - `internal/api` — HTTP API (`GET /api/commands`, `POST /api/commands/{name}`, screens) and SSE;
   `web/static` — embedded client
 - `internal/lint` — code rules checked by `tests/lint` (comments, requirement refs, vertical names)
+- `schemas` — contracts embedded in the binary: manifest JSON Schema, App Intents parameter rules
 - `tests/scenarios` — scenario tests through the real gateway with a fake provider
 
 ## Rules
@@ -37,6 +38,9 @@ Protocol facts about Claude Code: `docs/spikes/claude-code.md`. Stage 1 plan: `d
 - No names of verticals (vacancies, forecasts, mailboxes, Brier, …) in Go code or the web client outside
   built-in tools and test fixtures. Verticals live in manifests.
 - Tests are scenario tests through the registry/API on a real SQLite in a temp dir; no unit tests of internals.
+- Every write runs in `Store.Tx`; inside it use only the `ctx` and `q` it passes (`Store.Q` panics there).
+  Helpers that may run inside a transaction take `*db.Queries`. Nothing is hardcoded to workspace 1:
+  scope comes from the project or the actor.
 - New behaviour is a registry command (`deck.<name>` builtin or `<project>.<name>` from a manifest), not a
   new HTTP endpoint.
 - Web client (stage 1+): React + Vite + Mantine v9. Mantine v9 is new — check https://mantine.dev before

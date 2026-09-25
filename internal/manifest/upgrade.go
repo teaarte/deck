@@ -8,7 +8,8 @@ import (
 
 var upgrades = map[int]func(m map[string]any){
 	1: func(m map[string]any) {
-		dropEmpty(m, "description", "collections", "commands", "triggers", "screens")
+		delete(m, "description")
+		dropEmpty(m, "collections", "commands", "triggers", "screens")
 		for _, c := range items(m["collections"]) {
 			rename(c, "title", "display")
 			dropEmpty(c, "display", "description")
@@ -22,6 +23,9 @@ var upgrades = map[int]func(m map[string]any){
 				dropEmpty(b, "title", "source", "columns", "actions")
 			}
 		}
+	},
+	2: func(m map[string]any) {
+		delete(m, "description")
 	},
 }
 
@@ -94,4 +98,16 @@ func rename(o map[string]any, from, to string) {
 		o[to] = v
 		delete(o, from)
 	}
+}
+
+// LegacyDescription is the project description a manifest before format 3 carried; it moves to the md prompt.
+func LegacyDescription(raw []byte) string {
+	var m struct {
+		Version     int    `json:"version"`
+		Description string `json:"description"`
+	}
+	if json.Unmarshal(raw, &m) != nil || m.Version >= 3 {
+		return ""
+	}
+	return m.Description
 }

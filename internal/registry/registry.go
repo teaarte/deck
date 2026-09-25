@@ -12,6 +12,8 @@ import (
 	"strings"
 
 	"github.com/santhosh-tekuri/jsonschema/v6"
+
+	"deck2/schemas"
 )
 
 const (
@@ -28,11 +30,12 @@ const (
 )
 
 // Builtin is the name prefix of commands implemented in Go.
-const Builtin = "deck"
+const Builtin = schemas.Builtin
 
 // Actor is who invokes a command; agents and triggers act inside one project.
 type Actor struct {
 	Kind      string
+	Workspace int64
 	ProjectID int64
 	ProcessID int64
 }
@@ -90,8 +93,8 @@ func Status(err error) int {
 	return http.StatusInternalServerError
 }
 
-// Projects yields the commands declared by project manifests; project "" means every project.
-type Projects func(ctx context.Context, project string) ([]*Command, error)
+// Projects yields the commands declared by project manifests of a workspace; project "" means every project.
+type Projects func(ctx context.Context, workspace int64, project string) ([]*Command, error)
 
 type Registry struct {
 	builtins map[string]*Command
@@ -124,7 +127,7 @@ func Prepare(c *Command) error {
 	if len(c.Input) == 0 {
 		c.Input = json.RawMessage(`{"type":"object","properties":{},"additionalProperties":false}`)
 	}
-	if err := CheckInput(c.Input); err != nil {
+	if err := schemas.CheckInput(c.Input); err != nil {
 		return fmt.Errorf("command %q input: %w", c.Name, err)
 	}
 	s, err := compile(c.Name, c.Input)
@@ -143,7 +146,7 @@ func (r *Registry) List(ctx context.Context, a Actor) ([]*Command, error) {
 			out = append(out, c)
 		}
 	}
-	pcs, err := r.projects(ctx, "")
+	pcs, err := r.projects(ctx, a.Workspace, "")
 	if err != nil {
 		return nil, err
 	}
@@ -156,13 +159,13 @@ func (r *Registry) List(ctx context.Context, a Actor) ([]*Command, error) {
 	return out, nil
 }
 
-func (r *Registry) Lookup(ctx context.Context, name string) (*Command, error) {
+func (r *Registry) Lookup(ctx context.Context, workspace int64, name string) (*Command, error) {
 	if c := r.builtins[name]; c != nil {
 		return c, nil
 	}
 	project, _, ok := strings.Cut(name, ".")
 	if ok && project != Builtin {
-		pcs, err := r.projects(ctx, project)
+		pcs, err := r.projects(ctx, workspace, project)
 		if err != nil {
 			return nil, err
 		}
@@ -177,7 +180,7 @@ func (r *Registry) Lookup(ctx context.Context, name string) (*Command, error) {
 
 // Invoke checks the caller, validates the input against the command schema and runs the command.
 func (r *Registry) Invoke(ctx context.Context, a Actor, name string, input json.RawMessage) (any, error) {
-	c, err := r.Lookup(ctx, name)
+	c, err := r.Lookup(ctx, a.Workspace, name)
 	if err != nil {
 		return nil, err
 	}

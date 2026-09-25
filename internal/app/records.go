@@ -20,7 +20,7 @@ type UpsertResult struct {
 }
 
 // UpsertJSONL writes one record per line; records with an existing key are updated.
-func (a *App) UpsertJSONL(ctx context.Context, projectID int64, m *manifest.Manifest, collection, jsonl string) (UpsertResult, error) {
+func UpsertJSONL(ctx context.Context, q *db.Queries, projectID int64, m *manifest.Manifest, collection, jsonl string) (UpsertResult, error) {
 	var recs []map[string]any
 	var out UpsertResult
 	sc := bufio.NewScanner(strings.NewReader(jsonl))
@@ -40,19 +40,20 @@ func (a *App) UpsertJSONL(ctx context.Context, projectID int64, m *manifest.Mani
 	if err := sc.Err(); err != nil {
 		return out, registry.Invalid("deck: records: %v", err)
 	}
-	res, err := a.UpsertRecords(ctx, projectID, m, collection, recs)
+	res, err := UpsertRecords(ctx, q, projectID, m, collection, recs)
 	res.Errors = append(out.Errors, res.Errors...)
 	return res, err
 }
 
-// UpsertRecords validates each record against the collection schema and writes it by its key.
-func (a *App) UpsertRecords(ctx context.Context, projectID int64, m *manifest.Manifest, collection string, recs []map[string]any) (UpsertResult, error) {
+// UpsertRecords validates each record against the collection schema and writes it by its key; run it in
+// a transaction so the immutable-field check and the write see the same record.
+func UpsertRecords(ctx context.Context, q *db.Queries, projectID int64, m *manifest.Manifest, collection string, recs []map[string]any) (UpsertResult, error) {
 	c := m.Collection(collection)
 	if c == nil {
 		return UpsertResult{}, registry.Invalid("deck: unknown collection %q", collection)
 	}
 	var out UpsertResult
-	err := a.Store.Tx(ctx, func(q *db.Queries) error {
+	err := func() error {
 		for i, r := range recs {
 			key, err := c.RecordKey(r)
 			if err != nil {
@@ -79,18 +80,15 @@ func (a *App) UpsertRecords(ctx context.Context, projectID int64, m *manifest.Ma
 			out.Written++
 		}
 		return nil
-	})
+	}()
 	if err != nil {
 		return UpsertResult{}, err
-	}
-	if out.Written > 0 {
-		a.Bus.Publish("collection")
 	}
 	return out, nil
 }
 
 // UpdateRecord replaces the data of a record; the key and immutable fields must stay the same.
-func (a *App) UpdateRecord(ctx context.Context, rec db.Record, m *manifest.Manifest, data map[string]any) error {
+func UpdateRecord(ctx context.Context, q *db.Queries, rec db.Record, m *manifest.Manifest, data map[string]any) error {
 	c := m.Collection(rec.Collection)
 	if c == nil {
 		return registry.Invalid("deck: collection %q no longer exists", rec.Collection)
@@ -108,14 +106,13 @@ func (a *App) UpdateRecord(ctx context.Context, rec db.Record, m *manifest.Manif
 		}
 	}
 	b, _ := json.Marshal(data)
-	n, err := a.Store.Q.UpdateRecordData(ctx, db.UpdateRecordDataParams{Data: string(b), ID: rec.ID, ProjectID: rec.ProjectID, Collection: rec.Collection, Key: rec.Key})
+	n, err := q.UpdateRecordData(ctx, db.UpdateRecordDataParams{Data: string(b), ID: rec.ID, ProjectID: rec.ProjectID, Collection: rec.Collection, Key: rec.Key})
 	if err != nil {
 		return err
 	}
 	if n == 0 {
 		return registry.NotFound("deck: record %d no longer exists", rec.ID)
 	}
-	a.Bus.Publish("collection")
 	return nil
 }
 

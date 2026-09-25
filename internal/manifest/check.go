@@ -8,7 +8,7 @@ import (
 	"slices"
 	"strings"
 
-	"deck2/internal/registry"
+	"deck2/schemas"
 )
 
 func (m *Manifest) compile() error {
@@ -85,7 +85,7 @@ func (m *Manifest) compileCommands(fail func(string, ...any)) {
 		m.commands[c.Name] = c
 		var err error
 		if len(c.Input) > 0 {
-			if err := registry.CheckInput(c.Input); err != nil {
+			if err := schemas.CheckInput(c.Input); err != nil {
 				fail("command %q input: parameters must use App Intents types: %v", c.Name, err)
 			} else if c.input, err = compileSchema("input-"+c.Name, c.Input); err != nil {
 				fail("command %q input: %v", c.Name, err)
@@ -142,7 +142,7 @@ func (m *Manifest) knownTool(name string) bool {
 		return false
 	}
 	_, declared := m.Tools.MCP.Servers[server]
-	return declared || server == registry.Builtin
+	return declared || server == schemas.Builtin
 }
 
 func (m *Manifest) knownAction(name string) bool {

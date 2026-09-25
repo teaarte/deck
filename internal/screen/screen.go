@@ -19,7 +19,7 @@ const (
 
 // Render resolves a stored screen into A2UI messages: createSurface, updateComponents, updateDataModel.
 // Clients only draw components and send actions back.
-func Render(ctx context.Context, st *store.Store, projectID int64, m *manifest.Manifest, name string) ([]map[string]any, error) {
+func Render(ctx context.Context, st *store.Store, projectID int64, project string, m *manifest.Manifest, name string) ([]map[string]any, error) {
 	sc := m.Screen(name)
 	if sc == nil {
 		return nil, fmt.Errorf("unknown screen %q", name)
@@ -47,11 +47,11 @@ func Render(ctx context.Context, st *store.Store, projectID int64, m *manifest.M
 			}
 			comp := map[string]any{"id": id, "component": "Table", "title": b.Title, "rows": map[string]any{"path": "/" + id}, "columns": cols}
 			if len(b.Actions) > 0 {
-				comp["rowActions"] = actions(b.Actions)
+				comp["rowActions"] = actions(project, b.Actions)
 			}
 			components = append(components, comp)
 		case "actions":
-			components = append(components, map[string]any{"id": id, "component": "Actions", "title": b.Title, "actions": actions(b.Actions)})
+			components = append(components, map[string]any{"id": id, "component": "Actions", "title": b.Title, "actions": actions(project, b.Actions)})
 		}
 	}
 	root["children"] = children
@@ -62,11 +62,11 @@ func Render(ctx context.Context, st *store.Store, projectID int64, m *manifest.M
 	}, nil
 }
 
-func actions(as []manifest.Action) []map[string]any {
+func actions(project string, as []manifest.Action) []map[string]any {
 	out := make([]map[string]any, 0, len(as))
 	for _, a := range as {
 		out = append(out, map[string]any{"label": a.Label,
-			"action": map[string]any{"event": map[string]any{"name": "command", "context": map[string]any{"command": a.Command, "params": a.Params}}}})
+			"action": map[string]any{"event": map[string]any{"name": "command", "context": map[string]any{"command": project + "." + a.Command, "params": a.Params}}}})
 	}
 	return out
 }

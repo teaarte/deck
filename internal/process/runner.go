@@ -35,15 +35,18 @@ type Runner struct {
 	provider provider.Provider
 	runsDir  string
 	mcpBase  string
+	manifest ManifestLoader
 
 	ctx    context.Context
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
 }
 
-func NewRunner(st *store.Store, gw *gateway.Gateway, bus *events.Bus, p provider.Provider, runsDir, mcpBase string) *Runner {
+type ManifestLoader func(ctx context.Context, projectID int64) (*manifest.Manifest, error)
+
+func NewRunner(st *store.Store, gw *gateway.Gateway, bus *events.Bus, p provider.Provider, runsDir, mcpBase string, load ManifestLoader) *Runner {
 	ctx, cancel := context.WithCancel(context.Background())
-	return &Runner{st: st, gw: gw, bus: bus, provider: p, runsDir: runsDir, mcpBase: mcpBase, ctx: ctx, cancel: cancel}
+	return &Runner{st: st, gw: gw, bus: bus, provider: p, runsDir: runsDir, mcpBase: mcpBase, manifest: load, ctx: ctx, cancel: cancel}
 }
 
 // Shutdown interrupts running providers and waits; interrupted processes stay running and resume on next start.
@@ -74,7 +77,7 @@ func (r *Runner) Start(ctx context.Context, projectID int64, command string, inp
 		return 0, err
 	}
 	r.bus.Publish("processes")
-	r.spawn(p.ID, projectID, m, cmd, buildPrompt(proj.Name, m, cmd, string(in)), "")
+	r.spawn(p.ID, projectID, cmd, buildPrompt(proj.Name, m, cmd, string(in)), "")
 	return p.ID, nil
 }
 
@@ -131,19 +134,19 @@ func (r *Runner) resume(ctx context.Context, processID int64, message string) er
 		return fmt.Errorf("command %q no longer exists", p.Command)
 	}
 	r.bus.Publish("processes")
-	r.spawn(processID, p.ProjectID, m, cmd, message, p.SessionID)
+	r.spawn(processID, p.ProjectID, cmd, message, p.SessionID)
 	return nil
 }
 
-func (r *Runner) spawn(processID, projectID int64, m *manifest.Manifest, cmd *manifest.Command, prompt, resume string) {
+func (r *Runner) spawn(processID, projectID int64, cmd *manifest.Command, prompt, resume string) {
 	r.wg.Add(1)
 	go func() {
 		defer r.wg.Done()
-		r.run(processID, projectID, m, cmd, prompt, resume)
+		r.run(processID, projectID, cmd, prompt, resume)
 	}()
 }
 
-func (r *Runner) run(processID, projectID int64, m *manifest.Manifest, cmd *manifest.Command, prompt, resume string) {
+func (r *Runner) run(processID, projectID int64, cmd *manifest.Command, prompt, resume string) {
 	ctx := r.ctx
 	bg := context.WithoutCancel(ctx)
 	dir := filepath.Join(r.runsDir, fmt.Sprint(processID))
@@ -151,12 +154,16 @@ func (r *Runner) run(processID, projectID int64, m *manifest.Manifest, cmd *mani
 		r.finish(bg, processID, StateError, "", false, err.Error())
 		return
 	}
-	tok := r.gw.Register(&gateway.Session{ProcessID: processID, ProjectID: projectID, Manifest: m})
+	tok, err := r.gw.Register(bg, &gateway.Session{ProcessID: processID, ProjectID: projectID})
+	if err != nil {
+		r.finish(bg, processID, StateError, "", false, err.Error())
+		return
+	}
 	defer r.gw.Unregister(tok)
 
 	req := provider.Request{
 		Cwd: dir, Prompt: prompt, ResultSchema: cmd.ResultSchema,
-		MCPURL: r.mcpBase + "/mcp/" + tok, AllowedTools: gateway.AllowedTools(), PermissionMCP: gateway.PermissionTool(),
+		MCPURL: r.mcpBase + "/mcp/" + tok, AllowedTools: r.gw.AllowedTools(tok), PermissionMCP: gateway.PermissionTool(),
 		ResumeSession: resume,
 		OnSession: func(id string) {
 			_ = r.st.Q.SetProcessSession(bg, db.SetProcessSessionParams{SessionID: id, ID: processID})
@@ -249,7 +256,7 @@ func (r *Runner) load(ctx context.Context, projectID int64) (db.Project, *manife
 	if err != nil {
 		return proj, nil, err
 	}
-	m, err := manifest.Parse([]byte(proj.Manifest))
+	m, err := r.manifest(ctx, projectID)
 	return proj, m, err
 }
 
@@ -280,7 +287,7 @@ func buildPrompt(project string, m *manifest.Manifest, cmd *manifest.Command, in
 	b.WriteString(cmd.Executor.Prompt)
 	fmt.Fprintf(&b, "\n\nInput: %s\n", input)
 	if len(m.Collections) > 0 {
-		b.WriteString("\nCollections of this project (write with the records_upsert tool of the deck MCP server):\n")
+		b.WriteString("\nCollections of this project (write with the records_upsert tool of the deck MCP server, records as JSONL):\n")
 		for _, c := range m.Collections {
 			fmt.Fprintf(&b, "- %s: %s. Record JSON schema: %s\n", c.Name, c.Description, string(c.Schema))
 		}

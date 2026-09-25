@@ -1,5 +1,5 @@
 -- name: CreateProject :one
-INSERT INTO project (name, manifest) VALUES (?, ?) RETURNING *;
+INSERT INTO project (name, status) VALUES (?, ?) RETURNING *;
 
 -- name: GetProject :one
 SELECT * FROM project WHERE id = ?;
@@ -19,6 +19,12 @@ RETURNING *;
 -- name: ListRecords :many
 SELECT * FROM record WHERE project_id = ? AND collection = ? ORDER BY id;
 
+-- name: GetRecord :one
+SELECT * FROM record WHERE id = ?;
+
+-- name: UpdateRecordData :exec
+UPDATE record SET data = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?;
+
 -- name: CreateProcess :one
 INSERT INTO process (project_id, command, state, provider, input) VALUES (?, ?, ?, ?, ?) RETURNING *;
 
@@ -27,6 +33,12 @@ SELECT * FROM process WHERE id = ?;
 
 -- name: ListProcesses :many
 SELECT * FROM process ORDER BY id DESC LIMIT ?;
+
+-- name: ListProcessesFiltered :many
+SELECT * FROM process
+WHERE (sqlc.arg(project_id) = 0 OR project_id = sqlc.arg(project_id))
+  AND (sqlc.arg(state) = '' OR state = sqlc.arg(state))
+ORDER BY id DESC LIMIT sqlc.arg(lim);
 
 -- name: ListProcessesByState :many
 SELECT * FROM process WHERE state = ? ORDER BY id;
@@ -92,10 +104,50 @@ SELECT * FROM tool_call WHERE process_id = ? ORDER BY id;
 
 -- name: UpsertTrigger :exec
 INSERT INTO trigger_state (project_id, command, cron, next_run_at) VALUES (?, ?, ?, ?)
-ON CONFLICT (project_id, command, cron) DO UPDATE SET next_run_at = excluded.next_run_at;
+ON CONFLICT (project_id, command, cron) DO NOTHING;
+
+-- name: ListProjectTriggers :many
+SELECT * FROM trigger_state WHERE project_id = ?;
+
+-- name: DeleteTrigger :exec
+DELETE FROM trigger_state WHERE project_id = ? AND command = ? AND cron = ?;
 
 -- name: DueTriggers :many
 SELECT * FROM trigger_state WHERE next_run_at <= ? ORDER BY next_run_at;
 
 -- name: SetTriggerNext :exec
 UPDATE trigger_state SET next_run_at = ? WHERE project_id = ? AND command = ? AND cron = ?;
+
+-- name: FindDocument :one
+SELECT * FROM document
+WHERE workspace_id = ? AND project_id = ? AND owner_kind = ? AND owner_id = ? AND name = ?;
+
+-- name: GetDocument :one
+SELECT * FROM document WHERE id = ?;
+
+-- name: CreateDocument :one
+INSERT INTO document (workspace_id, project_id, owner_kind, owner_id, kind, name) VALUES (?, ?, ?, ?, ?, ?) RETURNING *;
+
+-- name: ListDocuments :many
+SELECT * FROM document
+WHERE workspace_id = ? AND project_id = ? AND (sqlc.arg(kind) = '' OR kind = sqlc.arg(kind))
+ORDER BY name;
+
+-- name: NextRevision :one
+SELECT CAST(COALESCE(MAX(n), 0) + 1 AS INTEGER) FROM document_revision WHERE document_id = ?;
+
+-- name: AddRevision :one
+INSERT INTO document_revision (document_id, n, text, author, reason) VALUES (?, ?, ?, ?, ?) RETURNING *;
+
+-- name: SetDocumentCurrent :exec
+UPDATE document SET current = ? WHERE id = ?;
+
+-- name: GetRevision :one
+SELECT * FROM document_revision WHERE document_id = ? AND n = ?;
+
+-- name: ListRevisions :many
+SELECT id, document_id, n, author, reason, created_at FROM document_revision WHERE document_id = ? ORDER BY n DESC;
+
+-- name: CurrentText :one
+SELECT r.text FROM document d JOIN document_revision r ON r.document_id = d.id AND r.n = d.current
+WHERE d.project_id = ? AND d.kind = ? AND d.name = ? AND d.owner_kind = '' AND d.workspace_id = 1;

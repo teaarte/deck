@@ -168,7 +168,7 @@ func TestConfirmationExpiresAndProcessIsTold(t *testing.T) {
 	if !strings.Contains(e.Fake.Calls()[1].Prompt, "Expired") {
 		t.Fatalf("resume must report the expiry: %q", e.Fake.Calls()[1].Prompt)
 	}
-	code, _ := e.do("POST", "/api/asks/"+itoa(a.ID)+"/answer", map[string]any{"answer": "allow"})
+	code, _ := e.call("deck.ask_answer", map[string]any{"ask": a.ID, "answer": "allow"})
 	if code != 409 {
 		t.Fatalf("answering an expired confirmation must be refused, got %d", code)
 	}
@@ -183,7 +183,7 @@ func TestShutdownKeepsProcessForResumeAfterRestart(t *testing.T) {
 		return provider.Result{}
 	}}
 	a1, ts1 := startApp(t, home, fake)
-	e := &Env{T: t, App: a1, URL: ts1.URL, Fake: fake}
+	e := &Env{T: t, App: a1, URL: ts1.URL, Fake: fake, names: map[int64]string{}}
 	p := e.createProject("ideas", ideasManifest)
 	id := e.run(p, "collect")
 	<-started
@@ -198,7 +198,7 @@ func TestShutdownKeepsProcessForResumeAfterRestart(t *testing.T) {
 	if err := a2.Runner.ResumeInterrupted(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	e2 := &Env{T: t, App: a2, URL: ts2.URL, Fake: fake2}
+	e2 := &Env{T: t, App: a2, URL: ts2.URL, Fake: fake2, names: map[int64]string{}}
 	e2.waitState(id, "done")
 	calls := fake2.Calls()
 	if len(calls) != 1 || calls[0].ResumeSession != "s-1" || !strings.Contains(calls[0].Prompt, "restarted") {
@@ -222,7 +222,7 @@ func startApp(t *testing.T, home string, p provider.Provider) (*app.App, *httpte
 func TestRecordWithoutKeyIsRejected(t *testing.T) {
 	var out string
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
-		out, _ = c.Tool(ctx, "records_upsert", map[string]any{"collection": "ideas", "records": []map[string]any{{"score": 5}}})
+		out, _ = c.Tool(ctx, "records_upsert", map[string]any{"collection": "ideas", "records": jsonl(map[string]any{"score": 5})})
 		return provider.Result{Structured: json.RawMessage(`{"written": 0}`)}
 	})
 	p := e.createProject("ideas", strings.Replace(ideasManifest, `"required": ["title", "score"]`, `"required": ["score"]`, 1))
@@ -237,7 +237,7 @@ func TestDuplicateTriggerIsRejected(t *testing.T) {
 	e := newEnv(t, nil)
 	m := strings.Replace(ideasManifest, `"triggers": [{"command": "collect", "cron": "0 9 * * *"}]`,
 		`"triggers": [{"command": "collect", "cron": "0 9 * * *"}, {"command": "collect", "cron": "0 9 * * *"}]`, 1)
-	code, out := e.do("POST", "/api/projects", map[string]any{"name": "dup", "manifest": json.RawMessage(m)})
+	code, out := e.call("deck.project_create", map[string]any{"name": "dup", "manifest": m})
 	if code != 422 || !strings.Contains(string(out), "duplicate trigger") {
 		t.Fatalf("want duplicate trigger refused, got %d %s", code, out)
 	}

@@ -94,10 +94,11 @@ func (f *Fake) Calls() []provider.Request {
 }
 
 type Env struct {
-	T    *testing.T
-	App  *app.App
-	Fake *Fake
-	URL  string
+	T     *testing.T
+	App   *app.App
+	Fake  *Fake
+	URL   string
+	names map[int64]string
 }
 
 func newEnv(t *testing.T, script Script, cfg ...func(*app.Config)) *Env {
@@ -119,7 +120,7 @@ func newEnv(t *testing.T, script Script, cfg ...func(*app.Config)) *Env {
 		_ = a.Close()
 		ts.Close()
 	})
-	return &Env{T: t, App: a, Fake: fake, URL: base}
+	return &Env{T: t, App: a, Fake: fake, URL: base, names: map[int64]string{}}
 }
 
 func (e *Env) do(method, path string, body any) (int, []byte) {
@@ -140,46 +141,54 @@ func (e *Env) do(method, path string, body any) (int, []byte) {
 	return resp.StatusCode, out
 }
 
+// call invokes a registry command as the owner and returns the status and raw body.
+func (e *Env) call(name string, input any) (int, []byte) {
+	e.T.Helper()
+	return e.do("POST", "/api/commands/"+name, input)
+}
+
+// must invokes a command, fails the test on an error status and decodes the result into out.
+func (e *Env) must(name string, input any, out any) {
+	e.T.Helper()
+	code, body := e.call(name, input)
+	if code != 200 {
+		e.T.Fatalf("%s: %d %s", name, code, body)
+	}
+	if out != nil {
+		if err := json.Unmarshal(body, out); err != nil {
+			e.T.Fatalf("%s: decode %s: %v", name, body, err)
+		}
+	}
+}
+
 func (e *Env) createProject(name, manifest string) int64 {
 	e.T.Helper()
-	code, out := e.do("POST", "/api/projects", map[string]any{"name": name, "manifest": json.RawMessage(manifest)})
-	if code != 200 {
-		e.T.Fatalf("create project: %d %s", code, out)
-	}
 	var p struct{ ID int64 }
-	_ = json.Unmarshal(out, &p)
+	e.must("deck.project_create", map[string]any{"name": name, "manifest": manifest}, &p)
+	e.names[p.ID] = name
 	return p.ID
 }
 
 func (e *Env) run(project int64, command string) int64 {
 	e.T.Helper()
-	code, out := e.do("POST", fmt.Sprintf("/api/projects/%d/commands/%s", project, command), map[string]any{})
-	if code != 200 {
-		e.T.Fatalf("run: %d %s", code, out)
-	}
 	var r struct{ Process int64 }
-	_ = json.Unmarshal(out, &r)
+	e.must(e.names[project]+"."+command, map[string]any{}, &r)
 	return r.Process
 }
 
 type proc struct {
-	ID          int64  `json:"id"`
-	State       string `json:"state"`
-	Result      string `json:"result"`
-	NotBySchema bool   `json:"not_by_schema"`
-	Error       string `json:"error"`
+	ID          int64           `json:"id"`
+	State       string          `json:"state"`
+	Result      json.RawMessage `json:"result"`
+	NotBySchema bool            `json:"not_by_schema"`
+	Error       string          `json:"error"`
 }
 
 func (e *Env) process(id int64) proc {
-	_, out := e.do("GET", "/api/processes", nil)
-	var ps []proc
-	_ = json.Unmarshal(out, &ps)
-	for _, p := range ps {
-		if p.ID == id {
-			return p
-		}
-	}
-	return proc{}
+	var p proc
+	_, out := e.call("deck.process_get", map[string]any{"process": id})
+	_ = json.Unmarshal(out, &p)
+	return p
 }
 
 func (e *Env) waitState(id int64, states ...string) proc {
@@ -209,7 +218,7 @@ func (e *Env) waitAsk() askView {
 	e.T.Helper()
 	deadline := time.Now().Add(10 * time.Second)
 	for time.Now().Before(deadline) {
-		_, out := e.do("GET", "/api/asks", nil)
+		_, out := e.call("deck.asks_list", nil)
 		var as []askView
 		_ = json.Unmarshal(out, &as)
 		if len(as) > 0 {
@@ -223,10 +232,7 @@ func (e *Env) waitAsk() askView {
 
 func (e *Env) answer(id int64, answer string) {
 	e.T.Helper()
-	code, out := e.do("POST", fmt.Sprintf("/api/asks/%d/answer", id), map[string]any{"answer": answer})
-	if code != 200 {
-		e.T.Fatalf("answer: %d %s", code, out)
-	}
+	e.must("deck.ask_answer", map[string]any{"ask": id, "answer": answer}, nil)
 }
 
 // screenRows returns the rows of the first table block of a screen.

@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"database/sql"
 	"embed"
 	"fmt"
@@ -37,3 +38,16 @@ func Open(path string) (*Store, error) {
 }
 
 func (s *Store) Close() error { return s.DB.Close() }
+
+// Tx runs f in one transaction and commits when it returns nil.
+func (s *Store) Tx(ctx context.Context, f func(q *db.Queries) error) error {
+	tx, err := s.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	if err := f(s.Q.WithTx(tx)); err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+	return tx.Commit()
+}

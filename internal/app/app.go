@@ -2,9 +2,14 @@ package app
 
 import (
 	"context"
+	"database/sql"
+	"encoding/json"
+	"errors"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"regexp"
+	"sync"
 	"time"
 
 	"deck2/internal/ask"
@@ -13,6 +18,7 @@ import (
 	"deck2/internal/manifest"
 	"deck2/internal/process"
 	"deck2/internal/provider"
+	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
 	"deck2/internal/trigger"
@@ -31,10 +37,15 @@ type App struct {
 	Store     *store.Store
 	Bus       *events.Bus
 	Asks      *ask.Broker
+	Registry  *registry.Registry
 	Gateway   *gateway.Gateway
 	Runner    *process.Runner
 	Scheduler *trigger.Scheduler
+
+	manifestMu sync.Mutex
 }
+
+var projectName = regexp.MustCompile(`^[a-z][a-z0-9-]{0,39}$`)
 
 func New(cfg Config, p provider.Provider) (*App, error) {
 	if err := os.MkdirAll(filepath.Join(cfg.Home, "runs"), 0o700); err != nil {
@@ -44,12 +55,14 @@ func New(cfg Config, p provider.Provider) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
-	bus := events.NewBus()
-	asks := ask.NewBroker(st, bus)
-	gw := gateway.New(gateway.Config{QuestionWait: cfg.QuestionWait, ConfirmWait: cfg.ConfirmWait}, st, asks, bus)
-	runner := process.NewRunner(st, gw, bus, p, filepath.Join(cfg.Home, "runs"), cfg.MCPBase)
-	a := &App{Cfg: cfg, Store: st, Bus: bus, Asks: asks, Gateway: gw, Runner: runner, Scheduler: trigger.New(st, runner)}
-	asks.OnLateAnswer(a.lateAnswer)
+	a := &App{Cfg: cfg, Store: st, Bus: events.NewBus()}
+	a.Asks = ask.NewBroker(st, a.Bus)
+	a.Registry = registry.New(a.projectCommands)
+	a.addBuiltins()
+	a.Gateway = gateway.New(gateway.Config{QuestionWait: cfg.QuestionWait, ConfirmWait: cfg.ConfirmWait}, st, a.Asks, a.Bus, a.Registry)
+	a.Runner = process.NewRunner(st, a.Gateway, a.Bus, p, filepath.Join(cfg.Home, "runs"), cfg.MCPBase, a.Manifest)
+	a.Scheduler = trigger.New(st, a)
+	a.Asks.OnLateAnswer(a.lateAnswer)
 	return a, nil
 }
 
@@ -59,13 +72,105 @@ func (a *App) Close() error {
 	return a.Store.Close()
 }
 
-// CreateProject validates the manifest and registers its triggers.
-func (a *App) CreateProject(ctx context.Context, name string, raw []byte) (db.Project, error) {
+// Start runs a project command on behalf of a trigger, through the registry.
+func (a *App) Start(ctx context.Context, projectID int64, command string, input map[string]any) (int64, error) {
+	p, err := a.Store.Q.GetProject(ctx, projectID)
+	if err != nil {
+		return 0, err
+	}
+	raw, _ := json.Marshal(input)
+	out, err := a.Registry.Invoke(ctx, registry.Actor{Kind: registry.Trigger, ProjectID: projectID}, p.Name+"."+command, raw)
+	if err != nil {
+		return 0, err
+	}
+	return out.(Started).Process, nil
+}
+
+type Started struct {
+	Process int64 `json:"process"`
+}
+
+func (a *App) projectCommands(ctx context.Context, name string) ([]*registry.Command, error) {
+	var ps []db.Project
+	if name == "" {
+		all, err := a.Store.Q.ListProjects(ctx)
+		if err != nil {
+			return nil, err
+		}
+		ps = all
+	} else {
+		p, err := a.Store.Q.GetProjectByName(ctx, name)
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		if err != nil {
+			return nil, err
+		}
+		ps = []db.Project{p}
+	}
+	var out []*registry.Command
+	for _, p := range ps {
+		m, err := a.Manifest(ctx, p.ID)
+		if err != nil {
+			slog.Error("project manifest", "project", p.Name, "err", err)
+			continue
+		}
+		for _, c := range m.Commands {
+			cmd := &registry.Command{
+				Name: p.Name + "." + c.Name, Title: c.Title, Description: c.Description, Class: c.Class,
+				Input: json.RawMessage(`{"type":"object"}`), Result: c.ResultSchema, ProjectID: p.ID,
+				Callers: []string{registry.Owner, registry.Master, registry.Agent, registry.Trigger},
+				Handler: a.startHandler(p.ID, c.Name),
+			}
+			if err := registry.Prepare(cmd); err != nil {
+				slog.Error("project command", "command", cmd.Name, "err", err)
+				continue
+			}
+			out = append(out, cmd)
+		}
+	}
+	return out, nil
+}
+
+func (a *App) startHandler(projectID int64, command string) registry.Handler {
+	return func(ctx context.Context, _ registry.Actor, raw json.RawMessage) (any, error) {
+		input := map[string]any{}
+		_ = json.Unmarshal(raw, &input)
+		id, err := a.Runner.Start(ctx, projectID, command, input)
+		if err != nil {
+			return nil, err
+		}
+		return Started{Process: id}, nil
+	}
+}
+
+// CreateProject validates the manifest, stores it as the first revision and registers its triggers.
+func (a *App) CreateProject(ctx context.Context, act registry.Actor, name string, raw []byte, prompt string) (db.Project, error) {
+	if !projectName.MatchString(name) || name == registry.Builtin {
+		return db.Project{}, registry.Invalid("deck: project name %q must be lowercase letters, digits and '-', start with a letter, and not be %q", name, registry.Builtin)
+	}
+	if _, err := a.Store.Q.GetProjectByName(ctx, name); err == nil {
+		return db.Project{}, registry.Invalid("deck: project %q already exists", name)
+	}
 	m, err := manifest.Parse(raw)
 	if err != nil {
-		return db.Project{}, err
+		return db.Project{}, registry.Invalid("deck: %v", err)
 	}
-	p, err := a.Store.Q.CreateProject(ctx, db.CreateProjectParams{Name: name, Manifest: string(raw)})
+	var p db.Project
+	err = a.Store.Tx(ctx, func(q *db.Queries) error {
+		if p, err = q.CreateProject(ctx, db.CreateProjectParams{Name: name, Status: "enabled"}); err != nil {
+			return err
+		}
+		if _, _, err := a.SaveDocument(ctx, q, DocRef{ProjectID: p.ID, Name: ManifestName}, KindManifest, string(raw), act.Author(), "create project"); err != nil {
+			return err
+		}
+		if prompt != "" {
+			if _, _, err := a.SaveDocument(ctx, q, DocRef{ProjectID: p.ID, Name: PromptName}, KindPrompt, prompt, act.Author(), "create project"); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 	if err != nil {
 		return db.Project{}, err
 	}
@@ -76,13 +181,35 @@ func (a *App) CreateProject(ctx context.Context, name string, raw []byte) (db.Pr
 	return p, nil
 }
 
-func (a *App) Manifest(ctx context.Context, projectID int64) (db.Project, *manifest.Manifest, error) {
-	p, err := a.Store.Q.GetProject(ctx, projectID)
+// SaveManifest validates a manifest, stores it as a new revision and resyncs triggers.
+func (a *App) SaveManifest(ctx context.Context, act registry.Actor, p db.Project, raw []byte, reason string) (int64, error) {
+	m, err := manifest.Parse(raw)
 	if err != nil {
-		return p, nil, err
+		return 0, registry.Invalid("deck: %v", err)
 	}
-	m, err := manifest.Parse([]byte(p.Manifest))
-	return p, m, err
+	a.manifestMu.Lock()
+	defer a.manifestMu.Unlock()
+	var n int64
+	err = a.Store.Tx(ctx, func(q *db.Queries) error {
+		_, n, err = a.SaveDocument(ctx, q, DocRef{ProjectID: p.ID, Name: ManifestName}, KindManifest, string(raw), act.Author(), reason)
+		return err
+	})
+	if err != nil {
+		return 0, err
+	}
+	if err := a.Scheduler.Sync(ctx, p.ID, m); err != nil {
+		return n, err
+	}
+	a.Bus.Publish("projects")
+	return n, nil
+}
+
+func (a *App) Manifest(ctx context.Context, projectID int64) (*manifest.Manifest, error) {
+	raw, err := a.DocumentText(ctx, projectID, KindManifest, ManifestName)
+	if err != nil {
+		return nil, err
+	}
+	return manifest.Parse([]byte(raw))
 }
 
 // lateAnswer delivers an answer nobody was waiting for live; Deliver ignores processes that are not parked.

@@ -9,6 +9,39 @@ import (
 	"context"
 )
 
+const addRevision = `-- name: AddRevision :one
+INSERT INTO document_revision (document_id, n, text, author, reason) VALUES (?, ?, ?, ?, ?) RETURNING id, document_id, n, text, author, reason, created_at
+`
+
+type AddRevisionParams struct {
+	DocumentID int64
+	N          int64
+	Text       string
+	Author     string
+	Reason     string
+}
+
+func (q *Queries) AddRevision(ctx context.Context, arg AddRevisionParams) (DocumentRevision, error) {
+	row := q.db.QueryRowContext(ctx, addRevision,
+		arg.DocumentID,
+		arg.N,
+		arg.Text,
+		arg.Author,
+		arg.Reason,
+	)
+	var i DocumentRevision
+	err := row.Scan(
+		&i.ID,
+		&i.DocumentID,
+		&i.N,
+		&i.Text,
+		&i.Author,
+		&i.Reason,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const answerAsk = `-- name: AnswerAsk :execrows
 UPDATE ask SET answer = ?, state = 'answered', answered_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
 WHERE id = ? AND state = 'open'
@@ -89,6 +122,43 @@ func (q *Queries) CreateAsk(ctx context.Context, arg CreateAskParams) (Ask, erro
 	return i, err
 }
 
+const createDocument = `-- name: CreateDocument :one
+INSERT INTO document (workspace_id, project_id, owner_kind, owner_id, kind, name) VALUES (?, ?, ?, ?, ?, ?) RETURNING id, workspace_id, project_id, owner_kind, owner_id, kind, name, "current", created_at
+`
+
+type CreateDocumentParams struct {
+	WorkspaceID int64
+	ProjectID   int64
+	OwnerKind   string
+	OwnerID     int64
+	Kind        string
+	Name        string
+}
+
+func (q *Queries) CreateDocument(ctx context.Context, arg CreateDocumentParams) (Document, error) {
+	row := q.db.QueryRowContext(ctx, createDocument,
+		arg.WorkspaceID,
+		arg.ProjectID,
+		arg.OwnerKind,
+		arg.OwnerID,
+		arg.Kind,
+		arg.Name,
+	)
+	var i Document
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.ProjectID,
+		&i.OwnerKind,
+		&i.OwnerID,
+		&i.Kind,
+		&i.Name,
+		&i.Current,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const createProcess = `-- name: CreateProcess :one
 INSERT INTO process (project_id, command, state, provider, input) VALUES (?, ?, ?, ?, ?) RETURNING id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at
 `
@@ -128,24 +198,58 @@ func (q *Queries) CreateProcess(ctx context.Context, arg CreateProcessParams) (P
 }
 
 const createProject = `-- name: CreateProject :one
-INSERT INTO project (name, manifest) VALUES (?, ?) RETURNING id, name, manifest, created_at
+INSERT INTO project (name, status) VALUES (?, ?) RETURNING id, name, created_at, workspace_id, status
 `
 
 type CreateProjectParams struct {
-	Name     string
-	Manifest string
+	Name   string
+	Status string
 }
 
 func (q *Queries) CreateProject(ctx context.Context, arg CreateProjectParams) (Project, error) {
-	row := q.db.QueryRowContext(ctx, createProject, arg.Name, arg.Manifest)
+	row := q.db.QueryRowContext(ctx, createProject, arg.Name, arg.Status)
 	var i Project
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
-		&i.Manifest,
 		&i.CreatedAt,
+		&i.WorkspaceID,
+		&i.Status,
 	)
 	return i, err
+}
+
+const currentText = `-- name: CurrentText :one
+SELECT r.text FROM document d JOIN document_revision r ON r.document_id = d.id AND r.n = d.current
+WHERE d.project_id = ? AND d.kind = ? AND d.name = ? AND d.owner_kind = '' AND d.workspace_id = 1
+`
+
+type CurrentTextParams struct {
+	ProjectID int64
+	Kind      string
+	Name      string
+}
+
+func (q *Queries) CurrentText(ctx context.Context, arg CurrentTextParams) (string, error) {
+	row := q.db.QueryRowContext(ctx, currentText, arg.ProjectID, arg.Kind, arg.Name)
+	var text string
+	err := row.Scan(&text)
+	return text, err
+}
+
+const deleteTrigger = `-- name: DeleteTrigger :exec
+DELETE FROM trigger_state WHERE project_id = ? AND command = ? AND cron = ?
+`
+
+type DeleteTriggerParams struct {
+	ProjectID int64
+	Command   string
+	Cron      string
+}
+
+func (q *Queries) DeleteTrigger(ctx context.Context, arg DeleteTriggerParams) error {
+	_, err := q.db.ExecContext(ctx, deleteTrigger, arg.ProjectID, arg.Command, arg.Cron)
+	return err
 }
 
 const dueTriggers = `-- name: DueTriggers :many
@@ -261,6 +365,42 @@ func (q *Queries) FindApproval(ctx context.Context, arg FindApprovalParams) (Ask
 	return i, err
 }
 
+const findDocument = `-- name: FindDocument :one
+SELECT id, workspace_id, project_id, owner_kind, owner_id, kind, name, "current", created_at FROM document
+WHERE workspace_id = ? AND project_id = ? AND owner_kind = ? AND owner_id = ? AND name = ?
+`
+
+type FindDocumentParams struct {
+	WorkspaceID int64
+	ProjectID   int64
+	OwnerKind   string
+	OwnerID     int64
+	Name        string
+}
+
+func (q *Queries) FindDocument(ctx context.Context, arg FindDocumentParams) (Document, error) {
+	row := q.db.QueryRowContext(ctx, findDocument,
+		arg.WorkspaceID,
+		arg.ProjectID,
+		arg.OwnerKind,
+		arg.OwnerID,
+		arg.Name,
+	)
+	var i Document
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.ProjectID,
+		&i.OwnerKind,
+		&i.OwnerID,
+		&i.Kind,
+		&i.Name,
+		&i.Current,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const finishProcess = `-- name: FinishProcess :exec
 UPDATE process
 SET state = ?, result = ?, not_by_schema = ?, error = ?, finished_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
@@ -309,6 +449,27 @@ func (q *Queries) GetAsk(ctx context.Context, id int64) (Ask, error) {
 	return i, err
 }
 
+const getDocument = `-- name: GetDocument :one
+SELECT id, workspace_id, project_id, owner_kind, owner_id, kind, name, "current", created_at FROM document WHERE id = ?
+`
+
+func (q *Queries) GetDocument(ctx context.Context, id int64) (Document, error) {
+	row := q.db.QueryRowContext(ctx, getDocument, id)
+	var i Document
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.ProjectID,
+		&i.OwnerKind,
+		&i.OwnerID,
+		&i.Kind,
+		&i.Name,
+		&i.Current,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getProcess = `-- name: GetProcess :one
 SELECT id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at FROM process WHERE id = ?
 `
@@ -334,7 +495,7 @@ func (q *Queries) GetProcess(ctx context.Context, id int64) (Process, error) {
 }
 
 const getProject = `-- name: GetProject :one
-SELECT id, name, manifest, created_at FROM project WHERE id = ?
+SELECT id, name, created_at, workspace_id, status FROM project WHERE id = ?
 `
 
 func (q *Queries) GetProject(ctx context.Context, id int64) (Project, error) {
@@ -343,14 +504,15 @@ func (q *Queries) GetProject(ctx context.Context, id int64) (Project, error) {
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
-		&i.Manifest,
 		&i.CreatedAt,
+		&i.WorkspaceID,
+		&i.Status,
 	)
 	return i, err
 }
 
 const getProjectByName = `-- name: GetProjectByName :one
-SELECT id, name, manifest, created_at FROM project WHERE name = ?
+SELECT id, name, created_at, workspace_id, status FROM project WHERE name = ?
 `
 
 func (q *Queries) GetProjectByName(ctx context.Context, name string) (Project, error) {
@@ -359,10 +521,99 @@ func (q *Queries) GetProjectByName(ctx context.Context, name string) (Project, e
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
-		&i.Manifest,
+		&i.CreatedAt,
+		&i.WorkspaceID,
+		&i.Status,
+	)
+	return i, err
+}
+
+const getRecord = `-- name: GetRecord :one
+SELECT id, project_id, collection, "key", data, created_at, updated_at FROM record WHERE id = ?
+`
+
+func (q *Queries) GetRecord(ctx context.Context, id int64) (Record, error) {
+	row := q.db.QueryRowContext(ctx, getRecord, id)
+	var i Record
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.Collection,
+		&i.Key,
+		&i.Data,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getRevision = `-- name: GetRevision :one
+SELECT id, document_id, n, text, author, reason, created_at FROM document_revision WHERE document_id = ? AND n = ?
+`
+
+type GetRevisionParams struct {
+	DocumentID int64
+	N          int64
+}
+
+func (q *Queries) GetRevision(ctx context.Context, arg GetRevisionParams) (DocumentRevision, error) {
+	row := q.db.QueryRowContext(ctx, getRevision, arg.DocumentID, arg.N)
+	var i DocumentRevision
+	err := row.Scan(
+		&i.ID,
+		&i.DocumentID,
+		&i.N,
+		&i.Text,
+		&i.Author,
+		&i.Reason,
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const listDocuments = `-- name: ListDocuments :many
+SELECT id, workspace_id, project_id, owner_kind, owner_id, kind, name, "current", created_at FROM document
+WHERE workspace_id = ? AND project_id = ? AND (?3 = '' OR kind = ?3)
+ORDER BY name
+`
+
+type ListDocumentsParams struct {
+	WorkspaceID int64
+	ProjectID   int64
+	Kind        interface{}
+}
+
+func (q *Queries) ListDocuments(ctx context.Context, arg ListDocumentsParams) ([]Document, error) {
+	rows, err := q.db.QueryContext(ctx, listDocuments, arg.WorkspaceID, arg.ProjectID, arg.Kind)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Document
+	for rows.Next() {
+		var i Document
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.ProjectID,
+			&i.OwnerKind,
+			&i.OwnerID,
+			&i.Kind,
+			&i.Name,
+			&i.Current,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listOpenAsks = `-- name: ListOpenAsks :many
@@ -523,8 +774,89 @@ func (q *Queries) ListProcessesByState(ctx context.Context, state string) ([]Pro
 	return items, nil
 }
 
+const listProcessesFiltered = `-- name: ListProcessesFiltered :many
+SELECT id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at FROM process
+WHERE (?1 = 0 OR project_id = ?1)
+  AND (?2 = '' OR state = ?2)
+ORDER BY id DESC LIMIT ?3
+`
+
+type ListProcessesFilteredParams struct {
+	ProjectID interface{}
+	State     interface{}
+	Lim       int64
+}
+
+func (q *Queries) ListProcessesFiltered(ctx context.Context, arg ListProcessesFilteredParams) ([]Process, error) {
+	rows, err := q.db.QueryContext(ctx, listProcessesFiltered, arg.ProjectID, arg.State, arg.Lim)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Process
+	for rows.Next() {
+		var i Process
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProjectID,
+			&i.Command,
+			&i.State,
+			&i.Provider,
+			&i.SessionID,
+			&i.Input,
+			&i.Result,
+			&i.NotBySchema,
+			&i.Error,
+			&i.StartedAt,
+			&i.FinishedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listProjectTriggers = `-- name: ListProjectTriggers :many
+SELECT project_id, command, cron, next_run_at FROM trigger_state WHERE project_id = ?
+`
+
+func (q *Queries) ListProjectTriggers(ctx context.Context, projectID int64) ([]TriggerState, error) {
+	rows, err := q.db.QueryContext(ctx, listProjectTriggers, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []TriggerState
+	for rows.Next() {
+		var i TriggerState
+		if err := rows.Scan(
+			&i.ProjectID,
+			&i.Command,
+			&i.Cron,
+			&i.NextRunAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listProjects = `-- name: ListProjects :many
-SELECT id, name, manifest, created_at FROM project ORDER BY name
+SELECT id, name, created_at, workspace_id, status FROM project ORDER BY name
 `
 
 func (q *Queries) ListProjects(ctx context.Context) ([]Project, error) {
@@ -539,8 +871,9 @@ func (q *Queries) ListProjects(ctx context.Context) ([]Project, error) {
 		if err := rows.Scan(
 			&i.ID,
 			&i.Name,
-			&i.Manifest,
 			&i.CreatedAt,
+			&i.WorkspaceID,
+			&i.Status,
 		); err != nil {
 			return nil, err
 		}
@@ -581,6 +914,49 @@ func (q *Queries) ListRecords(ctx context.Context, arg ListRecordsParams) ([]Rec
 			&i.Data,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listRevisions = `-- name: ListRevisions :many
+SELECT id, document_id, n, author, reason, created_at FROM document_revision WHERE document_id = ? ORDER BY n DESC
+`
+
+type ListRevisionsRow struct {
+	ID         int64
+	DocumentID int64
+	N          int64
+	Author     string
+	Reason     string
+	CreatedAt  string
+}
+
+func (q *Queries) ListRevisions(ctx context.Context, documentID int64) ([]ListRevisionsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listRevisions, documentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListRevisionsRow
+	for rows.Next() {
+		var i ListRevisionsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.DocumentID,
+			&i.N,
+			&i.Author,
+			&i.Reason,
+			&i.CreatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -713,6 +1089,31 @@ func (q *Queries) MarkAskUsed(ctx context.Context, id int64) error {
 	return err
 }
 
+const nextRevision = `-- name: NextRevision :one
+SELECT CAST(COALESCE(MAX(n), 0) + 1 AS INTEGER) FROM document_revision WHERE document_id = ?
+`
+
+func (q *Queries) NextRevision(ctx context.Context, documentID int64) (int64, error) {
+	row := q.db.QueryRowContext(ctx, nextRevision, documentID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const setDocumentCurrent = `-- name: SetDocumentCurrent :exec
+UPDATE document SET current = ? WHERE id = ?
+`
+
+type SetDocumentCurrentParams struct {
+	Current int64
+	ID      int64
+}
+
+func (q *Queries) SetDocumentCurrent(ctx context.Context, arg SetDocumentCurrentParams) error {
+	_, err := q.db.ExecContext(ctx, setDocumentCurrent, arg.Current, arg.ID)
+	return err
+}
+
 const setProcessSession = `-- name: SetProcessSession :exec
 UPDATE process SET session_id = ? WHERE id = ?
 `
@@ -762,6 +1163,20 @@ func (q *Queries) SetTriggerNext(ctx context.Context, arg SetTriggerNextParams) 
 	return err
 }
 
+const updateRecordData = `-- name: UpdateRecordData :exec
+UPDATE record SET data = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?
+`
+
+type UpdateRecordDataParams struct {
+	Data string
+	ID   int64
+}
+
+func (q *Queries) UpdateRecordData(ctx context.Context, arg UpdateRecordDataParams) error {
+	_, err := q.db.ExecContext(ctx, updateRecordData, arg.Data, arg.ID)
+	return err
+}
+
 const upsertRecord = `-- name: UpsertRecord :one
 INSERT INTO record (project_id, collection, key, data) VALUES (?, ?, ?, ?)
 ON CONFLICT (project_id, collection, key)
@@ -798,7 +1213,7 @@ func (q *Queries) UpsertRecord(ctx context.Context, arg UpsertRecordParams) (Rec
 
 const upsertTrigger = `-- name: UpsertTrigger :exec
 INSERT INTO trigger_state (project_id, command, cron, next_run_at) VALUES (?, ?, ?, ?)
-ON CONFLICT (project_id, command, cron) DO UPDATE SET next_run_at = excluded.next_run_at
+ON CONFLICT (project_id, command, cron) DO NOTHING
 `
 
 type UpsertTriggerParams struct {

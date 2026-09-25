@@ -1,7 +1,7 @@
 # deck2
 
 Personal control panel for AI agents: one Go binary, SQLite, web client. Spec: `docs/spec.md` (Russian).
-Protocol facts about Claude Code: `docs/spikes/claude-code.md`.
+Protocol facts about Claude Code: `docs/spikes/claude-code.md`. Stage 1 plan: `docs/plan-stage1.md`.
 
 ## Commands
 
@@ -15,13 +15,19 @@ Protocol facts about Claude Code: `docs/spikes/claude-code.md`.
 
 - `cmd/deck` — entry point
 - `internal/store` — SQLite, goose migrations, sqlc queries (`db/` is generated)
+- `internal/registry` — command registry: every input (API, MCP, triggers) calls commands through it;
+  input schemas limited to App Intents types
+- `internal/app` — wiring, builtin `deck.*` commands, projects, documents with revisions, records
 - `internal/manifest` — project manifest: parsing, validation, expressions
-- `internal/gateway` — deck MCP server per process: permission prompts, questions, confirmations, records
+- `internal/gateway` — deck MCP server per process: permission prompts, questions, confirmations, registry
+  commands as tools
 - `internal/provider` — model providers; `claudecode` runs the CLI isolated from user settings
 - `internal/process` — process runner: start, resume, result schema check
 - `internal/trigger` — cron scheduler with catch-up after sleep
 - `internal/screen` — stored screens resolved into A2UI messages
-- `internal/api` — HTTP API and SSE; `web/static` — embedded client
+- `internal/api` — HTTP API (`GET /api/commands`, `POST /api/commands/{name}`, screens) and SSE;
+  `web/static` — embedded client
+- `internal/lint` — code rules checked by `tests/lint` (comments, requirement refs, vertical names)
 - `tests/scenarios` — scenario tests through the real gateway with a fake provider
 
 ## Rules
@@ -31,6 +37,11 @@ Protocol facts about Claude Code: `docs/spikes/claude-code.md`.
 - No names of verticals (vacancies, forecasts, mailboxes, Brier, …) in Go code or the web client outside
   built-in tools and test fixtures. Verticals live in manifests.
 - Tests are scenario tests through the registry/API on a real SQLite in a temp dir; no unit tests of internals.
+- New behaviour is a registry command (`deck.<name>` builtin or `<project>.<name>` from a manifest), not a
+  new HTTP endpoint.
 - Web client (stage 1+): React + Vite + Mantine v9. Mantine v9 is new — check https://mantine.dev before
-  writing components; do not use v7/v8 APIs.
+  writing components; do not use v7/v8 APIs. Known v8→v9 traps (https://mantine.dev/guides/8x-to-9x/):
+  `Text`/`Anchor` take `c=` not `color=`; `TypographyStylesProvider` → `Typography`; `Collapse expanded=`;
+  `Spoiler defaultExpanded`; `Grid gap=` not `gutter=`; no `positionDependencies`; `@mantine/form` uses
+  `schemaResolver` (no `zodResolver`); default radius is `md`; `postcss-preset-mantine` is still required.
 - Less of our own code is better: if a model can do it with a script or an agent, do not add it to the core.

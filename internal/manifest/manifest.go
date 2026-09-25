@@ -152,6 +152,9 @@ func (m *Manifest) compile() error {
 			fail("command %q: duplicate", c.Name)
 		}
 		m.commands[c.Name] = c
+		if strings.TrimSpace(c.Title) == "" || strings.TrimSpace(c.Description) == "" {
+			fail("command %q: title and description are required", c.Name)
+		}
 		if !classes[c.Class] {
 			fail("command %q: class must be internal, reversible or external", c.Name)
 		}
@@ -246,6 +249,18 @@ func (c *Collection) RecordKey(data map[string]any) (string, error) {
 		return "", fmt.Errorf("key of %q is empty", c.Name)
 	}
 	return key, nil
+}
+
+// RecordTitle is the display name of a record; empty when the collection declares none.
+func (c *Collection) RecordTitle(data map[string]any) string {
+	if c.titleProg == nil {
+		return ""
+	}
+	out, err := expr.Run(c.titleProg, data)
+	if err != nil || out == nil {
+		return ""
+	}
+	return fmt.Sprint(out)
 }
 
 func (c *Command) ValidateResult(v any) error {

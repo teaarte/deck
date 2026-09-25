@@ -11,6 +11,7 @@ import (
 	"strconv"
 
 	"deck2/internal/app"
+	"deck2/internal/registry"
 	"deck2/internal/screen"
 )
 
@@ -28,13 +29,9 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("/", http.FileServerFS(s.web))
 
 	api := http.NewServeMux()
-	api.HandleFunc("GET /api/projects", s.listProjects)
-	api.HandleFunc("POST /api/projects", s.createProject)
+	api.HandleFunc("GET /api/commands", s.listCommands)
+	api.HandleFunc("POST /api/commands/{name}", s.invoke)
 	api.HandleFunc("GET /api/projects/{id}/screens/{name}", s.getScreen)
-	api.HandleFunc("POST /api/projects/{id}/commands/{name}", s.runCommand)
-	api.HandleFunc("GET /api/asks", s.listAsks)
-	api.HandleFunc("POST /api/asks/{id}/answer", s.answerAsk)
-	api.HandleFunc("GET /api/processes", s.listProcesses)
 	api.HandleFunc("GET /api/events", s.events)
 	mux.Handle("/api/", s.auth(api))
 	return mux
@@ -54,42 +51,29 @@ func (s *Server) auth(next http.Handler) http.Handler {
 	})
 }
 
-func (s *Server) listProjects(w http.ResponseWriter, r *http.Request) {
-	ps, err := s.app.Store.Q.ListProjects(r.Context())
+var owner = registry.Actor{Kind: registry.Owner}
+
+func (s *Server) listCommands(w http.ResponseWriter, r *http.Request) {
+	cmds, err := s.app.Registry.List(r.Context(), owner)
 	if err != nil {
 		fail(w, err)
 		return
 	}
-	out := make([]map[string]any, 0, len(ps))
-	for _, p := range ps {
-		entry := map[string]any{"id": p.ID, "name": p.Name}
-		if _, m, err := s.app.Manifest(r.Context(), p.ID); err == nil {
-			screens := []map[string]string{}
-			for _, sc := range m.Screens {
-				screens = append(screens, map[string]string{"name": sc.Name, "title": sc.Title})
-			}
-			entry["screens"] = screens
-		}
-		out = append(out, entry)
-	}
-	send(w, out)
+	send(w, cmds)
 }
 
-func (s *Server) createProject(w http.ResponseWriter, r *http.Request) {
-	var body struct {
-		Name     string          `json:"name"`
-		Manifest json.RawMessage `json:"manifest"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+func (s *Server) invoke(w http.ResponseWriter, r *http.Request) {
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	p, err := s.app.CreateProject(r.Context(), body.Name, body.Manifest)
+	out, err := s.app.Registry.Invoke(r.Context(), owner, r.PathValue("name"), body)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusUnprocessableEntity)
+		http.Error(w, err.Error(), registry.Status(err))
 		return
 	}
-	send(w, map[string]any{"id": p.ID, "name": p.Name})
+	send(w, out)
 }
 
 func (s *Server) getScreen(w http.ResponseWriter, r *http.Request) {
@@ -98,91 +82,22 @@ func (s *Server) getScreen(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad project id", http.StatusBadRequest)
 		return
 	}
-	_, m, err := s.app.Manifest(r.Context(), id)
+	p, err := s.app.Store.Q.GetProject(r.Context(), id)
+	if err != nil {
+		http.Error(w, "no such project", http.StatusNotFound)
+		return
+	}
+	m, err := s.app.Manifest(r.Context(), id)
 	if err != nil {
 		fail(w, err)
 		return
 	}
-	msgs, err := screen.Render(r.Context(), s.app.Store, id, m, r.PathValue("name"))
+	msgs, err := screen.Render(r.Context(), s.app.Store, id, p.Name, m, r.PathValue("name"))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
 	send(w, msgs)
-}
-
-func (s *Server) runCommand(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
-	if err != nil {
-		http.Error(w, "bad project id", http.StatusBadRequest)
-		return
-	}
-	input := map[string]any{}
-	if b, _ := io.ReadAll(r.Body); len(b) > 0 {
-		if err := json.Unmarshal(b, &input); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-	}
-	pid, err := s.app.Runner.Start(r.Context(), id, r.PathValue("name"), input)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusUnprocessableEntity)
-		return
-	}
-	send(w, map[string]any{"process": pid})
-}
-
-func (s *Server) listAsks(w http.ResponseWriter, r *http.Request) {
-	as, err := s.app.Store.Q.ListOpenAsks(r.Context())
-	if err != nil {
-		fail(w, err)
-		return
-	}
-	out := make([]map[string]any, 0, len(as))
-	for _, a := range as {
-		out = append(out, map[string]any{"id": a.ID, "process": a.ProcessID, "kind": a.Kind, "text": a.Text,
-			"payload": json.RawMessage(a.Payload), "created_at": a.CreatedAt})
-	}
-	send(w, out)
-}
-
-func (s *Server) answerAsk(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
-	if err != nil {
-		http.Error(w, "bad ask id", http.StatusBadRequest)
-		return
-	}
-	var body struct {
-		Answer json.RawMessage `json:"answer"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	answer := string(body.Answer)
-	var str string
-	if json.Unmarshal(body.Answer, &str) == nil {
-		answer = str
-	}
-	if err := s.app.Asks.Answer(r.Context(), id, answer); err != nil {
-		http.Error(w, err.Error(), http.StatusConflict)
-		return
-	}
-	send(w, map[string]any{"ok": true})
-}
-
-func (s *Server) listProcesses(w http.ResponseWriter, r *http.Request) {
-	ps, err := s.app.Store.Q.ListProcesses(r.Context(), 50)
-	if err != nil {
-		fail(w, err)
-		return
-	}
-	out := make([]map[string]any, 0, len(ps))
-	for _, p := range ps {
-		out = append(out, map[string]any{"id": p.ID, "project": p.ProjectID, "command": p.Command, "state": p.State,
-			"result": p.Result, "not_by_schema": p.NotBySchema == 1, "error": p.Error, "started_at": p.StartedAt})
-	}
-	send(w, out)
 }
 
 func (s *Server) events(w http.ResponseWriter, r *http.Request) {

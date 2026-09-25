@@ -22,6 +22,28 @@ type Ask struct {
 	AnsweredAt sql.NullString
 }
 
+type Document struct {
+	ID          int64
+	WorkspaceID int64
+	ProjectID   int64
+	OwnerKind   string
+	OwnerID     int64
+	Kind        string
+	Name        string
+	Current     int64
+	CreatedAt   string
+}
+
+type DocumentRevision struct {
+	ID         int64
+	DocumentID int64
+	N          int64
+	Text       string
+	Author     string
+	Reason     string
+	CreatedAt  string
+}
+
 type Process struct {
 	ID          int64
 	ProjectID   int64
@@ -38,10 +60,11 @@ type Process struct {
 }
 
 type Project struct {
-	ID        int64
-	Name      string
-	Manifest  string
-	CreatedAt string
+	ID          int64
+	Name        string
+	CreatedAt   string
+	WorkspaceID int64
+	Status      string
 }
 
 type Record struct {
@@ -70,4 +93,9 @@ type TriggerState struct {
 	Command   string
 	Cron      string
 	NextRunAt string
+}
+
+type Workspace struct {
+	ID   int64
+	Name string
 }

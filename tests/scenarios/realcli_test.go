@@ -49,7 +49,7 @@ func TestRealClaudeCodeQuestionResume(t *testing.T) {
 	ts.Config.Handler = api.New(a, token, web.FS()).Handler()
 	ts.Start()
 	t.Cleanup(func() { _ = a.Close(); ts.Close() })
-	e := &Env{T: t, App: a, URL: base}
+	e := &Env{T: t, App: a, URL: base, names: map[int64]string{}}
 
 	p := e.createProject("ideas", realManifest)
 	id := e.run(p, "collect")
@@ -125,7 +125,7 @@ func TestRealClaudeCodePermission(t *testing.T) {
 	ts.Config.Handler = api.New(a, token, web.FS()).Handler()
 	ts.Start()
 	t.Cleanup(func() { _ = a.Close(); ts.Close() })
-	e := &Env{T: t, App: a, URL: base}
+	e := &Env{T: t, App: a, URL: base, names: map[int64]string{}}
 	p := e.createProject("perm", bashManifest)
 
 	for _, tc := range []struct{ answer, wantFile string }{{"allow", "deck-ok"}, {"deny:not today", ""}} {
@@ -133,7 +133,7 @@ func TestRealClaudeCodePermission(t *testing.T) {
 		deadline := time.Now().Add(3 * time.Minute)
 		var ask askView
 		for time.Now().Before(deadline) {
-			_, out := e.do("GET", "/api/asks", nil)
+			_, out := e.call("deck.asks_list", nil)
 			var as []askView
 			_ = json.Unmarshal(out, &as)
 			if len(as) > 0 {

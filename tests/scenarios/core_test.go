@@ -35,16 +35,26 @@ const ideasManifest = `{
   }]
 }`
 
+func jsonl(recs ...map[string]any) string {
+	var b strings.Builder
+	for _, r := range recs {
+		line, _ := json.Marshal(r)
+		b.Write(line)
+		b.WriteByte('\n')
+	}
+	return b.String()
+}
+
 func writeIdeas(ctx context.Context, c *Call, topic string) {
-	c.Tool(ctx, "records_upsert", map[string]any{"collection": "ideas", "records": []map[string]any{
-		{"title": "alpha", "score": 7, "topic": topic}, {"title": "beta", "score": 3, "topic": topic},
-		{"title": "gamma", "score": 9, "topic": topic}, {"title": "broken"}}})
+	c.Tool(ctx, "records_upsert", map[string]any{"collection": "ideas", "records": jsonl(
+		map[string]any{"title": "alpha", "score": 7, "topic": topic}, map[string]any{"title": "beta", "score": 3, "topic": topic},
+		map[string]any{"title": "gamma", "score": 9, "topic": topic}, map[string]any{"title": "broken"})})
 }
 
 func TestManifestIsValidatedOnSave(t *testing.T) {
 	e := newEnv(t, func(context.Context, *Call) provider.Result { return provider.Result{} })
 	bad := strings.NewReplacer(`"collection": "ideas", "where"`, `"collection": "nope", "where"`, `"0 9 * * *"`, `"every day"`).Replace(ideasManifest)
-	code, out := e.do("POST", "/api/projects", map[string]any{"name": "bad", "manifest": json.RawMessage(bad)})
+	code, out := e.call("deck.project_create", map[string]any{"name": "bad", "manifest": bad})
 	if code != 422 || !strings.Contains(string(out), "unknown collection") || !strings.Contains(string(out), "cron") {
 		t.Fatalf("want 422 with reasons, got %d %s", code, out)
 	}
@@ -58,7 +68,7 @@ func TestCommandWritesRecordsAndScreenShowsThem(t *testing.T) {
 	p := e.createProject("ideas", ideasManifest)
 	id := e.run(p, "collect")
 	got := e.waitState(id, "done")
-	if got.NotBySchema || got.Result != `{"written": 3}` {
+	if got.NotBySchema || string(got.Result) != `{"written":3}` {
 		t.Fatalf("unexpected result %+v", got)
 	}
 	rows := e.screenRows(p, "main")
@@ -159,7 +169,7 @@ func TestResultNotBySchemaAfterOneRetry(t *testing.T) {
 	p := e.createProject("ideas", ideasManifest)
 	id := e.run(p, "collect")
 	got := e.waitState(id, "done")
-	if !got.NotBySchema || got.Result != `{"count": 1}` {
+	if !got.NotBySchema || string(got.Result) != `{"count":1}` {
 		t.Fatalf("want raw result marked not by schema, got %+v", got)
 	}
 	calls := e.Fake.Calls()

@@ -28,8 +28,24 @@ func New(st *store.Store, s Starter) *Scheduler {
 	return &Scheduler{st: st, start: s, Now: time.Now}
 }
 
-// Sync registers the triggers of a manifest, keeping next_run_at for unchanged cron expressions.
+// Sync registers the triggers of a manifest, keeping next_run_at for unchanged cron expressions and
+// dropping triggers the manifest no longer has.
 func (s *Scheduler) Sync(ctx context.Context, projectID int64, m *manifest.Manifest) error {
+	keep := map[[2]string]bool{}
+	for _, t := range m.Triggers {
+		keep[[2]string{t.Command, t.Cron}] = true
+	}
+	old, err := s.st.Q.ListProjectTriggers(ctx, projectID)
+	if err != nil {
+		return err
+	}
+	for _, t := range old {
+		if !keep[[2]string{t.Command, t.Cron}] {
+			if err := s.st.Q.DeleteTrigger(ctx, db.DeleteTriggerParams{ProjectID: projectID, Command: t.Command, Cron: t.Cron}); err != nil {
+				return err
+			}
+		}
+	}
 	for _, t := range m.Triggers {
 		sched, err := manifest.CronParser.Parse(t.Cron)
 		if err != nil {

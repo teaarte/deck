@@ -15,7 +15,7 @@ import (
 
 	"deck2/internal/ask"
 	"deck2/internal/events"
-	"deck2/internal/manifest"
+	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
 )
@@ -23,7 +23,6 @@ import (
 const (
 	ServerName   = "deck"
 	ApproveTool  = "approve"
-	RecordsTool  = "records_upsert"
 	QuestionTool = "AskUserQuestion"
 )
 
@@ -34,7 +33,10 @@ var FreeBuiltins = []string{"Read", "Glob", "Grep", "TodoWrite", "StructuredOutp
 type Session struct {
 	ProcessID int64
 	ProjectID int64
-	Manifest  *manifest.Manifest
+}
+
+func (s *Session) actor() registry.Actor {
+	return registry.Actor{Kind: registry.Agent, ProjectID: s.ProjectID, ProcessID: s.ProcessID}
 }
 
 type Config struct {
@@ -47,6 +49,7 @@ type Gateway struct {
 	st   *store.Store
 	asks *ask.Broker
 	bus  *events.Bus
+	reg  *registry.Registry
 
 	mu       sync.Mutex
 	sessions map[string]*entry
@@ -56,23 +59,28 @@ type Gateway struct {
 type entry struct {
 	session *Session
 	server  *mcp.Server
+	allowed []string
 }
 
-func New(cfg Config, st *store.Store, asks *ask.Broker, bus *events.Bus) *Gateway {
-	g := &Gateway{cfg: cfg, st: st, asks: asks, bus: bus, sessions: map[string]*entry{}}
+func New(cfg Config, st *store.Store, asks *ask.Broker, bus *events.Bus, reg *registry.Registry) *Gateway {
+	g := &Gateway{cfg: cfg, st: st, asks: asks, bus: bus, reg: reg, sessions: map[string]*entry{}}
 	g.handler = mcp.NewStreamableHTTPHandler(g.serverFor, &mcp.StreamableHTTPOptions{SessionTimeout: time.Hour})
 	return g
 }
 
 // Register issues a token for a process; the token is part of the MCP URL the provider connects to.
-func (g *Gateway) Register(s *Session) string {
+func (g *Gateway) Register(ctx context.Context, s *Session) (string, error) {
 	b := make([]byte, 16)
 	_, _ = rand.Read(b)
 	tok := hex.EncodeToString(b)
+	srv, allowed, err := g.newServer(ctx, tok, s)
+	if err != nil {
+		return "", err
+	}
 	g.mu.Lock()
-	g.sessions[tok] = &entry{session: s, server: g.newServer(tok, s)}
+	g.sessions[tok] = &entry{session: s, server: srv, allowed: allowed}
 	g.mu.Unlock()
-	return tok
+	return tok, nil
 }
 
 func (g *Gateway) Unregister(tok string) {
@@ -83,8 +91,14 @@ func (g *Gateway) Unregister(tok string) {
 
 // AllowedTools lists tools the provider may call without the approve round-trip: free builtins and
 // gateway tools of class internal.
-func AllowedTools() []string {
-	return append(append([]string{}, FreeBuiltins...), qualified(RecordsTool))
+func (g *Gateway) AllowedTools(tok string) []string {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	out := append([]string{}, FreeBuiltins...)
+	if e := g.sessions[tok]; e != nil {
+		out = append(out, e.allowed...)
+	}
+	return out
 }
 
 func PermissionTool() string { return qualified(ApproveTool) }
@@ -111,7 +125,7 @@ func (g *Gateway) alive(tok string) bool {
 	return g.sessions[tok] != nil
 }
 
-func (g *Gateway) newServer(tok string, s *Session) *mcp.Server {
+func (g *Gateway) newServer(ctx context.Context, tok string, s *Session) (*mcp.Server, []string, error) {
 	srv := mcp.NewServer(&mcp.Implementation{Name: ServerName, Version: "0"}, nil)
 	gone := &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "deck: this process has finished"}}}
 	srv.AddTool(&mcp.Tool{
@@ -126,20 +140,37 @@ func (g *Gateway) newServer(tok string, s *Session) *mcp.Server {
 		}
 		return g.approve(ctx, s, req.Params.Arguments)
 	})
-	srv.AddTool(&mcp.Tool{
-		Name:        RecordsTool,
-		Description: "Write records into a collection of this project. Records with an existing key are updated.",
-		InputSchema: map[string]any{"type": "object", "properties": map[string]any{
-			"collection": map[string]any{"type": "string"},
-			"records":    map[string]any{"type": "array", "items": map[string]any{"type": "object"}}},
-			"required": []string{"collection", "records"}},
-	}, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		if !g.alive(tok) {
-			return gone, nil
+	cmds, err := g.reg.List(ctx, s.actor())
+	if err != nil {
+		return nil, nil, err
+	}
+	var allowed []string
+	for _, c := range cmds {
+		name := c.Name
+		tool := registry.ToolName(name)
+		srv.AddTool(&mcp.Tool{Name: tool, Title: c.Title, Description: c.Description, InputSchema: c.Input},
+			func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+				if !g.alive(tok) {
+					return gone, nil
+				}
+				return g.invoke(ctx, s, name, req.Params.Arguments), nil
+			})
+		if c.Class == registry.Internal {
+			allowed = append(allowed, qualified(tool))
 		}
-		return g.upsertRecords(ctx, s, req.Params.Arguments)
-	})
-	return srv
+	}
+	return srv, allowed, nil
+}
+
+func (g *Gateway) invoke(ctx context.Context, s *Session, name string, args json.RawMessage) *mcp.CallToolResult {
+	out, err := g.reg.Invoke(ctx, s.actor(), name, args)
+	if err != nil {
+		g.log(ctx, s, name, registry.Internal, "rejected", "")
+		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}}}
+	}
+	g.log(ctx, s, name, registry.Internal, "done", "")
+	b, _ := json.Marshal(out)
+	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(b)}}}
 }
 
 type approveInput struct {
@@ -255,55 +286,6 @@ func RejectMessage(answer string) string {
 		msg += " Reason: " + reason
 	}
 	return msg
-}
-
-type upsertInput struct {
-	Collection string           `json:"collection"`
-	Records    []map[string]any `json:"records"`
-}
-
-type upsertOutput struct {
-	Written int      `json:"written"`
-	Errors  []string `json:"errors,omitempty"`
-}
-
-func (g *Gateway) upsertRecords(ctx context.Context, s *Session, raw json.RawMessage) (*mcp.CallToolResult, error) {
-	var in upsertInput
-	if err := json.Unmarshal(raw, &in); err != nil {
-		return nil, err
-	}
-	out, err := UpsertRecords(ctx, g.st, s.ProjectID, s.Manifest, in.Collection, in.Records)
-	if err != nil {
-		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}}}, nil
-	}
-	g.log(ctx, s, RecordsTool, "internal", "done", "")
-	if out.Written > 0 {
-		g.bus.Publish("collection")
-	}
-	b, _ := json.Marshal(out)
-	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(b)}}}, nil
-}
-
-// UpsertRecords validates each record against the collection schema and writes it by its key.
-func UpsertRecords(ctx context.Context, st *store.Store, projectID int64, m *manifest.Manifest, collection string, recs []map[string]any) (upsertOutput, error) {
-	c := m.Collection(collection)
-	if c == nil {
-		return upsertOutput{}, fmt.Errorf("unknown collection %q", collection)
-	}
-	var out upsertOutput
-	for i, r := range recs {
-		key, err := c.RecordKey(r)
-		if err != nil {
-			out.Errors = append(out.Errors, fmt.Sprintf("records[%d]: %v", i, err))
-			continue
-		}
-		data, _ := json.Marshal(r)
-		if _, err := st.Q.UpsertRecord(ctx, db.UpsertRecordParams{ProjectID: projectID, Collection: collection, Key: key, Data: string(data)}); err != nil {
-			return out, err
-		}
-		out.Written++
-	}
-	return out, nil
 }
 
 func (g *Gateway) log(ctx context.Context, s *Session, tool, class, outcome, params string) {

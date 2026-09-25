@@ -1,0 +1,11 @@
+{
+  "ok.jsonl": {"cli": "2.1.281", "date": "2026-09-25", "kind": "real"},
+  "nologin.jsonl": {"cli": "2.1.281", "date": "2026-09-25", "kind": "real", "note": "CLAUDE_CONFIG_DIR pointed at an empty folder"},
+  "noconversation.jsonl": {"cli": "2.1.281", "date": "2026-09-25", "kind": "real", "note": "--resume of an unknown session id"},
+  "subagent.jsonl": {"cli": "2.1.281", "date": "2026-09-25", "kind": "synthetic", "note": "real Agent tool stream plus one sub-agent assistant line"},
+  "ratelimit_warning.jsonl": {"cli": "2.1.281", "date": "2026-09-25", "kind": "synthetic", "note": "ok.jsonl with status allowed_warning"},
+  "ratelimit_rejected.jsonl": {"cli": "2.1.281", "date": "2026-09-25", "kind": "synthetic"},
+  "two_results.jsonl": {"cli": "2.1.281", "date": "2026-09-25", "kind": "synthetic", "note": "ok.jsonl with its result repeated"},
+  "foreign_session.jsonl": {"cli": "2.1.281", "date": "2026-09-25", "kind": "synthetic", "note": "ok.jsonl with another session id"},
+  "error.jsonl": {"cli": "2.1.281", "date": "2026-09-25", "kind": "synthetic", "note": "ok.jsonl ending in an error result"}
+}

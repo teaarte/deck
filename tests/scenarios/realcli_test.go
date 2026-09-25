@@ -5,13 +5,18 @@ import (
 	"encoding/json"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+
 	"deck2/internal/api"
 	"deck2/internal/app"
+	"deck2/internal/provider"
 	"deck2/internal/provider/claudecode"
 	"deck2/internal/store/db"
 	"deck2/web"
@@ -41,7 +46,8 @@ func TestRealClaudeCodeQuestionResume(t *testing.T) {
 	}
 	ts := httptest.NewUnstartedServer(nil)
 	base := "http://" + ts.Listener.Addr().String()
-	a, err := app.New(app.Config{Home: t.TempDir(), MCPBase: base, QuestionWait: 5 * time.Second, ConfirmWait: 5 * time.Second}, claudecode.New())
+	home := t.TempDir()
+	a, err := app.New(app.Config{Home: home, MCPBase: base, QuestionWait: 5 * time.Second, ConfirmWait: 5 * time.Second}, claudecode.New(filepath.Join(home, "mcp")))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,7 +122,7 @@ func TestRealClaudeCodePermission(t *testing.T) {
 	home := t.TempDir()
 	ts := httptest.NewUnstartedServer(nil)
 	base := "http://" + ts.Listener.Addr().String()
-	a, err := app.New(app.Config{Home: home, MCPBase: base, QuestionWait: 2 * time.Minute, ConfirmWait: 2 * time.Minute}, claudecode.New())
+	a, err := app.New(app.Config{Home: home, MCPBase: base, QuestionWait: 2 * time.Minute, ConfirmWait: 2 * time.Minute}, claudecode.New(filepath.Join(home, "mcp")))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -153,6 +159,109 @@ func TestRealClaudeCodePermission(t *testing.T) {
 		t.Logf("%s -> state %s, file %q, result %q", tc.answer, got.State, strings.TrimSpace(string(b)), got.Result)
 		if got.State != "done" || strings.TrimSpace(string(b)) != tc.wantFile {
 			t.Fatalf("answer %q: state %s, file %q", tc.answer, got.State, b)
+		}
+	}
+}
+
+func realCLI(t *testing.T) {
+	if os.Getenv("DECK_REAL_CLI") == "" {
+		t.Skip("set DECK_REAL_CLI=1 to run against the real Claude Code CLI")
+	}
+}
+
+// TestRealClaudeCodeKeepsSubscription checks that API variables of deck's environment do not reach the CLI.
+func TestRealClaudeCodeKeepsSubscription(t *testing.T) {
+	realCLI(t)
+	t.Setenv("ANTHROPIC_API_KEY", "sk-ant-invalid")
+	t.Setenv("ANTHROPIC_BASE_URL", "http://127.0.0.1:1")
+	sid := uuid.NewString()
+	res, err := claudecode.New(t.TempDir()).Run(context.Background(), provider.Request{Cwd: t.TempDir(),
+		Prompt: "Reply with just: ok", SessionID: sid, MCPURL: "http://127.0.0.1:1/mcp/none"})
+	t.Logf("result: %+v", res)
+	if err != nil || res.IsError || res.SessionID != sid || !strings.Contains(strings.ToLower(res.Text), "ok") {
+		t.Fatalf("want a successful turn of session %s on the subscription: %+v %v", sid, res, err)
+	}
+}
+
+// TestRealClaudeCodeRepoInstructions checks that a code run sees the instructions of the repo and its
+// subfolders but not of the folders above; the control run without excludes must see them all.
+func TestRealClaudeCodeRepoInstructions(t *testing.T) {
+	realCLI(t)
+	outer := t.TempDir()
+	repo := filepath.Join(outer, "repo")
+	files := map[string]string{
+		"CLAUDE.md":                  "Marker word: OUTERMARK.",
+		".claude/CLAUDE.md":          "Marker word: OUTERDOTMARK.",
+		".claude/rules/extra.md":     "Marker word: OUTERRULEMARK.",
+		"repo/CLAUDE.md":             "Marker word: REPOMARK.",
+		"repo/sub/CLAUDE.md":         "Marker word: SUBMARK.",
+		"repo/.claude/settings.json": `{"env": {"ANTHROPIC_API_KEY": "sk-ant-repo", "ANTHROPIC_BASE_URL": "http://127.0.0.1:1"}, "apiKeyHelper": "echo sk-ant-repo"}`,
+		"repo/sub/notes.txt":         "Nothing here.",
+	}
+	for name, text := range files {
+		p := filepath.Join(outer, name)
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(text+"\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if out, err := exec.Command("git", "init", "-q", repo).CombinedOutput(); err != nil {
+		t.Fatalf("git init: %v %s", err, out)
+	}
+	prompt := "Read the file sub/notes.txt with the Read tool. Then try to create .claude/settings.local.json with the content {} using the Write tool. Then reply with only the marker words (ALL CAPS words ending in MARK) " +
+		"that appear anywhere in your instructions or context, separated by spaces. Do not guess and do not search for files."
+	a := claudecode.New(t.TempDir())
+	res, err := a.Run(context.Background(), provider.Request{Cwd: repo, Repo: true, Prompt: prompt, SessionID: uuid.NewString(),
+		MCPURL: "http://127.0.0.1:1/mcp/none", AllowedTools: []string{"Read", "Write"}})
+	if err != nil || res.IsError {
+		t.Fatalf("the repo settings must not move the code run off the subscription: %+v %v", res, err)
+	}
+	if _, err := os.Stat(filepath.Join(repo, ".claude", "settings.local.json")); err == nil {
+		t.Fatal("the agent must not write the repo settings")
+	}
+	t.Logf("code run sees: %s", res.Text)
+	for _, w := range []string{"REPOMARK", "SUBMARK"} {
+		if !strings.Contains(res.Text, w) {
+			t.Errorf("the code run must see %s", w)
+		}
+	}
+	for _, w := range []string{"OUTERMARK", "OUTERDOTMARK", "OUTERRULEMARK"} {
+		if strings.Contains(res.Text, w) {
+			t.Errorf("the code run must not see %s", w)
+		}
+	}
+
+	cmd := exec.Command("claude", "-p", "--output-format", "text", "--setting-sources", "project", "--strict-mcp-config",
+		"--allowedTools", "Read", "--settings", `{"apiKeyHelper": "", "env": {"ANTHROPIC_API_KEY": "", "ANTHROPIC_BASE_URL": ""}}`)
+	cmd.Dir = repo
+	cmd.Stdin = strings.NewReader(prompt)
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("control run: %v", err)
+	}
+	t.Logf("control run sees: %s", out)
+	if !strings.Contains(string(out), "OUTERMARK") {
+		t.Fatalf("the control run without excludes must see the folder above, or the test proves nothing")
+	}
+}
+
+// TestRealClaudeCodeKnowsFakeFlags checks that every flag the fake CLI accepts exists in the real one.
+func TestRealClaudeCodeKnowsFakeFlags(t *testing.T) {
+	realCLI(t)
+	help, err := exec.Command("claude", "--help").CombinedOutput()
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ := os.ReadFile("testdata/claude/fake.sh")
+	flags := regexp.MustCompile(`--[a-zA-Z-]+`).FindAllString(string(b), -1)
+	if len(flags) < 10 {
+		t.Fatalf("found only %v in the fake", flags)
+	}
+	for _, f := range flags {
+		if !regexp.MustCompile(`(?m)(^|[\s,])` + regexp.QuoteMeta(f) + `\b`).Match(help) {
+			t.Errorf("claude --help has no %s", f)
 		}
 	}
 }

@@ -109,7 +109,9 @@ func (a *App) addBuiltins() {
 
 	add("asks_list", "Waiting for you", "Lists open questions and confirmations for the owner.", ownerSide,
 		registry.Params(), registry.Typed(a.asksList))
-	add("ask_answer", "Answer", "Answers a question or confirmation: text, allow, deny or deny:<reason>.", ownerOnly,
+	add("health_list", "Health", "Lists the health of providers and other dependencies with the last error.", ownerSide,
+		registry.Params(), registry.Typed(a.healthList))
+	add("ask_answer", "Answer", "Answers a question or confirmation: text, allow, deny or deny:<reason>; a login ask: retry or new_session.", ownerOnly,
 		registry.Params(registry.P("ask", "ask", "Ask id"), registry.P("answer", "text", "The answer")),
 		registry.Typed(a.askAnswer))
 }

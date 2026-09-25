@@ -107,7 +107,7 @@ func TestQuestionAnsweredLive(t *testing.T) {
 
 func TestQuestionAnsweredLateResumesSession(t *testing.T) {
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
-		if c.Req.ResumeSession == "" {
+		if !c.Req.Resume {
 			d := c.Approve(ctx, "AskUserQuestion", map[string]any{"questions": []map[string]any{{"question": "Which topic?"}}})
 			if d["behavior"] != "deny" {
 				panic("expected deny on timeout")
@@ -128,7 +128,7 @@ func TestQuestionAnsweredLateResumesSession(t *testing.T) {
 	e.answer(a.ID, "rust")
 	e.waitState(id, "done")
 	calls := e.Fake.Calls()
-	if len(calls) != 2 || calls[1].ResumeSession != calls[0].ResumeSession && calls[1].ResumeSession != "s-1" {
+	if len(calls) != 2 || !calls[1].Resume || calls[1].SessionID != calls[0].SessionID {
 		t.Fatalf("want resume of the first session, got %+v", calls)
 	}
 	recs, _ := e.App.Store.Q.ListRecords(context.Background(), db.ListRecordsParams{ProjectID: p, Collection: "ideas"})

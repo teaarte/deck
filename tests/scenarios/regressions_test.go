@@ -21,7 +21,7 @@ func TestAllowOnceAllowsExactlyOneCall(t *testing.T) {
 	var mu sync.Mutex
 	var behaviors []string
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
-		if c.Req.ResumeSession == "" {
+		if !c.Req.Resume {
 			c.Approve(ctx, "Bash", map[string]any{"command": "make deploy"})
 			return provider.Result{Text: "stopped"}
 		}

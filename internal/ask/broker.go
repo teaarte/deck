@@ -15,7 +15,16 @@ import (
 const (
 	KindQuestion = "question"
 	KindConfirm  = "confirm"
+	// KindLogin asks the owner to log the provider in again and pick one of LoginAnswers.
+	KindLogin = "login"
 )
+
+const (
+	LoginRetry      = "retry"
+	LoginNewSession = "new_session"
+)
+
+var LoginAnswers = []string{LoginRetry, LoginNewSession}
 
 var ErrNotOpen = errors.New("ask is not open")
 

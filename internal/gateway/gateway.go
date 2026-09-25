@@ -61,6 +61,7 @@ type entry struct {
 	session *Session
 	server  *mcp.Server
 	allowed []string
+	tools   []string
 }
 
 func New(cfg Config, st *store.Store, asks *ask.Broker, bus *events.Bus, reg *registry.Registry) *Gateway {
@@ -74,12 +75,12 @@ func (g *Gateway) Register(ctx context.Context, s *Session) (string, error) {
 	b := make([]byte, 16)
 	_, _ = rand.Read(b)
 	tok := hex.EncodeToString(b)
-	srv, allowed, err := g.newServer(ctx, tok, s)
+	srv, allowed, tools, err := g.newServer(ctx, tok, s)
 	if err != nil {
 		return "", err
 	}
 	g.mu.Lock()
-	g.sessions[tok] = &entry{session: s, server: srv, allowed: allowed}
+	g.sessions[tok] = &entry{session: s, server: srv, allowed: allowed, tools: tools}
 	g.mu.Unlock()
 	return tok, nil
 }
@@ -100,6 +101,16 @@ func (g *Gateway) AllowedTools(tok string) []string {
 		out = append(out, e.allowed...)
 	}
 	return out
+}
+
+// Tools lists the names of the registry tools the session behind the token exposes.
+func (g *Gateway) Tools(tok string) []string {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if e := g.sessions[tok]; e != nil {
+		return append([]string{}, e.tools...)
+	}
+	return nil
 }
 
 func PermissionTool() string { return qualified(ApproveTool) }
@@ -145,7 +156,7 @@ func (g *Gateway) alive(tok string) bool {
 	return g.sessions[tok] != nil
 }
 
-func (g *Gateway) newServer(ctx context.Context, tok string, s *Session) (*mcp.Server, []string, error) {
+func (g *Gateway) newServer(ctx context.Context, tok string, s *Session) (*mcp.Server, []string, []string, error) {
 	srv := mcp.NewServer(&mcp.Implementation{Name: ServerName, Version: "0"}, nil)
 	gone := &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "deck: this process has finished"}}}
 	srv.AddTool(&mcp.Tool{
@@ -162,12 +173,13 @@ func (g *Gateway) newServer(ctx context.Context, tok string, s *Session) (*mcp.S
 	})
 	cmds, err := g.reg.List(ctx, s.actor())
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
-	var allowed []string
+	var allowed, tools []string
 	for _, c := range cmds {
 		name := c.Name
 		tool := registry.ToolName(name)
+		tools = append(tools, tool)
 		srv.AddTool(&mcp.Tool{Name: tool, Title: c.Title, Description: c.Description, InputSchema: c.Input},
 			func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 				if !g.alive(tok) {
@@ -179,7 +191,7 @@ func (g *Gateway) newServer(ctx context.Context, tok string, s *Session) (*mcp.S
 			allowed = append(allowed, qualified(tool))
 		}
 	}
-	return srv, allowed, nil
+	return srv, allowed, tools, nil
 }
 
 func (g *Gateway) invoke(ctx context.Context, s *Session, name string, args json.RawMessage) *mcp.CallToolResult {

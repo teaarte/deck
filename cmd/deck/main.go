@@ -57,7 +57,7 @@ func run() error {
 	a, err := app.New(app.Config{
 		Home: home, MCPBase: "http://" + ln.Addr().String(),
 		QuestionWait: 30 * time.Minute, ConfirmWait: 30 * time.Minute, ConfirmTTL: 24 * time.Hour,
-	}, claudecode.New())
+	}, claudecode.New(filepath.Join(home, "mcp")))
 	if err != nil {
 		return err
 	}

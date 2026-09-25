@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -15,7 +13,6 @@ import (
 	"deck2/internal/api"
 	"deck2/internal/app"
 	"deck2/internal/provider"
-	"deck2/internal/provider/claudecode"
 	"deck2/internal/store/db"
 	"deck2/web"
 )
@@ -32,7 +29,7 @@ func askQuestion(ctx context.Context, c *Call, q string) map[string]any {
 func TestAnswerBetweenTimeoutAndStopIsNotLost(t *testing.T) {
 	answered := make(chan struct{})
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
-		if c.Req.ResumeSession == "" {
+		if !c.Req.Resume {
 			askQuestion(ctx, c, "Which topic?")
 			<-answered
 			return provider.Result{Text: "stopped"}
@@ -55,7 +52,7 @@ func TestAnswerBetweenTimeoutAndStopIsNotLost(t *testing.T) {
 func TestTwoLateAnswersResumeOnce(t *testing.T) {
 	var running, maxRunning int32
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
-		if c.Req.ResumeSession != "" {
+		if c.Req.Resume {
 			n := atomic.AddInt32(&running, 1)
 			defer atomic.AddInt32(&running, -1)
 			for {
@@ -103,25 +100,11 @@ func TestProviderErrorMarksProcessError(t *testing.T) {
 	}
 }
 
-func TestCLIExitWithoutResultIsAnError(t *testing.T) {
-	dir := t.TempDir()
-	bin := filepath.Join(dir, "claude")
-	script := "#!/bin/sh\necho '{\"type\":\"system\",\"subtype\":\"init\",\"session_id\":\"abc\"}'\nexit 1\n"
-	if err := os.WriteFile(bin, []byte(script), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	a := &claudecode.Adapter{Binary: bin}
-	res, err := a.Run(context.Background(), provider.Request{Cwd: dir, Prompt: "x"})
-	if err == nil || res.SessionID != "abc" {
-		t.Fatalf("want an error with the session id kept, got %+v %v", res, err)
-	}
-}
-
 func TestLateAllowPermitsExactlyThatCallOnce(t *testing.T) {
 	var second, third map[string]any
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		call := map[string]any{"command": "make deploy"}
-		if c.Req.ResumeSession == "" {
+		if !c.Req.Resume {
 			c.Approve(ctx, "Bash", call)
 			return provider.Result{Text: "stopped"}
 		}
@@ -153,7 +136,7 @@ func TestLateAllowPermitsExactlyThatCallOnce(t *testing.T) {
 
 func TestConfirmationExpiresAndProcessIsTold(t *testing.T) {
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
-		if c.Req.ResumeSession == "" {
+		if !c.Req.Resume {
 			c.Approve(ctx, "Bash", map[string]any{"command": "rm -rf build"})
 			return provider.Result{Text: "stopped"}
 		}
@@ -201,7 +184,7 @@ func TestShutdownKeepsProcessForResumeAfterRestart(t *testing.T) {
 	e2 := &Env{T: t, App: a2, URL: ts2.URL, Fake: fake2, names: map[int64]string{}}
 	e2.waitState(id, "done")
 	calls := fake2.Calls()
-	if len(calls) != 1 || calls[0].ResumeSession != "s-1" || !strings.Contains(calls[0].Prompt, "restarted") {
+	if len(calls) != 1 || !calls[0].Resume || calls[0].SessionID != fake.Calls()[0].SessionID || !strings.Contains(calls[0].Prompt, "restarted") {
 		t.Fatalf("want resume of the interrupted session, got %+v", calls)
 	}
 }

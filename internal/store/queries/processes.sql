@@ -47,3 +47,7 @@ INSERT INTO tool_call (process_id, project_id, tool, class, outcome, params) VAL
 -- name: ListToolCalls :many
 SELECT * FROM tool_call WHERE process_id = ? ORDER BY id;
 
+
+
+-- name: StartProcessSession :exec
+UPDATE process SET session_id = ?, start_note = ? WHERE id = ?;

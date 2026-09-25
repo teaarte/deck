@@ -6,17 +6,21 @@ import (
 )
 
 type Request struct {
-	Cwd           string
+	Cwd string
+	// Repo means Cwd is a code repository: its own instructions load, those of the folders above do not.
+	Repo          bool
 	Prompt        string
 	ResultSchema  json.RawMessage
 	MCPURL        string
 	AllowedTools  []string
 	PermissionMCP string
-	ResumeSession string
-	OnSession     func(id string)
-	OnEvent       func(Event)
+	// SessionID is assigned by deck; Resume continues it instead of starting it.
+	SessionID string
+	Resume    bool
+	OnEvent   func(Event)
 }
 
+// Event is an event of the process itself; events of the provider's sub-agents are not reported.
 type Event struct {
 	Kind string // "text", "tool", "rate_limit"
 	Text string
@@ -28,12 +32,18 @@ type Result struct {
 	Structured json.RawMessage
 	Text       string
 	IsError    bool
-	// RateLimited is set when the provider stopped on a subscription limit; ResetsAt is unix seconds.
+	// NeedsLogin is set when the turn failed because the provider's login is missing, expired or refused.
+	NeedsLogin bool
+	// SessionMissing is set when a resume found no stored session, so the session has to start over.
+	SessionMissing bool
+	// RateLimited is set when the provider refused on a subscription limit; ResetsAt is unix seconds.
 	RateLimited bool
 	ResetsAt    int64
 }
 
 type Provider interface {
 	Name() string
+	// QuestionTool names the provider tool that asks the owner a blocking question, or is empty.
+	QuestionTool() string
 	Run(ctx context.Context, req Request) (Result, error)
 }

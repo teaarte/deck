@@ -64,6 +64,13 @@ type DocumentRevision struct {
 	CreatedAt  string
 }
 
+type Health struct {
+	Subject   string
+	Status    string
+	Error     string
+	UpdatedAt string
+}
+
 type Process struct {
 	ID          int64
 	ProjectID   int64
@@ -77,6 +84,7 @@ type Process struct {
 	Error       string
 	StartedAt   string
 	FinishedAt  sql.NullString
+	StartNote   string
 }
 
 type Project struct {

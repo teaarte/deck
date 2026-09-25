@@ -55,12 +55,20 @@ func (c *Call) Approve(ctx context.Context, tool string, input map[string]any) m
 }
 
 type Fake struct {
-	mu     sync.Mutex
-	script Script
-	calls  []provider.Request
+	mu          sync.Mutex
+	script      Script
+	calls       []provider.Request
+	noQuestions bool
 }
 
 func (f *Fake) Name() string { return "fake" }
+
+func (f *Fake) QuestionTool() string {
+	if f.noQuestions {
+		return ""
+	}
+	return "AskUserQuestion"
+}
 
 func (f *Fake) Run(ctx context.Context, req provider.Request) (provider.Result, error) {
 	f.mu.Lock()
@@ -75,15 +83,8 @@ func (f *Fake) Run(ctx context.Context, req provider.Request) (provider.Result, 
 		return provider.Result{}, err
 	}
 	defer sess.Close()
-	session := req.ResumeSession
-	if session == "" {
-		session = fmt.Sprintf("s-%d", n)
-	}
-	if req.OnSession != nil {
-		req.OnSession(session)
-	}
 	res := script(ctx, &Call{Req: req, Session: sess, N: n})
-	res.SessionID = session
+	res.SessionID = req.SessionID
 	return res, nil
 }
 
@@ -103,14 +104,22 @@ type Env struct {
 
 func newEnv(t *testing.T, script Script, cfg ...func(*app.Config)) *Env {
 	t.Helper()
+	fake := &Fake{script: script}
+	e := newEnvWith(t, t.TempDir(), fake, cfg...)
+	e.Fake = fake
+	return e
+}
+
+// newEnvWith starts deck on home with the given provider.
+func newEnvWith(t *testing.T, home string, p provider.Provider, cfg ...func(*app.Config)) *Env {
+	t.Helper()
 	ts := httptest.NewUnstartedServer(nil)
 	base := "http://" + ts.Listener.Addr().String()
-	c := app.Config{Home: t.TempDir(), MCPBase: base, QuestionWait: 5 * time.Second, ConfirmWait: 5 * time.Second}
+	c := app.Config{Home: home, MCPBase: base, QuestionWait: 5 * time.Second, ConfirmWait: 5 * time.Second}
 	for _, f := range cfg {
 		f(&c)
 	}
-	fake := &Fake{script: script}
-	a, err := app.New(c, fake)
+	a, err := app.New(c, p)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -120,7 +129,7 @@ func newEnv(t *testing.T, script Script, cfg ...func(*app.Config)) *Env {
 		_ = a.Close()
 		ts.Close()
 	})
-	return &Env{T: t, App: a, Fake: fake, URL: base, names: map[int64]string{}}
+	return &Env{T: t, App: a, URL: base, names: map[int64]string{}}
 }
 
 func (e *Env) do(method, path string, body any) (int, []byte) {

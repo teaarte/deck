@@ -155,6 +155,6 @@ func recorded(t *testing.T, fixture string) chatReply {
 func (e *Env) addLLM(name string, f *fakeLLM, noCloud bool) {
 	e.T.Helper()
 	e.must("deck.secret_set", map[string]any{"name": name + "-key", "value": "sk-" + name}, nil)
-	e.must("deck.provider_add", map[string]any{"name": name, "url": f.URL, "model": "fake-model", "key_secret": name + "-key",
+	e.must("deck.provider_add", map[string]any{"name": name, "url": f.URL, "model": "asked-model", "key_secret": name + "-key",
 		"no_cloud": noCloud}, nil)
 }

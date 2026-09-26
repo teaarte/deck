@@ -9,7 +9,7 @@ CREATE TABLE setting (
 -- Field names follow the OpenTelemetry gen_ai attributes; cost_usd is what the provider reports, notional on a subscription.
 CREATE TABLE llm_call (
     id                                        INTEGER PRIMARY KEY,
-    process_id                                INTEGER NOT NULL,
+    process_id                                INTEGER NOT NULL REFERENCES process(id) ON DELETE CASCADE,
     gen_ai_provider_name                      TEXT NOT NULL,
     gen_ai_request_model                      TEXT NOT NULL DEFAULT '',
     gen_ai_response_model                     TEXT NOT NULL DEFAULT '',

@@ -104,7 +104,8 @@ func (a *App) dirs() files.Dirs {
 	return files.Dirs{Files: filepath.Join(a.Cfg.Home, "files"), Runs: filepath.Join(a.Cfg.Home, "runs")}
 }
 
-// hidden are the secrets and the base of deck under every path of home, since macOS links /tmp and /var.
+// hidden are the secrets, the base and the model sessions of deck under every path of home, since macOS links
+// /tmp and /var.
 func hidden(home string) []string {
 	homes := []string{home}
 	if real, err := filepath.EvalSymlinks(home); err == nil && real != home {
@@ -112,7 +113,7 @@ func hidden(home string) []string {
 	}
 	var out []string
 	for _, h := range homes {
-		out = append(out, filepath.Join(h, "secrets")+"/**", filepath.Join(h, "deck.db")+"*")
+		out = append(out, filepath.Join(h, "secrets")+"/**", filepath.Join(h, "deck.db")+"*", filepath.Join(h, "sessions")+"/**")
 	}
 	return out
 }

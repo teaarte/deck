@@ -14,7 +14,7 @@ const SubmitTool = "result_submit"
 type Submit struct {
 	Schema   json.RawMessage
 	Validate func(json.RawMessage) error
-	// Retried is set once the one request to rebuild the result is spent, in this turn or an earlier one.
+	// Retried is set once the one request to rebuild the result is spent in this run of the session.
 	Retried bool
 
 	mu   sync.Mutex

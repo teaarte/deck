@@ -47,15 +47,15 @@ func function(name, desc string, schema map[string]any) openai.ChatCompletionToo
 }
 
 // call makes one tool call of the model through the gateway and gives what the model reads back.
-func call(ctx context.Context, sess *mcp.ClientSession, permission string, c toolCall) string {
-	args := json.RawMessage(c.Arguments)
-	if !json.Valid(args) || len(strings.TrimSpace(c.Arguments)) == 0 {
+func call(ctx context.Context, sess *mcp.ClientSession, permission, name, arguments, id string) string {
+	args := json.RawMessage(arguments)
+	if !json.Valid(args) || len(strings.TrimSpace(arguments)) == 0 {
 		args = json.RawMessage(`{}`)
 	}
-	if c.Name == questionTool {
-		return ask(ctx, sess, permission, c.ID, args)
+	if name == questionTool {
+		return ask(ctx, sess, permission, id, args)
 	}
-	res, err := sess.CallTool(ctx, &mcp.CallToolParams{Name: c.Name, Arguments: args})
+	res, err := sess.CallTool(ctx, &mcp.CallToolParams{Name: name, Arguments: args})
 	if err != nil {
 		return "Error: " + err.Error()
 	}

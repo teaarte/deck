@@ -106,6 +106,10 @@ func (b *Broker) Wait(ctx context.Context, id int64, until time.Time) (answer st
 	if ch == nil {
 		return "", false
 	}
+	if a, err := b.st.Q.GetAsk(ctx, id); err == nil && a.State == "answered" {
+		b.drop(id)
+		return a.Answer, true
+	}
 wait:
 	for left := until.Sub(b.now()); left > 0; left = until.Sub(b.now()) {
 		t := time.NewTimer(min(left, b.Poll))

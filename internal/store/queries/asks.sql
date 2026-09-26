@@ -32,7 +32,7 @@ WHERE id = ? AND state = 'open';
 
 
 -- name: ListOpenAsksOfProcess :many
-SELECT * FROM ask WHERE process_id = CAST(sqlc.arg(process_id) AS INTEGER) AND state IN ('open', 'running') AND kind != 'warning' ORDER BY id;
+SELECT * FROM ask WHERE process_id = CAST(sqlc.arg(process_id) AS INTEGER) AND state IN ('open', 'running') AND kind NOT IN ('warning', 'limit') ORDER BY id;
 
 
 -- name: ListUndeliveredAsks :many
@@ -111,3 +111,8 @@ UPDATE ask SET kind = 'unknown', state = 'open', answer = '', text = ?, expires_
 -- name: SettleAsk :execrows
 UPDATE ask SET state = 'answered', result = sqlc.arg(result), answered_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
 WHERE id = sqlc.arg(id) AND state = 'running';
+
+
+-- name: CloseLimitAsks :exec
+UPDATE ask SET state = CASE WHEN state = 'open' THEN 'expired' ELSE state END, delivered = 1
+WHERE process_id = CAST(sqlc.arg(process_id) AS INTEGER) AND kind = 'limit' AND delivered = 0;

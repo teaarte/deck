@@ -24,8 +24,15 @@ func (r *Runner) Deliver(ctx context.Context, processID int64) error {
 	if err != nil || len(pending) == 0 {
 		return err
 	}
-	if p, err := r.st.Q.GetProcess(ctx, processID); err == nil && p.Kind == KindTool {
+	p, err := r.st.Q.GetProcess(ctx, processID)
+	if err != nil {
+		return err
+	}
+	if p.Kind == KindTool {
 		return r.deliverTool(ctx, p, pending)
+	}
+	if p.State == StateRateLimited {
+		return r.restartPause(ctx, processID)
 	}
 	for _, a := range pending {
 		if a.Kind == ask.KindLogin {

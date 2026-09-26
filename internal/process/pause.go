@@ -20,6 +20,7 @@ func (r *Runner) pause(ctx context.Context, pv provider.Provider, processID int6
 	now := r.now()
 	var n int64
 	var until time.Time
+	var ended *db.Process
 	err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		p, err := q.GetProcess(ctx, processID)
 		if err != nil {
@@ -28,6 +29,10 @@ func (r *Runner) pause(ctx context.Context, pv provider.Provider, processID int6
 		limit := now.Add(r.cfg.PauseLimit).UnixMilli()
 		if p.PauseLimitMs.Valid {
 			limit = p.PauseLimitMs.Int64
+		}
+		if now.UnixMilli() >= limit {
+			ended = &p
+			return nil
 		}
 		next := now.Add(r.cfg.PauseProbe).UnixMilli()
 		if reset := resetsAt * 1000; reset > now.UnixMilli() {
@@ -42,10 +47,14 @@ func (r *Runner) pause(ctx context.Context, pv provider.Provider, processID int6
 			return err
 		}
 		why := fmt.Sprintf("usage limit reached; next try at %s: %s", store.Time(until), truncate(strings.TrimSpace(text), 500))
-		return q.SetHealth(ctx, db.SetHealthParams{Subject: HealthSubject(pv.Name()), Status: "paused", Error: why})
+		return setHealth(ctx, q, pv, "paused", why)
 	})
 	if err != nil {
 		r.finish(ctx, processID, StateError, "", false, "pause on the usage limit: "+err.Error())
+		return
+	}
+	if ended != nil {
+		r.pauseEnded(ctx, *ended)
 		return
 	}
 	if n > 0 {
@@ -54,8 +63,8 @@ func (r *Runner) pause(ctx context.Context, pv provider.Provider, processID int6
 	}
 }
 
-// Unpause tries again every paused process whose next try is due, in the same session; a pause past its end
-// stops the process and offers the owner to continue it.
+// Unpause tries again every paused process whose next try is due, in the same session; a refusal at or past
+// the end of the pause stops the process and offers the owner to continue it.
 func (r *Runner) Unpause(ctx context.Context, now time.Time) {
 	ps, err := r.st.Q.ListPausesDue(ctx, now.UnixMilli())
 	if err != nil {
@@ -63,10 +72,6 @@ func (r *Runner) Unpause(ctx context.Context, now time.Time) {
 		return
 	}
 	for _, p := range ps {
-		if now.UnixMilli() >= p.PauseLimitMs.Int64 {
-			r.pauseEnded(ctx, p)
-			continue
-		}
 		if ok, err := r.claim(ctx, p.ID, StateRateLimited); err != nil || !ok {
 			continue
 		}
@@ -123,15 +128,28 @@ func (r *Runner) continueAfterLimit(ctx context.Context, processID int64, a db.A
 	}
 	var n int64
 	err = r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		if n, err = q.ReopenProcess(ctx, db.ReopenProcessParams{CeilingMs: p.CeilingMs, StartNote: p.StartNote, ID: processID}); err != nil || n == 0 {
+		if err := q.MarkAskDelivered(ctx, a.ID); err != nil {
 			return err
 		}
-		return q.MarkAskDelivered(ctx, a.ID)
+		n, err = q.ReopenProcess(ctx, db.ReopenProcessParams{CeilingMs: p.CeilingMs, StartNote: p.StartNote, ID: processID})
+		return err
 	})
 	if err != nil || n == 0 {
 		return err
 	}
-	return r.resume(ctx, processID, "deck: the owner asks you to continue after the usage limit. Continue where you stopped.", nil, false)
+	msg := "deck: the owner asks you to continue after the usage limit. Continue where you stopped."
+	pending, _ := r.st.Q.ListUndeliveredAsks(ctx, processID)
+	if len(pending) > 0 {
+		msg += "\n" + deliveryMessage(pending)
+	}
+	return r.resume(ctx, processID, msg, askIDs(pending), false)
+}
+
+// restartPause gives a paused process a full pause limit again, since the owner has just answered it.
+func (r *Runner) restartPause(ctx context.Context, processID int64) error {
+	return r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		return q.ResetPauseLimit(ctx, db.ResetPauseLimitParams{LimitMs: ms(r.now().Add(r.cfg.PauseLimit).UnixMilli()), ID: processID})
+	})
 }
 
 func ms(v int64) sql.NullInt64 { return sql.NullInt64{Int64: v, Valid: true} }

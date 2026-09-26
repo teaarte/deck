@@ -112,7 +112,13 @@ func (a *App) providerAdd(ctx context.Context, act registry.Actor, in struct {
 func (a *App) providerRemove(ctx context.Context, act registry.Actor, in struct{ Name string }) (any, error) {
 	var n int64
 	err := a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		var err error
+		active, err := q.CountActiveOnProvider(ctx, db.CountActiveOnProviderParams{Provider: in.Name, WorkspaceID: act.Workspace})
+		if err != nil {
+			return err
+		}
+		if active > 0 {
+			return registry.Invalid("deck: %d processes still run on %s; stop them or let them finish first", active, in.Name)
+		}
 		n, err = q.DeleteSetting(ctx, db.DeleteSettingParams{WorkspaceID: act.Workspace, Key: providerPrefix + in.Name})
 		return err
 	})

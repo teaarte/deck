@@ -28,6 +28,24 @@ func (q *Queries) ClaimProcess(ctx context.Context, arg ClaimProcessParams) (int
 	return result.RowsAffected()
 }
 
+const countActiveOnProvider = `-- name: CountActiveOnProvider :one
+SELECT count(*) FROM process
+WHERE provider = ?1 AND project_id IN (SELECT id FROM project WHERE workspace_id = ?2)
+  AND state IN ('running', 'waiting_answer', 'needs_login', 'rate_limited', 'waiting_provider')
+`
+
+type CountActiveOnProviderParams struct {
+	Provider    string
+	WorkspaceID int64
+}
+
+func (q *Queries) CountActiveOnProvider(ctx context.Context, arg CountActiveOnProviderParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countActiveOnProvider, arg.Provider, arg.WorkspaceID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countStartedCalls = `-- name: CountStartedCalls :one
 SELECT count(*) FROM tool_call
 WHERE outcome = 'started' AND project_id = ?1 AND tool = ?2 AND params = ?3
@@ -328,6 +346,34 @@ func (q *Queries) GetToolCall(ctx context.Context, id int64) (ToolCall, error) {
 		&i.AskID,
 	)
 	return i, err
+}
+
+const listAgentsFinishedBefore = `-- name: ListAgentsFinishedBefore :many
+SELECT id FROM process WHERE kind = 'agent' AND state IN ('done', 'error', 'stopped', 'interrupted')
+  AND finished_at < CAST(?1 AS TEXT)
+`
+
+func (q *Queries) ListAgentsFinishedBefore(ctx context.Context, before string) ([]int64, error) {
+	rows, err := q.db.QueryContext(ctx, listAgentsFinishedBefore, before)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listCeilingReached = `-- name: ListCeilingReached :many
@@ -948,6 +994,20 @@ func (q *Queries) ReopenProcess(ctx context.Context, arg ReopenProcessParams) (i
 		return 0, err
 	}
 	return result.RowsAffected()
+}
+
+const resetPauseLimit = `-- name: ResetPauseLimit :exec
+UPDATE process SET pause_limit_ms = ?1 WHERE id = ?2 AND state = 'rate_limited'
+`
+
+type ResetPauseLimitParams struct {
+	LimitMs sql.NullInt64
+	ID      int64
+}
+
+func (q *Queries) ResetPauseLimit(ctx context.Context, arg ResetPauseLimitParams) error {
+	_, err := q.db.ExecContext(ctx, resetPauseLimit, arg.LimitMs, arg.ID)
+	return err
 }
 
 const setProcessGroup = `-- name: SetProcessGroup :exec

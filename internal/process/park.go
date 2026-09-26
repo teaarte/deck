@@ -31,7 +31,7 @@ func (r *Runner) needLogin(ctx context.Context, pv provider.Provider, processID 
 		if _, err := q.CreateAsk(ctx, db.CreateAskParams{ProcessID: processID, Kind: ask.KindLogin, Text: msg, Payload: string(payload)}); err != nil {
 			return err
 		}
-		return q.SetHealth(ctx, db.SetHealthParams{Subject: HealthSubject(pv.Name()), Status: "needs_login", Error: text})
+		return setHealth(ctx, q, pv, "needs_login", text)
 	})
 	if err != nil {
 		r.finish(ctx, processID, StateError, "", false, "needs login: "+text)
@@ -67,10 +67,22 @@ func (r *Runner) providerHealth(ctx context.Context, pv provider.Provider, res p
 	r.bus.Publish("health")
 }
 
+// setHealth records what a turn found about its provider, unless its self-check is running or red: then the
+// health is the self-check's.
+func setHealth(ctx context.Context, q *db.Queries, pv provider.Provider, status, text string) error {
+	subject := HealthSubject(pv.Name())
+	if _, checked := pv.(provider.SelfChecker); checked {
+		if h, err := q.GetHealth(ctx, subject); err == nil && (h.Status == "checking" || h.Status == "error") {
+			return nil
+		}
+	}
+	return q.SetHealth(ctx, db.SetHealthParams{Subject: subject, Status: status, Error: text})
+}
+
 // usage writes one model call of a process to the journal of model calls.
 func (r *Runner) usage(ctx context.Context, processID int64, name string, u provider.Usage) {
 	err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		return q.LogLLMCall(ctx, db.LogLLMCallParams{ProcessID: processID, Provider: name, RequestModel: u.Model, ResponseModel: u.Model,
+		return q.LogLLMCall(ctx, db.LogLLMCallParams{ProcessID: processID, Provider: name, RequestModel: u.RequestModel, ResponseModel: u.Model,
 			InputTokens: u.Input, OutputTokens: u.Output, CacheReadTokens: u.CacheRead, CacheCreationTokens: u.CacheCreation,
 			DurationMs: u.Duration.Milliseconds(), CostUsd: nullFloat(u.CostUSD), CreatedAt: store.Time(r.now())})
 	})
@@ -128,6 +140,9 @@ func (r *Runner) waitProvider(ctx context.Context, t turn) {
 	})
 	if n > 0 {
 		r.bus.Publish("processes")
+		if r.providers.Ready(ctx, t.pv.Name()) {
+			r.ProviderReady(ctx, t.pv.Name())
+		}
 	}
 }
 
@@ -149,8 +164,9 @@ func (r *Runner) ProviderReady(ctx context.Context, name string) {
 			r.finish(ctx, p.ID, StateError, "", false, err.Error())
 			continue
 		}
+		t.asks = w.Asks
 		if p.WaitFresh == 0 {
-			t.resume, t.message, t.asks = true, w.Message, w.Asks
+			t.resume, t.message = true, w.Message
 			pending, _ := r.st.Q.ListUndeliveredAsks(ctx, p.ID)
 			var more []db.Ask
 			for _, a := range pending {

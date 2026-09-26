@@ -24,8 +24,8 @@ import (
 
 const snapshotLayout = "20060102T150405"
 
-// Snapshot writes backups/deck-<time>.tar.gz with a copy of the base, files/ and the data folders of
-// projects, then keeps only the newest ones; secrets and the token stay out.
+// Snapshot writes backups/deck-<time>.tar.gz with a copy of the base, files/, the model sessions deck keeps
+// and the data folders of projects, then keeps only the newest ones; secrets and the token stay out.
 func (a *App) Snapshot(ctx context.Context) (string, error) {
 	dir := filepath.Join(a.Cfg.Home, "backups")
 	if err := os.MkdirAll(dir, 0o700); err != nil {
@@ -65,7 +65,7 @@ func writeSnapshot(path, home, copyDB string) error {
 	if err := addFile(tw, copyDB, "deck.db"); err != nil {
 		return err
 	}
-	dirs := []string{"files"}
+	dirs := []string{"files", "sessions"}
 	data, _ := filepath.Glob(filepath.Join(home, "projects", "*", "data"))
 	for _, d := range data {
 		rel, _ := filepath.Rel(home, d)
@@ -115,8 +115,8 @@ func addFile(tw *tar.Writer, path, name string) error {
 	return err
 }
 
-// daily removes files whose record, card or process is gone and uploads no command took for a day, and
-// takes the snapshot, once a day by the deck clock.
+// daily removes files whose record, card or process is gone, uploads no command took for a day and the work
+// folders of agents finished longer ago than WorkKept, and takes the snapshot, once a day by the deck clock.
 func (a *App) daily(ctx context.Context, now time.Time) {
 	old, _ := filepath.Glob(filepath.Join(a.Cfg.Home, "backups", "deck-*.tar.gz"))
 	slices.Sort(old)
@@ -146,6 +146,11 @@ func (a *App) daily(ctx context.Context, now time.Time) {
 	for _, f := range left {
 		if fi, err := os.Stat(f); err == nil && now.Sub(fi.ModTime()) > 24*time.Hour {
 			_ = os.Remove(f)
+		}
+	}
+	if old, err := a.Store.Q.ListAgentsFinishedBefore(ctx, store.Time(now.Add(-a.Cfg.WorkKept))); err == nil {
+		for _, id := range old {
+			_ = os.RemoveAll(filepath.Join(a.Cfg.Home, "runs", fmt.Sprint(id)))
 		}
 	}
 	if _, err := a.Snapshot(ctx); err != nil {

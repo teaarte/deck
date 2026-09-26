@@ -89,7 +89,6 @@ func (f *Fake) Run(ctx context.Context, req provider.Request) (provider.Result, 
 	}
 	defer sess.Close()
 	res := script(ctx, &Call{Req: req, Session: sess, N: n})
-	res.SessionID = req.SessionID
 	return res, nil
 }
 

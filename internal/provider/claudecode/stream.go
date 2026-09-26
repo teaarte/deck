@@ -4,8 +4,6 @@ import (
 	"deck2/internal/provider"
 	"encoding/json"
 	"fmt"
-	"maps"
-	"slices"
 	"strings"
 	"time"
 )
@@ -29,13 +27,6 @@ type line struct {
 		CacheRead     int64 `json:"cache_read_input_tokens"`
 		CacheCreation int64 `json:"cache_creation_input_tokens"`
 	} `json:"usage"`
-	ModelUsage map[string]struct {
-		Input         int64    `json:"inputTokens"`
-		Output        int64    `json:"outputTokens"`
-		CacheRead     int64    `json:"cacheReadInputTokens"`
-		CacheCreation int64    `json:"cacheCreationInputTokens"`
-		CostUSD       *float64 `json:"costUSD"`
-	} `json:"modelUsage"`
 	Message          *struct {
 		Content []struct {
 			Type string `json:"type"`
@@ -106,7 +97,7 @@ func (t *turn) line(raw []byte) {
 			t.res.RateLimited = true
 			t.res.ResetsAt = l.RateLimitInfo.ResetsAt
 		}
-		emit(provider.Event{Kind: "rate_limit", Raw: append(json.RawMessage{}, raw...)})
+		emit(provider.Event{Kind: "rate_limit", Text: l.RateLimitInfo.Status})
 	case "result":
 		t.results++
 		if t.results > 1 {
@@ -135,28 +126,24 @@ func (t *turn) line(raw []byte) {
 	}
 }
 
-// usage reports the token counts of the turn from its result, one call per model the turn used.
+// usage reports the token counts of the turn from its result. modelUsage and the cost there add up the whole
+// session, so the counts come from usage and the cost only from a turn that started the session.
 func (t *turn) usage(l line) {
-	if t.req.OnUsage == nil {
+	if t.req.OnUsage == nil || l.Usage == nil {
 		return
 	}
-	d := time.Duration(l.DurationMs) * time.Millisecond
-	if len(l.ModelUsage) == 0 && l.Usage != nil {
-		t.req.OnUsage(provider.Usage{Model: t.model, Input: l.Usage.Input, Output: l.Usage.Output, CacheRead: l.Usage.CacheRead,
-			CacheCreation: l.Usage.CacheCreation, Duration: d, CostUSD: l.TotalCostUSD})
+	u := provider.Usage{Model: t.model, Input: l.Usage.Input, Output: l.Usage.Output, CacheRead: l.Usage.CacheRead,
+		CacheCreation: l.Usage.CacheCreation, Duration: time.Duration(l.DurationMs) * time.Millisecond}
+	if !t.req.Resume {
+		u.CostUSD = l.TotalCostUSD
 	}
-	for _, model := range slices.Sorted(maps.Keys(l.ModelUsage)) {
-		u := l.ModelUsage[model]
-		t.req.OnUsage(provider.Usage{Model: model, Input: u.Input, Output: u.Output, CacheRead: u.CacheRead,
-			CacheCreation: u.CacheCreation, Duration: d, CostUSD: u.CostUSD})
-	}
+	t.req.OnUsage(u)
 }
 
 // finish accepts the turn only if it produced exactly one result for the session deck assigned and the
 // CLI read the whole prompt.
 func (t *turn) finish(waitErr error, stderr string, promptErr error) (provider.Result, error) {
 	res := t.res
-	res.SessionID = t.req.SessionID
 	switch {
 	case res.SessionMissing:
 		return res, nil

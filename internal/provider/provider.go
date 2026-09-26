@@ -34,11 +34,9 @@ type Request struct {
 type Event struct {
 	Kind string // "text", "tool", "rate_limit"
 	Text string
-	Raw  json.RawMessage
 }
 
 type Result struct {
-	SessionID string
 	// Structured is the result by the schema; JSON null means there was nothing to do.
 	Structured json.RawMessage
 	Text       string
@@ -54,7 +52,9 @@ type Result struct {
 
 // Usage is one model call; the counts come from the final event of a turn or call, not from summed messages.
 type Usage struct {
+	// Model is the model that answered; RequestModel the one deck asked for, when it names one.
 	Model         string
+	RequestModel  string
 	Input         int64
 	Output        int64
 	CacheRead     int64

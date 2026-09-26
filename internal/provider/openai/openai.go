@@ -81,7 +81,7 @@ func (a *Adapter) service() (openai.ChatCompletionService, error) {
 }
 
 func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Result, error) {
-	res := provider.Result{SessionID: req.SessionID}
+	var res provider.Result
 	path, err := a.transcript(req.SessionID)
 	if err != nil {
 		return res, err
@@ -97,7 +97,7 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 	if !req.Resume {
 		msgs = nil
 	}
-	msgs = append(msgs, message{Role: "user", Content: req.Prompt})
+	msgs = append(answered(msgs), openai.UserMessage(req.Prompt))
 	if err := save(path, msgs); err != nil {
 		return res, err
 	}
@@ -118,13 +118,13 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 	}
 	for {
 		start := time.Now()
-		resp, err := chat.New(ctx, openai.ChatCompletionNewParams{Model: a.cfg.Model, Messages: params(msgs), Tools: tools})
+		resp, err := chat.New(ctx, openai.ChatCompletionNewParams{Model: a.cfg.Model, Messages: msgs, Tools: tools})
 		if err != nil {
 			return refused(res, err, a.cfg.Now())
 		}
 		if req.OnUsage != nil {
 			u := resp.Usage
-			req.OnUsage(provider.Usage{Model: resp.Model, Input: u.PromptTokens, Output: u.CompletionTokens,
+			req.OnUsage(provider.Usage{Model: resp.Model, RequestModel: a.cfg.Model, Input: u.PromptTokens, Output: u.CompletionTokens,
 				CacheRead: u.PromptTokensDetails.CachedTokens, CacheCreation: u.PromptTokensDetails.CacheWriteTokens,
 				Duration: time.Since(start)})
 		}
@@ -132,26 +132,22 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 			return res, errors.New("openai: the reply had no choices")
 		}
 		reply := resp.Choices[0].Message
-		m := message{Role: "assistant", Content: reply.Content}
-		for _, c := range reply.ToolCalls {
-			m.ToolCalls = append(m.ToolCalls, toolCall{ID: c.ID, Name: c.Function.Name, Arguments: c.Function.Arguments})
-		}
-		msgs = append(msgs, m)
+		msgs = append(msgs, reply.ToParam())
 		if err := save(path, msgs); err != nil {
 			return res, err
 		}
 		emit(req, "text", reply.Content)
-		if len(m.ToolCalls) == 0 {
+		if len(reply.ToolCalls) == 0 {
 			res.Text = reply.Content
 			return res, nil
 		}
-		for _, c := range m.ToolCalls {
-			emit(req, "tool", c.Name)
-			out := call(ctx, sess, permission, c)
+		for _, c := range reply.ToolCalls {
+			emit(req, "tool", c.Function.Name)
+			out := call(ctx, sess, permission, c.Function.Name, c.Function.Arguments, c.ID)
 			if ctx.Err() != nil {
 				return res, ctx.Err()
 			}
-			msgs = append(msgs, message{Role: "tool", ToolCallID: c.ID, Content: out})
+			msgs = append(msgs, openai.ToolMessage(out, c.ID))
 			if err := save(path, msgs); err != nil {
 				return res, err
 			}
@@ -179,8 +175,11 @@ func refused(res provider.Result, err error, now time.Time) (provider.Result, er
 	switch api.StatusCode {
 	case http.StatusTooManyRequests:
 		res.RateLimited = true
-		if s, err := strconv.Atoi(api.Response.Header.Get("Retry-After")); err == nil && s > 0 {
+		after := api.Response.Header.Get("Retry-After")
+		if s, err := strconv.Atoi(after); err == nil && s > 0 {
 			res.ResetsAt = now.Add(time.Duration(s) * time.Second).Unix()
+		} else if t, err := http.ParseTime(after); err == nil {
+			res.ResetsAt = t.Unix()
 		}
 		return res, nil
 	case http.StatusUnauthorized, http.StatusForbidden:

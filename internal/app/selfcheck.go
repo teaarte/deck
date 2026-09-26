@@ -46,8 +46,8 @@ func (a *App) Checks(ctx context.Context, now time.Time) {
 	}
 }
 
-// startCheck runs a self-check in the background unless one is running; a change of version or a red
-// self-check holds the turns of the provider until it ends.
+// startCheck runs a self-check in the background unless one is running; a change of version or a red check
+// holds the provider's turns until it ends. One cut short by a limit or a login keeps no version, so it reruns.
 func (a *App) startCheck(force bool) bool {
 	sc, ok := a.main.(provider.SelfChecker)
 	if !ok {
@@ -90,10 +90,14 @@ func (a *App) startCheck(force bool) bool {
 		case res.Err != nil:
 			status, text = "error", fmt.Sprintf("self-check of %s failed: %s", res.Version, res.Err)
 		}
-		a.writeCheck(context.WithoutCancel(ctx), subject, status, text, res.Version)
+		version := res.Version
+		if status != "ok" && status != "error" {
+			version = ""
+		}
+		a.writeCheck(context.WithoutCancel(ctx), subject, status, text, version)
 		a.checkMu.Lock()
 		a.check.running = false
-		if status == "error" {
+		if status != "ok" {
 			a.check.retry = a.Cfg.Now().Add(a.Cfg.SelfCheckRetry)
 		}
 		a.checkMu.Unlock()

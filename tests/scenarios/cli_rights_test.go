@@ -25,7 +25,8 @@ func TestCommandAgentCannotReadSecretsAndGetsEveryDeckTool(t *testing.T) {
 	}
 	real, _ := filepath.EvalSymlinks(home)
 	for _, h := range []string{home, real} {
-		for _, rule := range []string{"Read(/" + filepath.Join(h, "secrets") + "/**)", "Grep(/" + filepath.Join(h, "deck.db") + "*)"} {
+		for _, rule := range []string{"Read(/" + filepath.Join(h, "secrets") + "/**)", "Grep(/" + filepath.Join(h, "deck.db") + "*)",
+			"Read(/" + filepath.Join(h, "sessions") + "/**)"} {
 			if !slices.Contains(set.Permissions.Deny, rule) {
 				t.Fatalf("the agent may not read %s: %v", rule, set.Permissions.Deny)
 			}

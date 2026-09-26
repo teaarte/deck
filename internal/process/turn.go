@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 )
 
 // turn is one provider session run of a process: a fresh start or a resume of its session.
@@ -50,11 +51,16 @@ func (r *Runner) run(ctx context.Context, t turn) {
 		r.finish(bg, processID, StateError, "", false, err.Error())
 		return
 	}
+	if missing := pv.Caps().Missing(t.cmd.Requires); len(missing) > 0 {
+		r.finish(bg, processID, StateError, "", false, fmt.Sprintf("deck: provider %s no longer fits %s: it lacks %s",
+			pv.Name(), t.cmd.Name, strings.Join(missing, ", ")))
+		return
+	}
+	t.pv = pv
 	if !r.providers.Ready(bg, pv.Name()) {
 		r.waitProvider(bg, t)
 		return
 	}
-	t.pv = pv
 	dir := filepath.Join(r.cfg.RunsDir, fmt.Sprint(processID))
 	work := filepath.Join(dir, "work")
 	if err := errors.Join(os.MkdirAll(work, 0o700), os.MkdirAll(filepath.Join(dir, "results"), 0o700)); err != nil {
@@ -84,9 +90,13 @@ func (r *Runner) run(ctx context.Context, t turn) {
 		return
 	}
 	defer stream.Close()
-	_ = r.st.Tx(bg, func(ctx context.Context, q *db.Queries) error {
+	err = r.st.Tx(bg, func(ctx context.Context, q *db.Queries) error {
 		return q.StartCeiling(ctx, db.StartCeilingParams{Now: r.now().UnixMilli(), ID: processID})
 	})
+	if err != nil {
+		r.finish(bg, processID, StateError, "", false, "start the ceiling: "+err.Error())
+		return
+	}
 
 	req := provider.Request{
 		Cwd: work, Prompt: t.message, ResultSchema: t.cmd.Result,

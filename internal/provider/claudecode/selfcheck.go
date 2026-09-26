@@ -43,6 +43,7 @@ func (a *Adapter) SelfCheck(ctx context.Context) provider.Check {
 	b := make([]byte, 4)
 	_, _ = rand.Read(b)
 	word := "deck-check-" + hex.EncodeToString(b)
+	command := "echo " + word + " > word.txt"
 	var mu sync.Mutex
 	var asked []string
 	srv := mcp.NewServer(&mcp.Implementation{Name: "deck", Version: "0"}, nil)
@@ -57,9 +58,9 @@ func (a *Adapter) SelfCheck(ctx context.Context) provider.Check {
 			mu.Lock()
 			asked = append(asked, in.ToolName+" "+fmt.Sprint(in.Input["command"]))
 			mu.Unlock()
-			d := map[string]any{"behavior": "deny", "message": "deck self-check: only the echo into word.txt is allowed"}
-			if in.ToolName == "Bash" && strings.Contains(fmt.Sprint(in.Input["command"]), word) {
-				d = map[string]any{"behavior": "allow", "updatedInput": in.Input}
+			d := map[string]any{"behavior": "deny", "message": "deck self-check: only the exact command given is allowed"}
+			if in.ToolName == "Bash" && strings.TrimSpace(fmt.Sprint(in.Input["command"])) == command {
+				d = map[string]any{"behavior": "allow", "updatedInput": map[string]any{"command": command}}
 			}
 			out, _ := json.Marshal(d)
 			return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(out)}}}, nil
@@ -72,11 +73,7 @@ func (a *Adapter) SelfCheck(ctx context.Context) provider.Check {
 	hs := &http.Server{Handler: mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return srv }, nil)}
 	go func() { _ = hs.Serve(ln) }()
 	defer hs.Close()
-	if err := os.MkdirAll(a.ConfigDir, 0o700); err != nil {
-		c.Err = err
-		return c
-	}
-	dir, err := os.MkdirTemp(a.ConfigDir, "selfcheck-")
+	dir, err := os.MkdirTemp("", "deck-selfcheck-")
 	if err != nil {
 		c.Err = err
 		return c
@@ -85,7 +82,7 @@ func (a *Adapter) SelfCheck(ctx context.Context) provider.Check {
 	req := provider.Request{Cwd: dir, SessionID: uuid.NewString(), MCPURL: "http://" + ln.Addr().String() + "/mcp",
 		PermissionMCP: "mcp__deck__approve", AllowedTools: []string{"StructuredOutput"},
 		ResultSchema: json.RawMessage(`{"type":"object","required":["word"],"properties":{"word":{"type":"string"}}}`),
-		Prompt: "This is a self-check of deck. Run the Bash command `echo " + word + " > word.txt` once, then give that word as the result."}
+		Prompt: "This is a self-check of deck. Run exactly this Bash command once: " + command + "\nThen give the word " + word + " as the result."}
 	step := func(what string) bool {
 		res, err := a.Run(ctx, req)
 		c.RateLimited, c.NeedsLogin = res.RateLimited, res.NeedsLogin

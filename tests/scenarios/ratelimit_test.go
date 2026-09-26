@@ -86,8 +86,8 @@ func TestPauseWithoutAResetTimeProbesHourlyUntilItsLimit(t *testing.T) {
 	e.Clock.Add(time.Hour)
 	e.sweep()
 	got := e.waitState(id, "stopped")
-	if n := len(e.Fake.Calls()); n != 6 || !strings.Contains(got.Error, "pause") {
-		t.Fatalf("six hours after the first refusal the process stops and later refusals did not move that: %d calls, %+v", n, got)
+	if n := len(e.Fake.Calls()); n != 7 || !strings.Contains(got.Error, "pause") {
+		t.Fatalf("the last probe at six hours after the first refusal is refused, so the process stops; later refusals did not move that: %d calls, %+v", n, got)
 	}
 	a := e.waitAsk()
 	if a.Kind != "limit" {
@@ -102,7 +102,7 @@ func TestPauseWithoutAResetTimeProbesHourlyUntilItsLimit(t *testing.T) {
 	e.answer(a.ID, "continue")
 	got = e.waitState(id, "done", "error")
 	calls := e.Fake.Calls()
-	if got.State != "done" || string(got.Result) != `{"n":2}` || !calls[6].Resume || calls[6].SessionID != calls[0].SessionID {
+	if got.State != "done" || string(got.Result) != `{"n":2}` || !calls[7].Resume || calls[7].SessionID != calls[0].SessionID {
 		t.Fatalf("continue resumes the same session: %+v", got)
 	}
 	pp, _ := e.App.Store.Q.GetProcess(context.Background(), id)

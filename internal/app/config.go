@@ -38,6 +38,8 @@ type Config struct {
 	SelfCheckRetry   time.Duration
 	// VersionEvery is how often deck looks for a new version of the main provider's program.
 	VersionEvery time.Duration
+	// WorkKept is how long the work folder of a finished agent process stays for rework.
+	WorkKept time.Duration
 }
 
 func (c *Config) defaults() {
@@ -79,6 +81,9 @@ func (c *Config) defaults() {
 	}
 	if c.VersionEvery <= 0 {
 		c.VersionEvery = 10 * time.Minute
+	}
+	if c.WorkKept <= 0 {
+		c.WorkKept = 7 * 24 * time.Hour
 	}
 	if c.Browser == nil {
 		c.Browser = DefaultBrowser

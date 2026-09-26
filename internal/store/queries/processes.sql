@@ -167,3 +167,18 @@ WHERE id = sqlc.arg(id) AND state = 'running';
 
 -- name: ListWaitingForProvider :many
 SELECT * FROM process WHERE state = 'waiting_provider' AND provider = sqlc.arg(provider) ORDER BY id;
+
+
+-- name: CountActiveOnProvider :one
+SELECT count(*) FROM process
+WHERE provider = sqlc.arg(provider) AND project_id IN (SELECT id FROM project WHERE workspace_id = sqlc.arg(workspace_id))
+  AND state IN ('running', 'waiting_answer', 'needs_login', 'rate_limited', 'waiting_provider');
+
+
+-- name: ResetPauseLimit :exec
+UPDATE process SET pause_limit_ms = sqlc.arg(limit_ms) WHERE id = sqlc.arg(id) AND state = 'rate_limited';
+
+
+-- name: ListAgentsFinishedBefore :many
+SELECT id FROM process WHERE kind = 'agent' AND state IN ('done', 'error', 'stopped', 'interrupted')
+  AND finished_at < CAST(sqlc.arg(before) AS TEXT);

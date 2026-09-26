@@ -3,9 +3,11 @@ package scenarios
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"deck2/internal/provider"
 )
@@ -80,7 +82,8 @@ func TestAgentOnAnOpenAICompatibleProviderWorksThroughTheGateway(t *testing.T) {
 	var calls []map[string]any
 	e.must("deck.llm_calls_list", map[string]any{"process": id}, &calls)
 	if len(calls) != 6 || calls[0]["gen_ai.provider.name"] != "local" || calls[0]["gen_ai.usage.input_tokens"] != 100.0 ||
-		calls[0]["gen_ai.usage.cache_read.input_tokens"] != 40.0 || calls[0]["gen_ai.response.model"] != "fake-model" {
+		calls[0]["gen_ai.usage.cache_read.input_tokens"] != 40.0 || calls[0]["gen_ai.response.model"] != "fake-model" ||
+		calls[0]["gen_ai.request.model"] != "asked-model" || reqs[0].Model != "asked-model" {
 		t.Fatalf("every model call is journaled with its tokens: %v", calls)
 	}
 }
@@ -156,10 +159,18 @@ func TestAgentRunsOnRecordedOllamaReplies(t *testing.T) {
 }
 
 func TestProviderRefusalsOfAnOpenAICompatibleAPI(t *testing.T) {
-	for _, c := range []struct{ fixture, state string }{{"ratelimit.json", "rate_limited"}, {"unauthorized.json", "needs_login"}} {
-		t.Run(c.fixture, func(t *testing.T) {
-			llm := newLLM(t, func(int, chatRequest) chatReply { return recorded(t, c.fixture) })
-			e := newClockEnv(t, nil)
+	for _, c := range []struct{ fixture, state, date string }{{"ratelimit.json", "rate_limited", ""},
+		{"ratelimit.json", "rate_limited", "date"}, {"unauthorized.json", "needs_login", ""}} {
+		t.Run(c.fixture+c.date, func(t *testing.T) {
+			var e *Env
+			llm := newLLM(t, func(int, chatRequest) chatReply {
+				r := recorded(t, c.fixture)
+				if c.date != "" {
+					r.header.Set("Retry-After", e.Clock.Now().Add(7200*time.Second).UTC().Format(http.TimeFormat))
+				}
+				return r
+			})
+			e = newClockEnv(t, nil)
 			e.addLLM("cloud", llm, false)
 			p := e.createProject("plain", plainManifest)
 			e.must("deck.provider_set", map[string]any{"command": "plain.work", "provider": "cloud"}, nil)
@@ -171,6 +182,9 @@ func TestProviderRefusalsOfAnOpenAICompatibleAPI(t *testing.T) {
 				pp, _ := e.App.Store.Q.GetProcess(context.Background(), id)
 				if want := e.Clock.Now().Add(7200 * 1e9).UnixMilli(); pp.PauseUntilMs.Int64 != want {
 					t.Fatalf("Retry-After sets the next try by the deck clock: %d, want %d", pp.PauseUntilMs.Int64, want)
+				}
+				if code, body := e.call("deck.provider_remove", map[string]any{"name": "cloud"}); code == 200 || !strings.Contains(string(body), "still run") {
+					t.Fatalf("a provider with processes on it is not removed: %d %s", code, body)
 				}
 			}
 		})

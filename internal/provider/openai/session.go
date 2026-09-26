@@ -11,19 +11,8 @@ import (
 	"github.com/openai/openai-go/v3"
 )
 
-// message is one entry of a session transcript, kept by deck so a session resumes like a CLI session does.
-type message struct {
-	Role       string     `json:"role"`
-	Content    string     `json:"content,omitempty"`
-	ToolCalls  []toolCall `json:"tool_calls,omitempty"`
-	ToolCallID string     `json:"tool_call_id,omitempty"`
-}
-
-type toolCall struct {
-	ID        string `json:"id"`
-	Name      string `json:"name"`
-	Arguments string `json:"arguments"`
-}
+// A session is its transcript of standard chat messages, kept by deck so it resumes like a CLI session.
+type transcript = []openai.ChatCompletionMessageParamUnion
 
 var sessionID = regexp.MustCompile(`^[A-Za-z0-9-]{1,64}$`)
 
@@ -35,7 +24,7 @@ func (a *Adapter) transcript(session string) (string, error) {
 }
 
 // load reads a stored session; ok is false when there is none.
-func load(path string) (msgs []message, ok bool, err error) {
+func load(path string) (msgs transcript, ok bool, err error) {
 	b, err := os.ReadFile(path)
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil, false, nil
@@ -47,11 +36,14 @@ func load(path string) (msgs []message, ok bool, err error) {
 }
 
 // save writes the transcript atomically with mode 600.
-func save(path string, msgs []message) error {
+func save(path string, msgs transcript) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err
 	}
-	b, _ := json.Marshal(msgs)
+	b, err := json.Marshal(msgs)
+	if err != nil {
+		return err
+	}
 	f, err := os.CreateTemp(filepath.Dir(path), ".session-*")
 	if err != nil {
 		return err
@@ -69,26 +61,27 @@ func save(path string, msgs []message) error {
 	return werr
 }
 
-func params(msgs []message) []openai.ChatCompletionMessageParamUnion {
-	out := make([]openai.ChatCompletionMessageParamUnion, 0, len(msgs))
+const cutOff = "deck: the session was cut off before this call returned, so its outcome is unknown. " +
+	"Check what it did before you make it again."
+
+// answered gives every tool call of a session cut off mid-call a reply, since the API refuses tool calls
+// without one; the call itself is not made again.
+func answered(msgs transcript) transcript {
+	got := map[string]bool{}
 	for _, m := range msgs {
-		switch m.Role {
-		case "user":
-			out = append(out, openai.UserMessage(m.Content))
-		case "tool":
-			out = append(out, openai.ToolMessage(m.Content, m.ToolCallID))
-		case "assistant":
-			as := openai.ChatCompletionAssistantMessageParam{}
-			if m.Content != "" {
-				as.Content.OfString = openai.String(m.Content)
-			}
-			for _, c := range m.ToolCalls {
-				as.ToolCalls = append(as.ToolCalls, openai.ChatCompletionMessageToolCallUnionParam{
-					OfFunction: &openai.ChatCompletionMessageFunctionToolCallParam{ID: c.ID,
-						Function: openai.ChatCompletionMessageFunctionToolCallFunctionParam{Name: c.Name, Arguments: c.Arguments}}})
-			}
-			out = append(out, openai.ChatCompletionMessageParamUnion{OfAssistant: &as})
+		if m.OfTool != nil {
+			got[m.OfTool.ToolCallID] = true
 		}
 	}
-	return out
+	for _, m := range msgs {
+		if m.OfAssistant == nil {
+			continue
+		}
+		for _, c := range m.OfAssistant.ToolCalls {
+			if id := c.GetID(); id != nil && !got[*id] {
+				msgs = append(msgs, openai.ToolMessage(cutOff, *id))
+			}
+		}
+	}
+	return msgs
 }

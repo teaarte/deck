@@ -47,6 +47,16 @@ func (q *Queries) ClaimAsk(ctx context.Context, arg ClaimAskParams) (int64, erro
 	return result.RowsAffected()
 }
 
+const closeLimitAsks = `-- name: CloseLimitAsks :exec
+UPDATE ask SET state = CASE WHEN state = 'open' THEN 'expired' ELSE state END, delivered = 1
+WHERE process_id = CAST(?1 AS INTEGER) AND kind = 'limit' AND delivered = 0
+`
+
+func (q *Queries) CloseLimitAsks(ctx context.Context, processID int64) error {
+	_, err := q.db.ExecContext(ctx, closeLimitAsks, processID)
+	return err
+}
+
 const closeOpenAsksOfProcess = `-- name: CloseOpenAsksOfProcess :many
 UPDATE ask SET state = 'expired', delivered = 1
 WHERE process_id = CAST(?1 AS INTEGER) AND state = 'open' AND kind NOT IN ('warning', 'unknown')
@@ -443,7 +453,7 @@ func (q *Queries) ListOpenAsks(ctx context.Context) ([]Ask, error) {
 }
 
 const listOpenAsksOfProcess = `-- name: ListOpenAsksOfProcess :many
-SELECT id, process_id, workspace_id, project_id, kind, text, payload, answer, state, delivered, used, created_at, answered_at, expires_at, result FROM ask WHERE process_id = CAST(?1 AS INTEGER) AND state IN ('open', 'running') AND kind != 'warning' ORDER BY id
+SELECT id, process_id, workspace_id, project_id, kind, text, payload, answer, state, delivered, used, created_at, answered_at, expires_at, result FROM ask WHERE process_id = CAST(?1 AS INTEGER) AND state IN ('open', 'running') AND kind NOT IN ('warning', 'limit') ORDER BY id
 `
 
 func (q *Queries) ListOpenAsksOfProcess(ctx context.Context, processID int64) ([]Ask, error) {

@@ -76,10 +76,11 @@ func outsideBlocks(prompt string) []string {
 }
 
 func TestSecretEchoedByAServiceNeverReachesTheAgent(t *testing.T) {
-	const key = "sk-live-0123456789"
+	const key = `sk-live-"0123456789"`
 	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) {
 		if n == 1 {
-			jsonReply(w, `{"echo": "`+r.Header.Get("X-Key")+`"}`)
+			b, _ := json.Marshal(map[string]string{"echo": r.Header.Get("X-Key")})
+			jsonReply(w, string(b))
 			return
 		}
 		w.WriteHeader(http.StatusInternalServerError)
@@ -103,7 +104,7 @@ func TestSecretEchoedByAServiceNeverReachesTheAgent(t *testing.T) {
 	mu.Lock()
 	got := strings.Join(outs, "\n")
 	mu.Unlock()
-	if len(svc.requests()) != 2 || strings.Contains(got, key) || !strings.Contains(got, "[secret]") {
+	if len(svc.requests()) != 2 || strings.Contains(got, "0123456789") || !strings.Contains(got, "[secret]") {
 		t.Fatalf("what a service echoes of a secret reaches the agent as [secret]: %s", got)
 	}
 	var hs []map[string]any
@@ -148,6 +149,20 @@ func TestProviderURLCarriesNoKey(t *testing.T) {
 		}
 	}
 	e.must("deck.provider_add", map[string]any{"name": "cloud", "url": "https://api.example/v1", "model": "m", "key_secret": "k"}, nil)
+	_, err := e.App.Store.DB.Exec(`INSERT INTO setting (workspace_id, key, value) VALUES (1, 'provider:old', ?)`,
+		`{"url": "https://api.example/v1?key=sk-stored", "model": "m"}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var list map[string]any
+	e.must("deck.providers_list", nil, &list)
+	if strings.Contains(fmt.Sprint(list), "sk-stored") {
+		t.Fatalf("a provider stored with a key in its url is neither shown nor used: %v", list)
+	}
+	srv := `{"version": 5, "tools": {"mcp": {"servers": {"far": {"url": "https://mcp.example/mcp?key=sk-1"}}}}}`
+	if code, out := e.call("deck.project_create", map[string]any{"name": "far", "manifest": srv}); code == 200 || !strings.Contains(string(out), "secret") {
+		t.Fatalf("an MCP server url with a key in it is refused: %d %s", code, out)
+	}
 }
 
 func TestBrowserTabsListShowsOnlyThisProjectsSites(t *testing.T) {
@@ -200,7 +215,7 @@ func TestFormatFiveDropsWhatNothingDoes(t *testing.T) {
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		return provider.Result{Structured: json.RawMessage(`{}`)}
 	})
-	old := `{"version": 4, "master_events": true,
+	old := `{"version": 4, "master_events": true, "allowed_external": ["deck.browser_click"], "domains": {"read": ["a.example"]},
   "commands": [{"name": "rate", "title": "Rate", "description": "Rates.", "class": "internal", "result": {"type": "object"},
     "requires": ["live_input", "structured_output", "no_cloud"], "executor": {"type": "agent", "prompt": "Rate."}},
    {"name": "sum", "title": "Sum", "description": "Sums.", "class": "internal", "result": {"type": "object"},
@@ -209,7 +224,7 @@ func TestFormatFiveDropsWhatNothingDoes(t *testing.T) {
 	var got struct{ Manifest string }
 	e.must("deck.manifest_get", map[string]any{"project": "old"}, &got)
 	if !strings.Contains(got.Manifest, `"version": 5`) || strings.Contains(got.Manifest, "master_events") ||
-		strings.Contains(got.Manifest, "live_input") || strings.Contains(got.Manifest, "structured_output") || !strings.Contains(got.Manifest, `"no_cloud"`) {
+		strings.Contains(got.Manifest, "live_input") || strings.Contains(got.Manifest, "browser_click") || strings.Contains(got.Manifest, "structured_output") || !strings.Contains(got.Manifest, `"no_cloud"`) {
 		t.Fatalf("format 4 comes up to 5 without the fields nothing reads:\n%s", got.Manifest)
 	}
 	code, out := e.call("deck.manifest_save", map[string]any{"project": "old", "manifest": strings.Replace(old, `"version": 4`, `"version": 5`, 1)})
@@ -230,6 +245,11 @@ print(json.dumps({"files": [{"path": "f.txt", "record": out["ids"][0]}]}))
 `)
 	if p := e.waitScript(e.start("files", "make", nil), "done", "error"); p.State != "done" {
 		t.Fatalf("the script writes a record with a document and a file: %+v", p)
+	}
+	var created string
+	_ = e.App.Store.DB.QueryRow(`SELECT created_at FROM record`).Scan(&created)
+	if !strings.HasPrefix(created, t0.UTC().Format("2006-01-02T15:04")) {
+		t.Fatalf("a record is dated by the deck clock: %s", created)
 	}
 	file := filepath.Join(e.App.Cfg.Home, "files", "1")
 	e.Clock.Add(11 * 24 * time.Hour)
@@ -320,5 +340,17 @@ func TestSelfCheckIsRedWhenTheCLIStopsCountingTokens(t *testing.T) {
 	e.App.Checks(context.Background(), e.Clock.Now())
 	if h := e.waitHealth("provider:claude-code", "error"); !strings.Contains(h.Error, "token counts") {
 		t.Fatalf("a turn without usage turns the self-check red: %+v", h)
+	}
+}
+
+func TestSelfCheckIsRedWhenAResumeStopsCountingTokens(t *testing.T) {
+	c := newCLI(t)
+	c.stream(1, "selfcheck.jsonl")
+	c.stream(2, "selfcheck_resume_nousage.jsonl")
+	c.approving()
+	e := clockCLIEnv(t, c)
+	e.App.Checks(context.Background(), e.Clock.Now())
+	if h := e.waitHealth("provider:claude-code", "error"); !strings.Contains(h.Error, "resume: token counts") {
+		t.Fatalf("a resume without usage turns the self-check red: %+v", h)
 	}
 }

@@ -2,6 +2,7 @@
 package untrusted
 
 import (
+	"encoding/json"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -40,13 +41,15 @@ func Value(label, s string, n int) string {
 	return Block(label, s)
 }
 
-// Redact replaces every secret of at least 4 bytes in s with [secret].
+// Redact replaces every secret of at least 4 bytes in s with [secret], also as it reads inside a JSON string.
 func Redact(s string, secrets []string) string {
 	for _, v := range secrets {
 		for _, w := range []string{v, strings.TrimSpace(v)} {
-			if len(w) >= 4 {
-				s = strings.ReplaceAll(s, w, "[secret]")
+			if len(w) < 4 {
+				continue
 			}
+			quoted, _ := json.Marshal(w)
+			s = strings.ReplaceAll(strings.ReplaceAll(s, w, "[secret]"), string(quoted[1:len(quoted)-1]), "[secret]")
 		}
 	}
 	return s

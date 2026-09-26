@@ -144,7 +144,7 @@ func (a *App) runMigration(ctx context.Context, p db.Project, m *manifest.Manife
 
 // applyMigration replaces the records of a collection with the migrated ones, keeping ids, and stores the
 // records it replaced as a snapshot of the revision the manifest leaves.
-func applyMigration(ctx context.Context, q *db.Queries, projectID int64, c *manifest.Collection, mg *migration, from, to int64) error {
+func applyMigration(ctx context.Context, q *db.Queries, now string, projectID int64, c *manifest.Collection, mg *migration, from, to int64) error {
 	recs, err := q.ListRecords(ctx, db.ListRecordsParams{ProjectID: projectID, Collection: c.Name})
 	if err != nil {
 		return err
@@ -185,10 +185,10 @@ func applyMigration(ctx context.Context, q *db.Queries, projectID int64, c *mani
 		}
 		b, _ := json.Marshal(data)
 		if existing[r.ID] {
-			err = q.PutRecord(ctx, db.PutRecordParams{Key: key, Data: string(b), ID: r.ID})
+			err = q.PutRecord(ctx, db.PutRecordParams{Key: key, Data: string(b), Now: now, ID: r.ID})
 		} else {
 			_, err = q.InsertRecord(ctx, db.InsertRecordParams{ID: sql.NullInt64{Int64: r.ID, Valid: r.ID != 0},
-				ProjectID: projectID, Collection: c.Name, Key: key, Data: string(b)})
+				ProjectID: projectID, Collection: c.Name, Key: key, Data: string(b), Now: now})
 		}
 		if err != nil {
 			return err

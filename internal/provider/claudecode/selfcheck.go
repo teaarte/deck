@@ -90,6 +90,9 @@ func (a *Adapter) SelfCheck(ctx context.Context) provider.Check {
 		mu.Unlock()
 	}
 	step := func(what string) bool {
+		mu.Lock()
+		tokens = 0
+		mu.Unlock()
 		res, err := a.Run(ctx, req)
 		c.RateLimited, c.NeedsLogin = res.RateLimited, res.NeedsLogin
 		var out struct{ Word string }
@@ -102,18 +105,20 @@ func (a *Adapter) SelfCheck(ctx context.Context) provider.Check {
 		case out.Word != word:
 			c.Err = fmt.Errorf("%s: the result by schema was %s, want the word %s", what, string(res.Structured), word)
 		}
+		mu.Lock()
+		counted := tokens
+		mu.Unlock()
+		if c.Err == nil && counted == 0 {
+			c.Err = fmt.Errorf("%s: token counts: the final event of the turn had no usage, so the model call journal would count zero", what)
+		}
 		return c.Err == nil
 	}
 	if !step("output by schema") {
 		return c
 	}
 	mu.Lock()
-	seen, counted := strings.Join(asked, "; "), tokens
+	seen := strings.Join(asked, "; ")
 	mu.Unlock()
-	if counted == 0 {
-		c.Err = errors.New("token counts: the final event of the turn had no usage, so the model call journal would count zero")
-		return c
-	}
 	written, _ := os.ReadFile(filepath.Join(dir, "word.txt"))
 	switch {
 	case !strings.Contains(seen, "Bash"):

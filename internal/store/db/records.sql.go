@@ -215,8 +215,8 @@ func (q *Queries) GetRecordByKey(ctx context.Context, arg GetRecordByKeyParams) 
 }
 
 const insertRecord = `-- name: InsertRecord :one
-INSERT INTO record (id, project_id, collection, key, data)
-VALUES (?1, ?2, ?3, ?4, ?5) RETURNING id
+INSERT INTO record (id, project_id, collection, key, data, created_at, updated_at)
+VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6) RETURNING id
 `
 
 type InsertRecordParams struct {
@@ -225,6 +225,7 @@ type InsertRecordParams struct {
 	Collection string
 	Key        string
 	Data       string
+	Now        string
 }
 
 func (q *Queries) InsertRecord(ctx context.Context, arg InsertRecordParams) (int64, error) {
@@ -234,6 +235,7 @@ func (q *Queries) InsertRecord(ctx context.Context, arg InsertRecordParams) (int
 		arg.Collection,
 		arg.Key,
 		arg.Data,
+		arg.Now,
 	)
 	var id int64
 	err := row.Scan(&id)
@@ -290,17 +292,23 @@ func (q *Queries) ParkRecordKey(ctx context.Context, id int64) error {
 }
 
 const putRecord = `-- name: PutRecord :exec
-UPDATE record SET key = ?, data = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?
+UPDATE record SET key = ?1, data = ?2, updated_at = ?3 WHERE id = ?4
 `
 
 type PutRecordParams struct {
 	Key  string
 	Data string
+	Now  string
 	ID   int64
 }
 
 func (q *Queries) PutRecord(ctx context.Context, arg PutRecordParams) error {
-	_, err := q.db.ExecContext(ctx, putRecord, arg.Key, arg.Data, arg.ID)
+	_, err := q.db.ExecContext(ctx, putRecord,
+		arg.Key,
+		arg.Data,
+		arg.Now,
+		arg.ID,
+	)
 	return err
 }
 

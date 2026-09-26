@@ -58,6 +58,9 @@ func (a *App) provider(ctx context.Context, workspace int64, name string) (provi
 	if err := json.Unmarshal([]byte(raw), &d); err != nil {
 		return nil, err
 	}
+	if strings.ContainsAny(d.URL, "@?#") {
+		return nil, registry.Invalid("deck: the url of provider %q holds a user, query or key; add it again with deck.provider_add and key_secret", name)
+	}
 	return openai.New(openai.Config{Name: name, URL: d.URL, Model: d.Model, NoCloud: d.NoCloud, Now: a.Cfg.Now,
 		Sessions: filepath.Join(a.Cfg.Home, "sessions"), Key: func() (string, error) {
 			if d.KeySecret == "" {

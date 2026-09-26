@@ -12,5 +12,6 @@
   "no_session.jsonl": {"cli": "2.1.281", "date": "2026-09-26", "kind": "synthetic", "note": "ok.jsonl whose result has no session id"},
   "selfcheck.jsonl": {"cli": "2.1.281", "date": "2026-09-26", "kind": "real", "note": "self-check turn: Bash echo into word.txt asked through approve, then StructuredOutput"},
   "selfcheck_resume.jsonl": {"cli": "2.1.281", "date": "2026-09-26", "kind": "real", "note": "self-check resume: the same word from the session"},
-  "selfcheck_nousage.jsonl": {"cli": "2.1.281", "date": "2026-09-26", "kind": "synthetic", "note": "selfcheck.jsonl whose result has no usage"}
+  "selfcheck_nousage.jsonl": {"cli": "2.1.281", "date": "2026-09-26", "kind": "synthetic", "note": "selfcheck.jsonl whose result has no usage"},
+  "selfcheck_resume_nousage.jsonl": {"cli": "2.1.281", "date": "2026-09-26", "kind": "synthetic", "note": "selfcheck_resume.jsonl whose result has no usage"}
 }

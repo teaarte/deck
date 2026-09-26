@@ -125,6 +125,11 @@ func (m *Manifest) compileCommands(fail func(string, ...any)) {
 }
 
 func (m *Manifest) checkTools(fail func(string, ...any)) {
+	for name, s := range m.Tools.MCP.Servers {
+		if strings.ContainsAny(s.URL, "@?#") {
+			fail("mcp server %q: url takes no user, query or key; a key belongs in a secret", name)
+		}
+	}
 	seen := map[string]bool{}
 	for i := range m.Tools.HTTP {
 		t := &m.Tools.HTTP[i]

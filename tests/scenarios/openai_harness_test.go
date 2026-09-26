@@ -74,6 +74,9 @@ func newLLM(t *testing.T, script func(n int, req chatRequest) chatReply) *fakeLL
 		n := len(f.reqs)
 		f.mu.Unlock()
 		rep := f.script(n, req)
+		if bad := silentAssistant(req); bad >= 0 {
+			rep = chatReply{status: 400, body: `{"error":{"message":"invalid message content type: <nil>","type":"invalid_request_error"}}`}
+		}
 		for k, vs := range rep.header {
 			w.Header()[k] = vs
 		}
@@ -87,6 +90,17 @@ func newLLM(t *testing.T, script func(n int, req chatRequest) chatReply) *fakeLL
 	t.Cleanup(srv.Close)
 	f.URL = srv.URL + "/v1"
 	return f
+}
+
+// silentAssistant is the index of an assistant message with neither content nor tool calls, which Ollama
+// refuses, or -1.
+func silentAssistant(req chatRequest) int {
+	for i, m := range req.Messages {
+		if m["role"] == "assistant" && m["content"] == nil && m["tool_calls"] == nil {
+			return i
+		}
+	}
+	return -1
 }
 
 func (f *fakeLLM) requests() []chatRequest {

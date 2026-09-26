@@ -85,3 +85,14 @@ func answered(msgs transcript) transcript {
 	}
 	return msgs
 }
+
+// spoken gives an empty assistant reply without tool calls an empty text, since APIs such as Ollama refuse a
+// message with no content.
+func spoken(msgs transcript) transcript {
+	for i, m := range msgs {
+		if a := m.OfAssistant; a != nil && len(a.ToolCalls) == 0 && a.Content.OfString.Value == "" && len(a.Content.OfArrayOfContentParts) == 0 {
+			msgs[i] = openai.AssistantMessage("")
+		}
+	}
+	return msgs
+}

@@ -97,7 +97,7 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 	if !req.Resume {
 		msgs = nil
 	}
-	msgs = append(answered(msgs), openai.UserMessage(req.Prompt))
+	msgs = append(spoken(answered(msgs)), openai.UserMessage(req.Prompt))
 	if err := save(path, msgs); err != nil {
 		return res, err
 	}

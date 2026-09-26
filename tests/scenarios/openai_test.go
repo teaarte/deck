@@ -280,3 +280,22 @@ func TestProviderWithoutAKeySendsNone(t *testing.T) {
 		t.Fatalf("deck's own OPENAI_API_KEY never reaches a provider: %q", auth)
 	}
 }
+
+func TestAnEmptyReplyOfALocalModelDoesNotBreakTheRequestToHandIn(t *testing.T) {
+	llm := newLLM(t, func(n int, req chatRequest) chatReply {
+		switch n {
+		case 1:
+			return textReply("")
+		case 2:
+			return toolReply(fnCall{"result_submit", map[string]any{"result": map[string]any{"written": 0}}})
+		}
+		return textReply("done")
+	})
+	e := newEnv(t, nil)
+	e.addLLM("ollama", llm, true)
+	p := e.createProject("notes", notesManifest)
+	got := e.waitState(e.run(p, "collect"), "done", "error")
+	if got.State != "done" || string(got.Result) != `{"written":0}` {
+		t.Fatalf("after an empty reply the model is asked once to hand in, and the transcript it gets is valid: %+v", got)
+	}
+}

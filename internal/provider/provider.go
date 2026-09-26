@@ -3,6 +3,8 @@ package provider
 import (
 	"context"
 	"encoding/json"
+	"slices"
+	"time"
 )
 
 type Request struct {
@@ -22,6 +24,8 @@ type Request struct {
 	SessionID string
 	Resume    bool
 	OnEvent   func(Event)
+	// OnUsage gets the token counts of each model call as the provider reports them.
+	OnUsage func(Usage)
 	// OnStart gets the id of the process group the provider runs in, so a later deck can kill it.
 	OnStart func(pgid int)
 }
@@ -48,11 +52,64 @@ type Result struct {
 	ResetsAt    int64
 }
 
+// Usage is one model call; the counts come from the final event of a turn or call, not from summed messages.
+type Usage struct {
+	Model         string
+	Input         int64
+	Output        int64
+	CacheRead     int64
+	CacheCreation int64
+	Duration      time.Duration
+	// CostUSD is what the provider reports, or nil; on a subscription it is notional.
+	CostUSD *float64
+}
+
+// Capabilities a manifest command may require of its provider.
+const (
+	Tools            = "tools"
+	Sandbox          = "sandbox"
+	Resume           = "resume"
+	LiveInput        = "live_input"
+	Intercept        = "intercept"
+	Images           = "images"
+	StructuredOutput = "structured_output"
+	NoCloud          = "no_cloud"
+)
+
+// Caps lists the capabilities a provider has.
+type Caps []string
+
+// Missing are the required capabilities the provider does not have.
+func (c Caps) Missing(requires []string) []string {
+	var out []string
+	for _, r := range requires {
+		if !slices.Contains(c, r) {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
 type Provider interface {
 	Name() string
+	Caps() Caps
 	// QuestionTool names the provider tool that asks the owner a blocking question, or is empty.
 	QuestionTool() string
 	Run(ctx context.Context, req Request) (Result, error)
+}
+
+// Check is what a self-check of a provider found; Err is nil when the adapter works.
+type Check struct {
+	Version     string
+	Err         error
+	RateLimited bool
+	NeedsLogin  bool
+}
+
+// SelfChecker is a provider whose adapter deck checks at start and when the version of its program changes.
+type SelfChecker interface {
+	Version(ctx context.Context) (string, error)
+	SelfCheck(ctx context.Context) Check
 }
 
 // Reaper kills a process group an earlier deck left running, if it still runs the given session.

@@ -53,6 +53,7 @@ type healthRow struct {
 	Subject string `json:"subject"`
 	Status  string `json:"status"`
 	Error   string `json:"error"`
+	Version string `json:"version"`
 }
 
 // waitHealth waits until the health of subject is status, or any status for "", and returns it.

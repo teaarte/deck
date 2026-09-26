@@ -94,6 +94,22 @@ type Health struct {
 	Status    string
 	Error     string
 	UpdatedAt string
+	Version   string
+}
+
+type LlmCall struct {
+	ID                                 int64
+	ProcessID                          int64
+	GenAiProviderName                  string
+	GenAiRequestModel                  string
+	GenAiResponseModel                 string
+	GenAiUsageInputTokens              int64
+	GenAiUsageOutputTokens             int64
+	GenAiUsageCacheReadInputTokens     int64
+	GenAiUsageCacheCreationInputTokens int64
+	DurationMs                         int64
+	CostUsd                            sql.NullFloat64
+	CreatedAt                          string
 }
 
 type McpTool struct {
@@ -135,6 +151,10 @@ type Process struct {
 	Kind             string
 	ManifestRevision int64
 	Trial            int64
+	PauseUntilMs     sql.NullInt64
+	PauseLimitMs     sql.NullInt64
+	WaitMessage      string
+	WaitFresh        int64
 }
 
 type Project struct {
@@ -164,6 +184,12 @@ type RecordSnapshot struct {
 	Revision     int64
 	Records      string
 	CreatedAt    string
+}
+
+type Setting struct {
+	WorkspaceID int64
+	Key         string
+	Value       string
 }
 
 type ToolCall struct {

@@ -9,5 +9,7 @@
   "foreign_session.jsonl": {"cli": "2.1.281", "date": "2026-09-25", "kind": "synthetic", "note": "ok.jsonl with another session id"},
   "error.jsonl": {"cli": "2.1.281", "date": "2026-09-25", "kind": "synthetic", "note": "ok.jsonl ending in an error result"},
   "empty_result.jsonl": {"cli": "2.1.281", "date": "2026-09-25", "kind": "real", "note": "--json-schema wrapped as {result: schema | null}; the model had nothing to do"},
-  "no_session.jsonl": {"cli": "2.1.281", "date": "2026-09-26", "kind": "synthetic", "note": "ok.jsonl whose result has no session id"}
+  "no_session.jsonl": {"cli": "2.1.281", "date": "2026-09-26", "kind": "synthetic", "note": "ok.jsonl whose result has no session id"},
+  "selfcheck.jsonl": {"cli": "2.1.281", "date": "2026-09-26", "kind": "real", "note": "self-check turn: Bash echo into word.txt asked through approve, then StructuredOutput"},
+  "selfcheck_resume.jsonl": {"cli": "2.1.281", "date": "2026-09-26", "kind": "real", "note": "self-check resume: the same word from the session"}
 }

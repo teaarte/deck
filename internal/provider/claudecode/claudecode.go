@@ -33,6 +33,10 @@ func (a *Adapter) Name() string { return "claude-code" }
 
 func (a *Adapter) QuestionTool() string { return "AskUserQuestion" }
 
+func (a *Adapter) Caps() provider.Caps {
+	return provider.Caps{provider.Tools, provider.Sandbox, provider.Resume, provider.Intercept, provider.Images, provider.StructuredOutput}
+}
+
 func (a *Adapter) args(req provider.Request, mcp, settings, plugin string) []string {
 	args := []string{"-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose",
 		"--strict-mcp-config", "--mcp-config", mcp, "--settings", settings, "--disallowedTools", strings.Join(disallowed, ",")}

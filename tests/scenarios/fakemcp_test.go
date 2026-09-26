@@ -23,9 +23,35 @@ func TestMain(m *testing.M) {
 		serveFake(projectTools(dir))
 	case "browser":
 		serveFake(browserTools(os.Getenv("DECK_FAKE_DIR")))
+	case "approve":
+		askApprove(os.Args[1], os.Args[2])
 	default:
 		os.Exit(m.Run())
 	}
+}
+
+// askApprove asks the permission tool at url about a Bash command the way Claude Code does, and runs the
+// command in the current folder when it is allowed.
+func askApprove(url, command string) {
+	ctx := context.Background()
+	sess, err := mcp.NewClient(&mcp.Implementation{Name: "fake-cli", Version: "0"}, nil).Connect(ctx, &mcp.StreamableClientTransport{Endpoint: url}, nil)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	res, err := sess.CallTool(ctx, &mcp.CallToolParams{Name: "approve",
+		Arguments: map[string]any{"tool_name": "Bash", "input": map[string]any{"command": command}, "tool_use_id": "t1"}})
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	var d struct{ Behavior string }
+	_ = json.Unmarshal([]byte(res.Content[0].(*mcp.TextContent).Text), &d)
+	if d.Behavior == "allow" {
+		word, file, _ := strings.Cut(strings.TrimPrefix(command, "echo "), " > ")
+		_ = os.WriteFile(file, []byte(word+"\n"), 0o600)
+	}
+	os.Exit(0)
 }
 
 type fakeTool struct {

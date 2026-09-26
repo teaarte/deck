@@ -1,0 +1,176 @@
+package process
+
+import (
+	"context"
+	"database/sql"
+	"deck2/internal/ask"
+	"deck2/internal/provider"
+	"deck2/internal/store"
+	"deck2/internal/store/db"
+	"encoding/json"
+	"fmt"
+	"log/slog"
+	"slices"
+	"strings"
+)
+
+// needLogin parks the process until the owner logs the provider in again and picks how to continue.
+func (r *Runner) needLogin(ctx context.Context, pv provider.Provider, processID int64, text string) {
+	payload, _ := json.Marshal(map[string]any{"answers": ask.LoginAnswers})
+	msg := fmt.Sprintf("%s needs a login: %s. Log in again in a terminal, then retry this session or start a new one with a report of what was done.",
+		pv.Name(), strings.TrimSpace(text))
+	var n int64
+	err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		var err error
+		if n, err = q.ClaimProcess(ctx, db.ClaimProcessParams{ToState: StateNeedsLogin, ID: processID, FromState: StateRunning}); err != nil || n == 0 {
+			return err
+		}
+		if err := q.PauseCeiling(ctx, db.PauseCeilingParams{Now: r.now().UnixMilli(), ID: processID}); err != nil {
+			return err
+		}
+		if _, err := q.CreateAsk(ctx, db.CreateAskParams{ProcessID: processID, Kind: ask.KindLogin, Text: msg, Payload: string(payload)}); err != nil {
+			return err
+		}
+		return q.SetHealth(ctx, db.SetHealthParams{Subject: HealthSubject(pv.Name()), Status: "needs_login", Error: text})
+	})
+	if err != nil {
+		r.finish(ctx, processID, StateError, "", false, "needs login: "+text)
+		return
+	}
+	if n == 0 {
+		return
+	}
+	r.bus.Publish("processes")
+	r.bus.Publish("asks")
+	r.bus.Publish("health")
+}
+
+// HealthSubject is the health row of a provider.
+func HealthSubject(name string) string { return "provider:" + name }
+
+// providerHealth records what a turn showed about its provider. The health of a provider with a self-check is
+// the self-check's: a turn only lifts a lost login or a limit there.
+func (r *Runner) providerHealth(ctx context.Context, pv provider.Provider, res provider.Result, err error) {
+	_, checked := pv.(provider.SelfChecker)
+	subject := HealthSubject(pv.Name())
+	_ = r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		switch {
+		case err != nil && !checked:
+			return q.SetHealth(ctx, db.SetHealthParams{Subject: subject, Status: "error", Error: truncate(err.Error(), 2000)})
+		case err != nil || res.NeedsLogin || res.RateLimited:
+			return nil
+		case checked:
+			return q.MarkHealthy(ctx, subject)
+		}
+		return q.SetHealth(ctx, db.SetHealthParams{Subject: subject, Status: "ok"})
+	})
+	r.bus.Publish("health")
+}
+
+// usage writes one model call of a process to the journal of model calls.
+func (r *Runner) usage(ctx context.Context, processID int64, name string, u provider.Usage) {
+	err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		return q.LogLLMCall(ctx, db.LogLLMCallParams{ProcessID: processID, Provider: name, RequestModel: u.Model, ResponseModel: u.Model,
+			InputTokens: u.Input, OutputTokens: u.Output, CacheReadTokens: u.CacheRead, CacheCreationTokens: u.CacheCreation,
+			DurationMs: u.Duration.Milliseconds(), CostUsd: nullFloat(u.CostUSD), CreatedAt: store.Time(r.now())})
+	})
+	if err != nil {
+		slog.Error("model call journal", "process", processID, "err", err)
+	}
+}
+
+// blocked reports whether the owner still owes the agent an answer; a result produced meanwhile is
+// premature (a schema forces the agent to answer even when told to stop), so the process parks instead.
+func (r *Runner) blocked(ctx context.Context, processID int64) bool {
+	open, _ := r.st.Q.ListOpenAsksOfProcess(ctx, processID)
+	pending, _ := r.st.Q.ListUndeliveredAsks(ctx, processID)
+	return len(open) > 0 || len(pending) > 0
+}
+
+// park moves the process to waiting_answer, where its ceiling does not tick, and immediately delivers
+// answers that arrived while it was running.
+func (r *Runner) park(ctx context.Context, processID int64) {
+	var n int64
+	_ = r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		var err error
+		if n, err = q.ClaimProcess(ctx, db.ClaimProcessParams{ToState: StateWaitingAnswer, ID: processID, FromState: StateRunning}); err != nil || n == 0 {
+			return err
+		}
+		return q.PauseCeiling(ctx, db.PauseCeilingParams{Now: r.now().UnixMilli(), ID: processID})
+	})
+	if n == 0 {
+		return
+	}
+	r.bus.Publish("processes")
+	if err := r.Deliver(ctx, processID); err != nil {
+		r.finish(ctx, processID, StateError, "", false, "resume after answer: "+err.Error())
+	}
+}
+
+// waiting is the turn a process waiting for its provider runs once the provider is back.
+type waiting struct {
+	Message string  `json:"message,omitempty"`
+	Asks    []int64 `json:"asks,omitempty"`
+}
+
+// waitProvider holds a turn that did not start because its provider is not ready; the ceiling does not
+// run yet, since it starts with the turn.
+func (r *Runner) waitProvider(ctx context.Context, t turn) {
+	w, _ := json.Marshal(waiting{Message: t.message, Asks: t.asks})
+	var n int64
+	if r.stopFirst(ctx, t.process) {
+		return
+	}
+	_ = r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		var err error
+		n, err = q.WaitForProvider(ctx, db.WaitForProviderParams{Message: string(w), Fresh: b2i(!t.resume), ID: t.process})
+		return err
+	})
+	if n > 0 {
+		r.bus.Publish("processes")
+	}
+}
+
+// ProviderReady runs the held turns of every process that waits for the provider.
+func (r *Runner) ProviderReady(ctx context.Context, name string) {
+	ps, err := r.st.Q.ListWaitingForProvider(ctx, name)
+	if err != nil {
+		slog.Error("processes waiting for a provider", "provider", name, "err", err)
+		return
+	}
+	for _, p := range ps {
+		if ok, err := r.claim(ctx, p.ID, StateWaitingProvider); err != nil || !ok {
+			continue
+		}
+		var w waiting
+		_ = json.Unmarshal([]byte(p.WaitMessage), &w)
+		t, err := r.turnOf(ctx, p)
+		if err != nil {
+			r.finish(ctx, p.ID, StateError, "", false, err.Error())
+			continue
+		}
+		if p.WaitFresh == 0 {
+			t.resume, t.message, t.asks = true, w.Message, w.Asks
+			pending, _ := r.st.Q.ListUndeliveredAsks(ctx, p.ID)
+			var more []db.Ask
+			for _, a := range pending {
+				if !slices.Contains(w.Asks, a.ID) {
+					more = append(more, a)
+				}
+			}
+			if len(more) > 0 {
+				t.message = strings.TrimSpace(t.message + "\n" + deliveryMessage(more))
+				t.asks = append(t.asks, askIDs(more)...)
+			}
+		}
+		r.bus.Publish("processes")
+		r.spawn(t)
+	}
+}
+
+func nullFloat(f *float64) sql.NullFloat64 {
+	if f == nil {
+		return sql.NullFloat64{}
+	}
+	return sql.NullFloat64{Float64: *f, Valid: true}
+}

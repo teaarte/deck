@@ -31,6 +31,9 @@ func (r *Runner) Deliver(ctx context.Context, processID int64) error {
 		if a.Kind == ask.KindLogin {
 			return r.relogin(ctx, processID, a, pending)
 		}
+		if a.Kind == ask.KindLimit {
+			return r.continueAfterLimit(ctx, processID, a)
+		}
 	}
 	if ok, err := r.claim(ctx, processID, StateWaitingAnswer); err != nil || !ok {
 		return err
@@ -184,12 +187,13 @@ func (r *Runner) reap(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	reaper, _ := r.provider.(provider.Reaper)
 	for _, g := range groups {
 		if g.Kind == KindScript {
 			sandbox.Reap(int(g.Pgid), filepath.Join(r.cfg.RunsDir, fmt.Sprint(g.ID))+string(filepath.Separator))
-		} else if reaper != nil {
-			reaper.Reap(int(g.Pgid), g.SessionID)
+		} else if pv, err := r.providers.Named(ctx, g.ProjectID, g.Provider); err == nil {
+			if reaper, ok := pv.(provider.Reaper); ok {
+				reaper.Reap(int(g.Pgid), g.SessionID)
+			}
 		}
 		r.setGroup(ctx, g.ID, 0)
 	}
@@ -209,19 +213,11 @@ func (r *Runner) resume(ctx context.Context, processID int64, message string, as
 	if err != nil {
 		return err
 	}
-	if p.SessionID == "" {
-		return errors.New("process has no session to resume")
-	}
-	m, err := r.projects.ManifestAt(ctx, p.ProjectID, p.ManifestRevision)
+	t, err := r.turnOf(ctx, p)
 	if err != nil {
 		return err
 	}
-	cmd := m.Command(p.Command)
-	if cmd == nil {
-		return fmt.Errorf("command %q no longer exists", p.Command)
-	}
-	t := turn{process: processID, project: p.ProjectID, m: m, cmd: cmd, input: p.Input, session: p.SessionID,
-		resume: !fresh, message: message, asks: asks}
+	t.resume, t.message, t.asks = !fresh, message, asks
 	if fresh {
 		t.session, t.message = uuid.NewString(), ""
 		err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
@@ -234,6 +230,22 @@ func (r *Runner) resume(ctx context.Context, processID int64, message string, as
 	r.bus.Publish("processes")
 	r.spawn(t)
 	return nil
+}
+
+// turnOf is a fresh start of the session a process has, with the command of its manifest revision.
+func (r *Runner) turnOf(ctx context.Context, p db.Process) (turn, error) {
+	if p.SessionID == "" {
+		return turn{}, errors.New("process has no session to resume")
+	}
+	m, err := r.projects.ManifestAt(ctx, p.ProjectID, p.ManifestRevision)
+	if err != nil {
+		return turn{}, err
+	}
+	cmd := m.Command(p.Command)
+	if cmd == nil {
+		return turn{}, fmt.Errorf("command %q no longer exists", p.Command)
+	}
+	return turn{process: p.ID, project: p.ProjectID, m: m, cmd: cmd, input: p.Input, session: p.SessionID}, nil
 }
 
 // outcomeText tells an agent what a call deck made gave.

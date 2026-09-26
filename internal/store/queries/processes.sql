@@ -27,7 +27,7 @@ SELECT * FROM process WHERE state = ? ORDER BY id;
 -- name: FindActiveProcess :one
 SELECT * FROM process
 WHERE project_id = ? AND command = ? AND retry_key = ? AND retry_key != '' AND trial = ?
-  AND state IN ('running', 'waiting_answer', 'needs_login')
+  AND state IN ('running', 'waiting_answer', 'needs_login', 'rate_limited', 'waiting_provider')
 ORDER BY id LIMIT 1;
 
 
@@ -47,13 +47,13 @@ WHERE id = ? AND state = 'running';
 
 -- name: StopParkedProcess :execrows
 UPDATE process SET state = 'stopped', error = ?, finished_at = ?, deadline_ms = NULL, silent_since_ms = NULL
-WHERE id = ? AND state IN ('running', 'waiting_answer', 'needs_login');
+WHERE id = ? AND state IN ('running', 'waiting_answer', 'needs_login', 'rate_limited', 'waiting_provider');
 
 
 -- name: ReopenProcess :execrows
 UPDATE process
 SET state = 'running', error = '', finished_at = NULL, ceiling_ms = ?, deadline_ms = NULL, silent_since_ms = NULL,
-    start_note = ?
+    start_note = ?, pause_until_ms = NULL, pause_limit_ms = NULL
 WHERE id = ? AND state IN ('done', 'error', 'stopped', 'interrupted') AND session_id != '';
 
 
@@ -91,7 +91,7 @@ UPDATE process SET pgid = ? WHERE id = ?;
 
 
 -- name: ListProcessGroups :many
-SELECT id, pgid, session_id, kind FROM process WHERE pgid != 0;
+SELECT id, project_id, pgid, session_id, kind, provider FROM process WHERE pgid != 0;
 
 
 -- name: PurgeEmptyProcesses :many
@@ -145,3 +145,25 @@ UPDATE process SET session_id = ?, start_note = ? WHERE id = ?;
 SELECT state FROM process
 WHERE project_id = ? AND command = ? AND state IN ('done', 'error', 'stopped', 'interrupted')
 ORDER BY id DESC LIMIT 4;
+
+
+-- name: PauseProcess :execrows
+UPDATE process SET state = 'rate_limited', pause_until_ms = sqlc.arg(until_ms), pause_limit_ms = sqlc.arg(limit_ms)
+WHERE id = sqlc.arg(id) AND state = 'running';
+
+
+-- name: ListPausesDue :many
+SELECT * FROM process WHERE state = 'rate_limited' AND pause_until_ms <= CAST(sqlc.arg(now) AS INTEGER) ORDER BY id;
+
+
+-- name: EndPause :exec
+UPDATE process SET pause_until_ms = NULL, pause_limit_ms = NULL WHERE id = sqlc.arg(id);
+
+
+-- name: WaitForProvider :execrows
+UPDATE process SET state = 'waiting_provider', wait_message = sqlc.arg(message), wait_fresh = sqlc.arg(fresh)
+WHERE id = sqlc.arg(id) AND state = 'running';
+
+
+-- name: ListWaitingForProvider :many
+SELECT * FROM process WHERE state = 'waiting_provider' AND provider = sqlc.arg(provider) ORDER BY id;

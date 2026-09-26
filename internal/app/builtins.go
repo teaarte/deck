@@ -174,11 +174,28 @@ func (a *App) addBuiltins() {
 			registry.P("why", "string", "What the page showed")), registry.Typed(a.browserNeedsLogin))
 	add("oauth_start", "Sign in to a service", "Starts the owner's oauth2 sign-in for a tool in a window of deck's browser; it must finish within ten minutes.", ownerOnly,
 		registry.Params(registry.P("tool", "string", "The tool, as project.tool")), registry.Typed(a.oauthStart))
+	add("providers_list", "Providers", "Lists model providers with what they can do and their health; with a command, which fit it and which it runs on.", ownerSide,
+		registry.Params(registry.Opt("command", "string", "Agent command, project.command")), registry.Typed(a.providersList))
+	add("provider_set", "Choose provider", "Sets the provider an agent command runs on from its next start; empty goes back to the default.", ownerOnly,
+		registry.Params(registry.P("command", "string", "Agent command, project.command"),
+			registry.Opt("provider", "string", "Provider name; empty for the default")), registry.Typed(a.providerSet))
+	add("provider_add", "Add provider", "Adds or changes an OpenAI-compatible provider of this workspace, such as Ollama, OpenRouter or DeepSeek.", ownerOnly,
+		registry.Params(registry.P("name", "string", "Provider name: lowercase letters, digits and '-'"),
+			registry.P("url", "string", "Base URL of the OpenAI-compatible API, such as http://localhost:11434/v1"),
+			registry.P("model", "string", "Model name"), registry.Opt("key_secret", "string", "Name of the secret with the API key"),
+			registry.Opt("no_cloud", "boolean", "The model runs on the owner's own hardware")), registry.Typed(a.providerAdd))
+	add("provider_remove", "Remove provider", "Removes an OpenAI-compatible provider; commands set to it must get another.", ownerOnly,
+		registry.Params(registry.P("name", "string", "Provider name")), registry.Typed(a.providerRemove))
+	add("provider_check", "Check provider", "Runs the self-check of a provider's adapter again; its health shows the outcome.", ownerOnly,
+		registry.Params(registry.P("provider", "string", "Provider name")), registry.Typed(a.providerCheck))
+	add("llm_calls_list", "Model calls", "Lists model calls with their provider, model, tokens and duration, newest first.", everyone,
+		registry.Params(projectOpt, registry.Opt("process", "process", "Only calls of this process"),
+			registry.Opt("limit", "integer", "At most this many")), registry.Typed(a.llmCallsList))
 	add("asks_list", "Waiting for you", "Lists open questions and confirmations for the owner.", ownerSide,
 		registry.Params(), registry.Typed(a.asksList))
 	add("health_list", "Health", "Lists the health of providers and other dependencies with the last error.", ownerSide,
 		registry.Params(), registry.Typed(a.healthList))
-	add("ask_answer", "Answer", "Answers what waits for the owner: a question with text; a confirmation with allow, allow_always, deny or deny:<reason>; a login with retry or new_session; an unknown outcome with retry or done.", ownerOnly,
+	add("ask_answer", "Answer", "Answers what waits for the owner: a question with text; a confirmation with allow, allow_always, deny or deny:<reason>; a login with retry or new_session; an unknown outcome with retry or done; a stopped pause with continue.", ownerOnly,
 		registry.Params(registry.P("ask", "ask", "Ask id"), registry.P("answer", "text", "The answer")),
 		registry.Typed(a.askAnswer))
 }

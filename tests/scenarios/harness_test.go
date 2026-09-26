@@ -64,6 +64,10 @@ type Fake struct {
 
 func (f *Fake) Name() string { return "fake" }
 
+func (f *Fake) Caps() provider.Caps {
+	return provider.Caps{provider.Tools, provider.Sandbox, provider.Resume, provider.Intercept, provider.Images, provider.StructuredOutput}
+}
+
 func (f *Fake) QuestionTool() string {
 	if f.noQuestions {
 		return ""

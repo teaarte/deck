@@ -1,0 +1,34 @@
+{
+ "ollama_tool_calls.json": {
+  "server": "ollama 0.34.4",
+  "model": "qwen3:latest",
+  "date": "2026-09-26",
+  "kind": "real",
+  "status": 200,
+  "note": "records_upsert and result_submit called in one reply"
+ },
+ "ollama_final.json": {
+  "server": "ollama 0.34.4",
+  "model": "qwen3:latest",
+  "date": "2026-09-26",
+  "kind": "real",
+  "status": 200,
+  "note": "the reply after both tool results; prompt_tokens_details.cached_tokens set"
+ },
+ "ratelimit.json": {
+  "server": "openrouter",
+  "model": "deepseek/deepseek-chat",
+  "date": "2026-09-26",
+  "kind": "synthetic",
+  "status": 429,
+  "retry_after": "7200",
+  "note": "shape of an OpenRouter rate limit error"
+ },
+ "unauthorized.json": {
+  "server": "openrouter",
+  "model": "deepseek/deepseek-chat",
+  "date": "2026-09-26",
+  "kind": "synthetic",
+  "status": 401
+ }
+}

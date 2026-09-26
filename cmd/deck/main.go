@@ -72,6 +72,7 @@ func run() error {
 	if err := a.Reconcile(ctx); err != nil {
 		slog.Error("reconcile triggers", "err", err)
 	}
+	a.Checks(ctx, a.Cfg.Now())
 	if err := a.Runner.ResumeInterrupted(ctx); err != nil {
 		slog.Error("resume interrupted", "err", err)
 	}

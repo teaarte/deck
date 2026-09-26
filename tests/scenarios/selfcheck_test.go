@@ -1,0 +1,161 @@
+package scenarios
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"sync"
+
+	"deck2/internal/provider"
+	"os"
+	"path/filepath"
+	"slices"
+	"strings"
+	"testing"
+	"time"
+)
+
+// approving makes the fake CLI ask deck's permission tool about the self-check command, as the real one does.
+func (c *fakeCLI) approving() {
+	self, _ := os.Executable()
+	c.before(`if [ -n "$(grep -o 'deck-check-' "$c/stdin")" ]; then
+  url=$(sed -n 's/.*"url":"\([^"]*\)".*/\1/p' "$c/mcpconfig")
+  DECK_FAKE_MCP=approve '` + self + `' "$url" "echo $word > word.txt"
+fi`)
+}
+
+func (c *fakeCLI) before(script string) {
+	if err := os.WriteFile(filepath.Join(c.dir, "before"), []byte(script), 0o644); err != nil {
+		c.t.Fatal(err)
+	}
+}
+
+func (c *fakeCLI) version(v string) {
+	if err := os.WriteFile(filepath.Join(c.dir, "version"), []byte(v), 0o644); err != nil {
+		c.t.Fatal(err)
+	}
+}
+
+func clockCLIEnv(t *testing.T, c *fakeCLI) *Env {
+	home := t.TempDir()
+	clock := &Clock{now: t0}
+	e := newEnvWith(t, home, c.adapter(home), withClock(clock))
+	e.Clock = clock
+	return e
+}
+
+func TestFailedSelfCheckHoldsClaudeCodeProcesses(t *testing.T) {
+	c := newCLI(t)
+	c.stream(0, "ok.jsonl")
+	e := clockCLIEnv(t, c)
+	ctx := context.Background()
+	e.App.Checks(ctx, e.Clock.Now())
+	h := e.waitHealth("provider:claude-code", "error")
+	if h.Version != "2.1.281" || !strings.Contains(h.Error, "self-check of 2.1.281 failed") || !strings.Contains(h.Error, "output by schema") {
+		t.Fatalf("a failed self-check is red with the version and the reason: %+v", h)
+	}
+	p := e.createProject("plain", plainManifest)
+	id := e.run(p, "work")
+	e.waitState(id, "waiting_provider")
+	if n := c.calls(); n != 1 {
+		t.Fatalf("processes on Claude Code wait while the self-check is red: %d CLI calls", n)
+	}
+	c.stream(2, "selfcheck.jsonl")
+	c.stream(3, "selfcheck_resume.jsonl")
+	c.approving()
+	e.App.Checks(ctx, e.Clock.Add(10*time.Minute))
+	e.settle()
+	if n := c.calls(); n != 1 {
+		t.Fatalf("a red self-check is retried by its timer, not sooner: %d CLI calls", n)
+	}
+	e.App.Checks(ctx, e.Clock.Add(21*time.Minute))
+	if h := e.waitHealth("provider:claude-code", "ok"); h.Version != "2.1.281" {
+		t.Fatalf("the retried self-check is green: %+v", h)
+	}
+	if got := e.waitState(id, "done", "error"); got.State != "done" || c.calls() != 4 {
+		t.Fatalf("the waiting process runs once the self-check is green: %+v, %d calls", got, c.calls())
+	}
+	if !strings.Contains(c.call(2).stdin, "deck-check-") || !slices.Contains(c.call(3).args, "--resume") {
+		t.Fatalf("the self-check is a turn and a resume of its session: %v", c.call(3).args)
+	}
+	c.stream(5, "ok.jsonl")
+	c.version("2.1.282")
+	e.App.Checks(ctx, e.Clock.Add(10*time.Minute))
+	if h := e.waitHealth("provider:claude-code", "error"); h.Version != "2.1.282" {
+		t.Fatalf("a new version of the CLI is checked again: %+v", h)
+	}
+	c.stream(6, "selfcheck.jsonl")
+	c.stream(7, "selfcheck_resume.jsonl")
+	e.must("deck.provider_check", map[string]any{"provider": "claude-code"}, nil)
+	e.waitHealth("provider:claude-code", "ok")
+	if code, _ := e.call("deck.provider_check", map[string]any{"provider": "fake"}); code == 200 {
+		t.Fatal("only a provider with a self-check can be checked")
+	}
+}
+
+func TestSelfCheckHittingTheLimitIsAPauseNotABrokenAdapter(t *testing.T) {
+	for _, c := range []struct{ fixture, status string }{{"ratelimit_rejected.jsonl", "paused"}, {"nologin.jsonl", "needs_login"}} {
+		t.Run(c.status, func(t *testing.T) {
+			cli := newCLI(t)
+			cli.stream(1, c.fixture)
+			cli.stream(0, "ok.jsonl")
+			e := clockCLIEnv(t, cli)
+			e.App.Checks(context.Background(), e.Clock.Now())
+			e.waitHealth("provider:claude-code", c.status)
+			p := e.createProject("plain", plainManifest)
+			if got := e.waitState(e.run(p, "work"), "done", "error", "waiting_provider"); got.State != "done" {
+				t.Fatalf("a limit or a login is not a broken adapter, so processes do not wait for it: %+v", got)
+			}
+		})
+	}
+}
+
+// checkedFake is the fake provider with a self-check the test turns red or green.
+type checkedFake struct {
+	*Fake
+	mu  sync.Mutex
+	err error
+}
+
+func (c *checkedFake) Version(context.Context) (string, error) { return "1.0", nil }
+
+func (c *checkedFake) SelfCheck(context.Context) provider.Check {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return provider.Check{Version: "1.0", Err: c.err}
+}
+
+func (c *checkedFake) set(err error) {
+	c.mu.Lock()
+	c.err = err
+	c.mu.Unlock()
+}
+
+func TestAnswerWhileTheProviderIsRedWaitsAndThenResumes(t *testing.T) {
+	fake := &Fake{}
+	cf := &checkedFake{Fake: fake}
+	fake.script = func(ctx context.Context, c *Call) provider.Result {
+		if c.N == 1 {
+			c.Tool(ctx, "notes__post", map[string]any{"text": "hi"})
+		}
+		return provider.Result{Structured: json.RawMessage(`{"written": 1}`)}
+	}
+	clock := &Clock{now: t0}
+	e := newEnvWith(t, t.TempDir(), cf, withClock(clock))
+	e.Clock = clock
+	p := e.createProject("notes", strings.Replace(notesManifest, `"requires": ["no_cloud"],`, "", 1))
+	id := e.run(p, "collect")
+	e.waitState(id, "waiting_answer")
+	cf.set(errors.New("broken"))
+	e.App.Checks(context.Background(), e.Clock.Now())
+	e.waitHealth("provider:fake", "error")
+	e.answer(e.waitAsk().ID, "deny:not now")
+	e.waitState(id, "waiting_provider")
+	cf.set(nil)
+	e.must("deck.provider_check", map[string]any{"provider": "fake"}, nil)
+	got := e.waitState(id, "done", "error")
+	calls := fake.Calls()
+	if got.State != "done" || len(calls) != 2 || !calls[1].Resume || !strings.Contains(calls[1].Prompt, "not now") {
+		t.Fatalf("the held turn resumes the session with the owner's answer: %+v %+v", got, calls)
+	}
+}

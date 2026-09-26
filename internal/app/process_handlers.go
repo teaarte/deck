@@ -35,6 +35,10 @@ type processView struct {
 	Empty       bool   `json:"empty,omitempty"`
 	SilentSince string `json:"silent_since,omitempty"`
 	Deadline    string `json:"deadline,omitempty"`
+	Provider    string `json:"provider,omitempty"`
+	// PausedUntil is the next try of a process paused on a usage limit; PauseEnds is when it stops instead.
+	PausedUntil string `json:"paused_until,omitempty"`
+	PauseEnds   string `json:"pause_ends,omitempty"`
 }
 
 func msTime(v sql.NullInt64) string {
@@ -48,7 +52,10 @@ func procView(p db.Process) processView {
 	v := processView{ID: p.ID, Project: p.ProjectID, Command: p.Command, Kind: p.Kind, State: p.State, NotBySchema: p.NotBySchema == 1, Trial: p.Trial == 1,
 		Error: p.Error, StartedAt: p.StartedAt, FinishedAt: p.FinishedAt.String, Parent: p.ParentID.Int64, Depth: p.Depth,
 		Trigger: p.TriggerID.Int64, RetryKey: p.RetryKey, Empty: p.State == process.StateDone && p.Result == process.Empty,
-		SilentSince: msTime(p.SilentSinceMs), Deadline: msTime(p.DeadlineMs)}
+		SilentSince: msTime(p.SilentSinceMs), Deadline: msTime(p.DeadlineMs), Provider: p.Provider}
+	if p.State == process.StateRateLimited {
+		v.PausedUntil, v.PauseEnds = msTime(p.PauseUntilMs), msTime(p.PauseLimitMs)
+	}
 	if p.Result != "" {
 		if json.Valid([]byte(p.Result)) {
 			v.Result = json.RawMessage(p.Result)

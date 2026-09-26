@@ -39,6 +39,8 @@ type Session struct {
 	// Token is set for an automation token: the caller acts as the master, limited to Commands.
 	Token    int64
 	Commands []string
+	// Submit is set when the process hands in its result with result_submit.
+	Submit *Submit
 }
 
 func (s *Session) actor() registry.Actor {
@@ -192,6 +194,15 @@ func (g *Gateway) newServer(ctx context.Context, tok string, s *Session) (*mcp.S
 		return g.approve(ctx, s, req.Params.Arguments)
 	})
 	allowed, tools, err := g.addCommands(ctx, srv, s, func() bool { return g.alive(tok) })
+	if s.Submit != nil {
+		srv.AddTool(s.Submit.tool(), func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			if !g.alive(tok) {
+				return gone, nil
+			}
+			return s.Submit.handle(ctx, req)
+		})
+		allowed, tools = append(allowed, qualified(SubmitTool)), append(tools, SubmitTool)
+	}
 	return srv, allowed, tools, err
 }
 

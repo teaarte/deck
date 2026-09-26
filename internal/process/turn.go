@@ -2,7 +2,6 @@ package process
 
 import (
 	"context"
-	"deck2/internal/ask"
 	"deck2/internal/gateway"
 	"deck2/internal/manifest"
 	"deck2/internal/provider"
@@ -13,7 +12,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
+	"slices"
 )
 
 // turn is one provider session run of a process: a fresh start or a resume of its session.
@@ -27,6 +26,7 @@ type turn struct {
 	// message is the resume message; a fresh start builds its prompt from the command and the start note.
 	message string
 	asks    []int64
+	pv      provider.Provider
 }
 
 func (r *Runner) run(ctx context.Context, t turn) {
@@ -45,6 +45,16 @@ func (r *Runner) run(ctx context.Context, t turn) {
 		r.runTool(ctx, t, trial)
 		return
 	}
+	pv, err := r.providers.Named(bg, t.project, p.Provider)
+	if err != nil {
+		r.finish(bg, processID, StateError, "", false, err.Error())
+		return
+	}
+	if !r.providers.Ready(bg, pv.Name()) {
+		r.waitProvider(bg, t)
+		return
+	}
+	t.pv = pv
 	dir := filepath.Join(r.cfg.RunsDir, fmt.Sprint(processID))
 	work := filepath.Join(dir, "work")
 	if err := errors.Join(os.MkdirAll(work, 0o700), os.MkdirAll(filepath.Join(dir, "results"), 0o700)); err != nil {
@@ -57,7 +67,11 @@ func (r *Runner) run(ctx context.Context, t turn) {
 		return
 	}
 	r.projects.Servers(bg, t.project)
-	tok, err := r.gw.Register(bg, &gateway.Session{ProcessID: processID, ProjectID: t.project, Workspace: proj.WorkspaceID, Trial: trial})
+	var sub *gateway.Submit
+	if len(t.cmd.Result) > 0 && !slices.Contains(pv.Caps(), provider.StructuredOutput) {
+		sub = &gateway.Submit{Schema: t.cmd.Result, Validate: func(raw json.RawMessage) error { return validate(t.cmd, raw) }}
+	}
+	tok, err := r.gw.Register(bg, &gateway.Session{ProcessID: processID, ProjectID: t.project, Workspace: proj.WorkspaceID, Trial: trial, Submit: sub})
 	if err != nil {
 		r.finish(bg, processID, StateError, "", false, err.Error())
 		return
@@ -80,6 +94,10 @@ func (r *Runner) run(ctx context.Context, t turn) {
 		SessionID: t.session, Resume: t.resume, Hidden: r.cfg.Hidden,
 		OnStart: func(pid int) { r.setGroup(bg, processID, pid) },
 		OnEvent: func(e provider.Event) { r.event(bg, processID, stream, e) },
+		OnUsage: func(u provider.Usage) { r.usage(bg, processID, pv.Name(), u) },
+	}
+	if sub != nil {
+		req.ResultSchema = nil
 	}
 	if req.Skills, err = r.projects.Skills(bg, t.project, t.cmd.Executor.Skills); err != nil {
 		r.finish(bg, processID, StateError, "", false, err.Error())
@@ -97,7 +115,7 @@ func (r *Runner) run(ctx context.Context, t turn) {
 	}
 	asks := t.asks
 	for retried := false; ; {
-		res, err := r.provider.Run(ctx, req)
+		res, err := pv.Run(ctx, req)
 		r.setGroup(bg, processID, 0)
 		if ctx.Err() != nil {
 			var stop stopCause
@@ -122,37 +140,42 @@ func (r *Runner) run(ctx context.Context, t turn) {
 					return err
 				}
 			}
+			if err == nil && !res.RateLimited {
+				return q.EndPause(ctx, processID)
+			}
 			return nil
 		})
 		asks = nil
-		if err == nil && !res.NeedsLogin {
-			r.health(bg, "ok", "")
+		r.providerHealth(bg, pv, res, err)
+		settled := err == nil && !res.NeedsLogin && !res.RateLimited && !res.IsError
+		if sub != nil && settled {
+			var handed, spent bool
+			res.Structured, handed, spent = sub.Result()
+			retried = retried || spent
+			if !handed {
+				res.Structured = nil
+			}
 		}
 		verr := error(nil)
-		blocked := err == nil && !res.NeedsLogin && !res.IsError && r.blocked(bg, processID)
-		if err == nil && !res.NeedsLogin && !res.IsError && !blocked {
+		blocked := settled && r.blocked(bg, processID)
+		if settled && !blocked {
 			verr = validate(t.cmd, res.Structured)
 		}
 		if (verr == nil || retried) && r.stopFirst(bg, processID) {
 			return
 		}
-		if err != nil {
+		switch {
+		case err != nil:
 			r.finish(bg, processID, StateError, "", false, err.Error())
-			return
-		}
-		if res.NeedsLogin {
-			r.needLogin(bg, processID, res.Text)
-			return
-		}
-		if res.IsError {
+		case res.RateLimited:
+			r.pause(bg, pv, processID, res.ResetsAt, res.Text)
+		case res.NeedsLogin:
+			r.needLogin(bg, pv, processID, res.Text)
+		case res.IsError:
 			r.finish(bg, processID, StateError, res.Text, false, "provider reported an error: "+res.Text)
-			return
-		}
-		if blocked {
+		case blocked:
 			r.park(bg, processID)
-			return
-		}
-		if verr == nil {
+		case verr == nil:
 			result := res.Text
 			if len(t.cmd.Result) > 0 {
 				result = string(res.Structured)
@@ -162,20 +185,25 @@ func (r *Runner) run(ctx context.Context, t turn) {
 				}
 			}
 			r.finish(bg, processID, StateDone, result, false, "")
-			return
-		}
-		if retried {
+		case retried:
 			raw := string(res.Structured)
 			if raw == "" {
 				raw = res.Text
 			}
 			r.finish(bg, processID, StateDone, raw, true, "")
-			return
+		default:
+			retried = true
+			req.Resume = true
+			req.Prompt = "Your final JSON did not match the result schema: " + verr.Error() +
+				"\nDo not redo the work. Send only the corrected JSON."
+			if sub != nil {
+				sub.Spend()
+				req.Prompt = "You ended your turn without handing in the result with the result_submit tool: " + verr.Error() +
+					"\nDo not redo the work. Call result_submit with only the JSON result."
+			}
+			continue
 		}
-		retried = true
-		req.Resume = true
-		req.Prompt = "Your final JSON did not match the result schema: " + verr.Error() +
-			"\nDo not redo the work. Send only the corrected JSON."
+		return
 	}
 }
 
@@ -222,78 +250,11 @@ func (r *Runner) firstPrompt(ctx context.Context, proj db.Project, t turn, tools
 	if err != nil {
 		return "", err
 	}
-	p := buildPrompt(proj.Name, instructions, body, t.m, t.cmd, t.input, tools, r.provider.QuestionTool())
+	p := buildPrompt(proj.Name, instructions, body, t.m, t.cmd, t.input, tools, t.pv.QuestionTool())
 	if proc.StartNote != "" {
 		p += "\n" + proc.StartNote + "\n"
 	}
 	return p, nil
-}
-
-// needLogin parks the process until the owner logs the provider in again and picks how to continue.
-func (r *Runner) needLogin(ctx context.Context, processID int64, text string) {
-	payload, _ := json.Marshal(map[string]any{"answers": ask.LoginAnswers})
-	msg := fmt.Sprintf("%s needs a login: %s. Log in again in a terminal, then retry this session or start a new one with a report of what was done.",
-		r.provider.Name(), strings.TrimSpace(text))
-	var n int64
-	err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		var err error
-		if n, err = q.ClaimProcess(ctx, db.ClaimProcessParams{ToState: StateNeedsLogin, ID: processID, FromState: StateRunning}); err != nil || n == 0 {
-			return err
-		}
-		if err := q.PauseCeiling(ctx, db.PauseCeilingParams{Now: r.now().UnixMilli(), ID: processID}); err != nil {
-			return err
-		}
-		if _, err := q.CreateAsk(ctx, db.CreateAskParams{ProcessID: processID, Kind: ask.KindLogin, Text: msg, Payload: string(payload)}); err != nil {
-			return err
-		}
-		return q.SetHealth(ctx, db.SetHealthParams{Subject: r.healthSubject(), Status: "needs_login", Error: text})
-	})
-	if err != nil {
-		r.finish(ctx, processID, StateError, "", false, "needs login: "+text)
-		return
-	}
-	if n == 0 {
-		return
-	}
-	r.bus.Publish("processes")
-	r.bus.Publish("asks")
-	r.bus.Publish("health")
-}
-
-func (r *Runner) healthSubject() string { return "provider:" + r.provider.Name() }
-
-func (r *Runner) health(ctx context.Context, status, text string) {
-	_ = r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		return q.SetHealth(ctx, db.SetHealthParams{Subject: r.healthSubject(), Status: status, Error: text})
-	})
-}
-
-// blocked reports whether the owner still owes the agent an answer; a result produced meanwhile is
-// premature (a schema forces the agent to answer even when told to stop), so the process parks instead.
-func (r *Runner) blocked(ctx context.Context, processID int64) bool {
-	open, _ := r.st.Q.ListOpenAsksOfProcess(ctx, processID)
-	pending, _ := r.st.Q.ListUndeliveredAsks(ctx, processID)
-	return len(open) > 0 || len(pending) > 0
-}
-
-// park moves the process to waiting_answer, where its ceiling does not tick, and immediately delivers
-// answers that arrived while it was running.
-func (r *Runner) park(ctx context.Context, processID int64) {
-	var n int64
-	_ = r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		var err error
-		if n, err = q.ClaimProcess(ctx, db.ClaimProcessParams{ToState: StateWaitingAnswer, ID: processID, FromState: StateRunning}); err != nil || n == 0 {
-			return err
-		}
-		return q.PauseCeiling(ctx, db.PauseCeilingParams{Now: r.now().UnixMilli(), ID: processID})
-	})
-	if n == 0 {
-		return
-	}
-	r.bus.Publish("processes")
-	if err := r.Deliver(ctx, processID); err != nil {
-		r.finish(ctx, processID, StateError, "", false, "resume after answer: "+err.Error())
-	}
 }
 
 // validate checks structured output against the result schema; an empty result (null) always fits.

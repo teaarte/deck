@@ -1,0 +1,172 @@
+package app
+
+import (
+	"context"
+	"database/sql"
+	"encoding/json"
+	"errors"
+	"path/filepath"
+	"slices"
+	"strings"
+
+	"deck2/internal/manifest"
+	"deck2/internal/process"
+	"deck2/internal/provider"
+	"deck2/internal/provider/openai"
+	"deck2/internal/registry"
+	"deck2/internal/store/db"
+)
+
+const (
+	placePrefix    = "place:"
+	providerPrefix = "provider:"
+)
+
+// providerDef is an OpenAI-compatible provider the owner added to a workspace.
+type providerDef struct {
+	URL       string `json:"url"`
+	Model     string `json:"model"`
+	KeySecret string `json:"key_secret,omitempty"`
+	NoCloud   bool   `json:"no_cloud,omitempty"`
+}
+
+func (a *App) workspaceOf(ctx context.Context, projectID int64) (db.Project, error) {
+	return a.Store.Q.GetProject(ctx, projectID)
+}
+
+// Named is the provider of a workspace by name: the main one of deck or one the owner added.
+func (a *App) Named(ctx context.Context, projectID int64, name string) (provider.Provider, error) {
+	p, err := a.workspaceOf(ctx, projectID)
+	if err != nil {
+		return nil, err
+	}
+	return a.provider(ctx, p.WorkspaceID, name)
+}
+
+func (a *App) provider(ctx context.Context, workspace int64, name string) (provider.Provider, error) {
+	if name == a.main.Name() {
+		return a.main, nil
+	}
+	raw, err := a.Store.Q.GetSetting(ctx, db.GetSettingParams{WorkspaceID: workspace, Key: providerPrefix + name})
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, registry.NotFound("deck: no provider %q; add it with deck.provider_add", name)
+	}
+	if err != nil {
+		return nil, err
+	}
+	var d providerDef
+	if err := json.Unmarshal([]byte(raw), &d); err != nil {
+		return nil, err
+	}
+	return openai.New(openai.Config{Name: name, URL: d.URL, Model: d.Model, NoCloud: d.NoCloud, Now: a.Cfg.Now,
+		Sessions: filepath.Join(a.Cfg.Home, "sessions"), Key: func() (string, error) {
+			if d.KeySecret == "" {
+				return "", nil
+			}
+			return a.Secret(workspace, d.KeySecret)
+		}}), nil
+}
+
+// providers lists every provider of a workspace, the main one first.
+func (a *App) providers(ctx context.Context, workspace int64) ([]provider.Provider, error) {
+	rows, err := a.Store.Q.ListSettings(ctx, db.ListSettingsParams{WorkspaceID: workspace, Prefix: providerPrefix})
+	if err != nil {
+		return nil, err
+	}
+	out := []provider.Provider{a.main}
+	for _, r := range rows {
+		if pv, err := a.provider(ctx, workspace, strings.TrimPrefix(r.Key, providerPrefix)); err == nil {
+			out = append(out, pv)
+		}
+	}
+	return out, nil
+}
+
+// For picks the provider a command starts on: the owner's setting, else the suggestion of the manifest,
+// else the main provider, else any that fits. A setting that no longer fits refuses the start.
+func (a *App) For(ctx context.Context, projectID int64, cmd *manifest.Command) (provider.Provider, error) {
+	p, err := a.workspaceOf(ctx, projectID)
+	if err != nil {
+		return nil, err
+	}
+	place := p.Name + "." + cmd.Name
+	chosen, err := a.Store.Q.GetSetting(ctx, db.GetSettingParams{WorkspaceID: p.WorkspaceID, Key: placePrefix + place})
+	if err == nil {
+		pv, err := a.provider(ctx, p.WorkspaceID, chosen)
+		if err != nil {
+			return nil, registry.Invalid("deck: %s is set to provider %q, which is gone; pick another with deck.provider_set", place, chosen)
+		}
+		if missing := pv.Caps().Missing(cmd.Requires); len(missing) > 0 {
+			return nil, registry.Invalid("deck: provider %s set for %s lacks %s; pick another with deck.provider_set", chosen, place, strings.Join(missing, ", "))
+		}
+		return pv, nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return nil, err
+	}
+	all, err := a.providers(ctx, p.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	if i := slices.IndexFunc(all, func(pv provider.Provider) bool { return pv.Name() == cmd.Provider }); i > 0 {
+		suggested := all[i]
+		all = append([]provider.Provider{suggested}, slices.Delete(all, i, i+1)...)
+	}
+	for _, pv := range all {
+		if len(pv.Caps().Missing(cmd.Requires)) == 0 {
+			return pv, nil
+		}
+	}
+	return nil, registry.Invalid("deck: no provider fits %s, which requires %s; add one with deck.provider_add", place, strings.Join(cmd.Requires, ", "))
+}
+
+// Ready holds turns on the main provider while its self-check runs after a change of version or is red.
+func (a *App) Ready(ctx context.Context, name string) bool {
+	if _, ok := a.main.(provider.SelfChecker); !ok || name != a.main.Name() {
+		return true
+	}
+	h, err := a.Store.Q.GetHealth(ctx, process.HealthSubject(name))
+	return err != nil || h.Status != "checking" && h.Status != "error"
+}
+
+// agentCommand finds an agent command of the workspace by its place, project.command.
+func (a *App) agentCommand(ctx context.Context, workspace int64, place string) (*manifest.Command, error) {
+	name, command, _ := strings.Cut(place, ".")
+	p, err := a.Store.Q.GetProjectByName(ctx, name)
+	if err != nil || p.WorkspaceID != workspace {
+		return nil, registry.NotFound("deck: no project %q", name)
+	}
+	m, err := loadManifest(ctx, a.Store.Q, p)
+	if err != nil {
+		return nil, err
+	}
+	cmd := m.Command(command)
+	if cmd == nil || cmd.Executor.Type != process.KindAgent {
+		return nil, registry.Invalid("deck: %s is not an agent command; only agent commands call a model", place)
+	}
+	return cmd, nil
+}
+
+func (a *App) setPlace(ctx context.Context, workspace int64, place, name string) error {
+	return a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		if name == "" {
+			_, err := q.DeleteSetting(ctx, db.DeleteSettingParams{WorkspaceID: workspace, Key: placePrefix + place})
+			return err
+		}
+		return q.SetSetting(ctx, db.SetSettingParams{WorkspaceID: workspace, Key: placePrefix + place, Value: name})
+	})
+}
+
+func checkDef(name string, d providerDef, main string) error {
+	switch {
+	case !projectName.MatchString(name) || name == main:
+		return registry.Invalid("deck: provider name %q: lowercase letters, digits and '-', not %s", name, main)
+	case !strings.HasPrefix(d.URL, "http://") && !strings.HasPrefix(d.URL, "https://"):
+		return registry.Invalid("deck: provider url must be http or https, got %q", d.URL)
+	case strings.TrimSpace(d.Model) == "":
+		return registry.Invalid("deck: provider needs a model")
+	case d.KeySecret != "" && !secretName.MatchString(d.KeySecret):
+		return registry.Invalid("deck: bad secret name %q", d.KeySecret)
+	}
+	return nil
+}

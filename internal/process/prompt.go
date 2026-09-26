@@ -29,7 +29,10 @@ func buildPrompt(project, instructions, body string, m *manifest.Manifest, cmd *
 			fmt.Fprintf(&b, "- %s: %s. Record JSON schema: %s\n", c.Name, c.Description, string(c.Schema))
 		}
 	}
-	if len(cmd.Result) > 0 {
+	if slices.Contains(tools, "result_submit") {
+		b.WriteString("\nHand in the final result by calling the result_submit tool of the deck MCP server once, then end your turn." +
+			" When there is nothing to do, hand in null.\n")
+	} else if len(cmd.Result) > 0 {
 		b.WriteString("\nWhen there is nothing to do, the result is null.\n")
 	}
 	if questionTool != "" {

@@ -1,0 +1,137 @@
+package process
+
+import (
+	"context"
+	"database/sql"
+	"deck2/internal/ask"
+	"deck2/internal/provider"
+	"deck2/internal/store"
+	"deck2/internal/store/db"
+	"encoding/json"
+	"fmt"
+	"log/slog"
+	"strings"
+	"time"
+)
+
+// pause holds a process its provider refused on a usage limit until the limit resets, or for a probe an hour
+// on when no reset time came. The end of the pause is set by the first refusal only; the ceiling stands still.
+func (r *Runner) pause(ctx context.Context, pv provider.Provider, processID int64, resetsAt int64, text string) {
+	now := r.now()
+	var n int64
+	var until time.Time
+	err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		p, err := q.GetProcess(ctx, processID)
+		if err != nil {
+			return err
+		}
+		limit := now.Add(r.cfg.PauseLimit).UnixMilli()
+		if p.PauseLimitMs.Valid {
+			limit = p.PauseLimitMs.Int64
+		}
+		next := now.Add(r.cfg.PauseProbe).UnixMilli()
+		if reset := resetsAt * 1000; reset > now.UnixMilli() {
+			next = reset
+		}
+		next = min(next, limit)
+		until = time.UnixMilli(next)
+		if n, err = q.PauseProcess(ctx, db.PauseProcessParams{UntilMs: ms(next), LimitMs: ms(limit), ID: processID}); err != nil || n == 0 {
+			return err
+		}
+		if err := q.PauseCeiling(ctx, db.PauseCeilingParams{Now: now.UnixMilli(), ID: processID}); err != nil {
+			return err
+		}
+		why := fmt.Sprintf("usage limit reached; next try at %s: %s", store.Time(until), truncate(strings.TrimSpace(text), 500))
+		return q.SetHealth(ctx, db.SetHealthParams{Subject: HealthSubject(pv.Name()), Status: "paused", Error: why})
+	})
+	if err != nil {
+		r.finish(ctx, processID, StateError, "", false, "pause on the usage limit: "+err.Error())
+		return
+	}
+	if n > 0 {
+		r.bus.Publish("processes")
+		r.bus.Publish("health")
+	}
+}
+
+// Unpause tries again every paused process whose next try is due, in the same session; a pause past its end
+// stops the process and offers the owner to continue it.
+func (r *Runner) Unpause(ctx context.Context, now time.Time) {
+	ps, err := r.st.Q.ListPausesDue(ctx, now.UnixMilli())
+	if err != nil {
+		slog.Error("paused processes", "err", err)
+		return
+	}
+	for _, p := range ps {
+		if now.UnixMilli() >= p.PauseLimitMs.Int64 {
+			r.pauseEnded(ctx, p)
+			continue
+		}
+		if ok, err := r.claim(ctx, p.ID, StateRateLimited); err != nil || !ok {
+			continue
+		}
+		msg := "deck: the provider's usage limit should have reset. Continue where you stopped."
+		pending, _ := r.st.Q.ListUndeliveredAsks(ctx, p.ID)
+		if len(pending) > 0 {
+			msg += "\n" + deliveryMessage(pending)
+		}
+		if err := r.resume(ctx, p.ID, msg, askIDs(pending), false); err != nil {
+			r.finish(ctx, p.ID, StateError, "", false, "resume after the usage limit: "+err.Error())
+		}
+	}
+}
+
+func (r *Runner) pauseEnded(ctx context.Context, p db.Process) {
+	payload, _ := json.Marshal(map[string]any{"answers": []string{ask.LimitContinue}})
+	proj, err := r.st.Q.GetProject(ctx, p.ProjectID)
+	if err != nil {
+		slog.Error("end of a pause", "process", p.ID, "err", err)
+		return
+	}
+	text := fmt.Sprintf("%s.%s was stopped: the usage limit of %s did not reset within the pause limit. Continue it once the limit is back.",
+		proj.Name, p.Command, p.Provider)
+	var n int64
+	var closedCalls []db.Ask
+	err = r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		var err error
+		if n, err = q.StopParkedProcess(ctx, db.StopParkedProcessParams{Error: "deck: the pause on the usage limit ran out",
+			FinishedAt: r.stamp(), ID: p.ID}); err != nil || n == 0 {
+			return err
+		}
+		if closedCalls, err = q.CloseOpenAsksOfProcess(ctx, db.CloseOpenAsksOfProcessParams{ProcessID: p.ID, CallsToo: 1}); err != nil {
+			return err
+		}
+		_, err = q.CreateAsk(ctx, db.CreateAskParams{ProcessID: p.ID, Kind: ask.KindLimit, Text: text, Payload: string(payload)})
+		return err
+	})
+	if err != nil {
+		slog.Error("end of a pause", "process", p.ID, "err", err)
+		return
+	}
+	if n > 0 {
+		r.dropped(ctx, closedCalls)
+		r.closed(p.ID)
+	}
+}
+
+// continueAfterLimit reopens a process whose pause ran out, on the owner's word, with what was left of its
+// ceiling and a new pause limit.
+func (r *Runner) continueAfterLimit(ctx context.Context, processID int64, a db.Ask) error {
+	p, err := r.st.Q.GetProcess(ctx, processID)
+	if err != nil {
+		return err
+	}
+	var n int64
+	err = r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		if n, err = q.ReopenProcess(ctx, db.ReopenProcessParams{CeilingMs: p.CeilingMs, StartNote: p.StartNote, ID: processID}); err != nil || n == 0 {
+			return err
+		}
+		return q.MarkAskDelivered(ctx, a.ID)
+	})
+	if err != nil || n == 0 {
+		return err
+	}
+	return r.resume(ctx, processID, "deck: the owner asks you to continue after the usage limit. Continue where you stopped.", nil, false)
+}
+
+func ms(v int64) sql.NullInt64 { return sql.NullInt64{Int64: v, Valid: true} }

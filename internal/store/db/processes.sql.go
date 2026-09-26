@@ -74,7 +74,7 @@ func (q *Queries) CountUnknownCalls(ctx context.Context, arg CountUnknownCallsPa
 const createProcess = `-- name: CreateProcess :one
 INSERT INTO process (project_id, command, kind, state, provider, input, session_id, parent_id, depth, trigger_id, retry_key, ceiling_ms,
     manifest_revision, trial)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, kind, manifest_revision, trial
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, kind, manifest_revision, trial, pause_until_ms, pause_limit_ms, wait_message, wait_fresh
 `
 
 type CreateProcessParams struct {
@@ -138,14 +138,27 @@ func (q *Queries) CreateProcess(ctx context.Context, arg CreateProcessParams) (P
 		&i.Kind,
 		&i.ManifestRevision,
 		&i.Trial,
+		&i.PauseUntilMs,
+		&i.PauseLimitMs,
+		&i.WaitMessage,
+		&i.WaitFresh,
 	)
 	return i, err
 }
 
+const endPause = `-- name: EndPause :exec
+UPDATE process SET pause_until_ms = NULL, pause_limit_ms = NULL WHERE id = ?1
+`
+
+func (q *Queries) EndPause(ctx context.Context, id int64) error {
+	_, err := q.db.ExecContext(ctx, endPause, id)
+	return err
+}
+
 const findActiveProcess = `-- name: FindActiveProcess :one
-SELECT id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, kind, manifest_revision, trial FROM process
+SELECT id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, kind, manifest_revision, trial, pause_until_ms, pause_limit_ms, wait_message, wait_fresh FROM process
 WHERE project_id = ? AND command = ? AND retry_key = ? AND retry_key != '' AND trial = ?
-  AND state IN ('running', 'waiting_answer', 'needs_login')
+  AND state IN ('running', 'waiting_answer', 'needs_login', 'rate_limited', 'waiting_provider')
 ORDER BY id LIMIT 1
 `
 
@@ -190,6 +203,10 @@ func (q *Queries) FindActiveProcess(ctx context.Context, arg FindActiveProcessPa
 		&i.Kind,
 		&i.ManifestRevision,
 		&i.Trial,
+		&i.PauseUntilMs,
+		&i.PauseLimitMs,
+		&i.WaitMessage,
+		&i.WaitFresh,
 	)
 	return i, err
 }
@@ -249,7 +266,7 @@ func (q *Queries) FinishToolCall(ctx context.Context, arg FinishToolCallParams) 
 }
 
 const getProcess = `-- name: GetProcess :one
-SELECT id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, kind, manifest_revision, trial FROM process WHERE id = ?
+SELECT id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, kind, manifest_revision, trial, pause_until_ms, pause_limit_ms, wait_message, wait_fresh FROM process WHERE id = ?
 `
 
 func (q *Queries) GetProcess(ctx context.Context, id int64) (Process, error) {
@@ -281,6 +298,10 @@ func (q *Queries) GetProcess(ctx context.Context, id int64) (Process, error) {
 		&i.Kind,
 		&i.ManifestRevision,
 		&i.Trial,
+		&i.PauseUntilMs,
+		&i.PauseLimitMs,
+		&i.WaitMessage,
+		&i.WaitFresh,
 	)
 	return i, err
 }
@@ -336,15 +357,74 @@ func (q *Queries) ListCeilingReached(ctx context.Context, now int64) ([]int64, e
 	return items, nil
 }
 
+const listPausesDue = `-- name: ListPausesDue :many
+SELECT id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, kind, manifest_revision, trial, pause_until_ms, pause_limit_ms, wait_message, wait_fresh FROM process WHERE state = 'rate_limited' AND pause_until_ms <= CAST(?1 AS INTEGER) ORDER BY id
+`
+
+func (q *Queries) ListPausesDue(ctx context.Context, now int64) ([]Process, error) {
+	rows, err := q.db.QueryContext(ctx, listPausesDue, now)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Process
+	for rows.Next() {
+		var i Process
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProjectID,
+			&i.Command,
+			&i.State,
+			&i.Provider,
+			&i.SessionID,
+			&i.Input,
+			&i.Result,
+			&i.NotBySchema,
+			&i.Error,
+			&i.StartedAt,
+			&i.FinishedAt,
+			&i.StartNote,
+			&i.ParentID,
+			&i.Depth,
+			&i.TriggerID,
+			&i.RetryKey,
+			&i.Pgid,
+			&i.CeilingMs,
+			&i.DeadlineMs,
+			&i.OutputMs,
+			&i.SilentSinceMs,
+			&i.Kind,
+			&i.ManifestRevision,
+			&i.Trial,
+			&i.PauseUntilMs,
+			&i.PauseLimitMs,
+			&i.WaitMessage,
+			&i.WaitFresh,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listProcessGroups = `-- name: ListProcessGroups :many
-SELECT id, pgid, session_id, kind FROM process WHERE pgid != 0
+SELECT id, project_id, pgid, session_id, kind, provider FROM process WHERE pgid != 0
 `
 
 type ListProcessGroupsRow struct {
 	ID        int64
+	ProjectID int64
 	Pgid      int64
 	SessionID string
 	Kind      string
+	Provider  string
 }
 
 func (q *Queries) ListProcessGroups(ctx context.Context) ([]ListProcessGroupsRow, error) {
@@ -358,9 +438,11 @@ func (q *Queries) ListProcessGroups(ctx context.Context) ([]ListProcessGroupsRow
 		var i ListProcessGroupsRow
 		if err := rows.Scan(
 			&i.ID,
+			&i.ProjectID,
 			&i.Pgid,
 			&i.SessionID,
 			&i.Kind,
+			&i.Provider,
 		); err != nil {
 			return nil, err
 		}
@@ -376,7 +458,7 @@ func (q *Queries) ListProcessGroups(ctx context.Context) ([]ListProcessGroupsRow
 }
 
 const listProcesses = `-- name: ListProcesses :many
-SELECT id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, kind, manifest_revision, trial FROM process ORDER BY id DESC LIMIT ?
+SELECT id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, kind, manifest_revision, trial, pause_until_ms, pause_limit_ms, wait_message, wait_fresh FROM process ORDER BY id DESC LIMIT ?
 `
 
 func (q *Queries) ListProcesses(ctx context.Context, limit int64) ([]Process, error) {
@@ -414,6 +496,10 @@ func (q *Queries) ListProcesses(ctx context.Context, limit int64) ([]Process, er
 			&i.Kind,
 			&i.ManifestRevision,
 			&i.Trial,
+			&i.PauseUntilMs,
+			&i.PauseLimitMs,
+			&i.WaitMessage,
+			&i.WaitFresh,
 		); err != nil {
 			return nil, err
 		}
@@ -429,7 +515,7 @@ func (q *Queries) ListProcesses(ctx context.Context, limit int64) ([]Process, er
 }
 
 const listProcessesByState = `-- name: ListProcessesByState :many
-SELECT id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, kind, manifest_revision, trial FROM process WHERE state = ? ORDER BY id
+SELECT id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, kind, manifest_revision, trial, pause_until_ms, pause_limit_ms, wait_message, wait_fresh FROM process WHERE state = ? ORDER BY id
 `
 
 func (q *Queries) ListProcessesByState(ctx context.Context, state string) ([]Process, error) {
@@ -467,6 +553,10 @@ func (q *Queries) ListProcessesByState(ctx context.Context, state string) ([]Pro
 			&i.Kind,
 			&i.ManifestRevision,
 			&i.Trial,
+			&i.PauseUntilMs,
+			&i.PauseLimitMs,
+			&i.WaitMessage,
+			&i.WaitFresh,
 		); err != nil {
 			return nil, err
 		}
@@ -482,7 +572,7 @@ func (q *Queries) ListProcessesByState(ctx context.Context, state string) ([]Pro
 }
 
 const listProcessesFiltered = `-- name: ListProcessesFiltered :many
-SELECT id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, kind, manifest_revision, trial FROM process
+SELECT id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, kind, manifest_revision, trial, pause_until_ms, pause_limit_ms, wait_message, wait_fresh FROM process
 WHERE project_id IN (SELECT id FROM project WHERE workspace_id = ?1)
   AND (?2 = 0 OR project_id = ?2)
   AND (?3 = '' OR state = ?3)
@@ -536,6 +626,10 @@ func (q *Queries) ListProcessesFiltered(ctx context.Context, arg ListProcessesFi
 			&i.Kind,
 			&i.ManifestRevision,
 			&i.Trial,
+			&i.PauseUntilMs,
+			&i.PauseLimitMs,
+			&i.WaitMessage,
+			&i.WaitFresh,
 		); err != nil {
 			return nil, err
 		}
@@ -576,6 +670,63 @@ func (q *Queries) ListToolCalls(ctx context.Context, processID int64) ([]ToolCal
 			&i.ExternalID,
 			&i.Error,
 			&i.AskID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWaitingForProvider = `-- name: ListWaitingForProvider :many
+SELECT id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, kind, manifest_revision, trial, pause_until_ms, pause_limit_ms, wait_message, wait_fresh FROM process WHERE state = 'waiting_provider' AND provider = ?1 ORDER BY id
+`
+
+func (q *Queries) ListWaitingForProvider(ctx context.Context, provider string) ([]Process, error) {
+	rows, err := q.db.QueryContext(ctx, listWaitingForProvider, provider)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Process
+	for rows.Next() {
+		var i Process
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProjectID,
+			&i.Command,
+			&i.State,
+			&i.Provider,
+			&i.SessionID,
+			&i.Input,
+			&i.Result,
+			&i.NotBySchema,
+			&i.Error,
+			&i.StartedAt,
+			&i.FinishedAt,
+			&i.StartNote,
+			&i.ParentID,
+			&i.Depth,
+			&i.TriggerID,
+			&i.RetryKey,
+			&i.Pgid,
+			&i.CeilingMs,
+			&i.DeadlineMs,
+			&i.OutputMs,
+			&i.SilentSinceMs,
+			&i.Kind,
+			&i.ManifestRevision,
+			&i.Trial,
+			&i.PauseUntilMs,
+			&i.PauseLimitMs,
+			&i.WaitMessage,
+			&i.WaitFresh,
 		); err != nil {
 			return nil, err
 		}
@@ -696,6 +847,25 @@ func (q *Queries) PauseCeilingAtLastOutput(ctx context.Context, id int64) error 
 	return err
 }
 
+const pauseProcess = `-- name: PauseProcess :execrows
+UPDATE process SET state = 'rate_limited', pause_until_ms = ?1, pause_limit_ms = ?2
+WHERE id = ?3 AND state = 'running'
+`
+
+type PauseProcessParams struct {
+	UntilMs sql.NullInt64
+	LimitMs sql.NullInt64
+	ID      int64
+}
+
+func (q *Queries) PauseProcess(ctx context.Context, arg PauseProcessParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, pauseProcess, arg.UntilMs, arg.LimitMs, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const purgeEmptyProcesses = `-- name: PurgeEmptyProcesses :many
 DELETE FROM process WHERE state = 'done' AND result = 'null' AND finished_at < CAST(?1 AS TEXT)
   AND NOT EXISTS (SELECT 1 FROM ask a WHERE a.process_id = process.id AND a.kind IN ('call', 'unknown') AND a.state IN ('open', 'running'))
@@ -762,7 +932,7 @@ func (q *Queries) RecentOutcomes(ctx context.Context, arg RecentOutcomesParams) 
 const reopenProcess = `-- name: ReopenProcess :execrows
 UPDATE process
 SET state = 'running', error = '', finished_at = NULL, ceiling_ms = ?, deadline_ms = NULL, silent_since_ms = NULL,
-    start_note = ?
+    start_note = ?, pause_until_ms = NULL, pause_limit_ms = NULL
 WHERE id = ? AND state IN ('done', 'error', 'stopped', 'interrupted') AND session_id != ''
 `
 
@@ -894,7 +1064,7 @@ func (q *Queries) StartedToolCalls(ctx context.Context) ([]ToolCall, error) {
 
 const stopParkedProcess = `-- name: StopParkedProcess :execrows
 UPDATE process SET state = 'stopped', error = ?, finished_at = ?, deadline_ms = NULL, silent_since_ms = NULL
-WHERE id = ? AND state IN ('running', 'waiting_answer', 'needs_login')
+WHERE id = ? AND state IN ('running', 'waiting_answer', 'needs_login', 'rate_limited', 'waiting_provider')
 `
 
 type StopParkedProcessParams struct {
@@ -905,6 +1075,25 @@ type StopParkedProcessParams struct {
 
 func (q *Queries) StopParkedProcess(ctx context.Context, arg StopParkedProcessParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, stopParkedProcess, arg.Error, arg.FinishedAt, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const waitForProvider = `-- name: WaitForProvider :execrows
+UPDATE process SET state = 'waiting_provider', wait_message = ?1, wait_fresh = ?2
+WHERE id = ?3 AND state = 'running'
+`
+
+type WaitForProviderParams struct {
+	Message string
+	Fresh   int64
+	ID      int64
+}
+
+func (q *Queries) WaitForProvider(ctx context.Context, arg WaitForProviderParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, waitForProvider, arg.Message, arg.Fresh, arg.ID)
 	if err != nil {
 		return 0, err
 	}

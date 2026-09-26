@@ -1,6 +1,10 @@
 #!/bin/sh
-# Fake Claude Code CLI: rejects unknown flags, records how deck started it, then replays stream.<n> or stream.
+# Fake Claude Code CLI: rejects unknown flags, records how deck started it, runs before, then replays stream.<n> or stream.
 d=$(dirname "$0")
+if [ "$1" = "--version" ]; then
+  echo "$(cat "$d/version" 2>/dev/null || echo 2.1.281) (Claude Code)"
+  exit 0
+fi
 mkdir -p "$d/calls"
 n=$(( $(ls "$d/calls" | wc -l) + 1 ))
 c="$d/calls/$n"
@@ -29,8 +33,11 @@ for a in "$@"; do
   prev="$a"
 done
 [ -f "$d/nostdin" ] || cat > "$c/stdin"
+word=$(grep -o 'deck-check-[0-9a-f]*' "$c/stdin" | head -1)
+if [ -n "$word" ]; then echo "$word" > "$d/word"; else word=$(cat "$d/word" 2>/dev/null); fi
+[ -f "$d/before" ] && . "$d/before"
 stream="$d/stream.$n"
 [ -f "$stream" ] || stream="$d/stream"
-[ -f "$stream" ] && sed "s/{{session}}/$session/g" "$stream"
+[ -f "$stream" ] && sed "s/{{session}}/$session/g; s/{{word}}/$word/g" "$stream"
 [ -f "$d/after" ] && . "$d/after"
 exit 0

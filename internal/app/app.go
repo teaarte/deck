@@ -43,6 +43,10 @@ type App struct {
 	Browser   *tools.Browser
 	Host      *mcphost.Host
 
+	// main is the provider deck was started with; the owner adds OpenAI-compatible ones per workspace.
+	main     provider.Provider
+	checkMu  sync.Mutex
+	check    checks
 	ctx      context.Context
 	cancel   context.CancelFunc
 	secretMu sync.Mutex
@@ -59,7 +63,7 @@ func New(cfg Config, p provider.Provider) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
-	a := &App{Cfg: cfg, Store: st, Bus: events.NewBus(), Scripts: script.New(cfg.Sandbox, cfg.Home)}
+	a := &App{Cfg: cfg, Store: st, Bus: events.NewBus(), Scripts: script.New(cfg.Sandbox, cfg.Home), main: p}
 	a.ctx, a.cancel = context.WithCancel(context.Background())
 	a.Asks = ask.NewBroker(st, a.Bus, cfg.Now)
 	a.Registry = registry.New(a.projectCommands)
@@ -83,10 +87,10 @@ func New(cfg Config, p provider.Provider) (*App, error) {
 	a.Browser.Load()
 	a.Registry.SetExtra(a.Browser.Commands)
 	a.Gateway.SetAutomation(a.Automation)
-	a.Runner = process.NewRunner(st, a.Gateway, a.Bus, p, a.Scripts,
+	a.Runner = process.NewRunner(st, a.Gateway, a.Bus, a, a.Scripts,
 		process.Config{RunsDir: filepath.Join(cfg.Home, "runs"), MCPBase: cfg.MCPBase, Now: cfg.Now, Ceiling: cfg.Ceiling,
 			ScriptCeiling: cfg.ScriptCeiling, FilesDir: filepath.Join(cfg.Home, "files"),
-			Hidden: hidden(cfg.Home)}, a)
+			Hidden: hidden(cfg.Home), PauseLimit: cfg.PauseLimit, PauseProbe: cfg.PauseProbe}, a)
 	a.Runner.OnDone = a.afterTriggers
 	a.Scheduler = trigger.New(st, a, cfg.Now, cfg.CatchUpSpread)
 	a.Asks.OnLateAnswer(a.lateAnswer)
@@ -192,12 +196,13 @@ func (a *App) lateAnswer(ctx context.Context, q db.Ask) {
 	}
 }
 
-// Sweep checks every deadline against now: deleted cards, expired confirmations, ceilings, silent
-// processes, empty results kept long enough, the disk, and the daily cleanup and snapshot.
+// Sweep checks every deadline against now: deleted cards, expired confirmations, ceilings, pauses on a usage
+// limit, silent processes, empty results kept long enough, the disk, and the daily cleanup and snapshot.
 func (a *App) Sweep(ctx context.Context, now time.Time) {
 	a.purgeCards(ctx, now)
 	a.expireConfirms(ctx, now)
 	a.stopAtCeiling(ctx, now)
+	a.Runner.Unpause(ctx, now)
 	a.markSilent(ctx, now)
 	a.purgeEmpty(ctx, now)
 	a.checkDisk(ctx, now)
@@ -278,14 +283,15 @@ func (a *App) purgeEmpty(ctx context.Context, now time.Time) {
 	}
 }
 
-// Loop runs the scheduler and the sweep by the deck clock until ctx ends; after a sleep of the machine
-// the first tick finds every deadline that passed.
+// Loop runs the scheduler, the sweep and the self-checks by the deck clock until ctx ends; after a sleep of
+// the machine the first tick finds every deadline that passed.
 func (a *App) Loop(ctx context.Context, every time.Duration) {
 	t := time.NewTicker(every)
 	defer t.Stop()
 	for {
 		a.Scheduler.Tick(ctx)
 		a.Sweep(ctx, a.Cfg.Now())
+		a.Checks(ctx, a.Cfg.Now())
 		select {
 		case <-ctx.Done():
 			return

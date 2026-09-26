@@ -4,7 +4,10 @@ import (
 	"deck2/internal/provider"
 	"encoding/json"
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
+	"time"
 )
 
 type line struct {
@@ -17,6 +20,22 @@ type line struct {
 	Errors           []string        `json:"errors"`
 	Error            string          `json:"error"`
 	StructuredOutput json.RawMessage `json:"structured_output"`
+	Model            string          `json:"model"`
+	DurationMs       int64           `json:"duration_ms"`
+	TotalCostUSD     *float64        `json:"total_cost_usd"`
+	Usage            *struct {
+		Input         int64 `json:"input_tokens"`
+		Output        int64 `json:"output_tokens"`
+		CacheRead     int64 `json:"cache_read_input_tokens"`
+		CacheCreation int64 `json:"cache_creation_input_tokens"`
+	} `json:"usage"`
+	ModelUsage map[string]struct {
+		Input         int64    `json:"inputTokens"`
+		Output        int64    `json:"outputTokens"`
+		CacheRead     int64    `json:"cacheReadInputTokens"`
+		CacheCreation int64    `json:"cacheCreationInputTokens"`
+		CostUSD       *float64 `json:"costUSD"`
+	} `json:"modelUsage"`
 	Message          *struct {
 		Content []struct {
 			Type string `json:"type"`
@@ -37,6 +56,7 @@ type turn struct {
 	results    int
 	foreign    string
 	authFailed bool
+	model      string
 }
 
 func (t *turn) line(raw []byte) {
@@ -56,6 +76,10 @@ func (t *turn) line(raw []byte) {
 		}
 	}
 	switch l.Type {
+	case "system":
+		if l.Subtype == "init" {
+			t.model = l.Model
+		}
 	case "assistant":
 		if l.Error == "authentication_failed" {
 			t.authFailed = true
@@ -91,6 +115,7 @@ func (t *turn) line(raw []byte) {
 		if l.SessionID == "" && t.foreign == "" {
 			t.foreign = "without an id"
 		}
+		t.usage(l)
 		t.res.Text = l.Result
 		if t.res.Text == "" {
 			t.res.Text = strings.Join(l.Errors, "; ")
@@ -107,6 +132,23 @@ func (t *turn) line(raw []byte) {
 				t.res.SessionMissing = true
 			}
 		}
+	}
+}
+
+// usage reports the token counts of the turn from its result, one call per model the turn used.
+func (t *turn) usage(l line) {
+	if t.req.OnUsage == nil {
+		return
+	}
+	d := time.Duration(l.DurationMs) * time.Millisecond
+	if len(l.ModelUsage) == 0 && l.Usage != nil {
+		t.req.OnUsage(provider.Usage{Model: t.model, Input: l.Usage.Input, Output: l.Usage.Output, CacheRead: l.Usage.CacheRead,
+			CacheCreation: l.Usage.CacheCreation, Duration: d, CostUSD: l.TotalCostUSD})
+	}
+	for _, model := range slices.Sorted(maps.Keys(l.ModelUsage)) {
+		u := l.ModelUsage[model]
+		t.req.OnUsage(provider.Usage{Model: model, Input: u.Input, Output: u.Output, CacheRead: u.CacheRead,
+			CacheCreation: u.CacheCreation, Duration: d, CostUSD: u.CostUSD})
 	}
 }
 

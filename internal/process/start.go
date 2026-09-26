@@ -53,9 +53,14 @@ func (r *Runner) Start(ctx context.Context, projectID int64, m *manifest.Manifes
 	if cmd == nil {
 		return 0, fmt.Errorf("project %q has no command %q", proj.Name, command)
 	}
-	kind, providerName, session := cmd.Executor.Type, r.provider.Name(), uuid.NewString()
+	kind, providerName, session := cmd.Executor.Type, "", uuid.NewString()
 	switch kind {
 	case KindAgent:
+		pv, err := r.providers.For(ctx, projectID, cmd)
+		if err != nil {
+			return 0, err
+		}
+		providerName = pv.Name()
 		if _, err := r.commandBody(ctx, projectID, cmd); err != nil {
 			return 0, err
 		}
@@ -66,9 +71,9 @@ func (r *Runner) Start(ctx context.Context, projectID int64, m *manifest.Manifes
 		if _, err := r.scriptSource(ctx, projectID, m, cmd); err != nil {
 			return 0, err
 		}
-		providerName, session = "", ""
+		session = ""
 	case KindTool:
-		providerName, session = "", ""
+		session = ""
 	default:
 		return 0, registry.Invalid("deck: %s executors are not available yet", kind)
 	}

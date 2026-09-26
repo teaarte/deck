@@ -37,6 +37,9 @@ func (a *App) askAnswer(ctx context.Context, act registry.Actor, in struct {
 	if q.Kind == ask.KindLogin && !slices.Contains(ask.LoginAnswers, in.Answer) {
 		return nil, registry.Invalid("deck: answer a login ask with %s", strings.Join(ask.LoginAnswers, " or "))
 	}
+	if q.Kind == ask.KindLimit && in.Answer != ask.LimitContinue {
+		return nil, registry.Invalid("deck: answer a stopped pause with %s", ask.LimitContinue)
+	}
 	if q.Kind == ask.KindGrant && q.State == "open" {
 		return a.grantAnswer(ctx, act, q, in.Answer)
 	}
@@ -71,7 +74,7 @@ func (a *App) healthList(ctx context.Context, act registry.Actor, _ struct{}) (a
 			worst[p.Name]["status"], worst[p.Name]["error"] = "error", "manifest: "+err.Error()
 		}
 	}
-	rank := map[string]int{"ok": 0, "needs_login": 1, "error": 2}
+	rank := map[string]int{"ok": 0, "checking": 1, "paused": 1, "needs_login": 1, "error": 2}
 	out := make([]row, 0, len(hs)+len(ps))
 	for _, h := range hs {
 		kind, rest, _ := strings.Cut(h.Subject, ":")
@@ -81,6 +84,9 @@ func (a *App) healthList(ctx context.Context, act registry.Actor, _ struct{}) (a
 			continue
 		}
 		r := row{"subject": h.Subject, "status": h.Status, "error": h.Error, "updated_at": h.UpdatedAt}
+		if h.Version != "" {
+			r["version"] = h.Version
+		}
 		out = append(out, r)
 		if w := worst[project]; scoped && w != nil && rank[h.Status] > rank[w["status"].(string)] {
 			w["status"], w["error"], w["updated_at"] = h.Status, h.Subject+": "+h.Error, h.UpdatedAt

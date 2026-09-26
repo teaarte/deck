@@ -18,8 +18,25 @@ func (q *Queries) DeleteHealth(ctx context.Context, subject string) error {
 	return err
 }
 
+const getHealth = `-- name: GetHealth :one
+SELECT subject, status, error, updated_at, version FROM health WHERE subject = ?1
+`
+
+func (q *Queries) GetHealth(ctx context.Context, subject string) (Health, error) {
+	row := q.db.QueryRowContext(ctx, getHealth, subject)
+	var i Health
+	err := row.Scan(
+		&i.Subject,
+		&i.Status,
+		&i.Error,
+		&i.UpdatedAt,
+		&i.Version,
+	)
+	return i, err
+}
+
 const listHealth = `-- name: ListHealth :many
-SELECT subject, status, error, updated_at FROM health ORDER BY subject
+SELECT subject, status, error, updated_at, version FROM health ORDER BY subject
 `
 
 func (q *Queries) ListHealth(ctx context.Context) ([]Health, error) {
@@ -36,6 +53,7 @@ func (q *Queries) ListHealth(ctx context.Context) ([]Health, error) {
 			&i.Status,
 			&i.Error,
 			&i.UpdatedAt,
+			&i.Version,
 		); err != nil {
 			return nil, err
 		}
@@ -48,6 +66,17 @@ func (q *Queries) ListHealth(ctx context.Context) ([]Health, error) {
 		return nil, err
 	}
 	return items, nil
+}
+
+const markHealthy = `-- name: MarkHealthy :exec
+INSERT INTO health (subject, status, error) VALUES (?1, 'ok', '')
+ON CONFLICT (subject) DO UPDATE SET status = 'ok', error = '', updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+WHERE health.status IN ('needs_login', 'paused')
+`
+
+func (q *Queries) MarkHealthy(ctx context.Context, subject string) error {
+	_, err := q.db.ExecContext(ctx, markHealthy, subject)
+	return err
 }
 
 const setHealth = `-- name: SetHealth :exec
@@ -65,5 +94,19 @@ type SetHealthParams struct {
 
 func (q *Queries) SetHealth(ctx context.Context, arg SetHealthParams) error {
 	_, err := q.db.ExecContext(ctx, setHealth, arg.Subject, arg.Status, arg.Error)
+	return err
+}
+
+const setHealthVersion = `-- name: SetHealthVersion :exec
+UPDATE health SET version = ?1 WHERE subject = ?2
+`
+
+type SetHealthVersionParams struct {
+	Version string
+	Subject string
+}
+
+func (q *Queries) SetHealthVersion(ctx context.Context, arg SetHealthVersionParams) error {
+	_, err := q.db.ExecContext(ctx, setHealthVersion, arg.Version, arg.Subject)
 	return err
 }

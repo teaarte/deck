@@ -30,6 +30,14 @@ type Config struct {
 	Sandbox sandbox.Sandbox
 	// Browser starts the browser MCP server; DefaultBrowser when nil, none when empty.
 	Browser []string
+	// PauseLimit is how long one pause on a usage limit lasts at most; PauseProbe is the try without a reset time.
+	PauseLimit time.Duration
+	PauseProbe time.Duration
+	// SelfCheckCeiling bounds a self-check of the main provider; SelfCheckRetry repeats a red one.
+	SelfCheckCeiling time.Duration
+	SelfCheckRetry   time.Duration
+	// VersionEvery is how often deck looks for a new version of the main provider's program.
+	VersionEvery time.Duration
 }
 
 func (c *Config) defaults() {
@@ -56,6 +64,21 @@ func (c *Config) defaults() {
 	}
 	if c.Sandbox == nil {
 		c.Sandbox = sandbox.New()
+	}
+	if c.PauseLimit <= 0 {
+		c.PauseLimit = 6 * time.Hour
+	}
+	if c.PauseProbe <= 0 {
+		c.PauseProbe = time.Hour
+	}
+	if c.SelfCheckCeiling <= 0 {
+		c.SelfCheckCeiling = 2 * time.Minute
+	}
+	if c.SelfCheckRetry <= 0 {
+		c.SelfCheckRetry = 30 * time.Minute
+	}
+	if c.VersionEvery <= 0 {
+		c.VersionEvery = 10 * time.Minute
 	}
 	if c.Browser == nil {
 		c.Browser = DefaultBrowser

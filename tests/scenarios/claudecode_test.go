@@ -347,3 +347,45 @@ func TestSkillsReachTheCLIAsAPluginOutsideTheAgentFolder(t *testing.T) {
 		t.Fatal("a command without skills gets no plugin")
 	}
 }
+
+func TestModelCallsCountTokensFromTheTurnResult(t *testing.T) {
+	c := newCLI(t)
+	c.stream(0, "ok.jsonl")
+	e, _ := cliEnv(t, c)
+	p := e.createProject("plain", plainManifest)
+	id := e.run(p, "work")
+	e.waitState(id, "done")
+	var calls []map[string]any
+	e.must("deck.llm_calls_list", map[string]any{"process": id}, &calls)
+	if len(calls) != 1 {
+		t.Fatalf("one turn of one model is one call: %v", calls)
+	}
+	want := map[string]any{"gen_ai.provider.name": "claude-code", "gen_ai.response.model": "claude-opus-5-5[1m]",
+		"gen_ai.usage.input_tokens": 2.0, "gen_ai.usage.output_tokens": 4.0, "gen_ai.usage.cache_read.input_tokens": 10704.0,
+		"gen_ai.usage.cache_creation.input_tokens": 4987.0, "duration_ms": 2244.0, "cost_usd": 0.042124800000000004}
+	for k, v := range want {
+		if calls[0][k] != v {
+			t.Fatalf("%s is %v, want %v from the result of the turn: %v", k, calls[0][k], v, calls[0])
+		}
+	}
+}
+
+func TestClaudeCodeLimitPausesUntilItsReset(t *testing.T) {
+	c := newCLI(t)
+	c.stream(1, "ratelimit_rejected.jsonl")
+	c.stream(0, "ok.jsonl")
+	e := clockCLIEnv(t, c)
+	e.Clock.Add(time.Unix(1790379000, 0).Add(-2 * time.Hour).Sub(e.Clock.Now()))
+	p := e.createProject("plain", plainManifest)
+	id := e.run(p, "work")
+	e.waitState(id, "rate_limited")
+	pp, _ := e.App.Store.Q.GetProcess(context.Background(), id)
+	if pp.PauseUntilMs.Int64 != 1790379000*1000 {
+		t.Fatalf("the next try is the reset time of the refusal: %d", pp.PauseUntilMs.Int64)
+	}
+	e.Clock.Add(time.Unix(1790379000, 1).Sub(e.Clock.Now()))
+	e.sweep()
+	if got := e.waitState(id, "done", "error"); got.State != "done" || !slices.Contains(c.call(2).args, "--resume") {
+		t.Fatalf("after the reset the session is resumed: %+v %v", got, c.call(2).args)
+	}
+}

@@ -138,6 +138,14 @@ deck MCP server; besides it, it can read its own work folder (`Read`, `Glob`, `G
 web tools are off. Anything external it wants waits for the owner's confirmation. List the skills it needs in
 `executor.skills`; a skill may not grant tools (`allowed-tools`, `hooks`) — rights come from deck.
 
+The owner picks the model provider of each agent command in settings (`provider_set`); the manifest only says
+what the command needs and suggests one. `requires` lists capabilities: `sandbox` when the agent must run
+shell commands or write files (an OpenAI-compatible model such as Ollama has only deck's tools), `no_cloud`
+for personal data (finance, health) that must stay on the owner's hardware. `provider` suggests a provider by
+name — routine judgement suits a local model (`"provider": "ollama"`), heavy reasoning Claude Code. Write the
+prompt so it works on a small model too: say which deck tool to call for what, and that the result is handed in
+at the end; a provider without output by schema gets the `result_submit` tool for it.
+
 ## 6. Build, import, try
 
 1. Write the module as a folder: `manifest.json`, `prompt.md` (its first line is the one-line description

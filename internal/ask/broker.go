@@ -28,7 +28,12 @@ const (
 	KindSignIn = "sign_in"
 	// KindWarning tells the owner about something deck refused to do; no process waits for it.
 	KindWarning = "warning"
+	// KindLimit offers to continue a process stopped when its pause on a usage limit ran out.
+	KindLimit = "limit"
 )
+
+// LimitContinue is the one answer to a limit ask.
+const LimitContinue = "continue"
 
 const (
 	LoginRetry      = "retry"

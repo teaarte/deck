@@ -286,3 +286,17 @@ func TestRealClaudeCodeKnowsFakeFlags(t *testing.T) {
 		}
 	}
 }
+
+// TestRealClaudeCodeSelfCheck runs the adapter's self-check on the installed CLI.
+func TestRealClaudeCodeSelfCheck(t *testing.T) {
+	if os.Getenv("DECK_REAL_CLI") == "" {
+		t.Skip("set DECK_REAL_CLI=1 to run against the real Claude Code CLI")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	c := claudecode.New(t.TempDir()).SelfCheck(ctx)
+	if c.Err != nil || c.Version == "" {
+		t.Fatalf("the self-check of the real CLI is green: %+v", c)
+	}
+	t.Logf("self-check of %s is green", c.Version)
+}

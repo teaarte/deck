@@ -22,6 +22,9 @@ const (
 	StateRunning       = "running"
 	StateWaitingAnswer = "waiting_answer"
 	StateNeedsLogin    = "needs_login"
+	// StateRateLimited is a pause on a provider's usage limit; StateWaitingProvider waits for a red self-check.
+	StateRateLimited     = "rate_limited"
+	StateWaitingProvider = "waiting_provider"
 	StateDone          = "done"
 	StateError         = "error"
 	StateInterrupted   = "interrupted"
@@ -51,6 +54,10 @@ type Config struct {
 	FilesDir      string
 	// Hidden are path patterns agents may not read: the secrets and the base of deck.
 	Hidden []string
+	// PauseLimit is how long one pause on a usage limit may last from the first refusal.
+	PauseLimit time.Duration
+	// PauseProbe is how often a paused process tries again when the provider gave no reset time.
+	PauseProbe time.Duration
 }
 
 // Runner owns process lifecycles. A process stops in waiting_answer when the agent is blocked on the
@@ -58,9 +65,9 @@ type Config struct {
 type Runner struct {
 	st       *store.Store
 	gw       *gateway.Gateway
-	bus      *events.Bus
-	provider provider.Provider
-	scripts  *script.Exec
+	bus       *events.Bus
+	providers Providers
+	scripts   *script.Exec
 	cfg      Config
 	projects Projects
 	// OnDone runs after a process finishes done with a result that is not empty and fits its schema.
@@ -78,6 +85,16 @@ type Runner struct {
 
 type liveTurn struct{ cancel context.CancelCauseFunc }
 
+// Providers gives the runner the provider of a process.
+type Providers interface {
+	// For picks the provider a command starts on.
+	For(ctx context.Context, projectID int64, cmd *manifest.Command) (provider.Provider, error)
+	// Named is the provider a process started on; its session belongs to it.
+	Named(ctx context.Context, projectID int64, name string) (provider.Provider, error)
+	// Ready reports whether a turn may start on the provider; not while its self-check runs after a change or is red.
+	Ready(ctx context.Context, name string) bool
+}
+
 // Projects gives the runner the current manifest and md prompt of a project.
 type Projects interface {
 	Manifest(ctx context.Context, projectID int64) (*manifest.Manifest, error)
@@ -92,9 +109,9 @@ type Projects interface {
 	Servers(ctx context.Context, projectID int64)
 }
 
-func NewRunner(st *store.Store, gw *gateway.Gateway, bus *events.Bus, p provider.Provider, scripts *script.Exec, cfg Config, projects Projects) *Runner {
+func NewRunner(st *store.Store, gw *gateway.Gateway, bus *events.Bus, p Providers, scripts *script.Exec, cfg Config, projects Projects) *Runner {
 	ctx, cancel := context.WithCancel(context.Background())
-	return &Runner{st: st, gw: gw, bus: bus, provider: p, scripts: scripts, cfg: cfg, projects: projects, ctx: ctx, cancel: cancel,
+	return &Runner{st: st, gw: gw, bus: bus, providers: p, scripts: scripts, cfg: cfg, projects: projects, ctx: ctx, cancel: cancel,
 		live: map[int64]*liveTurn{}, stopping: map[int64]string{}}
 }
 

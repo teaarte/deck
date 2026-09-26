@@ -9,18 +9,30 @@ import (
 )
 
 type Ask struct {
-	ID         int64
-	ProcessID  int64
-	Kind       string
-	Text       string
-	Payload    string
-	Answer     string
-	State      string
-	Delivered  int64
-	Used       int64
-	CreatedAt  string
-	AnsweredAt sql.NullString
-	ExpiresAt  sql.NullString
+	ID          int64
+	ProcessID   sql.NullInt64
+	WorkspaceID int64
+	ProjectID   int64
+	Kind        string
+	Text        string
+	Payload     string
+	Answer      string
+	State       string
+	Delivered   int64
+	Used        int64
+	CreatedAt   string
+	AnsweredAt  sql.NullString
+	ExpiresAt   sql.NullString
+}
+
+type AutomationToken struct {
+	ID          int64
+	WorkspaceID int64
+	Name        string
+	Hash        string
+	Commands    string
+	CreatedAt   string
+	RevokedAt   sql.NullString
 }
 
 type Card struct {
@@ -108,6 +120,7 @@ type Process struct {
 	SilentSinceMs    sql.NullInt64
 	Kind             string
 	ManifestRevision int64
+	Trial            int64
 }
 
 type Project struct {
@@ -148,6 +161,7 @@ type ToolCall struct {
 	Outcome   string
 	Params    string
 	CreatedAt string
+	Actor     string
 }
 
 type TriggerState struct {
@@ -161,6 +175,20 @@ type TriggerState struct {
 	Paused        int64
 	SkipMissed    int64
 	LastProcessID sql.NullInt64
+}
+
+type Unattended struct {
+	ID          int64
+	WorkspaceID int64
+	ProjectID   int64
+	Author      string
+	Text        string
+	Command     string
+	Params      string
+	DocumentID  int64
+	Revision    int64
+	UndoneAt    sql.NullString
+	CreatedAt   string
 }
 
 type Workspace struct {

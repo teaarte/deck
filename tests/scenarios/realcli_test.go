@@ -247,6 +247,27 @@ func TestRealClaudeCodeRepoInstructions(t *testing.T) {
 	}
 }
 
+// TestRealClaudeCodeSeesSkills checks that skills given as a plugin reach a session with no setting sources.
+func TestRealClaudeCodeSeesSkills(t *testing.T) {
+	realCLI(t)
+	skill := "---\nname: probe\ndescription: Knows the probe word. Use it when asked for the probe word.\n---\nThe probe word is PERSIMMON.\n"
+	prompt := "What is the probe word? Use your skills if you need to. Reply with only the word."
+	run := func(skills map[string]string) provider.Result {
+		res, err := claudecode.New(t.TempDir()).Run(context.Background(), provider.Request{Cwd: t.TempDir(), Prompt: prompt,
+			SessionID: uuid.NewString(), MCPURL: "http://127.0.0.1:1/mcp/none", Skills: skills, AllowedTools: []string{"Skill"}})
+		if err != nil || res.IsError {
+			t.Fatalf("turn: %+v %v", res, err)
+		}
+		return res
+	}
+	if res := run(map[string]string{"probe/SKILL.md": skill}); !strings.Contains(res.Text, "PERSIMMON") {
+		t.Fatalf("the session must see the skill: %q", res.Text)
+	}
+	if res := run(nil); strings.Contains(res.Text, "PERSIMMON") {
+		t.Fatalf("without the skill the word is unknown, or the test proves nothing: %q", res.Text)
+	}
+}
+
 // TestRealClaudeCodeKnowsFakeFlags checks that every flag the fake CLI accepts exists in the real one.
 func TestRealClaudeCodeKnowsFakeFlags(t *testing.T) {
 	realCLI(t)

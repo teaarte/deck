@@ -3,6 +3,7 @@ package claudecode
 import (
 	"deck2/internal/provider"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -131,4 +132,39 @@ func excludes(repo string) []string {
 		}
 	}
 	return out
+}
+
+// writePlugin puts skills into a plugin folder next to the MCP config: with no setting sources the CLI reads
+// skills only from plugins, and the folder stays outside every folder the agent writes to.
+func (a *Adapter) writePlugin(skills map[string]string) (string, error) {
+	if len(skills) == 0 {
+		return "", nil
+	}
+	if err := os.MkdirAll(a.ConfigDir, 0o700); err != nil {
+		return "", err
+	}
+	dir, err := os.MkdirTemp(a.ConfigDir, "plugin-*")
+	if err != nil {
+		return "", err
+	}
+	files := map[string]string{".claude-plugin/plugin.json": `{"name":"deck"}`}
+	for path, text := range skills {
+		files[filepath.Join("skills", path)] = text
+	}
+	for path, text := range files {
+		f := filepath.Join(dir, path)
+		if !strings.HasPrefix(f, dir+string(filepath.Separator)) {
+			_ = os.RemoveAll(dir)
+			return "", fmt.Errorf("claude-code: skill file %q is outside the plugin", path)
+		}
+		if err := os.MkdirAll(filepath.Dir(f), 0o700); err != nil {
+			_ = os.RemoveAll(dir)
+			return "", err
+		}
+		if err := os.WriteFile(f, []byte(text), 0o600); err != nil {
+			_ = os.RemoveAll(dir)
+			return "", err
+		}
+	}
+	return dir, nil
 }

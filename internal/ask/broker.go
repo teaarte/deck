@@ -18,6 +18,8 @@ const (
 	KindConfirm  = "confirm"
 	// KindLogin asks the owner to log the provider in again and pick one of LoginAnswers.
 	KindLogin = "login"
+	// KindGrant waits for the owner to allow a frozen call that widens the rights of a project.
+	KindGrant = "grant"
 	// KindWarning tells the owner about something deck refused to do; no process waits for it.
 	KindWarning = "warning"
 )

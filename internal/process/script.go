@@ -19,14 +19,14 @@ import (
 )
 
 // runScript runs a command script once: input JSON in stdin, result JSON in stdout, files in its results folder.
-func (r *Runner) runScript(ctx context.Context, t turn) {
+func (r *Runner) runScript(ctx context.Context, t turn, trial bool) {
 	bg := context.WithoutCancel(ctx)
 	id := t.process
 	dir := filepath.Join(r.cfg.RunsDir, fmt.Sprint(id))
 	fail := func(err error) {
+		_ = os.RemoveAll(dir)
 		r.finish(bg, id, StateError, "", false, err.Error())
 		r.failedInARow(bg, t, err.Error())
-		_ = os.RemoveAll(dir)
 	}
 	proj, err := r.st.Q.GetProject(bg, t.project)
 	if err != nil {
@@ -48,7 +48,7 @@ func (r *Runner) runScript(ctx context.Context, t turn) {
 		return
 	}
 	defer stream.Close()
-	tok := r.gw.Grant(&gateway.Session{ProcessID: id, ProjectID: t.project, Workspace: proj.WorkspaceID})
+	tok := r.gw.Grant(&gateway.Session{ProcessID: id, ProjectID: t.project, Workspace: proj.WorkspaceID, Trial: trial})
 	defer r.gw.Unregister(tok)
 	ln, err := r.scripts.Sandbox.Listen(dir)
 	if err != nil {
@@ -76,8 +76,8 @@ func (r *Runner) runScript(ctx context.Context, t turn) {
 	if ctx.Err() != nil {
 		var stop stopCause
 		if errors.As(context.Cause(ctx), &stop) {
-			r.finish(bg, id, StateStopped, "", false, stop.reason)
 			_ = os.RemoveAll(dir)
+			r.finish(bg, id, StateStopped, "", false, stop.reason)
 		}
 		return
 	}
@@ -99,9 +99,9 @@ func (r *Runner) runScript(ctx context.Context, t turn) {
 		return
 	}
 	if verr := validate(t.cmd, json.RawMessage(result)); verr != nil {
+		_ = os.RemoveAll(dir)
 		r.finish(bg, id, StateDone, result, true, "")
 		r.warn(bg, id, fmt.Sprintf("The result of %s.%s does not match its schema, so nothing acts on it: %v", proj.Name, t.cmd.Name, verr))
-		_ = os.RemoveAll(dir)
 		return
 	}
 	endRun()
@@ -114,8 +114,8 @@ func (r *Runner) runScript(ctx context.Context, t turn) {
 		fail(err)
 		return
 	}
-	r.finish(bg, id, StateDone, result, false, "")
 	_ = os.RemoveAll(dir)
+	r.finish(bg, id, StateDone, result, false, "")
 }
 
 func (r *Runner) warn(ctx context.Context, processID int64, text string) {

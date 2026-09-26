@@ -6,6 +6,7 @@ import (
 	"deck2/internal/ask"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
+	"deck2/internal/store"
 	"deck2/internal/store/db"
 	"encoding/json"
 	"errors"
@@ -16,11 +17,13 @@ import (
 	"github.com/google/uuid"
 )
 
-// Origin is who started a process: the process that called or triggered it, the trigger, the retry key.
+// Origin is who started a process: the process that called or triggered it, the trigger, the retry key;
+// Trial asks for a trial run, which processes of a draft and children of a trial run always are.
 type Origin struct {
 	Parent  int64
 	Trigger int64
 	Key     string
+	Trial   bool
 }
 
 func (r *Runner) ceilingOf(m *manifest.Manifest, cmd *manifest.Command) time.Duration {
@@ -53,6 +56,9 @@ func (r *Runner) Start(ctx context.Context, projectID int64, m *manifest.Manifes
 		if _, err := r.commandBody(ctx, projectID, cmd); err != nil {
 			return 0, err
 		}
+		if _, err := r.projects.Skills(ctx, projectID, cmd.Executor.Skills); err != nil {
+			return 0, err
+		}
 	case KindScript:
 		if _, err := r.scriptSource(ctx, projectID, m, cmd); err != nil {
 			return 0, err
@@ -68,22 +74,34 @@ func (r *Runner) Start(ctx context.Context, projectID int64, m *manifest.Manifes
 	var p db.Process
 	var refused error
 	reused := false
+	trial := o.Trial
 	err = r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		pr, err := q.GetProject(ctx, projectID)
+		if err != nil {
+			return err
+		}
+		trial = trial || pr.Status == store.ProjectDraft
+		var parent db.Process
+		if o.Parent != 0 {
+			if parent, err = q.GetProcess(ctx, o.Parent); err != nil {
+				return err
+			}
+			trial = trial || parent.Trial == 1
+		}
 		if o.Trigger != 0 {
 			t, err := q.GetTrigger(ctx, o.Trigger)
 			if err != nil {
 				return err
 			}
-			p, err := q.GetProject(ctx, projectID)
-			if err != nil {
-				return err
-			}
-			if t.Paused == 1 || p.Paused == 1 {
+			if t.Paused == 1 || pr.Paused == 1 {
 				return registry.Invalid("deck: %s was not started: its trigger or project is paused", command)
+			}
+			if pr.Status == store.ProjectDraft && parent.Trial != 1 {
+				return registry.Invalid("deck: %s was not started: project %s is a draft; only a trial run starts its triggers", command, pr.Name)
 			}
 		}
 		if o.Key != "" {
-			old, err := q.FindActiveProcess(ctx, db.FindActiveProcessParams{ProjectID: projectID, Command: command, RetryKey: o.Key})
+			old, err := q.FindActiveProcess(ctx, db.FindActiveProcessParams{ProjectID: projectID, Command: command, RetryKey: o.Key, Trial: b2i(trial)})
 			if err == nil {
 				p, reused = old, true
 				return nil
@@ -94,10 +112,6 @@ func (r *Runner) Start(ctx context.Context, projectID int64, m *manifest.Manifes
 		}
 		depth := int64(1)
 		if o.Parent != 0 {
-			parent, err := q.GetProcess(ctx, o.Parent)
-			if err != nil {
-				return err
-			}
 			if depth = parent.Depth + 1; depth > MaxDepth {
 				text := fmt.Sprintf("deck stopped a chain of %d processes: %s.%s was not started after process %d (%s).",
 					MaxDepth, proj.Name, command, parent.ID, parent.Command)
@@ -106,8 +120,7 @@ func (r *Runner) Start(ctx context.Context, projectID int64, m *manifest.Manifes
 				return err
 			}
 		}
-		var err error
-		p, err = q.CreateProcess(ctx, db.CreateProcessParams{ProjectID: projectID, Command: command, Kind: kind, State: StateRunning,
+		p, err = q.CreateProcess(ctx, db.CreateProcessParams{Trial: b2i(trial), ProjectID: projectID, Command: command, Kind: kind, State: StateRunning,
 			Provider: providerName, Input: string(in), SessionID: session, ParentID: ref(o.Parent), Depth: depth,
 			TriggerID: ref(o.Trigger), RetryKey: o.Key, CeilingMs: r.ceilingOf(m, cmd).Milliseconds(), ManifestRevision: m.Revision})
 		return err
@@ -130,14 +143,21 @@ func (r *Runner) Start(ctx context.Context, projectID int64, m *manifest.Manifes
 // scriptSource is the current text of the script a command runs.
 func (r *Runner) scriptSource(ctx context.Context, projectID int64, m *manifest.Manifest, cmd *manifest.Command) (string, error) {
 	s := m.Script(cmd.Executor.Script)
-	src, err := r.projects.Text(ctx, projectID, s.File)
+	src, err := r.projects.Text(ctx, projectID, "script", s.File)
 	if err != nil {
 		return "", err
 	}
 	if strings.TrimSpace(src) == "" {
-		return "", registry.Invalid("deck: script file %q of %s is missing or empty", s.File, cmd.Name)
+		return "", registry.Invalid("deck: script file %q of %s is missing, empty or not a script document", s.File, cmd.Name)
 	}
 	return src, nil
+}
+
+func b2i(b bool) int64 {
+	if b {
+		return 1
+	}
+	return 0
 }
 
 func ref(id int64) sql.NullInt64 { return sql.NullInt64{Int64: id, Valid: id != 0} }
@@ -146,7 +166,7 @@ func (r *Runner) commandBody(ctx context.Context, projectID int64, cmd *manifest
 	if cmd.Executor.PromptFile == "" {
 		return cmd.Executor.Prompt, nil
 	}
-	body, err := r.projects.Text(ctx, projectID, cmd.Executor.PromptFile)
+	body, err := r.projects.Text(ctx, projectID, "", cmd.Executor.PromptFile)
 	if err != nil {
 		return "", err
 	}

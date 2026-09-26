@@ -152,7 +152,7 @@ func TestToolExecutorsAreRefusedForNow(t *testing.T) {
 	}
 }
 
-func TestPromptFileFeedsTheAgent(t *testing.T) {
+func TestPromptFileAndSkillsFeedTheAgent(t *testing.T) {
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		return provider.Result{Structured: json.RawMessage(`null`)}
 	})
@@ -161,9 +161,19 @@ func TestPromptFileFeedsTheAgent(t *testing.T) {
 		t.Fatalf("missing prompt file must be refused, got %d %s", code, out)
 	}
 	e.must("deck.document_save", map[string]any{"project": "links", "name": "prompts/collect.md", "kind": "doc", "text": "Visit each source slowly."}, nil)
+	if code, out := e.call("links.collect", nil); code != 422 || !strings.Contains(string(out), `skill "reader" is missing`) {
+		t.Fatalf("missing skill must be refused, got %d %s", code, out)
+	}
+	skill := "---\nname: reader\ndescription: Reads pages.\n---\nRead slowly.\n"
+	e.must("deck.document_save", map[string]any{"name": "skills/reader/SKILL.md", "kind": "skill", "text": skill}, nil)
+	e.must("deck.document_save", map[string]any{"name": "skills/reader/notes/sites.md", "kind": "skill", "text": "example.com"}, nil)
 	got := e.waitState(e.run(p, "collect"), "done")
-	if got.NotBySchema || !strings.Contains(e.Fake.Calls()[0].Prompt, "Visit each source slowly.") {
+	call := e.Fake.Calls()[0]
+	if got.NotBySchema || !strings.Contains(call.Prompt, "Visit each source slowly.") {
 		t.Fatalf("prompt file must reach the agent and null must pass the schema: %+v", got)
+	}
+	if call.Skills["reader/SKILL.md"] != skill || call.Skills["reader/notes/sites.md"] != "example.com" || len(call.Skills) != 2 {
+		t.Fatalf("the files of the command's skills must reach the agent: %v", call.Skills)
 	}
 }
 

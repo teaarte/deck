@@ -27,6 +27,12 @@ const TimeLayout = "2006-01-02T15:04:05.000Z"
 
 func Time(t time.Time) string { return t.UTC().Format(TimeLayout) }
 
+// Project statuses: a draft runs only trial runs and no triggers until the owner enables it.
+const (
+	ProjectDraft   = "draft"
+	ProjectEnabled = "enabled"
+)
+
 // DefaultWorkspace is the workspace the owner's token opens; migrations create it.
 const DefaultWorkspace = 1
 

@@ -137,6 +137,33 @@ func (q *Queries) ListWorkspaceProjects(ctx context.Context, workspaceID int64) 
 	return items, nil
 }
 
+const listWorkspaces = `-- name: ListWorkspaces :many
+SELECT id FROM workspace ORDER BY id
+`
+
+func (q *Queries) ListWorkspaces(ctx context.Context) ([]int64, error) {
+	rows, err := q.db.QueryContext(ctx, listWorkspaces)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const setProjectPaused = `-- name: SetProjectPaused :exec
 UPDATE project SET paused = ? WHERE id = ?
 `
@@ -149,4 +176,21 @@ type SetProjectPausedParams struct {
 func (q *Queries) SetProjectPaused(ctx context.Context, arg SetProjectPausedParams) error {
 	_, err := q.db.ExecContext(ctx, setProjectPaused, arg.Paused, arg.ID)
 	return err
+}
+
+const setProjectStatus = `-- name: SetProjectStatus :execrows
+UPDATE project SET status = ?1 WHERE id = ?2 AND status != ?1
+`
+
+type SetProjectStatusParams struct {
+	Status string
+	ID     int64
+}
+
+func (q *Queries) SetProjectStatus(ctx context.Context, arg SetProjectStatusParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, setProjectStatus, arg.Status, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }

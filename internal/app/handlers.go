@@ -6,6 +6,7 @@ import (
 	"errors"
 
 	"deck2/internal/registry"
+	"deck2/internal/store"
 	"deck2/internal/store/db"
 )
 
@@ -50,6 +51,9 @@ type projectView struct {
 	Description   string       `json:"description"`
 	Screens       []screenView `json:"screens"`
 	ManifestError string       `json:"manifest_error,omitempty"`
+	// Rights are what enabling a draft at Revision of its manifest grants.
+	Rights   []string `json:"rights,omitempty"`
+	Revision int64    `json:"revision"`
 }
 
 type screenView struct {
@@ -71,8 +75,12 @@ func (a *App) projectsList(ctx context.Context, act registry.Actor, _ struct{}) 
 		if m, err := loadManifest(ctx, a.Store.Q, p); err != nil {
 			v.ManifestError = err.Error()
 		} else {
+			v.Revision = m.Revision
 			for _, s := range m.Screens {
 				v.Screens = append(v.Screens, screenView{Name: s.Name, Title: s.Title})
+			}
+			if p.Status == store.ProjectDraft {
+				v.Rights = rights(m)
 			}
 		}
 		out = append(out, v)
@@ -105,14 +113,14 @@ func (a *App) manifestGet(ctx context.Context, act registry.Actor, in struct{ Pr
 	return map[string]any{"project": p.Name, "document": d.ID, "revision": d.Current, "manifest": r.Text}, nil
 }
 
-func (a *App) manifestSave(ctx context.Context, act registry.Actor, in struct{ Project, Manifest, Reason string }) (any, error) {
+func (a *App) manifestSave(ctx context.Context, act registry.Actor, in struct {
+	Project, Manifest, Reason string
+	IfRevision                int64 `json:"if_revision"`
+}) (any, error) {
 	p, err := a.scope(ctx, act, in.Project)
 	if err != nil {
 		return nil, err
 	}
-	n, err := a.SaveManifest(ctx, act, p, []byte(in.Manifest), in.Reason, 0)
-	if err != nil {
-		return nil, err
-	}
-	return map[string]any{"revision": n}, nil
+	return a.SaveManifest(ctx, act, p, []byte(in.Manifest), in.Reason, 0, in.IfRevision,
+		Call{Command: registry.Builtin + ".manifest_save", Input: map[string]any{"project": p.Name, "manifest": in.Manifest, "reason": in.Reason}})
 }

@@ -8,9 +8,11 @@ import (
 type Request struct {
 	Cwd string
 	// Repo means Cwd is a code repository: its own instructions load, those of the folders above do not.
-	Repo          bool
-	Prompt        string
-	ResultSchema  json.RawMessage
+	Repo         bool
+	Prompt       string
+	ResultSchema json.RawMessage
+	// Skills are AgentSkills files by path, "<skill>/SKILL.md" and the rest of each skill folder.
+	Skills        map[string]string
 	MCPURL        string
 	AllowedTools  []string
 	PermissionMCP string

@@ -1,7 +1,7 @@
 -- name: CreateProcess :one
 INSERT INTO process (project_id, command, kind, state, provider, input, session_id, parent_id, depth, trigger_id, retry_key, ceiling_ms,
-    manifest_revision)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *;
+    manifest_revision, trial)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *;
 
 
 -- name: GetProcess :one
@@ -26,7 +26,7 @@ SELECT * FROM process WHERE state = ? ORDER BY id;
 
 -- name: FindActiveProcess :one
 SELECT * FROM process
-WHERE project_id = ? AND command = ? AND retry_key = ? AND retry_key != ''
+WHERE project_id = ? AND command = ? AND retry_key = ? AND retry_key != '' AND trial = ?
   AND state IN ('running', 'waiting_answer', 'needs_login')
 ORDER BY id LIMIT 1;
 
@@ -99,7 +99,7 @@ DELETE FROM process WHERE state = 'done' AND result = 'null' AND finished_at < C
 
 
 -- name: LogToolCall :exec
-INSERT INTO tool_call (process_id, project_id, tool, class, outcome, params) VALUES (?, ?, ?, ?, ?, ?);
+INSERT INTO tool_call (process_id, project_id, actor, tool, class, outcome, params) VALUES (?, ?, ?, ?, ?, ?, ?);
 
 
 -- name: ListToolCalls :many

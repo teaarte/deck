@@ -236,6 +236,52 @@ func (q *Queries) ListDocuments(ctx context.Context, arg ListDocumentsParams) ([
 	return items, nil
 }
 
+const listModuleDocuments = `-- name: ListModuleDocuments :many
+SELECT d.id, d.kind, d.name, r.text FROM document d JOIN document_revision r ON r.document_id = d.id AND r.n = d.current
+WHERE d.workspace_id = ? AND d.project_id = ? AND d.owner_kind = '' AND d.kind IN ('manifest', 'prompt', 'script', 'skill', 'custom', 'doc')
+ORDER BY d.name
+`
+
+type ListModuleDocumentsParams struct {
+	WorkspaceID int64
+	ProjectID   int64
+}
+
+type ListModuleDocumentsRow struct {
+	ID   int64
+	Kind string
+	Name string
+	Text string
+}
+
+func (q *Queries) ListModuleDocuments(ctx context.Context, arg ListModuleDocumentsParams) ([]ListModuleDocumentsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listModuleDocuments, arg.WorkspaceID, arg.ProjectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListModuleDocumentsRow
+	for rows.Next() {
+		var i ListModuleDocumentsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Kind,
+			&i.Name,
+			&i.Text,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listRevisions = `-- name: ListRevisions :many
 SELECT id, document_id, n, author, reason, created_at FROM document_revision WHERE document_id = ? ORDER BY n DESC
 `
@@ -266,6 +312,46 @@ func (q *Queries) ListRevisions(ctx context.Context, documentID int64) ([]ListRe
 			&i.Reason,
 			&i.CreatedAt,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSkillFiles = `-- name: ListSkillFiles :many
+SELECT d.project_id, d.name, r.text FROM document d JOIN document_revision r ON r.document_id = d.id AND r.n = d.current
+WHERE d.workspace_id = ? AND d.project_id IN (0, ?2) AND d.owner_kind = '' AND d.kind = 'skill'
+ORDER BY d.project_id, d.name
+`
+
+type ListSkillFilesParams struct {
+	WorkspaceID int64
+	ProjectID   int64
+}
+
+type ListSkillFilesRow struct {
+	ProjectID int64
+	Name      string
+	Text      string
+}
+
+func (q *Queries) ListSkillFiles(ctx context.Context, arg ListSkillFilesParams) ([]ListSkillFilesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listSkillFiles, arg.WorkspaceID, arg.ProjectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListSkillFilesRow
+	for rows.Next() {
+		var i ListSkillFilesRow
+		if err := rows.Scan(&i.ProjectID, &i.Name, &i.Text); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

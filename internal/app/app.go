@@ -45,6 +45,8 @@ type Config struct {
 	ScriptCeiling time.Duration
 	// Snapshots is how many daily snapshots stay in backups/.
 	Snapshots int
+	// ClaudeSkills is the folder skills are imported from; ~/.claude/skills when empty.
+	ClaudeSkills string
 	// Sandbox confines scripts; the one of this operating system when nil.
 	Sandbox sandbox.Sandbox
 }
@@ -109,12 +111,16 @@ func New(cfg Config, p provider.Provider) (*App, error) {
 	a.addBuiltins()
 	a.Gateway = gateway.New(gateway.Config{Now: cfg.Now, QuestionWait: cfg.QuestionWait, ConfirmWait: cfg.ConfirmWait, ConfirmTTL: cfg.ConfirmTTL},
 		st, a.Asks, a.Bus, a.Registry)
+	a.Gateway.SetAutomation(a.Automation)
 	a.Runner = process.NewRunner(st, a.Gateway, a.Bus, p, a.Scripts,
 		process.Config{RunsDir: filepath.Join(cfg.Home, "runs"), MCPBase: cfg.MCPBase, Now: cfg.Now, Ceiling: cfg.Ceiling,
 			ScriptCeiling: cfg.ScriptCeiling, FilesDir: filepath.Join(cfg.Home, "files")}, a)
 	a.Runner.OnDone = a.afterTriggers
 	a.Scheduler = trigger.New(st, a, cfg.Now, cfg.CatchUpSpread)
 	a.Asks.OnLateAnswer(a.lateAnswer)
+	if err := a.SeedSkills(a.ctx); err != nil {
+		return nil, err
+	}
 	return a, nil
 }
 
@@ -184,8 +190,11 @@ func (a *App) afterTriggers(ctx context.Context, done db.Process) {
 
 // lateAnswer delivers an answer nobody was waiting for live; Deliver ignores processes that are not parked.
 func (a *App) lateAnswer(ctx context.Context, q db.Ask) {
-	if err := a.Runner.Deliver(ctx, q.ProcessID); err != nil {
-		slog.Error("deliver answer", "process", q.ProcessID, "err", err)
+	if !q.ProcessID.Valid {
+		return
+	}
+	if err := a.Runner.Deliver(ctx, q.ProcessID.Int64); err != nil {
+		slog.Error("deliver answer", "process", q.ProcessID.Int64, "err", err)
 	}
 }
 
@@ -214,10 +223,10 @@ func (a *App) expireConfirms(ctx context.Context, now time.Time) {
 	}
 	seen := map[int64]bool{}
 	for _, q := range expired {
-		if seen[q.ProcessID] {
+		if seen[q.ProcessID.Int64] {
 			continue
 		}
-		seen[q.ProcessID] = true
+		seen[q.ProcessID.Int64] = true
 		a.lateAnswer(ctx, q)
 	}
 	if len(expired) > 0 {

@@ -40,10 +40,18 @@ type Actor struct {
 	// ProcessID is the calling agent's process, or for a trigger the process whose finish fired it.
 	ProcessID int64
 	TriggerID int64
+	// Token is the automation token a master-side caller came with; Commands are the ones it may call.
+	Token    int64
+	Commands []string
+	// Trial marks a trial run: every call that is not internal is declined.
+	Trial bool
 }
 
 // Author is the actor as recorded in document revisions.
 func (a Actor) Author() string {
+	if a.Token != 0 {
+		return fmt.Sprintf("token:%d", a.Token)
+	}
 	if a.Kind == Agent && a.ProcessID != 0 {
 		return fmt.Sprintf("agent:%d", a.ProcessID)
 	}
@@ -144,7 +152,7 @@ func Prepare(c *Command) error {
 func (r *Registry) List(ctx context.Context, a Actor) ([]*Command, error) {
 	var out []*Command
 	for _, c := range r.builtins {
-		if slices.Contains(c.Callers, a.Kind) {
+		if r.allowed(a, c) == nil {
 			out = append(out, c)
 		}
 	}
@@ -198,17 +206,23 @@ func (r *Registry) Check(ctx context.Context, a Actor, name string, input json.R
 	if err := r.allowed(a, c); err != nil {
 		return nil, nil, err
 	}
+	input, err = c.Validate(input)
+	return c, input, err
+}
+
+// Validate checks an input against the command schema; an empty input is an empty object.
+func (c *Command) Validate(input json.RawMessage) (json.RawMessage, error) {
 	if len(bytes.TrimSpace(input)) == 0 {
 		input = json.RawMessage(`{}`)
 	}
 	v, err := jsonschema.UnmarshalJSON(bytes.NewReader(input))
 	if err != nil {
-		return nil, nil, Invalid("deck: input of %s is not JSON: %v", name, err)
+		return nil, Invalid("deck: input of %s is not JSON: %v", c.Name, err)
 	}
 	if err := c.schema.Validate(v); err != nil {
-		return nil, nil, Invalid("deck: input of %s does not match its schema: %v", name, err)
+		return nil, Invalid("deck: input of %s does not match its schema: %v", c.Name, err)
 	}
-	return c, input, nil
+	return input, nil
 }
 
 func (r *Registry) allowed(a Actor, c *Command) error {
@@ -218,10 +232,26 @@ func (r *Registry) allowed(a Actor, c *Command) error {
 	if c.ProjectID != 0 && (a.Kind == Agent || a.Kind == Trigger) && a.ProjectID != c.ProjectID {
 		return Refuse("deck: %s belongs to another project", c.Name)
 	}
-	if a.Kind == Agent && c.Class != Internal {
-		return Refuse("deck: %s is %s; agents cannot call it yet", c.Name, c.Class)
+	if a.Token != 0 && !Permits(a.Commands, c.Name) {
+		return Refuse("deck: this automation token may not call %s", c.Name)
+	}
+	if a.Trial && c.Class != Internal {
+		return Refuse("deck: trial run: %s is %s, so it was declined", c.Name, c.Class)
+	}
+	if (a.Kind == Agent || a.Kind == Master) && c.Class != Internal {
+		return Refuse("deck: %s is %s; %s cannot call it yet", c.Name, c.Class, a.Kind)
 	}
 	return nil
+}
+
+// Permits reports whether a list of command names allows a command; "x.*" allows every command under x.
+func Permits(patterns []string, name string) bool {
+	for _, p := range patterns {
+		if p == name || p == "*" || strings.HasSuffix(p, ".*") && strings.HasPrefix(name, strings.TrimSuffix(p, "*")) {
+			return true
+		}
+	}
+	return false
 }
 
 // ToolName is the MCP tool name of a command: builtins drop the prefix, project commands use "__".

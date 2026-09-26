@@ -13,6 +13,7 @@ var (
 	ownerSide  = []string{registry.Owner, registry.Master}
 	ownerOnly  = []string{registry.Owner}
 	projectOpt = registry.Opt("project", "project", "Project name; defaults to the caller's own project")
+	ifRevision = registry.Opt("if_revision", "integer", "Only while the current revision is still this one")
 )
 
 func (a *App) addBuiltins() {
@@ -28,6 +29,33 @@ func (a *App) addBuiltins() {
 		registry.Params(registry.P("name", "string", "Project name: lowercase letters, digits and '-'"),
 			registry.P("manifest", "text", "Manifest JSON"), registry.Opt("prompt", "text", "Project md prompt")),
 		registry.Typed(a.projectCreate))
+	add("project_enable", "Enable project", "Turns a draft on: its triggers start running and the rights its manifest asks for count as allowed.", ownerOnly,
+		registry.Params(registry.P("project", "project", "Project name"),
+			registry.P("revision", "integer", "The manifest revision whose rights the owner looked at")), registry.Typed(a.projectEnable))
+	add("command_try", "Trial run", "Starts a trial run of a project command: calls that are not internal are declined, nothing leaves deck.", ownerSide,
+		registry.Params(registry.P("command", "string", "Command name, project.command"), registry.Opt("input", "text", "Command input as a JSON object")),
+		registry.Typed(a.commandTry))
+	add("project_export", "Export project", "Writes the manifest, prompt, scripts, skills, custom blocks and md documents of a project into a new folder.", ownerOnly,
+		registry.Params(registry.P("project", "project", "Project name"), registry.P("folder", "string", "Absolute path of a folder that does not exist or is empty")),
+		registry.Typed(a.projectExport))
+	add("project_import", "Import project", "Creates a draft project from a folder written by export: manifest.json, prompt.md and the other files.", ownerSide,
+		registry.Params(registry.P("folder", "string", "Absolute path of the folder"), registry.Opt("name", "string", "Project name; the folder name when omitted")),
+		registry.Typed(a.projectImport))
+	add("unattended_list", "Done without you", "Lists changes made without the owner, newest first, with whether they can be undone.", ownerSide,
+		registry.Params(projectOpt, registry.Opt("limit", "integer", "At most this many")), registry.Typed(a.unattendedList))
+	add("unattended_undo", "Undo", "Returns what a change made without the owner touched to how it was before.", ownerOnly,
+		registry.Params(registry.P("entry", "integer", "Entry id from done without you")), registry.Typed(a.unattendedUndo))
+	add("skills_import", "Import skills", "Copies skills from ~/.claude/skills into deck as global skills; a changed skill gets a new revision.", ownerOnly,
+		registry.Params(registry.Opt("names", "string[]", "Only these skills; every skill when omitted")), registry.Typed(a.skillsImport))
+	add("token_create", "Create automation token", "Creates a token for a terminal agent, Shortcuts or a script; it acts as the master and may call only the listed commands.", ownerOnly,
+		registry.Params(registry.P("name", "string", "What the token is for"),
+			registry.P("commands", "string[]", "Command names it may call; project.* or deck.* allow every command under the prefix")),
+		registry.Typed(a.tokenCreate))
+	add("tokens_list", "Automation tokens", "Lists automation tokens with their commands; revoked ones too.", ownerOnly,
+		registry.Params(), registry.Typed(a.tokensList))
+	add("token_revoke", "Revoke token", "Revokes an automation token; calls with it are refused from then on.", ownerOnly,
+		registry.Params(registry.P("token", "integer", "Token id")), registry.Typed(a.tokenRevoke))
+
 	add("manifest_get", "Get manifest", "Returns the current manifest of a project.", everyone,
 		registry.Params(projectOpt), registry.Typed(a.manifestGet))
 	add("manifest_format", "Manifest format", "Returns the JSON Schema of project manifests.", everyone,
@@ -36,7 +64,7 @@ func (a *App) addBuiltins() {
 		}))
 	add("manifest_save", "Save manifest", "Validates a manifest and stores it as a new revision.", ownerSide,
 		registry.Params(registry.P("project", "project", "Project name"), registry.P("manifest", "text", "Manifest JSON"),
-			registry.Opt("reason", "string", "Why it changed")),
+			registry.Opt("reason", "string", "Why it changed"), ifRevision),
 		registry.Typed(a.manifestSave))
 
 	add("documents_list", "List documents", "Lists documents of a project, or workspace documents when no project is given.", everyone,
@@ -57,7 +85,7 @@ func (a *App) addBuiltins() {
 		registry.Params(registry.P("document", "document", "Document id")), registry.Typed(a.documentRevisions))
 	add("document_revert", "Revert document", "Makes an earlier revision current again as a new revision.", ownerSide,
 		registry.Params(registry.P("document", "document", "Document id"), registry.P("revision", "integer", "Revision to return to"),
-			registry.Opt("reason", "string", "Why")),
+			registry.Opt("reason", "string", "Why"), ifRevision),
 		registry.Typed(a.documentRevert))
 
 	add("records_list", "List records", "Lists records of a collection, newest last.", everyone,

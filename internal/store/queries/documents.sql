@@ -41,3 +41,15 @@ SELECT id, document_id, n, author, reason, created_at FROM document_revision WHE
 SELECT d.kind, r.text, r.n FROM document d JOIN document_revision r ON r.document_id = d.id AND r.n = d.current
 WHERE d.workspace_id = ? AND d.project_id = ? AND d.name = ? AND d.owner_kind = '' AND d.owner_id = 0
   AND (sqlc.arg(kind) = '' OR d.kind = sqlc.arg(kind));
+
+
+-- name: ListModuleDocuments :many
+SELECT d.id, d.kind, d.name, r.text FROM document d JOIN document_revision r ON r.document_id = d.id AND r.n = d.current
+WHERE d.workspace_id = ? AND d.project_id = ? AND d.owner_kind = '' AND d.kind IN ('manifest', 'prompt', 'script', 'skill', 'custom', 'doc')
+ORDER BY d.name;
+
+
+-- name: ListSkillFiles :many
+SELECT d.project_id, d.name, r.text FROM document d JOIN document_revision r ON r.document_id = d.id AND r.n = d.current
+WHERE d.workspace_id = ? AND d.project_id IN (0, sqlc.arg(project_id)) AND d.owner_kind = '' AND d.kind = 'skill'
+ORDER BY d.project_id, d.name;

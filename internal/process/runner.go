@@ -80,7 +80,10 @@ type Projects interface {
 	// ManifestAt is a stored revision of the manifest; 0 is the current one.
 	ManifestAt(ctx context.Context, projectID, revision int64) (*manifest.Manifest, error)
 	Prompt(ctx context.Context, projectID int64) (string, error)
-	Text(ctx context.Context, projectID int64, name string) (string, error)
+	// Text is the current text of a project document of the kind, of any kind for ""; empty when missing.
+	Text(ctx context.Context, projectID int64, kind, name string) (string, error)
+	// Skills are the files of the named skills: the project's own, else the workspace's.
+	Skills(ctx context.Context, projectID int64, names []string) (map[string]string, error)
 }
 
 func NewRunner(st *store.Store, gw *gateway.Gateway, bus *events.Bus, p provider.Provider, scripts *script.Exec, cfg Config, projects Projects) *Runner {

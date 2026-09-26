@@ -10,6 +10,7 @@ import (
 
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
+	"deck2/internal/store"
 	"deck2/internal/store/db"
 )
 
@@ -65,13 +66,13 @@ func (a *App) Manifest(ctx context.Context, projectID int64) (*manifest.Manifest
 	return loadManifest(ctx, a.Store.Q, p)
 }
 
-// Text is the current text of a project document by name, of any kind; empty when missing.
-func (a *App) Text(ctx context.Context, projectID int64, name string) (string, error) {
+// Text is the current text of a project document by kind and name, of any kind for ""; empty when missing.
+func (a *App) Text(ctx context.Context, projectID int64, kind, name string) (string, error) {
 	p, err := a.Store.Q.GetProject(ctx, projectID)
 	if err != nil {
 		return "", err
 	}
-	return currentText(ctx, a.Store.Q, projectScope(p), "", name)
+	return currentText(ctx, a.Store.Q, projectScope(p), kind, name)
 }
 
 // Prompt is the current md prompt of a project; empty when it has none.
@@ -103,7 +104,18 @@ func parseManifest(raw []byte) (parsed, error) {
 }
 
 // CreateProject validates the manifest, stores it and the prompt as first revisions and registers triggers.
+// The owner's project is enabled; anyone else's is a draft.
 func (a *App) CreateProject(ctx context.Context, act registry.Actor, name string, raw []byte, prompt string) (db.Project, error) {
+	status := store.ProjectDraft
+	if act.Kind == registry.Owner {
+		status = store.ProjectEnabled
+	}
+	return a.createProject(ctx, act, name, raw, prompt, status, nil)
+}
+
+// createProject stores a new project; more stores further documents in the same transaction before the checks.
+func (a *App) createProject(ctx context.Context, act registry.Actor, name string, raw []byte, prompt, status string,
+	more func(ctx context.Context, q *db.Queries, p db.Project) error) (db.Project, error) {
 	if !projectName.MatchString(name) || name == registry.Builtin {
 		return db.Project{}, registry.Invalid("deck: project name %q must be lowercase letters, digits and '-', start with a letter, and not be %q", name, registry.Builtin)
 	}
@@ -122,7 +134,7 @@ func (a *App) CreateProject(ctx context.Context, act registry.Actor, name string
 		if err := checkReads(ctx, q, act.Workspace, name, pm.m); err != nil {
 			return err
 		}
-		if p, err = q.CreateProject(ctx, db.CreateProjectParams{WorkspaceID: act.Workspace, Name: name, Status: "enabled"}); err != nil {
+		if p, err = q.CreateProject(ctx, db.CreateProjectParams{WorkspaceID: act.Workspace, Name: name, Status: status}); err != nil {
 			return err
 		}
 		ref := DocRef{Scope: projectScope(p), Name: ManifestName}
@@ -132,6 +144,11 @@ func (a *App) CreateProject(ctx context.Context, act registry.Actor, name string
 		if prompt != "" {
 			ref.Name = PromptName
 			if _, _, err := SaveDocument(ctx, q, ref, KindPrompt, prompt, act.Author(), "create project"); err != nil {
+				return err
+			}
+		}
+		if more != nil {
+			if err := more(ctx, q, p); err != nil {
 				return err
 			}
 		}
@@ -145,18 +162,31 @@ func (a *App) CreateProject(ctx context.Context, act registry.Actor, name string
 	return p, nil
 }
 
-// SaveManifest checks a manifest against the records and saves it with its triggers and migrated records in
-// one transaction; a revert takes the records of the collections it changes back from their snapshot.
-func (a *App) SaveManifest(ctx context.Context, act registry.Actor, p db.Project, raw []byte, reason string, revertTo int64) (int64, error) {
+// Call is a registry call frozen for the owner to allow later.
+type Call struct {
+	Command string         `json:"command"`
+	Input   map[string]any `json:"input"`
+}
+
+// Saved is a stored manifest revision, or the ask it waits on when the change widens the project's rights.
+type Saved struct {
+	Revision int64    `json:"revision,omitempty"`
+	Waiting  int64    `json:"waiting,omitempty"`
+	Widens   []string `json:"widens,omitempty"`
+}
+
+// SaveManifest checks a manifest and saves it with its triggers and migrated records in one transaction; a
+// change that widens rights waits for the owner as call; nonzero ifRevision must still be current.
+func (a *App) SaveManifest(ctx context.Context, act registry.Actor, p db.Project, raw []byte, reason string, revertTo, ifRevision int64, call Call) (Saved, error) {
 	pm, err := parseManifest(raw)
 	if err != nil {
-		return 0, err
+		return Saved{}, err
 	}
 	plan, err := a.migrate(ctx, p, pm.m, revertTo)
 	if err != nil {
-		return 0, err
+		return Saved{}, err
 	}
-	var n int64
+	var saved Saved
 	err = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		if err := checkReads(ctx, q, p.WorkspaceID, p.Name, pm.m); err != nil {
 			return err
@@ -172,9 +202,21 @@ func (a *App) SaveManifest(ctx context.Context, act registry.Actor, p db.Project
 		if err != nil {
 			return err
 		}
+		if ifRevision != 0 && cur.Current != ifRevision {
+			return &registry.Error{Status: 409, Text: fmt.Sprintf("deck: the manifest of %s is at revision %d now, not %d", p.Name, cur.Current, ifRevision)}
+		}
+		w, err := a.widens(ctx, q, act, p.ID, pm.m)
+		if err != nil || len(w) > 0 {
+			if err == nil {
+				saved, err = a.ask(ctx, q, act, p, cur.Current, w, reason, call)
+			}
+			return err
+		}
+		var n int64
 		if _, n, err = SaveDocument(ctx, q, ref, KindManifest, string(pm.text), act.Author(), reason); err != nil {
 			return err
 		}
+		saved.Revision = n
 		for name, mg := range plan {
 			if err := applyMigration(ctx, q, p.ID, pm.m.Collection(name), mg, cur.Current, n); err != nil {
 				return err
@@ -183,17 +225,23 @@ func (a *App) SaveManifest(ctx context.Context, act registry.Actor, p db.Project
 		if err := keepLegacyDescription(ctx, q, p, pm.legacy, act.Author()); err != nil {
 			return err
 		}
+		if err := a.unattended(ctx, q, act, p.ID, cur, n, fmt.Sprintf("%s changed the manifest of %s", act.Author(), p.Name), reason); err != nil {
+			return err
+		}
 		return a.Scheduler.Sync(ctx, q, p.ID, pm.m)
 	})
-	if err != nil {
-		return 0, err
+	if err != nil || saved.Waiting != 0 {
+		if saved.Waiting != 0 {
+			a.Bus.Publish("asks")
+		}
+		return saved, err
 	}
 	a.Bus.Publish("projects")
 	if len(plan) > 0 {
 		a.Bus.Publish("collection")
 	}
 	a.prepareLater(p.ID)
-	return n, nil
+	return saved, nil
 }
 
 // keepLegacyDescription turns the description of a format-1 manifest into the prompt when there is none.

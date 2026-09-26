@@ -33,9 +33,12 @@ func (a *Adapter) Name() string { return "claude-code" }
 
 func (a *Adapter) QuestionTool() string { return "AskUserQuestion" }
 
-func (a *Adapter) args(req provider.Request, mcp, settings string) []string {
+func (a *Adapter) args(req provider.Request, mcp, settings, plugin string) []string {
 	args := []string{"-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose",
 		"--strict-mcp-config", "--mcp-config", mcp, "--settings", settings, "--disallowedTools", strings.Join(disallowed, ",")}
+	if plugin != "" {
+		args = append(args, "--plugin-dir", plugin)
+	}
 	if req.Repo {
 		args = append(args, "--setting-sources", "project")
 	} else {
@@ -89,6 +92,13 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 		return provider.Result{}, err
 	}
 	defer os.Remove(setFile)
+	plugin, err := a.writePlugin(req.Skills)
+	if err != nil {
+		return provider.Result{}, err
+	}
+	if plugin != "" {
+		defer os.RemoveAll(plugin)
+	}
 	stderr, err := os.CreateTemp(a.ConfigDir, "stderr-*")
 	if err != nil {
 		return provider.Result{}, err
@@ -108,7 +118,7 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 	defer outR.Close()
 	defer inW.Close()
 
-	cmd := exec.Command(a.Binary, a.args(req, cfg, setFile)...)
+	cmd := exec.Command(a.Binary, a.args(req, cfg, setFile, plugin)...)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	cmd.Dir = req.Cwd
 	cmd.Env = environ(os.Environ())

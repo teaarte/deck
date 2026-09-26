@@ -16,13 +16,14 @@ for a in "$@"; do
     --session-id|--resume) session="$a" ;;
     --mcp-config) ls -l "$a" | cut -c1-10 > "$c/mcpmode"; cp "$a" "$c/mcpconfig" ;;
     --settings) ls -l "$a" | cut -c1-10 > "$c/settingsmode"; cp "$a" "$c/settings" ;;
+    --plugin-dir) cp -R "$a" "$c/plugin" ;;
   esac
   case "$prev" in
-    --input-format|--output-format|--mcp-config|--settings|--disallowedTools|--setting-sources|--permission-prompt-tool|--allowedTools|--resume|--session-id) prev="" ; continue ;;
+    --input-format|--output-format|--mcp-config|--settings|--disallowedTools|--setting-sources|--permission-prompt-tool|--allowedTools|--resume|--session-id|--plugin-dir) prev="" ; continue ;;
   esac
   case "$a" in
     -p|--verbose|--strict-mcp-config) ;;
-    --input-format|--output-format|--mcp-config|--settings|--disallowedTools|--setting-sources|--permission-prompt-tool|--allowedTools|--resume|--session-id) ;;
+    --input-format|--output-format|--mcp-config|--settings|--disallowedTools|--setting-sources|--permission-prompt-tool|--allowedTools|--resume|--session-id|--plugin-dir) ;;
     *) echo "error: unknown option '$a'" >&2; exit 1 ;;
   esac
   prev="$a"

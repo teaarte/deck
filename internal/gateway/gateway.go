@@ -26,17 +26,24 @@ const (
 )
 
 // FreeBuiltins are provider tools that run without asking: read-only and planning tools.
-var FreeBuiltins = []string{"Read", "Glob", "Grep", "TodoWrite", "StructuredOutput"}
+var FreeBuiltins = []string{"Read", "Glob", "Grep", "TodoWrite", "StructuredOutput", "Skill"}
 
-// Session is what the gateway knows about the process behind an MCP token.
+// Session is what the gateway knows about the process behind an MCP token, or about an automation token.
 type Session struct {
 	ProcessID int64
 	ProjectID int64
 	Workspace int64
+	Trial     bool
+	// Token is set for an automation token: the caller acts as the master, limited to Commands.
+	Token    int64
+	Commands []string
 }
 
 func (s *Session) actor() registry.Actor {
-	return registry.Actor{Kind: registry.Agent, Workspace: s.Workspace, ProjectID: s.ProjectID, ProcessID: s.ProcessID}
+	if s.Token != 0 {
+		return registry.Actor{Kind: registry.Master, Workspace: s.Workspace, Token: s.Token, Commands: s.Commands}
+	}
+	return registry.Actor{Kind: registry.Agent, Workspace: s.Workspace, ProjectID: s.ProjectID, ProcessID: s.ProcessID, Trial: s.Trial}
 }
 
 type Config struct {
@@ -54,9 +61,11 @@ type Gateway struct {
 	bus  *events.Bus
 	reg  *registry.Registry
 
-	mu       sync.Mutex
-	sessions map[string]*entry
-	handler  http.Handler
+	mu         sync.Mutex
+	sessions   map[string]*entry
+	tokens     map[int64]*automationEntry
+	handler    http.Handler
+	automation Automation
 }
 
 type entry struct {
@@ -67,7 +76,7 @@ type entry struct {
 }
 
 func New(cfg Config, st *store.Store, asks *ask.Broker, bus *events.Bus, reg *registry.Registry) *Gateway {
-	g := &Gateway{cfg: cfg, st: st, asks: asks, bus: bus, reg: reg, sessions: map[string]*entry{}}
+	g := &Gateway{cfg: cfg, st: st, asks: asks, bus: bus, reg: reg, sessions: map[string]*entry{}, tokens: map[int64]*automationEntry{}}
 	g.handler = mcp.NewStreamableHTTPHandler(g.serverFor, &mcp.StreamableHTTPOptions{SessionTimeout: time.Hour})
 	return g
 }
@@ -158,9 +167,10 @@ func (g *Gateway) alive(tok string) bool {
 	return g.sessions[tok] != nil
 }
 
+var gone = &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "deck: this process has finished"}}}
+
 func (g *Gateway) newServer(ctx context.Context, tok string, s *Session) (*mcp.Server, []string, []string, error) {
 	srv := mcp.NewServer(&mcp.Implementation{Name: ServerName, Version: "0"}, nil)
-	gone := &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "deck: this process has finished"}}}
 	srv.AddTool(&mcp.Tool{
 		Name:        ApproveTool,
 		Description: "Permission prompt handler used by deck.",
@@ -173,18 +183,23 @@ func (g *Gateway) newServer(ctx context.Context, tok string, s *Session) (*mcp.S
 		}
 		return g.approve(ctx, s, req.Params.Arguments)
 	})
+	allowed, tools, err := g.addCommands(ctx, srv, s, func() bool { return g.alive(tok) })
+	return srv, allowed, tools, err
+}
+
+// addCommands exposes the registry commands the session may call as tools of srv.
+func (g *Gateway) addCommands(ctx context.Context, srv *mcp.Server, s *Session, alive func() bool) (allowed, tools []string, err error) {
 	cmds, err := g.reg.List(ctx, s.actor())
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
-	var allowed, tools []string
 	for _, c := range cmds {
 		name := c.Name
 		tool := registry.ToolName(name)
 		tools = append(tools, tool)
 		srv.AddTool(&mcp.Tool{Name: tool, Title: c.Title, Description: c.Description, InputSchema: c.Input},
 			func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-				if !g.alive(tok) {
+				if !alive() {
 					return gone, nil
 				}
 				return g.invoke(ctx, s, name, req.Params.Arguments), nil
@@ -193,7 +208,7 @@ func (g *Gateway) newServer(ctx context.Context, tok string, s *Session) (*mcp.S
 			allowed = append(allowed, qualified(tool))
 		}
 	}
-	return srv, allowed, tools, nil
+	return allowed, tools, nil
 }
 
 func (g *Gateway) invoke(ctx context.Context, s *Session, name string, args json.RawMessage) *mcp.CallToolResult {
@@ -205,19 +220,31 @@ func (g *Gateway) invoke(ctx context.Context, s *Session, name string, args json
 	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(b)}}}
 }
 
-// call runs a registry command for the process behind a session and writes the call to the journal.
+// call runs a registry command for the session and writes the call with the class of the command to the journal.
 func (g *Gateway) call(ctx context.Context, s *Session, name string, args json.RawMessage) (any, error) {
-	out, err := g.reg.Invoke(ctx, s.actor(), name, args)
-	if err != nil {
-		g.log(ctx, s, name, registry.Internal, "rejected", "")
-		return nil, err
+	class, project := registry.Internal, s.ProjectID
+	if c, err := g.reg.Lookup(ctx, s.Workspace, name); err == nil {
+		class = c.Class
+		if project == 0 {
+			project = c.ProjectID
+		}
 	}
-	g.log(ctx, s, name, registry.Internal, "done", "")
-	return out, nil
+	out, err := g.reg.Invoke(ctx, s.actor(), name, args)
+	outcome := "done"
+	if err != nil {
+		outcome = "rejected"
+	}
+	g.journal(ctx, s, project, name, class, outcome, "")
+	return out, err
 }
 
 func (g *Gateway) log(ctx context.Context, s *Session, tool, class, outcome, params string) {
+	g.journal(ctx, s, s.ProjectID, tool, class, outcome, params)
+}
+
+func (g *Gateway) journal(ctx context.Context, s *Session, project int64, tool, class, outcome, params string) {
 	_ = g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		return q.LogToolCall(ctx, db.LogToolCallParams{ProcessID: s.ProcessID, ProjectID: s.ProjectID, Tool: tool, Class: class, Outcome: outcome, Params: params})
+		return q.LogToolCall(ctx, db.LogToolCallParams{ProcessID: s.ProcessID, ProjectID: project, Actor: s.actor().Author(),
+			Tool: tool, Class: class, Outcome: outcome, Params: params})
 	})
 }

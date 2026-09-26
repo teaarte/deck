@@ -1,0 +1,8 @@
+Screens were left out of manifest.json: the screen block catalog (the column format of a "table" block) is not
+documented in manifest_format or in the module-builder skill. Tried: columns as strings (refused: must be an
+object), {field|expr|value|expression|cell|text|display|show|path, title|label|name} — deck always answered
+"expression is empty". What deck accepted: block "source" is an object {"collection": "..."}; a column's name key
+is "label". Wanted screens:
+
+- Postings: table over postings — company, role, location, salary, rating.choice, rating.reason, found; newest first.
+- Sources: table over sources — name, url, status, last_error, last_read, last_new; action "Read now" -> collect.

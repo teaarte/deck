@@ -23,6 +23,7 @@ type processView struct {
 	State       string          `json:"state"`
 	Result      json.RawMessage `json:"result,omitempty"`
 	NotBySchema bool            `json:"not_by_schema"`
+	Trial       bool            `json:"trial,omitempty"`
 	Error       string          `json:"error,omitempty"`
 	StartedAt   string          `json:"started_at"`
 	FinishedAt  string          `json:"finished_at,omitempty"`
@@ -44,7 +45,7 @@ func msTime(v sql.NullInt64) string {
 }
 
 func procView(p db.Process) processView {
-	v := processView{ID: p.ID, Project: p.ProjectID, Command: p.Command, Kind: p.Kind, State: p.State, NotBySchema: p.NotBySchema == 1,
+	v := processView{ID: p.ID, Project: p.ProjectID, Command: p.Command, Kind: p.Kind, State: p.State, NotBySchema: p.NotBySchema == 1, Trial: p.Trial == 1,
 		Error: p.Error, StartedAt: p.StartedAt, FinishedAt: p.FinishedAt.String, Parent: p.ParentID.Int64, Depth: p.Depth,
 		Trigger: p.TriggerID.Int64, RetryKey: p.RetryKey, Empty: p.State == process.StateDone && p.Result == process.Empty,
 		SilentSince: msTime(p.SilentSinceMs), Deadline: msTime(p.DeadlineMs)}

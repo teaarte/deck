@@ -65,7 +65,7 @@ func (a *App) startHandler(projectID int64, m *manifest.Manifest, command string
 		}
 		key, _ := input[manifest.RetryKey].(string)
 		delete(input, manifest.RetryKey)
-		o := process.Origin{Parent: act.ProcessID, Trigger: act.TriggerID, Key: key}
+		o := process.Origin{Parent: act.ProcessID, Trigger: act.TriggerID, Key: key, Trial: act.Trial}
 		id, err := a.Runner.Start(ctx, projectID, m, command, input, o)
 		if err != nil {
 			return nil, err

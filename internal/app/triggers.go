@@ -50,6 +50,9 @@ func (a *App) runLater(ctx context.Context, act registry.Actor, in struct {
 	Command, Params string
 	At              string
 }) (any, error) {
+	if act.Trial {
+		return nil, registry.Refuse("deck: trial run: run later would start a real run, so it was declined")
+	}
 	at, err := time.Parse(time.RFC3339, in.At)
 	if err != nil {
 		return nil, registry.Invalid("deck: at: %v", err)
@@ -72,6 +75,12 @@ func (a *App) runLater(ctx context.Context, act registry.Actor, in struct {
 	raw, _ := json.Marshal(params)
 	var t db.TriggerState
 	err = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		if p, err := q.GetProject(ctx, cmd.ProjectID); err != nil || p.Status == store.ProjectDraft {
+			if err == nil {
+				err = registry.Invalid("deck: %s is a draft; it runs on a schedule after the owner enables it", p.Name)
+			}
+			return err
+		}
 		t, err = q.CreateOnceTrigger(ctx, db.CreateOnceTriggerParams{ProjectID: cmd.ProjectID, Command: name, Params: string(raw),
 			NextRunAt: sql.NullString{String: store.Time(at), Valid: true}})
 		return err

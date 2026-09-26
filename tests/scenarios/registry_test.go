@@ -192,7 +192,12 @@ func TestDocumentsWithRevisions(t *testing.T) {
 	for _, bad := range []map[string]any{
 		{"name": "../etc/passwd", "kind": "doc", "text": "x"},
 		{"name": "notes/rules.md", "kind": "script", "text": "x"},
-		{"name": "writer/SKILL.md", "kind": "skill", "text": "no frontmatter"},
+		{"name": "skills/writer/SKILL.md", "kind": "skill", "text": "no frontmatter"},
+		{"name": "skills/writer/SKILL.md", "kind": "skill", "text": "---\nname: other\ndescription: x\n---\n"},
+		{"name": "writer/SKILL.md", "kind": "skill", "text": "---\nname: writer\ndescription: x\n---\n"},
+		{"name": "skills/writer/notes.md", "kind": "doc", "text": "x"},
+		{"name": "skills/writer/SKILL.md", "kind": "skill", "text": "---\nname: writer\ndescription: x\nallowed-tools: Bash\n---\n"},
+		{"name": "skills/writer/SKILL.md", "kind": "skill", "text": "---\nname: writer\ndescription: x\nhooks:\n  PreToolUse: []\n---\n"},
 		{"name": "manifest.json", "kind": "manifest", "text": "{}"},
 		{"name": "a.md", "kind": "poem", "text": "x"},
 	} {
@@ -201,7 +206,7 @@ func TestDocumentsWithRevisions(t *testing.T) {
 		}
 	}
 	skill := "---\nname: writer\ndescription: Writes in the owner's voice.\n---\n# Writer\n"
-	e.must("deck.document_save", map[string]any{"name": "writer/SKILL.md", "kind": "skill", "text": skill}, nil)
+	e.must("deck.document_save", map[string]any{"name": "skills/writer/SKILL.md", "kind": "skill", "text": skill}, nil)
 }
 
 func TestRecordCommands(t *testing.T) {

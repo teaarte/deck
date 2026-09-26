@@ -93,8 +93,15 @@ func ConfirmPayload(tool string, input map[string]any) string {
 	return string(b)
 }
 
+// TrialRefusal is what an agent in a trial run gets for any call that needs the owner's confirmation.
+const TrialRefusal = "deck: trial run: external actions are declined; this call was not made."
+
 func (g *Gateway) confirm(ctx context.Context, s *Session, in approveInput) decision {
 	payload := ConfirmPayload(in.ToolName, in.Input)
+	if s.Trial {
+		g.log(ctx, s, in.ToolName, "external", "rejected", payload)
+		return decision{Behavior: "deny", Message: TrialRefusal}
+	}
 	consumed := g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		_, err := q.ConsumeApproval(ctx, db.ConsumeApprovalParams{ProcessID: s.ProcessID, Payload: payload})
 		return err

@@ -63,7 +63,7 @@ func (r *Runner) Rework(ctx context.Context, processID int64, remark string) err
 	var n int64
 	err = r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		if p.RetryKey != "" {
-			other, err := q.FindActiveProcess(ctx, db.FindActiveProcessParams{ProjectID: p.ProjectID, Command: p.Command, RetryKey: p.RetryKey})
+			other, err := q.FindActiveProcess(ctx, db.FindActiveProcessParams{ProjectID: p.ProjectID, Command: p.Command, RetryKey: p.RetryKey, Trial: p.Trial})
 			if err == nil && other.ID != p.ID {
 				return registry.Invalid("deck: process %d with the same retry key is still going", other.ID)
 			}

@@ -17,10 +17,13 @@ const (
 	KindPrompt   = "prompt"
 	KindManifest = "manifest"
 	KindSkill    = "skill"
+	KindScript   = "script"
+	KindCustom   = "custom"
+	KindDoc      = "doc"
 	KindArtifact = "artifact"
 )
 
-var DocumentKinds = []string{KindPrompt, KindManifest, "script", KindSkill, "custom", KindArtifact, "memory", "doc"}
+var DocumentKinds = []string{KindPrompt, KindManifest, KindScript, KindSkill, KindCustom, KindArtifact, "memory", KindDoc}
 
 const (
 	ManifestName = "manifest.json"
@@ -61,23 +64,6 @@ func checkDocName(name string) error {
 	return nil
 }
 
-func checkDocText(kind, name, text string) error {
-	if kind != KindSkill || !strings.HasSuffix(name, "/SKILL.md") {
-		return nil
-	}
-	front, ok := strings.CutPrefix(text, "---\n")
-	end := strings.Index(front, "\n---")
-	if !ok || end < 0 {
-		return registry.Invalid("deck: SKILL.md must start with YAML frontmatter between --- lines")
-	}
-	for _, field := range []string{"name:", "description:"} {
-		if !slices.ContainsFunc(strings.Split(front[:end], "\n"), func(l string) bool { return strings.HasPrefix(l, field) }) {
-			return registry.Invalid("deck: SKILL.md frontmatter needs %q", strings.TrimSuffix(field, ":"))
-		}
-	}
-	return nil
-}
-
 // SaveDocument writes a new revision and makes it current, creating the document on first save.
 func SaveDocument(ctx context.Context, q *db.Queries, ref DocRef, kind, text, author, reason string) (db.Document, int64, error) {
 	if !slices.Contains(DocumentKinds, kind) {
@@ -89,7 +75,7 @@ func SaveDocument(ctx context.Context, q *db.Queries, ref DocRef, kind, text, au
 	if want, ok := reservedNames[ref.Name]; ok && ref.OwnerKind == "" && kind != want {
 		return db.Document{}, 0, registry.Invalid("deck: %q is reserved for the %s document", ref.Name, want)
 	}
-	if err := checkDocText(kind, ref.Name, text); err != nil {
+	if err := checkSkillText(kind, ref.Name, text); err != nil {
 		return db.Document{}, 0, err
 	}
 	d, err := q.FindDocument(ctx, ref.find())

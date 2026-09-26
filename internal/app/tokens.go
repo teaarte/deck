@@ -1,0 +1,104 @@
+package app
+
+import (
+	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"regexp"
+	"strings"
+
+	"deck2/internal/registry"
+	"deck2/internal/store/db"
+)
+
+// TokenPrefix starts every automation token, so a token found in a log is recognised as deck's.
+const TokenPrefix = "deck_"
+
+var commandPattern = regexp.MustCompile(`^(\*|[a-z][a-z0-9-]*\.(\*|[a-z][a-z0-9_]*))$`)
+
+func tokenHash(raw string) string {
+	h := sha256.Sum256([]byte(raw))
+	return hex.EncodeToString(h[:])
+}
+
+// Automation resolves an automation token to the master-side actor it acts as; revoked and unknown tokens fail.
+func (a *App) Automation(ctx context.Context, raw string) (registry.Actor, error) {
+	if !strings.HasPrefix(raw, TokenPrefix) {
+		return registry.Actor{}, errors.New("not an automation token")
+	}
+	t, err := a.Store.Q.FindTokenByHash(ctx, tokenHash(raw))
+	if err != nil {
+		return registry.Actor{}, errors.New("unknown or revoked automation token")
+	}
+	var cmds []string
+	if err := json.Unmarshal([]byte(t.Commands), &cmds); err != nil {
+		return registry.Actor{}, err
+	}
+	return registry.Actor{Kind: registry.Master, Workspace: t.WorkspaceID, Token: t.ID, Commands: cmds}, nil
+}
+
+func (a *App) tokenCreate(ctx context.Context, act registry.Actor, in struct {
+	Name     string
+	Commands []string
+}) (any, error) {
+	if strings.TrimSpace(in.Name) == "" || len(in.Commands) == 0 {
+		return nil, registry.Invalid("deck: a token needs a name and at least one command")
+	}
+	for _, c := range in.Commands {
+		if !commandPattern.MatchString(c) {
+			return nil, registry.Invalid("deck: %q is not a command name, project.* or *", c)
+		}
+	}
+	b := make([]byte, 24)
+	_, _ = rand.Read(b)
+	raw := TokenPrefix + hex.EncodeToString(b)
+	cmds, _ := json.Marshal(in.Commands)
+	var t db.AutomationToken
+	err := a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		var err error
+		t, err = q.CreateToken(ctx, db.CreateTokenParams{WorkspaceID: act.Workspace, Name: in.Name, Hash: tokenHash(raw), Commands: string(cmds)})
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	url := a.Cfg.MCPBase + "/mcp"
+	return map[string]any{
+		"id": t.ID, "token": raw, "mcp_url": url,
+		"claude_code": fmt.Sprintf("claude mcp add --transport http deck %s --header \"Authorization: Bearer %s\"", url, raw),
+		"codex":       fmt.Sprintf("codex mcp add deck --url %s --bearer-token-env-var DECK_TOKEN, then run codex with DECK_TOKEN=%s", url, raw),
+	}, nil
+}
+
+func (a *App) tokensList(ctx context.Context, act registry.Actor, _ struct{}) (any, error) {
+	ts, err := a.Store.Q.ListTokens(ctx, act.Workspace)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]map[string]any, 0, len(ts))
+	for _, t := range ts {
+		out = append(out, map[string]any{"id": t.ID, "name": t.Name, "commands": json.RawMessage(t.Commands),
+			"created_at": t.CreatedAt, "revoked": t.RevokedAt.Valid})
+	}
+	return out, nil
+}
+
+func (a *App) tokenRevoke(ctx context.Context, act registry.Actor, in struct{ Token int64 }) (any, error) {
+	var n int64
+	err := a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		var err error
+		n, err = q.RevokeToken(ctx, db.RevokeTokenParams{ID: in.Token, WorkspaceID: act.Workspace})
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	if n == 0 {
+		return nil, registry.NotFound("deck: no active token %d", in.Token)
+	}
+	return map[string]any{"revoked": in.Token}, nil
+}

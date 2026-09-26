@@ -30,8 +30,8 @@ func (q *Queries) ClaimProcess(ctx context.Context, arg ClaimProcessParams) (int
 
 const createProcess = `-- name: CreateProcess :one
 INSERT INTO process (project_id, command, kind, state, provider, input, session_id, parent_id, depth, trigger_id, retry_key, ceiling_ms,
-    manifest_revision)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, kind, manifest_revision
+    manifest_revision, trial)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, kind, manifest_revision, trial
 `
 
 type CreateProcessParams struct {
@@ -48,6 +48,7 @@ type CreateProcessParams struct {
 	RetryKey         string
 	CeilingMs        int64
 	ManifestRevision int64
+	Trial            int64
 }
 
 func (q *Queries) CreateProcess(ctx context.Context, arg CreateProcessParams) (Process, error) {
@@ -65,6 +66,7 @@ func (q *Queries) CreateProcess(ctx context.Context, arg CreateProcessParams) (P
 		arg.RetryKey,
 		arg.CeilingMs,
 		arg.ManifestRevision,
+		arg.Trial,
 	)
 	var i Process
 	err := row.Scan(
@@ -92,13 +94,14 @@ func (q *Queries) CreateProcess(ctx context.Context, arg CreateProcessParams) (P
 		&i.SilentSinceMs,
 		&i.Kind,
 		&i.ManifestRevision,
+		&i.Trial,
 	)
 	return i, err
 }
 
 const findActiveProcess = `-- name: FindActiveProcess :one
-SELECT id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, kind, manifest_revision FROM process
-WHERE project_id = ? AND command = ? AND retry_key = ? AND retry_key != ''
+SELECT id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, kind, manifest_revision, trial FROM process
+WHERE project_id = ? AND command = ? AND retry_key = ? AND retry_key != '' AND trial = ?
   AND state IN ('running', 'waiting_answer', 'needs_login')
 ORDER BY id LIMIT 1
 `
@@ -107,10 +110,16 @@ type FindActiveProcessParams struct {
 	ProjectID int64
 	Command   string
 	RetryKey  string
+	Trial     int64
 }
 
 func (q *Queries) FindActiveProcess(ctx context.Context, arg FindActiveProcessParams) (Process, error) {
-	row := q.db.QueryRowContext(ctx, findActiveProcess, arg.ProjectID, arg.Command, arg.RetryKey)
+	row := q.db.QueryRowContext(ctx, findActiveProcess,
+		arg.ProjectID,
+		arg.Command,
+		arg.RetryKey,
+		arg.Trial,
+	)
 	var i Process
 	err := row.Scan(
 		&i.ID,
@@ -137,6 +146,7 @@ func (q *Queries) FindActiveProcess(ctx context.Context, arg FindActiveProcessPa
 		&i.SilentSinceMs,
 		&i.Kind,
 		&i.ManifestRevision,
+		&i.Trial,
 	)
 	return i, err
 }
@@ -172,7 +182,7 @@ func (q *Queries) FinishProcess(ctx context.Context, arg FinishProcessParams) (i
 }
 
 const getProcess = `-- name: GetProcess :one
-SELECT id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, kind, manifest_revision FROM process WHERE id = ?
+SELECT id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, kind, manifest_revision, trial FROM process WHERE id = ?
 `
 
 func (q *Queries) GetProcess(ctx context.Context, id int64) (Process, error) {
@@ -203,6 +213,7 @@ func (q *Queries) GetProcess(ctx context.Context, id int64) (Process, error) {
 		&i.SilentSinceMs,
 		&i.Kind,
 		&i.ManifestRevision,
+		&i.Trial,
 	)
 	return i, err
 }
@@ -274,7 +285,7 @@ func (q *Queries) ListProcessGroups(ctx context.Context) ([]ListProcessGroupsRow
 }
 
 const listProcesses = `-- name: ListProcesses :many
-SELECT id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, kind, manifest_revision FROM process ORDER BY id DESC LIMIT ?
+SELECT id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, kind, manifest_revision, trial FROM process ORDER BY id DESC LIMIT ?
 `
 
 func (q *Queries) ListProcesses(ctx context.Context, limit int64) ([]Process, error) {
@@ -311,6 +322,7 @@ func (q *Queries) ListProcesses(ctx context.Context, limit int64) ([]Process, er
 			&i.SilentSinceMs,
 			&i.Kind,
 			&i.ManifestRevision,
+			&i.Trial,
 		); err != nil {
 			return nil, err
 		}
@@ -326,7 +338,7 @@ func (q *Queries) ListProcesses(ctx context.Context, limit int64) ([]Process, er
 }
 
 const listProcessesByState = `-- name: ListProcessesByState :many
-SELECT id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, kind, manifest_revision FROM process WHERE state = ? ORDER BY id
+SELECT id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, kind, manifest_revision, trial FROM process WHERE state = ? ORDER BY id
 `
 
 func (q *Queries) ListProcessesByState(ctx context.Context, state string) ([]Process, error) {
@@ -363,6 +375,7 @@ func (q *Queries) ListProcessesByState(ctx context.Context, state string) ([]Pro
 			&i.SilentSinceMs,
 			&i.Kind,
 			&i.ManifestRevision,
+			&i.Trial,
 		); err != nil {
 			return nil, err
 		}
@@ -378,7 +391,7 @@ func (q *Queries) ListProcessesByState(ctx context.Context, state string) ([]Pro
 }
 
 const listProcessesFiltered = `-- name: ListProcessesFiltered :many
-SELECT id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, kind, manifest_revision FROM process
+SELECT id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, kind, manifest_revision, trial FROM process
 WHERE project_id IN (SELECT id FROM project WHERE workspace_id = ?1)
   AND (?2 = 0 OR project_id = ?2)
   AND (?3 = '' OR state = ?3)
@@ -431,6 +444,7 @@ func (q *Queries) ListProcessesFiltered(ctx context.Context, arg ListProcessesFi
 			&i.SilentSinceMs,
 			&i.Kind,
 			&i.ManifestRevision,
+			&i.Trial,
 		); err != nil {
 			return nil, err
 		}
@@ -446,7 +460,7 @@ func (q *Queries) ListProcessesFiltered(ctx context.Context, arg ListProcessesFi
 }
 
 const listToolCalls = `-- name: ListToolCalls :many
-SELECT id, process_id, project_id, tool, class, outcome, params, created_at FROM tool_call WHERE process_id = ? ORDER BY id
+SELECT id, process_id, project_id, tool, class, outcome, params, created_at, actor FROM tool_call WHERE process_id = ? ORDER BY id
 `
 
 func (q *Queries) ListToolCalls(ctx context.Context, processID int64) ([]ToolCall, error) {
@@ -467,6 +481,7 @@ func (q *Queries) ListToolCalls(ctx context.Context, processID int64) ([]ToolCal
 			&i.Outcome,
 			&i.Params,
 			&i.CreatedAt,
+			&i.Actor,
 		); err != nil {
 			return nil, err
 		}
@@ -482,12 +497,13 @@ func (q *Queries) ListToolCalls(ctx context.Context, processID int64) ([]ToolCal
 }
 
 const logToolCall = `-- name: LogToolCall :exec
-INSERT INTO tool_call (process_id, project_id, tool, class, outcome, params) VALUES (?, ?, ?, ?, ?, ?)
+INSERT INTO tool_call (process_id, project_id, actor, tool, class, outcome, params) VALUES (?, ?, ?, ?, ?, ?, ?)
 `
 
 type LogToolCallParams struct {
 	ProcessID int64
 	ProjectID int64
+	Actor     string
 	Tool      string
 	Class     string
 	Outcome   string
@@ -498,6 +514,7 @@ func (q *Queries) LogToolCall(ctx context.Context, arg LogToolCallParams) error 
 	_, err := q.db.ExecContext(ctx, logToolCall,
 		arg.ProcessID,
 		arg.ProjectID,
+		arg.Actor,
 		arg.Tool,
 		arg.Class,
 		arg.Outcome,

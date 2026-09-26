@@ -6,6 +6,7 @@ import (
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
 	"errors"
+	"fmt"
 )
 
 type documentView struct {
@@ -128,8 +129,11 @@ func (a *App) documentSave(ctx context.Context, act registry.Actor, in struct {
 			}
 			ref.OwnerKind, ref.OwnerID = "card", c.ID
 		}
-		d, _, err = SaveDocument(ctx, q, ref, in.Kind, in.Text, act.Author(), in.Reason)
-		return err
+		var n int64
+		if d, n, err = SaveDocument(ctx, q, ref, in.Kind, in.Text, act.Author(), in.Reason); err != nil {
+			return err
+		}
+		return a.scriptChanged(ctx, q, act, d, n, in.Reason)
 	})
 	if err != nil {
 		return nil, err
@@ -157,6 +161,7 @@ func (a *App) documentRevisions(ctx context.Context, act registry.Actor, in stru
 func (a *App) documentRevert(ctx context.Context, act registry.Actor, in struct {
 	Document, Revision int64
 	Reason             string
+	IfRevision         int64 `json:"if_revision"`
 }) (any, error) {
 	d, err := readableDocument(ctx, a.Store.Q, act, in.Document)
 	if err != nil {
@@ -172,21 +177,35 @@ func (a *App) documentRevert(ctx context.Context, act registry.Actor, in struct 
 		if err != nil {
 			return nil, err
 		}
-		n, err := a.SaveManifest(ctx, act, p, []byte(r.Text), reason, r.N)
-		if err != nil {
-			return nil, err
-		}
-		return map[string]any{"revision": n}, nil
+		return a.SaveManifest(ctx, act, p, []byte(r.Text), reason, r.N, in.IfRevision,
+			Call{Command: registry.Builtin + ".document_revert", Input: map[string]any{"document": d.ID, "revision": r.N, "reason": in.Reason}})
 	}
 	var n int64
 	err = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		ref := DocRef{Scope: Scope{Workspace: d.WorkspaceID, Project: d.ProjectID}, OwnerKind: d.OwnerKind, OwnerID: d.OwnerID, Name: d.Name}
-		_, n, err = SaveDocument(ctx, q, ref, d.Kind, r.Text, act.Author(), reason)
-		return err
+		if cur, err := q.GetDocument(ctx, d.ID); err != nil || in.IfRevision != 0 && cur.Current != in.IfRevision {
+			if err == nil {
+				err = &registry.Error{Status: 409, Text: fmt.Sprintf("deck: document %d is at revision %d now, not %d", d.ID, cur.Current, in.IfRevision)}
+			}
+			return err
+		}
+		if _, n, err = SaveDocument(ctx, q, ref, d.Kind, r.Text, act.Author(), reason); err != nil {
+			return err
+		}
+		return a.scriptChanged(ctx, q, act, d, n, reason)
 	})
 	if err != nil {
 		return nil, err
 	}
 	a.Bus.Publish("documents")
 	return map[string]any{"revision": n}, nil
+}
+
+// scriptChanged lists a script change made without the owner, undone by returning to the revision before n.
+func (a *App) scriptChanged(ctx context.Context, q *db.Queries, act registry.Actor, d db.Document, n int64, reason string) error {
+	if d.Kind != KindScript || d.ProjectID == 0 || d.OwnerKind != "" {
+		return nil
+	}
+	prev := db.Document{ID: d.ID, Current: n - 1}
+	return a.unattended(ctx, q, act, d.ProjectID, prev, n, fmt.Sprintf("%s changed script %s", act.Author(), d.Name), reason)
 }

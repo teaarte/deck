@@ -313,3 +313,37 @@ func TestPromptMentionsOnlyConnectedTools(t *testing.T) {
 		}
 	}
 }
+
+func TestSkillsReachTheCLIAsAPluginOutsideTheAgentFolder(t *testing.T) {
+	c := newCLI(t)
+	c.stream(0, "ok.jsonl")
+	e, home := cliEnv(t, c)
+	skilled := strings.Replace(plainManifest, `"prompt": "Do the work."}`, `"prompt": "Do the work.", "skills": ["reader"]}`, 1)
+	p := e.createProject("plain", skilled)
+	skill := "---\nname: reader\ndescription: Reads.\n---\nRead.\n"
+	e.must("deck.document_save", map[string]any{"project": "plain", "name": "skills/reader/SKILL.md", "kind": "skill", "text": skill}, nil)
+	if got := e.waitState(e.run(p, "work"), "done", "error"); got.State != "done" {
+		t.Fatalf("want done, got %+v", got)
+	}
+	call := c.call(1)
+	dir, ok := flag(call.args, "--plugin-dir")
+	if !ok || strings.HasPrefix(dir, filepath.Join(home, "runs")) {
+		t.Fatalf("skills go to a plugin folder outside the agent's folders: %q", dir)
+	}
+	copied := filepath.Join(c.dir, "calls", "1", "plugin")
+	if b, _ := os.ReadFile(filepath.Join(copied, "skills", "reader", "SKILL.md")); string(b) != skill {
+		t.Fatalf("the plugin holds the skill: %q", b)
+	}
+	if b, _ := os.ReadFile(filepath.Join(copied, ".claude-plugin", "plugin.json")); !strings.Contains(string(b), `"deck"`) {
+		t.Fatalf("the plugin has its manifest: %q", b)
+	}
+	if _, err := os.Stat(dir); !os.IsNotExist(err) {
+		t.Fatalf("the plugin folder is removed after the turn: %v", err)
+	}
+
+	e.createProject("bare", plainManifest)
+	e.waitState(e.start("bare", "work", nil), "done")
+	if _, ok := flag(c.call(2).args, "--plugin-dir"); ok {
+		t.Fatal("a command without skills gets no plugin")
+	}
+}

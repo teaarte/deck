@@ -17,7 +17,7 @@ func (a *App) asksList(ctx context.Context, act registry.Actor, _ struct{}) (any
 	}
 	out := make([]map[string]any, 0, len(as))
 	for _, q := range as {
-		out = append(out, map[string]any{"id": q.ID, "process": q.ProcessID, "kind": q.Kind, "text": q.Text,
+		out = append(out, map[string]any{"id": q.ID, "process": q.ProcessID.Int64, "project": q.ProjectID, "kind": q.Kind, "text": q.Text,
 			"payload": json.RawMessage(q.Payload), "created_at": q.CreatedAt})
 	}
 	return out, nil
@@ -30,8 +30,15 @@ func (a *App) askAnswer(ctx context.Context, act registry.Actor, in struct {
 	if ws, err := a.Store.Q.GetAskWorkspace(ctx, in.Ask); err != nil || ws != act.Workspace {
 		return nil, registry.NotFound("deck: no ask %d", in.Ask)
 	}
-	if q, err := a.Store.Q.GetAsk(ctx, in.Ask); err == nil && q.Kind == ask.KindLogin && !slices.Contains(ask.LoginAnswers, in.Answer) {
+	q, err := a.Store.Q.GetAsk(ctx, in.Ask)
+	if err != nil {
+		return nil, err
+	}
+	if q.Kind == ask.KindLogin && !slices.Contains(ask.LoginAnswers, in.Answer) {
 		return nil, registry.Invalid("deck: answer a login ask with %s", strings.Join(ask.LoginAnswers, " or "))
+	}
+	if q.Kind == ask.KindGrant && q.State == "open" {
+		return a.grantAnswer(ctx, act, q, in.Answer)
 	}
 	if err := a.Asks.Answer(ctx, in.Ask, in.Answer); err != nil {
 		if errors.Is(err, ask.ErrNotOpen) {

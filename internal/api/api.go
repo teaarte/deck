@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"crypto/subtle"
 	"encoding/json"
 	"errors"
@@ -9,6 +10,7 @@ import (
 	"io/fs"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"deck2/internal/app"
 	"deck2/internal/registry"
@@ -27,35 +29,55 @@ func New(a *app.App, token string, web fs.FS) *Server { return &Server{app: a, t
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.Handle("/mcp/", s.app.Gateway)
+	mux.HandleFunc("/mcp", s.app.Gateway.ServeAutomation)
 	mux.Handle("/", http.FileServerFS(s.web))
 
 	api := http.NewServeMux()
 	api.HandleFunc("GET /api/commands", s.listCommands)
 	api.HandleFunc("POST /api/commands/{name}", s.invoke)
-	api.HandleFunc("GET /api/projects/{id}/screens/{name}", s.getScreen)
-	api.HandleFunc("GET /api/events", s.events)
+	api.HandleFunc("GET /api/projects/{id}/screens/{name}", s.ownerOnly(s.getScreen))
+	api.HandleFunc("GET /api/events", s.ownerOnly(s.events))
 	mux.Handle("/api/", s.auth(api))
 	return mux
 }
 
+type actorKey struct{}
+
+// auth takes the owner's token, or an automation token for the command endpoints.
 func (s *Server) auth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		got := r.Header.Get("Authorization")
 		if got == "" {
 			got = "Bearer " + r.URL.Query().Get("token")
 		}
+		act := owner
 		if s.token == "" || subtle.ConstantTimeCompare([]byte(got), []byte("Bearer "+s.token)) != 1 {
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			var err error
+			if act, err = s.app.Automation(r.Context(), strings.TrimPrefix(got, "Bearer ")); err != nil {
+				http.Error(w, "unauthorized", http.StatusUnauthorized)
+				return
+			}
+		}
+		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), actorKey{}, act)))
+	})
+}
+
+func actor(r *http.Request) registry.Actor { return r.Context().Value(actorKey{}).(registry.Actor) }
+
+func (s *Server) ownerOnly(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if actor(r).Kind != registry.Owner {
+			http.Error(w, "deck: automation tokens call commands only", http.StatusForbidden)
 			return
 		}
-		next.ServeHTTP(w, r)
-	})
+		next(w, r)
+	}
 }
 
 var owner = registry.Actor{Kind: registry.Owner, Workspace: store.DefaultWorkspace}
 
 func (s *Server) listCommands(w http.ResponseWriter, r *http.Request) {
-	cmds, err := s.app.Registry.List(r.Context(), owner)
+	cmds, err := s.app.Registry.List(r.Context(), actor(r))
 	if err != nil {
 		fail(w, err)
 		return
@@ -69,7 +91,12 @@ func (s *Server) invoke(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	out, err := s.app.Registry.Invoke(r.Context(), owner, r.PathValue("name"), body)
+	var out any
+	if act := actor(r); act.Token != 0 {
+		out, err = s.app.Gateway.CallAs(r.Context(), act, r.PathValue("name"), body)
+	} else {
+		out, err = s.app.Registry.Invoke(r.Context(), act, r.PathValue("name"), body)
+	}
 	if err != nil {
 		http.Error(w, err.Error(), registry.Status(err))
 		return

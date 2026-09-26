@@ -32,11 +32,13 @@ type turn struct {
 func (r *Runner) run(ctx context.Context, t turn) {
 	bg := context.WithoutCancel(ctx)
 	processID := t.process
-	if p, err := r.st.Q.GetProcess(bg, processID); err != nil || p.State != StateRunning {
+	p, err := r.st.Q.GetProcess(bg, processID)
+	if err != nil || p.State != StateRunning {
 		return
 	}
+	trial := p.Trial == 1
 	if t.cmd.Executor.Type == KindScript {
-		r.runScript(ctx, t)
+		r.runScript(ctx, t, trial)
 		return
 	}
 	dir := filepath.Join(r.cfg.RunsDir, fmt.Sprint(processID))
@@ -50,7 +52,7 @@ func (r *Runner) run(ctx context.Context, t turn) {
 		r.finish(bg, processID, StateError, "", false, err.Error())
 		return
 	}
-	tok, err := r.gw.Register(bg, &gateway.Session{ProcessID: processID, ProjectID: t.project, Workspace: proj.WorkspaceID})
+	tok, err := r.gw.Register(bg, &gateway.Session{ProcessID: processID, ProjectID: t.project, Workspace: proj.WorkspaceID, Trial: trial})
 	if err != nil {
 		r.finish(bg, processID, StateError, "", false, err.Error())
 		return
@@ -73,6 +75,10 @@ func (r *Runner) run(ctx context.Context, t turn) {
 		SessionID: t.session, Resume: t.resume,
 		OnStart: func(pid int) { r.setGroup(bg, processID, pid) },
 		OnEvent: func(e provider.Event) { r.event(bg, processID, stream, e) },
+	}
+	if req.Skills, err = r.projects.Skills(bg, t.project, t.cmd.Executor.Skills); err != nil {
+		r.finish(bg, processID, StateError, "", false, err.Error())
+		return
 	}
 	if !t.resume {
 		if req.Prompt, err = r.firstPrompt(bg, proj, t, tools); err != nil {

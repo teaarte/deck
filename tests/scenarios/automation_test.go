@@ -1,0 +1,193 @@
+package scenarios
+
+import (
+	"fmt"
+	"slices"
+	"strings"
+	"testing"
+)
+
+func TestAutomationTokenCallsOnlyAllowedCommands(t *testing.T) {
+	e := newEnv(t, ok)
+	e.createProject("notes", plainManifest)
+	id, tok := e.token("terminal", "deck.projects_list", "deck.manifest_get", "deck.token_create", "deck.project_enable", "notes.*")
+
+	s, err := e.terminal(tok)
+	if err != nil {
+		t.Fatal(err)
+	}
+	names := toolNames(s)
+	for _, want := range []string{"projects_list", "manifest_get", "notes__work"} {
+		if !slices.Contains(names, want) {
+			t.Fatalf("tool %s must be offered, got %v", want, names)
+		}
+	}
+	for _, not := range []string{"document_save", "token_create", "project_enable", "approve"} {
+		if slices.Contains(names, not) {
+			t.Fatalf("tool %s must not be offered to this token, got %v", not, names)
+		}
+	}
+	if out, failed := use(s, "projects_list", map[string]any{}); failed || !strings.Contains(out, `"notes"`) {
+		t.Fatalf("an allowed command runs: %s", out)
+	}
+	if out, failed := use(s, "document_save", map[string]any{"name": "a.md", "kind": "doc", "text": "x"}); !failed {
+		t.Fatalf("a command outside the list is refused over MCP: %s", out)
+	}
+
+	if code, out := e.callWith(tok, "deck.manifest_get", map[string]any{"project": "notes"}); code != 200 {
+		t.Fatalf("an allowed command runs over the HTTP API: %d %s", code, out)
+	}
+	if code, out := e.callWith(tok, "deck.document_save", map[string]any{"name": "a.md", "kind": "doc", "text": "x"}); code != 403 || !strings.Contains(string(out), "may not call deck.document_save") {
+		t.Fatalf("a command outside the list is refused over the API: %d %s", code, out)
+	}
+	for _, owners := range []string{"deck.token_create", "deck.project_enable"} {
+		if code, out := e.callWith(tok, owners, map[string]any{"name": "x", "commands": []string{"*"}, "project": "notes"}); code != 403 || !strings.Contains(string(out), "cannot be called by master") {
+			t.Fatalf("%s stays the owner's even when listed: %d %s", owners, code, out)
+		}
+	}
+	if code, _ := e.doWith(tok, "GET", "/api/projects/1/screens/main"); code != 403 {
+		t.Fatalf("screens are for the owner only: %d", code)
+	}
+
+	actor := fmt.Sprintf("token:%d", id)
+	var mine []journalRow
+	for _, r := range e.journal() {
+		if r.Actor == actor {
+			mine = append(mine, r)
+		}
+	}
+	want := []journalRow{
+		{actor, "deck.projects_list", "internal", "done"},
+		{actor, "deck.manifest_get", "internal", "done"}, {actor, "deck.document_save", "internal", "rejected"},
+		{actor, "deck.token_create", "internal", "rejected"}, {actor, "deck.project_enable", "internal", "rejected"},
+	}
+	if !slices.Equal(mine, want) {
+		t.Fatalf("every call of the token is in the journal with its actor:\n got %v\nwant %v", mine, want)
+	}
+
+	e.must("deck.token_revoke", map[string]any{"token": id}, nil)
+	if out, failed := use(s, "projects_list", map[string]any{}); !failed {
+		t.Fatalf("a revoked token is refused in a live MCP session: %s", out)
+	}
+	if code, _ := e.callWith(tok, "deck.projects_list", map[string]any{}); code != 401 {
+		t.Fatalf("a revoked token is refused over the API: %d", code)
+	}
+	if _, err := e.terminal(tok); err == nil {
+		t.Fatal("a revoked token cannot open a new MCP session")
+	}
+	var list []struct {
+		ID      int64
+		Revoked bool
+	}
+	e.must("deck.tokens_list", nil, &list)
+	if len(list) != 1 || !list[0].Revoked {
+		t.Fatalf("tokens_list shows the revoked token: %+v", list)
+	}
+	if strings.Contains(fmt.Sprint(e.tokenRows()), tok) {
+		t.Fatal("deck stores only a hash of the token")
+	}
+}
+
+func TestMasterManifestEditIsUndoneFromTheFeed(t *testing.T) {
+	e := newEnv(t, ok)
+	e.createProject("notes", plainManifest)
+	_, tok := e.token("terminal", "deck.*")
+	s, err := e.terminal(tok)
+	if err != nil {
+		t.Fatal(err)
+	}
+	edited := strings.Replace(plainManifest, `"title": "Work"`, `"title": "Work hard"`, 1)
+	out, failed := use(s, "manifest_save", map[string]any{"project": "notes", "manifest": edited, "reason": "clearer title"})
+	if failed || !strings.Contains(out, `"revision":2`) {
+		t.Fatalf("a change that widens nothing applies at once: %s", out)
+	}
+
+	var feed []struct {
+		ID      int64
+		Author  string
+		Text    string
+		CanUndo bool `json:"can_undo"`
+		Undone  bool
+	}
+	e.must("deck.unattended_list", map[string]any{}, &feed)
+	if len(feed) != 1 || !feed[0].CanUndo || !strings.HasPrefix(feed[0].Author, "token:") ||
+		!strings.Contains(feed[0].Text, "changed the manifest of notes: clearer title") {
+		t.Fatalf("the change is in done without you: %+v", feed)
+	}
+	if code, _ := e.callWith(tok, "deck.unattended_undo", map[string]any{"entry": feed[0].ID}); code != 403 {
+		t.Fatalf("only the owner undoes: %d", code)
+	}
+	e.must("deck.unattended_undo", map[string]any{"entry": feed[0].ID}, nil)
+	var cur struct {
+		Manifest string
+		Revision int64
+	}
+	e.must("deck.manifest_get", map[string]any{"project": "notes"}, &cur)
+	if cur.Revision != 3 || strings.Contains(cur.Manifest, "Work hard") {
+		t.Fatalf("undo returns the manifest as it was, as a new revision: %+v", cur)
+	}
+	if code, out := e.call("deck.unattended_undo", map[string]any{"entry": feed[0].ID}); code != 409 || !strings.Contains(string(out), "already undone") {
+		t.Fatalf("an undone change is not undone twice: %d %s", code, out)
+	}
+
+	use(s, "manifest_save", map[string]any{"project": "notes", "manifest": edited})
+	use(s, "manifest_save", map[string]any{"project": "notes", "manifest": plainManifest})
+	e.must("deck.unattended_list", map[string]any{}, &feed)
+	if len(feed) != 3 {
+		t.Fatalf("each change is a line: %+v", feed)
+	}
+	if code, out := e.call("deck.unattended_undo", map[string]any{"entry": feed[1].ID}); code != 409 || !strings.Contains(string(out), "changed after") {
+		t.Fatalf("undo of a change the document moved on from is refused: %d %s", code, out)
+	}
+
+	e.must("deck.manifest_save", map[string]any{"project": "notes", "manifest": edited}, nil)
+	e.must("deck.unattended_list", map[string]any{}, &feed)
+	if len(feed) != 3 {
+		t.Fatalf("the owner's own changes are not listed: %+v", feed)
+	}
+}
+
+func TestMasterScriptEditIsUndoneFromTheFeed(t *testing.T) {
+	e := newEnv(t, ok)
+	e.createProject("tools", scriptManifest("run", "", "", ""))
+	e.saveScript("tools", "scripts/main.py", "print('{}')\n")
+	_, tok := e.token("terminal", "deck.*")
+	save := func(name, text string) {
+		t.Helper()
+		if code, out := e.callWith(tok, "deck.document_save", map[string]any{"project": "tools", "name": name, "kind": "script", "text": text, "reason": "faster"}); code != 200 {
+			t.Fatalf("document_save: %d %s", code, out)
+		}
+	}
+	save("scripts/main.py", "print('{\"fast\": true}')\n")
+	save("scripts/extra.py", "print('{}')\n")
+	var feed []struct {
+		ID      int64
+		Text    string
+		CanUndo bool `json:"can_undo"`
+	}
+	e.must("deck.unattended_list", map[string]any{"project": "tools"}, &feed)
+	if len(feed) != 2 || feed[0].CanUndo || !feed[1].CanUndo || !strings.Contains(feed[1].Text, "changed script scripts/main.py: faster") {
+		t.Fatalf("script changes are listed; a new script has no earlier version: %+v", feed)
+	}
+	e.must("deck.unattended_undo", map[string]any{"entry": feed[1].ID}, nil)
+	var doc struct{ Text string }
+	e.must("deck.document_get", map[string]any{"project": "tools", "name": "scripts/main.py"}, &doc)
+	if doc.Text != "print('{}')\n" {
+		t.Fatalf("undo returns the script as it was: %q", doc.Text)
+	}
+	if code, _ := e.call("deck.unattended_undo", map[string]any{"entry": feed[0].ID}); code != 422 {
+		t.Fatalf("a change without an earlier version cannot be undone: %d", code)
+	}
+	var d struct{ ID int64 }
+	e.must("deck.document_get", map[string]any{"project": "tools", "name": "scripts/main.py"}, &d)
+	if code, out := e.callWith(tok, "deck.document_revert", map[string]any{"document": d.ID, "revision": 2}); code != 200 {
+		t.Fatalf("document_revert: %d %s", code, out)
+	}
+	if code, _ := e.callWith(tok, "deck.document_revert", map[string]any{"document": d.ID, "revision": 1, "if_revision": 3}); code != 409 {
+		t.Fatalf("if_revision guards a revert: %d", code)
+	}
+	e.must("deck.unattended_list", map[string]any{"project": "tools"}, &feed)
+	if len(feed) != 3 || !feed[0].CanUndo || !strings.Contains(feed[0].Text, "revert to revision 2") {
+		t.Fatalf("a revert by the master is listed too: %+v", feed)
+	}
+}

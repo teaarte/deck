@@ -42,7 +42,9 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   not fit needs a `migration` script in the same revision (JSONL of records in, JSONL out); deck runs it on a
   copy and refuses the change with the first problem records otherwise. `retention_days` deletes records (with
   their documents and files) that many days after they were created, `file_retention_days` deletes files of
-  records that many days after the file was added.
+  records that many days after the file was added. `key`, `display`, `where` and `bind` are expr-lang
+  expressions: a field named like one of its functions (`date`, `now`, `count`, `len`, `sum`, `max`, …) reads as
+  the function there, so name such fields `day`, `ops` and so on.
   `records_list` returns the newest records up to a limit, and `record_update` replaces the whole record: work
   over hundreds of records (filtering, batching, merging new fields into old ones) belongs in a script, and an
   agent gets only the slice it judges, from the script's result or its input.
@@ -86,6 +88,8 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   only in `read` waits for the owner each time. The owner signs in to a site once (`browser_login`); a page
   that asks for a sign-in again means the agent calls `browser_needs_login` and stops — deck resumes it after
   the owner signs in.
+- **Command input** is a flat object; a choice is `{"type": "string", "enum": [...]}` — an `enum` without
+  `"type": "string"` is refused.
 - **Files of the input**: a command field with `"format": "file"` takes a file id (from a form upload, Share, or
   `files_list` of a record or card); scripts and agents get the path of a read-only copy. A result may give such
   a file to a record or card: `files: [{"file": <id>, "record": <id>}]`.
@@ -104,12 +108,16 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   `review`, `done`), each role on at most one lane. New cards land in `inbox`. `ready`, `running` and
   `review` are for code runs and come only all three together; a pipeline the owner drives by hand needs
   only `inbox` and maybe `done`. A card can point at a record (`record`). A project can live without a board.
-- **Documents** an agent writes (artifacts) belong to one card or one record, not both.
+- **Documents** agents and scripts write are artifacts only: each belongs to one card or one record, not
+  both. A daily digest or report is an artifact of a record made for it (one record a day); `prompt.md`,
+  `prompts/*.md` and other module documents are written by you, not by the module at run time.
 - **Screens** are lists of blocks. Today deck draws `table` and `actions`:
   `{"type": "table", "title": "Best", "source": {"collection": "items", "where": "score >= 7", "sort": "-score",
   "limit": 20}, "columns": [{"label": "Title", "bind": "title"}], "actions": [{"label": "Rate", "command":
   "rate", "params": {"id": "$record.id"}}]}` — `where` and `bind` are expressions over record fields,
-  `sort` is a field with `-` for descending. List screens in `menu`.
+  `sort` is a field with `-` for descending. An action passes every required parameter of its command
+  (from `$record.<field>` or fixed values); deck asks for nothing that is missing, so a choice the owner
+  makes in a row is one action per option. List screens in `menu`.
 - **Starting records** (the first sources, say) are written after the import with `records_upsert`, or by the
   first run of the script that needs them.
 
@@ -166,9 +174,11 @@ The owner picks the model provider of each agent command in settings (`provider_
 what the command needs and suggests one. `requires` lists capabilities, and usually only two matter:
 `no_cloud` for personal data (finance, health) that must stay on the owner's hardware, and `sandbox` when the
 agent must run shell commands or write files (a provider in auto mode; an OpenAI-compatible model such as
-Ollama has only deck's tools). `web` means the provider's own web search and fetch; require it only when the
-agent must research the open web itself, since it keeps the command off local models; fetching known pages is
-better done by a script with `domains.read`. Repeatable mechanics still belong in a script: it is cheaper,
+Ollama has only deck's tools). `web` decides only which provider may run the command: an agent on Claude Code has the web
+whether or not it is required. Require it when the agent's result is wrong without its own research (reading
+changelogs or news it cannot know in advance), so the owner cannot move it to a local model that has none;
+leave it out when a script brings the pages the agent judges, which is cheaper and keeps local models
+possible. Fetching known pages belongs in a script with `domains.read`. Repeatable mechanics still belong in a script: it is cheaper,
 runs the same way every time and works with any provider. Do not require `tools` or `structured_output`: every provider has deck's tools and hands in the result, and a
 requirement a local model lacks keeps routine work off it. `providers_list` with the command shows which
 providers fit it. `provider` suggests a provider by
@@ -197,14 +207,18 @@ Name each of these rights in the hand-over: the owner grants them with "enable".
 
 1. Write the module as a folder: `manifest.json`, `prompt.md` (its first line is the one-line description
    deck and the master choose the project by), `prompts/*.md`, `scripts/*`, `skills/<name>/SKILL.md`,
-   other md documents by their names.
+   other md documents by their names. Only `prompt.md` has kind `prompt`; `prompts/*.md` and the other md
+   come in as `doc`, so later `document_save` them with kind `doc`. Keep test data outside the module folder.
 2. `project_import` with the absolute folder path creates a **draft**. A refused import comes back with the
    reason and leaves nothing behind; fix the folder and import again. Once imported, change the draft with
    `manifest_save` and `document_save` (a second import of the same name is refused), and keep the folder
    in step.
 3. `command_try` runs a command as a trial: everything that is not internal is declined, so nothing leaves
    deck. The `after` and `lane` triggers it sets off run as trials too, so a whole chain can be tried from
-   its first command. `process_get` gives the state and result; `process_log` shows events only while the
+   its first command. A trial is not a sandbox: internal writes (records, cards, documents) are real and stay
+   in the draft, and deck has no command to delete records. Try on real inputs, or on test inputs you can
+   tell apart (a test source, a test go.mod) and list what they left in the hand-over. `process_get` gives
+   the state and result; `process_log` shows events only while the
    process is open. Check `records_list` and `cards_list`, and `health_list` after a save that adds packages,
    programs or MCP servers: a failed install shows there with its error.
 4. A draft never runs on its schedule or on the owner's card moves. Only the owner enables it.
@@ -237,9 +251,9 @@ enabled project is listed as "done without you" with an undo.
 Tell the owner in a few plain sentences: what the module does and when, what the trial showed, and the
 rights "enable" will grant. Do not enable it yourself.
 
-## Lessons
+## 11. Improve this skill
 
-Every manual fix the owner makes to a module built with this skill becomes a line here.
-
-- 2026-09-26, vacancies: the rating agent required `tools` and `structured_output`, which kept it off local
-  models; agent commands now require only `sandbox` or `no_cloud` (section 5).
+When the owner fixes by hand a module you built, or you had to guess because this skill was silent or wrong,
+fix the section that led you there: `document_save`, kind `skill`, name `skills/module-builder/SKILL.md`, no
+project. Change the rule itself, in the words of the section, and keep the skill general; no dated notes,
+examples of one module or history — deck keeps the revisions. Say in the hand-over what you changed.

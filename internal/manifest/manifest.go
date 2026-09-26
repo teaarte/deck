@@ -32,6 +32,7 @@ type Manifest struct {
 	Menu            []string     `json:"menu,omitempty"`
 	Autonomy        string       `json:"autonomy,omitempty"`
 	Reads           []Read       `json:"reads,omitempty"`
+	NoNetwork       bool         `json:"no_network,omitempty"`
 
 	// Revision is the stored revision the manifest was read from; 0 when it was not read from the base.
 	Revision int64 `json:"-"`

@@ -88,6 +88,9 @@ func (m *Manifest) compileCommands(fail func(string, ...any)) {
 			fail("command %q: duplicate", c.Name)
 		}
 		m.commands[c.Name] = c
+		if m.NoNetwork && slices.Contains(c.Requires, "web") {
+			fail("command %q requires web, but agents of a no_network project have none", c.Name)
+		}
 		var err error
 		if len(c.Input) > 0 {
 			if slices.Contains(schemaFields(c.Input), RetryKey) {

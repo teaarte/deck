@@ -8,6 +8,8 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -104,16 +106,52 @@ func (a *App) dirs() files.Dirs {
 	return files.Dirs{Files: filepath.Join(a.Cfg.Home, "files"), Runs: filepath.Join(a.Cfg.Home, "runs")}
 }
 
-// hidden are the secrets, the base and the model sessions of deck under every path of home, since macOS links
-// /tmp and /var.
-func hidden(home string) []string {
+// hidden are what an agent may not read or write under every path of home, since macOS links /tmp and /var:
+// everything of deck but its own run and the data of its project, including runs and projects created later.
+func hidden(home string) func(project, process int64) []string {
 	homes := []string{home}
 	if real, err := filepath.EvalSymlinks(home); err == nil && real != home {
 		homes = append(homes, real)
 	}
-	var out []string
-	for _, h := range homes {
-		out = append(out, filepath.Join(h, "secrets")+"/**", filepath.Join(h, "deck.db")+"*", filepath.Join(h, "sessions")+"/**")
+	return func(project, process int64) []string {
+		var out []string
+		for _, h := range homes {
+			out = append(out, filepath.Join(h, "deck.db")+"*", filepath.Join(h, "token"), filepath.Join(h, "mcp", "*.json"),
+				filepath.Join(h, "mcp", "*.tmp"), filepath.Join(h, "mcp", "stderr-*"))
+			for _, d := range []string{"secrets", "sessions", "files", "backups", "browser"} {
+				out = append(out, filepath.Join(h, d)+"/**")
+			}
+			out = append(out, others(filepath.Join(h, "runs"), fmt.Sprint(process))...)
+			out = append(out, others(filepath.Join(h, "projects"), fmt.Sprint(project))...)
+			own := filepath.Join(h, "projects", fmt.Sprint(project))
+			names := []string{"env", "mcp"}
+			entries, _ := os.ReadDir(own)
+			for _, e := range entries {
+				if e.Name() != "data" && !slices.Contains(names, e.Name()) {
+					names = append(names, e.Name())
+				}
+			}
+			for _, n := range names {
+				out = append(out, filepath.Join(own, n)+"/**")
+			}
+		}
+		return out
+	}
+}
+
+// others are patterns for every folder of dir with a decimal name other than own: other lengths, then each
+// other digit at each position.
+func others(dir, own string) []string {
+	out := []string{filepath.Join(dir, strings.Repeat("?", len(own)+1)+"*") + "/**"}
+	for n := 1; n < len(own); n++ {
+		out = append(out, filepath.Join(dir, strings.Repeat("?", n))+"/**")
+	}
+	for i := range own {
+		for c := '0'; c <= '9'; c++ {
+			if byte(c) != own[i] {
+				out = append(out, filepath.Join(dir, own[:i]+string(c)+strings.Repeat("?", len(own)-i-1))+"/**")
+			}
+		}
 	}
 	return out
 }

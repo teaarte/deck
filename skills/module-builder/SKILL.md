@@ -152,16 +152,24 @@ A script reads its input JSON from stdin and prints its result JSON to stdout. I
 
 The prompt says what to do with the input and what the result means; facts and criteria live in md
 documents it reads, and a skill carries a reusable way of working. The agent reaches deck only through the
-deck MCP server; besides it, it can read its own work folder (`Read`, `Glob`, `Grep`) and use its skills; its
-web tools are off. Anything external it wants waits for the owner's confirmation. List the skills it needs in
-`executor.skills`; a skill may not grant tools (`allowed-tools`, `hooks`) — rights come from deck.
+deck MCP server. A provider with a shell (Claude Code) runs it in its auto mode: the agent works in its own
+folder and in the project's data folder (the prompt names it; indexes, caches and state live there between
+runs), runs shell commands, and searches and fetches the web without asking; the provider itself refuses
+what looks risky and asks the owner only about that. Secrets, deck's own files and other projects stay closed
+to it. A deck tool of class `external` outside `allowed_external` still waits for the owner. Set
+`"no_network": true` for a project with personal data (finance, health, mail): its agents get no web and no
+network of their own and reach outside only through deck tools; removing the flag later is a right. List the
+skills it needs in `executor.skills`; a skill may not grant tools (`allowed-tools`, `hooks`) — rights come
+from deck.
 
 The owner picks the model provider of each agent command in settings (`provider_set`); the manifest only says
 what the command needs and suggests one. `requires` lists capabilities, and usually only two matter:
 `no_cloud` for personal data (finance, health) that must stay on the owner's hardware, and `sandbox` when the
-agent must run shell commands or write files (an OpenAI-compatible model such as Ollama has only deck's
-tools). Every shell command or file write of such an agent waits for the owner, so give that work to a script.
-Do not require `tools` or `structured_output`: every provider has deck's tools and hands in the result, and a
+agent must run shell commands or write files (a provider in auto mode; an OpenAI-compatible model such as
+Ollama has only deck's tools). `web` means the provider's own web search and fetch; require it only when the
+agent must research the open web itself, since it keeps the command off local models; fetching known pages is
+better done by a script with `domains.read`. Repeatable mechanics still belong in a script: it is cheaper,
+runs the same way every time and works with any provider. Do not require `tools` or `structured_output`: every provider has deck's tools and hands in the result, and a
 requirement a local model lacks keeps routine work off it. `providers_list` with the command shows which
 providers fit it. `provider` suggests a provider by
 name — routine judgement suits a local model (`"provider": "ollama"`), heavy reasoning Claude Code. Write the
@@ -170,8 +178,11 @@ at the end; a provider without output by schema gets the `result_submit` tool fo
 
 ## 6. Confirmations
 
-Each "yes" the owner gives by habit is a failure of the module. Before hand-over, count what will wait for the
-owner in a normal week and remove what they would always allow:
+Each "yes" the owner gives by habit is a failure of the module. What an agent does in its own folders, in its
+shell and on the web does not wait for the owner: the provider's auto mode passes it and asks only about what
+it finds risky, which should be rare in a normal run. What waits is deck tools of class `external` outside
+`allowed_external`, reversible actions in the `suggest` mode, and questions the agent asks. Before hand-over,
+count what will wait for the owner in a normal week and remove what they would always allow:
 
 - a tool that only reads (search, fetch, status) gets `"class": "internal"`; `external` is for what changes
   something outside or costs money;
@@ -217,7 +228,7 @@ Name each of these rights in the hand-over: the owner grants them with "enable".
 ## 9. Rights
 
 Ask only for what the module needs. Autonomy `auto`, `allowed_external`, domains, secrets, milder classes of
-tools and `reads` of other projects are rights: in a draft they are part of what the owner enables; in an
+tools, `reads` of other projects and removing `no_network` are rights: in a draft they are part of what the owner enables; in an
 enabled project a change that widens them waits for the owner's button. Every other change you make to an
 enabled project is listed as "done without you" with an undo.
 

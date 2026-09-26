@@ -10,7 +10,11 @@ import (
 	"strings"
 )
 
-var disallowed = []string{"WebFetch", "WebSearch"}
+// webTools are the CLI's own network tools; a project without network does not get them.
+var webTools = []string{"WebFetch", "WebSearch"}
+
+// offlineTools are the only built-in tools of a project without network, so a network tool of a later CLI is off too.
+var offlineTools = []string{"Bash", "Read", "Glob", "Grep", "Edit", "Write", "NotebookEdit", "TodoWrite", "Skill", "Task", "AskUserQuestion"}
 
 var envNames = map[string]bool{"PATH": true, "HOME": true, "USER": true, "LOGNAME": true, "SHELL": true,
 	"LANG": true, "TZ": true, "TMPDIR": true}
@@ -56,6 +60,10 @@ func settings(req provider.Request) map[string]any {
 		}
 	}
 	s["permissions"] = map[string]any{"deny": deny}
+	if req.NoNetwork {
+		s["sandbox"] = map[string]any{"enabled": true, "failIfUnavailable": true, "allowUnsandboxedCommands": false,
+			"network": map[string]any{"allowedDomains": []string{}, "strictAllowlist": true}}
+	}
 	if !req.Repo {
 		return s
 	}

@@ -15,12 +15,19 @@ import (
 	"time"
 )
 
-// approving makes the fake CLI ask deck's permission tool about the self-check command, as the real one does.
+// approving makes the fake CLI act as the real one does in auto mode on the self-check: the write in its folder
+// runs without asking, only the question reaches deck's permission tool, and curl fails without network.
 func (c *fakeCLI) approving() {
 	self, _ := os.Executable()
-	c.before(`if [ -n "$(grep -o 'deck-check-' "$c/stdin")" ]; then
+	offline, _ := filepath.Abs("testdata/claude/selfcheck_offline.jsonl")
+	c.before(`if grep -q -- --tools "$c/args" && grep -q 'self-check of deck' "$c/stdin"; then
+  sed "s/{{session}}/$session/g" '` + offline + `'
+  exit 0
+fi
+if [ -n "$(grep -o 'deck-check-' "$c/stdin")" ] && ! grep -q -- --resume "$c/args"; then
+  echo "$word" > word.txt
   url=$(sed -n 's/.*"url":"\([^"]*\)".*/\1/p' "$c/mcpconfig")
-  DECK_FAKE_MCP=approve '` + self + `' "$url" "echo $word > word.txt"
+  DECK_FAKE_MCP=approve '` + self + `' "$url" AskUserQuestion '{"questions":[{"question":"Which answer should the result carry?"}]}'
 fi`)
 }
 
@@ -72,20 +79,20 @@ func TestFailedSelfCheckHoldsClaudeCodeProcesses(t *testing.T) {
 	if h := e.waitHealth("provider:claude-code", "ok"); h.Version != "2.1.281" {
 		t.Fatalf("the retried self-check is green: %+v", h)
 	}
-	if got := e.waitState(id, "done", "error"); got.State != "done" || c.calls() != 4 {
+	if got := e.waitState(id, "done", "error"); got.State != "done" || c.calls() != 5 {
 		t.Fatalf("the waiting process runs once the self-check is green: %+v, %d calls", got, c.calls())
 	}
 	if !strings.Contains(c.call(2).stdin, "deck-check-") || !slices.Contains(c.call(3).args, "--resume") {
 		t.Fatalf("the self-check is a turn and a resume of its session: %v", c.call(3).args)
 	}
-	c.stream(5, "ok.jsonl")
+	c.stream(6, "ok.jsonl")
 	c.version("2.1.282")
 	e.App.Checks(ctx, e.Clock.Add(10*time.Minute))
 	if h := e.waitHealth("provider:claude-code", "error"); h.Version != "2.1.282" {
 		t.Fatalf("a new version of the CLI is checked again: %+v", h)
 	}
-	c.stream(6, "selfcheck.jsonl")
-	c.stream(7, "selfcheck_resume.jsonl")
+	c.stream(7, "selfcheck.jsonl")
+	c.stream(8, "selfcheck_resume.jsonl")
 	e.must("deck.provider_check", map[string]any{"provider": "claude-code"}, nil)
 	e.waitHealth("provider:claude-code", "ok")
 	if code, _ := e.call("deck.provider_check", map[string]any{"provider": "fake"}); code == 200 {

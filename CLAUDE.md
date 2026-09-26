@@ -9,6 +9,7 @@ Protocol facts about Claude Code: `docs/spikes/claude-code.md`. Stage 1 plan: `d
 - Run: `DECK_HOME=/tmp/deckhome ./deck` (prints the URL with the access token)
 - Tests: `go test -race ./...`
 - Real Claude Code end-to-end test: `DECK_REAL_CLI=1 go test ./tests/scenarios -run TestRealClaudeCode -v`
+- Agent turn on a local Ollama: `DECK_REAL_OLLAMA=1 go test ./tests/scenarios -run TestRealOllama -v` (`DECK_OLLAMA_MODEL`, default `qwen3:latest`)
 - Scenario tests on Linux (bubblewrap sandbox, needs docker): `DECK_LINUX=1 go test ./tests/linux -v`
 - Regenerate SQL code after editing `internal/store/queries/*.sql` (one file per area) or migrations: `sqlc generate`
 

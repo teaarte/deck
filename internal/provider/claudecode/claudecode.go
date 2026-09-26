@@ -35,12 +35,18 @@ func (a *Adapter) Name() string { return "claude-code" }
 func (a *Adapter) QuestionTool() string { return "AskUserQuestion" }
 
 func (a *Adapter) Caps() provider.Caps {
-	return provider.Caps{provider.Tools, provider.Sandbox, provider.Resume, provider.Intercept, provider.Images, provider.StructuredOutput}
+	return provider.Caps{provider.Tools, provider.Sandbox, provider.Resume, provider.Intercept, provider.Images, provider.StructuredOutput, provider.Web}
 }
 
 func (a *Adapter) args(req provider.Request, mcp, settings, plugin string) []string {
 	args := []string{"-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose",
-		"--strict-mcp-config", "--mcp-config", mcp, "--settings", settings, "--disallowedTools", strings.Join(disallowed, ",")}
+		"--strict-mcp-config", "--mcp-config", mcp, "--settings", settings, "--permission-mode", "auto"}
+	if req.NoNetwork {
+		args = append(args, "--tools", strings.Join(offlineTools, ","), "--disallowedTools", strings.Join(webTools, ","))
+	}
+	for _, d := range req.Dirs {
+		args = append(args, "--add-dir", d)
+	}
 	if plugin != "" {
 		args = append(args, "--plugin-dir", plugin)
 	}

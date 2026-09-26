@@ -23,11 +23,11 @@ for a in "$@"; do
     --plugin-dir) cp -R "$a" "$c/plugin" ;;
   esac
   case "$prev" in
-    --input-format|--output-format|--mcp-config|--settings|--disallowedTools|--setting-sources|--permission-prompt-tool|--allowedTools|--resume|--session-id|--plugin-dir) prev="" ; continue ;;
+    --input-format|--output-format|--mcp-config|--settings|--disallowedTools|--setting-sources|--permission-prompt-tool|--allowedTools|--resume|--session-id|--plugin-dir|--permission-mode|--add-dir|--tools) prev="" ; continue ;;
   esac
   case "$a" in
     -p|--verbose|--strict-mcp-config) ;;
-    --input-format|--output-format|--mcp-config|--settings|--disallowedTools|--setting-sources|--permission-prompt-tool|--allowedTools|--resume|--session-id|--plugin-dir) ;;
+    --input-format|--output-format|--mcp-config|--settings|--disallowedTools|--setting-sources|--permission-prompt-tool|--allowedTools|--resume|--session-id|--plugin-dir|--permission-mode|--add-dir|--tools) ;;
     *) echo "error: unknown option '$a'" >&2; exit 1 ;;
   esac
   prev="$a"

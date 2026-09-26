@@ -15,12 +15,15 @@ var secretRef = regexp.MustCompile(`\$secret\.([A-Za-z0-9_.-]+)`)
 var classRank = map[string]int{"internal": 0, "reversible": 1, "external": 2}
 
 // Widens lists what next grants that prev does not: autonomy, allowed external actions, domains, secrets,
-// milder classes, MCP servers deck would start, reads, and changed HTTP tools that run without asking.
+// milder classes, MCP servers deck would start, reads, network for agents, and changed HTTP tools that run without asking.
 func Widens(prev, next *Manifest) []string {
 	var out []string
 	add := func(format string, a ...any) { out = append(out, fmt.Sprintf(format, a...)) }
 	if next.Autonomy == "auto" && prev.Autonomy != "auto" {
 		add("autonomy: auto")
+	}
+	if prev.NoNetwork && !next.NoNetwork {
+		add("no_network removed: agents get their own web")
 	}
 	for _, n := range added(prev.AllowedExternal, next.AllowedExternal) {
 		add("allowed external: %s", n)

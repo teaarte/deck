@@ -63,7 +63,8 @@ func (r *Runner) run(ctx context.Context, t turn) {
 	}
 	dir := filepath.Join(r.cfg.RunsDir, fmt.Sprint(processID))
 	work := filepath.Join(dir, "work")
-	if err := errors.Join(os.MkdirAll(work, 0o700), os.MkdirAll(filepath.Join(dir, "results"), 0o700)); err != nil {
+	data := r.scripts.DataDir(t.project)
+	if err := errors.Join(os.MkdirAll(work, 0o700), os.MkdirAll(filepath.Join(dir, "results"), 0o700), os.MkdirAll(data, 0o700)); err != nil {
 		r.finish(bg, processID, StateError, "", false, err.Error())
 		return
 	}
@@ -98,10 +99,14 @@ func (r *Runner) run(ctx context.Context, t turn) {
 		return
 	}
 
+	noNetwork := t.m.NoNetwork
+	if now, err := r.projects.ManifestAt(bg, t.project, 0); err == nil && now.NoNetwork {
+		noNetwork = true
+	}
 	req := provider.Request{
 		Cwd: work, Prompt: t.message, ResultSchema: t.cmd.Result,
 		MCPURL: r.cfg.MCPBase + "/mcp/" + tok, AllowedTools: r.gw.AllowedTools(tok), PermissionMCP: gateway.PermissionTool(),
-		SessionID: t.session, Resume: t.resume, Hidden: r.cfg.Hidden,
+		SessionID: t.session, Resume: t.resume, Hidden: r.cfg.Hidden(t.project, processID), Dirs: []string{data}, NoNetwork: noNetwork,
 		OnStart: func(pid int) { r.setGroup(bg, processID, pid) },
 		OnEvent: func(e provider.Event) { r.event(bg, processID, stream, e) },
 		OnUsage: func(u provider.Usage) { r.usage(bg, processID, pv.Name(), u) },
@@ -118,7 +123,7 @@ func (r *Runner) run(ctx context.Context, t turn) {
 		return
 	}
 	if !t.resume {
-		if req.Prompt, err = r.firstPrompt(bg, proj, t, tools); err != nil {
+		if req.Prompt, err = r.firstPrompt(bg, proj, t, tools, data); err != nil {
 			r.finish(bg, processID, StateError, "", false, err.Error())
 			return
 		}
@@ -138,7 +143,7 @@ func (r *Runner) run(ctx context.Context, t turn) {
 			// The asks stay undelivered, so the fresh session parks and gets them by resume.
 			asks = nil
 			req.Resume = false
-			if req.Prompt, err = r.firstPrompt(bg, proj, t, tools); err != nil {
+			if req.Prompt, err = r.firstPrompt(bg, proj, t, tools, data); err != nil {
 				r.finish(bg, processID, StateError, "", false, err.Error())
 				return
 			}
@@ -247,7 +252,7 @@ func (r *Runner) LogPath(processID int64) string {
 	return filepath.Join(r.cfg.RunsDir, fmt.Sprint(processID), "stream")
 }
 
-func (r *Runner) firstPrompt(ctx context.Context, proj db.Project, t turn, tools []string) (string, error) {
+func (r *Runner) firstPrompt(ctx context.Context, proj db.Project, t turn, tools []string, data string) (string, error) {
 	body, err := r.commandBody(ctx, t.project, t.cmd)
 	if err != nil {
 		return "", err
@@ -261,6 +266,9 @@ func (r *Runner) firstPrompt(ctx context.Context, proj db.Project, t turn, tools
 		return "", err
 	}
 	p := buildPrompt(proj.Name, instructions, body, t.m, t.cmd, t.input, tools, t.pv.QuestionTool())
+	if slices.Contains(t.pv.Caps(), provider.Sandbox) {
+		p += "\nThe data folder of this project keeps indexes, caches and state between runs: " + data + "\n"
+	}
 	if proc.StartNote != "" {
 		p += "\n" + proc.StartNote + "\n"
 	}

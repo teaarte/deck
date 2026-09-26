@@ -18,10 +18,13 @@ type line struct {
 	Errors           []string        `json:"errors"`
 	Error            string          `json:"error"`
 	StructuredOutput json.RawMessage `json:"structured_output"`
-	Model            string          `json:"model"`
-	DurationMs       int64           `json:"duration_ms"`
-	TotalCostUSD     *float64        `json:"total_cost_usd"`
-	Usage            *struct {
+	Denials          []struct {
+		ToolName string `json:"tool_name"`
+	} `json:"permission_denials"`
+	Model        string   `json:"model"`
+	DurationMs   int64    `json:"duration_ms"`
+	TotalCostUSD *float64 `json:"total_cost_usd"`
+	Usage        *struct {
 		Input         int64 `json:"input_tokens"`
 		Output        int64 `json:"output_tokens"`
 		CacheRead     int64 `json:"cache_read_input_tokens"`
@@ -112,6 +115,9 @@ func (t *turn) line(raw []byte) {
 			t.res.Text = strings.Join(l.Errors, "; ")
 		}
 		t.res.IsError = l.IsError || l.Subtype != "success"
+		for _, d := range l.Denials {
+			t.res.Denied = append(t.res.Denied, d.ToolName)
+		}
 		var out struct {
 			Result json.RawMessage `json:"result"`
 		}

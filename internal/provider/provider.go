@@ -17,7 +17,11 @@ type Request struct {
 	Skills map[string]string
 	MCPURL string
 	// Hidden are path patterns in the permission rule syntax the agent may not read or write, such as secrets.
-	Hidden        []string
+	Hidden []string
+	// Dirs are folders outside Cwd the agent also writes to, such as the data folder of the project.
+	Dirs []string
+	// NoNetwork takes away the provider's own web and the network of its shell.
+	NoNetwork     bool
 	AllowedTools  []string
 	PermissionMCP string
 	// SessionID is assigned by deck; Resume continues it instead of starting it.
@@ -48,6 +52,8 @@ type Result struct {
 	// RateLimited is set when the provider refused on a subscription limit; ResetsAt is unix seconds.
 	RateLimited bool
 	ResetsAt    int64
+	// Denied are the tools the provider refused by its own rules or auto mode, one entry per refused call.
+	Denied []string
 }
 
 // Usage is one model call; the counts come from the final event of a turn or call, not from summed messages.
@@ -66,12 +72,15 @@ type Usage struct {
 
 // Capabilities a manifest command may require of its provider.
 const (
-	Tools     = "tools"
+	Tools = "tools"
+	// Sandbox is a shell and file writes in the provider's auto mode: it passes what is safe and asks about the rest.
 	Sandbox   = "sandbox"
 	Resume    = "resume"
 	Intercept = "intercept"
 	Images    = "images"
 	NoCloud   = "no_cloud"
+	// Web is the provider's own web search and fetch.
+	Web = "web"
 )
 
 // StructuredOutput is output by schema; a provider without it hands the result in with result_submit.

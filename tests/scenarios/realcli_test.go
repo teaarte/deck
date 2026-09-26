@@ -2,7 +2,6 @@ package scenarios
 
 import (
 	"context"
-	"encoding/json"
 	"net/http/httptest"
 	"os"
 	"os/exec"
@@ -99,67 +98,6 @@ func TestRealClaudeCodeQuestionResume(t *testing.T) {
 	}
 	if rows := e.screenRows(p, "main"); len(rows) != len(recs) {
 		t.Fatalf("screen shows %d rows, want %d", len(rows), len(recs))
-	}
-}
-
-const bashManifest = `{
-  "version": 4,
-  "collections": [],
-  "commands": [{
-    "name": "mark", "title": "Mark", "description": "Writes a marker file with Bash", "class": "internal",
-    "executor": {"type": "agent", "prompt": "Use the Bash tool to run exactly this command: echo deck-ok > marker.txt\nIf it is refused, do not try any other way; just report the refusal and stop."}
-  }],
-  "triggers": [],
-  "screens": []
-}`
-
-// TestRealClaudeCodePermission checks that a Bash permission request reaches the owner and that allow and
-// deny with a reason both work on the real CLI.
-func TestRealClaudeCodePermission(t *testing.T) {
-	if os.Getenv("DECK_REAL_CLI") == "" {
-		t.Skip("set DECK_REAL_CLI=1 to run against the real Claude Code CLI")
-	}
-	home := t.TempDir()
-	ts := httptest.NewUnstartedServer(nil)
-	base := "http://" + ts.Listener.Addr().String()
-	a, err := app.New(app.Config{Home: home, MCPBase: base, QuestionWait: 2 * time.Minute, ConfirmWait: 2 * time.Minute}, claudecode.New(filepath.Join(home, "mcp")))
-	if err != nil {
-		t.Fatal(err)
-	}
-	ts.Config.Handler = api.New(a, token, web.FS()).Handler()
-	ts.Start()
-	t.Cleanup(func() { _ = a.Close(); ts.Close() })
-	e := &Env{T: t, App: a, URL: base, names: map[int64]string{}}
-	p := e.createProject("perm", bashManifest)
-
-	for _, tc := range []struct{ answer, wantFile string }{{"allow", "deck-ok"}, {"deny:not today", ""}} {
-		id := e.run(p, "mark")
-		deadline := time.Now().Add(3 * time.Minute)
-		var ask askView
-		for time.Now().Before(deadline) {
-			_, out := e.call("deck.asks_list", nil)
-			var as []askView
-			_ = json.Unmarshal(out, &as)
-			if len(as) > 0 {
-				ask = as[0]
-				break
-			}
-			time.Sleep(300 * time.Millisecond)
-		}
-		if ask.Kind != "confirm" || !strings.Contains(ask.Text, "marker.txt") {
-			t.Fatalf("want a Bash confirmation, got %+v (process %+v)", ask, e.process(id))
-		}
-		t.Logf("confirm: %s", ask.Text)
-		e.answer(ask.ID, tc.answer)
-		for time.Now().Before(deadline) && e.process(id).State == "running" {
-			time.Sleep(300 * time.Millisecond)
-		}
-		got := e.process(id)
-		b, _ := os.ReadFile(filepath.Join(home, "runs", itoa(id), "work", "marker.txt"))
-		t.Logf("%s -> state %s, file %q, result %q", tc.answer, got.State, strings.TrimSpace(string(b)), got.Result)
-		if got.State != "done" || strings.TrimSpace(string(b)) != tc.wantFile {
-			t.Fatalf("answer %q: state %s, file %q", tc.answer, got.State, b)
-		}
 	}
 }
 

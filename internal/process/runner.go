@@ -52,8 +52,8 @@ type Config struct {
 	// ScriptCeiling is how long a command script may run when its manifest sets no timeout.
 	ScriptCeiling time.Duration
 	FilesDir      string
-	// Hidden are path patterns agents may not read: the secrets and the base of deck.
-	Hidden []string
+	// Hidden gives the path patterns an agent of a project and process may not read or write.
+	Hidden func(project, process int64) []string
 	// PauseLimit is how long one pause on a usage limit may last from the first refusal.
 	PauseLimit time.Duration
 	// PauseProbe is how often a paused process tries again when the provider gave no reset time.

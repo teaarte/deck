@@ -12,7 +12,10 @@ and presses "enable".
 
 You talk to deck through its MCP server (`deck`). The tools are deck commands: `manifest_format`,
 `project_import`, `documents_list`, `manifest_get`, `manifest_save`, `document_get`, `document_save`,
-`command_try`, `process_get`, `process_log`, `records_list`, `cards_list`, `projects_list`.
+`command_try`, `process_get`, `process_log`, `records_list`, `records_upsert`, `cards_list`, `files_list`,
+`projects_list`, `triggers_list`, `providers_list`, `health_list`, `asks_list`. Some commands only the owner runs:
+`secret_set`, `oauth_start`, `browser_login`, `provider_set`, `provider_add`, `project_enable`; say which one and
+why when the module needs it.
 
 ## 1. Interview
 
@@ -35,26 +38,31 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
 
 - **Collections** hold the data. Pick a key that identifies an item for good (a URL, an external id); records
   with the same key are updated, not duplicated. Give `display` so people and voice can name a record. Put
-  fields that must never change into `immutable`. `records_list` returns the newest records up to a limit, and
-  `record_update` replaces the whole record: work over hundreds of records (filtering, batching, merging new
-  fields into old ones) belongs in a script, and an agent gets only the slice it judges, from the script's
-  result or its input.
+  fields that must never change into `immutable`. A later change of the schema or the key that old records do
+  not fit needs a `migration` script in the same revision (JSONL of records in, JSONL out); deck runs it on a
+  copy and refuses the change with the first problem records otherwise. `retention_days` deletes records (with
+  their documents and files) that many days after they were created, `file_retention_days` only their files.
+  `records_list` returns the newest records up to a limit, and `record_update` replaces the whole record: work
+  over hundreds of records (filtering, batching, merging new fields into old ones) belongs in a script, and an
+  agent gets only the slice it judges, from the script's result or its input.
 - **Commands** are the verbs. Each has a class: `internal` (records, cards, documents), `reversible`,
   `external` (leaves deck). Choose the executor:
   - `script` for mechanics that repeat the same way (fetch, parse, poll, convert, index) — cheap and exact;
   - `agent` for judgement (rate, summarise, write) — give it a prompt file, skills and a result schema;
   - `tool` for exactly one call of a tool: `{"type": "tool", "tool": "<http tool>"}`; the tool gets the
     command input as it is (declare the same input), and the process result is what the tool answered.
-  A script that cannot do something reliably becomes an agent, not a bigger script.
+  A script that cannot do something reliably becomes an agent, not a bigger script. `timeout_minutes` raises
+  the ceiling of a slow command (agents 60, scripts 10 by default).
 - **HTTP tools** (`tools.http`) are how the module reaches a service's API: method, `url` with `{field}` from the
   input (path or query, never the host), `headers` with `$secret.<name>` (the owner stores it with
-  `secret_set`; scripts and agents never see it), `body` template, `input` and `result` schemas. A tool
-  without `class` is `external`. An external call outside `allowed_external` waits for the owner; after yes
-  deck makes that exact call and hands the result back. Give a paid or risky tool `confirm_ttl_minutes`. A
-  binary answer (video, audio, picture) becomes a file in the caller's results folder: `{"file", "type",
-  "size"}`. Everything deck calls outside is journaled; a call whose answer was lost is never repeated by
-  deck — the owner retries it or counts it done.
-  A tool may sign in with `"auth": {"type": "secret", "secret": "<name>"}` or oauth2 (`auth_url`, `token_url`,
+  `secret_set`; scripts and agents never see it, and deck cuts it out of what the service answers), `body`
+  template, `input` and `result` schemas. A tool without `class` is `external`. An external call outside
+  `allowed_external` waits for the owner; after yes deck makes that exact call and hands the result back. Give
+  a paid or risky tool `confirm_ttl_minutes`. A binary answer (video, audio, picture) becomes a file in the
+  caller's results folder: `{"file", "type", "size"}`. Everything deck calls outside is journaled; a call whose
+  answer was lost is never repeated by deck — the owner retries it or counts it done.
+  A tool may sign in with `"auth": {"type": "secret", "secret": "<name>"}` (an `Authorization: Bearer` header;
+  `header` and `prefix` change it, e.g. `"header": "X-Api-Key", "prefix": ""`) or oauth2 (`auth_url`, `token_url`,
   secret names `client_id`, `client_secret`, `token`, `scopes`): the owner signs in once with
   `oauth_start`, deck refreshes the token and asks the owner again when the access is revoked. A body of
   `{"file": "{field}"}` sends a file as it is, `{"multipart": {"<part>": "{field}" or "text {field}"}}` a form;
@@ -65,12 +73,18 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   `$secret.<name>`) or `url`; `toolFilter` lists the tools the module uses, `classes` their classes — every
   other tool is `external`. Tools are `<server>.<tool>` in `executor.tool` and `allowed_external`. deck starts
   servers itself, only in an enabled project; a new or changed server waits for the owner's button, and a tool
-  whose description or input changes loses its rights until the owner allows it again.
+  whose description or input changes loses its rights until the owner allows it again — so pin the server's
+  version in `args` (`"pkg@1.2.3"`, not `@latest`). Once a project runs, `health_list` shows whether each server
+  started and why not.
 - **Browser**: agents get deck's browser (`browser_navigate`, `browser_snapshot`, `browser_click`, …) with its own
-  profile. `domains.read` are the sites it reads (`"*"` reads any site — for research; it is also the network
-  of scripts), `domains.act` the ones where it clicks, types and submits without asking; an action anywhere
-  else waits for the owner. The owner signs in to a site once (`browser_login`); a page that asks for a sign-in
-  again means the agent calls `browser_needs_login` and stops — deck resumes it after the owner signs in.
+  profile. `domains.read` are the sites it reads, `domains.act` the ones where it clicks, types and submits
+  without asking; an action anywhere else waits for the owner, and their "allow always" adds that site to
+  `domains.act`. `"*"` in read reads any site (research; it is also the network of scripts), but in a browser
+  without the owner's sign-ins: a module that needs a signed-in site lists its sites instead. Reading needs no
+  clicks: open the next page by its URL (`?page=2`, `&start=25`) rather than clicking "next", which on a site
+  only in `read` waits for the owner each time. The owner signs in to a site once (`browser_login`); a page
+  that asks for a sign-in again means the agent calls `browser_needs_login` and stops — deck resumes it after
+  the owner signs in.
 - **Files of the input**: a command field with `"format": "file"` takes a file id (from a form upload, Share, or
   `files_list` of a record or card); scripts and agents get the path of a read-only copy. A result may give such
   a file to a record or card: `files: [{"file": <id>, "record": <id>}]`.
@@ -83,7 +97,8 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
 - **Results** are JSON by schema. Decisions use typed shapes: a choice with probabilities and confidence,
   a score 2–10 with confidence, yes/no with a probability. A result of `null` means "nothing to do".
 - **Triggers**: `cron` for schedules, `lane` when a card enters a lane, `after` when another command of the
-  project finishes. Cycles are refused.
+  project finishes. Cycles are refused. After the Mac slept, each missed schedule runs once; `"skip_missed":
+  true` drops the missed run instead (a morning digest that is stale by noon).
 - **Board**: lanes have stable names, titles for people and optional roles (`inbox`, `ready`, `running`,
   `review`, `done`), each role on at most one lane. New cards land in `inbox`. `ready`, `running` and
   `review` are for code runs and come only all three together; a pipeline the owner drives by hand needs
@@ -121,6 +136,8 @@ A script reads its input JSON from stdin and prints its result JSON to stdout. I
 - write access only to its run folder and `$DECK_DATA`; the project folders are read-only;
 - network only to the manifest's `domains.read`, through the proxy deck sets in `HTTP(S)_PROXY`;
 - no secrets and no keys of the owner; ask for an HTTP tool of the manifest instead;
+- `runtime` is `python`, `node`, `bash` or `exec` (a program that runs by itself); `timeout_minutes` as for
+  commands;
 - deck commands over HTTP: `curl -s -H "Authorization: Bearer $DECK_TOKEN" -d '<json>' "$DECK_URL/commands/deck.records_upsert"`
   (`GET $DECK_URL/commands` lists them; works through the proxy or without it); `records_upsert` takes JSONL
   and returns `{"written", "ids", "errors"}`; a script may call commands and tools of its own project that
@@ -139,14 +156,32 @@ web tools are off. Anything external it wants waits for the owner's confirmation
 `executor.skills`; a skill may not grant tools (`allowed-tools`, `hooks`) — rights come from deck.
 
 The owner picks the model provider of each agent command in settings (`provider_set`); the manifest only says
-what the command needs and suggests one. `requires` lists capabilities: `sandbox` when the agent must run
-shell commands or write files (an OpenAI-compatible model such as Ollama has only deck's tools), `no_cloud`
-for personal data (finance, health) that must stay on the owner's hardware. `provider` suggests a provider by
+what the command needs and suggests one. `requires` lists capabilities, and usually only two matter:
+`no_cloud` for personal data (finance, health) that must stay on the owner's hardware, and `sandbox` when the
+agent must run shell commands or write files (an OpenAI-compatible model such as Ollama has only deck's
+tools). Every shell command or file write of such an agent waits for the owner, so give that work to a script.
+Do not require `tools` or `structured_output`: every provider has deck's tools and hands in the result, and a
+requirement a local model lacks keeps routine work off it. `providers_list` with the command shows which
+providers fit it. `provider` suggests a provider by
 name — routine judgement suits a local model (`"provider": "ollama"`), heavy reasoning Claude Code. Write the
 prompt so it works on a small model too: say which deck tool to call for what, and that the result is handed in
 at the end; a provider without output by schema gets the `result_submit` tool for it.
 
-## 6. Build, import, try
+## 6. Confirmations
+
+Each "yes" the owner gives by habit is a failure of the module. Before hand-over, count what will wait for the
+owner in a normal week and remove what they would always allow:
+
+- a tool that only reads (search, fetch, status) gets `"class": "internal"`; `external` is for what changes
+  something outside or costs money;
+- something the owner will look at before it takes effect anyway (a draft, an unpublished post, a job started
+  in a paid service they asked for) goes into `allowed_external`, and the hand-over says so;
+- sites where the agent must click, type or submit on its own go into `domains.act`; everywhere else it reads;
+- a paid or risky call that should still be asked every time keeps `external` and gets `confirm_ttl_minutes`.
+
+Name each of these rights in the hand-over: the owner grants them with "enable".
+
+## 7. Build, import, try
 
 1. Write the module as a folder: `manifest.json`, `prompt.md` (its first line is the one-line description
    deck and the master choose the project by), `prompts/*.md`, `scripts/*`, `skills/<name>/SKILL.md`,
@@ -158,10 +193,11 @@ at the end; a provider without output by schema gets the `result_submit` tool fo
 3. `command_try` runs a command as a trial: everything that is not internal is declined, so nothing leaves
    deck. The `after` and `lane` triggers it sets off run as trials too, so a whole chain can be tried from
    its first command. `process_get` gives the state and result; `process_log` shows events only while the
-   process is open. Check `records_list` and `cards_list`.
+   process is open. Check `records_list` and `cards_list`, and `health_list` after a save that adds packages,
+   programs or MCP servers: a failed install shows there with its error.
 4. A draft never runs on its schedule or on the owner's card moves. Only the owner enables it.
 
-## 7. Moving modules and skills
+## 8. Moving modules and skills
 
 - **Export a module** into a new or empty folder: `documents_list` of the project, then `document_get` of every
   document of kind manifest, prompt, script, skill, custom and doc that has no `owner_kind`, written to the
@@ -177,14 +213,14 @@ at the end; a provider without output by schema gets the `result_submit` tool fo
   `name: <name>` and a `description`; deck refuses skills that grant tools (`allowed-tools`, `hooks`) and path
   parts that do not start with a letter or digit (`__init__.py`) — tell the owner what did not come in and why.
 
-## 8. Rights
+## 9. Rights
 
 Ask only for what the module needs. Autonomy `auto`, `allowed_external`, domains, secrets, milder classes of
 tools and `reads` of other projects are rights: in a draft they are part of what the owner enables; in an
 enabled project a change that widens them waits for the owner's button. Every other change you make to an
 enabled project is listed as "done without you" with an undo.
 
-## 9. Hand over
+## 10. Hand over
 
 Tell the owner in a few plain sentences: what the module does and when, what the trial showed, and the
 rights "enable" will grant. Do not enable it yourself.
@@ -192,3 +228,6 @@ rights "enable" will grant. Do not enable it yourself.
 ## Lessons
 
 Every manual fix the owner makes to a module built with this skill becomes a line here.
+
+- 2026-09-26, vacancies: the rating agent required `tools` and `structured_output`, which kept it off local
+  models; agent commands now require only `sandbox` or `no_cloud` (section 5).

@@ -139,7 +139,6 @@
       "description": "Rates a batch of postings against criteria.md; its result is the daily summary with one line per rejected posting.",
       "class": "internal",
       "callers": ["owner", "trigger", "master"],
-      "requires": ["tools", "structured_output"],
       "timeout_minutes": 60,
       "input": {
         "type": "object",
@@ -225,7 +224,6 @@
       "description": "Writes a CV tailored to the posting and a short cover letter from facts.md, binds them to the card and moves it to Package ready.",
       "class": "internal",
       "callers": ["owner", "trigger"],
-      "requires": ["tools", "structured_output"],
       "timeout_minutes": 30,
       "input": {
         "type": "object",

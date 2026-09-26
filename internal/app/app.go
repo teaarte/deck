@@ -45,8 +45,6 @@ type Config struct {
 	ScriptCeiling time.Duration
 	// Snapshots is how many daily snapshots stay in backups/.
 	Snapshots int
-	// ClaudeSkills is the folder skills are imported from; ~/.claude/skills when empty.
-	ClaudeSkills string
 	// Sandbox confines scripts; the one of this operating system when nil.
 	Sandbox sandbox.Sandbox
 }

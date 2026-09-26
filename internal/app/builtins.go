@@ -35,18 +35,13 @@ func (a *App) addBuiltins() {
 	add("command_try", "Trial run", "Starts a trial run of a project command: calls that are not internal are declined, nothing leaves deck.", ownerSide,
 		registry.Params(registry.P("command", "string", "Command name, project.command"), registry.Opt("input", "text", "Command input as a JSON object")),
 		registry.Typed(a.commandTry))
-	add("project_export", "Export project", "Writes the manifest, prompt, scripts, skills, custom blocks and md documents of a project into a new folder.", ownerOnly,
-		registry.Params(registry.P("project", "project", "Project name"), registry.P("folder", "string", "Absolute path of a folder that does not exist or is empty")),
-		registry.Typed(a.projectExport))
-	add("project_import", "Import project", "Creates a draft project from a folder written by export: manifest.json, prompt.md and the other files.", ownerSide,
+	add("project_import", "Import project", "Creates a draft project from a module folder: manifest.json, prompt.md and the other files by their document names.", ownerSide,
 		registry.Params(registry.P("folder", "string", "Absolute path of the folder"), registry.Opt("name", "string", "Project name; the folder name when omitted")),
 		registry.Typed(a.projectImport))
 	add("unattended_list", "Done without you", "Lists changes made without the owner, newest first, with whether they can be undone.", ownerSide,
 		registry.Params(projectOpt, registry.Opt("limit", "integer", "At most this many")), registry.Typed(a.unattendedList))
 	add("unattended_undo", "Undo", "Returns what a change made without the owner touched to how it was before.", ownerOnly,
 		registry.Params(registry.P("entry", "integer", "Entry id from done without you")), registry.Typed(a.unattendedUndo))
-	add("skills_import", "Import skills", "Copies skills from ~/.claude/skills into deck as global skills; a changed skill gets a new revision.", ownerOnly,
-		registry.Params(registry.Opt("names", "string[]", "Only these skills; every skill when omitted")), registry.Typed(a.skillsImport))
 	add("token_create", "Create automation token", "Creates a token for a terminal agent, Shortcuts or a script; it acts as the master and may call only the listed commands.", ownerOnly,
 		registry.Params(registry.P("name", "string", "What the token is for"),
 			registry.P("commands", "string[]", "Command names it may call; project.* or deck.* allow every command under the prefix")),

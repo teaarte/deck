@@ -19,7 +19,8 @@ type Automation func(ctx context.Context, token string) (registry.Actor, error)
 // automationInstructions tell a terminal agent where the rest of deck's knowledge is.
 const automationInstructions = "deck is the owner's control panel for digital workers; these tools are deck commands. " +
 	"Skills of the workspace are documents named skills/<name>/SKILL.md (document_get with that name). " +
-	"Before building a new deck module, read skills/module-builder/SKILL.md and follow it."
+	"Before building a new deck module, exporting one or importing the owner's Claude Code skills, read " +
+	"skills/module-builder/SKILL.md and follow it."
 
 type automationEntry struct {
 	mu      sync.Mutex

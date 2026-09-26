@@ -11,7 +11,7 @@ work itself is done by scripts and agents you describe. You build the module; th
 and presses "enable".
 
 You talk to deck through its MCP server (`deck`). The tools are deck commands: `manifest_format`,
-`project_import`, `manifest_get`, `manifest_save`, `document_get`, `document_save`,
+`project_import`, `documents_list`, `manifest_get`, `manifest_save`, `document_get`, `document_save`,
 `command_try`, `process_get`, `process_log`, `records_list`, `cards_list`, `projects_list`.
 
 ## 1. Interview
@@ -116,14 +116,30 @@ web tools are off. Anything external it wants waits for the owner's confirmation
    process is open. Check `records_list` and `cards_list`.
 4. A draft never runs on its schedule or on the owner's card moves. Only the owner enables it.
 
-## 7. Rights
+## 7. Moving modules and skills
+
+- **Export a module** into a new or empty folder: `documents_list` of the project, then `document_get` of every
+  document of kind manifest, prompt, script, skill, custom and doc that has no `owner_kind`, written to the
+  folder under its name. Artifacts and documents of records and cards are data, not the module; leave them
+  out. `project_import` of that folder gives the module back as a draft; kinds come from the path — scripts
+  listed in `scripts[].file`, `skills/…`, `custom/…`, `manifest.json`, `prompt.md` — and anything else comes
+  back as `doc`, so keep scripts listed and custom blocks under `custom/`.
+- **Import the owner's Claude Code skills**: for each folder `~/.claude/skills/<name>/`, save `SKILL.md` first
+  with `document_save`, kind `skill`, name `skills/<name>/SKILL.md`, no project — a skill of the whole
+  workspace (with `project`, of one project); only if deck took it, save the other text files as
+  `skills/<name>/<path in the folder>`. Skip a file whose text equals what `document_get` already returns, so
+  history does not grow. Leave out hidden files, binaries and files over 1 MB. `SKILL.md` needs
+  `name: <name>` and a `description`; deck refuses skills that grant tools (`allowed-tools`, `hooks`) and path
+  parts that do not start with a letter or digit (`__init__.py`) — tell the owner what did not come in and why.
+
+## 8. Rights
 
 Ask only for what the module needs. Autonomy `auto`, `allowed_external`, domains, secrets, milder classes of
 tools and `reads` of other projects are rights: in a draft they are part of what the owner enables; in an
 enabled project a change that widens them waits for the owner's button. Every other change you make to an
 enabled project is listed as "done without you" with an undo.
 
-## 8. Hand over
+## 9. Hand over
 
 Tell the owner in a few plain sentences: what the module does and when, what the trial showed, and the
 rights "enable" will grant. Do not enable it yourself.

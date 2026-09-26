@@ -8,11 +8,13 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/modelcontextprotocol/go-sdk/mcp"
+
 	"deck2/internal/app"
 	"deck2/internal/store"
 )
 
-func TestProjectExportAndImportAsADraft(t *testing.T) {
+func TestAModuleExportedByTheSkillImportsAsADraft(t *testing.T) {
 	e := newEnv(t, ok)
 	e.createProject("links", fullManifest)
 	docs := []map[string]any{
@@ -27,18 +29,27 @@ func TestProjectExportAndImportAsADraft(t *testing.T) {
 		d["project"] = "links"
 		e.must("deck.document_save", d, nil)
 	}
+	var up struct{ IDs []int64 }
+	e.must("deck.records_upsert", map[string]any{"project": "links", "collection": "sources", "records": `{"url": "https://a.example"}`}, &up)
+	e.must("deck.document_save", map[string]any{"project": "links", "record": up.IDs[0], "name": "notes.md", "kind": "doc", "text": "data of a record"}, nil)
+	_, tok := e.token("terminal", "deck.*")
+	s, err := e.terminal(tok)
+	if err != nil {
+		t.Fatal(err)
+	}
 	dir := filepath.Join(t.TempDir(), "links-copy")
-	var ex struct{ Files []string }
-	e.must("deck.project_export", map[string]any{"project": "links", "folder": dir}, &ex)
+	exportLikeTheSkill(t, s, "links", dir)
+	var files []string
+	_ = filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
+		if err == nil && !d.IsDir() {
+			rel, _ := filepath.Rel(dir, path)
+			files = append(files, filepath.ToSlash(rel))
+		}
+		return nil
+	})
 	want := []string{"custom/chart.html", "manifest.json", "prompt.md", "prompts/collect.md", "scripts/parse.py", "skills/reader/SKILL.md"}
-	if !slices.Equal(ex.Files, want) {
-		t.Fatalf("export writes the module, not its data: %v", ex.Files)
-	}
-	if b, _ := os.ReadFile(filepath.Join(dir, "prompts", "collect.md")); string(b) != "Visit each source." {
-		t.Fatalf("files carry the current text: %q", b)
-	}
-	if code, _ := e.call("deck.project_export", map[string]any{"project": "links", "folder": dir}); code != 422 {
-		t.Fatalf("export does not write into a folder that is not empty: %d", code)
+	if !slices.Equal(files, want) {
+		t.Fatalf("an export by the skill writes the module, not its data: %v", files)
 	}
 
 	_ = os.WriteFile(filepath.Join(dir, ".DS_Store"), []byte{0, 1}, 0o644)
@@ -46,7 +57,10 @@ func TestProjectExportAndImportAsADraft(t *testing.T) {
 		Name, Status string
 		Rights       []string
 	}
-	e.must("deck.project_import", map[string]any{"folder": dir}, &im)
+	out, failed := use(s, "project_import", map[string]any{"folder": dir})
+	if failed || json.Unmarshal([]byte(out), &im) != nil {
+		t.Fatalf("the terminal agent imports the folder: %s", out)
+	}
 	if im.Name != "links-copy" || im.Status != store.ProjectDraft || !slices.Contains(im.Rights, "allowed external: post_link") {
 		t.Fatalf("import creates a draft named after the folder and shows its rights: %+v", im)
 	}
@@ -90,53 +104,44 @@ func TestProjectExportAndImportAsADraft(t *testing.T) {
 	}
 }
 
-func TestSkillsImportFromClaudeCode(t *testing.T) {
-	src := t.TempDir()
-	write := func(path, text string) {
-		_ = os.MkdirAll(filepath.Dir(filepath.Join(src, path)), 0o755)
-		_ = os.WriteFile(filepath.Join(src, path), []byte(text), 0o644)
+func TestAgentImportsClaudeSkillsWithDocumentSave(t *testing.T) {
+	e := newEnv(t, ok)
+	_, tok := e.token("terminal", "deck.*")
+	s, err := e.terminal(tok)
+	if err != nil {
+		t.Fatal(err)
 	}
-	write("voice/SKILL.md", "---\nname: voice\ndescription: Writes like the owner.\n---\nShort sentences.\n")
-	write("voice/examples/one.md", "An example.")
-	write("voice/.git/HEAD", "ref")
-	write("empty/README.md", "no skill here")
-	write("misnamed/SKILL.md", "---\nname: other\ndescription: x\n---\n")
-	e := newEnv(t, ok, func(c *app.Config) { c.ClaudeSkills = src })
-
-	var got struct{ Imported, Skipped []string }
-	e.must("deck.skills_import", map[string]any{}, &got)
-	if !slices.Equal(got.Imported, []string{"voice"}) || len(got.Skipped) != 2 ||
-		!strings.Contains(strings.Join(got.Skipped, "|"), "empty: no SKILL.md") || !strings.Contains(strings.Join(got.Skipped, "|"), "misnamed") {
-		t.Fatalf("skills with a proper SKILL.md are imported, the rest listed: %+v", got)
+	if res := s.InitializeResult(); res == nil || !strings.Contains(res.Instructions, "importing the owner's Claude Code skills") {
+		t.Fatalf("the MCP server points the terminal agent at the skill: %+v", res)
 	}
-	var doc struct {
-		ID   int64
-		Text string
+	save := func(name, text string) (string, bool) {
+		return use(s, "document_save", map[string]any{"name": name, "kind": "skill", "text": text})
 	}
-	e.must("deck.document_get", map[string]any{"name": "skills/voice/examples/one.md"}, &doc)
-	if doc.Text != "An example." {
-		t.Fatalf("every file of the skill folder is imported: %+v", doc)
+	if out, failed := save("skills/voice/SKILL.md", "---\nname: voice\ndescription: Writes like the owner.\n---\nShort sentences.\n"); failed {
+		t.Fatalf("a skill is saved as a workspace skill: %s", out)
 	}
-	e.must("deck.skills_import", map[string]any{"names": []string{"voice"}}, &got)
-	var revs []any
-	e.must("deck.document_revisions", map[string]any{"document": doc.ID}, &revs)
-	if len(revs) != 1 {
-		t.Fatalf("an unchanged skill gets no new revision: %v", revs)
+	if out, failed := save("skills/voice/examples/one.md", "An example."); failed {
+		t.Fatalf("the other files of the folder too: %s", out)
 	}
-
+	if out, failed := save("skills/greedy/SKILL.md", "---\nname: greedy\ndescription: x\nallowed-tools: Bash\n---\n"); !failed || !strings.Contains(out, "allowed-tools") {
+		t.Fatalf("a skill that grants tools does not come in: %s", out)
+	}
+	m := strings.Replace(plainManifest, `"prompt": "Do the work."}`, `"prompt": "Do the work.", "skills": ["voice"]}`, 1)
+	p := e.createProject("plain", m)
+	e.waitState(e.run(p, "work"), "done")
+	if got := e.Fake.Calls()[0].Skills; len(got) != 2 || got["voice/examples/one.md"] != "An example." {
+		t.Fatalf("an imported workspace skill reaches the agents that list it: %v", got)
+	}
+	var doc struct{ Text string }
 	e.must("deck.document_get", map[string]any{"name": "skills/module-builder/SKILL.md"}, &doc)
-	if !strings.Contains(doc.Text, "name: module-builder") || !strings.Contains(doc.Text, "cursor") {
-		t.Fatalf("the module building skill is built into deck: %.200s", doc.Text)
+	if !strings.Contains(doc.Text, "name: module-builder") || !strings.Contains(doc.Text, "Import the owner's Claude Code skills") {
+		t.Fatalf("the built-in skill tells how to import skills: %.200s", doc.Text)
 	}
 }
 
-func TestExportIsTheOwnersAndImportTakesNoLinks(t *testing.T) {
+func TestImportTakesNoLinks(t *testing.T) {
 	e := newEnv(t, ok)
-	e.createProject("links", plainManifest)
 	_, tok := e.token("terminal", "deck.*")
-	if code, _ := e.callWith(tok, "deck.project_export", map[string]any{"project": "links", "folder": filepath.Join(t.TempDir(), "x")}); code != 403 {
-		t.Fatalf("only the owner writes folders outside deck: %d", code)
-	}
 	dir := t.TempDir()
 	_ = os.WriteFile(filepath.Join(dir, app.ManifestName), []byte(`{"version": 4}`), 0o644)
 	secret := filepath.Join(t.TempDir(), "secret.txt")
@@ -144,6 +149,27 @@ func TestExportIsTheOwnersAndImportTakesNoLinks(t *testing.T) {
 	_ = os.Symlink(secret, filepath.Join(dir, "notes.md"))
 	if code, out := e.callWith(tok, "deck.project_import", map[string]any{"folder": dir, "name": "linked"}); code != 422 || !strings.Contains(string(out), "notes.md: a symbolic link") {
 		t.Fatalf("an import does not follow links out of its folder: %d %s", code, out)
+	}
+}
+
+// exportLikeTheSkill writes a module folder the way the module-building skill tells an agent to.
+func exportLikeTheSkill(t *testing.T, s *mcp.ClientSession, project, dir string) {
+	t.Helper()
+	out, failed := use(s, "documents_list", map[string]any{"project": project})
+	var docs []docView
+	if failed || json.Unmarshal([]byte(out), &docs) != nil {
+		t.Fatalf("documents_list: %s", out)
+	}
+	for _, d := range docs {
+		if d.OwnerKind != "" || !slices.Contains([]string{"manifest", "prompt", "script", "skill", "custom", "doc"}, d.Kind) {
+			continue
+		}
+		out, _ := use(s, "document_get", map[string]any{"document": d.ID})
+		var full docView
+		_ = json.Unmarshal([]byte(out), &full)
+		path := filepath.Join(dir, filepath.FromSlash(d.Name))
+		_ = os.MkdirAll(filepath.Dir(path), 0o755)
+		_ = os.WriteFile(path, []byte(full.Text), 0o644)
 	}
 }
 

@@ -2,14 +2,9 @@ package app
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io/fs"
-	"os"
-	"path/filepath"
-	"slices"
 	"strings"
-	"unicode/utf8"
 
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
@@ -139,124 +134,4 @@ func (a *App) seedSkills(ctx context.Context, workspace int64) error {
 			return err
 		})
 	})
-}
-
-// folderFile is a text file read from a folder on disk, by its path relative to the folder.
-type folderFile struct {
-	path, text string
-}
-
-// readFolder reads the text files of a folder and leaves hidden entries out; what it cannot take is in skipped.
-// Symbolic links inside the folder are followed only when follow is set.
-func readFolder(root string, follow bool) (files []folderFile, skipped []string, err error) {
-	root, err = filepath.EvalSymlinks(root)
-	if err != nil {
-		return nil, nil, err
-	}
-	err = filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		rel, _ := filepath.Rel(root, path)
-		if rel == "." {
-			return nil
-		}
-		if strings.HasPrefix(d.Name(), ".") {
-			if d.IsDir() {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-		if d.IsDir() {
-			return nil
-		}
-		if !follow && d.Type()&fs.ModeSymlink != 0 {
-			skipped = append(skipped, rel+": a symbolic link")
-			return nil
-		}
-		info, err := os.Stat(path)
-		if err != nil || !info.Mode().IsRegular() {
-			skipped = append(skipped, rel+": not a regular file")
-			return nil
-		}
-		if info.Size() > maxFile {
-			skipped = append(skipped, rel+": larger than 1 MB")
-			return nil
-		}
-		b, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-		if !utf8.Valid(b) {
-			skipped = append(skipped, rel+": not text")
-			return nil
-		}
-		files = append(files, folderFile{path: filepath.ToSlash(rel), text: string(b)})
-		return nil
-	})
-	return files, skipped, err
-}
-
-// claudeSkills is the folder skills_import reads: the owner's ~/.claude/skills unless the config sets another.
-func (a *App) claudeSkills() (string, error) {
-	if a.Cfg.ClaudeSkills != "" {
-		return a.Cfg.ClaudeSkills, nil
-	}
-	home, err := os.UserHomeDir()
-	return filepath.Join(home, ".claude", "skills"), err
-}
-
-func (a *App) skillsImport(ctx context.Context, act registry.Actor, in struct{ Names []string }) (any, error) {
-	dir, err := a.claudeSkills()
-	if err != nil {
-		return nil, err
-	}
-	names := in.Names
-	if len(names) == 0 {
-		es, err := os.ReadDir(dir)
-		if err != nil {
-			return nil, registry.Invalid("deck: cannot read %s: %v", dir, err)
-		}
-		for _, e := range es {
-			if !strings.HasPrefix(e.Name(), ".") {
-				names = append(names, e.Name())
-			}
-		}
-	}
-	imported, skipped := []string{}, []string{}
-	for _, n := range names {
-		files, skip, err := readFolder(filepath.Join(dir, n), true)
-		if err == nil && !slices.ContainsFunc(files, func(f folderFile) bool { return f.path == "SKILL.md" }) {
-			err = errors.New("no SKILL.md")
-		}
-		if err != nil {
-			skipped = append(skipped, fmt.Sprintf("%s: %v", n, err))
-			continue
-		}
-		for _, s := range skip {
-			skipped = append(skipped, n+"/"+s)
-		}
-		err = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-			for _, f := range files {
-				ref := DocRef{Scope: Scope{Workspace: act.Workspace}, Name: SkillsDir + n + "/" + f.path}
-				if cur, err := currentText(ctx, q, ref.Scope, KindSkill, ref.Name); err != nil || cur == f.text {
-					if err != nil {
-						return err
-					}
-					continue
-				}
-				if _, _, err := SaveDocument(ctx, q, ref, KindSkill, f.text, act.Author(), "imported from "+dir); err != nil {
-					return err
-				}
-			}
-			return nil
-		})
-		if err != nil {
-			skipped = append(skipped, fmt.Sprintf("%s: %v", n, err))
-			continue
-		}
-		imported = append(imported, n)
-	}
-	a.Bus.Publish("documents")
-	return map[string]any{"imported": imported, "skipped": skipped}, nil
 }

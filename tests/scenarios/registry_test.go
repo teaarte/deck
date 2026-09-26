@@ -97,11 +97,12 @@ func TestUnknownCommandAndBadInput(t *testing.T) {
 }
 
 type docView struct {
-	ID       int64  `json:"id"`
-	Kind     string `json:"kind"`
-	Name     string `json:"name"`
-	Revision int64  `json:"revision"`
-	Text     string `json:"text"`
+	ID        int64  `json:"id"`
+	OwnerKind string `json:"owner_kind"`
+	Kind      string `json:"kind"`
+	Name      string `json:"name"`
+	Revision  int64  `json:"revision"`
+	Text      string `json:"text"`
 }
 
 func TestManifestRevisionsAndRevert(t *testing.T) {

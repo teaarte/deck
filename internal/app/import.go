@@ -2,10 +2,12 @@ package app
 
 import (
 	"context"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
+	"unicode/utf8"
 
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
@@ -23,38 +25,7 @@ func absFolder(path string) (string, error) {
 	return filepath.Clean(path), nil
 }
 
-// projectExport writes the module documents of a project by their names into a folder that is new or empty.
-func (a *App) projectExport(ctx context.Context, act registry.Actor, in struct{ Project, Folder string }) (any, error) {
-	p, err := a.scope(ctx, act, in.Project)
-	if err != nil {
-		return nil, err
-	}
-	dir, err := absFolder(in.Folder)
-	if err != nil {
-		return nil, err
-	}
-	if es, err := os.ReadDir(dir); err == nil && len(es) > 0 {
-		return nil, registry.Invalid("deck: folder %s is not empty", dir)
-	}
-	docs, err := a.Store.Q.ListModuleDocuments(ctx, db.ListModuleDocumentsParams{WorkspaceID: p.WorkspaceID, ProjectID: p.ID})
-	if err != nil {
-		return nil, err
-	}
-	files := make([]string, 0, len(docs))
-	for _, d := range docs {
-		path := filepath.Join(dir, filepath.FromSlash(d.Name))
-		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-			return nil, err
-		}
-		if err := os.WriteFile(path, []byte(d.Text), 0o644); err != nil {
-			return nil, err
-		}
-		files = append(files, d.Name)
-	}
-	return map[string]any{"folder": dir, "files": files}, nil
-}
-
-// moduleKind is the document kind of a file of an exported module.
+// moduleKind is the document kind of a file of a module folder.
 func moduleKind(m *manifest.Manifest, name string) string {
 	switch {
 	case name == ManifestName:
@@ -71,13 +42,13 @@ func moduleKind(m *manifest.Manifest, name string) string {
 	return KindDoc
 }
 
-// projectImport creates a draft from a folder written by export; hidden files are left out.
+// projectImport creates a draft from a module folder in one transaction; hidden files are left out.
 func (a *App) projectImport(ctx context.Context, act registry.Actor, in struct{ Folder, Name string }) (any, error) {
 	dir, err := absFolder(in.Folder)
 	if err != nil {
 		return nil, err
 	}
-	files, skipped, err := readFolder(dir, false)
+	files, skipped, err := readFolder(dir)
 	if err != nil {
 		return nil, registry.Invalid("deck: cannot read %s: %v", dir, err)
 	}
@@ -126,4 +97,60 @@ func (a *App) projectImport(ctx context.Context, act registry.Actor, in struct{ 
 		return nil, err
 	}
 	return map[string]any{"id": p.ID, "name": p.Name, "status": p.Status, "files": len(files), "rights": rights(pm.m)}, nil
+}
+
+// folderFile is a text file read from a folder on disk, by its path relative to the folder.
+type folderFile struct {
+	path, text string
+}
+
+// readFolder reads the text files of a folder and leaves hidden entries out; what it cannot take, symbolic
+// links included, is in skipped.
+func readFolder(root string) (files []folderFile, skipped []string, err error) {
+	root, err = filepath.EvalSymlinks(root)
+	if err != nil {
+		return nil, nil, err
+	}
+	err = filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, _ := filepath.Rel(root, path)
+		if rel == "." {
+			return nil
+		}
+		if strings.HasPrefix(d.Name(), ".") {
+			if d.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if d.IsDir() {
+			return nil
+		}
+		if d.Type()&fs.ModeSymlink != 0 {
+			skipped = append(skipped, rel+": a symbolic link")
+			return nil
+		}
+		info, err := os.Stat(path)
+		if err != nil || !info.Mode().IsRegular() {
+			skipped = append(skipped, rel+": not a regular file")
+			return nil
+		}
+		if info.Size() > maxFile {
+			skipped = append(skipped, rel+": larger than 1 MB")
+			return nil
+		}
+		b, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		if !utf8.Valid(b) {
+			skipped = append(skipped, rel+": not text")
+			return nil
+		}
+		files = append(files, folderFile{path: filepath.ToSlash(rel), text: string(b)})
+		return nil
+	})
+	return files, skipped, err
 }

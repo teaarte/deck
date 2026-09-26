@@ -31,7 +31,7 @@ func Widens(prev, next *Manifest) []string {
 	for _, d := range added(prev.Domains.Act, next.Domains.Act) {
 		add("act domain: %s", d)
 	}
-	for _, s := range added(secrets(prev), secrets(next)) {
+	for _, s := range added(serverSecrets(prev), serverSecrets(next)) {
 		add("secret: %s", s)
 	}
 	for _, c := range next.Commands {
@@ -45,6 +45,9 @@ func Widens(prev, next *Manifest) []string {
 	}
 	for _, t := range next.Tools.HTTP {
 		old, ok := prevHTTP[t.Name]
+		for _, sc := range added(toolSecrets(old), toolSecrets(t)) {
+			add("secret: %s", sc)
+		}
 		switch {
 		case !ok && t.Class != "external":
 			add("tool %s: new with class %s", t.Name, t.Class)
@@ -59,6 +62,12 @@ func Widens(prev, next *Manifest) []string {
 		old, ok := prev.Tools.MCP.Servers[name]
 		if !ok || old.Command != s.Command || !slices.Equal(old.Args, s.Args) || old.URL != s.URL || !reflect.DeepEqual(old.Env, s.Env) {
 			add("MCP server %s: new or changed", name)
+		} else if len(old.ToolFilter) > 0 && len(s.ToolFilter) == 0 {
+			add("MCP server %s: every tool instead of the tool filter", name)
+		} else if len(old.ToolFilter) > 0 {
+			for _, t := range added(old.ToolFilter, s.ToolFilter) {
+				add("MCP server %s: tool %s", name, t)
+			}
 		}
 		for _, tool := range sortedKeys(s.Classes) {
 			was, known := old.Classes[tool]
@@ -101,25 +110,33 @@ func added(prev, next []string) []string {
 	return out
 }
 
-// secrets are the secrets a manifest uses: $secret.<name> anywhere in its tools and the names in auth.
-func secrets(m *Manifest) []string {
-	b, _ := json.Marshal(m.Tools)
+// serverSecrets are the secrets MCP servers of a manifest get in their environment.
+func serverSecrets(m *Manifest) []string {
+	b, _ := json.Marshal(m.Tools.MCP)
 	var out []string
 	for _, s := range secretRef.FindAllSubmatch(b, -1) {
 		out = append(out, string(s[1]))
 	}
-	for _, t := range m.Tools.HTTP {
-		var a struct{ Secret, ClientID, ClientSecret, Token string }
-		_ = json.Unmarshal(t.Auth, &struct {
-			Secret       *string `json:"secret"`
-			ClientID     *string `json:"client_id"`
-			ClientSecret *string `json:"client_secret"`
-			Token        *string `json:"token"`
-		}{&a.Secret, &a.ClientID, &a.ClientSecret, &a.Token})
-		for _, n := range []string{a.Secret, a.ClientID, a.ClientSecret, a.Token} {
-			if n != "" {
-				out = append(out, n)
-			}
+	return out
+}
+
+// toolSecrets are the secrets an HTTP tool sends: $secret.<name> in its request and the names in auth.
+func toolSecrets(t HTTPTool) []string {
+	b, _ := json.Marshal([]any{t.URL, t.Headers, t.Body})
+	var out []string
+	for _, s := range secretRef.FindAllSubmatch(b, -1) {
+		out = append(out, string(s[1]))
+	}
+	var a struct {
+		Secret       string `json:"secret"`
+		ClientID     string `json:"client_id"`
+		ClientSecret string `json:"client_secret"`
+		Token        string `json:"token"`
+	}
+	_ = json.Unmarshal(t.Auth, &a)
+	for _, n := range []string{a.Secret, a.ClientID, a.ClientSecret, a.Token} {
+		if n != "" {
+			out = append(out, n)
 		}
 	}
 	return out

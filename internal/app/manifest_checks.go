@@ -63,7 +63,9 @@ func (a *App) checkToolFit(ctx context.Context, q *db.Queries, workspace, projec
 			input = t.Input
 		} else if server, tool, ok := strings.Cut(name, "."); ok {
 			s := m.Tools.MCP.Servers[server]
-			i := slices.IndexFunc(listed, func(r db.McpTool) bool { return r.Server == server && r.Name == tool && r.Spec == tools.SpecID(s) })
+			i := slices.IndexFunc(listed, func(r db.McpTool) bool {
+				return r.Server == server && r.Name == tool && r.Listed == 1 && r.Spec == tools.SpecID(s)
+			})
 			if i < 0 {
 				continue
 			}

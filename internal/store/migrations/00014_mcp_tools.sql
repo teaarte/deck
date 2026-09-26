@@ -1,6 +1,6 @@
 -- +goose Up
--- Tools an MCP server listed when deck last started it; approved is the fingerprint the rights were given
--- to: set when deck first sees the tool under this server spec, or when the owner allows it again.
+-- Tools an MCP server listed (listed = 1 while it still lists them); approved is the fingerprint the rights
+-- were given to: set when deck first sees the tool under this server spec, or when the owner allows it again.
 CREATE TABLE mcp_tool (
     project_id   INTEGER NOT NULL REFERENCES project(id) ON DELETE CASCADE,
     server       TEXT NOT NULL,
@@ -11,6 +11,7 @@ CREATE TABLE mcp_tool (
     input        TEXT NOT NULL DEFAULT '{}',
     fingerprint  TEXT NOT NULL,
     approved     TEXT NOT NULL,
+    listed       INTEGER NOT NULL DEFAULT 1,
     PRIMARY KEY (project_id, server, name)
 );
 

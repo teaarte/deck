@@ -60,12 +60,14 @@ func (x *MCP) spec(p db.Project, name string, s manifest.MCPServer) (mcphost.Spe
 	if s.URL != "" {
 		return mcphost.Spec{URL: s.URL}, nil
 	}
+	dir := filepath.Join(x.Home, "projects", strconv.FormatInt(p.ID, 10), "mcp", name)
 	var env []string
 	for _, kv := range os.Environ() {
-		if baseEnv.MatchString(kv) {
+		if baseEnv.MatchString(kv) && !strings.HasPrefix(kv, "HOME=") && !strings.HasPrefix(kv, "TMPDIR=") {
 			env = append(env, kv)
 		}
 	}
+	env = append(env, "HOME="+dir, "TMPDIR="+dir)
 	for _, k := range sortedKeys(s.Env) {
 		v, err := x.expand(p.WorkspaceID, s.Env[k])
 		if err != nil {
@@ -73,8 +75,7 @@ func (x *MCP) spec(p db.Project, name string, s manifest.MCPServer) (mcphost.Spe
 		}
 		env = append(env, k+"="+v)
 	}
-	return mcphost.Spec{Command: s.Command, Args: s.Args, Env: env,
-		Dir: filepath.Join(x.Home, "projects", strconv.FormatInt(p.ID, 10), "mcp", name)}, nil
+	return mcphost.Spec{Command: s.Command, Args: s.Args, Env: env, Dir: dir, Confine: true}, nil
 }
 
 var envSecret = regexp.MustCompile(`\$secret\.[A-Za-z0-9_.-]+`)
@@ -138,7 +139,7 @@ func (x *MCP) Keep(ctx context.Context, project int64, server string, tools []*m
 			}
 		}
 		b, _ := json.Marshal(keep)
-		return q.DeleteMCPToolsExcept(ctx, db.DeleteMCPToolsExceptParams{ProjectID: project, Server: server, Keep: string(b)})
+		return q.UnlistMCPToolsExcept(ctx, db.UnlistMCPToolsExceptParams{ProjectID: project, Server: server, Keep: string(b)})
 	})
 }
 
@@ -160,7 +161,7 @@ func (x *MCP) Commands(ctx context.Context, q *db.Queries, p db.Project, m *mani
 	var out []*registry.Command
 	for _, r := range rows {
 		s, ok := m.Tools.MCP.Servers[r.Server]
-		if !ok || r.Spec != SpecID(s) || len(s.ToolFilter) > 0 && !slices.Contains(s.ToolFilter, r.Name) {
+		if !ok || r.Listed == 0 || r.Spec != SpecID(s) || len(s.ToolFilter) > 0 && !slices.Contains(s.ToolFilter, r.Name) {
 			continue
 		}
 		changed := r.Fingerprint != r.Approved
@@ -179,22 +180,34 @@ func (x *MCP) Commands(ctx context.Context, q *db.Queries, p db.Project, m *mani
 		print := r.Spec + "/" + r.Fingerprint
 		out = append(out, &registry.Command{Name: p.Name + "." + r.Server + "." + r.Name, Title: title, Description: desc,
 			Class: class, Input: json.RawMessage(r.Input), Callers: []string{registry.Master, registry.Agent}, ProjectID: p.ID,
-			Loose: true, Journals: class == registry.External, Handler: x.handler(p, r.Server, s, r.Name, class),
+			Loose: true, Journals: class == registry.External, Handler: x.handler(p, r.Server, s, r.Name, class, r.Fingerprint),
 			Fingerprint: func(context.Context) string { return print },
 			Allowed:     func(_ context.Context, _ registry.Actor, listed bool) (bool, error) { return listed && !changed, nil }})
 	}
 	return out, nil
 }
 
-func (x *MCP) handler(p db.Project, server string, s manifest.MCPServer, tool, class string) registry.Handler {
+func (x *MCP) handler(p db.Project, server string, s manifest.MCPServer, tool, class, print string) registry.Handler {
 	name := p.Name + "." + server + "." + tool
+	frozen := SpecID(s) + "/" + print
+	same := func(list []*mcp.Tool) error {
+		for _, t := range list {
+			if t.Name == tool {
+				input, _ := json.Marshal(t.InputSchema)
+				if toolPrint(t.Name, t.Description, input) == print {
+					return nil
+				}
+			}
+		}
+		return registry.Refuse("deck: %s changed since this call was checked; it was not made, call it again", name)
+	}
 	return func(ctx context.Context, act registry.Actor, raw json.RawMessage) (any, error) {
 		external := class == registry.External
 		spec, err := x.spec(p, server, s)
 		if err == nil && external {
 			var intent int64
 			if intent, err = x.GW.Intent(ctx, act, p.ID, name, raw); err == nil {
-				return x.call(ctx, act, name, ServerKey(p.ID, server), spec, tool, raw, intent)
+				return x.call(ctx, act, name, ServerKey(p.ID, server), spec, tool, raw, intent, frozen, same)
 			}
 		}
 		if err != nil {
@@ -203,16 +216,17 @@ func (x *MCP) handler(p db.Project, server string, s manifest.MCPServer, tool, c
 			}
 			return nil, err
 		}
-		return x.call(ctx, act, name, ServerKey(p.ID, server), spec, tool, raw, 0)
+		return x.call(ctx, act, name, ServerKey(p.ID, server), spec, tool, raw, 0, frozen, same)
 	}
 }
 
 // call makes a tool call and settles its intent: rejected when it never reached the server, done when the
 // server answered, unknown when the connection was lost while the call was out.
-func (x *MCP) call(ctx context.Context, act registry.Actor, name, key string, spec mcphost.Spec, tool string, raw json.RawMessage, intent int64) (any, error) {
-	res, err := x.Host.Call(ctx, key, spec, tool, raw)
+func (x *MCP) call(ctx context.Context, act registry.Actor, name, key string, spec mcphost.Spec, tool string, raw json.RawMessage, intent int64,
+	print string, check func([]*mcp.Tool) error) (any, error) {
+	res, err := x.Host.Call(ctx, key, spec, tool, raw, check)
 	if err != nil {
-		return nil, failed(ctx, x.GW, intent, name, err)
+		return nil, failed(ctx, x.GW, intent, name, print, err)
 	}
 	out, cerr := Content(x.Dirs, act.ProcessID, name, res)
 	if intent != 0 {

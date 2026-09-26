@@ -93,6 +93,9 @@ func (a *App) allowAlways(ctx context.Context, act registry.Actor, q db.Ask) err
 		return registry.Invalid("deck: only a tool or command of a project can be allowed always")
 	}
 	local, ok := strings.CutPrefix(f.Call.Command, p.Name+".")
+	if strings.HasPrefix(f.Call.Command, registry.Builtin+".browser_") {
+		return registry.Invalid("deck: a browser action runs without asking on the sites in domains.act of the manifest; allow it once or add the site there")
+	}
 	if !ok {
 		return registry.Invalid("deck: only a tool or command of the project can be allowed always")
 	}

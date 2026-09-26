@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-	"sync/atomic"
+	"sync"
 
 	"deck2/internal/ask"
 	"deck2/internal/registry"
@@ -61,9 +61,14 @@ func (a *App) oauthStart(ctx context.Context, act registry.Actor, in struct{ Too
 	if auth.Type != "oauth2" {
 		return nil, registry.Invalid("deck: %s is not an oauth2 tool of %s", local, p.Name)
 	}
-	var opened atomic.Bool
+	var mu sync.Mutex
+	opened, finished := false, false
 	link, err := a.Tools.OAuth.Start(ctx, p.WorkspaceID, auth, func(err error) {
-		if opened.Load() {
+		mu.Lock()
+		finished = true
+		close := opened
+		mu.Unlock()
+		if close {
 			a.Browser.LoginDone()
 		}
 		if err != nil {
@@ -76,6 +81,13 @@ func (a *App) oauthStart(ctx context.Context, act registry.Actor, in struct{ Too
 	if err != nil {
 		return nil, err
 	}
-	opened.Store(a.Browser.Login(ctx, link) == nil)
-	return map[string]any{"url": link, "window": opened.Load()}, nil
+	window := a.Browser.Login(ctx, link) == nil
+	mu.Lock()
+	opened = window
+	late := window && finished
+	mu.Unlock()
+	if late {
+		a.Browser.LoginDone()
+	}
+	return map[string]any{"url": link, "window": window}, nil
 }

@@ -20,6 +20,7 @@ import (
 	"deck2/internal/process"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
+	"deck2/internal/sandbox"
 	"deck2/internal/script"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
@@ -72,7 +73,10 @@ func New(cfg Config, p provider.Provider) (*App, error) {
 		return a.dirs().Resolve(ctx, a.Store.Q, project, process, ref)
 	}
 	a.Host = mcphost.New(a.serverStatus)
-	a.Host.Now = cfg.Now
+	a.Host.Now, a.Host.Sandbox = cfg.Now, cfg.Sandbox
+	if home, err := os.UserHomeDir(); err == nil {
+		a.Host.Hide = append([]string{cfg.Home}, sandbox.Private(home)...)
+	}
 	a.MCP = &tools.MCP{GW: a.Gateway, Host: a.Host, Store: st, Secrets: a.Secret, Dirs: a.dirs(), Home: cfg.Home,
 		Manifests: func(ctx context.Context, p db.Project) (*manifest.Manifest, error) { return loadManifest(ctx, st.Q, p) }}
 	a.Browser = &tools.Browser{GW: a.Gateway, Host: a.Host, Dirs: a.dirs(), Home: cfg.Home, Argv: cfg.Browser, Manifests: a.Manifest}

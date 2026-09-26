@@ -13,7 +13,7 @@ import (
 )
 
 // Intent writes the start of an external action with its parameters before it happens. An identical call
-// whose outcome is still unknown is refused: only the owner repeats it.
+// still being made, or whose outcome is unknown, is refused: only the owner repeats it.
 func (g *Gateway) Intent(ctx context.Context, act registry.Actor, project int64, tool string, params json.RawMessage) (int64, error) {
 	p := canonical(params)
 	var id int64
@@ -25,6 +25,12 @@ func (g *Gateway) Intent(ctx context.Context, act registry.Actor, project int64,
 		}
 		if n > 0 {
 			return registry.Refuse("deck: an identical call of %s has an unknown outcome; it is not repeated until the owner decides", tool)
+		}
+		if n, err = q.CountStartedCalls(ctx, db.CountStartedCallsParams{ProjectID: project, Tool: tool, Params: p}); err != nil || n > 0 {
+			if err == nil {
+				err = registry.Refuse("deck: an identical call of %s is being made now; wait for its outcome instead of repeating it", tool)
+			}
+			return err
 		}
 		id, err = q.LogToolCall(ctx, db.LogToolCallParams{ProcessID: act.ProcessID, ProjectID: project, Actor: act.Author(), Tool: tool,
 			Class: registry.External, Outcome: "started", Params: p})
@@ -50,7 +56,6 @@ func (g *Gateway) Finish(ctx context.Context, id int64, outcome, externalID, err
 // Lost marks an action whose answer never came as of unknown outcome and asks the owner to retry it or
 // count it as done.
 func (g *Gateway) Lost(ctx context.Context, id int64) {
-	var made bool
 	ctx = context.WithoutCancel(ctx)
 	row, err := g.st.Q.GetToolCall(ctx, id)
 	if err != nil {
@@ -60,7 +65,15 @@ func (g *Gateway) Lost(ctx context.Context, id int64) {
 	if proj, err := g.st.Q.GetProject(ctx, row.ProjectID); err == nil {
 		tool = g.fingerprint(ctx, proj.WorkspaceID, row.Tool)
 	}
-	err = g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+	g.LostAt(ctx, id, tool)
+}
+
+// LostAt is Lost for a tool that knows its own fingerprint, such as one that holds the lock the
+// fingerprint needs.
+func (g *Gateway) LostAt(ctx context.Context, id int64, tool string) {
+	var made bool
+	ctx = context.WithoutCancel(ctx)
+	err := g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		c, err := q.GetToolCall(ctx, id)
 		if err != nil || c.Outcome != "started" {
 			return err

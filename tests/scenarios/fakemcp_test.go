@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -17,7 +18,7 @@ import (
 func TestMain(m *testing.M) {
 	switch os.Getenv("DECK_FAKE_MCP") {
 	case "project":
-		dir := os.Getenv("DECK_FAKE_DIR")
+		dir, _ := os.Getwd()
 		_ = os.WriteFile(filepath.Join(dir, "pid"), []byte(fmt.Sprint(os.Getpid())), 0o600)
 		serveFake(projectTools(dir))
 	case "browser":
@@ -35,7 +36,11 @@ type fakeTool struct {
 
 func serveFake(tools []fakeTool) {
 	srv := mcp.NewServer(&mcp.Implementation{Name: "fake", Version: "0"}, nil)
+	hidden, _ := os.ReadFile("hide")
 	for _, t := range tools {
+		if slices.Contains(strings.Fields(string(hidden)), t.name) {
+			continue
+		}
 		in := t.input
 		if in == nil {
 			in = map[string]any{"type": "object", "properties": map[string]any{}}
@@ -95,6 +100,11 @@ func projectTools(dir string) []fakeTool {
 			run: func(a map[string]any) *mcp.CallToolResult {
 				note(dir, "send:"+fmt.Sprint(a["to"]))
 				return text("sent to " + fmt.Sprint(a["to"]))
+			}},
+		{name: "peek", desc: "Reads a file.", input: map[string]any{"type": "object", "properties": map[string]any{"path": str}},
+			run: func(a map[string]any) *mcp.CallToolResult {
+				_, err := os.ReadFile(fmt.Sprint(a["path"]))
+				return text(fmt.Sprintf("read=%v", err == nil))
 			}},
 		{name: "env", desc: "Tells its environment.", run: func(map[string]any) *mcp.CallToolResult {
 			return text("token=" + os.Getenv("FAKE_TOKEN") + " leak=" + os.Getenv("DECK_LEAK"))

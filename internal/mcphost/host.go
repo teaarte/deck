@@ -16,6 +16,8 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+
+	"deck2/internal/sandbox"
 )
 
 // Spec is how to reach a server: a program on stdio, or a URL.
@@ -25,6 +27,8 @@ type Spec struct {
 	Env     []string
 	Dir     string
 	URL     string
+	// Confine runs a program in the sandbox.
+	Confine bool
 }
 
 func (s Spec) hash() string {
@@ -43,6 +47,9 @@ type Host struct {
 	Pause  time.Duration
 	Now    func() time.Time
 	Status Status
+	// Sandbox confines programs of specs that ask for it; Hide is what they never read.
+	Sandbox sandbox.Sandbox
+	Hide    []string
 
 	mu      sync.Mutex
 	servers map[string]*server
@@ -100,15 +107,18 @@ func (h *Host) Tools(ctx context.Context, key string, spec Spec) ([]*mcp.Tool, e
 	return s.tools, nil
 }
 
-// Call makes one tool call. An error wrapping ErrNotStarted never reached the server; a *jsonrpc.Error is
-// the server's answer; any other error may have been made.
-func (h *Host) Call(ctx context.Context, key string, spec Spec, tool string, args json.RawMessage) (*mcp.CallToolResult, error) {
+// Call makes one tool call after check saw the tools listed now. An error wrapping ErrNotStarted never
+// reached the server, a *jsonrpc.Error is its answer, any other error may have been made.
+func (h *Host) Call(ctx context.Context, key string, spec Spec, tool string, args json.RawMessage, check func([]*mcp.Tool) error) (*mcp.CallToolResult, error) {
 	s, err := h.server(key)
 	if err != nil {
 		return nil, &ErrNotStarted{err}
 	}
 	s.mu.Lock()
 	err = h.ensure(ctx, key, s, spec)
+	if err == nil && check != nil {
+		err = check(s.tools)
+	}
 	sess := s.sess
 	s.mu.Unlock()
 	if err != nil {
@@ -141,6 +151,12 @@ func (h *Host) ensure(ctx context.Context, key string, s *server, spec Spec) err
 	}
 	if s.spec != want {
 		s.crashes, s.paused = 0, time.Time{}
+	}
+	h.mu.Lock()
+	closed := h.closed
+	h.mu.Unlock()
+	if closed {
+		return errors.New("deck is stopping")
 	}
 	if now := h.Now(); now.Before(s.paused) {
 		return fmt.Errorf("MCP server %s crashed right after starting %d times; it is not started again before %s", key, s.crashes, s.paused.Format(time.TimeOnly))

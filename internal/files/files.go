@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
@@ -25,12 +26,39 @@ const Results = "results/"
 // Dirs are where stored files and process run folders live.
 type Dirs struct{ Files, Runs string }
 
-// Ref is a file an input points to.
+// Ref is a file an input points to; a results file is opened again inside its folder whenever it is read.
 type Ref struct {
 	ID   int64
 	Path string
 	Name string
 	Type string
+	root string
+	rel  string
+}
+
+// Open opens the file as it is now; a results file must still be a regular file inside its folder.
+func (r Ref) Open() (*os.File, int64, error) {
+	var f *os.File
+	var err error
+	if r.root != "" {
+		var root *os.Root
+		if root, err = os.OpenRoot(r.root); err != nil {
+			return nil, 0, err
+		}
+		defer root.Close()
+		f, err = root.OpenFile(r.rel, os.O_RDONLY|syscall.O_NOFOLLOW, 0)
+	} else {
+		f, err = os.Open(r.Path)
+	}
+	if err != nil {
+		return nil, 0, fmt.Errorf("file %s: %v", r.Name, err)
+	}
+	fi, err := f.Stat()
+	if err != nil || !fi.Mode().IsRegular() {
+		f.Close()
+		return nil, 0, fmt.Errorf("file %s is not a regular file", r.Name)
+	}
+	return f, fi.Size(), nil
 }
 
 // Resolve finds the file of a reference: a stored file of the project by id, or results/<name> in the
@@ -45,7 +73,7 @@ func (d Dirs) Resolve(ctx context.Context, q *db.Queries, project, process int64
 		if err != nil {
 			return Ref{}, registry.Invalid("deck: %q is not a file in the results folder of this process", ref)
 		}
-		return Ref{Path: path, Name: filepath.Base(path), Type: typeOf(path)}, nil
+		return Ref{Path: path, Name: filepath.Base(path), Type: typeOf(path), root: root, rel: filepath.Clean("/" + rest)[1:]}, nil
 	}
 	id, err := strconv.ParseInt(ref, 10, 64)
 	if err != nil || id <= 0 {
@@ -108,11 +136,15 @@ func (d Dirs) Save(process int64, tool, ct string, body io.Reader, limit int64) 
 	if err != nil {
 		return "", 0, fmt.Errorf("deck: saving the file %s answered: %v", tool, err)
 	}
-	n, err := io.Copy(f, io.LimitReader(body, limit))
+	n, err := io.Copy(f, io.LimitReader(body, limit+1))
 	if cerr := f.Close(); err == nil {
 		err = cerr
 	}
+	if err == nil && n > limit {
+		err = fmt.Errorf("the file is larger than %d MB", limit>>20)
+	}
 	if err != nil {
+		_ = root.Remove(filepath.Join("results", name))
 		return "", 0, fmt.Errorf("deck: saving the file %s answered: %v", tool, err)
 	}
 	return name, n, nil

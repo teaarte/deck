@@ -67,7 +67,7 @@ func (r *Runner) runScript(ctx context.Context, t turn, trial bool) {
 	_ = r.st.Tx(bg, func(ctx context.Context, q *db.Queries) error {
 		return q.StartCeiling(ctx, db.StartCeilingParams{Now: r.now().UnixMilli(), ID: id})
 	})
-	input, inDir, err := r.inputFiles(bg, t.cmd, t.project, id, t.input)
+	input, inDir, err := r.inputFiles(bg, t.cmd, t.project, id, t.input, false)
 	if err != nil {
 		fail(err)
 		return

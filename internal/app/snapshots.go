@@ -142,6 +142,12 @@ func (a *App) daily(ctx context.Context, now time.Time) {
 	for _, id := range gone {
 		_ = os.Remove(filepath.Join(a.Cfg.Home, "files", fmt.Sprint(id)))
 	}
+	left, _ := filepath.Glob(filepath.Join(a.Cfg.Home, "files", ".upload-*"))
+	for _, f := range left {
+		if fi, err := os.Stat(f); err == nil && now.Sub(fi.ModTime()) > 24*time.Hour {
+			_ = os.Remove(f)
+		}
+	}
 	if _, err := a.Snapshot(ctx); err != nil {
 		slog.Error("daily snapshot", "err", err)
 	}

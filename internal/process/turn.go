@@ -85,7 +85,7 @@ func (r *Runner) run(ctx context.Context, t turn) {
 		r.finish(bg, processID, StateError, "", false, err.Error())
 		return
 	}
-	if t.input, _, err = r.inputFiles(bg, t.cmd, t.project, processID, t.input); err != nil {
+	if t.input, _, err = r.inputFiles(bg, t.cmd, t.project, processID, t.input, true); err != nil {
 		r.finish(bg, processID, StateError, "", false, err.Error())
 		return
 	}

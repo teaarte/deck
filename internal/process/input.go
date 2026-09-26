@@ -72,9 +72,9 @@ func bindInput(ctx context.Context, q *db.Queries, cmd *manifest.Command, projec
 	return nil
 }
 
-// inputFiles links the files of an input into the read-only input folder; a file field becomes the path of
-// its file there.
-func (r *Runner) inputFiles(ctx context.Context, cmd *manifest.Command, projectID, processID int64, input string) (string, string, error) {
+// inputFiles puts the files of an input into the input folder, read-only; a file field becomes the path of
+// its file there. Copies go to agents, which the script sandbox does not hold; scripts get links.
+func (r *Runner) inputFiles(ctx context.Context, cmd *manifest.Command, projectID, processID int64, input string, copies bool) (string, string, error) {
 	fields := fileFields(cmd)
 	dir := filepath.Join(r.cfg.RunsDir, strconv.FormatInt(processID, 10), "input")
 	var in map[string]any
@@ -92,7 +92,7 @@ func (r *Runner) inputFiles(ctx context.Context, cmd *manifest.Command, projectI
 			if err != nil || f.ProjectID != projectID {
 				return "", "", fmt.Errorf("input field %s: no file %d in this project", name, id)
 			}
-			p, err := r.place(f, dir)
+			p, err := r.place(f, dir, copies)
 			if err != nil {
 				return "", "", err
 			}
@@ -108,8 +108,8 @@ func (r *Runner) inputFiles(ctx context.Context, cmd *manifest.Command, projectI
 	return string(out), dir, nil
 }
 
-// place links a stored file into a folder under its id and name, read-only; a copy when a link fails.
-func (r *Runner) place(f db.File, dir string) (string, error) {
+// place links or copies a stored file into a folder under its id and name; a copy is read-only.
+func (r *Runner) place(f db.File, dir string, copies bool) (string, error) {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return "", err
 	}
@@ -124,12 +124,11 @@ func (r *Runner) place(f db.File, dir string) (string, error) {
 	if _, err := os.Lstat(dst); err == nil {
 		return dst, nil
 	}
-	if err := os.Link(src, dst); err != nil {
+	if copies || os.Link(src, dst) != nil {
 		if err := copyFile(src, dst); err != nil {
 			return "", fmt.Errorf("file %d: %v", f.ID, err)
 		}
 	}
-	_ = os.Chmod(dst, 0o400)
 	return dst, nil
 }
 

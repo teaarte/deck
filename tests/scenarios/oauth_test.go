@@ -23,6 +23,8 @@ type fakeOAuth struct {
 	access    string
 	refresh   string
 	revoked   bool
+	broken    bool
+	deny      bool
 	grants    []string
 	// during runs inside a refresh, before the service answers it.
 	during func()
@@ -49,6 +51,10 @@ func (f *fakeOAuth) handler(w http.ResponseWriter, r *http.Request, _ int) {
 			f.access, f.refresh = "a1", "r1"
 			jsonReply(w, `{"access_token":"a1","token_type":"Bearer","refresh_token":"r1","expires_in":30}`)
 		case "refresh_token":
+			if f.broken {
+				http.Error(w, "down", http.StatusBadGateway)
+				return
+			}
 			if f.revoked || r.Form.Get("refresh_token") != f.refresh {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusBadRequest)
@@ -65,7 +71,7 @@ func (f *fakeOAuth) handler(w http.ResponseWriter, r *http.Request, _ int) {
 			jsonReply(w, fmt.Sprintf(`{"access_token":%q,"token_type":"Bearer","refresh_token":%q,"expires_in":3600}`, f.access, f.refresh))
 		}
 	case "/me":
-		if r.Header.Get("Authorization") != "Bearer "+f.access || f.revoked {
+		if r.Header.Get("Authorization") != "Bearer "+f.access || f.revoked || f.deny {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}

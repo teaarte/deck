@@ -28,6 +28,24 @@ func (q *Queries) ClaimProcess(ctx context.Context, arg ClaimProcessParams) (int
 	return result.RowsAffected()
 }
 
+const countStartedCalls = `-- name: CountStartedCalls :one
+SELECT count(*) FROM tool_call
+WHERE outcome = 'started' AND project_id = ?1 AND tool = ?2 AND params = ?3
+`
+
+type CountStartedCallsParams struct {
+	ProjectID int64
+	Tool      string
+	Params    string
+}
+
+func (q *Queries) CountStartedCalls(ctx context.Context, arg CountStartedCallsParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countStartedCalls, arg.ProjectID, arg.Tool, arg.Params)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countUnknownCalls = `-- name: CountUnknownCalls :one
 SELECT count(*) FROM tool_call t JOIN ask a ON a.id = t.ask_id
 WHERE t.outcome = 'unknown' AND a.state IN ('open', 'running') AND a.id != ?1

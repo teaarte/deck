@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/url"
 	"regexp"
 	"slices"
@@ -47,6 +48,16 @@ func checkTemplate(t HTTPTool) []error {
 			fail("{%s} is not an input field", m[1])
 		}
 	}
+	var auth struct{ AuthURL, TokenURL string }
+	_ = json.Unmarshal(t.Auth, &struct {
+		A *string `json:"auth_url"`
+		T *string `json:"token_url"`
+	}{&auth.AuthURL, &auth.TokenURL})
+	for _, raw := range []string{auth.AuthURL, auth.TokenURL} {
+		if u, err := url.Parse(raw); raw != "" && (err != nil || u.Scheme != "https" && !(u.Scheme == "http" && loopback(u.Hostname()))) {
+			fail("oauth2 addresses must be https: %q", raw)
+		}
+	}
 	var kinds map[string]json.RawMessage
 	if json.Unmarshal(t.Body, &kinds) == nil && kinds["file"] != nil {
 		var file string
@@ -63,6 +74,11 @@ func checkTemplate(t HTTPTool) []error {
 		}
 	}
 	return errs
+}
+
+func loopback(host string) bool {
+	ip := net.ParseIP(host)
+	return host == "localhost" || ip != nil && ip.IsLoopback()
 }
 
 // FitsTool checks that a tool command's input goes to its tool as it is: every command field is a tool

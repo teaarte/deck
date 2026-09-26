@@ -116,8 +116,6 @@ func (h *HTTP) handler(p db.Project, t manifest.HTTPTool) registry.Handler {
 			case intent == 0:
 			case !reached:
 				h.GW.Finish(ctx, intent, "rejected", "", err.Error())
-			case isSignIn:
-				h.GW.Finish(ctx, intent, "done", "", err.Error())
 			default:
 				h.GW.Lost(ctx, intent)
 				return nil, fmt.Errorf("%v; the outcome is unknown and the owner decides whether to repeat it", err)

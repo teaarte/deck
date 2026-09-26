@@ -24,24 +24,8 @@ func (q *Queries) ApproveMCPTool(ctx context.Context, arg ApproveMCPToolParams) 
 	return err
 }
 
-const deleteMCPToolsExcept = `-- name: DeleteMCPToolsExcept :exec
-DELETE FROM mcp_tool WHERE project_id = ?1 AND server = ?2
-  AND name NOT IN (SELECT value FROM json_each(?3))
-`
-
-type DeleteMCPToolsExceptParams struct {
-	ProjectID int64
-	Server    string
-	Keep      interface{}
-}
-
-func (q *Queries) DeleteMCPToolsExcept(ctx context.Context, arg DeleteMCPToolsExceptParams) error {
-	_, err := q.db.ExecContext(ctx, deleteMCPToolsExcept, arg.ProjectID, arg.Server, arg.Keep)
-	return err
-}
-
 const listMCPTools = `-- name: ListMCPTools :many
-SELECT project_id, server, spec, name, title, description, input, fingerprint, approved FROM mcp_tool WHERE project_id = ? ORDER BY server, name
+SELECT project_id, server, spec, name, title, description, input, fingerprint, approved, listed FROM mcp_tool WHERE project_id = ? ORDER BY server, name
 `
 
 func (q *Queries) ListMCPTools(ctx context.Context, projectID int64) ([]McpTool, error) {
@@ -63,6 +47,7 @@ func (q *Queries) ListMCPTools(ctx context.Context, projectID int64) ([]McpTool,
 			&i.Input,
 			&i.Fingerprint,
 			&i.Approved,
+			&i.Listed,
 		); err != nil {
 			return nil, err
 		}
@@ -77,12 +62,28 @@ func (q *Queries) ListMCPTools(ctx context.Context, projectID int64) ([]McpTool,
 	return items, nil
 }
 
+const unlistMCPToolsExcept = `-- name: UnlistMCPToolsExcept :exec
+UPDATE mcp_tool SET listed = 0 WHERE project_id = ?1 AND server = ?2
+  AND name NOT IN (SELECT value FROM json_each(?3))
+`
+
+type UnlistMCPToolsExceptParams struct {
+	ProjectID int64
+	Server    string
+	Keep      interface{}
+}
+
+func (q *Queries) UnlistMCPToolsExcept(ctx context.Context, arg UnlistMCPToolsExceptParams) error {
+	_, err := q.db.ExecContext(ctx, unlistMCPToolsExcept, arg.ProjectID, arg.Server, arg.Keep)
+	return err
+}
+
 const upsertMCPTool = `-- name: UpsertMCPTool :exec
 INSERT INTO mcp_tool (project_id, server, spec, name, title, description, input, fingerprint, approved)
 VALUES (?1, ?2, ?3, ?4, ?5, ?6,
     ?7, ?8, ?8)
 ON CONFLICT (project_id, server, name) DO UPDATE SET title = excluded.title, description = excluded.description,
-    input = excluded.input, fingerprint = excluded.fingerprint,
+    input = excluded.input, fingerprint = excluded.fingerprint, listed = 1,
     approved = CASE WHEN mcp_tool.spec = excluded.spec THEN mcp_tool.approved ELSE excluded.fingerprint END,
     spec = excluded.spec
 `

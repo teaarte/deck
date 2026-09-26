@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"strings"
 	"sync"
@@ -200,9 +201,15 @@ func (g *Gateway) addCommands(ctx context.Context, srv *mcp.Server, s *Session, 
 	if err != nil {
 		return nil, nil, err
 	}
+	seen := map[string]string{}
 	for _, c := range cmds {
 		name := c.Name
 		tool := registry.ToolName(name)
+		if other, dup := seen[tool]; dup {
+			slog.Error("gateway tool names collide; the second is left out", "tool", tool, "kept", other, "left", name)
+			continue
+		}
+		seen[tool] = name
 		tools = append(tools, tool)
 		srv.AddTool(&mcp.Tool{Name: tool, Title: c.Title, Description: c.Description, InputSchema: c.Input},
 			func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {

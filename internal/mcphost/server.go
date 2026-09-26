@@ -12,25 +12,49 @@ import (
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+
+	"deck2/internal/sandbox"
 )
+
+// command is the program of a stdio server; a confined one runs in the sandbox with the network, writing
+// only its own folder and seeing neither deck's folder nor the owner's keys.
+func (h *Host) command(spec Spec) (*exec.Cmd, error) {
+	if !spec.Confine || h.Sandbox == nil {
+		cmd := exec.Command(spec.Command, spec.Args...)
+		cmd.Env, cmd.Dir = spec.Env, spec.Dir
+		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+		return cmd, nil
+	}
+	if err := h.Sandbox.Check(); err != nil {
+		return nil, fmt.Errorf("sandbox %s: %w", h.Sandbox.Name(), err)
+	}
+	path, err := exec.LookPath(spec.Command)
+	if err != nil {
+		return nil, err
+	}
+	return h.Sandbox.Command(context.Background(), sandbox.Policy{Argv: append([]string{path}, spec.Args...), Dir: spec.Dir,
+		Env: spec.Env, Write: []string{spec.Dir}, Hide: h.Hide, Net: true})
+}
 
 func (s *server) start(ctx context.Context, h *Host, key string, spec Spec) error {
 	client := mcp.NewClient(&mcp.Implementation{Name: "deck", Version: "0"}, &mcp.ClientOptions{
 		ToolListChangedHandler: func(context.Context, *mcp.ToolListChangedRequest) { s.stale.Store(true) }})
 	var transport mcp.Transport
+	s.cmd = nil
 	if spec.URL != "" {
 		transport = &mcp.StreamableClientTransport{Endpoint: spec.URL}
 	} else {
-		cmd := exec.Command(spec.Command, spec.Args...)
-		cmd.Env, cmd.Dir = spec.Env, spec.Dir
-		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-		s.stderr = &tail{}
-		cmd.Stderr = s.stderr
 		if spec.Dir != "" {
 			if err := os.MkdirAll(spec.Dir, 0o700); err != nil {
 				return err
 			}
 		}
+		cmd, err := h.command(spec)
+		if err != nil {
+			return fmt.Errorf("MCP server %s did not start: %v", key, err)
+		}
+		s.stderr = &tail{}
+		cmd.Stderr = s.stderr
 		s.cmd = cmd
 		transport = &mcp.CommandTransport{Command: cmd, TerminateDuration: 2 * time.Second}
 	}
@@ -114,6 +138,7 @@ func (s *server) kill() {
 	if s.cmd != nil && s.cmd.Process != nil {
 		_ = syscall.Kill(-s.cmd.Process.Pid, syscall.SIGKILL)
 	}
+	s.cmd = nil
 }
 
 // tail keeps the last 2 KB a server wrote to stderr.

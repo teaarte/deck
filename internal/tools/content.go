@@ -15,7 +15,7 @@ import (
 
 // failed settles the intent of an MCP call that failed: rejected when it never reached the server, done
 // when the server answered, unknown when the connection was lost while the call was out.
-func failed(ctx context.Context, gw *gateway.Gateway, intent int64, name string, err error) error {
+func failed(ctx context.Context, gw *gateway.Gateway, intent int64, name, print string, err error) error {
 	var ns *mcphost.ErrNotStarted
 	switch {
 	case errors.As(err, &ns):
@@ -27,7 +27,7 @@ func failed(ctx context.Context, gw *gateway.Gateway, intent int64, name string,
 			gw.Finish(ctx, intent, "done", "", err.Error())
 		}
 	case intent != 0:
-		gw.Lost(ctx, intent)
+		gw.LostAt(ctx, intent, print)
 		return fmt.Errorf("deck: %s: the outcome is unknown and the owner decides whether to repeat it: %v", name, err)
 	}
 	return fmt.Errorf("deck: %s: %v", name, err)
@@ -75,8 +75,15 @@ func Content(dirs files.Dirs, process int64, tool string, res *mcp.CallToolResul
 	if res.IsError {
 		return nil, fmt.Errorf("deck: %s: %s", tool, truncate(joined, 4000))
 	}
-	if res.StructuredContent != nil && len(saved) == 0 {
-		return res.StructuredContent, nil
+	if res.StructuredContent != nil {
+		if len(saved) == 0 {
+			return res.StructuredContent, nil
+		}
+		if o, ok := res.StructuredContent.(map[string]any); ok && o["files"] == nil {
+			o["files"] = saved
+			return o, nil
+		}
+		return map[string]any{"result": res.StructuredContent, "text": joined, "files": saved}, nil
 	}
 	out := map[string]any{"text": joined}
 	if len(saved) > 0 {

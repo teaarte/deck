@@ -25,12 +25,12 @@ import (
 const BrowserKey = "browser"
 
 // Tools of the browser server that only read; the ones in browserActs click, type or submit, and the rest
-// (running code in the server, request details with cookies) are never offered.
+// (running code in the page or the server, request details with cookies) are never offered.
 var (
 	browserReads = []string{"browser_navigate", "browser_navigate_back", "browser_snapshot", "browser_find", "browser_take_screenshot",
 		"browser_wait_for", "browser_tabs", "browser_hover", "browser_close", "browser_console_messages", "browser_resize"}
 	browserActs = []string{"browser_click", "browser_type", "browser_fill_form", "browser_select_option", "browser_press_key",
-		"browser_drag", "browser_drop", "browser_file_upload", "browser_handle_dialog", "browser_evaluate"}
+		"browser_drag", "browser_drop", "browser_file_upload", "browser_handle_dialog"}
 )
 
 // Browser is the browser MCP server with deck's own profile: reading pages of the read domains, acting
@@ -136,7 +136,7 @@ func (b *Browser) build(list []*mcp.Tool) {
 }
 
 func (b *Browser) call(ctx context.Context, tool string, args json.RawMessage) (*mcp.CallToolResult, error) {
-	return b.Host.Call(ctx, BrowserKey, b.spec(), tool, args)
+	return b.Host.Call(ctx, BrowserKey, b.spec(), tool, args, nil)
 }
 
 // current is the URL of the page the browser shows; b.mu is held.
@@ -210,8 +210,23 @@ func (b *Browser) reader(tool string) registry.Handler {
 		if err != nil {
 			return nil, fmt.Errorf("deck: %s: %v", tool, err)
 		}
+		if tool != "browser_close" && tool != "browser_resize" && !(tool == "browser_tabs" && args.Action == "list") {
+			if page, off := b.offDomains(ctx, act.ProjectID); off {
+				return nil, registry.Refuse("deck: the browser shows %s, which is not on a read or act domain of this project; what it shows is withheld", page)
+			}
+		}
 		return Content(b.Dirs, act.ProcessID, tool, res)
 	}
+}
+
+// offDomains reports the page the browser shows when it is off the project's read and act domains; b.mu is held.
+func (b *Browser) offDomains(ctx context.Context, project int64) (string, bool) {
+	m, err := b.Manifests(ctx, project)
+	page, perr := b.current(ctx)
+	if err != nil || perr != nil {
+		return page, true
+	}
+	return page, !on(append(slices.Clone(m.Domains.Read), m.Domains.Act...), page)
 }
 
 // Login opens a window of deck's browser at the page, for the owner to sign in with deck's profile.

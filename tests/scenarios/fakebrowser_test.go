@@ -26,6 +26,13 @@ func browserTools(dir string) []fakeTool {
 		return fakeTool{name: name, desc: "Acts on the page.", input: obj(map[string]any{"target": str, "text": str}),
 			run: func(a map[string]any) *mcp.CallToolResult {
 				note(dir, strings.TrimPrefix(name, "browser_")+":"+page)
+				if next, err := os.ReadFile(filepath.Join(dir, "goto")); err == nil {
+					_ = os.Remove(filepath.Join(dir, "goto"))
+					if string(next) == "crash" {
+						os.Exit(3)
+					}
+					page = string(next)
+				}
 				return text("### Page\n- Page URL: " + page)
 			}}
 	}

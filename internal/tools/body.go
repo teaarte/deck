@@ -8,7 +8,6 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/textproto"
-	"os"
 	"slices"
 	"strings"
 
@@ -92,11 +91,12 @@ func makeBody(t manifest.HTTPTool, in map[string]any, resolve func(string) (file
 }
 
 func size(f *files.Ref) (int64, error) {
-	fi, err := os.Stat(f.Path)
+	file, n, err := f.Open()
 	if err != nil {
-		return 0, fmt.Errorf("deck: file %s: %v", f.Name, err)
+		return 0, fmt.Errorf("deck: %v", err)
 	}
-	return fi.Size(), nil
+	file.Close()
+	return n, nil
 }
 
 // attach gives a request the body; a file is opened anew for every request.
@@ -107,11 +107,7 @@ func (b *body) attach(r *http.Request) (*http.Request, error) {
 		r.Body, r.ContentLength = io.NopCloser(bytes.NewReader(b.json)), int64(len(b.json))
 		r.Header.Set("Content-Type", "application/json")
 	case b.file != nil:
-		total, err := size(b.file)
-		if err != nil {
-			return nil, err
-		}
-		f, err := os.Open(b.file.Path)
+		f, total, err := b.file.Open()
 		if err != nil {
 			return nil, err
 		}
@@ -157,11 +153,11 @@ func (b *body) multipart(w io.Writer, withFiles bool) (int64, error) {
 			cw.n += n
 			continue
 		}
-		f, err := os.Open(p.file.Path)
+		f, n, err := p.file.Open()
 		if err != nil {
 			return 0, err
 		}
-		_, err = io.Copy(pw, f)
+		_, err = io.Copy(pw, io.LimitReader(f, n))
 		_ = f.Close()
 		if err != nil {
 			return 0, err

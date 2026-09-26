@@ -106,35 +106,33 @@ func (h *HTTP) request(ctx context.Context, act registry.Actor, p db.Project, t 
 }
 
 // send makes a call; an oauth2 tool refused with 401 gets its token refreshed and the call once more.
-// reached says a request may have got to the service.
+// reached says a request may have done something: a 401 refusal did not.
 func (h *HTTP) send(ctx context.Context, p db.Project, o *outgoing) (*http.Response, bool, error) {
-	answered := false
 	for attempt := 0; ; attempt++ {
 		token := ""
 		var err error
 		if o.oauth != nil {
 			if token, err = h.OAuth.Access(ctx, p.WorkspaceID, *o.oauth, attempt > 0); err != nil {
-				return nil, answered, err
+				return nil, false, err
 			}
 		}
 		r, err := o.body.attach(o.req.Clone(ctx))
 		if err != nil {
-			return nil, answered, err
+			return nil, false, err
 		}
 		if token != "" {
 			r.Header.Set("Authorization", "Bearer "+token)
 		}
 		resp, err := h.Client.Do(r)
 		if err != nil {
-			return nil, answered || sent(err), err
+			return nil, sent(err), err
 		}
-		answered = true
 		if resp.StatusCode != http.StatusUnauthorized || o.oauth == nil {
 			return resp, true, nil
 		}
 		_ = resp.Body.Close()
 		if attempt > 0 {
-			return nil, true, &ErrSignIn{Why: "the service refused a fresh token"}
+			return nil, false, &ErrSignIn{Why: "the service refused a fresh token"}
 		}
 	}
 }

@@ -128,6 +128,11 @@ WHERE t.outcome = 'unknown' AND a.state IN ('open', 'running') AND a.id != sqlc.
   AND t.project_id = sqlc.arg(project_id) AND t.tool = sqlc.arg(tool) AND t.params = sqlc.arg(params);
 
 
+-- name: CountStartedCalls :one
+SELECT count(*) FROM tool_call
+WHERE outcome = 'started' AND project_id = sqlc.arg(project_id) AND tool = sqlc.arg(tool) AND params = sqlc.arg(params);
+
+
 -- name: ListToolCalls :many
 SELECT * FROM tool_call WHERE process_id = ? ORDER BY id;
 

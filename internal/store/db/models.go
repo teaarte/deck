@@ -106,6 +106,7 @@ type McpTool struct {
 	Input       string
 	Fingerprint string
 	Approved    string
+	Listed      int64
 }
 
 type Process struct {

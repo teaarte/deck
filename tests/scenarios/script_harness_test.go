@@ -118,7 +118,7 @@ func namedWheel(t *testing.T, pkg string) string {
 	files := map[string]string{
 		pkg + "/__init__.py": "VALUE = 42\n",
 		info + "METADATA":    "Metadata-Version: 2.1\nName: " + pkg + "\nVersion: 0.1\n",
-		info + "WHEEL":            "Wheel-Version: 1.0\nGenerator: deck-test\nRoot-Is-Purelib: true\nTag: py3-none-any\n",
+		info + "WHEEL":       "Wheel-Version: 1.0\nGenerator: deck-test\nRoot-Is-Purelib: true\nTag: py3-none-any\n",
 	}
 	record := ""
 	for name, text := range files {

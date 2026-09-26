@@ -10,15 +10,19 @@ import (
 	"mime"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"deck2/internal/registry"
+	"deck2/internal/store"
 	"deck2/internal/store/db"
 )
 
-// FileRef is an entry of the files field of a result: a file of the results folder and what it belongs to.
+// FileRef is an entry of the files field of a result: a file of the results folder, or File, a file the
+// process got in its input, and the record or card it belongs to.
 type FileRef struct {
-	Path   string `json:"path"`
+	Path   string `json:"path,omitempty"`
+	File   int64  `json:"file,omitempty"`
 	Record int64  `json:"record,omitempty"`
 	Card   int64  `json:"card,omitempty"`
 }
@@ -31,6 +35,16 @@ func (r *Runner) keepFiles(ctx context.Context, projectID, processID int64, resu
 	}
 	if json.Unmarshal([]byte(result), &res) != nil || len(res.Files) == 0 {
 		return nil
+	}
+	var given []FileRef
+	res.Files = slices.DeleteFunc(res.Files, func(f FileRef) bool {
+		if f.File != 0 {
+			given = append(given, f)
+		}
+		return f.File != 0
+	})
+	if err := r.rebind(ctx, projectID, processID, given); err != nil || len(res.Files) == 0 {
+		return err
 	}
 	root, err := filepath.EvalSymlinks(results)
 	if err != nil {
@@ -63,7 +77,7 @@ func (r *Runner) keepFiles(ctx context.Context, projectID, processID int64, resu
 				typ = "application/octet-stream"
 			}
 			row, err := q.CreateFile(ctx, db.CreateFileParams{ProjectID: projectID, OwnerKind: kind, OwnerID: owner,
-				Name: filepath.Base(srcs[i]), Type: typ, Size: infos[i].Size()})
+				Name: filepath.Base(srcs[i]), Type: typ, Size: infos[i].Size(), CreatedAt: store.Time(r.now())})
 			if err != nil {
 				return err
 			}
@@ -85,6 +99,34 @@ func (r *Runner) keepFiles(ctx context.Context, projectID, processID int64, resu
 	}
 	r.bus.Publish("files")
 	return nil
+}
+
+// rebind gives input files of the process to the record or card the result names.
+func (r *Runner) rebind(ctx context.Context, projectID, processID int64, given []FileRef) error {
+	if len(given) == 0 {
+		return nil
+	}
+	err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		for _, f := range given {
+			kind, owner, err := fileOwner(ctx, q, projectID, processID, f)
+			if err != nil {
+				return err
+			}
+			n, err := q.BindFile(ctx, db.BindFileParams{OwnerKind: kind, OwnerID: owner, ID: f.File, ProjectID: projectID,
+				FromKind: "process", FromID: processID})
+			if err != nil {
+				return err
+			}
+			if n == 0 {
+				return registry.Invalid("deck: result file %d is not a file of this process", f.File)
+			}
+		}
+		return nil
+	})
+	if err == nil {
+		r.bus.Publish("files")
+	}
+	return err
 }
 
 // dropFiles undoes the files of a result that could not be kept whole.

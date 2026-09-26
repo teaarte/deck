@@ -101,11 +101,26 @@ func added(prev, next []string) []string {
 	return out
 }
 
+// secrets are the secrets a manifest uses: $secret.<name> anywhere in its tools and the names in auth.
 func secrets(m *Manifest) []string {
 	b, _ := json.Marshal(m.Tools)
 	var out []string
 	for _, s := range secretRef.FindAllSubmatch(b, -1) {
 		out = append(out, string(s[1]))
+	}
+	for _, t := range m.Tools.HTTP {
+		var a struct{ Secret, ClientID, ClientSecret, Token string }
+		_ = json.Unmarshal(t.Auth, &struct {
+			Secret       *string `json:"secret"`
+			ClientID     *string `json:"client_id"`
+			ClientSecret *string `json:"client_secret"`
+			Token        *string `json:"token"`
+		}{&a.Secret, &a.ClientID, &a.ClientSecret, &a.Token})
+		for _, n := range []string{a.Secret, a.ClientID, a.ClientSecret, a.Token} {
+			if n != "" {
+				out = append(out, n)
+			}
+		}
 	}
 	return out
 }

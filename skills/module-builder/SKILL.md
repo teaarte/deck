@@ -54,6 +54,29 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   binary answer (video, audio, picture) becomes a file in the caller's results folder: `{"file", "type",
   "size"}`. Everything deck calls outside is journaled; a call whose answer was lost is never repeated by
   deck — the owner retries it or counts it done.
+  A tool may sign in with `"auth": {"type": "secret", "secret": "<name>"}` or oauth2 (`auth_url`, `token_url`,
+  secret names `client_id`, `client_secret`, `token`, `scopes`): the owner signs in once with
+  `oauth_start`, deck refreshes the token and asks the owner again when the access is revoked. A body of
+  `{"file": "{field}"}` sends a file as it is, `{"multipart": {"<part>": "{field}" or "text {field}"}}` a form;
+  such a field has `"format": "file"` and takes a file id or `results/<name>` from the caller's own results
+  folder, so a script can hand a file it just made to a tool at once. A service that uploads in parts gets
+  one HTTP tool per step from its API docs.
+- **MCP servers** (`tools.mcp.servers`, the usual `mcp.servers` shape): `command`/`args`/`env` (values may use
+  `$secret.<name>`) or `url`; `toolFilter` lists the tools the module uses, `classes` their classes — every
+  other tool is `external`. Tools are `<server>.<tool>` in `executor.tool` and `allowed_external`. deck starts
+  servers itself, only in an enabled project; a new or changed server waits for the owner's button, and a tool
+  whose description or input changes loses its rights until the owner allows it again.
+- **Browser**: agents get deck's browser (`browser_navigate`, `browser_snapshot`, `browser_click`, …) with its own
+  profile. `domains.read` are the sites it reads (`"*"` reads any site — for research; it is also the network
+  of scripts), `domains.act` the ones where it clicks, types and submits without asking; an action anywhere
+  else waits for the owner. The owner signs in to a site once (`browser_login`); a page that asks for a sign-in
+  again means the agent calls `browser_needs_login` and stops — deck resumes it after the owner signs in.
+- **Files of the input**: a command field with `"format": "file"` takes a file id (from a form upload, Share, or
+  `files_list` of a record or card); scripts and agents get the path of a read-only copy. A result may give such
+  a file to a record or card: `files: [{"file": <id>, "record": <id>}]`.
+- **Documents to PDF** (a CV in Typst, say): a script with `programs: ["typst"]` writes the `.typ` documents it
+  reads with `document_get` into its work folder, runs `typst compile` and puts the PDF into `$DECK_RESULTS`.
+  To compare two revisions of a document, read both (`document_get` with `revision`); screens show the diff.
 - **Reads**: `reads: [{"project": "other", "collections": [...], "documents": [...]}]` lets agents and scripts
   read those (`records_list`, `document_get` with `project`) and screens show them (`source.project`).
   Nothing ever writes to another project.

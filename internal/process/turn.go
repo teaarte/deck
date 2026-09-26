@@ -56,6 +56,7 @@ func (r *Runner) run(ctx context.Context, t turn) {
 		r.finish(bg, processID, StateError, "", false, err.Error())
 		return
 	}
+	r.projects.Servers(bg, t.project)
 	tok, err := r.gw.Register(bg, &gateway.Session{ProcessID: processID, ProjectID: t.project, Workspace: proj.WorkspaceID, Trial: trial})
 	if err != nil {
 		r.finish(bg, processID, StateError, "", false, err.Error())
@@ -81,6 +82,10 @@ func (r *Runner) run(ctx context.Context, t turn) {
 		OnEvent: func(e provider.Event) { r.event(bg, processID, stream, e) },
 	}
 	if req.Skills, err = r.projects.Skills(bg, t.project, t.cmd.Executor.Skills); err != nil {
+		r.finish(bg, processID, StateError, "", false, err.Error())
+		return
+	}
+	if t.input, _, err = r.inputFiles(bg, t.cmd, t.project, processID, t.input); err != nil {
 		r.finish(bg, processID, StateError, "", false, err.Error())
 		return
 	}

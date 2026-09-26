@@ -6,6 +6,7 @@ import (
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
+	"deck2/internal/tools"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -33,6 +34,45 @@ func checkReads(ctx context.Context, q *db.Queries, workspace int64, name string
 			if other.Collection(c) == nil {
 				return registry.Invalid("deck: reads: project %q has no collection %q", r.Project, c)
 			}
+		}
+	}
+	return nil
+}
+
+// checkToolFit checks tool commands whose tool is a builtin or an MCP tool deck has listed: the command
+// input must go to the tool as it is. An MCP tool deck has not seen yet is checked when the command runs.
+func (a *App) checkToolFit(ctx context.Context, q *db.Queries, workspace, projectID int64, m *manifest.Manifest) error {
+	var listed []db.McpTool
+	if projectID != 0 {
+		var err error
+		if listed, err = q.ListMCPTools(ctx, projectID); err != nil {
+			return err
+		}
+	}
+	for _, c := range m.Commands {
+		if c.Executor.Type != "tool" {
+			continue
+		}
+		name := c.Executor.Tool
+		var input json.RawMessage
+		if strings.HasPrefix(name, registry.Builtin+".") {
+			t, err := a.Registry.Lookup(ctx, workspace, name)
+			if err != nil {
+				return registry.Invalid("deck: command %q: no builtin tool %q", c.Name, name)
+			}
+			input = t.Input
+		} else if server, tool, ok := strings.Cut(name, "."); ok {
+			s := m.Tools.MCP.Servers[server]
+			i := slices.IndexFunc(listed, func(r db.McpTool) bool { return r.Server == server && r.Name == tool && r.Spec == tools.SpecID(s) })
+			if i < 0 {
+				continue
+			}
+			input = json.RawMessage(listed[i].Input)
+		} else {
+			continue
+		}
+		if err := manifest.FitsTool(c, name, input); err != nil {
+			return registry.Invalid("deck: command %q: %v", c.Name, err)
 		}
 	}
 	return nil

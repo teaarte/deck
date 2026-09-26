@@ -24,6 +24,8 @@ const (
 	KindCall = "call"
 	// KindUnknown is an external call whose outcome deck lost; the owner answers with one of UnknownAnswers.
 	KindUnknown = "unknown"
+	// KindSignIn asks the owner to sign in to a site or service; its payload names the site or the tool.
+	KindSignIn = "sign_in"
 	// KindWarning tells the owner about something deck refused to do; no process waits for it.
 	KindWarning = "warning"
 )

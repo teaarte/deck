@@ -88,6 +88,8 @@ type Projects interface {
 	Text(ctx context.Context, projectID int64, kind, name string) (string, error)
 	// Skills are the files of the named skills: the project's own, else the workspace's.
 	Skills(ctx context.Context, projectID int64, names []string) (map[string]string, error)
+	// Servers starts the MCP servers of a project whose tools deck has not listed yet.
+	Servers(ctx context.Context, projectID int64)
 }
 
 func NewRunner(st *store.Store, gw *gateway.Gateway, bus *events.Bus, p provider.Provider, scripts *script.Exec, cfg Config, projects Projects) *Runner {

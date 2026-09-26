@@ -131,7 +131,10 @@ func (r *Runner) Start(ctx context.Context, projectID int64, m *manifest.Manifes
 		p, err = q.CreateProcess(ctx, db.CreateProcessParams{Trial: b2i(trial), ProjectID: projectID, Command: command, Kind: kind, State: StateRunning,
 			Provider: providerName, Input: string(in), SessionID: session, ParentID: ref(o.Parent), Depth: depth,
 			TriggerID: ref(o.Trigger), RetryKey: o.Key, CeilingMs: r.ceilingOf(m, cmd).Milliseconds(), ManifestRevision: m.Revision})
-		return err
+		if err != nil {
+			return err
+		}
+		return bindInput(ctx, q, cmd, projectID, p.ID, input)
 	})
 	if err != nil {
 		return 0, err

@@ -1,0 +1,139 @@
+package mcphost
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"os"
+	"os/exec"
+	"strings"
+	"sync"
+	"syscall"
+	"time"
+
+	"github.com/modelcontextprotocol/go-sdk/mcp"
+)
+
+func (s *server) start(ctx context.Context, h *Host, key string, spec Spec) error {
+	client := mcp.NewClient(&mcp.Implementation{Name: "deck", Version: "0"}, &mcp.ClientOptions{
+		ToolListChangedHandler: func(context.Context, *mcp.ToolListChangedRequest) { s.stale.Store(true) }})
+	var transport mcp.Transport
+	if spec.URL != "" {
+		transport = &mcp.StreamableClientTransport{Endpoint: spec.URL}
+	} else {
+		cmd := exec.Command(spec.Command, spec.Args...)
+		cmd.Env, cmd.Dir = spec.Env, spec.Dir
+		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+		s.stderr = &tail{}
+		cmd.Stderr = s.stderr
+		if spec.Dir != "" {
+			if err := os.MkdirAll(spec.Dir, 0o700); err != nil {
+				return err
+			}
+		}
+		s.cmd = cmd
+		transport = &mcp.CommandTransport{Command: cmd, TerminateDuration: 2 * time.Second}
+	}
+	sess, err := client.Connect(ctx, transport, nil)
+	if err != nil {
+		s.kill()
+		return fmt.Errorf("MCP server %s did not start: %v%s", key, err, s.last())
+	}
+	s.sess, s.started = sess, h.Now()
+	if err := s.list(ctx, key); err != nil {
+		s.stop()
+		return err
+	}
+	go s.watch(h, key, sess)
+	return nil
+}
+
+func (s *server) list(ctx context.Context, key string) error {
+	var tools []*mcp.Tool
+	for t, err := range s.sess.Tools(ctx, nil) {
+		if err != nil {
+			return fmt.Errorf("MCP server %s did not list its tools: %v%s", key, err, s.last())
+		}
+		tools = append(tools, t)
+	}
+	s.tools = tools
+	return nil
+}
+
+// watch notices a server that exits by itself; it counts as a crash when it lived less than a minute.
+func (s *server) watch(h *Host, key string, sess *mcp.ClientSession) {
+	err := sess.Wait()
+	s.mu.Lock()
+	if s.sess != sess {
+		s.mu.Unlock()
+		return
+	}
+	s.sess = nil
+	s.kill()
+	if h.Now().Sub(s.started) < time.Minute {
+		if s.crashes++; s.crashes >= 3 {
+			s.paused = h.Now().Add(h.Pause)
+		}
+	} else {
+		s.crashes = 0
+	}
+	text := s.last()
+	s.mu.Unlock()
+	if err == nil {
+		err = errors.New("exited")
+	}
+	h.mu.Lock()
+	closed := h.closed
+	h.mu.Unlock()
+	if !closed && h.Status != nil {
+		h.Status(key, nil, fmt.Errorf("MCP server %s stopped: %v%s; deck starts it again on the next call", key, err, text))
+	}
+}
+
+func (s *server) last() string {
+	if s.stderr == nil {
+		return ""
+	}
+	if t := strings.TrimSpace(s.stderr.String()); t != "" {
+		return "; stderr: " + t
+	}
+	return ""
+}
+
+func (s *server) stop() {
+	sess := s.sess
+	s.sess = nil
+	if sess != nil {
+		_ = sess.Close()
+	}
+	s.kill()
+}
+
+// kill ends the process group of a stdio server, with the programs it started.
+func (s *server) kill() {
+	if s.cmd != nil && s.cmd.Process != nil {
+		_ = syscall.Kill(-s.cmd.Process.Pid, syscall.SIGKILL)
+	}
+}
+
+// tail keeps the last 2 KB a server wrote to stderr.
+type tail struct {
+	mu  sync.Mutex
+	buf []byte
+}
+
+func (t *tail) Write(p []byte) (int, error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.buf = append(t.buf, p...)
+	if len(t.buf) > 2048 {
+		t.buf = t.buf[len(t.buf)-2048:]
+	}
+	return len(p), nil
+}
+
+func (t *tail) String() string {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return string(t.buf)
+}

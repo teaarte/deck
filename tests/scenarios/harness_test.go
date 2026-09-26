@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -100,7 +101,9 @@ type Env struct {
 	Fake  *Fake
 	URL   string
 	Clock *Clock
-	names map[int64]string
+	// Browser is the folder of the fake browser server: its log of what it did.
+	Browser string
+	names   map[int64]string
 }
 
 // Clock is the deck clock of a test: it stands still until the test moves it.
@@ -140,7 +143,10 @@ func newEnvWith(t *testing.T, home string, p provider.Provider, cfg ...func(*app
 	t.Helper()
 	ts := httptest.NewUnstartedServer(nil)
 	base := "http://" + ts.Listener.Addr().String()
-	c := app.Config{Home: home, MCPBase: base, QuestionWait: 5 * time.Second, ConfirmWait: 5 * time.Second}
+	browser := t.TempDir()
+	self, _ := os.Executable()
+	c := app.Config{Home: home, MCPBase: base, QuestionWait: 5 * time.Second, ConfirmWait: 5 * time.Second,
+		Browser: []string{"env", "DECK_FAKE_MCP=browser", "DECK_FAKE_DIR=" + browser, self}}
 	for _, f := range cfg {
 		f(&c)
 	}
@@ -155,7 +161,7 @@ func newEnvWith(t *testing.T, home string, p provider.Provider, cfg ...func(*app
 		_ = a.Close()
 		ts.Close()
 	})
-	return &Env{T: t, App: a, URL: base, names: map[int64]string{}}
+	return &Env{T: t, App: a, URL: base, names: map[int64]string{}, Browser: browser}
 }
 
 func (e *Env) do(method, path string, body any) (int, []byte) {

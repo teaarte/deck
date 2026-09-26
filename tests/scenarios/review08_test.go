@@ -88,6 +88,11 @@ func TestTriggeredExternalCallWaitsWithoutTheAgentAndRunsAfterYes(t *testing.T) 
 		e.answer(a.ID, "allow")
 	}
 	e.waitFor("both triggered calls are made", func() bool { return len(svc.requests()) == 2 })
+	var card struct{ Process int64 }
+	e.must("deck.card_get", map[string]any{"card": 1}, &card)
+	if card.Process == 0 {
+		t.Fatalf("after yes the card is linked to the process its lane trigger started: %+v", card)
+	}
 }
 
 func TestAWaitingCallSurvivesTheEmptyProcessCleanup(t *testing.T) {

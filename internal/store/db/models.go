@@ -96,6 +96,18 @@ type Health struct {
 	UpdatedAt string
 }
 
+type McpTool struct {
+	ProjectID   int64
+	Server      string
+	Spec        string
+	Name        string
+	Title       string
+	Description string
+	Input       string
+	Fingerprint string
+	Approved    string
+}
+
 type Process struct {
 	ID               int64
 	ProjectID        int64

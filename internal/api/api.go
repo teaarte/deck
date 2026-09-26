@@ -37,6 +37,7 @@ func (s *Server) Handler() http.Handler {
 	api.HandleFunc("POST /api/commands/{name}", s.invoke)
 	api.HandleFunc("GET /api/projects/{id}/screens/{name}", s.ownerOnly(s.getScreen))
 	api.HandleFunc("GET /api/events", s.ownerOnly(s.events))
+	api.HandleFunc("POST /api/files", s.upload)
 	mux.Handle("/api/", s.auth(api))
 	return mux
 }
@@ -99,6 +100,40 @@ func (s *Server) invoke(w http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		http.Error(w, err.Error(), registry.Status(err))
+		return
+	}
+	send(w, out)
+}
+
+// upload takes the files of a multipart form for a project; commands then get them by id.
+func (s *Server) upload(w http.ResponseWriter, r *http.Request) {
+	mr, err := r.MultipartReader()
+	if err != nil {
+		http.Error(w, "deck: send the files as multipart/form-data", http.StatusBadRequest)
+		return
+	}
+	var out []any
+	for {
+		part, err := mr.NextPart()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if part.FileName() == "" {
+			continue
+		}
+		f, err := s.app.Upload(r.Context(), actor(r), r.URL.Query().Get("project"), part.FileName(), part.Header.Get("Content-Type"), part)
+		if err != nil {
+			http.Error(w, err.Error(), registry.Status(err))
+			return
+		}
+		out = append(out, f)
+	}
+	if len(out) == 0 {
+		http.Error(w, "deck: the form has no file", http.StatusBadRequest)
 		return
 	}
 	send(w, out)

@@ -112,7 +112,7 @@ func (m *Manifest) compileCommands(fail func(string, ...any)) {
 			}
 			for _, t := range m.Tools.HTTP {
 				if t.Name == e.Tool {
-					if err := fitsTool(*c, t); err != nil {
+					if err := FitsTool(*c, t.Name, t.Input); err != nil {
 						fail("command %q: %v", c.Name, err)
 					}
 				}

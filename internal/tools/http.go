@@ -3,8 +3,6 @@ package tools
 import (
 	"bytes"
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,12 +11,10 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"os"
-	"path/filepath"
-	"regexp"
 	"strings"
 	"time"
 
+	"deck2/internal/files"
 	"deck2/internal/gateway"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
@@ -35,11 +31,17 @@ const (
 type HTTP struct {
 	GW      *gateway.Gateway
 	Secrets func(workspace int64, name string) (string, error)
-	RunsDir string
+	Dirs    files.Dirs
 	Client  *http.Client
+	OAuth   *OAuth
+	// Resolve finds a file an input points to for a process of a project.
+	Resolve func(ctx context.Context, project, process int64, ref string) (files.Ref, error)
+	// Health records the health of a tool; SignIn asks the owner to sign in to a tool's service again.
+	Health func(ctx context.Context, subject, status, text string)
+	SignIn func(ctx context.Context, p db.Project, tool, why string)
 }
 
-func NewHTTP(gw *gateway.Gateway, secrets func(int64, string) (string, error), runsDir string) *HTTP {
+func NewHTTP(gw *gateway.Gateway, secrets func(int64, string) (string, error), dirs files.Dirs) *HTTP {
 	c := &http.Client{Timeout: 5 * time.Minute, Transport: &http.Transport{Proxy: nil,
 		DialContext: (&net.Dialer{Timeout: 10 * time.Second}).DialContext, ResponseHeaderTimeout: 5 * time.Minute},
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
@@ -48,7 +50,7 @@ func NewHTTP(gw *gateway.Gateway, secrets func(int64, string) (string, error), r
 			}
 			return nil
 		}}
-	return &HTTP{GW: gw, Secrets: secrets, RunsDir: runsDir, Client: c}
+	return &HTTP{GW: gw, Secrets: secrets, Dirs: dirs, Client: c}
 }
 
 // Command is the registry command of an HTTP tool of project p.
@@ -57,9 +59,24 @@ func (h *HTTP) Command(p db.Project, t manifest.HTTPTool) *registry.Command {
 	if title == "" {
 		title = t.Name
 	}
+	b, _ := json.Marshal(map[string]any{"method": t.Method, "url": t.URL, "headers": t.Headers, "body": t.Body, "auth": t.Auth})
+	print := canonical(b)
 	return &registry.Command{Name: p.Name + "." + t.Name, Title: title, Description: t.Description, Class: t.Class,
 		Input: t.Input, Result: t.Result, Callers: []string{registry.Owner, registry.Master, registry.Agent}, ProjectID: p.ID,
-		Journals: t.Class == registry.External, Handler: h.handler(p, t)}
+		Journals: t.Class == registry.External, Handler: h.handler(p, t),
+		Fingerprint: func(context.Context) string { return print }, ConfirmTTL: time.Duration(t.ConfirmTTLMinutes) * time.Minute}
+}
+
+// canonical is JSON with sorted keys and no spaces.
+func canonical(raw []byte) string {
+	d := json.NewDecoder(bytes.NewReader(raw))
+	d.UseNumber()
+	var v any
+	if d.Decode(&v) != nil {
+		return string(raw)
+	}
+	b, _ := json.Marshal(v)
+	return string(b)
 }
 
 func (h *HTTP) handler(p db.Project, t manifest.HTTPTool) registry.Handler {
@@ -75,7 +92,7 @@ func (h *HTTP) handler(p db.Project, t manifest.HTTPTool) registry.Handler {
 		if err != nil {
 			return refuse(registry.Invalid("deck: input of %s: %v", name, err))
 		}
-		req, err := h.request(ctx, p.WorkspaceID, t, in)
+		req, err := h.request(ctx, act, p, t, in)
 		if err != nil {
 			return refuse(err)
 		}
@@ -85,19 +102,35 @@ func (h *HTTP) handler(p db.Project, t manifest.HTTPTool) registry.Handler {
 				return refuse(err)
 			}
 		}
-		resp, err := h.Client.Do(req)
+		resp, reached, err := h.send(ctx, p, req)
 		if err != nil {
-			if intent != 0 && sent(err) {
-				h.GW.Lost(ctx, intent)
-				return nil, fmt.Errorf("deck: %s: the outcome is unknown and the owner decides whether to repeat it: %v", name, err)
+			var signIn *ErrSignIn
+			isSignIn := errors.As(err, &signIn)
+			if isSignIn {
+				h.signIn(ctx, p, name, signIn.Why)
+			} else {
+				h.health(ctx, name, "error", err.Error())
+				err = fmt.Errorf("deck: %s: %v", name, err)
 			}
-			if intent != 0 {
+			switch {
+			case intent == 0:
+			case !reached:
 				h.GW.Finish(ctx, intent, "rejected", "", err.Error())
+			case isSignIn:
+				h.GW.Finish(ctx, intent, "done", "", err.Error())
+			default:
+				h.GW.Lost(ctx, intent)
+				return nil, fmt.Errorf("%v; the outcome is unknown and the owner decides whether to repeat it", err)
 			}
-			return nil, fmt.Errorf("deck: %s: %v", name, err)
+			return nil, err
 		}
 		defer resp.Body.Close()
 		out, ext, err := h.response(act, t, resp)
+		if resp.StatusCode >= 500 {
+			h.health(ctx, name, "error", err.Error())
+		} else {
+			h.health(ctx, name, "ok", "")
+		}
 		if intent != 0 {
 			text := ""
 			if err != nil {
@@ -109,100 +142,24 @@ func (h *HTTP) handler(p db.Project, t manifest.HTTPTool) registry.Handler {
 	}
 }
 
+func (h *HTTP) health(ctx context.Context, tool, status, text string) {
+	if h.Health != nil {
+		h.Health(ctx, "tool:"+tool, status, text)
+	}
+}
+
+func (h *HTTP) signIn(ctx context.Context, p db.Project, tool, why string) {
+	h.health(ctx, tool, "needs_login", why)
+	if h.SignIn != nil {
+		h.SignIn(ctx, p, tool, why)
+	}
+}
+
 // sent reports whether a failed request may have reached the other side; only a failed dial proves it did not.
 func sent(err error) bool {
 	var op *net.OpError
 	var dns *net.DNSError
 	return !(errors.As(err, &op) && op.Op == "dial") && !errors.As(err, &dns)
-}
-
-var field = regexp.MustCompile(`\{([A-Za-z0-9_]+)\}`)
-
-// headerRef finds secrets and input fields of a header in one pass, so a field value is never read as a secret.
-var headerRef = regexp.MustCompile(`\$secret\.[A-Za-z0-9_.-]+|\{[A-Za-z0-9_]+\}`)
-
-func (h *HTTP) request(ctx context.Context, workspace int64, t manifest.HTTPTool, in map[string]any) (*http.Request, error) {
-	var missing []string
-	put := func(s string, esc func(string) string) string {
-		return field.ReplaceAllStringFunc(s, func(m string) string {
-			v, ok := in[m[1:len(m)-1]]
-			if !ok {
-				missing = append(missing, m)
-				return ""
-			}
-			return esc(fmt.Sprint(v))
-		})
-	}
-	path, query, hasQuery := strings.Cut(t.URL, "?")
-	u := put(path, segment)
-	if hasQuery {
-		u += "?" + put(query, url.QueryEscape)
-	}
-	var body io.Reader
-	switch {
-	case len(t.Body) > 0:
-		var tmpl any
-		d := json.NewDecoder(bytes.NewReader(t.Body))
-		d.UseNumber()
-		if err := d.Decode(&tmpl); err != nil {
-			return nil, registry.Invalid("deck: body template of %s: %v", t.Name, err)
-		}
-		if o, ok := tmpl.(map[string]any); ok && len(o) == 1 && o["file"] != nil {
-			return nil, registry.Invalid("deck: %s sends a file; file bodies are not supported yet", t.Name)
-		}
-		b, _ := json.Marshal(fill(tmpl, in))
-		body = bytes.NewReader(b)
-	case t.Method == http.MethodPost || t.Method == http.MethodPut || t.Method == http.MethodPatch:
-		b, _ := json.Marshal(in)
-		body = bytes.NewReader(b)
-	}
-	req, err := http.NewRequestWithContext(ctx, t.Method, u, body)
-	if err != nil {
-		return nil, registry.Invalid("deck: %s: %v", t.Name, err)
-	}
-	if body != nil {
-		req.Header.Set("Content-Type", "application/json")
-	}
-	var serr error
-	header := func(s string) string {
-		return headerRef.ReplaceAllStringFunc(s, func(m string) string {
-			if name, ok := strings.CutPrefix(m, "$secret."); ok {
-				v, err := h.Secrets(workspace, name)
-				if err != nil && serr == nil {
-					serr = err
-				}
-				return v
-			}
-			return put(m, func(s string) string { return s })
-		})
-	}
-	for k, v := range t.Headers {
-		v = header(v)
-		if strings.ContainsAny(v, "\r\n") {
-			return nil, registry.Invalid("deck: header %s of %s would contain a line break", k, t.Name)
-		}
-		req.Header.Set(k, v)
-	}
-	if len(t.Auth) > 0 {
-		var a struct{ Type, Secret, Header, Prefix string }
-		a.Header, a.Prefix = "Authorization", "Bearer "
-		_ = json.Unmarshal(t.Auth, &a)
-		if a.Type != "secret" {
-			return nil, registry.Invalid("deck: %s uses %s sign-in, which is not supported yet", t.Name, a.Type)
-		}
-		v, err := h.Secrets(workspace, a.Secret)
-		if err != nil && serr == nil {
-			serr = err
-		}
-		req.Header.Set(a.Header, a.Prefix+strings.TrimSpace(v))
-	}
-	if serr != nil {
-		return nil, serr
-	}
-	if len(missing) > 0 {
-		return nil, registry.Invalid("deck: %s needs input fields %s", t.Name, strings.Join(missing, ", "))
-	}
-	return req, nil
 }
 
 // segment escapes a value for one path segment, so it cannot climb up the path either.
@@ -271,49 +228,11 @@ func (h *HTTP) response(act registry.Actor, t manifest.HTTPTool, resp *http.Resp
 		}
 		return v, ext, nil
 	}
-	name, n, err := h.save(act, t.Name, ct, resp.Body)
+	name, n, err := h.Dirs.Save(act.ProcessID, t.Name, ct, resp.Body, maxFile)
 	if err != nil {
 		return nil, "", err
 	}
 	return map[string]any{"file": name, "type": ct, "size": n}, "", nil
-}
-
-// save writes a binary answer into the results folder of the process, never following links out of its folder.
-func (h *HTTP) save(act registry.Actor, tool, ct string, body io.Reader) (string, int64, error) {
-	if act.ProcessID == 0 {
-		return "", 0, fmt.Errorf("deck: %s answered with a file, which only a process with a results folder can take", tool)
-	}
-	root, err := os.OpenRoot(filepath.Join(h.RunsDir, fmt.Sprint(act.ProcessID)))
-	if err != nil {
-		return "", 0, fmt.Errorf("deck: %s answered with a file, but process %d has no results folder any more", tool, act.ProcessID)
-	}
-	defer root.Close()
-	ext := ""
-	exts, _ := mime.ExtensionsByType(ct)
-	for _, e := range exts {
-		t, _, _ := mime.ParseMediaType(mime.TypeByExtension(e))
-		if ext == "" || t == ct {
-			ext = e
-		}
-		if t == ct {
-			break
-		}
-	}
-	b := make([]byte, 4)
-	_, _ = rand.Read(b)
-	name := tool + "-" + hex.EncodeToString(b) + ext
-	f, err := root.OpenFile(filepath.Join("results", name), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
-	if err != nil {
-		return "", 0, fmt.Errorf("deck: saving the file %s answered: %v", tool, err)
-	}
-	n, err := io.Copy(f, io.LimitReader(body, maxFile))
-	if cerr := f.Close(); err == nil {
-		err = cerr
-	}
-	if err != nil {
-		return "", 0, fmt.Errorf("deck: saving the file %s answered: %v", tool, err)
-	}
-	return name, n, nil
 }
 
 func truncate(s string, n int) string {

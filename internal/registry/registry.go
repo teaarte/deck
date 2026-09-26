@@ -10,6 +10,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/santhosh-tekuri/jsonschema/v6"
 
@@ -73,6 +74,14 @@ type Command struct {
 	ProjectID   int64           `json:"-"`
 	// Journals marks a command that writes its own intent to the gateway journal.
 	Journals bool `json:"-"`
+	// Loose marks a tool whose input schema comes from elsewhere and is not held to App Intents types.
+	Loose bool `json:"-"`
+	// Fingerprint is what the tool would do apart from its input, so an old yes does not make a changed tool.
+	Fingerprint func(ctx context.Context) string `json:"-"`
+	// ConfirmTTL is the tool's own term for its confirmations.
+	ConfirmTTL time.Duration `json:"-"`
+	// Allowed decides whether an external call runs without the owner; listed says the project allows it.
+	Allowed func(ctx context.Context, a Actor, listed bool) (bool, error) `json:"-"`
 
 	Handler Handler `json:"-"`
 	schema  *jsonschema.Schema
@@ -113,6 +122,17 @@ type Projects func(ctx context.Context, workspace int64, project string) ([]*Com
 type Registry struct {
 	builtins map[string]*Command
 	projects Projects
+	extra    func(ctx context.Context) []*Command
+}
+
+// SetExtra adds builtin tools whose descriptions come from a running server rather than from Go.
+func (r *Registry) SetExtra(f func(ctx context.Context) []*Command) { r.extra = f }
+
+func (r *Registry) extras(ctx context.Context) []*Command {
+	if r.extra == nil {
+		return nil
+	}
+	return r.extra(ctx)
 }
 
 func New(projects Projects) *Registry {
@@ -141,7 +161,7 @@ func Prepare(c *Command) error {
 	if len(c.Input) == 0 {
 		c.Input = json.RawMessage(`{"type":"object","properties":{},"additionalProperties":false}`)
 	}
-	if err := schemas.CheckInput(c.Input); err != nil {
+	if err := schemas.CheckInput(c.Input); err != nil && !c.Loose {
 		return fmt.Errorf("command %q input: %w", c.Name, err)
 	}
 	s, err := compile(c.Name, c.Input)
@@ -164,7 +184,7 @@ func (r *Registry) List(ctx context.Context, a Actor) ([]*Command, error) {
 	if err != nil {
 		return nil, err
 	}
-	for _, c := range pcs {
+	for _, c := range append(r.extras(ctx), pcs...) {
 		if r.reachable(a, c) == nil {
 			out = append(out, c)
 		}
@@ -176,6 +196,11 @@ func (r *Registry) List(ctx context.Context, a Actor) ([]*Command, error) {
 func (r *Registry) Lookup(ctx context.Context, workspace int64, name string) (*Command, error) {
 	if c := r.builtins[name]; c != nil {
 		return c, nil
+	}
+	for _, c := range r.extras(ctx) {
+		if c.Name == name {
+			return c, nil
+		}
 	}
 	project, _, ok := strings.Cut(name, ".")
 	if ok && project != Builtin {
@@ -223,9 +248,9 @@ func (r *Registry) Resolve(ctx context.Context, a Actor, name string, input json
 	return c, input, err
 }
 
-// Validate checks an input against the command schema; an empty input is an empty object.
+// Validate checks an input against the command schema; an empty or null input is an empty object.
 func (c *Command) Validate(input json.RawMessage) (json.RawMessage, error) {
-	if len(bytes.TrimSpace(input)) == 0 {
+	if t := bytes.TrimSpace(input); len(t) == 0 || string(t) == "null" {
 		input = json.RawMessage(`{}`)
 	}
 	v, err := jsonschema.UnmarshalJSON(bytes.NewReader(input))
@@ -265,12 +290,18 @@ func Permits(patterns []string, name string) bool {
 	return false
 }
 
-// ToolName is the MCP tool name of a command: builtins drop the prefix, project commands use "__".
+// ToolName is the MCP tool name of a command: builtins drop the prefix, dots become "__" and other
+// characters providers refuse in tool names become "_".
 func ToolName(name string) string {
 	if rest, ok := strings.CutPrefix(name, Builtin+"."); ok {
 		return rest
 	}
-	return strings.Replace(name, ".", "__", 1)
+	return strings.Map(func(r rune) rune {
+		if r == '-' || r == '_' || r == '.' || r >= '0' && r <= '9' || r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' {
+			return r
+		}
+		return '_'
+	}, strings.ReplaceAll(name, ".", "__"))
 }
 
 // Typed adapts a handler that takes a decoded input struct.

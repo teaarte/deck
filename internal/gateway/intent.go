@@ -56,7 +56,10 @@ func (g *Gateway) Lost(ctx context.Context, id int64) {
 	if err != nil {
 		return
 	}
-	tool := g.fingerprint(ctx, row.Tool, row.ProjectID)
+	var tool string
+	if proj, err := g.st.Q.GetProject(ctx, row.ProjectID); err == nil {
+		tool = g.fingerprint(ctx, proj.WorkspaceID, row.Tool)
+	}
 	err = g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		c, err := q.GetToolCall(ctx, id)
 		if err != nil || c.Outcome != "started" {

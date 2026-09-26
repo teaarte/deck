@@ -9,8 +9,39 @@ import (
 	"context"
 )
 
+const bindFile = `-- name: BindFile :execrows
+UPDATE file SET owner_kind = ?1, owner_id = ?2
+WHERE id = ?3 AND project_id = ?4 AND owner_kind = ?5 AND owner_id = ?6
+`
+
+type BindFileParams struct {
+	OwnerKind string
+	OwnerID   int64
+	ID        int64
+	ProjectID int64
+	FromKind  string
+	FromID    int64
+}
+
+func (q *Queries) BindFile(ctx context.Context, arg BindFileParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, bindFile,
+		arg.OwnerKind,
+		arg.OwnerID,
+		arg.ID,
+		arg.ProjectID,
+		arg.FromKind,
+		arg.FromID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const createFile = `-- name: CreateFile :one
-INSERT INTO file (project_id, owner_kind, owner_id, name, type, size) VALUES (?, ?, ?, ?, ?, ?) RETURNING id, project_id, owner_kind, owner_id, name, type, size, created_at
+INSERT INTO file (project_id, owner_kind, owner_id, name, type, size, created_at)
+VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+RETURNING id, project_id, owner_kind, owner_id, name, type, size, created_at
 `
 
 type CreateFileParams struct {
@@ -20,6 +51,7 @@ type CreateFileParams struct {
 	Name      string
 	Type      string
 	Size      int64
+	CreatedAt string
 }
 
 func (q *Queries) CreateFile(ctx context.Context, arg CreateFileParams) (File, error) {
@@ -30,6 +62,7 @@ func (q *Queries) CreateFile(ctx context.Context, arg CreateFileParams) (File, e
 		arg.Name,
 		arg.Type,
 		arg.Size,
+		arg.CreatedAt,
 	)
 	var i File
 	err := row.Scan(
@@ -126,6 +159,33 @@ RETURNING id
 
 func (q *Queries) PurgeOrphanFiles(ctx context.Context) ([]int64, error) {
 	rows, err := q.db.QueryContext(ctx, purgeOrphanFiles)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const purgeStaleUploads = `-- name: PurgeStaleUploads :many
+DELETE FROM file WHERE owner_kind = 'upload' AND created_at < CAST(?1 AS TEXT) RETURNING id
+`
+
+func (q *Queries) PurgeStaleUploads(ctx context.Context, before string) ([]int64, error) {
+	rows, err := q.db.QueryContext(ctx, purgeStaleUploads, before)
 	if err != nil {
 		return nil, err
 	}

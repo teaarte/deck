@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"deck2/internal/ask"
-	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
@@ -56,7 +55,7 @@ type Frozen struct {
 		Input   json.RawMessage `json:"input"`
 	} `json:"call"`
 	Caller Caller `json:"caller"`
-	// Tool is what the HTTP tool would send, so a changed tool is not made on an old yes.
+	// Tool is the fingerprint of the tool, so a changed tool is not made on an old yes.
 	Tool string `json:"tool,omitempty"`
 }
 
@@ -80,8 +79,8 @@ func canonical(raw json.RawMessage) string {
 }
 
 // gate reports whether a call that is not internal runs now: reversible in a project on autonomy auto,
-// external when the project lists it as allowed. A draft declines both.
-func (g *Gateway) gate(ctx context.Context, c *registry.Command, project int64) (bool, error) {
+// external when the project lists it as allowed or the tool itself allows it. A draft declines both.
+func (g *Gateway) gate(ctx context.Context, act registry.Actor, c *registry.Command, project int64) (bool, error) {
 	if project == 0 {
 		return false, nil
 	}
@@ -100,46 +99,28 @@ func (g *Gateway) gate(ctx context.Context, c *registry.Command, project int64) 
 	case registry.Reversible:
 		return m.Autonomy == "auto", nil
 	case registry.External:
-		return slices.Contains(m.AllowedExternal, strings.TrimPrefix(c.Name, p.Name+".")) || slices.Contains(m.AllowedExternal, c.Name), nil
+		listed := slices.Contains(m.AllowedExternal, strings.TrimPrefix(c.Name, p.Name+".")) || slices.Contains(m.AllowedExternal, c.Name)
+		if c.Allowed != nil {
+			return c.Allowed(ctx, act, listed)
+		}
+		return listed, nil
 	}
 	return false, nil
 }
 
-// httpTool is the HTTP tool of the manifest behind a registry command, if it is one.
-func (g *Gateway) httpTool(ctx context.Context, name string, project int64) *manifest.HTTPTool {
-	if project == 0 {
-		return nil
-	}
-	p, err := g.st.Q.GetProject(ctx, project)
-	if err != nil {
-		return nil
-	}
-	m, err := g.cfg.Projects.Manifest(ctx, project)
-	if err != nil {
-		return nil
-	}
-	for i, t := range m.Tools.HTTP {
-		if p.Name+"."+t.Name == name {
-			return &m.Tools.HTTP[i]
-		}
-	}
-	return nil
-}
-
-// fingerprint is what an HTTP tool sends apart from the input; empty for other commands.
-func (g *Gateway) fingerprint(ctx context.Context, name string, project int64) string {
-	t := g.httpTool(ctx, name, project)
-	if t == nil {
+// fingerprint is what a tool does apart from its input; empty for commands and unknown names.
+func (g *Gateway) fingerprint(ctx context.Context, workspace int64, name string) string {
+	c, err := g.reg.Lookup(ctx, workspace, name)
+	if err != nil || c.Fingerprint == nil {
 		return ""
 	}
-	b, _ := json.Marshal(map[string]any{"method": t.Method, "url": t.URL, "headers": t.Headers, "body": t.Body, "auth": t.Auth})
-	return canonical(b)
+	return c.Fingerprint(ctx)
 }
 
 // ttl is how long a confirmation of the command stays open: its tool's own term, else the default.
-func (g *Gateway) ttl(ctx context.Context, c *registry.Command, project int64) time.Duration {
-	if t := g.httpTool(ctx, c.Name, project); t != nil && t.ConfirmTTLMinutes > 0 {
-		return time.Duration(t.ConfirmTTLMinutes) * time.Minute
+func (g *Gateway) ttl(c *registry.Command) time.Duration {
+	if c.ConfirmTTL > 0 {
+		return c.ConfirmTTL
 	}
 	return g.cfg.ConfirmTTL
 }
@@ -147,13 +128,17 @@ func (g *Gateway) ttl(ctx context.Context, c *registry.Command, project int64) t
 // hold freezes a call until the owner decides; the caller goes on with other work. An identical call that is
 // already waiting returns the same ask.
 func (g *Gateway) hold(ctx context.Context, act registry.Actor, c *registry.Command, project int64, input json.RawMessage) (any, error) {
-	payload := frozen(act, c.Name, input, g.fingerprint(ctx, c.Name, project))
+	var print string
+	if c.Fingerprint != nil {
+		print = c.Fingerprint(ctx)
+	}
+	payload := frozen(act, c.Name, input, print)
 	process := act.ProcessID
 	if act.Kind == registry.Trigger {
 		process = 0
 	}
 	var expires time.Time
-	if ttl := g.ttl(ctx, c, project); ttl > 0 {
+	if ttl := g.ttl(c); ttl > 0 {
 		expires = g.cfg.Now().Add(ttl)
 	}
 	text := fmt.Sprintf("%s wants %s with %s", act.Author(), c.Name, truncate(canonical(input), 500))
@@ -192,6 +177,14 @@ var ErrChanged = registry.Refuse("deck: the tool changed after this call was ask
 
 type retryingKey struct{}
 
+type approvedKey struct{}
+
+// Approved is the fingerprint the owner said yes to, for a tool that checks it again while it acts.
+func Approved(ctx context.Context) (string, bool) {
+	s, ok := ctx.Value(approvedKey{}).(string)
+	return s, ok
+}
+
 // Decide makes the frozen call the owner allowed or retried for its caller and keeps what it gave; the ask
 // is claimed first, so it runs once and not after its deadline, and a failing then undoes the claim.
 func (g *Gateway) Decide(ctx context.Context, a db.Ask, answer string, then func() error) (any, error) {
@@ -199,7 +192,7 @@ func (g *Gateway) Decide(ctx context.Context, a db.Ask, answer string, then func
 	if err := json.Unmarshal([]byte(a.Payload), &f); err != nil {
 		return nil, err
 	}
-	if f.Tool != g.fingerprint(ctx, f.Call.Command, a.ProjectID) {
+	if f.Tool != g.fingerprint(ctx, f.Caller.Workspace, f.Call.Command) {
 		return nil, ErrChanged
 	}
 	var n int64
@@ -223,7 +216,7 @@ func (g *Gateway) Decide(ctx context.Context, a db.Ask, answer string, then func
 	g.bus.Publish("asks")
 	act := f.Caller.actor()
 	act.Cleared = true
-	run := context.WithValue(context.WithoutCancel(ctx), retryingKey{}, a.ID)
+	run := context.WithValue(context.WithValue(context.WithoutCancel(ctx), retryingKey{}, a.ID), approvedKey{}, f.Tool)
 	out, err := g.call(run, act, f.Call.Command, f.Call.Input)
 	var o Outcome
 	if err != nil {

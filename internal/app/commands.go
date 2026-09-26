@@ -51,8 +51,15 @@ func (a *App) projectCommands(ctx context.Context, workspace int64, name string)
 			}
 			out = append(out, cmd)
 		}
+		var toolCmds []*registry.Command
 		for _, t := range m.Tools.HTTP {
-			cmd := a.Tools.Command(p, t)
+			toolCmds = append(toolCmds, a.Tools.Command(p, t))
+		}
+		mcpCmds, err := a.MCP.Commands(ctx, a.Store.Q, p, m)
+		if err != nil {
+			return nil, err
+		}
+		for _, cmd := range append(toolCmds, mcpCmds...) {
 			if err := registry.Prepare(cmd); err != nil {
 				slog.Error("project tool", "tool", cmd.Name, "err", err)
 				continue

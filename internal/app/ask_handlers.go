@@ -52,7 +52,8 @@ func (a *App) askAnswer(ctx context.Context, act registry.Actor, in struct {
 	return map[string]any{"ok": true}, nil
 }
 
-// healthList shows what the machine runs and the commands of the actor's workspace.
+// healthList shows what the machine runs, the commands, tools and MCP servers of the actor's workspace, and
+// per project the worst of those with its error, or a manifest that does not load.
 func (a *App) healthList(ctx context.Context, act registry.Actor, _ struct{}) (any, error) {
 	hs, err := a.Store.Q.ListHealth(ctx)
 	if err != nil {
@@ -62,18 +63,31 @@ func (a *App) healthList(ctx context.Context, act registry.Actor, _ struct{}) (a
 	if err != nil {
 		return nil, err
 	}
-	mine := map[string]bool{}
+	type row = map[string]any
+	worst := map[string]row{}
 	for _, p := range ps {
-		mine[p.Name] = true
-	}
-	out := make([]map[string]any, 0, len(hs))
-	for _, h := range hs {
-		if rest, ok := strings.CutPrefix(h.Subject, "command:"); ok {
-			if project, _, _ := strings.Cut(rest, "."); !mine[project] {
-				continue
-			}
+		worst[p.Name] = row{"subject": "project:" + p.Name, "status": "ok", "error": "", "updated_at": ""}
+		if _, err := loadManifest(ctx, a.Store.Q, p); err != nil {
+			worst[p.Name]["status"], worst[p.Name]["error"] = "error", "manifest: "+err.Error()
 		}
-		out = append(out, map[string]any{"subject": h.Subject, "status": h.Status, "error": h.Error, "updated_at": h.UpdatedAt})
+	}
+	rank := map[string]int{"ok": 0, "needs_login": 1, "error": 2}
+	out := make([]row, 0, len(hs)+len(ps))
+	for _, h := range hs {
+		kind, rest, _ := strings.Cut(h.Subject, ":")
+		project, _, _ := strings.Cut(rest, ".")
+		scoped := kind == "command" || kind == "tool" || kind == "mcp"
+		if scoped && project != registry.Builtin && worst[project] == nil {
+			continue
+		}
+		r := row{"subject": h.Subject, "status": h.Status, "error": h.Error, "updated_at": h.UpdatedAt}
+		out = append(out, r)
+		if w := worst[project]; scoped && w != nil && rank[h.Status] > rank[w["status"].(string)] {
+			w["status"], w["error"], w["updated_at"] = h.Status, h.Subject+": "+h.Error, h.UpdatedAt
+		}
+	}
+	for _, p := range ps {
+		out = append(out, worst[p.Name])
 	}
 	return out, nil
 }

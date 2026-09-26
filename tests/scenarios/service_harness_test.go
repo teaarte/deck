@@ -1,6 +1,7 @@
 package scenarios
 
 import (
+	"bytes"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -25,6 +26,7 @@ func newService(t *testing.T, h func(w http.ResponseWriter, r *http.Request, n i
 	s := &service{}
 	s.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		b, _ := io.ReadAll(r.Body)
+		r.Body = io.NopCloser(bytes.NewReader(b))
 		s.mu.Lock()
 		s.seen = append(s.seen, seenRequest{Method: r.Method, Path: r.URL.RequestURI(), Body: string(b), Header: r.Header.Clone()})
 		n := len(s.seen)

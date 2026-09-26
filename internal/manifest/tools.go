@@ -47,30 +47,62 @@ func checkTemplate(t HTTPTool) []error {
 			fail("{%s} is not an input field", m[1])
 		}
 	}
+	var kinds map[string]json.RawMessage
+	if json.Unmarshal(t.Body, &kinds) == nil && kinds["file"] != nil {
+		var file string
+		if err := json.Unmarshal(kinds["file"], &file); err != nil || len(kinds) > 1 {
+			fail("a file body is {\"file\": \"{field}\"}")
+		} else if m := placeholder.FindStringSubmatch(file); m == nil || m[0] != file || !slices.Contains(FileFields(t.Input), m[1]) {
+			fail("a file body takes exactly one input field of format file")
+		}
+	}
+	if json.Unmarshal(t.Body, &kinds) == nil && kinds["multipart"] != nil {
+		var parts map[string]string
+		if len(kinds) > 1 || json.Unmarshal(kinds["multipart"], &parts) != nil {
+			fail("a multipart body is {\"multipart\": {\"<part>\": \"text or {field}\"}}")
+		}
+	}
 	return errs
 }
 
-// fitsTool checks that a tool command's input goes to its tool as it is: every command field is a tool
+// FitsTool checks that a tool command's input goes to its tool as it is: every command field is a tool
 // field, and every field the tool requires the command requires too.
-func fitsTool(c Command, t HTTPTool) error {
+func FitsTool(c Command, name string, input json.RawMessage) error {
 	var cmd, tool struct {
 		Properties map[string]json.RawMessage `json:"properties"`
 		Required   []string                   `json:"required"`
 	}
 	_ = json.Unmarshal(c.InputSchema(), &cmd)
-	if len(t.Input) > 0 {
-		_ = json.Unmarshal(t.Input, &tool)
+	if len(input) > 0 {
+		_ = json.Unmarshal(input, &tool)
 	}
 	var errs []error
-	for f := range cmd.Properties {
+	for _, f := range sortedKeys(cmd.Properties) {
 		if _, ok := tool.Properties[f]; !ok {
-			errs = append(errs, fmt.Errorf("input field %q is not an input field of tool %q, which gets the command input as it is", f, t.Name))
+			errs = append(errs, fmt.Errorf("input field %q is not an input field of tool %q, which gets the command input as it is", f, name))
 		}
 	}
 	for _, f := range tool.Required {
 		if !slices.Contains(cmd.Required, f) {
-			errs = append(errs, fmt.Errorf("tool %q requires input field %q, so the command must require it too", t.Name, f))
+			errs = append(errs, fmt.Errorf("tool %q requires input field %q, so the command must require it too", name, f))
 		}
 	}
 	return errors.Join(errs...)
+}
+
+// FileFields are the input fields of a schema whose values point to files.
+func FileFields(input json.RawMessage) []string {
+	var s struct {
+		Properties map[string]struct {
+			Format string `json:"format"`
+		} `json:"properties"`
+	}
+	_ = json.Unmarshal(input, &s)
+	var out []string
+	for _, name := range sortedKeys(s.Properties) {
+		if s.Properties[name].Format == "file" {
+			out = append(out, name)
+		}
+	}
+	return out
 }

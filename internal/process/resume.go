@@ -262,6 +262,8 @@ func deliveryMessage(asks []db.Ask) string {
 			b.WriteString("- Expired: " + a.Text + ". The owner did not answer in time; the call was not made.\n")
 		case a.Kind == ask.KindUnknown && a.Answer == ask.UnknownRetry:
 			b.WriteString("- The owner had deck retry a call of unknown outcome. " + outcomeText(a.Result) + "\n")
+		case a.Kind == ask.KindSignIn && a.State == "answered":
+			b.WriteString("- The owner signed in: " + a.Text + " Go on with the site.\n")
 		case a.Kind == ask.KindUnknown:
 			b.WriteString("- " + a.Text + " The owner counts it as done; do not make it again.\n")
 		case a.Kind == "confirm" && a.State == "answered" && a.Answer == "allow":

@@ -13,69 +13,19 @@ import (
 
 	"deck2/internal/ask"
 	"deck2/internal/events"
+	"deck2/internal/files"
 	"deck2/internal/gateway"
 	"deck2/internal/manifest"
+	"deck2/internal/mcphost"
 	"deck2/internal/process"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
-	"deck2/internal/sandbox"
 	"deck2/internal/script"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
 	"deck2/internal/tools"
 	"deck2/internal/trigger"
 )
-
-type Config struct {
-	Home         string
-	MCPBase      string
-	QuestionWait time.Duration
-	ConfirmWait  time.Duration
-	ConfirmTTL   time.Duration
-	// Now is the deck clock; every deadline is written and checked by it.
-	Now func() time.Time
-	// Ceiling is how long a command agent may work unless its manifest says otherwise.
-	Ceiling time.Duration
-	// SilentAfter is how long a running process may go without output before it shows as silent.
-	SilentAfter time.Duration
-	// CatchUpSpread is the gap between runs missed during a sleep that start one after another.
-	CatchUpSpread time.Duration
-	// EmptyKept is how long a process with an empty result stays in the history.
-	EmptyKept time.Duration
-	// ScriptCeiling is how long a command script may run unless its manifest says otherwise.
-	ScriptCeiling time.Duration
-	// Snapshots is how many daily snapshots stay in backups/.
-	Snapshots int
-	// Sandbox confines scripts; the one of this operating system when nil.
-	Sandbox sandbox.Sandbox
-}
-
-func (c *Config) defaults() {
-	if c.Now == nil {
-		c.Now = time.Now
-	}
-	if c.Ceiling <= 0 {
-		c.Ceiling = time.Hour
-	}
-	if c.SilentAfter <= 0 {
-		c.SilentAfter = 30 * time.Minute
-	}
-	if c.CatchUpSpread <= 0 {
-		c.CatchUpSpread = time.Minute
-	}
-	if c.EmptyKept <= 0 {
-		c.EmptyKept = 24 * time.Hour
-	}
-	if c.ScriptCeiling <= 0 {
-		c.ScriptCeiling = 10 * time.Minute
-	}
-	if c.Snapshots <= 0 {
-		c.Snapshots = 7
-	}
-	if c.Sandbox == nil {
-		c.Sandbox = sandbox.New()
-	}
-}
 
 type App struct {
 	Cfg       Config
@@ -88,11 +38,15 @@ type App struct {
 	Scheduler *trigger.Scheduler
 	Scripts   *script.Exec
 	Tools     *tools.HTTP
+	MCP       *tools.MCP
+	Browser   *tools.Browser
+	Host      *mcphost.Host
 
-	ctx    context.Context
-	cancel context.CancelFunc
-	bg     sync.WaitGroup
-	disk   time.Time
+	ctx      context.Context
+	cancel   context.CancelFunc
+	secretMu sync.Mutex
+	bg       sync.WaitGroup
+	disk     time.Time
 }
 
 func New(cfg Config, p provider.Provider) (*App, error) {
@@ -111,7 +65,19 @@ func New(cfg Config, p provider.Provider) (*App, error) {
 	a.addBuiltins()
 	a.Gateway = gateway.New(gateway.Config{Now: cfg.Now, QuestionWait: cfg.QuestionWait, ConfirmWait: cfg.ConfirmWait, ConfirmTTL: cfg.ConfirmTTL,
 		Projects: a}, st, a.Asks, a.Bus, a.Registry)
-	a.Tools = tools.NewHTTP(a.Gateway, a.Secret, filepath.Join(cfg.Home, "runs"))
+	a.Tools = tools.NewHTTP(a.Gateway, a.Secret, a.dirs())
+	a.Tools.OAuth = &tools.OAuth{Secrets: a.Secret, Swap: a.SwapSecret}
+	a.Tools.Health, a.Tools.SignIn = a.setHealth, a.toolSignIn
+	a.Tools.Resolve = func(ctx context.Context, project, process int64, ref string) (files.Ref, error) {
+		return a.dirs().Resolve(ctx, a.Store.Q, project, process, ref)
+	}
+	a.Host = mcphost.New(a.serverStatus)
+	a.Host.Now = cfg.Now
+	a.MCP = &tools.MCP{GW: a.Gateway, Host: a.Host, Store: st, Secrets: a.Secret, Dirs: a.dirs(), Home: cfg.Home,
+		Manifests: func(ctx context.Context, p db.Project) (*manifest.Manifest, error) { return loadManifest(ctx, st.Q, p) }}
+	a.Browser = &tools.Browser{GW: a.Gateway, Host: a.Host, Dirs: a.dirs(), Home: cfg.Home, Argv: cfg.Browser, Manifests: a.Manifest}
+	a.Browser.Load()
+	a.Registry.SetExtra(a.Browser.Commands)
 	a.Gateway.SetAutomation(a.Automation)
 	a.Runner = process.NewRunner(st, a.Gateway, a.Bus, p, a.Scripts,
 		process.Config{RunsDir: filepath.Join(cfg.Home, "runs"), MCPBase: cfg.MCPBase, Now: cfg.Now, Ceiling: cfg.Ceiling,
@@ -124,6 +90,10 @@ func New(cfg Config, p provider.Provider) (*App, error) {
 		return nil, err
 	}
 	return a, nil
+}
+
+func (a *App) dirs() files.Dirs {
+	return files.Dirs{Files: filepath.Join(a.Cfg.Home, "files"), Runs: filepath.Join(a.Cfg.Home, "runs")}
 }
 
 // hidden are the secrets and the base of deck under every path of home, since macOS links /tmp and /var.
@@ -144,6 +114,7 @@ func (a *App) Close() error {
 	a.cancel()
 	a.bg.Wait()
 	a.Runner.Shutdown()
+	a.Host.Close()
 	return a.Store.Close()
 }
 

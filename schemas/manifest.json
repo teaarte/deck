@@ -145,7 +145,7 @@
         "method": {"enum": ["GET", "POST", "PUT", "PATCH", "DELETE"]},
         "url": {"type": "string", "minLength": 1, "description": "URL template; {field} takes input fields in the path or query, never in the host."},
         "headers": {"type": "object", "additionalProperties": {"type": "string"}, "description": "Values may use $secret.<name> and {field}."},
-        "body": {"description": "Body template: JSON with {field} placeholders; a string that is exactly {field} takes the field with its type. Without a template POST, PUT and PATCH send the input as JSON."},
+        "body": {"description": "Body template: JSON with {field} placeholders; a string that is exactly {field} takes the field with its type. {\"file\": \"{field}\"} sends a file field as it is; {\"multipart\": {\"<part>\": \"{field}\" or text}} sends a form whose file fields are files. Without a template POST, PUT and PATCH send the input as JSON."},
         "input": {"$ref": "#/$defs/schema"},
         "result": {"$ref": "#/$defs/schema"},
         "class": {"$ref": "#/$defs/class", "description": "external when omitted; only the owner makes a tool milder."},
@@ -158,9 +158,10 @@
         {"type": "object", "additionalProperties": false, "required": ["type", "secret"],
           "properties": {"type": {"const": "secret"}, "secret": {"type": "string"}, "header": {"type": "string", "default": "Authorization"},
             "prefix": {"type": "string", "default": "Bearer "}}},
-        {"type": "object", "additionalProperties": false, "required": ["type", "auth_url", "token_url", "client_id", "client_secret"],
+        {"type": "object", "additionalProperties": false, "required": ["type", "auth_url", "token_url", "client_id", "client_secret", "token"],
           "properties": {"type": {"const": "oauth2"}, "auth_url": {"type": "string"}, "token_url": {"type": "string"},
             "client_id": {"type": "string", "description": "Secret name."}, "client_secret": {"type": "string", "description": "Secret name."},
+            "token": {"type": "string", "description": "Secret name the token is kept under; tools of one service share it."},
             "scopes": {"type": "array", "items": {"type": "string"}}}}
       ]
     },

@@ -134,6 +134,9 @@ func (a *App) createProject(ctx context.Context, act registry.Actor, name string
 		if err := checkReads(ctx, q, act.Workspace, name, pm.m); err != nil {
 			return err
 		}
+		if err := a.checkToolFit(ctx, q, act.Workspace, 0, pm.m); err != nil {
+			return err
+		}
 		if p, err = q.CreateProject(ctx, db.CreateProjectParams{WorkspaceID: act.Workspace, Name: name, Status: status}); err != nil {
 			return err
 		}
@@ -189,6 +192,9 @@ func (a *App) SaveManifest(ctx context.Context, act registry.Actor, p db.Project
 	var saved Saved
 	err = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		if err := checkReads(ctx, q, p.WorkspaceID, p.Name, pm.m); err != nil {
+			return err
+		}
+		if err := a.checkToolFit(ctx, q, p.WorkspaceID, p.ID, pm.m); err != nil {
 			return err
 		}
 		if err := checkRecords(ctx, q, p, pm.m, plan); err != nil {

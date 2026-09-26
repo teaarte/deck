@@ -29,7 +29,8 @@ func TestScenariosOnLinux(t *testing.T) {
 		t.Fatalf("scenario tests on Linux: %v\n%s", err, out)
 	}
 	for _, name := range []string{"TestScriptCommandRunsInTheSandbox", "TestScriptKeepsAnIndexInTheProjectDataFolder",
-		"TestScriptPackageWorksWithoutPyPIAndMissingProgramShowsInHealth", "TestSchemaMigrationAppliesRecordsWithTheManifestAndRevertsBoth"} {
+		"TestScriptPackageWorksWithoutPyPIAndMissingProgramShowsInHealth", "TestSchemaMigrationAppliesRecordsWithTheManifestAndRevertsBoth",
+		"TestUploadedAndRecordFilesReachTheScriptReadOnly", "TestHTTPToolSendsFilesAsItsBody", "TestMCPServerToolsFollowClassesAndFilter"} {
 		if !strings.Contains(string(out), "--- PASS: "+name) {
 			t.Errorf("%s did not pass on Linux:\n%s", name, out)
 		}

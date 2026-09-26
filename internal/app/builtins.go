@@ -165,6 +165,15 @@ func (a *App) addBuiltins() {
 		registry.Typed(a.secretSet))
 	add("secrets_list", "Secrets", "Lists the names of stored secrets, never their values.", ownerOnly,
 		registry.Params(), registry.Typed(a.secretsList))
+	add("browser_login", "Sign in to a site", "Opens a window of deck's browser at a page so the owner signs in once with deck's own profile.", ownerOnly,
+		registry.Params(registry.P("url", "string", "Page to open, such as the site's sign-in page")), registry.Typed(a.browserLogin))
+	add("browser_login_done", "Signed in", "Closes the sign-in window of deck's browser; processes waiting for this site go on.", ownerOnly,
+		registry.Params(registry.P("url", "string", "A page of the site the owner signed in to")), registry.Typed(a.browserLoginDone))
+	add("browser_needs_login", "Site needs a sign-in", "Tells the owner that the session of a site ran out; the process waits until the owner signs in again.",
+		[]string{registry.Agent}, registry.Params(registry.P("url", "string", "The page that asked for a sign-in"),
+			registry.P("why", "string", "What the page showed")), registry.Typed(a.browserNeedsLogin))
+	add("oauth_start", "Sign in to a service", "Starts the owner's oauth2 sign-in for a tool in a window of deck's browser; it must finish within ten minutes.", ownerOnly,
+		registry.Params(registry.P("tool", "string", "The tool, as project.tool")), registry.Typed(a.oauthStart))
 	add("asks_list", "Waiting for you", "Lists open questions and confirmations for the owner.", ownerSide,
 		registry.Params(), registry.Typed(a.asksList))
 	add("health_list", "Health", "Lists the health of providers and other dependencies with the last error.", ownerSide,

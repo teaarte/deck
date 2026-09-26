@@ -37,26 +37,50 @@ func (a *App) secretSet(ctx context.Context, act registry.Actor, in struct{ Name
 	if !secretName.MatchString(in.Name) || strings.Trim(in.Name, ".") == "" {
 		return nil, registry.Invalid("deck: a secret name is letters, digits, '.', '_' and '-'")
 	}
-	dir := a.secretsDir(act.Workspace)
-	if err := os.MkdirAll(dir, 0o700); err != nil {
+	a.secretMu.Lock()
+	defer a.secretMu.Unlock()
+	if err := a.writeSecret(act.Workspace, in.Name, in.Value); err != nil {
 		return nil, err
+	}
+	return map[string]any{"name": in.Name}, nil
+}
+
+// SwapSecret writes a secret only while it still holds old, the value deck read before; an unset secret
+// holds "".
+func (a *App) SwapSecret(workspace int64, name, old, value string) (bool, error) {
+	a.secretMu.Lock()
+	defer a.secretMu.Unlock()
+	now, err := a.Secret(workspace, name)
+	if err != nil && now != "" {
+		return false, err
+	}
+	if now != strings.TrimRight(old, "\r\n") {
+		return false, nil
+	}
+	return true, a.writeSecret(workspace, name, value)
+}
+
+func (a *App) writeSecret(workspace int64, name, value string) error {
+	if !secretName.MatchString(name) || strings.Trim(name, ".") == "" {
+		return registry.Invalid("deck: bad secret name %q", name)
+	}
+	dir := a.secretsDir(workspace)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return err
 	}
 	f, err := os.CreateTemp(dir, ".new-*")
 	if err != nil {
-		return nil, err
+		return err
 	}
 	defer os.Remove(f.Name())
-	_, err = f.WriteString(in.Value)
+	_, err = f.WriteString(value)
 	if cerr := f.Close(); err == nil {
 		err = cerr
 	}
 	if err == nil {
-		err = os.Rename(f.Name(), filepath.Join(dir, in.Name))
+		err = os.Rename(f.Name(), filepath.Join(dir, name))
 	}
-	if err != nil {
-		return nil, err
-	}
-	return map[string]any{"name": in.Name}, nil
+	return err
 }
 
 func (a *App) secretsList(ctx context.Context, act registry.Actor, _ struct{}) (any, error) {

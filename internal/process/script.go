@@ -48,6 +48,7 @@ func (r *Runner) runScript(ctx context.Context, t turn, trial bool) {
 		return
 	}
 	defer stream.Close()
+	r.projects.Servers(bg, t.project)
 	tok := r.gw.Grant(&gateway.Session{ProcessID: id, ProjectID: t.project, Workspace: proj.WorkspaceID, Trial: trial})
 	defer r.gw.Unregister(tok)
 	ln, err := r.scripts.Sandbox.Listen(dir)
@@ -66,8 +67,13 @@ func (r *Runner) runScript(ctx context.Context, t turn, trial bool) {
 	_ = r.st.Tx(bg, func(ctx context.Context, q *db.Queries) error {
 		return q.StartCeiling(ctx, db.StartCeilingParams{Now: r.now().UnixMilli(), ID: id})
 	})
+	input, inDir, err := r.inputFiles(bg, t.cmd, t.project, id, t.input)
+	if err != nil {
+		fail(err)
+		return
+	}
 	job := script.Job{Project: t.project, Manifest: t.m, Script: t.m.Script(t.cmd.Executor.Script), Source: src, Dir: dir,
-		Stdin: []byte(t.input), Out: ln, Env: env,
+		Stdin: []byte(input), Out: ln, Env: env, Read: []string{inDir},
 		OnLine:  func(line string) { r.event(bg, id, stream, provider.Event{Kind: "stderr", Text: line}) },
 		OnStart: func(pgid int) { r.setGroup(bg, id, pgid) },
 	}

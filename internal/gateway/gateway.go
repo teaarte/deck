@@ -242,7 +242,7 @@ func (g *Gateway) call(ctx context.Context, act registry.Actor, name string, arg
 	}
 	if err == nil && class != registry.Internal && !act.Cleared && act.Kind != registry.Owner {
 		var now bool
-		if now, err = g.gate(ctx, c, project); err == nil && !now {
+		if now, err = g.gate(ctx, act, c, project); err == nil && !now {
 			return g.hold(ctx, act, c, project, input)
 		}
 		act.Cleared = true

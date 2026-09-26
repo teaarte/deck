@@ -14,7 +14,7 @@ var outbound = &http.Transport{Proxy: nil, DialContext: (&net.Dialer{Timeout: 10
 	ResponseHeaderTimeout: 5 * time.Minute}
 
 // Reachable reports whether host:port is in the domains: a host with its subdomains on any port, an exact
-// host:port, an IP, or a network such as 192.168.1.0/24.
+// host:port, an IP, a network such as 192.168.1.0/24, or "*" for any.
 func Reachable(domains []string, hostport string) bool {
 	host, port, err := net.SplitHostPort(hostport)
 	if err != nil {
@@ -24,6 +24,9 @@ func Reachable(domains []string, hostport string) bool {
 	ip, ipErr := netip.ParseAddr(host)
 	for _, d := range domains {
 		d = strings.ToLower(strings.TrimSpace(d))
+		if d == "*" {
+			return true
+		}
 		if pfx, err := netip.ParsePrefix(d); err == nil {
 			if ipErr == nil && pfx.Contains(ip) {
 				return true

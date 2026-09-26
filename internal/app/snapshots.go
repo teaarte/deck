@@ -18,6 +18,7 @@ import (
 	"github.com/google/uuid"
 
 	"deck2/internal/registry"
+	"deck2/internal/store"
 	"deck2/internal/store/db"
 )
 
@@ -114,8 +115,8 @@ func addFile(tw *tar.Writer, path, name string) error {
 	return err
 }
 
-// daily removes files whose record, card or process is gone and takes the snapshot, once a day by the
-// deck clock.
+// daily removes files whose record, card or process is gone and uploads no command took for a day, and
+// takes the snapshot, once a day by the deck clock.
 func (a *App) daily(ctx context.Context, now time.Time) {
 	old, _ := filepath.Glob(filepath.Join(a.Cfg.Home, "backups", "deck-*.tar.gz"))
 	slices.Sort(old)
@@ -128,7 +129,11 @@ func (a *App) daily(ctx context.Context, now time.Time) {
 	var gone []int64
 	err := a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		var err error
-		gone, err = q.PurgeOrphanFiles(ctx)
+		if gone, err = q.PurgeOrphanFiles(ctx); err != nil {
+			return err
+		}
+		stale, err := q.PurgeStaleUploads(ctx, store.Time(now.Add(-24*time.Hour)))
+		gone = append(gone, stale...)
 		return err
 	})
 	if err != nil {

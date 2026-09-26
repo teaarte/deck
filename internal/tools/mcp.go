@@ -1,0 +1,235 @@
+package tools
+
+import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"regexp"
+	"slices"
+	"strconv"
+	"strings"
+
+	"github.com/modelcontextprotocol/go-sdk/mcp"
+
+	"deck2/internal/files"
+	"deck2/internal/gateway"
+	"deck2/internal/manifest"
+	"deck2/internal/mcphost"
+	"deck2/internal/registry"
+	"deck2/internal/store"
+	"deck2/internal/store/db"
+)
+
+// MCP turns the tools of project MCP servers into registry commands; deck starts the servers itself.
+type MCP struct {
+	GW      *gateway.Gateway
+	Host    *mcphost.Host
+	Store   *store.Store
+	Secrets func(workspace int64, name string) (string, error)
+	Dirs    files.Dirs
+	Home    string
+	// Manifests gives the current manifest of a project.
+	Manifests func(ctx context.Context, p db.Project) (*manifest.Manifest, error)
+}
+
+// ServerKey names a server of a project in the host.
+func ServerKey(project int64, server string) string { return fmt.Sprintf("%d/%s", project, server) }
+
+// ParseKey splits a host key back into project and server; ok is false for servers that are not a project's.
+func ParseKey(key string) (int64, string, bool) {
+	id, server, ok := strings.Cut(key, "/")
+	n, err := strconv.ParseInt(id, 10, 64)
+	return n, server, ok && err == nil
+}
+
+// SpecID identifies a server as the manifest declares it; a new one starts the rights of its tools over.
+func SpecID(s manifest.MCPServer) string {
+	b, _ := json.Marshal([]any{s.Command, s.Args, s.Env, s.URL})
+	sum := sha256.Sum256(b)
+	return hex.EncodeToString(sum[:8])
+}
+
+// baseEnv is what a stdio server inherits from deck; the manifest adds its own variables.
+var baseEnv = regexp.MustCompile(`^(PATH|HOME|USER|LOGNAME|SHELL|LANG|TZ|TMPDIR|LC_[A-Z_]+|XDG_[A-Z_]+|NODE_[A-Z_]+)=`)
+
+func (x *MCP) spec(p db.Project, name string, s manifest.MCPServer) (mcphost.Spec, error) {
+	if s.URL != "" {
+		return mcphost.Spec{URL: s.URL}, nil
+	}
+	var env []string
+	for _, kv := range os.Environ() {
+		if baseEnv.MatchString(kv) {
+			env = append(env, kv)
+		}
+	}
+	for _, k := range sortedKeys(s.Env) {
+		v, err := x.expand(p.WorkspaceID, s.Env[k])
+		if err != nil {
+			return mcphost.Spec{}, err
+		}
+		env = append(env, k+"="+v)
+	}
+	return mcphost.Spec{Command: s.Command, Args: s.Args, Env: env,
+		Dir: filepath.Join(x.Home, "projects", strconv.FormatInt(p.ID, 10), "mcp", name)}, nil
+}
+
+var envSecret = regexp.MustCompile(`\$secret\.[A-Za-z0-9_.-]+`)
+
+func (x *MCP) expand(workspace int64, v string) (string, error) {
+	var serr error
+	out := envSecret.ReplaceAllStringFunc(v, func(m string) string {
+		s, err := x.Secrets(workspace, strings.TrimPrefix(m, "$secret."))
+		if err != nil && serr == nil {
+			serr = err
+		}
+		return s
+	})
+	return out, serr
+}
+
+// Start starts the servers of an enabled project whose tools deck has not listed under their spec yet.
+func (x *MCP) Start(ctx context.Context, p db.Project, m *manifest.Manifest) {
+	if p.Status != store.ProjectEnabled || len(m.Tools.MCP.Servers) == 0 {
+		return
+	}
+	rows, err := x.Store.Q.ListMCPTools(ctx, p.ID)
+	if err != nil {
+		return
+	}
+	for _, name := range sortedKeys(m.Tools.MCP.Servers) {
+		s := m.Tools.MCP.Servers[name]
+		if slices.ContainsFunc(rows, func(r db.McpTool) bool { return r.Server == name && r.Spec == SpecID(s) }) {
+			continue
+		}
+		if spec, err := x.spec(p, name, s); err == nil {
+			_, _ = x.Host.Tools(ctx, ServerKey(p.ID, name), spec)
+		}
+	}
+}
+
+// Keep stores the tools a server listed after it started; a tool whose name, description or input changed
+// since the owner's rights were given loses them until the owner allows it again.
+func (x *MCP) Keep(ctx context.Context, project int64, server string, tools []*mcp.Tool) error {
+	p, err := x.Store.Q.GetProject(ctx, project)
+	if err != nil {
+		return err
+	}
+	m, err := x.Manifests(ctx, p)
+	if err != nil {
+		return err
+	}
+	s, ok := m.Tools.MCP.Servers[server]
+	if !ok {
+		return nil
+	}
+	keep := []string{}
+	return x.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		for _, t := range tools {
+			input, _ := json.Marshal(t.InputSchema)
+			print := toolPrint(t.Name, t.Description, input)
+			keep = append(keep, t.Name)
+			if err := q.UpsertMCPTool(ctx, db.UpsertMCPToolParams{ProjectID: project, Server: server, Spec: SpecID(s), Name: t.Name,
+				Title: t.Title, Description: t.Description, Input: string(input), Fingerprint: print}); err != nil {
+				return err
+			}
+		}
+		b, _ := json.Marshal(keep)
+		return q.DeleteMCPToolsExcept(ctx, db.DeleteMCPToolsExceptParams{ProjectID: project, Server: server, Keep: string(b)})
+	})
+}
+
+func toolPrint(name, description string, input []byte) string {
+	sum := sha256.Sum256([]byte(name + "\x00" + description + "\x00" + canonical(input)))
+	return hex.EncodeToString(sum[:12])
+}
+
+// Commands are the registry commands of the tools of a project's servers that deck listed under their
+// current spec, through toolFilter; a tool's class comes from classes, external when unlisted or changed.
+func (x *MCP) Commands(ctx context.Context, q *db.Queries, p db.Project, m *manifest.Manifest) ([]*registry.Command, error) {
+	if len(m.Tools.MCP.Servers) == 0 {
+		return nil, nil
+	}
+	rows, err := q.ListMCPTools(ctx, p.ID)
+	if err != nil {
+		return nil, err
+	}
+	var out []*registry.Command
+	for _, r := range rows {
+		s, ok := m.Tools.MCP.Servers[r.Server]
+		if !ok || r.Spec != SpecID(s) || len(s.ToolFilter) > 0 && !slices.Contains(s.ToolFilter, r.Name) {
+			continue
+		}
+		changed := r.Fingerprint != r.Approved
+		class := s.Classes[r.Name]
+		if class == "" || changed {
+			class = registry.External
+		}
+		desc := r.Description
+		if desc == "" {
+			desc = r.Name
+		}
+		title := r.Title
+		if title == "" {
+			title = r.Name
+		}
+		print := r.Spec + "/" + r.Fingerprint
+		out = append(out, &registry.Command{Name: p.Name + "." + r.Server + "." + r.Name, Title: title, Description: desc,
+			Class: class, Input: json.RawMessage(r.Input), Callers: []string{registry.Master, registry.Agent}, ProjectID: p.ID,
+			Loose: true, Journals: class == registry.External, Handler: x.handler(p, r.Server, s, r.Name, class),
+			Fingerprint: func(context.Context) string { return print },
+			Allowed:     func(_ context.Context, _ registry.Actor, listed bool) (bool, error) { return listed && !changed, nil }})
+	}
+	return out, nil
+}
+
+func (x *MCP) handler(p db.Project, server string, s manifest.MCPServer, tool, class string) registry.Handler {
+	name := p.Name + "." + server + "." + tool
+	return func(ctx context.Context, act registry.Actor, raw json.RawMessage) (any, error) {
+		external := class == registry.External
+		spec, err := x.spec(p, server, s)
+		if err == nil && external {
+			var intent int64
+			if intent, err = x.GW.Intent(ctx, act, p.ID, name, raw); err == nil {
+				return x.call(ctx, act, name, ServerKey(p.ID, server), spec, tool, raw, intent)
+			}
+		}
+		if err != nil {
+			if external {
+				x.GW.Refused(ctx, act, p.ID, name, raw, err)
+			}
+			return nil, err
+		}
+		return x.call(ctx, act, name, ServerKey(p.ID, server), spec, tool, raw, 0)
+	}
+}
+
+// call makes a tool call and settles its intent: rejected when it never reached the server, done when the
+// server answered, unknown when the connection was lost while the call was out.
+func (x *MCP) call(ctx context.Context, act registry.Actor, name, key string, spec mcphost.Spec, tool string, raw json.RawMessage, intent int64) (any, error) {
+	res, err := x.Host.Call(ctx, key, spec, tool, raw)
+	if err != nil {
+		return nil, failed(ctx, x.GW, intent, name, err)
+	}
+	out, cerr := Content(x.Dirs, act.ProcessID, name, res)
+	if intent != 0 {
+		text := ""
+		if cerr != nil {
+			text = cerr.Error()
+		}
+		x.GW.Finish(ctx, intent, "done", "", text)
+	}
+	return out, cerr
+}
+
+func sortedKeys[V any](m map[string]V) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	slices.Sort(out)
+	return out
+}

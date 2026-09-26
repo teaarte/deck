@@ -7,6 +7,7 @@ import (
 	"deck2/internal/provider"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
+	"deck2/internal/untrusted"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -56,7 +57,7 @@ func (r *Runner) providerHealth(ctx context.Context, pv provider.Provider, res p
 	_ = r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		switch {
 		case err != nil && !checked:
-			return q.SetHealth(ctx, db.SetHealthParams{Subject: subject, Status: "error", Error: truncate(err.Error(), 2000)})
+			return q.SetHealth(ctx, db.SetHealthParams{Subject: subject, Status: "error", Error: untrusted.Cut(err.Error(), 2000)})
 		case err != nil || res.NeedsLogin || res.RateLimited:
 			return nil
 		case checked:

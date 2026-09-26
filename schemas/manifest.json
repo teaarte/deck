@@ -7,7 +7,7 @@
   "additionalProperties": false,
   "required": ["version"],
   "properties": {
-    "version": {"const": 4, "description": "Manifest format version."},
+    "version": {"const": 5, "description": "Manifest format version."},
     "collections": {"type": "array", "items": {"$ref": "#/$defs/collection"}},
     "commands": {"type": "array", "items": {"$ref": "#/$defs/command"}},
     "scripts": {"type": "array", "items": {"$ref": "#/$defs/script"}},
@@ -21,7 +21,6 @@
     "menu": {"type": "array", "items": {"$ref": "#/$defs/name"}, "uniqueItems": true, "description": "Screen names in menu order."},
     "autonomy": {"enum": ["suggest", "auto"], "default": "suggest",
       "description": "suggest: reversible actions wait for the owner; auto: they run at once and are reported."},
-    "master_events": {"type": "boolean", "default": false, "description": "Send project events to the master agent."},
     "reads": {"type": "array", "items": {"$ref": "#/$defs/read"}, "description": "Data of other projects this project may read."}
   },
   "$defs": {
@@ -58,7 +57,7 @@
         "input": {"$ref": "#/$defs/schema", "description": "Flat object schema; parameters are string, number, integer, boolean, date, choice, file or a reference."},
         "result": {"$ref": "#/$defs/schema", "description": "Schema of the result; null always means nothing to do."},
         "callers": {"type": "array", "items": {"enum": ["owner", "master", "agent", "trigger"]}, "uniqueItems": true, "minItems": 1},
-        "requires": {"type": "array", "uniqueItems": true, "items": {"enum": ["tools", "sandbox", "resume", "live_input", "intercept", "images", "structured_output", "no_cloud"]}},
+        "requires": {"type": "array", "uniqueItems": true, "items": {"enum": ["tools", "sandbox", "resume", "intercept", "images", "no_cloud"]}},
         "provider": {"type": "string", "description": "Suggested provider; the owner picks the real one in settings."},
         "timeout_minutes": {"type": "integer", "minimum": 1, "maximum": 240},
         "executor": {"$ref": "#/$defs/executor"}

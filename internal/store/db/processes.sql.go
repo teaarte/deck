@@ -1038,20 +1038,6 @@ func (q *Queries) SetProcessOutput(ctx context.Context, arg SetProcessOutputPara
 	return err
 }
 
-const setProcessSession = `-- name: SetProcessSession :exec
-UPDATE process SET session_id = ? WHERE id = ?
-`
-
-type SetProcessSessionParams struct {
-	SessionID string
-	ID        int64
-}
-
-func (q *Queries) SetProcessSession(ctx context.Context, arg SetProcessSessionParams) error {
-	_, err := q.db.ExecContext(ctx, setProcessSession, arg.SessionID, arg.ID)
-	return err
-}
-
 const startCeiling = `-- name: StartCeiling :exec
 UPDATE process SET deadline_ms = ?1 + ceiling_ms, output_ms = ?1, silent_since_ms = NULL
 WHERE id = ?2 AND deadline_ms IS NULL

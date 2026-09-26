@@ -3,6 +3,7 @@ package gateway
 import (
 	"context"
 	"database/sql"
+	"deck2/internal/untrusted"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -48,7 +49,7 @@ func (g *Gateway) Refused(ctx context.Context, act registry.Actor, project int64
 // when the call never left deck.
 func (g *Gateway) Finish(ctx context.Context, id int64, outcome, externalID, errText string) {
 	_ = g.st.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error {
-		_, err := q.FinishToolCall(ctx, db.FinishToolCallParams{Outcome: outcome, ExternalID: externalID, Error: truncate(errText, 2000), ID: id})
+		_, err := q.FinishToolCall(ctx, db.FinishToolCallParams{Outcome: outcome, ExternalID: externalID, Error: untrusted.Cut(errText, 2000), ID: id})
 		return err
 	})
 }
@@ -63,7 +64,7 @@ func (g *Gateway) Lost(ctx context.Context, id int64) {
 	}
 	var tool string
 	if proj, err := g.st.Q.GetProject(ctx, row.ProjectID); err == nil {
-		tool = g.fingerprint(ctx, proj.WorkspaceID, row.Tool)
+		tool = g.fingerprint(ctx, proj.WorkspaceID, proj.ID, row.Tool)
 	}
 	g.LostAt(ctx, id, tool)
 }
@@ -87,7 +88,7 @@ func (g *Gateway) LostAt(ctx context.Context, id int64, tool string) {
 			act = registry.Actor{Kind: registry.Agent, Workspace: p.WorkspaceID, ProjectID: p.ID, ProcessID: c.ProcessID}
 		}
 		text := fmt.Sprintf("Outcome unknown: %s with %s. deck stopped or lost the connection while making this call; "+
-			"check the other side, then retry it or count it as done.", c.Tool, truncate(c.Params, 500))
+			"check the other side, then retry it or count it as done.", c.Tool, untrusted.Cut(c.Params, 500))
 		a, err := q.CreateCallAsk(ctx, db.CreateCallAskParams{ProcessID: sql.NullInt64{Int64: c.ProcessID, Valid: c.ProcessID != 0},
 			WorkspaceID: p.WorkspaceID, ProjectID: p.ID, Kind: ask.KindUnknown, Text: text, Payload: frozen(act, c.Tool, json.RawMessage(c.Params), tool)})
 		if err != nil {
@@ -130,7 +131,7 @@ func (g *Gateway) Recover(ctx context.Context) error {
 				continue
 			}
 			text := fmt.Sprintf("Outcome unknown: %s with %s. deck stopped while making this allowed call; "+
-				"check the other side, then retry it or count it as done.", f.Call.Command, truncate(string(f.Call.Input), 500))
+				"check the other side, then retry it or count it as done.", f.Call.Command, untrusted.Cut(string(f.Call.Input), 500))
 			if err := q.ReopenAsUnknown(ctx, db.ReopenAsUnknownParams{Text: text, ID: a.ID}); err != nil {
 				return err
 			}
@@ -144,7 +145,7 @@ func Unresolved(asks []db.Ask) string {
 	var b strings.Builder
 	for _, a := range asks {
 		if a.Kind == ask.KindUnknown {
-			b.WriteString("- " + a.Text + " Do not make this call again; the owner decides and deck tells you.\n")
+			b.WriteString("- " + untrusted.Line(a.Text, 600) + " Do not make this call again; the owner decides and deck tells you.\n")
 		}
 	}
 	return b.String()

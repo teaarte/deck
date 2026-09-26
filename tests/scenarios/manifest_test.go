@@ -13,7 +13,7 @@ import (
 )
 
 const fullManifest = `{
-  "version": 4,
+  "version": 5,
   "collections": [
     {"name": "sources", "description": "A page to watch", "key": "url", "display": "url",
      "schema": {"type": "object", "properties": {"url": {"type": "string"}, "status": {"type": "string"}}, "required": ["url"]}},
@@ -58,8 +58,7 @@ const fullManifest = `{
     "columns": [{"label": "Title", "bind": "title"}, {"label": "Score", "bind": "score"}],
     "actions": [{"label": "Share", "command": "share", "params": {"url": "$record.url"}}]}]}],
   "menu": ["main"],
-  "autonomy": "suggest",
-  "master_events": false
+  "autonomy": "suggest"
 }`
 
 func TestFullManifestIsAccepted(t *testing.T) {
@@ -113,8 +112,8 @@ func TestManifestReferencesAreChecked(t *testing.T) {
 		{"menu", `"menu": ["main"]`, `"menu": ["home"]`, `unknown screen "home"`},
 		{"unknown function", `"display": "title + ' (' + site + ')'"`, `"display": "shout(title)"`, `unknown function "shout"`},
 		{"action params", `"params": {"url": "$record.url"}`, `"params": {"link": "$record.url"}`, `needs param "url"`},
-		{"reads project", `"master_events": false`, `"master_events": false, "reads": [{"project": "nope"}]`, `no project "nope"`},
-		{"reads collection", `"master_events": false`, `"master_events": false, "reads": [{"project": "other", "collections": ["nope"]}]`, `no collection "nope"`},
+		{"reads project", `"autonomy": "suggest"`, `"autonomy": "suggest", "reads": [{"project": "nope"}]`, `no project "nope"`},
+		{"reads collection", `"autonomy": "suggest"`, `"autonomy": "suggest", "reads": [{"project": "other", "collections": ["nope"]}]`, `no collection "nope"`},
 		{"trigger caller", `"callers": ["agent", "owner"], "executor": {"type": "script"`, `"callers": ["agent"], "executor": {"type": "script"`, ""},
 	}
 	for i, c := range cases {
@@ -133,7 +132,7 @@ func TestManifestReferencesAreChecked(t *testing.T) {
 			t.Errorf("%s: want 422 containing %q, got %d %s", c.name, c.want, code, out)
 		}
 	}
-	m := strings.Replace(fullManifest, `"master_events": false`, `"master_events": false, "reads": [{"project": "other", "collections": ["ideas"]}]`, 1)
+	m := strings.Replace(fullManifest, `"autonomy": "suggest"`, `"autonomy": "suggest", "reads": [{"project": "other", "collections": ["ideas"]}]`, 1)
 	e.createProject("links", m)
 }
 
@@ -187,7 +186,7 @@ func TestOldManifestFormatIsUpgraded(t *testing.T) {
 	p := e.createProject("ideas", ideasV1)
 	var cur struct{ Manifest string }
 	e.must("deck.manifest_get", map[string]any{"project": "ideas"}, &cur)
-	if !strings.Contains(cur.Manifest, `"version": 4`) || !strings.Contains(cur.Manifest, `"display": "title"`) || strings.Contains(cur.Manifest, "result_schema") {
+	if !strings.Contains(cur.Manifest, `"version": 5`) || !strings.Contains(cur.Manifest, `"display": "title"`) || strings.Contains(cur.Manifest, "result_schema") {
 		t.Fatalf("saved v1 manifest must be stored upgraded:\n%s", cur.Manifest)
 	}
 
@@ -210,7 +209,7 @@ func TestOldManifestFormatIsUpgraded(t *testing.T) {
 	var doc struct{ Document int64 }
 	e.must("deck.manifest_get", map[string]any{"project": "ideas"}, &doc)
 	e.must("deck.document_revisions", map[string]any{"document": doc.Document}, &revs)
-	if len(revs) != 3 || revs[0].Author != "deck" || !strings.Contains(revs[0].Reason, "version 4") {
+	if len(revs) != 3 || revs[0].Author != "deck" || !strings.Contains(revs[0].Reason, "version 5") {
 		t.Fatalf("startup upgrade must add a deck revision, got %+v", revs)
 	}
 	if err := e.App.UpgradeManifests(ctx); err != nil {

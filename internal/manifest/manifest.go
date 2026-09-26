@@ -16,7 +16,7 @@ import (
 	"deck2/schemas"
 )
 
-const FormatVersion = 4
+const FormatVersion = 5
 
 type Manifest struct {
 	Version         int          `json:"version"`
@@ -31,7 +31,6 @@ type Manifest struct {
 	Screens         []Screen     `json:"screens,omitempty"`
 	Menu            []string     `json:"menu,omitempty"`
 	Autonomy        string       `json:"autonomy,omitempty"`
-	MasterEvents    bool         `json:"master_events,omitempty"`
 	Reads           []Read       `json:"reads,omitempty"`
 
 	// Revision is the stored revision the manifest was read from; 0 when it was not read from the base.

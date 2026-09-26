@@ -4,6 +4,7 @@ import (
 	"context"
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
+	"deck2/internal/untrusted"
 	"strings"
 )
 
@@ -59,7 +60,7 @@ func (r *Runner) Rework(ctx context.Context, processID int64, remark string) err
 	if cmd == nil {
 		return registry.Invalid("deck: command %q no longer exists", p.Command)
 	}
-	msg := "deck: the owner sent this task back for rework.\nRemark: " + strings.TrimSpace(remark) +
+	msg := "deck: the owner sent this task back for rework.\n" + untrusted.Value("Remark", strings.TrimSpace(remark), 500) +
 		"\nKeep what is right and change what the remark asks for. Save changed documents again under the same" +
 		" names, so each change is a new revision, then give the final result again."
 	note := strings.TrimSpace(p.StartNote + "\n" + msg)

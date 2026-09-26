@@ -27,7 +27,7 @@ type line struct {
 		CacheRead     int64 `json:"cache_read_input_tokens"`
 		CacheCreation int64 `json:"cache_creation_input_tokens"`
 	} `json:"usage"`
-	Message          *struct {
+	Message *struct {
 		Content []struct {
 			Type string `json:"type"`
 			Text string `json:"text"`
@@ -158,11 +158,4 @@ func (t *turn) finish(waitErr error, stderr string, promptErr error) (provider.R
 	}
 	res.NeedsLogin = res.IsError && t.authFailed
 	return res, nil
-}
-
-func truncate(s string, n int) string {
-	if len(s) <= n {
-		return s
-	}
-	return s[:n] + "…"
 }

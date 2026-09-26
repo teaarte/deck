@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"deck2/internal/untrusted"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -29,7 +30,6 @@ type Caller struct {
 	Workspace int64    `json:"workspace"`
 	Project   int64    `json:"project,omitempty"`
 	Process   int64    `json:"process,omitempty"`
-	Trigger   int64    `json:"trigger,omitempty"`
 	Token     int64    `json:"token,omitempty"`
 	Commands  []string `json:"commands,omitempty"`
 }
@@ -44,7 +44,7 @@ func freeze(a registry.Actor) Caller {
 }
 
 func (c Caller) actor() registry.Actor {
-	return registry.Actor{Kind: c.Kind, Workspace: c.Workspace, ProjectID: c.Project, ProcessID: c.Process, TriggerID: c.Trigger,
+	return registry.Actor{Kind: c.Kind, Workspace: c.Workspace, ProjectID: c.Project, ProcessID: c.Process,
 		Token: c.Token, Commands: c.Commands}
 }
 
@@ -109,12 +109,12 @@ func (g *Gateway) gate(ctx context.Context, act registry.Actor, c *registry.Comm
 }
 
 // fingerprint is what a tool does apart from its input; empty for commands and unknown names.
-func (g *Gateway) fingerprint(ctx context.Context, workspace int64, name string) string {
+func (g *Gateway) fingerprint(ctx context.Context, workspace, project int64, name string) string {
 	c, err := g.reg.Lookup(ctx, workspace, name)
 	if err != nil || c.Fingerprint == nil {
 		return ""
 	}
-	return c.Fingerprint(ctx)
+	return c.Fingerprint(ctx, project)
 }
 
 // ttl is how long a confirmation of the command stays open: its tool's own term, else the default.
@@ -130,7 +130,7 @@ func (g *Gateway) ttl(c *registry.Command) time.Duration {
 func (g *Gateway) hold(ctx context.Context, act registry.Actor, c *registry.Command, project int64, input json.RawMessage) (any, error) {
 	var print string
 	if c.Fingerprint != nil {
-		print = c.Fingerprint(ctx)
+		print = c.Fingerprint(ctx, project)
 	}
 	payload := frozen(act, c.Name, input, print)
 	process := act.ProcessID
@@ -141,7 +141,11 @@ func (g *Gateway) hold(ctx context.Context, act registry.Actor, c *registry.Comm
 	if ttl := g.ttl(c); ttl > 0 {
 		expires = g.cfg.Now().Add(ttl)
 	}
-	text := fmt.Sprintf("%s wants %s with %s", act.Author(), c.Name, truncate(canonical(input), 500))
+	target := ""
+	if c.Target != nil {
+		target = " (" + c.Target(print) + ")"
+	}
+	text := fmt.Sprintf("%s wants %s%s with %s", act.Author(), c.Name, target, untrusted.Cut(canonical(input), 500))
 	var a db.Ask
 	err := g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		var err error
@@ -192,7 +196,7 @@ func (g *Gateway) Decide(ctx context.Context, a db.Ask, answer string, then func
 	if err := json.Unmarshal([]byte(a.Payload), &f); err != nil {
 		return nil, err
 	}
-	if f.Tool != g.fingerprint(ctx, f.Caller.Workspace, f.Call.Command) {
+	if f.Tool != g.fingerprint(ctx, f.Caller.Workspace, f.Caller.Project, f.Call.Command) {
 		return nil, ErrChanged
 	}
 	var n int64

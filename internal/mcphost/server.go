@@ -2,6 +2,7 @@ package mcphost
 
 import (
 	"context"
+	"deck2/internal/untrusted"
 	"errors"
 	"fmt"
 	"os"
@@ -53,7 +54,7 @@ func (s *server) start(ctx context.Context, h *Host, key string, spec Spec) erro
 		if err != nil {
 			return fmt.Errorf("MCP server %s did not start: %v", key, err)
 		}
-		s.stderr = &tail{}
+		s.stderr, s.secrets = &tail{}, spec.Secrets
 		cmd.Stderr = s.stderr
 		s.cmd = cmd
 		transport = &mcp.CommandTransport{Command: cmd, TerminateDuration: 2 * time.Second}
@@ -118,7 +119,7 @@ func (s *server) last() string {
 	if s.stderr == nil {
 		return ""
 	}
-	if t := strings.TrimSpace(s.stderr.String()); t != "" {
+	if t := strings.TrimSpace(untrusted.Redact(s.stderr.String(), s.secrets)); t != "" {
 		return "; stderr: " + t
 	}
 	return ""

@@ -163,6 +163,8 @@ func checkDef(name string, d providerDef, main string) error {
 		return registry.Invalid("deck: provider name %q: lowercase letters, digits and '-', not %s", name, main)
 	case !strings.HasPrefix(d.URL, "http://") && !strings.HasPrefix(d.URL, "https://"):
 		return registry.Invalid("deck: provider url must be http or https, got %q", d.URL)
+	case strings.ContainsAny(d.URL, "@?#"):
+		return registry.Invalid("deck: provider url takes no user, query or key; keep the API key in a secret and name it in key_secret")
 	case strings.TrimSpace(d.Model) == "":
 		return registry.Invalid("deck: provider needs a model")
 	case d.KeySecret != "" && !secretName.MatchString(d.KeySecret):

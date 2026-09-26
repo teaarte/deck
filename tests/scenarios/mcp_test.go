@@ -210,14 +210,14 @@ func TestMCPServerByURLAndTheEnvironmentOfAProgram(t *testing.T) {
     "far": {"url": %q, "classes": {"ping": "internal"}},
     "fake": {"command": %q, "env": {"DECK_FAKE_MCP": "project", "FAKE_TOKEN": "$secret.fake_token"},
       "toolFilter": ["env", "peek"], "classes": {"env": "internal", "peek": "internal"}}}}}}`, ts.URL, self))
-	e.must("deck.secret_set", map[string]any{"name": "fake_token", "value": "t0k"}, nil)
+	e.must("deck.secret_set", map[string]any{"name": "fake_token", "value": "t0k-of-the-server"}, nil)
 	e.waitState(e.start("srv", "work", map[string]any{"step": "srv__far__ping"}), "done")
 	e.waitState(e.start("srv", "work", map[string]any{"step": "srv__fake__env"}), "done")
 	if c := got["srv__far__ping"]; c.isErr || !strings.Contains(c.out, "pong") {
 		t.Fatalf("a server by URL gives its tools: %+v", c)
 	}
-	if c := got["srv__fake__env"]; c.isErr || !strings.Contains(c.out, `"token=t0k leak="`) {
-		t.Fatalf("a program server gets its secrets and not deck's environment: %+v", c)
+	if c := got["srv__fake__env"]; c.isErr || !strings.Contains(c.out, `"token=[secret] len=17 leak="`) {
+		t.Fatalf("a program server gets its secrets and not deck's environment, and its answer comes without them: %+v", c)
 	}
 	home := e.App.Cfg.Home
 	for path, want := range map[string]string{filepath.Join(home, "secrets", "1", "fake_token"): "read=false",

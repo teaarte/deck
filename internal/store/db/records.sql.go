@@ -82,6 +82,42 @@ func (q *Queries) DeleteCollection(ctx context.Context, arg DeleteCollectionPara
 	return result.RowsAffected()
 }
 
+const deleteExpiredRecordDocuments = `-- name: DeleteExpiredRecordDocuments :exec
+DELETE FROM document WHERE owner_kind = 'record'
+AND owner_id IN (SELECT r.id FROM record r WHERE r.project_id = ?1 AND r.collection = ?2
+  AND r.created_at < CAST(?3 AS TEXT))
+`
+
+type DeleteExpiredRecordDocumentsParams struct {
+	ProjectID  int64
+	Collection string
+	Before     string
+}
+
+func (q *Queries) DeleteExpiredRecordDocuments(ctx context.Context, arg DeleteExpiredRecordDocumentsParams) error {
+	_, err := q.db.ExecContext(ctx, deleteExpiredRecordDocuments, arg.ProjectID, arg.Collection, arg.Before)
+	return err
+}
+
+const deleteExpiredRecords = `-- name: DeleteExpiredRecords :execrows
+DELETE FROM record WHERE project_id = ?1 AND collection = ?2
+AND created_at < CAST(?3 AS TEXT)
+`
+
+type DeleteExpiredRecordsParams struct {
+	ProjectID  int64
+	Collection string
+	Before     string
+}
+
+func (q *Queries) DeleteExpiredRecords(ctx context.Context, arg DeleteExpiredRecordsParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteExpiredRecords, arg.ProjectID, arg.Collection, arg.Before)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const deleteRecord = `-- name: DeleteRecord :exec
 DELETE FROM record WHERE id = ?
 `
@@ -269,12 +305,13 @@ func (q *Queries) PutRecord(ctx context.Context, arg PutRecordParams) error {
 }
 
 const updateRecordData = `-- name: UpdateRecordData :execrows
-UPDATE record SET data = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-WHERE id = ? AND project_id = ? AND collection = ? AND key = ?
+UPDATE record SET data = ?1, updated_at = ?2
+WHERE id = ?3 AND project_id = ?4 AND collection = ?5 AND key = ?6
 `
 
 type UpdateRecordDataParams struct {
 	Data       string
+	Now        string
 	ID         int64
 	ProjectID  int64
 	Collection string
@@ -284,6 +321,7 @@ type UpdateRecordDataParams struct {
 func (q *Queries) UpdateRecordData(ctx context.Context, arg UpdateRecordDataParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, updateRecordData,
 		arg.Data,
+		arg.Now,
 		arg.ID,
 		arg.ProjectID,
 		arg.Collection,
@@ -296,9 +334,10 @@ func (q *Queries) UpdateRecordData(ctx context.Context, arg UpdateRecordDataPara
 }
 
 const upsertRecord = `-- name: UpsertRecord :one
-INSERT INTO record (project_id, collection, key, data) VALUES (?, ?, ?, ?)
+INSERT INTO record (project_id, collection, key, data, created_at, updated_at)
+VALUES (?1, ?2, ?3, ?4, ?5, ?5)
 ON CONFLICT (project_id, collection, key)
-DO UPDATE SET data = excluded.data, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at
 RETURNING id, project_id, collection, "key", data, created_at, updated_at
 `
 
@@ -307,6 +346,7 @@ type UpsertRecordParams struct {
 	Collection string
 	Key        string
 	Data       string
+	Now        string
 }
 
 func (q *Queries) UpsertRecord(ctx context.Context, arg UpsertRecordParams) (Record, error) {
@@ -315,6 +355,7 @@ func (q *Queries) UpsertRecord(ctx context.Context, arg UpsertRecordParams) (Rec
 		arg.Collection,
 		arg.Key,
 		arg.Data,
+		arg.Now,
 	)
 	var i Record
 	err := row.Scan(

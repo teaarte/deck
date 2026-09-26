@@ -35,3 +35,9 @@ DELETE FROM file WHERE owner_kind = 'upload' AND created_at < CAST(sqlc.arg(befo
 -- name: BindFile :execrows
 UPDATE file SET owner_kind = sqlc.arg(owner_kind), owner_id = sqlc.arg(owner_id)
 WHERE id = sqlc.arg(id) AND project_id = sqlc.arg(project_id) AND owner_kind = sqlc.arg(from_kind) AND owner_id = sqlc.arg(from_id);
+-- name: DeleteExpiredRecordFiles :many
+DELETE FROM file WHERE owner_kind = 'record' AND created_at < CAST(sqlc.arg(before) AS TEXT)
+AND owner_id IN (SELECT r.id FROM record r WHERE r.project_id = sqlc.arg(project_id) AND r.collection = sqlc.arg(collection))
+RETURNING id;
+
+

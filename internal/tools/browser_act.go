@@ -2,12 +2,12 @@ package tools
 
 import (
 	"context"
+	"deck2/internal/untrusted"
 	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
-	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -16,8 +16,8 @@ import (
 	"deck2/internal/registry"
 )
 
-// actor makes an action on the page the browser shows now: on an act domain, on a page the owner allowed
-// this call on, or for a tool the project lists; files it sends come only from the process's own folder.
+// actor makes an action on the page the browser shows now: on an act domain or on a page the owner allowed
+// this call on; files it sends come only from the process's own folder.
 func (b *Browser) actor(tool string) registry.Handler {
 	name := registry.Builtin + "." + tool
 	return func(ctx context.Context, act registry.Actor, raw json.RawMessage) (any, error) {
@@ -35,11 +35,10 @@ func (b *Browser) actor(tool string) registry.Handler {
 		}
 		b.mu.Lock()
 		defer b.mu.Unlock()
-		page, err := b.current(ctx)
+		page, err := b.current(ctx, readsAnySite(m))
 		approved, yes := gateway.Approved(ctx)
-		listed := slices.Contains(m.AllowedExternal, name)
-		if err == nil && !on(m.Domains.Act, page) && !(yes && approved == page) && !listed {
-			err = registry.Refuse("deck: the browser shows %s now, which is not on an act domain; look at the page again and repeat the call", page)
+		if err == nil && !on(m.Domains.Act, page) && !(yes && page != "" && approved == page) {
+			err = registry.Refuse("deck: the browser shows %s now, which is not on an act domain; look at the page again and repeat the call", untrusted.Line(page, 300))
 		}
 		if err != nil {
 			b.GW.Refused(ctx, act, act.ProjectID, name, raw, err)
@@ -50,13 +49,13 @@ func (b *Browser) actor(tool string) registry.Handler {
 			b.GW.Refused(ctx, act, act.ProjectID, name, raw, err)
 			return nil, err
 		}
-		res, err := b.call(ctx, tool, args)
+		res, err := b.call(ctx, readsAnySite(m), tool, args)
 		if err != nil {
 			return nil, failed(ctx, b.GW, intent, name, page, err)
 		}
 		out, cerr := Content(b.Dirs, act.ProcessID, name, res)
 		if now, off := b.offDomains(ctx, act.ProjectID); off && cerr == nil {
-			out = map[string]any{"text": "Done. The browser now shows " + now + ", which is not on a read or act domain of this project, so what it shows is withheld."}
+			out = map[string]any{"text": "Done. The browser now shows " + untrusted.Line(now, 300) + ", which is not on a read or act domain of this project, so what it shows is withheld."}
 		}
 		text := ""
 		if cerr != nil {

@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"deck2/internal/untrusted"
 	"errors"
 	"fmt"
 	"strings"
@@ -13,24 +14,25 @@ import (
 	"deck2/internal/mcphost"
 )
 
-// failed settles the intent of an MCP call that failed: rejected when it never reached the server, done
-// when the server answered, unknown when the connection was lost while the call was out.
-func failed(ctx context.Context, gw *gateway.Gateway, intent int64, name, print string, err error) error {
+// failed settles the intent of a failed MCP call: rejected when it never reached the server, done when the
+// server answered, unknown when the connection was lost; its text leaves out the server's secrets.
+func failed(ctx context.Context, gw *gateway.Gateway, intent int64, name, print string, err error, secrets ...string) error {
 	var ns *mcphost.ErrNotStarted
+	msg := untrusted.Redact(err.Error(), secrets)
 	switch {
 	case errors.As(err, &ns):
 		if intent != 0 {
-			gw.Finish(ctx, intent, "rejected", "", err.Error())
+			gw.Finish(ctx, intent, "rejected", "", msg)
 		}
 	case mcphost.Answered(err):
 		if intent != 0 {
-			gw.Finish(ctx, intent, "done", "", err.Error())
+			gw.Finish(ctx, intent, "done", "", msg)
 		}
 	case intent != 0:
 		gw.LostAt(ctx, intent, print)
-		return fmt.Errorf("deck: %s: the outcome is unknown and the owner decides whether to repeat it: %v", name, err)
+		return fmt.Errorf("deck: %s: the outcome is unknown and the owner decides whether to repeat it: %s", name, msg)
 	}
-	return fmt.Errorf("deck: %s: %v", name, err)
+	return fmt.Errorf("deck: %s: %s", name, msg)
 }
 
 // Content turns a tool result into what the caller gets: its structured content, or its text with binary
@@ -73,7 +75,7 @@ func Content(dirs files.Dirs, process int64, tool string, res *mcp.CallToolResul
 	}
 	joined := strings.Join(text, "\n")
 	if res.IsError {
-		return nil, fmt.Errorf("deck: %s: %s", tool, truncate(joined, 4000))
+		return nil, fmt.Errorf("deck: %s: %s", tool, untrusted.Cut(joined, 4000))
 	}
 	if res.StructuredContent != nil {
 		if len(saved) == 0 {

@@ -280,18 +280,6 @@ func (q *Queries) CreateProjectAsk(ctx context.Context, arg CreateProjectAskPara
 	return i, err
 }
 
-const expireAsk = `-- name: ExpireAsk :execrows
-UPDATE ask SET state = 'expired' WHERE id = ? AND state = 'open'
-`
-
-func (q *Queries) ExpireAsk(ctx context.Context, id int64) (int64, error) {
-	result, err := q.db.ExecContext(ctx, expireAsk, id)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
-}
-
 const expireStaleConfirms = `-- name: ExpireStaleConfirms :many
 UPDATE ask SET state = 'expired' WHERE kind IN ('confirm', 'call') AND state = 'open' AND expires_at <= CAST(?1 AS TEXT) RETURNING id, process_id, workspace_id, project_id, kind, text, payload, answer, state, delivered, used, created_at, answered_at, expires_at, result
 `
@@ -630,15 +618,6 @@ UPDATE ask SET delivered = 1 WHERE id = ?
 
 func (q *Queries) MarkAskDelivered(ctx context.Context, id int64) error {
 	_, err := q.db.ExecContext(ctx, markAskDelivered, id)
-	return err
-}
-
-const markAskUsed = `-- name: MarkAskUsed :exec
-UPDATE ask SET used = 1, delivered = 1 WHERE id = ?
-`
-
-func (q *Queries) MarkAskUsed(ctx context.Context, id int64) error {
-	_, err := q.db.ExecContext(ctx, markAskUsed, id)
 	return err
 }
 

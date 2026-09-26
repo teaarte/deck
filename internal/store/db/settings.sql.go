@@ -42,33 +42,6 @@ func (q *Queries) GetSetting(ctx context.Context, arg GetSettingParams) (string,
 	return value, err
 }
 
-const listSettingWorkspaces = `-- name: ListSettingWorkspaces :many
-SELECT DISTINCT workspace_id FROM setting WHERE key LIKE CAST(?1 AS TEXT) || '%'
-`
-
-func (q *Queries) ListSettingWorkspaces(ctx context.Context, prefix string) ([]int64, error) {
-	rows, err := q.db.QueryContext(ctx, listSettingWorkspaces, prefix)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []int64
-	for rows.Next() {
-		var workspace_id int64
-		if err := rows.Scan(&workspace_id); err != nil {
-			return nil, err
-		}
-		items = append(items, workspace_id)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listSettings = `-- name: ListSettings :many
 SELECT key, value FROM setting WHERE workspace_id = ?1 AND key LIKE CAST(?2 AS TEXT) || '%' ORDER BY key
 `

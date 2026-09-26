@@ -115,8 +115,44 @@ func addFile(tw *tar.Writer, path, name string) error {
 	return err
 }
 
-// daily removes files whose record, card or process is gone, uploads no command took for a day and the work
-// folders of agents finished longer ago than WorkKept, and takes the snapshot, once a day by the deck clock.
+// expire deletes the records and files of each collection older than its retention, and the documents of
+// those records; the files it returns are removed from the disk after the transaction.
+func (a *App) expire(ctx context.Context, q *db.Queries, now time.Time) ([]int64, error) {
+	projects, err := q.ListProjects(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var gone []int64
+	days := func(n int) string { return store.Time(now.Add(-time.Duration(n) * 24 * time.Hour)) }
+	for _, p := range projects {
+		m, err := loadManifest(ctx, q, p)
+		if err != nil {
+			continue
+		}
+		for _, c := range m.Collections {
+			if c.FileRetentionDays > 0 {
+				ids, err := q.DeleteExpiredRecordFiles(ctx, db.DeleteExpiredRecordFilesParams{Before: days(c.FileRetentionDays), ProjectID: p.ID, Collection: c.Name})
+				if err != nil {
+					return nil, err
+				}
+				gone = append(gone, ids...)
+			}
+			if c.RetentionDays > 0 {
+				expired := db.DeleteExpiredRecordDocumentsParams{ProjectID: p.ID, Collection: c.Name, Before: days(c.RetentionDays)}
+				if err := q.DeleteExpiredRecordDocuments(ctx, expired); err != nil {
+					return nil, err
+				}
+				if _, err := q.DeleteExpiredRecords(ctx, db.DeleteExpiredRecordsParams(expired)); err != nil {
+					return nil, err
+				}
+			}
+		}
+	}
+	return gone, nil
+}
+
+// daily removes expired records, files left without an owner, stale uploads and old agent work folders, and
+// takes the snapshot, once a day by the deck clock.
 func (a *App) daily(ctx context.Context, now time.Time) {
 	old, _ := filepath.Glob(filepath.Join(a.Cfg.Home, "backups", "deck-*.tar.gz"))
 	slices.Sort(old)
@@ -129,7 +165,11 @@ func (a *App) daily(ctx context.Context, now time.Time) {
 	var gone []int64
 	err := a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		var err error
-		if gone, err = q.PurgeOrphanFiles(ctx); err != nil {
+		if gone, err = a.expire(ctx, q, now); err != nil {
+			return err
+		}
+		orphans, err := q.PurgeOrphanFiles(ctx)
+		if gone = append(gone, orphans...); err != nil {
 			return err
 		}
 		stale, err := q.PurgeStaleUploads(ctx, store.Time(now.Add(-24*time.Hour)))

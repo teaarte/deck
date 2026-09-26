@@ -4,10 +4,12 @@ import (
 	"bufio"
 	"context"
 	"database/sql"
+	"deck2/internal/store"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
@@ -21,8 +23,8 @@ type UpsertResult struct {
 	Errors []string `json:"errors,omitempty"`
 }
 
-// UpsertJSONL writes one record per line; records with an existing key are updated.
-func UpsertJSONL(ctx context.Context, q *db.Queries, projectID int64, m *manifest.Manifest, collection, jsonl string) (UpsertResult, error) {
+// upsertJSONL writes one record per line; records with an existing key are updated.
+func upsertJSONL(ctx context.Context, q *db.Queries, now time.Time, projectID int64, m *manifest.Manifest, collection, jsonl string) (UpsertResult, error) {
 	var recs []map[string]any
 	var out UpsertResult
 	sc := bufio.NewScanner(strings.NewReader(jsonl))
@@ -42,14 +44,14 @@ func UpsertJSONL(ctx context.Context, q *db.Queries, projectID int64, m *manifes
 	if err := sc.Err(); err != nil {
 		return out, registry.Invalid("deck: records: %v", err)
 	}
-	res, err := UpsertRecords(ctx, q, projectID, m, collection, recs)
+	res, err := upsertRecords(ctx, q, now, projectID, m, collection, recs)
 	res.Errors = append(out.Errors, res.Errors...)
 	return res, err
 }
 
-// UpsertRecords validates each record against the collection schema and writes it by its key; run it in
+// upsertRecords validates each record against the collection schema and writes it by its key; run it in
 // a transaction so the immutable-field check and the write see the same record.
-func UpsertRecords(ctx context.Context, q *db.Queries, projectID int64, m *manifest.Manifest, collection string, recs []map[string]any) (UpsertResult, error) {
+func upsertRecords(ctx context.Context, q *db.Queries, now time.Time, projectID int64, m *manifest.Manifest, collection string, recs []map[string]any) (UpsertResult, error) {
 	c := m.Collection(collection)
 	if c == nil {
 		return UpsertResult{}, registry.Invalid("deck: unknown collection %q", collection)
@@ -76,7 +78,7 @@ func UpsertRecords(ctx context.Context, q *db.Queries, projectID int64, m *manif
 				return err
 			}
 			data, _ := json.Marshal(r)
-			rec, err := q.UpsertRecord(ctx, db.UpsertRecordParams{ProjectID: projectID, Collection: collection, Key: key, Data: string(data)})
+			rec, err := q.UpsertRecord(ctx, db.UpsertRecordParams{ProjectID: projectID, Collection: collection, Key: key, Data: string(data), Now: store.Time(now)})
 			if err != nil {
 				return err
 			}
@@ -91,8 +93,8 @@ func UpsertRecords(ctx context.Context, q *db.Queries, projectID int64, m *manif
 	return out, nil
 }
 
-// UpdateRecord replaces the data of a record; the key and immutable fields must stay the same.
-func UpdateRecord(ctx context.Context, q *db.Queries, rec db.Record, m *manifest.Manifest, data map[string]any) error {
+// updateRecord replaces the data of a record; the key and immutable fields must stay the same.
+func updateRecord(ctx context.Context, q *db.Queries, now time.Time, rec db.Record, m *manifest.Manifest, data map[string]any) error {
 	c := m.Collection(rec.Collection)
 	if c == nil {
 		return registry.Invalid("deck: collection %q no longer exists", rec.Collection)
@@ -110,7 +112,7 @@ func UpdateRecord(ctx context.Context, q *db.Queries, rec db.Record, m *manifest
 		}
 	}
 	b, _ := json.Marshal(data)
-	n, err := q.UpdateRecordData(ctx, db.UpdateRecordDataParams{Data: string(b), ID: rec.ID, ProjectID: rec.ProjectID, Collection: rec.Collection, Key: rec.Key})
+	n, err := q.UpdateRecordData(ctx, db.UpdateRecordDataParams{Data: string(b), Now: store.Time(now), ID: rec.ID, ProjectID: rec.ProjectID, Collection: rec.Collection, Key: rec.Key})
 	if err != nil {
 		return err
 	}

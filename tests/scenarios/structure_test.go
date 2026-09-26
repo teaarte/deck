@@ -73,7 +73,7 @@ func TestOtherWorkspacesAreInvisible(t *testing.T) {
 func TestStoredV2DescriptionMovesToThePromptOnStart(t *testing.T) {
 	e := newEnv(t, nil)
 	p := e.createProject("ideas", ideasManifest)
-	v2 := strings.Replace(ideasManifest, `"version": 4,`, `"version": 2, "description": "Ideas of the day",`, 1)
+	v2 := strings.Replace(ideasManifest, `"version": 5,`, `"version": 2, "description": "Ideas of the day",`, 1)
 	ctx := context.Background()
 	err := e.App.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		_, _, err := app.SaveDocument(ctx, q, app.DocRef{Scope: app.Scope{Workspace: 1, Project: p}, Name: app.ManifestName}, app.KindManifest, v2, "owner", "stored by an older deck")

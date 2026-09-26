@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"net/url"
 	"slices"
 	"strings"
 
@@ -81,8 +82,8 @@ func (a *App) linkTriggeredCard(ctx context.Context, asked db.Ask, out any) {
 
 var notOpen = &registry.Error{Status: 409, Text: "deck: this ask is already answered or expired"}
 
-// allowAlways adds the tool or command of a frozen call to the allowed external list of its project as the
-// owner's own manifest change.
+// allowAlways adds the tool or command of a frozen call to the allowed external list of its project, or the
+// site of a browser action to its act domains, as the owner's own manifest change.
 func (a *App) allowAlways(ctx context.Context, act registry.Actor, q db.Ask) error {
 	var f gateway.Frozen
 	if err := json.Unmarshal([]byte(q.Payload), &f); err != nil {
@@ -94,7 +95,11 @@ func (a *App) allowAlways(ctx context.Context, act registry.Actor, q db.Ask) err
 	}
 	local, ok := strings.CutPrefix(f.Call.Command, p.Name+".")
 	if strings.HasPrefix(f.Call.Command, registry.Builtin+".browser_") {
-		return registry.Invalid("deck: a browser action runs without asking on the sites in domains.act of the manifest; allow it once or add the site there")
+		u, err := url.Parse(f.Tool)
+		if err != nil || u.Host == "" {
+			return registry.Invalid("deck: deck could not tell the page of this browser action; allow it once or add the site to domains.act")
+		}
+		return a.addToList(ctx, act, p, u.Host, "domains", "act")
 	}
 	if !ok {
 		return registry.Invalid("deck: only a tool or command of the project can be allowed always")
@@ -117,6 +122,15 @@ func (a *App) allowAlways(ctx context.Context, act registry.Actor, q db.Ask) err
 	if slices.Contains(m.AllowedExternal, local) {
 		return nil
 	}
+	return a.addToList(ctx, act, p, local, "allowed_external")
+}
+
+// addToList adds a value to a list of the project's manifest at the path of keys, as a new revision.
+func (a *App) addToList(ctx context.Context, act registry.Actor, p db.Project, value string, path ...string) error {
+	m, err := loadManifest(ctx, a.Store.Q, p)
+	if err != nil {
+		return err
+	}
 	raw, err := currentText(ctx, a.Store.Q, projectScope(p), KindManifest, ManifestName)
 	if err != nil {
 		return err
@@ -127,9 +141,22 @@ func (a *App) allowAlways(ctx context.Context, act registry.Actor, q db.Ask) err
 	if err := d.Decode(&doc); err != nil {
 		return err
 	}
-	list, _ := doc["allowed_external"].([]any)
-	doc["allowed_external"] = append(list, local)
+	at := doc
+	for _, k := range path[:len(path)-1] {
+		next, _ := at[k].(map[string]any)
+		if next == nil {
+			next = map[string]any{}
+			at[k] = next
+		}
+		at = next
+	}
+	last := path[len(path)-1]
+	list, _ := at[last].([]any)
+	if slices.Contains(list, any(value)) {
+		return nil
+	}
+	at[last] = append(list, value)
 	b, _ := json.MarshalIndent(doc, "", "  ")
-	_, err = a.SaveManifest(ctx, act, p, b, "allow "+local+" always", 0, m.Revision, Call{})
+	_, err = a.SaveManifest(ctx, act, p, b, "allow "+value+" always", 0, m.Revision, Call{})
 	return err
 }

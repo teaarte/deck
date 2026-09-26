@@ -3,6 +3,7 @@ package claudecode
 import (
 	"bufio"
 	"context"
+	"deck2/internal/untrusted"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -218,5 +219,5 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 		return t.res, fmt.Errorf("read %s output: %w", a.Binary, scanErr)
 	}
 	b, _ := os.ReadFile(stderr.Name())
-	return t.finish(waitErr, truncate(strings.TrimSpace(string(b)), 2000), promptErr)
+	return t.finish(waitErr, untrusted.Cut(strings.TrimSpace(string(b)), 2000), promptErr)
 }

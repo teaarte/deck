@@ -14,10 +14,6 @@ import (
 	"deck2/internal/store/db"
 )
 
-func ownerOf(workspace int64) registry.Actor {
-	return registry.Actor{Kind: registry.Owner, Workspace: workspace}
-}
-
 // widens lists what a change by the actor would grant an enabled project; the owner and drafts are not asked.
 func (a *App) widens(ctx context.Context, q *db.Queries, act registry.Actor, projectID int64, next *manifest.Manifest) ([]string, error) {
 	if act.Kind == registry.Owner {

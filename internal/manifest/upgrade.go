@@ -61,6 +61,18 @@ var upgrades = map[int]func(m map[string]any){
 			}
 		}
 	},
+	4: func(m map[string]any) {
+		delete(m, "master_events")
+		if list, ok := m["allowed_external"].([]any); ok {
+			m["allowed_external"] = slices.DeleteFunc(list, func(n any) bool { return strings.HasPrefix(fmt.Sprint(n), "deck.browser_") })
+			dropEmpty(m, "allowed_external")
+		}
+		for _, c := range items(m["commands"]) {
+			reqs, _ := c["requires"].([]any)
+			c["requires"] = slices.DeleteFunc(reqs, func(r any) bool { return r == "live_input" || r == "structured_output" })
+			dropEmpty(c, "requires")
+		}
+	},
 }
 
 var laneSlug = regexp.MustCompile(`[^a-z0-9]+`)

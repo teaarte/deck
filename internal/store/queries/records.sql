@@ -1,7 +1,8 @@
 -- name: UpsertRecord :one
-INSERT INTO record (project_id, collection, key, data) VALUES (?, ?, ?, ?)
+INSERT INTO record (project_id, collection, key, data, created_at, updated_at)
+VALUES (sqlc.arg(project_id), sqlc.arg(collection), sqlc.arg(key), sqlc.arg(data), sqlc.arg(now), sqlc.arg(now))
 ON CONFLICT (project_id, collection, key)
-DO UPDATE SET data = excluded.data, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at
 RETURNING *;
 
 
@@ -26,8 +27,8 @@ SELECT * FROM record WHERE id = ?;
 
 
 -- name: UpdateRecordData :execrows
-UPDATE record SET data = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-WHERE id = ? AND project_id = ? AND collection = ? AND key = ?;
+UPDATE record SET data = sqlc.arg(data), updated_at = sqlc.arg(now)
+WHERE id = sqlc.arg(id) AND project_id = sqlc.arg(project_id) AND collection = sqlc.arg(collection) AND key = sqlc.arg(key);
 
 
 -- name: DeleteRecordDocuments :exec
@@ -62,3 +63,14 @@ UPDATE record SET key = ?, data = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ',
 -- name: InsertRecord :one
 INSERT INTO record (id, project_id, collection, key, data)
 VALUES (sqlc.narg(id), sqlc.arg(project_id), sqlc.arg(collection), sqlc.arg(key), sqlc.arg(data)) RETURNING id;
+-- name: DeleteExpiredRecordDocuments :exec
+DELETE FROM document WHERE owner_kind = 'record'
+AND owner_id IN (SELECT r.id FROM record r WHERE r.project_id = sqlc.arg(project_id) AND r.collection = sqlc.arg(collection)
+  AND r.created_at < CAST(sqlc.arg(before) AS TEXT));
+
+
+-- name: DeleteExpiredRecords :execrows
+DELETE FROM record WHERE project_id = sqlc.arg(project_id) AND collection = sqlc.arg(collection)
+AND created_at < CAST(sqlc.arg(before) AS TEXT);
+
+

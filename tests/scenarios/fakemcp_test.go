@@ -133,7 +133,7 @@ func projectTools(dir string) []fakeTool {
 				return text(fmt.Sprintf("read=%v", err == nil))
 			}},
 		{name: "env", desc: "Tells its environment.", run: func(map[string]any) *mcp.CallToolResult {
-			return text("token=" + os.Getenv("FAKE_TOKEN") + " leak=" + os.Getenv("DECK_LEAK"))
+			return text(fmt.Sprintf("token=%s len=%d leak=%s", os.Getenv("FAKE_TOKEN"), len(os.Getenv("FAKE_TOKEN")), os.Getenv("DECK_LEAK")))
 		}},
 		{name: "hidden", desc: "Not in the tool filter.", run: func(map[string]any) *mcp.CallToolResult {
 			note(dir, "hidden")

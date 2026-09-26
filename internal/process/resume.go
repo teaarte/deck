@@ -7,6 +7,7 @@ import (
 	"deck2/internal/provider"
 	"deck2/internal/sandbox"
 	"deck2/internal/store/db"
+	"deck2/internal/untrusted"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -111,7 +112,7 @@ func (r *Runner) report(ctx context.Context, processID int64) string {
 		for _, c := range calls {
 			fmt.Fprintf(&b, "- %s: %s", c.Tool, c.Outcome)
 			if c.Params != "" {
-				fmt.Fprintf(&b, " %s", truncate(c.Params, 300))
+				fmt.Fprintf(&b, " %s", untrusted.Line(c.Params, 300))
 			}
 			b.WriteString("\n")
 		}
@@ -260,39 +261,40 @@ func outcomeText(raw string) string {
 	var o gateway.Outcome
 	_ = json.Unmarshal([]byte(raw), &o)
 	if o.Error != "" {
-		return "It did not succeed: " + truncate(o.Error, 2000)
+		return "It did not succeed.\n" + untrusted.Value("Error", untrusted.Cut(o.Error, 2000), 300)
 	}
-	return "Result: " + truncate(string(o.Result), 4000)
+	return "\n" + untrusted.Block("Result", untrusted.Cut(string(o.Result), 4000))
 }
 
 func deliveryMessage(asks []db.Ask) string {
 	var b strings.Builder
 	b.WriteString("deck: the owner has responded to what you were waiting for.\n")
 	for _, a := range asks {
+		what := untrusted.Line(a.Text, 600)
 		switch {
 		case a.Kind == ask.KindLogin:
-		case a.Kind == "question" && a.State == "answered":
-			b.WriteString("- Question: " + a.Text + "\n  Answer: " + a.Answer + "\n")
+		case a.Kind == ask.KindQuestion && a.State == "answered":
+			b.WriteString("- Question: " + untrusted.Line(a.Text, 1000) + "\n" + untrusted.Value("Answer", a.Answer, 500) + "\n")
 		case a.Kind == ask.KindCall && a.State == "answered" && a.Result != "":
-			b.WriteString("- Allowed: " + a.Text + ". deck made this call for you; do not make it again yourself. " + outcomeText(a.Result) + "\n")
+			b.WriteString("- Allowed: " + what + ". deck made this call for you; do not make it again yourself. " + outcomeText(a.Result) + "\n")
 		case a.Kind == ask.KindCall && a.State == "answered":
-			b.WriteString("- Rejected: " + a.Text + ". " + gateway.RejectMessage(a.Answer) + "\n")
+			b.WriteString("- Rejected: " + what + ". " + gateway.RejectMessage(a.Answer) + "\n")
 		case a.Kind == ask.KindCall:
-			b.WriteString("- Expired: " + a.Text + ". The owner did not answer in time; the call was not made.\n")
+			b.WriteString("- Expired: " + what + ". The owner did not answer in time; the call was not made.\n")
 		case a.Kind == ask.KindUnknown && a.Answer == ask.UnknownRetry:
 			b.WriteString("- The owner had deck retry a call of unknown outcome. " + outcomeText(a.Result) + "\n")
 		case a.Kind == ask.KindSignIn && a.State == "answered":
-			b.WriteString("- The owner signed in: " + a.Text + " Go on with the site.\n")
+			b.WriteString("- The owner signed in: " + what + " Go on with the site.\n")
 		case a.Kind == ask.KindUnknown:
-			b.WriteString("- " + a.Text + " The owner counts it as done; do not make it again.\n")
-		case a.Kind == "confirm" && a.State == "answered" && a.Answer == "allow":
-			b.WriteString("- Allowed: " + a.Text + ". Make exactly the same call again; it will go through.\n")
-		case a.Kind == "confirm" && a.State == "answered":
-			b.WriteString("- Rejected: " + a.Text + ". " + gateway.RejectMessage(a.Answer) + "\n")
-		case a.Kind == "confirm":
-			b.WriteString("- Expired: " + a.Text + ". The call was not made.\n")
+			b.WriteString("- " + what + " The owner counts it as done; do not make it again.\n")
+		case a.Kind == ask.KindConfirm && a.State == "answered" && a.Answer == "allow":
+			b.WriteString("- Allowed: " + what + ". Make exactly the same call again; it will go through.\n")
+		case a.Kind == ask.KindConfirm && a.State == "answered":
+			b.WriteString("- Rejected: " + what + ". " + gateway.RejectMessage(a.Answer) + "\n")
+		case a.Kind == ask.KindConfirm:
+			b.WriteString("- Expired: " + what + ". The call was not made.\n")
 		default:
-			b.WriteString("- Expired without an answer: " + a.Text + "\n")
+			b.WriteString("- Expired without an answer: " + what + "\n")
 		}
 	}
 	b.WriteString("Continue the task.")

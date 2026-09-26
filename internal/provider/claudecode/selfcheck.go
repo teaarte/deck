@@ -33,8 +33,8 @@ func (a *Adapter) Version(ctx context.Context) (string, error) {
 	return v, nil
 }
 
-// SelfCheck runs a short session of the CLI: output by schema, a permission prompt deck answers (a plain echo
-// is not asked about, a write is), and a resume that keeps the session. Its permission tool is served here.
+// SelfCheck runs a short session of the CLI: output by schema, token counts, a permission prompt deck answers,
+// and a resume that keeps the session. Its permission tool is served here.
 func (a *Adapter) SelfCheck(ctx context.Context) provider.Check {
 	var c provider.Check
 	if c.Version, c.Err = a.Version(ctx); c.Err != nil {
@@ -82,7 +82,13 @@ func (a *Adapter) SelfCheck(ctx context.Context) provider.Check {
 	req := provider.Request{Cwd: dir, SessionID: uuid.NewString(), MCPURL: "http://" + ln.Addr().String() + "/mcp",
 		PermissionMCP: "mcp__deck__approve", AllowedTools: []string{"StructuredOutput"},
 		ResultSchema: json.RawMessage(`{"type":"object","required":["word"],"properties":{"word":{"type":"string"}}}`),
-		Prompt: "This is a self-check of deck. Run exactly this Bash command once: " + command + "\nThen give the word " + word + " as the result."}
+		Prompt:       "This is a self-check of deck. Run exactly this Bash command once: " + command + "\nThen give the word " + word + " as the result."}
+	var tokens int64
+	req.OnUsage = func(u provider.Usage) {
+		mu.Lock()
+		tokens += u.Input + u.Output + u.CacheRead + u.CacheCreation
+		mu.Unlock()
+	}
 	step := func(what string) bool {
 		res, err := a.Run(ctx, req)
 		c.RateLimited, c.NeedsLogin = res.RateLimited, res.NeedsLogin
@@ -102,8 +108,12 @@ func (a *Adapter) SelfCheck(ctx context.Context) provider.Check {
 		return c
 	}
 	mu.Lock()
-	seen := strings.Join(asked, "; ")
+	seen, counted := strings.Join(asked, "; "), tokens
 	mu.Unlock()
+	if counted == 0 {
+		c.Err = errors.New("token counts: the final event of the turn had no usage, so the model call journal would count zero")
+		return c
+	}
 	written, _ := os.ReadFile(filepath.Join(dir, "word.txt"))
 	switch {
 	case !strings.Contains(seen, "Bash"):

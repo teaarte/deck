@@ -43,10 +43,6 @@ SELECT * FROM ask WHERE process_id = CAST(sqlc.arg(process_id) AS INTEGER) AND s
 UPDATE ask SET delivered = 1 WHERE id = ?;
 
 
--- name: ExpireAsk :execrows
-UPDATE ask SET state = 'expired' WHERE id = ? AND state = 'open';
-
-
 -- name: CloseOpenAsksOfProcess :many
 UPDATE ask SET state = 'expired', delivered = 1
 WHERE process_id = CAST(sqlc.arg(process_id) AS INTEGER) AND state = 'open' AND kind NOT IN ('warning', 'unknown')
@@ -67,10 +63,6 @@ WHERE id = (
     ORDER BY a.id LIMIT 1)
 AND used = 0
 RETURNING *;
-
-
--- name: MarkAskUsed :exec
-UPDATE ask SET used = 1, delivered = 1 WHERE id = ?;
 
 
 -- name: UseApproval :execrows

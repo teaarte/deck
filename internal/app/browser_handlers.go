@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"deck2/internal/untrusted"
 	"encoding/json"
 	"fmt"
 	"net/url"
@@ -58,9 +59,9 @@ func (a *App) browserNeedsLogin(ctx context.Context, act registry.Actor, in stru
 	if act.ProcessID == 0 {
 		return nil, registry.Invalid("deck: only a process waits for a sign-in")
 	}
-	a.setHealth(ctx, siteHealth(site), "needs_login", truncate(in.Why, 300))
+	a.setHealth(ctx, siteHealth(site), "needs_login", untrusted.Cut(in.Why, 300))
 	payload, _ := json.Marshal(map[string]string{"site": site})
-	text := fmt.Sprintf("Sign in to %s in deck's browser (deck.browser_login), then say done: %s", site, truncate(in.Why, 300))
+	text := fmt.Sprintf("Sign in to %s in deck's browser (deck.browser_login), then say done: %s", site, untrusted.Cut(in.Why, 300))
 	var row db.Ask
 	err = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		var err error
@@ -92,11 +93,4 @@ func (a *App) signedIn(ctx context.Context, workspace int64, key, value string) 
 		}
 	}
 	return n, nil
-}
-
-func truncate(s string, n int) string {
-	if len(s) <= n {
-		return s
-	}
-	return s[:n] + "…"
 }

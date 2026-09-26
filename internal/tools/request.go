@@ -26,6 +26,8 @@ type outgoing struct {
 	req   *http.Request
 	body  *body
 	oauth *Auth
+	// secrets are the values the call carries; the answer reaches the caller without them.
+	secrets []string
 }
 
 func (h *HTTP) request(ctx context.Context, act registry.Actor, p db.Project, t manifest.HTTPTool, in map[string]any) (*outgoing, error) {
@@ -69,6 +71,7 @@ func (h *HTTP) request(ctx context.Context, act registry.Actor, p db.Project, t 
 				if err != nil && serr == nil {
 					serr = err
 				}
+				out.secrets = append(out.secrets, v)
 				return v
 			}
 			return put(m, func(s string) string { return s })
@@ -92,6 +95,7 @@ func (h *HTTP) request(ctx context.Context, act registry.Actor, p db.Project, t 
 			if err != nil && serr == nil {
 				serr = err
 			}
+			out.secrets = append(out.secrets, v)
 			req.Header.Set(a.Header, a.Prefix+strings.TrimSpace(v))
 		}
 	}
@@ -122,6 +126,7 @@ func (h *HTTP) send(ctx context.Context, p db.Project, o *outgoing) (*http.Respo
 		}
 		if token != "" {
 			r.Header.Set("Authorization", "Bearer "+token)
+			o.secrets = append(o.secrets, token)
 		}
 		resp, err := h.Client.Do(r)
 		if err != nil {

@@ -3,6 +3,7 @@ package process
 import (
 	"bytes"
 	"context"
+	"deck2/internal/untrusted"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -101,7 +102,7 @@ func (r *Runner) runScript(ctx context.Context, t turn, trial bool) {
 		return
 	}
 	if result != "" && !json.Valid([]byte(result)) {
-		fail(fmt.Errorf("script %s printed output that is not JSON: %s", job.Script.Name, truncate(result, 300)))
+		fail(fmt.Errorf("script %s printed output that is not JSON: %s", job.Script.Name, untrusted.Cut(result, 300)))
 		return
 	}
 	if verr := validate(t.cmd, json.RawMessage(result)); verr != nil {
@@ -145,5 +146,5 @@ func (r *Runner) failedInARow(ctx context.Context, t turn, last string) {
 	}
 	proj, _ := r.st.Q.GetProject(ctx, p.ProjectID)
 	r.warn(ctx, p.ID, fmt.Sprintf("Script command %s.%s failed 3 times in a row; fix the script or let an agent do the work. Last error: %s",
-		proj.Name, p.Command, truncate(strings.TrimSpace(last), 500)))
+		proj.Name, p.Command, untrusted.Cut(strings.TrimSpace(last), 500)))
 }

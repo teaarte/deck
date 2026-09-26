@@ -3,8 +3,10 @@ package tools
 import (
 	"context"
 	"crypto/sha256"
+	"deck2/internal/untrusted"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -68,28 +70,31 @@ func (x *MCP) spec(p db.Project, name string, s manifest.MCPServer) (mcphost.Spe
 		}
 	}
 	env = append(env, "HOME="+dir, "TMPDIR="+dir)
+	var secrets []string
 	for _, k := range sortedKeys(s.Env) {
-		v, err := x.expand(p.WorkspaceID, s.Env[k])
+		v, used, err := x.expand(p.WorkspaceID, s.Env[k])
 		if err != nil {
 			return mcphost.Spec{}, err
 		}
-		env = append(env, k+"="+v)
+		env, secrets = append(env, k+"="+v), append(secrets, used...)
 	}
-	return mcphost.Spec{Command: s.Command, Args: s.Args, Env: env, Dir: dir, Confine: true}, nil
+	return mcphost.Spec{Command: s.Command, Args: s.Args, Env: env, Dir: dir, Confine: true, Secrets: secrets}, nil
 }
 
 var envSecret = regexp.MustCompile(`\$secret\.[A-Za-z0-9_.-]+`)
 
-func (x *MCP) expand(workspace int64, v string) (string, error) {
+func (x *MCP) expand(workspace int64, v string) (string, []string, error) {
 	var serr error
+	var used []string
 	out := envSecret.ReplaceAllStringFunc(v, func(m string) string {
 		s, err := x.Secrets(workspace, strings.TrimPrefix(m, "$secret."))
 		if err != nil && serr == nil {
 			serr = err
 		}
+		used = append(used, s)
 		return s
 	})
-	return out, serr
+	return out, used, serr
 }
 
 // Start starts the servers of an enabled project whose tools deck has not listed under their spec yet.
@@ -181,7 +186,7 @@ func (x *MCP) Commands(ctx context.Context, q *db.Queries, p db.Project, m *mani
 		out = append(out, &registry.Command{Name: p.Name + "." + r.Server + "." + r.Name, Title: title, Description: desc,
 			Class: class, Input: json.RawMessage(r.Input), Callers: []string{registry.Master, registry.Agent}, ProjectID: p.ID,
 			Loose: true, Journals: class == registry.External, Handler: x.handler(p, r.Server, s, r.Name, class, r.Fingerprint),
-			Fingerprint: func(context.Context) string { return print },
+			Fingerprint: func(context.Context, int64) string { return print },
 			Allowed:     func(_ context.Context, _ registry.Actor, listed bool) (bool, error) { return listed && !changed, nil }})
 	}
 	return out, nil
@@ -226,9 +231,10 @@ func (x *MCP) call(ctx context.Context, act registry.Actor, name, key string, sp
 	print string, check func([]*mcp.Tool) error) (any, error) {
 	res, err := x.Host.Call(ctx, key, spec, tool, raw, check)
 	if err != nil {
-		return nil, failed(ctx, x.GW, intent, name, print, err)
+		return nil, failed(ctx, x.GW, intent, name, print, err, spec.Secrets...)
 	}
 	out, cerr := Content(x.Dirs, act.ProcessID, name, res)
+	out, cerr = redacted(out, spec.Secrets), redactErr(cerr, spec.Secrets)
 	if intent != 0 {
 		text := ""
 		if cerr != nil {
@@ -237,6 +243,36 @@ func (x *MCP) call(ctx context.Context, act registry.Actor, name, key string, sp
 		x.GW.Finish(ctx, intent, "done", "", text)
 	}
 	return out, cerr
+}
+
+// redacted is a tool result without the secret values deck gave the tool.
+func redacted(v any, secrets []string) any {
+	if v == nil || len(secrets) == 0 {
+		return v
+	}
+	b, err := json.Marshal(v)
+	if err != nil {
+		return v
+	}
+	clean := untrusted.Redact(string(b), secrets)
+	if clean == string(b) {
+		return v
+	}
+	var out any
+	if json.Unmarshal([]byte(clean), &out) != nil {
+		return map[string]any{"text": clean}
+	}
+	return out
+}
+
+func redactErr(err error, secrets []string) error {
+	if err == nil || len(secrets) == 0 {
+		return err
+	}
+	if clean := untrusted.Redact(err.Error(), secrets); clean != err.Error() {
+		return errors.New(clean)
+	}
+	return err
 }
 
 func sortedKeys[V any](m map[string]V) []string {

@@ -56,4 +56,9 @@ func TestRealBrowser(t *testing.T) {
 	if got := ag.last(1)[0]; !strings.Contains(got.out, `"waiting"`) {
 		t.Fatalf("a click on a read domain of the real browser waits for the owner: %+v", got)
 	}
+	e.createProject("research", browserManifest(`{"read": ["*"]}`))
+	e.waitState(e.start("research", "browse", steps(nav(page.URL), step{"browser_tabs", map[string]any{"action": "list"}})), "done")
+	if got := ag.last(2); got[0].isErr || !strings.Contains(got[1].out, "Form") || strings.Contains(got[1].out, "localhost") {
+		t.Fatalf("a project reading any site gets a real browser of its own without the signed-in tabs: %+v", got)
+	}
 }

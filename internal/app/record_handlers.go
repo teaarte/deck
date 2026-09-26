@@ -62,7 +62,7 @@ func (a *App) recordsUpsert(ctx context.Context, act registry.Actor, in struct{ 
 	}
 	var out UpsertResult
 	err = a.writeRecords(ctx, p, func(ctx context.Context, q *db.Queries, m *manifest.Manifest) error {
-		out, err = UpsertJSONL(ctx, q, p.ID, m, in.Collection, in.Records)
+		out, err = upsertJSONL(ctx, q, a.Cfg.Now(), p.ID, m, in.Collection, in.Records)
 		return err
 	})
 	return out, err
@@ -101,7 +101,7 @@ func (a *App) recordUpdate(ctx context.Context, act registry.Actor, in struct {
 		if err != nil {
 			return err
 		}
-		return UpdateRecord(ctx, q, cur, m, data)
+		return updateRecord(ctx, q, a.Cfg.Now(), cur, m, data)
 	})
 	if err != nil {
 		return nil, err

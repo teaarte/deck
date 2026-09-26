@@ -78,6 +78,41 @@ func (q *Queries) CreateFile(ctx context.Context, arg CreateFileParams) (File, e
 	return i, err
 }
 
+const deleteExpiredRecordFiles = `-- name: DeleteExpiredRecordFiles :many
+DELETE FROM file WHERE owner_kind = 'record' AND created_at < CAST(?1 AS TEXT)
+AND owner_id IN (SELECT r.id FROM record r WHERE r.project_id = ?2 AND r.collection = ?3)
+RETURNING id
+`
+
+type DeleteExpiredRecordFilesParams struct {
+	Before     string
+	ProjectID  int64
+	Collection string
+}
+
+func (q *Queries) DeleteExpiredRecordFiles(ctx context.Context, arg DeleteExpiredRecordFilesParams) ([]int64, error) {
+	rows, err := q.db.QueryContext(ctx, deleteExpiredRecordFiles, arg.Before, arg.ProjectID, arg.Collection)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const deleteFile = `-- name: DeleteFile :exec
 DELETE FROM file WHERE id = ?
 `

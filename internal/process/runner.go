@@ -25,10 +25,10 @@ const (
 	// StateRateLimited is a pause on a provider's usage limit; StateWaitingProvider waits for a red self-check.
 	StateRateLimited     = "rate_limited"
 	StateWaitingProvider = "waiting_provider"
-	StateDone          = "done"
-	StateError         = "error"
-	StateInterrupted   = "interrupted"
-	StateStopped       = "stopped"
+	StateDone            = "done"
+	StateError           = "error"
+	StateInterrupted     = "interrupted"
+	StateStopped         = "stopped"
 )
 
 // MaxDepth is the longest chain of processes that start one another.
@@ -63,13 +63,13 @@ type Config struct {
 // Runner owns process lifecycles. A process stops in waiting_answer when the agent is blocked on the
 // owner; answers that arrive later are delivered in one resume message.
 type Runner struct {
-	st       *store.Store
-	gw       *gateway.Gateway
+	st        *store.Store
+	gw        *gateway.Gateway
 	bus       *events.Bus
 	providers Providers
 	scripts   *script.Exec
-	cfg      Config
-	projects Projects
+	cfg       Config
+	projects  Projects
 	// OnDone runs after a process finishes done with a result that is not empty and fits its schema.
 	OnDone func(ctx context.Context, p db.Process)
 
@@ -97,7 +97,6 @@ type Providers interface {
 
 // Projects gives the runner the current manifest and md prompt of a project.
 type Projects interface {
-	Manifest(ctx context.Context, projectID int64) (*manifest.Manifest, error)
 	// ManifestAt is a stored revision of the manifest; 0 is the current one.
 	ManifestAt(ctx context.Context, projectID, revision int64) (*manifest.Manifest, error)
 	Prompt(ctx context.Context, projectID int64) (string, error)

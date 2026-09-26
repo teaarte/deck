@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 
@@ -29,7 +30,9 @@ func (m *Manifest) compile() error {
 	m.checkBoard(fail)
 	m.checkScreens(fail)
 	for _, name := range m.AllowedExternal {
-		if !m.knownAction(name) {
+		if strings.HasPrefix(name, schemas.Builtin+".browser_") {
+			fail("allowed_external: %q: the browser acts without asking only on the sites in domains.act", name)
+		} else if !m.knownAction(name) {
 			fail("allowed_external: %q is neither a command nor a tool of this project", name)
 		}
 	}
@@ -221,8 +224,12 @@ func (m *Manifest) checkScreens(fail func(string, ...any)) {
 				if b.Source != nil {
 					c = m.collections[b.Source.Collection]
 				}
+				if c == nil && b.Source == nil {
+					fail("%s: a %s block needs source.collection", where, b.Type)
+					continue
+				}
 				if c == nil {
-					fail("%s: unknown collection", where)
+					fail("%s: unknown collection %q; collections are %s", where, b.Source.Collection, strings.Join(slices.Sorted(maps.Keys(m.collections)), ", "))
 					continue
 				}
 				fields := c.fields

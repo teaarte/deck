@@ -4,6 +4,7 @@ import (
 	"context"
 	"deck2/internal/ask"
 	"deck2/internal/store/db"
+	"deck2/internal/untrusted"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -112,7 +113,7 @@ func (g *Gateway) confirm(ctx context.Context, s *Session, in approveInput) deci
 	}
 	g.log(ctx, s, in.ToolName, "external", "waiting", payload)
 	params, _ := json.Marshal(in.Input)
-	text := fmt.Sprintf("Agent wants %s with %s", in.ToolName, truncate(string(params), 500))
+	text := fmt.Sprintf("Agent wants %s with %s", in.ToolName, untrusted.Cut(string(params), 500))
 	now := g.cfg.Now()
 	var expires time.Time
 	if g.cfg.ConfirmTTL > 0 {
@@ -148,7 +149,7 @@ func (g *Gateway) confirm(ctx context.Context, s *Session, in approveInput) deci
 func RejectMessage(answer string) string {
 	msg := "deck: the owner rejected this call."
 	if reason := strings.TrimPrefix(answer, "deny:"); reason != answer && reason != "" {
-		msg += " Reason: " + reason
+		msg += " Reason: " + untrusted.Line(reason, 500)
 	}
 	return msg
 }
@@ -166,11 +167,4 @@ func (g *Gateway) ceiling(ctx context.Context, processID int64, run bool) {
 
 func (g *Gateway) delivered(ctx context.Context, ask int64) {
 	_ = g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error { return q.MarkAskDelivered(ctx, ask) })
-}
-
-func truncate(s string, n int) string {
-	if len(s) <= n {
-		return s
-	}
-	return s[:n] + "…"
 }

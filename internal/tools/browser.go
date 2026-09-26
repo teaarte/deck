@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"deck2/internal/untrusted"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -21,8 +22,12 @@ import (
 	"deck2/internal/registry"
 )
 
-// BrowserKey names the browser server in the host.
-const BrowserKey = "browser"
+// BrowserKey names the browser server with deck's profile; OpenBrowserKey the one without sign-ins, which
+// projects that read any site get.
+const (
+	BrowserKey     = "browser"
+	OpenBrowserKey = "browser-open"
+)
 
 // Tools of the browser server that only read; the ones in browserActs click, type or submit, and the rest
 // (running code in the page or the server, request details with cookies) are never offered.
@@ -52,9 +57,12 @@ type Browser struct {
 
 func (b *Browser) dir(name string) string { return filepath.Join(b.Home, "browser", name) }
 
-func (b *Browser) spec() mcphost.Spec {
+func (b *Browser) spec(open bool) mcphost.Spec {
 	args := append(slices.Clone(b.Argv[1:]), "--user-data-dir", b.dir("profile"), "--output-dir", b.dir("out"))
-	if !b.headed {
+	if open {
+		args = append(slices.Clone(b.Argv[1:]), "--isolated", "--output-dir", b.dir("open-out"))
+	}
+	if !b.headed || open {
 		args = append(args, "--headless")
 	}
 	var env []string
@@ -96,7 +104,7 @@ func (b *Browser) Ensure(ctx context.Context) {
 	}
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	_, _ = b.Host.Tools(ctx, BrowserKey, b.spec())
+	_, _ = b.Host.Tools(ctx, BrowserKey, b.spec(false))
 }
 
 // Commands are the browser tools as builtin registry commands.
@@ -119,11 +127,21 @@ func (b *Browser) build(list []*mcp.Tool) {
 		if act {
 			c.Class, c.Journals, c.Handler = registry.External, true, b.actor(t.Name)
 			c.Allowed = b.allowed
-			c.Fingerprint = func(ctx context.Context) string {
+			c.Fingerprint = func(ctx context.Context, project int64) string {
+				m, err := b.Manifests(ctx, project)
+				if err != nil {
+					return ""
+				}
 				b.mu.Lock()
 				defer b.mu.Unlock()
-				page, _ := b.current(ctx)
+				page, _ := b.current(ctx, readsAnySite(m))
 				return page
+			}
+			c.Target = func(page string) string {
+				if page == "" {
+					return "on a page deck could not tell"
+				}
+				return "on " + untrusted.Cut(page, 300)
 			}
 		}
 		if registry.Prepare(c) == nil {
@@ -135,13 +153,19 @@ func (b *Browser) build(list []*mcp.Tool) {
 	b.listMu.Unlock()
 }
 
-func (b *Browser) call(ctx context.Context, tool string, args json.RawMessage) (*mcp.CallToolResult, error) {
-	return b.Host.Call(ctx, BrowserKey, b.spec(), tool, args, nil)
+// readsAnySite says a project has "*" in read: it gets the browser without the owner's sign-ins.
+func readsAnySite(m *manifest.Manifest) bool { return slices.Contains(m.Domains.Read, "*") }
+
+func (b *Browser) call(ctx context.Context, open bool, tool string, args json.RawMessage) (*mcp.CallToolResult, error) {
+	if open {
+		return b.Host.Call(ctx, OpenBrowserKey, b.spec(true), tool, args, nil)
+	}
+	return b.Host.Call(ctx, BrowserKey, b.spec(false), tool, args, nil)
 }
 
 // current is the URL of the page the browser shows; b.mu is held.
-func (b *Browser) current(ctx context.Context) (string, error) {
-	res, err := b.call(ctx, "browser_tabs", json.RawMessage(`{"action":"list"}`))
+func (b *Browser) current(ctx context.Context, open bool) (string, error) {
+	res, err := b.call(ctx, open, "browser_tabs", json.RawMessage(`{"action":"list"}`))
 	if err != nil {
 		return "", err
 	}
@@ -176,18 +200,15 @@ func on(domains []string, page string) bool {
 	return gateway.Reachable(domains, net.JoinHostPort(u.Hostname(), port))
 }
 
-// allowed lets an action run without the owner when the project lists the tool or the page is on an act domain.
-func (b *Browser) allowed(ctx context.Context, act registry.Actor, listed bool) (bool, error) {
-	if listed {
-		return true, nil
-	}
+// allowed lets an action run without the owner when the page is on an act domain.
+func (b *Browser) allowed(ctx context.Context, act registry.Actor, _ bool) (bool, error) {
 	m, err := b.Manifests(ctx, act.ProjectID)
 	if err != nil {
 		return false, err
 	}
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	page, err := b.current(ctx)
+	page, err := b.current(ctx, readsAnySite(m))
 	return err == nil && on(m.Domains.Act, page), nil
 }
 
@@ -195,35 +216,58 @@ func (b *Browser) reader(tool string) registry.Handler {
 	return func(ctx context.Context, act registry.Actor, raw json.RawMessage) (any, error) {
 		var args struct{ URL, Action string }
 		_ = json.Unmarshal(raw, &args)
+		m, err := b.Manifests(ctx, act.ProjectID)
+		if err != nil {
+			return nil, err
+		}
 		if tool == "browser_navigate" || tool == "browser_tabs" && args.Action == "new" && args.URL != "" {
-			m, err := b.Manifests(ctx, act.ProjectID)
-			if err != nil {
-				return nil, err
-			}
 			if !on(append(slices.Clone(m.Domains.Read), m.Domains.Act...), args.URL) {
 				return nil, registry.Refuse("deck: %s is not on a read or act domain of this project; the owner adds domains to its manifest (\"*\" in read reads any site)", args.URL)
 			}
 		}
 		b.mu.Lock()
 		defer b.mu.Unlock()
-		res, err := b.call(ctx, tool, raw)
+		res, err := b.call(ctx, readsAnySite(m), tool, raw)
 		if err != nil {
 			return nil, fmt.Errorf("deck: %s: %v", tool, err)
 		}
-		if tool != "browser_close" && tool != "browser_resize" && !(tool == "browser_tabs" && args.Action == "list") {
+		if tool == "browser_tabs" && args.Action == "list" {
+			ownTabs(res, append(slices.Clone(m.Domains.Read), m.Domains.Act...))
+		} else if tool != "browser_close" && tool != "browser_resize" {
 			if page, off := b.offDomains(ctx, act.ProjectID); off {
-				return nil, registry.Refuse("deck: the browser shows %s, which is not on a read or act domain of this project; what it shows is withheld", page)
+				return nil, registry.Refuse("deck: the browser shows %s, which is not on a read or act domain of this project; what it shows is withheld", untrusted.Line(page, 300))
 			}
 		}
 		return Content(b.Dirs, act.ProcessID, tool, res)
 	}
 }
 
+// ownTabs leaves out of a tab list the pages off the domains, which may be other projects' or the owner's.
+func ownTabs(res *mcp.CallToolResult, domains []string) {
+	for _, c := range res.Content {
+		t, ok := c.(*mcp.TextContent)
+		if !ok {
+			continue
+		}
+		lines := strings.Split(t.Text, "\n")
+		for i, line := range lines {
+			trim := strings.TrimSpace(line)
+			if j := strings.LastIndex(trim, "]("); j >= 0 && strings.HasSuffix(trim, ")") && !on(domains, trim[j+2:len(trim)-1]) {
+				lines[i] = "- (a tab off the domains of this project)"
+			}
+		}
+		t.Text = strings.Join(lines, "\n")
+	}
+}
+
 // offDomains reports the page the browser shows when it is off the project's read and act domains; b.mu is held.
 func (b *Browser) offDomains(ctx context.Context, project int64) (string, bool) {
 	m, err := b.Manifests(ctx, project)
-	page, perr := b.current(ctx)
-	if err != nil || perr != nil {
+	if err != nil {
+		return "", true
+	}
+	page, perr := b.current(ctx, readsAnySite(m))
+	if perr != nil {
 		return page, true
 	}
 	return page, !on(append(slices.Clone(m.Domains.Read), m.Domains.Act...), page)
@@ -239,7 +283,7 @@ func (b *Browser) Login(ctx context.Context, page string) error {
 	b.Host.Stop(BrowserKey)
 	b.headed = true
 	args, _ := json.Marshal(map[string]string{"url": page})
-	_, err := b.call(ctx, "browser_navigate", args)
+	_, err := b.call(ctx, false, "browser_navigate", args)
 	return err
 }
 

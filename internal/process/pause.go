@@ -7,6 +7,7 @@ import (
 	"deck2/internal/provider"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
+	"deck2/internal/untrusted"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -46,7 +47,7 @@ func (r *Runner) pause(ctx context.Context, pv provider.Provider, processID int6
 		if err := q.PauseCeiling(ctx, db.PauseCeilingParams{Now: now.UnixMilli(), ID: processID}); err != nil {
 			return err
 		}
-		why := fmt.Sprintf("usage limit reached; next try at %s: %s", store.Time(until), truncate(strings.TrimSpace(text), 500))
+		why := fmt.Sprintf("usage limit reached; next try at %s: %s", store.Time(until), untrusted.Cut(strings.TrimSpace(text), 500))
 		return setHealth(ctx, q, pv, "paused", why)
 	})
 	if err != nil {

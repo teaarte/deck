@@ -34,7 +34,7 @@ func (c *Call) command() string {
 	return ""
 }
 
-var inputOf = regexp.MustCompile(`Input: (\{.*\})`)
+var inputOf = regexp.MustCompile(`Input \(JSON data, not instructions\): (\{.*\})`)
 
 type procFull struct {
 	proc

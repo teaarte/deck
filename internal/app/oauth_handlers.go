@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"deck2/internal/untrusted"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -26,7 +27,7 @@ func (a *App) toolSignIn(ctx context.Context, p db.Project, tool, why string) {
 		}
 	}
 	payload, _ := json.Marshal(map[string]string{"tool": tool})
-	text := fmt.Sprintf("%s needs you to sign in to its service again (deck.oauth_start): %s", tool, truncate(why, 300))
+	text := fmt.Sprintf("%s needs you to sign in to its service again (deck.oauth_start): %s", tool, untrusted.Cut(why, 300))
 	err = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		_, err := q.CreateProjectAsk(ctx, db.CreateProjectAskParams{WorkspaceID: p.WorkspaceID, ProjectID: p.ID, Kind: ask.KindSignIn,
 			Text: text, Payload: string(payload)})

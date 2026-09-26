@@ -29,6 +29,8 @@ type Spec struct {
 	URL     string
 	// Confine runs a program in the sandbox.
 	Confine bool
+	// Secrets are the secret values in Env; what the server writes to stderr shows without them.
+	Secrets []string `json:"-"`
 }
 
 func (s Spec) hash() string {
@@ -66,6 +68,7 @@ type server struct {
 	sess    *mcp.ClientSession
 	cmd     *exec.Cmd
 	stderr  *tail
+	secrets []string
 	started time.Time
 	// crashes counts exits soon after a start; paused holds starts back after too many.
 	crashes int
@@ -182,19 +185,6 @@ func (h *Host) Stop(key string) {
 	s.mu.Lock()
 	s.stop()
 	s.mu.Unlock()
-}
-
-// Running reports whether the server runs now.
-func (h *Host) Running(key string) bool {
-	h.mu.Lock()
-	s := h.servers[key]
-	h.mu.Unlock()
-	if s == nil {
-		return false
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.sess != nil
 }
 
 // Close stops every server; later calls fail.

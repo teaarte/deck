@@ -3,6 +3,7 @@ package tools
 import (
 	"bytes"
 	"context"
+	"deck2/internal/untrusted"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -64,7 +65,7 @@ func (h *HTTP) Command(p db.Project, t manifest.HTTPTool) *registry.Command {
 	return &registry.Command{Name: p.Name + "." + t.Name, Title: title, Description: t.Description, Class: t.Class,
 		Input: t.Input, Result: t.Result, Callers: []string{registry.Owner, registry.Master, registry.Agent}, ProjectID: p.ID,
 		Journals: t.Class == registry.External, Handler: h.handler(p, t),
-		Fingerprint: func(context.Context) string { return print }, ConfirmTTL: time.Duration(t.ConfirmTTLMinutes) * time.Minute}
+		Fingerprint: func(context.Context, int64) string { return print }, Target: func(string) string { return t.Method + " " + t.URL }, ConfirmTTL: time.Duration(t.ConfirmTTLMinutes) * time.Minute}
 }
 
 // canonical is JSON with sorted keys and no spaces.
@@ -123,7 +124,7 @@ func (h *HTTP) handler(p db.Project, t manifest.HTTPTool) registry.Handler {
 			return nil, err
 		}
 		defer resp.Body.Close()
-		out, ext, err := h.response(act, t, resp)
+		out, ext, err := h.response(act, t, resp, req.secrets)
 		if resp.StatusCode >= 500 {
 			h.health(ctx, name, "error", err.Error())
 		} else {
@@ -195,9 +196,9 @@ func fill(v any, in map[string]any) any {
 	return v
 }
 
-// response turns an answer into the tool result: JSON checked by the result schema, text, or a binary body
-// saved as a file in the results folder of the calling process.
-func (h *HTTP) response(act registry.Actor, t manifest.HTTPTool, resp *http.Response) (any, string, error) {
+// response turns an answer into the tool result: JSON by the result schema or text, both without the call's
+// secrets, or a binary body saved as a file in the results folder of the calling process.
+func (h *HTTP) response(act registry.Actor, t manifest.HTTPTool, resp *http.Response, secrets []string) (any, string, error) {
 	ct, _, _ := mime.ParseMediaType(resp.Header.Get("Content-Type"))
 	jsonish := ct == "application/json" || strings.HasSuffix(ct, "+json")
 	if resp.StatusCode >= 400 || jsonish || strings.HasPrefix(ct, "text/") || resp.ContentLength == 0 {
@@ -205,8 +206,9 @@ func (h *HTTP) response(act registry.Actor, t manifest.HTTPTool, resp *http.Resp
 		if err != nil {
 			return nil, "", fmt.Errorf("deck: %s: reading the answer: %v", t.Name, err)
 		}
+		b = []byte(untrusted.Redact(string(b), secrets))
 		if resp.StatusCode >= 400 {
-			return nil, "", fmt.Errorf("deck: %s answered HTTP %d: %s", t.Name, resp.StatusCode, truncate(string(b), 2000))
+			return nil, "", fmt.Errorf("deck: %s answered HTTP %d: %s", t.Name, resp.StatusCode, untrusted.Cut(string(b), 2000))
 		}
 		if !jsonish {
 			return map[string]any{"status": resp.StatusCode, "text": string(b)}, "", nil
@@ -221,7 +223,7 @@ func (h *HTTP) response(act registry.Actor, t manifest.HTTPTool, resp *http.Resp
 		}
 		if len(t.Result) > 0 {
 			if err := manifest.CheckValue(t.Result, v); err != nil {
-				return v, ext, fmt.Errorf("deck: the answer of %s does not match its result schema: %v; answer: %s", t.Name, err, truncate(string(b), 1000))
+				return v, ext, fmt.Errorf("deck: the answer of %s does not match its result schema: %v; answer: %s", t.Name, err, untrusted.Cut(string(b), 1000))
 			}
 		}
 		return v, ext, nil
@@ -231,11 +233,4 @@ func (h *HTTP) response(act registry.Actor, t manifest.HTTPTool, resp *http.Resp
 		return nil, "", err
 	}
 	return map[string]any{"file": name, "type": ct, "size": n}, "", nil
-}
-
-func truncate(s string, n int) string {
-	if len(s) <= n {
-		return s
-	}
-	return s[:n] + "…"
 }

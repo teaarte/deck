@@ -35,10 +35,6 @@ ORDER BY id LIMIT 1;
 UPDATE process SET state = sqlc.arg(to_state) WHERE id = sqlc.arg(id) AND state = sqlc.arg(from_state);
 
 
--- name: SetProcessSession :exec
-UPDATE process SET session_id = ? WHERE id = ?;
-
-
 -- name: FinishProcess :execrows
 UPDATE process
 SET state = ?, result = ?, not_by_schema = ?, error = ?, finished_at = ?, deadline_ms = NULL, silent_since_ms = NULL

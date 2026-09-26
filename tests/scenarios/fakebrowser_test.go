@@ -10,11 +10,15 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// browserTools is a fake Playwright MCP server: one tab, pages are only their URLs.
+// browserTools is a fake Playwright MCP server: one tab, pages are only their URLs; a nocurrent file hides
+// which tab is current.
 func browserTools(dir string) []fakeTool {
 	mode := "headed"
 	if slices.Contains(os.Args, "--headless") {
 		mode = "headless"
+	}
+	if slices.Contains(os.Args, "--isolated") && !slices.Contains(os.Args, "--user-data-dir") {
+		mode += ":isolated"
 	}
 	note(dir, "start:"+mode)
 	page := "about:blank"
@@ -51,7 +55,11 @@ func browserTools(dir string) []fakeTool {
 				page = strings.TrimSpace(string(next))
 				_ = os.Remove(filepath.Join(dir, "flip"))
 			}
-			return text("### Result\n- 0: (current) [Title (1)](" + shown + ")")
+			mark := "(current) "
+			if _, err := os.Stat(filepath.Join(dir, "nocurrent")); err == nil {
+				mark = ""
+			}
+			return text("### Result\n- 0: " + mark + "[Title (1)](" + shown + ")")
 		}},
 		{name: "browser_snapshot", desc: "Snapshot", run: func(map[string]any) *mcp.CallToolResult {
 			return text("- button \"Send\" [ref=e2] on " + page)

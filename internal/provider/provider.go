@@ -66,15 +66,16 @@ type Usage struct {
 
 // Capabilities a manifest command may require of its provider.
 const (
-	Tools            = "tools"
-	Sandbox          = "sandbox"
-	Resume           = "resume"
-	LiveInput        = "live_input"
-	Intercept        = "intercept"
-	Images           = "images"
-	StructuredOutput = "structured_output"
-	NoCloud          = "no_cloud"
+	Tools     = "tools"
+	Sandbox   = "sandbox"
+	Resume    = "resume"
+	Intercept = "intercept"
+	Images    = "images"
+	NoCloud   = "no_cloud"
 )
+
+// StructuredOutput is output by schema; a provider without it hands the result in with result_submit.
+const StructuredOutput = "structured_output"
 
 // Caps lists the capabilities a provider has.
 type Caps []string

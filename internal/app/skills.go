@@ -14,6 +14,8 @@ import (
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
 	"deck2/skills"
+
+	"go.yaml.in/yaml/v3"
 )
 
 // SkillsDir is where skill documents live; a skill is the folder skills/<name>/ with SKILL.md in it.
@@ -46,18 +48,19 @@ func checkSkillText(kind, name, text string) error {
 	if !ok || end < 0 {
 		return registry.Invalid("deck: SKILL.md must start with YAML frontmatter between --- lines")
 	}
-	lines := strings.Split(front[:end], "\n")
-	for _, key := range []string{"allowed-tools:", "hooks:"} {
-		if slices.ContainsFunc(lines, func(l string) bool { return strings.HasPrefix(l, key) }) {
-			return registry.Invalid("deck: SKILL.md may not carry %q: tools and their rights come from the deck gateway", strings.TrimSuffix(key, ":"))
+	var meta map[string]any
+	if err := yaml.Unmarshal([]byte(front[:end]), &meta); err != nil || meta == nil {
+		return registry.Invalid("deck: SKILL.md frontmatter is not a YAML mapping")
+	}
+	for key := range meta {
+		if k := strings.ReplaceAll(strings.ToLower(strings.TrimSpace(key)), "_", "-"); k == "allowed-tools" || k == "hooks" {
+			return registry.Invalid("deck: SKILL.md may not carry %q: tools and their rights come from the deck gateway", key)
 		}
 	}
-	if !slices.ContainsFunc(lines, func(l string) bool { return strings.HasPrefix(l, "description:") }) {
+	if d, _ := meta["description"].(string); strings.TrimSpace(d) == "" {
 		return registry.Invalid("deck: SKILL.md frontmatter needs \"description\"")
 	}
-	if !slices.ContainsFunc(lines, func(l string) bool {
-		return strings.TrimSpace(strings.TrimPrefix(l, "name:")) == skill && strings.HasPrefix(l, "name:")
-	}) {
+	if n, _ := meta["name"].(string); n != skill {
 		return registry.Invalid("deck: SKILL.md frontmatter needs \"name: %s\", the name of its folder", skill)
 	}
 	return nil

@@ -142,12 +142,12 @@ func TestWholeNumbersWrittenAsFloatsAreRefused(t *testing.T) {
 }
 
 func TestTriggerParamsKeepLargeIntegers(t *testing.T) {
-	e := newEnv(t, idle)
+	e := newClockEnv(t, idle)
 	m := strings.Replace(calcManifest, `"executor": {"type": "agent", "prompt": "OLD PROMPT"}}]`,
 		`"executor": {"type": "agent", "prompt": "OLD PROMPT"}}],
   "triggers": [{"command": "calc", "cron": "0 9 * * *", "params": {"n": 9007199254740993}}]`, 1)
 	p := e.createProject("nums", m)
-	e.App.Scheduler.Now = func() time.Time { return time.Now().Add(48 * time.Hour) }
+	e.Clock.Add(48 * time.Hour)
 	e.App.Scheduler.Tick(context.Background())
 	e.App.Runner.Wait()
 	ps, _ := e.App.Store.Q.ListProcesses(context.Background(), 5)

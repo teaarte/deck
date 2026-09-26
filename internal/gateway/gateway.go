@@ -229,12 +229,16 @@ func (g *Gateway) call(ctx context.Context, s *Session, name string, args json.R
 			project = c.ProjectID
 		}
 	}
+	params := ""
+	if class != registry.Internal {
+		params = string(args)
+	}
 	out, err := g.reg.Invoke(ctx, s.actor(), name, args)
 	outcome := "done"
 	if err != nil {
 		outcome = "rejected"
 	}
-	g.journal(ctx, s, project, name, class, outcome, "")
+	g.journal(ctx, s, project, name, class, outcome, params)
 	return out, err
 }
 

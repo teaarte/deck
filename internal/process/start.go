@@ -96,6 +96,9 @@ func (r *Runner) Start(ctx context.Context, projectID int64, m *manifest.Manifes
 			if t.Paused == 1 || pr.Paused == 1 {
 				return registry.Invalid("deck: %s was not started: its trigger or project is paused", command)
 			}
+			if (t.Kind == "cron" || t.Kind == "once") && t.NextRunAt.String > store.Time(r.now()) {
+				return registry.Invalid("deck: %s was not started: its trigger moved to %s since it was due", command, t.NextRunAt.String)
+			}
 			if pr.Status == store.ProjectDraft && parent.Trial != 1 {
 				return registry.Invalid("deck: %s was not started: project %s is a draft; only a trial run starts its triggers", command, pr.Name)
 			}

@@ -92,4 +92,3 @@ func (g *Gateway) refresh(ctx context.Context, e *automationEntry, s *Session) e
 func (g *Gateway) CallAs(ctx context.Context, act registry.Actor, name string, args []byte) (any, error) {
 	return g.call(ctx, &Session{Workspace: act.Workspace, Token: act.Token, Commands: act.Commands}, name, args)
 }
-

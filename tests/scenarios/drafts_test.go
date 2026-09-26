@@ -188,8 +188,13 @@ func TestDraftRunsOnlyTrialsAndNoTriggersUntilEnabled(t *testing.T) {
 	if !e.trial(try.Process) {
 		t.Fatal("command_try starts a trial run in an enabled project")
 	}
-	if code, out := e.callWith(tok, "notes.send", map[string]any{}); code != 403 {
+	if code, out := e.callWith(tok, "notes.send", map[string]any{"retry_key": "x"}); code != 403 {
 		t.Fatalf("an external command outside a trial is not the master's: %d %s", code, out)
+	}
+	var params string
+	_ = e.App.Store.DB.QueryRow(`SELECT params FROM tool_call WHERE tool = 'notes.send' AND class = 'external' AND outcome = 'rejected'`).Scan(&params)
+	if params != `{"retry_key":"x"}` {
+		t.Fatalf("the journal keeps the parameters of a call that is not internal: %q", params)
 	}
 }
 
@@ -336,4 +341,25 @@ func (e *Env) manifestDocument(project string) int64 {
 	var cur struct{ Document int64 }
 	e.must("deck.manifest_get", map[string]any{"project": project}, &cur)
 	return cur.Document
+}
+
+func TestEnablingADraftDropsAScheduledRunAlreadyPicked(t *testing.T) {
+	e := newClockEnv(t, ok)
+	_, tok := e.token("terminal", "deck.*")
+	m := testManifest([]string{agentCommand("work", "")}, []string{`{"command": "work", "cron": "0 9 * * *"}`})
+	if code, out := e.callWith(tok, "deck.project_create", map[string]any{"name": "late", "manifest": m}); code != 200 {
+		t.Fatalf("project_create: %d %s", code, out)
+	}
+	now := e.Clock.Add(2 * time.Hour)
+	due, err := e.App.Store.Q.DueTriggers(context.Background(), store.Time(now))
+	if err != nil || len(due) != 1 {
+		t.Fatalf("the missed run is due: %v %v", due, err)
+	}
+	e.must("deck.project_enable", map[string]any{"project": "late", "revision": e.project("late").Revision}, nil)
+	if _, err := e.App.Fire(context.Background(), due[0], map[string]any{}); err == nil || !strings.Contains(err.Error(), "moved") {
+		t.Fatalf("a firing picked before enable does not run after it: %v", err)
+	}
+	if n := len(e.processes()); n != 0 {
+		t.Fatalf("no process for the missed draft schedule: %d", n)
+	}
 }

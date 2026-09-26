@@ -198,6 +198,9 @@ func TestDocumentsWithRevisions(t *testing.T) {
 		{"name": "skills/writer/notes.md", "kind": "doc", "text": "x"},
 		{"name": "skills/writer/SKILL.md", "kind": "skill", "text": "---\nname: writer\ndescription: x\nallowed-tools: Bash\n---\n"},
 		{"name": "skills/writer/SKILL.md", "kind": "skill", "text": "---\nname: writer\ndescription: x\nhooks:\n  PreToolUse: []\n---\n"},
+		{"name": "skills/writer/SKILL.md", "kind": "skill", "text": "---\nname: writer\ndescription: x\n\"allowed-tools\": Bash\n---\n"},
+		{"name": "skills/writer/SKILL.md", "kind": "skill", "text": "---\nname: writer\ndescription: x\nhooks : {}\n---\n"},
+		{"name": "skills/writer/SKILL.md", "kind": "skill", "text": "---\n{name: writer, description: x, allowed_tools: Bash}\n---\n"},
 		{"name": "manifest.json", "kind": "manifest", "text": "{}"},
 		{"name": "a.md", "kind": "poem", "text": "x"},
 	} {

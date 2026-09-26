@@ -102,7 +102,9 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
 - **Results** are JSON by schema. Decisions use typed shapes: a choice with probabilities and confidence,
   a score 2–10 with confidence, yes/no with a probability. A result of `null` means "nothing to do".
 - **Triggers**: `cron` for schedules, `lane` when a card enters a lane, `after` when another command of the
-  project finishes. Cycles are refused. After the Mac slept, each missed schedule runs once; `"skip_missed":
+  project finishes. The command a trigger starts gets the trigger's fixed `params` plus `{"card": <id>}` for
+  `lane` or `{"process": <id>}` of the finished one for `after`; a later step that needs an earlier result
+  reads it with `process_get`, so keep what the chain needs in records rather than passing it along. Cycles are refused. After the Mac slept, each missed schedule runs once; `"skip_missed":
   true` drops the missed run instead (a morning digest that is stale by noon).
 - **Board**: lanes have stable names, titles for people and optional roles (`inbox`, `ready`, `running`,
   `review`, `done`), each role on at most one lane. New cards land in `inbox`. `ready`, `running` and
@@ -115,9 +117,12 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   `{"type": "table", "title": "Best", "source": {"collection": "items", "where": "score >= 7", "sort": "-score",
   "limit": 20}, "columns": [{"label": "Title", "bind": "title"}], "actions": [{"label": "Rate", "command":
   "rate", "params": {"id": "$record.id"}}]}` — `where` and `bind` are expressions over record fields,
-  `sort` is a field with `-` for descending. An action passes every required parameter of its command
+  `sort` is a field with `-` for descending. Action `params` are strings. An action passes every required parameter of its command
   (from `$record.<field>` or fixed values); deck asks for nothing that is missing, so a choice the owner
   makes in a row is one action per option. List screens in `menu`.
+- **Remembering what was seen**: `records_upsert` replaces a whole record by its key, so write every
+  required field. `retention_days` deletes records with their documents: a collection that remembers what the
+  owner has already seen, or holds what they asked for, gets none.
 - **Starting records** (the first sources, say) are written after the import with `records_upsert`, or by the
   first run of the script that needs them.
 
@@ -128,7 +133,8 @@ These live here, not in deck: deck stays small and you combine them.
 - **Incoming events** (new mail, new postings, new files): a script on a schedule polls the source from a
   cursor kept in a record, writes only new items, and an agent command runs only on what is new
   (`after` trigger, or the script's result lists the new ids). After the machine slept, the next poll takes
-  everything since the cursor — never "the last N hours".
+  everything since the cursor — never "the last N hours". The first run has no cursor: take a window the owner
+  agrees to (the last two weeks, the current thread) and name it in the hand-over.
 - **Search over big data**: a script builds an index (SQLite, a vector file, anything) in `$DECK_DATA`, the
   project's own data folder that survives runs and goes into snapshots; a `search` command reads it.
 - **Reacting faster than a minute, or being always up**: deck sleeps with the owner's Mac. Such work belongs
@@ -184,7 +190,10 @@ requirement a local model lacks keeps routine work off it. `providers_list` with
 providers fit it. `provider` suggests a provider by
 name — routine judgement suits a local model (`"provider": "ollama"`), heavy reasoning Claude Code. Write the
 prompt so it works on a small model too: say which deck tool to call for what, and that the result is handed in
-at the end; a provider without output by schema gets the `result_submit` tool for it.
+at the end; a provider without output by schema gets the `result_submit` tool for it. A small model copies
+examples from the prompt word for word and misses checks that are plain in the text: give it the shape of the
+result without sample values, let the script do every check a pattern can do and pass the findings in the
+input, and let the script, not the model's verdict, decide what reaches the owner.
 
 ## 6. Confirmations
 
@@ -218,7 +227,8 @@ Name each of these rights in the hand-over: the owner grants them with "enable".
    its first command. A trial is not a sandbox: internal writes (records, cards, documents) are real and stay
    in the draft, and deck has no command to delete records. Try on real inputs, or on test inputs you can
    tell apart (a test source, a test go.mod) and list what they left in the hand-over. `process_get` gives
-   the state and result; `process_log` shows events only while the
+   the state and result. A `lane` step is tried with `command_try` of its command and `{"card": <id>}`: in a
+   draft moving the card starts nothing; `process_log` shows events only while the
    process is open. Check `records_list` and `cards_list`, and `health_list` after a save that adds packages,
    programs or MCP servers: a failed install shows there with its error.
 4. A draft never runs on its schedule or on the owner's card moves. Only the owner enables it.

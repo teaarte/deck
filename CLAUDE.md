@@ -9,6 +9,7 @@ Protocol facts about Claude Code: `docs/spikes/claude-code.md`. Stage 1 plan: `d
 - Run: `DECK_HOME=/tmp/deckhome ./deck` (prints the URL with the access token)
 - Tests: `go test -race ./...`
 - Real Claude Code end-to-end test: `DECK_REAL_CLI=1 go test ./tests/scenarios -run TestRealClaudeCode -v`
+- Scenario tests on Linux (bubblewrap sandbox, needs docker): `DECK_LINUX=1 go test ./tests/linux -v`
 - Regenerate SQL code after editing `internal/store/queries/*.sql` (one file per area) or migrations: `sqlc generate`
 
 ## Layout
@@ -20,9 +21,11 @@ Protocol facts about Claude Code: `docs/spikes/claude-code.md`. Stage 1 plan: `d
 - `internal/app` — wiring, builtin `deck.*` commands, projects, documents with revisions, records, cards and board
 - `internal/manifest` — project manifest: parsing, validation, expressions
 - `internal/gateway` — deck MCP server per process: permission prompts, questions, confirmations, registry
-  commands as tools
+  commands as tools; HTTP entry and domain proxy for scripts
 - `internal/provider` — model providers; `claudecode` runs the CLI isolated from user settings
-- `internal/process` — process runner: start, resume, result schema check
+- `internal/process` — process runner: agent and script executors, start, resume, result schema check, result files
+- `internal/sandbox` — script sandbox behind one interface: `sandbox-exec` on macOS, bubblewrap on Linux
+- `internal/script` — runs project scripts in the sandbox; package environments per project (`uv`, `npm`)
 - `internal/trigger` — cron scheduler with catch-up after sleep
 - `internal/screen` — stored screens resolved into A2UI messages
 - `internal/api` — HTTP API (`GET /api/commands`, `POST /api/commands/{name}`, screens) and SSE;

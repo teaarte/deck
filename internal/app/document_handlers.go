@@ -172,7 +172,7 @@ func (a *App) documentRevert(ctx context.Context, act registry.Actor, in struct 
 		if err != nil {
 			return nil, err
 		}
-		n, err := a.SaveManifest(ctx, act, p, []byte(r.Text), reason)
+		n, err := a.SaveManifest(ctx, act, p, []byte(r.Text), reason, r.N)
 		if err != nil {
 			return nil, err
 		}

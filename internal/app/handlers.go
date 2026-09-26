@@ -110,7 +110,7 @@ func (a *App) manifestSave(ctx context.Context, act registry.Actor, in struct{ P
 	if err != nil {
 		return nil, err
 	}
-	n, err := a.SaveManifest(ctx, act, p, []byte(in.Manifest), in.Reason)
+	n, err := a.SaveManifest(ctx, act, p, []byte(in.Manifest), in.Reason, 0)
 	if err != nil {
 		return nil, err
 	}

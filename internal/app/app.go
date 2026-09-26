@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"deck2/internal/ask"
@@ -17,6 +18,8 @@ import (
 	"deck2/internal/process"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
+	"deck2/internal/sandbox"
+	"deck2/internal/script"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
 	"deck2/internal/trigger"
@@ -38,6 +41,12 @@ type Config struct {
 	CatchUpSpread time.Duration
 	// EmptyKept is how long a process with an empty result stays in the history.
 	EmptyKept time.Duration
+	// ScriptCeiling is how long a command script may run unless its manifest says otherwise.
+	ScriptCeiling time.Duration
+	// Snapshots is how many daily snapshots stay in backups/.
+	Snapshots int
+	// Sandbox confines scripts; the one of this operating system when nil.
+	Sandbox sandbox.Sandbox
 }
 
 func (c *Config) defaults() {
@@ -56,6 +65,15 @@ func (c *Config) defaults() {
 	if c.EmptyKept <= 0 {
 		c.EmptyKept = 24 * time.Hour
 	}
+	if c.ScriptCeiling <= 0 {
+		c.ScriptCeiling = 10 * time.Minute
+	}
+	if c.Snapshots <= 0 {
+		c.Snapshots = 7
+	}
+	if c.Sandbox == nil {
+		c.Sandbox = sandbox.New()
+	}
 }
 
 type App struct {
@@ -67,6 +85,12 @@ type App struct {
 	Gateway   *gateway.Gateway
 	Runner    *process.Runner
 	Scheduler *trigger.Scheduler
+	Scripts   *script.Exec
+
+	ctx    context.Context
+	cancel context.CancelFunc
+	bg     sync.WaitGroup
+	disk   time.Time
 }
 
 func New(cfg Config, p provider.Provider) (*App, error) {
@@ -78,14 +102,16 @@ func New(cfg Config, p provider.Provider) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
-	a := &App{Cfg: cfg, Store: st, Bus: events.NewBus()}
+	a := &App{Cfg: cfg, Store: st, Bus: events.NewBus(), Scripts: script.New(cfg.Sandbox, cfg.Home)}
+	a.ctx, a.cancel = context.WithCancel(context.Background())
 	a.Asks = ask.NewBroker(st, a.Bus, cfg.Now)
 	a.Registry = registry.New(a.projectCommands)
 	a.addBuiltins()
 	a.Gateway = gateway.New(gateway.Config{Now: cfg.Now, QuestionWait: cfg.QuestionWait, ConfirmWait: cfg.ConfirmWait, ConfirmTTL: cfg.ConfirmTTL},
 		st, a.Asks, a.Bus, a.Registry)
-	a.Runner = process.NewRunner(st, a.Gateway, a.Bus, p,
-		process.Config{RunsDir: filepath.Join(cfg.Home, "runs"), MCPBase: cfg.MCPBase, Now: cfg.Now, Ceiling: cfg.Ceiling}, a)
+	a.Runner = process.NewRunner(st, a.Gateway, a.Bus, p, a.Scripts,
+		process.Config{RunsDir: filepath.Join(cfg.Home, "runs"), MCPBase: cfg.MCPBase, Now: cfg.Now, Ceiling: cfg.Ceiling,
+			ScriptCeiling: cfg.ScriptCeiling, FilesDir: filepath.Join(cfg.Home, "files")}, a)
 	a.Runner.OnDone = a.afterTriggers
 	a.Scheduler = trigger.New(st, a, cfg.Now, cfg.CatchUpSpread)
 	a.Asks.OnLateAnswer(a.lateAnswer)
@@ -94,6 +120,8 @@ func New(cfg Config, p provider.Provider) (*App, error) {
 
 // Close interrupts running providers; their processes stay running and resume on the next start.
 func (a *App) Close() error {
+	a.cancel()
+	a.bg.Wait()
 	a.Runner.Shutdown()
 	return a.Store.Close()
 }
@@ -161,14 +189,16 @@ func (a *App) lateAnswer(ctx context.Context, q db.Ask) {
 	}
 }
 
-// Sweep checks every deadline stored in the base against now: deleted cards, expired confirmations,
-// ceilings, silent processes and empty results kept long enough.
+// Sweep checks every deadline against now: deleted cards, expired confirmations, ceilings, silent
+// processes, empty results kept long enough, the disk and the daily snapshot.
 func (a *App) Sweep(ctx context.Context, now time.Time) {
 	a.purgeCards(ctx, now)
 	a.expireConfirms(ctx, now)
 	a.stopAtCeiling(ctx, now)
 	a.markSilent(ctx, now)
 	a.purgeEmpty(ctx, now)
+	a.checkDisk(ctx, now)
+	a.snapshotIfDue(ctx, now)
 }
 
 func (a *App) expireConfirms(ctx context.Context, now time.Time) {

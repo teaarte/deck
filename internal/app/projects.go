@@ -107,13 +107,18 @@ func (a *App) CreateProject(ctx context.Context, act registry.Actor, name string
 		return db.Project{}, err
 	}
 	a.Bus.Publish("projects")
+	a.prepareLater(p.ID)
 	return p, nil
 }
 
-// SaveManifest checks a manifest against deck and the stored records and saves it with its triggers in one
-// transaction, so no record write can slip between the check and the new revision.
-func (a *App) SaveManifest(ctx context.Context, act registry.Actor, p db.Project, raw []byte, reason string) (int64, error) {
+// SaveManifest checks a manifest against the records and saves it with its triggers and migrated records in
+// one transaction; a revert takes the records of the collections it changes back from their snapshot.
+func (a *App) SaveManifest(ctx context.Context, act registry.Actor, p db.Project, raw []byte, reason string, revertTo int64) (int64, error) {
 	pm, err := parseManifest(raw)
+	if err != nil {
+		return 0, err
+	}
+	plan, err := a.migrate(ctx, p, pm.m, revertTo)
 	if err != nil {
 		return 0, err
 	}
@@ -122,14 +127,24 @@ func (a *App) SaveManifest(ctx context.Context, act registry.Actor, p db.Project
 		if err := checkReads(ctx, q, p.WorkspaceID, p.Name, pm.m); err != nil {
 			return err
 		}
-		if err := checkRecords(ctx, q, p, pm.m); err != nil {
+		if err := checkRecords(ctx, q, p, pm.m, plan); err != nil {
 			return err
 		}
 		if err := checkLanes(ctx, q, p, pm.m); err != nil {
 			return err
 		}
-		if _, n, err = SaveDocument(ctx, q, DocRef{Scope: projectScope(p), Name: ManifestName}, KindManifest, string(pm.text), act.Author(), reason); err != nil {
+		ref := DocRef{Scope: projectScope(p), Name: ManifestName}
+		cur, err := q.FindDocument(ctx, ref.find())
+		if err != nil {
 			return err
+		}
+		if _, n, err = SaveDocument(ctx, q, ref, KindManifest, string(pm.text), act.Author(), reason); err != nil {
+			return err
+		}
+		for name, mg := range plan {
+			if err := applyMigration(ctx, q, p.ID, pm.m.Collection(name), mg, cur.Current, n); err != nil {
+				return err
+			}
 		}
 		if err := keepLegacyDescription(ctx, q, p, pm.legacy, act.Author()); err != nil {
 			return err
@@ -140,6 +155,10 @@ func (a *App) SaveManifest(ctx context.Context, act registry.Actor, p db.Project
 		return 0, err
 	}
 	a.Bus.Publish("projects")
+	if len(plan) > 0 {
+		a.Bus.Publish("collection")
+	}
+	a.prepareLater(p.ID)
 	return n, nil
 }
 
@@ -206,6 +225,7 @@ func (a *App) Reconcile(ctx context.Context) error {
 		if err != nil {
 			slog.Error("reconcile triggers", "project", p.Name, "err", err)
 		}
+		a.prepareLater(p.ID)
 	}
 	return nil
 }

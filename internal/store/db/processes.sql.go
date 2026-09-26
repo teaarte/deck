@@ -29,13 +29,14 @@ func (q *Queries) ClaimProcess(ctx context.Context, arg ClaimProcessParams) (int
 }
 
 const createProcess = `-- name: CreateProcess :one
-INSERT INTO process (project_id, command, state, provider, input, session_id, parent_id, depth, trigger_id, retry_key, ceiling_ms)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms
+INSERT INTO process (project_id, command, kind, state, provider, input, session_id, parent_id, depth, trigger_id, retry_key, ceiling_ms)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, kind
 `
 
 type CreateProcessParams struct {
 	ProjectID int64
 	Command   string
+	Kind      string
 	State     string
 	Provider  string
 	Input     string
@@ -51,6 +52,7 @@ func (q *Queries) CreateProcess(ctx context.Context, arg CreateProcessParams) (P
 	row := q.db.QueryRowContext(ctx, createProcess,
 		arg.ProjectID,
 		arg.Command,
+		arg.Kind,
 		arg.State,
 		arg.Provider,
 		arg.Input,
@@ -85,12 +87,13 @@ func (q *Queries) CreateProcess(ctx context.Context, arg CreateProcessParams) (P
 		&i.DeadlineMs,
 		&i.OutputMs,
 		&i.SilentSinceMs,
+		&i.Kind,
 	)
 	return i, err
 }
 
 const findActiveProcess = `-- name: FindActiveProcess :one
-SELECT id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms FROM process
+SELECT id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, kind FROM process
 WHERE project_id = ? AND command = ? AND retry_key = ? AND retry_key != ''
   AND state IN ('running', 'waiting_answer', 'needs_login')
 ORDER BY id LIMIT 1
@@ -128,6 +131,7 @@ func (q *Queries) FindActiveProcess(ctx context.Context, arg FindActiveProcessPa
 		&i.DeadlineMs,
 		&i.OutputMs,
 		&i.SilentSinceMs,
+		&i.Kind,
 	)
 	return i, err
 }
@@ -160,7 +164,7 @@ func (q *Queries) FinishProcess(ctx context.Context, arg FinishProcessParams) er
 }
 
 const getProcess = `-- name: GetProcess :one
-SELECT id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms FROM process WHERE id = ?
+SELECT id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, kind FROM process WHERE id = ?
 `
 
 func (q *Queries) GetProcess(ctx context.Context, id int64) (Process, error) {
@@ -189,6 +193,7 @@ func (q *Queries) GetProcess(ctx context.Context, id int64) (Process, error) {
 		&i.DeadlineMs,
 		&i.OutputMs,
 		&i.SilentSinceMs,
+		&i.Kind,
 	)
 	return i, err
 }
@@ -221,13 +226,14 @@ func (q *Queries) ListCeilingReached(ctx context.Context, now int64) ([]int64, e
 }
 
 const listProcessGroups = `-- name: ListProcessGroups :many
-SELECT id, pgid, session_id FROM process WHERE pgid != 0
+SELECT id, pgid, session_id, kind FROM process WHERE pgid != 0
 `
 
 type ListProcessGroupsRow struct {
 	ID        int64
 	Pgid      int64
 	SessionID string
+	Kind      string
 }
 
 func (q *Queries) ListProcessGroups(ctx context.Context) ([]ListProcessGroupsRow, error) {
@@ -239,7 +245,12 @@ func (q *Queries) ListProcessGroups(ctx context.Context) ([]ListProcessGroupsRow
 	var items []ListProcessGroupsRow
 	for rows.Next() {
 		var i ListProcessGroupsRow
-		if err := rows.Scan(&i.ID, &i.Pgid, &i.SessionID); err != nil {
+		if err := rows.Scan(
+			&i.ID,
+			&i.Pgid,
+			&i.SessionID,
+			&i.Kind,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -254,7 +265,7 @@ func (q *Queries) ListProcessGroups(ctx context.Context) ([]ListProcessGroupsRow
 }
 
 const listProcesses = `-- name: ListProcesses :many
-SELECT id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms FROM process ORDER BY id DESC LIMIT ?
+SELECT id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, kind FROM process ORDER BY id DESC LIMIT ?
 `
 
 func (q *Queries) ListProcesses(ctx context.Context, limit int64) ([]Process, error) {
@@ -289,6 +300,7 @@ func (q *Queries) ListProcesses(ctx context.Context, limit int64) ([]Process, er
 			&i.DeadlineMs,
 			&i.OutputMs,
 			&i.SilentSinceMs,
+			&i.Kind,
 		); err != nil {
 			return nil, err
 		}
@@ -304,7 +316,7 @@ func (q *Queries) ListProcesses(ctx context.Context, limit int64) ([]Process, er
 }
 
 const listProcessesByState = `-- name: ListProcessesByState :many
-SELECT id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms FROM process WHERE state = ? ORDER BY id
+SELECT id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, kind FROM process WHERE state = ? ORDER BY id
 `
 
 func (q *Queries) ListProcessesByState(ctx context.Context, state string) ([]Process, error) {
@@ -339,6 +351,7 @@ func (q *Queries) ListProcessesByState(ctx context.Context, state string) ([]Pro
 			&i.DeadlineMs,
 			&i.OutputMs,
 			&i.SilentSinceMs,
+			&i.Kind,
 		); err != nil {
 			return nil, err
 		}
@@ -354,7 +367,7 @@ func (q *Queries) ListProcessesByState(ctx context.Context, state string) ([]Pro
 }
 
 const listProcessesFiltered = `-- name: ListProcessesFiltered :many
-SELECT id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms FROM process
+SELECT id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, kind FROM process
 WHERE project_id IN (SELECT id FROM project WHERE workspace_id = ?1)
   AND (?2 = 0 OR project_id = ?2)
   AND (?3 = '' OR state = ?3)
@@ -405,6 +418,7 @@ func (q *Queries) ListProcessesFiltered(ctx context.Context, arg ListProcessesFi
 			&i.DeadlineMs,
 			&i.OutputMs,
 			&i.SilentSinceMs,
+			&i.Kind,
 		); err != nil {
 			return nil, err
 		}
@@ -551,6 +565,40 @@ func (q *Queries) PurgeEmptyProcesses(ctx context.Context, before string) ([]int
 			return nil, err
 		}
 		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const recentOutcomes = `-- name: RecentOutcomes :many
+SELECT state FROM process
+WHERE project_id = ? AND command = ? AND state IN ('done', 'error', 'stopped', 'interrupted')
+ORDER BY id DESC LIMIT 4
+`
+
+type RecentOutcomesParams struct {
+	ProjectID int64
+	Command   string
+}
+
+func (q *Queries) RecentOutcomes(ctx context.Context, arg RecentOutcomesParams) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, recentOutcomes, arg.ProjectID, arg.Command)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var state string
+		if err := rows.Scan(&state); err != nil {
+			return nil, err
+		}
+		items = append(items, state)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err

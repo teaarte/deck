@@ -7,3 +7,7 @@ WHERE health.status != excluded.status OR health.error != excluded.error;
 
 -- name: ListHealth :many
 SELECT * FROM health ORDER BY subject;
+
+
+-- name: DeleteHealth :exec
+DELETE FROM health WHERE subject = ?;

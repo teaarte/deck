@@ -35,6 +35,10 @@ func (r *Runner) run(ctx context.Context, t turn) {
 	if p, err := r.st.Q.GetProcess(bg, processID); err != nil || p.State != StateRunning {
 		return
 	}
+	if t.cmd.Executor.Type == KindScript {
+		r.runScript(ctx, t)
+		return
+	}
 	dir := filepath.Join(r.cfg.RunsDir, fmt.Sprint(processID))
 	work := filepath.Join(dir, "work")
 	if err := os.MkdirAll(work, 0o700); err != nil {

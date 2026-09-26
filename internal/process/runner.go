@@ -12,6 +12,7 @@ import (
 	"deck2/internal/gateway"
 	"deck2/internal/manifest"
 	"deck2/internal/provider"
+	"deck2/internal/script"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
 )
@@ -32,12 +33,20 @@ const MaxDepth = 5
 // Empty is the result of a process that had nothing to do.
 const Empty = "null"
 
+const (
+	KindAgent  = "agent"
+	KindScript = "script"
+)
+
 type Config struct {
 	RunsDir string
 	MCPBase string
 	Now     func() time.Time
 	// Ceiling is how long a command agent may work when its manifest sets no timeout.
 	Ceiling time.Duration
+	// ScriptCeiling is how long a command script may run when its manifest sets no timeout.
+	ScriptCeiling time.Duration
+	FilesDir      string
 }
 
 // Runner owns process lifecycles. A process stops in waiting_answer when the agent is blocked on the
@@ -47,6 +56,7 @@ type Runner struct {
 	gw       *gateway.Gateway
 	bus      *events.Bus
 	provider provider.Provider
+	scripts  *script.Exec
 	cfg      Config
 	projects Projects
 	// OnDone runs after a process finishes done with a result that is not empty and fits its schema.
@@ -71,9 +81,9 @@ type Projects interface {
 	Text(ctx context.Context, projectID int64, name string) (string, error)
 }
 
-func NewRunner(st *store.Store, gw *gateway.Gateway, bus *events.Bus, p provider.Provider, cfg Config, projects Projects) *Runner {
+func NewRunner(st *store.Store, gw *gateway.Gateway, bus *events.Bus, p provider.Provider, scripts *script.Exec, cfg Config, projects Projects) *Runner {
 	ctx, cancel := context.WithCancel(context.Background())
-	return &Runner{st: st, gw: gw, bus: bus, provider: p, cfg: cfg, projects: projects, ctx: ctx, cancel: cancel,
+	return &Runner{st: st, gw: gw, bus: bus, provider: p, scripts: scripts, cfg: cfg, projects: projects, ctx: ctx, cancel: cancel,
 		live: map[int64]*liveTurn{}, stopping: map[int64]string{}}
 }
 

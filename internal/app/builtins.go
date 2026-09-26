@@ -131,6 +131,12 @@ func (a *App) addBuiltins() {
 		registry.Params(registry.P("project", "project", "Project name"), registry.P("paused", "boolean", "Pause when true, resume when false")),
 		registry.Typed(a.projectPause))
 
+	add("files_list", "List files", "Lists the files of a record, a card or a process.", everyone,
+		registry.Params(registry.Opt("record", "record", "Record"), registry.Opt("card", "card", "Card"),
+			registry.Opt("process", "process", "Process")), registry.Typed(a.filesList))
+	add("snapshot_create", "Take snapshot", "Writes a snapshot of the base, files and project data folders to backups; the newest seven stay.", ownerOnly,
+		registry.Params(), registry.Typed(a.snapshotCreate))
+
 	add("asks_list", "Waiting for you", "Lists open questions and confirmations for the owner.", ownerSide,
 		registry.Params(), registry.Typed(a.asksList))
 	add("health_list", "Health", "Lists the health of providers and other dependencies with the last error.", ownerSide,

@@ -1,6 +1,6 @@
 -- name: CreateProcess :one
-INSERT INTO process (project_id, command, state, provider, input, session_id, parent_id, depth, trigger_id, retry_key, ceiling_ms)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *;
+INSERT INTO process (project_id, command, kind, state, provider, input, session_id, parent_id, depth, trigger_id, retry_key, ceiling_ms)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *;
 
 
 -- name: GetProcess :one
@@ -94,7 +94,7 @@ UPDATE process SET pgid = ? WHERE id = ?;
 
 
 -- name: ListProcessGroups :many
-SELECT id, pgid, session_id FROM process WHERE pgid != 0;
+SELECT id, pgid, session_id, kind FROM process WHERE pgid != 0;
 
 
 -- name: PurgeEmptyProcesses :many
@@ -111,3 +111,9 @@ SELECT * FROM tool_call WHERE process_id = ? ORDER BY id;
 
 -- name: StartProcessSession :exec
 UPDATE process SET session_id = ?, start_note = ? WHERE id = ?;
+
+
+-- name: RecentOutcomes :many
+SELECT state FROM process
+WHERE project_id = ? AND command = ? AND state IN ('done', 'error', 'stopped', 'interrupted')
+ORDER BY id DESC LIMIT 4;

@@ -65,6 +65,17 @@ type DocumentRevision struct {
 	CreatedAt  string
 }
 
+type File struct {
+	ID        int64
+	ProjectID int64
+	OwnerKind string
+	OwnerID   int64
+	Name      string
+	Type      string
+	Size      int64
+	CreatedAt string
+}
+
 type Health struct {
 	Subject   string
 	Status    string
@@ -95,6 +106,7 @@ type Process struct {
 	DeadlineMs    sql.NullInt64
 	OutputMs      int64
 	SilentSinceMs sql.NullInt64
+	Kind          string
 }
 
 type Project struct {
@@ -114,6 +126,16 @@ type Record struct {
 	Data       string
 	CreatedAt  string
 	UpdatedAt  string
+}
+
+type RecordSnapshot struct {
+	ID           int64
+	ProjectID    int64
+	Collection   string
+	FromRevision int64
+	Revision     int64
+	Records      string
+	CreatedAt    string
 }
 
 type ToolCall struct {

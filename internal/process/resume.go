@@ -5,9 +5,12 @@ import (
 	"deck2/internal/ask"
 	"deck2/internal/gateway"
 	"deck2/internal/provider"
+	"deck2/internal/sandbox"
 	"deck2/internal/store/db"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/google/uuid"
@@ -122,6 +125,12 @@ func (r *Runner) ResumeInterrupted(ctx context.Context) error {
 		return err
 	}
 	for _, p := range ps {
+		if p.Kind == KindScript {
+			r.finish(ctx, p.ID, StateInterrupted, "", false, "deck restarted while the script ran")
+			r.warn(ctx, p.ID, fmt.Sprintf("Script command %s was interrupted by a restart of deck; run it again if it is still needed.", p.Command))
+			_ = os.RemoveAll(filepath.Join(r.cfg.RunsDir, fmt.Sprint(p.ID)))
+			continue
+		}
 		if p.SessionID == "" {
 			r.finish(ctx, p.ID, StateInterrupted, "", false, "deck restarted before the session started")
 			continue
@@ -162,7 +171,9 @@ func (r *Runner) reap(ctx context.Context) error {
 	}
 	reaper, _ := r.provider.(provider.Reaper)
 	for _, g := range groups {
-		if reaper != nil {
+		if g.Kind == KindScript {
+			sandbox.Reap(int(g.Pgid), filepath.Join(r.cfg.RunsDir, fmt.Sprint(g.ID))+string(filepath.Separator))
+		} else if reaper != nil {
 			reaper.Reap(int(g.Pgid), g.SessionID)
 		}
 		r.setGroup(ctx, g.ID, 0)

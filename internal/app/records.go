@@ -15,8 +15,10 @@ import (
 )
 
 type UpsertResult struct {
-	Written int      `json:"written"`
-	Errors  []string `json:"errors,omitempty"`
+	Written int `json:"written"`
+	// IDs are the ids of the written records, in order.
+	IDs    []int64  `json:"ids"`
+	Errors []string `json:"errors,omitempty"`
 }
 
 // UpsertJSONL writes one record per line; records with an existing key are updated.
@@ -74,10 +76,12 @@ func UpsertRecords(ctx context.Context, q *db.Queries, projectID int64, m *manif
 				return err
 			}
 			data, _ := json.Marshal(r)
-			if _, err := q.UpsertRecord(ctx, db.UpsertRecordParams{ProjectID: projectID, Collection: collection, Key: key, Data: string(data)}); err != nil {
+			rec, err := q.UpsertRecord(ctx, db.UpsertRecordParams{ProjectID: projectID, Collection: collection, Key: key, Data: string(data)})
+			if err != nil {
 				return err
 			}
 			out.Written++
+			out.IDs = append(out.IDs, rec.ID)
 		}
 		return nil
 	}()

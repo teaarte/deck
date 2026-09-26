@@ -37,7 +37,7 @@ const fullManifest = `{
      "input": {"type": "object", "properties": {"url": {"type": "string"}}, "required": ["url"]},
      "executor": {"type": "tool", "tool": "post_link", "params": {"url": "$input.url"}}}
   ],
-  "scripts": [{"name": "parse", "file": "scripts/parse.py", "runtime": "python", "packages": ["beautifulsoup4"], "timeout_minutes": 5}],
+  "scripts": [{"name": "parse", "file": "scripts/parse.py", "runtime": "python", "timeout_minutes": 5}],
   "triggers": [
     {"command": "collect", "cron": "0 8 * * *"},
     {"command": "rate", "after": "collect", "params": {"limit": 20}},
@@ -137,12 +137,15 @@ func TestManifestReferencesAreChecked(t *testing.T) {
 	e.createProject("links", m)
 }
 
-func TestNonAgentExecutorsAreRefusedForNow(t *testing.T) {
+func TestToolExecutorsAreRefusedForNow(t *testing.T) {
 	e := newEnv(t, nil)
 	e.createProject("links", fullManifest)
-	code, out := e.call("links.parse", map[string]any{"source": 1})
+	code, out := e.call("links.share", map[string]any{"url": "https://example.com"})
 	if code != 422 || !strings.Contains(string(out), "not available yet") {
-		t.Fatalf("script executor: want 422, got %d %s", code, out)
+		t.Fatalf("tool executor: want 422, got %d %s", code, out)
+	}
+	if code, out := e.call("links.parse", map[string]any{"source": 1}); code != 422 || !strings.Contains(string(out), "scripts/parse.py") {
+		t.Fatalf("a script command without its script file is refused: %d %s", code, out)
 	}
 	if code, out := e.call("links.parse", map[string]any{}); code != 422 || !strings.Contains(string(out), "source") {
 		t.Fatalf("input schema must be enforced: %d %s", code, out)

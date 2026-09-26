@@ -7,6 +7,7 @@ package db
 
 import (
 	"context"
+	"database/sql"
 )
 
 const countRecords = `-- name: CountRecords :many
@@ -41,6 +42,29 @@ func (q *Queries) CountRecords(ctx context.Context, projectID int64) ([]CountRec
 	return items, nil
 }
 
+const createRecordSnapshot = `-- name: CreateRecordSnapshot :exec
+INSERT INTO record_snapshot (project_id, collection, from_revision, revision, records) VALUES (?, ?, ?, ?, ?)
+`
+
+type CreateRecordSnapshotParams struct {
+	ProjectID    int64
+	Collection   string
+	FromRevision int64
+	Revision     int64
+	Records      string
+}
+
+func (q *Queries) CreateRecordSnapshot(ctx context.Context, arg CreateRecordSnapshotParams) error {
+	_, err := q.db.ExecContext(ctx, createRecordSnapshot,
+		arg.ProjectID,
+		arg.Collection,
+		arg.FromRevision,
+		arg.Revision,
+		arg.Records,
+	)
+	return err
+}
+
 const deleteCollection = `-- name: DeleteCollection :execrows
 DELETE FROM record WHERE project_id = ? AND collection = ?
 `
@@ -58,6 +82,15 @@ func (q *Queries) DeleteCollection(ctx context.Context, arg DeleteCollectionPara
 	return result.RowsAffected()
 }
 
+const deleteRecord = `-- name: DeleteRecord :exec
+DELETE FROM record WHERE id = ?
+`
+
+func (q *Queries) DeleteRecord(ctx context.Context, id int64) error {
+	_, err := q.db.ExecContext(ctx, deleteRecord, id)
+	return err
+}
+
 const deleteRecordDocuments = `-- name: DeleteRecordDocuments :exec
 DELETE FROM document WHERE owner_kind = 'record'
 AND owner_id IN (SELECT r.id FROM record r WHERE r.project_id = ?1 AND r.collection = ?2)
@@ -71,6 +104,34 @@ type DeleteRecordDocumentsParams struct {
 func (q *Queries) DeleteRecordDocuments(ctx context.Context, arg DeleteRecordDocumentsParams) error {
 	_, err := q.db.ExecContext(ctx, deleteRecordDocuments, arg.ProjectID, arg.Collection)
 	return err
+}
+
+const findRecordSnapshot = `-- name: FindRecordSnapshot :one
+SELECT id, project_id, collection, from_revision, revision, records, created_at FROM record_snapshot
+WHERE project_id = ?1 AND collection = ?2
+  AND from_revision <= ?3 AND revision > ?3
+ORDER BY id DESC LIMIT 1
+`
+
+type FindRecordSnapshotParams struct {
+	ProjectID  int64
+	Collection string
+	Revision   int64
+}
+
+func (q *Queries) FindRecordSnapshot(ctx context.Context, arg FindRecordSnapshotParams) (RecordSnapshot, error) {
+	row := q.db.QueryRowContext(ctx, findRecordSnapshot, arg.ProjectID, arg.Collection, arg.Revision)
+	var i RecordSnapshot
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.Collection,
+		&i.FromRevision,
+		&i.Revision,
+		&i.Records,
+		&i.CreatedAt,
+	)
+	return i, err
 }
 
 const getRecord = `-- name: GetRecord :one
@@ -117,6 +178,32 @@ func (q *Queries) GetRecordByKey(ctx context.Context, arg GetRecordByKeyParams) 
 	return i, err
 }
 
+const insertRecord = `-- name: InsertRecord :one
+INSERT INTO record (id, project_id, collection, key, data)
+VALUES (?1, ?2, ?3, ?4, ?5) RETURNING id
+`
+
+type InsertRecordParams struct {
+	ID         sql.NullInt64
+	ProjectID  int64
+	Collection string
+	Key        string
+	Data       string
+}
+
+func (q *Queries) InsertRecord(ctx context.Context, arg InsertRecordParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, insertRecord,
+		arg.ID,
+		arg.ProjectID,
+		arg.Collection,
+		arg.Key,
+		arg.Data,
+	)
+	var id int64
+	err := row.Scan(&id)
+	return id, err
+}
+
 const listRecords = `-- name: ListRecords :many
 SELECT id, project_id, collection, "key", data, created_at, updated_at FROM record WHERE project_id = ? AND collection = ? ORDER BY id
 `
@@ -155,6 +242,30 @@ func (q *Queries) ListRecords(ctx context.Context, arg ListRecordsParams) ([]Rec
 		return nil, err
 	}
 	return items, nil
+}
+
+const parkRecordKey = `-- name: ParkRecordKey :exec
+UPDATE record SET key = CAST(char(0) || 'migrating:' || id AS TEXT) WHERE id = ?
+`
+
+func (q *Queries) ParkRecordKey(ctx context.Context, id int64) error {
+	_, err := q.db.ExecContext(ctx, parkRecordKey, id)
+	return err
+}
+
+const putRecord = `-- name: PutRecord :exec
+UPDATE record SET key = ?, data = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?
+`
+
+type PutRecordParams struct {
+	Key  string
+	Data string
+	ID   int64
+}
+
+func (q *Queries) PutRecord(ctx context.Context, arg PutRecordParams) error {
+	_, err := q.db.ExecContext(ctx, putRecord, arg.Key, arg.Data, arg.ID)
+	return err
 }
 
 const updateRecordData = `-- name: UpdateRecordData :execrows

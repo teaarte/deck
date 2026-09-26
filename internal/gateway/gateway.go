@@ -197,14 +197,23 @@ func (g *Gateway) newServer(ctx context.Context, tok string, s *Session) (*mcp.S
 }
 
 func (g *Gateway) invoke(ctx context.Context, s *Session, name string, args json.RawMessage) *mcp.CallToolResult {
+	out, err := g.call(ctx, s, name, args)
+	if err != nil {
+		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}}}
+	}
+	b, _ := json.Marshal(out)
+	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(b)}}}
+}
+
+// call runs a registry command for the process behind a session and writes the call to the journal.
+func (g *Gateway) call(ctx context.Context, s *Session, name string, args json.RawMessage) (any, error) {
 	out, err := g.reg.Invoke(ctx, s.actor(), name, args)
 	if err != nil {
 		g.log(ctx, s, name, registry.Internal, "rejected", "")
-		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}}}
+		return nil, err
 	}
 	g.log(ctx, s, name, registry.Internal, "done", "")
-	b, _ := json.Marshal(out)
-	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(b)}}}
+	return out, nil
 }
 
 func (g *Gateway) log(ctx context.Context, s *Session, tool, class, outcome, params string) {

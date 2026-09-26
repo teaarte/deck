@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 )
 
@@ -37,8 +38,9 @@ func checkReads(ctx context.Context, q *db.Queries, workspace int64, name string
 	return nil
 }
 
-// checkRecords refuses a manifest whose collections no longer fit the stored records.
-func checkRecords(ctx context.Context, q *db.Queries, p db.Project, next *manifest.Manifest) error {
+// checkRecords refuses a manifest whose collections no longer fit the stored records, or the migrated
+// records of the collections in plan.
+func checkRecords(ctx context.Context, q *db.Queries, p db.Project, next *manifest.Manifest, plan map[string]*migration) error {
 	counts, err := q.CountRecords(ctx, p.ID)
 	if err != nil {
 		return err
@@ -49,20 +51,31 @@ func checkRecords(ctx context.Context, q *db.Queries, p db.Project, next *manife
 		old = nil
 	}
 	var msgs []string
+	for name := range plan {
+		if !slices.ContainsFunc(counts, func(c db.CountRecordsRow) bool { return c.Collection == name }) {
+			counts = append(counts, db.CountRecordsRow{Collection: name})
+		}
+	}
 	for _, cnt := range counts {
 		c := next.Collection(cnt.Collection)
 		if c == nil {
 			msgs = append(msgs, fmt.Sprintf("collection %q is removed but has %d records; delete them first with deck.collection_delete", cnt.Collection, cnt.N))
 			continue
 		}
+		if mg := plan[c.Name]; mg != nil {
+			if msg := misfitsOf(c, migratedRows(mg), false, "the migrated records do not fit; fix the migration script"); msg != "" {
+				msgs = append(msgs, msg)
+			}
+			continue
+		}
 		if old != nil && sameShape(old.Collection(cnt.Collection), c) {
 			continue
 		}
-		msg, err := misfits(ctx, q, p.ID, c, cnt.N)
+		recs, err := q.ListRecords(ctx, db.ListRecordsParams{ProjectID: p.ID, Collection: c.Name})
 		if err != nil {
 			return err
 		}
-		if msg != "" {
+		if msg := misfitsOf(c, storedRows(recs), true, "add a migration script to this revision"); msg != "" {
 			msgs = append(msgs, msg)
 		}
 	}
@@ -87,21 +100,45 @@ func compactEqual(a, b json.RawMessage) bool {
 	return bytes.Equal(x.Bytes(), y.Bytes())
 }
 
-// misfits describes the records of a collection that the new schema or key would break; "" when all fit.
-func misfits(ctx context.Context, q *db.Queries, projectID int64, c *manifest.Collection, total int64) (string, error) {
-	recs, err := q.ListRecords(ctx, db.ListRecordsParams{ProjectID: projectID, Collection: c.Name})
-	if err != nil {
-		return "", err
+// row is a record to check: stored ones have a key, migrated ones get theirs from the new key expression.
+type row struct {
+	id   int64
+	key  string
+	data string
+}
+
+func storedRows(recs []db.Record) []row {
+	out := make([]row, len(recs))
+	for i, r := range recs {
+		out[i] = row{r.ID, r.Key, r.Data}
 	}
+	return out
+}
+
+func migratedRows(mg *migration) []row {
+	out := make([]row, len(mg.rows))
+	for i, r := range mg.rows {
+		out[i] = row{id: r.ID, data: string(r.Data)}
+	}
+	return out
+}
+
+// misfitsOf describes the rows the schema or key of a collection would break; "" when all fit. A fixed key
+// must stay what it is.
+func misfitsOf(c *manifest.Collection, rows []row, fixedKey bool, fix string) string {
 	var problems []string
 	bad := 0
-	keys := map[string]int64{}
-	for _, r := range recs {
+	keys := map[string]string{}
+	for i, r := range rows {
+		name := fmt.Sprintf("record %d (key %q)", r.id, r.key)
+		if !fixedKey {
+			name = fmt.Sprintf("line %d (record %d)", i+1, r.id)
+		}
 		var why string
-		data, err := manifest.DecodeObject([]byte(r.Data))
+		data, err := manifest.DecodeObject([]byte(r.data))
 		switch {
 		case err != nil:
-			why = "stored data is not a JSON object"
+			why = "data is not a JSON object"
 		case c.Validate(data) != nil:
 			why = c.Validate(data).Error()
 		default:
@@ -109,12 +146,12 @@ func misfits(ctx context.Context, q *db.Queries, projectID int64, c *manifest.Co
 			switch {
 			case err != nil:
 				why = err.Error()
-			case key != r.Key:
-				why = fmt.Sprintf("key would change from %q to %q", r.Key, key)
-			case keys[key] != 0:
-				why = fmt.Sprintf("key %q collides with record %d", key, keys[key])
+			case fixedKey && key != r.key:
+				why = fmt.Sprintf("key would change from %q to %q", r.key, key)
+			case keys[key] != "":
+				why = fmt.Sprintf("key %q collides with %s", key, keys[key])
 			default:
-				keys[key] = r.ID
+				keys[key] = name
 			}
 		}
 		if why == "" {
@@ -122,16 +159,12 @@ func misfits(ctx context.Context, q *db.Queries, projectID int64, c *manifest.Co
 		}
 		bad++
 		if len(problems) < maxProblems {
-			problems = append(problems, fmt.Sprintf("  - record %d (key %q): %s", r.ID, r.Key, why))
+			problems = append(problems, fmt.Sprintf("  - %s: %s", name, why))
 		}
 	}
 	if bad == 0 {
-		return "", nil
-	}
-	fix := "add a migration script to this revision"
-	if c.Migration != "" {
-		fix = "migration scripts are not available yet"
+		return ""
 	}
 	return fmt.Sprintf("collection %q: %d of %d records do not fit the new schema or key; %s. First problems:\n%s",
-		c.Name, bad, total, fix, strings.Join(problems, "\n")), nil
+		c.Name, bad, len(rows), fix, strings.Join(problems, "\n"))
 }

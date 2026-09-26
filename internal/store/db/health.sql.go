@@ -9,6 +9,15 @@ import (
 	"context"
 )
 
+const deleteHealth = `-- name: DeleteHealth :exec
+DELETE FROM health WHERE subject = ?
+`
+
+func (q *Queries) DeleteHealth(ctx context.Context, subject string) error {
+	_, err := q.db.ExecContext(ctx, deleteHealth, subject)
+	return err
+}
+
 const listHealth = `-- name: ListHealth :many
 SELECT subject, status, error, updated_at FROM health ORDER BY subject
 `

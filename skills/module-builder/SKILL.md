@@ -41,7 +41,8 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   fields that must never change into `immutable`. A later change of the schema or the key that old records do
   not fit needs a `migration` script in the same revision (JSONL of records in, JSONL out); deck runs it on a
   copy and refuses the change with the first problem records otherwise. `retention_days` deletes records (with
-  their documents and files) that many days after they were created, `file_retention_days` only their files.
+  their documents and files) that many days after they were created, `file_retention_days` deletes files of
+  records that many days after the file was added.
   `records_list` returns the newest records up to a limit, and `record_update` replaces the whole record: work
   over hundreds of records (filtering, batching, merging new fields into old ones) belongs in a script, and an
   agent gets only the slice it judges, from the script's result or its input.

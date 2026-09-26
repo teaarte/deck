@@ -40,9 +40,12 @@ func (a *App) askAnswer(ctx context.Context, act registry.Actor, in struct {
 	if q.Kind == ask.KindGrant && q.State == "open" {
 		return a.grantAnswer(ctx, act, q, in.Answer)
 	}
+	if q.Kind == ask.KindCall || q.Kind == ask.KindUnknown {
+		return a.decide(ctx, act, q, in.Answer)
+	}
 	if err := a.Asks.Answer(ctx, in.Ask, in.Answer); err != nil {
 		if errors.Is(err, ask.ErrNotOpen) {
-			return nil, &registry.Error{Status: 409, Text: "deck: this ask is already answered or expired"}
+			return nil, notOpen
 		}
 		return nil, err
 	}

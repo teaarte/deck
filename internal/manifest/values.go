@@ -216,3 +216,26 @@ func normalize(v any) any {
 	}
 	return out
 }
+
+// DecodeValue parses one JSON value, keeping numbers as they were written.
+func DecodeValue(b []byte) (any, error) {
+	dec := json.NewDecoder(bytes.NewReader(b))
+	dec.UseNumber()
+	var v any
+	if err := dec.Decode(&v); err != nil {
+		return nil, err
+	}
+	if dec.More() {
+		return nil, errors.New("extra data after the JSON value")
+	}
+	return v, nil
+}
+
+// CheckValue validates a value against a JSON Schema.
+func CheckValue(schema json.RawMessage, v any) error {
+	s, err := compileSchema("value", schema)
+	if err != nil {
+		return err
+	}
+	return s.Validate(normalize(v))
+}

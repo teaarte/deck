@@ -78,13 +78,12 @@ type Command struct {
 }
 
 type Executor struct {
-	Type       string         `json:"type"`
-	Prompt     string         `json:"prompt,omitempty"`
-	PromptFile string         `json:"prompt_file,omitempty"`
-	Skills     []string       `json:"skills,omitempty"`
-	Script     string         `json:"script,omitempty"`
-	Tool       string         `json:"tool,omitempty"`
-	Params     map[string]any `json:"params,omitempty"`
+	Type       string   `json:"type"`
+	Prompt     string   `json:"prompt,omitempty"`
+	PromptFile string   `json:"prompt_file,omitempty"`
+	Skills     []string `json:"skills,omitempty"`
+	Script     string   `json:"script,omitempty"`
+	Tool       string   `json:"tool,omitempty"`
 }
 
 type Script struct {
@@ -172,6 +171,8 @@ type Block struct {
 }
 
 type Source struct {
+	// Project is another project the manifest reads; empty is the project itself.
+	Project    string `json:"project,omitempty"`
 	Collection string `json:"collection"`
 	Where      string `json:"where,omitempty"`
 	Sort       string `json:"sort,omitempty"`

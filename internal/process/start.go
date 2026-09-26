@@ -30,6 +30,9 @@ func (r *Runner) ceilingOf(m *manifest.Manifest, cmd *manifest.Command) time.Dur
 	if cmd.TimeoutMinutes > 0 {
 		return time.Duration(cmd.TimeoutMinutes) * time.Minute
 	}
+	if cmd.Executor.Type == KindTool {
+		return r.cfg.ScriptCeiling
+	}
 	if cmd.Executor.Type != KindScript {
 		return r.cfg.Ceiling
 	}
@@ -63,6 +66,8 @@ func (r *Runner) Start(ctx context.Context, projectID int64, m *manifest.Manifes
 		if _, err := r.scriptSource(ctx, projectID, m, cmd); err != nil {
 			return 0, err
 		}
+		providerName, session = "", ""
+	case KindTool:
 		providerName, session = "", ""
 	default:
 		return 0, registry.Invalid("deck: %s executors are not available yet", kind)

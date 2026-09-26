@@ -160,11 +160,16 @@ func (a *App) addBuiltins() {
 	add("snapshot_create", "Take snapshot", "Writes a snapshot of the base, files and project data folders to backups; the newest seven stay.", ownerOnly,
 		registry.Params(), registry.Typed(a.snapshotCreate))
 
+	add("secret_set", "Set secret", "Stores a secret for tool headers as a file only deck reads; agents and scripts never see it.", ownerOnly,
+		registry.Params(registry.P("name", "string", "Secret name, as in $secret.<name>"), registry.P("value", "text", "Secret value")),
+		registry.Typed(a.secretSet))
+	add("secrets_list", "Secrets", "Lists the names of stored secrets, never their values.", ownerOnly,
+		registry.Params(), registry.Typed(a.secretsList))
 	add("asks_list", "Waiting for you", "Lists open questions and confirmations for the owner.", ownerSide,
 		registry.Params(), registry.Typed(a.asksList))
 	add("health_list", "Health", "Lists the health of providers and other dependencies with the last error.", ownerSide,
 		registry.Params(), registry.Typed(a.healthList))
-	add("ask_answer", "Answer", "Answers a question or confirmation: text, allow, deny or deny:<reason>; a login ask: retry or new_session.", ownerOnly,
+	add("ask_answer", "Answer", "Answers what waits for the owner: a question with text; a confirmation with allow, allow_always, deny or deny:<reason>; a login with retry or new_session; an unknown outcome with retry or done.", ownerOnly,
 		registry.Params(registry.P("ask", "ask", "Ask id"), registry.P("answer", "text", "The answer")),
 		registry.Typed(a.askAnswer))
 }

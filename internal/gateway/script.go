@@ -51,10 +51,14 @@ func (g *Gateway) ScriptHandler(ctx context.Context, tok, self string, domains [
 			http.Error(w, "deck: this process has finished", http.StatusGone)
 			return
 		}
-		out, err := g.call(r.Context(), s, r.PathValue("name"), body)
+		out, err := g.call(r.Context(), s.actor(), r.PathValue("name"), body)
 		if err != nil {
 			http.Error(w, err.Error(), registry.Status(err))
 			return
+		}
+		if _, ok := out.(Waiting); ok {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusAccepted)
 		}
 		reply(w, out)
 	})

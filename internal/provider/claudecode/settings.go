@@ -49,10 +49,16 @@ func settings(req provider.Request) map[string]any {
 		env[name] = ""
 	}
 	s := map[string]any{"apiKeyHelper": "", "env": env}
+	var deny []string
+	for _, h := range req.Hidden {
+		for _, tool := range []string{"Read", "Grep", "Glob", "Edit", "Write"} {
+			deny = append(deny, tool+"(/"+h+")")
+		}
+	}
+	s["permissions"] = map[string]any{"deny": deny}
 	if !req.Repo {
 		return s
 	}
-	var deny []string
 	for _, root := range paths(req.Cwd) {
 		for _, f := range []string{"settings.json", "settings.local.json"} {
 			var repo struct {

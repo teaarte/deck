@@ -20,6 +20,10 @@ const (
 	KindLogin = "login"
 	// KindGrant waits for the owner to allow a frozen call that widens the rights of a project.
 	KindGrant = "grant"
+	// KindCall waits for the owner to allow a frozen gateway call that deck then makes itself.
+	KindCall = "call"
+	// KindUnknown is an external call whose outcome deck lost; the owner answers with one of UnknownAnswers.
+	KindUnknown = "unknown"
 	// KindWarning tells the owner about something deck refused to do; no process waits for it.
 	KindWarning = "warning"
 )
@@ -30,6 +34,13 @@ const (
 )
 
 var LoginAnswers = []string{LoginRetry, LoginNewSession}
+
+const (
+	UnknownRetry = "retry"
+	UnknownDone  = "done"
+)
+
+var UnknownAnswers = []string{UnknownRetry, UnknownDone}
 
 var ErrNotOpen = errors.New("ask is not open")
 

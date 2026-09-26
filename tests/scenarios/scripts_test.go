@@ -31,7 +31,7 @@ st, out = deck("deck.records_upsert", {"collection": "items", "records": json.du
 checks["internal_call"] = st == 200 and out["written"] == 1
 rid = out["ids"][0] if st == 200 else 0
 st, out = deck(inp["project"] + ".publish", {})
-checks["external_refused"] = st == 403 and "external" in out
+checks["external_waits"] = st == 202 and out["waiting"] > 0
 checks["allowed_domain"] = fetch(inp["allowed"]) == 200
 checks["other_domain_refused"] = fetch(inp["other"]) == 403
 checks["direct_network_blocked"] = fetch(inp["allowed"], proxy=False) != 200
@@ -87,7 +87,7 @@ func TestScriptCommandRunsInTheSandbox(t *testing.T) {
 		Files  []struct{ Record int64 }
 	}
 	_ = json.Unmarshal(p.Result, &res)
-	for _, c := range []string{"internal_call", "external_refused", "allowed_domain", "other_domain_refused", "direct_network_blocked",
+	for _, c := range []string{"internal_call", "external_waits", "allowed_domain", "other_domain_refused", "direct_network_blocked",
 		"outside_write_blocked", "secret_hidden", "owner_key_hidden", "host_socket_blocked"} {
 		if !res.Checks[c] {
 			t.Errorf("check %s failed: %s", c, p.Result)
@@ -95,6 +95,9 @@ func TestScriptCommandRunsInTheSandbox(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(outside, "x")); err == nil {
 		t.Fatal("the script wrote outside its folders")
+	}
+	if a := e.waitAsk(); a.Kind != "call" || !strings.Contains(a.Text, ".publish") {
+		t.Fatalf("the frozen external call of a script stays for the owner after the script ends: %+v", a)
 	}
 	var files []struct {
 		ID        int64

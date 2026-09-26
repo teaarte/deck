@@ -7,6 +7,7 @@ import (
 	"deck2/internal/provider"
 	"deck2/internal/sandbox"
 	"deck2/internal/store/db"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -22,6 +23,9 @@ func (r *Runner) Deliver(ctx context.Context, processID int64) error {
 	pending, err := r.st.Q.ListUndeliveredAsks(ctx, processID)
 	if err != nil || len(pending) == 0 {
 		return err
+	}
+	if p, err := r.st.Q.GetProcess(ctx, processID); err == nil && p.Kind == KindTool {
+		return r.deliverTool(ctx, p, pending)
 	}
 	for _, a := range pending {
 		if a.Kind == ask.KindLogin {
@@ -120,11 +124,19 @@ func (r *Runner) ResumeInterrupted(ctx context.Context) error {
 	if err := r.reap(ctx); err != nil {
 		return err
 	}
+	if err := r.gw.Recover(ctx); err != nil {
+		return err
+	}
 	ps, err := r.st.Q.ListProcessesByState(ctx, StateRunning)
 	if err != nil {
 		return err
 	}
 	for _, p := range ps {
+		if p.Kind == KindTool {
+			r.finish(ctx, p.ID, StateInterrupted, "", false, "deck restarted while the tool call ran")
+			_ = os.RemoveAll(filepath.Join(r.cfg.RunsDir, fmt.Sprint(p.ID)))
+			continue
+		}
 		if p.Kind == KindScript {
 			r.finish(ctx, p.ID, StateInterrupted, "", false, "deck restarted while the script ran")
 			r.warn(ctx, p.ID, fmt.Sprintf("Script command %s was interrupted by a restart of deck; run it again if it is still needed.", p.Command))
@@ -147,6 +159,9 @@ func (r *Runner) ResumeInterrupted(ctx context.Context) error {
 		}
 		if len(pending) > 0 {
 			msg = "deck restarted. " + deliveryMessage(pending)
+		}
+		if open, err := r.st.Q.ListOpenAsksOfProcess(ctx, p.ID); err == nil && gateway.Unresolved(open) != "" {
+			msg += "\n" + gateway.Unresolved(open)
 		}
 		if err := r.resume(ctx, p.ID, msg, askIDs(pending), false); err != nil {
 			r.finish(ctx, p.ID, StateInterrupted, "", false, err.Error())
@@ -221,6 +236,16 @@ func (r *Runner) resume(ctx context.Context, processID int64, message string, as
 	return nil
 }
 
+// outcomeText tells an agent what a call deck made gave.
+func outcomeText(raw string) string {
+	var o gateway.Outcome
+	_ = json.Unmarshal([]byte(raw), &o)
+	if o.Error != "" {
+		return "It did not succeed: " + truncate(o.Error, 2000)
+	}
+	return "Result: " + truncate(string(o.Result), 4000)
+}
+
 func deliveryMessage(asks []db.Ask) string {
 	var b strings.Builder
 	b.WriteString("deck: the owner has responded to what you were waiting for.\n")
@@ -229,6 +254,16 @@ func deliveryMessage(asks []db.Ask) string {
 		case a.Kind == ask.KindLogin:
 		case a.Kind == "question" && a.State == "answered":
 			b.WriteString("- Question: " + a.Text + "\n  Answer: " + a.Answer + "\n")
+		case a.Kind == ask.KindCall && a.State == "answered" && a.Result != "":
+			b.WriteString("- Allowed: " + a.Text + ". deck made this call for you; do not make it again yourself. " + outcomeText(a.Result) + "\n")
+		case a.Kind == ask.KindCall && a.State == "answered":
+			b.WriteString("- Rejected: " + a.Text + ". " + gateway.RejectMessage(a.Answer) + "\n")
+		case a.Kind == ask.KindCall:
+			b.WriteString("- Expired: " + a.Text + ". The owner did not answer in time; the call was not made.\n")
+		case a.Kind == ask.KindUnknown && a.Answer == ask.UnknownRetry:
+			b.WriteString("- The owner had deck retry a call of unknown outcome. " + outcomeText(a.Result) + "\n")
+		case a.Kind == ask.KindUnknown:
+			b.WriteString("- " + a.Text + " The owner counts it as done; do not make it again.\n")
 		case a.Kind == "confirm" && a.State == "answered" && a.Answer == "allow":
 			b.WriteString("- Allowed: " + a.Text + ". Make exactly the same call again; it will go through.\n")
 		case a.Kind == "confirm" && a.State == "answered":

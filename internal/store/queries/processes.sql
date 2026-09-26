@@ -95,11 +95,37 @@ SELECT id, pgid, session_id, kind FROM process WHERE pgid != 0;
 
 
 -- name: PurgeEmptyProcesses :many
-DELETE FROM process WHERE state = 'done' AND result = 'null' AND finished_at < CAST(sqlc.arg(before) AS TEXT) RETURNING id;
+DELETE FROM process WHERE state = 'done' AND result = 'null' AND finished_at < CAST(sqlc.arg(before) AS TEXT)
+  AND NOT EXISTS (SELECT 1 FROM ask a WHERE a.process_id = process.id AND a.kind IN ('call', 'unknown') AND a.state IN ('open', 'running'))
+RETURNING id;
 
 
--- name: LogToolCall :exec
-INSERT INTO tool_call (process_id, project_id, actor, tool, class, outcome, params) VALUES (?, ?, ?, ?, ?, ?, ?);
+-- name: LogToolCall :one
+INSERT INTO tool_call (process_id, project_id, actor, tool, class, outcome, params, error, ask_id)
+VALUES (sqlc.arg(process_id), sqlc.arg(project_id), sqlc.arg(actor), sqlc.arg(tool), sqlc.arg(class), sqlc.arg(outcome),
+    sqlc.arg(params), sqlc.arg(error), sqlc.narg(ask_id)) RETURNING id;
+
+
+-- name: FinishToolCall :execrows
+UPDATE tool_call SET outcome = ?, external_id = ?, error = ? WHERE id = ? AND outcome = 'started';
+
+
+-- name: StartedToolCalls :many
+SELECT * FROM tool_call WHERE outcome = 'started' ORDER BY id;
+
+
+-- name: GetToolCall :one
+SELECT * FROM tool_call WHERE id = ?;
+
+
+-- name: MarkToolCallUnknown :execrows
+UPDATE tool_call SET outcome = 'unknown', ask_id = sqlc.narg(ask_id) WHERE id = sqlc.arg(id) AND outcome = 'started';
+
+
+-- name: CountUnknownCalls :one
+SELECT count(*) FROM tool_call t JOIN ask a ON a.id = t.ask_id
+WHERE t.outcome = 'unknown' AND a.state IN ('open', 'running') AND a.id != sqlc.arg(retrying)
+  AND t.project_id = sqlc.arg(project_id) AND t.tool = sqlc.arg(tool) AND t.params = sqlc.arg(params);
 
 
 -- name: ListToolCalls :many

@@ -23,6 +23,7 @@ type Ask struct {
 	CreatedAt   string
 	AnsweredAt  sql.NullString
 	ExpiresAt   sql.NullString
+	Result      string
 }
 
 type AutomationToken struct {
@@ -153,15 +154,18 @@ type RecordSnapshot struct {
 }
 
 type ToolCall struct {
-	ID        int64
-	ProcessID int64
-	ProjectID int64
-	Tool      string
-	Class     string
-	Outcome   string
-	Params    string
-	CreatedAt string
-	Actor     string
+	ID         int64
+	ProcessID  int64
+	ProjectID  int64
+	Tool       string
+	Class      string
+	Outcome    string
+	Params     string
+	CreatedAt  string
+	Actor      string
+	ExternalID string
+	Error      string
+	AskID      sql.NullInt64
 }
 
 type TriggerState struct {

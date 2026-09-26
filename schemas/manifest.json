@@ -90,8 +90,7 @@
           "required": ["type", "tool"],
           "properties": {
             "type": {"const": "tool"},
-            "tool": {"type": "string", "minLength": 1},
-            "params": {"type": "object", "description": "Tool arguments; string values may use $input.<field>."}
+            "tool": {"type": "string", "minLength": 1, "description": "An http tool of this project or a builtin deck.<tool>; it gets the command input as it is, so the command input must fit the tool input."}
           }
         }
       ]
@@ -138,20 +137,20 @@
     "http_tool": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["name", "description", "method", "url", "class"],
+      "required": ["name", "description", "method", "url"],
       "properties": {
         "name": {"$ref": "#/$defs/name"},
         "title": {"type": "string"},
         "description": {"type": "string", "minLength": 1},
         "method": {"enum": ["GET", "POST", "PUT", "PATCH", "DELETE"]},
-        "url": {"type": "string", "minLength": 1, "description": "URL template; {field} takes input fields."},
+        "url": {"type": "string", "minLength": 1, "description": "URL template; {field} takes input fields in the path or query, never in the host."},
         "headers": {"type": "object", "additionalProperties": {"type": "string"}, "description": "Values may use $secret.<name> and {field}."},
-        "body": {"description": "Body template: JSON with {field} placeholders, or {\"file\": \"<input field>\"} to send a file."},
+        "body": {"description": "Body template: JSON with {field} placeholders; a string that is exactly {field} takes the field with its type. Without a template POST, PUT and PATCH send the input as JSON."},
         "input": {"$ref": "#/$defs/schema"},
         "result": {"$ref": "#/$defs/schema"},
-        "class": {"$ref": "#/$defs/class"},
+        "class": {"$ref": "#/$defs/class", "description": "external when omitted; only the owner makes a tool milder."},
         "auth": {"$ref": "#/$defs/auth"},
-        "confirm_ttl_minutes": {"type": "integer", "minimum": 1}
+        "confirm_ttl_minutes": {"type": "integer", "minimum": 1, "description": "How long a confirmation of this tool stays open; 24 hours when omitted."}
       }
     },
     "auth": {

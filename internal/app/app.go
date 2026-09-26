@@ -22,6 +22,7 @@ import (
 	"deck2/internal/script"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
+	"deck2/internal/tools"
 	"deck2/internal/trigger"
 )
 
@@ -86,6 +87,7 @@ type App struct {
 	Runner    *process.Runner
 	Scheduler *trigger.Scheduler
 	Scripts   *script.Exec
+	Tools     *tools.HTTP
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -107,12 +109,14 @@ func New(cfg Config, p provider.Provider) (*App, error) {
 	a.Asks = ask.NewBroker(st, a.Bus, cfg.Now)
 	a.Registry = registry.New(a.projectCommands)
 	a.addBuiltins()
-	a.Gateway = gateway.New(gateway.Config{Now: cfg.Now, QuestionWait: cfg.QuestionWait, ConfirmWait: cfg.ConfirmWait, ConfirmTTL: cfg.ConfirmTTL},
-		st, a.Asks, a.Bus, a.Registry)
+	a.Gateway = gateway.New(gateway.Config{Now: cfg.Now, QuestionWait: cfg.QuestionWait, ConfirmWait: cfg.ConfirmWait, ConfirmTTL: cfg.ConfirmTTL,
+		Projects: a}, st, a.Asks, a.Bus, a.Registry)
+	a.Tools = tools.NewHTTP(a.Gateway, a.Secret, filepath.Join(cfg.Home, "runs"))
 	a.Gateway.SetAutomation(a.Automation)
 	a.Runner = process.NewRunner(st, a.Gateway, a.Bus, p, a.Scripts,
 		process.Config{RunsDir: filepath.Join(cfg.Home, "runs"), MCPBase: cfg.MCPBase, Now: cfg.Now, Ceiling: cfg.Ceiling,
-			ScriptCeiling: cfg.ScriptCeiling, FilesDir: filepath.Join(cfg.Home, "files")}, a)
+			ScriptCeiling: cfg.ScriptCeiling, FilesDir: filepath.Join(cfg.Home, "files"),
+			Hidden: hidden(cfg.Home)}, a)
 	a.Runner.OnDone = a.afterTriggers
 	a.Scheduler = trigger.New(st, a, cfg.Now, cfg.CatchUpSpread)
 	a.Asks.OnLateAnswer(a.lateAnswer)
@@ -120,6 +124,19 @@ func New(cfg Config, p provider.Provider) (*App, error) {
 		return nil, err
 	}
 	return a, nil
+}
+
+// hidden are the secrets and the base of deck under every path of home, since macOS links /tmp and /var.
+func hidden(home string) []string {
+	homes := []string{home}
+	if real, err := filepath.EvalSymlinks(home); err == nil && real != home {
+		homes = append(homes, real)
+	}
+	var out []string
+	for _, h := range homes {
+		out = append(out, filepath.Join(h, "secrets")+"/**", filepath.Join(h, "deck.db")+"*")
+	}
+	return out
 }
 
 // Close interrupts running providers; their processes stay running and resume on the next start.
@@ -146,11 +163,15 @@ func (a *App) fire(ctx context.Context, t db.TriggerState, input map[string]any,
 	}
 	raw, _ := json.Marshal(input)
 	act := registry.Actor{Kind: registry.Trigger, Workspace: p.WorkspaceID, ProjectID: p.ID, ProcessID: parent, TriggerID: t.ID}
-	out, err := a.Registry.Invoke(ctx, act, p.Name+"."+t.Command, raw)
+	out, err := a.Gateway.CallAs(ctx, act, p.Name+"."+t.Command, raw)
 	if err != nil {
 		return 0, err
 	}
-	id := out.(Started).Process
+	started, ok := out.(Started)
+	if !ok {
+		return 0, nil
+	}
+	id := started.Process
 	err = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		return q.SetTriggerLast(ctx, db.SetTriggerLastParams{LastProcessID: sql.NullInt64{Int64: id, Valid: true}, ID: t.ID})
 	})
@@ -221,6 +242,9 @@ func (a *App) expireConfirms(ctx context.Context, now time.Time) {
 	}
 	seen := map[int64]bool{}
 	for _, q := range expired {
+		if q.Kind == ask.KindCall {
+			a.Gateway.Record(ctx, q, "expired", "the owner did not answer in time")
+		}
 		if seen[q.ProcessID.Int64] {
 			continue
 		}

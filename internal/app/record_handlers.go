@@ -13,7 +13,7 @@ func (a *App) recordsList(ctx context.Context, act registry.Actor, in struct {
 	Project, Collection string
 	Limit               int
 }) (any, error) {
-	p, err := a.scope(ctx, act, in.Project)
+	p, err := a.readScope(ctx, act, in.Project, in.Collection, "")
 	if err != nil {
 		return nil, err
 	}

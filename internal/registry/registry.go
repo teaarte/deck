@@ -45,6 +45,8 @@ type Actor struct {
 	Commands []string
 	// Trial marks a trial run: every call that is not internal is declined.
 	Trial bool
+	// Cleared is set by the gateway once a call that is not internal passed its class rules.
+	Cleared bool
 }
 
 // Author is the actor as recorded in document revisions.
@@ -69,6 +71,8 @@ type Command struct {
 	Class       string          `json:"class"`
 	Callers     []string        `json:"callers"`
 	ProjectID   int64           `json:"-"`
+	// Journals marks a command that writes its own intent to the gateway journal.
+	Journals bool `json:"-"`
 
 	Handler Handler `json:"-"`
 	schema  *jsonschema.Schema
@@ -152,7 +156,7 @@ func Prepare(c *Command) error {
 func (r *Registry) List(ctx context.Context, a Actor) ([]*Command, error) {
 	var out []*Command
 	for _, c := range r.builtins {
-		if r.allowed(a, c) == nil {
+		if r.reachable(a, c) == nil {
 			out = append(out, c)
 		}
 	}
@@ -161,7 +165,7 @@ func (r *Registry) List(ctx context.Context, a Actor) ([]*Command, error) {
 		return nil, err
 	}
 	for _, c := range pcs {
-		if r.allowed(a, c) == nil {
+		if r.reachable(a, c) == nil {
 			out = append(out, c)
 		}
 	}
@@ -199,11 +203,20 @@ func (r *Registry) Invoke(ctx context.Context, a Actor, name string, input json.
 
 // Check does everything Invoke does except running the command.
 func (r *Registry) Check(ctx context.Context, a Actor, name string, input json.RawMessage) (*Command, json.RawMessage, error) {
+	c, input, err := r.Resolve(ctx, a, name, input)
+	if err == nil && a.Kind != Owner && c.Class != Internal && !a.Cleared {
+		err = Refuse("deck: %s is %s; only the gateway calls it for %s", c.Name, c.Class, a.Kind)
+	}
+	return c, input, err
+}
+
+// Resolve checks the caller and the input but not the class rules, which the gateway applies.
+func (r *Registry) Resolve(ctx context.Context, a Actor, name string, input json.RawMessage) (*Command, json.RawMessage, error) {
 	c, err := r.Lookup(ctx, a.Workspace, name)
 	if err != nil {
 		return nil, nil, err
 	}
-	if err := r.allowed(a, c); err != nil {
+	if err := r.reachable(a, c); err != nil {
 		return nil, nil, err
 	}
 	input, err = c.Validate(input)
@@ -225,7 +238,8 @@ func (c *Command) Validate(input json.RawMessage) (json.RawMessage, error) {
 	return input, nil
 }
 
-func (r *Registry) allowed(a Actor, c *Command) error {
+// reachable reports whether the actor may call the command at all, before the class rules of the gateway.
+func (r *Registry) reachable(a Actor, c *Command) error {
 	if !slices.Contains(c.Callers, a.Kind) {
 		return Refuse("deck: %s cannot be called by %s", c.Name, a.Kind)
 	}
@@ -237,9 +251,6 @@ func (r *Registry) allowed(a Actor, c *Command) error {
 	}
 	if a.Trial && c.Class != Internal {
 		return Refuse("deck: trial run: %s is %s, so it was declined", c.Name, c.Class)
-	}
-	if (a.Kind == Agent || a.Kind == Master) && c.Class != Internal {
-		return Refuse("deck: %s is %s; %s cannot call it yet", c.Name, c.Class, a.Kind)
 	}
 	return nil
 }

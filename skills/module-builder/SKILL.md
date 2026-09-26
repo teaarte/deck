@@ -42,8 +42,21 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
 - **Commands** are the verbs. Each has a class: `internal` (records, cards, documents), `reversible`,
   `external` (leaves deck). Choose the executor:
   - `script` for mechanics that repeat the same way (fetch, parse, poll, convert, index) — cheap and exact;
-  - `agent` for judgement (rate, summarise, write) — give it a prompt file, skills and a result schema.
+  - `agent` for judgement (rate, summarise, write) — give it a prompt file, skills and a result schema;
+  - `tool` for exactly one call of a tool: `{"type": "tool", "tool": "<http tool>"}`; the tool gets the
+    command input as it is (declare the same input), and the process result is what the tool answered.
   A script that cannot do something reliably becomes an agent, not a bigger script.
+- **HTTP tools** (`tools.http`) are how the module reaches a service's API: method, `url` with `{field}` from the
+  input (path or query, never the host), `headers` with `$secret.<name>` (the owner stores it with
+  `secret_set`; scripts and agents never see it), `body` template, `input` and `result` schemas. A tool
+  without `class` is `external`. An external call outside `allowed_external` waits for the owner; after yes
+  deck makes that exact call and hands the result back. Give a paid or risky tool `confirm_ttl_minutes`. A
+  binary answer (video, audio, picture) becomes a file in the caller's results folder: `{"file", "type",
+  "size"}`. Everything deck calls outside is journaled; a call whose answer was lost is never repeated by
+  deck — the owner retries it or counts it done.
+- **Reads**: `reads: [{"project": "other", "collections": [...], "documents": [...]}]` lets agents and scripts
+  read those (`records_list`, `document_get` with `project`) and screens show them (`source.project`).
+  Nothing ever writes to another project.
 - **Results** are JSON by schema. Decisions use typed shapes: a choice with probabilities and confidence,
   a score 2–10 with confidence, yes/no with a probability. A result of `null` means "nothing to do".
 - **Triggers**: `cron` for schedules, `lane` when a card enters a lane, `after` when another command of the
@@ -87,8 +100,9 @@ A script reads its input JSON from stdin and prints its result JSON to stdout. I
 - no secrets and no keys of the owner; ask for an HTTP tool of the manifest instead;
 - deck commands over HTTP: `curl -s -H "Authorization: Bearer $DECK_TOKEN" -d '<json>' "$DECK_URL/commands/deck.records_upsert"`
   (`GET $DECK_URL/commands` lists them; works through the proxy or without it); `records_upsert` takes JSONL
-  and returns `{"written", "ids", "errors"}`; a script may call internal commands of its own project that
-  allow `agent` callers;
+  and returns `{"written", "ids", "errors"}`; a script may call commands and tools of its own project that
+  allow `agent` callers; a call that waits for the owner answers HTTP 202 `{"waiting": <ask>}` — deck makes
+  it later, the script goes on;
 - files go into `$DECK_RESULTS`; the result field `files: [{"path": "...", "record": <id>}]` attaches them;
 - packages go into `scripts[].packages` (Python through `uv`, Node through `npm`), programs it needs from
   the machine into `scripts[].programs`; nothing is installed while the script runs.

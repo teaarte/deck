@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"deck2/internal/ask"
 	"deck2/internal/events"
 	"deck2/internal/gateway"
 	"deck2/internal/manifest"
@@ -36,6 +37,7 @@ const Empty = "null"
 const (
 	KindAgent  = "agent"
 	KindScript = "script"
+	KindTool   = "tool"
 )
 
 type Config struct {
@@ -47,6 +49,8 @@ type Config struct {
 	// ScriptCeiling is how long a command script may run when its manifest sets no timeout.
 	ScriptCeiling time.Duration
 	FilesDir      string
+	// Hidden are path patterns agents may not read: the secrets and the base of deck.
+	Hidden []string
 }
 
 // Runner owns process lifecycles. A process stops in waiting_answer when the agent is blocked on the
@@ -149,6 +153,7 @@ func (r *Runner) finish(ctx context.Context, processID int64, state, result stri
 		nbs = 1
 	}
 	var n int64
+	var closedCalls []db.Ask
 	err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		var err error
 		n, err = q.FinishProcess(ctx, db.FinishProcessParams{State: state, Result: result, NotBySchema: nbs, Error: errText,
@@ -156,7 +161,8 @@ func (r *Runner) finish(ctx context.Context, processID int64, state, result stri
 		if err != nil || n == 0 {
 			return err
 		}
-		return q.CloseOpenAsksOfProcess(ctx, processID)
+		closedCalls, err = q.CloseOpenAsksOfProcess(ctx, db.CloseOpenAsksOfProcessParams{ProcessID: processID, CallsToo: b2i(state == StateStopped)})
+		return err
 	})
 	if err != nil {
 		slog.Error("finish process", "process", processID, "err", err)
@@ -168,6 +174,7 @@ func (r *Runner) finish(ctx context.Context, processID int64, state, result stri
 	r.mu.Lock()
 	delete(r.stopping, processID)
 	r.mu.Unlock()
+	r.dropped(ctx, closedCalls)
 	r.closed(processID)
 	if state == StateDone && !notBySchema && result != Empty && r.OnDone != nil {
 		if p, err := r.st.Q.GetProcess(ctx, processID); err == nil {
@@ -200,4 +207,13 @@ func (r *Runner) closed(processID int64) {
 	_ = os.Remove(r.LogPath(processID))
 	r.bus.Publish("processes")
 	r.bus.Publish("asks")
+}
+
+// dropped journals the frozen calls a closed process took with it.
+func (r *Runner) dropped(ctx context.Context, asks []db.Ask) {
+	for _, a := range asks {
+		if a.Kind == ask.KindCall {
+			r.gw.Record(ctx, a, "rejected", "the process was stopped before the owner decided")
+		}
+	}
 }

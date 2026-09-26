@@ -28,6 +28,31 @@ func (q *Queries) ClaimProcess(ctx context.Context, arg ClaimProcessParams) (int
 	return result.RowsAffected()
 }
 
+const countUnknownCalls = `-- name: CountUnknownCalls :one
+SELECT count(*) FROM tool_call t JOIN ask a ON a.id = t.ask_id
+WHERE t.outcome = 'unknown' AND a.state IN ('open', 'running') AND a.id != ?1
+  AND t.project_id = ?2 AND t.tool = ?3 AND t.params = ?4
+`
+
+type CountUnknownCallsParams struct {
+	Retrying  int64
+	ProjectID int64
+	Tool      string
+	Params    string
+}
+
+func (q *Queries) CountUnknownCalls(ctx context.Context, arg CountUnknownCallsParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countUnknownCalls,
+		arg.Retrying,
+		arg.ProjectID,
+		arg.Tool,
+		arg.Params,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createProcess = `-- name: CreateProcess :one
 INSERT INTO process (project_id, command, kind, state, provider, input, session_id, parent_id, depth, trigger_id, retry_key, ceiling_ms,
     manifest_revision, trial)
@@ -181,6 +206,30 @@ func (q *Queries) FinishProcess(ctx context.Context, arg FinishProcessParams) (i
 	return result.RowsAffected()
 }
 
+const finishToolCall = `-- name: FinishToolCall :execrows
+UPDATE tool_call SET outcome = ?, external_id = ?, error = ? WHERE id = ? AND outcome = 'started'
+`
+
+type FinishToolCallParams struct {
+	Outcome    string
+	ExternalID string
+	Error      string
+	ID         int64
+}
+
+func (q *Queries) FinishToolCall(ctx context.Context, arg FinishToolCallParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, finishToolCall,
+		arg.Outcome,
+		arg.ExternalID,
+		arg.Error,
+		arg.ID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const getProcess = `-- name: GetProcess :one
 SELECT id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, kind, manifest_revision, trial FROM process WHERE id = ?
 `
@@ -214,6 +263,30 @@ func (q *Queries) GetProcess(ctx context.Context, id int64) (Process, error) {
 		&i.Kind,
 		&i.ManifestRevision,
 		&i.Trial,
+	)
+	return i, err
+}
+
+const getToolCall = `-- name: GetToolCall :one
+SELECT id, process_id, project_id, tool, class, outcome, params, created_at, actor, external_id, error, ask_id FROM tool_call WHERE id = ?
+`
+
+func (q *Queries) GetToolCall(ctx context.Context, id int64) (ToolCall, error) {
+	row := q.db.QueryRowContext(ctx, getToolCall, id)
+	var i ToolCall
+	err := row.Scan(
+		&i.ID,
+		&i.ProcessID,
+		&i.ProjectID,
+		&i.Tool,
+		&i.Class,
+		&i.Outcome,
+		&i.Params,
+		&i.CreatedAt,
+		&i.Actor,
+		&i.ExternalID,
+		&i.Error,
+		&i.AskID,
 	)
 	return i, err
 }
@@ -460,7 +533,7 @@ func (q *Queries) ListProcessesFiltered(ctx context.Context, arg ListProcessesFi
 }
 
 const listToolCalls = `-- name: ListToolCalls :many
-SELECT id, process_id, project_id, tool, class, outcome, params, created_at, actor FROM tool_call WHERE process_id = ? ORDER BY id
+SELECT id, process_id, project_id, tool, class, outcome, params, created_at, actor, external_id, error, ask_id FROM tool_call WHERE process_id = ? ORDER BY id
 `
 
 func (q *Queries) ListToolCalls(ctx context.Context, processID int64) ([]ToolCall, error) {
@@ -482,6 +555,9 @@ func (q *Queries) ListToolCalls(ctx context.Context, processID int64) ([]ToolCal
 			&i.Params,
 			&i.CreatedAt,
 			&i.Actor,
+			&i.ExternalID,
+			&i.Error,
+			&i.AskID,
 		); err != nil {
 			return nil, err
 		}
@@ -496,8 +572,10 @@ func (q *Queries) ListToolCalls(ctx context.Context, processID int64) ([]ToolCal
 	return items, nil
 }
 
-const logToolCall = `-- name: LogToolCall :exec
-INSERT INTO tool_call (process_id, project_id, actor, tool, class, outcome, params) VALUES (?, ?, ?, ?, ?, ?, ?)
+const logToolCall = `-- name: LogToolCall :one
+INSERT INTO tool_call (process_id, project_id, actor, tool, class, outcome, params, error, ask_id)
+VALUES (?1, ?2, ?3, ?4, ?5, ?6,
+    ?7, ?8, ?9) RETURNING id
 `
 
 type LogToolCallParams struct {
@@ -508,10 +586,12 @@ type LogToolCallParams struct {
 	Class     string
 	Outcome   string
 	Params    string
+	Error     string
+	AskID     sql.NullInt64
 }
 
-func (q *Queries) LogToolCall(ctx context.Context, arg LogToolCallParams) error {
-	_, err := q.db.ExecContext(ctx, logToolCall,
+func (q *Queries) LogToolCall(ctx context.Context, arg LogToolCallParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, logToolCall,
 		arg.ProcessID,
 		arg.ProjectID,
 		arg.Actor,
@@ -519,8 +599,12 @@ func (q *Queries) LogToolCall(ctx context.Context, arg LogToolCallParams) error 
 		arg.Class,
 		arg.Outcome,
 		arg.Params,
+		arg.Error,
+		arg.AskID,
 	)
-	return err
+	var id int64
+	err := row.Scan(&id)
+	return id, err
 }
 
 const markSilentProcesses = `-- name: MarkSilentProcesses :many
@@ -552,6 +636,23 @@ func (q *Queries) MarkSilentProcesses(ctx context.Context, before int64) ([]int6
 	return items, nil
 }
 
+const markToolCallUnknown = `-- name: MarkToolCallUnknown :execrows
+UPDATE tool_call SET outcome = 'unknown', ask_id = ?1 WHERE id = ?2 AND outcome = 'started'
+`
+
+type MarkToolCallUnknownParams struct {
+	AskID sql.NullInt64
+	ID    int64
+}
+
+func (q *Queries) MarkToolCallUnknown(ctx context.Context, arg MarkToolCallUnknownParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, markToolCallUnknown, arg.AskID, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const pauseCeiling = `-- name: PauseCeiling :exec
 UPDATE process SET ceiling_ms = MAX(0, deadline_ms - CAST(?1 AS INTEGER)), deadline_ms = NULL, silent_since_ms = NULL
 WHERE id = ?2 AND deadline_ms IS NOT NULL
@@ -578,7 +679,9 @@ func (q *Queries) PauseCeilingAtLastOutput(ctx context.Context, id int64) error 
 }
 
 const purgeEmptyProcesses = `-- name: PurgeEmptyProcesses :many
-DELETE FROM process WHERE state = 'done' AND result = 'null' AND finished_at < CAST(?1 AS TEXT) RETURNING id
+DELETE FROM process WHERE state = 'done' AND result = 'null' AND finished_at < CAST(?1 AS TEXT)
+  AND NOT EXISTS (SELECT 1 FROM ask a WHERE a.process_id = process.id AND a.kind IN ('call', 'unknown') AND a.state IN ('open', 'running'))
+RETURNING id
 `
 
 func (q *Queries) PurgeEmptyProcesses(ctx context.Context, before string) ([]int64, error) {
@@ -729,6 +832,46 @@ type StartProcessSessionParams struct {
 func (q *Queries) StartProcessSession(ctx context.Context, arg StartProcessSessionParams) error {
 	_, err := q.db.ExecContext(ctx, startProcessSession, arg.SessionID, arg.StartNote, arg.ID)
 	return err
+}
+
+const startedToolCalls = `-- name: StartedToolCalls :many
+SELECT id, process_id, project_id, tool, class, outcome, params, created_at, actor, external_id, error, ask_id FROM tool_call WHERE outcome = 'started' ORDER BY id
+`
+
+func (q *Queries) StartedToolCalls(ctx context.Context) ([]ToolCall, error) {
+	rows, err := q.db.QueryContext(ctx, startedToolCalls)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ToolCall
+	for rows.Next() {
+		var i ToolCall
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProcessID,
+			&i.ProjectID,
+			&i.Tool,
+			&i.Class,
+			&i.Outcome,
+			&i.Params,
+			&i.CreatedAt,
+			&i.Actor,
+			&i.ExternalID,
+			&i.Error,
+			&i.AskID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const stopParkedProcess = `-- name: StopParkedProcess :execrows

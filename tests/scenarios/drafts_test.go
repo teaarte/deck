@@ -188,11 +188,12 @@ func TestDraftRunsOnlyTrialsAndNoTriggersUntilEnabled(t *testing.T) {
 	if !e.trial(try.Process) {
 		t.Fatal("command_try starts a trial run in an enabled project")
 	}
-	if code, out := e.callWith(tok, "notes.send", map[string]any{"retry_key": "x"}); code != 403 {
-		t.Fatalf("an external command outside a trial is not the master's: %d %s", code, out)
+	var held struct{ Waiting int64 }
+	if code, out := e.callWith(tok, "notes.send", map[string]any{"retry_key": "x"}); code != 200 || json.Unmarshal(out, &held) != nil || held.Waiting == 0 {
+		t.Fatalf("an external command of the master outside the allowed list waits for the owner: %d %s", code, out)
 	}
 	var params string
-	_ = e.App.Store.DB.QueryRow(`SELECT params FROM tool_call WHERE tool = 'notes.send' AND class = 'external' AND outcome = 'rejected'`).Scan(&params)
+	_ = e.App.Store.DB.QueryRow(`SELECT params FROM tool_call WHERE tool = 'notes.send' AND class = 'external' AND outcome = 'waiting'`).Scan(&params)
 	if params != `{"retry_key":"x"}` {
 		t.Fatalf("the journal keeps the parameters of a call that is not internal: %q", params)
 	}

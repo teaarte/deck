@@ -89,7 +89,8 @@ func (g *Gateway) refresh(ctx context.Context, e *automationEntry, s *Session) e
 	return nil
 }
 
-// CallAs runs a registry command for an automation token over the HTTP API, with the journal of the gateway.
+// CallAs runs a registry command for an automation token or a trigger, with the class rules and the journal
+// of the gateway.
 func (g *Gateway) CallAs(ctx context.Context, act registry.Actor, name string, args []byte) (any, error) {
-	return g.call(ctx, &Session{Workspace: act.Workspace, Token: act.Token, Commands: act.Commands}, name, args)
+	return g.call(ctx, act, name, args)
 }

@@ -110,13 +110,24 @@ func (m *Manifest) compileCommands(fail func(string, ...any)) {
 			if !m.knownTool(e.Tool) {
 				fail("command %q: unknown tool %q", c.Name, e.Tool)
 			}
+			for _, t := range m.Tools.HTTP {
+				if t.Name == e.Tool {
+					if err := fitsTool(*c, t); err != nil {
+						fail("command %q: %v", c.Name, err)
+					}
+				}
+			}
 		}
 	}
 }
 
 func (m *Manifest) checkTools(fail func(string, ...any)) {
 	seen := map[string]bool{}
-	for _, t := range m.Tools.HTTP {
+	for i := range m.Tools.HTTP {
+		t := &m.Tools.HTTP[i]
+		if t.Class == "" {
+			t.Class = "external"
+		}
 		if seen[t.Name] {
 			fail("http tool %q: duplicate", t.Name)
 		}
@@ -125,9 +136,14 @@ func (m *Manifest) checkTools(fail func(string, ...any)) {
 			fail("http tool %q: a command has the same name", t.Name)
 		}
 		if len(t.Input) > 0 {
-			if _, err := compileSchema("tool-input-"+t.Name, t.Input); err != nil {
+			if err := schemas.CheckInput(t.Input); err != nil {
+				fail("http tool %q input: parameters must use App Intents types: %v", t.Name, err)
+			} else if _, err := compileSchema("tool-input-"+t.Name, t.Input); err != nil {
 				fail("http tool %q input: %v", t.Name, err)
 			}
+		}
+		for _, err := range checkTemplate(*t) {
+			fail("http tool %q: %v", t.Name, err)
 		}
 		if len(t.Result) > 0 {
 			if _, err := compileSchema("tool-result-"+t.Name, t.Result); err != nil {
@@ -195,6 +211,12 @@ func (m *Manifest) checkScreens(fail func(string, ...any)) {
 			where := fmt.Sprintf("screen %q block %d", s.Name, j)
 			switch b.Type {
 			case "table":
+				if b.Source != nil && b.Source.Project != "" {
+					if err := m.checkForeignSource(*b.Source); err != nil {
+						fail("%s source: %v", where, err)
+					}
+					continue
+				}
 				c := (*Collection)(nil)
 				if b.Source != nil {
 					c = m.collections[b.Source.Collection]
@@ -271,4 +293,14 @@ func (m *Manifest) checkAction(a Action) error {
 		}
 	}
 	return nil
+}
+
+// checkForeignSource allows a source in another project only for a collection the manifest reads.
+func (m *Manifest) checkForeignSource(src Source) error {
+	for _, r := range m.Reads {
+		if r.Project == src.Project && slices.Contains(r.Collections, src.Collection) {
+			return nil
+		}
+	}
+	return fmt.Errorf("collection %s.%s is not in reads", src.Project, src.Collection)
 }

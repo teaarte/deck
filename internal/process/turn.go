@@ -37,13 +37,17 @@ func (r *Runner) run(ctx context.Context, t turn) {
 		return
 	}
 	trial := p.Trial == 1
-	if t.cmd.Executor.Type == KindScript {
+	switch t.cmd.Executor.Type {
+	case KindScript:
 		r.runScript(ctx, t, trial)
+		return
+	case KindTool:
+		r.runTool(ctx, t, trial)
 		return
 	}
 	dir := filepath.Join(r.cfg.RunsDir, fmt.Sprint(processID))
 	work := filepath.Join(dir, "work")
-	if err := os.MkdirAll(work, 0o700); err != nil {
+	if err := errors.Join(os.MkdirAll(work, 0o700), os.MkdirAll(filepath.Join(dir, "results"), 0o700)); err != nil {
 		r.finish(bg, processID, StateError, "", false, err.Error())
 		return
 	}
@@ -72,7 +76,7 @@ func (r *Runner) run(ctx context.Context, t turn) {
 	req := provider.Request{
 		Cwd: work, Prompt: t.message, ResultSchema: t.cmd.Result,
 		MCPURL: r.cfg.MCPBase + "/mcp/" + tok, AllowedTools: r.gw.AllowedTools(tok), PermissionMCP: gateway.PermissionTool(),
-		SessionID: t.session, Resume: t.resume,
+		SessionID: t.session, Resume: t.resume, Hidden: r.cfg.Hidden,
 		OnStart: func(pid int) { r.setGroup(bg, processID, pid) },
 		OnEvent: func(e provider.Event) { r.event(bg, processID, stream, e) },
 	}
@@ -147,6 +151,10 @@ func (r *Runner) run(ctx context.Context, t turn) {
 			result := res.Text
 			if len(t.cmd.Result) > 0 {
 				result = string(res.Structured)
+				if err := r.keepFiles(bg, t.project, processID, filepath.Join(dir, "results"), result); err != nil {
+					r.finish(bg, processID, StateError, result, false, err.Error())
+					return
+				}
 			}
 			r.finish(bg, processID, StateDone, result, false, "")
 			return

@@ -81,7 +81,8 @@ func TestLostLoginNewSessionGetsReportOfWhatWasDone(t *testing.T) {
 	e.waitState(id, "needs_login")
 	first := e.session(id)
 	err := e.App.Store.Tx(context.Background(), func(ctx context.Context, q *db.Queries) error {
-		return q.LogToolCall(ctx, db.LogToolCallParams{ProcessID: id, ProjectID: p, Tool: "records_upsert", Class: "internal", Outcome: "done"})
+		_, err := q.LogToolCall(ctx, db.LogToolCallParams{ProcessID: id, ProjectID: p, Tool: "records_upsert", Class: "internal", Outcome: "done"})
+		return err
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -127,7 +128,8 @@ func TestNewSessionReportSurvivesRestart(t *testing.T) {
 	id := e1.run(p, "work")
 	e1.waitState(id, "needs_login")
 	err := e1.App.Store.Tx(context.Background(), func(ctx context.Context, q *db.Queries) error {
-		return q.LogToolCall(ctx, db.LogToolCallParams{ProcessID: id, ProjectID: p, Tool: "records_upsert", Class: "internal", Outcome: "done"})
+		_, err := q.LogToolCall(ctx, db.LogToolCallParams{ProcessID: id, ProjectID: p, Tool: "records_upsert", Class: "internal", Outcome: "done"})
+		return err
 	})
 	if err != nil {
 		t.Fatal(err)

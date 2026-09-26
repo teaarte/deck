@@ -92,8 +92,10 @@ func (a *App) laneTriggers(ctx context.Context, p db.Project, m *manifest.Manife
 		input := manifest.TriggerInput(t, card)
 		input[manifest.RetryKey] = fmt.Sprintf("trigger:%d:card:%d", row.ID, card)
 		id, err := a.fire(ctx, row, input, parent)
-		if err != nil {
-			slog.Error("lane trigger", "project", p.Name, "command", t.Command, "card", card, "err", err)
+		if err != nil || id == 0 {
+			if err != nil {
+				slog.Error("lane trigger", "project", p.Name, "command", t.Command, "card", card, "err", err)
+			}
 			continue
 		}
 		err = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {

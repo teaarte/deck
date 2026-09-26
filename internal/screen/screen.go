@@ -3,6 +3,7 @@ package screen
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 
@@ -34,7 +35,11 @@ func Render(ctx context.Context, st *store.Store, projectID int64, project strin
 		children = append(children, id)
 		switch b.Type {
 		case "table":
-			rows, err := resolve(ctx, st, projectID, b)
+			src, err := sourceProject(ctx, st, projectID, m, b.Source)
+			var rows []map[string]any
+			if err == nil {
+				rows, err = resolve(ctx, st, src, b)
+			}
 			if err != nil {
 				components = append(components, map[string]any{"id": id, "component": "Text", "text": "source error: " + err.Error(), "variant": "error"})
 				continue
@@ -59,6 +64,27 @@ func Render(ctx context.Context, st *store.Store, projectID int64, project strin
 		{"version": Version, "updateComponents": map[string]any{"surfaceId": surface, "components": components}},
 		{"version": Version, "updateDataModel": map[string]any{"surfaceId": surface, "value": data}},
 	}, nil
+}
+
+// sourceProject is the project a block reads: its own, or another one its manifest reads.
+func sourceProject(ctx context.Context, st *store.Store, projectID int64, m *manifest.Manifest, src *manifest.Source) (int64, error) {
+	if src == nil || src.Project == "" {
+		return projectID, nil
+	}
+	own, err := st.Q.GetProject(ctx, projectID)
+	if err != nil {
+		return 0, err
+	}
+	other, err := st.Q.GetProjectByName(ctx, src.Project)
+	if err != nil || other.WorkspaceID != own.WorkspaceID {
+		return 0, fmt.Errorf("no project %q", src.Project)
+	}
+	for _, r := range m.Reads {
+		if r.Project == src.Project && slices.Contains(r.Collections, src.Collection) {
+			return other.ID, nil
+		}
+	}
+	return 0, fmt.Errorf("%s.%s is not in reads", src.Project, src.Collection)
 }
 
 func actions(project string, as []manifest.Action) []map[string]any {

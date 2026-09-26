@@ -51,6 +51,14 @@ func (a *App) projectCommands(ctx context.Context, workspace int64, name string)
 			}
 			out = append(out, cmd)
 		}
+		for _, t := range m.Tools.HTTP {
+			cmd := a.Tools.Command(p, t)
+			if err := registry.Prepare(cmd); err != nil {
+				slog.Error("project tool", "tool", cmd.Name, "err", err)
+				continue
+			}
+			out = append(out, cmd)
+		}
 	}
 	return out, nil
 }

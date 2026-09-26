@@ -25,12 +25,14 @@ func (r *Runner) Stop(ctx context.Context, processID int64, reason string) error
 		return nil
 	}
 	var n int64
+	var closedCalls []db.Ask
 	err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		var err error
 		if n, err = q.StopParkedProcess(ctx, db.StopParkedProcessParams{Error: reason, FinishedAt: r.stamp(), ID: processID}); err != nil || n == 0 {
 			return err
 		}
-		return q.CloseOpenAsksOfProcess(ctx, processID)
+		closedCalls, err = q.CloseOpenAsksOfProcess(ctx, db.CloseOpenAsksOfProcessParams{ProcessID: processID, CallsToo: 1})
+		return err
 	})
 	if err != nil {
 		return err
@@ -38,6 +40,7 @@ func (r *Runner) Stop(ctx context.Context, processID int64, reason string) error
 	if n == 0 {
 		return registry.Invalid("deck: process %d has already finished", processID)
 	}
+	r.dropped(ctx, closedCalls)
 	r.closed(processID)
 	return nil
 }

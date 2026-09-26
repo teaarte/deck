@@ -32,7 +32,7 @@ WHERE id = ? AND state = 'open';
 
 
 -- name: ListOpenAsksOfProcess :many
-SELECT * FROM ask WHERE process_id = CAST(sqlc.arg(process_id) AS INTEGER) AND state = 'open' AND kind != 'warning' ORDER BY id;
+SELECT * FROM ask WHERE process_id = CAST(sqlc.arg(process_id) AS INTEGER) AND state IN ('open', 'running') AND kind != 'warning' ORDER BY id;
 
 
 -- name: ListUndeliveredAsks :many
@@ -47,12 +47,15 @@ UPDATE ask SET delivered = 1 WHERE id = ?;
 UPDATE ask SET state = 'expired' WHERE id = ? AND state = 'open';
 
 
--- name: CloseOpenAsksOfProcess :exec
-UPDATE ask SET state = 'expired', delivered = 1 WHERE process_id = CAST(sqlc.arg(process_id) AS INTEGER) AND state = 'open' AND kind != 'warning';
+-- name: CloseOpenAsksOfProcess :many
+UPDATE ask SET state = 'expired', delivered = 1
+WHERE process_id = CAST(sqlc.arg(process_id) AS INTEGER) AND state = 'open' AND kind NOT IN ('warning', 'unknown')
+  AND (sqlc.arg(calls_too) = 1 OR kind != 'call')
+RETURNING *;
 
 
 -- name: ExpireStaleConfirms :many
-UPDATE ask SET state = 'expired' WHERE kind = 'confirm' AND state = 'open' AND expires_at <= CAST(sqlc.arg(now) AS TEXT) RETURNING *;
+UPDATE ask SET state = 'expired' WHERE kind IN ('confirm', 'call') AND state = 'open' AND expires_at <= CAST(sqlc.arg(now) AS TEXT) RETURNING *;
 
 
 -- name: ConsumeApproval :one
@@ -73,3 +76,38 @@ UPDATE ask SET used = 1, delivered = 1 WHERE id = ?;
 -- name: UseApproval :execrows
 UPDATE ask SET used = 1, delivered = 1 WHERE id = ? AND used = 0;
 
+
+
+-- name: CreateCallAsk :one
+INSERT INTO ask (process_id, workspace_id, project_id, kind, text, payload, expires_at)
+VALUES (sqlc.narg(process_id), sqlc.arg(workspace_id), sqlc.arg(project_id), sqlc.arg(kind), sqlc.arg(text), sqlc.arg(payload),
+    sqlc.narg(expires_at)) RETURNING *;
+
+
+-- name: FindOpenCallAsk :one
+SELECT * FROM ask
+WHERE kind = 'call' AND state = 'open' AND project_id = sqlc.arg(project_id) AND payload = sqlc.arg(payload)
+  AND coalesce(process_id, 0) = CAST(sqlc.arg(process_id) AS INTEGER)
+ORDER BY id LIMIT 1;
+
+
+-- name: ClaimAsk :execrows
+UPDATE ask SET state = 'running', answer = sqlc.arg(answer)
+WHERE id = sqlc.arg(id) AND state = 'open' AND (expires_at IS NULL OR expires_at > CAST(sqlc.arg(now) AS TEXT));
+
+
+-- name: ReleaseAsk :exec
+UPDATE ask SET state = 'open', answer = '' WHERE id = ? AND state = 'running';
+
+
+-- name: ListRunningAsks :many
+SELECT * FROM ask WHERE state = 'running' ORDER BY id;
+
+
+-- name: ReopenAsUnknown :exec
+UPDATE ask SET kind = 'unknown', state = 'open', answer = '', text = ?, expires_at = NULL WHERE id = ? AND state = 'running';
+
+
+-- name: SettleAsk :execrows
+UPDATE ask SET state = 'answered', result = sqlc.arg(result), answered_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+WHERE id = sqlc.arg(id) AND state = 'running';

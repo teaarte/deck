@@ -14,6 +14,7 @@ import (
 
 	"deck2/internal/ask"
 	"deck2/internal/events"
+	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
@@ -46,12 +47,18 @@ func (s *Session) actor() registry.Actor {
 	return registry.Actor{Kind: registry.Agent, Workspace: s.Workspace, ProjectID: s.ProjectID, ProcessID: s.ProcessID, Trial: s.Trial}
 }
 
+// Projects gives the gateway the current manifest of a project.
+type Projects interface {
+	Manifest(ctx context.Context, projectID int64) (*manifest.Manifest, error)
+}
+
 type Config struct {
 	Now          func() time.Time
 	QuestionWait time.Duration
 	ConfirmWait  time.Duration
-	// ConfirmTTL is how long an unanswered confirmation stays open; zero keeps it open.
+	// ConfirmTTL is how long an unanswered confirmation stays open unless its tool sets its own; zero keeps it open.
 	ConfirmTTL time.Duration
+	Projects   Projects
 }
 
 type Gateway struct {
@@ -102,8 +109,8 @@ func (g *Gateway) Unregister(tok string) {
 	g.mu.Unlock()
 }
 
-// AllowedTools lists tools the provider may call without the approve round-trip: free builtins and
-// gateway tools of class internal.
+// AllowedTools lists tools the provider may call without the approve round-trip: free builtins and every
+// gateway tool, since the gateway applies the class rules itself.
 func (g *Gateway) AllowedTools(tok string) []string {
 	g.mu.Lock()
 	defer g.mu.Unlock()
@@ -204,15 +211,13 @@ func (g *Gateway) addCommands(ctx context.Context, srv *mcp.Server, s *Session, 
 				}
 				return g.invoke(ctx, s, name, req.Params.Arguments), nil
 			})
-		if c.Class == registry.Internal {
-			allowed = append(allowed, qualified(tool))
-		}
+		allowed = append(allowed, qualified(tool))
 	}
 	return allowed, tools, nil
 }
 
 func (g *Gateway) invoke(ctx context.Context, s *Session, name string, args json.RawMessage) *mcp.CallToolResult {
-	out, err := g.call(ctx, s, name, args)
+	out, err := g.call(ctx, s.actor(), name, args)
 	if err != nil {
 		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}}}
 	}
@@ -220,35 +225,56 @@ func (g *Gateway) invoke(ctx context.Context, s *Session, name string, args json
 	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(b)}}}
 }
 
-// call runs a registry command for the session and writes the call with the class of the command to the journal.
-func (g *Gateway) call(ctx context.Context, s *Session, name string, args json.RawMessage) (any, error) {
-	class, project := registry.Internal, s.ProjectID
-	if c, err := g.reg.Lookup(ctx, s.Workspace, name); err == nil {
+// call runs a registry command for a caller other than the owner: the class rules decide whether it runs
+// now or waits for the owner, and the call goes to the journal with the class of the command.
+func (g *Gateway) call(ctx context.Context, act registry.Actor, name string, args json.RawMessage) (any, error) {
+	c, input, err := g.reg.Resolve(ctx, act, name, args)
+	class, project := registry.Internal, act.ProjectID
+	if c != nil {
 		class = c.Class
-		if project == 0 {
+		if project == 0 || c.ProjectID != 0 {
 			project = c.ProjectID
 		}
 	}
 	params := ""
 	if class != registry.Internal {
-		params = string(args)
+		params = canonical(args)
 	}
-	out, err := g.reg.Invoke(ctx, s.actor(), name, args)
-	outcome := "done"
+	if err == nil && class != registry.Internal && !act.Cleared && act.Kind != registry.Owner {
+		var now bool
+		if now, err = g.gate(ctx, c, project); err == nil && !now {
+			return g.hold(ctx, act, c, project, input)
+		}
+		act.Cleared = true
+	}
 	if err != nil {
-		outcome = "rejected"
+		g.journal(ctx, act, project, name, class, "rejected", params, err.Error())
+		return nil, err
 	}
-	g.journal(ctx, s, project, name, class, outcome, params)
+	out, err := g.reg.Invoke(ctx, act, name, input)
+	if !c.Journals {
+		outcome, text := "done", ""
+		if err != nil {
+			outcome, text = "rejected", err.Error()
+		}
+		g.journal(ctx, act, project, name, class, outcome, params, text)
+	}
 	return out, err
 }
 
 func (g *Gateway) log(ctx context.Context, s *Session, tool, class, outcome, params string) {
-	g.journal(ctx, s, s.ProjectID, tool, class, outcome, params)
+	g.journal(ctx, s.actor(), s.ProjectID, tool, class, outcome, params, "")
 }
 
-func (g *Gateway) journal(ctx context.Context, s *Session, project int64, tool, class, outcome, params string) {
+func (g *Gateway) journal(ctx context.Context, act registry.Actor, project int64, tool, class, outcome, params, errText string) {
 	_ = g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		return q.LogToolCall(ctx, db.LogToolCallParams{ProcessID: s.ProcessID, ProjectID: project, Actor: s.actor().Author(),
-			Tool: tool, Class: class, Outcome: outcome, Params: params})
+		_, err := q.LogToolCall(ctx, db.LogToolCallParams{ProcessID: act.ProcessID, ProjectID: project, Actor: act.Author(),
+			Tool: tool, Class: class, Outcome: outcome, Params: params, Error: errText})
+		return err
 	})
+}
+
+// Command looks a registry command up for callers that need its class.
+func (g *Gateway) Command(ctx context.Context, workspace int64, name string) (*registry.Command, error) {
+	return g.reg.Lookup(ctx, workspace, name)
 }

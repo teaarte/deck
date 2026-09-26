@@ -12,8 +12,10 @@ type Request struct {
 	Prompt       string
 	ResultSchema json.RawMessage
 	// Skills are AgentSkills files by path, "<skill>/SKILL.md" and the rest of each skill folder.
-	Skills        map[string]string
-	MCPURL        string
+	Skills map[string]string
+	MCPURL string
+	// Hidden are path patterns in the permission rule syntax the agent may not read or write, such as secrets.
+	Hidden        []string
 	AllowedTools  []string
 	PermissionMCP string
 	// SessionID is assigned by deck; Resume continues it instead of starting it.

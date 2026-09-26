@@ -25,7 +25,7 @@ func docView(d db.Document) documentView {
 }
 
 func (a *App) documentsList(ctx context.Context, act registry.Actor, in struct{ Project, Kind string }) (any, error) {
-	s, err := a.docScope(ctx, act, in.Project)
+	s, err := a.readDocScope(ctx, act, in.Project, "")
 	if err != nil {
 		return nil, err
 	}
@@ -35,13 +35,27 @@ func (a *App) documentsList(ctx context.Context, act registry.Actor, in struct{ 
 	}
 	out := make([]documentView, 0, len(ds))
 	for _, d := range ds {
+		p := db.Project{ID: d.ProjectID, Name: in.Project}
+		if d.ProjectID != 0 && a.mayRead(ctx, a.Store.Q, act, p, "", d.Name) != nil {
+			continue
+		}
 		out = append(out, docView(d))
 	}
 	return out, nil
 }
 
-// readableDocument loads a document the actor may read: its own project's or its workspace's.
-func readableDocument(ctx context.Context, q *db.Queries, act registry.Actor, id int64) (db.Document, error) {
+// readDocScope is where a document read works; another project only as far as reads allow.
+func (a *App) readDocScope(ctx context.Context, act registry.Actor, project, name string) (Scope, error) {
+	if project == "" {
+		return a.docScope(ctx, act, project)
+	}
+	p, err := a.readScope(ctx, act, project, "", name)
+	return projectScope(p), err
+}
+
+// readableDocument loads a document the actor may read: its own project's, its workspace's, or one that reads
+// in its manifest names.
+func (a *App) readableDocument(ctx context.Context, q *db.Queries, act registry.Actor, id int64) (db.Document, error) {
 	d, err := getDocument(ctx, q, id)
 	if err != nil {
 		return d, err
@@ -49,10 +63,14 @@ func readableDocument(ctx context.Context, q *db.Queries, act registry.Actor, id
 	if d.WorkspaceID != act.Workspace {
 		return d, registry.NotFound("deck: no document %d", id)
 	}
-	if d.ProjectID == 0 {
+	if d.ProjectID == 0 || inside(act, d.ProjectID) == nil {
 		return d, nil
 	}
-	return d, inside(act, d.ProjectID)
+	p, err := q.GetProject(ctx, d.ProjectID)
+	if err != nil {
+		return d, err
+	}
+	return d, a.mayRead(ctx, q, act, p, "", d.Name)
 }
 
 func (a *App) documentGet(ctx context.Context, act registry.Actor, in struct {
@@ -65,10 +83,10 @@ func (a *App) documentGet(ctx context.Context, act registry.Actor, in struct {
 	var err error
 	switch {
 	case in.Document != 0:
-		d, err = readableDocument(ctx, a.Store.Q, act, in.Document)
+		d, err = a.readableDocument(ctx, a.Store.Q, act, in.Document)
 	case in.Name != "":
 		var s Scope
-		if s, err = a.docScope(ctx, act, in.Project); err == nil {
+		if s, err = a.readDocScope(ctx, act, in.Project, in.Name); err == nil {
 			d, err = a.Store.Q.FindDocument(ctx, DocRef{Scope: s, Name: in.Name}.find())
 			if errors.Is(err, sql.ErrNoRows) {
 				err = registry.NotFound("deck: no document %q", in.Name)
@@ -143,7 +161,7 @@ func (a *App) documentSave(ctx context.Context, act registry.Actor, in struct {
 }
 
 func (a *App) documentRevisions(ctx context.Context, act registry.Actor, in struct{ Document int64 }) (any, error) {
-	d, err := readableDocument(ctx, a.Store.Q, act, in.Document)
+	d, err := a.readableDocument(ctx, a.Store.Q, act, in.Document)
 	if err != nil {
 		return nil, err
 	}
@@ -163,7 +181,7 @@ func (a *App) documentRevert(ctx context.Context, act registry.Actor, in struct 
 	Reason             string
 	IfRevision         int64 `json:"if_revision"`
 }) (any, error) {
-	d, err := readableDocument(ctx, a.Store.Q, act, in.Document)
+	d, err := a.readableDocument(ctx, a.Store.Q, act, in.Document)
 	if err != nil {
 		return nil, err
 	}

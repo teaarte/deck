@@ -35,7 +35,7 @@ const fullManifest = `{
      "executor": {"type": "agent", "prompt": "Score the new links 1-10."}},
     {"name": "share", "title": "Share a link", "description": "Posts a link to the owner's feed service.", "class": "external",
      "input": {"type": "object", "properties": {"url": {"type": "string"}}, "required": ["url"]},
-     "executor": {"type": "tool", "tool": "post_link", "params": {"url": "$input.url"}}}
+     "executor": {"type": "tool", "tool": "post_link"}}
   ],
   "scripts": [{"name": "parse", "file": "scripts/parse.py", "runtime": "python", "timeout_minutes": 5}],
   "triggers": [
@@ -137,13 +137,9 @@ func TestManifestReferencesAreChecked(t *testing.T) {
 	e.createProject("links", m)
 }
 
-func TestToolExecutorsAreRefusedForNow(t *testing.T) {
+func TestScriptCommandNeedsItsFileAndInput(t *testing.T) {
 	e := newEnv(t, nil)
 	e.createProject("links", fullManifest)
-	code, out := e.call("links.share", map[string]any{"url": "https://example.com"})
-	if code != 422 || !strings.Contains(string(out), "not available yet") {
-		t.Fatalf("tool executor: want 422, got %d %s", code, out)
-	}
 	if code, out := e.call("links.parse", map[string]any{"source": 1}); code != 422 || !strings.Contains(string(out), "scripts/parse.py") {
 		t.Fatalf("a script command without its script file is refused: %d %s", code, out)
 	}

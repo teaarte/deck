@@ -1,0 +1,255 @@
+package gateway
+
+import (
+	"bytes"
+	"context"
+	"database/sql"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"slices"
+	"strings"
+	"time"
+
+	"deck2/internal/ask"
+	"deck2/internal/manifest"
+	"deck2/internal/registry"
+	"deck2/internal/store"
+	"deck2/internal/store/db"
+)
+
+// Waiting is what a caller gets for a call that waits for the owner's confirmation.
+type Waiting struct {
+	Ask  int64  `json:"waiting"`
+	Text string `json:"text"`
+}
+
+// Caller is the actor of a frozen call, stored so deck can make the call later on its behalf.
+type Caller struct {
+	Kind      string   `json:"kind"`
+	Workspace int64    `json:"workspace"`
+	Project   int64    `json:"project,omitempty"`
+	Process   int64    `json:"process,omitempty"`
+	Trigger   int64    `json:"trigger,omitempty"`
+	Token     int64    `json:"token,omitempty"`
+	Commands  []string `json:"commands,omitempty"`
+}
+
+// freeze keeps the actor of a call; a trigger's own schedule checks do not apply once the owner said yes.
+func freeze(a registry.Actor) Caller {
+	c := Caller{Kind: a.Kind, Workspace: a.Workspace, Project: a.ProjectID, Process: a.ProcessID, Token: a.Token, Commands: a.Commands}
+	if a.Kind == registry.Trigger {
+		c.Process = 0
+	}
+	return c
+}
+
+func (c Caller) actor() registry.Actor {
+	return registry.Actor{Kind: c.Kind, Workspace: c.Workspace, ProjectID: c.Project, ProcessID: c.Process, TriggerID: c.Trigger,
+		Token: c.Token, Commands: c.Commands}
+}
+
+// Frozen is a call with its parameters as they were when it was asked for.
+type Frozen struct {
+	Call struct {
+		Command string          `json:"command"`
+		Input   json.RawMessage `json:"input"`
+	} `json:"call"`
+	Caller Caller `json:"caller"`
+	// Tool is what the HTTP tool would send, so a changed tool is not made on an old yes.
+	Tool string `json:"tool,omitempty"`
+}
+
+func frozen(act registry.Actor, command string, input json.RawMessage, tool string) string {
+	var f Frozen
+	f.Call.Command, f.Call.Input, f.Caller, f.Tool = command, json.RawMessage(canonical(input)), freeze(act), tool
+	b, _ := json.Marshal(f)
+	return string(b)
+}
+
+// canonical is JSON with sorted keys and no spaces, so identical calls compare equal.
+func canonical(raw json.RawMessage) string {
+	d := json.NewDecoder(bytes.NewReader(raw))
+	d.UseNumber()
+	var v any
+	if len(bytes.TrimSpace(raw)) == 0 || d.Decode(&v) != nil {
+		return string(raw)
+	}
+	b, _ := json.Marshal(v)
+	return string(b)
+}
+
+// gate reports whether a call that is not internal runs now: reversible in a project on autonomy auto,
+// external when the project lists it as allowed. A draft declines both.
+func (g *Gateway) gate(ctx context.Context, c *registry.Command, project int64) (bool, error) {
+	if project == 0 {
+		return false, nil
+	}
+	p, err := g.st.Q.GetProject(ctx, project)
+	if err != nil {
+		return false, err
+	}
+	if p.Status == store.ProjectDraft {
+		return false, registry.Refuse("deck: %s is a draft: %s is %s, so it was declined until the owner enables the project", p.Name, c.Name, c.Class)
+	}
+	m, err := g.cfg.Projects.Manifest(ctx, project)
+	if err != nil {
+		return false, err
+	}
+	switch c.Class {
+	case registry.Reversible:
+		return m.Autonomy == "auto", nil
+	case registry.External:
+		return slices.Contains(m.AllowedExternal, strings.TrimPrefix(c.Name, p.Name+".")) || slices.Contains(m.AllowedExternal, c.Name), nil
+	}
+	return false, nil
+}
+
+// httpTool is the HTTP tool of the manifest behind a registry command, if it is one.
+func (g *Gateway) httpTool(ctx context.Context, name string, project int64) *manifest.HTTPTool {
+	if project == 0 {
+		return nil
+	}
+	p, err := g.st.Q.GetProject(ctx, project)
+	if err != nil {
+		return nil
+	}
+	m, err := g.cfg.Projects.Manifest(ctx, project)
+	if err != nil {
+		return nil
+	}
+	for i, t := range m.Tools.HTTP {
+		if p.Name+"."+t.Name == name {
+			return &m.Tools.HTTP[i]
+		}
+	}
+	return nil
+}
+
+// fingerprint is what an HTTP tool sends apart from the input; empty for other commands.
+func (g *Gateway) fingerprint(ctx context.Context, name string, project int64) string {
+	t := g.httpTool(ctx, name, project)
+	if t == nil {
+		return ""
+	}
+	b, _ := json.Marshal(map[string]any{"method": t.Method, "url": t.URL, "headers": t.Headers, "body": t.Body, "auth": t.Auth})
+	return canonical(b)
+}
+
+// ttl is how long a confirmation of the command stays open: its tool's own term, else the default.
+func (g *Gateway) ttl(ctx context.Context, c *registry.Command, project int64) time.Duration {
+	if t := g.httpTool(ctx, c.Name, project); t != nil && t.ConfirmTTLMinutes > 0 {
+		return time.Duration(t.ConfirmTTLMinutes) * time.Minute
+	}
+	return g.cfg.ConfirmTTL
+}
+
+// hold freezes a call until the owner decides; the caller goes on with other work. An identical call that is
+// already waiting returns the same ask.
+func (g *Gateway) hold(ctx context.Context, act registry.Actor, c *registry.Command, project int64, input json.RawMessage) (any, error) {
+	payload := frozen(act, c.Name, input, g.fingerprint(ctx, c.Name, project))
+	process := act.ProcessID
+	if act.Kind == registry.Trigger {
+		process = 0
+	}
+	var expires time.Time
+	if ttl := g.ttl(ctx, c, project); ttl > 0 {
+		expires = g.cfg.Now().Add(ttl)
+	}
+	text := fmt.Sprintf("%s wants %s with %s", act.Author(), c.Name, truncate(canonical(input), 500))
+	var a db.Ask
+	err := g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		var err error
+		a, err = q.FindOpenCallAsk(ctx, db.FindOpenCallAskParams{ProjectID: project, Payload: payload, ProcessID: process})
+		if err == nil || !errors.Is(err, sql.ErrNoRows) {
+			return err
+		}
+		a, err = q.CreateCallAsk(ctx, db.CreateCallAskParams{ProcessID: sql.NullInt64{Int64: process, Valid: process != 0},
+			WorkspaceID: act.Workspace, ProjectID: project, Kind: ask.KindCall, Text: text, Payload: payload, ExpiresAt: ask.At(expires)})
+		if err != nil {
+			return err
+		}
+		_, err = q.LogToolCall(ctx, db.LogToolCallParams{ProcessID: act.ProcessID, ProjectID: project, Actor: act.Author(), Tool: c.Name,
+			Class: c.Class, Outcome: "waiting", Params: canonical(input), AskID: sql.NullInt64{Int64: a.ID, Valid: true}})
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	g.bus.Publish("asks")
+	return Waiting{Ask: a.ID, Text: fmt.Sprintf("deck: %s is %s, so it waits for the owner's confirmation (ask %d); it was not made yet. "+
+		"Go on with other work: once the owner allows it, deck makes exactly this call and tells you the result.", c.Name, c.Class, a.ID)}, nil
+}
+
+// Outcome is what a frozen call gave when deck made it: the result, or the error text.
+type Outcome struct {
+	Result json.RawMessage `json:"result,omitempty"`
+	Error  string          `json:"error,omitempty"`
+}
+
+// ErrChanged refuses an old yes to a tool whose request changed since the call was frozen.
+var ErrChanged = registry.Refuse("deck: the tool changed after this call was asked for; deny it, and the agent asks again")
+
+type retryingKey struct{}
+
+// Decide makes the frozen call the owner allowed or retried for its caller and keeps what it gave; the ask
+// is claimed first, so it runs once and not after its deadline, and a failing then undoes the claim.
+func (g *Gateway) Decide(ctx context.Context, a db.Ask, answer string, then func() error) (any, error) {
+	var f Frozen
+	if err := json.Unmarshal([]byte(a.Payload), &f); err != nil {
+		return nil, err
+	}
+	if f.Tool != g.fingerprint(ctx, f.Call.Command, a.ProjectID) {
+		return nil, ErrChanged
+	}
+	var n int64
+	err := g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		var err error
+		n, err = q.ClaimAsk(ctx, db.ClaimAskParams{Answer: answer, ID: a.ID, Now: store.Time(g.cfg.Now())})
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	if n == 0 {
+		return nil, ask.ErrNotOpen
+	}
+	if then != nil {
+		if err := then(); err != nil {
+			_ = g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error { return q.ReleaseAsk(ctx, a.ID) })
+			return nil, err
+		}
+	}
+	g.bus.Publish("asks")
+	act := f.Caller.actor()
+	act.Cleared = true
+	run := context.WithValue(context.WithoutCancel(ctx), retryingKey{}, a.ID)
+	out, err := g.call(run, act, f.Call.Command, f.Call.Input)
+	var o Outcome
+	if err != nil {
+		o.Error = err.Error()
+	} else {
+		o.Result, _ = json.Marshal(out)
+	}
+	res, _ := json.Marshal(o)
+	_ = g.st.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error {
+		_, err := q.SettleAsk(ctx, db.SettleAskParams{Result: string(res), ID: a.ID})
+		return err
+	})
+	g.bus.Publish("asks")
+	return out, err
+}
+
+// Record writes to the journal what became of a frozen call that deck did not make.
+func (g *Gateway) Record(ctx context.Context, a db.Ask, outcome, why string) {
+	var f Frozen
+	if json.Unmarshal([]byte(a.Payload), &f) != nil {
+		return
+	}
+	act := f.Caller.actor()
+	class := registry.External
+	if c, err := g.reg.Lookup(ctx, act.Workspace, f.Call.Command); err == nil {
+		class = c.Class
+	}
+	g.journal(ctx, act, a.ProjectID, f.Call.Command, class, outcome, string(f.Call.Input), why)
+}

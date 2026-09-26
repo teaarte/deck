@@ -1,6 +1,7 @@
 -- name: CreateProcess :one
-INSERT INTO process (project_id, command, kind, state, provider, input, session_id, parent_id, depth, trigger_id, retry_key, ceiling_ms)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *;
+INSERT INTO process (project_id, command, kind, state, provider, input, session_id, parent_id, depth, trigger_id, retry_key, ceiling_ms,
+    manifest_revision)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *;
 
 
 -- name: GetProcess :one
@@ -30,10 +31,6 @@ WHERE project_id = ? AND command = ? AND retry_key = ? AND retry_key != ''
 ORDER BY id LIMIT 1;
 
 
--- name: SetProcessState :exec
-UPDATE process SET state = ? WHERE id = ?;
-
-
 -- name: ClaimProcess :execrows
 UPDATE process SET state = sqlc.arg(to_state) WHERE id = sqlc.arg(id) AND state = sqlc.arg(from_state);
 
@@ -42,10 +39,10 @@ UPDATE process SET state = sqlc.arg(to_state) WHERE id = sqlc.arg(id) AND state 
 UPDATE process SET session_id = ? WHERE id = ?;
 
 
--- name: FinishProcess :exec
+-- name: FinishProcess :execrows
 UPDATE process
 SET state = ?, result = ?, not_by_schema = ?, error = ?, finished_at = ?, deadline_ms = NULL, silent_since_ms = NULL
-WHERE id = ?;
+WHERE id = ? AND state = 'running';
 
 
 -- name: StopParkedProcess :execrows

@@ -190,7 +190,7 @@ func (a *App) lateAnswer(ctx context.Context, q db.Ask) {
 }
 
 // Sweep checks every deadline against now: deleted cards, expired confirmations, ceilings, silent
-// processes, empty results kept long enough, the disk and the daily snapshot.
+// processes, empty results kept long enough, the disk, and the daily cleanup and snapshot.
 func (a *App) Sweep(ctx context.Context, now time.Time) {
 	a.purgeCards(ctx, now)
 	a.expireConfirms(ctx, now)
@@ -198,7 +198,7 @@ func (a *App) Sweep(ctx context.Context, now time.Time) {
 	a.markSilent(ctx, now)
 	a.purgeEmpty(ctx, now)
 	a.checkDisk(ctx, now)
-	a.snapshotIfDue(ctx, now)
+	a.daily(ctx, now)
 }
 
 func (a *App) expireConfirms(ctx context.Context, now time.Time) {

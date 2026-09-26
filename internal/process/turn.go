@@ -110,6 +110,17 @@ func (r *Runner) run(ctx context.Context, t turn) {
 			return nil
 		})
 		asks = nil
+		if err == nil && !res.NeedsLogin {
+			r.health(bg, "ok", "")
+		}
+		verr := error(nil)
+		blocked := err == nil && !res.NeedsLogin && !res.IsError && r.blocked(bg, processID)
+		if err == nil && !res.NeedsLogin && !res.IsError && !blocked {
+			verr = validate(t.cmd, res.Structured)
+		}
+		if (verr == nil || retried) && r.stopFirst(bg, processID) {
+			return
+		}
 		if err != nil {
 			r.finish(bg, processID, StateError, "", false, err.Error())
 			return
@@ -118,16 +129,14 @@ func (r *Runner) run(ctx context.Context, t turn) {
 			r.needLogin(bg, processID, res.Text)
 			return
 		}
-		r.health(bg, "ok", "")
 		if res.IsError {
 			r.finish(bg, processID, StateError, res.Text, false, "provider reported an error: "+res.Text)
 			return
 		}
-		if r.blocked(bg, processID) {
+		if blocked {
 			r.park(bg, processID)
 			return
 		}
-		verr := validate(t.cmd, res.Structured)
 		if verr == nil {
 			result := res.Text
 			if len(t.cmd.Result) > 0 {
@@ -206,8 +215,10 @@ func (r *Runner) needLogin(ctx context.Context, processID int64, text string) {
 	payload, _ := json.Marshal(map[string]any{"answers": ask.LoginAnswers})
 	msg := fmt.Sprintf("%s needs a login: %s. Log in again in a terminal, then retry this session or start a new one with a report of what was done.",
 		r.provider.Name(), strings.TrimSpace(text))
+	var n int64
 	err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		if err := q.SetProcessState(ctx, db.SetProcessStateParams{State: StateNeedsLogin, ID: processID}); err != nil {
+		var err error
+		if n, err = q.ClaimProcess(ctx, db.ClaimProcessParams{ToState: StateNeedsLogin, ID: processID, FromState: StateRunning}); err != nil || n == 0 {
 			return err
 		}
 		if err := q.PauseCeiling(ctx, db.PauseCeilingParams{Now: r.now().UnixMilli(), ID: processID}); err != nil {
@@ -220,6 +231,9 @@ func (r *Runner) needLogin(ctx context.Context, processID int64, text string) {
 	})
 	if err != nil {
 		r.finish(ctx, processID, StateError, "", false, "needs login: "+text)
+		return
+	}
+	if n == 0 {
 		return
 	}
 	r.bus.Publish("processes")
@@ -246,12 +260,17 @@ func (r *Runner) blocked(ctx context.Context, processID int64) bool {
 // park moves the process to waiting_answer, where its ceiling does not tick, and immediately delivers
 // answers that arrived while it was running.
 func (r *Runner) park(ctx context.Context, processID int64) {
+	var n int64
 	_ = r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		if err := q.SetProcessState(ctx, db.SetProcessStateParams{State: StateWaitingAnswer, ID: processID}); err != nil {
+		var err error
+		if n, err = q.ClaimProcess(ctx, db.ClaimProcessParams{ToState: StateWaitingAnswer, ID: processID, FromState: StateRunning}); err != nil || n == 0 {
 			return err
 		}
 		return q.PauseCeiling(ctx, db.PauseCeilingParams{Now: r.now().UnixMilli(), ID: processID})
 	})
+	if n == 0 {
+		return
+	}
 	r.bus.Publish("processes")
 	if err := r.Deliver(ctx, processID); err != nil {
 		r.finish(ctx, processID, StateError, "", false, "resume after answer: "+err.Error())

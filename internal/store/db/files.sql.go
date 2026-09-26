@@ -45,6 +45,15 @@ func (q *Queries) CreateFile(ctx context.Context, arg CreateFileParams) (File, e
 	return i, err
 }
 
+const deleteFile = `-- name: DeleteFile :exec
+DELETE FROM file WHERE id = ?
+`
+
+func (q *Queries) DeleteFile(ctx context.Context, id int64) error {
+	_, err := q.db.ExecContext(ctx, deleteFile, id)
+	return err
+}
+
 const getFile = `-- name: GetFile :one
 SELECT id, project_id, owner_kind, owner_id, name, type, size, created_at FROM file WHERE id = ?
 `
@@ -97,6 +106,37 @@ func (q *Queries) ListFilesOf(ctx context.Context, arg ListFilesOfParams) ([]Fil
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const purgeOrphanFiles = `-- name: PurgeOrphanFiles :many
+DELETE FROM file
+WHERE (owner_kind = 'record' AND owner_id NOT IN (SELECT id FROM record))
+   OR (owner_kind = 'card' AND owner_id NOT IN (SELECT id FROM card))
+   OR (owner_kind = 'process' AND owner_id NOT IN (SELECT id FROM process))
+RETURNING id
+`
+
+func (q *Queries) PurgeOrphanFiles(ctx context.Context) ([]int64, error) {
+	rows, err := q.db.QueryContext(ctx, purgeOrphanFiles)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err

@@ -309,3 +309,24 @@ func TestCardMovedByAnAgentContinuesItsChain(t *testing.T) {
 	}
 	e.settle()
 }
+
+func TestPauseBetweenReadingAndFiringATriggerHolds(t *testing.T) {
+	e := newClockEnv(t, ok)
+	pid := e.createProject("race", testManifest([]string{agentCommand("job", "")}, []string{`{"command": "job", "cron": "0 9 * * *"}`}))
+	rows, err := e.App.Store.Q.ListProjectTriggers(context.Background(), pid)
+	if err != nil || len(rows) != 1 {
+		t.Fatal(err)
+	}
+	e.must("deck.project_pause", map[string]any{"project": "race", "paused": true}, nil)
+	if _, err := e.App.Fire(context.Background(), rows[0], map[string]any{}); err == nil || !strings.Contains(err.Error(), "paused") {
+		t.Fatalf("a trigger read before its project paused does not start: %v", err)
+	}
+	e.must("deck.project_pause", map[string]any{"project": "race", "paused": false}, nil)
+	e.must("deck.trigger_pause", map[string]any{"trigger": rows[0].ID, "paused": true}, nil)
+	if _, err := e.App.Fire(context.Background(), rows[0], map[string]any{}); err == nil {
+		t.Fatal("a trigger read before it paused does not start")
+	}
+	if n := e.countOf("job"); n != 0 {
+		t.Fatalf("no process started: %d", n)
+	}
+}

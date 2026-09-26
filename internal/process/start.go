@@ -69,6 +69,19 @@ func (r *Runner) Start(ctx context.Context, projectID int64, m *manifest.Manifes
 	var refused error
 	reused := false
 	err = r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		if o.Trigger != 0 {
+			t, err := q.GetTrigger(ctx, o.Trigger)
+			if err != nil {
+				return err
+			}
+			p, err := q.GetProject(ctx, projectID)
+			if err != nil {
+				return err
+			}
+			if t.Paused == 1 || p.Paused == 1 {
+				return registry.Invalid("deck: %s was not started: its trigger or project is paused", command)
+			}
+		}
 		if o.Key != "" {
 			old, err := q.FindActiveProcess(ctx, db.FindActiveProcessParams{ProjectID: projectID, Command: command, RetryKey: o.Key})
 			if err == nil {
@@ -96,7 +109,7 @@ func (r *Runner) Start(ctx context.Context, projectID int64, m *manifest.Manifes
 		var err error
 		p, err = q.CreateProcess(ctx, db.CreateProcessParams{ProjectID: projectID, Command: command, Kind: kind, State: StateRunning,
 			Provider: providerName, Input: string(in), SessionID: session, ParentID: ref(o.Parent), Depth: depth,
-			TriggerID: ref(o.Trigger), RetryKey: o.Key, CeilingMs: r.ceilingOf(m, cmd).Milliseconds()})
+			TriggerID: ref(o.Trigger), RetryKey: o.Key, CeilingMs: r.ceilingOf(m, cmd).Milliseconds(), ManifestRevision: m.Revision})
 		return err
 	})
 	if err != nil {

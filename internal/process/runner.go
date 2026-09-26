@@ -77,6 +77,8 @@ type liveTurn struct{ cancel context.CancelCauseFunc }
 // Projects gives the runner the current manifest and md prompt of a project.
 type Projects interface {
 	Manifest(ctx context.Context, projectID int64) (*manifest.Manifest, error)
+	// ManifestAt is a stored revision of the manifest; 0 is the current one.
+	ManifestAt(ctx context.Context, projectID, revision int64) (*manifest.Manifest, error)
 	Prompt(ctx context.Context, projectID int64) (string, error)
 	Text(ctx context.Context, projectID int64, name string) (string, error)
 }
@@ -137,21 +139,27 @@ func (r *Runner) spawn(t turn) {
 	}()
 }
 
+// finish closes a running process; one that a stop has closed meanwhile stays as the stop left it.
 func (r *Runner) finish(ctx context.Context, processID int64, state, result string, notBySchema bool, errText string) {
 	nbs := int64(0)
 	if notBySchema {
 		nbs = 1
 	}
+	var n int64
 	err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		err := q.FinishProcess(ctx, db.FinishProcessParams{State: state, Result: result, NotBySchema: nbs, Error: errText,
+		var err error
+		n, err = q.FinishProcess(ctx, db.FinishProcessParams{State: state, Result: result, NotBySchema: nbs, Error: errText,
 			FinishedAt: r.stamp(), ID: processID})
-		if err != nil {
+		if err != nil || n == 0 {
 			return err
 		}
 		return q.CloseOpenAsksOfProcess(ctx, processID)
 	})
 	if err != nil {
 		slog.Error("finish process", "process", processID, "err", err)
+		return
+	}
+	if n == 0 {
 		return
 	}
 	r.mu.Lock()
@@ -165,18 +173,28 @@ func (r *Runner) finish(ctx context.Context, processID int64, state, result stri
 	}
 }
 
+// settle takes a turn off the live ones before it writes its outcome: a stop that came first wins, a stop
+// that comes later finds no live turn and closes the process in the base, so the outcome write does nothing.
+func (r *Runner) settle(processID int64) (string, bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.live, processID)
+	reason, ok := r.stopping[processID]
+	return reason, ok
+}
+
+// stopFirst ends a turn as stopped when a stop came before its outcome.
+func (r *Runner) stopFirst(ctx context.Context, processID int64) bool {
+	reason, ok := r.settle(processID)
+	if ok {
+		r.finish(ctx, processID, StateStopped, "", false, reason)
+	}
+	return ok
+}
+
 // closed drops the log of a process that reached a final state and announces it.
 func (r *Runner) closed(processID int64) {
 	_ = os.Remove(r.LogPath(processID))
 	r.bus.Publish("processes")
 	r.bus.Publish("asks")
-}
-
-func (r *Runner) load(ctx context.Context, projectID int64) (db.Project, *manifest.Manifest, error) {
-	proj, err := r.st.Q.GetProject(ctx, projectID)
-	if err != nil {
-		return proj, nil, err
-	}
-	m, err := r.projects.Manifest(ctx, projectID)
-	return proj, m, err
 }

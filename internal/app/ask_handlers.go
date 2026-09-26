@@ -42,13 +42,27 @@ func (a *App) askAnswer(ctx context.Context, act registry.Actor, in struct {
 	return map[string]any{"ok": true}, nil
 }
 
-func (a *App) healthList(ctx context.Context, _ registry.Actor, _ struct{}) (any, error) {
+// healthList shows what the machine runs and the commands of the actor's workspace.
+func (a *App) healthList(ctx context.Context, act registry.Actor, _ struct{}) (any, error) {
 	hs, err := a.Store.Q.ListHealth(ctx)
 	if err != nil {
 		return nil, err
 	}
+	ps, err := a.Store.Q.ListWorkspaceProjects(ctx, act.Workspace)
+	if err != nil {
+		return nil, err
+	}
+	mine := map[string]bool{}
+	for _, p := range ps {
+		mine[p.Name] = true
+	}
 	out := make([]map[string]any, 0, len(hs))
 	for _, h := range hs {
+		if rest, ok := strings.CutPrefix(h.Subject, "command:"); ok {
+			if project, _, _ := strings.Cut(rest, "."); !mine[project] {
+				continue
+			}
+		}
 		out = append(out, map[string]any{"subject": h.Subject, "status": h.Status, "error": h.Error, "updated_at": h.UpdatedAt})
 	}
 	return out, nil

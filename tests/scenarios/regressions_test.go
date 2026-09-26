@@ -154,8 +154,11 @@ func TestAnswerSavedBeforeRestartReachesParkedProcess(t *testing.T) {
 	}
 }
 
-func TestResumeOfRemovedCommandFailsTheProcess(t *testing.T) {
+func TestResumeAfterItsCommandWasRenamedFinishesTheSession(t *testing.T) {
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		if c.Req.Resume {
+			return provider.Result{Structured: json.RawMessage(`{"written": 0}`)}
+		}
 		askQuestion(ctx, c, "Which topic?")
 		return provider.Result{Text: "stopped"}
 	}, short)
@@ -166,9 +169,8 @@ func TestResumeOfRemovedCommandFailsTheProcess(t *testing.T) {
 	renamed := strings.NewReplacer(`"name": "collect"`, `"name": "gather"`, `"command": "collect"`, `"command": "gather"`).Replace(ideasManifest)
 	e.must("deck.manifest_save", map[string]any{"project": "ideas", "manifest": renamed}, nil)
 	e.answer(a.ID, "go")
-	got := e.waitState(id, "error")
-	if !strings.Contains(got.Error, "no longer exists") {
-		t.Fatalf("want an error naming the missing command, got %+v", got)
+	if got := e.waitState(id, "done", "error"); got.State != "done" {
+		t.Fatalf("the session goes on by the manifest revision it started by: %+v", got)
 	}
 }
 

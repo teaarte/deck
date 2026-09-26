@@ -55,6 +55,19 @@ func TestOtherWorkspacesAreInvisible(t *testing.T) {
 	if code, _ := e.call("theirs.collect", nil); code != 404 {
 		t.Fatalf("commands of another workspace must look missing, got %d", code)
 	}
+	err := e.App.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		return q.SetHealth(ctx, db.SetHealthParams{Subject: "command:theirs.collect", Status: "error", Error: "their secret path"})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var hs []healthRow
+	e.must("deck.health_list", nil, &hs)
+	for _, h := range hs {
+		if strings.Contains(h.Subject, "theirs") {
+			t.Fatalf("health of another workspace's commands must not be listed: %+v", h)
+		}
+	}
 }
 
 func TestStoredV2DescriptionMovesToThePromptOnStart(t *testing.T) {

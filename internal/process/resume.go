@@ -197,7 +197,7 @@ func (r *Runner) resume(ctx context.Context, processID int64, message string, as
 	if p.SessionID == "" {
 		return errors.New("process has no session to resume")
 	}
-	_, m, err := r.load(ctx, p.ProjectID)
+	m, err := r.projects.ManifestAt(ctx, p.ProjectID, p.ManifestRevision)
 	if err != nil {
 		return err
 	}

@@ -29,23 +29,25 @@ func (q *Queries) ClaimProcess(ctx context.Context, arg ClaimProcessParams) (int
 }
 
 const createProcess = `-- name: CreateProcess :one
-INSERT INTO process (project_id, command, kind, state, provider, input, session_id, parent_id, depth, trigger_id, retry_key, ceiling_ms)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, kind
+INSERT INTO process (project_id, command, kind, state, provider, input, session_id, parent_id, depth, trigger_id, retry_key, ceiling_ms,
+    manifest_revision)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, kind, manifest_revision
 `
 
 type CreateProcessParams struct {
-	ProjectID int64
-	Command   string
-	Kind      string
-	State     string
-	Provider  string
-	Input     string
-	SessionID string
-	ParentID  sql.NullInt64
-	Depth     int64
-	TriggerID sql.NullInt64
-	RetryKey  string
-	CeilingMs int64
+	ProjectID        int64
+	Command          string
+	Kind             string
+	State            string
+	Provider         string
+	Input            string
+	SessionID        string
+	ParentID         sql.NullInt64
+	Depth            int64
+	TriggerID        sql.NullInt64
+	RetryKey         string
+	CeilingMs        int64
+	ManifestRevision int64
 }
 
 func (q *Queries) CreateProcess(ctx context.Context, arg CreateProcessParams) (Process, error) {
@@ -62,6 +64,7 @@ func (q *Queries) CreateProcess(ctx context.Context, arg CreateProcessParams) (P
 		arg.TriggerID,
 		arg.RetryKey,
 		arg.CeilingMs,
+		arg.ManifestRevision,
 	)
 	var i Process
 	err := row.Scan(
@@ -88,12 +91,13 @@ func (q *Queries) CreateProcess(ctx context.Context, arg CreateProcessParams) (P
 		&i.OutputMs,
 		&i.SilentSinceMs,
 		&i.Kind,
+		&i.ManifestRevision,
 	)
 	return i, err
 }
 
 const findActiveProcess = `-- name: FindActiveProcess :one
-SELECT id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, kind FROM process
+SELECT id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, kind, manifest_revision FROM process
 WHERE project_id = ? AND command = ? AND retry_key = ? AND retry_key != ''
   AND state IN ('running', 'waiting_answer', 'needs_login')
 ORDER BY id LIMIT 1
@@ -132,14 +136,15 @@ func (q *Queries) FindActiveProcess(ctx context.Context, arg FindActiveProcessPa
 		&i.OutputMs,
 		&i.SilentSinceMs,
 		&i.Kind,
+		&i.ManifestRevision,
 	)
 	return i, err
 }
 
-const finishProcess = `-- name: FinishProcess :exec
+const finishProcess = `-- name: FinishProcess :execrows
 UPDATE process
 SET state = ?, result = ?, not_by_schema = ?, error = ?, finished_at = ?, deadline_ms = NULL, silent_since_ms = NULL
-WHERE id = ?
+WHERE id = ? AND state = 'running'
 `
 
 type FinishProcessParams struct {
@@ -151,8 +156,8 @@ type FinishProcessParams struct {
 	ID          int64
 }
 
-func (q *Queries) FinishProcess(ctx context.Context, arg FinishProcessParams) error {
-	_, err := q.db.ExecContext(ctx, finishProcess,
+func (q *Queries) FinishProcess(ctx context.Context, arg FinishProcessParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, finishProcess,
 		arg.State,
 		arg.Result,
 		arg.NotBySchema,
@@ -160,11 +165,14 @@ func (q *Queries) FinishProcess(ctx context.Context, arg FinishProcessParams) er
 		arg.FinishedAt,
 		arg.ID,
 	)
-	return err
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const getProcess = `-- name: GetProcess :one
-SELECT id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, kind FROM process WHERE id = ?
+SELECT id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, kind, manifest_revision FROM process WHERE id = ?
 `
 
 func (q *Queries) GetProcess(ctx context.Context, id int64) (Process, error) {
@@ -194,6 +202,7 @@ func (q *Queries) GetProcess(ctx context.Context, id int64) (Process, error) {
 		&i.OutputMs,
 		&i.SilentSinceMs,
 		&i.Kind,
+		&i.ManifestRevision,
 	)
 	return i, err
 }
@@ -265,7 +274,7 @@ func (q *Queries) ListProcessGroups(ctx context.Context) ([]ListProcessGroupsRow
 }
 
 const listProcesses = `-- name: ListProcesses :many
-SELECT id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, kind FROM process ORDER BY id DESC LIMIT ?
+SELECT id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, kind, manifest_revision FROM process ORDER BY id DESC LIMIT ?
 `
 
 func (q *Queries) ListProcesses(ctx context.Context, limit int64) ([]Process, error) {
@@ -301,6 +310,7 @@ func (q *Queries) ListProcesses(ctx context.Context, limit int64) ([]Process, er
 			&i.OutputMs,
 			&i.SilentSinceMs,
 			&i.Kind,
+			&i.ManifestRevision,
 		); err != nil {
 			return nil, err
 		}
@@ -316,7 +326,7 @@ func (q *Queries) ListProcesses(ctx context.Context, limit int64) ([]Process, er
 }
 
 const listProcessesByState = `-- name: ListProcessesByState :many
-SELECT id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, kind FROM process WHERE state = ? ORDER BY id
+SELECT id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, kind, manifest_revision FROM process WHERE state = ? ORDER BY id
 `
 
 func (q *Queries) ListProcessesByState(ctx context.Context, state string) ([]Process, error) {
@@ -352,6 +362,7 @@ func (q *Queries) ListProcessesByState(ctx context.Context, state string) ([]Pro
 			&i.OutputMs,
 			&i.SilentSinceMs,
 			&i.Kind,
+			&i.ManifestRevision,
 		); err != nil {
 			return nil, err
 		}
@@ -367,7 +378,7 @@ func (q *Queries) ListProcessesByState(ctx context.Context, state string) ([]Pro
 }
 
 const listProcessesFiltered = `-- name: ListProcessesFiltered :many
-SELECT id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, kind FROM process
+SELECT id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, kind, manifest_revision FROM process
 WHERE project_id IN (SELECT id FROM project WHERE workspace_id = ?1)
   AND (?2 = 0 OR project_id = ?2)
   AND (?3 = '' OR state = ?3)
@@ -419,6 +430,7 @@ func (q *Queries) ListProcessesFiltered(ctx context.Context, arg ListProcessesFi
 			&i.OutputMs,
 			&i.SilentSinceMs,
 			&i.Kind,
+			&i.ManifestRevision,
 		); err != nil {
 			return nil, err
 		}
@@ -669,20 +681,6 @@ type SetProcessSessionParams struct {
 
 func (q *Queries) SetProcessSession(ctx context.Context, arg SetProcessSessionParams) error {
 	_, err := q.db.ExecContext(ctx, setProcessSession, arg.SessionID, arg.ID)
-	return err
-}
-
-const setProcessState = `-- name: SetProcessState :exec
-UPDATE process SET state = ? WHERE id = ?
-`
-
-type SetProcessStateParams struct {
-	State string
-	ID    int64
-}
-
-func (q *Queries) SetProcessState(ctx context.Context, arg SetProcessStateParams) error {
-	_, err := q.db.ExecContext(ctx, setProcessState, arg.State, arg.ID)
 	return err
 }
 

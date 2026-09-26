@@ -12,3 +12,15 @@ SELECT * FROM file WHERE project_id = ? AND owner_kind = ? AND owner_id = ? ORDE
 
 -- name: TotalFileSize :one
 SELECT CAST(COALESCE(SUM(size), 0) AS INTEGER) FROM file;
+
+
+-- name: DeleteFile :exec
+DELETE FROM file WHERE id = ?;
+
+
+-- name: PurgeOrphanFiles :many
+DELETE FROM file
+WHERE (owner_kind = 'record' AND owner_id NOT IN (SELECT id FROM record))
+   OR (owner_kind = 'card' AND owner_id NOT IN (SELECT id FROM card))
+   OR (owner_kind = 'process' AND owner_id NOT IN (SELECT id FROM process))
+RETURNING id;

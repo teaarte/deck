@@ -48,7 +48,7 @@ func (r *Runner) Rework(ctx context.Context, processID int64, remark string) err
 	if err != nil {
 		return err
 	}
-	m, err := r.projects.Manifest(ctx, p.ProjectID)
+	m, err := r.projects.ManifestAt(ctx, p.ProjectID, p.ManifestRevision)
 	if err != nil {
 		return err
 	}

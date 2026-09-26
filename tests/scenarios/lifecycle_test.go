@@ -227,3 +227,52 @@ func TestDuplicateTriggerIsRejected(t *testing.T) {
 }
 
 func itoa(n int64) string { b, _ := json.Marshal(n); return string(b) }
+
+func TestResumeKeepsTheManifestRevisionTheProcessStartedBy(t *testing.T) {
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		if !c.Req.Resume {
+			askQuestion(ctx, c, "Go on?")
+			return provider.Result{Text: "waiting"}
+		}
+		return provider.Result{Structured: json.RawMessage(`{"n": 2}`)}
+	}, func(c *app.Config) { c.QuestionWait = 50 * time.Millisecond })
+	m := testManifest([]string{agentCommand("job", "")}, nil)
+	p := e.createProject("pinned", m)
+	id := e.run(p, "job")
+	e.waitState(id, "waiting_answer")
+	changed := strings.Replace(m, `"executor": {"type": "agent", "prompt": "Do job."}, "result": {"type": "object", "properties": {"n": {"type": "integer"}}}`,
+		`"executor": {"type": "script", "script": "job"}, "result": {"type": "object", "required": ["s"]}`, 1)
+	changed = strings.Replace(changed, `"triggers": []`, `"triggers": [], "scripts": [{"name": "job", "file": "job.py", "runtime": "python"}]`, 1)
+	if changed == m {
+		t.Fatal("fixture replacement did not apply")
+	}
+	e.must("deck.manifest_save", map[string]any{"project": "pinned", "manifest": changed}, nil)
+	e.answer(e.waitAsk().ID, "yes")
+	got := e.waitState(id, "done", "error")
+	if got.State != "done" || got.NotBySchema || string(got.Result) != `{"n": 2}` && string(got.Result) != `{"n":2}` {
+		t.Fatalf("the answer continues the agent session and checks its result by the revision it started by: %+v", got)
+	}
+	if calls := e.Fake.Calls(); len(calls) != 2 || !calls[1].Resume {
+		t.Fatalf("the same session resumes: %d calls", len(calls))
+	}
+}
+
+func TestStopThatSucceedsAlwaysEndsTheProcessStopped(t *testing.T) {
+	returning := make(chan struct{}, 1)
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		returning <- struct{}{}
+		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
+	})
+	p := e.createProject("race", testManifest([]string{agentCommand("job", "")}, nil))
+	for i := range 60 {
+		id := e.run(p, "job")
+		<-returning
+		time.Sleep(time.Duration(i%6) * 300 * time.Microsecond)
+		code, _ := e.call("deck.process_stop", map[string]any{"process": id})
+		got := e.waitState(id, "done", "stopped")
+		if code == 200 && got.State != "stopped" || code != 200 && got.State != "done" {
+			t.Fatalf("stop answered %d but the process ended %s", code, got.State)
+		}
+		e.settle()
+	}
+}

@@ -80,7 +80,7 @@ func (q *Queries) CreateDocument(ctx context.Context, arg CreateDocumentParams) 
 }
 
 const currentText = `-- name: CurrentText :one
-SELECT d.kind, r.text FROM document d JOIN document_revision r ON r.document_id = d.id AND r.n = d.current
+SELECT d.kind, r.text, r.n FROM document d JOIN document_revision r ON r.document_id = d.id AND r.n = d.current
 WHERE d.workspace_id = ? AND d.project_id = ? AND d.name = ? AND d.owner_kind = '' AND d.owner_id = 0
   AND (?4 = '' OR d.kind = ?4)
 `
@@ -95,6 +95,7 @@ type CurrentTextParams struct {
 type CurrentTextRow struct {
 	Kind string
 	Text string
+	N    int64
 }
 
 func (q *Queries) CurrentText(ctx context.Context, arg CurrentTextParams) (CurrentTextRow, error) {
@@ -105,7 +106,7 @@ func (q *Queries) CurrentText(ctx context.Context, arg CurrentTextParams) (Curre
 		arg.Kind,
 	)
 	var i CurrentTextRow
-	err := row.Scan(&i.Kind, &i.Text)
+	err := row.Scan(&i.Kind, &i.Text, &i.N)
 	return i, err
 }
 

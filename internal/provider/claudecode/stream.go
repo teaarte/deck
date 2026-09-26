@@ -88,6 +88,9 @@ func (t *turn) line(raw []byte) {
 		if t.results > 1 {
 			return
 		}
+		if l.SessionID == "" && t.foreign == "" {
+			t.foreign = "without an id"
+		}
 		t.res.Text = l.Result
 		if t.res.Text == "" {
 			t.res.Text = strings.Join(l.Errors, "; ")

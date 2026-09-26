@@ -38,6 +38,7 @@ func (r *Runner) keepFiles(ctx context.Context, projectID, processID int64, resu
 	}
 	srcs := make([]string, len(res.Files))
 	infos := make([]os.FileInfo, len(res.Files))
+	seen := map[string]bool{}
 	for i, f := range res.Files {
 		src, err := filepath.EvalSymlinks(filepath.Join(root, filepath.Clean("/"+f.Path)))
 		inside := err == nil && strings.HasPrefix(src, root+string(filepath.Separator))
@@ -45,7 +46,10 @@ func (r *Runner) keepFiles(ctx context.Context, projectID, processID int64, resu
 		if f.Path == "" || !inside || lerr != nil || !fi.Mode().IsRegular() {
 			return fmt.Errorf("result file %q is not a file in the results folder", f.Path)
 		}
-		srcs[i], infos[i] = src, fi
+		if seen[src] {
+			return fmt.Errorf("result file %q is named twice", f.Path)
+		}
+		seen[src], srcs[i], infos[i] = true, src, fi
 	}
 	var rows []db.File
 	err = r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
@@ -75,11 +79,27 @@ func (r *Runner) keepFiles(ctx context.Context, projectID, processID int64, resu
 	}
 	for i, row := range rows {
 		if err := move(srcs[i], filepath.Join(r.cfg.FilesDir, fmt.Sprint(row.ID))); err != nil {
+			r.dropFiles(ctx, rows)
 			return err
 		}
 	}
 	r.bus.Publish("files")
 	return nil
+}
+
+// dropFiles undoes the files of a result that could not be kept whole.
+func (r *Runner) dropFiles(ctx context.Context, rows []db.File) {
+	_ = r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		for _, f := range rows {
+			if err := q.DeleteFile(ctx, f.ID); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	for _, f := range rows {
+		_ = os.Remove(filepath.Join(r.cfg.FilesDir, fmt.Sprint(f.ID)))
+	}
 }
 
 func fileOwner(ctx context.Context, q *db.Queries, projectID, processID int64, f FileRef) (string, int64, error) {

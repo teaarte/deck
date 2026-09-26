@@ -305,6 +305,13 @@ func TestLeftoverCLIGroupIsKilledBeforeResume(t *testing.T) {
 	}
 	ours := group("claude", "--session-id", "11111111-1111-1111-1111-111111111111")
 	foreign := group("someone-else")
+	orphan := exec.Command("sh", "-c", "sleep 300 & exit 0")
+	orphan.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	if err := orphan.Run(); err != nil {
+		t.Fatal(err)
+	}
+	pgids = append(pgids, orphan.Process.Pid)
+	t.Cleanup(func() { _ = syscall.Kill(-orphan.Process.Pid, syscall.SIGKILL) })
 	var id int64
 	err := e1.App.Store.Tx(context.Background(), func(ctx context.Context, q *db.Queries) error {
 		pr, err := q.CreateProcess(ctx, db.CreateProcessParams{ProjectID: p, Command: "work", State: "running", Provider: "claude-code",
@@ -321,7 +328,15 @@ func TestLeftoverCLIGroupIsKilledBeforeResume(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		return q.SetProcessGroup(ctx, db.SetProcessGroupParams{Pgid: int64(pgids[1]), ID: done.ID})
+		if err := q.SetProcessGroup(ctx, db.SetProcessGroupParams{Pgid: int64(pgids[1]), ID: done.ID}); err != nil {
+			return err
+		}
+		other, err := q.CreateProcess(ctx, db.CreateProcessParams{ProjectID: p, Command: "work", State: "done", Input: "{}",
+			SessionID: "33333333-3333-3333-3333-333333333333", Depth: 1})
+		if err != nil {
+			return err
+		}
+		return q.SetProcessGroup(ctx, db.SetProcessGroupParams{Pgid: int64(pgids[2]), ID: other.ID})
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -341,6 +356,9 @@ func TestLeftoverCLIGroupIsKilledBeforeResume(t *testing.T) {
 	case <-foreign:
 		t.Fatal("a group that does not run the session is not ours and stays")
 	default:
+	}
+	if syscall.Kill(-pgids[2], 0) != nil {
+		t.Fatal("a group whose leader is gone and whose members do not run the session stays")
 	}
 	e2.waitState(id, "done")
 	if sid, ok := flag(c.call(1).args, "--resume"); !ok || sid != "11111111-1111-1111-1111-111111111111" {

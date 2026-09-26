@@ -84,29 +84,30 @@ type Health struct {
 }
 
 type Process struct {
-	ID            int64
-	ProjectID     int64
-	Command       string
-	State         string
-	Provider      string
-	SessionID     string
-	Input         string
-	Result        string
-	NotBySchema   int64
-	Error         string
-	StartedAt     string
-	FinishedAt    sql.NullString
-	StartNote     string
-	ParentID      sql.NullInt64
-	Depth         int64
-	TriggerID     sql.NullInt64
-	RetryKey      string
-	Pgid          int64
-	CeilingMs     int64
-	DeadlineMs    sql.NullInt64
-	OutputMs      int64
-	SilentSinceMs sql.NullInt64
-	Kind          string
+	ID               int64
+	ProjectID        int64
+	Command          string
+	State            string
+	Provider         string
+	SessionID        string
+	Input            string
+	Result           string
+	NotBySchema      int64
+	Error            string
+	StartedAt        string
+	FinishedAt       sql.NullString
+	StartNote        string
+	ParentID         sql.NullInt64
+	Depth            int64
+	TriggerID        sql.NullInt64
+	RetryKey         string
+	Pgid             int64
+	CeilingMs        int64
+	DeadlineMs       sql.NullInt64
+	OutputMs         int64
+	SilentSinceMs    sql.NullInt64
+	Kind             string
+	ManifestRevision int64
 }
 
 type Project struct {

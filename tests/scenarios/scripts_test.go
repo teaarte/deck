@@ -295,3 +295,21 @@ print(json.dumps({"files": [{"path": %q}]}))
 		}
 	}
 }
+
+func TestResultFilesAreKeptWholeOrNotAtAll(t *testing.T) {
+	e := newEnv(t, nil)
+	e.createProject("twice", scriptManifest("take", "", "", ""))
+	e.saveScript("twice", "scripts/main.py", `import json, os
+open(os.path.join(os.environ["DECK_RESULTS"], "a.txt"), "w").write("a")
+print(json.dumps({"files": [{"path": "a.txt"}, {"path": "./a.txt"}]}))
+`)
+	id := e.start("twice", "take", nil)
+	if p := e.waitScript(id, "done", "error"); p.State != "error" || !strings.Contains(p.Error, "named twice") {
+		t.Fatalf("a file named twice is refused: %+v", p)
+	}
+	var files []struct{ ID int64 }
+	e.must("deck.files_list", map[string]any{"process": id}, &files)
+	if len(files) != 0 {
+		t.Fatalf("a refused result keeps no file rows: %+v", files)
+	}
+}

@@ -34,6 +34,9 @@ type Manifest struct {
 	MasterEvents    bool         `json:"master_events,omitempty"`
 	Reads           []Read       `json:"reads,omitempty"`
 
+	// Revision is the stored revision the manifest was read from; 0 when it was not read from the base.
+	Revision int64 `json:"-"`
+
 	collections map[string]*Collection
 	commands    map[string]*Command
 	scripts     map[string]*Script

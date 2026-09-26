@@ -114,8 +114,9 @@ func addFile(tw *tar.Writer, path, name string) error {
 	return err
 }
 
-// snapshotIfDue takes the daily snapshot when the newest one is a day old by the deck clock.
-func (a *App) snapshotIfDue(ctx context.Context, now time.Time) {
+// daily removes files whose record, card or process is gone and takes the snapshot, once a day by the
+// deck clock.
+func (a *App) daily(ctx context.Context, now time.Time) {
 	old, _ := filepath.Glob(filepath.Join(a.Cfg.Home, "backups", "deck-*.tar.gz"))
 	slices.Sort(old)
 	if len(old) > 0 {
@@ -123,6 +124,18 @@ func (a *App) snapshotIfDue(ctx context.Context, now time.Time) {
 		if t, err := time.Parse(snapshotLayout, stamp); err == nil && now.Sub(t) < 24*time.Hour {
 			return
 		}
+	}
+	var gone []int64
+	err := a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		var err error
+		gone, err = q.PurgeOrphanFiles(ctx)
+		return err
+	})
+	if err != nil {
+		slog.Error("purge files", "err", err)
+	}
+	for _, id := range gone {
+		_ = os.Remove(filepath.Join(a.Cfg.Home, "files", fmt.Sprint(id)))
 	}
 	if _, err := a.Snapshot(ctx); err != nil {
 		slog.Error("daily snapshot", "err", err)

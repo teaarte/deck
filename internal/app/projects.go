@@ -2,6 +2,8 @@ package app
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"log/slog"
 	"regexp"
@@ -15,11 +17,43 @@ var projectName = regexp.MustCompile(`^[a-z][a-z0-9-]{0,39}$`)
 
 // loadManifest parses the current manifest of a project.
 func loadManifest(ctx context.Context, q *db.Queries, p db.Project) (*manifest.Manifest, error) {
-	raw, err := currentText(ctx, q, projectScope(p), KindManifest, ManifestName)
+	s := projectScope(p)
+	row, err := q.CurrentText(ctx, db.CurrentTextParams{WorkspaceID: s.Workspace, ProjectID: s.Project, Name: ManifestName, Kind: KindManifest})
+	if errors.Is(err, sql.ErrNoRows) {
+		return manifest.Parse(nil)
+	}
 	if err != nil {
 		return nil, err
 	}
-	return manifest.Parse([]byte(raw))
+	m, err := manifest.Parse([]byte(row.Text))
+	if err == nil {
+		m.Revision = row.N
+	}
+	return m, err
+}
+
+// ManifestAt is a stored revision of the manifest of a project; revision 0 is the current one.
+func (a *App) ManifestAt(ctx context.Context, projectID, revision int64) (*manifest.Manifest, error) {
+	p, err := a.Store.Q.GetProject(ctx, projectID)
+	if err != nil || revision == 0 {
+		if err != nil {
+			return nil, err
+		}
+		return loadManifest(ctx, a.Store.Q, p)
+	}
+	d, err := a.Store.Q.FindDocument(ctx, DocRef{Scope: projectScope(p), Name: ManifestName}.find())
+	if err != nil {
+		return nil, err
+	}
+	r, err := getRevision(ctx, a.Store.Q, d, revision)
+	if err != nil {
+		return nil, err
+	}
+	m, err := manifest.Parse([]byte(r.Text))
+	if err == nil {
+		m.Revision = revision
+	}
+	return m, err
 }
 
 // Manifest is the current manifest of a project, read outside any transaction.

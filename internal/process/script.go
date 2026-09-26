@@ -81,6 +81,10 @@ func (r *Runner) runScript(ctx context.Context, t turn) {
 		}
 		return
 	}
+	if r.stopFirst(bg, id) {
+		_ = os.RemoveAll(dir)
+		return
+	}
 	if err != nil {
 		fail(err)
 		return

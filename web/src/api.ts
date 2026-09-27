@@ -7,6 +7,7 @@ if (fromUrl) {
 }
 
 export const token = (): string => localStorage.getItem('deck-token') ?? '';
+export const setToken = (t: string) => localStorage.setItem('deck-token', t);
 
 export class CommandError extends Error {}
 
@@ -18,6 +19,10 @@ export async function call<T = unknown>(command: string, input: Record<string, u
     body: JSON.stringify(input),
   });
   const text = await r.text();
+  if (r.status === 401) {
+    localStorage.removeItem('deck-token');
+    location.reload();
+  }
   if (!r.ok) throw new CommandError(text.trim() || r.statusText);
   return (text ? JSON.parse(text) : null) as T;
 }
@@ -42,4 +47,21 @@ export function events(onTopic: (topic: string) => void, onState: (live: boolean
     clearTimeout(retry);
     es?.close();
   };
+}
+
+export interface Uploaded {
+  id: number;
+  name: string;
+}
+
+// upload sends files to a project; commands then take them by id.
+export async function upload(project: string, files: File[]): Promise<Uploaded[]> {
+  const body = new FormData();
+  files.forEach((f) => body.append('file', f, f.name));
+  const r = await fetch('/api/files?project=' + encodeURIComponent(project), {
+    method: 'POST', headers: { Authorization: 'Bearer ' + token() }, body,
+  });
+  const text = await r.text();
+  if (!r.ok) throw new CommandError(text.trim() || r.statusText);
+  return JSON.parse(text) as Uploaded[];
 }

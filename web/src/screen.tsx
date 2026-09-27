@@ -9,7 +9,7 @@ import { catalog, known, outcomes, setStale, UNKNOWN, type Action } from './cata
 import i18n from './i18n';
 
 export const VERSION = 'v0.9';
-const TOPICS = ['collection', 'asks', 'processes', 'unattended', 'health', 'log'];
+const TOPICS = ['collection', 'asks', 'processes', 'unattended', 'health', 'log', 'board', 'triggers', 'notifications'];
 
 export interface Route {
   project?: string;
@@ -74,7 +74,9 @@ export function ScreenView({ route, onProjects }: { route: Route; onProjects: ()
 
   useEffect(() => {
     let gone = false;
-    const input = { project: route.project, screen: route.screen, record: route.record };
+    const picked: Record<string, Record<string, string>> = {};
+    const base = { project: route.project, screen: route.screen, record: route.record };
+    const input = () => (Object.keys(picked).length ? { ...base, filter: JSON.stringify(picked) } : base);
     const feed = (msgs: Message[]) => {
       for (const m of prepare(msgs)) {
         try {
@@ -89,9 +91,9 @@ export function ScreenView({ route, onProjects }: { route: Route; onProjects: ()
     const load = async () => {
       const mine = ++generation;
       try {
-        const msgs = await call<Message[]>('deck.screen', input);
+        const msgs = await call<Message[]>('deck.screen', input());
         if (gone || mine !== generation) return;
-        const p = new MessageProcessor<ReactComponentImplementation>([catalog], act);
+        const p = new MessageProcessor<ReactComponentImplementation>([catalog], (a) => (a.name === 'filter' ? filter(a) : act(a)));
         p.onSurfaceCreated((s) => setSurface(s));
         proc.current = p;
         setError('');
@@ -101,6 +103,22 @@ export function ScreenView({ route, onProjects }: { route: Route; onProjects: ()
         if (!gone) setError((e as Error).message);
       }
     };
+    let filtering = 0;
+    const filter = async (a: A2uiClientAction) => {
+      const { block, field, value } = a.context as { block: string; field: string; value: string };
+      const f = { ...picked[block], [field]: value };
+      if (!value) delete f[field];
+      if (Object.keys(f).length) picked[block] = f;
+      else delete picked[block];
+      const mine = generation;
+      const n = ++filtering;
+      try {
+        const msgs = await call<Message[]>('deck.screen', input());
+        if (!gone && mine === generation && n === filtering) feed(msgs.filter((m) => m.updateDataModel));
+      } catch (e) {
+        if (!gone) notifications.show({ message: (e as Error).message, color: 'red' });
+      }
+    };
     const pending = new Set<string>();
     let timer: ReturnType<typeof setTimeout> | undefined;
     const reread = async (topic: string) => {
@@ -108,7 +126,7 @@ export function ScreenView({ route, onProjects }: { route: Route; onProjects: ()
       const mine = generation;
       const n = (seq[topic] = (seq[topic] ?? 0) + 1);
       try {
-        const msgs = await call<Message[]>('deck.screen', { ...input, topic });
+        const msgs = await call<Message[]>('deck.screen', { ...input(), topic });
         if (!gone && mine === generation && n === seq[topic]) feed(msgs);
       } catch (e) {
         if (!gone) notifications.show({ message: (e as Error).message, color: 'red' });

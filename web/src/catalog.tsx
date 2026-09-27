@@ -1,13 +1,18 @@
-import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { z } from 'zod';
 import { Catalog, type ComponentApi, type ComponentContext } from '@a2ui/web_core/v0_9';
 import { createComponentImplementation, type ReactComponentImplementation } from '@a2ui/react/v0_9';
 import {
-  Alert, Anchor, Badge, Button, Card, Chip, Code, Collapse, Group, Loader, SimpleGrid, Stack, Table, Tabs, Text,
+  Alert, Anchor, Badge, Button, Card, Chip, Code, Collapse, Group, Loader, Select, SimpleGrid, Stack, Table, Tabs, Text,
   TextInput, Title, UnstyledButton,
 } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
 import catalogSchema from '../../schemas/catalog.json';
+import { Board, type BoardValue } from './board';
+import type { CustomValue } from './custom';
+import { Form, type FormValue } from './form';
+
+const Custom = lazy(() => import('./custom').then((m) => ({ default: m.Custom })));
 
 export const CATALOG_ID = catalogSchema.catalogId;
 export const UNKNOWN = 'deck.unknown';
@@ -31,9 +36,16 @@ interface Question {
   options?: { label: string; description?: string }[];
 }
 
+interface Filter {
+  field: string;
+  value?: string;
+  options: string[];
+}
+
 interface Data {
   state: 'ready' | 'empty' | 'error';
   error?: string;
+  filters?: Filter[];
   rows?: { id: unknown; cells: unknown[]; actions?: Action[] }[];
   items?: { id: unknown; title: string; text?: string; meta?: string; details?: string; questions?: Question[]; actions?: Action[] }[];
   value?: unknown;
@@ -61,9 +73,12 @@ const useNow = () => {
   return now;
 };
 
+const moment = /^\d{4}-\d\d-\d\dT\d\d:\d\d(:\d\d(\.\d+)?)?(Z|[+-]\d\d:\d\d)$/;
+
 function show(v: unknown): string {
   if (v === null || v === undefined) return '';
   if (typeof v === 'object') return JSON.stringify(v);
+  if (typeof v === 'string' && moment.test(v)) return new Date(v).toLocaleString();
   return String(v);
 }
 
@@ -158,7 +173,23 @@ function QuestionPicker({ questions, act, context }: { questions: Question[]; ac
   );
 }
 
-function Block({ title, data, children }: { title?: string; data?: Data; children: (d: Data) => ReactNode }) {
+// Filters narrow a block by the values its source has; the pick goes back to the server with the screen.
+function Filters({ filters, context }: { filters?: Filter[]; context?: ComponentContext }) {
+  const { t } = useTranslation();
+  if (!filters?.length || !context) return null;
+  const pick = (field: string, value: string | null) =>
+    void context.dispatchAction({ event: { name: 'filter', context: { block: context.componentModel.id, field, value: value ?? '' } } });
+  return (
+    <Group gap="xs">
+      {filters.map((f) => (
+        <Select key={f.field} size="xs" w={180} clearable placeholder={t('filter.any', { field: f.field })} data={f.options}
+          value={f.value || null} onChange={(v) => pick(f.field, v)} data-filter={f.field} />
+      ))}
+    </Group>
+  );
+}
+
+function Block({ title, data, context, children }: { title?: string; data?: Data; context?: ComponentContext; children: (d: Data) => ReactNode }) {
   const { t } = useTranslation();
   const old = useStale();
   let body: ReactNode;
@@ -175,6 +206,7 @@ function Block({ title, data, children }: { title?: string; data?: Data; childre
             {old && <Badge color="yellow" variant="light" title={t('state.stale_why')} data-stale>{t('state.stale')}</Badge>}
           </Group>
         )}
+        <Filters filters={data?.filters} context={context} />
         {body}
       </Stack>
     </Card>
@@ -236,7 +268,7 @@ const impls: ReactComponentImplementation[] = [
   createComponentImplementation(api('table'), ({ props, context }) => {
     const p = props as { title?: string; columns: string[]; data?: Data };
     return (
-      <Block title={p.title} data={p.data}>
+      <Block title={p.title} data={p.data} context={context}>
         {(d) => (
           <Table.ScrollContainer minWidth={400}>
             <Table striped highlightOnHover>
@@ -260,7 +292,7 @@ const impls: ReactComponentImplementation[] = [
   createComponentImplementation(api('list'), ({ props, context }) => {
     const p = props as { title?: string; data?: Data };
     return (
-      <Block title={p.title} data={p.data}>
+      <Block title={p.title} data={p.data} context={context}>
         {(d) => (
           <Stack gap="sm">
             {(d.items ?? []).map((it, i) => {
@@ -339,6 +371,18 @@ const impls: ReactComponentImplementation[] = [
         }}
       </Block>
     );
+  }),
+  createComponentImplementation(api('board'), ({ props }) => {
+    const p = props as { title?: string; data?: Data };
+    return <Block title={p.title} data={p.data}>{(d) => <Board value={d.value as BoardValue} />}</Block>;
+  }),
+  createComponentImplementation(api('form'), ({ props }) => {
+    const p = props as { title?: string; data?: Data };
+    return <Block title={p.title} data={p.data}>{(d) => <Form value={d.value as FormValue} />}</Block>;
+  }),
+  createComponentImplementation(api('custom'), ({ props }) => {
+    const p = props as { title?: string; data?: Data };
+    return <Block title={p.title} data={p.data}>{(d) => <Suspense fallback={<Loader size="xs" />}><Custom value={d.value as CustomValue} /></Suspense>}</Block>;
   }),
   createComponentImplementation({ name: UNKNOWN, schema: z.object({ type: z.string() }) }, ({ props }) => {
     const { t } = useTranslation();

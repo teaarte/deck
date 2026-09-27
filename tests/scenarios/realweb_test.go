@@ -327,7 +327,7 @@ func newPlaywright(t *testing.T) *playwright {
 	if out == "" {
 		out = t.TempDir()
 	}
-	args := append(app.DefaultBrowser[1:], "--headless", "--isolated", "--output-dir", out)
+	args := append(app.DefaultBrowser[1:], "--headless", "--isolated", "--caps=vision", "--output-dir", out)
 	cmd := exec.Command(app.DefaultBrowser[0], args...)
 	cmd.SysProcAttr, cmd.Dir = &syscall.SysProcAttr{Setpgid: true}, out
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)

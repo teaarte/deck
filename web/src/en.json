@@ -30,6 +30,10 @@
     "stop": "Stop",
     "check": "Check",
     "open": "Open",
+    "run_now": "Run now",
+    "pause": "Pause",
+    "resume": "Resume",
+    "cancel_run": "Cancel",
     "send": "Send",
     "cancel": "Cancel"
   },
@@ -38,6 +42,36 @@
     "reason": "Why not"
   },
   "question": { "other": "Other" },
+  "token": {
+    "why": "This device has no access token of deck yet. The URL deck prints when it starts ends with it.",
+    "label": "Access token",
+    "save": "Open deck"
+  },
+  "filter": { "any": "Any {{field}}" },
+  "custom": { "ask": "A custom block wants to run a command that goes outside deck" },
+  "board": {
+    "move": "Move",
+    "new": "New card…",
+    "waits": "waits #{{id}}",
+    "card": "Card #{{id}}",
+    "title": "Title",
+    "text": "Text",
+    "save": "Save",
+    "delete": "Delete",
+    "deleted": "Deleted {{title}}",
+    "recently_deleted": "Deleted in the last day ({{count}})",
+    "restore": "Restore"
+  },
+  "form": {
+    "command": "Command",
+    "run": "Run",
+    "save_record": "Save",
+    "state": "#{{id}}: {{state}}",
+    "nothing": "Nothing to show",
+    "json": "{{field}} is not valid JSON",
+    "keep": "Keep in {{collection}}",
+    "saved": "Kept in {{collection}}"
+  },
   "details": { "show": "Show the whole call", "hide": "Hide the call" },
   "done": "Done",
   "started": "Started process #{{id}}",

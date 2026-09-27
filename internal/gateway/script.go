@@ -64,7 +64,7 @@ func (g *Gateway) ScriptHandler(ctx context.Context, tok, self string, domains [
 	})
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodConnect || r.URL.IsAbs() && r.URL.Host != self {
-			egress(ctx, w, r, domains)
+			Egress(ctx, w, r, domains)
 			return
 		}
 		got := r.Header.Get("Authorization")

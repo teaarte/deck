@@ -12,6 +12,7 @@ import (
 	"deck2/internal/manifest"
 	"deck2/internal/process"
 	"deck2/internal/provider"
+	"deck2/internal/provider/acp"
 	"deck2/internal/provider/openai"
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
@@ -28,6 +29,8 @@ type providerDef struct {
 	Model     string `json:"model"`
 	KeySecret string `json:"key_secret,omitempty"`
 	NoCloud   bool   `json:"no_cloud,omitempty"`
+	// Agent runs the model in an ACP agent inside the sandbox of deck instead of deck's own tool loop.
+	Agent string `json:"agent,omitempty"`
 }
 
 func (a *App) workspaceOf(ctx context.Context, projectID int64) (db.Project, error) {
@@ -61,13 +64,51 @@ func (a *App) provider(ctx context.Context, workspace int64, name string) (provi
 	if strings.ContainsAny(d.URL, "@?#") {
 		return nil, registry.Invalid("deck: the url of provider %q holds a user, query or key; add it again with deck.provider_add and key_secret", name)
 	}
+	key := func() (string, error) {
+		if d.KeySecret == "" {
+			return "", nil
+		}
+		return a.Secret(workspace, d.KeySecret)
+	}
+	if d.Agent != "" {
+		return acp.New(acp.Config{Name: name, Agent: d.Agent, Binary: a.Cfg.ACPBinaries[d.Agent], URL: d.URL, Model: d.Model,
+			Key: key, NoCloud: d.NoCloud, Home: a.Cfg.Home, Sandbox: a.Cfg.Sandbox, CallLimit: a.Cfg.ACPCallLimit, Now: a.Cfg.Now})
+	}
 	return openai.New(openai.Config{Name: name, URL: d.URL, Model: d.Model, NoCloud: d.NoCloud, Now: a.Cfg.Now,
-		Sessions: filepath.Join(a.Cfg.Home, "sessions"), Key: func() (string, error) {
-			if d.KeySecret == "" {
-				return "", nil
-			}
-			return a.Secret(workspace, d.KeySecret)
-		}}), nil
+		Sessions: filepath.Join(a.Cfg.Home, "sessions"), Key: key}), nil
+}
+
+// named is a built-in provider, or one the owner added to any workspace; nil when there is none.
+func (a *App) named(ctx context.Context, name string) provider.Provider {
+	if pv := a.builtinNamed(name); pv != nil {
+		return pv
+	}
+	spaces, _ := a.Store.Q.ListWorkspaces(ctx)
+	for _, ws := range spaces {
+		if pv, err := a.provider(ctx, ws, name); err == nil {
+			return pv
+		}
+	}
+	return nil
+}
+
+// checked are the providers with a self-check: the built-in ones and those the owner added to any workspace.
+func (a *App) checked(ctx context.Context) []provider.Provider {
+	var out []provider.Provider
+	seen := map[string]bool{}
+	all := slices.Clone(a.builtin)
+	spaces, _ := a.Store.Q.ListWorkspaces(ctx)
+	for _, ws := range spaces {
+		added, _ := a.providers(ctx, ws)
+		all = append(all, added...)
+	}
+	for _, pv := range all {
+		if _, ok := pv.(provider.SelfChecker); ok && !seen[pv.Name()] {
+			seen[pv.Name()] = true
+			out = append(out, pv)
+		}
+	}
+	return out
 }
 
 // providers lists every provider of a workspace, the built-in ones first.
@@ -134,7 +175,7 @@ func (a *App) builtinNamed(name string) provider.Provider {
 
 // Ready holds turns on a built-in provider while its self-check runs after a change of version or is red.
 func (a *App) Ready(ctx context.Context, name string) bool {
-	if _, ok := a.builtinNamed(name).(provider.SelfChecker); !ok {
+	if _, ok := a.named(ctx, name).(provider.SelfChecker); !ok {
 		return true
 	}
 	h, err := a.Store.Q.GetHealth(ctx, process.HealthSubject(name))
@@ -181,6 +222,8 @@ func checkDef(name string, d providerDef, builtin []string) error {
 		return registry.Invalid("deck: provider needs a model")
 	case d.KeySecret != "" && !secretName.MatchString(d.KeySecret):
 		return registry.Invalid("deck: bad secret name %q", d.KeySecret)
+	case d.Agent != "" && acp.Agents[d.Agent].Start == nil:
+		return registry.Invalid("deck: no ACP agent %q; deck knows %s", d.Agent, strings.Join(acp.Names(), ", "))
 	}
 	return nil
 }

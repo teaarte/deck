@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 )
 
 // turn is one provider session run of a process: a fresh start or a resume of its session.
@@ -79,7 +80,7 @@ func (r *Runner) run(ctx context.Context, t turn) {
 		sub = &gateway.Submit{Schema: t.cmd.Result, Validate: func(raw json.RawMessage) error { return validate(t.cmd, raw) }}
 	}
 	tok, err := r.gw.Register(bg, &gateway.Session{ProcessID: processID, ProjectID: t.project, Workspace: proj.WorkspaceID, Trial: trial, Submit: sub,
-		Ask: pv.QuestionTool() == gateway.AskToolName()})
+		Ask: pv.QuestionTool() == gateway.AskToolName(), Wait: callLimit(pv)})
 	if err != nil {
 		r.finish(bg, processID, StateError, "", false, err.Error())
 		return
@@ -292,4 +293,11 @@ func validate(cmd *manifest.Command, structured json.RawMessage) error {
 		return nil
 	}
 	return cmd.ValidateResult(v)
+}
+
+func callLimit(pv provider.Provider) time.Duration {
+	if l, ok := pv.(provider.CallLimiter); ok {
+		return l.CallLimit()
+	}
+	return 0
 }

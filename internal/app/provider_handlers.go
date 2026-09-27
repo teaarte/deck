@@ -94,8 +94,9 @@ func (a *App) providerAdd(ctx context.Context, act registry.Actor, in struct {
 	Name, URL, Model string
 	KeySecret        string `json:"key_secret"`
 	NoCloud          bool   `json:"no_cloud"`
+	Agent            string
 }) (any, error) {
-	d := providerDef{URL: in.URL, Model: in.Model, KeySecret: in.KeySecret, NoCloud: in.NoCloud}
+	d := providerDef{URL: in.URL, Model: in.Model, KeySecret: in.KeySecret, NoCloud: in.NoCloud, Agent: in.Agent}
 	var builtin []string
 	for _, pv := range a.builtin {
 		builtin = append(builtin, pv.Name())
@@ -105,10 +106,27 @@ func (a *App) providerAdd(ctx context.Context, act registry.Actor, in struct {
 	}
 	raw, _ := json.Marshal(d)
 	err := a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		spaces, err := q.ListWorkspaces(ctx)
+		if err != nil {
+			return err
+		}
+		for _, ws := range spaces {
+			if _, err := q.GetSetting(ctx, db.GetSettingParams{WorkspaceID: ws, Key: providerPrefix + in.Name}); ws != act.Workspace && err == nil {
+				return registry.Invalid("deck: another workspace has a provider %q; its health and self-check go by name, so pick another", in.Name)
+			}
+		}
+		if d.Agent != "" {
+			if err := q.SetHealth(ctx, db.SetHealthParams{Subject: process.HealthSubject(in.Name), Status: "checking", Error: "the self-check of the new provider is about to run"}); err != nil {
+				return err
+			}
+		}
 		return q.SetSetting(ctx, db.SetSettingParams{WorkspaceID: act.Workspace, Key: providerPrefix + in.Name, Value: string(raw)})
 	})
 	if err != nil {
 		return nil, err
+	}
+	if d.Agent != "" {
+		a.startCheck(in.Name, true)
 	}
 	return map[string]any{"name": in.Name}, nil
 }
@@ -136,7 +154,11 @@ func (a *App) providerRemove(ctx context.Context, act registry.Actor, in struct{
 }
 
 func (a *App) providerCheck(ctx context.Context, act registry.Actor, in struct{ Provider string }) (any, error) {
-	if _, ok := a.builtinNamed(in.Provider).(provider.SelfChecker); !ok {
+	pv, err := a.provider(ctx, act.Workspace, in.Provider)
+	if err != nil {
+		return nil, err
+	}
+	if _, ok := pv.(provider.SelfChecker); !ok {
 		return nil, registry.Invalid("deck: provider %q has no self-check", in.Provider)
 	}
 	if !a.startCheck(in.Provider, true) {

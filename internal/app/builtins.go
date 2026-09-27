@@ -188,11 +188,13 @@ func (a *App) addBuiltins() {
 	add("provider_set", "Choose provider", "Sets the provider an agent command runs on from its next start; empty goes back to the default.", ownerOnly,
 		registry.Params(registry.P("command", "string", "Agent command, project.command"),
 			registry.Opt("provider", "string", "Provider name; empty for the default")), registry.Typed(a.providerSet))
-	add("provider_add", "Add provider", "Adds or changes an OpenAI-compatible provider of this workspace, such as Ollama, OpenRouter or DeepSeek.", ownerOnly,
+	add("provider_add", "Add provider", "Adds or changes an OpenAI-compatible provider of this workspace, such as Ollama, OpenRouter or DeepSeek, run by deck or by an ACP agent.", ownerOnly,
 		registry.Params(registry.P("name", "string", "Provider name: lowercase letters, digits and '-'"),
 			registry.P("url", "string", "Base URL of the OpenAI-compatible API, such as http://localhost:11434/v1"),
 			registry.P("model", "string", "Model name"), registry.Opt("key_secret", "string", "Name of the secret with the API key"),
-			registry.Opt("no_cloud", "boolean", "The model runs on the owner's own hardware")), registry.Typed(a.providerAdd))
+			registry.Opt("no_cloud", "boolean", "The model runs on the owner's own hardware"),
+			registry.Opt("agent", "string", "An ACP agent that runs the model inside the sandbox of deck with a shell and files: opencode or dsh; without it deck calls the model with its own tool loop")),
+		registry.Typed(a.providerAdd))
 	add("provider_remove", "Remove provider", "Removes an OpenAI-compatible provider; commands set to it must get another.", ownerOnly,
 		registry.Params(registry.P("name", "string", "Provider name")), registry.Typed(a.providerRemove))
 	add("provider_check", "Check provider", "Runs the self-check of a provider's adapter again; its health shows the outcome.", ownerOnly,

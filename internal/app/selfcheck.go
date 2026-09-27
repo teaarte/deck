@@ -14,6 +14,8 @@ import (
 // checks keeps when deck next looks at the version of a built-in provider and retries its red self-check.
 type checks struct {
 	running bool
+	// again is set when the provider changed during a running check, which then checks it once more.
+	again   bool
 	started bool
 	version time.Time
 	retry   time.Time
@@ -28,14 +30,11 @@ func (a *App) checksOf(name string) *checks {
 	return c
 }
 
-// Checks runs the self-check of each built-in provider at the first call, when its version changed, and again
+// Checks runs the self-check of each provider that has one at the first call, when its version changed, and again
 // while it is red; only the Loop calls it, so tests run self-checks on purpose.
 func (a *App) Checks(ctx context.Context, now time.Time) {
-	for _, pv := range a.builtin {
-		sc, ok := pv.(provider.SelfChecker)
-		if !ok {
-			continue
-		}
+	for _, pv := range a.checked(ctx) {
+		sc := pv.(provider.SelfChecker)
 		a.checkMu.Lock()
 		c := a.checksOf(pv.Name())
 		due := !c.started || !now.Before(c.version)
@@ -61,14 +60,14 @@ func (a *App) Checks(ctx context.Context, now time.Time) {
 // startCheck runs a self-check in the background unless one is running; a change of version or a red check
 // holds the provider's turns until it ends. One cut short by a limit or a login keeps no version, so it reruns.
 func (a *App) startCheck(name string, force bool) bool {
-	pv := a.builtinNamed(name)
-	sc, ok := pv.(provider.SelfChecker)
+	sc, ok := a.named(a.ctx, name).(provider.SelfChecker)
 	if !ok {
 		return false
 	}
 	a.checkMu.Lock()
 	c := a.checksOf(name)
 	if c.running {
+		c.again = c.again || force
 		a.checkMu.Unlock()
 		return false
 	}
@@ -108,6 +107,16 @@ func (a *App) startCheck(name string, force bool) bool {
 		if status != "ok" && status != "error" {
 			version = ""
 		}
+		a.checkMu.Lock()
+		again := c.again && ctx.Err() == nil
+		c.again = false
+		if again {
+			c.running = false
+			a.checkMu.Unlock()
+			a.startCheck(name, true)
+			return
+		}
+		a.checkMu.Unlock()
 		a.writeCheck(context.WithoutCancel(ctx), subject, status, text, version)
 		a.checkMu.Lock()
 		c.running = false

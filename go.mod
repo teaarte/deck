@@ -16,6 +16,7 @@ require (
 )
 
 require (
+	github.com/coder/acp-go-sdk v0.13.5 // indirect
 	github.com/coder/websocket v1.8.15 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/google/jsonschema-go v0.4.3 // indirect

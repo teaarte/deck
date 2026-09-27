@@ -125,6 +125,12 @@ type SelfChecker interface {
 	SelfCheck(ctx context.Context) Check
 }
 
+// CallLimiter is a provider whose calls of gateway tools time out: a wait for the owner ends before that and the
+// turn stops, so the answer comes by resume.
+type CallLimiter interface {
+	CallLimit() time.Duration
+}
+
 // Reaper kills a process group an earlier deck left running, if it still runs the given session.
 type Reaper interface {
 	Reap(pgid int, session string)

@@ -56,7 +56,7 @@ func (g *Gateway) question(ctx context.Context, s *Session, in approveInput) dec
 	for _, q := range qs.Questions {
 		texts = append(texts, q.Question)
 	}
-	until := g.cfg.Now().Add(g.cfg.QuestionWait)
+	until := g.cfg.Now().Add(s.wait(g.cfg.QuestionWait))
 	a, err := g.asks.Create(ctx, s.ProcessID, ask.KindQuestion, strings.Join(texts, "\n"), in.Input, until)
 	if err != nil {
 		return decision{Behavior: "deny", Message: "deck: could not deliver the question: " + err.Error()}
@@ -74,6 +74,14 @@ func (g *Gateway) question(ctx context.Context, s *Session, in approveInput) dec
 	}
 	upd["answers"] = QuestionAnswers(texts, answer)
 	return decision{Behavior: "allow", UpdatedInput: upd}
+}
+
+// wait is how long a call of the session waits for the owner: d, or less when the provider times calls out.
+func (s *Session) wait(d time.Duration) time.Duration {
+	if s.Wait > 0 && s.Wait < d {
+		return s.Wait
+	}
+	return d
 }
 
 // QuestionAnswers maps question texts to answers; a plain string answers every question.
@@ -123,7 +131,7 @@ func (g *Gateway) confirm(ctx context.Context, s *Session, in approveInput) deci
 	if err != nil {
 		return decision{Behavior: "deny", Message: "deck: could not request confirmation: " + err.Error()}
 	}
-	answer, ok := g.asks.Wait(ctx, a.ID, now.Add(g.cfg.ConfirmWait))
+	answer, ok := g.asks.Wait(ctx, a.ID, now.Add(s.wait(g.cfg.ConfirmWait)))
 	if !ok {
 		return decision{Behavior: "deny", Message: "deck: waiting for the owner to confirm this call; it was not made." + stopAndWait}
 	}

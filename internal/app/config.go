@@ -26,8 +26,12 @@ type Config struct {
 	ScriptCeiling time.Duration
 	// Snapshots is how many daily snapshots stay in backups/.
 	Snapshots int
-	// Sandbox confines scripts; the one of this operating system when nil.
+	// Sandbox confines scripts and ACP agents; the one of this operating system when nil.
 	Sandbox sandbox.Sandbox
+	// ACPBinaries are the programs of ACP agents by agent name; an agent missing here is looked up in PATH.
+	ACPBinaries map[string]string
+	// ACPCallLimit is how long a call of an ACP agent may wait for the owner before its turn stops; zero keeps 45 s.
+	ACPCallLimit time.Duration
 	// Browser starts the browser MCP server; DefaultBrowser when nil, none when empty.
 	Browser []string
 	// PauseLimit is how long one pause on a usage limit lasts at most; PauseProbe is the try without a reset time.

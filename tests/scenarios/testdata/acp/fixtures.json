@@ -1,0 +1,27 @@
+{
+ "dsh_turn.jsonl": {
+  "agent": "dsh 0.1.5-rc.3",
+  "date": "2026-09-27",
+  "kind": "real"
+ },
+ "opencode_turn.jsonl": {
+  "agent": "opencode 1.18.20",
+  "date": "2026-09-27",
+  "kind": "real"
+ },
+ "selfcheck_1.jsonl": {
+  "agent": "dsh 0.1.5-rc.3",
+  "date": "2026-09-27",
+  "kind": "synthetic"
+ },
+ "selfcheck_2.jsonl": {
+  "agent": "dsh 0.1.5-rc.3",
+  "date": "2026-09-27",
+  "kind": "synthetic"
+ },
+ "selfcheck_3.jsonl": {
+  "agent": "dsh 0.1.5-rc.3",
+  "date": "2026-09-27",
+  "kind": "synthetic"
+ }
+}

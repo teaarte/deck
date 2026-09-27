@@ -23,6 +23,8 @@ type Policy struct {
 	Out net.Listener
 	// Net opens the whole network; only installing packages gets it.
 	Net bool
+	// Port is a local port the program listens on itself; its own network namespace needs no rule for it.
+	Port int
 }
 
 type Sandbox interface {
@@ -78,5 +80,5 @@ func Private(home string) []string {
 var private = []string{".ssh", ".aws", ".azure", ".gnupg", ".kube", ".docker", ".netrc", ".git-credentials", ".npmrc",
 	".pypirc", ".cargo/credentials", ".cargo/credentials.toml", ".terraform.d", ".password-store", ".mozilla",
 	".config/gcloud", ".config/gh", ".config/op", ".config/google-chrome", ".config/chromium", ".local/share/keyrings",
-	".claude", ".claude.json", ".codex", "Library/Keychains", "Library/Cookies", "Library/Application Support",
+	".claude", ".claude.json", ".codex", ".dsh", ".config/opencode", ".local/share/opencode", "Library/Keychains", "Library/Cookies", "Library/Application Support",
 	"Library/Containers", "Library/Group Containers", "Library/Mail", "Library/Messages", "Library/Safari"}

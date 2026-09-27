@@ -30,7 +30,8 @@ func TestScenariosOnLinux(t *testing.T) {
 	}
 	for _, name := range []string{"TestScriptCommandRunsInTheSandbox", "TestScriptKeepsAnIndexInTheProjectDataFolder",
 		"TestScriptPackageWorksWithoutPyPIAndMissingProgramShowsInHealth", "TestSchemaMigrationAppliesRecordsWithTheManifestAndRevertsBoth",
-		"TestUploadedAndRecordFilesReachTheScriptReadOnly", "TestHTTPToolSendsFilesAsItsBody", "TestMCPServerToolsFollowClassesAndFilter"} {
+		"TestUploadedAndRecordFilesReachTheScriptReadOnly", "TestHTTPToolSendsFilesAsItsBody", "TestMCPServerToolsFollowClassesAndFilter",
+		"TestACPCommandAgentWorksThroughTheGateway", "TestACPProjectWithoutNetworkHasNoWebThroughTheProxy", "TestACPSelfCheckIsRedWhenTheSandboxOrTheProxyFails"} {
 		if !strings.Contains(string(out), "--- PASS: "+name) {
 			t.Errorf("%s did not pass on Linux:\n%s", name, out)
 		}

@@ -47,7 +47,8 @@ func Reachable(domains []string, hostport string) bool {
 	return false
 }
 
-func egress(ctx context.Context, w http.ResponseWriter, r *http.Request, domains []string) {
+// Egress carries a proxy request of a confined program to a host in the domains; tunnels close when ctx ends.
+func Egress(ctx context.Context, w http.ResponseWriter, r *http.Request, domains []string) {
 	target := r.Host
 	if r.Method != http.MethodConnect {
 		port := r.URL.Port()

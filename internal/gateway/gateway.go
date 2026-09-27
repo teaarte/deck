@@ -43,6 +43,8 @@ type Session struct {
 	Submit *Submit
 	// Ask adds the ask tool, for a provider without a question tool of its own.
 	Ask bool
+	// Wait caps how long a call of the session waits for the owner, for a provider whose tool calls time out.
+	Wait time.Duration
 }
 
 func (s *Session) actor() registry.Actor {

@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"deck2/internal/app"
 	"deck2/internal/provider/codex"
 )
 
@@ -61,9 +62,11 @@ func (c *fakeCodex) adapter(home string) *codex.Adapter {
 	return &codex.Adapter{Binary: filepath.Join(c.dir, "codex"), Home: home, Dir: filepath.Join(home, "codex"), Linger: 300 * time.Millisecond}
 }
 
+// codexEnv runs deck on a clock a few minutes before the limit reset the recorded streams carry.
 func codexEnv(t *testing.T, c *fakeCodex) (*Env, string) {
 	home := t.TempDir()
-	return newEnvWith(t, home, c.adapter(home)), home
+	shift := time.Until(time.Unix(1790481864-600, 0))
+	return newEnvWith(t, home, c.adapter(home), func(cfg *app.Config) { cfg.Now = func() time.Time { return time.Now().Add(shift) } }), home
 }
 
 type codexCall struct {

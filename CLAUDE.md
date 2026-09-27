@@ -7,7 +7,8 @@ Stage 1 plan: `docs/plan-stage1.md`.
 ## Commands
 
 - Build: `go build -o deck ./cmd/deck`; web client: `cd web && npm ci && npm run build` (type check + `web/dist`)
-- Run: `DECK_HOME=/tmp/deckhome ./deck` (prints the URL with the access token)
+- Run: `DECK_HOME=/tmp/deckhome ./deck` (prints the URL with the access token; the next port is the second origin of
+  `custom` blocks); on the owner's tailnet: `./deck -tailscale deck` (sign-in link in the log and in health)
 - Tests: `go test -race ./...`
 - Real Claude Code end-to-end test: `DECK_REAL_CLI=1 go test ./tests/scenarios -run TestRealClaudeCode -v`
 - Real Codex end-to-end test (skipped without `codex`): `DECK_REAL_CODEX=1 go test ./tests/scenarios -run TestRealCodex -v`
@@ -38,9 +39,13 @@ Stage 1 plan: `docs/plan-stage1.md`.
 - `internal/trigger` — cron scheduler with catch-up after sleep
 - `internal/screen` — stored screens resolved into A2UI messages
 - `internal/api` — HTTP API (`GET /api/commands`, `POST /api/commands/{name}`, files) and SSE; screens are the
-  `deck.screen` command
-- `web` — client: Vite + React + Mantine v9 + `@a2ui/react` (protocol v0.9, `/v0_9` imports); `web/dist` is the
-  embedded build — rebuild and commit it with the sources
+  `deck.screen` command; `Sandbox` is the second origin of `custom` blocks (proxy page with a CSP without network,
+  `/ext-apps.js`), paired with the client's port (`Pair`)
+- `internal/tsnet` — deck on the owner's tailnet from inside the binary: HTTPS on 443, the second origin on 8443
+- `web` — client: Vite + React + Mantine v9 + `@a2ui/react` (protocol v0.9, `/v0_9` imports); blocks in
+  `src/catalog.tsx`, the board (`@dnd-kit/react`), forms and the MCP Apps host (`@modelcontextprotocol/ext-apps` 1.7.5 —
+  2.x needs zod 4) in their own files; PWA and Share Target — `public/manifest.webmanifest`, `public/sw.js`;
+  `web/dist` is the embedded build — rebuild and commit it with the sources
 - `internal/lint` — code rules checked by `tests/lint` (comments, requirement refs, vertical names)
 - `schemas` — contracts embedded in the binary: manifest JSON Schema, screen block catalog (`catalog.json`, read by
   the server and the client), App Intents parameter rules

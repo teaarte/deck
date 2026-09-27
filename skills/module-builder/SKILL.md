@@ -91,7 +91,8 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
 - **Command input** is a flat object; a choice is `{"type": "string", "enum": [...]}` — an `enum` without
   `"type": "string"` is refused.
 - **Files of the input**: a command field with `"format": "file"` takes a file id (from a form upload, Share, or
-  `files_list` of a record or card); scripts and agents get the path of a read-only copy. A result may give such
+  `files_list` of a record or card); scripts and agents get the path of a read-only copy. For a trial, upload
+  a sample with `file_upload` (the file in base64) and pass the id it returns. A result may give such
   a file to a record or card: `files: [{"file": <id>, "record": <id>}]`.
 - **Documents to PDF** (a CV in Typst, say): a script with `programs: ["typst"]` writes the `.typ` documents it
   reads with `document_get` into its work folder, runs `typst compile` and puts the PDF into `$DECK_RESULTS`.
@@ -121,7 +122,7 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   (from `$record.<field>` or fixed values); deck asks for nothing that is missing, so a choice the owner
   makes in a row is one action per option. List screens in `menu`.
 - **Remembering what was seen**: `records_upsert` replaces a whole record by its key, so write every
-  required field. `retention_days` deletes records with their documents: a collection that remembers what the
+  required field. `record_get` reads one record by its id (a card's `record`); `records_list` gives the newest. `retention_days` deletes records with their documents: a collection that remembers what the
   owner has already seen, or holds what they asked for, gets none.
 - **Starting records** (the first sources, say) are written after the import with `records_upsert`, or by the
   first run of the script that needs them.
@@ -225,8 +226,8 @@ Name each of these rights in the hand-over: the owner grants them with "enable".
 3. `command_try` runs a command as a trial: everything that is not internal is declined, so nothing leaves
    deck. The `after` and `lane` triggers it sets off run as trials too, so a whole chain can be tried from
    its first command. A trial is not a sandbox: internal writes (records, cards, documents) are real and stay
-   in the draft, and deck has no command to delete records. Try on real inputs, or on test inputs you can
-   tell apart (a test source, a test go.mod) and list what they left in the hand-over. `process_get` gives
+   in the draft. Before the hand-over, delete what the trials left that the owner should not start with:
+   `record_delete` (in a draft only), `card_delete`; say in the hand-over what you kept. `process_get` gives
    the state and result. A `lane` step is tried with `command_try` of its command and `{"card": <id>}`: in a
    draft moving the card starts nothing; `process_log` shows events only while the
    process is open. Check `records_list` and `cards_list`, and `health_list` after a save that adds packages,

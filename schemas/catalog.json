@@ -151,8 +151,32 @@
         "until": {"type": "string", "description": "Time after which the button is hidden."},
         "project": {"type": "string"},
         "screen": {"type": "string"},
-        "record": {"type": "integer"}
+        "record": {"type": "integer"},
+        "class": {"type": "string", "description": "Class of the command of a custom block's button; the host asks the owner before one that is not internal."}
       }
+    },
+    "values": {
+      "description": "The value of the data of each block that has one, by component.",
+      "card": {"type": "object", "additionalProperties": false, "required": ["fields", "actions"], "properties": {
+        "fields": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["label"], "properties": {"label": {"type": "string"}, "value": {}}}},
+        "actions": {"type": "array", "items": {"$ref": "#/$defs/action"}}}},
+      "stat": {"type": ["number", "string", "boolean", "null"]},
+      "board": {"type": "object", "additionalProperties": false, "required": ["project", "lanes", "deleted"], "properties": {
+        "project": {"type": "string"},
+        "lanes": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["name", "title", "cards"], "properties": {
+          "name": {"type": "string"}, "title": {"type": "string"}, "role": {"type": "string"},
+          "cards": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["id", "title"], "properties": {
+            "id": {"type": "integer"}, "title": {"type": "string"}, "text": {"type": "string"}, "waits": {"type": "array", "items": {"type": "integer"}}, "record": {"type": "integer"}}}}}}},
+        "deleted": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["id", "title"], "properties": {"id": {"type": "integer"}, "title": {"type": "string"}}}}}},
+      "form": {"type": "object", "additionalProperties": false, "required": ["project", "commands"], "properties": {
+        "project": {"type": "string"},
+        "commands": {"type": ["array", "null"], "items": {"type": "object", "additionalProperties": false, "required": ["name", "title", "input", "order"], "properties": {
+          "name": {"type": "string"}, "title": {"type": "string"}, "description": {"type": "string"}, "project": {"type": "string"},
+          "input": {"type": "object"}, "order": {"type": ["array", "null"], "items": {"type": "string"}}, "result": {}}}},
+        "values": {"type": "object"}, "readonly": {"type": "array", "items": {"type": "string"}}, "record": {"type": "integer"}, "save": {"type": "string"}}},
+      "custom": {"type": "object", "additionalProperties": false, "required": ["html", "actions"], "properties": {
+        "html": {"type": "string"}, "items": {"type": "array", "items": {"type": "object"}}, "record": {"type": "object"},
+        "actions": {"type": "array", "items": {"$ref": "#/$defs/action"}}}}
     },
     "data": {
       "type": "object",

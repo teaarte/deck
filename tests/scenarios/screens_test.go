@@ -74,8 +74,9 @@ func webAgent() Script {
 
 // catalogCheck validates resolved components and block data against schemas/catalog.json.
 type catalogCheck struct {
-	c    *jsonschema.Compiler
-	data *jsonschema.Schema
+	c     *jsonschema.Compiler
+	data  *jsonschema.Schema
+	comps map[string]string
 }
 
 func newCatalogCheck(t *testing.T) *catalogCheck {
@@ -98,7 +99,7 @@ func newCatalogCheck(t *testing.T) *catalogCheck {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &catalogCheck{c: c, data: data}
+	return &catalogCheck{c: c, data: data, comps: map[string]string{}}
 }
 
 func (k *catalogCheck) messages(t *testing.T, msgs []map[string]json.RawMessage) {
@@ -112,6 +113,7 @@ func (k *catalogCheck) messages(t *testing.T, msgs []map[string]json.RawMessage)
 			_ = json.Unmarshal(raw, &uc)
 			for _, comp := range uc.Components {
 				name := comp["component"].(string)
+				k.comps[comp["id"].(string)] = name
 				s, err := k.c.Compile("https://deck2.test/catalog.json#/components/" + name)
 				if err != nil {
 					t.Fatalf("component %s is not in the catalog: %v", name, err)
@@ -140,6 +142,17 @@ func (k *catalogCheck) messages(t *testing.T, msgs []map[string]json.RawMessage)
 			for id, v := range values {
 				if err := k.data.Validate(v); err != nil {
 					t.Fatalf("data of %s does not match the catalog: %v", id, err)
+				}
+				value, ok := v.(map[string]any)["value"]
+				if !ok {
+					continue
+				}
+				s, err := k.c.Compile("https://deck2.test/catalog.json#/$defs/values/" + k.comps[strings.TrimPrefix(id, "/")])
+				if err != nil {
+					t.Fatalf("the catalog has no value of block %s (%s): %v", id, k.comps[strings.TrimPrefix(id, "/")], err)
+				}
+				if err := s.Validate(value); err != nil {
+					t.Fatalf("value of %s does not match the catalog: %v", id, err)
 				}
 			}
 		}

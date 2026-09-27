@@ -245,3 +245,37 @@ func TestMCPServerByURLAndTheEnvironmentOfAProgram(t *testing.T) {
 		t.Fatalf("a program server with the network reaches no local socket of the owner: %s", b)
 	}
 }
+
+const oddServer = `import json, sys
+for line in sys.stdin:
+    m = json.loads(line)
+    if "id" not in m:
+        continue
+    r = {}
+    if m["method"] == "initialize":
+        r = {"protocolVersion": m["params"]["protocolVersion"], "capabilities": {"tools": {}}, "serverInfo": {"name": "odd", "version": "0"}}
+    elif m["method"] == "tools/list":
+        r = {"tools": [{"name": "free", "description": "Takes anything.", "inputSchema": {}},
+                       {"name": "fine", "description": "Takes an object.", "inputSchema": {"type": "object"}}]}
+    elif m["method"] == "tools/call":
+        r = {"content": [{"type": "text", "text": "called " + m["params"]["name"]}]}
+    print(json.dumps({"jsonrpc": "2.0", "id": m["id"], "result": r}), flush=True)
+`
+
+// TestMCPToolWithASchemaThatIsNotAnObjectIsLeftOut: a server may list any schema; deck keeps running and the
+// agent gets the other tools.
+func TestMCPToolWithASchemaThatIsNotAnObjectIsLeftOut(t *testing.T) {
+	got := map[string]toolCall{}
+	e := newEnv(t, stepAgent(got, nil))
+	script := filepath.Join(t.TempDir(), "odd.py")
+	_ = os.WriteFile(script, []byte(oddServer), 0o600)
+	e.createProject("odd", fmt.Sprintf(`{"version": 4,
+  "commands": [{"name": "work", "title": "Work", "description": "Works.", "class": "internal",
+    "input": {"type": "object", "properties": {"step": {"type": "string"}}}, "result": {"type": "object"},
+    "executor": {"type": "agent", "prompt": "Work."}}],
+  "tools": {"mcp": {"servers": {"odd": {"command": "python3", "args": [%q], "classes": {"free": "internal", "fine": "internal"}}}}}}`, script))
+	e.waitState(e.start("odd", "work", map[string]any{"step": "odd__odd__fine"}), "done")
+	if c := got["odd__odd__fine"]; c.isErr || !strings.Contains(c.out, "called fine") {
+		t.Fatalf("the tool with an object schema works: %+v", c)
+	}
+}

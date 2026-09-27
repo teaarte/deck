@@ -233,6 +233,11 @@ func (g *Gateway) addCommands(ctx context.Context, srv *mcp.Server, s *Session, 
 			slog.Error("gateway tool names collide; the second is left out", "tool", tool, "kept", other, "left", name)
 			continue
 		}
+		var schema struct{ Type any }
+		if json.Unmarshal(c.Input, &schema) != nil || schema.Type != "object" {
+			slog.Error("gateway tool schema is not an object; the tool is left out", "tool", name)
+			continue
+		}
 		seen[tool] = name
 		tools = append(tools, tool)
 		srv.AddTool(&mcp.Tool{Name: tool, Title: c.Title, Description: c.Description, InputSchema: c.Input},

@@ -420,7 +420,7 @@ func inside(path, dir string) bool {
 	if dir == "" {
 		return false
 	}
-	for _, d := range paths(dir) {
+	for _, d := range provider.Paths(dir) {
 		if strings.HasPrefix(path, d+"/") {
 			return true
 		}

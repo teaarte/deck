@@ -3,7 +3,6 @@ package claudecode
 import (
 	"bufio"
 	"context"
-	"deck2/internal/untrusted"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,6 +12,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"deck2/internal/untrusted"
 
 	"deck2/internal/provider"
 )

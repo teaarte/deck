@@ -1,11 +1,12 @@
 package claudecode
 
 import (
-	"deck2/internal/provider"
 	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
+
+	"deck2/internal/provider"
 )
 
 type line struct {

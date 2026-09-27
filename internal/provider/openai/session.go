@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"regexp"
 
+	"deck2/internal/provider"
+
 	"github.com/openai/openai-go/v3"
 )
 
@@ -37,28 +39,11 @@ func load(path string) (msgs transcript, ok bool, err error) {
 
 // save writes the transcript atomically with mode 600.
 func save(path string, msgs transcript) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-		return err
-	}
 	b, err := json.Marshal(msgs)
 	if err != nil {
 		return err
 	}
-	f, err := os.CreateTemp(filepath.Dir(path), ".session-*")
-	if err != nil {
-		return err
-	}
-	_, werr := f.Write(b)
-	if cerr := f.Close(); werr == nil {
-		werr = cerr
-	}
-	if werr == nil {
-		werr = os.Rename(f.Name(), path)
-	}
-	if werr != nil {
-		_ = os.Remove(f.Name())
-	}
-	return werr
+	return provider.WriteFile(path, b)
 }
 
 const cutOff = "deck: the session was cut off before this call returned, so its outcome is unknown. " +

@@ -141,25 +141,7 @@ func (a *Adapter) sessionFile(session string) string {
 
 // remember writes the Codex thread of a deck session atomically with mode 600.
 func (a *Adapter) remember(session, thread string) error {
-	dir := filepath.Dir(a.sessionFile(session))
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return err
-	}
-	f, err := os.CreateTemp(dir, "thread-*")
-	if err != nil {
-		return err
-	}
-	_, werr := f.WriteString(thread)
-	if cerr := f.Close(); werr == nil {
-		werr = cerr
-	}
-	if werr == nil {
-		werr = os.Rename(f.Name(), a.sessionFile(session))
-	}
-	if werr != nil {
-		_ = os.Remove(f.Name())
-	}
-	return werr
+	return provider.WriteFile(a.sessionFile(session), []byte(thread))
 }
 
 // writeSkills puts the skills of the turn into a folder of their own outside every folder the agent writes to.
@@ -171,20 +153,9 @@ func (a *Adapter) writeSkills(skills map[string]string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	for path, text := range skills {
-		f := filepath.Join(dir, path)
-		if !strings.HasPrefix(f, dir+string(filepath.Separator)) {
-			_ = os.RemoveAll(dir)
-			return "", fmt.Errorf("codex: skill file %q is outside the skills folder", path)
-		}
-		if err := os.MkdirAll(filepath.Dir(f), 0o700); err != nil {
-			_ = os.RemoveAll(dir)
-			return "", err
-		}
-		if err := os.WriteFile(f, []byte(text), 0o600); err != nil {
-			_ = os.RemoveAll(dir)
-			return "", err
-		}
+	if err := provider.WriteTree(dir, skills, provider.WritePrivate); err != nil {
+		_ = os.RemoveAll(dir)
+		return "", fmt.Errorf("codex: %w", err)
 	}
 	return dir, nil
 }

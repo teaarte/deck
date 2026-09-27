@@ -1,13 +1,14 @@
 package claudecode
 
 import (
-	"deck2/internal/provider"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
+
+	"deck2/internal/provider"
 )
 
 // webTools are the CLI's own network tools; a project without network does not get them.
@@ -16,25 +17,11 @@ var webTools = []string{"WebFetch", "WebSearch"}
 // offlineTools are the only built-in tools of a project without network, so a network tool of a later CLI is off too.
 var offlineTools = []string{"Bash", "Read", "Glob", "Grep", "Edit", "Write", "NotebookEdit", "TodoWrite", "Skill", "Task", "AskUserQuestion"}
 
-var envNames = map[string]bool{"PATH": true, "HOME": true, "USER": true, "LOGNAME": true, "SHELL": true,
-	"LANG": true, "TZ": true, "TMPDIR": true}
-
-var envPrefixes = []string{"LC_", "XDG_", "NODE_"}
+var envNames = []string{"PATH", "HOME", "USER", "LOGNAME", "SHELL", "LANG", "TZ", "TMPDIR"}
 
 // environ keeps only the allowlisted variables, so login and API selection variables never reach the CLI.
 func environ(parent []string) []string {
-	var out []string
-	for _, kv := range parent {
-		name, _, _ := strings.Cut(kv, "=")
-		ok := envNames[name]
-		for _, p := range envPrefixes {
-			ok = ok || strings.HasPrefix(name, p)
-		}
-		if ok {
-			out = append(out, kv)
-		}
-	}
-	return append(out, "MCP_TOOL_TIMEOUT=2400000")
+	return append(provider.Environ(parent, envNames, "LC_", "XDG_", "NODE_"), "MCP_TOOL_TIMEOUT=2400000")
 }
 
 // apiVariables are login and API selection variables the settings of deck blank out over those of the repo.
@@ -67,7 +54,7 @@ func settings(req provider.Request) map[string]any {
 	if !req.Repo {
 		return s
 	}
-	for _, root := range paths(req.Cwd) {
+	for _, root := range provider.Paths(req.Cwd) {
 		for _, f := range []string{"settings.json", "settings.local.json"} {
 			var repo struct {
 				Env map[string]any `json:"env"`
@@ -97,42 +84,19 @@ func (a *Adapter) writeFile(pattern string, data []byte) (string, error) {
 	if err := os.Chmod(a.ConfigDir, 0o700); err != nil {
 		return "", err
 	}
-	f, err := os.CreateTemp(a.ConfigDir, pattern+"-*.tmp")
+	f, err := os.CreateTemp(a.ConfigDir, pattern+"-*.json")
 	if err != nil {
 		return "", err
 	}
-	_, werr := f.Write(data)
-	if cerr := f.Close(); werr == nil {
-		werr = cerr
-	}
-	final := strings.TrimSuffix(f.Name(), ".tmp") + ".json"
-	if werr == nil {
-		werr = os.Rename(f.Name(), final)
-	}
-	if werr != nil {
-		_ = os.Remove(f.Name())
-		return "", werr
-	}
-	return final, nil
-}
-
-// paths gives a folder by its absolute and its real path.
-func paths(dir string) []string {
-	var out []string
-	if abs, err := filepath.Abs(dir); err == nil {
-		out = append(out, abs)
-	}
-	if real, err := filepath.EvalSymlinks(dir); err == nil && !slices.Contains(out, real) {
-		out = append(out, real)
-	}
-	return out
+	_ = f.Close()
+	return f.Name(), provider.WriteFile(f.Name(), data)
 }
 
 // excludes lists the instruction files of every folder above the repo, by the given and the real path.
 func excludes(repo string) []string {
 	seen := map[string]bool{}
 	var out []string
-	for _, root := range paths(repo) {
+	for _, root := range provider.Paths(repo) {
 		for d := filepath.Dir(root); ; d = filepath.Dir(d) {
 			for _, f := range []string{"CLAUDE.md", "CLAUDE.local.md", ".claude/CLAUDE.md", ".claude/rules/**"} {
 				if p := filepath.Join(d, f); !seen[p] {
@@ -165,20 +129,9 @@ func (a *Adapter) writePlugin(skills map[string]string) (string, error) {
 	for path, text := range skills {
 		files[filepath.Join("skills", path)] = text
 	}
-	for path, text := range files {
-		f := filepath.Join(dir, path)
-		if !strings.HasPrefix(f, dir+string(filepath.Separator)) {
-			_ = os.RemoveAll(dir)
-			return "", fmt.Errorf("claude-code: skill file %q is outside the plugin", path)
-		}
-		if err := os.MkdirAll(filepath.Dir(f), 0o700); err != nil {
-			_ = os.RemoveAll(dir)
-			return "", err
-		}
-		if err := os.WriteFile(f, []byte(text), 0o600); err != nil {
-			_ = os.RemoveAll(dir)
-			return "", err
-		}
+	if err := provider.WriteTree(dir, files, provider.WritePrivate); err != nil {
+		_ = os.RemoveAll(dir)
+		return "", fmt.Errorf("claude-code: %w", err)
 	}
 	return dir, nil
 }

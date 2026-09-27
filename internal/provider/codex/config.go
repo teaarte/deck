@@ -11,27 +11,11 @@ import (
 	"deck2/internal/provider"
 )
 
-var envNames = map[string]bool{"PATH": true, "HOME": true, "USER": true, "LOGNAME": true, "SHELL": true,
-	"LANG": true, "TZ": true, "TMPDIR": true, "CODEX_HOME": true}
-
-var envPrefixes = []string{"LC_", "XDG_"}
+var envNames = []string{"PATH", "HOME", "USER", "LOGNAME", "SHELL", "LANG", "TZ", "TMPDIR", "CODEX_HOME"}
 
 // environ keeps only the allowlisted variables, so API keys and provider selection never reach Codex;
 // CODEX_HOME stays, since it is where the owner's shared login lives.
-func environ(parent []string) []string {
-	var out []string
-	for _, kv := range parent {
-		name, _, _ := strings.Cut(kv, "=")
-		ok := envNames[name]
-		for _, p := range envPrefixes {
-			ok = ok || strings.HasPrefix(name, p)
-		}
-		if ok {
-			out = append(out, kv)
-		}
-	}
-	return out
-}
+func environ(parent []string) []string { return provider.Environ(parent, envNames, "LC_", "XDG_") }
 
 // codexHome is the owner's Codex folder: the agent's shell may not read it, the login and history live there.
 func codexHome() string {
@@ -60,21 +44,21 @@ const profile = "deck"
 // the shell reads all but deck's and the owner's Codex folder and writes its own; the deepest path wins.
 func (a *Adapter) args(req provider.Request, skills string) ([]string, error) {
 	fs := map[string]string{":root": "read", ":tmpdir": "write", ":slash_tmp": "write"}
-	for _, p := range append(paths(a.Home), paths(codexHome())...) {
+	for _, p := range append(provider.Paths(a.Home), provider.Paths(codexHome())...) {
 		fs[p] = "deny"
 	}
 	for _, h := range req.Hidden {
-		if !slices.ContainsFunc(paths(a.Home), func(home string) bool { return strings.HasPrefix(h, home+string(filepath.Separator)) }) {
+		if !slices.ContainsFunc(provider.Paths(a.Home), func(home string) bool { return strings.HasPrefix(h, home+string(filepath.Separator)) }) {
 			return nil, fmt.Errorf("codex: hidden path %s is outside deck's folder, which is all the profile hides", h)
 		}
 	}
 	for _, d := range append([]string{req.Cwd}, req.Dirs...) {
-		for _, p := range paths(d) {
+		for _, p := range provider.Paths(d) {
 			fs[p] = "write"
 		}
 	}
 	if skills != "" {
-		for _, p := range paths(skills) {
+		for _, p := range provider.Paths(skills) {
 			fs[p] = "read"
 		}
 	}
@@ -135,23 +119,4 @@ const server = "deck"
 // approveTool is the gateway's permission tool as the gateway names it; the model does not see it.
 func approveTool(req provider.Request) string {
 	return strings.TrimPrefix(req.PermissionMCP, "mcp__"+server+"__")
-}
-
-// paths gives a folder by its absolute and its real path.
-func paths(dir string) []string {
-	var out []string
-	if abs, err := filepath.Abs(dir); err == nil {
-		out = append(out, abs)
-	}
-	if real, err := filepath.EvalSymlinks(dir); err == nil && !slices.Contains(out, real) {
-		out = append(out, real)
-	}
-	return out
-}
-
-// wrap makes a result schema nullable; the result is one field, since output schemas are objects.
-func wrap(schema json.RawMessage) json.RawMessage {
-	b, _ := json.Marshal(map[string]any{"type": "object", "required": []string{"result"}, "additionalProperties": false,
-		"properties": map[string]any{"result": map[string]any{"anyOf": []any{schema, map[string]any{"type": "null"}}}}})
-	return b
 }

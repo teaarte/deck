@@ -96,7 +96,7 @@ func (a *Adapter) SelfCheck(ctx context.Context) provider.Check {
 		return c
 	}
 	var deny []string
-	for _, p := range paths(hidden) {
+	for _, p := range provider.Paths(hidden) {
 		deny = append(deny, p+"/**")
 	}
 	req := provider.Request{Cwd: work, SessionID: uuid.NewString(), MCPURL: "http://" + ln.Addr().String() + "/mcp",

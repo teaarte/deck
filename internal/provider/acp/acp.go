@@ -109,7 +109,7 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 		return provider.Result{}, errors.New("acp: the session id must be assigned by deck")
 	}
 	for _, h := range req.Hidden {
-		if !slices.ContainsFunc(paths(a.cfg.Home), func(home string) bool { return strings.HasPrefix(h, home+string(filepath.Separator)) }) {
+		if !slices.ContainsFunc(provider.Paths(a.cfg.Home), func(home string) bool { return strings.HasPrefix(h, home+string(filepath.Separator)) }) {
 			return provider.Result{}, fmt.Errorf("acp: hidden path %s is outside deck's folder, which is all the sandbox hides", h)
 		}
 	}
@@ -294,7 +294,7 @@ func (t *turn) run(ctx context.Context) (provider.Result, error) {
 			return provider.Result{}, errors.New("acp: the agent opened a session without an id")
 		}
 		t.session = string(r.SessionId)
-		if err := remember(filepath.Join(t.dir, "session"), t.session); err != nil {
+		if err := provider.WriteFile(filepath.Join(t.dir, "session"), []byte(t.session)); err != nil {
 			return provider.Result{}, err
 		}
 	} else if _, err := t.conn.ResumeSession(ctx, sdk.ResumeSessionRequest{SessionId: sdk.SessionId(t.session), Cwd: t.req.Cwd, McpServers: servers}); err != nil {
@@ -372,32 +372,11 @@ func (e *entry) failed(err error) provider.Result {
 	return e.refused(provider.Result{IsError: true, Text: "acp: " + untrusted.Cut(text, 2000)})
 }
 
-var envNames = map[string]bool{"PATH": true, "USER": true, "LOGNAME": true, "SHELL": true, "LANG": true, "TZ": true}
+var envNames = []string{"PATH", "USER", "LOGNAME", "SHELL", "LANG", "TZ"}
 
 // environ keeps the allowlisted variables of deck; HOME, TMPDIR and XDG_* would lead the agent to the owner's
 // settings, keys never pass.
-func environ(parent []string) []string {
-	var out []string
-	for _, kv := range parent {
-		name, _, _ := strings.Cut(kv, "=")
-		if envNames[name] || strings.HasPrefix(name, "LC_") {
-			out = append(out, kv)
-		}
-	}
-	return out
-}
-
-// paths gives a folder by its absolute and its real path.
-func paths(dir string) []string {
-	var out []string
-	if abs, err := filepath.Abs(dir); err == nil {
-		out = append(out, abs)
-	}
-	if real, err := filepath.EvalSymlinks(dir); err == nil && !slices.Contains(out, real) {
-		out = append(out, real)
-	}
-	return out
-}
+func environ(parent []string) []string { return provider.Environ(parent, envNames, "LC_") }
 
 func userHome() string {
 	h, _ := os.UserHomeDir()
@@ -419,25 +398,6 @@ func word() string {
 	return hex.EncodeToString(b)
 }
 
-// remember writes a file atomically with mode 600.
-func remember(path, text string) error {
-	f, err := os.CreateTemp(filepath.Dir(path), ".tmp-*")
-	if err != nil {
-		return err
-	}
-	_, werr := io.WriteString(f, text)
-	if cerr := f.Close(); werr == nil {
-		werr = cerr
-	}
-	if werr == nil {
-		werr = os.Rename(f.Name(), path)
-	}
-	if werr != nil {
-		_ = os.Remove(f.Name())
-	}
-	return werr
-}
-
 // writeSkills puts the skills of the turn where ACP agents look for them, in a fresh folder of the turn: deck writes
 // there itself, so nothing the agent left, such as a symlink, may lead the writes elsewhere.
 func writeSkills(cwd string, files map[string]string) error {
@@ -451,17 +411,8 @@ func writeSkills(cwd string, files map[string]string) error {
 	if err := os.RemoveAll(dir); err != nil {
 		return err
 	}
-	for path, text := range files {
-		f := filepath.Join(dir, path)
-		if !strings.HasPrefix(f, dir+string(filepath.Separator)) {
-			return fmt.Errorf("acp: skill file %q is outside the skills folder", path)
-		}
-		if err := os.MkdirAll(filepath.Dir(f), 0o700); err != nil {
-			return err
-		}
-		if err := writeNew(f, text); err != nil {
-			return err
-		}
+	if err := provider.WriteTree(dir, files, writeNew); err != nil {
+		return fmt.Errorf("acp: %w", err)
 	}
 	return nil
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"slices"
@@ -133,6 +134,14 @@ func projectTools(dir string) []fakeTool {
 			run: func(a map[string]any) *mcp.CallToolResult {
 				_, err := os.ReadFile(fmt.Sprint(a["path"]))
 				return text(fmt.Sprintf("read=%v", err == nil))
+			}},
+		{name: "dial", desc: "Connects to a local socket.", input: map[string]any{"type": "object", "properties": map[string]any{"path": str}},
+			run: func(a map[string]any) *mcp.CallToolResult {
+				c, err := net.Dial("unix", fmt.Sprint(a["path"]))
+				if err == nil {
+					_ = c.Close()
+				}
+				return text(fmt.Sprintf("connected=%v", err == nil))
 			}},
 		{name: "env", desc: "Tells its environment.", run: func(map[string]any) *mcp.CallToolResult {
 			return text(fmt.Sprintf("token=%s len=%d leak=%s", os.Getenv("FAKE_TOKEN"), len(os.Getenv("FAKE_TOKEN")), os.Getenv("DECK_LEAK")))

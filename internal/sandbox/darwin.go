@@ -68,7 +68,7 @@ func profile(p Policy) string {
 	b.WriteString(")\n")
 	switch {
 	case p.Net:
-		b.WriteString("(allow network* system-socket)\n")
+		b.WriteString("(allow network* system-socket)\n(deny network-outbound (remote unix-socket))\n(allow network-outbound (remote unix-socket (path-literal \"/private/var/run/mDNSResponder\")))\n")
 	default:
 		if p.Out != nil {
 			_, port, _ := net.SplitHostPort(p.Out.Addr().String())

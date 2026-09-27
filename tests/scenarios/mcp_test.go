@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -212,7 +213,7 @@ func TestMCPServerByURLAndTheEnvironmentOfAProgram(t *testing.T) {
   "tools": {"mcp": {"servers": {
     "far": {"url": %q, "classes": {"ping": "internal"}},
     "fake": {"command": %q, "env": {"DECK_FAKE_MCP": "project", "FAKE_TOKEN": "$secret.fake_token"},
-      "toolFilter": ["env", "peek"], "classes": {"env": "internal", "peek": "internal"}}}}}}`, ts.URL, self))
+      "toolFilter": ["env", "peek", "dial"], "classes": {"env": "internal", "peek": "internal", "dial": "internal"}}}}}}`, ts.URL, self))
 	e.must("deck.secret_set", map[string]any{"name": "fake_token", "value": "t0k-of-the-server"}, nil)
 	e.waitState(e.start("srv", "work", map[string]any{"step": "srv__far__ping"}), "done")
 	e.waitState(e.start("srv", "work", map[string]any{"step": "srv__fake__env"}), "done")
@@ -230,5 +231,17 @@ func TestMCPServerByURLAndTheEnvironmentOfAProgram(t *testing.T) {
 		if b, _ := json.Marshal(out); !strings.Contains(string(b), want) {
 			t.Fatalf("a program server runs in the sandbox: reading %s gave %s", path, b)
 		}
+	}
+	sockDir, _ := os.MkdirTemp("/tmp", "ds")
+	t.Cleanup(func() { _ = os.RemoveAll(sockDir) })
+	sock, err := net.Listen("unix", filepath.Join(sockDir, "s"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sock.Close()
+	out, _ := e.App.Gateway.CallAs(context.Background(), registry.Actor{Kind: registry.Agent, Workspace: 1, ProjectID: e.projectID("srv")},
+		"srv.fake.dial", json.RawMessage(fmt.Sprintf(`{"path": %q}`, sock.Addr().String())))
+	if b, _ := json.Marshal(out); !strings.Contains(string(b), "connected=false") {
+		t.Fatalf("a program server with the network reaches no local socket of the owner: %s", b)
 	}
 }

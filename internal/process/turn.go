@@ -168,12 +168,9 @@ func (r *Runner) run(ctx context.Context, t turn) {
 		r.providerHealth(bg, pv, res, err)
 		settled := err == nil && !res.NeedsLogin && !res.RateLimited && !res.IsError
 		if sub != nil && settled {
-			var handed, spent bool
-			res.Structured, handed, spent = sub.Result()
+			var spent bool
+			res.Structured, spent = sub.Result()
 			retried = retried || spent
-			if !handed {
-				res.Structured = nil
-			}
 		}
 		verr := error(nil)
 		blocked := settled && r.blocked(bg, processID)

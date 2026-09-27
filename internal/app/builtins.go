@@ -94,6 +94,15 @@ func (a *App) addBuiltins() {
 		registry.Params(registry.P("record", "record", "Record id"), registry.P("data", "text", "New record JSON")),
 		registry.Typed(a.recordUpdate))
 
+	add("file_upload", "Upload file", "Uploads a file for a project from base64 text and returns its id for a command input.",
+		[]string{registry.Owner, registry.Master}, registry.Params(registry.P("project", "project", "Project name"),
+			registry.P("name", "string", "File name with its extension"), registry.P("content", "text", "File content in base64")),
+		registry.Typed(a.fileUpload))
+	add("record_get", "Get record", "Returns one record by its id.", everyone,
+		registry.Params(registry.P("record", "record", "Record id")), registry.Typed(a.recordGet))
+	add("record_delete", "Delete record", "Deletes a record with its documents and files for good; outside a draft only the owner may.",
+		[]string{registry.Owner, registry.Master}, registry.Params(registry.P("record", "record", "Record id")), registry.Typed(a.recordDelete))
+
 	add("cards_list", "Board", "Returns the board of a project: lanes in order with their cards by rank, and recently deleted cards when asked.", everyone,
 		registry.Params(projectOpt, registry.Opt("deleted", "boolean", "Also list deleted cards that can still be restored")),
 		registry.Typed(a.cardsList))

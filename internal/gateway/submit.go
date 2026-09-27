@@ -17,16 +17,17 @@ type Submit struct {
 	// Retried is set once the one request to rebuild the result is spent in this run of the session.
 	Retried bool
 
-	mu   sync.Mutex
+	mu sync.Mutex
+	// got is the last result handed in, including one the schema refused.
 	got  json.RawMessage
 	done bool
 }
 
-// Result is what the session handed in, whether it handed anything in, and whether the rebuild is spent.
-func (s *Submit) Result() (raw json.RawMessage, handed, retried bool) {
+// Result is the last result the session handed in, and whether the rebuild is spent.
+func (s *Submit) Result() (raw json.RawMessage, retried bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.got, s.done, s.Retried
+	return s.got, s.Retried
 }
 
 // Spend uses up the one request to rebuild the result.
@@ -56,16 +57,17 @@ func (s *Submit) handle(_ context.Context, req *mcp.CallToolRequest) (*mcp.CallT
 			v = r
 		}
 	}
+	s.got = append(json.RawMessage{}, v...)
 	if err := s.Validate(v); err != nil {
 		if !s.Retried {
 			s.Retried = true
 			return refusal("deck: the result does not match its schema: " + err.Error() +
 				"\nDo not redo the work. Call result_submit again with only the corrected JSON."), nil
 		}
-		s.got, s.done = append(json.RawMessage{}, v...), true
+		s.done = true
 		return refusal("deck: the result still does not match its schema; deck keeps it marked as not by the schema. End your turn."), nil
 	}
-	s.got, s.done = append(json.RawMessage{}, v...), true
+	s.done = true
 	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: "deck: result accepted. End your turn."}}}, nil
 }
 

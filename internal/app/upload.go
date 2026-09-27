@@ -1,7 +1,9 @@
 package app
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"io"
 	"mime"
 	"os"
@@ -18,7 +20,7 @@ const maxUpload = 1 << 30
 // Upload keeps a file sent by a form, Share or the API for a command of a project: it waits in files/ as
 // an upload until a command takes it, and the daily cleanup drops uploads nobody took for a day.
 func (a *App) Upload(ctx context.Context, act registry.Actor, project, name, ctype string, body io.Reader) (fileView, error) {
-	if act.Token != 0 && !registry.Permits(act.Commands, project+".*") {
+	if act.Token != 0 && !registry.Permits(act.Commands, project+".*") && !registry.Permits(act.Commands, "deck.command_try") {
 		return fileView{}, registry.Refuse("deck: this automation token may not call every command of %s, so it does not upload for it", project)
 	}
 	p, err := a.scope(ctx, act, project)
@@ -68,4 +70,18 @@ func (a *App) Upload(ctx context.Context, act registry.Actor, project, name, cty
 		return fileView{}, err
 	}
 	return fileView{ID: f.ID, Name: f.Name, Type: f.Type, Size: f.Size, OwnerKind: f.OwnerKind, CreatedAt: f.CreatedAt}, nil
+}
+
+// maxTextUpload bounds a file sent inside a command, such as a sample a builder uploads for a trial run.
+const maxTextUpload = 10 << 20
+
+func (a *App) fileUpload(ctx context.Context, act registry.Actor, in struct{ Project, Name, Content string }) (any, error) {
+	if base64.StdEncoding.DecodedLen(len(in.Content)) > maxTextUpload+3 {
+		return nil, registry.Invalid("deck: a file sent in a command may be at most 10 MB; upload bigger ones with POST /api/files")
+	}
+	b, err := base64.StdEncoding.DecodeString(in.Content)
+	if err != nil {
+		return nil, registry.Invalid("deck: content is not base64: %v", err)
+	}
+	return a.Upload(ctx, act, in.Project, in.Name, "", bytes.NewReader(b))
 }

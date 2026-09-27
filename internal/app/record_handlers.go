@@ -5,8 +5,12 @@ import (
 	"database/sql"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
+	"deck2/internal/store"
 	"deck2/internal/store/db"
 	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
 )
 
 func (a *App) recordsList(ctx context.Context, act registry.Actor, in struct {
@@ -76,19 +80,9 @@ func (a *App) recordUpdate(ctx context.Context, act registry.Actor, in struct {
 	if err != nil {
 		return nil, registry.Invalid("deck: data is not a JSON object: %v", err)
 	}
-	rec, err := a.Store.Q.GetRecord(ctx, in.Record)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, registry.NotFound("deck: no record %d", in.Record)
-	}
+	rec, p, err := a.recordOf(ctx, act, in.Record)
 	if err != nil {
 		return nil, err
-	}
-	p, err := a.Store.Q.GetProject(ctx, rec.ProjectID)
-	if err != nil {
-		return nil, err
-	}
-	if p.WorkspaceID != act.Workspace {
-		return nil, registry.NotFound("deck: no record %d", in.Record)
 	}
 	if err := inside(act, p.ID); err != nil {
 		return nil, err
@@ -126,4 +120,65 @@ func (a *App) collectionDelete(ctx context.Context, act registry.Actor, in struc
 		return nil, err
 	}
 	return map[string]any{"deleted": n}, nil
+}
+
+// recordOf finds a record of the actor's workspace.
+func (a *App) recordOf(ctx context.Context, act registry.Actor, id int64) (db.Record, db.Project, error) {
+	rec, err := a.Store.Q.GetRecord(ctx, id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return rec, db.Project{}, registry.NotFound("deck: no record %d", id)
+	}
+	if err != nil {
+		return rec, db.Project{}, err
+	}
+	p, err := a.Store.Q.GetProject(ctx, rec.ProjectID)
+	if err == nil && p.WorkspaceID != act.Workspace {
+		err = registry.NotFound("deck: no record %d", id)
+	}
+	return rec, p, err
+}
+
+func (a *App) recordGet(ctx context.Context, act registry.Actor, in struct{ Record int64 }) (any, error) {
+	rec, p, err := a.recordOf(ctx, act, in.Record)
+	if err != nil {
+		return nil, err
+	}
+	if err := a.mayRead(ctx, a.Store.Q, act, p, rec.Collection, ""); err != nil {
+		return nil, registry.NotFound("deck: no record %d", in.Record)
+	}
+	m, err := loadManifest(ctx, a.Store.Q, p)
+	if err != nil {
+		return nil, err
+	}
+	return recordView(rec, m.Collection(rec.Collection)), nil
+}
+
+// recordDelete deletes a record with its documents and files for good; the master may do it only in a draft,
+// where trial runs leave their records.
+func (a *App) recordDelete(ctx context.Context, act registry.Actor, in struct{ Record int64 }) (any, error) {
+	rec, p, err := a.recordOf(ctx, act, in.Record)
+	if err != nil {
+		return nil, err
+	}
+	if act.Kind != registry.Owner && p.Status != store.ProjectDraft {
+		return nil, registry.Refuse("deck: only the owner deletes records of an enabled project")
+	}
+	var gone []int64
+	err = a.writeRecords(ctx, p, func(ctx context.Context, q *db.Queries, _ *manifest.Manifest) error {
+		if err := q.DeleteOneRecordDocuments(ctx, rec.ID); err != nil {
+			return err
+		}
+		var err error
+		if gone, err = q.DeleteRecordFiles(ctx, rec.ID); err != nil {
+			return err
+		}
+		return q.DeleteRecord(ctx, rec.ID)
+	})
+	if err != nil {
+		return nil, err
+	}
+	for _, id := range gone {
+		_ = os.Remove(filepath.Join(a.dirs().Files, fmt.Sprint(id)))
+	}
+	return map[string]any{"ok": true}, nil
 }

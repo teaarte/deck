@@ -112,6 +112,9 @@ func TestResultSubmitGetsOneRebuild(t *testing.T) {
 		{"no result handed in", []chatReply{textReply("I wrote one note."),
 			toolReply(fnCall{"result_submit", map[string]any{"written": 1}}), textReply("done")}, `{"written":1}`, false},
 		{"no result after the request", []chatReply{textReply("I wrote one note."), textReply("Still just text.")}, `"Still just text."`, true},
+		{"off the schema, then silent", []chatReply{
+			toolReply(fnCall{"result_submit", map[string]any{"result": map[string]any{"written": "one"}}}),
+			textReply("")}, `{"written":"one"}`, true},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

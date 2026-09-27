@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "catalogId": "https://deck2.local/catalog/v1",
-  "description": "Blocks of deck screens as A2UI components. A block's data is at the path of its data property: {state, error?, rows | items | value | lines}.",
+  "description": "Blocks of deck screens as A2UI components. A block's data is at the path of its data property: {state, error?, filters?, rows | items | value | lines}.",
   "components": {
     "screen": {
       "type": "object",
@@ -85,6 +85,33 @@
         "title": {"type": "string"},
         "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "lines: [{at, kind, id, title, status, text}]"}
       }
+    },
+    "board": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "title": {"type": "string"},
+        "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "value: {project, lanes: [{name, title, role, cards: [{id, title, text, waits, record}]}], deleted: [{id, title}]}"}
+      }
+    },
+    "form": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "title": {"type": "string"},
+        "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "value: {commands: [{name, title, project, input, result}], values, readonly, record, save}"}
+      }
+    },
+    "custom": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "title": {"type": "string"},
+        "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "value: {html, items, record, actions}"}
+      }
     }
   },
   "$defs": {
@@ -111,6 +138,10 @@
       "properties": {
         "state": {"enum": ["ready", "empty", "error"]},
         "error": {"type": "string"},
+        "filters": {"type": "array", "description": "Choices the owner narrows the block by; the client sends the picked ones back to deck.screen.", "items": {
+          "type": "object", "required": ["field", "options"], "additionalProperties": false,
+          "properties": {"field": {"type": "string"}, "value": {"type": "string"}, "options": {"type": "array", "items": {"type": "string"}}}
+        }},
         "rows": {"type": "array", "items": {
           "type": "object", "required": ["id", "cells"], "additionalProperties": false,
           "properties": {"id": {}, "cells": {"type": "array"}, "actions": {"type": "array", "items": {"$ref": "#/$defs/action"}}}

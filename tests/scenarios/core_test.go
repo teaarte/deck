@@ -97,6 +97,9 @@ func TestQuestionAnsweredLive(t *testing.T) {
 	if a.Kind != "question" || a.Text != "Which topic?" {
 		t.Fatalf("unexpected ask %+v", a)
 	}
+	if items := e.cockpitItems(); len(items) != 1 || items[0].Title != "Topic" {
+		t.Fatalf("a question the picker shows in full is headed by its header, not its text twice: %+v", items)
+	}
 	e.answer(a.ID, `{"Which topic?":"go"}`)
 	e.waitState(id, "done")
 	recs, _ := e.App.Store.Q.ListRecords(context.Background(), db.ListRecordsParams{ProjectID: p, Collection: "ideas"})

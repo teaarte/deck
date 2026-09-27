@@ -36,10 +36,18 @@ var SourceFields = map[string][]string{
 	"unattended": {"id", "project", "author", "text", "created_at", "can_undo", "undone"},
 	"providers":  {"name", "agent", "model", "url", "status", "verdict", "speed", "version", "error", "caps"},
 	"log":        {"at", "kind", "id", "title", "status", "text"},
+	"triggers": {"id", "project", "command", "kind", "spec", "params", "next_run_at", "paused", "project_paused", "skip_missed",
+		"last_process", "last_state"},
+	"projects":      {"id", "name", "status", "paused"},
+	"notifications": {"id", "project", "text", "screen", "record", "created_at"},
+	"commands":      {"name", "title", "description", "project", "files"},
 }
 
 // deckSources are read only by the screens deck ships.
-var deckSources = []string{"providers", "log"}
+var deckSources = []string{"providers", "log", "projects"}
+
+// RecordUpdate is the command a form on a record page edits its record with.
+const RecordUpdate = "deck.record_update"
 
 // DeckRecord is the record of a page among the screens deck ships: a process.
 const DeckRecord = "process"
@@ -145,6 +153,34 @@ func (c *screenCheck) block(where string, b Block) {
 				c.fail("%s field %q: %v", where, f.Label, err)
 			}
 		}
+	case "board":
+		switch {
+		case c.deck:
+			c.fail("%s: a board shows the board of a project", where)
+		case c.m.Board == nil || len(c.m.Board.Lanes) == 0:
+			c.fail("%s: the project has no board", where)
+		case sourced:
+			c.fail("%s: a board reads the board of its project and takes no source", where)
+		}
+		return
+	case "form":
+		c.form(where, b)
+		return
+	case "custom":
+		if !strings.HasPrefix(b.Document, "custom/") {
+			c.fail("%s: a custom block needs document, a custom/ document with its HTML", where)
+		}
+		if b.Source != nil {
+			if _, ok := c.source(where, b.Type, *b.Source); !ok {
+				return
+			}
+		}
+		for _, a := range b.Actions {
+			if a.Screen != "" {
+				c.fail("%s action %q: the buttons of a custom block call commands", where, a.Label)
+			}
+		}
+		fields, sourced = c.recordFields(), false
 	case "table", "list", "stat", "log":
 		if b.Source == nil {
 			c.fail("%s: a %s block needs a source", where, b.Type)
@@ -186,11 +222,71 @@ func (c *screenCheck) block(where string, b Block) {
 	if sourced {
 		c.fail("%s: a %s block has no source", where, b.Type)
 	}
+	for _, f := range b.Filter {
+		switch {
+		case b.Type != "table" && b.Type != "list":
+			c.fail("%s: only tables and lists take filter", where)
+		case fields != nil && !slices.Contains(fields, f):
+			c.fail("%s filter: unknown field %q", where, f)
+		}
+	}
 	for _, a := range b.Actions {
 		if err := c.action(b, a, fields); err != nil {
 			c.fail("%s action %q: %v", where, a.Label, err)
 		}
 	}
+}
+
+// form checks a form: one command the owner may call, or a choice of them from the commands source.
+func (c *screenCheck) form(where string, b Block) {
+	switch {
+	case (b.Command == "") == (b.Source == nil):
+		c.fail("%s: a form has a command or reads commands to pick from", where)
+		return
+	case b.Source != nil:
+		if b.Source.From != "commands" {
+			c.fail("%s: a form picks its command from the commands source", where)
+			return
+		}
+		c.source(where, b.Type, *b.Source)
+	case b.Command == RecordUpdate:
+		if c.screen.Record == "" {
+			c.fail("%s: %s edits the record of its page; the screen needs record", where, RecordUpdate)
+		}
+	case c.deck:
+		if !strings.HasPrefix(b.Command, "deck.") {
+			c.fail("%s: a form of a deck screen calls a deck command", where)
+		}
+	default:
+		cmd := c.m.commands[b.Command]
+		switch {
+		case cmd == nil:
+			c.fail("%s: unknown command %q", where, b.Command)
+		case !slices.Contains(cmd.Callable(), "owner"):
+			c.fail("%s: command %q cannot be called by the owner", where, b.Command)
+		}
+	}
+	if b.Save != "" && (c.deck || c.m.collections[b.Save] == nil) {
+		c.fail("%s save: unknown collection %q", where, b.Save)
+	}
+	if cmd := c.m.commands[b.Command]; b.Save != "" && cmd != nil && !recordShaped(cmd.Result) {
+		c.fail("%s save: the result of %q is not an object or a list of objects, so it cannot be kept as records", where, b.Command)
+	}
+	if len(b.Actions) > 0 {
+		c.fail("%s: a form is its own button and takes no actions", where)
+	}
+}
+
+// recordShaped says a result schema gives objects: one, or a list of them.
+func recordShaped(schema json.RawMessage) bool {
+	var r struct {
+		Type  string `json:"type"`
+		Items struct {
+			Type string `json:"type"`
+		} `json:"items"`
+	}
+	_ = json.Unmarshal(schema, &r)
+	return r.Type == "object" || (r.Type == "array" && r.Items.Type == "object")
 }
 
 // source checks what a block reads and returns the fields of its items; nil fields is any name.

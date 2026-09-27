@@ -176,6 +176,13 @@ type Block struct {
 	Actions []Action `json:"actions,omitempty"`
 	Blocks  []Block  `json:"blocks,omitempty"`
 	Tabs    []Tab    `json:"tabs,omitempty"`
+	// Filter names the fields of a table or list the owner narrows it by.
+	Filter []string `json:"filter,omitempty"`
+	// Command is the command of a form; Save a collection its result can be kept in.
+	Command string `json:"command,omitempty"`
+	Save    string `json:"save,omitempty"`
+	// Document is the custom/ document with the HTML of a custom block.
+	Document string `json:"document,omitempty"`
 }
 
 // Item binds the lines of a list block.
@@ -191,7 +198,7 @@ type Tab struct {
 }
 
 type Source struct {
-	// From is what the block reads: a collection (the default), asks, processes or unattended.
+	// From is what the block reads: a collection (the default) or a source of SourceFields.
 	From string `json:"from,omitempty"`
 	// Project is another project the manifest reads; empty is the project itself.
 	Project    string `json:"project,omitempty"`

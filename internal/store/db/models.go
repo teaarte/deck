@@ -128,6 +128,18 @@ type McpTool struct {
 	Listed      int64
 }
 
+type Notification struct {
+	ID          int64
+	WorkspaceID int64
+	ProjectID   int64
+	Author      string
+	Text        string
+	Screen      string
+	RecordID    int64
+	Actions     string
+	CreatedAt   string
+}
+
 type Process struct {
 	ID               int64
 	ProjectID        int64

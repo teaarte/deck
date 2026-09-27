@@ -129,14 +129,14 @@ func (s *Scheduler) Rewind(ctx context.Context, q *db.Queries, t db.TriggerState
 	return q.SetTriggerNext(ctx, db.SetTriggerNextParams{NextRunAt: sql.NullString{String: next, Valid: true}, ID: t.ID})
 }
 
-// Tick starts every due trigger once. Missed runs start one now and the others at later slots written to
-// the base; a missed cron trigger that skips missed runs only moves to its next slot.
-func (s *Scheduler) Tick(ctx context.Context) {
+// Tick starts every due trigger once and returns how many it moved. Missed runs start one now and the others
+// at later slots written to the base; a missed cron trigger that skips missed runs only moves to its next slot.
+func (s *Scheduler) Tick(ctx context.Context) int {
 	now := s.Now()
 	due, err := s.st.Q.DueTriggers(ctx, store.Time(now))
 	if err != nil {
 		slog.Error("due triggers", "err", err)
-		return
+		return 0
 	}
 	missedBefore := store.Time(now.Add(-s.Grace))
 	late := 0
@@ -158,6 +158,7 @@ func (s *Scheduler) Tick(ctx context.Context) {
 			s.fire(ctx, t, now)
 		}
 	}
+	return len(due)
 }
 
 func (s *Scheduler) fire(ctx context.Context, t db.TriggerState, now time.Time) {

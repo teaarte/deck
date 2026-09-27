@@ -20,6 +20,8 @@ type Server struct {
 	app   *app.App
 	token string
 	web   fs.FS
+	// pairs maps the port of the client to the port of its second origin.
+	pairs map[int]int
 }
 
 func New(a *app.App, token string, web fs.FS) *Server { return &Server{app: a, token: token, web: web} }
@@ -28,7 +30,8 @@ func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.Handle("/mcp/", s.app.Gateway)
 	mux.HandleFunc("/mcp", s.app.Gateway.ServeAutomation)
-	mux.Handle("/", http.FileServerFS(s.web))
+	mux.Handle("/", s.framesOnly(http.FileServerFS(s.web)))
+	mux.HandleFunc("GET /custom", s.custom)
 
 	api := http.NewServeMux()
 	api.HandleFunc("GET /api/commands", s.listCommands)

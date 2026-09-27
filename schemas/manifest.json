@@ -239,7 +239,7 @@
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "from": {"enum": ["collection", "asks", "processes", "unattended"], "description": "What the block reads; collection by default."},
+            "from": {"enum": ["collection", "asks", "processes", "unattended", "triggers", "notifications", "commands"], "description": "What the block reads; collection by default."},
             "project": {"type": "string", "description": "Another project the manifest reads."},
             "collection": {"type": "string"},
             "where": {"type": "string", "description": "Expression over the fields of an item; on a record page record is the record."},
@@ -259,6 +259,10 @@
         "value": {"type": "string", "description": "stat: expression over rows, the items of the source, such as len(rows) or sum(rows, .amount)."},
         "actions": {"type": "array", "items": {"$ref": "#/$defs/action"}},
         "blocks": {"type": "array", "items": {"$ref": "#/$defs/block"}, "description": "columns: blocks side by side."},
+        "filter": {"type": "array", "items": {"type": "string"}, "uniqueItems": true, "description": "table, list: fields of an item the owner narrows the block by."},
+        "command": {"type": "string", "description": "form: the command whose input it asks for; deck.record_update on a record page edits the record."},
+        "save": {"type": "string", "description": "form: collection the owner can keep the result in."},
+        "document": {"type": "string", "pattern": "^custom/", "description": "custom: the document with its HTML, an MCP App."},
         "tabs": {"type": "array", "items": {
           "type": "object", "additionalProperties": false, "required": ["title", "blocks"],
           "properties": {"title": {"type": "string", "minLength": 1}, "blocks": {"type": "array", "items": {"$ref": "#/$defs/block"}}}

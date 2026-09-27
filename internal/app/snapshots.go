@@ -232,3 +232,11 @@ func (a *App) checkDisk(ctx context.Context, now time.Time) {
 		return q.SetHealth(ctx, db.SetHealthParams{Subject: "disk", Status: status, Error: text})
 	})
 }
+
+// TailnetHealth records the state of deck on the owner's tailnet: the sign-in link while it waits for one.
+func (a *App) TailnetHealth(status, text string) {
+	_ = a.Store.Tx(context.Background(), func(ctx context.Context, q *db.Queries) error {
+		return q.SetHealth(ctx, db.SetHealthParams{Subject: "tailscale", Status: status, Error: text})
+	})
+	a.Bus.Publish("health")
+}

@@ -201,6 +201,9 @@ func (a *App) fire(ctx context.Context, t db.TriggerState, input map[string]any,
 
 // afterTriggers starts the commands that run when a command of the same project finishes.
 func (a *App) afterTriggers(ctx context.Context, done db.Process) {
+	if done.TriggerID.Valid {
+		a.Bus.Publish("triggers")
+	}
 	p, err := a.Store.Q.GetProject(ctx, done.ProjectID)
 	if err != nil || p.Paused == 1 {
 		return
@@ -331,7 +334,9 @@ func (a *App) Loop(ctx context.Context, every time.Duration) {
 	t := time.NewTicker(every)
 	defer t.Stop()
 	for {
-		a.Scheduler.Tick(ctx)
+		if a.Scheduler.Tick(ctx) > 0 {
+			a.Bus.Publish("triggers")
+		}
 		a.Sweep(ctx, a.Cfg.Now())
 		a.Checks(ctx, a.Cfg.Now())
 		select {

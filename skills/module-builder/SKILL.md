@@ -114,13 +114,28 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
 - **Documents** agents and scripts write are artifacts only: each belongs to one card or one record, not
   both. A daily digest or report is an artifact of a record made for it (one record a day); `prompt.md`,
   `prompts/*.md` and other module documents are written by you, not by the module at run time.
-- **Screens** are lists of blocks. Today deck draws `table` and `actions`:
+- **Screens** are lists of blocks from the catalog (`schemas/catalog.json`, `manifest_format` names the fields):
+  `table`, `list`, `card` (the record of a record page), `stat`, `actions`, `board`, `form`, `custom`, and
+  `columns`/`tabs` to lay them out. A table:
   `{"type": "table", "title": "Best", "source": {"collection": "items", "where": "score >= 7", "sort": "-score",
-  "limit": 20}, "columns": [{"label": "Title", "bind": "title"}], "actions": [{"label": "Rate", "command":
+  "limit": 20}, "columns": [{"label": "Title", "bind": "title"}], "filter": ["status"], "actions": [{"label": "Rate", "command":
   "rate", "params": {"id": "$record.id"}}]}` — `where` and `bind` are expressions over record fields,
-  `sort` is a field with `-` for descending. Action `params` are strings. An action passes every required parameter of its command
+  `sort` is a field with `-` for descending, `filter` lists fields the owner narrows by. Action `params` are strings. An action passes every required parameter of its command
   (from `$record.<field>` or fixed values); deck asks for nothing that is missing, so a choice the owner
-  makes in a row is one action per option. List screens in `menu`.
+  makes in a row is one action per option. A command the owner fills in by hand is a `form`:
+  `{"type": "form", "command": "score", "save": "items"}` asks for the command's input by its schema, shows the
+  result by the result schema and, with `save`, keeps it as records; on a record page
+  `{"type": "form", "command": "deck.record_update"}` edits the record, `immutable` fields read only. `board`
+  shows the project's board (no source). What the catalog cannot show is a `custom` block: an MCP App — one HTML
+  file under `custom/` (`document_save` with kind `custom`), `{"type": "custom", "document": "custom/chart.html",
+  "source": …, "actions": […]}`. It runs without network: `import { App } from "/ext-apps.js"`, the items of its
+  source and the page's record arrive in `app.ontoolresult` (`structuredContent.items`, `.record`), and
+  `app.callServerTool({name: "<project>.<command>", arguments})` calls only the commands of its `actions` (the
+  button whose fixed `params` the arguments do not contradict; an external command waits for the owner's yes).
+  List screens in `menu`.
+- **Telling the owner**: a script or agent that finds something worth a look calls `notify` with `text`, and
+  optionally the `screen` (and `record`) it opens and `actions` (`[{label, command, params}]`); it becomes a line
+  in the cockpit feed. The caller decides it is worth it; a run with nothing new says nothing.
 - **Remembering what was seen**: `records_upsert` replaces a whole record by its key, so write every
   required field. `record_get` reads one record by its id (a card's `record`); `records_list` gives the newest. `retention_days` deletes records with their documents: a collection that remembers what the
   owner has already seen, or holds what they asked for, gets none.

@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -98,10 +99,12 @@ func (f *Fake) Calls() []provider.Request {
 }
 
 type Env struct {
-	T     *testing.T
-	App   *app.App
-	Fake  *Fake
-	URL   string
+	T    *testing.T
+	App  *app.App
+	Fake *Fake
+	URL  string
+	// Side is the second origin: the frames of custom blocks.
+	Side  string
 	Clock *Clock
 	// Browser is the folder of the fake browser server: its log of what it did.
 	Browser string
@@ -163,13 +166,18 @@ func newEnvBuiltin(t *testing.T, home string, ps []provider.Provider, cfg ...fun
 		t.Fatal(err)
 	}
 	a.Asks.Poll = 20 * time.Millisecond
-	ts.Config.Handler = api.New(a, token, web.FS()).Handler()
+	srv := api.New(a, token, web.FS())
+	side := httptest.NewServer(srv.Sandbox())
+	srv.Pair(ts.Listener.Addr().(*net.TCPAddr).Port, side.Listener.Addr().(*net.TCPAddr).Port)
+	ts.Config.Handler = srv.Handler()
 	ts.Start()
 	t.Cleanup(func() {
 		_ = a.Close()
+		ts.CloseClientConnections()
 		ts.Close()
+		side.Close()
 	})
-	return &Env{T: t, App: a, URL: base, names: map[int64]string{}, Browser: browser}
+	return &Env{T: t, App: a, URL: base, Side: side.URL, names: map[int64]string{}, Browser: browser}
 }
 
 func (e *Env) do(method, path string, body any) (int, []byte) {

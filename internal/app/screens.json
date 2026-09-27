@@ -1,5 +1,5 @@
 {
-  "menu": ["cockpit", "providers"],
+  "menu": ["cockpit", "schedule", "providers"],
   "screens": [
     {
       "name": "cockpit",
@@ -13,7 +13,45 @@
             "item": {"title": "project + '.' + command", "text": "silent ? 'silent' : state", "meta": "'#' + string(id)"}},
           {"type": "list", "title": "Done without you", "source": {"from": "unattended", "limit": 10},
             "item": {"title": "text", "meta": "project + ' · ' + author"}}
-        ]}
+        ]},
+        {"type": "list", "title": "Notifications", "source": {"from": "notifications", "limit": 20},
+          "item": {"title": "text", "meta": "project + ' · ' + created_at"}}
+      ]
+    },
+    {
+      "name": "schedule",
+      "title": "Schedule",
+      "blocks": [
+        {"type": "table", "title": "Triggers", "source": {"from": "triggers", "sort": "project"},
+          "columns": [
+            {"label": "Project", "bind": "project"},
+            {"label": "Command", "bind": "command"},
+            {"label": "When", "bind": "kind == 'cron' ? spec : kind == 'once' ? 'once' : kind + ' ' + spec"},
+            {"label": "Next run", "bind": "next_run_at"},
+            {"label": "Last result", "bind": "last_state"},
+            {"label": "State", "bind": "project_paused ? 'project paused' : paused ? 'paused' : 'on'"}
+          ]},
+        {"type": "table", "title": "Projects", "source": {"from": "projects"},
+          "columns": [
+            {"label": "Project", "bind": "name"},
+            {"label": "Status", "bind": "status"},
+            {"label": "Triggers", "bind": "paused ? 'paused' : 'on'"}
+          ]},
+        {"type": "table", "title": "History", "source": {"from": "processes", "sort": "-id", "limit": 100}, "filter": ["project", "state"],
+          "columns": [
+            {"label": "#", "bind": "id"},
+            {"label": "Project", "bind": "project"},
+            {"label": "Command", "bind": "command"},
+            {"label": "State", "bind": "state"},
+            {"label": "Started", "bind": "started_at"}
+          ]}
+      ]
+    },
+    {
+      "name": "share",
+      "title": "Share",
+      "blocks": [
+        {"type": "form", "title": "Send the shared files to", "source": {"from": "commands", "where": "len(files) > 0"}}
       ]
     },
     {
@@ -29,7 +67,8 @@
             {"label": "Self-check", "bind": "verdict == 'model' ? 'the model does not manage it' : verdict == 'adapter' ? 'the adapter is broken' : ''"},
             {"label": "Tokens/s", "bind": "speed > 0 ? string(int(speed)) : ''"},
             {"label": "Error", "bind": "error"}
-          ]}
+          ]},
+        {"type": "form", "title": "Choose the provider of a command", "command": "deck.provider_set"}
       ]
     },
     {

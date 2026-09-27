@@ -19,9 +19,14 @@ const (
 	CatalogID = "https://deck2.local/catalog/v1"
 )
 
-// Sources reads the items of every source other than a collection.
+// Sources reads what a screen shows besides collections: the items of the other sources, boards,
+// commands of forms and the HTML of custom blocks.
 type Sources interface {
 	Items(ctx context.Context, from string, scope Scope) ([]map[string]any, error)
+	Board(ctx context.Context, project db.Project, m *manifest.Manifest) (any, error)
+	// Command is what a form needs of a command: name, title, project, input and result schemas.
+	Command(ctx context.Context, workspace int64, name string) (map[string]any, error)
+	Document(ctx context.Context, project db.Project, name string) (string, error)
 }
 
 // Scope is whose items a source gives: a project, or with Project 0 every project of the workspace.
@@ -30,6 +35,8 @@ type Scope struct {
 	Project   int64
 	// Record narrows processes to one process.
 	Record int64
+	// Filter holds the values the owner picked, for a source that narrows by them in its query.
+	Filter map[string]string
 }
 
 // Request is a screen to resolve. Project is zero for a screen deck ships.
@@ -40,10 +47,12 @@ type Request struct {
 	Record   int64
 	// Topic, when set, resolves only the blocks it changes and returns their data.
 	Topic string
+	// Filter holds the values the owner picked, by block id and field.
+	Filter map[string]map[string]string
 }
 
 // Topics are the event topics after which a client reads blocks again; any other topic means the whole screen.
-var Topics = []string{"collection", "asks", "processes", "unattended", "health", "log"}
+var Topics = []string{"collection", "asks", "processes", "unattended", "health", "log", "board", "triggers", "notifications"}
 
 // Render resolves a stored screen into A2UI messages: createSurface, updateComponents, updateDataModel.
 // Clients only draw components and send actions back.
@@ -176,7 +185,7 @@ func (r *renderer) block(id string, b manifest.Block) {
 	if r.req.Topic != "" && r.req.Topic != topicOf(b, r.deck()) {
 		return
 	}
-	value, err := r.resolve(b)
+	value, err := r.resolve(id, b)
 	if err != nil {
 		r.data[id] = map[string]any{"state": "error", "error": err.Error()}
 		return
@@ -186,6 +195,12 @@ func (r *renderer) block(id string, b manifest.Block) {
 
 // topicOf is the event topic after which the block is read again.
 func topicOf(b manifest.Block, deck bool) string {
+	switch {
+	case b.Type == "board":
+		return "board"
+	case b.Type == "form" && b.Source == nil:
+		return "collection"
+	}
 	if b.Source == nil {
 		if deck {
 			return "processes"
@@ -201,7 +216,19 @@ func topicOf(b manifest.Block, deck bool) string {
 	return b.Source.From
 }
 
-func (r *renderer) resolve(b manifest.Block) (map[string]any, error) {
+func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) {
+	switch b.Type {
+	case "board":
+		v, err := r.src.Board(r.ctx, r.req.Project, r.req.Manifest)
+		if err != nil {
+			return nil, err
+		}
+		return map[string]any{"state": "ready", "value": v}, nil
+	case "form":
+		return r.form(b)
+	case "custom":
+		return r.custom(b)
+	}
 	if b.Type == "card" {
 		fields := make([]map[string]any, 0, len(b.Fields))
 		for _, f := range b.Fields {
@@ -214,11 +241,14 @@ func (r *renderer) resolve(b manifest.Block) (map[string]any, error) {
 		acts := append(r.actions(b.Actions, r.req.Record, r.record), passActions(r.record)...)
 		return map[string]any{"state": "ready", "value": map[string]any{"fields": fields, "actions": acts}}, nil
 	}
-	items, err := r.items(*b.Source)
+	items, filters, err := r.filtered(*b.Source, b.Filter, r.req.Filter[id])
 	if err != nil {
 		return nil, err
 	}
 	out := map[string]any{"state": "ready"}
+	if len(filters) > 0 {
+		out["filters"] = filters
+	}
 	if len(items) == 0 && b.Type != "stat" {
 		out["state"] = "empty"
 	}
@@ -291,7 +321,7 @@ func (r *renderer) resolve(b manifest.Block) (map[string]any, error) {
 }
 
 // items are the items of a source as expression environments, filtered, sorted and cut.
-func (r *renderer) items(src manifest.Source) ([]map[string]any, error) {
+func (r *renderer) items(src manifest.Source, picked map[string]string) ([]map[string]any, error) {
 	var items []map[string]any
 	switch src.From {
 	case "", "collection":
@@ -313,6 +343,7 @@ func (r *renderer) items(src manifest.Source) ([]map[string]any, error) {
 		}
 	default:
 		scope := r.scope
+		scope.Filter = picked
 		if src.From == "log" {
 			scope.Record = r.req.Record
 		}
@@ -344,6 +375,57 @@ func (r *renderer) items(src manifest.Source) ([]map[string]any, error) {
 		}
 		items = kept
 	}
+	return items, nil
+}
+
+// filtered are the items of a source narrowed by the values the owner picked, then sorted and cut; each
+// filter offers the values its field has among the items the where keeps.
+func (r *renderer) filtered(src manifest.Source, fields []string, picked map[string]string) ([]map[string]any, []map[string]any, error) {
+	items, err := r.items(src, nil)
+	if err != nil {
+		return nil, nil, err
+	}
+	filters := make([]map[string]any, 0, len(fields))
+	chosen := map[string]string{}
+	for _, f := range fields {
+		seen := map[string]bool{}
+		for _, it := range items {
+			if v := text(it[f]); v != "" {
+				seen[v] = true
+			}
+		}
+		fl := map[string]any{"field": f}
+		if v := picked[f]; v != "" {
+			fl["value"], seen[v], chosen[f] = v, true, v
+		}
+		fl["options"] = append([]string{}, slices.Sorted(maps.Keys(seen))...)
+		filters = append(filters, fl)
+	}
+	if len(chosen) > 0 && src.From != "" && src.From != "collection" {
+		if items, err = r.items(src, chosen); err != nil {
+			return nil, nil, err
+		}
+	}
+	for f, v := range chosen {
+		kept := items[:0:0]
+		for _, it := range items {
+			if text(it[f]) == v {
+				kept = append(kept, it)
+			}
+		}
+		items = kept
+	}
+	return sortAndCut(items, src), filters, nil
+}
+
+func text(v any) string {
+	if v == nil {
+		return ""
+	}
+	return fmt.Sprint(v)
+}
+
+func sortAndCut(items []map[string]any, src manifest.Source) []map[string]any {
 	if s := src.Sort; s != "" {
 		field, desc := strings.TrimPrefix(s, "-"), strings.HasPrefix(s, "-")
 		sort.SliceStable(items, func(i, j int) bool {
@@ -356,7 +438,7 @@ func (r *renderer) items(src manifest.Source) ([]map[string]any, error) {
 	if src.Limit > 0 && len(items) > src.Limit {
 		items = items[:src.Limit]
 	}
-	return items, nil
+	return items
 }
 
 func withRecord(env, record map[string]any) map[string]any {

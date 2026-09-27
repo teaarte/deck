@@ -95,9 +95,14 @@ func (a *App) menu(ctx context.Context, act registry.Actor, _ struct{}) (any, er
 func (a *App) screenGet(ctx context.Context, act registry.Actor, in struct {
 	Project, Screen string
 	Record          int64
-	Topic           string
+	Topic, Filter   string
 }) (any, error) {
 	req := screen.Request{Record: in.Record, Topic: in.Topic}
+	if strings.TrimSpace(in.Filter) != "" {
+		if err := json.Unmarshal([]byte(in.Filter), &req.Filter); err != nil {
+			return nil, registry.Invalid("deck: filter: a JSON object of block id to field to value: %v", err)
+		}
+	}
 	if in.Project == "" {
 		req.Screen = deckScreen(in.Screen)
 		req.Project.WorkspaceID = act.Workspace
@@ -154,8 +159,136 @@ func (s sources) Items(ctx context.Context, from string, sc screen.Scope) ([]map
 		return s.providerItems(ctx, sc)
 	case "log":
 		return s.logItems(sc.Record)
+	case "triggers":
+		return s.triggerItems(ctx, sc)
+	case "projects":
+		return s.projectItems(ctx, sc)
+	case "notifications":
+		return s.notificationItems(ctx, sc, names)
+	case "commands":
+		return s.commandItems(ctx, sc, names)
 	}
 	return nil, fmt.Errorf("unknown source %q", from)
+}
+
+func (s sources) Board(ctx context.Context, p db.Project, m *manifest.Manifest) (any, error) {
+	cards, err := s.a.Store.Q.ListCards(ctx, p.ID)
+	if err != nil {
+		return nil, err
+	}
+	waits, err := waitsOf(ctx, s.a.Store.Q, p.ID)
+	if err != nil {
+		return nil, err
+	}
+	lanes := []map[string]any{}
+	for _, l := range m.Board.Lanes {
+		shown := []map[string]any{}
+		for _, c := range cards {
+			if c.Lane != l.Name {
+				continue
+			}
+			v := viewCard(c, waits)
+			card := map[string]any{"id": v.ID, "title": v.Title, "text": v.Text, "waits": v.Waits}
+			if v.Record != 0 {
+				card["record"] = v.Record
+			}
+			shown = append(shown, card)
+		}
+		lanes = append(lanes, map[string]any{"name": l.Name, "title": l.Title, "role": l.Role, "cards": shown})
+	}
+	deleted, err := s.a.Store.Q.ListDeletedCards(ctx, p.ID)
+	if err != nil {
+		return nil, err
+	}
+	gone := []map[string]any{}
+	for _, c := range deleted {
+		gone = append(gone, map[string]any{"id": c.ID, "title": c.Title})
+	}
+	return map[string]any{"project": p.Name, "lanes": lanes, "deleted": gone}, nil
+}
+
+// Command is a command as a form shows it; the retry key deck adds to every command is not for the owner.
+func (s sources) Command(ctx context.Context, workspace int64, name string) (map[string]any, error) {
+	c, err := s.a.Registry.Lookup(ctx, workspace, name)
+	if err != nil {
+		return nil, err
+	}
+	return s.commandForm(ctx, c, ""), nil
+}
+
+// commandForm is a command as a form needs it; its fields keep the order the manifest writes them in.
+func (s sources) commandForm(ctx context.Context, c *registry.Command, project string) map[string]any {
+	var in map[string]any
+	_ = json.Unmarshal(c.Input, &in)
+	if props, ok := in["properties"].(map[string]any); ok {
+		delete(props, manifest.RetryKey)
+	}
+	raw := c.Input
+	if c.ProjectID != 0 {
+		if p, err := s.a.Store.Q.GetProject(ctx, c.ProjectID); err == nil {
+			if m, err := loadManifest(ctx, s.a.Store.Q, p); err == nil {
+				if mc := m.Command(strings.TrimPrefix(c.Name, p.Name+".")); mc != nil {
+					raw = mc.InputSchema()
+				}
+			}
+		}
+	}
+	order := slices.DeleteFunc(manifest.PropertyOrder(raw), func(k string) bool { return k == manifest.RetryKey })
+	out := map[string]any{"name": c.Name, "title": c.Title, "description": c.Description, "input": in, "order": order}
+	if project != "" {
+		out["project"] = project
+	}
+	if len(c.Result) > 0 {
+		out["result"] = c.Result
+	}
+	return out
+}
+
+func (s sources) Document(ctx context.Context, p db.Project, name string) (string, error) {
+	text, err := currentText(ctx, s.a.Store.Q, Scope{Workspace: p.WorkspaceID, Project: p.ID}, KindCustom, name)
+	if err != nil {
+		return "", err
+	}
+	if text == "" {
+		return "", fmt.Errorf("no custom document %q", name)
+	}
+	return text, nil
+}
+
+// commandItems are the commands the owner may call, of one project or all; files are their file fields.
+func (s sources) commandItems(ctx context.Context, sc screen.Scope, names map[int64]string) ([]map[string]any, error) {
+	cmds, err := s.a.Registry.List(ctx, registry.Actor{Kind: registry.Owner, Workspace: sc.Workspace})
+	if err != nil {
+		return nil, err
+	}
+	out := []map[string]any{}
+	for _, c := range cmds {
+		if sc.Project != 0 && c.ProjectID != sc.Project {
+			continue
+		}
+		f := s.commandForm(ctx, c, names[c.ProjectID])
+		out = append(out, map[string]any{"id": c.Name, "name": c.Name, "title": c.Title, "description": c.Description,
+			"project": names[c.ProjectID], "files": process.FileFields(c.Input), "_command": f})
+	}
+	return out, nil
+}
+
+func (s sources) projectItems(ctx context.Context, sc screen.Scope) ([]map[string]any, error) {
+	ps, err := s.a.Store.Q.ListWorkspaceProjects(ctx, sc.Workspace)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]map[string]any, 0, len(ps))
+	for _, p := range ps {
+		paused := p.Paused == 1
+		verb := "pause"
+		if paused {
+			verb = "resume"
+		}
+		out = append(out, map[string]any{"id": p.ID, "name": p.Name, "status": p.Status, "paused": paused,
+			"_actions": []map[string]any{call(verb, false, "deck.project_pause", map[string]any{"project": p.Name, "paused": !paused})}})
+	}
+	return out, nil
 }
 
 func (s sources) projectNames(ctx context.Context, workspace int64) (map[int64]string, error) {
@@ -186,12 +319,28 @@ func (s sources) processItems(ctx context.Context, sc screen.Scope, names map[in
 		if err == nil && names[p.ProjectID] != "" && (sc.Project == 0 || p.ProjectID == sc.Project) {
 			ps = append(ps, p)
 		}
+	} else if len(sc.Filter) > 0 {
+		project := sc.Project
+		if name := sc.Filter["project"]; name != "" {
+			project = -1
+			for id, n := range names {
+				if n == name && (sc.Project == 0 || id == sc.Project) {
+					project = id
+				}
+			}
+		}
+		got, err := s.a.Store.Q.ListProcessesFiltered(ctx, db.ListProcessesFilteredParams{WorkspaceID: sc.Workspace, ProjectID: project,
+			State: sc.Filter["state"], Lim: 200})
+		if err != nil {
+			return nil, err
+		}
+		ps = got
 	} else {
 		open, err := s.a.Store.Q.ListOpenProcesses(ctx, db.ListOpenProcessesParams{WorkspaceID: sc.Workspace, ProjectID: sc.Project})
 		if err != nil {
 			return nil, err
 		}
-		recent, err := s.a.Store.Q.ListProcessesFiltered(ctx, db.ListProcessesFilteredParams{WorkspaceID: sc.Workspace, ProjectID: sc.Project, State: "", Lim: 50})
+		recent, err := s.a.Store.Q.ListProcessesFiltered(ctx, db.ListProcessesFilteredParams{WorkspaceID: sc.Workspace, ProjectID: sc.Project, State: "", Lim: 200})
 		if err != nil {
 			return nil, err
 		}
@@ -307,6 +456,7 @@ func (a *App) askItem(ctx context.Context, q db.Ask, names map[int64]string) map
 		_ = json.Unmarshal([]byte(q.Payload), &pl)
 		if len(pl.Questions) > 0 {
 			it["_questions"] = pl.Questions
+			it["what"] = questionTitle(pl.Questions)
 		}
 		acts = []map[string]any{withInput(answer("answer", true, ""), "answer")}
 	case ask.KindCall, ask.KindUnknown:
@@ -363,6 +513,24 @@ func (a *App) askItem(ctx context.Context, q db.Ask, names map[int64]string) map
 	}
 	it["_actions"] = acts
 	return it
+}
+
+// questionTitle heads a question the picker shows in full: the short headers of its questions, else "Question".
+func questionTitle(raw json.RawMessage) string {
+	var qs []struct {
+		Header string `json:"header"`
+	}
+	_ = json.Unmarshal(raw, &qs)
+	var hs []string
+	for _, q := range qs {
+		if q.Header != "" {
+			hs = append(hs, q.Header)
+		}
+	}
+	if len(hs) == 0 {
+		return "Question"
+	}
+	return strings.Join(hs, " · ")
 }
 
 func withInput(act map[string]any, param string) map[string]any {

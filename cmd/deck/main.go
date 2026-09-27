@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -21,6 +22,7 @@ import (
 	"deck2/internal/app"
 	"deck2/internal/provider/claudecode"
 	"deck2/internal/provider/codex"
+	"deck2/internal/tsnet"
 	"deck2/web"
 )
 
@@ -32,7 +34,8 @@ func main() {
 }
 
 func run() error {
-	addr := flag.String("addr", "127.0.0.1:7700", "listen address")
+	addr := flag.String("addr", "127.0.0.1:7700", "listen address; the next port is the second origin of custom blocks")
+	tailnet := flag.String("tailscale", "", "join the owner's tailnet under this name and serve HTTPS there")
 	flag.Parse()
 
 	home := os.Getenv("DECK_HOME")
@@ -54,6 +57,11 @@ func run() error {
 	ln, err := net.Listen("tcp", *addr)
 	if err != nil {
 		return err
+	}
+	port := ln.Addr().(*net.TCPAddr).Port
+	sideLn, err := net.Listen("tcp", net.JoinHostPort(ln.Addr().(*net.TCPAddr).IP.String(), strconv.Itoa(port+1)))
+	if err != nil {
+		return fmt.Errorf("second origin for custom blocks: %w", err)
 	}
 	a, err := app.New(app.Config{
 		Home: home, MCPBase: "http://" + ln.Addr().String(),
@@ -79,11 +87,23 @@ func run() error {
 	}
 	go a.Loop(ctx, 30*time.Second)
 
-	srv := &http.Server{Handler: api.New(a, token, web.FS()).Handler()}
+	server := api.New(a, token, web.FS())
+	server.Pair(port, port+1)
+	if *tailnet != "" {
+		node, err := tsnet.Start(ctx, tsnet.Config{Hostname: *tailnet, Dir: filepath.Join(home, "tailscale"), Health: a.TailnetHealth}, server)
+		if err != nil {
+			return fmt.Errorf("tailscale: %w", err)
+		}
+		defer node.Close()
+	}
+	srv := &http.Server{Handler: server.Handler()}
+	side := &http.Server{Handler: server.Sandbox()}
+	go func() { _ = side.Serve(sideLn) }()
 	go func() {
 		<-ctx.Done()
 		sctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
+		_ = side.Shutdown(sctx)
 		_ = srv.Shutdown(sctx)
 	}()
 	slog.Info("deck listening", "url", fmt.Sprintf("http://%s/?token=%s", ln.Addr(), token), "home", home)

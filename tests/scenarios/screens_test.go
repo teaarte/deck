@@ -255,7 +255,7 @@ func TestInvalidScreenIsRefusedWithItsReason(t *testing.T) {
 	e.createProject("notes", good)
 	for _, tc := range []struct{ from, to, want string }{
 		{`{"type": "stat", "title": "Notes", "source": {"collection": "notes"}}`, `{"type": "hologram"}`,
-			`unknown block type "hologram"; the catalog has actions, card, columns, list, log, stat, table, tabs`},
+			`unknown block type "hologram"; the catalog has actions, board, card, columns, custom, form, list, log, stat, table, tabs`},
 		{`"value": "sum(rows, .score)"`, `"value": "sum(items, .score)"`, `value: unknown field "items"`},
 		{`{"type": "list", "title": "Waiting here", "source": {"from": "asks"}, "item": {"title": "what"}}`,
 			`{"type": "list", "source": {"from": "asks"}, "item": {"title": "whom"}}`, `unknown field "whom"`},
@@ -329,7 +329,7 @@ func TestCockpitShowsWhatWaitsWithItsVerbs(t *testing.T) {
 	if got := verbs(old); !slices.Equal(got, []string{"deny"}) || !strings.Contains(old.Details, `"id": "n1"`) {
 		t.Fatalf("an expired confirmation keeps only deny: %+v", old)
 	}
-	if got := verbs(q); !slices.Equal(got, []string{"answer"}) || len(q.Questions) != 1 || q.Actions[0]["input"] != "answer" || q.Title != "Which topic?" {
+	if got := verbs(q); !slices.Equal(got, []string{"answer"}) || len(q.Questions) != 1 || q.Actions[0]["input"] != "answer" || q.Title != "Question" {
 		t.Fatalf("a question carries its options and the answer button: %+v", q)
 	}
 
@@ -400,7 +400,7 @@ func TestScreenTopicReadsOnlyTheBlocksItChanges(t *testing.T) {
 	if got := paths("", "providers", "health"); !slices.Equal(got, []string{"/b0"}) {
 		t.Fatalf("health reads the providers: %v", got)
 	}
-	for _, topic := range []string{"projects", "board"} {
+	for _, topic := range []string{"projects", "chat"} {
 		if n := len(e.screenMessages("notes", "main", map[string]any{"topic": topic})); n != 3 || len(e.screenData("notes", "main", map[string]any{"topic": topic})) != 5 {
 			t.Fatalf("a topic no block reads gives the whole screen with its data: %s, %d messages", topic, n)
 		}

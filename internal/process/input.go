@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -18,7 +19,10 @@ import (
 )
 
 // fileFields are the input fields of a command whose values point to files, one or a list.
-func fileFields(cmd *manifest.Command) []string {
+func fileFields(cmd *manifest.Command) []string { return FileFields(cmd.InputSchema()) }
+
+// FileFields are the fields of an input schema whose values point to files, sorted.
+func FileFields(schema json.RawMessage) []string {
 	var s struct {
 		Properties map[string]struct {
 			Format string `json:"format"`
@@ -27,13 +31,14 @@ func fileFields(cmd *manifest.Command) []string {
 			} `json:"items"`
 		} `json:"properties"`
 	}
-	_ = json.Unmarshal(cmd.InputSchema(), &s)
-	var out []string
+	_ = json.Unmarshal(schema, &s)
+	out := []string{}
 	for name, p := range s.Properties {
 		if p.Format == "file" || p.Items.Format == "file" {
 			out = append(out, name)
 		}
 	}
+	slices.Sort(out)
 	return out
 }
 

@@ -5,29 +5,34 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 	"time"
 
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
+	"deck2/internal/screen"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
 	"deck2/internal/trigger"
 )
 
 type triggerView struct {
-	ID          int64           `json:"id"`
-	Project     string          `json:"project"`
-	Command     string          `json:"command"`
-	Kind        string          `json:"kind"`
-	Spec        string          `json:"spec,omitempty"`
-	Params      json.RawMessage `json:"params"`
-	NextRunAt   string          `json:"next_run_at,omitempty"`
-	Paused      bool            `json:"paused"`
-	SkipMissed  bool            `json:"skip_missed"`
-	LastProcess int64           `json:"last_process,omitempty"`
-	LastState   string          `json:"last_state,omitempty"`
+	ID        int64           `json:"id"`
+	Project   string          `json:"project"`
+	Command   string          `json:"command"`
+	Kind      string          `json:"kind"`
+	Spec      string          `json:"spec,omitempty"`
+	Params    json.RawMessage `json:"params"`
+	NextRunAt string          `json:"next_run_at,omitempty"`
+	Paused    bool            `json:"paused"`
+	// ProjectPaused says the pause is the project's; own is the trigger's own pause.
+	ProjectPaused bool `json:"project_paused"`
+	own           bool
+	SkipMissed    bool   `json:"skip_missed"`
+	LastProcess   int64  `json:"last_process,omitempty"`
+	LastState     string `json:"last_state,omitempty"`
 }
 
 // ownTrigger loads a trigger of the actor's workspace; agents reach only their own project.
@@ -132,7 +137,8 @@ func (a *App) triggersList(ctx context.Context, act registry.Actor, in struct{ P
 			names[t.ProjectID] = p
 		}
 		v := triggerView{ID: t.ID, Project: p.Name, Command: t.Command, Kind: t.Kind, Spec: t.Spec, Params: json.RawMessage(t.Params),
-			NextRunAt: t.NextRunAt.String, Paused: t.Paused == 1 || p.Paused == 1, SkipMissed: t.SkipMissed == 1}
+			NextRunAt: t.NextRunAt.String, Paused: t.Paused == 1 || p.Paused == 1, ProjectPaused: p.Paused == 1, own: t.Paused == 1,
+			SkipMissed: t.SkipMissed == 1}
 		if t.LastProcessID.Valid {
 			v.LastProcess = t.LastProcessID.Int64
 			if lp, err := a.Store.Q.GetProcess(ctx, v.LastProcess); err == nil {
@@ -140,6 +146,88 @@ func (a *App) triggersList(ctx context.Context, act registry.Actor, in struct{ P
 			}
 		}
 		out = append(out, v)
+	}
+	return out, nil
+}
+
+// triggerRun starts the command of a schedule trigger now with its params, with the trigger's rights but not
+// as its slot: a pause does not hold it, its schedule stays, and a run of it still going is returned.
+func (a *App) triggerRun(ctx context.Context, act registry.Actor, in struct{ Trigger int64 }) (any, error) {
+	t, p, err := a.ownTrigger(ctx, act, in.Trigger)
+	if err != nil {
+		return nil, err
+	}
+	if t.Kind != trigger.KindCron && t.Kind != trigger.KindOnce {
+		return nil, registry.Invalid("deck: trigger %d starts on a %s; only schedule triggers run now", t.ID, t.Kind)
+	}
+	params, err := manifest.DecodeObject([]byte(t.Params))
+	if err != nil {
+		return nil, err
+	}
+	if params == nil {
+		params = map[string]any{}
+	}
+	params[manifest.RetryKey] = fmt.Sprintf("trigger:%d", t.ID)
+	raw, _ := json.Marshal(params)
+	as := registry.Actor{Kind: registry.Trigger, Workspace: p.WorkspaceID, ProjectID: p.ID}
+	out, err := a.Gateway.CallAs(ctx, as, p.Name+"."+t.Command, raw)
+	if err != nil {
+		return nil, err
+	}
+	started, _ := out.(Started)
+	err = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		if started.Process != 0 {
+			if err := q.SetTriggerLast(ctx, db.SetTriggerLastParams{LastProcessID: sql.NullInt64{Int64: started.Process, Valid: true}, ID: t.ID}); err != nil {
+				return err
+			}
+		}
+		if t.Kind == trigger.KindOnce {
+			return q.DeleteTrigger(ctx, t.ID)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	a.Bus.Publish("triggers")
+	return out, nil
+}
+
+// triggerItems are the triggers of every project with their buttons: run now, pause or go on, cancel.
+func (s sources) triggerItems(ctx context.Context, sc screen.Scope) ([]map[string]any, error) {
+	act := registry.Actor{Kind: registry.Owner, Workspace: sc.Workspace}
+	got, err := s.a.triggersList(ctx, act, struct{ Project string }{})
+	if err != nil {
+		return nil, err
+	}
+	out := []map[string]any{}
+	for _, v := range got.([]triggerView) {
+		if sc.Project != 0 {
+			if p, err := s.a.Store.Q.GetProjectByName(ctx, v.Project); err != nil || p.ID != sc.Project {
+				continue
+			}
+		}
+		var params any
+		_ = json.Unmarshal(v.Params, &params)
+		it := map[string]any{"id": v.ID, "project": v.Project, "command": v.Command, "kind": v.Kind, "spec": v.Spec, "params": params,
+			"next_run_at": v.NextRunAt, "paused": v.Paused, "project_paused": v.ProjectPaused, "skip_missed": v.SkipMissed,
+			"last_process": v.LastProcess, "last_state": v.LastState}
+		acts := []map[string]any{}
+		if v.Kind == trigger.KindCron || v.Kind == trigger.KindOnce {
+			acts = append(acts, call("run_now", false, "deck.trigger_run", map[string]any{"trigger": v.ID}))
+		}
+		if v.Kind == trigger.KindOnce {
+			acts = append(acts, call("cancel_run", false, "deck.run_later_cancel", map[string]any{"trigger": v.ID}))
+		} else if v.own {
+			acts = append(acts, call("resume", false, "deck.trigger_pause", map[string]any{"trigger": v.ID, "paused": false}))
+		} else {
+			acts = append(acts, call("pause", false, "deck.trigger_pause", map[string]any{"trigger": v.ID, "paused": true}))
+		}
+		if v.LastProcess != 0 {
+			acts = append(acts, map[string]any{"verb": "open", "screen": "process", "record": v.LastProcess})
+		}
+		it["_actions"] = acts
+		out = append(out, it)
 	}
 	return out, nil
 }

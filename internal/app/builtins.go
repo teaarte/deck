@@ -159,6 +159,8 @@ func (a *App) addBuiltins() {
 	add("trigger_pause", "Pause trigger", "Pauses or resumes one trigger; a resumed schedule does not catch up its pause.", ownerSide,
 		registry.Params(registry.P("trigger", "integer", "Trigger id"), registry.P("paused", "boolean", "Pause when true, resume when false")),
 		registry.Typed(a.triggerPause))
+	add("trigger_run", "Run now", "Starts the command of a schedule trigger now with its params; its schedule stays, and a run still going is returned.", ownerSide,
+		registry.Params(registry.P("trigger", "integer", "Trigger id")), registry.Typed(a.triggerRun))
 	add("project_pause", "Pause project", "Pauses or resumes every trigger of a project, including triggers added later.", ownerSide,
 		registry.Params(registry.P("project", "project", "Project name"), registry.P("paused", "boolean", "Pause when true, resume when false")),
 		registry.Typed(a.projectPause))
@@ -215,6 +217,12 @@ func (a *App) addBuiltins() {
 	add("screen", "Screen", "Resolves a stored screen with its data into A2UI messages; with a topic, only the data of the blocks it changes.", ownerSide,
 		registry.Params(registry.Opt("project", "project", "Project name; deck's own screens without one"),
 			registry.P("screen", "string", "Screen name"), registry.Opt("record", "integer", "Record id of a record page"),
-			registry.Opt("topic", "string", "Event topic that changed")),
+			registry.Opt("topic", "string", "Event topic that changed"),
+			registry.Opt("filter", "text", "Values the owner picked in block filters, as JSON: block id to field to value")),
 		registry.Typed(a.screenGet))
+	add("notify", "Notify the owner", "Writes a line to the feed of the cockpit, with a screen of the project to open and buttons; the caller decides it is worth it.",
+		everyone, registry.Params(projectOpt, registry.P("text", "text", "What happened, in a sentence"),
+			registry.Opt("screen", "string", "Screen of the project the line opens"), registry.Opt("record", "record", "Record the screen shows"),
+			registry.Opt("actions", "text", "Buttons as JSON: [{label, command, params}] with commands of the project")),
+		registry.Typed(a.notify))
 }

@@ -235,10 +235,20 @@ func TestSubAgentEventsAreNotProcessEvents(t *testing.T) {
 	}
 	var texts []string
 	for _, ev := range events {
+		if ev.Kind == provider.EventTool {
+			texts = append(texts, ev.Kind+":"+ev.Title)
+			continue
+		}
 		texts = append(texts, ev.Kind+":"+ev.Text)
 	}
 	got := strings.Join(texts, ",")
-	if strings.Contains(got, "sub-agent") || !strings.Contains(got, "tool:Agent") || !strings.Contains(got, "text:done") {
+	call := slices.IndexFunc(events, func(ev provider.Event) bool { return ev.Kind == provider.EventTool })
+	update := slices.IndexFunc(events, func(ev provider.Event) bool { return ev.Kind == provider.EventToolUpdate })
+	if call < 0 || update < call || events[call].ID == "" || events[update].ID != events[call].ID || events[update].Status != "completed" ||
+		!strings.Contains(events[call].Text, "Say hi") || !strings.Contains(events[update].Text, "hi") {
+		t.Fatalf("a tool call and its result share the id of the call: %+v", events)
+	}
+	if strings.Contains(got, "sub-agent") || !strings.Contains(got, "tool:Agent") || !strings.Contains(got, "message:done") {
 		t.Fatalf("only events of the main agent count: %s", got)
 	}
 }

@@ -25,3 +25,7 @@ SELECT * FROM health WHERE subject = sqlc.arg(subject);
 
 -- name: SetHealthVersion :exec
 UPDATE health SET version = sqlc.arg(version) WHERE subject = sqlc.arg(subject);
+
+
+-- name: SetHealthCheck :exec
+UPDATE health SET verdict = sqlc.arg(verdict), speed = sqlc.arg(speed) WHERE subject = sqlc.arg(subject);

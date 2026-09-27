@@ -187,8 +187,20 @@ func acpEnv(t *testing.T, f *fakeACP, agent string, llm *fakeLLM, cfg ...func(*a
 	t.Helper()
 	f.selfCheck()
 	e, h := acpAdded(t, f, agent, llm, cfg...)
-	if h.Status != "ok" || !strings.Contains(h.Error, "tokens/s") {
+	if h.Status != "ok" || !strings.Contains(h.Error, "tokens/s") || h.Speed <= 0 || h.Verdict != "" {
 		t.Fatalf("the self-check of the fake agent is green and tells the speed of the model: %+v, %d calls", h, f.calls())
+	}
+	var pl struct {
+		Providers []struct {
+			Name, Agent string
+			Speed       float64
+		}
+	}
+	e.must("deck.providers_list", nil, &pl)
+	for _, p := range pl.Providers {
+		if p.Name == "acp" && (p.Agent != agent || p.Speed != h.Speed) {
+			t.Fatalf("the providers list shows the agent and the speed of the model: %+v", p)
+		}
 	}
 	return e
 }

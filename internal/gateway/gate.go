@@ -57,11 +57,13 @@ type Frozen struct {
 	Caller Caller `json:"caller"`
 	// Tool is the fingerprint of the tool, so a changed tool is not made on an old yes.
 	Tool string `json:"tool,omitempty"`
+	// Target is where the call goes, as the owner reads it: method and URL, a page, a server and tool.
+	Target string `json:"target,omitempty"`
 }
 
-func frozen(act registry.Actor, command string, input json.RawMessage, tool string) string {
+func frozen(act registry.Actor, command string, input json.RawMessage, tool, target string) string {
 	var f Frozen
-	f.Call.Command, f.Call.Input, f.Caller, f.Tool = command, json.RawMessage(canonical(input)), freeze(act), tool
+	f.Call.Command, f.Call.Input, f.Caller, f.Tool, f.Target = command, json.RawMessage(canonical(input)), freeze(act), tool, target
 	b, _ := json.Marshal(f)
 	return string(b)
 }
@@ -132,7 +134,11 @@ func (g *Gateway) hold(ctx context.Context, act registry.Actor, c *registry.Comm
 	if c.Fingerprint != nil {
 		print = c.Fingerprint(ctx, project)
 	}
-	payload := frozen(act, c.Name, input, print)
+	target := ""
+	if c.Target != nil {
+		target = c.Target(print)
+	}
+	payload := frozen(act, c.Name, input, print, target)
 	process := act.ProcessID
 	if act.Kind == registry.Trigger {
 		process = 0
@@ -141,11 +147,11 @@ func (g *Gateway) hold(ctx context.Context, act registry.Actor, c *registry.Comm
 	if ttl := g.ttl(c); ttl > 0 {
 		expires = g.cfg.Now().Add(ttl)
 	}
-	target := ""
-	if c.Target != nil {
-		target = " (" + c.Target(print) + ")"
+	where := ""
+	if target != "" {
+		where = " (" + target + ")"
 	}
-	text := fmt.Sprintf("%s wants %s%s with %s", act.Author(), c.Name, target, untrusted.Cut(canonical(input), 500))
+	text := fmt.Sprintf("%s wants %s%s with %s", act.Author(), c.Name, where, untrusted.Cut(canonical(input), 500))
 	var a db.Ask
 	err := g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		var err error

@@ -13,13 +13,18 @@ import (
 )
 
 type providerView struct {
-	Name    string        `json:"name"`
+	Name string `json:"name"`
+	// Agent is the ACP agent a provider added with one runs.
+	Agent   string        `json:"agent,omitempty"`
 	Caps    provider.Caps `json:"caps"`
 	URL     string        `json:"url,omitempty"`
 	Model   string        `json:"model,omitempty"`
 	Status  string        `json:"status,omitempty"`
 	Error   string        `json:"error,omitempty"`
 	Version string        `json:"version,omitempty"`
+	// Verdict of a failed self-check: model when the model does not manage it, adapter when it broke.
+	Verdict string  `json:"verdict,omitempty"`
+	Speed   float64 `json:"speed,omitempty"`
 	// Fits and Missing tell whether the provider suits the command that was asked about.
 	Fits    *bool    `json:"fits,omitempty"`
 	Missing []string `json:"missing,omitempty"`
@@ -56,8 +61,11 @@ func (a *App) providersList(ctx context.Context, act registry.Actor, in struct{ 
 		if o, ok := pv.(interface{ Endpoint() (string, string) }); ok {
 			v.URL, v.Model = o.Endpoint()
 		}
+		if o, ok := pv.(interface{ AgentName() string }); ok {
+			v.Agent = o.AgentName()
+		}
 		if h, err := a.Store.Q.GetHealth(ctx, process.HealthSubject(pv.Name())); err == nil {
-			v.Status, v.Error, v.Version = h.Status, h.Error, h.Version
+			v.Status, v.Error, v.Version, v.Verdict, v.Speed = h.Status, h.Error, h.Version, h.Verdict, h.Speed
 		}
 		if in.Command != "" {
 			v.Missing = pv.Caps().Missing(requires)

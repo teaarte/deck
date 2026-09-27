@@ -45,8 +45,8 @@ func TestAutomationTokenCallsOnlyAllowedCommands(t *testing.T) {
 			t.Fatalf("%s stays the owner's even when listed: %d %s", owners, code, out)
 		}
 	}
-	if code, _ := e.doWith(tok, "GET", "/api/projects/1/screens/main"); code != 403 {
-		t.Fatalf("screens are for the owner only: %d", code)
+	if code, _ := e.callWith(tok, "deck.screen", map[string]any{"screen": "cockpit"}); code != 403 {
+		t.Fatalf("a token calls deck.screen only when it is listed: %d", code)
 	}
 
 	actor := fmt.Sprintf("token:%d", id)
@@ -60,6 +60,7 @@ func TestAutomationTokenCallsOnlyAllowedCommands(t *testing.T) {
 		{actor, "deck.projects_list", "internal", "done"},
 		{actor, "deck.manifest_get", "internal", "done"}, {actor, "deck.document_save", "internal", "rejected"},
 		{actor, "deck.token_create", "internal", "rejected"}, {actor, "deck.project_enable", "internal", "rejected"},
+		{actor, "deck.screen", "internal", "rejected"},
 	}
 	if !slices.Equal(mine, want) {
 		t.Fatalf("every call of the token is in the journal with its actor:\n got %v\nwant %v", mine, want)

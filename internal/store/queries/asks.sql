@@ -108,3 +108,14 @@ WHERE id = sqlc.arg(id) AND state = 'running';
 -- name: CloseLimitAsks :exec
 UPDATE ask SET state = CASE WHEN state = 'open' THEN 'expired' ELSE state END, delivered = 1
 WHERE process_id = CAST(sqlc.arg(process_id) AS INTEGER) AND kind = 'limit' AND delivered = 0;
+
+
+-- name: ListWorkspaceExpiredConfirms :many
+SELECT * FROM ask
+WHERE workspace_id = sqlc.arg(workspace_id) AND state = 'expired' AND kind IN ('confirm', 'call') AND dismissed = 0
+  AND expires_at <= CAST(sqlc.arg(now) AS TEXT)
+ORDER BY id;
+
+
+-- name: DismissExpiredAsk :execrows
+UPDATE ask SET dismissed = 1 WHERE id = ? AND state = 'expired';

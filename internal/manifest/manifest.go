@@ -157,8 +157,10 @@ type Read struct {
 }
 
 type Screen struct {
-	Name   string  `json:"name"`
-	Title  string  `json:"title"`
+	Name  string `json:"name"`
+	Title string `json:"title"`
+	// Record is the collection whose record the screen shows; the client opens it with the record id.
+	Record string  `json:"record,omitempty"`
 	Blocks []Block `json:"blocks"`
 }
 
@@ -167,13 +169,33 @@ type Block struct {
 	Title   string   `json:"title,omitempty"`
 	Source  *Source  `json:"source,omitempty"`
 	Columns []Column `json:"columns,omitempty"`
+	Fields  []Column `json:"fields,omitempty"`
+	Item    *Item    `json:"item,omitempty"`
+	// Value is the expression of a stat block over rows, the items of its source.
+	Value   string   `json:"value,omitempty"`
 	Actions []Action `json:"actions,omitempty"`
+	Blocks  []Block  `json:"blocks,omitempty"`
+	Tabs    []Tab    `json:"tabs,omitempty"`
+}
+
+// Item binds the lines of a list block.
+type Item struct {
+	Title string `json:"title"`
+	Text  string `json:"text,omitempty"`
+	Meta  string `json:"meta,omitempty"`
+}
+
+type Tab struct {
+	Title  string  `json:"title"`
+	Blocks []Block `json:"blocks"`
 }
 
 type Source struct {
+	// From is what the block reads: a collection (the default), asks, processes or unattended.
+	From string `json:"from,omitempty"`
 	// Project is another project the manifest reads; empty is the project itself.
 	Project    string `json:"project,omitempty"`
-	Collection string `json:"collection"`
+	Collection string `json:"collection,omitempty"`
 	Where      string `json:"where,omitempty"`
 	Sort       string `json:"sort,omitempty"`
 	Limit      int    `json:"limit,omitempty"`
@@ -184,9 +206,11 @@ type Column struct {
 	Bind  string `json:"bind"`
 }
 
+// Action is a button: a command call, or with Screen a move to that screen of the project.
 type Action struct {
 	Label   string            `json:"label"`
-	Command string            `json:"command"`
+	Command string            `json:"command,omitempty"`
+	Screen  string            `json:"screen,omitempty"`
 	Params  map[string]string `json:"params,omitempty"`
 }
 

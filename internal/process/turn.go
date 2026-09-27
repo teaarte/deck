@@ -6,6 +6,7 @@ import (
 	"deck2/internal/manifest"
 	"deck2/internal/provider"
 	"deck2/internal/store"
+	"deck2/internal/untrusted"
 	"deck2/internal/store/db"
 	"encoding/json"
 	"errors"
@@ -224,17 +225,22 @@ func (r *Runner) run(ctx context.Context, t turn) {
 	}
 }
 
+// logLine is a line of the process log: an event in the words of ACP session/update.
 type logLine struct {
-	At   string `json:"at"`
-	Kind string `json:"kind"`
-	Text string `json:"text,omitempty"`
+	At     string `json:"at"`
+	Kind   string `json:"kind"`
+	ID     string `json:"id,omitempty"`
+	Title  string `json:"title,omitempty"`
+	Status string `json:"status,omitempty"`
+	Text   string `json:"text,omitempty"`
 }
 
 // event appends a top-level provider event to the process log and moves its last output time.
 func (r *Runner) event(ctx context.Context, processID int64, stream *os.File, e provider.Event) {
 	now := r.now()
-	b, _ := json.Marshal(logLine{At: store.Time(now), Kind: e.Kind, Text: e.Text})
+	b, _ := json.Marshal(logLine{At: store.Time(now), Kind: e.Kind, ID: e.ID, Title: e.Title, Status: e.Status, Text: untrusted.Cut(e.Text, 4000)})
 	_, _ = stream.Write(append(b, '\n'))
+	r.bus.Publish("log")
 	wasSilent := false
 	_ = r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		p, err := q.GetProcess(ctx, processID)

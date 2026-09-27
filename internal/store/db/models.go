@@ -24,6 +24,7 @@ type Ask struct {
 	AnsweredAt  sql.NullString
 	ExpiresAt   sql.NullString
 	Result      string
+	Dismissed   int64
 }
 
 type AutomationToken struct {
@@ -95,6 +96,8 @@ type Health struct {
 	Error     string
 	UpdatedAt string
 	Version   string
+	Verdict   string
+	Speed     float64
 }
 
 type LlmCall struct {

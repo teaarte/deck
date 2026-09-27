@@ -189,9 +189,9 @@ func (t *turn) until(ctx context.Context) error {
 	}
 }
 
-func (t *turn) emit(kind, text string) {
+func (t *turn) emit(e provider.Event) {
 	if t.req.OnEvent != nil {
-		t.req.OnEvent(provider.Event{Kind: kind, Text: text})
+		t.req.OnEvent(e)
 	}
 }
 
@@ -210,7 +210,7 @@ func (t *turn) handle(ctx context.Context, m message) {
 		if decode(m.Params, &n) {
 			t.limits = n.RateLimits
 			if n.RateLimits.RateLimitReachedType != "" {
-				t.emit("rate_limit", string(n.RateLimits.RateLimitReachedType))
+				t.emit(provider.Event{Kind: provider.EventRateLimit, Text: string(n.RateLimits.RateLimitReachedType)})
 			}
 		}
 		return
@@ -230,6 +230,9 @@ func (t *turn) handle(ctx context.Context, m message) {
 	case "item/started":
 		var n ItemStartedNotification
 		var it FileChangeThreadItem
+		if decode(m.Params, &n) && n.TurnID == t.turnID {
+			t.toolStarted(n.Item)
+		}
 		if decode(m.Params, &n) && n.TurnID == t.turnID && decode(n.Item, &it) && it.Type == "fileChange" {
 			t.gwMu.Lock()
 			if t.patches == nil {
@@ -258,22 +261,69 @@ func (t *turn) handle(ctx context.Context, m message) {
 	}
 }
 
-func (t *turn) item(raw ThreadItem) {
-	var head struct{ Type string }
+// toolStarted reports a tool call as the item begins.
+func (t *turn) toolStarted(raw ThreadItem) {
+	var head struct{ Type, ID string }
 	_ = json.Unmarshal(raw, &head)
+	tool := func(title, text string) {
+		t.emit(provider.Event{Kind: provider.EventTool, ID: head.ID, Title: title, Text: text})
+	}
+	switch head.Type {
+	case "commandExecution":
+		var it CommandExecutionThreadItem
+		if decode(raw, &it) {
+			tool("shell", it.Command)
+		}
+	case "mcpToolCall":
+		var it MCPToolCallThreadItem
+		if decode(raw, &it) {
+			tool("mcp__"+it.Server+"__"+it.Tool, string(it.Arguments))
+		}
+	case "webSearch":
+		var it WebSearchThreadItem
+		if decode(raw, &it) {
+			tool("web_search", it.Query)
+		}
+	case "fileChange":
+		var it FileChangeThreadItem
+		if decode(raw, &it) {
+			paths := make([]string, 0, len(it.Changes))
+			for _, c := range it.Changes {
+				paths = append(paths, c.Path)
+			}
+			tool("apply_patch", strings.Join(paths, "\n"))
+		}
+	}
+}
+
+func (t *turn) item(raw ThreadItem) {
+	var head struct{ Type, ID string }
+	_ = json.Unmarshal(raw, &head)
+	done := func(ok bool, text string) {
+		t.emit(provider.Event{Kind: provider.EventToolUpdate, ID: head.ID, Status: provider.ToolStatus(ok), Text: text})
+	}
 	switch head.Type {
 	case "agentMessage":
 		var it AgentMessageThreadItem
 		if decode(raw, &it) {
-			t.emit("text", it.Text)
+			t.emit(provider.Event{Kind: provider.EventMessage, Text: it.Text})
 			if string(it.Phase) == "final_answer" {
 				t.final = it.Text
 			}
 		}
+	case "reasoning":
+		var it ReasoningThreadItem
+		if decode(raw, &it) && len(it.Summary)+len(it.Content) > 0 {
+			text := strings.Join(it.Summary, "\n")
+			if text == "" {
+				text = strings.Join(it.Content, "\n")
+			}
+			t.emit(provider.Event{Kind: provider.EventThought, Text: text})
+		}
 	case "commandExecution":
 		var it CommandExecutionThreadItem
 		if decode(raw, &it) {
-			t.emit("tool", "shell")
+			done(it.Status == "completed", it.AggregatedOutput)
 			if it.Status == "declined" {
 				t.res.Denied = append(t.res.Denied, "shell")
 			}
@@ -281,12 +331,20 @@ func (t *turn) item(raw ThreadItem) {
 	case "mcpToolCall":
 		var it MCPToolCallThreadItem
 		if decode(raw, &it) {
-			t.emit("tool", "mcp__"+it.Server+"__"+it.Tool)
+			text := ""
+			if it.Result != nil {
+				b, _ := json.Marshal(it.Result)
+				text = string(b)
+			}
+			done(it.Status == "completed", text)
 		}
 	case "webSearch":
-		t.emit("tool", "web_search")
+		done(true, "")
 	case "fileChange":
-		t.emit("tool", "apply_patch")
+		var it FileChangeThreadItem
+		if decode(raw, &it) {
+			done(it.Status == "completed", "")
+		}
 	}
 }
 

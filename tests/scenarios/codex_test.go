@@ -3,6 +3,7 @@ package scenarios
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -443,6 +444,11 @@ func TestCodexFileChangeConfirmationShowsTheChange(t *testing.T) {
 	a := e.waitAsk()
 	if a.Kind != "confirm" || !strings.Contains(a.Text, "apply_patch") || !strings.Contains(a.Text, "/Users/owner/notes.txt") {
 		t.Fatalf("the owner sees which file the patch changes: %+v", a)
+	}
+	if l := e.log(id); !slices.ContainsFunc(l, func(x map[string]any) bool {
+		return x["kind"] == "tool" && x["title"] == "apply_patch" && x["id"] != nil && strings.Contains(fmt.Sprint(x["text"]), "notes.txt")
+	}) {
+		t.Fatalf("the log has the patch as a tool call with its id and file: %v", l)
 	}
 	e.answer(a.ID, "allow")
 	got := e.waitState(id, "done", "error")

@@ -74,7 +74,7 @@ func TestReadsLetAProjectReadAnotherButNeverWriteIt(t *testing.T) {
 	}
 	check("stranger:list", false, "does not read")
 	check("stranger:doc", false, "does not read")
-	if rows := e.screenRows(reader, "main"); len(rows) != 1 || rows[0]["c0"] != "a" {
+	if rows := e.screenRows(reader, "main"); len(rows) != 1 || rows[0].Cells[0] != "a" {
 		t.Fatalf("a screen shows a collection of a project it reads: %v", rows)
 	}
 	bad := `, "screens": [{"name": "main", "title": "Items", "blocks": [{"type": "table", "source": {"project": "source", "collection": "private"},

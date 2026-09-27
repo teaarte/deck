@@ -136,17 +136,20 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 		if err := save(path, msgs); err != nil {
 			return res, err
 		}
-		emit(req, "text", reply.Content)
+		if reply.Content != "" {
+			emit(req, provider.Event{Kind: provider.EventMessage, Text: reply.Content})
+		}
 		if len(reply.ToolCalls) == 0 {
 			res.Text = reply.Content
 			return res, nil
 		}
 		for _, c := range reply.ToolCalls {
-			emit(req, "tool", c.Function.Name)
+			emit(req, provider.Event{Kind: provider.EventTool, ID: c.ID, Title: c.Function.Name, Text: c.Function.Arguments})
 			out := call(ctx, sess, permission, c.Function.Name, c.Function.Arguments, c.ID)
 			if ctx.Err() != nil {
 				return res, ctx.Err()
 			}
+			emit(req, provider.Event{Kind: provider.EventToolUpdate, ID: c.ID, Status: provider.ToolStatus(!strings.HasPrefix(out, "Error: ")), Text: out})
 			msgs = append(msgs, openai.ToolMessage(out, c.ID))
 			if err := save(path, msgs); err != nil {
 				return res, err
@@ -155,9 +158,9 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 	}
 }
 
-func emit(req provider.Request, kind, text string) {
-	if req.OnEvent != nil && text != "" {
-		req.OnEvent(provider.Event{Kind: kind, Text: text})
+func emit(req provider.Request, e provider.Event) {
+	if req.OnEvent != nil {
+		req.OnEvent(e)
 	}
 }
 

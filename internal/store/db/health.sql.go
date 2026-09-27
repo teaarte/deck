@@ -19,7 +19,7 @@ func (q *Queries) DeleteHealth(ctx context.Context, subject string) error {
 }
 
 const getHealth = `-- name: GetHealth :one
-SELECT subject, status, error, updated_at, version FROM health WHERE subject = ?1
+SELECT subject, status, error, updated_at, version, verdict, speed FROM health WHERE subject = ?1
 `
 
 func (q *Queries) GetHealth(ctx context.Context, subject string) (Health, error) {
@@ -31,12 +31,14 @@ func (q *Queries) GetHealth(ctx context.Context, subject string) (Health, error)
 		&i.Error,
 		&i.UpdatedAt,
 		&i.Version,
+		&i.Verdict,
+		&i.Speed,
 	)
 	return i, err
 }
 
 const listHealth = `-- name: ListHealth :many
-SELECT subject, status, error, updated_at, version FROM health ORDER BY subject
+SELECT subject, status, error, updated_at, version, verdict, speed FROM health ORDER BY subject
 `
 
 func (q *Queries) ListHealth(ctx context.Context) ([]Health, error) {
@@ -54,6 +56,8 @@ func (q *Queries) ListHealth(ctx context.Context) ([]Health, error) {
 			&i.Error,
 			&i.UpdatedAt,
 			&i.Version,
+			&i.Verdict,
+			&i.Speed,
 		); err != nil {
 			return nil, err
 		}
@@ -94,6 +98,21 @@ type SetHealthParams struct {
 
 func (q *Queries) SetHealth(ctx context.Context, arg SetHealthParams) error {
 	_, err := q.db.ExecContext(ctx, setHealth, arg.Subject, arg.Status, arg.Error)
+	return err
+}
+
+const setHealthCheck = `-- name: SetHealthCheck :exec
+UPDATE health SET verdict = ?1, speed = ?2 WHERE subject = ?3
+`
+
+type SetHealthCheckParams struct {
+	Verdict string
+	Speed   float64
+	Subject string
+}
+
+func (q *Queries) SetHealthCheck(ctx context.Context, arg SetHealthCheckParams) error {
+	_, err := q.db.ExecContext(ctx, setHealthCheck, arg.Verdict, arg.Speed, arg.Subject)
 	return err
 }
 

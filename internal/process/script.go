@@ -75,7 +75,7 @@ func (r *Runner) runScript(ctx context.Context, t turn, trial bool) {
 	}
 	job := script.Job{Project: t.project, Manifest: t.m, Script: t.m.Script(t.cmd.Executor.Script), Source: src, Dir: dir,
 		Stdin: []byte(input), Out: ln, Env: env, Read: []string{inDir},
-		OnLine:  func(line string) { r.event(bg, id, stream, provider.Event{Kind: "stderr", Text: line}) },
+		OnLine:  func(line string) { r.event(bg, id, stream, provider.Event{Kind: provider.EventStderr, Text: line}) },
 		OnStart: func(pgid int) { r.setGroup(bg, id, pgid) },
 	}
 	out, err := r.scripts.Run(ctx, job)

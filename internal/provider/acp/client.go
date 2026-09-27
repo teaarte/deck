@@ -2,6 +2,7 @@ package acp
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"sync"
 
@@ -16,24 +17,33 @@ type client struct {
 	mu      sync.Mutex
 	session sdk.SessionId
 	text    strings.Builder
+	thought strings.Builder
 	all     strings.Builder
 	onEvent func(provider.Event)
 	asked   int
+	// input marks tool calls whose arguments were reported.
+	input map[sdk.ToolCallId]bool
 }
 
-func (c *client) emit(kind, text string) {
-	if c.onEvent != nil && text != "" {
-		c.onEvent(provider.Event{Kind: kind, Text: text})
+func (c *client) emit(e provider.Event) {
+	if c.onEvent != nil {
+		c.onEvent(e)
 	}
 }
 
-// flush reports the message the agent has said since the last tool call.
+// flush reports the message and the thought the agent has streamed since the last tool call.
 func (c *client) flush() {
 	c.mu.Lock()
-	t := c.text.String()
+	t, th := c.text.String(), c.thought.String()
 	c.text.Reset()
+	c.thought.Reset()
 	c.mu.Unlock()
-	c.emit("text", strings.TrimSpace(t))
+	if th = strings.TrimSpace(th); th != "" {
+		c.emit(provider.Event{Kind: provider.EventThought, Text: th})
+	}
+	if t = strings.TrimSpace(t); t != "" {
+		c.emit(provider.Event{Kind: provider.EventMessage, Text: t})
+	}
 }
 
 // said is all the agent said in the turn.
@@ -54,14 +64,72 @@ func (c *client) SessionUpdate(_ context.Context, n sdk.SessionNotification) err
 	switch u := n.Update; {
 	case u.AgentMessageChunk != nil && u.AgentMessageChunk.Content.Text != nil:
 		c.mu.Lock()
+		if c.thought.Len() > 0 {
+			c.mu.Unlock()
+			c.flush()
+			c.mu.Lock()
+		}
 		c.text.WriteString(u.AgentMessageChunk.Content.Text.Text)
 		c.all.WriteString(u.AgentMessageChunk.Content.Text.Text)
 		c.mu.Unlock()
+	case u.AgentThoughtChunk != nil && u.AgentThoughtChunk.Content.Text != nil:
+		c.mu.Lock()
+		c.thought.WriteString(u.AgentThoughtChunk.Content.Text.Text)
+		c.mu.Unlock()
 	case u.ToolCall != nil:
 		c.flush()
-		c.emit("tool", u.ToolCall.Title)
+		in := raw(u.ToolCall.RawInput)
+		c.mu.Lock()
+		if c.input == nil {
+			c.input = map[sdk.ToolCallId]bool{}
+		}
+		c.input[u.ToolCall.ToolCallId] = in != ""
+		c.mu.Unlock()
+		c.emit(provider.Event{Kind: provider.EventTool, ID: string(u.ToolCall.ToolCallId), Title: u.ToolCall.Title, Text: in})
+	case u.ToolCallUpdate != nil:
+		up := u.ToolCallUpdate
+		if up.Status == nil || (*up.Status != sdk.ToolCallStatusCompleted && *up.Status != sdk.ToolCallStatusFailed) {
+			return nil
+		}
+		c.mu.Lock()
+		known := c.input[up.ToolCallId]
+		c.mu.Unlock()
+		if in := raw(up.RawInput); !known && in != "" {
+			title := ""
+			if up.Title != nil {
+				title = *up.Title
+			}
+			c.emit(provider.Event{Kind: provider.EventTool, ID: string(up.ToolCallId), Title: title, Text: in})
+		}
+		out := raw(up.RawOutput)
+		if out == "" {
+			var parts []string
+			for _, ct := range up.Content {
+				if ct.Content != nil && ct.Content.Content.Text != nil {
+					parts = append(parts, ct.Content.Content.Text.Text)
+				}
+			}
+			out = strings.Join(parts, "\n")
+		}
+		c.emit(provider.Event{Kind: provider.EventToolUpdate, ID: string(up.ToolCallId),
+			Status: provider.ToolStatus(*up.Status == sdk.ToolCallStatusCompleted), Text: out})
 	}
 	return nil
+}
+
+// raw is a raw value of the protocol as text: a string as is, anything else as JSON.
+func raw(v any) string {
+	switch x := v.(type) {
+	case nil:
+		return ""
+	case string:
+		return x
+	}
+	b, _ := json.Marshal(v)
+	if string(b) == "{}" || string(b) == "null" {
+		return ""
+	}
+	return string(b)
 }
 
 // RequestPermission allows the one call asked about; "always" is the owner's button, never deck's.

@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"maps"
 	"slices"
 	"strings"
 
@@ -208,77 +207,6 @@ func (m *Manifest) checkBoard(fail func(string, ...any)) {
 	}
 	if len(have) > 0 && len(miss) > 0 {
 		fail("board: code runs need lanes with roles %s together; missing %s", strings.Join(RunRoles, ", "), strings.Join(miss, ", "))
-	}
-}
-
-func (m *Manifest) checkScreens(fail func(string, ...any)) {
-	screens := map[string]bool{}
-	for _, s := range m.Screens {
-		if screens[s.Name] {
-			fail("screen %q: duplicate", s.Name)
-		}
-		screens[s.Name] = true
-		for j, b := range s.Blocks {
-			where := fmt.Sprintf("screen %q block %d", s.Name, j)
-			switch b.Type {
-			case "table":
-				if b.Source != nil && b.Source.Project != "" {
-					if err := m.checkForeignSource(*b.Source); err != nil {
-						fail("%s source: %v", where, err)
-					}
-					continue
-				}
-				c := (*Collection)(nil)
-				if b.Source != nil {
-					c = m.collections[b.Source.Collection]
-				}
-				if c == nil && b.Source == nil {
-					fail("%s: a %s block needs source.collection", where, b.Type)
-					continue
-				}
-				if c == nil {
-					fail("%s: unknown collection %q; collections are %s", where, b.Source.Collection, strings.Join(slices.Sorted(maps.Keys(m.collections)), ", "))
-					continue
-				}
-				fields := c.fields
-				if fields != nil {
-					fields = append(slices.Clone(fields), "_id", "_updated")
-				}
-				if b.Source.Where != "" {
-					if _, err := compileField(b.Source.Where, fields); err != nil {
-						fail("%s where: %v", where, err)
-					}
-				}
-				if sortField := strings.TrimPrefix(b.Source.Sort, "-"); sortField != "" && fields != nil && !slices.Contains(fields, sortField) {
-					fail("%s sort: unknown field %q", where, sortField)
-				}
-				for _, col := range b.Columns {
-					if _, err := compileField(col.Bind, fields); err != nil {
-						fail("%s column %q: %v", where, col.Label, err)
-					}
-				}
-				for _, a := range b.Actions {
-					for k, v := range a.Params {
-						if f, ok := strings.CutPrefix(v, "$record."); ok && f != "id" && fields != nil && !slices.Contains(fields, f) {
-							fail("%s action %q param %q: unknown field %q", where, a.Label, k, f)
-						}
-					}
-				}
-			case "actions":
-			default:
-				fail("%s: unknown block type %q", where, b.Type)
-			}
-			for _, a := range b.Actions {
-				if err := m.checkAction(a); err != nil {
-					fail("%s action %q: %v", where, a.Label, err)
-				}
-			}
-		}
-	}
-	for _, name := range m.Menu {
-		if !screens[name] {
-			fail("menu: unknown screen %q", name)
-		}
 	}
 }
 

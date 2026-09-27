@@ -34,10 +34,33 @@ type Request struct {
 	OnStart func(pgid int)
 }
 
-// Event is an event of the process itself; events of the provider's sub-agents are not reported.
+// Event is an event of the process itself in the words of ACP session/update; events of the provider's
+// sub-agents are not reported.
 type Event struct {
-	Kind string // "text", "tool", "rate_limit"
-	Text string
+	Kind string
+	// ID ties a tool call to its update.
+	ID    string
+	Title string
+	// Status of a tool update: completed or failed.
+	Status string
+	Text   string
+}
+
+const (
+	EventMessage    = "message"
+	EventThought    = "thought"
+	EventTool       = "tool"
+	EventToolUpdate = "tool_update"
+	EventRateLimit  = "rate_limit"
+	EventStderr     = "stderr"
+)
+
+// ToolStatus maps the end state of a tool call to completed or failed.
+func ToolStatus(ok bool) string {
+	if ok {
+		return "completed"
+	}
+	return "failed"
 }
 
 type Result struct {

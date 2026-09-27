@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"compress/gzip"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -107,6 +109,11 @@ func acpStream(lines ...string) string { return strings.Join(lines, "\n") }
 func TestACPQuestionStopsTheTurnBeforeTheAgentTimesOutAndTheAnswerResumes(t *testing.T) {
 	f := newACP(t)
 	f.streamText(4, acpStream(acpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,
+		`{"update": {"sessionUpdate": "agent_thought_chunk", "content": {"type": "text", "text": "Read "}}}`,
+		`{"update": {"sessionUpdate": "agent_thought_chunk", "content": {"type": "text", "text": "first."}}}`,
+		`{"update": {"sessionUpdate": "tool_call", "toolCallId": "c1", "title": "read", "kind": "read", "status": "pending"}}`,
+		`{"update": {"sessionUpdate": "tool_call_update", "toolCallId": "c1", "status": "in_progress", "rawInput": {"path": "a.txt"}}}`,
+		`{"update": {"sessionUpdate": "tool_call_update", "toolCallId": "c1", "status": "completed", "rawInput": {"path": "a.txt"}, "rawOutput": {"output": "text of a"}}}`,
 		`{"mcp": {"tool": "ask", "arguments": {"question": "Which color should the report use?"}}}`, `{"end": "end_turn"}`))
 	f.streamText(5, acpStream(acpInit, `{"reply": "session/resume", "result": {}}`, `{"reply": "session/prompt"}`,
 		`{"mcp": {"tool": "result_submit", "arguments": {"result": {"color": "blue"}}}}`, `{"end": "end_turn"}`))
@@ -119,6 +126,16 @@ func TestACPQuestionStopsTheTurnBeforeTheAgentTimesOutAndTheAnswerResumes(t *tes
 	e.waitState(id, "waiting_answer")
 	if m := f.call(4).mcp; len(m) != 1 || !strings.Contains(m[0]["text"].(string), "not answered yet") {
 		t.Fatalf("the agent hears in time that the owner has not answered and ends its turn: %v", m)
+	}
+	lines := e.log(id)
+	kinds := make([]string, 0, len(lines))
+	for _, l := range lines {
+		kinds = append(kinds, fmt.Sprint(l["kind"]))
+	}
+	if !slices.Equal(kinds[:4], []string{"thought", "tool", "tool", "tool_update"}) || lines[0]["text"] != "Read first." ||
+		lines[1]["id"] != "c1" || lines[1]["title"] != "read" || lines[2]["text"] != `{"path":"a.txt"}` ||
+		lines[3]["id"] != "c1" || lines[3]["status"] != "completed" || lines[3]["text"] != `{"output":"text of a"}` {
+		t.Fatalf("the log keeps the session updates of ACP: a thought whole, the call, its late input and its end: %v", lines)
 	}
 	if p := f.call(4).port; p != "bound true" {
 		t.Fatalf("the sandbox lets OpenCode serve itself on its own port: %q", p)
@@ -218,6 +235,11 @@ func TestACPProjectWithoutNetworkHasNoWebThroughTheProxy(t *testing.T) {
 func TestACPSessionTheAgentLostStartsOver(t *testing.T) {
 	f := newACP(t)
 	f.streamText(4, acpStream(acpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,
+		`{"update": {"sessionUpdate": "agent_thought_chunk", "content": {"type": "text", "text": "Read "}}}`,
+		`{"update": {"sessionUpdate": "agent_thought_chunk", "content": {"type": "text", "text": "first."}}}`,
+		`{"update": {"sessionUpdate": "tool_call", "toolCallId": "c1", "title": "read", "kind": "read", "status": "pending"}}`,
+		`{"update": {"sessionUpdate": "tool_call_update", "toolCallId": "c1", "status": "in_progress", "rawInput": {"path": "a.txt"}}}`,
+		`{"update": {"sessionUpdate": "tool_call_update", "toolCallId": "c1", "status": "completed", "rawInput": {"path": "a.txt"}, "rawOutput": {"output": "text of a"}}}`,
 		`{"mcp": {"tool": "ask", "arguments": {"question": "Which color should the report use?"}}}`, `{"end": "end_turn"}`))
 	f.streamText(5, acpStream(acpInit, `{"reply": "session/resume", "error": {"code": -32602, "message": "Invalid params: session is not resumable: s-1"}}`,
 		`{"reply": "session/list", "result": {"sessions": []}}`))
@@ -297,6 +319,14 @@ func TestACPSelfCheckIsRedWhenTheSandboxOrTheProxyFails(t *testing.T) {
 		e, h := acpAdded(t, f, "dsh", acpLLM(t))
 		if h.Status != "error" || !strings.Contains(h.Error, tc.want) || !strings.HasPrefix(h.Error, tc.verdict) {
 			t.Fatalf("the self-check is red with %q, told as %q: %+v", tc.want, tc.verdict, h)
+		}
+		var pl struct {
+			Providers []struct{ Agent, Verdict string }
+		}
+		e.must("deck.providers_list", nil, &pl)
+		verdict := map[string]string{adapter: "adapter", model: "model"}[tc.verdict]
+		if i := slices.IndexFunc(pl.Providers, func(p struct{ Agent, Verdict string }) bool { return p.Agent == "dsh" }); i < 0 || pl.Providers[i].Verdict != verdict {
+			t.Fatalf("the providers list shows the agent and the verdict %q: %+v", verdict, pl.Providers)
 		}
 		f.streamText(0, acpStream(acpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,
 			`{"mcp": {"tool": "result_submit", "arguments": {"result": {"color": "blue"}}}}`, `{"end": "end_turn"}`))

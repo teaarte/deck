@@ -1,0 +1,52 @@
+{
+  "menu": ["cockpit", "providers"],
+  "screens": [
+    {
+      "name": "cockpit",
+      "title": "Cockpit",
+      "blocks": [
+        {"type": "list", "title": "Waiting for you", "source": {"from": "asks"},
+          "item": {"title": "what", "text": "where", "meta": "project + (who != '' ? ' · ' + who : '')"}},
+        {"type": "columns", "blocks": [
+          {"type": "list", "title": "Running now",
+            "source": {"from": "processes", "where": "state in ['running', 'waiting_answer', 'needs_login', 'rate_limited', 'waiting_provider']"},
+            "item": {"title": "project + '.' + command", "text": "silent ? 'silent' : state", "meta": "'#' + string(id)"}},
+          {"type": "list", "title": "Done without you", "source": {"from": "unattended", "limit": 10},
+            "item": {"title": "text", "meta": "project + ' · ' + author"}}
+        ]}
+      ]
+    },
+    {
+      "name": "providers",
+      "title": "Providers",
+      "blocks": [
+        {"type": "table", "title": "Providers", "source": {"from": "providers"},
+          "columns": [
+            {"label": "Name", "bind": "name"},
+            {"label": "Agent", "bind": "agent"},
+            {"label": "Model", "bind": "model"},
+            {"label": "Status", "bind": "status"},
+            {"label": "Self-check", "bind": "verdict == 'model' ? 'the model does not manage it' : verdict == 'adapter' ? 'the adapter is broken' : ''"},
+            {"label": "Tokens/s", "bind": "speed > 0 ? string(int(speed)) : ''"},
+            {"label": "Error", "bind": "error"}
+          ]}
+      ]
+    },
+    {
+      "name": "process",
+      "title": "Process",
+      "record": "process",
+      "blocks": [
+        {"type": "card", "fields": [
+          {"label": "Project", "bind": "project"},
+          {"label": "Command", "bind": "command"},
+          {"label": "State", "bind": "silent ? state + ', silent' : state"},
+          {"label": "Provider", "bind": "provider"},
+          {"label": "Started", "bind": "started_at"},
+          {"label": "Error", "bind": "error"}
+        ]},
+        {"type": "log", "title": "Log", "source": {"from": "log"}}
+      ]
+    }
+  ]
+}

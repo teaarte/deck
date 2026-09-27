@@ -90,7 +90,7 @@ func (g *Gateway) LostAt(ctx context.Context, id int64, tool string) {
 		text := fmt.Sprintf("Outcome unknown: %s with %s. deck stopped or lost the connection while making this call; "+
 			"check the other side, then retry it or count it as done.", c.Tool, untrusted.Cut(c.Params, 500))
 		a, err := q.CreateCallAsk(ctx, db.CreateCallAskParams{ProcessID: sql.NullInt64{Int64: c.ProcessID, Valid: c.ProcessID != 0},
-			WorkspaceID: p.WorkspaceID, ProjectID: p.ID, Kind: ask.KindUnknown, Text: text, Payload: frozen(act, c.Tool, json.RawMessage(c.Params), tool)})
+			WorkspaceID: p.WorkspaceID, ProjectID: p.ID, Kind: ask.KindUnknown, Text: text, Payload: frozen(act, c.Tool, json.RawMessage(c.Params), tool, "")})
 		if err != nil {
 			return err
 		}

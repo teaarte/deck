@@ -1,0 +1,139 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "catalogId": "https://deck2.local/catalog/v1",
+  "description": "Blocks of deck screens as A2UI components. A block's data is at the path of its data property: {state, error?, rows | items | value | lines}.",
+  "components": {
+    "screen": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["children"],
+      "properties": {
+        "title": {"type": "string"},
+        "children": {"$ref": "common_types.json#/$defs/ChildList"}
+      }
+    },
+    "columns": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["children"],
+      "properties": {
+        "title": {"type": "string"},
+        "children": {"$ref": "common_types.json#/$defs/ChildList"}
+      }
+    },
+    "tabs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["titles", "children"],
+      "properties": {
+        "titles": {"type": "array", "items": {"type": "string"}},
+        "children": {"$ref": "common_types.json#/$defs/ChildList"}
+      }
+    },
+    "table": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["columns", "data"],
+      "properties": {
+        "title": {"type": "string"},
+        "columns": {"type": "array", "items": {"type": "string"}},
+        "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "rows: [{id, cells, actions}]"}
+      }
+    },
+    "list": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "title": {"type": "string"},
+        "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "items: [{id, title, text, meta, details, questions, actions}]"}
+      }
+    },
+    "card": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "title": {"type": "string"},
+        "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "value: {fields: [{label, value}], actions}"}
+      }
+    },
+    "stat": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "title": {"type": "string"},
+        "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "value: a number or a text"}
+      }
+    },
+    "actions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["actions"],
+      "properties": {
+        "title": {"type": "string"},
+        "actions": {"type": "array", "items": {"$ref": "#/$defs/action"}}
+      }
+    },
+    "log": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "title": {"type": "string"},
+        "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "lines: [{at, kind, id, title, status, text}]"}
+      }
+    }
+  },
+  "$defs": {
+    "action": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A button: a command call or a move to a screen. verb names a built-in label the client translates.",
+      "properties": {
+        "label": {"type": "string"},
+        "verb": {"type": "string"},
+        "primary": {"type": "boolean"},
+        "command": {"type": "string"},
+        "params": {"type": "object"},
+        "input": {"type": "string", "description": "Param the owner types before the call."},
+        "until": {"type": "string", "description": "Time after which the button is hidden."},
+        "project": {"type": "string"},
+        "screen": {"type": "string"},
+        "record": {"type": "integer"}
+      }
+    },
+    "data": {
+      "type": "object",
+      "required": ["state"],
+      "properties": {
+        "state": {"enum": ["ready", "empty", "error"]},
+        "error": {"type": "string"},
+        "rows": {"type": "array", "items": {
+          "type": "object", "required": ["id", "cells"], "additionalProperties": false,
+          "properties": {"id": {}, "cells": {"type": "array"}, "actions": {"type": "array", "items": {"$ref": "#/$defs/action"}}}
+        }},
+        "items": {"type": "array", "items": {
+          "type": "object", "required": ["id", "title"], "additionalProperties": false,
+          "properties": {
+            "id": {}, "title": {"type": "string"}, "text": {"type": "string"}, "meta": {"type": "string"},
+            "details": {"type": "string"},
+            "questions": {"type": "array", "items": {
+              "type": "object", "required": ["question"],
+              "properties": {"question": {"type": "string"}, "multiSelect": {"type": "boolean"},
+                "options": {"type": "array", "items": {"type": "object", "properties": {"label": {"type": "string"}, "description": {"type": "string"}}}}}
+            }},
+            "actions": {"type": "array", "items": {"$ref": "#/$defs/action"}}
+          }
+        }},
+        "value": {},
+        "lines": {"type": "array", "items": {
+          "type": "object", "required": ["at", "kind"],
+          "properties": {"at": {"type": "string"}, "kind": {"type": "string"}, "id": {"type": "string"}, "title": {"type": "string"},
+            "status": {"type": "string"}, "text": {"type": "string"}}
+        }}
+      }
+    }
+  }
+}

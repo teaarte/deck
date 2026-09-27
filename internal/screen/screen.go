@@ -2,7 +2,9 @@ package screen
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"maps"
 	"slices"
 	"sort"
 	"strings"
@@ -17,91 +19,394 @@ const (
 	CatalogID = "https://deck2.local/catalog/v1"
 )
 
+// Sources reads the items of every source other than a collection.
+type Sources interface {
+	Items(ctx context.Context, from string, scope Scope) ([]map[string]any, error)
+}
+
+// Scope is whose items a source gives: a project, or with Project 0 every project of the workspace.
+type Scope struct {
+	Workspace int64
+	Project   int64
+	// Record narrows processes to one process.
+	Record int64
+}
+
+// Request is a screen to resolve. Project is zero for a screen deck ships.
+type Request struct {
+	Project  db.Project
+	Manifest *manifest.Manifest
+	Screen   *manifest.Screen
+	Record   int64
+	// Topic, when set, resolves only the blocks it changes and returns their data.
+	Topic string
+}
+
+// Topics are the event topics after which a client reads blocks again; any other topic means the whole screen.
+var Topics = []string{"collection", "asks", "processes", "unattended", "health", "log"}
+
 // Render resolves a stored screen into A2UI messages: createSurface, updateComponents, updateDataModel.
 // Clients only draw components and send actions back.
-func Render(ctx context.Context, st *store.Store, projectID int64, project string, m *manifest.Manifest, name string) ([]map[string]any, error) {
-	sc := m.Screen(name)
-	if sc == nil {
-		return nil, fmt.Errorf("unknown screen %q", name)
-	}
-	surface := fmt.Sprintf("p%d-%s", projectID, name)
-	root := map[string]any{"id": "root", "component": "Column", "children": []string{}}
-	components := []map[string]any{root}
-	data := map[string]any{}
-	children := []string{}
-
-	for i, b := range sc.Blocks {
-		id := fmt.Sprintf("b%d", i)
-		children = append(children, id)
-		switch b.Type {
-		case "table":
-			src, err := sourceProject(ctx, st, projectID, m, b.Source)
-			var rows []map[string]any
-			if err == nil {
-				rows, err = resolve(ctx, st, src, b)
-			}
-			if err != nil {
-				components = append(components, map[string]any{"id": id, "component": "Text", "text": "source error: " + err.Error(), "variant": "error"})
-				continue
-			}
-			data[id] = rows
-			cols := make([]map[string]any, 0, len(b.Columns))
-			for j, c := range b.Columns {
-				cols = append(cols, map[string]any{"label": c.Label, "value": map[string]any{"path": fmt.Sprintf("c%d", j)}})
-			}
-			comp := map[string]any{"id": id, "component": "Table", "title": b.Title, "rows": map[string]any{"path": "/" + id}, "columns": cols}
-			if len(b.Actions) > 0 {
-				comp["rowActions"] = rowActions(project, b.Actions)
-			}
-			components = append(components, comp)
-		case "actions":
-			components = append(components, map[string]any{"id": id, "component": "Actions", "title": b.Title, "actions": actions(project, b.Actions)})
+func Render(ctx context.Context, st *store.Store, src Sources, req Request) ([]map[string]any, error) {
+	r := &renderer{ctx: ctx, st: st, src: src, req: req, data: map[string]any{}}
+	r.scope = Scope{Workspace: req.Project.WorkspaceID, Project: req.Project.ID}
+	if req.Screen.Record != "" {
+		if err := r.loadRecord(); err != nil {
+			return nil, err
 		}
 	}
-	root["children"] = children
+	root := map[string]any{"id": "root", "component": "screen", "title": req.Screen.Title}
+	r.comps = []map[string]any{root}
+	root["children"] = r.blocks("b", req.Screen.Blocks)
+	if r.recordTitle != "" {
+		root["title"] = req.Screen.Title + ": " + r.recordTitle
+	}
+	surface := r.surface()
+	if req.Topic != "" && slices.Contains(Topics, req.Topic) {
+		out := []map[string]any{}
+		for _, id := range slices.Sorted(maps.Keys(r.data)) {
+			out = append(out, map[string]any{"version": Version,
+				"updateDataModel": map[string]any{"surfaceId": surface, "path": "/" + id, "value": r.data[id]}})
+		}
+		return out, nil
+	}
 	return []map[string]any{
 		{"version": Version, "createSurface": map[string]any{"surfaceId": surface, "catalogId": CatalogID}},
-		{"version": Version, "updateComponents": map[string]any{"surfaceId": surface, "components": components}},
-		{"version": Version, "updateDataModel": map[string]any{"surfaceId": surface, "value": data}},
+		{"version": Version, "updateComponents": map[string]any{"surfaceId": surface, "components": r.comps}},
+		{"version": Version, "updateDataModel": map[string]any{"surfaceId": surface, "path": "/", "value": r.data}},
 	}, nil
 }
 
-// sourceProject is the project a block reads: its own, or another one its manifest reads.
-func sourceProject(ctx context.Context, st *store.Store, projectID int64, m *manifest.Manifest, src *manifest.Source) (int64, error) {
-	if src == nil || src.Project == "" {
-		return projectID, nil
+type renderer struct {
+	ctx         context.Context
+	st          *store.Store
+	src         Sources
+	req         Request
+	scope       Scope
+	comps       []map[string]any
+	data        map[string]any
+	record      map[string]any
+	recordTitle string
+}
+
+func (r *renderer) surface() string {
+	if r.req.Project.ID == 0 {
+		return "deck-" + r.req.Screen.Name
 	}
-	own, err := st.Q.GetProject(ctx, projectID)
+	return fmt.Sprintf("p%d-%s", r.req.Project.ID, r.req.Screen.Name)
+}
+
+func (r *renderer) deck() bool { return r.req.Project.ID == 0 }
+
+func (r *renderer) loadRecord() error {
+	if r.req.Record <= 0 {
+		return fmt.Errorf("screen %q shows one record; open it with the record id", r.req.Screen.Name)
+	}
+	if r.deck() {
+		items, err := r.src.Items(r.ctx, "processes", Scope{Workspace: r.scope.Workspace, Record: r.req.Record})
+		if err != nil {
+			return err
+		}
+		if len(items) == 0 {
+			return fmt.Errorf("no process %d", r.req.Record)
+		}
+		r.record = items[0]
+		r.recordTitle = fmt.Sprintf("#%d %v", r.req.Record, items[0]["command"])
+		return nil
+	}
+	rec, err := r.st.Q.GetRecord(r.ctx, r.req.Record)
+	if err != nil || rec.ProjectID != r.req.Project.ID || rec.Collection != r.req.Screen.Record {
+		return fmt.Errorf("no %s record %d", r.req.Screen.Record, r.req.Record)
+	}
+	env, err := manifest.DecodeObject([]byte(rec.Data))
 	if err != nil {
-		return 0, err
+		return err
 	}
-	other, err := st.Q.GetProjectByName(ctx, src.Project)
-	if err != nil || other.WorkspaceID != own.WorkspaceID {
+	env["_id"], env["_updated"] = rec.ID, rec.UpdatedAt
+	r.record = env
+	if c := r.req.Manifest.Collection(rec.Collection); c != nil {
+		r.recordTitle = c.RecordTitle(env)
+	}
+	return nil
+}
+
+func (r *renderer) blocks(prefix string, bs []manifest.Block) []string {
+	ids := make([]string, 0, len(bs))
+	for i, b := range bs {
+		id := fmt.Sprintf("%s%d", prefix, i)
+		ids = append(ids, id)
+		r.block(id, b)
+	}
+	return ids
+}
+
+func (r *renderer) block(id string, b manifest.Block) {
+	comp := map[string]any{"id": id, "component": b.Type}
+	if b.Title != "" {
+		comp["title"] = b.Title
+	}
+	r.comps = append(r.comps, comp)
+	switch b.Type {
+	case "columns":
+		comp["children"] = r.blocks(id+"-", b.Blocks)
+		return
+	case "tabs":
+		titles, children := []string{}, []string{}
+		for j, t := range b.Tabs {
+			tid := fmt.Sprintf("%s-%d", id, j)
+			titles, children = append(titles, t.Title), append(children, tid)
+			r.comps = append(r.comps, map[string]any{"id": tid, "component": "screen", "children": r.blocks(tid+"-", t.Blocks)})
+		}
+		comp["titles"], comp["children"] = titles, children
+		return
+	case "actions":
+		comp["actions"] = r.actions(b.Actions, r.req.Record, r.record)
+		return
+	case "table":
+		cols := make([]string, 0, len(b.Columns))
+		for _, c := range b.Columns {
+			cols = append(cols, c.Label)
+		}
+		comp["columns"] = cols
+	}
+	comp["data"] = map[string]any{"path": "/" + id}
+	if r.req.Topic != "" && r.req.Topic != topicOf(b, r.deck()) {
+		return
+	}
+	value, err := r.resolve(b)
+	if err != nil {
+		r.data[id] = map[string]any{"state": "error", "error": err.Error()}
+		return
+	}
+	r.data[id] = value
+}
+
+// topicOf is the event topic after which the block is read again.
+func topicOf(b manifest.Block, deck bool) string {
+	if b.Source == nil {
+		if deck {
+			return "processes"
+		}
+		return "collection"
+	}
+	switch b.Source.From {
+	case "", "collection":
+		return "collection"
+	case "providers":
+		return "health"
+	}
+	return b.Source.From
+}
+
+func (r *renderer) resolve(b manifest.Block) (map[string]any, error) {
+	if b.Type == "card" {
+		fields := make([]map[string]any, 0, len(b.Fields))
+		for _, f := range b.Fields {
+			v, err := manifest.Eval(f.Bind, r.record)
+			if err != nil {
+				return nil, fmt.Errorf("field %q: %w", f.Label, err)
+			}
+			fields = append(fields, map[string]any{"label": f.Label, "value": v})
+		}
+		acts := append(r.actions(b.Actions, r.req.Record, r.record), passActions(r.record)...)
+		return map[string]any{"state": "ready", "value": map[string]any{"fields": fields, "actions": acts}}, nil
+	}
+	items, err := r.items(*b.Source)
+	if err != nil {
+		return nil, err
+	}
+	out := map[string]any{"state": "ready"}
+	if len(items) == 0 && b.Type != "stat" {
+		out["state"] = "empty"
+	}
+	switch b.Type {
+	case "stat":
+		expr := b.Value
+		if expr == "" {
+			expr = "len(rows)"
+		}
+		v, err := manifest.Eval(expr, map[string]any{"rows": items})
+		if err != nil {
+			return nil, fmt.Errorf("value: %w", err)
+		}
+		out["value"] = v
+	case "table":
+		rows := make([]map[string]any, 0, len(items))
+		for _, it := range items {
+			cells := make([]any, 0, len(b.Columns))
+			for _, c := range b.Columns {
+				v, err := manifest.Eval(c.Bind, it)
+				if err != nil {
+					return nil, fmt.Errorf("column %q: %w", c.Label, err)
+				}
+				cells = append(cells, v)
+			}
+			rows = append(rows, map[string]any{"id": it["_id"], "cells": cells, "actions": r.rowActions(b, it)})
+		}
+		out["rows"] = rows
+	case "list":
+		lines := make([]map[string]any, 0, len(items))
+		for _, it := range items {
+			line := map[string]any{"id": it["_id"], "actions": r.rowActions(b, it)}
+			for key, e := range map[string]string{"title": b.Item.Title, "text": b.Item.Text, "meta": b.Item.Meta} {
+				if e == "" {
+					continue
+				}
+				v, err := manifest.Eval(e, it)
+				if err != nil {
+					return nil, fmt.Errorf("item %s: %w", key, err)
+				}
+				if v != nil && v != "" {
+					line[key] = fmt.Sprint(v)
+				}
+			}
+			if _, ok := line["title"]; !ok {
+				line["title"] = ""
+			}
+			for _, k := range []string{"details", "questions"} {
+				if v, ok := it["_"+k]; ok {
+					line[k] = v
+				}
+			}
+			lines = append(lines, line)
+		}
+		out["items"] = lines
+	case "log":
+		lines := make([]map[string]any, 0, len(items))
+		for _, it := range items {
+			line := map[string]any{}
+			for _, k := range manifest.SourceFields["log"] {
+				if v, ok := it[k]; ok && v != "" {
+					line[k] = v
+				}
+			}
+			lines = append(lines, line)
+		}
+		out["lines"] = lines
+	}
+	return out, nil
+}
+
+// items are the items of a source as expression environments, filtered, sorted and cut.
+func (r *renderer) items(src manifest.Source) ([]map[string]any, error) {
+	var items []map[string]any
+	switch src.From {
+	case "", "collection":
+		project, err := r.sourceProject(src)
+		if err != nil {
+			return nil, err
+		}
+		recs, err := r.st.Q.ListRecords(r.ctx, db.ListRecordsParams{ProjectID: project, Collection: src.Collection})
+		if err != nil {
+			return nil, err
+		}
+		for _, rec := range recs {
+			env, err := manifest.DecodeObject([]byte(rec.Data))
+			if err != nil {
+				continue
+			}
+			env["_id"], env["_updated"] = rec.ID, rec.UpdatedAt
+			items = append(items, env)
+		}
+	default:
+		scope := r.scope
+		if src.From == "log" {
+			scope.Record = r.req.Record
+		}
+		got, err := r.src.Items(r.ctx, src.From, scope)
+		if err != nil {
+			return nil, err
+		}
+		for _, it := range got {
+			if _, ok := it["_id"]; !ok {
+				it["_id"] = it["id"]
+			}
+			items = append(items, it)
+		}
+	}
+	if src.Where != "" {
+		kept := items[:0]
+		for _, it := range items {
+			env := it
+			if r.record != nil {
+				env = withRecord(it, r.record)
+			}
+			ok, err := manifest.Eval(src.Where, env)
+			if err != nil {
+				return nil, fmt.Errorf("where: %w", err)
+			}
+			if ok == true {
+				kept = append(kept, it)
+			}
+		}
+		items = kept
+	}
+	if s := src.Sort; s != "" {
+		field, desc := strings.TrimPrefix(s, "-"), strings.HasPrefix(s, "-")
+		sort.SliceStable(items, func(i, j int) bool {
+			if desc {
+				return less(items[j][field], items[i][field])
+			}
+			return less(items[i][field], items[j][field])
+		})
+	}
+	if src.Limit > 0 && len(items) > src.Limit {
+		items = items[:src.Limit]
+	}
+	return items, nil
+}
+
+func withRecord(env, record map[string]any) map[string]any {
+	out := make(map[string]any, len(env)+1)
+	for k, v := range env {
+		out[k] = v
+	}
+	out["record"] = record
+	return out
+}
+
+// sourceProject is the project a block reads: its own, or another one its manifest reads.
+func (r *renderer) sourceProject(src manifest.Source) (int64, error) {
+	if src.Project == "" {
+		return r.req.Project.ID, nil
+	}
+	other, err := r.st.Q.GetProjectByName(r.ctx, src.Project)
+	if err != nil || other.WorkspaceID != r.req.Project.WorkspaceID {
 		return 0, fmt.Errorf("no project %q", src.Project)
 	}
-	for _, r := range m.Reads {
-		if r.Project == src.Project && slices.Contains(r.Collections, src.Collection) {
+	for _, rd := range r.req.Manifest.Reads {
+		if rd.Project == src.Project && slices.Contains(rd.Collections, src.Collection) {
 			return other.ID, nil
 		}
 	}
 	return 0, fmt.Errorf("%s.%s is not in reads", src.Project, src.Collection)
 }
 
-func actions(project string, as []manifest.Action) []map[string]any {
-	out := make([]map[string]any, 0, len(as))
-	for _, a := range as {
-		out = append(out, map[string]any{"label": a.Label,
-			"action": map[string]any{"event": map[string]any{"name": "command", "context": map[string]any{"command": project + "." + a.Command, "params": a.Params}}}})
-	}
-	return out
+// rowActions are the buttons of a row: the block's own, then those its source gives the item.
+func (r *renderer) rowActions(b manifest.Block, it map[string]any) []map[string]any {
+	id, _ := it["_id"].(int64)
+	acts := r.actions(b.Actions, id, it)
+	return append(acts, passActions(it)...)
 }
 
-// rowActions bind each action's params to a per-row path, filled by resolve with $record values.
-func rowActions(project string, as []manifest.Action) []map[string]any {
-	out := actions(project, as)
-	for j := range out {
-		ctx := out[j]["action"].(map[string]any)["event"].(map[string]any)["context"].(map[string]any)
-		ctx["params"] = map[string]any{"path": fmt.Sprintf("a%d", j)}
+func passActions(it map[string]any) []map[string]any {
+	acts, _ := it["_actions"].([]map[string]any)
+	return acts
+}
+
+func (r *renderer) actions(as []manifest.Action, id int64, env map[string]any) []map[string]any {
+	out := make([]map[string]any, 0, len(as))
+	for _, a := range as {
+		if a.Screen != "" {
+			act := map[string]any{"label": a.Label, "project": r.req.Project.Name, "screen": a.Screen}
+			if t := r.req.Manifest.Screen(a.Screen); t != nil && t.Record != "" {
+				act["record"] = id
+			}
+			out = append(out, act)
+			continue
+		}
+		out = append(out, map[string]any{"label": a.Label, "command": r.req.Project.Name + "." + a.Command,
+			"params": actionParams(a.Params, id, env)})
 	}
 	return out
 }
@@ -135,66 +440,13 @@ func number(v any) (float64, bool) {
 	switch x := v.(type) {
 	case int64:
 		return float64(x), true
+	case int:
+		return float64(x), true
 	case float64:
 		return x, true
+	case json.Number:
+		f, err := x.Float64()
+		return f, err == nil
 	}
 	return 0, false
-}
-
-func resolve(ctx context.Context, st *store.Store, projectID int64, b manifest.Block) ([]map[string]any, error) {
-	recs, err := st.Q.ListRecords(ctx, db.ListRecordsParams{ProjectID: projectID, Collection: b.Source.Collection})
-	if err != nil {
-		return nil, err
-	}
-	type row struct {
-		env map[string]any
-		out map[string]any
-	}
-	rows := make([]row, 0, len(recs))
-	for _, r := range recs {
-		env, err := manifest.DecodeObject([]byte(r.Data))
-		if err != nil {
-			continue
-		}
-		env["_id"] = r.ID
-		env["_updated"] = r.UpdatedAt
-		if b.Source.Where != "" {
-			ok, err := manifest.Eval(b.Source.Where, env)
-			if err != nil {
-				return nil, fmt.Errorf("where: %w", err)
-			}
-			if ok != true {
-				continue
-			}
-		}
-		out := map[string]any{"id": r.ID}
-		for j, c := range b.Columns {
-			v, err := manifest.Eval(c.Bind, env)
-			if err != nil {
-				return nil, fmt.Errorf("column %q: %w", c.Label, err)
-			}
-			out[fmt.Sprintf("c%d", j)] = v
-		}
-		for j, a := range b.Actions {
-			out[fmt.Sprintf("a%d", j)] = actionParams(a.Params, r.ID, env)
-		}
-		rows = append(rows, row{env: env, out: out})
-	}
-	if s := b.Source.Sort; s != "" {
-		field, desc := strings.TrimPrefix(s, "-"), strings.HasPrefix(s, "-")
-		sort.SliceStable(rows, func(i, j int) bool {
-			if desc {
-				return less(rows[j].env[field], rows[i].env[field])
-			}
-			return less(rows[i].env[field], rows[j].env[field])
-		})
-	}
-	if b.Source.Limit > 0 && len(rows) > b.Source.Limit {
-		rows = rows[:b.Source.Limit]
-	}
-	out := make([]map[string]any, 0, len(rows))
-	for _, r := range rows {
-		out = append(out, r.out)
-	}
-	return out, nil
 }

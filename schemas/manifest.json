@@ -223,14 +223,65 @@
       "properties": {
         "name": {"$ref": "#/$defs/name"},
         "title": {"type": "string", "minLength": 1},
+        "record": {"type": "string", "description": "Collection whose record the screen shows: a record page, opened with the record id."},
         "blocks": {"type": "array", "items": {"$ref": "#/$defs/block"}}
       }
     },
     "block": {
       "type": "object",
+      "additionalProperties": false,
       "required": ["type"],
-      "properties": {"type": {"type": "string"}},
-      "description": "A block of the screen catalog; the catalog schema checks each type."
+      "description": "A block of the screen; its type is a component of the screen catalog (schemas/catalog.json).",
+      "properties": {
+        "type": {"type": "string"},
+        "title": {"type": "string"},
+        "source": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "from": {"enum": ["collection", "asks", "processes", "unattended"], "description": "What the block reads; collection by default."},
+            "project": {"type": "string", "description": "Another project the manifest reads."},
+            "collection": {"type": "string"},
+            "where": {"type": "string", "description": "Expression over the fields of an item; on a record page record is the record."},
+            "sort": {"type": "string", "description": "Field, with - for descending."},
+            "limit": {"type": "integer", "minimum": 1}
+          }
+        },
+        "columns": {"type": "array", "items": {"$ref": "#/$defs/bind"}, "description": "table: its columns."},
+        "fields": {"type": "array", "items": {"$ref": "#/$defs/bind"}, "description": "card: fields of the record of the page."},
+        "item": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["title"],
+          "description": "list: expressions of each line.",
+          "properties": {"title": {"type": "string"}, "text": {"type": "string"}, "meta": {"type": "string"}}
+        },
+        "value": {"type": "string", "description": "stat: expression over rows, the items of the source, such as len(rows) or sum(rows, .amount)."},
+        "actions": {"type": "array", "items": {"$ref": "#/$defs/action"}},
+        "blocks": {"type": "array", "items": {"$ref": "#/$defs/block"}, "description": "columns: blocks side by side."},
+        "tabs": {"type": "array", "items": {
+          "type": "object", "additionalProperties": false, "required": ["title", "blocks"],
+          "properties": {"title": {"type": "string", "minLength": 1}, "blocks": {"type": "array", "items": {"$ref": "#/$defs/block"}}}
+        }}
+      }
+    },
+    "bind": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label", "bind"],
+      "properties": {"label": {"type": "string"}, "bind": {"type": "string", "description": "Expression over the fields of an item."}}
+    },
+    "action": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label"],
+      "description": "A button: command calls a command of the project, screen opens a screen of the project; params take $record.<field>.",
+      "properties": {
+        "label": {"type": "string", "minLength": 1},
+        "command": {"type": "string"},
+        "screen": {"type": "string"},
+        "params": {"type": "object", "additionalProperties": {"type": "string"}}
+      }
     }
   }
 }

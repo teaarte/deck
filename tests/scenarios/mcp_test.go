@@ -83,6 +83,9 @@ func TestMCPServerToolsFollowClassesAndFilter(t *testing.T) {
 	if c := got["srv__fake__send"]; !strings.Contains(c.out, `"waiting"`) || len(fakeLog(dir)) != 1 {
 		t.Fatalf("a tool without a class is external and waits for the owner: %+v", c)
 	}
+	if items := e.cockpitItems(); len(items) != 1 || items[0].Text != "server fake, tool send" {
+		t.Fatalf("the confirmation names the server and the tool: %+v", items)
+	}
 	e.answer(e.waitAsk().ID, "allow")
 	e.waitState(id, "done")
 	if !slices.Equal(fakeLog(dir), []string{"lookup:moon", "send:ann"}) {

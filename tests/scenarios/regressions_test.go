@@ -112,10 +112,10 @@ func TestScreenSortsNumbersAndResolvesRowParams(t *testing.T) {
 		"records": jsonl(map[string]any{"id": 1, "name": "nine", "score": 9}, map[string]any{"id": 2, "name": "hundred", "score": 100},
 			map[string]any{"id": 3, "name": "twenty", "score": 20})}, nil)
 	rows := e.screenRows(p, "main")
-	if len(rows) != 1 || rows[0]["c0"] != "hundred" {
+	if len(rows) != 1 || rows[0].Cells[0] != "hundred" {
 		t.Fatalf("descending numeric sort must put 100 first, got %v", rows)
 	}
-	params, _ := rows[0]["a0"].(map[string]any)
+	params, _ := rows[0].Actions[0]["params"].(map[string]any)
 	if params["name"] != "hundred" || params["why"] != "best" || params["item"] == nil {
 		t.Fatalf("row action params must be resolved from the record, got %v", rows[0])
 	}

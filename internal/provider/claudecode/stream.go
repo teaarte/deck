@@ -32,9 +32,15 @@ type line struct {
 	} `json:"usage"`
 	Message *struct {
 		Content []struct {
-			Type string `json:"type"`
-			Text string `json:"text"`
-			Name string `json:"name"`
+			Type      string          `json:"type"`
+			Text      string          `json:"text"`
+			Thinking  string          `json:"thinking"`
+			ID        string          `json:"id"`
+			Name      string          `json:"name"`
+			Input     json.RawMessage `json:"input"`
+			ToolUseID string          `json:"tool_use_id"`
+			Content   json.RawMessage `json:"content"`
+			IsError   bool            `json:"is_error"`
 		} `json:"content"`
 	} `json:"message"`
 	RateLimitInfo *struct {
@@ -87,9 +93,20 @@ func (t *turn) line(raw []byte) {
 		for _, c := range l.Message.Content {
 			switch c.Type {
 			case "text":
-				emit(provider.Event{Kind: "text", Text: c.Text})
+				emit(provider.Event{Kind: provider.EventMessage, Text: c.Text})
+			case "thinking":
+				emit(provider.Event{Kind: provider.EventThought, Text: c.Thinking})
 			case "tool_use":
-				emit(provider.Event{Kind: "tool", Text: c.Name})
+				emit(provider.Event{Kind: provider.EventTool, ID: c.ID, Title: c.Name, Text: string(c.Input)})
+			}
+		}
+	case "user":
+		if l.Message == nil {
+			return
+		}
+		for _, c := range l.Message.Content {
+			if c.Type == "tool_result" {
+				emit(provider.Event{Kind: provider.EventToolUpdate, ID: c.ToolUseID, Status: provider.ToolStatus(!c.IsError), Text: resultText(c.Content)})
 			}
 		}
 	case "rate_limit_event":
@@ -100,7 +117,7 @@ func (t *turn) line(raw []byte) {
 			t.res.RateLimited = true
 			t.res.ResetsAt = l.RateLimitInfo.ResetsAt
 		}
-		emit(provider.Event{Kind: "rate_limit", Text: l.RateLimitInfo.Status})
+		emit(provider.Event{Kind: provider.EventRateLimit, Text: l.RateLimitInfo.Status})
 	case "result":
 		t.results++
 		if t.results > 1 {
@@ -164,4 +181,24 @@ func (t *turn) finish(waitErr error, stderr string, promptErr error) (provider.R
 	}
 	res.NeedsLogin = res.IsError && t.authFailed
 	return res, nil
+}
+
+// resultText is the text of a tool result: a string, or the text parts of a list of blocks.
+func resultText(raw json.RawMessage) string {
+	var s string
+	if json.Unmarshal(raw, &s) == nil {
+		return s
+	}
+	var parts []struct {
+		Type string `json:"type"`
+		Text string `json:"text"`
+	}
+	_ = json.Unmarshal(raw, &parts)
+	var out []string
+	for _, p := range parts {
+		if p.Type == "text" {
+			out = append(out, p.Text)
+		}
+	}
+	return strings.Join(out, "\n")
 }

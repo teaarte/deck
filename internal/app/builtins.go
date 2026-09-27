@@ -206,7 +206,15 @@ func (a *App) addBuiltins() {
 		registry.Params(), registry.Typed(a.asksList))
 	add("health_list", "Health", "Lists the health of providers and other dependencies with the last error.", ownerSide,
 		registry.Params(), registry.Typed(a.healthList))
-	add("ask_answer", "Answer", "Answers what waits for the owner: a question with text; a confirmation with allow, allow_always, deny or deny:<reason>; a login with retry or new_session; an unknown outcome with retry or done; a stopped pause with continue.", ownerOnly,
-		registry.Params(registry.P("ask", "ask", "Ask id"), registry.P("answer", "text", "The answer")),
+	add("ask_answer", "Answer", "Answers what waits for the owner: a question with text; a confirmation with allow, allow_always, deny or deny:<reason>; a login with retry or new_session; an unknown outcome with retry or done; a stopped pause with continue. Deny on an expired confirmation clears it.", ownerOnly,
+		registry.Params(registry.P("ask", "ask", "Ask id"), registry.P("answer", "text", "The answer"),
+			registry.Opt("reason", "text", "Why not, sent with deny to the agent")),
 		registry.Typed(a.askAnswer))
+	add("menu", "Menu", "Lists the screens to navigate: deck's own, then each project's menu.", ownerSide,
+		registry.Params(), registry.Typed(a.menu))
+	add("screen", "Screen", "Resolves a stored screen with its data into A2UI messages; with a topic, only the data of the blocks it changes.", ownerSide,
+		registry.Params(registry.Opt("project", "project", "Project name; deck's own screens without one"),
+			registry.P("screen", "string", "Screen name"), registry.Opt("record", "integer", "Record id of a record page"),
+			registry.Opt("topic", "string", "Event topic that changed")),
+		registry.Typed(a.screenGet))
 }

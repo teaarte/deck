@@ -82,7 +82,7 @@ func (a *App) startCheck(name string, force bool) bool {
 	}
 	h, _ := a.Store.Q.GetHealth(ctx, subject)
 	if force || v != h.Version || h.Status == "error" || h.Status == "checking" {
-		a.writeCheck(ctx, subject, "checking", "self-check of "+v+" is running", "")
+		a.writeCheck(ctx, subject, "checking", "self-check of "+v+" is running", "", "", 0)
 	}
 	a.bg.Add(1)
 	go func() {
@@ -93,7 +93,7 @@ func (a *App) startCheck(name string, force bool) bool {
 		if res.Version == "" {
 			res.Version = v
 		}
-		status, text := "ok", ""
+		status, text, verdict := "ok", "", ""
 		switch {
 		case ctx.Err() != nil:
 			status, text = "checking", "deck stopped during the self-check"
@@ -102,9 +102,9 @@ func (a *App) startCheck(name string, force bool) bool {
 		case res.NeedsLogin:
 			status, text = "needs_login", "the self-check found no valid login; "+errText(res.Err)
 		case res.Err != nil && res.ModelFailed:
-			status, text = "error", fmt.Sprintf("the model does not manage the self-check of %s: %s; pick a stronger or faster model", res.Version, res.Err)
+			status, text, verdict = "error", fmt.Sprintf("the model does not manage the self-check of %s: %s; pick a stronger or faster model", res.Version, res.Err), "model"
 		case res.Err != nil:
-			status, text = "error", fmt.Sprintf("self-check of %s failed: %s", res.Version, res.Err)
+			status, text, verdict = "error", fmt.Sprintf("self-check of %s failed: %s", res.Version, res.Err), "adapter"
 		}
 		if res.Speed > 0 {
 			text = strings.TrimPrefix(text+fmt.Sprintf("; the model answered at %.0f tokens/s", res.Speed), "; ")
@@ -123,7 +123,7 @@ func (a *App) startCheck(name string, force bool) bool {
 			return
 		}
 		a.checkMu.Unlock()
-		a.writeCheck(context.WithoutCancel(ctx), subject, status, text, version)
+		a.writeCheck(context.WithoutCancel(ctx), subject, status, text, version, verdict, res.Speed)
 		a.checkMu.Lock()
 		c.running = false
 		if status != "ok" {
@@ -137,9 +137,15 @@ func (a *App) startCheck(name string, force bool) bool {
 	return true
 }
 
-func (a *App) writeCheck(ctx context.Context, subject, status, text, version string) {
+func (a *App) writeCheck(ctx context.Context, subject, status, text, version, verdict string, speed float64) {
 	err := a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		if err := q.SetHealth(ctx, db.SetHealthParams{Subject: subject, Status: status, Error: text}); err != nil {
+			return err
+		}
+		if status == "checking" {
+			return nil
+		}
+		if err := q.SetHealthCheck(ctx, db.SetHealthCheckParams{Verdict: verdict, Speed: speed, Subject: subject}); err != nil {
 			return err
 		}
 		if version == "" {

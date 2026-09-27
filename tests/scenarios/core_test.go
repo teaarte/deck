@@ -71,7 +71,7 @@ func TestCommandWritesRecordsAndScreenShowsThem(t *testing.T) {
 		t.Fatalf("unexpected result %+v", got)
 	}
 	rows := e.screenRows(p, "main")
-	if len(rows) != 2 || rows[0]["c0"] != "gamma" || rows[1]["c0"] != "alpha" {
+	if len(rows) != 2 || rows[0].Cells[0] != "gamma" || rows[1].Cells[0] != "alpha" {
 		t.Fatalf("want gamma, alpha filtered and sorted, got %v", rows)
 	}
 	e.run(p, "collect")

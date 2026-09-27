@@ -4,6 +4,8 @@ import (
 	"context"
 	"deck2/internal/ask"
 	"deck2/internal/registry"
+	"deck2/internal/store"
+	"deck2/internal/store/db"
 	"encoding/json"
 	"errors"
 	"slices"
@@ -17,8 +19,12 @@ func (a *App) asksList(ctx context.Context, act registry.Actor, _ struct{}) (any
 	}
 	out := make([]map[string]any, 0, len(as))
 	for _, q := range as {
-		out = append(out, map[string]any{"id": q.ID, "process": q.ProcessID.Int64, "project": q.ProjectID, "kind": q.Kind, "text": q.Text,
-			"payload": json.RawMessage(q.Payload), "created_at": q.CreatedAt})
+		row := map[string]any{"id": q.ID, "process": q.ProcessID.Int64, "project": q.ProjectID, "kind": q.Kind, "text": q.Text,
+			"payload": json.RawMessage(q.Payload), "created_at": q.CreatedAt}
+		if q.ExpiresAt.Valid {
+			row["expires_at"] = q.ExpiresAt.String
+		}
+		out = append(out, row)
 	}
 	return out, nil
 }
@@ -26,13 +32,26 @@ func (a *App) asksList(ctx context.Context, act registry.Actor, _ struct{}) (any
 func (a *App) askAnswer(ctx context.Context, act registry.Actor, in struct {
 	Ask    int64
 	Answer string
+	Reason string
 }) (any, error) {
+	if in.Reason = strings.TrimSpace(in.Reason); in.Reason != "" && in.Answer == "deny" {
+		in.Answer = "deny:" + in.Reason
+	}
 	if ws, err := a.Store.Q.GetAskWorkspace(ctx, in.Ask); err != nil || ws != act.Workspace {
 		return nil, registry.NotFound("deck: no ask %d", in.Ask)
 	}
 	q, err := a.Store.Q.GetAsk(ctx, in.Ask)
 	if err != nil {
 		return nil, err
+	}
+	if q.State == "open" && q.ExpiresAt.Valid && q.ExpiresAt.String <= store.Time(a.Cfg.Now()) {
+		a.expireConfirms(ctx, a.Cfg.Now())
+		if q, err = a.Store.Q.GetAsk(ctx, in.Ask); err != nil {
+			return nil, err
+		}
+	}
+	if q.State == "expired" && (q.Kind == ask.KindCall || q.Kind == ask.KindConfirm) {
+		return a.dismissExpired(ctx, q, in.Answer)
 	}
 	if q.Kind == ask.KindLogin && !slices.Contains(ask.LoginAnswers, in.Answer) {
 		return nil, registry.Invalid("deck: answer a login ask with %s", strings.Join(ask.LoginAnswers, " or "))
@@ -87,6 +106,12 @@ func (a *App) healthList(ctx context.Context, act registry.Actor, _ struct{}) (a
 		if h.Version != "" {
 			r["version"] = h.Version
 		}
+		if h.Verdict != "" {
+			r["verdict"] = h.Verdict
+		}
+		if h.Speed > 0 {
+			r["speed"] = h.Speed
+		}
 		out = append(out, r)
 		if w := worst[project]; scoped && w != nil && rank[h.Status] > rank[w["status"].(string)] {
 			w["status"], w["error"], w["updated_at"] = h.Status, h.Subject+": "+h.Error, h.UpdatedAt
@@ -96,4 +121,20 @@ func (a *App) healthList(ctx context.Context, act registry.Actor, _ struct{}) (a
 		out = append(out, worst[p.Name])
 	}
 	return out, nil
+}
+
+// dismissExpired clears an expired confirmation on deny; the agent was already told it expired.
+func (a *App) dismissExpired(ctx context.Context, q db.Ask, answer string) (any, error) {
+	if answer != "deny" && !strings.HasPrefix(answer, "deny:") {
+		return nil, &registry.Error{Status: 409, Text: "deck: this confirmation expired and the agent was told no; it can only be cleared"}
+	}
+	err := a.Store.Tx(ctx, func(ctx context.Context, tq *db.Queries) error {
+		_, err := tq.DismissExpiredAsk(ctx, q.ID)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	a.Bus.Publish("asks")
+	return map[string]any{"ok": true}, nil
 }

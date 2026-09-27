@@ -79,6 +79,9 @@ func (a *Adapter) Name() string { return a.cfg.Name }
 
 func (a *Adapter) Caps() provider.Caps { return a.agent.caps(a.cfg.NoCloud) }
 
+// AgentName is the ACP agent the provider starts.
+func (a *Adapter) AgentName() string { return a.cfg.Agent }
+
 // Endpoint is the model API and the model the agent runs on.
 func (a *Adapter) Endpoint() (string, string) { return a.cfg.URL, a.cfg.Model }
 

@@ -9,12 +9,10 @@ import (
 	"io"
 	"io/fs"
 	"net/http"
-	"strconv"
 	"strings"
 
 	"deck2/internal/app"
 	"deck2/internal/registry"
-	"deck2/internal/screen"
 	"deck2/internal/store"
 )
 
@@ -35,7 +33,6 @@ func (s *Server) Handler() http.Handler {
 	api := http.NewServeMux()
 	api.HandleFunc("GET /api/commands", s.listCommands)
 	api.HandleFunc("POST /api/commands/{name}", s.invoke)
-	api.HandleFunc("GET /api/projects/{id}/screens/{name}", s.ownerOnly(s.getScreen))
 	api.HandleFunc("GET /api/events", s.ownerOnly(s.events))
 	api.HandleFunc("POST /api/files", s.upload)
 	mux.Handle("/api/", s.auth(api))
@@ -137,30 +134,6 @@ func (s *Server) upload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	send(w, out)
-}
-
-func (s *Server) getScreen(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
-	if err != nil {
-		http.Error(w, "bad project id", http.StatusBadRequest)
-		return
-	}
-	p, err := s.app.Store.Q.GetProject(r.Context(), id)
-	if err != nil || p.WorkspaceID != owner.Workspace {
-		http.Error(w, "no such project", http.StatusNotFound)
-		return
-	}
-	m, err := s.app.Manifest(r.Context(), id)
-	if err != nil {
-		fail(w, err)
-		return
-	}
-	msgs, err := screen.Render(r.Context(), s.app.Store, id, p.Name, m, r.PathValue("name"))
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
-		return
-	}
-	send(w, msgs)
 }
 
 func (s *Server) events(w http.ResponseWriter, r *http.Request) {

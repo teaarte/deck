@@ -8,49 +8,18 @@ import {
 } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
 import catalogSchema from '../../schemas/catalog.json';
-import { Board, type BoardValue } from './board';
-import type { CustomValue } from './custom';
+import { Board } from './board';
 import { Form, type FormValue } from './form';
+import type { Action, BoardValue, CardValue, CustomValue, Data } from './catalog.gen';
 
 const Custom = lazy(() => import('./custom').then((m) => ({ default: m.Custom })));
 
 export const CATALOG_ID = catalogSchema.catalogId;
 export const UNKNOWN = 'deck.unknown';
 
-export interface Action {
-  label?: string;
-  verb?: string;
-  primary?: boolean;
-  command?: string;
-  params?: Record<string, unknown>;
-  input?: string;
-  until?: string;
-  project?: string;
-  screen?: string;
-  record?: number;
-}
-
-interface Question {
-  question: string;
-  multiSelect?: boolean;
-  options?: { label: string; description?: string }[];
-}
-
-interface Filter {
-  field: string;
-  value?: string;
-  options: string[];
-}
-
-interface Data {
-  state: 'ready' | 'empty' | 'error';
-  error?: string;
-  filters?: Filter[];
-  rows?: { id: unknown; cells: unknown[]; actions?: Action[] }[];
-  items?: { id: unknown; title: string; text?: string; meta?: string; details?: string; questions?: Question[]; actions?: Action[] }[];
-  value?: unknown;
-  lines?: { at: string; kind: string; id?: string; title?: string; status?: string; text?: string }[];
-}
+export type { Action };
+type Question = NonNullable<NonNullable<Data['items']>[number]['questions']>[number];
+type Filter = NonNullable<Data['filters']>[number];
 
 // outcomes holds whether the call behind each pressed button went through, by the ticket the button sent.
 export const outcomes = new Map<string, boolean>();
@@ -319,7 +288,7 @@ const impls: ReactComponentImplementation[] = [
     return (
       <Block title={p.title} data={p.data}>
         {(d) => {
-          const v = (d.value ?? {}) as { fields?: { label: string; value: unknown }[]; actions?: Action[] };
+          const v = (d.value ?? {}) as Partial<CardValue>;
           return (
             <Stack gap="xs">
               {(v.fields ?? []).map((f) => (

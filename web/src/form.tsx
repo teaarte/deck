@@ -6,6 +6,7 @@ import { notifications } from '@mantine/notifications';
 import { useTranslation } from 'react-i18next';
 import { call, upload } from './api';
 import { sharedFiles, sharedSent } from './share';
+import type { FormValue as Generated } from './catalog.gen';
 
 export interface Schema {
   type?: string | string[];
@@ -18,25 +19,8 @@ export interface Schema {
   title?: string;
 }
 
-export interface FormCommand {
-  name: string;
-  title: string;
-  description?: string;
-  project?: string;
-  input?: Schema;
-  // order lists the input fields as the schema writes them.
-  order?: string[];
-  result?: Schema;
-}
-
-export interface FormValue {
-  project?: string;
-  commands: FormCommand[];
-  values?: Record<string, unknown>;
-  readonly?: string[];
-  record?: number;
-  save?: string;
-}
+type FormCommand = Omit<Generated['commands'][number], 'input' | 'result'> & { input?: Schema; result?: Schema };
+export type FormValue = Omit<Generated, 'commands'> & { commands: FormCommand[] };
 
 const EDIT = 'deck.record_update';
 const FINAL = ['done', 'error', 'interrupted', 'stopped'];

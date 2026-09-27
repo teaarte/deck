@@ -170,7 +170,7 @@
         "deleted": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["id", "title"], "properties": {"id": {"type": "integer"}, "title": {"type": "string"}}}}}},
       "form": {"type": "object", "additionalProperties": false, "required": ["project", "commands"], "properties": {
         "project": {"type": "string"},
-        "commands": {"type": ["array", "null"], "items": {"type": "object", "additionalProperties": false, "required": ["name", "title", "input", "order"], "properties": {
+        "commands": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["name", "title", "input", "order"], "properties": {
           "name": {"type": "string"}, "title": {"type": "string"}, "description": {"type": "string"}, "project": {"type": "string"},
           "input": {"type": "object"}, "order": {"type": ["array", "null"], "items": {"type": "string"}}, "result": {}}}},
         "values": {"type": "object"}, "readonly": {"type": "array", "items": {"type": "string"}}, "record": {"type": "integer"}, "save": {"type": "string"}}},

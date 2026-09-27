@@ -4,14 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { AppBridge, PostMessageTransport } from '@modelcontextprotocol/ext-apps/app-bridge';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { call } from './api';
-import type { Action } from './catalog';
-
-export interface CustomValue {
-  html: string;
-  items?: unknown[];
-  record?: unknown;
-  actions?: (Action & { class?: string })[];
-}
+import type { CustomValue } from './catalog.gen';
 
 type CustomButton = NonNullable<CustomValue['actions']>[number];
 

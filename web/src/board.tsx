@@ -6,20 +6,9 @@ import { Anchor, Badge, Button, Collapse, Group, Modal, Paper, ScrollArea, Stack
 import { notifications } from '@mantine/notifications';
 import { useTranslation } from 'react-i18next';
 import { call } from './api';
+import type { BoardValue } from './catalog.gen';
 
-export interface BoardCard {
-  id: number;
-  title: string;
-  text?: string;
-  waits?: number[];
-  record?: number;
-}
-
-export interface BoardValue {
-  project: string;
-  lanes: { name: string; title: string; role?: string; cards: BoardCard[] }[];
-  deleted?: { id: number; title: string }[];
-}
+type BoardCard = BoardValue['lanes'][number]['cards'][number];
 
 type Order = Record<string, number[]>;
 

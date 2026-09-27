@@ -11,7 +11,7 @@ import (
 // takes the schema of its collection, its values and the fields that do not change.
 func (r *renderer) form(b manifest.Block) (map[string]any, error) {
 	v := map[string]any{"project": r.req.Project.Name}
-	var cmds []map[string]any
+	cmds := []map[string]any{}
 	switch {
 	case b.Command == manifest.RecordUpdate:
 		c, err := r.src.Command(r.ctx, r.scope.Workspace, manifest.RecordUpdate)

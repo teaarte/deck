@@ -5,10 +5,12 @@ Protocol facts about Claude Code: `docs/spikes/claude-code.md`. Stage 1 plan: `d
 
 ## Commands
 
-- Build: `go build -o deck ./cmd/deck`
+- Build: `go build -o deck ./cmd/deck`; web client: `cd web && npm ci && npm run build` (type check + `web/dist`)
 - Run: `DECK_HOME=/tmp/deckhome ./deck` (prints the URL with the access token)
 - Tests: `go test -race ./...`
 - Real Claude Code end-to-end test: `DECK_REAL_CLI=1 go test ./tests/scenarios -run TestRealClaudeCode -v`
+- Web client in a real browser (Playwright MCP; checks that `web/dist` is fresh):
+  `DECK_REAL_BROWSER=1 go test ./tests/scenarios -run TestRealBrowser -v` (`DECK_SCREENSHOTS=<dir>` keeps screenshots)
 - Scenario tests on Linux (bubblewrap sandbox, needs docker): `DECK_LINUX=1 go test ./tests/linux -v`
 - Regenerate SQL code after editing `internal/store/queries/*.sql` (one file per area) or migrations: `sqlc generate`
 
@@ -28,10 +30,13 @@ Protocol facts about Claude Code: `docs/spikes/claude-code.md`. Stage 1 plan: `d
 - `internal/script` — runs project scripts in the sandbox; package environments per project (`uv`, `npm`)
 - `internal/trigger` — cron scheduler with catch-up after sleep
 - `internal/screen` — stored screens resolved into A2UI messages
-- `internal/api` — HTTP API (`GET /api/commands`, `POST /api/commands/{name}`, screens) and SSE;
-  `web/static` — embedded client
+- `internal/api` — HTTP API (`GET /api/commands`, `POST /api/commands/{name}`, files) and SSE; screens are the
+  `deck.screen` command
+- `web` — client: Vite + React + Mantine v9 + `@a2ui/react` (protocol v0.9, `/v0_9` imports); `web/dist` is the
+  embedded build — rebuild and commit it with the sources
 - `internal/lint` — code rules checked by `tests/lint` (comments, requirement refs, vertical names)
-- `schemas` — contracts embedded in the binary: manifest JSON Schema, App Intents parameter rules
+- `schemas` — contracts embedded in the binary: manifest JSON Schema, screen block catalog (`catalog.json`, read by
+  the server and the client), App Intents parameter rules
 - `tests/scenarios` — scenario tests through the real gateway with a fake provider
 
 ## Rules

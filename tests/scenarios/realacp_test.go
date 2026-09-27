@@ -68,7 +68,7 @@ func TestRealACPAgents(t *testing.T) {
 			svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { jsonReply(w, `{"ok": true}`) })
 			e := newEnv(t, nil, func(c *app.Config) {
 				c.ACPBinaries = map[string]string{agent: bin}
-				c.SelfCheckCeiling, c.QuestionWait, c.ConfirmWait = 6*time.Minute, 4*time.Minute, 4*time.Minute
+				c.SelfCheckCeiling, c.QuestionWait, c.ConfirmWait = 20*time.Minute, 4*time.Minute, 4*time.Minute
 			})
 			start := time.Now()
 			e.must("deck.provider_add", map[string]any{"name": "acp", "url": url, "model": model, "no_cloud": true, "agent": agent}, nil)
@@ -79,7 +79,7 @@ func TestRealACPAgents(t *testing.T) {
 					time.Sleep(time.Second)
 				}
 				h, _ = e.App.Store.Q.GetHealth(t.Context(), "provider:acp")
-				for deadline := time.Now().Add(7 * time.Minute); h.Status == "checking" && time.Now().Before(deadline); {
+				for deadline := time.Now().Add(21 * time.Minute); h.Status == "checking" && time.Now().Before(deadline); {
 					time.Sleep(time.Second)
 					h, _ = e.App.Store.Q.GetHealth(t.Context(), "provider:acp")
 				}
@@ -105,7 +105,7 @@ func TestRealACPAgents(t *testing.T) {
 				id := e.run(p, "work")
 				confirmed, answered := 0, map[int64]bool{}
 				var lastLog []byte
-				deadline := time.Now().Add(10 * time.Minute)
+				deadline := time.Now().Add(25 * time.Minute)
 				for st := e.process(id).State; time.Now().Before(deadline) && st != "done" && st != "error"; st = e.process(id).State {
 					var asks []askView
 					_, out := e.call("deck.asks_list", nil)

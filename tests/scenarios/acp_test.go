@@ -266,8 +266,8 @@ func TestACPRecordedTurnsOfBothAgents(t *testing.T) {
 	}
 }
 
-// TestACPSelfCheckIsRedWhenTheSandboxOrTheProxyFails: the probes deck reads itself turn the self-check red when the
-// hidden file leaks, the network is open, no tokens come through the proxy or the question does not come back.
+// TestACPSelfCheckIsRedWhenTheSandboxOrTheProxyFails: the probes deck reads itself turn the self-check red, told
+// apart as a broken adapter (leak, open network, no tokens) or a model that did not do the steps.
 func TestACPSelfCheckIsRedWhenTheSandboxOrTheProxyFails(t *testing.T) {
 	read := func(name string) string {
 		b, err := os.ReadFile(filepath.Join("testdata/acp", name))
@@ -277,23 +277,25 @@ func TestACPSelfCheckIsRedWhenTheSandboxOrTheProxyFails(t *testing.T) {
 		return string(b)
 	}
 	first, second, third := read("selfcheck_1.jsonl"), read("selfcheck_2.jsonl"), read("selfcheck_3.jsonl")
+	adapter, model := "self-check of dsh", "the model does not manage"
 	for _, tc := range []struct {
-		streams []string
-		want    string
+		streams       []string
+		want, verdict string
 	}{
-		{[]string{strings.Replace(first, `{"shell": "sh probe.sh"}`, `{"shell": "echo 0 > probe.code"}`, 1)}, "read a file deck hides"},
-		{[]string{strings.Replace(first, `{"shell": "sh probe.sh"}`+"\n", "", 1)}, "did not run"},
-		{[]string{strings.Replace(first, acpModel+"\n", "", 1)}, "token counts"},
-		{[]string{strings.Replace(first, `{"mcp": {"tool": "ask", "arguments": {"question": "Which answer should the result carry?"}}}`+"\n", "", 1)}, "question"},
-		{[]string{first, second, strings.Replace(third, `{"shell": "sh net.sh"}`, `{"shell": "echo 200 > net.out"}`, 1)}, "no network"},
+		{[]string{strings.Replace(first, `{"shell": "sh probe.sh"}`, `{"shell": "echo 0 > probe.code"}`, 1)}, "read a file deck hides", adapter},
+		{[]string{strings.Replace(first, `{"shell": "sh probe.sh"}`+"\n", "", 1)}, "did not run", model},
+		{[]string{strings.Replace(first, acpModel+"\n", "", 1)}, "token counts", adapter},
+		{[]string{strings.Replace(first, `{"mcp": {"tool": "ask", "arguments": {"question": "Which answer should the result carry?"}}}`+"\n", "", 1)}, "question", model},
+		{[]string{first, second, strings.Replace(third, `{"shell": "sh net.sh"}`, `{"shell": "echo 200 > net.out"}`, 1)}, "no network", adapter},
+		{[]string{first, second, strings.Replace(third, `{"shell": "sh net.sh"}`+"\n", "", 1)}, "no network", model},
 	} {
 		f := newACP(t)
 		for i, s := range tc.streams {
 			f.streamText(i+1, s)
 		}
 		e, h := acpAdded(t, f, "dsh", acpLLM(t))
-		if h.Status != "error" || !strings.Contains(h.Error, tc.want) {
-			t.Fatalf("the self-check is red with %q: %+v", tc.want, h)
+		if h.Status != "error" || !strings.Contains(h.Error, tc.want) || !strings.HasPrefix(h.Error, tc.verdict) {
+			t.Fatalf("the self-check is red with %q, told as %q: %+v", tc.want, tc.verdict, h)
 		}
 		f.streamText(0, acpStream(acpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,
 			`{"mcp": {"tool": "result_submit", "arguments": {"result": {"color": "blue"}}}}`, `{"end": "end_turn"}`))

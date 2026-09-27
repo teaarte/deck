@@ -117,6 +117,10 @@ type Check struct {
 	Err         error
 	RateLimited bool
 	NeedsLogin  bool
+	// ModelFailed is set when Err is the model not doing the steps of the check, not a fault of the adapter.
+	ModelFailed bool
+	// Speed is the output tokens per second of the model over the check, zero when not measured.
+	Speed float64
 }
 
 // SelfChecker is a provider whose adapter deck checks at start and when the version of its program changes.

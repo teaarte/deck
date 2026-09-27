@@ -186,8 +186,8 @@ func acpEnv(t *testing.T, f *fakeACP, agent string, llm *fakeLLM, cfg ...func(*a
 	t.Helper()
 	f.selfCheck()
 	e, h := acpAdded(t, f, agent, llm, cfg...)
-	if h.Status != "ok" {
-		t.Fatalf("the self-check of the fake agent is green: %+v %s", h, f.call(1).violation)
+	if h.Status != "ok" || !strings.Contains(h.Error, "tokens/s") {
+		t.Fatalf("the self-check of the fake agent is green and tells the speed of the model: %+v %s", h, f.call(1).violation)
 	}
 	return e
 }

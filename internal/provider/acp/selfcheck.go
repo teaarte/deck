@@ -13,6 +13,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -107,8 +108,7 @@ func (s *checkServer) take() (json.RawMessage, int) {
 
 // SelfCheck runs a short session as deck runs agents: a write in its folder, a hidden file its shell cannot read,
 // ask, result_submit, token counts, a resume, then a turn whose curl has no network. deck reads the probes itself.
-func (a *Adapter) SelfCheck(ctx context.Context) provider.Check {
-	var c provider.Check
+func (a *Adapter) SelfCheck(ctx context.Context) (c provider.Check) {
 	if c.Version, c.Err = a.Version(ctx); c.Err != nil {
 		return c
 	}
@@ -144,8 +144,17 @@ func (a *Adapter) SelfCheck(ctx context.Context) provider.Check {
 		c.Err = err
 		return c
 	}
-	var tokens int64
+	var tokens, output int64
+	var spent time.Duration
 	var mu sync.Mutex
+	model := func(err error) { c.Err, c.ModelFailed = err, true }
+	defer func() {
+		mu.Lock()
+		if spent > 0 {
+			c.Speed = float64(output) / spent.Seconds()
+		}
+		mu.Unlock()
+	}()
 	sessions := []string{uuid.NewString(), uuid.NewString()}
 	defer func() {
 		for _, s := range sessions {
@@ -156,6 +165,8 @@ func (a *Adapter) SelfCheck(ctx context.Context) provider.Check {
 		OnUsage: func(u provider.Usage) {
 			mu.Lock()
 			tokens += u.Input + u.Output + u.CacheRead
+			output += u.Output
+			spent += u.Duration
 			mu.Unlock()
 		},
 		Prompt: "This is a self-check of deck. Do these steps in order, one at a time.\n1. Run exactly this shell command once: echo " + word + " > " + filepath.Join(work, "word.txt") +
@@ -176,6 +187,8 @@ func (a *Adapter) SelfCheck(ctx context.Context) provider.Check {
 		counted := tokens
 		mu.Unlock()
 		switch {
+		case err != nil && ctx.Err() != nil:
+			model(fmt.Errorf("%s: the model did not finish within the ceiling: %w", what, err))
 		case err != nil:
 			c.Err = fmt.Errorf("%s: %w", what, err)
 		case res.NeedsLogin || res.IsError:
@@ -183,7 +196,7 @@ func (a *Adapter) SelfCheck(ctx context.Context) provider.Check {
 		case strings.Contains(string(raw)+res.Text, secret):
 			c.Err = fmt.Errorf("%s: the agent read a file deck hides", what)
 		case raw == nil:
-			c.Err = fmt.Errorf("%s: no result came in with result_submit", what)
+			model(fmt.Errorf("%s: no result came in with result_submit", what))
 		case counted == 0:
 			c.Err = fmt.Errorf("%s: token counts: the model API reported no usage through deck's proxy", what)
 		}
@@ -198,15 +211,15 @@ func (a *Adapter) SelfCheck(ctx context.Context) provider.Check {
 	read, _ := os.ReadFile(filepath.Join(work, "probe.out"))
 	switch {
 	case strings.TrimSpace(string(written)) != word:
-		c.Err = fmt.Errorf("auto mode: the write in its own folder did not run (word.txt: %q)", string(written))
+		model(fmt.Errorf("auto mode: the write in its own folder did not run (word.txt: %q)", string(written)))
 	case codeErr != nil:
-		c.Err = errors.New("secrets: the probe that reads a hidden file did not run")
+		model(errors.New("secrets: the probe that reads a hidden file did not run"))
 	case strings.TrimSpace(string(code)) == "0" || strings.Contains(string(read), secret):
 		c.Err = fmt.Errorf("secrets: the shell of %s read a file deck hides", a.cfg.Agent)
 	case asked == 0 || o.Answer != answer:
-		c.Err = fmt.Errorf("question: the answer through the ask tool did not reach the result (%+v)", o)
+		model(fmt.Errorf("question: the answer through the ask tool did not reach the result (%+v)", o))
 	case o.Word != word:
-		c.Err = fmt.Errorf("result_submit: the result was %+v, want the word %s", o, word)
+		model(fmt.Errorf("result_submit: the result was %+v, want the word %s", o, word))
 	}
 	if c.Err != nil {
 		return c
@@ -217,7 +230,7 @@ func (a *Adapter) SelfCheck(ctx context.Context) provider.Check {
 		return c
 	}
 	if o.Word != word || o.Answer != answer {
-		c.Err = fmt.Errorf("resume: the result was %+v, want the word %s and the answer %s", o, word, answer)
+		model(fmt.Errorf("resume: the result was %+v, want the word %s and the answer %s", o, word, answer))
 		return c
 	}
 	off := provider.Request{Cwd: work, SessionID: sessions[1], MCPURL: req.MCPURL, NoNetwork: true, OnUsage: req.OnUsage,
@@ -226,8 +239,11 @@ func (a *Adapter) SelfCheck(ctx context.Context) provider.Check {
 	if _, _, ok = step("no network", off); !ok {
 		return c
 	}
-	if got, err := os.ReadFile(filepath.Join(work, "net.out")); err != nil || strings.TrimSpace(string(got)) != "000" {
-		c.Err = fmt.Errorf("no network: curl in the sandbox of deck printed %q (%v), want 000", string(got), err)
+	switch got, err := os.ReadFile(filepath.Join(work, "net.out")); {
+	case err != nil:
+		model(fmt.Errorf("no network: the probe that runs curl did not run: %v", err))
+	case strings.TrimSpace(string(got)) != "000":
+		c.Err = fmt.Errorf("no network: curl in the sandbox of deck printed %q, want 000", string(got))
 	}
 	return c
 }

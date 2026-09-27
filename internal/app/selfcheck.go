@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"deck2/internal/process"
@@ -100,8 +101,13 @@ func (a *App) startCheck(name string, force bool) bool {
 			status, text = "paused", "the self-check hit the usage limit; "+errText(res.Err)
 		case res.NeedsLogin:
 			status, text = "needs_login", "the self-check found no valid login; "+errText(res.Err)
+		case res.Err != nil && res.ModelFailed:
+			status, text = "error", fmt.Sprintf("the model does not manage the self-check of %s: %s; pick a stronger or faster model", res.Version, res.Err)
 		case res.Err != nil:
 			status, text = "error", fmt.Sprintf("self-check of %s failed: %s", res.Version, res.Err)
+		}
+		if res.Speed > 0 {
+			text = strings.TrimPrefix(text+fmt.Sprintf("; the model answered at %.0f tokens/s", res.Speed), "; ")
 		}
 		version := res.Version
 		if status != "ok" && status != "error" {

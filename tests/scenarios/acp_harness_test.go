@@ -170,14 +170,15 @@ func (c acpCall) request(method string) json.RawMessage {
 	return nil
 }
 
-// fakeDirSandbox is the sandbox of this machine that also lets the fake agent write its records.
+// fakeDirSandbox is the sandbox of this machine that also lets the fake agent, the test binary, run and write its records.
 type fakeDirSandbox struct {
 	sandbox.Sandbox
 	dir string
 }
 
 func (s fakeDirSandbox) Command(ctx context.Context, p sandbox.Policy) (*exec.Cmd, error) {
-	p.Write = append(p.Write, s.dir)
+	self, _ := os.Executable()
+	p.Write, p.Read = append(p.Write, s.dir), append(p.Read, self)
 	return s.Sandbox.Command(ctx, p)
 }
 
@@ -187,7 +188,7 @@ func acpEnv(t *testing.T, f *fakeACP, agent string, llm *fakeLLM, cfg ...func(*a
 	f.selfCheck()
 	e, h := acpAdded(t, f, agent, llm, cfg...)
 	if h.Status != "ok" || !strings.Contains(h.Error, "tokens/s") {
-		t.Fatalf("the self-check of the fake agent is green and tells the speed of the model: %+v %s", h, f.call(1).violation)
+		t.Fatalf("the self-check of the fake agent is green and tells the speed of the model: %+v, %d calls", h, f.calls())
 	}
 	return e
 }

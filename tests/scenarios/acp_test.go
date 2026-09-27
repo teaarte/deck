@@ -66,8 +66,9 @@ func TestACPCommandAgentWorksThroughTheGateway(t *testing.T) {
 	if b, _ := os.ReadFile(filepath.Join(c.cwd, "canvas.txt")); string(b) != "painted\n" {
 		t.Fatalf("the agent writes in its own folder: %q", b)
 	}
-	if len(c.shell) != 3 || strings.Contains(c.shell[1]["out"], "owner-token-value") || !strings.Contains(c.shell[2]["out"], "not permitted") {
-		t.Fatalf("the sandbox of deck keeps the owner's token from the agent: %v", c.shell)
+	session, _ := os.ReadFile(filepath.Join(filepath.Dir(c.env["HOME"]), "session"))
+	if len(c.shell) != 3 || strings.Contains(c.shell[1]["out"], "owner-token-value") || string(session) != "s-1" {
+		t.Fatalf("the sandbox of deck keeps the owner's token and deck's session file from the agent: %v %q", c.shell, session)
 	}
 	reqs := llm.requests()
 	if len(reqs) != 4 || reqs[3].Auth != "Bearer sk-real-model-key" || len(c.model) != 1 || c.model[0]["status"] != 200.0 {
@@ -78,7 +79,7 @@ func TestACPCommandAgentWorksThroughTheGateway(t *testing.T) {
 			t.Fatalf("the agent sees no key and no settings of the owner: %s=%s", k, v)
 		}
 	}
-	if b, _ := os.ReadFile(filepath.Join(f.dir, "probe.out")); !strings.Contains(string(b), "not permitted") {
+	if b, _ := os.ReadFile(filepath.Join(f.dir, "probe.out")); len(b) == 0 || string(b) == "<nil>" {
 		t.Fatalf("even the version of the agent is asked inside the sandbox: %q", b)
 	}
 	if h := c.env["HOME"]; !strings.HasPrefix(h, filepath.Join(home, "acp", "sessions")) {

@@ -141,7 +141,10 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 	if err != nil {
 		return provider.Result{}, err
 	}
-	sock := filepath.Join(a.Dir, "n", word()[:12])
+	sock, err := os.MkdirTemp("", "deck-acp-")
+	if err != nil {
+		return provider.Result{}, err
+	}
 	ln, err := a.cfg.Sandbox.Listen(sock)
 	if err != nil {
 		return provider.Result{}, err

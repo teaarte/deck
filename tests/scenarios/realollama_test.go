@@ -31,7 +31,7 @@ func TestRealOllamaAgentTurn(t *testing.T) {
 	}
 	model := os.Getenv("DECK_OLLAMA_MODEL")
 	if model == "" {
-		model = "qwen3:latest"
+		model = "laguna-xs-2.1:nvfp4"
 	}
 	e := newEnv(t, nil)
 	e.must("deck.provider_add", map[string]any{"name": "ollama", "url": base + "/v1", "model": model, "no_cloud": true}, nil)

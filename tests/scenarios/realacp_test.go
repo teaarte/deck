@@ -15,24 +15,12 @@ import (
 	"deck2/internal/store/db"
 )
 
-// realACP gives the installed ACP agents by name and the local Ollama they run on; dsh may come from DECK_ACP_DSH.
+// realACP gives the installed ACP agents by name and the model they run on: a local Ollama, or the API of
+// DECK_ACP_URL with DECK_ACP_MODEL and the key in DECK_ACP_KEY; dsh may come from DECK_ACP_DSH.
 func realACP(t *testing.T) (map[string]string, string, string) {
 	t.Helper()
 	if os.Getenv("DECK_REAL_ACP") != "1" {
 		t.Skip("set DECK_REAL_ACP=1 to run the installed ACP agents on a local Ollama")
-	}
-	base := os.Getenv("DECK_OLLAMA_URL")
-	if base == "" {
-		base = "http://localhost:11434"
-	}
-	if resp, err := (&http.Client{Timeout: 3 * time.Second}).Get(base + "/api/tags"); err != nil {
-		t.Skipf("Ollama is not running at %s: %v", base, err)
-	} else {
-		resp.Body.Close()
-	}
-	model := os.Getenv("DECK_OLLAMA_MODEL")
-	if model == "" {
-		model = "qwen3:latest"
 	}
 	bins := map[string]string{}
 	for _, name := range []string{"opencode", "dsh"} {
@@ -45,6 +33,22 @@ func realACP(t *testing.T) (map[string]string, string, string) {
 	}
 	if len(bins) == 0 {
 		t.Skip("no ACP agent is installed")
+	}
+	if u := os.Getenv("DECK_ACP_URL"); u != "" {
+		return bins, u, os.Getenv("DECK_ACP_MODEL")
+	}
+	base := os.Getenv("DECK_OLLAMA_URL")
+	if base == "" {
+		base = "http://localhost:11434"
+	}
+	if resp, err := (&http.Client{Timeout: 3 * time.Second}).Get(base + "/api/tags"); err != nil {
+		t.Skipf("Ollama is not running at %s: %v", base, err)
+	} else {
+		resp.Body.Close()
+	}
+	model := os.Getenv("DECK_OLLAMA_MODEL")
+	if model == "" {
+		model = "laguna-xs-2.1:nvfp4"
 	}
 	return bins, base + "/v1", model
 }
@@ -71,7 +75,12 @@ func TestRealACPAgents(t *testing.T) {
 				c.SelfCheckCeiling, c.QuestionWait, c.ConfirmWait = 20*time.Minute, 4*time.Minute, 4*time.Minute
 			})
 			start := time.Now()
-			e.must("deck.provider_add", map[string]any{"name": "acp", "url": url, "model": model, "no_cloud": true, "agent": agent}, nil)
+			add := map[string]any{"name": "acp", "url": url, "model": model, "no_cloud": true, "agent": agent}
+			if key := os.Getenv("DECK_ACP_KEY"); key != "" {
+				e.must("deck.secret_set", map[string]any{"name": "model_key", "value": key}, nil)
+				add["key_secret"], add["no_cloud"] = "model_key", false
+			}
+			e.must("deck.provider_add", add, nil)
 			var h db.Health
 			for try := 1; try <= 3; try++ {
 				if try > 1 {

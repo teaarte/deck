@@ -3,6 +3,7 @@ package scenarios
 import (
 	"context"
 	"encoding/json"
+	"net/http"
 	"strings"
 	"testing"
 
@@ -68,5 +69,22 @@ func TestScriptRunsOnlyFromAScriptDocument(t *testing.T) {
 	e.must("deck.document_save", map[string]any{"project": "kinds", "name": "scripts/main.py", "kind": "doc", "text": "print('{}')\n"}, nil)
 	if code, out := e.call("kinds.run", map[string]any{}); code != 422 || !strings.Contains(string(out), "not a script document") {
 		t.Fatalf("a script file stored as another kind does not run: %d %s", code, out)
+	}
+}
+
+// TestTrialOfAToolIsRefusedAndNothingLeavesDeck: a tool is the call itself, so it has no trial run.
+func TestTrialOfAToolIsRefusedAndNothingLeavesDeck(t *testing.T) {
+	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { jsonReply(w, `{"ok": true}`) })
+	e := newEnv(t, nil)
+	e.must("deck.secret_set", map[string]any{"name": "svc", "value": "s3cret"}, nil)
+	e.createProject("notes", postManifest(svc.URL, ""))
+	_, tok := e.token("terminal", "deck.command_try")
+	for _, call := range []func() (int, []byte){
+		func() (int, []byte) { return e.call("deck.command_try", map[string]any{"command": "notes.post", "input": `{"id": "a", "text": "hi"}`}) },
+		func() (int, []byte) { return e.callWith(tok, "deck.command_try", map[string]any{"command": "notes.work"}) },
+	} {
+		if code, out := call(); code < 400 || len(svc.requests()) != 0 {
+			t.Fatalf("a trial of a tool, or of a command the token may not call, is refused: %d %s, %d calls", code, out, len(svc.requests()))
+		}
 	}
 }

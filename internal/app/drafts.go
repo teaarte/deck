@@ -217,18 +217,17 @@ func rights(m *manifest.Manifest) []string {
 
 // commandTry starts a trial run of a project command: every call that is not internal is declined.
 func (a *App) commandTry(ctx context.Context, act registry.Actor, in struct{ Command, Input string }) (any, error) {
-	c, err := a.Registry.Lookup(ctx, act.Workspace, in.Command)
-	if err != nil {
+	c, input, err := a.Registry.Resolve(ctx, act, in.Command, json.RawMessage(in.Input))
+	switch {
+	case err != nil:
 		return nil, err
-	}
-	if c.ProjectID == 0 {
+	case c.ProjectID == 0:
 		return nil, registry.Invalid("deck: only project commands have trial runs")
+	case c.Fingerprint != nil:
+		return nil, registry.Invalid("deck: %s is a tool, the call itself; only commands have trial runs", c.Name)
 	}
-	input, err := c.Validate(json.RawMessage(in.Input))
-	if err != nil {
-		return nil, err
-	}
-	return c.Handler(ctx, registry.Actor{Kind: act.Kind, Workspace: act.Workspace, Token: act.Token, Trial: true}, input)
+	act.Trial = true
+	return c.Handler(ctx, act, input)
 }
 
 func orText(s, fallback string) string {

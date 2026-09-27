@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/json"
 
+	"deck2/internal/manifest"
 	"deck2/internal/registry"
-	"deck2/schemas"
 )
 
 var (
@@ -55,7 +55,7 @@ func (a *App) addBuiltins() {
 		registry.Params(projectOpt), registry.Typed(a.manifestGet))
 	add("manifest_format", "Manifest format", "Returns the JSON Schema of project manifests.", everyone,
 		registry.Params(), registry.Typed(func(context.Context, registry.Actor, struct{}) (any, error) {
-			return json.RawMessage(schemas.Manifest), nil
+			return json.RawMessage(manifest.Format), nil
 		}))
 	add("manifest_save", "Save manifest", "Validates a manifest and stores it as a new revision.", ownerSide,
 		registry.Params(registry.P("project", "project", "Project name"), registry.P("manifest", "text", "Manifest JSON"),

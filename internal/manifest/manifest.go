@@ -12,8 +12,6 @@ import (
 	"github.com/expr-lang/expr/vm"
 	"github.com/robfig/cron/v3"
 	"github.com/santhosh-tekuri/jsonschema/v6"
-
-	"deck2/schemas"
 )
 
 const FormatVersion = 5
@@ -223,12 +221,16 @@ type Action struct {
 
 var CronParser = cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor)
 
-var formatSchema = func() *jsonschema.Schema {
-	s, err := compileSchema("deck-manifest", schemas.Manifest)
+var formatSchema, screenSchema = func() (*jsonschema.Schema, *jsonschema.Schema) {
+	doc, err := jsonschema.UnmarshalJSON(bytes.NewReader(Format))
 	if err != nil {
 		panic(err)
 	}
-	return s
+	c := jsonschema.NewCompiler()
+	if err := c.AddResource("mem://deck-manifest.json", doc); err != nil {
+		panic(err)
+	}
+	return c.MustCompile("mem://deck-manifest.json"), c.MustCompile("mem://deck-manifest.json#/$defs/screen")
 }()
 
 // Parse upgrades an older format, checks the manifest schema, then references, expressions and schemas.

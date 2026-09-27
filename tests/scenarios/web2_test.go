@@ -429,23 +429,25 @@ func TestNewBlocksAreRefusedWithTheirReason(t *testing.T) {
 	e := newEnv(t, nil)
 	e.createProject("web", boardWebManifest)
 	for _, tc := range []struct{ from, to, want string }{
-		{`{"type": "board", "title": "Work"}`, `{"type": "board", "source": {"collection": "notes"}}`, "takes no source"},
+		{`{"type": "board", "title": "Work"}`, `{"type": "board", "source": {"collection": "notes"}}`, "additional properties 'source' not allowed"},
 		{`"board": {"lanes": [
     {"name": "backlog", "title": "Backlog", "role": "inbox"},
     {"name": "doing", "title": "Doing"},
     {"name": "done", "title": "Done", "role": "done"}]},`, ``, "the project has no board"},
-		{`"command": "score", "save": "notes"}`, `"save": "notes"}`, "a form has a command or reads commands"},
+		{`"command": "score", "save": "notes"}`, `"save": "notes"}`, "missing property 'command'"},
 		{`"command": "score", "save": "notes"}`, `"command": "launch"}`, `unknown command "launch"`},
 		{`"command": "score", "save": "notes"}`, `"command": "deck.record_update"}`, "edits the record of its page"},
 		{`"command": "score", "save": "notes"}`, `"command": "score", "save": "papers"}`, `save: unknown collection "papers"`},
 		{`"items": {"type": "object", "properties": {"title": {"type": "string"}, "score": {"type": "integer"}}}}`, `"items": {"type": "string"}}`, "cannot be kept as records"},
-		{`"command": "score", "save": "notes"}`, `"command": "score", "actions": [{"label": "x", "command": "touch"}]}`, "takes no actions"},
-		{`"command": "score", "save": "notes"}`, `"source": {"collection": "notes"}}`, "picks its command from the commands source"},
-		{`"document": "custom/chart.html", `, ``, "needs document"},
+		{`"command": "score", "save": "notes"}`, `"command": "score", "actions": [{"label": "x", "command": "touch"}]}`, "additional properties 'actions' not allowed"},
+		{`"command": "score", "save": "notes"}`, `"source": {"collection": "notes"}}`, "missing property 'from'"},
+		{`"document": "custom/chart.html", `, ``, "missing property 'document'"},
 		{`"filter": ["source"]`, `"filter": ["origin"]`, `filter: unknown field "origin"`},
-		{`{"label": "Mark", "command": "mark"}`, `{"label": "Go", "screen": "main"}`, "the buttons of a custom block call commands"},
-		{`{"type": "board", "title": "Work"}`, `{"type": "stat", "source": {"collection": "notes"}, "filter": ["title"]}`, "only tables and lists take filter"},
-		{`{"type": "board", "title": "Work"}`, `{"type": "list", "source": {"from": "projects"}, "item": {"title": "name"}}`, "value must be one of"},
+		{`{"label": "Mark", "command": "mark"}`, `{"label": "Go", "screen": "main"}`, "/actions/0': missing property 'command'"},
+		{`{"type": "board", "title": "Work"}`, `{"type": "stat", "source": {"collection": "notes"}, "filter": ["title"]}`, "additional properties 'filter' not allowed"},
+		{`{"type": "board", "title": "Work"}`, `{"type": "list", "source": {"from": "projects"}, "item": {"title": "name"}}`, "projects is read only by deck screens"},
+		{`{"type": "board", "title": "Work"}`, `{"type": "list", "source": {"from": "nowhere"}, "item": {"title": "name"}}`, "value must be one of 'collection'"},
+		{`{"type": "board", "title": "Work"}`, `{"type": "stat", "source": {"collection": "notes"}, "item": {"title": "title"}}`, "additional properties 'item' not allowed"},
 	} {
 		if !strings.Contains(boardWebManifest, tc.from) {
 			t.Fatalf("fixture lacks %s", tc.from)

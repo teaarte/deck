@@ -255,14 +255,14 @@ func TestInvalidScreenIsRefusedWithItsReason(t *testing.T) {
 	e.createProject("notes", good)
 	for _, tc := range []struct{ from, to, want string }{
 		{`{"type": "stat", "title": "Notes", "source": {"collection": "notes"}}`, `{"type": "hologram"}`,
-			`unknown block type "hologram"; the catalog has actions, board, card, columns, custom, form, list, log, stat, table, tabs`},
+			`value must be one of 'actions', 'board', 'card', 'columns', 'custom', 'form', 'list', 'log', 'stat', 'table', 'tabs'`},
 		{`"value": "sum(rows, .score)"`, `"value": "sum(items, .score)"`, `value: unknown field "items"`},
 		{`{"type": "list", "title": "Waiting here", "source": {"from": "asks"}, "item": {"title": "what"}}`,
 			`{"type": "list", "source": {"from": "asks"}, "item": {"title": "whom"}}`, `unknown field "whom"`},
 		{`{"type": "list", "title": "Waiting here", "source": {"from": "asks"}, "item": {"title": "what"}}`,
-			`{"type": "log", "source": {"from": "log"}}`, `value must be one of`},
+			`{"type": "log", "source": {"from": "log"}}`, `source: log is read only by deck screens`},
 		{`{"type": "list", "title": "Waiting here", "source": {"from": "asks"}, "item": {"title": "what"}}`,
-			`{"type": "table", "source": {"from": "providers"}, "columns": [{"label": "N", "bind": "name"}]}`, `value must be one of`},
+			`{"type": "table", "source": {"from": "providers"}, "columns": [{"label": "N", "bind": "name"}]}`, `source: providers is read only by deck screens`},
 		{`{"type": "actions", "title": "Run", "actions": [{"label": "Work", "command": "work"}]}`,
 			`{"type": "card", "fields": [{"label": "T", "bind": "title"}]}`, `a card shows the record of its page`},
 		{`{"type": "actions", "title": "Run", "actions": [{"label": "Work", "command": "work"}]}`,
@@ -271,9 +271,9 @@ func TestInvalidScreenIsRefusedWithItsReason(t *testing.T) {
 		{`"where": "score > record.score"`, `"where": "score > rec.score"`, `unknown field "rec"`},
 		{`{"label": "Open", "screen": "note"}`, `{"label": "Open", "screen": "nowhere"}`, `unknown screen "nowhere"`},
 		{`{"label": "Open", "screen": "note"}`, `{"label": "Open"}`, `a button has a command or a screen`},
-		{`"item": {"title": "title", "meta": "'score ' + string(score)"}`, `"title": "x"`, `a list needs item`},
-		{`{"type": "tabs", "title": "Views", "tabs": [`, `{"type": "tabs", "blocks": [{"type": "stat", "source": {"collection": "notes"}}], "tabs": [`, `a tabs block holds its blocks in tabs`},
-		{`{"type": "columns", "blocks": [`, `{"type": "columns", "tabs": [{"title": "x", "blocks": []}], "blocks": [`, `a columns block holds its blocks in blocks`},
+		{`"item": {"title": "title", "meta": "'score ' + string(score)"}`, `"title": "x"`, `missing property 'item'`},
+		{`{"type": "tabs", "title": "Views", "tabs": [`, `{"type": "tabs", "blocks": [{"type": "stat", "source": {"collection": "notes"}}], "tabs": [`, `additional properties 'blocks' not allowed`},
+		{`{"type": "columns", "blocks": [`, `{"type": "columns", "tabs": [{"title": "x", "blocks": []}], "blocks": [`, `additional properties 'tabs' not allowed`},
 		{`"menu": ["main"]`, `"menu": ["main", "note"]`, `menu: screen "note" is a record page`},
 	} {
 		if !strings.Contains(good, tc.from) {

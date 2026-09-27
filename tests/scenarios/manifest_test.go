@@ -69,6 +69,9 @@ func TestFullManifestIsAccepted(t *testing.T) {
 	if schema["title"] != "deck project manifest" {
 		t.Fatalf("manifest_format must return the schema, got %v", schema["title"])
 	}
+	if b, _ := json.Marshal(schema["$defs"].(map[string]any)["block"]); !strings.Contains(string(b), `"required":["source","columns"]`) {
+		t.Fatalf("the model reads the form of each block of the catalog: %s", b)
+	}
 	var cmds []commandView
 	code, out := e.do("GET", "/api/commands", nil)
 	if code != 200 {

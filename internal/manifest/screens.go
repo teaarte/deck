@@ -1,6 +1,7 @@
 package manifest
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -8,26 +9,8 @@ import (
 	"slices"
 	"strings"
 
-	"deck2/schemas"
+	"github.com/santhosh-tekuri/jsonschema/v6"
 )
-
-// Blocks are the block types of the screen catalog.
-var Blocks = func() []string {
-	var c struct {
-		Components map[string]json.RawMessage `json:"components"`
-	}
-	if err := json.Unmarshal(schemas.Catalog, &c); err != nil {
-		panic(err)
-	}
-	var out []string
-	for name := range c.Components {
-		if name != "screen" {
-			out = append(out, name)
-		}
-	}
-	slices.Sort(out)
-	return out
-}()
 
 // SourceFields are the fields of an item of each source other than a collection.
 var SourceFields = map[string][]string{
@@ -52,12 +35,40 @@ const RecordUpdate = "deck.record_update"
 // DeckRecord is the record of a page among the screens deck ships: a process.
 const DeckRecord = "process"
 
-// CheckDeckScreens checks the screens deck ships: they read deck-wide sources and their buttons come from them.
-func CheckDeckScreens(screens []Screen) error {
+// DeckScreens parses the screens deck ships and checks them like a manifest's: they read deck-wide
+// sources and their buttons come from them.
+func DeckScreens(raw []byte) (menu []string, screens []Screen, err error) {
+	var d struct {
+		Menu    []string          `json:"menu"`
+		Screens []json.RawMessage `json:"screens"`
+	}
+	if err := json.Unmarshal(raw, &d); err != nil {
+		return nil, nil, err
+	}
 	var errs []error
-	m := &Manifest{Screens: screens, collections: map[string]*Collection{}, commands: map[string]*Command{}}
+	for _, s := range d.Screens {
+		doc, err := jsonschema.UnmarshalJSON(bytes.NewReader(s))
+		if err == nil {
+			err = screenSchema.Validate(doc)
+		}
+		var sc Screen
+		if err == nil {
+			err = json.Unmarshal(s, &sc)
+		}
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		screens = append(screens, sc)
+	}
+	m := &Manifest{Screens: screens, Menu: d.Menu, collections: map[string]*Collection{}, commands: map[string]*Command{}}
 	m.checkScreenList(true, func(format string, a ...any) { errs = append(errs, fmt.Errorf(format, a...)) })
-	return errors.Join(errs...)
+	for _, name := range d.Menu {
+		if m.Screen(name) == nil {
+			errs = append(errs, fmt.Errorf("menu: unknown screen %q", name))
+		}
+	}
+	return d.Menu, screens, errors.Join(errs...)
 }
 
 func (m *Manifest) checkScreens(fail func(string, ...any)) {
@@ -111,26 +122,9 @@ func (c *screenCheck) recordFields() []string {
 }
 
 func (c *screenCheck) block(where string, b Block) {
-	if !slices.Contains(Blocks, b.Type) {
-		c.fail("%s: unknown block type %q; the catalog has %s", where, b.Type, strings.Join(Blocks, ", "))
-		return
-	}
 	var fields []string
-	sourced := b.Source != nil
 	switch b.Type {
 	case "columns", "tabs":
-		inner := b.Blocks
-		for _, t := range b.Tabs {
-			inner = append(inner, t.Blocks...)
-		}
-		switch {
-		case b.Type == "columns" && (len(b.Blocks) == 0 || len(b.Tabs) > 0):
-			c.fail("%s: a columns block holds its blocks in blocks", where)
-		case b.Type == "tabs" && (len(b.Tabs) == 0 || len(b.Blocks) > 0):
-			c.fail("%s: a tabs block holds its blocks in tabs", where)
-		case len(inner) == 0:
-			c.fail("%s: a %s block needs blocks inside", where, b.Type)
-		}
 		for j, x := range b.Blocks {
 			c.block(fmt.Sprintf("%s block %d", where, j), x)
 		}
@@ -139,7 +133,6 @@ func (c *screenCheck) block(where string, b Block) {
 				c.block(fmt.Sprintf("%s tab %d block %d", where, j, k), x)
 			}
 		}
-		sourced = false
 	case "actions":
 		fields = c.recordFields()
 	case "card":
@@ -159,74 +152,43 @@ func (c *screenCheck) block(where string, b Block) {
 			c.fail("%s: a board shows the board of a project", where)
 		case c.m.Board == nil || len(c.m.Board.Lanes) == 0:
 			c.fail("%s: the project has no board", where)
-		case sourced:
-			c.fail("%s: a board reads the board of its project and takes no source", where)
 		}
 		return
 	case "form":
 		c.form(where, b)
 		return
 	case "custom":
-		if !strings.HasPrefix(b.Document, "custom/") {
-			c.fail("%s: a custom block needs document, a custom/ document with its HTML", where)
-		}
 		if b.Source != nil {
 			if _, ok := c.source(where, b.Type, *b.Source); !ok {
 				return
 			}
 		}
-		for _, a := range b.Actions {
-			if a.Screen != "" {
-				c.fail("%s action %q: the buttons of a custom block call commands", where, a.Label)
-			}
-		}
-		fields, sourced = c.recordFields(), false
+		fields = c.recordFields()
 	case "table", "list", "stat", "log":
-		if b.Source == nil {
-			c.fail("%s: a %s block needs a source", where, b.Type)
-			return
-		}
 		var ok bool
 		if fields, ok = c.source(where, b.Type, *b.Source); !ok {
 			return
 		}
-		sourced = false
-		switch b.Type {
-		case "table":
-			if len(b.Columns) == 0 {
-				c.fail("%s: a table needs columns", where)
+		for _, col := range b.Columns {
+			if _, err := compileField(col.Bind, fields); err != nil {
+				c.fail("%s column %q: %v", where, col.Label, err)
 			}
-			for _, col := range b.Columns {
-				if _, err := compileField(col.Bind, fields); err != nil {
-					c.fail("%s column %q: %v", where, col.Label, err)
-				}
-			}
-		case "list":
-			if b.Item == nil {
-				c.fail("%s: a list needs item", where)
-				break
-			}
+		}
+		if b.Item != nil {
 			for _, e := range []string{b.Item.Title, b.Item.Text, b.Item.Meta} {
 				if _, err := compileField(e, fields); e != "" && err != nil {
 					c.fail("%s item: %v", where, err)
 				}
 			}
-		case "stat":
-			if b.Value != "" {
-				if _, err := compileExpr(b.Value, []string{"rows"}); err != nil {
-					c.fail("%s value: %v", where, err)
-				}
+		}
+		if b.Value != "" {
+			if _, err := compileExpr(b.Value, []string{"rows"}); err != nil {
+				c.fail("%s value: %v", where, err)
 			}
 		}
 	}
-	if sourced {
-		c.fail("%s: a %s block has no source", where, b.Type)
-	}
 	for _, f := range b.Filter {
-		switch {
-		case b.Type != "table" && b.Type != "list":
-			c.fail("%s: only tables and lists take filter", where)
-		case fields != nil && !slices.Contains(fields, f):
+		if fields != nil && !slices.Contains(fields, f) {
 			c.fail("%s filter: unknown field %q", where, f)
 		}
 	}
@@ -240,14 +202,7 @@ func (c *screenCheck) block(where string, b Block) {
 // form checks a form: one command the owner may call, or a choice of them from the commands source.
 func (c *screenCheck) form(where string, b Block) {
 	switch {
-	case (b.Command == "") == (b.Source == nil):
-		c.fail("%s: a form has a command or reads commands to pick from", where)
-		return
 	case b.Source != nil:
-		if b.Source.From != "commands" {
-			c.fail("%s: a form picks its command from the commands source", where)
-			return
-		}
 		c.source(where, b.Type, *b.Source)
 	case b.Command == RecordUpdate:
 		if c.screen.Record == "" {
@@ -271,9 +226,6 @@ func (c *screenCheck) form(where string, b Block) {
 	}
 	if cmd := c.m.commands[b.Command]; b.Save != "" && cmd != nil && !recordShaped(cmd.Result) {
 		c.fail("%s save: the result of %q is not an object or a list of objects, so it cannot be kept as records", where, b.Command)
-	}
-	if len(b.Actions) > 0 {
-		c.fail("%s: a form is its own button and takes no actions", where)
 	}
 }
 
@@ -317,11 +269,7 @@ func (c *screenCheck) source(where, typ string, src Source) ([]string, bool) {
 			fields = append(slices.Clone(col.fields), "_id", "_updated")
 		}
 	default:
-		known, ok := SourceFields[from]
 		switch {
-		case !ok:
-			c.fail("%s source: unknown from %q", where, from)
-			return nil, false
 		case slices.Contains(deckSources, from) && !c.deck:
 			c.fail("%s source: %s is read only by deck screens", where, from)
 			return nil, false
@@ -332,7 +280,7 @@ func (c *screenCheck) source(where, typ string, src Source) ([]string, bool) {
 			c.fail("%s source: the log is read on a page of a process", where)
 			return nil, false
 		}
-		fields = slices.Clone(known)
+		fields = slices.Clone(SourceFields[from])
 	}
 	if fields != nil && c.screen.Record != "" {
 		fields = append(fields, "record")

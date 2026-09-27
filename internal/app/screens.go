@@ -27,13 +27,11 @@ var deckScreensJSON []byte
 
 // deckScreens are the screens deck ships: the cockpit, providers and the page of a process.
 var deckScreens = func() (d struct {
-	Menu    []string          `json:"menu"`
-	Screens []manifest.Screen `json:"screens"`
+	Menu    []string
+	Screens []manifest.Screen
 }) {
-	if err := json.Unmarshal(deckScreensJSON, &d); err != nil {
-		panic(err)
-	}
-	if err := manifest.CheckDeckScreens(d.Screens); err != nil {
+	var err error
+	if d.Menu, d.Screens, err = manifest.DeckScreens(deckScreensJSON); err != nil {
 		panic(err)
 	}
 	return d

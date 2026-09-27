@@ -167,7 +167,7 @@ A script reads its input JSON from stdin and prints its result JSON to stdout. I
 
 The prompt says what to do with the input and what the result means; facts and criteria live in md
 documents it reads, and a skill carries a reusable way of working. The agent reaches deck only through the
-deck MCP server. A provider with a shell (Claude Code) runs it in its auto mode: the agent works in its own
+deck MCP server. A provider with a shell (Claude Code, Codex, an ACP agent) runs it in its auto mode: the agent works in its own
 folder and in the project's data folder (the prompt names it; indexes, caches and state live there between
 runs), runs shell commands, and searches and fetches the web without asking; the provider itself refuses
 what looks risky and asks the owner only about that. Secrets, deck's own files and other projects stay closed
@@ -180,8 +180,9 @@ from deck.
 The owner picks the model provider of each agent command in settings (`provider_set`); the manifest only says
 what the command needs and suggests one. `requires` lists capabilities, and usually only two matter:
 `no_cloud` for personal data (finance, health) that must stay on the owner's hardware, and `sandbox` when the
-agent must run shell commands or write files (a provider in auto mode; an OpenAI-compatible model such as
-Ollama has only deck's tools). `web` decides only which provider may run the command: an agent on Claude Code has the web
+agent must run shell commands or write files (a provider in auto mode, or a model the owner runs in an ACP agent
+inside deck's sandbox; an OpenAI-compatible model without an agent has only deck's tools). The two go together:
+a local model in an ACP agent has a shell and stays on the owner's hardware. `web` decides only which provider may run the command: an agent on Claude Code has the web
 whether or not it is required. Require it when the agent's result is wrong without its own research (reading
 changelogs or news it cannot know in advance), so the owner cannot move it to a local model that has none;
 leave it out when a script brings the pages the agent judges, which is cheaper and keeps local models

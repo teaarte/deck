@@ -178,3 +178,11 @@ UPDATE process SET pause_limit_ms = sqlc.arg(limit_ms) WHERE id = sqlc.arg(id) A
 -- name: ListAgentsFinishedBefore :many
 SELECT id FROM process WHERE kind = 'agent' AND state IN ('done', 'error', 'stopped', 'interrupted')
   AND finished_at < CAST(sqlc.arg(before) AS TEXT);
+
+
+-- name: ListOpenProcesses :many
+SELECT * FROM process
+WHERE project_id IN (SELECT id FROM project WHERE workspace_id = sqlc.arg(workspace_id))
+  AND (sqlc.arg(project_id) = 0 OR project_id = sqlc.arg(project_id))
+  AND state NOT IN ('done', 'error', 'interrupted', 'stopped')
+ORDER BY id DESC;

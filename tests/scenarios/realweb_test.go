@@ -69,9 +69,21 @@ func TestRealBrowserWebClient(t *testing.T) {
 	b.eval(`[...W.querySelectorAll('[data-item]')[1].querySelectorAll('button')].find(x => x.innerText.includes('Show the whole call')).click(), ''`)
 	b.until("the frozen call", `W.querySelectorAll('[data-item]')[1].querySelector('pre')?.innerText.includes('"id": "n2"')`)
 
+	b.eval(`[...W.querySelectorAll('[data-item]')[1].querySelectorAll('button')].find(x => x.innerText === 'Deny because…').click(), ''`)
+	b.until("the reason field", `W.querySelectorAll('[data-item]')[1].querySelector('input')`)
+	b.eval(`(() => { const i = W.querySelectorAll('[data-item]')[1].querySelector('input');
+		Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(i, 'keep me');
+		i.dispatchEvent(new Event('input', { bubbles: true })); return '' })()`)
+	b.eval(`[...W.querySelectorAll('[data-item]')[1].querySelectorAll('button')].find(x => x.innerText === 'Send').click(), ''`)
+	b.until("the refusal of the reason", `document.body.innerText.includes('deck: refused by the test')`)
+	if got := b.eval(`W.querySelectorAll('[data-item]')[1].querySelector('input')?.value ?? ''`); got != "keep me" {
+		t.Fatalf("what the owner typed stays after a refusal: %q", got)
+	}
+	b.eval(`[...W.querySelectorAll('[data-item]')[1].querySelectorAll('button')].find(x => x.innerText === 'Cancel').click(), ''`)
+
 	full := front.full.Load()
 	b.eval(`(() => { const x = [...W.querySelectorAll('[data-item]')[1].querySelectorAll('button')].find(x => x.innerText === 'Allow'); x.click(); x.click(); return '' })()`)
-	b.until("the result notification", `document.body.innerText.includes('Done')`)
+	b.until("the result of the allowed call in a notification", `document.body.innerText.includes('"ok":true')`)
 	b.until("the allowed item to leave", `W.querySelectorAll('[data-item]').length === 2`)
 	if n, calls := front.answers.Load(), len(svc.requests()); n != 1 || calls != 1 {
 		t.Fatalf("a second press while the call runs sends nothing: %d answers, %d calls", n, calls)
@@ -89,8 +101,20 @@ func TestRealBrowserWebClient(t *testing.T) {
 	b.until("the answered question to leave", `W.querySelectorAll('[data-item]').length === 0`)
 	e.waitState(asking, "done")
 
+	front.slow.Store(true)
+	late := e.run(p, "work")
+	e.waitFor("the delayed read", func() bool { return front.delayed.Load() })
+	for _, it := range e.cockpitItems() {
+		e.must("deck.ask_answer", map[string]any{"ask": it.ID, "answer": "deny"}, nil)
+	}
+	e.waitState(late, "done", "error")
+	time.Sleep(3 * time.Second)
+	if n := b.eval(`String(W.querySelectorAll('[data-item]').length)`); n != "0" {
+		t.Fatalf("a late read does not bring back what a newer one cleared: %s items", n)
+	}
+
 	b.open(front.URL + "/#/p/notes/main")
-	b.until("the project screen", `document.body.innerText.includes('All notes')`)
+	b.until("the project screen with the title of its tabs", `document.body.innerText.includes('All notes') && document.body.innerText.includes('Views')`)
 	b.shot("project")
 	if got := b.eval(`document.querySelector('[data-block]').innerText`); !strings.Contains(got, "2") {
 		t.Fatalf("the stat counts the notes: %q", got)
@@ -174,9 +198,11 @@ func pastUntil(v any) {
 type frontServer struct {
 	*httptest.Server
 	full, topics, answers, refused atomic.Int32
-	mu                             sync.Mutex
-	down                           bool
-	streams                        []context.CancelFunc
+	// slow delays the next asks read by two seconds after deck answered it.
+	slow, delayed atomic.Bool
+	mu            sync.Mutex
+	down          bool
+	streams       []context.CancelFunc
 }
 
 // cut drops the live connections and refuses new ones until heal.
@@ -209,7 +235,13 @@ func newFront(t *testing.T, deck string) *frontServer {
 			return
 		case "/api/commands/deck.screen":
 		case "/api/commands/deck.ask_answer":
+			body, _ := io.ReadAll(r.Body)
+			if bytes.Contains(body, []byte(`"reason":"keep me"`)) {
+				http.Error(w, "deck: refused by the test", http.StatusConflict)
+				return
+			}
 			f.answers.Add(1)
+			r.Body = io.NopCloser(bytes.NewReader(body))
 			proxy.ServeHTTP(w, r)
 			return
 		case "/api/events":
@@ -232,6 +264,7 @@ func newFront(t *testing.T, deck string) *frontServer {
 		body, _ := io.ReadAll(r.Body)
 		var in struct{ Screen, Topic string }
 		_ = json.Unmarshal(body, &in)
+		hold := in.Topic == "asks" && f.slow.CompareAndSwap(true, false)
 		if in.Topic != "" {
 			f.topics.Add(1)
 		} else {
@@ -269,6 +302,10 @@ func newFront(t *testing.T, deck string) *frontServer {
 				uc["components"] = append(comps, map[string]any{"id": "alien", "component": "hologram", "depth": 3})
 			}
 			out, _ = json.Marshal(msgs)
+		}
+		if hold {
+			f.delayed.Store(true)
+			time.Sleep(2 * time.Second)
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(resp.StatusCode)

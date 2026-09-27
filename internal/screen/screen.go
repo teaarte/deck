@@ -48,6 +48,9 @@ var Topics = []string{"collection", "asks", "processes", "unattended", "health",
 // Render resolves a stored screen into A2UI messages: createSurface, updateComponents, updateDataModel.
 // Clients only draw components and send actions back.
 func Render(ctx context.Context, st *store.Store, src Sources, req Request) ([]map[string]any, error) {
+	if !slices.Contains(Topics, req.Topic) {
+		req.Topic = ""
+	}
 	r := &renderer{ctx: ctx, st: st, src: src, req: req, data: map[string]any{}}
 	r.scope = Scope{Workspace: req.Project.WorkspaceID, Project: req.Project.ID}
 	if req.Screen.Record != "" {
@@ -62,7 +65,7 @@ func Render(ctx context.Context, st *store.Store, src Sources, req Request) ([]m
 		root["title"] = req.Screen.Title + ": " + r.recordTitle
 	}
 	surface := r.surface()
-	if req.Topic != "" && slices.Contains(Topics, req.Topic) {
+	if req.Topic != "" {
 		out := []map[string]any{}
 		for _, id := range slices.Sorted(maps.Keys(r.data)) {
 			out = append(out, map[string]any{"version": Version,

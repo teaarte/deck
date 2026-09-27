@@ -74,6 +74,11 @@ func (c *client) SessionUpdate(_ context.Context, n sdk.SessionNotification) err
 		c.mu.Unlock()
 	case u.AgentThoughtChunk != nil && u.AgentThoughtChunk.Content.Text != nil:
 		c.mu.Lock()
+		if c.text.Len() > 0 {
+			c.mu.Unlock()
+			c.flush()
+			c.mu.Lock()
+		}
 		c.thought.WriteString(u.AgentThoughtChunk.Content.Text.Text)
 		c.mu.Unlock()
 	case u.ToolCall != nil:

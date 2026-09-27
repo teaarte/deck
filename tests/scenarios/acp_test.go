@@ -109,6 +109,7 @@ func acpStream(lines ...string) string { return strings.Join(lines, "\n") }
 func TestACPQuestionStopsTheTurnBeforeTheAgentTimesOutAndTheAnswerResumes(t *testing.T) {
 	f := newACP(t)
 	f.streamText(4, acpStream(acpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,
+		`{"update": {"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "Hi."}}}`,
 		`{"update": {"sessionUpdate": "agent_thought_chunk", "content": {"type": "text", "text": "Read "}}}`,
 		`{"update": {"sessionUpdate": "agent_thought_chunk", "content": {"type": "text", "text": "first."}}}`,
 		`{"update": {"sessionUpdate": "tool_call", "toolCallId": "c1", "title": "read", "kind": "read", "status": "pending"}}`,
@@ -132,9 +133,9 @@ func TestACPQuestionStopsTheTurnBeforeTheAgentTimesOutAndTheAnswerResumes(t *tes
 	for _, l := range lines {
 		kinds = append(kinds, fmt.Sprint(l["kind"]))
 	}
-	if !slices.Equal(kinds[:4], []string{"thought", "tool", "tool", "tool_update"}) || lines[0]["text"] != "Read first." ||
-		lines[1]["id"] != "c1" || lines[1]["title"] != "read" || lines[2]["text"] != `{"path":"a.txt"}` ||
-		lines[3]["id"] != "c1" || lines[3]["status"] != "completed" || lines[3]["text"] != `{"output":"text of a"}` {
+	if len(kinds) < 5 || !slices.Equal(kinds[:5], []string{"message", "thought", "tool", "tool", "tool_update"}) || lines[0]["text"] != "Hi." ||
+		lines[1]["text"] != "Read first." || lines[2]["id"] != "c1" || lines[2]["title"] != "read" || lines[3]["text"] != `{"path":"a.txt"}` ||
+		lines[4]["id"] != "c1" || lines[4]["status"] != "completed" || lines[4]["text"] != `{"output":"text of a"}` {
 		t.Fatalf("the log keeps the session updates of ACP: a thought whole, the call, its late input and its end: %v", lines)
 	}
 	if p := f.call(4).port; p != "bound true" {
@@ -235,6 +236,7 @@ func TestACPProjectWithoutNetworkHasNoWebThroughTheProxy(t *testing.T) {
 func TestACPSessionTheAgentLostStartsOver(t *testing.T) {
 	f := newACP(t)
 	f.streamText(4, acpStream(acpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,
+		`{"update": {"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "Hi."}}}`,
 		`{"update": {"sessionUpdate": "agent_thought_chunk", "content": {"type": "text", "text": "Read "}}}`,
 		`{"update": {"sessionUpdate": "agent_thought_chunk", "content": {"type": "text", "text": "first."}}}`,
 		`{"update": {"sessionUpdate": "tool_call", "toolCallId": "c1", "title": "read", "kind": "read", "status": "pending"}}`,

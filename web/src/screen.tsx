@@ -5,7 +5,7 @@ import { Alert, Loader } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { useTranslation } from 'react-i18next';
 import { call, events } from './api';
-import { catalog, known, setStale, UNKNOWN, type Action } from './catalog';
+import { catalog, known, outcomes, setStale, UNKNOWN, type Action } from './catalog';
 import i18n from './i18n';
 
 export const VERSION = 'v0.9';
@@ -35,17 +35,32 @@ function prepare(msgs: Message[]): Message[] {
   });
 }
 
+// summary is the line a command result shows as: a started process, a text, or its JSON cut short.
+function summary(out: unknown): string {
+  if (out && typeof out === 'object') {
+    const o = out as Record<string, unknown>;
+    if (typeof o.process === 'number') return i18n.t('started', { id: o.process });
+    const rest = Object.fromEntries(Object.entries(o).filter(([k]) => k !== 'ok'));
+    const shown = 'result' in rest ? rest.result : Object.keys(rest).length ? rest : undefined;
+    if (shown === undefined || shown === null) return i18n.t('done');
+    if (typeof shown === 'string') return shown;
+    const text = JSON.stringify(shown);
+    return text.length > 200 ? text.slice(0, 200) + '…' : text;
+  }
+  return typeof out === 'string' && out ? out : i18n.t('done');
+}
+
 async function act(a: A2uiClientAction) {
-  const c = a.context as Action;
+  const c = a.context as Action & { ticket?: string };
   if (a.name === 'open') {
     location.hash = href({ project: c.project || undefined, screen: c.screen!, record: c.record });
     return;
   }
   try {
-    const out = await call<Record<string, any>>(c.command!, c.params ?? {});
-    const text = out && typeof out === 'object' && 'process' in out ? i18n.t('started', { id: out.process }) : i18n.t('done');
-    notifications.show({ message: text, color: 'green' });
+    const out = await call(c.command!, c.params ?? {});
+    notifications.show({ message: summary(out), color: 'green' });
   } catch (e) {
+    if (c.ticket) outcomes.set(c.ticket, false);
     notifications.show({ title: c.label || i18n.t('verb.' + (c.verb ?? '')), message: (e as Error).message, color: 'red', autoClose: 10000 });
   }
 }
@@ -69,10 +84,13 @@ export function ScreenView({ route, onProjects }: { route: Route; onProjects: ()
         }
       }
     };
+    let generation = 0;
+    const seq: Record<string, number> = {};
     const load = async () => {
+      const mine = ++generation;
       try {
         const msgs = await call<Message[]>('deck.screen', input);
-        if (gone) return;
+        if (gone || mine !== generation) return;
         const p = new MessageProcessor<ReactComponentImplementation>([catalog], act);
         p.onSurfaceCreated((s) => setSurface(s));
         proc.current = p;
@@ -87,9 +105,11 @@ export function ScreenView({ route, onProjects }: { route: Route; onProjects: ()
     let timer: ReturnType<typeof setTimeout> | undefined;
     const reread = async (topic: string) => {
       if (!proc.current) return;
+      const mine = generation;
+      const n = (seq[topic] = (seq[topic] ?? 0) + 1);
       try {
         const msgs = await call<Message[]>('deck.screen', { ...input, topic });
-        if (!gone) feed(msgs);
+        if (!gone && mine === generation && n === seq[topic]) feed(msgs);
       } catch (e) {
         if (!gone) notifications.show({ message: (e as Error).message, color: 'red' });
       }

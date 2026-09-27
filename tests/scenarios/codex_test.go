@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -437,11 +438,23 @@ func TestCodexNetworkEscalationInAProjectWithoutNetworkIsDeclined(t *testing.T) 
 
 func TestCodexFileChangeConfirmationShowsTheChange(t *testing.T) {
 	c := newCodex(t)
-	c.stream(1, "filechange.jsonl")
+	raw, _ := os.ReadFile("testdata/codex/filechange.jsonl")
+	lines := strings.SplitAfter(string(raw), "\n")
+	ids := regexp.MustCompile(`"threadId": "[^"]+", "turnId": "[^"]+"`).FindString(lines[9])
+	dynamic := `{"method": "item/started", "params": {"item": {"type": "dynamicToolCall", "id": "dyn1", "tool": "lookup", "arguments": {"q": "moon"}, "status": "inProgress"}, ` + ids + `}}` + "\n" +
+		`{"method": "item/completed", "params": {"item": {"type": "dynamicToolCall", "id": "dyn1", "tool": "lookup", "arguments": {"q": "moon"}, "status": "failed"}, ` + ids + `}}` + "\n"
+	c.streamText(1, strings.Join(lines[:9], "")+dynamic+strings.Join(lines[9:], ""))
 	e, _ := codexEnv(t, c)
 	p := e.createProject("outside", outsideManifest)
 	id := e.run(p, "work")
 	a := e.waitAsk()
+	if l := e.log(id); !slices.ContainsFunc(l, func(x map[string]any) bool {
+		return x["kind"] == "tool" && x["id"] == "dyn1" && x["title"] == "lookup" && strings.Contains(fmt.Sprint(x["text"]), "moon")
+	}) || !slices.ContainsFunc(l, func(x map[string]any) bool {
+		return x["kind"] == "tool_update" && x["id"] == "dyn1" && x["status"] == "failed"
+	}) {
+		t.Fatalf("other tool items of Codex are tool calls in the log too: %v", l)
+	}
 	if a.Kind != "confirm" || !strings.Contains(a.Text, "apply_patch") || !strings.Contains(a.Text, "/Users/owner/notes.txt") {
 		t.Fatalf("the owner sees which file the patch changes: %+v", a)
 	}

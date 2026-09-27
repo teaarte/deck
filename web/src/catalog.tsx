@@ -40,6 +40,10 @@ interface Data {
   lines?: { at: string; kind: string; id?: string; title?: string; status?: string; text?: string }[];
 }
 
+// outcomes holds whether the call behind each pressed button went through, by the ticket the button sent.
+export const outcomes = new Map<string, boolean>();
+let tickets = 0;
+
 let stale = false;
 const staleSubs = new Set<() => void>();
 export function setStale(v: boolean) {
@@ -76,9 +80,14 @@ function ActionButton({ act, context, params }: { act: Action; context: Componen
     setBusy(true);
     try {
       const all = { ...act.params, ...params, ...extra };
-      await context.dispatchAction({ event: { name: act.screen ? 'open' : 'command', context: { ...act, params: all } } });
-      setTyping(false);
-      setText('');
+      const ticket = String(++tickets);
+      await context.dispatchAction({ event: { name: act.screen ? 'open' : 'command', context: { ...act, params: all, ticket } } });
+      const ok = outcomes.get(ticket) !== false;
+      outcomes.delete(ticket);
+      if (ok) {
+        setTyping(false);
+        setText('');
+      }
     } finally {
       running.current = false;
       setBusy(false);
@@ -210,15 +219,18 @@ const impls: ReactComponentImplementation[] = [
     );
   }),
   createComponentImplementation(api('tabs'), ({ props, buildChild }) => {
-    const p = props as { titles: string[]; children: unknown[] };
+    const p = props as { title?: string; titles: string[]; children: unknown[] };
     const ids = (p.children ?? []) as Children;
     return (
+      <Stack gap="xs">
+      {p.title && <Title order={4}>{p.title}</Title>}
       <Tabs defaultValue="0">
         <Tabs.List>{p.titles.map((title, i) => <Tabs.Tab key={i} value={String(i)}>{title}</Tabs.Tab>)}</Tabs.List>
         {ids.map((c, i) => (
           <Tabs.Panel key={i} value={String(i)} pt="sm">{typeof c === 'string' ? buildChild(c) : buildChild(c.id, c.basePath)}</Tabs.Panel>
         ))}
       </Tabs>
+      </Stack>
     );
   }),
   createComponentImplementation(api('table'), ({ props, context }) => {

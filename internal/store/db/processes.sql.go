@@ -403,6 +403,72 @@ func (q *Queries) ListCeilingReached(ctx context.Context, now int64) ([]int64, e
 	return items, nil
 }
 
+const listOpenProcesses = `-- name: ListOpenProcesses :many
+SELECT id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, kind, manifest_revision, trial, pause_until_ms, pause_limit_ms, wait_message, wait_fresh FROM process
+WHERE project_id IN (SELECT id FROM project WHERE workspace_id = ?1)
+  AND (?2 = 0 OR project_id = ?2)
+  AND state NOT IN ('done', 'error', 'interrupted', 'stopped')
+ORDER BY id DESC
+`
+
+type ListOpenProcessesParams struct {
+	WorkspaceID int64
+	ProjectID   interface{}
+}
+
+func (q *Queries) ListOpenProcesses(ctx context.Context, arg ListOpenProcessesParams) ([]Process, error) {
+	rows, err := q.db.QueryContext(ctx, listOpenProcesses, arg.WorkspaceID, arg.ProjectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Process
+	for rows.Next() {
+		var i Process
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProjectID,
+			&i.Command,
+			&i.State,
+			&i.Provider,
+			&i.SessionID,
+			&i.Input,
+			&i.Result,
+			&i.NotBySchema,
+			&i.Error,
+			&i.StartedAt,
+			&i.FinishedAt,
+			&i.StartNote,
+			&i.ParentID,
+			&i.Depth,
+			&i.TriggerID,
+			&i.RetryKey,
+			&i.Pgid,
+			&i.CeilingMs,
+			&i.DeadlineMs,
+			&i.OutputMs,
+			&i.SilentSinceMs,
+			&i.Kind,
+			&i.ManifestRevision,
+			&i.Trial,
+			&i.PauseUntilMs,
+			&i.PauseLimitMs,
+			&i.WaitMessage,
+			&i.WaitFresh,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listPausesDue = `-- name: ListPausesDue :many
 SELECT id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, kind, manifest_revision, trial, pause_until_ms, pause_limit_ms, wait_message, wait_fresh FROM process WHERE state = 'rate_limited' AND pause_until_ms <= CAST(?1 AS INTEGER) ORDER BY id
 `

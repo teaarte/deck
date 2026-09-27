@@ -26,6 +26,7 @@
       "additionalProperties": false,
       "required": ["titles", "children"],
       "properties": {
+        "title": {"type": "string"},
         "titles": {"type": "array", "items": {"type": "string"}},
         "children": {"$ref": "common_types.json#/$defs/ChildList"}
       }

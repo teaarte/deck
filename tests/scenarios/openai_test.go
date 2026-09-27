@@ -69,6 +69,19 @@ func TestAgentOnAnOpenAICompatibleProviderWorksThroughTheGateway(t *testing.T) {
 	if got := reqs[2].last("tool"); !strings.Contains(got, "does not match its schema") {
 		t.Fatalf("a result off the schema gets one request to rebuild: %s", got)
 	}
+	status := map[string]string{}
+	named := map[string]string{}
+	for _, l := range e.log(id) {
+		switch l["kind"] {
+		case "tool":
+			named[fmt.Sprint(l["id"])] = fmt.Sprint(l["title"])
+		case "tool_update":
+			status[named[fmt.Sprint(l["id"])]] += fmt.Sprint(l["status"]) + " "
+		}
+	}
+	if status["records_upsert"] != "completed " || !strings.HasPrefix(status["result_submit"], "failed ") {
+		t.Fatalf("the log tells a tool that worked from one that refused, by the tool and not by its text: %v", status)
+	}
 	a := e.waitAsk()
 	e.answer(a.ID, "deny:not now")
 	got := e.waitState(id, "done", "error")

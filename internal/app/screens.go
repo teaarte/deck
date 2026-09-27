@@ -19,6 +19,7 @@ import (
 	"deck2/internal/screen"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
+	"deck2/internal/untrusted"
 )
 
 //go:embed screens.json
@@ -186,10 +187,19 @@ func (s sources) processItems(ctx context.Context, sc screen.Scope, names map[in
 			ps = append(ps, p)
 		}
 	} else {
-		var err error
-		ps, err = s.a.Store.Q.ListProcessesFiltered(ctx, db.ListProcessesFilteredParams{WorkspaceID: sc.Workspace, ProjectID: sc.Project, State: "", Lim: 50})
+		open, err := s.a.Store.Q.ListOpenProcesses(ctx, db.ListOpenProcessesParams{WorkspaceID: sc.Workspace, ProjectID: sc.Project})
 		if err != nil {
 			return nil, err
+		}
+		recent, err := s.a.Store.Q.ListProcessesFiltered(ctx, db.ListProcessesFilteredParams{WorkspaceID: sc.Workspace, ProjectID: sc.Project, State: "", Lim: 50})
+		if err != nil {
+			return nil, err
+		}
+		ps = open
+		for _, p := range recent {
+			if !slices.ContainsFunc(open, func(o db.Process) bool { return o.ID == p.ID }) {
+				ps = append(ps, p)
+			}
 		}
 	}
 	out := make([]map[string]any, 0, len(ps))
@@ -320,6 +330,15 @@ func (a *App) askItem(ctx context.Context, q db.Ask, names map[int64]string) map
 		acts = append([]map[string]any{until(answer("allow", true, "allow"), q), until(answer("allow_always", false, "allow_always"), q)}, deny...)
 	case ask.KindConfirm, ask.KindGrant:
 		it["_details"] = pretty(q.Payload)
+		if q.Kind == ask.KindConfirm {
+			var pl struct {
+				Tool  string         `json:"tool"`
+				Input map[string]any `json:"input"`
+			}
+			if json.Unmarshal([]byte(q.Payload), &pl) == nil && pl.Tool != "" {
+				it["what"], it["where"] = pl.Tool, confirmTarget(pl.Input)
+			}
+		}
 		acts = append([]map[string]any{until(answer("allow", true, "allow"), q)}, deny...)
 	case ask.KindLogin:
 		acts = []map[string]any{answer("retry", true, ask.LoginRetry), answer("new_session", false, ask.LoginNewSession)}
@@ -390,4 +409,18 @@ func (a *App) callerName(ctx context.Context, c gateway.Caller) string {
 		return a.processName(ctx, c.Process)
 	}
 	return c.Kind
+}
+
+// confirmTarget is where a provider tool call goes: its URL, command or path, else its input.
+func confirmTarget(in map[string]any) string {
+	for _, k := range []string{"url", "command", "file_path", "path", "query"} {
+		if v, ok := in[k].(string); ok && v != "" {
+			return v
+		}
+	}
+	if len(in) == 0 {
+		return ""
+	}
+	b, _ := json.Marshal(in)
+	return untrusted.Cut(string(b), 300)
 }

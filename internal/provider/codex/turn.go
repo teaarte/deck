@@ -284,6 +284,22 @@ func (t *turn) toolStarted(raw ThreadItem) {
 		if decode(raw, &it) {
 			tool("web_search", it.Query)
 		}
+	case "dynamicToolCall", "collabAgentToolCall", "imageGeneration", "imageView":
+		var it struct {
+			Tool      string          `json:"tool"`
+			Arguments json.RawMessage `json:"arguments"`
+			Prompt    string          `json:"prompt"`
+			Path      string          `json:"path"`
+		}
+		_ = json.Unmarshal(raw, &it)
+		title, text := it.Tool, it.Prompt+it.Path
+		if title == "" {
+			title = head.Type
+		}
+		if len(it.Arguments) > 0 && string(it.Arguments) != "null" {
+			text = string(it.Arguments)
+		}
+		tool(title, text)
 	case "fileChange":
 		var it FileChangeThreadItem
 		if decode(raw, &it) {
@@ -345,6 +361,12 @@ func (t *turn) item(raw ThreadItem) {
 		if decode(raw, &it) {
 			done(it.Status == "completed", "")
 		}
+	case "dynamicToolCall", "collabAgentToolCall", "imageGeneration", "imageView":
+		var it struct {
+			Status string `json:"status"`
+		}
+		_ = json.Unmarshal(raw, &it)
+		done(it.Status == "" || it.Status == "completed", "")
 	}
 }
 

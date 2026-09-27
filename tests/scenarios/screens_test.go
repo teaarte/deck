@@ -39,7 +39,7 @@ func webManifest(url string) string {
       {"type": "columns", "blocks": [
         {"type": "stat", "title": "Notes", "source": {"collection": "notes"}},
         {"type": "stat", "title": "Score", "source": {"collection": "notes", "where": "score > 1"}, "value": "sum(rows, .score)"}]},
-      {"type": "tabs", "tabs": [
+      {"type": "tabs", "title": "Views", "tabs": [
         {"title": "All", "blocks": [{"type": "table", "title": "All notes", "source": {"collection": "notes", "sort": "-score"},
           "columns": [{"label": "Title", "bind": "title"}, {"label": "Score", "bind": "score"}],
           "actions": [{"label": "Open", "screen": "note"}, {"label": "Touch", "command": "touch", "params": {"note": "$record.id"}}]}]},
@@ -272,6 +272,9 @@ func TestInvalidScreenIsRefusedWithItsReason(t *testing.T) {
 		{`{"label": "Open", "screen": "note"}`, `{"label": "Open", "screen": "nowhere"}`, `unknown screen "nowhere"`},
 		{`{"label": "Open", "screen": "note"}`, `{"label": "Open"}`, `a button has a command or a screen`},
 		{`"item": {"title": "title", "meta": "'score ' + string(score)"}`, `"title": "x"`, `a list needs item`},
+		{`{"type": "tabs", "title": "Views", "tabs": [`, `{"type": "tabs", "blocks": [{"type": "stat", "source": {"collection": "notes"}}], "tabs": [`, `a tabs block holds its blocks in tabs`},
+		{`{"type": "columns", "blocks": [`, `{"type": "columns", "tabs": [{"title": "x", "blocks": []}], "blocks": [`, `a columns block holds its blocks in blocks`},
+		{`"menu": ["main"]`, `"menu": ["main", "note"]`, `menu: screen "note" is a record page`},
 	} {
 		if !strings.Contains(good, tc.from) {
 			t.Fatalf("fixture lacks %s", tc.from)
@@ -397,8 +400,10 @@ func TestScreenTopicReadsOnlyTheBlocksItChanges(t *testing.T) {
 	if got := paths("", "providers", "health"); !slices.Equal(got, []string{"/b0"}) {
 		t.Fatalf("health reads the providers: %v", got)
 	}
-	if n := len(e.screenMessages("notes", "main", map[string]any{"topic": "projects"})); n != 3 {
-		t.Fatalf("a changed project reads the whole screen: %d", n)
+	for _, topic := range []string{"projects", "board"} {
+		if n := len(e.screenMessages("notes", "main", map[string]any{"topic": topic})); n != 3 || len(e.screenData("notes", "main", map[string]any{"topic": topic})) != 5 {
+			t.Fatalf("a topic no block reads gives the whole screen with its data: %s, %d messages", topic, n)
+		}
 	}
 }
 
@@ -495,5 +500,42 @@ func TestConfirmationShowsWhereTheFrozenCallGoes(t *testing.T) {
 	i := slices.IndexFunc(items, func(it listItem) bool { return strings.Contains(it.Title, "notes.post") })
 	if i < 0 || items[i].Text != "POST "+svc.URL+"/items/{id}" {
 		t.Fatalf("the confirmation shows where the frozen call goes, not the changed tool: %+v", items)
+	}
+}
+
+// TestRunningNowKeepsALongProcessBehindManyShortOnes: an open process stays in the cockpit however many finished
+// after it started.
+func TestRunningNowKeepsALongProcessBehindManyShortOnes(t *testing.T) {
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		if c.command() == "long" {
+			<-ctx.Done()
+		}
+		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
+	})
+	p := e.createProject("jobs", testManifest([]string{agentCommand("long", ""), agentCommand("short", "")}, nil))
+	long := e.run(p, "long")
+	for i := 0; i < 55; i++ {
+		e.waitState(e.run(p, "short"), "done")
+	}
+	running := e.cockpitRunning()
+	if len(running) != 1 || running[0].ID != float64(long) {
+		t.Fatalf("the long process is still running now: %+v", running)
+	}
+	e.must("deck.process_stop", map[string]any{"process": long}, nil)
+	e.waitState(long, "stopped")
+}
+
+// TestProviderConfirmationSaysWhatAndWhere: a provider tool waiting for the owner names the tool and where it goes.
+func TestProviderConfirmationSaysWhatAndWhere(t *testing.T) {
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		c.Approve(ctx, "WebFetch", map[string]any{"url": "https://example.com/page", "prompt": "read it"})
+		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
+	})
+	p := e.createProject("jobs", testManifest([]string{agentCommand("fetch", "")}, nil))
+	e.run(p, "fetch")
+	e.waitFor("the confirmation", func() bool { return len(e.cockpitItems()) == 1 })
+	it := e.cockpitItems()[0]
+	if it.Title != "WebFetch" || it.Text != "https://example.com/page" || !strings.Contains(it.Details, "read it") {
+		t.Fatalf("the confirmation says the tool and where it goes, with its whole input: %+v", it)
 	}
 }

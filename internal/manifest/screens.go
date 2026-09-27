@@ -55,8 +55,11 @@ func CheckDeckScreens(screens []Screen) error {
 func (m *Manifest) checkScreens(fail func(string, ...any)) {
 	m.checkScreenList(false, fail)
 	for _, name := range m.Menu {
-		if m.Screen(name) == nil {
+		switch s := m.Screen(name); {
+		case s == nil:
 			fail("menu: unknown screen %q", name)
+		case s.Record != "":
+			fail("menu: screen %q is a record page; open it from a row of %s", name, s.Record)
 		}
 	}
 }
@@ -112,7 +115,12 @@ func (c *screenCheck) block(where string, b Block) {
 		for _, t := range b.Tabs {
 			inner = append(inner, t.Blocks...)
 		}
-		if len(inner) == 0 {
+		switch {
+		case b.Type == "columns" && (len(b.Blocks) == 0 || len(b.Tabs) > 0):
+			c.fail("%s: a columns block holds its blocks in blocks", where)
+		case b.Type == "tabs" && (len(b.Tabs) == 0 || len(b.Blocks) > 0):
+			c.fail("%s: a tabs block holds its blocks in tabs", where)
+		case len(inner) == 0:
 			c.fail("%s: a %s block needs blocks inside", where, b.Type)
 		}
 		for j, x := range b.Blocks {

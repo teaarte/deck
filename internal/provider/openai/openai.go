@@ -145,11 +145,11 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 		}
 		for _, c := range reply.ToolCalls {
 			emit(req, provider.Event{Kind: provider.EventTool, ID: c.ID, Title: c.Function.Name, Text: c.Function.Arguments})
-			out := call(ctx, sess, permission, c.Function.Name, c.Function.Arguments, c.ID)
+			out, ok := call(ctx, sess, permission, c.Function.Name, c.Function.Arguments, c.ID)
 			if ctx.Err() != nil {
 				return res, ctx.Err()
 			}
-			emit(req, provider.Event{Kind: provider.EventToolUpdate, ID: c.ID, Status: provider.ToolStatus(!strings.HasPrefix(out, "Error: ")), Text: out})
+			emit(req, provider.Event{Kind: provider.EventToolUpdate, ID: c.ID, Status: provider.ToolStatus(ok), Text: out})
 			msgs = append(msgs, openai.ToolMessage(out, c.ID))
 			if err := save(path, msgs); err != nil {
 				return res, err

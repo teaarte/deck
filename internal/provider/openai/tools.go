@@ -47,7 +47,8 @@ func function(name, desc string, schema map[string]any) openai.ChatCompletionToo
 }
 
 // call makes one tool call of the model through the gateway and gives what the model reads back.
-func call(ctx context.Context, sess *mcp.ClientSession, permission, name, arguments, id string) string {
+// call makes one tool call and gives its text for the model and whether it succeeded.
+func call(ctx context.Context, sess *mcp.ClientSession, permission, name, arguments, id string) (string, bool) {
 	args := json.RawMessage(arguments)
 	if !json.Valid(args) || len(strings.TrimSpace(arguments)) == 0 {
 		args = json.RawMessage(`{}`)
@@ -57,20 +58,20 @@ func call(ctx context.Context, sess *mcp.ClientSession, permission, name, argume
 	}
 	res, err := sess.CallTool(ctx, &mcp.CallToolParams{Name: name, Arguments: args})
 	if err != nil {
-		return "Error: " + err.Error()
+		return "Error: " + err.Error(), false
 	}
 	text := contentText(res)
 	if res.IsError {
-		return "Error: " + text
+		return "Error: " + text, false
 	}
-	return text
+	return text, true
 }
 
-func ask(ctx context.Context, sess *mcp.ClientSession, permission, id string, args json.RawMessage) string {
+func ask(ctx context.Context, sess *mcp.ClientSession, permission, id string, args json.RawMessage) (string, bool) {
 	res, err := sess.CallTool(ctx, &mcp.CallToolParams{Name: permission,
 		Arguments: map[string]any{"tool_name": questionTool, "input": args, "tool_use_id": id}})
 	if err != nil {
-		return "Error: " + err.Error()
+		return "Error: " + err.Error(), false
 	}
 	var d struct {
 		Behavior     string `json:"behavior"`
@@ -83,10 +84,10 @@ func ask(ctx context.Context, sess *mcp.ClientSession, permission, id string, ar
 		if d.Message == "" {
 			d.Message = contentText(res)
 		}
-		return "Error: " + d.Message
+		return "Error: " + d.Message, false
 	}
 	b, _ := json.Marshal(d.UpdatedInput.Answers)
-	return "The owner answered: " + string(b)
+	return "The owner answered: " + string(b), true
 }
 
 func contentText(res *mcp.CallToolResult) string {

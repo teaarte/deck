@@ -96,7 +96,11 @@ func (a *App) providerAdd(ctx context.Context, act registry.Actor, in struct {
 	NoCloud          bool   `json:"no_cloud"`
 }) (any, error) {
 	d := providerDef{URL: in.URL, Model: in.Model, KeySecret: in.KeySecret, NoCloud: in.NoCloud}
-	if err := checkDef(in.Name, d, a.main.Name()); err != nil {
+	var builtin []string
+	for _, pv := range a.builtin {
+		builtin = append(builtin, pv.Name())
+	}
+	if err := checkDef(in.Name, d, builtin); err != nil {
 		return nil, err
 	}
 	raw, _ := json.Marshal(d)
@@ -132,10 +136,10 @@ func (a *App) providerRemove(ctx context.Context, act registry.Actor, in struct{
 }
 
 func (a *App) providerCheck(ctx context.Context, act registry.Actor, in struct{ Provider string }) (any, error) {
-	if _, ok := a.main.(provider.SelfChecker); !ok || in.Provider != a.main.Name() {
+	if _, ok := a.builtinNamed(in.Provider).(provider.SelfChecker); !ok {
 		return nil, registry.Invalid("deck: provider %q has no self-check", in.Provider)
 	}
-	if !a.startCheck(true) {
+	if !a.startCheck(in.Provider, true) {
 		return nil, errors.New("deck: a self-check is already running")
 	}
 	return map[string]any{"checking": in.Provider}, nil

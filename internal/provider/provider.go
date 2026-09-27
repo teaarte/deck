@@ -83,6 +83,9 @@ const (
 	Web = "web"
 )
 
+// AskTool is the gateway tool a provider without a question tool of its own asks the owner with.
+const AskTool = "mcp__deck__ask"
+
 // StructuredOutput is output by schema; a provider without it hands the result in with result_submit.
 const StructuredOutput = "structured_output"
 

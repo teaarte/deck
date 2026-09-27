@@ -1,0 +1,2 @@
+{"reply": "initialize", "result": {"userAgent": "deck/0.155.1 (Mac OS 15.7.3; arm64) unknown (deck; 0)", "codexHome": "/tmp/deck", "platformFamily": "unix", "platformOs": "macos"}}
+{"reply": "account/read", "result": {"account": null, "requiresOpenaiAuth": true}}

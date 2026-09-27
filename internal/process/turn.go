@@ -78,7 +78,8 @@ func (r *Runner) run(ctx context.Context, t turn) {
 	if len(t.cmd.Result) > 0 && !slices.Contains(pv.Caps(), provider.StructuredOutput) {
 		sub = &gateway.Submit{Schema: t.cmd.Result, Validate: func(raw json.RawMessage) error { return validate(t.cmd, raw) }}
 	}
-	tok, err := r.gw.Register(bg, &gateway.Session{ProcessID: processID, ProjectID: t.project, Workspace: proj.WorkspaceID, Trial: trial, Submit: sub})
+	tok, err := r.gw.Register(bg, &gateway.Session{ProcessID: processID, ProjectID: t.project, Workspace: proj.WorkspaceID, Trial: trial, Submit: sub,
+		Ask: pv.QuestionTool() == gateway.AskToolName()})
 	if err != nil {
 		r.finish(bg, processID, StateError, "", false, err.Error())
 		return
@@ -106,13 +107,16 @@ func (r *Runner) run(ctx context.Context, t turn) {
 	req := provider.Request{
 		Cwd: work, Prompt: t.message, ResultSchema: t.cmd.Result,
 		MCPURL: r.cfg.MCPBase + "/mcp/" + tok, AllowedTools: r.gw.AllowedTools(tok), PermissionMCP: gateway.PermissionTool(),
-		SessionID: t.session, Resume: t.resume, Hidden: r.cfg.Hidden(t.project, processID), Dirs: []string{data}, NoNetwork: noNetwork,
+		SessionID: t.session, Resume: t.resume, Hidden: r.cfg.Hidden(t.project, processID), Dirs: []string{data, filepath.Join(dir, "results")}, NoNetwork: noNetwork,
 		OnStart: func(pid int) { r.setGroup(bg, processID, pid) },
 		OnEvent: func(e provider.Event) { r.event(bg, processID, stream, e) },
 		OnUsage: func(u provider.Usage) { r.usage(bg, processID, pv.Name(), u) },
 	}
 	if sub != nil {
 		req.ResultSchema = nil
+		if t.resume {
+			req.Prompt += "\nWhen you are done, hand in the whole final result with the result_submit tool of the deck MCP server, then end your turn.\n"
+		}
 	}
 	if req.Skills, err = r.projects.Skills(bg, t.project, t.cmd.Executor.Skills); err != nil {
 		r.finish(bg, processID, StateError, "", false, err.Error())

@@ -1,0 +1,5 @@
+{"reply": "initialize", "result": {"userAgent": "deck/0.155.1 (Mac OS 15.7.3; arm64) unknown (deck; 0)", "codexHome": "/Users/owner/.codex", "platformFamily": "unix", "platformOs": "macos"}}
+{"reply": "account/read", "result": {"account": {"type": "chatgpt", "email": "owner@example.com", "planType": "team"}, "requiresOpenaiAuth": true}}
+{"reply": "config/read", "result": {"config": {"mcp_servers": {"loom": {"command": "node", "args": ["server.js"]}}}, "origins": {}}}
+{"reply": "skills/list", "result": {"data": [{"cwd": "/Users/owner/work", "errors": [], "skills": [{"name": "owner-skill", "description": "A skill of the owner", "enabled": true, "path": "/Users/owner/.agents/skills/owner-skill/SKILL.md", "scope": "user"}]}]}}
+{"reply": "thread/resume", "error": {"code": -32600, "message": "no rollout found for thread id 01a0e02e-0000-7000-8000-000000000000"}}

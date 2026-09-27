@@ -144,6 +144,12 @@ func newEnv(t *testing.T, script Script, cfg ...func(*app.Config)) *Env {
 // newEnvWith starts deck on home with the given provider.
 func newEnvWith(t *testing.T, home string, p provider.Provider, cfg ...func(*app.Config)) *Env {
 	t.Helper()
+	return newEnvBuiltin(t, home, []provider.Provider{p}, cfg...)
+}
+
+// newEnvBuiltin starts deck on home with the given built-in providers, the main one first.
+func newEnvBuiltin(t *testing.T, home string, ps []provider.Provider, cfg ...func(*app.Config)) *Env {
+	t.Helper()
 	ts := httptest.NewUnstartedServer(nil)
 	base := "http://" + ts.Listener.Addr().String()
 	browser := t.TempDir()
@@ -153,7 +159,7 @@ func newEnvWith(t *testing.T, home string, p provider.Provider, cfg ...func(*app
 	for _, f := range cfg {
 		f(&c)
 	}
-	a, err := app.New(c, p)
+	a, err := app.New(c, ps[0], ps[1:]...)
 	if err != nil {
 		t.Fatal(err)
 	}

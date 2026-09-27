@@ -1,0 +1,3 @@
+{"reply": "initialize", "result": {"userAgent": "deck/0.155.1 (Mac OS 15.7.3; arm64) unknown (deck; 0)", "codexHome": "/Users/owner/.codex", "platformFamily": "unix", "platformOs": "macos"}}
+{"reply": "account/read", "result": {"account": {"type": "chatgpt", "email": "owner@example.com", "planType": "team"}, "requiresOpenaiAuth": true}}
+{"reply": "config/read", "result": {"config": {"mcp_servers": {"loom": {"command": "node", "args": ["server.js"]}, "deck": {"command": "deck-mcp"}}}, "origins": {}}}

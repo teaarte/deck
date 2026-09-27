@@ -41,6 +41,8 @@ type Session struct {
 	Commands []string
 	// Submit is set when the process hands in its result with result_submit.
 	Submit *Submit
+	// Ask adds the ask tool, for a provider without a question tool of its own.
+	Ask bool
 }
 
 func (s *Session) actor() registry.Actor {
@@ -194,6 +196,15 @@ func (g *Gateway) newServer(ctx context.Context, tok string, s *Session) (*mcp.S
 		return g.approve(ctx, s, req.Params.Arguments)
 	})
 	allowed, tools, err := g.addCommands(ctx, srv, s, func() bool { return g.alive(tok) })
+	if s.Ask {
+		srv.AddTool(askTool(), func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			if !g.alive(tok) {
+				return gone, nil
+			}
+			return g.ask(ctx, s, req.Params.Arguments), nil
+		})
+		allowed, tools = append(allowed, qualified(AskTool)), append(tools, AskTool)
+	}
 	if s.Submit != nil {
 		srv.AddTool(s.Submit.tool(), func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			if !g.alive(tok) {

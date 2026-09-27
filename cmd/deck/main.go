@@ -20,6 +20,7 @@ import (
 	"deck2/internal/api"
 	"deck2/internal/app"
 	"deck2/internal/provider/claudecode"
+	"deck2/internal/provider/codex"
 	"deck2/web"
 )
 
@@ -57,7 +58,7 @@ func run() error {
 	a, err := app.New(app.Config{
 		Home: home, MCPBase: "http://" + ln.Addr().String(),
 		QuestionWait: 30 * time.Minute, ConfirmWait: 30 * time.Minute, ConfirmTTL: 24 * time.Hour,
-	}, claudecode.New(filepath.Join(home, "mcp")))
+	}, claudecode.New(filepath.Join(home, "mcp")), codex.New(home))
 	if err != nil {
 		return err
 	}

@@ -1,0 +1,158 @@
+{
+ "ask.jsonl": {
+  "cli": "0.155.1",
+  "date": "2026-09-27",
+  "kind": "real",
+  "note": "command agent asks the owner with the ask tool of deck and hands in the color with result_submit; the fake makes the two MCP calls itself"
+ },
+ "nologin.jsonl": {
+  "cli": "0.155.1",
+  "date": "2026-09-27",
+  "kind": "real",
+  "note": "CODEX_HOME pointed at an empty folder: account/read gives no account"
+ },
+ "norollout.jsonl": {
+  "cli": "0.155.1",
+  "date": "2026-09-27",
+  "kind": "real",
+  "note": "thread/resume of an unknown thread id"
+ },
+ "escalation.jsonl": {
+  "cli": "0.155.1",
+  "date": "2026-09-27",
+  "kind": "real",
+  "note": "a write outside its folder asks for an escalation; the owner said no with a reason, which comes back by turn/steer"
+ },
+ "selfcheck.jsonl": {
+  "cli": "0.155.1",
+  "date": "2026-09-27",
+  "kind": "real",
+  "note": "first self-check turn: echo into word.txt, sh probe.sh that fails to read the hidden key, ask, result_submit; the fake runs the echo and the MCP calls and writes what the sandbox did to the probe files"
+ },
+ "selfcheck_resume.jsonl": {
+  "cli": "0.155.1",
+  "date": "2026-09-27",
+  "kind": "real",
+  "note": "self-check resume: the same result again"
+ },
+ "selfcheck_offline.jsonl": {
+  "cli": "0.155.1",
+  "date": "2026-09-27",
+  "kind": "real",
+  "note": "self-check turn without network: sh net.sh, whose curl wrote 000; the fake writes the same"
+ },
+ "ok.jsonl": {
+  "cli": "0.155.1",
+  "date": "2026-09-27",
+  "kind": "synthetic",
+  "note": "ask.jsonl without the question"
+ },
+ "ratelimit.jsonl": {
+  "cli": "0.155.1",
+  "date": "2026-09-27",
+  "kind": "synthetic",
+  "note": "ask.jsonl setup, a spent primary window and a failed turn with usageLimitExceeded, by the schema"
+ },
+ "unauthorized.jsonl": {
+  "cli": "0.155.1",
+  "date": "2026-09-27",
+  "kind": "synthetic",
+  "note": "ask.jsonl setup with the real 401 errors of a turn without a valid login"
+ },
+ "two_completions.jsonl": {
+  "cli": "0.155.1",
+  "date": "2026-09-27",
+  "kind": "synthetic",
+  "note": "ok.jsonl with its turn completed twice"
+ },
+ "subagent.jsonl": {
+  "cli": "0.155.1",
+  "date": "2026-09-27",
+  "kind": "synthetic",
+  "note": "ok.jsonl with a message, token counts and a completed turn of another thread, and token counts and a completion of an earlier turn of its own thread"
+ },
+ "nocompletion.jsonl": {
+  "cli": "0.155.1",
+  "date": "2026-09-27",
+  "kind": "synthetic",
+  "note": "ok.jsonl cut before its turn completes; the app-server exits"
+ },
+ "hang.jsonl": {
+  "cli": "0.155.1",
+  "date": "2026-09-27",
+  "kind": "synthetic",
+  "note": "ok.jsonl, then the app-server does not exit when its input closes"
+ },
+ "nosubmit.jsonl": {
+  "cli": "0.155.1",
+  "date": "2026-09-27",
+  "kind": "synthetic",
+  "note": "ok.jsonl without its result_submit call"
+ },
+ "resume.jsonl": {
+  "cli": "0.155.1",
+  "date": "2026-09-27",
+  "kind": "synthetic",
+  "note": "ok.jsonl on thread/resume of the same thread"
+ },
+ "escalation_allow.jsonl": {
+  "cli": "0.155.1",
+  "date": "2026-09-27",
+  "kind": "synthetic",
+  "note": "escalation.jsonl without the turn/steer of a refusal"
+ },
+ "selfcheck_online.jsonl": {
+  "cli": "0.155.1",
+  "date": "2026-09-27",
+  "kind": "synthetic",
+  "note": "selfcheck_offline.jsonl where curl got through"
+ },
+ "selfcheck_nousage.jsonl": {
+  "cli": "0.155.1",
+  "date": "2026-09-27",
+  "kind": "synthetic",
+  "note": "selfcheck.jsonl without token counts"
+ },
+ "selfcheck_asked.jsonl": {
+  "cli": "0.155.1",
+  "date": "2026-09-27",
+  "kind": "synthetic",
+  "note": "selfcheck.jsonl where the write in its own folder asks for approval, with the request of escalation.jsonl"
+ },
+ "selfcheck_leak.jsonl": {
+  "cli": "0.155.1",
+  "date": "2026-09-27",
+  "kind": "synthetic",
+  "note": "selfcheck.jsonl where the probe really reads the hidden key, as with no sandbox"
+ },
+ "selfcheck_noprobe.jsonl": {
+  "cli": "0.155.1",
+  "date": "2026-09-27",
+  "kind": "synthetic",
+  "note": "selfcheck.jsonl where the probe never ran"
+ },
+ "escalation_network.jsonl": {
+  "cli": "0.155.1",
+  "date": "2026-09-27",
+  "kind": "synthetic",
+  "note": "escalation.jsonl where the command asks for network to example.com"
+ },
+ "filechange.jsonl": {
+  "cli": "0.155.1",
+  "date": "2026-09-27",
+  "kind": "synthetic",
+  "note": "escalation_allow.jsonl with a patch outside the workspace instead of the command, by the schema"
+ },
+ "escalation_staleturn.jsonl": {
+  "cli": "0.155.1",
+  "date": "2026-09-27",
+  "kind": "synthetic",
+  "note": "escalation_allow.jsonl whose approval request names another turn"
+ },
+ "deckserver.jsonl": {
+  "cli": "0.155.1",
+  "date": "2026-09-27",
+  "kind": "synthetic",
+  "note": "ok.jsonl setup where the owner has an MCP server named deck"
+ }
+}

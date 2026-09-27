@@ -1,7 +1,8 @@
 # deck2
 
 Personal control panel for AI agents: one Go binary, SQLite, web client. Spec: `docs/spec.md` (Russian).
-Protocol facts about Claude Code: `docs/spikes/claude-code.md`. Stage 1 plan: `docs/plan-stage1.md`.
+Protocol facts: Claude Code — `docs/spikes/claude-code.md`, Codex app-server — `docs/spikes/codex.md`.
+Stage 1 plan: `docs/plan-stage1.md`.
 
 ## Commands
 
@@ -9,9 +10,11 @@ Protocol facts about Claude Code: `docs/spikes/claude-code.md`. Stage 1 plan: `d
 - Run: `DECK_HOME=/tmp/deckhome ./deck` (prints the URL with the access token)
 - Tests: `go test -race ./...`
 - Real Claude Code end-to-end test: `DECK_REAL_CLI=1 go test ./tests/scenarios -run TestRealClaudeCode -v`
+- Real Codex end-to-end test (skipped without `codex`): `DECK_REAL_CODEX=1 go test ./tests/scenarios -run TestRealCodex -v`
 - Agent turn on a local Ollama: `DECK_REAL_OLLAMA=1 go test ./tests/scenarios -run TestRealOllama -v` (`DECK_OLLAMA_MODEL`, default `qwen3:latest`)
 - Scenario tests on Linux (bubblewrap sandbox, needs docker): `DECK_LINUX=1 go test ./tests/linux -v`
 - Regenerate SQL code after editing `internal/store/queries/*.sql` (one file per area) or migrations: `sqlc generate`
+- Regenerate the Codex protocol types from the installed CLI: `go generate ./internal/provider/codex`
 
 ## Layout
 
@@ -23,7 +26,8 @@ Protocol facts about Claude Code: `docs/spikes/claude-code.md`. Stage 1 plan: `d
 - `internal/manifest` — project manifest: parsing, validation, expressions
 - `internal/gateway` — deck MCP server per process: permission prompts, questions, confirmations, registry
   commands as tools; HTTP entry and domain proxy for scripts
-- `internal/provider` — model providers; `claudecode` runs the CLI isolated from user settings
+- `internal/provider` — model providers; `claudecode` runs the CLI isolated from user settings; `codex` runs
+  `codex app-server` on the owner's shared login (`protocol.go` is generated)
 - `internal/process` — process runner: agent and script executors, start, resume, result schema check, result files
 - `internal/sandbox` — script sandbox behind one interface: `sandbox-exec` on macOS, bubblewrap on Linux
 - `internal/script` — runs project scripts in the sandbox; package environments per project (`uv`, `npm`)

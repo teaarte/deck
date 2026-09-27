@@ -34,7 +34,7 @@ func (a *App) workspaceOf(ctx context.Context, projectID int64) (db.Project, err
 	return a.Store.Q.GetProject(ctx, projectID)
 }
 
-// Named is the provider of a workspace by name: the main one of deck or one the owner added.
+// Named is the provider of a workspace by name: a built-in one of deck or one the owner added.
 func (a *App) Named(ctx context.Context, projectID int64, name string) (provider.Provider, error) {
 	p, err := a.workspaceOf(ctx, projectID)
 	if err != nil {
@@ -44,8 +44,8 @@ func (a *App) Named(ctx context.Context, projectID int64, name string) (provider
 }
 
 func (a *App) provider(ctx context.Context, workspace int64, name string) (provider.Provider, error) {
-	if name == a.main.Name() {
-		return a.main, nil
+	if pv := a.builtinNamed(name); pv != nil {
+		return pv, nil
 	}
 	raw, err := a.Store.Q.GetSetting(ctx, db.GetSettingParams{WorkspaceID: workspace, Key: providerPrefix + name})
 	if errors.Is(err, sql.ErrNoRows) {
@@ -70,13 +70,13 @@ func (a *App) provider(ctx context.Context, workspace int64, name string) (provi
 		}}), nil
 }
 
-// providers lists every provider of a workspace, the main one first.
+// providers lists every provider of a workspace, the built-in ones first.
 func (a *App) providers(ctx context.Context, workspace int64) ([]provider.Provider, error) {
 	rows, err := a.Store.Q.ListSettings(ctx, db.ListSettingsParams{WorkspaceID: workspace, Prefix: providerPrefix})
 	if err != nil {
 		return nil, err
 	}
-	out := []provider.Provider{a.main}
+	out := slices.Clone(a.builtin)
 	for _, r := range rows {
 		if pv, err := a.provider(ctx, workspace, strings.TrimPrefix(r.Key, providerPrefix)); err == nil {
 			out = append(out, pv)
@@ -123,9 +123,18 @@ func (a *App) For(ctx context.Context, projectID int64, cmd *manifest.Command) (
 	return nil, registry.Invalid("deck: no provider fits %s, which requires %s; add one with deck.provider_add", place, strings.Join(cmd.Requires, ", "))
 }
 
-// Ready holds turns on the main provider while its self-check runs after a change of version or is red.
+func (a *App) builtinNamed(name string) provider.Provider {
+	for _, pv := range a.builtin {
+		if pv.Name() == name {
+			return pv
+		}
+	}
+	return nil
+}
+
+// Ready holds turns on a built-in provider while its self-check runs after a change of version or is red.
 func (a *App) Ready(ctx context.Context, name string) bool {
-	if _, ok := a.main.(provider.SelfChecker); !ok || name != a.main.Name() {
+	if _, ok := a.builtinNamed(name).(provider.SelfChecker); !ok {
 		return true
 	}
 	h, err := a.Store.Q.GetHealth(ctx, process.HealthSubject(name))
@@ -160,10 +169,10 @@ func (a *App) setPlace(ctx context.Context, workspace int64, place, name string)
 	})
 }
 
-func checkDef(name string, d providerDef, main string) error {
+func checkDef(name string, d providerDef, builtin []string) error {
 	switch {
-	case !projectName.MatchString(name) || name == main:
-		return registry.Invalid("deck: provider name %q: lowercase letters, digits and '-', not %s", name, main)
+	case !projectName.MatchString(name) || slices.Contains(builtin, name):
+		return registry.Invalid("deck: provider name %q: lowercase letters, digits and '-', not %s", name, strings.Join(builtin, " or "))
 	case !strings.HasPrefix(d.URL, "http://") && !strings.HasPrefix(d.URL, "https://"):
 		return registry.Invalid("deck: provider url must be http or https, got %q", d.URL)
 	case strings.ContainsAny(d.URL, "@?#"):

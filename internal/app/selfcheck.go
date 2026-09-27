@@ -11,7 +11,7 @@ import (
 	"deck2/internal/store/db"
 )
 
-// checks keeps when deck next looks at the version of the main provider and retries a red self-check.
+// checks keeps when deck next looks at the version of a built-in provider and retries its red self-check.
 type checks struct {
 	running bool
 	started bool
@@ -19,49 +19,63 @@ type checks struct {
 	retry   time.Time
 }
 
-// Checks runs the self-check of the main provider at the first call, when its version changed, and again
+func (a *App) checksOf(name string) *checks {
+	c := a.check[name]
+	if c == nil {
+		c = &checks{}
+		a.check[name] = c
+	}
+	return c
+}
+
+// Checks runs the self-check of each built-in provider at the first call, when its version changed, and again
 // while it is red; only the Loop calls it, so tests run self-checks on purpose.
 func (a *App) Checks(ctx context.Context, now time.Time) {
-	sc, ok := a.main.(provider.SelfChecker)
-	if !ok {
-		return
-	}
-	a.checkMu.Lock()
-	due := !a.check.started || !now.Before(a.check.version)
-	retry := !a.check.retry.IsZero() && !now.Before(a.check.retry)
-	if a.check.running || !due && !retry {
+	for _, pv := range a.builtin {
+		sc, ok := pv.(provider.SelfChecker)
+		if !ok {
+			continue
+		}
+		a.checkMu.Lock()
+		c := a.checksOf(pv.Name())
+		due := !c.started || !now.Before(c.version)
+		retry := !c.retry.IsZero() && !now.Before(c.retry)
+		if c.running || !due && !retry {
+			a.checkMu.Unlock()
+			continue
+		}
+		c.version = now.Add(a.Cfg.VersionEvery)
+		first := !c.started
 		a.checkMu.Unlock()
-		return
-	}
-	a.check.version = now.Add(a.Cfg.VersionEvery)
-	first := !a.check.started
-	a.checkMu.Unlock()
-	v, err := sc.Version(ctx)
-	if err != nil {
-		v = "unknown: " + err.Error()
-	}
-	h, _ := a.Store.Q.GetHealth(ctx, process.HealthSubject(a.main.Name()))
-	if first || retry || v != h.Version {
-		a.startCheck(false)
+		v, err := sc.Version(ctx)
+		if err != nil {
+			v = "unknown: " + err.Error()
+		}
+		h, _ := a.Store.Q.GetHealth(ctx, process.HealthSubject(pv.Name()))
+		if first || retry || v != h.Version {
+			a.startCheck(pv.Name(), false)
+		}
 	}
 }
 
 // startCheck runs a self-check in the background unless one is running; a change of version or a red check
 // holds the provider's turns until it ends. One cut short by a limit or a login keeps no version, so it reruns.
-func (a *App) startCheck(force bool) bool {
-	sc, ok := a.main.(provider.SelfChecker)
+func (a *App) startCheck(name string, force bool) bool {
+	pv := a.builtinNamed(name)
+	sc, ok := pv.(provider.SelfChecker)
 	if !ok {
 		return false
 	}
 	a.checkMu.Lock()
-	if a.check.running {
+	c := a.checksOf(name)
+	if c.running {
 		a.checkMu.Unlock()
 		return false
 	}
-	a.check.running, a.check.started, a.check.retry = true, true, time.Time{}
+	c.running, c.started, c.retry = true, true, time.Time{}
 	a.checkMu.Unlock()
 	ctx := a.ctx
-	subject := process.HealthSubject(a.main.Name())
+	subject := process.HealthSubject(name)
 	v, err := sc.Version(ctx)
 	if err != nil {
 		v = "unknown: " + err.Error()
@@ -96,13 +110,13 @@ func (a *App) startCheck(force bool) bool {
 		}
 		a.writeCheck(context.WithoutCancel(ctx), subject, status, text, version)
 		a.checkMu.Lock()
-		a.check.running = false
+		c.running = false
 		if status != "ok" {
-			a.check.retry = a.Cfg.Now().Add(a.Cfg.SelfCheckRetry)
+			c.retry = a.Cfg.Now().Add(a.Cfg.SelfCheckRetry)
 		}
 		a.checkMu.Unlock()
 		if status != "error" && status != "checking" {
-			a.Runner.ProviderReady(context.WithoutCancel(ctx), a.main.Name())
+			a.Runner.ProviderReady(context.WithoutCancel(ctx), name)
 		}
 	}()
 	return true

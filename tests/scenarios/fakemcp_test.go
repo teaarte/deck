@@ -14,8 +14,12 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// TestMain lets the test binary serve as a fake MCP server: DECK_FAKE_MCP picks which one.
+// TestMain lets the test binary serve as a fake MCP server (DECK_FAKE_MCP picks which) or app-server of Codex.
 func TestMain(m *testing.M) {
+	if dir := os.Getenv("DECK_FAKE_CODEX"); dir != "" {
+		serveCodex(dir)
+		return
+	}
 	switch os.Getenv("DECK_FAKE_MCP") {
 	case "project":
 		dir, _ := os.Getwd()

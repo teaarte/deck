@@ -33,10 +33,10 @@ type Config struct {
 	// PauseLimit is how long one pause on a usage limit lasts at most; PauseProbe is the try without a reset time.
 	PauseLimit time.Duration
 	PauseProbe time.Duration
-	// SelfCheckCeiling bounds a self-check of the main provider; SelfCheckRetry repeats a red one.
+	// SelfCheckCeiling bounds a self-check of a built-in provider; SelfCheckRetry repeats a red one.
 	SelfCheckCeiling time.Duration
 	SelfCheckRetry   time.Duration
-	// VersionEvery is how often deck looks for a new version of the main provider's program.
+	// VersionEvery is how often deck looks for a new version of the programs of the built-in providers.
 	VersionEvery time.Duration
 	// WorkKept is how long the work folder of a finished agent process stays for rework.
 	WorkKept time.Duration

@@ -45,10 +45,11 @@ type App struct {
 	Browser   *tools.Browser
 	Host      *mcphost.Host
 
-	// main is the provider deck was started with; the owner adds OpenAI-compatible ones per workspace.
-	main     provider.Provider
+	// builtin are the providers deck was started with, the main one first; the owner adds OpenAI-compatible
+	// ones per workspace.
+	builtin  []provider.Provider
 	checkMu  sync.Mutex
-	check    checks
+	check    map[string]*checks
 	ctx      context.Context
 	cancel   context.CancelFunc
 	secretMu sync.Mutex
@@ -56,7 +57,8 @@ type App struct {
 	disk     time.Time
 }
 
-func New(cfg Config, p provider.Provider) (*App, error) {
+// New starts deck with its main provider p and further built-in ones.
+func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, error) {
 	cfg.defaults()
 	if err := os.MkdirAll(filepath.Join(cfg.Home, "runs"), 0o700); err != nil {
 		return nil, err
@@ -65,7 +67,8 @@ func New(cfg Config, p provider.Provider) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
-	a := &App{Cfg: cfg, Store: st, Bus: events.NewBus(), Scripts: script.New(cfg.Sandbox, cfg.Home), main: p}
+	a := &App{Cfg: cfg, Store: st, Bus: events.NewBus(), Scripts: script.New(cfg.Sandbox, cfg.Home),
+		builtin: append([]provider.Provider{p}, more...), check: map[string]*checks{}}
 	a.ctx, a.cancel = context.WithCancel(context.Background())
 	a.Asks = ask.NewBroker(st, a.Bus, cfg.Now)
 	a.Registry = registry.New(a.projectCommands)

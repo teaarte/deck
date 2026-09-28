@@ -210,6 +210,7 @@ func TestACPProjectWithoutNetworkHasNoWebThroughTheProxy(t *testing.T) {
 	for _, n := range []int{4, 5} {
 		f.streamText(n, acpStream(acpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,
 			curl, `{"shell": "curl -s -m 3 -o /dev/null -w '%{http_code}' --noproxy '*' `+site.URL+`/direct"}`,
+			`{"shell": "curl -s -m 3 -o /dev/null -w '%{http_code}' --noproxy '' --proxy \"$(echo $HTTP_PROXY | sed 's#//[^@]*@#//#')\" `+site.URL+`/page"}`,
 			`{"update": {"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "Checked "}}}`,
 			`{"update": {"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "the page."}}}`,
 			`{"mcp": {"tool": "result_submit", "arguments": {"result": {"written": 0}}}}`, `{"end": "end_turn"}`))
@@ -226,6 +227,9 @@ func TestACPProjectWithoutNetworkHasNoWebThroughTheProxy(t *testing.T) {
 	}
 	if web.shell[1]["out"] != "000" || off.shell[1]["out"] != "000" {
 		t.Fatalf("past the proxy the sandbox has no network: %q / %q", web.shell[1]["out"], off.shell[1]["out"])
+	}
+	if web.shell[2]["out"] != "407" {
+		t.Fatalf("the proxy takes only the agent that has its password: %q", web.shell[2]["out"])
 	}
 	if !strings.Contains(off.env["OPENCODE_CONFIG_CONTENT"], `"webfetch":"deny"`) || strings.Contains(web.env["OPENCODE_CONFIG_CONTENT"], `"webfetch":"deny"`) {
 		t.Fatalf("without network the agent's own web tools are off: %s", off.env["OPENCODE_CONFIG_CONTENT"])

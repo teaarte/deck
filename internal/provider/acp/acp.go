@@ -157,7 +157,7 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 	life, stop := context.WithCancel(context.WithoutCancel(ctx))
 	defer stop()
 	self := a.cfg.Sandbox.Addr(ln)
-	e := &entry{ctx: life, self: self, mcp: mcp, model: model, modelAt: "/model/" + word(), key: key, name: a.cfg.Model,
+	e := &entry{ctx: life, self: self, mcp: mcp, model: model, modelAt: "/model/" + word(), key: key, proxyKey: word(), name: a.cfg.Model,
 		onUsage: req.OnUsage, now: a.now}
 	if !req.NoNetwork {
 		e.domains = []string{"*"}
@@ -180,8 +180,8 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 	if err != nil {
 		return provider.Result{}, fmt.Errorf("acp: %s is not installed: %w", a.cfg.Agent, err)
 	}
-	proxy := "http://" + self
-	argv, env, files := a.agent.Start(Launch{Binary: bin, Home: home, ModelURL: proxy + e.modelAt, Model: a.cfg.Model,
+	proxy := "http://deck:" + e.proxyKey + "@" + self
+	argv, env, files := a.agent.Start(Launch{Binary: bin, Home: home, ModelURL: "http://" + self + e.modelAt, Model: a.cfg.Model,
 		Key: "deck", Port: port, NoNetwork: req.NoNetwork})
 	for path, text := range files {
 		if err := writeNew(path, text); err != nil {

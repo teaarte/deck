@@ -28,10 +28,12 @@ type entry struct {
 	model   *url.URL
 	modelAt string
 	key     string
-	name    string
-	domains []string
-	onUsage func(provider.Usage)
-	now     func() time.Time
+	// proxyKey is the password of the web proxy, given to the agent in its proxy address.
+	proxyKey string
+	name     string
+	domains  []string
+	onUsage  func(provider.Usage)
+	now      func() time.Time
 
 	mu sync.Mutex
 	// last is the status and Retry-After of the last answer of the model API.
@@ -42,7 +44,9 @@ type entry struct {
 func (e *entry) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case r.Method == http.MethodConnect || r.URL.IsAbs() && r.URL.Host != e.self:
-		e.egress(w, r)
+		if gateway.ProxyAuthorized(w, r, e.proxyKey) {
+			e.egress(w, r)
+		}
 	case r.URL.Path == e.mcp.Path:
 		(&httputil.ReverseProxy{FlushInterval: -1, Rewrite: func(pr *httputil.ProxyRequest) {
 			pr.SetURL(&url.URL{Scheme: e.mcp.Scheme, Host: e.mcp.Host})

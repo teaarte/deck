@@ -64,13 +64,9 @@ func (g *Gateway) ScriptHandler(ctx context.Context, tok, self string, domains [
 	})
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodConnect || r.URL.IsAbs() && r.URL.Host != self {
-			_, pass, _ := (&http.Request{Header: http.Header{"Authorization": r.Header.Values("Proxy-Authorization")}}).BasicAuth()
-			if subtle.ConstantTimeCompare([]byte(pass), []byte(tok)) != 1 || g.session(tok) == nil {
-				w.Header().Set("Proxy-Authenticate", `Basic realm="deck"`)
-				http.Error(w, "deck: the proxy needs the token of a running process", http.StatusProxyAuthRequired)
-				return
+			if ProxyAuthorized(w, r, tok) && g.session(tok) != nil {
+				Egress(ctx, w, r, domains)
 			}
-			Egress(ctx, w, r, domains)
 			return
 		}
 		got := r.Header.Get("Authorization")
@@ -93,6 +89,17 @@ func ReadBody(w http.ResponseWriter, r *http.Request) ([]byte, error) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 	}
 	return body, err
+}
+
+// ProxyAuthorized reports whether a proxy request carries tok as its password, and answers 407 when not.
+func ProxyAuthorized(w http.ResponseWriter, r *http.Request, tok string) bool {
+	_, pass, _ := (&http.Request{Header: http.Header{"Authorization": r.Header.Values("Proxy-Authorization")}}).BasicAuth()
+	if subtle.ConstantTimeCompare([]byte(pass), []byte(tok)) == 1 {
+		return true
+	}
+	w.Header().Set("Proxy-Authenticate", `Basic realm="deck"`)
+	http.Error(w, "deck: the proxy needs the token of a running process", http.StatusProxyAuthRequired)
+	return false
 }
 
 func (g *Gateway) session(tok string) *Session {

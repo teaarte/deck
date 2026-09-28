@@ -4,7 +4,7 @@ import {
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { useTranslation } from 'react-i18next';
-import { call, upload } from './api';
+import { call, events, upload } from './api';
 import { sharedFiles, sharedSent } from './share';
 import type { FormValue as Generated } from './catalog.gen';
 
@@ -203,13 +203,30 @@ export function Form({ value }: { value: FormValue }) {
         if (alive.current) setOut({ state: 'done', result: res });
         return;
       }
-      for (;;) {
-        const p = await call<{ state: string; result?: unknown; error?: string }>('deck.process_get', { process: started });
-        if (!alive.current) return;
-        setOut({ state: p.state, result: p.result, error: p.error, process: started });
-        if (FINAL.includes(p.state)) break;
-        await new Promise((r) => setTimeout(r, 1000));
-      }
+      // The process is read again on each processes event, and every 10 s should an event be missed.
+      await new Promise<void>((finished, failed) => {
+        let over = false;
+        const check = async () => {
+          try {
+            const p = await call<{ state: string; result?: unknown; error?: string }>('deck.process_get', { process: started });
+            if (over || !alive.current) return end();
+            setOut({ state: p.state, result: p.result, error: p.error, process: started });
+            if (FINAL.includes(p.state)) end();
+          } catch (e) {
+            end(e);
+          }
+        };
+        const timer = setInterval(() => void check(), 10000);
+        const off = events((topic) => { if (topic === 'processes') void check(); }, () => {});
+        const end = (e?: unknown) => {
+          if (over) return;
+          over = true;
+          clearInterval(timer);
+          off();
+          if (e) failed(e); else finished();
+        };
+        void check();
+      });
     } catch (e) {
       notifications.show({ title: cmd.title, message: (e as Error).message, color: 'red', autoClose: 10000 });
     } finally {

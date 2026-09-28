@@ -176,6 +176,9 @@ func TestRealBrowserWebClientII(t *testing.T) {
 	if got := b.eval(`String(document.querySelector('[data-form="deck.record_update"] input[data-field="source"]').disabled && document.querySelector('[data-form="deck.record_update"] input[data-field="title"]').disabled)`); got != "true" {
 		t.Fatalf("fields that do not change, the key too, are read only: %s", got)
 	}
+	e.must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes",
+		"records": jsonl(map[string]any{"title": "gamma", "score": 1, "source": "seed", "extra": "keep me", "note": "fresh"})}, nil)
+	b.until("the fresh value in the open form", `document.querySelector('[data-form="deck.record_update"] input[data-field="note"]')?.value === 'fresh'`)
 	b.type_(`document.querySelector('[data-form="deck.record_update"] input[data-field="score"]')`, "42")
 	b.eval(`(document.querySelector('[data-form="deck.record_update"] [data-submit]').click(), '')`)
 	b.until("the saved record", `document.querySelector('[data-outcome="done"]')`)
@@ -185,10 +188,10 @@ func TestRealBrowserWebClientII(t *testing.T) {
 	e.must("deck.records_list", map[string]any{"project": "web", "collection": "notes"}, &rec)
 	edited := false
 	for _, r := range rec {
-		edited = edited || (r.Data["title"] == "gamma" && r.Data["score"] == float64(42) && r.Data["source"] == "seed" && r.Data["extra"] == "keep me")
+		edited = edited || (r.Data["title"] == "gamma" && r.Data["score"] == float64(42) && r.Data["source"] == "seed" && r.Data["extra"] == "keep me" && r.Data["note"] == "fresh")
 	}
 	if !edited {
-		t.Fatalf("the form saves the record and keeps the fields it does not show: %+v", rec)
+		t.Fatalf("the form saves the record, keeps the fields it does not show and the fresh values of those the owner left: %+v", rec)
 	}
 
 	e.createProject("inbox", testManifest([]string{agentCommand("keep", `{"type": "object", "properties": {"doc": {"type": "string", "format": "file"}}}`)}, nil))

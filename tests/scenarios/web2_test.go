@@ -18,8 +18,8 @@ import (
 // page whose form edits the record.
 const boardWebManifest = `{"version": 5,
   "collections": [{"name": "notes", "description": "Notes", "key": "title", "display": "title", "immutable": ["source"],
-    "schema": {"type": "object", "properties": {"title": {"type": "string"}, "score": {"type": "integer"}, "source": {"type": "string"}},
-      "required": ["title"]}}],
+    "schema": {"type": "object", "properties": {"title": {"type": "string"}, "score": {"type": "integer"}, "source": {"type": "string"},
+      "note": {"type": "string"}}, "required": ["title"]}}],
   "commands": [
     {"name": "score", "title": "Score", "description": "Scores a title.", "class": "internal",
       "input": {"type": "object", "properties": {"title": {"type": "string"}, "n": {"type": "integer"}, "scan": {"type": "string", "format": "file"}},

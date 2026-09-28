@@ -137,14 +137,16 @@ export function Form({ value }: { value: FormValue }) {
   const { t } = useTranslation();
   const [picked, setPicked] = useState(value.commands.length === 1 ? value.commands[0].name : '');
   const cmd = value.commands.find((c) => c.name === picked);
-  const [values, setValues] = useState<Record<string, unknown>>(value.values ?? {});
+  // edited are the fields the owner changed; the rest follow the values the server sends now.
+  const [edited, setEdited] = useState<Record<string, unknown>>({});
+  const values: Record<string, unknown> = { ...(value.values ?? {}), ...edited };
   const [files, setFiles] = useState<Record<string, File[]>>({});
   const [busy, setBusy] = useState(false);
   const [out, setOut] = useState<Outcome>();
   const running = useRef(false);
   const alive = useRef(true);
   useEffect(() => () => { alive.current = false; }, []);
-  useEffect(() => { setValues(value.values ?? {}); }, [value.record]);
+  useEffect(() => { setEdited({}); }, [value.record]);
   useEffect(() => {
     const field = cmd && Object.entries(cmd.input?.properties ?? {}).find(([, s]) => isFile(s))?.[0];
     if (!field) return;
@@ -231,13 +233,13 @@ export function Form({ value }: { value: FormValue }) {
     <Stack gap="sm" data-form={cmd?.name ?? ''}>
       {value.commands.length > 1 && (
         <Select label={t('form.command')} data={value.commands.map((c) => ({ value: c.name, label: `${c.title} (${c.name})` }))}
-          value={picked || null} onChange={(v) => { setPicked(v ?? ''); setValues({}); setFiles({}); setOut(undefined); }} data-pick />
+          value={picked || null} onChange={(v) => { setPicked(v ?? ''); setEdited({}); setFiles({}); setOut(undefined); }} data-pick />
       )}
       {cmd?.description && <Text size="sm" c="dimmed">{cmd.description}</Text>}
       {cmd && fields.map((name) => [name, props[name]] as const).map(([name, s]) => (
         <Field key={cmd.name + name} name={name} schema={s} value={values[name]} files={files[name] ?? []}
           readOnly={ro.has(name)} required={required.has(name) && !edit}
-          onValue={(v) => setValues((o) => ({ ...o, [name]: v }))} onFiles={(f) => setFiles((o) => ({ ...o, [name]: f }))} />
+          onValue={(v) => setEdited((o) => ({ ...o, [name]: v }))} onFiles={(f) => setFiles((o) => ({ ...o, [name]: f }))} />
       ))}
       {cmd && (
         <Group>

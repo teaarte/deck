@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -64,7 +65,7 @@ func (r *Runner) run(ctx context.Context, t turn) {
 		r.waitProvider(bg, t)
 		return
 	}
-	dir := filepath.Join(r.cfg.RunsDir, fmt.Sprint(processID))
+	dir := r.runDir(processID)
 	work := filepath.Join(dir, "work")
 	data := r.scripts.DataDir(t.project)
 	if err := errors.Join(os.MkdirAll(work, 0o700), os.MkdirAll(filepath.Join(dir, "results"), 0o700), os.MkdirAll(data, 0o700)); err != nil {
@@ -82,7 +83,7 @@ func (r *Runner) run(ctx context.Context, t turn) {
 		sub = &gateway.Submit{Schema: t.cmd.Result, Validate: func(raw json.RawMessage) error { return validate(t.cmd, raw) }}
 	}
 	tok, err := r.gw.Register(bg, &gateway.Session{ProcessID: processID, ProjectID: t.project, Workspace: proj.WorkspaceID, Trial: trial, Submit: sub,
-		Ask: pv.QuestionTool() == gateway.AskToolName(), Wait: callLimit(pv)})
+		Ask: pv.QuestionTool() == provider.AskTool, Wait: callLimit(pv)})
 	if err != nil {
 		r.finish(bg, processID, StateError, "", false, err.Error())
 		return
@@ -266,9 +267,14 @@ func (r *Runner) event(ctx context.Context, processID int64, stream *os.File, e 
 	}
 }
 
+// runDir is the folder of an open process: its work, results and log.
+func (r *Runner) runDir(processID int64) string {
+	return filepath.Join(r.cfg.RunsDir, strconv.FormatInt(processID, 10))
+}
+
 // LogPath is the file with the log of a process while it is open.
 func (r *Runner) LogPath(processID int64) string {
-	return filepath.Join(r.cfg.RunsDir, fmt.Sprint(processID), "stream")
+	return filepath.Join(r.runDir(processID), "stream")
 }
 
 func (r *Runner) firstPrompt(ctx context.Context, proj db.Project, t turn, tools []string, data string) (string, error) {

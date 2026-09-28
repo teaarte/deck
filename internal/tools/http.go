@@ -1,7 +1,6 @@
 package tools
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -62,23 +61,11 @@ func (h *HTTP) Command(p db.Project, t manifest.HTTPTool) *registry.Command {
 		title = t.Name
 	}
 	b, _ := json.Marshal(map[string]any{"method": t.Method, "url": t.URL, "headers": t.Headers, "body": t.Body, "auth": t.Auth})
-	print := canonical(b)
+	print := gateway.Canonical(b)
 	return &registry.Command{Name: p.Name + "." + t.Name, Title: title, Description: t.Description, Class: t.Class,
 		Input: t.Input, Result: t.Result, Callers: []string{registry.Owner, registry.Master, registry.Agent}, ProjectID: p.ID,
 		Journals: t.Class == registry.External, Handler: h.handler(p, t),
 		Fingerprint: func(context.Context, int64) string { return print }, Target: func(string) string { return t.Method + " " + t.URL }, ConfirmTTL: time.Duration(t.ConfirmTTLMinutes) * time.Minute}
-}
-
-// canonical is JSON with sorted keys and no spaces.
-func canonical(raw []byte) string {
-	d := json.NewDecoder(bytes.NewReader(raw))
-	d.UseNumber()
-	var v any
-	if d.Decode(&v) != nil {
-		return string(raw)
-	}
-	b, _ := json.Marshal(v)
-	return string(b)
 }
 
 func (h *HTTP) handler(p db.Project, t manifest.HTTPTool) registry.Handler {

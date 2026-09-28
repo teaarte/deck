@@ -13,9 +13,6 @@ import (
 // AskTool asks the owner a blocking question for a provider without a question tool of its own.
 const AskTool = "ask"
 
-// AskToolName is the ask tool as a provider names the tools of the deck server.
-func AskToolName() string { return qualified(AskTool) }
-
 var askSchema = map[string]any{"type": "object", "required": []string{"question"}, "properties": map[string]any{
 	"question": map[string]any{"type": "string"},
 	"options": map[string]any{"type": "array", "description": "2 to 4 choices, the recommended one first",

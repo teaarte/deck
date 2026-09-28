@@ -81,7 +81,7 @@ func bindInput(ctx context.Context, q *db.Queries, cmd *manifest.Command, projec
 // its file there. Copies go to agents, which the script sandbox does not hold; scripts get links.
 func (r *Runner) inputFiles(ctx context.Context, cmd *manifest.Command, projectID, processID int64, input string, copies bool) (string, string, error) {
 	fields := fileFields(cmd)
-	dir := filepath.Join(r.cfg.RunsDir, strconv.FormatInt(processID, 10), "input")
+	dir := filepath.Join(r.runDir(processID), "input")
 	var in map[string]any
 	if len(fields) == 0 || json.Unmarshal([]byte(input), &in) != nil {
 		return input, dir, nil

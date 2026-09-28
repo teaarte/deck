@@ -8,8 +8,8 @@ import (
 	"slices"
 	"strings"
 
-	"deck2/internal/gateway"
 	"deck2/internal/manifest"
+	"deck2/internal/provider"
 	"deck2/internal/untrusted"
 )
 
@@ -48,7 +48,7 @@ func buildPrompt(project, instructions, body string, m *manifest.Manifest, cmd *
 	}
 	switch questionTool {
 	case "":
-	case gateway.AskToolName():
+	case provider.AskTool:
 		fmt.Fprintf(&b, "\nIf you need a decision from the owner, ask with the ask tool of the deck MCP server (%s).\n", questionTool)
 	default:
 		fmt.Fprintf(&b, "\nIf you need a decision from the owner, ask with %s.\n", questionTool)

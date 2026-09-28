@@ -144,13 +144,13 @@ func (r *Runner) ResumeInterrupted(ctx context.Context) error {
 	for _, p := range ps {
 		if p.Kind == KindTool {
 			r.finish(ctx, p.ID, StateInterrupted, "", false, "deck restarted while the tool call ran")
-			_ = os.RemoveAll(filepath.Join(r.cfg.RunsDir, fmt.Sprint(p.ID)))
+			_ = os.RemoveAll(r.runDir(p.ID))
 			continue
 		}
 		if p.Kind == KindScript {
 			r.finish(ctx, p.ID, StateInterrupted, "", false, "deck restarted while the script ran")
 			r.warn(ctx, p.ID, fmt.Sprintf("Script command %s was interrupted by a restart of deck; run it again if it is still needed.", p.Command))
-			_ = os.RemoveAll(filepath.Join(r.cfg.RunsDir, fmt.Sprint(p.ID)))
+			_ = os.RemoveAll(r.runDir(p.ID))
 			continue
 		}
 		if p.SessionID == "" {
@@ -196,7 +196,7 @@ func (r *Runner) reap(ctx context.Context) error {
 	}
 	for _, g := range groups {
 		if g.Kind == KindScript {
-			sandbox.Reap(int(g.Pgid), filepath.Join(r.cfg.RunsDir, fmt.Sprint(g.ID))+string(filepath.Separator))
+			sandbox.Reap(int(g.Pgid), r.runDir(g.ID)+string(filepath.Separator))
 		} else if pv, err := r.providers.Named(ctx, g.ProjectID, g.Provider); err == nil {
 			if reaper, ok := pv.(provider.Reaper); ok {
 				reaper.Reap(int(g.Pgid), g.SessionID)

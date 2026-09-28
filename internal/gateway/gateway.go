@@ -16,13 +16,14 @@ import (
 	"deck2/internal/ask"
 	"deck2/internal/events"
 	"deck2/internal/manifest"
+	"deck2/internal/provider"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
 )
 
 const (
-	ServerName   = "deck"
+	ServerName   = provider.Server
 	ApproveTool  = "approve"
 	QuestionTool = "AskUserQuestion"
 )
@@ -274,7 +275,7 @@ func (g *Gateway) call(ctx context.Context, act registry.Actor, name string, arg
 	}
 	params := ""
 	if class != registry.Internal {
-		params = canonical(args)
+		params = Canonical(args)
 	}
 	if err == nil && class != registry.Internal && !act.Cleared && act.Kind != registry.Owner {
 		var now bool

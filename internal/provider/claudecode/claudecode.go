@@ -92,7 +92,7 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 	if req.SessionID == "" {
 		return provider.Result{}, errors.New("claude-code: the session id must be assigned by deck")
 	}
-	mcp, _ := json.Marshal(map[string]any{"mcpServers": map[string]any{"deck": map[string]any{"type": "http", "url": req.MCPURL}}})
+	mcp, _ := json.Marshal(map[string]any{"mcpServers": map[string]any{provider.Server: map[string]any{"type": "http", "url": req.MCPURL}}})
 	cfg, err := a.writeFile("mcp", mcp)
 	if err != nil {
 		return provider.Result{}, err

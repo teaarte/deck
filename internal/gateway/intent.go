@@ -17,7 +17,7 @@ import (
 // Intent writes the start of an external action with its parameters before it happens. An identical call
 // still being made, or whose outcome is unknown, is refused: only the owner repeats it.
 func (g *Gateway) Intent(ctx context.Context, act registry.Actor, project int64, tool string, params json.RawMessage) (int64, error) {
-	p := canonical(params)
+	p := Canonical(params)
 	var id int64
 	err := g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		retrying, _ := ctx.Value(retryingKey{}).(int64)
@@ -43,7 +43,7 @@ func (g *Gateway) Intent(ctx context.Context, act registry.Actor, project int64,
 
 // Refused writes an external call that never left deck because it was refused before its intent.
 func (g *Gateway) Refused(ctx context.Context, act registry.Actor, project int64, tool string, params json.RawMessage, err error) {
-	g.journal(ctx, act, project, tool, registry.External, "rejected", canonical(params), err.Error())
+	g.journal(ctx, act, project, tool, registry.External, "rejected", Canonical(params), err.Error())
 }
 
 // Finish records the outcome of an action whose intent is id: done when the other side answered, rejected

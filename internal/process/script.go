@@ -24,7 +24,7 @@ import (
 func (r *Runner) runScript(ctx context.Context, t turn, trial bool) {
 	bg := context.WithoutCancel(ctx)
 	id := t.process
-	dir := filepath.Join(r.cfg.RunsDir, fmt.Sprint(id))
+	dir := r.runDir(id)
 	fail := func(err error) {
 		_ = os.RemoveAll(dir)
 		r.finish(bg, id, StateError, "", false, err.Error())

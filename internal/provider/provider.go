@@ -106,8 +106,11 @@ const (
 	Web = "web"
 )
 
+// Server is the name of the deck MCP server among the MCP servers of a provider session.
+const Server = "deck"
+
 // AskTool is the gateway tool a provider without a question tool of its own asks the owner with.
-const AskTool = "mcp__deck__ask"
+const AskTool = "mcp__" + Server + "__ask"
 
 // StructuredOutput is output by schema; a provider without it hands the result in with result_submit.
 const StructuredOutput = "structured_output"

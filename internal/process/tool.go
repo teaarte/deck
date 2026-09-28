@@ -23,7 +23,7 @@ var classRank = map[string]int{registry.Internal: 0, registry.Reversible: 1, reg
 func (r *Runner) runTool(ctx context.Context, t turn, trial bool) {
 	bg := context.WithoutCancel(ctx)
 	id := t.process
-	dir := filepath.Join(r.cfg.RunsDir, fmt.Sprint(id))
+	dir := r.runDir(id)
 	fail := func(err error) {
 		_ = os.RemoveAll(dir)
 		r.finish(bg, id, StateError, "", false, err.Error())
@@ -79,7 +79,7 @@ func (r *Runner) runTool(ctx context.Context, t turn, trial bool) {
 
 // toolResult closes a tool process with what its call gave; a file the tool saved belongs to the process.
 func (r *Runner) toolResult(ctx context.Context, projectID int64, cmd *manifest.Command, id int64, res json.RawMessage) {
-	dir := filepath.Join(r.cfg.RunsDir, fmt.Sprint(id))
+	dir := r.runDir(id)
 	defer os.RemoveAll(dir)
 	var v map[string]any
 	if json.Unmarshal(res, &v) == nil {

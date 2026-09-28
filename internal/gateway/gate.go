@@ -65,13 +65,14 @@ type Frozen struct {
 
 func frozen(act registry.Actor, command string, input json.RawMessage, tool, target string) string {
 	var f Frozen
-	f.Call.Command, f.Call.Input, f.Caller, f.Tool, f.Target = command, json.RawMessage(canonical(input)), freeze(act), tool, target
+	f.Call.Command, f.Call.Input, f.Caller, f.Tool, f.Target = command, json.RawMessage(Canonical(input)), freeze(act), tool, target
 	b, _ := json.Marshal(f)
 	return string(b)
 }
 
 // canonical is JSON with sorted keys and no spaces, so identical calls compare equal.
-func canonical(raw json.RawMessage) string {
+// Canonical is JSON with sorted keys and numbers as they came, so the same input compares equal.
+func Canonical(raw json.RawMessage) string {
 	d := json.NewDecoder(bytes.NewReader(raw))
 	d.UseNumber()
 	var v any
@@ -153,7 +154,7 @@ func (g *Gateway) hold(ctx context.Context, act registry.Actor, c *registry.Comm
 	if target != "" {
 		where = " (" + target + ")"
 	}
-	text := fmt.Sprintf("%s wants %s%s with %s", act.Author(), c.Name, where, untrusted.Cut(canonical(input), 500))
+	text := fmt.Sprintf("%s wants %s%s with %s", act.Author(), c.Name, where, untrusted.Cut(Canonical(input), 500))
 	var a db.Ask
 	err := g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		var err error
@@ -167,7 +168,7 @@ func (g *Gateway) hold(ctx context.Context, act registry.Actor, c *registry.Comm
 			return err
 		}
 		_, err = q.LogToolCall(ctx, db.LogToolCallParams{ProcessID: act.ProcessID, ProjectID: project, Actor: act.Author(), Tool: c.Name,
-			Class: c.Class, Outcome: "waiting", Params: canonical(input), AskID: sql.NullInt64{Int64: a.ID, Valid: true}})
+			Class: c.Class, Outcome: "waiting", Params: Canonical(input), AskID: sql.NullInt64{Int64: a.ID, Valid: true}})
 		return err
 	})
 	if err != nil {

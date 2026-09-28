@@ -113,8 +113,7 @@ func threadConfig(req provider.Request, servers []string, skillsOff []string) ma
 	return cfg
 }
 
-// server is the name the deck gateway has among the MCP servers of a session.
-const server = "deck"
+const server = provider.Server
 
 // approveTool is the gateway's permission tool as the gateway names it; the model does not see it.
 func approveTool(req provider.Request) string {

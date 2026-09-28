@@ -150,7 +150,7 @@ func (x *MCP) Keep(ctx context.Context, project int64, server string, tools []*m
 }
 
 func toolPrint(name, description string, input []byte) string {
-	sum := sha256.Sum256([]byte(name + "\x00" + description + "\x00" + canonical(input)))
+	sum := sha256.Sum256([]byte(name + "\x00" + description + "\x00" + gateway.Canonical(input)))
 	return hex.EncodeToString(sum[:12])
 }
 

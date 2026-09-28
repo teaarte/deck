@@ -286,7 +286,7 @@ func (t *turn) run(ctx context.Context) (provider.Result, error) {
 	if !caps.McpCapabilities.Http || caps.SessionCapabilities.Resume == nil {
 		return provider.Result{}, fmt.Errorf("acp: %s lacks HTTP MCP servers or session/resume, which deck needs", t.a.cfg.Agent)
 	}
-	servers := []sdk.McpServer{{Http: &sdk.McpServerHttpInline{Type: "http", Name: "deck", Url: t.mcp, Headers: []sdk.HttpHeader{}}}}
+	servers := []sdk.McpServer{{Http: &sdk.McpServerHttpInline{Type: "http", Name: provider.Server, Url: t.mcp, Headers: []sdk.HttpHeader{}}}}
 	if t.session == "" {
 		r, err := t.conn.NewSession(ctx, sdk.NewSessionRequest{Cwd: t.req.Cwd, McpServers: servers})
 		if err != nil {

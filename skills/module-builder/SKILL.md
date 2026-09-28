@@ -106,13 +106,14 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
 - **Results** are JSON by schema. Decisions use typed shapes: a choice with probabilities and confidence,
   a score 2–10 with confidence, yes/no with a probability. A result of `null` means "nothing to do".
 - **Triggers**: `cron` for schedules, `lane` when a card enters a lane, `after` when another command of the
-  project finishes. The command a trigger starts gets the trigger's fixed `params` plus `{"card": <id>}` for
+  project finishes with a result that is not `null` (a poll with nothing new returns `null` and the chain stops). The command a trigger starts gets the trigger's fixed `params` plus `{"card": <id>}` for
   `lane` or `{"process": <id>}` of the finished one for `after`, so its input declares that field as
   `integer`; a later step that needs an earlier result
   reads it with `process_get`, so keep what the chain needs in records rather than passing it along. Cycles are refused. After the Mac slept, each missed schedule runs once; `"skip_missed":
   true` drops the missed run instead (a morning digest that is stale by noon).
 - **Board**: lanes have stable names, titles for people and optional roles (`inbox`, `ready`, `running`,
-  `review`, `done`), each role on at most one lane. New cards land in `inbox`. `ready`, `running` and
+  `review`, `done`), each role on at most one lane. New cards land in `inbox`, at the end of the lane; to keep the best on top, place each with `card_move` and
+  `before`. `ready`, `running` and
   `review` are for code runs and come only all three together; a pipeline the owner drives by hand needs
   only `inbox` and maybe `done`. A card can point at a record (`record`). A project can live without a board.
 - **Documents** agents and scripts write are artifacts only: each belongs to one card or one record, not
@@ -127,8 +128,9 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   "limit": 20}, "columns": [{"label": "Title", "bind": "title"}], "filter": ["status"], "actions": [{"label": "Rate", "command":
   "rate", "params": {"id": "$record.id"}}]}` — `where` and `bind` are expressions over record fields,
   `sort` is a field with `-` for descending, `filter` lists fields the owner narrows by. Action `params` are strings in the manifest; `$record.<field>`
-  passes the field's value with its type (`$record.id` is a number, so that input field is an `integer`). An
-  action passes every required parameter of its command
+  passes the field's value with its type (`$record.id` is a number, so that input field is an `integer`), while
+  a fixed value stays text, so its field is a `string` or an enum of strings (`"days": "7"` to an `integer` is
+  refused). An action passes every required parameter of its command
   (from `$record.<field>` or fixed values); deck asks for nothing that is missing, so a choice the owner
   makes in a row is one action per option. A command the owner fills in by hand is a `form`:
   `{"type": "form", "command": "score", "save": "items"}` asks for the command's input by its schema, shows the
@@ -151,7 +153,9 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   `--color-text-primary`, `--color-text-secondary`, `--color-border-primary`, `--color-ring-primary` for the
   accent, `--font-sans`, `--font-text-sm-size`, `--border-radius-md`); apply them with `applyDocumentTheme` and
   `applyHostStyleVariables` from `/ext-apps.js`, again on each change, and write CSS only with `var(--…)` of
-  them — a fixed color breaks in the owner's dark scheme. List screens in `menu`.
+  them — a fixed color breaks in the owner's dark scheme. List screens in `menu`. A record page is a screen with
+  `"record": "<collection>"`; a row's button `{"label", "screen": "<that page>"}` opens it with the row's record
+  and takes no params.
 - **Telling the owner**: a script or agent that finds something worth a look calls `notify` with `text`, and
   optionally the `screen` (and `record`) it opens and `actions` (`[{label, command, params}]`); it becomes a line
   in the cockpit feed. The caller decides it is worth it; a run with nothing new says nothing.
@@ -193,7 +197,9 @@ A script reads its input JSON from stdin and prints its result JSON to stdout. I
 - deck commands over HTTP: `curl -s -H "Authorization: Bearer $DECK_TOKEN" -d '<json>' "$DECK_URL/commands/deck.records_upsert"`
   (`GET $DECK_URL/commands` lists them; works through the proxy or without it); `records_upsert` takes JSONL
   and returns `{"written", "ids", "errors"}`; `records_list` returns `[{"id", "key", "title", "data": {…}}]`,
-  newest last, and `process_get` `{"id", "command", "state", "result", "error", …}`; a script may call commands and tools of its own project that
+  newest last, `process_get` `{"id", "command", "state", "result", "error", …}`, `documents_list`
+  `[{"id", "name", "kind", "owner_kind", "owner_id"}]` (an artifact of a record has `owner_kind` `record`) and
+  `card_create` the card with its `id`; a script may call commands and tools of its own project that
   allow `agent` callers; a call that waits for the owner answers HTTP 202 `{"waiting": <ask>}` — deck makes
   it later, the script goes on;
 - files go into `$DECK_RESULTS`; the result field `files: [{"path": "...", "record": <id>}]` attaches them;
@@ -247,7 +253,9 @@ prompt so it works on a small model too: say which deck tool to call for what, a
 at the end; a provider without output by schema gets the `result_submit` tool for it. A small model copies
 examples from the prompt word for word and misses checks that are plain in the text: give it the shape of the
 result without sample values, let the script do every check a pattern can do and pass the findings in the
-input, and let the script, not the model's verdict, decide what reaches the owner.
+input, and let the script, not the model's verdict, decide what reaches the owner. Text in a language other
+than English is where a small model slips most (mixed languages, stray alphabets): let the script check it and
+try the command on the model it will run on before the hand-over.
 
 ## 6. Confirmations
 
@@ -280,11 +288,16 @@ Name each of these rights in the hand-over: the owner grants them with "enable".
    deck. It runs as you, the master: leave `callers` out (everyone) unless a command must be closed to
    someone, and keep `master` in a list you give. The `after` and `lane` triggers it sets off run as trials too, so a whole chain can be tried from
    its first command. A trial is not a sandbox: internal writes (records, cards, documents) are real and stay
-   in the draft. Before the hand-over, delete what the trials left that the owner should not start with:
-   `record_delete` (in a draft only), `card_delete`; say in the hand-over what you kept. `process_get` gives
+   in the draft, and so is what scripts write to `$DECK_DATA`, which you cannot reach: keep what a module
+   remembers (seen items, cursors) in records when trials must be undone. Before the hand-over, delete what
+   the trials left that the owner should not start with: `record_delete` (in a draft only), `card_delete`;
+   say in the hand-over what you kept; lines a trial sent with `notify` stay in the feed. `process_get` gives
    the state and result. A `lane` step is tried with `command_try` of its command and `{"card": <id>}`: in a
    draft moving the card starts nothing; `process_log` shows events only while the
-   process is open. Check `records_list` and `cards_list`, and `health_list` after a save that adds programs or
+   process is open, and a local model may think for many minutes before its first one: wait with
+   `process_get` in the foreground. Time the trial on the provider the command will run on and set
+   `timeout_minutes`, batch sizes and the schedule by it. A trial that ends `done` is not yet a proof: check
+   that the chain gave what the owner will see (records, cards, documents). Check `records_list` and `cards_list`, and `health_list` after a save that adds programs or
    MCP servers: a missing program or a failed server shows there with its error.
 4. A draft never runs on its schedule or on the owner's card moves. Only the owner enables it.
 

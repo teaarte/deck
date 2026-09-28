@@ -9,8 +9,8 @@
           "item": {"title": "what", "text": "where", "meta": "project + (who != '' ? ' · ' + who : '')"}},
         {"type": "columns", "blocks": [
           {"type": "list", "title": "Running now",
-            "source": {"from": "processes", "where": "state in ['running', 'waiting_answer', 'needs_login', 'rate_limited', 'waiting_provider']"},
-            "item": {"title": "project + '.' + command", "text": "silent ? 'silent' : state", "meta": "'#' + string(id)"}},
+            "source": {"from": "processes", "where": "state in ['running', 'waiting_answer', 'needs_login', 'rate_limited', 'waiting_provider', 'waiting_slot']"},
+            "item": {"title": "project + '.' + command", "text": "silent ? 'silent' : state == 'waiting_slot' ? 'waits for a slot' : state", "meta": "'#' + string(id)"}},
           {"type": "list", "title": "Done without you", "source": {"from": "unattended", "limit": 10},
             "item": {"title": "text", "meta": "project + ' · ' + author"}}
         ]},
@@ -85,6 +85,15 @@
                 {"label": "State", "bind": "revoked ? 'revoked' : 'live'"}
               ]},
             {"type": "form", "title": "Create a token", "command": "deck.token_create"}
+          ]},
+          {"title": "General", "blocks": [
+            {"type": "table", "title": "General", "source": {"from": "settings"},
+              "columns": [
+                {"label": "Setting", "bind": "title"},
+                {"label": "Value", "bind": "value"},
+                {"label": "Default", "bind": "default"}
+              ]},
+            {"type": "form", "title": "Change settings", "command": "deck.settings_set"}
           ]},
           {"title": "Interface", "blocks": [{"type": "appearance", "title": "Appearance"}]},
           {"title": "Health", "blocks": [

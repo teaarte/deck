@@ -169,6 +169,8 @@ func (s sources) Items(ctx context.Context, from string, sc screen.Scope) ([]map
 		return s.tokenItems(ctx, sc)
 	case "health":
 		return s.healthItems(ctx, sc)
+	case "settings":
+		return s.a.settingItems(ctx, sc.Workspace), nil
 	case "commands":
 		return s.commandItems(ctx, sc, names)
 	}

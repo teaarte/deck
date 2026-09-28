@@ -32,10 +32,18 @@ type turn struct {
 	message string
 	asks    []int64
 	pv      provider.Provider
+	// slot says the turn holds an agent slot of workspace, handed to it or taken when it starts.
+	slot      bool
+	workspace int64
 }
 
 func (r *Runner) run(ctx context.Context, t turn) {
 	bg := context.WithoutCancel(ctx)
+	defer func() {
+		if t.slot {
+			r.releaseSlot(bg, t.workspace)
+		}
+	}()
 	processID := t.process
 	p, err := r.st.Q.GetProcess(bg, processID)
 	if err != nil || p.State != StateRunning {
@@ -65,15 +73,22 @@ func (r *Runner) run(ctx context.Context, t turn) {
 		r.waitProvider(bg, t)
 		return
 	}
+	proj, err := r.st.Q.GetProject(bg, t.project)
+	if err != nil {
+		r.finish(bg, processID, StateError, "", false, err.Error())
+		return
+	}
+	if !t.slot {
+		if !r.takeSlot(bg, proj.WorkspaceID) {
+			r.waitSlot(bg, t, proj.WorkspaceID)
+			return
+		}
+		t.slot, t.workspace = true, proj.WorkspaceID
+	}
 	dir := r.runDir(processID)
 	work := filepath.Join(dir, "work")
 	data := r.scripts.DataDir(t.project)
 	if err := errors.Join(os.MkdirAll(work, 0o700), os.MkdirAll(filepath.Join(dir, "results"), 0o700), os.MkdirAll(data, 0o700)); err != nil {
-		r.finish(bg, processID, StateError, "", false, err.Error())
-		return
-	}
-	proj, err := r.st.Q.GetProject(bg, t.project)
-	if err != nil {
 		r.finish(bg, processID, StateError, "", false, err.Error())
 		return
 	}

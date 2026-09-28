@@ -175,6 +175,10 @@ func (a *App) addBuiltins() {
 	add("snapshot_create", "Take snapshot", "Writes a snapshot of the base, files and project data folders to backups; the newest seven stay.", ownerOnly,
 		registry.Params(), registry.Typed(a.snapshotCreate))
 
+	add("settings_set", "Change settings", "Sets how long a confirmation waits for the owner and how many agent processes run at once; an omitted one stays.", ownerOnly,
+		registry.Params(registry.Opt("confirm_hours", "integer", "Hours a confirmation waits, 1 to 720"),
+			registry.Opt("agent_limit", "integer", "Agent processes at once, 1 to 20; more wait for a slot")),
+		registry.Typed(a.settingsSet))
 	add("secret_set", "Set secret", "Stores a secret for tool headers as a file only deck reads; agents and scripts never see it.", ownerOnly,
 		registry.Params(registry.P("name", "string", "Secret name, as in $secret.<name>"), registry.P("value", "secret", "Secret value; it is never shown again")),
 		registry.Typed(a.secretSet))

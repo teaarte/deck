@@ -77,7 +77,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	a.Asks = ask.NewBroker(st, a.Bus, cfg.Now)
 	a.Registry = registry.New(a.projectCommands)
 	a.addBuiltins()
-	a.Gateway = gateway.New(gateway.Config{Now: cfg.Now, QuestionWait: cfg.QuestionWait, ConfirmWait: cfg.ConfirmWait, ConfirmTTL: cfg.ConfirmTTL,
+	a.Gateway = gateway.New(gateway.Config{Now: cfg.Now, QuestionWait: cfg.QuestionWait, ConfirmWait: cfg.ConfirmWait, ConfirmTTL: a.confirmTTL,
 		Projects: a}, st, a.Asks, a.Bus, a.Registry)
 	a.Tools = tools.NewHTTP(a.Gateway, a.Secret, a.dirs())
 	a.Tools.OAuth = &tools.OAuth{Secrets: a.Secret, Swap: a.SwapSecret}
@@ -97,7 +97,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	a.Runner = process.NewRunner(st, a.Gateway, a.Bus, a, a.Scripts,
 		process.Config{RunsDir: filepath.Join(cfg.Home, "runs"), MCPBase: cfg.MCPBase, Now: cfg.Now, Ceiling: cfg.Ceiling,
 			ScriptCeiling: cfg.ScriptCeiling, FilesDir: filepath.Join(cfg.Home, "files"),
-			Hidden: hidden(cfg.Home), PauseLimit: cfg.PauseLimit, PauseProbe: cfg.PauseProbe}, a)
+			Hidden: hidden(cfg.Home), PauseLimit: cfg.PauseLimit, PauseProbe: cfg.PauseProbe, AgentSlots: a.agentSlots}, a)
 	a.Runner.OnDone = a.afterTriggers
 	a.Scheduler = trigger.New(st, a, cfg.Now, cfg.CatchUpSpread)
 	a.Asks.OnLateAnswer(a.lateAnswer)

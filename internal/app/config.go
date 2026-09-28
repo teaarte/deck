@@ -11,7 +11,10 @@ type Config struct {
 	MCPBase      string
 	QuestionWait time.Duration
 	ConfirmWait  time.Duration
-	ConfirmTTL   time.Duration
+	// ConfirmTTL is how long a confirmation waits unless the owner set it; zero keeps it open.
+	ConfirmTTL time.Duration
+	// AgentLimit is how many agent turns a workspace runs at once unless the owner set it.
+	AgentLimit int
 	// Now is the deck clock; every deadline is written and checked by it.
 	Now func() time.Time
 	// Ceiling is how long a command agent may work unless its manifest says otherwise.
@@ -64,6 +67,9 @@ func (c *Config) defaults() {
 	}
 	if c.ScriptCeiling <= 0 {
 		c.ScriptCeiling = 10 * time.Minute
+	}
+	if c.AgentLimit <= 0 {
+		c.AgentLimit = 3
 	}
 	if c.Snapshots <= 0 {
 		c.Snapshots = 7

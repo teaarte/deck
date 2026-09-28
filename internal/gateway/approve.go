@@ -126,8 +126,8 @@ func (g *Gateway) confirm(ctx context.Context, s *Session, in approveInput) deci
 	text := fmt.Sprintf("Agent wants %s with %s", in.ToolName, untrusted.Cut(string(params), 500))
 	now := g.cfg.Now()
 	var expires time.Time
-	if g.cfg.ConfirmTTL > 0 {
-		expires = now.Add(g.cfg.ConfirmTTL)
+	if ttl := g.confirmTTL(ctx, s.Workspace); ttl > 0 {
+		expires = now.Add(ttl)
 	}
 	a, err := g.asks.CreateRaw(ctx, s.ProcessID, ask.KindConfirm, text, payload, expires)
 	if err != nil {

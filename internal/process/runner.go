@@ -25,10 +25,12 @@ const (
 	// StateRateLimited is a pause on a provider's usage limit; StateWaitingProvider waits for a red self-check.
 	StateRateLimited     = "rate_limited"
 	StateWaitingProvider = "waiting_provider"
-	StateDone            = "done"
-	StateError           = "error"
-	StateInterrupted     = "interrupted"
-	StateStopped         = "stopped"
+	// StateWaitingSlot waits for one of the agent turns the workspace may run at once.
+	StateWaitingSlot = "waiting_slot"
+	StateDone        = "done"
+	StateError       = "error"
+	StateInterrupted = "interrupted"
+	StateStopped     = "stopped"
 )
 
 // MaxDepth is the longest chain of processes that start one another.
@@ -58,6 +60,8 @@ type Config struct {
 	PauseLimit time.Duration
 	// PauseProbe is how often a paused process tries again when the provider gave no reset time.
 	PauseProbe time.Duration
+	// AgentSlots is how many agent turns a workspace runs at once; scripts and tools do not count.
+	AgentSlots func(ctx context.Context, workspace int64) int
 }
 
 // Runner owns process lifecycles. A process stops in waiting_answer when the agent is blocked on the
@@ -83,6 +87,8 @@ type Runner struct {
 	stopping map[int64]string
 	// marked is when the output time of each open process was last written.
 	marked map[int64]time.Time
+	// slots counts the agent turns of each workspace that hold a slot, taken or handed over.
+	slots map[int64]int
 }
 
 type liveTurn struct{ cancel context.CancelCauseFunc }
@@ -113,7 +119,8 @@ type Projects interface {
 func NewRunner(st *store.Store, gw *gateway.Gateway, bus *events.Bus, p Providers, scripts *script.Exec, cfg Config, projects Projects) *Runner {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Runner{st: st, gw: gw, bus: bus, providers: p, scripts: scripts, cfg: cfg, projects: projects, ctx: ctx, cancel: cancel,
-		live: map[int64]*liveTurn{}, stopping: map[int64]string{}, marked: map[int64]time.Time{}}
+		live: map[int64]*liveTurn{}, stopping: map[int64]string{}, marked: map[int64]time.Time{},
+		slots: map[int64]int{}}
 }
 
 // Shutdown interrupts running providers and waits; interrupted processes stay running and resume on next start.
@@ -134,11 +141,12 @@ func (r *Runner) stamp() sql.NullString {
 }
 
 // spawn starts a turn unless deck is stopping; the process then stays running and resumes on the next start.
-func (r *Runner) spawn(t turn) {
+// It reports whether the turn runs.
+func (r *Runner) spawn(t turn) bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.stopped {
-		return
+		return false
 	}
 	if reason, ok := r.stopping[t.process]; ok {
 		r.wg.Add(1)
@@ -146,7 +154,7 @@ func (r *Runner) spawn(t turn) {
 			defer r.wg.Done()
 			r.finish(context.WithoutCancel(r.ctx), t.process, StateStopped, "", false, reason)
 		}()
-		return
+		return false
 	}
 	ctx, cancel := context.WithCancelCause(r.ctx)
 	lt := &liveTurn{cancel: cancel}
@@ -164,6 +172,7 @@ func (r *Runner) spawn(t turn) {
 		}()
 		r.run(ctx, t)
 	}()
+	return true
 }
 
 // finish closes a running process; one that a stop has closed meanwhile stays as the stop left it.

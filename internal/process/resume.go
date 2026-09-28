@@ -129,7 +129,7 @@ func askIDs(as []db.Ask) []int64 {
 }
 
 // ResumeInterrupted kills provider groups a crashed deck left alive, continues processes left running with
-// the answers they had not received, and delivers answers that reached parked processes.
+// the answers they had not received, delivers answers that reached parked processes and hands out free slots.
 func (r *Runner) ResumeInterrupted(ctx context.Context) error {
 	if err := r.reap(ctx); err != nil {
 		return err
@@ -185,6 +185,13 @@ func (r *Runner) ResumeInterrupted(ctx context.Context) error {
 		for _, p := range parked {
 			_ = r.Deliver(ctx, p.ID)
 		}
+	}
+	spaces, err := r.st.Q.ListWorkspaces(ctx)
+	if err != nil {
+		return err
+	}
+	for _, ws := range spaces {
+		r.FreeSlots(ctx, ws)
 	}
 	return nil
 }

@@ -64,8 +64,9 @@ type Config struct {
 	Now          func() time.Time
 	QuestionWait time.Duration
 	ConfirmWait  time.Duration
-	// ConfirmTTL is how long an unanswered confirmation stays open unless its tool sets its own; zero keeps it open.
-	ConfirmTTL time.Duration
+	// ConfirmTTL is how long an unanswered confirmation of a workspace stays open unless its tool sets its own;
+	// zero keeps it open.
+	ConfirmTTL func(ctx context.Context, workspace int64) time.Duration
 	Projects   Projects
 }
 

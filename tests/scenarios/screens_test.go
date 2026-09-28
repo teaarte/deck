@@ -411,7 +411,7 @@ func TestScreenTopicReadsOnlyTheBlocksItChanges(t *testing.T) {
 	if got := paths("", "cockpit", "processes"); !slices.Equal(got, []string{"/b1-0"}) {
 		t.Fatalf("processes reads the processes block: %v", got)
 	}
-	if got := paths("", "settings", "health"); !slices.Equal(got, []string{"/b0-1-0", "/b0-5-0"}) {
+	if got := paths("", "settings", "health"); !slices.Equal(got, []string{"/b0-1-0", "/b0-6-0"}) {
 		t.Fatalf("health reads the providers and the health: %v", got)
 	}
 	for _, topic := range []string{"projects", "chat"} {

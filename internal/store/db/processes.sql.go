@@ -31,7 +31,7 @@ func (q *Queries) ClaimProcess(ctx context.Context, arg ClaimProcessParams) (int
 const countActiveOnProvider = `-- name: CountActiveOnProvider :one
 SELECT count(*) FROM process
 WHERE provider = ?1 AND project_id IN (SELECT id FROM project WHERE workspace_id = ?2)
-  AND state IN ('running', 'waiting_answer', 'needs_login', 'rate_limited', 'waiting_provider')
+  AND state IN ('running', 'waiting_answer', 'needs_login', 'rate_limited', 'waiting_provider', 'waiting_slot')
 `
 
 type CountActiveOnProviderParams struct {
@@ -176,7 +176,7 @@ func (q *Queries) EndPause(ctx context.Context, id int64) error {
 const findActiveProcess = `-- name: FindActiveProcess :one
 SELECT id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, kind, manifest_revision, trial, pause_until_ms, pause_limit_ms, wait_message, wait_fresh FROM process
 WHERE project_id = ? AND command = ? AND retry_key = ? AND retry_key != '' AND trial = ?
-  AND state IN ('running', 'waiting_answer', 'needs_login', 'rate_limited', 'waiting_provider')
+  AND state IN ('running', 'waiting_answer', 'needs_login', 'rate_limited', 'waiting_provider', 'waiting_slot')
 ORDER BY id LIMIT 1
 `
 
@@ -796,6 +796,65 @@ func (q *Queries) ListWaitingForProvider(ctx context.Context, provider string) (
 	return items, nil
 }
 
+const listWaitingForSlot = `-- name: ListWaitingForSlot :many
+SELECT id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, kind, manifest_revision, trial, pause_until_ms, pause_limit_ms, wait_message, wait_fresh FROM process
+WHERE state = 'waiting_slot' AND project_id IN (SELECT id FROM project WHERE workspace_id = ?1)
+ORDER BY id
+`
+
+func (q *Queries) ListWaitingForSlot(ctx context.Context, workspaceID int64) ([]Process, error) {
+	rows, err := q.db.QueryContext(ctx, listWaitingForSlot, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Process
+	for rows.Next() {
+		var i Process
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProjectID,
+			&i.Command,
+			&i.State,
+			&i.Provider,
+			&i.SessionID,
+			&i.Input,
+			&i.Result,
+			&i.NotBySchema,
+			&i.Error,
+			&i.StartedAt,
+			&i.FinishedAt,
+			&i.StartNote,
+			&i.ParentID,
+			&i.Depth,
+			&i.TriggerID,
+			&i.RetryKey,
+			&i.Pgid,
+			&i.CeilingMs,
+			&i.DeadlineMs,
+			&i.OutputMs,
+			&i.SilentSinceMs,
+			&i.Kind,
+			&i.ManifestRevision,
+			&i.Trial,
+			&i.PauseUntilMs,
+			&i.PauseLimitMs,
+			&i.WaitMessage,
+			&i.WaitFresh,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const logToolCall = `-- name: LogToolCall :one
 INSERT INTO tool_call (process_id, project_id, actor, tool, class, outcome, params, error, ask_id)
 VALUES (?1, ?2, ?3, ?4, ?5, ?6,
@@ -1119,7 +1178,7 @@ func (q *Queries) StartedToolCalls(ctx context.Context) ([]ToolCall, error) {
 
 const stopParkedProcess = `-- name: StopParkedProcess :execrows
 UPDATE process SET state = 'stopped', error = ?, finished_at = ?, deadline_ms = NULL, silent_since_ms = NULL
-WHERE id = ? AND state IN ('running', 'waiting_answer', 'needs_login', 'rate_limited', 'waiting_provider')
+WHERE id = ? AND state IN ('running', 'waiting_answer', 'needs_login', 'rate_limited', 'waiting_provider', 'waiting_slot')
 `
 
 type StopParkedProcessParams struct {
@@ -1149,6 +1208,25 @@ type WaitForProviderParams struct {
 
 func (q *Queries) WaitForProvider(ctx context.Context, arg WaitForProviderParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, waitForProvider, arg.Message, arg.Fresh, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const waitForSlot = `-- name: WaitForSlot :execrows
+UPDATE process SET state = 'waiting_slot', wait_message = ?1, wait_fresh = ?2
+WHERE id = ?3 AND state = 'running'
+`
+
+type WaitForSlotParams struct {
+	Message string
+	Fresh   int64
+	ID      int64
+}
+
+func (q *Queries) WaitForSlot(ctx context.Context, arg WaitForSlotParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, waitForSlot, arg.Message, arg.Fresh, arg.ID)
 	if err != nil {
 		return 0, err
 	}

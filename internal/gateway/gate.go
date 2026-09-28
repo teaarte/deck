@@ -118,12 +118,19 @@ func (g *Gateway) fingerprint(ctx context.Context, workspace, project int64, nam
 	return c.Fingerprint(ctx, project)
 }
 
-// ttl is how long a confirmation of the command stays open: its tool's own term, else the default.
-func (g *Gateway) ttl(c *registry.Command) time.Duration {
+// ttl is how long a confirmation of the command stays open: its tool's own term, else the workspace's.
+func (g *Gateway) ttl(ctx context.Context, c *registry.Command, workspace int64) time.Duration {
 	if c.ConfirmTTL > 0 {
 		return c.ConfirmTTL
 	}
-	return g.cfg.ConfirmTTL
+	return g.confirmTTL(ctx, workspace)
+}
+
+func (g *Gateway) confirmTTL(ctx context.Context, workspace int64) time.Duration {
+	if g.cfg.ConfirmTTL == nil {
+		return 0
+	}
+	return g.cfg.ConfirmTTL(ctx, workspace)
 }
 
 // hold freezes a call until the owner decides; the caller goes on with other work. An identical call that is
@@ -143,7 +150,7 @@ func (g *Gateway) hold(ctx context.Context, act registry.Actor, c *registry.Comm
 		process = 0
 	}
 	var expires time.Time
-	if ttl := g.ttl(c); ttl > 0 {
+	if ttl := g.ttl(ctx, c, act.Workspace); ttl > 0 {
 		expires = g.cfg.Now().Add(ttl)
 	}
 	where := ""

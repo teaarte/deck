@@ -159,31 +159,41 @@ func (r *Runner) ProviderReady(ctx context.Context, name string) {
 		if ok, err := r.claim(ctx, p.ID, StateWaitingProvider); err != nil || !ok {
 			continue
 		}
-		var w waiting
-		_ = json.Unmarshal([]byte(p.WaitMessage), &w)
-		t, err := r.turnOf(ctx, p)
+		t, err := r.heldTurn(ctx, p)
 		if err != nil {
 			r.finish(ctx, p.ID, StateError, "", false, err.Error())
 			continue
 		}
-		t.asks = w.Asks
-		if p.WaitFresh == 0 {
-			t.resume, t.message = true, w.Message
-			pending, _ := r.st.Q.ListUndeliveredAsks(ctx, p.ID)
-			var more []db.Ask
-			for _, a := range pending {
-				if !slices.Contains(w.Asks, a.ID) {
-					more = append(more, a)
-				}
-			}
-			if len(more) > 0 {
-				t.message = strings.TrimSpace(t.message + "\n" + deliveryMessage(more))
-				t.asks = append(t.asks, askIDs(more)...)
-			}
-		}
 		r.bus.Publish("processes")
 		r.spawn(t)
 	}
+}
+
+// heldTurn is the turn a process that waited for its provider or a slot runs now, with the answers that
+// reached it meanwhile; the caller has claimed it back to running.
+func (r *Runner) heldTurn(ctx context.Context, p db.Process) (turn, error) {
+	var w waiting
+	_ = json.Unmarshal([]byte(p.WaitMessage), &w)
+	t, err := r.turnOf(ctx, p)
+	if err != nil {
+		return turn{}, err
+	}
+	t.asks = w.Asks
+	if p.WaitFresh == 0 {
+		t.resume, t.message = true, w.Message
+		pending, _ := r.st.Q.ListUndeliveredAsks(ctx, p.ID)
+		var more []db.Ask
+		for _, a := range pending {
+			if !slices.Contains(w.Asks, a.ID) {
+				more = append(more, a)
+			}
+		}
+		if len(more) > 0 {
+			t.message = strings.TrimSpace(t.message + "\n" + deliveryMessage(more))
+			t.asks = append(t.asks, askIDs(more)...)
+		}
+	}
+	return t, nil
 }
 
 func nullFloat(f *float64) sql.NullFloat64 {

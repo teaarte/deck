@@ -6,6 +6,7 @@ import {
   Alert, Anchor, Badge, Button, Card, Chip, Code, Collapse, Group, Loader, Select, SimpleGrid, Stack, Table, Tabs, Text,
   TextInput, Title, UnstyledButton,
 } from '@mantine/core';
+import { useInterval } from '@mantine/hooks';
 import { useTranslation } from 'react-i18next';
 import catalogSchema from '../../schemas/catalog.json';
 import { Board } from './board';
@@ -35,10 +36,7 @@ const useStale = () => useSyncExternalStore((f) => (staleSubs.add(f), () => stal
 
 const useNow = () => {
   const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 15000);
-    return () => clearInterval(t);
-  }, []);
+  useInterval(() => setNow(Date.now()), 15000, { autoInvoke: true });
   return now;
 };
 

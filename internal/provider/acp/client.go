@@ -20,7 +20,6 @@ type client struct {
 	thought strings.Builder
 	all     strings.Builder
 	onEvent func(provider.Event)
-	asked   int
 	// input marks tool calls whose arguments were reported.
 	input map[sdk.ToolCallId]bool
 }
@@ -140,7 +139,6 @@ func raw(v any) string {
 // RequestPermission allows the one call asked about; "always" is the owner's button, never deck's.
 func (c *client) RequestPermission(_ context.Context, r sdk.RequestPermissionRequest) (sdk.RequestPermissionResponse, error) {
 	c.mu.Lock()
-	c.asked++
 	c.mu.Unlock()
 	for _, o := range r.Options {
 		if o.Kind == sdk.PermissionOptionKindAllowOnce {

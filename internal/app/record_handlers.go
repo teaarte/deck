@@ -3,14 +3,15 @@ package app
 import (
 	"context"
 	"database/sql"
-	"deck2/internal/manifest"
-	"deck2/internal/registry"
-	"deck2/internal/store"
-	"deck2/internal/store/db"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"deck2/internal/manifest"
+	"deck2/internal/registry"
+	"deck2/internal/store"
+	"deck2/internal/store/db"
 )
 
 func (a *App) recordsList(ctx context.Context, act registry.Actor, in struct {

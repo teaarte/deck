@@ -2,11 +2,12 @@ package app
 
 import (
 	"context"
-	"deck2/internal/untrusted"
 	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
+
+	"deck2/internal/untrusted"
 
 	"deck2/internal/ask"
 	"deck2/internal/registry"

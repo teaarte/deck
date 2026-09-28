@@ -101,4 +101,6 @@ func (a *App) secretsList(ctx context.Context, act registry.Actor, _ struct{}) (
 	return names, nil
 }
 
-func validSecret(name string) bool { return secretName.MatchString(name) && strings.Trim(name, ".") != "" }
+func validSecret(name string) bool {
+	return secretName.MatchString(name) && strings.Trim(name, ".") != ""
+}

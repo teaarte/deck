@@ -2,7 +2,6 @@ package tools
 
 import (
 	"context"
-	"deck2/internal/untrusted"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -11,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+
+	"deck2/internal/untrusted"
 
 	"deck2/internal/gateway"
 	"deck2/internal/registry"

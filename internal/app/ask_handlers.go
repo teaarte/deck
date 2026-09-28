@@ -2,14 +2,15 @@ package app
 
 import (
 	"context"
-	"deck2/internal/ask"
-	"deck2/internal/registry"
-	"deck2/internal/store"
-	"deck2/internal/store/db"
 	"encoding/json"
 	"errors"
 	"slices"
 	"strings"
+
+	"deck2/internal/ask"
+	"deck2/internal/registry"
+	"deck2/internal/store"
+	"deck2/internal/store/db"
 )
 
 func (a *App) asksList(ctx context.Context, act registry.Actor, _ struct{}) (any, error) {

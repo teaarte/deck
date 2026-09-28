@@ -18,7 +18,7 @@ func platform() Sandbox { return seatbelt{} }
 func (seatbelt) Name() string { return "sandbox-exec" }
 
 func (seatbelt) Check() error {
-	_, err := exec.LookPath("sandbox-exec")
+	_, err := exec.LookPath("/usr/bin/sandbox-exec")
 	return err
 }
 

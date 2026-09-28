@@ -3,10 +3,11 @@ package app
 import (
 	"context"
 	"database/sql"
-	"deck2/internal/registry"
-	"deck2/internal/store/db"
 	"errors"
 	"fmt"
+
+	"deck2/internal/registry"
+	"deck2/internal/store/db"
 )
 
 type documentView struct {

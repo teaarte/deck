@@ -3,7 +3,6 @@ package process
 import (
 	"bytes"
 	"context"
-	"deck2/internal/untrusted"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,6 +10,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"deck2/internal/untrusted"
 
 	"deck2/internal/ask"
 	"deck2/internal/gateway"

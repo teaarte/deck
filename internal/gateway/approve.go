@@ -2,13 +2,14 @@ package gateway
 
 import (
 	"context"
-	"deck2/internal/ask"
-	"deck2/internal/store/db"
-	"deck2/internal/untrusted"
 	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
+
+	"deck2/internal/ask"
+	"deck2/internal/store/db"
+	"deck2/internal/untrusted"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )

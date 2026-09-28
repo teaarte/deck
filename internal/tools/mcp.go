@@ -3,7 +3,6 @@ package tools
 import (
 	"context"
 	"crypto/sha256"
-	"deck2/internal/untrusted"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -14,6 +13,8 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+
+	"deck2/internal/untrusted"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 

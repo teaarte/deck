@@ -33,13 +33,9 @@ type providerDef struct {
 	Agent string `json:"agent,omitempty"`
 }
 
-func (a *App) workspaceOf(ctx context.Context, projectID int64) (db.Project, error) {
-	return a.Store.Q.GetProject(ctx, projectID)
-}
-
 // Named is the provider of a workspace by name: a built-in one of deck or one the owner added.
 func (a *App) Named(ctx context.Context, projectID int64, name string) (provider.Provider, error) {
-	p, err := a.workspaceOf(ctx, projectID)
+	p, err := a.Store.Q.GetProject(ctx, projectID)
 	if err != nil {
 		return nil, err
 	}
@@ -129,7 +125,7 @@ func (a *App) providers(ctx context.Context, workspace int64) ([]provider.Provid
 // For picks the provider a command starts on: the owner's setting, else the suggestion of the manifest,
 // else the main provider, else any that fits. A setting that no longer fits refuses the start.
 func (a *App) For(ctx context.Context, projectID int64, cmd *manifest.Command) (provider.Provider, error) {
-	p, err := a.workspaceOf(ctx, projectID)
+	p, err := a.Store.Q.GetProject(ctx, projectID)
 	if err != nil {
 		return nil, err
 	}

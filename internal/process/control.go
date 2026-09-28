@@ -2,10 +2,11 @@ package process
 
 import (
 	"context"
+	"strings"
+
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
 	"deck2/internal/untrusted"
-	"strings"
 )
 
 // stopCause cancels a turn that has to end the process as stopped, not as a deck shutdown.

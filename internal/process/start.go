@@ -3,16 +3,17 @@ package process
 import (
 	"context"
 	"database/sql"
-	"deck2/internal/ask"
-	"deck2/internal/manifest"
-	"deck2/internal/registry"
-	"deck2/internal/store"
-	"deck2/internal/store/db"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 	"time"
+
+	"deck2/internal/ask"
+	"deck2/internal/manifest"
+	"deck2/internal/registry"
+	"deck2/internal/store"
+	"deck2/internal/store/db"
 
 	"github.com/google/uuid"
 )

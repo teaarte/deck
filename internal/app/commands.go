@@ -4,13 +4,14 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"encoding/json"
+	"errors"
+	"log/slog"
+
 	"deck2/internal/manifest"
 	"deck2/internal/process"
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
-	"encoding/json"
-	"errors"
-	"log/slog"
 )
 
 // projectCommands turns the commands of workspace manifests into registry commands.

@@ -3,16 +3,17 @@ package process
 import (
 	"context"
 	"database/sql"
-	"deck2/internal/ask"
-	"deck2/internal/provider"
-	"deck2/internal/store"
-	"deck2/internal/store/db"
-	"deck2/internal/untrusted"
 	"encoding/json"
 	"fmt"
 	"log/slog"
 	"strings"
 	"time"
+
+	"deck2/internal/ask"
+	"deck2/internal/provider"
+	"deck2/internal/store"
+	"deck2/internal/store/db"
+	"deck2/internal/untrusted"
 )
 
 // pause holds a process its provider refused on a usage limit until the limit resets, or for a probe an hour

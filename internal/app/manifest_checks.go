@@ -3,15 +3,16 @@ package app
 import (
 	"bytes"
 	"context"
-	"deck2/internal/manifest"
-	"deck2/internal/registry"
-	"deck2/internal/store/db"
-	"deck2/internal/tools"
 	"encoding/json"
 	"fmt"
 	"log/slog"
 	"slices"
 	"strings"
+
+	"deck2/internal/manifest"
+	"deck2/internal/registry"
+	"deck2/internal/store/db"
+	"deck2/internal/tools"
 )
 
 const maxProblems = 20

@@ -2,12 +2,6 @@ package process
 
 import (
 	"context"
-	"deck2/internal/gateway"
-	"deck2/internal/manifest"
-	"deck2/internal/provider"
-	"deck2/internal/store"
-	"deck2/internal/untrusted"
-	"deck2/internal/store/db"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -16,6 +10,13 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"deck2/internal/gateway"
+	"deck2/internal/manifest"
+	"deck2/internal/provider"
+	"deck2/internal/store"
+	"deck2/internal/store/db"
+	"deck2/internal/untrusted"
 )
 
 // turn is one provider session run of a process: a fresh start or a resume of its session.

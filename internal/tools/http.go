@@ -3,7 +3,6 @@ package tools
 import (
 	"bytes"
 	"context"
-	"deck2/internal/untrusted"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,6 +13,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"deck2/internal/untrusted"
 
 	"deck2/internal/files"
 	"deck2/internal/gateway"

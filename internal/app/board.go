@@ -3,16 +3,17 @@ package app
 import (
 	"context"
 	"database/sql"
-	"deck2/internal/manifest"
-	"deck2/internal/registry"
-	"deck2/internal/store/db"
-	"deck2/internal/trigger"
 	"errors"
 	"fmt"
 	"log/slog"
 	"slices"
 	"strings"
 	"time"
+
+	"deck2/internal/manifest"
+	"deck2/internal/registry"
+	"deck2/internal/store/db"
+	"deck2/internal/trigger"
 )
 
 // boardManifest is the manifest of a project that has a board.

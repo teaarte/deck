@@ -4,12 +4,13 @@ import (
 	"bufio"
 	"context"
 	"database/sql"
-	"deck2/internal/store"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 	"time"
+
+	"deck2/internal/store"
 
 	"deck2/internal/manifest"
 	"deck2/internal/registry"

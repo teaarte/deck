@@ -3,16 +3,17 @@ package process
 import (
 	"context"
 	"database/sql"
-	"deck2/internal/ask"
-	"deck2/internal/provider"
-	"deck2/internal/store"
-	"deck2/internal/store/db"
-	"deck2/internal/untrusted"
 	"encoding/json"
 	"fmt"
 	"log/slog"
 	"slices"
 	"strings"
+
+	"deck2/internal/ask"
+	"deck2/internal/provider"
+	"deck2/internal/store"
+	"deck2/internal/store/db"
+	"deck2/internal/untrusted"
 )
 
 // needLogin parks the process until the owner logs the provider in again and picks how to continue.

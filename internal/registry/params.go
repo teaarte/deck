@@ -23,10 +23,6 @@ func Opt(name, typ, desc string) Param {
 	return Param{Name: name, Type: typ, Desc: desc, Optional: true}
 }
 
-func OneOf(name, desc string, values ...string) Param {
-	return Param{Name: name, Type: "enum", Desc: desc, Enum: values}
-}
-
 // Params builds a closed object schema from parameters.
 func Params(ps ...Param) json.RawMessage {
 	props := map[string]any{}

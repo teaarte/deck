@@ -3,10 +3,11 @@ package gateway
 import (
 	"context"
 	"database/sql"
-	"deck2/internal/untrusted"
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"deck2/internal/untrusted"
 
 	"deck2/internal/ask"
 	"deck2/internal/registry"

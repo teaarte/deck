@@ -2,10 +2,11 @@ package tools
 
 import (
 	"context"
-	"deck2/internal/untrusted"
 	"errors"
 	"fmt"
 	"strings"
+
+	"deck2/internal/untrusted"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 

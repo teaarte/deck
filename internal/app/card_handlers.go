@@ -2,9 +2,10 @@ package app
 
 import (
 	"context"
+	"strings"
+
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
-	"strings"
 )
 
 func (a *App) cardsList(ctx context.Context, act registry.Actor, in struct {

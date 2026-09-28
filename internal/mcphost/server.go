@@ -2,7 +2,6 @@ package mcphost
 
 import (
 	"context"
-	"deck2/internal/untrusted"
 	"errors"
 	"fmt"
 	"os"
@@ -11,6 +10,8 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"deck2/internal/untrusted"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 

@@ -4,15 +4,16 @@ import (
 	"bufio"
 	"context"
 	"database/sql"
-	"deck2/internal/process"
-	"deck2/internal/registry"
-	"deck2/internal/store"
-	"deck2/internal/store/db"
 	"encoding/json"
 	"errors"
 	"os"
 	"strings"
 	"time"
+
+	"deck2/internal/process"
+	"deck2/internal/registry"
+	"deck2/internal/store"
+	"deck2/internal/store/db"
 )
 
 type processView struct {

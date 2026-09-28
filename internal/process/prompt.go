@@ -4,11 +4,12 @@ import (
 	"bytes"
 	"encoding/json"
 
-	"deck2/internal/manifest"
-	"deck2/internal/untrusted"
 	"fmt"
 	"slices"
 	"strings"
+
+	"deck2/internal/manifest"
+	"deck2/internal/untrusted"
 )
 
 // inputData is the command input as data: one line of compact JSON, or a fenced block when it is long.

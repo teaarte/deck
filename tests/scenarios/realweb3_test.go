@@ -2,6 +2,7 @@ package scenarios
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"slices"
 	"testing"
@@ -191,4 +192,76 @@ func TestRealBrowserSettings(t *testing.T) {
 	if len(still) != 1 || still[0].Name != "web" {
 		t.Fatalf("the project is deleted after the yes: %+v", still)
 	}
+}
+
+// TestRealBrowserDocuments reads, edits and reverts a document of a project on its page, and draws markdown
+// where a list says so: DECK_REAL_BROWSER=1 go test ./tests/scenarios -run TestRealBrowser -v.
+func TestRealBrowserDocuments(t *testing.T) {
+	if os.Getenv("DECK_REAL_BROWSER") == "" {
+		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
+	}
+	checkBuiltClient(t)
+	e := newEnv(t, nil)
+	e.createProject("web", docsManifest)
+	var d struct{ ID int64 }
+	e.must("deck.document_save", map[string]any{"project": "web", "name": "notes/criteria.md", "kind": "doc", "text": "# Criteria\n\n- **short** <img src=x onerror=alert(1)>"}, &d)
+	e.must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": jsonl(map[string]any{"title": "alpha", "note": "a **bold** note"})}, nil)
+
+	b := newPlaywright(t)
+	b.call("browser_resize", map[string]any{"width": 1280, "height": 900})
+	b.open(e.URL + "/?token=" + token + "#/p/web/main")
+	b.until("markdown in the list that asks for it", `[...document.querySelectorAll('[data-item] [data-markdown] strong')].some((x) => x.innerText === 'bold')`)
+	b.until("the named document on the main screen", `document.querySelector('[data-document="notes/criteria.md"] [data-markdown] h1')?.innerText === 'Criteria'`)
+	if got := b.eval(`String(!!document.querySelector('[data-markdown] img[onerror]'))`); got != "false" {
+		t.Fatal("markdown is sanitized: no handlers in the page")
+	}
+
+	b.eval(`([...document.querySelectorAll('nav a')].find((a) => a.innerText.trim() === 'Documents').click(), '')`)
+	b.until("the documents screen", `[...document.querySelectorAll('tr')].some((r) => r.innerText.includes('notes/criteria.md'))`)
+	b.eval(`([...document.querySelectorAll('tr')].find((r) => r.innerText.includes('notes/criteria.md')).querySelector('button').click(), '')`)
+	b.until("the document page", `location.hash === '#/p/web/document/`+fmt.Sprint(d.ID)+`' && document.querySelector('[data-edit]')`)
+	b.eval(`(document.querySelector('[data-edit]').click(), '')`)
+	b.type_(`document.querySelector('[data-draft]')`, "# Criteria\n\n- *brief*")
+	b.type_(`document.querySelector('[data-reason]')`, "shorter")
+	b.eval(`(document.querySelector('[data-save-document]').click(), '')`)
+	b.until("the saved revision drawn", `document.querySelector('[data-markdown] em')?.innerText === 'brief' && !document.querySelector('[data-draft]')`)
+	var got struct {
+		Text     string
+		Revision int64
+	}
+	e.must("deck.document_get", map[string]any{"document": d.ID}, &got)
+	if got.Text != "# Criteria\n\n- *brief*" || got.Revision != 2 {
+		t.Fatalf("the edit is a new revision: %+v", got)
+	}
+	b.eval(`(document.querySelector('[data-history]').click(), '')`)
+	b.until("the revisions", `document.querySelector('[data-revert="1"]')`)
+	b.shot("document-page")
+	b.eval(`(document.querySelector('[data-revert="1"]').click(), '')`)
+	b.until("the first text back", `document.querySelector('[data-markdown] strong')?.innerText === 'short'`)
+	e.must("deck.document_get", map[string]any{"document": d.ID}, &got)
+	if got.Revision != 3 {
+		t.Fatalf("going back is a new revision: %+v", got)
+	}
+
+	var ds []struct {
+		ID   int64
+		Name string
+	}
+	e.must("deck.documents_list", map[string]any{"project": "web"}, &ds)
+	for _, x := range ds {
+		if x.Name == "manifest.json" {
+			b.open(e.URL + "/#/p/web/document/" + fmt.Sprint(x.ID))
+		}
+	}
+	b.until("the manifest as source", `document.querySelector('[data-document="manifest.json"] [data-source]')?.innerText.includes('"collections"')`)
+	if got := b.eval(`String(!!document.querySelector('[data-edit]'))`); got != "false" {
+		t.Fatal("the manifest is read only on screen")
+	}
+	b.call("browser_resize", map[string]any{"width": 390, "height": 844})
+	b.open(e.URL + "/#/p/web/document/" + fmt.Sprint(d.ID))
+	b.until("the page on a phone", `document.querySelector('[data-document] [data-markdown] h1')`)
+	if got := b.eval(`String(document.documentElement.scrollWidth <= innerWidth + 1)`); got != "true" {
+		t.Fatalf("a document page fits the width of a phone: %s", got)
+	}
+	b.shot("document-phone")
 }

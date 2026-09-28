@@ -100,6 +100,18 @@
     "lg": "L",
     "xl": "XL"
   },
+  "document": {
+    "edit": "Edit",
+    "save": "Save",
+    "why": "Why it changed (optional)",
+    "saved": "Saved {{name}}",
+    "none": "Not written yet",
+    "revision": "revision {{n}}",
+    "history_one": "{{count}} revision",
+    "history_other": "History: {{count}} revisions",
+    "revert": "Back to this",
+    "reverted": "Back to revision {{n}}"
+  },
   "details": { "show": "Show the whole call", "hide": "Hide the call" },
   "done": "Done",
   "started": "Started process #{{id}}",

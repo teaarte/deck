@@ -11,8 +11,9 @@ import { useTranslation } from 'react-i18next';
 import catalogSchema from '../../schemas/catalog.json';
 import { Board } from './board';
 import { Form, type FormValue } from './form';
+import { Document, Markdown } from './document';
 import { ACCENTS, DENSITIES, FONTS, RADII, setLook, useLook, type Look } from './look';
-import type { Action, ActionsValue, BoardValue, CardValue, CustomValue, Data } from './catalog.gen';
+import type { Action, ActionsValue, BoardValue, CardValue, CustomValue, Data, DocumentValue } from './catalog.gen';
 
 const Custom = lazy(() => import('./custom').then((m) => ({ default: m.Custom })));
 
@@ -327,7 +328,7 @@ const impls: ReactComponentImplementation[] = [
               return (
                 <Stack key={show(it.id) || i} gap={6} data-item>
                   <Text fw={500}>{it.title}</Text>
-                  {it.text && <Text size="sm">{it.text}</Text>}
+                  {it.text && (it.markdown ? <Markdown text={it.text} /> : <Text size="sm">{it.text}</Text>)}
                   {it.meta && <Text size="xs" c="dimmed">{it.meta}</Text>}
                   {it.details && <Details text={it.details} />}
                   {it.questions && <QuestionPicker questions={it.questions} act={answer} context={context} />}
@@ -349,10 +350,17 @@ const impls: ReactComponentImplementation[] = [
           return (
             <Stack gap="xs">
               {(v.fields ?? []).map((f) => (
-                <Group key={f.label} gap="sm" wrap="nowrap" align="flex-start">
-                  <Text size="sm" c="dimmed" w={120}>{f.label}</Text>
-                  <Text size="sm">{show(f.value)}</Text>
-                </Group>
+                f.markdown && typeof f.value === 'string' ? (
+                  <Stack key={f.label} gap={2}>
+                    <Text size="sm" c="dimmed">{f.label}</Text>
+                    <Markdown text={f.value} />
+                  </Stack>
+                ) : (
+                  <Group key={f.label} gap="sm" wrap="nowrap" align="flex-start">
+                    <Text size="sm" c="dimmed" w={120}>{f.label}</Text>
+                    <Text size="sm">{show(f.value)}</Text>
+                  </Group>
+                )
               ))}
               <Actions actions={v.actions} context={context} />
             </Stack>
@@ -409,6 +417,10 @@ const impls: ReactComponentImplementation[] = [
   createComponentImplementation(api('custom'), ({ props }) => {
     const p = props as { title?: string; data?: Data };
     return <Block title={p.title} data={p.data}>{(d) => <Suspense fallback={<Loader size="xs" />}><Custom value={d.value as CustomValue} /></Suspense>}</Block>;
+  }),
+  createComponentImplementation(api('document'), ({ props }) => {
+    const p = props as { title?: string; data?: Data };
+    return <Block title={p.title} data={p.data}>{(d) => <Document value={d.value as DocumentValue} />}</Block>;
   }),
   createComponentImplementation(api('appearance'), ({ props }) => {
     const p = props as { title?: string; data?: Data };

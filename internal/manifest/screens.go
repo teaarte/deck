@@ -29,6 +29,7 @@ var SourceFields = map[string][]string{
 	"settings":      {"name", "title", "value", "default"},
 	"notifications": {"id", "project", "text", "screen", "record", "created_at"},
 	"commands":      {"name", "title", "description", "project", "files"},
+	"documents":     {"id", "name", "kind", "owner", "revision", "editable"},
 }
 
 // deckSources are read only by the screens deck ships.
@@ -37,43 +38,54 @@ var deckSources = []string{"providers", "log", "projects", "secrets", "tokens", 
 // RecordUpdate is the command a form on a record page edits its record with.
 const RecordUpdate = "deck.record_update"
 
-// DeckRecord is the record of a page among the screens deck ships: a process.
-const DeckRecord = "process"
+// DeckRecord is the record of a page among the screens deck ships: a process; DocumentRecord is a document
+// of the project a screen deck ships for every project shows.
+const (
+	DeckRecord     = "process"
+	DocumentRecord = "document"
+)
 
-// DeckScreens parses the screens deck ships and checks them like a manifest's: they read deck-wide
-// sources and their buttons come from them.
-func DeckScreens(raw []byte) (menu []string, screens []Screen, err error) {
+// DeckScreens parses the screens deck ships, its own and those of every project, and checks them like a
+// manifest's: they read deck-wide sources and their buttons come from them.
+func DeckScreens(raw []byte) (menu []string, screens, project []Screen, err error) {
 	var d struct {
 		Menu    []string          `json:"menu"`
 		Screens []json.RawMessage `json:"screens"`
+		Project []json.RawMessage `json:"project"`
 	}
 	if err := json.Unmarshal(raw, &d); err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	var errs []error
-	for _, s := range d.Screens {
-		doc, err := jsonschema.UnmarshalJSON(bytes.NewReader(s))
-		if err == nil {
-			err = screenSchema.Validate(doc)
+	parse := func(list []json.RawMessage) []Screen {
+		var out []Screen
+		for _, s := range list {
+			doc, err := jsonschema.UnmarshalJSON(bytes.NewReader(s))
+			if err == nil {
+				err = screenSchema.Validate(doc)
+			}
+			var sc Screen
+			if err == nil {
+				err = json.Unmarshal(s, &sc)
+			}
+			if err != nil {
+				errs = append(errs, err)
+				continue
+			}
+			out = append(out, sc)
 		}
-		var sc Screen
-		if err == nil {
-			err = json.Unmarshal(s, &sc)
-		}
-		if err != nil {
-			errs = append(errs, err)
-			continue
-		}
-		screens = append(screens, sc)
+		return out
 	}
-	m := &Manifest{Screens: screens, Menu: d.Menu, collections: map[string]*Collection{}, commands: map[string]*Command{}}
-	m.checkScreenList(true, func(format string, a ...any) { errs = append(errs, fmt.Errorf(format, a...)) })
+	screens, project = parse(d.Screens), parse(d.Project)
+	fail := func(format string, a ...any) { errs = append(errs, fmt.Errorf(format, a...)) }
+	(&Manifest{Screens: screens, Menu: d.Menu, collections: map[string]*Collection{}, commands: map[string]*Command{}}).checkScreenList(true, fail)
+	(&Manifest{Screens: project, collections: map[string]*Collection{}, commands: map[string]*Command{}}).checkScreenList(true, fail)
 	for _, name := range d.Menu {
-		if m.Screen(name) == nil {
+		if !slices.ContainsFunc(screens, func(s Screen) bool { return s.Name == name }) {
 			errs = append(errs, fmt.Errorf("menu: unknown screen %q", name))
 		}
 	}
-	return d.Menu, screens, errors.Join(errs...)
+	return d.Menu, screens, project, errors.Join(errs...)
 }
 
 func (m *Manifest) checkScreens(fail func(string, ...any)) {
@@ -105,8 +117,8 @@ func (m *Manifest) checkScreenList(deck bool, fail func(string, ...any)) {
 		seen[s.Name] = true
 		switch {
 		case s.Record == "":
-		case deck && s.Record != DeckRecord:
-			fail("screen %q: a deck screen shows a record of %s", s.Name, DeckRecord)
+		case deck && s.Record != DeckRecord && s.Record != DocumentRecord:
+			fail("screen %q: a deck screen shows a record of %s or %s", s.Name, DeckRecord, DocumentRecord)
 		case !deck && m.collections[s.Record] == nil:
 			fail("screen %q record: unknown collection %q", s.Name, s.Record)
 		}
@@ -165,6 +177,14 @@ func (c *screenCheck) block(where string, b Block) {
 	case "appearance":
 		if !c.deck {
 			c.fail("%s: appearance is only on deck's own screens", where)
+		}
+		return
+	case "document":
+		switch {
+		case c.screen.Record == DocumentRecord && b.Document != "":
+			c.fail("%s: a document page shows its own document; take out document", where)
+		case c.screen.Record != DocumentRecord && b.Document == "":
+			c.fail("%s: a document block names the document it shows", where)
 		}
 		return
 	case "custom":

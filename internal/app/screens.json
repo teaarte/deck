@@ -132,5 +132,26 @@
         {"type": "log", "title": "Log", "source": {"from": "log"}}
       ]
     }
+  ],
+  "project": [
+    {
+      "name": "documents",
+      "title": "Documents",
+      "blocks": [
+        {"type": "table", "title": "Documents", "source": {"from": "documents", "sort": "name"}, "filter": ["kind"],
+          "columns": [
+            {"label": "Name", "bind": "name"},
+            {"label": "Kind", "bind": "kind"},
+            {"label": "Belongs to", "bind": "owner"},
+            {"label": "Revision", "bind": "revision"}
+          ]}
+      ]
+    },
+    {
+      "name": "document",
+      "title": "Document",
+      "record": "document",
+      "blocks": [{"type": "document"}]
+    }
   ]
 }

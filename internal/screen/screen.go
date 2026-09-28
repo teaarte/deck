@@ -28,6 +28,9 @@ type Sources interface {
 	// Command is what a form needs of a command: name, title, project, input and result schemas.
 	Command(ctx context.Context, workspace int64, name string) (map[string]any, error)
 	Document(ctx context.Context, project db.Project, name string) (string, error)
+	// DocumentView is what a document block shows: the document id, or the one named, of the record when
+	// record is set; a document not written yet comes back empty.
+	DocumentView(ctx context.Context, project db.Project, record, id int64, name string) (map[string]any, error)
 }
 
 // Scope is whose items a source gives: a project, or with Project 0 every project of the workspace.
@@ -133,6 +136,17 @@ func (r *renderer) loadRecord() error {
 		r.recordTitle = fmt.Sprintf("#%d %v", r.req.Record, items[0]["command"])
 		return nil
 	}
+	if r.req.Screen.Record == manifest.DocumentRecord {
+		items, err := r.src.Items(r.ctx, "documents", Scope{Workspace: r.scope.Workspace, Project: r.scope.Project, Record: r.req.Record})
+		if err != nil {
+			return err
+		}
+		if len(items) == 0 {
+			return fmt.Errorf("no document %d in %s", r.req.Record, r.req.Project.Name)
+		}
+		r.record, r.recordTitle = items[0], fmt.Sprint(items[0]["name"])
+		return nil
+	}
 	rec, err := r.st.Q.GetRecord(r.ctx, r.req.Record)
 	if err != nil || rec.ProjectID != r.req.Project.ID || rec.Collection != r.req.Screen.Record {
 		return fmt.Errorf("no %s record %d", r.req.Screen.Record, r.req.Record)
@@ -204,6 +218,8 @@ func topicOf(b manifest.Block, deck bool) string {
 		return "board"
 	case b.Type == "appearance":
 		return ""
+	case b.Type == "document":
+		return "documents"
 	case b.Type == "form" && b.Source == nil:
 		return "collection"
 	}
@@ -238,6 +254,20 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 		return map[string]any{"state": "ready", "value": r.actions(b.Actions, r.req.Record, r.record)}, nil
 	case "appearance":
 		return map[string]any{"state": "ready"}, nil
+	case "document":
+		var record, id int64
+		switch r.req.Screen.Record {
+		case manifest.DocumentRecord:
+			id = r.req.Record
+		case "":
+		default:
+			record = r.req.Record
+		}
+		v, err := r.src.DocumentView(r.ctx, r.req.Project, record, id, b.Document)
+		if err != nil {
+			return nil, err
+		}
+		return map[string]any{"state": "ready", "value": v}, nil
 	}
 	if b.Type == "card" {
 		fields := make([]map[string]any, 0, len(b.Fields))
@@ -246,7 +276,11 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 			if err != nil {
 				return nil, fmt.Errorf("field %q: %w", f.Label, err)
 			}
-			fields = append(fields, map[string]any{"label": f.Label, "value": v})
+			field := map[string]any{"label": f.Label, "value": v}
+			if f.Markdown {
+				field["markdown"] = true
+			}
+			fields = append(fields, field)
 		}
 		acts := append(r.actions(b.Actions, r.req.Record, r.record), passActions(r.record)...)
 		return map[string]any{"state": "ready", "value": map[string]any{"fields": fields, "actions": acts}}, nil
@@ -291,6 +325,9 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 		lines := make([]map[string]any, 0, len(items))
 		for _, it := range items {
 			line := map[string]any{"id": it["_id"], "actions": r.rowActions(b, it)}
+			if b.Item.Markdown {
+				line["markdown"] = true
+			}
 			for key, e := range map[string]string{"title": b.Item.Title, "text": b.Item.Text, "meta": b.Item.Meta} {
 				if e == "" {
 					continue

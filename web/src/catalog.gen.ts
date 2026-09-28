@@ -19,6 +19,7 @@ export interface Catalog {
   StatValue?: StatValue;
   BoardValue?: BoardValue;
   FormValue?: FormValue;
+  DocumentValue?: DocumentValue;
   CustomValue?: CustomValue;
 }
 /**
@@ -79,6 +80,10 @@ export interface Data {
     text?: string;
     meta?: string;
     details?: string;
+    /**
+     * text is markdown
+     */
+    markdown?: boolean;
     questions?: {
       question: string;
       multiSelect?: boolean;
@@ -107,6 +112,7 @@ export interface CardValue {
   fields: {
     label: string;
     value?: unknown;
+    markdown?: boolean;
   }[];
   actions: Action[];
 }
@@ -152,6 +158,30 @@ export interface FormValue {
   readonly?: string[];
   record?: number;
   save?: string;
+}
+/**
+ * This interface was referenced by `Catalog`'s JSON-Schema
+ * via the `definition` "DocumentValue".
+ */
+export interface DocumentValue {
+  /**
+   * 0 while the document is not written yet
+   */
+  id: number;
+  project: string;
+  name: string;
+  kind: string;
+  text: string;
+  revision: number;
+  editable: boolean;
+  record?: number;
+  card?: number;
+  revisions: {
+    revision: number;
+    author: string;
+    reason?: string;
+    created_at: string;
+  }[];
 }
 /**
  * This interface was referenced by `Catalog`'s JSON-Schema

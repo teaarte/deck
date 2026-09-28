@@ -181,7 +181,7 @@ type Block struct {
 	// Command is the command of a form; Save a collection its result can be kept in.
 	Command string `json:"command,omitempty"`
 	Save    string `json:"save,omitempty"`
-	// Document is the custom/ document with the HTML of a custom block.
+	// Document is the custom/ document with the HTML of a custom block, or the document a document block shows.
 	Document string `json:"document,omitempty"`
 }
 
@@ -190,6 +190,8 @@ type Item struct {
 	Title string `json:"title"`
 	Text  string `json:"text,omitempty"`
 	Meta  string `json:"meta,omitempty"`
+	// Markdown says the text of each line is markdown.
+	Markdown bool `json:"markdown,omitempty"`
 }
 
 type Tab struct {
@@ -211,6 +213,8 @@ type Source struct {
 type Column struct {
 	Label string `json:"label"`
 	Bind  string `json:"bind"`
+	// Markdown says the value of a card field is markdown.
+	Markdown bool `json:"markdown,omitempty"`
 }
 
 // Action is a button: a command call, or with Screen a move to that screen of the project.

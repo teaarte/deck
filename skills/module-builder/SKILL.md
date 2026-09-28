@@ -131,7 +131,11 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   `{"type": "form", "command": "score", "save": "items"}` asks for the command's input by its schema, shows the
   result by the result schema and, with `save`, keeps it as records; on a record page
   `{"type": "form", "command": "deck.record_update"}` edits the record, `immutable` fields read only. `board`
-  shows the project's board (no source). What the catalog cannot show is a `custom` block: an MCP App — one HTML
+  shows the project's board (no source). `{"type": "document", "document": "prompts/criteria.md"}` shows a
+  document of the project, on a record page one of the record (an artifact): markdown drawn, an md document
+  edited by the owner as a new revision, its revisions and going back to one; every project also gets a
+  Documents screen from deck. Long text in a `list` is markdown with `"item": {…, "markdown": true}`, a `card`
+  field with `"markdown": true`; everywhere else text stays plain. What the catalog cannot show is a `custom` block: an MCP App — one HTML
   file under `custom/` (`document_save` with kind `custom`), `{"type": "custom", "document": "custom/chart.html",
   "source": …, "actions": […]}`. It runs without network: `import { App } from "/ext-apps.js"`, the items of its
   source and the page's record arrive in `app.ontoolresult` (`structuredContent.items`, `.record`), and

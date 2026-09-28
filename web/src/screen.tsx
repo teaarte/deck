@@ -5,7 +5,9 @@ import { Alert, Loader } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { useTranslation } from 'react-i18next';
 import { call, events } from './api';
-import { catalog, known, outcomes, setStale, UNKNOWN, type Action } from './catalog';
+import { catalog, known, UNKNOWN, type Action } from './catalog';
+import { outcomes } from './actions';
+import { setStale } from './block';
 import i18n from './i18n';
 import catalogSchema from '../../schemas/catalog.json';
 

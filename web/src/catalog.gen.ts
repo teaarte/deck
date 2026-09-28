@@ -2,6 +2,11 @@
 
 /**
  * This interface was referenced by `Catalog`'s JSON-Schema
+ * via the `definition` "ActionsValue".
+ */
+export type ActionsValue = Action[];
+/**
+ * This interface was referenced by `Catalog`'s JSON-Schema
  * via the `definition` "StatValue".
  */
 export type StatValue = number | string | boolean | null;
@@ -9,6 +14,7 @@ export type StatValue = number | string | boolean | null;
 export interface Catalog {
   action?: Action;
   data?: Data;
+  ActionsValue?: ActionsValue;
   CardValue?: CardValue;
   StatValue?: StatValue;
   BoardValue?: BoardValue;

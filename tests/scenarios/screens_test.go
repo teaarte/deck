@@ -29,7 +29,7 @@ func webManifest(url string) string {
     {"name": "ask", "title": "Ask", "description": "Asks the owner.", "class": "internal", "result": {"type": "object"},
       "executor": {"type": "agent", "prompt": "Ask."}},
     {"name": "touch", "title": "Touch", "description": "Touches a note.", "class": "internal", "result": {"type": "object"},
-      "input": {"type": "object", "properties": {"note": {"type": "integer", "format": "record"}}, "required": ["note"]},
+      "input": {"type": "object", "properties": {"note": {"type": "integer", "format": "record"}, "score": {"type": "string"}}, "required": ["note"]},
       "executor": {"type": "agent", "prompt": "Touch."}}],
   "tools": {"http": [{"name": "post", "description": "Posts a note", "method": "POST", "url": "%s/items/{id}",
     "body": {"text": "{text}"},
@@ -50,7 +50,8 @@ func webManifest(url string) string {
     {"name": "note", "title": "Note", "record": "notes", "blocks": [
       {"type": "card", "fields": [{"label": "Title", "bind": "title"}, {"label": "Score", "bind": "score"}],
         "actions": [{"label": "Touch", "command": "touch", "params": {"note": "$record.id"}}]},
-      {"type": "list", "title": "Better", "source": {"collection": "notes", "where": "score > record.score"}, "item": {"title": "title"}}]}],
+      {"type": "list", "title": "Better", "source": {"collection": "notes", "where": "score > record.score"}, "item": {"title": "title"}},
+      {"type": "actions", "title": "Rate", "actions": [{"label": "Rate", "command": "touch", "params": {"note": "$record.id", "score": "$record.score"}}]}]}],
   "menu": ["main"]}`, url)
 }
 
@@ -401,7 +402,7 @@ func TestScreenTopicReadsOnlyTheBlocksItChanges(t *testing.T) {
 		}
 		return out
 	}
-	if got := paths("notes", "main", "collection"); !slices.Equal(got, []string{"/b0-0", "/b0-1", "/b1-0-0", "/b1-1-0"}) {
+	if got := paths("notes", "main", "collection"); !slices.Equal(got, []string{"/b0-0", "/b0-1", "/b1-0-0", "/b1-1-0", "/b3"}) {
 		t.Fatalf("collection reads the blocks of collections: %v", got)
 	}
 	if got := paths("notes", "main", "asks"); !slices.Equal(got, []string{"/b2"}) {
@@ -414,7 +415,7 @@ func TestScreenTopicReadsOnlyTheBlocksItChanges(t *testing.T) {
 		t.Fatalf("health reads the providers: %v", got)
 	}
 	for _, topic := range []string{"projects", "chat"} {
-		if n := len(e.screenMessages("notes", "main", map[string]any{"topic": topic})); n != 3 || len(e.screenData("notes", "main", map[string]any{"topic": topic})) != 5 {
+		if n := len(e.screenMessages("notes", "main", map[string]any{"topic": topic})); n != 3 || len(e.screenData("notes", "main", map[string]any{"topic": topic})) != 6 {
 			t.Fatalf("a topic no block reads gives the whole screen with its data: %s, %d messages", topic, n)
 		}
 	}
@@ -550,5 +551,39 @@ func TestProviderConfirmationSaysWhatAndWhere(t *testing.T) {
 	it := e.cockpitItems()[0]
 	if it.Title != "WebFetch" || it.Text != "https://example.com/page" || !strings.Contains(it.Details, "read it") {
 		t.Fatalf("the confirmation says the tool and where it goes, with its whole input: %+v", it)
+	}
+}
+
+func TestButtonsOfARecordPageFollowTheRecordAfterAnEvent(t *testing.T) {
+	e := newEnv(t, webAgent())
+	e.createProject("notes", webManifest("http://127.0.0.1:1"))
+	var up struct{ IDs []int64 }
+	e.must("deck.records_upsert", map[string]any{"project": "notes", "collection": "notes", "records": jsonl(map[string]any{"title": "alpha", "score": 3})}, &up)
+	score := func(topic string) any {
+		in := map[string]any{"record": up.IDs[0]}
+		var block map[string]json.RawMessage
+		if topic == "" {
+			block = e.screenData("notes", "note", in)["b2"]
+		} else {
+			in["topic"] = topic
+			for _, m := range e.screenMessages("notes", "note", in) {
+				var dm struct {
+					Path  string
+					Value map[string]json.RawMessage
+				}
+				if json.Unmarshal(m["updateDataModel"], &dm) == nil && dm.Path == "/b2" {
+					block = dm.Value
+				}
+			}
+		}
+		acts := blockData[[]map[string]any](t, block["value"])
+		return acts[0]["params"].(map[string]any)["score"]
+	}
+	if got := fmt.Sprint(score("")); got != "3" {
+		t.Fatalf("the button of the page takes the field of its record: %v", got)
+	}
+	e.must("deck.records_upsert", map[string]any{"project": "notes", "collection": "notes", "records": jsonl(map[string]any{"title": "alpha", "score": 9})}, nil)
+	if got := fmt.Sprint(score("collection")); got != "9" {
+		t.Fatalf("after a change of the record its buttons are read again with the rest: %v", got)
 	}
 }

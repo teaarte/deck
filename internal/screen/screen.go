@@ -171,9 +171,6 @@ func (r *renderer) block(id string, b manifest.Block) {
 		}
 		comp["titles"], comp["children"] = titles, children
 		return
-	case "actions":
-		comp["actions"] = r.actions(b.Actions, r.req.Record, r.record)
-		return
 	case "table":
 		cols := make([]string, 0, len(b.Columns))
 		for _, c := range b.Columns {
@@ -228,6 +225,8 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 		return r.form(b)
 	case "custom":
 		return r.custom(b)
+	case "actions":
+		return map[string]any{"state": "ready", "value": r.actions(b.Actions, r.req.Record, r.record)}, nil
 	}
 	if b.Type == "card" {
 		fields := make([]map[string]any, 0, len(b.Fields))

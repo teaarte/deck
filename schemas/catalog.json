@@ -85,10 +85,10 @@
       "block": {"description": "Needs actions; takes no source.", "required": ["actions"], "properties": {"actions": {"$ref": "#/$defs/actions"}}},
       "type": "object",
       "additionalProperties": false,
-      "required": ["actions"],
+      "required": ["data"],
       "properties": {
         "title": {"type": "string"},
-        "actions": {"type": "array", "items": {"$ref": "#/$defs/action"}}
+        "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "value: the buttons, with the record of the page in their params"}
       }
     },
     "log": {
@@ -157,6 +157,7 @@
     },
     "values": {
       "description": "The value of the data of each block that has one, by component.",
+      "actions": {"type": "array", "items": {"$ref": "#/$defs/action"}},
       "card": {"type": "object", "additionalProperties": false, "required": ["fields", "actions"], "properties": {
         "fields": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["label"], "properties": {"label": {"type": "string"}, "value": {}}}},
         "actions": {"type": "array", "items": {"$ref": "#/$defs/action"}}}},

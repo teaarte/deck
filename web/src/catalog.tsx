@@ -10,7 +10,7 @@ import { useTranslation } from 'react-i18next';
 import catalogSchema from '../../schemas/catalog.json';
 import { Board } from './board';
 import { Form, type FormValue } from './form';
-import type { Action, BoardValue, CardValue, CustomValue, Data } from './catalog.gen';
+import type { Action, ActionsValue, BoardValue, CardValue, CustomValue, Data } from './catalog.gen';
 
 const Custom = lazy(() => import('./custom').then((m) => ({ default: m.Custom })));
 
@@ -309,8 +309,8 @@ const impls: ReactComponentImplementation[] = [
     return <Block title={p.title} data={p.data}>{(d) => <Text fz={32} fw={700}>{show(d.value)}</Text>}</Block>;
   }),
   createComponentImplementation(api('actions'), ({ props, context }) => {
-    const p = props as { title?: string; actions: Action[] };
-    return <Block title={p.title} data={{ state: 'ready' }}>{() => <Actions actions={p.actions} context={context} />}</Block>;
+    const p = props as { title?: string; data?: Data };
+    return <Block title={p.title} data={p.data}>{(d) => <Actions actions={d.value as ActionsValue | undefined} context={context} />}</Block>;
   }),
   createComponentImplementation(api('log'), ({ props }) => {
     const { t } = useTranslation();

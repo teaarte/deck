@@ -187,16 +187,6 @@ func (e *Env) mcpDir(project, server string) string {
 	return filepath.Join(e.App.Cfg.Home, "projects", fmt.Sprint(p.ID), "mcp", server)
 }
 
-func (e *Env) projectID(name string) int64 {
-	for id, n := range e.names {
-		if n == name {
-			return id
-		}
-	}
-	e.T.Fatalf("no project %s", name)
-	return 0
-}
-
 func TestMCPServerByURLAndTheEnvironmentOfAProgram(t *testing.T) {
 	remote := mcp.NewServer(&mcp.Implementation{Name: "remote", Version: "0"}, nil)
 	remote.AddTool(&mcp.Tool{Name: "ping", Description: "Answers pong.", InputSchema: map[string]any{"type": "object"}},

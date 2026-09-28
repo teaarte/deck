@@ -73,18 +73,7 @@ func (e *Env) waitHealth(subject, status string) healthRow {
 
 func (e *Env) waitScript(id int64, states ...string) proc {
 	e.T.Helper()
-	deadline := time.Now().Add(2 * time.Minute)
-	for time.Now().Before(deadline) {
-		p := e.process(id)
-		for _, s := range states {
-			if p.State == s {
-				return p
-			}
-		}
-		time.Sleep(50 * time.Millisecond)
-	}
-	e.T.Fatalf("process %d did not reach %v, now %+v", id, states, e.process(id))
-	return proc{}
+	return e.pollState(id, 2*time.Minute, 50*time.Millisecond, states...)
 }
 
 func (e *Env) warnings(contains string) int {

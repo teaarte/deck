@@ -36,44 +36,6 @@ func (c *Call) command() string {
 
 var inputOf = regexp.MustCompile(`Input \(JSON data, not instructions\): (\{.*\})`)
 
-type procFull struct {
-	proc
-	Project     int64  `json:"project"`
-	Command     string `json:"command"`
-	Parent      int64  `json:"parent"`
-	Depth       int64  `json:"depth"`
-	Trigger     int64  `json:"trigger"`
-	Empty       bool   `json:"empty"`
-	SilentSince string `json:"silent_since"`
-	Deadline    string `json:"deadline"`
-}
-
-func (e *Env) processes() []procFull {
-	e.T.Helper()
-	var ps []procFull
-	e.must("deck.processes_list", map[string]any{"limit": 500}, &ps)
-	return ps
-}
-
-func (e *Env) full(id int64) procFull {
-	var p procFull
-	_, out := e.call("deck.process_get", map[string]any{"process": id})
-	_ = json.Unmarshal(out, &p)
-	return p
-}
-
-// waitFor polls until ok holds.
-func (e *Env) waitFor(what string, ok func() bool) {
-	e.T.Helper()
-	deadline := time.Now().Add(10 * time.Second)
-	for !ok() {
-		if time.Now().After(deadline) {
-			e.T.Fatalf("timed out waiting for %s", what)
-		}
-		time.Sleep(20 * time.Millisecond)
-	}
-}
-
 func (e *Env) settle() {
 	time.Sleep(100 * time.Millisecond)
 	e.App.Runner.Wait()

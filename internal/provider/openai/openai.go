@@ -57,7 +57,7 @@ func (a *Adapter) Caps() provider.Caps {
 	return c
 }
 
-func (a *Adapter) QuestionTool() string { return questionTool }
+func (a *Adapter) QuestionTool() string { return provider.AskTool }
 
 // service builds the chat client from deck's own settings only, never from OPENAI_* variables of deck's
 // environment; it does not retry, so a usage limit reaches the pause of deck at once.
@@ -145,7 +145,7 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 		}
 		for _, c := range reply.ToolCalls {
 			emit(req, provider.Event{Kind: provider.EventTool, ID: c.ID, Title: c.Function.Name, Text: c.Function.Arguments})
-			out, ok := call(ctx, sess, permission, c.Function.Name, c.Function.Arguments, c.ID)
+			out, ok := call(ctx, sess, c.Function.Name, c.Function.Arguments)
 			if ctx.Err() != nil {
 				return res, ctx.Err()
 			}

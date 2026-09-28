@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 
+	"deck2/internal/gateway"
 	"deck2/internal/manifest"
 	"deck2/internal/untrusted"
 )
@@ -45,7 +46,11 @@ func buildPrompt(project, instructions, body string, m *manifest.Manifest, cmd *
 	} else if len(cmd.Result) > 0 {
 		b.WriteString("\nWhen there is nothing to do, the result is null.\n")
 	}
-	if questionTool != "" {
+	switch questionTool {
+	case "":
+	case gateway.AskToolName():
+		fmt.Fprintf(&b, "\nIf you need a decision from the owner, ask with the ask tool of the deck MCP server (%s).\n", questionTool)
+	default:
 		fmt.Fprintf(&b, "\nIf you need a decision from the owner, ask with %s.\n", questionTool)
 	}
 	return b.String()

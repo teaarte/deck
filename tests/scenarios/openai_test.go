@@ -52,7 +52,7 @@ func TestAgentOnAnOpenAICompatibleProviderWorksThroughTheGateway(t *testing.T) {
 		t.Fatalf("want four model calls in the first turn, got %d", len(reqs))
 	}
 	tools := reqs[0].tools()
-	for _, want := range []string{"records_upsert", "notes__post", "result_submit", "AskUserQuestion"} {
+	for _, want := range []string{"records_upsert", "notes__post", "result_submit", "ask"} {
 		if !slices.Contains(tools, want) {
 			t.Fatalf("the model gets the gateway tools, %s missing from %v", want, tools)
 		}
@@ -313,5 +313,36 @@ func TestAnEmptyReplyOfALocalModelDoesNotBreakTheRequestToHandIn(t *testing.T) {
 	got := e.waitState(e.run(p, "collect"), "done", "error")
 	if got.State != "done" || string(got.Result) != `{"written":0}` {
 		t.Fatalf("after an empty reply the model is asked once to hand in, and the transcript it gets is valid: %+v", got)
+	}
+}
+
+func TestAnOpenAICompatibleModelAsksTheOwnerWithTheAskToolOfTheGateway(t *testing.T) {
+	llm := newLLM(t, func(n int, req chatRequest) chatReply {
+		switch n {
+		case 1:
+			return toolReply(fnCall{"ask", map[string]any{"question": "How many?", "options": []map[string]any{{"label": "2"}, {"label": "3"}}}})
+		case 2:
+			return toolReply(fnCall{"result_submit", map[string]any{"result": map[string]any{"written": 3}}})
+		}
+		return textReply("done")
+	})
+	e := newEnv(t, nil)
+	e.addLLM("local", llm, true)
+	p := e.createProject("notes", notesManifest)
+	id := e.run(p, "collect")
+	a := e.waitAsk()
+	if a.Kind != "question" || !strings.Contains(a.Text, "How many?") {
+		t.Fatalf("the question reaches the owner: %+v", a)
+	}
+	e.answer(a.ID, "3")
+	if got := e.waitState(id, "done", "error"); got.State != "done" || string(got.Result) != `{"written":3}` {
+		t.Fatalf("the model goes on with the answer: %+v", got)
+	}
+	reqs := llm.requests()
+	if got := reqs[1].last("tool"); !strings.Contains(got, "The owner answered.") || !strings.Contains(got, "3") {
+		t.Fatalf("the answer comes back as the result of ask: %s", got)
+	}
+	if !strings.Contains(reqs[0].last("user"), "ask with the ask tool of the deck MCP server") {
+		t.Fatalf("the prompt names the ask tool: %s", reqs[0].last("user"))
 	}
 }

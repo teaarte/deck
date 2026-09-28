@@ -1,7 +1,6 @@
 package scenarios
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"os"
@@ -19,10 +18,7 @@ import (
 )
 
 // fakeACP is a folder with the fake ACP agent, started as opencode or dsh, and the streams it replays.
-type fakeACP struct {
-	t   *testing.T
-	dir string
-}
+type fakeACP struct{ fakeBin }
 
 func newACP(t *testing.T) *fakeACP {
 	t.Helper()
@@ -34,7 +30,7 @@ func newACP(t *testing.T) *fakeACP {
 			t.Fatal(err)
 		}
 	}
-	return &fakeACP{t: t, dir: dir}
+	return &fakeACP{fakeBin{t: t, dir: dir, fixtures: "testdata/acp", version: "agent", who: "the agent"}}
 }
 
 // acpSchema is the ACP schema of the SDK version deck is built with.
@@ -51,33 +47,6 @@ func acpSchema(t *testing.T) string {
 		t.Fatalf("the ACP schema of the SDK: %v %q", err, version)
 	}
 	return filepath.Join(strings.TrimSpace(string(out)), "github.com", "coder", "acp-go-sdk@"+version, "schema", "schema.json")
-}
-
-// stream sets what call n replays; n = 0 sets it for every call without its own stream.
-func (f *fakeACP) stream(n int, fixture string) {
-	var meta map[string]struct{ Agent, Date, Kind string }
-	b, _ := os.ReadFile("testdata/acp/fixtures.json")
-	if err := json.Unmarshal(b, &meta); err != nil {
-		f.t.Fatal(err)
-	}
-	if m := meta[fixture]; m.Agent == "" || m.Date == "" || (m.Kind != "real" && m.Kind != "synthetic") {
-		f.t.Fatalf("fixture %s needs its agent version, date and kind in fixtures.json", fixture)
-	}
-	b, err := os.ReadFile(filepath.Join("testdata/acp", fixture))
-	if err != nil {
-		f.t.Fatal(err)
-	}
-	f.streamText(n, string(b))
-}
-
-func (f *fakeACP) streamText(n int, text string) {
-	name := "stream"
-	if n > 0 {
-		name += "." + strconv.Itoa(n)
-	}
-	if err := os.WriteFile(filepath.Join(f.dir, name), []byte(text), 0o644); err != nil {
-		f.t.Fatal(err)
-	}
 }
 
 // selfCheck makes calls 1 to 3 the self-check deck runs when the provider is added.
@@ -100,63 +69,19 @@ type acpCall struct {
 	violation string
 }
 
-func (f *fakeACP) calls() int {
-	entries, _ := os.ReadDir(filepath.Join(f.dir, "calls"))
-	return len(entries)
-}
-
 func (f *fakeACP) call(n int) acpCall {
 	f.t.Helper()
-	d := filepath.Join(f.dir, "calls", strconv.Itoa(n))
-	if _, err := os.Stat(d); err != nil {
-		f.t.Fatalf("the agent was not started %d times", n)
-	}
-	read := func(name string) string {
-		b, _ := os.ReadFile(filepath.Join(d, name))
-		return string(b)
-	}
+	read := f.files(n)
 	c := acpCall{env: map[string]string{}, cwd: read("cwd"), violation: read("violation"), args: strings.Split(read("args"), "\n"), port: read("port")}
 	for _, kv := range strings.Split(read("env"), "\n") {
 		k, v, _ := strings.Cut(kv, "=")
 		c.env[k] = v
 	}
-	lines := func(name string, each func([]byte)) {
-		fh, err := os.Open(filepath.Join(d, name))
-		if err != nil {
-			return
-		}
-		defer fh.Close()
-		sc := bufio.NewScanner(fh)
-		sc.Buffer(make([]byte, 1024*1024), 64*1024*1024)
-		for sc.Scan() {
-			each(sc.Bytes())
-		}
-	}
-	lines("rpc.jsonl", func(b []byte) {
-		var m map[string]json.RawMessage
-		_ = json.Unmarshal(b, &m)
-		c.rpc = append(c.rpc, m)
-	})
-	lines("answers.jsonl", func(b []byte) {
-		var m map[string]json.RawMessage
-		_ = json.Unmarshal(b, &m)
-		c.answers = append(c.answers, m)
-	})
-	lines("mcp.jsonl", func(b []byte) {
-		var m map[string]any
-		_ = json.Unmarshal(b, &m)
-		c.mcp = append(c.mcp, m)
-	})
-	lines("model.jsonl", func(b []byte) {
-		var m map[string]any
-		_ = json.Unmarshal(b, &m)
-		c.model = append(c.model, m)
-	})
-	lines("shell.jsonl", func(b []byte) {
-		var m map[string]string
-		_ = json.Unmarshal(b, &m)
-		c.shell = append(c.shell, m)
-	})
+	c.rpc = jsonLines[map[string]json.RawMessage](read("rpc.jsonl"))
+	c.answers = jsonLines[map[string]json.RawMessage](read("answers.jsonl"))
+	c.mcp = jsonLines[map[string]any](read("mcp.jsonl"))
+	c.model = jsonLines[map[string]any](read("model.jsonl"))
+	c.shell = jsonLines[map[string]string](read("shell.jsonl"))
 	return c
 }
 

@@ -3,10 +3,8 @@ package scenarios
 import (
 	"context"
 	"deck2/internal/provider/claudecode"
-	"encoding/json"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -24,10 +22,7 @@ const plainManifest = `{
 }`
 
 // fakeCLI is a folder with the fake Claude Code CLI and the streams it replays.
-type fakeCLI struct {
-	t   *testing.T
-	dir string
-}
+type fakeCLI struct{ fakeBin }
 
 func newCLI(t *testing.T) *fakeCLI {
 	t.Helper()
@@ -39,34 +34,7 @@ func newCLI(t *testing.T) *fakeCLI {
 	if err := os.WriteFile(filepath.Join(dir, "claude"), b, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	return &fakeCLI{t: t, dir: dir}
-}
-
-// stream sets what call n replays; n = 0 sets it for every call without its own stream.
-func (c *fakeCLI) stream(n int, fixture string) {
-	var meta map[string]struct{ CLI, Date, Kind string }
-	b, _ := os.ReadFile("testdata/claude/fixtures.json")
-	if err := json.Unmarshal(b, &meta); err != nil {
-		c.t.Fatal(err)
-	}
-	if m := meta[fixture]; m.CLI == "" || m.Date == "" || (m.Kind != "real" && m.Kind != "synthetic") {
-		c.t.Fatalf("fixture %s needs its CLI version, date and kind in fixtures.json", fixture)
-	}
-	b, err := os.ReadFile(filepath.Join("testdata/claude", fixture))
-	if err != nil {
-		c.t.Fatal(err)
-	}
-	c.streamText(n, string(b))
-}
-
-func (c *fakeCLI) streamText(n int, text string) {
-	name := "stream"
-	if n > 0 {
-		name += "." + strconv.Itoa(n)
-	}
-	if err := os.WriteFile(filepath.Join(c.dir, name), []byte(text), 0o644); err != nil {
-		c.t.Fatal(err)
-	}
+	return &fakeCLI{fakeBin{t: t, dir: dir, fixtures: "testdata/claude", version: "CLI", who: "the CLI"}}
 }
 
 // after sets shell code the fake runs once the stream is out; $c is the call folder, $n the call number.
@@ -99,14 +67,7 @@ type cliCall struct {
 
 func (c *fakeCLI) call(n int) cliCall {
 	c.t.Helper()
-	d := filepath.Join(c.dir, "calls", strconv.Itoa(n))
-	read := func(name string) string {
-		b, _ := os.ReadFile(filepath.Join(d, name))
-		return string(b)
-	}
-	if _, err := os.Stat(d); err != nil {
-		c.t.Fatalf("the CLI was not started %d times", n)
-	}
+	read := c.files(n)
 	cc := cliCall{env: map[string]string{}, stdin: read("stdin"), cwd: strings.TrimSpace(read("cwd")),
 		mcpMode: strings.TrimSpace(read("mcpmode")), mcp: read("mcpconfig"),
 		settings: read("settings"), settingsMode: strings.TrimSpace(read("settingsmode"))}
@@ -117,11 +78,6 @@ func (c *fakeCLI) call(n int) cliCall {
 		}
 	}
 	return cc
-}
-
-func (c *fakeCLI) calls() int {
-	es, _ := os.ReadDir(filepath.Join(c.dir, "calls"))
-	return len(es)
 }
 
 // flag returns the value after name in args and whether it was there.

@@ -1,9 +1,7 @@
 package scenarios
 
 import (
-	"bufio"
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -14,10 +12,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/santhosh-tekuri/jsonschema/v6"
 )
 
@@ -36,19 +32,8 @@ func serveACP(dir string) {
 		fmt.Println("fake-acp 1.0.0")
 		os.Exit(0)
 	}
-	_ = os.MkdirAll(filepath.Join(dir, "calls"), 0o755)
-	var n int
-	var c string
-	for n = 1; ; n++ {
-		c = filepath.Join(dir, "calls", strconv.Itoa(n))
-		if os.Mkdir(c, 0o755) == nil {
-			break
-		}
-	}
-	cwd, _ := os.Getwd()
-	_ = os.WriteFile(filepath.Join(c, "cwd"), []byte(cwd), 0o644)
-	_ = os.WriteFile(filepath.Join(c, "args"), []byte(strings.Join(args, "\n")), 0o644)
-	_ = os.WriteFile(filepath.Join(c, "env"), []byte(strings.Join(os.Environ(), "\n")), 0o644)
+	f := &fakeACPRun{fakeServer: newFakeServer("fake acp", dir, args)}
+	c := f.call
 	for i, a := range args {
 		if a == "--port" && i+1 < len(args) {
 			ln, err := net.Listen("tcp", "127.0.0.1:"+args[i+1])
@@ -64,17 +49,9 @@ func serveACP(dir string) {
 			}
 		}
 	}
-	f := &fakeACPRun{dir: dir, call: c, cwd: cwd, in: make(chan map[string]json.RawMessage, 64)}
 	f.loadSchema(os.Getenv("DECK_FAKE_ACP_SCHEMA"))
 	f.model, f.key = fakeModel(args)
-	stream, err := os.ReadFile(filepath.Join(dir, "stream."+strconv.Itoa(n)))
-	if err != nil {
-		stream, err = os.ReadFile(filepath.Join(dir, "stream"))
-	}
-	if err != nil {
-		f.violate("no stream for call %d", n)
-	}
-	f.run(strings.Split(strings.TrimSpace(string(stream)), "\n"))
+	f.run(f.stream())
 }
 
 // fakeModel finds the model API deck gave the agent: in the config of OpenCode or in the patch of dsh.
@@ -111,28 +88,15 @@ func fakeModel(args []string) (url, key string) {
 }
 
 type fakeACPRun struct {
-	dir, call, cwd string
-	defs           map[string]json.RawMessage
-	params         map[string]string
-	compiler       *jsonschema.Compiler
-	in             chan map[string]json.RawMessage
-	queue          []map[string]json.RawMessage
-	outMu          sync.Mutex
-	mcpURL         string
-	session        string
-	prompt         json.RawMessage
-	model, key     string
-	mcp            *mcp.ClientSession
-	next           int
-}
-
-func (f *fakeACPRun) violate(format string, a ...any) {
-	msg := fmt.Sprintf(format, a...)
-	fh, _ := os.OpenFile(filepath.Join(f.call, "violation"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
-	fmt.Fprintln(fh, msg)
-	fh.Close()
-	fmt.Fprintln(os.Stderr, "fake acp: "+msg)
-	os.Exit(2)
+	*fakeServer
+	defs       map[string]json.RawMessage
+	params     map[string]string
+	compiler   *jsonschema.Compiler
+	mcpURL     string
+	session    string
+	prompt     json.RawMessage
+	model, key string
+	next       int
 }
 
 // loadSchema reads the ACP schema: the parameter type of each method is the definition that names it in x-method.
@@ -191,22 +155,8 @@ func (f *fakeACPRun) check(what, def string, raw json.RawMessage) {
 	}
 }
 
-func (f *fakeACPRun) record(name string, v any) {
-	b, _ := json.Marshal(v)
-	fh, _ := os.OpenFile(filepath.Join(f.call, name), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
-	fh.Write(append(b, '\n'))
-	fh.Close()
-}
-
-func (f *fakeACPRun) read() {
-	sc := bufio.NewScanner(os.Stdin)
-	sc.Buffer(make([]byte, 1024*1024), 64*1024*1024)
-	for sc.Scan() {
-		var m map[string]json.RawMessage
-		if json.Unmarshal(sc.Bytes(), &m) != nil {
-			f.violate("a line that is not JSON: %s", sc.Text())
-		}
-		f.record("rpc.jsonl", m)
+func (f *fakeACPRun) listen() {
+	f.read(func(m map[string]json.RawMessage) {
 		var method string
 		if json.Unmarshal(m["method"], &method) == nil {
 			def, ok := f.params[method]
@@ -215,16 +165,12 @@ func (f *fakeACPRun) read() {
 			}
 			f.check(method, def, m["params"])
 		}
-		f.in <- m
-	}
-	close(f.in)
+	}, nil)
 }
 
 func (f *fakeACPRun) send(v any) {
 	b, _ := json.Marshal(v)
-	f.outMu.Lock()
-	defer f.outMu.Unlock()
-	os.Stdout.Write(append([]byte(f.subst(string(b))), '\n'))
+	f.write(f.subst(string(b)))
 }
 
 func (f *fakeACPRun) subst(s string) string {
@@ -234,27 +180,11 @@ func (f *fakeACPRun) subst(s string) string {
 
 // request is the next request of deck; notifications, such as a cancel, are recorded and passed by.
 func (f *fakeACPRun) request() map[string]json.RawMessage {
-	for {
-		if len(f.queue) > 0 {
-			m := f.queue[0]
-			f.queue = f.queue[1:]
-			return m
+	return f.nextRequest(func(m map[string]json.RawMessage) {
+		if string(m["method"]) == `"session/cancel"` {
+			f.cancelled()
 		}
-		select {
-		case m, ok := <-f.in:
-			if !ok {
-				os.Exit(0)
-			}
-			if len(m["method"]) > 0 && len(m["id"]) > 0 {
-				return m
-			}
-			if string(m["method"]) == `"session/cancel"` {
-				f.cancelled()
-			}
-		case <-time.After(30 * time.Second):
-			f.violate("deck sent nothing for 30 s")
-		}
-	}
+	})
 }
 
 // cancelled ends the prompt deck is waiting on, as an agent does on session/cancel.
@@ -267,7 +197,7 @@ func (f *fakeACPRun) cancelled() {
 }
 
 func (f *fakeACPRun) run(lines []string) {
-	go f.read()
+	go f.listen()
 	for _, raw := range lines {
 		var l map[string]json.RawMessage
 		if json.Unmarshal([]byte(raw), &l) != nil {
@@ -299,7 +229,7 @@ func (f *fakeACPRun) run(lines []string) {
 			f.send(map[string]any{"jsonrpc": "2.0", "id": f.prompt, "error": l["fail"]})
 			f.prompt = nil
 		case l["mcp"] != nil:
-			f.callTool(l["mcp"])
+			f.callTool("fake-acp", f.mcpURL, json.RawMessage(f.subst(string(l["mcp"]))))
 		case l["shell"] != nil:
 			var cmd string
 			_ = json.Unmarshal(l["shell"], &cmd)
@@ -380,55 +310,11 @@ func (f *fakeACPRun) askDeck(raw json.RawMessage) {
 	_ = json.Unmarshal([]byte(f.subst(string(raw))), &p)
 	p["sessionId"] = f.session
 	f.send(map[string]any{"jsonrpc": "2.0", "id": id, "method": "session/request_permission", "params": p})
-	for {
-		select {
-		case m, ok := <-f.in:
-			if !ok {
-				os.Exit(0)
-			}
-			if len(m["method"]) == 0 && string(m["id"]) == strconv.Itoa(id) {
-				if m["result"] != nil {
-					f.check("the answer to session/request_permission", "RequestPermissionResponse", m["result"])
-				}
-				f.record("answers.jsonl", m)
-				return
-			}
-			if len(m["method"]) > 0 && len(m["id"]) > 0 {
-				f.queue = append(f.queue, m)
-			}
-		case <-time.After(30 * time.Second):
-			f.violate("deck did not answer session/request_permission")
-		}
+	m := f.answer(strconv.Itoa(id), "session/request_permission")
+	if m["result"] != nil {
+		f.check("the answer to session/request_permission", "RequestPermissionResponse", m["result"])
 	}
-}
-
-// callTool makes a call to the deck MCP server of the session, as the agent does for the model.
-func (f *fakeACPRun) callTool(raw json.RawMessage) {
-	var call struct {
-		Tool      string          `json:"tool"`
-		Arguments json.RawMessage `json:"arguments"`
-	}
-	_ = json.Unmarshal([]byte(f.subst(string(raw))), &call)
-	ctx := context.Background()
-	if f.mcp == nil {
-		s, err := mcp.NewClient(&mcp.Implementation{Name: "fake-acp", Version: "0"}, nil).Connect(ctx, &mcp.StreamableClientTransport{Endpoint: f.mcpURL}, nil)
-		if err != nil {
-			f.violate("connect to the deck MCP server %s: %v", f.mcpURL, err)
-		}
-		f.mcp = s
-	}
-	res, err := f.mcp.CallTool(ctx, &mcp.CallToolParams{Name: call.Tool, Arguments: call.Arguments})
-	if err != nil {
-		f.record("mcp.jsonl", map[string]any{"tool": call.Tool, "error": err.Error()})
-		return
-	}
-	var b strings.Builder
-	for _, c := range res.Content {
-		if t, ok := c.(*mcp.TextContent); ok {
-			b.WriteString(t.Text)
-		}
-	}
-	f.record("mcp.jsonl", map[string]any{"tool": call.Tool, "text": b.String(), "is_error": res.IsError})
+	f.record("answers.jsonl", m)
 }
 
 // callModel posts a chat completion to the model API deck gave the agent, with the key deck gave it.

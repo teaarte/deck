@@ -1,6 +1,8 @@
 package screen
 
 import (
+	"fmt"
+	"maps"
 	"slices"
 	"strings"
 
@@ -49,6 +51,15 @@ func (r *renderer) form(b manifest.Block) (map[string]any, error) {
 		}
 	}
 	v["commands"] = cmds
+	if len(cmds) == 1 && b.Source == nil {
+		choices, err := r.choices(b, cmds[0])
+		if err != nil {
+			return nil, err
+		}
+		if len(choices) > 0 {
+			v["choices"] = choices
+		}
+	}
 	if b.Save != "" {
 		v["save"] = b.Save
 	}
@@ -57,6 +68,49 @@ func (r *renderer) form(b manifest.Block) (map[string]any, error) {
 		state = "empty"
 	}
 	return map[string]any{"state": state, "value": v}, nil
+}
+
+// choices are the values a form offers by field: those its block reads from a source, and the projects of the
+// workspace for a field that names a project.
+func (r *renderer) choices(b manifest.Block, cmd map[string]any) (map[string]any, error) {
+	out := map[string]any{}
+	in, _ := cmd["input"].(map[string]any)
+	props, _ := in["properties"].(map[string]any)
+	for field, p := range props {
+		if s, _ := p.(map[string]any); s["format"] == "project" {
+			if _, set := b.Choices[field]; !set {
+				b.Choices = maps.Clone(b.Choices)
+				if b.Choices == nil {
+					b.Choices = map[string]manifest.Choice{}
+				}
+				b.Choices[field] = manifest.Choice{Source: manifest.Source{From: "projects", Sort: "name"}, Value: "name"}
+			}
+		}
+	}
+	for field, ch := range b.Choices {
+		items, _, err := r.filtered(ch.Source, nil, nil)
+		if err != nil {
+			return nil, fmt.Errorf("choices %q: %w", field, err)
+		}
+		opts := make([]map[string]any, 0, len(items))
+		for _, it := range items {
+			v, err := manifest.Eval(ch.Value, it)
+			if err != nil {
+				return nil, fmt.Errorf("choices %q value: %w", field, err)
+			}
+			label := fmt.Sprint(v)
+			if ch.Label != "" {
+				l, err := manifest.Eval(ch.Label, it)
+				if err != nil {
+					return nil, fmt.Errorf("choices %q label: %w", field, err)
+				}
+				label = fmt.Sprint(l)
+			}
+			opts = append(opts, map[string]any{"value": v, "label": label})
+		}
+		out[field] = opts
+	}
+	return out, nil
 }
 
 // custom gives a custom block its HTML, the items of its source, the record of the page and the buttons it

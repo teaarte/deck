@@ -380,13 +380,29 @@ func (s sources) commandItems(ctx context.Context, sc screen.Scope, names map[in
 		return nil, err
 	}
 	out := []map[string]any{}
+	manifests := map[int64]*manifest.Manifest{}
 	for _, c := range cmds {
 		if sc.Project != 0 && c.ProjectID != sc.Project {
 			continue
 		}
+		executor := ""
+		if c.ProjectID != 0 {
+			m, ok := manifests[c.ProjectID]
+			if !ok {
+				if p, err := s.a.Store.Q.GetProject(ctx, c.ProjectID); err == nil {
+					m, _ = loadManifest(ctx, s.a.Store.Q, p)
+				}
+				manifests[c.ProjectID] = m
+			}
+			if m != nil {
+				if mc := m.Command(strings.TrimPrefix(c.Name, names[c.ProjectID]+".")); mc != nil {
+					executor = mc.Executor.Type
+				}
+			}
+		}
 		f := s.commandForm(ctx, c, names[c.ProjectID])
 		out = append(out, map[string]any{"id": c.Name, "name": c.Name, "title": c.Title, "description": c.Description,
-			"project": names[c.ProjectID], "files": process.FileFields(c.Input), "_command": f})
+			"project": names[c.ProjectID], "files": process.FileFields(c.Input), "executor": executor, "_command": f})
 	}
 	return out, nil
 }

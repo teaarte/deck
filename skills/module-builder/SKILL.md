@@ -129,7 +129,9 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   (from `$record.<field>` or fixed values); deck asks for nothing that is missing, so a choice the owner
   makes in a row is one action per option. A command the owner fills in by hand is a `form`:
   `{"type": "form", "command": "score", "save": "items"}` asks for the command's input by its schema, shows the
-  result by the result schema and, with `save`, keeps it as records; on a record page
+  result by the result schema and, with `save`, keeps it as records; a field picked from a source takes
+  `"choices": {"note": {"source": {"collection": "notes"}, "value": "_id", "label": "title"}}`, and a field with
+  `"format": "project"` offers the projects by itself; on a record page
   `{"type": "form", "command": "deck.record_update"}` edits the record, `immutable` fields read only. `board`
   shows the project's board (no source). `{"type": "document", "document": "prompts/criteria.md"}` shows a
   document of the project, on a record page one of the record (an artifact): markdown drawn, an md document

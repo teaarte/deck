@@ -158,6 +158,15 @@ export interface FormValue {
   readonly?: string[];
   record?: number;
   save?: string;
+  /**
+   * Values offered by field
+   */
+  choices?: {
+    [k: string]: {
+      value: unknown;
+      label: string;
+    }[];
+  };
 }
 /**
  * This interface was referenced by `Catalog`'s JSON-Schema

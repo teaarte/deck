@@ -169,7 +169,7 @@ func TestFormAsksForTheInputAndShowsTheResultBySchema(t *testing.T) {
 	}
 	var picked formV
 	for _, b := range e.screenData("", "settings", nil) {
-		if raw, ok := b["value"]; ok && strings.Contains(string(raw), `"deck.provider_set"`) {
+		if raw, ok := b["value"]; ok && strings.Contains(string(raw), `"commands":[{"description":"Sets the provider`) {
 			picked = blockData[formV](t, raw)
 		}
 	}

@@ -181,8 +181,17 @@ type Block struct {
 	// Command is the command of a form; Save a collection its result can be kept in.
 	Command string `json:"command,omitempty"`
 	Save    string `json:"save,omitempty"`
+	// Choices offer the values of fields of a form from a source.
+	Choices map[string]Choice `json:"choices,omitempty"`
 	// Document is the custom/ document with the HTML of a custom block, or the document a document block shows.
 	Document string `json:"document,omitempty"`
+}
+
+// Choice is where a field of a form takes its values: Value and Label are expressions over each item.
+type Choice struct {
+	Source Source `json:"source"`
+	Value  string `json:"value"`
+	Label  string `json:"label,omitempty"`
 }
 
 // Item binds the lines of a list block.

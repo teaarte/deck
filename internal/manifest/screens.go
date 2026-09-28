@@ -28,7 +28,7 @@ var SourceFields = map[string][]string{
 	"health":        {"subject", "status", "error", "version", "updated_at"},
 	"settings":      {"name", "title", "value", "default"},
 	"notifications": {"id", "project", "text", "screen", "record", "created_at"},
-	"commands":      {"name", "title", "description", "project", "files"},
+	"commands":      {"name", "title", "description", "project", "files", "executor"},
 	"documents":     {"id", "name", "kind", "owner", "revision", "editable"},
 	"calls": {"id", "tool", "actor", "project", "process", "class", "outcome", "external_id", "error", "params",
 		"created_at"},
@@ -257,11 +257,48 @@ func (c *screenCheck) form(where string, b Block) {
 			c.fail("%s: command %q cannot be called by the owner", where, b.Command)
 		}
 	}
+	c.choices(where, b)
 	if b.Save != "" && (c.deck || c.m.collections[b.Save] == nil) {
 		c.fail("%s save: unknown collection %q", where, b.Save)
 	}
 	if cmd := c.m.commands[b.Command]; b.Save != "" && cmd != nil && !recordShaped(cmd.Result) {
 		c.fail("%s save: the result of %q is not an object or a list of objects, so it cannot be kept as records", where, b.Command)
+	}
+}
+
+// choices checks the choices of a form: fields of its input, read from a source, with expressions over its items.
+func (c *screenCheck) choices(where string, b Block) {
+	var input json.RawMessage
+	switch cmd := c.m.commands[b.Command]; {
+	case len(b.Choices) == 0:
+		return
+	case b.Source != nil:
+		c.fail("%s choices: a form that picks its command has no choices", where)
+		return
+	case b.Command == RecordUpdate:
+		if col := c.m.collections[c.screen.Record]; col != nil {
+			input = col.Schema
+		}
+	case cmd != nil:
+		input = cmd.InputSchema()
+	}
+	props := PropertyOrder(input)
+	for _, field := range slices.Sorted(maps.Keys(b.Choices)) {
+		ch := b.Choices[field]
+		at := fmt.Sprintf("%s choices %q", where, field)
+		if input != nil && !slices.Contains(props, field) {
+			c.fail("%s: the input has no field %q", at, field)
+			continue
+		}
+		fields, ok := c.source(at, "choices", ch.Source)
+		if !ok {
+			continue
+		}
+		for _, e := range []string{ch.Value, ch.Label} {
+			if _, err := compileField(e, fields); e != "" && err != nil {
+				c.fail("%s: %v", at, err)
+			}
+		}
 	}
 }
 

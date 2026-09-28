@@ -161,6 +161,18 @@ func TestRealBrowserSettings(t *testing.T) {
 	b.until("the revoked token", `[...document.querySelectorAll('tr')].some((r) => r.innerText.includes('shortcuts') && r.innerText.includes('revoked'))`)
 	b.shot("settings-tokens")
 
+	tab("Providers")
+	b.until("the provider form", `document.querySelector('[data-form="deck.provider_set"] input[data-field="command"]')?.offsetParent`)
+	b.pick(`[data-form="deck.provider_set"] input[data-field="command"]`, "Score (web.score)")
+	b.pick(`[data-form="deck.provider_set"] input[data-field="provider"]`, "fake")
+	b.eval(`(document.querySelector('[data-form="deck.provider_set"] [data-submit]').click(), '')`)
+	b.until("the provider set", `document.querySelector('[data-form="deck.provider_set"] [data-outcome="done"]')`)
+	var chosen struct{ Chosen string }
+	e.must("deck.providers_list", map[string]any{"command": "web.score"}, &chosen)
+	if chosen.Chosen != "fake" {
+		t.Fatalf("the command and provider picked from the lists are set: %+v", chosen)
+	}
+
 	b.call("browser_resize", map[string]any{"width": 390, "height": 844})
 	b.open(e.URL + "/#/deck/settings")
 	tab("Projects")

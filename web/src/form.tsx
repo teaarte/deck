@@ -31,13 +31,25 @@ const kind = (s: Schema) => (Array.isArray(s.type) ? s.type.find((x) => x !== 'n
 const isFile = (s: Schema) => s.format === 'file' || s.items?.format === 'file';
 const show = (v: unknown) => (v === null || v === undefined ? '' : typeof v === 'object' ? JSON.stringify(v) : String(v));
 
-function Field({ name, schema, value, files, readOnly, required, onValue, onFiles }: {
-  name: string; schema: Schema; value: unknown; files: File[]; readOnly: boolean; required: boolean;
+type Choice = { value: unknown; label: string };
+
+function Field({ name, schema, value, files, readOnly, required, choices, onValue, onFiles }: {
+  name: string; schema: Schema; value: unknown; files: File[]; readOnly: boolean; required: boolean; choices?: Choice[];
   onValue: (v: unknown) => void; onFiles: (f: File[]) => void;
 }) {
   const label = schema.title || name;
   const common = { label, description: schema.description, required, disabled: readOnly, 'data-field': name };
   const t = kind(schema);
+  // A list takes the values offered and others typed, such as project.*; a single value is one of those offered.
+  if (choices && t === 'array') {
+    return <TagsInput {...common} data={[...new Set(choices.map((c) => String(c.value)))]} value={Array.isArray(value) ? value.map(String) : []}
+      onChange={(vs) => onValue(['integer', 'number'].includes(kind(schema.items ?? {})) ? vs.map(Number) : vs)} />;
+  }
+  if (choices && !isFile(schema)) {
+    const data = choices.map((c) => ({ value: String(c.value), label: c.label }));
+    return <Select {...common} searchable clearable data={data} value={value === undefined || value === '' ? null : String(value)}
+      onChange={(v) => onValue(v === null ? undefined : choices.find((c) => String(c.value) === v)?.value)} />;
+  }
   if (isFile(schema)) {
     const many = t === 'array';
     return many
@@ -269,7 +281,7 @@ export function Form({ value }: { value: FormValue }) {
       {cmd?.description && <Text size="sm" c="dimmed">{cmd.description}</Text>}
       {cmd && fields.map((name) => [name, props[name]] as const).map(([name, s]) => (
         <Field key={cmd.name + name} name={name} schema={s} value={values[name]} files={files[name] ?? []}
-          readOnly={ro.has(name)} required={required.has(name) && !edit}
+          readOnly={ro.has(name)} required={required.has(name) && !edit} choices={value.choices?.[name]}
           onValue={(v) => setEdited((o) => ({ ...o, [name]: v }))} onFiles={(f) => setFiles((o) => ({ ...o, [name]: f }))} />
       ))}
       {cmd && (

@@ -116,7 +116,7 @@
     },
     "form": {
       "description": "Asks for the input of a command and shows its result: one command, or a pick from the commands source.",
-      "block": {"description": "Has either command or source from commands to pick one, never both; it is its own button and takes no actions; save names a collection for the result.", "oneOf": [{"required": ["command"]}, {"required": ["source"]}], "properties": {"command": {"type": "string", "description": "deck.record_update on a record page edits the record."}, "source": {"allOf": [{"$ref": "#/$defs/source"}, {"required": ["from"], "properties": {"from": {"const": "commands"}}}]}, "save": {"type": "string", "description": "Collection the owner can keep the result in."}}},
+      "block": {"description": "Has either command or source from commands to pick one, never both; it is its own button and takes no actions; save names a collection for the result.", "oneOf": [{"required": ["command"]}, {"required": ["source"]}], "properties": {"command": {"type": "string", "description": "deck.record_update on a record page edits the record."}, "source": {"allOf": [{"$ref": "#/$defs/source"}, {"required": ["from"], "properties": {"from": {"const": "commands"}}}]}, "save": {"type": "string", "description": "Collection the owner can keep the result in."}, "choices": {"type": "object", "description": "Values offered for fields of the input, by field: a source and expressions over its items for the value and its label.", "additionalProperties": {"type": "object", "additionalProperties": false, "required": ["source", "value"], "properties": {"source": {"$ref": "#/$defs/source"}, "value": {"type": "string"}, "label": {"type": "string"}}}}}},
       "type": "object",
       "additionalProperties": false,
       "required": ["data"],
@@ -198,7 +198,8 @@
         "commands": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["name", "title", "input", "order"], "properties": {
           "name": {"type": "string"}, "title": {"type": "string"}, "description": {"type": "string"}, "project": {"type": "string"},
           "input": {"type": "object"}, "order": {"type": ["array", "null"], "items": {"type": "string"}}, "result": {}}}},
-        "values": {"type": "object"}, "readonly": {"type": "array", "items": {"type": "string"}}, "record": {"type": "integer"}, "save": {"type": "string"}}},
+        "values": {"type": "object"}, "readonly": {"type": "array", "items": {"type": "string"}}, "record": {"type": "integer"}, "save": {"type": "string"},
+        "choices": {"type": "object", "description": "Values offered by field", "additionalProperties": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["value", "label"], "properties": {"value": {}, "label": {"type": "string"}}}}}}},
       "document": {"type": "object", "additionalProperties": false, "required": ["id", "project", "name", "kind", "text", "revision", "editable", "revisions"], "properties": {
         "id": {"type": "integer", "description": "0 while the document is not written yet"}, "project": {"type": "string"}, "name": {"type": "string"}, "kind": {"type": "string"},
         "text": {"type": "string"}, "revision": {"type": "integer"}, "editable": {"type": "boolean"}, "record": {"type": "integer"}, "card": {"type": "integer"},

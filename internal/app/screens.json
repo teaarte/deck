@@ -56,7 +56,8 @@
             {"type": "list", "title": "Projects", "source": {"from": "projects", "sort": "name"}, "filter": ["status"],
               "item": {"title": "name + ' · ' + status + (paused ? ', paused' : '')", "text": "manifest_error != '' ? 'manifest: ' + manifest_error : description",
                 "meta": "'autonomy: ' + autonomy + (no_network ? ' · no network' : '') + (rights != '' ? ' · enabling grants: ' + rights : '')"}},
-            {"type": "form", "title": "Trial run", "command": "deck.command_try"}
+            {"type": "form", "title": "Trial run", "command": "deck.command_try",
+              "choices": {"command": {"source": {"from": "commands", "where": "project != '' && executor != 'tool'", "sort": "name"}, "value": "name", "label": "title + ' (' + name + ')'"}}}
           ]},
           {"title": "Providers", "blocks": [
             {"type": "table", "title": "Providers", "source": {"from": "providers"},
@@ -69,8 +70,11 @@
                 {"label": "Tokens/s", "bind": "speed > 0 ? string(int(speed)) : ''"},
                 {"label": "Error", "bind": "error"}
               ]},
-            {"type": "form", "title": "Add a provider", "command": "deck.provider_add"},
-            {"type": "form", "title": "Choose the provider of a command", "command": "deck.provider_set"}
+            {"type": "form", "title": "Add a provider", "command": "deck.provider_add",
+              "choices": {"key_secret": {"source": {"from": "secrets"}, "value": "name"}}},
+            {"type": "form", "title": "Choose the provider of a command", "command": "deck.provider_set",
+              "choices": {"command": {"source": {"from": "commands", "where": "executor == 'agent'", "sort": "name"}, "value": "name", "label": "title + ' (' + name + ')'"},
+                "provider": {"source": {"from": "providers"}, "value": "name"}}}
           ]},
           {"title": "Secrets", "blocks": [
             {"type": "list", "title": "Secrets", "source": {"from": "secrets"}, "item": {"title": "name"}},
@@ -84,7 +88,8 @@
                 {"label": "Created", "bind": "created_at"},
                 {"label": "State", "bind": "revoked ? 'revoked' : 'live'"}
               ]},
-            {"type": "form", "title": "Create a token", "command": "deck.token_create"}
+            {"type": "form", "title": "Create a token", "command": "deck.token_create",
+              "choices": {"commands": {"source": {"from": "commands", "sort": "name"}, "value": "name"}}}
           ]},
           {"title": "General", "blocks": [
             {"type": "table", "title": "General", "source": {"from": "settings"},

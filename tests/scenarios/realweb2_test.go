@@ -278,11 +278,12 @@ func (b *playwright) file(el, name, content string) {
 		i.files = dt.files; i.dispatchEvent(new Event('change', { bubbles: true })); return '' })()`, el, content, name))
 }
 
-// pick opens a select and clicks the option with the label.
+// pick opens a select and clicks the option with the label in the list of that select.
 func (b *playwright) pick(sel, label string) {
 	b.t.Helper()
 	b.eval(fmt.Sprintf(`(document.querySelector(%q).click(), '')`, sel))
-	opt := fmt.Sprintf(`[...document.querySelectorAll('[role=option]')].find((o) => o.innerText.trim() === %q)`, label)
+	opt := fmt.Sprintf(`(() => { const id = document.querySelector(%q).getAttribute('aria-controls'); const box = id && document.getElementById(id);
+		return [...(box || document).querySelectorAll('[role=option]')].find((o) => o.innerText.trim() === %q) })()`, sel, label)
 	b.until("the option "+label, opt)
 	b.eval(fmt.Sprintf(`(%s.click(), '')`, opt))
 }

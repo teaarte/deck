@@ -1,8 +1,15 @@
 package scenarios
 
 import (
+	"context"
+	"database/sql"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/pressly/goose/v3"
+	_ "modernc.org/sqlite"
 )
 
 const peopleV1 = `{"version": 4,
@@ -117,5 +124,42 @@ func TestRevertBringsBackRecordsAMigrationDropped(t *testing.T) {
 	e.must("deck.document_revert", map[string]any{"document": man.Document, "revision": 1}, nil)
 	if rs := e.people(); len(rs) != 1 || rs[0].ID != before[0].ID || rs[0].Data["name"] != "ada" {
 		t.Fatalf("revert brings back records of a collection the migration emptied: %+v", rs)
+	}
+}
+
+func TestProjectNamesMoveIntoWorkspacesAndCardsKeepTheirProject(t *testing.T) {
+	home := t.TempDir()
+	conn, err := sql.Open("sqlite", "file:"+filepath.Join(home, "deck.db")+"?_pragma=foreign_keys(1)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	conn.SetMaxOpenConns(1)
+	ctx := context.Background()
+	older, err := goose.NewProvider(goose.DialectSQLite3, conn, os.DirFS("../../internal/store/migrations"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := older.UpTo(ctx, 17); err != nil {
+		t.Fatal(err)
+	}
+	for _, q := range []string{`INSERT INTO project (id, name) VALUES (7, 'old')`,
+		`INSERT INTO card (project_id, title, lane, rank, report) VALUES (7, 'kept', 'inbox', 1, 'never written')`} {
+		if _, err := conn.ExecContext(ctx, q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	_ = conn.Close()
+	e := newEnvWith(t, home, &Fake{})
+	var cards, problems int
+	_ = e.App.Store.DB.QueryRowContext(ctx, `SELECT count(*) FROM card WHERE project_id = 7`).Scan(&cards)
+	_ = e.App.Store.DB.QueryRowContext(ctx, `SELECT count(*) FROM pragma_foreign_key_check`).Scan(&problems)
+	if cards != 1 || problems != 0 {
+		t.Fatalf("the table swap keeps cards pointing at their project: %d cards, %d broken keys", cards, problems)
+	}
+	if _, err := e.App.Store.DB.ExecContext(ctx, `DELETE FROM project WHERE id = 7`); err != nil {
+		t.Fatal(err)
+	}
+	if _ = e.App.Store.DB.QueryRowContext(ctx, `SELECT count(*) FROM card`).Scan(&cards); cards != 0 {
+		t.Fatalf("cards still go with their project: %d left", cards)
 	}
 }

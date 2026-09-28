@@ -18,8 +18,8 @@ func (a *App) scope(ctx context.Context, act registry.Actor, name string) (db.Pr
 		}
 		return a.Store.Q.GetProject(ctx, act.ProjectID)
 	}
-	p, err := a.Store.Q.GetProjectByName(ctx, name)
-	if errors.Is(err, sql.ErrNoRows) || err == nil && p.WorkspaceID != act.Workspace {
+	p, err := a.Store.Q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: act.Workspace, Name: name})
+	if errors.Is(err, sql.ErrNoRows) {
 		return db.Project{}, registry.NotFound("deck: no project %q", name)
 	}
 	if err != nil {

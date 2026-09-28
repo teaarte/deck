@@ -45,7 +45,6 @@ type Card struct {
 	Lane      string
 	Rank      int64
 	RecordID  sql.NullInt64
-	Report    string
 	ProcessID sql.NullInt64
 	DeletedAt sql.NullString
 	CreatedAt string

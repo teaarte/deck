@@ -62,7 +62,7 @@ VALUES (?1, ?2, ?3, ?4,
     (SELECT CAST(COALESCE(MAX(c.rank), 0) + 1 AS INTEGER) FROM card c
      WHERE c.project_id = ?1 AND c.lane = ?4 AND c.deleted_at IS NULL),
     ?5)
-RETURNING id, project_id, title, text, lane, rank, record_id, report, process_id, deleted_at, created_at, updated_at
+RETURNING id, project_id, title, text, lane, rank, record_id, process_id, deleted_at, created_at, updated_at
 `
 
 type CreateCardParams struct {
@@ -90,7 +90,6 @@ func (q *Queries) CreateCard(ctx context.Context, arg CreateCardParams) (Card, e
 		&i.Lane,
 		&i.Rank,
 		&i.RecordID,
-		&i.Report,
 		&i.ProcessID,
 		&i.DeletedAt,
 		&i.CreatedAt,
@@ -131,7 +130,7 @@ func (q *Queries) DeleteExpiredCardDocuments(ctx context.Context, before sql.Nul
 }
 
 const getCard = `-- name: GetCard :one
-SELECT id, project_id, title, text, lane, rank, record_id, report, process_id, deleted_at, created_at, updated_at FROM card WHERE id = ?
+SELECT id, project_id, title, text, lane, rank, record_id, process_id, deleted_at, created_at, updated_at FROM card WHERE id = ?
 `
 
 func (q *Queries) GetCard(ctx context.Context, id int64) (Card, error) {
@@ -145,7 +144,6 @@ func (q *Queries) GetCard(ctx context.Context, id int64) (Card, error) {
 		&i.Lane,
 		&i.Rank,
 		&i.RecordID,
-		&i.Report,
 		&i.ProcessID,
 		&i.DeletedAt,
 		&i.CreatedAt,
@@ -155,7 +153,7 @@ func (q *Queries) GetCard(ctx context.Context, id int64) (Card, error) {
 }
 
 const listCards = `-- name: ListCards :many
-SELECT id, project_id, title, text, lane, rank, record_id, report, process_id, deleted_at, created_at, updated_at FROM card WHERE project_id = ? AND deleted_at IS NULL ORDER BY lane, rank, id
+SELECT id, project_id, title, text, lane, rank, record_id, process_id, deleted_at, created_at, updated_at FROM card WHERE project_id = ? AND deleted_at IS NULL ORDER BY lane, rank, id
 `
 
 func (q *Queries) ListCards(ctx context.Context, projectID int64) ([]Card, error) {
@@ -175,7 +173,6 @@ func (q *Queries) ListCards(ctx context.Context, projectID int64) ([]Card, error
 			&i.Lane,
 			&i.Rank,
 			&i.RecordID,
-			&i.Report,
 			&i.ProcessID,
 			&i.DeletedAt,
 			&i.CreatedAt,
@@ -195,7 +192,7 @@ func (q *Queries) ListCards(ctx context.Context, projectID int64) ([]Card, error
 }
 
 const listDeletedCards = `-- name: ListDeletedCards :many
-SELECT id, project_id, title, text, lane, rank, record_id, report, process_id, deleted_at, created_at, updated_at FROM card WHERE project_id = ? AND deleted_at IS NOT NULL ORDER BY deleted_at DESC, id DESC
+SELECT id, project_id, title, text, lane, rank, record_id, process_id, deleted_at, created_at, updated_at FROM card WHERE project_id = ? AND deleted_at IS NOT NULL ORDER BY deleted_at DESC, id DESC
 `
 
 func (q *Queries) ListDeletedCards(ctx context.Context, projectID int64) ([]Card, error) {
@@ -215,7 +212,6 @@ func (q *Queries) ListDeletedCards(ctx context.Context, projectID int64) ([]Card
 			&i.Lane,
 			&i.Rank,
 			&i.RecordID,
-			&i.Report,
 			&i.ProcessID,
 			&i.DeletedAt,
 			&i.CreatedAt,

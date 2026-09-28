@@ -455,8 +455,8 @@ func (r *renderer) sourceProject(src manifest.Source) (int64, error) {
 	if src.Project == "" {
 		return r.req.Project.ID, nil
 	}
-	other, err := r.st.Q.GetProjectByName(r.ctx, src.Project)
-	if err != nil || other.WorkspaceID != r.req.Project.WorkspaceID {
+	other, err := r.st.Q.GetProjectByName(r.ctx, db.GetProjectByNameParams{WorkspaceID: r.req.Project.WorkspaceID, Name: src.Project})
+	if err != nil {
 		return 0, fmt.Errorf("no project %q", src.Project)
 	}
 	for _, rd := range r.req.Manifest.Reads {

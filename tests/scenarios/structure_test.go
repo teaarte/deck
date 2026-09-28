@@ -41,8 +41,10 @@ func TestOtherWorkspacesAreInvisible(t *testing.T) {
 	if _, err := e.App.Store.DB.ExecContext(ctx, `INSERT INTO workspace (id, name) VALUES (2, 'other')`); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := e.App.Store.Q.CreateProject(ctx, db.CreateProjectParams{WorkspaceID: 2, Name: "theirs", Status: "enabled"}); err != nil {
-		t.Fatal(err)
+	for _, name := range []string{"theirs", "mine"} {
+		if _, err := e.App.Store.Q.CreateProject(ctx, db.CreateProjectParams{WorkspaceID: 2, Name: name, Status: "enabled"}); err != nil {
+			t.Fatalf("a project name is taken only in its own workspace: %v", err)
+		}
 	}
 	var projects []struct{ Name string }
 	e.must("deck.projects_list", nil, &projects)
@@ -67,6 +69,10 @@ func TestOtherWorkspacesAreInvisible(t *testing.T) {
 		if strings.Contains(h.Subject, "theirs") {
 			t.Fatalf("health of another workspace's commands must not be listed: %+v", h)
 		}
+	}
+	e.createProject("theirs", ideasManifest)
+	if code, out := e.call("deck.manifest_get", map[string]any{"project": "theirs"}); code != 200 || !strings.Contains(string(out), "collect") {
+		t.Fatalf("a name finds the project of the caller's workspace: %d %s", code, out)
 	}
 }
 

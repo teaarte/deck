@@ -185,8 +185,8 @@ func (a *App) Ready(ctx context.Context, name string) bool {
 // agentCommand finds an agent command of the workspace by its place, project.command.
 func (a *App) agentCommand(ctx context.Context, workspace int64, place string) (*manifest.Command, error) {
 	name, command, _ := strings.Cut(place, ".")
-	p, err := a.Store.Q.GetProjectByName(ctx, name)
-	if err != nil || p.WorkspaceID != workspace {
+	p, err := a.Store.Q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: workspace, Name: name})
+	if err != nil {
 		return nil, registry.NotFound("deck: no project %q", name)
 	}
 	m, err := loadManifest(ctx, a.Store.Q, p)

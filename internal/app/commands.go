@@ -23,8 +23,8 @@ func (a *App) projectCommands(ctx context.Context, workspace int64, name string)
 		}
 		ps = all
 	} else {
-		p, err := a.Store.Q.GetProjectByName(ctx, name)
-		if errors.Is(err, sql.ErrNoRows) || err == nil && p.WorkspaceID != workspace {
+		p, err := a.Store.Q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: workspace, Name: name})
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
 		if err != nil {

@@ -7,7 +7,7 @@ SELECT * FROM project WHERE id = ?;
 
 
 -- name: GetProjectByName :one
-SELECT * FROM project WHERE name = ?;
+SELECT * FROM project WHERE workspace_id = ? AND name = ?;
 
 
 -- name: ListProjects :many

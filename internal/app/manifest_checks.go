@@ -22,8 +22,8 @@ func checkReads(ctx context.Context, q *db.Queries, workspace int64, name string
 		if r.Project == name {
 			return registry.Invalid("deck: reads: a project does not need to read itself")
 		}
-		p, err := q.GetProjectByName(ctx, r.Project)
-		if err != nil || p.WorkspaceID != workspace {
+		p, err := q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: workspace, Name: r.Project})
+		if err != nil {
 			return registry.Invalid("deck: reads: no project %q", r.Project)
 		}
 		other, err := loadManifest(ctx, q, p)

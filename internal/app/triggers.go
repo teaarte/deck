@@ -203,7 +203,7 @@ func (s sources) triggerItems(ctx context.Context, sc screen.Scope) ([]map[strin
 	out := []map[string]any{}
 	for _, v := range got.([]triggerView) {
 		if sc.Project != 0 {
-			if p, err := s.a.Store.Q.GetProjectByName(ctx, v.Project); err != nil || p.ID != sc.Project {
+			if p, err := s.a.Store.Q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: sc.Workspace, Name: v.Project}); err != nil || p.ID != sc.Project {
 				continue
 			}
 		}

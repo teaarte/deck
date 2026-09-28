@@ -52,11 +52,16 @@ func (q *Queries) GetProject(ctx context.Context, id int64) (Project, error) {
 }
 
 const getProjectByName = `-- name: GetProjectByName :one
-SELECT id, name, created_at, workspace_id, status, paused FROM project WHERE name = ?
+SELECT id, name, created_at, workspace_id, status, paused FROM project WHERE workspace_id = ? AND name = ?
 `
 
-func (q *Queries) GetProjectByName(ctx context.Context, name string) (Project, error) {
-	row := q.db.QueryRowContext(ctx, getProjectByName, name)
+type GetProjectByNameParams struct {
+	WorkspaceID int64
+	Name        string
+}
+
+func (q *Queries) GetProjectByName(ctx context.Context, arg GetProjectByNameParams) (Project, error) {
+	row := q.db.QueryRowContext(ctx, getProjectByName, arg.WorkspaceID, arg.Name)
 	var i Project
 	err := row.Scan(
 		&i.ID,

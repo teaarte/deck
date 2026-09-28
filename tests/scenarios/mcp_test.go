@@ -18,6 +18,7 @@ import (
 
 	"deck2/internal/provider"
 	"deck2/internal/registry"
+	"deck2/internal/store/db"
 )
 
 // mcpManifest declares the fake MCP server; extra goes into the manifest object.
@@ -179,7 +180,7 @@ func TestChangedMCPToolLosesItsRightsUntilTheOwnerAllowsItAgain(t *testing.T) {
 
 // mcpDir is the folder a project's MCP server runs in and writes to.
 func (e *Env) mcpDir(project, server string) string {
-	p, err := e.App.Store.Q.GetProjectByName(context.Background(), project)
+	p, err := e.App.Store.Q.GetProjectByName(context.Background(), db.GetProjectByNameParams{WorkspaceID: 1, Name: project})
 	if err != nil {
 		e.T.Fatal(err)
 	}

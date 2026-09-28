@@ -16,8 +16,8 @@ func (a *App) readScope(ctx context.Context, act registry.Actor, name, collectio
 	if name == "" || (act.Kind != registry.Agent && act.Kind != registry.Trigger) {
 		return a.scope(ctx, act, name)
 	}
-	p, err := a.Store.Q.GetProjectByName(ctx, name)
-	if errors.Is(err, sql.ErrNoRows) || err == nil && p.WorkspaceID != act.Workspace {
+	p, err := a.Store.Q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: act.Workspace, Name: name})
+	if errors.Is(err, sql.ErrNoRows) {
 		return db.Project{}, registry.NotFound("deck: no project %q", name)
 	}
 	if err != nil {

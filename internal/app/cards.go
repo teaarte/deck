@@ -21,7 +21,6 @@ type cardView struct {
 	Lane      string  `json:"lane"`
 	Rank      int64   `json:"rank"`
 	Record    int64   `json:"record,omitempty"`
-	Report    string  `json:"report,omitempty"`
 	Process   int64   `json:"process,omitempty"`
 	Waits     []int64 `json:"waits"`
 	DeletedAt string  `json:"deleted_at,omitempty"`
@@ -44,7 +43,7 @@ type boardView struct {
 
 func viewCard(c db.Card, waits map[int64][]int64) cardView {
 	return cardView{ID: c.ID, Project: c.ProjectID, Title: c.Title, Text: c.Text, Lane: c.Lane, Rank: c.Rank,
-		Record: c.RecordID.Int64, Report: c.Report, Process: c.ProcessID.Int64, Waits: append([]int64{}, waits[c.ID]...),
+		Record: c.RecordID.Int64, Process: c.ProcessID.Int64, Waits: append([]int64{}, waits[c.ID]...),
 		DeletedAt: c.DeletedAt.String, UpdatedAt: c.UpdatedAt}
 }
 

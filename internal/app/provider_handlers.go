@@ -47,7 +47,7 @@ func (a *App) providersList(ctx context.Context, act registry.Actor, in struct{ 
 		chosen, _ := a.Store.Q.GetSetting(ctx, db.GetSettingParams{WorkspaceID: act.Workspace, Key: placePrefix + in.Command})
 		out["chosen"] = chosen
 		name, _, _ := strings.Cut(in.Command, ".")
-		if p, err := a.Store.Q.GetProjectByName(ctx, name); err == nil {
+		if p, err := a.Store.Q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: act.Workspace, Name: name}); err == nil {
 			if pv, err := a.For(ctx, p.ID, cmd); err == nil {
 				out["effective"] = pv.Name()
 			} else {

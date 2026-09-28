@@ -128,7 +128,7 @@ func (a *App) createProject(ctx context.Context, act registry.Actor, name string
 	}
 	var p db.Project
 	err = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		if _, err := q.GetProjectByName(ctx, name); err == nil {
+		if _, err := q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: act.Workspace, Name: name}); err == nil {
 			return registry.Invalid("deck: project %q already exists", name)
 		}
 		if err := checkReads(ctx, q, act.Workspace, name, pm.m); err != nil {

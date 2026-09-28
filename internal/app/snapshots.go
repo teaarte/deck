@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -34,11 +35,15 @@ func (a *App) Snapshot(ctx context.Context) (string, error) {
 	path := filepath.Join(dir, "deck-"+a.Cfg.Now().UTC().Format(snapshotLayout)+".tar.gz")
 	copyDB := filepath.Join(dir, ".deck-"+uuid.NewString()+".db")
 	defer os.Remove(copyDB)
+	a.filesMu.Lock()
+	var once sync.Once
+	filesDone := func() { once.Do(a.filesMu.Unlock) }
+	defer filesDone()
 	if _, err := a.Store.DB.ExecContext(ctx, "VACUUM INTO ?", copyDB); err != nil {
 		return "", err
 	}
 	part := path + ".part"
-	if err := writeSnapshot(part, a.Cfg.Home, copyDB); err != nil {
+	if err := writeSnapshot(part, a.Cfg.Home, copyDB, filesDone); err != nil {
 		_ = os.Remove(part)
 		return "", err
 	}
@@ -54,7 +59,17 @@ func (a *App) Snapshot(ctx context.Context) (string, error) {
 	return path, nil
 }
 
-func writeSnapshot(path, home, copyDB string) error {
+// removeFiles deletes stored files whose rows are gone; it waits while a snapshot copies the base and files/.
+func (a *App) removeFiles(ids []int64) {
+	a.filesMu.RLock()
+	defer a.filesMu.RUnlock()
+	for _, id := range ids {
+		_ = os.Remove(filepath.Join(a.Cfg.Home, "files", fmt.Sprint(id)))
+	}
+}
+
+// writeSnapshot writes the archive; filesDone runs once files/ is in it.
+func writeSnapshot(path, home, copyDB string, filesDone func()) error {
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
 	if err != nil {
 		return err
@@ -83,10 +98,16 @@ func writeSnapshot(path, home, copyDB string) error {
 				return nil
 			}
 			name, _ := filepath.Rel(home, p)
-			return addFile(tw, p, filepath.ToSlash(name))
+			if err := addFile(tw, p, filepath.ToSlash(name)); !os.IsNotExist(err) {
+				return err
+			}
+			return nil
 		})
 		if err != nil {
 			return err
+		}
+		if rel == "files" {
+			filesDone()
 		}
 	}
 	if err := tw.Close(); err != nil {
@@ -193,9 +214,7 @@ func (a *App) cleanup(ctx context.Context, now time.Time) {
 	if err != nil {
 		slog.Error("purge files", "err", err)
 	}
-	for _, id := range gone {
-		_ = os.Remove(filepath.Join(a.Cfg.Home, "files", fmt.Sprint(id)))
-	}
+	a.removeFiles(gone)
 	left, _ := filepath.Glob(filepath.Join(a.Cfg.Home, "files", ".upload-*"))
 	for _, f := range left {
 		if fi, err := os.Stat(f); err == nil && now.Sub(fi.ModTime()) > 24*time.Hour {

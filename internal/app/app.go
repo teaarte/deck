@@ -55,6 +55,8 @@ type App struct {
 	bg       sync.WaitGroup
 	disk     time.Time
 	boardMu  sync.Mutex
+	// filesMu keeps stored files from going while a snapshot copies the base and files/.
+	filesMu sync.RWMutex
 	// cleaned and snapTried are when the daily cleanup ran and a daily snapshot was last tried.
 	cleaned, snapTried time.Time
 }

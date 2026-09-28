@@ -1,6 +1,12 @@
 package scenarios
 
 import (
+	"archive/tar"
+	"compress/gzip"
+	"database/sql"
+	"encoding/json"
+	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -70,4 +76,95 @@ func TestAHandSnapshotDoesNotPutOffTheDailyCleanup(t *testing.T) {
 	if uploads != 0 {
 		t.Fatalf("the cleanup runs a day after the last one, whatever snapshot came between: %d uploads left", uploads)
 	}
+}
+
+const manyFilesScript = pythonLib + `
+files = []
+for i in range(40):
+    st, out = deck("deck.records_upsert", {"collection": "items", "records": json.dumps({"name": "r%d" % i})})
+    with open(os.path.join(os.environ["DECK_RESULTS"], "f%d.bin" % i), "wb") as f:
+        f.write(os.urandom(256 << 10))
+    files.append({"path": "f%d.bin" % i, "record": out["ids"][0]})
+print(json.dumps({"files": files}))
+`
+
+func TestASnapshotHoldsEveryFileItsBaseNames(t *testing.T) {
+	e := newEnv(t, nil)
+	e.createProject("many", scriptManifest("make", "", ""))
+	e.saveScript("many", "scripts/main.py", manyFilesScript)
+	if p := e.waitScript(e.start("many", "make", nil), "done", "error"); p.State != "done" {
+		t.Fatalf("seed: %+v", p)
+	}
+	var recs []struct{ ID int64 }
+	e.must("deck.records_list", map[string]any{"project": "many", "collection": "items", "limit": 100}, &recs)
+	for round := range 5 {
+		var path struct{ Path string }
+		done := make(chan string, 1)
+		go func() {
+			code, out := e.call("deck.snapshot_create", nil)
+			_ = json.Unmarshal(out, &path)
+			done <- fmt.Sprint(code, " ", string(out))
+		}()
+		for _, r := range recs[round*8 : round*8+8] {
+			e.must("deck.record_delete", map[string]any{"record": r.ID}, nil)
+		}
+		if got := <-done; path.Path == "" {
+			t.Fatalf("round %d: the snapshot is taken while records go: %s", round, got)
+		}
+		named, stored := snapshotFiles(t, path.Path)
+		for _, id := range named {
+			if !stored["files/"+id] {
+				t.Fatalf("round %d: the base of the snapshot names file %s, the archive lacks it", round, id)
+			}
+		}
+	}
+}
+
+// snapshotFiles reads a snapshot: the file ids its base names and the entries of the archive.
+func snapshotFiles(t *testing.T, path string) ([]string, map[string]bool) {
+	t.Helper()
+	f, err := os.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	gz, err := gzip.NewReader(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tr := tar.NewReader(gz)
+	stored := map[string]bool{}
+	dbPath := filepath.Join(t.TempDir(), "deck.db")
+	for {
+		h, err := tr.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		stored[h.Name] = true
+		if h.Name == "deck.db" {
+			out, _ := os.Create(dbPath)
+			_, _ = io.Copy(out, tr)
+			_ = out.Close()
+		}
+	}
+	conn, err := sql.Open("sqlite", "file:"+dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	rows, err := conn.Query(`SELECT id FROM file WHERE owner_kind = 'record'`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	var named []string
+	for rows.Next() {
+		var id int64
+		_ = rows.Scan(&id)
+		named = append(named, fmt.Sprint(id))
+	}
+	return named, stored
 }

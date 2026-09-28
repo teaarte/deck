@@ -4,9 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
-	"os"
-	"path/filepath"
 
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
@@ -178,8 +175,6 @@ func (a *App) recordDelete(ctx context.Context, act registry.Actor, in struct{ R
 	if err != nil {
 		return nil, err
 	}
-	for _, id := range gone {
-		_ = os.Remove(filepath.Join(a.dirs().Files, fmt.Sprint(id)))
-	}
+	a.removeFiles(gone)
 	return map[string]any{"ok": true}, nil
 }

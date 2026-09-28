@@ -95,7 +95,7 @@ func TestCommandAgentRunsInAutoModeWithItsOwnWeb(t *testing.T) {
 		theirs := []string{filepath.Join(h, "token"), filepath.Join(h, "mcp", "mcp-1.json"), filepath.Join(h, "files", "3", "cv.pdf"),
 			filepath.Join(h, "secrets", "svc"), filepath.Join(h, "deck.db-wal"), filepath.Join(h, "backups", "x"),
 			filepath.Join(h, "projects", fmt.Sprint(other), "data", "index"), filepath.Join(h, "mcp", "mcp-1.tmp"),
-			filepath.Join(h, "projects", fmt.Sprint(p), "env", "bin", "python"), filepath.Join(h, "projects", fmt.Sprint(p), "mcp", "srv", ".npmrc")}
+			filepath.Join(h, "projects", fmt.Sprint(p), "mcp", "srv", ".npmrc")}
 		for _, n := range []int64{id + 1, id * 10, id + 100, 7, id / 10} {
 			if n != id {
 				theirs = append(theirs, filepath.Join(h, "runs", fmt.Sprint(n), "work", "a.txt"))

@@ -244,9 +244,12 @@ func rights(m *manifest.Manifest) []string {
 	return []string{}
 }
 
-// commandTry starts a trial run of a project command: every call that is not internal is declined.
+// commandTry starts a trial run of a project command: every call that is not internal is declined, so a token
+// that may try runs any project command this way, though not a command closed to its kind of caller.
 func (a *App) commandTry(ctx context.Context, act registry.Actor, in struct{ Command, Input string }) (any, error) {
-	c, input, err := a.Registry.Resolve(ctx, act, in.Command, json.RawMessage(in.Input))
+	probe := act
+	probe.Token = 0
+	c, input, err := a.Registry.Resolve(ctx, probe, in.Command, json.RawMessage(in.Input))
 	switch {
 	case err != nil:
 		return nil, err

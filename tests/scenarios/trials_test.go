@@ -72,19 +72,38 @@ func TestScriptRunsOnlyFromAScriptDocument(t *testing.T) {
 	}
 }
 
-// TestTrialOfAToolIsRefusedAndNothingLeavesDeck: a tool is the call itself, so it has no trial run.
+// TestTrialOfAToolIsRefusedAndNothingLeavesDeck: a tool is the call itself, so it has no trial run; a token
+// that may try runs any command of a project as a trial, whose agent has no external tool.
 func TestTrialOfAToolIsRefusedAndNothingLeavesDeck(t *testing.T) {
 	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { jsonReply(w, `{"ok": true}`) })
-	e := newEnv(t, nil)
+	var posted string
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		posted, _ = c.Tool(ctx, "notes__post", map[string]any{"id": "a", "text": "hi"})
+		return provider.Result{Structured: json.RawMessage(`{}`)}
+	})
 	e.must("deck.secret_set", map[string]any{"name": "svc", "value": "s3cret"}, nil)
 	e.createProject("notes", postManifest(svc.URL, ""))
 	_, tok := e.token("terminal", "deck.command_try")
 	for _, call := range []func() (int, []byte){
 		func() (int, []byte) { return e.call("deck.command_try", map[string]any{"command": "notes.post", "input": `{"id": "a", "text": "hi"}`}) },
-		func() (int, []byte) { return e.callWith(tok, "deck.command_try", map[string]any{"command": "notes.work"}) },
+		func() (int, []byte) { return e.callWith(tok, "deck.command_try", map[string]any{"command": "notes.post", "input": `{"id": "a", "text": "hi"}`}) },
 	} {
 		if code, out := call(); code < 400 || len(svc.requests()) != 0 {
-			t.Fatalf("a trial of a tool, or of a command the token may not call, is refused: %d %s, %d calls", code, out, len(svc.requests()))
+			t.Fatalf("a trial of a tool is refused: %d %s, %d calls", code, out, len(svc.requests()))
 		}
+	}
+	var try struct{ Process int64 }
+	code, out := e.callWith(tok, "deck.command_try", map[string]any{"command": "notes.work"})
+	if code != 200 || json.Unmarshal(out, &try) != nil {
+		t.Fatalf("a token that may try runs a command of any project as a trial: %d %s", code, out)
+	}
+	e.waitState(try.Process, "done")
+	if !strings.Contains(posted, "unknown tool") || len(svc.requests()) != 0 {
+		t.Fatalf("an agent of a trial has no external tool to call: %q, %d calls", posted, len(svc.requests()))
+	}
+	e.must("deck.manifest_save", map[string]any{"project": "notes",
+		"manifest": strings.Replace(postManifest(svc.URL, ""), `"class": "internal",`, `"class": "internal", "callers": ["owner"],`, 1)}, nil)
+	if code, out := e.callWith(tok, "deck.command_try", map[string]any{"command": "notes.work"}); code != 403 || !strings.Contains(string(out), "cannot be called by master") {
+		t.Fatalf("a command closed to the master is not tried by a token: %d %s", code, out)
 	}
 }

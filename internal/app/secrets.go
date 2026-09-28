@@ -22,7 +22,7 @@ func (a *App) secretsDir(workspace int64) string {
 
 // Secret is the value of a workspace secret, read when a tool call needs it.
 func (a *App) Secret(workspace int64, name string) (string, error) {
-	if !secretName.MatchString(name) || strings.Trim(name, ".") == "" {
+	if !validSecret(name) {
 		return "", registry.Invalid("deck: bad secret name %q", name)
 	}
 	b, err := os.ReadFile(filepath.Join(a.secretsDir(workspace), name))
@@ -34,7 +34,7 @@ func (a *App) Secret(workspace int64, name string) (string, error) {
 
 // secretSet writes a secret file readable only by deck; the value never comes back out.
 func (a *App) secretSet(ctx context.Context, act registry.Actor, in struct{ Name, Value string }) (any, error) {
-	if !secretName.MatchString(in.Name) || strings.Trim(in.Name, ".") == "" {
+	if !validSecret(in.Name) {
 		return nil, registry.Invalid("deck: a secret name is letters, digits, '.', '_' and '-'")
 	}
 	a.secretMu.Lock()
@@ -50,18 +50,21 @@ func (a *App) secretSet(ctx context.Context, act registry.Actor, in struct{ Name
 func (a *App) SwapSecret(workspace int64, name, old, value string) (bool, error) {
 	a.secretMu.Lock()
 	defer a.secretMu.Unlock()
-	now, err := a.Secret(workspace, name)
-	if err != nil && now != "" {
+	if !validSecret(name) {
+		return false, registry.Invalid("deck: bad secret name %q", name)
+	}
+	b, err := os.ReadFile(filepath.Join(a.secretsDir(workspace), name))
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return false, err
 	}
-	if now != strings.TrimRight(old, "\r\n") {
+	if strings.TrimRight(string(b), "\r\n") != strings.TrimRight(old, "\r\n") {
 		return false, nil
 	}
 	return true, a.writeSecret(workspace, name, value)
 }
 
 func (a *App) writeSecret(workspace int64, name, value string) error {
-	if !secretName.MatchString(name) || strings.Trim(name, ".") == "" {
+	if !validSecret(name) {
 		return registry.Invalid("deck: bad secret name %q", name)
 	}
 	dir := a.secretsDir(workspace)
@@ -97,3 +100,5 @@ func (a *App) secretsList(ctx context.Context, act registry.Actor, _ struct{}) (
 	sort.Strings(names)
 	return names, nil
 }
+
+func validSecret(name string) bool { return secretName.MatchString(name) && strings.Trim(name, ".") != "" }

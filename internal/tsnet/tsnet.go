@@ -4,6 +4,7 @@ package tsnet
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net"
 	"net/http"
@@ -39,7 +40,7 @@ type Node struct {
 // Start joins the tailnet in the background and serves the client and its second origin on the node's ports.
 func Start(ctx context.Context, cfg Config, srv *api.Server) (*Node, error) {
 	ts := &tsnet.Server{Hostname: cfg.Hostname, Dir: cfg.Dir, ControlURL: cfg.ControlURL, Logf: logger.Discard,
-		UserLogf: func(format string, args ...any) { slog.Debug("tailscale", "msg", format) }}
+		UserLogf: func(format string, args ...any) { slog.Debug("tailscale", "msg", fmt.Sprintf(format, args...)) }}
 	if err := ts.Start(); err != nil {
 		return nil, err
 	}

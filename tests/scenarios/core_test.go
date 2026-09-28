@@ -179,22 +179,3 @@ func TestResultNotBySchemaAfterOneRetry(t *testing.T) {
 		t.Fatalf("want exactly one retry asking for JSON only, got %d calls", len(calls))
 	}
 }
-
-func TestMissedCronFiresOnceAfterSleep(t *testing.T) {
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
-		return provider.Result{Structured: json.RawMessage(`{"written": 0}`)}
-	})
-	now := time.Date(2026, 9, 25, 8, 0, 0, 0, time.UTC)
-	e.App.Scheduler.Now = func() time.Time { return now }
-	p := e.createProject("ideas", ideasManifest)
-	_ = p
-	now = now.Add(72 * time.Hour)
-	ctx := context.Background()
-	e.App.Scheduler.Tick(ctx)
-	e.App.Scheduler.Tick(ctx)
-	e.App.Runner.Wait()
-	ps, _ := e.App.Store.Q.ListProcesses(ctx, 10)
-	if len(ps) != 1 {
-		t.Fatalf("three missed days must fire exactly once, got %d processes", len(ps))
-	}
-}

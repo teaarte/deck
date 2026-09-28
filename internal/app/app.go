@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -188,15 +187,8 @@ func (a *App) fire(ctx context.Context, t db.TriggerState, input map[string]any,
 	if err != nil {
 		return 0, err
 	}
-	started, ok := out.(Started)
-	if !ok {
-		return 0, nil
-	}
-	id := started.Process
-	err = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		return q.SetTriggerLast(ctx, db.SetTriggerLastParams{LastProcessID: sql.NullInt64{Int64: id, Valid: true}, ID: t.ID})
-	})
-	return id, err
+	started, _ := out.(Started)
+	return started.Process, nil
 }
 
 // afterTriggers starts the commands that run when a command of the same project finishes.

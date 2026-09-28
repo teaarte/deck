@@ -22,8 +22,10 @@ import (
 type Origin struct {
 	Parent  int64
 	Trigger int64
-	Key     string
-	Trial   bool
+	// Confirmed is a call of the trigger the owner said yes to; its schedule checks do not apply.
+	Confirmed bool
+	Key       string
+	Trial     bool
 }
 
 func (r *Runner) ceilingOf(m *manifest.Manifest, cmd *manifest.Command) time.Duration {
@@ -98,7 +100,7 @@ func (r *Runner) Start(ctx context.Context, projectID int64, m *manifest.Manifes
 			}
 			trial = trial || parent.Trial == 1
 		}
-		if o.Trigger != 0 {
+		if o.Trigger != 0 && !o.Confirmed {
 			t, err := q.GetTrigger(ctx, o.Trigger)
 			if err != nil {
 				return err
@@ -138,6 +140,11 @@ func (r *Runner) Start(ctx context.Context, projectID int64, m *manifest.Manifes
 			TriggerID: ref(o.Trigger), RetryKey: o.Key, CeilingMs: r.ceilingOf(m, cmd).Milliseconds(), ManifestRevision: m.Revision})
 		if err != nil {
 			return err
+		}
+		if o.Trigger != 0 {
+			if err := q.SetTriggerLast(ctx, db.SetTriggerLastParams{LastProcessID: sql.NullInt64{Int64: p.ID, Valid: true}, ID: o.Trigger}); err != nil {
+				return err
+			}
 		}
 		return bindInput(ctx, q, cmd, projectID, p.ID, input)
 	})

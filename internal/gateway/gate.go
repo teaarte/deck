@@ -30,13 +30,14 @@ type Caller struct {
 	Workspace int64    `json:"workspace"`
 	Project   int64    `json:"project,omitempty"`
 	Process   int64    `json:"process,omitempty"`
+	Trigger   int64    `json:"trigger,omitempty"`
 	Token     int64    `json:"token,omitempty"`
 	Commands  []string `json:"commands,omitempty"`
 }
 
-// freeze keeps the actor of a call; a trigger's own schedule checks do not apply once the owner said yes.
+// freeze keeps the actor of a call.
 func freeze(a registry.Actor) Caller {
-	c := Caller{Kind: a.Kind, Workspace: a.Workspace, Project: a.ProjectID, Process: a.ProcessID, Token: a.Token, Commands: a.Commands}
+	c := Caller{Kind: a.Kind, Workspace: a.Workspace, Project: a.ProjectID, Process: a.ProcessID, Trigger: a.TriggerID, Token: a.Token, Commands: a.Commands}
 	if a.Kind == registry.Trigger {
 		c.Process = 0
 	}
@@ -45,7 +46,7 @@ func freeze(a registry.Actor) Caller {
 
 func (c Caller) actor() registry.Actor {
 	return registry.Actor{Kind: c.Kind, Workspace: c.Workspace, ProjectID: c.Project, ProcessID: c.Process,
-		Token: c.Token, Commands: c.Commands}
+		TriggerID: c.Trigger, Confirmed: c.Trigger != 0, Token: c.Token, Commands: c.Commands}
 }
 
 // Frozen is a call with its parameters as they were when it was asked for.

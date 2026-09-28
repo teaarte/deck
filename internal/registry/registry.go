@@ -41,6 +41,8 @@ type Actor struct {
 	// ProcessID is the calling agent's process, or for a trigger the process whose finish fired it.
 	ProcessID int64
 	TriggerID int64
+	// Confirmed marks a call the owner said yes to: the schedule checks of its trigger no longer apply.
+	Confirmed bool
 	// Token is the automation token a master-side caller came with; Commands are the ones it may call.
 	Token    int64
 	Commands []string

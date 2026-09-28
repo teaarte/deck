@@ -330,3 +330,21 @@ func TestPauseBetweenReadingAndFiringATriggerHolds(t *testing.T) {
 		t.Fatalf("no process started: %d", n)
 	}
 }
+
+func TestAScheduledCallTheOwnerAllowedIsTheLastRunOfItsTrigger(t *testing.T) {
+	e := newClockEnv(t, nil)
+	pub := strings.Replace(agentCommand("publish", ""), `"class": "internal"`, `"class": "external"`, 1)
+	e.createProject("daily", testManifest([]string{pub}, []string{`{"command": "publish", "cron": "0 9 * * *"}`}))
+	e.Clock.Add(time.Hour)
+	e.tick()
+	a := e.waitAsk()
+	if a.Kind != "call" || e.countOf("publish") != 0 {
+		t.Fatalf("an external command of a schedule waits for the owner: %+v", a)
+	}
+	e.must("deck.ask_answer", map[string]any{"ask": a.ID, "answer": "allow"}, nil)
+	e.waitFor("the allowed run", func() bool { return e.countOf("publish") == 1 })
+	ps := e.processes()
+	if ts := e.triggers(); len(ts) != 1 || ts[0].Last == 0 || ts[0].Last != ps[0].ID {
+		t.Fatalf("the run the owner allowed is the last run of its trigger: %+v %+v", ts, ps)
+	}
+}

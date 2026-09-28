@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"errors"
 
+	"deck2/internal/app/docs"
+	"deck2/internal/app/records"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store"
@@ -19,7 +21,7 @@ func (a *App) recordsList(ctx context.Context, act registry.Actor, in struct {
 	if err != nil {
 		return nil, err
 	}
-	m, err := loadManifest(ctx, a.Store.Q, p)
+	m, err := docs.Manifest(ctx, a.Store.Q, p)
 	if err != nil {
 		return nil, err
 	}
@@ -34,9 +36,9 @@ func (a *App) recordsList(ctx context.Context, act registry.Actor, in struct {
 	if in.Limit > 0 && len(recs) > in.Limit {
 		recs = recs[len(recs)-in.Limit:]
 	}
-	out := make([]RecordView, 0, len(recs))
+	out := make([]records.View, 0, len(recs))
 	for _, r := range recs {
-		out = append(out, recordView(r, c))
+		out = append(out, records.ViewOf(r, c))
 	}
 	return out, nil
 }
@@ -45,7 +47,7 @@ func (a *App) recordsList(ctx context.Context, act registry.Actor, in struct {
 // save cannot change the schema between the check and the write.
 func (a *App) writeRecords(ctx context.Context, p db.Project, f func(ctx context.Context, q *db.Queries, m *manifest.Manifest) error) error {
 	err := a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		m, err := loadManifest(ctx, q, p)
+		m, err := docs.Manifest(ctx, q, p)
 		if err != nil {
 			return err
 		}
@@ -62,9 +64,9 @@ func (a *App) recordsUpsert(ctx context.Context, act registry.Actor, in struct{ 
 	if err != nil {
 		return nil, err
 	}
-	var out UpsertResult
+	var out records.UpsertResult
 	err = a.writeRecords(ctx, p, func(ctx context.Context, q *db.Queries, m *manifest.Manifest) error {
-		out, err = upsertJSONL(ctx, q, a.Cfg.Now(), p.ID, m, in.Collection, in.Records)
+		out, err = records.UpsertJSONL(ctx, q, a.Cfg.Now(), p.ID, m, in.Collection, in.Records)
 		return err
 	})
 	return out, err
@@ -93,7 +95,7 @@ func (a *App) recordUpdate(ctx context.Context, act registry.Actor, in struct {
 		if err != nil {
 			return err
 		}
-		return updateRecord(ctx, q, a.Cfg.Now(), cur, m, data)
+		return records.Update(ctx, q, a.Cfg.Now(), cur, m, data)
 	})
 	if err != nil {
 		return nil, err
@@ -144,11 +146,11 @@ func (a *App) recordGet(ctx context.Context, act registry.Actor, in struct{ Reco
 	if err := a.mayRead(ctx, a.Store.Q, act, p, rec.Collection, ""); err != nil {
 		return nil, registry.NotFound("deck: no record %d", in.Record)
 	}
-	m, err := loadManifest(ctx, a.Store.Q, p)
+	m, err := docs.Manifest(ctx, a.Store.Q, p)
 	if err != nil {
 		return nil, err
 	}
-	return recordView(rec, m.Collection(rec.Collection)), nil
+	return records.ViewOf(rec, m.Collection(rec.Collection)), nil
 }
 
 // recordDelete deletes a record with its documents and files for good; the master may do it only in a draft,

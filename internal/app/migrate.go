@@ -62,7 +62,7 @@ func parseEnvelopes(jsonl string) ([]envelope, error) {
 // migrate prepares, outside any transaction, the collections whose schema or key changes: from the snapshot
 // a revert returns to, or by the migration script when the records no longer fit.
 func (a *App) migrate(ctx context.Context, p db.Project, next *manifest.Manifest, revertTo int64) (map[string]*migration, error) {
-	old, err := loadManifest(ctx, a.Store.Q, p)
+	old, err := docs.Manifest(ctx, a.Store.Q, p)
 	if err != nil {
 		return nil, nil
 	}

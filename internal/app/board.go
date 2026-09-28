@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"deck2/internal/app/docs"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
@@ -18,7 +19,7 @@ import (
 
 // boardManifest is the manifest of a project that has a board.
 func boardManifest(ctx context.Context, q *db.Queries, p db.Project) (*manifest.Manifest, error) {
-	m, err := loadManifest(ctx, q, p)
+	m, err := docs.Manifest(ctx, q, p)
 	if err != nil {
 		return nil, err
 	}

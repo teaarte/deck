@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"strings"
 
+	"deck2/internal/app/docs"
 	"deck2/internal/app/screens"
 	"deck2/internal/manifest"
 	"deck2/internal/provider"
@@ -72,7 +73,7 @@ func (a *App) menu(ctx context.Context, act registry.Actor, _ struct{}) (any, er
 		return nil, err
 	}
 	for _, p := range ps {
-		m, err := loadManifest(ctx, a.Store.Q, p)
+		m, err := docs.Manifest(ctx, a.Store.Q, p)
 		if err != nil {
 			continue
 		}
@@ -118,7 +119,7 @@ func (a *App) screenGet(ctx context.Context, act registry.Actor, in struct {
 		if err != nil {
 			return nil, err
 		}
-		m, err := loadManifest(ctx, a.Store.Q, p)
+		m, err := docs.Manifest(ctx, a.Store.Q, p)
 		if err != nil {
 			return nil, err
 		}
@@ -143,10 +144,6 @@ func (a *App) sources() screens.Sources {
 }
 
 type screenDeck struct{ a *App }
-
-func (d screenDeck) Manifest(ctx context.Context, p db.Project) (*manifest.Manifest, error) {
-	return loadManifest(ctx, d.a.Store.Q, p)
-}
 
 func (d screenDeck) Project(ctx context.Context, p db.Project) (screens.Project, *manifest.Manifest) {
 	v, m := d.a.viewProject(ctx, p)

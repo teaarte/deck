@@ -9,7 +9,6 @@ import (
 
 // Deck is what the screen sources read from the rest of deck.
 type Deck interface {
-	Manifest(ctx context.Context, p db.Project) (*manifest.Manifest, error)
 	Project(ctx context.Context, p db.Project) (Project, *manifest.Manifest)
 	Providers(ctx context.Context, workspace int64) ([]Provider, error)
 	Health(ctx context.Context, workspace int64) ([]map[string]any, error)

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"strings"
 
+	"deck2/internal/app/docs"
 	"deck2/internal/app/screens"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
@@ -24,7 +25,7 @@ func (a *App) notify(ctx context.Context, act registry.Actor, in struct {
 	if strings.TrimSpace(in.Text) == "" {
 		return nil, registry.Invalid("deck: notify needs text")
 	}
-	m, err := loadManifest(ctx, a.Store.Q, p)
+	m, err := docs.Manifest(ctx, a.Store.Q, p)
 	if err != nil {
 		return nil, err
 	}

@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 
+	"deck2/internal/app/docs"
 	"deck2/internal/manifest"
 	"deck2/internal/process"
 	"deck2/internal/provider"
@@ -185,7 +186,7 @@ func (a *App) agentCommand(ctx context.Context, workspace int64, place string) (
 	if err != nil {
 		return nil, registry.NotFound("deck: no project %q", name)
 	}
-	m, err := loadManifest(ctx, a.Store.Q, p)
+	m, err := docs.Manifest(ctx, a.Store.Q, p)
 	if err != nil {
 		return nil, err
 	}

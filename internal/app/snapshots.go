@@ -18,6 +18,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"deck2/internal/app/docs"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
@@ -147,7 +148,7 @@ func (a *App) expire(ctx context.Context, q *db.Queries, now time.Time) ([]int64
 	var gone []int64
 	days := func(n int) string { return store.Time(now.Add(-time.Duration(n) * 24 * time.Hour)) }
 	for _, p := range projects {
-		m, err := loadManifest(ctx, q, p)
+		m, err := docs.Manifest(ctx, q, p)
 		if err != nil {
 			continue
 		}

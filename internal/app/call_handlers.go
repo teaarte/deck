@@ -108,7 +108,7 @@ func (a *App) allowAlways(ctx context.Context, act registry.Actor, q db.Ask) err
 	if c, err := a.Registry.Lookup(ctx, p.WorkspaceID, f.Call.Command); err == nil && c.Class != registry.External {
 		return registry.Invalid("deck: %s is %s: it follows the autonomy of the project, not the allowed external list", c.Name, c.Class)
 	}
-	m, err := loadManifest(ctx, a.Store.Q, p)
+	m, err := docs.Manifest(ctx, a.Store.Q, p)
 	if err != nil {
 		return err
 	}
@@ -128,7 +128,7 @@ func (a *App) allowAlways(ctx context.Context, act registry.Actor, q db.Ask) err
 
 // addToList adds a value to a list of the project's manifest at the path of keys, as a new revision.
 func (a *App) addToList(ctx context.Context, act registry.Actor, p db.Project, value string, path ...string) error {
-	m, err := loadManifest(ctx, a.Store.Q, p)
+	m, err := docs.Manifest(ctx, a.Store.Q, p)
 	if err != nil {
 		return err
 	}

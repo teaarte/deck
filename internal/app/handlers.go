@@ -92,7 +92,7 @@ func (a *App) viewProject(ctx context.Context, p db.Project) (projectView, *mani
 	if prompt, err := docs.CurrentText(ctx, a.Store.Q, docs.ProjectScope(p), docs.KindPrompt, docs.PromptName); err == nil {
 		v.Description = docs.Description(prompt)
 	}
-	m, err := loadManifest(ctx, a.Store.Q, p)
+	m, err := docs.Manifest(ctx, a.Store.Q, p)
 	if err != nil {
 		v.ManifestError = err.Error()
 		return v, nil

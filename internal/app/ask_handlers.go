@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 
+	"deck2/internal/app/docs"
 	"deck2/internal/ask"
 	"deck2/internal/registry"
 	"deck2/internal/store"
@@ -90,7 +91,7 @@ func (a *App) healthList(ctx context.Context, act registry.Actor, _ struct{}) (a
 	worst := map[string]row{}
 	for _, p := range ps {
 		worst[p.Name] = row{"subject": "project:" + p.Name, "status": "ok", "error": "", "updated_at": ""}
-		if _, err := loadManifest(ctx, a.Store.Q, p); err != nil {
+		if _, err := docs.Manifest(ctx, a.Store.Q, p); err != nil {
 			worst[p.Name]["status"], worst[p.Name]["error"] = "error", "manifest: "+err.Error()
 		}
 	}

@@ -2,8 +2,6 @@ package app
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"fmt"
 	"log/slog"
 	"regexp"
@@ -17,23 +15,6 @@ import (
 
 var projectName = regexp.MustCompile(`^[a-z][a-z0-9-]{0,39}$`)
 
-// loadManifest parses the current manifest of a project.
-func loadManifest(ctx context.Context, q *db.Queries, p db.Project) (*manifest.Manifest, error) {
-	s := docs.ProjectScope(p)
-	row, err := q.CurrentText(ctx, db.CurrentTextParams{WorkspaceID: s.Workspace, ProjectID: s.Project, Name: docs.ManifestName, Kind: docs.KindManifest})
-	if errors.Is(err, sql.ErrNoRows) {
-		return manifest.Parse(nil)
-	}
-	if err != nil {
-		return nil, err
-	}
-	m, err := manifest.Parse([]byte(row.Text))
-	if err == nil {
-		m.Revision = row.N
-	}
-	return m, err
-}
-
 // ManifestAt is a stored revision of the manifest of a project; revision 0 is the current one.
 func (a *App) ManifestAt(ctx context.Context, projectID, revision int64) (*manifest.Manifest, error) {
 	p, err := a.Store.Q.GetProject(ctx, projectID)
@@ -41,7 +22,7 @@ func (a *App) ManifestAt(ctx context.Context, projectID, revision int64) (*manif
 		if err != nil {
 			return nil, err
 		}
-		return loadManifest(ctx, a.Store.Q, p)
+		return docs.Manifest(ctx, a.Store.Q, p)
 	}
 	d, err := a.Store.Q.FindDocument(ctx, docs.Ref{Scope: docs.ProjectScope(p), Name: docs.ManifestName}.Find())
 	if err != nil {
@@ -64,7 +45,7 @@ func (a *App) Manifest(ctx context.Context, projectID int64) (*manifest.Manifest
 	if err != nil {
 		return nil, err
 	}
-	return loadManifest(ctx, a.Store.Q, p)
+	return docs.Manifest(ctx, a.Store.Q, p)
 }
 
 // Text is the current text of a project document by kind and name, of any kind for ""; empty when missing.
@@ -301,7 +282,7 @@ func (a *App) Reconcile(ctx context.Context) error {
 	}
 	for _, p := range ps {
 		err := a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-			m, err := loadManifest(ctx, q, p)
+			m, err := docs.Manifest(ctx, q, p)
 			if err != nil {
 				return err
 			}

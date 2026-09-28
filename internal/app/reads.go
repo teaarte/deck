@@ -6,6 +6,7 @@ import (
 	"errors"
 	"slices"
 
+	"deck2/internal/app/docs"
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
 )
@@ -57,7 +58,7 @@ func (a *App) reads(ctx context.Context, q *db.Queries, act registry.Actor, othe
 	if err != nil {
 		return nil, err
 	}
-	m, err := loadManifest(ctx, q, own)
+	m, err := docs.Manifest(ctx, q, own)
 	if err != nil {
 		return nil, err
 	}

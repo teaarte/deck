@@ -8,6 +8,7 @@ import (
 	"errors"
 	"log/slog"
 
+	"deck2/internal/app/docs"
 	"deck2/internal/manifest"
 	"deck2/internal/process"
 	"deck2/internal/registry"
@@ -35,7 +36,7 @@ func (a *App) projectCommands(ctx context.Context, workspace int64, name string)
 	}
 	var out []*registry.Command
 	for _, p := range ps {
-		m, err := loadManifest(ctx, a.Store.Q, p)
+		m, err := docs.Manifest(ctx, a.Store.Q, p)
 		if err != nil {
 			slog.Error("project manifest", "project", p.Name, "err", err)
 			continue

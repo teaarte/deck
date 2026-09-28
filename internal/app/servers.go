@@ -6,6 +6,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"deck2/internal/app/docs"
 	"deck2/internal/store/db"
 	"deck2/internal/tools"
 )
@@ -52,7 +53,7 @@ func (a *App) Servers(ctx context.Context, projectID int64) {
 	if err != nil {
 		return
 	}
-	m, err := loadManifest(ctx, a.Store.Q, p)
+	m, err := docs.Manifest(ctx, a.Store.Q, p)
 	if err != nil {
 		return
 	}

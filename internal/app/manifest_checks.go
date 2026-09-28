@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 
+	"deck2/internal/app/docs"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
@@ -27,7 +28,7 @@ func checkReads(ctx context.Context, q *db.Queries, workspace int64, name string
 		if err != nil {
 			return registry.Invalid("deck: reads: no project %q", r.Project)
 		}
-		other, err := loadManifest(ctx, q, p)
+		other, err := docs.Manifest(ctx, q, p)
 		if err != nil {
 			return registry.Invalid("deck: reads: project %q has an invalid manifest: %v", r.Project, err)
 		}
@@ -88,7 +89,7 @@ func checkRecords(ctx context.Context, q *db.Queries, p db.Project, next *manife
 	if err != nil {
 		return err
 	}
-	old, err := loadManifest(ctx, q, p)
+	old, err := docs.Manifest(ctx, q, p)
 	if err != nil {
 		slog.Warn("current manifest does not parse; checking every record", "project", p.Name, "err", err)
 		old = nil

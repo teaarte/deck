@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 
+	"deck2/internal/app/docs"
 	"deck2/internal/manifest"
 	"deck2/internal/process"
 	"deck2/internal/registry"
@@ -31,7 +32,7 @@ func (s Sources) commandForm(ctx context.Context, c *registry.Command, project s
 	raw := c.Input
 	if c.ProjectID != 0 {
 		if p, err := s.Store.Q.GetProject(ctx, c.ProjectID); err == nil {
-			if m, err := s.Deck.Manifest(ctx, p); err == nil {
+			if m, err := docs.Manifest(ctx, s.Store.Q, p); err == nil {
 				if mc := m.Command(strings.TrimPrefix(c.Name, p.Name+".")); mc != nil {
 					raw = mc.InputSchema()
 				}
@@ -66,7 +67,7 @@ func (s Sources) commandItems(ctx context.Context, sc screen.Scope, names map[in
 			m, ok := manifests[c.ProjectID]
 			if !ok {
 				if p, err := s.Store.Q.GetProject(ctx, c.ProjectID); err == nil {
-					m, _ = s.Deck.Manifest(ctx, p)
+					m, _ = docs.Manifest(ctx, s.Store.Q, p)
 				}
 				manifests[c.ProjectID] = m
 			}

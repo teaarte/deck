@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"strings"
 
+	"deck2/internal/app/docs"
 	"deck2/internal/manifest"
 	"deck2/internal/script"
 	"deck2/internal/store/db"
@@ -30,7 +31,7 @@ func (a *App) prepareScripts(ctx context.Context, projectID int64) error {
 	if err != nil {
 		return err
 	}
-	m, err := loadManifest(ctx, a.Store.Q, p)
+	m, err := docs.Manifest(ctx, a.Store.Q, p)
 	if err != nil {
 		return err
 	}

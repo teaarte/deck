@@ -24,7 +24,7 @@ func (a *App) widens(ctx context.Context, q *db.Queries, act registry.Actor, pro
 	if err != nil || p.Status != store.ProjectEnabled {
 		return nil, err
 	}
-	prev, err := loadManifest(ctx, q, p)
+	prev, err := docs.Manifest(ctx, q, p)
 	if err != nil {
 		prev = &manifest.Manifest{}
 	}
@@ -177,7 +177,7 @@ func (a *App) projectEnable(ctx context.Context, act registry.Actor, in struct {
 	}
 	var m *manifest.Manifest
 	err = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		if m, err = loadManifest(ctx, q, p); err != nil {
+		if m, err = docs.Manifest(ctx, q, p); err != nil {
 			return registry.Invalid("deck: the manifest of %s does not load: %v", p.Name, err)
 		}
 		if m.Revision != in.Revision {

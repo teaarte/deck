@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 
+	"deck2/internal/app/docs"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
@@ -25,7 +26,7 @@ func (a *App) projectDelete(ctx context.Context, act registry.Actor, in struct{ 
 	if err := a.deletable(ctx, a.Store.Q, p); err != nil {
 		return nil, err
 	}
-	m, _ := loadManifest(ctx, a.Store.Q, p)
+	m, _ := docs.Manifest(ctx, a.Store.Q, p)
 	snapshot, err := a.Snapshot(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("deck: the snapshot before deleting %s failed, nothing was deleted: %w", p.Name, err)
@@ -98,7 +99,7 @@ func (a *App) deletable(ctx context.Context, q *db.Queries, p db.Project) error 
 	}
 	var readers []string
 	for _, o := range others {
-		m, err := loadManifest(ctx, q, o)
+		m, err := docs.Manifest(ctx, q, o)
 		if o.ID == p.ID || err != nil {
 			continue
 		}

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 
+	"deck2/internal/app/docs"
 	"deck2/internal/ask"
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
@@ -49,7 +50,7 @@ func (a *App) oauthStart(ctx context.Context, act registry.Actor, in struct{ Too
 	if err != nil {
 		return nil, err
 	}
-	m, err := loadManifest(ctx, a.Store.Q, p)
+	m, err := docs.Manifest(ctx, a.Store.Q, p)
 	if err != nil {
 		return nil, err
 	}

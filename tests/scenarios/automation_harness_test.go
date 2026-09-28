@@ -103,19 +103,6 @@ func (e *Env) journal() []journalRow {
 	return out
 }
 
-func (e *Env) doWith(tok, method, path string) (int, []byte) {
-	e.T.Helper()
-	req, _ := http.NewRequest(method, e.URL+path, nil)
-	req.Header.Set("Authorization", "Bearer "+tok)
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		e.T.Fatal(err)
-	}
-	defer resp.Body.Close()
-	out, _ := io.ReadAll(resp.Body)
-	return resp.StatusCode, out
-}
-
 func (e *Env) tokenRows() []string {
 	e.T.Helper()
 	rows, err := e.App.Store.DB.Query(`SELECT name || ' ' || hash || ' ' || commands FROM automation_token`)

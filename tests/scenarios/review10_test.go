@@ -35,26 +35,6 @@ func TestProviderThatLeftTheOwnersHardwareStopsTheNextTurn(t *testing.T) {
 	}
 }
 
-func TestResumedClaudeCodeTurnCountsOnlyItsOwnTokens(t *testing.T) {
-	c := newCLI(t)
-	c.stream(1, "selfcheck.jsonl")
-	c.stream(2, "selfcheck_resume.jsonl")
-	a := c.adapter(t.TempDir())
-	var got []provider.Usage
-	req := provider.Request{Cwd: t.TempDir(), Prompt: "x", SessionID: "s", OnUsage: func(u provider.Usage) { got = append(got, u) }}
-	if _, err := a.Run(context.Background(), req); err != nil {
-		t.Fatal(err)
-	}
-	req.Resume = true
-	if _, err := a.Run(context.Background(), req); err != nil {
-		t.Fatal(err)
-	}
-	if len(got) != 2 || got[0].Output != 399 || got[0].CostUSD == nil || got[1].Input != 2 || got[1].Output != 243 ||
-		got[1].CacheRead != 18216 || got[1].CostUSD != nil || got[1].Model != "claude-opus-5-5[1m]" {
-		t.Fatalf("the model usage of a result adds up the session, so a resumed turn counts its own usage: %+v", got)
-	}
-}
-
 func TestReworkAfterAStoppedPauseIsNotHeldByItsAsk(t *testing.T) {
 	var mu sync.Mutex
 	limit := true

@@ -58,7 +58,8 @@ Stage 1 plan: `docs/plan-stage1.md`.
   (FR-/R<n>/NFR-), no reasoning narration. Generated code and `//go:` directives are exempt.
 - No names of verticals (vacancies, forecasts, mailboxes, Brier, …) in Go code or the web client outside
   built-in tools and test fixtures. Verticals live in manifests.
-- Tests are scenario tests through the registry/API on a real SQLite in a temp dir; no unit tests of internals.
+- Tests are scenario tests through the registry/API on a real SQLite in a temp dir; no unit tests of internals The one
+  exception: contract tests of a provider adapter on recorded streams (`tests/scenarios/contract_<provider>_test.go`).
 - Every write runs in `Store.Tx`; inside it use only the `ctx` and `q` it passes (`Store.Q` panics there).
   No network calls, git or waiting on processes inside a transaction: the store has one connection, so a
   waiting transaction freezes all of deck. Write the intent, commit, act, then record the outcome in a new one.

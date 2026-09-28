@@ -114,7 +114,9 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
 - **Documents** agents and scripts write are artifacts only: each belongs to one card or one record, not
   both. A daily digest or report is an artifact of a record made for it (one record a day); `prompt.md`,
   `prompts/*.md` and other module documents are written by you, not by the module at run time.
-- **Screens** are lists of blocks from the catalog (`schemas/catalog.json`, `manifest_format` names the fields):
+- **Screens** are lists of blocks from the catalog (`schemas/catalog.json`; in `manifest_format` each block type
+  has its exact fields and its rules in words in `description`, and a refusal names the JSON path and the
+  schema rule, such as `missing property 'item'` or `additional properties 'source' not allowed`):
   `table`, `list`, `card` (the record of a record page), `stat`, `actions`, `board`, `form`, `custom`, and
   `columns`/`tabs` to lay them out. A table:
   `{"type": "table", "title": "Best", "source": {"collection": "items", "where": "score >= 7", "sort": "-score",

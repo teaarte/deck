@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"maps"
 	"slices"
+	"strings"
 
 	"deck2/schemas"
 )
@@ -46,7 +47,9 @@ var Format = func() []byte {
 		form := maps.Clone(c.Block)
 		props := maps.Clone(form["properties"].(map[string]any))
 		props["type"], props["title"] = map[string]any{"const": name}, map[string]any{"type": "string"}
-		form["properties"], form["type"], form["additionalProperties"], form["description"] = props, "object", false, c.Description
+		rules, _ := form["description"].(string)
+		form["properties"], form["type"], form["additionalProperties"] = props, "object", false
+		form["description"] = strings.TrimSpace(c.Description + " " + rules)
 		branches = append(branches, map[string]any{"if": map[string]any{"properties": map[string]any{"type": map[string]any{"const": name}}}, "then": form})
 	}
 	block := defs["block"].(map[string]any)

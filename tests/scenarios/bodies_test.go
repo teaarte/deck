@@ -105,3 +105,16 @@ print(json.dumps({"status": st}))
 		t.Fatalf("the entry of scripts refuses a body over 32 MB rather than cutting it: %+v", p)
 	}
 }
+
+func TestATextAnswerOverTheLimitIsNotPassedOnCut(t *testing.T) {
+	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) {
+		w.Header().Set("Content-Type", "text/plain")
+		_, _ = w.Write([]byte(strings.Repeat("x", 11<<20)))
+	})
+	e := newEnv(t, nil)
+	e.createProject("big", fmt.Sprintf(`{"version": 5, "tools": {"http": [{"name": "page", "description": "Reads a page.", "method": "GET",
+  "url": %q, "class": "internal", "input": {"type": "object", "properties": {}}}]}}`, svc.URL+"/page"))
+	if code, out := e.call("big.page", map[string]any{}); code == 200 || !strings.Contains(string(out), "cut answer") {
+		t.Fatalf("an answer over 10 MB is an error, not its first 10 MB: %d %.200s", code, out)
+	}
+}

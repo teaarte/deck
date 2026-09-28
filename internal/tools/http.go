@@ -184,13 +184,17 @@ func (h *HTTP) response(act registry.Actor, t manifest.HTTPTool, resp *http.Resp
 	ct, _, _ := mime.ParseMediaType(resp.Header.Get("Content-Type"))
 	jsonish := ct == "application/json" || strings.HasSuffix(ct, "+json")
 	if resp.StatusCode >= 400 || jsonish || strings.HasPrefix(ct, "text/") || resp.ContentLength == 0 {
-		b, err := io.ReadAll(io.LimitReader(resp.Body, maxJSON))
+		b, err := io.ReadAll(io.LimitReader(resp.Body, maxJSON+1))
 		if err != nil {
 			return nil, "", fmt.Errorf("deck: %s: reading the answer: %v", t.Name, err)
 		}
-		b = []byte(untrusted.Redact(string(b), secrets))
+		big := len(b) > maxJSON
+		b = []byte(untrusted.Redact(string(b[:min(len(b), maxJSON)]), secrets))
 		if resp.StatusCode >= 400 {
 			return nil, "", fmt.Errorf("deck: %s answered HTTP %d: %s", t.Name, resp.StatusCode, untrusted.Cut(string(b), 2000))
+		}
+		if big {
+			return nil, "", fmt.Errorf("deck: %s answered more than %d MB of text; deck does not pass on a cut answer", t.Name, maxJSON>>20)
 		}
 		if !jsonish {
 			return map[string]any{"status": resp.StatusCode, "text": string(b)}, "", nil

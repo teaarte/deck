@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"deck2/internal/registry"
+	"deck2/internal/store"
 	"deck2/internal/store/db"
 )
 
@@ -57,11 +58,8 @@ func (a *App) tokenCreate(ctx context.Context, act registry.Actor, in struct {
 	_, _ = rand.Read(b)
 	raw := TokenPrefix + hex.EncodeToString(b)
 	cmds, _ := json.Marshal(in.Commands)
-	var t db.AutomationToken
-	err := a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		var err error
-		t, err = q.CreateToken(ctx, db.CreateTokenParams{WorkspaceID: act.Workspace, Name: in.Name, Hash: tokenHash(raw), Commands: string(cmds)})
-		return err
+	t, err := store.TxGet(a.Store, ctx, func(ctx context.Context, q *db.Queries) (db.AutomationToken, error) {
+		return q.CreateToken(ctx, db.CreateTokenParams{WorkspaceID: act.Workspace, Name: in.Name, Hash: tokenHash(raw), Commands: string(cmds)})
 	})
 	if err != nil {
 		return nil, err
@@ -88,11 +86,8 @@ func (a *App) tokensList(ctx context.Context, act registry.Actor, _ struct{}) (a
 }
 
 func (a *App) tokenRevoke(ctx context.Context, act registry.Actor, in struct{ Token int64 }) (any, error) {
-	var n int64
-	err := a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		var err error
-		n, err = q.RevokeToken(ctx, db.RevokeTokenParams{ID: in.Token, WorkspaceID: act.Workspace})
-		return err
+	n, err := store.TxGet(a.Store, ctx, func(ctx context.Context, q *db.Queries) (int64, error) {
+		return q.RevokeToken(ctx, db.RevokeTokenParams{ID: in.Token, WorkspaceID: act.Workspace})
 	})
 	if err != nil {
 		return nil, err

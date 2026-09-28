@@ -13,6 +13,7 @@ import (
 	"deck2/internal/gateway"
 	"deck2/internal/provider"
 	"deck2/internal/sandbox"
+	"deck2/internal/store"
 	"deck2/internal/store/db"
 	"deck2/internal/untrusted"
 
@@ -55,11 +56,8 @@ func (r *Runner) Deliver(ctx context.Context, processID int64) error {
 }
 
 func (r *Runner) claim(ctx context.Context, processID int64, from string) (bool, error) {
-	var n int64
-	err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		var err error
-		n, err = q.ClaimProcess(ctx, db.ClaimProcessParams{ToState: StateRunning, ID: processID, FromState: from})
-		return err
+	n, err := store.TxGet(r.st, ctx, func(ctx context.Context, q *db.Queries) (int64, error) {
+		return q.ClaimProcess(ctx, db.ClaimProcessParams{ToState: StateRunning, ID: processID, FromState: from})
 	})
 	return n > 0, err
 }

@@ -207,11 +207,8 @@ func (g *Gateway) Decide(ctx context.Context, a db.Ask, answer string, then func
 	if f.Tool != g.fingerprint(ctx, f.Caller.Workspace, f.Caller.Project, f.Call.Command) {
 		return nil, ErrChanged
 	}
-	var n int64
-	err := g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		var err error
-		n, err = q.ClaimAsk(ctx, db.ClaimAskParams{Answer: answer, ID: a.ID, Now: store.Time(g.cfg.Now())})
-		return err
+	n, err := store.TxGet(g.st, ctx, func(ctx context.Context, q *db.Queries) (int64, error) {
+		return q.ClaimAsk(ctx, db.ClaimAskParams{Answer: answer, ID: a.ID, Now: store.Time(g.cfg.Now())})
 	})
 	if err != nil {
 		return nil, err

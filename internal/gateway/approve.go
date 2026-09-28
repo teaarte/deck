@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"deck2/internal/ask"
+	"deck2/internal/store"
 	"deck2/internal/store/db"
 	"deck2/internal/untrusted"
 
@@ -137,11 +138,8 @@ func (g *Gateway) confirm(ctx context.Context, s *Session, in approveInput) deci
 		return decision{Behavior: "deny", Message: "deck: waiting for the owner to confirm this call; it was not made." + stopAndWait}
 	}
 	if answer == "allow" {
-		var n int64
-		err := g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-			var err error
-			n, err = q.UseApproval(ctx, a.ID)
-			return err
+		n, err := store.TxGet(g.st, ctx, func(ctx context.Context, q *db.Queries) (int64, error) {
+			return q.UseApproval(ctx, a.ID)
 		})
 		if err != nil || n == 0 {
 			return decision{Behavior: "deny", Message: "deck: this approval was already used by an identical call."}

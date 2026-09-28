@@ -89,6 +89,17 @@ func Open(path string) (*Store, error) {
 
 func (s *Store) Close() error { return s.DB.Close() }
 
+// TxGet runs f in a transaction and returns what it gives.
+func TxGet[T any](s *Store, ctx context.Context, f func(ctx context.Context, q *db.Queries) (T, error)) (T, error) {
+	var out T
+	err := s.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		var err error
+		out, err = f(ctx, q)
+		return err
+	})
+	return out, err
+}
+
 // Tx runs f in one transaction and commits when it returns nil. Inside f, use only q and the ctx it gets.
 func (s *Store) Tx(ctx context.Context, f func(ctx context.Context, q *db.Queries) error) error {
 	check(ctx)

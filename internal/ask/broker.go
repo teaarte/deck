@@ -82,11 +82,8 @@ func (b *Broker) Create(ctx context.Context, processID int64, kind, text string,
 
 // CreateRaw stores an ask with a payload that is already JSON, so it can be matched byte for byte later.
 func (b *Broker) CreateRaw(ctx context.Context, processID int64, kind, text, payload string, expires time.Time) (db.Ask, error) {
-	var a db.Ask
-	err := b.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		var err error
-		a, err = q.CreateAsk(ctx, db.CreateAskParams{ProcessID: processID, Kind: kind, Text: text, Payload: payload, ExpiresAt: At(expires)})
-		return err
+	a, err := store.TxGet(b.st, ctx, func(ctx context.Context, q *db.Queries) (db.Ask, error) {
+		return q.CreateAsk(ctx, db.CreateAskParams{ProcessID: processID, Kind: kind, Text: text, Payload: payload, ExpiresAt: At(expires)})
 	})
 	if err != nil {
 		return db.Ask{}, err
@@ -148,11 +145,8 @@ func (b *Broker) drop(id int64) {
 }
 
 func (b *Broker) Answer(ctx context.Context, id int64, answer string) error {
-	var n int64
-	err := b.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		var err error
-		n, err = q.AnswerAsk(ctx, db.AnswerAskParams{Answer: answer, ID: id})
-		return err
+	n, err := store.TxGet(b.st, ctx, func(ctx context.Context, q *db.Queries) (int64, error) {
+		return q.AnswerAsk(ctx, db.AnswerAskParams{Answer: answer, ID: id})
 	})
 	if err != nil {
 		return err

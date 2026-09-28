@@ -249,11 +249,8 @@ func (a *App) Sweep(ctx context.Context, now time.Time) {
 }
 
 func (a *App) expireConfirms(ctx context.Context, now time.Time) {
-	var expired []db.Ask
-	err := a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		var err error
-		expired, err = q.ExpireStaleConfirms(ctx, store.Time(now))
-		return err
+	expired, err := store.TxGet(a.Store, ctx, func(ctx context.Context, q *db.Queries) ([]db.Ask, error) {
+		return q.ExpireStaleConfirms(ctx, store.Time(now))
 	})
 	if err != nil {
 		slog.Error("expire confirmations", "err", err)
@@ -289,11 +286,8 @@ func (a *App) stopAtCeiling(ctx context.Context, now time.Time) {
 }
 
 func (a *App) markSilent(ctx context.Context, now time.Time) {
-	var ids []int64
-	err := a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		var err error
-		ids, err = q.MarkSilentProcesses(ctx, now.Add(-a.Cfg.SilentAfter).UnixMilli())
-		return err
+	ids, err := store.TxGet(a.Store, ctx, func(ctx context.Context, q *db.Queries) ([]int64, error) {
+		return q.MarkSilentProcesses(ctx, now.Add(-a.Cfg.SilentAfter).UnixMilli())
 	})
 	if err != nil {
 		slog.Error("silent processes", "err", err)
@@ -304,11 +298,8 @@ func (a *App) markSilent(ctx context.Context, now time.Time) {
 }
 
 func (a *App) purgeEmpty(ctx context.Context, now time.Time) {
-	var ids []int64
-	err := a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		var err error
-		ids, err = q.PurgeEmptyProcesses(ctx, store.Time(now.Add(-a.Cfg.EmptyKept)))
-		return err
+	ids, err := store.TxGet(a.Store, ctx, func(ctx context.Context, q *db.Queries) ([]int64, error) {
+		return q.PurgeEmptyProcesses(ctx, store.Time(now.Add(-a.Cfg.EmptyKept)))
 	})
 	if err != nil {
 		slog.Error("purge empty processes", "err", err)

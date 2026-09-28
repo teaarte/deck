@@ -37,9 +37,8 @@ func TestLaneTriggerStartsCommandWithCard(t *testing.T) {
 	e.must("deck.card_delete", map[string]any{"card": a.ID}, nil)
 	e.must("deck.card_restore", map[string]any{"card": a.ID}, nil)
 	e.App.Runner.Wait()
-	ps, _ := e.App.Store.Q.ListProcesses(context.Background(), 50)
-	if len(ps) != 2 {
-		t.Fatalf("reordering inside a lane and restoring must not start commands, got %d processes", len(ps))
+	if n := len(e.processes()); n != 2 {
+		t.Fatalf("reordering inside a lane and restoring must not start commands, got %d processes", n)
 	}
 }
 

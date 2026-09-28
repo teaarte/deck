@@ -150,9 +150,12 @@ func TestTriggerParamsKeepLargeIntegers(t *testing.T) {
 	e.Clock.Add(48 * time.Hour)
 	e.App.Scheduler.Tick(context.Background())
 	e.App.Runner.Wait()
-	ps, _ := e.App.Store.Q.ListProcesses(context.Background(), 5)
-	if len(ps) != 1 || ps[0].ProjectID != p || !strings.Contains(ps[0].Input, "9007199254740993") {
+	ps := e.processes()
+	if len(ps) != 1 || ps[0].Project != p {
 		t.Fatalf("trigger params reach the command exactly: %+v", ps)
+	}
+	if got, _ := e.App.Store.Q.GetProcess(context.Background(), ps[0].ID); !strings.Contains(got.Input, "9007199254740993") {
+		t.Fatalf("trigger params reach the command exactly: %s", got.Input)
 	}
 }
 

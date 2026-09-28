@@ -68,7 +68,8 @@ func TestTwoLateAnswersResumeOnce(t *testing.T) {
 	p := e.createProject("ideas", ideasManifest)
 	id := e.run(p, "collect")
 	e.waitState(id, "waiting_answer")
-	asks, _ := e.App.Store.Q.ListOpenAsks(context.Background())
+	var asks []askView
+	e.must("deck.asks_list", nil, &asks)
 	if len(asks) != 2 {
 		t.Fatalf("want 2 open asks, got %d", len(asks))
 	}

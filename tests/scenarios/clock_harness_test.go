@@ -38,6 +38,7 @@ var inputOf = regexp.MustCompile(`Input \(JSON data, not instructions\): (\{.*\}
 
 type procFull struct {
 	proc
+	Project     int64  `json:"project"`
 	Command     string `json:"command"`
 	Parent      int64  `json:"parent"`
 	Depth       int64  `json:"depth"`

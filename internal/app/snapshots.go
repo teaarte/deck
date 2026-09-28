@@ -56,6 +56,7 @@ func (a *App) Snapshot(ctx context.Context) (string, error) {
 		_ = os.Remove(old[0])
 		old = old[1:]
 	}
+	a.Bus.Publish("snapshots")
 	return path, nil
 }
 

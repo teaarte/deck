@@ -265,3 +265,26 @@ func TestRealBrowserDocuments(t *testing.T) {
 	}
 	b.shot("document-phone")
 }
+
+// TestRealBrowserJournal takes a snapshot from the journal and shows its tabs on a phone:
+// DECK_REAL_BROWSER=1 go test ./tests/scenarios -run TestRealBrowser -v.
+func TestRealBrowserJournal(t *testing.T) {
+	if os.Getenv("DECK_REAL_BROWSER") == "" {
+		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
+	}
+	checkBuiltClient(t)
+	e := newEnv(t, nil)
+	e.createProject("web", boardWebManifest)
+	b := newPlaywright(t)
+	b.call("browser_resize", map[string]any{"width": 390, "height": 844})
+	b.open(e.URL + "/?token=" + token + "#/deck/journal")
+	b.until("the journal tabs", `[...document.querySelectorAll('[role=tab]')].map((x) => x.innerText.trim()).join(' ') === 'Calls Spend Files Snapshots'`)
+	b.eval(`([...document.querySelectorAll('[role=tab]')].find((x) => x.innerText.trim() === 'Snapshots').click(), '')`)
+	b.until("the snapshot form", `document.querySelector('[data-form="deck.snapshot_create"] [data-submit]')?.offsetParent`)
+	b.eval(`(document.querySelector('[data-form="deck.snapshot_create"] [data-submit]').click(), '')`)
+	b.until("the new snapshot in the list", `[...document.querySelectorAll('tr')].some((r) => r.offsetParent && r.innerText.includes('deck-'))`)
+	if got := b.eval(`String(document.documentElement.scrollWidth <= innerWidth + 1)`); got != "true" {
+		t.Fatalf("the journal fits the width of a phone: %s", got)
+	}
+	b.shot("journal-phone")
+}

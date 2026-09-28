@@ -104,3 +104,64 @@ func (q *Queries) LogLLMCall(ctx context.Context, arg LogLLMCallParams) error {
 	)
 	return err
 }
+
+const spendByCommand = `-- name: SpendByCommand :many
+SELECT p.project_id, p.command, c.gen_ai_provider_name AS provider, c.gen_ai_request_model AS model,
+    CAST(count(*) AS INTEGER) AS calls,
+    CAST(sum(c.gen_ai_usage_input_tokens) AS INTEGER) AS input_tokens,
+    CAST(sum(c.gen_ai_usage_output_tokens) AS INTEGER) AS output_tokens,
+    CAST(sum(c.gen_ai_usage_cache_read_input_tokens) AS INTEGER) AS cache_read_tokens,
+    CAST(COALESCE(sum(c.cost_usd), 0) AS REAL) AS cost_usd,
+    CAST(max(c.created_at) AS TEXT) AS last_at
+FROM llm_call c JOIN process p ON p.id = c.process_id JOIN project j ON j.id = p.project_id
+WHERE j.workspace_id = ?1
+GROUP BY p.project_id, p.command, c.gen_ai_provider_name, c.gen_ai_request_model
+ORDER BY sum(c.gen_ai_usage_input_tokens + c.gen_ai_usage_output_tokens) DESC
+`
+
+type SpendByCommandRow struct {
+	ProjectID       int64
+	Command         string
+	Provider        string
+	Model           string
+	Calls           int64
+	InputTokens     int64
+	OutputTokens    int64
+	CacheReadTokens int64
+	CostUsd         float64
+	LastAt          string
+}
+
+func (q *Queries) SpendByCommand(ctx context.Context, workspaceID int64) ([]SpendByCommandRow, error) {
+	rows, err := q.db.QueryContext(ctx, spendByCommand, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SpendByCommandRow
+	for rows.Next() {
+		var i SpendByCommandRow
+		if err := rows.Scan(
+			&i.ProjectID,
+			&i.Command,
+			&i.Provider,
+			&i.Model,
+			&i.Calls,
+			&i.InputTokens,
+			&i.OutputTokens,
+			&i.CacheReadTokens,
+			&i.CostUsd,
+			&i.LastAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

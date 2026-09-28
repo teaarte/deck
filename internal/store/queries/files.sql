@@ -41,3 +41,8 @@ AND owner_id IN (SELECT r.id FROM record r WHERE r.project_id = sqlc.arg(project
 RETURNING id;
 
 
+
+
+-- name: ListWorkspaceFiles :many
+SELECT * FROM file WHERE project_id IN (SELECT id FROM project WHERE workspace_id = sqlc.arg(workspace_id))
+ORDER BY id DESC LIMIT sqlc.arg(lim);

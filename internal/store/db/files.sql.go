@@ -184,6 +184,48 @@ func (q *Queries) ListFilesOf(ctx context.Context, arg ListFilesOfParams) ([]Fil
 	return items, nil
 }
 
+const listWorkspaceFiles = `-- name: ListWorkspaceFiles :many
+SELECT id, project_id, owner_kind, owner_id, name, type, size, created_at FROM file WHERE project_id IN (SELECT id FROM project WHERE workspace_id = ?1)
+ORDER BY id DESC LIMIT ?2
+`
+
+type ListWorkspaceFilesParams struct {
+	WorkspaceID int64
+	Lim         int64
+}
+
+func (q *Queries) ListWorkspaceFiles(ctx context.Context, arg ListWorkspaceFilesParams) ([]File, error) {
+	rows, err := q.db.QueryContext(ctx, listWorkspaceFiles, arg.WorkspaceID, arg.Lim)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []File
+	for rows.Next() {
+		var i File
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProjectID,
+			&i.OwnerKind,
+			&i.OwnerID,
+			&i.Name,
+			&i.Type,
+			&i.Size,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const purgeOrphanFiles = `-- name: PurgeOrphanFiles :many
 DELETE FROM file
 WHERE (owner_kind = 'record' AND owner_id NOT IN (SELECT id FROM record))

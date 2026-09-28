@@ -855,6 +855,62 @@ func (q *Queries) ListWaitingForSlot(ctx context.Context, workspaceID int64) ([]
 	return items, nil
 }
 
+const listWorkspaceToolCalls = `-- name: ListWorkspaceToolCalls :many
+SELECT id, process_id, project_id, tool, class, outcome, params, created_at, actor, external_id, error, ask_id FROM tool_call
+WHERE project_id IN (SELECT id FROM project WHERE workspace_id = ?1)
+  AND (?2 = 0 OR project_id = ?2)
+  AND (CAST(?3 AS TEXT) = '' OR outcome = ?3)
+ORDER BY id DESC LIMIT ?4
+`
+
+type ListWorkspaceToolCallsParams struct {
+	WorkspaceID int64
+	ProjectID   interface{}
+	Outcome     string
+	Lim         int64
+}
+
+func (q *Queries) ListWorkspaceToolCalls(ctx context.Context, arg ListWorkspaceToolCallsParams) ([]ToolCall, error) {
+	rows, err := q.db.QueryContext(ctx, listWorkspaceToolCalls,
+		arg.WorkspaceID,
+		arg.ProjectID,
+		arg.Outcome,
+		arg.Lim,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ToolCall
+	for rows.Next() {
+		var i ToolCall
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProcessID,
+			&i.ProjectID,
+			&i.Tool,
+			&i.Class,
+			&i.Outcome,
+			&i.Params,
+			&i.CreatedAt,
+			&i.Actor,
+			&i.ExternalID,
+			&i.Error,
+			&i.AskID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const logToolCall = `-- name: LogToolCall :one
 INSERT INTO tool_call (process_id, project_id, actor, tool, class, outcome, params, error, ask_id)
 VALUES (?1, ?2, ?3, ?4, ?5, ?6,

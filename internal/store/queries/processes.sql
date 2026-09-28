@@ -193,3 +193,11 @@ WHERE project_id IN (SELECT id FROM project WHERE workspace_id = sqlc.arg(worksp
   AND (sqlc.arg(project_id) = 0 OR project_id = sqlc.arg(project_id))
   AND state NOT IN ('done', 'error', 'interrupted', 'stopped')
 ORDER BY id DESC;
+
+
+-- name: ListWorkspaceToolCalls :many
+SELECT * FROM tool_call
+WHERE project_id IN (SELECT id FROM project WHERE workspace_id = sqlc.arg(workspace_id))
+  AND (sqlc.arg(project_id) = 0 OR project_id = sqlc.arg(project_id))
+  AND (CAST(sqlc.arg(outcome) AS TEXT) = '' OR outcome = sqlc.arg(outcome))
+ORDER BY id DESC LIMIT sqlc.arg(lim);

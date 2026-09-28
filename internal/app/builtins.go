@@ -177,6 +177,9 @@ func (a *App) addBuiltins() {
 	add("files_list", "List files", "Lists the files of a record, a card or a process.", everyone,
 		registry.Params(registry.Opt("record", "record", "Record"), registry.Opt("card", "card", "Card"),
 			registry.Opt("process", "process", "Process")), registry.Typed(a.filesList))
+	add("calls_list", "Journal of calls", "Lists the calls of the gateway, newest first: tool, who, project, process, class, outcome, external id and error; params only of external and waiting calls.", ownerSide,
+		registry.Params(projectOpt, registry.Opt("outcome", "string", "Only this outcome: done, rejected, waiting, expired, unknown, started"),
+			registry.Opt("limit", "integer", "At most this many, 200 by default")), registry.Typed(a.callsList))
 	add("snapshot_create", "Take snapshot", "Writes a snapshot of the base, files and project data folders to backups; the newest seven stay.", ownerOnly,
 		registry.Params(), registry.Typed(a.snapshotCreate))
 

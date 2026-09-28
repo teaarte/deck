@@ -194,6 +194,20 @@ func (s sources) Items(ctx context.Context, from string, sc screen.Scope) ([]map
 		return s.a.settingItems(ctx, sc.Workspace), nil
 	case "documents":
 		return s.documentItems(ctx, sc, names)
+	case "calls":
+		project := sc.Project
+		for id, n := range names {
+			if n == sc.Filter["project"] && (sc.Project == 0 || id == sc.Project) {
+				project = id
+			}
+		}
+		return s.a.calls(ctx, sc.Workspace, project, sc.Filter["outcome"], 0)
+	case "spend":
+		return s.spendItems(ctx, sc, names)
+	case "files":
+		return s.fileItems(ctx, sc, names)
+	case "snapshots":
+		return s.snapshotItems()
 	case "commands":
 		return s.commandItems(ctx, sc, names)
 	}

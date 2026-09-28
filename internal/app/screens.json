@@ -1,5 +1,5 @@
 {
-  "menu": ["cockpit", "schedule", "settings"],
+  "menu": ["cockpit", "schedule", "settings", "journal"],
   "screens": [
     {
       "name": "cockpit",
@@ -105,6 +105,62 @@
                 {"label": "Version", "bind": "version"},
                 {"label": "Since", "bind": "updated_at"}
               ]}
+          ]}
+        ]}
+      ]
+    },
+    {
+      "name": "journal",
+      "title": "Journal",
+      "blocks": [
+        {"type": "tabs", "tabs": [
+          {"title": "Calls", "blocks": [
+            {"type": "table", "title": "Calls of the gateway", "source": {"from": "calls"}, "filter": ["project", "outcome"],
+              "columns": [
+                {"label": "When", "bind": "created_at"},
+                {"label": "Tool", "bind": "tool"},
+                {"label": "Who", "bind": "actor"},
+                {"label": "Project", "bind": "project"},
+                {"label": "Class", "bind": "class"},
+                {"label": "Outcome", "bind": "outcome"},
+                {"label": "External id", "bind": "external_id"},
+                {"label": "Error", "bind": "error"}
+              ]}
+          ]},
+          {"title": "Spend", "blocks": [
+            {"type": "table", "title": "Tokens by command and provider", "source": {"from": "spend"}, "filter": ["provider"],
+              "columns": [
+                {"label": "Project", "bind": "project"},
+                {"label": "Command", "bind": "command"},
+                {"label": "Provider", "bind": "provider"},
+                {"label": "Model", "bind": "model"},
+                {"label": "Calls", "bind": "calls"},
+                {"label": "Input", "bind": "input_tokens"},
+                {"label": "Output", "bind": "output_tokens"},
+                {"label": "Cache read", "bind": "cache_read_tokens"},
+                {"label": "Cost, $", "bind": "cost_usd > 0 ? string(cost_usd) : ''"},
+                {"label": "Last", "bind": "last_at"}
+              ]}
+          ]},
+          {"title": "Files", "blocks": [
+            {"type": "table", "title": "Files", "source": {"from": "files"}, "filter": ["project"],
+              "columns": [
+                {"label": "Name", "bind": "name"},
+                {"label": "Project", "bind": "project"},
+                {"label": "Type", "bind": "type"},
+                {"label": "Size", "bind": "size"},
+                {"label": "Belongs to", "bind": "owner"},
+                {"label": "Added", "bind": "created_at"}
+              ]}
+          ]},
+          {"title": "Snapshots", "blocks": [
+            {"type": "table", "title": "Snapshots", "source": {"from": "snapshots"},
+              "columns": [
+                {"label": "Snapshot", "bind": "name"},
+                {"label": "Taken", "bind": "taken_at"},
+                {"label": "Size", "bind": "size"}
+              ]},
+            {"type": "form", "title": "Take a snapshot now", "command": "deck.snapshot_create"}
           ]}
         ]}
       ]

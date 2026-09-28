@@ -91,7 +91,7 @@ export function Document({ value }: { value: DocumentValue }) {
                   <Text size="xs" style={{ overflowWrap: 'anywhere' }}>
                     #{r.revision} · {r.author} · {new Date(r.created_at).toLocaleString()}{r.reason ? ' · ' + r.reason : ''}
                   </Text>
-                  {r.revision !== value.revision && (
+                  {value.editable && r.revision !== value.revision && (
                     <Button size="compact-xs" variant="default" loading={busy} data-revert={r.revision}
                       onClick={() => void run('deck.document_revert', { document: value.id, revision: r.revision, if_revision: value.revision },
                         t('document.reverted', { n: r.revision }))}>

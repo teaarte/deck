@@ -376,7 +376,7 @@ func TestCustomBlockGetsItsDataAndButtonsAndItsFrameLivesOnTheSecondOrigin(t *te
 		t.Fatal(err)
 	}
 	r0.Body.Close()
-	if got := r0.Header.Get("Content-Security-Policy"); got != "frame-src 'self' "+e.Side {
+	if got := r0.Header.Get("Content-Security-Policy"); got != "frame-src 'self' "+e.Side+"; img-src 'self' data: blob:" {
 		t.Fatalf("the client's frames stay on its origins, so a block cannot move its frame to the network: %q", got)
 	}
 	noFollow := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}

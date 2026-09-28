@@ -74,7 +74,7 @@ func (g *Gateway) automationEntry(token int64) *automationEntry {
 func (g *Gateway) refresh(ctx context.Context, e *automationEntry, s *Session) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	_, tools, err := g.addCommands(ctx, e.server, s, func() bool { return true })
+	_, tools, err := g.addCommands(ctx, e.server, s)
 	if err != nil {
 		return err
 	}

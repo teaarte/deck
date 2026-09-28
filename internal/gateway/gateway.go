@@ -186,6 +186,14 @@ var gone = &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextCo
 
 func (g *Gateway) newServer(ctx context.Context, tok string, s *Session) (*mcp.Server, []string, []string, error) {
 	srv := mcp.NewServer(&mcp.Implementation{Name: ServerName, Version: "0"}, nil)
+	srv.AddReceivingMiddleware(func(next mcp.MethodHandler) mcp.MethodHandler {
+		return func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
+			if method == "tools/call" && !g.alive(tok) {
+				return gone, nil
+			}
+			return next(ctx, method, req)
+		}
+	})
 	srv.AddTool(&mcp.Tool{
 		Name:        ApproveTool,
 		Description: "Permission prompt handler used by deck.",
@@ -193,26 +201,17 @@ func (g *Gateway) newServer(ctx context.Context, tok string, s *Session) (*mcp.S
 			"tool_name": map[string]any{"type": "string"}, "input": map[string]any{"type": "object"},
 			"tool_use_id": map[string]any{"type": "string"}}, "required": []string{"tool_name", "input"}},
 	}, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		if !g.alive(tok) {
-			return gone, nil
-		}
 		return g.approve(ctx, s, req.Params.Arguments)
 	})
-	allowed, tools, err := g.addCommands(ctx, srv, s, func() bool { return g.alive(tok) })
+	allowed, tools, err := g.addCommands(ctx, srv, s)
 	if s.Ask {
 		srv.AddTool(askTool(), func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			if !g.alive(tok) {
-				return gone, nil
-			}
 			return g.ask(ctx, s, req.Params.Arguments), nil
 		})
 		allowed, tools = append(allowed, qualified(AskTool)), append(tools, AskTool)
 	}
 	if s.Submit != nil {
 		srv.AddTool(s.Submit.tool(), func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			if !g.alive(tok) {
-				return gone, nil
-			}
 			return s.Submit.handle(ctx, req)
 		})
 		allowed, tools = append(allowed, qualified(SubmitTool)), append(tools, SubmitTool)
@@ -221,7 +220,7 @@ func (g *Gateway) newServer(ctx context.Context, tok string, s *Session) (*mcp.S
 }
 
 // addCommands exposes the registry commands the session may call as tools of srv.
-func (g *Gateway) addCommands(ctx context.Context, srv *mcp.Server, s *Session, alive func() bool) (allowed, tools []string, err error) {
+func (g *Gateway) addCommands(ctx context.Context, srv *mcp.Server, s *Session) (allowed, tools []string, err error) {
 	cmds, err := g.reg.List(ctx, s.actor())
 	if err != nil {
 		return nil, nil, err
@@ -243,9 +242,6 @@ func (g *Gateway) addCommands(ctx context.Context, srv *mcp.Server, s *Session, 
 		tools = append(tools, tool)
 		srv.AddTool(&mcp.Tool{Name: tool, Title: c.Title, Description: c.Description, InputSchema: c.Input},
 			func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-				if !alive() {
-					return gone, nil
-				}
 				return g.invoke(ctx, s, name, req.Params.Arguments), nil
 			})
 		allowed = append(allowed, qualified(tool))

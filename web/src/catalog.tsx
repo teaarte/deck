@@ -80,7 +80,7 @@ function ActionButton({ act, context, params }: { act: Action; context: Componen
   };
   if (act.input && !params) {
     if (!typing) {
-      return <Button size="xs" variant={act.primary ? 'filled' : 'default'} onClick={() => setTyping(true)}>{label}</Button>;
+      return <Button size="xs" variant={act.primary ? 'filled' : 'default'} data-verb={act.verb} onClick={() => setTyping(true)}>{label}</Button>;
     }
     return (
       <Group gap="xs" wrap="nowrap">

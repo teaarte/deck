@@ -554,16 +554,23 @@ func (s sources) processItems(ctx context.Context, sc screen.Scope, names map[in
 		it := map[string]any{"id": p.ID, "project": names[p.ProjectID], "command": p.Command, "kind": p.Kind, "state": p.State,
 			"silent": p.SilentSinceMs.Valid, "started_at": p.StartedAt, "provider": p.Provider, "error": v.Error}
 		acts := []map[string]any{{"verb": "open", "screen": "process", "record": p.ID}}
-		if !slices.Contains([]string{process.StateDone, process.StateError, process.StateInterrupted, process.StateStopped}, p.State) {
+		if !finished(p.State) {
 			acts = append(acts, call("stop", false, "deck.process_stop", map[string]any{"process": p.ID}))
 		}
 		if sc.Record != 0 {
 			acts = acts[1:]
+			if p.Kind == process.KindAgent && p.SessionID != "" && finished(p.State) {
+				acts = append(acts, withInput(call("rework", true, "deck.process_rework", map[string]any{"process": p.ID}), "remark"))
+			}
 		}
 		it["_actions"] = acts
 		out = append(out, it)
 	}
 	return out, nil
+}
+
+func finished(state string) bool {
+	return slices.Contains([]string{process.StateDone, process.StateError, process.StateInterrupted, process.StateStopped}, state)
 }
 
 func (s sources) providerItems(ctx context.Context, sc screen.Scope) ([]map[string]any, error) {

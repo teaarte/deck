@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -287,4 +288,29 @@ func TestRealBrowserJournal(t *testing.T) {
 		t.Fatalf("the journal fits the width of a phone: %s", got)
 	}
 	b.shot("journal-phone")
+}
+
+// TestRealBrowserRework sends a finished agent back with a remark from its page:
+// DECK_REAL_BROWSER=1 go test ./tests/scenarios -run TestRealBrowser -v.
+func TestRealBrowserRework(t *testing.T) {
+	if os.Getenv("DECK_REAL_BROWSER") == "" {
+		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
+	}
+	checkBuiltClient(t)
+	e := newEnv(t, ok)
+	p := e.createProject("jobs", testManifest([]string{agentCommand("job", "")}, nil))
+	job := e.run(p, "job")
+	e.waitState(job, "done")
+	b := newPlaywright(t)
+	b.open(e.URL + "/?token=" + token + "#/deck/process/" + fmt.Sprint(job))
+	b.until("the rework button", `document.querySelector('[data-verb="rework"]')`)
+	b.eval(`(document.querySelector('[data-verb="rework"]').click(), '')`)
+	b.until("the remark field", `document.querySelector('input[placeholder="What to change"]')`)
+	b.type_(`document.querySelector('input[placeholder="What to change"]')`, "shorter, please")
+	b.eval(`([...document.querySelectorAll('button')].find((x) => x.innerText === 'Send').click(), '')`)
+	e.waitFor("the second turn with the remark", func() bool {
+		cs := e.Fake.Calls()
+		return len(cs) == 2 && strings.Contains(cs[1].Prompt, "shorter, please")
+	})
+	e.waitState(job, "done")
 }

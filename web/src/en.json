@@ -35,6 +35,7 @@
     "resume": "Resume",
     "cancel_run": "Cancel",
     "send": "Send",
+    "rework": "Send back for rework",
     "enable": "Enable",
     "autonomy_auto": "Let it act",
     "autonomy_suggest": "Make it suggest",
@@ -45,7 +46,8 @@
   },
   "input": {
     "answer": "Your answer",
-    "reason": "Why not"
+    "reason": "Why not",
+    "remark": "What to change"
   },
   "question": { "other": "Other" },
   "token": {

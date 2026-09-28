@@ -55,3 +55,19 @@ print(json.dumps({"files": [{"path": "f.txt", "record": out["ids"][0]}]}))
 		t.Fatalf("the file of a deleted record is removed: %v", err)
 	}
 }
+
+func TestAHandSnapshotDoesNotPutOffTheDailyCleanup(t *testing.T) {
+	e := newClockEnv(t, nil)
+	e.createProject("docs", filesManifest())
+	e.sweep()
+	e.upload("docs", "left.txt", "text/plain", "left")
+	e.Clock.Add(24*time.Hour + 30*time.Minute)
+	e.must("deck.snapshot_create", nil, nil)
+	e.Clock.Add(time.Hour)
+	e.sweep()
+	var uploads int
+	_ = e.App.Store.DB.QueryRow(`SELECT count(*) FROM file WHERE owner_kind = 'upload'`).Scan(&uploads)
+	if uploads != 0 {
+		t.Fatalf("the cleanup runs a day after the last one, whatever snapshot came between: %d uploads left", uploads)
+	}
+}

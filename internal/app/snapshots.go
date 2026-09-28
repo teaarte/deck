@@ -151,17 +151,31 @@ func (a *App) expire(ctx context.Context, q *db.Queries, now time.Time) ([]int64
 	return gone, nil
 }
 
-// daily removes expired records, files left without an owner, stale uploads and old agent work folders, and
-// takes the snapshot, once a day by the deck clock.
+// daily takes a snapshot when the newest is a day old, trying at most once an hour, and runs the cleanup
+// once a day by the deck clock, each on its own.
 func (a *App) daily(ctx context.Context, now time.Time) {
 	old, _ := filepath.Glob(filepath.Join(a.Cfg.Home, "backups", "deck-*.tar.gz"))
 	slices.Sort(old)
+	due := true
 	if len(old) > 0 {
 		stamp := strings.TrimSuffix(strings.TrimPrefix(filepath.Base(old[len(old)-1]), "deck-"), ".tar.gz")
-		if t, err := time.Parse(snapshotLayout, stamp); err == nil && now.Sub(t) < 24*time.Hour {
-			return
+		t, err := time.Parse(snapshotLayout, stamp)
+		due = err != nil || now.Sub(t) >= 24*time.Hour
+	}
+	if due && now.Sub(a.snapTried) >= time.Hour {
+		a.snapTried = now
+		if _, err := a.Snapshot(ctx); err != nil {
+			slog.Error("daily snapshot", "err", err)
 		}
 	}
+	if now.Sub(a.cleaned) >= 24*time.Hour {
+		a.cleaned = now
+		a.cleanup(ctx, now)
+	}
+}
+
+// cleanup removes expired records, files left without an owner, stale uploads and old agent work folders.
+func (a *App) cleanup(ctx context.Context, now time.Time) {
 	var gone []int64
 	err := a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		var err error
@@ -192,9 +206,6 @@ func (a *App) daily(ctx context.Context, now time.Time) {
 		for _, id := range old {
 			_ = os.RemoveAll(filepath.Join(a.Cfg.Home, "runs", fmt.Sprint(id)))
 		}
-	}
-	if _, err := a.Snapshot(ctx); err != nil {
-		slog.Error("daily snapshot", "err", err)
 	}
 }
 

@@ -54,6 +54,8 @@ type App struct {
 	secretMu sync.Mutex
 	bg       sync.WaitGroup
 	disk     time.Time
+	// cleaned and snapTried are when the daily cleanup ran and a daily snapshot was last tried.
+	cleaned, snapTried time.Time
 }
 
 // New starts deck with its main provider p and further built-in ones.

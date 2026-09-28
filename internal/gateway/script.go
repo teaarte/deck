@@ -6,6 +6,7 @@ import (
 	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 
@@ -41,9 +42,8 @@ func (g *Gateway) ScriptHandler(ctx context.Context, tok, self string, domains [
 		reply(w, cmds)
 	})
 	mux.HandleFunc("POST /commands/{name}", func(w http.ResponseWriter, r *http.Request) {
-		body, err := io.ReadAll(io.LimitReader(r.Body, 32<<20))
+		body, err := ReadBody(w, r)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 		s := g.session(tok)
@@ -80,6 +80,19 @@ func (g *Gateway) ScriptHandler(ctx context.Context, tok, self string, domains [
 		}
 		mux.ServeHTTP(w, r)
 	})
+}
+
+// ReadBody reads the body of a command call up to 32 MB and answers 413 or 400 itself when it cannot.
+func ReadBody(w http.ResponseWriter, r *http.Request) ([]byte, error) {
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 32<<20))
+	var tooBig *http.MaxBytesError
+	switch {
+	case errors.As(err, &tooBig):
+		http.Error(w, "deck: the body of a command call is larger than 32 MB", http.StatusRequestEntityTooLarge)
+	case err != nil:
+		http.Error(w, err.Error(), http.StatusBadRequest)
+	}
+	return body, err
 }
 
 func (g *Gateway) session(tok string) *Session {

@@ -89,3 +89,19 @@ func TestHTTPToolSendsFilesAsItsBody(t *testing.T) {
 		t.Fatalf("a results file needs a process: %d %s", code, out)
 	}
 }
+
+func TestACommandCallLargerThan32MBIsRefusedWhole(t *testing.T) {
+	e := newEnv(t, nil)
+	big := map[string]any{"text": strings.Repeat("x", 33<<20)}
+	if code, out := e.call("deck.projects_list", big); code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("the API refuses a body over 32 MB: %d %.200s", code, out)
+	}
+	e.createProject("big", scriptManifest("send", "", ""))
+	e.saveScript("big", "scripts/main.py", pythonLib+`
+st, out = deck("deck.records_upsert", {"collection": "items", "records": json.dumps({"name": "x" * (33 << 20)})})
+print(json.dumps({"status": st}))
+`)
+	if p := e.waitScript(e.start("big", "send", nil), "done", "error"); p.State != "done" || !strings.Contains(string(p.Result), "413") {
+		t.Fatalf("the entry of scripts refuses a body over 32 MB rather than cutting it: %+v", p)
+	}
+}

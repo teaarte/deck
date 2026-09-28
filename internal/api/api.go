@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"deck2/internal/app"
+	"deck2/internal/gateway"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 )
@@ -87,9 +88,8 @@ func (s *Server) listCommands(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) invoke(w http.ResponseWriter, r *http.Request) {
-	body, err := io.ReadAll(r.Body)
+	body, err := gateway.ReadBody(w, r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	var out any

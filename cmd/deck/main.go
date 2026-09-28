@@ -104,7 +104,9 @@ func run() error {
 	srv := &http.Server{Handler: server.Handler()}
 	side := &http.Server{Handler: server.Sandbox()}
 	go func() { _ = side.Serve(sideLn) }()
+	stopped := make(chan struct{})
 	go func() {
+		defer close(stopped)
 		<-ctx.Done()
 		sctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
@@ -115,6 +117,8 @@ func run() error {
 	if err := srv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
+	// Serve returns once Shutdown starts; the calls still running finish before deck closes.
+	<-stopped
 	return nil
 }
 

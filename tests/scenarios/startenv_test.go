@@ -2,23 +2,37 @@ package scenarios
 
 import (
 	"bufio"
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 )
 
-func TestDeckRestartsItselfWithACleanEnvironment(t *testing.T) {
+type deckBinary struct {
+	cmd        *exec.Cmd
+	url, token string
+}
+
+var listening = regexp.MustCompile(`url="(http://[^/]+)/\?token=([0-9a-f]+)"`)
+
+// startDeck builds deck, starts it on home with env added and waits until it listens.
+func startDeck(t *testing.T, home string, env ...string) *deckBinary {
+	t.Helper()
 	bin := filepath.Join(t.TempDir(), "deck")
 	if out, err := exec.Command("go", "build", "-o", bin, "../../cmd/deck").CombinedOutput(); err != nil {
 		t.Fatalf("build deck: %v\n%s", err, out)
 	}
-	home := t.TempDir()
 	cmd := exec.Command(bin, "-addr", "127.0.0.1:0")
-	cmd.Env = append(os.Environ(), "DECK_HOME="+home, "DECK_TEST_KEY=sk-marker-7f3a", "NODE_OPTIONS=--require=/tmp/x.js", "LC_ALL=C")
+	cmd.Env = append(append(os.Environ(), "DECK_HOME="+home), env...)
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
 		t.Fatal(err)
@@ -27,21 +41,42 @@ func TestDeckRestartsItselfWithACleanEnvironment(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = cmd.Process.Kill(); _ = cmd.Wait() })
-	listening := make(chan bool, 1)
+	up := make(chan []string, 1)
 	go func() {
 		sc := bufio.NewScanner(stderr)
 		for sc.Scan() {
-			if strings.Contains(sc.Text(), "deck listening") {
-				listening <- true
+			if m := listening.FindStringSubmatch(sc.Text()); m != nil {
+				up <- m
 			}
 		}
 	}()
 	select {
-	case <-listening:
+	case m := <-up:
+		return &deckBinary{cmd: cmd, url: m[1], token: m[2]}
 	case <-time.After(30 * time.Second):
 		t.Fatal("deck did not start")
 	}
-	env := startEnv(t, cmd.Process.Pid)
+	return nil
+}
+
+func (d *deckBinary) call(name string, in any) (int, string, error) {
+	b, _ := json.Marshal(in)
+	req, _ := http.NewRequest("POST", d.url+"/api/commands/"+name, bytes.NewReader(b))
+	req.Header.Set("Authorization", "Bearer "+d.token)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return 0, "", err
+	}
+	defer resp.Body.Close()
+	var out bytes.Buffer
+	_, _ = out.ReadFrom(resp.Body)
+	return resp.StatusCode, out.String(), nil
+}
+
+func TestDeckRestartsItselfWithACleanEnvironment(t *testing.T) {
+	home := t.TempDir()
+	d := startDeck(t, home, "DECK_TEST_KEY=sk-marker-7f3a", "NODE_OPTIONS=--require=/tmp/x.js", "LC_ALL=C")
+	env := startEnv(t, d.cmd.Process.Pid)
 	if !slices.Contains(env, "DECK_HOME="+home) || !slices.Contains(env, "LC_ALL=C") {
 		t.Fatalf("deck keeps DECK_HOME and the locale: %q", env)
 	}
@@ -49,5 +84,43 @@ func TestDeckRestartsItselfWithACleanEnvironment(t *testing.T) {
 		if strings.HasPrefix(kv, "DECK_TEST_KEY=") || strings.HasPrefix(kv, "NODE_OPTIONS=") {
 			t.Fatalf("another process of the owner reads %s in the environment of deck", kv)
 		}
+	}
+}
+
+func TestAStopOfDeckLetsACallInFlightFinish(t *testing.T) {
+	slow := newService(t, func(w http.ResponseWriter, r *http.Request, n int) {
+		time.Sleep(2 * time.Second)
+		jsonReply(w, `{"ok": true}`)
+	})
+	d := startDeck(t, t.TempDir())
+	m := fmt.Sprintf(`{"version": 5, "tools": {"http": [{"name": "slow", "description": "Answers slowly.", "method": "GET",
+  "url": %q, "class": "internal", "input": {"type": "object", "properties": {}}}]}}`, slow.URL+"/slow")
+	if code, out, err := d.call("deck.project_create", map[string]any{"name": "late", "manifest": m}); err != nil || code != 200 {
+		t.Fatalf("project: %d %s %v", code, out, err)
+	}
+	type answer struct {
+		code int
+		out  string
+		err  error
+	}
+	got := make(chan answer, 1)
+	go func() {
+		code, out, err := d.call("late.slow", map[string]any{})
+		got <- answer{code, out, err}
+	}()
+	for len(slow.requests()) == 0 {
+		time.Sleep(20 * time.Millisecond)
+	}
+	_ = d.cmd.Process.Signal(syscall.SIGTERM)
+	a := <-got
+	if a.err != nil || a.code != 200 || !strings.Contains(a.out, "ok") {
+		t.Fatalf("a call already out finishes and records its outcome before deck exits: %+v", a)
+	}
+	done := make(chan error, 1)
+	go func() { done <- d.cmd.Wait() }()
+	select {
+	case <-done:
+	case <-time.After(15 * time.Second):
+		t.Fatal("deck does not exit after the stop")
 	}
 }

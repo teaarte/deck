@@ -32,6 +32,11 @@ func Paths(dir string) []string {
 	return out
 }
 
+// Under says a path lies inside a folder, by its absolute or its real path.
+func Under(path, dir string) bool {
+	return slices.ContainsFunc(Paths(dir), func(d string) bool { return strings.HasPrefix(path, d+string(filepath.Separator)) })
+}
+
 // WriteFile writes a file atomically with mode 600, making its folder.
 func WriteFile(path string, data []byte) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {

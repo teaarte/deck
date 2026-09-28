@@ -48,7 +48,7 @@ func (a *Adapter) args(req provider.Request, skills string) ([]string, error) {
 		fs[p] = "deny"
 	}
 	for _, h := range req.Hidden {
-		if !slices.ContainsFunc(provider.Paths(a.Home), func(home string) bool { return strings.HasPrefix(h, home+string(filepath.Separator)) }) {
+		if !provider.Under(h, a.Home) {
 			return nil, fmt.Errorf("codex: hidden path %s is outside deck's folder, which is all the profile hides", h)
 		}
 	}

@@ -96,6 +96,7 @@ func (a *App) tokenRevoke(ctx context.Context, act registry.Actor, in struct{ To
 	if n == 0 {
 		return nil, registry.NotFound("deck: no active token %d", in.Token)
 	}
+	a.Gateway.Journal(ctx, act, 0, registry.Builtin+".token_revoke", registry.External, "done", fmt.Sprintf(`{"token": %d}`, in.Token))
 	a.Bus.Publish("tokens")
 	return map[string]any{"revoked": in.Token}, nil
 }

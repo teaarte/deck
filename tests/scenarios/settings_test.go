@@ -208,6 +208,23 @@ func TestSettingsSecretsAndTokensShowOnlyNames(t *testing.T) {
 	if code, _ := e.callWith(made.Token, "deck.notify", map[string]any{"text": "hi"}); code != 401 {
 		t.Fatalf("the revoked token no longer calls: %d", code)
 	}
+	var journal []map[string]any
+	e.must("deck.calls_list", nil, &journal)
+	if len(journal) != 1 || journal[0]["tool"] != "deck.token_revoke" || journal[0]["class"] != "external" || journal[0]["actor"] != "owner" {
+		t.Fatalf("revoking a token is an external call in the journal: %+v", journal)
+	}
+	var listed []struct{ Name, Class string }
+	_, raw := e.do("GET", "/api/commands", nil)
+	_ = json.Unmarshal(raw, &listed)
+	for _, c := range listed {
+		if c.Name == "deck.token_revoke" && c.Class != "external" {
+			t.Fatalf("revoking a token is external: %q", c.Class)
+		}
+	}
+	_, other := e.token("terminal", "deck.*")
+	if code, _ := e.callWith(other, "deck.calls_list", nil); code != 403 {
+		t.Fatalf("only the owner reads the journal: %d", code)
+	}
 }
 
 // TestSettingsProvidersAddAndRemoveOnTheScreen: the providers tab adds a provider with a form and removes
@@ -248,7 +265,8 @@ func TestSettingsHealthShowsWhatIsRedFirstWithWhy(t *testing.T) {
 	e := newEnv(t, nil)
 	e.createProject("web", boardWebManifest)
 	ctx := t.Context()
-	for _, h := range []db.SetHealthParams{{Subject: "mcp:web.search", Status: "ok"}, {Subject: "tool:web.fetch", Status: "error", Error: "the server exited: 1"}} {
+	for _, h := range []db.SetHealthParams{{Subject: "mcp:web.search", Status: "ok"}, {Subject: "tool:web.fetch", Status: "error", Error: "the server exited: 1"},
+		{Subject: "provider:elsewhere", Status: "error", Error: "a provider of another workspace"}} {
 		if err := e.App.Store.Q.SetHealth(ctx, h); err != nil {
 			t.Fatal(err)
 		}
@@ -257,6 +275,11 @@ func TestSettingsHealthShowsWhatIsRedFirstWithWhy(t *testing.T) {
 	rows := blockData[[]screenRow](t, block["rows"])
 	if len(rows) < 2 || rows[0].Cells[1] != "error" || rows[0].Cells[2] != "the server exited: 1" {
 		t.Fatalf("what is red comes first with why: %+v", rows)
+	}
+	for _, r := range rows {
+		if r.Cells[0] == "provider:elsewhere" {
+			t.Fatalf("health shows only the providers of the workspace: %+v", r)
+		}
 	}
 	if !strings.Contains(string(block["filters"]), `"error"`) {
 		t.Fatalf("health narrows by state: %s", block["filters"])

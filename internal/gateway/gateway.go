@@ -300,9 +300,14 @@ func (g *Gateway) log(ctx context.Context, s *Session, tool, class, outcome, par
 	g.journal(ctx, s.actor(), s.ProjectID, tool, class, outcome, params, "")
 }
 
+// Journal writes a call the owner made past the gateway, such as a delete from a screen, to the journal.
+func (g *Gateway) Journal(ctx context.Context, act registry.Actor, project int64, tool, class, outcome, params string) {
+	g.journal(ctx, act, project, tool, class, outcome, params, "")
+}
+
 func (g *Gateway) journal(ctx context.Context, act registry.Actor, project int64, tool, class, outcome, params, errText string) {
 	_ = g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		_, err := q.LogToolCall(ctx, db.LogToolCallParams{ProcessID: act.ProcessID, ProjectID: project, Actor: act.Author(),
+		_, err := q.LogToolCall(ctx, db.LogToolCallParams{WorkspaceID: act.Workspace, ProcessID: act.ProcessID, ProjectID: project, Actor: act.Author(),
 			Tool: tool, Class: class, Outcome: outcome, Params: params, Error: errText})
 		return err
 	})

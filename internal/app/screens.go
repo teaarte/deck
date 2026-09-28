@@ -476,14 +476,26 @@ func (s sources) tokenItems(ctx context.Context, sc screen.Scope) ([]map[string]
 	return out, nil
 }
 
-// healthItems are the health of providers, tools and projects, worst first; a provider can be checked again.
+// healthItems are the health of the providers, tools and projects of the workspace, worst first; a provider can be
+// checked again.
 func (s sources) healthItems(ctx context.Context, sc screen.Scope) ([]map[string]any, error) {
 	got, err := s.a.healthList(ctx, registry.Actor{Kind: registry.Owner, Workspace: sc.Workspace}, struct{}{})
 	if err != nil {
 		return nil, err
 	}
+	mine := map[string]bool{}
+	all, err := s.a.providers(ctx, sc.Workspace)
+	if err != nil {
+		return nil, err
+	}
+	for _, pv := range all {
+		mine[pv.Name()] = true
+	}
 	rank := map[string]int{"error": 0, "needs_login": 1, "paused": 1, "checking": 2, "ok": 3}
-	rows := got.([]map[string]any)
+	rows := slices.DeleteFunc(got.([]map[string]any), func(r map[string]any) bool {
+		name, ok := strings.CutPrefix(fmt.Sprint(r["subject"]), "provider:")
+		return ok && !mine[name]
+	})
 	slices.SortStableFunc(rows, func(x, y map[string]any) int { return rank[fmt.Sprint(x["status"])] - rank[fmt.Sprint(y["status"])] })
 	out := make([]map[string]any, 0, len(rows))
 	for _, r := range rows {

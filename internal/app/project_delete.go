@@ -2,7 +2,10 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 
@@ -12,8 +15,8 @@ import (
 	"deck2/internal/tools"
 )
 
-// projectDelete removes a project from deck after a snapshot of it: records, documents, files, triggers,
-// cards, processes and their journals, its asks and settings. No folder outside deck's files is touched.
+// projectDelete removes a project from deck after a snapshot of it: records, documents, files, triggers, cards,
+// processes and their journals, asks, settings and deck's folders of it; no folder of the owner is touched.
 func (a *App) projectDelete(ctx context.Context, act registry.Actor, in struct{ Project string }) (any, error) {
 	p, err := a.scope(ctx, act, in.Project)
 	if err != nil {
@@ -27,7 +30,7 @@ func (a *App) projectDelete(ctx context.Context, act registry.Actor, in struct{ 
 	if err != nil {
 		return nil, fmt.Errorf("deck: the snapshot before deleting %s failed, nothing was deleted: %w", p.Name, err)
 	}
-	var gone []int64
+	var gone, runs []int64
 	err = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		if err := a.deletable(ctx, q, p); err != nil {
 			return err
@@ -36,7 +39,11 @@ func (a *App) projectDelete(ctx context.Context, act registry.Actor, in struct{ 
 		if gone, err = q.DeleteProjectFiles(ctx, p.ID); err != nil {
 			return err
 		}
+		if runs, err = q.ListProjectProcessIDs(ctx, p.ID); err != nil {
+			return err
+		}
 		steps := []func() error{
+			func() error { return q.DeleteProjectToolCalls(ctx, p.ID) },
 			func() error {
 				return q.DeleteProjectDocuments(ctx, db.DeleteProjectDocumentsParams{WorkspaceID: p.WorkspaceID, ProjectID: p.ID})
 			},
@@ -58,11 +65,18 @@ func (a *App) projectDelete(ctx context.Context, act registry.Actor, in struct{ 
 		return nil, err
 	}
 	a.removeFiles(gone)
+	// A new project or process may get the same id, so deck's own folders of this one go with it.
+	for _, id := range runs {
+		_ = os.RemoveAll(filepath.Dir(a.Runner.LogPath(id)))
+	}
+	_ = os.RemoveAll(filepath.Join(a.Cfg.Home, "projects", fmt.Sprint(p.ID)))
 	if m != nil {
 		for name := range m.Tools.MCP.Servers {
 			a.Host.Stop(tools.ServerKey(p.ID, name))
 		}
 	}
+	params, _ := json.Marshal(map[string]any{"project": p.Name, "snapshot": snapshot})
+	a.Gateway.Journal(ctx, act, 0, registry.Builtin+".project_delete", registry.External, "done", string(params))
 	for _, topic := range []string{"projects", "asks", "processes", "triggers", "health", "notifications", "unattended"} {
 		a.Bus.Publish(topic)
 	}

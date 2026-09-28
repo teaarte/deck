@@ -52,8 +52,9 @@ func (a *App) addBuiltins() {
 		registry.Typed(a.tokenCreate))
 	add("tokens_list", "Automation tokens", "Lists automation tokens with their commands; revoked ones too.", ownerOnly,
 		registry.Params(), registry.Typed(a.tokensList))
-	add("token_revoke", "Revoke token", "Revokes an automation token; calls with it are refused from then on.", ownerOnly,
-		registry.Params(registry.P("token", "integer", "Token id")), registry.Typed(a.tokenRevoke))
+	r.Add(&registry.Command{Name: registry.Builtin + ".token_revoke", Title: "Revoke token",
+		Description: "Revokes an automation token; calls with it are refused from then on.", Class: registry.External,
+		Callers: ownerOnly, Input: registry.Params(registry.P("token", "integer", "Token id")), Handler: registry.Typed(a.tokenRevoke)})
 
 	add("manifest_get", "Get manifest", "Returns the current manifest of a project.", everyone,
 		registry.Params(projectOpt), registry.Typed(a.manifestGet))
@@ -177,7 +178,7 @@ func (a *App) addBuiltins() {
 	add("files_list", "List files", "Lists the files of a record, a card or a process.", everyone,
 		registry.Params(registry.Opt("record", "record", "Record"), registry.Opt("card", "card", "Card"),
 			registry.Opt("process", "process", "Process")), registry.Typed(a.filesList))
-	add("calls_list", "Journal of calls", "Lists the calls of the gateway, newest first: tool, who, project, process, class, outcome, external id and error; params only of external and waiting calls.", ownerSide,
+	add("calls_list", "Journal of calls", "Lists the calls of the gateway, newest first: tool, who, project, process, class, outcome, external id and error; params only of external and waiting calls.", ownerOnly,
 		registry.Params(projectOpt, registry.Opt("outcome", "string", "Only this outcome: done, rejected, waiting, expired, unknown, started"),
 			registry.Opt("limit", "integer", "At most this many, 200 by default")), registry.Typed(a.callsList))
 	add("snapshot_create", "Take snapshot", "Writes a snapshot of the base, files and project data folders to backups; the newest seven stay.", ownerOnly,

@@ -207,18 +207,19 @@ type Setting struct {
 }
 
 type ToolCall struct {
-	ID         int64
-	ProcessID  int64
-	ProjectID  int64
-	Tool       string
-	Class      string
-	Outcome    string
-	Params     string
-	CreatedAt  string
-	Actor      string
-	ExternalID string
-	Error      string
-	AskID      sql.NullInt64
+	ID          int64
+	ProcessID   int64
+	ProjectID   int64
+	Tool        string
+	Class       string
+	Outcome     string
+	Params      string
+	CreatedAt   string
+	Actor       string
+	ExternalID  string
+	Error       string
+	AskID       sql.NullInt64
+	WorkspaceID int64
 }
 
 type TriggerState struct {

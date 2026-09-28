@@ -170,7 +170,7 @@ func (g *Gateway) hold(ctx context.Context, act registry.Actor, c *registry.Comm
 		if err != nil {
 			return err
 		}
-		_, err = q.LogToolCall(ctx, db.LogToolCallParams{ProcessID: act.ProcessID, ProjectID: project, Actor: act.Author(), Tool: c.Name,
+		_, err = q.LogToolCall(ctx, db.LogToolCallParams{WorkspaceID: act.Workspace, ProcessID: act.ProcessID, ProjectID: project, Actor: act.Author(), Tool: c.Name,
 			Class: c.Class, Outcome: "waiting", Params: Canonical(input), AskID: sql.NullInt64{Int64: a.ID, Valid: true}})
 		return err
 	})

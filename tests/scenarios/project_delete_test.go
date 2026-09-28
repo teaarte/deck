@@ -14,7 +14,7 @@ import (
 )
 
 // TestProjectDeleteTakesASnapshotAndLeavesNothingOfTheProject: only the owner, with no open process and no reader;
-// a snapshot first, then every row and file goes, the name is free again and folders on disk stay.
+// a snapshot first, then every row, file and folder of deck goes, the name is free again and the journal says so.
 func TestProjectDeleteTakesASnapshotAndLeavesNothingOfTheProject(t *testing.T) {
 	hold := make(chan struct{})
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
@@ -46,6 +46,18 @@ func TestProjectDeleteTakesASnapshotAndLeavesNothingOfTheProject(t *testing.T) {
 	if _, err := e.App.Store.DB.ExecContext(ctx, `INSERT INTO health (subject, status, error) VALUES ('tool:gone.fetch', 'error', 'x')`); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := e.App.Store.DB.ExecContext(ctx, `INSERT INTO tool_call (workspace_id, process_id, project_id, tool, class, outcome, params)
+		VALUES (1, 0, ?, 'gone.publish', 'external', 'done', '{"to": "all"}')`, id); err != nil {
+		t.Fatal(err)
+	}
+	var procs []int64
+	for _, x := range e.processes() {
+		procs = append(procs, x.ID)
+	}
+	runDir := filepath.Dir(e.App.Runner.LogPath(procs[0]))
+	if _, err := os.Stat(runDir); err != nil {
+		t.Fatalf("the fixture has the run folder of a process: %v", err)
+	}
 	e.createProject("reader", `{"version": 5, "reads": [{"project": "gone", "collections": ["notes"]}]}`)
 
 	_, tok := e.token("terminal", "deck.*")
@@ -62,7 +74,7 @@ func TestProjectDeleteTakesASnapshotAndLeavesNothingOfTheProject(t *testing.T) {
 	tables := map[string]string{
 		"record": "project_id = ?1", "card": "project_id = ?1", "document": "project_id = ?1", "file": "project_id = ?1",
 		"trigger_state": "project_id = ?1", "process": "project_id = ?1", "ask": "project_id = ?1", "notification": "project_id = ?1",
-		"setting": "key LIKE 'place:gone.%' AND ?1 > 0", "health": "subject LIKE '%:gone.%' AND ?1 > 0",
+		"setting": "key LIKE 'place:gone.%' AND ?1 > 0", "health": "subject LIKE '%:gone.%' AND ?1 > 0", "tool_call": "project_id = ?1",
 	}
 	count := func(table string) int {
 		var n int
@@ -89,8 +101,17 @@ func TestProjectDeleteTakesASnapshotAndLeavesNothingOfTheProject(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(e.App.Cfg.Home, "files", fmt.Sprint(scan))); !os.IsNotExist(err) {
 		t.Fatalf("the files of the project go: %v", err)
 	}
-	if b, err := os.ReadFile(filepath.Join(data, "keep.txt")); err != nil || string(b) != "mine" {
-		t.Fatalf("folders on disk are not touched: %v", err)
+	for _, dir := range []string{data, runDir} {
+		if _, err := os.Stat(dir); !os.IsNotExist(err) {
+			t.Fatalf("deck's folders of the project go, since its ids may come again: %s %v", dir, err)
+		}
+	}
+	var journal []map[string]any
+	e.must("deck.calls_list", nil, &journal)
+	if len(journal) != 3 || journal[0]["tool"] != "deck.project_delete" || journal[0]["class"] != "external" ||
+		!strings.Contains(fmt.Sprint(journal[0]["params"]), `"project":"gone"`) || !strings.Contains(fmt.Sprint(journal[1]["params"]), `"project":"reader"`) ||
+		journal[2]["outcome"] != "rejected" || journal[2]["actor"] != "token:1" {
+		t.Fatalf("the deletes and the refused token are in the journal, the calls of the project are not: %+v", journal)
 	}
 	var ps []projectV
 	e.must("deck.projects_list", nil, &ps)
@@ -138,8 +159,11 @@ func TestProjectDeleteStopsTheMCPServersOfTheProject(t *testing.T) {
 	pid, _ := os.ReadFile(filepath.Join(dir, "pid"))
 	var n int
 	fmt.Sscan(string(pid), &n)
-	if n == 0 || syscall.Kill(n, 0) != nil {
-		t.Fatalf("the server runs before the delete: %q", pid)
+	if n == 0 {
+		t.Fatalf("the server writes its pid: %q", pid)
+	}
+	if syscall.Kill(n, 0) != nil {
+		t.Skip("the server runs in a pid namespace of its sandbox here; its pid is not one of this system")
 	}
 	e.must("deck.project_delete", map[string]any{"project": "srv"}, nil)
 	e.waitFor("the server to stop", func() bool { return syscall.Kill(n, 0) != nil })

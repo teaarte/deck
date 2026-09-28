@@ -34,7 +34,7 @@ func (g *Gateway) Intent(ctx context.Context, act registry.Actor, project int64,
 			}
 			return err
 		}
-		id, err = q.LogToolCall(ctx, db.LogToolCallParams{ProcessID: act.ProcessID, ProjectID: project, Actor: act.Author(), Tool: tool,
+		id, err = q.LogToolCall(ctx, db.LogToolCallParams{WorkspaceID: act.Workspace, ProcessID: act.ProcessID, ProjectID: project, Actor: act.Author(), Tool: tool,
 			Class: registry.External, Outcome: "started", Params: p})
 		return err
 	})

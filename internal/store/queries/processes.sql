@@ -93,9 +93,9 @@ RETURNING id;
 
 
 -- name: LogToolCall :one
-INSERT INTO tool_call (process_id, project_id, actor, tool, class, outcome, params, error, ask_id)
-VALUES (sqlc.arg(process_id), sqlc.arg(project_id), sqlc.arg(actor), sqlc.arg(tool), sqlc.arg(class), sqlc.arg(outcome),
-    sqlc.arg(params), sqlc.arg(error), sqlc.narg(ask_id)) RETURNING id;
+INSERT INTO tool_call (workspace_id, process_id, project_id, actor, tool, class, outcome, params, error, ask_id)
+VALUES (sqlc.arg(workspace_id), sqlc.arg(process_id), sqlc.arg(project_id), sqlc.arg(actor), sqlc.arg(tool), sqlc.arg(class),
+    sqlc.arg(outcome), sqlc.arg(params), sqlc.arg(error), sqlc.narg(ask_id)) RETURNING id;
 
 
 -- name: FinishToolCall :execrows
@@ -197,7 +197,15 @@ ORDER BY id DESC;
 
 -- name: ListWorkspaceToolCalls :many
 SELECT * FROM tool_call
-WHERE project_id IN (SELECT id FROM project WHERE workspace_id = sqlc.arg(workspace_id))
+WHERE workspace_id = sqlc.arg(workspace_id)
   AND (sqlc.arg(project_id) = 0 OR project_id = sqlc.arg(project_id))
   AND (CAST(sqlc.arg(outcome) AS TEXT) = '' OR outcome = sqlc.arg(outcome))
 ORDER BY id DESC LIMIT sqlc.arg(lim);
+
+
+-- name: ListProjectProcessIDs :many
+SELECT id FROM process WHERE project_id = ?;
+
+
+-- name: DeleteProjectToolCalls :exec
+DELETE FROM tool_call WHERE project_id = ?;

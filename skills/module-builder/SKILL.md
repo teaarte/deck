@@ -128,9 +128,9 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   "limit": 20}, "columns": [{"label": "Title", "bind": "title"}], "filter": ["status"], "actions": [{"label": "Rate", "command":
   "rate", "params": {"id": "$record.id"}}]}` — `where` and `bind` are expressions over record fields,
   `sort` is a field with `-` for descending, `filter` lists fields the owner narrows by. Action `params` are strings in the manifest; `$record.<field>`
-  passes the field's value with its type (`$record.id` is a number, so that input field is an `integer`), while
-  a fixed value stays text, so its field is a `string` or an enum of strings (`"days": "7"` to an `integer` is
-  refused). An action passes every required parameter of its command
+  passes the field's value with its type (`$record.id` is a number, so that input field is an `integer`), and
+  a fixed value becomes the type of its input field (`"days": "7"` to an `integer` is 7). An action passes
+  every required parameter of its command
   (from `$record.<field>` or fixed values); deck asks for nothing that is missing, so a choice the owner
   makes in a row is one action per option. A command the owner fills in by hand is a `form`:
   `{"type": "form", "command": "score", "save": "items"}` asks for the command's input by its schema, shows the

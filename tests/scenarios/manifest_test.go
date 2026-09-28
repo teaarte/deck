@@ -90,6 +90,26 @@ func TestFullManifestIsAccepted(t *testing.T) {
 	}
 }
 
+// TestAFixedParamOfAButtonTakesTheTypeOfItsField: params of a button are text in the manifest; a fixed one
+// reaches the command as the integer its input field is, so the owner's press is not refused.
+func TestAFixedParamOfAButtonTakesTheTypeOfItsField(t *testing.T) {
+	e := newEnv(t, nil)
+	e.createProject("links", strings.Replace(fullManifest, `{"label": "Share", "command": "share", "params": {"url": "$record.url"}}`,
+		`{"label": "Share", "command": "share", "params": {"url": "$record.url"}}, {"label": "Parse", "command": "parse", "params": {"source": "7"}}`, 1))
+	e.must("deck.records_upsert", map[string]any{"project": "links", "collection": "links", "records": `{"url": "u", "title": "t", "score": 8}`}, nil)
+	rows := blockData[[]screenRow](t, e.screenData("links", "main", nil)["b0"]["rows"])
+	if len(rows) != 1 || len(rows[0].Actions) != 2 {
+		t.Fatalf("the row has both buttons: %+v", rows)
+	}
+	parse := rows[0].Actions[1]
+	if parse["params"].(map[string]any)["source"] != float64(7) {
+		t.Fatalf("a fixed param goes out as the integer of its field: %+v", parse)
+	}
+	if code, out := e.call("links.parse", parse["params"]); code == 422 && strings.Contains(string(out), "want integer") {
+		t.Fatalf("the press of the button matches the input of its command: %s", out)
+	}
+}
+
 func TestManifestReferencesAreChecked(t *testing.T) {
 	e := newEnv(t, nil)
 	e.createProject("other", ideasManifest)

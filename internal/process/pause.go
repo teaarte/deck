@@ -77,12 +77,8 @@ func (r *Runner) Unpause(ctx context.Context, now time.Time) {
 		if ok, err := r.claim(ctx, p.ID, StateRateLimited); err != nil || !ok {
 			continue
 		}
-		msg := "deck: the provider's usage limit should have reset. Continue where you stopped."
-		pending, _ := r.st.Q.ListUndeliveredAsks(ctx, p.ID)
-		if len(pending) > 0 {
-			msg += "\n" + deliveryMessage(pending)
-		}
-		if err := r.resume(ctx, p.ID, msg, askIDs(pending), false); err != nil {
+		msg, pending := r.withAnswers(ctx, p.ID, "deck: the provider's usage limit should have reset. Continue where you stopped.")
+		if err := r.resume(ctx, p.ID, msg, pending, false); err != nil {
 			r.finish(ctx, p.ID, StateError, "", false, "resume after the usage limit: "+err.Error())
 		}
 	}
@@ -139,12 +135,17 @@ func (r *Runner) continueAfterLimit(ctx context.Context, processID int64, a db.A
 	if err != nil || n == 0 {
 		return err
 	}
-	msg := "deck: the owner asks you to continue after the usage limit. Continue where you stopped."
+	msg, pending := r.withAnswers(ctx, processID, "deck: the owner asks you to continue after the usage limit. Continue where you stopped.")
+	return r.resume(ctx, processID, msg, pending, false)
+}
+
+// withAnswers is a resume message with the answers the process has not got yet, and those asks.
+func (r *Runner) withAnswers(ctx context.Context, processID int64, msg string) (string, []int64) {
 	pending, _ := r.st.Q.ListUndeliveredAsks(ctx, processID)
 	if len(pending) > 0 {
 		msg += "\n" + deliveryMessage(pending)
 	}
-	return r.resume(ctx, processID, msg, askIDs(pending), false)
+	return msg, askIDs(pending)
 }
 
 // restartPause gives a paused process a full pause limit again, since the owner has just answered it.

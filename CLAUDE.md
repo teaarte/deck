@@ -28,13 +28,18 @@ Stage 1 plan: `docs/plan-stage1.md`.
 - `internal/store` — SQLite, goose migrations, sqlc queries (`db/` is generated)
 - `internal/registry` — command registry: every input (API, MCP, triggers) calls commands through it;
   input schemas limited to App Intents types
-- `internal/app` — wiring, builtin `deck.*` commands, projects, documents with revisions, records, cards and board
+- `internal/app` — wiring, builtin `deck.*` commands, projects, documents with revisions, records, cards and board;
+  deck's screens are data in `screens.json`: menu Cockpit, Schedule, Settings (tabs Projects, Providers, Secrets,
+  Tokens, General, Interface, Health), Journal (Calls, Spend, Files, Snapshots); `project` screens (Documents and
+  the page of a document) deck adds to every project; settings the owner changes (`deck.settings_set`) are in
+  `setting` with defaults from `Config`
 - `internal/manifest` — project manifest: parsing, validation, expressions
 - `internal/gateway` — deck MCP server per process: permission prompts, questions, confirmations, registry
   commands as tools; HTTP entry and domain proxy for scripts
 - `internal/provider` — model providers; `claudecode` runs the CLI isolated from user settings; `codex` runs
   `codex app-server` on the owner's shared login (`protocol.go` is generated)
-- `internal/process` — process runner: agent and script executors, start, resume, result schema check, result files
+- `internal/process` — process runner: agent and script executors, start, resume, result schema check, result files;
+  agent turns take a slot of the workspace (`slots.go`), the rest wait in `waiting_slot`
 - `internal/sandbox` — script sandbox behind one interface: `sandbox-exec` on macOS, bubblewrap on Linux
 - `internal/script` — runs project scripts in the sandbox (a script installs its own packages through the proxy)
 - `internal/trigger` — cron scheduler with catch-up after sleep
@@ -44,8 +49,9 @@ Stage 1 plan: `docs/plan-stage1.md`.
   `/ext-apps.js`), paired with the client's port (`Pair`)
 - `internal/tsnet` — deck on the owner's tailnet from inside the binary: HTTPS on 443, the second origin on 8443
 - `web` — client: Vite + React + Mantine v9 + `@a2ui/react` (protocol v0.9, `/v0_9` imports); blocks in
-  `src/catalog.tsx`, the board (`@dnd-kit/react`), forms and the MCP Apps host (`@modelcontextprotocol/ext-apps` 1.7.5 —
-  2.x needs zod 4) in their own files; PWA and Share Target — `public/manifest.webmanifest`, `public/sw.js`;
+  `src/catalog.tsx`, the board (`@dnd-kit/react`), forms, documents with markdown (`@a2ui/markdown-it`) and the MCP
+  Apps host (`@modelcontextprotocol/ext-apps` 1.7.5 — 2.x needs zod 4) in their own files; the look of the device
+  (scheme, accent, density, font, corners) — `src/look.ts`, passed to `custom` blocks as MCP Apps host context; PWA and Share Target — `public/manifest.webmanifest`, `public/sw.js`;
   `web/dist` is the embedded build — rebuild and commit it with the sources
 - `internal/lint` — code rules checked by `tests/lint` (comments, requirement refs, vertical names)
 - `schemas` — contracts embedded in the binary: manifest JSON Schema, screen block catalog (`catalog.json`, read by

@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"slices"
 	"strings"
@@ -356,4 +357,36 @@ func TestADeletedCardGoesADayLaterByTheClockOfDeck(t *testing.T) {
 	e.must("deck.card_get", map[string]any{"card": a.ID}, nil)
 	e.App.Sweep(context.Background(), e.Clock.Add(2*time.Hour))
 	e.refused("deck.card_get", map[string]any{"card": a.ID}, 404, "no card")
+}
+
+// twoLanes has a command on entering each of two lanes.
+const twoLanes = `{"version": 5,
+  "commands": [
+    {"name": "onx", "title": "X", "description": "Runs in x.", "class": "internal",
+      "input": {"type": "object", "properties": {"card": {"type": "integer", "format": "card"}}, "required": ["card"]},
+      "executor": {"type": "agent", "prompt": "X."}},
+    {"name": "ony", "title": "Y", "description": "Runs in y.", "class": "internal",
+      "input": {"type": "object", "properties": {"card": {"type": "integer", "format": "card"}}, "required": ["card"]},
+      "executor": {"type": "agent", "prompt": "Y."}}],
+  "triggers": [{"command": "onx", "lane": "x"}, {"command": "ony", "lane": "y"}],
+  "board": {"lanes": [{"name": "inbox", "title": "Inbox", "role": "inbox"}, {"name": "x", "title": "X"}, {"name": "y", "title": "Y"}]}}`
+
+func TestTwoMovesAtOnceLeaveTheCardLinkedToTheRunOfItsLane(t *testing.T) {
+	e := newEnv(t, ok)
+	e.createProject("race", twoLanes)
+	for i := range 40 {
+		c := e.card(map[string]any{"project": "race", "title": fmt.Sprint("card ", i)})
+		var wg sync.WaitGroup
+		for _, lane := range []string{"x", "y"} {
+			wg.Go(func() { e.call("deck.card_move", map[string]any{"card": c.ID, "lane": lane}) })
+		}
+		wg.Wait()
+		var got cardV
+		e.must("deck.card_get", map[string]any{"card": c.ID}, &got)
+		var p struct{ Command string }
+		e.must("deck.process_get", map[string]any{"process": got.Process}, &p)
+		if p.Command != "on"+got.Lane {
+			t.Fatalf("card %d is in %s but linked to a run of %s", c.ID, got.Lane, p.Command)
+		}
+	}
 }

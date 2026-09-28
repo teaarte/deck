@@ -52,8 +52,11 @@ type entry struct {
 
 func (w *boardWrite) enter(card int64, lane string) { w.entered = append(w.entered, entry{card, lane}) }
 
-// writeBoard runs a card write in one transaction, then starts the lane triggers of the lanes cards entered.
+// writeBoard runs a card write in one transaction, then starts the lane triggers of the lanes cards entered;
+// card writes take turns, so a later move never has its triggers started before an earlier one.
 func (a *App) writeBoard(ctx context.Context, act registry.Actor, f func(ctx context.Context, q *db.Queries, w *boardWrite) error) error {
+	a.boardMu.Lock()
+	defer a.boardMu.Unlock()
 	w := &boardWrite{parent: act.ProcessID}
 	if err := a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error { return f(ctx, q, w) }); err != nil {
 		return err

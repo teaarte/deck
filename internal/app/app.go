@@ -54,6 +54,7 @@ type App struct {
 	secretMu sync.Mutex
 	bg       sync.WaitGroup
 	disk     time.Time
+	boardMu  sync.Mutex
 	// cleaned and snapTried are when the daily cleanup ran and a daily snapshot was last tried.
 	cleaned, snapTried time.Time
 }

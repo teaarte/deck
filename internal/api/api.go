@@ -8,8 +8,11 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"mime"
 	"net/http"
+	"strconv"
 	"strings"
+	"time"
 
 	"deck2/internal/app"
 	"deck2/internal/gateway"
@@ -39,6 +42,7 @@ func (s *Server) Handler() http.Handler {
 	api.HandleFunc("POST /api/commands/{name}", s.invoke)
 	api.HandleFunc("GET /api/events", s.ownerOnly(s.events))
 	api.HandleFunc("POST /api/files", s.upload)
+	api.HandleFunc("GET /api/files/{id}", s.download)
 	mux.Handle("/api/", s.auth(api))
 	return mux
 }
@@ -137,6 +141,26 @@ func (s *Server) upload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	send(w, out)
+}
+
+// download sends a stored file as an attachment, never as a page of deck's origin.
+func (s *Server) download(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		http.Error(w, "deck: a file id is a number", http.StatusBadRequest)
+		return
+	}
+	f, file, err := s.app.OpenFile(r.Context(), actor(r), id)
+	if err != nil {
+		http.Error(w, err.Error(), registry.Status(err))
+		return
+	}
+	defer file.Close()
+	w.Header().Set("Content-Type", f.Type)
+	w.Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": f.Name}))
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("Content-Security-Policy", "sandbox")
+	http.ServeContent(w, r, "", time.Time{}, file)
 }
 
 func (s *Server) events(w http.ResponseWriter, r *http.Request) {

@@ -3,6 +3,8 @@ import type { ComponentContext } from '@a2ui/web_core/v0_9';
 import { Button, Chip, Code, Group, Modal, Stack, Text, TextInput } from '@mantine/core';
 import { useInterval } from '@mantine/hooks';
 import { useTranslation } from 'react-i18next';
+import { notifications } from '@mantine/notifications';
+import { download } from './api';
 import type { Action, Data } from './catalog.gen';
 
 type Question = NonNullable<NonNullable<Data['items']>[number]['questions']>[number];
@@ -27,6 +29,19 @@ function ActionButton({ act, context, params }: { act: Action; context: Componen
   const label = act.label || (act.verb ? t('verb.' + act.verb) : '');
   const send = async (extra?: Record<string, unknown>) => {
     if (running.current) return;
+    if (act.file) {
+      running.current = true;
+      setBusy(true);
+      try {
+        await download(act.file);
+      } catch (e) {
+        notifications.show({ title: label, message: (e as Error).message, color: 'red', autoClose: 10000 });
+      } finally {
+        running.current = false;
+        setBusy(false);
+      }
+      return;
+    }
     running.current = true;
     setBusy(true);
     try {

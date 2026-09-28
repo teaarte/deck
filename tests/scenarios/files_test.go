@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime"
 	"mime/multipart"
 	"net/http"
 	"os"
@@ -216,5 +217,51 @@ print(json.dumps({"files": [{"file": given, "record": inp["rec"]}, {"path": "mis
 	e.must("deck.files_list", map[string]any{"record": s.Record}, &onRecord)
 	if slices.ContainsFunc(onRecord, func(f struct{ ID int64 }) bool { return f.ID == doc }) {
 		t.Fatalf("the input file stays with the process when the result fails: %+v", onRecord)
+	}
+}
+
+// TestAFileDownloadsAsAnAttachmentForWhoMaySeeItsProject: a file of the journal downloads as an attachment
+// that never renders as a page of deck; a token that may not call every command of its project gets nothing.
+func TestAFileDownloadsAsAnAttachmentForWhoMaySeeItsProject(t *testing.T) {
+	e := newEnv(t, nil)
+	e.createProject("docs", filesManifest())
+	e.createProject("other", filesManifest())
+	id := e.upload("docs", "отчёт <1>.html", "text/html", "<script>alert(1)</script>")
+	_, narrow := e.token("narrow", "docs.read")
+	_, wide := e.token("wide", "docs.*")
+	_, stranger := e.token("stranger", "other.*")
+	get := func(tok, path string) (*http.Response, string) {
+		req, _ := http.NewRequest("GET", e.URL+path, nil)
+		req.Header.Set("Authorization", "Bearer "+tok)
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		b, _ := io.ReadAll(resp.Body)
+		return resp, string(b)
+	}
+	resp, body := get(token, fmt.Sprintf("/api/files/%d", id))
+	_, params, _ := mime.ParseMediaType(resp.Header.Get("Content-Disposition"))
+	if resp.StatusCode != 200 || body != "<script>alert(1)</script>" || params["filename"] != "отчёт <1>.html" ||
+		!strings.HasPrefix(resp.Header.Get("Content-Disposition"), "attachment") || resp.Header.Get("X-Content-Type-Options") != "nosniff" ||
+		resp.Header.Get("Content-Security-Policy") != "sandbox" || resp.Header.Get("Content-Type") != "text/html" {
+		t.Fatalf("the owner downloads the file as an attachment in a sandbox: %d %q %v", resp.StatusCode, body, resp.Header)
+	}
+	if resp, _ := get(wide, fmt.Sprintf("/api/files/%d", id)); resp.StatusCode != 200 {
+		t.Fatalf("a token for the whole project downloads its file: %d", resp.StatusCode)
+	}
+	for _, c := range []struct {
+		tok, path string
+		code      int
+	}{{narrow, fmt.Sprintf("/api/files/%d", id), 403}, {stranger, fmt.Sprintf("/api/files/%d", id), 403},
+		{token, "/api/files/999", 404}, {token, "/api/files/x", 400}, {"deck_nope", fmt.Sprintf("/api/files/%d", id), 401}} {
+		if resp, body := get(c.tok, c.path); resp.StatusCode != c.code || strings.Contains(body, "alert") {
+			t.Fatalf("%s with a token of other rights: want %d, got %d %q", c.path, c.code, resp.StatusCode, body)
+		}
+	}
+	rows := blockData[[]screenRow](t, e.screenData("", "journal", nil)["b0-2-0"]["rows"])
+	if len(rows) != 1 || len(rows[0].Actions) != 1 || rows[0].Actions[0]["verb"] != "download" || rows[0].Actions[0]["file"] != float64(id) {
+		t.Fatalf("a file of the journal has a download button: %+v", rows)
 	}
 }

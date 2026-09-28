@@ -53,6 +53,10 @@ export interface Action {
    * The client asks the owner before the call: a button of deck that deletes or revokes.
    */
   confirm?: boolean;
+  /**
+   * Stored file the button downloads instead of a call.
+   */
+  file?: number;
 }
 /**
  * This interface was referenced by `Catalog`'s JSON-Schema

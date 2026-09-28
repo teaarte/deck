@@ -33,7 +33,8 @@ func (s Sources) fileItems(ctx context.Context, sc screen.Scope, names map[int64
 	out := make([]map[string]any, 0, len(fs))
 	for _, f := range fs {
 		out = append(out, map[string]any{"id": f.ID, "project": names[f.ProjectID], "name": f.Name, "type": f.Type, "size": f.Size,
-			"owner": fmt.Sprintf("%s #%d", f.OwnerKind, f.OwnerID), "created_at": f.CreatedAt})
+			"owner": fmt.Sprintf("%s #%d", f.OwnerKind, f.OwnerID), "created_at": f.CreatedAt,
+			"_actions": []map[string]any{{"verb": "download", "file": f.ID}}})
 	}
 	return out, nil
 }

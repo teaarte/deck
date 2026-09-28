@@ -98,9 +98,9 @@ func TestJournalShowsTheCallsOfTheGatewayTheSpendFilesAndSnapshots(t *testing.T)
 	if len(snaps) != 2 || !strings.HasPrefix(snaps[0].Cells[0].(string), "deck-2026") || snaps[1].Cells[1] != "2020-01-01T00:00:00Z" {
 		t.Fatalf("snapshots lists what backups holds: %+v", snaps)
 	}
-	for _, r := range append(append(files, snaps...), spend...) {
+	for _, r := range append(snaps, spend...) {
 		if len(r.Actions) != 0 {
-			t.Fatalf("the journal shows and restores nothing: %+v", r)
+			t.Fatalf("the journal shows and restores nothing; only a file downloads: %+v", r)
 		}
 	}
 	events := e.sse(t.Context())

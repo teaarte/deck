@@ -302,7 +302,7 @@ func TestRealBrowserDocuments(t *testing.T) {
 	b.shot("document-phone")
 }
 
-// TestRealBrowserJournal takes a snapshot from the journal and shows its tabs on a phone:
+// TestRealBrowserJournal takes a snapshot from the journal, downloads a file and shows its tabs on a phone:
 // DECK_REAL_BROWSER=1 go test ./tests/scenarios -run TestRealBrowser -v.
 func TestRealBrowserJournal(t *testing.T) {
 	if os.Getenv("DECK_REAL_BROWSER") == "" {
@@ -311,6 +311,9 @@ func TestRealBrowserJournal(t *testing.T) {
 	checkBuiltClient(t)
 	e := newEnv(t, nil)
 	e.createProject("web", boardWebManifest)
+	for _, name := range []string{"notes ü.txt", "100%.txt", `100% a;b".txt`} {
+		e.upload("web", name, "text/html", "body of "+name)
+	}
 	b := newPlaywright(t)
 	b.call("browser_resize", map[string]any{"width": 390, "height": 844})
 	b.open(e.URL + "/?token=" + token + "#/deck/journal")
@@ -319,6 +322,12 @@ func TestRealBrowserJournal(t *testing.T) {
 	b.until("the snapshot form", `document.querySelector('[data-form="deck.snapshot_create"] [data-submit]')?.offsetParent`)
 	b.eval(`(document.querySelector('[data-form="deck.snapshot_create"] [data-submit]').click(), '')`)
 	b.until("the new snapshot in the list", `[...document.querySelectorAll('tr')].some((r) => r.offsetParent && r.innerText.includes('deck-'))`)
+	b.eval(`(window.saved = [], HTMLAnchorElement.prototype.click = function () { fetch(this.href).then((r) => r.blob()).then(async (b) => { window.saved.push(b.type + ' ' + this.download + '=' + await b.text()); }); }, '')`)
+	b.eval(`([...document.querySelectorAll('[role=tab]')].find((x) => x.innerText.trim() === 'Files').click(), '')`)
+	b.until("the download buttons of the files", `[...document.querySelectorAll('[data-verb=download]')].filter((x) => x.offsetParent).length === 3`)
+	b.eval(`([...document.querySelectorAll('[data-verb=download]')].filter((x) => x.offsetParent).forEach((x) => x.click()), '')`)
+	b.until("the downloaded files under their names, never as a page", `window.saved.length === 3 && window.saved.sort().join('|') === `+
+		`'application/octet-stream 100% a;b".txt=body of 100% a;b".txt|application/octet-stream 100%.txt=body of 100%.txt|application/octet-stream notes ü.txt=body of notes ü.txt'`)
 	if got := b.eval(`String(document.documentElement.scrollWidth <= innerWidth + 1)`); got != "true" {
 		t.Fatalf("the journal fits the width of a phone: %s", got)
 	}

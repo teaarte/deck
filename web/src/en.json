@@ -42,6 +42,7 @@
     "revoke": "Revoke",
     "remove": "Remove",
     "delete": "Delete",
+    "download": "Download",
     "cancel": "Cancel"
   },
   "input": {
@@ -67,6 +68,7 @@
     "text": "Text",
     "save": "Save",
     "delete": "Delete",
+    "download": "Download",
     "deleted": "Deleted {{title}}",
     "recently_deleted": "Deleted in the last day ({{count}})",
     "restore": "Restore"

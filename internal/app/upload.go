@@ -85,3 +85,24 @@ func (a *App) fileUpload(ctx context.Context, act registry.Actor, in struct{ Pro
 	}
 	return a.Upload(ctx, act, in.Project, in.Name, "", bytes.NewReader(b))
 }
+
+// OpenFile opens a stored file for the owner, or for an automation token that may call every command of its project.
+func (a *App) OpenFile(ctx context.Context, act registry.Actor, id int64) (fileView, *os.File, error) {
+	missing := registry.NotFound("deck: no file %d", id)
+	f, err := a.Store.Q.GetFile(ctx, id)
+	if err != nil {
+		return fileView{}, nil, missing
+	}
+	p, err := projectOf(ctx, a.Store.Q, act, f.ProjectID, missing)
+	if err != nil {
+		return fileView{}, nil, err
+	}
+	if act.Token != 0 && !registry.Permits(act.Commands, p.Name+".*") {
+		return fileView{}, nil, registry.Refuse("deck: this automation token may not call every command of %s, so it does not download its files", p.Name)
+	}
+	file, err := os.Open(filepath.Join(a.dirs().Files, strconv.FormatInt(f.ID, 10)))
+	if err != nil {
+		return fileView{}, nil, missing
+	}
+	return fileView{ID: f.ID, Name: f.Name, Type: f.Type, Size: f.Size, OwnerKind: f.OwnerKind, OwnerID: f.OwnerID, CreatedAt: f.CreatedAt}, file, nil
+}

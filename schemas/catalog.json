@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "catalogId": "https://deck2.local/catalog/v1",
-  "topics": ["collection", "asks", "processes", "unattended", "health", "log", "board", "triggers", "notifications"],
+  "topics": ["collection", "asks", "processes", "unattended", "health", "log", "board", "triggers", "notifications", "secrets", "tokens"],
   "description": "Blocks of deck screens as A2UI components. A block's data is at the path of its data property: {state, error?, filters?, rows | items | value | lines}. block is the form a manifest stores the block in; its refs are the $defs of the manifest schema.",
   "components": {
     "screen": {
@@ -164,7 +164,8 @@
         "project": {"type": "string"},
         "screen": {"type": "string"},
         "record": {"type": "integer"},
-        "class": {"type": "string", "description": "Class of the command of a custom block's button; the host asks the owner before one that is not internal."}
+        "class": {"type": "string", "description": "Class of the command of a custom block's button; the host asks the owner before one that is not internal."},
+        "confirm": {"type": "boolean", "description": "The client asks the owner before the call: a button of deck that deletes or revokes."}
       }
     },
     "values": {

@@ -207,6 +207,34 @@ func (a *App) projectEnable(ctx context.Context, act registry.Actor, in struct {
 	return map[string]any{"project": p.Name, "status": store.ProjectEnabled, "rights": rights(m)}, nil
 }
 
+// projectAutonomy writes the autonomy of a project into a new revision of its manifest, the rest as it was.
+func (a *App) projectAutonomy(ctx context.Context, act registry.Actor, in struct{ Project, Autonomy string }) (any, error) {
+	p, err := a.scope(ctx, act, in.Project)
+	if err != nil {
+		return nil, err
+	}
+	d, err := a.Store.Q.FindDocument(ctx, DocRef{Scope: projectScope(p), Name: ManifestName}.find())
+	if err != nil {
+		return nil, err
+	}
+	r, err := getRevision(ctx, a.Store.Q, d, 0)
+	if err != nil {
+		return nil, err
+	}
+	var doc map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(r.Text), &doc); err != nil {
+		return nil, registry.Invalid("deck: the manifest of %s is not a JSON object: %v", p.Name, err)
+	}
+	delete(doc, "autonomy")
+	if in.Autonomy == "auto" {
+		doc["autonomy"] = json.RawMessage(`"auto"`)
+	}
+	raw, _ := json.MarshalIndent(doc, "", "  ")
+	reason := "autonomy: " + in.Autonomy
+	return a.SaveManifest(ctx, act, p, raw, reason, 0, d.Current,
+		Call{Command: registry.Builtin + ".manifest_save", Input: map[string]any{"project": p.Name, "manifest": string(raw), "reason": reason}})
+}
+
 // rights are what a project is allowed beyond internal actions.
 func rights(m *manifest.Manifest) []string {
 	if w := manifest.Widens(&manifest.Manifest{}, m); w != nil {

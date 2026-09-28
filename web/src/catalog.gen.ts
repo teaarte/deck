@@ -48,6 +48,10 @@ export interface Action {
    * Class of the command of a custom block's button; the host asks the owner before one that is not internal.
    */
   class?: string;
+  /**
+   * The client asks the owner before the call: a button of deck that deletes or revokes.
+   */
+  confirm?: boolean;
 }
 /**
  * This interface was referenced by `Catalog`'s JSON-Schema

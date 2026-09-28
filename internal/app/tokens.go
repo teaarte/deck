@@ -64,6 +64,7 @@ func (a *App) tokenCreate(ctx context.Context, act registry.Actor, in struct {
 	if err != nil {
 		return nil, err
 	}
+	a.Bus.Publish("tokens")
 	url := a.Cfg.MCPBase + "/mcp"
 	return map[string]any{
 		"id": t.ID, "token": raw, "mcp_url": url,
@@ -95,5 +96,6 @@ func (a *App) tokenRevoke(ctx context.Context, act registry.Actor, in struct{ To
 	if n == 0 {
 		return nil, registry.NotFound("deck: no active token %d", in.Token)
 	}
+	a.Bus.Publish("tokens")
 	return map[string]any{"revoked": in.Token}, nil
 }

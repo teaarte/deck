@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 
+	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
@@ -78,24 +79,31 @@ func (a *App) projectsList(ctx context.Context, act registry.Actor, _ struct{}) 
 	}
 	out := make([]projectView, 0, len(ps))
 	for _, p := range ps {
-		v := projectView{ID: p.ID, Name: p.Name, Status: p.Status, Screens: []screenView{}}
-		if prompt, err := currentText(ctx, a.Store.Q, projectScope(p), KindPrompt, PromptName); err == nil {
-			v.Description = description(prompt)
-		}
-		if m, err := loadManifest(ctx, a.Store.Q, p); err != nil {
-			v.ManifestError = err.Error()
-		} else {
-			v.Revision = m.Revision
-			for _, s := range m.Screens {
-				v.Screens = append(v.Screens, screenView{Name: s.Name, Title: s.Title})
-			}
-			if p.Status == store.ProjectDraft {
-				v.Rights = rights(m)
-			}
-		}
+		v, _ := a.viewProject(ctx, p)
 		out = append(out, v)
 	}
 	return out, nil
+}
+
+// viewProject is a project as the owner sees it, with its manifest when that loads.
+func (a *App) viewProject(ctx context.Context, p db.Project) (projectView, *manifest.Manifest) {
+	v := projectView{ID: p.ID, Name: p.Name, Status: p.Status, Screens: []screenView{}}
+	if prompt, err := currentText(ctx, a.Store.Q, projectScope(p), KindPrompt, PromptName); err == nil {
+		v.Description = description(prompt)
+	}
+	m, err := loadManifest(ctx, a.Store.Q, p)
+	if err != nil {
+		v.ManifestError = err.Error()
+		return v, nil
+	}
+	v.Revision = m.Revision
+	for _, s := range m.Screens {
+		v.Screens = append(v.Screens, screenView{Name: s.Name, Title: s.Title})
+	}
+	if p.Status == store.ProjectDraft {
+		v.Rights = rights(m)
+	}
+	return v, m
 }
 
 func (a *App) projectCreate(ctx context.Context, act registry.Actor, in struct{ Name, Manifest, Prompt string }) (any, error) {

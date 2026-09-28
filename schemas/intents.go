@@ -54,7 +54,7 @@ func CheckInput(raw json.RawMessage) error {
 
 var (
 	rootKeys  = []string{"$schema", "type", "title", "description", "properties", "required", "additionalProperties"}
-	paramKeys = []string{"type", "format", "enum", "items", "title", "description", "default", "examples",
+	paramKeys = []string{"type", "format", "enum", "items", "title", "description", "default", "examples", "writeOnly",
 		"minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum", "multipleOf", "minLength", "maxLength", "pattern",
 		"minItems", "maxItems", "uniqueItems"}
 )

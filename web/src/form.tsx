@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  Alert, Button, FileInput, Group, Loader, MultiSelect, NumberInput, Select, Stack, Switch, Table, TagsInput, Text, TextInput, Textarea,
+  Alert, Button, FileInput, Group, Loader, MultiSelect, NumberInput, PasswordInput, Select, Stack, Switch, Table, TagsInput, Text,
+  TextInput, Textarea,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { useTranslation } from 'react-i18next';
@@ -17,6 +18,7 @@ export interface Schema {
   required?: string[];
   description?: string;
   title?: string;
+  writeOnly?: boolean;
 }
 
 type FormCommand = Omit<Generated['commands'][number], 'input' | 'result'> & { input?: Schema; result?: Schema };
@@ -63,6 +65,9 @@ function Field({ name, schema, value, files, readOnly, required, onValue, onFile
         : <TagsInput {...common} value={list} onChange={back} />;
     }
     case 'string':
+      if (schema.writeOnly) {
+        return <PasswordInput {...common} autoComplete="off" value={show(value)} onChange={(e) => onValue(e.currentTarget.value)} />;
+      }
       if (schema.format === 'text') {
         return <Textarea {...common} autosize minRows={2} value={show(value)} onChange={(e) => onValue(e.currentTarget.value)} />;
       }
@@ -115,14 +120,14 @@ export function Result({ value, schema }: { value: unknown; schema?: Schema }) {
             <Text size="sm" c="dimmed" w={140}>{schema?.properties?.[key]?.title || key}</Text>
             {o[key] !== null && typeof o[key] === 'object'
               ? <Result value={o[key]} schema={schema?.properties?.[key]} />
-              : <Text size="sm">{show(o[key])}</Text>}
+              : <Text size="sm" style={{ overflowWrap: 'anywhere' }}>{show(o[key])}</Text>}
           </Group>
         ))}
       </Stack>
     );
   }
   if (typeof value === 'number') return <Text fz={32} fw={700} data-result="number">{value}</Text>;
-  return <Text size="sm" style={{ whiteSpace: 'pre-wrap' }} data-result="text">{show(value)}</Text>;
+  return <Text size="sm" style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }} data-result="text">{show(value)}</Text>;
 }
 
 interface Outcome {
@@ -203,6 +208,8 @@ export function Form({ value }: { value: FormValue }) {
     try {
       const data = await input();
       const res = await call<unknown>(cmd.name, edit ? { record: value.record, data: JSON.stringify(data) } : data);
+      const hidden = Object.keys(props).filter((k) => props[k].writeOnly);
+      if (hidden.length && alive.current) setEdited((o) => Object.fromEntries(Object.entries(o).filter(([k]) => !hidden.includes(k))));
       if (Object.values(files).some((f) => f.length)) await sharedSent();
       const started = res && typeof res === 'object' && typeof (res as { process?: unknown }).process === 'number'
         && Object.keys(res).length === 1 ? (res as { process: number }).process : 0;

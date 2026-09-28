@@ -21,13 +21,17 @@ var SourceFields = map[string][]string{
 	"log":        {"at", "kind", "id", "title", "status", "text"},
 	"triggers": {"id", "project", "command", "kind", "spec", "params", "next_run_at", "paused", "project_paused", "skip_missed",
 		"last_process", "last_state"},
-	"projects":      {"id", "name", "status", "paused"},
+	"projects": {"id", "name", "status", "paused", "description", "revision", "rights", "autonomy", "no_network",
+		"manifest_error"},
+	"secrets":       {"name"},
+	"tokens":        {"id", "name", "commands", "created_at", "revoked"},
+	"health":        {"subject", "status", "error", "version", "updated_at"},
 	"notifications": {"id", "project", "text", "screen", "record", "created_at"},
 	"commands":      {"name", "title", "description", "project", "files"},
 }
 
 // deckSources are read only by the screens deck ships.
-var deckSources = []string{"providers", "log", "projects"}
+var deckSources = []string{"providers", "log", "projects", "secrets", "tokens", "health"}
 
 // RecordUpdate is the command a form on a record page edits its record with.
 const RecordUpdate = "deck.record_update"

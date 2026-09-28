@@ -35,6 +35,11 @@
     "resume": "Resume",
     "cancel_run": "Cancel",
     "send": "Send",
+    "enable": "Enable",
+    "autonomy_auto": "Let it act",
+    "autonomy_suggest": "Make it suggest",
+    "revoke": "Revoke",
+    "remove": "Remove",
     "cancel": "Cancel"
   },
   "input": {
@@ -48,6 +53,7 @@
     "save": "Open deck"
   },
   "filter": { "any": "Any {{field}}" },
+  "confirm": { "title": "{{action}}?" },
   "custom": { "ask": "A custom block wants to run a command that goes outside deck" },
   "board": {
     "move": "Move",

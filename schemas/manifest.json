@@ -231,7 +231,7 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "from": {"description": "What the block reads; collection by default. providers, log and projects are read only by the screens deck ships."},
+        "from": {"description": "What the block reads; collection by default. providers, log, projects, secrets, tokens and health are read only by the screens deck ships."},
         "project": {"type": "string", "description": "Another project the manifest reads."},
         "collection": {"type": "string"},
         "where": {"type": "string", "description": "Expression over the fields of an item; on a record page record is the record."},

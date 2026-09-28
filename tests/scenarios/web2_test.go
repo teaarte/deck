@@ -167,10 +167,9 @@ func TestFormAsksForTheInputAndShowsTheResultBySchema(t *testing.T) {
 	if !slices.Contains(names, "web.score") || slices.Contains(names, "web.touch") || slices.Contains(names, "web.ingest") {
 		t.Fatalf("shared files go to a command of the owner that takes a file: %v", names)
 	}
-	providers := e.screenData("", "providers", nil)
 	var picked formV
-	for _, b := range providers {
-		if raw, ok := b["value"]; ok {
+	for _, b := range e.screenData("", "settings", nil) {
+		if raw, ok := b["value"]; ok && strings.Contains(string(raw), `"deck.provider_set"`) {
 			picked = blockData[formV](t, raw)
 		}
 	}

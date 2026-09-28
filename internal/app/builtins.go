@@ -32,6 +32,10 @@ func (a *App) addBuiltins() {
 	add("project_enable", "Enable project", "Turns a draft on: its triggers start running and the rights its manifest asks for count as allowed.", ownerOnly,
 		registry.Params(registry.P("project", "project", "Project name"),
 			registry.P("revision", "integer", "The manifest revision whose rights the owner looked at")), registry.Typed(a.projectEnable))
+	add("project_autonomy", "Project autonomy", "Sets whether a project suggests, so the owner says yes to its reversible changes, or acts on its own and reports; a new manifest revision.", ownerOnly,
+		registry.Params(registry.P("project", "project", "Project name"),
+			registry.Param{Name: "autonomy", Type: "enum", Desc: "suggest or auto", Enum: []string{"suggest", "auto"}}),
+		registry.Typed(a.projectAutonomy))
 	add("command_try", "Trial run", "Starts a trial run of a project command: calls that are not internal are declined, nothing leaves deck.", ownerSide,
 		registry.Params(registry.P("command", "string", "Command name, project.command"), registry.Opt("input", "text", "Command input as a JSON object")),
 		registry.Typed(a.commandTry))
@@ -172,7 +176,7 @@ func (a *App) addBuiltins() {
 		registry.Params(), registry.Typed(a.snapshotCreate))
 
 	add("secret_set", "Set secret", "Stores a secret for tool headers as a file only deck reads; agents and scripts never see it.", ownerOnly,
-		registry.Params(registry.P("name", "string", "Secret name, as in $secret.<name>"), registry.P("value", "text", "Secret value")),
+		registry.Params(registry.P("name", "string", "Secret name, as in $secret.<name>"), registry.P("value", "secret", "Secret value; it is never shown again")),
 		registry.Typed(a.secretSet))
 	add("secrets_list", "Secrets", "Lists the names of stored secrets, never their values.", ownerOnly,
 		registry.Params(), registry.Typed(a.secretsList))

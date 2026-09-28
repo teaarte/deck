@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { Catalog, type ComponentApi, type ComponentContext } from '@a2ui/web_core/v0_9';
 import { createComponentImplementation, type ReactComponentImplementation } from '@a2ui/react/v0_9';
 import {
-  Alert, Anchor, Badge, Button, Card, CheckIcon, Chip, Code, Collapse, ColorSwatch, Group, Loader, SegmentedControl, Select,
+  Alert, Anchor, Badge, Button, Card, CheckIcon, Chip, Code, Collapse, ColorSwatch, Group, Loader, Modal, SegmentedControl, Select,
   SimpleGrid, Stack, Table, Tabs, Text, TextInput, Title, UnstyledButton, useMantineColorScheme, type MantineColorScheme,
 } from '@mantine/core';
 import { useInterval } from '@mantine/hooks';
@@ -56,6 +56,7 @@ function ActionButton({ act, context, params }: { act: Action; context: Componen
   const running = useRef(false);
   const [typing, setTyping] = useState(false);
   const [text, setText] = useState('');
+  const [asking, setAsking] = useState(false);
   const label = act.label || (act.verb ? t('verb.' + act.verb) : '');
   const send = async (extra?: Record<string, unknown>) => {
     if (running.current) return;
@@ -90,8 +91,24 @@ function ActionButton({ act, context, params }: { act: Action; context: Componen
       </Group>
     );
   }
+  const button = (
+    <Button size="xs" variant={act.primary ? 'filled' : 'default'} loading={busy} data-verb={act.verb}
+      onClick={() => (act.confirm ? setAsking(true) : void send())}>{label}</Button>
+  );
+  if (!act.confirm) return button;
   return (
-    <Button size="xs" variant={act.primary ? 'filled' : 'default'} loading={busy} onClick={() => send()}>{label}</Button>
+    <>
+      {button}
+      <Modal opened={asking} onClose={() => setAsking(false)} title={t('confirm.title', { action: label })}>
+        <Stack gap="sm" data-confirm>
+          <Code block>{JSON.stringify(act.params ?? {}, null, 2)}</Code>
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => setAsking(false)}>{t('verb.cancel')}</Button>
+            <Button color="red" onClick={() => { setAsking(false); void send(); }} data-confirm-yes>{label}</Button>
+          </Group>
+        </Stack>
+      </Modal>
+    </>
   );
 }
 

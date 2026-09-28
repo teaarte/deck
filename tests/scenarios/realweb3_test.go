@@ -55,7 +55,9 @@ func TestRealBrowserSettings(t *testing.T) {
 	b.call("browser_resize", map[string]any{"width": 1280, "height": 900})
 	b.open(e.URL + "/?token=" + token + "#/deck/settings")
 	b.until("the appearance tab", `document.querySelector('[data-appearance]')`)
-	root := func(v string) string { return `getComputedStyle(document.documentElement).getPropertyValue('` + v + `').trim()` }
+	root := func(v string) string {
+		return `getComputedStyle(document.documentElement).getPropertyValue('` + v + `').trim()`
+	}
 	if got := b.eval(`document.documentElement.dataset.mantineColorScheme + ' ' + document.querySelector('[data-look="scheme"] input[value="auto"]').checked`); got != "light true" {
 		t.Fatalf("the scheme follows the system, light in the headless browser: %s", got)
 	}
@@ -99,8 +101,73 @@ func TestRealBrowserSettings(t *testing.T) {
 		t.Fatalf("the new scheme brings its colors to the frame: %+v, want %s", ts, light)
 	}
 
+	_, tok := e.token("terminal", "deck.*")
+	if code, out := e.callWith(tok, "deck.project_create", map[string]any{"name": "notes", "manifest": draftManifest}); code != 200 {
+		t.Fatalf("project_create: %d %s", code, out)
+	}
+	tab := func(name string) {
+		b.eval(`([...document.querySelectorAll('[role=tab]')].find((x) => x.innerText.trim() === '` + name + `').click(), '')`)
+	}
+	b.open(e.URL + "/#/deck/settings")
+	b.until("the projects tab", `[...document.querySelectorAll('[data-item]')].some((x) => x.innerText.includes('notes · draft') && x.innerText.includes('enabling grants'))`)
+	b.eval(`([...document.querySelectorAll('[data-item]')].find((x) => x.innerText.includes('notes · draft')).querySelector('[data-verb="enable"]').click(), '')`)
+	b.until("the enabled draft", `[...document.querySelectorAll('[data-item]')].some((x) => x.innerText.includes('notes · enabled'))`)
+	if p := e.project("notes"); p.Status != "enabled" {
+		t.Fatalf("enable on the projects tab turns the draft on: %+v", p)
+	}
+	b.shot("settings-projects")
+
+	tab("Secrets")
+	secret := `document.querySelector('[data-form="deck.secret_set"] input[data-field="value"]')`
+	b.until("the secret form", secret)
+	if got := b.eval(secret + `.type`); got != "password" {
+		t.Fatalf("the value of a secret is typed into a hidden field: %s", got)
+	}
+	b.type_(`document.querySelector('[data-form="deck.secret_set"] input[data-field="name"]')`, "mail-key")
+	b.type_(secret, "s3cret-value")
+	b.eval(`(document.querySelector('[data-form="deck.secret_set"] [data-submit]').click(), '')`)
+	b.until("the secret in the list and its value gone from the field", `[...document.querySelectorAll('[data-item]')].some((x) => x.innerText.trim() === 'mail-key') && `+secret+`.value === ''`)
+	if got := b.eval(`String(document.body.innerText.includes('s3cret-value'))`); got != "false" {
+		t.Fatal("the value of a secret is not on the page after it is set")
+	}
+
+	tab("Tokens")
+	b.until("the token form", `document.querySelector('[data-form="deck.token_create"]')`)
+	b.type_(`document.querySelector('[data-form="deck.token_create"] input[data-field="name"]')`, "shortcuts")
+	b.eval(`(() => { const i = document.querySelector('[data-form="deck.token_create"] input[data-field="commands"]'); i.focus();
+		Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(i, 'deck.notify');
+		i.dispatchEvent(new Event('input', { bubbles: true })); i.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); return '' })()`)
+	b.eval(`(document.querySelector('[data-form="deck.token_create"] [data-submit]').click(), '')`)
+	b.until("the new token shown once under its form", `document.querySelector('[data-form="deck.token_create"] [data-outcome="done"]')?.innerText.includes('claude mcp add')`)
+	if got := b.eval(`[...document.querySelectorAll('[data-form="deck.token_create"] [data-field]')].map((x) => x.dataset.field).join(' ')`); got != "name commands" {
+		t.Fatalf("a form asks in the order of the command's params: %s", got)
+	}
+	b.until("the token in the list", `[...document.querySelectorAll('tr')].some((r) => r.innerText.includes('shortcuts') && r.innerText.includes('live'))`)
+	b.eval(`([...document.querySelectorAll('tr')].find((r) => r.innerText.includes('shortcuts')).querySelector('[data-verb="revoke"]').click(), '')`)
+	b.until("the owner asked before the revoke", `document.querySelector('[data-confirm]')`)
+	var toks []struct {
+		Name    string
+		Revoked bool
+	}
+	e.must("deck.tokens_list", nil, &toks)
+	for _, x := range toks {
+		if x.Name == "shortcuts" && x.Revoked {
+			t.Fatal("the token is not revoked before the owner says yes")
+		}
+	}
+	b.eval(`(document.querySelector('[data-confirm-yes]').click(), '')`)
+	b.until("the revoked token", `[...document.querySelectorAll('tr')].some((r) => r.innerText.includes('shortcuts') && r.innerText.includes('revoked'))`)
+	b.shot("settings-tokens")
+
 	b.call("browser_resize", map[string]any{"width": 390, "height": 844})
 	b.open(e.URL + "/#/deck/settings")
+	tab("Projects")
+	b.until("the projects tab on a phone", `[...document.querySelectorAll('[data-item]')].some((x) => x.offsetParent && x.innerText.includes('notes · enabled'))`)
+	if got := b.eval(`String(document.documentElement.scrollWidth <= innerWidth + 1)`); got != "true" {
+		t.Fatalf("the projects tab fits the width of a phone: %s", got)
+	}
+	b.shot("settings-projects-phone")
+	tab("Interface")
 	b.until("the appearance tab on a phone", `document.querySelector('[data-appearance]')`)
 	if got := b.eval(`String(document.documentElement.scrollWidth <= innerWidth + 1)`); got != "true" {
 		t.Fatalf("settings fit the width of a phone: %s", got)

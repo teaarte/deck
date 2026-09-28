@@ -136,6 +136,7 @@ func (a *App) providerAdd(ctx context.Context, act registry.Actor, in struct {
 	if d.Agent != "" {
 		a.startCheck(in.Name, true)
 	}
+	a.Bus.Publish("health")
 	return map[string]any{"name": in.Name}, nil
 }
 
@@ -158,6 +159,7 @@ func (a *App) providerRemove(ctx context.Context, act registry.Actor, in struct{
 	if n == 0 {
 		return nil, registry.NotFound("deck: no provider %q to remove", in.Name)
 	}
+	a.Bus.Publish("health")
 	return map[string]any{"removed": in.Name}, nil
 }
 

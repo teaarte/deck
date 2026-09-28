@@ -257,7 +257,7 @@ func TestScreenBlocksFollowTheCatalog(t *testing.T) {
 		len(menu[1].Screens) != 1 || menu[1].Screens[0].Name != "main" {
 		t.Fatalf("the menu has deck's screens, then the project menu: %+v", menu)
 	}
-	for _, name := range []string{"cockpit", "providers"} {
+	for _, name := range []string{"cockpit", "schedule", "settings"} {
 		check.messages(t, e.screenMessages("", name, nil))
 	}
 }
@@ -411,8 +411,8 @@ func TestScreenTopicReadsOnlyTheBlocksItChanges(t *testing.T) {
 	if got := paths("", "cockpit", "processes"); !slices.Equal(got, []string{"/b1-0"}) {
 		t.Fatalf("processes reads the processes block: %v", got)
 	}
-	if got := paths("", "providers", "health"); !slices.Equal(got, []string{"/b0"}) {
-		t.Fatalf("health reads the providers: %v", got)
+	if got := paths("", "settings", "health"); !slices.Equal(got, []string{"/b0-1-0", "/b0-5-0"}) {
+		t.Fatalf("health reads the providers and the health: %v", got)
 	}
 	for _, topic := range []string{"projects", "chat"} {
 		if n := len(e.screenMessages("notes", "main", map[string]any{"topic": topic})); n != 3 || len(e.screenData("notes", "main", map[string]any{"topic": topic})) != 6 {

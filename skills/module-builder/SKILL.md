@@ -15,7 +15,10 @@ You talk to deck through its MCP server (`deck`). The tools are deck commands: `
 `command_try`, `process_get`, `process_log`, `records_list`, `records_upsert`, `cards_list`, `files_list`,
 `projects_list`, `triggers_list`, `providers_list`, `health_list`, `asks_list`. Some commands only the owner runs:
 `secret_set`, `oauth_start`, `browser_login`, `provider_set`, `provider_add`, `project_enable`; say which one and
-why when the module needs it.
+why when the module needs it. The owner does them on deck's Settings screen: Projects (a draft with the rights
+enabling it grants, "Enable", autonomy, pause, a trial run), Providers (add one, pick the provider of a command),
+Secrets (name and a hidden value), Tokens, Health; sign-ins wait in the cockpit. So name the tab and the value
+("Settings → Secrets: `mail-key`, the API key of …"), never a `curl`.
 
 ## 1. Interview
 

@@ -8,7 +8,7 @@ import (
 	"deck2/schemas"
 )
 
-// Param describes one input parameter. Type is string, text, integer, number, boolean, date, datetime,
+// Param describes one input parameter. Type is string, text, secret, integer, number, boolean, date, datetime,
 // file, a ref from Refs, "enum" with Enum set, or any of these with a "[]" suffix for a list.
 type Param struct {
 	Name     string
@@ -23,17 +23,22 @@ func Opt(name, typ, desc string) Param {
 	return Param{Name: name, Type: typ, Desc: desc, Optional: true}
 }
 
-// Params builds a closed object schema from parameters.
+// Params builds a closed object schema from parameters; its properties keep their order, so a form asks in it.
 func Params(ps ...Param) json.RawMessage {
-	props := map[string]any{}
+	props := []byte{'{'}
 	required := []string{}
-	for _, p := range ps {
-		props[p.Name] = paramSchema(p)
+	for i, p := range ps {
+		if i > 0 {
+			props = append(props, ',')
+		}
+		k, _ := json.Marshal(p.Name)
+		v, _ := json.Marshal(paramSchema(p))
+		props = append(append(append(props, k...), ':'), v...)
 		if !p.Optional {
 			required = append(required, p.Name)
 		}
 	}
-	b, _ := json.Marshal(map[string]any{"type": "object", "properties": props, "required": required, "additionalProperties": false})
+	b, _ := json.Marshal(map[string]any{"type": "object", "properties": json.RawMessage(append(props, '}')), "required": required, "additionalProperties": false})
 	return b
 }
 
@@ -48,6 +53,8 @@ func paramSchema(p Param) map[string]any {
 		s["type"] = p.Type
 	case "text":
 		s["type"], s["format"] = "string", "text"
+	case "secret":
+		s["type"], s["writeOnly"] = "string", true
 	case "date":
 		s["type"], s["format"] = "string", "date"
 	case "datetime":

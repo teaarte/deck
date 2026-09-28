@@ -1,5 +1,5 @@
 {
-  "menu": ["cockpit", "schedule", "settings", "providers"],
+  "menu": ["cockpit", "schedule", "settings"],
   "screens": [
     {
       "name": "cockpit",
@@ -52,7 +52,51 @@
       "title": "Settings",
       "blocks": [
         {"type": "tabs", "tabs": [
-          {"title": "Interface", "blocks": [{"type": "appearance", "title": "Appearance"}]}
+          {"title": "Projects", "blocks": [
+            {"type": "list", "title": "Projects", "source": {"from": "projects", "sort": "name"}, "filter": ["status"],
+              "item": {"title": "name + ' · ' + status + (paused ? ', paused' : '')", "text": "manifest_error != '' ? 'manifest: ' + manifest_error : description",
+                "meta": "'autonomy: ' + autonomy + (no_network ? ' · no network' : '') + (rights != '' ? ' · enabling grants: ' + rights : '')"}},
+            {"type": "form", "title": "Trial run", "command": "deck.command_try"}
+          ]},
+          {"title": "Providers", "blocks": [
+            {"type": "table", "title": "Providers", "source": {"from": "providers"},
+              "columns": [
+                {"label": "Name", "bind": "name"},
+                {"label": "Agent", "bind": "agent"},
+                {"label": "Model", "bind": "model"},
+                {"label": "Status", "bind": "status"},
+                {"label": "Self-check", "bind": "verdict == 'model' ? 'the model does not manage it' : verdict == 'adapter' ? 'the adapter is broken' : ''"},
+                {"label": "Tokens/s", "bind": "speed > 0 ? string(int(speed)) : ''"},
+                {"label": "Error", "bind": "error"}
+              ]},
+            {"type": "form", "title": "Add a provider", "command": "deck.provider_add"},
+            {"type": "form", "title": "Choose the provider of a command", "command": "deck.provider_set"}
+          ]},
+          {"title": "Secrets", "blocks": [
+            {"type": "list", "title": "Secrets", "source": {"from": "secrets"}, "item": {"title": "name"}},
+            {"type": "form", "title": "Set or replace a secret", "command": "deck.secret_set"}
+          ]},
+          {"title": "Tokens", "blocks": [
+            {"type": "table", "title": "Automation tokens", "source": {"from": "tokens", "sort": "-id"},
+              "columns": [
+                {"label": "Name", "bind": "name"},
+                {"label": "Commands", "bind": "commands"},
+                {"label": "Created", "bind": "created_at"},
+                {"label": "State", "bind": "revoked ? 'revoked' : 'live'"}
+              ]},
+            {"type": "form", "title": "Create a token", "command": "deck.token_create"}
+          ]},
+          {"title": "Interface", "blocks": [{"type": "appearance", "title": "Appearance"}]},
+          {"title": "Health", "blocks": [
+            {"type": "table", "title": "Health", "source": {"from": "health"}, "filter": ["status"],
+              "columns": [
+                {"label": "What", "bind": "subject"},
+                {"label": "Status", "bind": "status"},
+                {"label": "Why", "bind": "error"},
+                {"label": "Version", "bind": "version"},
+                {"label": "Since", "bind": "updated_at"}
+              ]}
+          ]}
         ]}
       ]
     },
@@ -61,23 +105,6 @@
       "title": "Share",
       "blocks": [
         {"type": "form", "title": "Send the shared files to", "source": {"from": "commands", "where": "len(files) > 0"}}
-      ]
-    },
-    {
-      "name": "providers",
-      "title": "Providers",
-      "blocks": [
-        {"type": "table", "title": "Providers", "source": {"from": "providers"},
-          "columns": [
-            {"label": "Name", "bind": "name"},
-            {"label": "Agent", "bind": "agent"},
-            {"label": "Model", "bind": "model"},
-            {"label": "Status", "bind": "status"},
-            {"label": "Self-check", "bind": "verdict == 'model' ? 'the model does not manage it' : verdict == 'adapter' ? 'the adapter is broken' : ''"},
-            {"label": "Tokens/s", "bind": "speed > 0 ? string(int(speed)) : ''"},
-            {"label": "Error", "bind": "error"}
-          ]},
-        {"type": "form", "title": "Choose the provider of a command", "command": "deck.provider_set"}
       ]
     },
     {

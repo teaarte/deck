@@ -42,6 +42,7 @@ func (a *App) secretSet(ctx context.Context, act registry.Actor, in struct{ Name
 	if err := a.writeSecret(act.Workspace, in.Name, in.Value); err != nil {
 		return nil, err
 	}
+	a.Bus.Publish("secrets")
 	return map[string]any{"name": in.Name}, nil
 }
 

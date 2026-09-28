@@ -44,7 +44,7 @@ UPDATE card SET process_id = ? WHERE id = ?;
 
 
 -- name: DeleteCard :execrows
-UPDATE card SET deleted_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ? AND deleted_at IS NULL;
+UPDATE card SET deleted_at = sqlc.arg(deleted_at) WHERE id = sqlc.arg(id) AND deleted_at IS NULL;
 
 
 -- name: RestoreCard :execrows

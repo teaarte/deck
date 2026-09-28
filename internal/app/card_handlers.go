@@ -2,9 +2,11 @@ package app
 
 import (
 	"context"
+	"database/sql"
 	"strings"
 
 	"deck2/internal/registry"
+	"deck2/internal/store"
 	"deck2/internal/store/db"
 )
 
@@ -195,7 +197,7 @@ func (a *App) cardDelete(ctx context.Context, act registry.Actor, in struct{ Car
 		if _, err := cardFor(ctx, q, act, in.Card, w); err != nil {
 			return err
 		}
-		_, err := q.DeleteCard(ctx, in.Card)
+		_, err := q.DeleteCard(ctx, db.DeleteCardParams{DeletedAt: sql.NullString{String: store.Time(a.Cfg.Now()), Valid: true}, ID: in.Card})
 		return err
 	})
 	if err != nil {

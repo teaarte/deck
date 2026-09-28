@@ -346,3 +346,14 @@ func TestWaitsOnDeletedCardsHideAndReturn(t *testing.T) {
 		t.Fatalf("restoring a card brings its waits back: %+v", back)
 	}
 }
+
+func TestADeletedCardGoesADayLaterByTheClockOfDeck(t *testing.T) {
+	e := newClockEnv(t, nil)
+	e.createProject("work", boardManifest)
+	a := e.card(map[string]any{"project": "work", "title": "A"})
+	e.must("deck.card_delete", map[string]any{"card": a.ID}, nil)
+	e.App.Sweep(context.Background(), e.Clock.Add(23*time.Hour))
+	e.must("deck.card_get", map[string]any{"card": a.ID}, nil)
+	e.App.Sweep(context.Background(), e.Clock.Add(2*time.Hour))
+	e.refused("deck.card_get", map[string]any{"card": a.ID}, 404, "no card")
+}

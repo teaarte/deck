@@ -99,11 +99,16 @@ func (q *Queries) CreateCard(ctx context.Context, arg CreateCardParams) (Card, e
 }
 
 const deleteCard = `-- name: DeleteCard :execrows
-UPDATE card SET deleted_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ? AND deleted_at IS NULL
+UPDATE card SET deleted_at = ?1 WHERE id = ?2 AND deleted_at IS NULL
 `
 
-func (q *Queries) DeleteCard(ctx context.Context, id int64) (int64, error) {
-	result, err := q.db.ExecContext(ctx, deleteCard, id)
+type DeleteCardParams struct {
+	DeletedAt sql.NullString
+	ID        int64
+}
+
+func (q *Queries) DeleteCard(ctx context.Context, arg DeleteCardParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteCard, arg.DeletedAt, arg.ID)
 	if err != nil {
 		return 0, err
 	}

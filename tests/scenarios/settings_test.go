@@ -246,6 +246,9 @@ func TestSettingsProvidersAddAndRemoveOnTheScreen(t *testing.T) {
 			t.Fatalf("a built-in provider cannot be removed: %+v", r)
 		}
 	}
+	if hasVerb(added.Actions, "check") {
+		t.Fatalf("a provider without a self-check has no check button: %+v", added.Actions)
+	}
 	remove := verb(t, added.Actions, "remove")
 	if remove["confirm"] != true || added.Cells[2] != "small" {
 		t.Fatalf("an added provider shows its model and is removed after a yes: %+v", added)

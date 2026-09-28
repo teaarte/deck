@@ -334,6 +334,11 @@ func TestACPSelfCheckIsRedWhenTheSandboxOrTheProxyFails(t *testing.T) {
 		if i := slices.IndexFunc(pl.Providers, func(p struct{ Agent, Verdict string }) bool { return p.Agent == "dsh" }); i < 0 || pl.Providers[i].Verdict != verdict {
 			t.Fatalf("the providers list shows the agent and the verdict %q: %+v", verdict, pl.Providers)
 		}
+		for _, r := range blockData[[]screenRow](t, e.settingsBlock("Providers", nil)["rows"]) {
+			if r.Cells[0] == "acp" && !hasVerb(r.Actions, "check") {
+				t.Fatalf("a provider with a self-check can run it again: %+v", r.Actions)
+			}
+		}
 		f.streamText(0, acpStream(acpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,
 			`{"mcp": {"tool": "result_submit", "arguments": {"result": {"color": "blue"}}}}`, `{"end": "end_turn"}`))
 		id := e.run(e.acpProject("paint", colorManifest), "work")

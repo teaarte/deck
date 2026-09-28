@@ -16,6 +16,7 @@ import (
 	"deck2/internal/gateway"
 	"deck2/internal/manifest"
 	"deck2/internal/process"
+	"deck2/internal/provider"
 	"deck2/internal/registry"
 	"deck2/internal/screen"
 	"deck2/internal/store"
@@ -483,13 +484,9 @@ func (s sources) healthItems(ctx context.Context, sc screen.Scope) ([]map[string
 	if err != nil {
 		return nil, err
 	}
-	mine := map[string]bool{}
-	all, err := s.a.providers(ctx, sc.Workspace)
+	mine, checked, err := s.checkable(ctx, sc.Workspace)
 	if err != nil {
 		return nil, err
-	}
-	for _, pv := range all {
-		mine[pv.Name()] = true
 	}
 	rank := map[string]int{"error": 0, "needs_login": 1, "paused": 1, "checking": 2, "ok": 3}
 	rows := slices.DeleteFunc(got.([]map[string]any), func(r map[string]any) bool {
@@ -502,7 +499,7 @@ func (s sources) healthItems(ctx context.Context, sc screen.Scope) ([]map[string
 		version, _ := r["version"].(string)
 		it := map[string]any{"id": r["subject"], "subject": r["subject"], "status": r["status"], "error": r["error"],
 			"version": version, "updated_at": r["updated_at"]}
-		if name, ok := strings.CutPrefix(fmt.Sprint(r["subject"]), "provider:"); ok {
+		if name, ok := strings.CutPrefix(fmt.Sprint(r["subject"]), "provider:"); ok && checked[name] {
 			it["_actions"] = []map[string]any{call("check", false, "deck.provider_check", map[string]any{"provider": name})}
 		}
 		out = append(out, it)
@@ -601,6 +598,20 @@ func finished(state string) bool {
 	return slices.Contains([]string{process.StateDone, process.StateError, process.StateInterrupted, process.StateStopped}, state)
 }
 
+// checkable are the providers of the workspace, and those of them with a self-check to run again.
+func (s sources) checkable(ctx context.Context, workspace int64) (all, checked map[string]bool, err error) {
+	pvs, err := s.a.providers(ctx, workspace)
+	if err != nil {
+		return nil, nil, err
+	}
+	all, checked = map[string]bool{}, map[string]bool{}
+	for _, pv := range pvs {
+		all[pv.Name()] = true
+		_, checked[pv.Name()] = pv.(provider.SelfChecker)
+	}
+	return all, checked, nil
+}
+
 func (s sources) providerItems(ctx context.Context, sc screen.Scope) ([]map[string]any, error) {
 	got, err := s.a.providersList(ctx, registry.Actor{Kind: registry.Owner, Workspace: sc.Workspace}, struct{ Command string }{})
 	if err != nil {
@@ -611,13 +622,20 @@ func (s sources) providerItems(ctx context.Context, sc screen.Scope) ([]map[stri
 	for _, pv := range s.a.builtin {
 		builtin[pv.Name()] = true
 	}
+	_, checked, err := s.checkable(ctx, sc.Workspace)
+	if err != nil {
+		return nil, err
+	}
 	out := make([]map[string]any, 0, len(views))
 	for _, v := range views {
 		caps := make([]string, 0, len(v.Caps))
 		for _, c := range v.Caps {
 			caps = append(caps, string(c))
 		}
-		acts := []map[string]any{call("check", false, "deck.provider_check", map[string]any{"provider": v.Name})}
+		acts := []map[string]any{}
+		if checked[v.Name] {
+			acts = append(acts, call("check", false, "deck.provider_check", map[string]any{"provider": v.Name}))
+		}
 		if !builtin[v.Name] {
 			acts = append(acts, confirmed(call("remove", false, "deck.provider_remove", map[string]any{"name": v.Name})))
 		}

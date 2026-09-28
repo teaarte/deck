@@ -417,50 +417,6 @@ func (q *Queries) GetAskWorkspace(ctx context.Context, id int64) (int64, error) 
 	return workspace_id, err
 }
 
-const listOpenAsks = `-- name: ListOpenAsks :many
-SELECT id, process_id, workspace_id, project_id, kind, text, payload, answer, state, delivered, used, created_at, answered_at, expires_at, result, dismissed FROM ask WHERE state = 'open' ORDER BY id
-`
-
-func (q *Queries) ListOpenAsks(ctx context.Context) ([]Ask, error) {
-	rows, err := q.db.QueryContext(ctx, listOpenAsks)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []Ask
-	for rows.Next() {
-		var i Ask
-		if err := rows.Scan(
-			&i.ID,
-			&i.ProcessID,
-			&i.WorkspaceID,
-			&i.ProjectID,
-			&i.Kind,
-			&i.Text,
-			&i.Payload,
-			&i.Answer,
-			&i.State,
-			&i.Delivered,
-			&i.Used,
-			&i.CreatedAt,
-			&i.AnsweredAt,
-			&i.ExpiresAt,
-			&i.Result,
-			&i.Dismissed,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listOpenAsksOfProcess = `-- name: ListOpenAsksOfProcess :many
 SELECT id, process_id, workspace_id, project_id, kind, text, payload, answer, state, delivered, used, created_at, answered_at, expires_at, result, dismissed FROM ask WHERE process_id = CAST(?1 AS INTEGER) AND state IN ('open', 'running') AND kind NOT IN ('warning', 'limit') ORDER BY id
 `

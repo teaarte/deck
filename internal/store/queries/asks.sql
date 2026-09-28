@@ -14,10 +14,6 @@ INSERT INTO ask (workspace_id, project_id, kind, text, payload) VALUES (?, ?, ?,
 SELECT * FROM ask WHERE id = ?;
 
 
--- name: ListOpenAsks :many
-SELECT * FROM ask WHERE state = 'open' ORDER BY id;
-
-
 -- name: ListWorkspaceOpenAsks :many
 SELECT * FROM ask WHERE state = 'open' AND workspace_id = ? ORDER BY id;
 

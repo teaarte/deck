@@ -8,10 +8,6 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *;
 SELECT * FROM process WHERE id = ?;
 
 
--- name: ListProcesses :many
-SELECT * FROM process ORDER BY id DESC LIMIT ?;
-
-
 -- name: ListProcessesFiltered :many
 SELECT * FROM process
 WHERE project_id IN (SELECT id FROM project WHERE workspace_id = sqlc.arg(workspace_id))

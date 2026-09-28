@@ -569,63 +569,6 @@ func (q *Queries) ListProcessGroups(ctx context.Context) ([]ListProcessGroupsRow
 	return items, nil
 }
 
-const listProcesses = `-- name: ListProcesses :many
-SELECT id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, kind, manifest_revision, trial, pause_until_ms, pause_limit_ms, wait_message, wait_fresh FROM process ORDER BY id DESC LIMIT ?
-`
-
-func (q *Queries) ListProcesses(ctx context.Context, limit int64) ([]Process, error) {
-	rows, err := q.db.QueryContext(ctx, listProcesses, limit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []Process
-	for rows.Next() {
-		var i Process
-		if err := rows.Scan(
-			&i.ID,
-			&i.ProjectID,
-			&i.Command,
-			&i.State,
-			&i.Provider,
-			&i.SessionID,
-			&i.Input,
-			&i.Result,
-			&i.NotBySchema,
-			&i.Error,
-			&i.StartedAt,
-			&i.FinishedAt,
-			&i.StartNote,
-			&i.ParentID,
-			&i.Depth,
-			&i.TriggerID,
-			&i.RetryKey,
-			&i.Pgid,
-			&i.CeilingMs,
-			&i.DeadlineMs,
-			&i.OutputMs,
-			&i.SilentSinceMs,
-			&i.Kind,
-			&i.ManifestRevision,
-			&i.Trial,
-			&i.PauseUntilMs,
-			&i.PauseLimitMs,
-			&i.WaitMessage,
-			&i.WaitFresh,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listProcessesByState = `-- name: ListProcessesByState :many
 SELECT id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, kind, manifest_revision, trial, pause_until_ms, pause_limit_ms, wait_message, wait_fresh FROM process WHERE state = ? ORDER BY id
 `

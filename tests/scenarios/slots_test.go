@@ -38,12 +38,14 @@ func TestAgentLimitHoldsTheFourthAgentUntilASlotFreesAndScriptsDoNotCount(t *tes
 	e := newEnv(t, held(release))
 	p := e.createProject("jobs", testManifest([]string{agentCommand("job", "")}, nil))
 	var ids []int64
-	for range 5 {
+	for range 3 {
 		ids = append(ids, e.run(p, "job"))
 	}
-	e.waitFor("three agents running and two waiting for a slot", func() bool {
-		return e.states(ids) == "running running running waiting_slot waiting_slot"
-	})
+	e.waitFor("three agents at their provider", func() bool { return len(e.Fake.Calls()) == 3 })
+	for _, want := range []string{"running running running waiting_slot", "running running running waiting_slot waiting_slot"} {
+		ids = append(ids, e.run(p, "job"))
+		e.waitFor(want, func() bool { return e.states(ids) == want })
+	}
 	time.Sleep(300 * time.Millisecond)
 	if n := len(e.Fake.Calls()); n != 3 {
 		t.Fatalf("a process waiting for a slot does not reach its provider: %d calls", n)

@@ -2,22 +2,19 @@ package gateway
 
 import (
 	"context"
-	"crypto/rand"
 	"crypto/subtle"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
 
+	"deck2/internal/nonce"
 	"deck2/internal/registry"
 )
 
 // Grant issues a token for a process that reaches the gateway over HTTP rather than MCP.
 func (g *Gateway) Grant(s *Session) string {
-	b := make([]byte, 16)
-	_, _ = rand.Read(b)
-	tok := hex.EncodeToString(b)
+	tok := nonce.Hex(16)
 	g.mu.Lock()
 	g.sessions[tok] = &entry{session: s}
 	g.mu.Unlock()

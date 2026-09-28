@@ -2,21 +2,19 @@ package provider
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"net"
 	"net/http"
 	"sync"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+
+	"deck2/internal/nonce"
 )
 
 // CheckWord is a random word a self-check looks for in what the agent did.
 func CheckWord() string {
-	b := make([]byte, 4)
-	_, _ = rand.Read(b)
-	return "deck-check-" + hex.EncodeToString(b)
+	return "deck-check-" + nonce.Hex(4)
 }
 
 // ServeCheck serves the MCP server of a self-check on a local port and gives its URL and how to stop it.

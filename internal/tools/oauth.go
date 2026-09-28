@@ -2,8 +2,6 @@ package tools
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,6 +12,7 @@ import (
 
 	"golang.org/x/oauth2"
 
+	"deck2/internal/nonce"
 	"deck2/internal/registry"
 )
 
@@ -146,9 +145,7 @@ func (o *OAuth) Start(ctx context.Context, workspace int64, a Auth, done func(er
 		_ = ln.Close()
 		return "", err
 	}
-	b := make([]byte, 16)
-	_, _ = rand.Read(b)
-	state, verifier := hex.EncodeToString(b), oauth2.GenerateVerifier()
+	state, verifier := nonce.Hex(16), oauth2.GenerateVerifier()
 	var once sync.Once
 	srv := &http.Server{ReadHeaderTimeout: 10 * time.Second}
 	finish := func(err error) {

@@ -3,9 +3,7 @@ package files
 
 import (
 	"context"
-	"crypto/rand"
 	"database/sql"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -16,6 +14,7 @@ import (
 	"strings"
 	"syscall"
 
+	"deck2/internal/nonce"
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
 )
@@ -129,9 +128,7 @@ func (d Dirs) Save(process int64, tool, ct string, body io.Reader, limit int64) 
 		return "", 0, fmt.Errorf("deck: %s answered with a file, but process %d has no results folder any more", tool, process)
 	}
 	defer root.Close()
-	b := make([]byte, 4)
-	_, _ = rand.Read(b)
-	name := strings.ReplaceAll(tool, "/", "_") + "-" + hex.EncodeToString(b) + Ext(ct)
+	name := strings.ReplaceAll(tool, "/", "_") + "-" + nonce.Hex(4) + Ext(ct)
 	f, err := root.OpenFile(filepath.Join("results", name), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
 	if err != nil {
 		return "", 0, fmt.Errorf("deck: saving the file %s answered: %v", tool, err)

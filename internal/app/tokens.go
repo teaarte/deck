@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -11,6 +10,7 @@ import (
 	"regexp"
 	"strings"
 
+	"deck2/internal/nonce"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
@@ -54,9 +54,7 @@ func (a *App) tokenCreate(ctx context.Context, act registry.Actor, in struct {
 			return nil, registry.Invalid("deck: %q is not a command name, project.* or *", c)
 		}
 	}
-	b := make([]byte, 24)
-	_, _ = rand.Read(b)
-	raw := TokenPrefix + hex.EncodeToString(b)
+	raw := TokenPrefix + nonce.Hex(24)
 	cmds, _ := json.Marshal(in.Commands)
 	t, err := store.TxGet(a.Store, ctx, func(ctx context.Context, q *db.Queries) (db.AutomationToken, error) {
 		return q.CreateToken(ctx, db.CreateTokenParams{WorkspaceID: act.Workspace, Name: in.Name, Hash: tokenHash(raw), Commands: string(cmds)})

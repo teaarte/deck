@@ -2,8 +2,6 @@ package main
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
 	"flag"
 	"fmt"
@@ -21,6 +19,7 @@ import (
 
 	"deck2/internal/api"
 	"deck2/internal/app"
+	"deck2/internal/nonce"
 	"deck2/internal/provider/claudecode"
 	"deck2/internal/provider/codex"
 	"deck2/internal/tsnet"
@@ -153,11 +152,7 @@ func loadToken(path string) (string, error) {
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return "", err
 	}
-	raw := make([]byte, 24)
-	if _, err := rand.Read(raw); err != nil {
-		return "", err
-	}
-	tok := hex.EncodeToString(raw)
+	tok := nonce.Hex(24)
 	if err := os.WriteFile(path, []byte(tok+"\n"), 0o600); err != nil {
 		return "", err
 	}

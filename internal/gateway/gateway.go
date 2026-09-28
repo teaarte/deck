@@ -2,8 +2,6 @@ package gateway
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -16,6 +14,7 @@ import (
 	"deck2/internal/ask"
 	"deck2/internal/events"
 	"deck2/internal/manifest"
+	"deck2/internal/nonce"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
 	"deck2/internal/store"
@@ -99,9 +98,7 @@ func New(cfg Config, st *store.Store, asks *ask.Broker, bus *events.Bus, reg *re
 
 // Register issues a token for a process; the token is part of the MCP URL the provider connects to.
 func (g *Gateway) Register(ctx context.Context, s *Session) (string, error) {
-	b := make([]byte, 16)
-	_, _ = rand.Read(b)
-	tok := hex.EncodeToString(b)
+	tok := nonce.Hex(16)
 	srv, allowed, tools, err := g.newServer(ctx, tok, s)
 	if err != nil {
 		return "", err

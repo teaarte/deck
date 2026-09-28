@@ -374,3 +374,23 @@ print(json.dumps({"files": [{"path": "a.txt"}, {"path": "./a.txt"}]}))
 		t.Fatalf("a refused result keeps no file rows: %+v", files)
 	}
 }
+
+func TestAChattyScriptDoesNotWriteTheDatabaseForEachLine(t *testing.T) {
+	e := newClockEnv(t, nil)
+	e.createProject("chatty", scriptManifest("talk", "", ""))
+	e.saveScript("chatty", "scripts/main.py", "import sys\nfor i in range(3000):\n    print('line', i, file=sys.stderr, flush=True)\nprint('null')\n")
+	changes := func() int {
+		var n int
+		if err := e.App.Store.DB.QueryRow(`SELECT total_changes()`).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	before := changes()
+	if p := e.waitScript(e.start("chatty", "talk", nil), "done", "error"); p.State != "done" {
+		t.Fatalf("the script finishes: %+v", p)
+	}
+	if n := changes() - before; n > 300 {
+		t.Fatalf("3000 lines of stderr are one output mark a second, not a write each: %d rows changed", n)
+	}
+}

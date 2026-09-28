@@ -235,12 +235,22 @@ type logLine struct {
 	Text   string `json:"text,omitempty"`
 }
 
-// event appends a top-level provider event to the process log and moves its last output time.
+// event appends a top-level provider event to the process log and moves its last output time, at most once a second.
 func (r *Runner) event(ctx context.Context, processID int64, stream *os.File, e provider.Event) {
 	now := r.now()
 	b, _ := json.Marshal(logLine{At: store.Time(now), Kind: e.Kind, ID: e.ID, Title: e.Title, Status: e.Status, Text: untrusted.Cut(e.Text, 4000)})
 	_, _ = stream.Write(append(b, '\n'))
 	r.bus.Publish("log")
+	r.mu.Lock()
+	last, seen := r.marked[processID]
+	due := !seen || now.Sub(last) >= time.Second
+	if due {
+		r.marked[processID] = now
+	}
+	r.mu.Unlock()
+	if !due {
+		return
+	}
 	wasSilent := false
 	_ = r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		p, err := q.GetProcess(ctx, processID)

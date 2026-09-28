@@ -81,6 +81,8 @@ type Runner struct {
 	live    map[int64]*liveTurn
 	// stopping holds stops of processes whose live turn was cancelled; a turn spawned after it does not run.
 	stopping map[int64]string
+	// marked is when the output time of each open process was last written.
+	marked map[int64]time.Time
 }
 
 type liveTurn struct{ cancel context.CancelCauseFunc }
@@ -111,7 +113,7 @@ type Projects interface {
 func NewRunner(st *store.Store, gw *gateway.Gateway, bus *events.Bus, p Providers, scripts *script.Exec, cfg Config, projects Projects) *Runner {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Runner{st: st, gw: gw, bus: bus, providers: p, scripts: scripts, cfg: cfg, projects: projects, ctx: ctx, cancel: cancel,
-		live: map[int64]*liveTurn{}, stopping: map[int64]string{}}
+		live: map[int64]*liveTurn{}, stopping: map[int64]string{}, marked: map[int64]time.Time{}}
 }
 
 // Shutdown interrupts running providers and waits; interrupted processes stay running and resume on next start.
@@ -191,6 +193,7 @@ func (r *Runner) finish(ctx context.Context, processID int64, state, result stri
 	}
 	r.mu.Lock()
 	delete(r.stopping, processID)
+	delete(r.marked, processID)
 	r.mu.Unlock()
 	r.dropped(ctx, closedCalls)
 	r.closed(processID)

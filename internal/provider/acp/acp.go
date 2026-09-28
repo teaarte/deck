@@ -220,21 +220,23 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 	if req.OnStart != nil {
 		req.OnStart(cmd.Process.Pid)
 	}
-	exited := make(chan error, 1)
-	go func() { exited <- cmd.Wait() }()
 	c := &client{onEvent: req.OnEvent}
 	conn := sdk.NewClientSideConnection(c, in, out)
 	conn.SetLogger(slog.New(slog.DiscardHandler))
 	t := &turn{a: a, req: req, c: c, conn: conn, dir: dir, session: agentSession, mcp: proxy + mcp.Path, e: e}
 	res, runErr := t.run(ctx)
 	_ = in.Close()
-	var waitErr error
+	// Wait closes stdout, so it runs only once the connection has read all of it.
 	select {
-	case waitErr = <-exited:
+	case <-conn.Done():
 	case <-time.After(a.Linger):
 		sandbox.End(cmd)
-		waitErr = <-exited
+		select {
+		case <-conn.Done():
+		case <-time.After(5 * time.Second):
+		}
 	}
+	waitErr := cmd.Wait()
 	if err := ctx.Err(); err != nil {
 		return res, err
 	}

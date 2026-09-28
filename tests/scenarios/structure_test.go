@@ -2,6 +2,8 @@ package scenarios
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -110,4 +112,16 @@ func TestCoreDocumentNamesKeepTheirKind(t *testing.T) {
 		}
 	}
 	e.must("deck.document_save", map[string]any{"project": "ideas", "name": "prompt.md", "kind": "prompt", "text": "Real prompt"}, nil)
+}
+
+func TestAHomeWithAQuestionMarkOrAHashKeepsTheDatabaseInside(t *testing.T) {
+	home := filepath.Join(t.TempDir(), "a?b#c%d")
+	if err := os.MkdirAll(home, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	e := newEnvWith(t, home, &Fake{})
+	e.createProject("mine", ideasManifest)
+	if _, err := os.Stat(filepath.Join(home, "deck.db")); err != nil {
+		t.Fatalf("the database lives in the home of deck: %v", err)
+	}
 }

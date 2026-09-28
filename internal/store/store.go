@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"embed"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/pressly/goose/v3"
@@ -69,7 +70,8 @@ func (g guard) QueryRowContext(ctx context.Context, q string, a ...any) *sql.Row
 }
 
 func Open(path string) (*Store, error) {
-	conn, err := sql.Open("sqlite", fmt.Sprintf("file:%s?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)", path))
+	uri := strings.NewReplacer("%", "%25", "?", "%3f", "#", "%23").Replace(path)
+	conn, err := sql.Open("sqlite", "file:"+uri+"?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)")
 	if err != nil {
 		return nil, err
 	}

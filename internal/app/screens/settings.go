@@ -25,7 +25,7 @@ func (s Sources) projectItems(ctx context.Context, sc screen.Scope) ([]map[strin
 		paused := p.Paused == 1
 		it := map[string]any{"id": p.ID, "name": p.Name, "status": p.Status, "paused": paused, "description": v.Description,
 			"revision": v.Revision, "rights": strings.Join(v.Rights, "; "), "autonomy": "", "no_network": false,
-			"manifest_error": v.ManifestError}
+			"manifest_error": v.ManifestError, "folders": strings.Join(v.Folders, "; ")}
 		var acts []map[string]any
 		if m != nil {
 			it["autonomy"], it["no_network"] = cmp.Or(m.Autonomy, "suggest"), m.NoNetwork

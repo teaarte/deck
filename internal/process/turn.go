@@ -32,6 +32,8 @@ type turn struct {
 	message string
 	asks    []int64
 	pv      provider.Provider
+	// folder is the project folder the turn works in, or empty for a work folder of its own.
+	folder string
 	// slot says the turn holds an agent slot of workspace, handed to it or taken when it starts.
 	slot      bool
 	workspace int64
@@ -78,6 +80,16 @@ func (r *Runner) run(ctx context.Context, t turn) {
 		r.finish(bg, processID, StateError, "", false, err.Error())
 		return
 	}
+	t.folder = p.Folder
+	if t.folder != "" {
+		if st, err := os.Stat(t.folder); err != nil || !st.IsDir() {
+			r.finish(bg, processID, StateError, "", false, "deck: the project folder "+t.folder+" is gone")
+			return
+		}
+		if !r.holdFolder(bg, t, t.folder) {
+			return
+		}
+	}
 	if !t.slot {
 		if !r.takeSlot(bg, proj.WorkspaceID) {
 			r.waitSlot(bg, t, proj.WorkspaceID)
@@ -88,7 +100,16 @@ func (r *Runner) run(ctx context.Context, t turn) {
 	dir := r.runDir(processID)
 	work := filepath.Join(dir, "work")
 	data := r.scripts.DataDir(t.project)
-	if err := errors.Join(os.MkdirAll(work, 0o700), os.MkdirAll(filepath.Join(dir, "results"), 0o700), os.MkdirAll(data, 0o700)); err != nil {
+	repo := false
+	if t.folder != "" {
+		work = t.folder
+		_, err := os.Stat(filepath.Join(work, ".git"))
+		repo = err == nil
+	} else if err := os.MkdirAll(work, 0o700); err != nil {
+		r.finish(bg, processID, StateError, "", false, err.Error())
+		return
+	}
+	if err := errors.Join(os.MkdirAll(filepath.Join(dir, "results"), 0o700), os.MkdirAll(data, 0o700)); err != nil {
 		r.finish(bg, processID, StateError, "", false, err.Error())
 		return
 	}
@@ -124,7 +145,7 @@ func (r *Runner) run(ctx context.Context, t turn) {
 		noNetwork = true
 	}
 	req := provider.Request{
-		Cwd: work, Prompt: t.message, ResultSchema: t.cmd.Result,
+		Cwd: work, Repo: repo, Prompt: t.message, ResultSchema: t.cmd.Result,
 		MCPURL: r.cfg.MCPBase + "/mcp/" + tok, AllowedTools: r.gw.AllowedTools(tok), PermissionMCP: gateway.PermissionTool(),
 		SessionID: t.session, Resume: t.resume, Hidden: r.cfg.Hidden(t.project, processID), Dirs: []string{data, filepath.Join(dir, "results")}, NoNetwork: noNetwork,
 		OnStart: func(pid int) { r.setGroup(bg, processID, pid) },
@@ -304,6 +325,9 @@ func (r *Runner) firstPrompt(ctx context.Context, proj db.Project, t turn, tools
 	p := buildPrompt(proj.Name, instructions, body, t.m, t.cmd, t.input, tools, t.pv.QuestionTool())
 	if slices.Contains(t.pv.Caps(), provider.Sandbox) {
 		p += "\nThe data folder of this project keeps indexes, caches and state between runs: " + data + "\n"
+	}
+	if t.folder != "" {
+		p += "\nYou work in the project folder " + t.folder + ": the owner's own folder, not a scratch copy. No other agent of deck works in it while you do.\n"
 	}
 	if proc.StartNote != "" {
 		p += "\n" + proc.StartNote + "\n"

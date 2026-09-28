@@ -27,10 +27,12 @@ const (
 	StateWaitingProvider = "waiting_provider"
 	// StateWaitingSlot waits for one of the agent turns the workspace may run at once.
 	StateWaitingSlot = "waiting_slot"
-	StateDone        = "done"
-	StateError       = "error"
-	StateInterrupted = "interrupted"
-	StateStopped     = "stopped"
+	// StateWaitingFolder waits for another agent process to leave the project folder.
+	StateWaitingFolder = "waiting_folder"
+	StateDone          = "done"
+	StateError         = "error"
+	StateInterrupted   = "interrupted"
+	StateStopped       = "stopped"
 )
 
 // MaxDepth is the longest chain of processes that start one another.
@@ -114,6 +116,8 @@ type Projects interface {
 	Skills(ctx context.Context, projectID int64, names []string) (map[string]string, error)
 	// Servers starts the MCP servers of a project whose tools deck has not listed yet.
 	Servers(ctx context.Context, projectID int64)
+	// Folder is the real path of the project folder an agent command works in.
+	Folder(ctx context.Context, projectID int64, f manifest.Folder) (string, error)
 }
 
 func NewRunner(st *store.Store, gw *gateway.Gateway, bus *events.Bus, p Providers, scripts *script.Exec, cfg Config, projects Projects) *Runner {
@@ -191,7 +195,10 @@ func (r *Runner) finish(ctx context.Context, processID int64, state, result stri
 			return err
 		}
 		closedCalls, err = q.CloseOpenAsksOfProcess(ctx, db.CloseOpenAsksOfProcessParams{ProcessID: processID, CallsToo: b2i(state == StateStopped)})
-		return err
+		if err != nil {
+			return err
+		}
+		return q.ReleaseFolderLocks(ctx, processID)
 	})
 	if err != nil {
 		slog.Error("finish process", "process", processID, "err", err)
@@ -200,6 +207,7 @@ func (r *Runner) finish(ctx context.Context, processID int64, state, result stri
 	if n == 0 {
 		return
 	}
+	r.freeFolderOf(ctx, processID)
 	r.mu.Lock()
 	delete(r.stopping, processID)
 	delete(r.marked, processID)

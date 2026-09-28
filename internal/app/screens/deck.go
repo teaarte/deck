@@ -26,6 +26,8 @@ type Project struct {
 	Revision      int64
 	Rights        []string
 	ManifestError string
+	// Folders are "name: path" of each folder of the project.
+	Folders []string
 }
 
 // Provider is a provider of the workspace with what the owner may do with it.

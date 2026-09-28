@@ -31,7 +31,7 @@ func (q *Queries) ClaimProcess(ctx context.Context, arg ClaimProcessParams) (int
 const countActiveOnProvider = `-- name: CountActiveOnProvider :one
 SELECT count(*) FROM process
 WHERE provider = ?1 AND project_id IN (SELECT id FROM project WHERE workspace_id = ?2)
-  AND state IN ('running', 'waiting_answer', 'needs_login', 'rate_limited', 'waiting_provider', 'waiting_slot')
+  AND state IN ('running', 'waiting_answer', 'needs_login', 'rate_limited', 'waiting_provider', 'waiting_slot', 'waiting_folder')
 `
 
 type CountActiveOnProviderParams struct {
@@ -91,8 +91,8 @@ func (q *Queries) CountUnknownCalls(ctx context.Context, arg CountUnknownCallsPa
 
 const createProcess = `-- name: CreateProcess :one
 INSERT INTO process (project_id, command, kind, state, provider, input, session_id, parent_id, depth, trigger_id, retry_key, ceiling_ms,
-    manifest_revision, trial)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, kind, manifest_revision, trial, pause_until_ms, pause_limit_ms, wait_message, wait_fresh
+    manifest_revision, trial, folder)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, kind, manifest_revision, trial, pause_until_ms, pause_limit_ms, wait_message, wait_fresh, folder
 `
 
 type CreateProcessParams struct {
@@ -110,6 +110,7 @@ type CreateProcessParams struct {
 	CeilingMs        int64
 	ManifestRevision int64
 	Trial            int64
+	Folder           string
 }
 
 func (q *Queries) CreateProcess(ctx context.Context, arg CreateProcessParams) (Process, error) {
@@ -128,6 +129,7 @@ func (q *Queries) CreateProcess(ctx context.Context, arg CreateProcessParams) (P
 		arg.CeilingMs,
 		arg.ManifestRevision,
 		arg.Trial,
+		arg.Folder,
 	)
 	var i Process
 	err := row.Scan(
@@ -160,6 +162,7 @@ func (q *Queries) CreateProcess(ctx context.Context, arg CreateProcessParams) (P
 		&i.PauseLimitMs,
 		&i.WaitMessage,
 		&i.WaitFresh,
+		&i.Folder,
 	)
 	return i, err
 }
@@ -183,9 +186,9 @@ func (q *Queries) EndPause(ctx context.Context, id int64) error {
 }
 
 const findActiveProcess = `-- name: FindActiveProcess :one
-SELECT id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, kind, manifest_revision, trial, pause_until_ms, pause_limit_ms, wait_message, wait_fresh FROM process
+SELECT id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, kind, manifest_revision, trial, pause_until_ms, pause_limit_ms, wait_message, wait_fresh, folder FROM process
 WHERE project_id = ? AND command = ? AND retry_key = ? AND retry_key != '' AND trial = ?
-  AND state IN ('running', 'waiting_answer', 'needs_login', 'rate_limited', 'waiting_provider', 'waiting_slot')
+  AND state IN ('running', 'waiting_answer', 'needs_login', 'rate_limited', 'waiting_provider', 'waiting_slot', 'waiting_folder')
 ORDER BY id LIMIT 1
 `
 
@@ -234,6 +237,7 @@ func (q *Queries) FindActiveProcess(ctx context.Context, arg FindActiveProcessPa
 		&i.PauseLimitMs,
 		&i.WaitMessage,
 		&i.WaitFresh,
+		&i.Folder,
 	)
 	return i, err
 }
@@ -293,7 +297,7 @@ func (q *Queries) FinishToolCall(ctx context.Context, arg FinishToolCallParams) 
 }
 
 const getProcess = `-- name: GetProcess :one
-SELECT id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, kind, manifest_revision, trial, pause_until_ms, pause_limit_ms, wait_message, wait_fresh FROM process WHERE id = ?
+SELECT id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, kind, manifest_revision, trial, pause_until_ms, pause_limit_ms, wait_message, wait_fresh, folder FROM process WHERE id = ?
 `
 
 func (q *Queries) GetProcess(ctx context.Context, id int64) (Process, error) {
@@ -329,6 +333,7 @@ func (q *Queries) GetProcess(ctx context.Context, id int64) (Process, error) {
 		&i.PauseLimitMs,
 		&i.WaitMessage,
 		&i.WaitFresh,
+		&i.Folder,
 	)
 	return i, err
 }
@@ -414,7 +419,7 @@ func (q *Queries) ListCeilingReached(ctx context.Context, now int64) ([]int64, e
 }
 
 const listOpenProcesses = `-- name: ListOpenProcesses :many
-SELECT id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, kind, manifest_revision, trial, pause_until_ms, pause_limit_ms, wait_message, wait_fresh FROM process
+SELECT id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, kind, manifest_revision, trial, pause_until_ms, pause_limit_ms, wait_message, wait_fresh, folder FROM process
 WHERE project_id IN (SELECT id FROM project WHERE workspace_id = ?1)
   AND (?2 = 0 OR project_id = ?2)
   AND state NOT IN ('done', 'error', 'interrupted', 'stopped')
@@ -465,6 +470,7 @@ func (q *Queries) ListOpenProcesses(ctx context.Context, arg ListOpenProcessesPa
 			&i.PauseLimitMs,
 			&i.WaitMessage,
 			&i.WaitFresh,
+			&i.Folder,
 		); err != nil {
 			return nil, err
 		}
@@ -480,7 +486,7 @@ func (q *Queries) ListOpenProcesses(ctx context.Context, arg ListOpenProcessesPa
 }
 
 const listPausesDue = `-- name: ListPausesDue :many
-SELECT id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, kind, manifest_revision, trial, pause_until_ms, pause_limit_ms, wait_message, wait_fresh FROM process WHERE state = 'rate_limited' AND pause_until_ms <= CAST(?1 AS INTEGER) ORDER BY id
+SELECT id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, kind, manifest_revision, trial, pause_until_ms, pause_limit_ms, wait_message, wait_fresh, folder FROM process WHERE state = 'rate_limited' AND pause_until_ms <= CAST(?1 AS INTEGER) ORDER BY id
 `
 
 func (q *Queries) ListPausesDue(ctx context.Context, now int64) ([]Process, error) {
@@ -522,6 +528,7 @@ func (q *Queries) ListPausesDue(ctx context.Context, now int64) ([]Process, erro
 			&i.PauseLimitMs,
 			&i.WaitMessage,
 			&i.WaitFresh,
+			&i.Folder,
 		); err != nil {
 			return nil, err
 		}
@@ -580,7 +587,7 @@ func (q *Queries) ListProcessGroups(ctx context.Context) ([]ListProcessGroupsRow
 }
 
 const listProcessesByState = `-- name: ListProcessesByState :many
-SELECT id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, kind, manifest_revision, trial, pause_until_ms, pause_limit_ms, wait_message, wait_fresh FROM process WHERE state = ? ORDER BY id
+SELECT id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, kind, manifest_revision, trial, pause_until_ms, pause_limit_ms, wait_message, wait_fresh, folder FROM process WHERE state = ? ORDER BY id
 `
 
 func (q *Queries) ListProcessesByState(ctx context.Context, state string) ([]Process, error) {
@@ -622,6 +629,7 @@ func (q *Queries) ListProcessesByState(ctx context.Context, state string) ([]Pro
 			&i.PauseLimitMs,
 			&i.WaitMessage,
 			&i.WaitFresh,
+			&i.Folder,
 		); err != nil {
 			return nil, err
 		}
@@ -637,7 +645,7 @@ func (q *Queries) ListProcessesByState(ctx context.Context, state string) ([]Pro
 }
 
 const listProcessesFiltered = `-- name: ListProcessesFiltered :many
-SELECT id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, kind, manifest_revision, trial, pause_until_ms, pause_limit_ms, wait_message, wait_fresh FROM process
+SELECT id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, kind, manifest_revision, trial, pause_until_ms, pause_limit_ms, wait_message, wait_fresh, folder FROM process
 WHERE project_id IN (SELECT id FROM project WHERE workspace_id = ?1)
   AND (?2 = 0 OR project_id = ?2)
   AND (?3 = '' OR state = ?3)
@@ -695,6 +703,7 @@ func (q *Queries) ListProcessesFiltered(ctx context.Context, arg ListProcessesFi
 			&i.PauseLimitMs,
 			&i.WaitMessage,
 			&i.WaitFresh,
+			&i.Folder,
 		); err != nil {
 			return nil, err
 		}
@@ -778,7 +787,7 @@ func (q *Queries) ListToolCalls(ctx context.Context, processID int64) ([]ToolCal
 }
 
 const listWaitingForProvider = `-- name: ListWaitingForProvider :many
-SELECT id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, kind, manifest_revision, trial, pause_until_ms, pause_limit_ms, wait_message, wait_fresh FROM process WHERE state = 'waiting_provider' AND provider = ?1 ORDER BY id
+SELECT id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, kind, manifest_revision, trial, pause_until_ms, pause_limit_ms, wait_message, wait_fresh, folder FROM process WHERE state = 'waiting_provider' AND provider = ?1 ORDER BY id
 `
 
 func (q *Queries) ListWaitingForProvider(ctx context.Context, provider string) ([]Process, error) {
@@ -820,6 +829,7 @@ func (q *Queries) ListWaitingForProvider(ctx context.Context, provider string) (
 			&i.PauseLimitMs,
 			&i.WaitMessage,
 			&i.WaitFresh,
+			&i.Folder,
 		); err != nil {
 			return nil, err
 		}
@@ -835,7 +845,7 @@ func (q *Queries) ListWaitingForProvider(ctx context.Context, provider string) (
 }
 
 const listWaitingForSlot = `-- name: ListWaitingForSlot :many
-SELECT id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, kind, manifest_revision, trial, pause_until_ms, pause_limit_ms, wait_message, wait_fresh FROM process
+SELECT id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, kind, manifest_revision, trial, pause_until_ms, pause_limit_ms, wait_message, wait_fresh, folder FROM process
 WHERE state = 'waiting_slot' AND project_id IN (SELECT id FROM project WHERE workspace_id = ?1)
 ORDER BY id
 `
@@ -879,6 +889,7 @@ func (q *Queries) ListWaitingForSlot(ctx context.Context, workspaceID int64) ([]
 			&i.PauseLimitMs,
 			&i.WaitMessage,
 			&i.WaitFresh,
+			&i.Folder,
 		); err != nil {
 			return nil, err
 		}
@@ -1276,7 +1287,7 @@ func (q *Queries) StartedToolCalls(ctx context.Context) ([]ToolCall, error) {
 
 const stopParkedProcess = `-- name: StopParkedProcess :execrows
 UPDATE process SET state = 'stopped', error = ?, finished_at = ?, deadline_ms = NULL, silent_since_ms = NULL
-WHERE id = ? AND state IN ('running', 'waiting_answer', 'needs_login', 'rate_limited', 'waiting_provider', 'waiting_slot')
+WHERE id = ? AND state IN ('running', 'waiting_answer', 'needs_login', 'rate_limited', 'waiting_provider', 'waiting_slot', 'waiting_folder')
 `
 
 type StopParkedProcessParams struct {

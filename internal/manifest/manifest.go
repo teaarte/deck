@@ -85,6 +85,38 @@ type Executor struct {
 	Skills     []string `json:"skills,omitempty"`
 	Script     string   `json:"script,omitempty"`
 	Tool       string   `json:"tool,omitempty"`
+	Folder     Folder   `json:"folder,omitzero"`
+}
+
+// Folder names the project folder an agent works in; Only is the one folder of a project with a single folder.
+type Folder struct {
+	Only bool
+	Name string
+}
+
+func (f Folder) IsZero() bool { return !f.Only && f.Name == "" }
+
+func (f Folder) MarshalJSON() ([]byte, error) {
+	if f.Name != "" {
+		return json.Marshal(f.Name)
+	}
+	return json.Marshal(f.Only)
+}
+
+func (f *Folder) UnmarshalJSON(b []byte) error {
+	var v any
+	if err := json.Unmarshal(b, &v); err != nil {
+		return err
+	}
+	switch v := v.(type) {
+	case bool:
+		*f = Folder{Only: v}
+	case string:
+		*f = Folder{Name: v}
+	default:
+		return fmt.Errorf("folder is true or the name of a project folder")
+	}
+	return nil
 }
 
 type Script struct {

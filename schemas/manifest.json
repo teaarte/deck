@@ -76,7 +76,9 @@
             "type": {"const": "agent"},
             "prompt": {"type": "string", "minLength": 1},
             "prompt_file": {"type": "string", "minLength": 1, "description": "Project document with the md prompt."},
-            "skills": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+            "skills": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+            "folder": {"oneOf": [{"const": true}, {"$ref": "#/$defs/name"}],
+              "description": "Work in a folder of the project instead of a fresh work folder: true when the project has one folder, else its name. The owner adds folders in Settings; a second agent in the same folder waits for it."}
           },
           "oneOf": [{"required": ["prompt"]}, {"required": ["prompt_file"]}]
         },

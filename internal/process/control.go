@@ -48,8 +48,10 @@ func (r *Runner) Stop(ctx context.Context, processID int64, reason string) error
 		if n, err = q.StopParkedProcess(ctx, db.StopParkedProcessParams{Error: reason, FinishedAt: r.stamp(), ID: processID}); err != nil || n == 0 {
 			return err
 		}
-		closedCalls, err = q.CloseOpenAsksOfProcess(ctx, db.CloseOpenAsksOfProcessParams{ProcessID: processID, CallsToo: 1})
-		return err
+		if closedCalls, err = q.CloseOpenAsksOfProcess(ctx, db.CloseOpenAsksOfProcessParams{ProcessID: processID, CallsToo: 1}); err != nil {
+			return err
+		}
+		return q.ReleaseFolderLocks(ctx, processID)
 	})
 	if err != nil {
 		return err
@@ -57,6 +59,7 @@ func (r *Runner) Stop(ctx context.Context, processID int64, reason string) error
 	if n == 0 {
 		return registry.Invalid("deck: process %d has already finished", processID)
 	}
+	r.freeFolderOf(ctx, processID)
 	r.dropped(ctx, closedCalls)
 	r.closed(processID)
 	return nil

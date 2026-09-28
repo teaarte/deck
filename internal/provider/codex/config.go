@@ -52,7 +52,11 @@ func (a *Adapter) args(req provider.Request, skills string) ([]string, error) {
 			return nil, fmt.Errorf("codex: hidden path %s is outside deck's folder, which is all the profile hides", h)
 		}
 	}
-	for _, d := range append([]string{req.Cwd}, req.Dirs...) {
+	writes := append([]string{req.Cwd}, req.Dirs...)
+	if req.Repo {
+		writes = append(writes, gitDirs(req.Cwd)...)
+	}
+	for _, d := range writes {
 		for _, p := range provider.Paths(d) {
 			fs[p] = "write"
 		}
@@ -85,6 +89,32 @@ func (a *Adapter) args(req provider.Request, skills string) ([]string, error) {
 		args = append(args, "-c", kv)
 	}
 	return args, nil
+}
+
+// gitDirs are the git folders of a repo, which Codex keeps read-only in a folder it may write unless named:
+// .git, or for a worktree the folder its .git file points to and the common one.
+func gitDirs(repo string) []string {
+	dot := filepath.Join(repo, ".git")
+	b, err := os.ReadFile(dot)
+	if err != nil {
+		return []string{dot}
+	}
+	dir, ok := strings.CutPrefix(strings.TrimSpace(string(b)), "gitdir: ")
+	if !ok {
+		return nil
+	}
+	if !filepath.IsAbs(dir) {
+		dir = filepath.Join(repo, dir)
+	}
+	out := []string{dir}
+	if c, err := os.ReadFile(filepath.Join(dir, "commondir")); err == nil {
+		common := strings.TrimSpace(string(c))
+		if !filepath.IsAbs(common) {
+			common = filepath.Join(dir, common)
+		}
+		out = append(out, filepath.Clean(common))
+	}
+	return out
 }
 
 // quote writes a TOML basic string; JSON escapes are valid TOML.

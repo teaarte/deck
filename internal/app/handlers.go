@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
+	"strings"
 
 	"deck2/internal/app/docs"
 	"deck2/internal/manifest"
@@ -64,8 +66,9 @@ type projectView struct {
 	Screens       []screenView `json:"screens"`
 	ManifestError string       `json:"manifest_error,omitempty"`
 	// Rights are what enabling a draft at Revision of its manifest grants.
-	Rights   []string `json:"rights,omitempty"`
-	Revision int64    `json:"revision"`
+	Rights   []string     `json:"rights,omitempty"`
+	Revision int64        `json:"revision"`
+	Folders  []folderView `json:"folders"`
 }
 
 type screenView struct {
@@ -88,7 +91,7 @@ func (a *App) projectsList(ctx context.Context, act registry.Actor, _ struct{}) 
 
 // viewProject is a project as the owner sees it, with its manifest when that loads.
 func (a *App) viewProject(ctx context.Context, p db.Project) (projectView, *manifest.Manifest) {
-	v := projectView{ID: p.ID, Name: p.Name, Status: p.Status, Screens: []screenView{}}
+	v := projectView{ID: p.ID, Name: p.Name, Status: p.Status, Screens: []screenView{}, Folders: a.folders(ctx, p.ID)}
 	if prompt, err := docs.CurrentText(ctx, a.Store.Q, docs.ProjectScope(p), docs.KindPrompt, docs.PromptName); err == nil {
 		v.Description = docs.Description(prompt)
 	}
@@ -107,7 +110,18 @@ func (a *App) viewProject(ctx context.Context, p db.Project) (projectView, *mani
 	return v, m
 }
 
+// baseManifest is a project with only the base board and its screen.
+const baseManifest = `{"version": %d,
+  "board": {"lanes": [{"name": "backlog", "title": "Backlog", "role": "inbox"}, {"name": "ready", "title": "Ready", "role": "ready"},
+    {"name": "running", "title": "Running", "role": "running"}, {"name": "review", "title": "Review", "role": "review"},
+    {"name": "done", "title": "Done", "role": "done"}]},
+  "screens": [{"name": "board", "title": "Board", "blocks": [{"type": "board", "title": "Board"}]}],
+  "menu": ["board"]}`
+
 func (a *App) projectCreate(ctx context.Context, act registry.Actor, in struct{ Name, Manifest, Prompt string }) (any, error) {
+	if strings.TrimSpace(in.Manifest) == "" {
+		in.Manifest = fmt.Sprintf(baseManifest, manifest.FormatVersion)
+	}
 	p, err := a.CreateProject(ctx, act, in.Name, []byte(in.Manifest), in.Prompt)
 	if err != nil {
 		return nil, err

@@ -46,7 +46,7 @@ func (s Sources) processItems(ctx context.Context, sc screen.Scope, names map[in
 	out := make([]map[string]any, 0, len(ps))
 	for _, p := range ps {
 		it := map[string]any{"id": p.ID, "project": names[p.ProjectID], "command": p.Command, "kind": p.Kind, "state": p.State,
-			"silent": p.SilentSinceMs.Valid, "started_at": p.StartedAt, "provider": p.Provider, "error": p.Error}
+			"silent": p.SilentSinceMs.Valid, "started_at": p.StartedAt, "provider": p.Provider, "error": p.Error, "folder": p.Folder}
 		acts := []map[string]any{{"verb": "open", "screen": "process", "record": p.ID}}
 		if !finished(p.State) {
 			acts = append(acts, call("stop", false, "deck.process_stop", map[string]any{"process": p.ID}))

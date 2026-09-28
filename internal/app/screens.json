@@ -9,8 +9,8 @@
           "item": {"title": "what", "text": "where", "meta": "project + (who != '' ? ' · ' + who : '')"}},
         {"type": "columns", "blocks": [
           {"type": "list", "title": "Running now",
-            "source": {"from": "processes", "where": "state in ['running', 'waiting_answer', 'needs_login', 'rate_limited', 'waiting_provider', 'waiting_slot']"},
-            "item": {"title": "project + '.' + command", "text": "silent ? 'silent' : state == 'waiting_slot' ? 'waits for a slot' : state", "meta": "'#' + string(id)"}},
+            "source": {"from": "processes", "where": "state in ['running', 'waiting_answer', 'needs_login', 'rate_limited', 'waiting_provider', 'waiting_slot', 'waiting_folder']"},
+            "item": {"title": "project + '.' + command", "text": "silent ? 'silent' : state == 'waiting_slot' ? 'waits for a slot' : state == 'waiting_folder' ? 'waits for folder ' + folder : state", "meta": "'#' + string(id)"}},
           {"type": "list", "title": "Done without you", "source": {"from": "unattended", "limit": 10},
             "item": {"title": "text", "meta": "project + ' · ' + author"}}
         ]},
@@ -55,7 +55,11 @@
           {"title": "Projects", "blocks": [
             {"type": "list", "title": "Projects", "source": {"from": "projects", "sort": "name"}, "filter": ["status"],
               "item": {"title": "name + ' · ' + status + (paused ? ', paused' : '')", "text": "manifest_error != '' ? 'manifest: ' + manifest_error : description",
-                "meta": "'autonomy: ' + autonomy + (no_network ? ' · no network' : '') + (rights != '' ? ' · enabling grants: ' + rights : '')"}},
+                "meta": "'autonomy: ' + autonomy + (no_network ? ' · no network' : '') + (folders != '' ? ' · folders: ' + folders : '') + (rights != '' ? ' · enabling grants: ' + rights : '')"}},
+            {"type": "form", "title": "Create project", "command": "deck.project_create"},
+            {"type": "form", "title": "Import project", "command": "deck.project_import"},
+            {"type": "form", "title": "Add folder", "command": "deck.folder_add"},
+            {"type": "form", "title": "Remove folder", "command": "deck.folder_remove"},
             {"type": "form", "title": "Trial run", "command": "deck.command_try",
               "choices": {"command": {"source": {"from": "commands", "where": "project != '' && executor != 'tool'", "sort": "name"}, "value": "name", "label": "title + ' (' + name + ')'"}}}
           ]},

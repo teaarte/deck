@@ -147,7 +147,11 @@ type screenDeck struct{ a *App }
 
 func (d screenDeck) Project(ctx context.Context, p db.Project) (screens.Project, *manifest.Manifest) {
 	v, m := d.a.viewProject(ctx, p)
-	return screens.Project{Description: v.Description, Revision: v.Revision, Rights: v.Rights, ManifestError: v.ManifestError}, m
+	var folders []string
+	for _, f := range v.Folders {
+		folders = append(folders, f.Name+": "+f.Path)
+	}
+	return screens.Project{Description: v.Description, Revision: v.Revision, Rights: v.Rights, ManifestError: v.ManifestError, Folders: folders}, m
 }
 
 func (d screenDeck) Providers(ctx context.Context, workspace int64) ([]screens.Provider, error) {

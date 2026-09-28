@@ -56,7 +56,7 @@ func (r *Runner) Start(ctx context.Context, projectID int64, m *manifest.Manifes
 	if cmd == nil {
 		return 0, fmt.Errorf("project %q has no command %q", proj.Name, command)
 	}
-	kind, providerName, session := cmd.Executor.Type, "", uuid.NewString()
+	kind, providerName, session, folder := cmd.Executor.Type, "", uuid.NewString(), ""
 	switch kind {
 	case KindAgent:
 		pv, err := r.providers.For(ctx, projectID, cmd)
@@ -69,6 +69,11 @@ func (r *Runner) Start(ctx context.Context, projectID int64, m *manifest.Manifes
 		}
 		if _, err := r.projects.Skills(ctx, projectID, cmd.Executor.Skills); err != nil {
 			return 0, err
+		}
+		if !cmd.Executor.Folder.IsZero() {
+			if folder, err = r.projects.Folder(ctx, projectID, cmd.Executor.Folder); err != nil {
+				return 0, err
+			}
 		}
 	case KindScript:
 		if _, err := r.scriptSource(ctx, projectID, m, cmd); err != nil {
@@ -138,7 +143,7 @@ func (r *Runner) Start(ctx context.Context, projectID int64, m *manifest.Manifes
 		}
 		p, err = q.CreateProcess(ctx, db.CreateProcessParams{Trial: b2i(trial), ProjectID: projectID, Command: command, Kind: kind, State: StateRunning,
 			Provider: providerName, Input: string(in), SessionID: session, ParentID: ref(o.Parent), Depth: depth,
-			TriggerID: ref(o.Trigger), RetryKey: o.Key, CeilingMs: r.ceilingOf(m, cmd).Milliseconds(), ManifestRevision: m.Revision})
+			TriggerID: ref(o.Trigger), RetryKey: o.Key, CeilingMs: r.ceilingOf(m, cmd).Milliseconds(), ManifestRevision: m.Revision, Folder: folder})
 		if err != nil {
 			return err
 		}

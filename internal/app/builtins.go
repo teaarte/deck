@@ -28,7 +28,7 @@ func (a *App) addBuiltins() {
 		registry.Params(), registry.Typed(a.projectsList))
 	add("project_create", "Create project", "Creates a project from a manifest and an optional md prompt.", ownerSide,
 		registry.Params(registry.P("name", "string", "Project name: lowercase letters, digits and '-'"),
-			registry.P("manifest", "text", "Manifest JSON"), registry.Opt("prompt", "text", "Project md prompt")),
+			registry.Opt("manifest", "text", "Manifest JSON; a project with only the base board when omitted"), registry.Opt("prompt", "text", "Project md prompt")),
 		registry.Typed(a.projectCreate))
 	add("project_enable", "Enable project", "Turns a draft on: its triggers start running and the rights its manifest asks for count as allowed.", ownerOnly,
 		registry.Params(registry.P("project", "project", "Project name"),
@@ -43,6 +43,13 @@ func (a *App) addBuiltins() {
 	add("project_import", "Import project", "Creates a draft project from a module folder: manifest.json, prompt.md and the other files by their document names.", ownerSide,
 		registry.Params(registry.P("folder", "string", "Absolute path of the folder"), registry.Opt("name", "string", "Project name; the folder name when omitted")),
 		registry.Typed(a.projectImport))
+	add("folder_add", "Add folder", "Gives a project a folder on disk that its agent commands with folder work in; only the owner, since it lets agents write there.", ownerOnly,
+		registry.Params(registry.P("project", "project", "Project name"), registry.P("path", "string", "Absolute path of the folder"),
+			registry.Opt("name", "string", "Folder name in the project; the folder's own name when omitted")),
+		registry.Typed(a.folderAdd))
+	add("folder_remove", "Remove folder", "Takes a folder from a project; the folder on disk stays as it is.", ownerOnly,
+		registry.Params(registry.P("project", "project", "Project name"), registry.P("name", "string", "Folder name in the project")),
+		registry.Typed(a.folderRemove))
 	add("unattended_list", "Done without you", "Lists changes made without the owner, newest first, with whether they can be undone.", ownerSide,
 		registry.Params(projectOpt, registry.Opt("limit", "integer", "At most this many")), registry.Typed(a.unattendedList))
 	add("unattended_undo", "Undo", "Returns what a change made without the owner touched to how it was before.", ownerOnly,

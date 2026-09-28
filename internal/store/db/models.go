@@ -89,6 +89,11 @@ type File struct {
 	CreatedAt string
 }
 
+type FolderLock struct {
+	Path      string
+	ProcessID int64
+}
+
 type Health struct {
 	Subject   string
 	Status    string
@@ -169,6 +174,7 @@ type Process struct {
 	PauseLimitMs     sql.NullInt64
 	WaitMessage      string
 	WaitFresh        int64
+	Folder           string
 }
 
 type Project struct {
@@ -178,6 +184,14 @@ type Project struct {
 	WorkspaceID int64
 	Status      string
 	Paused      int64
+}
+
+type ProjectFolder struct {
+	ID        int64
+	ProjectID int64
+	Name      string
+	Path      string
+	CreatedAt string
 }
 
 type Record struct {

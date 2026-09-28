@@ -1,7 +1,7 @@
 -- name: CreateProcess :one
 INSERT INTO process (project_id, command, kind, state, provider, input, session_id, parent_id, depth, trigger_id, retry_key, ceiling_ms,
-    manifest_revision, trial)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *;
+    manifest_revision, trial, folder)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *;
 
 
 -- name: GetProcess :one
@@ -23,7 +23,7 @@ SELECT * FROM process WHERE state = ? ORDER BY id;
 -- name: FindActiveProcess :one
 SELECT * FROM process
 WHERE project_id = ? AND command = ? AND retry_key = ? AND retry_key != '' AND trial = ?
-  AND state IN ('running', 'waiting_answer', 'needs_login', 'rate_limited', 'waiting_provider', 'waiting_slot')
+  AND state IN ('running', 'waiting_answer', 'needs_login', 'rate_limited', 'waiting_provider', 'waiting_slot', 'waiting_folder')
 ORDER BY id LIMIT 1;
 
 
@@ -39,7 +39,7 @@ WHERE id = ? AND state = 'running';
 
 -- name: StopParkedProcess :execrows
 UPDATE process SET state = 'stopped', error = ?, finished_at = ?, deadline_ms = NULL, silent_since_ms = NULL
-WHERE id = ? AND state IN ('running', 'waiting_answer', 'needs_login', 'rate_limited', 'waiting_provider', 'waiting_slot');
+WHERE id = ? AND state IN ('running', 'waiting_answer', 'needs_login', 'rate_limited', 'waiting_provider', 'waiting_slot', 'waiting_folder');
 
 
 -- name: ReopenProcess :execrows
@@ -175,7 +175,7 @@ SELECT * FROM process WHERE state = 'waiting_provider' AND provider = sqlc.arg(p
 -- name: CountActiveOnProvider :one
 SELECT count(*) FROM process
 WHERE provider = sqlc.arg(provider) AND project_id IN (SELECT id FROM project WHERE workspace_id = sqlc.arg(workspace_id))
-  AND state IN ('running', 'waiting_answer', 'needs_login', 'rate_limited', 'waiting_provider', 'waiting_slot');
+  AND state IN ('running', 'waiting_answer', 'needs_login', 'rate_limited', 'waiting_provider', 'waiting_slot', 'waiting_folder');
 
 
 -- name: ResetPauseLimit :exec

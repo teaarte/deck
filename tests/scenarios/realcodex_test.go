@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -66,5 +67,58 @@ func TestRealCodexQuestion(t *testing.T) {
 	t.Logf("state %s, result %s, error %s", got.State, got.Result, got.Error)
 	if !asked || got.State != "done" || !strings.Contains(string(got.Result), `"blue"`) {
 		t.Fatalf("want the owner's answer in the result: %+v", got)
+	}
+}
+
+// TestRealCodexCommitsInTheFolder has an agent command on the installed Codex work in a project folder that is a
+// repo: it sees the AGENTS.md of the repo, not of the folder above, and commits there, .git included.
+func TestRealCodexCommitsInTheFolder(t *testing.T) {
+	realCodex(t)
+	outer := t.TempDir()
+	repo := filepath.Join(outer, "repo")
+	git := func(args ...string) string {
+		out, err := exec.Command("git", append([]string{"-C", repo}, args...)...).CombinedOutput()
+		if err != nil {
+			t.Fatalf("git %v: %v %s", args, err, out)
+		}
+		return strings.TrimSpace(string(out))
+	}
+	if err := os.MkdirAll(repo, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	git("init", "-q", "-b", "main")
+	git("config", "user.email", "deck@example.com")
+	git("config", "user.name", "deck test")
+	for name, text := range map[string]string{"AGENTS.md": "Marker word: OUTERMARK.", "repo/AGENTS.md": "Marker word: REPOMARK.", "repo/README.md": "A test repo."} {
+		if err := os.WriteFile(filepath.Join(outer, name), []byte(text+"\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	git("add", "-A")
+	git("commit", "-q", "-m", "start")
+	home := t.TempDir()
+	e := newEnvWith(t, home, codex.New(home), realWaits)
+	cmd, _ := json.Marshal(map[string]any{"name": "work", "title": "Work", "description": "Commits a file.", "class": "internal",
+		"result": map[string]any{"type": "object", "required": []string{"markers", "commit"},
+			"properties": map[string]any{"markers": map[string]any{"type": "string"}, "commit": map[string]any{"type": "string"}}},
+		"executor": map[string]any{"type": "agent", "folder": true, "prompt": "Create the file hello.txt with the text hi in the current folder " +
+			"and commit it with git with the message 'add hello'. The result: markers are the marker words (ALL CAPS words ending in MARK) " +
+			"that appear in your instructions, separated by spaces; commit is the full sha of your commit."}})
+	p := e.createProject("code", `{"version": 5, "commands": [`+string(cmd)+`]}`)
+	e.must("deck.folder_add", map[string]any{"project": "code", "path": repo}, nil)
+	id := e.run(p, "work")
+	got := e.pollState(id, 6*time.Minute, time.Second, "done", "error")
+	t.Logf("state %s, result %s, error %s", got.State, got.Result, got.Error)
+	if got.State != "done" {
+		t.Fatalf("want done: %+v", got)
+	}
+	var res struct{ Markers, Commit string }
+	_ = json.Unmarshal(got.Result, &res)
+	if !strings.Contains(res.Markers, "REPOMARK") || strings.Contains(res.Markers, "OUTERMARK") {
+		t.Errorf("the agent sees the AGENTS.md of the repo only: %q", res.Markers)
+	}
+	if head := git("rev-parse", "HEAD"); head != res.Commit || git("log", "-1", "--format=%s") != "add hello" ||
+		git("show", "--name-only", "--format=", "HEAD") != "hello.txt" {
+		t.Fatalf("the agent committed hello.txt in the folder: head %s, result %s, log %s", head, res.Commit, git("log", "--oneline"))
 	}
 }

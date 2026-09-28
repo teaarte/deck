@@ -2,6 +2,7 @@ package scenarios
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -106,8 +107,8 @@ func TestRealClaudeCodeKeepsSubscription(t *testing.T) {
 	}
 }
 
-// TestRealClaudeCodeRepoInstructions checks that a code run sees the instructions of the repo and its
-// subfolders but not of the folders above; the control run without excludes must see them all.
+// TestRealClaudeCodeRepoInstructions: an agent command in a repo folder sees the instructions of the repo and its
+// subfolders, not of the folders above; the control run without excludes sees them all.
 func TestRealClaudeCodeRepoInstructions(t *testing.T) {
 	realCLI(t)
 	outer := t.TempDir()
@@ -135,32 +136,39 @@ func TestRealClaudeCodeRepoInstructions(t *testing.T) {
 	}
 	prompt := "Read the file sub/notes.txt with the Read tool. Then try to create .claude/settings.local.json with the content {} using the Write tool. Then reply with only the marker words (ALL CAPS words ending in MARK) " +
 		"that appear anywhere in your instructions or context, separated by spaces. Do not guess and do not search for files."
-	a := claudecode.New(t.TempDir())
-	res, err := a.Run(context.Background(), provider.Request{Cwd: repo, Repo: true, Prompt: prompt, SessionID: uuid.NewString(),
-		MCPURL: "http://127.0.0.1:1/mcp/none", AllowedTools: []string{"Read", "Write"}})
-	if err != nil || res.IsError {
-		t.Fatalf("the repo settings must not move the code run off the subscription: %+v %v", res, err)
+	home := t.TempDir()
+	e := newEnvWith(t, home, claudecode.New(filepath.Join(home, "mcp")))
+	cmd, _ := json.Marshal(map[string]any{"name": "markers", "title": "Markers", "description": "Names the marker words.", "class": "internal",
+		"result":   map[string]any{"type": "object", "required": []string{"markers"}, "properties": map[string]any{"markers": map[string]any{"type": "string"}}},
+		"executor": map[string]any{"type": "agent", "folder": true, "prompt": prompt + " The result is those words in markers."}})
+	p := e.createProject("code", `{"version": 5, "commands": [`+string(cmd)+`]}`)
+	e.must("deck.folder_add", map[string]any{"project": "code", "path": repo}, nil)
+	id := e.run(p, "markers")
+	got := e.pollState(id, 5*time.Minute, time.Second, "done", "error")
+	if got.State != "done" {
+		t.Fatalf("the repo settings must not move the agent off the subscription: %+v", got)
 	}
 	if _, err := os.Stat(filepath.Join(repo, ".claude", "settings.local.json")); err == nil {
 		t.Fatal("the agent must not write the repo settings")
 	}
-	t.Logf("code run sees: %s", res.Text)
+	seen := string(got.Result)
+	t.Logf("the agent in the folder sees: %s", seen)
 	for _, w := range []string{"REPOMARK", "SUBMARK"} {
-		if !strings.Contains(res.Text, w) {
-			t.Errorf("the code run must see %s", w)
+		if !strings.Contains(seen, w) {
+			t.Errorf("the agent must see %s", w)
 		}
 	}
 	for _, w := range []string{"OUTERMARK", "OUTERDOTMARK", "OUTERRULEMARK"} {
-		if strings.Contains(res.Text, w) {
-			t.Errorf("the code run must not see %s", w)
+		if strings.Contains(seen, w) {
+			t.Errorf("the agent must not see %s", w)
 		}
 	}
 
-	cmd := exec.Command("claude", "-p", "--output-format", "text", "--setting-sources", "project", "--strict-mcp-config",
+	control := exec.Command("claude", "-p", "--output-format", "text", "--setting-sources", "project", "--strict-mcp-config",
 		"--allowedTools", "Read", "--settings", `{"apiKeyHelper": "", "env": {"ANTHROPIC_API_KEY": "", "ANTHROPIC_BASE_URL": ""}}`)
-	cmd.Dir = repo
-	cmd.Stdin = strings.NewReader(prompt)
-	out, err := cmd.Output()
+	control.Dir = repo
+	control.Stdin = strings.NewReader(prompt)
+	out, err := control.Output()
 	if err != nil {
 		t.Fatalf("control run: %v", err)
 	}

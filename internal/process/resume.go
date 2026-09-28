@@ -193,7 +193,7 @@ func (r *Runner) ResumeInterrupted(ctx context.Context) error {
 	for _, ws := range spaces {
 		r.FreeSlots(ctx, ws)
 	}
-	return nil
+	return r.freeFolders(ctx)
 }
 
 func (r *Runner) reap(ctx context.Context) error {

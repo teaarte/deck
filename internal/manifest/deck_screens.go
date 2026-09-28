@@ -13,14 +13,14 @@ import (
 // SourceFields are the fields of an item of each source other than a collection.
 var SourceFields = map[string][]string{
 	"asks":       {"id", "kind", "project", "who", "what", "where", "text", "created_at", "expires_at", "expired"},
-	"processes":  {"id", "project", "command", "kind", "state", "silent", "started_at", "provider", "error"},
+	"processes":  {"id", "project", "command", "kind", "state", "silent", "started_at", "provider", "error", "folder"},
 	"unattended": {"id", "project", "author", "text", "created_at", "can_undo", "undone"},
 	"providers":  {"name", "agent", "model", "url", "status", "verdict", "speed", "version", "error", "caps"},
 	"log":        {"at", "kind", "id", "title", "status", "text"},
 	"triggers": {"id", "project", "command", "kind", "spec", "params", "next_run_at", "paused", "project_paused", "skip_missed",
 		"last_process", "last_state"},
 	"projects": {"id", "name", "status", "paused", "description", "revision", "rights", "autonomy", "no_network",
-		"manifest_error"},
+		"manifest_error", "folders"},
 	"secrets":       {"name"},
 	"tokens":        {"id", "name", "commands", "created_at", "revoked"},
 	"health":        {"subject", "status", "error", "version", "updated_at"},

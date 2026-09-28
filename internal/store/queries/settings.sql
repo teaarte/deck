@@ -15,3 +15,7 @@ DELETE FROM setting WHERE workspace_id = sqlc.arg(workspace_id) AND key = sqlc.a
 SELECT key, value FROM setting WHERE workspace_id = sqlc.arg(workspace_id) AND key LIKE CAST(sqlc.arg(prefix) AS TEXT) || '%' ORDER BY key;
 
 
+
+
+-- name: DeleteSettingsWithPrefix :exec
+DELETE FROM setting WHERE workspace_id = sqlc.arg(workspace_id) AND key LIKE CAST(sqlc.arg(prefix) AS TEXT) || '%';

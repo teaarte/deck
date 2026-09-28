@@ -173,4 +173,22 @@ func TestRealBrowserSettings(t *testing.T) {
 		t.Fatalf("settings fit the width of a phone: %s", got)
 	}
 	b.shot("settings-phone")
+
+	tab("Projects")
+	if got := b.eval(`String(document.querySelector('nav').innerText.toLowerCase().includes('notes'))`); got != "true" {
+		t.Fatalf("the project is in the menu before the delete: %s", got)
+	}
+	b.eval(`([...document.querySelectorAll('[data-item]')].find((x) => x.offsetParent && x.innerText.includes('notes · enabled')).querySelector('[data-verb="delete"]').click(), '')`)
+	b.until("the owner asked before the delete", `document.querySelector('[data-confirm]')?.innerText.includes('notes')`)
+	var still []projectV
+	e.must("deck.projects_list", nil, &still)
+	if len(still) != 2 {
+		t.Fatalf("nothing is deleted before the owner says yes: %+v", still)
+	}
+	b.eval(`(document.querySelector('[data-confirm-yes]').click(), '')`)
+	b.until("the deleted project gone from the tab and the menu", `![...document.querySelectorAll('[data-item]')].some((x) => x.innerText.includes('notes ·')) && !document.querySelector('nav').innerText.toLowerCase().includes('notes')`)
+	e.must("deck.projects_list", nil, &still)
+	if len(still) != 1 || still[0].Name != "web" {
+		t.Fatalf("the project is deleted after the yes: %+v", still)
+	}
 }

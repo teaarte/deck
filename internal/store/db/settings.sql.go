@@ -26,6 +26,20 @@ func (q *Queries) DeleteSetting(ctx context.Context, arg DeleteSettingParams) (i
 	return result.RowsAffected()
 }
 
+const deleteSettingsWithPrefix = `-- name: DeleteSettingsWithPrefix :exec
+DELETE FROM setting WHERE workspace_id = ?1 AND key LIKE CAST(?2 AS TEXT) || '%'
+`
+
+type DeleteSettingsWithPrefixParams struct {
+	WorkspaceID int64
+	Prefix      string
+}
+
+func (q *Queries) DeleteSettingsWithPrefix(ctx context.Context, arg DeleteSettingsWithPrefixParams) error {
+	_, err := q.db.ExecContext(ctx, deleteSettingsWithPrefix, arg.WorkspaceID, arg.Prefix)
+	return err
+}
+
 const getSetting = `-- name: GetSetting :one
 SELECT value FROM setting WHERE workspace_id = ?1 AND key = ?2
 `

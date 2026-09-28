@@ -131,6 +131,11 @@ func (a *App) addBuiltins() {
 	add("card_restore", "Restore card", "Brings a deleted card back to its lane, or to the inbox lane when that lane is gone.", everyone,
 		registry.Params(registry.P("card", "card", "Card id")), registry.Typed(a.cardRestore))
 
+	r.Add(&registry.Command{Name: registry.Builtin + ".project_delete", Title: "Delete project",
+		Description: "Deletes a project after a snapshot of deck: its records, documents, files, triggers, cards, processes and settings; folders on disk stay.",
+		Class:       registry.External, Callers: ownerOnly,
+		Input:   registry.Params(registry.P("project", "project", "Project name")),
+		Handler: registry.Typed(a.projectDelete)})
 	r.Add(&registry.Command{Name: registry.Builtin + ".collection_delete", Title: "Delete collection records",
 		Description: "Deletes every record of a collection, so the collection can be removed from the manifest.",
 		Class:       registry.External, Callers: ownerOnly,

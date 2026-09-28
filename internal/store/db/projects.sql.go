@@ -33,6 +33,80 @@ func (q *Queries) CreateProject(ctx context.Context, arg CreateProjectParams) (P
 	return i, err
 }
 
+const deleteProject = `-- name: DeleteProject :execrows
+DELETE FROM project WHERE id = ?
+`
+
+func (q *Queries) DeleteProject(ctx context.Context, id int64) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteProject, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const deleteProjectAsks = `-- name: DeleteProjectAsks :exec
+DELETE FROM ask WHERE project_id = ?
+`
+
+func (q *Queries) DeleteProjectAsks(ctx context.Context, projectID int64) error {
+	_, err := q.db.ExecContext(ctx, deleteProjectAsks, projectID)
+	return err
+}
+
+const deleteProjectDocuments = `-- name: DeleteProjectDocuments :exec
+DELETE FROM document WHERE workspace_id = ?1 AND project_id = ?2 AND project_id != 0
+`
+
+type DeleteProjectDocumentsParams struct {
+	WorkspaceID int64
+	ProjectID   int64
+}
+
+func (q *Queries) DeleteProjectDocuments(ctx context.Context, arg DeleteProjectDocumentsParams) error {
+	_, err := q.db.ExecContext(ctx, deleteProjectDocuments, arg.WorkspaceID, arg.ProjectID)
+	return err
+}
+
+const deleteProjectFiles = `-- name: DeleteProjectFiles :many
+DELETE FROM file WHERE project_id = ? RETURNING id
+`
+
+func (q *Queries) DeleteProjectFiles(ctx context.Context, projectID int64) ([]int64, error) {
+	rows, err := q.db.QueryContext(ctx, deleteProjectFiles, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const deleteProjectHealth = `-- name: DeleteProjectHealth :exec
+DELETE FROM health
+WHERE subject LIKE 'command:' || CAST(?1 AS TEXT) || '.%'
+   OR subject LIKE 'tool:' || CAST(?1 AS TEXT) || '.%'
+   OR subject LIKE 'mcp:' || CAST(?1 AS TEXT) || '.%'
+`
+
+func (q *Queries) DeleteProjectHealth(ctx context.Context, name string) error {
+	_, err := q.db.ExecContext(ctx, deleteProjectHealth, name)
+	return err
+}
+
 const getProject = `-- name: GetProject :one
 SELECT id, name, created_at, workspace_id, status, paused FROM project WHERE id = ?
 `

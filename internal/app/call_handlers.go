@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 
+	"deck2/internal/app/docs"
 	"deck2/internal/ask"
 	"deck2/internal/gateway"
 	"deck2/internal/registry"
@@ -131,7 +132,7 @@ func (a *App) addToList(ctx context.Context, act registry.Actor, p db.Project, v
 	if err != nil {
 		return err
 	}
-	raw, err := currentText(ctx, a.Store.Q, projectScope(p), KindManifest, ManifestName)
+	raw, err := docs.CurrentText(ctx, a.Store.Q, docs.ProjectScope(p), docs.KindManifest, docs.ManifestName)
 	if err != nil {
 		return err
 	}

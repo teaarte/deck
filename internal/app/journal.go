@@ -2,15 +2,14 @@ package app
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"time"
 
+	"deck2/internal/app/screens"
 	"deck2/internal/registry"
-	"deck2/internal/screen"
 	"deck2/internal/store/db"
 )
 
@@ -43,7 +42,7 @@ func (a *App) calls(ctx context.Context, workspace, project int64, outcome strin
 	if err != nil {
 		return nil, err
 	}
-	names, err := sources{a}.projectNames(ctx, workspace)
+	names, err := screens.ProjectNames(ctx, a.Store.Q, workspace)
 	if err != nil {
 		return nil, err
 	}
@@ -59,38 +58,9 @@ func (a *App) calls(ctx context.Context, workspace, project int64, outcome strin
 	return out, nil
 }
 
-// spendItems are the tokens and cost of model calls by project, command, provider and model, the largest first.
-func (s sources) spendItems(ctx context.Context, sc screen.Scope, names map[int64]string) ([]map[string]any, error) {
-	rows, err := s.a.Store.Q.SpendByCommand(ctx, sc.Workspace)
-	if err != nil {
-		return nil, err
-	}
-	out := make([]map[string]any, 0, len(rows))
-	for i, r := range rows {
-		out = append(out, map[string]any{"id": i + 1, "project": names[r.ProjectID], "command": r.Command, "provider": r.Provider,
-			"model": r.Model, "calls": r.Calls, "input_tokens": r.InputTokens, "output_tokens": r.OutputTokens,
-			"cache_read_tokens": r.CacheReadTokens, "cost_usd": r.CostUsd, "last_at": r.LastAt})
-	}
-	return out, nil
-}
-
-// fileItems are the files of the workspace, newest first, with what they belong to.
-func (s sources) fileItems(ctx context.Context, sc screen.Scope, names map[int64]string) ([]map[string]any, error) {
-	fs, err := s.a.Store.Q.ListWorkspaceFiles(ctx, db.ListWorkspaceFilesParams{WorkspaceID: sc.Workspace, Lim: 500})
-	if err != nil {
-		return nil, err
-	}
-	out := make([]map[string]any, 0, len(fs))
-	for _, f := range fs {
-		out = append(out, map[string]any{"id": f.ID, "project": names[f.ProjectID], "name": f.Name, "type": f.Type, "size": f.Size,
-			"owner": fmt.Sprintf("%s #%d", f.OwnerKind, f.OwnerID), "created_at": f.CreatedAt})
-	}
-	return out, nil
-}
-
 // snapshotItems are the snapshots in backups, newest first; deck keeps the newest few.
-func (s sources) snapshotItems() ([]map[string]any, error) {
-	paths, err := filepath.Glob(filepath.Join(s.a.Cfg.Home, "backups", "deck-*.tar.gz"))
+func (a *App) snapshotItems() ([]map[string]any, error) {
+	paths, err := filepath.Glob(filepath.Join(a.Cfg.Home, "backups", "deck-*.tar.gz"))
 	if err != nil {
 		return nil, err
 	}

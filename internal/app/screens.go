@@ -4,10 +4,11 @@ import (
 	"context"
 	_ "embed"
 	"encoding/json"
-	"fmt"
 	"strings"
 
+	"deck2/internal/app/screens"
 	"deck2/internal/manifest"
+	"deck2/internal/provider"
 	"deck2/internal/registry"
 	"deck2/internal/screen"
 	"deck2/internal/store/db"
@@ -129,119 +130,96 @@ func (a *App) screenGet(ctx context.Context, act registry.Actor, in struct {
 	if req.Screen == nil {
 		return nil, registry.NotFound("deck: no screen %q", in.Screen)
 	}
-	out, err := screen.Render(ctx, a.Store, sources{a}, req)
+	out, err := screen.Render(ctx, a.Store, a.sources(), req)
 	if err != nil {
 		return nil, registry.NotFound("deck: %v", err)
 	}
 	return out, nil
 }
 
-type sources struct{ a *App }
-
-func (s sources) Items(ctx context.Context, from string, sc screen.Scope) ([]map[string]any, error) {
-	names, err := s.projectNames(ctx, sc.Workspace)
-	if err != nil {
-		return nil, err
-	}
-	switch from {
-	case "asks":
-		return s.a.askItems(ctx, sc, names)
-	case "processes":
-		return s.processItems(ctx, sc, names)
-	case "unattended":
-		return s.unattendedItems(ctx, sc, names)
-	case "providers":
-		return s.providerItems(ctx, sc)
-	case "log":
-		return s.logItems(sc.Record)
-	case "triggers":
-		return s.triggerItems(ctx, sc)
-	case "projects":
-		return s.projectItems(ctx, sc)
-	case "notifications":
-		return s.notificationItems(ctx, sc, names)
-	case "secrets":
-		return s.secretItems(ctx, sc)
-	case "tokens":
-		return s.tokenItems(ctx, sc)
-	case "health":
-		return s.healthItems(ctx, sc)
-	case "settings":
-		return s.a.settingItems(ctx, sc.Workspace), nil
-	case "documents":
-		return s.documentItems(ctx, sc, names)
-	case "calls":
-		return s.a.calls(ctx, sc.Workspace, filterProject(sc, names), sc.Filter["outcome"], 0)
-	case "spend":
-		return s.spendItems(ctx, sc, names)
-	case "files":
-		return s.fileItems(ctx, sc, names)
-	case "snapshots":
-		return s.snapshotItems()
-	case "commands":
-		return s.commandItems(ctx, sc, names)
-	}
-	return nil, fmt.Errorf("unknown source %q", from)
+// sources are the rows of screens, read from this deck.
+func (a *App) sources() screens.Sources {
+	return screens.Sources{Store: a.Store, Registry: a.Registry, Deck: screenDeck{a}, Now: a.Cfg.Now, LogPath: a.Runner.LogPath}
 }
 
-func (s sources) Board(ctx context.Context, p db.Project, m *manifest.Manifest) (any, error) {
-	cards, err := s.a.Store.Q.ListCards(ctx, p.ID)
+type screenDeck struct{ a *App }
+
+func (d screenDeck) Manifest(ctx context.Context, p db.Project) (*manifest.Manifest, error) {
+	return loadManifest(ctx, d.a.Store.Q, p)
+}
+
+func (d screenDeck) Project(ctx context.Context, p db.Project) (screens.Project, *manifest.Manifest) {
+	v, m := d.a.viewProject(ctx, p)
+	return screens.Project{Description: v.Description, Revision: v.Revision, Rights: v.Rights, ManifestError: v.ManifestError}, m
+}
+
+func (d screenDeck) Providers(ctx context.Context, workspace int64) ([]screens.Provider, error) {
+	got, err := d.a.providersList(ctx, owner(workspace), struct{ Command string }{})
 	if err != nil {
 		return nil, err
 	}
-	waits, err := waitsOf(ctx, s.a.Store.Q, p.ID)
+	pvs, err := d.a.providers(ctx, workspace)
 	if err != nil {
 		return nil, err
 	}
-	lanes := []map[string]any{}
-	for _, l := range m.Board.Lanes {
-		shown := []map[string]any{}
-		for _, c := range cards {
-			if c.Lane != l.Name {
-				continue
-			}
-			v := viewCard(c, waits)
-			card := map[string]any{"id": v.ID, "title": v.Title, "text": v.Text, "waits": v.Waits}
-			if v.Record != 0 {
-				card["record"] = v.Record
-			}
-			shown = append(shown, card)
+	checked, builtin := map[string]bool{}, map[string]bool{}
+	for _, pv := range pvs {
+		_, checked[pv.Name()] = pv.(provider.SelfChecker)
+	}
+	for _, pv := range d.a.builtin {
+		builtin[pv.Name()] = true
+	}
+	views := got.(map[string]any)["providers"].([]providerView)
+	out := make([]screens.Provider, 0, len(views))
+	for _, v := range views {
+		caps := make([]string, 0, len(v.Caps))
+		for _, c := range v.Caps {
+			caps = append(caps, string(c))
 		}
-		lanes = append(lanes, map[string]any{"name": l.Name, "title": l.Title, "role": l.Role, "cards": shown})
-	}
-	deleted, err := s.a.Store.Q.ListDeletedCards(ctx, p.ID)
-	if err != nil {
-		return nil, err
-	}
-	gone := []map[string]any{}
-	for _, c := range deleted {
-		gone = append(gone, map[string]any{"id": c.ID, "title": c.Title})
-	}
-	return map[string]any{"project": p.Name, "lanes": lanes, "deleted": gone}, nil
-}
-
-func (s sources) projectNames(ctx context.Context, workspace int64) (map[int64]string, error) {
-	ps, err := s.a.Store.Q.ListWorkspaceProjects(ctx, workspace)
-	if err != nil {
-		return nil, err
-	}
-	out := map[int64]string{}
-	for _, p := range ps {
-		out[p.ID] = p.Name
+		out = append(out, screens.Provider{Name: v.Name, Agent: v.Agent, Model: v.Model, URL: v.URL, Status: v.Status, Verdict: v.Verdict,
+			Version: v.Version, Error: v.Error, Speed: v.Speed, Caps: caps, Builtin: builtin[v.Name], SelfCheck: checked[v.Name]})
 	}
 	return out, nil
 }
 
-// filterProject is the project a filter picks by name within the scope, -1 for none, the scope without a name.
-func filterProject(sc screen.Scope, names map[int64]string) int64 {
-	name := sc.Filter["project"]
-	if name == "" {
-		return sc.Project
+func (d screenDeck) Health(ctx context.Context, workspace int64) ([]map[string]any, error) {
+	got, err := d.a.healthList(ctx, owner(workspace), struct{}{})
+	if err != nil {
+		return nil, err
 	}
-	for id, n := range names {
-		if n == name && (sc.Project == 0 || id == sc.Project) {
-			return id
-		}
+	return got.([]map[string]any), nil
+}
+
+func (d screenDeck) Secrets(ctx context.Context, workspace int64) ([]string, error) {
+	got, err := d.a.secretsList(ctx, owner(workspace), struct{}{})
+	if err != nil {
+		return nil, err
 	}
-	return -1
+	return got.([]string), nil
+}
+
+func (d screenDeck) Triggers(ctx context.Context, workspace int64) ([]screens.Trigger, error) {
+	got, err := d.a.triggersList(ctx, owner(workspace), struct{ Project string }{})
+	if err != nil {
+		return nil, err
+	}
+	return got.([]screens.Trigger), nil
+}
+
+func (d screenDeck) Settings(ctx context.Context, workspace int64) []map[string]any {
+	return d.a.settingItems(ctx, workspace)
+}
+
+func (d screenDeck) Calls(ctx context.Context, workspace, project int64, outcome string) ([]map[string]any, error) {
+	return d.a.calls(ctx, workspace, project, outcome, 0)
+}
+
+func (d screenDeck) Snapshots() ([]map[string]any, error) { return d.a.snapshotItems() }
+
+func (d screenDeck) Waits(ctx context.Context, project int64) (map[int64][]int64, error) {
+	return waitsOf(ctx, d.a.Store.Q, project)
+}
+
+func owner(workspace int64) registry.Actor {
+	return registry.Actor{Kind: registry.Owner, Workspace: workspace}
 }

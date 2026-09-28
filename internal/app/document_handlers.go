@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 
+	"deck2/internal/app/docs"
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
 )
@@ -46,18 +47,18 @@ func (a *App) documentsList(ctx context.Context, act registry.Actor, in struct{ 
 }
 
 // readDocScope is where a document read works; another project only as far as reads allow.
-func (a *App) readDocScope(ctx context.Context, act registry.Actor, project, name string) (Scope, error) {
+func (a *App) readDocScope(ctx context.Context, act registry.Actor, project, name string) (docs.Scope, error) {
 	if project == "" {
 		return a.docScope(ctx, act, project)
 	}
 	p, err := a.readScope(ctx, act, project, "", name)
-	return projectScope(p), err
+	return docs.ProjectScope(p), err
 }
 
 // readableDocument loads a document the actor may read: its own project's, its workspace's, or one that reads
 // in its manifest names.
 func (a *App) readableDocument(ctx context.Context, q *db.Queries, act registry.Actor, id int64) (db.Document, error) {
-	d, err := getDocument(ctx, q, id)
+	d, err := docs.Get(ctx, q, id)
 	if err != nil {
 		return d, err
 	}
@@ -86,9 +87,9 @@ func (a *App) documentGet(ctx context.Context, act registry.Actor, in struct {
 	case in.Document != 0:
 		d, err = a.readableDocument(ctx, a.Store.Q, act, in.Document)
 	case in.Name != "":
-		var s Scope
+		var s docs.Scope
 		if s, err = a.readDocScope(ctx, act, in.Project, in.Name); err == nil {
-			d, err = a.Store.Q.FindDocument(ctx, DocRef{Scope: s, Name: in.Name}.find())
+			d, err = a.Store.Q.FindDocument(ctx, docs.Ref{Scope: s, Name: in.Name}.Find())
 			if errors.Is(err, sql.ErrNoRows) {
 				err = registry.NotFound("deck: no document %q", in.Name)
 			}
@@ -99,7 +100,7 @@ func (a *App) documentGet(ctx context.Context, act registry.Actor, in struct {
 	if err != nil {
 		return nil, err
 	}
-	r, err := getRevision(ctx, a.Store.Q, d, in.Revision)
+	r, err := docs.Revision(ctx, a.Store.Q, d, in.Revision)
 	if err != nil {
 		return nil, err
 	}
@@ -115,10 +116,10 @@ func (a *App) documentSave(ctx context.Context, act registry.Actor, in struct {
 	if in.Record != 0 && in.Card != 0 {
 		return nil, registry.Invalid("deck: a document belongs to a record or a card, not both")
 	}
-	if in.Kind == KindManifest {
+	if in.Kind == docs.KindManifest {
 		return nil, registry.Invalid("deck: save manifests with deck.manifest_save")
 	}
-	if act.Kind == registry.Agent && in.Kind != KindArtifact {
+	if act.Kind == registry.Agent && in.Kind != docs.KindArtifact {
 		return nil, registry.Refuse("deck: agents write only artifacts")
 	}
 	s, err := a.docScope(ctx, act, in.Project)
@@ -127,7 +128,7 @@ func (a *App) documentSave(ctx context.Context, act registry.Actor, in struct {
 	}
 	var d db.Document
 	err = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		ref := DocRef{Scope: s, Name: in.Name}
+		ref := docs.Ref{Scope: s, Name: in.Name}
 		if in.Record != 0 {
 			rec, err := q.GetRecord(ctx, in.Record)
 			if errors.Is(err, sql.ErrNoRows) || err == nil && (s.Project == 0 || rec.ProjectID != s.Project) {
@@ -149,7 +150,7 @@ func (a *App) documentSave(ctx context.Context, act registry.Actor, in struct {
 			ref.OwnerKind, ref.OwnerID = "card", c.ID
 		}
 		var n int64
-		if d, n, err = SaveDocument(ctx, q, ref, in.Kind, in.Text, act.Author(), in.Reason); err != nil {
+		if d, n, err = docs.Save(ctx, q, ref, in.Kind, in.Text, act.Author(), in.Reason); err != nil {
 			return err
 		}
 		return a.scriptChanged(ctx, q, act, d, n, in.Reason)
@@ -186,12 +187,12 @@ func (a *App) documentRevert(ctx context.Context, act registry.Actor, in struct 
 	if err != nil {
 		return nil, err
 	}
-	r, err := getRevision(ctx, a.Store.Q, d, in.Revision)
+	r, err := docs.Revision(ctx, a.Store.Q, d, in.Revision)
 	if err != nil {
 		return nil, err
 	}
-	reason := revertReason(r.N, in.Reason)
-	if d.Kind == KindManifest {
+	reason := docs.RevertReason(r.N, in.Reason)
+	if d.Kind == docs.KindManifest {
 		p, err := a.Store.Q.GetProject(ctx, d.ProjectID)
 		if err != nil {
 			return nil, err
@@ -201,14 +202,14 @@ func (a *App) documentRevert(ctx context.Context, act registry.Actor, in struct 
 	}
 	var n int64
 	err = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		ref := DocRef{Scope: Scope{Workspace: d.WorkspaceID, Project: d.ProjectID}, OwnerKind: d.OwnerKind, OwnerID: d.OwnerID, Name: d.Name}
+		ref := docs.Ref{Scope: docs.Scope{Workspace: d.WorkspaceID, Project: d.ProjectID}, OwnerKind: d.OwnerKind, OwnerID: d.OwnerID, Name: d.Name}
 		if cur, err := q.GetDocument(ctx, d.ID); err != nil || in.IfRevision != 0 && cur.Current != in.IfRevision {
 			if err == nil {
 				err = registry.Conflict("deck: document %d is at revision %d now, not %d", d.ID, cur.Current, in.IfRevision)
 			}
 			return err
 		}
-		if _, n, err = SaveDocument(ctx, q, ref, d.Kind, r.Text, act.Author(), reason); err != nil {
+		if _, n, err = docs.Save(ctx, q, ref, d.Kind, r.Text, act.Author(), reason); err != nil {
 			return err
 		}
 		return a.scriptChanged(ctx, q, act, d, n, reason)
@@ -222,7 +223,7 @@ func (a *App) documentRevert(ctx context.Context, act registry.Actor, in struct 
 
 // scriptChanged lists a script change made without the owner, undone by returning to the revision before n.
 func (a *App) scriptChanged(ctx context.Context, q *db.Queries, act registry.Actor, d db.Document, n int64, reason string) error {
-	if d.Kind != KindScript || d.ProjectID == 0 || d.OwnerKind != "" {
+	if d.Kind != docs.KindScript || d.ProjectID == 0 || d.OwnerKind != "" {
 		return nil
 	}
 	prev := db.Document{ID: d.ID, Current: n - 1}

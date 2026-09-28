@@ -10,10 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"deck2/internal/store"
-
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
+	"deck2/internal/store"
 	"deck2/internal/store/db"
 )
 

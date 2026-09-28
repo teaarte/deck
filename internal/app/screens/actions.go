@@ -1,4 +1,4 @@
-package app
+package screens
 
 import "deck2/internal/store/db"
 

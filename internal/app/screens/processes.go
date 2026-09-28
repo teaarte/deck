@@ -1,4 +1,4 @@
-package app
+package screens
 
 import (
 	"bufio"
@@ -13,26 +13,26 @@ import (
 	"deck2/internal/store/db"
 )
 
-func (s sources) processItems(ctx context.Context, sc screen.Scope, names map[int64]string) ([]map[string]any, error) {
+func (s Sources) processItems(ctx context.Context, sc screen.Scope, names map[int64]string) ([]map[string]any, error) {
 	var ps []db.Process
 	if sc.Record != 0 {
-		p, err := s.a.Store.Q.GetProcess(ctx, sc.Record)
+		p, err := s.Store.Q.GetProcess(ctx, sc.Record)
 		if err == nil && names[p.ProjectID] != "" && (sc.Project == 0 || p.ProjectID == sc.Project) {
 			ps = append(ps, p)
 		}
 	} else if len(sc.Filter) > 0 {
-		got, err := s.a.Store.Q.ListProcessesFiltered(ctx, db.ListProcessesFilteredParams{WorkspaceID: sc.Workspace, ProjectID: filterProject(sc, names),
+		got, err := s.Store.Q.ListProcessesFiltered(ctx, db.ListProcessesFilteredParams{WorkspaceID: sc.Workspace, ProjectID: filterProject(sc, names),
 			State: sc.Filter["state"], Lim: 200})
 		if err != nil {
 			return nil, err
 		}
 		ps = got
 	} else {
-		open, err := s.a.Store.Q.ListOpenProcesses(ctx, db.ListOpenProcessesParams{WorkspaceID: sc.Workspace, ProjectID: sc.Project})
+		open, err := s.Store.Q.ListOpenProcesses(ctx, db.ListOpenProcessesParams{WorkspaceID: sc.Workspace, ProjectID: sc.Project})
 		if err != nil {
 			return nil, err
 		}
-		recent, err := s.a.Store.Q.ListProcessesFiltered(ctx, db.ListProcessesFilteredParams{WorkspaceID: sc.Workspace, ProjectID: sc.Project, State: "", Lim: 200})
+		recent, err := s.Store.Q.ListProcessesFiltered(ctx, db.ListProcessesFilteredParams{WorkspaceID: sc.Workspace, ProjectID: sc.Project, State: "", Lim: 200})
 		if err != nil {
 			return nil, err
 		}
@@ -45,9 +45,8 @@ func (s sources) processItems(ctx context.Context, sc screen.Scope, names map[in
 	}
 	out := make([]map[string]any, 0, len(ps))
 	for _, p := range ps {
-		v := procView(p)
 		it := map[string]any{"id": p.ID, "project": names[p.ProjectID], "command": p.Command, "kind": p.Kind, "state": p.State,
-			"silent": p.SilentSinceMs.Valid, "started_at": p.StartedAt, "provider": p.Provider, "error": v.Error}
+			"silent": p.SilentSinceMs.Valid, "started_at": p.StartedAt, "provider": p.Provider, "error": p.Error}
 		acts := []map[string]any{{"verb": "open", "screen": "process", "record": p.ID}}
 		if !finished(p.State) {
 			acts = append(acts, call("stop", false, "deck.process_stop", map[string]any{"process": p.ID}))
@@ -69,9 +68,9 @@ func finished(state string) bool {
 }
 
 // logItems are the last lines of the log of a process while it is open.
-func (s sources) logItems(processID int64) ([]map[string]any, error) {
+func (s Sources) logItems(processID int64) ([]map[string]any, error) {
 	out := []map[string]any{}
-	f, err := os.Open(s.a.Runner.LogPath(processID))
+	f, err := os.Open(s.LogPath(processID))
 	if errors.Is(err, os.ErrNotExist) {
 		return out, nil
 	}
@@ -94,8 +93,8 @@ func (s sources) logItems(processID int64) ([]map[string]any, error) {
 }
 
 // unattendedItems are what deck did without the owner, newest first; an entry with a command can be undone.
-func (s sources) unattendedItems(ctx context.Context, sc screen.Scope, names map[int64]string) ([]map[string]any, error) {
-	rows, err := s.a.Store.Q.ListUnattended(ctx, db.ListUnattendedParams{WorkspaceID: sc.Workspace, ProjectID: sc.Project, Lim: 50})
+func (s Sources) unattendedItems(ctx context.Context, sc screen.Scope, names map[int64]string) ([]map[string]any, error) {
+	rows, err := s.Store.Q.ListUnattended(ctx, db.ListUnattendedParams{WorkspaceID: sc.Workspace, ProjectID: sc.Project, Lim: 50})
 	if err != nil {
 		return nil, err
 	}

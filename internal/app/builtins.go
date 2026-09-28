@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 
+	"deck2/internal/app/docs"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
 )
@@ -68,7 +69,7 @@ func (a *App) addBuiltins() {
 		registry.Typed(a.manifestSave))
 
 	add("documents_list", "List documents", "Lists documents of a project, or workspace documents when no project is given.", everyone,
-		registry.Params(projectOpt, registry.Param{Name: "kind", Type: "enum", Desc: "Only this kind", Enum: DocumentKinds, Optional: true}),
+		registry.Params(projectOpt, registry.Param{Name: "kind", Type: "enum", Desc: "Only this kind", Enum: docs.Kinds, Optional: true}),
 		registry.Typed(a.documentsList))
 	add("document_get", "Get document", "Returns a document by id, or by project and name; the current revision unless one is given.", everyone,
 		registry.Params(registry.Opt("document", "document", "Document id"), projectOpt,
@@ -76,7 +77,7 @@ func (a *App) addBuiltins() {
 		registry.Typed(a.documentGet))
 	add("document_save", "Save document", "Writes a new revision of a document, creating it on first save.", everyone,
 		registry.Params(registry.P("name", "string", "Document name (path), e.g. notes/criteria.md"),
-			registry.Param{Name: "kind", Type: "enum", Desc: "Document kind", Enum: DocumentKinds},
+			registry.Param{Name: "kind", Type: "enum", Desc: "Document kind", Enum: docs.Kinds},
 			registry.P("text", "text", "Full new text"), projectOpt,
 			registry.Opt("record", "record", "Record the document belongs to"), registry.Opt("card", "card", "Card the document belongs to"),
 			registry.Opt("reason", "string", "Why it changed")),

@@ -1,4 +1,4 @@
-package app
+package screens
 
 import (
 	"context"
@@ -17,13 +17,13 @@ import (
 
 // askItems are what waits for the owner, each with the buttons its kind answers with; confirmations that
 // expired stay until the owner clears them.
-func (a *App) askItems(ctx context.Context, sc screen.Scope, names map[int64]string) ([]map[string]any, error) {
-	open, err := a.Store.Q.ListWorkspaceOpenAsks(ctx, sc.Workspace)
+func (s Sources) askItems(ctx context.Context, sc screen.Scope, names map[int64]string) ([]map[string]any, error) {
+	open, err := s.Store.Q.ListWorkspaceOpenAsks(ctx, sc.Workspace)
 	if err != nil {
 		return nil, err
 	}
-	expired, err := a.Store.Q.ListWorkspaceExpiredConfirms(ctx, db.ListWorkspaceExpiredConfirmsParams{WorkspaceID: sc.Workspace,
-		Now: store.Time(a.Cfg.Now())})
+	expired, err := s.Store.Q.ListWorkspaceExpiredConfirms(ctx, db.ListWorkspaceExpiredConfirmsParams{WorkspaceID: sc.Workspace,
+		Now: store.Time(s.Now())})
 	if err != nil {
 		return nil, err
 	}
@@ -34,19 +34,19 @@ func (a *App) askItems(ctx context.Context, sc screen.Scope, names map[int64]str
 		if sc.Project != 0 && q.ProjectID != sc.Project {
 			continue
 		}
-		out = append(out, a.askItem(ctx, q, names))
+		out = append(out, s.askItem(ctx, q, names))
 	}
 	return out, nil
 }
 
-func (a *App) askItem(ctx context.Context, q db.Ask, names map[int64]string) map[string]any {
+func (s Sources) askItem(ctx context.Context, q db.Ask, names map[int64]string) map[string]any {
 	answer := func(verb string, primary bool, value string) map[string]any {
 		return call(verb, primary, "deck.ask_answer", map[string]any{"ask": q.ID, "answer": value})
 	}
 	it := map[string]any{"id": q.ID, "kind": q.Kind, "project": names[q.ProjectID], "text": q.Text, "what": firstLine(q.Text),
 		"who": "", "where": "", "created_at": q.CreatedAt, "expires_at": q.ExpiresAt.String, "expired": q.State == "expired"}
 	if q.ProcessID.Valid {
-		it["who"] = a.processName(ctx, q.ProcessID.Int64)
+		it["who"] = s.processName(ctx, q.ProcessID.Int64)
 	}
 	var acts []map[string]any
 	deny := []map[string]any{answer("deny", false, "deny"), withInput(answer("deny_because", false, "deny"), "reason")}
@@ -64,9 +64,9 @@ func (a *App) askItem(ctx context.Context, q db.Ask, names map[int64]string) map
 	case ask.KindCall, ask.KindUnknown:
 		var f gateway.Frozen
 		_ = json.Unmarshal([]byte(q.Payload), &f)
-		it["who"] = a.callerName(ctx, f.Caller)
+		it["who"] = s.callerName(ctx, f.Caller)
 		it["what"], it["where"] = f.Call.Command, f.Target
-		if c, err := a.Registry.Lookup(ctx, q.WorkspaceID, f.Call.Command); err == nil {
+		if c, err := s.Registry.Lookup(ctx, q.WorkspaceID, f.Call.Command); err == nil {
 			it["what"] = c.Title + " (" + f.Call.Command + ")"
 			if f.Target == "" && c.Target != nil {
 				it["where"] = c.Target(f.Tool)
@@ -149,8 +149,8 @@ func pretty(raw string) string {
 	return string(b)
 }
 
-func (a *App) processName(ctx context.Context, id int64) string {
-	p, err := a.Store.Q.GetProcess(ctx, id)
+func (s Sources) processName(ctx context.Context, id int64) string {
+	p, err := s.Store.Q.GetProcess(ctx, id)
 	if err != nil {
 		return fmt.Sprintf("process #%d", id)
 	}
@@ -158,12 +158,12 @@ func (a *App) processName(ctx context.Context, id int64) string {
 }
 
 // callerName says who made a frozen call: a process, a token, a trigger, the master or the owner.
-func (a *App) callerName(ctx context.Context, c gateway.Caller) string {
+func (s Sources) callerName(ctx context.Context, c gateway.Caller) string {
 	switch {
 	case c.Token != 0:
 		return fmt.Sprintf("token #%d", c.Token)
 	case c.Process != 0:
-		return a.processName(ctx, c.Process)
+		return s.processName(ctx, c.Process)
 	}
 	return c.Kind
 }

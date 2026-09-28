@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"regexp"
 
+	"deck2/internal/app/docs"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store"
@@ -18,8 +19,8 @@ var projectName = regexp.MustCompile(`^[a-z][a-z0-9-]{0,39}$`)
 
 // loadManifest parses the current manifest of a project.
 func loadManifest(ctx context.Context, q *db.Queries, p db.Project) (*manifest.Manifest, error) {
-	s := projectScope(p)
-	row, err := q.CurrentText(ctx, db.CurrentTextParams{WorkspaceID: s.Workspace, ProjectID: s.Project, Name: ManifestName, Kind: KindManifest})
+	s := docs.ProjectScope(p)
+	row, err := q.CurrentText(ctx, db.CurrentTextParams{WorkspaceID: s.Workspace, ProjectID: s.Project, Name: docs.ManifestName, Kind: docs.KindManifest})
 	if errors.Is(err, sql.ErrNoRows) {
 		return manifest.Parse(nil)
 	}
@@ -42,11 +43,11 @@ func (a *App) ManifestAt(ctx context.Context, projectID, revision int64) (*manif
 		}
 		return loadManifest(ctx, a.Store.Q, p)
 	}
-	d, err := a.Store.Q.FindDocument(ctx, DocRef{Scope: projectScope(p), Name: ManifestName}.find())
+	d, err := a.Store.Q.FindDocument(ctx, docs.Ref{Scope: docs.ProjectScope(p), Name: docs.ManifestName}.Find())
 	if err != nil {
 		return nil, err
 	}
-	r, err := getRevision(ctx, a.Store.Q, d, revision)
+	r, err := docs.Revision(ctx, a.Store.Q, d, revision)
 	if err != nil {
 		return nil, err
 	}
@@ -72,7 +73,7 @@ func (a *App) Text(ctx context.Context, projectID int64, kind, name string) (str
 	if err != nil {
 		return "", err
 	}
-	return currentText(ctx, a.Store.Q, projectScope(p), kind, name)
+	return docs.CurrentText(ctx, a.Store.Q, docs.ProjectScope(p), kind, name)
 }
 
 // Prompt is the current md prompt of a project; empty when it has none.
@@ -81,7 +82,7 @@ func (a *App) Prompt(ctx context.Context, projectID int64) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return currentText(ctx, a.Store.Q, projectScope(p), KindPrompt, PromptName)
+	return docs.CurrentText(ctx, a.Store.Q, docs.ProjectScope(p), docs.KindPrompt, docs.PromptName)
 }
 
 type parsed struct {
@@ -136,13 +137,13 @@ func (a *App) createProject(ctx context.Context, act registry.Actor, name string
 		if p, err = q.CreateProject(ctx, db.CreateProjectParams{WorkspaceID: act.Workspace, Name: name, Status: status}); err != nil {
 			return err
 		}
-		ref := DocRef{Scope: projectScope(p), Name: ManifestName}
-		if _, _, err := SaveDocument(ctx, q, ref, KindManifest, string(pm.text), act.Author(), "create project"); err != nil {
+		ref := docs.Ref{Scope: docs.ProjectScope(p), Name: docs.ManifestName}
+		if _, _, err := docs.Save(ctx, q, ref, docs.KindManifest, string(pm.text), act.Author(), "create project"); err != nil {
 			return err
 		}
 		if prompt != "" {
-			ref.Name = PromptName
-			if _, _, err := SaveDocument(ctx, q, ref, KindPrompt, prompt, act.Author(), "create project"); err != nil {
+			ref.Name = docs.PromptName
+			if _, _, err := docs.Save(ctx, q, ref, docs.KindPrompt, prompt, act.Author(), "create project"); err != nil {
 				return err
 			}
 		}
@@ -199,8 +200,8 @@ func (a *App) SaveManifest(ctx context.Context, act registry.Actor, p db.Project
 		if err := checkLanes(ctx, q, p, pm.m); err != nil {
 			return err
 		}
-		ref := DocRef{Scope: projectScope(p), Name: ManifestName}
-		cur, err := q.FindDocument(ctx, ref.find())
+		ref := docs.Ref{Scope: docs.ProjectScope(p), Name: docs.ManifestName}
+		cur, err := q.FindDocument(ctx, ref.Find())
 		if err != nil {
 			return err
 		}
@@ -215,7 +216,7 @@ func (a *App) SaveManifest(ctx context.Context, act registry.Actor, p db.Project
 			return err
 		}
 		var n int64
-		if _, n, err = SaveDocument(ctx, q, ref, KindManifest, string(pm.text), act.Author(), reason); err != nil {
+		if _, n, err = docs.Save(ctx, q, ref, docs.KindManifest, string(pm.text), act.Author(), reason); err != nil {
 			return err
 		}
 		saved.Revision = n
@@ -251,11 +252,11 @@ func keepLegacyDescription(ctx context.Context, q *db.Queries, p db.Project, leg
 	if legacy == "" {
 		return nil
 	}
-	prompt, err := currentText(ctx, q, projectScope(p), KindPrompt, PromptName)
+	prompt, err := docs.CurrentText(ctx, q, docs.ProjectScope(p), docs.KindPrompt, docs.PromptName)
 	if err != nil || prompt != "" {
 		return err
 	}
-	_, _, err = SaveDocument(ctx, q, DocRef{Scope: projectScope(p), Name: PromptName}, KindPrompt, legacy, author, "description moved from the manifest")
+	_, _, err = docs.Save(ctx, q, docs.Ref{Scope: docs.ProjectScope(p), Name: docs.PromptName}, docs.KindPrompt, legacy, author, "description moved from the manifest")
 	return err
 }
 
@@ -268,7 +269,7 @@ func (a *App) UpgradeManifests(ctx context.Context) error {
 	}
 	for _, p := range ps {
 		err := a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-			raw, err := currentText(ctx, q, projectScope(p), KindManifest, ManifestName)
+			raw, err := docs.CurrentText(ctx, q, docs.ProjectScope(p), docs.KindManifest, docs.ManifestName)
 			if err != nil {
 				return err
 			}
@@ -280,7 +281,7 @@ func (a *App) UpgradeManifests(ctx context.Context) error {
 				return err
 			}
 			reason := fmt.Sprintf("manifest format upgraded to version %d", manifest.FormatVersion)
-			if _, _, err := SaveDocument(ctx, q, DocRef{Scope: projectScope(p), Name: ManifestName}, KindManifest, string(up), "deck", reason); err != nil {
+			if _, _, err := docs.Save(ctx, q, docs.Ref{Scope: docs.ProjectScope(p), Name: docs.ManifestName}, docs.KindManifest, string(up), "deck", reason); err != nil {
 				return err
 			}
 			return keepLegacyDescription(ctx, q, p, manifest.LegacyDescription([]byte(raw)), "deck")

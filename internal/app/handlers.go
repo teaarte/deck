@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 
+	"deck2/internal/app/docs"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store"
@@ -47,12 +48,12 @@ func inside(act registry.Actor, projectID int64) error {
 }
 
 // docScope is where a document call works: a project, or the workspace for the owner side.
-func (a *App) docScope(ctx context.Context, act registry.Actor, project string) (Scope, error) {
+func (a *App) docScope(ctx context.Context, act registry.Actor, project string) (docs.Scope, error) {
 	if project == "" && (act.Kind == registry.Owner || act.Kind == registry.Master) {
-		return Scope{Workspace: act.Workspace}, nil
+		return docs.Scope{Workspace: act.Workspace}, nil
 	}
 	p, err := a.scope(ctx, act, project)
-	return projectScope(p), err
+	return docs.ProjectScope(p), err
 }
 
 type projectView struct {
@@ -88,8 +89,8 @@ func (a *App) projectsList(ctx context.Context, act registry.Actor, _ struct{}) 
 // viewProject is a project as the owner sees it, with its manifest when that loads.
 func (a *App) viewProject(ctx context.Context, p db.Project) (projectView, *manifest.Manifest) {
 	v := projectView{ID: p.ID, Name: p.Name, Status: p.Status, Screens: []screenView{}}
-	if prompt, err := currentText(ctx, a.Store.Q, projectScope(p), KindPrompt, PromptName); err == nil {
-		v.Description = description(prompt)
+	if prompt, err := docs.CurrentText(ctx, a.Store.Q, docs.ProjectScope(p), docs.KindPrompt, docs.PromptName); err == nil {
+		v.Description = docs.Description(prompt)
 	}
 	m, err := loadManifest(ctx, a.Store.Q, p)
 	if err != nil {
@@ -119,12 +120,12 @@ func (a *App) manifestGet(ctx context.Context, act registry.Actor, in struct{ Pr
 	if err != nil {
 		return nil, err
 	}
-	ref := DocRef{Scope: projectScope(p), Name: ManifestName}
-	d, err := a.Store.Q.FindDocument(ctx, ref.find())
+	ref := docs.Ref{Scope: docs.ProjectScope(p), Name: docs.ManifestName}
+	d, err := a.Store.Q.FindDocument(ctx, ref.Find())
 	if err != nil {
 		return nil, err
 	}
-	r, err := getRevision(ctx, a.Store.Q, d, 0)
+	r, err := docs.Revision(ctx, a.Store.Q, d, 0)
 	if err != nil {
 		return nil, err
 	}

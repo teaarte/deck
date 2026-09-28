@@ -5,17 +5,11 @@ import (
 	"encoding/json"
 	"strings"
 
+	"deck2/internal/app/screens"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
-	"deck2/internal/screen"
 	"deck2/internal/store/db"
 )
-
-type button struct {
-	Label   string         `json:"label"`
-	Command string         `json:"command"`
-	Params  map[string]any `json:"params,omitempty"`
-}
 
 // notify writes a line to the feed of the cockpit; push comes with stage 3. The caller decides whether it is worth it.
 func (a *App) notify(ctx context.Context, act registry.Actor, in struct {
@@ -48,7 +42,7 @@ func (a *App) notify(ctx context.Context, act registry.Actor, in struct {
 			}
 		}
 	}
-	var buttons []button
+	var buttons []screens.Button
 	if strings.TrimSpace(in.Actions) != "" {
 		if err := json.Unmarshal([]byte(in.Actions), &buttons); err != nil {
 			return nil, registry.Invalid("deck: actions: a JSON array of {label, command, params}: %v", err)
@@ -78,32 +72,4 @@ func (a *App) notify(ctx context.Context, act registry.Actor, in struct {
 	}
 	a.Bus.Publish("notifications")
 	return map[string]any{"notification": n.ID}, nil
-}
-
-func (s sources) notificationItems(ctx context.Context, sc screen.Scope, names map[int64]string) ([]map[string]any, error) {
-	rows, err := s.a.Store.Q.ListNotifications(ctx, db.ListNotificationsParams{WorkspaceID: sc.Workspace, ProjectID: sc.Project, Lim: 50})
-	if err != nil {
-		return nil, err
-	}
-	out := make([]map[string]any, 0, len(rows))
-	for _, n := range rows {
-		it := map[string]any{"id": n.ID, "project": names[n.ProjectID], "text": n.Text, "screen": n.Screen, "record": n.RecordID,
-			"created_at": n.CreatedAt}
-		acts := []map[string]any{}
-		if n.Screen != "" {
-			open := map[string]any{"verb": "open", "project": names[n.ProjectID], "screen": n.Screen}
-			if n.RecordID != 0 {
-				open["record"] = n.RecordID
-			}
-			acts = append(acts, open)
-		}
-		var buttons []button
-		_ = json.Unmarshal([]byte(n.Actions), &buttons)
-		for _, b := range buttons {
-			acts = append(acts, map[string]any{"label": b.Label, "command": names[n.ProjectID] + "." + b.Command, "params": b.Params})
-		}
-		it["_actions"] = acts
-		out = append(out, it)
-	}
-	return out, nil
 }

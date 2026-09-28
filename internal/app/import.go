@@ -9,6 +9,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"deck2/internal/app/docs"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store"
@@ -28,18 +29,18 @@ func absFolder(path string) (string, error) {
 // moduleKind is the document kind of a file of a module folder.
 func moduleKind(m *manifest.Manifest, name string) string {
 	switch {
-	case name == ManifestName:
-		return KindManifest
-	case name == PromptName:
-		return KindPrompt
-	case strings.HasPrefix(name, SkillsDir):
-		return KindSkill
+	case name == docs.ManifestName:
+		return docs.KindManifest
+	case name == docs.PromptName:
+		return docs.KindPrompt
+	case strings.HasPrefix(name, docs.SkillsDir):
+		return docs.KindSkill
 	case strings.HasPrefix(name, "custom/"):
-		return KindCustom
+		return docs.KindCustom
 	case slices.ContainsFunc(m.Scripts, func(s manifest.Script) bool { return s.File == name }):
-		return KindScript
+		return docs.KindScript
 	}
-	return KindDoc
+	return docs.KindDoc
 }
 
 // projectImport creates a draft from a module folder in one transaction; hidden files are left out.
@@ -60,9 +61,9 @@ func (a *App) projectImport(ctx context.Context, act registry.Actor, in struct{ 
 	for _, f := range files {
 		total += len(f.text)
 		switch f.path {
-		case ManifestName:
+		case docs.ManifestName:
 			raw = f.text
-		case PromptName:
+		case docs.PromptName:
 			prompt = f.text
 		}
 	}
@@ -70,7 +71,7 @@ func (a *App) projectImport(ctx context.Context, act registry.Actor, in struct{ 
 		return nil, registry.Invalid("deck: %s holds more than 32 MB of text", dir)
 	}
 	if raw == "" {
-		return nil, registry.Invalid("deck: %s has no %s", dir, ManifestName)
+		return nil, registry.Invalid("deck: %s has no %s", dir, docs.ManifestName)
 	}
 	pm, err := parseManifest([]byte(raw))
 	if err != nil {
@@ -83,11 +84,11 @@ func (a *App) projectImport(ctx context.Context, act registry.Actor, in struct{ 
 	reason := "imported from " + dir
 	p, err := a.createProject(ctx, act, name, []byte(raw), prompt, store.ProjectDraft, func(ctx context.Context, q *db.Queries, p db.Project) error {
 		for _, f := range files {
-			if f.path == ManifestName || f.path == PromptName {
+			if f.path == docs.ManifestName || f.path == docs.PromptName {
 				continue
 			}
-			ref := DocRef{Scope: projectScope(p), Name: f.path}
-			if _, _, err := SaveDocument(ctx, q, ref, moduleKind(pm.m, f.path), f.text, act.Author(), reason); err != nil {
+			ref := docs.Ref{Scope: docs.ProjectScope(p), Name: f.path}
+			if _, _, err := docs.Save(ctx, q, ref, moduleKind(pm.m, f.path), f.text, act.Author(), reason); err != nil {
 				return registry.Invalid("deck: %s: %v", f.path, err)
 			}
 		}

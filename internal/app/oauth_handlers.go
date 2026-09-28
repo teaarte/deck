@@ -7,12 +7,11 @@ import (
 	"strings"
 	"sync"
 
-	"deck2/internal/untrusted"
-
 	"deck2/internal/ask"
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
 	"deck2/internal/tools"
+	"deck2/internal/untrusted"
 )
 
 // toolSignIn asks the owner once to sign in again to the service of a tool whose access ran out.

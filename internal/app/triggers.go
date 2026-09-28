@@ -10,30 +10,13 @@ import (
 	"strings"
 	"time"
 
+	"deck2/internal/app/screens"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
-	"deck2/internal/screen"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
 	"deck2/internal/trigger"
 )
-
-type triggerView struct {
-	ID        int64           `json:"id"`
-	Project   string          `json:"project"`
-	Command   string          `json:"command"`
-	Kind      string          `json:"kind"`
-	Spec      string          `json:"spec,omitempty"`
-	Params    json.RawMessage `json:"params"`
-	NextRunAt string          `json:"next_run_at,omitempty"`
-	Paused    bool            `json:"paused"`
-	// ProjectPaused says the pause is the project's; own is the trigger's own pause.
-	ProjectPaused bool `json:"project_paused"`
-	own           bool
-	SkipMissed    bool   `json:"skip_missed"`
-	LastProcess   int64  `json:"last_process,omitempty"`
-	LastState     string `json:"last_state,omitempty"`
-}
 
 // ownTrigger loads a trigger of the actor's workspace; agents reach only their own project.
 func (a *App) ownTrigger(ctx context.Context, act registry.Actor, id int64) (db.TriggerState, db.Project, error) {
@@ -124,7 +107,7 @@ func (a *App) triggersList(ctx context.Context, act registry.Actor, in struct{ P
 		return nil, err
 	}
 	names := map[int64]db.Project{}
-	out := make([]triggerView, 0, len(ts))
+	out := make([]screens.Trigger, 0, len(ts))
 	for _, t := range ts {
 		p, ok := names[t.ProjectID]
 		if !ok {
@@ -133,8 +116,8 @@ func (a *App) triggersList(ctx context.Context, act registry.Actor, in struct{ P
 			}
 			names[t.ProjectID] = p
 		}
-		v := triggerView{ID: t.ID, Project: p.Name, Command: t.Command, Kind: t.Kind, Spec: t.Spec, Params: json.RawMessage(t.Params),
-			NextRunAt: t.NextRunAt.String, Paused: t.Paused == 1 || p.Paused == 1, ProjectPaused: p.Paused == 1, own: t.Paused == 1,
+		v := screens.Trigger{ID: t.ID, Project: p.Name, Command: t.Command, Kind: t.Kind, Spec: t.Spec, Params: json.RawMessage(t.Params),
+			NextRunAt: t.NextRunAt.String, Paused: t.Paused == 1 || p.Paused == 1, ProjectPaused: p.Paused == 1, Own: t.Paused == 1,
 			SkipMissed: t.SkipMissed == 1}
 		if t.LastProcessID.Valid {
 			v.LastProcess = t.LastProcessID.Int64
@@ -177,45 +160,6 @@ func (a *App) triggerRun(ctx context.Context, act registry.Actor, in struct{ Tri
 		}
 	}
 	a.Bus.Publish("triggers")
-	return out, nil
-}
-
-// triggerItems are the triggers of every project with their buttons: run now, pause or go on, cancel.
-func (s sources) triggerItems(ctx context.Context, sc screen.Scope) ([]map[string]any, error) {
-	act := registry.Actor{Kind: registry.Owner, Workspace: sc.Workspace}
-	got, err := s.a.triggersList(ctx, act, struct{ Project string }{})
-	if err != nil {
-		return nil, err
-	}
-	out := []map[string]any{}
-	for _, v := range got.([]triggerView) {
-		if sc.Project != 0 {
-			if p, err := s.a.Store.Q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: sc.Workspace, Name: v.Project}); err != nil || p.ID != sc.Project {
-				continue
-			}
-		}
-		var params any
-		_ = json.Unmarshal(v.Params, &params)
-		it := map[string]any{"id": v.ID, "project": v.Project, "command": v.Command, "kind": v.Kind, "spec": v.Spec, "params": params,
-			"next_run_at": v.NextRunAt, "paused": v.Paused, "project_paused": v.ProjectPaused, "skip_missed": v.SkipMissed,
-			"last_process": v.LastProcess, "last_state": v.LastState}
-		acts := []map[string]any{}
-		if v.Kind == trigger.KindCron || v.Kind == trigger.KindOnce {
-			acts = append(acts, call("run_now", false, "deck.trigger_run", map[string]any{"trigger": v.ID}))
-		}
-		if v.Kind == trigger.KindOnce {
-			acts = append(acts, call("cancel_run", false, "deck.run_later_cancel", map[string]any{"trigger": v.ID}))
-		} else if v.own {
-			acts = append(acts, call("resume", false, "deck.trigger_pause", map[string]any{"trigger": v.ID, "paused": false}))
-		} else {
-			acts = append(acts, call("pause", false, "deck.trigger_pause", map[string]any{"trigger": v.ID, "paused": true}))
-		}
-		if v.LastProcess != 0 {
-			acts = append(acts, map[string]any{"verb": "open", "screen": "process", "record": v.LastProcess})
-		}
-		it["_actions"] = acts
-		out = append(out, it)
-	}
 	return out, nil
 }
 

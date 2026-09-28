@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"deck2/internal/app"
+	"deck2/internal/app/docs"
 	"deck2/internal/provider"
 	"deck2/internal/store/db"
 )
@@ -196,7 +196,7 @@ func TestOldManifestFormatIsUpgraded(t *testing.T) {
 
 	ctx := context.Background()
 	err := e.App.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		_, _, err := app.SaveDocument(ctx, q, app.DocRef{Scope: app.Scope{Workspace: 1, Project: p}, Name: app.ManifestName}, app.KindManifest, ideasV1, "owner", "stored by an old deck")
+		_, _, err := docs.Save(ctx, q, docs.Ref{Scope: docs.Scope{Workspace: 1, Project: p}, Name: docs.ManifestName}, docs.KindManifest, ideasV1, "owner", "stored by an old deck")
 		return err
 	})
 	if err != nil {

@@ -14,6 +14,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"deck2/internal/app/docs"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/script"
@@ -120,7 +121,7 @@ func (a *App) migrate(ctx context.Context, p db.Project, next *manifest.Manifest
 // runMigration runs a migration script on a copy of the records, without network and deck tools.
 func (a *App) runMigration(ctx context.Context, p db.Project, m *manifest.Manifest, c *manifest.Collection, input string) ([]byte, error) {
 	s := m.Script(c.Migration)
-	src, err := currentText(ctx, a.Store.Q, projectScope(p), "", s.File)
+	src, err := docs.CurrentText(ctx, a.Store.Q, docs.ProjectScope(p), "", s.File)
 	if err != nil {
 		return nil, err
 	}

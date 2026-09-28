@@ -6,12 +6,11 @@ import (
 	"fmt"
 	"net/url"
 
-	"deck2/internal/store"
-	"deck2/internal/untrusted"
-
 	"deck2/internal/ask"
 	"deck2/internal/registry"
+	"deck2/internal/store"
 	"deck2/internal/store/db"
+	"deck2/internal/untrusted"
 )
 
 // DefaultBrowser starts Playwright MCP of a known version, so the tools deck sorts into reading and acting

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	"deck2/internal/app/docs"
 	"deck2/internal/ask"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
@@ -144,7 +145,7 @@ func (a *App) unattendedUndo(ctx context.Context, act registry.Actor, in struct{
 		return nil, registry.Invalid("deck: this change has no earlier version to return to")
 	}
 	if r.DocumentID != 0 {
-		d, err := getDocument(ctx, a.Store.Q, r.DocumentID)
+		d, err := docs.Get(ctx, a.Store.Q, r.DocumentID)
 		if err != nil {
 			return nil, err
 		}
@@ -213,11 +214,11 @@ func (a *App) projectAutonomy(ctx context.Context, act registry.Actor, in struct
 	if err != nil {
 		return nil, err
 	}
-	d, err := a.Store.Q.FindDocument(ctx, DocRef{Scope: projectScope(p), Name: ManifestName}.find())
+	d, err := a.Store.Q.FindDocument(ctx, docs.Ref{Scope: docs.ProjectScope(p), Name: docs.ManifestName}.Find())
 	if err != nil {
 		return nil, err
 	}
-	r, err := getRevision(ctx, a.Store.Q, d, 0)
+	r, err := docs.Revision(ctx, a.Store.Q, d, 0)
 	if err != nil {
 		return nil, err
 	}

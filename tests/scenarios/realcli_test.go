@@ -2,7 +2,6 @@ package scenarios
 
 import (
 	"context"
-	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -13,12 +12,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"deck2/internal/api"
-	"deck2/internal/app"
 	"deck2/internal/provider"
 	"deck2/internal/provider/claudecode"
 	"deck2/internal/store/db"
-	"deck2/web"
 )
 
 const realManifest = `{
@@ -40,20 +36,9 @@ const realManifest = `{
 
 // TestRealClaudeCodeQuestionResume runs the stage 0 acceptance scenario on the installed Claude Code CLI.
 func TestRealClaudeCodeQuestionResume(t *testing.T) {
-	if os.Getenv("DECK_REAL_CLI") == "" {
-		t.Skip("set DECK_REAL_CLI=1 to run against the real Claude Code CLI")
-	}
-	ts := httptest.NewUnstartedServer(nil)
-	base := "http://" + ts.Listener.Addr().String()
+	realCLI(t)
 	home := t.TempDir()
-	a, err := app.New(app.Config{Home: home, MCPBase: base, QuestionWait: 5 * time.Second, ConfirmWait: 5 * time.Second}, claudecode.New(filepath.Join(home, "mcp")))
-	if err != nil {
-		t.Fatal(err)
-	}
-	ts.Config.Handler = api.New(a, token, web.FS()).Handler()
-	ts.Start()
-	t.Cleanup(func() { _ = a.Close(); ts.Close() })
-	e := &Env{T: t, App: a, URL: base, names: map[int64]string{}}
+	e := newEnvWith(t, home, claudecode.New(filepath.Join(home, "mcp")))
 
 	p := e.createProject("ideas", realManifest)
 	id := e.run(p, "collect")
@@ -86,7 +71,7 @@ func TestRealClaudeCodeQuestionResume(t *testing.T) {
 	if got.State != "done" || got.NotBySchema {
 		t.Fatalf("want done by schema, got %+v", got)
 	}
-	recs, _ := a.Store.Q.ListRecords(context.Background(), db.ListRecordsParams{ProjectID: p, Collection: "ideas"})
+	recs, _ := e.App.Store.Q.ListRecords(context.Background(), db.ListRecordsParams{ProjectID: p, Collection: "ideas"})
 	if len(recs) < 2 {
 		t.Fatalf("want at least 2 records, got %d", len(recs))
 	}

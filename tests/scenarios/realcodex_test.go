@@ -3,17 +3,13 @@ package scenarios
 import (
 	"context"
 	"encoding/json"
-	"net/http/httptest"
 	"os"
 	"os/exec"
 	"strings"
 	"testing"
 	"time"
 
-	"deck2/internal/api"
-	"deck2/internal/app"
 	"deck2/internal/provider/codex"
-	"deck2/web"
 )
 
 func realCodex(t *testing.T) {
@@ -44,16 +40,7 @@ func TestRealCodexSelfCheck(t *testing.T) {
 func TestRealCodexQuestion(t *testing.T) {
 	realCodex(t)
 	home := t.TempDir()
-	ts := httptest.NewUnstartedServer(nil)
-	base := "http://" + ts.Listener.Addr().String()
-	a, err := app.New(app.Config{Home: home, MCPBase: base, QuestionWait: 4 * time.Minute, ConfirmWait: 4 * time.Minute}, codex.New(home))
-	if err != nil {
-		t.Fatal(err)
-	}
-	ts.Config.Handler = api.New(a, token, web.FS()).Handler()
-	ts.Start()
-	t.Cleanup(func() { _ = a.Close(); ts.Close() })
-	e := &Env{T: t, App: a, URL: base, names: map[int64]string{}}
+	e := newEnvWith(t, home, codex.New(home), realWaits)
 	p := e.createProject("ask", `{"version": 5,
   "commands": [{"name": "work", "title": "Work", "description": "Asks the owner", "class": "internal",
     "result": {"type": "object", "required": ["color"], "properties": {"color": {"type": "string"}}},

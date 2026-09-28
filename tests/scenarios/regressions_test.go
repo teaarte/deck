@@ -127,27 +127,23 @@ func TestAnswerSavedBeforeRestartReachesParkedProcess(t *testing.T) {
 		askQuestion(ctx, c, "Which topic?")
 		return provider.Result{Text: "stopped"}
 	}}
-	a1, ts1 := startApp(t, home, fake)
-	e := &Env{T: t, App: a1, URL: ts1.URL, Fake: fake, names: map[int64]string{}}
+	e := restartEnv(t, home, fake)
 	p := e.createProject("ideas", ideasManifest)
 	id := e.run(p, "collect")
 	e.waitState(id, "waiting_answer")
 	a := e.waitAsk()
-	_ = a1.Close()
-	ts1.Close()
+	_ = e.App.Close()
 
 	fake2 := &Fake{script: func(ctx context.Context, c *Call) provider.Result {
 		return provider.Result{Structured: json.RawMessage(`{"written": 0}`)}
 	}}
-	a2, ts2 := startApp(t, home, fake2)
-	defer func() { _ = a2.Close(); ts2.Close() }()
-	if _, err := a2.Store.Q.AnswerAsk(context.Background(), db.AnswerAskParams{Answer: "rust", ID: a.ID}); err != nil {
+	e2 := restartEnv(t, home, fake2)
+	if _, err := e2.App.Store.Q.AnswerAsk(context.Background(), db.AnswerAskParams{Answer: "rust", ID: a.ID}); err != nil {
 		t.Fatal(err)
 	}
-	if err := a2.Runner.ResumeInterrupted(context.Background()); err != nil {
+	if err := e2.App.Runner.ResumeInterrupted(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	e2 := &Env{T: t, App: a2, URL: ts2.URL, Fake: fake2, names: map[int64]string{}}
 	e2.waitState(id, "done")
 	if calls := fake2.Calls(); len(calls) != 1 || !strings.Contains(calls[0].Prompt, "rust") {
 		t.Fatalf("the saved answer must reach the parked process after restart, got %+v", calls)

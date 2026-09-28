@@ -3,18 +3,15 @@ package scenarios
 import (
 	"context"
 	"encoding/json"
-	"net/http/httptest"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
-	"deck2/internal/api"
 	"deck2/internal/app"
 	"deck2/internal/provider"
 	"deck2/internal/store/db"
-	"deck2/web"
 )
 
 func short(c *app.Config) {
@@ -165,23 +162,19 @@ func TestShutdownKeepsProcessForResumeAfterRestart(t *testing.T) {
 		<-ctx.Done()
 		return provider.Result{}
 	}}
-	a1, ts1 := startApp(t, home, fake)
-	e := &Env{T: t, App: a1, URL: ts1.URL, Fake: fake, names: map[int64]string{}}
+	e := restartEnv(t, home, fake)
 	p := e.createProject("ideas", ideasManifest)
 	id := e.run(p, "collect")
 	<-started
-	_ = a1.Close()
-	ts1.Close()
+	_ = e.App.Close()
 
 	fake2 := &Fake{script: func(ctx context.Context, c *Call) provider.Result {
 		return provider.Result{Structured: json.RawMessage(`{"written": 0}`)}
 	}}
-	a2, ts2 := startApp(t, home, fake2)
-	defer func() { _ = a2.Close(); ts2.Close() }()
-	if err := a2.Runner.ResumeInterrupted(context.Background()); err != nil {
+	e2 := restartEnv(t, home, fake2)
+	if err := e2.App.Runner.ResumeInterrupted(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	e2 := &Env{T: t, App: a2, URL: ts2.URL, Fake: fake2, names: map[int64]string{}}
 	e2.waitState(id, "done")
 	calls := fake2.Calls()
 	if len(calls) != 1 || !calls[0].Resume || calls[0].SessionID != fake.Calls()[0].SessionID || !strings.Contains(calls[0].Prompt, "restarted") {
@@ -189,17 +182,12 @@ func TestShutdownKeepsProcessForResumeAfterRestart(t *testing.T) {
 	}
 }
 
-func startApp(t *testing.T, home string, p provider.Provider) (*app.App, *httptest.Server) {
+// restartEnv starts deck on home with the fake and waits of a second, for tests that restart it.
+func restartEnv(t *testing.T, home string, fake *Fake) *Env {
 	t.Helper()
-	ts := httptest.NewUnstartedServer(nil)
-	base := "http://" + ts.Listener.Addr().String()
-	a, err := app.New(app.Config{Home: home, MCPBase: base, QuestionWait: time.Second, ConfirmWait: time.Second}, p)
-	if err != nil {
-		t.Fatal(err)
-	}
-	ts.Config.Handler = api.New(a, token, web.FS()).Handler()
-	ts.Start()
-	return a, ts
+	e := newEnvWith(t, home, fake, func(c *app.Config) { c.QuestionWait, c.ConfirmWait = time.Second, time.Second })
+	e.Fake = fake
+	return e
 }
 
 func TestRecordWithoutKeyIsRejected(t *testing.T) {

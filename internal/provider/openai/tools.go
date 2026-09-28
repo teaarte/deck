@@ -5,10 +5,15 @@ import (
 	"encoding/json"
 	"strings"
 
+	"deck2/internal/provider"
+
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/shared"
 )
+
+// askName is the ask tool on the deck server; the model sees it under the name its prompt gives.
+var askName = strings.TrimPrefix(provider.AskTool, "mcp__"+provider.Server+"__")
 
 // gatewayTools are the tools of the deck MCP server as function tools; the permission tool is deck's own.
 func gatewayTools(ctx context.Context, sess *mcp.ClientSession, permission string) ([]openai.ChatCompletionToolUnionParam, error) {
@@ -23,7 +28,11 @@ func gatewayTools(ctx context.Context, sess *mcp.ClientSession, permission strin
 		var schema map[string]any
 		b, _ := json.Marshal(t.InputSchema)
 		_ = json.Unmarshal(b, &schema)
-		out = append(out, function(t.Name, t.Description, schema))
+		name := t.Name
+		if name == askName {
+			name = provider.AskTool
+		}
+		out = append(out, function(name, t.Description, schema))
 	}
 	return out, nil
 }
@@ -38,6 +47,9 @@ func call(ctx context.Context, sess *mcp.ClientSession, name, arguments string) 
 	args := json.RawMessage(arguments)
 	if !json.Valid(args) || len(strings.TrimSpace(arguments)) == 0 {
 		args = json.RawMessage(`{}`)
+	}
+	if name == provider.AskTool {
+		name = askName
 	}
 	res, err := sess.CallTool(ctx, &mcp.CallToolParams{Name: name, Arguments: args})
 	if err != nil {

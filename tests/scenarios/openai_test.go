@@ -52,7 +52,7 @@ func TestAgentOnAnOpenAICompatibleProviderWorksThroughTheGateway(t *testing.T) {
 		t.Fatalf("want four model calls in the first turn, got %d", len(reqs))
 	}
 	tools := reqs[0].tools()
-	for _, want := range []string{"records_upsert", "notes__post", "result_submit", "ask"} {
+	for _, want := range []string{"records_upsert", "notes__post", "result_submit", "mcp__deck__ask"} {
 		if !slices.Contains(tools, want) {
 			t.Fatalf("the model gets the gateway tools, %s missing from %v", want, tools)
 		}
@@ -320,7 +320,7 @@ func TestAnOpenAICompatibleModelAsksTheOwnerWithTheAskToolOfTheGateway(t *testin
 	llm := newLLM(t, func(n int, req chatRequest) chatReply {
 		switch n {
 		case 1:
-			return toolReply(fnCall{"ask", map[string]any{"question": "How many?", "options": []map[string]any{{"label": "2"}, {"label": "3"}}}})
+			return toolReply(fnCall{"mcp__deck__ask", map[string]any{"question": "How many?", "options": []map[string]any{{"label": "2"}, {"label": "3"}}}})
 		case 2:
 			return toolReply(fnCall{"result_submit", map[string]any{"result": map[string]any{"written": 3}}})
 		}
@@ -342,7 +342,7 @@ func TestAnOpenAICompatibleModelAsksTheOwnerWithTheAskToolOfTheGateway(t *testin
 	if got := reqs[1].last("tool"); !strings.Contains(got, "The owner answered.") || !strings.Contains(got, "3") {
 		t.Fatalf("the answer comes back as the result of ask: %s", got)
 	}
-	if !strings.Contains(reqs[0].last("user"), "ask with the ask tool of the deck MCP server") {
-		t.Fatalf("the prompt names the ask tool: %s", reqs[0].last("user"))
+	if tools := reqs[0].tools(); !slices.Contains(tools, "mcp__deck__ask") || !strings.Contains(reqs[0].last("user"), "(mcp__deck__ask)") {
+		t.Fatalf("the prompt names the ask tool as the model sees it: %v %s", tools, reqs[0].last("user"))
 	}
 }

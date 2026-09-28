@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -62,6 +63,9 @@ func browserTools(dir string) []fakeTool {
 			return text("### Result\n- 0: " + mark + "[Title (1)](" + shown + ")")
 		}},
 		{name: "browser_snapshot", desc: "Snapshot", run: func(map[string]any) *mcp.CallToolResult {
+			if os.Remove(filepath.Join(dir, "hang")) == nil {
+				time.Sleep(time.Minute)
+			}
 			return text("- button \"Send\" [ref=e2] on " + page)
 		}},
 		{name: "browser_take_screenshot", desc: "Screenshot", run: func(map[string]any) *mcp.CallToolResult {

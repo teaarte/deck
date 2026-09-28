@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"deck2/internal/provider"
 )
@@ -161,4 +162,23 @@ func TestExpiredSiteSessionWaitsForTheOwnersSignIn(t *testing.T) {
 		t.Fatalf("after the sign-in the process goes on: %+v", p)
 	}
 	e.waitHealth("site:mail.example", "ok")
+}
+
+func TestAHungBrowserToolFreesTheBrowserForOtherProjects(t *testing.T) {
+	ag := &seqAgent{}
+	e := newEnv(t, ag.script)
+	e.App.Host.CallTimeout = 500 * time.Millisecond
+	e.createProject("one", browserManifest(`{"read": ["*"]}`))
+	e.createProject("two", browserManifest(`{"read": ["*"]}`))
+	e.waitState(e.start("one", "browse", steps(nav("https://one.example/"))), "done")
+	if err := os.WriteFile(filepath.Join(e.Browser, "hang"), nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	snap := step{"browser_snapshot", map[string]any{}}
+	e.waitState(e.start("one", "browse", steps(snap)), "done")
+	e.waitState(e.start("two", "browse", steps(nav("https://two.example/"), snap)), "done")
+	got := ag.last(3)
+	if !got[0].isErr || !strings.Contains(got[0].out, "did not answer") || got[1].isErr || got[2].isErr {
+		t.Fatalf("a tool that hangs fails after its deadline and the browser works again for the next project: %+v", got)
+	}
 }

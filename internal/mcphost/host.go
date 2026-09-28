@@ -45,6 +45,8 @@ type Status func(key string, tools []*mcp.Tool, err error)
 type Host struct {
 	// StartTimeout bounds starting a server and listing its tools.
 	StartTimeout time.Duration
+	// CallTimeout bounds one tool call; a server that does not answer in time is stopped.
+	CallTimeout time.Duration
 	// Pause is how long a server that keeps crashing right after its start is not started again.
 	Pause  time.Duration
 	Now    func() time.Time
@@ -59,7 +61,7 @@ type Host struct {
 }
 
 func New(status Status) *Host {
-	return &Host{StartTimeout: 2 * time.Minute, Pause: time.Minute, Now: time.Now, Status: status, servers: map[string]*server{}}
+	return &Host{StartTimeout: 2 * time.Minute, CallTimeout: 2 * time.Minute, Pause: time.Minute, Now: time.Now, Status: status, servers: map[string]*server{}}
 }
 
 type server struct {
@@ -127,7 +129,18 @@ func (h *Host) Call(ctx context.Context, key string, spec Spec, tool string, arg
 	if err != nil {
 		return nil, &ErrNotStarted{err}
 	}
-	return sess.CallTool(ctx, &mcp.CallToolParams{Name: tool, Arguments: args})
+	call, cancel := context.WithTimeout(ctx, h.CallTimeout)
+	defer cancel()
+	res, err := sess.CallTool(call, &mcp.CallToolParams{Name: tool, Arguments: args})
+	if err != nil && ctx.Err() == nil && errors.Is(call.Err(), context.DeadlineExceeded) {
+		s.mu.Lock()
+		if s.sess == sess {
+			s.stop()
+		}
+		s.mu.Unlock()
+		return nil, fmt.Errorf("MCP tool %s did not answer within %s; its server is started again on the next call", tool, h.CallTimeout)
+	}
+	return res, err
 }
 
 // Answered reports whether a call error is the server's own answer rather than a lost connection.

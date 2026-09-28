@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net"
-	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -16,7 +14,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"deck2/internal/provider"
 	"deck2/internal/sandbox"
@@ -63,68 +60,21 @@ func untrustedLine(b []byte) string {
 	return s
 }
 
-// checkServer is the deck MCP server of a self-check: ask answers, result_submit keeps.
-type checkServer struct {
-	mu     sync.Mutex
-	answer string
-	asked  int
-	result json.RawMessage
-}
-
-func (s *checkServer) tools(srv *mcp.Server) {
-	text := func(t string) *mcp.CallToolResult {
-		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: t}}}
-	}
-	obj := map[string]any{"type": "object"}
-	srv.AddTool(&mcp.Tool{Name: "ask", Description: "Asks the owner a question and waits for the answer.",
-		InputSchema: map[string]any{"type": "object", "required": []string{"question"}, "properties": map[string]any{"question": map[string]any{"type": "string"}}}},
-		func(_ context.Context, _ *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			s.mu.Lock()
-			s.asked++
-			s.mu.Unlock()
-			return text("The owner answered: " + s.answer), nil
-		})
-	srv.AddTool(&mcp.Tool{Name: "result_submit", Description: "Hands in the final result of the task, once.",
-		InputSchema: map[string]any{"type": "object", "required": []string{"result"}, "properties": map[string]any{"result": obj}}},
-		func(_ context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			var in struct {
-				Result json.RawMessage `json:"result"`
-			}
-			_ = json.Unmarshal(req.Params.Arguments, &in)
-			s.mu.Lock()
-			s.result = in.Result
-			s.mu.Unlock()
-			return text("deck: result accepted. End your turn."), nil
-		})
-}
-
-func (s *checkServer) take() (json.RawMessage, int) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	r, n := s.result, s.asked
-	s.result, s.asked = nil, 0
-	return r, n
-}
-
 // SelfCheck runs a short session as deck runs agents: a write in its folder, a hidden file its shell cannot read,
 // ask, result_submit, token counts, a resume, then a turn whose curl has no network. deck reads the probes itself.
 func (a *Adapter) SelfCheck(ctx context.Context) (c provider.Check) {
 	if c.Version, c.Err = a.Version(ctx); c.Err != nil {
 		return c
 	}
-	word, secret := "deck-check-"+word()[:8], word()
+	word, secret := provider.CheckWord(), provider.CheckWord()
 	answer := word + "-answered"
-	cs := &checkServer{answer: answer}
-	srv := mcp.NewServer(&mcp.Implementation{Name: "deck", Version: "0"}, nil)
-	cs.tools(srv)
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	cs := &provider.CheckServer{Answer: answer}
+	url, stop, err := provider.ServeCheck(cs.Server())
 	if err != nil {
 		c.Err = err
 		return c
 	}
-	hs := &http.Server{Handler: mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return srv }, nil)}
-	go func() { _ = hs.Serve(ln) }()
-	defer hs.Close()
+	defer stop()
 	if err := os.MkdirAll(a.Dir, 0o700); err != nil {
 		c.Err = err
 		return c
@@ -161,7 +111,7 @@ func (a *Adapter) SelfCheck(ctx context.Context) (c provider.Check) {
 			_ = os.RemoveAll(a.sessionDir(s))
 		}
 	}()
-	req := provider.Request{Cwd: work, SessionID: sessions[0], MCPURL: "http://" + ln.Addr().String() + "/mcp",
+	req := provider.Request{Cwd: work, SessionID: sessions[0], MCPURL: url,
 		OnUsage: func(u provider.Usage) {
 			mu.Lock()
 			tokens += u.Input + u.Output + u.CacheRead
@@ -180,7 +130,7 @@ func (a *Adapter) SelfCheck(ctx context.Context) (c provider.Check) {
 		mu.Unlock()
 		res, err := a.Run(ctx, r)
 		c.NeedsLogin = res.NeedsLogin
-		raw, asked := cs.take()
+		raw, _, asked := cs.Take()
 		var o out
 		_ = json.Unmarshal(raw, &o)
 		mu.Lock()

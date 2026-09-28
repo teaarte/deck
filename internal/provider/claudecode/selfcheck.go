@@ -2,13 +2,9 @@ package claudecode
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net"
-	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -41,12 +37,12 @@ func (a *Adapter) SelfCheck(ctx context.Context) provider.Check {
 	if c.Version, c.Err = a.Version(ctx); c.Err != nil {
 		return c
 	}
-	word, secret := checkWord(), checkWord()
+	word, secret := provider.CheckWord(), provider.CheckWord()
 	answer := word + "-answered"
 	command := "echo " + word + " > word.txt"
 	var mu sync.Mutex
 	var asked []string
-	srv := mcp.NewServer(&mcp.Implementation{Name: "deck", Version: "0"}, nil)
+	srv := mcp.NewServer(&mcp.Implementation{Name: provider.Server, Version: "0"}, nil)
 	srv.AddTool(&mcp.Tool{Name: "approve", Description: "Permission prompt handler of the deck self-check.",
 		InputSchema: map[string]any{"type": "object"}},
 		func(_ context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -75,14 +71,12 @@ func (a *Adapter) SelfCheck(ctx context.Context) provider.Check {
 			out, _ := json.Marshal(d)
 			return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(out)}}}, nil
 		})
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	url, stop, err := provider.ServeCheck(srv)
 	if err != nil {
 		c.Err = err
 		return c
 	}
-	hs := &http.Server{Handler: mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return srv }, nil)}
-	go func() { _ = hs.Serve(ln) }()
-	defer hs.Close()
+	defer stop()
 	dir, err := os.MkdirTemp("", "deck-selfcheck-")
 	if err != nil {
 		c.Err = err
@@ -99,7 +93,7 @@ func (a *Adapter) SelfCheck(ctx context.Context) provider.Check {
 	for _, p := range provider.Paths(hidden) {
 		deny = append(deny, p+"/**")
 	}
-	req := provider.Request{Cwd: work, SessionID: uuid.NewString(), MCPURL: "http://" + ln.Addr().String() + "/mcp",
+	req := provider.Request{Cwd: work, SessionID: uuid.NewString(), MCPURL: url,
 		PermissionMCP: "mcp__deck__approve", AllowedTools: []string{"Read", "StructuredOutput"}, Hidden: deny,
 		ResultSchema: json.RawMessage(`{"type":"object","required":["word","answer"],"properties":{"word":{"type":"string"},"answer":{"type":"string"}}}`),
 		Prompt: "This is a self-check of deck. Do these steps in order.\n1. Run exactly this Bash command once: " + command +
@@ -182,10 +176,4 @@ func (a *Adapter) SelfCheck(ctx context.Context) provider.Check {
 		c.Err = fmt.Errorf("no network: curl in the sandbox of the CLI printed %q, want 000", out.Word)
 	}
 	return c
-}
-
-func checkWord() string {
-	b := make([]byte, 4)
-	_, _ = rand.Read(b)
-	return "deck-check-" + hex.EncodeToString(b)
 }

@@ -268,13 +268,12 @@ for line in sys.stdin:
 func TestMCPToolWithASchemaThatIsNotAnObjectIsLeftOut(t *testing.T) {
 	got := map[string]toolCall{}
 	e := newEnv(t, stepAgent(got, nil))
-	script := filepath.Join(t.TempDir(), "odd.py")
-	_ = os.WriteFile(script, []byte(oddServer), 0o600)
+	script, _ := json.Marshal(oddServer)
 	e.createProject("odd", fmt.Sprintf(`{"version": 4,
   "commands": [{"name": "work", "title": "Work", "description": "Works.", "class": "internal",
     "input": {"type": "object", "properties": {"step": {"type": "string"}}}, "result": {"type": "object"},
     "executor": {"type": "agent", "prompt": "Work."}}],
-  "tools": {"mcp": {"servers": {"odd": {"command": "python3", "args": [%q], "classes": {"free": "internal", "fine": "internal"}}}}}}`, script))
+  "tools": {"mcp": {"servers": {"odd": {"command": "python3", "args": ["-c", %s], "classes": {"free": "internal", "fine": "internal"}}}}}}`, script))
 	e.waitState(e.start("odd", "work", map[string]any{"step": "odd__odd__fine"}), "done")
 	if c := got["odd__odd__fine"]; c.isErr || !strings.Contains(c.out, "called fine") {
 		t.Fatalf("the tool with an object schema works: %+v", c)

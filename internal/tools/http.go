@@ -118,13 +118,7 @@ func (h *HTTP) handler(p db.Project, t manifest.HTTPTool) registry.Handler {
 		} else {
 			h.health(ctx, name, "ok", "")
 		}
-		if intent != 0 {
-			text := ""
-			if err != nil {
-				text = err.Error()
-			}
-			h.GW.Finish(ctx, intent, "done", ext, text)
-		}
+		done(ctx, h.GW, intent, ext, err)
 		return out, err
 	}
 }

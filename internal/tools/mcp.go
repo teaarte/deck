@@ -237,13 +237,7 @@ func (x *MCP) call(ctx context.Context, act registry.Actor, name, key string, sp
 	}
 	out, cerr := Content(x.Dirs, act.ProcessID, name, res)
 	out, cerr = redacted(out, spec.Secrets), redactErr(cerr, spec.Secrets)
-	if intent != 0 {
-		text := ""
-		if cerr != nil {
-			text = cerr.Error()
-		}
-		x.GW.Finish(ctx, intent, "done", "", text)
-	}
+	done(ctx, x.GW, intent, "", cerr)
 	return out, cerr
 }
 

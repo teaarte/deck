@@ -36,6 +36,18 @@ func failed(ctx context.Context, gw *gateway.Gateway, intent int64, name, print 
 	return fmt.Errorf("deck: %s: %s", name, msg)
 }
 
+// done settles the intent of a call the other side answered, with where it went and the error of its answer.
+func done(ctx context.Context, gw *gateway.Gateway, intent int64, at string, err error) {
+	if intent == 0 {
+		return
+	}
+	text := ""
+	if err != nil {
+		text = err.Error()
+	}
+	gw.Finish(ctx, intent, "done", at, text)
+}
+
 // Content turns a tool result into what the caller gets: its structured content, or its text with binary
 // parts saved as files in the results folder of the process; an error result is an error.
 func Content(dirs files.Dirs, process int64, tool string, res *mcp.CallToolResult) (any, error) {

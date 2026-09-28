@@ -58,11 +58,7 @@ func (b *Browser) actor(tool string) registry.Handler {
 		if now, off := b.offDomains(ctx, act.ProjectID); off && cerr == nil {
 			out = map[string]any{"text": "Done. The browser now shows " + untrusted.Line(now, 300) + ", which is not on a read or act domain of this project, so what it shows is withheld."}
 		}
-		text := ""
-		if cerr != nil {
-			text = cerr.Error()
-		}
-		b.GW.Finish(ctx, intent, "done", page, text)
+		done(ctx, b.GW, intent, page, cerr)
 		return out, cerr
 	}
 }

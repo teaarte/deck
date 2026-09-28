@@ -216,7 +216,7 @@ func (q *Queries) PurgeOrphanFiles(ctx context.Context) ([]int64, error) {
 }
 
 const purgeStaleUploads = `-- name: PurgeStaleUploads :many
-DELETE FROM file WHERE owner_kind = 'upload' AND created_at < CAST(?1 AS TEXT) RETURNING id
+DELETE FROM file WHERE owner_kind IN ('upload', 'keeping') AND created_at < CAST(?1 AS TEXT) RETURNING id
 `
 
 func (q *Queries) PurgeStaleUploads(ctx context.Context, before string) ([]int64, error) {

@@ -8,6 +8,8 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -154,5 +156,40 @@ func TestUploadsNeedTheProjectAndGoWhenNoCommandTookThem(t *testing.T) {
 	_ = e.App.Store.DB.QueryRow(`SELECT count(*) FROM file`).Scan(&all)
 	if uploads != 0 || all != 1 {
 		t.Fatalf("an upload no command took is gone after a day, the one a process took stays: %d uploads, %d files", uploads, all)
+	}
+}
+
+func TestResultFilesACrashLeftMidMoveAreNeverShownAndGoAfterADay(t *testing.T) {
+	e := newClockEnv(t, nil)
+	e.createProject("keep", scriptManifest("take", "", ""))
+	e.saveScript("keep", "scripts/main.py", `import json, os
+open(os.path.join(os.environ["DECK_RESULTS"], "a.txt"), "w").write("a")
+print(json.dumps({"files": [{"path": "a.txt"}]}))
+`)
+	id := e.start("keep", "take", nil)
+	e.waitScript(id, "done", "error")
+	var kept []struct{ ID int64 }
+	e.must("deck.files_list", map[string]any{"process": id}, &kept)
+	if len(kept) != 1 {
+		t.Fatalf("a result file is kept: %+v", kept)
+	}
+	res, err := e.App.Store.DB.Exec(`INSERT INTO file (project_id, owner_kind, owner_id, name, created_at)
+		SELECT project_id, 'keeping', id, 'b.txt', ? FROM process WHERE id = ?`, e.Clock.Now().UTC().Format(time.RFC3339Nano), id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	left, _ := res.LastInsertId()
+	path := filepath.Join(e.App.Cfg.Home, "files", fmt.Sprint(left))
+	_ = os.WriteFile(path, []byte("b"), 0o600)
+	var shown []struct{ ID int64 }
+	e.must("deck.files_list", map[string]any{"process": id}, &shown)
+	if len(shown) != 1 || shown[0].ID != kept[0].ID {
+		t.Fatalf("a file still moving belongs to no one: %+v", shown)
+	}
+	e.App.Sweep(context.Background(), e.Clock.Add(25*time.Hour))
+	var n int
+	_ = e.App.Store.DB.QueryRow(`SELECT count(*) FROM file WHERE id = ?`, left).Scan(&n)
+	if _, err := os.Stat(path); n != 0 || err == nil {
+		t.Fatalf("the daily sweep drops what a crash left mid-move: row %d, file %v", n, err)
 	}
 }

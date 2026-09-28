@@ -29,7 +29,7 @@ RETURNING id;
 
 
 -- name: PurgeStaleUploads :many
-DELETE FROM file WHERE owner_kind = 'upload' AND created_at < CAST(sqlc.arg(before) AS TEXT) RETURNING id;
+DELETE FROM file WHERE owner_kind IN ('upload', 'keeping') AND created_at < CAST(sqlc.arg(before) AS TEXT) RETURNING id;
 
 
 -- name: BindFile :execrows

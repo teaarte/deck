@@ -68,15 +68,14 @@ func (r *Runner) keepFiles(ctx context.Context, projectID, processID int64, resu
 	var rows []db.File
 	err = r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		for i, f := range res.Files {
-			kind, owner, err := fileOwner(ctx, q, projectID, processID, f)
-			if err != nil {
+			if _, _, err := fileOwner(ctx, q, projectID, processID, f); err != nil {
 				return err
 			}
 			typ := mime.TypeByExtension(filepath.Ext(srcs[i]))
 			if typ == "" {
 				typ = "application/octet-stream"
 			}
-			row, err := q.CreateFile(ctx, db.CreateFileParams{ProjectID: projectID, OwnerKind: kind, OwnerID: owner,
+			row, err := q.CreateFile(ctx, db.CreateFileParams{ProjectID: projectID, OwnerKind: keeping, OwnerID: processID,
 				Name: filepath.Base(srcs[i]), Type: typ, Size: infos[i].Size(), CreatedAt: store.Time(r.now())})
 			if err != nil {
 				return err
@@ -97,9 +96,29 @@ func (r *Runner) keepFiles(ctx context.Context, projectID, processID int64, resu
 			return err
 		}
 	}
+	err = r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		for i, f := range res.Files {
+			kind, owner, err := fileOwner(ctx, q, projectID, processID, f)
+			if err != nil {
+				return err
+			}
+			if _, err := q.BindFile(ctx, db.BindFileParams{OwnerKind: kind, OwnerID: owner, ID: rows[i].ID, ProjectID: projectID,
+				FromKind: keeping, FromID: processID}); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		r.dropFiles(ctx, rows)
+		return err
+	}
 	r.bus.Publish("files")
 	return nil
 }
+
+// keeping owns the rows of result files while they move into files/; the daily sweep drops those a crash left.
+const keeping = "keeping"
 
 // rebind gives input files of the process to the record or card the result names.
 func (r *Runner) rebind(ctx context.Context, projectID, processID int64, given []FileRef) error {

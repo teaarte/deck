@@ -174,3 +174,17 @@ func TestAProcessLeftWaitingForAFreeSlotStartsWhenDeckStarts(t *testing.T) {
 	release <- struct{}{}
 	e2.waitState(b, "done")
 }
+
+// TestASlotFreedWhileDeckStopsLeavesTheWaitingProcessWaiting: a slot handed over after deck began to stop starts
+// no turn, so the process stays waiting for a slot instead of passing for one that runs.
+func TestASlotFreedWhileDeckStopsLeavesTheWaitingProcessWaiting(t *testing.T) {
+	e := newEnv(t, held(make(chan struct{})))
+	e.must("deck.settings_set", map[string]any{"agent_limit": 1}, nil)
+	p := e.createProject("jobs", testManifest([]string{agentCommand("job", "")}, nil))
+	a, b := e.run(p, "job"), e.run(p, "job")
+	e.waitFor("one running, one waiting", func() bool { return e.states([]int64{a, b}) == "running waiting_slot" })
+	e.App.Runner.Shutdown()
+	if got := e.states([]int64{a, b}); got != "running waiting_slot" {
+		t.Fatalf("the running one stays to resume and the waiting one still waits: %s", got)
+	}
+}

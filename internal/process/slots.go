@@ -86,6 +86,10 @@ func (r *Runner) FreeSlots(ctx context.Context, workspace int64) {
 			r.mu.Lock()
 			r.slots[workspace]--
 			r.mu.Unlock()
+			_ = r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+				_, err := q.ClaimProcess(ctx, db.ClaimProcessParams{ToState: StateWaitingSlot, ID: p.ID, FromState: StateRunning})
+				return err
+			})
 		}
 	}
 }

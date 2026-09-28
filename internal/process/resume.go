@@ -173,7 +173,7 @@ func (r *Runner) ResumeInterrupted(ctx context.Context) error {
 		if open, err := r.st.Q.ListOpenAsksOfProcess(ctx, p.ID); err == nil && gateway.Unresolved(open) != "" {
 			msg += "\n" + gateway.Unresolved(open)
 		}
-		if err := r.resume(ctx, p.ID, msg, askIDs(pending), false); err != nil {
+		if err := r.resumeHeld(ctx, p, msg, askIDs(pending)); err != nil {
 			r.finish(ctx, p.ID, StateInterrupted, "", false, err.Error())
 		}
 	}
@@ -220,9 +220,35 @@ func (r *Runner) setGroup(ctx context.Context, processID int64, pgid int) {
 	})
 }
 
+// resumeHeld resumes an agent deck left running with the slot it had, taken before later waiters get theirs.
+func (r *Runner) resumeHeld(ctx context.Context, p db.Process, message string, asks []int64) error {
+	proj, err := r.st.Q.GetProject(ctx, p.ProjectID)
+	if err != nil {
+		return err
+	}
+	slot := int64(0)
+	if r.takeSlot(ctx, proj.WorkspaceID) {
+		slot = proj.WorkspaceID
+	}
+	if err := r.resumeTurn(ctx, p.ID, message, asks, false, slot); err != nil {
+		if slot != 0 {
+			r.mu.Lock()
+			r.slots[slot]--
+			r.mu.Unlock()
+		}
+		return err
+	}
+	return nil
+}
+
 // resume spawns the provider on the existing session, or on a new one whose first prompt keeps the message.
 // The caller has set the state to running; the asks are marked delivered once the provider returns.
 func (r *Runner) resume(ctx context.Context, processID int64, message string, asks []int64, fresh bool) error {
+	return r.resumeTurn(ctx, processID, message, asks, fresh, 0)
+}
+
+// resumeTurn is resume of a turn that holds a slot of the workspace slot, when that is not 0.
+func (r *Runner) resumeTurn(ctx context.Context, processID int64, message string, asks []int64, fresh bool, slot int64) error {
 	p, err := r.st.Q.GetProcess(ctx, processID)
 	if err != nil {
 		return err
@@ -241,8 +267,13 @@ func (r *Runner) resume(ctx context.Context, processID int64, message string, as
 			return err
 		}
 	}
+	t.slot, t.workspace = slot != 0, slot
 	r.bus.Publish("processes")
-	r.spawn(t)
+	if !r.spawn(t) && slot != 0 {
+		r.mu.Lock()
+		r.slots[slot]--
+		r.mu.Unlock()
+	}
 	return nil
 }
 

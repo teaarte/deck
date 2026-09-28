@@ -489,6 +489,11 @@ func TestRunNowReturnsTheRunStillGoingAndSpendsARunLater(t *testing.T) {
 	if first.Process == 0 || second.Process != first.Process || e.countOf("job") != 1 {
 		t.Fatalf("run now while the run goes gives that run: %d %d", first.Process, second.Process)
 	}
+	for _, tr := range e.triggers() {
+		if tr.ID == job && tr.Last != first.Process {
+			t.Fatalf("a run now is the last run of its trigger: %+v", tr)
+		}
+	}
 	close(gate)
 	e.waitState(first.Process, "done")
 	var later struct{ Process int64 }

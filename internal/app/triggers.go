@@ -166,25 +166,15 @@ func (a *App) triggerRun(ctx context.Context, act registry.Actor, in struct{ Tri
 	}
 	params[manifest.RetryKey] = fmt.Sprintf("trigger:%d", t.ID)
 	raw, _ := json.Marshal(params)
-	as := registry.Actor{Kind: registry.Trigger, Workspace: p.WorkspaceID, ProjectID: p.ID}
+	as := registry.Actor{Kind: registry.Trigger, Workspace: p.WorkspaceID, ProjectID: p.ID, TriggerID: t.ID, Confirmed: true}
 	out, err := a.Gateway.CallAs(ctx, as, p.Name+"."+t.Command, raw)
 	if err != nil {
 		return nil, err
 	}
-	started, _ := out.(Started)
-	err = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		if started.Process != 0 {
-			if err := q.SetTriggerLast(ctx, db.SetTriggerLastParams{LastProcessID: sql.NullInt64{Int64: started.Process, Valid: true}, ID: t.ID}); err != nil {
-				return err
-			}
+	if t.Kind == trigger.KindOnce {
+		if err := a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error { return q.DeleteTrigger(ctx, t.ID) }); err != nil {
+			return nil, err
 		}
-		if t.Kind == trigger.KindOnce {
-			return q.DeleteTrigger(ctx, t.ID)
-		}
-		return nil
-	})
-	if err != nil {
-		return nil, err
 	}
 	a.Bus.Publish("triggers")
 	return out, nil

@@ -361,3 +361,19 @@ func TestAScheduledCallTheOwnerAllowedIsTheLastRunOfItsTrigger(t *testing.T) {
 		t.Fatalf("the run the owner allowed is the last run of its trigger: %+v %+v", ts, ps)
 	}
 }
+
+func TestAnAfterTriggerCallTheOwnerAllowedKeepsItsParent(t *testing.T) {
+	e := newEnv(t, ok)
+	pub := strings.Replace(agentCommand("publish", `{"type": "object", "properties": {"process": {"type": "integer"}}}`), `"class": "internal"`, `"class": "external"`, 1)
+	e.createProject("chain", testManifest([]string{agentCommand("first", ""), pub}, []string{`{"command": "publish", "after": "first"}`}))
+	first := e.start("chain", "first", nil)
+	e.waitState(first, "done")
+	a := e.waitAsk()
+	e.must("deck.ask_answer", map[string]any{"ask": a.ID, "answer": "allow"}, nil)
+	e.waitFor("the allowed run", func() bool { return e.countOf("publish") == 1 })
+	for _, p := range e.processes() {
+		if p.Command == "publish" && (p.Parent != first || p.Depth != 2) {
+			t.Fatalf("the run the owner allowed is the child of the run that fired it: %+v", p)
+		}
+	}
+}

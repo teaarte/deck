@@ -38,11 +38,7 @@ type Caller struct {
 
 // freeze keeps the actor of a call.
 func freeze(a registry.Actor) Caller {
-	c := Caller{Kind: a.Kind, Workspace: a.Workspace, Project: a.ProjectID, Process: a.ProcessID, Trigger: a.TriggerID, Token: a.Token, Commands: a.Commands}
-	if a.Kind == registry.Trigger {
-		c.Process = 0
-	}
-	return c
+	return Caller{Kind: a.Kind, Workspace: a.Workspace, Project: a.ProjectID, Process: a.ProcessID, Trigger: a.TriggerID, Token: a.Token, Commands: a.Commands}
 }
 
 func (c Caller) actor() registry.Actor {

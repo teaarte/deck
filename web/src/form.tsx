@@ -147,6 +147,13 @@ export function Form({ value }: { value: FormValue }) {
   const alive = useRef(true);
   useEffect(() => () => { alive.current = false; }, []);
   useEffect(() => { setEdited({}); }, [value.record]);
+  // A change the server now holds, a saved one too, stops being the owner's and follows the server again.
+  useEffect(() => {
+    setEdited((e) => {
+      const kept = Object.entries(e).filter(([k, v]) => String(v) !== String((value.values as Record<string, unknown> | undefined)?.[k]));
+      return kept.length === Object.keys(e).length ? e : Object.fromEntries(kept);
+    });
+  }, [value.values]);
   useEffect(() => {
     const field = cmd && Object.entries(cmd.input?.properties ?? {}).find(([, s]) => isFile(s))?.[0];
     if (!field) return;

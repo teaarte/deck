@@ -193,6 +193,9 @@ func TestRealBrowserWebClientII(t *testing.T) {
 	if !edited {
 		t.Fatalf("the form saves the record, keeps the fields it does not show and the fresh values of those the owner left: %+v", rec)
 	}
+	e.must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes",
+		"records": jsonl(map[string]any{"title": "gamma", "score": 7, "source": "seed", "extra": "keep me", "note": "fresh"})}, nil)
+	b.until("the saved field following the record again", `document.querySelector('[data-form="deck.record_update"] input[data-field="score"]')?.value === '7'`)
 
 	e.createProject("inbox", testManifest([]string{agentCommand("keep", `{"type": "object", "properties": {"doc": {"type": "string", "format": "file"}}}`)}, nil))
 	b.open(e.URL + "/#/deck/cockpit")

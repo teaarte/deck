@@ -54,6 +54,9 @@ func run() error {
 	if err := os.MkdirAll(home, 0o700); err != nil {
 		return err
 	}
+	if err := os.Chmod(home, 0o700); err != nil {
+		return err
+	}
 	token, err := loadToken(filepath.Join(home, "token"))
 	if err != nil {
 		return err
@@ -145,7 +148,7 @@ var keptEnv = []string{"PATH", "HOME", "USER", "LOGNAME", "SHELL", "LANG", "TZ",
 func loadToken(path string) (string, error) {
 	b, err := os.ReadFile(path)
 	if tok := strings.TrimSpace(string(b)); err == nil && len(tok) >= 32 {
-		return tok, nil
+		return tok, os.Chmod(path, 0o600)
 	}
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return "", err
@@ -155,5 +158,8 @@ func loadToken(path string) (string, error) {
 		return "", err
 	}
 	tok := hex.EncodeToString(raw)
-	return tok, os.WriteFile(path, []byte(tok+"\n"), 0o600)
+	if err := os.WriteFile(path, []byte(tok+"\n"), 0o600); err != nil {
+		return "", err
+	}
+	return tok, os.Chmod(path, 0o600)
 }

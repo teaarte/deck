@@ -255,7 +255,9 @@ prompt so it works on a small model too: say which deck tool to call for what, a
 at the end; a provider without output by schema gets the `result_submit` tool for it. A small model copies
 examples from the prompt word for word and misses checks that are plain in the text: give it the shape of the
 result without sample values, let the script do every check a pattern can do and pass the findings in the
-input, and let the script, not the model's verdict, decide what reaches the owner. Text in a language other
+input, and let the script, not the model's verdict, decide what reaches the owner. An agent that judges many
+items hands in all its verdicts in its result and an `after` script writes them into the records: a small
+model that reads and rewrites records one by one drops fields and runs out of time. Text in a language other
 than English is where a small model slips most (mixed languages, stray alphabets): let the script check it and
 try the command on the model it will run on before the hand-over.
 

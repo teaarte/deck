@@ -495,3 +495,26 @@ func TestCodexOwnerServerNamedDeckIsAnError(t *testing.T) {
 		t.Fatalf("an MCP server of the owner named deck stops the turn with a clear error: %+v", got)
 	}
 }
+
+func TestCodexTurnGoesOnWhenTheAppServerStopsReadingWhileItWrites(t *testing.T) {
+	c := newCodex(t)
+	b, _ := os.ReadFile("testdata/codex/ok.jsonl")
+	lines := strings.Split(strings.TrimSpace(string(b)), "\n")
+	var out []string
+	for _, l := range lines {
+		if strings.HasPrefix(l, `{"reply": "initialize"`) {
+			out = append(out, `{"deafAfter": "thread/start"}`)
+		}
+		out = append(out, l)
+		if strings.HasPrefix(l, `{"reply": "thread/start"`) {
+			out = append(out, `{"flood": 6000}`)
+		}
+	}
+	c.streamText(0, strings.Join(out, "\n")+"\n")
+	e, _ := codexEnv(t, c)
+	m := strings.Replace(colorManifest, "Ask the owner which color the report should use.", strings.Repeat("Pick blue. ", 30000), 1)
+	p := e.createProject("paint", m)
+	if got := e.waitState(e.run(p, "work"), "done", "error"); got.State != "done" || string(got.Result) != `{"color":"blue"}` {
+		t.Fatalf("deck reads the output while its long input waits for the app-server: %+v", got)
+	}
+}

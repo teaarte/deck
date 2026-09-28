@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -114,6 +115,9 @@ type fakeCodexRun struct {
 	deckURL        string
 	thread, turn   string
 	mcp            *mcp.ClientSession
+	// deafAfter stops reading stdin after a request of this method until a flood of output is out.
+	deafAfter atomic.Value
+	hear      chan struct{}
 }
 
 var (
@@ -139,6 +143,9 @@ func (f *fakeCodexRun) read() {
 		f.record("rpc.jsonl", m)
 		f.check(m)
 		f.in <- m
+		if w, _ := f.deafAfter.Load().(string); w != "" && string(m["method"]) == strconv.Quote(w) {
+			<-f.hear
+		}
 	}
 	close(f.in)
 }
@@ -247,6 +254,18 @@ func (f *fakeCodexRun) run(lines []string) {
 			var cmd string
 			_ = json.Unmarshal(l["shell"], &cmd)
 			_ = exec.Command("sh", "-c", f.subst(cmd)).Run()
+		case l["deafAfter"] != nil:
+			var method string
+			_ = json.Unmarshal(l["deafAfter"], &method)
+			f.hear = make(chan struct{})
+			f.deafAfter.Store(method)
+		case l["flood"] != nil:
+			var n int
+			_ = json.Unmarshal(l["flood"], &n)
+			for i := range n {
+				f.send(fmt.Sprintf(`{"method":"item/agentMessage/delta","params":{"threadId":"other","turnId":"t","itemId":"i%d","delta":%q}}`, i, strings.Repeat("x", 500)))
+			}
+			close(f.hear)
 		case l["hang"] != nil:
 			for range f.in {
 			}

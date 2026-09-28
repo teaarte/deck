@@ -163,7 +163,7 @@ func (t *turn) until(ctx context.Context) error {
 		select {
 		case m, ok := <-t.c.incoming:
 			if !ok {
-				return errors.New("codex app-server exited without finishing the turn")
+				return t.c.ended("codex app-server exited without finishing the turn")
 			}
 			t.handle(ctx, m)
 		case <-cancelled:

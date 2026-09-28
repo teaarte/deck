@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -35,6 +36,7 @@ checks["external_waits"] = st == 202 and out["waiting"] > 0
 checks["allowed_domain"] = fetch(inp["allowed"]) == 200
 checks["other_domain_refused"] = fetch(inp["other"]) == 403
 checks["direct_network_blocked"] = fetch(inp["allowed"], proxy=False) != 200
+checks["proxy_needs_token"] = fetch(inp["allowed"], proxy=os.environ["HTTP_PROXY"].replace("deck:" + TOKEN + "@", "")) == 407
 checks["outside_write_blocked"] = not can_write(os.path.join(inp["outside"], "x"))
 checks["secret_hidden"] = not can_read(inp["secret"])
 checks["owner_key_hidden"] = not can_read(inp["key"])
@@ -60,7 +62,7 @@ func TestScriptCommandRunsInTheSandbox(t *testing.T) {
 	e := newEnv(t, nil)
 	allowed, other := served(t), served(t)
 	host := strings.TrimPrefix(allowed.URL, "http://")
-	pid := e.createProject("tools", scriptManifest("collect", "", "", fmt.Sprintf(`, "domains": {"read": [%q]}`, host)))
+	pid := e.createProject("tools", scriptManifest("collect", "", fmt.Sprintf(`, "domains": {"read": [%q]}`, host)))
 	e.saveScript("tools", "scripts/main.py", collectScript)
 	home := e.App.Cfg.Home
 	secret := filepath.Join(home, "secrets", "key")
@@ -134,7 +136,7 @@ print(json.dumps({"seen": runs, "folder_write_blocked": not can_write(os.path.jo
 
 func TestScriptKeepsAnIndexInTheProjectDataFolder(t *testing.T) {
 	e := newEnv(t, nil)
-	pid := e.createProject("index", scriptManifest("build", "", "", ""))
+	pid := e.createProject("index", scriptManifest("build", "", ""))
 	e.saveScript("index", "scripts/main.py", indexScript)
 	folder := t.TempDir()
 	for want := range 2 {
@@ -187,32 +189,79 @@ func tarNames(t *testing.T, path string) map[string]bool {
 	}
 }
 
-const packageScript = pythonLib + `
-import deckfixture
-print(json.dumps({"value": deckfixture.VALUE, "pypi": fetch("https://pypi.org/simple/")}))
+// packageScript installs its package itself: uv reads the PEP 723 block and goes to the index through the proxy.
+const packageScript = `#!/usr/bin/env -S uv run --script
+# /// script
+# dependencies = ["deckfixture"]
+# [tool.uv]
+# index-url = "%s/simple"
+# ///
+import json, deckfixture
+print(json.dumps({"value": deckfixture.VALUE}))
 `
 
-func TestScriptPackageWorksWithoutPyPIAndMissingProgramShowsInHealth(t *testing.T) {
+func TestScriptInstallsItsPackagesThroughTheProxyAndMissingProgramShowsInHealth(t *testing.T) {
 	if _, err := exec.LookPath("uv"); err != nil {
 		t.Skip("uv is not installed")
 	}
-	e := newEnv(t, nil)
-	e.createProject("pkgs", scriptManifest("use", "", fmt.Sprintf("[%q]", wheel(t)), ""))
-	e.saveScript("pkgs", "scripts/main.py", packageScript)
-	e.waitHealth("command:pkgs.use", "ok")
-	p := e.waitScript(e.start("pkgs", "use", nil), "done", "error")
-	var res struct {
-		Value int `json:"value"`
-		PyPI  any `json:"pypi"`
+	whl := wheel(t, "deckfixture")
+	var mu sync.Mutex
+	hits := map[string]int{}
+	index := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		hits[r.URL.Path]++
+		mu.Unlock()
+		switch r.URL.Path {
+		case "/simple/deckfixture/":
+			fmt.Fprintf(w, `<a href="/files/%s">%s</a>`, filepath.Base(whl), filepath.Base(whl))
+		case "/files/" + filepath.Base(whl):
+			http.ServeFile(w, r, whl)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(index.Close)
+	host := strings.TrimPrefix(index.URL, "http://")
+	src := fmt.Sprintf(packageScript, index.URL)
+	manifest := func(extra string) string {
+		m := strings.Replace(scriptManifest("use", "", extra), `"scripts/main.py", "runtime": "python"`,
+			`"scripts/main.py", "runtime": "exec", "programs": ["uv"]`, 1)
+		return m
 	}
-	_ = json.Unmarshal(p.Result, &res)
-	if p.State != "done" || res.Value != 42 || !strings.Contains(fmt.Sprint(res.PyPI), "403") {
-		t.Fatalf("the installed package works and PyPI is out of reach while the script runs: %+v %s", p, p.Result)
+	e := newEnv(t, nil)
+	e.createProject("pkgs", manifest(fmt.Sprintf(`, "domains": {"read": [%q]}`, host)))
+	e.saveScript("pkgs", "scripts/main.py", src)
+	var downloads []int
+	for i := range 2 {
+		p := e.waitScript(e.start("pkgs", "use", nil), "done", "error")
+		if p.State != "done" || !strings.Contains(string(p.Result), "42") {
+			t.Fatalf("run %d: the script installs its package from the index in domains.read: %+v", i, p)
+		}
+		mu.Lock()
+		downloads = append(downloads, hits["/files/"+filepath.Base(whl)])
+		mu.Unlock()
+	}
+	if downloads[0] == 0 || downloads[1] != downloads[0] {
+		t.Fatalf("the second run takes the package from the cache in the data folder, downloads: %v", downloads)
 	}
 
-	m := strings.Replace(scriptManifest("use", "", "[]", ""), `"runtime": "python"`, `"runtime": "python", "programs": ["deck-no-such-program"]`, 1)
+	e.createProject("closed", manifest(""))
+	e.saveScript("closed", "scripts/main.py", src)
+	mu.Lock()
+	clear(hits)
+	mu.Unlock()
+	if p := e.waitScript(e.start("closed", "use", nil), "done", "error"); p.State != "error" || !strings.Contains(p.Error, "403") {
+		t.Fatalf("an index outside domains.read is refused: %+v", p)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if len(hits) != 0 {
+		t.Fatalf("nothing reaches an index outside domains.read: %v", hits)
+	}
+
+	m := strings.Replace(scriptManifest("use", "", ""), `"runtime": "python"`, `"runtime": "python", "programs": ["deck-no-such-program"]`, 1)
 	e.createProject("progs", m)
-	e.saveScript("progs", "scripts/main.py", packageScript)
+	e.saveScript("progs", "scripts/main.py", "print('null')\n")
 	h := e.waitHealth("command:progs.use", "error")
 	if !strings.Contains(h.Error, "deck-no-such-program") {
 		t.Fatalf("the health names the missing program: %+v", h)
@@ -222,9 +271,18 @@ func TestScriptPackageWorksWithoutPyPIAndMissingProgramShowsInHealth(t *testing.
 	}
 }
 
+func TestManifestWithScriptPackagesIsRefusedWithAHint(t *testing.T) {
+	e := newEnv(t, nil)
+	m := strings.Replace(scriptManifest("use", "", ""), `"runtime": "python"`, `"runtime": "python", "packages": ["requests"]`, 1)
+	code, out := e.call("deck.project_create", map[string]any{"name": "old", "manifest": m})
+	if code != 422 || !strings.Contains(string(out), "PEP 723") || !strings.Contains(string(out), "domains.read") {
+		t.Fatalf("a manifest with packages is refused with the way scripts install them: %d %s", code, out)
+	}
+}
+
 func TestScriptCeilingAndThreeFailuresInARow(t *testing.T) {
 	e := newClockEnv(t, nil)
-	e.createProject("slow", scriptManifest("wait", "", "", ""))
+	e.createProject("slow", scriptManifest("wait", "", ""))
 	e.saveScript("slow", "scripts/main.py", "import sys, time\nprint('started', file=sys.stderr, flush=True)\ntime.sleep(120)\n")
 	id := e.start("slow", "wait", nil)
 	e.waitFor("the script to start", func() bool { return len(e.log(id)) > 0 })
@@ -239,7 +297,7 @@ func TestScriptCeilingAndThreeFailuresInARow(t *testing.T) {
 		t.Fatalf("the ceiling stops the script: %+v", p)
 	}
 
-	e.createProject("fails", scriptManifest("break", "", "", ""))
+	e.createProject("fails", scriptManifest("break", "", ""))
 	e.saveScript("fails", "scripts/main.py", "import sys\nprint('boom', file=sys.stderr)\nsys.exit(3)\n")
 	for i := 1; i <= 4; i++ {
 		p := e.waitScript(e.start("fails", "break", nil), "error", "done")
@@ -259,7 +317,7 @@ func TestScriptCeilingAndThreeFailuresInARow(t *testing.T) {
 func TestScriptInterruptedByARestartIsNotResumed(t *testing.T) {
 	home := t.TempDir()
 	e1 := newEnvWith(t, home, &Fake{})
-	e1.createProject("restart", scriptManifest("wait", "", "", ""))
+	e1.createProject("restart", scriptManifest("wait", "", ""))
 	e1.saveScript("restart", "scripts/main.py", "import sys, time\nprint('started', file=sys.stderr, flush=True)\ntime.sleep(120)\n")
 	id := e1.start("restart", "wait", nil)
 	e1.waitFor("the script to start", func() bool { return len(e1.log(id)) > 0 })
@@ -278,7 +336,7 @@ func TestScriptInterruptedByARestartIsNotResumed(t *testing.T) {
 
 func TestResultFilesStayInsideTheResultsFolder(t *testing.T) {
 	e := newEnv(t, nil)
-	e.createProject("escape", scriptManifest("take", "", "", ""))
+	e.createProject("escape", scriptManifest("take", "", ""))
 	outside := t.TempDir()
 	victim := filepath.Join(outside, "victim.txt")
 	_ = os.WriteFile(victim, []byte("mine"), 0o600)
@@ -301,7 +359,7 @@ print(json.dumps({"files": [{"path": %q}]}))
 
 func TestResultFilesAreKeptWholeOrNotAtAll(t *testing.T) {
 	e := newEnv(t, nil)
-	e.createProject("twice", scriptManifest("take", "", "", ""))
+	e.createProject("twice", scriptManifest("take", "", ""))
 	e.saveScript("twice", "scripts/main.py", `import json, os
 open(os.path.join(os.environ["DECK_RESULTS"], "a.txt"), "w").write("a")
 print(json.dumps({"files": [{"path": "a.txt"}, {"path": "./a.txt"}]}))

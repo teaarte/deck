@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"deck2/internal/manifest"
+	"deck2/internal/script"
 	"deck2/internal/store/db"
 )
 
@@ -13,8 +14,7 @@ const sandboxHealth = "sandbox"
 
 func commandHealth(project, command string) string { return "command:" + project + "." + command }
 
-// prepareLater installs the script packages of a project in the background and records the health of its
-// script commands; a script run waits for an install that is still going.
+// prepareLater records the health of the script commands of a project in the background.
 func (a *App) prepareLater(projectID int64) {
 	a.bg.Add(1)
 	go func() {
@@ -34,10 +34,7 @@ func (a *App) prepareScripts(ctx context.Context, projectID int64) error {
 	if err != nil {
 		return err
 	}
-	problems := a.Scripts.Ensure(ctx, p.ID, m)
-	if ctx.Err() != nil {
-		return ctx.Err()
-	}
+	problems := script.Check(m)
 	sbErr := a.Scripts.Sandbox.Check()
 	known, err := a.Store.Q.ListHealth(ctx)
 	if err != nil {

@@ -19,7 +19,7 @@ print(json.dumps({"internal": internal, "external": [st, out]}))
 
 func TestTrialScriptWritesInsideDeckAndIsRefusedOutside(t *testing.T) {
 	e := newEnv(t, nil)
-	e.createProject("tried", scriptManifest("run", "", "", ""))
+	e.createProject("tried", scriptManifest("run", "", ""))
 	e.saveScript("tried", "scripts/main.py", trialScript)
 	var try struct{ Process int64 }
 	e.must("deck.command_try", map[string]any{"command": "tried.run", "input": "{}"}, &try)
@@ -65,7 +65,7 @@ func TestTrialAndRealRunsDoNotShareRetryKeys(t *testing.T) {
 
 func TestScriptRunsOnlyFromAScriptDocument(t *testing.T) {
 	e := newEnv(t, nil)
-	e.createProject("kinds", scriptManifest("run", "", "", ""))
+	e.createProject("kinds", scriptManifest("run", "", ""))
 	e.must("deck.document_save", map[string]any{"project": "kinds", "name": "scripts/main.py", "kind": "doc", "text": "print('{}')\n"}, nil)
 	if code, out := e.call("kinds.run", map[string]any{}); code != 422 || !strings.Contains(string(out), "not a script document") {
 		t.Fatalf("a script file stored as another kind does not run: %d %s", code, out)

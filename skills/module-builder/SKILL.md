@@ -177,8 +177,23 @@ A script reads its input JSON from stdin and prints its result JSON to stdout. I
   allow `agent` callers; a call that waits for the owner answers HTTP 202 `{"waiting": <ask>}` — deck makes
   it later, the script goes on;
 - files go into `$DECK_RESULTS`; the result field `files: [{"path": "...", "record": <id>}]` attaches them;
-- packages go into `scripts[].packages` (Python through `uv`, Node through `npm`), programs it needs from
-  the machine into `scripts[].programs`; nothing is installed while the script runs.
+- a script installs its own packages when it runs; there is no `packages` field. The registries go into
+  `domains.read` (Python: `pypi.org`, `files.pythonhosted.org`; Node: `registry.npmjs.org`), the package
+  manager goes through the proxy, its cache lives in `$DECK_DATA`, the install counts in `timeout_minutes`;
+  a project without the registries in `domains.read` has no packages. Programs it needs from the machine go
+  into `scripts[].programs` (`uv`, `npm`). Python: `"runtime": "exec"` and a PEP 723 block:
+  ```python
+  #!/usr/bin/env -S uv run --script
+  # /// script
+  # dependencies = ["httpx==0.28.1"]
+  # ///
+  ```
+  Node: `npm install` into `$DECK_DATA`, output to stderr (stdout is the result), then `createRequire`:
+  ```js
+  const dir = process.env.DECK_DATA + "/node";
+  require("node:child_process").execFileSync("npm", ["install", "--prefix", dir, "--no-audit", "--no-fund", "left-pad@1.3.0"], { stdio: ["ignore", 2, 2] });
+  const leftPad = require("node:module").createRequire(dir + "/")("left-pad");
+  ```
 
 ## 5. Agent commands
 
@@ -248,8 +263,8 @@ Name each of these rights in the hand-over: the owner grants them with "enable".
    `record_delete` (in a draft only), `card_delete`; say in the hand-over what you kept. `process_get` gives
    the state and result. A `lane` step is tried with `command_try` of its command and `{"card": <id>}`: in a
    draft moving the card starts nothing; `process_log` shows events only while the
-   process is open. Check `records_list` and `cards_list`, and `health_list` after a save that adds packages,
-   programs or MCP servers: a failed install shows there with its error.
+   process is open. Check `records_list` and `cards_list`, and `health_list` after a save that adds programs or
+   MCP servers: a missing program or a failed server shows there with its error.
 4. A draft never runs on its schedule or on the owner's card moves. Only the owner enables it.
 
 ## 8. Moving modules and skills

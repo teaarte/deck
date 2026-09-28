@@ -63,8 +63,8 @@ func (r *Runner) runScript(ctx context.Context, t turn, trial bool) {
 	srv := &http.Server{Handler: r.gw.ScriptHandler(runCtx, tok, self, t.m.Domains.Read)}
 	go func() { _ = srv.Serve(ln) }()
 	defer srv.Close()
-	url := "http://" + self
-	env := []string{"DECK_URL=" + url, "DECK_TOKEN=" + tok, "HTTP_PROXY=" + url, "HTTPS_PROXY=" + url, "http_proxy=" + url, "https_proxy=" + url}
+	url, proxy := "http://"+self, "http://deck:"+tok+"@"+self
+	env := []string{"DECK_URL=" + url, "DECK_TOKEN=" + tok, "HTTP_PROXY=" + proxy, "HTTPS_PROXY=" + proxy, "http_proxy=" + proxy, "https_proxy=" + proxy}
 	_ = r.st.Tx(bg, func(ctx context.Context, q *db.Queries) error {
 		return q.StartCeiling(ctx, db.StartCeilingParams{Now: r.now().UnixMilli(), ID: id})
 	})

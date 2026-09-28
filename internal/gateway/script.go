@@ -24,7 +24,7 @@ func (g *Gateway) Grant(s *Session) string {
 }
 
 // ScriptHandler serves one script run at self: registry commands under the token of its process, and a
-// proxy to the given domains whose tunnels close when ctx ends.
+// proxy with the token as its password to the given domains whose tunnels close when ctx ends.
 func (g *Gateway) ScriptHandler(ctx context.Context, tok, self string, domains []string) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /commands", func(w http.ResponseWriter, r *http.Request) {
@@ -64,6 +64,12 @@ func (g *Gateway) ScriptHandler(ctx context.Context, tok, self string, domains [
 	})
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodConnect || r.URL.IsAbs() && r.URL.Host != self {
+			_, pass, _ := (&http.Request{Header: http.Header{"Authorization": r.Header.Values("Proxy-Authorization")}}).BasicAuth()
+			if subtle.ConstantTimeCompare([]byte(pass), []byte(tok)) != 1 || g.session(tok) == nil {
+				w.Header().Set("Proxy-Authenticate", `Basic realm="deck"`)
+				http.Error(w, "deck: the proxy needs the token of a running process", http.StatusProxyAuthRequired)
+				return
+			}
 			Egress(ctx, w, r, domains)
 			return
 		}

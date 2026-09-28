@@ -150,7 +150,7 @@ func TestMasterManifestEditIsUndoneFromTheFeed(t *testing.T) {
 
 func TestMasterScriptEditIsUndoneFromTheFeed(t *testing.T) {
 	e := newEnv(t, ok)
-	e.createProject("tools", scriptManifest("run", "", "", ""))
+	e.createProject("tools", scriptManifest("run", "", ""))
 	e.saveScript("tools", "scripts/main.py", "print('{}')\n")
 	_, tok := e.token("terminal", "deck.*")
 	save := func(name, text string) {

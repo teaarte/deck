@@ -104,8 +104,7 @@
       "properties": {
         "name": {"$ref": "#/$defs/name"},
         "file": {"type": "string", "minLength": 1, "description": "Project document holding the script source."},
-        "runtime": {"enum": ["python", "node", "bash", "exec"]},
-        "packages": {"type": "array", "items": {"type": "string"}, "uniqueItems": true, "description": "pip packages for python, npm packages for node."},
+        "runtime": {"enum": ["python", "node", "bash", "exec"], "description": "exec runs the file by its shebang. A script installs its own packages when it runs (Python: exec with #!/usr/bin/env -S uv run --script and a PEP 723 block; Node: npm install into $DECK_DATA); the registries go into domains.read."},
         "programs": {"type": "array", "items": {"type": "string"}, "uniqueItems": true, "description": "Programs that must exist on the machine."},
         "timeout_minutes": {"type": "integer", "minimum": 1, "maximum": 60}
       }

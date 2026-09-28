@@ -21,7 +21,7 @@ type Policy struct {
 	Hide  []string
 	// Out is the listener of deck the program reaches; without it the program has no network.
 	Out net.Listener
-	// Net opens the whole network; only installing packages gets it.
+	// Net opens the whole network; only MCP servers of a project get it.
 	Net bool
 	// Port is a local port the program listens on itself; its own network namespace needs no rule for it.
 	Port int

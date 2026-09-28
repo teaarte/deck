@@ -127,7 +127,7 @@ func hidden(home string) func(project, process int64) []string {
 			out = append(out, others(filepath.Join(h, "runs"), fmt.Sprint(process))...)
 			out = append(out, others(filepath.Join(h, "projects"), fmt.Sprint(project))...)
 			own := filepath.Join(h, "projects", fmt.Sprint(project))
-			names := []string{"env", "mcp"}
+			names := []string{"mcp"}
 			entries, _ := os.ReadDir(own)
 			for _, e := range entries {
 				if e.Name() != "data" && !slices.Contains(names, e.Name()) {

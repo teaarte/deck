@@ -97,7 +97,7 @@ func TestTriggeredExternalCallWaitsWithoutTheAgentAndRunsAfterYes(t *testing.T) 
 
 func TestAWaitingCallSurvivesTheEmptyProcessCleanup(t *testing.T) {
 	e := newEnv(t, nil)
-	e.createProject("jobs", scriptManifest("run", "", "", ""))
+	e.createProject("jobs", scriptManifest("run", "", ""))
 	e.saveScript("jobs", "scripts/main.py", pythonLib+`
 st, out = deck("jobs.publish", {})
 print("null" if st == 202 else json.dumps({"status": st}))

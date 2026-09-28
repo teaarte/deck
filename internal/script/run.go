@@ -1,4 +1,4 @@
-// Package script runs project scripts in the sandbox and keeps their package environments.
+// Package script runs project scripts in the sandbox.
 package script
 
 import (
@@ -25,14 +25,9 @@ const maxStdout = 32 << 20
 type Exec struct {
 	Sandbox sandbox.Sandbox
 	Home    string
-
-	mu       sync.Mutex
-	projects map[int64]*project
 }
 
-func New(sb sandbox.Sandbox, home string) *Exec {
-	return &Exec{Sandbox: sb, Home: home, projects: map[int64]*project{}}
-}
+func New(sb sandbox.Sandbox, home string) *Exec { return &Exec{Sandbox: sb, Home: home} }
 
 // DataDir is the lasting folder of a project that its scripts and agents write indexes, caches and state to.
 func (x *Exec) DataDir(project int64) string {
@@ -46,10 +41,6 @@ func (x *Exec) hidden() []string {
 		out = append(out, sandbox.Private(home)...)
 	}
 	return out
-}
-
-func (x *Exec) envDir(project int64) string {
-	return filepath.Join(x.Home, "projects", fmt.Sprint(project), "env")
 }
 
 // Job is one run of a script; Dir is its run folder, with work/ and results/ inside.
@@ -77,28 +68,13 @@ func (x *Exec) Run(ctx context.Context, j Job) ([]byte, error) {
 	if err := x.Sandbox.Check(); err != nil {
 		return nil, fmt.Errorf("sandbox %s: %w", x.Sandbox.Name(), err)
 	}
-	p := x.project(j.Project)
-	if err := p.acquire(ctx); err != nil {
-		return nil, err
-	}
-	err := x.ensure(ctx, j.Project, p, j.Manifest)[j.Script.Name]
-	if err == nil {
-		x.mu.Lock()
-		p.running++
-		x.mu.Unlock()
-		defer func() {
-			x.mu.Lock()
-			p.running--
-			x.mu.Unlock()
-		}()
-	}
-	p.release()
-	if err != nil {
+	if err := check(*j.Script); err != nil {
 		return nil, err
 	}
 	src := filepath.Join(j.Dir, "script")
 	tmp := filepath.Join(j.Work(), "tmp")
-	for _, d := range []string{src, tmp, j.Results(), x.DataDir(j.Project)} {
+	data := x.DataDir(j.Project)
+	for _, d := range []string{src, tmp, j.Results(), data} {
 		if err := os.MkdirAll(d, 0o700); err != nil {
 			return nil, err
 		}
@@ -107,19 +83,20 @@ func (x *Exec) Run(ctx context.Context, j Job) ([]byte, error) {
 	if err := os.WriteFile(file, []byte(j.Source), 0o700); err != nil {
 		return nil, err
 	}
-	argv, env, err := x.argv(j, file)
+	argv, err := argvOf(j.Script, file)
 	if err != nil {
 		return nil, err
 	}
-	env = append(env, "PATH="+os.Getenv("PATH"), "HOME="+j.Work(), "TMPDIR="+tmp, "TERM=dumb",
-		"DECK_RESULTS="+j.Results(), "DECK_DATA="+x.DataDir(j.Project), "PYTHONDONTWRITEBYTECODE=1", "PYTHONUNBUFFERED=1")
+	env := []string{"PATH=" + os.Getenv("PATH"), "HOME=" + j.Work(), "TMPDIR=" + tmp, "TERM=dumb",
+		"DECK_RESULTS=" + j.Results(), "DECK_DATA=" + data, "XDG_CACHE_HOME=" + filepath.Join(data, ".cache"),
+		"npm_config_cache=" + filepath.Join(data, ".cache", "npm"), "PYTHONDONTWRITEBYTECODE=1", "PYTHONUNBUFFERED=1"}
 	for _, k := range []string{"LANG", "LC_ALL"} {
 		if v := os.Getenv(k); v != "" {
 			env = append(env, k+"="+v)
 		}
 	}
 	cmd, err := x.Sandbox.Command(ctx, sandbox.Policy{Argv: argv, Dir: j.Work(), Env: append(env, j.Env...),
-		Write: []string{j.Work(), j.Results(), x.DataDir(j.Project)}, Read: append([]string{src, x.envDir(j.Project)}, j.Read...),
+		Write: []string{j.Work(), j.Results(), data}, Read: append([]string{src}, j.Read...),
 		Hide: x.hidden(), Out: j.Out})
 	if err != nil {
 		return nil, err
@@ -157,37 +134,19 @@ func (x *Exec) Run(ctx context.Context, j Job) ([]byte, error) {
 	return out.Bytes(), nil
 }
 
-func (x *Exec) argv(j Job, file string) ([]string, []string, error) {
-	s := j.Script
-	var env []string
-	var argv []string
-	switch s.Runtime {
-	case "python":
-		py := "python3"
-		if len(s.Packages) > 0 {
-			pkgs, _ := packages(j.Manifest, "python")
-			py = filepath.Join(x.envPath(j.Project, "python", pkgs), "bin", "python")
-		}
-		argv = []string{py, file}
-	case "node":
-		argv = []string{"node", file}
-		if len(s.Packages) > 0 {
-			pkgs, _ := packages(j.Manifest, "node")
-			env = append(env, "NODE_PATH="+filepath.Join(x.envPath(j.Project, "node", pkgs), "node_modules"))
-		}
-	case "bash":
-		argv = []string{"bash", file}
-	default:
-		argv = []string{file}
+func argvOf(s *manifest.Script, file string) ([]string, error) {
+	argv := []string{file}
+	if p := interpreters[s.Runtime]; p != "" {
+		argv = []string{p, file}
 	}
 	if !filepath.IsAbs(argv[0]) {
 		p, err := exec.LookPath(argv[0])
 		if err != nil {
-			return nil, nil, fmt.Errorf("program %q of script %s is not on this machine", argv[0], s.Name)
+			return nil, fmt.Errorf("program %q of script %s is not on this machine", argv[0], s.Name)
 		}
 		argv[0] = p
 	}
-	return argv, env, nil
+	return argv, nil
 }
 
 // pipes gives the command its own stdout and stderr, so Wait returns when it exits even if programs it

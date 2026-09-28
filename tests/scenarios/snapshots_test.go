@@ -36,7 +36,7 @@ func TestDailySnapshotKeepsTheNewestSeven(t *testing.T) {
 
 func TestFilesOfDeletedRecordsGoInTheDailyCleanup(t *testing.T) {
 	e := newClockEnv(t, nil)
-	e.createProject("files", scriptManifest("make", "", "", ""))
+	e.createProject("files", scriptManifest("make", "", ""))
 	e.saveScript("files", "scripts/main.py", pythonLib+`
 st, out = deck("deck.records_upsert", {"collection": "items", "records": json.dumps({"name": "a"})})
 open(os.path.join(os.environ["DECK_RESULTS"], "f.txt"), "w").write("f")

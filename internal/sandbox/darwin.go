@@ -38,7 +38,7 @@ var services = []string{"com.apple.system.opendirectoryd.libinfo", "com.apple.sy
 	"com.apple.SecurityServer", "com.apple.system.DirectoryService.libinfo_v1", "com.apple.bsd.dirhelper",
 	"com.apple.coreservices.launchservicesd", "com.apple.lsd.mapdb", "com.apple.cfprefsd.daemon", "com.apple.cfprefsd.agent"}
 
-// netServices resolve names and read the network configuration, for installing packages.
+// netServices resolve names and read the network configuration, for programs with the whole network.
 var netServices = []string{"com.apple.dnssd.service", "com.apple.SystemConfiguration.configd",
 	"com.apple.SystemConfiguration.DNSConfiguration", "com.apple.networkd"}
 

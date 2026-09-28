@@ -3,6 +3,7 @@ package manifest
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"reflect"
 	"slices"
@@ -88,7 +89,6 @@ type Script struct {
 	Name           string   `json:"name"`
 	File           string   `json:"file"`
 	Runtime        string   `json:"runtime"`
-	Packages       []string `json:"packages,omitempty"`
 	Programs       []string `json:"programs,omitempty"`
 	TimeoutMinutes int      `json:"timeout_minutes,omitempty"`
 }
@@ -233,6 +233,10 @@ var formatSchema, screenSchema = func() (*jsonschema.Schema, *jsonschema.Schema)
 	return c.MustCompile("mem://deck-manifest.json"), c.MustCompile("mem://deck-manifest.json#/$defs/screen")
 }()
 
+var errPackages = errors.New(`manifest: scripts have no "packages": a script installs its own packages when it runs ` +
+	`(Python: "runtime": "exec" with "#!/usr/bin/env -S uv run --script" and a PEP 723 block; Node: npm install into ` +
+	`$DECK_DATA), and the registries it needs go into domains.read`)
+
 // Parse upgrades an older format, checks the manifest schema, then references, expressions and schemas.
 func Parse(raw []byte) (*Manifest, error) {
 	up, _, err := Upgrade(raw)
@@ -242,6 +246,13 @@ func Parse(raw []byte) (*Manifest, error) {
 	doc, err := jsonschema.UnmarshalJSON(bytes.NewReader(up))
 	if err != nil {
 		return nil, fmt.Errorf("manifest: %w", err)
+	}
+	if obj, ok := doc.(map[string]any); ok {
+		for _, s := range items(obj["scripts"]) {
+			if _, ok := s["packages"]; ok {
+				return nil, errPackages
+			}
+		}
 	}
 	if err := formatSchema.Validate(doc); err != nil {
 		return nil, fmt.Errorf("manifest does not match the format: %w", err)

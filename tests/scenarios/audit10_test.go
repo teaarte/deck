@@ -235,7 +235,7 @@ func TestFormatFiveDropsWhatNothingDoes(t *testing.T) {
 
 func TestRecordsAndFilesGoAfterTheirRetention(t *testing.T) {
 	e := newClockEnv(t, nil)
-	e.createProject("files", strings.Replace(scriptManifest("make", "", "", ""), `"key": "name",`,
+	e.createProject("files", strings.Replace(scriptManifest("make", "", ""), `"key": "name",`,
 		`"key": "name", "retention_days": 30, "file_retention_days": 10,`, 1))
 	e.saveScript("files", "scripts/main.py", pythonLib+`
 st, out = deck("deck.records_upsert", {"collection": "items", "records": json.dumps({"name": "a"})})

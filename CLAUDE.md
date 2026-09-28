@@ -15,6 +15,7 @@ Stage 1 plan: `docs/plan-stage1.md`.
 - Agent turn on a local Ollama: `DECK_REAL_OLLAMA=1 go test ./tests/scenarios -run TestRealOllama -v` (`DECK_OLLAMA_MODEL`, default `laguna-xs-2.1:nvfp4`)
 - ACP agents (OpenCode, `dsh`) on a local Ollama: `DECK_REAL_ACP=1 go test ./tests/scenarios -run TestRealACPAgents -v`
   (`DECK_ACP_DSH` — path to `dsh` when it is not in PATH; a cloud model: `DECK_ACP_URL`, `DECK_ACP_MODEL`, `DECK_ACP_KEY`)
+- Script packages from PyPI and npm through deck's proxy: `DECK_REAL_PACKAGES=1 go test ./tests/scenarios -run TestRealScriptPackages -v`
 - Web client in a real browser (Playwright MCP; checks that `web/dist` is fresh):
   `DECK_REAL_BROWSER=1 go test ./tests/scenarios -run TestRealBrowser -v` (`DECK_SCREENSHOTS=<dir>` keeps screenshots)
 - Scenario tests on Linux (bubblewrap sandbox, needs docker): `DECK_LINUX=1 go test ./tests/linux -v`
@@ -35,7 +36,7 @@ Stage 1 plan: `docs/plan-stage1.md`.
   `codex app-server` on the owner's shared login (`protocol.go` is generated)
 - `internal/process` — process runner: agent and script executors, start, resume, result schema check, result files
 - `internal/sandbox` — script sandbox behind one interface: `sandbox-exec` on macOS, bubblewrap on Linux
-- `internal/script` — runs project scripts in the sandbox; package environments per project (`uv`, `npm`)
+- `internal/script` — runs project scripts in the sandbox (a script installs its own packages through the proxy)
 - `internal/trigger` — cron scheduler with catch-up after sleep
 - `internal/screen` — stored screens resolved into A2UI messages
 - `internal/api` — HTTP API (`GET /api/commands`, `POST /api/commands/{name}`, files) and SSE; screens are the

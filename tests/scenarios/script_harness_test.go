@@ -12,12 +12,9 @@ import (
 )
 
 // scriptManifest is a manifest with one python script command; extra goes into the manifest object.
-func scriptManifest(command, result, packages, extra string) string {
+func scriptManifest(command, result, extra string) string {
 	if result == "" {
 		result = `{"type": "object"}`
-	}
-	if packages == "" {
-		packages = "[]"
 	}
 	return fmt.Sprintf(`{"version": 4,
   "collections": [{"name": "items", "description": "An item.", "key": "name",
@@ -30,7 +27,7 @@ func scriptManifest(command, result, packages, extra string) string {
      "result": %s, "executor": {"type": "script", "script": "main"}},
     {"name": "publish", "title": "Publish", "description": "Publishes outside.", "class": "external",
      "executor": {"type": "agent", "prompt": "Publish."}}],
-  "scripts": [{"name": "main", "file": "scripts/main.py", "runtime": "python", "packages": %s}]%s}`, command, result, packages, extra)
+  "scripts": [{"name": "main", "file": "scripts/main.py", "runtime": "python"}]%s}`, command, result, extra)
 }
 
 func (e *Env) saveScript(project, name, text string) {
@@ -104,10 +101,8 @@ func (e *Env) warnings(contains string) int {
 	return n
 }
 
-// wheel builds a python package that needs no index to install and returns the path of the wheel.
-func wheel(t *testing.T) string { return namedWheel(t, "deckfixture") }
-
-func namedWheel(t *testing.T, pkg string) string {
+// wheel builds a python package and returns the path of the wheel.
+func wheel(t *testing.T, pkg string) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), pkg+"-0.1-py3-none-any.whl")
 	f, err := os.Create(path)
@@ -150,7 +145,9 @@ def deck(name, body):
         return e.code, e.read().decode()
 
 def fetch(url, proxy=True):
-    handler = urllib.request.ProxyHandler({"http": os.environ["HTTP_PROXY"], "https": os.environ["HTTPS_PROXY"]} if proxy else {})
+    if proxy is True:
+        proxy = os.environ["HTTP_PROXY"]
+    handler = urllib.request.ProxyHandler({"http": proxy, "https": proxy} if proxy else {})
     try:
         with urllib.request.build_opener(handler).open(url, timeout=10) as r:
             return r.status

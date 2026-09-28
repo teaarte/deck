@@ -43,7 +43,11 @@ func (r *Runner) keepFiles(ctx context.Context, projectID, processID int64, resu
 		}
 		return f.File != 0
 	})
-	if err := r.rebind(ctx, projectID, processID, given); err != nil || len(res.Files) == 0 {
+	if len(res.Files) == 0 {
+		err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error { return rebind(ctx, q, projectID, processID, given) })
+		if err == nil {
+			r.bus.Publish("files")
+		}
 		return err
 	}
 	root, err := filepath.EvalSymlinks(results)
@@ -107,7 +111,7 @@ func (r *Runner) keepFiles(ctx context.Context, projectID, processID int64, resu
 				return err
 			}
 		}
-		return nil
+		return rebind(ctx, q, projectID, processID, given)
 	})
 	if err != nil {
 		r.dropFiles(ctx, rows)
@@ -121,31 +125,22 @@ func (r *Runner) keepFiles(ctx context.Context, projectID, processID int64, resu
 const keeping = "keeping"
 
 // rebind gives input files of the process to the record or card the result names.
-func (r *Runner) rebind(ctx context.Context, projectID, processID int64, given []FileRef) error {
-	if len(given) == 0 {
-		return nil
-	}
-	err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		for _, f := range given {
-			kind, owner, err := fileOwner(ctx, q, projectID, processID, f)
-			if err != nil {
-				return err
-			}
-			n, err := q.BindFile(ctx, db.BindFileParams{OwnerKind: kind, OwnerID: owner, ID: f.File, ProjectID: projectID,
-				FromKind: "process", FromID: processID})
-			if err != nil {
-				return err
-			}
-			if n == 0 {
-				return registry.Invalid("deck: result file %d is not a file of this process", f.File)
-			}
+func rebind(ctx context.Context, q *db.Queries, projectID, processID int64, given []FileRef) error {
+	for _, f := range given {
+		kind, owner, err := fileOwner(ctx, q, projectID, processID, f)
+		if err != nil {
+			return err
 		}
-		return nil
-	})
-	if err == nil {
-		r.bus.Publish("files")
+		n, err := q.BindFile(ctx, db.BindFileParams{OwnerKind: kind, OwnerID: owner, ID: f.File, ProjectID: projectID,
+			FromKind: "process", FromID: processID})
+		if err != nil {
+			return err
+		}
+		if n == 0 {
+			return registry.Invalid("deck: result file %d is not a file of this process", f.File)
+		}
 	}
-	return err
+	return nil
 }
 
 // dropFiles undoes the files of a result that could not be kept whole.

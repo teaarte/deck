@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -191,5 +192,29 @@ print(json.dumps({"files": [{"path": "a.txt"}]}))
 	_ = e.App.Store.DB.QueryRow(`SELECT count(*) FROM file WHERE id = ?`, left).Scan(&n)
 	if _, err := os.Stat(path); n != 0 || err == nil {
 		t.Fatalf("the daily sweep drops what a crash left mid-move: row %d, file %v", n, err)
+	}
+}
+
+func TestAResultWithAMissingFileHandsOverNoInputFileEither(t *testing.T) {
+	e := newEnv(t, nil)
+	e.createProject("docs", filesManifest())
+	e.saveScript("docs", "scripts/seed.py", seedScript)
+	e.saveScript("docs", "scripts/read.py", `import json, os, sys
+inp = json.load(sys.stdin)
+given = int(os.path.basename(inp["doc"]).split("-")[0])
+print(json.dumps({"files": [{"file": given, "record": inp["rec"]}, {"path": "missing.txt", "record": inp["rec"]}]}))
+`)
+	seed := e.waitScript(e.start("docs", "seed", nil), "done", "error")
+	var s struct{ Record int64 }
+	_ = json.Unmarshal(seed.Result, &s)
+	doc := e.upload("docs", "note.txt", "text/plain", "uploaded text")
+	id := e.start("docs", "read", map[string]any{"doc": fmt.Sprint(doc), "rec": s.Record})
+	if p := e.waitScript(id, "done", "error"); p.State != "error" || !strings.Contains(p.Error, "missing.txt") {
+		t.Fatalf("a result naming a file that is not there fails: %+v", p)
+	}
+	var onRecord []struct{ ID int64 }
+	e.must("deck.files_list", map[string]any{"record": s.Record}, &onRecord)
+	if slices.ContainsFunc(onRecord, func(f struct{ ID int64 }) bool { return f.ID == doc }) {
+		t.Fatalf("the input file stays with the process when the result fails: %+v", onRecord)
 	}
 }

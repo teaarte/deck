@@ -2,6 +2,7 @@ package process
 
 import (
 	"context"
+	"errors"
 	"strings"
 
 	"deck2/internal/registry"
@@ -13,6 +14,20 @@ import (
 type stopCause struct{ reason string }
 
 func (s stopCause) Error() string { return s.reason }
+
+// cancelled reports whether the turn of turnCtx was cancelled; a stop ends the process as stopped after drop,
+// a shutdown of deck leaves it to be resumed.
+func (r *Runner) cancelled(ctx, turnCtx context.Context, processID int64, drop func()) bool {
+	if turnCtx.Err() == nil {
+		return false
+	}
+	var stop stopCause
+	if errors.As(context.Cause(turnCtx), &stop) {
+		drop()
+		r.finish(ctx, processID, StateStopped, "", false, stop.reason)
+	}
+	return true
+}
 
 // Stop ends a process as stopped: a live turn is cancelled and its provider killed, any other is closed at once.
 func (r *Runner) Stop(ctx context.Context, processID int64, reason string) error {

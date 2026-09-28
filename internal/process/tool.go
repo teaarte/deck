@@ -3,7 +3,6 @@ package process
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -53,12 +52,7 @@ func (r *Runner) runTool(ctx context.Context, t turn, trial bool) {
 	act := registry.Actor{Kind: registry.Agent, Workspace: proj.WorkspaceID, ProjectID: t.project, ProcessID: id, Trial: trial,
 		Cleared: classRank[tool.Class] <= classRank[t.cmd.Class]}
 	out, err := r.gw.CallAs(ctx, act, name, json.RawMessage(t.input))
-	if ctx.Err() != nil {
-		var stop stopCause
-		if errors.As(context.Cause(ctx), &stop) {
-			_ = os.RemoveAll(dir)
-			r.finish(bg, id, StateStopped, "", false, stop.reason)
-		}
+	if r.cancelled(bg, ctx, id, func() { _ = os.RemoveAll(dir) }) {
 		return
 	}
 	if r.stopFirst(bg, id) {

@@ -140,11 +140,7 @@ func (r *Runner) run(ctx context.Context, t turn) {
 	for retried := false; ; {
 		res, err := pv.Run(ctx, req)
 		r.setGroup(bg, processID, 0)
-		if ctx.Err() != nil {
-			var stop stopCause
-			if errors.As(context.Cause(ctx), &stop) {
-				r.finish(bg, processID, StateStopped, "", false, stop.reason)
-			}
+		if r.cancelled(bg, ctx, processID, func() {}) {
 			return
 		}
 		if err == nil && res.SessionMissing {

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -81,12 +80,7 @@ func (r *Runner) runScript(ctx context.Context, t turn, trial bool) {
 	}
 	out, err := r.scripts.Run(ctx, job)
 	r.setGroup(bg, id, 0)
-	if ctx.Err() != nil {
-		var stop stopCause
-		if errors.As(context.Cause(ctx), &stop) {
-			_ = os.RemoveAll(dir)
-			r.finish(bg, id, StateStopped, "", false, stop.reason)
-		}
+	if r.cancelled(bg, ctx, id, func() { _ = os.RemoveAll(dir) }) {
 		return
 	}
 	if r.stopFirst(bg, id) {

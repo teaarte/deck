@@ -107,7 +107,8 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   a score 2–10 with confidence, yes/no with a probability. A result of `null` means "nothing to do".
 - **Triggers**: `cron` for schedules, `lane` when a card enters a lane, `after` when another command of the
   project finishes. The command a trigger starts gets the trigger's fixed `params` plus `{"card": <id>}` for
-  `lane` or `{"process": <id>}` of the finished one for `after`; a later step that needs an earlier result
+  `lane` or `{"process": <id>}` of the finished one for `after`, so its input declares that field as
+  `integer`; a later step that needs an earlier result
   reads it with `process_get`, so keep what the chain needs in records rather than passing it along. Cycles are refused. After the Mac slept, each missed schedule runs once; `"skip_missed":
   true` drops the missed run instead (a morning digest that is stale by noon).
 - **Board**: lanes have stable names, titles for people and optional roles (`inbox`, `ready`, `running`,
@@ -125,7 +126,9 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   `{"type": "table", "title": "Best", "source": {"collection": "items", "where": "score >= 7", "sort": "-score",
   "limit": 20}, "columns": [{"label": "Title", "bind": "title"}], "filter": ["status"], "actions": [{"label": "Rate", "command":
   "rate", "params": {"id": "$record.id"}}]}` — `where` and `bind` are expressions over record fields,
-  `sort` is a field with `-` for descending, `filter` lists fields the owner narrows by. Action `params` are strings. An action passes every required parameter of its command
+  `sort` is a field with `-` for descending, `filter` lists fields the owner narrows by. Action `params` are strings in the manifest; `$record.<field>`
+  passes the field's value with its type (`$record.id` is a number, so that input field is an `integer`). An
+  action passes every required parameter of its command
   (from `$record.<field>` or fixed values); deck asks for nothing that is missing, so a choice the owner
   makes in a row is one action per option. A command the owner fills in by hand is a `form`:
   `{"type": "form", "command": "score", "save": "items"}` asks for the command's input by its schema, shows the
@@ -189,7 +192,8 @@ A script reads its input JSON from stdin and prints its result JSON to stdout. I
   commands;
 - deck commands over HTTP: `curl -s -H "Authorization: Bearer $DECK_TOKEN" -d '<json>' "$DECK_URL/commands/deck.records_upsert"`
   (`GET $DECK_URL/commands` lists them; works through the proxy or without it); `records_upsert` takes JSONL
-  and returns `{"written", "ids", "errors"}`; a script may call commands and tools of its own project that
+  and returns `{"written", "ids", "errors"}`; `records_list` returns `[{"id", "key", "title", "data": {…}}]`,
+  newest last, and `process_get` `{"id", "command", "state", "result", "error", …}`; a script may call commands and tools of its own project that
   allow `agent` callers; a call that waits for the owner answers HTTP 202 `{"waiting": <ask>}` — deck makes
   it later, the script goes on;
 - files go into `$DECK_RESULTS`; the result field `files: [{"path": "...", "record": <id>}]` attaches them;
@@ -273,7 +277,8 @@ Name each of these rights in the hand-over: the owner grants them with "enable".
    `manifest_save` and `document_save` (a second import of the same name is refused), and keep the folder
    in step.
 3. `command_try` runs a command as a trial: everything that is not internal is declined, so nothing leaves
-   deck. The `after` and `lane` triggers it sets off run as trials too, so a whole chain can be tried from
+   deck. It runs as you, the master: leave `callers` out (everyone) unless a command must be closed to
+   someone, and keep `master` in a list you give. The `after` and `lane` triggers it sets off run as trials too, so a whole chain can be tried from
    its first command. A trial is not a sandbox: internal writes (records, cards, documents) are real and stay
    in the draft. Before the hand-over, delete what the trials left that the owner should not start with:
    `record_delete` (in a draft only), `card_delete`; say in the hand-over what you kept. `process_get` gives

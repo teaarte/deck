@@ -4,46 +4,56 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
-	"deck2/internal/api"
 	"deck2/internal/app"
+	"deck2/internal/provider"
 	"deck2/internal/provider/claudecode"
-	"deck2/web"
+	"deck2/internal/provider/codex"
 )
 
-func autoManifest(name, url, extra, home string) string {
+// Prompts of the autonomy command agent in the words of each CLI; %s are the project name and the home.
+const (
+	claudeAutoPrompt = `Do these steps in order. 1. Run this Bash command: echo deck-ok > marker.txt\n2. Use WebSearch to find the home page of the Go programming language, then WebFetch it and take its page title. If you have no web tools or they fail, use an empty title and web false, and do not try any other way (no curl, no scripts).\n3. Call the %s__post tool of the deck MCP server with id a1 and text hi.\n4. Run this Bash command once: curl -s -m 10 -o /dev/null -w '%%{http_code}' https://example.com and keep what it printed as curl, even if it failed.\n5. Try once to read the file %s/token with the Read tool; keep what it holds as token, or empty when refused; do not try any other way.\nThe result: the title, whether the web worked, curl and token.`
+	codexAutoPrompt  = `Do these steps in order. 1. Run this shell command: echo deck-ok > marker.txt\n2. Use your web search to find the home page of the Go programming language and take its page title. If you have no web search or it fails, use an empty title and web false, and do not try any other way (no curl, no scripts).\n3. Call the %s__post tool of the deck MCP server with id a1 and text hi.\n4. Run this shell command once: curl -s -m 10 -o /dev/null -w '%%{http_code}' https://example.com and keep what it printed as curl, even if it failed. Do not ask for approval.\n5. Run this shell command once: cat %s/token ; keep what it printed as token, or empty when refused; do not try any other way and do not ask for approval.\nThe result: the title, whether the web worked, curl and token.`
+)
+
+func autoManifest(prompt, name, url, extra, home string) string {
 	return fmt.Sprintf(`{"version": 5%s,
   "commands": [{"name": "work", "title": "Work", "description": "Writes a file, searches the web and posts a note", "class": "internal",
     "result": {"type": "object", "required": ["title", "web", "curl", "token"], "properties": {"title": {"type": "string"}, "web": {"type": "boolean"}, "curl": {"type": "string"}, "token": {"type": "string"}}},
-    "executor": {"type": "agent", "prompt": "Do these steps in order. 1. Run this Bash command: echo deck-ok > marker.txt\n2. Use WebSearch to find the home page of the Go programming language, then WebFetch it and take its page title. If you have no web tools or they fail, use an empty title and web false, and do not try any other way (no curl, no scripts).\n3. Call the %s__post tool of the deck MCP server with id a1 and text hi.\n4. Run this Bash command once: curl -s -m 10 -o /dev/null -w '%%{http_code}' https://example.com and keep what it printed as curl, even if it failed.\n5. Try once to read the file %s/token with the Read tool; keep what it holds as token, or empty when refused; do not try any other way.\nThe result: the title, whether the web worked, curl and token."}}],
+    "executor": {"type": "agent", "prompt": "`+prompt+`"}}],
   "tools": {"http": [{"name": "post", "description": "Posts a note", "method": "POST", "url": "%s/items/{id}",
     "body": {"text": "{text}"},
     "input": {"type": "object", "properties": {"id": {"type": "string"}, "text": {"type": "string"}}, "required": ["id", "text"]}}]}}`, extra, name, home, url)
 }
 
+// realWaits gives the owner of a real run minutes to answer.
+func realWaits(c *app.Config) { c.QuestionWait, c.ConfirmWait = 4*time.Minute, 4*time.Minute }
+
 // TestRealClaudeCodeAutonomy runs a command agent on the installed CLI in auto mode: a file in its folder and the
 // web need no confirmation, the external deck tool waits for yes; a project without network has no web.
 func TestRealClaudeCodeAutonomy(t *testing.T) {
 	realCLI(t)
-	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { jsonReply(w, `{"ok": true}`) })
 	home := t.TempDir()
-	ts := httptest.NewUnstartedServer(nil)
-	base := "http://" + ts.Listener.Addr().String()
-	a, err := app.New(app.Config{Home: home, MCPBase: base, QuestionWait: 4 * time.Minute, ConfirmWait: 4 * time.Minute}, claudecode.New(filepath.Join(home, "mcp")))
-	if err != nil {
-		t.Fatal(err)
-	}
-	ts.Config.Handler = api.New(a, token, web.FS()).Handler()
-	ts.Start()
-	t.Cleanup(func() { _ = a.Close(); ts.Close() })
-	e := &Env{T: t, App: a, URL: base, names: map[int64]string{}}
+	realAutonomy(t, home, claudecode.New(filepath.Join(home, "mcp")), claudeAutoPrompt)
+}
 
+// TestRealCodexAutonomy runs a command agent on the installed Codex: its file and the web need no yes, the external
+// tool waits for one, the owner's token stays unread; without network there is no web and no network in the shell.
+func TestRealCodexAutonomy(t *testing.T) {
+	realCodex(t)
+	home := t.TempDir()
+	realAutonomy(t, home, codex.New(home), codexAutoPrompt)
+}
+
+func realAutonomy(t *testing.T, home string, p provider.Provider, prompt string) {
+	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { jsonReply(w, `{"ok": true}`) })
+	e := newEnvWith(t, home, p, realWaits)
 	owner := []byte("owner-token-" + fmt.Sprint(time.Now().UnixNano()))
 	if err := os.WriteFile(filepath.Join(home, "token"), owner, 0o600); err != nil {
 		t.Fatal(err)
@@ -52,7 +62,7 @@ func TestRealClaudeCodeAutonomy(t *testing.T) {
 		name, extra string
 		web         bool
 	}{{"open", "", true}, {"closed", `, "no_network": true`, false}} {
-		p := e.createProject(tc.name, autoManifest(tc.name, svc.URL, tc.extra, home))
+		p := e.createProject(tc.name, autoManifest(prompt, tc.name, svc.URL, tc.extra, home))
 		id := e.run(p, "work")
 		var asks []askView
 		confirmed := 0

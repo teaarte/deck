@@ -68,14 +68,14 @@ func (a *App) grantAnswer(ctx context.Context, act registry.Actor, q db.Ask, ans
 		var err error
 		if out, err = a.Registry.Invoke(ctx, act, g.Call.Command, in); err != nil {
 			if registry.Status(err) == 409 {
-				return nil, &registry.Error{Status: 409, Text: "deck: the manifest changed after this request; deny it and ask again"}
+				return nil, registry.Conflict("deck: the manifest changed after this request; deny it and ask again")
 			}
 			return nil, err
 		}
 	}
 	if err := a.Asks.Answer(ctx, q.ID, answer); err != nil {
 		if errors.Is(err, ask.ErrNotOpen) {
-			return nil, &registry.Error{Status: 409, Text: "deck: this ask is already answered or expired"}
+			return nil, notOpen
 		}
 		return nil, err
 	}
@@ -139,7 +139,7 @@ func (a *App) unattendedUndo(ctx context.Context, act registry.Actor, in struct{
 	}
 	switch {
 	case r.UndoneAt.Valid:
-		return nil, &registry.Error{Status: 409, Text: "deck: this change is already undone"}
+		return nil, registry.Conflict("deck: this change is already undone")
 	case r.Command == "":
 		return nil, registry.Invalid("deck: this change has no earlier version to return to")
 	}
@@ -149,7 +149,7 @@ func (a *App) unattendedUndo(ctx context.Context, act registry.Actor, in struct{
 			return nil, err
 		}
 		if d.Current != r.Revision {
-			return nil, &registry.Error{Status: 409, Text: "deck: the document changed after this; return to an earlier version from its history"}
+			return nil, registry.Conflict("deck: the document changed after this; return to an earlier version from its history")
 		}
 	}
 	out, err := a.Registry.Invoke(ctx, act, r.Command, json.RawMessage(r.Params))
@@ -180,12 +180,12 @@ func (a *App) projectEnable(ctx context.Context, act registry.Actor, in struct {
 			return registry.Invalid("deck: the manifest of %s does not load: %v", p.Name, err)
 		}
 		if m.Revision != in.Revision {
-			return &registry.Error{Status: 409, Text: fmt.Sprintf("deck: the manifest of %s is at revision %d now, not %d; look at its rights again", p.Name, m.Revision, in.Revision)}
+			return registry.Conflict("deck: the manifest of %s is at revision %d now, not %d; look at its rights again", p.Name, m.Revision, in.Revision)
 		}
 		n, err := q.SetProjectStatus(ctx, db.SetProjectStatusParams{Status: store.ProjectEnabled, ID: p.ID})
 		if err != nil || n == 0 {
 			if err == nil {
-				err = &registry.Error{Status: 409, Text: fmt.Sprintf("deck: project %s is already enabled", p.Name)}
+				err = registry.Conflict("deck: project %s is already enabled", p.Name)
 			}
 			return err
 		}

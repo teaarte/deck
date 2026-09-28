@@ -80,7 +80,7 @@ func (a *App) linkTriggeredCard(ctx context.Context, asked db.Ask, out any) {
 	}
 }
 
-var notOpen = &registry.Error{Status: 409, Text: "deck: this ask is already answered or expired"}
+var notOpen = registry.Conflict("deck: this ask is already answered or expired")
 
 // allowAlways adds the tool or command of a frozen call to the allowed external list of its project, or the
 // site of a browser action to its act domains, as the owner's own manifest change.

@@ -111,6 +111,11 @@ func NotFound(format string, a ...any) error {
 	return &Error{http.StatusNotFound, fmt.Sprintf(format, a...)}
 }
 
+// Conflict is a call made on a state that changed or ended since the caller read it.
+func Conflict(format string, a ...any) error {
+	return &Error{http.StatusConflict, fmt.Sprintf(format, a...)}
+}
+
 // Status maps an invocation error to an HTTP status.
 func Status(err error) int {
 	var e *Error

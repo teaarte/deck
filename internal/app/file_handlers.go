@@ -52,10 +52,7 @@ func (a *App) filesList(ctx context.Context, act registry.Actor, in struct{ Reco
 	if err != nil {
 		return nil, err
 	}
-	if p, err := a.Store.Q.GetProject(ctx, projectID); err != nil || p.WorkspaceID != act.Workspace {
-		return nil, registry.NotFound("deck: no %s %d", kind, id)
-	}
-	if err := inside(act, projectID); err != nil {
+	if _, err := projectOf(ctx, a.Store.Q, act, projectID, registry.NotFound("deck: no %s %d", kind, id)); err != nil {
 		return nil, err
 	}
 	fs, err := a.Store.Q.ListFilesOf(ctx, db.ListFilesOfParams{ProjectID: projectID, OwnerKind: kind, OwnerID: id})

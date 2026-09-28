@@ -28,6 +28,16 @@ func (a *App) scope(ctx context.Context, act registry.Actor, name string) (db.Pr
 	return p, inside(act, p.ID)
 }
 
+// projectOf is the project a row of projectID belongs to, when it is of the actor's workspace and the actor
+// may touch it; a project of another workspace is missing as the row is.
+func projectOf(ctx context.Context, q *db.Queries, act registry.Actor, projectID int64, missing error) (db.Project, error) {
+	p, err := q.GetProject(ctx, projectID)
+	if err != nil || p.WorkspaceID != act.Workspace {
+		return p, missing
+	}
+	return p, inside(act, projectID)
+}
+
 func inside(act registry.Actor, projectID int64) error {
 	if (act.Kind == registry.Agent || act.Kind == registry.Trigger) && projectID != act.ProjectID {
 		return registry.Refuse("deck: this process cannot touch another project")

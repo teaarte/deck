@@ -94,17 +94,8 @@ func (a *App) processesList(ctx context.Context, act registry.Actor, in struct {
 }
 
 func (a *App) processGet(ctx context.Context, act registry.Actor, in struct{ Process int64 }) (any, error) {
-	p, err := a.Store.Q.GetProcess(ctx, in.Process)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, registry.NotFound("deck: no process %d", in.Process)
-	}
+	p, err := a.ownProcess(ctx, act, in.Process)
 	if err != nil {
-		return nil, err
-	}
-	if proj, err := a.Store.Q.GetProject(ctx, p.ProjectID); err != nil || proj.WorkspaceID != act.Workspace {
-		return nil, registry.NotFound("deck: no process %d", in.Process)
-	}
-	if err := inside(act, p.ProjectID); err != nil {
 		return nil, err
 	}
 	return procView(p), nil
@@ -119,10 +110,8 @@ func (a *App) ownProcess(ctx context.Context, act registry.Actor, id int64) (db.
 	if err != nil {
 		return p, err
 	}
-	if proj, err := a.Store.Q.GetProject(ctx, p.ProjectID); err != nil || proj.WorkspaceID != act.Workspace {
-		return p, registry.NotFound("deck: no process %d", id)
-	}
-	return p, inside(act, p.ProjectID)
+	_, err = projectOf(ctx, a.Store.Q, act, p.ProjectID, registry.NotFound("deck: no process %d", id))
+	return p, err
 }
 
 func (a *App) processStop(ctx context.Context, act registry.Actor, in struct{ Process int64 }) (any, error) {

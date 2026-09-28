@@ -76,14 +76,8 @@ func cardFor(ctx context.Context, q *db.Queries, act registry.Actor, id int64, w
 	if err != nil {
 		return c, err
 	}
-	p, err := q.GetProject(ctx, c.ProjectID)
+	p, err := projectOf(ctx, q, act, c.ProjectID, registry.NotFound("deck: no card %d", id))
 	if err != nil {
-		return c, err
-	}
-	if p.WorkspaceID != act.Workspace {
-		return c, registry.NotFound("deck: no card %d", id)
-	}
-	if err := inside(act, p.ID); err != nil {
 		return c, err
 	}
 	w.p = p

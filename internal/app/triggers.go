@@ -44,11 +44,8 @@ func (a *App) ownTrigger(ctx context.Context, act registry.Actor, id int64) (db.
 	if err != nil {
 		return t, db.Project{}, err
 	}
-	p, err := a.Store.Q.GetProject(ctx, t.ProjectID)
-	if err != nil || p.WorkspaceID != act.Workspace {
-		return t, p, registry.NotFound("deck: no trigger %d", id)
-	}
-	return t, p, inside(act, p.ID)
+	p, err := projectOf(ctx, a.Store.Q, act, t.ProjectID, registry.NotFound("deck: no trigger %d", id))
+	return t, p, err
 }
 
 func (a *App) runLater(ctx context.Context, act registry.Actor, in struct {

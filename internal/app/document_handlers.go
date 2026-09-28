@@ -204,7 +204,7 @@ func (a *App) documentRevert(ctx context.Context, act registry.Actor, in struct 
 		ref := DocRef{Scope: Scope{Workspace: d.WorkspaceID, Project: d.ProjectID}, OwnerKind: d.OwnerKind, OwnerID: d.OwnerID, Name: d.Name}
 		if cur, err := q.GetDocument(ctx, d.ID); err != nil || in.IfRevision != 0 && cur.Current != in.IfRevision {
 			if err == nil {
-				err = &registry.Error{Status: 409, Text: fmt.Sprintf("deck: document %d is at revision %d now, not %d", d.ID, cur.Current, in.IfRevision)}
+				err = registry.Conflict("deck: document %d is at revision %d now, not %d", d.ID, cur.Current, in.IfRevision)
 			}
 			return err
 		}

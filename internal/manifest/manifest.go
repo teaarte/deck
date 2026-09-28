@@ -39,6 +39,8 @@ type Manifest struct {
 	collections map[string]*Collection
 	commands    map[string]*Command
 	scripts     map[string]*Script
+	// text is the manifest as Parse read it, upgraded to the current format.
+	text []byte
 }
 
 type Collection struct {
@@ -266,8 +268,12 @@ func Parse(raw []byte) (*Manifest, error) {
 	if err := m.compile(); err != nil {
 		return nil, err
 	}
+	m.text = up
 	return &m, nil
 }
+
+// Text is the manifest in the current format.
+func (m *Manifest) Text() []byte { return m.text }
 
 func (m *Manifest) Collection(name string) *Collection { return m.collections[name] }
 func (m *Manifest) Command(name string) *Command       { return m.commands[name] }

@@ -96,11 +96,7 @@ func parseManifest(raw []byte) (parsed, error) {
 	if err != nil {
 		return parsed{}, registry.Invalid("deck: %v", err)
 	}
-	up, _, err := manifest.Upgrade(raw)
-	if err != nil {
-		return parsed{}, registry.Invalid("deck: %v", err)
-	}
-	return parsed{m: m, text: up, legacy: manifest.LegacyDescription(raw)}, nil
+	return parsed{m: m, text: m.Text(), legacy: manifest.LegacyDescription(raw)}, nil
 }
 
 // CreateProject validates the manifest, stores it and the prompt as first revisions and registers triggers.
@@ -209,7 +205,7 @@ func (a *App) SaveManifest(ctx context.Context, act registry.Actor, p db.Project
 			return err
 		}
 		if ifRevision != 0 && cur.Current != ifRevision {
-			return &registry.Error{Status: 409, Text: fmt.Sprintf("deck: the manifest of %s is at revision %d now, not %d", p.Name, cur.Current, ifRevision)}
+			return registry.Conflict("deck: the manifest of %s is at revision %d now, not %d", p.Name, cur.Current, ifRevision)
 		}
 		w, err := a.widens(ctx, q, act, p.ID, pm.m)
 		if err != nil || len(w) > 0 {

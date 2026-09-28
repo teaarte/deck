@@ -127,7 +127,7 @@ func (a *App) healthList(ctx context.Context, act registry.Actor, _ struct{}) (a
 // dismissExpired clears an expired confirmation on deny; the agent was already told it expired.
 func (a *App) dismissExpired(ctx context.Context, q db.Ask, answer string) (any, error) {
 	if answer != "deny" && !strings.HasPrefix(answer, "deny:") {
-		return nil, &registry.Error{Status: 409, Text: "deck: this confirmation expired and the agent was told no; it can only be cleared"}
+		return nil, registry.Conflict("deck: this confirmation expired and the agent was told no; it can only be cleared")
 	}
 	err := a.Store.Tx(ctx, func(ctx context.Context, tq *db.Queries) error {
 		_, err := tq.DismissExpiredAsk(ctx, q.ID)

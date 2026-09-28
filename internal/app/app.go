@@ -84,9 +84,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	}
 	a.Host = mcphost.New(a.serverStatus)
 	a.Host.Now, a.Host.Sandbox = cfg.Now, cfg.Sandbox
-	if home, err := os.UserHomeDir(); err == nil {
-		a.Host.Hide = append([]string{cfg.Home}, sandbox.Private(home)...)
-	}
+	a.Host.Hide = sandbox.Hidden(cfg.Home)
 	a.MCP = &tools.MCP{GW: a.Gateway, Host: a.Host, Store: st, Secrets: a.Secret, Dirs: a.dirs(), Home: cfg.Home,
 		Manifests: func(ctx context.Context, p db.Project) (*manifest.Manifest, error) { return loadManifest(ctx, st.Q, p) }}
 	a.Browser = &tools.Browser{GW: a.Gateway, Host: a.Host, Dirs: a.dirs(), Home: cfg.Home, Argv: cfg.Browser, Manifests: a.Manifest}

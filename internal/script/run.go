@@ -34,15 +34,6 @@ func (x *Exec) DataDir(project int64) string {
 	return filepath.Join(x.Home, "projects", fmt.Sprint(project), "data")
 }
 
-// hidden is what no script reads: the state of deck and the owner's credentials.
-func (x *Exec) hidden() []string {
-	out := []string{x.Home}
-	if home, err := os.UserHomeDir(); err == nil {
-		out = append(out, sandbox.Private(home)...)
-	}
-	return out
-}
-
 // Job is one run of a script; Dir is its run folder, with work/ and results/ inside.
 type Job struct {
 	Project  int64
@@ -97,7 +88,7 @@ func (x *Exec) Run(ctx context.Context, j Job) ([]byte, error) {
 	}
 	cmd, err := x.Sandbox.Command(ctx, sandbox.Policy{Argv: argv, Dir: j.Work(), Env: append(env, j.Env...),
 		Write: []string{j.Work(), j.Results(), data}, Read: append([]string{src}, j.Read...),
-		Hide: x.hidden(), Out: j.Out})
+		Hide: sandbox.Hidden(x.Home), Out: j.Out})
 	if err != nil {
 		return nil, err
 	}

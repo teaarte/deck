@@ -191,7 +191,7 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 	env = append(environ(os.Environ()), append([]string{"HOME=" + home, "TMPDIR=" + filepath.Join(home, "tmp"),
 		"HTTP_PROXY=" + proxy, "HTTPS_PROXY=" + proxy, "http_proxy=" + proxy, "https_proxy=" + proxy,
 		"NO_PROXY=127.0.0.1,localhost", "no_proxy=127.0.0.1,localhost"}, env...)...)
-	hide := append([]string{a.cfg.Home}, sandbox.Private(userHome())...)
+	hide := sandbox.Hidden(a.cfg.Home)
 	cmd, err := a.cfg.Sandbox.Command(life, sandbox.Policy{
 		Argv: append([]string{"/bin/sh", "-c", `"$@"; exit $?`, marker(req.SessionID)}, argv...),
 		Dir:  req.Cwd, Env: env, Write: append([]string{req.Cwd, home}, req.Dirs...), Hide: hide, Out: ln, Port: port})
@@ -379,11 +379,6 @@ var envNames = []string{"PATH", "USER", "LOGNAME", "SHELL", "LANG", "TZ"}
 // environ keeps the allowlisted variables of deck; HOME, TMPDIR and XDG_* would lead the agent to the owner's
 // settings, keys never pass.
 func environ(parent []string) []string { return provider.Environ(parent, envNames, "LC_") }
-
-func userHome() string {
-	h, _ := os.UserHomeDir()
-	return h
-}
 
 func freePort() (int, error) {
 	l, err := net.Listen("tcp", "127.0.0.1:0")

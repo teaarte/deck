@@ -40,7 +40,7 @@ func (a *Adapter) Version(ctx context.Context) (string, error) {
 	defer os.RemoveAll(home)
 	cmd, err := a.cfg.Sandbox.Command(ctx, sandbox.Policy{Argv: []string{bin, "--version"}, Dir: home,
 		Env: append(environ(os.Environ()), "HOME="+home, "TMPDIR="+home), Write: []string{home},
-		Hide: append([]string{a.cfg.Home}, sandbox.Private(userHome())...)})
+		Hide: sandbox.Hidden(a.cfg.Home)})
 	if err != nil {
 		return "", err
 	}

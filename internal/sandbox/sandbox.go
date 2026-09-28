@@ -4,6 +4,7 @@ package sandbox
 import (
 	"context"
 	"net"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"syscall"
@@ -68,11 +69,13 @@ func real(path string) string {
 	return abs
 }
 
-// Private are the owner's credential stores under home that no confined program reads.
-func Private(home string) []string {
-	out := make([]string, 0, len(private))
-	for _, p := range private {
-		out = append(out, filepath.Join(home, p))
+// Hidden is what no confined program reads: the state of deck and the owner's credential stores.
+func Hidden(state string) []string {
+	out := []string{state}
+	if home, err := os.UserHomeDir(); err == nil {
+		for _, p := range private {
+			out = append(out, filepath.Join(home, p))
+		}
 	}
 	return out
 }

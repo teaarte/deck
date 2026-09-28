@@ -5,6 +5,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/http/httputil"
 	"net/netip"
 	"strings"
 	"time"
@@ -65,25 +66,14 @@ func Egress(ctx context.Context, w http.ResponseWriter, r *http.Request, domains
 		tunnel(ctx, w, target)
 		return
 	}
-	out := r.Clone(r.Context())
-	out.RequestURI = ""
-	for _, h := range []string{"Proxy-Connection", "Proxy-Authorization", "Connection", "Keep-Alive", "Te", "Trailer", "Upgrade"} {
-		out.Header.Del(h)
-	}
-	resp, err := outbound.RoundTrip(out)
-	if err != nil {
-		http.Error(w, "deck: "+err.Error(), http.StatusBadGateway)
-		return
-	}
-	defer resp.Body.Close()
-	for k, vs := range resp.Header {
-		for _, v := range vs {
-			w.Header().Add(k, v)
-		}
-	}
-	w.WriteHeader(resp.StatusCode)
-	_, _ = io.Copy(w, resp.Body)
+	forward.ServeHTTP(w, r)
 }
+
+// forward carries a plain HTTP proxy request as it is, without hop-by-hop headers either way.
+var forward = &httputil.ReverseProxy{Transport: outbound, Rewrite: func(*httputil.ProxyRequest) {},
+	ErrorHandler: func(w http.ResponseWriter, _ *http.Request, err error) {
+		http.Error(w, "deck: "+err.Error(), http.StatusBadGateway)
+	}}
 
 func tunnel(ctx context.Context, w http.ResponseWriter, target string) {
 	up, err := net.DialTimeout("tcp", target, 10*time.Second)

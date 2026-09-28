@@ -394,3 +394,33 @@ func TestAChattyScriptDoesNotWriteTheDatabaseForEachLine(t *testing.T) {
 		t.Fatalf("3000 lines of stderr are one output mark a second, not a write each: %d rows changed", n)
 	}
 }
+
+func TestTheProxyOfAScriptDropsHeadersThatAreOnlyForTheHop(t *testing.T) {
+	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) {
+		w.Header().Set("Connection", "X-Down")
+		w.Header().Set("X-Down", "hop")
+		_, _ = w.Write([]byte("ok"))
+	})
+	host := strings.TrimPrefix(svc.URL, "http://")
+	e := newEnv(t, nil)
+	e.createProject("hops", scriptManifest("go", "", fmt.Sprintf(`, "domains": {"read": [%q]}`, host)))
+	e.saveScript("hops", "scripts/main.py", `import base64, json, os, socket, urllib.parse
+p = urllib.parse.urlparse(os.environ["HTTP_PROXY"])
+auth = base64.b64encode((p.username + ":" + p.password).encode()).decode()
+s = socket.create_connection((p.hostname, p.port))
+s.sendall(("GET `+svc.URL+`/x HTTP/1.1\r\nHost: `+host+`\r\nProxy-Authorization: Basic " + auth +
+    "\r\nConnection: close, X-Up\r\nX-Up: hop\r\n\r\n").encode())
+got = b""
+while True:
+    b = s.recv(65536)
+    if not b:
+        break
+    got += b
+print(json.dumps({"down": "x-down" in got.decode().lower(), "ok": got.endswith(b"ok")}))
+`)
+	p := e.waitScript(e.start("hops", "go", nil), "done", "error")
+	seen := svc.requests()
+	if p.State != "done" || string(p.Result) != `{"down":false,"ok":true}` || len(seen) != 1 || seen[0].Header.Get("X-Up") != "" {
+		t.Fatalf("headers named in Connection go no further than the proxy, either way: %+v %+v", p, seen)
+	}
+}

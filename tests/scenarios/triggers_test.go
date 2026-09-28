@@ -2,7 +2,6 @@ package scenarios
 
 import (
 	"context"
-	"deck2/internal/provider"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -10,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"deck2/internal/provider"
 )
 
 func TestNewVectorWithoutCode(t *testing.T) {
@@ -332,7 +333,15 @@ func TestPauseBetweenReadingAndFiringATriggerHolds(t *testing.T) {
 }
 
 func TestAScheduledCallTheOwnerAllowedIsTheLastRunOfItsTrigger(t *testing.T) {
-	e := newClockEnv(t, nil)
+	release := make(chan struct{})
+	e := newClockEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		select {
+		case <-release:
+		case <-ctx.Done():
+		}
+		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
+	})
+	defer close(release)
 	pub := strings.Replace(agentCommand("publish", ""), `"class": "internal"`, `"class": "external"`, 1)
 	e.createProject("daily", testManifest([]string{pub}, []string{`{"command": "publish", "cron": "0 9 * * *"}`}))
 	e.Clock.Add(time.Hour)
@@ -341,7 +350,11 @@ func TestAScheduledCallTheOwnerAllowedIsTheLastRunOfItsTrigger(t *testing.T) {
 	if a.Kind != "call" || e.countOf("publish") != 0 {
 		t.Fatalf("an external command of a schedule waits for the owner: %+v", a)
 	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	events := e.sse(ctx)
 	e.must("deck.ask_answer", map[string]any{"ask": a.ID, "answer": "allow"}, nil)
+	waitTopic(t, events, "triggers")
 	e.waitFor("the allowed run", func() bool { return e.countOf("publish") == 1 })
 	ps := e.processes()
 	if ts := e.triggers(); len(ts) != 1 || ts[0].Last == 0 || ts[0].Last != ps[0].ID {

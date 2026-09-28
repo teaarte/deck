@@ -12,6 +12,7 @@ import (
 	"deck2/internal/manifest"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
+	"deck2/schemas"
 )
 
 const (
@@ -52,7 +53,13 @@ type Request struct {
 }
 
 // Topics are the event topics after which a client reads blocks again; any other topic means the whole screen.
-var Topics = []string{"collection", "asks", "processes", "unattended", "health", "log", "board", "triggers", "notifications"}
+var Topics = func() []string {
+	var c struct{ Topics []string }
+	if err := json.Unmarshal(schemas.Catalog, &c); err != nil || len(c.Topics) == 0 {
+		panic("catalog topics: " + fmt.Sprint(err))
+	}
+	return c.Topics
+}()
 
 // Render resolves a stored screen into A2UI messages: createSurface, updateComponents, updateDataModel.
 // Clients only draw components and send actions back.

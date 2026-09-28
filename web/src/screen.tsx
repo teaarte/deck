@@ -7,9 +7,10 @@ import { useTranslation } from 'react-i18next';
 import { call, events } from './api';
 import { catalog, known, outcomes, setStale, UNKNOWN, type Action } from './catalog';
 import i18n from './i18n';
+import catalogSchema from '../../schemas/catalog.json';
 
 export const VERSION = 'v0.9';
-const TOPICS = ['collection', 'asks', 'processes', 'unattended', 'health', 'log', 'board', 'triggers', 'notifications'];
+const TOPICS: string[] = catalogSchema.topics;
 
 export interface Route {
   project?: string;

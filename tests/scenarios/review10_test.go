@@ -69,7 +69,7 @@ func TestReworkAfterAStoppedPauseIsNotHeldByItsAsk(t *testing.T) {
 func TestSessionCutOffMidCallResumesWithAnUnknownOutcome(t *testing.T) {
 	llm := newLLM(t, func(n int, req chatRequest) chatReply {
 		if n == 1 {
-			return toolReply(fnCall{"AskUserQuestion", map[string]any{"questions": []any{map[string]any{"question": "Which topic?"}}}})
+			return toolReply(fnCall{"ask", map[string]any{"question": "Which topic?"}})
 		}
 		return toolReply(fnCall{"result_submit", map[string]any{"result": map[string]any{"written": 0}}})
 	})

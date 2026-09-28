@@ -194,6 +194,8 @@ A script reads its input JSON from stdin and prints its result JSON to stdout. I
   keys live only in deck secrets;
 - `runtime` is `python`, `node`, `bash` or `exec` (a program that runs by itself); `timeout_minutes` as for
   commands;
+- a script runs alone: its folder holds only its own file, so a helper shared by scripts is repeated in each
+  (or read with `document_get` into the work folder);
 - deck commands over HTTP: `curl -s -H "Authorization: Bearer $DECK_TOKEN" -d '<json>' "$DECK_URL/commands/deck.records_upsert"`
   (`GET $DECK_URL/commands` lists them; works through the proxy or without it); `records_upsert` takes JSONL
   and returns `{"written", "ids", "errors"}`; `records_list` returns `[{"id", "key", "title", "data": {…}}]`,

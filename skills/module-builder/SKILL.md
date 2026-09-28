@@ -166,7 +166,9 @@ A script reads its input JSON from stdin and prints its result JSON to stdout. I
 
 - write access only to its run folder and `$DECK_DATA`; the project folders are read-only;
 - network only to the manifest's `domains.read`, through the proxy deck sets in `HTTP(S)_PROXY`;
-- no secrets and no keys of the owner; ask for an HTTP tool of the manifest instead;
+- no secrets and no keys of the owner; ask for an HTTP tool of the manifest instead. Never ask the owner to
+  `export` a key for a module: on macOS a confined program reads the environment of the owner's processes, so
+  keys live only in deck secrets;
 - `runtime` is `python`, `node`, `bash` or `exec` (a program that runs by itself); `timeout_minutes` as for
   commands;
 - deck commands over HTTP: `curl -s -H "Authorization: Bearer $DECK_TOKEN" -d '<json>' "$DECK_URL/commands/deck.records_upsert"`

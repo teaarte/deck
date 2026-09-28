@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -27,6 +28,10 @@ import (
 )
 
 func main() {
+	if err := cleanEnv(); err != nil {
+		fmt.Fprintln(os.Stderr, "deck: restart with a clean environment:", err)
+		os.Exit(1)
+	}
 	if err := run(); err != nil {
 		fmt.Fprintln(os.Stderr, "deck:", err)
 		os.Exit(1)
@@ -112,6 +117,26 @@ func run() error {
 	}
 	return nil
 }
+
+// cleanEnv restarts deck with only the variables it needs: on macOS a confined program reads the
+// environment of every process of the owner.
+func cleanEnv() error {
+	env := os.Environ()
+	clean := slices.DeleteFunc(slices.Clone(env), func(kv string) bool {
+		name, _, _ := strings.Cut(kv, "=")
+		return !slices.Contains(keptEnv, name) && !strings.HasPrefix(name, "LC_") && !strings.HasPrefix(name, "XDG_")
+	})
+	if len(clean) == len(env) {
+		return nil
+	}
+	exe, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	return syscall.Exec(exe, os.Args, clean)
+}
+
+var keptEnv = []string{"PATH", "HOME", "USER", "LOGNAME", "SHELL", "LANG", "TZ", "TMPDIR", "CODEX_HOME", "DECK_HOME"}
 
 func loadToken(path string) (string, error) {
 	b, err := os.ReadFile(path)

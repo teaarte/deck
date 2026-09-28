@@ -157,6 +157,11 @@ func (c *screenCheck) block(where string, b Block) {
 	case "form":
 		c.form(where, b)
 		return
+	case "appearance":
+		if !c.deck {
+			c.fail("%s: appearance is only on deck's own screens", where)
+		}
+		return
 	case "custom":
 		if b.Source != nil {
 			if _, ok := c.source(where, b.Type, *b.Source); !ok {

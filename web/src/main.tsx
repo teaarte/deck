@@ -1,13 +1,14 @@
 import '@mantine/core/styles.css';
 import '@mantine/notifications/styles.css';
 import './i18n';
-import { StrictMode, useCallback, useEffect, useState } from 'react';
+import { StrictMode, useCallback, useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { AppShell, Burger, Button, Group, MantineProvider, NavLink, PasswordInput, ScrollArea, Stack, Text, Title } from '@mantine/core';
 import { Notifications } from '@mantine/notifications';
 import { useDisclosure } from '@mantine/hooks';
 import { useTranslation } from 'react-i18next';
 import { call, setToken, token } from './api';
+import { theme, useLook } from './look';
 import { href, ScreenView, type Route } from './screen';
 
 interface MenuEntry {
@@ -82,11 +83,20 @@ function App() {
 
 if ('serviceWorker' in navigator) void navigator.serviceWorker.register('/sw.js').catch(() => undefined);
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <MantineProvider>
+// Themed follows the system color scheme unless this device picked one, and the look this device keeps.
+function Themed() {
+  const look = useLook();
+  const themed = useMemo(() => theme(look), [look]);
+  return (
+    <MantineProvider theme={themed} defaultColorScheme="auto">
       <Notifications />
       {token() ? <App /> : <TokenPrompt />}
     </MantineProvider>
+  );
+}
+
+createRoot(document.getElementById('root')!).render(
+  <StrictMode>
+    <Themed />
   </StrictMode>,
 );

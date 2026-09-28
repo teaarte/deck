@@ -3,14 +3,15 @@ import { z } from 'zod';
 import { Catalog, type ComponentApi, type ComponentContext } from '@a2ui/web_core/v0_9';
 import { createComponentImplementation, type ReactComponentImplementation } from '@a2ui/react/v0_9';
 import {
-  Alert, Anchor, Badge, Button, Card, Chip, Code, Collapse, Group, Loader, Select, SimpleGrid, Stack, Table, Tabs, Text,
-  TextInput, Title, UnstyledButton,
+  Alert, Anchor, Badge, Button, Card, CheckIcon, Chip, Code, Collapse, ColorSwatch, Group, Loader, SegmentedControl, Select,
+  SimpleGrid, Stack, Table, Tabs, Text, TextInput, Title, UnstyledButton, useMantineColorScheme, type MantineColorScheme,
 } from '@mantine/core';
 import { useInterval } from '@mantine/hooks';
 import { useTranslation } from 'react-i18next';
 import catalogSchema from '../../schemas/catalog.json';
 import { Board } from './board';
 import { Form, type FormValue } from './form';
+import { ACCENTS, DENSITIES, FONTS, RADII, setLook, useLook, type Look } from './look';
 import type { Action, ActionsValue, BoardValue, CardValue, CustomValue, Data } from './catalog.gen';
 
 const Custom = lazy(() => import('./custom').then((m) => ({ default: m.Custom })));
@@ -191,6 +192,47 @@ function Details({ text }: { text: string }) {
   );
 }
 
+function Choice<T extends string>({ label, name, value, options, onChange }: {
+  label: string; name: string; value: T; options: readonly T[]; onChange: (v: T) => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <Stack gap={4}>
+      <Text size="sm" fw={500}>{label}</Text>
+      <SegmentedControl data-look={name} value={value} onChange={(v) => onChange(v as T)}
+        data={options.map((o) => ({ value: o, label: t(`look.${o}`, { defaultValue: o }) }))} />
+    </Stack>
+  );
+}
+
+// Appearance is how deck looks on this device: color scheme, accent, density, font size and corners.
+function Appearance() {
+  const { t } = useTranslation();
+  const look = useLook();
+  const { colorScheme, setColorScheme } = useMantineColorScheme();
+  return (
+    <Stack gap="md" data-appearance>
+      <Text size="sm" c="dimmed">{t('look.device')}</Text>
+      <Choice label={t('look.scheme')} name="scheme" value={colorScheme} options={['auto', 'light', 'dark'] as MantineColorScheme[]}
+        onChange={setColorScheme} />
+      <Stack gap={4}>
+        <Text size="sm" fw={500}>{t('look.accent')}</Text>
+        <Group gap="xs">
+          {ACCENTS.map((c) => (
+            <ColorSwatch key={c} component="button" type="button" color={`var(--mantine-color-${c}-filled)`} aria-label={c}
+              data-accent={c} onClick={() => setLook({ accent: c })} style={{ cursor: 'pointer' }}>
+              {look.accent === c && <CheckIcon size={12} color="white" />}
+            </ColorSwatch>
+          ))}
+        </Group>
+      </Stack>
+      <Choice label={t('look.density')} name="density" value={look.density} options={DENSITIES} onChange={(v: Look['density']) => setLook({ density: v })} />
+      <Choice label={t('look.font')} name="font" value={look.font} options={FONTS} onChange={(v: Look['font']) => setLook({ font: v })} />
+      <Choice label={t('look.radius')} name="radius" value={look.radius} options={RADII} onChange={(v: Look['radius']) => setLook({ radius: v })} />
+    </Stack>
+  );
+}
+
 const loaded = Catalog.fromSchema(catalogSchema);
 const api = (name: string): ComponentApi => {
   const c = loaded.components.get(name);
@@ -350,6 +392,10 @@ const impls: ReactComponentImplementation[] = [
   createComponentImplementation(api('custom'), ({ props }) => {
     const p = props as { title?: string; data?: Data };
     return <Block title={p.title} data={p.data}>{(d) => <Suspense fallback={<Loader size="xs" />}><Custom value={d.value as CustomValue} /></Suspense>}</Block>;
+  }),
+  createComponentImplementation(api('appearance'), ({ props }) => {
+    const p = props as { title?: string; data?: Data };
+    return <Block title={p.title} data={p.data}>{() => <Appearance />}</Block>;
   }),
   createComponentImplementation({ name: UNKNOWN, schema: z.object({ type: z.string() }) }, ({ props }) => {
     const { t } = useTranslation();

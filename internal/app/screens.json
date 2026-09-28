@@ -1,5 +1,5 @@
 {
-  "menu": ["cockpit", "schedule", "providers"],
+  "menu": ["cockpit", "schedule", "settings", "providers"],
   "screens": [
     {
       "name": "cockpit",
@@ -45,6 +45,15 @@
             {"label": "State", "bind": "state"},
             {"label": "Started", "bind": "started_at"}
           ]}
+      ]
+    },
+    {
+      "name": "settings",
+      "title": "Settings",
+      "blocks": [
+        {"type": "tabs", "tabs": [
+          {"title": "Interface", "blocks": [{"type": "appearance", "title": "Appearance"}]}
+        ]}
       ]
     },
     {

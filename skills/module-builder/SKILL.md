@@ -134,7 +134,12 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   source and the page's record arrive in `app.ontoolresult` (`structuredContent.items`, `.record`), and
   `app.callServerTool({name: "<project>.<command>", arguments})` calls only the commands of its `actions` (the
   button whose fixed `params` the arguments do not contradict; an external command waits for the owner's yes).
-  List screens in `menu`.
+  Its colors, fonts and corners are the host's: `app.getHostContext()` and `app.onhostcontextchanged` give
+  `theme` (`light`/`dark`) and `styles.variables` by MCP Apps names (`--color-background-primary`,
+  `--color-text-primary`, `--color-text-secondary`, `--color-border-primary`, `--color-ring-primary` for the
+  accent, `--font-sans`, `--font-text-sm-size`, `--border-radius-md`); apply them with `applyDocumentTheme` and
+  `applyHostStyleVariables` from `/ext-apps.js`, again on each change, and write CSS only with `var(--…)` of
+  them — a fixed color breaks in the owner's dark scheme. List screens in `menu`.
 - **Telling the owner**: a script or agent that finds something worth a look calls `notify` with `text`, and
   optionally the `screen` (and `record`) it opens and `actions` (`[{label, command, params}]`); it becomes a line
   in the cockpit feed. The caller decides it is worth it; a run with nothing new says nothing.

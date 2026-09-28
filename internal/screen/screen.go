@@ -202,6 +202,8 @@ func topicOf(b manifest.Block, deck bool) string {
 	switch {
 	case b.Type == "board":
 		return "board"
+	case b.Type == "appearance":
+		return ""
 	case b.Type == "form" && b.Source == nil:
 		return "collection"
 	}
@@ -234,6 +236,8 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 		return r.custom(b)
 	case "actions":
 		return map[string]any{"state": "ready", "value": r.actions(b.Actions, r.req.Record, r.record)}, nil
+	case "appearance":
+		return map[string]any{"state": "ready"}, nil
 	}
 	if b.Type == "card" {
 		fields := make([]map[string]any, 0, len(b.Fields))

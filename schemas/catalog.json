@@ -125,6 +125,17 @@
         "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "value: {commands: [{name, title, project, input, result}], values, readonly, record, save}"}
       }
     },
+    "appearance": {
+      "description": "How deck looks on the device: color scheme, accent, density, font size, corners.",
+      "block": {"description": "Only on deck's own screens; takes no source and no other field.", "properties": {}},
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "title": {"type": "string"},
+        "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "the client keeps the look; the data is only its state"}
+      }
+    },
     "custom": {
       "description": "An MCP App: HTML of a custom/ document, fed by its source, pressing only its buttons.",
       "block": {"description": "Needs document, a custom/ document with its HTML; its buttons call commands and never move to a screen.", "required": ["document"], "properties": {"document": {"type": "string", "pattern": "^custom/"}, "source": {"$ref": "#/$defs/source"}, "actions": {"type": "array", "items": {"allOf": [{"$ref": "#/$defs/action"}, {"required": ["command"], "not": {"required": ["screen"]}}]}}}},

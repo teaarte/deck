@@ -233,7 +233,11 @@ runs), runs shell commands, and searches and fetches the web without asking; the
 what looks risky and asks the owner only about that. Secrets, deck's own files and other projects stay closed
 to it. A deck tool of class `external` outside `allowed_external` still waits for the owner. Set
 `"no_network": true` for a project with personal data (finance, health, mail): its agents get no web and no
-network of their own and reach outside only through deck tools; removing the flag later is a right. List the
+network of their own and reach outside only through deck tools; removing the flag later is a right. An agent
+that must work in a folder of the owner (a code repo, notes) gets `"folder": true` in `executor` (or the folder's
+name when the project has several): it works there instead of its own folder, with the repo's CLAUDE.md or
+AGENTS.md, and a second agent in the same folder waits. Only the owner adds folders (Settings → Projects → "Add
+folder"); a code repo is the code-project skill. List the
 skills it needs in `executor.skills`; a skill may not grant tools (`allowed-tools`, `hooks`) — rights come
 from deck.
 

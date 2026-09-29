@@ -26,7 +26,7 @@ func (a *App) addBuiltins() {
 
 	add("projects_list", "List projects", "Lists projects with their description (the first line of the md prompt) and screens.", ownerSide,
 		registry.Params(), registry.Typed(a.projectsList))
-	add("project_create", "Create project", "Creates a project from a manifest and an optional md prompt.", ownerSide,
+	add("project_create", "Create project", "Creates a project from its name, an md prompt and a manifest; without a manifest it has only the base board.", ownerSide,
 		registry.Params(registry.P("name", "string", "Project name: lowercase letters, digits and '-'"),
 			registry.Opt("manifest", "text", "Manifest JSON; a project with only the base board when omitted"), registry.Opt("prompt", "text", "Project md prompt")),
 		registry.Typed(a.projectCreate))

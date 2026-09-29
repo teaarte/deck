@@ -165,4 +165,32 @@ func rehearseCodeModule(t *testing.T, newProvider func(home string) provider.Pro
 	if res.Summary == "" {
 		t.Fatalf("the revert says what it did: %s", got.Result)
 	}
+
+	e.must("deck.project_autonomy", map[string]any{"project": "code", "autonomy": "auto"}, nil)
+	e.must("deck.card_create", map[string]any{"project": "code", "title": "Add divide", "lane": "ready",
+		"text": "Add a function divide(a, b) to calc.py that returns a / b, with a test in test_calc.py."}, nil)
+	before := git("rev-parse", "main")
+	var auto struct{ Process int64 }
+	e.must("code.run", map[string]any{"do": "run"}, &auto)
+	wait(auto.Process, "run in auto")
+	owner("the run in auto")
+	if subject := git("log", "-1", "--format=%s", "main"); !strings.HasPrefix(subject, "deck run "+itoa(auto.Process)+":") ||
+		git("rev-list", "--count", before+"..main") != "1" || !strings.Contains(git("show", "main:calc.py"), "def divide") {
+		t.Fatalf("in auto the agent merges its run itself: %s\n%s", subject, git("log", "--oneline", "main"))
+	}
+	var notes []string
+	rows, err := e.App.Store.DB.Query(`SELECT text FROM notification`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for rows.Next() {
+		var s string
+		_ = rows.Scan(&s)
+		notes = append(notes, s)
+	}
+	_ = rows.Close()
+	t.Logf("notifications: %v", notes)
+	if len(notes) != 1 {
+		t.Fatalf("in auto the merge is one line in the cockpit feed: %v", notes)
+	}
 }

@@ -3,6 +3,7 @@ package scenarios
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -15,7 +16,8 @@ import (
 	"time"
 )
 
-// codeModule is a copy of examples/code whose GitLab is at url.
+// codeModule is a copy of examples/code; with a url it also takes GitLab issues from there, the way a terminal
+// agent adds a tracker by the code-project skill (testdata/tracker).
 func codeModule(t *testing.T, url string) string {
 	t.Helper()
 	src, _ := filepath.Abs("../../examples/code")
@@ -29,9 +31,6 @@ func codeModule(t *testing.T, url string) string {
 			return err
 		}
 		rel, _ := filepath.Rel(src, p)
-		if rel == "manifest.json" && url != "" {
-			b = []byte(strings.ReplaceAll(string(b), "https://gitlab.com", url))
-		}
 		if err := os.MkdirAll(filepath.Dir(filepath.Join(dst, rel)), 0o700); err != nil {
 			return err
 		}
@@ -40,7 +39,46 @@ func codeModule(t *testing.T, url string) string {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if url != "" {
+		addTracker(t, dst, url)
+	}
 	return dst
+}
+
+// addTracker adds the GitLab intake of testdata/tracker to a module folder.
+func addTracker(t *testing.T, dir, url string) {
+	t.Helper()
+	var m, in map[string]any
+	for path, v := range map[string]*map[string]any{filepath.Join(dir, "manifest.json"): &m, "testdata/tracker/intake.json": &in} {
+		b, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := json.Unmarshal([]byte(strings.ReplaceAll(string(b), "https://gitlab.com", url)), v); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, k := range []string{"collections", "scripts", "triggers"} {
+		m[k] = in[k]
+	}
+	m["tools"] = in["tools"]
+	m["commands"] = append(m["commands"].([]any), in["commands"].([]any)...)
+	m["screens"] = append(m["screens"].([]any), in["screen"])
+	m["menu"] = append(m["menu"].([]any), "intake")
+	b, _ := json.Marshal(m)
+	files := map[string][]byte{"manifest.json": b}
+	for _, f := range []string{"poll_gitlab.py", "follow_gitlab.py"} {
+		src, err := os.ReadFile(filepath.Join("testdata/tracker", f))
+		if err != nil {
+			t.Fatal(err)
+		}
+		files[filepath.Join("scripts", f)] = src
+	}
+	for name, b := range files {
+		if err := errors.Join(os.MkdirAll(filepath.Dir(filepath.Join(dir, name)), 0o700), os.WriteFile(filepath.Join(dir, name), b, 0o600)); err != nil {
+			t.Fatal(err)
+		}
+	}
 }
 
 func (e *Env) importEnabled(dir, name string) int64 {
@@ -63,8 +101,8 @@ type gitlabIssue struct {
 	Labels      []string `json:"labels"`
 }
 
-// TestGitLabIssuesBecomeCardsOnce: the example's intake follows a GitLab project through its HTTP tool with the
-// token as a deck secret; each open issue becomes one card in Backlog, and polls again take only new ones.
+// TestGitLabIssuesBecomeCardsOnce: a tracker intake by the code-project skill follows GitLab through an HTTP tool with
+// the token as a deck secret; each open issue becomes one card in Backlog, and polls again take only new ones.
 func TestGitLabIssuesBecomeCardsOnce(t *testing.T) {
 	var mu sync.Mutex
 	issues := []gitlabIssue{

@@ -1,73 +1,160 @@
 {
   "version": 5,
-  "collections": [
-    {"name": "intake", "description": "A GitLab project whose open issues become cards, with the cursor of the last poll.", "key": "project",
-      "display": "project",
-      "schema": {"type": "object", "required": ["project"], "properties": {
-        "project": {"type": "string", "description": "GitLab project path, group/name"},
-        "labels": {"type": "string", "description": "Only issues that have every one of these labels, comma separated; empty for all"},
-        "cursor": {"type": "string", "description": "created_at of the newest issue taken"},
-        "seen": {"type": "array", "items": {"type": "integer"}, "description": "iids taken that were created at the cursor"}}}}
-  ],
   "commands": [
-    {"name": "run", "title": "Run", "description": "Works on the cards in Ready in the repo folder, or merges, reverts, pushes or shows a run.",
-      "class": "internal", "callers": ["owner", "master"], "requires": ["sandbox"], "provider": "claude-code", "timeout_minutes": 240,
-      "input": {"type": "object", "properties": {
-        "do": {"type": "string", "enum": ["run", "merge", "revert", "push", "diff"], "description": "run by default"},
-        "run": {"type": "integer", "format": "process", "description": "The run to merge, revert or show; the latest one when omitted"}}},
-      "result": {"type": "object", "required": ["summary"], "properties": {
-        "summary": {"type": "string", "description": "What was done, in plain words"},
-        "branch": {"type": "string"}}},
-      "executor": {"type": "agent", "folder": true, "prompt_file": "prompts/run.md"}},
-    {"name": "follow_gitlab", "title": "Follow a GitLab project", "description": "Makes the open issues of a GitLab project arrive as cards.",
-      "class": "internal", "callers": ["owner", "master"],
-      "input": {"type": "object", "required": ["project"], "properties": {
-        "project": {"type": "string", "description": "GitLab project path, group/name"},
-        "labels": {"type": "string", "description": "Only issues that have every one of these labels, comma separated"}}},
-      "result": {"type": "object", "required": ["project"], "properties": {"project": {"type": "string"}}},
-      "executor": {"type": "script", "script": "follow_gitlab"}},
-    {"name": "poll_gitlab", "title": "Take GitLab issues", "description": "Makes a card in Backlog for each new open issue of the followed GitLab projects.",
+    {
+      "name": "run",
+      "title": "Run",
+      "description": "Works on the cards in Ready in the repo folder, or merges, reverts, pushes or shows a run.",
       "class": "internal",
-      "result": {"type": "object", "required": ["cards"], "properties": {"cards": {"type": "array", "items": {"type": "integer"}}}},
-      "executor": {"type": "script", "script": "poll_gitlab"}}
+      "callers": [
+        "owner",
+        "master"
+      ],
+      "requires": [
+        "sandbox"
+      ],
+      "provider": "claude-code",
+      "timeout_minutes": 240,
+      "input": {
+        "type": "object",
+        "properties": {
+          "do": {
+            "type": "string",
+            "enum": [
+              "run",
+              "merge",
+              "revert",
+              "push",
+              "diff"
+            ],
+            "description": "run by default"
+          },
+          "run": {
+            "type": "integer",
+            "format": "process",
+            "description": "The run to merge, revert or show; the latest one when omitted"
+          }
+        }
+      },
+      "result": {
+        "type": "object",
+        "required": [
+          "summary"
+        ],
+        "properties": {
+          "summary": {
+            "type": "string",
+            "description": "What was done, in plain words"
+          },
+          "branch": {
+            "type": "string"
+          }
+        }
+      },
+      "executor": {
+        "type": "agent",
+        "folder": true,
+        "prompt_file": "prompts/run.md"
+      }
+    }
   ],
-  "scripts": [
-    {"name": "follow_gitlab", "file": "scripts/follow_gitlab.py", "runtime": "python"},
-    {"name": "poll_gitlab", "file": "scripts/poll_gitlab.py", "runtime": "python"}
-  ],
-  "triggers": [{"command": "poll_gitlab", "cron": "*/15 * * * *"}],
-  "tools": {"http": [
-    {"name": "gitlab_issues", "description": "Open issues of a GitLab project created at or after a time, oldest first.", "method": "GET",
-      "url": "https://gitlab.com/api/v4/projects/{project}/issues?state=opened&order_by=created_at&sort=asc&per_page=50&created_after={after}&labels={labels}&page={page}",
-      "class": "internal", "auth": {"type": "secret", "secret": "gitlab", "header": "PRIVATE-TOKEN", "prefix": ""},
-      "input": {"type": "object", "required": ["project", "after", "labels", "page"], "properties": {
-        "project": {"type": "string"}, "after": {"type": "string"}, "labels": {"type": "string"}, "page": {"type": "string"}}}}
-  ]},
-  "board": {"lanes": [
-    {"name": "backlog", "title": "Backlog", "role": "inbox"},
-    {"name": "ready", "title": "Ready", "role": "ready"},
-    {"name": "running", "title": "Running", "role": "running"},
-    {"name": "review", "title": "Review", "role": "review"},
-    {"name": "done", "title": "Done", "role": "done"}
-  ]},
+  "board": {
+    "lanes": [
+      {
+        "name": "backlog",
+        "title": "Backlog",
+        "role": "inbox"
+      },
+      {
+        "name": "ready",
+        "title": "Ready",
+        "role": "ready"
+      },
+      {
+        "name": "running",
+        "title": "Running",
+        "role": "running"
+      },
+      {
+        "name": "review",
+        "title": "Review",
+        "role": "review"
+      },
+      {
+        "name": "done",
+        "title": "Done",
+        "role": "done"
+      }
+    ]
+  },
   "screens": [
-    {"name": "board", "title": "Board", "blocks": [
-      {"type": "actions", "title": "Runs", "actions": [
-        {"label": "Run", "command": "run", "params": {"do": "run"}},
-        {"label": "Show the diff", "command": "run", "params": {"do": "diff"}},
-        {"label": "Merge", "command": "run", "params": {"do": "merge"}},
-        {"label": "Revert the merge", "command": "run", "params": {"do": "revert"}},
-        {"label": "Push", "command": "run", "params": {"do": "push"}}
-      ]},
-      {"type": "board", "title": "Board"},
-      {"type": "list", "title": "Runs", "source": {"from": "processes", "where": "command == 'run'", "limit": 10},
-        "item": {"title": "'#' + string(id) + ' · ' + state", "text": "error", "meta": "started_at"}}
-    ]},
-    {"name": "intake", "title": "Intake", "blocks": [
-      {"type": "form", "title": "Follow a GitLab project", "command": "follow_gitlab"},
-      {"type": "table", "title": "Followed", "source": {"collection": "intake"},
-        "columns": [{"label": "Project", "bind": "project"}, {"label": "Labels", "bind": "labels"}, {"label": "Taken up to", "bind": "cursor"}]}
-    ]}
+    {
+      "name": "board",
+      "title": "Board",
+      "blocks": [
+        {
+          "type": "actions",
+          "title": "Runs",
+          "actions": [
+            {
+              "label": "Run",
+              "command": "run",
+              "params": {
+                "do": "run"
+              }
+            },
+            {
+              "label": "Show the diff",
+              "command": "run",
+              "params": {
+                "do": "diff"
+              }
+            },
+            {
+              "label": "Merge",
+              "command": "run",
+              "params": {
+                "do": "merge"
+              }
+            },
+            {
+              "label": "Revert the merge",
+              "command": "run",
+              "params": {
+                "do": "revert"
+              }
+            },
+            {
+              "label": "Push",
+              "command": "run",
+              "params": {
+                "do": "push"
+              }
+            }
+          ]
+        },
+        {
+          "type": "board",
+          "title": "Board"
+        },
+        {
+          "type": "list",
+          "title": "Runs",
+          "source": {
+            "from": "processes",
+            "where": "command == 'run'",
+            "limit": 10
+          },
+          "item": {
+            "title": "'#' + string(id) + ' · ' + state",
+            "text": "error",
+            "meta": "started_at"
+          }
+        }
+      ]
+    }
   ],
-  "menu": ["board", "intake"]
+  "menu": [
+    "board"
+  ]
 }

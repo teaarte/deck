@@ -80,18 +80,24 @@ revert commits below.
 
 ## do = merge
 
-1. On the base: `git switch <base>`, then `git merge --squash deck/run-R`.
-2. A conflict: `git reset --merge`, merge nothing, keep the cards in review and say which files conflict.
-3. Otherwise commit once (when the commit fails, a hook say, `git reset --merge` and say why): subject `deck run R: <titles of the cards, shortened>`, and in the body one line per
-   card, `#<id> <title>`. Move the cards of run R (those whose text has `**Run R**`) from review to the lane with
-   role `done`. Keep the branch.
-4. Finish (you started on some branch; go back to it). Summary: the commit sha and the cards.
+1. Bring the run up to the base: `git switch deck/run-R`, `git rebase <base>`. A conflict: `git rebase
+   --abort`, merge nothing, keep the cards in review and say which files conflict. Run the tests again when
+   the rebase moved the branch.
+2. On the base: `git switch <base>`, then `git merge --squash deck/run-R`. It should not conflict now; if it
+   does, `git reset --merge` and say so.
+3. Commit once (when the commit fails, a hook say, `git reset --merge` and say why): subject `deck run R:
+   <titles of the cards, shortened>`, and in the body one line per card, `#<id> <title>`. Move the cards of
+   run R (those whose text has `**Run R**`) from review to the lane with role `done`.
+4. Only after that commit: `git branch -D deck/run-R` — the merge commit holds all of it, and a revert goes by
+   that commit.
+5. Finish (you started on some branch; go back to it). Summary: the commit sha and the cards.
 
 ## do = revert
 
 1. Find the merge of run R on the base: `git log <base> --format='%H %s' --grep='^deck run R:'`, the newest.
    None: say so and change nothing.
 2. `git switch <base>`, `git revert --no-edit <sha>`. A conflict: `git revert --abort` and say which files.
+   To merge the run again later, revert this revert commit.
 3. Move the cards of run R back to the lane with role `review` and add a line `Reverted in <sha>.` to each.
 4. Finish. Summary: the revert commit.
 

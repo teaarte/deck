@@ -155,6 +155,9 @@ func rehearseCodeModule(t *testing.T, newProvider func(home string) provider.Pro
 		!strings.Contains(git("show", "main:calc.py"), "def multiply") {
 		t.Fatalf("the merge is one squash commit on main: %s\n%s", subject, git("log", "--oneline", "main"))
 	}
+	if got := git("branch", "--list", branch); got != "" {
+		t.Fatalf("the merged branch is deleted: %s", got)
+	}
 	if done := lanes()["done"]; len(done) != 2 {
 		t.Fatalf("merged cards are done: %v", lanes())
 	}

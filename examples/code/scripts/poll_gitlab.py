@@ -78,7 +78,6 @@ for rec in deck("deck.records_list", {"collection": "intake"}) or []:
     except SystemExit as e:
         errors.append("%s: %s" % (rec["data"].get("project"), e))
 if errors:
-    print("\n".join(errors), file=sys.stderr)
-    if not cards:
-        raise SystemExit(1)
+    # The cards already made stay; the failure shows as the state of the process and in its health.
+    raise SystemExit("\n".join(errors) + ("\ncards made before the failure: %s" % cards if cards else ""))
 print(json.dumps({"cards": cards} if cards else None))

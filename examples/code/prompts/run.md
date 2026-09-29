@@ -2,8 +2,9 @@
 
 You work in the project folder, the owner's own git checkout. `do` in the input says what to do; `run` by default.
 `N` below is your deck process id (the first line of this prompt names it); `R` is the run `do` acts on: the
-`run` of the input, or else the branch `deck/run-*` with the highest number (`git branch --list 'deck/run-*'
---format='%(refname:short)' | sort -t- -k2 -n | tail -1`), and `R` is that number.
+`run` of the input, or else the run whose cards wait in the lane with role `review` (their text has
+`**Run R**`; for `revert`, the newest `deck run R:` merge on the base). When cards of several runs wait there,
+or none, ask the owner which run they mean; never guess by the newest branch.
 
 Rules for every `do`:
 

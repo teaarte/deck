@@ -42,7 +42,7 @@ func (a *Adapter) QuestionTool() string { return provider.AskTool }
 
 // Caps has no output by schema: Codex takes only strict schemas, so the result goes in with result_submit.
 func (a *Adapter) Caps() provider.Caps {
-	return provider.Caps{provider.Tools, provider.Sandbox, provider.Resume, provider.Intercept, provider.Web}
+	return provider.Caps{provider.Tools, provider.Sandbox, provider.Resume, provider.Intercept, provider.Web, provider.Folder}
 }
 
 func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Result, error) {

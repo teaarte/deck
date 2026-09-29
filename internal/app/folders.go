@@ -148,8 +148,9 @@ func (a *App) Folder(ctx context.Context, projectID int64, f manifest.Folder) (s
 	default:
 		path = fs[0].Path
 	}
-	if st, err := os.Stat(path); err != nil || !st.IsDir() {
-		return "", registry.Invalid("deck: folder %s of project %s is gone", path, p.Name)
+	real, err := a.realFolder(path)
+	if err != nil {
+		return "", registry.Invalid("deck: folder %s of project %s is gone or moved: %v", path, p.Name, err)
 	}
-	return path, nil
+	return real, nil
 }

@@ -45,11 +45,19 @@ func (r *Runner) holdFolder(ctx context.Context, t turn, folder string) bool {
 	if held {
 		return true
 	}
-	reason, stopped := r.settle(t.process)
-	if waits && stopped {
-		r.mu.Lock()
+	// A release may have handed the process to a new turn already; only this turn's own entry goes.
+	r.mu.Lock()
+	if r.live[t.process] == t.live {
+		delete(r.live, t.process)
+	}
+	reason, stopped := r.stopping[t.process]
+	if waits && stopped && r.live[t.process] == nil {
 		delete(r.stopping, t.process)
-		r.mu.Unlock()
+	} else {
+		stopped = false
+	}
+	r.mu.Unlock()
+	if stopped {
 		_ = r.Stop(ctx, t.process, reason)
 	}
 	r.bus.Publish("processes")
@@ -57,6 +65,7 @@ func (r *Runner) holdFolder(ctx context.Context, t turn, folder string) bool {
 }
 
 func (r *Runner) freeFolderOf(ctx context.Context, processID int64) {
+	ctx = context.WithoutCancel(ctx)
 	if p, err := r.st.Q.GetProcess(ctx, processID); err == nil && p.Folder != "" {
 		r.freeFolder(ctx, p.Folder)
 	}

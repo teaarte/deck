@@ -26,9 +26,9 @@ func inputData(input string) string {
 }
 
 // buildPrompt mentions only the tools the provider session really has.
-func buildPrompt(project, instructions, body string, m *manifest.Manifest, cmd *manifest.Command, input string, tools []string, questionTool string) string {
+func buildPrompt(process int64, project, instructions, body string, m *manifest.Manifest, cmd *manifest.Command, input string, tools []string, questionTool string) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "You are running command %q of deck project %q.\n\n", cmd.Name, project)
+	fmt.Fprintf(&b, "You are running command %q of deck project %q as deck process %d.\n\n", cmd.Name, project, process)
 	if strings.TrimSpace(instructions) != "" {
 		fmt.Fprintf(&b, "Project instructions:\n%s\n\nCommand instructions:\n", strings.TrimSpace(instructions))
 	}

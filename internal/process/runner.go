@@ -163,6 +163,7 @@ func (r *Runner) spawn(t turn) bool {
 	ctx, cancel := context.WithCancelCause(r.ctx)
 	lt := &liveTurn{cancel: cancel}
 	r.live[t.process] = lt
+	t.live = lt
 	r.wg.Add(1)
 	go func() {
 		defer r.wg.Done()

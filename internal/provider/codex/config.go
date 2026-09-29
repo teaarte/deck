@@ -91,30 +91,14 @@ func (a *Adapter) args(req provider.Request, skills string) ([]string, error) {
 	return args, nil
 }
 
-// gitDirs are the git folders of a repo, which Codex keeps read-only in a folder it may write unless named:
-// .git, or for a worktree the folder its .git file points to and the common one.
+// gitDirs is the .git folder of a repo, which Codex may keep read-only in a folder it writes. A .git file or link
+// is left out: it names a folder elsewhere, and the agent could have written it.
 func gitDirs(repo string) []string {
 	dot := filepath.Join(repo, ".git")
-	b, err := os.ReadFile(dot)
-	if err != nil {
-		return []string{dot}
-	}
-	dir, ok := strings.CutPrefix(strings.TrimSpace(string(b)), "gitdir: ")
-	if !ok {
+	if fi, err := os.Lstat(dot); err != nil || !fi.IsDir() {
 		return nil
 	}
-	if !filepath.IsAbs(dir) {
-		dir = filepath.Join(repo, dir)
-	}
-	out := []string{dir}
-	if c, err := os.ReadFile(filepath.Join(dir, "commondir")); err == nil {
-		common := strings.TrimSpace(string(c))
-		if !filepath.IsAbs(common) {
-			common = filepath.Join(dir, common)
-		}
-		out = append(out, filepath.Clean(common))
-	}
-	return out
+	return []string{dot}
 }
 
 // quote writes a TOML basic string; JSON escapes are valid TOML.

@@ -224,25 +224,14 @@ func TestOnlyTheOwnerAddsAFolder(t *testing.T) {
 	e.refused("deck.folder_add", map[string]any{"project": "code", "path": t.TempDir(), "name": "Bad Name"}, 422, "folder name")
 }
 
-// TestCodexAgentInTheProjectFolderMayWriteItsGit: Codex keeps .git read-only in a folder it may write, so the
-// profile of a turn in a repo folder names the git folders to write: .git, or those a worktree's .git file names.
+// TestCodexAgentInTheProjectFolderMayWriteItsGit: the profile of a Codex turn in a repo folder writes the folder
+// and its .git; a .git file or link names a folder elsewhere the agent may have written, so it gets nothing.
 func TestCodexAgentInTheProjectFolderMayWriteItsGit(t *testing.T) {
 	c := newCodex(t)
 	c.stream(0, "ok.jsonl")
-	e, _ := codexEnv(t, c)
+	e, home := codexEnv(t, c)
 	p := e.createProject("paint", strings.Replace(colorManifest, `"executor": {"type": "agent",`, `"executor": {"type": "agent", "folder": "main",`, 1))
 	repo := repoFolder(t)
-	tree := filepath.Join(filepath.Dir(repo), "tree")
-	gitdir := filepath.Join(repo, ".git", "worktrees", "tree")
-	for _, d := range []string{tree, gitdir} {
-		if err := os.MkdirAll(d, 0o700); err != nil {
-			t.Fatal(err)
-		}
-	}
-	if err := errors.Join(os.WriteFile(filepath.Join(tree, ".git"), []byte("gitdir: "+gitdir+"\n"), 0o600),
-		os.WriteFile(filepath.Join(gitdir, "commondir"), []byte("../..\n"), 0o600)); err != nil {
-		t.Fatal(err)
-	}
 	e.must("deck.folder_add", map[string]any{"project": "paint", "path": repo, "name": "main"}, nil)
 	id := e.run(p, "work")
 	if got := e.waitState(id, "done", "error"); got.State != "done" {
@@ -250,24 +239,36 @@ func TestCodexAgentInTheProjectFolderMayWriteItsGit(t *testing.T) {
 	}
 	cc := c.call(1)
 	fs, _ := cc.config("permissions.deck.filesystem")
-	var start struct{ Cwd string }
-	_ = json.Unmarshal(cc.request("thread/start")["cwd"], &start.Cwd)
+	var cwd string
+	_ = json.Unmarshal(cc.request("thread/start")["cwd"], &cwd)
 	for _, want := range []string{quoteTOML(repo) + `="write"`, quoteTOML(filepath.Join(repo, ".git")) + `="write"`} {
-		if !strings.Contains(fs, want) || cc.cwd != repo || start.Cwd != repo {
-			t.Fatalf("the turn runs in the repo and writes %s: cwd %s thread %s, %s", want, cc.cwd, start.Cwd, fs)
+		if !strings.Contains(fs, want) || cc.cwd != repo || cwd != repo {
+			t.Fatalf("the turn runs in the repo and writes %s: cwd %s thread %s, %s", want, cc.cwd, cwd, fs)
 		}
 	}
 
+	tree := filepath.Join(filepath.Dir(repo), "tree")
+	if err := errors.Join(os.MkdirAll(tree, 0o700), os.WriteFile(filepath.Join(tree, ".git"), []byte("gitdir: "+home+"\n"), 0o600)); err != nil {
+		t.Fatal(err)
+	}
 	e.must("deck.folder_remove", map[string]any{"project": "paint", "name": "main"}, nil)
 	e.must("deck.folder_add", map[string]any{"project": "paint", "path": tree, "name": "main"}, nil)
 	id = e.run(p, "work")
 	e.waitState(id, "done", "error")
 	fs, _ = c.call(2).config("permissions.deck.filesystem")
-	for _, want := range []string{quoteTOML(tree) + `="write"`, quoteTOML(gitdir) + `="write"`, quoteTOML(filepath.Join(repo, ".git")) + `="write"`} {
-		if !strings.Contains(fs, want) {
-			t.Fatalf("a worktree writes %s: %s", want, fs)
-		}
+	if !strings.Contains(fs, quoteTOML(tree)+`="write"`) || !strings.Contains(fs, quoteTOML(home)+`="deny"`) || strings.Contains(fs, quoteTOML(home)+`="write"`) {
+		t.Fatalf("a .git file grants nothing: %s", fs)
 	}
+}
+
+// TestAFolderCommandNeedsAProviderThatWorksInFolders: a provider that cannot work in the owner's folder yet
+// does not start a command with folder.
+func TestAFolderCommandNeedsAProviderThatWorksInFolders(t *testing.T) {
+	e := newEnv(t, ok)
+	e.Fake.noFolder = true
+	e.createProject("code", testManifest([]string{folderCommand("run", "true")}, nil))
+	e.must("deck.folder_add", map[string]any{"project": "code", "path": repoFolder(t)}, nil)
+	e.refused("code.run", map[string]any{}, 422, "cannot yet")
 }
 
 // TestTheProjectsTabCreatesAProjectAndGivesItAFolder: the owner creates a project from its name and md prompt
@@ -294,4 +295,30 @@ func TestTheProjectsTabCreatesAProjectAndGivesItAFolder(t *testing.T) {
 	if len(board.Lanes) == 0 {
 		t.Fatalf("the new project has the base board")
 	}
+}
+
+// TestAPauseThatRunsOutFreesTheFolder: a process stopped at the end of its pause on a usage limit leaves the
+// folder, and the one that waited for it runs.
+func TestAPauseThatRunsOutFreesTheFolder(t *testing.T) {
+	var first string
+	e := newClockEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		if first == "" || first == c.Req.SessionID {
+			first = c.Req.SessionID
+			return limited(time.Time{})
+		}
+		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
+	})
+	p := e.createProject("code", testManifest([]string{folderCommand("run", "true")}, nil))
+	e.must("deck.folder_add", map[string]any{"project": "code", "path": repoFolder(t)}, nil)
+	a := e.run(p, "run")
+	e.waitState(a, "rate_limited")
+	b := e.run(p, "run")
+	e.waitState(b, "waiting_folder")
+	for range 7 {
+		e.Clock.Add(time.Hour)
+		e.sweep()
+		e.settle()
+	}
+	e.waitState(a, "stopped")
+	e.waitState(b, "done")
 }

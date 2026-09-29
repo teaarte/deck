@@ -47,12 +47,18 @@ type Fake struct {
 	script      Script
 	calls       []provider.Request
 	noQuestions bool
+	// noFolder is a provider that cannot work in a folder of the owner.
+	noFolder bool
 }
 
 func (f *Fake) Name() string { return "fake" }
 
 func (f *Fake) Caps() provider.Caps {
-	return provider.Caps{provider.Tools, provider.Sandbox, provider.Resume, provider.Intercept, provider.Images, provider.StructuredOutput}
+	c := provider.Caps{provider.Tools, provider.Sandbox, provider.Resume, provider.Intercept, provider.Images, provider.StructuredOutput}
+	if !f.noFolder {
+		c = append(c, provider.Folder)
+	}
+	return c
 }
 
 func (f *Fake) QuestionTool() string {

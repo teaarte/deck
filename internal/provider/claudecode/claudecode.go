@@ -36,7 +36,7 @@ func (a *Adapter) Name() string { return "claude-code" }
 func (a *Adapter) QuestionTool() string { return "AskUserQuestion" }
 
 func (a *Adapter) Caps() provider.Caps {
-	return provider.Caps{provider.Tools, provider.Sandbox, provider.Resume, provider.Intercept, provider.Images, provider.StructuredOutput, provider.Web}
+	return provider.Caps{provider.Tools, provider.Sandbox, provider.Resume, provider.Intercept, provider.Images, provider.StructuredOutput, provider.Web, provider.Folder}
 }
 
 func (a *Adapter) args(req provider.Request, mcp, settings, plugin string) []string {

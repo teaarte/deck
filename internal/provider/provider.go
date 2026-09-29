@@ -104,6 +104,8 @@ const (
 	NoCloud   = "no_cloud"
 	// Web is the provider's own web search and fetch.
 	Web = "web"
+	// Folder is working in a folder of the owner, a repo with its own instructions, rather than a folder of deck.
+	Folder = "folder"
 )
 
 // Server is the name of the deck MCP server among the MCP servers of a provider session.

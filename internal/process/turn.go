@@ -34,6 +34,8 @@ type turn struct {
 	pv      provider.Provider
 	// folder is the project folder the turn works in, or empty for a work folder of its own.
 	folder string
+	// live is the entry of the turn among the live ones, set when it is spawned.
+	live *liveTurn
 	// slot says the turn holds an agent slot of workspace, handed to it or taken when it starts.
 	slot      bool
 	workspace int64
@@ -82,8 +84,8 @@ func (r *Runner) run(ctx context.Context, t turn) {
 	}
 	t.folder = p.Folder
 	if t.folder != "" {
-		if st, err := os.Stat(t.folder); err != nil || !st.IsDir() {
-			r.finish(bg, processID, StateError, "", false, "deck: the project folder "+t.folder+" is gone")
+		if real, err := filepath.EvalSymlinks(t.folder); err != nil || real != t.folder {
+			r.finish(bg, processID, StateError, "", false, "deck: the project folder "+t.folder+" is gone or moved")
 			return
 		}
 		if !r.holdFolder(bg, t, t.folder) {
@@ -322,7 +324,7 @@ func (r *Runner) firstPrompt(ctx context.Context, proj db.Project, t turn, tools
 	if err != nil {
 		return "", err
 	}
-	p := buildPrompt(proj.Name, instructions, body, t.m, t.cmd, t.input, tools, t.pv.QuestionTool())
+	p := buildPrompt(t.process, proj.Name, instructions, body, t.m, t.cmd, t.input, tools, t.pv.QuestionTool())
 	if slices.Contains(t.pv.Caps(), provider.Sandbox) {
 		p += "\nThe data folder of this project keeps indexes, caches and state between runs: " + data + "\n"
 	}

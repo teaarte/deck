@@ -104,8 +104,10 @@ func (r *Runner) pauseEnded(ctx context.Context, p db.Process) {
 		if closedCalls, err = q.CloseOpenAsksOfProcess(ctx, db.CloseOpenAsksOfProcessParams{ProcessID: p.ID, CallsToo: 1}); err != nil {
 			return err
 		}
-		_, err = q.CreateAsk(ctx, db.CreateAskParams{ProcessID: p.ID, Kind: ask.KindLimit, Text: text, Payload: string(payload)})
-		return err
+		if _, err = q.CreateAsk(ctx, db.CreateAskParams{ProcessID: p.ID, Kind: ask.KindLimit, Text: text, Payload: string(payload)}); err != nil {
+			return err
+		}
+		return q.ReleaseFolderLocks(ctx, p.ID)
 	})
 	if err != nil {
 		slog.Error("end of a pause", "process", p.ID, "err", err)
@@ -114,6 +116,7 @@ func (r *Runner) pauseEnded(ctx context.Context, p db.Process) {
 	if n > 0 {
 		r.dropped(ctx, closedCalls)
 		r.closed(p.ID)
+		r.freeFolderOf(ctx, p.ID)
 	}
 }
 

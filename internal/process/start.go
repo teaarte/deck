@@ -6,11 +6,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
 	"deck2/internal/ask"
 	"deck2/internal/manifest"
+	"deck2/internal/provider"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
@@ -71,6 +73,9 @@ func (r *Runner) Start(ctx context.Context, projectID int64, m *manifest.Manifes
 			return 0, err
 		}
 		if !cmd.Executor.Folder.IsZero() {
+			if !slices.Contains(pv.Caps(), provider.Folder) {
+				return 0, registry.Invalid("deck: %s works in a project folder, and provider %s cannot yet; pick Claude Code or Codex for it", cmd.Name, pv.Name())
+			}
 			if folder, err = r.projects.Folder(ctx, projectID, cmd.Executor.Folder); err != nil {
 				return 0, err
 			}

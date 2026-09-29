@@ -3,7 +3,8 @@
 Input (stdin JSON): {"project": "group/name", "labels": "a,b"}; labels are optional.
 Result (stdout JSON): {"project": "group/name"}.
 
-The first poll takes the issues of the last 14 days; a project followed again keeps its cursor.
+The first poll takes the issues of the last 14 days. A project followed again keeps its cursor, so new
+labels apply to issues created after it.
 """
 import json
 import os

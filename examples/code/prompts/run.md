@@ -2,8 +2,8 @@
 
 You work in the project folder, the owner's own git checkout. `do` in the input says what to do; `run` by default.
 `N` below is your deck process id (the first line of this prompt names it); `R` is the run `do` acts on: the
-`run` of the input, or else the newest branch `deck/run-*` (`git for-each-ref --sort=-committerdate
---format='%(refname:short)' 'refs/heads/deck/run-*'`, the first line), and `R` is the number in its name.
+`run` of the input, or else the branch `deck/run-*` with the highest number (`git branch --list 'deck/run-*'
+--format='%(refname:short)' | sort -t- -k2 -n | tail -1`), and `R` is that number.
 
 Rules for every `do`:
 
@@ -17,29 +17,47 @@ Rules for every `do`:
 
 ## Start (every `do`, and again on every rework)
 
-1. Note where the owner was: `git rev-parse --abbrev-ref HEAD` (the start branch; `HEAD` means a detached
+1. Look before you touch anything:
+   - `git status --short` — note it; Finish compares with it;
+   - the owner in the middle of something: `.git/MERGE_HEAD`, `.git/CHERRY_PICK_HEAD`, `.git/REVERT_HEAD`,
+     `.git/rebase-merge` or `.git/rebase-apply` exists, or `git status` shows unmerged paths. Then change
+     nothing and hand in a summary that says what is in progress;
+   - an earlier run that did not finish: HEAD on a `deck/run-*` branch that is not yours, or a stash in
+     `git stash list` whose message starts with `deck run` and is not yours. Change nothing and say which
+     branch and stash hold what, unless the owner's remark asks you to bring them back (then do the Finish
+     of that run for it first).
+2. Note where the owner was: `git rev-parse --abbrev-ref HEAD` (the start branch; `HEAD` means a detached
    checkout — note `git rev-parse HEAD` then) and `git rev-parse HEAD`.
-2. Put the owner's uncommitted work aside, untracked files too, under a message only you use:
+3. Put the owner's uncommitted work aside, untracked files too, under a message only you use:
    - `git rev-parse -q --verify refs/stash` before (it prints nothing when there is no stash);
    - `git stash push -u -m "deck run N at <UTC time to the second>"`;
    - `git rev-parse -q --verify refs/stash` after. Only if it changed did the stash take anything: with nothing
      to put aside, `stash push` still exits 0 and creates no stash. Remember the message and whether a stash
      was made.
-3. The base branch: `git symbolic-ref --short refs/remotes/origin/HEAD` without `origin/`; without a remote,
+4. The base branch: `git symbolic-ref --short refs/remotes/origin/HEAD` without `origin/`; without a remote,
    `main` or `master`, whichever exists; unless the project prompt names another. When none of these exists,
    ask the owner which branch is the base.
 
+## Leaving your branch (before every `git switch` away from `deck/run-N`)
+
+What you did not commit goes into one commit on your branch first, so nothing of yours travels to another
+branch: `git add -A && git commit --no-verify -m "deck run N: work in progress"` (`--no-verify`: a hook of the
+repo must not stop a WIP commit). `git status --short` must then be empty; if it is not, or `git switch` says
+it would carry changes along, stop and say so. Never commit on a branch of the owner except the merge and
+revert commits below.
+
 ## Finish (every `do`, whatever happened)
 
-1. On a branch of yours with changes you did not commit: `git add -A && git commit -m "deck run N: work in
-   progress"`. Never commit on the start branch of the owner.
+1. Leave your branch as above if you are on it.
 2. Back to where the owner was: `git switch <start branch>` (or `git checkout <sha>` for a detached one).
 3. If a stash was made: find it by its message, never by a number you saw before, since numbers shift when
    the owner stashes: `git stash list --format='%gd %s'`, the line that ends with your message, and
-   `git stash pop <that stash@{k}>` (a sha does not work for `pop`). When `pop` stops on a conflict, the stash
-   stays in the list with all of the owner's work: leave the files as `pop` left them, change nothing more, and
-   say in the summary which stash holds the owner's work and which files conflict.
-4. `git status --short` must show what it showed at Start (unless `pop` conflicted). Say so if it does not.
+   `git stash pop --index <that stash@{k}>` (`--index` brings back what the owner had staged; a sha does not
+   work for `pop`). If `pop --index` refuses because the index cannot be restored, `git stash pop <that
+   stash@{k}>` and say that the staged split was lost. When `pop` exits with an error of any kind (a conflict,
+   "already exists, no checkout"), the stash stays in the list with all of the owner's work: leave the files
+   as `pop` left them, change nothing more, and say which stash holds the owner's work and what went wrong.
+4. `git status --short` must show what it showed at Start (unless `pop` failed). Say so if it does not.
 
 ## do = run
 
@@ -53,8 +71,8 @@ Rules for every `do`:
 5. For each card write the report into the card: `card_update` with the card's text, then a line `---` and
    `**Run N** (branch deck/run-N):` and a few plain sentences — what changed, how you checked it, anything the
    owner should look at. Then move it to the lane with role `review`.
-6. Autonomy: `manifest_get` of this project. When `autonomy` is `auto` and every test passed, merge the run
-   yourself as in `do = merge` and write one `notify` line: what was merged into which branch, and that
+6. Autonomy: `manifest_get` of this project. When `autonomy` is `auto` and every test passed, leave your
+   branch (above), merge the run yourself as in `do = merge` and write one `notify` line: what was merged into which branch, and that
    "Revert the merge" on the board undoes it. When it is `suggest` (the default), do not merge: the owner reads
    the reports and asks.
 7. Finish. Summary: the cards, the branch, the commits.
@@ -63,7 +81,7 @@ Rules for every `do`:
 
 1. On the base: `git switch <base>`, then `git merge --squash deck/run-R`.
 2. A conflict: `git reset --merge`, merge nothing, keep the cards in review and say which files conflict.
-3. Otherwise commit once: subject `deck run R: <titles of the cards, shortened>`, and in the body one line per
+3. Otherwise commit once (when the commit fails, a hook say, `git reset --merge` and say why): subject `deck run R: <titles of the cards, shortened>`, and in the body one line per
    card, `#<id> <title>`. Move the cards of run R (those whose text has `**Run R**`) from review to the lane with
    role `done`. Keep the branch.
 4. Finish (you started on some branch; go back to it). Summary: the commit sha and the cards.

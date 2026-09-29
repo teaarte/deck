@@ -1,13 +1,18 @@
 package scenarios
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 // codeModule is a copy of examples/code whose GitLab is at url.
@@ -66,6 +71,7 @@ func TestGitLabIssuesBecomeCardsOnce(t *testing.T) {
 		{IID: 1, Title: "Login button is off", Description: "It sits too low.", CreatedAt: "2026-09-28T10:00:00.000Z", Labels: []string{"ui"}},
 		{IID: 2, Title: "Crash on save", CreatedAt: "2026-09-28T11:00:00.000Z"},
 	}
+	closeAfterFirstPage := 0
 	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) {
 		if r.Header.Get("PRIVATE-TOKEN") != "glpat-secret" {
 			http.Error(w, `{"message": "401 Unauthorized"}`, http.StatusUnauthorized)
@@ -76,19 +82,27 @@ func TestGitLabIssuesBecomeCardsOnce(t *testing.T) {
 			return
 		}
 		after := r.URL.Query().Get("created_after")
+		page, _ := strconv.Atoi(r.URL.Query().Get("page"))
 		mu.Lock()
-		var out []gitlabIssue
+		var open []gitlabIssue
 		for _, i := range issues {
-			if r.URL.Query().Get("page") == "1" && i.CreatedAt[:19] >= after[:19] {
+			if i.CreatedAt >= after {
 				i.WebURL = "https://gitlab.example/team/app/-/issues/" + itoa(int64(i.IID))
-				out = append(out, i)
+				open = append(open, i)
 			}
+		}
+		out := open[min((page-1)*50, len(open)):min(page*50, len(open))]
+		if closeAfterFirstPage != 0 && page == 1 {
+			issues = slices.DeleteFunc(issues, func(i gitlabIssue) bool { return i.IID == closeAfterFirstPage })
+			closeAfterFirstPage = 0
 		}
 		mu.Unlock()
 		b, _ := json.Marshal(out)
 		jsonReply(w, string(b))
 	})
-	e := newEnv(t, ok)
+	clock := &Clock{now: time.Now()}
+	e := newEnv(t, ok, withClock(clock))
+	e.Clock = clock
 	e.must("deck.secret_set", map[string]any{"name": "gitlab", "value": "glpat-secret"}, nil)
 	e.importEnabled(codeModule(t, svc.URL), "code")
 	if got := e.waitScript(e.start("code", "follow_gitlab", map[string]any{"project": "team/app"}), "done", "error"); got.State != "done" {
@@ -119,7 +133,18 @@ func TestGitLabIssuesBecomeCardsOnce(t *testing.T) {
 		}
 		return out
 	}
-	first := poll()
+	clock.Add(16 * time.Minute)
+	e.App.Scheduler.Tick(context.Background())
+	var first procFull
+	e.waitFor("the poll on its schedule", func() bool {
+		for _, p := range e.processes() {
+			if p.Command == "poll_gitlab" && p.Trigger != 0 && (p.State == "done" || p.State == "error") {
+				first = p
+				return true
+			}
+		}
+		return false
+	})
 	cards := board()
 	if len(cards) != 2 || !strings.HasPrefix(cards[0], "backlog: #1 Login button is off | It sits too low.") ||
 		!strings.Contains(cards[0], "GitLab: https://gitlab.example/team/app/-/issues/1") || !strings.Contains(cards[0], "Labels: ui") ||
@@ -140,6 +165,16 @@ func TestGitLabIssuesBecomeCardsOnce(t *testing.T) {
 	if got := poll(); string(got.Result) != "null" {
 		t.Fatalf("nothing new: %s", got.Result)
 	}
+	mu.Lock()
+	for n := 5; n < 70; n++ {
+		issues = append(issues, gitlabIssue{IID: n, Title: "Bulk " + itoa(int64(n)), CreatedAt: fmt.Sprintf("2026-09-28T%02d:%02d:00.000Z", 13+(n-5)/60, (n-5)%60)})
+	}
+	closeAfterFirstPage = 5
+	mu.Unlock()
+	poll()
+	if n := len(board()); n != 4+65 {
+		t.Fatalf("an issue closed between pages shifts none past the poll: %d cards", n)
+	}
 	for _, r := range svc.requests() {
 		if !strings.Contains(r.Path, "labels=&") || !strings.Contains(r.Path, "per_page=50") {
 			t.Fatalf("the tool asks for open issues of every label, oldest first: %s", r.Path)
@@ -147,7 +182,7 @@ func TestGitLabIssuesBecomeCardsOnce(t *testing.T) {
 	}
 	var recs []struct{ Data map[string]any }
 	e.must("deck.records_list", map[string]any{"project": "code", "collection": "intake"}, &recs)
-	if len(recs) != 1 || recs[0].Data["cursor"] != "2026-09-28T12:00:00.000Z" {
+	if len(recs) != 1 || recs[0].Data["cursor"] != "2026-09-28T14:04:00.000Z" {
 		t.Fatalf("the cursor is in the record: %+v", recs)
 	}
 	var leaked int

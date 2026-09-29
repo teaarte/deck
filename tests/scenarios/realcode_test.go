@@ -62,6 +62,7 @@ func rehearseCodeModule(t *testing.T, newProvider func(home string) provider.Pro
 	write("CLAUDE.md", rules)
 	write("AGENTS.md", rules)
 	write("README.md", "A tiny calculator.\n")
+	write("TODO.md", "- nothing yet\n")
 	write("calc.py", "def add(a, b):\n    return a + b\n")
 	write("test_calc.py", "import unittest\n\nfrom calc import add\n\n\nclass TestCalc(unittest.TestCase):\n    def test_add(self):\n        self.assertEqual(add(2, 3), 5)\n\n\nif __name__ == \"__main__\":\n    unittest.main()\n")
 	git("add", "-A")
@@ -69,7 +70,12 @@ func rehearseCodeModule(t *testing.T, newProvider func(home string) provider.Pro
 	start := git("rev-parse", "HEAD")
 	write("README.md", "A tiny calculator.\nOwner's note, not committed.\n")
 	write("notes.txt", "owner's untracked notes\n")
+	git("add", "README.md")
+	write("TODO.md", "- nothing yet\n- the owner's unstaged line\n")
 	status := git("status", "--porcelain")
+	if status != "M  README.md\n M TODO.md\n?? notes.txt" {
+		t.Fatalf("the owner's work: %q", status)
+	}
 
 	home := t.TempDir()
 	e := newEnvWith(t, home, newProvider(home), realWaits)

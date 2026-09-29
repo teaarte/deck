@@ -33,45 +33,50 @@ def deck(command, payload):
         raise SystemExit("%s: %s %s" % (command, e.code, e.read().decode()[:500]))
 
 
-def issues(tool, project, after, labels):
-    page = 1
+def card(issue):
+    body = (issue.get("description") or "")[:TEXT_LIMIT]
+    labels = ", ".join(issue.get("labels") or [])
+    text = "%s\n\nGitLab: %s%s" % (body, issue["web_url"], "\nLabels: " + labels if labels else "")
+    return deck("deck.card_create", {"title": "#%d %s" % (issue["iid"], issue["title"]), "text": text.strip()})["id"]
+
+
+def poll(tool, d):
+    """Takes the new issues of one followed project, oldest first, and moves its cursor after each card.
+
+    Every page is asked again from the moved cursor: an issue closed meanwhile does not shift an unseen one
+    past a page boundary. A full page with nothing new (all at the cursor's second) goes on to the next page.
+    """
+    cursor = d.get("cursor") or (datetime.datetime.now(datetime.timezone.utc)
+                                 - datetime.timedelta(days=FIRST_DAYS)).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+    seen = set(d.get("seen", []))
+    made, page = [], 1
     while True:
-        got = deck(tool, {"project": project, "after": after, "labels": labels, "page": str(page)})
+        got = deck(tool, {"project": d["project"], "after": cursor, "labels": d.get("labels", ""), "page": str(page)})
         if not isinstance(got, list):
             raise SystemExit("gitlab_issues: unexpected answer %r" % (got,))
-        yield from got
+        new = [i for i in got if i["created_at"] > cursor or (i["created_at"] == cursor and i["iid"] not in seen)]
+        for issue in sorted(new, key=lambda i: (i["created_at"], i["iid"])):
+            made.append(card(issue))
+            if issue["created_at"] > cursor:
+                cursor, seen = issue["created_at"], set()
+            seen.add(issue["iid"])
+            d["cursor"], d["seen"] = cursor, sorted(seen)
+            out = deck("deck.records_upsert", {"collection": "intake", "records": json.dumps(d)})
+            if out.get("errors"):
+                raise SystemExit("intake: %s" % out["errors"])
         if len(got) < 50:
-            return
-        page += 1
+            return made
+        page = 1 if new else page + 1
 
 
 own = deck("deck.manifest_get", {})["project"]
 cards = []
 errors = []
 for rec in deck("deck.records_list", {"collection": "intake"}) or []:
-    d = rec["data"]
-    cursor = d.get("cursor") or (datetime.datetime.now(datetime.timezone.utc)
-                                 - datetime.timedelta(days=FIRST_DAYS)).strftime("%Y-%m-%dT%H:%M:%SZ")
-    seen = set(d.get("seen", [])) if d.get("cursor") else set()
-    newest, at_newest = d.get("cursor", ""), set(seen)
     try:
-        for issue in issues(own + ".gitlab_issues", d["project"], cursor, d.get("labels", "")):
-            created, iid = issue["created_at"], issue["iid"]
-            if d.get("cursor") and (created < d["cursor"] or (created == d["cursor"] and iid in seen)):
-                continue
-            body = (issue.get("description") or "")[:TEXT_LIMIT]
-            labels = ", ".join(issue.get("labels") or [])
-            text = "%s\n\nGitLab: %s%s" % (body, issue["web_url"], "\nLabels: " + labels if labels else "")
-            card = deck("deck.card_create", {"title": "#%d %s" % (iid, issue["title"]), "text": text.strip()})
-            cards.append(card["id"])
-            if created > newest:
-                newest, at_newest = created, {iid}
-            elif created == newest:
-                at_newest.add(iid)
-            d["cursor"], d["seen"] = newest, sorted(at_newest)
-            deck("deck.records_upsert", {"collection": "intake", "records": json.dumps(d)})
+        cards += poll(own + ".gitlab_issues", rec["data"])
     except SystemExit as e:
-        errors.append("%s: %s" % (d["project"], e))
+        errors.append("%s: %s" % (rec["data"].get("project"), e))
 if errors:
     print("\n".join(errors), file=sys.stderr)
     if not cards:

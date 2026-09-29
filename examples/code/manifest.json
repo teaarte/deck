@@ -5,7 +5,7 @@
       "display": "project",
       "schema": {"type": "object", "required": ["project"], "properties": {
         "project": {"type": "string", "description": "GitLab project path, group/name"},
-        "labels": {"type": "string", "description": "Only issues with these labels, comma separated; empty for all"},
+        "labels": {"type": "string", "description": "Only issues that have every one of these labels, comma separated; empty for all"},
         "cursor": {"type": "string", "description": "created_at of the newest issue taken"},
         "seen": {"type": "array", "items": {"type": "integer"}, "description": "iids taken that were created at the cursor"}}}}
   ],
@@ -23,7 +23,7 @@
       "class": "internal", "callers": ["owner", "master"],
       "input": {"type": "object", "required": ["project"], "properties": {
         "project": {"type": "string", "description": "GitLab project path, group/name"},
-        "labels": {"type": "string", "description": "Only issues with these labels, comma separated"}}},
+        "labels": {"type": "string", "description": "Only issues that have every one of these labels, comma separated"}}},
       "result": {"type": "object", "required": ["project"], "properties": {"project": {"type": "string"}}},
       "executor": {"type": "script", "script": "follow_gitlab"}},
     {"name": "poll_gitlab", "title": "Take GitLab issues", "description": "Makes a card in Backlog for each new open issue of the followed GitLab projects.",

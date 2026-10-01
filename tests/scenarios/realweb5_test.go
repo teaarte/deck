@@ -140,3 +140,40 @@ func TestRealBrowserVoice(t *testing.T) {
 	b.until("the reply", `[...document.querySelectorAll('[data-message="master"]')].some((m) => m.innerText.includes('groceries'))`)
 	b.shot("chat-voice")
 }
+
+// TestRealBrowserInterviewFromACard presses Interview on a card of the board: the chat opens on a new topic about
+// the card, and the master's question waits in the feed.
+func TestRealBrowserInterviewFromACard(t *testing.T) {
+	if os.Getenv("DECK_REAL_BROWSER") == "" {
+		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
+	}
+	checkBuiltClient(t)
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		if !strings.Contains(c.Req.Prompt, "This topic is about card") {
+			return provider.Result{Text: "no card"}
+		}
+		d := c.Approve(ctx, "AskUserQuestion", map[string]any{"questions": []any{map[string]any{"question": "Which format?",
+			"options": []any{map[string]any{"label": "CSV"}, map[string]any{"label": "PDF"}}}}})
+		answers, _ := d["updatedInput"].(map[string]any)["answers"].(map[string]any)
+		return provider.Result{Text: fmt.Sprint("The spec is in the card: ", answers["Which format?"])}
+	}, func(c *app.Config) { c.QuestionWait = 2 * time.Minute })
+	e.must("deck.project_create", map[string]any{"name": "work"}, nil)
+	e.card(map[string]any{"project": "work", "title": "Export the report"})
+	b := newPlaywright(t)
+	b.call("browser_resize", map[string]any{"width": 1400, "height": 900})
+	b.open(e.URL + "/?token=" + token + "#/p/work/board")
+	b.until("the card", `[...document.querySelectorAll('[data-card]')].some((c) => c.innerText.includes('Export the report'))`)
+	b.eval(`([...document.querySelectorAll('[data-card]')].find((c) => c.innerText.includes('Export the report')).querySelector('button').click(), '')`)
+	b.until("the card editor", `document.querySelector('[data-interview]')`)
+	b.eval(`(document.querySelector('[data-interview]').click(), '')`)
+	b.until("the chat with the question about the card", `document.querySelector('[data-chat-panel] [data-question]')?.innerText.includes('Which format?')`)
+	b.eval(`([...document.querySelectorAll('[data-question] input')].find((i) => i.value === 'PDF').click(), '')`)
+	b.eval(`([...document.querySelectorAll('[data-question] button')].find((x) => !x.disabled && x.innerText.trim() !== '').click(), '')`)
+	b.until("the reply", `[...document.querySelectorAll('[data-message="master"]')].some((m) => m.innerText.includes('PDF'))`)
+	var ts []chatTopic
+	e.must("deck.chat_topics", nil, &ts)
+	if len(ts) != 1 || ts[0].Card == 0 {
+		t.Fatalf("the interview is a topic about the card: %+v", ts)
+	}
+	b.shot("interview")
+}

@@ -3,13 +3,14 @@ import '@mantine/notifications/styles.css';
 import './i18n';
 import { StrictMode, useCallback, useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { AppShell, Burger, Button, Group, MantineProvider, NavLink, PasswordInput, ScrollArea, Stack, Text, Title } from '@mantine/core';
+import { AppShell, Burger, Button, CloseButton, Drawer, Group, MantineProvider, NavLink, PasswordInput, ScrollArea, Stack, Text, Title } from '@mantine/core';
 import { Notifications } from '@mantine/notifications';
-import { useDisclosure } from '@mantine/hooks';
+import { useDisclosure, useLocalStorage, useMediaQuery } from '@mantine/hooks';
 import { useTranslation } from 'react-i18next';
 import { call, setToken, token } from './api';
 import { theme, useLook } from './look';
 import { href, ScreenView, type Route } from './screen';
+import { setChatScreen } from './chat';
 
 interface MenuEntry {
   project?: string;
@@ -38,6 +39,8 @@ function TokenPrompt() {
   );
 }
 
+const CHAT: Route = { screen: 'chat' };
+
 function App() {
   const { t } = useTranslation();
   const [opened, { toggle, close }] = useDisclosure();
@@ -53,12 +56,20 @@ function App() {
     return () => window.removeEventListener('hashchange', on);
   }, []);
   const current = href({ ...route, record: undefined });
+  const [chat, setChat] = useLocalStorage({ key: 'deck-chat-open', defaultValue: false });
+  const phone = useMediaQuery('(max-width: 48em)');
+  useEffect(() => setChatScreen(route), [route]);
+  const panel = <ScreenView route={CHAT} onProjects={loadMenu} />;
   return (
-    <AppShell padding="md" header={{ height: 52 }} navbar={{ width: 260, breakpoint: 'sm', collapsed: { mobile: !opened } }}>
+    <AppShell padding="md" header={{ height: 52 }} navbar={{ width: 260, breakpoint: 'sm', collapsed: { mobile: !opened } }}
+      aside={{ width: 420, breakpoint: 'sm', collapsed: { desktop: !chat, mobile: true } }}>
       <AppShell.Header>
-        <Group h="100%" px="md">
-          <Burger opened={opened} onClick={toggle} hiddenFrom="sm" size="sm" aria-label={t('nav.menu')} />
-          <Title order={4}>deck</Title>
+        <Group h="100%" px="md" justify="space-between">
+          <Group>
+            <Burger opened={opened} onClick={toggle} hiddenFrom="sm" size="sm" aria-label={t('nav.menu')} />
+            <Title order={4}>deck</Title>
+          </Group>
+          <Button size="xs" variant={chat ? 'filled' : 'default'} onClick={() => setChat(!chat)} data-chat-toggle>{t('chat.master')}</Button>
         </Group>
       </AppShell.Header>
       <AppShell.Navbar p="xs">
@@ -77,6 +88,11 @@ function App() {
       <AppShell.Main>
         <ScreenView route={route} onProjects={loadMenu} />
       </AppShell.Main>
+      {chat && !phone && <AppShell.Aside p="xs" data-chat-panel>{panel}</AppShell.Aside>}
+      <Drawer opened={chat && !!phone} onClose={() => setChat(false)} size="100%" position="right" withCloseButton={false} padding="xs" data-chat-phone>
+        <Group justify="flex-end"><CloseButton onClick={() => setChat(false)} aria-label={t('chat.close')} /></Group>
+        {chat && phone && panel}
+      </Drawer>
     </AppShell>
   );
 }

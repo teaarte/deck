@@ -11,7 +11,8 @@ import { Document, Markdown } from './document';
 import { Actions, QuestionPicker } from './actions';
 import { Block, Details, show } from './block';
 import { Appearance } from './appearance';
-import type { Action, ActionsValue, BoardValue, CardValue, CustomValue, Data, DocumentValue } from './catalog.gen';
+import { Chat } from './chat';
+import type { Action, ActionsValue, BoardValue, CardValue, ChatValue, CustomValue, Data, DocumentValue } from './catalog.gen';
 
 const Custom = lazy(() => import('./custom').then((m) => ({ default: m.Custom })));
 
@@ -190,6 +191,10 @@ const impls: ReactComponentImplementation[] = [
   createComponentImplementation(api('document'), ({ props }) => {
     const p = props as { title?: string; data?: Data };
     return <Block title={p.title} data={p.data}>{(d) => <Document value={d.value as DocumentValue} />}</Block>;
+  }),
+  createComponentImplementation(api('chat'), ({ props, context }) => {
+    const p = props as { title?: string; data?: Data };
+    return <Block title={p.title} data={p.data}>{(d) => <Chat value={d.value as ChatValue} context={context} />}</Block>;
   }),
   createComponentImplementation(api('appearance'), ({ props }) => {
     const p = props as { title?: string; data?: Data };

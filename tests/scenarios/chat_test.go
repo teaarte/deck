@@ -366,3 +366,93 @@ func TestMessagesOfAFailedReplyReachTheNextTurn(t *testing.T) {
 		t.Fatalf("what a failed turn did not answer comes again, the session's own reply does not:\n%s", c.Prompt)
 	}
 }
+
+func TestTheChatBlockShowsTheTopicItsQuestionsAndTheTurn(t *testing.T) {
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		if c.N == 1 {
+			return provider.Result{Text: "Hello **there**"}
+		}
+		c.Req.OnEvent(provider.Event{Kind: provider.EventTool, ID: "t1", Title: "card_create", Text: "{}"})
+		d := c.Approve(ctx, "AskUserQuestion", map[string]any{"questions": []any{map[string]any{"question": "Which list?",
+			"options": []any{map[string]any{"label": "shop"}, map[string]any{"label": "market"}}}}})
+		answers, _ := d["updatedInput"].(map[string]any)["answers"].(map[string]any)
+		return provider.Result{Text: fmt.Sprint("Picked ", answers["Which list?"])}
+	}, func(c *app.Config) { c.QuestionWait = time.Minute })
+	check := newCatalogCheck(t)
+	topic := e.say(0, "hello", map[string]any{"screen": `{"project":"master","screen":"documents"}`})
+	e.masterSaid(topic, 1)
+	pick := func(v string) map[string]any {
+		return map[string]any{"filter": fmt.Sprintf(`{"b0": {"topic": %q}}`, v)}
+	}
+	chat := func(v string) ChatV {
+		t.Helper()
+		check.messages(t, e.screenMessages("", "chat", pick(v)))
+		return blockData[ChatV](t, e.screenData("", "chat", pick(v))["b0"]["value"])
+	}
+	if c := chat(""); c.Topic == nil || c.Topic.ID != topic || len(c.Messages) != 2 || c.Messages[1].Text != "Hello **there**" ||
+		c.Send.Params["topic"] != float64(topic) || len(c.Topics) != 1 {
+		t.Fatalf("the newest topic with its messages and the send button: %+v", c)
+	}
+	if c := chat("new"); c.Topic != nil || len(c.Messages) != 0 || len(c.Topics) != 1 {
+		t.Fatalf("a new topic shows no messages: %+v", c)
+	}
+	e.say(topic, "buy apples")
+	var c ChatV
+	e.waitFor("the question in the feed", func() bool {
+		c = chat(fmt.Sprint(topic))
+		return len(c.Questions) == 1 && c.Turn != nil && len(c.Turn.Lines) > 0
+	})
+	q := c.Questions[0]
+	if q.Questions[0].Question != "Which list?" || q.Answer.Command != "deck.ask_answer" || q.Answer.Input != "answer" ||
+		c.Turn.Stop.Command != "deck.process_stop" || c.Turn.Lines[0].Title != "card_create" || c.Turn.State != "running" {
+		t.Fatalf("the question has options and an answer, the turn shows its calls and a stop: %+v", c)
+	}
+	e.must(q.Answer.Command, map[string]any{"ask": q.Answer.Params["ask"], "answer": `{"Which list?": "market"}`}, nil)
+	if said := e.masterSaid(topic, 2); said[1].Text != "Picked market" {
+		t.Fatalf("the answer from the feed reaches the turn: %+v", said)
+	}
+	if c := chat(fmt.Sprint(topic)); c.Turn != nil || len(c.Questions) != 0 {
+		t.Fatalf("a finished turn leaves the block: %+v", c)
+	}
+	e.must(c.Archive.Command, c.Archive.Params, nil)
+	if c := chat(""); c.Topic != nil || len(c.Archived) != 1 || len(c.Topics) != 0 {
+		t.Fatalf("an archived topic is listed apart: %+v", c)
+	}
+	e.must(c.Delete.Command, c.Delete.Params, nil)
+	if c := chat(fmt.Sprint(topic)); c.Topic != nil || len(c.Archived) != 0 {
+		t.Fatalf("a deleted topic is gone: %+v", c)
+	}
+}
+
+type ChatV struct {
+	Topic    *chatTopicV  `json:"topic"`
+	Topics   []chatTopicV `json:"topics"`
+	Archived []chatTopicV `json:"archived"`
+	Messages []struct {
+		Role, Text string
+	} `json:"messages"`
+	Questions []struct {
+		Ask       int64
+		Questions []struct{ Question string } `json:"questions"`
+		Answer    chatActionV                 `json:"answer"`
+	} `json:"questions"`
+	Turn *struct {
+		State string                   `json:"state"`
+		Lines []struct{ Title string } `json:"lines"`
+		Stop  chatActionV              `json:"stop"`
+	} `json:"turn"`
+	Send    chatActionV `json:"send"`
+	Archive chatActionV `json:"archive"`
+	Delete  chatActionV `json:"delete"`
+}
+
+type chatTopicV struct {
+	ID    int64  `json:"id"`
+	Title string `json:"title"`
+}
+
+type chatActionV struct {
+	Command string         `json:"command"`
+	Params  map[string]any `json:"params"`
+	Input   string         `json:"input"`
+}

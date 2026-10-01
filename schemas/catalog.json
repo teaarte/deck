@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "catalogId": "https://deck2.local/catalog/v1",
-  "topics": ["collection", "asks", "processes", "unattended", "health", "log", "board", "triggers", "notifications", "secrets", "tokens", "settings", "documents", "files", "snapshots"],
+  "topics": ["collection", "asks", "processes", "unattended", "health", "log", "board", "triggers", "notifications", "secrets", "tokens", "settings", "documents", "files", "snapshots", "chat"],
   "description": "Blocks of deck screens as A2UI components. A block's data is at the path of its data property: {state, error?, filters?, rows | items | value | lines}. block is the form a manifest stores the block in; its refs are the $defs of the manifest schema.",
   "components": {
     "screen": {
@@ -157,6 +157,17 @@
         "title": {"type": "string"},
         "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "value: {html, items, record, actions}"}
       }
+    },
+    "chat": {
+      "description": "The chat with the master: the topics, the messages of one, the master's questions in it and the turn going on, with send, stop, archive and delete.",
+      "block": {"description": "Takes no source and no other field; the client picks the topic as the filter topic of the block: a topic id, new for a new one, empty for the newest.", "properties": {}},
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "title": {"type": "string"},
+        "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "value: chat"}
+      }
     }
   },
   "$defs": {
@@ -208,8 +219,32 @@
           "revision": {"type": "integer"}, "author": {"type": "string"}, "reason": {"type": "string"}, "created_at": {"type": "string"}}}}}},
       "custom": {"type": "object", "additionalProperties": false, "required": ["html", "actions"], "properties": {
         "html": {"type": "string"}, "items": {"type": "array", "items": {"type": "object"}}, "record": {"type": "object"},
-        "actions": {"type": "array", "items": {"$ref": "#/$defs/action"}}}}
+        "actions": {"type": "array", "items": {"$ref": "#/$defs/action"}}}},
+      "chat": {"type": "object", "additionalProperties": false, "required": ["topics", "archived", "messages", "questions", "send"], "properties": {
+        "topic": {"$ref": "#/$defs/topic"}, "topics": {"type": "array", "items": {"$ref": "#/$defs/topic"}},
+        "archived": {"type": "array", "items": {"$ref": "#/$defs/topic"}},
+        "messages": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["id", "role", "text", "created_at"], "properties": {
+          "id": {"type": "integer"}, "role": {"enum": ["owner", "master"]}, "text": {"type": "string"},
+          "screen": {"type": "object", "description": "the screen the owner wrote it on: project, screen, record, card, process"},
+          "reply": {"$ref": "#/$defs/reply"}, "created_at": {"type": "string"}}}},
+        "questions": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["ask", "text", "questions", "answer"], "properties": {
+          "ask": {"type": "integer"}, "text": {"type": "string"},
+          "questions": {"type": "array", "items": {"type": "object", "required": ["question"], "properties": {"question": {"type": "string"}, "multiSelect": {"type": "boolean"},
+            "options": {"type": "array", "items": {"type": "object", "properties": {"label": {"type": "string"}, "description": {"type": "string"}}}}}}},
+          "answer": {"$ref": "#/$defs/action"}}}},
+        "turn": {"type": "object", "additionalProperties": false, "required": ["process", "state", "lines"], "properties": {
+          "process": {"type": "integer"}, "state": {"type": "string"}, "provider": {"type": "string"}, "waits": {"type": "string", "description": "what the reply waits for: the owner, a slot, a provider"},
+          "lines": {"type": "array", "items": {"type": "object", "required": ["at", "kind"], "properties": {"at": {"type": "string"}, "kind": {"type": "string"},
+            "id": {"type": "string"}, "title": {"type": "string"}, "status": {"type": "string"}, "text": {"type": "string"}}}},
+          "stop": {"$ref": "#/$defs/action"}, "open": {"$ref": "#/$defs/action"}}},
+        "send": {"$ref": "#/$defs/action"}, "archive": {"$ref": "#/$defs/action"}, "delete": {"$ref": "#/$defs/action"}}}
     },
+    "topic": {"type": "object", "additionalProperties": false, "required": ["id", "title", "archived", "updated_at"], "properties": {
+      "id": {"type": "integer"}, "title": {"type": "string"}, "card": {"type": "integer"}, "archived": {"type": "boolean"}, "updated_at": {"type": "string"},
+      "last": {"type": "string", "description": "the last message, cut short"}, "reply": {"$ref": "#/$defs/reply"}}},
+    "reply": {"type": "object", "additionalProperties": false, "required": ["process", "state"], "properties": {
+      "process": {"type": "integer"}, "state": {"type": "string"}, "provider": {"type": "string"}, "error": {"type": "string"},
+      "open": {"$ref": "#/$defs/action"}}},
     "data": {
       "type": "object",
       "required": ["state"],

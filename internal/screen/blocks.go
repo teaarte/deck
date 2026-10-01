@@ -2,6 +2,7 @@ package screen
 
 import (
 	"fmt"
+	"slices"
 
 	"deck2/internal/manifest"
 )
@@ -43,7 +44,7 @@ func (r *renderer) block(id string, b manifest.Block) {
 		comp["columns"] = cols
 	}
 	comp["data"] = map[string]any{"path": "/" + id}
-	if r.req.Topic != "" && r.req.Topic != topicOf(b, r.deck()) {
+	if r.req.Topic != "" && !follows(b, r.deck(), r.req.Topic) {
 		return
 	}
 	value, err := r.resolve(id, b)
@@ -52,6 +53,14 @@ func (r *renderer) block(id string, b manifest.Block) {
 		return
 	}
 	r.data[id] = value
+}
+
+// follows reports whether the block is read again after an event of the topic; the chat follows its turn too.
+func follows(b manifest.Block, deck bool, topic string) bool {
+	if b.Type == "chat" {
+		return slices.Contains([]string{"chat", "asks", "log", "processes"}, topic)
+	}
+	return topic == topicOf(b, deck)
 }
 
 // topicOf is the event topic after which the block is read again.
@@ -97,6 +106,12 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 		return map[string]any{"state": "ready", "value": r.actions(b.Actions, r.req.Record, r.record)}, nil
 	case "appearance":
 		return map[string]any{"state": "ready"}, nil
+	case "chat":
+		v, err := r.src.Chat(r.ctx, r.scope.Workspace, r.req.Filter[id]["topic"])
+		if err != nil {
+			return nil, err
+		}
+		return map[string]any{"state": "ready", "value": v}, nil
 	case "document":
 		var record, id int64
 		switch r.req.Screen.Record {

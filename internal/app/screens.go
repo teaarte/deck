@@ -224,3 +224,7 @@ func (d screenDeck) Waits(ctx context.Context, project int64) (map[int64][]int64
 func owner(workspace int64) registry.Actor {
 	return registry.Actor{Kind: registry.Owner, Workspace: workspace}
 }
+
+func (d screenDeck) Chat(ctx context.Context, workspace int64, topic string) (any, error) {
+	return d.a.Chat(ctx, workspace, topic)
+}

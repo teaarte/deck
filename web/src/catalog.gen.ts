@@ -13,6 +13,8 @@ export type StatValue = number | string | boolean | null;
 
 export interface Catalog {
   action?: Action;
+  topic?: Topic;
+  reply?: Reply;
   data?: Data;
   ActionsValue?: ActionsValue;
   CardValue?: CardValue;
@@ -21,6 +23,7 @@ export interface Catalog {
   FormValue?: FormValue;
   DocumentValue?: DocumentValue;
   CustomValue?: CustomValue;
+  ChatValue?: ChatValue;
 }
 /**
  * A button: a command call or a move to a screen. verb names a built-in label the client translates.
@@ -57,6 +60,33 @@ export interface Action {
    * Stored file the button downloads instead of a call.
    */
   file?: number;
+}
+/**
+ * This interface was referenced by `Catalog`'s JSON-Schema
+ * via the `definition` "topic".
+ */
+export interface Topic {
+  id: number;
+  title: string;
+  card?: number;
+  archived: boolean;
+  updated_at: string;
+  /**
+   * the last message, cut short
+   */
+  last?: string;
+  reply?: Reply;
+}
+/**
+ * This interface was referenced by `Catalog`'s JSON-Schema
+ * via the `definition` "reply".
+ */
+export interface Reply {
+  process: number;
+  state: string;
+  provider?: string;
+  error?: string;
+  open?: Action;
 }
 /**
  * This interface was referenced by `Catalog`'s JSON-Schema
@@ -205,4 +235,59 @@ export interface CustomValue {
   items?: {}[];
   record?: {};
   actions: Action[];
+}
+/**
+ * This interface was referenced by `Catalog`'s JSON-Schema
+ * via the `definition` "ChatValue".
+ */
+export interface ChatValue {
+  topic?: Topic;
+  topics: Topic[];
+  archived: Topic[];
+  messages: {
+    id: number;
+    role: "owner" | "master";
+    text: string;
+    /**
+     * the screen the owner wrote it on: project, screen, record, card, process
+     */
+    screen?: {};
+    reply?: Reply;
+    created_at: string;
+  }[];
+  questions: {
+    ask: number;
+    text: string;
+    questions: {
+      question: string;
+      multiSelect?: boolean;
+      options?: {
+        label?: string;
+        description?: string;
+      }[];
+    }[];
+    answer: Action;
+  }[];
+  turn?: {
+    process: number;
+    state: string;
+    provider?: string;
+    /**
+     * what the reply waits for: the owner, a slot, a provider
+     */
+    waits?: string;
+    lines: {
+      at: string;
+      kind: string;
+      id?: string;
+      title?: string;
+      status?: string;
+      text?: string;
+    }[];
+    stop?: Action;
+    open?: Action;
+  };
+  send: Action;
+  archive?: Action;
+  delete?: Action;
 }

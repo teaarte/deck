@@ -18,6 +18,7 @@ type Deck interface {
 	Calls(ctx context.Context, workspace, project int64, outcome string) ([]map[string]any, error)
 	Snapshots() ([]map[string]any, error)
 	Waits(ctx context.Context, project int64) (map[int64][]int64, error)
+	Chat(ctx context.Context, workspace int64, topic string) (any, error)
 }
 
 // Project is a project as its row on the Projects tab shows it.

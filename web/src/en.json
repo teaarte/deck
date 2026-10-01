@@ -44,7 +44,9 @@
     "remove": "Remove",
     "delete": "Delete",
     "download": "Download",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "archive": "Archive",
+    "unarchive": "Bring back"
   },
   "input": {
     "answer": "Your answer",
@@ -120,5 +122,21 @@
   "details": { "show": "Show the whole call", "hide": "Hide the call" },
   "done": "Done",
   "started": "Started process #{{id}}",
-  "log": { "message": "Agent", "thought": "Thinking", "tool": "Tool", "rate_limit": "Limit", "stderr": "stderr" }
+  "log": { "message": "Agent", "thought": "Thinking", "tool": "Tool", "rate_limit": "Limit", "stderr": "stderr" },
+  "chat": {
+    "master": "Master",
+    "new": "New",
+    "new_topic": "New topic",
+    "no_topics": "No topics",
+    "archived": "{{title}} (archived)",
+    "empty": "Tell the master what to do: a task, a question, put something into a project.",
+    "placeholder": "Message to the master",
+    "send_failed": "The message was not sent",
+    "replying": "The master is replying ({{provider}})",
+    "waits": "The reply waits for {{what}}",
+    "reply_error": "reply failed",
+    "reply_stopped": "reply stopped",
+    "reply_interrupted": "reply interrupted",
+    "close": "Close the chat"
+  }
 }

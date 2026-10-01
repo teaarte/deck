@@ -196,6 +196,11 @@
         ]},
         {"type": "log", "title": "Log", "source": {"from": "log"}}
       ]
+    },
+    {
+      "name": "chat",
+      "title": "Master",
+      "blocks": [{"type": "chat"}]
     }
   ],
   "project": [

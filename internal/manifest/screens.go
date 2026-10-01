@@ -105,6 +105,8 @@ func (c *screenCheck) block(where string, b Block) {
 	case "form":
 		c.form(where, b)
 		return
+	case "chat":
+		return
 	case "appearance":
 		if !c.deck {
 			c.fail("%s: appearance is only on deck's own screens", where)

@@ -67,6 +67,10 @@ func (s Sources) Items(ctx context.Context, from string, sc screen.Scope) ([]map
 	return nil, fmt.Errorf("unknown source %q", from)
 }
 
+func (s Sources) Chat(ctx context.Context, workspace int64, topic string) (any, error) {
+	return s.Deck.Chat(ctx, workspace, topic)
+}
+
 func (s Sources) Board(ctx context.Context, p db.Project, m *manifest.Manifest) (any, error) {
 	cards, err := s.Store.Q.ListCards(ctx, p.ID)
 	if err != nil {

@@ -29,6 +29,8 @@ type Sources interface {
 	// DocumentView is what a document block shows: the document id, or the one named, of the record when
 	// record is set; a document not written yet comes back empty.
 	DocumentView(ctx context.Context, project db.Project, record, id int64, name string) (map[string]any, error)
+	// Chat is what a chat block shows: the topic picked, "new" for none, empty for the newest.
+	Chat(ctx context.Context, workspace int64, topic string) (any, error)
 }
 
 // Scope is whose items a source gives: a project, or with Project 0 every project of the workspace.

@@ -240,7 +240,9 @@ func TestPushGoesToSubscribedDevices(t *testing.T) {
 }
 
 func TestAPushThatFailsForNowIsSentAgain(t *testing.T) {
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result { return provider.Result{Text: "The list is updated."} })
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		return provider.Result{Text: "The list is updated."}
+	})
 	d, srv := newPushDevice(t)
 	failing := true
 	var mu sync.Mutex

@@ -42,7 +42,7 @@ func (a *Adapter) QuestionTool() string { return provider.AskTool }
 
 // Caps has no output by schema: Codex takes only strict schemas, so the result goes in with result_submit.
 func (a *Adapter) Caps() provider.Caps {
-	return provider.Caps{provider.Tools, provider.Sandbox, provider.Resume, provider.Intercept, provider.Web, provider.Folder}
+	return provider.Caps{provider.Tools, provider.Sandbox, provider.Resume, provider.Intercept, provider.Web, provider.Folder, provider.LiveInput}
 }
 
 func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Result, error) {
@@ -133,6 +133,15 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 		}
 	}
 	return res, runErr
+}
+
+// Terminal goes on with the thread of a deck session in the owner's own Codex.
+func (a *Adapter) Terminal(session string) (string, error) {
+	b, err := os.ReadFile(a.sessionFile(session))
+	if err != nil {
+		return "", fmt.Errorf("codex: no thread of session %s yet", session)
+	}
+	return "codex resume " + strings.TrimSpace(string(b)), nil
 }
 
 func (a *Adapter) sessionFile(session string) string {

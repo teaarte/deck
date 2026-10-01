@@ -285,6 +285,43 @@ func (q *Queries) CreateProjectAsk(ctx context.Context, arg CreateProjectAskPara
 	return i, err
 }
 
+const createRemark = `-- name: CreateRemark :one
+INSERT INTO ask (process_id, workspace_id, project_id, kind, text, payload, state, answer, answered_at)
+SELECT p.id, j.workspace_id, j.id, 'remark', CAST(?1 AS TEXT), '{}', 'answered', CAST(?1 AS TEXT), ?2
+FROM process p JOIN project j ON j.id = p.project_id WHERE p.id = ?3
+RETURNING id, process_id, workspace_id, project_id, kind, text, payload, answer, state, delivered, used, created_at, answered_at, expires_at, result, dismissed
+`
+
+type CreateRemarkParams struct {
+	Text       string
+	AnsweredAt sql.NullString
+	ProcessID  int64
+}
+
+func (q *Queries) CreateRemark(ctx context.Context, arg CreateRemarkParams) (Ask, error) {
+	row := q.db.QueryRowContext(ctx, createRemark, arg.Text, arg.AnsweredAt, arg.ProcessID)
+	var i Ask
+	err := row.Scan(
+		&i.ID,
+		&i.ProcessID,
+		&i.WorkspaceID,
+		&i.ProjectID,
+		&i.Kind,
+		&i.Text,
+		&i.Payload,
+		&i.Answer,
+		&i.State,
+		&i.Delivered,
+		&i.Used,
+		&i.CreatedAt,
+		&i.AnsweredAt,
+		&i.ExpiresAt,
+		&i.Result,
+		&i.Dismissed,
+	)
+	return i, err
+}
+
 const dismissExpiredAsk = `-- name: DismissExpiredAsk :execrows
 UPDATE ask SET dismissed = 1 WHERE id = ? AND state = 'expired'
 `

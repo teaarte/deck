@@ -40,6 +40,8 @@ type processView struct {
 	// PausedUntil is the next try of a process paused on a usage limit; PauseEnds is when it stops instead.
 	PausedUntil string `json:"paused_until,omitempty"`
 	PauseEnds   string `json:"pause_ends,omitempty"`
+	// Terminal goes on with the session of the process in a terminal.
+	Terminal string `json:"terminal,omitempty"`
 }
 
 func msTime(v sql.NullInt64) string {
@@ -98,7 +100,9 @@ func (a *App) processGet(ctx context.Context, act registry.Actor, in struct{ Pro
 	if err != nil {
 		return nil, err
 	}
-	return procView(p), nil
+	v := procView(p)
+	v.Terminal = a.terminal(ctx, p)
+	return v, nil
 }
 
 // ownProcess loads a process of the actor's workspace; agents reach only their own project.

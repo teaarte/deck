@@ -56,6 +56,10 @@ func (s Sources) processItems(ctx context.Context, sc screen.Scope, names map[in
 			if p.Kind == process.KindAgent && p.SessionID != "" && finished(p.State) {
 				acts = append(acts, withInput(call("rework", true, "deck.process_rework", map[string]any{"process": p.ID}), "remark"))
 			}
+			if p.Kind == process.KindAgent && !finished(p.State) {
+				acts = append(acts, withInput(call("tell", false, "deck.process_tell", map[string]any{"process": p.ID}), "text"))
+			}
+			it["terminal"] = s.Deck.Terminal(ctx, p)
 		}
 		it["_actions"] = acts
 		out = append(out, it)

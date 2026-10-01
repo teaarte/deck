@@ -33,9 +33,16 @@ func (t *turn) call(ctx context.Context, method string, params, out any) error {
 // until reads the output until the turn completes; a stop of deck interrupts the turn first.
 func (t *turn) until(ctx context.Context) error {
 	cancelled := ctx.Done()
+	live := t.req.Live
 	var giveUp <-chan time.Time
 	for t.completed == 0 {
 		select {
+		case m, ok := <-live:
+			if !ok {
+				live = nil
+				continue
+			}
+			go t.steer(m)
 		case m, ok := <-t.c.incoming:
 			if !ok {
 				return t.c.ended("codex app-server exited without finishing the turn")
@@ -133,5 +140,21 @@ func (t *turn) handle(ctx context.Context, m message) {
 		if decode(m.Params, &n) && n.TurnID == t.turnID && !n.WillRetry {
 			t.failure = &n.Error
 		}
+	}
+}
+
+// steer puts the owner's message into the turn; a turn that ended meanwhile refuses it.
+func (t *turn) steer(m provider.Message) {
+	text, _ := json.Marshal(TextUserInput{Type: "text", Text: m.Text})
+	ch, err := t.c.start("turn/steer", TurnSteerParams{ThreadID: t.thread, ExpectedTurnID: t.turnID, Input: []UserInput{text}})
+	if err != nil {
+		m.Taken <- false
+		return
+	}
+	select {
+	case r, ok := <-ch:
+		m.Taken <- answer(r, ok, "turn/steer", nil) == nil
+	case <-time.After(15 * time.Second):
+		m.Taken <- false
 	}
 }

@@ -46,12 +46,14 @@
     "download": "Download",
     "cancel": "Cancel",
     "archive": "Archive",
+    "tell": "Tell it",
     "unarchive": "Bring back"
   },
   "input": {
     "answer": "Your answer",
     "reason": "Why not",
-    "remark": "What to change"
+    "remark": "What to change",
+    "text": "Your message"
   },
   "question": { "other": "Other" },
   "token": {

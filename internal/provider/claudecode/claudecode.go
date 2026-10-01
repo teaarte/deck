@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -35,8 +36,12 @@ func (a *Adapter) Name() string { return "claude-code" }
 
 func (a *Adapter) QuestionTool() string { return "AskUserQuestion" }
 
+// Terminal goes on with a session of deck in the owner's own Claude Code, in the folder of the turn.
+func (a *Adapter) Terminal(session string) (string, error) { return "claude --resume " + session, nil }
+
 func (a *Adapter) Caps() provider.Caps {
-	return provider.Caps{provider.Tools, provider.Sandbox, provider.Resume, provider.Intercept, provider.Images, provider.StructuredOutput, provider.Web, provider.Folder}
+	return provider.Caps{provider.Tools, provider.Sandbox, provider.Resume, provider.Intercept, provider.Images, provider.StructuredOutput,
+		provider.Web, provider.Folder, provider.LiveInput}
 }
 
 func (a *Adapter) args(req provider.Request, mcp, settings, plugin string) []string {
@@ -84,8 +89,13 @@ func input(req provider.Request) []byte {
 			"request": map[string]any{"subtype": "initialize", "jsonSchema": wrap(req.ResultSchema)}})
 		b = append(append(b, init...), '\n')
 	}
-	msg, _ := json.Marshal(map[string]any{"type": "user", "message": map[string]any{"role": "user", "content": req.Prompt}})
-	return append(append(b, msg...), '\n')
+	return append(b, userLine(req.Prompt)...)
+}
+
+// userLine is one message of the owner for the CLI's stdin.
+func userLine(text string) []byte {
+	msg, _ := json.Marshal(map[string]any{"type": "user", "message": map[string]any{"role": "user", "content": text}})
+	return append(msg, '\n')
 }
 
 func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Result, error) {
@@ -146,11 +156,25 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 		req.OnStart(cmd.Process.Pid)
 	}
 
+	// stdin stays open for live messages until the first result; writes to it go one at a time.
+	var inMu sync.Mutex
+	inClosed := false
+	closeIn := func() {
+		inMu.Lock()
+		defer inMu.Unlock()
+		if !inClosed {
+			inClosed = true
+			inW.Close()
+		}
+	}
 	sent := make(chan error, 1)
 	go func() {
+		inMu.Lock()
 		_, err := inW.Write(input(req))
+		inMu.Unlock()
 		sent <- err
 	}()
+	live := req.Live
 	lines := make(chan []byte)
 	var scanErr error
 	go func() {
@@ -177,7 +201,28 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 		select {
 		case err := <-sent:
 			promptErr, promptDone, sent = err, true, nil
-			inW.Close()
+			if err != nil || req.Live == nil {
+				closeIn()
+			}
+		case m, ok := <-live:
+			if !ok {
+				live = nil
+				continue
+			}
+			if !promptDone || t.results > 0 {
+				m.Taken <- false
+				continue
+			}
+			t.live++
+			go func() {
+				inMu.Lock()
+				err := errors.New("stdin is closed")
+				if !inClosed {
+					_, err = inW.Write(userLine(m.Text))
+				}
+				inMu.Unlock()
+				m.Taken <- err == nil
+			}()
 		case l, ok := <-lines:
 			if !ok {
 				eof, lines = true, nil
@@ -185,6 +230,7 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 			}
 			t.line(l)
 			if t.results > 0 {
+				go closeIn()
 				if linger != nil {
 					linger.Stop()
 				}
@@ -214,11 +260,12 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 		linger.Stop()
 	}
 	if !promptDone {
-		inW.Close()
+		closeIn()
 		if promptErr = <-sent; promptErr == nil {
 			promptDone = true
 		}
 	}
+	closeIn()
 	if err := ctx.Err(); err != nil {
 		return t.res, err
 	}

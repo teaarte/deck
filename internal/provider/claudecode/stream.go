@@ -58,6 +58,10 @@ type turn struct {
 	foreign    string
 	authFailed bool
 	model      string
+	// live counts the owner's messages written into the turn; one written as the turn ended starts another.
+	live int
+	// background counts background tasks that finished; each wakes the session for one more result.
+	background int
 }
 
 func (t *turn) line(raw []byte) {
@@ -67,6 +71,9 @@ func (t *turn) line(raw []byte) {
 	}
 	if l.SessionID != "" && l.SessionID != t.req.SessionID && t.foreign == "" {
 		t.foreign = l.SessionID
+	}
+	if l.Type == "system" && l.Subtype == "task_notification" && l.ParentToolUseID == "" {
+		t.background++
 	}
 	if l.ParentToolUseID != "" || (l.Type == "system" && strings.HasPrefix(l.Subtype, "task_")) {
 		return
@@ -121,7 +128,7 @@ func (t *turn) line(raw []byte) {
 		emit(provider.Event{Kind: provider.EventRateLimit, Text: l.RateLimitInfo.Status})
 	case "result":
 		t.results++
-		if t.results > 1 {
+		if t.results > t.allowed() {
 			return
 		}
 		if l.SessionID == "" && t.foreign == "" {
@@ -173,7 +180,7 @@ func (t *turn) finish(waitErr error, stderr string, promptErr error) (provider.R
 		return res, nil
 	case t.results == 0:
 		return res, fmt.Errorf("claude exited without a result: %v: %s", waitErr, stderr)
-	case t.results > 1:
+	case t.results > t.allowed():
 		return res, fmt.Errorf("claude reported %d results in one turn", t.results)
 	case t.foreign != "":
 		return res, fmt.Errorf("claude ran session %s instead of %s assigned by deck", t.foreign, t.req.SessionID)
@@ -203,3 +210,7 @@ func resultText(raw json.RawMessage) string {
 	}
 	return strings.Join(out, "\n")
 }
+
+// allowed is how many results the turn may report: one, and one more per message written into it and per
+// background task that woke it.
+func (t *turn) allowed() int { return 1 + t.live + t.background }

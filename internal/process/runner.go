@@ -99,7 +99,11 @@ type Runner struct {
 	slots map[int64]int
 }
 
-type liveTurn struct{ cancel context.CancelCauseFunc }
+type liveTurn struct {
+	cancel context.CancelCauseFunc
+	// input carries the owner's messages into the turn; nil while the provider has none.
+	input chan provider.Message
+}
 
 // Providers gives the runner the provider of a process.
 type Providers interface {

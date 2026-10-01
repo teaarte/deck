@@ -168,6 +168,9 @@ func (a *App) addBuiltins() {
 	add("process_rework", "Send back for rework", "Sends a finished agent process back to the same session with a remark; changed artifacts get new revisions.", ownerSide,
 		registry.Params(registry.P("process", "process", "Process id"), registry.P("remark", "text", "What to change")),
 		registry.Typed(a.processRework))
+	add("process_tell", "Tell a process", "Gives the owner's message to an agent process at work: into its turn when the provider takes it live, else right after the turn.", ownerOnly,
+		registry.Params(registry.P("process", "process", "Process id"), registry.P("text", "text", "The message")),
+		registry.Typed(a.processTell))
 	add("process_log", "Process log", "Returns the last events of a process that is still open.", everyone,
 		registry.Params(registry.P("process", "process", "Process id"), registry.Opt("limit", "integer", "At most this many events")),
 		registry.Typed(a.processLog))

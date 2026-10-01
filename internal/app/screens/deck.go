@@ -19,6 +19,8 @@ type Deck interface {
 	Snapshots() ([]map[string]any, error)
 	Waits(ctx context.Context, project int64) (map[int64][]int64, error)
 	Chat(ctx context.Context, workspace int64, topic string) (any, error)
+	// Terminal is the command that goes on with the session of an agent process in a terminal, or empty.
+	Terminal(ctx context.Context, p db.Process) string
 }
 
 // Project is a project as its row on the Projects tab shows it.

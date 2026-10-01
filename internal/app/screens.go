@@ -228,3 +228,5 @@ func owner(workspace int64) registry.Actor {
 func (d screenDeck) Chat(ctx context.Context, workspace int64, topic string) (any, error) {
 	return d.a.Chat(ctx, workspace, topic)
 }
+
+func (d screenDeck) Terminal(ctx context.Context, p db.Process) string { return d.a.terminal(ctx, p) }

@@ -192,7 +192,8 @@
           {"label": "State", "bind": "silent ? state + ', silent' : state"},
           {"label": "Provider", "bind": "provider"},
           {"label": "Started", "bind": "started_at"},
-          {"label": "Error", "bind": "error"}
+          {"label": "Error", "bind": "error"},
+          {"label": "Open in a terminal", "bind": "terminal ?? ''"}
         ]},
         {"type": "log", "title": "Log", "source": {"from": "log"}}
       ]

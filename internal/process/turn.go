@@ -154,6 +154,18 @@ func (r *Runner) run(ctx context.Context, t turn) {
 		OnEvent: func(e provider.Event) { r.event(bg, processID, stream, e) },
 		OnUsage: func(u provider.Usage) { r.usage(bg, processID, pv.Name(), u) },
 	}
+	if slices.Contains(pv.Caps(), provider.LiveInput) && t.live != nil {
+		in := make(chan provider.Message)
+		r.mu.Lock()
+		t.live.input = in
+		r.mu.Unlock()
+		req.Live = in
+		defer func() {
+			r.mu.Lock()
+			t.live.input = nil
+			r.mu.Unlock()
+		}()
+	}
 	if sub != nil {
 		req.ResultSchema = nil
 		if t.resume {

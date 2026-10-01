@@ -51,7 +51,12 @@ type Fake struct {
 	noFolder bool
 	// name is the provider name; "fake" when empty.
 	name string
+	// live is a provider that takes the owner's messages into a running turn on Req.Live.
+	live bool
 }
+
+// Terminal is how the owner would go on with a session of the fake.
+func (f *Fake) Terminal(session string) (string, error) { return "fake --resume " + session, nil }
 
 func (f *Fake) Name() string {
 	if f.name != "" {
@@ -64,6 +69,9 @@ func (f *Fake) Caps() provider.Caps {
 	c := provider.Caps{provider.Tools, provider.Sandbox, provider.Resume, provider.Intercept, provider.Images, provider.StructuredOutput}
 	if !f.noFolder {
 		c = append(c, provider.Folder)
+	}
+	if f.live {
+		c = append(c, provider.LiveInput)
 	}
 	return c
 }

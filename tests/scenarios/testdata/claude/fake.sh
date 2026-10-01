@@ -32,7 +32,15 @@ for a in "$@"; do
   esac
   prev="$a"
 done
-[ -f "$d/nostdin" ] || cat > "$c/stdin"
+# Like the CLI, it reads stdin up to the first user message, and the rest, such as live messages, as it comes.
+if [ ! -f "$d/nostdin" ]; then
+  : > "$c/stdin"
+  while IFS= read -r line; do
+    printf '%s\n' "$line" >> "$c/stdin"
+    case "$line" in *'"type":"user"'*) break ;; esac
+  done
+  cat >> "$c/stdin" <&0 &
+fi
 word=$(grep -o 'deck-check-[0-9a-f]*' "$c/stdin" | head -1)
 if [ -n "$word" ]; then echo "$word" > "$d/word"; else word=$(cat "$d/word" 2>/dev/null); fi
 [ -f "$d/before" ] && . "$d/before"

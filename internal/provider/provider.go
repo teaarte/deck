@@ -32,6 +32,14 @@ type Request struct {
 	OnUsage func(Usage)
 	// OnStart gets the id of the process group the provider runs in, so a later deck can kill it.
 	OnStart func(pgid int)
+	// Live brings the owner's messages into the running turn, for a provider with live input.
+	Live <-chan Message
+}
+
+// Message is the owner's message into a running turn; the provider tells on Taken whether the turn took it.
+type Message struct {
+	Text  string
+	Taken chan<- bool
 }
 
 // Event is an event of the process itself in the words of ACP session/update; events of the provider's
@@ -106,6 +114,8 @@ const (
 	Web = "web"
 	// Folder is working in a folder of the owner, a repo with its own instructions, rather than a folder of deck.
 	Folder = "folder"
+	// LiveInput takes the owner's messages into a running turn.
+	LiveInput = "live"
 )
 
 // Server is the name of the deck MCP server among the MCP servers of a provider session.
@@ -166,4 +176,9 @@ type CallLimiter interface {
 // Reaper kills a process group an earlier deck left running, if it still runs the given session.
 type Reaper interface {
 	Reap(pgid int, session string)
+}
+
+// Terminal is a provider whose session the owner can go on with in a terminal: the command, in the folder of the turn.
+type Terminal interface {
+	Terminal(session string) (string, error)
 }

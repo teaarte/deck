@@ -30,6 +30,8 @@ const (
 	KindWarning = "warning"
 	// KindLimit offers to continue a process stopped when its pause on a usage limit ran out.
 	KindLimit = "limit"
+	// KindRemark is a message of the owner the running turn could not take; the resume after the turn carries it.
+	KindRemark = "remark"
 )
 
 // LimitContinue is the one answer to a limit ask.

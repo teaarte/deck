@@ -310,6 +310,8 @@ func deliveryMessage(asks []db.Ask) string {
 		what := untrusted.Line(a.Text, 600)
 		switch {
 		case a.Kind == ask.KindLogin:
+		case a.Kind == ask.KindRemark:
+			b.WriteString("- The owner wrote while you worked:\n" + strings.TrimSpace(a.Answer) + "\n")
 		case a.Kind == ask.KindQuestion && a.State == "answered":
 			b.WriteString("- Question: " + untrusted.Line(a.Text, 1000) + "\n" + untrusted.Value("Answer", a.Answer, 500) + "\n")
 		case a.Kind == ask.KindCall && a.State == "answered" && a.Result != "":

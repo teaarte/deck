@@ -64,6 +64,10 @@ func (a *App) askAnswer(ctx context.Context, act registry.Actor, in struct {
 		return a.grantAnswer(ctx, act, q, in.Answer)
 	}
 	if q.Kind == ask.KindSuggest {
+		a.expireSuggestions(ctx, a.Cfg.Now())
+		if q, err = a.Store.Q.GetAsk(ctx, in.Ask); err != nil {
+			return nil, err
+		}
 		if q.State != "open" {
 			return nil, notOpen
 		}

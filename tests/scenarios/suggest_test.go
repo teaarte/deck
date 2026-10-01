@@ -190,3 +190,47 @@ func TestAnUnansweredSuggestionExpires(t *testing.T) {
 		t.Fatal("the term is a setting")
 	}
 }
+
+func TestASuggestionIntoAnotherProjectWaitsEvenOnAuto(t *testing.T) {
+	e := newEnv(t, suggester)
+	p := e.createProject("alpha", suggestManifest)
+	e.createProject("beta", strings.Replace(boardWork, `"version": 4,`, `"version": 4, "autonomy": "auto",`, 1))
+	var r struct{ Process int64 }
+	e.must("alpha.work", map[string]any{"into": "beta"}, &r)
+	e.waitState(r.Process, "done")
+	if titles := e.cardTitles("beta"); len(titles) != 0 || len(e.suggestions()) != 1 {
+		t.Fatalf("an agent writes into another project only by a suggestion that waits: %v", titles)
+	}
+	trial := strings.Replace(suggestManifest, `"version": 5,`, `"version": 5, "autonomy": "auto",`, 1)
+	e.createProject("gamma", trial)
+	var tr struct{ Process int64 }
+	e.must("deck.command_try", map[string]any{"command": "gamma.work"}, &tr)
+	e.waitState(tr.Process, "done")
+	if titles := e.cardTitles("gamma"); len(titles) != 0 || len(e.suggestions()) != 2 {
+		t.Fatalf("a trial run's suggestion waits too: %v", titles)
+	}
+	_ = p
+}
+
+func TestAYesThatFailsLeavesTheSuggestionOpen(t *testing.T) {
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		out, _ := c.Tool(ctx, "suggest", map[string]any{"command": "tools.go", "input": `{"n": 1}`, "reason": "worth a run"})
+		return provider.Result{Text: out}
+	})
+	e.createProject("tools", `{"version": 5, "commands": [{"name": "go", "title": "Go", "description": "Goes", "class": "internal",
+	  "input": {"type": "object", "properties": {"n": {"type": "integer"}}}, "executor": {"type": "agent", "prompt": "Go."}}]}`)
+	p := e.createProject("alpha", suggestManifest)
+	e.waitState(e.run(p, "work"), "done")
+	ss := e.suggestions()
+	if len(ss) != 1 {
+		t.Fatalf("the call waits: %+v", ss)
+	}
+	e.must("deck.manifest_save", map[string]any{"project": "tools", "manifest": `{"version": 5, "commands": [{"name": "go", "title": "Go", "description": "Goes", "class": "internal",
+	  "input": {"type": "object", "properties": {"n": {"type": "string"}}}, "executor": {"type": "agent", "prompt": "Go."}}]}`}, nil)
+	if code, _ := e.call("deck.ask_answer", map[string]any{"ask": ss[0].ID, "answer": "allow"}); code == 200 {
+		t.Fatal("a call whose input no longer fits fails")
+	}
+	if len(e.suggestions()) != 1 {
+		t.Fatal("the suggestion waits again after a yes that failed")
+	}
+}

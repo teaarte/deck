@@ -29,7 +29,7 @@ func (a *App) toMaster(ctx context.Context, processID int64) {
 	if !failed {
 		return
 	}
-	if p.Kind == process.KindScript {
+	if p.Kind == process.KindScript && p.State == process.StateError {
 		states, err := a.Store.Q.RecentOutcomes(ctx, db.RecentOutcomesParams{ProjectID: p.ProjectID, Command: p.Command})
 		if err != nil || len(states) < 3 || states[0] != process.StateError || states[1] != process.StateError || states[2] != process.StateError {
 			return
@@ -50,7 +50,7 @@ func (a *App) toMaster(ctx context.Context, processID int64) {
 		if mp, err = a.masterProject(ctx, proj.WorkspaceID); err != nil {
 			return
 		}
-		if mm, err = docs.Manifest(ctx, a.Store.Q, mp); err != nil || mm.Command(errorCommand) == nil {
+		if mm, err = docs.Manifest(ctx, a.Store.Q, mp); err != nil || mm.Command(errorCommand) == nil || mp.Paused == 1 {
 			return
 		}
 	}
@@ -80,5 +80,9 @@ func (a *App) toMaster(ctx context.Context, processID int64) {
 	}
 	if _, err := a.Runner.Start(context.WithoutCancel(ctx), mp.ID, mm, errorCommand, map[string]any{"process": p.ID}, process.Origin{}); err != nil {
 		slog.Error("hand an error to the master", "process", p.ID, "project", master.Name, "err", err)
+		_ = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+			_, err := q.DeleteSetting(ctx, db.DeleteSettingParams{WorkspaceID: proj.WorkspaceID, Key: key})
+			return err
+		})
 	}
 }

@@ -145,3 +145,7 @@ ORDER BY id DESC;
 
 -- name: ExpireSuggestions :execrows
 UPDATE ask SET state = 'expired' WHERE kind = 'suggest' AND state = 'open' AND expires_at <= CAST(sqlc.arg(now) AS TEXT);
+
+
+-- name: ReopenSuggestion :exec
+UPDATE ask SET state = 'open', answer = '', answered_at = NULL WHERE id = ? AND kind = 'suggest' AND state = 'answered';

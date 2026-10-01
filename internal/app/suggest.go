@@ -73,8 +73,8 @@ func (a *App) suggest(ctx context.Context, act registry.Actor, in struct {
 		if err != nil {
 			return nil, err
 		}
-		if c.ProjectID == 0 {
-			return nil, registry.Invalid("deck: suggest calls of project commands; %s is deck's own", in.Command)
+		if c.ProjectID == 0 || c.Fingerprint != nil {
+			return nil, registry.Invalid("deck: suggest calls of project commands; %s is not one", in.Command)
 		}
 		if target, err = a.Store.Q.GetProject(ctx, c.ProjectID); err != nil {
 			return nil, err
@@ -100,7 +100,14 @@ func (a *App) suggest(ctx context.Context, act registry.Actor, in struct {
 	if s.Card != nil && (m.Board == nil || m.RoleLane("inbox") == nil) {
 		return nil, registry.Invalid("deck: project %s has no inbox lane for a card", target.Name)
 	}
-	if m.Autonomy == "auto" && target.Status == store.ProjectEnabled {
+	if s.Card != nil && s.Card.Record != 0 {
+		if r, err := a.Store.Q.GetRecord(ctx, s.Card.Record); err != nil || r.ProjectID != target.ID {
+			return nil, registry.NotFound("deck: no record %d in %s", s.Card.Record, target.Name)
+		}
+	}
+	// Only the project's own agents, the master and the owner may have it done at once; a trial never does.
+	own := act.Kind != registry.Agent && act.Kind != registry.Trigger || act.ProjectID == target.ID
+	if m.Autonomy == "auto" && target.Status == store.ProjectEnabled && own && !act.Trial {
 		return a.doSuggestion(ctx, act, target, s)
 	}
 	payload, _ := json.Marshal(s)
@@ -138,7 +145,7 @@ func (a *App) doSuggestion(ctx context.Context, act registry.Actor, p db.Project
 	row := db.AddUnattendedParams{WorkspaceID: p.WorkspaceID, ProjectID: p.ID, Author: s.By, Params: "{}",
 		Text: fmt.Sprintf("%s suggested and deck did it: %s (%s)", s.By, s.what(), s.Reason)}
 	if s.Card != nil {
-		v, err := a.suggestedCard(ctx, owner(p.WorkspaceID), s.Card)
+		v, err := a.suggestedCard(ctx, act, s.Card)
 		if err != nil {
 			return nil, err
 		}
@@ -146,10 +153,12 @@ func (a *App) doSuggestion(ctx context.Context, act registry.Actor, p db.Project
 		params, _ := json.Marshal(map[string]any{"card": v.ID})
 		row.Command, row.Params = registry.Builtin+".card_delete", string(params)
 	} else {
-		master := registry.Actor{Kind: registry.Master, Workspace: p.WorkspaceID}
 		var err error
-		if out, err = a.Gateway.CallAs(ctx, master, s.Call.Command, s.Call.Input); err != nil {
+		if out, err = a.Gateway.CallAs(ctx, act, s.Call.Command, s.Call.Input); err != nil {
 			return nil, err
+		}
+		if w, held := out.(gateway.Waiting); held {
+			return map[string]any{"done": false, "waiting": w.Ask, "text": w.Text}, nil
 		}
 	}
 	err := a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error { return q.AddUnattended(ctx, row) })
@@ -211,10 +220,22 @@ func (a *App) suggestionAnswer(ctx context.Context, act registry.Actor, q db.Ask
 		if err := a.Asks.Answer(ctx, q.ID, answer); err != nil {
 			return nil, notOpen
 		}
-		if s.Card != nil {
-			return a.suggestedCard(ctx, act, s.Card)
+		if now, err := a.Store.Q.GetAsk(ctx, q.ID); err == nil {
+			_ = json.Unmarshal([]byte(now.Payload), &s)
 		}
-		return a.Registry.Invoke(ctx, act, s.Call.Command, s.Call.Input)
+		var out any
+		var err error
+		if s.Card != nil {
+			out, err = a.suggestedCard(ctx, act, s.Card)
+		} else {
+			out, err = a.Gateway.CallAs(ctx, act, s.Call.Command, s.Call.Input)
+		}
+		if err != nil {
+			_ = a.Store.Tx(ctx, func(ctx context.Context, tx *db.Queries) error { return tx.ReopenSuggestion(ctx, q.ID) })
+			a.Bus.Publish("asks")
+			return nil, err
+		}
+		return out, nil
 	case answer == "deny" || strings.HasPrefix(answer, "deny:"):
 		if err := a.Asks.Answer(ctx, q.ID, answer); err != nil {
 			return nil, notOpen

@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"encoding/base64"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -49,7 +50,8 @@ func (a *App) vapidKeys(workspace int64) (vapid, error) {
 	a.secretMu.Lock()
 	defer a.secretMu.Unlock()
 	var k vapid
-	if raw, err := a.Secret(workspace, vapidSecret); err == nil && json.Unmarshal([]byte(raw), &k) == nil && k.Public != "" {
+	raw, err := a.Secret(workspace, vapidSecret)
+	if err == nil && json.Unmarshal([]byte(raw), &k) == nil && validVAPID(k) {
 		return k, nil
 	}
 	private, public, err := webpush.GenerateVAPIDKeys()
@@ -57,8 +59,20 @@ func (a *App) vapidKeys(workspace int64) (vapid, error) {
 		return k, err
 	}
 	k = vapid{Public: public, Private: private}
-	raw, _ := json.Marshal(k)
-	return k, a.writeSecret(workspace, vapidSecret, string(raw))
+	b, _ := json.Marshal(k)
+	if err := a.writeSecret(workspace, vapidSecret, string(b)); err != nil || raw == "" {
+		return k, err
+	}
+	// Subscriptions made with the old key would fail now; their devices subscribe again.
+	return k, a.Store.Tx(context.Background(), func(ctx context.Context, q *db.Queries) error {
+		return q.DeleteWorkspacePushSubscriptions(ctx, workspace)
+	})
+}
+
+func validVAPID(k vapid) bool {
+	pub, err1 := base64.RawURLEncoding.DecodeString(k.Public)
+	priv, err2 := base64.RawURLEncoding.DecodeString(k.Private)
+	return err1 == nil && err2 == nil && len(pub) == 65 && len(priv) == 32
 }
 
 func (a *App) pushKey(ctx context.Context, act registry.Actor, _ struct{}) (any, error) {
@@ -84,7 +98,16 @@ func (a *App) pushSubscribe(ctx context.Context, act registry.Actor, in struct {
 	}
 	var row db.PushSubscription
 	err := a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		var err error
+		before, err := q.ListPushSubscriptions(ctx, act.Workspace)
+		if err != nil {
+			return err
+		}
+		if len(before) == 0 {
+			// The first device starts from now, not from whatever came while no device listened.
+			if err := q.DeleteSettingsWithPrefix(ctx, db.DeleteSettingsWithPrefixParams{WorkspaceID: act.Workspace, Prefix: "push:"}); err != nil {
+				return err
+			}
+		}
 		row, err = q.AddPushSubscription(ctx, db.AddPushSubscriptionParams{WorkspaceID: act.Workspace, Device: untrusted.Cut(device, 80),
 			Endpoint: in.Endpoint, P256dh: in.P256dh, Auth: in.Auth})
 		return err
@@ -154,8 +177,19 @@ func (a *App) watchPush() {
 	})
 }
 
-// pushNew pushes to the devices of a workspace what came since the last look: asks that wait for the owner,
-// failed processes, lines of notify, and the master's replies while no client is open.
+// pushItem is one push and the cursor of its source once it is delivered.
+type pushItem struct {
+	msg    pushMessage
+	key    string
+	cursor string
+}
+
+// pushBatch is how many pushes of one source one look sends; the rest wait for the next look.
+const pushBatch = 10
+
+// pushNew pushes to the devices of a workspace what came since the last delivered push: asks that wait for the
+// owner, failed processes, lines of notify, and the master's replies while no client is open. A cursor moves only
+// past what reached a device or what no device can take; a push service that fails for now is tried again.
 func (a *App) pushNew(ctx context.Context, workspace int64) {
 	a.pushMu.Lock()
 	defer a.pushMu.Unlock()
@@ -163,41 +197,50 @@ func (a *App) pushNew(ctx context.Context, workspace int64) {
 	if err != nil || len(subs) == 0 {
 		return
 	}
-	mark := func(key string) (int64, bool) {
+	get := func(key string) (string, bool) {
 		v, err := a.Store.Q.GetSetting(ctx, db.GetSettingParams{WorkspaceID: workspace, Key: "push:" + key})
-		n, _ := strconv.ParseInt(v, 10, 64)
-		return n, err == nil
+		return v, err == nil
 	}
 	set := func(key, v string) {
 		_ = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 			return q.SetSetting(ctx, db.SetSettingParams{WorkspaceID: workspace, Key: "push:" + key, Value: v})
 		})
 	}
-	var out []pushMessage
-	if last, ok := mark("ask"); !ok {
+	var sources [][]pushItem
+	if v, ok := get("ask"); !ok {
 		max, _ := a.Store.Q.MaxAskID(ctx, workspace)
 		set("ask", fmt.Sprint(max))
-	} else if asks, err := a.Store.Q.ListAsksAfter(ctx, db.ListAsksAfterParams{WorkspaceID: workspace, ID: last}); err == nil && len(asks) > 0 {
+	} else {
+		last, _ := strconv.ParseInt(v, 10, 64)
+		asks, _ := a.Store.Q.ListAsksAfter(ctx, db.ListAsksAfterParams{WorkspaceID: workspace, ID: last})
+		var items []pushItem
 		for _, q := range asks {
-			out = append(out, a.pushText(ctx, q.ProjectID, "Waiting for you", strings.SplitN(q.Text, "\n", 2)[0], "/#/deck/cockpit"))
+			items = append(items, pushItem{a.pushText(ctx, q.ProjectID, "Waiting for you", strings.SplitN(q.Text, "\n", 2)[0], "/#/deck/cockpit"),
+				"ask", fmt.Sprint(q.ID)})
 		}
-		set("ask", fmt.Sprint(asks[len(asks)-1].ID))
+		sources = append(sources, items)
 	}
-	since, err := a.Store.Q.GetSetting(ctx, db.GetSettingParams{WorkspaceID: workspace, Key: "push:failed"})
-	if err != nil {
-		set("failed", store.Time(a.Cfg.Now()))
-	} else if failed, err := a.Store.Q.ListFailedAfter(ctx, db.ListFailedAfterParams{WorkspaceID: workspace,
-		FinishedAt: sql.NullString{String: since, Valid: true}}); err == nil && len(failed) > 0 {
+	if v, ok := get("failed"); !ok {
+		set("failed", store.Time(a.Cfg.Now())+"|0")
+	} else {
+		at, id, _ := strings.Cut(v, "|")
+		last, _ := strconv.ParseInt(id, 10, 64)
+		failed, _ := a.Store.Q.ListFailedAfter(ctx, db.ListFailedAfterParams{WorkspaceID: workspace, FinishedAt: sql.NullString{String: at, Valid: true}, ID: last})
+		var items []pushItem
 		for _, p := range failed {
 			proj, _ := a.Store.Q.GetProject(ctx, p.ProjectID)
-			out = append(out, a.pushText(ctx, p.ProjectID, proj.Name+"."+p.Command+" failed", p.Error, fmt.Sprintf("/#/deck/process/%d", p.ID)))
+			items = append(items, pushItem{a.pushText(ctx, p.ProjectID, proj.Name+"."+p.Command+" failed", p.Error, fmt.Sprintf("/#/deck/process/%d", p.ID)),
+				"failed", p.FinishedAt.String + "|" + fmt.Sprint(p.ID)})
 		}
-		set("failed", failed[len(failed)-1].FinishedAt.String)
+		sources = append(sources, items)
 	}
-	if last, ok := mark("notify"); !ok {
+	if v, ok := get("notify"); !ok {
 		max, _ := a.Store.Q.MaxNotificationID(ctx, workspace)
 		set("notify", fmt.Sprint(max))
-	} else if ns, err := a.Store.Q.ListNotificationsAfter(ctx, db.ListNotificationsAfterParams{WorkspaceID: workspace, ID: last}); err == nil && len(ns) > 0 {
+	} else {
+		last, _ := strconv.ParseInt(v, 10, 64)
+		ns, _ := a.Store.Q.ListNotificationsAfter(ctx, db.ListNotificationsAfterParams{WorkspaceID: workspace, ID: last})
+		var items []pushItem
 		for _, n := range ns {
 			proj, _ := a.Store.Q.GetProject(ctx, n.ProjectID)
 			url := "/#/deck/cockpit"
@@ -207,64 +250,126 @@ func (a *App) pushNew(ctx context.Context, workspace int64) {
 					url += fmt.Sprintf("/%d", n.RecordID)
 				}
 			}
-			out = append(out, a.pushText(ctx, n.ProjectID, proj.Name, n.Text, url))
+			items = append(items, pushItem{a.pushText(ctx, n.ProjectID, proj.Name, n.Text, url), "notify", fmt.Sprint(n.ID)})
 		}
-		set("notify", fmt.Sprint(ns[len(ns)-1].ID))
+		sources = append(sources, items)
 	}
-	if last, ok := mark("chat"); !ok {
+	if v, ok := get("chat"); !ok {
 		max, _ := a.Store.Q.MaxMasterMessageID(ctx, workspace)
 		set("chat", fmt.Sprint(max))
-	} else if ms, err := a.Store.Q.ListMasterMessagesAfter(ctx, db.ListMasterMessagesAfterParams{WorkspaceID: workspace, ID: last}); err == nil && len(ms) > 0 {
-		if a.Bus.Clients() == 0 {
-			for _, m := range ms {
-				out = append(out, pushMessage{Title: "Master", Body: untrusted.Cut(oneLine(m.Text), pushLength), URL: "/#/deck/cockpit"})
+	} else {
+		last, _ := strconv.ParseInt(v, 10, 64)
+		ms, _ := a.Store.Q.ListMasterMessagesAfter(ctx, db.ListMasterMessagesAfterParams{WorkspaceID: workspace, ID: last})
+		private := a.anyPrivate(ctx, workspace)
+		var items []pushItem
+		for _, m := range ms {
+			if a.Bus.Clients() > 0 {
+				set("chat", fmt.Sprint(m.ID))
+				continue
 			}
+			msg := pushMessage{Title: "Master", Body: untrusted.Cut(oneLine(m.Text), pushLength), URL: "/#/deck/chat"}
+			if private {
+				msg.Body = "The master replied"
+			}
+			items = append(items, pushItem{msg, "chat", fmt.Sprint(m.ID)})
 		}
-		set("chat", fmt.Sprint(ms[len(ms)-1].ID))
+		sources = append(sources, items)
 	}
-	if len(out) == 0 {
-		return
-	}
-	k, err := a.vapidKeys(workspace)
-	if err != nil {
-		slog.Error("push keys", "err", err)
-		return
-	}
-	for _, m := range out {
-		for _, s := range subs {
-			a.sendPush(ctx, workspace, k, s, m)
+	var k vapid
+	for _, items := range sources {
+		if len(items) > pushBatch {
+			items = items[:pushBatch]
+		}
+		for _, it := range items {
+			if k.Public == "" {
+				if k, err = a.vapidKeys(workspace); err != nil {
+					slog.Error("push keys", "err", err)
+					return
+				}
+			}
+			if !a.deliver(ctx, workspace, k, subs, it.msg) {
+				break
+			}
+			set(it.key, it.cursor)
 		}
 	}
 }
 
-// pushText is a push about something of a project: its text cut short, or only a generic line for a project
-// whose data stays off the network.
-func (a *App) pushText(ctx context.Context, projectID int64, title, text, url string) pushMessage {
-	if p, err := a.Store.Q.GetProject(ctx, projectID); err == nil {
-		if m, err := docs.Manifest(ctx, a.Store.Q, p); err == nil && m.NoNetwork {
-			return pushMessage{Title: "deck", Body: generic, URL: url}
+// anyPrivate reports whether a project of the workspace keeps its data off the network; then the master's
+// replies, which may speak of it, push only that the master replied.
+func (a *App) anyPrivate(ctx context.Context, workspace int64) bool {
+	ps, err := a.Store.Q.ListWorkspaceProjects(ctx, workspace)
+	if err != nil {
+		return true
+	}
+	for _, p := range ps {
+		if m, err := docs.Manifest(ctx, a.Store.Q, p); err != nil || m.NoNetwork {
+			return true
 		}
+	}
+	return false
+}
+
+// pushText is a push about something of a project: its text cut short, or only a generic line for a project
+// whose data stays off the network, or whose project deck cannot read.
+func (a *App) pushText(ctx context.Context, projectID int64, title, text, url string) pushMessage {
+	p, err := a.Store.Q.GetProject(ctx, projectID)
+	if err != nil {
+		return pushMessage{Title: "deck", Body: generic, URL: url}
+	}
+	if m, err := docs.Manifest(ctx, a.Store.Q, p); err != nil || m.NoNetwork {
+		return pushMessage{Title: "deck", Body: generic, URL: url}
 	}
 	return pushMessage{Title: untrusted.Cut(title, 60), Body: untrusted.Cut(oneLine(text), pushLength), URL: url}
 }
 
-func (a *App) sendPush(ctx context.Context, workspace int64, k vapid, s db.PushSubscription, m pushMessage) {
+var pushClient = &http.Client{Timeout: 15 * time.Second,
+	CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+
+// deliver sends one push to every device; false when a device failed for now, so the push waits for another look.
+// A device the service no longer knows goes away; one that refuses the push for good is only logged.
+func (a *App) deliver(ctx context.Context, workspace int64, k vapid, subs []db.PushSubscription, m pushMessage) bool {
 	payload, _ := json.Marshal(m)
-	resp, err := webpush.SendNotificationWithContext(ctx, payload, &webpush.Subscription{Endpoint: s.Endpoint,
-		Keys: webpush.Keys{P256dh: s.P256dh, Auth: s.Auth}}, &webpush.Options{Subscriber: "mailto:deck@localhost",
-		VAPIDPublicKey: k.Public, VAPIDPrivateKey: k.Private, TTL: 3600, Urgency: webpush.UrgencyHigh})
-	if err != nil {
-		slog.Error("push", "device", s.Device, "err", err)
-		return
+	retry := false
+	for _, s := range subs {
+		resp, err := webpush.SendNotificationWithContext(ctx, payload, &webpush.Subscription{Endpoint: s.Endpoint,
+			Keys: webpush.Keys{P256dh: s.P256dh, Auth: s.Auth}}, &webpush.Options{HTTPClient: pushClient, Subscriber: "deck@example.com",
+			VAPIDPublicKey: k.Public, VAPIDPrivateKey: k.Private, TTL: 3600, Urgency: webpush.UrgencyHigh})
+		if err != nil {
+			slog.Error("push", "device", s.Device, "err", err)
+			a.pushHealth(ctx, s.Device+": "+err.Error())
+			retry = true
+			continue
+		}
+		_, _ = io.Copy(io.Discard, resp.Body)
+		resp.Body.Close()
+		switch code := resp.StatusCode; {
+		case code >= 200 && code < 300:
+			a.pushHealth(ctx, "")
+		case code == http.StatusGone || code == http.StatusNotFound:
+			_ = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+				_, err := q.DeletePushSubscription(ctx, db.DeletePushSubscriptionParams{WorkspaceID: workspace, Endpoint: s.Endpoint})
+				return err
+			})
+		case code == http.StatusTooManyRequests || code >= 500:
+			a.pushHealth(ctx, fmt.Sprintf("%s: %s", s.Device, resp.Status))
+			retry = true
+		default:
+			slog.Error("push refused", "device", s.Device, "status", resp.Status)
+			a.pushHealth(ctx, fmt.Sprintf("%s: the push service refused it: %s", s.Device, resp.Status))
+		}
 	}
-	defer resp.Body.Close()
-	_, _ = io.Copy(io.Discard, resp.Body)
-	if resp.StatusCode == http.StatusGone || resp.StatusCode == http.StatusNotFound {
-		_ = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-			_, err := q.DeletePushSubscription(ctx, db.DeletePushSubscriptionParams{WorkspaceID: workspace, Endpoint: s.Endpoint})
-			return err
-		})
+	return !retry
+}
+
+func (a *App) pushHealth(ctx context.Context, failed string) {
+	status := "ok"
+	if failed != "" {
+		status = "error"
 	}
+	_ = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		return q.SetHealth(ctx, db.SetHealthParams{Subject: "push", Status: status, Error: untrusted.Cut(failed, 500)})
+	})
 }
 
 func oneLine(s string) string { return strings.Join(strings.Fields(s), " ") }

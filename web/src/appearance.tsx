@@ -4,7 +4,7 @@ import { notifications } from '@mantine/notifications';
 import { useTranslation } from 'react-i18next';
 import { ACCENTS, DENSITIES, FONTS, RADII, setLook, useLook, type Look } from './look';
 import { call } from './api';
-import { currentPush, pushSupported, subscribePush, unsubscribePush } from './push';
+import { pushSupported, reconcilePush, subscribePush, unsubscribePush } from './push';
 
 function Choice<T extends string>({ label, name, value, options, onChange }: {
   label: string; name: string; value: T; options: readonly T[]; onChange: (v: T) => void;
@@ -56,8 +56,9 @@ function Pushes() {
   const [on, setOn] = useState(false);
   const [busy, setBusy] = useState(false);
   const [devices, setDevices] = useState<Device[]>([]);
+  const device = navigator.userAgent.includes('iPhone') ? 'iPhone' : navigator.platform || 'a browser';
   const load = async () => {
-    setOn(!!(await currentPush().catch(() => null)));
+    setOn(await reconcilePush(device).catch(() => false));
     setDevices(await call<Device[]>('deck.push_devices').catch(() => []));
   };
   useEffect(() => { void load(); }, []);
@@ -65,7 +66,7 @@ function Pushes() {
     setBusy(true);
     try {
       if (on) await unsubscribePush();
-      else await subscribePush(navigator.userAgent.includes('iPhone') ? 'iPhone' : navigator.platform || 'a browser');
+      else await subscribePush(device);
       await load();
     } catch (e) {
       notifications.show({ title: t('push.title'), message: (e as Error).message, color: 'red', autoClose: 10000 });

@@ -210,8 +210,8 @@ func TestPushGoesToSubscribedDevices(t *testing.T) {
 	topic := e.say(0, "buy milk")
 	e.masterSaid(topic, 1)
 	got = d.wait(e, 4)
-	if got[3]["title"] != "Master" || got[3]["body"] != "Put it into groceries, as card 1." {
-		t.Fatalf("the master's reply is pushed while no client is open: %+v", got[3])
+	if got[3]["title"] != "Master" || got[3]["body"] != "The master replied" || got[3]["url"] != "/#/deck/chat" {
+		t.Fatalf("the master's reply is pushed while no client is open, as a bare line while a project keeps off the network: %+v", got[3])
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	_ = e.sse(ctx)
@@ -237,4 +237,37 @@ func TestPushGoesToSubscribedDevices(t *testing.T) {
 		e.must("deck.push_devices", nil, &ds)
 		return len(ds) == 0
 	})
+}
+
+func TestAPushThatFailsForNowIsSentAgain(t *testing.T) {
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result { return provider.Result{Text: "The list is updated."} })
+	d, srv := newPushDevice(t)
+	failing := true
+	var mu sync.Mutex
+	flaky := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		f := failing
+		mu.Unlock()
+		if f {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		srv.Config.Handler.ServeHTTP(w, r)
+	}))
+	t.Cleanup(flaky.Close)
+	d.subscribe(e, flaky, "mac")
+	e.createProject("work", boardWork)
+	topic := e.say(0, "update the list")
+	e.masterSaid(topic, 1)
+	time.Sleep(time.Second)
+	if n := len(d.got); n != 0 {
+		t.Fatalf("nothing arrives while the service fails: %d", n)
+	}
+	mu.Lock()
+	failing = false
+	mu.Unlock()
+	e.App.Sweep(context.Background(), time.Now())
+	if got := d.wait(e, 1); got[0]["body"] != "The list is updated." {
+		t.Fatalf("the push that failed for now goes out at the next look: %+v", got)
+	}
 }

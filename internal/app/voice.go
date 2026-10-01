@@ -81,9 +81,18 @@ func (a *App) transcribe(ctx context.Context, act registry.Actor, in struct{ Fil
 	if err != nil {
 		return nil, registry.NotFound("deck: no file %s", in.File)
 	}
-	if _, err := projectOf(ctx, a.Store.Q, act, f.ProjectID, registry.NotFound("deck: no file %s", in.File)); err != nil {
+	p, err := projectOf(ctx, a.Store.Q, act, f.ProjectID, registry.NotFound("deck: no file %s", in.File))
+	if err != nil {
 		return nil, err
 	}
+	if p.Builtin == 0 || f.OwnerKind != "upload" || !strings.HasPrefix(f.Type, "audio/") {
+		return nil, registry.Invalid("deck: transcribe takes a recording just uploaded for project master")
+	}
+	// The recording goes whatever the provider says.
+	defer func() {
+		_ = a.Store.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error { return q.DeleteFile(ctx, f.ID) })
+		a.removeFiles([]int64{f.ID})
+	}()
 	path := filepath.Join(a.dirs().Files, strconv.FormatInt(f.ID, 10))
 	info, err := os.Stat(path)
 	if err != nil {
@@ -102,12 +111,10 @@ func (a *App) transcribe(ctx context.Context, act registry.Actor, in struct{ Fil
 	if err != nil {
 		return nil, registry.Invalid("deck: speech to text at %s failed: %v", d.URL, err)
 	}
-	if f.OwnerKind == "upload" {
-		_ = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error { return q.DeleteFile(ctx, f.ID) })
-		a.removeFiles([]int64{f.ID})
-	}
 	return map[string]any{"text": text}, nil
 }
+
+var sttClient = &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 
 // whisper posts a recording as a multipart form the way OpenAI's transcriptions and whisper.cpp's server take it.
 func (a *App) whisper(ctx context.Context, workspace int64, d sttDef, name string, audio []byte) (string, error) {
@@ -140,7 +147,7 @@ func (a *App) whisper(ctx context.Context, workspace int64, d sttDef, name strin
 		}
 		req.Header.Set("Authorization", "Bearer "+key)
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := sttClient.Do(req)
 	if err != nil {
 		return "", err
 	}

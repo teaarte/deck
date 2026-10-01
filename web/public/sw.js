@@ -29,7 +29,10 @@ self.addEventListener('notificationclick', (e) => {
   e.waitUntil((async () => {
     const tabs = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
     const tab = tabs.find((c) => new URL(c.url).origin === self.location.origin);
-    if (tab) { await tab.focus(); return tab.navigate(url); }
+    if (tab) {
+      await tab.focus();
+      return tab.navigate(url).catch(() => self.clients.openWindow(url));
+    }
     return self.clients.openWindow(url);
   })());
 });

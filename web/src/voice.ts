@@ -7,10 +7,19 @@ export interface Recording {
 const RATE = 16000;
 export const MAX_SECONDS = 120;
 
-// record starts the microphone; the recording stops by itself after MAX_SECONDS and calls onLimit.
+// record starts the microphone; the recording stops by itself after MAX_SECONDS and calls onLimit. Call it right
+// in the tap: Safari starts audio only from a gesture.
 export async function record(onLimit: () => void): Promise<Recording> {
-  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
   const ctx = new AudioContext();
+  const resumed = ctx.resume();
+  let stream: MediaStream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    await resumed;
+  } catch (e) {
+    void ctx.close();
+    throw e;
+  }
   const source = ctx.createMediaStreamSource(stream);
   const node = ctx.createScriptProcessor(4096, 1, 1);
   const chunks: Float32Array[] = [];
@@ -33,6 +42,7 @@ export async function record(onLimit: () => void): Promise<Recording> {
   return {
     stop: async () => {
       close();
+      if (!length) throw new Error('nothing was recorded; check the microphone');
       const all = new Float32Array(length);
       let at = 0;
       for (const c of chunks) { all.set(c, at); at += c.length; }

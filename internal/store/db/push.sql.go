@@ -63,6 +63,15 @@ func (q *Queries) DeletePushSubscription(ctx context.Context, arg DeletePushSubs
 	return result.RowsAffected()
 }
 
+const deleteWorkspacePushSubscriptions = `-- name: DeleteWorkspacePushSubscriptions :exec
+DELETE FROM push_subscription WHERE workspace_id = ?
+`
+
+func (q *Queries) DeleteWorkspacePushSubscriptions(ctx context.Context, workspaceID int64) error {
+	_, err := q.db.ExecContext(ctx, deleteWorkspacePushSubscriptions, workspaceID)
+	return err
+}
+
 const listAsksAfter = `-- name: ListAsksAfter :many
 SELECT id, process_id, workspace_id, project_id, kind, text, payload, answer, state, delivered, used, created_at, answered_at, expires_at, result, dismissed FROM ask WHERE workspace_id = ? AND id > ? AND state = 'open' ORDER BY id
 `
@@ -114,17 +123,19 @@ func (q *Queries) ListAsksAfter(ctx context.Context, arg ListAsksAfterParams) ([
 
 const listFailedAfter = `-- name: ListFailedAfter :many
 SELECT p.id, p.project_id, p.command, p.state, p.provider, p.session_id, p.input, p.result, p.not_by_schema, p.error, p.started_at, p.finished_at, p.start_note, p.parent_id, p.depth, p.trigger_id, p.retry_key, p.pgid, p.ceiling_ms, p.deadline_ms, p.output_ms, p.silent_since_ms, p.kind, p.manifest_revision, p.trial, p.pause_until_ms, p.pause_limit_ms, p.wait_message, p.wait_fresh, p.folder FROM process p JOIN project j ON j.id = p.project_id
-WHERE j.workspace_id = ? AND p.state = 'error' AND p.finished_at > ? AND p.trial = 0
-ORDER BY p.finished_at
+WHERE j.workspace_id = ?1 AND p.state = 'error' AND p.trial = 0 AND j.builtin = 0
+  AND (p.finished_at > ?2 OR p.finished_at = ?2 AND p.id > ?3)
+ORDER BY p.finished_at, p.id
 `
 
 type ListFailedAfterParams struct {
 	WorkspaceID int64
 	FinishedAt  sql.NullString
+	ID          int64
 }
 
 func (q *Queries) ListFailedAfter(ctx context.Context, arg ListFailedAfterParams) ([]Process, error) {
-	rows, err := q.db.QueryContext(ctx, listFailedAfter, arg.WorkspaceID, arg.FinishedAt)
+	rows, err := q.db.QueryContext(ctx, listFailedAfter, arg.WorkspaceID, arg.FinishedAt, arg.ID)
 	if err != nil {
 		return nil, err
 	}

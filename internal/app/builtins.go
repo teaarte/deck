@@ -176,13 +176,13 @@ func (a *App) addBuiltins() {
 			registry.P("reason", "string", "Why, in one line the owner reads")),
 		registry.Typed(a.suggest))
 	add("suggestions_rejected", "Rejected suggestions", "Lists the suggestions the owner said no to lately, with the reason, so the same is not suggested again.", everyone,
-		registry.Params(registry.Opt("days", "integer", "How far back, 30 days by default")), registry.Typed(a.suggestionsRejected))
+		registry.Params(registry.Opt("days", "integer", "How far back, at most and by default 30 days")), registry.Typed(a.suggestionsRejected))
 	add("transcribe", "Speech to text", "Turns a recording the owner uploaded into text with the speech-to-text provider; the recording is not kept.", ownerOnly,
 		registry.Params(registry.P("file", "file", "The uploaded recording, at most 10 MB")), registry.Typed(a.transcribe))
 	add("stt_set", "Speech to text provider", "Sets the speech-to-text provider: an OpenAI-compatible transcription url, such as a whisper.cpp server on this machine.", ownerOnly,
 		registry.Params(registry.P("url", "string", "Transcription url, such as "+DefaultSTT+" or https://api.openai.com/v1/audio/transcriptions"),
 			registry.Opt("model", "string", "Model name, when the service takes one"), registry.Opt("key_secret", "string", "Name of the secret with the API key"),
-			registry.Opt("language", "string", "Language of the speech, such as ru or en; the service guesses without it")),
+			registry.Opt("language", "string", "Language of the speech, such as ru or en; without it the service uses its own default")),
 		registry.Typed(a.sttSet))
 	add("push_key", "Push key", "Returns the public key a device subscribes to the pushes of deck with.", ownerOnly,
 		registry.Params(), registry.Typed(a.pushKey))

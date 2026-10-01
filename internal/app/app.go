@@ -261,6 +261,11 @@ func (a *App) Sweep(ctx context.Context, now time.Time) {
 	a.markSilent(ctx, now)
 	a.purgeEmpty(ctx, now)
 	a.checkDisk(ctx, now)
+	if spaces, err := a.Store.Q.ListWorkspaces(ctx); err == nil {
+		for _, ws := range spaces {
+			a.pushNew(ctx, ws)
+		}
+	}
 	a.daily(ctx, now)
 }
 

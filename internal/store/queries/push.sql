@@ -22,8 +22,9 @@ SELECT * FROM ask WHERE workspace_id = ? AND id > ? AND state = 'open' ORDER BY 
 
 -- name: ListFailedAfter :many
 SELECT p.* FROM process p JOIN project j ON j.id = p.project_id
-WHERE j.workspace_id = ? AND p.state = 'error' AND p.finished_at > ? AND p.trial = 0
-ORDER BY p.finished_at;
+WHERE j.workspace_id = sqlc.arg(workspace_id) AND p.state = 'error' AND p.trial = 0 AND j.builtin = 0
+  AND (p.finished_at > sqlc.arg(finished_at) OR p.finished_at = sqlc.arg(finished_at) AND p.id > sqlc.arg(id))
+ORDER BY p.finished_at, p.id;
 
 
 -- name: MaxNotificationID :one
@@ -41,3 +42,7 @@ SELECT CAST(COALESCE(MAX(m.id), 0) AS INTEGER) FROM chat_message m JOIN chat_top
 -- name: ListMasterMessagesAfter :many
 SELECT m.* FROM chat_message m JOIN chat_topic t ON t.id = m.topic_id
 WHERE t.workspace_id = ? AND m.id > ? AND m.role = 'master' AND t.deleted_at IS NULL ORDER BY m.id;
+
+
+-- name: DeleteWorkspacePushSubscriptions :exec
+DELETE FROM push_subscription WHERE workspace_id = ?;

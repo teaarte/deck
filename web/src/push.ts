@@ -26,8 +26,26 @@ export async function subscribePush(device: string): Promise<void> {
   if ((await Notification.requestPermission()) !== 'granted') throw new Error('notifications are not allowed for deck');
   const { key } = await call<{ key: string }>('deck.push_key');
   const reg = await navigator.serviceWorker.ready;
+  const old = await reg.pushManager.getSubscription();
+  if (old) await old.unsubscribe();
   const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(key) });
-  await call('deck.push_subscribe', { endpoint: sub.endpoint, p256dh: b64url(sub.getKey('p256dh')), auth: b64url(sub.getKey('auth')), device });
+  try {
+    await register(sub, device);
+  } catch (e) {
+    await sub.unsubscribe();
+    throw e;
+  }
+}
+
+const register = (sub: PushSubscription, device: string) =>
+  call('deck.push_subscribe', { endpoint: sub.endpoint, p256dh: b64url(sub.getKey('p256dh')), auth: b64url(sub.getKey('auth')), device });
+
+// reconcilePush tells deck again of the subscription this browser holds, so a device deck dropped comes back.
+export async function reconcilePush(device: string): Promise<boolean> {
+  const sub = await currentPush();
+  if (!sub) return false;
+  await register(sub, device);
+  return true;
 }
 
 // unsubscribePush stops pushes to this device, in the browser and in deck.

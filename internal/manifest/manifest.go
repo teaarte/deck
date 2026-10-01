@@ -32,6 +32,8 @@ type Manifest struct {
 	Autonomy        string       `json:"autonomy,omitempty"`
 	Reads           []Read       `json:"reads,omitempty"`
 	NoNetwork       bool         `json:"no_network,omitempty"`
+	// MasterErrors off keeps the failed processes of the project from the master; absent is on.
+	MasterErrors *bool `json:"master_errors,omitempty"`
 
 	// Revision is the stored revision the manifest was read from; 0 when it was not read from the base.
 	Revision int64 `json:"-"`

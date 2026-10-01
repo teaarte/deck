@@ -168,6 +168,15 @@ func (a *App) addBuiltins() {
 	add("process_rework", "Send back for rework", "Sends a finished agent process back to the same session with a remark; changed artifacts get new revisions.", ownerSide,
 		registry.Params(registry.P("process", "process", "Process id"), registry.P("remark", "text", "What to change")),
 		registry.Typed(a.processRework))
+	add("suggest", "Suggest", "Suggests the owner one card for a project or one call of a project command, with the reason; it waits in waiting for you, or is done at once in a project on autonomy auto.", everyone,
+		registry.Params(registry.Opt("project", "project", "Project of the card; the caller's own when omitted"),
+			registry.Opt("title", "string", "Card title, for a card"), registry.Opt("text", "text", "Card text, markdown"),
+			registry.Opt("record", "record", "Record the card works on"),
+			registry.Opt("command", "string", "Command to call instead, project.command"), registry.Opt("input", "text", "Its input as a JSON object"),
+			registry.P("reason", "string", "Why, in one line the owner reads")),
+		registry.Typed(a.suggest))
+	add("suggestions_rejected", "Rejected suggestions", "Lists the suggestions the owner said no to lately, with the reason, so the same is not suggested again.", everyone,
+		registry.Params(registry.Opt("days", "integer", "How far back, 30 days by default")), registry.Typed(a.suggestionsRejected))
 	add("process_tell", "Tell a process", "Gives the owner's message to an agent process at work: into its turn when the provider takes it live, else right after the turn.", ownerOnly,
 		registry.Params(registry.P("process", "process", "Process id"), registry.P("text", "text", "The message")),
 		registry.Typed(a.processTell))
@@ -201,9 +210,10 @@ func (a *App) addBuiltins() {
 	add("snapshot_create", "Take snapshot", "Writes a snapshot of the base, files and project data folders to backups; the newest seven stay.", ownerOnly,
 		registry.Params(), registry.Typed(a.snapshotCreate))
 
-	add("settings_set", "Change settings", "Sets how long a confirmation waits for the owner and how many agent processes run at once; an omitted one stays.", ownerOnly,
+	add("settings_set", "Change settings", "Sets how long a confirmation and a suggestion wait for the owner and how many agent processes run at once; an omitted one stays.", ownerOnly,
 		registry.Params(registry.Opt("confirm_hours", "integer", "Hours a confirmation waits, 1 to 720"),
-			registry.Opt("agent_limit", "integer", "Agent processes at once, 1 to 20; more wait for a slot")),
+			registry.Opt("agent_limit", "integer", "Agent processes at once, 1 to 20; more wait for a slot"),
+			registry.Opt("suggest_days", "integer", "Days a suggestion waits before it expires, 1 to 90")),
 		registry.Typed(a.settingsSet))
 	add("secret_set", "Set secret", "Stores a secret for tool headers as a file only deck reads; agents and scripts never see it.", ownerOnly,
 		registry.Params(registry.P("name", "string", "Secret name, as in $secret.<name>"), registry.P("value", "secret", "Secret value; it is never shown again")),
@@ -242,9 +252,10 @@ func (a *App) addBuiltins() {
 		registry.Params(), registry.Typed(a.asksList))
 	add("health_list", "Health", "Lists the health of providers and other dependencies with the last error.", ownerSide,
 		registry.Params(), registry.Typed(a.healthList))
-	add("ask_answer", "Answer", "Answers what waits for the owner: a question with text; a confirmation with allow, allow_always, deny or deny:<reason>; a login with retry or new_session; an unknown outcome with retry or done; a stopped pause with continue. Deny on an expired confirmation clears it.", ownerOnly,
+	add("ask_answer", "Answer", "Answers what waits for the owner: a question with text; a confirmation with allow, allow_always, deny or deny:<reason>; a login with retry or new_session; an unknown outcome with retry or done; a stopped pause with continue; a suggestion with allow, deny, deny:<reason> or move with project. Deny on an expired confirmation clears it.", ownerOnly,
 		registry.Params(registry.P("ask", "ask", "Ask id"), registry.P("answer", "text", "The answer"),
-			registry.Opt("reason", "text", "Why not, sent with deny to the agent")),
+			registry.Opt("reason", "text", "Why not, sent with deny to the agent"),
+			registry.Opt("project", "project", "The project a suggestion moves to")),
 		registry.Typed(a.askAnswer))
 	add("menu", "Menu", "Lists the screens to navigate: deck's own, then each project's menu.", ownerSide,
 		registry.Params(), registry.Typed(a.menu))

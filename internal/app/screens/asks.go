@@ -107,6 +107,18 @@ func (s Sources) askItem(ctx context.Context, q db.Ask, names map[int64]string) 
 			it["where"] = pl["tool"]
 			acts = []map[string]any{call("sign_in", true, "deck.oauth_start", map[string]any{"tool": pl["tool"]})}
 		}
+	case ask.KindSuggest:
+		var pl struct {
+			By   string          `json:"by"`
+			Card json.RawMessage `json:"card"`
+		}
+		_ = json.Unmarshal([]byte(q.Payload), &pl)
+		it["who"], it["where"] = pl.By, strings.TrimPrefix(q.Text, firstLine(q.Text)+"\n")
+		it["_details"] = pretty(q.Payload)
+		acts = append([]map[string]any{answer("yes", true, "allow")}, deny...)
+		if len(pl.Card) > 0 {
+			acts = append(acts, withInput(answer("move", false, "move"), "project"))
+		}
 	case ask.KindWarning:
 		acts = []map[string]any{answer("dismiss", true, "ok")}
 	}

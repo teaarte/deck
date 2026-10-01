@@ -32,9 +32,8 @@ func (a *App) asksList(ctx context.Context, act registry.Actor, _ struct{}) (any
 }
 
 func (a *App) askAnswer(ctx context.Context, act registry.Actor, in struct {
-	Ask    int64
-	Answer string
-	Reason string
+	Ask                     int64
+	Answer, Reason, Project string
 }) (any, error) {
 	if in.Reason = strings.TrimSpace(in.Reason); in.Reason != "" && in.Answer == "deny" {
 		in.Answer = "deny:" + in.Reason
@@ -63,6 +62,12 @@ func (a *App) askAnswer(ctx context.Context, act registry.Actor, in struct {
 	}
 	if q.Kind == ask.KindGrant && q.State == "open" {
 		return a.grantAnswer(ctx, act, q, in.Answer)
+	}
+	if q.Kind == ask.KindSuggest {
+		if q.State != "open" {
+			return nil, notOpen
+		}
+		return a.suggestionAnswer(ctx, act, q, in.Answer, in.Project)
 	}
 	if q.Kind == ask.KindCall || q.Kind == ask.KindUnknown {
 		return a.decide(ctx, act, q, in.Answer)

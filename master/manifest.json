@@ -57,12 +57,68 @@
           "memory"
         ]
       }
+    },
+    {
+      "name": "review",
+      "title": "Daily review",
+      "description": "Looks over the projects of deck and suggests cards and command calls worth doing.",
+      "class": "internal",
+      "callers": [
+        "owner",
+        "trigger"
+      ],
+      "requires": [
+        "tools"
+      ],
+      "provider": "claude-code",
+      "executor": {
+        "type": "agent",
+        "prompt_file": "prompts/review.md",
+        "skills": [
+          "dispatch"
+        ]
+      }
+    },
+    {
+      "name": "on_error",
+      "title": "Look into an error",
+      "description": "Finds out why a process of a project failed and suggests a fix.",
+      "class": "internal",
+      "callers": [
+        "owner",
+        "trigger"
+      ],
+      "requires": [
+        "tools"
+      ],
+      "provider": "claude-code",
+      "input": {
+        "type": "object",
+        "properties": {
+          "process": {
+            "type": "integer",
+            "format": "process",
+            "description": "The process that failed"
+          }
+        },
+        "required": [
+          "process"
+        ]
+      },
+      "executor": {
+        "type": "agent",
+        "prompt_file": "prompts/on_error.md"
+      }
     }
   ],
   "triggers": [
     {
       "command": "memory",
       "cron": "0 10 * * 1"
+    },
+    {
+      "command": "review",
+      "cron": "30 10 * * *"
     }
   ]
 }

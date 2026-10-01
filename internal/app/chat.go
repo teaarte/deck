@@ -409,6 +409,12 @@ func (a *App) chatTurn(ctx context.Context, processID int64, text string) {
 	a.Bus.Publish("chat")
 }
 
+// closed runs after a process reached a final state: the chat goes on, a failed process goes to the master.
+func (a *App) closed(ctx context.Context, processID int64) {
+	a.chatClosed(ctx, processID)
+	a.toMaster(ctx, processID)
+}
+
 // chatClosed goes on with the messages a topic got while its reply ran; it runs when the reply closes or parks.
 func (a *App) chatClosed(ctx context.Context, processID int64) {
 	if _, topic := a.replyOf(ctx, processID); topic != 0 {

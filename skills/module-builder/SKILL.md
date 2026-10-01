@@ -159,6 +159,11 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
 - **Telling the owner**: a script or agent that finds something worth a look calls `notify` with `text`, and
   optionally the `screen` (and `record`) it opens and `actions` (`[{label, command, params}]`); it becomes a line
   in the cockpit feed. The caller decides it is worth it; a run with nothing new says nothing.
+- **Suggesting work**: a script or agent that finds work the owner may want — a card for this or another
+  project, or a call of a command — calls `suggest` with a one-line `reason` instead of doing it; it waits in
+  "waiting for you" for yes, no or another project (in a project on autonomy `auto` it is done at once and shows
+  in "done without you"). It reads `suggestions_rejected` first and does not suggest again what the owner turned
+  down. A card in another project is the only way a module writes there.
 - **Remembering what was seen**: `records_upsert` replaces a whole record by its key, so write every
   required field. `record_get` reads one record by its id (a card's `record`); `records_list` gives the newest. `retention_days` deletes records with their documents: a collection that remembers what the
   owner has already seen, or holds what they asked for, gets none.

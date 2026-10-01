@@ -47,13 +47,16 @@
     "cancel": "Cancel",
     "archive": "Archive",
     "tell": "Tell it",
+    "yes": "Yes",
+    "move": "To another project",
     "unarchive": "Bring back"
   },
   "input": {
     "answer": "Your answer",
     "reason": "Why not",
     "remark": "What to change",
-    "text": "Your message"
+    "text": "Your message",
+    "project": "Project name"
   },
   "question": { "other": "Other" },
   "token": {

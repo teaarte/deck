@@ -333,6 +333,48 @@ func (q *Queries) CreateRemark(ctx context.Context, arg CreateRemarkParams) (Ask
 	return i, err
 }
 
+const createSuggestion = `-- name: CreateSuggestion :one
+INSERT INTO ask (workspace_id, project_id, kind, text, payload, expires_at) VALUES (?, ?, 'suggest', ?, ?, ?) RETURNING id, process_id, workspace_id, project_id, kind, text, payload, answer, state, delivered, used, created_at, answered_at, expires_at, result, dismissed
+`
+
+type CreateSuggestionParams struct {
+	WorkspaceID int64
+	ProjectID   int64
+	Text        string
+	Payload     string
+	ExpiresAt   sql.NullString
+}
+
+func (q *Queries) CreateSuggestion(ctx context.Context, arg CreateSuggestionParams) (Ask, error) {
+	row := q.db.QueryRowContext(ctx, createSuggestion,
+		arg.WorkspaceID,
+		arg.ProjectID,
+		arg.Text,
+		arg.Payload,
+		arg.ExpiresAt,
+	)
+	var i Ask
+	err := row.Scan(
+		&i.ID,
+		&i.ProcessID,
+		&i.WorkspaceID,
+		&i.ProjectID,
+		&i.Kind,
+		&i.Text,
+		&i.Payload,
+		&i.Answer,
+		&i.State,
+		&i.Delivered,
+		&i.Used,
+		&i.CreatedAt,
+		&i.AnsweredAt,
+		&i.ExpiresAt,
+		&i.Result,
+		&i.Dismissed,
+	)
+	return i, err
+}
+
 const dismissExpiredAsk = `-- name: DismissExpiredAsk :execrows
 UPDATE ask SET dismissed = 1 WHERE id = ? AND state = 'expired'
 `
@@ -387,6 +429,18 @@ func (q *Queries) ExpireStaleConfirms(ctx context.Context, now string) ([]Ask, e
 		return nil, err
 	}
 	return items, nil
+}
+
+const expireSuggestions = `-- name: ExpireSuggestions :execrows
+UPDATE ask SET state = 'expired' WHERE kind = 'suggest' AND state = 'open' AND expires_at <= CAST(?1 AS TEXT)
+`
+
+func (q *Queries) ExpireSuggestions(ctx context.Context, now string) (int64, error) {
+	result, err := q.db.ExecContext(ctx, expireSuggestions, now)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const findOpenCallAsk = `-- name: FindOpenCallAsk :one
@@ -471,6 +525,58 @@ SELECT id, process_id, workspace_id, project_id, kind, text, payload, answer, st
 
 func (q *Queries) ListOpenAsksOfProcess(ctx context.Context, processID int64) ([]Ask, error) {
 	rows, err := q.db.QueryContext(ctx, listOpenAsksOfProcess, processID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Ask
+	for rows.Next() {
+		var i Ask
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProcessID,
+			&i.WorkspaceID,
+			&i.ProjectID,
+			&i.Kind,
+			&i.Text,
+			&i.Payload,
+			&i.Answer,
+			&i.State,
+			&i.Delivered,
+			&i.Used,
+			&i.CreatedAt,
+			&i.AnsweredAt,
+			&i.ExpiresAt,
+			&i.Result,
+			&i.Dismissed,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listRejectedSuggestions = `-- name: ListRejectedSuggestions :many
+SELECT id, process_id, workspace_id, project_id, kind, text, payload, answer, state, delivered, used, created_at, answered_at, expires_at, result, dismissed FROM ask
+WHERE workspace_id = ?1 AND kind = 'suggest' AND state = 'answered' AND answer LIKE 'deny%'
+  AND answered_at >= ?2
+ORDER BY id DESC
+`
+
+type ListRejectedSuggestionsParams struct {
+	WorkspaceID int64
+	Since       sql.NullString
+}
+
+func (q *Queries) ListRejectedSuggestions(ctx context.Context, arg ListRejectedSuggestionsParams) ([]Ask, error) {
+	rows, err := q.db.QueryContext(ctx, listRejectedSuggestions, arg.WorkspaceID, arg.Since)
 	if err != nil {
 		return nil, err
 	}
@@ -700,6 +806,30 @@ UPDATE ask SET delivered = 1 WHERE id = ?
 func (q *Queries) MarkAskDelivered(ctx context.Context, id int64) error {
 	_, err := q.db.ExecContext(ctx, markAskDelivered, id)
 	return err
+}
+
+const moveSuggestion = `-- name: MoveSuggestion :execrows
+UPDATE ask SET project_id = ?, text = ?, payload = ? WHERE id = ? AND kind = 'suggest' AND state = 'open'
+`
+
+type MoveSuggestionParams struct {
+	ProjectID int64
+	Text      string
+	Payload   string
+	ID        int64
+}
+
+func (q *Queries) MoveSuggestion(ctx context.Context, arg MoveSuggestionParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, moveSuggestion,
+		arg.ProjectID,
+		arg.Text,
+		arg.Payload,
+		arg.ID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const releaseAsk = `-- name: ReleaseAsk :exec

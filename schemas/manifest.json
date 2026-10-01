@@ -23,7 +23,9 @@
       "description": "suggest: reversible actions wait for the owner; auto: they run at once and are reported."},
     "reads": {"type": "array", "items": {"$ref": "#/$defs/read"}, "description": "Data of other projects this project may read."},
     "no_network": {"type": "boolean", "default": false,
-      "description": "The agents of this project have no web and no network of their own; they reach outside only through deck tools. For personal data. Only the owner removes it."}
+      "description": "The agents of this project have no web and no network of their own; they reach outside only through deck tools. For personal data. Only the owner removes it."},
+    "master_errors": {"type": "boolean", "default": true,
+      "description": "A failed process of this project (an error, a result not by its schema, a script failing three times in a row) goes to the master to look into, at most once a day per command."}
   },
   "$defs": {
     "name": {"type": "string", "pattern": "^[a-z][a-z0-9_-]{0,39}$"},

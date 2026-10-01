@@ -126,3 +126,22 @@ INSERT INTO ask (process_id, workspace_id, project_id, kind, text, payload, stat
 SELECT p.id, j.workspace_id, j.id, 'remark', CAST(sqlc.arg(text) AS TEXT), '{}', 'answered', CAST(sqlc.arg(text) AS TEXT), sqlc.arg(answered_at)
 FROM process p JOIN project j ON j.id = p.project_id WHERE p.id = sqlc.arg(process_id) AND p.finished_at IS NULL
 RETURNING *;
+
+
+-- name: CreateSuggestion :one
+INSERT INTO ask (workspace_id, project_id, kind, text, payload, expires_at) VALUES (?, ?, 'suggest', ?, ?, ?) RETURNING *;
+
+
+-- name: MoveSuggestion :execrows
+UPDATE ask SET project_id = ?, text = ?, payload = ? WHERE id = ? AND kind = 'suggest' AND state = 'open';
+
+
+-- name: ListRejectedSuggestions :many
+SELECT * FROM ask
+WHERE workspace_id = sqlc.arg(workspace_id) AND kind = 'suggest' AND state = 'answered' AND answer LIKE 'deny%'
+  AND answered_at >= sqlc.arg(since)
+ORDER BY id DESC;
+
+
+-- name: ExpireSuggestions :execrows
+UPDATE ask SET state = 'expired' WHERE kind = 'suggest' AND state = 'open' AND expires_at <= CAST(sqlc.arg(now) AS TEXT);

@@ -106,7 +106,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 			ScriptCeiling: cfg.ScriptCeiling, FilesDir: filepath.Join(cfg.Home, "files"),
 			Hidden: hidden(cfg.Home), PauseLimit: cfg.PauseLimit, PauseProbe: cfg.PauseProbe, AgentSlots: a.agentSlots}, a)
 	a.Runner.OnDone = a.afterTriggers
-	a.Runner.OnTurn, a.Runner.OnClosed, a.Runner.OnParked = a.chatTurn, a.chatClosed, a.chatClosed
+	a.Runner.OnTurn, a.Runner.OnClosed, a.Runner.OnParked = a.chatTurn, a.closed, a.chatClosed
 	a.Scheduler = trigger.New(st, a, cfg.Now, cfg.CatchUpSpread)
 	a.Asks.OnLateAnswer(a.lateAnswer)
 	if err := a.SeedSkills(a.ctx); err != nil {
@@ -252,6 +252,7 @@ func (a *App) lateAnswer(ctx context.Context, q db.Ask) {
 func (a *App) Sweep(ctx context.Context, now time.Time) {
 	a.purgeCards(ctx, now)
 	a.expireConfirms(ctx, now)
+	a.expireSuggestions(ctx, now)
 	a.stopAtCeiling(ctx, now)
 	a.Runner.Unpause(ctx, now)
 	a.markSilent(ctx, now)

@@ -40,12 +40,17 @@ export function openTopic(topic: number) {
   window.dispatchEvent(new Event('deck-chat-open'));
 }
 
+// interviewKeys keep the retry key of an interview until deck confirms it, so a retry opens no second topic.
+const interviewKeys = new Map<number, string>();
+
 // interview opens a topic about a card in which the master interviews the owner.
 export async function interview(card: number, title: string) {
+  if (!interviewKeys.has(card)) interviewKeys.set(card, newKey());
   const out = await call<{ topic: number }>('deck.chat_send', {
     card, text: 'Interview me about card #' + card + ' (' + title + ') and write the spec into it.',
-    screen: screenOf(current), retry_key: newKey(),
+    screen: screenOf(current), retry_key: interviewKeys.get(card),
   });
+  interviewKeys.delete(card);
   openTopic(out.topic);
 }
 
@@ -120,7 +125,8 @@ export function Chat({ value, context }: { value: ChatValue; context: ComponentC
     key.current ||= newKey();
     try {
       const out = await call<{ topic: number }>(value.send.command!, {
-        ...value.send.params, text: message, screen: screenOf(current), retry_key: key.current,
+        ...value.send.params, ...(!(value.send.params as { topic?: number } | undefined)?.topic && card ? { card } : {}),
+        text: message, screen: screenOf(current), retry_key: key.current,
       });
       setText('');
       key.current = '';

@@ -50,6 +50,9 @@ func TestInterviewTopicWritesTheSpecIntoTheCard(t *testing.T) {
 		t.Fatalf("the interview is a topic about the card: %+v", ts)
 	}
 	q := e.waitAsk()
+	if _, ok := e.Fake.Calls()[0].Skills["interview/SKILL.md"]; !ok {
+		t.Fatalf("the master gets the interview skill: %v", e.Fake.Calls()[0].Skills)
+	}
 	if q.Kind != "question" || !strings.Contains(q.Text, "Which format?") {
 		t.Fatalf("the question waits in waiting for you: %+v", q)
 	}
@@ -114,9 +117,6 @@ func TestMasterPutsATaskIntoTheRightProject(t *testing.T) {
 	topic := e.say(0, "buy a rake")
 	if said := e.masterSaid(topic, 1); said[0].Text != "Put it into groceries. Move it?" || len(e.cardTitles("groceries")) != 1 {
 		t.Fatalf("the master picks the project by the first line of its md: %+v", said)
-	}
-	if !strings.Contains(e.Fake.Calls()[0].Prompt, "dispatch") && len(e.Fake.Calls()[0].Skills) == 0 {
-		t.Fatal("the master has the dispatch skill")
 	}
 	if _, ok := e.Fake.Calls()[0].Skills["dispatch/SKILL.md"]; !ok {
 		t.Fatalf("the master gets the dispatch skill: %v", e.Fake.Calls()[0].Skills)

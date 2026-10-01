@@ -134,7 +134,10 @@ function CardEditor({ card, onClose }: { card: BoardCard; onClose: () => void })
         <Group justify="space-between">
           <Group gap="xs">
             <Button color="red" variant="subtle" loading={busy} onClick={remove}>{t('board.delete')}</Button>
-            <Button variant="default" loading={busy} onClick={() => run(() => interview(card.id, card.title))} data-interview>{t('board.interview')}</Button>
+            <Button variant="default" loading={busy} onClick={() => run(async () => {
+              if (title !== card.title || text !== (card.text ?? '')) await call('deck.card_update', { card: card.id, title, text });
+              await interview(card.id, title);
+            })} data-interview>{t('board.interview')}</Button>
           </Group>
           <Button loading={busy} disabled={!title.trim()} onClick={() => run(() => call('deck.card_update', { card: card.id, title, text }))}>
             {t('board.save')}

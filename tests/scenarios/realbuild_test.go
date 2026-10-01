@@ -11,9 +11,8 @@ import (
 	"deck2/internal/provider/claudecode"
 )
 
-// TestRealMasterBuildsAModuleFromAPhrase is the rehearsal of step 27: the master on the installed Claude Code
-// builds a new module from one phrase in the chat; the owner (this test) answers every question with the
-// recommendation, enables the draft and runs its command.
+// TestRealMasterBuildsAModuleFromAPhrase: the master on the installed Claude Code builds a module from one chat
+// phrase; the owner (this test) takes every recommendation, enables the draft and runs its command.
 func TestRealMasterBuildsAModuleFromAPhrase(t *testing.T) {
 	realCLI(t)
 	phrase := os.Getenv("DECK_PHRASE")
@@ -109,4 +108,63 @@ func TestRealMasterBuildsAModuleFromAPhrase(t *testing.T) {
 	if got.State != "done" {
 		t.Fatalf("the enabled module runs: %+v", got)
 	}
+}
+
+// TestRealMasterInterviewsACard has the master on the installed Claude Code interview the owner about a card by the
+// interview skill; the owner (this test) takes every recommendation, and the spec ends up in the card.
+func TestRealMasterInterviewsACard(t *testing.T) {
+	realCLI(t)
+	home := t.TempDir()
+	e := newEnvWith(t, home, claudecode.New(filepath.Join(home, "mcp")), realWaits)
+	e.must("deck.project_create", map[string]any{"name": "reports", "prompt": "# Reports: the weekly reports of the household budget.\n"}, nil)
+	c := e.card(map[string]any{"project": "reports", "title": "Export the weekly report", "text": "I want to get the weekly report out of deck."})
+	var out struct{ Topic int64 }
+	e.must("deck.chat_send", map[string]any{"card": c.ID, "text": "Interview me about this card and write the spec into it. Ask at most three questions."}, &out)
+	deadline := time.Now().Add(15 * time.Minute)
+	answered := map[int64]bool{}
+	asked := 0
+	for time.Now().Before(deadline) {
+		time.Sleep(3 * time.Second)
+		var asks []askView
+		e.must("deck.asks_list", nil, &asks)
+		for _, a := range asks {
+			if answered[a.ID] || a.Kind != "question" {
+				continue
+			}
+			answered[a.ID] = true
+			asked++
+			var p struct {
+				Questions []struct {
+					Question string
+					Options  []struct{ Label string }
+				}
+			}
+			_ = json.Unmarshal(a.Payload, &p)
+			ans := map[string]string{}
+			for _, q := range p.Questions {
+				ans[q.Question] = "your recommendation"
+				if len(q.Options) > 0 {
+					ans[q.Question] = q.Options[0].Label
+				}
+			}
+			b, _ := json.Marshal(ans)
+			t.Logf("question: %s -> %s", a.Text, b)
+			e.must("deck.ask_answer", map[string]any{"ask": a.ID, "answer": string(b)}, nil)
+		}
+		var got struct{ Text string }
+		e.must("deck.card_get", map[string]any{"card": c.ID}, &got)
+		var ts []chatTopic
+		e.must("deck.chat_topics", nil, &ts)
+		if strings.Contains(got.Text, "## Spec") && len(ts) == 1 && ts[0].Reply == nil {
+			t.Logf("card after %d questions:\n%s", asked, got.Text)
+			for _, m := range e.chatMessages(out.Topic) {
+				t.Logf("%s: %s", m.Role, m.Text)
+			}
+			if !strings.HasPrefix(got.Text, "I want to get the weekly report out of deck.") {
+				t.Fatalf("the owner's text stays first: %q", got.Text)
+			}
+			return
+		}
+	}
+	t.Fatalf("no spec in the card: %+v", e.chatMessages(out.Topic))
 }

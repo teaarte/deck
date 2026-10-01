@@ -10,8 +10,10 @@ and big work becomes several cards in the right order.
 
 ## 1. Read first
 
-`card_get` the card, then what it points to: its record, the project's md (`document_get prompt.md`), the board
-(`cards_list`) and the project's memory. Do not ask what these already answer.
+`card_get` the card, then what it points to, naming the card's project in each call: its record (`record_get`),
+the project's md (`document_get` with `project` and `name: prompt.md`), the board (`cards_list` with `project`)
+and the project's memory (`document_get` with `project` and `name: memory/MEMORY.md`, then the facts it names).
+Do not ask what these already answer.
 
 ## 2. Ask, one question at a time
 

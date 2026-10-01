@@ -32,4 +32,5 @@ description: Puts the owner's tasks into the right deck project as cards, or int
 
 Answer with what you did: "Put it into deck2 as #41 (Backlog)." When you chose the project yourself, add
 "move it?" so the owner can say where else. When the owner says "move it to X": create the same card in X
-(title, text, record), delete the old one with `card_delete`, and say both numbers.
+(title and text; `record` only when it is a record of X, otherwise name it in the text, and name the cards it
+waited for there too), delete the old one with `card_delete`, and say both numbers.

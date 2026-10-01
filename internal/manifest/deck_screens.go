@@ -27,7 +27,7 @@ var SourceFields = map[string][]string{
 	"settings":      {"name", "title", "value", "default"},
 	"notifications": {"id", "project", "text", "screen", "record", "created_at"},
 	"commands":      {"name", "title", "description", "project", "files", "executor"},
-	"documents":     {"id", "name", "kind", "owner", "revision", "editable"},
+	"documents":     {"id", "name", "kind", "owner", "revision", "editable", "deleted"},
 	"calls": {"id", "tool", "actor", "project", "process", "class", "outcome", "external_id", "error", "params",
 		"created_at"},
 	"spend": {"project", "command", "provider", "model", "calls", "input_tokens", "output_tokens", "cache_read_tokens",

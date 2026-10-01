@@ -32,6 +32,7 @@
     "open": "Open",
     "run_now": "Run now",
     "pause": "Pause",
+    "restore": "Bring back",
     "resume": "Resume",
     "cancel_run": "Cancel",
     "send": "Send",

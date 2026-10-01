@@ -208,7 +208,8 @@
             {"label": "Name", "bind": "name"},
             {"label": "Kind", "bind": "kind"},
             {"label": "Belongs to", "bind": "owner"},
-            {"label": "Revision", "bind": "revision"}
+            {"label": "Revision", "bind": "revision"},
+            {"label": "Deleted", "bind": "deleted ? 'deleted' : ''"}
           ]}
       ]
     },

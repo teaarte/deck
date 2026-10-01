@@ -36,7 +36,13 @@ func (a *App) documentsList(ctx context.Context, act registry.Actor, in struct {
 	Project, Kind string
 	Deleted       bool
 }) (any, error) {
-	s, err := a.readDocScope(ctx, act, in.Project, "")
+	var s docs.Scope
+	var err error
+	if in.Project == "" && in.Kind == docs.KindMemory {
+		s, err = a.memoryScope(ctx, act, "", docs.MemoryIndex)
+	} else {
+		s, err = a.readDocScope(ctx, act, in.Project, "")
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -311,8 +317,11 @@ func (a *App) documentRevert(ctx context.Context, act registry.Actor, in struct 
 	var n int64
 	err = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		ref := docs.Ref{Scope: docs.Scope{Workspace: d.WorkspaceID, Project: d.ProjectID}, OwnerKind: d.OwnerKind, OwnerID: d.OwnerID, Name: d.Name}
-		if cur, err := q.GetDocument(ctx, d.ID); err != nil || in.IfRevision != 0 && cur.Current != in.IfRevision {
-			if err == nil {
+		if cur, err := q.GetDocument(ctx, d.ID); err != nil || cur.DeletedAt.Valid || in.IfRevision != 0 && cur.Current != in.IfRevision {
+			switch {
+			case err == nil && cur.DeletedAt.Valid:
+				err = registry.NotFound("deck: no document %d", d.ID)
+			case err == nil:
 				err = registry.Conflict("deck: document %d is at revision %d now, not %d", d.ID, cur.Current, in.IfRevision)
 			}
 			return err

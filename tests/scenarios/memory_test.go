@@ -102,7 +102,7 @@ func TestMemoryIndexIsCutAtItsLimit(t *testing.T) {
 	e.masterSaid(topic, 1)
 	p := e.Fake.Calls()[0].Prompt
 	if !strings.Contains(p, "- line 001") || !strings.Contains(p, "- line 150") || strings.Contains(p, "- line 151") ||
-		!strings.Contains(p, "[deck cut 50 more lines of this index]") {
+		!strings.Contains(p, "- line 150\n```\ndeck cut 50 more lines of this index.") {
 		t.Fatalf("the start of the index reaches the prompt and the cut is marked:\n%s", p)
 	}
 	var short struct{ Warning string }
@@ -204,4 +204,56 @@ func TestOwnerEditsTheMemory(t *testing.T) {
 	if len(ts) != 1 || ts[0].Command != "memory" || ts[0].Spec != "0 10 * * 1" {
 		t.Fatalf("the master cleans the memory on Monday at ten: %+v", ts)
 	}
+}
+
+func TestMemoryStaysWithItsOwnersAndDeletesHold(t *testing.T) {
+	home := t.TempDir()
+	script := func(ctx context.Context, c *Call) provider.Result {
+		if out, bad := c.Tool(ctx, "document_save", map[string]any{"name": "memory/gone.md", "kind": "memory",
+			"text": fact("gone", "user", "again")}); !bad {
+			return provider.Result{Text: "brought back: " + out}
+		}
+		if out, bad := c.Tool(ctx, "document_get", map[string]any{"project": "master", "name": "memory/MEMORY.md"}); !bad {
+			return provider.Result{Text: "read the owner: " + out}
+		}
+		return provider.Result{Text: "ok"}
+	}
+	fake := &Fake{script: script}
+	e := newEnvWith(t, home, fake)
+	reader := strings.Replace(plainManifest, `"triggers": [],`, `"triggers": [], "reads": [{"project": "master", "documents": ["memory/MEMORY.md"]}],`, 1)
+	if code, out := e.call("deck.project_create", map[string]any{"name": "nosy", "manifest": reader}); code != 422 || !strings.Contains(string(out), "no project reads it") {
+		t.Fatalf("no project reads project master: %d %s", code, out)
+	}
+	e.createProject("other", plainManifest)
+	snoop := strings.Replace(plainManifest, `"triggers": [],`, `"triggers": [], "reads": [{"project": "other", "documents": ["memory/MEMORY.md"]}],`, 1)
+	if code, out := e.call("deck.project_create", map[string]any{"name": "snoop", "manifest": snoop}); code != 422 || !strings.Contains(string(out), "own agents and the master only") {
+		t.Fatalf("no project reads the memory of another: %d %s", code, out)
+	}
+	p := e.createProject("own", plainManifest)
+	e.must("deck.document_save", map[string]any{"project": "own", "name": "memory/gone.md", "kind": "memory", "text": fact("gone", "user", "x")}, nil)
+	e.must("deck.document_delete", map[string]any{"project": "own", "name": "memory/gone.md"}, nil)
+	if got := e.waitState(e.run(p, "work"), "done"); string(got.Result) != `"ok"` {
+		t.Fatalf("an agent neither brings back what the owner deleted nor reads the owner's memory: %s", got.Result)
+	}
+	e.must("deck.document_save", map[string]any{"name": "memory/MEMORY.md", "kind": "memory", "text": "- " + strings.Repeat("x", 1000) + "\n"}, nil)
+	topic := e.say(0, "hello")
+	e.masterSaid(topic, 1)
+	if pr := fake.Calls()[1].Prompt; strings.Contains(pr, strings.Repeat("x", 500)) || !strings.Contains(pr, "deck shortened lines of this index") {
+		t.Fatal("a long line of an index is shortened")
+	}
+	e.must("deck.document_save", map[string]any{"name": "memory/MEMORY.md", "kind": "memory", "text": "- [Tea](tea.md) — NEWFACT\n"}, nil)
+	e.say(topic, "again")
+	e.masterSaid(topic, 2)
+	if pr := fake.Calls()[2].Prompt; !fake.Calls()[2].Resume || !strings.Contains(pr, "the memory changed") || !strings.Contains(pr, "NEWFACT") {
+		t.Fatalf("a resumed session of a topic gets the memory that changed:\n%s", pr)
+	}
+	e.say(topic, "once more")
+	e.masterSaid(topic, 3)
+	if pr := fake.Calls()[3].Prompt; strings.Contains(pr, "NEWFACT") {
+		t.Fatal("memory it already has does not come again")
+	}
+	e.must("deck.document_delete", map[string]any{"project": "master", "name": "prompts/memory.md"}, nil)
+	_ = e.App.Close()
+	e2 := newEnvWith(t, home, &Fake{script: script})
+	e2.refused("deck.document_get", map[string]any{"project": "master", "name": "prompts/memory.md"}, 404, "no document")
 }

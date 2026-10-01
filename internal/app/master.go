@@ -67,7 +67,10 @@ func (a *App) seedMaster(ctx context.Context, workspace int64, m *manifest.Manif
 		changed := false
 		for path, text := range files {
 			ref := docs.Ref{Scope: docs.ProjectScope(p), Name: path}
-			d, err := q.FindDocument(ctx, ref.Find())
+			d, err := q.FindAnyDocument(ctx, db.FindAnyDocumentParams(ref.Find()))
+			if err == nil && d.DeletedAt.Valid {
+				continue
+			}
 			if err == nil {
 				r, err := docs.Revision(ctx, q, d, 0)
 				if err != nil {

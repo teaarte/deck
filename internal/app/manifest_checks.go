@@ -28,6 +28,14 @@ func checkReads(ctx context.Context, q *db.Queries, workspace int64, name string
 		if err != nil {
 			return registry.Invalid("deck: reads: no project %q", r.Project)
 		}
+		if p.Builtin == 1 {
+			return registry.Invalid("deck: reads: project %s keeps the owner's memory and topics; no project reads it", p.Name)
+		}
+		for _, d := range r.Documents {
+			if strings.HasPrefix(d, docs.MemoryDir) {
+				return registry.Invalid("deck: reads: the memory of %s is for its own agents and the master only", r.Project)
+			}
+		}
 		other, err := docs.Manifest(ctx, q, p)
 		if err != nil {
 			return registry.Invalid("deck: reads: project %q has an invalid manifest: %v", r.Project, err)

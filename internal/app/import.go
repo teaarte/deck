@@ -35,6 +35,8 @@ func moduleKind(m *manifest.Manifest, name string) string {
 		return docs.KindPrompt
 	case strings.HasPrefix(name, docs.SkillsDir):
 		return docs.KindSkill
+	case strings.HasPrefix(name, docs.MemoryDir):
+		return docs.KindMemory
 	case strings.HasPrefix(name, "custom/"):
 		return docs.KindCustom
 	case slices.ContainsFunc(m.Scripts, func(s manifest.Script) bool { return s.File == name }):

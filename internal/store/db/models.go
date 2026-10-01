@@ -72,6 +72,7 @@ type ChatSession struct {
 	Provider  string
 	SessionID string
 	Seen      int64
+	Memory    string
 }
 
 type ChatTopic struct {

@@ -39,8 +39,12 @@ func (s Sources) documentItems(ctx context.Context, sc screen.Scope, names map[i
 	if err != nil {
 		return nil, err
 	}
+	gone, err := s.Store.Q.ListDeletedDocuments(ctx, db.ListDeletedDocumentsParams{WorkspaceID: sc.Workspace, ProjectID: sc.Project})
+	if err != nil {
+		return nil, err
+	}
 	out := []map[string]any{}
-	for _, d := range ds {
+	for _, d := range append(ds, gone...) {
 		if sc.Record != 0 && d.ID != sc.Record {
 			continue
 		}
@@ -48,9 +52,18 @@ func (s Sources) documentItems(ctx context.Context, sc screen.Scope, names map[i
 		if d.OwnerKind != "" {
 			owner = fmt.Sprintf("%s #%d", d.OwnerKind, d.OwnerID)
 		}
+		var acts []map[string]any
+		switch {
+		case d.DeletedAt.Valid:
+			acts = append(acts, call("restore", false, "deck.document_restore", map[string]any{"document": d.ID}))
+		default:
+			acts = append(acts, map[string]any{"verb": "open", "project": names[sc.Project], "screen": manifest.DocumentRecord, "record": d.ID})
+			if d.Kind != docs.KindManifest && !(d.Kind == docs.KindPrompt && d.OwnerKind == "") {
+				acts = append(acts, confirmed(call("delete", false, "deck.document_delete", map[string]any{"document": d.ID})))
+			}
+		}
 		out = append(out, map[string]any{"id": d.ID, "name": d.Name, "kind": d.Kind, "owner": owner, "revision": d.Current,
-			"editable": editable(d.Kind, d.Name),
-			"_actions": []map[string]any{{"verb": "open", "project": names[sc.Project], "screen": manifest.DocumentRecord, "record": d.ID}}})
+			"editable": editable(d.Kind, d.Name), "deleted": d.DeletedAt.Valid, "_actions": acts})
 	}
 	return out, nil
 }

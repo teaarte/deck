@@ -150,7 +150,7 @@ func (q *Queries) FindMessageByKey(ctx context.Context, arg FindMessageByKeyPara
 }
 
 const getChatSession = `-- name: GetChatSession :one
-SELECT topic_id, provider, session_id, seen FROM chat_session WHERE topic_id = ? AND provider = ?
+SELECT topic_id, provider, session_id, seen, memory FROM chat_session WHERE topic_id = ? AND provider = ?
 `
 
 type GetChatSessionParams struct {
@@ -166,6 +166,7 @@ func (q *Queries) GetChatSession(ctx context.Context, arg GetChatSessionParams) 
 		&i.Provider,
 		&i.SessionID,
 		&i.Seen,
+		&i.Memory,
 	)
 	return i, err
 }
@@ -464,9 +465,24 @@ func (q *Queries) SeeChat(ctx context.Context, arg SeeChatParams) error {
 	return err
 }
 
+const setChatMemory = `-- name: SetChatMemory :exec
+UPDATE chat_session SET memory = ? WHERE topic_id = ? AND session_id = ?
+`
+
+type SetChatMemoryParams struct {
+	Memory    string
+	TopicID   int64
+	SessionID string
+}
+
+func (q *Queries) SetChatMemory(ctx context.Context, arg SetChatMemoryParams) error {
+	_, err := q.db.ExecContext(ctx, setChatMemory, arg.Memory, arg.TopicID, arg.SessionID)
+	return err
+}
+
 const setChatSession = `-- name: SetChatSession :exec
-INSERT INTO chat_session (topic_id, provider, session_id, seen) VALUES (?, ?, ?, ?)
-ON CONFLICT (topic_id, provider) DO UPDATE SET session_id = excluded.session_id, seen = excluded.seen
+INSERT INTO chat_session (topic_id, provider, session_id, seen, memory) VALUES (?, ?, ?, ?, ?)
+ON CONFLICT (topic_id, provider) DO UPDATE SET session_id = excluded.session_id, seen = excluded.seen, memory = excluded.memory
 WHERE chat_session.session_id != excluded.session_id
 `
 
@@ -475,6 +491,7 @@ type SetChatSessionParams struct {
 	Provider  string
 	SessionID string
 	Seen      int64
+	Memory    string
 }
 
 func (q *Queries) SetChatSession(ctx context.Context, arg SetChatSessionParams) error {
@@ -483,6 +500,7 @@ func (q *Queries) SetChatSession(ctx context.Context, arg SetChatSessionParams) 
 		arg.Provider,
 		arg.SessionID,
 		arg.Seen,
+		arg.Memory,
 	)
 	return err
 }

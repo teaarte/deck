@@ -83,6 +83,9 @@ func Save(ctx context.Context, q *db.Queries, ref Ref, kind, text, author, reaso
 		return db.Document{}, 0, err
 	}
 	d, err := q.FindAnyDocument(ctx, db.FindAnyDocumentParams(ref.Find()))
+	if err == nil && d.DeletedAt.Valid && author != registry.Owner {
+		return d, 0, registry.Conflict("deck: %s was deleted; the owner can bring it back, or save it under another name", ref.Name)
+	}
 	if err == nil && d.DeletedAt.Valid {
 		if _, err := q.RestoreDocument(ctx, d.ID); err != nil {
 			return d, 0, err

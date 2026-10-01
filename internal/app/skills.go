@@ -77,8 +77,11 @@ func (a *App) seedSkills(ctx context.Context, workspace int64) error {
 		}
 		return a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 			ref := docs.Ref{Scope: docs.Scope{Workspace: workspace}, Name: docs.SkillsDir + path}
-			d, err := q.FindDocument(ctx, ref.Find())
+			d, err := q.FindAnyDocument(ctx, db.FindAnyDocumentParams(ref.Find()))
 			if err == nil {
+				if d.DeletedAt.Valid {
+					return nil
+				}
 				r, err := docs.Revision(ctx, q, d, 0)
 				if err != nil || r.Author != "deck" || r.Text == string(b) {
 					return err

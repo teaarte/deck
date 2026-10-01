@@ -79,9 +79,13 @@ SELECT * FROM chat_session WHERE topic_id = ? AND provider = ?;
 
 
 -- name: SetChatSession :exec
-INSERT INTO chat_session (topic_id, provider, session_id, seen) VALUES (?, ?, ?, ?)
-ON CONFLICT (topic_id, provider) DO UPDATE SET session_id = excluded.session_id, seen = excluded.seen
+INSERT INTO chat_session (topic_id, provider, session_id, seen, memory) VALUES (?, ?, ?, ?, ?)
+ON CONFLICT (topic_id, provider) DO UPDATE SET session_id = excluded.session_id, seen = excluded.seen, memory = excluded.memory
 WHERE chat_session.session_id != excluded.session_id;
+
+
+-- name: SetChatMemory :exec
+UPDATE chat_session SET memory = ? WHERE topic_id = ? AND session_id = ?;
 
 
 -- name: SeeChat :exec

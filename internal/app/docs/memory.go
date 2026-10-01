@@ -9,14 +9,17 @@ import (
 	"go.yaml.in/yaml/v3"
 
 	"deck2/internal/registry"
+	"deck2/internal/untrusted"
 )
 
 const (
 	// MemoryDir holds the memory of a project: the index and one document per fact.
 	MemoryDir   = "memory/"
 	MemoryIndex = MemoryDir + "MEMORY.md"
-	// IndexLimit is how many lines of an index reach a prompt.
+	// IndexLimit is how many lines of an index reach a prompt, each of lineLimit bytes at most.
 	IndexLimit = 150
+	lineLimit  = 400
+	indexBytes = 32000
 )
 
 var memoryTypes = []string{"user", "feedback", "project", "reference"}
@@ -67,11 +70,27 @@ func IndexLines(text string) int {
 	return len(strings.Split(strings.TrimRight(text, "\n"), "\n"))
 }
 
-// CutIndex is the start of an index up to IndexLimit lines, with a line that says how many were cut.
-func CutIndex(text string) string {
+// CutIndex is the start of an index: at most IndexLimit lines of at most lineLimit bytes and indexBytes in all;
+// cut tells what was left out, outside the data.
+func CutIndex(text string) (start, cut string) {
 	lines := strings.Split(strings.TrimRight(text, "\n"), "\n")
-	if len(lines) <= IndexLimit {
-		return strings.Join(lines, "\n")
+	var kept []string
+	size, short := 0, false
+	for _, l := range lines {
+		if len(kept) == IndexLimit || size+len(l) > indexBytes {
+			break
+		}
+		if len(l) > lineLimit {
+			l, short = untrusted.Cut(l, lineLimit), true
+		}
+		kept = append(kept, l)
+		size += len(l) + 1
 	}
-	return strings.Join(lines[:IndexLimit], "\n") + "\n[deck cut " + strconv.Itoa(len(lines)-IndexLimit) + " more lines of this index]"
+	switch {
+	case len(kept) < len(lines):
+		cut = "deck cut " + strconv.Itoa(len(lines)-len(kept)) + " more lines of this index."
+	case short:
+		cut = "deck shortened lines of this index longer than " + strconv.Itoa(lineLimit) + " bytes."
+	}
+	return strings.Join(kept, "\n"), cut
 }

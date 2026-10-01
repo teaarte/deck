@@ -106,7 +106,7 @@ func (a *App) reply(ctx context.Context, topicID int64) error {
 		if open.State != process.StateWaitingAnswer {
 			return nil
 		}
-		msg, err := a.chatPrompt(ctx, t, pending, open.SessionID, open.Provider, true)
+		msg, sign, err := a.chatPrompt(ctx, t, pending, open.SessionID, open.Provider, true)
 		if err != nil {
 			return err
 		}
@@ -114,7 +114,7 @@ func (a *App) reply(ctx context.Context, topicID int64) error {
 		if err != nil || !ok {
 			return err
 		}
-		return a.takeMessages(ctx, t, open.ID, last)
+		return a.takeMessages(ctx, t, open.ID, open.SessionID, sign, last)
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
 		return err
@@ -136,17 +136,22 @@ func (a *App) reply(ctx context.Context, topicID int64) error {
 		return err
 	}
 	o := process.Origin{Session: uuid.NewString()}
+	sign := ""
 	s, err := a.Store.Q.GetChatSession(ctx, db.GetChatSessionParams{TopicID: topicID, Provider: pv.Name()})
 	switch {
 	case err == nil:
 		o.Session, o.Resume = s.SessionID, true
-		if o.Message, err = a.chatPrompt(ctx, t, pending, s.SessionID, pv.Name(), true); err != nil {
+		if o.Message, sign, err = a.chatPrompt(ctx, t, pending, s.SessionID, pv.Name(), true); err != nil {
 			return err
 		}
 	case errors.Is(err, sql.ErrNoRows):
-		// A new session is told everything before the first waiting message.
+		// A new session is told everything before the first waiting message, and the memory of now.
+		if _, sign, err = a.masterMemory(ctx, p, topicID); err != nil {
+			return err
+		}
 		err = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-			return q.SetChatSession(ctx, db.SetChatSessionParams{TopicID: topicID, Provider: pv.Name(), SessionID: o.Session, Seen: first - 1})
+			return q.SetChatSession(ctx, db.SetChatSessionParams{TopicID: topicID, Provider: pv.Name(), SessionID: o.Session,
+				Seen: first - 1, Memory: sign})
 		})
 		if err != nil {
 			return err
@@ -158,7 +163,7 @@ func (a *App) reply(ctx context.Context, topicID int64) error {
 	if err != nil {
 		return err
 	}
-	news, err := a.chatPrompt(ctx, t, pending, "", "", false)
+	news, _, err := a.chatPrompt(ctx, t, pending, "", "", false)
 	if err != nil {
 		return err
 	}
@@ -167,13 +172,17 @@ func (a *App) reply(ctx context.Context, topicID int64) error {
 	if err != nil {
 		return err
 	}
-	return a.takeMessages(ctx, t, id, last)
+	return a.takeMessages(ctx, t, id, o.Session, sign, last)
 }
 
-// takeMessages gives the waiting messages up to through to the reply process.
-func (a *App) takeMessages(ctx context.Context, t db.ChatTopic, processID, through int64) error {
+// takeMessages gives the waiting messages up to through to the reply process, and keeps the sign of the memory
+// its session was given.
+func (a *App) takeMessages(ctx context.Context, t db.ChatTopic, processID int64, session, sign string, through int64) error {
 	err := a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		return q.TakeMessages(ctx, db.TakeMessagesParams{ProcessID: processID, TopicID: t.ID, Through: through})
+		if err := q.TakeMessages(ctx, db.TakeMessagesParams{ProcessID: processID, TopicID: t.ID, Through: through}); err != nil {
+			return err
+		}
+		return q.SetChatMemory(ctx, db.SetChatMemoryParams{Memory: sign, TopicID: t.ID, SessionID: session})
 	})
 	a.Bus.Publish("chat")
 	return err
@@ -181,14 +190,26 @@ func (a *App) takeMessages(ctx context.Context, t db.ChatTopic, processID, throu
 
 // chatPrompt is what a reply turn gets: on resume the messages its session missed, then the owner's new
 // messages with their screens, the card of the topic and where its summary is.
-func (a *App) chatPrompt(ctx context.Context, t db.ChatTopic, pending []db.ChatMessage, session, provider string, resume bool) (string, error) {
+func (a *App) chatPrompt(ctx context.Context, t db.ChatTopic, pending []db.ChatMessage, session, provider string, resume bool) (string, string, error) {
 	var b strings.Builder
+	sign := ""
 	if resume {
 		s, err := a.Store.Q.GetChatSession(ctx, db.GetChatSessionParams{TopicID: t.ID, Provider: provider})
 		if err == nil && s.SessionID == session {
+			mp, err := a.masterProject(ctx, t.WorkspaceID)
+			if err != nil {
+				return "", "", err
+			}
+			mem, now, err := a.masterMemory(ctx, mp, t.ID)
+			if err != nil {
+				return "", "", err
+			}
+			if sign = now; now != s.Memory {
+				b.WriteString("deck: the memory changed since this session last got it; here it is now.\n" + mem + "\n")
+			}
 			missed, err := a.Store.Q.ListMessages(ctx, db.ListMessagesParams{TopicID: t.ID, After: s.Seen})
 			if err != nil {
-				return "", err
+				return "", "", err
 			}
 			var lines []db.ChatMessage
 			for _, m := range missed {
@@ -200,7 +221,7 @@ func (a *App) chatPrompt(ctx context.Context, t db.ChatTopic, pending []db.ChatM
 			case len(lines) > retellTail:
 				retell, err := a.retelling(ctx, t, pending[0].ID)
 				if err != nil {
-					return "", err
+					return "", "", err
 				}
 				b.WriteString("deck: much happened in this topic since your last turn.\n" + retell + "\n")
 			case len(lines) > 0:
@@ -228,13 +249,13 @@ func (a *App) chatPrompt(ctx context.Context, t db.ChatTopic, pending []db.ChatM
 	}
 	grown, err := a.sinceSummary(ctx, t)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	fmt.Fprintf(&b, "The summary of this topic is document %s of project %s.", summaryName(t.ID), master.Name)
 	if grown >= summaryDue {
 		fmt.Fprintf(&b, " The topic has %d messages after its summary: update it by the topic-summary skill.", grown)
 	}
-	return b.String(), nil
+	return b.String(), sign, nil
 }
 
 // sinceSummary counts the messages of a topic after the current revision of its summary.

@@ -5,10 +5,12 @@ import (
 	"database/sql"
 	"errors"
 	"slices"
+	"strings"
 
 	"deck2/internal/app/docs"
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
+	"deck2/master"
 )
 
 // readScope resolves a project whose data a call reads: agents and triggers read another project only where
@@ -31,6 +33,9 @@ func (a *App) readScope(ctx context.Context, act registry.Actor, name, collectio
 func (a *App) mayRead(ctx context.Context, q *db.Queries, act registry.Actor, p db.Project, collection, document string) error {
 	if p.ID == act.ProjectID || act.Kind != registry.Agent && act.Kind != registry.Trigger {
 		return nil
+	}
+	if p.Builtin == 1 || strings.HasPrefix(document, docs.MemoryDir) {
+		return registry.Refuse("deck: the memory of a project and project %s are for its own agents and the master only", master.Name)
 	}
 	reads, err := a.reads(ctx, q, act, p.Name)
 	if err != nil {

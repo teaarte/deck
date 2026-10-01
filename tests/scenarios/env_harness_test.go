@@ -104,6 +104,8 @@ func newEnvBuiltin(t *testing.T, home string, ps []provider.Provider, cfg ...fun
 	e := &Env{T: t, App: a, URL: base, Side: side.URL, names: map[int64]string{}, Browser: browser}
 	// The master looks into failed processes on a provider of its own, so tests of failures see only their calls.
 	e.must("deck.provider_set", map[string]any{"command": "master.on_error", "provider": "quiet"}, nil)
+	// Its schedule stays out of the clocks of tests; a test of the master's own triggers resumes them.
+	e.must("deck.project_pause", map[string]any{"project": "master", "paused": true}, nil)
 	return e
 }
 

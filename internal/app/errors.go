@@ -39,11 +39,11 @@ func (a *App) toMaster(ctx context.Context, processID int64) {
 	if err != nil {
 		return
 	}
-	if m, err := docs.Manifest(ctx, a.Store.Q, proj); err != nil || m.MasterErrors != nil && !*m.MasterErrors {
-		return
-	}
 	// The master's own failure waits for the owner instead.
 	own := proj.Builtin == 1
+	if m, err := docs.Manifest(ctx, a.Store.Q, proj); err != nil || !own && m.MasterErrors != nil && !*m.MasterErrors {
+		return
+	}
 	var mp db.Project
 	var mm *manifest.Manifest
 	if !own {

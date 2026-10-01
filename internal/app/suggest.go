@@ -200,6 +200,9 @@ func (a *App) suggestionAnswer(ctx context.Context, act registry.Actor, q db.Ask
 		if m, err := docs.Manifest(ctx, a.Store.Q, p); err != nil || m.RoleLane("inbox") == nil {
 			return nil, registry.Invalid("deck: project %s has no inbox lane for a card", p.Name)
 		}
+		if s.Card.Project != p.Name {
+			s.Card.Record = 0
+		}
 		s.Card.Project = p.Name
 		payload, _ := json.Marshal(s)
 		var n int64
@@ -248,7 +251,7 @@ func (a *App) suggestionAnswer(ctx context.Context, act registry.Actor, q db.Ask
 // suggestionsRejected are the suggestions the owner said no to lately, so a suggester does not make them again;
 // an agent sees those of its own project and those it made.
 func (a *App) suggestionsRejected(ctx context.Context, act registry.Actor, in struct{ Days int64 }) (any, error) {
-	if in.Days <= 0 || in.Days > 365 {
+	if in.Days <= 0 || in.Days > 30 {
 		in.Days = 30
 	}
 	since := store.Time(a.Cfg.Now().Add(-time.Duration(in.Days) * 24 * time.Hour))

@@ -201,7 +201,7 @@ func TestOwnerEditsTheMemory(t *testing.T) {
 		Project, Command, Spec string
 	}
 	e.must("deck.triggers_list", map[string]any{"project": "master"}, &ts)
-	if len(ts) != 1 || ts[0].Command != "memory" || ts[0].Spec != "0 10 * * 1" {
+	if len(ts) != 2 || ts[0].Command != "memory" || ts[0].Spec != "0 10 * * 1" {
 		t.Fatalf("the master cleans the memory on Monday at ten: %+v", ts)
 	}
 }

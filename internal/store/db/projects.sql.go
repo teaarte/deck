@@ -10,7 +10,7 @@ import (
 )
 
 const createProject = `-- name: CreateProject :one
-INSERT INTO project (workspace_id, name, status) VALUES (?, ?, ?) RETURNING id, name, created_at, workspace_id, status, paused
+INSERT INTO project (workspace_id, name, status) VALUES (?, ?, ?) RETURNING id, name, created_at, workspace_id, status, paused, builtin
 `
 
 type CreateProjectParams struct {
@@ -29,6 +29,7 @@ func (q *Queries) CreateProject(ctx context.Context, arg CreateProjectParams) (P
 		&i.WorkspaceID,
 		&i.Status,
 		&i.Paused,
+		&i.Builtin,
 	)
 	return i, err
 }
@@ -108,7 +109,7 @@ func (q *Queries) DeleteProjectHealth(ctx context.Context, name string) error {
 }
 
 const getProject = `-- name: GetProject :one
-SELECT id, name, created_at, workspace_id, status, paused FROM project WHERE id = ?
+SELECT id, name, created_at, workspace_id, status, paused, builtin FROM project WHERE id = ?
 `
 
 func (q *Queries) GetProject(ctx context.Context, id int64) (Project, error) {
@@ -121,12 +122,13 @@ func (q *Queries) GetProject(ctx context.Context, id int64) (Project, error) {
 		&i.WorkspaceID,
 		&i.Status,
 		&i.Paused,
+		&i.Builtin,
 	)
 	return i, err
 }
 
 const getProjectByName = `-- name: GetProjectByName :one
-SELECT id, name, created_at, workspace_id, status, paused FROM project WHERE workspace_id = ? AND name = ?
+SELECT id, name, created_at, workspace_id, status, paused, builtin FROM project WHERE workspace_id = ? AND name = ?
 `
 
 type GetProjectByNameParams struct {
@@ -144,12 +146,13 @@ func (q *Queries) GetProjectByName(ctx context.Context, arg GetProjectByNamePara
 		&i.WorkspaceID,
 		&i.Status,
 		&i.Paused,
+		&i.Builtin,
 	)
 	return i, err
 }
 
 const listProjects = `-- name: ListProjects :many
-SELECT id, name, created_at, workspace_id, status, paused FROM project ORDER BY name
+SELECT id, name, created_at, workspace_id, status, paused, builtin FROM project ORDER BY name
 `
 
 func (q *Queries) ListProjects(ctx context.Context) ([]Project, error) {
@@ -168,6 +171,7 @@ func (q *Queries) ListProjects(ctx context.Context) ([]Project, error) {
 			&i.WorkspaceID,
 			&i.Status,
 			&i.Paused,
+			&i.Builtin,
 		); err != nil {
 			return nil, err
 		}
@@ -183,7 +187,7 @@ func (q *Queries) ListProjects(ctx context.Context) ([]Project, error) {
 }
 
 const listWorkspaceProjects = `-- name: ListWorkspaceProjects :many
-SELECT id, name, created_at, workspace_id, status, paused FROM project WHERE workspace_id = ? ORDER BY name
+SELECT id, name, created_at, workspace_id, status, paused, builtin FROM project WHERE workspace_id = ? ORDER BY name
 `
 
 func (q *Queries) ListWorkspaceProjects(ctx context.Context, workspaceID int64) ([]Project, error) {
@@ -202,6 +206,7 @@ func (q *Queries) ListWorkspaceProjects(ctx context.Context, workspaceID int64) 
 			&i.WorkspaceID,
 			&i.Status,
 			&i.Paused,
+			&i.Builtin,
 		); err != nil {
 			return nil, err
 		}

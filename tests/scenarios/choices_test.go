@@ -42,7 +42,7 @@ func TestFormFieldsOfferValuesFromASourceAndProjectFieldsTheProjects(t *testing.
 		t.Fatalf("a field offers the items of its source by the value and label expressions: %+v", touch.Choices)
 	}
 	hand := blockData[struct{ Choices map[string][]choiceV }](t, main["b3"]["value"])
-	if to := hand.Choices["to"]; len(to) != 2 || to[0].Value != "tools" || to[1].Value != "web" {
+	if to := hand.Choices["to"]; len(to) != 3 || to[0].Value != "master" || to[1].Value != "tools" || to[2].Value != "web" {
 		t.Fatalf("a field that names a project offers the projects: %+v", hand.Choices)
 	}
 

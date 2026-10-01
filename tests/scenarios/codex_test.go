@@ -518,3 +518,13 @@ func TestCodexTurnGoesOnWhenTheAppServerStopsReadingWhileItWrites(t *testing.T) 
 		t.Fatalf("deck reads the output while its long input waits for the app-server: %+v", got)
 	}
 }
+
+func TestTheFinalAnswerOfCodexIsTheTextOfItsTurn(t *testing.T) {
+	c := newCodex(t)
+	c.stream(0, "reply.jsonl")
+	e, _ := codexEnv(t, c)
+	topic := e.say(0, "We are out of oat milk.")
+	if said := e.masterSaid(topic, 1); said[0].Text != "Put it into groceries." {
+		t.Fatalf("the final answer of a Codex turn is its text: %+v", said)
+	}
+}

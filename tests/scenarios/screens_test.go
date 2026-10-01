@@ -252,7 +252,7 @@ func TestScreenBlocksFollowTheCatalog(t *testing.T) {
 		Project string
 		Screens []struct{ Name string }
 	}
-	e.must("deck.menu", nil, &menu)
+	e.menuOf(&menu)
 	if len(menu) != 2 || menu[0].Project != "" || menu[0].Screens[0].Name != "cockpit" || menu[1].Project != "notes" ||
 		len(menu[1].Screens) != 2 || menu[1].Screens[0].Name != "main" || menu[1].Screens[1].Name != "documents" {
 		t.Fatalf("the menu has deck's screens, then the project menu and its documents: %+v", menu)

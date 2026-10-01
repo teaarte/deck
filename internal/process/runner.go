@@ -78,6 +78,10 @@ type Runner struct {
 	projects  Projects
 	// OnDone runs after a process finishes done with a result that is not empty and fits its schema.
 	OnDone func(ctx context.Context, p db.Process)
+	// OnClosed runs after a process reached a final state, whatever it is.
+	OnClosed func(ctx context.Context, processID int64)
+	// OnTurn gets the final text of an agent turn that ends the process done or parks it for the owner.
+	OnTurn func(ctx context.Context, processID int64, text string)
 
 	ctx     context.Context
 	cancel  context.CancelFunc
@@ -214,7 +218,7 @@ func (r *Runner) finish(ctx context.Context, processID int64, state, result stri
 	delete(r.marked, processID)
 	r.mu.Unlock()
 	r.dropped(ctx, closedCalls)
-	r.closed(processID)
+	r.closed(ctx, processID)
 	if state == StateDone && !notBySchema && result != Empty && r.OnDone != nil {
 		if p, err := r.st.Q.GetProcess(ctx, processID); err == nil {
 			r.OnDone(ctx, p)
@@ -242,10 +246,13 @@ func (r *Runner) stopFirst(ctx context.Context, processID int64) bool {
 }
 
 // closed drops the log of a process that reached a final state and announces it.
-func (r *Runner) closed(processID int64) {
+func (r *Runner) closed(ctx context.Context, processID int64) {
 	_ = os.Remove(r.LogPath(processID))
 	r.bus.Publish("processes")
 	r.bus.Publish("asks")
+	if r.OnClosed != nil {
+		r.OnClosed(ctx, processID)
+	}
 }
 
 // dropped journals the frozen calls a closed process took with it.

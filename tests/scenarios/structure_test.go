@@ -28,7 +28,7 @@ func TestLegacyDescriptionBecomesThePrompt(t *testing.T) {
 	e := newEnv(t, nil)
 	e.createProject("ideas", ideasV1)
 	var projects []struct{ Description string }
-	e.must("deck.projects_list", nil, &projects)
+	e.projectsOf(&projects)
 	var prompt struct{ Text string }
 	e.must("deck.document_get", map[string]any{"project": "ideas", "name": "prompt.md"}, &prompt)
 	if len(projects) != 1 || projects[0].Description != "Ideas of the day" || prompt.Text != "Ideas of the day" {
@@ -49,7 +49,7 @@ func TestOtherWorkspacesAreInvisible(t *testing.T) {
 		}
 	}
 	var projects []struct{ Name string }
-	e.must("deck.projects_list", nil, &projects)
+	e.projectsOf(&projects)
 	if len(projects) != 1 || projects[0].Name != "mine" {
 		t.Fatalf("projects of another workspace must not be listed: %+v", projects)
 	}
@@ -97,7 +97,7 @@ func TestStoredV2DescriptionMovesToThePromptOnStart(t *testing.T) {
 		Description   string
 		ManifestError string `json:"manifest_error"`
 	}
-	e.must("deck.projects_list", nil, &projects)
+	e.projectsOf(&projects)
 	if len(projects) != 1 || projects[0].ManifestError != "" || projects[0].Description != "Ideas of the day" {
 		t.Fatalf("a v2 manifest with a description must upgrade and move it into the prompt: %+v", projects)
 	}

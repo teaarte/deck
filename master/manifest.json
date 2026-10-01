@@ -1,0 +1,26 @@
+{
+  "version": 5,
+  "commands": [
+    {
+      "name": "reply",
+      "title": "Reply",
+      "description": "Answers the owner's messages in a chat topic.",
+      "class": "internal",
+      "callers": ["trigger"],
+      "requires": ["tools"],
+      "provider": "claude-code",
+      "input": {
+        "type": "object",
+        "properties": {
+          "topic": {"type": "integer", "description": "The chat topic"}
+        },
+        "required": ["topic"]
+      },
+      "executor": {
+        "type": "agent",
+        "prompt_file": "prompts/reply.md",
+        "skills": ["dispatch", "topic-summary", "module-builder", "code-project"]
+      }
+    }
+  ]
+}

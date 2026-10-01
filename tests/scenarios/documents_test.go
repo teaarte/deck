@@ -60,7 +60,7 @@ func TestDocumentsOfAProjectAreListedOnItsDocumentsScreenAndEditedOnTheirPage(t 
 		Project string
 		Screens []struct{ Name, Title string }
 	}
-	e.must("deck.menu", nil, &menu)
+	e.menuOf(&menu)
 	if s := menu[1].Screens; menu[1].Project != "other" && menu[2].Project != "web" || len(s) != 2 || s[1].Name != "documents" {
 		t.Fatalf("each project menu ends with its documents: %+v", menu)
 	}

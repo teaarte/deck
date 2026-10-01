@@ -56,6 +56,35 @@ type CardEdge struct {
 	WaitsFor int64
 }
 
+type ChatMessage struct {
+	ID        int64
+	TopicID   int64
+	Role      string
+	Text      string
+	Context   string
+	ProcessID int64
+	RetryKey  string
+	CreatedAt string
+}
+
+type ChatSession struct {
+	TopicID   int64
+	Provider  string
+	SessionID string
+	Seen      int64
+}
+
+type ChatTopic struct {
+	ID          int64
+	WorkspaceID int64
+	Title       string
+	CardID      int64
+	Archived    int64
+	DeletedAt   sql.NullString
+	CreatedAt   string
+	UpdatedAt   string
+}
+
 type Document struct {
 	ID          int64
 	WorkspaceID int64
@@ -184,6 +213,7 @@ type Project struct {
 	WorkspaceID int64
 	Status      string
 	Paused      int64
+	Builtin     int64
 }
 
 type ProjectFolder struct {

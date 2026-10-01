@@ -45,11 +45,16 @@ type Session struct {
 	Ask bool
 	// Wait caps how long a call of the session waits for the owner, for a provider whose tool calls time out.
 	Wait time.Duration
+	// Master is an agent of the built-in project master: it acts as the master, across projects.
+	Master bool
 }
 
 func (s *Session) actor() registry.Actor {
 	if s.Token != 0 {
 		return registry.Actor{Kind: registry.Master, Workspace: s.Workspace, Token: s.Token, Commands: s.Commands}
+	}
+	if s.Master {
+		return registry.Actor{Kind: registry.Master, Workspace: s.Workspace, ProjectID: s.ProjectID, ProcessID: s.ProcessID, Trial: s.Trial}
 	}
 	return registry.Actor{Kind: registry.Agent, Workspace: s.Workspace, ProjectID: s.ProjectID, ProcessID: s.ProcessID, Trial: s.Trial}
 }

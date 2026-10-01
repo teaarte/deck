@@ -61,7 +61,7 @@ func (r *Runner) Stop(ctx context.Context, processID int64, reason string) error
 	}
 	r.freeFolderOf(ctx, processID)
 	r.dropped(ctx, closedCalls)
-	r.closed(processID)
+	r.closed(ctx, processID)
 	return nil
 }
 

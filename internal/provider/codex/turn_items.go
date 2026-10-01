@@ -69,7 +69,9 @@ func (t *turn) item(raw ThreadItem) {
 		var it AgentMessageThreadItem
 		if decode(raw, &it) {
 			t.emit(provider.Event{Kind: provider.EventMessage, Text: it.Text})
-			if string(it.Phase) == "final_answer" {
+			var phase string
+			_ = json.Unmarshal(it.Phase, &phase)
+			if phase == "final_answer" {
 				t.final = it.Text
 			}
 		}

@@ -42,8 +42,11 @@ func (s Sources) projectItems(ctx context.Context, sc screen.Scope) ([]map[strin
 		if paused {
 			verb = "resume"
 		}
-		it["_actions"] = append(acts, call(verb, false, "deck.project_pause", map[string]any{"project": p.Name, "paused": !paused}),
-			confirmed(call("delete", false, "deck.project_delete", map[string]any{"project": p.Name})))
+		acts = append(acts, call(verb, false, "deck.project_pause", map[string]any{"project": p.Name, "paused": !paused}))
+		if p.Builtin == 0 {
+			acts = append(acts, confirmed(call("delete", false, "deck.project_delete", map[string]any{"project": p.Name})))
+		}
+		it["_actions"] = acts
 		out = append(out, it)
 	}
 	return out, nil

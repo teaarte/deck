@@ -114,7 +114,7 @@ func TestManifestRevisionsAndRevert(t *testing.T) {
 		Name, Description string
 		Screens           []struct{ Name string }
 	}
-	e.must("deck.projects_list", nil, &projects)
+	e.projectsOf(&projects)
 	if len(projects) != 1 || projects[0].Description != "Ideas of the day" || len(projects[0].Screens) != 1 {
 		t.Fatalf("projects_list: %+v", projects)
 	}

@@ -95,7 +95,7 @@ func TestAModuleExportedByTheSkillImportsAsADraft(t *testing.T) {
 		t.Fatalf("a file name deck cannot store is refused: %d %s", code, out)
 	}
 	var ps []projectV
-	e.must("deck.projects_list", nil, &ps)
+	e.projectsOf(&ps)
 	if len(ps) != 2 {
 		t.Fatalf("a refused import leaves no project behind: %+v", ps)
 	}

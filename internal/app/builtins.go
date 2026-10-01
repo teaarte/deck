@@ -250,4 +250,5 @@ func (a *App) addBuiltins() {
 			registry.Opt("screen", "string", "Screen of the project the line opens"), registry.Opt("record", "record", "Record the screen shows"),
 			registry.Opt("actions", "text", "Buttons as JSON: [{label, command, params}] with commands of the project")),
 		registry.Typed(a.notify))
+	a.addChatCommands()
 }

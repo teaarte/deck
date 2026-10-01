@@ -154,5 +154,11 @@
   "date": "2026-09-27",
   "kind": "synthetic",
   "note": "ok.jsonl setup where the owner has an MCP server named deck"
+ },
+ "reply.jsonl": {
+  "cli": "0.155.1",
+  "date": "2026-10-01",
+  "kind": "synthetic",
+  "note": "ok.jsonl without result_submit; the final answer carries the text of the turn, as Codex 0.155.1 gave it to a reply of the master"
  }
 }

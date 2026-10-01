@@ -86,6 +86,9 @@ func (a *App) projectDelete(ctx context.Context, act registry.Actor, in struct{ 
 
 // deletable refuses to delete a project that still has open processes or that another project reads.
 func (a *App) deletable(ctx context.Context, q *db.Queries, p db.Project) error {
+	if p.Builtin == 1 {
+		return registry.Invalid("deck: %s is built into deck; it cannot be deleted", p.Name)
+	}
 	open, err := q.ListOpenProcesses(ctx, db.ListOpenProcessesParams{WorkspaceID: p.WorkspaceID, ProjectID: p.ID})
 	if err != nil {
 		return err

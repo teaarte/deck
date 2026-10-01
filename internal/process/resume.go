@@ -337,3 +337,26 @@ func deliveryMessage(asks []db.Ask) string {
 	b.WriteString("Continue the task.")
 	return b.String()
 }
+
+// Tell resumes a process parked for the owner with a message of the owner; what it still waits for stays
+// open. It reports false when the process was not parked.
+func (r *Runner) Tell(ctx context.Context, processID int64, message string) (bool, error) {
+	if ok, err := r.claim(ctx, processID, StateWaitingAnswer); err != nil || !ok {
+		return false, err
+	}
+	pending, _ := r.st.Q.ListUndeliveredAsks(ctx, processID)
+	if len(pending) > 0 {
+		message += "\n" + deliveryMessage(pending)
+	}
+	if open, err := r.st.Q.ListOpenAsksOfProcess(ctx, processID); err == nil && len(open) > 0 {
+		message += "\nStill waiting for the owner:\n"
+		for _, a := range open {
+			message += "- " + untrusted.Line(a.Text, 300) + "\n"
+		}
+	}
+	if err := r.resume(ctx, processID, message, askIDs(pending), false); err != nil {
+		r.finish(ctx, processID, StateError, "", false, "resume with a message: "+err.Error())
+		return true, err
+	}
+	return true, nil
+}

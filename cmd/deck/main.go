@@ -92,6 +92,7 @@ func run() error {
 	if err := a.Runner.ResumeInterrupted(ctx); err != nil {
 		slog.Error("resume interrupted", "err", err)
 	}
+	a.PumpChats(ctx)
 	go a.Loop(ctx, 30*time.Second)
 
 	server := api.New(a, token, web.FS())

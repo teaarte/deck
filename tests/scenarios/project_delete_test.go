@@ -114,7 +114,7 @@ func TestProjectDeleteTakesASnapshotAndLeavesNothingOfTheProject(t *testing.T) {
 		t.Fatalf("the deletes and the refused token are in the journal, the calls of the project are not: %+v", journal)
 	}
 	var ps []projectV
-	e.must("deck.projects_list", nil, &ps)
+	e.projectsOf(&ps)
 	if len(ps) != 0 {
 		t.Fatalf("the project is gone from the list: %+v", ps)
 	}

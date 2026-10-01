@@ -29,6 +29,12 @@ type Origin struct {
 	Confirmed bool
 	Key       string
 	Trial     bool
+	// Session is an existing session the agent continues, by resume with Message when Resume is set.
+	Session string
+	Resume  bool
+	Message string
+	// Note goes into the first prompt of a fresh session, also of one that replaces a lost session.
+	Note string
 }
 
 func (r *Runner) ceilingOf(m *manifest.Manifest, cmd *manifest.Command) time.Duration {
@@ -71,6 +77,9 @@ func (r *Runner) Start(ctx context.Context, projectID int64, m *manifest.Manifes
 		}
 		if _, err := r.projects.Skills(ctx, projectID, cmd.Executor.Skills); err != nil {
 			return 0, err
+		}
+		if o.Session != "" {
+			session = o.Session
 		}
 		if !cmd.Executor.Folder.IsZero() {
 			if !slices.Contains(pv.Caps(), provider.Folder) {
@@ -148,7 +157,8 @@ func (r *Runner) Start(ctx context.Context, projectID int64, m *manifest.Manifes
 		}
 		p, err = q.CreateProcess(ctx, db.CreateProcessParams{Trial: b2i(trial), ProjectID: projectID, Command: command, Kind: kind, State: StateRunning,
 			Provider: providerName, Input: string(in), SessionID: session, ParentID: ref(o.Parent), Depth: depth,
-			TriggerID: ref(o.Trigger), RetryKey: o.Key, CeilingMs: r.ceilingOf(m, cmd).Milliseconds(), ManifestRevision: m.Revision, Folder: folder})
+			TriggerID: ref(o.Trigger), RetryKey: o.Key, CeilingMs: r.ceilingOf(m, cmd).Milliseconds(), ManifestRevision: m.Revision, Folder: folder,
+			StartNote: o.Note})
 		if err != nil {
 			return err
 		}
@@ -173,7 +183,8 @@ func (r *Runner) Start(ctx context.Context, projectID int64, m *manifest.Manifes
 	if o.Trigger != 0 {
 		r.bus.Publish("triggers")
 	}
-	r.spawn(turn{process: p.ID, project: projectID, m: m, cmd: cmd, input: string(in), session: session})
+	resume := o.Resume && kind == KindAgent && o.Session != ""
+	r.spawn(turn{process: p.ID, project: projectID, m: m, cmd: cmd, input: string(in), session: session, resume: resume, message: o.Message})
 	return p.ID, nil
 }
 

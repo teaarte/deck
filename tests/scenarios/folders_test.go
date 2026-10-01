@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -80,13 +81,13 @@ func TestAgentCommandWorksInTheProjectFolder(t *testing.T) {
 		Name    string
 		Folders []struct{ Name, Path string }
 	}
-	e.must("deck.projects_list", map[string]any{}, &list)
+	e.projectsOf(&list)
 	if len(list) != 1 || len(list[0].Folders) != 2 || list[0].Folders[0].Name != "my-repo" {
 		t.Fatalf("projects_list gives the folders: %+v", list)
 	}
 	var items []listItem
 	_ = json.Unmarshal(e.settingsBlock("Projects", nil)["items"], &items)
-	if len(items) != 1 || !strings.Contains(items[0].Meta, "folders: my-repo: "+repo+"; notes: ") {
+	if len(items) != 2 || !strings.Contains(items[0].Meta, "folders: my-repo: "+repo+"; notes: ") || strings.Contains(fmt.Sprint(items[1].Actions), "project_delete") {
 		t.Fatalf("the Projects tab shows the folders: %+v", items)
 	}
 	e.must("deck.folder_remove", map[string]any{"project": "code", "name": "notes"}, nil)
@@ -213,7 +214,7 @@ func TestOnlyTheOwnerAddsAFolder(t *testing.T) {
 		}
 	}
 	var list []struct{ Folders []struct{ Name string } }
-	e.must("deck.projects_list", map[string]any{}, &list)
+	e.projectsOf(&list)
 	if len(list[0].Folders) != 0 {
 		t.Fatalf("nobody but the owner added a folder: %+v", list)
 	}
@@ -280,13 +281,13 @@ func TestTheProjectsTabCreatesAProjectAndGivesItAFolder(t *testing.T) {
 	}
 	e.must("deck.project_create", map[string]any{"name": "notes", "prompt": "Notes of the owner.\n"}, nil)
 	var list []struct{ Name, Status, Description string }
-	e.must("deck.projects_list", map[string]any{}, &list)
+	e.projectsOf(&list)
 	if len(list) != 1 || list[0].Status != "enabled" || list[0].Description != "Notes of the owner." {
 		t.Fatalf("a project from a name and a prompt: %+v", list)
 	}
 	for _, title := range []string{"Add folder", "Remove folder"} {
 		f := blockData[struct{ Choices map[string][]choiceV }](t, e.settingsBlock(title, nil)["value"])
-		if p := f.Choices["project"]; len(p) != 1 || p[0].Value != "notes" {
+		if p := f.Choices["project"]; len(p) != 2 || p[1].Value != "notes" {
 			t.Fatalf("%s offers the projects: %+v", title, f.Choices)
 		}
 	}

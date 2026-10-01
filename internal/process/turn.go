@@ -121,7 +121,7 @@ func (r *Runner) run(ctx context.Context, t turn) {
 		sub = &gateway.Submit{Schema: t.cmd.Result, Validate: func(raw json.RawMessage) error { return validate(t.cmd, raw) }}
 	}
 	tok, err := r.gw.Register(bg, &gateway.Session{ProcessID: processID, ProjectID: t.project, Workspace: proj.WorkspaceID, Trial: trial, Submit: sub,
-		Ask: pv.QuestionTool() == provider.AskTool, Wait: callLimit(pv)})
+		Ask: pv.QuestionTool() == provider.AskTool, Wait: callLimit(pv), Master: proj.Builtin == 1})
 	if err != nil {
 		r.finish(bg, processID, StateError, "", false, err.Error())
 		return
@@ -228,8 +228,10 @@ func (r *Runner) run(ctx context.Context, t turn) {
 		case res.IsError:
 			r.finish(bg, processID, StateError, res.Text, false, "provider reported an error: "+res.Text)
 		case blocked:
+			r.turnText(bg, processID, res.Text)
 			r.park(bg, processID)
 		case verr == nil:
+			r.turnText(bg, processID, res.Text)
 			result := res.Text
 			if len(t.cmd.Result) > 0 {
 				result = string(res.Structured)
@@ -258,6 +260,12 @@ func (r *Runner) run(ctx context.Context, t turn) {
 			continue
 		}
 		return
+	}
+}
+
+func (r *Runner) turnText(ctx context.Context, processID int64, text string) {
+	if r.OnTurn != nil {
+		r.OnTurn(ctx, processID, text)
 	}
 }
 

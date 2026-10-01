@@ -122,7 +122,7 @@ func TestCardCommands(t *testing.T) {
 
 	e.must("deck.records_upsert", map[string]any{"project": "work", "collection": "items", "records": jsonl(map[string]any{"url": "u1"})}, nil)
 	e.must("deck.records_upsert", map[string]any{"project": "plain", "collection": "ideas", "records": jsonl(map[string]any{"title": "x", "score": 1})}, nil)
-	recs, _ := e.App.Store.Q.ListRecords(context.Background(), db.ListRecordsParams{ProjectID: 1, Collection: "items"})
+	recs, _ := e.App.Store.Q.ListRecords(context.Background(), db.ListRecordsParams{ProjectID: e.projectID("work"), Collection: "items"})
 	e.must("deck.card_update", map[string]any{"card": b.ID, "title": "Second!", "record": recs[0].ID}, &got)
 	if got.Title != "Second!" || got.Record != recs[0].ID || got.Rank != 2 {
 		t.Fatalf("card_update: %+v", got)
@@ -154,7 +154,7 @@ func TestCardCommands(t *testing.T) {
 	e.refused("deck.card_create", map[string]any{"project": "work", "title": " "}, 422, "needs a title")
 	e.refused("deck.card_create", map[string]any{"project": "work", "title": "x", "lane": "later"}, 422, `no lane "later"`)
 	e.refused("deck.card_create", map[string]any{"project": "plain", "title": "x"}, 422, "has no board")
-	plainRecs, _ := e.App.Store.Q.ListRecords(context.Background(), db.ListRecordsParams{ProjectID: 2, Collection: "ideas"})
+	plainRecs, _ := e.App.Store.Q.ListRecords(context.Background(), db.ListRecordsParams{ProjectID: e.projectID("plain"), Collection: "ideas"})
 	e.refused("deck.card_create", map[string]any{"project": "work", "title": "x", "record": plainRecs[0].ID}, 404, "no record")
 	e.refused("deck.card_move", map[string]any{"card": b.ID, "lane": "done", "before": c.ID}, 422, "not in lane")
 	e.refused("deck.card_move", map[string]any{"card": b.ID, "lane": "backlog", "before": b.ID}, 422, "before itself")
@@ -311,7 +311,7 @@ func TestRemovedRecordUnlinksCards(t *testing.T) {
 	e := newEnv(t, idle)
 	e.createProject("work", boardManifest)
 	e.must("deck.records_upsert", map[string]any{"project": "work", "collection": "items", "records": jsonl(map[string]any{"url": "u1"})}, nil)
-	recs, _ := e.App.Store.Q.ListRecords(context.Background(), db.ListRecordsParams{ProjectID: 1, Collection: "items"})
+	recs, _ := e.App.Store.Q.ListRecords(context.Background(), db.ListRecordsParams{ProjectID: e.projectID("work"), Collection: "items"})
 	c := e.card(map[string]any{"project": "work", "title": "x", "record": recs[0].ID})
 	e.must("deck.collection_delete", map[string]any{"project": "work", "collection": "items"}, nil)
 	var after cardV

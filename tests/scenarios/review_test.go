@@ -27,7 +27,7 @@ func TestDocumentIDsAreNotReused(t *testing.T) {
 	e := newEnv(t, idle)
 	e.createProject("nums", calcManifest)
 	e.must("deck.records_upsert", map[string]any{"project": "nums", "collection": "nums", "records": jsonl(map[string]any{"n": 1})}, nil)
-	recs, _ := e.App.Store.Q.ListRecords(context.Background(), db.ListRecordsParams{ProjectID: 1, Collection: "nums"})
+	recs, _ := e.App.Store.Q.ListRecords(context.Background(), db.ListRecordsParams{ProjectID: e.projectID("nums"), Collection: "nums"})
 	var old struct{ ID int64 }
 	e.must("deck.document_save", map[string]any{"project": "nums", "name": "a.md", "kind": "artifact", "text": "mine", "record": recs[0].ID}, &old)
 	e.must("deck.collection_delete", map[string]any{"project": "nums", "collection": "nums"}, nil)
@@ -48,7 +48,7 @@ func TestCommandRunsTheRevisionItWasAuthorizedAgainst(t *testing.T) {
 	}
 	e.must("deck.manifest_save", map[string]any{"project": "nums",
 		"manifest": strings.NewReplacer(`"class": "internal"`, `"class": "external", "callers": ["owner"]`, "OLD PROMPT", "NEW PROMPT").Replace(calcManifest)}, nil)
-	out, err := cmd.Handler(context.Background(), registry.Actor{Kind: registry.Agent, Workspace: 1, ProjectID: 1}, []byte(`{}`))
+	out, err := cmd.Handler(context.Background(), registry.Actor{Kind: registry.Agent, Workspace: 1, ProjectID: e.projectID("nums")}, []byte(`{}`))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -49,9 +49,16 @@ type Fake struct {
 	noQuestions bool
 	// noFolder is a provider that cannot work in a folder of the owner.
 	noFolder bool
+	// name is the provider name; "fake" when empty.
+	name string
 }
 
-func (f *Fake) Name() string { return "fake" }
+func (f *Fake) Name() string {
+	if f.name != "" {
+		return f.name
+	}
+	return "fake"
+}
 
 func (f *Fake) Caps() provider.Caps {
 	c := provider.Caps{provider.Tools, provider.Sandbox, provider.Resume, provider.Intercept, provider.Images, provider.StructuredOutput}

@@ -314,23 +314,29 @@ func TestTopicsRunInParallelAndRepliesQueue(t *testing.T) {
 }
 
 func TestAMessageReachesAReplyThatParkedForTheOwner(t *testing.T) {
-	asked := make(chan struct{})
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		switch c.N {
 		case 1:
-			close(asked)
-			c.Approve(ctx, "AskUserQuestion", map[string]any{"questions": []any{map[string]any{"question": "Which list?"}}})
-			return provider.Result{Text: "Which list, the shop or the market?"}
+			out, _ := c.Tool(ctx, "ext__work", map[string]any{})
+			if !strings.Contains(out, "waits for the owner's confirmation") {
+				return provider.Result{Text: "not held: " + out}
+			}
+			return provider.Result{Text: "Sending it needs your yes."}
 		case 2:
 			return provider.Result{SessionMissing: true}
 		}
 		return provider.Result{Text: "Put it on the market list."}
-	}, func(c *app.Config) { c.QuestionWait = 300 * time.Millisecond })
+	})
+	e.createProject("ext", strings.Replace(plainManifest, `"class": "internal"`, `"class": "external"`, 1))
 	topic := e.say(0, "buy apples")
-	<-asked
+	e.masterSaid(topic, 1)
+	e.waitFor("the reply parked", func() bool {
+		ms := e.chatMessages(topic)
+		return ms[0].Reply != nil && ms[0].Reply.State == "waiting_answer"
+	})
 	e.say(topic, "the market one")
 	said := e.masterSaid(topic, 2)
-	if said[0].Text != "Which list, the shop or the market?" || said[1].Text != "Put it on the market list." {
+	if said[0].Text != "Sending it needs your yes." || said[1].Text != "Put it on the market list." {
 		t.Fatalf("the reply that parked speaks, then answers the message sent meanwhile: %+v", said)
 	}
 	calls := e.Fake.Calls()
@@ -465,7 +471,10 @@ func TestAMessageAnswersTheQuestionOfTheReply(t *testing.T) {
 		return provider.Result{Text: fmt.Sprint("Picked ", answers["Which list?"])}
 	}, func(c *app.Config) { c.QuestionWait = time.Minute })
 	topic := e.say(0, "buy apples")
-	e.waitFor("the question", func() bool { _, out := e.call("deck.asks_list", nil); return strings.Contains(string(out), "Which list?") })
+	e.waitFor("the question", func() bool {
+		_, out := e.call("deck.asks_list", nil)
+		return strings.Contains(string(out), "Which list?")
+	})
 	e.say(topic, "the market one")
 	if said := e.masterSaid(topic, 1); said[0].Text != "Picked the market one" {
 		t.Fatalf("a message typed while the master asks is the answer: %+v", said)

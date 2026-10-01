@@ -164,7 +164,7 @@ const createAsk = `-- name: CreateAsk :one
 INSERT INTO ask (process_id, workspace_id, project_id, kind, text, payload, expires_at)
 SELECT p.id, j.workspace_id, j.id, CAST(?1 AS TEXT), CAST(?2 AS TEXT), CAST(?3 AS TEXT),
     ?4
-FROM process p JOIN project j ON j.id = p.project_id WHERE p.id = ?5 AND p.finished_at IS NULL
+FROM process p JOIN project j ON j.id = p.project_id WHERE p.id = ?5
 RETURNING id, process_id, workspace_id, project_id, kind, text, payload, answer, state, delivered, used, created_at, answered_at, expires_at, result, dismissed
 `
 

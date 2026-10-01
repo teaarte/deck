@@ -7,6 +7,7 @@ package db
 
 import (
 	"context"
+	"database/sql"
 )
 
 const addRevision = `-- name: AddRevision :one
@@ -43,7 +44,7 @@ func (q *Queries) AddRevision(ctx context.Context, arg AddRevisionParams) (Docum
 }
 
 const createDocument = `-- name: CreateDocument :one
-INSERT INTO document (workspace_id, project_id, owner_kind, owner_id, kind, name) VALUES (?, ?, ?, ?, ?, ?) RETURNING id, workspace_id, project_id, owner_kind, owner_id, kind, name, "current", created_at
+INSERT INTO document (workspace_id, project_id, owner_kind, owner_id, kind, name) VALUES (?, ?, ?, ?, ?, ?) RETURNING id, workspace_id, project_id, owner_kind, owner_id, kind, name, "current", created_at, deleted_at
 `
 
 type CreateDocumentParams struct {
@@ -75,6 +76,7 @@ func (q *Queries) CreateDocument(ctx context.Context, arg CreateDocumentParams) 
 		&i.Name,
 		&i.Current,
 		&i.CreatedAt,
+		&i.DeletedAt,
 	)
 	return i, err
 }
@@ -82,7 +84,7 @@ func (q *Queries) CreateDocument(ctx context.Context, arg CreateDocumentParams) 
 const currentText = `-- name: CurrentText :one
 SELECT d.kind, r.text, r.n FROM document d JOIN document_revision r ON r.document_id = d.id AND r.n = d.current
 WHERE d.workspace_id = ? AND d.project_id = ? AND d.name = ? AND d.owner_kind = '' AND d.owner_id = 0
-  AND (?4 = '' OR d.kind = ?4)
+  AND (?4 = '' OR d.kind = ?4) AND d.deleted_at IS NULL
 `
 
 type CurrentTextParams struct {
@@ -110,9 +112,63 @@ func (q *Queries) CurrentText(ctx context.Context, arg CurrentTextParams) (Curre
 	return i, err
 }
 
-const findDocument = `-- name: FindDocument :one
-SELECT id, workspace_id, project_id, owner_kind, owner_id, kind, name, "current", created_at FROM document
+const deleteDocument = `-- name: DeleteDocument :execrows
+UPDATE document SET deleted_at = ? WHERE id = ? AND deleted_at IS NULL
+`
+
+type DeleteDocumentParams struct {
+	DeletedAt sql.NullString
+	ID        int64
+}
+
+func (q *Queries) DeleteDocument(ctx context.Context, arg DeleteDocumentParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteDocument, arg.DeletedAt, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const findAnyDocument = `-- name: FindAnyDocument :one
+SELECT id, workspace_id, project_id, owner_kind, owner_id, kind, name, "current", created_at, deleted_at FROM document
 WHERE workspace_id = ? AND project_id = ? AND owner_kind = ? AND owner_id = ? AND name = ?
+`
+
+type FindAnyDocumentParams struct {
+	WorkspaceID int64
+	ProjectID   int64
+	OwnerKind   string
+	OwnerID     int64
+	Name        string
+}
+
+func (q *Queries) FindAnyDocument(ctx context.Context, arg FindAnyDocumentParams) (Document, error) {
+	row := q.db.QueryRowContext(ctx, findAnyDocument,
+		arg.WorkspaceID,
+		arg.ProjectID,
+		arg.OwnerKind,
+		arg.OwnerID,
+		arg.Name,
+	)
+	var i Document
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.ProjectID,
+		&i.OwnerKind,
+		&i.OwnerID,
+		&i.Kind,
+		&i.Name,
+		&i.Current,
+		&i.CreatedAt,
+		&i.DeletedAt,
+	)
+	return i, err
+}
+
+const findDocument = `-- name: FindDocument :one
+SELECT id, workspace_id, project_id, owner_kind, owner_id, kind, name, "current", created_at, deleted_at FROM document
+WHERE workspace_id = ? AND project_id = ? AND owner_kind = ? AND owner_id = ? AND name = ? AND deleted_at IS NULL
 `
 
 type FindDocumentParams struct {
@@ -142,12 +198,13 @@ func (q *Queries) FindDocument(ctx context.Context, arg FindDocumentParams) (Doc
 		&i.Name,
 		&i.Current,
 		&i.CreatedAt,
+		&i.DeletedAt,
 	)
 	return i, err
 }
 
 const getDocument = `-- name: GetDocument :one
-SELECT id, workspace_id, project_id, owner_kind, owner_id, kind, name, "current", created_at FROM document WHERE id = ?
+SELECT id, workspace_id, project_id, owner_kind, owner_id, kind, name, "current", created_at, deleted_at FROM document WHERE id = ?
 `
 
 func (q *Queries) GetDocument(ctx context.Context, id int64) (Document, error) {
@@ -163,6 +220,7 @@ func (q *Queries) GetDocument(ctx context.Context, id int64) (Document, error) {
 		&i.Name,
 		&i.Current,
 		&i.CreatedAt,
+		&i.DeletedAt,
 	)
 	return i, err
 }
@@ -191,9 +249,52 @@ func (q *Queries) GetRevision(ctx context.Context, arg GetRevisionParams) (Docum
 	return i, err
 }
 
+const listDeletedDocuments = `-- name: ListDeletedDocuments :many
+SELECT id, workspace_id, project_id, owner_kind, owner_id, kind, name, "current", created_at, deleted_at FROM document WHERE workspace_id = ? AND project_id = ? AND deleted_at IS NOT NULL ORDER BY deleted_at DESC
+`
+
+type ListDeletedDocumentsParams struct {
+	WorkspaceID int64
+	ProjectID   int64
+}
+
+func (q *Queries) ListDeletedDocuments(ctx context.Context, arg ListDeletedDocumentsParams) ([]Document, error) {
+	rows, err := q.db.QueryContext(ctx, listDeletedDocuments, arg.WorkspaceID, arg.ProjectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Document
+	for rows.Next() {
+		var i Document
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.ProjectID,
+			&i.OwnerKind,
+			&i.OwnerID,
+			&i.Kind,
+			&i.Name,
+			&i.Current,
+			&i.CreatedAt,
+			&i.DeletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listDocuments = `-- name: ListDocuments :many
-SELECT id, workspace_id, project_id, owner_kind, owner_id, kind, name, "current", created_at FROM document
-WHERE workspace_id = ? AND project_id = ? AND (?3 = '' OR kind = ?3)
+SELECT id, workspace_id, project_id, owner_kind, owner_id, kind, name, "current", created_at, deleted_at FROM document
+WHERE workspace_id = ? AND project_id = ? AND (?3 = '' OR kind = ?3) AND deleted_at IS NULL
 ORDER BY name
 `
 
@@ -222,6 +323,7 @@ func (q *Queries) ListDocuments(ctx context.Context, arg ListDocumentsParams) ([
 			&i.Name,
 			&i.Current,
 			&i.CreatedAt,
+			&i.DeletedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -281,7 +383,7 @@ func (q *Queries) ListRevisions(ctx context.Context, documentID int64) ([]ListRe
 
 const listSkillFiles = `-- name: ListSkillFiles :many
 SELECT d.project_id, d.name, r.text FROM document d JOIN document_revision r ON r.document_id = d.id AND r.n = d.current
-WHERE d.workspace_id = ? AND d.project_id IN (0, ?2) AND d.owner_kind = '' AND d.kind = 'skill'
+WHERE d.workspace_id = ? AND d.project_id IN (0, ?2) AND d.owner_kind = '' AND d.kind = 'skill' AND d.deleted_at IS NULL
 ORDER BY d.project_id, d.name
 `
 
@@ -328,6 +430,18 @@ func (q *Queries) NextRevision(ctx context.Context, documentID int64) (int64, er
 	var column_1 int64
 	err := row.Scan(&column_1)
 	return column_1, err
+}
+
+const restoreDocument = `-- name: RestoreDocument :execrows
+UPDATE document SET deleted_at = NULL WHERE id = ? AND deleted_at IS NOT NULL
+`
+
+func (q *Queries) RestoreDocument(ctx context.Context, id int64) (int64, error) {
+	result, err := q.db.ExecContext(ctx, restoreDocument, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const setDocumentCurrent = `-- name: SetDocumentCurrent :exec

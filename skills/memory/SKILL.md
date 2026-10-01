@@ -7,13 +7,15 @@ description: Keeps the memory of deck — short facts the owner said that should
 
 deck keeps memory as documents of kind `memory`, with revisions, in two places:
 
-- **workspace** (no project): about the owner and what holds everywhere — who they are, how they want to be
-  answered, refusals that are not about one project. Only the master reads and writes it.
-- **a project**: about that module — how its owner wants its work done, what it already tried, what was
-  refused there. Its own agents and the master read and write it.
+- **the owner's memory** — `memory/` of project `master`: about the owner and what holds everywhere — who they
+  are, how they want to be answered, refusals that are not about one project. Only the master reads and writes
+  it (a memory document saved without a project goes there).
+- **a project's memory** — `memory/` of that project: how the owner wants its work done, what it already tried,
+  what was refused there. Its own agents and the master read and write it.
 
 Each place has an index `memory/MEMORY.md` and facts `memory/<name>.md`. deck puts the index into the prompt
-(the first ~150 lines, as data); a fact is read with `document_get` when its index line says it matters.
+(the first 150 lines, as data); a fact is read with `document_get` when its index line says it matters. Save
+with `document_save`, kind `memory`; a save of an index past 150 lines answers with a warning.
 
 ## A fact
 
@@ -54,6 +56,6 @@ contradicts a fact, change that fact (it keeps its history in revisions); do not
 
 ## Cleanup
 
-Once a week (and when an index passes ~150 lines): read the index and the facts; merge duplicates; delete
+Once a week (and when an index passes 150 lines): read the index and the facts; merge duplicates; delete
 facts whose `expires` passed and facts the owner contradicted (`document_delete`, the owner can bring them
 back); shorten lines that grew; put the lines that matter most at the top. Say in one line what changed.

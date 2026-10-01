@@ -6,21 +6,63 @@
       "title": "Reply",
       "description": "Answers the owner's messages in a chat topic.",
       "class": "internal",
-      "callers": ["trigger"],
-      "requires": ["tools"],
+      "callers": [
+        "trigger"
+      ],
+      "requires": [
+        "tools"
+      ],
       "provider": "claude-code",
       "input": {
         "type": "object",
         "properties": {
-          "topic": {"type": "integer", "description": "The chat topic"}
+          "topic": {
+            "type": "integer",
+            "description": "The chat topic"
+          }
         },
-        "required": ["topic"]
+        "required": [
+          "topic"
+        ]
       },
       "executor": {
         "type": "agent",
         "prompt_file": "prompts/reply.md",
-        "skills": ["dispatch", "topic-summary", "module-builder", "code-project"]
+        "skills": [
+          "dispatch",
+          "topic-summary",
+          "memory",
+          "module-builder",
+          "code-project"
+        ]
       }
+    },
+    {
+      "name": "memory",
+      "title": "Clean up memory",
+      "description": "Merges, shortens and deletes facts of the memory of the owner and of each project by the memory skill.",
+      "class": "internal",
+      "callers": [
+        "owner",
+        "trigger"
+      ],
+      "requires": [
+        "tools"
+      ],
+      "provider": "claude-code",
+      "executor": {
+        "type": "agent",
+        "prompt_file": "prompts/memory.md",
+        "skills": [
+          "memory"
+        ]
+      }
+    }
+  ],
+  "triggers": [
+    {
+      "command": "memory",
+      "cron": "0 10 * * 1"
     }
   ]
 }

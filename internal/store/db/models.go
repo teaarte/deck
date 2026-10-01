@@ -95,6 +95,7 @@ type Document struct {
 	Name        string
 	Current     int64
 	CreatedAt   string
+	DeletedAt   sql.NullString
 }
 
 type DocumentRevision struct {

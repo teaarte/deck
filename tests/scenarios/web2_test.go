@@ -279,7 +279,13 @@ func TestScheduleShowsEveryTriggerRunsOneNowAndPausesAProject(t *testing.T) {
 	e.must("deck.run_later", map[string]any{"command": "beta.sync", "at": t0.Add(90 * time.Minute).UTC().Format(time.RFC3339)}, nil)
 	check.messages(t, e.screenMessages("", "schedule", nil))
 	rows := func() []screenRow {
-		return blockData[[]screenRow](t, e.screenData("", "schedule", nil)["b0"]["rows"])
+		var out []screenRow
+		for _, r := range blockData[[]screenRow](t, e.screenData("", "schedule", nil)["b0"]["rows"]) {
+			if r.Cells[0] != "master" {
+				out = append(out, r)
+			}
+		}
+		return out
 	}
 	find := func(rs []screenRow, project, when string) screenRow {
 		for _, r := range rs {

@@ -339,6 +339,13 @@ func (r *Runner) firstPrompt(ctx context.Context, proj db.Project, t turn, tools
 	if t.folder != "" {
 		p += "\nYou work in the project folder " + t.folder + ": the owner's own folder, not a scratch copy. No other agent of deck works in it while you do.\n"
 	}
+	mem, err := r.projects.Memory(ctx, proc)
+	if err != nil {
+		return "", err
+	}
+	if mem != "" {
+		p += "\n" + mem + "\n"
+	}
 	if proc.StartNote != "" {
 		p += "\n" + proc.StartNote + "\n"
 	}

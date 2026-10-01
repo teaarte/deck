@@ -124,6 +124,8 @@ type Projects interface {
 	Servers(ctx context.Context, projectID int64)
 	// Folder is the real path of the project folder an agent command works in.
 	Folder(ctx context.Context, projectID int64, f manifest.Folder) (string, error)
+	// Memory is the memory a fresh session of the process gets, as data; empty when there is none.
+	Memory(ctx context.Context, p db.Process) (string, error)
 }
 
 func NewRunner(st *store.Store, gw *gateway.Gateway, bus *events.Bus, p Providers, scripts *script.Exec, cfg Config, projects Projects) *Runner {

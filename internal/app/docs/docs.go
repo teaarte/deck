@@ -21,9 +21,10 @@ const (
 	KindCustom   = "custom"
 	KindDoc      = "doc"
 	KindArtifact = "artifact"
+	KindMemory   = "memory"
 )
 
-var Kinds = []string{KindPrompt, KindManifest, KindScript, KindSkill, KindCustom, KindArtifact, "memory", KindDoc}
+var Kinds = []string{KindPrompt, KindManifest, KindScript, KindSkill, KindCustom, KindArtifact, KindMemory, KindDoc}
 
 const (
 	ManifestName = "manifest.json"
@@ -78,7 +79,16 @@ func Save(ctx context.Context, q *db.Queries, ref Ref, kind, text, author, reaso
 	if err := checkSkillText(kind, ref.Name, text); err != nil {
 		return db.Document{}, 0, err
 	}
-	d, err := q.FindDocument(ctx, ref.Find())
+	if err := checkMemoryText(kind, ref.Name, text); err != nil {
+		return db.Document{}, 0, err
+	}
+	d, err := q.FindAnyDocument(ctx, db.FindAnyDocumentParams(ref.Find()))
+	if err == nil && d.DeletedAt.Valid {
+		if _, err := q.RestoreDocument(ctx, d.ID); err != nil {
+			return d, 0, err
+		}
+		d.DeletedAt = sql.NullString{}
+	}
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
 		d, err = q.CreateDocument(ctx, db.CreateDocumentParams{WorkspaceID: ref.Workspace, ProjectID: ref.Project,
@@ -117,9 +127,10 @@ func CurrentText(ctx context.Context, q *db.Queries, s Scope, kind, name string)
 // reservedNames bind document names the core reads to their kind.
 var reservedNames = map[string]string{ManifestName: KindManifest, PromptName: KindPrompt}
 
+// Get is a document by id; a deleted one is missing.
 func Get(ctx context.Context, q *db.Queries, id int64) (db.Document, error) {
 	d, err := q.GetDocument(ctx, id)
-	if errors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, sql.ErrNoRows) || err == nil && d.DeletedAt.Valid {
 		return d, registry.NotFound("deck: no document %d", id)
 	}
 	return d, err

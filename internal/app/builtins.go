@@ -75,20 +75,26 @@ func (a *App) addBuiltins() {
 			registry.Opt("reason", "string", "Why it changed"), ifRevision),
 		registry.Typed(a.manifestSave))
 
-	add("documents_list", "List documents", "Lists documents of a project, or workspace documents when no project is given.", everyone,
-		registry.Params(projectOpt, registry.Param{Name: "kind", Type: "enum", Desc: "Only this kind", Enum: docs.Kinds, Optional: true}),
+	add("documents_list", "List documents", "Lists documents of a project, or workspace documents when no project is given; deleted ones for the owner when asked.", everyone,
+		registry.Params(projectOpt, registry.Param{Name: "kind", Type: "enum", Desc: "Only this kind", Enum: docs.Kinds, Optional: true},
+			registry.Opt("deleted", "boolean", "The deleted documents instead, which the owner can bring back")),
 		registry.Typed(a.documentsList))
 	add("document_get", "Get document", "Returns a document by id, or by project and name; the current revision unless one is given.", everyone,
 		registry.Params(registry.Opt("document", "document", "Document id"), projectOpt,
 			registry.Opt("name", "string", "Document name (path)"), registry.Opt("revision", "integer", "Revision number")),
 		registry.Typed(a.documentGet))
 	add("document_save", "Save document", "Writes a new revision of a document, creating it on first save.", everyone,
-		registry.Params(registry.P("name", "string", "Document name (path), e.g. notes/criteria.md"),
+		registry.Params(registry.P("name", "string", "Document name (path), e.g. notes/criteria.md; memory/MEMORY.md and memory/<fact>.md for memory"),
 			registry.Param{Name: "kind", Type: "enum", Desc: "Document kind", Enum: docs.Kinds},
 			registry.P("text", "text", "Full new text"), projectOpt,
 			registry.Opt("record", "record", "Record the document belongs to"), registry.Opt("card", "card", "Card the document belongs to"),
 			registry.Opt("reason", "string", "Why it changed")),
 		registry.Typed(a.documentSave))
+	add("document_delete", "Delete document", "Deletes a document; its revisions stay and the owner can bring it back. Agents delete only the memory of their project.", everyone,
+		registry.Params(registry.Opt("document", "document", "Document id"), projectOpt, registry.Opt("name", "string", "Document name (path)")),
+		registry.Typed(a.documentDelete))
+	add("document_restore", "Bring document back", "Brings a deleted document back as it was.", ownerOnly,
+		registry.Params(registry.P("document", "document", "Document id")), registry.Typed(a.documentRestore))
 	add("document_revisions", "Document history", "Lists revisions of a document: who, when and why.", everyone,
 		registry.Params(registry.P("document", "document", "Document id")), registry.Typed(a.documentRevisions))
 	add("document_revert", "Revert document", "Makes an earlier revision current again as a new revision.", ownerSide,

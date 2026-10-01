@@ -1,0 +1,77 @@
+package docs
+
+import (
+	"slices"
+	"strconv"
+	"strings"
+	"time"
+
+	"go.yaml.in/yaml/v3"
+
+	"deck2/internal/registry"
+)
+
+const (
+	// MemoryDir holds the memory of a project: the index and one document per fact.
+	MemoryDir   = "memory/"
+	MemoryIndex = MemoryDir + "MEMORY.md"
+	// IndexLimit is how many lines of an index reach a prompt.
+	IndexLimit = 150
+)
+
+var memoryTypes = []string{"user", "feedback", "project", "reference"}
+
+// checkMemoryText checks that memory documents sit in memory/ and a fact carries its frontmatter.
+func checkMemoryText(kind, name, text string) error {
+	if (kind == KindMemory) != strings.HasPrefix(name, MemoryDir) {
+		return registry.Invalid("deck: memory documents are named memory/<name>.md, and only memory documents are")
+	}
+	if kind != KindMemory || name == MemoryIndex {
+		return nil
+	}
+	file := strings.TrimPrefix(name, MemoryDir)
+	slug, ok := strings.CutSuffix(file, ".md")
+	if !ok || strings.Contains(slug, "/") {
+		return registry.Invalid("deck: a memory fact is one file memory/<name>.md")
+	}
+	front, ok := strings.CutPrefix(text, "---\n")
+	end := strings.Index(front, "\n---")
+	if !ok || end < 0 {
+		return registry.Invalid("deck: a memory fact starts with YAML frontmatter between --- lines: name, description, type")
+	}
+	var meta struct {
+		Name, Description, Type string
+		Expires                 string
+	}
+	if err := yaml.Unmarshal([]byte(front[:end]), &meta); err != nil {
+		return registry.Invalid("deck: the frontmatter of a memory fact is not YAML: %v", err)
+	}
+	switch {
+	case meta.Name != slug:
+		return registry.Invalid("deck: a memory fact needs \"name: %s\", the name of its file", slug)
+	case strings.TrimSpace(meta.Description) == "":
+		return registry.Invalid("deck: a memory fact needs \"description\": one line that says when it matters")
+	case !slices.Contains(memoryTypes, meta.Type):
+		return registry.Invalid("deck: the type of a memory fact is one of %s", strings.Join(memoryTypes, ", "))
+	}
+	if meta.Expires != "" {
+		if _, err := time.Parse(time.DateOnly, meta.Expires); err != nil {
+			return registry.Invalid("deck: expires of a memory fact is a date, YYYY-MM-DD")
+		}
+	}
+	return nil
+}
+
+// IndexLines counts the lines of an index.
+func IndexLines(text string) int {
+	return len(strings.Split(strings.TrimRight(text, "\n"), "\n"))
+}
+
+// CutIndex is the start of an index up to IndexLimit lines, with a line that says how many were cut.
+func CutIndex(text string) string {
+	lines := strings.Split(strings.TrimRight(text, "\n"), "\n")
+	if len(lines) <= IndexLimit {
+		return strings.Join(lines, "\n")
+	}
+	return strings.Join(lines[:IndexLimit], "\n") + "\n[deck cut " + strconv.Itoa(len(lines)-IndexLimit) + " more lines of this index]"
+}

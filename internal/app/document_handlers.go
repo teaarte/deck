@@ -5,9 +5,11 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 
 	"deck2/internal/app/docs"
 	"deck2/internal/registry"
+	"deck2/internal/store"
 	"deck2/internal/store/db"
 )
 
@@ -20,18 +22,33 @@ type documentView struct {
 	Name      string `json:"name"`
 	Revision  int64  `json:"revision"`
 	Text      string `json:"text,omitempty"`
+	Deleted   bool   `json:"deleted,omitempty"`
+	// Warning says what a save did that its author should know of, such as an index past its limit.
+	Warning string `json:"warning,omitempty"`
 }
 
 func docView(d db.Document) documentView {
-	return documentView{ID: d.ID, Project: d.ProjectID, OwnerKind: d.OwnerKind, OwnerID: d.OwnerID, Kind: d.Kind, Name: d.Name, Revision: d.Current}
+	return documentView{ID: d.ID, Project: d.ProjectID, OwnerKind: d.OwnerKind, OwnerID: d.OwnerID, Kind: d.Kind, Name: d.Name, Revision: d.Current,
+		Deleted: d.DeletedAt.Valid}
 }
 
-func (a *App) documentsList(ctx context.Context, act registry.Actor, in struct{ Project, Kind string }) (any, error) {
+func (a *App) documentsList(ctx context.Context, act registry.Actor, in struct {
+	Project, Kind string
+	Deleted       bool
+}) (any, error) {
 	s, err := a.readDocScope(ctx, act, in.Project, "")
 	if err != nil {
 		return nil, err
 	}
-	ds, err := a.Store.Q.ListDocuments(ctx, db.ListDocumentsParams{WorkspaceID: s.Workspace, ProjectID: s.Project, Kind: in.Kind})
+	var ds []db.Document
+	if in.Deleted {
+		if act.Kind != registry.Owner {
+			return nil, registry.Refuse("deck: only the owner lists deleted documents")
+		}
+		ds, err = a.Store.Q.ListDeletedDocuments(ctx, db.ListDeletedDocumentsParams{WorkspaceID: s.Workspace, ProjectID: s.Project})
+	} else {
+		ds, err = a.Store.Q.ListDocuments(ctx, db.ListDocumentsParams{WorkspaceID: s.Workspace, ProjectID: s.Project, Kind: in.Kind})
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -88,7 +105,12 @@ func (a *App) documentGet(ctx context.Context, act registry.Actor, in struct {
 		d, err = a.readableDocument(ctx, a.Store.Q, act, in.Document)
 	case in.Name != "":
 		var s docs.Scope
-		if s, err = a.readDocScope(ctx, act, in.Project, in.Name); err == nil {
+		if in.Project == "" {
+			s, err = a.memoryScope(ctx, act, "", in.Name)
+		} else {
+			s, err = a.readDocScope(ctx, act, in.Project, in.Name)
+		}
+		if err == nil {
 			d, err = a.Store.Q.FindDocument(ctx, docs.Ref{Scope: s, Name: in.Name}.Find())
 			if errors.Is(err, sql.ErrNoRows) {
 				err = registry.NotFound("deck: no document %q", in.Name)
@@ -119,10 +141,10 @@ func (a *App) documentSave(ctx context.Context, act registry.Actor, in struct {
 	if in.Kind == docs.KindManifest {
 		return nil, registry.Invalid("deck: save manifests with deck.manifest_save")
 	}
-	if act.Kind == registry.Agent && in.Kind != docs.KindArtifact {
-		return nil, registry.Refuse("deck: agents write only artifacts")
+	if act.Kind == registry.Agent && in.Kind != docs.KindArtifact && in.Kind != docs.KindMemory {
+		return nil, registry.Refuse("deck: agents write only artifacts and the memory of their project")
 	}
-	s, err := a.docScope(ctx, act, in.Project)
+	s, err := a.memoryScope(ctx, act, in.Project, in.Name)
 	if err != nil {
 		return nil, err
 	}
@@ -159,7 +181,93 @@ func (a *App) documentSave(ctx context.Context, act registry.Actor, in struct {
 		return nil, err
 	}
 	a.Bus.Publish("documents")
-	return docView(d), nil
+	v := docView(d)
+	if d.Name == docs.MemoryIndex && d.OwnerKind == "" {
+		if n := docs.IndexLines(in.Text); n > docs.IndexLimit {
+			v.Warning = fmt.Sprintf("the index has %d lines; only the first %d reach prompts: merge or drop lines, the most important first", n, docs.IndexLimit)
+		}
+	}
+	return v, nil
+}
+
+// memoryScope is docScope, except that memory of no project is the memory of the owner, in project master.
+func (a *App) memoryScope(ctx context.Context, act registry.Actor, project, name string) (docs.Scope, error) {
+	s, err := a.docScope(ctx, act, project)
+	if err != nil || s.Project != 0 || !strings.HasPrefix(name, docs.MemoryDir) {
+		return s, err
+	}
+	p, err := a.masterProject(ctx, act.Workspace)
+	return docs.ProjectScope(p), err
+}
+
+// documentDelete hides a document with its revisions; agents delete only the memory of their project.
+func (a *App) documentDelete(ctx context.Context, act registry.Actor, in struct {
+	Document      int64
+	Project, Name string
+}) (any, error) {
+	var d db.Document
+	var err error
+	switch {
+	case in.Document != 0:
+		d, err = a.readableDocument(ctx, a.Store.Q, act, in.Document)
+	case in.Name != "":
+		var s docs.Scope
+		if s, err = a.memoryScope(ctx, act, in.Project, in.Name); err == nil {
+			d, err = a.Store.Q.FindDocument(ctx, docs.Ref{Scope: s, Name: in.Name}.Find())
+			if errors.Is(err, sql.ErrNoRows) {
+				err = registry.NotFound("deck: no document %q", in.Name)
+			}
+		}
+	default:
+		err = registry.Invalid("deck: give a document id or a name")
+	}
+	if err != nil {
+		return nil, err
+	}
+	switch {
+	case d.Kind == docs.KindManifest || d.Kind == docs.KindPrompt && d.OwnerKind == "":
+		return nil, registry.Invalid("deck: a project keeps its %s; change it instead", d.Name)
+	case act.Kind == registry.Agent && (d.Kind != docs.KindMemory || d.ProjectID != act.ProjectID):
+		return nil, registry.Refuse("deck: agents delete only the memory of their project")
+	}
+	err = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		_, err := q.DeleteDocument(ctx, db.DeleteDocumentParams{DeletedAt: sql.NullString{String: store.Time(a.Cfg.Now()), Valid: true}, ID: d.ID})
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	a.Bus.Publish("documents")
+	return map[string]any{"document": d.ID, "deleted": true}, nil
+}
+
+// documentRestore brings a deleted document back as it was.
+func (a *App) documentRestore(ctx context.Context, act registry.Actor, in struct{ Document int64 }) (any, error) {
+	d, err := a.Store.Q.GetDocument(ctx, in.Document)
+	if errors.Is(err, sql.ErrNoRows) || err == nil && d.WorkspaceID != act.Workspace {
+		return nil, registry.NotFound("deck: no document %d", in.Document)
+	}
+	if err != nil {
+		return nil, err
+	}
+	var n int64
+	err = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		if _, err := q.FindDocument(ctx, docs.Ref{Scope: docs.Scope{Workspace: d.WorkspaceID, Project: d.ProjectID}, OwnerKind: d.OwnerKind,
+			OwnerID: d.OwnerID, Name: d.Name}.Find()); err == nil {
+			return nil
+		}
+		var err error
+		n, err = q.RestoreDocument(ctx, d.ID)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	if n == 0 {
+		return nil, registry.Conflict("deck: document %d is not deleted", d.ID)
+	}
+	a.Bus.Publish("documents")
+	return map[string]any{"document": d.ID, "restored": true}, nil
 }
 
 func (a *App) documentRevisions(ctx context.Context, act registry.Actor, in struct{ Document int64 }) (any, error) {

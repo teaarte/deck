@@ -2,7 +2,11 @@ package scenarios
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
@@ -83,4 +87,56 @@ func TestRealBrowserMasterChat(t *testing.T) {
 	if len(ts) != 2 || ts[0].Title != "from the phone" {
 		t.Fatalf("the phone opened a topic of its own: %+v", ts)
 	}
+}
+
+// TestRealBrowserVoice records the microphone in the chat of the real browser: the recording goes to the whisper
+// server as WAV, and its text lands in the input, where the owner sends it.
+func TestRealBrowserVoice(t *testing.T) {
+	if os.Getenv("DECK_REAL_BROWSER") == "" {
+		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
+	}
+	checkBuiltClient(t)
+	heard := make(chan []byte, 1)
+	whisper := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		f, _, err := r.FormFile("file")
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		b, _ := io.ReadAll(f)
+		select {
+		case heard <- b:
+		default:
+		}
+		_, _ = w.Write([]byte(`{"text": "buy oat milk"}`))
+	}))
+	t.Cleanup(whisper.Close)
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		return provider.Result{Text: "Put it into groceries."}
+	})
+	e.must("deck.stt_set", map[string]any{"url": whisper.URL + "/inference"}, nil)
+	b := newPlaywright(t)
+	b.call("browser_resize", map[string]any{"width": 1400, "height": 900})
+	b.open(e.URL + "/?token=" + token + "#/deck/cockpit")
+	b.until("the cockpit", `document.querySelector('[data-chat-toggle]')`)
+	b.eval(`(() => { navigator.mediaDevices.getUserMedia = async () => { const ctx = new AudioContext(); const o = ctx.createOscillator();
+		const dst = ctx.createMediaStreamDestination(); o.connect(dst); o.start(); return dst.stream; }; return '' })()`)
+	b.eval(`(document.querySelector('[data-chat-toggle]').click(), '')`)
+	b.until("the mic", `document.querySelector('[data-mic]')`)
+	b.eval(`(document.querySelector('[data-mic]').click(), '')`)
+	b.until("the recording", `document.querySelector('[data-mic-stop]')`)
+	time.Sleep(1500 * time.Millisecond)
+	b.eval(`(document.querySelector('[data-mic-stop]').click(), '')`)
+	b.until("the text in the input", `document.querySelector('[data-chat-input]').value === 'buy oat milk'`)
+	select {
+	case wav := <-heard:
+		if len(wav) < 44 || string(wav[:4]) != "RIFF" || string(wav[8:12]) != "WAVE" || binary.LittleEndian.Uint32(wav[24:28]) != 16000 {
+			t.Fatalf("the recording is 16 kHz WAV: %d bytes %q", len(wav), wav[:min(len(wav), 12)])
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the recording did not reach whisper")
+	}
+	b.eval(`(document.querySelector('[data-chat-send]').click(), '')`)
+	b.until("the reply", `[...document.querySelectorAll('[data-message="master"]')].some((m) => m.innerText.includes('groceries'))`)
+	b.shot("chat-voice")
 }

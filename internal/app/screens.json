@@ -78,7 +78,9 @@
               "choices": {"key_secret": {"source": {"from": "secrets"}, "value": "name"}}},
             {"type": "form", "title": "Choose the provider of a command", "command": "deck.provider_set",
               "choices": {"command": {"source": {"from": "commands", "where": "executor == 'agent'", "sort": "name"}, "value": "name", "label": "title + ' (' + name + ')'"},
-                "provider": {"source": {"from": "providers"}, "value": "name"}}}
+                "provider": {"source": {"from": "providers"}, "value": "name"}}},
+            {"type": "form", "title": "Speech to text", "command": "deck.stt_set",
+              "choices": {"key_secret": {"source": {"from": "secrets"}, "value": "name"}}}
           ]},
           {"title": "Secrets", "blocks": [
             {"type": "list", "title": "Secrets", "source": {"from": "secrets"}, "item": {"title": "name"}},

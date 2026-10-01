@@ -143,6 +143,16 @@
     "reply_stopped": "reply stopped",
     "reply_interrupted": "reply interrupted",
     "close": "Close the chat",
-    "process": "reply #{{id}}"
+    "process": "reply #{{id}}",
+    "mic": "Speak",
+    "stop_recording": "Stop · {{s}} s",
+    "mic_failed": "The microphone did not start",
+    "voice_failed": "The recording was not turned into text"
+  },
+  "push": {
+    "title": "Pushes on this device",
+    "on": "Get pushes here",
+    "off": "Stop pushes here",
+    "unsupported": "This browser takes no pushes; on an iPhone, add deck to the home screen first"
   }
 }

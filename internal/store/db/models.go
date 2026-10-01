@@ -226,6 +226,16 @@ type ProjectFolder struct {
 	CreatedAt string
 }
 
+type PushSubscription struct {
+	ID          int64
+	WorkspaceID int64
+	Device      string
+	Endpoint    string
+	P256dh      string
+	Auth        string
+	CreatedAt   string
+}
+
 type Record struct {
 	ID         int64
 	ProjectID  int64

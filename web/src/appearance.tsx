@@ -1,6 +1,10 @@
-import { CheckIcon, ColorSwatch, Group, SegmentedControl, Stack, Text, useMantineColorScheme, type MantineColorScheme } from '@mantine/core';
+import { useEffect, useState } from 'react';
+import { Button, CheckIcon, ColorSwatch, Group, SegmentedControl, Stack, Text, useMantineColorScheme, type MantineColorScheme } from '@mantine/core';
+import { notifications } from '@mantine/notifications';
 import { useTranslation } from 'react-i18next';
 import { ACCENTS, DENSITIES, FONTS, RADII, setLook, useLook, type Look } from './look';
+import { call } from './api';
+import { currentPush, pushSupported, subscribePush, unsubscribePush } from './push';
 
 function Choice<T extends string>({ label, name, value, options, onChange }: {
   label: string; name: string; value: T; options: readonly T[]; onChange: (v: T) => void;
@@ -39,6 +43,52 @@ export function Appearance() {
       <Choice label={t('look.density')} name="density" value={look.density} options={DENSITIES} onChange={(v: Look['density']) => setLook({ density: v })} />
       <Choice label={t('look.font')} name="font" value={look.font} options={FONTS} onChange={(v: Look['font']) => setLook({ font: v })} />
       <Choice label={t('look.radius')} name="radius" value={look.radius} options={RADII} onChange={(v: Look['radius']) => setLook({ radius: v })} />
+      <Pushes />
+    </Stack>
+  );
+}
+
+interface Device { id: number; name: string }
+
+// Pushes turns pushes of deck on and off for this device and lists every device that gets them.
+function Pushes() {
+  const { t } = useTranslation();
+  const [on, setOn] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [devices, setDevices] = useState<Device[]>([]);
+  const load = async () => {
+    setOn(!!(await currentPush().catch(() => null)));
+    setDevices(await call<Device[]>('deck.push_devices').catch(() => []));
+  };
+  useEffect(() => { void load(); }, []);
+  const toggle = async () => {
+    setBusy(true);
+    try {
+      if (on) await unsubscribePush();
+      else await subscribePush(navigator.userAgent.includes('iPhone') ? 'iPhone' : navigator.platform || 'a browser');
+      await load();
+    } catch (e) {
+      notifications.show({ title: t('push.title'), message: (e as Error).message, color: 'red', autoClose: 10000 });
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Stack gap={4} data-pushes>
+      <Text size="sm" fw={500}>{t('push.title')}</Text>
+      {pushSupported() ? (
+        <Group gap="xs">
+          <Button size="xs" variant={on ? 'default' : 'filled'} loading={busy} onClick={() => void toggle()} data-push-toggle>
+            {on ? t('push.off') : t('push.on')}
+          </Button>
+        </Group>
+      ) : <Text size="xs" c="dimmed">{t('push.unsupported')}</Text>}
+      {devices.map((d) => (
+        <Group key={d.id} gap="xs" data-push-device>
+          <Text size="xs">{d.name}</Text>
+          <Button size="compact-xs" variant="subtle" onClick={() => void call('deck.push_unsubscribe', { device: d.id }).then(load)}>{t('verb.remove')}</Button>
+        </Group>
+      ))}
     </Stack>
   );
 }

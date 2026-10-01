@@ -6,19 +6,39 @@ import "sync"
 type Bus struct {
 	mu   sync.Mutex
 	subs map[chan string]struct{}
+	// watchers are deck's own listeners; they are not clients.
+	watchers []func(topic string)
 }
 
 func NewBus() *Bus { return &Bus{subs: map[chan string]struct{}{}} }
 
 func (b *Bus) Publish(topic string) {
 	b.mu.Lock()
-	defer b.mu.Unlock()
 	for ch := range b.subs {
 		select {
 		case ch <- topic:
 		default:
 		}
 	}
+	watchers := b.watchers
+	b.mu.Unlock()
+	for _, w := range watchers {
+		w(topic)
+	}
+}
+
+// Watch calls f on every topic; f must not block.
+func (b *Bus) Watch(f func(topic string)) {
+	b.mu.Lock()
+	b.watchers = append(b.watchers, f)
+	b.mu.Unlock()
+}
+
+// Clients is how many clients follow the live channel now.
+func (b *Bus) Clients() int {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return len(b.subs)
 }
 
 func (b *Bus) Subscribe() (<-chan string, func()) {

@@ -64,6 +64,8 @@ type App struct {
 	chat               chatQueue
 	// chatStart keeps a reply starting apart from a topic being deleted.
 	chatStart sync.Mutex
+	// pushMu lets one look for what to push run at a time.
+	pushMu sync.Mutex
 }
 
 // New starts deck with its main provider p and further built-in ones.
@@ -115,6 +117,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	if err := a.SeedMaster(a.ctx); err != nil {
 		return nil, err
 	}
+	a.watchPush()
 	return a, nil
 }
 

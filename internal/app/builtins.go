@@ -177,6 +177,23 @@ func (a *App) addBuiltins() {
 		registry.Typed(a.suggest))
 	add("suggestions_rejected", "Rejected suggestions", "Lists the suggestions the owner said no to lately, with the reason, so the same is not suggested again.", everyone,
 		registry.Params(registry.Opt("days", "integer", "How far back, 30 days by default")), registry.Typed(a.suggestionsRejected))
+	add("transcribe", "Speech to text", "Turns a recording the owner uploaded into text with the speech-to-text provider; the recording is not kept.", ownerOnly,
+		registry.Params(registry.P("file", "file", "The uploaded recording, at most 10 MB")), registry.Typed(a.transcribe))
+	add("stt_set", "Speech to text provider", "Sets the speech-to-text provider: an OpenAI-compatible transcription url, such as a whisper.cpp server on this machine.", ownerOnly,
+		registry.Params(registry.P("url", "string", "Transcription url, such as "+DefaultSTT+" or https://api.openai.com/v1/audio/transcriptions"),
+			registry.Opt("model", "string", "Model name, when the service takes one"), registry.Opt("key_secret", "string", "Name of the secret with the API key"),
+			registry.Opt("language", "string", "Language of the speech, such as ru or en; the service guesses without it")),
+		registry.Typed(a.sttSet))
+	add("push_key", "Push key", "Returns the public key a device subscribes to the pushes of deck with.", ownerOnly,
+		registry.Params(), registry.Typed(a.pushKey))
+	add("push_subscribe", "Get pushes", "Subscribes a device to pushes: what waits for the owner, failures, notify lines and the master's replies when no client is open.", ownerOnly,
+		registry.Params(registry.P("endpoint", "string", "Push endpoint of the device"), registry.P("p256dh", "string", "Key of the subscription"),
+			registry.P("auth", "string", "Auth secret of the subscription"), registry.Opt("device", "string", "Name of the device")),
+		registry.Typed(a.pushSubscribe))
+	add("push_unsubscribe", "Stop pushes", "Stops pushes to a device.", ownerOnly,
+		registry.Params(registry.Opt("endpoint", "string", "Push endpoint of the device"), registry.Opt("device", "integer", "Device id")),
+		registry.Typed(a.pushUnsubscribe))
+	add("push_devices", "Devices", "Lists the devices that get pushes.", ownerOnly, registry.Params(), registry.Typed(a.pushDevices))
 	add("process_tell", "Tell a process", "Gives the owner's message to an agent process at work: into its turn when the provider takes it live, else right after the turn.", ownerOnly,
 		registry.Params(registry.P("process", "process", "Process id"), registry.P("text", "text", "The message")),
 		registry.Typed(a.processTell))

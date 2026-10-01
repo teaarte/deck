@@ -3,7 +3,8 @@ import type { ComponentContext } from '@a2ui/web_core/v0_9';
 import { Anchor, Badge, Box, Button, Group, Loader, Paper, ScrollArea, Select, Stack, Text, Textarea } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { useTranslation } from 'react-i18next';
-import { call } from './api';
+import { call, upload } from './api';
+import { record, type Recording } from './voice';
 import { Actions, QuestionPicker } from './actions';
 import { Markdown } from './document';
 import type { ChatValue } from './catalog.gen';
@@ -43,6 +44,40 @@ export function Chat({ value, context }: { value: ChatValue; context: ComponentC
   const feed = useRef<HTMLDivElement>(null);
   const key = useRef('');
   const pinned = useRef(false);
+  const rec = useRef<Recording | undefined>(undefined);
+  const [recording, setRecording] = useState(0);
+  const [hearing, setHearing] = useState(false);
+  useEffect(() => {
+    if (!recording) return;
+    const timer = setInterval(() => setRecording((n) => n + 1), 1000);
+    return () => clearInterval(timer);
+  }, [recording > 0]);
+  useEffect(() => () => rec.current?.cancel(), []);
+  const listen = async () => {
+    try {
+      rec.current = await record(() => void hear());
+      setRecording(1);
+    } catch (e) {
+      notifications.show({ title: t('chat.mic_failed'), message: (e as Error).message, color: 'red' });
+    }
+  };
+  const hear = async () => {
+    const r = rec.current;
+    rec.current = undefined;
+    setRecording(0);
+    if (!r) return;
+    setHearing(true);
+    try {
+      const blob = await r.stop();
+      const [f] = await upload('master', [new File([blob], 'voice.wav', { type: 'audio/wav' })]);
+      const out = await call<{ text: string }>('deck.transcribe', { file: String(f.id) });
+      setText((prev) => (prev.trim() ? prev.trimEnd() + ' ' : '') + out.text);
+    } catch (e) {
+      notifications.show({ title: t('chat.voice_failed'), message: (e as Error).message, color: 'red', autoClose: 10000 });
+    } finally {
+      setHearing(false);
+    }
+  };
   const pick = (topic: string) => {
     pinned.current = true;
     void context.dispatchAction({ event: { name: 'filter', context: { block: context.componentModel.id, field: 'topic', value: topic } } });
@@ -128,7 +163,12 @@ export function Chat({ value, context }: { value: ChatValue; context: ComponentC
         <Textarea autosize minRows={2} maxRows={8} placeholder={t('chat.placeholder')} value={text} data-chat-input
           onChange={(e) => { setText(e.currentTarget.value); if (!e.currentTarget.value.trim()) key.current = ''; }}
           onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(); } }} />
-        <Group justify="flex-end">
+        <Group justify="space-between">
+          {recording ? (
+            <Button size="xs" color="red" onClick={() => void hear()} data-mic-stop>{t('chat.stop_recording', { s: recording - 1 })}</Button>
+          ) : (
+            <Button size="xs" variant="default" loading={hearing} onClick={() => void listen()} data-mic>{t('chat.mic')}</Button>
+          )}
           <Button size="xs" loading={busy} disabled={!text.trim()} onClick={() => void send()} data-chat-send>{t('verb.send')}</Button>
         </Group>
       </Stack>

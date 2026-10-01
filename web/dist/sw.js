@@ -16,3 +16,20 @@ self.addEventListener('fetch', (e) => {
     return Response.redirect('/#/deck/share', 303);
   })());
 });
+
+// A push shows a notification; a tap opens deck where the push points.
+self.addEventListener('push', (e) => {
+  let m = { title: 'deck', body: '', url: '/' };
+  try { m = { ...m, ...e.data.json() }; } catch { /* a push without JSON shows as deck */ }
+  e.waitUntil(self.registration.showNotification(m.title, { body: m.body, data: { url: m.url }, icon: '/icon-192.png' }));
+});
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+  const url = new URL(e.notification.data?.url || '/', self.location.origin).href;
+  e.waitUntil((async () => {
+    const tabs = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    const tab = tabs.find((c) => new URL(c.url).origin === self.location.origin);
+    if (tab) { await tab.focus(); return tab.navigate(url); }
+    return self.clients.openWindow(url);
+  })());
+});

@@ -47,6 +47,8 @@ type Config struct {
 	VersionEvery time.Duration
 	// WorkKept is how long the work folder of a finished agent process stays for rework.
 	WorkKept time.Duration
+	// STT is the speech-to-text endpoint unless the owner set one; DefaultSTT when empty.
+	STT string
 }
 
 func (c *Config) defaults() {

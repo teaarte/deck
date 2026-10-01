@@ -269,7 +269,7 @@ func TestInvalidScreenIsRefusedWithItsReason(t *testing.T) {
 	e.createProject("notes", good)
 	for _, tc := range []struct{ from, to, want string }{
 		{`{"type": "stat", "title": "Notes", "source": {"collection": "notes"}}`, `{"type": "hologram"}`,
-			`value must be one of 'actions', 'appearance', 'board', 'card', 'columns', 'custom', 'document', 'form', 'list', 'log', 'stat', 'table', 'tabs'`},
+			`value must be one of 'actions', 'appearance', 'board', 'card', 'chat', 'columns', 'custom', 'document', 'form', 'list', 'log', 'stat', 'table', 'tabs'`},
 		{`"value": "sum(rows, .score)"`, `"value": "sum(items, .score)"`, `value: unknown field "items"`},
 		{`{"type": "list", "title": "Waiting here", "source": {"from": "asks"}, "item": {"title": "what"}}`,
 			`{"type": "list", "source": {"from": "asks"}, "item": {"title": "whom"}}`, `unknown field "whom"`},
@@ -414,7 +414,7 @@ func TestScreenTopicReadsOnlyTheBlocksItChanges(t *testing.T) {
 	if got := paths("", "settings", "health"); !slices.Equal(got, []string{"/b0-1-0", "/b0-6-0"}) {
 		t.Fatalf("health reads the providers and the health: %v", got)
 	}
-	for _, topic := range []string{"projects", "chat"} {
+	for _, topic := range []string{"projects", "spaceship"} {
 		if n := len(e.screenMessages("notes", "main", map[string]any{"topic": topic})); n != 3 || len(e.screenData("notes", "main", map[string]any{"topic": topic})) != 6 {
 			t.Fatalf("a topic no block reads gives the whole screen with its data: %s, %d messages", topic, n)
 		}

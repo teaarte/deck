@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 
 	"deck2/internal/app/docs"
+	"deck2/internal/ask"
 	"deck2/internal/process"
 	"deck2/internal/registry"
 	"deck2/internal/store"
@@ -103,6 +104,15 @@ func (a *App) reply(ctx context.Context, topicID int64) error {
 	first, last := pending[0].ID, pending[len(pending)-1].ID
 	open, err := a.Store.Q.OpenTopicProcess(ctx, topicID)
 	if err == nil {
+		if q := a.openQuestion(ctx, open.ID); q != 0 {
+			texts := make([]string, 0, len(pending))
+			for _, m := range pending {
+				texts = append(texts, strings.TrimSpace(m.Text))
+			}
+			if err := a.Asks.Answer(ctx, q, strings.Join(texts, "\n\n")); err == nil {
+				return a.takeMessages(ctx, t, open.ID, open.SessionID, "", last)
+			}
+		}
 		if open.State != process.StateWaitingAnswer {
 			return nil
 		}
@@ -176,10 +186,10 @@ func (a *App) reply(ctx context.Context, topicID int64) error {
 }
 
 // takeMessages gives the waiting messages up to through to the reply process, and keeps the sign of the memory
-// its session was given.
+// its session was given, when it was given one.
 func (a *App) takeMessages(ctx context.Context, t db.ChatTopic, processID int64, session, sign string, through int64) error {
 	err := a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		if err := q.TakeMessages(ctx, db.TakeMessagesParams{ProcessID: processID, TopicID: t.ID, Through: through}); err != nil {
+		if err := q.TakeMessages(ctx, db.TakeMessagesParams{ProcessID: processID, TopicID: t.ID, Through: through}); err != nil || sign == "" {
 			return err
 		}
 		return q.SetChatMemory(ctx, db.SetChatMemoryParams{Memory: sign, TopicID: t.ID, SessionID: session})
@@ -398,4 +408,18 @@ func (a *App) chatClosed(ctx context.Context, processID int64) {
 		a.Bus.Publish("chat")
 		a.pump(context.WithoutCancel(ctx), topic)
 	}
+}
+
+// openQuestion is a question of the owner that the process waits on; a message of the topic answers it.
+func (a *App) openQuestion(ctx context.Context, processID int64) int64 {
+	asks, err := a.Store.Q.ListOpenAsksOfProcess(ctx, processID)
+	if err != nil {
+		return 0
+	}
+	for _, q := range asks {
+		if q.Kind == ask.KindQuestion && q.State == "open" {
+			return q.ID
+		}
+	}
+	return 0
 }

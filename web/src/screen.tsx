@@ -80,19 +80,33 @@ export function ScreenView({ route, onProjects }: { route: Route; onProjects: ()
     const picked: Record<string, Record<string, string>> = {};
     const base = { project: route.project, screen: route.screen, record: route.record };
     const input = () => (Object.keys(picked).length ? { ...base, filter: JSON.stringify(picked) } : base);
-    const feed = (msgs: Message[]) => {
+    // Every read takes a ticket; the data of a block is never replaced by a read older than the one it shows.
+    let tickets = 0;
+    let fresh: Record<string, number> = {};
+    const feed = (msgs: Message[], ticket: number) => {
       for (const m of prepare(msgs)) {
-        try {
-          proc.current!.processMessages([m as any]);
-        } catch (e) {
-          setError((e as Error).message);
+        let parts: Message[] = [m];
+        const dm = m.updateDataModel;
+        if (dm && dm.path === '/' && dm.value && typeof dm.value === 'object' && fresh.root !== undefined) {
+          parts = Object.entries(dm.value).map(([id, value]) => ({ ...m, updateDataModel: { ...dm, path: '/' + id, value } }));
+        }
+        for (const part of parts) {
+          const path = part.updateDataModel?.path as string | undefined;
+          const id = path && path !== '/' ? path.slice(1) : undefined;
+          if (id && (fresh[id] ?? 0) > ticket) continue;
+          if (id) fresh[id] = ticket;
+          try {
+            proc.current!.processMessages([part as any]);
+          } catch (e) {
+            setError((e as Error).message);
+          }
         }
       }
     };
     let generation = 0;
-    const seq: Record<string, number> = {};
     const load = async () => {
       const mine = ++generation;
+      const ticket = ++tickets;
       try {
         const msgs = await call<Message[]>('deck.screen', input());
         if (gone || mine !== generation) return;
@@ -100,7 +114,9 @@ export function ScreenView({ route, onProjects }: { route: Route; onProjects: ()
         p.onSurfaceCreated((s) => setSurface(s));
         proc.current = p;
         setError('');
-        feed(msgs);
+        fresh = {};
+        feed(msgs, ticket);
+        fresh.root = ticket;
         setStale(false);
       } catch (e) {
         if (!gone) setError((e as Error).message);
@@ -115,9 +131,10 @@ export function ScreenView({ route, onProjects }: { route: Route; onProjects: ()
       else delete picked[block];
       const mine = generation;
       const n = ++filtering;
+      const ticket = ++tickets;
       try {
         const msgs = await call<Message[]>('deck.screen', input());
-        if (!gone && mine === generation && n === filtering) feed(msgs.filter((m) => m.updateDataModel));
+        if (!gone && mine === generation && n === filtering) feed(msgs.filter((m) => m.updateDataModel), ticket);
       } catch (e) {
         if (!gone) notifications.show({ message: (e as Error).message, color: 'red' });
       }
@@ -127,10 +144,10 @@ export function ScreenView({ route, onProjects }: { route: Route; onProjects: ()
     const reread = async (topic: string) => {
       if (!proc.current) return;
       const mine = generation;
-      const n = (seq[topic] = (seq[topic] ?? 0) + 1);
+      const ticket = ++tickets;
       try {
         const msgs = await call<Message[]>('deck.screen', { ...input(), topic });
-        if (!gone && mine === generation && n === seq[topic]) feed(msgs);
+        if (!gone && mine === generation) feed(msgs, ticket);
       } catch (e) {
         if (!gone) notifications.show({ message: (e as Error).message, color: 'red' });
       }

@@ -105,7 +105,7 @@ func (a *App) screenGet(ctx context.Context, act registry.Actor, in struct {
 	Record          int64
 	Topic, Filter   string
 }) (any, error) {
-	req := screen.Request{Record: in.Record, Topic: in.Topic}
+	req := screen.Request{Record: in.Record, Topic: in.Topic, Owner: act.Kind == registry.Owner}
 	if strings.TrimSpace(in.Filter) != "" {
 		if err := json.Unmarshal([]byte(in.Filter), &req.Filter); err != nil {
 			return nil, registry.Invalid("deck: filter: a JSON object of block id to field to value: %v", err)

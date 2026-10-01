@@ -6,6 +6,7 @@ import { Anchor, Badge, Button, Collapse, Group, Modal, Paper, ScrollArea, Stack
 import { notifications } from '@mantine/notifications';
 import { useTranslation } from 'react-i18next';
 import { call } from './api';
+import { setChatCard } from './chat';
 import type { BoardValue } from './catalog.gen';
 
 type BoardCard = BoardValue['lanes'][number]['cards'][number];
@@ -95,6 +96,7 @@ function Deleted({ cards }: { cards: { id: number; title: string }[] }) {
 
 function CardEditor({ card, onClose }: { card: BoardCard; onClose: () => void }) {
   const { t } = useTranslation();
+  useEffect(() => { setChatCard(card.id); return () => setChatCard(undefined); }, [card.id]);
   const [title, setTitle] = useState(card.title);
   const [text, setText] = useState(card.text ?? '');
   const [busy, setBusy] = useState(false);

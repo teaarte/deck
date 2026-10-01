@@ -107,6 +107,9 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 	case "appearance":
 		return map[string]any{"state": "ready"}, nil
 	case "chat":
+		if !r.req.Owner {
+			return nil, fmt.Errorf("the chat with the master is the owner's")
+		}
 		v, err := r.src.Chat(r.ctx, r.scope.Workspace, r.req.Filter[id]["topic"])
 		if err != nil {
 			return nil, err

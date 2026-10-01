@@ -137,6 +137,7 @@
     "reply_error": "reply failed",
     "reply_stopped": "reply stopped",
     "reply_interrupted": "reply interrupted",
-    "close": "Close the chat"
+    "close": "Close the chat",
+    "process": "reply #{{id}}"
   }
 }

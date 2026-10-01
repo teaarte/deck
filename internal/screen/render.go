@@ -53,6 +53,8 @@ type Request struct {
 	Topic string
 	// Filter holds the values the owner picked, by block id and field.
 	Filter map[string]map[string]string
+	// Owner is set when the owner asks; only the owner reads the chat.
+	Owner bool
 }
 
 // Topics are the event topics after which a client reads blocks again; any other topic means the whole screen.

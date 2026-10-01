@@ -27,25 +27,37 @@ export async function call<T = unknown>(command: string, input: Record<string, u
   return (text ? JSON.parse(text) : null) as T;
 }
 
-// events follows the live channel and opens it again when the browser gives up on it, as after a refused reconnect.
-export function events(onTopic: (topic: string) => void, onState: (live: boolean) => void): () => void {
-  let es: EventSource | undefined;
-  let retry: ReturnType<typeof setTimeout> | undefined;
-  let stopped = false;
-  const open = () => {
-    es = new EventSource('/api/events?token=' + encodeURIComponent(token()));
-    es.onopen = () => onState(true);
-    es.onmessage = (e) => onTopic(String(e.data));
-    es.onerror = () => {
-      onState(false);
-      if (es?.readyState === EventSource.CLOSED && !stopped) retry = setTimeout(open, 3000);
-    };
+type Listener = { topic: (topic: string) => void; state: (live: boolean) => void };
+const listeners = new Set<Listener>();
+let source: EventSource | undefined;
+let retry: ReturnType<typeof setTimeout> | undefined;
+let live = false;
+
+// openSource keeps one live channel for every screen of the page and opens it again when the browser gives up.
+function openSource() {
+  source = new EventSource('/api/events?token=' + encodeURIComponent(token()));
+  source.onopen = () => { live = true; listeners.forEach((l) => l.state(true)); };
+  source.onmessage = (e) => listeners.forEach((l) => l.topic(String(e.data)));
+  source.onerror = () => {
+    live = false;
+    listeners.forEach((l) => l.state(false));
+    if (source?.readyState === EventSource.CLOSED && listeners.size) retry = setTimeout(openSource, 3000);
   };
-  open();
+}
+
+// events follows the live channel of the page; the last one to leave closes it.
+export function events(onTopic: (topic: string) => void, onState: (live: boolean) => void): () => void {
+  const l: Listener = { topic: onTopic, state: onState };
+  listeners.add(l);
+  if (!source || source.readyState === EventSource.CLOSED) openSource();
+  else if (live) onState(true);
   return () => {
-    stopped = true;
+    listeners.delete(l);
+    if (listeners.size) return;
     clearTimeout(retry);
-    es?.close();
+    source?.close();
+    source = undefined;
+    live = false;
   };
 }
 

@@ -10,6 +10,7 @@ import (
 
 	"deck2/internal/app"
 	"deck2/internal/provider"
+	"deck2/internal/registry"
 )
 
 func TestOwnerMessageGetsAMasterReplyInTheTopic(t *testing.T) {
@@ -455,4 +456,23 @@ type chatActionV struct {
 	Command string         `json:"command"`
 	Params  map[string]any `json:"params"`
 	Input   string         `json:"input"`
+}
+
+func TestAMessageAnswersTheQuestionOfTheReply(t *testing.T) {
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		d := c.Approve(ctx, "AskUserQuestion", map[string]any{"questions": []any{map[string]any{"question": "Which list?"}}})
+		answers, _ := d["updatedInput"].(map[string]any)["answers"].(map[string]any)
+		return provider.Result{Text: fmt.Sprint("Picked ", answers["Which list?"])}
+	}, func(c *app.Config) { c.QuestionWait = time.Minute })
+	topic := e.say(0, "buy apples")
+	e.waitFor("the question", func() bool { _, out := e.call("deck.asks_list", nil); return strings.Contains(string(out), "Which list?") })
+	e.say(topic, "the market one")
+	if said := e.masterSaid(topic, 1); said[0].Text != "Picked the market one" {
+		t.Fatalf("a message typed while the master asks is the answer: %+v", said)
+	}
+	out, err := e.App.Registry.Invoke(context.Background(), registry.Actor{Kind: registry.Master, Workspace: 1}, "deck.screen",
+		[]byte(`{"screen": "chat"}`))
+	if err != nil || !strings.Contains(fmt.Sprint(out), "the owner's") {
+		t.Fatalf("only the owner reads the chat: %v %v", out, err)
+	}
 }

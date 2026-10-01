@@ -57,7 +57,7 @@ function App() {
   }, []);
   const current = href({ ...route, record: undefined });
   const [chat, setChat] = useLocalStorage({ key: 'deck-chat-open', defaultValue: false });
-  const phone = useMediaQuery('(max-width: 48em)');
+  const phone = useMediaQuery('(max-width: 48em)', window.matchMedia('(max-width: 48em)').matches, { getInitialValueInEffect: false });
   useEffect(() => setChatScreen(route), [route]);
   const panel = <ScreenView route={CHAT} onProjects={loadMenu} />;
   return (

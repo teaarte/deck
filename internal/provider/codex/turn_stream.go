@@ -34,6 +34,14 @@ func (t *turn) call(ctx context.Context, method string, params, out any) error {
 func (t *turn) until(ctx context.Context) error {
 	cancelled := ctx.Done()
 	live := t.req.Live
+	// One worker steers the owner's messages in the order they came; after the turn they are refused.
+	steers := make(chan provider.Message, 16)
+	defer close(steers)
+	go func() {
+		for m := range steers {
+			t.steer(m)
+		}
+	}()
 	var giveUp <-chan time.Time
 	for t.completed == 0 {
 		select {
@@ -42,7 +50,11 @@ func (t *turn) until(ctx context.Context) error {
 				live = nil
 				continue
 			}
-			go t.steer(m)
+			select {
+			case steers <- m:
+			default:
+				m.Taken <- false
+			}
 		case m, ok := <-t.c.incoming:
 			if !ok {
 				return t.c.ended("codex app-server exited without finishing the turn")
@@ -151,10 +163,6 @@ func (t *turn) steer(m provider.Message) {
 		m.Taken <- false
 		return
 	}
-	select {
-	case r, ok := <-ch:
-		m.Taken <- answer(r, ok, "turn/steer", nil) == nil
-	case <-time.After(15 * time.Second):
-		m.Taken <- false
-	}
+	r, ok := <-ch
+	m.Taken <- answer(r, ok, "turn/steer", nil) == nil
 }

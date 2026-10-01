@@ -141,7 +141,7 @@ func TestTerminalCommandOfAProcess(t *testing.T) {
 func TestClaudeCodeTakesTheOwnersMessageIntoItsTurn(t *testing.T) {
 	c := newCLI(t)
 	c.stream(0, "ok.jsonl")
-	before := `i=0; while [ "$(grep -c '"type":"user"' "$c/stdin")" -lt 2 ] && [ $i -lt 100 ]; do sleep 0.1; i=$((i+1)); done` + "\n"
+	before := `sed -n 1p "$d/stream" | sed "s/{{session}}/$session/g"; : > "$c/ready"; i=0; while [ "$(grep -c '"type":"user"' "$c/stdin")" -lt 2 ] && [ $i -lt 100 ]; do sleep 0.1; i=$((i+1)); done` + "\n"
 	if err := os.WriteFile(filepath.Join(c.dir, "before"), []byte(before), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -149,6 +149,10 @@ func TestClaudeCodeTakesTheOwnersMessageIntoItsTurn(t *testing.T) {
 	p := e.createProject("plain", plainManifest)
 	id := e.run(p, "work")
 	waitCalls(t, c, 1)
+	e.waitFor("the CLI to report its session", func() bool {
+		return c.files(1)("ready") != "" || fileExists(filepath.Join(c.dir, "calls", "1", "ready"))
+	})
+	time.Sleep(200 * time.Millisecond)
 	var out struct{ Delivered string }
 	e.must("deck.process_tell", map[string]any{"process": id, "text": "use the blue folder"}, &out)
 	if got := e.waitState(id, "done", "error"); got.State != "done" || out.Delivered != "now" {
@@ -168,4 +172,9 @@ func TestABackgroundTaskOfClaudeCodeEndsTheTurnWithItsLastResult(t *testing.T) {
 	if got := e.waitState(e.run(p, "work"), "done", "error"); got.State != "done" || string(got.Result) != `"background said done"` {
 		t.Fatalf("a background task that wakes the session gives one more result, and the last one counts: %+v", got)
 	}
+}
+
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }

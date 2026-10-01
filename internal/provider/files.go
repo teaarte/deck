@@ -78,3 +78,6 @@ func WriteTree(dir string, files map[string]string, write func(path, text string
 
 // WritePrivate writes a new file with mode 600.
 func WritePrivate(path, text string) error { return os.WriteFile(path, []byte(text), 0o600) }
+
+// Quote is s as one word for a POSIX shell.
+func Quote(s string) string { return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'" }

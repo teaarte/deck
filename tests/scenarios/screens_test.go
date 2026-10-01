@@ -458,8 +458,9 @@ func TestProcessPageShowsItsLogInTheWordsOfACP(t *testing.T) {
 		}
 		Actions []map[string]any
 	}](t, data["b0"]["value"])
-	if card.Fields[1].Value != "job" || len(card.Actions) != 1 || card.Actions[0]["verb"] != "stop" {
-		t.Fatalf("the page of a running process offers stop: %+v", card)
+	if card.Fields[1].Value != "job" || len(card.Actions) != 2 || card.Actions[0]["verb"] != "stop" || card.Actions[1]["verb"] != "tell" ||
+		card.Actions[1]["input"] != "text" {
+		t.Fatalf("the page of a running process offers stop and a message to it: %+v", card)
 	}
 	running := e.cockpitRunning()
 	if len(running) != 1 || running[0].Title != "quiet.job" || running[0].Actions[0]["screen"] != "process" {

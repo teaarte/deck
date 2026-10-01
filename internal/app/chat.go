@@ -115,7 +115,7 @@ func (a *App) reply(ctx context.Context, topicID int64) error {
 		}
 		if open.State == process.StateRunning {
 			news, _, err := a.chatPrompt(ctx, t, pending, "", "", false)
-			if err != nil || !a.Runner.Say(ctx, open.ID, "deck: the owner wrote while you work.\n"+news) {
+			if err != nil || a.Runner.Say(ctx, open.ID, "deck: the owner wrote while you work.\n"+news) == process.Refused {
 				return err
 			}
 			return a.takeMessages(ctx, t, open.ID, open.SessionID, "", last)

@@ -59,8 +59,11 @@ func (a *App) processTell(ctx context.Context, act registry.Actor, in struct {
 	case p.FinishedAt.Valid:
 		return nil, registry.Invalid("deck: process %d has finished; send it back with a remark instead", p.ID)
 	}
-	if a.Runner.Say(ctx, p.ID, "deck: the owner wrote while you work:\n"+text) {
+	switch a.Runner.Say(ctx, p.ID, "deck: the owner wrote while you work:\n"+text) {
+	case process.Taken:
 		return map[string]any{"process": p.ID, "delivered": "now"}, nil
+	case process.Unsure:
+		return map[string]any{"process": p.ID, "delivered": "sent; the provider did not confirm it"}, nil
 	}
 	if err := a.Runner.Remark(ctx, p.ID, text); err != nil {
 		return nil, err

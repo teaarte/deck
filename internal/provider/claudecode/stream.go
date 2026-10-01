@@ -62,6 +62,10 @@ type turn struct {
 	live int
 	// background counts background tasks that finished; each wakes the session for one more result.
 	background int
+	// started is set once the CLI reported its session; a message before that could meet a session that is gone.
+	started bool
+	// cost is the cost of the session the results so far reported.
+	cost float64
 }
 
 func (t *turn) line(raw []byte) {
@@ -86,7 +90,7 @@ func (t *turn) line(raw []byte) {
 	switch l.Type {
 	case "system":
 		if l.Subtype == "init" {
-			t.model = l.Model
+			t.model, t.started = l.Model, true
 		}
 	case "assistant":
 		if l.Error == "authentication_failed" {
@@ -146,6 +150,7 @@ func (t *turn) line(raw []byte) {
 		var out struct {
 			Result json.RawMessage `json:"result"`
 		}
+		t.res.Structured = nil
 		if len(t.req.ResultSchema) > 0 && json.Unmarshal(l.StructuredOutput, &out) == nil && out.Result != nil {
 			t.res.Structured = out.Result
 		}
@@ -165,8 +170,10 @@ func (t *turn) usage(l line) {
 	}
 	u := provider.Usage{Model: t.model, Input: l.Usage.Input, Output: l.Usage.Output, CacheRead: l.Usage.CacheRead,
 		CacheCreation: l.Usage.CacheCreation, Duration: time.Duration(l.DurationMs) * time.Millisecond}
-	if !t.req.Resume {
-		u.CostUSD = l.TotalCostUSD
+	if !t.req.Resume && l.TotalCostUSD != nil {
+		cost := *l.TotalCostUSD - t.cost
+		t.cost = *l.TotalCostUSD
+		u.CostUSD = &cost
 	}
 	t.req.OnUsage(u)
 }

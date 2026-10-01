@@ -154,17 +154,20 @@ func (r *Runner) run(ctx context.Context, t turn) {
 		OnEvent: func(e provider.Event) { r.event(bg, processID, stream, e) },
 		OnUsage: func(u provider.Usage) { r.usage(bg, processID, pv.Name(), u) },
 	}
+	var in chan provider.Message
 	if slices.Contains(pv.Caps(), provider.LiveInput) && t.live != nil {
-		in := make(chan provider.Message)
-		r.mu.Lock()
-		t.live.input = in
-		r.mu.Unlock()
+		in = make(chan provider.Message)
 		req.Live = in
-		defer func() {
-			r.mu.Lock()
-			t.live.input = nil
-			r.mu.Unlock()
-		}()
+	}
+	listen := func(on bool) {
+		if in == nil {
+			return
+		}
+		r.mu.Lock()
+		if t.live.input = nil; on {
+			t.live.input = in
+		}
+		r.mu.Unlock()
 	}
 	if sub != nil {
 		req.ResultSchema = nil
@@ -188,7 +191,9 @@ func (r *Runner) run(ctx context.Context, t turn) {
 	}
 	asks := t.asks
 	for retried := false; ; {
+		listen(true)
 		res, err := pv.Run(ctx, req)
+		listen(false)
 		r.setGroup(bg, processID, 0)
 		if r.cancelled(bg, ctx, processID, func() {}) {
 			return

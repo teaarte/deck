@@ -37,7 +37,9 @@ func (a *Adapter) Name() string { return "claude-code" }
 func (a *Adapter) QuestionTool() string { return "AskUserQuestion" }
 
 // Terminal goes on with a session of deck in the owner's own Claude Code, in the folder of the turn.
-func (a *Adapter) Terminal(session string) (string, error) { return "claude --resume " + session, nil }
+func (a *Adapter) Terminal(session string) (string, error) {
+	return "claude --resume " + provider.Quote(session), nil
+}
 
 func (a *Adapter) Caps() provider.Caps {
 	return provider.Caps{provider.Tools, provider.Sandbox, provider.Resume, provider.Intercept, provider.Images, provider.StructuredOutput,
@@ -156,7 +158,12 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 		req.OnStart(cmd.Process.Pid)
 	}
 
-	// stdin stays open for live messages until the first result; writes to it go one at a time.
+	// stdin stays open for live messages until the first result; one writer writes them in order, then EOF.
+	type write struct {
+		b    []byte
+		done chan error
+	}
+	queue := make(chan write, 16)
 	var inMu sync.Mutex
 	inClosed := false
 	closeIn := func() {
@@ -164,16 +171,28 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 		defer inMu.Unlock()
 		if !inClosed {
 			inClosed = true
-			inW.Close()
+			close(queue)
 		}
 	}
-	sent := make(chan error, 1)
 	go func() {
-		inMu.Lock()
-		_, err := inW.Write(input(req))
-		inMu.Unlock()
-		sent <- err
+		defer inW.Close()
+		for w := range queue {
+			_, err := inW.Write(w.b)
+			w.done <- err
+		}
 	}()
+	enqueue := func(b []byte) chan error {
+		done := make(chan error, 1)
+		inMu.Lock()
+		defer inMu.Unlock()
+		if inClosed {
+			done <- errors.New("stdin is closed")
+			return done
+		}
+		queue <- write{b, done}
+		return done
+	}
+	sent := enqueue(input(req))
 	live := req.Live
 	lines := make(chan []byte)
 	var scanErr error
@@ -209,20 +228,13 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 				live = nil
 				continue
 			}
-			if !promptDone || t.results > 0 {
+			if !promptDone || !t.started || t.results > 0 {
 				m.Taken <- false
 				continue
 			}
 			t.live++
-			go func() {
-				inMu.Lock()
-				err := errors.New("stdin is closed")
-				if !inClosed {
-					_, err = inW.Write(userLine(m.Text))
-				}
-				inMu.Unlock()
-				m.Taken <- err == nil
-			}()
+			done := enqueue(userLine(m.Text))
+			go func() { m.Taken <- <-done == nil }()
 		case l, ok := <-lines:
 			if !ok {
 				eof, lines = true, nil
@@ -230,12 +242,15 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 			}
 			t.line(l)
 			if t.results > 0 {
-				go closeIn()
+				closeIn()
 				if linger != nil {
 					linger.Stop()
 				}
-				linger = time.NewTimer(a.Linger)
-				lingerC = linger.C
+				lingerC = nil
+				if t.results >= t.allowed() {
+					linger = time.NewTimer(a.Linger)
+					lingerC = linger.C
+				}
 			}
 		case waitErr = <-exited:
 			done, exited = true, nil
@@ -259,13 +274,13 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 	if linger != nil {
 		linger.Stop()
 	}
+	closeIn()
+	inW.Close()
 	if !promptDone {
-		closeIn()
 		if promptErr = <-sent; promptErr == nil {
 			promptDone = true
 		}
 	}
-	closeIn()
 	if err := ctx.Err(); err != nil {
 		return t.res, err
 	}

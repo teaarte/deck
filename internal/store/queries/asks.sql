@@ -117,8 +117,12 @@ ORDER BY id;
 UPDATE ask SET dismissed = 1 WHERE id = ? AND state = 'expired';
 
 
+-- name: CountRemarks :one
+SELECT COUNT(*) FROM ask WHERE process_id = ? AND kind = 'remark' AND delivered = 0;
+
+
 -- name: CreateRemark :one
 INSERT INTO ask (process_id, workspace_id, project_id, kind, text, payload, state, answer, answered_at)
 SELECT p.id, j.workspace_id, j.id, 'remark', CAST(sqlc.arg(text) AS TEXT), '{}', 'answered', CAST(sqlc.arg(text) AS TEXT), sqlc.arg(answered_at)
-FROM process p JOIN project j ON j.id = p.project_id WHERE p.id = sqlc.arg(process_id)
+FROM process p JOIN project j ON j.id = p.project_id WHERE p.id = sqlc.arg(process_id) AND p.finished_at IS NULL
 RETURNING *;

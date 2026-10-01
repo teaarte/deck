@@ -141,7 +141,7 @@ func (a *Adapter) Terminal(session string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("codex: no thread of session %s yet", session)
 	}
-	return "codex resume " + strings.TrimSpace(string(b)), nil
+	return "codex resume " + provider.Quote(strings.TrimSpace(string(b))), nil
 }
 
 func (a *Adapter) sessionFile(session string) string {

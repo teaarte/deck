@@ -200,7 +200,17 @@ func (r *Runner) finish(ctx context.Context, processID int64, state, result stri
 	}
 	var n int64
 	var closedCalls []db.Ask
+	parked := false
 	err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		// A message of the owner that came as the turn ended goes on in the same session instead.
+		if state == StateDone {
+			if m, err := q.CountRemarks(ctx, sql.NullInt64{Int64: processID, Valid: true}); err != nil || m > 0 {
+				if err == nil {
+					parked, err = r.parkIn(ctx, q, processID)
+				}
+				return err
+			}
+		}
 		var err error
 		n, err = q.FinishProcess(ctx, db.FinishProcessParams{State: state, Result: result, NotBySchema: nbs, Error: errText,
 			FinishedAt: r.stamp(), ID: processID})
@@ -215,6 +225,13 @@ func (r *Runner) finish(ctx context.Context, processID int64, state, result stri
 	})
 	if err != nil {
 		slog.Error("finish process", "process", processID, "err", err)
+		return
+	}
+	if parked {
+		r.bus.Publish("processes")
+		if err := r.Deliver(ctx, processID); err != nil {
+			r.finish(ctx, processID, StateError, "", false, "resume with a message: "+err.Error())
+		}
 		return
 	}
 	if n == 0 {

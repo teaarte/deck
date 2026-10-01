@@ -104,15 +104,13 @@ func (r *Runner) blocked(ctx context.Context, processID int64) bool {
 // park moves the process to waiting_answer, where its ceiling does not tick, and immediately delivers
 // answers that arrived while it was running.
 func (r *Runner) park(ctx context.Context, processID int64) {
-	var n int64
+	var parked bool
 	_ = r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		var err error
-		if n, err = q.ClaimProcess(ctx, db.ClaimProcessParams{ToState: StateWaitingAnswer, ID: processID, FromState: StateRunning}); err != nil || n == 0 {
-			return err
-		}
-		return q.PauseCeiling(ctx, db.PauseCeilingParams{Now: r.now().UnixMilli(), ID: processID})
+		parked, err = r.parkIn(ctx, q, processID)
+		return err
 	})
-	if n == 0 {
+	if !parked {
 		return
 	}
 	r.bus.Publish("processes")
@@ -204,4 +202,13 @@ func nullFloat(f *float64) sql.NullFloat64 {
 		return sql.NullFloat64{}
 	}
 	return sql.NullFloat64{Float64: *f, Valid: true}
+}
+
+// parkIn moves a running process to waiting_answer in a transaction; its ceiling stops.
+func (r *Runner) parkIn(ctx context.Context, q *db.Queries, processID int64) (bool, error) {
+	n, err := q.ClaimProcess(ctx, db.ClaimProcessParams{ToState: StateWaitingAnswer, ID: processID, FromState: StateRunning})
+	if err != nil || n == 0 {
+		return false, err
+	}
+	return true, q.PauseCeiling(ctx, db.PauseCeilingParams{Now: r.now().UnixMilli(), ID: processID})
 }

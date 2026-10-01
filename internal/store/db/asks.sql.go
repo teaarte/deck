@@ -149,11 +149,22 @@ func (q *Queries) ConsumeApproval(ctx context.Context, arg ConsumeApprovalParams
 	return i, err
 }
 
+const countRemarks = `-- name: CountRemarks :one
+SELECT COUNT(*) FROM ask WHERE process_id = ? AND kind = 'remark' AND delivered = 0
+`
+
+func (q *Queries) CountRemarks(ctx context.Context, processID sql.NullInt64) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countRemarks, processID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createAsk = `-- name: CreateAsk :one
 INSERT INTO ask (process_id, workspace_id, project_id, kind, text, payload, expires_at)
 SELECT p.id, j.workspace_id, j.id, CAST(?1 AS TEXT), CAST(?2 AS TEXT), CAST(?3 AS TEXT),
     ?4
-FROM process p JOIN project j ON j.id = p.project_id WHERE p.id = ?5
+FROM process p JOIN project j ON j.id = p.project_id WHERE p.id = ?5 AND p.finished_at IS NULL
 RETURNING id, process_id, workspace_id, project_id, kind, text, payload, answer, state, delivered, used, created_at, answered_at, expires_at, result, dismissed
 `
 
@@ -288,7 +299,7 @@ func (q *Queries) CreateProjectAsk(ctx context.Context, arg CreateProjectAskPara
 const createRemark = `-- name: CreateRemark :one
 INSERT INTO ask (process_id, workspace_id, project_id, kind, text, payload, state, answer, answered_at)
 SELECT p.id, j.workspace_id, j.id, 'remark', CAST(?1 AS TEXT), '{}', 'answered', CAST(?1 AS TEXT), ?2
-FROM process p JOIN project j ON j.id = p.project_id WHERE p.id = ?3
+FROM process p JOIN project j ON j.id = p.project_id WHERE p.id = ?3 AND p.finished_at IS NULL
 RETURNING id, process_id, workspace_id, project_id, kind, text, payload, answer, state, delivered, used, created_at, answered_at, expires_at, result, dismissed
 `
 

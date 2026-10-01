@@ -197,13 +197,14 @@ func TestRealBrowserSettings(t *testing.T) {
 	b.eval(`([...document.querySelectorAll('[data-item]')].find((x) => x.offsetParent && x.innerText.includes('notes · enabled')).querySelector('[data-verb="delete"]').click(), '')`)
 	b.until("the owner asked before the delete", `document.querySelector('[data-confirm]')?.innerText.includes('notes')`)
 	var still []projectV
-	e.must("deck.projects_list", nil, &still)
+	e.projectsOf(&still)
 	if len(still) != 2 {
 		t.Fatalf("nothing is deleted before the owner says yes: %+v", still)
 	}
 	b.eval(`(document.querySelector('[data-confirm-yes]').click(), '')`)
 	b.until("the deleted project gone from the tab and the menu", `![...document.querySelectorAll('[data-item]')].some((x) => x.innerText.includes('notes ·')) && !document.querySelector('nav').innerText.toLowerCase().includes('notes')`)
-	e.must("deck.projects_list", nil, &still)
+	still = nil
+	e.projectsOf(&still)
 	if len(still) != 1 || still[0].Name != "web" {
 		t.Fatalf("the project is deleted after the yes: %+v", still)
 	}
@@ -241,7 +242,7 @@ func TestRealBrowserDocuments(t *testing.T) {
 		t.Fatalf("a picture in markdown is not fetched from the network: %d requests", n)
 	}
 
-	b.eval(`([...document.querySelectorAll('nav a')].find((a) => a.innerText.trim() === 'Documents').click(), '')`)
+	b.eval(`([...document.querySelectorAll('nav a')].find((a) => a.innerText.trim() === 'Documents' && a.getAttribute('href').includes('/p/web/')).click(), '')`)
 	b.until("the documents screen", `[...document.querySelectorAll('tr')].some((r) => r.innerText.includes('notes/criteria.md'))`)
 	b.eval(`([...document.querySelectorAll('tr')].find((r) => r.innerText.includes('notes/criteria.md')).querySelector('button').click(), '')`)
 	b.until("the document page", `location.hash === '#/p/web/document/`+fmt.Sprint(d.ID)+`' && document.querySelector('[data-edit]')`)

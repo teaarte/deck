@@ -87,6 +87,8 @@ func (a *App) PumpChats(ctx context.Context) {
 // reply hands the waiting messages of a topic to the master: into its parked reply, or a new reply process
 // that resumes the topic's session of its provider or starts one with a retelling.
 func (a *App) reply(ctx context.Context, topicID int64) error {
+	a.chatStart.Lock()
+	defer a.chatStart.Unlock()
 	t, err := a.Store.Q.GetTopic(ctx, topicID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil
@@ -112,7 +114,7 @@ func (a *App) reply(ctx context.Context, topicID int64) error {
 		if err != nil || !ok {
 			return err
 		}
-		return a.takeMessages(ctx, t, open.ID, open.Provider, open.SessionID, last)
+		return a.takeMessages(ctx, t, open.ID, last)
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
 		return err
@@ -134,11 +136,23 @@ func (a *App) reply(ctx context.Context, topicID int64) error {
 		return err
 	}
 	o := process.Origin{Session: uuid.NewString()}
-	if s, err := a.Store.Q.GetChatSession(ctx, db.GetChatSessionParams{TopicID: topicID, Provider: pv.Name()}); err == nil {
+	s, err := a.Store.Q.GetChatSession(ctx, db.GetChatSessionParams{TopicID: topicID, Provider: pv.Name()})
+	switch {
+	case err == nil:
 		o.Session, o.Resume = s.SessionID, true
 		if o.Message, err = a.chatPrompt(ctx, t, pending, s.SessionID, pv.Name(), true); err != nil {
 			return err
 		}
+	case errors.Is(err, sql.ErrNoRows):
+		// A new session is told everything before the first waiting message.
+		err = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+			return q.SetChatSession(ctx, db.SetChatSessionParams{TopicID: topicID, Provider: pv.Name(), SessionID: o.Session, Seen: first - 1})
+		})
+		if err != nil {
+			return err
+		}
+	default:
+		return err
 	}
 	retell, err := a.retelling(ctx, t, first)
 	if err != nil {
@@ -153,16 +167,13 @@ func (a *App) reply(ctx context.Context, topicID int64) error {
 	if err != nil {
 		return err
 	}
-	return a.takeMessages(ctx, t, id, pv.Name(), o.Session, last)
+	return a.takeMessages(ctx, t, id, last)
 }
 
-// takeMessages gives the waiting messages up to through to the reply process and the session that saw them.
-func (a *App) takeMessages(ctx context.Context, t db.ChatTopic, processID int64, provider, session string, through int64) error {
+// takeMessages gives the waiting messages up to through to the reply process.
+func (a *App) takeMessages(ctx context.Context, t db.ChatTopic, processID, through int64) error {
 	err := a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		if err := q.TakeMessages(ctx, db.TakeMessagesParams{ProcessID: processID, TopicID: t.ID, Through: through}); err != nil {
-			return err
-		}
-		return q.SetChatSession(ctx, db.SetChatSessionParams{TopicID: t.ID, Provider: provider, SessionID: session, Seen: through})
+		return q.TakeMessages(ctx, db.TakeMessagesParams{ProcessID: processID, TopicID: t.ID, Through: through})
 	})
 	a.Bus.Publish("chat")
 	return err
@@ -185,12 +196,16 @@ func (a *App) chatPrompt(ctx context.Context, t db.ChatTopic, pending []db.ChatM
 					lines = append(lines, m)
 				}
 			}
-			if len(lines) > retellTail {
-				lines = lines[len(lines)-retellTail:]
-			}
-			if len(lines) > 0 {
-				b.WriteString("deck: meanwhile another provider went on with this topic; these messages are new to you.\n")
-				b.WriteString(untrusted.Block("Messages you did not see, oldest first", transcript(lines)) + "\n\n")
+			switch {
+			case len(lines) > retellTail:
+				retell, err := a.retelling(ctx, t, pending[0].ID)
+				if err != nil {
+					return "", err
+				}
+				b.WriteString("deck: much happened in this topic since your last turn.\n" + retell + "\n")
+			case len(lines) > 0:
+				b.WriteString("deck: these messages of the topic came after your last turn; another provider may have answered them.\n")
+				b.WriteString(untrusted.Block("Messages new to you, oldest first", transcript(lines)) + "\n\n")
 			}
 		}
 	}
@@ -261,7 +276,7 @@ func (a *App) retelling(ctx context.Context, t db.ChatTopic, before int64) (stri
 	}
 	var after []db.ChatMessage
 	for _, m := range tail {
-		if m.CreatedAt > since {
+		if m.CreatedAt >= since {
 			after = append(after, m)
 		}
 	}
@@ -356,7 +371,7 @@ func (a *App) chatTurn(ctx context.Context, processID int64, text string) {
 	a.Bus.Publish("chat")
 }
 
-// chatClosed goes on with the messages a topic got while its reply ran.
+// chatClosed goes on with the messages a topic got while its reply ran; it runs when the reply closes or parks.
 func (a *App) chatClosed(ctx context.Context, processID int64) {
 	if _, topic := a.replyOf(ctx, processID); topic != 0 {
 		a.Bus.Publish("chat")

@@ -119,6 +119,9 @@ func (r *Runner) park(ctx context.Context, processID int64) {
 	if err := r.Deliver(ctx, processID); err != nil {
 		r.finish(ctx, processID, StateError, "", false, "resume after answer: "+err.Error())
 	}
+	if r.OnParked != nil {
+		r.OnParked(ctx, processID)
+	}
 }
 
 // waiting is the turn a process waiting for its provider runs once the provider is back.

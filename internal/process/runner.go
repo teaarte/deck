@@ -82,6 +82,8 @@ type Runner struct {
 	OnClosed func(ctx context.Context, processID int64)
 	// OnTurn gets the final text of an agent turn that ends the process done or parks it for the owner.
 	OnTurn func(ctx context.Context, processID int64, text string)
+	// OnParked runs after a process parked to wait for the owner.
+	OnParked func(ctx context.Context, processID int64)
 
 	ctx     context.Context
 	cancel  context.CancelFunc

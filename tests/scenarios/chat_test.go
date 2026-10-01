@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"deck2/internal/app"
 	"deck2/internal/provider"
 )
 
@@ -130,7 +131,7 @@ func TestAnotherProviderGetsTheRetelling(t *testing.T) {
 		t.Fatalf("back on the first provider its own session goes on: %+v", back)
 	}
 	if !strings.Contains(back.Prompt, "owner: three") || !strings.Contains(back.Prompt, "master: other says 1") ||
-		strings.Contains(back.Prompt, "owner: two") || !strings.Contains(back.Prompt, "four") {
+		strings.Contains(back.Prompt, "owner: two") || strings.Contains(back.Prompt, "master: fake says 2") || !strings.Contains(back.Prompt, "four") {
 		t.Fatalf("the resumed session hears what it missed, and only that:\n%s", back.Prompt)
 	}
 
@@ -309,4 +310,59 @@ func TestTopicsRunInParallelAndRepliesQueue(t *testing.T) {
 	close(gate("D1"))
 	e.masterSaid(c, 1)
 	e.masterSaid(d, 1)
+}
+
+func TestAMessageReachesAReplyThatParkedForTheOwner(t *testing.T) {
+	asked := make(chan struct{})
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		switch c.N {
+		case 1:
+			close(asked)
+			c.Approve(ctx, "AskUserQuestion", map[string]any{"questions": []any{map[string]any{"question": "Which list?"}}})
+			return provider.Result{Text: "Which list, the shop or the market?"}
+		case 2:
+			return provider.Result{SessionMissing: true}
+		}
+		return provider.Result{Text: "Put it on the market list."}
+	}, func(c *app.Config) { c.QuestionWait = 300 * time.Millisecond })
+	topic := e.say(0, "buy apples")
+	<-asked
+	e.say(topic, "the market one")
+	said := e.masterSaid(topic, 2)
+	if said[0].Text != "Which list, the shop or the market?" || said[1].Text != "Put it on the market list." {
+		t.Fatalf("the reply that parked speaks, then answers the message sent meanwhile: %+v", said)
+	}
+	calls := e.Fake.Calls()
+	if len(calls) != 3 || !calls[1].Resume || calls[2].Resume || !strings.Contains(calls[2].Prompt, "the market one") ||
+		!strings.Contains(calls[2].Prompt, "buy apples") {
+		t.Fatalf("the message goes into the parked process, and a lost session starts again with it: %d calls\n%s", len(calls), calls[len(calls)-1].Prompt)
+	}
+	ms := e.chatMessages(topic)
+	for _, m := range ms {
+		if m.Role == "owner" && m.Process != ms[0].Process {
+			t.Fatalf("both messages belong to the one reply process: %+v", ms)
+		}
+	}
+}
+
+func TestMessagesOfAFailedReplyReachTheNextTurn(t *testing.T) {
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		if c.N == 2 {
+			return provider.Result{IsError: true, Text: "the model is overloaded"}
+		}
+		return provider.Result{Text: fmt.Sprintf("reply %d", c.N)}
+	})
+	topic := e.say(0, "first")
+	e.masterSaid(topic, 1)
+	e.say(topic, "second, lost")
+	e.waitFor("the failed reply", func() bool {
+		ms := e.chatMessages(topic)
+		return ms[len(ms)-1].Reply != nil && ms[len(ms)-1].Reply.State == "error"
+	})
+	e.say(topic, "third")
+	e.masterSaid(topic, 2)
+	c := e.Fake.Calls()[2]
+	if !c.Resume || !strings.Contains(c.Prompt, "owner: second, lost") || strings.Contains(c.Prompt, "master: reply 1") || !strings.Contains(c.Prompt, "third") {
+		t.Fatalf("what a failed turn did not answer comes again, the session's own reply does not:\n%s", c.Prompt)
+	}
 }

@@ -62,6 +62,8 @@ type App struct {
 	cleaned, snapTried time.Time
 	chatMu             sync.Mutex
 	chat               chatQueue
+	// chatStart keeps a reply starting apart from a topic being deleted.
+	chatStart sync.Mutex
 }
 
 // New starts deck with its main provider p and further built-in ones.
@@ -104,7 +106,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 			ScriptCeiling: cfg.ScriptCeiling, FilesDir: filepath.Join(cfg.Home, "files"),
 			Hidden: hidden(cfg.Home), PauseLimit: cfg.PauseLimit, PauseProbe: cfg.PauseProbe, AgentSlots: a.agentSlots}, a)
 	a.Runner.OnDone = a.afterTriggers
-	a.Runner.OnTurn, a.Runner.OnClosed = a.chatTurn, a.chatClosed
+	a.Runner.OnTurn, a.Runner.OnClosed, a.Runner.OnParked = a.chatTurn, a.chatClosed, a.chatClosed
 	a.Scheduler = trigger.New(st, a, cfg.Now, cfg.CatchUpSpread)
 	a.Asks.OnLateAnswer(a.lateAnswer)
 	if err := a.SeedSkills(a.ctx); err != nil {

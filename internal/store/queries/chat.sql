@@ -71,7 +71,7 @@ SELECT topic_id FROM chat_message WHERE process_id = ? ORDER BY id LIMIT 1;
 
 
 -- name: CountMessagesAfter :one
-SELECT COUNT(*) FROM chat_message WHERE topic_id = sqlc.arg(topic_id) AND created_at > sqlc.arg(since);
+SELECT COUNT(*) FROM chat_message WHERE topic_id = sqlc.arg(topic_id) AND created_at >= sqlc.arg(since);
 
 
 -- name: GetChatSession :one
@@ -80,7 +80,8 @@ SELECT * FROM chat_session WHERE topic_id = ? AND provider = ?;
 
 -- name: SetChatSession :exec
 INSERT INTO chat_session (topic_id, provider, session_id, seen) VALUES (?, ?, ?, ?)
-ON CONFLICT (topic_id, provider) DO UPDATE SET session_id = excluded.session_id, seen = excluded.seen;
+ON CONFLICT (topic_id, provider) DO UPDATE SET session_id = excluded.session_id, seen = excluded.seen
+WHERE chat_session.session_id != excluded.session_id;
 
 
 -- name: SeeChat :exec

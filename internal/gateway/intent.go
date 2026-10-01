@@ -87,6 +87,9 @@ func (g *Gateway) LostAt(ctx context.Context, id int64, tool string) {
 		act := registry.Actor{Kind: registry.Owner, Workspace: p.WorkspaceID}
 		if c.ProcessID != 0 {
 			act = registry.Actor{Kind: registry.Agent, Workspace: p.WorkspaceID, ProjectID: p.ID, ProcessID: c.ProcessID}
+			if pr, err := q.GetProcess(ctx, c.ProcessID); err == nil && c.Actor == registry.Master {
+				act = registry.Actor{Kind: registry.Master, Workspace: p.WorkspaceID, ProjectID: pr.ProjectID, ProcessID: c.ProcessID}
+			}
 		}
 		text := fmt.Sprintf("Outcome unknown: %s with %s. deck stopped or lost the connection while making this call; "+
 			"check the other side, then retry it or count it as done.", c.Tool, untrusted.Cut(c.Params, 500))

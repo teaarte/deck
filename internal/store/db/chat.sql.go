@@ -64,7 +64,7 @@ func (q *Queries) ArchiveTopic(ctx context.Context, arg ArchiveTopicParams) (int
 }
 
 const countMessagesAfter = `-- name: CountMessagesAfter :one
-SELECT COUNT(*) FROM chat_message WHERE topic_id = ?1 AND created_at > ?2
+SELECT COUNT(*) FROM chat_message WHERE topic_id = ?1 AND created_at >= ?2
 `
 
 type CountMessagesAfterParams struct {
@@ -467,6 +467,7 @@ func (q *Queries) SeeChat(ctx context.Context, arg SeeChatParams) error {
 const setChatSession = `-- name: SetChatSession :exec
 INSERT INTO chat_session (topic_id, provider, session_id, seen) VALUES (?, ?, ?, ?)
 ON CONFLICT (topic_id, provider) DO UPDATE SET session_id = excluded.session_id, seen = excluded.seen
+WHERE chat_session.session_id != excluded.session_id
 `
 
 type SetChatSessionParams struct {

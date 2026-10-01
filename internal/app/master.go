@@ -60,8 +60,9 @@ func (a *App) seedMaster(ctx context.Context, workspace int64, m *manifest.Manif
 		case err != nil:
 			return err
 		case p.Builtin == 0:
-			slog.Error("a project of the owner is named master, so the built-in master is missing; rename it by export and import", "workspace", workspace)
-			return nil
+			slog.Error("a project of the owner is named master, so the built-in master is missing", "workspace", workspace)
+			return q.SetHealth(ctx, db.SetHealthParams{Subject: "project:" + master.Name, Status: "error",
+				Error: "a project of the owner is named master, so the built-in master is missing: export that project, delete it and import it under another name"})
 		}
 		changed := false
 		for path, text := range files {

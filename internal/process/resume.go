@@ -354,6 +354,18 @@ func (r *Runner) Tell(ctx context.Context, processID int64, message string) (boo
 			message += "- " + untrusted.Line(a.Text, 300) + "\n"
 		}
 	}
+	// A session lost on this resume starts again from the start note, which then carries the message too.
+	err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		p, err := q.GetProcess(ctx, processID)
+		if err != nil {
+			return err
+		}
+		return q.StartProcessSession(ctx, db.StartProcessSessionParams{SessionID: p.SessionID, StartNote: strings.TrimSpace(p.StartNote + "\n\n" + message), ID: processID})
+	})
+	if err != nil {
+		r.finish(ctx, processID, StateError, "", false, "resume with a message: "+err.Error())
+		return true, err
+	}
 	if err := r.resume(ctx, processID, message, askIDs(pending), false); err != nil {
 		r.finish(ctx, processID, StateError, "", false, "resume with a message: "+err.Error())
 		return true, err

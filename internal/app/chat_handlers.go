@@ -269,7 +269,10 @@ func (a *App) chatTopicDelete(ctx context.Context, act registry.Actor, in struct
 	if err != nil {
 		return nil, err
 	}
-	if p, err := a.Store.Q.OpenTopicProcess(ctx, in.Topic); err == nil {
+	a.chatStart.Lock()
+	p, err := a.Store.Q.OpenTopicProcess(ctx, in.Topic)
+	a.chatStart.Unlock()
+	if err == nil {
 		_ = a.Runner.Stop(ctx, p.ID, "deck: the owner deleted the chat topic")
 	}
 	a.Bus.Publish("chat")

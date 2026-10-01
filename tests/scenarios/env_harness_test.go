@@ -2,6 +2,7 @@ package scenarios
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"net"
@@ -83,7 +84,8 @@ func newEnvBuiltin(t *testing.T, home string, ps []provider.Provider, cfg ...fun
 	for _, f := range cfg {
 		f(&c)
 	}
-	a, err := app.New(c, ps[0], ps[1:]...)
+	quiet := &Fake{name: "quiet", script: func(context.Context, *Call) provider.Result { return provider.Result{Text: "ok"} }}
+	a, err := app.New(c, ps[0], append(ps[1:], quiet)...)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -99,7 +101,10 @@ func newEnvBuiltin(t *testing.T, home string, ps []provider.Provider, cfg ...fun
 		ts.Close()
 		side.Close()
 	})
-	return &Env{T: t, App: a, URL: base, Side: side.URL, names: map[int64]string{}, Browser: browser}
+	e := &Env{T: t, App: a, URL: base, Side: side.URL, names: map[int64]string{}, Browser: browser}
+	// The master looks into failed processes on a provider of its own, so tests of failures see only their calls.
+	e.must("deck.provider_set", map[string]any{"command": "master.on_error", "provider": "quiet"}, nil)
+	return e
 }
 
 func (e *Env) do(method, path string, body any) (int, []byte) {

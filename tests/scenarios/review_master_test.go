@@ -80,6 +80,7 @@ func TestReviewRunsOnItsSchedule(t *testing.T) {
 
 func TestAnErrorReachesTheMasterOncePerDay(t *testing.T) {
 	e := newClockEnv(t, masterScript)
+	e.must("deck.provider_set", map[string]any{"command": "master.on_error", "provider": ""}, nil)
 	p := e.createProject("work", boardWork)
 	failed := e.waitState(e.run(p, "work"), "error")
 	e.waitFor("on_error", func() bool { return len(e.runsOf("master", "on_error")) == 1 })
@@ -100,6 +101,7 @@ func TestAnErrorReachesTheMasterOncePerDay(t *testing.T) {
 
 func TestErrorsStayWithAProjectThatTurnedThemOff(t *testing.T) {
 	e := newEnv(t, masterScript)
+	e.must("deck.provider_set", map[string]any{"command": "master.on_error", "provider": ""}, nil)
 	p := e.createProject("work", strings.Replace(boardWork, `"version": 4,`, `"version": 4, "master_errors": false,`, 1))
 	e.waitState(e.run(p, "work"), "error")
 	time.Sleep(200 * time.Millisecond)
@@ -112,6 +114,7 @@ func TestMasterOwnErrorsDoNotReachItself(t *testing.T) {
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		return provider.Result{IsError: true, Text: "the model is overloaded"}
 	})
+	e.must("deck.provider_set", map[string]any{"command": "master.on_error", "provider": ""}, nil)
 	var r struct{ Process int64 }
 	e.must("master.review", map[string]any{}, &r)
 	e.waitState(r.Process, "error")

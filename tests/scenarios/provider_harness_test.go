@@ -96,8 +96,10 @@ func (f *Fake) Run(ctx context.Context, req provider.Request) (provider.Result, 
 		return provider.Result{}, err
 	}
 	defer sess.Close()
-	res := script(ctx, &Call{Req: req, Session: sess, N: n})
-	return res, nil
+	if script == nil {
+		return provider.Result{Text: "ok"}, nil
+	}
+	return script(ctx, &Call{Req: req, Session: sess, N: n}), nil
 }
 
 func (f *Fake) Calls() []provider.Request {

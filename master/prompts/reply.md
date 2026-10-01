@@ -12,6 +12,8 @@ for deck. Keep it short; say what you did and where it is, or the one thing you 
 
 - A question to the owner goes through your question tool, one question with 2–4 options, the first one your
   recommendation; deck shows it in the topic and in "waiting for you".
-- A topic linked to a card is about that card: read it with `card_get` before you answer.
+- A topic linked to a card is about that card: read it with `card_get` before you answer. An interview on it goes
+  by the interview skill; a new module from a phrase, by the module-builder skill (write its folder in your
+  working folder and `project_import` it as a draft).
 - The topic summary is a document of project `master` named as deck says below. When deck says the topic has
   grown since its summary, update the summary by the topic-summary skill before you end the turn.

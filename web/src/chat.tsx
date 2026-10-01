@@ -29,6 +29,26 @@ function screenOf(s: ChatScreen): string {
   return JSON.stringify(out);
 }
 
+// A topic another screen opened waits here until the chat shows it.
+let wanted: number | undefined;
+const opens = new Set<(topic: number) => void>();
+
+// openTopic shows a topic in the chat panel and opens the panel.
+export function openTopic(topic: number) {
+  wanted = topic;
+  opens.forEach((f) => f(topic));
+  window.dispatchEvent(new Event('deck-chat-open'));
+}
+
+// interview opens a topic about a card in which the master interviews the owner.
+export async function interview(card: number, title: string) {
+  const out = await call<{ topic: number }>('deck.chat_send', {
+    card, text: 'Interview me about card #' + card + ' (' + title + ') and write the spec into it.',
+    screen: screenOf(current), retry_key: newKey(),
+  });
+  openTopic(out.topic);
+}
+
 // newKey is a retry key of a draft; it works on plain http, where randomUUID does not.
 function newKey(): string {
   return Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, '0')).join('');
@@ -83,6 +103,12 @@ export function Chat({ value, context }: { value: ChatValue; context: ComponentC
     void context.dispatchAction({ event: { name: 'filter', context: { block: context.componentModel.id, field: 'topic', value: topic } } });
   };
   const topic = value.topic;
+  useEffect(() => {
+    const show = (id: number) => { wanted = undefined; pick(String(id)); };
+    opens.add(show);
+    if (wanted) show(wanted);
+    return () => { opens.delete(show); };
+  }, []);
   useEffect(() => { if (topic && !pinned.current) pick(String(topic.id)); }, [topic?.id]);
   const last = value.messages[value.messages.length - 1]?.id;
   useEffect(() => { feed.current?.scrollTo({ top: feed.current.scrollHeight }); }, [last, value.turn?.lines.length]);

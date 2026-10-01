@@ -187,9 +187,8 @@ type pushItem struct {
 // pushBatch is how many pushes of one source one look sends; the rest wait for the next look.
 const pushBatch = 10
 
-// pushNew pushes to the devices of a workspace what came since the last delivered push: asks that wait for the
-// owner, failed processes, lines of notify, and the master's replies while no client is open. A cursor moves only
-// past what reached a device or what no device can take; a push service that fails for now is tried again.
+// pushNew pushes what came since the last delivered push: asks for the owner, failures, notify lines and the
+// master's replies while no client is open; a cursor moves only past what a device took or refused for good.
 func (a *App) pushNew(ctx context.Context, workspace int64) {
 	a.pushMu.Lock()
 	defer a.pushMu.Unlock()
@@ -326,7 +325,7 @@ func (a *App) pushText(ctx context.Context, projectID int64, title, text, url st
 var pushClient = &http.Client{Timeout: 15 * time.Second,
 	CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 
-// deliver sends one push to every device; false when a device failed for now, so the push waits for another look.
+// deliver sends one push to every device; false when a device failed in a way worth a retry at the next look.
 // A device the service no longer knows goes away; one that refuses the push for good is only logged.
 func (a *App) deliver(ctx context.Context, workspace int64, k vapid, subs []db.PushSubscription, m pushMessage) bool {
 	payload, _ := json.Marshal(m)

@@ -59,6 +59,11 @@ function App() {
   const [chat, setChat] = useLocalStorage({ key: 'deck-chat-open', defaultValue: false });
   const phone = useMediaQuery('(max-width: 48em)', window.matchMedia('(max-width: 48em)').matches, { getInitialValueInEffect: false });
   useEffect(() => setChatScreen(route), [route]);
+  useEffect(() => {
+    const open = () => setChat(true);
+    window.addEventListener('deck-chat-open', open);
+    return () => window.removeEventListener('deck-chat-open', open);
+  }, []);
   const panel = <ScreenView route={CHAT} onProjects={loadMenu} />;
   return (
     <AppShell padding="md" header={{ height: 52 }} navbar={{ width: 260, breakpoint: 'sm', collapsed: { mobile: !opened } }}

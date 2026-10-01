@@ -6,7 +6,7 @@ import { Anchor, Badge, Button, Collapse, Group, Modal, Paper, ScrollArea, Stack
 import { notifications } from '@mantine/notifications';
 import { useTranslation } from 'react-i18next';
 import { call } from './api';
-import { setChatCard } from './chat';
+import { interview, setChatCard } from './chat';
 import type { BoardValue } from './catalog.gen';
 
 type BoardCard = BoardValue['lanes'][number]['cards'][number];
@@ -132,7 +132,10 @@ function CardEditor({ card, onClose }: { card: BoardCard; onClose: () => void })
         <TextInput label={t('board.title')} value={title} onChange={(e) => setTitle(e.currentTarget.value)} />
         <Textarea label={t('board.text')} autosize minRows={3} value={text} onChange={(e) => setText(e.currentTarget.value)} />
         <Group justify="space-between">
-          <Button color="red" variant="subtle" loading={busy} onClick={remove}>{t('board.delete')}</Button>
+          <Group gap="xs">
+            <Button color="red" variant="subtle" loading={busy} onClick={remove}>{t('board.delete')}</Button>
+            <Button variant="default" loading={busy} onClick={() => run(() => interview(card.id, card.title))} data-interview>{t('board.interview')}</Button>
+          </Group>
           <Button loading={busy} disabled={!title.trim()} onClick={() => run(() => call('deck.card_update', { card: card.id, title, text }))}>
             {t('board.save')}
           </Button>

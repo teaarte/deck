@@ -186,16 +186,18 @@ func (q *Queries) ListFilesOf(ctx context.Context, arg ListFilesOfParams) ([]Fil
 
 const listWorkspaceFiles = `-- name: ListWorkspaceFiles :many
 SELECT id, project_id, owner_kind, owner_id, name, type, size, created_at FROM file WHERE project_id IN (SELECT id FROM project WHERE workspace_id = ?1)
-ORDER BY id DESC LIMIT ?2
+  AND (?2 = 0 OR project_id = ?2)
+ORDER BY id DESC LIMIT ?3
 `
 
 type ListWorkspaceFilesParams struct {
 	WorkspaceID int64
+	ProjectID   interface{}
 	Lim         int64
 }
 
 func (q *Queries) ListWorkspaceFiles(ctx context.Context, arg ListWorkspaceFilesParams) ([]File, error) {
-	rows, err := q.db.QueryContext(ctx, listWorkspaceFiles, arg.WorkspaceID, arg.Lim)
+	rows, err := q.db.QueryContext(ctx, listWorkspaceFiles, arg.WorkspaceID, arg.ProjectID, arg.Lim)
 	if err != nil {
 		return nil, err
 	}

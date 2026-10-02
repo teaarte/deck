@@ -82,7 +82,7 @@ func (a *App) newestFiles(ctx context.Context, act registry.Actor, project strin
 	if err != nil {
 		return nil, err
 	}
-	fs, err := a.Store.Q.ListWorkspaceFiles(ctx, db.ListWorkspaceFilesParams{WorkspaceID: act.Workspace, Lim: 500})
+	fs, err := a.Store.Q.ListWorkspaceFiles(ctx, db.ListWorkspaceFilesParams{WorkspaceID: act.Workspace, ProjectID: pid, Lim: 500})
 	if err != nil {
 		return nil, err
 	}
@@ -92,10 +92,8 @@ func (a *App) newestFiles(ctx context.Context, act registry.Actor, project strin
 	}
 	out := []fileView{}
 	for _, f := range fs {
-		if pid == 0 || f.ProjectID == pid {
-			out = append(out, fileView{ID: f.ID, Project: names[f.ProjectID], Name: f.Name, Type: f.Type, Size: f.Size, OwnerKind: f.OwnerKind,
-				OwnerID: f.OwnerID, CreatedAt: f.CreatedAt})
-		}
+		out = append(out, fileView{ID: f.ID, Project: names[f.ProjectID], Name: f.Name, Type: f.Type, Size: f.Size, OwnerKind: f.OwnerKind,
+			OwnerID: f.OwnerID, CreatedAt: f.CreatedAt})
 	}
 	return out, nil
 }

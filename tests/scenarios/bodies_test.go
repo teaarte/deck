@@ -12,7 +12,7 @@ import (
 )
 
 func bodiesManifest(url string) string {
-	return fmt.Sprintf(`{"version": 4,
+	return fmt.Sprintf(`{"version": 5,
   "commands": [
     {"name": "put", "title": "Put", "description": "Sends a file as it is.", "class": "internal",
      "input": {"type": "object", "properties": {"doc": {"type": "string", "format": "file"}}, "required": ["doc"]},

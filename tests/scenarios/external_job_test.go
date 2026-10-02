@@ -11,7 +11,7 @@ import (
 )
 
 func jobManifest(url string) string {
-	return fmt.Sprintf(`{"version": 4,
+	return fmt.Sprintf(`{"version": 5,
   "collections": [{"name": "jobs", "description": "A generation job.", "key": "topic",
     "schema": {"type": "object", "properties": {"topic": {"type": "string"}, "job": {"type": "string"}, "status": {"type": "string"}},
       "required": ["topic"]}}],

@@ -96,7 +96,7 @@ func TestAnErrorReachesTheMasterOncePerDay(t *testing.T) {
 func TestErrorsStayWithAProjectThatTurnedThemOff(t *testing.T) {
 	e := newEnv(t, masterScript)
 	e.masterAwake()
-	p := e.createProject("work", strings.Replace(boardWork, `"version": 4,`, `"version": 4, "master_errors": false,`, 1))
+	p := e.createProject("work", strings.Replace(boardWork, `"version": 5,`, `"version": 5, "master_errors": false,`, 1))
 	e.waitState(e.run(p, "work"), "error")
 	time.Sleep(200 * time.Millisecond)
 	if n := len(e.runsOf("master", "on_error")); n != 0 {
@@ -154,7 +154,7 @@ func TestReviewCallSuggestionRunsInAnAutoProject(t *testing.T) {
 		return provider.Result{Text: "worked"}
 	})
 	e.masterAwake()
-	e.createProject("beta", strings.Replace(boardWork, `"version": 4,`, `"version": 4, "autonomy": "auto",`, 1))
+	e.createProject("beta", strings.Replace(boardWork, `"version": 5,`, `"version": 5, "autonomy": "auto",`, 1))
 	var r struct{ Process int64 }
 	e.must("master.review", map[string]any{}, &r)
 	if got := e.waitState(r.Process, "done", "error"); !strings.HasPrefix(string(got.Result), `"false`) {

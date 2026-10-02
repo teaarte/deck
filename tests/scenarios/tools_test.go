@@ -12,7 +12,7 @@ import (
 )
 
 func toolManifest(url, extra string) string {
-	return fmt.Sprintf(`{"version": 4,
+	return fmt.Sprintf(`{"version": 5,
   "commands": [
     {"name": "fetch", "title": "Fetch", "description": "Fetches a picture.", "class": "internal",
      "input": {"type": "object", "properties": {"name": {"type": "string"}, "size": {"type": "string"}}},
@@ -122,12 +122,12 @@ func TestHTTPToolTemplatesStayOnTheirHost(t *testing.T) {
 		{`{"name": "t", "description": "d", "method": "GET", "url": "https://a.com/{id}"}`, "{id} is not an input field"},
 		{`{"name": "t", "description": "d", "method": "GET", "url": "ftp://a.com/x"}`, "absolute http"},
 	} {
-		code, out := e.call("deck.project_create", map[string]any{"name": "bad", "manifest": `{"version": 4, "tools": {"http": [` + c.tool + `]}}`})
+		code, out := e.call("deck.project_create", map[string]any{"name": "bad", "manifest": `{"version": 5, "tools": {"http": [` + c.tool + `]}}`})
 		if code != 422 || !strings.Contains(string(out), c.want) {
 			t.Fatalf("%s: want 422 with %q, got %d %s", c.tool, c.want, code, out)
 		}
 	}
-	unfit := `{"version": 4, "commands": [{"name": "c", "title": "C", "description": "d", "class": "external",
+	unfit := `{"version": 5, "commands": [{"name": "c", "title": "C", "description": "d", "class": "external",
     "input": {"type": "object", "properties": {"other": {"type": "string"}}}, "executor": {"type": "tool", "tool": "t"}}],
   "tools": {"http": [{"name": "t", "description": "d", "method": "POST", "url": "https://a.com/x",
     "input": {"type": "object", "properties": {"id": {"type": "string"}}, "required": ["id"]}}]}}`

@@ -15,7 +15,7 @@ import (
 )
 
 const calcManifest = `{
-  "version": 4,
+  "version": 5,
   "collections": [{"name": "nums", "description": "A number", "key": "n",
     "schema": {"type": "object", "properties": {"n": {"type": "integer"}}, "required": ["n"]}}],
   "commands": [{"name": "calc", "title": "Calc", "description": "Uses a number.", "class": "internal",

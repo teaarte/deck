@@ -23,7 +23,7 @@ func TestHTTPToolKeepsSecretsInItsOwnHeaders(t *testing.T) {
 	e := newEnv(t, nil)
 	e.must("deck.secret_set", map[string]any{"name": "k", "value": "the-key"}, nil)
 	e.must("deck.secret_set", map[string]any{"name": "other", "value": "other-key"}, nil)
-	e.createProject("svc", fmt.Sprintf(`{"version": 4, "tools": {"http": [
+	e.createProject("svc", fmt.Sprintf(`{"version": 5, "tools": {"http": [
     {"name": "echo", "description": "d", "method": "GET", "url": "%[1]s/echo", "class": "internal",
      "headers": {"X-Key": "$secret.k", "X-Title": "{title}"}, "input": {"type": "object", "properties": {"title": {"type": "string"}}}},
     {"name": "moved", "description": "d", "method": "GET", "url": "%[1]s/moved", "class": "internal", "headers": {"X-Key": "$secret.k"}},
@@ -58,7 +58,7 @@ func TestTriggeredExternalCallWaitsWithoutTheAgentAndRunsAfterYes(t *testing.T) 
 		}
 		return provider.Result{Structured: json.RawMessage(`{}`)}
 	})
-	p := e.createProject("feed", fmt.Sprintf(`{"version": 4,
+	p := e.createProject("feed", fmt.Sprintf(`{"version": 5,
   "commands": [
     {"name": "send", "title": "Send", "description": "Sends out.", "class": "external",
      "input": {"type": "object", "properties": {"card": {"type": "integer", "format": "card"}}},

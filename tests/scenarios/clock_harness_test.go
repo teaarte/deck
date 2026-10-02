@@ -95,7 +95,7 @@ func agentCommand(name, input string) string {
 const processField = `{"type": "object", "properties": {"process": {"type": "integer", "format": "process"}}, "required": ["process"]}`
 
 func testManifest(commands []string, triggers []string) string {
-	return fmt.Sprintf(`{"version": 4, "commands": [%s], "triggers": [%s]}`, strings.Join(commands, ","), strings.Join(triggers, ","))
+	return fmt.Sprintf(`{"version": 5, "commands": [%s], "triggers": [%s]}`, strings.Join(commands, ","), strings.Join(triggers, ","))
 }
 
 func ok(context.Context, *Call) provider.Result {

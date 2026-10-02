@@ -46,7 +46,7 @@ func (e *Env) upload(project, name, ctype, content string) int64 {
 }
 
 func filesManifest() string {
-	return `{"version": 4,
+	return `{"version": 5,
   "collections": [{"name": "items", "description": "An item.", "key": "name",
     "schema": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}}],
   "commands": [

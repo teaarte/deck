@@ -80,10 +80,21 @@ func lastLine(s string) string {
 	return lines[len(lines)-1]
 }
 
-// projectsOf lists the projects other than the built-in master into out.
+// projectsOf lists the projects other than the built-in one into out.
 func (e *Env) projectsOf(out any) {
 	e.T.Helper()
-	e.dropMaster("deck.projects_list", "name", out)
+	var all []map[string]any
+	e.must("deck.projects_list", nil, &all)
+	mine := []map[string]any{}
+	for _, p := range all {
+		if p["builtin"] != true {
+			mine = append(mine, p)
+		}
+	}
+	b, _ := json.Marshal(mine)
+	if err := json.Unmarshal(b, out); err != nil {
+		e.T.Fatal(err)
+	}
 }
 
 // menuOf is the menu without the documents screen of the built-in master.

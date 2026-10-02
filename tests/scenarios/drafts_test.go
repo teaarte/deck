@@ -16,7 +16,7 @@ import (
 )
 
 const draftManifest = `{
-  "version": 4,
+  "version": 5,
   "commands": [
     {"name": "work", "title": "Work", "description": "Does work.", "class": "internal", "input": {"type": "object", "properties": {"card": {"type": "integer", "format": "card"}}},
      "executor": {"type": "agent", "prompt": "Do the work."}, "result": {"type": "object"}},
@@ -289,7 +289,7 @@ func TestChangesToADraftApplyAtOnce(t *testing.T) {
 }
 
 func TestWhatCountsAsWideningRights(t *testing.T) {
-	base := `{"version": 4, "commands": [{"name": "run", "title": "Run", "description": "Runs.", "class": "external",
+	base := `{"version": 5, "commands": [{"name": "run", "title": "Run", "description": "Runs.", "class": "external",
     "executor": {"type": "agent", "prompt": "Run."}}], %s}`
 	tool := `{"name": "post", "description": "Posts", "method": "POST", "url": "https://%s/x", "class": "%s", "headers": {"K": "%s"}}`
 	cases := []struct{ name, from, to, want string }{

@@ -19,7 +19,7 @@ import (
 )
 
 const realManifest = `{
-  "version": 4,
+  "version": 5,
   "collections": [{
     "name": "ideas", "description": "Short ideas", "key": "title", "display": "title",
     "schema": {"type": "object", "properties": {"title": {"type": "string"}, "score": {"type": "integer"}, "topic": {"type": "string"}},

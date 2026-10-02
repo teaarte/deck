@@ -16,7 +16,7 @@ import (
 
 // postManifest has an agent command and an HTTP tool of the given extra fields that is not allowed yet.
 func postManifest(url, extra string) string {
-	return fmt.Sprintf(`{"version": 4,
+	return fmt.Sprintf(`{"version": 5,
   "commands": [{"name": "work", "title": "Work", "description": "Works with the service.", "class": "internal",
     "result": {"type": "object"}, "executor": {"type": "agent", "prompt": "Post the note."}}],
   "tools": {"http": [{"name": "post", "description": "Posts a note", "method": "POST", "url": "%s/items/{id}",

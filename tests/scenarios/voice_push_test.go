@@ -190,7 +190,7 @@ func TestPushGoesToSubscribedDevices(t *testing.T) {
 		t.Fatalf("the device is listed: %+v", devices)
 	}
 	p := e.createProject("work", boardWork)
-	e.createProject("private", strings.Replace(boardWork, `"version": 4,`, `"version": 4, "no_network": true,`, 1))
+	e.createProject("private", strings.Replace(boardWork, `"version": 5,`, `"version": 5, "no_network": true,`, 1))
 	time.Sleep(700 * time.Millisecond)
 	e.must("deck.notify", map[string]any{"project": "work", "text": "The report of the week is ready"}, nil)
 	got := d.wait(e, 1)

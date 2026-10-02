@@ -25,7 +25,7 @@ import (
 // mcpManifest declares the fake MCP server; extra goes into the manifest object.
 func mcpManifest(extra string) string {
 	self, _ := os.Executable()
-	return fmt.Sprintf(`{"version": 4,
+	return fmt.Sprintf(`{"version": 5,
   "commands": [
     {"name": "work", "title": "Work", "description": "Works with the server.", "class": "internal",
      "input": {"type": "object", "properties": {"step": {"type": "string"}}},
@@ -198,7 +198,7 @@ func TestMCPServerByURLAndTheEnvironmentOfAProgram(t *testing.T) {
 	got := map[string]toolCall{}
 	e := newEnv(t, stepAgent(got, nil))
 	self, _ := os.Executable()
-	e.createProject("srv", fmt.Sprintf(`{"version": 4,
+	e.createProject("srv", fmt.Sprintf(`{"version": 5,
   "commands": [{"name": "work", "title": "Work", "description": "Works.", "class": "internal",
     "input": {"type": "object", "properties": {"step": {"type": "string"}}}, "result": {"type": "object"},
     "executor": {"type": "agent", "prompt": "Work."}}],
@@ -260,7 +260,7 @@ func TestMCPToolWithASchemaThatIsNotAnObjectIsLeftOut(t *testing.T) {
 	got := map[string]toolCall{}
 	e := newEnv(t, stepAgent(got, nil))
 	script, _ := json.Marshal(oddServer)
-	e.createProject("odd", fmt.Sprintf(`{"version": 4,
+	e.createProject("odd", fmt.Sprintf(`{"version": 5,
   "commands": [{"name": "work", "title": "Work", "description": "Works.", "class": "internal",
     "input": {"type": "object", "properties": {"step": {"type": "string"}}}, "result": {"type": "object"},
     "executor": {"type": "agent", "prompt": "Work."}}],

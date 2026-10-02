@@ -199,7 +199,7 @@ func TestAnUnansweredSuggestionExpires(t *testing.T) {
 func TestASuggestionIntoAnotherProjectWaitsEvenOnAuto(t *testing.T) {
 	e := newEnv(t, suggester)
 	p := e.createProject("alpha", suggestManifest)
-	e.createProject("beta", strings.Replace(boardWork, `"version": 4,`, `"version": 4, "autonomy": "auto",`, 1))
+	e.createProject("beta", strings.Replace(boardWork, `"version": 5,`, `"version": 5, "autonomy": "auto",`, 1))
 	var r struct{ Process int64 }
 	e.must("alpha.work", map[string]any{"into": "beta"}, &r)
 	e.waitState(r.Process, "done")

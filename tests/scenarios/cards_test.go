@@ -19,7 +19,7 @@ import (
 )
 
 const boardManifest = `{
-  "version": 4,
+  "version": 5,
   "collections": [{"name": "items", "description": "An item", "key": "url",
     "schema": {"type": "object", "properties": {"url": {"type": "string"}}, "required": ["url"]}}],
   "commands": [{"name": "pack", "title": "Pack", "description": "Packs the card.", "class": "internal",

@@ -99,7 +99,7 @@ func TestSecretEchoedByAServiceNeverReachesTheAgent(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`{"ok": true}`)}
 	})
 	e.must("deck.secret_set", map[string]any{"name": "svc", "value": key}, nil)
-	m := strings.Replace(postManifest(svc.URL, ""), `{"version": 4,`, `{"version": 4, "allowed_external": ["post"],`, 1)
+	m := strings.Replace(postManifest(svc.URL, ""), `{"version": 5,`, `{"version": 5, "allowed_external": ["post"],`, 1)
 	id := e.run(e.createProject("notes", m), "work")
 	e.waitState(id, "done")
 	mu.Lock()
@@ -121,7 +121,7 @@ func TestSecretAServerPrintsStaysOutOfHealth(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`{}`)}
 	})
 	e.must("deck.secret_set", map[string]any{"name": "noisy_key", "value": key}, nil)
-	e.createProject("srv", `{"version": 4,
+	e.createProject("srv", `{"version": 5,
   "commands": [{"name": "work", "title": "Work", "description": "Works.", "class": "internal",
     "result": {"type": "object"}, "executor": {"type": "agent", "prompt": "Work."}}],
   "tools": {"mcp": {"servers": {"noisy": {"command": "/bin/sh", "args": ["-c", "echo key=$NOISY_KEY >&2; exit 1"],
@@ -311,7 +311,7 @@ func TestAllowingABrowserActionAlwaysAllowsItsSite(t *testing.T) {
 		t.Fatalf("other sites still ask: %v", fakeLog(e.Browser))
 	}
 	listed := strings.Replace(browserManifest(`{"read": ["news.example"]}`), `"domains"`, `"allowed_external": ["deck.browser_click"], "domains"`, 1)
-	if code, out := e.call("deck.manifest_save", map[string]any{"project": "web", "manifest": strings.Replace(listed, `"version": 4`, `"version": 5`, 1)}); code == 200 || !strings.Contains(string(out), "domains.act") {
+	if code, out := e.call("deck.manifest_save", map[string]any{"project": "web", "manifest": listed}); code == 200 || !strings.Contains(string(out), "domains.act") {
 		t.Fatalf("browser actions are not listed in allowed_external: %d %s", code, out)
 	}
 }

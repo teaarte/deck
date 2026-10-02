@@ -81,7 +81,7 @@ func (f *fakeOAuth) handler(w http.ResponseWriter, r *http.Request, _ int) {
 }
 
 func oauthManifest(url string) string {
-	return fmt.Sprintf(`{"version": 4, "tools": {"http": [
+	return fmt.Sprintf(`{"version": 5, "tools": {"http": [
     {"name": "me", "description": "Who am I", "method": "GET", "url": "%[1]s/me", "class": "internal",
      "auth": {"type": "oauth2", "auth_url": "%[1]s/authorize", "token_url": "%[1]s/token", "client_id": "svc_id",
        "client_secret": "svc_secret", "token": "svc_token", "scopes": ["read"]}}]}}`, url)

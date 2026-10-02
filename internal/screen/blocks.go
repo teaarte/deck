@@ -57,6 +57,23 @@ func (r *renderer) block(id string, b manifest.Block) {
 	r.data[id] = value
 }
 
+// empty is the data of a block without items, with the text it shows then.
+func empty(out map[string]any, b manifest.Block) map[string]any {
+	out["state"] = "empty"
+	if b.Empty != "" {
+		out["empty"] = b.Empty
+	}
+	switch b.Type {
+	case "table":
+		out["rows"] = []any{}
+	case "list":
+		out["items"] = []any{}
+	case "log":
+		out["lines"] = []any{}
+	}
+	return out
+}
+
 // shown adds to the properties of a value how the client shows it.
 func shown(props map[string]any, format, currency string) map[string]any {
 	if format != "" {
@@ -187,8 +204,8 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 	if len(filters) > 0 {
 		out["filters"] = filters
 	}
-	if len(items) == 0 && b.Type != "stat" {
-		out["state"] = "empty"
+	if len(items) == 0 && (b.Type != "stat" || b.Empty != "") {
+		return empty(out, b), nil
 	}
 	switch b.Type {
 	case "stat":
@@ -199,6 +216,9 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 		v, err := manifest.Eval(expr, map[string]any{"rows": items})
 		if err != nil {
 			return nil, fmt.Errorf("value: %w", err)
+		}
+		if v == nil {
+			return empty(out, b), nil
 		}
 		out["value"] = v
 		if err := setTone(out, b.Tone, map[string]any{"rows": items}); err != nil {

@@ -140,7 +140,11 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   "money", "currency": "USD"}`), `date`, `datetime`, `relative` (5 min ago), `duration` (seconds), `bytes`,
   `link`, `tag` — so a bind is never `string(round(change * 100)) + '%'`. A column, a card field, a `list` line
   (`item.tone`) and a `stat` (over `rows`) take `tone`, an expression giving `ok`, `warn`, `error` or `muted`:
-  `"tone": "change < 0 ? 'error' : 'ok'"`; any other value is no tone. Action `params` are strings in the manifest; `$record.<field>`
+  `"tone": "change < 0 ? 'error' : 'ok'"`; any other value is no tone. A block with a source takes `empty`, plain
+  text it shows when there are no items (`"empty": "No forecasts yet"`); a `stat` with `empty` shows it instead
+  of its value, so the last price is `{"type": "stat", "source": {"collection": "prices", "sort": "-at",
+  "limit": 1}, "value": "rows[0].price", "format": "money", "currency": "USD", "empty": "No prices yet"}` with no
+  `len(rows) > 0 ? … : '—'`. Action `params` are strings in the manifest; `$record.<field>`
   passes the field's value with its type (`$record.id` is a number, so that input field is an `integer`), and
   a fixed value becomes the type of its input field (`"days": "7"` to an `integer` is 7). An action passes
   every required parameter of its command

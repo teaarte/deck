@@ -232,6 +232,8 @@ type Block struct {
 	// Format and Currency say how the client shows the value of a stat block.
 	Format   string `json:"format,omitempty"`
 	Currency string `json:"currency,omitempty"`
+	// Empty is the text a block with a source shows when it has no items.
+	Empty string `json:"empty,omitempty"`
 	// Tone is the expression of a stat block over rows: ok, warn, error or muted.
 	Tone    string   `json:"tone,omitempty"`
 	Actions []Action `json:"actions,omitempty"`

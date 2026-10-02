@@ -258,6 +258,7 @@
       "properties": {"label": {"type": "string"}, "bind": {"type": "string", "description": "Expression over the fields of an item."},
         "format": {"$ref": "#/$defs/format"}, "currency": {"$ref": "#/$defs/currency"}, "tone": {"$ref": "#/$defs/tone"}}
     },
+    "empty": {"type": "string", "minLength": 1, "description": "Plain text the block shows when its source has no items, instead of the client's own; not an expression."},
     "tone": {"type": "string", "description": "Expression over the item that gives ok, warn, error or muted, such as change < 0 ? 'error' : 'ok'; any other value is no tone."},
     "format": {"enum": ["number", "percent", "money", "date", "datetime", "relative", "duration", "bytes", "link", "tag"],
       "description": "How the client shows a value, in the locale and time zone of the device: number; percent of a fraction (0.42 is 42 %); money, which needs currency; date, datetime or relative (5 min ago) of an ISO 8601 time; duration of seconds; bytes; link of a URL; tag. The value stays raw, so it is not string(round(...)); a value of another type shows as it is."},

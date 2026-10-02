@@ -19,13 +19,13 @@ const forecastManifest = `{"version": 5,
   "screens": [
     {"name": "main", "title": "BTC", "blocks": [
       {"type": "stat", "title": "Last price", "source": {"collection": "prices", "sort": "-at", "limit": 1}, "value": "rows[0].price",
-        "format": "money", "currency": "USD", "tone": "rows[0].price >= 60000 ? 'ok' : 'warn'"},
+        "format": "money", "currency": "USD", "tone": "rows[0].price >= 60000 ? 'ok' : 'warn'", "empty": "No prices yet"},
       {"type": "table", "title": "Forecasts", "source": {"collection": "forecasts", "sort": "-at"},
         "columns": [{"label": "Made", "bind": "at", "format": "relative"}, {"label": "Horizon", "bind": "horizon"},
           {"label": "Change", "bind": "change", "format": "percent", "tone": "change < 0 ? 'error' : 'ok'"},
           {"label": "Status", "bind": "status", "format": "tag", "tone": "status == 'missed' ? 'warn' : 'none'"},
           {"label": "Source", "bind": "source", "format": "link"}],
-        "actions": [{"label": "Open", "screen": "forecast"}]},
+        "actions": [{"label": "Open", "screen": "forecast"}], "empty": "No forecasts yet"},
       {"type": "list", "title": "Horizons", "source": {"collection": "forecasts", "sort": "-at"},
         "item": {"title": "horizon", "tone": "status == 'missed' ? 'muted' : ''"}}]},
     {"name": "forecast", "title": "Forecast", "record": "forecasts", "blocks": [
@@ -138,6 +138,37 @@ func TestBlocksTakeTheToneOfTheirValues(t *testing.T) {
           {"label": "Status"`, `column "Change" tone: unknown field "chnage"`},
 		{`"tone": "rows[0].price >= 60000 ? 'ok' : 'warn'"`, `"tone": "price >= 60000 ? 'ok' : 'warn'"`, `tone: unknown field "price"`},
 		{`"tone": "status == 'missed' ? 'muted' : ''"`, `"tone": "state == 'missed' ? 'muted' : ''"`, `item: unknown field "state"`},
+	} {
+		if strings.Count(forecastManifest, tc.from) != 1 {
+			t.Fatalf("fixture has %s once", tc.from)
+		}
+		code, out := e.call("deck.manifest_save", map[string]any{"project": "btc", "manifest": strings.Replace(forecastManifest, tc.from, tc.to, 1)})
+		if code != 422 || !strings.Contains(string(out), tc.want) {
+			t.Fatalf("%s is refused with %q: %d %s", tc.to, tc.want, code, out)
+		}
+	}
+}
+
+// TestABlockWithoutItemsSaysSoInItsOwnWords: a block with empty shows its text when its source has none, and a
+// stat with it does not evaluate its value over no rows; a block without it is empty in the client's words.
+func TestABlockWithoutItemsSaysSoInItsOwnWords(t *testing.T) {
+	e := newEnv(t, nil)
+	check := newCatalogCheck(t)
+	e.createProject("btc", forecastManifest)
+	check.messages(t, e.screenMessages("btc", "main", nil))
+	data := e.screenData("btc", "main", nil)
+	for id, want := range map[string]string{"b0": "No prices yet", "b1": "No forecasts yet", "b2": ""} {
+		var got struct{ State, Empty, Error string }
+		raw, _ := json.Marshal(data[id])
+		_ = json.Unmarshal(raw, &got)
+		if got.State != "empty" || got.Empty != want || got.Error != "" {
+			t.Fatalf("block %s without items is empty with %q: %+v", id, want, got)
+		}
+	}
+	for _, tc := range []struct{ from, to, want string }{
+		{`"empty": "No prices yet"`, `"empty": ""`, `minLength`},
+		{`{"label": "Confidence", "bind": "confidence", "format": "percent"}]}`, `{"label": "Confidence", "bind": "confidence", "format": "percent"}], "empty": "None"}`,
+			`additional properties 'empty' not allowed`},
 	} {
 		if strings.Count(forecastManifest, tc.from) != 1 {
 			t.Fatalf("fixture has %s once", tc.from)

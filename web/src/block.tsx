@@ -45,7 +45,7 @@ export function Block({ title, data, context, children }: { title?: string; data
   let body: ReactNode;
   if (!data) body = <Group gap="xs"><Loader size="xs" /><Text size="sm" c="dimmed">{t('state.loading')}</Text></Group>;
   else if (data.state === 'error') body = <Alert color="red" title={t('state.error')}>{data.error}</Alert>;
-  else if (data.state === 'empty') body = <Text size="sm" c="dimmed">{t('state.empty')}</Text>;
+  else if (data.state === 'empty') body = <Text size="sm" c="dimmed" data-empty>{data.empty || t('state.empty')}</Text>;
   else body = children(data);
   return (
     <Card withBorder padding="md" data-block>

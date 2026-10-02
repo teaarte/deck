@@ -2,6 +2,7 @@ package scenarios
 
 import (
 	"os"
+	"strings"
 	"testing"
 	"time"
 )
@@ -40,4 +41,9 @@ func TestRealBrowserCatalog(t *testing.T) {
 		b.until(what, cond)
 	}
 	b.shot("catalog-format")
+
+	e.createProject("fresh", strings.ReplaceAll(forecastManifest, `"title": "BTC"`, `"title": "Fresh"`))
+	b.open(e.URL + "/?token=" + token + "#/p/fresh/main")
+	b.until("the words of empty blocks", `[...document.querySelectorAll('[data-empty]')].map(x => x.innerText).join('|') === 'No prices yet|No forecasts yet|Nothing here'`)
+	b.shot("catalog-empty")
 }

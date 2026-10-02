@@ -154,6 +154,10 @@ export interface Reply {
 export interface Data {
   state: "ready" | "empty" | "error";
   error?: string;
+  /**
+   * the text of an empty block
+   */
+  empty?: string;
   tone?: Tone;
   /**
    * Choices the owner narrows the block by; the client sends the picked ones back to deck.screen.

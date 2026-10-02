@@ -804,3 +804,21 @@ func TestCustomButtonsOnARecordPageTakeTheFieldsOfTheRecord(t *testing.T) {
 	e.must("deck.manifest_save", map[string]any{"project": "web", "manifest": custom("score")}, nil)
 	e.refused("deck.manifest_save", map[string]any{"project": "web", "manifest": custom("what")}, 422, `unknown field "what"`)
 }
+
+// TestAHiddenButtonOfACustomBlockLeavesTheClassOfTheOthers: a button whose when does not hold is not there, and
+// each of the others keeps the class of its own command, so an external call still waits for the owner.
+func TestAHiddenButtonOfACustomBlockLeavesTheClassOfTheOthers(t *testing.T) {
+	e := newEnv(t, boardWebAgent())
+	m := strings.Replace(boardWebManifest, `"actions": [{"label": "Mark", "command": "mark"},`, `"actions": [{"label": "Mark", "command": "mark", "when": "false"},`, 1)
+	if m == boardWebManifest {
+		t.Fatal("fixture lacks the Mark button")
+	}
+	e.createProject("web", m)
+	e.must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": "<p>chart</p>"}, nil)
+	v := blockData[struct {
+		Actions []map[string]any `json:"actions"`
+	}](t, e.screenData("web", "main", nil)["b2"]["value"])
+	if len(v.Actions) != 3 || v.Actions[2]["command"] != "web.publish" || v.Actions[2]["class"] != "external" || v.Actions[0]["class"] != "internal" {
+		t.Fatalf("each button keeps the class of its command: %+v", v.Actions)
+	}
+}

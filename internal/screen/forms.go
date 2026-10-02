@@ -129,9 +129,10 @@ func (r *renderer) custom(b manifest.Block) (map[string]any, error) {
 		return nil, err
 	}
 	acts := r.actions(b.Actions, r.req.Record, r.record)
-	for i, a := range b.Actions {
-		if c := r.req.Manifest.Command(a.Command); c != nil {
-			acts[i]["class"] = c.Class
+	for _, act := range acts {
+		name, _ := act["command"].(string)
+		if c := r.req.Manifest.Command(strings.TrimPrefix(name, r.req.Project.Name+".")); c != nil {
+			act["class"] = c.Class
 		}
 	}
 	v := map[string]any{"html": html, "actions": acts}

@@ -228,8 +228,11 @@ type Block struct {
 	Fields  []Column `json:"fields,omitempty"`
 	Item    *Item    `json:"item,omitempty"`
 	// Value is the expression of a stat block over rows, the items of its source.
-	Value   string   `json:"value,omitempty"`
-	Actions []Action `json:"actions,omitempty"`
+	Value string `json:"value,omitempty"`
+	// Format and Currency say how the client shows the value of a stat block.
+	Format   string   `json:"format,omitempty"`
+	Currency string   `json:"currency,omitempty"`
+	Actions  []Action `json:"actions,omitempty"`
 	// ActionsFrom is a field of an item with buttons of its own: label, command with its project, params.
 	ActionsFrom string  `json:"actions_from,omitempty"`
 	Blocks      []Block `json:"blocks,omitempty"`
@@ -289,6 +292,9 @@ type Column struct {
 	Bind  string `json:"bind"`
 	// Markdown says the value of a card field is markdown.
 	Markdown bool `json:"markdown,omitempty"`
+	// Format says how the client shows the value; Currency is the ISO 4217 code of money.
+	Format   string `json:"format,omitempty"`
+	Currency string `json:"currency,omitempty"`
 }
 
 // Action is a button. Params, Screen, Record, Project, File and Until take a fixed value, "$record.<field>"

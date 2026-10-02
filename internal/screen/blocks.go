@@ -37,11 +37,13 @@ func (r *renderer) block(id string, b manifest.Block) {
 		comp["titles"], comp["children"] = titles, children
 		return
 	case "table":
-		cols := make([]string, 0, len(b.Columns))
+		cols := make([]map[string]any, 0, len(b.Columns))
 		for _, c := range b.Columns {
-			cols = append(cols, c.Label)
+			cols = append(cols, shown(map[string]any{"label": c.Label}, c.Format, c.Currency))
 		}
 		comp["columns"] = cols
+	case "stat":
+		shown(comp, b.Format, b.Currency)
 	}
 	comp["data"] = map[string]any{"path": "/" + id}
 	if r.req.Topic != "" && !follows(b, r.deck(), r.req.Topic) {
@@ -53,6 +55,17 @@ func (r *renderer) block(id string, b manifest.Block) {
 		return
 	}
 	r.data[id] = value
+}
+
+// shown adds to the properties of a value how the client shows it.
+func shown(props map[string]any, format, currency string) map[string]any {
+	if format != "" {
+		props["format"] = format
+	}
+	if currency != "" {
+		props["currency"] = currency
+	}
+	return props
 }
 
 // follows reports whether the block is read again after an event of the topic; the chat follows its turn too.
@@ -139,7 +152,7 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 			if v == nil || v == "" {
 				continue
 			}
-			field := map[string]any{"label": f.Label, "value": v}
+			field := shown(map[string]any{"label": f.Label, "value": v}, f.Format, f.Currency)
 			if f.Markdown {
 				field["markdown"] = true
 			}

@@ -45,7 +45,7 @@
       "required": ["columns", "data"],
       "properties": {
         "title": {"type": "string"},
-        "columns": {"type": "array", "items": {"type": "string"}},
+        "columns": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["label"], "properties": {"label": {"type": "string"}, "format": {"type": "string"}, "currency": {"type": "string"}}}},
         "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "rows: [{id, cells, actions}]"}
       }
     },
@@ -62,7 +62,7 @@
     },
     "card": {
       "description": "Fields of the record of a record page.",
-      "block": {"description": "Shows the record of a record page; takes no source, only fields and actions; a field with no value (null or empty text) is not shown; a field with markdown shows its value as markdown.", "properties": {"fields": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["label", "bind"], "properties": {"label": {"type": "string"}, "bind": {"type": "string", "description": "Expression over the fields of the record."}, "markdown": {"type": "boolean"}}}}, "actions": {"$ref": "#/$defs/actions"}}},
+      "block": {"description": "Shows the record of a record page; takes no source, only fields and actions; a field with no value (null or empty text) is not shown; a field with markdown shows its value as markdown.", "properties": {"fields": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["label", "bind"], "properties": {"label": {"type": "string"}, "bind": {"type": "string", "description": "Expression over the fields of the record."}, "markdown": {"type": "boolean"}, "format": {"$ref": "#/$defs/format"}, "currency": {"$ref": "#/$defs/currency"}}}}, "actions": {"$ref": "#/$defs/actions"}}},
       "type": "object",
       "additionalProperties": false,
       "required": ["data"],
@@ -73,12 +73,14 @@
     },
     "stat": {
       "description": "One value over the items of a source.",
-      "block": {"description": "Needs source; value is an expression over rows, len(rows) by default.", "required": ["source"], "properties": {"source": {"$ref": "#/$defs/source"}, "value": {"type": "string", "description": "Expression over rows, the items of the source, such as len(rows) or sum(rows, .amount); len(rows) by default."}}},
+      "block": {"description": "Needs source; value is an expression over rows, len(rows) by default.", "required": ["source"], "properties": {"source": {"$ref": "#/$defs/source"}, "value": {"type": "string", "description": "Expression over rows, the items of the source, such as len(rows) or sum(rows, .amount); len(rows) by default."}, "format": {"$ref": "#/$defs/format"}, "currency": {"$ref": "#/$defs/currency"}}},
       "type": "object",
       "additionalProperties": false,
       "required": ["data"],
       "properties": {
         "title": {"type": "string"},
+        "format": {"type": "string"},
+        "currency": {"type": "string"},
         "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "value: a number or a text"}
       }
     },
@@ -199,7 +201,7 @@
       "description": "The value of the data of each block that has one, by component.",
       "actions": {"type": "array", "items": {"$ref": "#/$defs/action"}},
       "card": {"type": "object", "additionalProperties": false, "required": ["fields", "actions"], "properties": {
-        "fields": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["label"], "properties": {"label": {"type": "string"}, "value": {}, "markdown": {"type": "boolean"}}}},
+        "fields": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["label"], "properties": {"label": {"type": "string"}, "value": {}, "markdown": {"type": "boolean"}, "format": {"type": "string"}, "currency": {"type": "string"}}}},
         "actions": {"type": "array", "items": {"$ref": "#/$defs/action"}}}},
       "stat": {"type": ["number", "string", "boolean", "null"]},
       "board": {"type": "object", "additionalProperties": false, "required": ["project", "lanes", "deleted"], "properties": {

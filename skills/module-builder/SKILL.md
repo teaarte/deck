@@ -134,7 +134,11 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   `{"type": "table", "title": "Best", "source": {"collection": "items", "where": "score >= 7", "sort": "-score",
   "limit": 20}, "columns": [{"label": "Title", "bind": "title"}], "filter": ["status"], "actions": [{"label": "Rate", "command":
   "rate", "params": {"id": "$record.id"}}]}` — `where` and `bind` are expressions over record fields,
-  `sort` is a field with `-` for descending, `filter` lists fields the owner narrows by. Action `params` are strings in the manifest; `$record.<field>`
+  `sort` is a field with `-` for descending, `filter` lists fields the owner narrows by. A column, a `card`
+  field and a `stat` take `format`, and the client shows the raw value in the owner's locale and time zone:
+  `number`, `percent` (0.42 is 42 %), `money` with `currency` (`{"label": "Price", "bind": "price", "format":
+  "money", "currency": "USD"}`), `date`, `datetime`, `relative` (5 min ago), `duration` (seconds), `bytes`,
+  `link`, `tag` — so a bind is never `string(round(change * 100)) + '%'`. Action `params` are strings in the manifest; `$record.<field>`
   passes the field's value with its type (`$record.id` is a number, so that input field is an `integer`), and
   a fixed value becomes the type of its input field (`"days": "7"` to an `integer` is 7). An action passes
   every required parameter of its command

@@ -12,6 +12,7 @@ import { Actions, QuestionPicker } from './actions';
 import { Block, Details, show } from './block';
 import { Appearance } from './appearance';
 import { Chat } from './chat';
+import { Value, type Shown } from './format';
 import type { Action, ActionsValue, BoardValue, CardValue, ChatValue, CustomValue, Data, DocumentValue } from './catalog.gen';
 
 const Custom = lazy(() => import('./custom').then((m) => ({ default: m.Custom })));
@@ -63,19 +64,19 @@ const impls: ReactComponentImplementation[] = [
     );
   }),
   createComponentImplementation(api('table'), ({ props, context }) => {
-    const p = props as { title?: string; columns: string[]; data?: Data };
+    const p = props as { title?: string; columns: (Shown & { label: string })[]; data?: Data };
     return (
       <Block title={p.title} data={p.data} context={context}>
         {(d) => (
           <Table.ScrollContainer minWidth={400}>
             <Table striped highlightOnHover>
               <Table.Thead>
-                <Table.Tr>{p.columns.map((c) => <Table.Th key={c}>{c}</Table.Th>)}{d.rows?.some((r) => r.actions?.length) && <Table.Th />}</Table.Tr>
+                <Table.Tr>{p.columns.map((c, i) => <Table.Th key={i}>{c.label}</Table.Th>)}{d.rows?.some((r) => r.actions?.length) && <Table.Th />}</Table.Tr>
               </Table.Thead>
               <Table.Tbody>
                 {(d.rows ?? []).map((r, i) => (
                   <Table.Tr key={show(r.id) || i}>
-                    {r.cells.map((v, j) => <Table.Td key={j}>{show(v)}</Table.Td>)}
+                    {r.cells.map((v, j) => <Table.Td key={j}><Value v={v} s={p.columns[j] ?? {}} /></Table.Td>)}
                     {!!r.actions?.length && <Table.Td><Actions actions={r.actions} context={context} /></Table.Td>}
                   </Table.Tr>
                 ))}
@@ -128,7 +129,7 @@ const impls: ReactComponentImplementation[] = [
                 ) : (
                   <Group key={f.label} gap="sm" wrap="nowrap" align="flex-start">
                     <Text size="sm" c="dimmed" w={120}>{f.label}</Text>
-                    <Text size="sm">{show(f.value)}</Text>
+                    <Text size="sm" component="div"><Value v={f.value} s={f} /></Text>
                   </Group>
                 )
               ))}
@@ -140,8 +141,8 @@ const impls: ReactComponentImplementation[] = [
     );
   }),
   createComponentImplementation(api('stat'), ({ props }) => {
-    const p = props as { title?: string; data?: Data };
-    return <Block title={p.title} data={p.data}>{(d) => <Text fz={32} fw={700}>{show(d.value)}</Text>}</Block>;
+    const p = props as Shown & { title?: string; data?: Data };
+    return <Block title={p.title} data={p.data}>{(d) => <Text fz={32} fw={700} component="div" data-stat><Value v={d.value} s={p} /></Text>}</Block>;
   }),
   createComponentImplementation(api('actions'), ({ props, context }) => {
     const p = props as { title?: string; data?: Data };

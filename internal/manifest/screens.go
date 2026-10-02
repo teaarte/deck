@@ -95,6 +95,7 @@ func (c *screenCheck) block(where string, b Block) {
 			if _, err := compileField(f.Bind, fields); err != nil {
 				c.fail("%s field %q: %v", where, f.Label, err)
 			}
+			c.format(fmt.Sprintf("%s field %q", where, f.Label), f.Format, f.Currency)
 		}
 	case "board":
 		switch {
@@ -138,7 +139,9 @@ func (c *screenCheck) block(where string, b Block) {
 			if _, err := compileField(col.Bind, fields); err != nil {
 				c.fail("%s column %q: %v", where, col.Label, err)
 			}
+			c.format(fmt.Sprintf("%s column %q", where, col.Label), col.Format, col.Currency)
 		}
+		c.format(where, b.Format, b.Currency)
 		switch {
 		case b.ActionsFrom != "" && !c.deck:
 			c.fail("%s actions_from: only deck's own screens take buttons from their rows", where)
@@ -167,6 +170,16 @@ func (c *screenCheck) block(where string, b Block) {
 		if err := c.action(b, a, fields); err != nil {
 			c.fail("%s action %q: %v", where, a.Label, err)
 		}
+	}
+}
+
+// format checks that money names its currency and only money does.
+func (c *screenCheck) format(where, format, currency string) {
+	switch {
+	case format == "money" && currency == "":
+		c.fail("%s: format money needs currency, an ISO 4217 code such as USD", where)
+	case format != "money" && currency != "":
+		c.fail("%s: currency goes with format money", where)
 	}
 }
 

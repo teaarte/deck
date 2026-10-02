@@ -198,6 +198,8 @@ export interface CardValue {
     label: string;
     value?: unknown;
     markdown?: boolean;
+    format?: string;
+    currency?: string;
   }[];
   actions: Action[];
 }

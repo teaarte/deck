@@ -1,0 +1,109 @@
+import { useSyncExternalStore, type ReactNode } from 'react';
+import { Anchor, Badge } from '@mantine/core';
+import { show } from './block';
+
+// Shown is how the catalog says to show a value: its format and the currency of money.
+export interface Shown {
+  format?: string;
+  currency?: string;
+}
+
+let minute = Date.now();
+const minuteSubs = new Set<() => void>();
+setInterval(() => {
+  minute = Date.now();
+  minuteSubs.forEach((f) => f());
+}, 60000);
+// useMinute is the time now, moved once a minute, so relative times age without a read of the server.
+const useMinute = () => useSyncExternalStore((f) => (minuteSubs.add(f), () => minuteSubs.delete(f)), () => minute);
+
+const when = (v: unknown): Date | undefined => {
+  if (typeof v !== 'string') return undefined;
+  const d = new Date(v);
+  return isNaN(d.getTime()) ? undefined : d;
+};
+
+const STEPS: [Intl.RelativeTimeFormatUnit, number][] = [['second', 60], ['minute', 60], ['hour', 24], ['day', 7], ['week', 4.35], ['month', 12], ['year', Infinity]];
+
+export function relative(d: Date, now: number): string {
+  let n = (d.getTime() - now) / 1000;
+  for (const [unit, size] of STEPS) {
+    if (Math.abs(n) < size) return new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' }).format(Math.round(n), unit);
+    n /= size;
+  }
+  return d.toLocaleString();
+}
+
+function duration(s: number): string {
+  const parts: [number, string][] = [[Math.floor(s / 86400), 'day'], [Math.floor(s / 3600) % 24, 'hour'], [Math.floor(s / 60) % 60, 'minute'], [Math.round(s % 60), 'second']];
+  const kept = parts.filter(([n]) => n > 0).slice(0, 2);
+  if (!kept.length) kept.push([0, 'second']);
+  return kept.map(([n, unit]) => new Intl.NumberFormat(undefined, { style: 'unit', unit, unitDisplay: 'short' }).format(n)).join(' ');
+}
+
+const BYTES = ['byte', 'kilobyte', 'megabyte', 'gigabyte', 'terabyte', 'petabyte'];
+
+function bytes(n: number): string {
+  let i = 0;
+  while (Math.abs(n) >= 1000 && i < BYTES.length - 1) {
+    n /= 1000;
+    i++;
+  }
+  return new Intl.NumberFormat(undefined, { style: 'unit', unit: BYTES[i], unitDisplay: 'short', maximumFractionDigits: i ? 1 : 0 }).format(n);
+}
+
+// formatted is a value as text by its format, in the locale and time zone of the device; a value of another
+// type stays as it is.
+export function formatted(v: unknown, s: Shown, now = Date.now()): string {
+  const n = typeof v === 'number' ? v : undefined;
+  try {
+    switch (s.format) {
+      case 'number':
+        if (n !== undefined) return new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(n);
+        break;
+      case 'percent':
+        if (n !== undefined) return new Intl.NumberFormat(undefined, { style: 'percent', maximumFractionDigits: 1 }).format(n);
+        break;
+      case 'money':
+        if (n !== undefined && s.currency) return new Intl.NumberFormat(undefined, { style: 'currency', currency: s.currency }).format(n);
+        break;
+      case 'duration':
+        if (n !== undefined) return duration(n);
+        break;
+      case 'bytes':
+        if (n !== undefined) return bytes(n);
+        break;
+      case 'date': {
+        const d = when(v);
+        if (d) return /^\d{4}-\d\d-\d\d$/.test(v as string) ? d.toLocaleDateString(undefined, { timeZone: 'UTC' }) : d.toLocaleDateString();
+        break;
+      }
+      case 'datetime': {
+        const d = when(v);
+        if (d) return d.toLocaleString();
+        break;
+      }
+      case 'relative': {
+        const d = when(v);
+        if (d) return relative(d, now);
+        break;
+      }
+    }
+  } catch {
+    // A currency the device does not know shows the value as it is.
+  }
+  return show(v);
+}
+
+// Value shows a value by its format: a link opens, a tag is a badge, a relative time ages by the minute.
+export function Value({ v, s, color }: { v: unknown; s: Shown; color?: string }): ReactNode {
+  const now = useMinute();
+  if (s.format === 'link' && typeof v === 'string' && /^https?:\/\//.test(v)) {
+    return <Anchor href={v} target="_blank" rel="noopener noreferrer" size="sm" c={color}>{v}</Anchor>;
+  }
+  if (s.format === 'tag' && v !== null && v !== undefined && v !== '') {
+    return <Badge variant="light" color={color ?? 'gray'} data-format="tag">{show(v)}</Badge>;
+  }
+  const text = formatted(v, s, now);
+  return s.format ? <span data-format={s.format} title={s.format === 'relative' ? show(v) : undefined}>{text}</span> : text;
+}

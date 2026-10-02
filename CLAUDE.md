@@ -9,7 +9,7 @@ Stage 1 plan: `docs/plan-stage1.md`.
 - Build: `go build -o deck ./cmd/deck`; web client: `cd web && npm ci && npm run build` (type check + `web/dist`)
 - Run: `DECK_HOME=/tmp/deckhome ./deck` (prints the URL with the access token; the next port is the second origin of
   `custom` blocks); on the owner's tailnet: `./deck -tailscale deck` (sign-in link in the log and in health)
-- Tests: `go test -race ./...`
+- Tests: `go test -race -timeout 30m ./...`
 - Real Claude Code end-to-end test: `DECK_REAL_CLI=1 go test ./tests/scenarios -run TestRealClaudeCode -v`
 - Real Codex end-to-end test (skipped without `codex`): `DECK_REAL_CODEX=1 go test ./tests/scenarios -run TestRealCodex -v`
 - Agent turn on a local Ollama: `DECK_REAL_OLLAMA=1 go test ./tests/scenarios -run TestRealOllama -v` (`DECK_OLLAMA_MODEL`, default `laguna-xs-2.1:nvfp4`)

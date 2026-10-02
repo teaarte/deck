@@ -30,7 +30,7 @@ func (a *App) agentSlots(ctx context.Context, workspace int64) int {
 	if n := a.settingInt(ctx, workspace, settingAgentLimit); n > 0 {
 		return n
 	}
-	return a.Cfg.AgentLimit
+	return agentLimit
 }
 
 // confirmTTL is how long a confirmation of the workspace waits for the owner unless its tool sets its own.
@@ -83,7 +83,7 @@ func (a *App) settingItems(ctx context.Context, workspace int64) []map[string]an
 		{"id": "confirm_hours", "name": "confirm_hours", "title": "How long a confirmation waits for the owner, hours",
 			"value": int64(a.confirmTTL(ctx, workspace) / time.Hour), "default": int64(a.Cfg.ConfirmTTL / time.Hour)},
 		{"id": "agent_limit", "name": "agent_limit", "title": "Agent processes that run at once; scripts and tools do not count",
-			"value": a.agentSlots(ctx, workspace), "default": a.Cfg.AgentLimit},
+			"value": a.agentSlots(ctx, workspace), "default": agentLimit},
 		{"id": "suggest_days", "name": "suggest_days", "title": "Days a suggestion waits for the owner before it expires",
 			"value": a.suggestDays(ctx, workspace), "default": 7},
 	}

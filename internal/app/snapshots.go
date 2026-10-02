@@ -57,7 +57,7 @@ func (a *App) Snapshot(ctx context.Context) (string, error) {
 	}
 	old, _ := filepath.Glob(filepath.Join(dir, "deck-*.tar.gz"))
 	slices.Sort(old)
-	for len(old) > a.Cfg.Snapshots {
+	for len(old) > snapshotsKept {
 		_ = os.Remove(old[0])
 		old = old[1:]
 	}
@@ -245,7 +245,7 @@ func (a *App) cleanup(ctx context.Context, now time.Time) {
 			continue
 		}
 		p, err := a.Store.Q.GetProcess(ctx, id)
-		if errors.Is(err, sql.ErrNoRows) || err == nil && p.FinishedAt.Valid && p.FinishedAt.String < store.Time(now.Add(-a.Cfg.WorkKept)) {
+		if errors.Is(err, sql.ErrNoRows) || err == nil && p.FinishedAt.Valid && p.FinishedAt.String < store.Time(now.Add(-workKept)) {
 			_ = os.RemoveAll(filepath.Join(a.Cfg.Home, "runs", r.Name()))
 		}
 	}

@@ -38,7 +38,7 @@ type sttDef struct {
 }
 
 func (a *App) stt(ctx context.Context, workspace int64) sttDef {
-	d := sttDef{URL: a.Cfg.STT}
+	var d sttDef
 	if raw, err := a.Store.Q.GetSetting(ctx, db.GetSettingParams{WorkspaceID: workspace, Key: settingSTT}); err == nil {
 		_ = json.Unmarshal([]byte(raw), &d)
 	}

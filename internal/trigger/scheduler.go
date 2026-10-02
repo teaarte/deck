@@ -34,8 +34,8 @@ type Scheduler struct {
 	Grace  time.Duration
 }
 
-func New(st *store.Store, s Starter, now func() time.Time, spread time.Duration) *Scheduler {
-	return &Scheduler{st: st, start: s, Now: now, Spread: spread, Grace: 2 * time.Minute}
+func New(st *store.Store, s Starter, now func() time.Time) *Scheduler {
+	return &Scheduler{st: st, start: s, Now: now, Spread: time.Minute, Grace: 2 * time.Minute}
 }
 
 // Identity is what a manifest trigger is known by across manifest revisions.

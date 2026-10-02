@@ -42,15 +42,15 @@ func (r *Runner) ceilingOf(m *manifest.Manifest, cmd *manifest.Command) time.Dur
 		return time.Duration(cmd.TimeoutMinutes) * time.Minute
 	}
 	if cmd.Executor.Type == KindTool {
-		return r.cfg.ScriptCeiling
+		return ScriptCeiling
 	}
 	if cmd.Executor.Type != KindScript {
-		return r.cfg.Ceiling
+		return Ceiling
 	}
 	if s := m.Script(cmd.Executor.Script); s != nil && s.TimeoutMinutes > 0 {
 		return time.Duration(s.TimeoutMinutes) * time.Minute
 	}
-	return r.cfg.ScriptCeiling
+	return ScriptCeiling
 }
 
 // Start runs a command of the manifest revision the caller was authorized against in the background. A key

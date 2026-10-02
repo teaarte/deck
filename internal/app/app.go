@@ -103,12 +103,11 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	a.Registry.SetExtra(a.Browser.Commands)
 	a.Gateway.SetAutomation(a.Automation)
 	a.Runner = process.NewRunner(st, a.Gateway, a.Bus, a, a.Scripts,
-		process.Config{RunsDir: filepath.Join(cfg.Home, "runs"), MCPBase: cfg.MCPBase, Now: cfg.Now, Ceiling: cfg.Ceiling,
-			ScriptCeiling: cfg.ScriptCeiling, FilesDir: filepath.Join(cfg.Home, "files"),
-			Hidden: hidden(cfg.Home), PauseLimit: cfg.PauseLimit, PauseProbe: cfg.PauseProbe, AgentSlots: a.agentSlots}, a)
+		process.Config{RunsDir: filepath.Join(cfg.Home, "runs"), MCPBase: cfg.MCPBase, Now: cfg.Now, FilesDir: filepath.Join(cfg.Home, "files"),
+			Hidden: hidden(cfg.Home), PauseLimit: cfg.PauseLimit, AgentSlots: a.agentSlots}, a)
 	a.Runner.OnDone = a.afterTriggers
 	a.Runner.OnTurn, a.Runner.OnClosed, a.Runner.OnParked = a.chatTurn, a.closed, a.chatClosed
-	a.Scheduler = trigger.New(st, a, cfg.Now, cfg.CatchUpSpread)
+	a.Scheduler = trigger.New(st, a, cfg.Now)
 	a.Asks.OnLateAnswer(a.lateAnswer)
 	if err := a.SeedSkills(a.ctx); err != nil {
 		return nil, err
@@ -306,7 +305,7 @@ func (a *App) stopAtCeiling(ctx context.Context, now time.Time) {
 
 func (a *App) markSilent(ctx context.Context, now time.Time) {
 	ids, err := store.TxGet(a.Store, ctx, func(ctx context.Context, q *db.Queries) ([]int64, error) {
-		return q.MarkSilentProcesses(ctx, now.Add(-a.Cfg.SilentAfter).UnixMilli())
+		return q.MarkSilentProcesses(ctx, now.Add(-silentAfter).UnixMilli())
 	})
 	if err != nil {
 		slog.Error("silent processes", "err", err)
@@ -318,7 +317,7 @@ func (a *App) markSilent(ctx context.Context, now time.Time) {
 
 func (a *App) purgeEmpty(ctx context.Context, now time.Time) {
 	ids, err := store.TxGet(a.Store, ctx, func(ctx context.Context, q *db.Queries) ([]int64, error) {
-		return q.PurgeEmptyProcesses(ctx, store.Time(now.Add(-a.Cfg.EmptyKept)))
+		return q.PurgeEmptyProcesses(ctx, store.Time(now.Add(-emptyKept)))
 	})
 	if err != nil {
 		slog.Error("purge empty processes", "err", err)

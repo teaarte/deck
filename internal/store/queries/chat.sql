@@ -66,8 +66,6 @@ ORDER BY p.id DESC
 LIMIT 1;
 
 
--- name: TopicOfProcess :one
-SELECT topic_id FROM chat_message WHERE process_id = ? ORDER BY id LIMIT 1;
 
 
 -- name: CountMessagesAfter :one

@@ -45,7 +45,7 @@ func (a *App) Checks(ctx context.Context, now time.Time) {
 			a.checkMu.Unlock()
 			continue
 		}
-		c.version = now.Add(a.Cfg.VersionEvery)
+		c.version = now.Add(versionEvery)
 		first := !c.started
 		a.checkMu.Unlock()
 		v, err := sc.Version(ctx)
@@ -128,7 +128,7 @@ func (a *App) startCheck(name string, force bool) bool {
 		a.checkMu.Lock()
 		c.running = false
 		if status != "ok" {
-			c.retry = a.Cfg.Now().Add(a.Cfg.SelfCheckRetry)
+			c.retry = a.Cfg.Now().Add(selfCheckRetry)
 		}
 		a.checkMu.Unlock()
 		if status != "error" && status != "checking" {

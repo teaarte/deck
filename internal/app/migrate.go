@@ -16,6 +16,7 @@ import (
 
 	"deck2/internal/app/docs"
 	"deck2/internal/manifest"
+	"deck2/internal/process"
 	"deck2/internal/registry"
 	"deck2/internal/script"
 	"deck2/internal/store/db"
@@ -128,7 +129,7 @@ func (a *App) runMigration(ctx context.Context, p db.Project, m *manifest.Manife
 	if strings.TrimSpace(src) == "" {
 		return nil, fmt.Errorf("script file %q is missing or empty", s.File)
 	}
-	limit := a.Cfg.ScriptCeiling
+	limit := process.ScriptCeiling
 	if s.TimeoutMinutes > 0 {
 		limit = time.Duration(s.TimeoutMinutes) * time.Minute
 	}

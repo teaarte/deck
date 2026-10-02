@@ -36,7 +36,7 @@ func (r *Runner) pause(ctx context.Context, pv provider.Provider, processID int6
 			ended = &p
 			return nil
 		}
-		next := now.Add(r.cfg.PauseProbe).UnixMilli()
+		next := now.Add(pauseProbe).UnixMilli()
 		if reset := resetsAt * 1000; reset > now.UnixMilli() {
 			next = reset
 		}

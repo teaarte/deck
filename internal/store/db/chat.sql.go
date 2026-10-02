@@ -530,17 +530,6 @@ func (q *Queries) TakeMessages(ctx context.Context, arg TakeMessagesParams) erro
 	return err
 }
 
-const topicOfProcess = `-- name: TopicOfProcess :one
-SELECT topic_id FROM chat_message WHERE process_id = ? ORDER BY id LIMIT 1
-`
-
-func (q *Queries) TopicOfProcess(ctx context.Context, processID int64) (int64, error) {
-	row := q.db.QueryRowContext(ctx, topicOfProcess, processID)
-	var topic_id int64
-	err := row.Scan(&topic_id)
-	return topic_id, err
-}
-
 const touchTopic = `-- name: TouchTopic :exec
 UPDATE chat_topic SET updated_at = ?1, archived = 0 WHERE id = ?2
 `

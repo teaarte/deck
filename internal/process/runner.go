@@ -34,6 +34,14 @@ const (
 	StateStopped       = "stopped"
 )
 
+// Ceiling is how long a command agent may work, ScriptCeiling a command script or tool, when the manifest sets
+// no timeout; pauseProbe is how often a paused process tries again when its provider gave no reset time.
+const (
+	Ceiling       = time.Hour
+	ScriptCeiling = 10 * time.Minute
+	pauseProbe    = time.Hour
+)
+
 // MaxDepth is the longest chain of processes that start one another.
 const MaxDepth = 5
 
@@ -47,20 +55,14 @@ const (
 )
 
 type Config struct {
-	RunsDir string
-	MCPBase string
-	Now     func() time.Time
-	// Ceiling is how long a command agent may work when its manifest sets no timeout.
-	Ceiling time.Duration
-	// ScriptCeiling is how long a command script may run when its manifest sets no timeout.
-	ScriptCeiling time.Duration
-	FilesDir      string
+	RunsDir  string
+	MCPBase  string
+	Now      func() time.Time
+	FilesDir string
 	// Hidden gives the path patterns an agent of a project and process may not read or write.
 	Hidden func(project, process int64) []string
 	// PauseLimit is how long one pause on a usage limit may last from the first refusal.
 	PauseLimit time.Duration
-	// PauseProbe is how often a paused process tries again when the provider gave no reset time.
-	PauseProbe time.Duration
 	// AgentSlots is how many agent turns a workspace runs at once; scripts and tools do not count.
 	AgentSlots func(ctx context.Context, workspace int64) int
 }

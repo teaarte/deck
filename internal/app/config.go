@@ -13,22 +13,8 @@ type Config struct {
 	ConfirmWait  time.Duration
 	// ConfirmTTL is how long a confirmation waits unless the owner set it; zero keeps it open.
 	ConfirmTTL time.Duration
-	// AgentLimit is how many agent turns a workspace runs at once unless the owner set it.
-	AgentLimit int
 	// Now is the deck clock; every deadline is written and checked by it.
 	Now func() time.Time
-	// Ceiling is how long a command agent may work unless its manifest says otherwise.
-	Ceiling time.Duration
-	// SilentAfter is how long a running process may go without output before it shows as silent.
-	SilentAfter time.Duration
-	// CatchUpSpread is the gap between runs missed during a sleep that start one after another.
-	CatchUpSpread time.Duration
-	// EmptyKept is how long a process with an empty result stays in the history.
-	EmptyKept time.Duration
-	// ScriptCeiling is how long a command script may run unless its manifest says otherwise.
-	ScriptCeiling time.Duration
-	// Snapshots is how many daily snapshots stay in backups/.
-	Snapshots int
 	// Sandbox confines scripts and ACP agents; the one of this operating system when nil.
 	Sandbox sandbox.Sandbox
 	// ACPBinaries are the programs of ACP agents by agent name; an agent missing here is looked up in PATH.
@@ -37,44 +23,31 @@ type Config struct {
 	ACPCallLimit time.Duration
 	// Browser starts the browser MCP server; DefaultBrowser when nil, none when empty.
 	Browser []string
-	// PauseLimit is how long one pause on a usage limit lasts at most; PauseProbe is the try without a reset time.
+	// PauseLimit is how long one pause on a usage limit lasts at most.
 	PauseLimit time.Duration
-	PauseProbe time.Duration
-	// SelfCheckCeiling bounds a self-check of a built-in provider; SelfCheckRetry repeats a red one.
+	// SelfCheckCeiling bounds a self-check of a built-in provider.
 	SelfCheckCeiling time.Duration
-	SelfCheckRetry   time.Duration
-	// VersionEvery is how often deck looks for a new version of the programs of the built-in providers.
-	VersionEvery time.Duration
-	// WorkKept is how long the work folder of a finished agent process stays for rework.
-	WorkKept time.Duration
-	// STT is the speech-to-text endpoint unless the owner set one; DefaultSTT when empty.
-	STT string
 }
+
+const (
+	// agentLimit is how many agent turns a workspace runs at once unless the owner set it.
+	agentLimit = 3
+	// silentAfter is how long a running process may go without output before it shows as silent.
+	silentAfter = 30 * time.Minute
+	// emptyKept is how long a process with an empty result stays in the history.
+	emptyKept = 24 * time.Hour
+	// snapshotsKept is how many daily snapshots stay in backups/.
+	snapshotsKept = 7
+	// selfCheckRetry repeats a red self-check; versionEvery looks for new programs of the built-in providers.
+	selfCheckRetry = 30 * time.Minute
+	versionEvery   = 10 * time.Minute
+	// workKept is how long the work folder of a finished agent process stays for rework.
+	workKept = 7 * 24 * time.Hour
+)
 
 func (c *Config) defaults() {
 	if c.Now == nil {
 		c.Now = time.Now
-	}
-	if c.Ceiling <= 0 {
-		c.Ceiling = time.Hour
-	}
-	if c.SilentAfter <= 0 {
-		c.SilentAfter = 30 * time.Minute
-	}
-	if c.CatchUpSpread <= 0 {
-		c.CatchUpSpread = time.Minute
-	}
-	if c.EmptyKept <= 0 {
-		c.EmptyKept = 24 * time.Hour
-	}
-	if c.ScriptCeiling <= 0 {
-		c.ScriptCeiling = 10 * time.Minute
-	}
-	if c.AgentLimit <= 0 {
-		c.AgentLimit = 3
-	}
-	if c.Snapshots <= 0 {
-		c.Snapshots = 7
 	}
 	if c.Sandbox == nil {
 		c.Sandbox = sandbox.New()
@@ -82,20 +55,8 @@ func (c *Config) defaults() {
 	if c.PauseLimit <= 0 {
 		c.PauseLimit = 6 * time.Hour
 	}
-	if c.PauseProbe <= 0 {
-		c.PauseProbe = time.Hour
-	}
 	if c.SelfCheckCeiling <= 0 {
 		c.SelfCheckCeiling = 2 * time.Minute
-	}
-	if c.SelfCheckRetry <= 0 {
-		c.SelfCheckRetry = 30 * time.Minute
-	}
-	if c.VersionEvery <= 0 {
-		c.VersionEvery = 10 * time.Minute
-	}
-	if c.WorkKept <= 0 {
-		c.WorkKept = 7 * 24 * time.Hour
 	}
 	if c.Browser == nil {
 		c.Browser = DefaultBrowser

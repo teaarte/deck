@@ -175,13 +175,17 @@ func TestOwnerEditsTheMemory(t *testing.T) {
 	for _, bad := range []struct{ name, text, want string }{
 		{"memory/no-front.md", "just text", "frontmatter"},
 		{"memory/wrong-name.md", fact("other", "user", "x"), `"name: wrong-name"`},
-		{"memory/no-type.md", fact("no-type", "diary", "x"), "type of a memory fact"},
+		{"memory/no-type.md", fact("no-type", "diary", "x"), `needs "type:" in its frontmatter`},
 		{"memory/late.md", strings.Replace(fact("late", "project", "x"), "type: project", "type: project\nexpires: soon", 1), "YYYY-MM-DD"},
 		{"notes/fact.md", fact("fact", "user", "x"), "memory/<name>.md"},
 	} {
 		if code, out := save(bad.name, bad.text); code != 422 || !strings.Contains(out, bad.want) {
 			t.Fatalf("%s is refused with %q: %d %s", bad.name, bad.want, code, out)
 		}
+	}
+	nested := strings.Replace(fact("nested-type", "user", "x"), "type: user", "metadata:\n  type: user", 1)
+	if code, out := save("memory/nested-type.md", nested); code != 200 {
+		t.Fatalf("the type may sit under metadata: %d %s", code, out)
 	}
 	if code, out := e.call("deck.document_save", map[string]any{"name": "memory/x.md", "kind": "doc", "text": "x"}); code != 422 {
 		t.Fatalf("only memory documents live in memory/: %d %s", code, out)

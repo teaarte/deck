@@ -245,7 +245,7 @@ func TestStopEndsRunningAndParkedProcesses(t *testing.T) {
 	e.refused("deck.process_stop", map[string]any{"process": parked}, 422, "already finished")
 }
 
-func TestLogIsKeptWhileOpenAndRemovedAfterClose(t *testing.T) {
+func TestLogSurvivesARestartAndTheClose(t *testing.T) {
 	home := t.TempDir()
 	started := make(chan struct{})
 	fake := &Fake{script: func(ctx context.Context, c *Call) provider.Result {
@@ -276,11 +276,8 @@ func TestLogIsKeptWhileOpenAndRemovedAfterClose(t *testing.T) {
 		t.Fatal(err)
 	}
 	e2.waitState(id, "done")
-	if _, err := os.Stat(stream); !os.IsNotExist(err) {
-		t.Fatalf("the log goes once the process closes: %v", err)
-	}
-	if l := e2.log(id); len(l) != 0 {
-		t.Fatalf("a closed process has no log: %v", l)
+	if l := e2.log(id); len(l) != 2 || l[1]["text"] != "second" {
+		t.Fatalf("a closed process keeps its log, both turns of it: %v", l)
 	}
 }
 

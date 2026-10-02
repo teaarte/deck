@@ -365,34 +365,6 @@ func (q *Queries) GetToolCall(ctx context.Context, id int64) (ToolCall, error) {
 	return i, err
 }
 
-const listAgentsFinishedBefore = `-- name: ListAgentsFinishedBefore :many
-SELECT id FROM process WHERE kind = 'agent' AND state IN ('done', 'error', 'stopped', 'interrupted')
-  AND finished_at < CAST(?1 AS TEXT)
-`
-
-func (q *Queries) ListAgentsFinishedBefore(ctx context.Context, before string) ([]int64, error) {
-	rows, err := q.db.QueryContext(ctx, listAgentsFinishedBefore, before)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []int64
-	for rows.Next() {
-		var id int64
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		items = append(items, id)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listCeilingReached = `-- name: ListCeilingReached :many
 SELECT id FROM process WHERE state = 'running' AND deadline_ms IS NOT NULL AND deadline_ms <= CAST(?1 AS INTEGER)
 `

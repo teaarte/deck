@@ -113,8 +113,15 @@ func TestScriptCommandRunsInTheSandbox(t *testing.T) {
 	if b, _ := os.ReadFile(filepath.Join(home, "files", fmt.Sprint(files[0].ID))); string(b) != "report 7" {
 		t.Fatalf("the file moved into files/: %q", b)
 	}
-	if _, err := os.Stat(filepath.Join(home, "runs", fmt.Sprint(id))); !os.IsNotExist(err) {
-		t.Fatalf("the run folder of a finished script is gone: %v", err)
+	if left, _ := os.ReadDir(filepath.Join(home, "runs", fmt.Sprint(id))); len(left) != 1 || left[0].Name() != "stream" {
+		t.Fatalf("a finished script leaves only its log in its run folder: %v", left)
+	}
+	if b, _ := json.Marshal(e.log(id)); strings.Contains(string(b), "xcodebuild") || strings.Contains(string(b), "DVTDeveloperPaths") {
+		t.Fatalf("python runs as the interpreter itself, not the xcrun launcher: %s", b)
+	}
+	page := e.screenData("", "process", map[string]any{"record": id})["b0"]["value"]
+	if b, _ := json.Marshal(page); strings.Contains(string(b), `"Error"`) {
+		t.Fatalf("a process without an error shows no Error field: %s", b)
 	}
 	time.Sleep(2 * time.Second)
 	if _, err := os.Stat(filepath.Join(home, "projects", fmt.Sprint(pid), "data", "late")); err == nil {

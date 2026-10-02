@@ -45,9 +45,13 @@ func checkMemoryText(kind, name, text string) error {
 	var meta struct {
 		Name, Description, Type string
 		Expires                 string
+		Metadata                struct{ Type string }
 	}
 	if err := yaml.Unmarshal([]byte(front[:end]), &meta); err != nil {
 		return registry.Invalid("deck: the frontmatter of a memory fact is not YAML: %v", err)
+	}
+	if meta.Type == "" {
+		meta.Type = meta.Metadata.Type
 	}
 	switch {
 	case meta.Name != slug:
@@ -55,7 +59,8 @@ func checkMemoryText(kind, name, text string) error {
 	case strings.TrimSpace(meta.Description) == "":
 		return registry.Invalid("deck: a memory fact needs \"description\": one line that says when it matters")
 	case !slices.Contains(memoryTypes, meta.Type):
-		return registry.Invalid("deck: the type of a memory fact is one of %s", strings.Join(memoryTypes, ", "))
+		return registry.Invalid("deck: a memory fact needs \"type:\" in its frontmatter (or under metadata:), one of %s; it has %q",
+			strings.Join(memoryTypes, ", "), meta.Type)
 	}
 	if meta.Expires != "" {
 		if _, err := time.Parse(time.DateOnly, meta.Expires); err != nil {

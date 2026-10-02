@@ -182,10 +182,6 @@ WHERE provider = sqlc.arg(provider) AND project_id IN (SELECT id FROM project WH
 UPDATE process SET pause_limit_ms = sqlc.arg(limit_ms) WHERE id = sqlc.arg(id) AND state = 'rate_limited';
 
 
--- name: ListAgentsFinishedBefore :many
-SELECT id FROM process WHERE kind = 'agent' AND state IN ('done', 'error', 'stopped', 'interrupted')
-  AND finished_at < CAST(sqlc.arg(before) AS TEXT);
-
 
 -- name: ListOpenProcesses :many
 SELECT * FROM process

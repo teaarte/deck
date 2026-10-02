@@ -24,7 +24,7 @@ func (r *Runner) runTool(ctx context.Context, t turn, trial bool) {
 	id := t.process
 	dir := r.runDir(id)
 	fail := func(err error) {
-		_ = os.RemoveAll(dir)
+		r.clearRun(dir)
 		r.finish(bg, id, StateError, "", false, err.Error())
 	}
 	proj, err := r.st.Q.GetProject(bg, t.project)
@@ -52,11 +52,11 @@ func (r *Runner) runTool(ctx context.Context, t turn, trial bool) {
 	act := registry.Actor{Kind: registry.Agent, Workspace: proj.WorkspaceID, ProjectID: t.project, ProcessID: id, Trial: trial,
 		Cleared: classRank[tool.Class] <= classRank[t.cmd.Class]}
 	out, err := r.gw.CallAs(ctx, act, name, json.RawMessage(t.input))
-	if r.cancelled(bg, ctx, id, func() { _ = os.RemoveAll(dir) }) {
+	if r.cancelled(bg, ctx, id, func() { r.clearRun(dir) }) {
 		return
 	}
 	if r.stopFirst(bg, id) {
-		_ = os.RemoveAll(dir)
+		r.clearRun(dir)
 		return
 	}
 	if err != nil {
@@ -74,7 +74,7 @@ func (r *Runner) runTool(ctx context.Context, t turn, trial bool) {
 // toolResult closes a tool process with what its call gave; a file the tool saved belongs to the process.
 func (r *Runner) toolResult(ctx context.Context, projectID int64, cmd *manifest.Command, id int64, res json.RawMessage) {
 	dir := r.runDir(id)
-	defer os.RemoveAll(dir)
+	defer r.clearRun(dir)
 	var v map[string]any
 	if json.Unmarshal(res, &v) == nil {
 		if f, ok := v["file"].(string); ok && v["files"] == nil {

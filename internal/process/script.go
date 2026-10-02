@@ -25,7 +25,7 @@ func (r *Runner) runScript(ctx context.Context, t turn, trial bool) {
 	id := t.process
 	dir := r.runDir(id)
 	fail := func(err error) {
-		_ = os.RemoveAll(dir)
+		r.clearRun(dir)
 		r.finish(bg, id, StateError, "", false, err.Error())
 		r.failedInARow(bg, t, err.Error())
 	}
@@ -80,11 +80,11 @@ func (r *Runner) runScript(ctx context.Context, t turn, trial bool) {
 	}
 	out, err := r.scripts.Run(ctx, job)
 	r.setGroup(bg, id, 0)
-	if r.cancelled(bg, ctx, id, func() { _ = os.RemoveAll(dir) }) {
+	if r.cancelled(bg, ctx, id, func() { r.clearRun(dir) }) {
 		return
 	}
 	if r.stopFirst(bg, id) {
-		_ = os.RemoveAll(dir)
+		r.clearRun(dir)
 		return
 	}
 	if err != nil {
@@ -101,7 +101,7 @@ func (r *Runner) runScript(ctx context.Context, t turn, trial bool) {
 		return
 	}
 	if verr := validate(t.cmd, json.RawMessage(result)); verr != nil {
-		_ = os.RemoveAll(dir)
+		r.clearRun(dir)
 		r.finish(bg, id, StateDone, result, true, "")
 		r.warn(bg, id, fmt.Sprintf("The result of %s.%s does not match its schema, so nothing acts on it: %v", proj.Name, t.cmd.Name, verr))
 		return
@@ -116,7 +116,7 @@ func (r *Runner) runScript(ctx context.Context, t turn, trial bool) {
 		fail(err)
 		return
 	}
-	_ = os.RemoveAll(dir)
+	r.clearRun(dir)
 	r.finish(bg, id, StateDone, result, false, "")
 }
 

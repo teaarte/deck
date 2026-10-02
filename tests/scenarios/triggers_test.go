@@ -152,6 +152,14 @@ func TestEmptyResultStartsNothingAndIsPurgedAfterADay(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(e.App.Cfg.Home, "runs", fmt.Sprint(id))); !os.IsNotExist(err) {
 		t.Fatalf("the folder of a purged process goes with it: %v", err)
 	}
+	kept := e.run(p, "check")
+	e.waitState(kept, "done")
+	e.settle()
+	e.Clock.Add(8 * 24 * time.Hour)
+	e.sweep()
+	if _, err := os.Stat(filepath.Join(e.App.Cfg.Home, "runs", fmt.Sprint(kept))); !os.IsNotExist(err) {
+		t.Fatalf("the run folder and log of a process finished a week ago are cleared: %v", err)
+	}
 }
 
 func TestRunLaterFiresOnTimeAndOnceAfterSleep(t *testing.T) {

@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"log/slog"
-	"os"
 	"sync"
 	"time"
 
@@ -270,9 +269,8 @@ func (r *Runner) stopFirst(ctx context.Context, processID int64) bool {
 	return ok
 }
 
-// closed drops the log of a process that reached a final state and announces it.
+// closed announces a process that reached a final state; its log stays until deck clears old runs.
 func (r *Runner) closed(ctx context.Context, processID int64) {
-	_ = os.Remove(r.LogPath(processID))
 	r.bus.Publish("processes")
 	r.bus.Publish("asks")
 	if r.OnClosed != nil {

@@ -144,7 +144,7 @@ func (a *App) processRework(ctx context.Context, act registry.Actor, in struct {
 	return Started{Process: in.Process}, nil
 }
 
-// processLog returns the last events of an open process; a closed process has no log.
+// processLog returns the last events of a process; deck clears the logs of old runs.
 func (a *App) processLog(ctx context.Context, act registry.Actor, in struct {
 	Process int64
 	Limit   int64

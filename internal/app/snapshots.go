@@ -4,6 +4,8 @@ import (
 	"archive/tar"
 	"compress/gzip"
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -11,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -223,9 +226,15 @@ func (a *App) cleanup(ctx context.Context, now time.Time) {
 			_ = os.Remove(f)
 		}
 	}
-	if old, err := a.Store.Q.ListAgentsFinishedBefore(ctx, store.Time(now.Add(-a.Cfg.WorkKept))); err == nil {
-		for _, id := range old {
-			_ = os.RemoveAll(filepath.Join(a.Cfg.Home, "runs", fmt.Sprint(id)))
+	runs, _ := os.ReadDir(filepath.Join(a.Cfg.Home, "runs"))
+	for _, r := range runs {
+		id, err := strconv.ParseInt(r.Name(), 10, 64)
+		if err != nil {
+			continue
+		}
+		p, err := a.Store.Q.GetProcess(ctx, id)
+		if errors.Is(err, sql.ErrNoRows) || err == nil && p.FinishedAt.Valid && p.FinishedAt.String < store.Time(now.Add(-a.Cfg.WorkKept)) {
+			_ = os.RemoveAll(filepath.Join(a.Cfg.Home, "runs", r.Name()))
 		}
 	}
 }

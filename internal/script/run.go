@@ -137,7 +137,29 @@ func argvOf(s *manifest.Script, file string) ([]string, error) {
 		}
 		argv[0] = p
 	}
+	if s.Runtime == "python" {
+		argv[0] = realPython(argv[0])
+	}
 	return argv, nil
+}
+
+var pythons sync.Map
+
+// realPython is the interpreter behind a launcher such as macOS /usr/bin/python3, which in a sandbox runs xcrun
+// and writes cache errors to stderr on every start; the launcher itself when it cannot tell.
+func realPython(path string) string {
+	if got, ok := pythons.Load(path); ok {
+		return got.(string)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, path, "-c", "import sys; print(sys.executable)").Output()
+	real := strings.TrimSpace(string(out))
+	if fi, statErr := os.Stat(real); err != nil || statErr != nil || !filepath.IsAbs(real) || fi.IsDir() {
+		real = path
+	}
+	pythons.Store(path, real)
+	return real
 }
 
 // pipes gives the command its own stdout and stderr, so Wait returns when it exits even if programs it

@@ -71,7 +71,7 @@ func finished(state string) bool {
 	return slices.Contains([]string{process.StateDone, process.StateError, process.StateInterrupted, process.StateStopped}, state)
 }
 
-// logItems are the last lines of the log of a process while it is open.
+// logItems are the last lines of the log of a process.
 func (s Sources) logItems(processID int64) ([]map[string]any, error) {
 	out := []map[string]any{}
 	f, err := os.Open(s.LogPath(processID))

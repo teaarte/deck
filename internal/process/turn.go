@@ -331,7 +331,17 @@ func (r *Runner) runDir(processID int64) string {
 	return filepath.Join(r.cfg.RunsDir, strconv.FormatInt(processID, 10))
 }
 
-// LogPath is the file with the log of a process while it is open.
+// clearRun removes what a script or tool left in its run folder but its log.
+func (r *Runner) clearRun(dir string) {
+	entries, _ := os.ReadDir(dir)
+	for _, e := range entries {
+		if e.Name() != "stream" {
+			_ = os.RemoveAll(filepath.Join(dir, e.Name()))
+		}
+	}
+}
+
+// LogPath is the file with the log of a process.
 func (r *Runner) LogPath(processID int64) string {
 	return filepath.Join(r.runDir(processID), "stream")
 }

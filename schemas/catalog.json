@@ -61,7 +61,7 @@
     },
     "card": {
       "description": "Fields of the record of a record page.",
-      "block": {"description": "Shows the record of a record page; takes no source, only fields and actions; a field with markdown shows its value as markdown.", "properties": {"fields": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["label", "bind"], "properties": {"label": {"type": "string"}, "bind": {"type": "string", "description": "Expression over the fields of the record."}, "markdown": {"type": "boolean"}}}}, "actions": {"$ref": "#/$defs/actions"}}},
+      "block": {"description": "Shows the record of a record page; takes no source, only fields and actions; a field with no value (null or empty text) is not shown; a field with markdown shows its value as markdown.", "properties": {"fields": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["label", "bind"], "properties": {"label": {"type": "string"}, "bind": {"type": "string", "description": "Expression over the fields of the record."}, "markdown": {"type": "boolean"}}}}, "actions": {"$ref": "#/$defs/actions"}}},
       "type": "object",
       "additionalProperties": false,
       "required": ["data"],

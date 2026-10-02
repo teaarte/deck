@@ -137,6 +137,9 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 			if err != nil {
 				return nil, fmt.Errorf("field %q: %w", f.Label, err)
 			}
+			if v == nil || v == "" {
+				continue
+			}
 			field := map[string]any{"label": f.Label, "value": v}
 			if f.Markdown {
 				field["markdown"] = true

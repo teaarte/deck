@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 )
@@ -71,6 +72,20 @@ func (*bwrap) Command(ctx context.Context, p Policy) (*exec.Cmd, error) {
 			args = append(args, "--tmpfs", d)
 		}
 	}
+	for _, d := range rebuilt(p.Hide) {
+		args = append(args, "--tmpfs", real(d))
+		entries, _ := os.ReadDir(d)
+		for _, e := range entries {
+			src, dst := filepath.Join(d, e.Name()), filepath.Join(real(d), e.Name())
+			if e.Type()&os.ModeSymlink != 0 {
+				if to, err := os.Readlink(src); err == nil {
+					args = append(args, "--symlink", to, dst)
+				}
+				continue
+			}
+			args = append(args, "--ro-bind-try", real(src), dst)
+		}
+	}
 	for _, h := range p.Hide {
 		switch fi, err := os.Stat(h); {
 		case err != nil:
@@ -107,6 +122,28 @@ func (*bwrap) Command(ctx context.Context, p Policy) (*exec.Cmd, error) {
 	args = append(args, "--")
 	cmd := exec.CommandContext(ctx, "bwrap", append(args, argv...)...)
 	return group(cmd), nil
+}
+
+// rebuilt are the nearest folders above hidden paths that do not exist yet, shallowest first: each is shown
+// as it was at the start, so a credential store made later in it does not appear to a long-lived program.
+func rebuilt(hide []string) []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, h := range hide {
+		if _, err := os.Lstat(h); err == nil {
+			continue
+		}
+		d := filepath.Dir(h)
+		for _, err := os.Lstat(d); err != nil && d != "/"; _, err = os.Lstat(d) {
+			d = filepath.Dir(d)
+		}
+		if d != "/" && !seen[d] {
+			seen[d] = true
+			out = append(out, d)
+		}
+	}
+	slices.SortFunc(out, func(a, b string) int { return strings.Count(a, "/") - strings.Count(b, "/") })
+	return out
 }
 
 // bridge listens on a local address, carries each connection to a unix socket and runs the program.

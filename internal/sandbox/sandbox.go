@@ -57,16 +57,23 @@ func group(cmd *exec.Cmd) *exec.Cmd {
 	return cmd
 }
 
-// real resolves symlinks, so rules match the paths the kernel sees; a missing path stays as given.
+// real resolves symlinks, so rules match the paths the kernel sees; a missing path resolves through its
+// nearest existing folder.
 func real(path string) string {
 	abs, err := filepath.Abs(path)
 	if err != nil {
 		return path
 	}
-	if r, err := filepath.EvalSymlinks(abs); err == nil {
-		return r
+	rest := ""
+	for d := abs; ; d = filepath.Dir(d) {
+		if r, err := filepath.EvalSymlinks(d); err == nil {
+			return filepath.Join(r, rest)
+		}
+		if d == filepath.Dir(d) {
+			return abs
+		}
+		rest = filepath.Join(filepath.Base(d), rest)
 	}
-	return abs
 }
 
 // Hidden is what no confined program reads: the state of deck and the owner's credential stores.

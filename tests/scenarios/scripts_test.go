@@ -41,6 +41,9 @@ checks["proxy_needs_token"] = fetch(inp["allowed"], proxy=os.environ["HTTP_PROXY
 checks["outside_write_blocked"] = not can_write(os.path.join(inp["outside"], "x"))
 checks["secret_hidden"] = not can_read(inp["secret"])
 checks["owner_key_hidden"] = not can_read(inp["key"])
+import time
+time.sleep(2)
+checks["late_key_hidden"] = not can_read(inp["late"])
 import socket, subprocess
 try:
     s = socket.socket(socket.AF_UNIX)
@@ -55,7 +58,7 @@ print(json.dumps({"checks": checks, "files": [{"path": "report.txt", "record": r
 `
 
 func TestScriptCommandRunsInTheSandbox(t *testing.T) {
-	owner := t.TempDir()
+	owner := ownerHome(t)
 	key := filepath.Join(owner, ".ssh", "id_ed25519")
 	_ = os.MkdirAll(filepath.Dir(key), 0o700)
 	_ = os.WriteFile(key, []byte("private"), 0o600)
@@ -78,8 +81,12 @@ func TestScriptCommandRunsInTheSandbox(t *testing.T) {
 	}
 	defer sock.Close()
 
+	late := filepath.Join(owner, ".aws", "credentials")
 	id := e.start("tools", "collect", map[string]any{"n": 7, "project": "tools", "allowed": allowed.URL, "other": other.URL,
-		"outside": outside, "secret": secret, "key": key, "socket": sock.Addr().String()})
+		"outside": outside, "secret": secret, "key": key, "late": late, "socket": sock.Addr().String()})
+	time.Sleep(500 * time.Millisecond)
+	_ = os.MkdirAll(filepath.Dir(late), 0o700)
+	_ = os.WriteFile(late, []byte("aws-secret"), 0o600)
 	began := time.Now()
 	p := e.waitScript(id, "done", "error")
 	if p.State != "done" || p.NotBySchema || time.Since(began) > 20*time.Second {
@@ -91,7 +98,7 @@ func TestScriptCommandRunsInTheSandbox(t *testing.T) {
 	}
 	_ = json.Unmarshal(p.Result, &res)
 	for _, c := range []string{"internal_call", "external_waits", "allowed_domain", "other_domain_refused", "direct_network_blocked",
-		"outside_write_blocked", "secret_hidden", "owner_key_hidden", "host_socket_blocked"} {
+		"outside_write_blocked", "secret_hidden", "owner_key_hidden", "late_key_hidden", "host_socket_blocked"} {
 		if !res.Checks[c] {
 			t.Errorf("check %s failed: %s", c, p.Result)
 		}
@@ -477,4 +484,19 @@ print(json.dumps({"read": can_read(inp["other"]), "write": can_write(os.path.joi
 	if p.State != "done" || got.Read || got.Write || got.DB || !got.Own {
 		t.Fatalf("a script reads and writes only its own folders: %+v %s", p, p.Result)
 	}
+}
+
+// ownerHome is a home of the owner outside the temp folders, which the Linux sandbox empties anyway.
+func ownerHome(t *testing.T) string {
+	t.Helper()
+	cache, err := os.UserCacheDir()
+	if err == nil {
+		_ = os.MkdirAll(cache, 0o700)
+	}
+	dir, err := os.MkdirTemp(cache, "deck2-owner-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	return dir
 }

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"deck2/internal/app/board"
+	"deck2/internal/app/chat"
 	"deck2/internal/app/devices"
 	"deck2/internal/app/providers"
 	"deck2/internal/ask"
@@ -48,6 +49,7 @@ type App struct {
 	Board     *board.Service
 	Providers *providers.Service
 	Devices   *devices.Service
+	Chats     *chat.Service
 	Scripts   *script.Exec
 	Tools     *tools.HTTP
 	MCP       *tools.MCP
@@ -63,12 +65,6 @@ type App struct {
 	filesMu sync.RWMutex
 	// cleaned and snapTried are when the daily cleanup ran and a daily snapshot was last tried.
 	cleaned, snapTried time.Time
-	chatMu             sync.Mutex
-	chat               chatQueue
-	// chatStart keeps a reply starting apart from a topic being deleted.
-	chatStart sync.Mutex
-	// pushMu lets one look for what to push run at a time.
-	pushMu sync.Mutex
 }
 
 // New starts deck with its main provider p and further built-in ones.
@@ -96,6 +92,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	a.Providers = &providers.Service{St: st, Bus: a.Bus, Now: cfg.Now, Home: cfg.Home, Sandbox: cfg.Sandbox, ACPBinaries: cfg.ACPBinaries,
 		ACPCallLimit: cfg.ACPCallLimit, SelfCheckCeiling: cfg.SelfCheckCeiling, Secret: a.Secret, Wake: func(ctx context.Context) { a.Runner.Wake(ctx) },
 		Builtin: append([]provider.Provider{p}, more...), Ctx: a.ctx, BG: &a.bg}
+	a.Chats = &chat.Service{St: st, Bus: a.Bus, Now: cfg.Now, Asks: a.Asks, For: a.For}
 	a.Devices = &devices.Service{St: st, Bus: a.Bus, Now: cfg.Now, Ctx: a.ctx, Files: a.dirs(), RemoveFiles: a.removeFiles,
 		Secret: a.Secret, ReadSecret: a.readSecret, WriteSecret: a.writeSecret, SecretsDir: a.secretsDir,
 		LockSecrets: a.secretMu.Lock, UnlockSecrets: a.secretMu.Unlock,
@@ -121,7 +118,8 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	a.Runner = process.NewRunner(st, a.Gateway, a.Bus, a, a.Scripts,
 		process.Config{RunsDir: h.Runs(), MCPBase: cfg.MCPBase, Now: cfg.Now, FilesDir: h.Files(),
 			Hidden: hidden(h), PauseLimit: cfg.PauseLimit, AgentSlots: a.agentSlots}, a)
-	a.Runner.Hooks = []process.Hook{chatHook{a: a}, errorsHook{a: a}, afterHook{a: a}}
+	a.Chats.Runner = a.Runner
+	a.Runner.Hooks = []process.Hook{a.Chats.NewHook(), errorsHook{a: a}, afterHook{a: a}}
 	a.Scheduler = trigger.New(st, a, cfg.Now)
 	a.Asks.OnLateAnswer(a.lateAnswer)
 	if err := a.SeedSkills(a.ctx); err != nil {
@@ -202,6 +200,14 @@ func (a *App) Fire(ctx context.Context, t db.Trigger, input map[string]any) (int
 	}
 	return a.fire(ctx, t, input, 0)
 }
+
+// Memory is what a fresh session of a process gets of the memory.
+func (a *App) Memory(ctx context.Context, p db.Process) (string, error) {
+	return a.Chats.Memory(ctx, p)
+}
+
+// PumpChats starts the replies to the owner's messages that wait since deck stopped.
+func (a *App) PumpChats(ctx context.Context) { a.Chats.PumpChats(ctx) }
 
 // Named, For and Ready are the providers the runner asks for.
 func (a *App) Named(ctx context.Context, projectID int64, name string) (provider.Provider, error) {

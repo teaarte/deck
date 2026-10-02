@@ -1,13 +1,21 @@
-package app
+// Package chat is the chat of the owner with the master: topics, messages, the reply turns of the master and the
+// memory its agents get.
+package chat
 
 import (
 	"context"
 	"database/sql"
+	"deck2/internal/app/access"
+	"deck2/internal/events"
+	"deck2/internal/provider"
+	"deck2/master"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -30,6 +38,24 @@ const (
 	summaryDue = 20
 )
 
+// Service keeps the chat. For is the provider a command runs on; Runner starts and goes on with the replies.
+type Service struct {
+	St     *store.Store
+	Bus    *events.Bus
+	Now    func() time.Time
+	Asks   *ask.Broker
+	Runner *process.Runner
+	For    func(ctx context.Context, projectID int64, cmd *manifest.Command) (provider.Provider, error)
+
+	mu    sync.Mutex
+	queue chatQueue
+	// start keeps a reply starting apart from a topic being deleted.
+	start sync.Mutex
+}
+
+// NewHook is the hook of the runner that keeps the master's replies in their topics.
+func (ch *Service) NewHook() Hook { return Hook{ch: ch} }
+
 // chatQueue runs the replies of topics one at a time per topic; a pump that is asked while it runs, even from
 // a hook it set off, leaves the topic for the running loop.
 type chatQueue struct {
@@ -41,104 +67,104 @@ type chatQueue struct {
 func summaryName(topic int64) string { return fmt.Sprintf("topics/%d/summary.md", topic) }
 
 // pump starts the reply to the owner's messages of a topic that no reply took yet.
-func (a *App) pump(ctx context.Context, topic int64) {
-	a.chatMu.Lock()
-	if a.chat.due == nil {
-		a.chat.due = map[int64]bool{}
+func (ch *Service) pump(ctx context.Context, topic int64) {
+	ch.mu.Lock()
+	if ch.queue.due == nil {
+		ch.queue.due = map[int64]bool{}
 	}
-	a.chat.due[topic] = true
-	if a.chat.busy {
-		a.chatMu.Unlock()
+	ch.queue.due[topic] = true
+	if ch.queue.busy {
+		ch.mu.Unlock()
 		return
 	}
-	a.chat.busy = true
+	ch.queue.busy = true
 	for {
 		next := int64(0)
-		for t := range a.chat.due {
+		for t := range ch.queue.due {
 			next = t
 			break
 		}
 		if next == 0 {
-			a.chat.busy = false
-			a.chatMu.Unlock()
+			ch.queue.busy = false
+			ch.mu.Unlock()
 			return
 		}
-		delete(a.chat.due, next)
-		a.chatMu.Unlock()
-		if err := a.reply(ctx, next); err != nil && ctx.Err() == nil {
+		delete(ch.queue.due, next)
+		ch.mu.Unlock()
+		if err := ch.reply(ctx, next); err != nil && ctx.Err() == nil {
 			slog.Error("chat reply", "topic", next, "err", err)
 		}
-		a.chatMu.Lock()
+		ch.mu.Lock()
 	}
 }
 
 // PumpChats starts the replies to messages that a stop of deck left without one.
-func (a *App) PumpChats(ctx context.Context) {
-	ids, err := a.Store.Q.ListTopicsWithPending(ctx)
+func (ch *Service) PumpChats(ctx context.Context) {
+	ids, err := ch.St.Q.ListTopicsWithPending(ctx)
 	if err != nil {
 		slog.Error("chat topics with messages", "err", err)
 		return
 	}
 	for _, id := range ids {
-		a.pump(ctx, id)
+		ch.pump(ctx, id)
 	}
 }
 
 // reply hands the waiting messages of a topic to the master: into its parked reply, or a new reply process
 // that resumes the topic's session of its provider or starts one with a retelling.
-func (a *App) reply(ctx context.Context, topicID int64) error {
-	a.chatStart.Lock()
-	defer a.chatStart.Unlock()
-	t, err := a.Store.Q.GetTopic(ctx, topicID)
+func (ch *Service) reply(ctx context.Context, topicID int64) error {
+	ch.start.Lock()
+	defer ch.start.Unlock()
+	t, err := ch.St.Q.GetTopic(ctx, topicID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil
 	}
 	if err != nil {
 		return err
 	}
-	pending, err := a.Store.Q.ListPendingMessages(ctx, topicID)
+	pending, err := ch.St.Q.ListPendingMessages(ctx, topicID)
 	if err != nil || len(pending) == 0 {
 		return err
 	}
 	first, last := pending[0].ID, pending[len(pending)-1].ID
-	open, err := a.Store.Q.OpenTopicProcess(ctx, topicID)
+	open, err := ch.St.Q.OpenTopicProcess(ctx, topicID)
 	if err == nil {
-		if q := a.openQuestion(ctx, open.ID); q != 0 {
+		if q := ch.openQuestion(ctx, open.ID); q != 0 {
 			texts := make([]string, 0, len(pending))
 			for _, m := range pending {
 				texts = append(texts, strings.TrimSpace(m.Text))
 			}
-			if err := a.Asks.Answer(ctx, q, strings.Join(texts, "\n\n")); err == nil {
-				return a.takeMessages(ctx, t, open.ID, open.SessionID, "", last)
+			if err := ch.Asks.Answer(ctx, q, strings.Join(texts, "\n\n")); err == nil {
+				return ch.takeMessages(ctx, t, open.ID, open.SessionID, "", last)
 			}
 		}
 		if open.State == process.StateRunning {
-			news, _, err := a.chatPrompt(ctx, t, pending, "", "", false)
-			if err != nil || a.Runner.Say(ctx, open.ID, "deck: the owner wrote while you work.\n"+news) == process.Refused {
+			news, _, err := ch.chatPrompt(ctx, t, pending, "", "", false)
+			if err != nil || ch.Runner.Say(ctx, open.ID, "deck: the owner wrote while you work.\n"+news) == process.Refused {
 				return err
 			}
-			return a.takeMessages(ctx, t, open.ID, open.SessionID, "", last)
+			return ch.takeMessages(ctx, t, open.ID, open.SessionID, "", last)
 		}
 		if open.State != process.StateWaitingAnswer {
 			return nil
 		}
-		msg, sign, err := a.chatPrompt(ctx, t, pending, open.SessionID, open.Provider, true)
+		msg, sign, err := ch.chatPrompt(ctx, t, pending, open.SessionID, open.Provider, true)
 		if err != nil {
 			return err
 		}
-		if err := a.Runner.Remark(ctx, open.ID, msg); err != nil {
+		if err := ch.Runner.Remark(ctx, open.ID, msg); err != nil {
 			return err
 		}
-		return a.takeMessages(ctx, t, open.ID, open.SessionID, sign, last)
+		return ch.takeMessages(ctx, t, open.ID, open.SessionID, sign, last)
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
 		return err
 	}
-	p, err := a.masterProject(ctx, t.WorkspaceID)
+	p, err := access.Master(ctx, ch.St.Q, t.WorkspaceID)
 	if err != nil {
 		return err
 	}
-	m, err := docs.Manifest(ctx, a.Store.Q, p)
+	m, err := docs.Manifest(ctx, ch.St.Q, p)
 	if err != nil {
 		return err
 	}
@@ -147,25 +173,25 @@ func (a *App) reply(ctx context.Context, topicID int64) error {
 	if cmd == nil {
 		return registry.Invalid("deck: project master has no trigger on %s", manifest.OnMessage)
 	}
-	pv, err := a.For(ctx, p.ID, cmd)
+	pv, err := ch.For(ctx, p.ID, cmd)
 	if err != nil {
 		return err
 	}
 	o := process.Origin{Session: uuid.NewString()}
 	sign := ""
-	s, err := a.Store.Q.GetChatSession(ctx, db.GetChatSessionParams{TopicID: topicID, Provider: pv.Name()})
+	s, err := ch.St.Q.GetChatSession(ctx, db.GetChatSessionParams{TopicID: topicID, Provider: pv.Name()})
 	switch {
 	case err == nil:
 		o.Session, o.Resume = s.SessionID, true
-		if o.Message, sign, err = a.chatPrompt(ctx, t, pending, s.SessionID, pv.Name(), true); err != nil {
+		if o.Message, sign, err = ch.chatPrompt(ctx, t, pending, s.SessionID, pv.Name(), true); err != nil {
 			return err
 		}
 	case errors.Is(err, sql.ErrNoRows):
 		// A new session is told everything before the first waiting message, and the memory of now.
-		if _, sign, err = a.masterMemory(ctx, p, topicID); err != nil {
+		if _, sign, err = ch.masterMemory(ctx, p, topicID); err != nil {
 			return err
 		}
-		err = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		err = ch.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 			return q.SetChatSession(ctx, db.SetChatSessionParams{TopicID: topicID, Provider: pv.Name(), SessionID: o.Session,
 				Seen: first - 1, Memory: sign})
 		})
@@ -175,38 +201,38 @@ func (a *App) reply(ctx context.Context, topicID int64) error {
 	default:
 		return err
 	}
-	retell, err := a.retelling(ctx, t, first)
+	retell, err := ch.retelling(ctx, t, first)
 	if err != nil {
 		return err
 	}
-	news, _, err := a.chatPrompt(ctx, t, pending, "", "", false)
+	news, _, err := ch.chatPrompt(ctx, t, pending, "", "", false)
 	if err != nil {
 		return err
 	}
 	o.Note = strings.TrimSpace(retell + "\n\n" + news)
-	id, err := a.Runner.Start(ctx, p.ID, m, reply, map[string]any{"topic": topicID}, o)
+	id, err := ch.Runner.Start(ctx, p.ID, m, reply, map[string]any{"topic": topicID}, o)
 	if err != nil {
 		return err
 	}
-	return a.takeMessages(ctx, t, id, o.Session, sign, last)
+	return ch.takeMessages(ctx, t, id, o.Session, sign, last)
 }
 
 // takeMessages gives the waiting messages up to through to the reply process, and keeps the sign of the memory
 // its session was given, when it was given one.
-func (a *App) takeMessages(ctx context.Context, t db.ChatTopic, processID int64, session, sign string, through int64) error {
-	err := a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+func (ch *Service) takeMessages(ctx context.Context, t db.ChatTopic, processID int64, session, sign string, through int64) error {
+	err := ch.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		if err := q.TakeMessages(ctx, db.TakeMessagesParams{ProcessID: processID, TopicID: t.ID, Through: through}); err != nil || sign == "" {
 			return err
 		}
 		return q.SetChatMemory(ctx, db.SetChatMemoryParams{Memory: sign, TopicID: t.ID, SessionID: session})
 	})
-	a.Bus.Publish("chat")
+	ch.Bus.Publish("chat")
 	return err
 }
 
 // chatPrompt is what a reply turn gets: on resume the messages its session missed, then the owner's new
 // messages with their screens, the card of the topic and where its summary is.
-func (a *App) chatPrompt(ctx context.Context, t db.ChatTopic, pending []db.ChatMessage, session, provider string, resume bool) (string, string, error) {
+func (ch *Service) chatPrompt(ctx context.Context, t db.ChatTopic, pending []db.ChatMessage, session, provider string, resume bool) (string, string, error) {
 	type message struct{ Where, Text string }
 	type card struct {
 		ID             int64
@@ -224,19 +250,19 @@ func (a *App) chatPrompt(ctx context.Context, t db.ChatTopic, pending []db.ChatM
 	}{Topic: t.ID, Summary: summaryName(t.ID)}
 	sign := ""
 	if resume {
-		s, err := a.Store.Q.GetChatSession(ctx, db.GetChatSessionParams{TopicID: t.ID, Provider: provider})
+		s, err := ch.St.Q.GetChatSession(ctx, db.GetChatSessionParams{TopicID: t.ID, Provider: provider})
 		if err == nil && s.SessionID == session {
-			mp, err := a.masterProject(ctx, t.WorkspaceID)
+			mp, err := access.Master(ctx, ch.St.Q, t.WorkspaceID)
 			if err != nil {
 				return "", "", err
 			}
-			mem, now, err := a.masterMemory(ctx, mp, t.ID)
+			mem, now, err := ch.masterMemory(ctx, mp, t.ID)
 			if err != nil {
 				return "", "", err
 			}
 			sign = now
 			v.MemoryChanged, v.Memory = now != s.Memory, mem
-			missed, err := a.Store.Q.ListMessages(ctx, db.ListMessagesParams{TopicID: t.ID, After: s.Seen})
+			missed, err := ch.St.Q.ListMessages(ctx, db.ListMessagesParams{TopicID: t.ID, After: s.Seen})
 			if err != nil {
 				return "", "", err
 			}
@@ -248,7 +274,7 @@ func (a *App) chatPrompt(ctx context.Context, t db.ChatTopic, pending []db.ChatM
 			}
 			switch {
 			case len(lines) > retellTail:
-				if v.Retold, err = a.retelling(ctx, t, pending[0].ID); err != nil {
+				if v.Retold, err = ch.retelling(ctx, t, pending[0].ID); err != nil {
 					return "", "", err
 				}
 			case len(lines) > 0:
@@ -260,16 +286,16 @@ func (a *App) chatPrompt(ctx context.Context, t db.ChatTopic, pending []db.ChatM
 		v.Pending = append(v.Pending, message{Where: screenText(m.Context), Text: strings.TrimSpace(m.Text)})
 	}
 	if t.CardID.Valid {
-		if c, err := a.Store.Q.GetCard(ctx, t.CardID.Int64); err == nil {
-			p, _ := a.Store.Q.GetProject(ctx, c.ProjectID)
+		if c, err := ch.St.Q.GetCard(ctx, t.CardID.Int64); err == nil {
+			p, _ := ch.St.Q.GetProject(ctx, c.ProjectID)
 			v.Card = &card{ID: c.ID, Project: p.Name, Title: untrusted.Line(c.Title, 200)}
 		}
 	}
-	grown, err := a.sinceSummary(ctx, t)
+	grown, err := ch.sinceSummary(ctx, t)
 	if err != nil {
 		return "", "", err
 	}
-	since, _, err := a.summary(ctx, t)
+	since, _, err := ch.summary(ctx, t)
 	if err != nil {
 		return "", "", err
 	}
@@ -277,43 +303,43 @@ func (a *App) chatPrompt(ctx context.Context, t db.ChatTopic, pending []db.ChatM
 	if grown >= summaryDue {
 		v.Grown = grown
 	}
-	return prose("turn", v), sign, nil
+	return master.Text("turn", v), sign, nil
 }
 
 // sinceSummary counts the messages of a topic after the current revision of its summary.
-func (a *App) sinceSummary(ctx context.Context, t db.ChatTopic) (int64, error) {
-	since, _, err := a.summary(ctx, t)
+func (ch *Service) sinceSummary(ctx context.Context, t db.ChatTopic) (int64, error) {
+	since, _, err := ch.summary(ctx, t)
 	if err != nil {
 		return 0, err
 	}
-	return a.Store.Q.CountMessagesAfter(ctx, db.CountMessagesAfterParams{TopicID: t.ID, Since: since})
+	return ch.St.Q.CountMessagesAfter(ctx, db.CountMessagesAfterParams{TopicID: t.ID, Since: since})
 }
 
 // summary is the current summary of a topic and when it was written; empty when the master wrote none.
-func (a *App) summary(ctx context.Context, t db.ChatTopic) (since, text string, err error) {
-	p, err := a.masterProject(ctx, t.WorkspaceID)
+func (ch *Service) summary(ctx context.Context, t db.ChatTopic) (since, text string, err error) {
+	p, err := access.Master(ctx, ch.St.Q, t.WorkspaceID)
 	if err != nil {
 		return "", "", err
 	}
-	d, err := a.Store.Q.FindDocument(ctx, docs.Ref{Scope: docs.ProjectScope(p), Name: summaryName(t.ID)}.Find())
+	d, err := ch.St.Q.FindDocument(ctx, docs.Ref{Scope: docs.ProjectScope(p), Name: summaryName(t.ID)}.Find())
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", "", nil
 	}
 	if err != nil {
 		return "", "", err
 	}
-	r, err := docs.Revision(ctx, a.Store.Q, d, 0)
+	r, err := docs.Revision(ctx, ch.St.Q, d, 0)
 	return r.CreatedAt, r.Text, err
 }
 
 // retelling is the start of a topic for a session that did not see it: the summary and the messages after it,
 // at most retellTail, before the message before.
-func (a *App) retelling(ctx context.Context, t db.ChatTopic, before int64) (string, error) {
-	since, text, err := a.summary(ctx, t)
+func (ch *Service) retelling(ctx context.Context, t db.ChatTopic, before int64) (string, error) {
+	since, text, err := ch.summary(ctx, t)
 	if err != nil {
 		return "", err
 	}
-	tail, err := a.Store.Q.LastMessages(ctx, db.LastMessagesParams{TopicID: t.ID, Before: before, Lim: retellTail})
+	tail, err := ch.St.Q.LastMessages(ctx, db.LastMessagesParams{TopicID: t.ID, Before: before, Lim: retellTail})
 	if err != nil {
 		return "", err
 	}
@@ -333,7 +359,7 @@ func (a *App) retelling(ctx context.Context, t db.ChatTopic, before int64) (stri
 	if len(after) > 0 {
 		v.After = untrusted.Block("Messages after the summary, word for word, oldest first", transcript(after))
 	}
-	return prose("retelling", v), nil
+	return master.Text("retelling", v), nil
 }
 
 func transcript(ms []db.ChatMessage) string {
@@ -377,12 +403,12 @@ func screenText(raw string) string {
 }
 
 // replyOf is the topic of a reply process of the built-in master, or 0 for any other process.
-func (a *App) replyOf(ctx context.Context, p db.Process) int64 {
-	proj, err := a.Store.Q.GetProject(ctx, p.ProjectID)
+func (ch *Service) replyOf(ctx context.Context, p db.Process) int64 {
+	proj, err := ch.St.Q.GetProject(ctx, p.ProjectID)
 	if err != nil || proj.Builtin == 0 {
 		return 0
 	}
-	if m, err := docs.Manifest(ctx, a.Store.Q, proj); err != nil || p.Command != m.EventCommand(manifest.OnMessage) {
+	if m, err := docs.Manifest(ctx, ch.St.Q, proj); err != nil || p.Command != m.EventCommand(manifest.OnMessage) {
 		return 0
 	}
 	var in struct{ Topic int64 }
@@ -391,18 +417,18 @@ func (a *App) replyOf(ctx context.Context, p db.Process) int64 {
 }
 
 // Turn keeps the final text of a reply turn as the master's message in its topic.
-func (h chatHook) Turn(ctx context.Context, p db.Process, text string) {
-	a := h.a
-	topic := a.replyOf(ctx, p)
+func (h Hook) Turn(ctx context.Context, p db.Process, text string) {
+	ch := h.ch
+	topic := ch.replyOf(ctx, p)
 	if topic == 0 || strings.TrimSpace(text) == "" {
 		return
 	}
-	err := a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+	err := ch.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		m, err := q.AddMessage(ctx, db.AddMessageParams{TopicID: topic, Role: roleMaster, Text: strings.TrimSpace(text), ProcessID: p.ID})
 		if err != nil {
 			return err
 		}
-		if err := q.TouchTopic(ctx, db.TouchTopicParams{Now: store.Time(a.Cfg.Now()), ID: topic}); err != nil {
+		if err := q.TouchTopic(ctx, db.TouchTopicParams{Now: store.Time(ch.Now()), ID: topic}); err != nil {
 			return err
 		}
 		return q.SeeChat(ctx, db.SeeChatParams{Seen: m.ID, TopicID: topic, SessionID: p.SessionID})
@@ -410,26 +436,26 @@ func (h chatHook) Turn(ctx context.Context, p db.Process, text string) {
 	if err != nil {
 		slog.Error("chat reply", "process", p.ID, "err", err)
 	}
-	a.Bus.Publish("chat")
+	ch.Bus.Publish("chat")
 }
 
-// chatHook keeps the master's replies in their topics and goes on with the messages a topic got while its
+// Hook keeps the master's replies in their topics and goes on with the messages a topic got while its
 // reply ran, once the reply closes or parks.
-type chatHook struct{ a *App }
+type Hook struct{ ch *Service }
 
-func (h chatHook) Closed(ctx context.Context, p db.Process) { h.goOn(ctx, p) }
-func (h chatHook) Parked(ctx context.Context, p db.Process) { h.goOn(ctx, p) }
+func (h Hook) Closed(ctx context.Context, p db.Process) { h.goOn(ctx, p) }
+func (h Hook) Parked(ctx context.Context, p db.Process) { h.goOn(ctx, p) }
 
-func (h chatHook) goOn(ctx context.Context, p db.Process) {
-	if topic := h.a.replyOf(ctx, p); topic != 0 {
-		h.a.Bus.Publish("chat")
-		h.a.pump(context.WithoutCancel(ctx), topic)
+func (h Hook) goOn(ctx context.Context, p db.Process) {
+	if topic := h.ch.replyOf(ctx, p); topic != 0 {
+		h.ch.Bus.Publish("chat")
+		h.ch.pump(context.WithoutCancel(ctx), topic)
 	}
 }
 
 // openQuestion is a question of the owner that the process waits on; a message of the topic answers it.
-func (a *App) openQuestion(ctx context.Context, processID int64) int64 {
-	asks, err := a.Store.Q.ListOpenAsksOfProcess(ctx, processID)
+func (ch *Service) openQuestion(ctx context.Context, processID int64) int64 {
+	asks, err := ch.St.Q.ListOpenAsksOfProcess(ctx, processID)
 	if err != nil {
 		return 0
 	}

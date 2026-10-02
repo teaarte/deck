@@ -1,8 +1,9 @@
-package app
+package chat
 
 import (
 	"context"
 	"database/sql"
+	"deck2/master"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -16,64 +17,64 @@ import (
 
 // Memory is what a fresh session of a process gets of the memory: the index of its own project, as data; an
 // agent of the master gets the owner's index and, in a topic of a card, the index of the card's project.
-func (a *App) Memory(ctx context.Context, p db.Process) (string, error) {
-	proj, err := a.Store.Q.GetProject(ctx, p.ProjectID)
+func (ch *Service) Memory(ctx context.Context, p db.Process) (string, error) {
+	proj, err := ch.St.Q.GetProject(ctx, p.ProjectID)
 	if err != nil {
 		return "", err
 	}
 	if proj.Builtin == 1 {
 		var in struct{ Topic int64 }
 		_ = json.Unmarshal([]byte(p.Input), &in)
-		text, _, err := a.masterMemory(ctx, proj, in.Topic)
+		text, _, err := ch.masterMemory(ctx, proj, in.Topic)
 		return text, err
 	}
-	own, _, err := a.memoryIndex(ctx, proj, "Memory index of project "+proj.Name)
+	own, _, err := ch.memoryIndex(ctx, proj, "Memory index of project "+proj.Name)
 	if err != nil || own == "" {
 		return "", err
 	}
-	return prose("project_memory", struct{ Project, Index string }{proj.Name, own}), nil
+	return master.Text("project_memory", struct{ Project, Index string }{proj.Name, own}), nil
 }
 
 // masterMemory is the memory an agent of the master gets, with a sign that changes when the memory does.
-func (a *App) masterMemory(ctx context.Context, master db.Project, topic int64) (string, string, error) {
-	own, rev, err := a.memoryIndex(ctx, master, "Memory index of the owner")
+func (ch *Service) masterMemory(ctx context.Context, mp db.Project, topic int64) (string, string, error) {
+	own, rev, err := ch.memoryIndex(ctx, mp, "Memory index of the owner")
 	if err != nil {
 		return "", "", err
 	}
 	v := struct{ Own, Card string }{Own: own}
 	sign := fmt.Sprint(rev)
-	if cp, ok := a.topicProject(ctx, topic); ok && cp.ID != master.ID {
-		idx, crev, err := a.memoryIndex(ctx, cp, "Memory index of project "+cp.Name+", whose card this topic is about")
+	if cp, ok := ch.topicProject(ctx, topic); ok && cp.ID != mp.ID {
+		idx, crev, err := ch.memoryIndex(ctx, cp, "Memory index of project "+cp.Name+", whose card this topic is about")
 		if err != nil {
 			return "", "", err
 		}
 		v.Card = idx
 		sign += fmt.Sprintf("/%d:%d", cp.ID, crev)
 	}
-	return prose("owner_memory", v), sign, nil
+	return master.Text("owner_memory", v), sign, nil
 }
 
 // topicProject is the project of the card a topic is about.
-func (a *App) topicProject(ctx context.Context, topic int64) (db.Project, bool) {
+func (ch *Service) topicProject(ctx context.Context, topic int64) (db.Project, bool) {
 	if topic == 0 {
 		return db.Project{}, false
 	}
-	t, err := a.Store.Q.GetTopic(ctx, topic)
+	t, err := ch.St.Q.GetTopic(ctx, topic)
 	if err != nil || !t.CardID.Valid {
 		return db.Project{}, false
 	}
-	c, err := a.Store.Q.GetCard(ctx, t.CardID.Int64)
+	c, err := ch.St.Q.GetCard(ctx, t.CardID.Int64)
 	if err != nil {
 		return db.Project{}, false
 	}
-	p, err := a.Store.Q.GetProject(ctx, c.ProjectID)
+	p, err := ch.St.Q.GetProject(ctx, c.ProjectID)
 	return p, err == nil
 }
 
 // memoryIndex is the start of the memory index of a project as a block of data with what was cut after it, and
 // its revision; empty without an index.
-func (a *App) memoryIndex(ctx context.Context, p db.Project, label string) (string, int64, error) {
-	row, err := a.Store.Q.CurrentText(ctx, db.CurrentTextParams{WorkspaceID: p.WorkspaceID, ProjectID: store.ID(p.ID), Name: docs.MemoryIndex, Kind: docs.KindMemory})
+func (ch *Service) memoryIndex(ctx context.Context, p db.Project, label string) (string, int64, error) {
+	row, err := ch.St.Q.CurrentText(ctx, db.CurrentTextParams{WorkspaceID: p.WorkspaceID, ProjectID: store.ID(p.ID), Name: docs.MemoryIndex, Kind: docs.KindMemory})
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", 0, nil
 	}

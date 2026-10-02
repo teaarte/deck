@@ -10,7 +10,6 @@ import (
 	"deck2/internal/docs"
 	"deck2/internal/health"
 	"deck2/internal/manifest"
-	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
 	"deck2/master"
@@ -97,13 +96,4 @@ func (a *App) seedMaster(ctx context.Context, workspace int64, m *manifest.Manif
 		}
 		return a.Scheduler.Sync(ctx, q, p.ID, cur)
 	})
-}
-
-// masterProject is the built-in project master of a workspace.
-func (a *App) masterProject(ctx context.Context, workspace int64) (db.Project, error) {
-	p, err := a.Store.Q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: workspace, Name: master.Name})
-	if err != nil || p.Builtin == 0 {
-		return db.Project{}, registry.Invalid("deck: this workspace has no built-in project master")
-	}
-	return p, nil
 }

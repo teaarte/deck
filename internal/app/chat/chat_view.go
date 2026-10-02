@@ -1,4 +1,4 @@
-package app
+package chat
 
 import (
 	"context"
@@ -37,15 +37,15 @@ func chatReply(p db.Process) map[string]any {
 	return r
 }
 
-func (a *App) chatTopicItem(ctx context.Context, t db.ChatTopic) map[string]any {
+func (ch *Service) chatTopicItem(ctx context.Context, t db.ChatTopic) map[string]any {
 	v := map[string]any{"id": t.ID, "title": t.Title, "archived": t.Archived == 1, "updated_at": t.UpdatedAt}
 	if t.CardID.Valid {
 		v["card"] = t.CardID.Int64
 	}
-	if last, err := a.Store.Q.LastMessages(ctx, db.LastMessagesParams{TopicID: t.ID, Before: 1 << 62, Lim: 1}); err == nil && len(last) == 1 {
+	if last, err := ch.St.Q.LastMessages(ctx, db.LastMessagesParams{TopicID: t.ID, Before: 1 << 62, Lim: 1}); err == nil && len(last) == 1 {
 		v["last"] = untrusted.Cut(last[0].Text, 200)
 	}
-	if p, err := a.Store.Q.OpenTopicProcess(ctx, t.ID); err == nil {
+	if p, err := ch.St.Q.OpenTopicProcess(ctx, t.ID); err == nil {
 		v["reply"] = chatReply(p)
 	}
 	return v
@@ -53,29 +53,29 @@ func (a *App) chatTopicItem(ctx context.Context, t db.ChatTopic) map[string]any 
 
 // Chat is what a chat block shows: the topics, and of the topic picked its messages, the questions of its reply
 // and the lines of the turn going on; the topic is an id, "new" for none, empty for the newest.
-func (a *App) Chat(ctx context.Context, workspace int64, pick string) (any, error) {
-	active, err := a.Store.Q.ListTopics(ctx, db.ListTopicsParams{WorkspaceID: workspace, Archived: 0, Lim: 50})
+func (ch *Service) Chat(ctx context.Context, workspace int64, pick string) (any, error) {
+	active, err := ch.St.Q.ListTopics(ctx, db.ListTopicsParams{WorkspaceID: workspace, Archived: 0, Lim: 50})
 	if err != nil {
 		return nil, err
 	}
-	archived, err := a.Store.Q.ListTopics(ctx, db.ListTopicsParams{WorkspaceID: workspace, Archived: 1, Lim: 20})
+	archived, err := ch.St.Q.ListTopics(ctx, db.ListTopicsParams{WorkspaceID: workspace, Archived: 1, Lim: 20})
 	if err != nil {
 		return nil, err
 	}
 	v := map[string]any{"topics": []any{}, "archived": []any{}, "messages": []any{}, "questions": []any{},
 		"send": chatAction("send", registry.Builtin+".chat_send", map[string]any{})}
 	for _, t := range active {
-		v["topics"] = append(v["topics"].([]any), a.chatTopicItem(ctx, t))
+		v["topics"] = append(v["topics"].([]any), ch.chatTopicItem(ctx, t))
 	}
 	for _, t := range archived {
-		v["archived"] = append(v["archived"].([]any), a.chatTopicItem(ctx, t))
+		v["archived"] = append(v["archived"].([]any), ch.chatTopicItem(ctx, t))
 	}
 	var t db.ChatTopic
 	switch id, _ := strconv.ParseInt(pick, 10, 64); {
 	case pick == "new":
 		return v, nil
 	case id != 0:
-		if t, err = a.Store.Q.GetTopic(ctx, id); err != nil || t.WorkspaceID != workspace {
+		if t, err = ch.St.Q.GetTopic(ctx, id); err != nil || t.WorkspaceID != workspace {
 			return v, nil
 		}
 	case len(active) > 0:
@@ -83,7 +83,7 @@ func (a *App) Chat(ctx context.Context, workspace int64, pick string) (any, erro
 	default:
 		return v, nil
 	}
-	v["topic"] = a.chatTopicItem(ctx, t)
+	v["topic"] = ch.chatTopicItem(ctx, t)
 	v["send"] = chatAction("send", registry.Builtin+".chat_send", map[string]any{"topic": t.ID})
 	v["archive"] = chatAction("archive", registry.Builtin+".chat_topic_archive", map[string]any{"topic": t.ID, "archived": t.Archived == 0})
 	if t.Archived == 1 {
@@ -92,7 +92,7 @@ func (a *App) Chat(ctx context.Context, workspace int64, pick string) (any, erro
 	del := chatAction("delete", registry.Builtin+".chat_topic_delete", map[string]any{"topic": t.ID})
 	del["confirm"] = true
 	v["delete"] = del
-	rows, err := a.Store.Q.LastMessages(ctx, db.LastMessagesParams{TopicID: t.ID, Before: 1 << 62, Lim: 100})
+	rows, err := ch.St.Q.LastMessages(ctx, db.LastMessagesParams{TopicID: t.ID, Before: 1 << 62, Lim: 100})
 	if err != nil {
 		return nil, err
 	}
@@ -106,7 +106,7 @@ func (a *App) Chat(ctx context.Context, workspace int64, pick string) (any, erro
 		if m.Role == roleOwner && m.ProcessID != 0 {
 			if _, seen := replies[m.ProcessID]; !seen {
 				replies[m.ProcessID] = nil
-				if p, err := a.Store.Q.GetProcess(ctx, m.ProcessID); err == nil {
+				if p, err := ch.St.Q.GetProcess(ctx, m.ProcessID); err == nil {
 					replies[m.ProcessID] = chatReply(p)
 				}
 			}
@@ -119,17 +119,17 @@ func (a *App) Chat(ctx context.Context, workspace int64, pick string) (any, erro
 	if ms != nil {
 		v["messages"] = ms
 	}
-	open, err := a.Store.Q.OpenTopicProcess(ctx, t.ID)
+	open, err := ch.St.Q.OpenTopicProcess(ctx, t.ID)
 	if err != nil {
 		return v, nil
 	}
-	turn := map[string]any{"process": open.ID, "state": open.State, "provider": open.Provider, "lines": a.turnLines(open.ID),
+	turn := map[string]any{"process": open.ID, "state": open.State, "provider": open.Provider, "lines": ch.turnLines(open.ID),
 		"stop": chatAction("stop", registry.Builtin+".process_stop", map[string]any{"process": open.ID}), "open": openProcess(open.ID)}
 	if w := waitsFor[open.State]; w != "" {
 		turn["waits"] = w
 	}
 	v["turn"] = turn
-	asks, err := a.Store.Q.ListOpenAsksOfProcess(ctx, open.ID)
+	asks, err := ch.St.Q.ListOpenAsksOfProcess(ctx, open.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -160,9 +160,9 @@ func (a *App) Chat(ctx context.Context, workspace int64, pick string) (any, erro
 }
 
 // turnLines are the last calls and messages in the log of a process still open.
-func (a *App) turnLines(processID int64) []any {
+func (ch *Service) turnLines(processID int64) []any {
 	out := []any{}
-	lines, _ := a.Runner.Tail(processID, chatLines, "tool", "tool_update", "message")
+	lines, _ := ch.Runner.Tail(processID, chatLines, "tool", "tool_update", "message")
 	for _, raw := range lines {
 		var l map[string]any
 		_ = json.Unmarshal(raw, &l)

@@ -1,9 +1,10 @@
-package app
+package chat
 
 import (
 	"context"
 	"database/sql"
 	"deck2/internal/app/access"
+	"deck2/master"
 	"encoding/json"
 	"errors"
 	"strings"
@@ -59,7 +60,7 @@ func viewReply(p db.Process) *replyView {
 }
 
 // ownTopic is a topic of the actor's workspace.
-func (a *App) ownTopic(ctx context.Context, q *db.Queries, act registry.Actor, id int64) (db.ChatTopic, error) {
+func (ch *Service) ownTopic(ctx context.Context, q *db.Queries, act registry.Actor, id int64) (db.ChatTopic, error) {
 	t, err := q.GetTopic(ctx, id)
 	if errors.Is(err, sql.ErrNoRows) || err == nil && t.WorkspaceID != act.Workspace {
 		return t, registry.NotFound("deck: no chat topic %d", id)
@@ -91,19 +92,19 @@ type chatInterviewIn struct {
 }
 
 // chatInterview opens a topic about a card in which the master interviews the owner and writes the spec into it.
-func (a *App) chatInterview(ctx context.Context, act registry.Actor, in chatInterviewIn) (any, error) {
-	c, err := a.Store.Q.GetCard(ctx, in.Card)
-	if _, _, err = access.Owned(ctx, a.Store.Q, act, c, err, c.ProjectID, registry.NotFound("deck: no card %d", in.Card)); err != nil {
+func (ch *Service) chatInterview(ctx context.Context, act registry.Actor, in chatInterviewIn) (any, error) {
+	c, err := ch.St.Q.GetCard(ctx, in.Card)
+	if _, _, err = access.Owned(ctx, ch.St.Q, act, c, err, c.ProjectID, registry.NotFound("deck: no card %d", in.Card)); err != nil {
 		return nil, err
 	}
-	text := prose("interview", struct {
+	text := master.Text("interview", struct {
 		Card  int64
 		Title string
 	}{c.ID, untrusted.Line(c.Title, 200)})
-	return a.chatSend(ctx, act, chatSendIn{Text: text, Card: c.ID, Screen: in.Screen})
+	return ch.chatSend(ctx, act, chatSendIn{Text: text, Card: c.ID, Screen: in.Screen})
 }
 
-func (a *App) chatSend(ctx context.Context, act registry.Actor, in chatSendIn) (any, error) {
+func (ch *Service) chatSend(ctx context.Context, act registry.Actor, in chatSendIn) (any, error) {
 	text := strings.TrimSpace(in.Text)
 	switch {
 	case text == "":
@@ -122,11 +123,11 @@ func (a *App) chatSend(ctx context.Context, act registry.Actor, in chatSendIn) (
 		b, _ := json.Marshal(s)
 		screen = string(b)
 	}
-	if _, err := a.masterProject(ctx, act.Workspace); err != nil {
+	if _, err := access.Master(ctx, ch.St.Q, act.Workspace); err != nil {
 		return nil, err
 	}
 	var msg db.ChatMessage
-	err := a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+	err := ch.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		if in.RetryKey != "" {
 			old, err := q.FindMessageByKey(ctx, db.FindMessageByKeyParams{WorkspaceID: act.Workspace, RetryKey: in.RetryKey})
 			if err == nil {
@@ -140,7 +141,7 @@ func (a *App) chatSend(ctx context.Context, act registry.Actor, in chatSendIn) (
 		var t db.ChatTopic
 		var err error
 		if in.Topic != 0 {
-			if t, err = a.ownTopic(ctx, q, act, in.Topic); err != nil {
+			if t, err = ch.ownTopic(ctx, q, act, in.Topic); err != nil {
 				return err
 			}
 		} else {
@@ -160,14 +161,14 @@ func (a *App) chatSend(ctx context.Context, act registry.Actor, in chatSendIn) (
 		if msg, err = q.AddMessage(ctx, db.AddMessageParams{TopicID: t.ID, Role: roleOwner, Text: text, Context: screen, RetryKey: in.RetryKey}); err != nil {
 			return err
 		}
-		return q.TouchTopic(ctx, db.TouchTopicParams{Now: store.Time(a.Cfg.Now()), ID: t.ID})
+		return q.TouchTopic(ctx, db.TouchTopicParams{Now: store.Time(ch.Now()), ID: t.ID})
 	})
 	if err != nil {
 		return nil, err
 	}
-	a.pump(context.WithoutCancel(ctx), msg.TopicID)
+	ch.pump(context.WithoutCancel(ctx), msg.TopicID)
 	out := map[string]any{"topic": msg.TopicID, "message": msg.ID}
-	if m, err := a.Store.Q.GetMessage(ctx, msg.ID); err == nil && m.ProcessID != 0 {
+	if m, err := ch.St.Q.GetMessage(ctx, msg.ID); err == nil && m.ProcessID != 0 {
 		out["process"] = m.ProcessID
 	}
 	return out, nil
@@ -178,21 +179,21 @@ type chatTopicsIn struct {
 	Limit    int64 `opt:"" desc:"At most this many"`
 }
 
-func (a *App) chatTopics(ctx context.Context, act registry.Actor, in chatTopicsIn) (any, error) {
+func (ch *Service) chatTopics(ctx context.Context, act registry.Actor, in chatTopicsIn) (any, error) {
 	in.Limit = registry.Limit(in.Limit, 100, 500)
-	ts, err := a.Store.Q.ListTopics(ctx, db.ListTopicsParams{WorkspaceID: act.Workspace, Archived: b2i(in.Archived), Lim: in.Limit})
+	ts, err := ch.St.Q.ListTopics(ctx, db.ListTopicsParams{WorkspaceID: act.Workspace, Archived: b2i(in.Archived), Lim: in.Limit})
 	if err != nil {
 		return nil, err
 	}
 	out := make([]topicView, 0, len(ts))
 	for _, t := range ts {
 		v := topicView{ID: t.ID, Title: t.Title, Card: t.CardID.Int64, Archived: t.Archived == 1, UpdatedAt: t.UpdatedAt}
-		if last, err := a.Store.Q.LastMessages(ctx, db.LastMessagesParams{TopicID: t.ID, Before: 1 << 62, Lim: 1}); err == nil && len(last) == 1 {
+		if last, err := ch.St.Q.LastMessages(ctx, db.LastMessagesParams{TopicID: t.ID, Before: 1 << 62, Lim: 1}); err == nil && len(last) == 1 {
 			m := viewMessage(last[0])
 			m.Text = untrusted.Cut(m.Text, 200)
 			v.Last = &m
 		}
-		if p, err := a.Store.Q.OpenTopicProcess(ctx, t.ID); err == nil {
+		if p, err := ch.St.Q.OpenTopicProcess(ctx, t.ID); err == nil {
 			v.Reply = viewReply(p)
 		}
 		out = append(out, v)
@@ -206,13 +207,13 @@ type chatMessagesIn struct {
 	Limit int64 `opt:"" desc:"At most this many of the newest, 200 by default"`
 }
 
-func (a *App) chatMessages(ctx context.Context, act registry.Actor, in chatMessagesIn) (any, error) {
-	t, err := a.ownTopic(ctx, a.Store.Q, act, in.Topic)
+func (ch *Service) chatMessages(ctx context.Context, act registry.Actor, in chatMessagesIn) (any, error) {
+	t, err := ch.ownTopic(ctx, ch.St.Q, act, in.Topic)
 	if err != nil {
 		return nil, err
 	}
 	in.Limit = registry.Limit(in.Limit, 200, 1000)
-	rows, err := a.Store.Q.ListMessages(ctx, db.ListMessagesParams{TopicID: t.ID, After: in.After})
+	rows, err := ch.St.Q.ListMessages(ctx, db.ListMessagesParams{TopicID: t.ID, After: in.After})
 	if err != nil {
 		return nil, err
 	}
@@ -226,7 +227,7 @@ func (a *App) chatMessages(ctx context.Context, act registry.Actor, in chatMessa
 		if r.Role == roleOwner && r.ProcessID != 0 {
 			if _, seen := replies[r.ProcessID]; !seen {
 				replies[r.ProcessID] = nil
-				if p, err := a.Store.Q.GetProcess(ctx, r.ProcessID); err == nil {
+				if p, err := ch.St.Q.GetProcess(ctx, r.ProcessID); err == nil {
 					replies[r.ProcessID] = viewReply(p)
 				}
 			}
@@ -235,7 +236,7 @@ func (a *App) chatMessages(ctx context.Context, act registry.Actor, in chatMessa
 		ms = append(ms, m)
 	}
 	v := topicView{ID: t.ID, Title: t.Title, Card: t.CardID.Int64, Archived: t.Archived == 1, UpdatedAt: t.UpdatedAt}
-	if p, err := a.Store.Q.OpenTopicProcess(ctx, t.ID); err == nil {
+	if p, err := ch.St.Q.OpenTopicProcess(ctx, t.ID); err == nil {
 		v.Reply = viewReply(p)
 	}
 	return map[string]any{"topic": v, "messages": ms}, nil
@@ -246,9 +247,9 @@ type chatTopicArchiveIn struct {
 	Archived bool  `desc:"Archive when true, bring back when false"`
 }
 
-func (a *App) chatTopicArchive(ctx context.Context, act registry.Actor, in chatTopicArchiveIn) (any, error) {
-	err := a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		if _, err := a.ownTopic(ctx, q, act, in.Topic); err != nil {
+func (ch *Service) chatTopicArchive(ctx context.Context, act registry.Actor, in chatTopicArchiveIn) (any, error) {
+	err := ch.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		if _, err := ch.ownTopic(ctx, q, act, in.Topic); err != nil {
 			return err
 		}
 		_, err := q.ArchiveTopic(ctx, db.ArchiveTopicParams{Archived: b2i(in.Archived), ID: in.Topic})
@@ -264,22 +265,22 @@ type chatTopicDeleteIn struct {
 	Topic int64 `desc:"Chat topic"`
 }
 
-func (a *App) chatTopicDelete(ctx context.Context, act registry.Actor, in chatTopicDeleteIn) (any, error) {
-	err := a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		if _, err := a.ownTopic(ctx, q, act, in.Topic); err != nil {
+func (ch *Service) chatTopicDelete(ctx context.Context, act registry.Actor, in chatTopicDeleteIn) (any, error) {
+	err := ch.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		if _, err := ch.ownTopic(ctx, q, act, in.Topic); err != nil {
 			return err
 		}
-		_, err := q.DeleteTopic(ctx, db.DeleteTopicParams{DeletedAt: sql.NullString{String: store.Time(a.Cfg.Now()), Valid: true}, ID: in.Topic})
+		_, err := q.DeleteTopic(ctx, db.DeleteTopicParams{DeletedAt: sql.NullString{String: store.Time(ch.Now()), Valid: true}, ID: in.Topic})
 		return err
 	})
 	if err != nil {
 		return nil, err
 	}
-	a.chatStart.Lock()
-	p, err := a.Store.Q.OpenTopicProcess(ctx, in.Topic)
-	a.chatStart.Unlock()
+	ch.start.Lock()
+	p, err := ch.St.Q.OpenTopicProcess(ctx, in.Topic)
+	ch.start.Unlock()
 	if err == nil {
-		_ = a.Runner.Stop(ctx, p.ID, "deck: the owner deleted the chat topic")
+		_ = ch.Runner.Stop(ctx, p.ID, "deck: the owner deleted the chat topic")
 	}
 	return map[string]any{"topic": in.Topic, "deleted": true}, nil
 }
@@ -291,25 +292,26 @@ func b2i(b bool) int64 {
 	return 0
 }
 
-func (a *App) chatCommands() []*registry.Command {
+// Commands are the commands of the chat.
+func (ch *Service) Commands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("chat_send", "Tell the master",
 			"Sends the owner's message to the master in a chat topic, a new one when none is given; the master's reply comes into the same topic.",
-			registry.OwnerOnly, a.chatSend).Changes("chat"),
+			registry.OwnerOnly, ch.chatSend).Changes("chat"),
 		registry.Def("chat_interview", "Interview about a card",
 			"Opens a chat topic about a card in which the master interviews the owner and writes the spec into the card.",
-			registry.OwnerOnly, a.chatInterview).Changes("chat"),
+			registry.OwnerOnly, ch.chatInterview).Changes("chat"),
 		registry.Def("chat_topics", "Chat topics",
 			"Lists the owner's chat topics with the master, newest first, with their last message and the reply still going.",
-			registry.OwnerOnly, a.chatTopics),
+			registry.OwnerOnly, ch.chatTopics),
 		registry.Def("chat_messages", "Chat messages",
 			"Returns the messages of a chat topic, oldest first, with the state of the reply each one got.",
-			registry.OwnerOnly, a.chatMessages),
+			registry.OwnerOnly, ch.chatMessages),
 		registry.Def("chat_topic_archive", "Archive topic",
 			"Archives a chat topic or brings it back; a new message brings it back too.",
-			registry.OwnerOnly, a.chatTopicArchive).Changes("chat"),
+			registry.OwnerOnly, ch.chatTopicArchive).Changes("chat"),
 		registry.Def("chat_topic_delete", "Delete topic",
 			"Deletes a chat topic with its messages and stops its reply if one is going.",
-			registry.OwnerOnly, a.chatTopicDelete).Changes("chat"),
+			registry.OwnerOnly, ch.chatTopicDelete).Changes("chat"),
 	}
 }

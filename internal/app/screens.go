@@ -229,7 +229,7 @@ func (d screenDeck) Waits(ctx context.Context, project int64) (map[int64][]int64
 }
 
 func (d screenDeck) Chat(ctx context.Context, workspace int64, topic string) (any, error) {
-	return d.a.Chat(ctx, workspace, topic)
+	return d.a.Chats.Chat(ctx, workspace, topic)
 }
 
 // commandRow is a command the caller may call, with its project, its file fields and what runs it: an executor

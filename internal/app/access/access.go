@@ -156,6 +156,15 @@ func reads(ctx context.Context, q *db.Queries, act registry.Actor, other string)
 	return nil, nil, false, nil
 }
 
+// Master is the built-in project master of a workspace.
+func Master(ctx context.Context, q *db.Queries, workspace int64) (db.Project, error) {
+	p, err := q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: workspace, Name: master.Name})
+	if err != nil || p.Builtin == 0 {
+		return db.Project{}, registry.Invalid("deck: this workspace has no built-in project master")
+	}
+	return p, nil
+}
+
 // Names are the names of the projects of a workspace by id.
 func Names(ctx context.Context, q *db.Queries, workspace int64) (map[int64]string, error) {
 	ps, err := q.ListWorkspaceProjects(ctx, workspace)

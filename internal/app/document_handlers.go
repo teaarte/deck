@@ -220,7 +220,7 @@ func (a *App) memoryScope(ctx context.Context, act registry.Actor, project, name
 	if err != nil || s.Project != 0 || !strings.HasPrefix(name, docs.MemoryDir) {
 		return s, err
 	}
-	p, err := a.masterProject(ctx, act.Workspace)
+	p, err := access.Master(ctx, a.Store.Q, act.Workspace)
 	return docs.ProjectScope(p), err
 }
 

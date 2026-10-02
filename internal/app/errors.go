@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"deck2/internal/app/access"
 	"fmt"
 	"log/slog"
 	"time"
@@ -55,7 +56,7 @@ func (a *App) toMaster(ctx context.Context, p db.Process) {
 	var mp db.Project
 	var mm *manifest.Manifest
 	if !own {
-		if mp, err = a.masterProject(ctx, proj.WorkspaceID); err != nil {
+		if mp, err = access.Master(ctx, a.Store.Q, proj.WorkspaceID); err != nil {
 			return
 		}
 		if mm, err = docs.Manifest(ctx, a.Store.Q, mp); err != nil || mm.Command(mm.EventCommand(manifest.OnFailure)) == nil || mp.Paused == 1 {
@@ -75,7 +76,7 @@ func (a *App) toMaster(ctx context.Context, p db.Process) {
 		if err := q.SetMark(ctx, db.SetMarkParams{WorkspaceID: proj.WorkspaceID, ProjectID: store.ID(proj.ID), Name: key, Value: store.Time(now)}); err != nil || !own {
 			return err
 		}
-		_, err := ask.New(ctx, q, p.ID, ask.KindWarning, prose("master_failed", struct{ Command, Error string }{p.Command, untrusted.Cut(p.Error, 500)}), "{}", time.Time{})
+		_, err := ask.New(ctx, q, p.ID, ask.KindWarning, master.Text("master_failed", struct{ Command, Error string }{p.Command, untrusted.Cut(p.Error, 500)}), "{}", time.Time{})
 		return err
 	})
 	if err != nil || !due {

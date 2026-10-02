@@ -46,13 +46,13 @@ func (s Sources) notificationItems(ctx context.Context, sc screen.Scope, names m
 	}
 	out := make([]map[string]any, 0, len(rows))
 	for _, n := range rows {
-		it := map[string]any{"id": n.ID, "project": names[n.ProjectID], "text": n.Text, "screen": n.Screen, "record": n.RecordID,
+		it := map[string]any{"id": n.ID, "project": names[n.ProjectID], "text": n.Text, "screen": n.Screen, "record": n.RecordID.Int64,
 			"created_at": n.CreatedAt}
 		acts := []map[string]any{}
 		if n.Screen != "" {
 			open := map[string]any{"verb": "open", "project": names[n.ProjectID], "screen": n.Screen}
-			if n.RecordID != 0 {
-				open["record"] = n.RecordID
+			if n.RecordID.Valid {
+				open["record"] = n.RecordID.Int64
 			}
 			acts = append(acts, open)
 		}

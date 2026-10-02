@@ -47,7 +47,7 @@ func TestProjectDeleteTakesASnapshotAndLeavesNothingOfTheProject(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := e.App.Store.DB.ExecContext(ctx, `INSERT INTO tool_call (workspace_id, process_id, project_id, tool, class, outcome, params)
-		VALUES (1, 0, ?, 'gone.publish', 'external', 'done', '{"to": "all"}')`, id); err != nil {
+		VALUES (1, NULL, ?, 'gone.publish', 'external', 'done', '{"to": "all"}')`, id); err != nil {
 		t.Fatal(err)
 	}
 	var procs []int64

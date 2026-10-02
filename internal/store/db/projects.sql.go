@@ -46,29 +46,6 @@ func (q *Queries) DeleteProject(ctx context.Context, id int64) (int64, error) {
 	return result.RowsAffected()
 }
 
-const deleteProjectAsks = `-- name: DeleteProjectAsks :exec
-DELETE FROM ask WHERE project_id = ?
-`
-
-func (q *Queries) DeleteProjectAsks(ctx context.Context, projectID int64) error {
-	_, err := q.db.ExecContext(ctx, deleteProjectAsks, projectID)
-	return err
-}
-
-const deleteProjectDocuments = `-- name: DeleteProjectDocuments :exec
-DELETE FROM document WHERE workspace_id = ?1 AND project_id = ?2 AND project_id != 0
-`
-
-type DeleteProjectDocumentsParams struct {
-	WorkspaceID int64
-	ProjectID   int64
-}
-
-func (q *Queries) DeleteProjectDocuments(ctx context.Context, arg DeleteProjectDocumentsParams) error {
-	_, err := q.db.ExecContext(ctx, deleteProjectDocuments, arg.WorkspaceID, arg.ProjectID)
-	return err
-}
-
 const deleteProjectFiles = `-- name: DeleteProjectFiles :many
 DELETE FROM file WHERE project_id = ? RETURNING id
 `

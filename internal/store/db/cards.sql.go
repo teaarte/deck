@@ -124,16 +124,6 @@ func (q *Queries) DeleteCardEdges(ctx context.Context, cardID int64) error {
 	return err
 }
 
-const deleteExpiredCardDocuments = `-- name: DeleteExpiredCardDocuments :exec
-DELETE FROM document WHERE owner_kind = 'card'
-AND owner_id IN (SELECT c.id FROM card c WHERE c.deleted_at < ?1)
-`
-
-func (q *Queries) DeleteExpiredCardDocuments(ctx context.Context, before sql.NullString) error {
-	_, err := q.db.ExecContext(ctx, deleteExpiredCardDocuments, before)
-	return err
-}
-
 const getCard = `-- name: GetCard :one
 SELECT id, project_id, title, text, lane, rank, record_id, process_id, deleted_at, created_at, updated_at FROM card WHERE id = ?
 `

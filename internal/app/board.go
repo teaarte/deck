@@ -243,9 +243,6 @@ func (a *App) purgeCards(ctx context.Context, now time.Time) {
 	before := now.Add(-cardRetention).UTC().Format("2006-01-02T15:04:05.000Z")
 	var n int64
 	err := a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		if err := q.DeleteExpiredCardDocuments(ctx, sql.NullString{String: before, Valid: true}); err != nil {
-			return err
-		}
 		var err error
 		n, err = q.PurgeCards(ctx, sql.NullString{String: before, Valid: true})
 		return err

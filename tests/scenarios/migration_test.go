@@ -1,6 +1,7 @@
 package scenarios
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -107,6 +108,7 @@ func TestRevertBringsBackRecordsAMigrationDropped(t *testing.T) {
 	e.createProject("people", peopleV1)
 	e.must("deck.records_upsert", map[string]any{"project": "people", "collection": "people", "records": `{"name": "ada"}`}, nil)
 	before := e.people()
+	e.must("deck.document_save", map[string]any{"project": "people", "record": before[0].ID, "name": "notes.md", "kind": "doc", "text": "met her"}, nil)
 	e.saveScript("people", "scripts/rename.py", "import sys\nsys.stdin.read()\n")
 	e.must("deck.manifest_save", map[string]any{"project": "people", "manifest": peopleV2("rename")}, nil)
 	if rs := e.people(); len(rs) != 0 {
@@ -119,5 +121,18 @@ func TestRevertBringsBackRecordsAMigrationDropped(t *testing.T) {
 	e.must("deck.document_revert", map[string]any{"document": man.Document, "revision": 1}, nil)
 	if rs := e.people(); len(rs) != 1 || rs[0].ID != before[0].ID || rs[0].Data["name"] != "ada" {
 		t.Fatalf("revert brings back records of a collection the migration emptied: %+v", rs)
+	}
+	var docs []struct {
+		Name    string
+		OwnerID int64 `json:"owner_id"`
+	}
+	e.must("deck.documents_list", map[string]any{"project": "people"}, &docs)
+	if !slices.ContainsFunc(docs, func(d struct {
+		Name    string
+		OwnerID int64 `json:"owner_id"`
+	}) bool {
+		return d.Name == "notes.md" && d.OwnerID == before[0].ID
+	}) {
+		t.Fatalf("and the documents of those records: %+v", docs)
 	}
 }

@@ -253,8 +253,8 @@ func (a *App) pushNew(ctx context.Context, workspace int64) {
 			url := "/#/deck/cockpit"
 			if n.Screen != "" {
 				url = "/#/p/" + proj.Name + "/" + n.Screen
-				if n.RecordID != 0 {
-					url += fmt.Sprintf("/%d", n.RecordID)
+				if n.RecordID.Valid {
+					url += fmt.Sprintf("/%d", n.RecordID.Int64)
 				}
 			}
 			items = append(items, pushItem{a.pushText(ctx, n.ProjectID, proj.Name, n.Text, url), "notify", fmt.Sprint(n.ID)})

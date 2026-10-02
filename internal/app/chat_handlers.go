@@ -134,7 +134,7 @@ func (a *App) chatSend(ctx context.Context, act registry.Actor, in chatSendIn) (
 					return err
 				}
 			}
-			if t, err = q.CreateTopic(ctx, db.CreateTopicParams{WorkspaceID: act.Workspace, Title: topicTitle(text), CardID: in.Card}); err != nil {
+			if t, err = q.CreateTopic(ctx, db.CreateTopicParams{WorkspaceID: act.Workspace, Title: topicTitle(text), CardID: store.ID(in.Card)}); err != nil {
 				return err
 			}
 		}
@@ -168,7 +168,7 @@ func (a *App) chatTopics(ctx context.Context, act registry.Actor, in chatTopicsI
 	}
 	out := make([]topicView, 0, len(ts))
 	for _, t := range ts {
-		v := topicView{ID: t.ID, Title: t.Title, Card: t.CardID, Archived: t.Archived == 1, UpdatedAt: t.UpdatedAt}
+		v := topicView{ID: t.ID, Title: t.Title, Card: t.CardID.Int64, Archived: t.Archived == 1, UpdatedAt: t.UpdatedAt}
 		if last, err := a.Store.Q.LastMessages(ctx, db.LastMessagesParams{TopicID: t.ID, Before: 1 << 62, Lim: 1}); err == nil && len(last) == 1 {
 			m := viewMessage(last[0])
 			m.Text = untrusted.Cut(m.Text, 200)
@@ -216,7 +216,7 @@ func (a *App) chatMessages(ctx context.Context, act registry.Actor, in chatMessa
 		}
 		ms = append(ms, m)
 	}
-	v := topicView{ID: t.ID, Title: t.Title, Card: t.CardID, Archived: t.Archived == 1, UpdatedAt: t.UpdatedAt}
+	v := topicView{ID: t.ID, Title: t.Title, Card: t.CardID.Int64, Archived: t.Archived == 1, UpdatedAt: t.UpdatedAt}
 	if p, err := a.Store.Q.OpenTopicProcess(ctx, t.ID); err == nil {
 		v.Reply = viewReply(p)
 	}

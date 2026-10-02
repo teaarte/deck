@@ -39,8 +39,8 @@ func chatReply(p db.Process) map[string]any {
 
 func (a *App) chatTopicItem(ctx context.Context, t db.ChatTopic) map[string]any {
 	v := map[string]any{"id": t.ID, "title": t.Title, "archived": t.Archived == 1, "updated_at": t.UpdatedAt}
-	if t.CardID != 0 {
-		v["card"] = t.CardID
+	if t.CardID.Valid {
+		v["card"] = t.CardID.Int64
 	}
 	if last, err := a.Store.Q.LastMessages(ctx, db.LastMessagesParams{TopicID: t.ID, Before: 1 << 62, Lim: 1}); err == nil && len(last) == 1 {
 		v["last"] = untrusted.Cut(last[0].Text, 200)

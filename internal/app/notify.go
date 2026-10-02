@@ -9,6 +9,7 @@ import (
 	"deck2/internal/docs"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
+	"deck2/internal/store"
 	"deck2/internal/store/db"
 )
 
@@ -69,7 +70,7 @@ func (a *App) notify(ctx context.Context, act registry.Actor, in notifyIn) (any,
 	var n db.Notification
 	err = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		n, err = q.AddNotification(ctx, db.AddNotificationParams{WorkspaceID: p.WorkspaceID, ProjectID: p.ID, Author: act.Author(),
-			Text: in.Text, Screen: in.Screen, RecordID: in.Record, Actions: string(raw)})
+			Text: in.Text, Screen: in.Screen, RecordID: store.ID(in.Record), Actions: string(raw)})
 		return err
 	})
 	if err != nil {

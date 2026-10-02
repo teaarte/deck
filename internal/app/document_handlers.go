@@ -28,7 +28,8 @@ type documentView struct {
 }
 
 func docView(d db.Document) documentView {
-	return documentView{ID: d.ID, Project: d.ProjectID, OwnerKind: d.OwnerKind, OwnerID: d.OwnerID, Kind: d.Kind, Name: d.Name, Revision: d.Current,
+	kind, owner := docs.Owner(d)
+	return documentView{ID: d.ID, Project: d.ProjectID.Int64, OwnerKind: kind, OwnerID: owner, Kind: d.Kind, Name: d.Name, Revision: d.Current,
 		Deleted: d.DeletedAt.Valid}
 }
 
@@ -54,17 +55,17 @@ func (a *App) documentsList(ctx context.Context, act registry.Actor, in document
 		if act.Kind != registry.Owner {
 			return nil, registry.Refuse("deck: only the owner lists deleted documents")
 		}
-		ds, err = a.Store.Q.ListDeletedDocuments(ctx, db.ListDeletedDocumentsParams{WorkspaceID: s.Workspace, ProjectID: s.Project})
+		ds, err = a.Store.Q.ListDeletedDocuments(ctx, db.ListDeletedDocumentsParams{WorkspaceID: s.Workspace, ProjectID: store.ID(s.Project)})
 	} else {
-		ds, err = a.Store.Q.ListDocuments(ctx, db.ListDocumentsParams{WorkspaceID: s.Workspace, ProjectID: s.Project, Kind: in.Kind})
+		ds, err = a.Store.Q.ListDocuments(ctx, db.ListDocumentsParams{WorkspaceID: s.Workspace, ProjectID: store.ID(s.Project), Kind: in.Kind})
 	}
 	if err != nil {
 		return nil, err
 	}
 	out := make([]documentView, 0, len(ds))
 	for _, d := range ds {
-		p := db.Project{ID: d.ProjectID, Name: in.Project}
-		if d.ProjectID != 0 && a.mayRead(ctx, a.Store.Q, act, p, "", d.Name) != nil {
+		p := db.Project{ID: d.ProjectID.Int64, Name: in.Project}
+		if d.ProjectID.Valid && a.mayRead(ctx, a.Store.Q, act, p, "", d.Name) != nil {
 			continue
 		}
 		out = append(out, docView(d))
@@ -91,10 +92,10 @@ func (a *App) readableDocument(ctx context.Context, q *db.Queries, act registry.
 	if d.WorkspaceID != act.Workspace {
 		return d, registry.NotFound("deck: no document %d", id)
 	}
-	if d.ProjectID == 0 || act.Within(d.ProjectID) {
+	if !d.ProjectID.Valid || act.Within(d.ProjectID.Int64) {
 		return d, nil
 	}
-	p, err := q.GetProject(ctx, d.ProjectID)
+	p, err := q.GetProject(ctx, d.ProjectID.Int64)
 	if err != nil {
 		return d, err
 	}
@@ -200,7 +201,7 @@ func (a *App) documentSave(ctx context.Context, act registry.Actor, in documentS
 	}
 	a.Bus.Publish("documents")
 	v := docView(d)
-	if d.Name == docs.MemoryIndex && d.OwnerKind == "" {
+	if kind, _ := docs.Owner(d); d.Name == docs.MemoryIndex && kind == "" {
 		if n := docs.IndexLines(in.Text); n > docs.IndexLimit {
 			v.Warning = fmt.Sprintf("the index has %d lines; only the first %d reach prompts: merge or drop lines, the most important first", n, docs.IndexLimit)
 		}
@@ -246,9 +247,9 @@ func (a *App) documentDelete(ctx context.Context, act registry.Actor, in documen
 		return nil, err
 	}
 	switch {
-	case d.Kind == docs.KindManifest || d.Kind == docs.KindPrompt && d.OwnerKind == "":
+	case d.Kind == docs.KindManifest || d.Kind == docs.KindPrompt && !d.RecordID.Valid && !d.CardID.Valid:
 		return nil, registry.Invalid("deck: a project keeps its %s; change it instead", d.Name)
-	case act.Kind == registry.Agent && (d.Kind != docs.KindMemory || d.ProjectID != act.ProjectID):
+	case act.Kind == registry.Agent && (d.Kind != docs.KindMemory || d.ProjectID.Int64 != act.ProjectID):
 		return nil, registry.Refuse("deck: agents delete only the memory of their project")
 	}
 	err = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
@@ -277,8 +278,7 @@ func (a *App) documentRestore(ctx context.Context, act registry.Actor, in docume
 	}
 	var n int64
 	err = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		if _, err := q.FindDocument(ctx, docs.Ref{Scope: docs.Scope{Workspace: d.WorkspaceID, Project: d.ProjectID}, OwnerKind: d.OwnerKind,
-			OwnerID: d.OwnerID, Name: d.Name}.Find()); err == nil {
+		if _, err := q.FindDocument(ctx, docs.RefOf(d).Find()); err == nil {
 			return nil
 		}
 		var err error
@@ -333,7 +333,7 @@ func (a *App) documentRevert(ctx context.Context, act registry.Actor, in documen
 	}
 	reason := docs.RevertReason(r.N, in.Reason)
 	if d.Kind == docs.KindManifest {
-		p, err := a.Store.Q.GetProject(ctx, d.ProjectID)
+		p, err := a.Store.Q.GetProject(ctx, d.ProjectID.Int64)
 		if err != nil {
 			return nil, err
 		}
@@ -342,7 +342,7 @@ func (a *App) documentRevert(ctx context.Context, act registry.Actor, in documen
 	}
 	var n int64
 	err = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		ref := docs.Ref{Scope: docs.Scope{Workspace: d.WorkspaceID, Project: d.ProjectID}, OwnerKind: d.OwnerKind, OwnerID: d.OwnerID, Name: d.Name}
+		ref := docs.RefOf(d)
 		if cur, err := q.GetDocument(ctx, d.ID); err != nil || cur.DeletedAt.Valid || in.IfRevision != 0 && cur.Current != in.IfRevision {
 			switch {
 			case err == nil && cur.DeletedAt.Valid:
@@ -366,11 +366,11 @@ func (a *App) documentRevert(ctx context.Context, act registry.Actor, in documen
 
 // scriptChanged lists a script change made without the owner, undone by returning to the revision before n.
 func (a *App) scriptChanged(ctx context.Context, q *db.Queries, act registry.Actor, d db.Document, n int64, reason string) error {
-	if d.Kind != docs.KindScript || d.ProjectID == 0 || d.OwnerKind != "" {
+	if d.Kind != docs.KindScript || !d.ProjectID.Valid || d.RecordID.Valid || d.CardID.Valid {
 		return nil
 	}
 	prev := db.Document{ID: d.ID, Current: n - 1}
-	return a.unattended(ctx, q, act, d.ProjectID, prev, n, fmt.Sprintf("%s changed script %s", act.Author(), d.Name), reason)
+	return a.unattended(ctx, q, act, d.ProjectID.Int64, prev, n, fmt.Sprintf("%s changed script %s", act.Author(), d.Name), reason)
 }
 
 func (a *App) documentCommands() []*registry.Command {

@@ -45,10 +45,10 @@ func (a *App) calls(ctx context.Context, workspace, project int64, outcome strin
 	}
 	out := make([]map[string]any, 0, len(rows))
 	for _, c := range rows {
-		it := map[string]any{"id": c.ID, "tool": c.Tool, "actor": c.Actor, "project": names[c.ProjectID], "process": c.ProcessID,
+		it := map[string]any{"id": c.ID, "tool": c.Tool, "actor": c.Actor, "project": names[c.ProjectID.Int64], "process": c.ProcessID.Int64,
 			"class": c.Class, "outcome": c.Outcome, "external_id": c.ExternalID, "error": c.Error, "params": c.Params, "created_at": c.CreatedAt}
-		if c.ProcessID != 0 {
-			it["_actions"] = []map[string]any{{"verb": "open", "screen": "process", "record": c.ProcessID}}
+		if c.ProcessID.Valid {
+			it["_actions"] = []map[string]any{{"verb": "open", "screen": "process", "record": c.ProcessID.Int64}}
 		}
 		out = append(out, it)
 	}

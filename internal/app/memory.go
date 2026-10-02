@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"deck2/internal/docs"
+	"deck2/internal/store"
 	"deck2/internal/store/db"
 	"deck2/internal/untrusted"
 )
@@ -69,10 +70,10 @@ func (a *App) topicProject(ctx context.Context, topic int64) (db.Project, bool) 
 		return db.Project{}, false
 	}
 	t, err := a.Store.Q.GetTopic(ctx, topic)
-	if err != nil || t.CardID == 0 {
+	if err != nil || !t.CardID.Valid {
 		return db.Project{}, false
 	}
-	c, err := a.Store.Q.GetCard(ctx, t.CardID)
+	c, err := a.Store.Q.GetCard(ctx, t.CardID.Int64)
 	if err != nil {
 		return db.Project{}, false
 	}
@@ -83,7 +84,7 @@ func (a *App) topicProject(ctx context.Context, topic int64) (db.Project, bool) 
 // memoryIndex is the start of the memory index of a project as a block of data with what was cut after it, and
 // its revision; empty without an index.
 func (a *App) memoryIndex(ctx context.Context, p db.Project, label string) (string, int64, error) {
-	row, err := a.Store.Q.CurrentText(ctx, db.CurrentTextParams{WorkspaceID: p.WorkspaceID, ProjectID: p.ID, Name: docs.MemoryIndex, Kind: docs.KindMemory})
+	row, err := a.Store.Q.CurrentText(ctx, db.CurrentTextParams{WorkspaceID: p.WorkspaceID, ProjectID: store.ID(p.ID), Name: docs.MemoryIndex, Kind: docs.KindMemory})
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", 0, nil
 	}

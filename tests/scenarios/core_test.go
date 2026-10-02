@@ -9,6 +9,7 @@ import (
 
 	"deck2/internal/app"
 	"deck2/internal/provider"
+	"deck2/internal/store"
 	"deck2/internal/store/db"
 )
 
@@ -158,7 +159,7 @@ func TestConfirmationRejectedWithReason(t *testing.T) {
 	if !strings.Contains(msg, "rejected") || !strings.Contains(msg, "not now") {
 		t.Fatalf("agent must get the refusal with reason, got %q", msg)
 	}
-	calls, _ := e.App.Store.Q.ListToolCalls(context.Background(), id)
+	calls, _ := e.App.Store.Q.ListToolCalls(context.Background(), store.ID(id))
 	if len(calls) < 2 || calls[len(calls)-1].Outcome != "rejected" {
 		t.Fatalf("tool call journal: %+v", calls)
 	}

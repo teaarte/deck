@@ -138,21 +138,21 @@ CREATE TABLE card_edge (
     PRIMARY KEY (card_id, waits_for)
 );
 
--- A document belongs to a project, or to the workspace with project 0; owner_kind and owner_id tie it to a
--- record or a card of the project.
+-- A document belongs to a project, or to the workspace without one; a record or a card of the project may own it.
+-- record_id has no foreign key: a record a collection migration drops comes back with its id on a revert.
 CREATE TABLE document (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     workspace_id  INTEGER NOT NULL REFERENCES workspace(id) ON DELETE CASCADE,
-    project_id    INTEGER NOT NULL DEFAULT 0,
-    owner_kind    TEXT NOT NULL DEFAULT '',
-    owner_id      INTEGER NOT NULL DEFAULT 0,
+    project_id    INTEGER REFERENCES project(id) ON DELETE CASCADE,
+    record_id     INTEGER,
+    card_id       INTEGER REFERENCES card(id) ON DELETE CASCADE,
     kind          TEXT NOT NULL,
     name          TEXT NOT NULL,
     current       INTEGER NOT NULL DEFAULT 0,
     deleted_at    TEXT,
-    created_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-    UNIQUE (workspace_id, project_id, owner_kind, owner_id, name)
+    created_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
+CREATE UNIQUE INDEX document_name ON document (workspace_id, coalesce(project_id, 0), coalesce(record_id, 0), coalesce(card_id, 0), name);
 
 CREATE TABLE document_revision (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -182,7 +182,7 @@ CREATE INDEX file_owner ON file (owner_kind, owner_id);
 CREATE TABLE ask (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     workspace_id  INTEGER NOT NULL REFERENCES workspace(id) ON DELETE CASCADE,
-    project_id    INTEGER NOT NULL,
+    project_id    INTEGER NOT NULL REFERENCES project(id) ON DELETE CASCADE,
     process_id    INTEGER REFERENCES process(id) ON DELETE CASCADE,
     kind          TEXT NOT NULL,
     text          TEXT NOT NULL,
@@ -202,8 +202,8 @@ CREATE INDEX ask_workspace ON ask (workspace_id, state);
 CREATE TABLE tool_call (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     workspace_id  INTEGER NOT NULL REFERENCES workspace(id) ON DELETE CASCADE,
-    project_id    INTEGER NOT NULL,
-    process_id    INTEGER NOT NULL,
+    project_id    INTEGER REFERENCES project(id) ON DELETE CASCADE,
+    process_id    INTEGER REFERENCES process(id) ON DELETE SET NULL,
     actor         TEXT NOT NULL DEFAULT '',
     caller        TEXT NOT NULL DEFAULT '',
     tool          TEXT NOT NULL,
@@ -275,7 +275,7 @@ CREATE TABLE unattended (
     text          TEXT NOT NULL,
     command       TEXT NOT NULL DEFAULT '',
     params        TEXT NOT NULL DEFAULT '{}',
-    document_id   INTEGER NOT NULL DEFAULT 0,
+    document_id   INTEGER REFERENCES document(id) ON DELETE SET NULL,
     revision      INTEGER NOT NULL DEFAULT 0,
     undone_at     TEXT,
     created_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
@@ -303,7 +303,7 @@ CREATE TABLE notification (
     author        TEXT NOT NULL,
     text          TEXT NOT NULL,
     screen        TEXT NOT NULL DEFAULT '',
-    record_id     INTEGER NOT NULL DEFAULT 0,
+    record_id     INTEGER,
     actions       TEXT NOT NULL DEFAULT '[]',
     created_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
@@ -313,7 +313,7 @@ CREATE TABLE chat_topic (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     workspace_id  INTEGER NOT NULL REFERENCES workspace(id) ON DELETE CASCADE,
     title         TEXT NOT NULL,
-    card_id       INTEGER NOT NULL DEFAULT 0,
+    card_id       INTEGER REFERENCES card(id) ON DELETE SET NULL,
     archived      INTEGER NOT NULL DEFAULT 0,
     deleted_at    TEXT,
     created_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
@@ -331,6 +331,7 @@ CREATE TABLE chat_session (
     PRIMARY KEY (topic_id, provider)
 );
 
+-- process_id is the reply that took an owner's message, 0 while none has; it outlives the process.
 CREATE TABLE chat_message (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     topic_id    INTEGER NOT NULL REFERENCES chat_topic(id) ON DELETE CASCADE,

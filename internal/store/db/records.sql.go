@@ -83,8 +83,7 @@ func (q *Queries) DeleteCollection(ctx context.Context, arg DeleteCollectionPara
 }
 
 const deleteExpiredRecordDocuments = `-- name: DeleteExpiredRecordDocuments :exec
-DELETE FROM document WHERE owner_kind = 'record'
-AND owner_id IN (SELECT r.id FROM record r WHERE r.project_id = ?1 AND r.collection = ?2
+DELETE FROM document WHERE record_id IN (SELECT r.id FROM record r WHERE r.project_id = ?1 AND r.collection = ?2
   AND r.created_at < CAST(?3 AS TEXT))
 `
 
@@ -119,11 +118,11 @@ func (q *Queries) DeleteExpiredRecords(ctx context.Context, arg DeleteExpiredRec
 }
 
 const deleteOneRecordDocuments = `-- name: DeleteOneRecordDocuments :exec
-DELETE FROM document WHERE owner_kind = 'record' AND owner_id = ?
+DELETE FROM document WHERE record_id = ?
 `
 
-func (q *Queries) DeleteOneRecordDocuments(ctx context.Context, ownerID int64) error {
-	_, err := q.db.ExecContext(ctx, deleteOneRecordDocuments, ownerID)
+func (q *Queries) DeleteOneRecordDocuments(ctx context.Context, recordID sql.NullInt64) error {
+	_, err := q.db.ExecContext(ctx, deleteOneRecordDocuments, recordID)
 	return err
 }
 
@@ -137,8 +136,7 @@ func (q *Queries) DeleteRecord(ctx context.Context, id int64) error {
 }
 
 const deleteRecordDocuments = `-- name: DeleteRecordDocuments :exec
-DELETE FROM document WHERE owner_kind = 'record'
-AND owner_id IN (SELECT r.id FROM record r WHERE r.project_id = ?1 AND r.collection = ?2)
+DELETE FROM document WHERE record_id IN (SELECT r.id FROM record r WHERE r.project_id = ?1 AND r.collection = ?2)
 `
 
 type DeleteRecordDocumentsParams struct {

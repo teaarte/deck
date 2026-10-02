@@ -76,7 +76,7 @@ type ChatTopic struct {
 	ID          int64
 	WorkspaceID int64
 	Title       string
-	CardID      int64
+	CardID      sql.NullInt64
 	Archived    int64
 	DeletedAt   sql.NullString
 	CreatedAt   string
@@ -86,9 +86,9 @@ type ChatTopic struct {
 type Document struct {
 	ID          int64
 	WorkspaceID int64
-	ProjectID   int64
-	OwnerKind   string
-	OwnerID     int64
+	ProjectID   sql.NullInt64
+	RecordID    sql.NullInt64
+	CardID      sql.NullInt64
 	Kind        string
 	Name        string
 	Current     int64
@@ -167,7 +167,7 @@ type Notification struct {
 	Author      string
 	Text        string
 	Screen      string
-	RecordID    int64
+	RecordID    sql.NullInt64
 	Actions     string
 	CreatedAt   string
 }
@@ -270,8 +270,8 @@ type Setting struct {
 type ToolCall struct {
 	ID          int64
 	WorkspaceID int64
-	ProjectID   int64
-	ProcessID   int64
+	ProjectID   sql.NullInt64
+	ProcessID   sql.NullInt64
 	Actor       string
 	Caller      string
 	Tool        string
@@ -307,7 +307,7 @@ type Unattended struct {
 	Text        string
 	Command     string
 	Params      string
-	DocumentID  int64
+	DocumentID  sql.NullInt64
 	Revision    int64
 	UndoneAt    sql.NullString
 	CreatedAt   string

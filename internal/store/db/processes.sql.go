@@ -52,7 +52,7 @@ WHERE outcome = 'started' AND project_id = ?1 AND tool = ?2 AND params = ?3
 `
 
 type CountStartedCallsParams struct {
-	ProjectID int64
+	ProjectID sql.NullInt64
 	Tool      string
 	Params    string
 }
@@ -72,7 +72,7 @@ WHERE t.outcome = 'unknown' AND a.state = 'open' AND a.id != ?1
 
 type CountUnknownCallsParams struct {
 	Retrying  int64
-	ProjectID int64
+	ProjectID sql.NullInt64
 	Tool      string
 	Params    string
 }
@@ -167,15 +167,6 @@ func (q *Queries) CreateProcess(ctx context.Context, arg CreateProcessParams) (P
 		&i.FinishedAt,
 	)
 	return i, err
-}
-
-const deleteProjectToolCalls = `-- name: DeleteProjectToolCalls :exec
-DELETE FROM tool_call WHERE project_id = ?
-`
-
-func (q *Queries) DeleteProjectToolCalls(ctx context.Context, projectID int64) error {
-	_, err := q.db.ExecContext(ctx, deleteProjectToolCalls, projectID)
-	return err
 }
 
 const endPause = `-- name: EndPause :exec
@@ -771,7 +762,7 @@ const listToolCalls = `-- name: ListToolCalls :many
 SELECT id, workspace_id, project_id, process_id, actor, caller, tool, class, outcome, params, external_id, error, ask_id, run, result, created_at FROM tool_call WHERE process_id = ? ORDER BY id
 `
 
-func (q *Queries) ListToolCalls(ctx context.Context, processID int64) ([]ToolCall, error) {
+func (q *Queries) ListToolCalls(ctx context.Context, processID sql.NullInt64) ([]ToolCall, error) {
 	rows, err := q.db.QueryContext(ctx, listToolCalls, processID)
 	if err != nil {
 		return nil, err
@@ -997,8 +988,8 @@ VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7,
 
 type LogToolCallParams struct {
 	WorkspaceID int64
-	ProcessID   int64
-	ProjectID   int64
+	ProcessID   sql.NullInt64
+	ProjectID   sql.NullInt64
 	Actor       string
 	Caller      string
 	Tool        string
@@ -1160,7 +1151,7 @@ func (q *Queries) PurgeOldLLMCalls(ctx context.Context, before string) error {
 const purgeOldToolCalls = `-- name: PurgeOldToolCalls :exec
 DELETE FROM tool_call WHERE created_at < CAST(?1 AS TEXT) AND outcome NOT IN ('started', 'unknown') AND run != 'running'
   AND (ask_id IS NULL OR ask_id NOT IN (SELECT id FROM ask WHERE state = 'open'))
-  AND process_id NOT IN (SELECT id FROM process WHERE finished_at IS NULL)
+  AND (process_id IS NULL OR process_id NOT IN (SELECT id FROM process WHERE finished_at IS NULL))
 `
 
 func (q *Queries) PurgeOldToolCalls(ctx context.Context, before string) error {

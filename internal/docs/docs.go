@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"deck2/internal/registry"
+	"deck2/internal/store"
 	"deck2/internal/store/db"
 )
 
@@ -50,7 +51,37 @@ type Ref struct {
 }
 
 func (r Ref) Find() db.FindDocumentParams {
-	return db.FindDocumentParams{WorkspaceID: r.Workspace, ProjectID: r.Project, OwnerKind: r.OwnerKind, OwnerID: r.OwnerID, Name: r.Name}
+	f := db.FindDocumentParams{WorkspaceID: r.Workspace, ProjectID: store.ID(r.Project), Name: r.Name}
+	switch r.OwnerKind {
+	case OwnerRecord:
+		f.RecordID = store.ID(r.OwnerID)
+	case OwnerCard:
+		f.CardID = store.ID(r.OwnerID)
+	}
+	return f
+}
+
+// The kinds of rows that own a document of their project.
+const (
+	OwnerRecord = "record"
+	OwnerCard   = "card"
+)
+
+// Owner is the kind and id of the record or card that owns a document; empty for none.
+func Owner(d db.Document) (string, int64) {
+	switch {
+	case d.RecordID.Valid:
+		return OwnerRecord, d.RecordID.Int64
+	case d.CardID.Valid:
+		return OwnerCard, d.CardID.Int64
+	}
+	return "", 0
+}
+
+// RefOf locates a document again by its scope, owner and name.
+func RefOf(d db.Document) Ref {
+	kind, id := Owner(d)
+	return Ref{Scope: Scope{Workspace: d.WorkspaceID, Project: d.ProjectID.Int64}, OwnerKind: kind, OwnerID: id, Name: d.Name}
 }
 
 func checkDocName(name string) error {
@@ -94,8 +125,9 @@ func Save(ctx context.Context, q *db.Queries, ref Ref, kind, text, author, reaso
 	}
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
-		d, err = q.CreateDocument(ctx, db.CreateDocumentParams{WorkspaceID: ref.Workspace, ProjectID: ref.Project,
-			OwnerKind: ref.OwnerKind, OwnerID: ref.OwnerID, Kind: kind, Name: ref.Name})
+		f := ref.Find()
+		d, err = q.CreateDocument(ctx, db.CreateDocumentParams{WorkspaceID: f.WorkspaceID, ProjectID: f.ProjectID,
+			RecordID: f.RecordID, CardID: f.CardID, Kind: kind, Name: ref.Name})
 		if err != nil {
 			return d, 0, err
 		}
@@ -120,7 +152,7 @@ func Save(ctx context.Context, q *db.Queries, ref Ref, kind, text, author, reaso
 
 // CurrentText returns the current text of a document of the given kind ("" for any); empty when missing.
 func CurrentText(ctx context.Context, q *db.Queries, s Scope, kind, name string) (string, error) {
-	row, err := q.CurrentText(ctx, db.CurrentTextParams{WorkspaceID: s.Workspace, ProjectID: s.Project, Name: name, Kind: kind})
+	row, err := q.CurrentText(ctx, db.CurrentTextParams{WorkspaceID: s.Workspace, ProjectID: store.ID(s.Project), Name: name, Kind: kind})
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", nil
 	}

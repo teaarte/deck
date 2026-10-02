@@ -48,11 +48,6 @@ func (a *App) projectDelete(ctx context.Context, act registry.Actor, in projectD
 			return err
 		}
 		steps := []func() error{
-			func() error { return q.DeleteProjectToolCalls(ctx, p.ID) },
-			func() error {
-				return q.DeleteProjectDocuments(ctx, db.DeleteProjectDocumentsParams{WorkspaceID: p.WorkspaceID, ProjectID: p.ID})
-			},
-			func() error { return q.DeleteProjectAsks(ctx, p.ID) },
 			func() error { return q.DeleteProjectHealth(ctx, p.Name) },
 			func() error {
 				return q.DeleteSettingsWithPrefix(ctx, db.DeleteSettingsWithPrefixParams{WorkspaceID: p.WorkspaceID, Prefix: placePrefix + p.Name + "."})

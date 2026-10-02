@@ -28,6 +28,9 @@ const TimeLayout = "2006-01-02T15:04:05.000Z"
 
 func Time(t time.Time) string { return t.UTC().Format(TimeLayout) }
 
+// ID is a row id for a column that may point nowhere: 0 is NULL.
+func ID(id int64) sql.NullInt64 { return sql.NullInt64{Int64: id, Valid: id != 0} }
+
 // Project statuses: a draft runs only trial runs and no triggers until the owner enables it.
 const (
 	ProjectDraft   = "draft"

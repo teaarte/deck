@@ -7,6 +7,7 @@ package db
 
 import (
 	"context"
+	"database/sql"
 )
 
 const addNotification = `-- name: AddNotification :one
@@ -20,7 +21,7 @@ type AddNotificationParams struct {
 	Author      string
 	Text        string
 	Screen      string
-	RecordID    int64
+	RecordID    sql.NullInt64
 	Actions     string
 }
 

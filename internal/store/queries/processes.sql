@@ -204,14 +204,10 @@ ORDER BY id DESC LIMIT sqlc.arg(lim);
 SELECT id FROM process WHERE project_id = ?;
 
 
--- name: DeleteProjectToolCalls :exec
-DELETE FROM tool_call WHERE project_id = ?;
-
-
 -- name: PurgeOldToolCalls :exec
 DELETE FROM tool_call WHERE created_at < CAST(sqlc.arg(before) AS TEXT) AND outcome NOT IN ('started', 'unknown') AND run != 'running'
   AND (ask_id IS NULL OR ask_id NOT IN (SELECT id FROM ask WHERE state = 'open'))
-  AND process_id NOT IN (SELECT id FROM process WHERE finished_at IS NULL);
+  AND (process_id IS NULL OR process_id NOT IN (SELECT id FROM process WHERE finished_at IS NULL));
 
 
 -- name: PurgeOldLLMCalls :exec

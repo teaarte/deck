@@ -96,7 +96,7 @@ func (a *App) unattended(ctx context.Context, q *db.Queries, act registry.Actor,
 		text += ": " + reason
 	}
 	row := db.AddUnattendedParams{WorkspaceID: p.WorkspaceID, ProjectID: p.ID, Author: act.Author(), Text: text, Params: "{}",
-		DocumentID: prev.ID, Revision: n}
+		DocumentID: store.ID(prev.ID), Revision: n}
 	if prev.Current != 0 {
 		params, _ := json.Marshal(map[string]any{"document": prev.ID, "revision": prev.Current, "if_revision": n,
 			"reason": "undo a change made without the owner"})
@@ -144,8 +144,8 @@ func (a *App) unattendedUndo(ctx context.Context, act registry.Actor, in unatten
 	case r.Command == "":
 		return nil, registry.Invalid("deck: this change has no earlier version to return to")
 	}
-	if r.DocumentID != 0 {
-		d, err := docs.Get(ctx, a.Store.Q, r.DocumentID)
+	if r.DocumentID.Valid {
+		d, err := docs.Get(ctx, a.Store.Q, r.DocumentID.Int64)
 		if err != nil {
 			return nil, err
 		}

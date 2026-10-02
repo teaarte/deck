@@ -187,7 +187,7 @@ func (a *App) recordDelete(ctx context.Context, act registry.Actor, in recordDel
 	}
 	var gone []int64
 	err = a.writeRecords(ctx, p, func(ctx context.Context, q *db.Queries, _ *manifest.Manifest) error {
-		if err := q.DeleteOneRecordDocuments(ctx, rec.ID); err != nil {
+		if err := q.DeleteOneRecordDocuments(ctx, store.ID(rec.ID)); err != nil {
 			return err
 		}
 		var err error

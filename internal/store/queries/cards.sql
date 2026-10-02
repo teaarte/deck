@@ -51,11 +51,6 @@ UPDATE card SET deleted_at = sqlc.arg(deleted_at) WHERE id = sqlc.arg(id) AND de
 UPDATE card SET deleted_at = NULL, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ? AND deleted_at IS NOT NULL;
 
 
--- name: DeleteExpiredCardDocuments :exec
-DELETE FROM document WHERE owner_kind = 'card'
-AND owner_id IN (SELECT c.id FROM card c WHERE c.deleted_at < sqlc.arg(before));
-
-
 -- name: PurgeCards :execrows
 DELETE FROM card WHERE deleted_at < ?;
 

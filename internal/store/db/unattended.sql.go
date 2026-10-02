@@ -7,6 +7,7 @@ package db
 
 import (
 	"context"
+	"database/sql"
 )
 
 const addUnattended = `-- name: AddUnattended :exec
@@ -20,7 +21,7 @@ type AddUnattendedParams struct {
 	Text        string
 	Command     string
 	Params      string
-	DocumentID  int64
+	DocumentID  sql.NullInt64
 	Revision    int64
 }
 

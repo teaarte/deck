@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"deck2/internal/store"
 	"deck2/internal/untrusted"
 
 	"deck2/internal/ask"
@@ -22,20 +23,20 @@ func (g *Gateway) Intent(ctx context.Context, act registry.Actor, project int64,
 	var id int64
 	err := g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		retrying, _ := ctx.Value(retryingKey{}).(int64)
-		n, err := q.CountUnknownCalls(ctx, db.CountUnknownCallsParams{Retrying: retrying, ProjectID: project, Tool: tool, Params: p})
+		n, err := q.CountUnknownCalls(ctx, db.CountUnknownCallsParams{Retrying: retrying, ProjectID: store.ID(project), Tool: tool, Params: p})
 		if err != nil {
 			return err
 		}
 		if n > 0 {
 			return registry.Refuse("deck: an identical call of %s has an unknown outcome; it is not repeated until the owner decides", tool)
 		}
-		if n, err = q.CountStartedCalls(ctx, db.CountStartedCallsParams{ProjectID: project, Tool: tool, Params: p}); err != nil || n > 0 {
+		if n, err = q.CountStartedCalls(ctx, db.CountStartedCallsParams{ProjectID: store.ID(project), Tool: tool, Params: p}); err != nil || n > 0 {
 			if err == nil {
 				err = registry.Refuse("deck: an identical call of %s is being made now; wait for its outcome instead of repeating it", tool)
 			}
 			return err
 		}
-		id, err = q.LogToolCall(ctx, db.LogToolCallParams{WorkspaceID: act.Workspace, ProcessID: act.ProcessID, ProjectID: project, Actor: act.Author(), Caller: frozenCaller(act), Tool: tool,
+		id, err = q.LogToolCall(ctx, db.LogToolCallParams{WorkspaceID: act.Workspace, ProcessID: store.ID(act.ProcessID), ProjectID: store.ID(project), Actor: act.Author(), Caller: frozenCaller(act), Tool: tool,
 			Class: registry.External, Outcome: "started", Params: p})
 		return err
 	})
@@ -65,7 +66,7 @@ func (g *Gateway) Lost(ctx context.Context, id int64) {
 		return
 	}
 	var tool string
-	if proj, err := g.st.Q.GetProject(ctx, row.ProjectID); err == nil {
+	if proj, err := g.st.Q.GetProject(ctx, row.ProjectID.Int64); err == nil {
 		tool = g.fingerprint(ctx, proj.WorkspaceID, proj.ID, row.Tool)
 	}
 	g.LostAt(ctx, id, tool)
@@ -81,7 +82,7 @@ func (g *Gateway) LostAt(ctx context.Context, id int64, tool string) {
 		if err != nil || c.Outcome != "started" {
 			return err
 		}
-		p, err := q.GetProject(ctx, c.ProjectID)
+		p, err := q.GetProject(ctx, c.ProjectID.Int64)
 		if err != nil {
 			return err
 		}
@@ -92,7 +93,7 @@ func (g *Gateway) LostAt(ctx context.Context, id int64, tool string) {
 		act := caller.actor()
 		text := fmt.Sprintf("Outcome unknown: %s with %s. deck stopped or lost the connection while making this call; "+
 			"check the other side, then retry it or count it as done.", c.Tool, untrusted.Cut(c.Params, 500))
-		a, err := ask.ForProject(ctx, q, p.WorkspaceID, p.ID, c.ProcessID, ask.KindUnknown, text, frozen(act, c.Tool, json.RawMessage(c.Params), tool, ""), time.Time{})
+		a, err := ask.ForProject(ctx, q, p.WorkspaceID, p.ID, c.ProcessID.Int64, ask.KindUnknown, text, frozen(act, c.Tool, json.RawMessage(c.Params), tool, ""), time.Time{})
 		if err != nil {
 			return err
 		}
@@ -114,7 +115,7 @@ func (g *Gateway) Recover(ctx context.Context) error {
 	}
 	lost := map[string]bool{}
 	for _, c := range calls {
-		lost[fmt.Sprint(c.ProjectID, c.Tool, c.Params)] = true
+		lost[fmt.Sprint(c.ProjectID.Int64, c.Tool, c.Params)] = true
 		g.Lost(ctx, c.ID)
 	}
 	running, err := g.st.Q.ListRunningDecisions(ctx)
@@ -152,7 +153,7 @@ func (g *Gateway) Recover(ctx context.Context) error {
 				return err
 			}
 			act := f.Caller.actor()
-			if _, err := q.LogToolCall(ctx, db.LogToolCallParams{WorkspaceID: a.WorkspaceID, ProcessID: act.ProcessID, ProjectID: a.ProjectID,
+			if _, err := q.LogToolCall(ctx, db.LogToolCallParams{WorkspaceID: a.WorkspaceID, ProcessID: store.ID(act.ProcessID), ProjectID: store.ID(a.ProjectID),
 				Actor: act.Author(), Caller: frozenCaller(act), Tool: f.Call.Command, Class: classes[f.Call.Command], Outcome: "unknown",
 				Params: Canonical(f.Call.Input), AskID: sql.NullInt64{Int64: u.ID, Valid: true}}); err != nil {
 				return err

@@ -44,14 +44,15 @@ func (q *Queries) AddRevision(ctx context.Context, arg AddRevisionParams) (Docum
 }
 
 const createDocument = `-- name: CreateDocument :one
-INSERT INTO document (workspace_id, project_id, owner_kind, owner_id, kind, name) VALUES (?, ?, ?, ?, ?, ?) RETURNING id, workspace_id, project_id, owner_kind, owner_id, kind, name, "current", deleted_at, created_at
+INSERT INTO document (workspace_id, project_id, record_id, card_id, kind, name)
+VALUES (?1, ?2, ?3, ?4, ?5, ?6) RETURNING id, workspace_id, project_id, record_id, card_id, kind, name, "current", deleted_at, created_at
 `
 
 type CreateDocumentParams struct {
 	WorkspaceID int64
-	ProjectID   int64
-	OwnerKind   string
-	OwnerID     int64
+	ProjectID   sql.NullInt64
+	RecordID    sql.NullInt64
+	CardID      sql.NullInt64
 	Kind        string
 	Name        string
 }
@@ -60,8 +61,8 @@ func (q *Queries) CreateDocument(ctx context.Context, arg CreateDocumentParams) 
 	row := q.db.QueryRowContext(ctx, createDocument,
 		arg.WorkspaceID,
 		arg.ProjectID,
-		arg.OwnerKind,
-		arg.OwnerID,
+		arg.RecordID,
+		arg.CardID,
 		arg.Kind,
 		arg.Name,
 	)
@@ -70,8 +71,8 @@ func (q *Queries) CreateDocument(ctx context.Context, arg CreateDocumentParams) 
 		&i.ID,
 		&i.WorkspaceID,
 		&i.ProjectID,
-		&i.OwnerKind,
-		&i.OwnerID,
+		&i.RecordID,
+		&i.CardID,
 		&i.Kind,
 		&i.Name,
 		&i.Current,
@@ -83,13 +84,13 @@ func (q *Queries) CreateDocument(ctx context.Context, arg CreateDocumentParams) 
 
 const currentText = `-- name: CurrentText :one
 SELECT d.id, d.kind, r.text, r.n FROM document d JOIN document_revision r ON r.document_id = d.id AND r.n = d.current
-WHERE d.workspace_id = ? AND d.project_id = ? AND d.name = ? AND d.owner_kind = '' AND d.owner_id = 0
-  AND (?4 = '' OR d.kind = ?4) AND d.deleted_at IS NULL
+WHERE d.workspace_id = ?1 AND d.project_id IS ?2 AND d.name = ?3
+  AND d.record_id IS NULL AND d.card_id IS NULL AND (?4 = '' OR d.kind = ?4) AND d.deleted_at IS NULL
 `
 
 type CurrentTextParams struct {
 	WorkspaceID int64
-	ProjectID   int64
+	ProjectID   sql.NullInt64
 	Name        string
 	Kind        interface{}
 }
@@ -136,15 +137,15 @@ func (q *Queries) DeleteDocument(ctx context.Context, arg DeleteDocumentParams) 
 }
 
 const findAnyDocument = `-- name: FindAnyDocument :one
-SELECT id, workspace_id, project_id, owner_kind, owner_id, kind, name, "current", deleted_at, created_at FROM document
-WHERE workspace_id = ? AND project_id = ? AND owner_kind = ? AND owner_id = ? AND name = ?
+SELECT id, workspace_id, project_id, record_id, card_id, kind, name, "current", deleted_at, created_at FROM document
+WHERE workspace_id = ?1 AND project_id IS ?2 AND record_id IS ?3 AND card_id IS ?4 AND name = ?5
 `
 
 type FindAnyDocumentParams struct {
 	WorkspaceID int64
-	ProjectID   int64
-	OwnerKind   string
-	OwnerID     int64
+	ProjectID   sql.NullInt64
+	RecordID    sql.NullInt64
+	CardID      sql.NullInt64
 	Name        string
 }
 
@@ -152,8 +153,8 @@ func (q *Queries) FindAnyDocument(ctx context.Context, arg FindAnyDocumentParams
 	row := q.db.QueryRowContext(ctx, findAnyDocument,
 		arg.WorkspaceID,
 		arg.ProjectID,
-		arg.OwnerKind,
-		arg.OwnerID,
+		arg.RecordID,
+		arg.CardID,
 		arg.Name,
 	)
 	var i Document
@@ -161,8 +162,8 @@ func (q *Queries) FindAnyDocument(ctx context.Context, arg FindAnyDocumentParams
 		&i.ID,
 		&i.WorkspaceID,
 		&i.ProjectID,
-		&i.OwnerKind,
-		&i.OwnerID,
+		&i.RecordID,
+		&i.CardID,
 		&i.Kind,
 		&i.Name,
 		&i.Current,
@@ -173,15 +174,15 @@ func (q *Queries) FindAnyDocument(ctx context.Context, arg FindAnyDocumentParams
 }
 
 const findDocument = `-- name: FindDocument :one
-SELECT id, workspace_id, project_id, owner_kind, owner_id, kind, name, "current", deleted_at, created_at FROM document
-WHERE workspace_id = ? AND project_id = ? AND owner_kind = ? AND owner_id = ? AND name = ? AND deleted_at IS NULL
+SELECT id, workspace_id, project_id, record_id, card_id, kind, name, "current", deleted_at, created_at FROM document
+WHERE workspace_id = ?1 AND project_id IS ?2 AND record_id IS ?3 AND card_id IS ?4 AND name = ?5 AND deleted_at IS NULL
 `
 
 type FindDocumentParams struct {
 	WorkspaceID int64
-	ProjectID   int64
-	OwnerKind   string
-	OwnerID     int64
+	ProjectID   sql.NullInt64
+	RecordID    sql.NullInt64
+	CardID      sql.NullInt64
 	Name        string
 }
 
@@ -189,8 +190,8 @@ func (q *Queries) FindDocument(ctx context.Context, arg FindDocumentParams) (Doc
 	row := q.db.QueryRowContext(ctx, findDocument,
 		arg.WorkspaceID,
 		arg.ProjectID,
-		arg.OwnerKind,
-		arg.OwnerID,
+		arg.RecordID,
+		arg.CardID,
 		arg.Name,
 	)
 	var i Document
@@ -198,8 +199,8 @@ func (q *Queries) FindDocument(ctx context.Context, arg FindDocumentParams) (Doc
 		&i.ID,
 		&i.WorkspaceID,
 		&i.ProjectID,
-		&i.OwnerKind,
-		&i.OwnerID,
+		&i.RecordID,
+		&i.CardID,
 		&i.Kind,
 		&i.Name,
 		&i.Current,
@@ -210,7 +211,7 @@ func (q *Queries) FindDocument(ctx context.Context, arg FindDocumentParams) (Doc
 }
 
 const getDocument = `-- name: GetDocument :one
-SELECT id, workspace_id, project_id, owner_kind, owner_id, kind, name, "current", deleted_at, created_at FROM document WHERE id = ?
+SELECT id, workspace_id, project_id, record_id, card_id, kind, name, "current", deleted_at, created_at FROM document WHERE id = ?
 `
 
 func (q *Queries) GetDocument(ctx context.Context, id int64) (Document, error) {
@@ -220,8 +221,8 @@ func (q *Queries) GetDocument(ctx context.Context, id int64) (Document, error) {
 		&i.ID,
 		&i.WorkspaceID,
 		&i.ProjectID,
-		&i.OwnerKind,
-		&i.OwnerID,
+		&i.RecordID,
+		&i.CardID,
 		&i.Kind,
 		&i.Name,
 		&i.Current,
@@ -256,12 +257,13 @@ func (q *Queries) GetRevision(ctx context.Context, arg GetRevisionParams) (Docum
 }
 
 const listDeletedDocuments = `-- name: ListDeletedDocuments :many
-SELECT id, workspace_id, project_id, owner_kind, owner_id, kind, name, "current", deleted_at, created_at FROM document WHERE workspace_id = ? AND project_id = ? AND deleted_at IS NOT NULL ORDER BY deleted_at DESC
+SELECT id, workspace_id, project_id, record_id, card_id, kind, name, "current", deleted_at, created_at FROM document WHERE workspace_id = ?1 AND project_id IS ?2 AND deleted_at IS NOT NULL
+ORDER BY deleted_at DESC
 `
 
 type ListDeletedDocumentsParams struct {
 	WorkspaceID int64
-	ProjectID   int64
+	ProjectID   sql.NullInt64
 }
 
 func (q *Queries) ListDeletedDocuments(ctx context.Context, arg ListDeletedDocumentsParams) ([]Document, error) {
@@ -277,8 +279,8 @@ func (q *Queries) ListDeletedDocuments(ctx context.Context, arg ListDeletedDocum
 			&i.ID,
 			&i.WorkspaceID,
 			&i.ProjectID,
-			&i.OwnerKind,
-			&i.OwnerID,
+			&i.RecordID,
+			&i.CardID,
 			&i.Kind,
 			&i.Name,
 			&i.Current,
@@ -299,14 +301,15 @@ func (q *Queries) ListDeletedDocuments(ctx context.Context, arg ListDeletedDocum
 }
 
 const listDocuments = `-- name: ListDocuments :many
-SELECT id, workspace_id, project_id, owner_kind, owner_id, kind, name, "current", deleted_at, created_at FROM document
-WHERE workspace_id = ? AND project_id = ? AND (?3 = '' OR kind = ?3) AND deleted_at IS NULL
+SELECT id, workspace_id, project_id, record_id, card_id, kind, name, "current", deleted_at, created_at FROM document
+WHERE workspace_id = ?1 AND project_id IS ?2 AND (?3 = '' OR kind = ?3)
+  AND deleted_at IS NULL
 ORDER BY name
 `
 
 type ListDocumentsParams struct {
 	WorkspaceID int64
-	ProjectID   int64
+	ProjectID   sql.NullInt64
 	Kind        interface{}
 }
 
@@ -323,8 +326,8 @@ func (q *Queries) ListDocuments(ctx context.Context, arg ListDocumentsParams) ([
 			&i.ID,
 			&i.WorkspaceID,
 			&i.ProjectID,
-			&i.OwnerKind,
-			&i.OwnerID,
+			&i.RecordID,
+			&i.CardID,
 			&i.Kind,
 			&i.Name,
 			&i.Current,
@@ -388,14 +391,16 @@ func (q *Queries) ListRevisions(ctx context.Context, documentID int64) ([]ListRe
 }
 
 const listSkillFiles = `-- name: ListSkillFiles :many
-SELECT d.project_id, d.name, r.text FROM document d JOIN document_revision r ON r.document_id = d.id AND r.n = d.current
-WHERE d.workspace_id = ? AND d.project_id IN (0, ?2) AND d.owner_kind = '' AND d.kind = 'skill' AND d.deleted_at IS NULL
-ORDER BY d.project_id, d.name
+SELECT CAST(coalesce(d.project_id, 0) AS INTEGER) AS project_id, d.name, r.text FROM document d
+JOIN document_revision r ON r.document_id = d.id AND r.n = d.current
+WHERE d.workspace_id = ? AND (d.project_id IS NULL OR d.project_id = ?2) AND d.record_id IS NULL AND d.card_id IS NULL
+  AND d.kind = 'skill' AND d.deleted_at IS NULL
+ORDER BY coalesce(d.project_id, 0), d.name
 `
 
 type ListSkillFilesParams struct {
 	WorkspaceID int64
-	ProjectID   int64
+	ProjectID   sql.NullInt64
 }
 
 type ListSkillFilesRow struct {

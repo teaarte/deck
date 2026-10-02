@@ -258,8 +258,8 @@ func (a *App) chatPrompt(ctx context.Context, t db.ChatTopic, pending []db.ChatM
 		}
 		b.WriteString(strings.TrimSpace(m.Text) + "\n\n")
 	}
-	if t.CardID != 0 {
-		if c, err := a.Store.Q.GetCard(ctx, t.CardID); err == nil {
+	if t.CardID.Valid {
+		if c, err := a.Store.Q.GetCard(ctx, t.CardID.Int64); err == nil {
 			p, _ := a.Store.Q.GetProject(ctx, c.ProjectID)
 			fmt.Fprintf(&b, "This topic is about card %d of project %s, titled %s.\n", c.ID, p.Name, untrusted.Line(c.Title, 200))
 		}

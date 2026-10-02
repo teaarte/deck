@@ -86,7 +86,7 @@ INSERT INTO chat_topic (workspace_id, title, card_id) VALUES (?, ?, ?) RETURNING
 type CreateTopicParams struct {
 	WorkspaceID int64
 	Title       string
-	CardID      int64
+	CardID      sql.NullInt64
 }
 
 func (q *Queries) CreateTopic(ctx context.Context, arg CreateTopicParams) (ChatTopic, error) {

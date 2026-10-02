@@ -96,7 +96,7 @@ func (r *Runner) relogin(ctx context.Context, processID int64, login db.Ask, pen
 
 // report tells a new session what the cut-off one did, from the gateway journal.
 func (r *Runner) report(ctx context.Context, processID int64) string {
-	calls, _ := r.st.Q.ListToolCalls(ctx, processID)
+	calls, _ := r.st.Q.ListToolCalls(ctx, store.ID(processID))
 	var b strings.Builder
 	b.WriteString("deck: an earlier session on this task was cut off by a lost login and cannot be continued.\n")
 	if len(calls) == 0 {

@@ -8,6 +8,7 @@ import (
 
 	"deck2/internal/docs"
 	"deck2/internal/registry"
+	"deck2/internal/store"
 	"deck2/internal/store/db"
 	"deck2/skills"
 )
@@ -25,7 +26,7 @@ func (a *App) Skills(ctx context.Context, projectID int64, names []string) (map[
 	if err != nil {
 		return nil, err
 	}
-	rows, err := a.Store.Q.ListSkillFiles(ctx, db.ListSkillFilesParams{WorkspaceID: p.WorkspaceID, ProjectID: p.ID})
+	rows, err := a.Store.Q.ListSkillFiles(ctx, db.ListSkillFilesParams{WorkspaceID: p.WorkspaceID, ProjectID: store.ID(p.ID)})
 	if err != nil {
 		return nil, err
 	}

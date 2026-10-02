@@ -258,3 +258,48 @@ func TestUnknownOutcomeKeepsItsCaller(t *testing.T) {
 		t.Fatalf("the unknown outcome is the token's, not the owner's: %+v %s", a, a.Payload)
 	}
 }
+
+// TestAnAllowedCallLostWithDeckIsOneUnknownOutcome: deck stops while making a call the owner allowed; after the
+// restart the owner has one unknown outcome to decide, and the agent hears that the call did not succeed.
+func TestAnAllowedCallLostWithDeckIsOneUnknownOutcome(t *testing.T) {
+	svc, release := hangingService(t, 1)
+	defer release(0)
+	home := t.TempDir()
+	first := &Fake{script: func(ctx context.Context, c *Call) provider.Result {
+		c.Tool(ctx, "notes__post", map[string]any{"id": "a", "text": "hi"})
+		return provider.Result{Structured: json.RawMessage(`{"ok": true}`)}
+	}}
+	clock := &Clock{now: t0}
+	e := newEnvWith(t, home, first, withClock(clock))
+	e.Fake, e.Clock = first, clock
+	e.must("deck.secret_set", map[string]any{"name": "svc", "value": "k"}, nil)
+	id := e.run(e.createProject("notes", postManifest(svc.URL, "")), "work")
+	e.waitState(id, "waiting_answer")
+	a := e.waitAsk()
+	go func() {
+		body := strings.NewReader(fmt.Sprintf(`{"ask": %d, "answer": "allow"}`, a.ID))
+		req, _ := http.NewRequest("POST", e.URL+"/api/commands/deck.ask_answer", body)
+		req.Header.Set("Authorization", "Bearer "+token)
+		if r, err := http.DefaultClient.Do(req); err == nil {
+			r.Body.Close()
+		}
+	}()
+	e.waitFor("the allowed call reaches the service", func() bool { return len(svc.requests()) == 1 })
+	second := &Fake{script: func(ctx context.Context, c *Call) provider.Result {
+		return provider.Result{Structured: json.RawMessage(`{"ok": true}`)}
+	}}
+	e2 := restart(t, e, home, second)
+	e2.waitFor("the unknown outcome", func() bool {
+		_, out := e2.call("deck.asks_list", nil)
+		var as []askView
+		_ = json.Unmarshal(out, &as)
+		return len(as) > 0
+	})
+	time.Sleep(300 * time.Millisecond)
+	_, out := e2.call("deck.asks_list", nil)
+	var as []askView
+	_ = json.Unmarshal(out, &as)
+	if len(as) != 1 || as[0].Kind != "unknown" {
+		t.Fatalf("one unknown outcome for the owner: %+v", as)
+	}
+}

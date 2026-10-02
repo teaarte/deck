@@ -36,6 +36,18 @@ func (t told) add(more told) told {
 	return told{Asks: append(t.Asks, more.Asks...), Remarks: append(t.Remarks, more.Remarks...)}
 }
 
+// remarksText is what the owner wrote to a process in the remarks named, for a fresh session that takes them.
+func (r *Runner) remarksText(ctx context.Context, processID int64, ids []int64) string {
+	remarks, _ := r.st.Q.ListUndeliveredRemarks(ctx, processID)
+	var b strings.Builder
+	for _, m := range remarks {
+		if slices.Contains(ids, m.ID) {
+			b.WriteString("\nThe owner wrote while you worked:\n" + strings.TrimSpace(m.Text) + "\n")
+		}
+	}
+	return b.String()
+}
+
 // untold is what a process has not been told yet: decisions with what deck made of a call, and remarks.
 type untold struct {
 	asks    []db.ListUndeliveredAsksRow

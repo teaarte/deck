@@ -195,13 +195,14 @@ func (r *Runner) run(ctx context.Context, t turn) {
 			return
 		}
 		if err == nil && res.SessionMissing {
-			// The asks stay undelivered, so the fresh session parks and gets them by resume.
-			asks = told{}
+			// The owner's messages go with the fresh session; the asks stay undelivered, so it parks for them.
+			asks = told{Remarks: asks.Remarks}
 			req.Resume = false
 			if req.Prompt, err = r.firstPrompt(bg, proj, t, tools, data); err != nil {
 				r.finish(bg, processID, StateError, "", false, err.Error())
 				return
 			}
+			req.Prompt += r.remarksText(bg, processID, asks.Remarks)
 			continue
 		}
 		_ = r.st.Tx(bg, func(ctx context.Context, q *db.Queries) error {

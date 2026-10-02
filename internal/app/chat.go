@@ -127,8 +127,7 @@ func (a *App) reply(ctx context.Context, topicID int64) error {
 		if err != nil {
 			return err
 		}
-		ok, err := a.Runner.Tell(ctx, open.ID, msg)
-		if err != nil || !ok {
+		if err := a.Runner.Remark(ctx, open.ID, msg); err != nil {
 			return err
 		}
 		return a.takeMessages(ctx, t, open.ID, open.SessionID, sign, last)

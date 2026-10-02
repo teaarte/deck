@@ -48,11 +48,24 @@ func (r *Runner) Deliver(ctx context.Context, processID int64) error {
 	if ok, err := r.claim(ctx, processID, StateWaitingAnswer); err != nil || !ok {
 		return err
 	}
-	if err := r.resume(ctx, processID, pending.message(), pending.ids(), false); err != nil {
+	if err := r.resume(ctx, processID, pending.message()+r.stillWaiting(ctx, processID), pending.ids(), false); err != nil {
 		r.finish(ctx, processID, StateError, "", false, "resume after answer: "+err.Error())
 		return err
 	}
 	return nil
+}
+
+// stillWaiting lists what the owner still owes a process that resumes meanwhile.
+func (r *Runner) stillWaiting(ctx context.Context, processID int64) string {
+	open, err := r.st.Q.ListOpenAsksOfProcess(ctx, processID)
+	if err != nil || len(open) == 0 {
+		return ""
+	}
+	s := "\nStill waiting for the owner:\n"
+	for _, a := range open {
+		s += "- " + untrusted.Line(a.Text, 300) + "\n"
+	}
+	return s
 }
 
 func (r *Runner) claim(ctx context.Context, processID int64, from string) (bool, error) {
@@ -269,39 +282,4 @@ func outcomeText(raw string) string {
 		return "It did not succeed.\n" + untrusted.Value("Error", untrusted.Cut(o.Error, 2000), 300)
 	}
 	return "\n" + untrusted.Block("Result", untrusted.Cut(string(o.Result), 4000))
-}
-
-// Tell resumes a process parked for the owner with a message of the owner; what it still waits for stays
-// open. It reports false when the process was not parked.
-func (r *Runner) Tell(ctx context.Context, processID int64, message string) (bool, error) {
-	if ok, err := r.claim(ctx, processID, StateWaitingAnswer); err != nil || !ok {
-		return false, err
-	}
-	pending, _ := r.untold(ctx, processID)
-	if !pending.empty() {
-		message += "\n" + pending.message()
-	}
-	if open, err := r.st.Q.ListOpenAsksOfProcess(ctx, processID); err == nil && len(open) > 0 {
-		message += "\nStill waiting for the owner:\n"
-		for _, a := range open {
-			message += "- " + untrusted.Line(a.Text, 300) + "\n"
-		}
-	}
-	// A session lost on this resume starts again from the start note, which then carries the message too.
-	err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		p, err := q.GetProcess(ctx, processID)
-		if err != nil {
-			return err
-		}
-		return q.StartProcessSession(ctx, db.StartProcessSessionParams{SessionID: p.SessionID, StartNote: strings.TrimSpace(p.StartNote + "\n\n" + message), ID: processID})
-	})
-	if err != nil {
-		r.finish(ctx, processID, StateError, "", false, "resume with a message: "+err.Error())
-		return true, err
-	}
-	if err := r.resume(ctx, processID, message, pending.ids(), false); err != nil {
-		r.finish(ctx, processID, StateError, "", false, "resume with a message: "+err.Error())
-		return true, err
-	}
-	return true, nil
 }

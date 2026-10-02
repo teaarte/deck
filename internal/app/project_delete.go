@@ -16,9 +16,13 @@ import (
 	"deck2/internal/tools"
 )
 
+type projectDeleteIn struct {
+	Project string `type:"project" desc:"Project name"`
+}
+
 // projectDelete removes a project from deck after a snapshot of it: records, documents, files, triggers, cards,
 // processes and their journals, asks, settings and deck's folders of it; no folder of the owner is touched.
-func (a *App) projectDelete(ctx context.Context, act registry.Actor, in struct{ Project string }) (any, error) {
+func (a *App) projectDelete(ctx context.Context, act registry.Actor, in projectDeleteIn) (any, error) {
 	p, err := a.project(ctx, act, in.Project)
 	if err != nil {
 		return nil, err
@@ -117,4 +121,12 @@ func (a *App) deletable(ctx context.Context, q *db.Queries, p db.Project) error 
 		return registry.Invalid("deck: %s reads %s; take it out of their reads first", strings.Join(readers, ", "), p.Name)
 	}
 	return nil
+}
+
+func (a *App) projectDeleteCommands() []*registry.Command {
+	return []*registry.Command{
+		registry.Def("project_delete", "Delete project",
+			"Deletes a project after a snapshot of deck: its records, documents, files, triggers, cards, processes and settings; folders on disk stay.",
+			registry.OwnerOnly, a.projectDelete).As(registry.External),
+	}
 }

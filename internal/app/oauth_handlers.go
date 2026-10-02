@@ -39,9 +39,13 @@ func (a *App) toolSignIn(ctx context.Context, p db.Project, tool, why string) {
 	}
 }
 
+type oauthStartIn struct {
+	Tool string `desc:"The tool, as project.tool"`
+}
+
 // oauthStart begins the owner's sign-in to the service of an oauth2 tool in a window of deck's browser;
 // the service calls deck back on localhost within ten minutes.
-func (a *App) oauthStart(ctx context.Context, act registry.Actor, in struct{ Tool string }) (any, error) {
+func (a *App) oauthStart(ctx context.Context, act registry.Actor, in oauthStartIn) (any, error) {
 	project, local, ok := strings.Cut(in.Tool, ".")
 	if !ok {
 		return nil, registry.Invalid("deck: name the tool as project.tool")
@@ -92,4 +96,12 @@ func (a *App) oauthStart(ctx context.Context, act registry.Actor, in struct{ Too
 		a.Browser.LoginDone()
 	}
 	return map[string]any{"url": link, "window": window}, nil
+}
+
+func (a *App) oauthCommands() []*registry.Command {
+	return []*registry.Command{
+		registry.Def("oauth_start", "Sign in to a service",
+			"Starts the owner's oauth2 sign-in for a tool in a window of deck's browser; it must finish within ten minutes.",
+			registry.OwnerOnly, a.oauthStart),
+	}
 }

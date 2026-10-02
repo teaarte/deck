@@ -48,12 +48,14 @@ func (a *App) stt(ctx context.Context, workspace int64) sttDef {
 	return d
 }
 
-func (a *App) sttSet(ctx context.Context, act registry.Actor, in struct {
-	URL       string `json:"url"`
-	Model     string `json:"model"`
-	KeySecret string `json:"key_secret"`
-	Language  string `json:"language"`
-}) (any, error) {
+type sttSetIn struct {
+	URL       string `desc:"Transcription url, such as http://127.0.0.1:8178/inference or https://api.openai.com/v1/audio/transcriptions"`
+	Model     string `opt:"" desc:"Model name, when the service takes one"`
+	KeySecret string `json:"key_secret" opt:"" desc:"Name of the secret with the API key"`
+	Language  string `opt:"" desc:"Language of the speech, such as ru or en; without it the service uses its own default"`
+}
+
+func (a *App) sttSet(ctx context.Context, act registry.Actor, in sttSetIn) (any, error) {
 	d := sttDef{URL: strings.TrimSpace(in.URL), Model: in.Model, KeySecret: in.KeySecret, Language: in.Language}
 	switch {
 	case !strings.HasPrefix(d.URL, "http://") && !strings.HasPrefix(d.URL, "https://"):
@@ -74,9 +76,13 @@ func (a *App) sttSet(ctx context.Context, act registry.Actor, in struct {
 	return d, nil
 }
 
+type transcribeIn struct {
+	File string `type:"file" desc:"The uploaded recording, at most 10 MB"`
+}
+
 // transcribe turns a recording the owner uploaded into text with the speech-to-text provider; the recording
 // goes once it is read.
-func (a *App) transcribe(ctx context.Context, act registry.Actor, in struct{ File string }) (any, error) {
+func (a *App) transcribe(ctx context.Context, act registry.Actor, in transcribeIn) (any, error) {
 	id, _ := strconv.ParseInt(in.File, 10, 64)
 	f, err := a.Store.Q.GetFile(ctx, id)
 	if err != nil {
@@ -172,4 +178,15 @@ func (a *App) setSTTHealth(ctx context.Context, failed error) {
 		status, text = "error", failed.Error()
 	}
 	health.Write(ctx, a.Store, a.Bus, sttHealth, status, text)
+}
+
+func (a *App) voiceCommands() []*registry.Command {
+	return []*registry.Command{
+		registry.Def("transcribe", "Speech to text",
+			"Turns a recording the owner uploaded into text with the speech-to-text provider; the recording is not kept.",
+			registry.OwnerOnly, a.transcribe),
+		registry.Def("stt_set", "Speech to text provider",
+			"Sets the speech-to-text provider: an OpenAI-compatible transcription url, such as a whisper.cpp server on this machine.",
+			registry.OwnerOnly, a.sttSet),
+	}
 }

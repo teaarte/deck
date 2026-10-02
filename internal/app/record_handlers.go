@@ -13,10 +13,13 @@ import (
 	"deck2/internal/store/db"
 )
 
-func (a *App) recordsList(ctx context.Context, act registry.Actor, in struct {
-	Project, Collection string
-	Limit               int
-}) (any, error) {
+type recordsListIn struct {
+	Project    string `type:"project" opt:"" desc:"Project name; defaults to the caller's own project"`
+	Collection string `desc:"Collection name"`
+	Limit      int    `opt:"" desc:"At most this many"`
+}
+
+func (a *App) recordsList(ctx context.Context, act registry.Actor, in recordsListIn) (any, error) {
 	p, err := a.readProject(ctx, act, in.Project, in.Collection, "")
 	if err != nil {
 		return nil, err
@@ -59,7 +62,13 @@ func (a *App) writeRecords(ctx context.Context, p db.Project, f func(ctx context
 	return err
 }
 
-func (a *App) recordsUpsert(ctx context.Context, act registry.Actor, in struct{ Project, Collection, Records string }) (any, error) {
+type recordsUpsertIn struct {
+	Project    string `type:"project" opt:"" desc:"Project name; defaults to the caller's own project"`
+	Collection string `desc:"Collection name"`
+	Records    string `type:"text" desc:"Records as JSONL: one JSON object per line"`
+}
+
+func (a *App) recordsUpsert(ctx context.Context, act registry.Actor, in recordsUpsertIn) (any, error) {
 	p, err := a.project(ctx, act, in.Project)
 	if err != nil {
 		return nil, err
@@ -72,10 +81,12 @@ func (a *App) recordsUpsert(ctx context.Context, act registry.Actor, in struct{ 
 	return out, err
 }
 
-func (a *App) recordUpdate(ctx context.Context, act registry.Actor, in struct {
-	Record int64
-	Data   string
-}) (any, error) {
+type recordUpdateIn struct {
+	Record int64  `type:"record" desc:"Record id"`
+	Data   string `type:"text" desc:"New record JSON"`
+}
+
+func (a *App) recordUpdate(ctx context.Context, act registry.Actor, in recordUpdateIn) (any, error) {
 	data, err := manifest.DecodeObject([]byte(in.Data))
 	if err != nil {
 		return nil, registry.Invalid("deck: data is not a JSON object: %v", err)
@@ -101,7 +112,12 @@ func (a *App) recordUpdate(ctx context.Context, act registry.Actor, in struct {
 	return map[string]any{"ok": true}, nil
 }
 
-func (a *App) collectionDelete(ctx context.Context, act registry.Actor, in struct{ Project, Collection string }) (any, error) {
+type collectionDeleteIn struct {
+	Project    string `type:"project" desc:"Project name"`
+	Collection string `desc:"Collection name"`
+}
+
+func (a *App) collectionDelete(ctx context.Context, act registry.Actor, in collectionDeleteIn) (any, error) {
 	p, err := a.project(ctx, act, in.Project)
 	if err != nil {
 		return nil, err
@@ -136,7 +152,11 @@ func (a *App) recordOf(ctx context.Context, act registry.Actor, id int64) (db.Re
 	return rec, p, err
 }
 
-func (a *App) recordGet(ctx context.Context, act registry.Actor, in struct{ Record int64 }) (any, error) {
+type recordGetIn struct {
+	Record int64 `type:"record" desc:"Record id"`
+}
+
+func (a *App) recordGet(ctx context.Context, act registry.Actor, in recordGetIn) (any, error) {
 	rec, p, err := a.recordOf(ctx, act, in.Record)
 	if err != nil {
 		return nil, err
@@ -151,9 +171,13 @@ func (a *App) recordGet(ctx context.Context, act registry.Actor, in struct{ Reco
 	return records.ViewOf(rec, m.Collection(rec.Collection)), nil
 }
 
+type recordDeleteIn struct {
+	Record int64 `type:"record" desc:"Record id"`
+}
+
 // recordDelete deletes a record with its documents and files for good; the master may do it only in a draft,
 // where trial runs leave their records.
-func (a *App) recordDelete(ctx context.Context, act registry.Actor, in struct{ Record int64 }) (any, error) {
+func (a *App) recordDelete(ctx context.Context, act registry.Actor, in recordDeleteIn) (any, error) {
 	rec, p, err := a.recordOf(ctx, act, in.Record)
 	if err != nil {
 		return nil, err
@@ -177,4 +201,27 @@ func (a *App) recordDelete(ctx context.Context, act registry.Actor, in struct{ R
 	}
 	a.removeFiles(gone)
 	return map[string]any{"ok": true}, nil
+}
+
+func (a *App) recordCommands() []*registry.Command {
+	return []*registry.Command{
+		registry.Def("records_list", "List records",
+			"Lists records of a collection, newest last.",
+			registry.Everyone, a.recordsList),
+		registry.Def("records_upsert", "Write records",
+			"Writes records into a collection; records with an existing key are updated.",
+			registry.Everyone, a.recordsUpsert),
+		registry.Def("record_update", "Edit record",
+			"Replaces the data of one record; key fields cannot change.",
+			registry.Everyone, a.recordUpdate),
+		registry.Def("record_get", "Get record",
+			"Returns one record by its id.",
+			registry.Everyone, a.recordGet),
+		registry.Def("record_delete", "Delete record",
+			"Deletes a record with its documents and files for good; outside a draft only the owner may.",
+			registry.OwnerSide, a.recordDelete),
+		registry.Def("collection_delete", "Delete collection records",
+			"Deletes every record of a collection, so the collection can be removed from the manifest.",
+			registry.OwnerOnly, a.collectionDelete).As(registry.External),
+	}
 }

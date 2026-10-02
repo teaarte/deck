@@ -24,6 +24,15 @@ const (
 	Trigger = "trigger"
 )
 
+// Who may call a command: any caller, which is what a project command declares by default; the owner, the
+// master and agents, which builtins and tools take; or the owner side; or the owner alone.
+var (
+	AnyCaller = []string{Owner, Master, Agent, Trigger}
+	Everyone  = []string{Owner, Master, Agent}
+	OwnerSide = []string{Owner, Master}
+	OwnerOnly = []string{Owner}
+)
+
 const (
 	Internal   = "internal"
 	Reversible = "reversible"
@@ -99,6 +108,8 @@ type Command struct {
 
 	Handler Handler `json:"-"`
 	schema  *jsonschema.Schema
+	// params are the parameters Def read from the input struct.
+	params []Param
 }
 
 // Error carries the text shown verbatim to the owner and the agent, and an HTTP status.

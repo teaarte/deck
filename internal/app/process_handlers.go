@@ -67,17 +67,18 @@ func procView(p db.Process) processView {
 	return v
 }
 
-func (a *App) processesList(ctx context.Context, act registry.Actor, in struct {
-	Project, State string
-	Limit          int64
-}) (any, error) {
+type processesListIn struct {
+	Project string `type:"project" opt:"" desc:"Project name; defaults to the caller's own project"`
+	State   string `opt:"" desc:"Only this state"`
+	Limit   int64  `opt:"" desc:"At most this many"`
+}
+
+func (a *App) processesList(ctx context.Context, act registry.Actor, in processesListIn) (any, error) {
 	pid, err := a.filter(ctx, act, in.Project)
 	if err != nil {
 		return nil, err
 	}
-	if in.Limit <= 0 || in.Limit > 500 {
-		in.Limit = 50
-	}
+	in.Limit = registry.Limit(in.Limit, 50, 500)
 	ps, err := a.Store.Q.ListProcessesFiltered(ctx, db.ListProcessesFilteredParams{WorkspaceID: act.Workspace, ProjectID: pid, State: in.State, Lim: in.Limit})
 	if err != nil {
 		return nil, err
@@ -92,7 +93,12 @@ func (a *App) processesList(ctx context.Context, act registry.Actor, in struct {
 // maxWait is the longest process_get waits, in seconds: below the minute after which ACP agents give up a tool call.
 const maxWait = 40
 
-func (a *App) processGet(ctx context.Context, act registry.Actor, in struct{ Process, Wait int64 }) (any, error) {
+type processGetIn struct {
+	Process int64 `type:"process" desc:"Process id"`
+	Wait    int64 `opt:"" desc:"Seconds to wait, at most 40, for the process to finish or to wait for the owner"`
+}
+
+func (a *App) processGet(ctx context.Context, act registry.Actor, in processGetIn) (any, error) {
 	p, err := a.ownProcess(ctx, act, in.Process)
 	if err != nil {
 		return nil, err
@@ -122,7 +128,11 @@ func (a *App) ownProcess(ctx context.Context, act registry.Actor, id int64) (db.
 	return p, err
 }
 
-func (a *App) processStop(ctx context.Context, act registry.Actor, in struct{ Process int64 }) (any, error) {
+type processStopIn struct {
+	Process int64 `type:"process" desc:"Process id"`
+}
+
+func (a *App) processStop(ctx context.Context, act registry.Actor, in processStopIn) (any, error) {
 	if _, err := a.ownProcess(ctx, act, in.Process); err != nil {
 		return nil, err
 	}
@@ -132,10 +142,12 @@ func (a *App) processStop(ctx context.Context, act registry.Actor, in struct{ Pr
 	return map[string]any{"ok": true}, nil
 }
 
-func (a *App) processRework(ctx context.Context, act registry.Actor, in struct {
-	Process int64
-	Remark  string
-}) (any, error) {
+type processReworkIn struct {
+	Process int64  `type:"process" desc:"Process id"`
+	Remark  string `type:"text" desc:"What to change"`
+}
+
+func (a *App) processRework(ctx context.Context, act registry.Actor, in processReworkIn) (any, error) {
 	if _, err := a.ownProcess(ctx, act, in.Process); err != nil {
 		return nil, err
 	}
@@ -148,16 +160,36 @@ func (a *App) processRework(ctx context.Context, act registry.Actor, in struct {
 	return Started{Process: in.Process}, nil
 }
 
+type processLogIn struct {
+	Process int64 `type:"process" desc:"Process id"`
+	Limit   int64 `opt:"" desc:"At most this many events"`
+}
+
 // processLog returns the last events of a process; deck clears the logs of old runs.
-func (a *App) processLog(ctx context.Context, act registry.Actor, in struct {
-	Process int64
-	Limit   int64
-}) (any, error) {
+func (a *App) processLog(ctx context.Context, act registry.Actor, in processLogIn) (any, error) {
 	if _, err := a.ownProcess(ctx, act, in.Process); err != nil {
 		return nil, err
 	}
-	if in.Limit <= 0 || in.Limit > 1000 {
-		in.Limit = 200
-	}
+	in.Limit = registry.Limit(in.Limit, 200, 1000)
 	return a.Runner.Tail(in.Process, int(in.Limit))
+}
+
+func (a *App) processCommands() []*registry.Command {
+	return []*registry.Command{
+		registry.Def("processes_list", "List processes",
+			"Lists recent processes, newest first.",
+			registry.Everyone, a.processesList),
+		registry.Def("process_get", "Process status",
+			"Returns the state and result of a process; with wait, once it finishes or waits for the owner.",
+			registry.Everyone, a.processGet),
+		registry.Def("process_stop", "Stop process",
+			"Stops a process; a running agent is killed and what it did so far stays.",
+			registry.OwnerSide, a.processStop),
+		registry.Def("process_rework", "Send back for rework",
+			"Sends a finished agent process back to the same session with a remark; changed artifacts get new revisions.",
+			registry.OwnerSide, a.processRework),
+		registry.Def("process_log", "Process log",
+			"Returns the last events of a process that is still open.",
+			registry.Everyone, a.processLog),
+	}
 }

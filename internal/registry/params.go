@@ -1,7 +1,9 @@
 package registry
 
 import (
+	"context"
 	"encoding/json"
+	"reflect"
 	"slices"
 	"strings"
 
@@ -75,4 +77,81 @@ func paramSchema(p Param) map[string]any {
 		s["description"] = p.Desc
 	}
 	return s
+}
+
+// Def declares a builtin command of class internal; its input schema is the fields of In in order: json name,
+// `desc`, `type` past the Go type, `enum` joined by "|", `opt` when optional; embedded structs add theirs.
+func Def[In any](name, title, desc string, callers []string, h func(ctx context.Context, a Actor, in In) (any, error)) *Command {
+	ps := fields(reflect.TypeFor[In]())
+	return &Command{Name: Builtin + "." + name, Title: title, Description: desc, Class: Internal, Callers: callers,
+		Input: Params(ps...), Handler: Typed(h), params: ps}
+}
+
+// As gives a declared command another class.
+func (c *Command) As(class string) *Command {
+	c.Class = class
+	return c
+}
+
+// Enum sets the values of a parameter that a tag cannot name, such as a list kept in Go.
+func (c *Command) Enum(param string, values ...string) *Command {
+	for i := range c.params {
+		if c.params[i].Name == param {
+			c.params[i].Type, c.params[i].Enum = "enum", values
+		}
+	}
+	c.Input = Params(c.params...)
+	return c
+}
+
+func fields(t reflect.Type) []Param {
+	var out []Param
+	for i := range t.NumField() {
+		f := t.Field(i)
+		if f.Anonymous && f.Type.Kind() == reflect.Struct {
+			out = append(out, fields(f.Type)...)
+			continue
+		}
+		name, _, _ := strings.Cut(f.Tag.Get("json"), ",")
+		if !f.IsExported() || name == "-" {
+			continue
+		}
+		if name == "" {
+			name = strings.ToLower(f.Name)
+		}
+		_, opt := f.Tag.Lookup("opt")
+		p := Param{Name: name, Type: f.Tag.Get("type"), Desc: f.Tag.Get("desc"), Optional: opt}
+		if e := f.Tag.Get("enum"); e != "" {
+			p.Type, p.Enum = "enum", strings.Split(e, "|")
+		}
+		if p.Type == "" {
+			p.Type = goType(f.Type)
+		}
+		out = append(out, p)
+	}
+	return out
+}
+
+func goType(t reflect.Type) string {
+	switch t.Kind() {
+	case reflect.String:
+		return "string"
+	case reflect.Bool:
+		return "boolean"
+	case reflect.Int, reflect.Int64:
+		return "integer"
+	case reflect.Float64:
+		return "number"
+	case reflect.Slice:
+		return goType(t.Elem()) + "[]"
+	}
+	panic("registry: no parameter type for " + t.String())
+}
+
+// Limit is n within 1..most, or def when it is not given or out of range.
+func Limit(n, def, most int64) int64 {
+	if n <= 0 || n > most {
+		return def
+	}
+	return n
 }

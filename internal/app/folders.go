@@ -53,7 +53,13 @@ func defaultFolderName(path string) string {
 	return strings.TrimRight(n[:min(len(n), 40)], "-_")
 }
 
-func (a *App) folderAdd(ctx context.Context, act registry.Actor, in struct{ Project, Path, Name string }) (any, error) {
+type folderAddIn struct {
+	Project string `type:"project" desc:"Project name"`
+	Path    string `desc:"Absolute path of the folder"`
+	Name    string `opt:"" desc:"Folder name in the project; the folder's own name when omitted"`
+}
+
+func (a *App) folderAdd(ctx context.Context, act registry.Actor, in folderAddIn) (any, error) {
 	p, err := a.project(ctx, act, in.Project)
 	if err != nil {
 		return nil, err
@@ -93,7 +99,12 @@ func (a *App) folderAdd(ctx context.Context, act registry.Actor, in struct{ Proj
 	return map[string]any{"project": p.Name, "name": f.Name, "path": f.Path}, nil
 }
 
-func (a *App) folderRemove(ctx context.Context, act registry.Actor, in struct{ Project, Name string }) (any, error) {
+type folderRemoveIn struct {
+	Project string `type:"project" desc:"Project name"`
+	Name    string `desc:"Folder name in the project"`
+}
+
+func (a *App) folderRemove(ctx context.Context, act registry.Actor, in folderRemoveIn) (any, error) {
 	p, err := a.project(ctx, act, in.Project)
 	if err != nil {
 		return nil, err
@@ -153,4 +164,15 @@ func (a *App) Folder(ctx context.Context, projectID int64, f manifest.Folder) (s
 		return "", registry.Invalid("deck: folder %s of project %s is gone or moved: %v", path, p.Name, err)
 	}
 	return real, nil
+}
+
+func (a *App) foldersCommands() []*registry.Command {
+	return []*registry.Command{
+		registry.Def("folder_add", "Add folder",
+			"Gives a project a folder on disk that its agent commands with folder work in; only the owner, since it lets agents write there.",
+			registry.OwnerOnly, a.folderAdd),
+		registry.Def("folder_remove", "Remove folder",
+			"Takes a folder from a project; the folder on disk stays as it is.",
+			registry.OwnerOnly, a.folderRemove),
+	}
 }

@@ -19,8 +19,14 @@ type fileView struct {
 	CreatedAt string `json:"created_at"`
 }
 
+type filesListIn struct {
+	Record  int64 `type:"record" opt:"" desc:"Record"`
+	Card    int64 `type:"card" opt:"" desc:"Card"`
+	Process int64 `type:"process" opt:"" desc:"Process"`
+}
+
 // filesList lists the files of a record, card or process the actor can see.
-func (a *App) filesList(ctx context.Context, act registry.Actor, in struct{ Record, Card, Process int64 }) (any, error) {
+func (a *App) filesList(ctx context.Context, act registry.Actor, in filesListIn) (any, error) {
 	var kind string
 	var id, projectID int64
 	var err error
@@ -64,4 +70,12 @@ func (a *App) filesList(ctx context.Context, act registry.Actor, in struct{ Reco
 		out = append(out, fileView{ID: f.ID, Name: f.Name, Type: f.Type, Size: f.Size, OwnerKind: f.OwnerKind, OwnerID: f.OwnerID, CreatedAt: f.CreatedAt})
 	}
 	return out, nil
+}
+
+func (a *App) fileCommands() []*registry.Command {
+	return []*registry.Command{
+		registry.Def("files_list", "List files",
+			"Lists the files of a record, a card or a process.",
+			registry.Everyone, a.filesList),
+	}
 }

@@ -72,7 +72,13 @@ const baseManifest = `{"version": %d,
   "screens": [{"name": "board", "title": "Board", "blocks": [{"type": "board", "title": "Board"}]}],
   "menu": ["board"]}`
 
-func (a *App) projectCreate(ctx context.Context, act registry.Actor, in struct{ Name, Manifest, Prompt string }) (any, error) {
+type projectCreateIn struct {
+	Name     string `desc:"Project name: lowercase letters, digits and '-'"`
+	Manifest string `type:"text" opt:"" desc:"Manifest JSON; a project with only the base board when omitted"`
+	Prompt   string `type:"text" opt:"" desc:"Project md prompt"`
+}
+
+func (a *App) projectCreate(ctx context.Context, act registry.Actor, in projectCreateIn) (any, error) {
 	if strings.TrimSpace(in.Manifest) == "" {
 		in.Manifest = fmt.Sprintf(baseManifest, manifest.FormatVersion)
 	}
@@ -83,7 +89,11 @@ func (a *App) projectCreate(ctx context.Context, act registry.Actor, in struct{ 
 	return map[string]any{"id": p.ID, "name": p.Name}, nil
 }
 
-func (a *App) manifestGet(ctx context.Context, act registry.Actor, in struct{ Project string }) (any, error) {
+type manifestGetIn struct {
+	Project string `type:"project" opt:"" desc:"Project name; defaults to the caller's own project"`
+}
+
+func (a *App) manifestGet(ctx context.Context, act registry.Actor, in manifestGetIn) (any, error) {
 	p, err := a.project(ctx, act, in.Project)
 	if err != nil {
 		return nil, err
@@ -100,14 +110,35 @@ func (a *App) manifestGet(ctx context.Context, act registry.Actor, in struct{ Pr
 	return map[string]any{"project": p.Name, "document": d.ID, "revision": d.Current, "manifest": r.Text}, nil
 }
 
-func (a *App) manifestSave(ctx context.Context, act registry.Actor, in struct {
-	Project, Manifest, Reason string
-	IfRevision                int64 `json:"if_revision"`
-}) (any, error) {
+type manifestSaveIn struct {
+	Project    string `type:"project" desc:"Project name"`
+	Manifest   string `type:"text" desc:"Manifest JSON"`
+	Reason     string `opt:"" desc:"Why it changed"`
+	IfRevision int64  `json:"if_revision" opt:"" desc:"Only while the current revision is still this one"`
+}
+
+func (a *App) manifestSave(ctx context.Context, act registry.Actor, in manifestSaveIn) (any, error) {
 	p, err := a.project(ctx, act, in.Project)
 	if err != nil {
 		return nil, err
 	}
 	return a.SaveManifest(ctx, act, p, []byte(in.Manifest), in.Reason, 0, in.IfRevision,
 		Call{Command: registry.Builtin + ".manifest_save", Input: map[string]any{"project": p.Name, "manifest": in.Manifest, "reason": in.Reason}})
+}
+
+func (a *App) projectsCommands() []*registry.Command {
+	return []*registry.Command{
+		registry.Def("projects_list", "List projects",
+			"Lists projects with their description (the first line of the md prompt) and screens.",
+			registry.OwnerSide, a.projectsList),
+		registry.Def("project_create", "Create project",
+			"Creates a project from its name, an md prompt and a manifest; without a manifest it has only the base board.",
+			registry.OwnerSide, a.projectCreate),
+		registry.Def("manifest_get", "Get manifest",
+			"Returns the current manifest of a project.",
+			registry.Everyone, a.manifestGet),
+		registry.Def("manifest_save", "Save manifest",
+			"Validates a manifest and stores it as a new revision.",
+			registry.OwnerSide, a.manifestSave),
+	}
 }

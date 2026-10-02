@@ -2,6 +2,7 @@ package manifest
 
 import (
 	"bytes"
+	"deck2/internal/registry"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -458,7 +459,7 @@ func (c *Command) InputSchema() json.RawMessage {
 // Callable reports who may call the command; everyone when it declares nothing.
 func (c *Command) Callable() []string {
 	if len(c.Callers) == 0 {
-		return []string{"owner", "master", "agent", "trigger"}
+		return registry.AnyCaller
 	}
 	return c.Callers
 }

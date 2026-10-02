@@ -185,7 +185,7 @@ func (x *MCP) Commands(ctx context.Context, q *db.Queries, p db.Project, m *mani
 		}
 		print := r.Spec + "/" + r.Fingerprint
 		out = append(out, &registry.Command{Name: p.Name + "." + r.Server + "." + r.Name, Title: title, Description: desc,
-			Class: class, Input: json.RawMessage(r.Input), Callers: []string{registry.Master, registry.Agent}, ProjectID: p.ID,
+			Class: class, Input: json.RawMessage(r.Input), Callers: registry.Everyone, ProjectID: p.ID,
 			Loose: true, Journals: class == registry.External, Handler: x.handler(p, r.Server, s, r.Name, class, r.Fingerprint),
 			Fingerprint: func(context.Context, int64) string { return print },
 			Target:      func(string) string { return "server " + r.Server + ", tool " + r.Name },

@@ -13,11 +13,14 @@ import (
 	"deck2/internal/store/db"
 )
 
+type callsListIn struct {
+	Project string `type:"project" opt:"" desc:"Project name; defaults to the caller's own project"`
+	Outcome string `opt:"" desc:"Only this outcome: done, rejected, waiting, expired, unknown, started"`
+	Limit   int64  `opt:"" desc:"At most this many, 200 by default"`
+}
+
 // callsList is the journal of gateway calls of the workspace, newest first: who called what and how it ended.
-func (a *App) callsList(ctx context.Context, act registry.Actor, in struct {
-	Project, Outcome string
-	Limit            int64
-}) (any, error) {
+func (a *App) callsList(ctx context.Context, act registry.Actor, in callsListIn) (any, error) {
 	project, err := a.filter(ctx, act, in.Project)
 	if err != nil {
 		return nil, err
@@ -30,9 +33,7 @@ func (a *App) callsList(ctx context.Context, act registry.Actor, in struct {
 }
 
 func (a *App) calls(ctx context.Context, workspace, project int64, outcome string, limit int64) ([]map[string]any, error) {
-	if limit <= 0 || limit > 500 {
-		limit = 200
-	}
+	limit = registry.Limit(limit, 200, 500)
 	rows, err := a.Store.Q.ListWorkspaceToolCalls(ctx, db.ListWorkspaceToolCallsParams{WorkspaceID: workspace, ProjectID: project,
 		Outcome: outcome, Lim: limit})
 	if err != nil {
@@ -76,4 +77,12 @@ func (a *App) snapshotItems() ([]map[string]any, error) {
 		out = append(out, map[string]any{"id": name, "name": name, "size": st.Size(), "taken_at": at, "path": p})
 	}
 	return out, nil
+}
+
+func (a *App) journalCommands() []*registry.Command {
+	return []*registry.Command{
+		registry.Def("calls_list", "Journal of calls",
+			"Lists the calls of the gateway, newest first: tool, who, project, process, class, outcome, external id and error; params only of external and waiting calls.",
+			registry.OwnerOnly, a.callsList),
+	}
 }

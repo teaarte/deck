@@ -105,17 +105,17 @@ func (a *App) unattended(ctx context.Context, q *db.Queries, act registry.Actor,
 	return q.AddUnattended(ctx, row)
 }
 
-func (a *App) unattendedList(ctx context.Context, act registry.Actor, in struct {
-	Project string
-	Limit   int64
-}) (any, error) {
+type unattendedListIn struct {
+	Project string `type:"project" opt:"" desc:"Project name; defaults to the caller's own project"`
+	Limit   int64  `opt:"" desc:"At most this many"`
+}
+
+func (a *App) unattendedList(ctx context.Context, act registry.Actor, in unattendedListIn) (any, error) {
 	projectID, err := a.filter(ctx, act, in.Project)
 	if err != nil {
 		return nil, err
 	}
-	if in.Limit <= 0 {
-		in.Limit = 50
-	}
+	in.Limit = registry.Limit(in.Limit, 50, 500)
 	rows, err := a.Store.Q.ListUnattended(ctx, db.ListUnattendedParams{WorkspaceID: act.Workspace, ProjectID: projectID, Lim: in.Limit})
 	if err != nil {
 		return nil, err
@@ -128,8 +128,12 @@ func (a *App) unattendedList(ctx context.Context, act registry.Actor, in struct 
 	return out, nil
 }
 
+type unattendedUndoIn struct {
+	Entry int64 `desc:"Entry id from done without you"`
+}
+
 // unattendedUndo runs the undo of a change as the owner, unless the document has changed since.
-func (a *App) unattendedUndo(ctx context.Context, act registry.Actor, in struct{ Entry int64 }) (any, error) {
+func (a *App) unattendedUndo(ctx context.Context, act registry.Actor, in unattendedUndoIn) (any, error) {
 	r, err := a.Store.Q.GetUnattended(ctx, in.Entry)
 	if err != nil || r.WorkspaceID != act.Workspace {
 		return nil, registry.NotFound("deck: no entry %d", in.Entry)
@@ -161,12 +165,14 @@ func (a *App) unattendedUndo(ctx context.Context, act registry.Actor, in struct{
 	return out, err
 }
 
+type projectEnableIn struct {
+	Project  string `type:"project" desc:"Project name"`
+	Revision int64  `desc:"The manifest revision whose rights the owner looked at"`
+}
+
 // projectEnable turns a draft on at the manifest revision the owner saw: its triggers start from now, and
 // the rights of that revision count as allowed.
-func (a *App) projectEnable(ctx context.Context, act registry.Actor, in struct {
-	Project  string
-	Revision int64
-}) (any, error) {
+func (a *App) projectEnable(ctx context.Context, act registry.Actor, in projectEnableIn) (any, error) {
 	p, err := a.project(ctx, act, in.Project)
 	if err != nil {
 		return nil, err
@@ -204,8 +210,13 @@ func (a *App) projectEnable(ctx context.Context, act registry.Actor, in struct {
 	return map[string]any{"project": p.Name, "status": store.ProjectEnabled, "rights": rights(m)}, nil
 }
 
+type projectAutonomyIn struct {
+	Project  string `type:"project" desc:"Project name"`
+	Autonomy string `enum:"suggest|auto" desc:"suggest or auto"`
+}
+
 // projectAutonomy writes the autonomy of a project into a new revision of its manifest, the rest as it was.
-func (a *App) projectAutonomy(ctx context.Context, act registry.Actor, in struct{ Project, Autonomy string }) (any, error) {
+func (a *App) projectAutonomy(ctx context.Context, act registry.Actor, in projectAutonomyIn) (any, error) {
 	p, err := a.project(ctx, act, in.Project)
 	if err != nil {
 		return nil, err
@@ -240,9 +251,14 @@ func rights(m *manifest.Manifest) []string {
 	return []string{}
 }
 
+type commandTryIn struct {
+	Command string `desc:"Command name, project.command"`
+	Input   string `type:"text" opt:"" desc:"Command input as a JSON object"`
+}
+
 // commandTry starts a trial run of a project command: every call that is not internal is declined, so a token
 // that may try runs any project command this way, though not a command closed to its kind of caller.
-func (a *App) commandTry(ctx context.Context, act registry.Actor, in struct{ Command, Input string }) (any, error) {
+func (a *App) commandTry(ctx context.Context, act registry.Actor, in commandTryIn) (any, error) {
 	probe := act
 	probe.Token, probe.Commands = 0, nil
 	c, input, err := a.Registry.Resolve(ctx, probe, in.Command, json.RawMessage(in.Input))
@@ -263,4 +279,24 @@ func orText(s, fallback string) string {
 		return fallback
 	}
 	return s
+}
+
+func (a *App) draftsCommands() []*registry.Command {
+	return []*registry.Command{
+		registry.Def("project_enable", "Enable project",
+			"Turns a draft on: its triggers start running and the rights its manifest asks for count as allowed.",
+			registry.OwnerOnly, a.projectEnable),
+		registry.Def("project_autonomy", "Project autonomy",
+			"Sets whether a project suggests, so the owner says yes to its reversible changes, or acts on its own and reports; a new manifest revision.",
+			registry.OwnerOnly, a.projectAutonomy),
+		registry.Def("command_try", "Trial run",
+			"Starts a trial run of a project command: calls that are not internal are declined, nothing leaves deck.",
+			registry.OwnerSide, a.commandTry),
+		registry.Def("unattended_list", "Done without you",
+			"Lists changes made without the owner, newest first, with whether they can be undone.",
+			registry.OwnerSide, a.unattendedList),
+		registry.Def("unattended_undo", "Undo",
+			"Returns what a change made without the owner touched to how it was before.",
+			registry.OwnerOnly, a.unattendedUndo),
+	}
 }

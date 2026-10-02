@@ -42,10 +42,12 @@ func (a *App) Automation(ctx context.Context, raw string) (registry.Actor, error
 	return registry.Actor{Kind: registry.Master, Workspace: t.WorkspaceID, Token: t.ID, Commands: cmds}, nil
 }
 
-func (a *App) tokenCreate(ctx context.Context, act registry.Actor, in struct {
-	Name     string
-	Commands []string
-}) (any, error) {
+type tokenCreateIn struct {
+	Name     string   `desc:"What the token is for"`
+	Commands []string `desc:"Command names it may call; project.* or deck.* allow every command under the prefix"`
+}
+
+func (a *App) tokenCreate(ctx context.Context, act registry.Actor, in tokenCreateIn) (any, error) {
 	if strings.TrimSpace(in.Name) == "" || len(in.Commands) == 0 {
 		return nil, registry.Invalid("deck: a token needs a name and at least one command")
 	}
@@ -84,7 +86,11 @@ func (a *App) tokensList(ctx context.Context, act registry.Actor, _ struct{}) (a
 	return out, nil
 }
 
-func (a *App) tokenRevoke(ctx context.Context, act registry.Actor, in struct{ Token int64 }) (any, error) {
+type tokenRevokeIn struct {
+	Token int64 `desc:"Token id"`
+}
+
+func (a *App) tokenRevoke(ctx context.Context, act registry.Actor, in tokenRevokeIn) (any, error) {
 	n, err := store.TxGet(a.Store, ctx, func(ctx context.Context, q *db.Queries) (int64, error) {
 		return q.RevokeToken(ctx, db.RevokeTokenParams{ID: in.Token, WorkspaceID: act.Workspace})
 	})
@@ -97,4 +103,18 @@ func (a *App) tokenRevoke(ctx context.Context, act registry.Actor, in struct{ To
 	a.Gateway.Journal(ctx, act, 0, registry.Builtin+".token_revoke", registry.External, "done", fmt.Sprintf(`{"token": %d}`, in.Token))
 	a.Bus.Publish("tokens")
 	return map[string]any{"revoked": in.Token}, nil
+}
+
+func (a *App) tokensCommands() []*registry.Command {
+	return []*registry.Command{
+		registry.Def("token_create", "Create automation token",
+			"Creates a token for a terminal agent, Shortcuts or a script; it acts as the master and may call only the listed commands.",
+			registry.OwnerOnly, a.tokenCreate),
+		registry.Def("tokens_list", "Automation tokens",
+			"Lists automation tokens with their commands; revoked ones too.",
+			registry.OwnerOnly, a.tokensList),
+		registry.Def("token_revoke", "Revoke token",
+			"Revokes an automation token; calls with it are refused from then on.",
+			registry.OwnerOnly, a.tokenRevoke).As(registry.External),
+	}
 }

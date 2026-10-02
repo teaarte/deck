@@ -269,3 +269,21 @@ func TestMCPToolWithASchemaThatIsNotAnObjectIsLeftOut(t *testing.T) {
 		t.Fatalf("the tool with an object schema works: %+v", c)
 	}
 }
+
+// TestTheOwnerCallsAnMCPToolDirectly: a tool of a server that listed its tools is a registry command the owner
+// calls as an HTTP tool, and an external one goes through the journal of intents.
+func TestTheOwnerCallsAnMCPToolDirectly(t *testing.T) {
+	e := newEnv(t, nil)
+	e.createProject("srv", mcpManifest(""))
+	dir := e.mcpDir("srv", "fake")
+	e.waitState(e.start("srv", "look", map[string]any{"word": "sun"}), "done")
+	if code, out := e.call("srv.fake.lookup", map[string]any{"word": "moon"}); code != 200 || !strings.Contains(string(out), `"found":true`) {
+		t.Fatalf("the owner calls an internal MCP tool: %d %s", code, out)
+	}
+	if code, out := e.call("srv.fake.send", map[string]any{"to": "ann"}); code != 200 || !slices.Contains(fakeLog(dir), "send:ann") {
+		t.Fatalf("the owner's own call of an external tool is made: %d %s", code, out)
+	}
+	if rows := e.journal(); rows[len(rows)-1].Tool != "srv.fake.send" || rows[len(rows)-1].Outcome != "done" {
+		t.Fatalf("it is in the journal: %+v", rows)
+	}
+}

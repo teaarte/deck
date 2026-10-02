@@ -99,12 +99,16 @@ func (a *App) menu(ctx context.Context, act registry.Actor, _ struct{}) (any, er
 	return out, nil
 }
 
+type screenGetIn struct {
+	Project string `type:"project" opt:"" desc:"Project name; deck's own screens without one"`
+	Screen  string `desc:"Screen name"`
+	Record  int64  `opt:"" desc:"Record id of a record page"`
+	Topic   string `opt:"" desc:"Event topic that changed"`
+	Filter  string `type:"text" opt:"" desc:"Values the owner picked in block filters, as JSON: block id to field to value"`
+}
+
 // screenGet resolves a screen of a project, or of deck without one, into A2UI messages.
-func (a *App) screenGet(ctx context.Context, act registry.Actor, in struct {
-	Project, Screen string
-	Record          int64
-	Topic, Filter   string
-}) (any, error) {
+func (a *App) screenGet(ctx context.Context, act registry.Actor, in screenGetIn) (any, error) {
 	req := screen.Request{Record: in.Record, Topic: in.Topic, Owner: act.Kind == registry.Owner}
 	if strings.TrimSpace(in.Filter) != "" {
 		if err := json.Unmarshal([]byte(in.Filter), &req.Filter); err != nil {
@@ -155,7 +159,7 @@ func (d screenDeck) Project(ctx context.Context, p db.Project) (screens.Project,
 }
 
 func (d screenDeck) Providers(ctx context.Context, workspace int64) ([]screens.Provider, error) {
-	got, err := d.a.providersList(ctx, owner(workspace), struct{ Command string }{})
+	got, err := d.a.providersList(ctx, owner(workspace), providersListIn{})
 	if err != nil {
 		return nil, err
 	}
@@ -200,7 +204,7 @@ func (d screenDeck) Secrets(ctx context.Context, workspace int64) ([]string, err
 }
 
 func (d screenDeck) Triggers(ctx context.Context, workspace int64) ([]screens.Trigger, error) {
-	got, err := d.a.triggersList(ctx, owner(workspace), struct{ Project string }{})
+	got, err := d.a.triggersList(ctx, owner(workspace), triggersListIn{})
 	if err != nil {
 		return nil, err
 	}
@@ -230,3 +234,14 @@ func (d screenDeck) Chat(ctx context.Context, workspace int64, topic string) (an
 }
 
 func (d screenDeck) Terminal(ctx context.Context, p db.Process) string { return d.a.terminal(ctx, p) }
+
+func (a *App) screensCommands() []*registry.Command {
+	return []*registry.Command{
+		registry.Def("menu", "Menu",
+			"Lists the screens to navigate: deck's own, then each project's menu.",
+			registry.OwnerSide, a.menu),
+		registry.Def("screen", "Screen",
+			"Resolves a stored screen with its data into A2UI messages; with a topic, only the data of the blocks it changes.",
+			registry.OwnerSide, a.screenGet),
+	}
+}

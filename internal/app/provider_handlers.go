@@ -31,7 +31,11 @@ type providerView struct {
 	Missing []string `json:"missing,omitempty"`
 }
 
-func (a *App) providersList(ctx context.Context, act registry.Actor, in struct{ Command string }) (any, error) {
+type providersListIn struct {
+	Command string `opt:"" desc:"Agent command, project.command"`
+}
+
+func (a *App) providersList(ctx context.Context, act registry.Actor, in providersListIn) (any, error) {
 	all, err := a.providers(ctx, act.Workspace)
 	if err != nil {
 		return nil, err
@@ -79,7 +83,12 @@ func (a *App) providersList(ctx context.Context, act registry.Actor, in struct{ 
 	return out, nil
 }
 
-func (a *App) providerSet(ctx context.Context, act registry.Actor, in struct{ Command, Provider string }) (any, error) {
+type providerSetIn struct {
+	Command  string `desc:"Agent command, project.command"`
+	Provider string `opt:"" desc:"Provider name; empty for the default"`
+}
+
+func (a *App) providerSet(ctx context.Context, act registry.Actor, in providerSetIn) (any, error) {
 	cmd, err := a.agentCommand(ctx, act.Workspace, in.Command)
 	if err != nil {
 		return nil, err
@@ -99,12 +108,16 @@ func (a *App) providerSet(ctx context.Context, act registry.Actor, in struct{ Co
 	return map[string]any{"command": in.Command, "provider": in.Provider}, nil
 }
 
-func (a *App) providerAdd(ctx context.Context, act registry.Actor, in struct {
-	Name, URL, Model string
-	KeySecret        string `json:"key_secret"`
-	NoCloud          bool   `json:"no_cloud"`
-	Agent            string
-}) (any, error) {
+type providerAddIn struct {
+	Name      string `desc:"Provider name: lowercase letters, digits and '-'"`
+	URL       string `desc:"Base URL of the OpenAI-compatible API, such as http://localhost:11434/v1"`
+	Model     string `desc:"Model name"`
+	KeySecret string `json:"key_secret" opt:"" desc:"Name of the secret with the API key"`
+	NoCloud   bool   `json:"no_cloud" opt:"" desc:"The model runs on the owner's own hardware"`
+	Agent     string `opt:"" desc:"An ACP agent that runs the model inside the sandbox of deck with a shell and files: opencode or dsh; without it deck calls the model with its own tool loop"`
+}
+
+func (a *App) providerAdd(ctx context.Context, act registry.Actor, in providerAddIn) (any, error) {
 	d := providerDef{URL: in.URL, Model: in.Model, KeySecret: in.KeySecret, NoCloud: in.NoCloud, Agent: in.Agent}
 	var builtin []string
 	for _, pv := range a.builtin {
@@ -141,7 +154,11 @@ func (a *App) providerAdd(ctx context.Context, act registry.Actor, in struct {
 	return map[string]any{"name": in.Name}, nil
 }
 
-func (a *App) providerRemove(ctx context.Context, act registry.Actor, in struct{ Name string }) (any, error) {
+type providerRemoveIn struct {
+	Name string `desc:"Provider name"`
+}
+
+func (a *App) providerRemove(ctx context.Context, act registry.Actor, in providerRemoveIn) (any, error) {
 	var n int64
 	err := a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		active, err := q.CountActiveOnProvider(ctx, db.CountActiveOnProviderParams{Provider: in.Name, WorkspaceID: act.Workspace})
@@ -164,7 +181,11 @@ func (a *App) providerRemove(ctx context.Context, act registry.Actor, in struct{
 	return map[string]any{"removed": in.Name}, nil
 }
 
-func (a *App) providerCheck(ctx context.Context, act registry.Actor, in struct{ Provider string }) (any, error) {
+type providerCheckIn struct {
+	Provider string `desc:"Provider name"`
+}
+
+func (a *App) providerCheck(ctx context.Context, act registry.Actor, in providerCheckIn) (any, error) {
 	pv, err := a.provider(ctx, act.Workspace, in.Provider)
 	if err != nil {
 		return nil, err
@@ -178,18 +199,18 @@ func (a *App) providerCheck(ctx context.Context, act registry.Actor, in struct{ 
 	return map[string]any{"checking": in.Provider}, nil
 }
 
-func (a *App) llmCallsList(ctx context.Context, act registry.Actor, in struct {
-	Project string
-	Process int64
-	Limit   int64
-}) (any, error) {
+type llmCallsListIn struct {
+	Project string `type:"project" opt:"" desc:"Project name; defaults to the caller's own project"`
+	Process int64  `type:"process" opt:"" desc:"Only calls of this process"`
+	Limit   int64  `opt:"" desc:"At most this many"`
+}
+
+func (a *App) llmCallsList(ctx context.Context, act registry.Actor, in llmCallsListIn) (any, error) {
 	pid, err := a.filter(ctx, act, in.Project)
 	if err != nil {
 		return nil, err
 	}
-	if in.Limit <= 0 || in.Limit > 500 {
-		in.Limit = 50
-	}
+	in.Limit = registry.Limit(in.Limit, 50, 500)
 	rows, err := a.Store.Q.ListLLMCalls(ctx, db.ListLLMCallsParams{WorkspaceID: act.Workspace, ProcessID: in.Process, ProjectID: pid, Lim: in.Limit})
 	if err != nil {
 		return nil, err
@@ -208,4 +229,27 @@ func (a *App) llmCallsList(ctx context.Context, act registry.Actor, in struct {
 		out = append(out, m)
 	}
 	return out, nil
+}
+
+func (a *App) providerCommands() []*registry.Command {
+	return []*registry.Command{
+		registry.Def("providers_list", "Providers",
+			"Lists model providers with what they can do and their health; with a command, which fit it and which it runs on.",
+			registry.OwnerSide, a.providersList),
+		registry.Def("provider_set", "Choose provider",
+			"Sets the provider an agent command runs on from its next start; empty goes back to the default.",
+			registry.OwnerOnly, a.providerSet),
+		registry.Def("provider_add", "Add provider",
+			"Adds or changes an OpenAI-compatible provider of this workspace, such as Ollama, OpenRouter or DeepSeek, run by deck or by an ACP agent.",
+			registry.OwnerOnly, a.providerAdd),
+		registry.Def("provider_remove", "Remove provider",
+			"Removes an OpenAI-compatible provider; commands set to it must get another.",
+			registry.OwnerOnly, a.providerRemove),
+		registry.Def("provider_check", "Check provider",
+			"Runs the self-check of a provider's adapter again; its health shows the outcome.",
+			registry.OwnerOnly, a.providerCheck),
+		registry.Def("llm_calls_list", "Model calls",
+			"Lists model calls with their provider, model, tokens and duration, newest first.",
+			registry.Everyone, a.llmCallsList),
+	}
 }

@@ -32,8 +32,13 @@ func (a *App) Secret(workspace int64, name string) (string, error) {
 	return strings.TrimRight(string(b), "\r\n"), err
 }
 
+type secretSetIn struct {
+	Name  string `desc:"Secret name, as in $secret.<name>"`
+	Value string `type:"secret" desc:"Secret value; it is never shown again"`
+}
+
 // secretSet writes a secret file readable only by deck; the value never comes back out.
-func (a *App) secretSet(ctx context.Context, act registry.Actor, in struct{ Name, Value string }) (any, error) {
+func (a *App) secretSet(ctx context.Context, act registry.Actor, in secretSetIn) (any, error) {
 	if !validSecret(in.Name) {
 		return nil, registry.Invalid("deck: a secret name is letters, digits, '.', '_' and '-'")
 	}
@@ -104,4 +109,15 @@ func (a *App) secretsList(ctx context.Context, act registry.Actor, _ struct{}) (
 
 func validSecret(name string) bool {
 	return secretName.MatchString(name) && strings.Trim(name, ".") != ""
+}
+
+func (a *App) secretsCommands() []*registry.Command {
+	return []*registry.Command{
+		registry.Def("secret_set", "Set secret",
+			"Stores a secret for tool headers as a file only deck reads; agents and scripts never see it.",
+			registry.OwnerOnly, a.secretSet),
+		registry.Def("secrets_list", "Secrets",
+			"Lists the names of stored secrets, never their values.",
+			registry.OwnerOnly, a.secretsList),
+	}
 }

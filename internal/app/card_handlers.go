@@ -10,10 +10,12 @@ import (
 	"deck2/internal/store/db"
 )
 
-func (a *App) cardsList(ctx context.Context, act registry.Actor, in struct {
-	Project string
-	Deleted bool
-}) (any, error) {
+type cardsListIn struct {
+	Project string `type:"project" opt:"" desc:"Project name; defaults to the caller's own project"`
+	Deleted bool   `opt:"" desc:"Also list deleted cards that can still be restored"`
+}
+
+func (a *App) cardsList(ctx context.Context, act registry.Actor, in cardsListIn) (any, error) {
 	p, err := a.project(ctx, act, in.Project)
 	if err != nil {
 		return nil, err
@@ -53,7 +55,11 @@ func (a *App) cardsList(ctx context.Context, act registry.Actor, in struct {
 	return out, nil
 }
 
-func (a *App) cardGet(ctx context.Context, act registry.Actor, in struct{ Card int64 }) (any, error) {
+type cardGetIn struct {
+	Card int64 `type:"card" desc:"Card id"`
+}
+
+func (a *App) cardGet(ctx context.Context, act registry.Actor, in cardGetIn) (any, error) {
 	var v cardView
 	err := a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		c, err := cardFor(ctx, q, act, in.Card, &boardWrite{})
@@ -77,11 +83,16 @@ func cardResult(ctx context.Context, q *db.Queries, id int64) (cardView, error) 
 	return viewCard(c, waits), err
 }
 
-func (a *App) cardCreate(ctx context.Context, act registry.Actor, in struct {
-	Project, Title, Text, Lane string
-	Record                     int64
-	Waits                      []int64
-}) (any, error) {
+type cardCreateIn struct {
+	Project string  `type:"project" opt:"" desc:"Project name; defaults to the caller's own project"`
+	Title   string  `desc:"Card title"`
+	Text    string  `type:"text" opt:"" desc:"Card text, markdown"`
+	Lane    string  `opt:"" desc:"Lane name"`
+	Record  int64   `type:"record" opt:"" desc:"Record the card works on"`
+	Waits   []int64 `type:"card[]" opt:"" desc:"Cards this one waits for"`
+}
+
+func (a *App) cardCreate(ctx context.Context, act registry.Actor, in cardCreateIn) (any, error) {
 	if strings.TrimSpace(in.Title) == "" {
 		return nil, registry.Invalid("deck: a card needs a title")
 	}
@@ -119,13 +130,15 @@ func (a *App) cardCreate(ctx context.Context, act registry.Actor, in struct {
 	return v, err
 }
 
-func (a *App) cardUpdate(ctx context.Context, act registry.Actor, in struct {
-	Card   int64
-	Title  *string
-	Text   *string
-	Record *int64
-	Waits  *[]int64
-}) (any, error) {
+type cardUpdateIn struct {
+	Card   int64    `type:"card" desc:"Card id"`
+	Title  *string  `type:"string" opt:"" desc:"New title"`
+	Text   *string  `type:"text" opt:"" desc:"New text, markdown"`
+	Record *int64   `type:"record" opt:"" desc:"Record the card works on; 0 unlinks it"`
+	Waits  *[]int64 `type:"card[]" opt:"" desc:"All cards this one waits for; an empty list clears them"`
+}
+
+func (a *App) cardUpdate(ctx context.Context, act registry.Actor, in cardUpdateIn) (any, error) {
 	var v cardView
 	err := a.writeBoard(ctx, act, func(ctx context.Context, q *db.Queries, w *boardWrite) error {
 		c, err := cardFor(ctx, q, act, in.Card, w)
@@ -163,11 +176,13 @@ func (a *App) cardUpdate(ctx context.Context, act registry.Actor, in struct {
 	return v, err
 }
 
-func (a *App) cardMove(ctx context.Context, act registry.Actor, in struct {
-	Card   int64
-	Lane   string
-	Before int64
-}) (any, error) {
+type cardMoveIn struct {
+	Card   int64  `type:"card" desc:"Card id"`
+	Lane   string `desc:"Lane name"`
+	Before int64  `type:"card" opt:"" desc:"Place before this card of the lane; the end when omitted"`
+}
+
+func (a *App) cardMove(ctx context.Context, act registry.Actor, in cardMoveIn) (any, error) {
 	var v cardView
 	err := a.writeBoard(ctx, act, func(ctx context.Context, q *db.Queries, w *boardWrite) error {
 		c, err := cardFor(ctx, q, act, in.Card, w)
@@ -192,7 +207,11 @@ func (a *App) cardMove(ctx context.Context, act registry.Actor, in struct {
 	return v, err
 }
 
-func (a *App) cardDelete(ctx context.Context, act registry.Actor, in struct{ Card int64 }) (any, error) {
+type cardDeleteIn struct {
+	Card int64 `type:"card" desc:"Card id"`
+}
+
+func (a *App) cardDelete(ctx context.Context, act registry.Actor, in cardDeleteIn) (any, error) {
 	err := a.writeBoard(ctx, act, func(ctx context.Context, q *db.Queries, w *boardWrite) error {
 		if _, err := cardFor(ctx, q, act, in.Card, w); err != nil {
 			return err
@@ -206,7 +225,11 @@ func (a *App) cardDelete(ctx context.Context, act registry.Actor, in struct{ Car
 	return map[string]any{"ok": true}, nil
 }
 
-func (a *App) cardRestore(ctx context.Context, act registry.Actor, in struct{ Card int64 }) (any, error) {
+type cardRestoreIn struct {
+	Card int64 `type:"card" desc:"Card id"`
+}
+
+func (a *App) cardRestore(ctx context.Context, act registry.Actor, in cardRestoreIn) (any, error) {
 	var v cardView
 	err := a.writeBoard(ctx, act, func(ctx context.Context, q *db.Queries, w *boardWrite) error {
 		c, err := cardFor(ctx, q, act, in.Card, w)
@@ -225,4 +248,30 @@ func (a *App) cardRestore(ctx context.Context, act registry.Actor, in struct{ Ca
 		return err
 	})
 	return v, err
+}
+
+func (a *App) cardCommands() []*registry.Command {
+	return []*registry.Command{
+		registry.Def("cards_list", "Board",
+			"Returns the board of a project: lanes in order with their cards by rank, and recently deleted cards when asked.",
+			registry.Everyone, a.cardsList),
+		registry.Def("card_get", "Get card",
+			"Returns one card with the cards it waits for.",
+			registry.Everyone, a.cardGet),
+		registry.Def("card_create", "Create card",
+			"Creates a card at the end of a lane; without a lane it lands in the inbox lane.",
+			registry.Everyone, a.cardCreate),
+		registry.Def("card_update", "Edit card",
+			"Changes the title, text, record or the cards a card waits for; omitted fields stay.",
+			registry.Everyone, a.cardUpdate),
+		registry.Def("card_move", "Move card",
+			"Moves a card to a lane, before another card or to the end; entering a lane starts its commands.",
+			registry.Everyone, a.cardMove),
+		registry.Def("card_delete", "Delete card",
+			"Deletes a card; it can be restored for a day.",
+			registry.Everyone, a.cardDelete),
+		registry.Def("card_restore", "Restore card",
+			"Brings a deleted card back to its lane, or to the inbox lane when that lane is gone.",
+			registry.Everyone, a.cardRestore),
+	}
 }

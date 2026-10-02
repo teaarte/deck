@@ -63,7 +63,7 @@ func (h *HTTP) Command(p db.Project, t manifest.HTTPTool) *registry.Command {
 	b, _ := json.Marshal(map[string]any{"method": t.Method, "url": t.URL, "headers": t.Headers, "body": t.Body, "auth": t.Auth})
 	print := gateway.Canonical(b)
 	return &registry.Command{Name: p.Name + "." + t.Name, Title: title, Description: t.Description, Class: t.Class,
-		Input: t.Input, Result: t.Result, Callers: []string{registry.Owner, registry.Master, registry.Agent}, ProjectID: p.ID,
+		Input: t.Input, Result: t.Result, Callers: registry.Everyone, ProjectID: p.ID,
 		Journals: t.Class == registry.External, Handler: h.handler(p, t),
 		Fingerprint: func(context.Context, int64) string { return print }, Target: func(string) string { return t.Method + " " + t.URL }, ConfirmTTL: time.Duration(t.ConfirmTTLMinutes) * time.Minute}
 }

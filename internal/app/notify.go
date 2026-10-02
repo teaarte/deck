@@ -12,12 +12,16 @@ import (
 	"deck2/internal/store/db"
 )
 
+type notifyIn struct {
+	Project string `type:"project" opt:"" desc:"Project name; defaults to the caller's own project"`
+	Text    string `type:"text" desc:"What happened, in a sentence"`
+	Screen  string `opt:"" desc:"Screen of the project the line opens"`
+	Record  int64  `type:"record" opt:"" desc:"Record the screen shows"`
+	Actions string `type:"text" opt:"" desc:"Buttons as JSON: [{label, command, params}] with commands of the project"`
+}
+
 // notify writes a line to the feed of the cockpit; push comes with stage 3. The caller decides whether it is worth it.
-func (a *App) notify(ctx context.Context, act registry.Actor, in struct {
-	Project, Text, Screen string
-	Record                int64
-	Actions               string
-}) (any, error) {
+func (a *App) notify(ctx context.Context, act registry.Actor, in notifyIn) (any, error) {
 	p, err := a.project(ctx, act, in.Project)
 	if err != nil {
 		return nil, err
@@ -73,4 +77,12 @@ func (a *App) notify(ctx context.Context, act registry.Actor, in struct {
 	}
 	a.Bus.Publish("notifications")
 	return map[string]any{"notification": n.ID}, nil
+}
+
+func (a *App) notifyCommands() []*registry.Command {
+	return []*registry.Command{
+		registry.Def("notify", "Notify the owner",
+			"Writes a line to the feed of the cockpit, with a screen of the project to open and buttons; the caller decides it is worth it.",
+			registry.Everyone, a.notify),
+	}
 }

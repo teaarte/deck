@@ -84,9 +84,14 @@ func (a *App) pushKey(ctx context.Context, act registry.Actor, _ struct{}) (any,
 	return map[string]any{"key": k.Public}, nil
 }
 
-func (a *App) pushSubscribe(ctx context.Context, act registry.Actor, in struct {
-	Endpoint, P256dh, Auth, Device string
-}) (any, error) {
+type pushSubscribeIn struct {
+	Endpoint string `desc:"Push endpoint of the device"`
+	P256dh   string `desc:"Key of the subscription"`
+	Auth     string `desc:"Auth secret of the subscription"`
+	Device   string `opt:"" desc:"Name of the device"`
+}
+
+func (a *App) pushSubscribe(ctx context.Context, act registry.Actor, in pushSubscribeIn) (any, error) {
 	switch {
 	case !strings.HasPrefix(in.Endpoint, "https://") && !strings.HasPrefix(in.Endpoint, "http://"):
 		return nil, registry.Invalid("deck: a push endpoint is an http or https url")
@@ -121,10 +126,12 @@ func (a *App) pushSubscribe(ctx context.Context, act registry.Actor, in struct {
 	return map[string]any{"device": row.ID, "name": row.Device}, nil
 }
 
-func (a *App) pushUnsubscribe(ctx context.Context, act registry.Actor, in struct {
-	Endpoint string
-	Device   int64
-}) (any, error) {
+type pushUnsubscribeIn struct {
+	Endpoint string `opt:"" desc:"Push endpoint of the device"`
+	Device   int64  `opt:"" desc:"Device id"`
+}
+
+func (a *App) pushUnsubscribe(ctx context.Context, act registry.Actor, in pushUnsubscribeIn) (any, error) {
 	var n int64
 	err := a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		var err error
@@ -371,3 +378,20 @@ func (a *App) pushHealth(ctx context.Context, failed string) {
 }
 
 func oneLine(s string) string { return strings.Join(strings.Fields(s), " ") }
+
+func (a *App) pushCommands() []*registry.Command {
+	return []*registry.Command{
+		registry.Def("push_key", "Push key",
+			"Returns the public key a device subscribes to the pushes of deck with.",
+			registry.OwnerOnly, a.pushKey),
+		registry.Def("push_subscribe", "Get pushes",
+			"Subscribes a device to pushes: what waits for the owner, failures, notify lines and the master's replies when no client is open.",
+			registry.OwnerOnly, a.pushSubscribe),
+		registry.Def("push_unsubscribe", "Stop pushes",
+			"Stops pushes to a device.",
+			registry.OwnerOnly, a.pushUnsubscribe),
+		registry.Def("push_devices", "Devices",
+			"Lists the devices that get pushes.",
+			registry.OwnerOnly, a.pushDevices),
+	}
+}

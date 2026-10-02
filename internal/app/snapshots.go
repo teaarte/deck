@@ -288,3 +288,11 @@ func (a *App) checkDisk(ctx context.Context, now time.Time) {
 func (a *App) TailnetHealth(status, text string) {
 	health.Write(context.Background(), a.Store, a.Bus, "tailscale", status, text)
 }
+
+func (a *App) snapshotsCommands() []*registry.Command {
+	return []*registry.Command{
+		registry.Def("snapshot_create", "Take snapshot",
+			"Writes a snapshot of the base, files and project data folders to backups; the newest seven stay.",
+			registry.OwnerOnly, a.snapshotCreate),
+	}
+}

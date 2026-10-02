@@ -27,8 +27,12 @@ func siteOf(page string) (string, error) {
 
 func siteHealth(site string) string { return "site:" + site }
 
+type browserLoginIn struct {
+	URL string `desc:"Page to open, such as the site's sign-in page"`
+}
+
 // browserLogin opens a window of deck's browser for the owner to sign in to a site once.
-func (a *App) browserLogin(ctx context.Context, act registry.Actor, in struct{ URL string }) (any, error) {
+func (a *App) browserLogin(ctx context.Context, act registry.Actor, in browserLoginIn) (any, error) {
 	site, err := siteOf(in.URL)
 	if err != nil {
 		return nil, err
@@ -39,8 +43,12 @@ func (a *App) browserLogin(ctx context.Context, act registry.Actor, in struct{ U
 	return map[string]any{"site": site, "text": "deck's browser shows " + in.URL + " in a window; sign in there, then call deck.browser_login_done"}, nil
 }
 
+type browserLoginDoneIn struct {
+	URL string `desc:"A page of the site the owner signed in to"`
+}
+
 // browserLoginDone closes the window; processes that waited for this site go on.
-func (a *App) browserLoginDone(ctx context.Context, act registry.Actor, in struct{ URL string }) (any, error) {
+func (a *App) browserLoginDone(ctx context.Context, act registry.Actor, in browserLoginDoneIn) (any, error) {
 	site, err := siteOf(in.URL)
 	if err != nil {
 		return nil, err
@@ -51,8 +59,13 @@ func (a *App) browserLoginDone(ctx context.Context, act registry.Actor, in struc
 	return map[string]any{"site": site, "resumed": n}, err
 }
 
+type browserNeedsLoginIn struct {
+	URL string `desc:"The page that asked for a sign-in"`
+	Why string `desc:"What the page showed"`
+}
+
 // browserNeedsLogin marks a site whose session ran out; the process waits until the owner signs in again.
-func (a *App) browserNeedsLogin(ctx context.Context, act registry.Actor, in struct{ URL, Why string }) (any, error) {
+func (a *App) browserNeedsLogin(ctx context.Context, act registry.Actor, in browserNeedsLoginIn) (any, error) {
 	site, err := siteOf(in.URL)
 	if err != nil {
 		return nil, err
@@ -91,4 +104,18 @@ func (a *App) signedIn(ctx context.Context, workspace int64, key, value string) 
 		}
 	}
 	return n, nil
+}
+
+func (a *App) browserCommands() []*registry.Command {
+	return []*registry.Command{
+		registry.Def("browser_login", "Sign in to a site",
+			"Opens a window of deck's browser at a page so the owner signs in once with deck's own profile.",
+			registry.OwnerOnly, a.browserLogin),
+		registry.Def("browser_login_done", "Signed in",
+			"Closes the sign-in window of deck's browser; processes waiting for this site go on.",
+			registry.OwnerOnly, a.browserLoginDone),
+		registry.Def("browser_needs_login", "Site needs a sign-in",
+			"Tells the owner that the session of a site ran out; the process waits until the owner signs in again.",
+			[]string{registry.Agent}, a.browserNeedsLogin),
+	}
 }

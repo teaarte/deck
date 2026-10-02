@@ -45,8 +45,13 @@ func moduleKind(m *manifest.Manifest, name string) string {
 	return docs.KindDoc
 }
 
+type projectImportIn struct {
+	Folder string `desc:"Absolute path of the folder"`
+	Name   string `opt:"" desc:"Project name; the folder name when omitted"`
+}
+
 // projectImport creates a draft from a module folder in one transaction; hidden files are left out.
-func (a *App) projectImport(ctx context.Context, act registry.Actor, in struct{ Folder, Name string }) (any, error) {
+func (a *App) projectImport(ctx context.Context, act registry.Actor, in projectImportIn) (any, error) {
 	dir, err := absFolder(in.Folder)
 	if err != nil {
 		return nil, err
@@ -156,4 +161,12 @@ func readFolder(root string) (files []folderFile, skipped []string, err error) {
 		return nil
 	})
 	return files, skipped, err
+}
+
+func (a *App) importCommands() []*registry.Command {
+	return []*registry.Command{
+		registry.Def("project_import", "Import project",
+			"Creates a draft project from a module folder: manifest.json, prompt.md and the other files by their document names.",
+			registry.OwnerSide, a.projectImport),
+	}
 }

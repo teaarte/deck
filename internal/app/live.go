@@ -40,12 +40,14 @@ func (a *App) terminal(ctx context.Context, p db.Process) string {
 	return "cd " + provider.Quote(dir) + " && " + cmd
 }
 
+type processTellIn struct {
+	Process int64  `type:"process" desc:"Process id"`
+	Text    string `type:"text" desc:"The message"`
+}
+
 // processTell gives the owner's message to an agent process at work: into its turn when the provider takes
 // it live, else with the resume right after the turn.
-func (a *App) processTell(ctx context.Context, act registry.Actor, in struct {
-	Process int64
-	Text    string
-}) (any, error) {
+func (a *App) processTell(ctx context.Context, act registry.Actor, in processTellIn) (any, error) {
 	p, err := a.ownProcess(ctx, act, in.Process)
 	if err != nil {
 		return nil, err
@@ -70,4 +72,12 @@ func (a *App) processTell(ctx context.Context, act registry.Actor, in struct {
 	}
 	a.Bus.Publish("processes")
 	return map[string]any{"process": p.ID, "delivered": "after the turn"}, nil
+}
+
+func (a *App) liveCommands() []*registry.Command {
+	return []*registry.Command{
+		registry.Def("process_tell", "Tell a process",
+			"Gives the owner's message to an agent process at work: into its turn when the provider takes it live, else right after the turn.",
+			registry.OwnerOnly, a.processTell),
+	}
 }

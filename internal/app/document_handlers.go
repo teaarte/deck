@@ -32,10 +32,13 @@ func docView(d db.Document) documentView {
 		Deleted: d.DeletedAt.Valid}
 }
 
-func (a *App) documentsList(ctx context.Context, act registry.Actor, in struct {
-	Project, Kind string
-	Deleted       bool
-}) (any, error) {
+type documentsListIn struct {
+	Project string `type:"project" opt:"" desc:"Project name; defaults to the caller's own project"`
+	Kind    string `opt:"" desc:"Only this kind"`
+	Deleted bool   `opt:"" desc:"The deleted documents instead, which the owner can bring back"`
+}
+
+func (a *App) documentsList(ctx context.Context, act registry.Actor, in documentsListIn) (any, error) {
 	var s docs.Scope
 	var err error
 	if in.Project == "" && in.Kind == docs.KindMemory {
@@ -98,12 +101,14 @@ func (a *App) readableDocument(ctx context.Context, q *db.Queries, act registry.
 	return d, a.mayRead(ctx, q, act, p, "", d.Name)
 }
 
-func (a *App) documentGet(ctx context.Context, act registry.Actor, in struct {
-	Document int64
-	Project  string
-	Name     string
-	Revision int64
-}) (any, error) {
+type documentGetIn struct {
+	Document int64  `type:"document" opt:"" desc:"Document id"`
+	Project  string `type:"project" opt:"" desc:"Project name; defaults to the caller's own project"`
+	Name     string `opt:"" desc:"Document name (path)"`
+	Revision int64  `opt:"" desc:"Revision number"`
+}
+
+func (a *App) documentGet(ctx context.Context, act registry.Actor, in documentGetIn) (any, error) {
 	var d db.Document
 	var err error
 	switch {
@@ -137,10 +142,17 @@ func (a *App) documentGet(ctx context.Context, act registry.Actor, in struct {
 	return v, nil
 }
 
-func (a *App) documentSave(ctx context.Context, act registry.Actor, in struct {
-	Name, Kind, Text, Project, Reason string
-	Record, Card                      int64
-}) (any, error) {
+type documentSaveIn struct {
+	Name    string `desc:"Document name (path), e.g. notes/criteria.md; memory/MEMORY.md and memory/<fact>.md for memory"`
+	Kind    string `desc:"Document kind"`
+	Text    string `type:"text" desc:"Full new text"`
+	Project string `type:"project" opt:"" desc:"Project name; defaults to the caller's own project"`
+	Record  int64  `type:"record" opt:"" desc:"Record the document belongs to"`
+	Card    int64  `type:"card" opt:"" desc:"Card the document belongs to"`
+	Reason  string `opt:"" desc:"Why it changed"`
+}
+
+func (a *App) documentSave(ctx context.Context, act registry.Actor, in documentSaveIn) (any, error) {
 	if in.Record != 0 && in.Card != 0 {
 		return nil, registry.Invalid("deck: a document belongs to a record or a card, not both")
 	}
@@ -206,11 +218,14 @@ func (a *App) memoryScope(ctx context.Context, act registry.Actor, project, name
 	return docs.ProjectScope(p), err
 }
 
+type documentDeleteIn struct {
+	Document int64  `type:"document" opt:"" desc:"Document id"`
+	Project  string `type:"project" opt:"" desc:"Project name; defaults to the caller's own project"`
+	Name     string `opt:"" desc:"Document name (path)"`
+}
+
 // documentDelete hides a document with its revisions; agents delete only the memory of their project.
-func (a *App) documentDelete(ctx context.Context, act registry.Actor, in struct {
-	Document      int64
-	Project, Name string
-}) (any, error) {
+func (a *App) documentDelete(ctx context.Context, act registry.Actor, in documentDeleteIn) (any, error) {
 	var d db.Document
 	var err error
 	switch {
@@ -247,8 +262,12 @@ func (a *App) documentDelete(ctx context.Context, act registry.Actor, in struct 
 	return map[string]any{"document": d.ID, "deleted": true}, nil
 }
 
+type documentRestoreIn struct {
+	Document int64 `type:"document" desc:"Document id"`
+}
+
 // documentRestore brings a deleted document back as it was.
-func (a *App) documentRestore(ctx context.Context, act registry.Actor, in struct{ Document int64 }) (any, error) {
+func (a *App) documentRestore(ctx context.Context, act registry.Actor, in documentRestoreIn) (any, error) {
 	d, err := a.Store.Q.GetDocument(ctx, in.Document)
 	if errors.Is(err, sql.ErrNoRows) || err == nil && d.WorkspaceID != act.Workspace {
 		return nil, registry.NotFound("deck: no document %d", in.Document)
@@ -276,7 +295,11 @@ func (a *App) documentRestore(ctx context.Context, act registry.Actor, in struct
 	return map[string]any{"document": d.ID, "restored": true}, nil
 }
 
-func (a *App) documentRevisions(ctx context.Context, act registry.Actor, in struct{ Document int64 }) (any, error) {
+type documentRevisionsIn struct {
+	Document int64 `type:"document" desc:"Document id"`
+}
+
+func (a *App) documentRevisions(ctx context.Context, act registry.Actor, in documentRevisionsIn) (any, error) {
 	d, err := a.readableDocument(ctx, a.Store.Q, act, in.Document)
 	if err != nil {
 		return nil, err
@@ -292,11 +315,14 @@ func (a *App) documentRevisions(ctx context.Context, act registry.Actor, in stru
 	return out, nil
 }
 
-func (a *App) documentRevert(ctx context.Context, act registry.Actor, in struct {
-	Document, Revision int64
-	Reason             string
-	IfRevision         int64 `json:"if_revision"`
-}) (any, error) {
+type documentRevertIn struct {
+	Document   int64  `type:"document" desc:"Document id"`
+	Revision   int64  `desc:"Revision to return to"`
+	Reason     string `opt:"" desc:"Why"`
+	IfRevision int64  `json:"if_revision" opt:"" desc:"Only while the current revision is still this one"`
+}
+
+func (a *App) documentRevert(ctx context.Context, act registry.Actor, in documentRevertIn) (any, error) {
 	d, err := a.readableDocument(ctx, a.Store.Q, act, in.Document)
 	if err != nil {
 		return nil, err
@@ -345,4 +371,30 @@ func (a *App) scriptChanged(ctx context.Context, q *db.Queries, act registry.Act
 	}
 	prev := db.Document{ID: d.ID, Current: n - 1}
 	return a.unattended(ctx, q, act, d.ProjectID, prev, n, fmt.Sprintf("%s changed script %s", act.Author(), d.Name), reason)
+}
+
+func (a *App) documentCommands() []*registry.Command {
+	return []*registry.Command{
+		registry.Def("documents_list", "List documents",
+			"Lists documents of a project, or workspace documents when no project is given; deleted ones for the owner when asked.",
+			registry.Everyone, a.documentsList).Enum("kind", docs.Kinds...),
+		registry.Def("document_get", "Get document",
+			"Returns a document by id, or by project and name; the current revision unless one is given.",
+			registry.Everyone, a.documentGet),
+		registry.Def("document_save", "Save document",
+			"Writes a new revision of a document, creating it on first save.",
+			registry.Everyone, a.documentSave).Enum("kind", docs.Kinds...),
+		registry.Def("document_delete", "Delete document",
+			"Deletes a document; its revisions stay and the owner can bring it back. Agents delete only the memory of their project.",
+			registry.Everyone, a.documentDelete),
+		registry.Def("document_restore", "Bring document back",
+			"Brings a deleted document back as it was.",
+			registry.OwnerOnly, a.documentRestore),
+		registry.Def("document_revisions", "Document history",
+			"Lists revisions of a document: who, when and why.",
+			registry.Everyone, a.documentRevisions),
+		registry.Def("document_revert", "Revert document",
+			"Makes an earlier revision current again as a new revision.",
+			registry.OwnerSide, a.documentRevert),
+	}
 }

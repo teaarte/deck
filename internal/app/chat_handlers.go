@@ -17,31 +17,6 @@ import (
 // maxChatText is the longest message the owner sends in one go.
 const maxChatText = 20000
 
-func (a *App) addChatCommands() {
-	add := func(name, title, desc string, in json.RawMessage, h registry.Handler) {
-		a.Registry.Add(&registry.Command{Name: registry.Builtin + "." + name, Title: title, Description: desc,
-			Class: registry.Internal, Callers: ownerOnly, Input: in, Handler: h})
-	}
-	add("chat_send", "Tell the master", "Sends the owner's message to the master in a chat topic, a new one when none is given; the master's reply comes into the same topic.",
-		registry.Params(registry.P("text", "text", "The message"), registry.Opt("topic", "integer", "Chat topic; a new topic when omitted"),
-			registry.Opt("screen", "text", "The screen the owner is on, as JSON: project, screen, record, card, process"),
-			registry.Opt("card", "card", "Card a new topic is about"),
-			registry.Opt("retry_key", "string", "A key of this message: sending it again with the same key returns the first one")),
-		registry.Typed(a.chatSend))
-	add("chat_topics", "Chat topics", "Lists the owner's chat topics with the master, newest first, with their last message and the reply still going.",
-		registry.Params(registry.Opt("archived", "boolean", "The archived topics instead"), registry.Opt("limit", "integer", "At most this many")),
-		registry.Typed(a.chatTopics))
-	add("chat_messages", "Chat messages", "Returns the messages of a chat topic, oldest first, with the state of the reply each one got.",
-		registry.Params(registry.P("topic", "integer", "Chat topic"), registry.Opt("after", "integer", "Only messages after this one"),
-			registry.Opt("limit", "integer", "At most this many of the newest, 200 by default")),
-		registry.Typed(a.chatMessages))
-	add("chat_topic_archive", "Archive topic", "Archives a chat topic or brings it back; a new message brings it back too.",
-		registry.Params(registry.P("topic", "integer", "Chat topic"), registry.P("archived", "boolean", "Archive when true, bring back when false")),
-		registry.Typed(a.chatTopicArchive))
-	add("chat_topic_delete", "Delete topic", "Deletes a chat topic with its messages and stops its reply if one is going.",
-		registry.Params(registry.P("topic", "integer", "Chat topic")), registry.Typed(a.chatTopicDelete))
-}
-
 type topicView struct {
 	ID        int64        `json:"id"`
 	Title     string       `json:"title"`
@@ -101,11 +76,15 @@ func topicTitle(text string) string {
 	return line
 }
 
-func (a *App) chatSend(ctx context.Context, act registry.Actor, in struct {
-	Text, Screen string
-	Topic, Card  int64
-	RetryKey     string `json:"retry_key"`
-}) (any, error) {
+type chatSendIn struct {
+	Text     string `type:"text" desc:"The message"`
+	Topic    int64  `opt:"" desc:"Chat topic; a new topic when omitted"`
+	Screen   string `type:"text" opt:"" desc:"The screen the owner is on, as JSON: project, screen, record, card, process"`
+	Card     int64  `type:"card" opt:"" desc:"Card a new topic is about"`
+	RetryKey string `json:"retry_key" opt:"" desc:"A key of this message: sending it again with the same key returns the first one"`
+}
+
+func (a *App) chatSend(ctx context.Context, act registry.Actor, in chatSendIn) (any, error) {
 	text := strings.TrimSpace(in.Text)
 	switch {
 	case text == "":
@@ -176,13 +155,13 @@ func (a *App) chatSend(ctx context.Context, act registry.Actor, in struct {
 	return out, nil
 }
 
-func (a *App) chatTopics(ctx context.Context, act registry.Actor, in struct {
-	Archived bool
-	Limit    int64
-}) (any, error) {
-	if in.Limit <= 0 {
-		in.Limit = 100
-	}
+type chatTopicsIn struct {
+	Archived bool  `opt:"" desc:"The archived topics instead"`
+	Limit    int64 `opt:"" desc:"At most this many"`
+}
+
+func (a *App) chatTopics(ctx context.Context, act registry.Actor, in chatTopicsIn) (any, error) {
+	in.Limit = registry.Limit(in.Limit, 100, 500)
 	ts, err := a.Store.Q.ListTopics(ctx, db.ListTopicsParams{WorkspaceID: act.Workspace, Archived: b2i(in.Archived), Lim: in.Limit})
 	if err != nil {
 		return nil, err
@@ -203,14 +182,18 @@ func (a *App) chatTopics(ctx context.Context, act registry.Actor, in struct {
 	return out, nil
 }
 
-func (a *App) chatMessages(ctx context.Context, act registry.Actor, in struct{ Topic, After, Limit int64 }) (any, error) {
+type chatMessagesIn struct {
+	Topic int64 `desc:"Chat topic"`
+	After int64 `opt:"" desc:"Only messages after this one"`
+	Limit int64 `opt:"" desc:"At most this many of the newest, 200 by default"`
+}
+
+func (a *App) chatMessages(ctx context.Context, act registry.Actor, in chatMessagesIn) (any, error) {
 	t, err := a.ownTopic(ctx, a.Store.Q, act, in.Topic)
 	if err != nil {
 		return nil, err
 	}
-	if in.Limit <= 0 {
-		in.Limit = 200
-	}
+	in.Limit = registry.Limit(in.Limit, 200, 1000)
 	rows, err := a.Store.Q.ListMessages(ctx, db.ListMessagesParams{TopicID: t.ID, After: in.After})
 	if err != nil {
 		return nil, err
@@ -240,10 +223,12 @@ func (a *App) chatMessages(ctx context.Context, act registry.Actor, in struct{ T
 	return map[string]any{"topic": v, "messages": ms}, nil
 }
 
-func (a *App) chatTopicArchive(ctx context.Context, act registry.Actor, in struct {
-	Topic    int64
-	Archived bool
-}) (any, error) {
+type chatTopicArchiveIn struct {
+	Topic    int64 `desc:"Chat topic"`
+	Archived bool  `desc:"Archive when true, bring back when false"`
+}
+
+func (a *App) chatTopicArchive(ctx context.Context, act registry.Actor, in chatTopicArchiveIn) (any, error) {
 	err := a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		if _, err := a.ownTopic(ctx, q, act, in.Topic); err != nil {
 			return err
@@ -258,7 +243,11 @@ func (a *App) chatTopicArchive(ctx context.Context, act registry.Actor, in struc
 	return map[string]any{"topic": in.Topic, "archived": in.Archived}, nil
 }
 
-func (a *App) chatTopicDelete(ctx context.Context, act registry.Actor, in struct{ Topic int64 }) (any, error) {
+type chatTopicDeleteIn struct {
+	Topic int64 `desc:"Chat topic"`
+}
+
+func (a *App) chatTopicDelete(ctx context.Context, act registry.Actor, in chatTopicDeleteIn) (any, error) {
 	err := a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		if _, err := a.ownTopic(ctx, q, act, in.Topic); err != nil {
 			return err
@@ -284,4 +273,24 @@ func b2i(b bool) int64 {
 		return 1
 	}
 	return 0
+}
+
+func (a *App) chatCommands() []*registry.Command {
+	return []*registry.Command{
+		registry.Def("chat_send", "Tell the master",
+			"Sends the owner's message to the master in a chat topic, a new one when none is given; the master's reply comes into the same topic.",
+			registry.OwnerOnly, a.chatSend),
+		registry.Def("chat_topics", "Chat topics",
+			"Lists the owner's chat topics with the master, newest first, with their last message and the reply still going.",
+			registry.OwnerOnly, a.chatTopics),
+		registry.Def("chat_messages", "Chat messages",
+			"Returns the messages of a chat topic, oldest first, with the state of the reply each one got.",
+			registry.OwnerOnly, a.chatMessages),
+		registry.Def("chat_topic_archive", "Archive topic",
+			"Archives a chat topic or brings it back; a new message brings it back too.",
+			registry.OwnerOnly, a.chatTopicArchive),
+		registry.Def("chat_topic_delete", "Delete topic",
+			"Deletes a chat topic with its messages and stops its reply if one is going.",
+			registry.OwnerOnly, a.chatTopicDelete),
+	}
 }

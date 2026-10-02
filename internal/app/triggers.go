@@ -23,10 +23,13 @@ func (a *App) ownTrigger(ctx context.Context, act registry.Actor, id int64) (db.
 	return owned(ctx, a.Store.Q, act, t, err, t.ProjectID, registry.NotFound("deck: no trigger %d", id))
 }
 
-func (a *App) runLater(ctx context.Context, act registry.Actor, in struct {
-	Command, Params string
-	At              string
-}) (any, error) {
+type runLaterIn struct {
+	Command string `desc:"Command name, project.command"`
+	At      string `type:"datetime" desc:"When to run"`
+	Params  string `type:"text" opt:"" desc:"Command input as a JSON object"`
+}
+
+func (a *App) runLater(ctx context.Context, act registry.Actor, in runLaterIn) (any, error) {
 	if act.Trial {
 		return nil, registry.Refuse("deck: trial run: run later would start a real run, so it was declined")
 	}
@@ -69,7 +72,11 @@ func (a *App) runLater(ctx context.Context, act registry.Actor, in struct {
 	return map[string]any{"trigger": t.ID, "at": t.NextRunAt.String}, nil
 }
 
-func (a *App) runLaterCancel(ctx context.Context, act registry.Actor, in struct{ Trigger int64 }) (any, error) {
+type runLaterCancelIn struct {
+	Trigger int64 `desc:"Trigger id"`
+}
+
+func (a *App) runLaterCancel(ctx context.Context, act registry.Actor, in runLaterCancelIn) (any, error) {
 	t, _, err := a.ownTrigger(ctx, act, in.Trigger)
 	if err != nil {
 		return nil, err
@@ -85,7 +92,11 @@ func (a *App) runLaterCancel(ctx context.Context, act registry.Actor, in struct{
 	return map[string]any{"ok": true}, nil
 }
 
-func (a *App) triggersList(ctx context.Context, act registry.Actor, in struct{ Project string }) (any, error) {
+type triggersListIn struct {
+	Project string `type:"project" opt:"" desc:"Project name; defaults to the caller's own project"`
+}
+
+func (a *App) triggersList(ctx context.Context, act registry.Actor, in triggersListIn) (any, error) {
 	pid, err := a.filter(ctx, act, in.Project)
 	if err != nil {
 		return nil, err
@@ -118,9 +129,13 @@ func (a *App) triggersList(ctx context.Context, act registry.Actor, in struct{ P
 	return out, nil
 }
 
+type triggerRunIn struct {
+	Trigger int64 `desc:"Trigger id"`
+}
+
 // triggerRun starts the command of a schedule trigger now with its params, with the trigger's rights but not
 // as its slot: a pause does not hold it, its schedule stays, and a run of it still going is returned.
-func (a *App) triggerRun(ctx context.Context, act registry.Actor, in struct{ Trigger int64 }) (any, error) {
+func (a *App) triggerRun(ctx context.Context, act registry.Actor, in triggerRunIn) (any, error) {
 	t, p, err := a.ownTrigger(ctx, act, in.Trigger)
 	if err != nil {
 		return nil, err
@@ -151,11 +166,13 @@ func (a *App) triggerRun(ctx context.Context, act registry.Actor, in struct{ Tri
 	return out, nil
 }
 
+type triggerPauseIn struct {
+	Trigger int64 `desc:"Trigger id"`
+	Paused  bool  `desc:"Pause when true, resume when false"`
+}
+
 // triggerPause pauses one trigger; a cron trigger that goes on again skips the runs of its pause.
-func (a *App) triggerPause(ctx context.Context, act registry.Actor, in struct {
-	Trigger int64
-	Paused  bool
-}) (any, error) {
+func (a *App) triggerPause(ctx context.Context, act registry.Actor, in triggerPauseIn) (any, error) {
 	t, _, err := a.ownTrigger(ctx, act, in.Trigger)
 	if err != nil {
 		return nil, err
@@ -176,11 +193,13 @@ func (a *App) triggerPause(ctx context.Context, act registry.Actor, in struct {
 	return map[string]any{"ok": true}, nil
 }
 
+type projectPauseIn struct {
+	Project string `type:"project" desc:"Project name"`
+	Paused  bool   `desc:"Pause when true, resume when false"`
+}
+
 // projectPause pauses every trigger of a project, including those it gets later.
-func (a *App) projectPause(ctx context.Context, act registry.Actor, in struct {
-	Project string
-	Paused  bool
-}) (any, error) {
+func (a *App) projectPause(ctx context.Context, act registry.Actor, in projectPauseIn) (any, error) {
 	p, err := a.project(ctx, act, in.Project)
 	if err != nil {
 		return nil, err
@@ -216,4 +235,27 @@ func flag(b bool) int64 {
 		return 1
 	}
 	return 0
+}
+
+func (a *App) triggersCommands() []*registry.Command {
+	return []*registry.Command{
+		registry.Def("run_later", "Run later",
+			"Runs a project command once at the given time; a run missed while deck was down runs after it starts.",
+			registry.Everyone, a.runLater),
+		registry.Def("run_later_cancel", "Cancel run later",
+			"Cancels a run scheduled with run later.",
+			registry.Everyone, a.runLaterCancel),
+		registry.Def("triggers_list", "Schedule",
+			"Lists triggers with their next run, pause and the state of their last run.",
+			registry.Everyone, a.triggersList),
+		registry.Def("trigger_pause", "Pause trigger",
+			"Pauses or resumes one trigger; a resumed schedule does not catch up its pause.",
+			registry.OwnerSide, a.triggerPause),
+		registry.Def("trigger_run", "Run now",
+			"Starts the command of a schedule trigger now with its params; its schedule stays, and a run still going is returned.",
+			registry.OwnerSide, a.triggerRun),
+		registry.Def("project_pause", "Pause project",
+			"Pauses or resumes every trigger of a project, including triggers added later.",
+			registry.OwnerSide, a.projectPause),
+	}
 }

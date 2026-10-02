@@ -31,10 +31,14 @@ func (a *App) asksList(ctx context.Context, act registry.Actor, _ struct{}) (any
 	return out, nil
 }
 
-func (a *App) askAnswer(ctx context.Context, act registry.Actor, in struct {
-	Ask                     int64
-	Answer, Reason, Project string
-}) (any, error) {
+type askAnswerIn struct {
+	Ask     int64  `type:"ask" desc:"Ask id"`
+	Answer  string `type:"text" desc:"The answer"`
+	Reason  string `type:"text" opt:"" desc:"Why not, sent with deny to the agent"`
+	Project string `type:"project" opt:"" desc:"The project a suggestion moves to"`
+}
+
+func (a *App) askAnswer(ctx context.Context, act registry.Actor, in askAnswerIn) (any, error) {
 	if in.Reason = strings.TrimSpace(in.Reason); in.Reason != "" && in.Answer == "deny" {
 		in.Answer = "deny:" + in.Reason
 	}
@@ -148,4 +152,18 @@ func (a *App) dismissExpired(ctx context.Context, q db.Ask, answer string) (any,
 	}
 	a.Bus.Publish("asks")
 	return map[string]any{"ok": true}, nil
+}
+
+func (a *App) askCommands() []*registry.Command {
+	return []*registry.Command{
+		registry.Def("asks_list", "Waiting for you",
+			"Lists open questions and confirmations for the owner.",
+			registry.OwnerSide, a.asksList),
+		registry.Def("health_list", "Health",
+			"Lists the health of providers and other dependencies with the last error.",
+			registry.OwnerSide, a.healthList),
+		registry.Def("ask_answer", "Answer",
+			"Answers what waits for the owner: a question with text; a confirmation with allow, allow_always, deny or deny:<reason>; a login with retry or new_session; an unknown outcome with retry or done; a stopped pause with continue; a suggestion with allow, deny, deny:<reason> or move with project. Deny on an expired confirmation clears it.",
+			registry.OwnerOnly, a.askAnswer),
+	}
 }

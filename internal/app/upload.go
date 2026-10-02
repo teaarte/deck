@@ -75,7 +75,13 @@ func (a *App) Upload(ctx context.Context, act registry.Actor, project, name, cty
 // maxTextUpload bounds a file sent inside a command, such as a sample a builder uploads for a trial run.
 const maxTextUpload = 10 << 20
 
-func (a *App) fileUpload(ctx context.Context, act registry.Actor, in struct{ Project, Name, Content string }) (any, error) {
+type fileUploadIn struct {
+	Project string `type:"project" desc:"Project name"`
+	Name    string `desc:"File name with its extension"`
+	Content string `type:"text" desc:"File content in base64"`
+}
+
+func (a *App) fileUpload(ctx context.Context, act registry.Actor, in fileUploadIn) (any, error) {
 	if base64.StdEncoding.DecodedLen(len(in.Content)) > maxTextUpload+3 {
 		return nil, registry.Invalid("deck: a file sent in a command may be at most 10 MB; upload bigger ones with POST /api/files")
 	}
@@ -105,4 +111,12 @@ func (a *App) OpenFile(ctx context.Context, act registry.Actor, id int64) (fileV
 		return fileView{}, nil, missing
 	}
 	return fileView{ID: f.ID, Name: f.Name, Type: f.Type, Size: f.Size, OwnerKind: f.OwnerKind, OwnerID: f.OwnerID, CreatedAt: f.CreatedAt}, file, nil
+}
+
+func (a *App) uploadCommands() []*registry.Command {
+	return []*registry.Command{
+		registry.Def("file_upload", "Upload file",
+			"Uploads a file for a project from base64 text and returns its id for a command input.",
+			registry.OwnerSide, a.fileUpload),
+	}
 }

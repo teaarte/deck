@@ -54,10 +54,17 @@ func (a *App) suggestDays(ctx context.Context, workspace int64) int {
 	return 7
 }
 
-func (a *App) suggest(ctx context.Context, act registry.Actor, in struct {
-	Project, Title, Text, Command, Input, Reason string
-	Record                                       int64
-}) (any, error) {
+type suggestIn struct {
+	Project string `type:"project" opt:"" desc:"Project of the card; the caller's own when omitted"`
+	Title   string `opt:"" desc:"Card title, for a card"`
+	Text    string `type:"text" opt:"" desc:"Card text, markdown"`
+	Record  int64  `type:"record" opt:"" desc:"Record the card works on"`
+	Command string `opt:"" desc:"Command to call instead, project.command"`
+	Input   string `type:"text" opt:"" desc:"Its input as a JSON object"`
+	Reason  string `desc:"Why, in one line the owner reads"`
+}
+
+func (a *App) suggest(ctx context.Context, act registry.Actor, in suggestIn) (any, error) {
 	reason := strings.TrimSpace(in.Reason)
 	switch {
 	case reason == "":
@@ -172,11 +179,7 @@ func (a *App) doSuggestion(ctx context.Context, act registry.Actor, p db.Project
 }
 
 func (a *App) suggestedCard(ctx context.Context, act registry.Actor, c *suggestedCard) (cardView, error) {
-	out, err := a.cardCreate(ctx, act, struct {
-		Project, Title, Text, Lane string
-		Record                     int64
-		Waits                      []int64
-	}{Project: c.Project, Title: c.Title, Text: c.Text, Record: c.Record})
+	out, err := a.cardCreate(ctx, act, cardCreateIn{Project: c.Project, Title: c.Title, Text: c.Text, Record: c.Record})
 	if err != nil {
 		return cardView{}, err
 	}
@@ -250,12 +253,14 @@ func (a *App) suggestionAnswer(ctx context.Context, act registry.Actor, q db.Ask
 	return nil, registry.Invalid("deck: answer a suggestion with allow, deny, deny:<reason> or move with project")
 }
 
+type suggestionsRejectedIn struct {
+	Days int64 `opt:"" desc:"How far back, at most and by default 30 days"`
+}
+
 // suggestionsRejected are the suggestions the owner said no to lately, so a suggester does not make them again;
 // an agent sees those of its own project and those it made.
-func (a *App) suggestionsRejected(ctx context.Context, act registry.Actor, in struct{ Days int64 }) (any, error) {
-	if in.Days <= 0 || in.Days > 30 {
-		in.Days = 30
-	}
+func (a *App) suggestionsRejected(ctx context.Context, act registry.Actor, in suggestionsRejectedIn) (any, error) {
+	in.Days = registry.Limit(in.Days, 30, 30)
 	since := store.Time(a.Cfg.Now().Add(-time.Duration(in.Days) * 24 * time.Hour))
 	rows, err := a.Store.Q.ListRejectedSuggestions(ctx, db.ListRejectedSuggestionsParams{WorkspaceID: act.Workspace, Since: sql.NullString{String: since, Valid: true}})
 	if err != nil {
@@ -299,5 +304,16 @@ func (a *App) expireSuggestions(ctx context.Context, now time.Time) {
 	}
 	if n > 0 {
 		a.Bus.Publish("asks")
+	}
+}
+
+func (a *App) suggestCommands() []*registry.Command {
+	return []*registry.Command{
+		registry.Def("suggest", "Suggest",
+			"Suggests the owner one card for a project or one call of a project command, with the reason; it waits in waiting for you, or is done at once in a project on autonomy auto.",
+			registry.Everyone, a.suggest),
+		registry.Def("suggestions_rejected", "Rejected suggestions",
+			"Lists the suggestions the owner said no to lately, with the reason, so the same is not suggested again.",
+			registry.Everyone, a.suggestionsRejected),
 	}
 }

@@ -41,11 +41,13 @@ func (a *App) confirmTTL(ctx context.Context, workspace int64) time.Duration {
 	return a.Cfg.ConfirmTTL
 }
 
-func (a *App) settingsSet(ctx context.Context, act registry.Actor, in struct {
-	ConfirmHours int64 `json:"confirm_hours"`
-	AgentLimit   int64 `json:"agent_limit"`
-	SuggestDays  int64 `json:"suggest_days"`
-}) (any, error) {
+type settingsSetIn struct {
+	ConfirmHours int64 `json:"confirm_hours" opt:"" desc:"Hours a confirmation waits, 1 to 720"`
+	AgentLimit   int64 `json:"agent_limit" opt:"" desc:"Agent processes at once, 1 to 20; more wait for a slot"`
+	SuggestDays  int64 `json:"suggest_days" opt:"" desc:"Days a suggestion waits before it expires, 1 to 90"`
+}
+
+func (a *App) settingsSet(ctx context.Context, act registry.Actor, in settingsSetIn) (any, error) {
 	switch {
 	case in.ConfirmHours == 0 && in.AgentLimit == 0 && in.SuggestDays == 0:
 		return nil, registry.Invalid("deck: give confirm_hours, agent_limit or suggest_days")
@@ -86,5 +88,13 @@ func (a *App) settingItems(ctx context.Context, workspace int64) []map[string]an
 			"value": a.agentSlots(ctx, workspace), "default": agentLimit},
 		{"id": "suggest_days", "name": "suggest_days", "title": "Days a suggestion waits for the owner before it expires",
 			"value": a.suggestDays(ctx, workspace), "default": 7},
+	}
+}
+
+func (a *App) settingsCommands() []*registry.Command {
+	return []*registry.Command{
+		registry.Def("settings_set", "Change settings",
+			"Sets how long a confirmation and a suggestion wait for the owner and how many agent processes run at once; an omitted one stays.",
+			registry.OwnerOnly, a.settingsSet),
 	}
 }

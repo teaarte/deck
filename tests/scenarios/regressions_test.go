@@ -138,7 +138,10 @@ func TestAnswerSavedBeforeRestartReachesParkedProcess(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`{"written": 0}`)}
 	}}
 	e2 := restartEnv(t, home, fake2)
-	if _, err := e2.App.Store.Q.AnswerAsk(context.Background(), db.AnswerAskParams{Answer: "rust", ID: a.ID}); err != nil {
+	if err := e2.App.Store.Tx(context.Background(), func(ctx context.Context, q *db.Queries) error {
+		_, err := q.AnswerAsk(ctx, db.AnswerAskParams{Answer: "rust", ID: a.ID})
+		return err
+	}); err != nil {
 		t.Fatal(err)
 	}
 	if err := e2.App.Runner.ResumeInterrupted(context.Background()); err != nil {

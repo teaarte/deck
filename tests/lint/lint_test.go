@@ -32,7 +32,6 @@ func TestChecksCatchViolations(t *testing.T) {
 		`core.go:8: requirement reference "FR-12"`,
 		`core.go:11: vertical name "vacanc"`,
 		`core.go:13: reasoning word "We"`,
-		`core.go:19: write ".Q.FinishProcess" outside Store.Tx`,
 		"web/app.ts:1: comment block of 3 lines",
 		"web/index.html:3: comment block of 3 lines",
 		`web/index.html:4: vertical name "vacanc"`,
@@ -41,7 +40,7 @@ func TestChecksCatchViolations(t *testing.T) {
 			t.Errorf("missing violation %q in:\n%s", want, all)
 		}
 	}
-	if len(vs) != 8 {
-		t.Errorf("want exactly 8 violations, got %d:\n%s", len(vs), all)
+	if len(vs) != 7 {
+		t.Errorf("want exactly 7 violations, got %d:\n%s", len(vs), all)
 	}
 }

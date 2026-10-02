@@ -1,6 +1,7 @@
 package scenarios
 
 import (
+	"context"
 	"encoding/json"
 	"slices"
 	"strings"
@@ -270,7 +271,7 @@ func TestSettingsHealthShowsWhatIsRedFirstWithWhy(t *testing.T) {
 	ctx := t.Context()
 	for _, h := range []db.SetHealthParams{{Subject: "mcp:web.search", Status: "ok"}, {Subject: "tool:web.fetch", Status: "error", Error: "the server exited: 1"},
 		{Subject: "provider:elsewhere", Status: "error", Error: "a provider of another workspace"}} {
-		if err := e.App.Store.Q.SetHealth(ctx, h); err != nil {
+		if err := e.App.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error { return q.SetHealth(ctx, h) }); err != nil {
 			t.Fatal(err)
 		}
 	}

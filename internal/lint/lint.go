@@ -17,7 +17,6 @@ var (
 	reasoning    = regexp.MustCompile(`(?i)\b(we|let's|i think|note that|basically|actually|obviously|for now|hack|in order to|probably|seems|i guess|turns out)\b`)
 	verticals    = regexp.MustCompile(`(?i)vacanc|forecast|mailbox|brier|recruit`)
 	verticalFree = []string{"tests/", "examples/", "internal/tools/"}
-	sharedWrite  = regexp.MustCompile(`\.Q\.(Create|Set|Claim|Finish|Answer|Mark|Expire|Close|Consume|Use|Log|Upsert|Delete|Add|Update|Place|Restore|Purge)\w*\(`)
 )
 
 type Violation struct {
@@ -29,7 +28,7 @@ type Violation struct {
 func (v Violation) String() string { return fmt.Sprintf("%s:%d: %s", v.File, v.Line, v.Text) }
 
 // Check scans code under root for long comment blocks, requirement references and reasoning words in
-// comments, writes through Store.Q, and vertical names outside built-in tools and test fixtures.
+// comments, and vertical names outside built-in tools and test fixtures.
 func Check(root string) ([]Violation, error) {
 	var out []Violation
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
@@ -55,13 +54,6 @@ func Check(root string) ([]Violation, error) {
 			return nil
 		}
 		out = append(out, checkComments(rel, string(src))...)
-		if filepath.Ext(rel) == ".go" && !strings.HasSuffix(rel, "_test.go") {
-			for i, line := range strings.Split(string(src), "\n") {
-				if m := sharedWrite.FindString(line); m != "" {
-					out = append(out, Violation{rel, i + 1, fmt.Sprintf("write %q outside Store.Tx", strings.TrimSuffix(m, "("))})
-				}
-			}
-		}
 		if !strings.HasSuffix(rel, "_test.go") && !slices.ContainsFunc(verticalFree, func(p string) bool { return strings.HasPrefix(rel, p) }) {
 			for i, line := range strings.Split(string(src), "\n") {
 				if m := verticals.FindString(line); m != "" {

@@ -2,6 +2,7 @@ package scenarios
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -44,7 +45,10 @@ func TestOtherWorkspacesAreInvisible(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, name := range []string{"theirs", "mine"} {
-		if _, err := e.App.Store.Q.CreateProject(ctx, db.CreateProjectParams{WorkspaceID: 2, Name: name, Status: "enabled"}); err != nil {
+		if err := e.App.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+			_, err := q.CreateProject(ctx, db.CreateProjectParams{WorkspaceID: 2, Name: name, Status: "enabled"})
+			return err
+		}); err != nil {
 			t.Fatalf("a project name is taken only in its own workspace: %v", err)
 		}
 	}
@@ -124,4 +128,15 @@ func TestAHomeWithAQuestionMarkOrAHashKeepsTheDatabaseInside(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(home, "deck.db")); err != nil {
 		t.Fatalf("the database lives in the home of deck: %v", err)
 	}
+}
+
+// TestAWriteOutsideATransactionFailsLoudly: every write runs in Store.Tx; one through the shared queries panics.
+func TestAWriteOutsideATransactionFailsLoudly(t *testing.T) {
+	e := newEnv(t, nil)
+	defer func() {
+		if p := recover(); p == nil || !strings.Contains(fmt.Sprint(p), "outside a transaction") {
+			t.Fatalf("a write through Store.Q panics: %v", p)
+		}
+	}()
+	_ = e.App.Store.Q.SetHealth(context.Background(), db.SetHealthParams{Subject: "x", Status: "ok"})
 }

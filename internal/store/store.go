@@ -39,8 +39,8 @@ const DefaultWorkspace = 1
 
 type txKey struct{}
 
-// guard fails loudly when code inside a transaction queries through the shared connection, which would
-// wait forever for the connection the transaction holds.
+// guard fails loudly when code queries through the shared connection inside a transaction, which would wait
+// forever for the connection the transaction holds, or writes through it outside one.
 type guard struct{ db *sql.DB }
 
 func check(ctx context.Context) {
@@ -49,23 +49,43 @@ func check(ctx context.Context) {
 	}
 }
 
-func (g guard) ExecContext(ctx context.Context, q string, a ...any) (sql.Result, error) {
+func checkRead(ctx context.Context, q string) {
 	check(ctx)
+	if write(q) {
+		panic("store: write through Store.Q outside a transaction; use Store.Tx: " + strings.SplitN(q, "\n", 2)[0])
+	}
+}
+
+// write reports whether a statement changes the base, past the comment lines sqlc puts first.
+func write(q string) bool {
+	for _, line := range strings.Split(q, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "--") {
+			continue
+		}
+		verb, _, _ := strings.Cut(strings.ToUpper(line), " ")
+		return verb == "INSERT" || verb == "UPDATE" || verb == "DELETE" || verb == "REPLACE"
+	}
+	return false
+}
+
+func (g guard) ExecContext(ctx context.Context, q string, a ...any) (sql.Result, error) {
+	checkRead(ctx, q)
 	return g.db.ExecContext(ctx, q, a...)
 }
 
 func (g guard) PrepareContext(ctx context.Context, q string) (*sql.Stmt, error) {
-	check(ctx)
+	checkRead(ctx, q)
 	return g.db.PrepareContext(ctx, q)
 }
 
 func (g guard) QueryContext(ctx context.Context, q string, a ...any) (*sql.Rows, error) {
-	check(ctx)
+	checkRead(ctx, q)
 	return g.db.QueryContext(ctx, q, a...)
 }
 
 func (g guard) QueryRowContext(ctx context.Context, q string, a ...any) *sql.Row {
-	check(ctx)
+	checkRead(ctx, q)
 	return g.db.QueryRowContext(ctx, q, a...)
 }
 

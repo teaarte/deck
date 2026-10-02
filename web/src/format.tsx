@@ -24,7 +24,10 @@ const ISO = /^\d{4}-\d\d-\d\d([T ]\d\d:\d\d(:\d\d(\.\d+)?)?(Z|[+-]\d\d:?\d\d)?)?
 const when = (v: unknown): Date | undefined => {
   if (typeof v !== 'string' || !ISO.test(v)) return undefined;
   const d = new Date(v);
-  return isNaN(d.getTime()) ? undefined : d;
+  if (isNaN(d.getTime())) return undefined;
+  const [y, m, day] = v.slice(0, 10).split('-').map(Number);
+  const real = new Date(Date.UTC(y, m - 1, day));
+  return real.getUTCMonth() === m - 1 && real.getUTCDate() === day ? d : undefined;
 };
 
 const STEPS: [Intl.RelativeTimeFormatUnit, number][] = [['second', 60], ['minute', 60], ['hour', 24], ['day', 7], ['week', 4.35], ['month', 12], ['year', Infinity]];
@@ -39,7 +42,9 @@ export function relative(d: Date, now: number): string {
 }
 
 function duration(s: number): string {
-  const parts: [number, string][] = [[Math.floor(s / 86400), 'day'], [Math.floor(s / 3600) % 24, 'hour'], [Math.floor(s / 60) % 60, 'minute'], [Math.round(s % 60), 'second']];
+  if (s < 0) return '−' + duration(-s);
+  s = Math.round(s);
+  const parts: [number, string][] = [[Math.floor(s / 86400), 'day'], [Math.floor(s / 3600) % 24, 'hour'], [Math.floor(s / 60) % 60, 'minute'], [s % 60, 'second']];
   const kept = parts.filter(([n]) => n > 0).slice(0, 2);
   if (!kept.length) kept.push([0, 'second']);
   return kept.map(([n, unit]) => new Intl.NumberFormat(undefined, { style: 'unit', unit, unitDisplay: 'short' }).format(n)).join(' ');

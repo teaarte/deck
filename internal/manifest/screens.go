@@ -9,6 +9,8 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+
+	xcurrency "golang.org/x/text/currency"
 )
 
 // RecordUpdate is the command a form on a record page edits its record with.
@@ -97,6 +99,9 @@ func (c *screenCheck) block(where string, b Block) {
 		for _, f := range b.Fields {
 			if _, err := compileField(f.Bind, fields); err != nil {
 				c.fail("%s field %q: %v", where, f.Label, err)
+			}
+			if f.Markdown && (f.Format != "" || f.Tone != "") {
+				c.fail("%s field %q: a markdown field shows its text as markdown and takes no format or tone", where, f.Label)
 			}
 			c.format(fmt.Sprintf("%s field %q", where, f.Label), f.Format, f.Currency)
 			c.tone(fmt.Sprintf("%s field %q", where, f.Label), f.Tone, fields)
@@ -190,6 +195,10 @@ func (c *screenCheck) format(where, format, currency string) {
 		c.fail("%s: format money needs currency, an ISO 4217 code such as USD", where)
 	case format != "money" && currency != "":
 		c.fail("%s: currency goes with format money", where)
+	case currency != "":
+		if _, err := xcurrency.ParseISO(currency); err != nil {
+			c.fail("%s: currency %q is not an ISO 4217 code", where, currency)
+		}
 	}
 }
 

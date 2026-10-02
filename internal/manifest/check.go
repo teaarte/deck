@@ -227,9 +227,12 @@ func (m *Manifest) checkAction(a Action) error {
 	}
 	_ = json.Unmarshal(c.InputSchema(), &in)
 	for _, r := range in.Required {
-		if _, ok := a.Params[r]; !ok {
+		if _, ok := a.Params[r]; !ok && r != a.Input {
 			return fmt.Errorf("command %q needs param %q", a.Command, r)
 		}
+	}
+	if _, ok := in.Properties[a.Input]; a.Input != "" && !ok {
+		return fmt.Errorf("command %q has no input field %q", a.Command, a.Input)
 	}
 	for k := range a.Params {
 		if _, ok := in.Properties[k]; !ok {

@@ -211,7 +211,9 @@ type Block struct {
 	// Value is the expression of a stat block over rows, the items of its source.
 	Value   string   `json:"value,omitempty"`
 	Actions []Action `json:"actions,omitempty"`
-	Blocks  []Block  `json:"blocks,omitempty"`
+	// ActionsFrom is a field of an item with buttons of its own: label, command with its project, params.
+	ActionsFrom string  `json:"actions_from,omitempty"`
+	Blocks      []Block `json:"blocks,omitempty"`
 	Tabs    []Tab    `json:"tabs,omitempty"`
 	// Filter names the fields of a table or list the owner narrows it by.
 	Filter []string `json:"filter,omitempty"`
@@ -236,6 +238,9 @@ type Item struct {
 	Title string `json:"title"`
 	Text  string `json:"text,omitempty"`
 	Meta  string `json:"meta,omitempty"`
+	// Details is text shown in full on demand; Questions are questions the owner answers in a picker.
+	Details   string `json:"details,omitempty"`
+	Questions string `json:"questions,omitempty"`
 	// Markdown says the text of each line is markdown.
 	Markdown bool `json:"markdown,omitempty"`
 }
@@ -267,12 +272,27 @@ type Column struct {
 	Markdown bool `json:"markdown,omitempty"`
 }
 
-// Action is a button: a command call, or with Screen a move to that screen of the project.
+// Action is a button. Params, Screen, Record, Project, File and Until take a fixed value, "$record.<field>"
+// or "=<expression>" over the item the button is on.
 type Action struct {
-	Label   string            `json:"label"`
+	// Label is the text of the button; Verb names a built-in label the client translates.
+	Label   string            `json:"label,omitempty"`
+	Verb    string            `json:"verb,omitempty"`
 	Command string            `json:"command,omitempty"`
 	Screen  string            `json:"screen,omitempty"`
 	Params  map[string]string `json:"params,omitempty"`
+	// Record is the record a move to a screen opens, the item by default; Project the project of that screen.
+	Record  string `json:"record,omitempty"`
+	Project string `json:"project,omitempty"`
+	// File is a stored file the button downloads instead.
+	File string `json:"file,omitempty"`
+	// When shows the button only on the items it holds for; Until is the time after which it is gone.
+	When  string `json:"when,omitempty"`
+	Until string `json:"until,omitempty"`
+	// Input is the param the owner types before the call; Confirm asks the owner first.
+	Input   string `json:"input,omitempty"`
+	Confirm bool   `json:"confirm,omitempty"`
+	Primary bool   `json:"primary,omitempty"`
 }
 
 var CronParser = cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor)

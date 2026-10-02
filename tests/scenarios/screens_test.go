@@ -286,7 +286,8 @@ func TestInvalidScreenIsRefusedWithItsReason(t *testing.T) {
 		{`"record": "notes"`, `"record": "papers"`, `record: unknown collection "papers"`},
 		{`"where": "score > record.score"`, `"where": "score > rec.score"`, `unknown field "rec"`},
 		{`{"label": "Open", "screen": "note"}`, `{"label": "Open", "screen": "nowhere"}`, `unknown screen "nowhere"`},
-		{`{"label": "Open", "screen": "note"}`, `{"label": "Open"}`, `a button has a command or a screen`},
+		{`{"label": "Open", "screen": "note"}`, `{"label": "Open"}`, `a button has a command, a screen or a file`},
+		{`{"label": "Open", "screen": "note"}`, `{"label": "Open", "screen": "note", "when": "scor > 1"}`, `when: unknown field "scor"`},
 		{`"item": {"title": "title", "meta": "'score ' + string(score)"}`, `"title": "x"`, `missing property 'item'`},
 		{`{"type": "tabs", "title": "Views", "tabs": [`, `{"type": "tabs", "blocks": [{"type": "stat", "source": {"collection": "notes"}}], "tabs": [`, `additional properties 'blocks' not allowed`},
 		{`{"type": "columns", "blocks": [`, `{"type": "columns", "tabs": [{"title": "x", "blocks": []}], "blocks": [`, `additional properties 'tabs' not allowed`},
@@ -588,5 +589,38 @@ func TestButtonsOfARecordPageFollowTheRecordAfterAnEvent(t *testing.T) {
 	e.must("deck.records_upsert", map[string]any{"project": "notes", "collection": "notes", "records": jsonl(map[string]any{"title": "alpha", "score": 9})}, nil)
 	if got := fmt.Sprint(score("collection")); got != "9" {
 		t.Fatalf("after a change of the record its buttons are read again with the rest: %v", got)
+	}
+}
+
+// TestAModuleButtonShowsWhereItHoldsAndTakesValuesFromTheRow: a button of a module screen shows only on the rows
+// its when holds for, takes a param from an expression over the row, asks first or asks for a typed value.
+func TestAModuleButtonShowsWhereItHoldsAndTakesValuesFromTheRow(t *testing.T) {
+	e := newEnv(t, nil)
+	e.createProject("notes", `{"version": 5,
+  "collections": [{"name": "notes", "description": "Notes", "key": "title", "display": "title",
+    "schema": {"type": "object", "properties": {"title": {"type": "string"}, "score": {"type": "integer"}}, "required": ["title"]}}],
+  "commands": [{"name": "touch", "title": "Touch", "description": "Touches a note.", "class": "internal", "result": {"type": "object"},
+    "input": {"type": "object", "properties": {"note": {"type": "integer", "format": "record"}, "score": {"type": "string"}}, "required": ["note"]},
+    "executor": {"type": "agent", "prompt": "Touch."}}],
+  "screens": [{"name": "main", "title": "Notes", "blocks": [{"type": "table", "title": "Notes", "source": {"collection": "notes", "sort": "title"},
+    "columns": [{"label": "Title", "bind": "title"}],
+    "actions": [{"label": "Boost", "command": "touch", "params": {"note": "$record.id", "score": "=string(score * 2)"}, "when": "score >= 5", "confirm": true},
+      {"label": "Rate", "command": "touch", "params": {"note": "$record.id"}, "input": "score"}]}]}]}`)
+	e.must("deck.records_upsert", map[string]any{"project": "notes", "collection": "notes",
+		"records": jsonl(map[string]any{"title": "a", "score": 1}, map[string]any{"title": "b", "score": 7})}, nil)
+	rows := blockData[[]screenRow](t, e.screenData("notes", "main", nil)["b0"]["rows"])
+	if len(rows) != 2 || len(rows[0].Actions) != 1 || rows[0].Actions[0]["label"] != "Rate" || rows[0].Actions[0]["input"] != "score" {
+		t.Fatalf("a button whose when does not hold is not on the row; the other asks for its input: %+v", rows)
+	}
+	boost := rows[1].Actions[0]
+	params, _ := boost["params"].(map[string]any)
+	if boost["label"] != "Boost" || boost["confirm"] != true || boost["command"] != "notes.touch" || params["score"] != "14" || params["note"] != rows[1].ID {
+		t.Fatalf("a button takes a param from an expression over the row and asks first: %+v", boost)
+	}
+	var cur struct{ Manifest string }
+	e.must("deck.manifest_get", map[string]any{"project": "notes"}, &cur)
+	if code, out := e.call("deck.manifest_save", map[string]any{"project": "notes", "manifest": strings.Replace(cur.Manifest,
+		`"=string(score * 2)"`, `"=string(scor * 2)"`, 1)}); code != 422 || !strings.Contains(string(out), `param "score": unknown field "scor"`) {
+		t.Fatalf("an expression of a param reads fields of the row: %d %s", code, out)
 	}
 }

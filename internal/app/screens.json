@@ -6,16 +6,47 @@
       "title": "Cockpit",
       "blocks": [
         {"type": "list", "title": "Waiting for you", "source": {"from": "deck.asks_list"},
-          "item": {"title": "what", "text": "where", "meta": "project + (who != '' ? ' · ' + who : '')"}},
+          "item": {"title": "what", "text": "where", "meta": "project + (who != '' ? ' · ' + who : '')",
+            "details": "kind in ['call', 'unknown', 'confirm', 'grant', 'suggest'] ? toJSON(payload) : ''",
+            "questions": "kind == 'question' && len(payload?.questions ?? []) > 0 ? payload.questions : nil"},
+          "actions": [
+            {"verb": "answer", "primary": true, "command": "deck.ask_answer", "params": {"ask": "$record.id"}, "input": "answer", "when": "kind == 'question' && !expired"},
+            {"verb": "retry", "primary": true, "command": "deck.ask_answer", "params": {"ask": "$record.id", "answer": "retry"}, "when": "kind == 'unknown' && !expired"},
+            {"verb": "mark_done", "command": "deck.ask_answer", "params": {"ask": "$record.id", "answer": "done"}, "when": "kind == 'unknown' && !expired"},
+            {"verb": "allow", "primary": true, "command": "deck.ask_answer", "params": {"ask": "$record.id", "answer": "allow"}, "until": "$record.expires_at", "when": "kind in ['call', 'confirm', 'grant'] && !expired"},
+            {"verb": "allow_always", "command": "deck.ask_answer", "params": {"ask": "$record.id", "answer": "allow_always"}, "until": "$record.expires_at", "when": "kind == 'call' && !expired"},
+            {"verb": "yes", "primary": true, "command": "deck.ask_answer", "params": {"ask": "$record.id", "answer": "allow"}, "when": "kind == 'suggest' && !expired"},
+            {"verb": "deny", "command": "deck.ask_answer", "params": {"ask": "$record.id", "answer": "deny"}, "when": "kind in ['call', 'confirm', 'grant', 'suggest'] && !expired"},
+            {"verb": "deny_because", "command": "deck.ask_answer", "params": {"ask": "$record.id", "answer": "deny"}, "input": "reason", "when": "kind in ['call', 'confirm', 'grant', 'suggest'] && !expired"},
+            {"verb": "move", "command": "deck.ask_answer", "params": {"ask": "$record.id", "answer": "move"}, "input": "project", "when": "kind == 'suggest' && payload?.card != nil && !expired"},
+            {"verb": "retry", "primary": true, "command": "deck.ask_answer", "params": {"ask": "$record.id", "answer": "retry"}, "when": "kind == 'login' && !expired"},
+            {"verb": "new_session", "command": "deck.ask_answer", "params": {"ask": "$record.id", "answer": "new_session"}, "when": "kind == 'login' && !expired"},
+            {"verb": "continue", "primary": true, "command": "deck.ask_answer", "params": {"ask": "$record.id", "answer": "continue"}, "when": "kind == 'limit' && !expired"},
+            {"verb": "sign_in", "primary": true, "command": "deck.browser_login", "params": {"url": "='https://' + payload.site"}, "when": "kind == 'sign_in' && (payload?.site ?? '') != '' && !expired"},
+            {"verb": "signed_in", "command": "deck.browser_login_done", "params": {"url": "='https://' + payload.site"}, "when": "kind == 'sign_in' && (payload?.site ?? '') != '' && !expired"},
+            {"verb": "sign_in", "primary": true, "command": "deck.oauth_start", "params": {"tool": "=payload?.tool ?? ''"}, "when": "kind == 'sign_in' && (payload?.site ?? '') == '' && !expired"},
+            {"verb": "dismiss", "primary": true, "command": "deck.ask_answer", "params": {"ask": "$record.id", "answer": "ok"}, "when": "kind == 'warning' && !expired"},
+            {"verb": "deny", "primary": true, "command": "deck.ask_answer", "params": {"ask": "$record.id", "answer": "deny"}, "when": "expired"}
+          ]},
         {"type": "columns", "blocks": [
           {"type": "list", "title": "Running now",
             "source": {"from": "deck.processes_list", "input": {"open": true}},
-            "item": {"title": "project + '.' + command", "text": "silent ? 'silent' : state == 'waiting_slot' ? 'waits for a slot' : state == 'waiting_folder' ? 'waits for folder ' + folder : state", "meta": "'#' + string(id)"}},
+            "item": {"title": "project + '.' + command", "text": "silent ? 'silent' : state == 'waiting_slot' ? 'waits for a slot' : state == 'waiting_folder' ? 'waits for folder ' + folder : state", "meta": "'#' + string(id)"},
+            "actions": [
+              {"verb": "open", "screen": "process", "record": "$record.id"},
+              {"verb": "stop", "command": "deck.process_stop", "params": {"process": "$record.id"}, "when": "(finished_at ?? '') == ''"}
+            ]},
           {"type": "list", "title": "Done without you", "source": {"from": "deck.unattended_list", "limit": 10},
-            "item": {"title": "text", "meta": "project + ' · ' + author"}}
+            "item": {"title": "text", "meta": "project + ' · ' + author"},
+            "actions": [
+              {"verb": "undo", "command": "deck.unattended_undo", "params": {"entry": "$record.id"}, "when": "can_undo"}
+            ]}
         ]},
         {"type": "list", "title": "Notifications", "source": {"from": "deck.notifications_list", "limit": 20},
-          "item": {"title": "text", "meta": "project + ' · ' + created_at"}}
+          "item": {"title": "text", "meta": "project + ' · ' + created_at"}, "actions_from": "buttons",
+          "actions": [
+            {"verb": "open", "screen": "$record.screen", "project": "$record.project", "record": "=record != 0 ? record : nil", "when": "screen != ''"}
+          ]}
       ]
     },
     {
@@ -30,12 +61,27 @@
             {"label": "Next run", "bind": "next_run_at"},
             {"label": "Last result", "bind": "last_state"},
             {"label": "State", "bind": "project_paused ? 'project paused' : paused ? 'paused' : 'on'"}
+          ],
+          "actions": [
+            {"verb": "run_now", "command": "deck.trigger_run", "params": {"trigger": "$record.id"}, "when": "kind in ['cron', 'once']"},
+            {"verb": "cancel_run", "command": "deck.run_later_cancel", "params": {"trigger": "$record.id"}, "when": "kind == 'once'"},
+            {"verb": "resume", "command": "deck.trigger_pause", "params": {"trigger": "$record.id", "paused": "false"}, "when": "kind != 'once' && own_paused"},
+            {"verb": "pause", "command": "deck.trigger_pause", "params": {"trigger": "$record.id", "paused": "true"}, "when": "kind != 'once' && !own_paused"},
+            {"verb": "open", "screen": "process", "record": "$record.last_process", "when": "last_process != 0"}
           ]},
         {"type": "table", "title": "Projects", "source": {"from": "deck.projects_list"},
           "columns": [
             {"label": "Project", "bind": "name"},
             {"label": "Status", "bind": "status"},
             {"label": "Triggers", "bind": "paused ? 'paused' : 'on'"}
+          ],
+          "actions": [
+            {"verb": "enable", "primary": true, "command": "deck.project_enable", "params": {"project": "$record.name", "revision": "$record.revision"}, "when": "manifest_error == '' && status == 'draft'"},
+            {"verb": "autonomy_auto", "command": "deck.project_autonomy", "params": {"project": "$record.name", "autonomy": "auto"}, "when": "manifest_error == '' && autonomy != 'auto'"},
+            {"verb": "autonomy_suggest", "command": "deck.project_autonomy", "params": {"project": "$record.name", "autonomy": "suggest"}, "when": "manifest_error == '' && autonomy == 'auto'"},
+            {"verb": "pause", "command": "deck.project_pause", "params": {"project": "$record.name", "paused": "true"}, "when": "!paused"},
+            {"verb": "resume", "command": "deck.project_pause", "params": {"project": "$record.name", "paused": "false"}, "when": "paused"},
+            {"verb": "delete", "confirm": true, "command": "deck.project_delete", "params": {"project": "$record.name"}, "when": "!builtin"}
           ]},
         {"type": "table", "title": "History", "source": {"from": "deck.processes_list", "input": {"limit": 100}, "sort": "-id"}, "filter": ["project", "state"],
           "columns": [
@@ -44,6 +90,10 @@
             {"label": "Command", "bind": "command"},
             {"label": "State", "bind": "state"},
             {"label": "Started", "bind": "started_at"}
+          ],
+          "actions": [
+            {"verb": "open", "screen": "process", "record": "$record.id"},
+            {"verb": "stop", "command": "deck.process_stop", "params": {"process": "$record.id"}, "when": "(finished_at ?? '') == ''"}
           ]}
       ]
     },
@@ -55,7 +105,15 @@
           {"title": "Projects", "blocks": [
             {"type": "list", "title": "Projects", "source": {"from": "deck.projects_list", "sort": "name"}, "filter": ["status"],
               "item": {"title": "name + ' · ' + status + (paused ? ', paused' : '')", "text": "manifest_error != '' ? 'manifest: ' + manifest_error : description",
-                "meta": "'autonomy: ' + autonomy + (no_network ? ' · no network' : '') + (len(folders) > 0 ? ' · folders: ' + join(map(folders, .name + ': ' + .path), '; ') : '') + (len(rights) > 0 ? ' · enabling grants: ' + join(rights, '; ') : '')"}},
+                "meta": "'autonomy: ' + autonomy + (no_network ? ' · no network' : '') + (len(folders) > 0 ? ' · folders: ' + join(map(folders, .name + ': ' + .path), '; ') : '') + (len(rights) > 0 ? ' · enabling grants: ' + join(rights, '; ') : '')"},
+              "actions": [
+                {"verb": "enable", "primary": true, "command": "deck.project_enable", "params": {"project": "$record.name", "revision": "$record.revision"}, "when": "manifest_error == '' && status == 'draft'"},
+                {"verb": "autonomy_auto", "command": "deck.project_autonomy", "params": {"project": "$record.name", "autonomy": "auto"}, "when": "manifest_error == '' && autonomy != 'auto'"},
+                {"verb": "autonomy_suggest", "command": "deck.project_autonomy", "params": {"project": "$record.name", "autonomy": "suggest"}, "when": "manifest_error == '' && autonomy == 'auto'"},
+                {"verb": "pause", "command": "deck.project_pause", "params": {"project": "$record.name", "paused": "true"}, "when": "!paused"},
+                {"verb": "resume", "command": "deck.project_pause", "params": {"project": "$record.name", "paused": "false"}, "when": "paused"},
+                {"verb": "delete", "confirm": true, "command": "deck.project_delete", "params": {"project": "$record.name"}, "when": "!builtin"}
+              ]},
             {"type": "form", "title": "Create project", "command": "deck.project_create"},
             {"type": "form", "title": "Import project", "command": "deck.project_import"},
             {"type": "form", "title": "Add folder", "command": "deck.folder_add"},
@@ -73,6 +131,10 @@
                 {"label": "Self-check", "bind": "verdict == 'model' ? 'the model does not manage it' : verdict == 'adapter' ? 'the adapter is broken' : ''"},
                 {"label": "Tokens/s", "bind": "speed > 0 ? string(int(speed)) : ''"},
                 {"label": "Error", "bind": "error"}
+              ],
+              "actions": [
+                {"verb": "check", "command": "deck.provider_check", "params": {"provider": "$record.name"}, "when": "self_check"},
+                {"verb": "remove", "confirm": true, "command": "deck.provider_remove", "params": {"name": "$record.name"}, "when": "!builtin"}
               ]},
             {"type": "form", "title": "Add a provider", "command": "deck.provider_add",
               "choices": {"key_secret": {"source": {"from": "deck.secrets_list"}, "value": "name"}}},
@@ -93,6 +155,9 @@
                 {"label": "Commands", "bind": "join(commands, ', ')"},
                 {"label": "Created", "bind": "created_at"},
                 {"label": "State", "bind": "revoked ? 'revoked' : 'live'"}
+              ],
+              "actions": [
+                {"verb": "revoke", "confirm": true, "command": "deck.token_revoke", "params": {"token": "$record.id"}, "when": "!revoked"}
               ]},
             {"type": "form", "title": "Create a token", "command": "deck.token_create",
               "choices": {"commands": {"source": {"from": "deck.commands_list", "sort": "name"}, "value": "name"}}}
@@ -115,6 +180,9 @@
                 {"label": "Why", "bind": "error"},
                 {"label": "Version", "bind": "version"},
                 {"label": "Since", "bind": "updated_at"}
+              ],
+              "actions": [
+                {"verb": "check", "command": "deck.provider_check", "params": {"provider": "=trimPrefix(subject, 'provider:')"}, "when": "self_check"}
               ]}
           ]}
         ]}
@@ -136,6 +204,9 @@
                 {"label": "Outcome", "bind": "outcome"},
                 {"label": "External id", "bind": "external_id"},
                 {"label": "Error", "bind": "error"}
+              ],
+              "actions": [
+                {"verb": "open", "screen": "process", "record": "$record.process", "when": "process != 0"}
               ]}
           ]},
           {"title": "Spend", "blocks": [
@@ -162,6 +233,9 @@
                 {"label": "Size", "bind": "size"},
                 {"label": "Belongs to", "bind": "owner_kind + ' #' + string(owner_id)"},
                 {"label": "Added", "bind": "created_at"}
+              ],
+              "actions": [
+                {"verb": "download", "file": "$record.id"}
               ]}
           ]},
           {"title": "Snapshots", "blocks": [
@@ -196,6 +270,11 @@
           {"label": "Started", "bind": "started_at"},
           {"label": "Error", "bind": "error"},
           {"label": "Open in a terminal", "bind": "terminal ?? ''"}
+        ],
+        "actions": [
+          {"verb": "stop", "command": "deck.process_stop", "params": {"process": "$record.id"}, "when": "(finished_at ?? '') == ''"},
+          {"verb": "rework", "primary": true, "command": "deck.process_rework", "params": {"process": "$record.id"}, "input": "remark", "when": "kind == 'agent' && (session_id ?? '') != '' && (finished_at ?? '') != ''"},
+          {"verb": "tell", "command": "deck.process_tell", "params": {"process": "$record.id"}, "input": "text", "when": "kind == 'agent' && (finished_at ?? '') == ''"}
         ]},
         {"type": "log", "title": "Log", "source": {"from": "deck.process_log", "input": {"process": "$record.id"}}}
       ]
@@ -218,6 +297,11 @@
             {"label": "Belongs to", "bind": "owner_kind != '' ? owner_kind + ' #' + string(owner_id) : ''"},
             {"label": "Revision", "bind": "revision"},
             {"label": "Deleted", "bind": "deleted ? 'deleted' : ''"}
+          ],
+          "actions": [
+            {"verb": "restore", "command": "deck.document_restore", "params": {"document": "$record.id"}, "when": "deleted"},
+            {"verb": "open", "screen": "document", "record": "$record.id", "when": "!deleted"},
+            {"verb": "delete", "confirm": true, "command": "deck.document_delete", "params": {"document": "$record.id"}, "when": "!deleted && kind != 'manifest' && !(kind == 'prompt' && owner_kind == '')"}
           ]}
       ]
     },

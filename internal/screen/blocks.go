@@ -144,7 +144,7 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 			}
 			fields = append(fields, field)
 		}
-		acts := append(r.actions(b.Actions, r.req.Record, r.record), passActions(r.record)...)
+		acts := r.actions(b.Actions, r.req.Record, r.record)
 		return map[string]any{"state": "ready", "value": map[string]any{"fields": fields, "actions": acts}}, nil
 	}
 	items, filters, err := r.filtered(*b.Source, b.Filter, r.req.Filter[id])
@@ -205,9 +205,16 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 			if _, ok := line["title"]; !ok {
 				line["title"] = ""
 			}
-			for _, k := range []string{"details", "questions"} {
-				if v, ok := it["_"+k]; ok {
-					line[k] = v
+			for key, e := range map[string]string{"details": b.Item.Details, "questions": b.Item.Questions} {
+				if e == "" {
+					continue
+				}
+				v, err := manifest.Eval(e, it)
+				if err != nil {
+					return nil, fmt.Errorf("item %s: %w", key, err)
+				}
+				if v != nil && v != "" {
+					line[key] = v
 				}
 			}
 			lines = append(lines, line)

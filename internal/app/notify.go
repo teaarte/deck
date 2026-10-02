@@ -91,7 +91,8 @@ type notificationsListIn struct {
 	Limit   int64  `opt:"" desc:"At most this many, newest first"`
 }
 
-// notificationRow is a line of the feed of the cockpit with the screen it opens and its buttons.
+// notificationRow is a line of the feed of the cockpit with the screen it opens and its buttons, whose commands
+// carry the name of the project.
 type notificationRow struct {
 	ID        int64          `json:"id"`
 	Project   string         `json:"project"`
@@ -121,6 +122,9 @@ func (a *App) notificationsList(ctx context.Context, act registry.Actor, in noti
 		r := notificationRow{ID: n.ID, Project: names[n.ProjectID], Text: n.Text, Screen: n.Screen, Record: n.RecordID.Int64,
 			Buttons: []notifyButton{}, CreatedAt: n.CreatedAt}
 		_ = json.Unmarshal([]byte(n.Actions), &r.Buttons)
+		for i := range r.Buttons {
+			r.Buttons[i].Command = r.Project + "." + r.Buttons[i].Command
+		}
 		out = append(out, r)
 	}
 	return out, nil

@@ -111,6 +111,8 @@ type renderer struct {
 	data        map[string]any
 	record      map[string]any
 	recordTitle string
+	// types are the input types of the commands buttons call, read once per screen.
+	types map[string]map[string]string
 }
 
 func (r *renderer) surface() string {

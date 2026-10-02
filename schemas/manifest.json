@@ -249,6 +249,7 @@
     },
     "filter": {"type": "array", "items": {"type": "string"}, "uniqueItems": true, "description": "Fields of an item the owner narrows the block by."},
     "actions": {"type": "array", "items": {"$ref": "#/$defs/action"}},
+    "actions_from": {"type": "string", "description": "Field of an item with buttons of its own: label, command with its project, params."},
     "bind": {
       "type": "object",
       "additionalProperties": false,
@@ -258,13 +259,21 @@
     "action": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["label"],
-      "description": "A button: command calls a command of the project, screen opens a screen of the project; params take $record.<field>.",
+      "description": "A button: command calls a command of the project, screen opens a screen of the project. Params and record take a fixed value, $record.<field> or =<expression> over the item.",
       "properties": {
         "label": {"type": "string", "minLength": 1},
+        "verb": {"type": "string", "description": "A built-in label the client translates, instead of label."},
         "command": {"type": "string"},
         "screen": {"type": "string"},
-        "params": {"type": "object", "additionalProperties": {"type": "string"}}
+        "params": {"type": "object", "additionalProperties": {"type": "string"}},
+        "record": {"type": "string", "description": "The record a move to a screen opens; the item by default."},
+        "project": {"type": "string", "description": "The project of the screen a button of a deck screen opens."},
+        "file": {"type": "string", "description": "A stored file the button downloads instead."},
+        "when": {"type": "string", "description": "Expression over the item: the button shows only where it holds."},
+        "until": {"type": "string", "description": "Time after which the button is gone."},
+        "input": {"type": "string", "description": "The param the owner types before the call."},
+        "confirm": {"type": "boolean", "description": "The owner says yes before the call."},
+        "primary": {"type": "boolean"}
       }
     }
   }

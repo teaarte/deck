@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"strconv"
 	"strings"
 )
 
@@ -137,8 +138,11 @@ func (c *screenCheck) block(where string, b Block) {
 				c.fail("%s column %q: %v", where, col.Label, err)
 			}
 		}
+		if b.ActionsFrom != "" && fields != nil && !slices.Contains(fields, b.ActionsFrom) {
+			c.fail("%s actions_from: unknown field %q", where, b.ActionsFrom)
+		}
 		if b.Item != nil {
-			for _, e := range []string{b.Item.Title, b.Item.Text, b.Item.Meta} {
+			for _, e := range []string{b.Item.Title, b.Item.Text, b.Item.Meta, b.Item.Details, b.Item.Questions} {
 				if _, err := compileField(e, fields); e != "" && err != nil {
 					c.fail("%s item: %v", where, err)
 				}
@@ -306,21 +310,40 @@ func (c *screenCheck) source(where, typ string, src Source) ([]string, bool) {
 	return fields, true
 }
 
-// action checks a button: a command the owner may call, or a screen of the project with the record it needs.
+// action checks a button: a command the owner may call, a screen to open with the record it needs, or a file;
+// its condition and the values it takes from the item read fields the item has.
 func (c *screenCheck) action(b Block, a Action, fields []string) error {
-	if c.deck {
-		return errors.New("buttons of deck screens come from their sources")
+	if (a.Label == "") == (a.Verb == "") {
+		return errors.New("a button has a label or a verb")
 	}
-	for k, v := range a.Params {
-		if f, ok := strings.CutPrefix(v, "$record."); ok && f != "id" && fields != nil && !slices.Contains(fields, f) {
-			return fmt.Errorf("param %q: unknown field %q", k, f)
+	if a.When != "" {
+		if _, err := compileField(a.When, fields); err != nil {
+			return fmt.Errorf("when: %w", err)
 		}
 	}
-	if (a.Command == "") == (a.Screen == "") {
-		return errors.New("a button has a command or a screen")
+	values := map[string]string{"screen": a.Screen, "record": a.Record, "project": a.Project, "file": a.File, "until": a.Until}
+	for k, v := range a.Params {
+		values["param "+strconv.Quote(k)] = v
 	}
-	if a.Command != "" {
+	for k, v := range values {
+		if err := checkValue(v, fields); err != nil {
+			return fmt.Errorf("%s: %w", k, err)
+		}
+	}
+	switch n := btoi(a.Command != "") + btoi(a.Screen != "") + btoi(a.File != ""); {
+	case n != 1:
+		return errors.New("a button has a command, a screen or a file")
+	case a.Command != "" && c.deck:
+		if !strings.HasPrefix(a.Command, "deck.") {
+			return errors.New("a button of a deck screen calls a deck command")
+		}
+		return nil
+	case a.Command != "":
 		return c.m.checkAction(a)
+	case a.File != "" || c.deck:
+		return nil
+	case a.Project != "" || a.Record != "":
+		return errors.New("a move to a screen of the project takes no project or record; a record page gets the record of the row")
 	}
 	target := c.m.Screen(a.Screen)
 	if target == nil {
@@ -343,4 +366,24 @@ func (c *screenCheck) action(b Block, a Action, fields []string) error {
 		return fmt.Errorf("screen %q shows a record of %s; open it from a row of %s", a.Screen, target.Record, target.Record)
 	}
 	return nil
+}
+
+// checkValue checks a value a button takes from its item: $record.<field> or =<expression> over its fields.
+func checkValue(v string, fields []string) error {
+	if f, ok := strings.CutPrefix(v, "$record."); ok && f != "id" && fields != nil && !slices.Contains(fields, f) {
+		return fmt.Errorf("unknown field %q", f)
+	}
+	if e, ok := strings.CutPrefix(v, "="); ok {
+		if _, err := compileField(e, fields); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func btoi(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
 }

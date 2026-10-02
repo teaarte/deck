@@ -160,7 +160,7 @@ func (a *App) sources(act registry.Actor) screenSources {
 }
 
 // Read calls a command that only reads with the project of a project screen and the values picked in filters
-// that it takes; the rows of deck's commands come with the buttons the owner answers with.
+// that it takes.
 func (s screenSources) Read(ctx context.Context, command string, input map[string]any, sc screen.Scope) (any, error) {
 	c, err := s.a.Registry.Lookup(ctx, sc.Workspace, command)
 	if err != nil {
@@ -199,12 +199,7 @@ func (s screenSources) Read(ctx context.Context, command string, input map[strin
 	if err != nil {
 		return nil, err
 	}
-	v, err := manifest.DecodeExact(b)
-	if err != nil {
-		return nil, err
-	}
-	screens.Buttons(command, v)
-	return v, nil
+	return manifest.DecodeExact(b)
 }
 
 // paramTypes are the JSON types of the input fields of a command.

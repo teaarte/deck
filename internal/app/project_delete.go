@@ -53,6 +53,9 @@ func (a *App) projectDelete(ctx context.Context, act registry.Actor, in struct{ 
 			func() error {
 				return q.DeleteSettingsWithPrefix(ctx, db.DeleteSettingsWithPrefixParams{WorkspaceID: p.WorkspaceID, Prefix: placePrefix + p.Name + "."})
 			},
+			func() error {
+				return q.DeleteSettingsWithPrefix(ctx, db.DeleteSettingsWithPrefixParams{WorkspaceID: p.WorkspaceID, Prefix: masterErrorPrefix + p.Name + "."})
+			},
 		}
 		for _, step := range steps {
 			if err := step(); err != nil {

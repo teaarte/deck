@@ -27,7 +27,7 @@ func (q *Queries) DeleteSetting(ctx context.Context, arg DeleteSettingParams) (i
 }
 
 const deleteSettingsWithPrefix = `-- name: DeleteSettingsWithPrefix :exec
-DELETE FROM setting WHERE workspace_id = ?1 AND key LIKE CAST(?2 AS TEXT) || '%'
+DELETE FROM setting WHERE workspace_id = ?1 AND substr(key, 1, length(CAST(?2 AS TEXT))) = CAST(?2 AS TEXT)
 `
 
 type DeleteSettingsWithPrefixParams struct {

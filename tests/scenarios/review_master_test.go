@@ -157,6 +157,7 @@ func TestReviewCallsOnlyWhatItsCommandLists(t *testing.T) {
 		t.Fatalf("the review gets the tools it lists and no other: %s %v", got.Result, tools)
 	}
 }
+
 // TestReviewCallSuggestionRunsInAnAutoProject: the call a review suggests is done at once in a project on auto,
 // though the review itself may not call that command.
 func TestReviewCallSuggestionRunsInAnAutoProject(t *testing.T) {
@@ -175,4 +176,16 @@ func TestReviewCallSuggestionRunsInAnAutoProject(t *testing.T) {
 		t.Fatalf("the suggested call is made: %s", got.Result)
 	}
 	e.waitFor("beta.work", func() bool { return len(e.runsOf("beta", "work")) == 1 })
+}
+
+// TestADeletedProjectTakesItsErrorDayWithIt: a new project under the name of a deleted one does not inherit its
+// day of silence towards the master.
+func TestADeletedProjectTakesItsErrorDayWithIt(t *testing.T) {
+	e := newClockEnv(t, masterScript)
+	e.masterAwake()
+	e.waitState(e.run(e.createProject("work", boardWork), "work"), "error")
+	e.waitFor("on_error", func() bool { rs := e.runsOf("master", "on_error"); return len(rs) == 1 && rs[0].State == "done" })
+	e.must("deck.project_delete", map[string]any{"project": "work"}, nil)
+	e.waitState(e.run(e.createProject("work", boardWork), "work"), "error")
+	e.waitFor("on_error of the new project", func() bool { return len(e.runsOf("master", "on_error")) == 2 })
 }

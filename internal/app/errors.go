@@ -18,6 +18,9 @@ import (
 
 const errorCommand = "on_error"
 
+// masterErrorPrefix keys the day a failed command of a project last went to the master.
+const masterErrorPrefix = "master_error:"
+
 // toMaster hands a failed process of a project to the master: an error, a result not by its schema, or a
 // script failing the third time in a row; once a day per command, never for the master's own processes.
 func (a *App) toMaster(ctx context.Context, processID int64) {
@@ -54,7 +57,7 @@ func (a *App) toMaster(ctx context.Context, processID int64) {
 			return
 		}
 	}
-	key := "master_error:" + proj.Name + "." + p.Command
+	key := masterErrorPrefix + proj.Name + "." + p.Command
 	now := a.Cfg.Now()
 	due := true
 	err = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {

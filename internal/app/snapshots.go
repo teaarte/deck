@@ -281,12 +281,12 @@ func (a *App) checkDisk(ctx context.Context, now time.Time) {
 	if free < lowDisk {
 		status, text = "warning", "the disk is almost full; "+text
 	}
-	health.Write(ctx, a.Store, a.Bus, "disk", status, text)
+	health.Write(ctx, a.Store, a.Bus, health.Of{}, "disk", status, text)
 }
 
 // TailnetHealth records the state of deck on the owner's tailnet: the sign-in link while it waits for one.
 func (a *App) TailnetHealth(status, text string) {
-	health.Write(context.Background(), a.Store, a.Bus, "tailscale", status, text)
+	health.Write(context.Background(), a.Store, a.Bus, health.Of{}, "tailscale", status, text)
 }
 
 func (a *App) snapshotsCommands() []*registry.Command {

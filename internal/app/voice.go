@@ -177,7 +177,7 @@ func (a *App) setSTTHealth(ctx context.Context, failed error) {
 	if failed != nil {
 		status, text = "error", failed.Error()
 	}
-	health.Write(ctx, a.Store, a.Bus, sttHealth, status, text)
+	health.Write(ctx, a.Store, a.Bus, health.Of{}, sttHealth, status, text)
 }
 
 func (a *App) voiceCommands() []*registry.Command {

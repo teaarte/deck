@@ -13,14 +13,21 @@ import (
 // limit is the longest text a health row keeps.
 const limit = 2000
 
+// Of is whose a row is: the machine when empty, a workspace, or a project of it, which takes its rows along.
+type Of struct{ Workspace, Project int64 }
+
+// Project is the health of a project.
+func Project(p db.Project) Of { return Of{Workspace: p.WorkspaceID, Project: p.ID} }
+
 // Set writes a health row in a transaction; the caller publishes "health" once it commits.
-func Set(ctx context.Context, q *db.Queries, subject, status, text string) error {
-	return q.SetHealth(ctx, db.SetHealthParams{Subject: subject, Status: status, Error: untrusted.Cut(text, limit)})
+func Set(ctx context.Context, q *db.Queries, of Of, subject, status, text string) error {
+	return q.SetHealth(ctx, db.SetHealthParams{WorkspaceID: store.ID(of.Workspace), ProjectID: store.ID(of.Project), Subject: subject,
+		Status: status, Error: untrusted.Cut(text, limit)})
 }
 
 // Write sets a health row in a transaction of its own and tells the screens.
-func Write(ctx context.Context, st *store.Store, bus *events.Bus, subject, status, text string) {
-	err := st.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error { return Set(ctx, q, subject, status, text) })
+func Write(ctx context.Context, st *store.Store, bus *events.Bus, of Of, subject, status, text string) {
+	err := st.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error { return Set(ctx, q, of, subject, status, text) })
 	if err == nil {
 		bus.Publish("health")
 	}

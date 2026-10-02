@@ -47,9 +47,6 @@ func (a *App) projectDelete(ctx context.Context, act registry.Actor, in projectD
 		if runs, err = q.ListProjectProcessIDs(ctx, p.ID); err != nil {
 			return err
 		}
-		if err := q.DeleteProjectHealth(ctx, p.Name); err != nil {
-			return err
-		}
 		_, err = q.DeleteProject(ctx, p.ID)
 		return err
 	})

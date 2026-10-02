@@ -35,12 +35,5 @@ SELECT id FROM workspace ORDER BY id;
 DELETE FROM file WHERE project_id = ? RETURNING id;
 
 
--- name: DeleteProjectHealth :exec
-DELETE FROM health
-WHERE subject LIKE 'command:' || CAST(sqlc.arg(name) AS TEXT) || '.%'
-   OR subject LIKE 'tool:' || CAST(sqlc.arg(name) AS TEXT) || '.%'
-   OR subject LIKE 'mcp:' || CAST(sqlc.arg(name) AS TEXT) || '.%';
-
-
 -- name: DeleteProject :execrows
 DELETE FROM project WHERE id = ?;

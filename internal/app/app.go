@@ -86,7 +86,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	a.Gateway = gateway.New(gateway.Config{Now: cfg.Now, QuestionWait: cfg.QuestionWait, ConfirmWait: cfg.ConfirmWait, ConfirmTTL: a.confirmTTL}, st, a.Asks, a.Bus, a.Registry)
 	a.Tools = tools.NewHTTP(a.Gateway, a.Secret, a.dirs())
 	a.Tools.OAuth = &tools.OAuth{Secrets: a.Secret, Swap: a.SwapSecret}
-	a.Tools.Health, a.Tools.SignIn = a.setHealth, a.toolSignIn
+	a.Tools.Health, a.Tools.SignIn = a.toolHealth, a.toolSignIn
 	a.Tools.Resolve = func(ctx context.Context, project, process int64, ref string) (files.Ref, error) {
 		return a.dirs().Resolve(ctx, a.Store.Q, project, process, ref)
 	}

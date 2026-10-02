@@ -89,7 +89,7 @@ func (a *App) askAnswer(ctx context.Context, act registry.Actor, in askAnswerIn)
 // healthList shows what the machine runs, the commands, tools and MCP servers of the actor's workspace, and
 // per project the worst of those with its error, or a manifest that does not load.
 func (a *App) healthList(ctx context.Context, act registry.Actor, _ struct{}) (any, error) {
-	hs, err := a.Store.Q.ListHealth(ctx)
+	hs, err := a.Store.Q.ListHealth(ctx, store.ID(act.Workspace))
 	if err != nil {
 		return nil, err
 	}
@@ -107,13 +107,8 @@ func (a *App) healthList(ctx context.Context, act registry.Actor, _ struct{}) (a
 	}
 	rank := map[string]int{"ok": 0, "checking": 1, "paused": 1, "needs_login": 1, "error": 2}
 	out := make([]row, 0, len(hs)+len(ps))
-	for _, h := range hs {
-		kind, rest, _ := strings.Cut(h.Subject, ":")
-		project, _, _ := strings.Cut(rest, ".")
-		scoped := kind == "command" || kind == "tool" || kind == "mcp"
-		if scoped && project != registry.Builtin && worst[project] == nil {
-			continue
-		}
+	for _, hr := range hs {
+		h := hr.Health
 		r := row{"subject": h.Subject, "status": h.Status, "error": h.Error, "updated_at": h.UpdatedAt}
 		if h.Version != "" {
 			r["version"] = h.Version
@@ -125,7 +120,7 @@ func (a *App) healthList(ctx context.Context, act registry.Actor, _ struct{}) (a
 			r["speed"] = h.Speed
 		}
 		out = append(out, r)
-		if w := worst[project]; scoped && w != nil && rank[h.Status] > rank[w["status"].(string)] {
+		if w := worst[hr.Project]; h.ProjectID.Valid && w != nil && rank[h.Status] > rank[w["status"].(string)] {
 			w["status"], w["error"], w["updated_at"] = h.Status, h.Subject+": "+h.Error, h.UpdatedAt
 		}
 	}

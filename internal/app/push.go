@@ -387,7 +387,7 @@ func (a *App) pushHealth(ctx context.Context, failed string) {
 	if failed != "" {
 		status = "error"
 	}
-	health.Write(ctx, a.Store, a.Bus, "push", status, failed)
+	health.Write(ctx, a.Store, a.Bus, health.Of{}, "push", status, failed)
 }
 
 func oneLine(s string) string { return strings.Join(strings.Fields(s), " ") }

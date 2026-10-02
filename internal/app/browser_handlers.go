@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"deck2/internal/ask"
+	"deck2/internal/health"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
@@ -55,7 +56,7 @@ func (a *App) browserLoginDone(ctx context.Context, act registry.Actor, in brows
 		return nil, err
 	}
 	a.Browser.LoginDone()
-	a.setHealth(ctx, siteHealth(site), "ok", "")
+	health.Write(ctx, a.Store, a.Bus, health.Of{}, siteHealth(site), "ok", "")
 	n, err := a.signedIn(ctx, act.Workspace, "site", site)
 	return map[string]any{"site": site, "resumed": n}, err
 }
@@ -74,7 +75,7 @@ func (a *App) browserNeedsLogin(ctx context.Context, act registry.Actor, in brow
 	if act.ProcessID == 0 {
 		return nil, registry.Invalid("deck: only a process waits for a sign-in")
 	}
-	a.setHealth(ctx, siteHealth(site), "needs_login", untrusted.Cut(in.Why, 300))
+	health.Write(ctx, a.Store, a.Bus, health.Of{}, siteHealth(site), "needs_login", untrusted.Cut(in.Why, 300))
 	payload, _ := json.Marshal(map[string]string{"site": site})
 	text := fmt.Sprintf("Sign in to %s in deck's browser (deck.browser_login), then say done: %s", site, untrusted.Cut(in.Why, 300))
 	row, err := store.TxGet(a.Store, ctx, func(ctx context.Context, q *db.Queries) (db.Ask, error) {

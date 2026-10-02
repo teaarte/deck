@@ -134,7 +134,7 @@ func (a *App) providerAdd(ctx context.Context, act registry.Actor, in providerAd
 			}
 		}
 		if d.Agent != "" {
-			if err := health.Set(ctx, q, process.HealthSubject(in.Name), "checking", "the self-check of the new provider is about to run"); err != nil {
+			if err := health.Set(ctx, q, health.Of{}, process.HealthSubject(in.Name), "checking", "the self-check of the new provider is about to run"); err != nil {
 				return err
 			}
 		}

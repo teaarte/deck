@@ -43,7 +43,7 @@ func TestProjectDeleteTakesASnapshotAndLeavesNothingOfTheProject(t *testing.T) {
 	if _, err := e.App.Store.DB.ExecContext(ctx, `INSERT INTO ask (workspace_id, project_id, kind, text, payload) VALUES (1, ?, 'warning', 'x', '{}')`, id); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := e.App.Store.DB.ExecContext(ctx, `INSERT INTO health (subject, status, error) VALUES ('tool:gone.fetch', 'error', 'x')`); err != nil {
+	if _, err := e.App.Store.DB.ExecContext(ctx, `INSERT INTO health (workspace_id, project_id, subject, status, error) VALUES (1, ?, 'tool:gone.fetch', 'error', 'x')`, id); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := e.App.Store.DB.ExecContext(ctx, `INSERT INTO tool_call (workspace_id, process_id, project_id, tool, class, outcome, params)
@@ -74,7 +74,7 @@ func TestProjectDeleteTakesASnapshotAndLeavesNothingOfTheProject(t *testing.T) {
 	tables := map[string]string{
 		"record": "project_id = ?1", "card": "project_id = ?1", "document": "project_id = ?1", "file": "project_id = ?1",
 		`"trigger"`: "project_id = ?1", "process": "project_id = ?1", "ask": "project_id = ?1", "notification": "project_id = ?1",
-		"command_provider": "project_id = ?1", "health": "subject LIKE '%:gone.%' AND ?1 > 0", "tool_call": "project_id = ?1",
+		"command_provider": "project_id = ?1", "health": "project_id = ?1", "tool_call": "project_id = ?1",
 	}
 	count := func(table string) int {
 		var n int

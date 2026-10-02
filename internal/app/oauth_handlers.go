@@ -78,10 +78,10 @@ func (a *App) oauthStart(ctx context.Context, act registry.Actor, in oauthStartI
 			a.Browser.LoginDone()
 		}
 		if err != nil {
-			a.setHealth(a.ctx, "tool:"+in.Tool, "needs_login", err.Error())
+			a.toolHealth(a.ctx, p, in.Tool, "needs_login", err.Error())
 			return
 		}
-		a.setHealth(a.ctx, "tool:"+in.Tool, "ok", "")
+		a.toolHealth(a.ctx, p, in.Tool, "ok", "")
 		_, _ = a.signedIn(a.ctx, p.WorkspaceID, "tool", in.Tool)
 	})
 	if err != nil {

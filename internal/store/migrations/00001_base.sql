@@ -239,15 +239,19 @@ CREATE TABLE llm_call (
 );
 CREATE INDEX llm_call_process ON llm_call (process_id);
 
+-- The health of a subject: of the machine without a workspace, of a workspace, or of a project of it.
 CREATE TABLE health (
-    subject     TEXT PRIMARY KEY,
-    status      TEXT NOT NULL,
-    error       TEXT NOT NULL DEFAULT '',
-    version     TEXT NOT NULL DEFAULT '',
-    verdict     TEXT NOT NULL DEFAULT '',
-    speed       REAL NOT NULL DEFAULT 0,
-    updated_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+    subject       TEXT NOT NULL,
+    workspace_id  INTEGER REFERENCES workspace(id) ON DELETE CASCADE,
+    project_id    INTEGER REFERENCES project(id) ON DELETE CASCADE,
+    status        TEXT NOT NULL,
+    error         TEXT NOT NULL DEFAULT '',
+    version       TEXT NOT NULL DEFAULT '',
+    verdict       TEXT NOT NULL DEFAULT '',
+    speed         REAL NOT NULL DEFAULT 0,
+    updated_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
+CREATE UNIQUE INDEX health_subject ON health (coalesce(workspace_id, 0), subject);
 
 CREATE TABLE setting (
     workspace_id  INTEGER NOT NULL REFERENCES workspace(id) ON DELETE CASCADE,

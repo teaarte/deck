@@ -73,18 +73,6 @@ func (q *Queries) DeleteProjectFiles(ctx context.Context, projectID int64) ([]in
 	return items, nil
 }
 
-const deleteProjectHealth = `-- name: DeleteProjectHealth :exec
-DELETE FROM health
-WHERE subject LIKE 'command:' || CAST(?1 AS TEXT) || '.%'
-   OR subject LIKE 'tool:' || CAST(?1 AS TEXT) || '.%'
-   OR subject LIKE 'mcp:' || CAST(?1 AS TEXT) || '.%'
-`
-
-func (q *Queries) DeleteProjectHealth(ctx context.Context, name string) error {
-	_, err := q.db.ExecContext(ctx, deleteProjectHealth, name)
-	return err
-}
-
 const getProject = `-- name: GetProject :one
 SELECT id, workspace_id, name, status, paused, builtin, created_at FROM project WHERE id = ?
 `

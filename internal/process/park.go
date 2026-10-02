@@ -58,13 +58,13 @@ func (r *Runner) providerHealth(ctx context.Context, pv provider.Provider, res p
 	_ = r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		switch {
 		case err != nil && !checked:
-			return health.Set(ctx, q, subject, "error", err.Error())
+			return health.Set(ctx, q, health.Of{}, subject, "error", err.Error())
 		case err != nil || res.NeedsLogin || res.RateLimited:
 			return nil
 		case checked:
 			return q.MarkHealthy(ctx, subject)
 		}
-		return health.Set(ctx, q, subject, "ok", "")
+		return health.Set(ctx, q, health.Of{}, subject, "ok", "")
 	})
 	r.bus.Publish("health")
 }
@@ -78,7 +78,7 @@ func setHealth(ctx context.Context, q *db.Queries, pv provider.Provider, status,
 			return nil
 		}
 	}
-	return health.Set(ctx, q, subject, status, text)
+	return health.Set(ctx, q, health.Of{}, subject, status, text)
 }
 
 // usage writes one model call of a process to the journal of model calls.

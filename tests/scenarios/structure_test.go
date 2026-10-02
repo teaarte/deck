@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"deck2/internal/docs"
+	"deck2/internal/store"
 	"deck2/internal/store/db"
 )
 
@@ -64,7 +65,7 @@ func TestOtherWorkspacesAreInvisible(t *testing.T) {
 		t.Fatalf("commands of another workspace must look missing, got %d", code)
 	}
 	err := e.App.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		return q.SetHealth(ctx, db.SetHealthParams{Subject: "command:theirs.collect", Status: "error", Error: "their secret path"})
+		return q.SetHealth(ctx, db.SetHealthParams{WorkspaceID: store.ID(2), Subject: "command:theirs.collect", Status: "error", Error: "their secret path"})
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -139,4 +140,37 @@ func TestAWriteOutsideATransactionFailsLoudly(t *testing.T) {
 		}
 	}()
 	_ = e.App.Store.Q.SetHealth(context.Background(), db.SetHealthParams{Subject: "x", Status: "ok"})
+}
+
+// TestDeletingAProjectKeepsTheHealthOfItsNamesakeElsewhere: health rows are keyed by workspace and project, so a
+// project of the same name in another workspace keeps its own.
+func TestDeletingAProjectKeepsTheHealthOfItsNamesakeElsewhere(t *testing.T) {
+	e := newEnv(t, nil)
+	ctx := context.Background()
+	mine := e.createProject("x", plainManifest)
+	if _, err := e.App.Store.DB.ExecContext(ctx, `INSERT INTO workspace (id, name) VALUES (2, 'other')`); err != nil {
+		t.Fatal(err)
+	}
+	err := e.App.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		theirs, err := q.CreateProject(ctx, db.CreateProjectParams{WorkspaceID: 2, Name: "x", Status: "enabled"})
+		if err != nil {
+			return err
+		}
+		for _, h := range []db.SetHealthParams{{WorkspaceID: store.ID(1), ProjectID: store.ID(mine), Subject: "command:x.run", Status: "error"},
+			{WorkspaceID: store.ID(2), ProjectID: store.ID(theirs.ID), Subject: "command:x.run", Status: "error"}} {
+			if err := q.SetHealth(ctx, h); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.must("deck.project_delete", map[string]any{"project": "x"}, nil)
+	var n int
+	_ = e.App.Store.DB.QueryRowContext(ctx, `SELECT count(*) FROM health WHERE subject = 'command:x.run' AND workspace_id = 2`).Scan(&n)
+	if n != 1 {
+		t.Fatalf("the namesake in the other workspace keeps its health: %d", n)
+	}
 }

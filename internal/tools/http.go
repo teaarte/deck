@@ -38,7 +38,7 @@ type HTTP struct {
 	// Resolve finds a file an input points to for a process of a project.
 	Resolve func(ctx context.Context, project, process int64, ref string) (files.Ref, error)
 	// Health records the health of a tool; SignIn asks the owner to sign in to a tool's service again.
-	Health func(ctx context.Context, subject, status, text string)
+	Health func(ctx context.Context, p db.Project, tool, status, text string)
 	SignIn func(ctx context.Context, p db.Project, tool, why string)
 }
 
@@ -98,7 +98,7 @@ func (h *HTTP) handler(p db.Project, t manifest.HTTPTool) registry.Handler {
 			if isSignIn {
 				h.signIn(ctx, p, name, signIn.Why)
 			} else {
-				h.health(ctx, name, "error", err.Error())
+				h.health(ctx, p, name, "error", err.Error())
 				err = fmt.Errorf("deck: %s: %v", name, err)
 			}
 			switch {
@@ -114,23 +114,23 @@ func (h *HTTP) handler(p db.Project, t manifest.HTTPTool) registry.Handler {
 		defer resp.Body.Close()
 		out, ext, err := h.response(act, t, resp, req.secrets)
 		if resp.StatusCode >= 500 {
-			h.health(ctx, name, "error", err.Error())
+			h.health(ctx, p, name, "error", err.Error())
 		} else {
-			h.health(ctx, name, "ok", "")
+			h.health(ctx, p, name, "ok", "")
 		}
 		done(ctx, h.GW, intent, ext, err)
 		return out, err
 	}
 }
 
-func (h *HTTP) health(ctx context.Context, tool, status, text string) {
+func (h *HTTP) health(ctx context.Context, p db.Project, tool, status, text string) {
 	if h.Health != nil {
-		h.Health(ctx, "tool:"+tool, status, text)
+		h.Health(ctx, p, tool, status, text)
 	}
 }
 
 func (h *HTTP) signIn(ctx context.Context, p db.Project, tool, why string) {
-	h.health(ctx, tool, "needs_login", why)
+	h.health(ctx, p, tool, "needs_login", why)
 	if h.SignIn != nil {
 		h.SignIn(ctx, p, tool, why)
 	}

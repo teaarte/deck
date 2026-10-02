@@ -129,13 +129,15 @@ type FolderLock struct {
 }
 
 type Health struct {
-	Subject   string
-	Status    string
-	Error     string
-	Version   string
-	Verdict   string
-	Speed     float64
-	UpdatedAt string
+	Subject     string
+	WorkspaceID sql.NullInt64
+	ProjectID   sql.NullInt64
+	Status      string
+	Error       string
+	Version     string
+	Verdict     string
+	Speed       float64
+	UpdatedAt   string
 }
 
 type LlmCall struct {

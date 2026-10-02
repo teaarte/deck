@@ -140,7 +140,7 @@ func (a *App) startCheck(name string, force bool) bool {
 
 func (a *App) writeCheck(ctx context.Context, subject, status, text, version, verdict string, speed float64) {
 	err := a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		if err := health.Set(ctx, q, subject, status, text); err != nil {
+		if err := health.Set(ctx, q, health.Of{}, subject, status, text); err != nil {
 			return err
 		}
 		if status == "checking" {

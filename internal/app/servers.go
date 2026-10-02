@@ -8,13 +8,14 @@ import (
 
 	"deck2/internal/docs"
 	"deck2/internal/health"
+	"deck2/internal/store/db"
 	"deck2/internal/tools"
 )
 
 // serverStatus records what became of a server start: its tools and health, or the error.
 func (a *App) serverStatus(key string, list []*mcp.Tool, err error) {
 	ctx := a.ctx
-	subject := key
+	subject, of := key, health.Of{}
 	if key == tools.BrowserKey && err == nil {
 		a.Browser.Keep(list)
 	}
@@ -23,7 +24,7 @@ func (a *App) serverStatus(key string, list []*mcp.Tool, err error) {
 		if perr != nil {
 			return
 		}
-		subject = "mcp:" + p.Name + "." + server
+		subject, of = "mcp:"+p.Name+"."+server, health.Project(p)
 		if err == nil {
 			if kerr := a.MCP.Keep(ctx, project, server, list); kerr != nil {
 				slog.Error("keep MCP tools", "server", subject, "err", kerr)
@@ -31,14 +32,15 @@ func (a *App) serverStatus(key string, list []*mcp.Tool, err error) {
 		}
 	}
 	if err != nil {
-		a.setHealth(ctx, subject, "error", err.Error())
+		health.Write(ctx, a.Store, a.Bus, of, subject, "error", err.Error())
 		return
 	}
-	a.setHealth(ctx, subject, "ok", "")
+	health.Write(ctx, a.Store, a.Bus, of, subject, "ok", "")
 }
 
-func (a *App) setHealth(ctx context.Context, subject, status, text string) {
-	health.Write(ctx, a.Store, a.Bus, subject, status, text)
+// toolHealth is the health of a tool of a project.
+func (a *App) toolHealth(ctx context.Context, p db.Project, tool, status, text string) {
+	health.Write(ctx, a.Store, a.Bus, health.Project(p), "tool:"+tool, status, text)
 }
 
 // Servers starts the MCP servers of a project whose tools deck has not listed yet, so a process that starts

@@ -7,19 +7,25 @@ package db
 
 import (
 	"context"
+	"database/sql"
 )
 
 const deleteHealth = `-- name: DeleteHealth :exec
-DELETE FROM health WHERE subject = ?
+DELETE FROM health WHERE project_id = ? AND subject = ?
 `
 
-func (q *Queries) DeleteHealth(ctx context.Context, subject string) error {
-	_, err := q.db.ExecContext(ctx, deleteHealth, subject)
+type DeleteHealthParams struct {
+	ProjectID sql.NullInt64
+	Subject   string
+}
+
+func (q *Queries) DeleteHealth(ctx context.Context, arg DeleteHealthParams) error {
+	_, err := q.db.ExecContext(ctx, deleteHealth, arg.ProjectID, arg.Subject)
 	return err
 }
 
 const getHealth = `-- name: GetHealth :one
-SELECT subject, status, error, version, verdict, speed, updated_at FROM health WHERE subject = ?1
+SELECT subject, workspace_id, project_id, status, error, version, verdict, speed, updated_at FROM health WHERE workspace_id IS NULL AND subject = ?1
 `
 
 func (q *Queries) GetHealth(ctx context.Context, subject string) (Health, error) {
@@ -27,6 +33,8 @@ func (q *Queries) GetHealth(ctx context.Context, subject string) (Health, error)
 	var i Health
 	err := row.Scan(
 		&i.Subject,
+		&i.WorkspaceID,
+		&i.ProjectID,
 		&i.Status,
 		&i.Error,
 		&i.Version,
@@ -38,26 +46,36 @@ func (q *Queries) GetHealth(ctx context.Context, subject string) (Health, error)
 }
 
 const listHealth = `-- name: ListHealth :many
-SELECT subject, status, error, version, verdict, speed, updated_at FROM health ORDER BY subject
+SELECT h.subject, h.workspace_id, h.project_id, h.status, h.error, h.version, h.verdict, h.speed, h.updated_at, CAST(coalesce(p.name, '') AS TEXT) AS project FROM health h LEFT JOIN project p ON p.id = h.project_id
+WHERE h.workspace_id IS NULL OR h.workspace_id = ?
+ORDER BY h.subject
 `
 
-func (q *Queries) ListHealth(ctx context.Context) ([]Health, error) {
-	rows, err := q.db.QueryContext(ctx, listHealth)
+type ListHealthRow struct {
+	Health  Health
+	Project string
+}
+
+func (q *Queries) ListHealth(ctx context.Context, workspaceID sql.NullInt64) ([]ListHealthRow, error) {
+	rows, err := q.db.QueryContext(ctx, listHealth, workspaceID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Health
+	var items []ListHealthRow
 	for rows.Next() {
-		var i Health
+		var i ListHealthRow
 		if err := rows.Scan(
-			&i.Subject,
-			&i.Status,
-			&i.Error,
-			&i.Version,
-			&i.Verdict,
-			&i.Speed,
-			&i.UpdatedAt,
+			&i.Health.Subject,
+			&i.Health.WorkspaceID,
+			&i.Health.ProjectID,
+			&i.Health.Status,
+			&i.Health.Error,
+			&i.Health.Version,
+			&i.Health.Verdict,
+			&i.Health.Speed,
+			&i.Health.UpdatedAt,
+			&i.Project,
 		); err != nil {
 			return nil, err
 		}
@@ -74,7 +92,7 @@ func (q *Queries) ListHealth(ctx context.Context) ([]Health, error) {
 
 const markHealthy = `-- name: MarkHealthy :exec
 INSERT INTO health (subject, status, error) VALUES (?1, 'ok', '')
-ON CONFLICT (subject) DO UPDATE SET status = 'ok', error = '', updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+ON CONFLICT (coalesce(workspace_id, 0), subject) DO UPDATE SET status = 'ok', error = '', updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
 WHERE health.status IN ('needs_login', 'paused')
 `
 
@@ -84,25 +102,34 @@ func (q *Queries) MarkHealthy(ctx context.Context, subject string) error {
 }
 
 const setHealth = `-- name: SetHealth :exec
-INSERT INTO health (subject, status, error) VALUES (?, ?, ?)
-ON CONFLICT (subject) DO UPDATE SET status = excluded.status, error = excluded.error,
+INSERT INTO health (workspace_id, project_id, subject, status, error)
+VALUES (?1, ?2, ?3, ?4, ?5)
+ON CONFLICT (coalesce(workspace_id, 0), subject) DO UPDATE SET status = excluded.status, error = excluded.error,
     updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
 WHERE health.status != excluded.status OR health.error != excluded.error
 `
 
 type SetHealthParams struct {
-	Subject string
-	Status  string
-	Error   string
+	WorkspaceID sql.NullInt64
+	ProjectID   sql.NullInt64
+	Subject     string
+	Status      string
+	Error       string
 }
 
 func (q *Queries) SetHealth(ctx context.Context, arg SetHealthParams) error {
-	_, err := q.db.ExecContext(ctx, setHealth, arg.Subject, arg.Status, arg.Error)
+	_, err := q.db.ExecContext(ctx, setHealth,
+		arg.WorkspaceID,
+		arg.ProjectID,
+		arg.Subject,
+		arg.Status,
+		arg.Error,
+	)
 	return err
 }
 
 const setHealthCheck = `-- name: SetHealthCheck :exec
-UPDATE health SET verdict = ?1, speed = ?2 WHERE subject = ?3
+UPDATE health SET verdict = ?1, speed = ?2 WHERE workspace_id IS NULL AND subject = ?3
 `
 
 type SetHealthCheckParams struct {
@@ -117,7 +144,7 @@ func (q *Queries) SetHealthCheck(ctx context.Context, arg SetHealthCheckParams) 
 }
 
 const setHealthVersion = `-- name: SetHealthVersion :exec
-UPDATE health SET version = ?1 WHERE subject = ?2
+UPDATE health SET version = ?1 WHERE workspace_id IS NULL AND subject = ?2
 `
 
 type SetHealthVersionParams struct {

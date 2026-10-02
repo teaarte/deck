@@ -9,6 +9,7 @@ import (
 	"deck2/internal/health"
 	"deck2/internal/manifest"
 	"deck2/internal/script"
+	"deck2/internal/store"
 	"deck2/internal/store/db"
 )
 
@@ -38,7 +39,7 @@ func (a *App) prepareScripts(ctx context.Context, projectID int64) error {
 	}
 	problems := script.Check(m)
 	sbErr := a.Scripts.Sandbox.Check()
-	known, err := a.Store.Q.ListHealth(ctx)
+	known, err := a.Store.Q.ListHealth(ctx, store.ID(p.WorkspaceID))
 	if err != nil {
 		return err
 	}
@@ -47,7 +48,7 @@ func (a *App) prepareScripts(ctx context.Context, projectID int64) error {
 		if sbErr != nil {
 			status, text = "error", a.Scripts.Sandbox.Name()+": "+sbErr.Error()
 		}
-		if err := health.Set(ctx, q, sandboxHealth, status, text); err != nil {
+		if err := health.Set(ctx, q, health.Of{}, sandboxHealth, status, text); err != nil {
 			return err
 		}
 		keep := map[string]bool{}
@@ -58,13 +59,13 @@ func (a *App) prepareScripts(ctx context.Context, projectID int64) error {
 			subject := commandHealth(p.Name, c.Name)
 			keep[subject] = true
 			status, text := scriptHealth(&c, problems, sbErr)
-			if err := health.Set(ctx, q, subject, status, text); err != nil {
+			if err := health.Set(ctx, q, health.Project(p), subject, status, text); err != nil {
 				return err
 			}
 		}
-		for _, h := range known {
-			if strings.HasPrefix(h.Subject, commandHealth(p.Name, "")) && !keep[h.Subject] {
-				if err := q.DeleteHealth(ctx, h.Subject); err != nil {
+		for _, row := range known {
+			if h := row.Health; h.ProjectID.Int64 == p.ID && strings.HasPrefix(h.Subject, commandHealth(p.Name, "")) && !keep[h.Subject] {
+				if err := q.DeleteHealth(ctx, db.DeleteHealthParams{ProjectID: store.ID(p.ID), Subject: h.Subject}); err != nil {
 					return err
 				}
 			}

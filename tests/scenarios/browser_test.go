@@ -182,3 +182,14 @@ func TestAHungBrowserToolFreesTheBrowserForOtherProjects(t *testing.T) {
 		t.Fatalf("a tool that hangs fails after its deadline and the browser works again for the next project: %+v", got)
 	}
 }
+
+// TestStarInReadIsOnlyThePublicInternet: "*" does not open the owner's machine or network in the browser.
+func TestStarInReadIsOnlyThePublicInternet(t *testing.T) {
+	ag := &seqAgent{}
+	e := newEnv(t, ag.script)
+	e.createProject("web", browserManifest(`{"read": ["*", "127.0.0.1:8080"]}`))
+	e.waitState(e.start("web", "browse", steps(nav("http://127.0.0.1:11434/"), nav("http://localhost:3000/"), nav("http://127.0.0.1:8080/"))), "done")
+	if got := ag.last(3); !got[0].isErr || !got[1].isErr || got[2].isErr {
+		t.Fatalf("a local page opens only when its host:port is named: %+v", got)
+	}
+}

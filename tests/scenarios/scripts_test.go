@@ -432,3 +432,22 @@ print(json.dumps({"down": "x-down" in got.decode().lower(), "ok": got.endswith(b
 		t.Fatalf("headers named in Connection go no further than the proxy, either way: %+v %+v", p, seen)
 	}
 }
+
+// TestScriptWildcardDomainIsOnlyThePublicInternet: "*" does not open loopback, the local network or a tailnet
+// to a script; a local service is reached by naming its host:port.
+func TestScriptWildcardDomainIsOnlyThePublicInternet(t *testing.T) {
+	e := newEnv(t, nil)
+	named, local := served(t), served(t)
+	host := strings.TrimPrefix(named.URL, "http://")
+	e.createProject("tools", scriptManifest("collect", "", fmt.Sprintf(`, "domains": {"read": ["*", %q]}`, host)))
+	e.saveScript("tools", "scripts/main.py", pythonLib+`
+inp = json.load(sys.stdin)
+print(json.dumps({"named": fetch(inp["allowed"]), "local": fetch(inp["other"]), "tailnet": fetch("http://100.100.100.100/")}))
+`)
+	p := e.waitScript(e.start("tools", "collect", map[string]any{"allowed": named.URL, "other": local.URL}), "done", "error")
+	var got struct{ Named, Local, Tailnet any }
+	_ = json.Unmarshal(p.Result, &got)
+	if p.State != "done" || got.Named != float64(200) || got.Local != float64(403) || got.Tailnet != float64(403) {
+		t.Fatalf("a named host:port is reached, a local or tailnet address by \"*\" is not: %+v %s", p, p.Result)
+	}
+}

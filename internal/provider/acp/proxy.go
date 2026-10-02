@@ -5,10 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"io"
-	"net"
 	"net/http"
 	"net/http/httputil"
-	"net/netip"
 	"net/url"
 	"strconv"
 	"strings"
@@ -106,38 +104,14 @@ func (e *entry) refused(res provider.Result) provider.Result {
 }
 
 // egress carries the agent to a public address only: its web is the internet, not deck, other sessions on this
-// machine or the owner's network. The address is dialled as resolved, so a second lookup cannot change it.
+// machine or the owner's network.
 func (e *entry) egress(w http.ResponseWriter, r *http.Request) {
-	target := r.Host
-	if r.Method != http.MethodConnect {
-		target = r.URL.Host
-	}
-	host, port, err := net.SplitHostPort(target)
-	if err != nil {
-		host, port = target, map[string]string{"http": "80", "https": "443"}[r.URL.Scheme]
-	}
-	ips, err := net.DefaultResolver.LookupNetIP(r.Context(), "ip", host)
-	if err != nil || len(ips) == 0 || len(e.domains) == 0 {
-		http.Error(w, "deck: "+host+" is not reachable from this agent", http.StatusForbidden)
+	if len(e.domains) == 0 {
+		http.Error(w, "deck: "+r.Host+" is not reachable from this agent", http.StatusForbidden)
 		return
-	}
-	for _, ip := range ips {
-		if ip = ip.Unmap(); !ip.IsGlobalUnicast() || ip.IsPrivate() || shared.Contains(ip) {
-			http.Error(w, "deck: "+host+" is not a public address; agents reach deck and local services through deck tools", http.StatusForbidden)
-			return
-		}
-	}
-	dial := net.JoinHostPort(ips[0].Unmap().String(), port)
-	if r.Method == http.MethodConnect {
-		r.Host = dial
-	} else {
-		r.URL.Host = dial
 	}
 	gateway.Egress(e.ctx, w, r, e.domains)
 }
-
-// shared is the carrier-grade NAT range, which tailnets use.
-var shared = netip.MustParsePrefix("100.64.0.0/10")
 
 // usage is the token count of one chat completion as OpenAI-compatible APIs report it; deck's own loop reads the same.
 type usage struct {

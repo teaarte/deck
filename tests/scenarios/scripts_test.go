@@ -314,6 +314,7 @@ func TestScriptCeilingAndThreeFailuresInARow(t *testing.T) {
 		want := 0
 		if i >= 3 {
 			want = 1
+			e.waitFor("the warning", func() bool { return e.warnings("failed 3 times in a row") > 0 })
 		}
 		if n := e.warnings("failed 3 times in a row"); n != want {
 			t.Fatalf("after failure %d: %d warnings, want %d", i, n, want)

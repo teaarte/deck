@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"deck2/internal/app/access"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -50,7 +51,7 @@ func (a *App) oauthStart(ctx context.Context, act registry.Actor, in oauthStartI
 	if !ok {
 		return nil, registry.Invalid("deck: name the tool as project.tool")
 	}
-	p, err := a.project(ctx, act, project)
+	p, err := access.Project(ctx, a.Store.Q, act, project)
 	if err != nil {
 		return nil, err
 	}

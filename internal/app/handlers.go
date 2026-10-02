@@ -3,6 +3,7 @@ package app
 import (
 	"cmp"
 	"context"
+	"deck2/internal/app/access"
 	"fmt"
 	"strings"
 
@@ -108,7 +109,7 @@ type manifestGetIn struct {
 }
 
 func (a *App) manifestGet(ctx context.Context, act registry.Actor, in manifestGetIn) (any, error) {
-	p, err := a.project(ctx, act, in.Project)
+	p, err := access.Project(ctx, a.Store.Q, act, in.Project)
 	if err != nil {
 		return nil, err
 	}
@@ -132,7 +133,7 @@ type manifestSaveIn struct {
 }
 
 func (a *App) manifestSave(ctx context.Context, act registry.Actor, in manifestSaveIn) (any, error) {
-	p, err := a.project(ctx, act, in.Project)
+	p, err := access.Project(ctx, a.Store.Q, act, in.Project)
 	if err != nil {
 		return nil, err
 	}

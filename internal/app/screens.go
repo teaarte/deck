@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"deck2/internal/app/access"
 	_ "embed"
 	"encoding/json"
 	"fmt"
@@ -127,7 +128,7 @@ func (a *App) screenGet(ctx context.Context, act registry.Actor, in screenGetIn)
 		req.Screen = deckScreen(in.Screen)
 		req.Project.WorkspaceID = act.Workspace
 	} else {
-		p, err := a.project(ctx, act, in.Project)
+		p, err := access.Project(ctx, a.Store.Q, act, in.Project)
 		if err != nil {
 			return nil, err
 		}
@@ -249,7 +250,7 @@ type commandsListIn struct {
 
 // commandsList is what the caller may call: deck's commands and those of the projects it reaches.
 func (a *App) commandsList(ctx context.Context, act registry.Actor, in commandsListIn) ([]commandRow, error) {
-	pid, err := a.filter(ctx, act, in.Project)
+	pid, err := access.Filter(ctx, a.Store.Q, act, in.Project)
 	if err != nil {
 		return nil, err
 	}
@@ -257,7 +258,7 @@ func (a *App) commandsList(ctx context.Context, act registry.Actor, in commandsL
 	if err != nil {
 		return nil, err
 	}
-	names, err := projectNames(ctx, a.Store.Q, act.Workspace)
+	names, err := access.Names(ctx, a.Store.Q, act.Workspace)
 	if err != nil {
 		return nil, err
 	}

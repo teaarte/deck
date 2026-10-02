@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"deck2/internal/app/access"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -60,7 +61,7 @@ type folderAddIn struct {
 }
 
 func (a *App) folderAdd(ctx context.Context, act registry.Actor, in folderAddIn) (any, error) {
-	p, err := a.project(ctx, act, in.Project)
+	p, err := access.Project(ctx, a.Store.Q, act, in.Project)
 	if err != nil {
 		return nil, err
 	}
@@ -104,7 +105,7 @@ type folderRemoveIn struct {
 }
 
 func (a *App) folderRemove(ctx context.Context, act registry.Actor, in folderRemoveIn) (any, error) {
-	p, err := a.project(ctx, act, in.Project)
+	p, err := access.Project(ctx, a.Store.Q, act, in.Project)
 	if err != nil {
 		return nil, err
 	}

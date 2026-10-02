@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"deck2/internal/app/access"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -23,7 +24,7 @@ type projectDeleteIn struct {
 // projectDelete removes a project from deck after a snapshot of it: records, documents, files, triggers, cards,
 // processes and their journals, asks, settings and deck's folders of it; no folder of the owner is touched.
 func (a *App) projectDelete(ctx context.Context, act registry.Actor, in projectDeleteIn) (any, error) {
-	p, err := a.project(ctx, act, in.Project)
+	p, err := access.Project(ctx, a.Store.Q, act, in.Project)
 	if err != nil {
 		return nil, err
 	}

@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"deck2/internal/app/access"
 	"encoding/json"
 	"strings"
 
@@ -29,7 +30,7 @@ type notifyIn struct {
 
 // notify writes a line to the feed of the cockpit; push comes with stage 3. The caller decides whether it is worth it.
 func (a *App) notify(ctx context.Context, act registry.Actor, in notifyIn) (any, error) {
-	p, err := a.project(ctx, act, in.Project)
+	p, err := access.Project(ctx, a.Store.Q, act, in.Project)
 	if err != nil {
 		return nil, err
 	}

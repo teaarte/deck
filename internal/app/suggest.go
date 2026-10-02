@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"database/sql"
+	"deck2/internal/app/access"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -131,7 +132,7 @@ func (a *App) suggest(ctx context.Context, act registry.Actor, in suggestIn) (an
 // suggestTarget is the project a card suggestion goes to: the one named, else the caller's own.
 func (a *App) suggestTarget(ctx context.Context, act registry.Actor, name string) (db.Project, error) {
 	if name == "" {
-		return a.project(ctx, act, "")
+		return access.Project(ctx, a.Store.Q, act, "")
 	}
 	p, err := a.Store.Q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: act.Workspace, Name: name})
 	if err != nil {

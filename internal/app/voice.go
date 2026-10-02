@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"cmp"
 	"context"
+	"deck2/internal/app/access"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -88,7 +89,7 @@ func (a *App) transcribe(ctx context.Context, act registry.Actor, in transcribeI
 	if err != nil {
 		return nil, registry.NotFound("deck: no file %s", in.File)
 	}
-	p, err := projectOf(ctx, a.Store.Q, act, f.ProjectID, registry.NotFound("deck: no file %s", in.File))
+	p, err := access.Of(ctx, a.Store.Q, act, f.ProjectID, registry.NotFound("deck: no file %s", in.File))
 	if err != nil {
 		return nil, err
 	}

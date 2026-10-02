@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"database/sql"
+	"deck2/internal/app/access"
 	"errors"
 	"fmt"
 	"strings"
@@ -29,7 +30,7 @@ type documentView struct {
 
 func (a *App) docView(ctx context.Context, d db.Document) documentView {
 	kind, owner := docs.Owner(d)
-	return documentView{ID: d.ID, Project: a.projectName(ctx, d.ProjectID.Int64), OwnerKind: kind, OwnerID: owner, Kind: d.Kind, Name: d.Name, Revision: d.Current,
+	return documentView{ID: d.ID, Project: access.Name(ctx, a.Store.Q, d.ProjectID.Int64), OwnerKind: kind, OwnerID: owner, Kind: d.Kind, Name: d.Name, Revision: d.Current,
 		Deleted: d.DeletedAt.Valid}
 }
 
@@ -70,7 +71,7 @@ func (a *App) documentsList(ctx context.Context, act registry.Actor, in document
 	out := make([]documentView, 0, len(ds))
 	for _, d := range ds {
 		p := db.Project{ID: d.ProjectID.Int64, Name: in.Project}
-		if d.ProjectID.Valid && a.mayRead(ctx, a.Store.Q, act, p, "", d.Name) != nil {
+		if d.ProjectID.Valid && access.MayRead(ctx, a.Store.Q, act, p, "", d.Name) != nil {
 			continue
 		}
 		out = append(out, a.docView(ctx, d))
@@ -81,9 +82,9 @@ func (a *App) documentsList(ctx context.Context, act registry.Actor, in document
 // readDocScope is where a document read works; another project only as far as reads allow.
 func (a *App) readDocScope(ctx context.Context, act registry.Actor, project, name string) (docs.Scope, error) {
 	if project == "" {
-		return a.docScope(ctx, act, project)
+		return access.DocScope(ctx, a.Store.Q, act, project)
 	}
-	p, err := a.readProject(ctx, act, project, "", name)
+	p, err := access.ReadProject(ctx, a.Store.Q, act, project, "", name)
 	return docs.ProjectScope(p), err
 }
 
@@ -104,7 +105,7 @@ func (a *App) readableDocument(ctx context.Context, q *db.Queries, act registry.
 	if err != nil {
 		return d, err
 	}
-	return d, a.mayRead(ctx, q, act, p, "", d.Name)
+	return d, access.MayRead(ctx, q, act, p, "", d.Name)
 }
 
 type documentGetIn struct {
@@ -215,7 +216,7 @@ func (a *App) documentSave(ctx context.Context, act registry.Actor, in documentS
 
 // memoryScope is docScope, except that memory of no project is the memory of the owner, in project master.
 func (a *App) memoryScope(ctx context.Context, act registry.Actor, project, name string) (docs.Scope, error) {
-	s, err := a.docScope(ctx, act, project)
+	s, err := access.DocScope(ctx, a.Store.Q, act, project)
 	if err != nil || s.Project != 0 || !strings.HasPrefix(name, docs.MemoryDir) {
 		return s, err
 	}

@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"deck2/internal/app/access"
 	"os"
 	"path/filepath"
 	"slices"
@@ -35,7 +36,7 @@ type callRow struct {
 
 // callsList is the journal of gateway calls of the workspace, newest first: who called what and how it ended.
 func (a *App) callsList(ctx context.Context, act registry.Actor, in callsListIn) ([]callRow, error) {
-	project, err := a.filter(ctx, act, in.Project)
+	project, err := access.Filter(ctx, a.Store.Q, act, in.Project)
 	if err != nil {
 		return nil, err
 	}
@@ -44,7 +45,7 @@ func (a *App) callsList(ctx context.Context, act registry.Actor, in callsListIn)
 	if err != nil {
 		return nil, err
 	}
-	names, err := projectNames(ctx, a.Store.Q, act.Workspace)
+	names, err := access.Names(ctx, a.Store.Q, act.Workspace)
 	if err != nil {
 		return nil, err
 	}
@@ -76,7 +77,7 @@ func (a *App) spendList(ctx context.Context, act registry.Actor, _ struct{}) ([]
 	if err != nil {
 		return nil, err
 	}
-	names, err := projectNames(ctx, a.Store.Q, act.Workspace)
+	names, err := access.Names(ctx, a.Store.Q, act.Workspace)
 	if err != nil {
 		return nil, err
 	}

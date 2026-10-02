@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"deck2/internal/app/access"
 	"encoding/json"
 
 	"deck2/internal/docs"
@@ -62,7 +63,7 @@ type feedRow struct {
 }
 
 func (a *App) feedList(ctx context.Context, act registry.Actor, in feedListIn) ([]feedRow, error) {
-	pid, err := a.filter(ctx, act, in.Project)
+	pid, err := access.Filter(ctx, a.Store.Q, act, in.Project)
 	if err != nil {
 		return nil, err
 	}
@@ -71,7 +72,7 @@ func (a *App) feedList(ctx context.Context, act registry.Actor, in feedListIn) (
 	if err != nil {
 		return nil, err
 	}
-	names, err := projectNames(ctx, a.Store.Q, act.Workspace)
+	names, err := access.Names(ctx, a.Store.Q, act.Workspace)
 	if err != nil {
 		return nil, err
 	}

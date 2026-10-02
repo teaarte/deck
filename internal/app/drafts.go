@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"deck2/internal/app/access"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -82,7 +83,7 @@ type projectEnableIn struct {
 // projectEnable turns a draft on at the manifest revision the owner saw: its triggers start from now, and
 // the rights of that revision count as allowed.
 func (a *App) projectEnable(ctx context.Context, act registry.Actor, in projectEnableIn) (any, error) {
-	p, err := a.project(ctx, act, in.Project)
+	p, err := access.Project(ctx, a.Store.Q, act, in.Project)
 	if err != nil {
 		return nil, err
 	}
@@ -125,7 +126,7 @@ type projectAutonomyIn struct {
 
 // projectAutonomy writes the autonomy of a project into a new revision of its manifest, the rest as it was.
 func (a *App) projectAutonomy(ctx context.Context, act registry.Actor, in projectAutonomyIn) (any, error) {
-	p, err := a.project(ctx, act, in.Project)
+	p, err := access.Project(ctx, a.Store.Q, act, in.Project)
 	if err != nil {
 		return nil, err
 	}

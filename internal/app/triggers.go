@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"database/sql"
+	"deck2/internal/app/access"
 	"encoding/json"
 	"fmt"
 	"slices"
@@ -20,7 +21,7 @@ import (
 // ownTrigger loads a trigger of the actor's workspace; agents reach only their own project.
 func (a *App) ownTrigger(ctx context.Context, act registry.Actor, id int64) (db.Trigger, db.Project, error) {
 	t, err := a.Store.Q.GetTrigger(ctx, id)
-	return owned(ctx, a.Store.Q, act, t, err, t.ProjectID, registry.NotFound("deck: no trigger %d", id))
+	return access.Owned(ctx, a.Store.Q, act, t, err, t.ProjectID, registry.NotFound("deck: no trigger %d", id))
 }
 
 type runLaterIn struct {
@@ -114,7 +115,7 @@ type triggerView struct {
 }
 
 func (a *App) triggersList(ctx context.Context, act registry.Actor, in triggersListIn) ([]triggerView, error) {
-	pid, err := a.filter(ctx, act, in.Project)
+	pid, err := access.Filter(ctx, a.Store.Q, act, in.Project)
 	if err != nil {
 		return nil, err
 	}
@@ -215,7 +216,7 @@ type projectPauseIn struct {
 
 // projectPause pauses every trigger of a project, including those it gets later.
 func (a *App) projectPause(ctx context.Context, act registry.Actor, in projectPauseIn) (any, error) {
-	p, err := a.project(ctx, act, in.Project)
+	p, err := access.Project(ctx, a.Store.Q, act, in.Project)
 	if err != nil {
 		return nil, err
 	}

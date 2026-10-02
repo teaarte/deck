@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"database/sql"
+	"deck2/internal/app/access"
 	"encoding/json"
 	"errors"
 	"strings"
@@ -80,7 +81,7 @@ type processesListIn struct {
 }
 
 func (a *App) processesList(ctx context.Context, act registry.Actor, in processesListIn) ([]processView, error) {
-	pid, err := a.filter(ctx, act, in.Project)
+	pid, err := access.Filter(ctx, a.Store.Q, act, in.Project)
 	if err != nil {
 		return nil, err
 	}
@@ -94,7 +95,7 @@ func (a *App) processesList(ctx context.Context, act registry.Actor, in processe
 	if err != nil {
 		return nil, err
 	}
-	names, err := projectNames(ctx, a.Store.Q, act.Workspace)
+	names, err := access.Names(ctx, a.Store.Q, act.Workspace)
 	if err != nil {
 		return nil, err
 	}
@@ -143,7 +144,7 @@ func (a *App) processGet(ctx context.Context, act registry.Actor, in processGetI
 // ownProcess loads a process of the actor's workspace; agents reach only their own project.
 func (a *App) ownProcess(ctx context.Context, act registry.Actor, id int64) (db.Process, error) {
 	p, err := a.Store.Q.GetProcess(ctx, id)
-	p, _, err = owned(ctx, a.Store.Q, act, p, err, p.ProjectID, registry.NotFound("deck: no process %d", id))
+	p, _, err = access.Owned(ctx, a.Store.Q, act, p, err, p.ProjectID, registry.NotFound("deck: no process %d", id))
 	return p, err
 }
 

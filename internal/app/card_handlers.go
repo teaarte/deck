@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"database/sql"
+	"deck2/internal/app/access"
 	"errors"
 	"strings"
 
@@ -17,7 +18,7 @@ type cardsListIn struct {
 }
 
 func (a *App) cardsList(ctx context.Context, act registry.Actor, in cardsListIn) (any, error) {
-	p, err := a.project(ctx, act, in.Project)
+	p, err := access.Project(ctx, a.Store.Q, act, in.Project)
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +98,7 @@ func (a *App) cardCreate(ctx context.Context, act registry.Actor, in cardCreateI
 	if strings.TrimSpace(in.Title) == "" {
 		return nil, registry.Invalid("deck: a card needs a title")
 	}
-	p, err := a.project(ctx, act, in.Project)
+	p, err := access.Project(ctx, a.Store.Q, act, in.Project)
 	if err != nil {
 		return nil, err
 	}
@@ -234,7 +235,7 @@ type cardTransferIn struct {
 // cardTransfer gives a card to another project: into its inbox lane, with its documents and files, without the
 // record, the run and the waits of the old project.
 func (a *App) cardTransfer(ctx context.Context, act registry.Actor, in cardTransferIn) (any, error) {
-	to, err := a.project(ctx, act, in.Project)
+	to, err := access.Project(ctx, a.Store.Q, act, in.Project)
 	if err != nil {
 		return nil, err
 	}

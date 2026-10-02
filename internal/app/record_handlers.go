@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"database/sql"
+	"deck2/internal/app/access"
 	"errors"
 
 	"deck2/internal/app/records"
@@ -20,7 +21,7 @@ type recordsListIn struct {
 }
 
 func (a *App) recordsList(ctx context.Context, act registry.Actor, in recordsListIn) (any, error) {
-	p, err := a.readProject(ctx, act, in.Project, in.Collection, "")
+	p, err := access.ReadProject(ctx, a.Store.Q, act, in.Project, in.Collection, "")
 	if err != nil {
 		return nil, err
 	}
@@ -69,7 +70,7 @@ type recordsUpsertIn struct {
 }
 
 func (a *App) recordsUpsert(ctx context.Context, act registry.Actor, in recordsUpsertIn) (any, error) {
-	p, err := a.project(ctx, act, in.Project)
+	p, err := access.Project(ctx, a.Store.Q, act, in.Project)
 	if err != nil {
 		return nil, err
 	}
@@ -92,7 +93,7 @@ func (a *App) recordUpdate(ctx context.Context, act registry.Actor, in recordUpd
 		return nil, registry.Invalid("deck: data is not a JSON object: %v", err)
 	}
 	rec, err := a.Store.Q.GetRecord(ctx, in.Record)
-	rec, p, err := owned(ctx, a.Store.Q, act, rec, err, rec.ProjectID, registry.NotFound("deck: no record %d", in.Record))
+	rec, p, err := access.Owned(ctx, a.Store.Q, act, rec, err, rec.ProjectID, registry.NotFound("deck: no record %d", in.Record))
 	if err != nil {
 		return nil, err
 	}
@@ -118,7 +119,7 @@ type collectionDeleteIn struct {
 }
 
 func (a *App) collectionDelete(ctx context.Context, act registry.Actor, in collectionDeleteIn) (any, error) {
-	p, err := a.project(ctx, act, in.Project)
+	p, err := access.Project(ctx, a.Store.Q, act, in.Project)
 	if err != nil {
 		return nil, err
 	}
@@ -161,7 +162,7 @@ func (a *App) recordGet(ctx context.Context, act registry.Actor, in recordGetIn)
 	if err != nil {
 		return nil, err
 	}
-	if err := a.mayRead(ctx, a.Store.Q, act, p, rec.Collection, ""); err != nil {
+	if err := access.MayRead(ctx, a.Store.Q, act, p, rec.Collection, ""); err != nil {
 		return nil, registry.NotFound("deck: no record %d", in.Record)
 	}
 	m, err := docs.Manifest(ctx, a.Store.Q, p)

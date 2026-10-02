@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"deck2/internal/app/access"
 	"encoding/json"
 	"errors"
 
@@ -206,7 +207,7 @@ type llmCallsListIn struct {
 }
 
 func (a *App) llmCallsList(ctx context.Context, act registry.Actor, in llmCallsListIn) (any, error) {
-	pid, err := a.filter(ctx, act, in.Project)
+	pid, err := access.Filter(ctx, a.Store.Q, act, in.Project)
 	if err != nil {
 		return nil, err
 	}

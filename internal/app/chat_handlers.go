@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"database/sql"
+	"deck2/internal/app/access"
 	"encoding/json"
 	"errors"
 	"strings"
@@ -92,7 +93,7 @@ type chatInterviewIn struct {
 // chatInterview opens a topic about a card in which the master interviews the owner and writes the spec into it.
 func (a *App) chatInterview(ctx context.Context, act registry.Actor, in chatInterviewIn) (any, error) {
 	c, err := a.Store.Q.GetCard(ctx, in.Card)
-	if _, _, err = owned(ctx, a.Store.Q, act, c, err, c.ProjectID, registry.NotFound("deck: no card %d", in.Card)); err != nil {
+	if _, _, err = access.Owned(ctx, a.Store.Q, act, c, err, c.ProjectID, registry.NotFound("deck: no card %d", in.Card)); err != nil {
 		return nil, err
 	}
 	text := prose("interview", struct {
@@ -148,7 +149,7 @@ func (a *App) chatSend(ctx context.Context, act registry.Actor, in chatSendIn) (
 				if err != nil || c.DeletedAt.Valid {
 					return registry.NotFound("deck: no card %d", in.Card)
 				}
-				if _, err := projectOf(ctx, q, act, c.ProjectID, registry.NotFound("deck: no card %d", in.Card)); err != nil {
+				if _, err := access.Of(ctx, q, act, c.ProjectID, registry.NotFound("deck: no card %d", in.Card)); err != nil {
 					return err
 				}
 			}

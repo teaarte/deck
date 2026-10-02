@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"database/sql"
+	"deck2/internal/app/access"
 	"errors"
 	"time"
 
@@ -70,7 +71,7 @@ func edgesOf(ctx context.Context, q *db.Queries, projectID int64, withDeleted bo
 // cardFor loads a card the actor may touch, with its project and board manifest.
 func cardFor(ctx context.Context, q *db.Queries, act registry.Actor, id int64, w *boardWrite) (db.Card, error) {
 	c, err := q.GetCard(ctx, id)
-	c, p, err := owned(ctx, q, act, c, err, c.ProjectID, registry.NotFound("deck: no card %d", id))
+	c, p, err := access.Owned(ctx, q, act, c, err, c.ProjectID, registry.NotFound("deck: no card %d", id))
 	if err != nil {
 		return c, err
 	}

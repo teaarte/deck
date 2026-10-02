@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"database/sql"
+	"deck2/internal/app/access"
 	"errors"
 
 	"deck2/internal/registry"
@@ -60,7 +61,7 @@ func (a *App) filesList(ctx context.Context, act registry.Actor, in filesListIn)
 	if err != nil {
 		return nil, err
 	}
-	if _, err := projectOf(ctx, a.Store.Q, act, projectID, registry.NotFound("deck: no %s %d", kind, id)); err != nil {
+	if _, err := access.Of(ctx, a.Store.Q, act, projectID, registry.NotFound("deck: no %s %d", kind, id)); err != nil {
 		return nil, err
 	}
 	fs, err := a.Store.Q.ListFilesOf(ctx, db.ListFilesOfParams{ProjectID: projectID, OwnerKind: kind, OwnerID: id})
@@ -68,7 +69,7 @@ func (a *App) filesList(ctx context.Context, act registry.Actor, in filesListIn)
 		return nil, err
 	}
 	out := make([]fileView, 0, len(fs))
-	name := a.projectName(ctx, projectID)
+	name := access.Name(ctx, a.Store.Q, projectID)
 	for _, f := range fs {
 		out = append(out, fileView{ID: f.ID, Project: name, Name: f.Name, Type: f.Type, Size: f.Size, OwnerKind: f.OwnerKind, OwnerID: f.OwnerID,
 			CreatedAt: f.CreatedAt})
@@ -78,7 +79,7 @@ func (a *App) filesList(ctx context.Context, act registry.Actor, in filesListIn)
 
 // newestFiles are the newest files of a project, or of every project when the actor sees them all.
 func (a *App) newestFiles(ctx context.Context, act registry.Actor, project string) ([]fileView, error) {
-	pid, err := a.filter(ctx, act, project)
+	pid, err := access.Filter(ctx, a.Store.Q, act, project)
 	if err != nil {
 		return nil, err
 	}
@@ -86,7 +87,7 @@ func (a *App) newestFiles(ctx context.Context, act registry.Actor, project strin
 	if err != nil {
 		return nil, err
 	}
-	names, err := projectNames(ctx, a.Store.Q, act.Workspace)
+	names, err := access.Names(ctx, a.Store.Q, act.Workspace)
 	if err != nil {
 		return nil, err
 	}

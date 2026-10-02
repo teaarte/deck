@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"database/sql"
+	"deck2/internal/app/access"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -44,7 +45,7 @@ type askRow struct {
 
 // asksList is what waits for the owner, oldest first: open asks and confirmations that expired.
 func (a *App) asksList(ctx context.Context, act registry.Actor, in asksListIn) ([]askRow, error) {
-	pid, err := a.filter(ctx, act, in.Project)
+	pid, err := access.Filter(ctx, a.Store.Q, act, in.Project)
 	if err != nil {
 		return nil, err
 	}
@@ -57,7 +58,7 @@ func (a *App) asksList(ctx context.Context, act registry.Actor, in asksListIn) (
 	if err != nil {
 		return nil, err
 	}
-	names, err := projectNames(ctx, a.Store.Q, act.Workspace)
+	names, err := access.Names(ctx, a.Store.Q, act.Workspace)
 	if err != nil {
 		return nil, err
 	}

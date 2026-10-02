@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"deck2/internal/app/access"
 	"errors"
 	"io/fs"
 	"os"
@@ -139,7 +140,7 @@ func (a *App) secretsList(ctx context.Context, act registry.Actor, in secretsLis
 
 // projectSecrets are the secrets a project's manifest names, each with whether the workspace has it.
 func (a *App) projectSecrets(ctx context.Context, act registry.Actor, project string) ([]secretRow, error) {
-	p, err := a.project(ctx, act, project)
+	p, err := access.Project(ctx, a.Store.Q, act, project)
 	if err != nil {
 		return nil, err
 	}

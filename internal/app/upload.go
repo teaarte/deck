@@ -3,6 +3,7 @@ package app
 import (
 	"bytes"
 	"context"
+	"deck2/internal/app/access"
 	"encoding/base64"
 	"io"
 	"mime"
@@ -23,7 +24,7 @@ func (a *App) Upload(ctx context.Context, act registry.Actor, project, name, cty
 	if act.Token != 0 && !registry.Permits(act.Commands, project+".*") && !registry.Permits(act.Commands, "deck.command_try") {
 		return fileView{}, registry.Refuse("deck: this automation token may not call every command of %s, so it does not upload for it", project)
 	}
-	p, err := a.project(ctx, act, project)
+	p, err := access.Project(ctx, a.Store.Q, act, project)
 	if err != nil {
 		return fileView{}, err
 	}
@@ -99,7 +100,7 @@ func (a *App) OpenFile(ctx context.Context, act registry.Actor, id int64) (fileV
 	if err != nil {
 		return fileView{}, nil, missing
 	}
-	p, err := projectOf(ctx, a.Store.Q, act, f.ProjectID, missing)
+	p, err := access.Of(ctx, a.Store.Q, act, f.ProjectID, missing)
 	if err != nil {
 		return fileView{}, nil, err
 	}

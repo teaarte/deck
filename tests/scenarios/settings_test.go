@@ -54,10 +54,16 @@ func TestSettingsIsInTheMenuAndItsInterfaceTabIsTheLookOfTheDevice(t *testing.T)
 	}
 }
 
-// settingsBlock is the data of the block of a deck screen with this title, found by its component.
+// settingsBlock is the data of the block of deck's settings with this title, found by its component.
 func (e *Env) settingsBlock(title string, extra map[string]any) map[string]json.RawMessage {
 	e.T.Helper()
-	msgs := e.screenMessages("", "settings", nil)
+	return e.screenBlock("", "settings", title, extra)
+}
+
+// screenBlock is the data of the block of a screen with this title, found by its component.
+func (e *Env) screenBlock(project, screen, title string, extra map[string]any) map[string]json.RawMessage {
+	e.T.Helper()
+	msgs := e.screenMessages(project, screen, nil)
 	id := ""
 	for _, m := range msgs {
 		if raw, ok := m["updateComponents"]; ok {
@@ -71,12 +77,12 @@ func (e *Env) settingsBlock(title string, extra map[string]any) map[string]json.
 		}
 	}
 	if id == "" {
-		e.T.Fatalf("settings has no block %q", title)
+		e.T.Fatalf("%s has no block %q", screen, title)
 	}
 	if extra["topic"] == nil {
-		return e.screenData("", "settings", extra)[id]
+		return e.screenData(project, screen, extra)[id]
 	}
-	for _, m := range e.screenMessages("", "settings", extra) {
+	for _, m := range e.screenMessages(project, screen, extra) {
 		var dm struct {
 			Path  string
 			Value map[string]json.RawMessage
@@ -276,7 +282,7 @@ func TestSettingsHealthShowsWhatIsRedFirstWithWhy(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	block := e.settingsBlock("Health", nil)
+	block := e.settingsBlock("Health of the machine", nil)
 	rows := blockData[[]screenRow](t, block["rows"])
 	if len(rows) < 2 || rows[0].Cells[1] != "error" || rows[0].Cells[2] != "the server exited: 1" {
 		t.Fatalf("what is red comes first with why: %+v", rows)
@@ -309,4 +315,37 @@ func TestTheDiskHealthReachesTheOpenScreens(t *testing.T) {
 	events := e.sse(t.Context())
 	e.App.Sweep(context.Background(), time.Now().Add(time.Hour))
 	waitTopic(t, events, "health")
+}
+
+// TestAProjectHasItsOwnSettings: deck adds a settings screen to every project: the project with its buttons, its
+// commands with their providers, its tools, the secrets they use, the tokens that reach it and its health.
+func TestAProjectHasItsOwnSettings(t *testing.T) {
+	e := newEnv(t, nil)
+	e.createProject("notes", strings.Replace(notesManifest, `"url": "https://example.invalid/post",`, `"url": "https://example.invalid/post", "headers": {"Authorization": "Bearer $secret.notes_key"},`, 1))
+	e.createProject("other", plainManifest)
+	_, _ = e.token("mine", "notes.collect")
+	_, _ = e.token("theirs", "other.work")
+	cells := func(title string) [][]any {
+		var out [][]any
+		for _, r := range blockData[[]screenRow](t, e.screenBlock("notes", "settings", title, nil)["rows"]) {
+			out = append(out, r.Cells)
+		}
+		return out
+	}
+	project := blockData[[]listItem](t, e.screenBlock("notes", "settings", "Project", nil)["items"])
+	if len(project) != 1 || !strings.HasPrefix(project[0].Title, "notes · enabled") || !hasVerb(project[0].Actions, "pause") || !hasVerb(project[0].Actions, "delete") {
+		t.Fatalf("the settings show the project with its buttons: %+v", project)
+	}
+	if c := cells("Commands"); len(c) != 1 || c[0][0] != "notes.collect" || c[0][2] != "agent" {
+		t.Fatalf("the commands of the project with what runs them: %v", c)
+	}
+	if c := cells("Tools"); len(c) != 1 || c[0][0] != "notes.post" || c[0][1] != "http" {
+		t.Fatalf("the tools of the project: %v", c)
+	}
+	if c := cells("Secrets"); len(c) != 1 || c[0][0] != "notes_key" || c[0][1] != "not set" {
+		t.Fatalf("the secrets its tools use, and whether they are set: %v", c)
+	}
+	if c := cells("Tokens with access"); len(c) != 1 || c[0][0] != "mine" {
+		t.Fatalf("only the tokens that reach the project: %v", c)
+	}
 }

@@ -168,7 +168,7 @@ func TestFormAsksForTheInputAndShowsTheResultBySchema(t *testing.T) {
 		t.Fatalf("shared files go to a command of the owner that takes a file: %v", names)
 	}
 	var picked formV
-	for _, b := range e.screenData("", "settings", nil) {
+	for _, b := range e.screenData("web", "settings", nil) {
 		if raw, ok := b["value"]; ok && strings.Contains(string(raw), `"commands":[{"description":"Sets the provider`) {
 			picked = blockData[formV](t, raw)
 		}

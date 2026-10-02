@@ -254,8 +254,8 @@ func TestScreenBlocksFollowTheCatalog(t *testing.T) {
 	}
 	e.menuOf(&menu)
 	if len(menu) != 2 || menu[0].Project != "" || menu[0].Screens[0].Name != "cockpit" || menu[1].Project != "notes" ||
-		len(menu[1].Screens) != 2 || menu[1].Screens[0].Name != "main" || menu[1].Screens[1].Name != "documents" {
-		t.Fatalf("the menu has deck's screens, then the project menu and its documents: %+v", menu)
+		len(menu[1].Screens) != 3 || menu[1].Screens[0].Name != "main" || menu[1].Screens[1].Name != "documents" || menu[1].Screens[2].Name != "settings" {
+		t.Fatalf("the menu has deck's screens, then the project menu, its documents and its settings: %+v", menu)
 	}
 	for _, name := range []string{"cockpit", "schedule", "settings"} {
 		check.messages(t, e.screenMessages("", name, nil))

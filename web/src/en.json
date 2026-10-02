@@ -52,6 +52,7 @@
     "move": "To another project",
     "move_project": "Move to another project",
     "reset_push": "Reset the push key",
+    "settings": "Settings",
     "unarchive": "Bring back"
   },
   "input": {

@@ -140,6 +140,16 @@ func added(prev, next []string) []string {
 	return out
 }
 
+// Secrets are the secrets the tools and MCP servers of a manifest use, sorted.
+func (m *Manifest) Secrets() []string {
+	all := serverSecrets(m)
+	for _, t := range m.Tools.HTTP {
+		all = append(all, toolSecrets(t)...)
+	}
+	slices.Sort(all)
+	return slices.Compact(all)
+}
+
 // serverSecrets are the secrets MCP servers of a manifest get in their environment.
 func serverSecrets(m *Manifest) []string {
 	b, _ := json.Marshal(m.Tools.MCP)

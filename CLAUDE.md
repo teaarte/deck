@@ -36,8 +36,9 @@ Stage 1 plan: `docs/plan-stage1.md`.
   a screen block reads a `registry.Read` command (`"from": "deck.asks_list"`), called as the viewer in
   `app/screens.go`; `app/screens` — boards, forms, documents and the buttons of deck's rows (`buttons.go`);
   deck's screens are data in `screens.json`: menu Cockpit, Schedule, Settings (tabs Projects, Providers, Secrets,
-  Tokens, General, Interface, Health), Journal (Calls, Spend, Files, Snapshots); `project` screens (Documents and
-  the page of a document) deck adds to every project; settings the owner changes (`deck.settings_set`) are in
+  Tokens, General, Interface, Health), Journal (Calls, Spend, Files, Snapshots); `project` screens (Documents, the page of
+  a document and Settings of the project: its commands and providers, folders, tools, secrets, tokens, health) deck adds
+  to every project; settings the owner changes (`deck.settings_set`) are in
   `setting` with defaults from `Config`
 - `internal/manifest` — project manifest: parsing, validation, expressions
 - `internal/gateway` — deck MCP server per process: permission prompts, questions, confirmations, registry

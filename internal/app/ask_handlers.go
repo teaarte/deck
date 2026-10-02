@@ -244,7 +244,12 @@ type healthRow struct {
 
 // healthList shows what the machine runs, the providers, commands, tools and MCP servers of the actor's
 // workspace, and per project the worst of those with its error, or a manifest that does not load; worst first.
-func (a *App) healthList(ctx context.Context, act registry.Actor, _ struct{}) ([]healthRow, error) {
+type healthListIn struct {
+	Project string `type:"project" opt:"" desc:"Only the commands, tools and servers of this project, and the project"`
+	Machine bool   `opt:"" desc:"Only what the machine runs: providers, the disk, the sandbox, the tailnet"`
+}
+
+func (a *App) healthList(ctx context.Context, act registry.Actor, in healthListIn) ([]healthRow, error) {
 	hs, err := a.Store.Q.ListHealth(ctx, store.ID(act.Workspace))
 	if err != nil {
 		return nil, err
@@ -271,9 +276,15 @@ func (a *App) healthList(ctx context.Context, act registry.Actor, _ struct{}) ([
 	}
 	rank := map[string]int{"ok": 0, "checking": 1, "paused": 1, "needs_login": 1, "error": 2}
 	out := make([]healthRow, 0, len(hs)+len(ps))
+	shown := func(project string) bool {
+		return (in.Project == "" || project == in.Project) && (!in.Machine || project == "")
+	}
 	for _, hr := range hs {
 		h := hr.Health
-		if strings.HasPrefix(h.Subject, "provider:") && !mine[h.Subject] {
+		if strings.HasPrefix(h.Subject, "provider:") && !mine[h.Subject] || !shown(hr.Project) {
+			if w := worst[hr.Project]; h.ProjectID.Valid && w != nil && rank[h.Status] > rank[w.Status] {
+				w.Status, w.Error, w.UpdatedAt = h.Status, h.Subject+": "+h.Error, h.UpdatedAt
+			}
 			continue
 		}
 		out = append(out, healthRow{Subject: h.Subject, Status: h.Status, Error: h.Error, Version: h.Version, Verdict: h.Verdict,
@@ -283,10 +294,12 @@ func (a *App) healthList(ctx context.Context, act registry.Actor, _ struct{}) ([
 		}
 	}
 	for _, p := range ps {
-		out = append(out, *worst[p.Name])
+		if shown(p.Name) && !in.Machine {
+			out = append(out, *worst[p.Name])
+		}
 	}
-	shown := map[string]int{"error": 0, "needs_login": 1, "paused": 1, "checking": 2, "ok": 3}
-	slices.SortStableFunc(out, func(x, y healthRow) int { return shown[x.Status] - shown[y.Status] })
+	order := map[string]int{"error": 0, "needs_login": 1, "paused": 1, "checking": 2, "ok": 3}
+	slices.SortStableFunc(out, func(x, y healthRow) int { return order[x.Status] - order[y.Status] })
 	return out, nil
 }
 

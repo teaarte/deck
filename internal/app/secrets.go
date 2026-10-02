@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strings"
 
+	"deck2/internal/docs"
 	"deck2/internal/registry"
 )
 
@@ -97,12 +98,20 @@ func (a *App) writeSecret(workspace int64, name, value string) error {
 	return err
 }
 
-// secretRow is a secret by name; its value never leaves deck.
+// secretRow is a secret by name, and whether it is set; its value never leaves deck.
 type secretRow struct {
 	Name string `json:"name"`
+	Set  bool   `json:"set"`
 }
 
-func (a *App) secretsList(ctx context.Context, act registry.Actor, _ struct{}) ([]secretRow, error) {
+type secretsListIn struct {
+	Project string `type:"project" opt:"" desc:"The secrets the tools and servers of this project use, set or not"`
+}
+
+func (a *App) secretsList(ctx context.Context, act registry.Actor, in secretsListIn) ([]secretRow, error) {
+	if in.Project != "" {
+		return a.projectSecrets(ctx, act, in.Project)
+	}
 	es, err := os.ReadDir(a.secretsDir(act.Workspace))
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return nil, err
@@ -116,7 +125,25 @@ func (a *App) secretsList(ctx context.Context, act registry.Actor, _ struct{}) (
 	sort.Strings(names)
 	out := make([]secretRow, 0, len(names))
 	for _, n := range names {
-		out = append(out, secretRow{Name: n})
+		out = append(out, secretRow{Name: n, Set: true})
+	}
+	return out, nil
+}
+
+// projectSecrets are the secrets a project's manifest names, each with whether the workspace has it.
+func (a *App) projectSecrets(ctx context.Context, act registry.Actor, project string) ([]secretRow, error) {
+	p, err := a.project(ctx, act, project)
+	if err != nil {
+		return nil, err
+	}
+	m, err := docs.Manifest(ctx, a.Store.Q, p)
+	if err != nil {
+		return nil, err
+	}
+	out := []secretRow{}
+	for _, n := range m.Secrets() {
+		_, err := os.Stat(filepath.Join(a.secretsDir(act.Workspace), n))
+		out = append(out, secretRow{Name: n, Set: err == nil})
 	}
 	return out, nil
 }

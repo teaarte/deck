@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -229,7 +230,8 @@ func (d screenDeck) Chat(ctx context.Context, workspace int64, topic string) (an
 	return d.a.Chat(ctx, workspace, topic)
 }
 
-// commandRow is a command the caller may call, with its project, its file fields and what runs it.
+// commandRow is a command the caller may call, with its project, its file fields and what runs it: an executor
+// of a command of the manifest, the provider an agent command runs on, or the kind of a tool, http or mcp.
 type commandRow struct {
 	Name        string   `json:"name"`
 	Title       string   `json:"title"`
@@ -237,6 +239,8 @@ type commandRow struct {
 	Project     string   `json:"project"`
 	Files       []string `json:"files"`
 	Executor    string   `json:"executor"`
+	Provider    string   `json:"provider"`
+	Tool        string   `json:"tool"`
 }
 
 type commandsListIn struct {
@@ -273,10 +277,19 @@ func (a *App) commandsList(ctx context.Context, act registry.Actor, in commandsL
 				}
 				manifests[c.ProjectID] = m
 			}
-			if m != nil {
-				if mc := m.Command(strings.TrimPrefix(c.Name, r.Project+".")); mc != nil {
-					r.Executor = mc.Executor.Type
+			short := strings.TrimPrefix(c.Name, r.Project+".")
+			switch {
+			case m == nil:
+			case m.Command(short) != nil:
+				mc := m.Command(short)
+				r.Executor = mc.Executor.Type
+				if pv, err := a.For(ctx, c.ProjectID, mc); err == nil && r.Executor == "agent" {
+					r.Provider = pv.Name()
 				}
+			case slices.ContainsFunc(m.Tools.HTTP, func(t manifest.HTTPTool) bool { return t.Name == short }):
+				r.Tool = "http"
+			case c.Fingerprint != nil:
+				r.Tool = "mcp"
 			}
 		}
 		out = append(out, r)

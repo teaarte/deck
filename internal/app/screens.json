@@ -112,6 +112,7 @@
               "item": {"title": "name + ' · ' + status + (paused ? ', paused' : '')", "text": "manifest_error != '' ? 'manifest: ' + manifest_error : description",
                 "meta": "'autonomy: ' + autonomy + (no_network ? ' · no network' : '') + (len(folders) > 0 ? ' · folders: ' + join(map(folders, .name + ': ' + .path), '; ') : '') + (len(rights) > 0 ? ' · enabling grants: ' + join(rights, '; ') : '')"},
               "actions": [
+                {"verb": "settings", "screen": "settings", "project": "$record.name"},
                 {"verb": "enable", "primary": true, "command": "deck.project_enable", "params": {"project": "$record.name", "revision": "$record.revision"}, "when": "manifest_error == '' && status == 'draft'"},
                 {"verb": "autonomy_auto", "command": "deck.project_autonomy", "params": {"project": "$record.name", "autonomy": "auto"}, "when": "manifest_error == '' && autonomy != 'auto'"},
                 {"verb": "autonomy_suggest", "command": "deck.project_autonomy", "params": {"project": "$record.name", "autonomy": "suggest"}, "when": "manifest_error == '' && autonomy == 'auto'"},
@@ -121,8 +122,6 @@
               ]},
             {"type": "form", "title": "Create project", "command": "deck.project_create"},
             {"type": "form", "title": "Import project", "command": "deck.project_import"},
-            {"type": "form", "title": "Add folder", "command": "deck.folder_add"},
-            {"type": "form", "title": "Remove folder", "command": "deck.folder_remove"},
             {"type": "form", "title": "Trial run", "command": "deck.command_try",
               "choices": {"command": {"source": {"from": "deck.commands_list", "where": "project != '' && executor != 'tool'", "sort": "name"}, "value": "name", "label": "title + ' (' + name + ')'"}}}
           ]},
@@ -143,9 +142,6 @@
               ]},
             {"type": "form", "title": "Add a provider", "command": "deck.provider_add",
               "choices": {"key_secret": {"source": {"from": "deck.secrets_list"}, "value": "name"}}},
-            {"type": "form", "title": "Choose the provider of a command", "command": "deck.provider_set",
-              "choices": {"command": {"source": {"from": "deck.commands_list", "where": "executor == 'agent'", "sort": "name"}, "value": "name", "label": "title + ' (' + name + ')'"},
-                "provider": {"source": {"from": "deck.providers_list", "rows": "providers"}, "value": "name"}}},
             {"type": "form", "title": "Speech to text", "command": "deck.stt_set",
               "choices": {"key_secret": {"source": {"from": "deck.secrets_list"}, "value": "name"}}}
           ]},
@@ -179,7 +175,7 @@
           {"title": "Interface", "blocks": [{"type": "appearance", "title": "Appearance"},
             {"type": "actions", "title": "Pushes", "actions": [{"verb": "reset_push", "confirm": true, "command": "deck.push_reset"}]}]},
           {"title": "Health", "blocks": [
-            {"type": "table", "title": "Health", "source": {"from": "deck.health_list"}, "filter": ["status"],
+            {"type": "table", "title": "Health of the machine", "source": {"from": "deck.health_list", "input": {"machine": true}}, "filter": ["status"],
               "columns": [
                 {"label": "What", "bind": "subject"},
                 {"label": "Status", "bind": "status"},
@@ -308,6 +304,61 @@
             {"verb": "restore", "command": "deck.document_restore", "params": {"document": "$record.id"}, "when": "deleted"},
             {"verb": "open", "screen": "document", "record": "$record.id", "when": "!deleted"},
             {"verb": "delete", "confirm": true, "command": "deck.document_delete", "params": {"document": "$record.id"}, "when": "!deleted && kind != 'manifest' && !(kind == 'prompt' && owner_kind == '')"}
+          ]}
+      ]
+    },
+    {
+      "name": "settings",
+      "title": "Settings",
+      "blocks": [
+        {"type": "list", "title": "Project", "source": {"from": "deck.projects_list"},
+          "item": {"title": "name + ' · ' + status + (paused ? ', paused' : '')", "text": "manifest_error != '' ? 'manifest: ' + manifest_error : description",
+            "meta": "'autonomy: ' + autonomy + (no_network ? ' · no network' : '') + (len(folders) > 0 ? ' · folders: ' + join(map(folders, .name + ': ' + .path), '; ') : '') + (len(rights) > 0 ? ' · enabling grants: ' + join(rights, '; ') : '')"},
+          "actions": [
+            {"verb": "enable", "primary": true, "command": "deck.project_enable", "params": {"project": "$record.name", "revision": "$record.revision"}, "when": "manifest_error == '' && status == 'draft'"},
+            {"verb": "autonomy_auto", "command": "deck.project_autonomy", "params": {"project": "$record.name", "autonomy": "auto"}, "when": "manifest_error == '' && autonomy != 'auto'"},
+            {"verb": "autonomy_suggest", "command": "deck.project_autonomy", "params": {"project": "$record.name", "autonomy": "suggest"}, "when": "manifest_error == '' && autonomy == 'auto'"},
+            {"verb": "pause", "command": "deck.project_pause", "params": {"project": "$record.name", "paused": "true"}, "when": "!paused"},
+            {"verb": "resume", "command": "deck.project_pause", "params": {"project": "$record.name", "paused": "false"}, "when": "paused"},
+            {"verb": "delete", "confirm": true, "command": "deck.project_delete", "params": {"project": "$record.name"}, "when": "!builtin"}
+          ]},
+        {"type": "table", "title": "Commands", "source": {"from": "deck.commands_list", "where": "tool == ''", "sort": "name"},
+          "columns": [
+            {"label": "Command", "bind": "name"},
+            {"label": "Title", "bind": "title"},
+            {"label": "Runs as", "bind": "executor"},
+            {"label": "Provider", "bind": "provider"}
+          ]},
+        {"type": "form", "title": "Choose the provider of a command", "command": "deck.provider_set",
+          "choices": {"command": {"source": {"from": "deck.commands_list", "where": "executor == 'agent'", "sort": "name"}, "value": "name", "label": "title + ' (' + name + ')'"},
+            "provider": {"source": {"from": "deck.providers_list", "rows": "providers"}, "value": "name"}}},
+        {"type": "form", "title": "Add folder", "command": "deck.folder_add"},
+        {"type": "form", "title": "Remove folder", "command": "deck.folder_remove"},
+        {"type": "table", "title": "Tools", "source": {"from": "deck.commands_list", "where": "tool != ''", "sort": "name"},
+          "columns": [
+            {"label": "Tool", "bind": "name"},
+            {"label": "Kind", "bind": "tool"},
+            {"label": "What it does", "bind": "description"}
+          ]},
+        {"type": "table", "title": "Secrets", "source": {"from": "deck.secrets_list"},
+          "columns": [
+            {"label": "Secret", "bind": "name"},
+            {"label": "State", "bind": "set ? 'set' : 'not set'"}
+          ]},
+        {"type": "form", "title": "Set or replace a secret", "command": "deck.secret_set"},
+        {"type": "table", "title": "Tokens with access", "source": {"from": "deck.tokens_list", "sort": "-id"},
+          "columns": [
+            {"label": "Name", "bind": "name"},
+            {"label": "Commands", "bind": "join(commands, ', ')"},
+            {"label": "State", "bind": "revoked ? 'revoked' : 'live'"}
+          ],
+          "actions": [{"verb": "revoke", "confirm": true, "command": "deck.token_revoke", "params": {"token": "$record.id"}, "when": "!revoked"}]},
+        {"type": "table", "title": "Health", "source": {"from": "deck.health_list"}, "filter": ["status"],
+          "columns": [
+            {"label": "What", "bind": "subject"},
+            {"label": "Status", "bind": "status"},
+            {"label": "Why", "bind": "error"},
+            {"label": "Since", "bind": "updated_at"}
           ]}
       ]
     },

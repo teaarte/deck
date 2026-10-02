@@ -65,8 +65,10 @@ func (r *renderer) actions(as []manifest.Action, id int64, env map[string]any) [
 			}
 			if v := itemValue(a.Record, id, env); v != nil {
 				act["record"] = v
-			} else if t := r.req.Manifest.Screen(a.Screen); !r.deck() && t != nil && t.Record != "" {
-				act["record"] = id
+			} else if !r.deck() {
+				if t := r.req.Manifest.Screen(a.Screen); t != nil && t.Record != "" {
+					act["record"] = id
+				}
 			}
 		default:
 			name := a.Command

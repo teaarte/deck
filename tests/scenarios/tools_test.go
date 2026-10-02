@@ -138,7 +138,7 @@ func TestHTTPToolTemplatesStayOnTheirHost(t *testing.T) {
 	e.must("deck.secret_set", map[string]any{"name": "k", "value": "v"}, nil)
 	var names []map[string]any
 	e.must("deck.secrets_list", nil, &names)
-	if len(names) != 1 || names[0]["name"] != "k" || len(names[0]) != 1 {
+	if len(names) != 1 || names[0]["name"] != "k" || names[0]["set"] != true || len(names[0]) != 2 {
 		t.Fatalf("secrets_list gives names only: %v", names)
 	}
 }

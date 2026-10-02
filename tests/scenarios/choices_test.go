@@ -46,15 +46,15 @@ func TestFormFieldsOfferValuesFromASourceAndProjectFieldsTheProjects(t *testing.
 		t.Fatalf("a field that names a project offers the projects: %+v", hand.Choices)
 	}
 
-	set := e.settingsBlock("Choose the provider of a command", nil)
+	set := e.screenBlock("web", "settings", "Choose the provider of a command", nil)
 	pick := blockData[struct{ Choices map[string][]choiceV }](t, set["value"])
 	var cmds []string
 	for _, c := range pick.Choices["command"] {
 		cmds = append(cmds, c.Value.(string))
 	}
-	if strings.Join(cmds, " ") != "master.memory master.on_error master.review tools.publish web.hand web.mark web.publish web.score web.tag web.tell web.touch" ||
-		pick.Choices["command"][4].Label != "Hand over (web.hand)" || pick.Choices["provider"][0].Value != "fake" {
-		t.Fatalf("the provider of an agent command is picked from agent commands and providers: %+v", pick.Choices)
+	if strings.Join(cmds, " ") != "web.hand web.mark web.publish web.score web.tag web.tell web.touch" ||
+		pick.Choices["command"][0].Label != "Hand over (web.hand)" || pick.Choices["provider"][0].Value != "fake" {
+		t.Fatalf("the provider of an agent command of the project is picked on its settings: %+v", pick.Choices)
 	}
 	e.must("deck.secret_set", map[string]any{"name": "or-key", "value": "x"}, nil)
 	add := blockData[struct{ Choices map[string][]choiceV }](t, e.settingsBlock("Add a provider", nil)["value"])

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 
 	"deck2/internal/nonce"
@@ -81,7 +82,11 @@ type tokenRow struct {
 	Revoked   bool     `json:"revoked"`
 }
 
-func (a *App) tokensList(ctx context.Context, act registry.Actor, _ struct{}) ([]tokenRow, error) {
+type tokensListIn struct {
+	Project string `type:"project" opt:"" desc:"Only the tokens that may call a command of this project"`
+}
+
+func (a *App) tokensList(ctx context.Context, act registry.Actor, in tokensListIn) ([]tokenRow, error) {
 	ts, err := a.Store.Q.ListTokens(ctx, act.Workspace)
 	if err != nil {
 		return nil, err
@@ -90,6 +95,9 @@ func (a *App) tokensList(ctx context.Context, act registry.Actor, _ struct{}) ([
 	for _, t := range ts {
 		r := tokenRow{ID: t.ID, Name: t.Name, Commands: []string{}, CreatedAt: t.CreatedAt, Revoked: t.RevokedAt.Valid}
 		_ = json.Unmarshal([]byte(t.Commands), &r.Commands)
+		if in.Project != "" && !slices.ContainsFunc(r.Commands, func(c string) bool { return c == "*" || strings.HasPrefix(c, in.Project+".") }) {
+			continue
+		}
 		out = append(out, r)
 	}
 	return out, nil

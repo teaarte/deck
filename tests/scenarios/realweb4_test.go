@@ -43,10 +43,12 @@ func TestRealBrowserCodeProject(t *testing.T) {
 	b.eval(`(` + item("code · draft") + `.querySelector('[data-verb="enable"]').click(), '')`)
 	b.until("the enabled project", item("code · enabled"))
 
-	b.pick(`[data-form="deck.folder_add"] input[data-field="project"]`, "code")
+	b.eval(`(` + item("code · enabled") + `.querySelector('[data-verb="settings"]').click(), '')`)
+	b.until("the settings of the project", form("deck.folder_add", "path"))
 	b.type_(form("deck.folder_add", "path"), repo)
 	submit("deck.folder_add")
-	b.until("the folder in the list", item("folders: my-repo: "+repo))
+	b.until("the folder in the project line", item("folders: my-repo: "+repo))
+	b.until("the commands of the project", `[...document.querySelectorAll('tr')].some((r) => r.innerText.includes('code.run'))`)
 	b.shot("code-settings")
 
 	b.open(e.URL + "/#/p/code/board")

@@ -36,13 +36,20 @@ type screenView struct {
 	Title string `json:"title"`
 }
 
-func (a *App) projectsList(ctx context.Context, act registry.Actor, _ struct{}) ([]projectView, error) {
+type projectsListIn struct {
+	Project string `type:"project" opt:"" desc:"Only this project"`
+}
+
+func (a *App) projectsList(ctx context.Context, act registry.Actor, in projectsListIn) ([]projectView, error) {
 	ps, err := a.Store.Q.ListWorkspaceProjects(ctx, act.Workspace)
 	if err != nil {
 		return nil, err
 	}
 	out := make([]projectView, 0, len(ps))
 	for _, p := range ps {
+		if in.Project != "" && p.Name != in.Project {
+			continue
+		}
 		v, _ := a.viewProject(ctx, p)
 		out = append(out, v)
 	}

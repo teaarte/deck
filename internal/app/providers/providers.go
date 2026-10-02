@@ -241,7 +241,7 @@ func checkDef(name string, d providerDef, builtin []string) error {
 		return registry.Invalid("deck: provider url takes no user, query or key; keep the API key in a secret and name it in key_secret")
 	case strings.TrimSpace(d.Model) == "":
 		return registry.Invalid("deck: provider needs a model")
-	case d.KeySecret != "" && !access.SecretName.MatchString(d.KeySecret):
+	case d.KeySecret != "" && !access.ValidSecret(d.KeySecret):
 		return registry.Invalid("deck: bad secret name %q", d.KeySecret)
 	case acp.Agents[d.Agent].Start == nil:
 		return registry.Invalid("deck: no ACP agent %q; deck knows %s", d.Agent, strings.Join(acp.Names(), ", "))

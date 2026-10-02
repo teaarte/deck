@@ -363,3 +363,9 @@ func TestNoToolGetsThePushKey(t *testing.T) {
 	default:
 	}
 }
+
+// TestSpeechToTextNamesARealSecret: a key secret of only dots is refused when speech to text is set.
+func TestSpeechToTextNamesARealSecret(t *testing.T) {
+	e := newEnv(t, nil)
+	e.refused("deck.stt_set", map[string]any{"url": "http://127.0.0.1:1/inference", "key_secret": ".."}, 422, "bad secret name")
+}

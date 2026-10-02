@@ -64,7 +64,7 @@ func (dv *Service) sttSet(ctx context.Context, act registry.Actor, in sttSetIn) 
 		return nil, registry.Invalid("deck: the speech-to-text url is http or https, such as %s", DefaultSTT)
 	case strings.ContainsAny(d.URL, "@?#"):
 		return nil, registry.Invalid("deck: the url takes no user, query or key; keep the key in a secret and name it in key_secret")
-	case d.KeySecret != "" && !access.SecretName.MatchString(d.KeySecret):
+	case d.KeySecret != "" && !access.ValidSecret(d.KeySecret):
 		return nil, registry.Invalid("deck: bad secret name %q", d.KeySecret)
 	}
 	raw, _ := json.Marshal(d)

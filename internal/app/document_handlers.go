@@ -214,7 +214,7 @@ func (a *App) documentSave(ctx context.Context, act registry.Actor, in documentS
 	return v, nil
 }
 
-// memoryScope is docScope, except that memory of no project is the memory of the owner, in project master.
+// memoryScope is access.DocScope, except that memory of no project is the memory of the owner, in project master.
 func (a *App) memoryScope(ctx context.Context, act registry.Actor, project, name string) (docs.Scope, error) {
 	s, err := access.DocScope(ctx, a.Store.Q, act, project)
 	if err != nil || s.Project != 0 || !strings.HasPrefix(name, docs.MemoryDir) {

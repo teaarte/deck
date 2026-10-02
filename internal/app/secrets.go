@@ -29,7 +29,7 @@ func (a *App) Secret(workspace int64, name string) (string, error) {
 }
 
 func (a *App) readSecret(workspace int64, name string) (string, error) {
-	if !validSecret(name) {
+	if !access.ValidSecret(name) {
 		return "", registry.Invalid("deck: bad secret name %q", name)
 	}
 	b, err := os.ReadFile(filepath.Join(a.secretsDir(workspace), name))
@@ -49,7 +49,7 @@ type secretSetIn struct {
 var serviceSecrets = []string{devices.VAPIDSecret}
 
 func (a *App) secretSet(ctx context.Context, act registry.Actor, in secretSetIn) (any, error) {
-	if !validSecret(in.Name) {
+	if !access.ValidSecret(in.Name) {
 		return nil, registry.Invalid("deck: a secret name is letters, digits, '.', '_' and '-'")
 	}
 	if slices.Contains(serviceSecrets, in.Name) {
@@ -68,7 +68,7 @@ func (a *App) secretSet(ctx context.Context, act registry.Actor, in secretSetIn)
 func (a *App) SwapSecret(workspace int64, name, old, value string) (bool, error) {
 	a.secretMu.Lock()
 	defer a.secretMu.Unlock()
-	if !validSecret(name) {
+	if !access.ValidSecret(name) {
 		return false, registry.Invalid("deck: bad secret name %q", name)
 	}
 	b, err := os.ReadFile(filepath.Join(a.secretsDir(workspace), name))
@@ -82,7 +82,7 @@ func (a *App) SwapSecret(workspace int64, name, old, value string) (bool, error)
 }
 
 func (a *App) writeSecret(workspace int64, name, value string) error {
-	if !validSecret(name) {
+	if !access.ValidSecret(name) {
 		return registry.Invalid("deck: bad secret name %q", name)
 	}
 	dir := a.secretsDir(workspace)
@@ -152,10 +152,6 @@ func (a *App) projectSecrets(ctx context.Context, act registry.Actor, project st
 		out = append(out, secretRow{Name: n, Set: err == nil})
 	}
 	return out, nil
-}
-
-func validSecret(name string) bool {
-	return access.SecretName.MatchString(name) && strings.Trim(name, ".") != ""
 }
 
 func (a *App) secretsCommands() []*registry.Command {

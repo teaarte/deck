@@ -22,6 +22,11 @@ var (
 	SecretName  = regexp.MustCompile(`^[A-Za-z0-9_.-]{1,64}$`)
 )
 
+// ValidSecret says a name may name a secret: SecretName, and not only dots, which name folders.
+func ValidSecret(name string) bool {
+	return SecretName.MatchString(name) && strings.Trim(name, ".") != ""
+}
+
 // Project resolves the project a call is about, the caller's own when the name is empty; a confined actor
 // stays inside its own project.
 func Project(ctx context.Context, q *db.Queries, act registry.Actor, name string) (db.Project, error) {

@@ -15,7 +15,6 @@ import (
 	"slices"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"deck2/internal/docs"
@@ -62,8 +61,6 @@ type Browser struct {
 
 	proxyOnce sync.Once
 	proxyAt   string
-	// allow are the domains of the project whose call the browser without sign-ins runs now.
-	allow atomic.Pointer[[]string]
 
 	mu     sync.Mutex
 	headed bool
@@ -76,7 +73,7 @@ func (b *Browser) dir(name string) string { return filepath.Join(home.Layout(b.H
 func (b *Browser) spec(open bool) mcphost.Spec {
 	args := append(slices.Clone(b.Argv[1:]), "--user-data-dir", b.dir("profile"), "--output-dir", b.dir("out"))
 	if open {
-		args = append(slices.Clone(b.Argv[1:]), "--isolated", "--output-dir", b.dir("open-out"),
+		args = append(slices.Clone(b.Argv[1:]), "--isolated", "--output-dir", b.dir("open-out"), "--init-script", b.noWebRTC(),
 			"--proxy-server", "http://"+cmp.Or(b.proxy(), "127.0.0.1:1"), "--proxy-bypass", "<-loopback>")
 	}
 	if !b.headed || open {
@@ -91,8 +88,27 @@ func (b *Browser) spec(open bool) mcphost.Spec {
 	return mcphost.Spec{Command: b.Argv[0], Args: args, Env: env, Dir: b.dir("work")}
 }
 
-// proxy is where the browser without sign-ins reaches the web: a host reached by "*" is dialled at the public
-// address deck resolved, so a name cannot turn into a local address after the check.
+// openWeb is all the browser without sign-ins reaches: the public internet. Its tabs outlive a call and are
+// shared by the projects that read any site, so no project's local addresses are open to them.
+var openWeb = []string{"*"}
+
+// noWebRTC is a script run in every page of the browser without sign-ins before the page's own: WebRTC sends
+// UDP past the proxy, and Chrome ignores the switch that would stop it.
+func (b *Browser) noWebRTC() string {
+	path := b.dir("open-no-webrtc.js")
+	if os.MkdirAll(b.dir(""), 0o700) != nil || os.WriteFile(path, []byte(noWebRTC), 0o600) != nil {
+		slog.Error("browser init script", "path", path)
+	}
+	return path
+}
+
+const noWebRTC = `for (const k of ['RTCPeerConnection', 'webkitRTCPeerConnection', 'RTCDataChannel', 'RTCSessionDescription', 'RTCIceCandidate']) {
+  try { delete window[k]; } catch {}
+  try { Object.defineProperty(window, k, { value: undefined, configurable: false, writable: false }); } catch {}
+}`
+
+// proxy is where the browser without sign-ins reaches the web: a host is dialled at the public address deck
+// resolved, so a name cannot turn into a local address after the check.
 func (b *Browser) proxy() string {
 	b.proxyOnce.Do(func() {
 		ln, err := net.Listen("tcp", "127.0.0.1:0")
@@ -102,12 +118,7 @@ func (b *Browser) proxy() string {
 		}
 		b.proxyAt = ln.Addr().String()
 		srv := &http.Server{ReadHeaderTimeout: 10 * time.Second, Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			d := b.allow.Load()
-			if d == nil {
-				http.Error(w, "deck: no project runs the browser", http.StatusForbidden)
-				return
-			}
-			gateway.Egress(b.Ctx, w, r, *d)
+			gateway.Egress(b.Ctx, w, r, openWeb)
 		})}
 		go func() { <-b.Ctx.Done(); _ = srv.Close() }()
 		go func() { _ = srv.Serve(ln) }()
@@ -249,7 +260,6 @@ func (b *Browser) allowed(ctx context.Context, act registry.Actor, _ bool) (bool
 	}
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	b.serve(m)
 	page, err := b.current(ctx, readsAnySite(m))
 	return err == nil && on(m.Domains.Act, page), nil
 }
@@ -269,7 +279,6 @@ func (b *Browser) reader(tool string) registry.Handler {
 		}
 		b.mu.Lock()
 		defer b.mu.Unlock()
-		b.serve(m)
 		res, err := b.call(ctx, readsAnySite(m), tool, raw)
 		if err != nil {
 			return nil, fmt.Errorf("deck: %s: %v", tool, err)
@@ -283,12 +292,6 @@ func (b *Browser) reader(tool string) registry.Handler {
 		}
 		return Content(b.Dirs, act.ProcessID, tool, res)
 	}
-}
-
-// serve lets the proxy carry what the project's domains reach; b.mu is held.
-func (b *Browser) serve(m *manifest.Manifest) {
-	d := append(slices.Clone(m.Domains.Read), m.Domains.Act...)
-	b.allow.Store(&d)
 }
 
 // ownTabs leaves out of a tab list the pages off the domains, which may be other projects' or the owner's.

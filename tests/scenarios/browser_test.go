@@ -325,7 +325,7 @@ func TestTheAgentsOwnWordsComeBackOnOneLine(t *testing.T) {
 }
 
 // TestTheBrowserWithoutSignInsReachesNoLocalAddress: the browser of a project reading any site goes through
-// deck's proxy, which turns down a local address unless the project names it.
+// deck's proxy, which turns down a local address, even one the project names: its tabs serve other projects too.
 func TestTheBrowserWithoutSignInsReachesNoLocalAddress(t *testing.T) {
 	var hits atomic.Int32
 	local := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -362,7 +362,16 @@ func TestTheBrowserWithoutSignInsReachesNoLocalAddress(t *testing.T) {
 	host := strings.TrimPrefix(local.URL, "http://")
 	e.createProject("home", browserManifest(`{"read": ["*", "`+host+`"]}`))
 	e.waitState(e.start("home", "browse", steps(nav(local.URL))), "done")
-	if code := get(); code != http.StatusOK || hits.Load() != 1 {
-		t.Fatalf("a local address the project names is reached: %d, %d hits", code, hits.Load())
+	if code := get(); code != http.StatusForbidden || hits.Load() != 0 {
+		t.Fatalf("a local address the project names is not open to the shared browser either: %d, %d hits", code, hits.Load())
+	}
+	script := ""
+	for _, a := range fakeLog(e.Browser) {
+		if c, ok := strings.CutPrefix(a, "init:"); ok {
+			script = c
+		}
+	}
+	if raw, _ := os.ReadFile(script); !strings.Contains(string(raw), "RTCPeerConnection") {
+		t.Fatalf("pages of the browser get no WebRTC, which goes past the proxy: %q %s", script, raw)
 	}
 }

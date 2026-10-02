@@ -138,7 +138,10 @@ func (c *screenCheck) block(where string, b Block) {
 				c.fail("%s column %q: %v", where, col.Label, err)
 			}
 		}
-		if b.ActionsFrom != "" && fields != nil && !slices.Contains(fields, b.ActionsFrom) {
+		switch {
+		case b.ActionsFrom != "" && !c.deck:
+			c.fail("%s actions_from: only deck's own screens take buttons from their rows", where)
+		case b.ActionsFrom != "" && fields != nil && !slices.Contains(fields, b.ActionsFrom):
 			c.fail("%s actions_from: unknown field %q", where, b.ActionsFrom)
 		}
 		if b.Item != nil {

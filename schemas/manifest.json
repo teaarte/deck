@@ -250,7 +250,7 @@
     },
     "filter": {"type": "array", "items": {"type": "string"}, "uniqueItems": true, "description": "Fields of an item the owner narrows the block by."},
     "actions": {"type": "array", "items": {"$ref": "#/$defs/action"}},
-    "actions_from": {"type": "string", "description": "Field of an item with buttons of its own: label, command with its project, params."},
+    "actions_from": {"type": "string", "description": "Only on deck's own screens: a field of an item with buttons of its own (label, command with its project, params)."},
     "bind": {
       "type": "object",
       "additionalProperties": false,

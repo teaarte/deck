@@ -25,7 +25,7 @@ func (r *Runner) holdFolder(ctx context.Context, t turn, folder string) bool {
 		if held = holder == t.process; held {
 			return nil
 		}
-		_, err = holdIn(ctx, q, t, StateWaitingFolder)
+		_, err = r.holdIn(ctx, q, t, StateWaitingFolder)
 		return err
 	})
 	if err != nil {

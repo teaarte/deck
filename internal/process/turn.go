@@ -45,8 +45,7 @@ type turn struct {
 func (r *Runner) run(ctx context.Context, t turn) {
 	bg := context.WithoutCancel(ctx)
 	defer func() { t.slot.release(bg) }()
-	processID := t.process
-	p, err := r.st.Q.GetProcess(bg, processID)
+	p, err := r.st.Q.GetProcess(bg, t.process)
 	if err != nil || p.State != StateRunning {
 		return
 	}
@@ -54,142 +53,172 @@ func (r *Runner) run(ctx context.Context, t turn) {
 	switch t.cmd.Executor.Type {
 	case KindScript:
 		r.runScript(ctx, t, trial)
-		return
 	case KindTool:
 		r.runTool(ctx, t, trial)
+	default:
+		r.runAgent(ctx, &t, p, trial)
+	}
+}
+
+// agentTurn is what an agent turn runs with once it holds its provider, folder and slot.
+type agentTurn struct {
+	req     provider.Request
+	sub     *gateway.Submit
+	proj    db.Project
+	tools   []string
+	dir     string
+	data    string
+	listen  func(on bool)
+	cleanup func()
+}
+
+func (r *Runner) runAgent(ctx context.Context, t *turn, p db.Process, trial bool) {
+	bg := context.WithoutCancel(ctx)
+	fail := func(msg string) { r.finish(bg, t.process, StateError, "", false, msg) }
+	a, ok := r.prepare(bg, t, p, trial, fail)
+	if !ok {
 		return
 	}
-	pv, err := r.providers.Named(bg, t.project, p.Provider)
+	defer a.cleanup()
+	r.converse(ctx, t, a, fail)
+}
+
+// prepare gets a turn its provider, folder and slot, or leaves it waiting for them, then its folders, gateway
+// session, log and request; false when the turn does not go on.
+func (r *Runner) prepare(ctx context.Context, t *turn, p db.Process, trial bool, fail func(string)) (*agentTurn, bool) {
+	pv, err := r.providers.Named(ctx, t.project, p.Provider)
 	if err != nil {
-		r.finish(bg, processID, StateError, "", false, err.Error())
-		return
+		fail(err.Error())
+		return nil, false
 	}
 	if missing := pv.Caps().Missing(t.cmd.Requires); len(missing) > 0 {
-		r.finish(bg, processID, StateError, "", false, fmt.Sprintf("deck: provider %s no longer fits %s: it lacks %s",
-			pv.Name(), t.cmd.Name, strings.Join(missing, ", ")))
-		return
+		fail(fmt.Sprintf("deck: provider %s no longer fits %s: it lacks %s", pv.Name(), t.cmd.Name, strings.Join(missing, ", ")))
+		return nil, false
 	}
 	t.pv = pv
-	if !r.providers.Ready(bg, pv.Name()) {
-		r.hold(bg, t, StateWaitingProvider)
-		return
+	if !r.providers.Ready(ctx, pv.Name()) {
+		r.hold(ctx, *t, StateWaitingProvider)
+		return nil, false
 	}
-	proj, err := r.st.Q.GetProject(bg, t.project)
+	proj, err := r.st.Q.GetProject(ctx, t.project)
 	if err != nil {
-		r.finish(bg, processID, StateError, "", false, err.Error())
-		return
+		fail(err.Error())
+		return nil, false
 	}
 	t.folder = p.Folder
 	if t.folder != "" {
 		if real, err := filepath.EvalSymlinks(t.folder); err != nil || real != t.folder {
-			r.finish(bg, processID, StateError, "", false, "deck: the project folder "+t.folder+" is gone or moved")
-			return
+			fail("deck: the project folder " + t.folder + " is gone or moved")
+			return nil, false
 		}
-		if !r.holdFolder(bg, t, t.folder) {
-			return
+		if !r.holdFolder(ctx, *t, t.folder) {
+			return nil, false
 		}
 	}
 	if t.slot == nil {
-		if t.slot = r.takeSlot(bg, proj.WorkspaceID); t.slot == nil {
-			r.hold(bg, t, StateWaitingSlot)
-			return
+		if t.slot = r.takeSlot(ctx, proj.WorkspaceID); t.slot == nil {
+			r.hold(ctx, *t, StateWaitingSlot)
+			return nil, false
 		}
 	}
-	dir := r.runDir(processID)
-	work := filepath.Join(dir, "work")
-	data := r.scripts.DataDir(t.project)
-	repo := false
+	a := &agentTurn{proj: proj, dir: r.runDir(t.process), data: r.scripts.DataDir(t.project)}
+	work, repo := filepath.Join(a.dir, "work"), false
 	if t.folder != "" {
 		work = t.folder
 		_, err := os.Stat(filepath.Join(work, ".git"))
 		repo = err == nil
 	} else if err := os.MkdirAll(work, 0o700); err != nil {
-		r.finish(bg, processID, StateError, "", false, err.Error())
-		return
+		fail(err.Error())
+		return nil, false
 	}
-	if err := errors.Join(os.MkdirAll(filepath.Join(dir, "results"), 0o700), os.MkdirAll(data, 0o700)); err != nil {
-		r.finish(bg, processID, StateError, "", false, err.Error())
-		return
+	if err := errors.Join(os.MkdirAll(filepath.Join(a.dir, "results"), 0o700), os.MkdirAll(a.data, 0o700)); err != nil {
+		fail(err.Error())
+		return nil, false
 	}
-	r.projects.Servers(bg, t.project)
-	var sub *gateway.Submit
+	r.projects.Servers(ctx, t.project)
 	if len(t.cmd.Result) > 0 && !slices.Contains(pv.Caps(), provider.StructuredOutput) {
-		sub = &gateway.Submit{Schema: t.cmd.Result, Validate: func(raw json.RawMessage) error { return validate(t.cmd, raw) }}
+		a.sub = &gateway.Submit{Schema: t.cmd.Result, Validate: func(raw json.RawMessage) error { return validate(t.cmd, raw) }}
 	}
-	tok, err := r.gw.Register(bg, &gateway.Session{ProcessID: processID, ProjectID: t.project, Workspace: proj.WorkspaceID, Trial: trial, Submit: sub,
+	tok, err := r.gw.Register(ctx, &gateway.Session{ProcessID: t.process, ProjectID: t.project, Workspace: proj.WorkspaceID, Trial: trial, Submit: a.sub,
 		Ask: pv.QuestionTool() == provider.AskTool, Wait: callLimit(pv), Master: proj.Builtin == 1, Commands: t.cmd.Executor.Calls})
 	if err != nil {
-		r.finish(bg, processID, StateError, "", false, err.Error())
-		return
+		fail(err.Error())
+		return nil, false
 	}
-	defer r.gw.Unregister(tok)
-	tools := r.gw.Tools(tok)
-	stream, err := os.OpenFile(filepath.Join(dir, "stream"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+	a.tools = r.gw.Tools(tok)
+	stream, err := os.OpenFile(filepath.Join(a.dir, "stream"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 	if err != nil {
-		r.finish(bg, processID, StateError, "", false, err.Error())
-		return
+		r.gw.Unregister(tok)
+		fail(err.Error())
+		return nil, false
 	}
-	defer stream.Close()
-	err = r.st.Tx(bg, func(ctx context.Context, q *db.Queries) error {
-		return q.StartCeiling(ctx, db.StartCeilingParams{Now: r.now().UnixMilli(), ID: processID})
-	})
-	if err != nil {
-		r.finish(bg, processID, StateError, "", false, "start the ceiling: "+err.Error())
-		return
+	a.cleanup = func() { stream.Close(); r.gw.Unregister(tok) }
+	if err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		return q.StartCeiling(ctx, db.StartCeilingParams{Now: r.now().UnixMilli(), ID: t.process})
+	}); err != nil {
+		a.cleanup()
+		fail("start the ceiling: " + err.Error())
+		return nil, false
 	}
-
 	noNetwork := t.m.NoNetwork
-	if now, err := docs.ManifestAt(bg, r.st.Q, t.project, 0); err == nil && now.NoNetwork {
+	if now, err := docs.ManifestAt(ctx, r.st.Q, t.project, 0); err == nil && now.NoNetwork {
 		noNetwork = true
 	}
-	req := provider.Request{
+	processID := t.process
+	a.req = provider.Request{
 		Cwd: work, Repo: repo, Prompt: t.message, ResultSchema: t.cmd.Result,
 		MCPURL: r.cfg.MCPBase + "/mcp/" + tok, AllowedTools: r.gw.AllowedTools(tok), PermissionMCP: gateway.PermissionTool(),
-		SessionID: t.session, Resume: t.resume, Hidden: r.cfg.Hidden(t.project, processID), Dirs: []string{data, filepath.Join(dir, "results")}, NoNetwork: noNetwork,
-		OnStart: func(pid int) { r.setGroup(bg, processID, pid) },
-		OnEvent: func(e provider.Event) { r.event(bg, processID, stream, e) },
-		OnUsage: func(u provider.Usage) { r.usage(bg, processID, pv.Name(), u) },
+		SessionID: t.session, Resume: t.resume, Hidden: r.cfg.Hidden(t.project, processID), Dirs: []string{a.data, filepath.Join(a.dir, "results")}, NoNetwork: noNetwork,
+		OnStart: func(pid int) { r.setGroup(ctx, processID, pid) },
+		OnEvent: func(e provider.Event) { r.event(ctx, processID, stream, e) },
+		OnUsage: func(u provider.Usage) { r.usage(ctx, processID, pv.Name(), u) },
 	}
 	var in chan provider.Message
 	if slices.Contains(pv.Caps(), provider.LiveInput) && t.live != nil {
 		in = make(chan provider.Message)
-		req.Live = in
+		a.req.Live = in
 	}
-	listen := func(on bool) {
+	live := t.live
+	a.listen = func(on bool) {
 		if in == nil {
 			return
 		}
 		r.mu.Lock()
-		if t.live.input = nil; on {
-			t.live.input = in
+		if live.input = nil; on {
+			live.input = in
 		}
 		r.mu.Unlock()
 	}
-	if sub != nil {
-		req.ResultSchema = nil
+	if a.sub != nil {
+		a.req.ResultSchema = nil
 		if t.resume {
-			req.Prompt += "\nWhen you are done, hand in the whole final result with the result_submit tool of the deck MCP server, then end your turn.\n"
+			a.req.Prompt += "\nWhen you are done, hand in the whole final result with the result_submit tool of the deck MCP server, then end your turn.\n"
 		}
 	}
-	if req.Skills, err = r.projects.Skills(bg, t.project, t.cmd.Executor.Skills); err != nil {
-		r.finish(bg, processID, StateError, "", false, err.Error())
-		return
+	if a.req.Skills, err = r.projects.Skills(ctx, t.project, t.cmd.Executor.Skills); err == nil {
+		t.input, _, err = r.inputFiles(ctx, t.cmd, t.project, processID, t.input, true)
 	}
-	if t.input, _, err = r.inputFiles(bg, t.cmd, t.project, processID, t.input, true); err != nil {
-		r.finish(bg, processID, StateError, "", false, err.Error())
-		return
+	if err == nil && !t.resume {
+		a.req.Prompt, err = r.firstPrompt(ctx, proj, *t, a.tools, a.data)
 	}
-	if !t.resume {
-		if req.Prompt, err = r.firstPrompt(bg, proj, t, tools, data); err != nil {
-			r.finish(bg, processID, StateError, "", false, err.Error())
-			return
-		}
+	if err != nil {
+		a.cleanup()
+		fail(err.Error())
+		return nil, false
 	}
+	return a, true
+}
+
+// converse runs the provider until the turn has an outcome: done by the schema, parked for the owner, paused on
+// a limit, a lost login or an error; a result off the schema is asked for once more.
+func (r *Runner) converse(ctx context.Context, t *turn, a *agentTurn, fail func(string)) {
+	bg := context.WithoutCancel(ctx)
+	processID, pv, req := t.process, t.pv, a.req
 	asks := t.asks
 	for retried := false; ; {
-		listen(true)
+		a.listen(true)
 		res, err := pv.Run(ctx, req)
-		listen(false)
+		a.listen(false)
 		r.setGroup(bg, processID, 0)
 		if r.cut(bg, ctx, processID) {
 			return
@@ -198,8 +227,8 @@ func (r *Runner) run(ctx context.Context, t turn) {
 			// The owner's messages go with the fresh session; the asks stay undelivered, so it parks for them.
 			asks = told{Remarks: asks.Remarks}
 			req.Resume = false
-			if req.Prompt, err = r.firstPrompt(bg, proj, t, tools, data); err != nil {
-				r.finish(bg, processID, StateError, "", false, err.Error())
+			if req.Prompt, err = r.firstPrompt(bg, a.proj, *t, a.tools, a.data); err != nil {
+				fail(err.Error())
 				return
 			}
 			req.Prompt += r.remarksText(bg, processID, asks.Remarks)
@@ -217,9 +246,9 @@ func (r *Runner) run(ctx context.Context, t turn) {
 		asks = told{}
 		r.providerHealth(bg, pv, res, err)
 		settled := err == nil && !res.NeedsLogin && !res.RateLimited && !res.IsError
-		if sub != nil && settled {
+		if a.sub != nil && settled {
 			var spent bool
-			res.Structured, spent = sub.Result()
+			res.Structured, spent = a.sub.Result()
 			retried = retried || spent
 		}
 		verr := error(nil)
@@ -229,7 +258,7 @@ func (r *Runner) run(ctx context.Context, t turn) {
 		}
 		switch {
 		case err != nil:
-			r.finish(bg, processID, StateError, "", false, err.Error())
+			fail(err.Error())
 		case res.RateLimited:
 			r.pause(bg, pv, processID, res.ResetsAt, res.Text)
 		case res.NeedsLogin:
@@ -244,7 +273,7 @@ func (r *Runner) run(ctx context.Context, t turn) {
 			result := res.Text
 			if len(t.cmd.Result) > 0 {
 				result = string(res.Structured)
-				if err := r.keepFiles(bg, t.project, processID, filepath.Join(dir, "results"), result); err != nil {
+				if err := r.keepFiles(bg, t.project, processID, filepath.Join(a.dir, "results"), result); err != nil {
 					r.finish(bg, processID, StateError, result, false, err.Error())
 					return
 				}
@@ -261,8 +290,8 @@ func (r *Runner) run(ctx context.Context, t turn) {
 			req.Resume = true
 			req.Prompt = "Your final JSON did not match the result schema: " + verr.Error() +
 				"\nDo not redo the work. Send only the corrected JSON."
-			if sub != nil {
-				sub.Spend()
+			if a.sub != nil {
+				a.sub.Spend()
 				req.Prompt = "You ended your turn without handing in the result with the result_submit tool: " + verr.Error() +
 					"\nDo not redo the work. Call result_submit with only the JSON result."
 			}

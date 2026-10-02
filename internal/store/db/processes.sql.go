@@ -359,23 +359,27 @@ func (q *Queries) GetToolCall(ctx context.Context, id int64) (ToolCall, error) {
 	return i, err
 }
 
-const holdProcess = `-- name: HoldProcess :execrows
-UPDATE process SET state = ?1, wait_message = ?2, wait_fresh = ?3
-WHERE id = ?4 AND state = 'running'
+const leaveRunning = `-- name: LeaveRunning :execrows
+UPDATE process SET state = ?1, wait_message = ?2, wait_fresh = ?3,
+    ceiling_ms = CASE WHEN deadline_ms IS NULL THEN ceiling_ms ELSE MAX(0, deadline_ms - CAST(?4 AS INTEGER)) END,
+    deadline_ms = NULL, silent_since_ms = NULL
+WHERE id = ?5 AND state = 'running'
 `
 
-type HoldProcessParams struct {
+type LeaveRunningParams struct {
 	State   string
 	Message string
 	Fresh   int64
+	Now     int64
 	ID      int64
 }
 
-func (q *Queries) HoldProcess(ctx context.Context, arg HoldProcessParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, holdProcess,
+func (q *Queries) LeaveRunning(ctx context.Context, arg LeaveRunningParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, leaveRunning,
 		arg.State,
 		arg.Message,
 		arg.Fresh,
+		arg.Now,
 		arg.ID,
 	)
 	if err != nil {
@@ -1063,18 +1067,26 @@ func (q *Queries) PauseCeilingAtLastOutput(ctx context.Context, id int64) error 
 }
 
 const pauseProcess = `-- name: PauseProcess :execrows
-UPDATE process SET state = 'rate_limited', pause_until_ms = ?1, pause_limit_ms = ?2
-WHERE id = ?3 AND state = 'running'
+UPDATE process SET state = 'rate_limited', pause_until_ms = ?1, pause_limit_ms = ?2,
+    ceiling_ms = CASE WHEN deadline_ms IS NULL THEN ceiling_ms ELSE MAX(0, deadline_ms - CAST(?3 AS INTEGER)) END,
+    deadline_ms = NULL, silent_since_ms = NULL
+WHERE id = ?4 AND state = 'running'
 `
 
 type PauseProcessParams struct {
 	UntilMs sql.NullInt64
 	LimitMs sql.NullInt64
+	Now     int64
 	ID      int64
 }
 
 func (q *Queries) PauseProcess(ctx context.Context, arg PauseProcessParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, pauseProcess, arg.UntilMs, arg.LimitMs, arg.ID)
+	result, err := q.db.ExecContext(ctx, pauseProcess,
+		arg.UntilMs,
+		arg.LimitMs,
+		arg.Now,
+		arg.ID,
+	)
 	if err != nil {
 		return 0, err
 	}

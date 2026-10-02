@@ -42,10 +42,7 @@ func (r *Runner) pause(ctx context.Context, pv provider.Provider, processID int6
 		}
 		next = min(next, limit)
 		until = time.UnixMilli(next)
-		if n, err = q.PauseProcess(ctx, db.PauseProcessParams{UntilMs: ms(next), LimitMs: ms(limit), ID: processID}); err != nil || n == 0 {
-			return err
-		}
-		if err := q.PauseCeiling(ctx, db.PauseCeilingParams{Now: now.UnixMilli(), ID: processID}); err != nil {
+		if n, err = q.PauseProcess(ctx, db.PauseProcessParams{UntilMs: ms(next), LimitMs: ms(limit), Now: now.UnixMilli(), ID: processID}); err != nil || n == 0 {
 			return err
 		}
 		why := fmt.Sprintf("usage limit reached; next try at %s: %s", store.Time(until), untrusted.Cut(strings.TrimSpace(text), 500))

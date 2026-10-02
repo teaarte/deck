@@ -15,11 +15,21 @@ type waiting struct {
 	told
 }
 
-// holdIn keeps a turn that cannot start yet in a waiting state, with what its resume carries; its ceiling starts
-// with the turn. It reports false when the process is no longer running.
-func holdIn(ctx context.Context, q *db.Queries, t turn, state string) (bool, error) {
-	w, _ := json.Marshal(waiting{Message: t.message, told: t.asks})
-	n, err := q.HoldProcess(ctx, db.HoldProcessParams{State: state, Message: string(w), Fresh: b2i(!t.resume), ID: t.process})
+// leaveRunning moves a running process to a state where it waits, with what its next turn carries; its ceiling stops in
+// the same write, so no way out of running can forget it. Every one goes through here but the pause on a limit.
+func (r *Runner) leaveRunning(ctx context.Context, q *db.Queries, processID int64, state string, w waiting, fresh bool) (int64, error) {
+	raw := ""
+	if w.Message != "" || len(w.Asks) > 0 || len(w.Remarks) > 0 {
+		b, _ := json.Marshal(w)
+		raw = string(b)
+	}
+	return q.LeaveRunning(ctx, db.LeaveRunningParams{State: state, Message: raw, Fresh: b2i(fresh), Now: r.now().UnixMilli(), ID: processID})
+}
+
+// holdIn keeps a turn that cannot start yet in a waiting state, with what its resume carries. It reports false
+// when the process is no longer running.
+func (r *Runner) holdIn(ctx context.Context, q *db.Queries, t turn, state string) (bool, error) {
+	n, err := r.leaveRunning(ctx, q, t.process, state, waiting{Message: t.message, told: t.asks}, !t.resume)
 	return n > 0, err
 }
 
@@ -29,7 +39,7 @@ func (r *Runner) hold(ctx context.Context, t turn, state string) {
 	var held bool
 	_ = r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		var err error
-		held, err = holdIn(ctx, q, t, state)
+		held, err = r.holdIn(ctx, q, t, state)
 		return err
 	})
 	if held {

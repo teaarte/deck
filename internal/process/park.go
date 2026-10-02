@@ -24,10 +24,7 @@ func (r *Runner) needLogin(ctx context.Context, pv provider.Provider, processID 
 	var n int64
 	err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		var err error
-		if n, err = q.ClaimProcess(ctx, db.ClaimProcessParams{ToState: StateNeedsLogin, ID: processID, FromState: StateRunning}); err != nil || n == 0 {
-			return err
-		}
-		if err := q.PauseCeiling(ctx, db.PauseCeilingParams{Now: r.now().UnixMilli(), ID: processID}); err != nil {
+		if n, err = r.leaveRunning(ctx, q, processID, StateNeedsLogin, waiting{}, false); err != nil || n == 0 {
 			return err
 		}
 		if _, err := ask.New(ctx, q, processID, ask.KindLogin, msg, string(payload), time.Time{}); err != nil {
@@ -129,9 +126,6 @@ func nullFloat(f *float64) sql.NullFloat64 {
 
 // parkIn moves a running process to waiting_answer in a transaction; its ceiling stops.
 func (r *Runner) parkIn(ctx context.Context, q *db.Queries, processID int64) (bool, error) {
-	n, err := q.ClaimProcess(ctx, db.ClaimProcessParams{ToState: StateWaitingAnswer, ID: processID, FromState: StateRunning})
-	if err != nil || n == 0 {
-		return false, err
-	}
-	return true, q.PauseCeiling(ctx, db.PauseCeilingParams{Now: r.now().UnixMilli(), ID: processID})
+	n, err := r.leaveRunning(ctx, q, processID, StateWaitingAnswer, waiting{}, false)
+	return n > 0, err
 }

@@ -141,7 +141,9 @@ ORDER BY id DESC LIMIT 4;
 
 
 -- name: PauseProcess :execrows
-UPDATE process SET state = 'rate_limited', pause_until_ms = sqlc.arg(until_ms), pause_limit_ms = sqlc.arg(limit_ms)
+UPDATE process SET state = 'rate_limited', pause_until_ms = sqlc.arg(until_ms), pause_limit_ms = sqlc.arg(limit_ms),
+    ceiling_ms = CASE WHEN deadline_ms IS NULL THEN ceiling_ms ELSE MAX(0, deadline_ms - CAST(sqlc.arg(now) AS INTEGER)) END,
+    deadline_ms = NULL, silent_since_ms = NULL
 WHERE id = sqlc.arg(id) AND state = 'running';
 
 
@@ -210,8 +212,10 @@ UPDATE tool_call SET run = 'settled', result = ? WHERE ask_id = ? AND run = 'run
 SELECT sqlc.embed(a) FROM tool_call t JOIN ask a ON a.id = t.ask_id WHERE t.run = 'running' ORDER BY t.id;
 
 
--- name: HoldProcess :execrows
-UPDATE process SET state = sqlc.arg(state), wait_message = sqlc.arg(message), wait_fresh = sqlc.arg(fresh)
+-- name: LeaveRunning :execrows
+UPDATE process SET state = sqlc.arg(state), wait_message = sqlc.arg(message), wait_fresh = sqlc.arg(fresh),
+    ceiling_ms = CASE WHEN deadline_ms IS NULL THEN ceiling_ms ELSE MAX(0, deadline_ms - CAST(sqlc.arg(now) AS INTEGER)) END,
+    deadline_ms = NULL, silent_since_ms = NULL
 WHERE id = sqlc.arg(id) AND state = 'running';
 
 

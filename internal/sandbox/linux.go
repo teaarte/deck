@@ -49,12 +49,13 @@ func (b *bwrap) Check() error {
 	return b.err
 }
 
+// Listen opens deck's socket in the run folder dir; its names are short, since a socket path holds 108 bytes.
 func (*bwrap) Listen(dir string) (net.Listener, error) {
-	dir = filepath.Join(dir, "net")
+	dir = filepath.Join(dir, "n")
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, err
 	}
-	return net.Listen("unix", filepath.Join(dir, "deck.sock"))
+	return net.Listen("unix", filepath.Join(dir, "s"))
 }
 
 func (*bwrap) Addr(net.Listener) string { return bridgeAddr }

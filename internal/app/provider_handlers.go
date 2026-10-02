@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"strings"
 
 	"deck2/internal/health"
 	"deck2/internal/process"
@@ -43,21 +42,18 @@ func (a *App) providersList(ctx context.Context, act registry.Actor, in provider
 	out := map[string]any{}
 	var requires []string
 	if in.Command != "" {
-		cmd, err := a.agentCommand(ctx, act.Workspace, in.Command)
+		p, cmd, err := a.agentCommand(ctx, act.Workspace, in.Command)
 		if err != nil {
 			return nil, err
 		}
 		requires = cmd.Requires
 		out["requires"], out["suggested"] = cmd.Requires, cmd.Provider
-		chosen, _ := a.Store.Q.GetSetting(ctx, db.GetSettingParams{WorkspaceID: act.Workspace, Key: placePrefix + in.Command})
+		chosen, _ := a.Store.Q.GetCommandProvider(ctx, db.GetCommandProviderParams{ProjectID: p.ID, Command: cmd.Name})
 		out["chosen"] = chosen
-		name, _, _ := strings.Cut(in.Command, ".")
-		if p, err := a.Store.Q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: act.Workspace, Name: name}); err == nil {
-			if pv, err := a.For(ctx, p.ID, cmd); err == nil {
-				out["effective"] = pv.Name()
-			} else {
-				out["effective_error"] = err.Error()
-			}
+		if pv, err := a.For(ctx, p.ID, cmd); err == nil {
+			out["effective"] = pv.Name()
+		} else {
+			out["effective_error"] = err.Error()
 		}
 	}
 	views := make([]providerView, 0, len(all))
@@ -89,7 +85,7 @@ type providerSetIn struct {
 }
 
 func (a *App) providerSet(ctx context.Context, act registry.Actor, in providerSetIn) (any, error) {
-	cmd, err := a.agentCommand(ctx, act.Workspace, in.Command)
+	p, cmd, err := a.agentCommand(ctx, act.Workspace, in.Command)
 	if err != nil {
 		return nil, err
 	}
@@ -102,7 +98,7 @@ func (a *App) providerSet(ctx context.Context, act registry.Actor, in providerSe
 			return nil, registry.Invalid("deck: provider %s does not fit %s: it lacks %v", in.Provider, in.Command, missing)
 		}
 	}
-	if err := a.setPlace(ctx, act.Workspace, in.Command, in.Provider); err != nil {
+	if err := a.setPlace(ctx, p.ID, cmd.Name, in.Provider); err != nil {
 		return nil, err
 	}
 	return map[string]any{"command": in.Command, "provider": in.Provider}, nil

@@ -110,7 +110,7 @@ func (a *App) pushSubscribe(ctx context.Context, act registry.Actor, in pushSubs
 		}
 		if len(before) == 0 {
 			// The first device starts from now, not from whatever came while no device listened.
-			if err := q.DeleteSettingsWithPrefix(ctx, db.DeleteSettingsWithPrefixParams{WorkspaceID: act.Workspace, Prefix: "push:"}); err != nil {
+			if err := q.DeleteMarksWithPrefix(ctx, db.DeleteMarksWithPrefixParams{WorkspaceID: act.Workspace, Prefix: "push:"}); err != nil {
 				return err
 			}
 		}
@@ -185,18 +185,94 @@ func (a *App) watchPush() {
 	})
 }
 
-// pushItem is one push and the cursor of its source once it is delivered.
+// pushItem is one push and the cursor of its source once it is delivered; an empty push only moves the cursor.
 type pushItem struct {
 	msg    pushMessage
-	key    string
 	cursor string
 }
 
 // pushBatch is how many pushes of one source one look sends; the rest wait for the next look.
 const pushBatch = 10
 
-// pushNew pushes what came since the last delivered push: asks for the owner, failures, notify lines and the
-// master's replies while no client is open; a cursor moves only past what a device took or refused for good.
+// pushSource is one kind of thing deck pushes: where its cursor starts, and what came after a cursor with the
+// cursor past each.
+type pushSource struct {
+	key   string
+	start func(ctx context.Context, workspace int64) string
+	after func(ctx context.Context, workspace int64, cursor string) []pushItem
+}
+
+// pushSources are what waits for the owner, failures, notify lines and the master's replies while no client is open.
+func (a *App) pushSources() []pushSource {
+	id := func(s string) int64 { n, _ := strconv.ParseInt(s, 10, 64); return n }
+	return []pushSource{
+		{"ask", func(ctx context.Context, ws int64) string { n, _ := a.Store.Q.MaxAskID(ctx, ws); return fmt.Sprint(n) },
+			func(ctx context.Context, ws int64, cursor string) []pushItem {
+				asks, _ := a.Store.Q.ListAsksAfter(ctx, db.ListAsksAfterParams{WorkspaceID: ws, ID: id(cursor)})
+				var items []pushItem
+				for _, q := range asks {
+					items = append(items, pushItem{a.pushText(ctx, q.ProjectID, "Waiting for you", strings.SplitN(q.Text, "\n", 2)[0], "/#/deck/cockpit"),
+						fmt.Sprint(q.ID)})
+				}
+				return items
+			}},
+		{"failed", func(context.Context, int64) string { return store.Time(a.Cfg.Now()) + "|0" },
+			func(ctx context.Context, ws int64, cursor string) []pushItem {
+				at, last, _ := strings.Cut(cursor, "|")
+				failed, _ := a.Store.Q.ListFailedAfter(ctx, db.ListFailedAfterParams{WorkspaceID: ws, FinishedAt: sql.NullString{String: at, Valid: true}, ID: id(last)})
+				var items []pushItem
+				for _, f := range failed {
+					p := f.Process
+					items = append(items, pushItem{a.pushText(ctx, p.ProjectID, f.ProjectName+"."+p.Command+" failed", p.Error, fmt.Sprintf("/#/deck/process/%d", p.ID)),
+						p.FinishedAt.String + "|" + fmt.Sprint(p.ID)})
+				}
+				return items
+			}},
+		{"notify", func(ctx context.Context, ws int64) string {
+			n, _ := a.Store.Q.MaxNotificationID(ctx, ws)
+			return fmt.Sprint(n)
+		},
+			func(ctx context.Context, ws int64, cursor string) []pushItem {
+				ns, _ := a.Store.Q.ListNotificationsAfter(ctx, db.ListNotificationsAfterParams{WorkspaceID: ws, ID: id(cursor)})
+				var items []pushItem
+				for _, row := range ns {
+					n := row.Notification
+					url := "/#/deck/cockpit"
+					if n.Screen != "" {
+						url = "/#/p/" + row.ProjectName + "/" + n.Screen
+						if n.RecordID.Valid {
+							url += fmt.Sprintf("/%d", n.RecordID.Int64)
+						}
+					}
+					items = append(items, pushItem{a.pushText(ctx, n.ProjectID, row.ProjectName, n.Text, url), fmt.Sprint(n.ID)})
+				}
+				return items
+			}},
+		{"chat", func(ctx context.Context, ws int64) string {
+			n, _ := a.Store.Q.MaxMasterMessageID(ctx, ws)
+			return fmt.Sprint(n)
+		},
+			func(ctx context.Context, ws int64, cursor string) []pushItem {
+				ms, _ := a.Store.Q.ListMasterMessagesAfter(ctx, db.ListMasterMessagesAfterParams{WorkspaceID: ws, ID: id(cursor)})
+				private := a.anyPrivate(ctx, ws)
+				var items []pushItem
+				for _, m := range ms {
+					msg := pushMessage{Title: "Master", Body: untrusted.Cut(oneLine(m.Text), pushLength), URL: "/#/deck/chat"}
+					if private {
+						msg.Body = "The master replied"
+					}
+					if a.Bus.Clients() > 0 {
+						msg = pushMessage{}
+					}
+					items = append(items, pushItem{msg, fmt.Sprint(m.ID)})
+				}
+				return items
+			}},
+	}
+}
+
+// pushNew pushes what came since the last delivered push of each source; a cursor moves only past what a device
+// took or refused for good, and past a reply of the master that came while a client was open.
 func (a *App) pushNew(ctx context.Context, workspace int64) {
 	a.pushMu.Lock()
 	defer a.pushMu.Unlock()
@@ -204,90 +280,27 @@ func (a *App) pushNew(ctx context.Context, workspace int64) {
 	if err != nil || len(subs) == 0 {
 		return
 	}
-	get := func(key string) (string, bool) {
-		v, err := a.Store.Q.GetSetting(ctx, db.GetSettingParams{WorkspaceID: workspace, Key: "push:" + key})
-		return v, err == nil
-	}
 	set := func(key, v string) {
 		_ = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-			return q.SetSetting(ctx, db.SetSettingParams{WorkspaceID: workspace, Key: "push:" + key, Value: v})
+			return q.SetMark(ctx, db.SetMarkParams{WorkspaceID: workspace, Name: "push:" + key, Value: v})
 		})
 	}
-	var sources [][]pushItem
-	if v, ok := get("ask"); !ok {
-		max, _ := a.Store.Q.MaxAskID(ctx, workspace)
-		set("ask", fmt.Sprint(max))
-	} else {
-		last, _ := strconv.ParseInt(v, 10, 64)
-		asks, _ := a.Store.Q.ListAsksAfter(ctx, db.ListAsksAfterParams{WorkspaceID: workspace, ID: last})
-		var items []pushItem
-		for _, q := range asks {
-			items = append(items, pushItem{a.pushText(ctx, q.ProjectID, "Waiting for you", strings.SplitN(q.Text, "\n", 2)[0], "/#/deck/cockpit"),
-				"ask", fmt.Sprint(q.ID)})
-		}
-		sources = append(sources, items)
-	}
-	if v, ok := get("failed"); !ok {
-		set("failed", store.Time(a.Cfg.Now())+"|0")
-	} else {
-		at, id, _ := strings.Cut(v, "|")
-		last, _ := strconv.ParseInt(id, 10, 64)
-		failed, _ := a.Store.Q.ListFailedAfter(ctx, db.ListFailedAfterParams{WorkspaceID: workspace, FinishedAt: sql.NullString{String: at, Valid: true}, ID: last})
-		var items []pushItem
-		for _, p := range failed {
-			proj, _ := a.Store.Q.GetProject(ctx, p.ProjectID)
-			items = append(items, pushItem{a.pushText(ctx, p.ProjectID, proj.Name+"."+p.Command+" failed", p.Error, fmt.Sprintf("/#/deck/process/%d", p.ID)),
-				"failed", p.FinishedAt.String + "|" + fmt.Sprint(p.ID)})
-		}
-		sources = append(sources, items)
-	}
-	if v, ok := get("notify"); !ok {
-		max, _ := a.Store.Q.MaxNotificationID(ctx, workspace)
-		set("notify", fmt.Sprint(max))
-	} else {
-		last, _ := strconv.ParseInt(v, 10, 64)
-		ns, _ := a.Store.Q.ListNotificationsAfter(ctx, db.ListNotificationsAfterParams{WorkspaceID: workspace, ID: last})
-		var items []pushItem
-		for _, n := range ns {
-			proj, _ := a.Store.Q.GetProject(ctx, n.ProjectID)
-			url := "/#/deck/cockpit"
-			if n.Screen != "" {
-				url = "/#/p/" + proj.Name + "/" + n.Screen
-				if n.RecordID.Valid {
-					url += fmt.Sprintf("/%d", n.RecordID.Int64)
-				}
-			}
-			items = append(items, pushItem{a.pushText(ctx, n.ProjectID, proj.Name, n.Text, url), "notify", fmt.Sprint(n.ID)})
-		}
-		sources = append(sources, items)
-	}
-	if v, ok := get("chat"); !ok {
-		max, _ := a.Store.Q.MaxMasterMessageID(ctx, workspace)
-		set("chat", fmt.Sprint(max))
-	} else {
-		last, _ := strconv.ParseInt(v, 10, 64)
-		ms, _ := a.Store.Q.ListMasterMessagesAfter(ctx, db.ListMasterMessagesAfterParams{WorkspaceID: workspace, ID: last})
-		private := a.anyPrivate(ctx, workspace)
-		var items []pushItem
-		for _, m := range ms {
-			if a.Bus.Clients() > 0 {
-				set("chat", fmt.Sprint(m.ID))
-				continue
-			}
-			msg := pushMessage{Title: "Master", Body: untrusted.Cut(oneLine(m.Text), pushLength), URL: "/#/deck/chat"}
-			if private {
-				msg.Body = "The master replied"
-			}
-			items = append(items, pushItem{msg, "chat", fmt.Sprint(m.ID)})
-		}
-		sources = append(sources, items)
-	}
 	var k vapid
-	for _, items := range sources {
+	for _, src := range a.pushSources() {
+		cursor, err := a.Store.Q.GetMark(ctx, db.GetMarkParams{WorkspaceID: workspace, Name: "push:" + src.key})
+		if err != nil {
+			set(src.key, src.start(ctx, workspace))
+			continue
+		}
+		items := src.after(ctx, workspace, cursor)
 		if len(items) > pushBatch {
 			items = items[:pushBatch]
 		}
 		for _, it := range items {
+			if it.msg == (pushMessage{}) {
+				set(src.key, it.cursor)
+				continue
+			}
 			if k.Public == "" {
 				if k, err = a.vapidKeys(workspace); err != nil {
 					slog.Error("push keys", "err", err)
@@ -297,7 +310,7 @@ func (a *App) pushNew(ctx context.Context, workspace int64) {
 			if !a.deliver(ctx, workspace, k, subs, it.msg) {
 				break
 			}
-			set(it.key, it.cursor)
+			set(src.key, it.cursor)
 		}
 	}
 }

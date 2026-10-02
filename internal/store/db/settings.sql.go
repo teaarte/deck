@@ -7,7 +7,50 @@ package db
 
 import (
 	"context"
+	"database/sql"
 )
+
+const deleteCommandProvider = `-- name: DeleteCommandProvider :exec
+DELETE FROM command_provider WHERE project_id = ? AND command = ?
+`
+
+type DeleteCommandProviderParams struct {
+	ProjectID int64
+	Command   string
+}
+
+func (q *Queries) DeleteCommandProvider(ctx context.Context, arg DeleteCommandProviderParams) error {
+	_, err := q.db.ExecContext(ctx, deleteCommandProvider, arg.ProjectID, arg.Command)
+	return err
+}
+
+const deleteMark = `-- name: DeleteMark :exec
+DELETE FROM mark WHERE workspace_id = ? AND name = ?
+`
+
+type DeleteMarkParams struct {
+	WorkspaceID int64
+	Name        string
+}
+
+func (q *Queries) DeleteMark(ctx context.Context, arg DeleteMarkParams) error {
+	_, err := q.db.ExecContext(ctx, deleteMark, arg.WorkspaceID, arg.Name)
+	return err
+}
+
+const deleteMarksWithPrefix = `-- name: DeleteMarksWithPrefix :exec
+DELETE FROM mark WHERE workspace_id = ?1 AND substr(name, 1, length(CAST(?2 AS TEXT))) = CAST(?2 AS TEXT)
+`
+
+type DeleteMarksWithPrefixParams struct {
+	WorkspaceID int64
+	Prefix      string
+}
+
+func (q *Queries) DeleteMarksWithPrefix(ctx context.Context, arg DeleteMarksWithPrefixParams) error {
+	_, err := q.db.ExecContext(ctx, deleteMarksWithPrefix, arg.WorkspaceID, arg.Prefix)
+	return err
+}
 
 const deleteSetting = `-- name: DeleteSetting :execrows
 DELETE FROM setting WHERE workspace_id = ?1 AND key = ?2
@@ -26,18 +69,36 @@ func (q *Queries) DeleteSetting(ctx context.Context, arg DeleteSettingParams) (i
 	return result.RowsAffected()
 }
 
-const deleteSettingsWithPrefix = `-- name: DeleteSettingsWithPrefix :exec
-DELETE FROM setting WHERE workspace_id = ?1 AND substr(key, 1, length(CAST(?2 AS TEXT))) = CAST(?2 AS TEXT)
+const getCommandProvider = `-- name: GetCommandProvider :one
+SELECT provider FROM command_provider WHERE project_id = ? AND command = ?
 `
 
-type DeleteSettingsWithPrefixParams struct {
-	WorkspaceID int64
-	Prefix      string
+type GetCommandProviderParams struct {
+	ProjectID int64
+	Command   string
 }
 
-func (q *Queries) DeleteSettingsWithPrefix(ctx context.Context, arg DeleteSettingsWithPrefixParams) error {
-	_, err := q.db.ExecContext(ctx, deleteSettingsWithPrefix, arg.WorkspaceID, arg.Prefix)
-	return err
+func (q *Queries) GetCommandProvider(ctx context.Context, arg GetCommandProviderParams) (string, error) {
+	row := q.db.QueryRowContext(ctx, getCommandProvider, arg.ProjectID, arg.Command)
+	var provider string
+	err := row.Scan(&provider)
+	return provider, err
+}
+
+const getMark = `-- name: GetMark :one
+SELECT value FROM mark WHERE workspace_id = ? AND name = ?
+`
+
+type GetMarkParams struct {
+	WorkspaceID int64
+	Name        string
+}
+
+func (q *Queries) GetMark(ctx context.Context, arg GetMarkParams) (string, error) {
+	row := q.db.QueryRowContext(ctx, getMark, arg.WorkspaceID, arg.Name)
+	var value string
+	err := row.Scan(&value)
+	return value, err
 }
 
 const getSetting = `-- name: GetSetting :one
@@ -91,6 +152,44 @@ func (q *Queries) ListSettings(ctx context.Context, arg ListSettingsParams) ([]L
 		return nil, err
 	}
 	return items, nil
+}
+
+const setCommandProvider = `-- name: SetCommandProvider :exec
+INSERT INTO command_provider (project_id, command, provider) VALUES (?, ?, ?)
+ON CONFLICT (project_id, command) DO UPDATE SET provider = excluded.provider
+`
+
+type SetCommandProviderParams struct {
+	ProjectID int64
+	Command   string
+	Provider  string
+}
+
+func (q *Queries) SetCommandProvider(ctx context.Context, arg SetCommandProviderParams) error {
+	_, err := q.db.ExecContext(ctx, setCommandProvider, arg.ProjectID, arg.Command, arg.Provider)
+	return err
+}
+
+const setMark = `-- name: SetMark :exec
+INSERT INTO mark (workspace_id, project_id, name, value) VALUES (?1, ?2, ?3, ?4)
+ON CONFLICT (workspace_id, name) DO UPDATE SET value = excluded.value
+`
+
+type SetMarkParams struct {
+	WorkspaceID int64
+	ProjectID   sql.NullInt64
+	Name        string
+	Value       string
+}
+
+func (q *Queries) SetMark(ctx context.Context, arg SetMarkParams) error {
+	_, err := q.db.ExecContext(ctx, setMark,
+		arg.WorkspaceID,
+		arg.ProjectID,
+		arg.Name,
+		arg.Value,
+	)
+	return err
 }
 
 const setSetting = `-- name: SetSetting :exec

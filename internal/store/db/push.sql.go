@@ -119,7 +119,7 @@ func (q *Queries) ListAsksAfter(ctx context.Context, arg ListAsksAfterParams) ([
 }
 
 const listFailedAfter = `-- name: ListFailedAfter :many
-SELECT p.id, p.project_id, p.command, p.kind, p.state, p.provider, p.session_id, p.input, p.result, p.not_by_schema, p.error, p.start_note, p.parent_id, p.depth, p.trigger_id, p.retry_key, p.manifest_revision, p.trial, p.folder, p.pgid, p.ceiling_ms, p.deadline_ms, p.output_ms, p.silent_since_ms, p.pause_until_ms, p.pause_limit_ms, p.wait_message, p.wait_fresh, p.started_at, p.finished_at FROM process p JOIN project j ON j.id = p.project_id
+SELECT p.id, p.project_id, p.command, p.kind, p.state, p.provider, p.session_id, p.input, p.result, p.not_by_schema, p.error, p.start_note, p.parent_id, p.depth, p.trigger_id, p.retry_key, p.manifest_revision, p.trial, p.folder, p.pgid, p.ceiling_ms, p.deadline_ms, p.output_ms, p.silent_since_ms, p.pause_until_ms, p.pause_limit_ms, p.wait_message, p.wait_fresh, p.started_at, p.finished_at, j.name AS project_name FROM process p JOIN project j ON j.id = p.project_id
 WHERE j.workspace_id = ?1 AND p.state = 'error' AND p.trial = 0 AND j.builtin = 0
   AND (p.finished_at > ?2 OR p.finished_at = ?2 AND p.id > ?3)
 ORDER BY p.finished_at, p.id
@@ -131,46 +131,52 @@ type ListFailedAfterParams struct {
 	ID          int64
 }
 
-func (q *Queries) ListFailedAfter(ctx context.Context, arg ListFailedAfterParams) ([]Process, error) {
+type ListFailedAfterRow struct {
+	Process     Process
+	ProjectName string
+}
+
+func (q *Queries) ListFailedAfter(ctx context.Context, arg ListFailedAfterParams) ([]ListFailedAfterRow, error) {
 	rows, err := q.db.QueryContext(ctx, listFailedAfter, arg.WorkspaceID, arg.FinishedAt, arg.ID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Process
+	var items []ListFailedAfterRow
 	for rows.Next() {
-		var i Process
+		var i ListFailedAfterRow
 		if err := rows.Scan(
-			&i.ID,
-			&i.ProjectID,
-			&i.Command,
-			&i.Kind,
-			&i.State,
-			&i.Provider,
-			&i.SessionID,
-			&i.Input,
-			&i.Result,
-			&i.NotBySchema,
-			&i.Error,
-			&i.StartNote,
-			&i.ParentID,
-			&i.Depth,
-			&i.TriggerID,
-			&i.RetryKey,
-			&i.ManifestRevision,
-			&i.Trial,
-			&i.Folder,
-			&i.Pgid,
-			&i.CeilingMs,
-			&i.DeadlineMs,
-			&i.OutputMs,
-			&i.SilentSinceMs,
-			&i.PauseUntilMs,
-			&i.PauseLimitMs,
-			&i.WaitMessage,
-			&i.WaitFresh,
-			&i.StartedAt,
-			&i.FinishedAt,
+			&i.Process.ID,
+			&i.Process.ProjectID,
+			&i.Process.Command,
+			&i.Process.Kind,
+			&i.Process.State,
+			&i.Process.Provider,
+			&i.Process.SessionID,
+			&i.Process.Input,
+			&i.Process.Result,
+			&i.Process.NotBySchema,
+			&i.Process.Error,
+			&i.Process.StartNote,
+			&i.Process.ParentID,
+			&i.Process.Depth,
+			&i.Process.TriggerID,
+			&i.Process.RetryKey,
+			&i.Process.ManifestRevision,
+			&i.Process.Trial,
+			&i.Process.Folder,
+			&i.Process.Pgid,
+			&i.Process.CeilingMs,
+			&i.Process.DeadlineMs,
+			&i.Process.OutputMs,
+			&i.Process.SilentSinceMs,
+			&i.Process.PauseUntilMs,
+			&i.Process.PauseLimitMs,
+			&i.Process.WaitMessage,
+			&i.Process.WaitFresh,
+			&i.Process.StartedAt,
+			&i.Process.FinishedAt,
+			&i.ProjectName,
 		); err != nil {
 			return nil, err
 		}
@@ -228,7 +234,8 @@ func (q *Queries) ListMasterMessagesAfter(ctx context.Context, arg ListMasterMes
 }
 
 const listNotificationsAfter = `-- name: ListNotificationsAfter :many
-SELECT id, workspace_id, project_id, author, text, screen, record_id, actions, created_at FROM notification WHERE workspace_id = ? AND id > ? ORDER BY id
+SELECT n.id, n.workspace_id, n.project_id, n.author, n.text, n.screen, n.record_id, n.actions, n.created_at, j.name AS project_name FROM notification n JOIN project j ON j.id = n.project_id
+WHERE n.workspace_id = ? AND n.id > ? ORDER BY n.id
 `
 
 type ListNotificationsAfterParams struct {
@@ -236,25 +243,31 @@ type ListNotificationsAfterParams struct {
 	ID          int64
 }
 
-func (q *Queries) ListNotificationsAfter(ctx context.Context, arg ListNotificationsAfterParams) ([]Notification, error) {
+type ListNotificationsAfterRow struct {
+	Notification Notification
+	ProjectName  string
+}
+
+func (q *Queries) ListNotificationsAfter(ctx context.Context, arg ListNotificationsAfterParams) ([]ListNotificationsAfterRow, error) {
 	rows, err := q.db.QueryContext(ctx, listNotificationsAfter, arg.WorkspaceID, arg.ID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Notification
+	var items []ListNotificationsAfterRow
 	for rows.Next() {
-		var i Notification
+		var i ListNotificationsAfterRow
 		if err := rows.Scan(
-			&i.ID,
-			&i.WorkspaceID,
-			&i.ProjectID,
-			&i.Author,
-			&i.Text,
-			&i.Screen,
-			&i.RecordID,
-			&i.Actions,
-			&i.CreatedAt,
+			&i.Notification.ID,
+			&i.Notification.WorkspaceID,
+			&i.Notification.ProjectID,
+			&i.Notification.Author,
+			&i.Notification.Text,
+			&i.Notification.Screen,
+			&i.Notification.RecordID,
+			&i.Notification.Actions,
+			&i.Notification.CreatedAt,
+			&i.ProjectName,
 		); err != nil {
 			return nil, err
 		}

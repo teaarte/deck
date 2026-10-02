@@ -256,6 +256,24 @@ CREATE TABLE setting (
     PRIMARY KEY (workspace_id, key)
 );
 
+-- The provider the owner set for an agent command; without a row the command takes the default.
+CREATE TABLE command_provider (
+    project_id  INTEGER NOT NULL REFERENCES project(id) ON DELETE CASCADE,
+    command     TEXT NOT NULL,
+    provider    TEXT NOT NULL,
+    PRIMARY KEY (project_id, command)
+);
+
+-- Where deck has got to: the cursors of push and the last hand-over of a command to the master; a mark of a
+-- project goes with it.
+CREATE TABLE mark (
+    workspace_id  INTEGER NOT NULL REFERENCES workspace(id) ON DELETE CASCADE,
+    project_id    INTEGER REFERENCES project(id) ON DELETE CASCADE,
+    name          TEXT NOT NULL,
+    value         TEXT NOT NULL,
+    PRIMARY KEY (workspace_id, name)
+);
+
 CREATE TABLE automation_token (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     workspace_id  INTEGER NOT NULL REFERENCES workspace(id) ON DELETE CASCADE,

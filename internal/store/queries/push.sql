@@ -21,7 +21,7 @@ SELECT * FROM ask WHERE workspace_id = ? AND id > ? AND state = 'open' ORDER BY 
 
 
 -- name: ListFailedAfter :many
-SELECT p.* FROM process p JOIN project j ON j.id = p.project_id
+SELECT sqlc.embed(p), j.name AS project_name FROM process p JOIN project j ON j.id = p.project_id
 WHERE j.workspace_id = sqlc.arg(workspace_id) AND p.state = 'error' AND p.trial = 0 AND j.builtin = 0
   AND (p.finished_at > sqlc.arg(finished_at) OR p.finished_at = sqlc.arg(finished_at) AND p.id > sqlc.arg(id))
 ORDER BY p.finished_at, p.id;
@@ -32,7 +32,8 @@ SELECT CAST(COALESCE(MAX(id), 0) AS INTEGER) FROM notification WHERE workspace_i
 
 
 -- name: ListNotificationsAfter :many
-SELECT * FROM notification WHERE workspace_id = ? AND id > ? ORDER BY id;
+SELECT sqlc.embed(n), j.name AS project_name FROM notification n JOIN project j ON j.id = n.project_id
+WHERE n.workspace_id = ? AND n.id > ? ORDER BY n.id;
 
 
 -- name: MaxMasterMessageID :one

@@ -19,10 +19,7 @@ import (
 	"deck2/internal/store/db"
 )
 
-const (
-	placePrefix    = "place:"
-	providerPrefix = "provider:"
-)
+const providerPrefix = "provider:"
 
 // providerDef is an OpenAI-compatible provider the owner added to a workspace.
 type providerDef struct {
@@ -131,7 +128,7 @@ func (a *App) For(ctx context.Context, projectID int64, cmd *manifest.Command) (
 		return nil, err
 	}
 	place := p.Name + "." + cmd.Name
-	chosen, err := a.Store.Q.GetSetting(ctx, db.GetSettingParams{WorkspaceID: p.WorkspaceID, Key: placePrefix + place})
+	chosen, err := a.Store.Q.GetCommandProvider(ctx, db.GetCommandProviderParams{ProjectID: p.ID, Command: cmd.Name})
 	if err == nil {
 		pv, err := a.provider(ctx, p.WorkspaceID, chosen)
 		if err != nil {
@@ -180,30 +177,30 @@ func (a *App) Ready(ctx context.Context, name string) bool {
 }
 
 // agentCommand finds an agent command of the workspace by its place, project.command.
-func (a *App) agentCommand(ctx context.Context, workspace int64, place string) (*manifest.Command, error) {
+func (a *App) agentCommand(ctx context.Context, workspace int64, place string) (db.Project, *manifest.Command, error) {
 	name, command, _ := strings.Cut(place, ".")
 	p, err := a.Store.Q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: workspace, Name: name})
 	if err != nil {
-		return nil, registry.NotFound("deck: no project %q", name)
+		return p, nil, registry.NotFound("deck: no project %q", name)
 	}
 	m, err := docs.Manifest(ctx, a.Store.Q, p)
 	if err != nil {
-		return nil, err
+		return p, nil, err
 	}
 	cmd := m.Command(command)
 	if cmd == nil || cmd.Executor.Type != process.KindAgent {
-		return nil, registry.Invalid("deck: %s is not an agent command; only agent commands call a model", place)
+		return p, nil, registry.Invalid("deck: %s is not an agent command; only agent commands call a model", place)
 	}
-	return cmd, nil
+	return p, cmd, nil
 }
 
-func (a *App) setPlace(ctx context.Context, workspace int64, place, name string) error {
+// setPlace keeps the provider the owner chose for an agent command; empty goes back to the default.
+func (a *App) setPlace(ctx context.Context, project int64, command, name string) error {
 	return a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		if name == "" {
-			_, err := q.DeleteSetting(ctx, db.DeleteSettingParams{WorkspaceID: workspace, Key: placePrefix + place})
-			return err
+			return q.DeleteCommandProvider(ctx, db.DeleteCommandProviderParams{ProjectID: project, Command: command})
 		}
-		return q.SetSetting(ctx, db.SetSettingParams{WorkspaceID: workspace, Key: placePrefix + place, Value: name})
+		return q.SetCommandProvider(ctx, db.SetCommandProviderParams{ProjectID: project, Command: command, Provider: name})
 	})
 }
 

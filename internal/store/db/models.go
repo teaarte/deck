@@ -83,6 +83,12 @@ type ChatTopic struct {
 	UpdatedAt   string
 }
 
+type CommandProvider struct {
+	ProjectID int64
+	Command   string
+	Provider  string
+}
+
 type Document struct {
 	ID          int64
 	WorkspaceID int64
@@ -145,6 +151,13 @@ type LlmCall struct {
 	DurationMs                         int64
 	CostUsd                            sql.NullFloat64
 	CreatedAt                          string
+}
+
+type Mark struct {
+	WorkspaceID int64
+	ProjectID   sql.NullInt64
+	Name        string
+	Value       string
 }
 
 type McpTool struct {

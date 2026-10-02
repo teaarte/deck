@@ -64,17 +64,17 @@ func (a *App) toMaster(ctx context.Context, p db.Process) {
 			return
 		}
 	}
-	key := masterErrorPrefix + proj.Name + "." + p.Command
+	key := fmt.Sprintf("%s%d.%s", masterErrorPrefix, proj.ID, p.Command)
 	now := a.Cfg.Now()
 	due := true
 	err = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		if last, err := q.GetSetting(ctx, db.GetSettingParams{WorkspaceID: proj.WorkspaceID, Key: key}); err == nil {
+		if last, err := q.GetMark(ctx, db.GetMarkParams{WorkspaceID: proj.WorkspaceID, Name: key}); err == nil {
 			if t, err := time.Parse(store.TimeLayout, last); err == nil && now.Sub(t) < 24*time.Hour {
 				due = false
 				return nil
 			}
 		}
-		if err := q.SetSetting(ctx, db.SetSettingParams{WorkspaceID: proj.WorkspaceID, Key: key, Value: store.Time(now)}); err != nil || !own {
+		if err := q.SetMark(ctx, db.SetMarkParams{WorkspaceID: proj.WorkspaceID, ProjectID: store.ID(proj.ID), Name: key, Value: store.Time(now)}); err != nil || !own {
 			return err
 		}
 		_, err := ask.New(ctx, q, p.ID, ask.KindWarning, fmt.Sprintf("The master's command %s failed: %s", p.Command, untrusted.Cut(p.Error, 500)), "{}", time.Time{})
@@ -90,8 +90,7 @@ func (a *App) toMaster(ctx context.Context, p db.Process) {
 	if _, err := a.Runner.Start(context.WithoutCancel(ctx), mp.ID, mm, errorCommand, map[string]any{"process": p.ID}, process.Origin{}); err != nil {
 		slog.Error("hand an error to the master", "process", p.ID, "project", master.Name, "err", err)
 		_ = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-			_, err := q.DeleteSetting(ctx, db.DeleteSettingParams{WorkspaceID: proj.WorkspaceID, Key: key})
-			return err
+			return q.DeleteMark(ctx, db.DeleteMarkParams{WorkspaceID: proj.WorkspaceID, Name: key})
 		})
 	}
 }

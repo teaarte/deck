@@ -47,19 +47,8 @@ func (a *App) projectDelete(ctx context.Context, act registry.Actor, in projectD
 		if runs, err = q.ListProjectProcessIDs(ctx, p.ID); err != nil {
 			return err
 		}
-		steps := []func() error{
-			func() error { return q.DeleteProjectHealth(ctx, p.Name) },
-			func() error {
-				return q.DeleteSettingsWithPrefix(ctx, db.DeleteSettingsWithPrefixParams{WorkspaceID: p.WorkspaceID, Prefix: placePrefix + p.Name + "."})
-			},
-			func() error {
-				return q.DeleteSettingsWithPrefix(ctx, db.DeleteSettingsWithPrefixParams{WorkspaceID: p.WorkspaceID, Prefix: masterErrorPrefix + p.Name + "."})
-			},
-		}
-		for _, step := range steps {
-			if err := step(); err != nil {
-				return err
-			}
+		if err := q.DeleteProjectHealth(ctx, p.Name); err != nil {
+			return err
 		}
 		_, err = q.DeleteProject(ctx, p.ID)
 		return err

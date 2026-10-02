@@ -23,6 +23,13 @@ func (a *App) secretsDir(workspace int64) string {
 
 // Secret is the value of a workspace secret, read when a tool call needs it.
 func (a *App) Secret(workspace int64, name string) (string, error) {
+	if slices.Contains(serviceSecrets, name) {
+		return "", registry.Invalid("deck: %s is deck's own key; no tool, server or provider gets it", name)
+	}
+	return a.readSecret(workspace, name)
+}
+
+func (a *App) readSecret(workspace int64, name string) (string, error) {
 	if !validSecret(name) {
 		return "", registry.Invalid("deck: bad secret name %q", name)
 	}

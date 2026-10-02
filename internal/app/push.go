@@ -55,7 +55,7 @@ func (a *App) vapidKeys(workspace int64) (vapid, error) {
 	a.secretMu.Lock()
 	defer a.secretMu.Unlock()
 	var k vapid
-	raw, err := a.Secret(workspace, vapidSecret)
+	raw, err := a.readSecret(workspace, vapidSecret)
 	if err == nil && json.Unmarshal([]byte(raw), &k) == nil && validVAPID(k) {
 		return k, nil
 	}

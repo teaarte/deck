@@ -105,11 +105,17 @@ func TestRealACPAgents(t *testing.T) {
 			if err := os.WriteFile(filepath.Join(home, "token"), []byte(owner), 0o600); err != nil {
 				t.Fatal(err)
 			}
+			var all []struct{ ID int64 }
+			e.must("deck.projects_list", nil, &all)
+			next := int64(1)
+			for _, p := range all {
+				next = max(next, p.ID+1)
+			}
 			for i, tc := range []struct{ name, extra string }{{"open", ""}, {"closed", `, "no_network": true`}} {
-				data := filepath.Join(home, "projects", itoa(int64(i+1)), "data")
+				data := filepath.Join(home, "projects", itoa(next+int64(i)), "data")
 				p := e.acpProject(tc.name, acpRealManifest(tc.name, svc.URL, tc.extra, home, data))
-				if p != int64(i+1) {
-					t.Fatalf("project %s got id %d, the data folder in its prompt is for %d", tc.name, p, i+1)
+				if p != next+int64(i) {
+					t.Fatalf("project %s got id %d, the data folder in its prompt is for %d", tc.name, p, next+int64(i))
 				}
 				id := e.run(p, "work")
 				confirmed, answered := 0, map[int64]bool{}

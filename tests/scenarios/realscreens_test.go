@@ -110,7 +110,9 @@ func TestRealBrowserSettings(t *testing.T) {
 		t.Fatalf("project_create: %d %s", code, out)
 	}
 	tab := func(name string) {
-		b.eval(`([...document.querySelectorAll('[role=tab]')].find((x) => x.innerText.trim() === '` + name + `').click(), '')`)
+		find := `[...document.querySelectorAll('[role=tab]')].find((x) => x.innerText.trim() === '` + name + `')`
+		b.until("the tab "+name, find)
+		b.eval(`(` + find + `.click(), '')`)
 	}
 	b.open(e.URL + "/#/deck/settings")
 	b.until("the projects tab", `[...document.querySelectorAll('[data-item]')].some((x) => x.innerText.includes('notes · draft') && x.innerText.includes('enabling grants'))`)

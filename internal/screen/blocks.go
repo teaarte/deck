@@ -1,8 +1,10 @@
 package screen
 
 import (
+	"cmp"
 	"fmt"
 	"maps"
+	"math"
 	"slices"
 
 	"deck2/internal/manifest"
@@ -91,6 +93,9 @@ func (r *renderer) block(id string, b manifest.Block) {
 		comp["columns"] = cols
 	case "stat":
 		shown(comp, b.Format, b.Currency)
+	case "chart":
+		shown(comp, b.Format, b.Currency)
+		comp["kind"] = cmp.Or(b.Kind, "line")
 	}
 	comp["data"] = map[string]any{"path": "/" + id}
 	if r.req.Topic != "" && !follows(b, r.deck(), r.req.Topic) {
@@ -102,6 +107,41 @@ func (r *renderer) block(id string, b manifest.Block) {
 		return
 	}
 	r.data[id] = value
+}
+
+// ChartPoints is the most points a chart draws: the last ones of its source.
+const ChartPoints = 500
+
+// chart is the data of a chart: the x of each item and, by series, its value; a value that is not a number is a gap.
+func chart(b manifest.Block, items []map[string]any) (map[string]any, error) {
+	if len(items) > ChartPoints {
+		items = items[len(items)-ChartPoints:]
+	}
+	xs := make([]any, 0, len(items))
+	for _, it := range items {
+		x, err := manifest.Eval(b.X, it)
+		if err != nil {
+			return nil, fmt.Errorf("x: %w", err)
+		}
+		xs = append(xs, x)
+	}
+	series := make([]map[string]any, 0, len(b.Series))
+	for _, s := range b.Series {
+		values := make([]any, 0, len(items))
+		for _, it := range items {
+			y, err := manifest.Eval(s.Y, it)
+			if err != nil {
+				return nil, fmt.Errorf("series %q: %w", s.Label, err)
+			}
+			if f, ok := number(y); ok && !math.IsNaN(f) && !math.IsInf(f, 0) {
+				values = append(values, f)
+			} else {
+				values = append(values, nil)
+			}
+		}
+		series = append(series, map[string]any{"label": s.Label, "values": values})
+	}
+	return map[string]any{"x": xs, "series": series}, nil
 }
 
 // empty is the data of a block without items, with the text it shows then.
@@ -264,6 +304,12 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 		}
 		out["value"] = v
 		setTone(out, b.Tone, map[string]any{"rows": items})
+	case "chart":
+		v, err := chart(b, items)
+		if err != nil {
+			return nil, err
+		}
+		out["value"] = v
 	case "table":
 		rows := make([]map[string]any, 0, len(items))
 		for _, it := range items {

@@ -116,7 +116,7 @@ export function Value({ v, s, tone }: { v: unknown; s: Shown; tone?: string | nu
     return <Anchor href={v} target="_blank" rel="noopener noreferrer" size="sm" c={color}>{v}</Anchor>;
   }
   if (s.format === 'tag' && v !== null && v !== undefined && v !== '') {
-    return <Badge variant="light" color={color === 'dimmed' ? 'gray' : color ?? 'gray'} data-format="tag" data-tone={tone ?? undefined}>{show(v)}</Badge>;
+    return <Badge variant="light" color={color === 'dimmed' ? 'gray' : color ?? 'gray'} data-format="tag" data-tone={tone ?? undefined} miw="max-content">{show(v)}</Badge>;
   }
   const text = formatted(v, s);
   if (!s.format && !color) return text;

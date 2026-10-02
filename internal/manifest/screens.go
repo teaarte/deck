@@ -139,7 +139,7 @@ func (c *screenCheck) block(where string, b Block) {
 			}
 		}
 		fields = c.recordFields()
-	case "table", "list", "stat", "log":
+	case "table", "list", "stat", "log", "chart":
 		var ok bool
 		if fields, ok = c.source(where, b.Type, *b.Source); !ok {
 			return
@@ -152,6 +152,16 @@ func (c *screenCheck) block(where string, b Block) {
 			c.tone(fmt.Sprintf("%s column %q", where, col.Label), col.Tone, fields)
 		}
 		c.format(where, b.Format, b.Currency)
+		if b.X != "" {
+			if _, err := compileField(b.X, fields); err != nil {
+				c.fail("%s x: %v", where, err)
+			}
+		}
+		for _, s := range b.Series {
+			if _, err := compileField(s.Y, fields); err != nil {
+				c.fail("%s series %q: %v", where, s.Label, err)
+			}
+		}
 		switch {
 		case b.ActionsFrom != "" && !c.deck:
 			c.fail("%s actions_from: only deck's own screens take buttons from their rows", where)

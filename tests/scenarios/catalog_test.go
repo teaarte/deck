@@ -3,6 +3,7 @@ package scenarios
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -12,7 +13,7 @@ import (
 const forecastManifest = `{"version": 5,
   "collections": [
     {"name": "prices", "description": "Prices", "key": "at", "display": "at",
-      "schema": {"type": "object", "properties": {"at": {"type": "string"}, "price": {"type": "number"}}, "required": ["at"]}},
+      "schema": {"type": "object", "properties": {"at": {"type": "string"}, "price": {"type": "number"}, "forecast": {"type": "number"}}, "required": ["at"]}},
     {"name": "forecasts", "description": "Forecasts", "key": "at", "display": "at",
       "schema": {"type": "object", "properties": {"at": {"type": "string"}, "horizon": {"type": "string"}, "change": {"type": "number"},
         "confidence": {"type": "number"}, "status": {"type": "string"}, "source": {"type": "string"}}, "required": ["at"]}}],
@@ -29,7 +30,11 @@ const forecastManifest = `{"version": 5,
       {"type": "list", "title": "Horizons", "source": {"collection": "forecasts", "sort": "-at"},
         "item": {"title": "horizon", "tone": "status == 'missed' ? 'muted' : ''"}},
       {"type": "list", "title": "Missed", "when": "len(rows) > 0", "source": {"collection": "forecasts", "where": "status == 'missed'"},
-        "item": {"title": "horizon"}}]},
+        "item": {"title": "horizon"}},
+      {"type": "chart", "title": "Price", "source": {"collection": "prices", "sort": "at"}, "x": "at",
+        "series": [{"label": "BTC", "y": "price"}, {"label": "Forecast", "y": "forecast"}], "currency": "USD", "format": "money", "empty": "No prices yet"}]},
+    {"name": "projects", "title": "Projects", "blocks": [
+      {"type": "chart", "kind": "bar", "title": "Revisions", "source": {"from": "deck.projects_list"}, "x": "name", "series": [{"label": "Revision", "y": "revision"}]}]},
     {"name": "forecast", "title": "Forecast", "record": "forecasts", "blocks": [
       {"type": "card", "fields": [{"label": "Made", "bind": "at", "format": "datetime"}, {"label": "Change", "bind": "change", "format": "percent", "tone": "change < 0 ? 'error' : 'ok'"},
         {"label": "Confidence", "bind": "confidence", "format": "percent"}]},
@@ -39,7 +44,7 @@ const forecastManifest = `{"version": 5,
 func (e *Env) seedForecasts() {
 	e.T.Helper()
 	e.must("deck.records_upsert", map[string]any{"project": "btc", "collection": "prices",
-		"records": jsonl(map[string]any{"at": "2026-10-01T10:00:00Z", "price": 61000.5}, map[string]any{"at": "2026-10-02T10:00:00Z", "price": 62340.25})}, nil)
+		"records": jsonl(map[string]any{"at": "2026-10-01T10:00:00Z", "price": 61000.5}, map[string]any{"at": "2026-10-02T10:00:00Z", "price": 62340.25, "forecast": 63000})}, nil)
 	e.must("deck.records_upsert", map[string]any{"project": "btc", "collection": "forecasts",
 		"records": jsonl(map[string]any{"at": "2026-10-02T09:00:00Z", "horizon": "7d", "change": 0.042, "confidence": 0.6, "status": "open",
 			"source": "https://example.com/a"},
@@ -176,7 +181,7 @@ func TestABlockWithoutItemsSaysSoInItsOwnWords(t *testing.T) {
 		}
 	}
 	for _, tc := range []struct{ from, to, want string }{
-		{`"empty": "No prices yet"`, `"empty": ""`, `minLength`},
+		{`"empty": "No forecasts yet"`, `"empty": ""`, `minLength`},
 		{`{"label": "Confidence", "bind": "confidence", "format": "percent"}]}`, `{"label": "Confidence", "bind": "confidence", "format": "percent"}], "empty": "None"}`,
 			`additional properties 'empty' not allowed`},
 	} {
@@ -202,7 +207,7 @@ func TestABlockIsOnTheScreenOnlyWhereItsWhenHolds(t *testing.T) {
 		return string(msgs[1]["updateComponents"]), e.screenData("btc", screen, extra)
 	}
 	comps, data := blocks("main", nil)
-	if strings.Contains(comps, `"title":"Missed"`) || data["b3"] != nil || !strings.Contains(comps, `"children":["b0","b1","b2"]`) {
+	if strings.Contains(comps, `"title":"Missed"`) || data["b3"] != nil || !strings.Contains(comps, `"children":["b0","b1","b2","b4"]`) {
 		t.Fatalf("a block whose when does not hold over its rows is not on the screen: %s %v", comps, data["b3"])
 	}
 	e.seedForecasts()
@@ -233,6 +238,65 @@ func TestABlockIsOnTheScreenOnlyWhereItsWhenHolds(t *testing.T) {
 	for _, tc := range []struct{ from, to, want string }{
 		{`"when": "len(rows) > 0"`, `"when": "status == 'missed'"`, `when: unknown field "status"`},
 		{`"when": "status == 'open'"`, `"when": "len(rows) > 0"`, `when: unknown field "rows"`},
+	} {
+		if strings.Count(forecastManifest, tc.from) != 1 {
+			t.Fatalf("fixture has %s once", tc.from)
+		}
+		code, out := e.call("deck.manifest_save", map[string]any{"project": "btc", "manifest": strings.Replace(forecastManifest, tc.from, tc.to, 1)})
+		if code != 422 || !strings.Contains(string(out), tc.want) {
+			t.Fatalf("%s is refused with %q: %d %s", tc.to, tc.want, code, out)
+		}
+	}
+}
+
+// TestAChartDrawsTheItemsOfItsSourceAsSeries: a chart of a collection gives x and the values of each series in the
+// order of the sort, a gap where a value is missing, at most the last 500 points; a chart of a deck command too.
+func TestAChartDrawsTheItemsOfItsSourceAsSeries(t *testing.T) {
+	e := newEnv(t, nil)
+	check := newCatalogCheck(t)
+	e.createProject("btc", forecastManifest)
+	if got := e.screenData("btc", "main", nil)["b4"]; string(got["state"]) != `"empty"` || string(got["empty"]) != `"No prices yet"` {
+		t.Fatalf("a chart without points says so: %s", got["state"])
+	}
+	e.seedForecasts()
+	msgs := e.screenMessages("btc", "main", nil)
+	check.messages(t, msgs)
+	if comps := string(msgs[1]["updateComponents"]); !strings.Contains(comps, `"component":"chart","currency":"USD","data":{"path":"/b4"},"format":"money","id":"b4","kind":"line"`) {
+		t.Fatalf("a chart carries its kind and format: %s", comps)
+	}
+	type chartV struct {
+		X      []any
+		Series []struct {
+			Label  string
+			Values []any
+		}
+	}
+	v := blockData[chartV](t, e.screenData("btc", "main", nil)["b4"]["value"])
+	if fmt.Sprint(v.X) != "[2026-10-01T10:00:00Z 2026-10-02T10:00:00Z]" || len(v.Series) != 2 || v.Series[0].Label != "BTC" ||
+		fmt.Sprint(v.Series[0].Values) != "[61000.5 62340.25]" || fmt.Sprint(v.Series[1].Values) != "[<nil> 63000]" {
+		t.Fatalf("a chart gives x and its series in the order of the sort, null for a gap: %+v", v)
+	}
+	var many []map[string]any
+	for i := range 600 {
+		many = append(many, map[string]any{"at": fmt.Sprintf("2026-%02d-%02dT%02d:00:00Z", 1+i/240, 1+i/24%10, i%24), "price": float64(i)})
+	}
+	e.must("deck.records_upsert", map[string]any{"project": "btc", "collection": "prices", "records": jsonl(many...)}, nil)
+	v = blockData[chartV](t, e.screenData("btc", "main", nil)["b4"]["value"])
+	if len(v.X) != 500 || len(v.Series[0].Values) != 500 || v.X[499] != "2026-10-02T10:00:00Z" {
+		t.Fatalf("a chart draws the last 500 points: %d, last %v", len(v.X), v.X[len(v.X)-1])
+	}
+	projects := e.screenMessages("btc", "projects", nil)
+	check.messages(t, projects)
+	v = blockData[chartV](t, e.screenData("btc", "projects", nil)["b0"]["value"])
+	if len(v.X) == 0 || !slices.Contains(v.X, any("btc")) || len(v.Series[0].Values) != len(v.X) || v.Series[0].Values[0] == nil {
+		t.Fatalf("a chart reads a deck command: %+v", v)
+	}
+	for _, tc := range []struct{ from, to, want string }{
+		{`"x": "at",`, `"x": "time",`, `x: unknown field "time"`},
+		{`{"label": "Forecast", "y": "forecast"}`, `{"label": "Forecast", "y": "guess"}`, `series "Forecast": unknown field "guess"`},
+		{`"kind": "bar"`, `"kind": "pie"`, `value must be one of 'line', 'bar', 'area'`},
+		{`"series": [{"label": "Revision", "y": "revision"}]`, `"series": []`, `minItems`},
+		{`"x": "name", `, ``, `missing property 'x'`},
 	} {
 		if strings.Count(forecastManifest, tc.from) != 1 {
 			t.Fatalf("fixture has %s once", tc.from)

@@ -27,6 +27,7 @@ export interface Catalog {
   ActionsValue?: ActionsValue;
   CardValue?: CardValue;
   StatValue?: StatValue;
+  ChartValue?: ChartValue;
   BoardValue?: BoardValue;
   FormValue?: FormValue;
   DocumentValue?: DocumentValue;
@@ -221,6 +222,17 @@ export interface CardValue {
     tone?: Tone;
   }[];
   actions: Action[];
+}
+/**
+ * This interface was referenced by `Catalog`'s JSON-Schema
+ * via the `definition` "ChartValue".
+ */
+export interface ChartValue {
+  x: unknown[];
+  series: {
+    label: string;
+    values: (number | null)[];
+  }[];
 }
 /**
  * This interface was referenced by `Catalog`'s JSON-Schema

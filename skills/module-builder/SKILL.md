@@ -129,7 +129,7 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
 - **Screens** are lists of blocks from the catalog (`schemas/catalog.json`; in `manifest_format` each block type
   has its exact fields and its rules in words in `description`, and a refusal names the JSON path and the
   schema rule, such as `missing property 'item'` or `additional properties 'source' not allowed`):
-  `table`, `list`, `card` (the record of a record page), `stat`, `actions`, `board`, `form`, `custom`, and
+  `table`, `list`, `card` (the record of a record page), `stat`, `chart`, `actions`, `board`, `form`, `custom`, and
   `columns`/`tabs` to lay them out. A table:
   `{"type": "table", "title": "Best", "source": {"collection": "items", "where": "score >= 7", "sort": "-score",
   "limit": 20}, "columns": [{"label": "Title", "bind": "title"}], "filter": ["status"], "actions": [{"label": "Rate", "command":
@@ -147,7 +147,11 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   `len(rows) > 0 ? … : '—'`. Any block takes `when`, an expression over the fields of the page's record and
   `rows` of its own source; where it does not hold the block is not on the screen (`"when": "len(rows) > 0"`
   for a list of misses, `"when": "status == 'open'"` on a record page). A row of a `table` or `list` whose
-  `"primary": true` button opens a screen opens it on a click anywhere in the row. Action `params` are strings in the manifest; `$record.<field>`
+  `"primary": true` button opens a screen opens it on a click anywhere in the row. A history is a `chart`, one point
+  per item in the order of `sort`: `{"type": "chart", "title": "Price", "kind": "line", "source": {"collection":
+  "prices", "sort": "at"}, "x": "at", "series": [{"label": "BTC", "y": "price"}, {"label": "Forecast", "y":
+  "forecast"}], "format": "money", "currency": "USD", "empty": "No prices yet"}` — `kind` is `line`, `bar` or
+  `area`, a missing y is a gap, an ISO time x makes a time axis, and only the last 500 points are drawn. Action `params` are strings in the manifest; `$record.<field>`
   passes the field's value with its type (`$record.id` is a number, so that input field is an `integer`), and
   a fixed value becomes the type of its input field (`"days": "7"` to an `integer` is 7). An action passes
   every required parameter of its command

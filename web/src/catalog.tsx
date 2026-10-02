@@ -13,9 +13,10 @@ import { Block, Details, show } from './block';
 import { Appearance } from './appearance';
 import { Chat } from './chat';
 import { toneColor, Value, type Shown } from './format';
-import type { Action, ActionsValue, BoardValue, CardValue, ChatValue, CustomValue, Data, DocumentValue } from './catalog.gen';
+import type { Action, ActionsValue, BoardValue, CardValue, ChartValue, ChatValue, CustomValue, Data, DocumentValue } from './catalog.gen';
 
 const Custom = lazy(() => import('./custom').then((m) => ({ default: m.Custom })));
+const Chart = lazy(() => import('./chart').then((m) => ({ default: m.Chart })));
 
 export const CATALOG_ID = catalogSchema.catalogId;
 export const UNKNOWN = 'deck.unknown';
@@ -146,6 +147,14 @@ const impls: ReactComponentImplementation[] = [
   createComponentImplementation(api('stat'), ({ props }) => {
     const p = props as Shown & { title?: string; data?: Data };
     return <Block title={p.title} data={p.data}>{(d) => <Text fz={32} fw={700} component="div" data-stat><Value v={d.value} s={p} tone={d.tone} /></Text>}</Block>;
+  }),
+  createComponentImplementation(api('chart'), ({ props }) => {
+    const p = props as Shown & { title?: string; kind?: string; data?: Data };
+    return (
+      <Block title={p.title} data={p.data}>
+        {(d) => <Suspense fallback={<Loader size="xs" />}><div data-chart-block><Chart value={d.value as ChartValue} kind={p.kind} s={p} /></div></Suspense>}
+      </Block>
+    );
   }),
   createComponentImplementation(api('actions'), ({ props, context }) => {
     const p = props as { title?: string; data?: Data };

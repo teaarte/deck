@@ -229,6 +229,10 @@ type Block struct {
 	Columns []Column `json:"columns,omitempty"`
 	Fields  []Column `json:"fields,omitempty"`
 	Item    *Item    `json:"item,omitempty"`
+	// Kind, X and Series draw a chart: x and each y are expressions over an item.
+	Kind   string   `json:"kind,omitempty"`
+	X      string   `json:"x,omitempty"`
+	Series []Series `json:"series,omitempty"`
 	// Value is the expression of a stat block over rows, the items of its source.
 	Value string `json:"value,omitempty"`
 	// Format and Currency say how the client shows the value of a stat block.
@@ -252,6 +256,12 @@ type Block struct {
 	Choices map[string]Choice `json:"choices,omitempty"`
 	// Document is the custom/ document with the HTML of a custom block, or the document a document block shows.
 	Document string `json:"document,omitempty"`
+}
+
+// Series is a line of a chart: its label and the expression of its value over an item.
+type Series struct {
+	Label string `json:"label"`
+	Y     string `json:"y"`
 }
 
 // Choice is where a field of a form takes its values: Value and Label are expressions over each item.

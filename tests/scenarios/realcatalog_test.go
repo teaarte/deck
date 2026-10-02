@@ -18,7 +18,8 @@ func TestRealBrowserCatalog(t *testing.T) {
 	e.createProject("btc", forecastManifest)
 	made := time.Now().Add(-5 * time.Minute).UTC().Format(time.RFC3339)
 	e.must("deck.records_upsert", map[string]any{"project": "btc", "collection": "prices",
-		"records": jsonl(map[string]any{"at": "2026-10-02T10:00:00Z", "price": 62340.25})}, nil)
+		"records": jsonl(map[string]any{"at": "2026-09-30T10:00:00Z", "price": 60100}, map[string]any{"at": "2026-10-01T10:00:00Z", "price": 61000.5},
+			map[string]any{"at": "2026-10-02T10:00:00Z", "price": 62340.25, "forecast": 63000})}, nil)
 	e.must("deck.records_upsert", map[string]any{"project": "btc", "collection": "forecasts",
 		"records": jsonl(map[string]any{"at": made, "horizon": "7d", "change": 0.042, "confidence": 0.6, "status": "open", "source": "https://example.com/a"},
 			map[string]any{"at": "2026-09-01T09:00:00Z", "horizon": "1d", "change": -0.01, "confidence": 0.3, "status": "missed"})}, nil)
@@ -41,6 +42,14 @@ func TestRealBrowserCatalog(t *testing.T) {
 		b.until(what, cond)
 	}
 	b.shot("catalog-format")
+	b.until("the price chart with its two series", `document.querySelectorAll('[data-chart-block] .recharts-line').length === 2 && document.querySelector('[data-chart-block] .recharts-line path')`)
+	b.call("browser_resize", map[string]any{"width": 390, "height": 844})
+	b.until("the chart fitted to a phone", `document.querySelector('[data-chart-block] svg').getBoundingClientRect().width <= window.innerWidth && document.querySelector('[data-chart-block] svg').getBoundingClientRect().width > 200`)
+	b.shot("catalog-phone")
+	if got := b.eval(`String(document.documentElement.scrollWidth <= window.innerWidth)`); got != "true" {
+		t.Fatalf("the screen of a phone does not scroll sideways: %s", b.eval(`document.documentElement.scrollWidth + ' > ' + window.innerWidth`))
+	}
+	b.call("browser_resize", map[string]any{"width": 1280, "height": 900})
 	b.eval(`[...document.querySelectorAll('td')].find(x => x.innerText === '7d').click(), ''`)
 	b.until("the forecast page opened by a click on its row", `location.hash.startsWith('#/p/btc/forecast/') && document.body.innerText.includes('Still open')`)
 	b.eval(`history.back(), ''`)
@@ -54,7 +63,7 @@ func TestRealBrowserCatalog(t *testing.T) {
 
 	e.createProject("fresh", strings.ReplaceAll(forecastManifest, `"title": "BTC"`, `"title": "Fresh"`))
 	b.open(e.URL + "/?token=" + token + "#/p/fresh/main")
-	b.until("the words of empty blocks", `[...document.querySelectorAll('[data-empty]')].map(x => x.innerText).join('|') === 'No prices yet|No forecasts yet|Nothing here'`)
+	b.until("the words of empty blocks", `[...document.querySelectorAll('[data-empty]')].map(x => x.innerText).join('|') === 'No prices yet|No forecasts yet|Nothing here|No prices yet'`)
 	b.shot("catalog-empty")
 	if b.eval(`String(document.body.innerText.includes('Missed'))`) != "false" {
 		t.Fatal("a block whose when does not hold is not drawn")

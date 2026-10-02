@@ -175,7 +175,7 @@ func (a *App) SaveManifest(ctx context.Context, act registry.Actor, p db.Project
 				return err
 			}
 		}
-		if err := a.unattended(ctx, q, act, p.ID, cur, n, fmt.Sprintf("%s changed the manifest of %s", act.Author(), p.Name), reason); err != nil {
+		if err := a.Devices.Changed(ctx, q, act, p.ID, cur, n, fmt.Sprintf("%s changed the manifest of %s", act.Author(), p.Name), reason); err != nil {
 			return err
 		}
 		return a.Scheduler.Sync(ctx, q, p.ID, pm.m)

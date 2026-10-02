@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"deck2/internal/app/board"
+	"deck2/internal/app/devices"
 	"deck2/internal/app/providers"
 	"deck2/internal/ask"
 	"deck2/internal/docs"
@@ -46,6 +47,7 @@ type App struct {
 	Scheduler *trigger.Scheduler
 	Board     *board.Service
 	Providers *providers.Service
+	Devices   *devices.Service
 	Scripts   *script.Exec
 	Tools     *tools.HTTP
 	MCP       *tools.MCP
@@ -94,6 +96,12 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	a.Providers = &providers.Service{St: st, Bus: a.Bus, Now: cfg.Now, Home: cfg.Home, Sandbox: cfg.Sandbox, ACPBinaries: cfg.ACPBinaries,
 		ACPCallLimit: cfg.ACPCallLimit, SelfCheckCeiling: cfg.SelfCheckCeiling, Secret: a.Secret, Wake: func(ctx context.Context) { a.Runner.Wake(ctx) },
 		Builtin: append([]provider.Provider{p}, more...), Ctx: a.ctx, BG: &a.bg}
+	a.Devices = &devices.Service{St: st, Bus: a.Bus, Now: cfg.Now, Ctx: a.ctx, Files: a.dirs(), RemoveFiles: a.removeFiles,
+		Secret: a.Secret, ReadSecret: a.readSecret, WriteSecret: a.writeSecret, SecretsDir: a.secretsDir,
+		LockSecrets: a.secretMu.Lock, UnlockSecrets: a.secretMu.Unlock,
+		Invoke: func(ctx context.Context, act registry.Actor, name string, in json.RawMessage) (any, error) {
+			return a.Registry.Invoke(ctx, act, name, in)
+		}}
 	a.addBuiltins()
 	a.Gateway = gateway.New(gateway.Config{Now: cfg.Now, QuestionWait: cfg.QuestionWait, ConfirmWait: cfg.ConfirmWait, ConfirmTTL: a.confirmTTL}, st, a.Asks, a.Bus, a.Registry)
 	a.Tools = tools.NewHTTP(a.Gateway, a.Secret, a.dirs())
@@ -122,7 +130,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	if err := a.SeedMaster(a.ctx); err != nil {
 		return nil, err
 	}
-	a.watchPush()
+	a.Devices.WatchPush()
 	return a, nil
 }
 
@@ -291,7 +299,7 @@ func (a *App) Sweep(ctx context.Context, now time.Time) {
 	a.checkDisk(ctx, now)
 	if spaces, err := a.Store.Q.ListWorkspaces(ctx); err == nil {
 		for _, ws := range spaces {
-			a.pushNew(ctx, ws)
+			a.Devices.PushNew(ctx, ws)
 		}
 	}
 	a.daily(ctx, now)

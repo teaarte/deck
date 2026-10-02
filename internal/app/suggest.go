@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"deck2/internal/app/access"
 	"deck2/internal/app/board"
+	"deck2/internal/app/devices"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -145,7 +146,7 @@ func (a *App) suggestTarget(ctx context.Context, act registry.Actor, name string
 // doSuggestion carries a suggestion out in a project on autonomy auto and lists it in the feed; a call keeps the
 // class rules of its command, and a card can be deleted again.
 func (a *App) doSuggestion(ctx context.Context, act registry.Actor, p db.Project, f gateway.Frozen) (any, error) {
-	row := db.AddFeedParams{WorkspaceID: p.WorkspaceID, ProjectID: p.ID, Kind: feedChange, Author: act.Author(), Actions: "[]", Params: "{}",
+	row := db.AddFeedParams{WorkspaceID: p.WorkspaceID, ProjectID: p.ID, Kind: devices.FeedChange, Author: act.Author(), Actions: "[]", Params: "{}",
 		Text: fmt.Sprintf("%s suggested and deck did it: %s (%s)", act.Author(), suggested(f), f.Reason)}
 	// The suggestion names the call, so the calls list of the suggesting command does not narrow it.
 	act.Commands = nil

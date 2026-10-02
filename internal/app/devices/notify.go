@@ -1,4 +1,4 @@
-package app
+package devices
 
 import (
 	"context"
@@ -13,8 +13,8 @@ import (
 	"deck2/internal/store/db"
 )
 
-// notifyButton is a button a notification carries: a command of its project with params.
-type notifyButton struct {
+// Button is a button a notification carries: a command of its project with params.
+type Button struct {
 	Label   string         `json:"label"`
 	Command string         `json:"command"`
 	Params  map[string]any `json:"params,omitempty"`
@@ -29,15 +29,15 @@ type notifyIn struct {
 }
 
 // notify writes a line to the feed of the cockpit; push comes with stage 3. The caller decides whether it is worth it.
-func (a *App) notify(ctx context.Context, act registry.Actor, in notifyIn) (any, error) {
-	p, err := access.Project(ctx, a.Store.Q, act, in.Project)
+func (dv *Service) notify(ctx context.Context, act registry.Actor, in notifyIn) (any, error) {
+	p, err := access.Project(ctx, dv.St.Q, act, in.Project)
 	if err != nil {
 		return nil, err
 	}
 	if strings.TrimSpace(in.Text) == "" {
 		return nil, registry.Invalid("deck: notify needs text")
 	}
-	m, err := docs.Manifest(ctx, a.Store.Q, p)
+	m, err := docs.Manifest(ctx, dv.St.Q, p)
 	if err != nil {
 		return nil, err
 	}
@@ -49,13 +49,13 @@ func (a *App) notify(ctx context.Context, act registry.Actor, in notifyIn) (any,
 		case s.Record != "" && in.Record == 0:
 			return nil, registry.Invalid("deck: screen %q shows a record of %s; give record", in.Screen, s.Record)
 		case s.Record != "":
-			rec, err := a.Store.Q.GetRecord(ctx, in.Record)
+			rec, err := dv.St.Q.GetRecord(ctx, in.Record)
 			if err != nil || rec.ProjectID != p.ID || rec.Collection != s.Record {
 				return nil, registry.Invalid("deck: no %s record %d", s.Record, in.Record)
 			}
 		}
 	}
-	var buttons []notifyButton
+	var buttons []Button
 	if strings.TrimSpace(in.Actions) != "" {
 		if err := json.Unmarshal([]byte(in.Actions), &buttons); err != nil {
 			return nil, registry.Invalid("deck: actions: a JSON array of {label, command, params}: %v", err)
@@ -75,8 +75,8 @@ func (a *App) notify(ctx context.Context, act registry.Actor, in notifyIn) (any,
 	}
 	raw, _ := json.Marshal(buttons)
 	var n db.Feed
-	err = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		n, err = q.AddFeed(ctx, db.AddFeedParams{WorkspaceID: p.WorkspaceID, ProjectID: p.ID, Kind: feedNote, Author: act.Author(),
+	err = dv.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		n, err = q.AddFeed(ctx, db.AddFeedParams{WorkspaceID: p.WorkspaceID, ProjectID: p.ID, Kind: FeedNote, Author: act.Author(),
 			Text: in.Text, Screen: in.Screen, RecordID: store.ID(in.Record), Actions: string(raw), Params: "{}"})
 		return err
 	})
@@ -86,10 +86,11 @@ func (a *App) notify(ctx context.Context, act registry.Actor, in notifyIn) (any,
 	return map[string]any{"notification": n.ID}, nil
 }
 
-func (a *App) notifyCommands() []*registry.Command {
+// NotifyCommands are the commands of the feed lines of notify.
+func (dv *Service) NotifyCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("notify", "Notify the owner",
 			"Writes a line to the feed of the cockpit, with a screen of the project to open and buttons; the caller decides it is worth it.",
-			registry.Everyone, a.notify).Changes("feed"),
+			registry.Everyone, dv.notify).Changes("feed"),
 	}
 }

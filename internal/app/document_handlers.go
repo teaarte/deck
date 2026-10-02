@@ -372,7 +372,7 @@ func (a *App) scriptChanged(ctx context.Context, q *db.Queries, act registry.Act
 		return nil
 	}
 	prev := db.Document{ID: d.ID, Current: n - 1}
-	return a.unattended(ctx, q, act, d.ProjectID.Int64, prev, n, fmt.Sprintf("%s changed script %s", act.Author(), d.Name), reason)
+	return a.Devices.Changed(ctx, q, act, d.ProjectID.Int64, prev, n, fmt.Sprintf("%s changed script %s", act.Author(), d.Name), reason)
 }
 
 func (a *App) documentCommands() []*registry.Command {

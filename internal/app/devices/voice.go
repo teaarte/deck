@@ -1,4 +1,4 @@
-package app
+package devices
 
 import (
 	"bytes"
@@ -39,9 +39,9 @@ type sttDef struct {
 	Language  string `json:"language,omitempty"`
 }
 
-func (a *App) stt(ctx context.Context, workspace int64) sttDef {
+func (dv *Service) stt(ctx context.Context, workspace int64) sttDef {
 	var d sttDef
-	if raw, err := a.Store.Q.GetSetting(ctx, db.GetSettingParams{WorkspaceID: workspace, Key: settingSTT}); err == nil {
+	if raw, err := dv.St.Q.GetSetting(ctx, db.GetSettingParams{WorkspaceID: workspace, Key: settingSTT}); err == nil {
 		_ = json.Unmarshal([]byte(raw), &d)
 	}
 	if d.URL == "" {
@@ -57,18 +57,18 @@ type sttSetIn struct {
 	Language  string `opt:"" desc:"Language of the speech, such as ru or en; auto by default, which the service detects"`
 }
 
-func (a *App) sttSet(ctx context.Context, act registry.Actor, in sttSetIn) (any, error) {
+func (dv *Service) sttSet(ctx context.Context, act registry.Actor, in sttSetIn) (any, error) {
 	d := sttDef{URL: strings.TrimSpace(in.URL), Model: in.Model, KeySecret: in.KeySecret, Language: cmp.Or(strings.TrimSpace(in.Language), "auto")}
 	switch {
 	case !strings.HasPrefix(d.URL, "http://") && !strings.HasPrefix(d.URL, "https://"):
 		return nil, registry.Invalid("deck: the speech-to-text url is http or https, such as %s", DefaultSTT)
 	case strings.ContainsAny(d.URL, "@?#"):
 		return nil, registry.Invalid("deck: the url takes no user, query or key; keep the key in a secret and name it in key_secret")
-	case d.KeySecret != "" && !validSecret(d.KeySecret):
+	case d.KeySecret != "" && !access.SecretName.MatchString(d.KeySecret):
 		return nil, registry.Invalid("deck: bad secret name %q", d.KeySecret)
 	}
 	raw, _ := json.Marshal(d)
-	err := a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+	err := dv.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		return q.SetSetting(ctx, db.SetSettingParams{WorkspaceID: act.Workspace, Key: settingSTT, Value: string(raw)})
 	})
 	if err != nil {
@@ -83,13 +83,13 @@ type transcribeIn struct {
 
 // transcribe turns a recording the owner uploaded into text with the speech-to-text provider; the recording
 // goes once it is read.
-func (a *App) transcribe(ctx context.Context, act registry.Actor, in transcribeIn) (any, error) {
+func (dv *Service) transcribe(ctx context.Context, act registry.Actor, in transcribeIn) (any, error) {
 	id, _ := strconv.ParseInt(in.File, 10, 64)
-	f, err := a.Store.Q.GetFile(ctx, id)
+	f, err := dv.St.Q.GetFile(ctx, id)
 	if err != nil {
 		return nil, registry.NotFound("deck: no file %s", in.File)
 	}
-	p, err := access.Of(ctx, a.Store.Q, act, f.ProjectID, registry.NotFound("deck: no file %s", in.File))
+	p, err := access.Of(ctx, dv.St.Q, act, f.ProjectID, registry.NotFound("deck: no file %s", in.File))
 	if err != nil {
 		return nil, err
 	}
@@ -98,10 +98,10 @@ func (a *App) transcribe(ctx context.Context, act registry.Actor, in transcribeI
 	}
 	// The recording goes whatever the provider says.
 	defer func() {
-		_ = a.Store.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error { return q.DeleteFile(ctx, f.ID) })
-		a.removeFiles([]int64{f.ID})
+		_ = dv.St.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error { return q.DeleteFile(ctx, f.ID) })
+		dv.RemoveFiles([]int64{f.ID})
 	}()
-	path := filepath.Join(a.dirs().Files, strconv.FormatInt(f.ID, 10))
+	path := filepath.Join(dv.Files.Files, strconv.FormatInt(f.ID, 10))
 	info, err := os.Stat(path)
 	if err != nil {
 		return nil, err
@@ -113,9 +113,9 @@ func (a *App) transcribe(ctx context.Context, act registry.Actor, in transcribeI
 	if err != nil {
 		return nil, err
 	}
-	d := a.stt(ctx, act.Workspace)
-	text, err := a.whisper(ctx, act.Workspace, d, f.Name, audio)
-	a.setSTTHealth(ctx, err)
+	d := dv.stt(ctx, act.Workspace)
+	text, err := dv.whisper(ctx, act.Workspace, d, f.Name, audio)
+	dv.setSTTHealth(ctx, err)
 	if err != nil {
 		return nil, registry.Invalid("deck: speech to text at %s failed: %v", d.URL, err)
 	}
@@ -125,7 +125,7 @@ func (a *App) transcribe(ctx context.Context, act registry.Actor, in transcribeI
 var sttClient = &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 
 // whisper posts a recording as a multipart form the way OpenAI's transcriptions and whisper.cpp's server take it.
-func (a *App) whisper(ctx context.Context, workspace int64, d sttDef, name string, audio []byte) (string, error) {
+func (dv *Service) whisper(ctx context.Context, workspace int64, d sttDef, name string, audio []byte) (string, error) {
 	var body bytes.Buffer
 	w := multipart.NewWriter(&body)
 	part, err := w.CreateFormFile("file", filepath.Base(name))
@@ -150,7 +150,7 @@ func (a *App) whisper(ctx context.Context, workspace int64, d sttDef, name strin
 	}
 	req.Header.Set("Content-Type", w.FormDataContentType())
 	if d.KeySecret != "" {
-		key, err := a.Secret(workspace, d.KeySecret)
+		key, err := dv.Secret(workspace, d.KeySecret)
 		if err != nil {
 			return "", err
 		}
@@ -174,21 +174,22 @@ func (a *App) whisper(ctx context.Context, workspace int64, d sttDef, name strin
 	return strings.TrimSpace(out.Text), nil
 }
 
-func (a *App) setSTTHealth(ctx context.Context, failed error) {
+func (dv *Service) setSTTHealth(ctx context.Context, failed error) {
 	status, text := "ok", ""
 	if failed != nil {
 		status, text = "error", failed.Error()
 	}
-	health.Write(ctx, a.Store, a.Bus, health.Of{}, sttHealth, status, text)
+	health.Write(ctx, dv.St, dv.Bus, health.Of{}, sttHealth, status, text)
 }
 
-func (a *App) voiceCommands() []*registry.Command {
+// VoiceCommands are the commands of speech to text.
+func (dv *Service) VoiceCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("transcribe", "Speech to text",
 			"Turns a recording the owner uploaded into text with the speech-to-text provider; the recording is not kept.",
-			registry.OwnerOnly, a.transcribe),
+			registry.OwnerOnly, dv.transcribe),
 		registry.Def("stt_set", "Speech to text provider",
 			"Sets the speech-to-text provider: an OpenAI-compatible transcription url, such as a whisper.cpp server on this machine.",
-			registry.OwnerOnly, a.sttSet).Changes("settings"),
+			registry.OwnerOnly, dv.sttSet).Changes("settings"),
 	}
 }

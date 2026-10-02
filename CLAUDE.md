@@ -32,7 +32,7 @@ Stage 1 plan: `docs/plan-stage1.md`.
   `registry.Read` declares a command that only reads, with its result schema from the Go type and `On` its event topic
 - `internal/docs` — documents with revisions, skill files, the manifest reader with its parse cache
 - `internal/app` — wiring, builtin `deck.*` commands (each `*_handlers.go` lists its own next to the handlers),
-  projects; `app/board` — cards and boards; `app/providers` — providers, which command runs on which, self-checks; who may touch what is `app/access`; `app/records` — records of collections;
+  projects; `app/board` — cards and boards; `app/providers` — providers, which command runs on which, self-checks; `app/devices` — the feed, push, speech to text; who may touch what is `app/access`; `app/records` — records of collections;
   a screen block reads a `registry.Read` command (`"from": "deck.asks_list"`), called as the viewer in
   `app/screens.go`; `app/screens` — boards, forms, documents and the buttons of deck's rows (`buttons.go`);
   deck's screens are data in `screens.json`: menu Cockpit, Schedule, Settings (tabs Projects, Providers, Secrets,
@@ -64,8 +64,8 @@ Stage 1 plan: `docs/plan-stage1.md`.
   (scheme, accent, density, font, corners) — `src/look.ts`, passed to `custom` blocks as MCP Apps host context; PWA and Share Target — `public/manifest.webmanifest`, `public/sw.js`;
   `web/dist` is the embedded build — rebuild and commit it with the sources
 - `master` — the built-in project `master`, embedded: manifest, prompts, skills (dispatch, topic-summary, interview);
-  the chat, memory, suggestions, voice and push around it are in `internal/app` (`chat*.go`, `memory.go`, `suggest.go`,
-  `errors.go`, `voice.go`, `push.go`); the client's chat panel is `web/src/chat.tsx`
+  the chat, memory, suggestions and errors around it are in `internal/app` (`chat*.go`, `memory.go`, `suggest.go`,
+  `errors.go`), voice and push in `app/devices`; the client's chat panel is `web/src/chat.tsx`
 - `internal/lint` — code rules checked by `tests/lint` (comments, requirement refs, vertical names)
 - `schemas` — contracts embedded in the binary: manifest JSON Schema, screen block catalog (`catalog.json`, read by
   the server and the client), App Intents parameter rules

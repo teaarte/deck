@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"deck2/internal/app/access"
+	"deck2/internal/app/devices"
 	"errors"
 	"io/fs"
 	"os"
@@ -45,7 +46,7 @@ type secretSetIn struct {
 
 // secretSet writes a secret file readable only by deck; the value never comes back out.
 // serviceSecrets are deck's own keys: the owner neither lists nor sets them, and resets them with their own button.
-var serviceSecrets = []string{vapidSecret}
+var serviceSecrets = []string{devices.VAPIDSecret}
 
 func (a *App) secretSet(ctx context.Context, act registry.Actor, in secretSetIn) (any, error) {
 	if !validSecret(in.Name) {

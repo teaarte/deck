@@ -71,7 +71,7 @@ func (r *Runner) run(ctx context.Context, t turn) {
 	}
 	t.pv = pv
 	if !r.providers.Ready(bg, pv.Name()) {
-		r.waitProvider(bg, t)
+		r.hold(bg, t, StateWaitingProvider)
 		return
 	}
 	proj, err := r.st.Q.GetProject(bg, t.project)
@@ -91,7 +91,7 @@ func (r *Runner) run(ctx context.Context, t turn) {
 	}
 	if t.slot == nil {
 		if t.slot = r.takeSlot(bg, proj.WorkspaceID); t.slot == nil {
-			r.waitSlot(bg, t, proj.WorkspaceID)
+			r.hold(bg, t, StateWaitingSlot)
 			return
 		}
 	}

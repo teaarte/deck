@@ -224,7 +224,7 @@ func (r *Runner) finish(ctx context.Context, processID int64, state, result stri
 	if n == 0 {
 		return
 	}
-	r.freeFolderOf(ctx, processID)
+	r.Wake(ctx)
 	r.mu.Lock()
 	delete(r.marked, processID)
 	r.mu.Unlock()

@@ -153,26 +153,6 @@ SELECT * FROM process WHERE state = 'rate_limited' AND pause_until_ms <= CAST(sq
 UPDATE process SET pause_until_ms = NULL, pause_limit_ms = NULL WHERE id = sqlc.arg(id);
 
 
--- name: WaitForProvider :execrows
-UPDATE process SET state = 'waiting_provider', wait_message = sqlc.arg(message), wait_fresh = sqlc.arg(fresh)
-WHERE id = sqlc.arg(id) AND state = 'running';
-
-
--- name: WaitForSlot :execrows
-UPDATE process SET state = 'waiting_slot', wait_message = sqlc.arg(message), wait_fresh = sqlc.arg(fresh)
-WHERE id = sqlc.arg(id) AND state = 'running';
-
-
--- name: ListWaitingForSlot :many
-SELECT * FROM process
-WHERE state = 'waiting_slot' AND project_id IN (SELECT id FROM project WHERE workspace_id = sqlc.arg(workspace_id))
-ORDER BY id;
-
-
--- name: ListWaitingForProvider :many
-SELECT * FROM process WHERE state = 'waiting_provider' AND provider = sqlc.arg(provider) ORDER BY id;
-
-
 -- name: CountActiveOnProvider :one
 SELECT count(*) FROM process
 WHERE provider = sqlc.arg(provider) AND project_id IN (SELECT id FROM project WHERE workspace_id = sqlc.arg(workspace_id))
@@ -228,3 +208,13 @@ UPDATE tool_call SET run = 'settled', result = ? WHERE ask_id = ? AND run = 'run
 
 -- name: ListRunningDecisions :many
 SELECT sqlc.embed(a) FROM tool_call t JOIN ask a ON a.id = t.ask_id WHERE t.run = 'running' ORDER BY t.id;
+
+
+-- name: HoldProcess :execrows
+UPDATE process SET state = sqlc.arg(state), wait_message = sqlc.arg(message), wait_fresh = sqlc.arg(fresh)
+WHERE id = sqlc.arg(id) AND state = 'running';
+
+
+-- name: ListHeld :many
+SELECT sqlc.embed(p), j.workspace_id FROM process p JOIN project j ON j.id = p.project_id
+WHERE p.state IN ('waiting_provider', 'waiting_slot', 'waiting_folder') ORDER BY p.id;

@@ -31,14 +31,7 @@ DELETE FROM folder_lock WHERE process_id = ? AND process_id IN (SELECT id FROM p
 DELETE FROM folder_lock WHERE process_id = ?;
 
 
--- name: WaitForFolder :execrows
-UPDATE process SET state = 'waiting_folder', wait_message = sqlc.arg(message), wait_fresh = sqlc.arg(fresh)
-WHERE id = sqlc.arg(id) AND state = 'running';
 
 
--- name: ListWaitingForFolder :many
-SELECT * FROM process WHERE state = 'waiting_folder' AND folder = ? ORDER BY id;
-
-
--- name: ListWaitingFolders :many
-SELECT DISTINCT folder FROM process WHERE state = 'waiting_folder';
+-- name: FolderBusy :one
+SELECT count(*) FROM folder_lock l JOIN process p ON p.id = l.process_id WHERE l.path = ? AND p.finished_at IS NULL;

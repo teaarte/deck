@@ -55,7 +55,7 @@ func (r *Runner) Stop(ctx context.Context, processID int64, reason string) error
 		lt.cancel(nil)
 	}
 	if !live {
-		r.freeFolderOf(ctx, processID)
+		r.Wake(ctx)
 	}
 	r.dropped(ctx, closedCalls)
 	r.closed(ctx, processID)

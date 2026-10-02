@@ -74,7 +74,7 @@ func (a *App) settingsSet(ctx context.Context, act registry.Actor, in settingsSe
 	}
 	a.Bus.Publish("settings")
 	if in.AgentLimit > 0 {
-		a.Runner.FreeSlots(ctx, act.Workspace)
+		a.Runner.Wake(ctx)
 	}
 	return a.settingItems(ctx, act.Workspace), nil
 }

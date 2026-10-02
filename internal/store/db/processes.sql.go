@@ -359,6 +359,31 @@ func (q *Queries) GetToolCall(ctx context.Context, id int64) (ToolCall, error) {
 	return i, err
 }
 
+const holdProcess = `-- name: HoldProcess :execrows
+UPDATE process SET state = ?1, wait_message = ?2, wait_fresh = ?3
+WHERE id = ?4 AND state = 'running'
+`
+
+type HoldProcessParams struct {
+	State   string
+	Message string
+	Fresh   int64
+	ID      int64
+}
+
+func (q *Queries) HoldProcess(ctx context.Context, arg HoldProcessParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, holdProcess,
+		arg.State,
+		arg.Message,
+		arg.Fresh,
+		arg.ID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const listCeilingReached = `-- name: ListCeilingReached :many
 SELECT id FROM process WHERE state = 'running' AND deadline_ms IS NOT NULL AND deadline_ms <= CAST(?1 AS INTEGER)
 `
@@ -376,6 +401,71 @@ func (q *Queries) ListCeilingReached(ctx context.Context, now int64) ([]int64, e
 			return nil, err
 		}
 		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listHeld = `-- name: ListHeld :many
+SELECT p.id, p.project_id, p.command, p.kind, p.state, p.provider, p.session_id, p.input, p.result, p.not_by_schema, p.error, p.start_note, p.parent_id, p.depth, p.trigger_id, p.retry_key, p.manifest_revision, p.trial, p.folder, p.pgid, p.ceiling_ms, p.deadline_ms, p.output_ms, p.silent_since_ms, p.pause_until_ms, p.pause_limit_ms, p.wait_message, p.wait_fresh, p.started_at, p.finished_at, j.workspace_id FROM process p JOIN project j ON j.id = p.project_id
+WHERE p.state IN ('waiting_provider', 'waiting_slot', 'waiting_folder') ORDER BY p.id
+`
+
+type ListHeldRow struct {
+	Process     Process
+	WorkspaceID int64
+}
+
+func (q *Queries) ListHeld(ctx context.Context) ([]ListHeldRow, error) {
+	rows, err := q.db.QueryContext(ctx, listHeld)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListHeldRow
+	for rows.Next() {
+		var i ListHeldRow
+		if err := rows.Scan(
+			&i.Process.ID,
+			&i.Process.ProjectID,
+			&i.Process.Command,
+			&i.Process.Kind,
+			&i.Process.State,
+			&i.Process.Provider,
+			&i.Process.SessionID,
+			&i.Process.Input,
+			&i.Process.Result,
+			&i.Process.NotBySchema,
+			&i.Process.Error,
+			&i.Process.StartNote,
+			&i.Process.ParentID,
+			&i.Process.Depth,
+			&i.Process.TriggerID,
+			&i.Process.RetryKey,
+			&i.Process.ManifestRevision,
+			&i.Process.Trial,
+			&i.Process.Folder,
+			&i.Process.Pgid,
+			&i.Process.CeilingMs,
+			&i.Process.DeadlineMs,
+			&i.Process.OutputMs,
+			&i.Process.SilentSinceMs,
+			&i.Process.PauseUntilMs,
+			&i.Process.PauseLimitMs,
+			&i.Process.WaitMessage,
+			&i.Process.WaitFresh,
+			&i.Process.StartedAt,
+			&i.Process.FinishedAt,
+			&i.WorkspaceID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err
@@ -788,124 +878,6 @@ func (q *Queries) ListToolCalls(ctx context.Context, processID sql.NullInt64) ([
 			&i.Run,
 			&i.Result,
 			&i.CreatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listWaitingForProvider = `-- name: ListWaitingForProvider :many
-SELECT id, project_id, command, kind, state, provider, session_id, input, result, not_by_schema, error, start_note, parent_id, depth, trigger_id, retry_key, manifest_revision, trial, folder, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, pause_until_ms, pause_limit_ms, wait_message, wait_fresh, started_at, finished_at FROM process WHERE state = 'waiting_provider' AND provider = ?1 ORDER BY id
-`
-
-func (q *Queries) ListWaitingForProvider(ctx context.Context, provider string) ([]Process, error) {
-	rows, err := q.db.QueryContext(ctx, listWaitingForProvider, provider)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []Process
-	for rows.Next() {
-		var i Process
-		if err := rows.Scan(
-			&i.ID,
-			&i.ProjectID,
-			&i.Command,
-			&i.Kind,
-			&i.State,
-			&i.Provider,
-			&i.SessionID,
-			&i.Input,
-			&i.Result,
-			&i.NotBySchema,
-			&i.Error,
-			&i.StartNote,
-			&i.ParentID,
-			&i.Depth,
-			&i.TriggerID,
-			&i.RetryKey,
-			&i.ManifestRevision,
-			&i.Trial,
-			&i.Folder,
-			&i.Pgid,
-			&i.CeilingMs,
-			&i.DeadlineMs,
-			&i.OutputMs,
-			&i.SilentSinceMs,
-			&i.PauseUntilMs,
-			&i.PauseLimitMs,
-			&i.WaitMessage,
-			&i.WaitFresh,
-			&i.StartedAt,
-			&i.FinishedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listWaitingForSlot = `-- name: ListWaitingForSlot :many
-SELECT id, project_id, command, kind, state, provider, session_id, input, result, not_by_schema, error, start_note, parent_id, depth, trigger_id, retry_key, manifest_revision, trial, folder, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, pause_until_ms, pause_limit_ms, wait_message, wait_fresh, started_at, finished_at FROM process
-WHERE state = 'waiting_slot' AND project_id IN (SELECT id FROM project WHERE workspace_id = ?1)
-ORDER BY id
-`
-
-func (q *Queries) ListWaitingForSlot(ctx context.Context, workspaceID int64) ([]Process, error) {
-	rows, err := q.db.QueryContext(ctx, listWaitingForSlot, workspaceID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []Process
-	for rows.Next() {
-		var i Process
-		if err := rows.Scan(
-			&i.ID,
-			&i.ProjectID,
-			&i.Command,
-			&i.Kind,
-			&i.State,
-			&i.Provider,
-			&i.SessionID,
-			&i.Input,
-			&i.Result,
-			&i.NotBySchema,
-			&i.Error,
-			&i.StartNote,
-			&i.ParentID,
-			&i.Depth,
-			&i.TriggerID,
-			&i.RetryKey,
-			&i.ManifestRevision,
-			&i.Trial,
-			&i.Folder,
-			&i.Pgid,
-			&i.CeilingMs,
-			&i.DeadlineMs,
-			&i.OutputMs,
-			&i.SilentSinceMs,
-			&i.PauseUntilMs,
-			&i.PauseLimitMs,
-			&i.WaitMessage,
-			&i.WaitFresh,
-			&i.StartedAt,
-			&i.FinishedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -1379,42 +1351,4 @@ UPDATE tool_call SET run = '' WHERE ask_id = ? AND run = 'running'
 func (q *Queries) UndoDecision(ctx context.Context, askID sql.NullInt64) error {
 	_, err := q.db.ExecContext(ctx, undoDecision, askID)
 	return err
-}
-
-const waitForProvider = `-- name: WaitForProvider :execrows
-UPDATE process SET state = 'waiting_provider', wait_message = ?1, wait_fresh = ?2
-WHERE id = ?3 AND state = 'running'
-`
-
-type WaitForProviderParams struct {
-	Message string
-	Fresh   int64
-	ID      int64
-}
-
-func (q *Queries) WaitForProvider(ctx context.Context, arg WaitForProviderParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, waitForProvider, arg.Message, arg.Fresh, arg.ID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
-}
-
-const waitForSlot = `-- name: WaitForSlot :execrows
-UPDATE process SET state = 'waiting_slot', wait_message = ?1, wait_fresh = ?2
-WHERE id = ?3 AND state = 'running'
-`
-
-type WaitForSlotParams struct {
-	Message string
-	Fresh   int64
-	ID      int64
-}
-
-func (q *Queries) WaitForSlot(ctx context.Context, arg WaitForSlotParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, waitForSlot, arg.Message, arg.Fresh, arg.ID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
 }

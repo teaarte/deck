@@ -116,7 +116,7 @@ func (r *Runner) pauseEnded(ctx context.Context, p db.Process) {
 	if n > 0 {
 		r.dropped(ctx, closedCalls)
 		r.closed(ctx, p.ID)
-		r.freeFolderOf(ctx, p.ID)
+		r.Wake(ctx)
 	}
 }
 

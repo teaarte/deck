@@ -173,14 +173,8 @@ func (r *Runner) ResumeInterrupted(ctx context.Context) error {
 			_ = r.Deliver(ctx, p.ID)
 		}
 	}
-	spaces, err := r.st.Q.ListWorkspaces(ctx)
-	if err != nil {
-		return err
-	}
-	for _, ws := range spaces {
-		r.FreeSlots(ctx, ws)
-	}
-	return r.freeFolders(ctx)
+	r.Wake(ctx)
+	return nil
 }
 
 func (r *Runner) reap(ctx context.Context) error {

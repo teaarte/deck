@@ -132,7 +132,7 @@ func (a *App) startCheck(name string, force bool) bool {
 		}
 		a.checkMu.Unlock()
 		if status != "error" && status != "checking" {
-			a.Runner.ProviderReady(context.WithoutCancel(ctx), name)
+			a.Runner.Wake(context.WithoutCancel(ctx))
 		}
 	}()
 	return true

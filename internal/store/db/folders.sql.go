@@ -42,6 +42,17 @@ func (q *Queries) DropStaleFolderLock(ctx context.Context, path string) error {
 	return err
 }
 
+const folderBusy = `-- name: FolderBusy :one
+SELECT count(*) FROM folder_lock l JOIN process p ON p.id = l.process_id WHERE l.path = ? AND p.finished_at IS NULL
+`
+
+func (q *Queries) FolderBusy(ctx context.Context, path string) (int64, error) {
+	row := q.db.QueryRowContext(ctx, folderBusy, path)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const folderLockHolder = `-- name: FolderLockHolder :one
 SELECT process_id FROM folder_lock WHERE path = ?
 `
@@ -72,91 +83,6 @@ func (q *Queries) ListProjectFolders(ctx context.Context, projectID int64) ([]Pr
 			&i.Name,
 			&i.Path,
 			&i.CreatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listWaitingFolders = `-- name: ListWaitingFolders :many
-SELECT DISTINCT folder FROM process WHERE state = 'waiting_folder'
-`
-
-func (q *Queries) ListWaitingFolders(ctx context.Context) ([]string, error) {
-	rows, err := q.db.QueryContext(ctx, listWaitingFolders)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []string
-	for rows.Next() {
-		var folder string
-		if err := rows.Scan(&folder); err != nil {
-			return nil, err
-		}
-		items = append(items, folder)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listWaitingForFolder = `-- name: ListWaitingForFolder :many
-SELECT id, project_id, command, kind, state, provider, session_id, input, result, not_by_schema, error, start_note, parent_id, depth, trigger_id, retry_key, manifest_revision, trial, folder, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, pause_until_ms, pause_limit_ms, wait_message, wait_fresh, started_at, finished_at FROM process WHERE state = 'waiting_folder' AND folder = ? ORDER BY id
-`
-
-func (q *Queries) ListWaitingForFolder(ctx context.Context, folder string) ([]Process, error) {
-	rows, err := q.db.QueryContext(ctx, listWaitingForFolder, folder)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []Process
-	for rows.Next() {
-		var i Process
-		if err := rows.Scan(
-			&i.ID,
-			&i.ProjectID,
-			&i.Command,
-			&i.Kind,
-			&i.State,
-			&i.Provider,
-			&i.SessionID,
-			&i.Input,
-			&i.Result,
-			&i.NotBySchema,
-			&i.Error,
-			&i.StartNote,
-			&i.ParentID,
-			&i.Depth,
-			&i.TriggerID,
-			&i.RetryKey,
-			&i.ManifestRevision,
-			&i.Trial,
-			&i.Folder,
-			&i.Pgid,
-			&i.CeilingMs,
-			&i.DeadlineMs,
-			&i.OutputMs,
-			&i.SilentSinceMs,
-			&i.PauseUntilMs,
-			&i.PauseLimitMs,
-			&i.WaitMessage,
-			&i.WaitFresh,
-			&i.StartedAt,
-			&i.FinishedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -236,23 +162,4 @@ type TakeFolderLockParams struct {
 func (q *Queries) TakeFolderLock(ctx context.Context, arg TakeFolderLockParams) error {
 	_, err := q.db.ExecContext(ctx, takeFolderLock, arg.Path, arg.ProcessID)
 	return err
-}
-
-const waitForFolder = `-- name: WaitForFolder :execrows
-UPDATE process SET state = 'waiting_folder', wait_message = ?1, wait_fresh = ?2
-WHERE id = ?3 AND state = 'running'
-`
-
-type WaitForFolderParams struct {
-	Message string
-	Fresh   int64
-	ID      int64
-}
-
-func (q *Queries) WaitForFolder(ctx context.Context, arg WaitForFolderParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, waitForFolder, arg.Message, arg.Fresh, arg.ID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
 }

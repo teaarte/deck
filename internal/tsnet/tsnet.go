@@ -50,26 +50,31 @@ func Start(ctx context.Context, cfg Config, srv *api.Server) (*Node, error) {
 		main, second = 80, 8080
 	}
 	srv.Pair(main, second)
+	go n.watch(ctx)
+	go n.serveAll(ctx, srv, main, second)
+	return n, nil
+}
+
+// serveAll listens on the node's ports once the owner signed it in; until then deck runs on its local port.
+func (n *Node) serveAll(ctx context.Context, srv *api.Server, main, second int) {
 	for port, h := range map[int]http.Handler{main: srv.Handler(), second: srv.Sandbox()} {
 		ln, err := n.listen(port)
 		if err != nil {
-			ts.Close()
-			return nil, err
+			n.health("error", err.Error())
+			return
 		}
 		go serve(ctx, ln, h)
 	}
-	if !cfg.Plain {
-		ln, err := ts.Listen("tcp", ":80")
+	if !n.cfg.Plain {
+		ln, err := n.ts.Listen("tcp", ":80")
 		if err != nil {
-			ts.Close()
-			return nil, err
+			n.health("error", err.Error())
+			return
 		}
 		go serve(ctx, ln, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, "https://"+r.Host+r.URL.RequestURI(), http.StatusMovedPermanently)
 		}))
 	}
-	go n.watch(ctx)
-	return n, nil
 }
 
 func (n *Node) listen(port int) (net.Listener, error) {

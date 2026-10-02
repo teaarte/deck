@@ -98,6 +98,8 @@
   },
   "look": {
     "device": "These choices stay on this device.",
+    "theme": "Theme",
+    "glass": "Glass",
     "scheme": "Color scheme",
     "accent": "Accent",
     "density": "Density",

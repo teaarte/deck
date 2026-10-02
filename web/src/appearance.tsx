@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Button, CheckIcon, ColorSwatch, Group, SegmentedControl, Stack, Text, useMantineColorScheme, type MantineColorScheme } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { useTranslation } from 'react-i18next';
-import { ACCENTS, DENSITIES, FONTS, RADII, setLook, useLook, type Look } from './look';
+import { ACCENTS, DENSITIES, FONTS, RADII, THEMES, setLook, useLook, type Look } from './look';
 import { call } from './api';
 import { pushSupported, reconcilePush, subscribePush, unsubscribePush } from './push';
 
@@ -19,7 +19,7 @@ function Choice<T extends string>({ label, name, value, options, onChange }: {
   );
 }
 
-// Appearance is how deck looks on this device: color scheme, accent, density, font size and corners.
+// Appearance is how deck looks on this device: theme, color scheme, accent, density, font size and corners.
 export function Appearance() {
   const { t } = useTranslation();
   const look = useLook();
@@ -27,6 +27,7 @@ export function Appearance() {
   return (
     <Stack gap="md" data-appearance>
       <Text size="sm" c="dimmed">{t('look.device')}</Text>
+      <Choice label={t('look.theme')} name="theme" value={look.theme} options={THEMES} onChange={(v: Look['theme']) => setLook({ theme: v })} />
       <Choice label={t('look.scheme')} name="scheme" value={colorScheme} options={['auto', 'light', 'dark'] as MantineColorScheme[]}
         onChange={setColorScheme} />
       <Stack gap={4}>

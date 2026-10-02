@@ -1,0 +1,145 @@
+:global(:root[data-deck-theme='glass']) {
+  --glass-tint: 0.5;
+  --glass-blur: 20px;
+  --glass-saturate: 180%;
+  --glass-bg: rgb(255 255 255 / calc(0.55 + 0.45 * var(--glass-tint)));
+  --glass-bg-thick: rgb(255 255 255 / calc(0.68 + 0.32 * var(--glass-tint)));
+  --glass-fill: rgb(255 255 255 / 0.55);
+  --glass-highlight: rgb(255 255 255 / 0.85);
+  --glass-edge: rgb(0 0 0 / 0.1);
+  --glass-shadow: 0 8px 32px rgb(0 0 0 / 0.12), 0 1px 2px rgb(0 0 0 / 0.06);
+  --glass-dimmed: rgb(60 60 67 / 0.8);
+  --glass-pad: 4px;
+  --glass-backdrop:
+    radial-gradient(at 15% 10%, color-mix(in srgb, var(--mantine-primary-color-filled) 22%, transparent), transparent 55%),
+    radial-gradient(at 85% 90%, color-mix(in srgb, var(--mantine-color-pink-filled) 12%, transparent), transparent 50%),
+    var(--mantine-color-gray-1);
+}
+
+:global(:root[data-deck-theme='glass'][data-mantine-color-scheme='dark']) {
+  --glass-bg: rgb(36 36 36 / calc(0.5 + 0.5 * var(--glass-tint)));
+  --glass-bg-thick: rgb(36 36 36 / calc(0.65 + 0.35 * var(--glass-tint)));
+  --glass-fill: rgb(255 255 255 / 0.08);
+  --glass-highlight: rgb(255 255 255 / 0.18);
+  --glass-edge: rgb(0 0 0 / 0.55);
+  --glass-shadow: 0 8px 32px rgb(0 0 0 / 0.5), 0 1px 2px rgb(0 0 0 / 0.4);
+  --glass-dimmed: rgb(235 235 245 / 0.62);
+  --glass-backdrop:
+    radial-gradient(at 15% 10%, color-mix(in srgb, var(--mantine-primary-color-filled) 30%, transparent), transparent 55%),
+    radial-gradient(at 85% 90%, color-mix(in srgb, var(--mantine-color-pink-filled) 14%, transparent), transparent 50%),
+    var(--mantine-color-dark-8);
+}
+
+:global(:root[data-deck-theme='glass']) :global(body)::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: var(--glass-backdrop);
+  pointer-events: none;
+}
+
+.bar,
+.panel,
+.sheet,
+.popover,
+.tabs {
+  --mantine-color-dimmed: var(--glass-dimmed);
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  border: 0;
+  box-shadow: inset 0 1px 0 var(--glass-highlight), 0 0 0 0.5px var(--glass-edge), var(--glass-shadow);
+}
+
+.panel,
+.sheet {
+  --glass-blur: 28px;
+  background: var(--glass-bg-thick);
+}
+
+.main {
+  background: transparent;
+}
+
+.bar :where(:global(.mantine-Button-root[data-variant='default'])) {
+  background: var(--glass-fill);
+  border-color: var(--glass-edge);
+}
+
+.tabs {
+  width: fit-content;
+  max-width: 100%;
+  padding: var(--glass-pad);
+  border-radius: calc(var(--mantine-radius-default) + var(--glass-pad));
+
+  &::before {
+    display: none;
+  }
+}
+
+.tab {
+  border: 0;
+  border-radius: var(--mantine-radius-default);
+  margin: 0;
+
+  &[data-active] {
+    background: var(--mantine-primary-color-light);
+    color: var(--mantine-primary-color-light-color);
+  }
+}
+
+:global([data-chat-phone]) .sheet {
+  background: var(--mantine-color-body);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :global(:root[data-deck-theme='glass']) {
+    --glass-tint: 1;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  :global(:root[data-deck-theme='glass']) {
+    --glass-tint: 1;
+  }
+
+  .bar,
+  .panel,
+  .sheet,
+  .popover,
+  .tabs {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+@media (prefers-contrast: more) {
+  :global(:root[data-deck-theme='glass']) {
+    --glass-tint: 1;
+  }
+
+  .bar,
+  .panel,
+  .sheet,
+  .popover,
+  .tabs {
+    --mantine-color-dimmed: var(--mantine-color-text);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    box-shadow: 0 0 0 1px var(--mantine-color-text);
+  }
+}
+
+@media (forced-colors: active) {
+  .bar,
+  .panel,
+  .sheet,
+  .popover,
+  .tabs {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}

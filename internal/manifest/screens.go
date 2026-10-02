@@ -334,6 +334,21 @@ func (c *screenCheck) action(b Block, a Action, fields []string) error {
 			return fmt.Errorf("%s: %w", k, err)
 		}
 	}
+	if u := a.Undo; u != nil {
+		switch {
+		case a.Command == "":
+			return errors.New("undo takes back a call; the button calls a command")
+		case a.Confirm:
+			return errors.New("a button with undo asks no yes first")
+		case u.Command == "" || u.Label != "" || u.Verb != "" || u.When != "" || u.Input != "" || u.Confirm || u.Chat || u.Undo != nil:
+			return errors.New("undo is a command with params, nothing else")
+		}
+		v := *u
+		v.Verb = "undo"
+		if err := c.action(b, v, fields); err != nil {
+			return fmt.Errorf("undo: %w", err)
+		}
+	}
 	switch n := btoi(a.Command != "") + btoi(a.Screen != "") + btoi(a.File != ""); {
 	case n != 1:
 		return errors.New("a button has a command, a screen or a file")

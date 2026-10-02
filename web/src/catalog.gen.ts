@@ -68,6 +68,49 @@ export interface Action {
    * Stored file the button downloads instead of a call.
    */
   file?: number;
+  undo?: Action1;
+}
+/**
+ * The call that takes this one back; the client offers it for a moment after the call went through.
+ */
+export interface Action1 {
+  label?: string;
+  verb?: string;
+  primary?: boolean;
+  command?: string;
+  params?: {};
+  /**
+   * Param the owner types before the call.
+   */
+  input?: string;
+  /**
+   * Time after which the button is hidden.
+   */
+  until?: string;
+  project?: string;
+  screen?: string;
+  record?: number;
+  /**
+   * Class of the command of a custom block's button; the host asks the owner before one that is not internal.
+   */
+  class?: string;
+  /**
+   * The client asks the owner before the call: a button of deck that deletes or revokes.
+   */
+  confirm?: boolean;
+  /**
+   * Values the owner picks the input from.
+   */
+  options?: string[];
+  /**
+   * The result names a chat topic, which the client opens.
+   */
+  chat?: boolean;
+  /**
+   * Stored file the button downloads instead of a call.
+   */
+  file?: number;
+  undo?: Action1;
 }
 /**
  * This interface was referenced by `Catalog`'s JSON-Schema

@@ -76,6 +76,11 @@ func (r *renderer) actions(as []manifest.Action, id int64, env map[string]any) [
 				name = r.req.Project.Name + "." + a.Command
 			}
 			act["command"], act["params"] = name, actionParams(a.Params, r.inputTypes(name), id, env)
+			if a.Undo != nil {
+				u := *a.Undo
+				u.Verb = "undo"
+				act["undo"] = r.actions([]manifest.Action{u}, id, env)[0]
+			}
 		}
 		out = append(out, act)
 	}

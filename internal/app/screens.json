@@ -3,7 +3,7 @@
   "card": [
     {"verb": "interview", "command": "deck.chat_interview", "params": {"card": "$record.id"}, "chat": true},
     {"verb": "move_project", "command": "deck.card_transfer", "params": {"card": "$record.id"}, "input": "project", "options": "=projects", "when": "len(projects) > 0"},
-    {"verb": "delete", "confirm": true, "command": "deck.card_delete", "params": {"card": "$record.id"}}
+    {"verb": "delete", "command": "deck.card_delete", "params": {"card": "$record.id"}, "undo": {"command": "deck.card_restore", "params": {"card": "$record.id"}}}
   ],
   "screens": [
     {

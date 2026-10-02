@@ -134,7 +134,9 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   a fixed value becomes the type of its input field (`"days": "7"` to an `integer` is 7). An action passes
   every required parameter of its command
   (from `$record.<field>` or fixed values); deck asks for nothing that is missing, so a choice the owner
-  makes in a row is one action per option. A command the owner fills in by hand is a `form`:
+  makes in a row is one action per option. A button whose call the owner may want back names the call that takes
+  it back, `"undo": {"command": "unrate", "params": {"id": "$record.id"}}`, offered for a moment after it went
+  through. A command the owner fills in by hand is a `form`:
   `{"type": "form", "command": "score", "save": "items"}` asks for the command's input by its schema, shows the
   result by the result schema and, with `save`, keeps it as records; a field picked from a source takes
   `"choices": {"note": {"source": {"collection": "notes"}, "value": "_id", "label": "title"}}`, and a field with

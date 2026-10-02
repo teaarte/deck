@@ -141,7 +141,7 @@ func TestRealBrowserVoice(t *testing.T) {
 	b.shot("chat-voice")
 }
 
-// TestRealBrowserInterviewFromACard presses Interview on a card of the board: the chat opens on a new topic about
+// TestRealBrowserInterviewFromACard edits a card and presses Interview: the edit is saved, the chat opens on a topic about
 // the card, and the master's question waits in the feed.
 func TestRealBrowserInterviewFromACard(t *testing.T) {
 	if os.Getenv("DECK_REAL_BROWSER") == "" {
@@ -165,6 +165,7 @@ func TestRealBrowserInterviewFromACard(t *testing.T) {
 	b.until("the card", `[...document.querySelectorAll('[data-card]')].some((c) => c.innerText.includes('Export the report'))`)
 	b.eval(`([...document.querySelectorAll('[data-card]')].find((c) => c.innerText.includes('Export the report')).querySelector('button').click(), '')`)
 	b.until("the card editor", `document.querySelector('[data-verb="interview"]')`)
+	b.type_(`document.querySelector('.mantine-Modal-body input')`, "Export the report as PDF")
 	b.eval(`(document.querySelector('[data-verb="interview"]').click(), '')`)
 	b.until("the chat with the question about the card", `document.querySelector('[data-chat-panel] [data-question]')?.innerText.includes('Which format?')`)
 	b.eval(`([...document.querySelectorAll('[data-question] input')].find((i) => i.value === 'PDF').click(), '')`)
@@ -174,6 +175,11 @@ func TestRealBrowserInterviewFromACard(t *testing.T) {
 	e.must("deck.chat_topics", nil, &ts)
 	if len(ts) != 1 || ts[0].Card == 0 {
 		t.Fatalf("the interview is a topic about the card: %+v", ts)
+	}
+	var c cardV
+	e.must("deck.card_get", map[string]any{"card": ts[0].Card}, &c)
+	if c.Title != "Export the report as PDF" {
+		t.Fatalf("the interview keeps the edit of the card it starts from: %+v", c)
 	}
 	b.shot("interview")
 }

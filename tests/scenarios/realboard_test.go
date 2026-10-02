@@ -125,12 +125,12 @@ func TestRealBrowserWebClientII(t *testing.T) {
 	b.eval(`([...document.querySelectorAll('[data-card]')].find((c) => c.innerText.includes('Ship it')).querySelector('button').click(), '')`)
 	b.until("the card editor", `[...document.querySelectorAll('button')].some((x) => x.innerText === 'Delete')`)
 	b.eval(`([...document.querySelectorAll('button')].find((x) => x.innerText === 'Delete').click(), '')`)
-	b.until("the yes before the delete", `document.querySelector('[data-confirm-yes]')`)
-	b.eval(`(document.querySelector('[data-confirm-yes]').click(), '')`)
 	b.until("the deleted card to leave", `![...document.querySelectorAll('[data-card]')].some((c) => c.innerText.includes('Ship it'))`)
-	b.eval(`([...document.querySelectorAll('button')].find((x) => x.innerText.startsWith('Deleted in the last day')).click(), '')`)
-	b.until("the restore of the deleted card", `document.querySelector('[data-deleted] button')`)
-	b.eval(`(document.querySelector('[data-deleted] button').click(), '')`)
+	if got := b.eval(`String(!!document.querySelector('[data-confirm-yes]'))`); got != "false" {
+		t.Fatal("a delete from the card window asks no yes")
+	}
+	b.until("the undo of the delete", `document.querySelector('[data-undo] button')`)
+	b.eval(`(document.querySelector('[data-undo] button').click(), '')`)
 	b.until("the restored card", `[...document.querySelectorAll('[data-card]')].some((c) => c.innerText.includes('Ship it'))`)
 	var shipped cardV
 	for _, l := range e.board("web", false).Lanes {

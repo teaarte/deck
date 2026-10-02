@@ -191,7 +191,8 @@
         "confirm": {"type": "boolean", "description": "The client asks the owner before the call: a button of deck that deletes or revokes."},
         "options": {"type": "array", "items": {"type": "string"}, "description": "Values the owner picks the input from."},
         "chat": {"type": "boolean", "description": "The result names a chat topic, which the client opens."},
-        "file": {"type": "integer", "description": "Stored file the button downloads instead of a call."}
+        "file": {"type": "integer", "description": "Stored file the button downloads instead of a call."},
+        "undo": {"$ref": "#/$defs/action", "description": "The call that takes this one back; the client offers it for a moment after the call went through."}
       }
     },
     "values": {

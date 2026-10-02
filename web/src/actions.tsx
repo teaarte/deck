@@ -5,6 +5,7 @@ import { useInterval } from '@mantine/hooks';
 import { useTranslation } from 'react-i18next';
 import { notifications } from '@mantine/notifications';
 import { download } from './api';
+import i18n from './i18n';
 import type { Action, Data } from './catalog.gen';
 
 type Question = NonNullable<NonNullable<Data['items']>[number]['questions']>[number];
@@ -19,7 +20,9 @@ const useNow = () => {
   return now;
 };
 
-function ActionButton({ act, context, params, onDone }: { act: Action; context: ComponentContext; params?: Record<string, unknown>; onDone?: () => void }) {
+type Before = () => Promise<void>;
+
+function ActionButton({ act, context, params, onDone, before }: { act: Action; context: ComponentContext; params?: Record<string, unknown>; onDone?: () => void; before?: Before }) {
   const { t } = useTranslation();
   const [busy, setBusy] = useState(false);
   const running = useRef(false);
@@ -45,16 +48,17 @@ function ActionButton({ act, context, params, onDone }: { act: Action; context: 
     running.current = true;
     setBusy(true);
     try {
+      await before?.();
       const all = { ...act.params, ...params, ...extra };
-      const ticket = String(++tickets);
-      await context.dispatchAction({ event: { name: act.screen ? 'open' : 'command', context: { ...act, params: all, ticket } } });
-      const ok = outcomes.get(ticket) !== false;
-      outcomes.delete(ticket);
+      const ok = await dispatch(context, { ...act, params: all });
       if (ok) {
         setTyping(false);
         setText('');
+        if (act.undo) offerUndo(act.undo, label, context);
         onDone?.();
       }
+    } catch (e) {
+      notifications.show({ title: label, message: (e as Error).message, color: 'red', autoClose: 10000 });
     } finally {
       running.current = false;
       setBusy(false);
@@ -100,12 +104,38 @@ function ActionButton({ act, context, params, onDone }: { act: Action; context: 
   );
 }
 
-// Actions are the buttons of an item; onDone runs after one went through.
-export function Actions({ actions, context, onDone }: { actions?: Action[]; context: ComponentContext; onDone?: () => void }) {
+// dispatch sends a button's call or move to the screen and says whether it went through.
+async function dispatch(context: ComponentContext, act: Action): Promise<boolean> {
+  const ticket = String(++tickets);
+  await context.dispatchAction({ event: { name: act.screen ? 'open' : 'command', context: { ...act, ticket } } });
+  const ok = outcomes.get(ticket) !== false;
+  outcomes.delete(ticket);
+  return ok;
+}
+
+let undos = 0;
+
+// offerUndo shows for a moment the call that takes back the one that just went through.
+function offerUndo(undo: Action, label: string, context: ComponentContext) {
+  const id = 'undo-' + ++undos;
+  notifications.show({
+    id, autoClose: 8000, message: (
+      <Group justify="space-between" gap="xs" wrap="nowrap" data-undo>
+        <Text size="sm">{label}</Text>
+        <Button size="compact-xs" variant="light" onClick={() => { notifications.hide(id); void dispatch(context, undo); }}>
+          {i18n.t('verb.undo')}
+        </Button>
+      </Group>
+    ),
+  });
+}
+
+// Actions are the buttons of an item; before runs ahead of each call, onDone after one went through.
+export function Actions({ actions, context, onDone, before }: { actions?: Action[]; context: ComponentContext; onDone?: () => void; before?: Before }) {
   const now = useNow();
   const shown = (actions ?? []).filter((a) => !a.until || Date.parse(a.until) > now);
   if (!shown.length) return null;
-  return <Group gap="xs">{shown.map((a, i) => <ActionButton key={i} act={a} context={context} onDone={onDone} />)}</Group>;
+  return <Group gap="xs">{shown.map((a, i) => <ActionButton key={i} act={a} context={context} onDone={onDone} before={before} />)}</Group>;
 }
 
 export function QuestionPicker({ questions, act, context }: { questions: Question[]; act?: Action; context: ComponentContext }) {

@@ -393,6 +393,84 @@ func TestTwoMovesAtOnceLeaveTheCardLinkedToTheRunOfItsLane(t *testing.T) {
 	}
 }
 
+// cardButtons are the buttons the board on a screen of the project gives a card.
+func (e *Env) cardButtons(project, screen string, card int64) []map[string]any {
+	e.T.Helper()
+	var board struct {
+		Lanes []struct {
+			Cards []struct {
+				ID      int64            `json:"id"`
+				Actions []map[string]any `json:"actions"`
+			} `json:"cards"`
+		} `json:"lanes"`
+	}
+	for _, v := range e.screenData(project, screen, nil) {
+		if raw, ok := v["value"]; ok && strings.Contains(string(raw), `"lanes"`) {
+			_ = json.Unmarshal(raw, &board)
+		}
+	}
+	for _, l := range board.Lanes {
+		for _, c := range l.Cards {
+			if c.ID == card {
+				return c.Actions
+			}
+		}
+	}
+	e.T.Fatalf("no card %d on the board of %s", card, project)
+	return nil
+}
+
+// TestADeletedCardComesBackByTheUndoOfItsButton: delete asks no yes; its button carries the call that restores the card.
+func TestADeletedCardComesBackByTheUndoOfItsButton(t *testing.T) {
+	e := newEnv(t, idle)
+	e.createProject("work", boardWebManifest)
+	c := e.card(map[string]any{"project": "work", "title": "Ship it"})
+	del := verb(t, e.cardButtons("work", "main", c.ID), "delete")
+	undo, _ := del["undo"].(map[string]any)
+	if del["confirm"] != nil || undo["command"] != "deck.card_restore" || undo["verb"] != "undo" {
+		t.Fatalf("delete goes at once and offers its undo: %+v", del)
+	}
+	e.must(del["command"].(string), del["params"], nil)
+	if len(e.board("work", true).Deleted) != 1 {
+		t.Fatal("the card is deleted")
+	}
+	e.must(undo["command"].(string), undo["params"], nil)
+	var back cardV
+	e.must("deck.card_get", map[string]any{"card": c.ID}, &back)
+	if back.Lane != "backlog" {
+		t.Fatalf("the undo puts the card back: %+v", back)
+	}
+}
+
+// TestUndoOfAModuleButtonIsACallOfItsOwn: a module's button takes back its call by a command of the project; undo
+// stands in for a yes and takes nothing the owner types.
+func TestUndoOfAModuleButtonIsACallOfItsOwn(t *testing.T) {
+	e := newEnv(t, idle)
+	with := func(undo string) string {
+		return strings.Replace(boardWebManifest, `"actions": [{"label": "Open", "screen": "note"}]`,
+			`"actions": [{"label": "Open", "screen": "note"}, {"label": "Mark", "command": "mark"`+undo+`}]`, 1)
+	}
+	for undo, want := range map[string]string{
+		`, "confirm": true, "undo": {"command": "tag"}`: "asks no yes first",
+		`, "undo": {"command": "tag", "input": "tag"}`:  "a command with params, nothing else",
+		`, "undo": {"screen": "note"}`:                  "a command with params, nothing else",
+		`, "undo": {"command": "nope"}`:                 "nope",
+	} {
+		e.refused("deck.project_create", map[string]any{"name": "bad", "manifest": with(undo)}, 422, want)
+	}
+	e.createProject("web", with(`, "undo": {"command": "tag", "params": {"tag": "$record.title"}}`))
+	e.must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": `{"title": "alpha"}`}, nil)
+	found := false
+	for _, v := range e.screenData("web", "main", nil) {
+		for _, raw := range v {
+			found = found || strings.Contains(string(raw), `"undo":{"command":"web.tag","params":{"tag":"alpha"}`)
+		}
+	}
+	if !found {
+		t.Fatal("the undo of a module's button calls the project's command with params from the row")
+	}
+}
+
 // TestACardMovesToAnotherProjectWithItsDocuments: the board offers the buttons of a card, among them a move to a
 // project with an inbox; the card lands there with its documents and without the record of the old project.
 func TestACardMovesToAnotherProjectWithItsDocuments(t *testing.T) {
@@ -405,28 +483,7 @@ func TestACardMovesToAnotherProjectWithItsDocuments(t *testing.T) {
 	c := e.card(map[string]any{"project": "work", "title": "Ship it", "record": rec.IDs[0]})
 	e.must("deck.document_save", map[string]any{"project": "work", "card": c.ID, "name": "spec.md", "kind": "doc", "text": "the spec"}, nil)
 
-	var board struct {
-		Lanes []struct {
-			Cards []struct {
-				ID      int64            `json:"id"`
-				Actions []map[string]any `json:"actions"`
-			} `json:"cards"`
-		} `json:"lanes"`
-	}
-	data := e.screenData("work", "main", nil)
-	for _, v := range data {
-		if raw, ok := v["value"]; ok && strings.Contains(string(raw), `"lanes"`) {
-			_ = json.Unmarshal(raw, &board)
-		}
-	}
-	var move map[string]any
-	for _, l := range board.Lanes {
-		for _, bc := range l.Cards {
-			if bc.ID == c.ID {
-				move = verb(t, bc.Actions, "move_project")
-			}
-		}
-	}
+	move := verb(t, e.cardButtons("work", "main", c.ID), "move_project")
 	if opts, _ := move["options"].([]any); len(opts) != 1 || opts[0] != "notes" || move["input"] != "project" {
 		t.Fatalf("a card offers the projects with an inbox to move to: %+v", move)
 	}

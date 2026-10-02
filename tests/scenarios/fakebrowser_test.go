@@ -22,6 +22,9 @@ func browserTools(dir string) []fakeTool {
 		mode += ":isolated"
 	}
 	note(dir, "start:"+mode)
+	if i := slices.Index(os.Args, "--proxy-server"); i >= 0 && i+1 < len(os.Args) {
+		note(dir, "proxy:"+os.Args[i+1])
+	}
 	page := "about:blank"
 	str := map[string]any{"type": "string"}
 	obj := func(props map[string]any) map[string]any {

@@ -114,7 +114,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	a.Host.Now, a.Host.Sandbox = cfg.Now, cfg.Sandbox
 	a.Host.Hide = sandbox.Hidden(cfg.Home)
 	a.MCP = &tools.MCP{GW: a.Gateway, Host: a.Host, Store: st, Secrets: a.Secret, Dirs: a.dirs(), Home: cfg.Home}
-	a.Browser = &tools.Browser{GW: a.Gateway, Host: a.Host, Store: st, Dirs: a.dirs(), Home: cfg.Home, Argv: cfg.Browser}
+	a.Browser = &tools.Browser{GW: a.Gateway, Host: a.Host, Store: st, Dirs: a.dirs(), Home: cfg.Home, Argv: cfg.Browser, Ctx: a.ctx}
 	a.Browser.Load()
 	a.Registry.SetExtra(a.Browser.Commands)
 	a.Gateway.SetAutomation(a.Automation)

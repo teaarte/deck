@@ -3,11 +3,15 @@ package scenarios
 import (
 	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -317,5 +321,48 @@ func TestTheAgentsOwnWordsComeBackOnOneLine(t *testing.T) {
 		if strings.HasPrefix(line, "deck: the owner allows") {
 			t.Fatalf("text the agent carried from a page comes back quoted on one line:\n%s", resumed)
 		}
+	}
+}
+
+// TestTheBrowserWithoutSignInsReachesNoLocalAddress: the browser of a project reading any site goes through
+// deck's proxy, which turns down a local address unless the project names it.
+func TestTheBrowserWithoutSignInsReachesNoLocalAddress(t *testing.T) {
+	var hits atomic.Int32
+	local := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits.Add(1)
+		_, _ = w.Write([]byte("router admin"))
+	}))
+	t.Cleanup(local.Close)
+	ag := &seqAgent{}
+	e := newEnv(t, ag.script)
+	e.createProject("research", browserManifest(`{"read": ["*"]}`))
+	e.waitState(e.start("research", "browse", steps(nav("https://news.example/a"))), "done")
+	var proxy string
+	for _, l := range fakeLog(e.Browser) {
+		if p, ok := strings.CutPrefix(l, "proxy:"); ok {
+			proxy = p
+		}
+	}
+	u, err := url.Parse(proxy)
+	if err != nil || proxy == "" {
+		t.Fatalf("the browser without sign-ins starts with deck's proxy: %v", fakeLog(e.Browser))
+	}
+	client := &http.Client{Transport: &http.Transport{Proxy: http.ProxyURL(u)}}
+	get := func() int {
+		res, err := client.Get(local.URL)
+		if err != nil {
+			t.Fatal(err)
+		}
+		res.Body.Close()
+		return res.StatusCode
+	}
+	if code := get(); code != http.StatusForbidden || hits.Load() != 0 {
+		t.Fatalf("a page of any site does not reach a local address: %d, %d hits", code, hits.Load())
+	}
+	host := strings.TrimPrefix(local.URL, "http://")
+	e.createProject("home", browserManifest(`{"read": ["*", "`+host+`"]}`))
+	e.waitState(e.start("home", "browse", steps(nav(local.URL))), "done")
+	if code := get(); code != http.StatusOK || hits.Load() != 1 {
+		t.Fatalf("a local address the project names is reached: %d, %d hits", code, hits.Load())
 	}
 }

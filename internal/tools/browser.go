@@ -1,17 +1,22 @@
 package tools
 
 import (
+	"cmp"
 	"context"
 	"deck2/internal/home"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net"
+	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
+	"time"
 
 	"deck2/internal/docs"
 	"deck2/internal/store"
@@ -52,6 +57,13 @@ type Browser struct {
 	Home  string
 	// Argv starts the server; deck adds the profile, the output folder and headless mode.
 	Argv []string
+	// Ctx ends the proxy the browser without sign-ins goes through.
+	Ctx context.Context
+
+	proxyOnce sync.Once
+	proxyAt   string
+	// allow are the domains of the project whose call the browser without sign-ins runs now.
+	allow atomic.Pointer[[]string]
 
 	mu     sync.Mutex
 	headed bool
@@ -64,7 +76,8 @@ func (b *Browser) dir(name string) string { return filepath.Join(home.Layout(b.H
 func (b *Browser) spec(open bool) mcphost.Spec {
 	args := append(slices.Clone(b.Argv[1:]), "--user-data-dir", b.dir("profile"), "--output-dir", b.dir("out"))
 	if open {
-		args = append(slices.Clone(b.Argv[1:]), "--isolated", "--output-dir", b.dir("open-out"))
+		args = append(slices.Clone(b.Argv[1:]), "--isolated", "--output-dir", b.dir("open-out"),
+			"--proxy-server", "http://"+cmp.Or(b.proxy(), "127.0.0.1:1"), "--proxy-bypass", "<-loopback>")
 	}
 	if !b.headed || open {
 		args = append(args, "--headless")
@@ -76,6 +89,30 @@ func (b *Browser) spec(open bool) mcphost.Spec {
 		}
 	}
 	return mcphost.Spec{Command: b.Argv[0], Args: args, Env: env, Dir: b.dir("work")}
+}
+
+// proxy is where the browser without sign-ins reaches the web: a host reached by "*" is dialled at the public
+// address deck resolved, so a name cannot turn into a local address after the check.
+func (b *Browser) proxy() string {
+	b.proxyOnce.Do(func() {
+		ln, err := net.Listen("tcp", "127.0.0.1:0")
+		if err != nil {
+			slog.Error("browser proxy", "err", err)
+			return
+		}
+		b.proxyAt = ln.Addr().String()
+		srv := &http.Server{ReadHeaderTimeout: 10 * time.Second, Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			d := b.allow.Load()
+			if d == nil {
+				http.Error(w, "deck: no project runs the browser", http.StatusForbidden)
+				return
+			}
+			gateway.Egress(b.Ctx, w, r, *d)
+		})}
+		go func() { <-b.Ctx.Done(); _ = srv.Close() }()
+		go func() { _ = srv.Serve(ln) }()
+	})
+	return b.proxyAt
 }
 
 // Load reads the tools the server listed last time, so agents see them before the browser starts.
@@ -212,6 +249,7 @@ func (b *Browser) allowed(ctx context.Context, act registry.Actor, _ bool) (bool
 	}
 	b.mu.Lock()
 	defer b.mu.Unlock()
+	b.serve(m)
 	page, err := b.current(ctx, readsAnySite(m))
 	return err == nil && on(m.Domains.Act, page), nil
 }
@@ -231,6 +269,7 @@ func (b *Browser) reader(tool string) registry.Handler {
 		}
 		b.mu.Lock()
 		defer b.mu.Unlock()
+		b.serve(m)
 		res, err := b.call(ctx, readsAnySite(m), tool, raw)
 		if err != nil {
 			return nil, fmt.Errorf("deck: %s: %v", tool, err)
@@ -244,6 +283,12 @@ func (b *Browser) reader(tool string) registry.Handler {
 		}
 		return Content(b.Dirs, act.ProcessID, tool, res)
 	}
+}
+
+// serve lets the proxy carry what the project's domains reach; b.mu is held.
+func (b *Browser) serve(m *manifest.Manifest) {
+	d := append(slices.Clone(m.Domains.Read), m.Domains.Act...)
+	b.allow.Store(&d)
 }
 
 // ownTabs leaves out of a tab list the pages off the domains, which may be other projects' or the owner's.

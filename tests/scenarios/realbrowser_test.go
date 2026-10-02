@@ -6,6 +6,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"deck2/internal/app"
@@ -18,7 +19,14 @@ func TestRealBrowser(t *testing.T) {
 	if os.Getenv("DECK_REAL_BROWSER") == "" {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
+	var pixel atomic.Int32
+	router := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { pixel.Add(1) }))
+	t.Cleanup(router.Close)
 	page := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/leak" {
+			_, _ = w.Write([]byte(`<title>Leak</title><img src="` + router.URL + `/pixel.png">`))
+			return
+		}
 		if r.URL.Path == "/upload" {
 			_, _ = w.Write([]byte(`<title>Upload</title><input type="file" aria-label="Pick" onchange="document.title='Got '+this.files[0].name">`))
 			return
@@ -60,5 +68,13 @@ func TestRealBrowser(t *testing.T) {
 	e.waitState(e.start("research", "browse", steps(nav(page.URL), step{"browser_tabs", map[string]any{"action": "list"}})), "done")
 	if got := ag.last(2); got[0].isErr || !strings.Contains(got[1].out, "Form") || strings.Contains(got[1].out, "localhost") {
 		t.Fatalf("a project reading any site gets a real browser of its own without the signed-in tabs: %+v", got)
+	}
+	e.waitState(e.start("research", "browse", steps(nav(page.URL+"/leak"), step{"browser_snapshot", map[string]any{}})), "done")
+	if got := ag.last(1)[0]; got.isErr || pixel.Load() != 0 {
+		t.Fatalf("a page of any site reaches no local address it was not given: %+v, %d hits", got, pixel.Load())
+	}
+	e.waitState(e.start("research", "browse", steps(nav("https://example.com/"), step{"browser_snapshot", map[string]any{}})), "done")
+	if got := ag.last(1)[0]; got.isErr || !strings.Contains(got.out, "Example Domain") {
+		t.Fatalf("a project reading any site reads the internet through deck's proxy: %+v", got)
 	}
 }

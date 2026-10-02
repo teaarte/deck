@@ -105,6 +105,21 @@ function ActionButton({ act, context, params, onDone, before }: { act: Action; c
   );
 }
 
+// rowOpen is what a click on a row does: the move to a screen of its primary button.
+export function rowOpen(actions: Action[] | undefined, context: ComponentContext) {
+  const act = actions?.find((a) => a.primary && a.screen);
+  if (!act) return {};
+  return {
+    'data-opens': true,
+    style: { cursor: 'pointer' },
+    onClick: (e: { target: EventTarget }) => {
+      if ((e.target as HTMLElement).closest('button, a, input, textarea, [role="button"], [role="combobox"]')) return;
+      if (window.getSelection()?.toString()) return;
+      void dispatch(context, act);
+    },
+  };
+}
+
 // dispatch sends a button's call or move to the screen and says whether it went through.
 async function dispatch(context: ComponentContext, act: Action): Promise<boolean> {
   const ticket = String(++tickets);

@@ -41,6 +41,16 @@ func TestRealBrowserCatalog(t *testing.T) {
 		b.until(what, cond)
 	}
 	b.shot("catalog-format")
+	b.eval(`[...document.querySelectorAll('td')].find(x => x.innerText === '7d').click(), ''`)
+	b.until("the forecast page opened by a click on its row", `location.hash.startsWith('#/p/btc/forecast/') && document.body.innerText.includes('Still open')`)
+	b.eval(`history.back(), ''`)
+	b.until("the screen again", `document.querySelector('[data-opens]')`)
+	b.eval(`document.querySelector('a[href="https://example.com/a"]').addEventListener('click', (e) => e.preventDefault()), ''`)
+	b.eval(`document.querySelector('a[href="https://example.com/a"]').click(), ''`)
+	time.Sleep(500 * time.Millisecond)
+	if h := b.eval(`location.hash`); h != "#/p/btc/main" {
+		t.Fatalf("a link in a row opens the link, not the row: %s", h)
+	}
 
 	e.createProject("fresh", strings.ReplaceAll(forecastManifest, `"title": "BTC"`, `"title": "Fresh"`))
 	b.open(e.URL + "/?token=" + token + "#/p/fresh/main")

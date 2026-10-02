@@ -8,7 +8,7 @@ import catalogSchema from '../../schemas/catalog.json';
 import { Board } from './board';
 import { Form, type FormValue } from './form';
 import { Document, Markdown } from './document';
-import { Actions, QuestionPicker } from './actions';
+import { Actions, QuestionPicker, rowOpen } from './actions';
 import { Block, Details, show } from './block';
 import { Appearance } from './appearance';
 import { Chat } from './chat';
@@ -75,7 +75,7 @@ const impls: ReactComponentImplementation[] = [
               </Table.Thead>
               <Table.Tbody>
                 {(d.rows ?? []).map((r, i) => (
-                  <Table.Tr key={show(r.id) || i}>
+                  <Table.Tr key={show(r.id) || i} {...rowOpen(r.actions, context)}>
                     {r.cells.map((v, j) => <Table.Td key={j}><Value v={v} s={p.columns[j] ?? {}} tone={r.tones?.[j]} /></Table.Td>)}
                     {!!r.actions?.length && <Table.Td><Actions actions={r.actions} context={context} /></Table.Td>}
                   </Table.Tr>
@@ -96,9 +96,10 @@ const impls: ReactComponentImplementation[] = [
             {(d.items ?? []).map((it, i) => {
               const answer = it.questions ? it.actions?.find((a) => a.input) : undefined;
               const rest = (it.actions ?? []).filter((a) => a !== answer);
+              const opens = rowOpen(it.actions, context);
               return (
-                <Stack key={show(it.id) || i} gap={6} data-item data-tone={it.tone}
-                  style={it.tone && it.tone !== 'muted' ? { borderLeft: `3px solid var(--mantine-color-${toneColor(it.tone)}-6)`, paddingLeft: 'var(--mantine-spacing-xs)' } : undefined}
+                <Stack key={show(it.id) || i} gap={6} data-item data-tone={it.tone} {...opens}
+                  style={{ ...opens.style, ...(it.tone && it.tone !== 'muted' ? { borderLeft: `3px solid var(--mantine-color-${toneColor(it.tone)}-6)`, paddingLeft: 'var(--mantine-spacing-xs)' } : {}) }}
                   opacity={it.tone === 'muted' ? 0.6 : undefined}>
                   <Text fw={500}>{it.title}</Text>
                   {it.text && (it.markdown ? <Markdown text={it.text} /> : <Text size="sm">{it.text}</Text>)}

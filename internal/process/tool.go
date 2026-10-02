@@ -48,7 +48,7 @@ func (r *Runner) runTool(ctx context.Context, t turn, trial bool) {
 		return
 	}
 	act := registry.Actor{Kind: registry.Agent, Workspace: proj.WorkspaceID, ProjectID: t.project, ProcessID: id, Trial: trial}
-	out, err := r.gw.CallTool(ctx, act, t.cmd.Class, name, json.RawMessage(t.input))
+	out, err := r.gw.CallTool(ctx, act, proj.Name+"."+t.cmd.Name, name, json.RawMessage(t.input))
 	if r.cut(bg, ctx, id) {
 		if r.ctx.Err() == nil {
 			r.clearRun(dir)

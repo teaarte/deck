@@ -208,21 +208,21 @@ func (a *App) askAnswer(ctx context.Context, act registry.Actor, in askAnswerIn)
 		return a.grantAnswer(ctx, act, q, in.Answer)
 	}
 	if q.Kind == ask.KindSuggest {
-		a.expireSuggestions(ctx, a.Cfg.Now())
+		a.Suggest.Expire(ctx, a.Cfg.Now())
 		if q, err = a.Store.Q.GetAsk(ctx, in.Ask); err != nil {
 			return nil, err
 		}
 		if q.State != "open" {
-			return nil, notOpen
+			return nil, ask.NotOpen
 		}
-		return a.suggestionAnswer(ctx, act, q, in.Answer, in.Project)
+		return a.Suggest.Answer(ctx, act, q, in.Answer, in.Project)
 	}
 	if q.Kind == ask.KindCall || q.Kind == ask.KindUnknown {
 		return a.decide(ctx, act, q, in.Answer)
 	}
 	if err := a.Asks.Answer(ctx, in.Ask, in.Answer); err != nil {
 		if errors.Is(err, ask.ErrNotOpen) {
-			return nil, notOpen
+			return nil, ask.NotOpen
 		}
 		return nil, err
 	}

@@ -96,6 +96,9 @@ func Remark(ctx context.Context, q *db.Queries, processID int64, text, at string
 
 var ErrNotOpen = errors.New("ask is not open")
 
+// NotOpen is what a caller gets for an answer to an ask that is answered or expired already.
+var NotOpen = registry.Conflict("deck: this ask is already answered or expired")
+
 // Broker stores owner-facing asks and lets a live caller block until the owner answers. Waits end by the
 // deck clock, checked at least every Poll, so a sleep of the machine does not stretch them.
 type Broker struct {

@@ -16,6 +16,7 @@ import (
 	"deck2/internal/app/chat"
 	"deck2/internal/app/devices"
 	"deck2/internal/app/providers"
+	"deck2/internal/app/suggest"
 	"deck2/internal/ask"
 	"deck2/internal/docs"
 	"deck2/internal/events"
@@ -50,6 +51,7 @@ type App struct {
 	Providers *providers.Service
 	Devices   *devices.Service
 	Chats     *chat.Service
+	Suggest   *suggest.Service
 	Scripts   *script.Exec
 	Tools     *tools.HTTP
 	MCP       *tools.MCP
@@ -92,6 +94,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	a.Providers = &providers.Service{St: st, Bus: a.Bus, Now: cfg.Now, Home: cfg.Home, Sandbox: cfg.Sandbox, ACPBinaries: cfg.ACPBinaries,
 		ACPCallLimit: cfg.ACPCallLimit, SelfCheckCeiling: cfg.SelfCheckCeiling, Secret: a.Secret, Wake: func(ctx context.Context) { a.Runner.Wake(ctx) },
 		Builtin: append([]provider.Provider{p}, more...), Ctx: a.ctx, BG: &a.bg}
+	a.Suggest = &suggest.Service{St: st, Bus: a.Bus, Now: cfg.Now, Registry: a.Registry, Asks: a.Asks, Days: a.suggestDays}
 	a.Chats = &chat.Service{St: st, Bus: a.Bus, Now: cfg.Now, Asks: a.Asks, For: a.For}
 	a.Devices = &devices.Service{St: st, Bus: a.Bus, Now: cfg.Now, Ctx: a.ctx, Files: a.dirs(), RemoveFiles: a.removeFiles,
 		Secret: a.Secret, ReadSecret: a.readSecret, WriteSecret: a.writeSecret, SecretsDir: a.secretsDir,
@@ -118,7 +121,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	a.Runner = process.NewRunner(st, a.Gateway, a.Bus, a, a.Scripts,
 		process.Config{RunsDir: h.Runs(), MCPBase: cfg.MCPBase, Now: cfg.Now, FilesDir: h.Files(),
 			Hidden: hidden(h), PauseLimit: cfg.PauseLimit, AgentSlots: a.agentSlots}, a)
-	a.Chats.Runner = a.Runner
+	a.Chats.Runner, a.Suggest.Gateway = a.Runner, a.Gateway
 	a.Runner.Hooks = []process.Hook{a.Chats.NewHook(), errorsHook{a: a}, afterHook{a: a}}
 	a.Scheduler = trigger.New(st, a, cfg.Now)
 	a.Asks.OnLateAnswer(a.lateAnswer)
@@ -297,7 +300,7 @@ func (a *App) lateAnswer(ctx context.Context, q db.Ask) {
 func (a *App) Sweep(ctx context.Context, now time.Time) {
 	a.Board.Purge(ctx, now)
 	a.expireConfirms(ctx, now)
-	a.expireSuggestions(ctx, now)
+	a.Suggest.Expire(ctx, now)
 	a.stopAtCeiling(ctx, now)
 	a.Runner.Unpause(ctx, now)
 	a.markSilent(ctx, now)

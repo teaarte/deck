@@ -26,7 +26,7 @@ func (a *App) decide(ctx context.Context, act registry.Actor, q db.Ask, answer s
 	switch {
 	case run:
 		if q.State != "open" {
-			return nil, notOpen
+			return nil, ask.NotOpen
 		}
 		var then func() error
 		if answer == "allow_always" {
@@ -34,7 +34,7 @@ func (a *App) decide(ctx context.Context, act registry.Actor, q db.Ask, answer s
 		}
 		out, err := a.Gateway.Decide(ctx, act, q, answer, then)
 		if errors.Is(err, ask.ErrNotOpen) {
-			return nil, notOpen
+			return nil, ask.NotOpen
 		}
 		a.lateAnswer(ctx, q)
 		if err != nil {
@@ -45,7 +45,7 @@ func (a *App) decide(ctx context.Context, act registry.Actor, q db.Ask, answer s
 	default:
 		if err := a.Asks.Answer(ctx, q.ID, answer); err != nil {
 			if errors.Is(err, ask.ErrNotOpen) {
-				return nil, notOpen
+				return nil, ask.NotOpen
 			}
 			return nil, err
 		}
@@ -79,8 +79,6 @@ func (a *App) linkTriggeredCard(ctx context.Context, asked db.Ask, out any) {
 		a.Bus.Publish("board")
 	}
 }
-
-var notOpen = registry.Conflict("deck: this ask is already answered or expired")
 
 // allowAlways adds the tool or command of a frozen call to the allowed external list of its project, or the
 // site of a browser action to its act domains, as the owner's own manifest change.

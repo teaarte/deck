@@ -57,7 +57,7 @@ func (a *App) grantAnswer(ctx context.Context, act registry.Actor, q db.Ask, ans
 		out, err := a.Gateway.Decide(ctx, act, q, answer, nil)
 		switch {
 		case errors.Is(err, ask.ErrNotOpen):
-			return nil, notOpen
+			return nil, ask.NotOpen
 		case registry.Status(err) == 409:
 			return nil, registry.Conflict("deck: the manifest changed after this request; deny it and ask again")
 		}
@@ -65,7 +65,7 @@ func (a *App) grantAnswer(ctx context.Context, act registry.Actor, q db.Ask, ans
 	case answer == "deny" || strings.HasPrefix(answer, "deny:"):
 		if err := a.Asks.Answer(ctx, q.ID, answer); err != nil {
 			if errors.Is(err, ask.ErrNotOpen) {
-				return nil, notOpen
+				return nil, ask.NotOpen
 			}
 			return nil, err
 		}

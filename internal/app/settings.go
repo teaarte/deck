@@ -107,3 +107,11 @@ func (a *App) settingsCommands() []*registry.Command {
 			registry.OwnerOnly, a.settingsSet).Changes("settings"),
 	}
 }
+
+// suggestDays is how many days a suggestion waits for the owner before it expires.
+func (a *App) suggestDays(ctx context.Context, workspace int64) int {
+	if n := a.settingInt(ctx, workspace, settingSuggestDays); n > 0 {
+		return n
+	}
+	return 7
+}

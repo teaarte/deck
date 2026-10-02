@@ -64,8 +64,8 @@ Stage 1 plan: `docs/plan-stage1.md`.
   (scheme, accent, density, font, corners) — `src/look.ts`, passed to `custom` blocks as MCP Apps host context; PWA and Share Target — `public/manifest.webmanifest`, `public/sw.js`;
   `web/dist` is the embedded build — rebuild and commit it with the sources
 - `master` — the built-in project `master`, embedded: manifest, prompts, skills (dispatch, topic-summary, interview);
-  the chat and memory around it are `app/chat`, suggestions and errors are in `internal/app` (`suggest.go`,
-  `errors.go`), voice and push in `app/devices`; deck's own texts for its agents are `master/templates` (`master.Text`); the client's chat panel is `web/src/chat.tsx`
+  the chat and memory around it are `app/chat`, suggestions `app/suggest`, the handing of errors to the master is
+  `internal/app/errors.go`, voice and push in `app/devices`; deck's own texts for its agents are `master/templates` (`master.Text`); the client's chat panel is `web/src/chat.tsx`
 - `internal/lint` — code rules checked by `tests/lint` (comments, requirement refs, vertical names)
 - `schemas` — contracts embedded in the binary: manifest JSON Schema, screen block catalog (`catalog.json`, read by
   the server and the client), App Intents parameter rules

@@ -2,6 +2,7 @@ package screens
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -18,7 +19,7 @@ type Sources struct {
 	Registry *registry.Registry
 	Deck     Deck
 	Now      func() time.Time
-	LogPath  func(process int64) string
+	Tail     func(process int64, n int, kinds ...string) ([]json.RawMessage, error)
 }
 
 func (s Sources) Items(ctx context.Context, from string, sc screen.Scope) ([]map[string]any, error) {

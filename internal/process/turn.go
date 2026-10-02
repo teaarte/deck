@@ -1,6 +1,7 @@
 package process
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
@@ -339,6 +340,32 @@ func (r *Runner) clearRun(dir string) {
 			_ = os.RemoveAll(filepath.Join(dir, e.Name()))
 		}
 	}
+}
+
+// Tail is the last n lines of the log of a process, only those of the kinds given when any are; a process
+// without a log has none.
+func (r *Runner) Tail(processID int64, n int, kinds ...string) ([]json.RawMessage, error) {
+	out := []json.RawMessage{}
+	f, err := os.Open(r.LogPath(processID))
+	if errors.Is(err, os.ErrNotExist) {
+		return out, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	sc := bufio.NewScanner(f)
+	sc.Buffer(make([]byte, 64*1024), 16*1024*1024)
+	for sc.Scan() {
+		var line struct{ Kind string }
+		if json.Unmarshal(sc.Bytes(), &line) != nil || len(kinds) > 0 && !slices.Contains(kinds, line.Kind) {
+			continue
+		}
+		if out = append(out, append(json.RawMessage{}, sc.Bytes()...)); len(out) > n {
+			out = out[1:]
+		}
+	}
+	return out, sc.Err()
 }
 
 // LogPath is the file with the log of a process.

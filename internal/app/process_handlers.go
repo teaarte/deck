@@ -1,12 +1,10 @@
 package app
 
 import (
-	"bufio"
 	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"os"
 	"strings"
 	"time"
 
@@ -155,22 +153,5 @@ func (a *App) processLog(ctx context.Context, act registry.Actor, in struct {
 	if in.Limit <= 0 || in.Limit > 1000 {
 		in.Limit = 200
 	}
-	out := []json.RawMessage{}
-	f, err := os.Open(a.Runner.LogPath(in.Process))
-	if errors.Is(err, os.ErrNotExist) {
-		return out, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-	sc := bufio.NewScanner(f)
-	sc.Buffer(make([]byte, 64*1024), 16*1024*1024)
-	for sc.Scan() {
-		out = append(out, append(json.RawMessage{}, sc.Bytes()...))
-		if int64(len(out)) > in.Limit {
-			out = out[1:]
-		}
-	}
-	return out, sc.Err()
+	return a.Runner.Tail(in.Process, int(in.Limit))
 }

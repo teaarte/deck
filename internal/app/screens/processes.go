@@ -1,11 +1,8 @@
 package screens
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
-	"errors"
-	"os"
 	"slices"
 
 	"deck2/internal/process"
@@ -69,27 +66,14 @@ func (s Sources) processItems(ctx context.Context, sc screen.Scope, names map[in
 
 // logItems are the last lines of the log of a process.
 func (s Sources) logItems(processID int64) ([]map[string]any, error) {
-	out := []map[string]any{}
-	f, err := os.Open(s.LogPath(processID))
-	if errors.Is(err, os.ErrNotExist) {
-		return out, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-	sc := bufio.NewScanner(f)
-	sc.Buffer(make([]byte, 64*1024), 16*1024*1024)
-	for sc.Scan() {
+	lines, err := s.Tail(processID, 200)
+	out := make([]map[string]any, 0, len(lines))
+	for _, raw := range lines {
 		var line map[string]any
-		if json.Unmarshal(sc.Bytes(), &line) != nil {
-			continue
-		}
-		if out = append(out, line); len(out) > 200 {
-			out = out[1:]
-		}
+		_ = json.Unmarshal(raw, &line)
+		out = append(out, line)
 	}
-	return out, sc.Err()
+	return out, err
 }
 
 // unattendedItems are what deck did without the owner, newest first; an entry with a command can be undone.

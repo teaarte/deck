@@ -1,11 +1,8 @@
 package app
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
-	"os"
-	"slices"
 	"strconv"
 
 	"deck2/internal/ask"
@@ -165,28 +162,14 @@ func (a *App) Chat(ctx context.Context, workspace int64, pick string) (any, erro
 // turnLines are the last calls and messages in the log of a process still open.
 func (a *App) turnLines(processID int64) []any {
 	out := []any{}
-	f, err := os.Open(a.Runner.LogPath(processID))
-	if err != nil {
-		return out
-	}
-	defer f.Close()
-	sc := bufio.NewScanner(f)
-	sc.Buffer(make([]byte, 64*1024), 16*1024*1024)
-	for sc.Scan() {
+	lines, _ := a.Runner.Tail(processID, chatLines, "tool", "tool_update", "message")
+	for _, raw := range lines {
 		var l map[string]any
-		if json.Unmarshal(sc.Bytes(), &l) != nil {
-			continue
-		}
-		if kind, _ := l["kind"].(string); !slices.Contains([]string{"tool", "tool_update", "message"}, kind) {
-			continue
-		}
+		_ = json.Unmarshal(raw, &l)
 		if text, ok := l["text"].(string); ok {
 			l["text"] = untrusted.Cut(text, 300)
 		}
 		out = append(out, l)
-		if len(out) > chatLines {
-			out = out[1:]
-		}
 	}
 	return out
 }

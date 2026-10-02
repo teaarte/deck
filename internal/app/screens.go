@@ -140,7 +140,7 @@ func (a *App) screenGet(ctx context.Context, act registry.Actor, in struct {
 
 // sources are the rows of screens, read from this deck.
 func (a *App) sources() screens.Sources {
-	return screens.Sources{Store: a.Store, Registry: a.Registry, Deck: screenDeck{a}, Now: a.Cfg.Now, LogPath: a.Runner.LogPath}
+	return screens.Sources{Store: a.Store, Registry: a.Registry, Deck: screenDeck{a}, Now: a.Cfg.Now, Tail: a.Runner.Tail}
 }
 
 type screenDeck struct{ a *App }

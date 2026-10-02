@@ -427,3 +427,175 @@ func TestAnAgentSchedulesAnExternalCommandAndTheOwnerSaysYesWhenItFires(t *testi
 		t.Fatalf("when it fires, the external command waits for the owner: %+v", a)
 	}
 }
+
+// TestScheduleShowsEveryTriggerRunsOneNowAndPausesAProject: the schedule lists the triggers of all projects;
+// run now starts one and keeps its slot; a paused project runs nothing on schedule; the history filters.
+func TestScheduleShowsEveryTriggerRunsOneNowAndPausesAProject(t *testing.T) {
+	e := newClockEnv(t, ok)
+	check := newCatalogCheck(t)
+	e.createProject("alpha", testManifest([]string{agentCommand("job", "")}, []string{`{"command": "job", "cron": "0 9 * * *"}`}))
+	e.createProject("beta", testManifest([]string{agentCommand("sync", "")}, []string{`{"command": "sync", "cron": "0 10 * * *"}`}))
+	e.must("deck.run_later", map[string]any{"command": "beta.sync", "at": t0.Add(90 * time.Minute).UTC().Format(time.RFC3339)}, nil)
+	check.messages(t, e.screenMessages("", "schedule", nil))
+	rows := func() []screenRow {
+		var out []screenRow
+		for _, r := range blockData[[]screenRow](t, e.screenData("", "schedule", nil)["b0"]["rows"]) {
+			if r.Cells[0] != "master" {
+				out = append(out, r)
+			}
+		}
+		return out
+	}
+	find := func(rs []screenRow, project, when string) screenRow {
+		for _, r := range rs {
+			if r.Cells[0] == project && r.Cells[2] == when {
+				return r
+			}
+		}
+		t.Fatalf("no trigger %s %s in %+v", project, when, rs)
+		return screenRow{}
+	}
+	button := func(r screenRow, verb string) map[string]any {
+		for _, a := range r.Actions {
+			if a["verb"] == verb {
+				return a
+			}
+		}
+		t.Fatalf("row %v has no %s: %+v", r.Cells, verb, r.Actions)
+		return nil
+	}
+	press := func(a map[string]any, out any) {
+		t.Helper()
+		e.must(a["command"].(string), a["params"], out)
+	}
+	rs := rows()
+	job := find(rs, "alpha", "0 9 * * *")
+	if len(rs) != 3 || job.Cells[1] != "job" || job.Cells[3] == "" || job.Cells[5] != "on" {
+		t.Fatalf("every trigger of every project with its command, schedule and next run: %+v", rs)
+	}
+	next := job.Cells[3]
+	find(rs, "beta", "once")
+
+	var started struct{ Process int64 }
+	press(button(job, "run_now"), &started)
+	e.waitState(started.Process, "done")
+	job = find(rows(), "alpha", "0 9 * * *")
+	if job.Cells[4] != "done" || job.Cells[3] != next {
+		t.Fatalf("run now starts the command and keeps its slot: %+v", job.Cells)
+	}
+	button(job, "open")
+
+	projects := blockData[[]screenRow](t, e.screenData("", "schedule", nil)["b1"]["rows"])
+	press(button(projects[0], "pause"), nil)
+	if job = find(rows(), "alpha", "0 9 * * *"); job.Cells[5] != "project paused" {
+		t.Fatalf("a paused project shows on its triggers: %+v", job.Cells)
+	}
+	e.Clock.Add(26 * time.Hour)
+	e.tick()
+	e.waitFor("beta on its schedule", func() bool { return e.countOf("sync") >= 1 })
+	e.settle()
+	if n := e.countOf("job"); n != 1 {
+		t.Fatalf("a paused project runs nothing on schedule, only what the owner ran: %d", n)
+	}
+	projects = blockData[[]screenRow](t, e.screenData("", "schedule", nil)["b1"]["rows"])
+	press(button(projects[0], "resume"), nil)
+	press(button(find(rows(), "alpha", "0 9 * * *"), "pause"), nil)
+	if job = find(rows(), "alpha", "0 9 * * *"); job.Cells[5] != "paused" {
+		t.Fatalf("a trigger pauses alone: %+v", job.Cells)
+	}
+	press(button(job, "resume"), nil)
+
+	history := e.screenData("", "schedule", map[string]any{"filter": `{"b2": {"project": "alpha"}}`})["b2"]
+	hrows := blockData[[]screenRow](t, history["rows"])
+	if len(hrows) != 1 || hrows[0].Cells[1] != "alpha" || !strings.Contains(string(history["filters"]), `"value":"alpha"`) {
+		t.Fatalf("the history filters by project: %+v %s", hrows, history["filters"])
+	}
+	if states := blockData[[]screenRow](t, e.screenData("", "schedule", map[string]any{"filter": `{"b2": {"state": "error"}}`})["b2"]["rows"]); len(states) != 0 {
+		t.Fatalf("the history filters by state: %+v", states)
+	}
+	e.refused("deck.trigger_run", map[string]any{"trigger": 999}, 404, "no trigger")
+}
+
+// TestRunNowReturnsTheRunStillGoingAndSpendsARunLater: a second run now while the first goes gives that run;
+// run now on a run later starts it and takes it off the schedule.
+func TestRunNowReturnsTheRunStillGoingAndSpendsARunLater(t *testing.T) {
+	gate := make(chan struct{})
+	e := newClockEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		if c.command() == "job" {
+			select {
+			case <-gate:
+			case <-ctx.Done():
+			}
+		}
+		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
+	})
+	e.createProject("alpha", testManifest([]string{agentCommand("job", ""), agentCommand("later", "")}, []string{`{"command": "job", "cron": "0 9 * * *"}`}))
+	e.must("deck.run_later", map[string]any{"command": "alpha.later", "at": t0.Add(90 * time.Minute).UTC().Format(time.RFC3339)}, nil)
+	var job, once int64
+	for _, tr := range e.triggers() {
+		if tr.Kind == "once" {
+			once = tr.ID
+		} else {
+			job = tr.ID
+		}
+	}
+	var first, second struct{ Process int64 }
+	e.must("deck.trigger_run", map[string]any{"trigger": job}, &first)
+	e.must("deck.trigger_run", map[string]any{"trigger": job}, &second)
+	if first.Process == 0 || second.Process != first.Process || e.countOf("job") != 1 {
+		t.Fatalf("run now while the run goes gives that run: %d %d", first.Process, second.Process)
+	}
+	for _, tr := range e.triggers() {
+		if tr.ID == job && tr.Last != first.Process {
+			t.Fatalf("a run now is the last run of its trigger: %+v", tr)
+		}
+	}
+	close(gate)
+	e.waitState(first.Process, "done")
+	var later struct{ Process int64 }
+	e.must("deck.trigger_run", map[string]any{"trigger": once}, &later)
+	e.waitState(later.Process, "done")
+	for _, tr := range e.triggers() {
+		if tr.ID == once {
+			t.Fatal("a run later that ran now is off the schedule")
+		}
+	}
+}
+
+// TestRunNowTakesACommandOnlyTriggersCallAndTheScheduleHearsAboutRuns: run now has the trigger's rights, and
+// a run of a trigger tells the schedule to read its next run and last result again.
+func TestRunNowTakesACommandOnlyTriggersCallAndTheScheduleHearsAboutRuns(t *testing.T) {
+	e := newClockEnv(t, ok)
+	own := strings.Replace(agentCommand("digest", ""), `"class": "internal"`, `"class": "internal", "callers": ["trigger"]`, 1)
+	e.createProject("alpha", testManifest([]string{own}, []string{`{"command": "digest", "cron": "0 9 * * *"}`}))
+	tr := e.triggers()[0]
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	events := e.sse(ctx)
+	var started struct{ Process int64 }
+	e.must("deck.trigger_run", map[string]any{"trigger": tr.ID}, &started)
+	e.waitState(started.Process, "done")
+	waitTopic(t, events, "triggers")
+	e.Clock.Add(2 * time.Hour)
+	e.tick()
+	e.waitFor("the scheduled run", func() bool { return e.countOf("digest") == 2 })
+	waitTopic(t, events, "triggers")
+}
+
+func TestTriggerParamsKeepLargeIntegers(t *testing.T) {
+	e := newClockEnv(t, idle)
+	m := strings.Replace(calcManifest, `"executor": {"type": "agent", "prompt": "OLD PROMPT"}}]`,
+		`"executor": {"type": "agent", "prompt": "OLD PROMPT"}}],
+  "triggers": [{"command": "calc", "cron": "0 9 * * *", "params": {"n": 9007199254740993}}]`, 1)
+	e.createProject("nums", m)
+	e.Clock.Add(48 * time.Hour)
+	e.App.Scheduler.Tick(context.Background())
+	e.App.Runner.Wait()
+	ps := e.processes()
+	if len(ps) != 1 || ps[0].Project != "nums" {
+		t.Fatalf("trigger params reach the command exactly: %+v", ps)
+	}
+	if got, _ := e.App.Store.Q.GetProcess(context.Background(), ps[0].ID); !strings.Contains(got.Input, "9007199254740993") {
+		t.Fatalf("trigger params reach the command exactly: %s", got.Input)
+	}
+}

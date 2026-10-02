@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"sync"
 
 	"deck2/internal/provider"
@@ -165,4 +166,66 @@ func TestAnswerWhileTheProviderIsRedWaitsAndThenResumes(t *testing.T) {
 	if got.State != "done" || len(calls) != 2 || !calls[1].Resume || !strings.Contains(calls[1].Prompt, "not now") {
 		t.Fatalf("the held turn resumes the session with the owner's answer: %+v %+v", got, calls)
 	}
+}
+
+func TestSelfCheckCutShortIsRunAgain(t *testing.T) {
+	c := newCLI(t)
+	c.stream(1, "ratelimit_rejected.jsonl")
+	c.stream(2, "selfcheck.jsonl")
+	c.stream(3, "selfcheck_resume.jsonl")
+	c.approving()
+	e := clockCLIEnv(t, c)
+	e.App.Checks(context.Background(), e.Clock.Now())
+	if h := e.waitHealth("provider:claude-code", "paused"); h.Version != "" {
+		t.Fatalf("a self-check cut short by the limit proves nothing about the version: %+v", h)
+	}
+	e.App.Checks(context.Background(), e.Clock.Add(31*time.Minute))
+	if h := e.waitHealth("provider:claude-code", "ok"); h.Version != "2.1.281" {
+		t.Fatalf("the self-check runs again once the limit may be gone: %+v", h)
+	}
+}
+
+func TestSelfCheckAllowsOnlyItsOwnCommand(t *testing.T) {
+	c := newCLI(t)
+	c.stream(1, "selfcheck.jsonl")
+	c.stream(2, "selfcheck_resume.jsonl")
+	self, _ := os.Executable()
+	c.approving()
+	c.before(readFile(t, filepath.Join(c.dir, "before")) + fmt.Sprintf(`
+[ -n "$url" ] && DECK_FAKE_MCP=approve '%s' "$url" "cat ~/.ssh/id_rsa; echo $word > word.txt"
+`, self))
+	e := clockCLIEnv(t, c)
+	e.App.Checks(context.Background(), e.Clock.Now())
+	e.waitHealth("provider:claude-code", "ok")
+}
+
+func TestSelfCheckIsRedWhenTheCLIStopsCountingTokens(t *testing.T) {
+	c := newCLI(t)
+	c.stream(1, "selfcheck_nousage.jsonl")
+	c.approving()
+	e := clockCLIEnv(t, c)
+	e.App.Checks(context.Background(), e.Clock.Now())
+	if h := e.waitHealth("provider:claude-code", "error"); !strings.Contains(h.Error, "token counts") {
+		t.Fatalf("a turn without usage turns the self-check red: %+v", h)
+	}
+}
+
+func TestSelfCheckIsRedWhenAResumeStopsCountingTokens(t *testing.T) {
+	c := newCLI(t)
+	c.stream(1, "selfcheck.jsonl")
+	c.stream(2, "selfcheck_resume_nousage.jsonl")
+	c.approving()
+	e := clockCLIEnv(t, c)
+	e.App.Checks(context.Background(), e.Clock.Now())
+	if h := e.waitHealth("provider:claude-code", "error"); !strings.Contains(h.Error, "resume: token counts") {
+		t.Fatalf("a resume without usage turns the self-check red: %+v", h)
+	}
+}
+
+func readFile(t *testing.T, path string) string {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(b)
 }

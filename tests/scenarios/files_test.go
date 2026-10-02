@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	deckhome "deck2/internal/home"
+	"deck2/internal/provider"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -264,5 +265,29 @@ func TestAFileDownloadsAsAnAttachmentForWhoMaySeeItsProject(t *testing.T) {
 	rows := blockData[[]screenRow](t, e.screenData("", "journal", nil)["b0-2-0"]["rows"])
 	if len(rows) != 1 || len(rows[0].Actions) != 1 || rows[0].Actions[0]["verb"] != "download" || rows[0].Actions[0]["file"] != float64(id) {
 		t.Fatalf("a file of the journal has a download button: %+v", rows)
+	}
+}
+
+func TestAgentGetsACopyOfItsInputFile(t *testing.T) {
+	var same, read bool
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		if m := inputOf.FindStringSubmatch(c.Req.Prompt); m != nil {
+			var in struct{ Doc string }
+			_ = json.Unmarshal([]byte(m[1]), &in)
+			a, errA := os.Stat(in.Doc)
+			b, errB := os.Stat(filepath.Join(c.Req.Cwd, "..", "..", "..", "files", filepath.Base(in.Doc)[:strings.Index(filepath.Base(in.Doc), "-")]))
+			same = errA == nil && errB == nil && os.SameFile(a, b)
+			body, _ := os.ReadFile(in.Doc)
+			read = string(body) == "hello"
+		}
+		return provider.Result{Structured: json.RawMessage(`{}`)}
+	})
+	e.createProject("docs", `{"version": 5, "commands": [{"name": "look", "title": "Look", "description": "Looks at a file.", "class": "internal",
+	  "input": {"type": "object", "properties": {"doc": {"type": "string", "format": "file"}}}, "result": {"type": "object"},
+	  "executor": {"type": "agent", "prompt": "Look."}}]}`)
+	doc := e.upload("docs", "a.txt", "text/plain", "hello")
+	e.waitState(e.start("docs", "look", map[string]any{"doc": fmt.Sprint(doc)}), "done")
+	if !read || same {
+		t.Fatalf("an agent reads its input file from a copy, never the stored file itself: read %v, same %v", read, same)
 	}
 }

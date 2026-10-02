@@ -1,6 +1,8 @@
 package scenarios
 
 import (
+	"encoding/json"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -75,5 +77,81 @@ func TestFormFieldsOfferValuesFromASourceAndProjectFieldsTheProjects(t *testing.
 		if code != 422 || !strings.Contains(string(out), tc.want) {
 			t.Fatalf("%s is refused with %q: %d %s", tc.to, tc.want, code, out)
 		}
+	}
+}
+
+// TestFormAsksForTheInputAndShowsTheResultBySchema: a form carries the input and result schemas of its
+// command; the result can be kept as records; on a record page the form edits the record with its schema.
+func TestFormAsksForTheInputAndShowsTheResultBySchema(t *testing.T) {
+	e := newEnv(t, boardWebAgent())
+	check := newCatalogCheck(t)
+	e.createProject("web", boardWebManifest)
+	e.must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": "<p>chart</p>"}, nil)
+	check.messages(t, e.screenMessages("web", "main", nil))
+
+	f := blockData[formV](t, e.screenData("web", "main", nil)["b1"]["value"])
+	if len(f.Commands) != 1 || f.Commands[0].Name != "web.score" || f.Save != "notes" || f.Project != "web" {
+		t.Fatalf("a form names its command and where its result can be kept: %+v", f)
+	}
+	in := f.Commands[0].Input
+	if _, ok := in.Properties["retry_key"]; ok || in.Properties["scan"]["format"] != "file" || !slices.Contains(in.Required, "title") ||
+		!slices.Equal(f.Commands[0].Order, []string{"title", "n", "scan"}) {
+		t.Fatalf("the form asks for the input fields of the command in their order, a file too, and not for the retry key: %+v", f.Commands[0])
+	}
+	if f.Commands[0].Result["type"] != "array" {
+		t.Fatalf("the form draws the result by the result schema: %+v", f.Commands[0].Result)
+	}
+
+	var started struct{ Process int64 }
+	e.must("web.score", map[string]any{"title": "alpha", "n": 2}, &started)
+	p := e.waitState(started.Process, "done")
+	var rows []map[string]any
+	_ = json.Unmarshal(p.Result, &rows)
+	if len(rows) != 2 || rows[1]["score"] != float64(5) {
+		t.Fatalf("the form shows the result of the process: %s", p.Result)
+	}
+	e.must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes",
+		"records": `{"title": "alpha", "score": 3, "source": "form"}` + "\n" + `{"title": "beta", "score": 5, "source": "import"}`}, nil)
+
+	table := e.screenData("web", "main", nil)["b3"]
+	filters := blockData[[]struct {
+		Field   string   `json:"field"`
+		Options []string `json:"options"`
+	}](t, table["filters"])
+	if len(filters) != 1 || filters[0].Field != "source" || !slices.Equal(filters[0].Options, []string{"form", "import"}) {
+		t.Fatalf("a filter offers the values its field has: %s", table["filters"])
+	}
+	narrowed := blockData[[]screenRow](t, e.screenData("web", "main", map[string]any{"filter": `{"b3": {"source": "import"}}`})["b3"]["rows"])
+	if len(narrowed) != 1 || narrowed[0].Cells[0] != "beta" {
+		t.Fatalf("the picked value narrows the block: %+v", narrowed)
+	}
+	all := blockData[[]screenRow](t, table["rows"])
+	rec := int64(all[0].ID.(float64))
+
+	edit := blockData[formV](t, e.screenData("web", "note", map[string]any{"record": rec})["b0"]["value"])
+	if len(edit.Commands) != 1 || edit.Commands[0].Name != "deck.record_update" || edit.Record != rec ||
+		edit.Values["title"] != "alpha" || edit.Values["_updated"] != nil || !slices.Equal(edit.Readonly, []string{"source", "title"}) ||
+		edit.Commands[0].Input.Properties["score"]["type"] != "integer" {
+		t.Fatalf("the edit form is filled from the record, by the schema of its collection, with what does not change read only: %+v", edit)
+	}
+	e.must("deck.record_update", map[string]any{"record": rec, "data": `{"title": "alpha", "score": 9, "source": "form"}`}, nil)
+	e.refused("deck.record_update", map[string]any{"record": rec, "data": `{"title": "alpha", "score": 9, "source": "other"}`}, 422, "source")
+
+	share := blockData[formV](t, e.screenData("", "share", nil)["b0"]["value"])
+	names := []string{}
+	for _, c := range share.Commands {
+		names = append(names, c.Name)
+	}
+	if !slices.Contains(names, "web.score") || slices.Contains(names, "web.touch") || slices.Contains(names, "web.ingest") {
+		t.Fatalf("shared files go to a command of the owner that takes a file: %v", names)
+	}
+	var picked formV
+	for _, b := range e.screenData("web", "settings", nil) {
+		if raw, ok := b["value"]; ok && strings.Contains(string(raw), `"commands":[{"description":"Sets the provider`) {
+			picked = blockData[formV](t, raw)
+		}
+	}
+	if len(picked.Commands) != 1 || picked.Commands[0].Name != "deck.provider_set" {
+		t.Fatalf("the provider of a command is chosen with a form: %+v", picked)
 	}
 }

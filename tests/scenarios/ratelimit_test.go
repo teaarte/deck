@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"deck2/internal/app"
 	"deck2/internal/provider"
 )
 
@@ -109,4 +110,53 @@ func TestPauseWithoutAResetTimeProbesHourlyUntilItsLimit(t *testing.T) {
 	if pp.PauseLimitMs.Valid {
 		t.Fatalf("the owner's word starts a new pause limit: %+v", pp.PauseLimitMs)
 	}
+}
+
+func TestReworkAfterAStoppedPauseIsNotHeldByItsAsk(t *testing.T) {
+	var mu sync.Mutex
+	limit := true
+	e := newClockEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		mu.Lock()
+		defer mu.Unlock()
+		if limit {
+			return limited(time.Time{})
+		}
+		return provider.Result{Structured: json.RawMessage(`{"n": 3}`)}
+	}, func(c *app.Config) { c.PauseLimit = time.Hour })
+	p := e.createProject("plain", testManifest([]string{agentCommand("work", "")}, nil))
+	id := e.run(p, "work")
+	e.waitState(id, "rate_limited")
+	e.Clock.Add(time.Hour)
+	e.sweep()
+	e.waitState(id, "stopped")
+	mu.Lock()
+	limit = false
+	mu.Unlock()
+	e.must("deck.process_rework", map[string]any{"process": id, "remark": "go on"}, nil)
+	if got := e.waitState(id, "done", "waiting_answer", "error"); got.State != "done" {
+		t.Fatalf("rework after a stopped pause finishes; its limit ask is no open question: %+v", got)
+	}
+	var as []askView
+	e.must("deck.asks_list", nil, &as)
+	if len(as) != 0 {
+		t.Fatalf("the rework closed the offer to continue: %+v", as)
+	}
+}
+
+func TestOwnerAnswerDuringAPauseGivesAFullLimit(t *testing.T) {
+	e := newClockEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		if c.N == 1 {
+			c.Tool(ctx, "notes__post", map[string]any{"text": "hi"})
+		}
+		return limited(time.Time{})
+	})
+	p := e.createProject("notes", strings.Replace(notesManifest, `"requires": ["no_cloud"],`, "", 1))
+	id := e.run(p, "collect")
+	e.waitState(id, "rate_limited")
+	e.Clock.Add(3 * time.Hour)
+	e.answer(e.waitAsk().ID, "deny")
+	e.waitFor("a new pause limit", func() bool {
+		pp, _ := e.App.Store.Q.GetProcess(context.Background(), id)
+		return pp.PauseLimitMs.Int64 == e.Clock.Now().Add(6*time.Hour).UnixMilli()
+	})
 }

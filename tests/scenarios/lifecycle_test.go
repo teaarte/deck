@@ -265,3 +265,55 @@ func TestStopThatSucceedsAlwaysEndsTheProcessStopped(t *testing.T) {
 		e.settle()
 	}
 }
+
+func TestAnswerSavedBeforeRestartReachesParkedProcess(t *testing.T) {
+	home := t.TempDir()
+	fake := &Fake{script: func(ctx context.Context, c *Call) provider.Result {
+		askQuestion(ctx, c, "Which topic?")
+		return provider.Result{Text: "stopped"}
+	}}
+	e := restartEnv(t, home, fake)
+	p := e.createProject("ideas", ideasManifest)
+	id := e.run(p, "collect")
+	e.waitState(id, "waiting_answer")
+	a := e.waitAsk()
+	_ = e.App.Close()
+
+	fake2 := &Fake{script: func(ctx context.Context, c *Call) provider.Result {
+		return provider.Result{Structured: json.RawMessage(`{"written": 0}`)}
+	}}
+	e2 := restartEnv(t, home, fake2)
+	if err := e2.App.Store.Tx(context.Background(), func(ctx context.Context, q *db.Queries) error {
+		_, err := q.AnswerAsk(ctx, db.AnswerAskParams{Answer: "rust", ID: a.ID})
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := e2.App.Runner.ResumeInterrupted(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	e2.waitState(id, "done")
+	if calls := fake2.Calls(); len(calls) != 1 || !strings.Contains(calls[0].Prompt, "rust") {
+		t.Fatalf("the saved answer must reach the parked process after restart, got %+v", calls)
+	}
+}
+
+func TestResumeAfterItsCommandWasRenamedFinishesTheSession(t *testing.T) {
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		if c.Req.Resume {
+			return provider.Result{Structured: json.RawMessage(`{"written": 0}`)}
+		}
+		askQuestion(ctx, c, "Which topic?")
+		return provider.Result{Text: "stopped"}
+	}, short)
+	p := e.createProject("ideas", ideasManifest)
+	id := e.run(p, "collect")
+	e.waitState(id, "waiting_answer")
+	a := e.waitAsk()
+	renamed := strings.NewReplacer(`"name": "collect"`, `"name": "gather"`, `"command": "collect"`, `"command": "gather"`).Replace(ideasManifest)
+	e.must("deck.manifest_save", map[string]any{"project": "ideas", "manifest": renamed}, nil)
+	e.answer(a.ID, "go")
+	if got := e.waitState(id, "done", "error"); got.State != "done" {
+		t.Fatalf("the session goes on by the manifest revision it started by: %+v", got)
+	}
+}

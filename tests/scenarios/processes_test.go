@@ -7,6 +7,7 @@ import (
 	"deck2/internal/store/db"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"os/exec"
 	"strings"
@@ -499,5 +500,55 @@ func TestProcessGetWaitsForTheEnd(t *testing.T) {
 	e.must("deck.process_get", map[string]any{"process": id, "wait": 30}, &p)
 	if p.State != "done" || time.Since(began) < time.Second || time.Since(began) > 10*time.Second {
 		t.Fatalf("the status comes when the process is done: %+v after %s", p, time.Since(began))
+	}
+}
+
+// TestHistoryFindsAnOldRunOfAQuietProject: the filter of the history narrows the query, so an old run behind
+// hundreds of newer ones of another project is still found.
+func TestHistoryFindsAnOldRunOfAQuietProject(t *testing.T) {
+	e := newEnv(t, ok)
+	quiet := e.createProject("quiet", testManifest([]string{agentCommand("job", "")}, nil))
+	busy := e.createProject("busy", testManifest([]string{agentCommand("job", "")}, nil))
+	old := e.run(quiet, "job")
+	e.waitState(old, "done")
+	for i := 0; i < 205; i++ {
+		e.run(busy, "job")
+	}
+	e.waitFor("the busy runs", func() bool {
+		for _, p := range e.processes() {
+			if p.State != "done" {
+				return false
+			}
+		}
+		return true
+	})
+	history := e.screenData("", "schedule", map[string]any{"filter": `{"b2": {"project": "quiet", "state": "done"}}`})["b2"]
+	rows := blockData[[]screenRow](t, history["rows"])
+	if len(rows) != 1 || rows[0].Cells[0] != float64(old) || !strings.Contains(string(history["filters"]), `"options":["busy","quiet"]`) {
+		t.Fatalf("the history finds the run of the quiet project, and the picked project stays a choice: %+v %s", rows, history["filters"])
+	}
+}
+
+func TestFinishedProcessSessionIsClosed(t *testing.T) {
+	var url, sid string
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		url, sid = c.Req.MCPURL, c.Session.ID()
+		return provider.Result{Text: "ok"}
+	})
+	p := e.createProject("nums", calcManifest)
+	e.waitState(e.run(p, "calc"), "done")
+	body := `{"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"records_upsert","arguments":{"collection":"nums","records":"{\"n\": 5}"}}}`
+	req, _ := http.NewRequest("POST", url, strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json, text/event-stream")
+	req.Header.Set("Mcp-Session-Id", sid)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	recs, _ := e.App.Store.Q.ListRecords(context.Background(), db.ListRecordsParams{ProjectID: p, Collection: "nums"})
+	if resp.StatusCode != http.StatusNotFound || len(recs) != 0 {
+		t.Fatalf("a finished process's session takes no calls: %d, %d records", resp.StatusCode, len(recs))
 	}
 }

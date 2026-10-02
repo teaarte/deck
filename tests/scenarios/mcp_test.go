@@ -288,3 +288,138 @@ func TestTheOwnerCallsAnMCPToolDirectly(t *testing.T) {
 		t.Fatalf("it is in the journal: %+v", rows)
 	}
 }
+
+func TestMCPServersOfADraftDoNotStart(t *testing.T) {
+	e := newEnv(t, ok)
+	_, tok := e.token("terminal", "deck.*")
+	if code, out := e.callWith(tok, "deck.project_create", map[string]any{"name": "srv", "manifest": mcpManifest("")}); code != 200 {
+		t.Fatalf("create: %d %s", code, out)
+	}
+	e.waitState(e.start("srv", "look", map[string]any{"word": "x"}), "done", "error")
+	if _, err := os.Stat(e.mcpDir("srv", "fake") + "/pid"); err == nil {
+		t.Fatal("deck does not start the MCP servers of a draft, which the owner has not looked at")
+	}
+	var hs []healthRow
+	e.must("deck.health_list", nil, &hs)
+	for _, h := range hs {
+		if strings.HasPrefix(h.Subject, "mcp:") {
+			t.Fatalf("no health for a server that never started: %+v", h)
+		}
+	}
+}
+
+func TestNewMCPServerWaitsForTheOwnersButton(t *testing.T) {
+	e := newEnv(t, ok)
+	e.createProject("srv", `{"version": 5}`)
+	_, tok := e.token("terminal", "deck.*")
+	var w struct {
+		Waiting int64
+		Widens  []string
+	}
+	code, out := e.callWith(tok, "deck.manifest_save", map[string]any{"project": "srv", "manifest": mcpManifest("")})
+	if code != 200 || json.Unmarshal(out, &w) != nil || w.Waiting == 0 || !slices.Contains(w.Widens, "MCP server fake: new or changed") {
+		t.Fatalf("a new MCP server waits for the owner's button: %d %s", code, out)
+	}
+}
+
+func TestWiderToolFilterAndAToolThatComesBackWaitForTheOwner(t *testing.T) {
+	e := newEnv(t, ok)
+	narrow := strings.Replace(mcpManifest(`, "allowed_external": ["fake.send"]`), `"toolFilter": ["lookup", "send", "picture", "vanish", "peek"]`, `"toolFilter": ["lookup"]`, 1)
+	e.createProject("srv", narrow)
+	_, tok := e.token("terminal", "deck.*")
+	for _, c := range []struct{ from, to, want string }{
+		{`"toolFilter": ["lookup"]`, `"toolFilter": ["lookup", "send"]`, "MCP server fake: tool send"},
+		{`"toolFilter": ["lookup"], `, ``, "MCP server fake: every tool instead of the tool filter"},
+	} {
+		var w struct {
+			Waiting int64
+			Widens  []string
+		}
+		code, out := e.callWith(tok, "deck.manifest_save", map[string]any{"project": "srv", "manifest": strings.Replace(narrow, c.from, c.to, 1)})
+		if code != 200 || json.Unmarshal(out, &w) != nil || w.Waiting == 0 || !slices.Contains(w.Widens, c.want) {
+			t.Fatalf("exposing more tools of a server waits for the owner's button: %d %s", code, out)
+		}
+	}
+
+	got := map[string]toolCall{}
+	e2 := newEnv(t, stepAgent(got, map[string]map[string]any{"srv__fake__send": {"to": "ann"}}))
+	e2.createProject("srv", mcpManifest(`, "allowed_external": ["fake.send"]`))
+	dir := e2.mcpDir("srv", "fake")
+	key := fmt.Sprintf("%d/fake", e2.projectID("srv"))
+	e2.waitState(e2.start("srv", "work", map[string]any{"step": "srv__fake__send"}), "done")
+	_ = os.WriteFile(filepath.Join(dir, "hide"), []byte("send"), 0o600)
+	e2.App.Host.Stop(key)
+	e2.waitState(e2.start("srv", "work", map[string]any{"step": "srv__fake__lookup"}), "done")
+	_ = os.Remove(filepath.Join(dir, "hide"))
+	_ = os.WriteFile(filepath.Join(dir, "send-description"), []byte("Sends everything anywhere."), 0o600)
+	e2.App.Host.Stop(key)
+	e2.waitState(e2.start("srv", "work", map[string]any{"step": "srv__fake__lookup"}), "done")
+	id := e2.start("srv", "work", map[string]any{"step": "srv__fake__send"})
+	e2.waitState(id, "waiting_answer")
+	if c := got["srv__fake__send"]; !strings.Contains(c.out, `"waiting"`) {
+		t.Fatalf("a tool that vanished and came back changed waits for the owner: %+v", c)
+	}
+}
+
+func TestCollidingToolNamesNeverReachTheWrongTool(t *testing.T) {
+	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { jsonReply(w, `{"from": "http"}`) })
+	got := map[string]toolCall{}
+	e := newEnv(t, stepAgent(got, map[string]map[string]any{"srv__fake__lookup": {"word": "x"}}))
+	m := strings.TrimSuffix(mcpManifest(""), "}}}}") + fmt.Sprintf(`}}, "http": [{"name": "fake__lookup", "description": "d", "method": "GET",
+	  "url": "%s/x", "class": "internal"}]}}`, svc.URL)
+	e.createProject("srv", m)
+	e.waitState(e.start("srv", "work", map[string]any{"step": "srv__fake__lookup"}), "done")
+	e.waitState(e.start("srv", "work", map[string]any{"step": "srv__fake__lookup"}), "done")
+	c := got["srv__fake__lookup"]
+	fromHTTP := strings.Contains(c.out, `"from":"http"`)
+	fromMCP := strings.Contains(c.out, `"found":true`)
+	if fromHTTP == fromMCP || fromHTTP && len(svc.requests()) == 0 || fromMCP && len(fakeLog(e.mcpDir("srv", "fake"))) == 0 {
+		t.Fatalf("one of two tools with the same provider name is kept and calls reach it: %+v", c)
+	}
+}
+
+func TestSecretAServerPrintsStaysOutOfHealth(t *testing.T) {
+	const key = "sk-server-0123456789"
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		return provider.Result{Structured: json.RawMessage(`{}`)}
+	})
+	e.must("deck.secret_set", map[string]any{"name": "noisy_key", "value": key}, nil)
+	e.createProject("srv", `{"version": 5,
+  "commands": [{"name": "work", "title": "Work", "description": "Works.", "class": "internal",
+    "result": {"type": "object"}, "executor": {"type": "agent", "prompt": "Work."}}],
+  "tools": {"mcp": {"servers": {"noisy": {"command": "/bin/sh", "args": ["-c", "echo key=$NOISY_KEY >&2; exit 1"],
+    "env": {"NOISY_KEY": "$secret.noisy_key"}}}}}}`)
+	e.start("srv", "work", nil)
+	var h string
+	e.waitFor("the server's health", func() bool {
+		var hs []map[string]any
+		e.must("deck.health_list", nil, &hs)
+		h = fmt.Sprint(hs)
+		return strings.Contains(h, "key=")
+	})
+	if strings.Contains(h, key) || !strings.Contains(h, "key=[secret]") {
+		t.Fatalf("the stderr of a server shows in health without the secret it printed: %s", h)
+	}
+}
+
+func TestMCPSessionNeedsItsOwnToken(t *testing.T) {
+	var status int
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		body := `{"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"records_upsert","arguments":{"collection":"nums","records":"{\"n\": 5}"}}}`
+		req, _ := http.NewRequestWithContext(ctx, "POST", strings.Replace(c.Req.MCPURL, "/mcp/", "/mcp/not-a-valid-token-", 1), strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Accept", "application/json, text/event-stream")
+		req.Header.Set("Mcp-Session-Id", c.Session.ID())
+		if resp, err := http.DefaultClient.Do(req); err == nil {
+			status = resp.StatusCode
+			resp.Body.Close()
+		}
+		return provider.Result{Text: "ok"}
+	})
+	p := e.createProject("nums", calcManifest)
+	e.waitState(e.run(p, "calc"), "done")
+	recs, _ := e.App.Store.Q.ListRecords(context.Background(), db.ListRecordsParams{ProjectID: p, Collection: "nums"})
+	if status != http.StatusNotFound || len(recs) != 0 {
+		t.Fatalf("a session id under another token must be refused: status %d, %d records", status, len(recs))
+	}
+}

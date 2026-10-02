@@ -1,6 +1,8 @@
 package scenarios
 
 import (
+	"context"
+	"deck2/internal/store/db"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -193,4 +195,20 @@ func TestADocumentBlockOfAManifestShowsTheDocumentItNamesAndMarkdownIsOptIn(t *t
 			t.Fatalf("%s is refused with %q: %d %s", tc.to, tc.want, code, out)
 		}
 	}
+}
+
+func TestDocumentIDsAreNotReused(t *testing.T) {
+	e := newEnv(t, idle)
+	e.createProject("nums", calcManifest)
+	e.must("deck.records_upsert", map[string]any{"project": "nums", "collection": "nums", "records": jsonl(map[string]any{"n": 1})}, nil)
+	recs, _ := e.App.Store.Q.ListRecords(context.Background(), db.ListRecordsParams{ProjectID: e.projectID("nums"), Collection: "nums"})
+	var old struct{ ID int64 }
+	e.must("deck.document_save", map[string]any{"project": "nums", "name": "a.md", "kind": "artifact", "text": "mine", "record": recs[0].ID}, &old)
+	e.must("deck.collection_delete", map[string]any{"project": "nums", "collection": "nums"}, nil)
+	var fresh struct{ ID int64 }
+	e.must("deck.document_save", map[string]any{"project": "nums", "name": "b.md", "kind": "doc", "text": "other"}, &fresh)
+	if fresh.ID == old.ID {
+		t.Fatalf("a new document must not take the id of a deleted one: %d", fresh.ID)
+	}
+	e.refused("deck.document_get", map[string]any{"document": old.ID}, 404, "no document")
 }

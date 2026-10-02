@@ -337,3 +337,56 @@ func TestAgentStaysInsideItsProject(t *testing.T) {
 		t.Fatalf("artifact author: %+v", revs)
 	}
 }
+
+func TestOutOfRangeIntegersAreRefused(t *testing.T) {
+	e := newEnv(t, idle)
+	e.createProject("nums", calcManifest)
+	var res struct {
+		Written int
+		Errors  []string
+	}
+	e.must("deck.records_upsert", map[string]any{"project": "nums", "collection": "nums",
+		"records": "{\"n\": 18446744073709551614}\n{\"n\": 18446744073709551615}\n"}, &res)
+	if res.Written != 0 || len(res.Errors) != 2 || !strings.Contains(res.Errors[0], "does not fit") {
+		t.Fatalf("integers beyond 64 bits must be refused, not rounded into one key: %+v", res)
+	}
+}
+
+func TestCommandInputKeepsLargeIntegers(t *testing.T) {
+	e := newEnv(t, idle)
+	e.createProject("nums", calcManifest)
+	code, body := e.do("POST", "/api/commands/nums.calc", map[string]any{"n": int64(9007199254740993)})
+	if code != 200 {
+		t.Fatalf("%d %s", code, body)
+	}
+	var started struct{ Process int64 }
+	_ = json.Unmarshal(body, &started)
+	p, _ := e.App.Store.Q.GetProcess(context.Background(), started.Process)
+	if !strings.Contains(p.Input, "9007199254740993") {
+		t.Fatalf("input integers must reach the process exactly: %s", p.Input)
+	}
+	e.waitState(started.Process, "done")
+}
+
+func TestComposedInputSchemasAreRefused(t *testing.T) {
+	e := newEnv(t, idle)
+	m := strings.Replace(calcManifest, `"input": {"type": "object", "properties": {"n": {"type": "integer"}}}`,
+		`"input": {"type": "object", "allOf": [{"properties": {"config": {"type": "object"}}, "required": ["config"]}]}`, 1)
+	e.refused("deck.project_create", map[string]any{"name": "a", "manifest": m}, 422, `"allOf" is not allowed`)
+	nested := strings.Replace(calcManifest, `"n": {"type": "integer"}}}`, `"n": {"type": "integer", "anyOf": [{"type": "object"}]}}}`, 1)
+	e.refused("deck.project_create", map[string]any{"name": "b", "manifest": nested}, 422, `"anyOf" is not allowed`)
+}
+
+func TestWholeNumbersWrittenAsFloatsAreRefused(t *testing.T) {
+	e := newEnv(t, idle)
+	e.createProject("nums", calcManifest)
+	var res struct {
+		Written int
+		Errors  []string
+	}
+	e.must("deck.records_upsert", map[string]any{"project": "nums", "collection": "nums",
+		"records": "{\"n\": 18446744073709551614.0}\n{\"n\": 1.0}\n"}, &res)
+	if res.Written != 1 || len(res.Errors) != 1 || !strings.Contains(res.Errors[0], "does not fit") {
+		t.Fatalf("a whole number beyond 64 bits is refused in any spelling: %+v", res)
+	}
+}

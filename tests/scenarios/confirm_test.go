@@ -156,3 +156,184 @@ func (e *Env) calls(process int64) string {
 	}
 	return b.String()
 }
+
+func TestTriggeredExternalCallWaitsWithoutTheAgentAndRunsAfterYes(t *testing.T) {
+	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { jsonReply(w, `{"id": "n"}`) })
+	e := newClockEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		if c.command() == "work" {
+			var card struct{ ID int64 }
+			out, _ := c.Tool(ctx, "card_create", map[string]any{"title": "x"})
+			_ = json.Unmarshal([]byte(out), &card)
+			c.Tool(ctx, "card_move", map[string]any{"card": card.ID, "lane": "go"})
+		}
+		return provider.Result{Structured: json.RawMessage(`{}`)}
+	})
+	p := e.createProject("feed", fmt.Sprintf(`{"version": 5,
+  "commands": [
+    {"name": "send", "title": "Send", "description": "Sends out.", "class": "external",
+     "input": {"type": "object", "properties": {"card": {"type": "integer", "format": "card"}}},
+     "executor": {"type": "tool", "tool": "note"}},
+    {"name": "work", "title": "Work", "description": "Works.", "class": "internal", "result": {"type": "object"},
+     "executor": {"type": "agent", "prompt": "Work."}}],
+  "triggers": [{"command": "send", "lane": "go"}, {"command": "send", "cron": "0 9 * * *"}],
+  "tools": {"http": [{"name": "note", "description": "d", "method": "POST", "url": "%s/n",
+    "input": {"type": "object", "properties": {"card": {"type": "integer", "format": "card"}}}}]},
+  "board": {"lanes": [{"name": "in", "title": "In", "role": "inbox"}, {"name": "go", "title": "Go"}]}}`, svc.URL))
+	if got := e.waitState(e.run(p, "work"), "done", "waiting_answer"); got.State != "done" {
+		t.Fatalf("the agent that moved the card does not wait for its trigger's confirmation: %+v", got)
+	}
+	e.Clock.Add(time.Hour + time.Minute)
+	e.App.Scheduler.Tick(context.Background())
+	_, out := e.call("deck.asks_list", nil)
+	var asks []struct {
+		ID      int64
+		Kind    string
+		Process int64
+	}
+	_ = json.Unmarshal(out, &asks)
+	if len(asks) != 2 || asks[0].Process != 0 || asks[1].Process != 0 || len(svc.requests()) != 0 {
+		t.Fatalf("a triggered external call waits for the owner on its own: %+v", asks)
+	}
+	for _, a := range asks {
+		e.answer(a.ID, "allow")
+	}
+	e.waitFor("both triggered calls are made", func() bool { return len(svc.requests()) == 2 })
+	var card struct{ Process int64 }
+	e.must("deck.card_get", map[string]any{"card": 1}, &card)
+	if card.Process == 0 {
+		t.Fatalf("after yes the card is linked to the process its lane trigger started: %+v", card)
+	}
+}
+
+func TestAWaitingCallSurvivesTheEmptyProcessCleanup(t *testing.T) {
+	e := newEnv(t, nil)
+	e.createProject("jobs", scriptManifest("run", "", ""))
+	e.saveScript("jobs", "scripts/main.py", pythonLib+`
+st, out = deck("jobs.publish", {})
+print("null" if st == 202 else json.dumps({"status": st}))
+`)
+	id := e.start("jobs", "run", nil)
+	if p := e.waitScript(id, "done", "error"); string(p.Result) != "null" {
+		t.Fatalf("the script had nothing to report: %+v", p)
+	}
+	e.App.Sweep(context.Background(), time.Now().Add(48*time.Hour))
+	if p := e.process(id); p.ID != id {
+		t.Fatalf("a process whose call waits for the owner is not cleaned up: %+v", p)
+	}
+	if a := e.waitAsk(); a.Kind != "call" {
+		t.Fatalf("the call still waits for the owner: %+v", a)
+	}
+}
+
+func TestAYesDoesNotMakeAChangedToolOrAnExpiredCall(t *testing.T) {
+	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { jsonReply(w, `{}`) })
+	e := newClockEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		if c.N == 1 {
+			c.Tool(ctx, "notes__post", map[string]any{"id": "a", "text": "hi"})
+			c.Tool(ctx, "notes__post", map[string]any{"id": "b", "text": "hi"})
+		}
+		return provider.Result{Structured: json.RawMessage(`{"ok": true}`)}
+	}, withTTL)
+	e.must("deck.secret_set", map[string]any{"name": "svc", "value": "k"}, nil)
+	p := e.createProject("notes", postManifest(svc.URL, ""))
+	id := e.run(p, "work")
+	e.waitState(id, "waiting_answer")
+	_, out := e.call("deck.asks_list", nil)
+	var asks []askView
+	_ = json.Unmarshal(out, &asks)
+	e.must("deck.manifest_save", map[string]any{"project": "notes", "manifest": postManifest(svc.URL+"/v2", "")}, nil)
+	if code, body := e.call("deck.ask_answer", map[string]any{"ask": asks[0].ID, "answer": "allow"}); code == 200 || !strings.Contains(string(body), "tool changed") {
+		t.Fatalf("a yes to a call of a tool that changed since is refused: %d %s", code, body)
+	}
+	e.must("deck.manifest_save", map[string]any{"project": "notes", "manifest": postManifest(svc.URL, "")}, nil)
+	e.Clock.Add(25 * time.Hour)
+	if code, _ := e.call("deck.ask_answer", map[string]any{"ask": asks[1].ID, "answer": "allow_always"}); code != 409 {
+		t.Fatalf("a yes after the deadline is refused even before the sweep: %d", code)
+	}
+	var m struct{ Manifest string }
+	e.must("deck.manifest_get", map[string]any{"project": "notes"}, &m)
+	if strings.Contains(m.Manifest, "allowed_external") || len(svc.requests()) != 0 {
+		t.Fatalf("a refused allow always does not widen the list: %s", m.Manifest)
+	}
+}
+
+func TestIdenticalExternalCallIsNotMadeWhileTheFirstIsOut(t *testing.T) {
+	release := make(chan struct{})
+	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) {
+		if n == 1 {
+			<-release
+		}
+		jsonReply(w, `{"id": "x"}`)
+	})
+	e := newEnv(t, nil)
+	e.createProject("pics", toolManifest(svc.URL, `, "allowed_external": ["note"]`))
+	first := make(chan int)
+	go func() { code, _ := e.call("pics.note", map[string]any{"text": "pay"}); first <- code }()
+	e.waitFor("the first call is out", func() bool { return len(svc.requests()) == 1 })
+	code, out := e.call("pics.note", map[string]any{"text": "pay"})
+	close(release)
+	if code == 200 || !strings.Contains(string(out), "being made now") || <-first != 200 {
+		t.Fatalf("an identical external call waits for the one still out: %d %s", code, out)
+	}
+}
+
+func TestConfirmationNamesTheMethodAndHost(t *testing.T) {
+	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { jsonReply(w, `{}`) })
+	e := newClockEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		_, _ = c.Tool(ctx, "notes__post", map[string]any{"id": "x", "text": "hi"})
+		return provider.Result{Structured: json.RawMessage(`{"ok": true}`)}
+	}, withTTL)
+	e.must("deck.secret_set", map[string]any{"name": "svc", "value": "k"}, nil)
+	e.run(e.createProject("notes", postManifest(svc.URL, "")), "work")
+	host := strings.TrimPrefix(svc.URL, "http://")
+	if a := e.waitAsk(); !strings.Contains(a.Text, "POST http://"+host+"/items/{id}") {
+		t.Fatalf("the owner sees where an HTTP call goes: %q", a.Text)
+	}
+}
+
+func TestAllowOnceAllowsExactlyOneCall(t *testing.T) {
+	var mu sync.Mutex
+	var behaviors []string
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		if !c.Req.Resume {
+			c.Approve(ctx, "Bash", map[string]any{"command": "make deploy"})
+			return provider.Result{Text: "stopped"}
+		}
+		var wg sync.WaitGroup
+		for range 4 {
+			wg.Go(func() {
+				d := c.Approve(ctx, "Bash", map[string]any{"command": "make deploy"})
+				mu.Lock()
+				behaviors = append(behaviors, d["behavior"].(string))
+				mu.Unlock()
+			})
+		}
+		wg.Wait()
+		return provider.Result{Structured: json.RawMessage(`{"written": 0}`)}
+	}, short)
+	p := e.createProject("ideas", ideasManifest)
+	id := e.run(p, "collect")
+	e.waitState(id, "waiting_answer")
+	e.answer(e.waitAsk().ID, "allow")
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		mu.Lock()
+		n := len(behaviors)
+		mu.Unlock()
+		if n == 4 {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	allowed := 0
+	for _, b := range behaviors {
+		if b == "allow" {
+			allowed++
+		}
+	}
+	if allowed != 1 {
+		t.Fatalf("allow once must let exactly one of the concurrent calls through, got %v", behaviors)
+	}
+}

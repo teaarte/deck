@@ -2,6 +2,8 @@ package scenarios
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -135,5 +137,32 @@ func TestResultSubmitGetsOneRebuild(t *testing.T) {
 	got := e.waitState(e.run(e.acpProject("notes", notesManifest), "collect"), "done", "error")
 	if got.State != "done" || !got.NotBySchema || string(got.Result) != `{"written":"still one"}` {
 		t.Fatalf("one rebuild, then the result stays marked as off the schema and nothing more is taken: %+v", got)
+	}
+}
+
+func TestProviderURLCarriesNoKey(t *testing.T) {
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		return provider.Result{Structured: json.RawMessage(`{}`)}
+	})
+	for _, u := range []string{"https://me:sk-1@openrouter.example/api/v1", "https://api.example/v1?key=sk-1"} {
+		code, out := e.call("deck.provider_add", map[string]any{"name": "cloud", "url": u, "model": "m", "agent": "opencode"})
+		if code == 200 || !strings.Contains(string(out), "key_secret") {
+			t.Fatalf("a provider URL with a key in it is refused and points to key_secret: %s → %d %s", u, code, out)
+		}
+	}
+	e.must("deck.provider_add", map[string]any{"name": "cloud", "url": "https://api.example/v1", "model": "m", "key_secret": "k", "agent": "opencode"}, nil)
+	_, err := e.App.Store.DB.Exec(`INSERT INTO setting (workspace_id, key, value) VALUES (1, 'provider:old', ?)`,
+		`{"url": "https://api.example/v1?key=sk-stored", "model": "m"}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var list map[string]any
+	e.must("deck.providers_list", nil, &list)
+	if strings.Contains(fmt.Sprint(list), "sk-stored") {
+		t.Fatalf("a provider stored with a key in its url is neither shown nor used: %v", list)
+	}
+	srv := `{"version": 5, "tools": {"mcp": {"servers": {"far": {"url": "https://mcp.example/mcp?key=sk-1"}}}}}`
+	if code, out := e.call("deck.project_create", map[string]any{"name": "far", "manifest": srv}); code == 200 || !strings.Contains(string(out), "secret") {
+		t.Fatalf("an MCP server url with a key in it is refused: %d %s", code, out)
 	}
 }

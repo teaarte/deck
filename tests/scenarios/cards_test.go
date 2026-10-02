@@ -465,3 +465,54 @@ func TestTheCatalogKnowsTheStatesAProcessEndsIn(t *testing.T) {
 		t.Fatalf("the catalog lists the states a process ends in: %v %v", c.Final, err)
 	}
 }
+
+// TestBoardBlockShowsTheLanesAndFollowsMoves: the board block holds the lanes with their cards and is read
+// again on the board topic alone.
+func TestBoardBlockShowsTheLanesAndFollowsMoves(t *testing.T) {
+	e := newEnv(t, boardWebAgent())
+	e.createProject("web", boardWebManifest)
+	a := e.card(map[string]any{"project": "web", "title": "A"})
+	b := e.card(map[string]any{"project": "web", "title": "B", "text": "more", "waits": []int64{a.ID}})
+	type boardV struct {
+		Project string `json:"project"`
+		Lanes   []struct {
+			Name  string `json:"name"`
+			Title string `json:"title"`
+			Role  string `json:"role"`
+			Cards []struct {
+				ID    int64   `json:"id"`
+				Title string  `json:"title"`
+				Waits []int64 `json:"waits"`
+			} `json:"cards"`
+		} `json:"lanes"`
+	}
+	v := blockData[boardV](t, e.screenData("web", "main", nil)["b0"]["value"])
+	if v.Project != "web" || len(v.Lanes) != 3 || v.Lanes[0].Role != "inbox" || len(v.Lanes[0].Cards) != 2 ||
+		v.Lanes[0].Cards[1].ID != b.ID || !slices.Equal(v.Lanes[0].Cards[1].Waits, []int64{a.ID}) {
+		t.Fatalf("the board holds its lanes in order with their cards by rank: %+v", v)
+	}
+	e.must("deck.card_move", map[string]any{"card": b.ID, "lane": "doing"}, nil)
+	msgs := e.screenMessages("web", "main", map[string]any{"topic": "board"})
+	if len(msgs) != 1 || !strings.Contains(string(msgs[0]["updateDataModel"]), `"path":"/b0"`) {
+		t.Fatalf("the board topic reads only the board: %v", msgs)
+	}
+	var dm struct {
+		Value struct {
+			Value boardV `json:"value"`
+		} `json:"value"`
+	}
+	_ = json.Unmarshal(msgs[0]["updateDataModel"], &dm)
+	if got := dm.Value.Value.Lanes; len(got[1].Cards) != 1 || got[1].Cards[0].ID != b.ID || len(got[0].Cards) != 1 {
+		t.Fatalf("a moved card shows in its new lane: %+v", got)
+	}
+	e.must("deck.card_delete", map[string]any{"card": a.ID}, nil)
+	gone := blockData[struct {
+		Deleted []struct {
+			ID    int64  `json:"id"`
+			Title string `json:"title"`
+		} `json:"deleted"`
+	}](t, e.screenData("web", "main", nil)["b0"]["value"])
+	if len(gone.Deleted) != 1 || gone.Deleted[0].ID != a.ID || gone.Deleted[0].Title != "A" {
+		t.Fatalf("a deleted card stays on the board to be restored from any device: %+v", gone)
+	}
+}

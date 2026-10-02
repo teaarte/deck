@@ -1,7 +1,11 @@
 package scenarios
 
 import (
+	"deck2/internal/api"
+	"deck2/web"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"slices"
 	"strings"
 	"testing"
@@ -190,5 +194,21 @@ func TestMasterScriptEditIsUndoneFromTheFeed(t *testing.T) {
 	e.must("deck.feed_list", map[string]any{"project": "tools", "kind": "change"}, &feed)
 	if len(feed) != 3 || !feed[0].CanUndo || !strings.Contains(feed[0].Text, "revert to revision 2") {
 		t.Fatalf("a revert by the master is listed too: %+v", feed)
+	}
+}
+
+func TestEmptyTokenDoesNotOpenTheAPI(t *testing.T) {
+	e := newEnv(t, nil)
+	ts := httptest.NewServer(api.New(e.App, "", web.FS()).Handler())
+	defer ts.Close()
+	req, _ := http.NewRequest("POST", ts.URL+"/api/commands/deck.projects_list", nil)
+	req.Header.Set("Authorization", "Bearer ")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != 401 {
+		t.Fatalf("empty token must refuse every request, got %d", resp.StatusCode)
 	}
 }

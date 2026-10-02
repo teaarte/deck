@@ -321,3 +321,53 @@ func TestOnlyTheBuiltInProjectAnswersEventsOfDeck(t *testing.T) {
 		`"callers": ["trigger"], "input": {"type": "object", "properties": {"process": {"type": "integer", "format": "process"}}}, "executor": {"type": "agent", "prompt": "Do the work."}`, 1)
 	e.refused("deck.project_create", map[string]any{"name": "spy", "manifest": m}, 422, "belongs to the built-in project master")
 }
+
+func TestFormatFiveDropsWhatNothingDoes(t *testing.T) {
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		return provider.Result{Structured: json.RawMessage(`{}`)}
+	})
+	old := `{"version": 4, "master_events": true, "allowed_external": ["deck.browser_click"], "domains": {"read": ["a.example"]},
+  "commands": [{"name": "rate", "title": "Rate", "description": "Rates.", "class": "internal", "result": {"type": "object"},
+    "requires": ["live_input", "structured_output", "no_cloud"], "executor": {"type": "agent", "prompt": "Rate."}},
+   {"name": "sum", "title": "Sum", "description": "Sums.", "class": "internal", "result": {"type": "object"},
+    "requires": ["structured_output"], "executor": {"type": "agent", "prompt": "Sum."}}]}`
+	e.createProject("old", old)
+	var got struct{ Manifest string }
+	e.must("deck.manifest_get", map[string]any{"project": "old"}, &got)
+	if !strings.Contains(got.Manifest, `"version": 5`) || strings.Contains(got.Manifest, "master_events") ||
+		strings.Contains(got.Manifest, "live_input") || strings.Contains(got.Manifest, "browser_click") || strings.Contains(got.Manifest, "structured_output") || !strings.Contains(got.Manifest, `"no_cloud"`) {
+		t.Fatalf("format 4 comes up to 5 without the fields nothing reads:\n%s", got.Manifest)
+	}
+	code, out := e.call("deck.manifest_save", map[string]any{"project": "old", "manifest": strings.Replace(old, `"version": 4`, `"version": 5`, 1)})
+	if code == 200 || !strings.Contains(string(out), "master_events") {
+		t.Fatalf("format 5 has no master_events: %d %s", code, out)
+	}
+}
+
+func TestProjectPromptReachesTheAgent(t *testing.T) {
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		return provider.Result{Structured: json.RawMessage(`{"written": 0}`)}
+	})
+	var p struct{ ID int64 }
+	e.must("deck.project_create", map[string]any{"name": "ideas", "manifest": ideasManifest, "prompt": "Ideas for a solo developer.\nPrefer Go."}, &p)
+	e.names[p.ID] = "ideas"
+	e.waitState(e.run(p.ID, "collect"), "done")
+	if calls := e.Fake.Calls(); len(calls) != 1 || !strings.Contains(calls[0].Prompt, "Prefer Go.") {
+		t.Fatalf("project prompt must be part of the agent prompt, got %+v", calls)
+	}
+}
+
+func TestExpressionVariablesCannotHideFields(t *testing.T) {
+	e := newEnv(t, idle)
+	key := strings.Replace(calcManifest, `"key": "n"`, `"key": "string(n) + (let n = 1; string(n))"`, 1)
+	e.refused("deck.project_create", map[string]any{"name": "a", "manifest": key}, 422, "not allowed in a key")
+	display := strings.Replace(calcManifest, `"key": "n"`, `"key": "n", "display": "let n = 'x'; n"`, 1)
+	e.refused("deck.project_create", map[string]any{"name": "b", "manifest": display}, 422, `hides the field`)
+}
+
+func TestVariablesNeedKnownFields(t *testing.T) {
+	e := newEnv(t, idle)
+	m := strings.NewReplacer(`"schema": {"type": "object", "properties": {"n": {"type": "integer"}}, "required": ["n"]}`, `"schema": {"type": "object"}`,
+		`"key": "n"`, `"key": "n", "display": "let n = 'x'; n"`).Replace(calcManifest)
+	e.refused("deck.project_create", map[string]any{"name": "a", "manifest": m}, 422, "need a schema that lists its properties")
+}

@@ -134,3 +134,14 @@ func TestTheJournalKeepsHalfAYear(t *testing.T) {
 		t.Fatalf("after 181 days the calls go: %d", count("tool_call"))
 	}
 }
+
+func TestStoppingAProcessJournalsTheCallsItDropped(t *testing.T) {
+	e := newEnv(t, nil)
+	e.createProject("pics", toolManifest("http://127.0.0.1:1", ""))
+	id := e.start("pics", "send", map[string]any{"text": "hi"})
+	e.waitState(id, "waiting_answer")
+	e.must("deck.process_stop", map[string]any{"process": id}, nil)
+	if j := e.calls(id); !strings.Contains(j, "pics.note rejected") || !strings.Contains(j, "stopped") {
+		t.Fatalf("a call dropped by a stop is in the journal:\n%s", j)
+	}
+}

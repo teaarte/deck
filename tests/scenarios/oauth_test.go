@@ -157,3 +157,39 @@ func TestOAuth2SignsInRefreshesAndAsksForSignInWhenRevoked(t *testing.T) {
 		t.Fatalf("the owner is asked to sign in again: %+v", a)
 	}
 }
+
+func TestOAuth2AddressesMustBeHTTPS(t *testing.T) {
+	e := newEnv(t, nil)
+	code, out := e.call("deck.project_create", map[string]any{"name": "svc", "manifest": oauthManifest("http://auth.example")})
+	if code == 200 || !strings.Contains(string(out), "must be https") {
+		t.Fatalf("oauth2 addresses must be https: %d %s", code, out)
+	}
+}
+
+func TestAFailedRefreshAfterARefusalIsNotAnUnknownOutcome(t *testing.T) {
+	f := &fakeOAuth{access: "valid", refresh: "r0", broken: true}
+	svc := newService(t, f.handler)
+	e := newEnv(t, nil)
+	m := strings.Replace(oauthManifest(svc.URL), `"class": "internal",`, `"class": "external",`, 1)
+	e.createProject("svc", strings.TrimSuffix(m, "}")+`, "allowed_external": ["me"]}`)
+	for k, v := range map[string]string{"svc_id": "c", "svc_secret": "s", "svc_token": `{"access_token":"stale","refresh_token":"r0","expiry":"2099-01-01T00:00:00Z"}`} {
+		e.must("deck.secret_set", map[string]any{"name": k, "value": v}, nil)
+	}
+	if code, _ := e.call("svc.me", map[string]any{}); code == 200 {
+		t.Fatal("the call fails when the service refuses the token and the refresh fails")
+	}
+	rows := e.journal()
+	if last := rows[len(rows)-1]; last.Outcome != "rejected" {
+		t.Fatalf("a call the service refused is rejected, not of unknown outcome: %+v", rows)
+	}
+	f.mu.Lock()
+	f.broken, f.deny = false, true
+	f.mu.Unlock()
+	if code, out := e.call("svc.me", map[string]any{}); code == 200 || !strings.Contains(string(out), "sign in again") {
+		t.Fatalf("a service that refuses a fresh token needs a sign-in: %d %s", code, out)
+	}
+	rows = e.journal()
+	if last := rows[len(rows)-1]; last.Outcome != "rejected" {
+		t.Fatalf("a call refused twice by the service is rejected: %+v", rows)
+	}
+}

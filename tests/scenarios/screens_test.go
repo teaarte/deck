@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"slices"
@@ -624,4 +625,182 @@ func TestAModuleButtonShowsWhereItHoldsAndTakesValuesFromTheRow(t *testing.T) {
 		`"=string(score * 2)"`, `"=string(scor * 2)"`, 1)}); code != 422 || !strings.Contains(string(out), `param "score": unknown field "scor"`) {
 		t.Fatalf("an expression of a param reads fields of the row: %d %s", code, out)
 	}
+}
+
+func TestScreenSortsNumbersAndResolvesRowParams(t *testing.T) {
+	e := newEnv(t, nil)
+	p := e.createProject("items", numbersManifest)
+	e.must("deck.records_upsert", map[string]any{"project": "items", "collection": "items",
+		"records": jsonl(map[string]any{"id": 1, "name": "nine", "score": 9}, map[string]any{"id": 2, "name": "hundred", "score": 100},
+			map[string]any{"id": 3, "name": "twenty", "score": 20})}, nil)
+	rows := e.screenRows(p, "main")
+	if len(rows) != 1 || rows[0].Cells[0] != "hundred" {
+		t.Fatalf("descending numeric sort must put 100 first, got %v", rows)
+	}
+	params, _ := rows[0].Actions[0]["params"].(map[string]any)
+	if params["name"] != "hundred" || params["why"] != "best" || params["item"] == nil {
+		t.Fatalf("row action params must be resolved from the record, got %v", rows[0])
+	}
+}
+
+// TestNotifyWritesALineToTheCockpitFeed: an agent tells the owner; the line opens the page it names and has
+// the buttons it gave; a screen or a command the project lacks is refused.
+func TestNotifyWritesALineToTheCockpitFeed(t *testing.T) {
+	e := newEnv(t, boardWebAgent())
+	p := e.createProject("web", boardWebManifest)
+	e.must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": `{"title": "alpha"}`}, nil)
+	var rec []struct{ ID int64 }
+	e.must("deck.records_list", map[string]any{"project": "web", "collection": "notes"}, &rec)
+	done := e.waitState(e.run(p, "tell"), "done")
+	if strings.Contains(string(done.Result), "error") {
+		t.Fatalf("the agent notifies the owner through the gateway: %s", done.Result)
+	}
+	var feed []listItem
+	for id, b := range e.screenData("", "cockpit", nil) {
+		if id == "b2" {
+			feed = blockData[[]listItem](t, b["items"])
+		}
+	}
+	if len(feed) != 1 || feed[0].Title != "alpha scored high" || !strings.HasPrefix(feed[0].Meta, "web · ") || len(feed[0].Actions) != 2 {
+		t.Fatalf("the feed of the cockpit has the line: %+v", feed)
+	}
+	open, touch := feed[0].Actions[0], feed[0].Actions[1]
+	if open["screen"] != "note" || open["project"] != "web" || open["record"] != float64(rec[0].ID) ||
+		touch["command"] != "web.touch" || touch["label"] != "Touch it" || touch["params"].(map[string]any)["note"] != float64(rec[0].ID) {
+		t.Fatalf("the line opens its page and carries its buttons: %+v", feed[0].Actions)
+	}
+	for _, tc := range []struct {
+		in   map[string]any
+		want string
+	}{
+		{map[string]any{"project": "web", "text": "x", "screen": "nowhere"}, `no screen "nowhere"`},
+		{map[string]any{"project": "web", "text": "x", "screen": "note"}, "give record"},
+		{map[string]any{"project": "web", "text": "x", "actions": `[{"label": "Go", "command": "launch"}]`}, `unknown command "launch"`},
+		{map[string]any{"project": "web", "text": "x", "actions": `[{"label": "Go", "command": "touch", "params": {"page": 1}}]`}, `no input field "page"`},
+		{map[string]any{"project": "web", "text": " "}, "needs text"},
+	} {
+		e.refused("deck.notify", tc.in, 422, tc.want)
+	}
+}
+
+// TestCustomBlockGetsItsDataAndButtonsAndItsFrameLivesOnTheSecondOrigin: HTML, items and buttons come with the
+// block; the second origin serves only the proxy page with a CSP without network.
+func TestCustomBlockGetsItsDataAndButtonsAndItsFrameLivesOnTheSecondOrigin(t *testing.T) {
+	e := newEnv(t, boardWebAgent())
+	e.createProject("web", boardWebManifest)
+	if b := e.screenData("web", "main", nil)["b2"]; blockData[string](t, b["error"]) != `no custom document "custom/chart.html"` {
+		t.Fatalf("a custom block without its document shows why: %s", b["error"])
+	}
+	e.must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": "<p>chart</p>"}, nil)
+	e.must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": `{"title": "b"}` + "\n" + `{"title": "a", "score": 2}`}, nil)
+	v := blockData[struct {
+		HTML    string           `json:"html"`
+		Items   []map[string]any `json:"items"`
+		Actions []map[string]any `json:"actions"`
+	}](t, e.screenData("web", "main", nil)["b2"]["value"])
+	if v.HTML != "<p>chart</p>" || len(v.Items) != 2 || v.Items[0]["title"] != "a" || v.Items[0]["_id"] == nil || v.Items[0]["_updated"] != nil ||
+		len(v.Actions) != 4 || v.Actions[0]["command"] != "web.mark" || v.Actions[0]["class"] != "internal" || v.Actions[3]["class"] != "external" {
+		t.Fatalf("a custom block gets its HTML, the items of its source and its buttons: %+v", v)
+	}
+
+	r0, err := http.Get(e.URL + "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	r0.Body.Close()
+	if got := r0.Header.Get("Content-Security-Policy"); got != "frame-src 'self' "+e.Side+"; img-src 'self' data: blob:; frame-ancestors 'self'" {
+		t.Fatalf("the client's frames stay on its origins, so a block cannot move its frame to the network: %q", got)
+	}
+	noFollow := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	r, err := noFollow.Get(e.URL + "/custom")
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.Body.Close()
+	if r.StatusCode != http.StatusFound || r.Header.Get("Location") != e.Side+"/sandbox.html" {
+		t.Fatalf("the frame goes to the second origin: %d %s", r.StatusCode, r.Header.Get("Location"))
+	}
+	r, err = http.Get(e.Side + "/sandbox.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	page, _ := io.ReadAll(r.Body)
+	r.Body.Close()
+	csp := r.Header.Get("Content-Security-Policy")
+	for _, want := range []string{"connect-src 'none'", "default-src 'none'", "form-action 'none'", "frame-ancestors " + e.URL} {
+		if !strings.Contains(csp, want) {
+			t.Fatalf("the proxy page keeps the block off the network: %q lacks %q", csp, want)
+		}
+	}
+	if !strings.Contains(string(page), `const host = "`+e.URL+`"`) {
+		t.Fatalf("the proxy talks only to the client's origin: %s", page)
+	}
+	for _, path := range []string{"/api/commands", "/api/events", "/", "/mcp"} {
+		r, err := http.Get(e.Side + path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		r.Body.Close()
+		if r.StatusCode != http.StatusNotFound && r.StatusCode != http.StatusMethodNotAllowed {
+			t.Fatalf("the second origin has no API: %s gives %d", path, r.StatusCode)
+		}
+	}
+	r, err = http.Get(e.Side + "/ext-apps.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.Body.Close()
+	if r.StatusCode != 200 || !strings.Contains(r.Header.Get("Content-Type"), "javascript") {
+		t.Fatalf("the second origin serves the MCP Apps library to blocks: %d", r.StatusCode)
+	}
+}
+
+// TestNewBlocksAreRefusedWithTheirReason: a board, form, custom block or filter that cannot work is refused on save.
+func TestNewBlocksAreRefusedWithTheirReason(t *testing.T) {
+	e := newEnv(t, nil)
+	e.createProject("web", boardWebManifest)
+	for _, tc := range []struct{ from, to, want string }{
+		{`{"type": "board", "title": "Work"}`, `{"type": "board", "source": {"collection": "notes"}}`, "additional properties 'source' not allowed"},
+		{`"board": {"lanes": [
+    {"name": "backlog", "title": "Backlog", "role": "inbox"},
+    {"name": "doing", "title": "Doing"},
+    {"name": "done", "title": "Done", "role": "done"}]},`, ``, "the project has no board"},
+		{`"command": "score", "save": "notes"}`, `"save": "notes"}`, "missing property 'command'"},
+		{`"command": "score", "save": "notes"}`, `"command": "launch"}`, `unknown command "launch"`},
+		{`"command": "score", "save": "notes"}`, `"command": "deck.record_update"}`, "edits the record of its page"},
+		{`"command": "score", "save": "notes"}`, `"command": "score", "save": "papers"}`, `save: unknown collection "papers"`},
+		{`"items": {"type": "object", "properties": {"title": {"type": "string"}, "score": {"type": "integer"}}}}`, `"items": {"type": "string"}}`, "cannot be kept as records"},
+		{`"command": "score", "save": "notes"}`, `"command": "score", "actions": [{"label": "x", "command": "touch"}]}`, "additional properties 'actions' not allowed"},
+		{`"command": "score", "save": "notes"}`, `"source": {"collection": "notes"}}`, "missing property 'from'"},
+		{`"document": "custom/chart.html", `, ``, "missing property 'document'"},
+		{`"filter": ["source"]`, `"filter": ["origin"]`, `filter: unknown field "origin"`},
+		{`{"label": "Mark", "command": "mark"}`, `{"label": "Go", "screen": "main"}`, "/actions/0': missing property 'command'"},
+		{`{"type": "board", "title": "Work"}`, `{"type": "stat", "source": {"collection": "notes"}, "filter": ["title"]}`, "additional properties 'filter' not allowed"},
+		{`{"type": "board", "title": "Work"}`, `{"type": "list", "source": {"from": "deck.projects_list"}, "item": {"title": "names"}}`, `unknown field "names"`},
+		{`{"type": "board", "title": "Work"}`, `{"type": "list", "source": {"from": "nowhere"}, "item": {"title": "name"}}`, "nowhere is not a deck command that only reads"},
+		{`{"type": "board", "title": "Work"}`, `{"type": "stat", "source": {"collection": "notes"}, "item": {"title": "title"}}`, "additional properties 'item' not allowed"},
+	} {
+		if !strings.Contains(boardWebManifest, tc.from) {
+			t.Fatalf("fixture lacks %s", tc.from)
+		}
+		bad := strings.Replace(boardWebManifest, tc.from, tc.to, 1)
+		code, out := e.call("deck.manifest_save", map[string]any{"project": "web", "manifest": bad})
+		if code != 422 || !strings.Contains(string(out), tc.want) {
+			t.Fatalf("%s is refused with %q: %d %s", tc.to, tc.want, code, out)
+		}
+	}
+}
+
+// TestCustomButtonsOnARecordPageTakeTheFieldsOfTheRecord: $record in a custom block's button is the record of the
+// page, whatever the block reads.
+func TestCustomButtonsOnARecordPageTakeTheFieldsOfTheRecord(t *testing.T) {
+	e := newEnv(t, nil)
+	e.createProject("web", boardWebManifest)
+	page := `{"type": "form", "title": "Edit", "command": "deck.record_update"}`
+	custom := func(field string) string {
+		return strings.Replace(boardWebManifest, page, page+`, {"type": "custom", "document": "custom/c.html", "source": {"from": "deck.asks_list"},
+			"actions": [{"label": "Touch", "command": "touch", "params": {"note": "$record.`+field+`"}}]}`, 1)
+	}
+	e.must("deck.manifest_save", map[string]any{"project": "web", "manifest": custom("score")}, nil)
+	e.refused("deck.manifest_save", map[string]any{"project": "web", "manifest": custom("what")}, 422, `unknown field "what"`)
 }

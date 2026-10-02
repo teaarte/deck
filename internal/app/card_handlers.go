@@ -14,7 +14,7 @@ func (a *App) cardsList(ctx context.Context, act registry.Actor, in struct {
 	Project string
 	Deleted bool
 }) (any, error) {
-	p, err := a.scope(ctx, act, in.Project)
+	p, err := a.project(ctx, act, in.Project)
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +85,7 @@ func (a *App) cardCreate(ctx context.Context, act registry.Actor, in struct {
 	if strings.TrimSpace(in.Title) == "" {
 		return nil, registry.Invalid("deck: a card needs a title")
 	}
-	p, err := a.scope(ctx, act, in.Project)
+	p, err := a.project(ctx, act, in.Project)
 	if err != nil {
 		return nil, err
 	}

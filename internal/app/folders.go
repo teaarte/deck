@@ -54,7 +54,7 @@ func defaultFolderName(path string) string {
 }
 
 func (a *App) folderAdd(ctx context.Context, act registry.Actor, in struct{ Project, Path, Name string }) (any, error) {
-	p, err := a.scope(ctx, act, in.Project)
+	p, err := a.project(ctx, act, in.Project)
 	if err != nil {
 		return nil, err
 	}
@@ -94,7 +94,7 @@ func (a *App) folderAdd(ctx context.Context, act registry.Actor, in struct{ Proj
 }
 
 func (a *App) folderRemove(ctx context.Context, act registry.Actor, in struct{ Project, Name string }) (any, error) {
-	p, err := a.scope(ctx, act, in.Project)
+	p, err := a.project(ctx, act, in.Project)
 	if err != nil {
 		return nil, err
 	}

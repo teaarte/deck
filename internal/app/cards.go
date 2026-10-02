@@ -70,13 +70,7 @@ func edgesOf(ctx context.Context, q *db.Queries, projectID int64, withDeleted bo
 // cardFor loads a card the actor may touch, with its project and board manifest.
 func cardFor(ctx context.Context, q *db.Queries, act registry.Actor, id int64, w *boardWrite) (db.Card, error) {
 	c, err := q.GetCard(ctx, id)
-	if errors.Is(err, sql.ErrNoRows) {
-		return c, registry.NotFound("deck: no card %d", id)
-	}
-	if err != nil {
-		return c, err
-	}
-	p, err := projectOf(ctx, q, act, c.ProjectID, registry.NotFound("deck: no card %d", id))
+	c, p, err := owned(ctx, q, act, c, err, c.ProjectID, registry.NotFound("deck: no card %d", id))
 	if err != nil {
 		return c, err
 	}

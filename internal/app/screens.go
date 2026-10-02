@@ -115,7 +115,7 @@ func (a *App) screenGet(ctx context.Context, act registry.Actor, in struct {
 		req.Screen = deckScreen(in.Screen)
 		req.Project.WorkspaceID = act.Workspace
 	} else {
-		p, err := a.scope(ctx, act, in.Project)
+		p, err := a.project(ctx, act, in.Project)
 		if err != nil {
 			return nil, err
 		}

@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -21,14 +20,7 @@ import (
 // ownTrigger loads a trigger of the actor's workspace; agents reach only their own project.
 func (a *App) ownTrigger(ctx context.Context, act registry.Actor, id int64) (db.TriggerState, db.Project, error) {
 	t, err := a.Store.Q.GetTrigger(ctx, id)
-	if errors.Is(err, sql.ErrNoRows) {
-		return t, db.Project{}, registry.NotFound("deck: no trigger %d", id)
-	}
-	if err != nil {
-		return t, db.Project{}, err
-	}
-	p, err := projectOf(ctx, a.Store.Q, act, t.ProjectID, registry.NotFound("deck: no trigger %d", id))
-	return t, p, err
+	return owned(ctx, a.Store.Q, act, t, err, t.ProjectID, registry.NotFound("deck: no trigger %d", id))
 }
 
 func (a *App) runLater(ctx context.Context, act registry.Actor, in struct {
@@ -94,13 +86,9 @@ func (a *App) runLaterCancel(ctx context.Context, act registry.Actor, in struct{
 }
 
 func (a *App) triggersList(ctx context.Context, act registry.Actor, in struct{ Project string }) (any, error) {
-	var pid int64
-	if in.Project != "" || act.Kind == registry.Agent {
-		p, err := a.scope(ctx, act, in.Project)
-		if err != nil {
-			return nil, err
-		}
-		pid = p.ID
+	pid, err := a.filter(ctx, act, in.Project)
+	if err != nil {
+		return nil, err
 	}
 	ts, err := a.Store.Q.ListWorkspaceTriggers(ctx, db.ListWorkspaceTriggersParams{WorkspaceID: act.Workspace, ProjectID: pid})
 	if err != nil {
@@ -193,7 +181,7 @@ func (a *App) projectPause(ctx context.Context, act registry.Actor, in struct {
 	Project string
 	Paused  bool
 }) (any, error) {
-	p, err := a.scope(ctx, act, in.Project)
+	p, err := a.project(ctx, act, in.Project)
 	if err != nil {
 		return nil, err
 	}

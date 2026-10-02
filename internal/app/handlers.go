@@ -2,8 +2,6 @@ package app
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"fmt"
 	"strings"
 
@@ -13,50 +11,6 @@ import (
 	"deck2/internal/store"
 	"deck2/internal/store/db"
 )
-
-// scope resolves the project a call is about; agents and triggers stay inside their own project.
-func (a *App) scope(ctx context.Context, act registry.Actor, name string) (db.Project, error) {
-	if name == "" {
-		if act.ProjectID == 0 {
-			return db.Project{}, registry.Invalid("deck: project is required")
-		}
-		return a.Store.Q.GetProject(ctx, act.ProjectID)
-	}
-	p, err := a.Store.Q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: act.Workspace, Name: name})
-	if errors.Is(err, sql.ErrNoRows) {
-		return db.Project{}, registry.NotFound("deck: no project %q", name)
-	}
-	if err != nil {
-		return p, err
-	}
-	return p, inside(act, p.ID)
-}
-
-// projectOf is the project a row of projectID belongs to, when it is of the actor's workspace and the actor
-// may touch it; a project of another workspace is missing as the row is.
-func projectOf(ctx context.Context, q *db.Queries, act registry.Actor, projectID int64, missing error) (db.Project, error) {
-	p, err := q.GetProject(ctx, projectID)
-	if err != nil || p.WorkspaceID != act.Workspace {
-		return p, missing
-	}
-	return p, inside(act, projectID)
-}
-
-func inside(act registry.Actor, projectID int64) error {
-	if (act.Kind == registry.Agent || act.Kind == registry.Trigger) && projectID != act.ProjectID {
-		return registry.Refuse("deck: this process cannot touch another project")
-	}
-	return nil
-}
-
-// docScope is where a document call works: a project, or the workspace for the owner side.
-func (a *App) docScope(ctx context.Context, act registry.Actor, project string) (docs.Scope, error) {
-	if project == "" && (act.Kind == registry.Owner || act.Kind == registry.Master) {
-		return docs.Scope{Workspace: act.Workspace}, nil
-	}
-	p, err := a.scope(ctx, act, project)
-	return docs.ProjectScope(p), err
-}
 
 type projectView struct {
 	ID            int64        `json:"id"`
@@ -130,7 +84,7 @@ func (a *App) projectCreate(ctx context.Context, act registry.Actor, in struct{ 
 }
 
 func (a *App) manifestGet(ctx context.Context, act registry.Actor, in struct{ Project string }) (any, error) {
-	p, err := a.scope(ctx, act, in.Project)
+	p, err := a.project(ctx, act, in.Project)
 	if err != nil {
 		return nil, err
 	}
@@ -150,7 +104,7 @@ func (a *App) manifestSave(ctx context.Context, act registry.Actor, in struct {
 	Project, Manifest, Reason string
 	IfRevision                int64 `json:"if_revision"`
 }) (any, error) {
-	p, err := a.scope(ctx, act, in.Project)
+	p, err := a.project(ctx, act, in.Project)
 	if err != nil {
 		return nil, err
 	}

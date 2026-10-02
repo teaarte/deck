@@ -18,7 +18,7 @@ func (a *App) notify(ctx context.Context, act registry.Actor, in struct {
 	Record                int64
 	Actions               string
 }) (any, error) {
-	p, err := a.scope(ctx, act, in.Project)
+	p, err := a.project(ctx, act, in.Project)
 	if err != nil {
 		return nil, err
 	}

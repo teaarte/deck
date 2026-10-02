@@ -46,7 +46,7 @@ func (a *App) oauthStart(ctx context.Context, act registry.Actor, in struct{ Too
 	if !ok {
 		return nil, registry.Invalid("deck: name the tool as project.tool")
 	}
-	p, err := a.scope(ctx, act, project)
+	p, err := a.project(ctx, act, project)
 	if err != nil {
 		return nil, err
 	}

@@ -106,7 +106,7 @@ func (a *App) suggest(ctx context.Context, act registry.Actor, in struct {
 		}
 	}
 	// Only the project's own agents, the master and the owner may have it done at once; a trial never does.
-	own := act.Kind != registry.Agent && act.Kind != registry.Trigger || act.ProjectID == target.ID
+	own := act.Within(target.ID)
 	if m.Autonomy == "auto" && target.Status == store.ProjectEnabled && own && !act.Trial {
 		return a.doSuggestion(ctx, act, target, s)
 	}
@@ -129,7 +129,7 @@ func (a *App) suggest(ctx context.Context, act registry.Actor, in struct {
 // suggestTarget is the project a card suggestion goes to: the one named, else the caller's own.
 func (a *App) suggestTarget(ctx context.Context, act registry.Actor, name string) (db.Project, error) {
 	if name == "" {
-		return a.scope(ctx, act, "")
+		return a.project(ctx, act, "")
 	}
 	p, err := a.Store.Q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: act.Workspace, Name: name})
 	if err != nil {
@@ -267,7 +267,7 @@ func (a *App) suggestionsRejected(ctx context.Context, act registry.Actor, in st
 		if json.Unmarshal([]byte(q.Payload), &s) != nil {
 			continue
 		}
-		if act.Kind == registry.Agent && q.ProjectID != act.ProjectID && !a.byProject(ctx, s.By, act.ProjectID) {
+		if !act.Within(q.ProjectID) && !a.byProject(ctx, s.By, act.ProjectID) {
 			continue
 		}
 		why := strings.TrimPrefix(strings.TrimPrefix(q.Answer, "deny"), ":")

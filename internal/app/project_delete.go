@@ -19,7 +19,7 @@ import (
 // projectDelete removes a project from deck after a snapshot of it: records, documents, files, triggers, cards,
 // processes and their journals, asks, settings and deck's folders of it; no folder of the owner is touched.
 func (a *App) projectDelete(ctx context.Context, act registry.Actor, in struct{ Project string }) (any, error) {
-	p, err := a.scope(ctx, act, in.Project)
+	p, err := a.project(ctx, act, in.Project)
 	if err != nil {
 		return nil, err
 	}

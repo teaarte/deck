@@ -53,6 +53,15 @@ type Actor struct {
 	Cleared bool
 }
 
+// Confined is an actor that stays inside its own project: an agent or a trigger.
+func (a Actor) Confined() bool { return a.Kind == Agent || a.Kind == Trigger }
+
+// OwnerSide is the owner or the master, who work across the projects of the workspace.
+func (a Actor) OwnerSide() bool { return a.Kind == Owner || a.Kind == Master }
+
+// Within reports whether the actor may touch a project.
+func (a Actor) Within(projectID int64) bool { return !a.Confined() || projectID == a.ProjectID }
+
 // Author is the actor as recorded in document revisions.
 func (a Actor) Author() string {
 	if a.Token != 0 {

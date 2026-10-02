@@ -18,13 +18,9 @@ func (a *App) callsList(ctx context.Context, act registry.Actor, in struct {
 	Project, Outcome string
 	Limit            int64
 }) (any, error) {
-	var project int64
-	if in.Project != "" {
-		p, err := a.scope(ctx, act, in.Project)
-		if err != nil {
-			return nil, err
-		}
-		project = p.ID
+	project, err := a.filter(ctx, act, in.Project)
+	if err != nil {
+		return nil, err
 	}
 	rows, err := a.calls(ctx, act.Workspace, project, in.Outcome, in.Limit)
 	for _, r := range rows {

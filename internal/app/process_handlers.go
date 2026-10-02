@@ -71,13 +71,9 @@ func (a *App) processesList(ctx context.Context, act registry.Actor, in struct {
 	Project, State string
 	Limit          int64
 }) (any, error) {
-	var pid int64
-	if in.Project != "" || act.Kind == registry.Agent {
-		p, err := a.scope(ctx, act, in.Project)
-		if err != nil {
-			return nil, err
-		}
-		pid = p.ID
+	pid, err := a.filter(ctx, act, in.Project)
+	if err != nil {
+		return nil, err
 	}
 	if in.Limit <= 0 || in.Limit > 500 {
 		in.Limit = 50
@@ -122,13 +118,7 @@ func (a *App) processGet(ctx context.Context, act registry.Actor, in struct{ Pro
 // ownProcess loads a process of the actor's workspace; agents reach only their own project.
 func (a *App) ownProcess(ctx context.Context, act registry.Actor, id int64) (db.Process, error) {
 	p, err := a.Store.Q.GetProcess(ctx, id)
-	if errors.Is(err, sql.ErrNoRows) {
-		return p, registry.NotFound("deck: no process %d", id)
-	}
-	if err != nil {
-		return p, err
-	}
-	_, err = projectOf(ctx, a.Store.Q, act, p.ProjectID, registry.NotFound("deck: no process %d", id))
+	p, _, err = owned(ctx, a.Store.Q, act, p, err, p.ProjectID, registry.NotFound("deck: no process %d", id))
 	return p, err
 }
 

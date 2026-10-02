@@ -17,7 +17,7 @@ func (a *App) recordsList(ctx context.Context, act registry.Actor, in struct {
 	Project, Collection string
 	Limit               int
 }) (any, error) {
-	p, err := a.readScope(ctx, act, in.Project, in.Collection, "")
+	p, err := a.readProject(ctx, act, in.Project, in.Collection, "")
 	if err != nil {
 		return nil, err
 	}
@@ -60,7 +60,7 @@ func (a *App) writeRecords(ctx context.Context, p db.Project, f func(ctx context
 }
 
 func (a *App) recordsUpsert(ctx context.Context, act registry.Actor, in struct{ Project, Collection, Records string }) (any, error) {
-	p, err := a.scope(ctx, act, in.Project)
+	p, err := a.project(ctx, act, in.Project)
 	if err != nil {
 		return nil, err
 	}
@@ -80,11 +80,9 @@ func (a *App) recordUpdate(ctx context.Context, act registry.Actor, in struct {
 	if err != nil {
 		return nil, registry.Invalid("deck: data is not a JSON object: %v", err)
 	}
-	rec, p, err := a.recordOf(ctx, act, in.Record)
+	rec, err := a.Store.Q.GetRecord(ctx, in.Record)
+	rec, p, err := owned(ctx, a.Store.Q, act, rec, err, rec.ProjectID, registry.NotFound("deck: no record %d", in.Record))
 	if err != nil {
-		return nil, err
-	}
-	if err := inside(act, p.ID); err != nil {
 		return nil, err
 	}
 	err = a.writeRecords(ctx, p, func(ctx context.Context, q *db.Queries, m *manifest.Manifest) error {
@@ -104,7 +102,7 @@ func (a *App) recordUpdate(ctx context.Context, act registry.Actor, in struct {
 }
 
 func (a *App) collectionDelete(ctx context.Context, act registry.Actor, in struct{ Project, Collection string }) (any, error) {
-	p, err := a.scope(ctx, act, in.Project)
+	p, err := a.project(ctx, act, in.Project)
 	if err != nil {
 		return nil, err
 	}
@@ -122,7 +120,7 @@ func (a *App) collectionDelete(ctx context.Context, act registry.Actor, in struc
 	return map[string]any{"deleted": n}, nil
 }
 
-// recordOf finds a record of the actor's workspace.
+// recordOf finds a record of the actor's workspace; the caller checks whether the actor may read or change it.
 func (a *App) recordOf(ctx context.Context, act registry.Actor, id int64) (db.Record, db.Project, error) {
 	rec, err := a.Store.Q.GetRecord(ctx, id)
 	if errors.Is(err, sql.ErrNoRows) {

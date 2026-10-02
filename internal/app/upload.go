@@ -23,7 +23,7 @@ func (a *App) Upload(ctx context.Context, act registry.Actor, project, name, cty
 	if act.Token != 0 && !registry.Permits(act.Commands, project+".*") && !registry.Permits(act.Commands, "deck.command_try") {
 		return fileView{}, registry.Refuse("deck: this automation token may not call every command of %s, so it does not upload for it", project)
 	}
-	p, err := a.scope(ctx, act, project)
+	p, err := a.project(ctx, act, project)
 	if err != nil {
 		return fileView{}, err
 	}

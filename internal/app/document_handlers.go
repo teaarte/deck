@@ -74,7 +74,7 @@ func (a *App) readDocScope(ctx context.Context, act registry.Actor, project, nam
 	if project == "" {
 		return a.docScope(ctx, act, project)
 	}
-	p, err := a.readScope(ctx, act, project, "", name)
+	p, err := a.readProject(ctx, act, project, "", name)
 	return docs.ProjectScope(p), err
 }
 
@@ -88,7 +88,7 @@ func (a *App) readableDocument(ctx context.Context, q *db.Queries, act registry.
 	if d.WorkspaceID != act.Workspace {
 		return d, registry.NotFound("deck: no document %d", id)
 	}
-	if d.ProjectID == 0 || inside(act, d.ProjectID) == nil {
+	if d.ProjectID == 0 || act.Within(d.ProjectID) {
 		return d, nil
 	}
 	p, err := q.GetProject(ctx, d.ProjectID)

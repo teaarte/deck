@@ -109,13 +109,9 @@ func (a *App) unattendedList(ctx context.Context, act registry.Actor, in struct 
 	Project string
 	Limit   int64
 }) (any, error) {
-	var projectID int64
-	if in.Project != "" {
-		p, err := a.scope(ctx, act, in.Project)
-		if err != nil {
-			return nil, err
-		}
-		projectID = p.ID
+	projectID, err := a.filter(ctx, act, in.Project)
+	if err != nil {
+		return nil, err
 	}
 	if in.Limit <= 0 {
 		in.Limit = 50
@@ -171,7 +167,7 @@ func (a *App) projectEnable(ctx context.Context, act registry.Actor, in struct {
 	Project  string
 	Revision int64
 }) (any, error) {
-	p, err := a.scope(ctx, act, in.Project)
+	p, err := a.project(ctx, act, in.Project)
 	if err != nil {
 		return nil, err
 	}
@@ -210,7 +206,7 @@ func (a *App) projectEnable(ctx context.Context, act registry.Actor, in struct {
 
 // projectAutonomy writes the autonomy of a project into a new revision of its manifest, the rest as it was.
 func (a *App) projectAutonomy(ctx context.Context, act registry.Actor, in struct{ Project, Autonomy string }) (any, error) {
-	p, err := a.scope(ctx, act, in.Project)
+	p, err := a.project(ctx, act, in.Project)
 	if err != nil {
 		return nil, err
 	}

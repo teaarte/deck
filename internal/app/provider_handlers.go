@@ -183,13 +183,9 @@ func (a *App) llmCallsList(ctx context.Context, act registry.Actor, in struct {
 	Process int64
 	Limit   int64
 }) (any, error) {
-	var pid int64
-	if in.Project != "" || act.Kind == registry.Agent {
-		p, err := a.scope(ctx, act, in.Project)
-		if err != nil {
-			return nil, err
-		}
-		pid = p.ID
+	pid, err := a.filter(ctx, act, in.Project)
+	if err != nil {
+		return nil, err
 	}
 	if in.Limit <= 0 || in.Limit > 500 {
 		in.Limit = 50

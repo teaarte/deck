@@ -129,6 +129,17 @@ func TestRealBrowserGlass(t *testing.T) {
 		t.Fatalf("the glass screen fits the width of a phone: %s", got)
 	}
 	b.shot("glass-phone")
+	b.call("browser_run_code_unsafe", map[string]any{"code": `async (page) => { const s = await page.context().newCDPSession(page);
+		await s.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 }); }`})
+	b.until("a touch screen", `matchMedia('(pointer: coarse)').matches`)
+	if got := b.eval(`[...document.querySelectorAll('input:not([type=hidden]), textarea')].filter((i) => i.offsetParent && parseFloat(getComputedStyle(i).fontSize) < 16).map((i) => i.outerHTML.slice(0, 80)).join(' ')`); got != "" {
+		t.Fatalf("fields on a touch screen take 16px, so Safari does not zoom into them: %s", got)
+	}
+	b.eval(`(localStorage.setItem('deck-look', JSON.stringify({ ...JSON.parse(localStorage.getItem('deck-look')), font: 'large' })), location.reload(), '')`)
+	b.until("large fields on a touch screen", `document.querySelector('input[data-field="title"]') && matchMedia('(pointer: coarse)').matches`)
+	if got := b.eval(`getComputedStyle(document.querySelector('input[data-field="title"]')).fontSize`); got == "16px" {
+		t.Fatalf("a field larger than 16px keeps its size on a touch screen: %s", got)
+	}
 	b.eval(`(document.querySelector('header button[aria-label]').click(), '')`)
 	b.until("the menu on a phone", `document.querySelector('nav').getBoundingClientRect().left >= 0`)
 	b.shot("glass-phone-menu")

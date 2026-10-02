@@ -1,0 +1,8 @@
+/* Safari zooms into a focused field whose text is under 16px; on touch screens fields take at least 16px. */
+@media (pointer: coarse) {
+  input,
+  textarea,
+  select {
+    font-size: max(16px, var(--_input-fz, var(--input-fz, 1em))) !important;
+  }
+}

@@ -20,6 +20,7 @@ import (
 	"tailscale.com/types/logger"
 
 	"deck2/internal/api"
+	"deck2/internal/gateway"
 	"deck2/internal/tsnet"
 	"deck2/web"
 )
@@ -127,5 +128,32 @@ func TestPhoneReachesDeckOverTheTailnet(t *testing.T) {
 	r.Body.Close()
 	if !strings.Contains(r.Header.Get("Content-Security-Policy"), "frame-ancestors http://"+addr) {
 		t.Fatalf("the proxy page there answers to the client on the tailnet: %s", r.Header.Get("Content-Security-Policy"))
+	}
+	r, err = client.Get("http://" + addr + "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.Body.Close()
+	if !strings.Contains(r.Header.Get("Content-Security-Policy"), "frame-ancestors 'self'") {
+		t.Fatalf("no other page frames the client: %s", r.Header.Get("Content-Security-Policy"))
+	}
+	tok, err := e.App.Gateway.Register(ctx, &gateway.Session{Workspace: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	initialize := func(c *http.Client, base string) int {
+		req, _ := http.NewRequestWithContext(ctx, "POST", base+"/mcp/"+tok, strings.NewReader(`{"jsonrpc": "2.0", "id": 1, "method": "initialize",
+		  "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "x", "version": "0"}}}`))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Accept", "application/json, text/event-stream")
+		r, err := c.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		r.Body.Close()
+		return r.StatusCode
+	}
+	if local, remote := initialize(http.DefaultClient, e.URL), initialize(client, "http://"+addr); local != 200 || remote != 404 {
+		t.Fatalf("the MCP entry of a process answers on this machine only: %d here, %d from the tailnet", local, remote)
 	}
 }

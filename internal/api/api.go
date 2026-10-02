@@ -9,7 +9,9 @@ import (
 	"io"
 	"io/fs"
 	"mime"
+	"net"
 	"net/http"
+	"net/netip"
 	"strconv"
 	"strings"
 	"time"
@@ -32,7 +34,7 @@ func New(a *app.App, token string, web fs.FS) *Server { return &Server{app: a, t
 
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
-	mux.Handle("/mcp/", s.app.Gateway)
+	mux.Handle("/mcp/", loopbackOnly(s.app.Gateway))
 	mux.HandleFunc("/mcp", s.app.Gateway.ServeAutomation)
 	mux.Handle("/", s.framesOnly(http.FileServerFS(s.web)))
 	mux.HandleFunc("GET /custom", s.custom)
@@ -45,6 +47,23 @@ func (s *Server) Handler() http.Handler {
 	api.HandleFunc("GET /api/files/{id}", s.download)
 	mux.Handle("/api/", s.auth(api))
 	return mux
+}
+
+// loopbackOnly serves the processes of this machine, which come from loopback or from deck's own address;
+// the tailnet and the network do not reach their tokens.
+func loopbackOnly(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		host, _, _ := net.SplitHostPort(r.RemoteAddr)
+		self := ""
+		if la, ok := r.Context().Value(http.LocalAddrContextKey).(net.Addr); ok {
+			self, _, _ = net.SplitHostPort(la.String())
+		}
+		if ip, err := netip.ParseAddr(host); err != nil || !ip.Unmap().IsLoopback() && host != self {
+			http.NotFound(w, r)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 type actorKey struct{}

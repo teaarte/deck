@@ -68,7 +68,7 @@ func (s *Server) framesOnly(next http.Handler) http.Handler {
 		if name, port := hostPort(r); s.pairs[port] != 0 {
 			src += " " + origin(r, name, s.pairs[port])
 		}
-		w.Header().Set("Content-Security-Policy", "frame-src "+src+"; img-src 'self' data: blob:")
+		w.Header().Set("Content-Security-Policy", "frame-src "+src+"; img-src 'self' data: blob:; frame-ancestors 'self'")
 		next.ServeHTTP(w, r)
 	})
 }

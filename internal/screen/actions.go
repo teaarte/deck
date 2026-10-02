@@ -2,6 +2,7 @@ package screen
 
 import (
 	"encoding/json"
+	"maps"
 	"math"
 	"strconv"
 	"strings"
@@ -43,6 +44,12 @@ func (r *renderer) actions(as []manifest.Action, id int64, env map[string]any) [
 		if a.Confirm {
 			act["confirm"] = true
 		}
+		if a.Chat {
+			act["chat"] = true
+		}
+		if v := itemValue(a.Options, id, env); v != nil {
+			act["options"] = v
+		}
 		if v := itemValue(a.Until, id, env); v != nil && v != "" {
 			act["until"] = v
 		}
@@ -63,7 +70,7 @@ func (r *renderer) actions(as []manifest.Action, id int64, env map[string]any) [
 			}
 		default:
 			name := a.Command
-			if !r.deck() {
+			if !r.deck() && !strings.HasPrefix(name, "deck.") {
 				name = r.req.Project.Name + "." + a.Command
 			}
 			act["command"], act["params"] = name, actionParams(a.Params, r.inputTypes(name), id, env)
@@ -73,13 +80,31 @@ func (r *renderer) actions(as []manifest.Action, id int64, env map[string]any) [
 	return out
 }
 
+// cardActions give each card of a board the buttons of a card; their expressions also read projects, the other
+// projects a card can move to.
+func (r *renderer) cardActions(board any) {
+	b, _ := board.(map[string]any)
+	others := b["projects"]
+	delete(b, "projects")
+	lanes, _ := b["lanes"].([]map[string]any)
+	for _, l := range lanes {
+		cards, _ := l["cards"].([]map[string]any)
+		for _, c := range cards {
+			env := maps.Clone(c)
+			env["projects"] = others
+			id, _ := c["id"].(int64)
+			c["actions"] = r.actions(r.req.Card, id, env)
+		}
+	}
+}
+
 // inputTypes are the JSON types of the input fields of a command a button calls.
 func (r *renderer) inputTypes(name string) map[string]string {
 	if t, ok := r.types[name]; ok {
 		return t
 	}
 	out := map[string]string{}
-	if r.deck() {
+	if r.deck() || strings.HasPrefix(name, "deck.") {
 		c, _ := r.src.Command(r.ctx, r.scope.Workspace, name)
 		in, _ := c["input"].(map[string]any)
 		props, _ := in["properties"].(map[string]any)

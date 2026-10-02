@@ -84,6 +84,24 @@ type chatSendIn struct {
 	RetryKey string `json:"retry_key" opt:"" desc:"A key of this message: sending it again with the same key returns the first one"`
 }
 
+type chatInterviewIn struct {
+	Card   int64  `type:"card" desc:"The card the master interviews the owner about"`
+	Screen string `type:"text" opt:"" desc:"The screen the owner is on, as JSON: project, screen, record, card, process"`
+}
+
+// chatInterview opens a topic about a card in which the master interviews the owner and writes the spec into it.
+func (a *App) chatInterview(ctx context.Context, act registry.Actor, in chatInterviewIn) (any, error) {
+	c, err := a.Store.Q.GetCard(ctx, in.Card)
+	if _, _, err = owned(ctx, a.Store.Q, act, c, err, c.ProjectID, registry.NotFound("deck: no card %d", in.Card)); err != nil {
+		return nil, err
+	}
+	text := prose("interview", struct {
+		Card  int64
+		Title string
+	}{c.ID, untrusted.Line(c.Title, 200)})
+	return a.chatSend(ctx, act, chatSendIn{Text: text, Card: c.ID, Screen: in.Screen})
+}
+
 func (a *App) chatSend(ctx context.Context, act registry.Actor, in chatSendIn) (any, error) {
 	text := strings.TrimSpace(in.Text)
 	switch {
@@ -280,6 +298,9 @@ func (a *App) chatCommands() []*registry.Command {
 		registry.Def("chat_send", "Tell the master",
 			"Sends the owner's message to the master in a chat topic, a new one when none is given; the master's reply comes into the same topic.",
 			registry.OwnerOnly, a.chatSend),
+		registry.Def("chat_interview", "Interview about a card",
+			"Opens a chat topic about a card in which the master interviews the owner and writes the spec into the card.",
+			registry.OwnerOnly, a.chatInterview),
 		registry.Def("chat_topics", "Chat topics",
 			"Lists the owner's chat topics with the master, newest first, with their last message and the reply still going.",
 			registry.OwnerOnly, a.chatTopics),

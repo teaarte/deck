@@ -57,6 +57,14 @@ export interface Action {
    */
   confirm?: boolean;
   /**
+   * Values the owner picks the input from.
+   */
+  options?: string[];
+  /**
+   * The result names a chat topic, which the client opens.
+   */
+  chat?: boolean;
+  /**
    * Stored file the button downloads instead of a call.
    */
   file?: number;
@@ -166,6 +174,7 @@ export interface BoardValue {
       text?: string;
       waits?: number[];
       record?: number;
+      actions?: Action[];
     }[];
   }[];
   deleted: {

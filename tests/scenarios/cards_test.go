@@ -12,8 +12,10 @@ import (
 	"testing"
 	"time"
 
+	"deck2/internal/process"
 	"deck2/internal/provider"
 	"deck2/internal/store/db"
+	"deck2/schemas"
 )
 
 const boardManifest = `{
@@ -388,5 +390,78 @@ func TestTwoMovesAtOnceLeaveTheCardLinkedToTheRunOfItsLane(t *testing.T) {
 		if p.Command != "on"+got.Lane {
 			t.Fatalf("card %d is in %s but linked to a run of %s", c.ID, got.Lane, p.Command)
 		}
+	}
+}
+
+// TestACardMovesToAnotherProjectWithItsDocuments: the board offers the buttons of a card, among them a move to a
+// project with an inbox; the card lands there with its documents and without the record of the old project.
+func TestACardMovesToAnotherProjectWithItsDocuments(t *testing.T) {
+	e := newEnv(t, idle)
+	e.createProject("work", strings.NewReplacer(`"triggers": [{"command": "pack", "lane": "doing", "params": {"tone": "short"}}],`, "",
+		`"board": {"lanes": [`, `"screens": [{"name": "main", "title": "Work", "blocks": [{"type": "board", "title": "Board"}]}], "board": {"lanes": [`).Replace(boardManifest))
+	e.createProject("notes", boardWork)
+	var rec struct{ IDs []int64 }
+	e.must("deck.records_upsert", map[string]any{"project": "work", "collection": "items", "records": `{"url": "https://a.example"}`}, &rec)
+	c := e.card(map[string]any{"project": "work", "title": "Ship it", "record": rec.IDs[0]})
+	e.must("deck.document_save", map[string]any{"project": "work", "card": c.ID, "name": "spec.md", "kind": "doc", "text": "the spec"}, nil)
+
+	var board struct {
+		Lanes []struct {
+			Cards []struct {
+				ID      int64            `json:"id"`
+				Actions []map[string]any `json:"actions"`
+			} `json:"cards"`
+		} `json:"lanes"`
+	}
+	data := e.screenData("work", "main", nil)
+	for _, v := range data {
+		if raw, ok := v["value"]; ok && strings.Contains(string(raw), `"lanes"`) {
+			_ = json.Unmarshal(raw, &board)
+		}
+	}
+	var move map[string]any
+	for _, l := range board.Lanes {
+		for _, bc := range l.Cards {
+			if bc.ID == c.ID {
+				move = verb(t, bc.Actions, "move_project")
+			}
+		}
+	}
+	if opts, _ := move["options"].([]any); len(opts) != 1 || opts[0] != "notes" || move["input"] != "project" {
+		t.Fatalf("a card offers the projects with an inbox to move to: %+v", move)
+	}
+	params, _ := move["params"].(map[string]any)
+	params["project"] = "notes"
+	e.must(move["command"].(string), params, nil)
+	var moved cardV
+	e.must("deck.card_get", map[string]any{"card": c.ID}, &moved)
+	if moved.Lane != "inbox" || moved.Record != 0 {
+		t.Fatalf("the card lands in the inbox of the other project without the old record: %+v", moved)
+	}
+	var docs []struct {
+		Name    string
+		OwnerID int64 `json:"owner_id"`
+	}
+	e.must("deck.documents_list", map[string]any{"project": "notes"}, &docs)
+	if !slices.ContainsFunc(docs, func(d struct {
+		Name    string
+		OwnerID int64 `json:"owner_id"`
+	}) bool {
+		return d.Name == "spec.md" && d.OwnerID == c.ID
+	}) {
+		t.Fatalf("the documents of the card go with it: %+v", docs)
+	}
+	if len(e.board("work", false).Lanes[0].Cards) != 0 {
+		t.Fatal("the card left its old board")
+	}
+}
+
+// TestTheCatalogKnowsTheStatesAProcessEndsIn: the client reads the final states from the catalog.
+func TestTheCatalogKnowsTheStatesAProcessEndsIn(t *testing.T) {
+	var c struct {
+		Final []string `json:"final_states"`
+	}
+	if err := json.Unmarshal(schemas.Catalog, &c); err != nil || !slices.Equal(c.Final, process.Final) {
+		t.Fatalf("the catalog lists the states a process ends in: %v %v", c.Final, err)
 	}
 }

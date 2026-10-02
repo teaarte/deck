@@ -8,6 +8,7 @@ import { record, type Recording } from './voice';
 import { Actions, QuestionPicker } from './actions';
 import { Markdown } from './document';
 import type { ChatValue } from './catalog.gen';
+import catalogSchema from '../../schemas/catalog.json';
 
 export interface ChatScreen {
   project?: string;
@@ -40,26 +41,12 @@ export function openTopic(topic: number) {
   window.dispatchEvent(new Event('deck-chat-open'));
 }
 
-// interviewKeys keep the retry key of an interview until deck confirms it, so a retry opens no second topic.
-const interviewKeys = new Map<number, string>();
-
-// interview opens a topic about a card in which the master interviews the owner.
-export async function interview(card: number, title: string) {
-  if (!interviewKeys.has(card)) interviewKeys.set(card, newKey());
-  const out = await call<{ topic: number }>('deck.chat_send', {
-    card, text: 'Interview me about card #' + card + ' (' + title + ') and write the spec into it.',
-    screen: screenOf(current), retry_key: interviewKeys.get(card),
-  });
-  interviewKeys.delete(card);
-  openTopic(out.topic);
-}
-
 // newKey is a retry key of a draft; it works on plain http, where randomUUID does not.
 function newKey(): string {
   return Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, '0')).join('');
 }
 
-const failed = ['error', 'stopped', 'interrupted'];
+const failed = catalogSchema.final_states.filter((s) => s !== 'done');
 
 // Chat is the chat with the master: topics, the feed of one, its questions, the turn going on and the input.
 export function Chat({ value, context }: { value: ChatValue; context: ComponentContext }) {

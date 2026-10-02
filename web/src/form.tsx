@@ -8,6 +8,7 @@ import { useTranslation } from 'react-i18next';
 import { call, events, upload } from './api';
 import { sharedFiles, sharedSent } from './share';
 import type { FormValue as Generated } from './catalog.gen';
+import catalogSchema from '../../schemas/catalog.json';
 
 export interface Schema {
   type?: string | string[];
@@ -25,7 +26,7 @@ type FormCommand = Omit<Generated['commands'][number], 'input' | 'result'> & { i
 export type FormValue = Omit<Generated, 'commands'> & { commands: FormCommand[] };
 
 const EDIT = 'deck.record_update';
-const FINAL = ['done', 'error', 'interrupted', 'stopped'];
+const FINAL: string[] = catalogSchema.final_states;
 
 const kind = (s: Schema) => (Array.isArray(s.type) ? s.type.find((x) => x !== 'null') : s.type) ?? '';
 const isFile = (s: Schema) => s.format === 'file' || s.items?.format === 'file';

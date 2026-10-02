@@ -124,6 +124,15 @@ func (q *Queries) DeleteCardEdges(ctx context.Context, cardID int64) error {
 	return err
 }
 
+const dropAllCardEdges = `-- name: DropAllCardEdges :exec
+DELETE FROM card_edge WHERE card_id = ?1 OR waits_for = ?1
+`
+
+func (q *Queries) DropAllCardEdges(ctx context.Context, card int64) error {
+	_, err := q.db.ExecContext(ctx, dropAllCardEdges, card)
+	return err
+}
+
 const getCard = `-- name: GetCard :one
 SELECT id, project_id, title, text, lane, rank, record_id, process_id, deleted_at, created_at, updated_at FROM card WHERE id = ?
 `
@@ -361,6 +370,48 @@ type SetCardRankParams struct {
 
 func (q *Queries) SetCardRank(ctx context.Context, arg SetCardRankParams) error {
 	_, err := q.db.ExecContext(ctx, setCardRank, arg.Rank, arg.ID)
+	return err
+}
+
+const transferCard = `-- name: TransferCard :exec
+UPDATE card SET project_id = ?, record_id = NULL, process_id = NULL, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?
+`
+
+type TransferCardParams struct {
+	ProjectID int64
+	ID        int64
+}
+
+func (q *Queries) TransferCard(ctx context.Context, arg TransferCardParams) error {
+	_, err := q.db.ExecContext(ctx, transferCard, arg.ProjectID, arg.ID)
+	return err
+}
+
+const transferCardDocuments = `-- name: TransferCardDocuments :exec
+UPDATE document SET project_id = ? WHERE card_id = ?
+`
+
+type TransferCardDocumentsParams struct {
+	ProjectID sql.NullInt64
+	CardID    sql.NullInt64
+}
+
+func (q *Queries) TransferCardDocuments(ctx context.Context, arg TransferCardDocumentsParams) error {
+	_, err := q.db.ExecContext(ctx, transferCardDocuments, arg.ProjectID, arg.CardID)
+	return err
+}
+
+const transferCardFiles = `-- name: TransferCardFiles :exec
+UPDATE file SET project_id = ? WHERE owner_kind = 'card' AND owner_id = ?
+`
+
+type TransferCardFilesParams struct {
+	ProjectID int64
+	OwnerID   int64
+}
+
+func (q *Queries) TransferCardFiles(ctx context.Context, arg TransferCardFilesParams) error {
+	_, err := q.db.ExecContext(ctx, transferCardFiles, arg.ProjectID, arg.OwnerID)
 	return err
 }
 

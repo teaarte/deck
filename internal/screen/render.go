@@ -55,6 +55,8 @@ type Request struct {
 	Filter map[string]map[string]string
 	// Owner is set when the owner asks; only the owner reads the chat.
 	Owner bool
+	// Card are the buttons of a card of a board.
+	Card []manifest.Action
 }
 
 // Topics are the event topics after which a client reads blocks again; any other topic means the whole screen.

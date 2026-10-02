@@ -67,3 +67,19 @@ DELETE FROM card_edge WHERE card_id = ?;
 
 -- name: AddCardEdge :exec
 INSERT INTO card_edge (card_id, waits_for) VALUES (?, ?);
+
+
+-- name: TransferCard :exec
+UPDATE card SET project_id = ?, record_id = NULL, process_id = NULL, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?;
+
+
+-- name: DropAllCardEdges :exec
+DELETE FROM card_edge WHERE card_id = sqlc.arg(card) OR waits_for = sqlc.arg(card);
+
+
+-- name: TransferCardDocuments :exec
+UPDATE document SET project_id = ? WHERE card_id = ?;
+
+
+-- name: TransferCardFiles :exec
+UPDATE file SET project_id = ? WHERE owner_kind = 'card' AND owner_id = ?;

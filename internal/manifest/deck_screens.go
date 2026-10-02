@@ -65,14 +65,15 @@ func (r ReadCommand) Fields(rows string) ([]string, bool) {
 
 // DeckScreens parses the screens deck ships, its own and those of every project, and checks them like a
 // manifest's: they read deck-wide sources and their buttons come from them.
-func DeckScreens(raw []byte) (menu []string, screens, project []Screen, err error) {
+func DeckScreens(raw []byte) (menu []string, screens, project []Screen, card []Action, err error) {
 	var d struct {
 		Menu    []string          `json:"menu"`
 		Screens []json.RawMessage `json:"screens"`
 		Project []json.RawMessage `json:"project"`
+		Card    []Action          `json:"card"`
 	}
 	if err := json.Unmarshal(raw, &d); err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 	var errs []error
 	parse := func(list []json.RawMessage) []Screen {
@@ -103,5 +104,11 @@ func DeckScreens(raw []byte) (menu []string, screens, project []Screen, err erro
 			errs = append(errs, fmt.Errorf("menu: unknown screen %q", name))
 		}
 	}
-	return d.Menu, screens, project, errors.Join(errs...)
+	c := &screenCheck{m: &Manifest{}, deck: true, screen: &Screen{}, fail: fail}
+	for _, a := range d.Card {
+		if err := c.action(Block{Type: "board"}, a, nil); err != nil {
+			fail("card action %q: %v", a.Verb, err)
+		}
+	}
+	return d.Menu, screens, project, d.Card, errors.Join(errs...)
 }

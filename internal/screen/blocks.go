@@ -95,6 +95,7 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 		if err != nil {
 			return nil, err
 		}
+		r.cardActions(v)
 		return map[string]any{"state": "ready", "value": v}, nil
 	case "form":
 		return r.form(b)

@@ -176,9 +176,9 @@ const impls: ReactComponentImplementation[] = [
       </Block>
     );
   }),
-  createComponentImplementation(api('board'), ({ props }) => {
+  createComponentImplementation(api('board'), ({ props, context }) => {
     const p = props as { title?: string; data?: Data };
-    return <Block title={p.title} data={p.data}>{(d) => <Board value={d.value as BoardValue} />}</Block>;
+    return <Block title={p.title} data={p.data}>{(d) => <Board value={d.value as BoardValue} context={context} />}</Block>;
   }),
   createComponentImplementation(api('form'), ({ props }) => {
     const p = props as { title?: string; data?: Data };

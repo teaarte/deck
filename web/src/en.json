@@ -50,6 +50,7 @@
     "tell": "Tell it",
     "yes": "Yes",
     "move": "To another project",
+    "move_project": "Move to another project",
     "unarchive": "Bring back"
   },
   "input": {

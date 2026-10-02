@@ -6,7 +6,9 @@ import { Anchor, Badge, Button, Collapse, Group, Modal, Paper, ScrollArea, Stack
 import { notifications } from '@mantine/notifications';
 import { useTranslation } from 'react-i18next';
 import { call } from './api';
-import { interview, setChatCard } from './chat';
+import type { ComponentContext } from '@a2ui/web_core/v0_9';
+import { Actions } from './actions';
+import { setChatCard } from './chat';
 import type { BoardValue } from './catalog.gen';
 
 type BoardCard = BoardValue['lanes'][number]['cards'][number];
@@ -94,7 +96,7 @@ function Deleted({ cards }: { cards: { id: number; title: string }[] }) {
   );
 }
 
-function CardEditor({ card, onClose }: { card: BoardCard; onClose: () => void }) {
+function CardEditor({ card, context, onClose }: { card: BoardCard; context: ComponentContext; onClose: () => void }) {
   const { t } = useTranslation();
   useEffect(() => { setChatCard(card.id); return () => setChatCard(undefined); }, [card.id]);
   const [title, setTitle] = useState(card.title);
@@ -111,34 +113,13 @@ function CardEditor({ card, onClose }: { card: BoardCard; onClose: () => void })
       setBusy(false);
     }
   };
-  const remove = () => run(async () => {
-    await call('deck.card_delete', { card: card.id });
-    const id = notifications.show({
-      autoClose: 10000,
-      message: (
-        <Group justify="space-between" wrap="nowrap">
-          <Text size="sm">{t('board.deleted', { title: card.title })}</Text>
-          <Button size="xs" variant="subtle" data-undo onClick={() => {
-            notifications.hide(id);
-            call('deck.card_restore', { card: card.id }).catch(failed);
-          }}>{t('verb.undo')}</Button>
-        </Group>
-      ),
-    });
-  });
   return (
     <Modal opened onClose={onClose} title={t('board.card', { id: card.id })}>
       <Stack gap="sm">
         <TextInput label={t('board.title')} value={title} onChange={(e) => setTitle(e.currentTarget.value)} />
         <Textarea label={t('board.text')} autosize minRows={3} value={text} onChange={(e) => setText(e.currentTarget.value)} />
-        <Group justify="space-between">
-          <Group gap="xs">
-            <Button color="red" variant="subtle" loading={busy} onClick={remove}>{t('board.delete')}</Button>
-            <Button variant="default" loading={busy} onClick={() => run(async () => {
-              if (title !== card.title || text !== (card.text ?? '')) await call('deck.card_update', { card: card.id, title, text });
-              await interview(card.id, title);
-            })} data-interview>{t('board.interview')}</Button>
-          </Group>
+        <Group justify="space-between" align="flex-start">
+          <Actions actions={card.actions} context={context} onDone={onClose} />
           <Button loading={busy} disabled={!title.trim()} onClick={() => run(() => call('deck.card_update', { card: card.id, title, text }))}>
             {t('board.save')}
           </Button>
@@ -149,7 +130,7 @@ function CardEditor({ card, onClose }: { card: BoardCard; onClose: () => void })
 }
 
 // Board draws the board of a project; a card moves by its handle, which on a phone takes a long press.
-export function Board({ value }: { value: BoardValue }) {
+export function Board({ value, context }: { value: BoardValue; context: ComponentContext }) {
   const [order, setOrder] = useState<Order>(() => orderOf(value));
   const [open, setOpen] = useState<BoardCard>();
   const dragging = useRef(false);
@@ -160,6 +141,9 @@ export function Board({ value }: { value: BoardValue }) {
     if (!dragging.current) put(orderOf(value));
   }, [value]);
   const cards = new Map(value.lanes.flatMap((l) => l.cards.map((c) => [c.id, c] as const)));
+  useEffect(() => {
+    if (open && !cards.has(open.id)) setOpen(undefined);
+  }, [value]);
   const inbox = value.lanes.find((l) => l.role === 'inbox') ?? value.lanes[0];
   return (
     <>
@@ -200,7 +184,7 @@ export function Board({ value }: { value: BoardValue }) {
         </ScrollArea>
       </DragDropProvider>
       <Deleted cards={value.deleted ?? []} />
-      {open && <CardEditor card={open} onClose={() => setOpen(undefined)} />}
+      {open && <CardEditor card={open} context={context} onClose={() => setOpen(undefined)} />}
     </>
   );
 }

@@ -3,6 +3,7 @@ package screens
 import (
 	"context"
 
+	"deck2/internal/docs"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store"
@@ -52,5 +53,15 @@ func (s Sources) Board(ctx context.Context, p db.Project, m *manifest.Manifest) 
 	for _, c := range deleted {
 		gone = append(gone, map[string]any{"id": c.ID, "title": c.Title})
 	}
-	return map[string]any{"project": p.Name, "lanes": lanes, "deleted": gone}, nil
+	others := []string{}
+	ps, err := s.Store.Q.ListWorkspaceProjects(ctx, p.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	for _, o := range ps {
+		if om, err := docs.Manifest(ctx, s.Store.Q, o); o.ID != p.ID && err == nil && om.RoleLane("inbox") != nil {
+			others = append(others, o.Name)
+		}
+	}
+	return map[string]any{"project": p.Name, "lanes": lanes, "deleted": gone, "projects": others}, nil
 }

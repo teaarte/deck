@@ -1,6 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "catalogId": "https://deck2.local/catalog/v1",
+  "final_states": ["done", "error", "interrupted", "stopped"],
   "topics": ["collection", "asks", "processes", "feed", "health", "log", "board", "triggers", "secrets", "tokens", "settings", "documents", "files", "snapshots", "chat"],
   "description": "Blocks of deck screens as A2UI components. A block's data is at the path of its data property: {state, error?, filters?, rows | items | value | lines}. block is the form a manifest stores the block in; its refs are the $defs of the manifest schema.",
   "components": {
@@ -188,6 +189,8 @@
         "record": {"type": "integer"},
         "class": {"type": "string", "description": "Class of the command of a custom block's button; the host asks the owner before one that is not internal."},
         "confirm": {"type": "boolean", "description": "The client asks the owner before the call: a button of deck that deletes or revokes."},
+        "options": {"type": "array", "items": {"type": "string"}, "description": "Values the owner picks the input from."},
+        "chat": {"type": "boolean", "description": "The result names a chat topic, which the client opens."},
         "file": {"type": "integer", "description": "Stored file the button downloads instead of a call."}
       }
     },
@@ -203,7 +206,7 @@
         "lanes": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["name", "title", "cards"], "properties": {
           "name": {"type": "string"}, "title": {"type": "string"}, "role": {"type": "string"},
           "cards": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["id", "title"], "properties": {
-            "id": {"type": "integer"}, "title": {"type": "string"}, "text": {"type": "string"}, "waits": {"type": "array", "items": {"type": "integer"}}, "record": {"type": "integer"}}}}}}},
+            "id": {"type": "integer"}, "title": {"type": "string"}, "text": {"type": "string"}, "waits": {"type": "array", "items": {"type": "integer"}}, "record": {"type": "integer"}, "actions": {"type": "array", "items": {"$ref": "#/$defs/action"}}}}}}}},
         "deleted": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["id", "title"], "properties": {"id": {"type": "integer"}, "title": {"type": "string"}}}}}},
       "form": {"type": "object", "additionalProperties": false, "required": ["project", "commands"], "properties": {
         "project": {"type": "string"},

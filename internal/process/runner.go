@@ -34,6 +34,9 @@ const (
 	StateStopped       = "stopped"
 )
 
+// Final are the states a process ends in; the client reads the same list from the catalog.
+var Final = []string{StateDone, StateError, StateInterrupted, StateStopped}
+
 // Ceiling is how long a command agent may work, ScriptCeiling a command script or tool, when the manifest sets
 // no timeout; pauseProbe is how often a paused process tries again when its provider gave no reset time.
 const (

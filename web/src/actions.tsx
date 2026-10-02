@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import type { ComponentContext } from '@a2ui/web_core/v0_9';
-import { Button, Chip, Code, Group, Modal, Stack, Text, TextInput } from '@mantine/core';
+import { Button, Chip, Code, Group, Modal, Select, Stack, Text, TextInput } from '@mantine/core';
 import { useInterval } from '@mantine/hooks';
 import { useTranslation } from 'react-i18next';
 import { notifications } from '@mantine/notifications';
@@ -19,7 +19,7 @@ const useNow = () => {
   return now;
 };
 
-function ActionButton({ act, context, params }: { act: Action; context: ComponentContext; params?: Record<string, unknown> }) {
+function ActionButton({ act, context, params, onDone }: { act: Action; context: ComponentContext; params?: Record<string, unknown>; onDone?: () => void }) {
   const { t } = useTranslation();
   const [busy, setBusy] = useState(false);
   const running = useRef(false);
@@ -53,6 +53,7 @@ function ActionButton({ act, context, params }: { act: Action; context: Componen
       if (ok) {
         setTyping(false);
         setText('');
+        onDone?.();
       }
     } finally {
       running.current = false;
@@ -65,9 +66,14 @@ function ActionButton({ act, context, params }: { act: Action; context: Componen
     }
     return (
       <Group gap="xs" wrap="nowrap">
-        <TextInput size="xs" autoFocus placeholder={t('input.' + act.input, { defaultValue: '' })} value={text}
-          onChange={(e) => setText(e.currentTarget.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter' && text.trim()) void send({ [act.input!]: text }); }} />
+        {act.options ? (
+          <Select size="xs" autoFocus placeholder={t('input.' + act.input, { defaultValue: '' })} data={act.options} value={text || null}
+            onChange={(v) => setText(v ?? '')} data-options />
+        ) : (
+          <TextInput size="xs" autoFocus placeholder={t('input.' + act.input, { defaultValue: '' })} value={text}
+            onChange={(e) => setText(e.currentTarget.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter' && text.trim()) void send({ [act.input!]: text }); }} />
+        )}
         <Button size="xs" loading={busy} disabled={!text.trim()} onClick={() => send({ [act.input!]: text })}>{t('verb.send')}</Button>
         <Button size="xs" variant="subtle" onClick={() => setTyping(false)}>{t('verb.cancel')}</Button>
       </Group>
@@ -94,11 +100,12 @@ function ActionButton({ act, context, params }: { act: Action; context: Componen
   );
 }
 
-export function Actions({ actions, context }: { actions?: Action[]; context: ComponentContext }) {
+// Actions are the buttons of an item; onDone runs after one went through.
+export function Actions({ actions, context, onDone }: { actions?: Action[]; context: ComponentContext; onDone?: () => void }) {
   const now = useNow();
   const shown = (actions ?? []).filter((a) => !a.until || Date.parse(a.until) > now);
   if (!shown.length) return null;
-  return <Group gap="xs">{shown.map((a, i) => <ActionButton key={i} act={a} context={context} />)}</Group>;
+  return <Group gap="xs">{shown.map((a, i) => <ActionButton key={i} act={a} context={context} onDone={onDone} />)}</Group>;
 }
 
 export function QuestionPicker({ questions, act, context }: { questions: Question[]; act?: Action; context: ComponentContext }) {

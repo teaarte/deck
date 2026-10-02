@@ -273,6 +273,8 @@
         "when": {"type": "string", "description": "Expression over the item: the button shows only where it holds."},
         "until": {"type": "string", "description": "Time after which the button is gone."},
         "input": {"type": "string", "description": "The param the owner types before the call."},
+        "options": {"type": "string", "description": "The values the owner picks the input from: a list."},
+        "chat": {"type": "boolean", "description": "The result names a chat topic, which opens."},
         "confirm": {"type": "boolean", "description": "The owner says yes before the call."},
         "primary": {"type": "boolean"}
       }

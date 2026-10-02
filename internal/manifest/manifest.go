@@ -308,8 +308,11 @@ type Action struct {
 	// When shows the button only on the items it holds for; Until is the time after which it is gone.
 	When  string `json:"when,omitempty"`
 	Until string `json:"until,omitempty"`
-	// Input is the param the owner types before the call; Confirm asks the owner first.
+	// Input is the param the owner types before the call, or picks from Options; Confirm asks the owner first.
 	Input   string `json:"input,omitempty"`
+	Options string `json:"options,omitempty"`
+	// Chat opens the chat topic the result of the call names.
+	Chat    bool   `json:"chat,omitempty"`
 	Confirm bool   `json:"confirm,omitempty"`
 	Primary bool   `json:"primary,omitempty"`
 }

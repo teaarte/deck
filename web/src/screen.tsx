@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { call, events } from './api';
 import { catalog, known, UNKNOWN, type Action } from './catalog';
 import { outcomes } from './actions';
+import { openTopic } from './chat';
 import { setStale } from './block';
 import i18n from './i18n';
 import catalogSchema from '../../schemas/catalog.json';
@@ -61,6 +62,11 @@ async function act(a: A2uiClientAction) {
   }
   try {
     const out = await call(c.command!, c.params ?? {});
+    const topic = (out as { topic?: unknown } | null)?.topic;
+    if (c.chat && typeof topic === 'number') {
+      openTopic(topic);
+      return;
+    }
     notifications.show({ message: summary(out), color: 'green' });
   } catch (e) {
     if (c.ticket) outcomes.set(c.ticket, false);

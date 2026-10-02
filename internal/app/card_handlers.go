@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"strings"
 
 	"deck2/internal/registry"
@@ -225,6 +226,60 @@ func (a *App) cardDelete(ctx context.Context, act registry.Actor, in cardDeleteI
 	return map[string]any{"ok": true}, nil
 }
 
+type cardTransferIn struct {
+	Card    int64  `type:"card" desc:"Card id"`
+	Project string `type:"project" desc:"Project the card moves to, into its inbox lane"`
+}
+
+// cardTransfer gives a card to another project: into its inbox lane, with its documents and files, without the
+// record, the run and the waits of the old project.
+func (a *App) cardTransfer(ctx context.Context, act registry.Actor, in cardTransferIn) (any, error) {
+	to, err := a.project(ctx, act, in.Project)
+	if err != nil {
+		return nil, err
+	}
+	var v cardView
+	err = a.writeBoard(ctx, act, func(ctx context.Context, q *db.Queries, w *boardWrite) error {
+		c, err := cardFor(ctx, q, act, in.Card, w)
+		if err != nil {
+			return err
+		}
+		if err := liveCard(c); err != nil {
+			return err
+		}
+		if c.ProjectID == to.ID {
+			return registry.Invalid("deck: card %d is already in %s", c.ID, to.Name)
+		}
+		if c.ProcessID.Valid {
+			if p, err := q.GetProcess(ctx, c.ProcessID.Int64); err == nil && !p.FinishedAt.Valid {
+				return registry.Conflict("deck: card %d has a run going; stop it or let it finish first", c.ID)
+			}
+		}
+		m, err := boardManifest(ctx, q, to)
+		if err != nil {
+			return err
+		}
+		if m.RoleLane("inbox") == nil {
+			return registry.Invalid("deck: project %s has no inbox lane for a card", to.Name)
+		}
+		err = errors.Join(q.TransferCard(ctx, db.TransferCardParams{ProjectID: to.ID, ID: c.ID}), q.DropAllCardEdges(ctx, c.ID),
+			q.TransferCardDocuments(ctx, db.TransferCardDocumentsParams{ProjectID: store.ID(to.ID), CardID: store.ID(c.ID)}),
+			q.TransferCardFiles(ctx, db.TransferCardFilesParams{ProjectID: to.ID, OwnerID: c.ID}))
+		if err != nil {
+			return err
+		}
+		c.ProjectID = to.ID
+		w.p, w.m = to, m
+		if err := place(ctx, q, c, landing(m), 0); err != nil {
+			return err
+		}
+		w.enter(c.ID, landing(m))
+		v, err = cardResult(ctx, q, c.ID)
+		return err
+	})
+	return v, err
+}
+
 type cardRestoreIn struct {
 	Card int64 `type:"card" desc:"Card id"`
 }
@@ -258,6 +313,9 @@ func (a *App) cardCommands() []*registry.Command {
 		registry.Def("card_get", "Get card",
 			"Returns one card with the cards it waits for.",
 			registry.Everyone, a.cardGet),
+		registry.Def("card_transfer", "Move card to another project",
+			"Moves a card into the inbox lane of another project, with its documents and files; its record, run and waits stay behind.",
+			registry.OwnerOnly, a.cardTransfer),
 		registry.Def("card_create", "Create card",
 			"Creates a card at the end of a lane; without a lane it lands in the inbox lane.",
 			registry.Everyone, a.cardCreate),

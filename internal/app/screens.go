@@ -24,15 +24,16 @@ var deckScreensJSON []byte
 type shippedScreens struct {
 	Menu    []string
 	Screens []manifest.Screen
-	// Project are the screens deck adds to every project, after the project's own.
+	// Project are the screens deck adds to every project, after the project's own; Card the buttons of a card.
 	Project []manifest.Screen
+	Card    []manifest.Action
 }
 
 // shipped are the screens deck ships: the cockpit, settings, the journal and the page of a process; they are
 // checked once the commands they read are known.
 var shipped = sync.OnceValue(func() (d shippedScreens) {
 	var err error
-	if d.Menu, d.Screens, d.Project, err = manifest.DeckScreens(deckScreensJSON); err != nil {
+	if d.Menu, d.Screens, d.Project, d.Card, err = manifest.DeckScreens(deckScreensJSON); err != nil {
 		panic(err)
 	}
 	return d
@@ -115,7 +116,7 @@ type screenGetIn struct {
 
 // screenGet resolves a screen of a project, or of deck without one, into A2UI messages.
 func (a *App) screenGet(ctx context.Context, act registry.Actor, in screenGetIn) (any, error) {
-	req := screen.Request{Record: in.Record, Topic: in.Topic, Owner: act.Kind == registry.Owner}
+	req := screen.Request{Record: in.Record, Topic: in.Topic, Owner: act.Kind == registry.Owner, Card: shipped().Card}
 	if strings.TrimSpace(in.Filter) != "" {
 		if err := json.Unmarshal([]byte(in.Filter), &req.Filter); err != nil {
 			return nil, registry.Invalid("deck: filter: a JSON object of block id to field to value: %v", err)

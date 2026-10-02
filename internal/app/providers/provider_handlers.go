@@ -1,4 +1,4 @@
-package app
+package providers
 
 import (
 	"context"
@@ -48,20 +48,20 @@ type providersListIn struct {
 	Command string `opt:"" desc:"Agent command, project.command"`
 }
 
-func (a *App) providersList(ctx context.Context, act registry.Actor, in providersListIn) (providersOut, error) {
+func (s *Service) providersList(ctx context.Context, act registry.Actor, in providersListIn) (providersOut, error) {
 	var out providersOut
-	all, err := a.providers(ctx, act.Workspace)
+	all, err := s.All(ctx, act.Workspace)
 	if err != nil {
 		return out, err
 	}
 	if in.Command != "" {
-		p, cmd, err := a.agentCommand(ctx, act.Workspace, in.Command)
+		p, cmd, err := s.agentCommand(ctx, act.Workspace, in.Command)
 		if err != nil {
 			return out, err
 		}
 		out.Requires, out.Suggested = cmd.Requires, cmd.Provider
-		out.Chosen, _ = a.Store.Q.GetCommandProvider(ctx, db.GetCommandProviderParams{ProjectID: p.ID, Command: cmd.Name})
-		if pv, err := a.For(ctx, p.ID, cmd); err == nil {
+		out.Chosen, _ = s.St.Q.GetCommandProvider(ctx, db.GetCommandProviderParams{ProjectID: p.ID, Command: cmd.Name})
+		if pv, err := s.For(ctx, p.ID, cmd); err == nil {
 			out.Effective = pv.Name()
 		} else {
 			out.EffectiveError = err.Error()
@@ -70,14 +70,14 @@ func (a *App) providersList(ctx context.Context, act registry.Actor, in provider
 	out.Providers = make([]providerView, 0, len(all))
 	for _, pv := range all {
 		_, checked := pv.(provider.SelfChecker)
-		v := providerView{Name: pv.Name(), Caps: pv.Caps(), Builtin: a.builtinNamed(pv.Name()) != nil, SelfCheck: checked}
+		v := providerView{Name: pv.Name(), Caps: pv.Caps(), Builtin: s.builtinNamed(pv.Name()) != nil, SelfCheck: checked}
 		if o, ok := pv.(interface{ Endpoint() (string, string) }); ok {
 			v.URL, v.Model = o.Endpoint()
 		}
 		if o, ok := pv.(interface{ AgentName() string }); ok {
 			v.Agent = o.AgentName()
 		}
-		if h, err := a.Store.Q.GetHealth(ctx, process.HealthSubject(pv.Name())); err == nil {
+		if h, err := s.St.Q.GetHealth(ctx, process.HealthSubject(pv.Name())); err == nil {
 			v.Status, v.Error, v.Version, v.Verdict, v.Speed = h.Status, h.Error, h.Version, h.Verdict, h.Speed
 		}
 		if in.Command != "" {
@@ -95,13 +95,13 @@ type providerSetIn struct {
 	Provider string `opt:"" desc:"Provider name; empty for the default"`
 }
 
-func (a *App) providerSet(ctx context.Context, act registry.Actor, in providerSetIn) (any, error) {
-	p, cmd, err := a.agentCommand(ctx, act.Workspace, in.Command)
+func (s *Service) providerSet(ctx context.Context, act registry.Actor, in providerSetIn) (any, error) {
+	p, cmd, err := s.agentCommand(ctx, act.Workspace, in.Command)
 	if err != nil {
 		return nil, err
 	}
 	if in.Provider != "" {
-		pv, err := a.provider(ctx, act.Workspace, in.Provider)
+		pv, err := s.Provider(ctx, act.Workspace, in.Provider)
 		if err != nil {
 			return nil, err
 		}
@@ -109,7 +109,7 @@ func (a *App) providerSet(ctx context.Context, act registry.Actor, in providerSe
 			return nil, registry.Invalid("deck: provider %s does not fit %s: it lacks %v", in.Provider, in.Command, missing)
 		}
 	}
-	if err := a.setPlace(ctx, p.ID, cmd.Name, in.Provider); err != nil {
+	if err := s.setPlace(ctx, p.ID, cmd.Name, in.Provider); err != nil {
 		return nil, err
 	}
 	return map[string]any{"command": in.Command, "provider": in.Provider}, nil
@@ -124,17 +124,17 @@ type providerAddIn struct {
 	Agent     string `desc:"The ACP agent that runs the model inside the sandbox of deck with a shell and files: opencode or dsh"`
 }
 
-func (a *App) providerAdd(ctx context.Context, act registry.Actor, in providerAddIn) (any, error) {
+func (s *Service) providerAdd(ctx context.Context, act registry.Actor, in providerAddIn) (any, error) {
 	d := providerDef{URL: in.URL, Model: in.Model, KeySecret: in.KeySecret, NoCloud: in.NoCloud, Agent: in.Agent}
 	var builtin []string
-	for _, pv := range a.builtin {
+	for _, pv := range s.Builtin {
 		builtin = append(builtin, pv.Name())
 	}
 	if err := checkDef(in.Name, d, builtin); err != nil {
 		return nil, err
 	}
 	raw, _ := json.Marshal(d)
-	err := a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+	err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		spaces, err := q.ListWorkspaces(ctx)
 		if err != nil {
 			return err
@@ -152,7 +152,7 @@ func (a *App) providerAdd(ctx context.Context, act registry.Actor, in providerAd
 	if err != nil {
 		return nil, err
 	}
-	a.startCheck(in.Name, true)
+	s.startCheck(in.Name, true)
 	return map[string]any{"name": in.Name}, nil
 }
 
@@ -160,9 +160,9 @@ type providerRemoveIn struct {
 	Name string `desc:"Provider name"`
 }
 
-func (a *App) providerRemove(ctx context.Context, act registry.Actor, in providerRemoveIn) (any, error) {
+func (s *Service) providerRemove(ctx context.Context, act registry.Actor, in providerRemoveIn) (any, error) {
 	var n int64
-	err := a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+	err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		active, err := q.CountActiveOnProvider(ctx, db.CountActiveOnProviderParams{Provider: in.Name, WorkspaceID: act.Workspace})
 		if err != nil {
 			return err
@@ -186,15 +186,15 @@ type providerCheckIn struct {
 	Provider string `desc:"Provider name"`
 }
 
-func (a *App) providerCheck(ctx context.Context, act registry.Actor, in providerCheckIn) (any, error) {
-	pv, err := a.provider(ctx, act.Workspace, in.Provider)
+func (s *Service) providerCheck(ctx context.Context, act registry.Actor, in providerCheckIn) (any, error) {
+	pv, err := s.Provider(ctx, act.Workspace, in.Provider)
 	if err != nil {
 		return nil, err
 	}
 	if _, ok := pv.(provider.SelfChecker); !ok {
 		return nil, registry.Invalid("deck: provider %q has no self-check", in.Provider)
 	}
-	if !a.startCheck(in.Provider, true) {
+	if !s.startCheck(in.Provider, true) {
 		return nil, errors.New("deck: a self-check is already running")
 	}
 	return map[string]any{"checking": in.Provider}, nil
@@ -206,13 +206,13 @@ type llmCallsListIn struct {
 	Limit   int64  `opt:"" desc:"At most this many"`
 }
 
-func (a *App) llmCallsList(ctx context.Context, act registry.Actor, in llmCallsListIn) (any, error) {
-	pid, err := access.Filter(ctx, a.Store.Q, act, in.Project)
+func (s *Service) llmCallsList(ctx context.Context, act registry.Actor, in llmCallsListIn) (any, error) {
+	pid, err := access.Filter(ctx, s.St.Q, act, in.Project)
 	if err != nil {
 		return nil, err
 	}
 	in.Limit = registry.Limit(in.Limit, 50, 500)
-	rows, err := a.Store.Q.ListLLMCalls(ctx, db.ListLLMCallsParams{WorkspaceID: act.Workspace, ProcessID: in.Process, ProjectID: pid, Lim: in.Limit})
+	rows, err := s.St.Q.ListLLMCalls(ctx, db.ListLLMCallsParams{WorkspaceID: act.Workspace, ProcessID: in.Process, ProjectID: pid, Lim: in.Limit})
 	if err != nil {
 		return nil, err
 	}
@@ -232,25 +232,26 @@ func (a *App) llmCallsList(ctx context.Context, act registry.Actor, in llmCallsL
 	return out, nil
 }
 
-func (a *App) providerCommands() []*registry.Command {
+// Commands are the commands of providers.
+func (s *Service) Commands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("providers_list", "Providers",
 			"Lists model providers with what they can do and their health; with a command, which fit it and which it runs on.",
-			registry.OwnerSide, a.providersList).On("health"),
+			registry.OwnerSide, s.providersList).On("health"),
 		registry.Def("provider_set", "Choose provider",
 			"Sets the provider an agent command runs on from its next start; empty goes back to the default.",
-			registry.OwnerOnly, a.providerSet),
+			registry.OwnerOnly, s.providerSet),
 		registry.Def("provider_add", "Add provider",
 			"Adds or changes a provider of this workspace: an ACP agent on an OpenAI-compatible API, such as Ollama, OpenRouter or DeepSeek.",
-			registry.OwnerOnly, a.providerAdd).Changes("health"),
+			registry.OwnerOnly, s.providerAdd).Changes("health"),
 		registry.Def("provider_remove", "Remove provider",
 			"Removes a provider the owner added; commands set to it must get another.",
-			registry.OwnerOnly, a.providerRemove).Changes("health"),
+			registry.OwnerOnly, s.providerRemove).Changes("health"),
 		registry.Def("provider_check", "Check provider",
 			"Runs the self-check of a provider's adapter again; its health shows the outcome.",
-			registry.OwnerOnly, a.providerCheck),
+			registry.OwnerOnly, s.providerCheck),
 		registry.Def("llm_calls_list", "Model calls",
 			"Lists model calls with their provider, model, tokens and duration, newest first.",
-			registry.Everyone, a.llmCallsList),
+			registry.Everyone, s.llmCallsList),
 	}
 }

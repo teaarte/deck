@@ -1,4 +1,4 @@
-package app
+package providers
 
 import (
 	"context"
@@ -14,6 +14,12 @@ import (
 )
 
 // checks keeps when deck next looks at the version of a built-in provider and retries its red self-check.
+// selfCheckRetry repeats a red self-check; versionEvery looks for new programs of the built-in providers.
+const (
+	selfCheckRetry = 30 * time.Minute
+	versionEvery   = 10 * time.Minute
+)
+
 type checks struct {
 	running bool
 	// again is set when the provider changed during a running check, which then checks it once more.
@@ -23,72 +29,75 @@ type checks struct {
 	retry   time.Time
 }
 
-func (a *App) checksOf(name string) *checks {
-	c := a.check[name]
+func (s *Service) checksOf(name string) *checks {
+	if s.check == nil {
+		s.check = map[string]*checks{}
+	}
+	c := s.check[name]
 	if c == nil {
 		c = &checks{}
-		a.check[name] = c
+		s.check[name] = c
 	}
 	return c
 }
 
 // Checks runs the self-check of each provider that has one at the first call, when its version changed, and again
 // while it is red; only the Loop calls it, so tests run self-checks on purpose.
-func (a *App) Checks(ctx context.Context, now time.Time) {
-	for _, pv := range a.checked(ctx) {
+func (s *Service) Checks(ctx context.Context, now time.Time) {
+	for _, pv := range s.checked(ctx) {
 		sc := pv.(provider.SelfChecker)
-		a.checkMu.Lock()
-		c := a.checksOf(pv.Name())
+		s.mu.Lock()
+		c := s.checksOf(pv.Name())
 		due := !c.started || !now.Before(c.version)
 		retry := !c.retry.IsZero() && !now.Before(c.retry)
 		if c.running || !due && !retry {
-			a.checkMu.Unlock()
+			s.mu.Unlock()
 			continue
 		}
 		c.version = now.Add(versionEvery)
 		first := !c.started
-		a.checkMu.Unlock()
+		s.mu.Unlock()
 		v, err := sc.Version(ctx)
 		if err != nil {
 			v = "unknown: " + err.Error()
 		}
-		h, _ := a.Store.Q.GetHealth(ctx, process.HealthSubject(pv.Name()))
+		h, _ := s.St.Q.GetHealth(ctx, process.HealthSubject(pv.Name()))
 		if first || retry || v != h.Version {
-			a.startCheck(pv.Name(), false)
+			s.startCheck(pv.Name(), false)
 		}
 	}
 }
 
 // startCheck runs a self-check in the background unless one is running; a change of version or a red check
 // holds the provider's turns until it ends. One cut short by a limit or a login keeps no version, so it reruns.
-func (a *App) startCheck(name string, force bool) bool {
-	sc, ok := a.named(a.ctx, name).(provider.SelfChecker)
+func (s *Service) startCheck(name string, force bool) bool {
+	sc, ok := s.named(s.Ctx, name).(provider.SelfChecker)
 	if !ok {
 		return false
 	}
-	a.checkMu.Lock()
-	c := a.checksOf(name)
+	s.mu.Lock()
+	c := s.checksOf(name)
 	if c.running {
 		c.again = c.again || force
-		a.checkMu.Unlock()
+		s.mu.Unlock()
 		return false
 	}
 	c.running, c.started, c.retry = true, true, time.Time{}
-	a.checkMu.Unlock()
-	ctx := a.ctx
+	s.mu.Unlock()
+	ctx := s.Ctx
 	subject := process.HealthSubject(name)
 	v, err := sc.Version(ctx)
 	if err != nil {
 		v = "unknown: " + err.Error()
 	}
-	h, _ := a.Store.Q.GetHealth(ctx, subject)
+	h, _ := s.St.Q.GetHealth(ctx, subject)
 	if force || v != h.Version || h.Status == "error" || h.Status == "checking" {
-		a.writeCheck(ctx, subject, "checking", "self-check of "+v+" is running", "", "", 0)
+		s.writeCheck(ctx, subject, "checking", "self-check of "+v+" is running", "", "", 0)
 	}
-	a.bg.Add(1)
+	s.BG.Add(1)
 	go func() {
-		defer a.bg.Done()
-		cctx, cancel := context.WithTimeout(ctx, a.Cfg.SelfCheckCeiling)
+		defer s.BG.Done()
+		cctx, cancel := context.WithTimeout(ctx, s.SelfCheckCeiling)
 		res := sc.SelfCheck(cctx)
 		cancel()
 		if res.Version == "" {
@@ -114,32 +123,32 @@ func (a *App) startCheck(name string, force bool) bool {
 		if status != "ok" && status != "error" {
 			version = ""
 		}
-		a.checkMu.Lock()
+		s.mu.Lock()
 		again := c.again && ctx.Err() == nil
 		c.again = false
 		if again {
 			c.running = false
-			a.checkMu.Unlock()
-			a.startCheck(name, true)
+			s.mu.Unlock()
+			s.startCheck(name, true)
 			return
 		}
-		a.checkMu.Unlock()
-		a.writeCheck(context.WithoutCancel(ctx), subject, status, text, version, verdict, res.Speed)
-		a.checkMu.Lock()
+		s.mu.Unlock()
+		s.writeCheck(context.WithoutCancel(ctx), subject, status, text, version, verdict, res.Speed)
+		s.mu.Lock()
 		c.running = false
 		if status != "ok" {
-			c.retry = a.Cfg.Now().Add(selfCheckRetry)
+			c.retry = s.Now().Add(selfCheckRetry)
 		}
-		a.checkMu.Unlock()
+		s.mu.Unlock()
 		if status != "error" && status != "checking" {
-			a.Runner.Wake(context.WithoutCancel(ctx))
+			s.Wake(context.WithoutCancel(ctx))
 		}
 	}()
 	return true
 }
 
-func (a *App) writeCheck(ctx context.Context, subject, status, text, version, verdict string, speed float64) {
-	err := a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+func (s *Service) writeCheck(ctx context.Context, subject, status, text, version, verdict string, speed float64) {
+	err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		if err := health.Set(ctx, q, health.Of{}, subject, status, text); err != nil {
 			return err
 		}
@@ -157,7 +166,7 @@ func (a *App) writeCheck(ctx context.Context, subject, status, text, version, ve
 	if err != nil {
 		slog.Error("self-check health", "err", err)
 	}
-	a.Bus.Publish("health")
+	s.Bus.Publish("health")
 }
 
 func errText(err error) string {

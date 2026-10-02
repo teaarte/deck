@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"deck2/internal/app/board"
+	"deck2/internal/app/providers"
 	"deck2/internal/ask"
 	"deck2/internal/docs"
 	"deck2/internal/events"
@@ -44,16 +45,13 @@ type App struct {
 	Runner    *process.Runner
 	Scheduler *trigger.Scheduler
 	Board     *board.Service
+	Providers *providers.Service
 	Scripts   *script.Exec
 	Tools     *tools.HTTP
 	MCP       *tools.MCP
 	Browser   *tools.Browser
 	Host      *mcphost.Host
 
-	// builtin are the providers deck was started with, the main one first; the owner adds ACP ones per workspace.
-	builtin  []provider.Provider
-	checkMu  sync.Mutex
-	check    map[string]*checks
 	ctx      context.Context
 	cancel   context.CancelFunc
 	secretMu sync.Mutex
@@ -87,13 +85,15 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	if err != nil {
 		return nil, err
 	}
-	a := &App{Cfg: cfg, Home: h, Store: st, Bus: events.NewBus(), Scripts: script.New(cfg.Sandbox, cfg.Home),
-		builtin: append([]provider.Provider{p}, more...), check: map[string]*checks{}}
+	a := &App{Cfg: cfg, Home: h, Store: st, Bus: events.NewBus(), Scripts: script.New(cfg.Sandbox, cfg.Home)}
 	a.ctx, a.cancel = context.WithCancel(context.Background())
 	a.Asks = ask.NewBroker(st, a.Bus, cfg.Now)
 	a.Registry = registry.New(a.projectCommands)
 	a.Registry.SetPublish(a.Bus.Publish)
 	a.Board = &board.Service{St: st, Bus: a.Bus, Now: cfg.Now, Fire: a.fire}
+	a.Providers = &providers.Service{St: st, Bus: a.Bus, Now: cfg.Now, Home: cfg.Home, Sandbox: cfg.Sandbox, ACPBinaries: cfg.ACPBinaries,
+		ACPCallLimit: cfg.ACPCallLimit, SelfCheckCeiling: cfg.SelfCheckCeiling, Secret: a.Secret, Wake: func(ctx context.Context) { a.Runner.Wake(ctx) },
+		Builtin: append([]provider.Provider{p}, more...), Ctx: a.ctx, BG: &a.bg}
 	a.addBuiltins()
 	a.Gateway = gateway.New(gateway.Config{Now: cfg.Now, QuestionWait: cfg.QuestionWait, ConfirmWait: cfg.ConfirmWait, ConfirmTTL: a.confirmTTL}, st, a.Asks, a.Bus, a.Registry)
 	a.Tools = tools.NewHTTP(a.Gateway, a.Secret, a.dirs())
@@ -194,6 +194,20 @@ func (a *App) Fire(ctx context.Context, t db.Trigger, input map[string]any) (int
 	}
 	return a.fire(ctx, t, input, 0)
 }
+
+// Named, For and Ready are the providers the runner asks for.
+func (a *App) Named(ctx context.Context, projectID int64, name string) (provider.Provider, error) {
+	return a.Providers.Named(ctx, projectID, name)
+}
+
+func (a *App) For(ctx context.Context, projectID int64, cmd *manifest.Command) (provider.Provider, error) {
+	return a.Providers.For(ctx, projectID, cmd)
+}
+
+func (a *App) Ready(ctx context.Context, name string) bool { return a.Providers.Ready(ctx, name) }
+
+// Checks runs the self-checks of providers that are due.
+func (a *App) Checks(ctx context.Context, now time.Time) { a.Providers.Checks(ctx, now) }
 
 func (a *App) fire(ctx context.Context, t db.Trigger, input map[string]any, parent int64) (int64, error) {
 	p, err := a.Store.Q.GetProject(ctx, t.ProjectID)
@@ -358,7 +372,7 @@ func (a *App) Loop(ctx context.Context, every time.Duration) {
 			a.Bus.Publish("triggers")
 		}
 		a.Sweep(ctx, a.Cfg.Now())
-		a.Checks(ctx, a.Cfg.Now())
+		a.Providers.Checks(ctx, a.Cfg.Now())
 		select {
 		case <-ctx.Done():
 			return

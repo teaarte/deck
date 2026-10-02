@@ -12,7 +12,7 @@ func (a *App) addBuiltins() {
 	for _, cs := range [][]*registry.Command{a.askCommands(), a.browserCommands(), a.Board.Commands(), a.chatCommands(),
 		a.documentCommands(), a.draftsCommands(), a.feedCommands(), a.fileCommands(), a.foldersCommands(), a.projectsCommands(),
 		a.importCommands(), a.journalCommands(), a.liveCommands(), a.notifyCommands(), a.oauthCommands(),
-		a.processCommands(), a.projectDeleteCommands(), a.providerCommands(), a.pushCommands(), a.recordCommands(),
+		a.processCommands(), a.projectDeleteCommands(), a.Providers.Commands(), a.pushCommands(), a.recordCommands(),
 		a.screensCommands(), a.secretsCommands(), a.settingsCommands(), a.snapshotsCommands(), a.suggestCommands(),
 		a.tokensCommands(), a.triggersCommands(), a.uploadCommands(), a.voiceCommands()} {
 		for _, c := range cs {

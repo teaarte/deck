@@ -38,9 +38,6 @@ const (
 	emptyKept = 24 * time.Hour
 	// snapshotsKept is how many daily snapshots stay in backups/.
 	snapshotsKept = 7
-	// selfCheckRetry repeats a red self-check; versionEvery looks for new programs of the built-in providers.
-	selfCheckRetry = 30 * time.Minute
-	versionEvery   = 10 * time.Minute
 	// workKept is how long the work folder of a finished agent process stays for rework.
 	workKept = 7 * 24 * time.Hour
 )

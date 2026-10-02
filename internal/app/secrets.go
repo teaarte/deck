@@ -7,7 +7,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"sort"
 	"strings"
@@ -15,8 +14,6 @@ import (
 	"deck2/internal/docs"
 	"deck2/internal/registry"
 )
-
-var secretName = regexp.MustCompile(`^[A-Za-z0-9_.-]{1,64}$`)
 
 func (a *App) secretsDir(workspace int64) string {
 	return a.Home.Secrets(workspace)
@@ -157,7 +154,7 @@ func (a *App) projectSecrets(ctx context.Context, act registry.Actor, project st
 }
 
 func validSecret(name string) bool {
-	return secretName.MatchString(name) && strings.Trim(name, ".") != ""
+	return access.SecretName.MatchString(name) && strings.Trim(name, ".") != ""
 }
 
 func (a *App) secretsCommands() []*registry.Command {

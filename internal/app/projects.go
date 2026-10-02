@@ -2,9 +2,9 @@ package app
 
 import (
 	"context"
+	"deck2/internal/app/access"
 	"fmt"
 	"log/slog"
-	"regexp"
 
 	"deck2/internal/app/board"
 	"deck2/internal/docs"
@@ -14,8 +14,6 @@ import (
 	"deck2/internal/store/db"
 	"deck2/master"
 )
-
-var projectName = regexp.MustCompile(`^[a-z][a-z0-9-]{0,39}$`)
 
 // Text is the current text of a project document by kind and name, of any kind for ""; empty when missing.
 func (a *App) Text(ctx context.Context, projectID int64, kind, name string) (string, error) {
@@ -68,7 +66,7 @@ func (a *App) CreateProject(ctx context.Context, act registry.Actor, name string
 // createProject stores a new project; more stores further documents in the same transaction before the checks.
 func (a *App) createProject(ctx context.Context, act registry.Actor, name string, raw []byte, prompt, status string,
 	more func(ctx context.Context, q *db.Queries, p db.Project) error) (db.Project, error) {
-	if !projectName.MatchString(name) || name == registry.Builtin {
+	if !access.ProjectName.MatchString(name) || name == registry.Builtin {
 		return db.Project{}, registry.Invalid("deck: project name %q must be lowercase letters, digits and '-', start with a letter, and not be %q", name, registry.Builtin)
 	}
 	pm, err := parseManifest(raw, false)

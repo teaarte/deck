@@ -259,7 +259,7 @@ func (a *App) healthList(ctx context.Context, act registry.Actor, in healthListI
 	if err != nil {
 		return nil, err
 	}
-	pvs, err := a.providers(ctx, act.Workspace)
+	pvs, err := a.Providers.All(ctx, act.Workspace)
 	if err != nil {
 		return nil, err
 	}

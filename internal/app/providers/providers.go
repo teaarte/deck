@@ -1,23 +1,53 @@
-package app
+// Package providers keeps the model providers of deck: the built-in ones, those the owner adds per workspace, which
+// command runs on which, and their self-checks.
+package providers
 
 import (
 	"context"
 	"database/sql"
+	"deck2/internal/app/access"
 	"encoding/json"
 	"errors"
 	"slices"
 	"strings"
+	"sync"
+	"time"
 
 	"deck2/internal/docs"
+	"deck2/internal/events"
 	"deck2/internal/manifest"
 	"deck2/internal/process"
 	"deck2/internal/provider"
 	"deck2/internal/provider/acp"
 	"deck2/internal/registry"
+	"deck2/internal/sandbox"
+	"deck2/internal/store"
 	"deck2/internal/store/db"
 )
 
 const providerPrefix = "provider:"
+
+// Service keeps the providers. Wake lets turns that wait for a provider go on once it is ready; Ctx and BG are
+// the life of deck, for the self-checks it runs in the background.
+type Service struct {
+	St               *store.Store
+	Bus              *events.Bus
+	Now              func() time.Time
+	Home             string
+	Sandbox          sandbox.Sandbox
+	ACPBinaries      map[string]string
+	ACPCallLimit     time.Duration
+	SelfCheckCeiling time.Duration
+	Secret           func(workspace int64, name string) (string, error)
+	Wake             func(ctx context.Context)
+	// Builtin are the providers deck was started with, the main one first; the owner adds ACP ones per workspace.
+	Builtin []provider.Provider
+	Ctx     context.Context
+	BG      *sync.WaitGroup
+
+	mu    sync.Mutex
+	check map[string]*checks
+}
 
 // providerDef is a provider the owner added to a workspace: an ACP agent on an OpenAI-compatible API.
 type providerDef struct {
@@ -30,19 +60,19 @@ type providerDef struct {
 }
 
 // Named is the provider of a workspace by name: a built-in one of deck or one the owner added.
-func (a *App) Named(ctx context.Context, projectID int64, name string) (provider.Provider, error) {
-	p, err := a.Store.Q.GetProject(ctx, projectID)
+func (s *Service) Named(ctx context.Context, projectID int64, name string) (provider.Provider, error) {
+	p, err := s.St.Q.GetProject(ctx, projectID)
 	if err != nil {
 		return nil, err
 	}
-	return a.provider(ctx, p.WorkspaceID, name)
+	return s.Provider(ctx, p.WorkspaceID, name)
 }
 
-func (a *App) provider(ctx context.Context, workspace int64, name string) (provider.Provider, error) {
-	if pv := a.builtinNamed(name); pv != nil {
+func (s *Service) Provider(ctx context.Context, workspace int64, name string) (provider.Provider, error) {
+	if pv := s.builtinNamed(name); pv != nil {
 		return pv, nil
 	}
-	raw, err := a.Store.Q.GetSetting(ctx, db.GetSettingParams{WorkspaceID: workspace, Key: providerPrefix + name})
+	raw, err := s.St.Q.GetSetting(ctx, db.GetSettingParams{WorkspaceID: workspace, Key: providerPrefix + name})
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, registry.NotFound("deck: no provider %q; add it with deck.provider_add", name)
 	}
@@ -60,23 +90,23 @@ func (a *App) provider(ctx context.Context, workspace int64, name string) (provi
 		if d.KeySecret == "" {
 			return "", nil
 		}
-		return a.Secret(workspace, d.KeySecret)
+		return s.Secret(workspace, d.KeySecret)
 	}
 	if d.Agent == "" {
 		return nil, registry.Invalid("deck: provider %q has no ACP agent; add it again with agent %s", name, strings.Join(acp.Names(), " or "))
 	}
-	return acp.New(acp.Config{Name: name, Agent: d.Agent, Binary: a.Cfg.ACPBinaries[d.Agent], URL: d.URL, Model: d.Model,
-		Key: key, NoCloud: d.NoCloud, Home: a.Cfg.Home, Sandbox: a.Cfg.Sandbox, CallLimit: a.Cfg.ACPCallLimit, Now: a.Cfg.Now})
+	return acp.New(acp.Config{Name: name, Agent: d.Agent, Binary: s.ACPBinaries[d.Agent], URL: d.URL, Model: d.Model,
+		Key: key, NoCloud: d.NoCloud, Home: s.Home, Sandbox: s.Sandbox, CallLimit: s.ACPCallLimit, Now: s.Now})
 }
 
 // named is a built-in provider, or one the owner added to any workspace; nil when there is none.
-func (a *App) named(ctx context.Context, name string) provider.Provider {
-	if pv := a.builtinNamed(name); pv != nil {
+func (s *Service) named(ctx context.Context, name string) provider.Provider {
+	if pv := s.builtinNamed(name); pv != nil {
 		return pv
 	}
-	spaces, _ := a.Store.Q.ListWorkspaces(ctx)
+	spaces, _ := s.St.Q.ListWorkspaces(ctx)
 	for _, ws := range spaces {
-		if pv, err := a.provider(ctx, ws, name); err == nil {
+		if pv, err := s.Provider(ctx, ws, name); err == nil {
 			return pv
 		}
 	}
@@ -84,13 +114,13 @@ func (a *App) named(ctx context.Context, name string) provider.Provider {
 }
 
 // checked are the providers with a self-check: the built-in ones and those the owner added to any workspace.
-func (a *App) checked(ctx context.Context) []provider.Provider {
+func (s *Service) checked(ctx context.Context) []provider.Provider {
 	var out []provider.Provider
 	seen := map[string]bool{}
-	all := slices.Clone(a.builtin)
-	spaces, _ := a.Store.Q.ListWorkspaces(ctx)
+	all := slices.Clone(s.Builtin)
+	spaces, _ := s.St.Q.ListWorkspaces(ctx)
 	for _, ws := range spaces {
-		added, _ := a.providers(ctx, ws)
+		added, _ := s.All(ctx, ws)
 		all = append(all, added...)
 	}
 	for _, pv := range all {
@@ -103,14 +133,14 @@ func (a *App) checked(ctx context.Context) []provider.Provider {
 }
 
 // providers lists every provider of a workspace, the built-in ones first.
-func (a *App) providers(ctx context.Context, workspace int64) ([]provider.Provider, error) {
-	rows, err := a.Store.Q.ListSettings(ctx, db.ListSettingsParams{WorkspaceID: workspace, Prefix: providerPrefix})
+func (s *Service) All(ctx context.Context, workspace int64) ([]provider.Provider, error) {
+	rows, err := s.St.Q.ListSettings(ctx, db.ListSettingsParams{WorkspaceID: workspace, Prefix: providerPrefix})
 	if err != nil {
 		return nil, err
 	}
-	out := slices.Clone(a.builtin)
+	out := slices.Clone(s.Builtin)
 	for _, r := range rows {
-		if pv, err := a.provider(ctx, workspace, strings.TrimPrefix(r.Key, providerPrefix)); err == nil {
+		if pv, err := s.Provider(ctx, workspace, strings.TrimPrefix(r.Key, providerPrefix)); err == nil {
 			out = append(out, pv)
 		}
 	}
@@ -119,15 +149,15 @@ func (a *App) providers(ctx context.Context, workspace int64) ([]provider.Provid
 
 // For picks the provider a command starts on: the owner's setting, else the suggestion of the manifest,
 // else the main provider, else any that fits. A setting that no longer fits refuses the start.
-func (a *App) For(ctx context.Context, projectID int64, cmd *manifest.Command) (provider.Provider, error) {
-	p, err := a.Store.Q.GetProject(ctx, projectID)
+func (s *Service) For(ctx context.Context, projectID int64, cmd *manifest.Command) (provider.Provider, error) {
+	p, err := s.St.Q.GetProject(ctx, projectID)
 	if err != nil {
 		return nil, err
 	}
 	place := p.Name + "." + cmd.Name
-	chosen, err := a.Store.Q.GetCommandProvider(ctx, db.GetCommandProviderParams{ProjectID: p.ID, Command: cmd.Name})
+	chosen, err := s.St.Q.GetCommandProvider(ctx, db.GetCommandProviderParams{ProjectID: p.ID, Command: cmd.Name})
 	if err == nil {
-		pv, err := a.provider(ctx, p.WorkspaceID, chosen)
+		pv, err := s.Provider(ctx, p.WorkspaceID, chosen)
 		if err != nil {
 			return nil, registry.Invalid("deck: %s is set to provider %q, which is gone; pick another with deck.provider_set", place, chosen)
 		}
@@ -139,7 +169,7 @@ func (a *App) For(ctx context.Context, projectID int64, cmd *manifest.Command) (
 	if !errors.Is(err, sql.ErrNoRows) {
 		return nil, err
 	}
-	all, err := a.providers(ctx, p.WorkspaceID)
+	all, err := s.All(ctx, p.WorkspaceID)
 	if err != nil {
 		return nil, err
 	}
@@ -155,8 +185,8 @@ func (a *App) For(ctx context.Context, projectID int64, cmd *manifest.Command) (
 	return nil, registry.Invalid("deck: no provider fits %s, which requires %s; add one with deck.provider_add", place, strings.Join(cmd.Requires, ", "))
 }
 
-func (a *App) builtinNamed(name string) provider.Provider {
-	for _, pv := range a.builtin {
+func (s *Service) builtinNamed(name string) provider.Provider {
+	for _, pv := range s.Builtin {
 		if pv.Name() == name {
 			return pv
 		}
@@ -165,22 +195,22 @@ func (a *App) builtinNamed(name string) provider.Provider {
 }
 
 // Ready holds turns on a built-in provider while its self-check runs after a change of version or is red.
-func (a *App) Ready(ctx context.Context, name string) bool {
-	if _, ok := a.named(ctx, name).(provider.SelfChecker); !ok {
+func (s *Service) Ready(ctx context.Context, name string) bool {
+	if _, ok := s.named(ctx, name).(provider.SelfChecker); !ok {
 		return true
 	}
-	h, err := a.Store.Q.GetHealth(ctx, process.HealthSubject(name))
+	h, err := s.St.Q.GetHealth(ctx, process.HealthSubject(name))
 	return err != nil || h.Status != "checking" && h.Status != "error"
 }
 
 // agentCommand finds an agent command of the workspace by its place, project.command.
-func (a *App) agentCommand(ctx context.Context, workspace int64, place string) (db.Project, *manifest.Command, error) {
+func (s *Service) agentCommand(ctx context.Context, workspace int64, place string) (db.Project, *manifest.Command, error) {
 	name, command, _ := strings.Cut(place, ".")
-	p, err := a.Store.Q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: workspace, Name: name})
+	p, err := s.St.Q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: workspace, Name: name})
 	if err != nil {
 		return p, nil, registry.NotFound("deck: no project %q", name)
 	}
-	m, err := docs.Manifest(ctx, a.Store.Q, p)
+	m, err := docs.Manifest(ctx, s.St.Q, p)
 	if err != nil {
 		return p, nil, err
 	}
@@ -192,8 +222,8 @@ func (a *App) agentCommand(ctx context.Context, workspace int64, place string) (
 }
 
 // setPlace keeps the provider the owner chose for an agent command; empty goes back to the default.
-func (a *App) setPlace(ctx context.Context, project int64, command, name string) error {
-	return a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+func (s *Service) setPlace(ctx context.Context, project int64, command, name string) error {
+	return s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		if name == "" {
 			return q.DeleteCommandProvider(ctx, db.DeleteCommandProviderParams{ProjectID: project, Command: command})
 		}
@@ -203,7 +233,7 @@ func (a *App) setPlace(ctx context.Context, project int64, command, name string)
 
 func checkDef(name string, d providerDef, builtin []string) error {
 	switch {
-	case !projectName.MatchString(name) || slices.Contains(builtin, name):
+	case !access.ProjectName.MatchString(name) || slices.Contains(builtin, name):
 		return registry.Invalid("deck: provider name %q: lowercase letters, digits and '-', not %s", name, strings.Join(builtin, " or "))
 	case !strings.HasPrefix(d.URL, "http://") && !strings.HasPrefix(d.URL, "https://"):
 		return registry.Invalid("deck: provider url must be http or https, got %q", d.URL)
@@ -211,7 +241,7 @@ func checkDef(name string, d providerDef, builtin []string) error {
 		return registry.Invalid("deck: provider url takes no user, query or key; keep the API key in a secret and name it in key_secret")
 	case strings.TrimSpace(d.Model) == "":
 		return registry.Invalid("deck: provider needs a model")
-	case d.KeySecret != "" && !secretName.MatchString(d.KeySecret):
+	case d.KeySecret != "" && !access.SecretName.MatchString(d.KeySecret):
 		return registry.Invalid("deck: bad secret name %q", d.KeySecret)
 	case acp.Agents[d.Agent].Start == nil:
 		return registry.Invalid("deck: no ACP agent %q; deck knows %s", d.Agent, strings.Join(acp.Names(), ", "))

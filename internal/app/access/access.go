@@ -6,6 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -13,6 +14,12 @@ import (
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
 	"deck2/master"
+)
+
+// ProjectName and SecretName are the names a project and a secret may have.
+var (
+	ProjectName = regexp.MustCompile(`^[a-z][a-z0-9-]{0,39}$`)
+	SecretName  = regexp.MustCompile(`^[A-Za-z0-9_.-]{1,64}$`)
 )
 
 // Project resolves the project a call is about, the caller's own when the name is empty; a confined actor

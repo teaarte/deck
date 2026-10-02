@@ -129,6 +129,11 @@ func TestSuggestionMovesToAnotherProject(t *testing.T) {
 	if len(moved) != 1 || moved[0].ID != ss[0].ID || !strings.Contains(moved[0].Text, "card in beta") {
 		t.Fatalf("a moved suggestion waits again, now for the other project: %+v", moved)
 	}
+	var calls []struct{ Tool, Outcome string }
+	e.must("deck.calls_list", map[string]any{"project": "beta"}, &calls)
+	if len(calls) != 1 || calls[0].Tool != "deck.card_create" || calls[0].Outcome != "waiting" {
+		t.Fatalf("its row in the journal moves with it: %+v", calls)
+	}
 	e.answer(ss[0].ID, "allow")
 	if got := e.cardTitles("beta"); len(got) != 1 || len(e.cardTitles("alpha")) != 0 {
 		t.Fatalf("yes puts it into the project it moved to: %v", got)

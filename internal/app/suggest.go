@@ -198,7 +198,10 @@ func (a *App) suggestionAnswer(ctx context.Context, act registry.Actor, q db.Ask
 		err = a.Store.Tx(ctx, func(ctx context.Context, tx *db.Queries) error {
 			var err error
 			n, err = tx.MoveSuggestion(ctx, db.MoveSuggestionParams{ProjectID: p.ID, Text: f.Reason + "\n" + suggested(f), Payload: f.String(), ID: q.ID})
-			return err
+			if err != nil || n == 0 {
+				return err
+			}
+			return tx.MoveAskCalls(ctx, db.MoveAskCallsParams{ProjectID: store.ID(p.ID), AskID: store.ID(q.ID)})
 		})
 		if err != nil {
 			return nil, err

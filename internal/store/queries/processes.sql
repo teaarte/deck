@@ -222,3 +222,7 @@ WHERE id = sqlc.arg(id) AND state = 'running';
 -- name: ListHeld :many
 SELECT sqlc.embed(p), j.workspace_id FROM process p JOIN project j ON j.id = p.project_id
 WHERE p.state IN ('waiting_provider', 'waiting_slot', 'waiting_folder') ORDER BY p.id;
+
+
+-- name: MoveAskCalls :exec
+UPDATE tool_call SET project_id = ? WHERE ask_id = ?;

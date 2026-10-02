@@ -1041,6 +1041,20 @@ func (q *Queries) MarkToolCallUnknown(ctx context.Context, arg MarkToolCallUnkno
 	return result.RowsAffected()
 }
 
+const moveAskCalls = `-- name: MoveAskCalls :exec
+UPDATE tool_call SET project_id = ? WHERE ask_id = ?
+`
+
+type MoveAskCallsParams struct {
+	ProjectID sql.NullInt64
+	AskID     sql.NullInt64
+}
+
+func (q *Queries) MoveAskCalls(ctx context.Context, arg MoveAskCallsParams) error {
+	_, err := q.db.ExecContext(ctx, moveAskCalls, arg.ProjectID, arg.AskID)
+	return err
+}
+
 const pauseCeiling = `-- name: PauseCeiling :exec
 UPDATE process SET ceiling_ms = MAX(0, deadline_ms - CAST(?1 AS INTEGER)), deadline_ms = NULL, silent_since_ms = NULL
 WHERE id = ?2 AND deadline_ms IS NOT NULL

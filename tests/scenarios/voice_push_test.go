@@ -228,6 +228,10 @@ func TestPushGoesToSubscribedDevices(t *testing.T) {
 	if len(got[4]["body"]) > 104 {
 		t.Fatalf("a push is short: %d bytes", len(got[4]["body"]))
 	}
+	e.must("deck.notify", map[string]any{"project": "master", "text": "The blood test of private is in"}, nil)
+	if got = d.wait(e, 6); got[5]["body"] != "Something in deck waits for you" {
+		t.Fatalf("a line of the master, which may quote a project without network, is generic too: %+v", got[5])
+	}
 	d.mu.Lock()
 	d.gone = true
 	d.mu.Unlock()

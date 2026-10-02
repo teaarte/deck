@@ -310,10 +310,10 @@ func (a *App) anyPrivate(ctx context.Context, workspace int64) bool {
 }
 
 // pushText is a push about something of a project: its text cut short, or only a generic line for a project
-// whose data stays off the network, or whose project deck cannot read.
+// whose data stays off the network, the master while any project's does, or a project deck cannot read.
 func (a *App) pushText(ctx context.Context, projectID int64, title, text, url string) pushMessage {
 	p, err := a.Store.Q.GetProject(ctx, projectID)
-	if err != nil {
+	if err != nil || p.Builtin == 1 && a.anyPrivate(ctx, p.WorkspaceID) {
 		return pushMessage{Title: "deck", Body: generic, URL: url}
 	}
 	if m, err := docs.Manifest(ctx, a.Store.Q, p); err != nil || m.NoNetwork {

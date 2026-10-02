@@ -48,15 +48,15 @@ func (s Sources) processItems(ctx context.Context, sc screen.Scope, names map[in
 		it := map[string]any{"id": p.ID, "project": names[p.ProjectID], "command": p.Command, "kind": p.Kind, "state": p.State,
 			"silent": p.SilentSinceMs.Valid, "started_at": p.StartedAt, "provider": p.Provider, "error": p.Error, "folder": p.Folder}
 		acts := []map[string]any{{"verb": "open", "screen": "process", "record": p.ID}}
-		if !finished(p.State) {
+		if !p.FinishedAt.Valid {
 			acts = append(acts, call("stop", false, "deck.process_stop", map[string]any{"process": p.ID}))
 		}
 		if sc.Record != 0 {
 			acts = acts[1:]
-			if p.Kind == process.KindAgent && p.SessionID != "" && finished(p.State) {
+			if p.Kind == process.KindAgent && p.SessionID != "" && p.FinishedAt.Valid {
 				acts = append(acts, withInput(call("rework", true, "deck.process_rework", map[string]any{"process": p.ID}), "remark"))
 			}
-			if p.Kind == process.KindAgent && !finished(p.State) {
+			if p.Kind == process.KindAgent && !p.FinishedAt.Valid {
 				acts = append(acts, withInput(call("tell", false, "deck.process_tell", map[string]any{"process": p.ID}), "text"))
 			}
 			it["terminal"] = s.Deck.Terminal(ctx, p)
@@ -65,10 +65,6 @@ func (s Sources) processItems(ctx context.Context, sc screen.Scope, names map[in
 		out = append(out, it)
 	}
 	return out, nil
-}
-
-func finished(state string) bool {
-	return slices.Contains([]string{process.StateDone, process.StateError, process.StateInterrupted, process.StateStopped}, state)
 }
 
 // logItems are the last lines of the log of a process.

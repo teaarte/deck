@@ -31,7 +31,7 @@ func (q *Queries) ClaimProcess(ctx context.Context, arg ClaimProcessParams) (int
 const countActiveOnProvider = `-- name: CountActiveOnProvider :one
 SELECT count(*) FROM process
 WHERE provider = ?1 AND project_id IN (SELECT id FROM project WHERE workspace_id = ?2)
-  AND state IN ('running', 'waiting_answer', 'needs_login', 'rate_limited', 'waiting_provider', 'waiting_slot', 'waiting_folder')
+  AND finished_at IS NULL
 `
 
 type CountActiveOnProviderParams struct {
@@ -190,7 +190,7 @@ func (q *Queries) EndPause(ctx context.Context, id int64) error {
 const findActiveProcess = `-- name: FindActiveProcess :one
 SELECT id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, kind, manifest_revision, trial, pause_until_ms, pause_limit_ms, wait_message, wait_fresh, folder FROM process
 WHERE project_id = ? AND command = ? AND retry_key = ? AND retry_key != '' AND trial = ?
-  AND state IN ('running', 'waiting_answer', 'needs_login', 'rate_limited', 'waiting_provider', 'waiting_slot', 'waiting_folder')
+  AND finished_at IS NULL
 ORDER BY id LIMIT 1
 `
 
@@ -397,7 +397,7 @@ const listOpenProcesses = `-- name: ListOpenProcesses :many
 SELECT id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, kind, manifest_revision, trial, pause_until_ms, pause_limit_ms, wait_message, wait_fresh, folder FROM process
 WHERE project_id IN (SELECT id FROM project WHERE workspace_id = ?1)
   AND (?2 = 0 OR project_id = ?2)
-  AND state NOT IN ('done', 'error', 'interrupted', 'stopped')
+  AND finished_at IS NULL
 ORDER BY id DESC
 `
 
@@ -1098,7 +1098,7 @@ func (q *Queries) PurgeEmptyProcesses(ctx context.Context, before string) ([]int
 
 const recentOutcomes = `-- name: RecentOutcomes :many
 SELECT state FROM process
-WHERE project_id = ? AND command = ? AND state IN ('done', 'error', 'stopped', 'interrupted')
+WHERE project_id = ? AND command = ? AND finished_at IS NOT NULL
 ORDER BY id DESC LIMIT 4
 `
 
@@ -1134,7 +1134,7 @@ const reopenProcess = `-- name: ReopenProcess :execrows
 UPDATE process
 SET state = 'running', error = '', finished_at = NULL, ceiling_ms = ?, deadline_ms = NULL, silent_since_ms = NULL,
     start_note = ?, pause_until_ms = NULL, pause_limit_ms = NULL
-WHERE id = ? AND state IN ('done', 'error', 'stopped', 'interrupted') AND session_id != ''
+WHERE id = ? AND finished_at IS NOT NULL AND session_id != ''
 `
 
 type ReopenProcessParams struct {
@@ -1267,7 +1267,7 @@ func (q *Queries) StartedToolCalls(ctx context.Context) ([]ToolCall, error) {
 
 const stopParkedProcess = `-- name: StopParkedProcess :execrows
 UPDATE process SET state = 'stopped', error = ?, finished_at = ?, deadline_ms = NULL, silent_since_ms = NULL
-WHERE id = ? AND state IN ('running', 'waiting_answer', 'needs_login', 'rate_limited', 'waiting_provider', 'waiting_slot', 'waiting_folder')
+WHERE id = ? AND finished_at IS NULL
 `
 
 type StopParkedProcessParams struct {

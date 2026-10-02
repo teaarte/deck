@@ -34,8 +34,7 @@ func (q *Queries) AddProjectFolder(ctx context.Context, arg AddProjectFolderPara
 
 const dropStaleFolderLock = `-- name: DropStaleFolderLock :exec
 DELETE FROM folder_lock
-WHERE path = ?1 AND process_id NOT IN (SELECT id FROM process
-  WHERE state IN ('running', 'waiting_answer', 'needs_login', 'rate_limited', 'waiting_provider', 'waiting_slot'))
+WHERE path = ?1 AND process_id NOT IN (SELECT id FROM process WHERE finished_at IS NULL)
 `
 
 func (q *Queries) DropStaleFolderLock(ctx context.Context, path string) error {

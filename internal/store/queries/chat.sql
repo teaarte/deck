@@ -61,7 +61,7 @@ WHERE m.role = 'owner' AND m.process_id = 0 AND t.deleted_at IS NULL;
 -- name: OpenTopicProcess :one
 SELECT p.* FROM process p
 WHERE p.id IN (SELECT process_id FROM chat_message WHERE topic_id = ? AND process_id != 0)
-  AND p.state NOT IN ('done', 'error', 'interrupted', 'stopped')
+  AND p.finished_at IS NULL
 ORDER BY p.id DESC
 LIMIT 1;
 

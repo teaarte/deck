@@ -23,7 +23,7 @@ SELECT * FROM process WHERE state = ? ORDER BY id;
 -- name: FindActiveProcess :one
 SELECT * FROM process
 WHERE project_id = ? AND command = ? AND retry_key = ? AND retry_key != '' AND trial = ?
-  AND state IN ('running', 'waiting_answer', 'needs_login', 'rate_limited', 'waiting_provider', 'waiting_slot', 'waiting_folder')
+  AND finished_at IS NULL
 ORDER BY id LIMIT 1;
 
 
@@ -39,14 +39,14 @@ WHERE id = ? AND state = 'running';
 
 -- name: StopParkedProcess :execrows
 UPDATE process SET state = 'stopped', error = ?, finished_at = ?, deadline_ms = NULL, silent_since_ms = NULL
-WHERE id = ? AND state IN ('running', 'waiting_answer', 'needs_login', 'rate_limited', 'waiting_provider', 'waiting_slot', 'waiting_folder');
+WHERE id = ? AND finished_at IS NULL;
 
 
 -- name: ReopenProcess :execrows
 UPDATE process
 SET state = 'running', error = '', finished_at = NULL, ceiling_ms = ?, deadline_ms = NULL, silent_since_ms = NULL,
     start_note = ?, pause_until_ms = NULL, pause_limit_ms = NULL
-WHERE id = ? AND state IN ('done', 'error', 'stopped', 'interrupted') AND session_id != '';
+WHERE id = ? AND finished_at IS NOT NULL AND session_id != '';
 
 
 -- name: StartCeiling :exec
@@ -135,7 +135,7 @@ UPDATE process SET session_id = ?, start_note = ? WHERE id = ?;
 
 -- name: RecentOutcomes :many
 SELECT state FROM process
-WHERE project_id = ? AND command = ? AND state IN ('done', 'error', 'stopped', 'interrupted')
+WHERE project_id = ? AND command = ? AND finished_at IS NOT NULL
 ORDER BY id DESC LIMIT 4;
 
 
@@ -175,7 +175,7 @@ SELECT * FROM process WHERE state = 'waiting_provider' AND provider = sqlc.arg(p
 -- name: CountActiveOnProvider :one
 SELECT count(*) FROM process
 WHERE provider = sqlc.arg(provider) AND project_id IN (SELECT id FROM project WHERE workspace_id = sqlc.arg(workspace_id))
-  AND state IN ('running', 'waiting_answer', 'needs_login', 'rate_limited', 'waiting_provider', 'waiting_slot', 'waiting_folder');
+  AND finished_at IS NULL;
 
 
 -- name: ResetPauseLimit :exec
@@ -187,7 +187,7 @@ UPDATE process SET pause_limit_ms = sqlc.arg(limit_ms) WHERE id = sqlc.arg(id) A
 SELECT * FROM process
 WHERE project_id IN (SELECT id FROM project WHERE workspace_id = sqlc.arg(workspace_id))
   AND (sqlc.arg(project_id) = 0 OR project_id = sqlc.arg(project_id))
-  AND state NOT IN ('done', 'error', 'interrupted', 'stopped')
+  AND finished_at IS NULL
 ORDER BY id DESC;
 
 

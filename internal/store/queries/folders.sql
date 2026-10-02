@@ -12,8 +12,7 @@ DELETE FROM project_folder WHERE project_id = ? AND name = ?;
 
 -- name: DropStaleFolderLock :exec
 DELETE FROM folder_lock
-WHERE path = sqlc.arg(path) AND process_id NOT IN (SELECT id FROM process
-  WHERE state IN ('running', 'waiting_answer', 'needs_login', 'rate_limited', 'waiting_provider', 'waiting_slot'));
+WHERE path = sqlc.arg(path) AND process_id NOT IN (SELECT id FROM process WHERE finished_at IS NULL);
 
 
 -- name: TakeFolderLock :exec

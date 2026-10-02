@@ -407,7 +407,7 @@ func (q *Queries) ListTopicsWithPending(ctx context.Context) ([]int64, error) {
 const openTopicProcess = `-- name: OpenTopicProcess :one
 SELECT p.id, p.project_id, p.command, p.state, p.provider, p.session_id, p.input, p.result, p.not_by_schema, p.error, p.started_at, p.finished_at, p.start_note, p.parent_id, p.depth, p.trigger_id, p.retry_key, p.pgid, p.ceiling_ms, p.deadline_ms, p.output_ms, p.silent_since_ms, p.kind, p.manifest_revision, p.trial, p.pause_until_ms, p.pause_limit_ms, p.wait_message, p.wait_fresh, p.folder FROM process p
 WHERE p.id IN (SELECT process_id FROM chat_message WHERE topic_id = ? AND process_id != 0)
-  AND p.state NOT IN ('done', 'error', 'interrupted', 'stopped')
+  AND p.finished_at IS NULL
 ORDER BY p.id DESC
 LIMIT 1
 `

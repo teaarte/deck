@@ -13,8 +13,25 @@ import (
 	"time"
 )
 
-var outbound = &http.Transport{Proxy: nil, DialContext: (&net.Dialer{Timeout: 10 * time.Second}).DialContext,
-	ResponseHeaderTimeout: 5 * time.Minute}
+var outbound = &http.Transport{Proxy: nil, DialContext: dialPinned, ResponseHeaderTimeout: 5 * time.Minute}
+
+type pinnedKey struct{}
+
+// dialPinned dials the addresses a request was pinned to, in turn, or the address it names.
+func dialPinned(ctx context.Context, network, addr string) (net.Conn, error) {
+	addrs, _ := ctx.Value(pinnedKey{}).([]string)
+	if len(addrs) == 0 {
+		addrs = []string{addr}
+	}
+	var err error
+	for _, a := range addrs {
+		var c net.Conn
+		if c, err = (&net.Dialer{Timeout: 10 * time.Second}).DialContext(ctx, network, a); err == nil {
+			return c, nil
+		}
+	}
+	return nil, err
+}
 
 // Reachable reports whether host:port is in the domains: a host with its subdomains on any port, an exact
 // host:port, an IP, a network such as 192.168.1.0/24, or "*" for any host that has no local address.
@@ -99,31 +116,30 @@ func Egress(ctx context.Context, w http.ResponseWriter, r *http.Request, domains
 			http.Error(w, "deck: "+err.Error(), http.StatusForbidden)
 			return
 		}
-		target = pinned
-		if r.Method != http.MethodConnect {
-			r.URL.Host = pinned
-		}
+		r = r.WithContext(context.WithValue(r.Context(), pinnedKey{}, pinned))
 	}
 	if r.Method == http.MethodConnect {
-		tunnel(ctx, w, target)
+		tunnel(ctx, w, r, target)
 		return
 	}
 	forward.ServeHTTP(w, r)
 }
 
-// public resolves host:port once and gives the address to dial, when every address of the host is public.
-func public(ctx context.Context, hostport string) (string, error) {
+// public resolves host:port once and gives the addresses to dial, when every address of the host is public.
+func public(ctx context.Context, hostport string) ([]string, error) {
 	host, port, _ := net.SplitHostPort(hostport)
 	ips, err := net.DefaultResolver.LookupNetIP(ctx, "ip", host)
 	if err != nil || len(ips) == 0 {
-		return "", fmt.Errorf("%s does not resolve", host)
+		return nil, fmt.Errorf("%s does not resolve", host)
 	}
+	out := make([]string, 0, len(ips))
 	for _, ip := range ips {
 		if !Public(ip) {
-			return "", fmt.Errorf("%s is not a public address; local services are reached by naming their IP, network or host:port", host)
+			return nil, fmt.Errorf("%s is not a public address; local services are reached by naming their IP, network or host:port", host)
 		}
+		out = append(out, net.JoinHostPort(ip.Unmap().String(), port))
 	}
-	return net.JoinHostPort(ips[0].Unmap().String(), port), nil
+	return out, nil
 }
 
 // forward carries a plain HTTP proxy request as it is, without hop-by-hop headers either way.
@@ -132,8 +148,8 @@ var forward = &httputil.ReverseProxy{Transport: outbound, Rewrite: func(*httputi
 		http.Error(w, "deck: "+err.Error(), http.StatusBadGateway)
 	}}
 
-func tunnel(ctx context.Context, w http.ResponseWriter, target string) {
-	up, err := net.DialTimeout("tcp", target, 10*time.Second)
+func tunnel(ctx context.Context, w http.ResponseWriter, r *http.Request, target string) {
+	up, err := dialPinned(r.Context(), "tcp", target)
 	if err != nil {
 		http.Error(w, "deck: "+err.Error(), http.StatusBadGateway)
 		return

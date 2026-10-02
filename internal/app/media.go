@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	"deck2/internal/app/access"
 	"deck2/internal/registry"
@@ -69,15 +70,15 @@ func fileType(name string) string {
 	return "application/octet-stream"
 }
 
-// dataFile opens a regular file inside the data folder of a project; the root keeps every link inside it, even
-// one swapped in while the file opens.
+// dataFile opens a regular file inside the data folder of a project; the root keeps every link inside it, and a
+// pipe opens without waiting for a writer.
 func (a *App) dataFile(project int64, path string) (*os.File, error) {
 	root, err := os.OpenRoot(a.Home.Data(project))
 	if err != nil {
 		return nil, err
 	}
 	defer root.Close()
-	f, err := root.Open(strings.TrimPrefix(filepath.Clean("/"+path), "/"))
+	f, err := root.OpenFile(strings.TrimPrefix(filepath.Clean("/"+path), "/"), os.O_RDONLY|syscall.O_NONBLOCK, 0)
 	if err != nil {
 		return nil, err
 	}

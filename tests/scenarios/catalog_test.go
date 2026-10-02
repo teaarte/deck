@@ -9,7 +9,9 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"syscall"
 	"testing"
+	"time"
 )
 
 // forecastManifest is a module that tracks a price and forecasts its change: a stat of the last price, a table
@@ -396,5 +398,31 @@ func TestMediaShowsTheFilesOfItsProjectOnly(t *testing.T) {
 		if code != 422 || !strings.Contains(string(out), tc.want) {
 			t.Fatalf("%s is refused with %q: %d %s", tc.to, tc.want, code, out)
 		}
+	}
+}
+
+// TestAPipeInTheDataFolderDoesNotHangMedia: a named pipe in the data folder is no file of a media line.
+func TestAPipeInTheDataFolderDoesNotHangMedia(t *testing.T) {
+	e := newEnv(t, nil)
+	id := e.createProject("btc", forecastManifest)
+	data := e.App.Home.Data(id)
+	_ = os.MkdirAll(data, 0o700)
+	if err := syscall.Mkfifo(filepath.Join(data, "pipe.png"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	e.must("deck.records_upsert", map[string]any{"project": "btc", "collection": "attachments", "records": jsonl(map[string]any{"title": "pipe", "file": "pipe.png"})}, nil)
+	done := make(chan []map[string]any, 1)
+	go func() {
+		var files []map[string]any
+		_ = json.Unmarshal(e.screenData("btc", "files", nil)["b0"]["files"], &files)
+		done <- files
+	}()
+	select {
+	case files := <-done:
+		if len(files) != 1 || !strings.Contains(fmt.Sprint(files[0]["error"]), `no file "pipe.png"`) {
+			t.Fatalf("a pipe is no file: %v", files)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("a pipe in the data folder hangs the screen")
 	}
 }

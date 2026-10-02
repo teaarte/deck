@@ -1,7 +1,6 @@
 package scenarios
 
 import (
-	"context"
 	deckhome "deck2/internal/home"
 	"deck2/internal/provider/claudecode"
 	"os"
@@ -97,10 +96,11 @@ func cliEnv(t *testing.T, c *fakeCLI) (*Env, string) {
 }
 
 func (e *Env) session(id int64) string {
-	p, err := e.App.Store.Q.GetProcess(context.Background(), id)
-	if err != nil {
-		e.T.Fatal(err)
+	e.T.Helper()
+	var p struct {
+		SessionID string `json:"session_id"`
 	}
+	e.must("deck.process_get", map[string]any{"process": id}, &p)
 	return p.SessionID
 }
 

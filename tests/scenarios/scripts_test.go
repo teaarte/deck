@@ -162,7 +162,7 @@ func TestScriptKeepsAnIndexInTheProjectDataFolder(t *testing.T) {
 	e.must("deck.snapshot_create", nil, &snap)
 	names := tarNames(t, snap.Path)
 	want := fmt.Sprintf("work/projects/%d/data/index.json", pid)
-	if !names[want] || !names["deck.db"] {
+	if !names[want] || !names["state/deck.db"] {
 		t.Fatalf("the snapshot holds the base and the data folder: %v", names)
 	}
 	for n := range names {

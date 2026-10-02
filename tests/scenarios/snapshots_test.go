@@ -145,7 +145,7 @@ func snapshotFiles(t *testing.T, path string) ([]string, map[string]bool) {
 			t.Fatal(err)
 		}
 		stored[h.Name] = true
-		if h.Name == "deck.db" {
+		if h.Name == "state/deck.db" {
 			out, _ := os.Create(dbPath)
 			_, _ = io.Copy(out, tr)
 			_ = out.Close()

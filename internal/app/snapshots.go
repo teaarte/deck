@@ -84,7 +84,8 @@ func writeSnapshot(path string, h home.Layout, copyDB string, filesDone func()) 
 	defer f.Close()
 	gz := gzip.NewWriter(f)
 	tw := tar.NewWriter(gz)
-	if err := addFile(tw, copyDB, "deck.db"); err != nil {
+	db, _ := filepath.Rel(string(h), h.DB())
+	if err := addFile(tw, copyDB, filepath.ToSlash(db)); err != nil {
 		return err
 	}
 	dirs := []string{h.Files()}

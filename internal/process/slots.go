@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"sync"
 
 	"deck2/internal/store/db"
 )
@@ -15,24 +16,36 @@ func (r *Runner) slotsOf(ctx context.Context, workspace int64) int {
 	return r.cfg.AgentSlots(ctx, workspace)
 }
 
-// takeSlot holds one of the agent slots of the workspace; zero slots is no limit.
-func (r *Runner) takeSlot(ctx context.Context, workspace int64) bool {
+// slot is the hold of a turn on one of the agent slots of a workspace; it goes back once, however often it is
+// released, and then the process that waited for one longest gets it.
+type slot struct {
+	r         *Runner
+	workspace int64
+	once      sync.Once
+}
+
+// takeSlot holds one of the agent slots of the workspace, nil when they are all taken; zero slots is no limit.
+func (r *Runner) takeSlot(ctx context.Context, workspace int64) *slot {
 	limit := r.slotsOf(ctx, workspace)
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if limit > 0 && r.slots[workspace] >= limit {
-		return false
+		return nil
 	}
 	r.slots[workspace]++
-	return true
+	return &slot{r: r, workspace: workspace}
 }
 
-// releaseSlot gives the slot of a finished turn to the process that waited for one longest.
-func (r *Runner) releaseSlot(ctx context.Context, workspace int64) {
-	r.mu.Lock()
-	r.slots[workspace]--
-	r.mu.Unlock()
-	r.FreeSlots(ctx, workspace)
+func (s *slot) release(ctx context.Context) {
+	if s == nil {
+		return
+	}
+	s.once.Do(func() {
+		s.r.mu.Lock()
+		s.r.slots[s.workspace]--
+		s.r.mu.Unlock()
+		s.r.FreeSlots(ctx, s.workspace)
+	})
 }
 
 // waitSlot holds a turn that found every slot taken; its ceiling starts with the turn.
@@ -53,36 +66,36 @@ func (r *Runner) waitSlot(ctx context.Context, t turn, workspace int64) {
 // FreeSlots runs the processes that wait for a slot, oldest first, while the workspace has slots; each turn
 // starts holding the slot it was handed.
 func (r *Runner) FreeSlots(ctx context.Context, workspace int64) {
+	r.mu.Lock()
+	stopped := r.stopped
+	r.mu.Unlock()
+	if stopped {
+		return
+	}
 	ps, err := r.st.Q.ListWaitingForSlot(ctx, workspace)
 	if err != nil {
 		slog.Error("processes waiting for a slot", "workspace", workspace, "err", err)
 		return
 	}
 	for _, p := range ps {
-		if !r.takeSlot(ctx, workspace) {
+		s := r.takeSlot(ctx, workspace)
+		if s == nil {
 			return
 		}
 		ok, err := r.claim(ctx, p.ID, StateWaitingSlot)
 		if err != nil || !ok {
-			r.mu.Lock()
-			r.slots[workspace]--
-			r.mu.Unlock()
+			s.release(ctx)
 			continue
 		}
 		t, err := r.heldTurn(ctx, p)
 		if err != nil {
-			r.mu.Lock()
-			r.slots[workspace]--
-			r.mu.Unlock()
+			s.release(ctx)
 			r.finish(ctx, p.ID, StateError, "", false, err.Error())
 			continue
 		}
-		t.slot, t.workspace = true, workspace
+		t.slot = s
 		r.bus.Publish("processes")
 		if !r.spawn(t) {
-			r.mu.Lock()
-			r.slots[workspace]--
-			r.mu.Unlock()
 			_ = r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 				_, err := q.ClaimProcess(ctx, db.ClaimProcessParams{ToState: StateWaitingSlot, ID: p.ID, FromState: StateRunning})
 				return err

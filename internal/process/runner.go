@@ -147,12 +147,15 @@ func (r *Runner) stamp() sql.NullString {
 	return sql.NullString{String: store.Time(r.now()), Valid: true}
 }
 
-// spawn starts a turn unless deck is stopping; the process then stays running and resumes on the next start.
-// It reports whether the turn runs.
+// spawn starts a turn unless deck is closing; the process then stays running and resumes on the next start,
+// and the slot of the turn goes back. It reports whether the turn runs.
 func (r *Runner) spawn(t turn) bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.stopped {
+		if t.slot != nil {
+			go t.slot.release(context.WithoutCancel(r.ctx))
+		}
 		return false
 	}
 	ctx, cancel := context.WithCancelCause(r.ctx)

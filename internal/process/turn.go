@@ -38,18 +38,13 @@ type turn struct {
 	folder string
 	// live is the entry of the turn among the live ones, set when it is spawned.
 	live *liveTurn
-	// slot says the turn holds an agent slot of workspace, handed to it or taken when it starts.
-	slot      bool
-	workspace int64
+	// slot is the agent slot the turn holds, handed to it or taken when it starts.
+	slot *slot
 }
 
 func (r *Runner) run(ctx context.Context, t turn) {
 	bg := context.WithoutCancel(ctx)
-	defer func() {
-		if t.slot {
-			r.releaseSlot(bg, t.workspace)
-		}
-	}()
+	defer func() { t.slot.release(bg) }()
 	processID := t.process
 	p, err := r.st.Q.GetProcess(bg, processID)
 	if err != nil || p.State != StateRunning {
@@ -94,12 +89,11 @@ func (r *Runner) run(ctx context.Context, t turn) {
 			return
 		}
 	}
-	if !t.slot {
-		if !r.takeSlot(bg, proj.WorkspaceID) {
+	if t.slot == nil {
+		if t.slot = r.takeSlot(bg, proj.WorkspaceID); t.slot == nil {
 			r.waitSlot(bg, t, proj.WorkspaceID)
 			return
 		}
-		t.slot, t.workspace = true, proj.WorkspaceID
 	}
 	dir := r.runDir(processID)
 	work := filepath.Join(dir, "work")

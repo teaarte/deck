@@ -211,16 +211,9 @@ func (r *Runner) resumeHeld(ctx context.Context, p db.Process, message string, a
 	if err != nil {
 		return err
 	}
-	slot := int64(0)
-	if r.takeSlot(ctx, proj.WorkspaceID) {
-		slot = proj.WorkspaceID
-	}
-	if err := r.resumeTurn(ctx, p.ID, message, asks, false, slot); err != nil {
-		if slot != 0 {
-			r.mu.Lock()
-			r.slots[slot]--
-			r.mu.Unlock()
-		}
+	s := r.takeSlot(ctx, proj.WorkspaceID)
+	if err := r.resumeTurn(ctx, p.ID, message, asks, false, s); err != nil {
+		s.release(ctx)
 		return err
 	}
 	return nil
@@ -229,11 +222,11 @@ func (r *Runner) resumeHeld(ctx context.Context, p db.Process, message string, a
 // resume spawns the provider on the existing session, or on a new one whose first prompt keeps the message.
 // The caller has set the state to running; the asks are marked delivered once the provider returns.
 func (r *Runner) resume(ctx context.Context, processID int64, message string, asks told, fresh bool) error {
-	return r.resumeTurn(ctx, processID, message, asks, fresh, 0)
+	return r.resumeTurn(ctx, processID, message, asks, fresh, nil)
 }
 
-// resumeTurn is resume of a turn that holds a slot of the workspace slot, when that is not 0.
-func (r *Runner) resumeTurn(ctx context.Context, processID int64, message string, asks told, fresh bool, slot int64) error {
+// resumeTurn is resume of a turn that holds a slot already, when s is not nil.
+func (r *Runner) resumeTurn(ctx context.Context, processID int64, message string, asks told, fresh bool, s *slot) error {
 	p, err := r.st.Q.GetProcess(ctx, processID)
 	if err != nil {
 		return err
@@ -252,13 +245,9 @@ func (r *Runner) resumeTurn(ctx context.Context, processID int64, message string
 			return err
 		}
 	}
-	t.slot, t.workspace = slot != 0, slot
+	t.slot = s
 	r.bus.Publish("processes")
-	if !r.spawn(t) && slot != 0 {
-		r.mu.Lock()
-		r.slots[slot]--
-		r.mu.Unlock()
-	}
+	r.spawn(t)
 	return nil
 }
 

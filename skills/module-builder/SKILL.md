@@ -58,7 +58,10 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
 - **Commands** are the verbs. Each has a class: `internal` (records, cards, documents), `reversible`,
   `external` (leaves deck). Choose the executor:
   - `script` for mechanics that repeat the same way (fetch, parse, poll, convert, index) — cheap and exact;
-  - `agent` for judgement (rate, summarise, write) — give it a prompt file, skills and a result schema;
+  - `agent` for judgement (rate, summarise, write) — give it a prompt file, skills and a result schema; an
+    agent that reads what strangers wrote (mail, pages, feeds) gets `"calls"`, the list of commands it may
+    call (`["deck.records_list", "<project>.score"]`, or every command of a project as `"<project>.*"`), so a
+    page cannot steer it into the rest;
   - `tool` for exactly one call of a tool: `{"type": "tool", "tool": "<http tool>"}`; the tool gets the
     command input as it is (declare the same input), and the process result is what the tool answered.
   A script that cannot do something reliably becomes an agent, not a bigger script. `timeout_minutes` raises

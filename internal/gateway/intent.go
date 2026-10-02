@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"deck2/internal/untrusted"
 
@@ -91,8 +92,7 @@ func (g *Gateway) LostAt(ctx context.Context, id int64, tool string) {
 		act := caller.actor()
 		text := fmt.Sprintf("Outcome unknown: %s with %s. deck stopped or lost the connection while making this call; "+
 			"check the other side, then retry it or count it as done.", c.Tool, untrusted.Cut(c.Params, 500))
-		a, err := q.CreateCallAsk(ctx, db.CreateCallAskParams{ProcessID: sql.NullInt64{Int64: c.ProcessID, Valid: c.ProcessID != 0},
-			WorkspaceID: p.WorkspaceID, ProjectID: p.ID, Kind: ask.KindUnknown, Text: text, Payload: frozen(act, c.Tool, json.RawMessage(c.Params), tool, "")})
+		a, err := ask.ForProject(ctx, q, p.WorkspaceID, p.ID, c.ProcessID, ask.KindUnknown, text, frozen(act, c.Tool, json.RawMessage(c.Params), tool, ""), time.Time{})
 		if err != nil {
 			return err
 		}
@@ -117,29 +117,53 @@ func (g *Gateway) Recover(ctx context.Context) error {
 		lost[fmt.Sprint(c.ProjectID, c.Tool, c.Params)] = true
 		g.Lost(ctx, c.ID)
 	}
-	running, err := g.st.Q.ListRunningAsks(ctx)
+	running, err := g.st.Q.ListRunningDecisions(ctx)
 	if err != nil {
 		return err
 	}
 	res, _ := json.Marshal(Outcome{Error: "deck stopped while making this call; it is listed for the owner as an unknown outcome"})
-	return g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		for _, a := range running {
+	classes := map[string]string{}
+	for _, r := range running {
+		var f Frozen
+		_ = json.Unmarshal([]byte(r.Ask.Payload), &f)
+		classes[f.Call.Command] = registry.External
+		if c, err := g.reg.Lookup(ctx, r.Ask.WorkspaceID, f.Call.Command); err == nil {
+			classes[f.Call.Command] = c.Class
+		}
+	}
+	err = g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		for _, r := range running {
+			a := r.Ask
+			if err := q.SettleDecision(ctx, db.SettleDecisionParams{Result: string(res), AskID: sql.NullInt64{Int64: a.ID, Valid: true}}); err != nil {
+				return err
+			}
 			var f Frozen
 			_ = json.Unmarshal([]byte(a.Payload), &f)
 			if lost[fmt.Sprint(a.ProjectID, f.Call.Command, string(f.Call.Input))] {
-				if _, err := q.SettleAsk(ctx, db.SettleAskParams{Result: string(res), ID: a.ID}); err != nil {
-					return err
-				}
 				continue
+			}
+			if err := q.MarkAskDelivered(ctx, a.ID); err != nil {
+				return err
 			}
 			text := fmt.Sprintf("Outcome unknown: %s with %s. deck stopped while making this allowed call; "+
 				"check the other side, then retry it or count it as done.", f.Call.Command, untrusted.Cut(string(f.Call.Input), 500))
-			if err := q.ReopenAsUnknown(ctx, db.ReopenAsUnknownParams{Text: text, ID: a.ID}); err != nil {
+			u, err := ask.ForProject(ctx, q, a.WorkspaceID, a.ProjectID, a.ProcessID.Int64, ask.KindUnknown, text, a.Payload, time.Time{})
+			if err != nil {
+				return err
+			}
+			act := f.Caller.actor()
+			if _, err := q.LogToolCall(ctx, db.LogToolCallParams{WorkspaceID: a.WorkspaceID, ProcessID: act.ProcessID, ProjectID: a.ProjectID,
+				Actor: act.Author(), Caller: frozenCaller(act), Tool: f.Call.Command, Class: classes[f.Call.Command], Outcome: "unknown",
+				Params: Canonical(f.Call.Input), AskID: sql.NullInt64{Int64: u.ID, Valid: true}}); err != nil {
 				return err
 			}
 		}
 		return nil
 	})
+	if err == nil && len(running) > 0 {
+		g.bus.Publish("asks")
+	}
+	return err
 }
 
 // Unresolved says which calls of a process have an unknown outcome, for the message that resumes it.

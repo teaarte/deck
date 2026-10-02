@@ -5,10 +5,13 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"slices"
+	"strings"
 	"sync"
 	"time"
 
 	"deck2/internal/events"
+	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
 )
@@ -32,8 +35,6 @@ const (
 	KindLimit = "limit"
 	// KindSuggest is a draft of a card or a call that waits for the owner's yes; its payload holds the draft.
 	KindSuggest = "suggest"
-	// KindRemark is a message of the owner the running turn could not take; the resume after the turn carries it.
-	KindRemark = "remark"
 )
 
 // LimitContinue is the one answer to a limit ask.
@@ -52,6 +53,46 @@ const (
 )
 
 var UnknownAnswers = []string{UnknownRetry, UnknownDone}
+
+// answers are what a kind may be answered with, "deny:" taking a reason after it, and what to say to another
+// answer; a kind not listed takes any text.
+var answers = map[string]struct {
+	ok  []string
+	say string
+}{
+	KindLogin:   {LoginAnswers, "answer a login ask with retry or new_session"},
+	KindLimit:   {[]string{LimitContinue}, "answer a stopped pause with continue"},
+	KindUnknown: {UnknownAnswers, "answer an unknown outcome with retry or done"},
+	KindCall:    {[]string{"allow", "allow_always", "deny", "deny:"}, "answer a confirmation with allow, allow_always, deny or deny:<reason>"},
+}
+
+// Check refuses an answer the kind does not take.
+func Check(kind, answer string) error {
+	a, ok := answers[kind]
+	if !ok || slices.ContainsFunc(a.ok, func(o string) bool { return answer == o || strings.HasSuffix(o, ":") && strings.HasPrefix(answer, o) }) {
+		return nil
+	}
+	return registry.Invalid("deck: %s", a.say)
+}
+
+// Refused reports a no to a call: deny, with or without a reason.
+func Refused(answer string) bool { return answer == "deny" || strings.HasPrefix(answer, "deny:") }
+
+// New stores an ask a process waits on in the caller's transaction; a zero expires is no deadline.
+func New(ctx context.Context, q *db.Queries, processID int64, kind, text, payload string, expires time.Time) (db.Ask, error) {
+	return q.CreateAsk(ctx, db.CreateAskParams{ProcessID: processID, Kind: kind, Text: text, Payload: payload, ExpiresAt: At(expires)})
+}
+
+// ForProject stores an ask of a project that no process, or the given one, waits on.
+func ForProject(ctx context.Context, q *db.Queries, workspace, project, processID int64, kind, text, payload string, expires time.Time) (db.Ask, error) {
+	return q.CreateProjectAsk(ctx, db.CreateProjectAskParams{ProcessID: sql.NullInt64{Int64: processID, Valid: processID != 0},
+		WorkspaceID: workspace, ProjectID: project, Kind: kind, Text: text, Payload: payload, ExpiresAt: At(expires)})
+}
+
+// Remark keeps a message of the owner for an open process; sql.ErrNoRows when the process has finished.
+func Remark(ctx context.Context, q *db.Queries, processID int64, text, at string) (db.ProcessRemark, error) {
+	return q.CreateRemark(ctx, db.CreateRemarkParams{ProcessID: processID, Text: text, CreatedAt: at})
+}
 
 var ErrNotOpen = errors.New("ask is not open")
 
@@ -87,7 +128,7 @@ func (b *Broker) Create(ctx context.Context, processID int64, kind, text string,
 // CreateRaw stores an ask with a payload that is already JSON, so it can be matched byte for byte later.
 func (b *Broker) CreateRaw(ctx context.Context, processID int64, kind, text, payload string, expires time.Time) (db.Ask, error) {
 	a, err := store.TxGet(b.st, ctx, func(ctx context.Context, q *db.Queries) (db.Ask, error) {
-		return q.CreateAsk(ctx, db.CreateAskParams{ProcessID: processID, Kind: kind, Text: text, Payload: payload, ExpiresAt: At(expires)})
+		return New(ctx, q, processID, kind, text, payload, expires)
 	})
 	if err != nil {
 		return db.Ask{}, err

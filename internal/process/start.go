@@ -151,7 +151,7 @@ func (r *Runner) Start(ctx context.Context, projectID int64, m *manifest.Manifes
 				text := fmt.Sprintf("deck stopped a chain of %d processes: %s.%s was not started after process %d (%s).",
 					MaxDepth, proj.Name, command, parent.ID, parent.Command)
 				refused = registry.Refuse("deck: %s was not started: a chain of processes may be at most %d long", command, MaxDepth)
-				_, err := q.CreateAsk(ctx, db.CreateAskParams{ProcessID: parent.ID, Kind: ask.KindWarning, Text: text, Payload: "{}"})
+				_, err := ask.New(ctx, q, parent.ID, ask.KindWarning, text, "{}", time.Time{})
 				return err
 			}
 		}

@@ -40,7 +40,7 @@ func (r *Runner) waitSlot(ctx context.Context, t turn, workspace int64) {
 	if r.stopFirst(ctx, t.process) {
 		return
 	}
-	w, _ := json.Marshal(waiting{Message: t.message, Asks: t.asks})
+	w, _ := json.Marshal(waiting{Message: t.message, told: t.asks})
 	var n int64
 	_ = r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		var err error

@@ -2,9 +2,9 @@ package app
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
-	"slices"
 	"strings"
 
 	"deck2/internal/ask"
@@ -42,10 +42,10 @@ func (a *App) askAnswer(ctx context.Context, act registry.Actor, in askAnswerIn)
 	if in.Reason = strings.TrimSpace(in.Reason); in.Reason != "" && in.Answer == "deny" {
 		in.Answer = "deny:" + in.Reason
 	}
-	if ws, err := a.Store.Q.GetAskWorkspace(ctx, in.Ask); err != nil || ws != act.Workspace {
+	q, err := a.Store.Q.GetAsk(ctx, in.Ask)
+	if errors.Is(err, sql.ErrNoRows) || err == nil && q.WorkspaceID != act.Workspace {
 		return nil, registry.NotFound("deck: no ask %d", in.Ask)
 	}
-	q, err := a.Store.Q.GetAsk(ctx, in.Ask)
 	if err != nil {
 		return nil, err
 	}
@@ -58,11 +58,8 @@ func (a *App) askAnswer(ctx context.Context, act registry.Actor, in askAnswerIn)
 	if q.State == "expired" && (q.Kind == ask.KindCall || q.Kind == ask.KindConfirm) {
 		return a.dismissExpired(ctx, q, in.Answer)
 	}
-	if q.Kind == ask.KindLogin && !slices.Contains(ask.LoginAnswers, in.Answer) {
-		return nil, registry.Invalid("deck: answer a login ask with %s", strings.Join(ask.LoginAnswers, " or "))
-	}
-	if q.Kind == ask.KindLimit && in.Answer != ask.LimitContinue {
-		return nil, registry.Invalid("deck: answer a stopped pause with %s", ask.LimitContinue)
+	if err := ask.Check(q.Kind, in.Answer); err != nil {
+		return nil, err
 	}
 	if q.Kind == ask.KindGrant && q.State == "open" {
 		return a.grantAnswer(ctx, act, q, in.Answer)

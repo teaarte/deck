@@ -201,18 +201,27 @@ func TestAnAllowedCallCutOffByARestartBecomesAnUnknownOutcome(t *testing.T) {
 	e.waitState(id, "waiting_answer")
 	a := e.waitAsk()
 	_ = e.App.Close()
-	e2 := newEnvWith(t, home, &Fake{script: func(ctx context.Context, c *Call) provider.Result {
+	second := &Fake{script: func(ctx context.Context, c *Call) provider.Result {
 		return provider.Result{Structured: json.RawMessage(`{"ok": true}`)}
-	}})
-	if _, err := e2.App.Store.DB.Exec(`UPDATE ask SET state = 'running', answer = 'allow' WHERE id = ?`, a.ID); err != nil {
+	}}
+	e2 := newEnvWith(t, home, second)
+	if _, err := e2.App.Store.DB.Exec(`UPDATE ask SET state = 'answered', answer = 'allow' WHERE id = ?;
+UPDATE tool_call SET run = 'running' WHERE ask_id = ?`, a.ID, a.ID); err != nil {
 		t.Fatal(err)
 	}
 	if err := e2.App.Runner.ResumeInterrupted(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	got := e2.waitAsk()
-	if got.ID != a.ID || got.Kind != "unknown" || !strings.Contains(got.Text, "Outcome unknown") || len(svc.requests()) != 0 {
+	if got.ID == a.ID || got.Kind != "unknown" || !strings.Contains(got.Text, "Outcome unknown") || len(svc.requests()) != 0 {
 		t.Fatalf("a call cut off after yes and before it was sent is an unknown outcome for the owner: %+v", got)
+	}
+	e2.answer(got.ID, "retry")
+	if p := e2.waitState(id, "done", "error"); p.State != "done" || len(svc.requests()) != 1 {
+		t.Fatalf("a retry makes the call once and the agent goes on: %+v %d", p, len(svc.requests()))
+	}
+	if c := second.Calls(); !strings.Contains(c[len(c)-1].Prompt, "retry a call of unknown outcome") {
+		t.Fatalf("the agent hears what the retry gave: %s", c[len(c)-1].Prompt)
 	}
 }
 

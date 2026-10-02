@@ -7,7 +7,9 @@ RETURNING *;
 
 
 -- name: CreateProjectAsk :one
-INSERT INTO ask (workspace_id, project_id, kind, text, payload) VALUES (?, ?, ?, ?, ?) RETURNING *;
+INSERT INTO ask (process_id, workspace_id, project_id, kind, text, payload, expires_at)
+VALUES (sqlc.narg(process_id), sqlc.arg(workspace_id), sqlc.arg(project_id), sqlc.arg(kind), sqlc.arg(text), sqlc.arg(payload),
+    sqlc.narg(expires_at)) RETURNING *;
 
 
 -- name: GetAsk :one
@@ -18,29 +20,33 @@ SELECT * FROM ask WHERE id = ?;
 SELECT * FROM ask WHERE state = 'open' AND workspace_id = ? ORDER BY id;
 
 
--- name: GetAskWorkspace :one
-SELECT workspace_id FROM ask WHERE id = ?;
-
-
 -- name: AnswerAsk :execrows
 UPDATE ask SET answer = ?, state = 'answered', answered_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
 WHERE id = ? AND state = 'open';
 
 
 -- name: ListOpenAsksOfProcess :many
-SELECT * FROM ask WHERE process_id = CAST(sqlc.arg(process_id) AS INTEGER) AND state IN ('open', 'running') AND kind NOT IN ('warning', 'limit') ORDER BY id;
+SELECT * FROM ask a
+WHERE a.process_id = CAST(sqlc.arg(process_id) AS INTEGER) AND a.kind NOT IN ('warning', 'limit')
+  AND (a.state = 'open' OR EXISTS (SELECT 1 FROM tool_call t WHERE t.ask_id = a.id AND t.run = 'running'))
+ORDER BY a.id;
 
 
 -- name: ListUndeliveredAsks :many
-SELECT * FROM ask WHERE process_id = CAST(sqlc.arg(process_id) AS INTEGER) AND state IN ('answered', 'expired') AND delivered = 0 AND kind != 'warning' ORDER BY id;
+SELECT sqlc.embed(a),
+    CAST(coalesce((SELECT t.result FROM tool_call t WHERE t.ask_id = a.id AND t.run = 'settled' ORDER BY t.id DESC LIMIT 1), '') AS TEXT) AS result
+FROM ask a
+WHERE a.process_id = CAST(sqlc.arg(process_id) AS INTEGER) AND a.state IN ('answered', 'expired', 'dismissed') AND a.delivered_at IS NULL
+  AND a.kind != 'warning' AND NOT EXISTS (SELECT 1 FROM tool_call t WHERE t.ask_id = a.id AND t.run = 'running')
+ORDER BY a.id;
 
 
 -- name: MarkAskDelivered :exec
-UPDATE ask SET delivered = 1 WHERE id = ?;
+UPDATE ask SET delivered_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ? AND delivered_at IS NULL;
 
 
 -- name: CloseOpenAsksOfProcess :many
-UPDATE ask SET state = 'expired', delivered = 1
+UPDATE ask SET state = 'expired', delivered_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
 WHERE process_id = CAST(sqlc.arg(process_id) AS INTEGER) AND state = 'open' AND kind NOT IN ('warning', 'unknown')
   AND (sqlc.arg(calls_too) = 1 OR kind != 'call')
 RETURNING *;
@@ -51,25 +57,18 @@ UPDATE ask SET state = 'expired' WHERE kind IN ('confirm', 'call') AND state = '
 
 
 -- name: ConsumeApproval :one
-UPDATE ask SET used = 1, delivered = 1
+UPDATE ask SET state = 'used', delivered_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
 WHERE id = (
     SELECT a.id FROM ask a
     WHERE a.process_id = CAST(sqlc.arg(process_id) AS INTEGER) AND a.kind = 'confirm' AND a.state = 'answered' AND a.answer = 'allow'
-      AND a.used = 0 AND a.payload = sqlc.arg(payload)
+      AND a.payload = sqlc.arg(payload)
     ORDER BY a.id LIMIT 1)
-AND used = 0
+AND state = 'answered'
 RETURNING *;
 
 
 -- name: UseApproval :execrows
-UPDATE ask SET used = 1, delivered = 1 WHERE id = ? AND used = 0;
-
-
-
--- name: CreateCallAsk :one
-INSERT INTO ask (process_id, workspace_id, project_id, kind, text, payload, expires_at)
-VALUES (sqlc.narg(process_id), sqlc.arg(workspace_id), sqlc.arg(project_id), sqlc.arg(kind), sqlc.arg(text), sqlc.arg(payload),
-    sqlc.narg(expires_at)) RETURNING *;
+UPDATE ask SET state = 'used', delivered_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ? AND state = 'answered';
 
 
 -- name: FindOpenCallAsk :one
@@ -79,57 +78,44 @@ WHERE kind = 'call' AND state = 'open' AND project_id = sqlc.arg(project_id) AND
 ORDER BY id LIMIT 1;
 
 
--- name: ClaimAsk :execrows
-UPDATE ask SET state = 'running', answer = sqlc.arg(answer)
+-- name: ClaimDecision :execrows
+UPDATE ask SET state = 'answered', answer = sqlc.arg(answer), answered_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
 WHERE id = sqlc.arg(id) AND state = 'open' AND (expires_at IS NULL OR expires_at > CAST(sqlc.arg(now) AS TEXT));
 
 
--- name: ReleaseAsk :exec
-UPDATE ask SET state = 'open', answer = '' WHERE id = ? AND state = 'running';
-
-
--- name: ListRunningAsks :many
-SELECT * FROM ask WHERE state = 'running' ORDER BY id;
-
-
--- name: ReopenAsUnknown :exec
-UPDATE ask SET kind = 'unknown', state = 'open', answer = '', text = ?, expires_at = NULL WHERE id = ? AND state = 'running';
-
-
--- name: SettleAsk :execrows
-UPDATE ask SET state = 'answered', result = sqlc.arg(result), answered_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-WHERE id = sqlc.arg(id) AND state = 'running';
+-- name: ReopenDecision :exec
+UPDATE ask SET state = 'open', answer = '', answered_at = NULL WHERE id = ? AND state = 'answered';
 
 
 -- name: CloseLimitAsks :exec
-UPDATE ask SET state = CASE WHEN state = 'open' THEN 'expired' ELSE state END, delivered = 1
-WHERE process_id = CAST(sqlc.arg(process_id) AS INTEGER) AND kind = 'limit' AND delivered = 0;
+UPDATE ask SET state = CASE WHEN state = 'open' THEN 'expired' ELSE state END, delivered_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+WHERE process_id = CAST(sqlc.arg(process_id) AS INTEGER) AND kind = 'limit' AND delivered_at IS NULL;
 
 
 -- name: ListWorkspaceExpiredConfirms :many
 SELECT * FROM ask
-WHERE workspace_id = sqlc.arg(workspace_id) AND state = 'expired' AND kind IN ('confirm', 'call') AND dismissed = 0
+WHERE workspace_id = sqlc.arg(workspace_id) AND state = 'expired' AND kind IN ('confirm', 'call')
   AND expires_at <= CAST(sqlc.arg(now) AS TEXT)
 ORDER BY id;
 
 
 -- name: DismissExpiredAsk :execrows
-UPDATE ask SET dismissed = 1 WHERE id = ? AND state = 'expired';
-
-
--- name: CountRemarks :one
-SELECT COUNT(*) FROM ask WHERE process_id = ? AND kind = 'remark' AND delivered = 0;
+UPDATE ask SET state = 'dismissed' WHERE id = ? AND state = 'expired';
 
 
 -- name: CreateRemark :one
-INSERT INTO ask (process_id, workspace_id, project_id, kind, text, payload, state, answer, answered_at)
-SELECT p.id, j.workspace_id, j.id, 'remark', CAST(sqlc.arg(text) AS TEXT), '{}', 'answered', CAST(sqlc.arg(text) AS TEXT), sqlc.arg(answered_at)
-FROM process p JOIN project j ON j.id = p.project_id WHERE p.id = sqlc.arg(process_id) AND p.finished_at IS NULL
+INSERT INTO process_remark (process_id, text, created_at)
+SELECT p.id, CAST(sqlc.arg(text) AS TEXT), CAST(sqlc.arg(created_at) AS TEXT) FROM process p
+WHERE p.id = sqlc.arg(process_id) AND p.finished_at IS NULL
 RETURNING *;
 
 
--- name: CreateSuggestion :one
-INSERT INTO ask (workspace_id, project_id, kind, text, payload, expires_at) VALUES (?, ?, 'suggest', ?, ?, ?) RETURNING *;
+-- name: ListUndeliveredRemarks :many
+SELECT * FROM process_remark WHERE process_id = ? AND delivered_at IS NULL ORDER BY id;
+
+
+-- name: MarkRemarkDelivered :exec
+UPDATE process_remark SET delivered_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ? AND delivered_at IS NULL;
 
 
 -- name: MoveSuggestion :execrows

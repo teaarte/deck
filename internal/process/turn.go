@@ -32,7 +32,7 @@ type turn struct {
 	resume           bool
 	// message is the resume message; a fresh start builds its prompt from the command and the start note.
 	message string
-	asks    []int64
+	asks    told
 	pv      provider.Provider
 	// folder is the project folder the turn works in, or empty for a work folder of its own.
 	folder string
@@ -202,7 +202,7 @@ func (r *Runner) run(ctx context.Context, t turn) {
 		}
 		if err == nil && res.SessionMissing {
 			// The asks stay undelivered, so the fresh session parks and gets them by resume.
-			asks = nil
+			asks = told{}
 			req.Resume = false
 			if req.Prompt, err = r.firstPrompt(bg, proj, t, tools, data); err != nil {
 				r.finish(bg, processID, StateError, "", false, err.Error())
@@ -211,17 +211,15 @@ func (r *Runner) run(ctx context.Context, t turn) {
 			continue
 		}
 		_ = r.st.Tx(bg, func(ctx context.Context, q *db.Queries) error {
-			for _, id := range asks {
-				if err := q.MarkAskDelivered(ctx, id); err != nil {
-					return err
-				}
+			if err := asks.mark(ctx, q); err != nil {
+				return err
 			}
 			if err == nil && !res.RateLimited {
 				return q.EndPause(ctx, processID)
 			}
 			return nil
 		})
-		asks = nil
+		asks = told{}
 		r.providerHealth(bg, pv, res, err)
 		settled := err == nil && !res.NeedsLogin && !res.RateLimited && !res.IsError
 		if sub != nil && settled {

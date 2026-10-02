@@ -104,7 +104,7 @@ func (r *Runner) pauseEnded(ctx context.Context, p db.Process) {
 		if closedCalls, err = q.CloseOpenAsksOfProcess(ctx, db.CloseOpenAsksOfProcessParams{ProcessID: p.ID, CallsToo: 1}); err != nil {
 			return err
 		}
-		if _, err = q.CreateAsk(ctx, db.CreateAskParams{ProcessID: p.ID, Kind: ask.KindLimit, Text: text, Payload: string(payload)}); err != nil {
+		if _, err = ask.New(ctx, q, p.ID, ask.KindLimit, text, string(payload), time.Time{}); err != nil {
 			return err
 		}
 		return q.ReleaseFolderLocks(ctx, p.ID)
@@ -143,12 +143,12 @@ func (r *Runner) continueAfterLimit(ctx context.Context, processID int64, a db.A
 }
 
 // withAnswers is a resume message with the answers the process has not got yet, and those asks.
-func (r *Runner) withAnswers(ctx context.Context, processID int64, msg string) (string, []int64) {
-	pending, _ := r.st.Q.ListUndeliveredAsks(ctx, processID)
-	if len(pending) > 0 {
-		msg += "\n" + deliveryMessage(pending)
+func (r *Runner) withAnswers(ctx context.Context, processID int64, msg string) (string, told) {
+	pending, _ := r.untold(ctx, processID)
+	if !pending.empty() {
+		msg += "\n" + pending.message()
 	}
-	return msg, askIDs(pending)
+	return msg, pending.ids()
 }
 
 // restartPause gives a paused process a full pause limit again, since the owner has just answered it.

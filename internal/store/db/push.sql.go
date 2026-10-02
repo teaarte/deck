@@ -73,7 +73,7 @@ func (q *Queries) DeleteWorkspacePushSubscriptions(ctx context.Context, workspac
 }
 
 const listAsksAfter = `-- name: ListAsksAfter :many
-SELECT id, workspace_id, project_id, process_id, kind, text, payload, answer, state, result, delivered, used, dismissed, created_at, answered_at, expires_at FROM ask WHERE workspace_id = ? AND id > ? AND state = 'open' ORDER BY id
+SELECT id, workspace_id, project_id, process_id, kind, text, payload, answer, state, created_at, answered_at, expires_at, delivered_at FROM ask WHERE workspace_id = ? AND id > ? AND state = 'open' ORDER BY id
 `
 
 type ListAsksAfterParams struct {
@@ -100,13 +100,10 @@ func (q *Queries) ListAsksAfter(ctx context.Context, arg ListAsksAfterParams) ([
 			&i.Payload,
 			&i.Answer,
 			&i.State,
-			&i.Result,
-			&i.Delivered,
-			&i.Used,
-			&i.Dismissed,
 			&i.CreatedAt,
 			&i.AnsweredAt,
 			&i.ExpiresAt,
+			&i.DeliveredAt,
 		); err != nil {
 			return nil, err
 		}

@@ -19,8 +19,10 @@ import (
 // decide answers a frozen call or an unknown outcome: allowing or retrying makes the call now and delivers
 // what it gave to the process that asked; refusing or counting it done only tells the process.
 func (a *App) decide(ctx context.Context, act registry.Actor, q db.Ask, answer string) (any, error) {
-	run := q.Kind == ask.KindCall && (answer == "allow" || answer == "allow_always") || q.Kind == ask.KindUnknown && answer == ask.UnknownRetry
-	refuse := q.Kind == ask.KindCall && (answer == "deny" || strings.HasPrefix(answer, "deny:")) || q.Kind == ask.KindUnknown && answer == ask.UnknownDone
+	if err := ask.Check(q.Kind, answer); err != nil {
+		return nil, err
+	}
+	run := answer == "allow" || answer == "allow_always" || answer == ask.UnknownRetry
 	switch {
 	case run:
 		if q.State != "open" {
@@ -40,7 +42,7 @@ func (a *App) decide(ctx context.Context, act registry.Actor, q db.Ask, answer s
 		}
 		a.linkTriggeredCard(ctx, q, out)
 		return map[string]any{"ok": true, "result": out}, nil
-	case refuse:
+	default:
 		if err := a.Asks.Answer(ctx, q.ID, answer); err != nil {
 			if errors.Is(err, ask.ErrNotOpen) {
 				return nil, notOpen
@@ -51,10 +53,7 @@ func (a *App) decide(ctx context.Context, act registry.Actor, q db.Ask, answer s
 			a.Gateway.Record(ctx, q, "rejected", "the owner said no")
 		}
 		return map[string]any{"ok": true}, nil
-	case q.Kind == ask.KindUnknown:
-		return nil, registry.Invalid("deck: answer an unknown outcome with %s", strings.Join(ask.UnknownAnswers, " or "))
 	}
-	return nil, registry.Invalid("deck: answer a confirmation with allow, allow_always, deny or deny:<reason>")
 }
 
 // linkTriggeredCard links a card to the process a lane trigger started once the owner allowed it, as

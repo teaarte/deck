@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"deck2/internal/untrusted"
 
@@ -122,7 +123,7 @@ func (r *Runner) runScript(ctx context.Context, t turn, trial bool) {
 
 func (r *Runner) warn(ctx context.Context, processID int64, text string) {
 	_ = r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		_, err := q.CreateAsk(ctx, db.CreateAskParams{ProcessID: processID, Kind: ask.KindWarning, Text: text, Payload: "{}"})
+		_, err := ask.New(ctx, q, processID, ask.KindWarning, text, "{}", time.Time{})
 		return err
 	})
 	r.bus.Publish("asks")

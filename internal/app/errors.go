@@ -77,8 +77,7 @@ func (a *App) toMaster(ctx context.Context, p db.Process) {
 		if err := q.SetSetting(ctx, db.SetSettingParams{WorkspaceID: proj.WorkspaceID, Key: key, Value: store.Time(now)}); err != nil || !own {
 			return err
 		}
-		_, err := q.CreateAsk(ctx, db.CreateAskParams{ProcessID: p.ID, Kind: ask.KindWarning, Payload: "{}",
-			Text: fmt.Sprintf("The master's command %s failed: %s", p.Command, untrusted.Cut(p.Error, 500))})
+		_, err := ask.New(ctx, q, p.ID, ask.KindWarning, fmt.Sprintf("The master's command %s failed: %s", p.Command, untrusted.Cut(p.Error, 500)), "{}", time.Time{})
 		return err
 	})
 	if err != nil || !due {

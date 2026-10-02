@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"deck2/internal/ask"
 	"deck2/internal/docs"
@@ -49,8 +50,7 @@ func (a *App) ask(ctx context.Context, q *db.Queries, act registry.Actor, p db.P
 	payload, _ := json.Marshal(grant{Call: call, Author: act.Author(), Widens: widens, Revision: revision})
 	text := fmt.Sprintf("%s wants to change the manifest of %s (%s); it widens: %s", act.Author(), p.Name,
 		orText(reason, "no reason given"), strings.Join(widens, "; "))
-	row, err := q.CreateProjectAsk(ctx, db.CreateProjectAskParams{WorkspaceID: p.WorkspaceID, ProjectID: p.ID, Kind: ask.KindGrant,
-		Text: text, Payload: string(payload)})
+	row, err := ask.ForProject(ctx, q, p.WorkspaceID, p.ID, 0, ask.KindGrant, text, string(payload), time.Time{})
 	return Saved{Waiting: row.ID, Widens: widens}, err
 }
 

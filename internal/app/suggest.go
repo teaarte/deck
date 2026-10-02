@@ -122,8 +122,7 @@ func (a *App) suggest(ctx context.Context, act registry.Actor, in suggestIn) (an
 	var q db.Ask
 	err = a.Store.Tx(ctx, func(ctx context.Context, tx *db.Queries) error {
 		var err error
-		q, err = tx.CreateSuggestion(ctx, db.CreateSuggestionParams{WorkspaceID: target.WorkspaceID, ProjectID: target.ID,
-			Text: s.Reason + "\n" + s.what(), Payload: string(payload), ExpiresAt: ask.At(expires)})
+		q, err = ask.ForProject(ctx, tx, target.WorkspaceID, target.ID, 0, ask.KindSuggest, s.Reason+"\n"+s.what(), string(payload), expires)
 		return err
 	})
 	if err != nil {

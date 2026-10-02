@@ -23,8 +23,8 @@ import (
 // Deliver resumes a process parked in waiting_answer with every answer or expiry it has not seen yet.
 // It is safe to call concurrently: only one caller wins the waiting_answer -> running transition.
 func (r *Runner) Deliver(ctx context.Context, processID int64) error {
-	pending, err := r.st.Q.ListUndeliveredAsks(ctx, processID)
-	if err != nil || len(pending) == 0 {
+	pending, err := r.untold(ctx, processID)
+	if err != nil || pending.empty() {
 		return err
 	}
 	p, err := r.st.Q.GetProcess(ctx, processID)
@@ -37,18 +37,18 @@ func (r *Runner) Deliver(ctx context.Context, processID int64) error {
 	if p.State == StateRateLimited {
 		return r.restartPause(ctx, processID)
 	}
-	for _, a := range pending {
-		if a.Kind == ask.KindLogin {
-			return r.relogin(ctx, processID, a, pending)
+	for _, a := range pending.asks {
+		if a.Ask.Kind == ask.KindLogin {
+			return r.relogin(ctx, processID, a.Ask, pending)
 		}
-		if a.Kind == ask.KindLimit {
-			return r.continueAfterLimit(ctx, processID, a)
+		if a.Ask.Kind == ask.KindLimit {
+			return r.continueAfterLimit(ctx, processID, a.Ask)
 		}
 	}
 	if ok, err := r.claim(ctx, processID, StateWaitingAnswer); err != nil || !ok {
 		return err
 	}
-	if err := r.resume(ctx, processID, deliveryMessage(pending), askIDs(pending), false); err != nil {
+	if err := r.resume(ctx, processID, pending.message(), pending.ids(), false); err != nil {
 		r.finish(ctx, processID, StateError, "", false, "resume after answer: "+err.Error())
 		return err
 	}
@@ -64,7 +64,7 @@ func (r *Runner) claim(ctx context.Context, processID int64, from string) (bool,
 
 // relogin continues a process that stopped on a lost login: the same session, or a new one that gets the
 // gateway journal of the old one as its report of what was done.
-func (r *Runner) relogin(ctx context.Context, processID int64, login db.Ask, pending []db.Ask) error {
+func (r *Runner) relogin(ctx context.Context, processID int64, login db.Ask, pending untold) error {
 	var n int64
 	err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		var err error
@@ -76,12 +76,7 @@ func (r *Runner) relogin(ctx context.Context, processID int64, login db.Ask, pen
 	if err != nil || n == 0 {
 		return err
 	}
-	var others []db.Ask
-	for _, a := range pending {
-		if a.Kind != ask.KindLogin {
-			others = append(others, a)
-		}
-	}
+	others := pending.except(told{}, ask.KindLogin)
 	var msg string
 	fresh := login.Answer == ask.LoginNewSession
 	if fresh {
@@ -89,10 +84,10 @@ func (r *Runner) relogin(ctx context.Context, processID int64, login db.Ask, pen
 	} else {
 		msg = "deck: you were logged out and the owner has logged in again. Continue where you stopped."
 	}
-	if len(others) > 0 {
-		msg += "\n" + deliveryMessage(others)
+	if !others.empty() {
+		msg += "\n" + others.message()
 	}
-	if err := r.resume(ctx, processID, msg, askIDs(others), fresh); err != nil {
+	if err := r.resume(ctx, processID, msg, others.ids(), fresh); err != nil {
 		r.finish(ctx, processID, StateError, "", false, "continue after login: "+err.Error())
 		return err
 	}
@@ -118,14 +113,6 @@ func (r *Runner) report(ctx context.Context, processID int64) string {
 	}
 	b.WriteString("Check what already exists (records, files, cards) before redoing any of it.")
 	return b.String()
-}
-
-func askIDs(as []db.Ask) []int64 {
-	ids := make([]int64, 0, len(as))
-	for _, a := range as {
-		ids = append(ids, a.ID)
-	}
-	return ids
 }
 
 // ResumeInterrupted kills provider groups a crashed deck left alive, continues processes left running with
@@ -163,17 +150,17 @@ func (r *Runner) ResumeInterrupted(ctx context.Context) error {
 			return err
 		}
 		msg := "deck restarted, continue where you stopped."
-		pending, err := r.st.Q.ListUndeliveredAsks(ctx, p.ID)
+		pending, err := r.untold(ctx, p.ID)
 		if err != nil {
 			return err
 		}
-		if len(pending) > 0 {
-			msg = "deck restarted. " + deliveryMessage(pending)
+		if !pending.empty() {
+			msg = "deck restarted. " + pending.message()
 		}
 		if open, err := r.st.Q.ListOpenAsksOfProcess(ctx, p.ID); err == nil && gateway.Unresolved(open) != "" {
 			msg += "\n" + gateway.Unresolved(open)
 		}
-		if err := r.resumeHeld(ctx, p, msg, askIDs(pending)); err != nil {
+		if err := r.resumeHeld(ctx, p, msg, pending.ids()); err != nil {
 			r.finish(ctx, p.ID, StateInterrupted, "", false, err.Error())
 		}
 	}
@@ -219,7 +206,7 @@ func (r *Runner) setGroup(ctx context.Context, processID int64, pgid int) {
 }
 
 // resumeHeld resumes an agent deck left running with the slot it had, taken before later waiters get theirs.
-func (r *Runner) resumeHeld(ctx context.Context, p db.Process, message string, asks []int64) error {
+func (r *Runner) resumeHeld(ctx context.Context, p db.Process, message string, asks told) error {
 	proj, err := r.st.Q.GetProject(ctx, p.ProjectID)
 	if err != nil {
 		return err
@@ -241,12 +228,12 @@ func (r *Runner) resumeHeld(ctx context.Context, p db.Process, message string, a
 
 // resume spawns the provider on the existing session, or on a new one whose first prompt keeps the message.
 // The caller has set the state to running; the asks are marked delivered once the provider returns.
-func (r *Runner) resume(ctx context.Context, processID int64, message string, asks []int64, fresh bool) error {
+func (r *Runner) resume(ctx context.Context, processID int64, message string, asks told, fresh bool) error {
 	return r.resumeTurn(ctx, processID, message, asks, fresh, 0)
 }
 
 // resumeTurn is resume of a turn that holds a slot of the workspace slot, when that is not 0.
-func (r *Runner) resumeTurn(ctx context.Context, processID int64, message string, asks []int64, fresh bool, slot int64) error {
+func (r *Runner) resumeTurn(ctx context.Context, processID int64, message string, asks told, fresh bool, slot int64) error {
 	p, err := r.st.Q.GetProcess(ctx, processID)
 	if err != nil {
 		return err
@@ -301,52 +288,15 @@ func outcomeText(raw string) string {
 	return "\n" + untrusted.Block("Result", untrusted.Cut(string(o.Result), 4000))
 }
 
-func deliveryMessage(asks []db.Ask) string {
-	var b strings.Builder
-	b.WriteString("deck: the owner has responded to what you were waiting for.\n")
-	for _, a := range asks {
-		what := untrusted.Line(a.Text, 600)
-		switch {
-		case a.Kind == ask.KindLogin:
-		case a.Kind == ask.KindRemark:
-			b.WriteString("- The owner wrote while you worked:\n" + strings.TrimSpace(a.Answer) + "\n")
-		case a.Kind == ask.KindQuestion && a.State == "answered":
-			b.WriteString("- Question: " + untrusted.Line(a.Text, 1000) + "\n" + untrusted.Value("Answer", a.Answer, 500) + "\n")
-		case a.Kind == ask.KindCall && a.State == "answered" && a.Result != "":
-			b.WriteString("- Allowed: " + what + ". deck made this call for you; do not make it again yourself. " + outcomeText(a.Result) + "\n")
-		case a.Kind == ask.KindCall && a.State == "answered":
-			b.WriteString("- Rejected: " + what + ". " + gateway.RejectMessage(a.Answer) + "\n")
-		case a.Kind == ask.KindCall:
-			b.WriteString("- Expired: " + what + ". The owner did not answer in time; the call was not made.\n")
-		case a.Kind == ask.KindUnknown && a.Answer == ask.UnknownRetry:
-			b.WriteString("- The owner had deck retry a call of unknown outcome. " + outcomeText(a.Result) + "\n")
-		case a.Kind == ask.KindSignIn && a.State == "answered":
-			b.WriteString("- The owner signed in: " + what + " Go on with the site.\n")
-		case a.Kind == ask.KindUnknown:
-			b.WriteString("- " + what + " The owner counts it as done; do not make it again.\n")
-		case a.Kind == ask.KindConfirm && a.State == "answered" && a.Answer == "allow":
-			b.WriteString("- Allowed: " + what + ". Make exactly the same call again; it will go through.\n")
-		case a.Kind == ask.KindConfirm && a.State == "answered":
-			b.WriteString("- Rejected: " + what + ". " + gateway.RejectMessage(a.Answer) + "\n")
-		case a.Kind == ask.KindConfirm:
-			b.WriteString("- Expired: " + what + ". The call was not made.\n")
-		default:
-			b.WriteString("- Expired without an answer: " + what + "\n")
-		}
-	}
-	b.WriteString("Continue the task.")
-	return b.String()
-}
-
 // Tell resumes a process parked for the owner with a message of the owner; what it still waits for stays
 // open. It reports false when the process was not parked.
 func (r *Runner) Tell(ctx context.Context, processID int64, message string) (bool, error) {
 	if ok, err := r.claim(ctx, processID, StateWaitingAnswer); err != nil || !ok {
 		return false, err
 	}
-	pending, _ := r.st.Q.ListUndeliveredAsks(ctx, processID)
-	if len(pending) > 0 {
-		message += "\n" + deliveryMessage(pending)
+	pending, _ := r.untold(ctx, processID)
+	if !pending.empty() {
+		message += "\n" + pending.message()
 	}
 	if open, err := r.st.Q.ListOpenAsksOfProcess(ctx, processID); err == nil && len(open) > 0 {
 		message += "\nStill waiting for the owner:\n"
@@ -366,7 +316,7 @@ func (r *Runner) Tell(ctx context.Context, processID int64, message string) (boo
 		r.finish(ctx, processID, StateError, "", false, "resume with a message: "+err.Error())
 		return true, err
 	}
-	if err := r.resume(ctx, processID, message, askIDs(pending), false); err != nil {
+	if err := r.resume(ctx, processID, message, pending.ids(), false); err != nil {
 		r.finish(ctx, processID, StateError, "", false, "resume with a message: "+err.Error())
 		return true, err
 	}

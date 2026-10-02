@@ -79,6 +79,16 @@ CREATE INDEX process_project ON process (project_id);
 CREATE INDEX process_open ON process (state) WHERE finished_at IS NULL;
 CREATE INDEX process_retry ON process (project_id, command, retry_key) WHERE retry_key != '';
 
+-- A message of the owner a running turn could not take; the resume after the turn carries it.
+CREATE TABLE process_remark (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    process_id    INTEGER NOT NULL REFERENCES process(id) ON DELETE CASCADE,
+    text          TEXT NOT NULL,
+    created_at    TEXT NOT NULL,
+    delivered_at  TEXT
+);
+CREATE INDEX process_remark_process ON process_remark (process_id) WHERE delivered_at IS NULL;
+
 CREATE TABLE folder_lock (
     path        TEXT PRIMARY KEY,
     process_id  INTEGER NOT NULL REFERENCES process(id) ON DELETE CASCADE
@@ -167,7 +177,8 @@ CREATE TABLE file (
 );
 CREATE INDEX file_owner ON file (owner_kind, owner_id);
 
--- What waits for the owner or was decided by them: questions, confirmations, frozen calls and the rest.
+-- A decision of the owner: open, then answered (a confirmation then used) or expired (then dismissed); delivered_at
+-- is when the waiting process was told; expires_at is a hard deadline only.
 CREATE TABLE ask (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     workspace_id  INTEGER NOT NULL REFERENCES workspace(id) ON DELETE CASCADE,
@@ -178,18 +189,16 @@ CREATE TABLE ask (
     payload       TEXT NOT NULL DEFAULT '{}',
     answer        TEXT NOT NULL DEFAULT '',
     state         TEXT NOT NULL DEFAULT 'open',
-    result        TEXT NOT NULL DEFAULT '',
-    delivered     INTEGER NOT NULL DEFAULT 0,
-    used          INTEGER NOT NULL DEFAULT 0,
-    dismissed     INTEGER NOT NULL DEFAULT 0,
     created_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     answered_at   TEXT,
-    expires_at    TEXT
+    expires_at    TEXT,
+    delivered_at  TEXT
 );
 CREATE INDEX ask_process ON ask (process_id, state);
 CREATE INDEX ask_workspace ON ask (workspace_id, state);
 
--- The journal of gateway calls; caller is the frozen actor, so a call of unknown outcome is reopened for it.
+-- The journal of gateway calls; caller is the frozen actor, so a call of unknown outcome is reopened for it. The
+-- row of a decision deck makes itself (ask_id) keeps its run: running, then settled with the result.
 CREATE TABLE tool_call (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     workspace_id  INTEGER NOT NULL REFERENCES workspace(id) ON DELETE CASCADE,
@@ -204,8 +213,11 @@ CREATE TABLE tool_call (
     external_id   TEXT NOT NULL DEFAULT '',
     error         TEXT NOT NULL DEFAULT '',
     ask_id        INTEGER REFERENCES ask(id) ON DELETE SET NULL,
+    run           TEXT NOT NULL DEFAULT '',
+    result        TEXT NOT NULL DEFAULT '',
     created_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
+CREATE INDEX tool_call_ask ON tool_call (ask_id) WHERE ask_id IS NOT NULL;
 CREATE INDEX tool_call_outcome ON tool_call (outcome);
 CREATE INDEX tool_call_workspace ON tool_call (workspace_id, id);
 CREATE INDEX tool_call_process ON tool_call (process_id);

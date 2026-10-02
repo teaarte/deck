@@ -66,7 +66,7 @@ func (q *Queries) CountStartedCalls(ctx context.Context, arg CountStartedCallsPa
 
 const countUnknownCalls = `-- name: CountUnknownCalls :one
 SELECT count(*) FROM tool_call t JOIN ask a ON a.id = t.ask_id
-WHERE t.outcome = 'unknown' AND a.state IN ('open', 'running') AND a.id != ?1
+WHERE t.outcome = 'unknown' AND a.state = 'open' AND a.id != ?1
   AND t.project_id = ?2 AND t.tool = ?3 AND t.params = ?4
 `
 
@@ -341,7 +341,7 @@ func (q *Queries) GetProcess(ctx context.Context, id int64) (Process, error) {
 }
 
 const getToolCall = `-- name: GetToolCall :one
-SELECT id, workspace_id, project_id, process_id, actor, caller, tool, class, outcome, params, external_id, error, ask_id, created_at FROM tool_call WHERE id = ?
+SELECT id, workspace_id, project_id, process_id, actor, caller, tool, class, outcome, params, external_id, error, ask_id, run, result, created_at FROM tool_call WHERE id = ?
 `
 
 func (q *Queries) GetToolCall(ctx context.Context, id int64) (ToolCall, error) {
@@ -361,6 +361,8 @@ func (q *Queries) GetToolCall(ctx context.Context, id int64) (ToolCall, error) {
 		&i.ExternalID,
 		&i.Error,
 		&i.AskID,
+		&i.Run,
+		&i.Result,
 		&i.CreatedAt,
 	)
 	return i, err
@@ -720,8 +722,53 @@ func (q *Queries) ListProjectProcessIDs(ctx context.Context, projectID int64) ([
 	return items, nil
 }
 
+const listRunningDecisions = `-- name: ListRunningDecisions :many
+SELECT a.id, a.workspace_id, a.project_id, a.process_id, a.kind, a.text, a.payload, a.answer, a.state, a.created_at, a.answered_at, a.expires_at, a.delivered_at FROM tool_call t JOIN ask a ON a.id = t.ask_id WHERE t.run = 'running' ORDER BY t.id
+`
+
+type ListRunningDecisionsRow struct {
+	Ask Ask
+}
+
+func (q *Queries) ListRunningDecisions(ctx context.Context) ([]ListRunningDecisionsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listRunningDecisions)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListRunningDecisionsRow
+	for rows.Next() {
+		var i ListRunningDecisionsRow
+		if err := rows.Scan(
+			&i.Ask.ID,
+			&i.Ask.WorkspaceID,
+			&i.Ask.ProjectID,
+			&i.Ask.ProcessID,
+			&i.Ask.Kind,
+			&i.Ask.Text,
+			&i.Ask.Payload,
+			&i.Ask.Answer,
+			&i.Ask.State,
+			&i.Ask.CreatedAt,
+			&i.Ask.AnsweredAt,
+			&i.Ask.ExpiresAt,
+			&i.Ask.DeliveredAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listToolCalls = `-- name: ListToolCalls :many
-SELECT id, workspace_id, project_id, process_id, actor, caller, tool, class, outcome, params, external_id, error, ask_id, created_at FROM tool_call WHERE process_id = ? ORDER BY id
+SELECT id, workspace_id, project_id, process_id, actor, caller, tool, class, outcome, params, external_id, error, ask_id, run, result, created_at FROM tool_call WHERE process_id = ? ORDER BY id
 `
 
 func (q *Queries) ListToolCalls(ctx context.Context, processID int64) ([]ToolCall, error) {
@@ -747,6 +794,8 @@ func (q *Queries) ListToolCalls(ctx context.Context, processID int64) ([]ToolCal
 			&i.ExternalID,
 			&i.Error,
 			&i.AskID,
+			&i.Run,
+			&i.Result,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err
@@ -881,7 +930,7 @@ func (q *Queries) ListWaitingForSlot(ctx context.Context, workspaceID int64) ([]
 }
 
 const listWorkspaceToolCalls = `-- name: ListWorkspaceToolCalls :many
-SELECT id, workspace_id, project_id, process_id, actor, caller, tool, class, outcome, params, external_id, error, ask_id, created_at FROM tool_call
+SELECT id, workspace_id, project_id, process_id, actor, caller, tool, class, outcome, params, external_id, error, ask_id, run, result, created_at FROM tool_call
 WHERE workspace_id = ?1
   AND (?2 = 0 OR project_id = ?2)
   AND (CAST(?3 AS TEXT) = '' OR outcome = ?3)
@@ -923,6 +972,8 @@ func (q *Queries) ListWorkspaceToolCalls(ctx context.Context, arg ListWorkspaceT
 			&i.ExternalID,
 			&i.Error,
 			&i.AskID,
+			&i.Run,
+			&i.Result,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err
@@ -1069,7 +1120,8 @@ func (q *Queries) PauseProcess(ctx context.Context, arg PauseProcessParams) (int
 
 const purgeEmptyProcesses = `-- name: PurgeEmptyProcesses :many
 DELETE FROM process WHERE state = 'done' AND result = 'null' AND finished_at < CAST(?1 AS TEXT)
-  AND NOT EXISTS (SELECT 1 FROM ask a WHERE a.process_id = process.id AND a.kind IN ('call', 'unknown') AND a.state IN ('open', 'running'))
+  AND NOT EXISTS (SELECT 1 FROM ask a WHERE a.process_id = process.id AND a.kind IN ('call', 'unknown')
+    AND (a.state = 'open' OR EXISTS (SELECT 1 FROM tool_call t WHERE t.ask_id = a.id AND t.run = 'running')))
 RETURNING id
 `
 
@@ -1106,8 +1158,8 @@ func (q *Queries) PurgeOldLLMCalls(ctx context.Context, before string) error {
 }
 
 const purgeOldToolCalls = `-- name: PurgeOldToolCalls :exec
-DELETE FROM tool_call WHERE created_at < CAST(?1 AS TEXT) AND outcome NOT IN ('started', 'unknown')
-  AND (ask_id IS NULL OR ask_id NOT IN (SELECT id FROM ask WHERE state IN ('open', 'running')))
+DELETE FROM tool_call WHERE created_at < CAST(?1 AS TEXT) AND outcome NOT IN ('started', 'unknown') AND run != 'running'
+  AND (ask_id IS NULL OR ask_id NOT IN (SELECT id FROM ask WHERE state = 'open'))
   AND process_id NOT IN (SELECT id FROM process WHERE finished_at IS NULL)
 `
 
@@ -1213,6 +1265,20 @@ func (q *Queries) SetProcessOutput(ctx context.Context, arg SetProcessOutputPara
 	return err
 }
 
+const settleDecision = `-- name: SettleDecision :exec
+UPDATE tool_call SET run = 'settled', result = ? WHERE ask_id = ? AND run = 'running'
+`
+
+type SettleDecisionParams struct {
+	Result string
+	AskID  sql.NullInt64
+}
+
+func (q *Queries) SettleDecision(ctx context.Context, arg SettleDecisionParams) error {
+	_, err := q.db.ExecContext(ctx, settleDecision, arg.Result, arg.AskID)
+	return err
+}
+
 const startCeiling = `-- name: StartCeiling :exec
 UPDATE process SET deadline_ms = ?1 + ceiling_ms, output_ms = ?1, silent_since_ms = NULL
 WHERE id = ?2 AND deadline_ms IS NULL
@@ -1225,6 +1291,15 @@ type StartCeilingParams struct {
 
 func (q *Queries) StartCeiling(ctx context.Context, arg StartCeilingParams) error {
 	_, err := q.db.ExecContext(ctx, startCeiling, arg.Now, arg.ID)
+	return err
+}
+
+const startDecision = `-- name: StartDecision :exec
+UPDATE tool_call SET run = 'running' WHERE ask_id = ? AND run = ''
+`
+
+func (q *Queries) StartDecision(ctx context.Context, askID sql.NullInt64) error {
+	_, err := q.db.ExecContext(ctx, startDecision, askID)
 	return err
 }
 
@@ -1244,7 +1319,7 @@ func (q *Queries) StartProcessSession(ctx context.Context, arg StartProcessSessi
 }
 
 const startedToolCalls = `-- name: StartedToolCalls :many
-SELECT id, workspace_id, project_id, process_id, actor, caller, tool, class, outcome, params, external_id, error, ask_id, created_at FROM tool_call WHERE outcome = 'started' ORDER BY id
+SELECT id, workspace_id, project_id, process_id, actor, caller, tool, class, outcome, params, external_id, error, ask_id, run, result, created_at FROM tool_call WHERE outcome = 'started' ORDER BY id
 `
 
 func (q *Queries) StartedToolCalls(ctx context.Context) ([]ToolCall, error) {
@@ -1270,6 +1345,8 @@ func (q *Queries) StartedToolCalls(ctx context.Context) ([]ToolCall, error) {
 			&i.ExternalID,
 			&i.Error,
 			&i.AskID,
+			&i.Run,
+			&i.Result,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err
@@ -1302,6 +1379,15 @@ func (q *Queries) StopParkedProcess(ctx context.Context, arg StopParkedProcessPa
 		return 0, err
 	}
 	return result.RowsAffected()
+}
+
+const undoDecision = `-- name: UndoDecision :exec
+UPDATE tool_call SET run = '' WHERE ask_id = ? AND run = 'running'
+`
+
+func (q *Queries) UndoDecision(ctx context.Context, askID sql.NullInt64) error {
+	_, err := q.db.ExecContext(ctx, undoDecision, askID)
+	return err
 }
 
 const waitForProvider = `-- name: WaitForProvider :execrows

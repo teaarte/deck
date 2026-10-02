@@ -103,7 +103,7 @@ func (r *Runner) Rework(ctx context.Context, processID int64, remark string) err
 	if n == 0 {
 		return registry.Invalid("deck: only a finished process with an agent session can go back for rework")
 	}
-	if err := r.resume(ctx, processID, msg, nil, false); err != nil {
+	if err := r.resume(ctx, processID, msg, told{}, false); err != nil {
 		r.finish(ctx, processID, StateError, "", false, "rework: "+err.Error())
 		return err
 	}

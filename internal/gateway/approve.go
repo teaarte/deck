@@ -59,7 +59,7 @@ func (g *Gateway) question(ctx context.Context, s *Session, in approveInput) dec
 		texts = append(texts, q.Question)
 	}
 	until := g.cfg.Now().Add(s.wait(g.cfg.QuestionWait))
-	a, err := g.asks.Create(ctx, s.ProcessID, ask.KindQuestion, strings.Join(texts, "\n"), in.Input, until)
+	a, err := g.asks.Create(ctx, s.ProcessID, ask.KindQuestion, strings.Join(texts, "\n"), in.Input, time.Time{})
 	if err != nil {
 		return decision{Behavior: "deny", Message: "deck: could not deliver the question: " + err.Error()}
 	}

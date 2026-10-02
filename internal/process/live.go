@@ -6,6 +6,7 @@ import (
 	"errors"
 	"time"
 
+	"deck2/internal/ask"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
@@ -61,7 +62,7 @@ func (r *Runner) Say(ctx context.Context, processID int64, text string) Said {
 // message comes with the resume after it.
 func (r *Runner) Remark(ctx context.Context, processID int64, text string) error {
 	err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		_, err := q.CreateRemark(ctx, db.CreateRemarkParams{ProcessID: processID, Text: text, AnsweredAt: r.stamp()})
+		_, err := ask.Remark(ctx, q, processID, text, r.stamp().String)
 		if errors.Is(err, sql.ErrNoRows) {
 			return registry.Invalid("deck: process %d has finished; send it back with a remark instead", processID)
 		}

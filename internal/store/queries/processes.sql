@@ -88,7 +88,8 @@ SELECT id, project_id, pgid, session_id, kind, provider FROM process WHERE pgid 
 
 -- name: PurgeEmptyProcesses :many
 DELETE FROM process WHERE state = 'done' AND result = 'null' AND finished_at < CAST(sqlc.arg(before) AS TEXT)
-  AND NOT EXISTS (SELECT 1 FROM ask a WHERE a.process_id = process.id AND a.kind IN ('call', 'unknown') AND a.state IN ('open', 'running'))
+  AND NOT EXISTS (SELECT 1 FROM ask a WHERE a.process_id = process.id AND a.kind IN ('call', 'unknown')
+    AND (a.state = 'open' OR EXISTS (SELECT 1 FROM tool_call t WHERE t.ask_id = a.id AND t.run = 'running')))
 RETURNING id;
 
 
@@ -116,7 +117,7 @@ UPDATE tool_call SET outcome = 'unknown', ask_id = sqlc.narg(ask_id) WHERE id = 
 
 -- name: CountUnknownCalls :one
 SELECT count(*) FROM tool_call t JOIN ask a ON a.id = t.ask_id
-WHERE t.outcome = 'unknown' AND a.state IN ('open', 'running') AND a.id != sqlc.arg(retrying)
+WHERE t.outcome = 'unknown' AND a.state = 'open' AND a.id != sqlc.arg(retrying)
   AND t.project_id = sqlc.arg(project_id) AND t.tool = sqlc.arg(tool) AND t.params = sqlc.arg(params);
 
 
@@ -208,10 +209,26 @@ DELETE FROM tool_call WHERE project_id = ?;
 
 
 -- name: PurgeOldToolCalls :exec
-DELETE FROM tool_call WHERE created_at < CAST(sqlc.arg(before) AS TEXT) AND outcome NOT IN ('started', 'unknown')
-  AND (ask_id IS NULL OR ask_id NOT IN (SELECT id FROM ask WHERE state IN ('open', 'running')))
+DELETE FROM tool_call WHERE created_at < CAST(sqlc.arg(before) AS TEXT) AND outcome NOT IN ('started', 'unknown') AND run != 'running'
+  AND (ask_id IS NULL OR ask_id NOT IN (SELECT id FROM ask WHERE state = 'open'))
   AND process_id NOT IN (SELECT id FROM process WHERE finished_at IS NULL);
 
 
 -- name: PurgeOldLLMCalls :exec
 DELETE FROM llm_call WHERE created_at < CAST(sqlc.arg(before) AS TEXT);
+
+
+-- name: StartDecision :exec
+UPDATE tool_call SET run = 'running' WHERE ask_id = ? AND run = '';
+
+
+-- name: UndoDecision :exec
+UPDATE tool_call SET run = '' WHERE ask_id = ? AND run = 'running';
+
+
+-- name: SettleDecision :exec
+UPDATE tool_call SET run = 'settled', result = ? WHERE ask_id = ? AND run = 'running';
+
+
+-- name: ListRunningDecisions :many
+SELECT sqlc.embed(a) FROM tool_call t JOIN ask a ON a.id = t.ask_id WHERE t.run = 'running' ORDER BY t.id;

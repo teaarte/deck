@@ -96,33 +96,27 @@ func (r *Runner) toolResult(ctx context.Context, projectID int64, cmd *manifest.
 }
 
 // deliverTool closes a tool process that waited for the owner with what the frozen call gave.
-func (r *Runner) deliverTool(ctx context.Context, p db.Process, pending []db.Ask) error {
+func (r *Runner) deliverTool(ctx context.Context, p db.Process, pending untold) error {
 	if ok, err := r.claim(ctx, p.ID, StateWaitingAnswer); err != nil || !ok {
 		return err
 	}
-	_ = r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		for _, a := range pending {
-			if err := q.MarkAskDelivered(ctx, a.ID); err != nil {
-				return err
-			}
-		}
-		return nil
-	})
+	_ = r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error { return pending.ids().mark(ctx, q) })
 	m, err := docs.ManifestAt(ctx, r.st.Q, p.ProjectID, p.ManifestRevision)
 	var cmd *manifest.Command
 	if err == nil {
 		cmd = m.Command(p.Command)
 	}
-	for _, a := range pending {
+	for _, row := range pending.asks {
+		a := row.Ask
 		if a.Kind != ask.KindCall {
 			continue
 		}
 		var o gateway.Outcome
-		_ = json.Unmarshal([]byte(a.Result), &o)
+		_ = json.Unmarshal([]byte(row.Result), &o)
 		switch {
-		case a.State == "expired":
+		case a.State == "expired" || a.State == "dismissed":
 			r.finish(ctx, p.ID, StateError, "", false, "deck: the owner did not confirm the call in time; it was not made")
-		case a.Result == "":
+		case row.Result == "":
 			r.finish(ctx, p.ID, StateError, "", false, gateway.RejectMessage(a.Answer))
 		case o.Error != "" || cmd == nil:
 			r.finish(ctx, p.ID, StateError, "", false, o.Error)

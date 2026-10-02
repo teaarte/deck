@@ -18,13 +18,10 @@ type Ask struct {
 	Payload     string
 	Answer      string
 	State       string
-	Result      string
-	Delivered   int64
-	Used        int64
-	Dismissed   int64
 	CreatedAt   string
 	AnsweredAt  sql.NullString
 	ExpiresAt   sql.NullString
+	DeliveredAt sql.NullString
 }
 
 type AutomationToken struct {
@@ -208,6 +205,14 @@ type Process struct {
 	FinishedAt       sql.NullString
 }
 
+type ProcessRemark struct {
+	ID          int64
+	ProcessID   int64
+	Text        string
+	CreatedAt   string
+	DeliveredAt sql.NullString
+}
+
 type Project struct {
 	ID          int64
 	WorkspaceID int64
@@ -276,6 +281,8 @@ type ToolCall struct {
 	ExternalID  string
 	Error       string
 	AskID       sql.NullInt64
+	Run         string
+	Result      string
 	CreatedAt   string
 }
 

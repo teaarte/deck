@@ -6,8 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"slices"
 	"strings"
+	"time"
 
 	"deck2/internal/ask"
 	"deck2/internal/health"
@@ -30,7 +30,7 @@ func (r *Runner) needLogin(ctx context.Context, pv provider.Provider, processID 
 		if err := q.PauseCeiling(ctx, db.PauseCeilingParams{Now: r.now().UnixMilli(), ID: processID}); err != nil {
 			return err
 		}
-		if _, err := q.CreateAsk(ctx, db.CreateAskParams{ProcessID: processID, Kind: ask.KindLogin, Text: msg, Payload: string(payload)}); err != nil {
+		if _, err := ask.New(ctx, q, processID, ask.KindLogin, msg, string(payload), time.Time{}); err != nil {
 			return err
 		}
 		return setHealth(ctx, q, pv, "needs_login", text)
@@ -97,8 +97,8 @@ func (r *Runner) usage(ctx context.Context, processID int64, name string, u prov
 // premature (a schema forces the agent to answer even when told to stop), so the process parks instead.
 func (r *Runner) blocked(ctx context.Context, processID int64) bool {
 	open, _ := r.st.Q.ListOpenAsksOfProcess(ctx, processID)
-	pending, _ := r.st.Q.ListUndeliveredAsks(ctx, processID)
-	return len(open) > 0 || len(pending) > 0
+	pending, _ := r.untold(ctx, processID)
+	return len(open) > 0 || !pending.empty()
 }
 
 // park moves the process to waiting_answer, where its ceiling does not tick, and immediately delivers
@@ -122,14 +122,14 @@ func (r *Runner) park(ctx context.Context, processID int64) {
 
 // waiting is the turn a process waiting for its provider runs once the provider is back.
 type waiting struct {
-	Message string  `json:"message,omitempty"`
-	Asks    []int64 `json:"asks,omitempty"`
+	Message string `json:"message,omitempty"`
+	told
 }
 
 // waitProvider holds a turn that did not start because its provider is not ready; the ceiling does not
 // run yet, since it starts with the turn.
 func (r *Runner) waitProvider(ctx context.Context, t turn) {
-	w, _ := json.Marshal(waiting{Message: t.message, Asks: t.asks})
+	w, _ := json.Marshal(waiting{Message: t.message, told: t.asks})
 	var n int64
 	if r.stopFirst(ctx, t.process) {
 		return
@@ -177,19 +177,13 @@ func (r *Runner) heldTurn(ctx context.Context, p db.Process) (turn, error) {
 	if err != nil {
 		return turn{}, err
 	}
-	t.asks = w.Asks
+	t.asks = w.told
 	if p.WaitFresh == 0 {
 		t.resume, t.message = true, w.Message
-		pending, _ := r.st.Q.ListUndeliveredAsks(ctx, p.ID)
-		var more []db.Ask
-		for _, a := range pending {
-			if !slices.Contains(w.Asks, a.ID) {
-				more = append(more, a)
-			}
-		}
-		if len(more) > 0 {
-			t.message = strings.TrimSpace(t.message + "\n" + deliveryMessage(more))
-			t.asks = append(t.asks, askIDs(more)...)
+		pending, _ := r.untold(ctx, p.ID)
+		if more := pending.except(w.told, ""); !more.empty() {
+			t.message = strings.TrimSpace(t.message + "\n" + more.message())
+			t.asks = t.asks.add(more.ids())
 		}
 	}
 	return t, nil

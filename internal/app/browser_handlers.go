@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"time"
 
 	"deck2/internal/ask"
 	"deck2/internal/registry"
@@ -77,7 +78,7 @@ func (a *App) browserNeedsLogin(ctx context.Context, act registry.Actor, in brow
 	payload, _ := json.Marshal(map[string]string{"site": site})
 	text := fmt.Sprintf("Sign in to %s in deck's browser (deck.browser_login), then say done: %s", site, untrusted.Cut(in.Why, 300))
 	row, err := store.TxGet(a.Store, ctx, func(ctx context.Context, q *db.Queries) (db.Ask, error) {
-		return q.CreateAsk(ctx, db.CreateAskParams{ProcessID: act.ProcessID, Kind: ask.KindSignIn, Text: text, Payload: string(payload)})
+		return ask.New(ctx, q, act.ProcessID, ask.KindSignIn, text, string(payload), time.Time{})
 	})
 	if err != nil {
 		return nil, err

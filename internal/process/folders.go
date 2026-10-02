@@ -19,7 +19,7 @@ func (r *Runner) holdFolder(ctx context.Context, t turn, folder string) bool {
 		return false
 	}
 	held, waits := false, false
-	w, _ := json.Marshal(waiting{Message: t.message, Asks: t.asks})
+	w, _ := json.Marshal(waiting{Message: t.message, told: t.asks})
 	err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		if err := q.DropStaleFolderLock(ctx, folder); err != nil {
 			return err

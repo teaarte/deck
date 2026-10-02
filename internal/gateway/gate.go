@@ -172,8 +172,7 @@ func (g *Gateway) hold(ctx context.Context, act registry.Actor, c *registry.Comm
 		if err == nil || !errors.Is(err, sql.ErrNoRows) {
 			return err
 		}
-		a, err = q.CreateCallAsk(ctx, db.CreateCallAskParams{ProcessID: sql.NullInt64{Int64: process, Valid: process != 0},
-			WorkspaceID: act.Workspace, ProjectID: project, Kind: ask.KindCall, Text: text, Payload: payload, ExpiresAt: ask.At(expires)})
+		a, err = ask.ForProject(ctx, q, act.Workspace, project, process, ask.KindCall, text, payload, expires)
 		if err != nil {
 			return err
 		}
@@ -208,8 +207,8 @@ func Approved(ctx context.Context) (string, bool) {
 	return s, ok
 }
 
-// Decide makes the frozen call the owner allowed or retried for its caller and keeps what it gave; the ask
-// is claimed first, so it runs once and not after its deadline, and a failing then undoes the claim.
+// Decide makes the frozen call the owner allowed or retried and keeps what it gave on the journal row of the ask,
+// answered first, so the call runs once and not after its deadline; a failing then undoes the answer.
 func (g *Gateway) Decide(ctx context.Context, a db.Ask, answer string, then func() error) (any, error) {
 	var f Frozen
 	if err := json.Unmarshal([]byte(a.Payload), &f); err != nil {
@@ -219,7 +218,11 @@ func (g *Gateway) Decide(ctx context.Context, a db.Ask, answer string, then func
 		return nil, ErrChanged
 	}
 	n, err := store.TxGet(g.st, ctx, func(ctx context.Context, q *db.Queries) (int64, error) {
-		return q.ClaimAsk(ctx, db.ClaimAskParams{Answer: answer, ID: a.ID, Now: store.Time(g.cfg.Now())})
+		n, err := q.ClaimDecision(ctx, db.ClaimDecisionParams{Answer: answer, ID: a.ID, Now: store.Time(g.cfg.Now())})
+		if err != nil || n == 0 {
+			return n, err
+		}
+		return n, q.StartDecision(ctx, sql.NullInt64{Int64: a.ID, Valid: true})
 	})
 	if err != nil {
 		return nil, err
@@ -229,7 +232,9 @@ func (g *Gateway) Decide(ctx context.Context, a db.Ask, answer string, then func
 	}
 	if then != nil {
 		if err := then(); err != nil {
-			_ = g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error { return q.ReleaseAsk(ctx, a.ID) })
+			_ = g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+				return errors.Join(q.UndoDecision(ctx, sql.NullInt64{Int64: a.ID, Valid: true}), q.ReopenDecision(ctx, a.ID))
+			})
 			return nil, err
 		}
 	}
@@ -246,8 +251,7 @@ func (g *Gateway) Decide(ctx context.Context, a db.Ask, answer string, then func
 	}
 	res, _ := json.Marshal(o)
 	_ = g.st.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error {
-		_, err := q.SettleAsk(ctx, db.SettleAskParams{Result: string(res), ID: a.ID})
-		return err
+		return q.SettleDecision(ctx, db.SettleDecisionParams{Result: string(res), AskID: sql.NullInt64{Int64: a.ID, Valid: true}})
 	})
 	g.bus.Publish("asks")
 	return out, err

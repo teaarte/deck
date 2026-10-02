@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"deck2/internal/ask"
 	"deck2/internal/docs"
@@ -30,8 +31,7 @@ func (a *App) toolSignIn(ctx context.Context, p db.Project, tool, why string) {
 	payload, _ := json.Marshal(map[string]string{"tool": tool})
 	text := fmt.Sprintf("%s needs you to sign in to its service again (deck.oauth_start): %s", tool, untrusted.Cut(why, 300))
 	err = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		_, err := q.CreateProjectAsk(ctx, db.CreateProjectAskParams{WorkspaceID: p.WorkspaceID, ProjectID: p.ID, Kind: ask.KindSignIn,
-			Text: text, Payload: string(payload)})
+		_, err := ask.ForProject(ctx, q, p.WorkspaceID, p.ID, 0, ask.KindSignIn, text, string(payload), time.Time{})
 		return err
 	})
 	if err == nil {

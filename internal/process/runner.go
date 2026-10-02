@@ -197,7 +197,7 @@ func (r *Runner) finish(ctx context.Context, processID int64, state, result stri
 	err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		// A message of the owner that came as the turn ended goes on in the same session instead.
 		if state == StateDone {
-			if m, err := q.CountRemarks(ctx, sql.NullInt64{Int64: processID, Valid: true}); err != nil || m > 0 {
+			if m, err := q.ListUndeliveredRemarks(ctx, processID); err != nil || len(m) > 0 {
 				if err == nil {
 					parked, err = r.parkIn(ctx, q, processID)
 				}

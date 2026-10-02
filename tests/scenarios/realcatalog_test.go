@@ -46,4 +46,10 @@ func TestRealBrowserCatalog(t *testing.T) {
 	b.open(e.URL + "/?token=" + token + "#/p/fresh/main")
 	b.until("the words of empty blocks", `[...document.querySelectorAll('[data-empty]')].map(x => x.innerText).join('|') === 'No prices yet|No forecasts yet|Nothing here'`)
 	b.shot("catalog-empty")
+	if b.eval(`String(document.body.innerText.includes('Missed'))`) != "false" {
+		t.Fatal("a block whose when does not hold is not drawn")
+	}
+	e.must("deck.records_upsert", map[string]any{"project": "fresh", "collection": "forecasts",
+		"records": jsonl(map[string]any{"at": "2026-09-01T09:00:00Z", "horizon": "1d", "change": -0.01, "status": "missed"})}, nil)
+	b.until("the block its when now holds for, without a reload", `[...document.querySelectorAll('h4')].some(x => x.innerText === 'Missed')`)
 }

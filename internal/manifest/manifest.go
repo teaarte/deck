@@ -221,8 +221,10 @@ type Screen struct {
 }
 
 type Block struct {
-	Type    string   `json:"type"`
-	Title   string   `json:"title,omitempty"`
+	Type  string `json:"type"`
+	Title string `json:"title,omitempty"`
+	// When is an expression over the record of the page and rows; where it does not hold the block is left out.
+	When    string   `json:"when,omitempty"`
 	Source  *Source  `json:"source,omitempty"`
 	Columns []Column `json:"columns,omitempty"`
 	Fields  []Column `json:"fields,omitempty"`

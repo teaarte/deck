@@ -2,6 +2,7 @@ package screen
 
 import (
 	"fmt"
+	"maps"
 	"slices"
 
 	"deck2/internal/manifest"
@@ -11,10 +12,56 @@ func (r *renderer) blocks(prefix string, bs []manifest.Block) []string {
 	ids := make([]string, 0, len(bs))
 	for i, b := range bs {
 		id := fmt.Sprintf("%s%d", prefix, i)
+		holds, err := r.holds(id, b)
+		if !holds {
+			continue
+		}
 		ids = append(ids, id)
 		r.block(id, b)
+		if _, ok := r.data[id]; ok && err != nil {
+			r.data[id] = map[string]any{"state": "error", "error": "when: " + err.Error()}
+		}
 	}
 	return ids
+}
+
+// holds reports whether the block is on the screen by its when; a when that fails shows the block with its error.
+func (r *renderer) holds(id string, b manifest.Block) (bool, error) {
+	if b.When == "" {
+		return true, nil
+	}
+	env := map[string]any{}
+	maps.Copy(env, r.record)
+	if b.Source != nil && b.Source.From != manifest.LogSource {
+		items, _, err := r.rows(id, b, nil)
+		if err != nil {
+			return true, err
+		}
+		env["rows"] = items
+	}
+	v, err := manifest.Eval(b.When, env)
+	if err != nil {
+		return true, err
+	}
+	return v == true, nil
+}
+
+// rows are the items of a block's source with the filters the owner picked, read once per screen without picks.
+func (r *renderer) rows(id string, b manifest.Block, picked map[string]string) ([]map[string]any, []map[string]any, error) {
+	if len(picked) > 0 {
+		return r.filtered(*b.Source, b.Filter, picked)
+	}
+	if got, ok := r.read[id]; ok {
+		return got.items, got.filters, got.err
+	}
+	items, filters, err := r.filtered(*b.Source, b.Filter, nil)
+	r.read[id] = readOf{items, filters, err}
+	return items, filters, err
+}
+
+type readOf struct {
+	items, filters []map[string]any
+	err            error
 }
 
 func (r *renderer) block(id string, b manifest.Block) {
@@ -196,7 +243,7 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 		acts := r.actions(b.Actions, r.req.Record, r.record)
 		return map[string]any{"state": "ready", "value": map[string]any{"fields": fields, "actions": acts}}, nil
 	}
-	items, filters, err := r.filtered(*b.Source, b.Filter, r.req.Filter[id])
+	items, filters, err := r.rows(id, b, r.req.Filter[id])
 	if err != nil {
 		return nil, err
 	}

@@ -91,6 +91,7 @@ export function ScreenView({ route, onProjects }: { route: Route; onProjects: ()
     let fresh: Record<string, number> = {};
     const feed = (msgs: Message[], ticket: number) => {
       for (const m of prepare(msgs)) {
+        if (m.createSurface && fresh.root !== undefined) continue;
         let parts: Message[] = [m];
         const dm = m.updateDataModel;
         if (dm && dm.path === '/' && dm.value && typeof dm.value === 'object' && fresh.root !== undefined) {
@@ -119,7 +120,7 @@ export function ScreenView({ route, onProjects }: { route: Route; onProjects: ()
         // A read of a screen already drawn updates it in place, keeping the tab picked and what the owner typed.
         if (proc.current) {
           setError('');
-          feed(msgs.filter((m) => !m.createSurface), ticket);
+          feed(msgs, ticket);
           fresh.root = ticket;
           setStale(false);
           return;

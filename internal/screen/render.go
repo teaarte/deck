@@ -74,7 +74,10 @@ func Render(ctx context.Context, st *store.Store, src Sources, req Request) ([]m
 	if !slices.Contains(Topics, req.Topic) {
 		req.Topic = ""
 	}
-	r := &renderer{ctx: ctx, st: st, src: src, req: req, data: map[string]any{}}
+	if req.Topic != "" && changesWhen(req.Screen.Blocks, req.Screen.Record, req.Project.ID == 0, req.Topic) {
+		req.Topic = ""
+	}
+	r := &renderer{ctx: ctx, st: st, src: src, req: req, data: map[string]any{}, read: map[string]readOf{}}
 	r.scope = Scope{Workspace: req.Project.WorkspaceID, Project: req.Project.Name}
 	if req.Screen.Record != "" {
 		if err := r.loadRecord(); err != nil {
@@ -115,6 +118,33 @@ type renderer struct {
 	recordTitle string
 	// types are the input types of the commands buttons call, read once per screen.
 	types map[string]map[string]string
+	read  map[string]readOf
+}
+
+// changesWhen reports whether an event of the topic may put a block on the screen or take it off: its when
+// reads its source or the record of the page. The screen is then resolved whole.
+func changesWhen(bs []manifest.Block, record string, deck bool, topic string) bool {
+	page := "collection"
+	switch {
+	case deck:
+		page = "processes"
+	case record == manifest.DocumentRecord:
+		page = "documents"
+	}
+	for _, b := range bs {
+		switch {
+		case b.When != "" && record != "" && topic == page,
+			b.When != "" && b.Source != nil && topic == topicOf(b, deck),
+			changesWhen(b.Blocks, record, deck, topic):
+			return true
+		}
+		for _, t := range b.Tabs {
+			if changesWhen(t.Blocks, record, deck, topic) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (r *renderer) surface() string {

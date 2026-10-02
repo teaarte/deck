@@ -27,10 +27,13 @@ const forecastManifest = `{"version": 5,
           {"label": "Source", "bind": "source", "format": "link"}],
         "actions": [{"label": "Open", "screen": "forecast"}], "empty": "No forecasts yet"},
       {"type": "list", "title": "Horizons", "source": {"collection": "forecasts", "sort": "-at"},
-        "item": {"title": "horizon", "tone": "status == 'missed' ? 'muted' : ''"}}]},
+        "item": {"title": "horizon", "tone": "status == 'missed' ? 'muted' : ''"}},
+      {"type": "list", "title": "Missed", "when": "len(rows) > 0", "source": {"collection": "forecasts", "where": "status == 'missed'"},
+        "item": {"title": "horizon"}}]},
     {"name": "forecast", "title": "Forecast", "record": "forecasts", "blocks": [
       {"type": "card", "fields": [{"label": "Made", "bind": "at", "format": "datetime"}, {"label": "Change", "bind": "change", "format": "percent", "tone": "change < 0 ? 'error' : 'ok'"},
-        {"label": "Confidence", "bind": "confidence", "format": "percent"}]}]}],
+        {"label": "Confidence", "bind": "confidence", "format": "percent"}]},
+      {"type": "card", "title": "Still open", "when": "status == 'open'", "fields": [{"label": "Horizon", "bind": "horizon"}]}]}],
   "menu": ["main"]}`
 
 func (e *Env) seedForecasts() {
@@ -169,6 +172,60 @@ func TestABlockWithoutItemsSaysSoInItsOwnWords(t *testing.T) {
 		{`"empty": "No prices yet"`, `"empty": ""`, `minLength`},
 		{`{"label": "Confidence", "bind": "confidence", "format": "percent"}]}`, `{"label": "Confidence", "bind": "confidence", "format": "percent"}], "empty": "None"}`,
 			`additional properties 'empty' not allowed`},
+	} {
+		if strings.Count(forecastManifest, tc.from) != 1 {
+			t.Fatalf("fixture has %s once", tc.from)
+		}
+		code, out := e.call("deck.manifest_save", map[string]any{"project": "btc", "manifest": strings.Replace(forecastManifest, tc.from, tc.to, 1)})
+		if code != 422 || !strings.Contains(string(out), tc.want) {
+			t.Fatalf("%s is refused with %q: %d %s", tc.to, tc.want, code, out)
+		}
+	}
+}
+
+// TestABlockIsOnTheScreenOnlyWhereItsWhenHolds: a block whose when does not hold over its rows or the record of
+// the page is not in the screen at all; an event its when reads resolves the screen whole.
+func TestABlockIsOnTheScreenOnlyWhereItsWhenHolds(t *testing.T) {
+	e := newEnv(t, nil)
+	check := newCatalogCheck(t)
+	e.createProject("btc", forecastManifest)
+	blocks := func(screen string, extra map[string]any) (string, map[string]map[string]json.RawMessage) {
+		msgs := e.screenMessages("btc", screen, extra)
+		check.messages(t, msgs)
+		return string(msgs[1]["updateComponents"]), e.screenData("btc", screen, extra)
+	}
+	comps, data := blocks("main", nil)
+	if strings.Contains(comps, `"title":"Missed"`) || data["b3"] != nil || !strings.Contains(comps, `"children":["b0","b1","b2"]`) {
+		t.Fatalf("a block whose when does not hold over its rows is not on the screen: %s %v", comps, data["b3"])
+	}
+	e.seedForecasts()
+	comps, data = blocks("main", nil)
+	if !strings.Contains(comps, `"title":"Missed"`) || len(blockData[[]listItem](t, data["b3"]["items"])) != 1 {
+		t.Fatalf("it is there once its when holds: %s", comps)
+	}
+	if msgs := e.screenMessages("btc", "main", map[string]any{"topic": "collection"}); msgs[0]["createSurface"] == nil {
+		t.Fatalf("an event the when reads resolves the screen whole: %v", msgs[0])
+	}
+	if msgs := e.screenMessages("btc", "main", map[string]any{"topic": "asks"}); len(msgs) > 0 && msgs[0]["createSurface"] != nil {
+		t.Fatalf("an event no when reads resolves only its blocks: %v", msgs[0])
+	}
+	var recs []struct {
+		ID   int64
+		Data struct{ Status string }
+	}
+	e.must("deck.records_list", map[string]any{"project": "btc", "collection": "forecasts"}, &recs)
+	if len(recs) != 2 || recs[0].Data.Status == recs[1].Data.Status {
+		t.Fatalf("one forecast is open, one missed: %+v", recs)
+	}
+	for _, rec := range recs {
+		comps, _ := blocks("forecast", map[string]any{"record": rec.ID})
+		if strings.Contains(comps, `"title":"Still open"`) != (rec.Data.Status == "open") {
+			t.Fatalf("a block reads the record of its page in its when (%s): %s", rec.Data.Status, comps)
+		}
+	}
+	for _, tc := range []struct{ from, to, want string }{
+		{`"when": "len(rows) > 0"`, `"when": "status == 'missed'"`, `when: unknown field "status"`},
+		{`"when": "status == 'open'"`, `"when": "len(rows) > 0"`, `when: unknown field "rows"`},
 	} {
 		if strings.Count(forecastManifest, tc.from) != 1 {
 			t.Fatalf("fixture has %s once", tc.from)

@@ -72,6 +72,9 @@ func (c *screenCheck) recordFields() []string {
 }
 
 func (c *screenCheck) block(where string, b Block) {
+	if b.When != "" {
+		c.when(where, b)
+	}
 	var fields []string
 	switch b.Type {
 	case "columns", "tabs":
@@ -187,6 +190,20 @@ func (c *screenCheck) format(where, format, currency string) {
 		c.fail("%s: format money needs currency, an ISO 4217 code such as USD", where)
 	case format != "money" && currency != "":
 		c.fail("%s: currency goes with format money", where)
+	}
+}
+
+// when checks the condition of a block: it reads the fields of the record of the page and rows of its source.
+func (c *screenCheck) when(where string, b Block) {
+	env := []string{}
+	if c.screen.Record != "" {
+		env = c.recordFields()
+	}
+	if env != nil && b.Source != nil {
+		env = append(env, "rows")
+	}
+	if _, err := compileField(b.When, env); err != nil {
+		c.fail("%s when: %v", where, err)
 	}
 }
 

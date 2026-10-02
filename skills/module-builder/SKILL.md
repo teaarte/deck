@@ -106,7 +106,8 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   a file to a record or card: `files: [{"file": <id>, "record": <id>}]`.
 - **Documents to PDF** (a CV in Typst, say): a script with `programs: ["typst"]` writes the `.typ` documents it
   reads with `document_get` into its work folder, runs `typst compile` and puts the PDF into `$DECK_RESULTS`.
-  To compare two revisions of a document, read both (`document_get` with `revision`); screens show the diff.
+  To compare two revisions of a document, read both (`document_get` with `revision`) and say what changed;
+  screens have no diff block.
 - **Reads**: `reads: [{"project": "other", "collections": [...], "documents": [...]}]` lets agents and scripts
   read those (`records_list`, `document_get` with `project`) and screens show them (`source.project`).
   Nothing ever writes to another project.

@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -73,6 +74,9 @@ type App struct {
 func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, error) {
 	cfg.defaults()
 	h := home.Layout(cfg.Home)
+	if old := h.Old(); len(old) > 0 {
+		return nil, fmt.Errorf("deck: %s holds a deck of an older layout (%s); move it away and start again, deck makes state/ and work/", cfg.Home, strings.Join(old, ", "))
+	}
 	for _, dir := range []string{h.State(), h.Runs()} {
 		if err := os.MkdirAll(dir, 0o700); err != nil {
 			return nil, err
@@ -124,8 +128,8 @@ func (a *App) dirs() files.Dirs {
 	return files.Dirs{Files: a.Home.Files(), Runs: a.Home.Runs()}
 }
 
-// hidden are what an agent may not read or write under every path of home, since macOS links /tmp and /var: the
-// state of deck, the runs and projects but its own, and in its own project all but the data, later ones too.
+// hidden are what an agent may not read or write under every path of home, since macOS links /tmp and /var: all
+// of home but the runs and projects of work, then those but its own, and in its own project all but the data.
 func hidden(h home.Layout) func(project, process int64) []string {
 	roots := []home.Layout{h}
 	if real, err := filepath.EvalSymlinks(string(h)); err == nil && real != string(h) {
@@ -135,6 +139,16 @@ func hidden(h home.Layout) func(project, process int64) []string {
 		var out []string
 		for _, r := range roots {
 			out = append(out, r.State()+"/**")
+			top, _ := os.ReadDir(string(r))
+			for _, e := range top {
+				switch {
+				case e.Name() == "work" || e.Name() == "state":
+				case e.IsDir():
+					out = append(out, filepath.Join(string(r), e.Name())+"/**")
+				default:
+					out = append(out, filepath.Join(string(r), e.Name()))
+				}
+			}
 			out = append(out, others(r.Runs(), fmt.Sprint(process))...)
 			out = append(out, others(r.Projects(), fmt.Sprint(project))...)
 			names := []string{"mcp"}

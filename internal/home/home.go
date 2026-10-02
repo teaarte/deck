@@ -4,6 +4,7 @@ package home
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 )
 
@@ -38,6 +39,17 @@ func (l Layout) Sessions() string { return l.state("mcp") }
 
 // Secrets holds the secrets of a workspace, a file each.
 func (l Layout) Secrets(workspace int64) string { return l.state("secrets", fmt.Sprint(workspace)) }
+
+// Old lists what deck kept in its folder before state/ and work/; deck does not start on such a folder.
+func (l Layout) Old() []string {
+	var out []string
+	for _, n := range []string{"deck.db", "token", "secrets", "files", "projects", "runs", "backups", "mcp"} {
+		if _, err := os.Stat(filepath.Join(string(l), n)); err == nil {
+			out = append(out, n)
+		}
+	}
+	return out
+}
 
 // Runs holds a folder per run of an agent or a script.
 func (l Layout) Runs() string             { return l.work("runs") }

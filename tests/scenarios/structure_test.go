@@ -2,6 +2,7 @@ package scenarios
 
 import (
 	"context"
+	"deck2/internal/app"
 	deckhome "deck2/internal/home"
 	"fmt"
 	"os"
@@ -135,5 +136,17 @@ func TestDeletingAProjectKeepsTheHealthOfItsNamesakeElsewhere(t *testing.T) {
 	_ = e.App.Store.DB.QueryRowContext(ctx, `SELECT count(*) FROM health WHERE subject = 'command:x.run' AND workspace_id = 2`).Scan(&n)
 	if n != 1 {
 		t.Fatalf("the namesake in the other workspace keeps its health: %d", n)
+	}
+}
+
+// TestADeckOfAnOlderLayoutDoesNotStart: a folder with deck's files outside state/ and work/ is refused, so nothing of
+// it lies open next to the folders agents work in.
+func TestADeckOfAnOlderLayoutDoesNotStart(t *testing.T) {
+	home := t.TempDir()
+	if err := os.WriteFile(filepath.Join(home, "deck.db"), []byte("old"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := app.New(app.Config{Home: home}, &Fake{}); err == nil || !strings.Contains(err.Error(), "older layout (deck.db)") {
+		t.Fatalf("deck does not start on a folder of the older layout: %v", err)
 	}
 }

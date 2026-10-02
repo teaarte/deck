@@ -82,6 +82,17 @@ func (a Actor) Author() string {
 	return a.Kind
 }
 
+// ClassRank orders classes from the one that asks least: internal, reversible, external.
+func ClassRank(class string) int {
+	switch class {
+	case Reversible:
+		return 1
+	case External:
+		return 2
+	}
+	return 0
+}
+
 type Handler func(ctx context.Context, a Actor, in json.RawMessage) (any, error)
 
 type Command struct {

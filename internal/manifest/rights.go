@@ -2,6 +2,7 @@ package manifest
 
 import (
 	"bytes"
+	"deck2/internal/registry"
 	"encoding/json"
 	"fmt"
 	"reflect"
@@ -11,8 +12,6 @@ import (
 )
 
 var secretRef = regexp.MustCompile(`\$secret\.([A-Za-z0-9_.-]+)`)
-
-var classRank = map[string]int{"internal": 0, "reversible": 1, "external": 2}
 
 // Widens lists what next grants that prev does not: autonomy, allowed external actions, domains, secrets, milder
 // classes, dropped requirements, providers, callers, MCP servers, reads, network, changed HTTP tools that skip asking.
@@ -49,7 +48,7 @@ func Widens(prev, next *Manifest) []string {
 			}
 			continue
 		}
-		if classRank[c.Class] < classRank[old.Class] {
+		if registry.ClassRank(c.Class) < registry.ClassRank(old.Class) {
 			add("command %s: class %s instead of %s", c.Name, c.Class, old.Class)
 		}
 		for _, r := range added(c.Requires, old.Requires) {
@@ -82,7 +81,7 @@ func Widens(prev, next *Manifest) []string {
 		switch {
 		case !ok && t.Class != "external":
 			add("tool %s: new with class %s", t.Name, t.Class)
-		case ok && classRank[t.Class] < classRank[old.Class]:
+		case ok && registry.ClassRank(t.Class) < registry.ClassRank(old.Class):
 			add("tool %s: class %s instead of %s", t.Name, t.Class, old.Class)
 		case ok && (t.Class != "external" || slices.Contains(prev.AllowedExternal, t.Name) && slices.Contains(next.AllowedExternal, t.Name)) && !sameCall(old, t):
 			add("tool %s runs without asking: method, URL, headers, auth or body changed", t.Name)
@@ -105,7 +104,7 @@ func Widens(prev, next *Manifest) []string {
 			if !known {
 				was = "external"
 			}
-			if classRank[s.Classes[tool]] < classRank[was] {
+			if registry.ClassRank(s.Classes[tool]) < registry.ClassRank(was) {
 				add("MCP tool %s.%s: class %s instead of %s", name, tool, s.Classes[tool], was)
 			}
 		}

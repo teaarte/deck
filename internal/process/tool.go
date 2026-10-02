@@ -16,8 +16,6 @@ import (
 	"deck2/internal/store/db"
 )
 
-var classRank = map[string]int{registry.Internal: 0, registry.Reversible: 1, registry.External: 2}
-
 // runTool makes the one gateway tool call of a tool command with the command input as it is. A tool no
 // stricter than its command was cleared when the command was called; a stricter one passes the class rules.
 func (r *Runner) runTool(ctx context.Context, t turn, trial bool) {
@@ -51,7 +49,7 @@ func (r *Runner) runTool(ctx context.Context, t turn, trial bool) {
 		return
 	}
 	act := registry.Actor{Kind: registry.Agent, Workspace: proj.WorkspaceID, ProjectID: t.project, ProcessID: id, Trial: trial,
-		Cleared: classRank[tool.Class] <= classRank[t.cmd.Class]}
+		Cleared: registry.ClassRank(tool.Class) <= registry.ClassRank(t.cmd.Class)}
 	out, err := r.gw.CallAs(ctx, act, name, json.RawMessage(t.input))
 	if r.cut(bg, ctx, id) {
 		if r.ctx.Err() == nil {

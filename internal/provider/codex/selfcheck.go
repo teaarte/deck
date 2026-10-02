@@ -14,7 +14,6 @@ import (
 	"github.com/google/uuid"
 
 	"deck2/internal/provider"
-	"deck2/internal/sandbox"
 )
 
 // Version is the version the CLI reports, such as 0.155.1.
@@ -31,9 +30,6 @@ func (a *Adapter) Version(ctx context.Context) (string, error) {
 	}
 	return f[len(f)-1], nil
 }
-
-// Reap kills the group only when its leader is gone or still runs the session.
-func (a *Adapter) Reap(pgid int, session string) { sandbox.Reap(pgid, "deck session "+session) }
 
 // SelfCheck runs a short session as deck runs agents: an unasked write in its folder, a hidden file its shell
 // cannot read, ask, result_submit, token counts, a resume, then a turn whose curl has no network.

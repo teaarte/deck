@@ -91,9 +91,7 @@ func (a *Adapter) CallLimit() time.Duration {
 	return 45 * time.Second
 }
 
-// Reap kills the group only when its leader is gone or still runs the session.
-func (a *Adapter) Reap(pgid int, session string) { sandbox.Reap(pgid, marker(session)) }
-
+// marker is in the command line of every process of a session, so deck finds the group a crash left running.
 func marker(session string) string { return "deck session " + session }
 
 func (a *Adapter) sessionDir(session string) string {

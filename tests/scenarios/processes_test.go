@@ -302,6 +302,7 @@ func TestLeftoverCLIGroupIsKilledBeforeResume(t *testing.T) {
 	}
 	ours := group("claude", "--session-id", "11111111-1111-1111-1111-111111111111")
 	foreign := group("someone-else")
+	removed := group("opencode", "deck session 44444444-4444-4444-4444-444444444444")
 	orphan := exec.Command("sh", "-c", "sleep 300 & exit 0")
 	orphan.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	if err := orphan.Run(); err != nil {
@@ -333,7 +334,15 @@ func TestLeftoverCLIGroupIsKilledBeforeResume(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		return q.SetProcessGroup(ctx, db.SetProcessGroupParams{Pgid: int64(pgids[2]), ID: other.ID})
+		if err := q.SetProcessGroup(ctx, db.SetProcessGroupParams{Pgid: int64(pgids[3]), ID: other.ID}); err != nil {
+			return err
+		}
+		gone, err := q.CreateProcess(ctx, db.CreateProcessParams{ProjectID: p, Command: "work", State: "done", Input: "{}", Provider: "removed",
+			SessionID: "44444444-4444-4444-4444-444444444444", Depth: 1})
+		if err != nil {
+			return err
+		}
+		return q.SetProcessGroup(ctx, db.SetProcessGroupParams{Pgid: int64(pgids[2]), ID: gone.ID})
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -350,11 +359,16 @@ func TestLeftoverCLIGroupIsKilledBeforeResume(t *testing.T) {
 		t.Fatal("the CLI group a crashed deck left must be killed before the session resumes")
 	}
 	select {
+	case <-removed:
+	case <-time.After(3 * time.Second):
+		t.Fatal("the group of a provider the owner removed since is killed too")
+	}
+	select {
 	case <-foreign:
 		t.Fatal("a group that does not run the session is not ours and stays")
 	default:
 	}
-	if syscall.Kill(-pgids[2], 0) != nil {
+	if syscall.Kill(-pgids[3], 0) != nil {
 		t.Fatal("a group whose leader is gone and whose members do not run the session stays")
 	}
 	e2.waitState(id, "done")

@@ -173,11 +173,6 @@ type CallLimiter interface {
 	CallLimit() time.Duration
 }
 
-// Reaper kills a process group an earlier deck left running, if it still runs the given session.
-type Reaper interface {
-	Reap(pgid int, session string)
-}
-
 // Terminal is a provider whose session the owner can go on with in a terminal: the command, in the folder of the turn.
 type Terminal interface {
 	Terminal(session string) (string, error)

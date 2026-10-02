@@ -11,7 +11,6 @@ import (
 
 	"deck2/internal/ask"
 	"deck2/internal/gateway"
-	"deck2/internal/provider"
 	"deck2/internal/sandbox"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
@@ -204,10 +203,8 @@ func (r *Runner) reap(ctx context.Context) error {
 	for _, g := range groups {
 		if g.Kind == KindScript {
 			sandbox.Reap(int(g.Pgid), r.runDir(g.ID)+string(filepath.Separator))
-		} else if pv, err := r.providers.Named(ctx, g.ProjectID, g.Provider); err == nil {
-			if reaper, ok := pv.(provider.Reaper); ok {
-				reaper.Reap(int(g.Pgid), g.SessionID)
-			}
+		} else if g.SessionID != "" {
+			sandbox.Reap(int(g.Pgid), g.SessionID)
 		}
 		r.setGroup(ctx, g.ID, 0)
 	}

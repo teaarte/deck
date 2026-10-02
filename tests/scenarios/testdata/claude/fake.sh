@@ -39,7 +39,8 @@ if [ ! -f "$d/nostdin" ]; then
     printf '%s\n' "$line" >> "$c/stdin"
     case "$line" in *'"type":"user"'*) break ;; esac
   done
-  cat >> "$c/stdin" <&0 &
+  exec 3<&0
+  cat >> "$c/stdin" <&3 &
 fi
 word=$(grep -o 'deck-check-[0-9a-f]*' "$c/stdin" | head -1)
 if [ -n "$word" ]; then echo "$word" > "$d/word"; else word=$(cat "$d/word" 2>/dev/null); fi

@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { notifications } from '@mantine/notifications';
 import { Alert, Button, Group, Image, Loader, Modal, SimpleGrid, Stack, Text, UnstyledButton } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
 import { fetchFile, saveBlob } from './api';
@@ -6,6 +7,14 @@ import { formatted } from './format';
 import type { Data } from './catalog.gen';
 
 type Item = NonNullable<Data['files']>[number];
+
+// PICTURES are the types drawn as a picture: raster only, so no file runs as a script of deck.
+const PICTURES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/avif', 'image/bmp'];
+// PREVIEW is the largest file read for a preview; a larger one is only a download.
+const PREVIEW = 20 * 1000 * 1000;
+const shows = (it: Item, types: string[]) => !it.error && types.includes(it.type ?? '') && (it.size ?? 0) <= PREVIEW;
+const isPicture = (it: Item) => shows(it, PICTURES);
+const isPdf = (it: Item) => shows(it, ['application/pdf']);
 
 // useBlob reads a file of the item through the API with the token and gives an address of it for the page.
 function useBlob(url: string | undefined, type?: string) {
@@ -32,6 +41,8 @@ function Download({ it }: { it: Item }) {
       setBusy(true);
       try {
         saveBlob(await fetchFile(it.url!), it.name ?? 'file');
+      } catch (e) {
+        notifications.show({ title: it.title || it.name, message: (e as Error).message, color: 'red' });
       } finally {
         setBusy(false);
       }
@@ -41,7 +52,7 @@ function Download({ it }: { it: Item }) {
 
 function Picture({ it }: { it: Item }) {
   const [open, setOpen] = useState(false);
-  const { src, error } = useBlob(it.url);
+  const { src, error } = useBlob(it.url, it.type);
   if (error) return <Alert color="red" p="xs">{error}</Alert>;
   if (!src) return <Loader size="xs" />;
   return (
@@ -59,33 +70,67 @@ function Picture({ it }: { it: Item }) {
   );
 }
 
-// Pdf draws the file as a PDF whatever deck says its type is, so it never opens as a page of deck.
+// PAGES is how many pages of a PDF are drawn in place; the rest is in the download.
+const PAGES = 10;
+
+// Pdf draws the pages of a PDF on canvases with pdf.js: no frame, so the page of deck frames nothing.
 function Pdf({ it }: { it: Item }) {
-  const { src, error } = useBlob(it.url, 'application/pdf');
-  if (error) return <Alert color="red" p="xs">{error}</Alert>;
-  if (!src) return <Loader size="xs" />;
-  return <object data={src} type="application/pdf" width="100%" height={480} data-media="pdf" aria-label={it.title || it.name} />;
+  const { blob, error } = useBlob(it.url, 'application/pdf');
+  const box = useRef<HTMLDivElement>(null);
+  const [failed, setFailed] = useState('');
+  useEffect(() => {
+    const el = box.current;
+    if (!blob || !el) return;
+    let gone = false;
+    let task: { destroy: () => Promise<void> } | undefined;
+    void (async () => {
+      try {
+        const pdfjs = await import('pdfjs-dist');
+        pdfjs.GlobalWorkerOptions.workerSrc = (await import('pdfjs-dist/build/pdf.worker.min.mjs?url')).default;
+        const loading = pdfjs.getDocument({ data: new Uint8Array(await blob.arrayBuffer()) });
+        task = loading;
+        const doc = await loading.promise;
+        for (let n = 1; n <= Math.min(doc.numPages, PAGES) && !gone; n++) {
+          const page = await doc.getPage(n);
+          const width = el.clientWidth || 600;
+          const viewport = page.getViewport({ scale: (width / page.getViewport({ scale: 1 }).width) * devicePixelRatio });
+          const canvas = document.createElement('canvas');
+          canvas.width = viewport.width;
+          canvas.height = viewport.height;
+          canvas.style.width = '100%';
+          canvas.style.border = '1px solid var(--mantine-color-default-border)';
+          canvas.dataset.page = String(n);
+          el.appendChild(canvas);
+          await page.render({ canvas, viewport }).promise;
+        }
+      } catch (e) {
+        if (!gone) setFailed((e as Error).message);
+      }
+    })();
+    return () => { gone = true; void task?.destroy(); el.replaceChildren(); };
+  }, [blob]);
+  if (error || failed) return <Alert color="red" p="xs">{error || failed}</Alert>;
+  if (!blob) return <Loader size="xs" />;
+  return <Stack ref={box} gap="xs" data-media="pdf" aria-label={it.title || it.name} />;
 }
 
 // Media shows the files of a source: a picture as a thumbnail that opens in full, a PDF in place, the rest by
 // name and size with a download.
 export function Media({ items }: { items: Item[] }) {
-  const pdfs = items.filter((it) => it.type === 'application/pdf');
-  const rest = items.filter((it) => it.type !== 'application/pdf');
   return (
     <Stack gap="sm">
       <SimpleGrid cols={{ base: 2, sm: 3, md: 4 }} spacing="sm">
-        {rest.filter((it) => !it.error && it.type?.startsWith('image/')).map((it) => (
+        {items.filter(isPicture).map((it) => (
           <Stack key={String(it.id)} gap={4} data-item><Picture it={it} /><Text size="xs" truncate>{it.title || it.name}</Text></Stack>
         ))}
       </SimpleGrid>
-      {pdfs.filter((it) => !it.error).map((it) => (
+      {items.filter(isPdf).map((it) => (
         <Stack key={String(it.id)} gap={4} data-item>
           <Group justify="space-between"><Text size="sm" fw={500}>{it.title || it.name}</Text><Download it={it} /></Group>
           <Pdf it={it} />
         </Stack>
       ))}
-      {items.filter((it) => it.error || !(it.type?.startsWith('image/') || it.type === 'application/pdf')).map((it) => (
+      {items.filter((it) => !isPicture(it) && !isPdf(it)).map((it) => (
         <Group key={String(it.id)} justify="space-between" wrap="nowrap" data-item data-media={it.error ? 'error' : 'file'}>
           <Stack gap={0} miw={0}>
             <Text size="sm" fw={500} truncate>{it.title || it.name}</Text>

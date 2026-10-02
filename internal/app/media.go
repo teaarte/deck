@@ -19,10 +19,12 @@ import (
 // folder by path.
 func (s screenSources) File(ctx context.Context, p db.Project, ref any) (map[string]any, error) {
 	if path, ok := ref.(string); ok {
-		_, fi, err := s.a.dataFile(p.ID, path)
+		f, err := s.a.dataFile(p.ID, path)
 		if err != nil {
 			return nil, fmt.Errorf("no file %q in the data folder of %s", path, p.Name)
 		}
+		fi, _ := f.Stat()
+		_ = f.Close()
 		return map[string]any{"name": fi.Name(), "type": fileType(fi.Name()), "size": fi.Size(),
 			"url": "/api/files/data/" + url.PathEscape(p.Name) + "/" + escapePath(path)}, nil
 	}
@@ -67,24 +69,23 @@ func fileType(name string) string {
 	return "application/octet-stream"
 }
 
-// dataFile is a regular file inside the data folder of a project, links resolved; nothing outside it.
-func (a *App) dataFile(project int64, path string) (string, os.FileInfo, error) {
-	root, err := filepath.EvalSymlinks(a.Home.Data(project))
+// dataFile opens a regular file inside the data folder of a project; the root keeps every link inside it, even
+// one swapped in while the file opens.
+func (a *App) dataFile(project int64, path string) (*os.File, error) {
+	root, err := os.OpenRoot(a.Home.Data(project))
 	if err != nil {
-		return "", nil, err
+		return nil, err
 	}
-	real, err := filepath.EvalSymlinks(filepath.Join(root, filepath.Clean("/"+path)))
+	defer root.Close()
+	f, err := root.Open(strings.TrimPrefix(filepath.Clean("/"+path), "/"))
 	if err != nil {
-		return "", nil, err
+		return nil, err
 	}
-	if !strings.HasPrefix(real, root+string(filepath.Separator)) {
-		return "", nil, os.ErrNotExist
+	if fi, err := f.Stat(); err != nil || !fi.Mode().IsRegular() {
+		_ = f.Close()
+		return nil, os.ErrNotExist
 	}
-	fi, err := os.Stat(real)
-	if err != nil || !fi.Mode().IsRegular() {
-		return "", nil, os.ErrNotExist
-	}
-	return real, fi, nil
+	return f, nil
 }
 
 // OpenDataFile opens a file of the data folder of a project the actor sees, for a media block.
@@ -100,13 +101,10 @@ func (a *App) OpenDataFile(ctx context.Context, act registry.Actor, project, pat
 	if act.Token != 0 && !registry.Permits(act.Commands, p.Name+".*") {
 		return fileView{}, nil, registry.Refuse("deck: this automation token may not call every command of %s, so it does not download its files", p.Name)
 	}
-	real, fi, err := a.dataFile(p.ID, path)
+	file, err := a.dataFile(p.ID, path)
 	if err != nil {
 		return fileView{}, nil, missing
 	}
-	file, err := os.Open(real)
-	if err != nil {
-		return fileView{}, nil, missing
-	}
+	fi, _ := file.Stat()
 	return fileView{Project: p.Name, Name: fi.Name(), Type: fileType(fi.Name()), Size: fi.Size()}, file, nil
 }

@@ -103,15 +103,18 @@ func TestRealBrowserMedia(t *testing.T) {
 	_ = os.MkdirAll(data, 0o700)
 	_ = os.WriteFile(filepath.Join(data, "report.pdf"), []byte(pdf), 0o600)
 	_ = os.WriteFile(filepath.Join(data, "notes.csv"), []byte("a,b\n1,2\n"), 0o600)
+	_ = os.WriteFile(filepath.Join(data, "logo.svg"), []byte(`<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>`), 0o600)
 	e.must("deck.records_upsert", map[string]any{"project": "btc", "collection": "attachments", "records": jsonl(
 		map[string]any{"title": "a scan", "file": scan}, map[string]any{"title": "b report", "file": "report.pdf"},
-		map[string]any{"title": "c notes", "file": "notes.csv"}, map[string]any{"title": "d gone", "file": "gone.png"})}, nil)
+		map[string]any{"title": "c notes", "file": "notes.csv"}, map[string]any{"title": "d gone", "file": "gone.png"},
+		map[string]any{"title": "e logo", "file": "logo.svg"})}, nil)
 
 	b := newPlaywright(t)
 	b.call("browser_resize", map[string]any{"width": 1280, "height": 900})
 	b.open(e.URL + "/?token=" + token + "#/p/btc/files")
 	b.until("the picture drawn from the file", `document.querySelector('[data-media="image"] img')?.naturalWidth === 64`)
-	b.until("the PDF in place", `document.querySelector('object[data-media="pdf"]')?.type === 'application/pdf'`)
+	b.until("the PDF drawn in place", `document.querySelector('[data-media="pdf"] canvas[data-page="1"]')?.width > 100`)
+	b.until("an SVG only as a file to download", `[...document.querySelectorAll('[data-media="file"]')].some(x => x.innerText.includes('logo.svg')) && !document.querySelector('img[alt="e logo"]')`)
 	b.until("the other file by name and size", `document.querySelector('[data-media="file"]')?.innerText.includes('notes.csv') && document.querySelector('[data-media="file"]').innerText.includes('8')`)
 	b.until("the error of a missing file on its line", `document.querySelector('[data-media="error"]')?.innerText.includes('gone.png')`)
 	b.shot("media")

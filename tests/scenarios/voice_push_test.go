@@ -277,3 +277,65 @@ func TestAPushThatFailsForNowIsSentAgain(t *testing.T) {
 		t.Fatalf("the push that failed for now goes out at the next look: %+v", got)
 	}
 }
+
+// TestTheLanguageOfSpeechIsDetectedByDefault: without a language whisper.cpp is asked for auto, and an
+// OpenAI-style API, which detects it when the field is left out, gets none.
+func TestTheLanguageOfSpeechIsDetectedByDefault(t *testing.T) {
+	var mu sync.Mutex
+	langs := map[string]string{}
+	whisper := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, params, _ := mime.ParseMediaType(r.Header.Get("Content-Type"))
+		mr := multipart.NewReader(r.Body, params["boundary"])
+		lang := "-"
+		for {
+			p, err := mr.NextPart()
+			if err != nil {
+				break
+			}
+			b, _ := io.ReadAll(p)
+			if p.FormName() == "language" {
+				lang = string(b)
+			}
+		}
+		mu.Lock()
+		langs[r.URL.Path] = lang
+		mu.Unlock()
+		_, _ = w.Write([]byte(`{"text": "hi"}`))
+	}))
+	t.Cleanup(whisper.Close)
+	e := newEnv(t, nil)
+	for _, path := range []string{"/inference", "/v1/audio/transcriptions"} {
+		e.must("deck.stt_set", map[string]any{"url": whisper.URL + path}, nil)
+		id := e.upload("master", "voice.wav", "audio/wav", "RIFF....WAVEfmt fake recording")
+		e.must("deck.transcribe", map[string]any{"file": itoa(id)}, nil)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if langs["/inference"] != "auto" || langs["/v1/audio/transcriptions"] != "-" {
+		t.Fatalf("the language is detected by default: %v", langs)
+	}
+}
+
+// TestThePushKeyIsDecksOwnAndResetsWithItsButton: the key of pushes is not among the owner's secrets and is not
+// set as one; its reset makes a new key and drops the devices subscribed with the old one.
+func TestThePushKeyIsDecksOwnAndResetsWithItsButton(t *testing.T) {
+	e := newEnv(t, nil)
+	var before struct{ Key string }
+	e.must("deck.push_key", nil, &before)
+	d, srv := newPushDevice(t)
+	d.subscribe(e, srv, "iPhone")
+	var names []struct{ Name string }
+	e.must("deck.secrets_list", nil, &names)
+	if len(names) != 0 {
+		t.Fatalf("the key of pushes is not a secret of the owner: %+v", names)
+	}
+	e.refused("deck.secret_set", map[string]any{"name": "push.vapid", "value": "x"}, 422, "deck's own key")
+	e.must("deck.push_reset", nil, nil)
+	var after struct{ Key string }
+	e.must("deck.push_key", nil, &after)
+	var devices []struct{ Name string }
+	e.must("deck.push_devices", nil, &devices)
+	if after.Key == before.Key || len(devices) != 0 {
+		t.Fatalf("a reset makes a new key and the old devices subscribe again: %v %+v", after.Key == before.Key, devices)
+	}
+}

@@ -2,6 +2,7 @@ package app
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -52,11 +53,11 @@ type sttSetIn struct {
 	URL       string `desc:"Transcription url, such as http://127.0.0.1:8178/inference or https://api.openai.com/v1/audio/transcriptions"`
 	Model     string `opt:"" desc:"Model name, when the service takes one"`
 	KeySecret string `json:"key_secret" opt:"" desc:"Name of the secret with the API key"`
-	Language  string `opt:"" desc:"Language of the speech, such as ru or en; without it the service uses its own default"`
+	Language  string `opt:"" desc:"Language of the speech, such as ru or en; auto by default, which the service detects"`
 }
 
 func (a *App) sttSet(ctx context.Context, act registry.Actor, in sttSetIn) (any, error) {
-	d := sttDef{URL: strings.TrimSpace(in.URL), Model: in.Model, KeySecret: in.KeySecret, Language: in.Language}
+	d := sttDef{URL: strings.TrimSpace(in.URL), Model: in.Model, KeySecret: in.KeySecret, Language: cmp.Or(strings.TrimSpace(in.Language), "auto")}
 	switch {
 	case !strings.HasPrefix(d.URL, "http://") && !strings.HasPrefix(d.URL, "https://"):
 		return nil, registry.Invalid("deck: the speech-to-text url is http or https, such as %s", DefaultSTT)
@@ -135,7 +136,8 @@ func (a *App) whisper(ctx context.Context, workspace int64, d sttDef, name strin
 	if d.Model != "" {
 		_ = w.WriteField("model", d.Model)
 	}
-	if d.Language != "" {
+	// whisper.cpp detects the language when asked for auto; an OpenAI-style API does when it is left out.
+	if d.Language != "" && !(d.Language == "auto" && strings.HasSuffix(strings.TrimRight(d.URL, "/"), "/audio/transcriptions")) {
 		_ = w.WriteField("language", d.Language)
 	}
 	_ = w.Close()

@@ -176,7 +176,8 @@
               ]},
             {"type": "form", "title": "Change settings", "command": "deck.settings_set"}
           ]},
-          {"title": "Interface", "blocks": [{"type": "appearance", "title": "Appearance"}]},
+          {"title": "Interface", "blocks": [{"type": "appearance", "title": "Appearance"},
+            {"type": "actions", "title": "Pushes", "actions": [{"verb": "reset_push", "confirm": true, "command": "deck.push_reset"}]}]},
           {"title": "Health", "blocks": [
             {"type": "table", "title": "Health", "source": {"from": "deck.health_list"}, "filter": ["status"],
               "columns": [

@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 
@@ -37,9 +38,15 @@ type secretSetIn struct {
 }
 
 // secretSet writes a secret file readable only by deck; the value never comes back out.
+// serviceSecrets are deck's own keys: the owner neither lists nor sets them, and resets them with their own button.
+var serviceSecrets = []string{vapidSecret}
+
 func (a *App) secretSet(ctx context.Context, act registry.Actor, in secretSetIn) (any, error) {
 	if !validSecret(in.Name) {
 		return nil, registry.Invalid("deck: a secret name is letters, digits, '.', '_' and '-'")
+	}
+	if slices.Contains(serviceSecrets, in.Name) {
+		return nil, registry.Invalid("deck: %s is deck's own key; reset it on the Interface tab of Settings", in.Name)
 	}
 	a.secretMu.Lock()
 	defer a.secretMu.Unlock()
@@ -102,7 +109,7 @@ func (a *App) secretsList(ctx context.Context, act registry.Actor, _ struct{}) (
 	}
 	var names []string
 	for _, e := range es {
-		if !strings.HasPrefix(e.Name(), ".") && e.Type().IsRegular() {
+		if !strings.HasPrefix(e.Name(), ".") && e.Type().IsRegular() && !slices.Contains(serviceSecrets, e.Name()) {
 			names = append(names, e.Name())
 		}
 	}

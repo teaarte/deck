@@ -68,7 +68,7 @@ func topicOf(b manifest.Block, deck bool) string {
 	switch {
 	case b.Type == "board":
 		return "board"
-	case b.Type == "appearance":
+	case b.Type == "appearance", b.Type == "actions" && deck:
 		return ""
 	case b.Type == "document":
 		return "documents"

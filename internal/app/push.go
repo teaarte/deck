@@ -5,10 +5,14 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 	"net/http"
+	"os"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -144,6 +148,23 @@ func (a *App) pushUnsubscribe(ctx context.Context, act registry.Actor, in pushUn
 		return nil, registry.NotFound("deck: no such device")
 	}
 	return map[string]any{"removed": n}, nil
+}
+
+// pushReset makes a new key for pushes on the next use; the devices subscribed with the old one subscribe again.
+func (a *App) pushReset(ctx context.Context, act registry.Actor, _ struct{}) (any, error) {
+	a.secretMu.Lock()
+	err := os.Remove(filepath.Join(a.secretsDir(act.Workspace), vapidSecret))
+	a.secretMu.Unlock()
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return nil, err
+	}
+	err = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		return q.DeleteWorkspacePushSubscriptions(ctx, act.Workspace)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{"ok": true}, nil
 }
 
 func (a *App) pushDevices(ctx context.Context, act registry.Actor, _ struct{}) (any, error) {
@@ -401,6 +422,9 @@ func (a *App) pushCommands() []*registry.Command {
 		registry.Def("push_unsubscribe", "Stop pushes",
 			"Stops pushes to a device.",
 			registry.OwnerOnly, a.pushUnsubscribe).Changes("settings"),
+		registry.Def("push_reset", "Reset the push key",
+			"Makes a new key for pushes; every device subscribed with the old one has to subscribe again.",
+			registry.OwnerOnly, a.pushReset).Changes("settings"),
 		registry.Def("push_devices", "Devices",
 			"Lists the devices that get pushes.",
 			registry.OwnerOnly, a.pushDevices),

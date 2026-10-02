@@ -468,7 +468,7 @@ func TestACPProviderNameIsUniqueAcrossWorkspaces(t *testing.T) {
 	if _, err := e.App.Store.DB.ExecContext(ctx, `INSERT INTO setting (workspace_id, key, value) VALUES (2, 'provider:shared', '{"url":"http://x/v1","model":"m","agent":"dsh"}')`); err != nil {
 		t.Fatal(err)
 	}
-	code, out := e.call("deck.provider_add", map[string]any{"name": "shared", "url": "http://localhost:1/v1", "model": "m"})
+	code, out := e.call("deck.provider_add", map[string]any{"name": "shared", "url": "http://localhost:1/v1", "model": "m", "agent": "dsh"})
 	if code != 422 || !strings.Contains(string(out), "another workspace") {
 		t.Fatalf("a provider name of another workspace is refused: %d %s", code, out)
 	}
@@ -488,7 +488,7 @@ func TestACPProviderChangedDuringItsSelfCheckIsCheckedAgain(t *testing.T) {
 	llm := acpLLM(t)
 	e := newEnv(t, nil, func(c *app.Config) {
 		c.ACPBinaries = map[string]string{"dsh": filepath.Join(f.dir, "dsh")}
-		c.Sandbox = fakeDirSandbox{sandbox.New(), f.dir}
+		c.Sandbox = fakeDirSandbox{sandbox.New(), f.dir, nil}
 	})
 	e.must("deck.provider_add", map[string]any{"name": "acp", "url": llm.URL, "model": "m", "agent": "dsh"}, nil)
 	e.waitFor("the first check", func() bool { return f.calls() >= 1 })
@@ -544,7 +544,7 @@ func TestACPProviderIsNotUsedBeforeItsFirstSelfCheck(t *testing.T) {
 	llm := acpLLM(t)
 	e := newEnv(t, nil, func(c *app.Config) {
 		c.ACPBinaries = map[string]string{"dsh": filepath.Join(f.dir, "dsh")}
-		c.Sandbox = fakeDirSandbox{sandbox.New(), f.dir}
+		c.Sandbox = fakeDirSandbox{sandbox.New(), f.dir, nil}
 	})
 	p := e.createProject("paint", colorManifest)
 	e.must("deck.secret_set", map[string]any{"name": "k", "value": "v"}, nil)

@@ -44,8 +44,7 @@ type App struct {
 	Browser   *tools.Browser
 	Host      *mcphost.Host
 
-	// builtin are the providers deck was started with, the main one first; the owner adds OpenAI-compatible
-	// ones per workspace.
+	// builtin are the providers deck was started with, the main one first; the owner adds ACP ones per workspace.
 	builtin  []provider.Provider
 	checkMu  sync.Mutex
 	check    map[string]*checks
@@ -130,7 +129,7 @@ func hidden(home string) func(project, process int64) []string {
 		for _, h := range homes {
 			out = append(out, filepath.Join(h, "deck.db")+"*", filepath.Join(h, "token"), filepath.Join(h, "mcp", "*.json"),
 				filepath.Join(h, "mcp", "*.tmp"), filepath.Join(h, "mcp", "stderr-*"))
-			dirs := []string{"secrets", "sessions", "files", "backups", "browser", "tailscale", "codex", "acp"}
+			dirs := []string{"secrets", "files", "backups", "browser", "tailscale", "codex", "acp"}
 			top, _ := os.ReadDir(h)
 			for _, e := range top {
 				if e.IsDir() && !slices.Contains(append(dirs, "runs", "projects", "mcp"), e.Name()) {

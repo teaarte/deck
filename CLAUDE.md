@@ -12,9 +12,9 @@ Stage 1 plan: `docs/plan-stage1.md`.
 - Tests: `go test -race -timeout 30m ./...`
 - Real Claude Code end-to-end test: `DECK_REAL_CLI=1 go test ./tests/scenarios -run TestRealClaudeCode -v`
 - Real Codex end-to-end test (skipped without `codex`): `DECK_REAL_CODEX=1 go test ./tests/scenarios -run TestRealCodex -v`
-- Agent turn on a local Ollama: `DECK_REAL_OLLAMA=1 go test ./tests/scenarios -run TestRealOllama -v` (`DECK_OLLAMA_MODEL`, default `laguna-xs-2.1:nvfp4`)
 - ACP agents (OpenCode, `dsh`) on a local Ollama: `DECK_REAL_ACP=1 go test ./tests/scenarios -run TestRealACPAgents -v`
-  (`DECK_ACP_DSH` — path to `dsh` when it is not in PATH; a cloud model: `DECK_ACP_URL`, `DECK_ACP_MODEL`, `DECK_ACP_KEY`)
+  (`DECK_OLLAMA_MODEL`, default `laguna-xs-2.1:nvfp4`; `DECK_ACP_DSH` — path to `dsh` when it is not in PATH; a cloud
+  model: `DECK_ACP_URL`, `DECK_ACP_MODEL`, `DECK_ACP_KEY`)
 - Script packages from PyPI and npm through deck's proxy: `DECK_REAL_PACKAGES=1 go test ./tests/scenarios -run TestRealScriptPackages -v`
 - Web client in a real browser (Playwright MCP; checks that `web/dist` is fresh):
   `DECK_REAL_BROWSER=1 go test ./tests/scenarios -run TestRealBrowser -v` (`DECK_SCREENSHOTS=<dir>` keeps screenshots)
@@ -41,7 +41,8 @@ Stage 1 plan: `docs/plan-stage1.md`.
 - `internal/gateway` — deck MCP server per process: permission prompts, questions, confirmations, registry
   commands as tools; HTTP entry and domain proxy for scripts
 - `internal/provider` — model providers; `claudecode` runs the CLI isolated from user settings; `codex` runs
-  `codex app-server` on the owner's shared login (`protocol.go` is generated)
+  `codex app-server` on the owner's shared login (`protocol.go` is generated); `acp` runs ACP agents (OpenCode, `dsh`)
+  on an OpenAI-compatible model inside deck's sandbox — deck has no tool loop of its own
 - `internal/process` — process runner: agent and script executors, start, resume, result schema check, result files;
   agent turns take a slot of the workspace (`slots.go`), the rest wait in `waiting_slot`
 - `internal/sandbox` — script sandbox behind one interface: `sandbox-exec` on macOS, bubblewrap on Linux

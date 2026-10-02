@@ -110,7 +110,7 @@ type providerAddIn struct {
 	Model     string `desc:"Model name"`
 	KeySecret string `json:"key_secret" opt:"" desc:"Name of the secret with the API key"`
 	NoCloud   bool   `json:"no_cloud" opt:"" desc:"The model runs on the owner's own hardware"`
-	Agent     string `opt:"" desc:"An ACP agent that runs the model inside the sandbox of deck with a shell and files: opencode or dsh; without it deck calls the model with its own tool loop"`
+	Agent     string `desc:"The ACP agent that runs the model inside the sandbox of deck with a shell and files: opencode or dsh"`
 }
 
 func (a *App) providerAdd(ctx context.Context, act registry.Actor, in providerAddIn) (any, error) {
@@ -133,19 +133,15 @@ func (a *App) providerAdd(ctx context.Context, act registry.Actor, in providerAd
 				return registry.Invalid("deck: another workspace has a provider %q; its health and self-check go by name, so pick another", in.Name)
 			}
 		}
-		if d.Agent != "" {
-			if err := health.Set(ctx, q, health.Of{}, process.HealthSubject(in.Name), "checking", "the self-check of the new provider is about to run"); err != nil {
-				return err
-			}
+		if err := health.Set(ctx, q, health.Of{}, process.HealthSubject(in.Name), "checking", "the self-check of the new provider is about to run"); err != nil {
+			return err
 		}
 		return q.SetSetting(ctx, db.SetSettingParams{WorkspaceID: act.Workspace, Key: providerPrefix + in.Name, Value: string(raw)})
 	})
 	if err != nil {
 		return nil, err
 	}
-	if d.Agent != "" {
-		a.startCheck(in.Name, true)
-	}
+	a.startCheck(in.Name, true)
 	a.Bus.Publish("health")
 	return map[string]any{"name": in.Name}, nil
 }
@@ -236,10 +232,10 @@ func (a *App) providerCommands() []*registry.Command {
 			"Sets the provider an agent command runs on from its next start; empty goes back to the default.",
 			registry.OwnerOnly, a.providerSet),
 		registry.Def("provider_add", "Add provider",
-			"Adds or changes an OpenAI-compatible provider of this workspace, such as Ollama, OpenRouter or DeepSeek, run by deck or by an ACP agent.",
+			"Adds or changes a provider of this workspace: an ACP agent on an OpenAI-compatible API, such as Ollama, OpenRouter or DeepSeek.",
 			registry.OwnerOnly, a.providerAdd),
 		registry.Def("provider_remove", "Remove provider",
-			"Removes an OpenAI-compatible provider; commands set to it must get another.",
+			"Removes a provider the owner added; commands set to it must get another.",
 			registry.OwnerOnly, a.providerRemove),
 		registry.Def("provider_check", "Check provider",
 			"Runs the self-check of a provider's adapter again; its health shows the outcome.",

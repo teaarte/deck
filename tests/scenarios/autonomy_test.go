@@ -165,7 +165,6 @@ func TestNoNetworkProjectAgentsHaveNoWebOfTheirOwn(t *testing.T) {
 func TestShellAndWebCommandsTakeOnlyAProviderInAutoModeWithItsWeb(t *testing.T) {
 	c := newCLI(t)
 	e, _ := cliEnv(t, c)
-	e.addLLM("local", newLLM(t, func(int, chatRequest) chatReply { return textReply("x") }), true)
 	for _, req := range []string{`["sandbox"]`, `["web"]`} {
 		m := strings.Replace(plainManifest, `"class": "internal",`, `"class": "internal", "requires": `+req+`,`, 1)
 		e.createProject("p"+fmt.Sprint(len(req)), m)
@@ -181,7 +180,7 @@ func TestShellAndWebCommandsTakeOnlyAProviderInAutoModeWithItsWeb(t *testing.T) 
 		for _, v := range list.Providers {
 			fits[v.Name] = v.Fits
 		}
-		if !fits["claude-code"] || fits["local"] {
+		if !fits["claude-code"] {
 			t.Fatalf("requires %s: only a provider with a shell in auto mode and its own web fits: %+v", req, list)
 		}
 	}

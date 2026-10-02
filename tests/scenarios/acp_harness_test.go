@@ -98,12 +98,13 @@ func (c acpCall) request(method string) json.RawMessage {
 // fakeDirSandbox is the sandbox of this machine that also lets the fake agent, the test binary, run and write its records.
 type fakeDirSandbox struct {
 	sandbox.Sandbox
-	dir string
+	dir  string
+	more []string
 }
 
 func (s fakeDirSandbox) Command(ctx context.Context, p sandbox.Policy) (*exec.Cmd, error) {
 	self, _ := os.Executable()
-	p.Write, p.Read = append(p.Write, s.dir), append(p.Read, self)
+	p.Write, p.Read = append(append(p.Write, s.dir), s.more...), append(p.Read, self)
 	return s.Sandbox.Command(ctx, p)
 }
 
@@ -135,7 +136,7 @@ func acpAdded(t *testing.T, f *fakeACP, agent string, llm *fakeLLM, cfg ...func(
 	t.Helper()
 	e := newEnv(t, nil, append([]func(*app.Config){func(c *app.Config) {
 		c.ACPBinaries = map[string]string{agent: filepath.Join(f.dir, agent)}
-		c.Sandbox = fakeDirSandbox{sandbox.New(), f.dir}
+		c.Sandbox = fakeDirSandbox{sandbox.New(), f.dir, nil}
 		c.ACPCallLimit = 2 * time.Second
 	}}, cfg...)...)
 	e.must("deck.secret_set", map[string]any{"name": "model_key", "value": "sk-real-model-key"}, nil)
@@ -161,4 +162,41 @@ func (e *Env) acpProject(name, manifest string) int64 {
 		e.must("deck.provider_set", map[string]any{"command": name + "." + c.Name, "provider": "acp"}, nil)
 	}
 	return p
+}
+
+// acpPair starts deck on script with two fake ACP agents: opencode and dsh, each with its own calls.
+func acpPair(t *testing.T, script Script) (e *Env, opencode, dsh *fakeACP) {
+	t.Helper()
+	opencode, dsh = newACP(t), newACP(t)
+	e = newEnv(t, script, func(c *app.Config) {
+		c.ACPBinaries = map[string]string{"opencode": filepath.Join(opencode.dir, "opencode"), "dsh": filepath.Join(dsh.dir, "dsh")}
+		c.Sandbox = fakeDirSandbox{sandbox.New(), opencode.dir, []string{dsh.dir}}
+		c.ACPCallLimit = 2 * time.Second
+	})
+	return e, opencode, dsh
+}
+
+// addACP adds or changes a provider on an agent over llm with its key, its self-check replayed from call from on.
+func (e *Env) addACP(f *fakeACP, from int, name, agent string, llm *fakeLLM, noCloud bool) {
+	e.T.Helper()
+	for i := 1; i <= 3; i++ {
+		f.stream(from+i-1, "selfcheck_"+strconv.Itoa(i)+".jsonl")
+	}
+	e.must("deck.secret_set", map[string]any{"name": name + "-key", "value": "sk-" + name}, nil)
+	e.must("deck.provider_add", map[string]any{"name": name, "url": llm.URL, "model": "asked-model", "agent": agent,
+		"key_secret": name + "-key", "no_cloud": noCloud}, nil)
+	e.waitFor("the self-check of "+name, func() bool {
+		h, err := e.App.Store.Q.GetHealth(e.T.Context(), "provider:"+name)
+		return err == nil && h.Status == "ok"
+	})
+}
+
+// acpTurn is a turn of a fresh session that calls the model once and hands in result, or ends with text.
+func acpTurn(result string) string {
+	end := `{"update": {"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": ` + result + `}}}`
+	if strings.HasPrefix(result, "{") {
+		end = `{"mcp": {"tool": "result_submit", "arguments": {"result": ` + result + `}}}`
+	}
+	return acpStream(acpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`, acpModel, end,
+		`{"end": "end_turn"}`)
 }

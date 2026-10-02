@@ -15,26 +15,6 @@ import (
 	"deck2/internal/provider"
 )
 
-func TestProviderThatLeftTheOwnersHardwareStopsTheNextTurn(t *testing.T) {
-	llm := newLLM(t, func(n int, _ chatRequest) chatReply {
-		if n == 1 {
-			return toolReply(fnCall{"result_submit", map[string]any{"result": map[string]any{"written": 1}}})
-		}
-		return textReply("done")
-	})
-	e := newEnv(t, nil)
-	e.addLLM("local", llm, true)
-	p := e.createProject("notes", notesManifest)
-	id := e.run(p, "collect")
-	e.waitState(id, "done")
-	e.addLLM("local", llm, false)
-	e.must("deck.process_rework", map[string]any{"process": id, "remark": "one more"}, nil)
-	got := e.waitState(id, "error", "done")
-	if got.State != "error" || !strings.Contains(got.Error, "no longer fits") || len(llm.requests()) != 2 {
-		t.Fatalf("a session that must stay off the cloud does not go on once its provider moved there: %+v, %d calls", got, len(llm.requests()))
-	}
-}
-
 func TestReworkAfterAStoppedPauseIsNotHeldByItsAsk(t *testing.T) {
 	var mu sync.Mutex
 	limit := true
@@ -63,27 +43,6 @@ func TestReworkAfterAStoppedPauseIsNotHeldByItsAsk(t *testing.T) {
 	e.must("deck.asks_list", nil, &as)
 	if len(as) != 0 {
 		t.Fatalf("the rework closed the offer to continue: %+v", as)
-	}
-}
-
-func TestSessionCutOffMidCallResumesWithAnUnknownOutcome(t *testing.T) {
-	llm := newLLM(t, func(n int, req chatRequest) chatReply {
-		if n == 1 {
-			return toolReply(fnCall{"mcp__deck__ask", map[string]any{"question": "Which topic?"}})
-		}
-		return toolReply(fnCall{"result_submit", map[string]any{"result": map[string]any{"written": 0}}})
-	})
-	e := newEnv(t, nil)
-	e.addLLM("local", llm, true)
-	p := e.createProject("notes", notesManifest)
-	id := e.run(p, "collect")
-	e.waitAsk()
-	e.must("deck.process_stop", map[string]any{"process": id}, nil)
-	e.waitState(id, "stopped")
-	e.must("deck.process_rework", map[string]any{"process": id, "remark": "go on without asking"}, nil)
-	e.waitFor("the resumed turn", func() bool { return len(llm.requests()) >= 2 })
-	if got := toolResults(llm.requests()[1]); !strings.Contains(got, "outcome is unknown") {
-		t.Fatalf("a tool call cut off mid-way gets a reply, so the API takes the resumed session: %s", got)
 	}
 }
 
@@ -142,22 +101,6 @@ func readFile(t *testing.T, path string) string {
 		t.Fatal(err)
 	}
 	return string(b)
-}
-
-func TestSnapshotKeepsModelSessions(t *testing.T) {
-	e := newEnv(t, nil)
-	dir := filepath.Join(e.App.Cfg.Home, "sessions")
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "s.json"), []byte("[]"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	var snap struct{ Path string }
-	e.must("deck.snapshot_create", nil, &snap)
-	if !tarNames(t, snap.Path)["sessions/s.json"] {
-		t.Fatal("the sessions deck keeps for models go into the snapshot")
-	}
 }
 
 func TestWorkFolderOfAFinishedAgentGoesAfterAWeek(t *testing.T) {

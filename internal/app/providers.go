@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"path/filepath"
 	"slices"
 	"strings"
 
@@ -14,20 +13,19 @@ import (
 	"deck2/internal/process"
 	"deck2/internal/provider"
 	"deck2/internal/provider/acp"
-	"deck2/internal/provider/openai"
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
 )
 
 const providerPrefix = "provider:"
 
-// providerDef is an OpenAI-compatible provider the owner added to a workspace.
+// providerDef is a provider the owner added to a workspace: an ACP agent on an OpenAI-compatible API.
 type providerDef struct {
 	URL       string `json:"url"`
 	Model     string `json:"model"`
 	KeySecret string `json:"key_secret,omitempty"`
 	NoCloud   bool   `json:"no_cloud,omitempty"`
-	// Agent runs the model in an ACP agent inside the sandbox of deck instead of deck's own tool loop.
+	// Agent is the ACP agent that runs the model inside the sandbox of deck.
 	Agent string `json:"agent,omitempty"`
 }
 
@@ -64,12 +62,11 @@ func (a *App) provider(ctx context.Context, workspace int64, name string) (provi
 		}
 		return a.Secret(workspace, d.KeySecret)
 	}
-	if d.Agent != "" {
-		return acp.New(acp.Config{Name: name, Agent: d.Agent, Binary: a.Cfg.ACPBinaries[d.Agent], URL: d.URL, Model: d.Model,
-			Key: key, NoCloud: d.NoCloud, Home: a.Cfg.Home, Sandbox: a.Cfg.Sandbox, CallLimit: a.Cfg.ACPCallLimit, Now: a.Cfg.Now})
+	if d.Agent == "" {
+		return nil, registry.Invalid("deck: provider %q has no ACP agent; add it again with agent %s", name, strings.Join(acp.Names(), " or "))
 	}
-	return openai.New(openai.Config{Name: name, URL: d.URL, Model: d.Model, NoCloud: d.NoCloud, Now: a.Cfg.Now,
-		Sessions: filepath.Join(a.Cfg.Home, "sessions"), Key: key}), nil
+	return acp.New(acp.Config{Name: name, Agent: d.Agent, Binary: a.Cfg.ACPBinaries[d.Agent], URL: d.URL, Model: d.Model,
+		Key: key, NoCloud: d.NoCloud, Home: a.Cfg.Home, Sandbox: a.Cfg.Sandbox, CallLimit: a.Cfg.ACPCallLimit, Now: a.Cfg.Now})
 }
 
 // named is a built-in provider, or one the owner added to any workspace; nil when there is none.
@@ -216,7 +213,7 @@ func checkDef(name string, d providerDef, builtin []string) error {
 		return registry.Invalid("deck: provider needs a model")
 	case d.KeySecret != "" && !secretName.MatchString(d.KeySecret):
 		return registry.Invalid("deck: bad secret name %q", d.KeySecret)
-	case d.Agent != "" && acp.Agents[d.Agent].Start == nil:
+	case acp.Agents[d.Agent].Start == nil:
 		return registry.Invalid("deck: no ACP agent %q; deck knows %s", d.Agent, strings.Join(acp.Names(), ", "))
 	}
 	return nil

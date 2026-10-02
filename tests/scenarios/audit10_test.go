@@ -143,12 +143,12 @@ func TestProviderURLCarriesNoKey(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`{}`)}
 	})
 	for _, u := range []string{"https://me:sk-1@openrouter.example/api/v1", "https://api.example/v1?key=sk-1"} {
-		code, out := e.call("deck.provider_add", map[string]any{"name": "cloud", "url": u, "model": "m"})
+		code, out := e.call("deck.provider_add", map[string]any{"name": "cloud", "url": u, "model": "m", "agent": "opencode"})
 		if code == 200 || !strings.Contains(string(out), "key_secret") {
 			t.Fatalf("a provider URL with a key in it is refused and points to key_secret: %s → %d %s", u, code, out)
 		}
 	}
-	e.must("deck.provider_add", map[string]any{"name": "cloud", "url": "https://api.example/v1", "model": "m", "key_secret": "k"}, nil)
+	e.must("deck.provider_add", map[string]any{"name": "cloud", "url": "https://api.example/v1", "model": "m", "key_secret": "k", "agent": "opencode"}, nil)
 	_, err := e.App.Store.DB.Exec(`INSERT INTO setting (workspace_id, key, value) VALUES (1, 'provider:old', ?)`,
 		`{"url": "https://api.example/v1?key=sk-stored", "model": "m"}`)
 	if err != nil {

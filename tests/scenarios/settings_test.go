@@ -237,7 +237,7 @@ func TestSettingsProvidersAddAndRemoveOnTheScreen(t *testing.T) {
 	if f := e.settingsBlock("Add a provider", nil); !strings.Contains(string(f["value"]), `"deck.provider_add"`) {
 		t.Fatalf("the providers tab adds a provider with a form: %s", f["value"])
 	}
-	e.must("deck.provider_add", map[string]any{"name": "ollama", "url": "http://127.0.0.1:1/v1", "model": "small", "no_cloud": true}, nil)
+	e.must("deck.provider_add", map[string]any{"name": "ollama", "url": "http://127.0.0.1:1/v1", "model": "small", "agent": "opencode", "no_cloud": true}, nil)
 	waitTopic(t, events, "health")
 	rows := blockData[[]screenRow](t, e.settingsBlock("Providers", map[string]any{"topic": "health"})["rows"])
 	var added screenRow
@@ -248,8 +248,8 @@ func TestSettingsProvidersAddAndRemoveOnTheScreen(t *testing.T) {
 			t.Fatalf("a built-in provider cannot be removed: %+v", r)
 		}
 	}
-	if hasVerb(added.Actions, "check") {
-		t.Fatalf("a provider without a self-check has no check button: %+v", added.Actions)
+	if !hasVerb(added.Actions, "check") {
+		t.Fatalf("an added provider runs in an ACP agent, which has a self-check and its button: %+v", added.Actions)
 	}
 	remove := verb(t, added.Actions, "remove")
 	if remove["confirm"] != true || added.Cells[2] != "small" {

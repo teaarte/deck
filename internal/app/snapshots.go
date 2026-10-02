@@ -86,7 +86,7 @@ func writeSnapshot(path, home, copyDB string, filesDone func()) error {
 	if err := addFile(tw, copyDB, "deck.db"); err != nil {
 		return err
 	}
-	dirs := []string{"files", "sessions"}
+	dirs := []string{"files"}
 	data, _ := filepath.Glob(filepath.Join(home, "projects", "*", "data"))
 	for _, d := range data {
 		rel, _ := filepath.Rel(home, d)

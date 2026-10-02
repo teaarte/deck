@@ -45,9 +45,11 @@ func (r *renderer) form(b manifest.Block) (map[string]any, error) {
 			return nil, err
 		}
 		for _, it := range items {
-			if c, ok := it["_command"].(map[string]any); ok {
-				cmds = append(cmds, c)
+			c, err := r.src.Command(r.ctx, r.scope.Workspace, fmt.Sprint(it["name"]))
+			if err != nil {
+				return nil, err
 			}
+			cmds = append(cmds, c)
 		}
 	}
 	v["commands"] = cmds
@@ -83,7 +85,7 @@ func (r *renderer) choices(b manifest.Block, cmd map[string]any) (map[string]any
 				if b.Choices == nil {
 					b.Choices = map[string]manifest.Choice{}
 				}
-				b.Choices[field] = manifest.Choice{Source: manifest.Source{From: "projects", Sort: "name"}, Value: "name"}
+				b.Choices[field] = manifest.Choice{Source: manifest.Source{From: "deck.projects_list", Sort: "name"}, Value: "name"}
 			}
 		}
 	}

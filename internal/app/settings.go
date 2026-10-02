@@ -76,23 +76,33 @@ func (a *App) settingsSet(ctx context.Context, act registry.Actor, in settingsSe
 	if in.AgentLimit > 0 {
 		a.Runner.Wake(ctx)
 	}
-	return a.settingItems(ctx, act.Workspace), nil
+	return a.settingsList(ctx, act, struct{}{})
 }
 
-// settingItems are the settings of the workspace with the values they have and would have by default.
-func (a *App) settingItems(ctx context.Context, workspace int64) []map[string]any {
-	return []map[string]any{
-		{"id": "confirm_hours", "name": "confirm_hours", "title": "How long a confirmation waits for the owner, hours",
-			"value": int64(a.confirmTTL(ctx, workspace) / time.Hour), "default": int64(a.Cfg.ConfirmTTL / time.Hour)},
-		{"id": "agent_limit", "name": "agent_limit", "title": "Agent processes that run at once; scripts and tools do not count",
-			"value": a.agentSlots(ctx, workspace), "default": agentLimit},
-		{"id": "suggest_days", "name": "suggest_days", "title": "Days a suggestion waits for the owner before it expires",
-			"value": a.suggestDays(ctx, workspace), "default": 7},
-	}
+// settingRow is a setting of the workspace with its value and its default.
+type settingRow struct {
+	Name    string `json:"name"`
+	Title   string `json:"title"`
+	Value   int64  `json:"value"`
+	Default int64  `json:"default"`
+}
+
+func (a *App) settingsList(ctx context.Context, act registry.Actor, _ struct{}) ([]settingRow, error) {
+	return []settingRow{
+		{Name: "confirm_hours", Title: "How long a confirmation waits for the owner, hours",
+			Value: int64(a.confirmTTL(ctx, act.Workspace) / time.Hour), Default: int64(a.Cfg.ConfirmTTL / time.Hour)},
+		{Name: "agent_limit", Title: "Agent processes that run at once; scripts and tools do not count",
+			Value: int64(a.agentSlots(ctx, act.Workspace)), Default: agentLimit},
+		{Name: "suggest_days", Title: "Days a suggestion waits for the owner before it expires",
+			Value: int64(a.suggestDays(ctx, act.Workspace)), Default: 7},
+	}, nil
 }
 
 func (a *App) settingsCommands() []*registry.Command {
 	return []*registry.Command{
+		registry.Read("settings_list", "Settings",
+			"Lists the settings of the workspace with their values and defaults.",
+			registry.OwnerOnly, a.settingsList).On("settings"),
 		registry.Def("settings_set", "Change settings",
 			"Sets how long a confirmation and a suggestion wait for the owner and how many agent processes run at once; an omitted one stays.",
 			registry.OwnerOnly, a.settingsSet),

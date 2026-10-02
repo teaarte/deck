@@ -1,6 +1,7 @@
 package app
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"strings"
@@ -16,13 +17,18 @@ type projectView struct {
 	ID            int64        `json:"id"`
 	Name          string       `json:"name"`
 	Status        string       `json:"status"`
+	Paused        bool         `json:"paused"`
+	Builtin       bool         `json:"builtin"`
 	Description   string       `json:"description"`
 	Screens       []screenView `json:"screens"`
-	ManifestError string       `json:"manifest_error,omitempty"`
+	ManifestError string       `json:"manifest_error"`
 	// Rights are what enabling a draft at Revision of its manifest grants.
-	Rights   []string     `json:"rights,omitempty"`
+	Rights   []string     `json:"rights"`
 	Revision int64        `json:"revision"`
 	Folders  []folderView `json:"folders"`
+	// Autonomy and NoNetwork are of the manifest; empty and false when it does not load.
+	Autonomy  string `json:"autonomy"`
+	NoNetwork bool   `json:"no_network"`
 }
 
 type screenView struct {
@@ -30,7 +36,7 @@ type screenView struct {
 	Title string `json:"title"`
 }
 
-func (a *App) projectsList(ctx context.Context, act registry.Actor, _ struct{}) (any, error) {
+func (a *App) projectsList(ctx context.Context, act registry.Actor, _ struct{}) ([]projectView, error) {
 	ps, err := a.Store.Q.ListWorkspaceProjects(ctx, act.Workspace)
 	if err != nil {
 		return nil, err
@@ -45,7 +51,8 @@ func (a *App) projectsList(ctx context.Context, act registry.Actor, _ struct{}) 
 
 // viewProject is a project as the owner sees it, with its manifest when that loads.
 func (a *App) viewProject(ctx context.Context, p db.Project) (projectView, *manifest.Manifest) {
-	v := projectView{ID: p.ID, Name: p.Name, Status: p.Status, Screens: []screenView{}, Folders: a.folders(ctx, p.ID)}
+	v := projectView{ID: p.ID, Name: p.Name, Status: p.Status, Paused: p.Paused == 1, Builtin: p.Builtin == 1, Screens: []screenView{},
+		Rights: []string{}, Folders: a.folders(ctx, p.ID)}
 	if prompt, err := docs.CurrentText(ctx, a.Store.Q, docs.ProjectScope(p), docs.KindPrompt, docs.PromptName); err == nil {
 		v.Description = docs.Description(prompt)
 	}
@@ -54,12 +61,12 @@ func (a *App) viewProject(ctx context.Context, p db.Project) (projectView, *mani
 		v.ManifestError = err.Error()
 		return v, nil
 	}
-	v.Revision = m.Revision
+	v.Revision, v.Autonomy, v.NoNetwork = m.Revision, cmp.Or(m.Autonomy, "suggest"), m.NoNetwork
 	for _, s := range m.Screens {
 		v.Screens = append(v.Screens, screenView{Name: s.Name, Title: s.Title})
 	}
 	if p.Status == store.ProjectDraft {
-		v.Rights = rights(m)
+		v.Rights = append(v.Rights, rights(m)...)
 	}
 	return v, m
 }
@@ -128,9 +135,9 @@ func (a *App) manifestSave(ctx context.Context, act registry.Actor, in manifestS
 
 func (a *App) projectsCommands() []*registry.Command {
 	return []*registry.Command{
-		registry.Def("projects_list", "List projects",
-			"Lists projects with their description (the first line of the md prompt) and screens.",
-			registry.OwnerSide, a.projectsList),
+		registry.Read("projects_list", "List projects",
+			"Lists projects with their description (the first line of the md prompt), screens, folders and what enabling a draft grants.",
+			registry.OwnerSide, a.projectsList).On("projects"),
 		registry.Def("project_create", "Create project",
 			"Creates a project from its name, an md prompt and a manifest; without a manifest it has only the base board.",
 			registry.OwnerSide, a.projectCreate),

@@ -136,9 +136,9 @@ func TestHTTPToolTemplatesStayOnTheirHost(t *testing.T) {
 		t.Fatalf("a tool command's input must fit its tool: %d %s", code, out)
 	}
 	e.must("deck.secret_set", map[string]any{"name": "k", "value": "v"}, nil)
-	var names []string
+	var names []map[string]any
 	e.must("deck.secrets_list", nil, &names)
-	if len(names) != 1 || names[0] != "k" {
+	if len(names) != 1 || names[0]["name"] != "k" || len(names[0]) != 1 {
 		t.Fatalf("secrets_list gives names only: %v", names)
 	}
 }

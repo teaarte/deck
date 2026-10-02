@@ -246,8 +246,12 @@ type Tab struct {
 }
 
 type Source struct {
-	// From is what the block reads: a collection (the default) or a source of SourceFields.
+	// From is what the block reads: a collection (the default) or a command that only reads.
 	From string `json:"from,omitempty"`
+	// Input is the input of the command; "$record.<field>" is a field of the record of the page.
+	Input map[string]any `json:"input,omitempty"`
+	// Rows names the list in the result of a command that gives an object.
+	Rows string `json:"rows,omitempty"`
 	// Project is another project the manifest reads; empty is the project itself.
 	Project    string `json:"project,omitempty"`
 	Collection string `json:"collection,omitempty"`

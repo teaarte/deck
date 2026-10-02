@@ -55,8 +55,6 @@ var Format = func() []byte {
 	block := defs["block"].(map[string]any)
 	block["type"], block["required"], block["allOf"] = "object", []string{"type"}, branches
 	block["properties"] = map[string]any{"type": map[string]any{"enum": Blocks}}
-	from := defs["source"].(map[string]any)["properties"].(map[string]any)["from"].(map[string]any)
-	from["enum"] = append([]string{"collection"}, slices.Sorted(maps.Keys(SourceFields))...)
 	out, err := json.Marshal(m)
 	if err != nil {
 		panic(err)

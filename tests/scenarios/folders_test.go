@@ -328,11 +328,12 @@ func TestAPauseThatRunsOutFreesTheFolder(t *testing.T) {
 // TestAStoppedAgentKeepsTheFolderUntilItsTurnExits: a stopped agent whose turn takes a while to die keeps the
 // folder, so the next one does not reach its provider in it until then, and it is not sent back meanwhile.
 func TestAStoppedAgentKeepsTheFolderUntilItsTurnExits(t *testing.T) {
-	dying := make(chan struct{})
+	dying, inside := make(chan struct{}), make(chan struct{})
 	var once sync.Once
 	let := func() { once.Do(func() { close(dying) }) }
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		if c.N == 1 {
+			close(inside)
 			<-ctx.Done()
 			<-dying
 		}
@@ -342,7 +343,7 @@ func TestAStoppedAgentKeepsTheFolderUntilItsTurnExits(t *testing.T) {
 	p := e.createProject("code", testManifest([]string{folderCommand("run", "true")}, nil))
 	e.must("deck.folder_add", map[string]any{"project": "code", "path": repoFolder(t)}, nil)
 	first := e.run(p, "run")
-	e.waitFor("the first at its provider", func() bool { return len(e.Fake.Calls()) == 1 })
+	<-inside
 	second := e.run(p, "run")
 	e.waitState(second, "waiting_folder")
 

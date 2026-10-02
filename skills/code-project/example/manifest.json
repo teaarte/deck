@@ -141,7 +141,7 @@
           "type": "list",
           "title": "Runs",
           "source": {
-            "from": "processes",
+            "from": "deck.processes_list",
             "where": "command == 'run'",
             "limit": 10
           },

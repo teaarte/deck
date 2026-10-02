@@ -4,38 +4,44 @@ import (
 	"context"
 	_ "embed"
 	"encoding/json"
+	"fmt"
+	"maps"
+	"strconv"
 	"strings"
+	"sync"
 
 	"deck2/internal/app/screens"
 	"deck2/internal/docs"
 	"deck2/internal/manifest"
-	"deck2/internal/provider"
+	"deck2/internal/process"
 	"deck2/internal/registry"
 	"deck2/internal/screen"
-	"deck2/internal/store/db"
 )
 
 //go:embed screens.json
 var deckScreensJSON []byte
 
-// deckScreens are the screens deck ships: the cockpit, providers and the page of a process.
-var deckScreens = func() (d struct {
+type shippedScreens struct {
 	Menu    []string
 	Screens []manifest.Screen
 	// Project are the screens deck adds to every project, after the project's own.
 	Project []manifest.Screen
-}) {
+}
+
+// shipped are the screens deck ships: the cockpit, settings, the journal and the page of a process; they are
+// checked once the commands they read are known.
+var shipped = sync.OnceValue(func() (d shippedScreens) {
 	var err error
 	if d.Menu, d.Screens, d.Project, err = manifest.DeckScreens(deckScreensJSON); err != nil {
 		panic(err)
 	}
 	return d
-}()
+})
 
 func deckScreen(name string) *manifest.Screen {
-	for i := range deckScreens.Screens {
-		if deckScreens.Screens[i].Name == name {
-			return &deckScreens.Screens[i]
+	for i := range shipped().Screens {
+		if shipped().Screens[i].Name == name {
+			return &shipped().Screens[i]
 		}
 	}
 	return nil
@@ -43,9 +49,9 @@ func deckScreen(name string) *manifest.Screen {
 
 // projectScreen is a screen deck adds to every project whose manifest has none of that name.
 func projectScreen(name string) *manifest.Screen {
-	for i := range deckScreens.Project {
-		if deckScreens.Project[i].Name == name {
-			return &deckScreens.Project[i]
+	for i := range shipped().Project {
+		if shipped().Project[i].Name == name {
+			return &shipped().Project[i]
 		}
 	}
 	return nil
@@ -65,7 +71,7 @@ type screenLink struct {
 // menu is the navigation of the client: deck's screens, then each project's menu, or all its screens without one.
 func (a *App) menu(ctx context.Context, act registry.Actor, _ struct{}) (any, error) {
 	out := []menuEntry{{Title: "deck"}}
-	for _, name := range deckScreens.Menu {
+	for _, name := range shipped().Menu {
 		out[0].Screens = append(out[0].Screens, screenLink{Name: name, Title: deckScreen(name).Title})
 	}
 	ps, err := a.Store.Q.ListWorkspaceProjects(ctx, act.Workspace)
@@ -89,7 +95,7 @@ func (a *App) menu(ctx context.Context, act registry.Actor, _ struct{}) (any, er
 		for _, n := range names {
 			e.Screens = append(e.Screens, screenLink{Name: n, Title: m.Screen(n).Title})
 		}
-		for _, s := range deckScreens.Project {
+		for _, s := range shipped().Project {
 			if s.Record == "" && m.Screen(s.Name) == nil {
 				e.Screens = append(e.Screens, screenLink{Name: s.Name, Title: s.Title})
 			}
@@ -135,105 +141,152 @@ func (a *App) screenGet(ctx context.Context, act registry.Actor, in screenGetIn)
 	if req.Screen == nil {
 		return nil, registry.NotFound("deck: no screen %q", in.Screen)
 	}
-	out, err := screen.Render(ctx, a.Store, a.sources(), req)
+	out, err := screen.Render(ctx, a.Store, a.sources(act), req)
 	if err != nil {
 		return nil, registry.NotFound("deck: %v", err)
 	}
 	return out, nil
 }
 
-// sources are the rows of screens, read from this deck.
-func (a *App) sources() screens.Sources {
-	return screens.Sources{Store: a.Store, Registry: a.Registry, Deck: screenDeck{a}, Now: a.Cfg.Now, Tail: a.Runner.Tail}
+// screenSources read what a screen shows as the one who looks at it.
+type screenSources struct {
+	screens.Sources
+	a   *App
+	act registry.Actor
+}
+
+func (a *App) sources(act registry.Actor) screenSources {
+	return screenSources{Sources: screens.Sources{Store: a.Store, Registry: a.Registry, Deck: screenDeck{a}}, a: a, act: act}
+}
+
+// Read calls a command that only reads with the project of a project screen and the values picked in filters
+// that it takes; the rows of deck's commands come with the buttons the owner answers with.
+func (s screenSources) Read(ctx context.Context, command string, input map[string]any, sc screen.Scope) (any, error) {
+	c, err := s.a.Registry.Lookup(ctx, sc.Workspace, command)
+	if err != nil {
+		return nil, err
+	}
+	if !c.Reads {
+		return nil, fmt.Errorf("%s is not a command that only reads", command)
+	}
+	types := paramTypes(c.Input)
+	in := maps.Clone(input)
+	if in == nil {
+		in = map[string]any{}
+	}
+	if _, ok := types["project"]; ok && sc.Project != "" && in["project"] == nil {
+		in["project"] = sc.Project
+	}
+	for k, v := range sc.Filter {
+		switch types[k] {
+		case "":
+		case "integer":
+			if n, err := strconv.ParseInt(v, 10, 64); err == nil {
+				in[k] = n
+			}
+		case "boolean":
+			in[k] = v == "true"
+		default:
+			in[k] = v
+		}
+	}
+	raw, _ := json.Marshal(in)
+	out, err := s.a.Registry.Invoke(ctx, s.act, command, raw)
+	if err != nil {
+		return nil, err
+	}
+	b, err := json.Marshal(out)
+	if err != nil {
+		return nil, err
+	}
+	v, err := manifest.DecodeExact(b)
+	if err != nil {
+		return nil, err
+	}
+	screens.Buttons(command, v)
+	return v, nil
+}
+
+// paramTypes are the JSON types of the input fields of a command.
+func paramTypes(schema json.RawMessage) map[string]string {
+	var in struct {
+		Properties map[string]struct{ Type any } `json:"properties"`
+	}
+	_ = json.Unmarshal(schema, &in)
+	out := map[string]string{}
+	for k, p := range in.Properties {
+		out[k], _ = p.Type.(string)
+		if out[k] == "" {
+			out[k] = "any"
+		}
+	}
+	return out
 }
 
 type screenDeck struct{ a *App }
 
-func (d screenDeck) Project(ctx context.Context, p db.Project) (screens.Project, *manifest.Manifest) {
-	v, m := d.a.viewProject(ctx, p)
-	var folders []string
-	for _, f := range v.Folders {
-		folders = append(folders, f.Name+": "+f.Path)
-	}
-	return screens.Project{Description: v.Description, Revision: v.Revision, Rights: v.Rights, ManifestError: v.ManifestError, Folders: folders}, m
-}
-
-func (d screenDeck) Providers(ctx context.Context, workspace int64) ([]screens.Provider, error) {
-	got, err := d.a.providersList(ctx, owner(workspace), providersListIn{})
-	if err != nil {
-		return nil, err
-	}
-	pvs, err := d.a.providers(ctx, workspace)
-	if err != nil {
-		return nil, err
-	}
-	checked, builtin := map[string]bool{}, map[string]bool{}
-	for _, pv := range pvs {
-		_, checked[pv.Name()] = pv.(provider.SelfChecker)
-	}
-	for _, pv := range d.a.builtin {
-		builtin[pv.Name()] = true
-	}
-	views := got.(map[string]any)["providers"].([]providerView)
-	out := make([]screens.Provider, 0, len(views))
-	for _, v := range views {
-		caps := make([]string, 0, len(v.Caps))
-		for _, c := range v.Caps {
-			caps = append(caps, string(c))
-		}
-		out = append(out, screens.Provider{Name: v.Name, Agent: v.Agent, Model: v.Model, URL: v.URL, Status: v.Status, Verdict: v.Verdict,
-			Version: v.Version, Error: v.Error, Speed: v.Speed, Caps: caps, Builtin: builtin[v.Name], SelfCheck: checked[v.Name]})
-	}
-	return out, nil
-}
-
-func (d screenDeck) Health(ctx context.Context, workspace int64) ([]map[string]any, error) {
-	got, err := d.a.healthList(ctx, owner(workspace), struct{}{})
-	if err != nil {
-		return nil, err
-	}
-	return got.([]map[string]any), nil
-}
-
-func (d screenDeck) Secrets(ctx context.Context, workspace int64) ([]string, error) {
-	got, err := d.a.secretsList(ctx, owner(workspace), struct{}{})
-	if err != nil {
-		return nil, err
-	}
-	return got.([]string), nil
-}
-
-func (d screenDeck) Triggers(ctx context.Context, workspace int64) ([]screens.Trigger, error) {
-	got, err := d.a.triggersList(ctx, owner(workspace), triggersListIn{})
-	if err != nil {
-		return nil, err
-	}
-	return got.([]screens.Trigger), nil
-}
-
-func (d screenDeck) Settings(ctx context.Context, workspace int64) []map[string]any {
-	return d.a.settingItems(ctx, workspace)
-}
-
-func (d screenDeck) Calls(ctx context.Context, workspace, project int64, outcome string) ([]map[string]any, error) {
-	return d.a.calls(ctx, workspace, project, outcome, 0)
-}
-
-func (d screenDeck) Snapshots() ([]map[string]any, error) { return d.a.snapshotItems() }
-
 func (d screenDeck) Waits(ctx context.Context, project int64) (map[int64][]int64, error) {
 	return waitsOf(ctx, d.a.Store.Q, project)
-}
-
-func owner(workspace int64) registry.Actor {
-	return registry.Actor{Kind: registry.Owner, Workspace: workspace}
 }
 
 func (d screenDeck) Chat(ctx context.Context, workspace int64, topic string) (any, error) {
 	return d.a.Chat(ctx, workspace, topic)
 }
 
-func (d screenDeck) Terminal(ctx context.Context, p db.Process) string { return d.a.terminal(ctx, p) }
+// commandRow is a command the caller may call, with its project, its file fields and what runs it.
+type commandRow struct {
+	Name        string   `json:"name"`
+	Title       string   `json:"title"`
+	Description string   `json:"description"`
+	Project     string   `json:"project"`
+	Files       []string `json:"files"`
+	Executor    string   `json:"executor"`
+}
+
+type commandsListIn struct {
+	Project string `type:"project" opt:"" desc:"Only the commands of this project"`
+}
+
+// commandsList is what the caller may call: deck's commands and those of the projects it reaches.
+func (a *App) commandsList(ctx context.Context, act registry.Actor, in commandsListIn) ([]commandRow, error) {
+	pid, err := a.filter(ctx, act, in.Project)
+	if err != nil {
+		return nil, err
+	}
+	cmds, err := a.Registry.List(ctx, act)
+	if err != nil {
+		return nil, err
+	}
+	names, err := projectNames(ctx, a.Store.Q, act.Workspace)
+	if err != nil {
+		return nil, err
+	}
+	manifests := map[int64]*manifest.Manifest{}
+	out := []commandRow{}
+	for _, c := range cmds {
+		if pid != 0 && c.ProjectID != pid {
+			continue
+		}
+		r := commandRow{Name: c.Name, Title: c.Title, Description: c.Description, Project: names[c.ProjectID],
+			Files: append([]string{}, process.FileFields(c.Input)...)}
+		if c.ProjectID != 0 {
+			m, ok := manifests[c.ProjectID]
+			if !ok {
+				if p, err := a.Store.Q.GetProject(ctx, c.ProjectID); err == nil {
+					m, _ = docs.Manifest(ctx, a.Store.Q, p)
+				}
+				manifests[c.ProjectID] = m
+			}
+			if m != nil {
+				if mc := m.Command(strings.TrimPrefix(c.Name, r.Project+".")); mc != nil {
+					r.Executor = mc.Executor.Type
+				}
+			}
+		}
+		out = append(out, r)
+	}
+	return out, nil
+}
 
 func (a *App) screensCommands() []*registry.Command {
 	return []*registry.Command{
@@ -243,5 +296,8 @@ func (a *App) screensCommands() []*registry.Command {
 		registry.Def("screen", "Screen",
 			"Resolves a stored screen with its data into A2UI messages; with a topic, only the data of the blocks it changes.",
 			registry.OwnerSide, a.screenGet),
+		registry.Read("commands_list", "Commands",
+			"Lists the commands the caller may call, deck's and those of projects, with their file fields and what runs them.",
+			registry.OwnerSide, a.commandsList),
 	}
 }

@@ -450,8 +450,8 @@ func TestNewBlocksAreRefusedWithTheirReason(t *testing.T) {
 		{`"filter": ["source"]`, `"filter": ["origin"]`, `filter: unknown field "origin"`},
 		{`{"label": "Mark", "command": "mark"}`, `{"label": "Go", "screen": "main"}`, "/actions/0': missing property 'command'"},
 		{`{"type": "board", "title": "Work"}`, `{"type": "stat", "source": {"collection": "notes"}, "filter": ["title"]}`, "additional properties 'filter' not allowed"},
-		{`{"type": "board", "title": "Work"}`, `{"type": "list", "source": {"from": "projects"}, "item": {"title": "name"}}`, "projects is read only by deck screens"},
-		{`{"type": "board", "title": "Work"}`, `{"type": "list", "source": {"from": "nowhere"}, "item": {"title": "name"}}`, "value must be one of 'collection'"},
+		{`{"type": "board", "title": "Work"}`, `{"type": "list", "source": {"from": "deck.projects_list"}, "item": {"title": "names"}}`, `unknown field "names"`},
+		{`{"type": "board", "title": "Work"}`, `{"type": "list", "source": {"from": "nowhere"}, "item": {"title": "name"}}`, "nowhere is not a deck command that only reads"},
 		{`{"type": "board", "title": "Work"}`, `{"type": "stat", "source": {"collection": "notes"}, "item": {"title": "title"}}`, "additional properties 'item' not allowed"},
 	} {
 		if !strings.Contains(boardWebManifest, tc.from) {
@@ -564,7 +564,7 @@ func TestCustomButtonsOnARecordPageTakeTheFieldsOfTheRecord(t *testing.T) {
 	e.createProject("web", boardWebManifest)
 	page := `{"type": "form", "title": "Edit", "command": "deck.record_update"}`
 	custom := func(field string) string {
-		return strings.Replace(boardWebManifest, page, page+`, {"type": "custom", "document": "custom/c.html", "source": {"from": "asks"},
+		return strings.Replace(boardWebManifest, page, page+`, {"type": "custom", "document": "custom/c.html", "source": {"from": "deck.asks_list"},
 			"actions": [{"label": "Touch", "command": "touch", "params": {"note": "$record.`+field+`"}}]}`, 1)
 	}
 	e.must("deck.manifest_save", map[string]any{"project": "web", "manifest": custom("score")}, nil)

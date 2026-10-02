@@ -72,7 +72,7 @@ func (e *Env) answer(id int64, answer string) {
 
 type procFull struct {
 	proc
-	Project     int64  `json:"project"`
+	Project     string `json:"project"`
 	Command     string `json:"command"`
 	Parent      int64  `json:"parent"`
 	Depth       int64  `json:"depth"`

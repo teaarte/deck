@@ -18,10 +18,12 @@ const (
 	CatalogID = "https://deck2.local/catalog/v1"
 )
 
-// Sources reads what a screen shows besides collections: the items of the other sources, boards,
-// commands of forms and the HTML of custom blocks.
+// Sources reads what a screen shows besides collections: the commands its blocks read, boards, commands of
+// forms and the HTML of custom blocks.
 type Sources interface {
-	Items(ctx context.Context, from string, scope Scope) ([]map[string]any, error)
+	// Read calls a command that only reads, as the one who looks at the screen, decoded with integers as int64;
+	// the scope adds the project and the values picked in filters that the command takes.
+	Read(ctx context.Context, command string, input map[string]any, scope Scope) (any, error)
 	Board(ctx context.Context, project db.Project, m *manifest.Manifest) (any, error)
 	// Command is what a form needs of a command: name, title, project, input and result schemas.
 	Command(ctx context.Context, workspace int64, name string) (map[string]any, error)
@@ -33,13 +35,11 @@ type Sources interface {
 	Chat(ctx context.Context, workspace int64, topic string) (any, error)
 }
 
-// Scope is whose items a source gives: a project, or with Project 0 every project of the workspace.
+// Scope is whose items a command gives: a project, or with none every project of the workspace.
 type Scope struct {
 	Workspace int64
-	Project   int64
-	// Record narrows processes to one process.
-	Record int64
-	// Filter holds the values the owner picked, for a source that narrows by them in its query.
+	Project   string
+	// Filter holds the values the owner picked, for a command that narrows by them.
 	Filter map[string]string
 }
 
@@ -73,7 +73,7 @@ func Render(ctx context.Context, st *store.Store, src Sources, req Request) ([]m
 		req.Topic = ""
 	}
 	r := &renderer{ctx: ctx, st: st, src: src, req: req, data: map[string]any{}}
-	r.scope = Scope{Workspace: req.Project.WorkspaceID, Project: req.Project.ID}
+	r.scope = Scope{Workspace: req.Project.WorkspaceID, Project: req.Project.Name}
 	if req.Screen.Record != "" {
 		if err := r.loadRecord(); err != nil {
 			return nil, err
@@ -127,26 +127,23 @@ func (r *renderer) loadRecord() error {
 		return fmt.Errorf("screen %q shows one record; open it with the record id", r.req.Screen.Name)
 	}
 	if r.deck() {
-		items, err := r.src.Items(r.ctx, "processes", Scope{Workspace: r.scope.Workspace, Record: r.req.Record})
-		if err != nil {
-			return err
-		}
-		if len(items) == 0 {
+		got, err := r.src.Read(r.ctx, "deck.process_get", map[string]any{"process": r.req.Record}, Scope{Workspace: r.scope.Workspace})
+		rec, _ := got.(map[string]any)
+		if err != nil || rec == nil {
 			return fmt.Errorf("no process %d", r.req.Record)
 		}
-		r.record = items[0]
-		r.recordTitle = fmt.Sprintf("#%d %v", r.req.Record, items[0]["command"])
+		rec["_id"] = r.req.Record
+		r.record, r.recordTitle = rec, fmt.Sprintf("#%d %v", r.req.Record, rec["command"])
 		return nil
 	}
 	if r.req.Screen.Record == manifest.DocumentRecord {
-		items, err := r.src.Items(r.ctx, "documents", Scope{Workspace: r.scope.Workspace, Project: r.scope.Project, Record: r.req.Record})
-		if err != nil {
-			return err
-		}
-		if len(items) == 0 {
+		got, err := r.src.Read(r.ctx, "deck.document_get", map[string]any{"document": r.req.Record}, r.scope)
+		rec, _ := got.(map[string]any)
+		if err != nil || rec == nil || rec["project"] != r.req.Project.Name {
 			return fmt.Errorf("no document %d in %s", r.req.Record, r.req.Project.Name)
 		}
-		r.record, r.recordTitle = items[0], fmt.Sprint(items[0]["name"])
+		rec["_id"] = r.req.Record
+		r.record, r.recordTitle = rec, fmt.Sprint(rec["name"])
 		return nil
 	}
 	rec, err := r.st.Q.GetRecord(r.ctx, r.req.Record)

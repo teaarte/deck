@@ -1,6 +1,7 @@
 package screen
 
 import (
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"maps"
@@ -36,16 +37,26 @@ func (r *renderer) items(src manifest.Source, picked map[string]string) ([]map[s
 	default:
 		scope := r.scope
 		scope.Filter = picked
-		if src.From == "log" {
-			scope.Record = r.req.Record
-		}
-		got, err := r.src.Items(r.ctx, src.From, scope)
+		got, err := r.src.Read(r.ctx, src.From, r.input(src.Input), scope)
 		if err != nil {
 			return nil, err
 		}
-		for _, it := range got {
-			if _, ok := it["_id"]; !ok {
-				it["_id"] = it["id"]
+		if src.Rows != "" {
+			obj, _ := got.(map[string]any)
+			got = obj[src.Rows]
+		}
+		list, ok := got.([]any)
+		if !ok {
+			return nil, fmt.Errorf("%s gives no list", src.From)
+		}
+		for i, v := range list {
+			it, ok := v.(map[string]any)
+			if !ok {
+				continue
+			}
+			it["_id"] = it["id"]
+			if it["_id"] == nil {
+				it["_id"] = cmp.Or(it["name"], any(int64(i+1)))
 			}
 			items = append(items, it)
 		}
@@ -68,6 +79,23 @@ func (r *renderer) items(src manifest.Source, picked map[string]string) ([]map[s
 		items = kept
 	}
 	return items, nil
+}
+
+// input is the input of a command a block reads, with "$record.<field>" taken from the record of the page.
+func (r *renderer) input(in map[string]any) map[string]any {
+	out := make(map[string]any, len(in))
+	for k, v := range in {
+		if f, ok := strings.CutPrefix(fmt.Sprint(v), "$record."); ok {
+			switch {
+			case f == "id":
+				v = r.req.Record
+			case r.record != nil:
+				v = r.record[f]
+			}
+		}
+		out[k] = v
+	}
+	return out
 }
 
 // filtered are the items of a source narrowed by the values the owner picked, then sorted and cut; each

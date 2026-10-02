@@ -15,50 +15,61 @@ import (
 type providerView struct {
 	Name string `json:"name"`
 	// Agent is the ACP agent a provider added with one runs.
-	Agent   string        `json:"agent,omitempty"`
+	Agent   string        `json:"agent"`
 	Caps    provider.Caps `json:"caps"`
-	URL     string        `json:"url,omitempty"`
-	Model   string        `json:"model,omitempty"`
-	Status  string        `json:"status,omitempty"`
-	Error   string        `json:"error,omitempty"`
-	Version string        `json:"version,omitempty"`
+	URL     string        `json:"url"`
+	Model   string        `json:"model"`
+	Status  string        `json:"status"`
+	Error   string        `json:"error"`
+	Version string        `json:"version"`
 	// Verdict of a failed self-check: model when the model does not manage it, adapter when it broke.
-	Verdict string  `json:"verdict,omitempty"`
-	Speed   float64 `json:"speed,omitempty"`
+	Verdict string  `json:"verdict"`
+	Speed   float64 `json:"speed"`
+	// Builtin is a provider deck was started with, which the owner cannot remove; SelfCheck is one deck checks.
+	Builtin   bool `json:"builtin"`
+	SelfCheck bool `json:"self_check"`
 	// Fits and Missing tell whether the provider suits the command that was asked about.
 	Fits    *bool    `json:"fits,omitempty"`
 	Missing []string `json:"missing,omitempty"`
+}
+
+// providersOut are the providers of the workspace and, for a command asked about, what it needs and runs on.
+type providersOut struct {
+	Providers      []providerView `json:"providers"`
+	Requires       []string       `json:"requires,omitempty"`
+	Suggested      string         `json:"suggested,omitempty"`
+	Chosen         string         `json:"chosen,omitempty"`
+	Effective      string         `json:"effective,omitempty"`
+	EffectiveError string         `json:"effective_error,omitempty"`
 }
 
 type providersListIn struct {
 	Command string `opt:"" desc:"Agent command, project.command"`
 }
 
-func (a *App) providersList(ctx context.Context, act registry.Actor, in providersListIn) (any, error) {
+func (a *App) providersList(ctx context.Context, act registry.Actor, in providersListIn) (providersOut, error) {
+	var out providersOut
 	all, err := a.providers(ctx, act.Workspace)
 	if err != nil {
-		return nil, err
+		return out, err
 	}
-	out := map[string]any{}
-	var requires []string
 	if in.Command != "" {
 		p, cmd, err := a.agentCommand(ctx, act.Workspace, in.Command)
 		if err != nil {
-			return nil, err
+			return out, err
 		}
-		requires = cmd.Requires
-		out["requires"], out["suggested"] = cmd.Requires, cmd.Provider
-		chosen, _ := a.Store.Q.GetCommandProvider(ctx, db.GetCommandProviderParams{ProjectID: p.ID, Command: cmd.Name})
-		out["chosen"] = chosen
+		out.Requires, out.Suggested = cmd.Requires, cmd.Provider
+		out.Chosen, _ = a.Store.Q.GetCommandProvider(ctx, db.GetCommandProviderParams{ProjectID: p.ID, Command: cmd.Name})
 		if pv, err := a.For(ctx, p.ID, cmd); err == nil {
-			out["effective"] = pv.Name()
+			out.Effective = pv.Name()
 		} else {
-			out["effective_error"] = err.Error()
+			out.EffectiveError = err.Error()
 		}
 	}
-	views := make([]providerView, 0, len(all))
+	out.Providers = make([]providerView, 0, len(all))
 	for _, pv := range all {
-		v := providerView{Name: pv.Name(), Caps: pv.Caps()}
+		_, checked := pv.(provider.SelfChecker)
+		v := providerView{Name: pv.Name(), Caps: pv.Caps(), Builtin: a.builtinNamed(pv.Name()) != nil, SelfCheck: checked}
 		if o, ok := pv.(interface{ Endpoint() (string, string) }); ok {
 			v.URL, v.Model = o.Endpoint()
 		}
@@ -69,13 +80,12 @@ func (a *App) providersList(ctx context.Context, act registry.Actor, in provider
 			v.Status, v.Error, v.Version, v.Verdict, v.Speed = h.Status, h.Error, h.Version, h.Verdict, h.Speed
 		}
 		if in.Command != "" {
-			v.Missing = pv.Caps().Missing(requires)
+			v.Missing = pv.Caps().Missing(out.Requires)
 			fits := len(v.Missing) == 0
 			v.Fits = &fits
 		}
-		views = append(views, v)
+		out.Providers = append(out.Providers, v)
 	}
-	out["providers"] = views
 	return out, nil
 }
 
@@ -225,9 +235,9 @@ func (a *App) llmCallsList(ctx context.Context, act registry.Actor, in llmCallsL
 
 func (a *App) providerCommands() []*registry.Command {
 	return []*registry.Command{
-		registry.Def("providers_list", "Providers",
+		registry.Read("providers_list", "Providers",
 			"Lists model providers with what they can do and their health; with a command, which fit it and which it runs on.",
-			registry.OwnerSide, a.providersList),
+			registry.OwnerSide, a.providersList).On("health"),
 		registry.Def("provider_set", "Choose provider",
 			"Sets the provider an agent command runs on from its next start; empty goes back to the default.",
 			registry.OwnerOnly, a.providerSet),

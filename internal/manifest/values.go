@@ -231,6 +231,15 @@ func DecodeValue(b []byte) (any, error) {
 	return v, nil
 }
 
+// DecodeExact parses one JSON value with integers as int64, like a record.
+func DecodeExact(b []byte) (any, error) {
+	v, err := DecodeValue(b)
+	if err != nil {
+		return nil, err
+	}
+	return exactNumbers(v)
+}
+
 // CheckValue validates a value against a JSON Schema.
 func CheckValue(schema json.RawMessage, v any) error {
 	s, err := compileSchema("value", schema)

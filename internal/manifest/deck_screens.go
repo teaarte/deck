@@ -5,39 +5,63 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
+	"sync/atomic"
 
 	"github.com/santhosh-tekuri/jsonschema/v6"
 )
 
-// SourceFields are the fields of an item of each source other than a collection.
-var SourceFields = map[string][]string{
-	"asks":       {"id", "kind", "project", "who", "what", "where", "text", "created_at", "expires_at", "expired"},
-	"processes":  {"id", "project", "command", "kind", "state", "silent", "started_at", "provider", "error", "folder", "terminal"},
-	"unattended": {"id", "project", "author", "text", "created_at", "can_undo", "undone"},
-	"providers":  {"name", "agent", "model", "url", "status", "verdict", "speed", "version", "error", "caps"},
-	"log":        {"at", "kind", "id", "title", "status", "text"},
-	"triggers": {"id", "project", "command", "kind", "spec", "params", "next_run_at", "paused", "project_paused", "skip_missed",
-		"last_process", "last_state"},
-	"projects": {"id", "name", "status", "paused", "description", "revision", "rights", "autonomy", "no_network",
-		"manifest_error", "folders"},
-	"secrets":       {"name"},
-	"tokens":        {"id", "name", "commands", "created_at", "revoked"},
-	"health":        {"subject", "status", "error", "version", "updated_at"},
-	"settings":      {"name", "title", "value", "default"},
-	"notifications": {"id", "project", "text", "screen", "record", "created_at"},
-	"commands":      {"name", "title", "description", "project", "files", "executor"},
-	"documents":     {"id", "name", "kind", "owner", "revision", "editable", "deleted"},
-	"calls": {"id", "tool", "actor", "project", "process", "class", "outcome", "external_id", "error", "params",
-		"created_at"},
-	"spend": {"project", "command", "provider", "model", "calls", "input_tokens", "output_tokens", "cache_read_tokens",
-		"cost_usd", "last_at"},
-	"files":     {"id", "project", "name", "type", "size", "owner", "created_at"},
-	"snapshots": {"name", "size", "taken_at", "path"},
+// ReadCommand is what a screen block needs of a command it reads: the schema of its result and the event topic
+// after which the result may differ.
+type ReadCommand struct {
+	Result json.RawMessage
+	Topic  string
 }
 
-// deckSources are read only by the screens deck ships.
-var deckSources = []string{"providers", "log", "projects", "secrets", "tokens", "health", "settings", "calls", "spend", "files", "snapshots"}
+// LogSource is the command a log block reads; CommandsSource is the one a form picks its command from.
+const (
+	LogSource      = "deck.process_log"
+	CommandsSource = "deck.commands_list"
+)
+
+var reads atomic.Pointer[func(string) (ReadCommand, bool)]
+
+// UseReads names the commands a screen may read; deck sets it once, before it checks a screen.
+func UseReads(f func(command string) (ReadCommand, bool)) { reads.CompareAndSwap(nil, &f) }
+
+// Reads is a command a screen block may read.
+func Reads(command string) (ReadCommand, bool) {
+	f := reads.Load()
+	if f == nil {
+		return ReadCommand{}, false
+	}
+	return (*f)(command)
+}
+
+// Fields are the fields of the items a read gives: those of its list, or of the list rows names in its object.
+func (r ReadCommand) Fields(rows string) ([]string, bool) {
+	type schema struct {
+		Type       string                     `json:"type"`
+		Items      *schema                    `json:"items"`
+		Properties map[string]json.RawMessage `json:"properties"`
+	}
+	var s schema
+	if json.Unmarshal(r.Result, &s) != nil {
+		return nil, false
+	}
+	if rows != "" {
+		var list schema
+		if s.Type != "object" || json.Unmarshal(s.Properties[rows], &list) != nil {
+			return nil, false
+		}
+		s = list
+	}
+	if s.Type != "array" || s.Items == nil || s.Items.Type != "object" {
+		return nil, false
+	}
+	return slices.Sorted(maps.Keys(s.Items.Properties)), true
+}
 
 // DeckScreens parses the screens deck ships, its own and those of every project, and checks them like a
 // manifest's: they read deck-wide sources and their buttons come from them.

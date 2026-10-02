@@ -66,7 +66,7 @@ func TestFormFieldsOfferValuesFromASourceAndProjectFieldsTheProjects(t *testing.
 		{`"choices": {"note": {`, `"choices": {"nope": {`, `the input has no field "nope"`},
 		{`"value": "_id", "label": "title"}`, `"value": "_id", "label": "headline"}`, `unknown field "headline"`},
 		{`"choices": {"note": {"source": {"collection": "notes", "sort": "title"}`, `"choices": {"note": {"source": {"collection": "papers"}`, `unknown collection "papers"`},
-		{`{"type": "form", "title": "Hand over", "command": "hand"}`, `{"type": "form", "title": "Hand over", "source": {"from": "commands"}, "choices": {"to": {"source": {"collection": "notes"}, "value": "title"}}}`, "a form that picks its command has no choices"},
+		{`{"type": "form", "title": "Hand over", "command": "hand"}`, `{"type": "form", "title": "Hand over", "source": {"from": "deck.commands_list"}, "choices": {"to": {"source": {"collection": "notes"}, "value": "title"}}}`, "a form that picks its command has no choices"},
 	} {
 		if !strings.Contains(choicesManifest, tc.from) {
 			t.Fatalf("fixture lacks %s", tc.from)

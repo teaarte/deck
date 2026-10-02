@@ -87,6 +87,12 @@ func Def[In any](name, title, desc string, callers []string, h func(ctx context.
 		Input: Params(ps...), Handler: Typed(h), params: ps}
 }
 
+// On names the event topic after which a read gives another result, so a screen reads it again.
+func (c *Command) On(topic string) *Command {
+	c.Topic = topic
+	return c
+}
+
 // As gives a declared command another class.
 func (c *Command) As(class string) *Command {
 	c.Class = class
@@ -154,4 +160,69 @@ func Limit(n, def, most int64) int64 {
 		return def
 	}
 	return n
+}
+
+// Read declares a builtin command like Def that only reads, so a screen may show its result; the result schema
+// is the json fields of Out, and a nil list comes back empty.
+func Read[In, Out any](name, title, desc string, callers []string, h func(ctx context.Context, a Actor, in In) (Out, error)) *Command {
+	c := Def(name, title, desc, callers, func(ctx context.Context, a Actor, in In) (any, error) {
+		out, err := h(ctx, a, in)
+		if err != nil {
+			return nil, err
+		}
+		if v := reflect.ValueOf(out); v.Kind() == reflect.Slice && v.IsNil() {
+			return reflect.MakeSlice(v.Type(), 0, 0).Interface(), nil
+		}
+		return out, nil
+	})
+	c.Result, _ = json.Marshal(resultSchema(reflect.TypeFor[Out]()))
+	c.Reads = true
+	return c
+}
+
+var rawType = reflect.TypeFor[json.RawMessage]()
+
+func resultSchema(t reflect.Type) map[string]any {
+	if t == rawType {
+		return map[string]any{}
+	}
+	switch t.Kind() {
+	case reflect.Pointer:
+		return resultSchema(t.Elem())
+	case reflect.String:
+		return map[string]any{"type": "string"}
+	case reflect.Bool:
+		return map[string]any{"type": "boolean"}
+	case reflect.Int, reflect.Int64, reflect.Int32:
+		return map[string]any{"type": "integer"}
+	case reflect.Float64:
+		return map[string]any{"type": "number"}
+	case reflect.Slice:
+		return map[string]any{"type": "array", "items": resultSchema(t.Elem())}
+	case reflect.Map:
+		return map[string]any{"type": "object"}
+	case reflect.Struct:
+		props := map[string]any{}
+		resultFields(t, props)
+		return map[string]any{"type": "object", "properties": props}
+	}
+	return map[string]any{}
+}
+
+func resultFields(t reflect.Type, props map[string]any) {
+	for i := range t.NumField() {
+		f := t.Field(i)
+		if f.Anonymous && f.Type.Kind() == reflect.Struct {
+			resultFields(f.Type, props)
+			continue
+		}
+		name, _, _ := strings.Cut(f.Tag.Get("json"), ",")
+		if !f.IsExported() || name == "-" {
+			continue
+		}
+		if name == "" {
+			name = f.Name
+		}
+		props[name] = resultSchema(f.Type)
+	}
 }

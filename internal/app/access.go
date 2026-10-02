@@ -146,3 +146,25 @@ func (a *App) reads(ctx context.Context, q *db.Queries, act registry.Actor, othe
 }
 
 type readEntry struct{ Collections, Documents []string }
+
+// projectNames are the names of the projects of a workspace by id.
+func projectNames(ctx context.Context, q *db.Queries, workspace int64) (map[int64]string, error) {
+	ps, err := q.ListWorkspaceProjects(ctx, workspace)
+	if err != nil {
+		return nil, err
+	}
+	out := map[int64]string{}
+	for _, p := range ps {
+		out[p.ID] = p.Name
+	}
+	return out, nil
+}
+
+// projectName is the name of a project, empty for none.
+func (a *App) projectName(ctx context.Context, id int64) string {
+	if id == 0 {
+		return ""
+	}
+	p, _ := a.Store.Q.GetProject(ctx, id)
+	return p.Name
+}

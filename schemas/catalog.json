@@ -94,7 +94,7 @@
     },
     "log": {
       "description": "The log of the process of a record page.",
-      "block": {"description": "Needs source; takes nothing else.", "required": ["source"], "properties": {"source": {"$ref": "#/$defs/source"}}},
+      "block": {"description": "Needs source, deck.process_log of the process; takes nothing else.", "required": ["source"], "properties": {"source": {"$ref": "#/$defs/source"}}},
       "type": "object",
       "additionalProperties": false,
       "required": ["data"],
@@ -115,8 +115,8 @@
       }
     },
     "form": {
-      "description": "Asks for the input of a command and shows its result: one command, or a pick from the commands source.",
-      "block": {"description": "Has either command or source from commands to pick one, never both; it is its own button and takes no actions; save names a collection for the result.", "oneOf": [{"required": ["command"]}, {"required": ["source"]}], "properties": {"command": {"type": "string", "description": "deck.record_update on a record page edits the record."}, "source": {"allOf": [{"$ref": "#/$defs/source"}, {"required": ["from"], "properties": {"from": {"const": "commands"}}}]}, "save": {"type": "string", "description": "Collection the owner can keep the result in."}, "choices": {"type": "object", "description": "Values offered for fields of the input, by field: a source and expressions over its items for the value and its label.", "additionalProperties": {"type": "object", "additionalProperties": false, "required": ["source", "value"], "properties": {"source": {"$ref": "#/$defs/source"}, "value": {"type": "string"}, "label": {"type": "string"}}}}}},
+      "description": "Asks for the input of a command and shows its result: one command, or a pick from deck.commands_list.",
+      "block": {"description": "Has either command or source from deck.commands_list to pick one, never both; it is its own button and takes no actions; save names a collection for the result.", "oneOf": [{"required": ["command"]}, {"required": ["source"]}], "properties": {"command": {"type": "string", "description": "deck.record_update on a record page edits the record."}, "source": {"allOf": [{"$ref": "#/$defs/source"}, {"required": ["from"], "properties": {"from": {"const": "deck.commands_list"}}}]}, "save": {"type": "string", "description": "Collection the owner can keep the result in."}, "choices": {"type": "object", "description": "Values offered for fields of the input, by field: a source and expressions over its items for the value and its label.", "additionalProperties": {"type": "object", "additionalProperties": false, "required": ["source", "value"], "properties": {"source": {"$ref": "#/$defs/source"}, "value": {"type": "string"}, "label": {"type": "string"}}}}}},
       "type": "object",
       "additionalProperties": false,
       "required": ["data"],

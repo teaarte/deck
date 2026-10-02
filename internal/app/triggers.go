@@ -1,6 +1,7 @@
 package app
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -9,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"deck2/internal/app/screens"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store"
@@ -96,7 +96,25 @@ type triggersListIn struct {
 	Project string `type:"project" opt:"" desc:"Project name; defaults to the caller's own project"`
 }
 
-func (a *App) triggersList(ctx context.Context, act registry.Actor, in triggersListIn) (any, error) {
+// triggerView is a trigger with its next run, whose pause holds it, and how its last run ended.
+type triggerView struct {
+	ID        int64           `json:"id"`
+	Project   string          `json:"project"`
+	Command   string          `json:"command"`
+	Kind      string          `json:"kind"`
+	Spec      string          `json:"spec"`
+	Params    json.RawMessage `json:"params"`
+	NextRunAt string          `json:"next_run_at"`
+	// Paused is the trigger's own pause or its project's; ProjectPaused and OwnPaused say which.
+	Paused        bool   `json:"paused"`
+	ProjectPaused bool   `json:"project_paused"`
+	OwnPaused     bool   `json:"own_paused"`
+	SkipMissed    bool   `json:"skip_missed"`
+	LastProcess   int64  `json:"last_process"`
+	LastState     string `json:"last_state"`
+}
+
+func (a *App) triggersList(ctx context.Context, act registry.Actor, in triggersListIn) ([]triggerView, error) {
 	pid, err := a.filter(ctx, act, in.Project)
 	if err != nil {
 		return nil, err
@@ -106,7 +124,7 @@ func (a *App) triggersList(ctx context.Context, act registry.Actor, in triggersL
 		return nil, err
 	}
 	names := map[int64]db.Project{}
-	out := make([]screens.Trigger, 0, len(ts))
+	out := make([]triggerView, 0, len(ts))
 	for _, t := range ts {
 		p, ok := names[t.ProjectID]
 		if !ok {
@@ -115,8 +133,8 @@ func (a *App) triggersList(ctx context.Context, act registry.Actor, in triggersL
 			}
 			names[t.ProjectID] = p
 		}
-		v := screens.Trigger{ID: t.ID, Project: p.Name, Command: t.Command, Kind: t.Kind, Spec: t.Spec, Params: json.RawMessage(t.Params),
-			NextRunAt: t.NextRunAt.String, Paused: t.Paused == 1 || p.Paused == 1, ProjectPaused: p.Paused == 1, Own: t.Paused == 1,
+		v := triggerView{ID: t.ID, Project: p.Name, Command: t.Command, Kind: t.Kind, Spec: t.Spec, Params: json.RawMessage(cmp.Or(t.Params, "null")),
+			NextRunAt: t.NextRunAt.String, Paused: t.Paused == 1 || p.Paused == 1, ProjectPaused: p.Paused == 1, OwnPaused: t.Paused == 1,
 			SkipMissed: t.SkipMissed == 1}
 		if t.LastProcessID.Valid {
 			v.LastProcess = t.LastProcessID.Int64
@@ -245,9 +263,9 @@ func (a *App) triggersCommands() []*registry.Command {
 		registry.Def("run_later_cancel", "Cancel run later",
 			"Cancels a run scheduled with run later.",
 			registry.Everyone, a.runLaterCancel),
-		registry.Def("triggers_list", "Schedule",
+		registry.Read("triggers_list", "Schedule",
 			"Lists triggers with their next run, pause and the state of their last run.",
-			registry.Everyone, a.triggersList),
+			registry.Everyone, a.triggersList).On("triggers"),
 		registry.Def("trigger_pause", "Pause trigger",
 			"Pauses or resumes one trigger; a resumed schedule does not catch up its pause.",
 			registry.OwnerSide, a.triggerPause),

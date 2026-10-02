@@ -237,7 +237,9 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "from": {"description": "What the block reads; collection by default. providers, log, projects, secrets, tokens, health, settings, calls, spend, files and snapshots are read only by the screens deck ships."},
+        "from": {"type": "string", "description": "What the block reads: collection by default, or a deck command that only reads, such as deck.asks_list; on a project screen it gets the project when it takes one, and the values the owner picked in filters it takes."},
+        "input": {"type": "object", "description": "Input of the command; \"$record.<field>\" is a field of the record of the page."},
+        "rows": {"type": "string", "description": "The list in the result of a command that gives an object."},
         "project": {"type": "string", "description": "Another project the manifest reads."},
         "collection": {"type": "string"},
         "where": {"type": "string", "description": "Expression over the fields of an item; on a record page record is the record."},

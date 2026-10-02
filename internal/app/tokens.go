@@ -73,15 +73,25 @@ func (a *App) tokenCreate(ctx context.Context, act registry.Actor, in tokenCreat
 	}, nil
 }
 
-func (a *App) tokensList(ctx context.Context, act registry.Actor, _ struct{}) (any, error) {
+// tokenRow is an automation token with the commands it may call.
+type tokenRow struct {
+	ID        int64    `json:"id"`
+	Name      string   `json:"name"`
+	Commands  []string `json:"commands"`
+	CreatedAt string   `json:"created_at"`
+	Revoked   bool     `json:"revoked"`
+}
+
+func (a *App) tokensList(ctx context.Context, act registry.Actor, _ struct{}) ([]tokenRow, error) {
 	ts, err := a.Store.Q.ListTokens(ctx, act.Workspace)
 	if err != nil {
 		return nil, err
 	}
-	out := make([]map[string]any, 0, len(ts))
+	out := make([]tokenRow, 0, len(ts))
 	for _, t := range ts {
-		out = append(out, map[string]any{"id": t.ID, "name": t.Name, "commands": json.RawMessage(t.Commands),
-			"created_at": t.CreatedAt, "revoked": t.RevokedAt.Valid})
+		r := tokenRow{ID: t.ID, Name: t.Name, Commands: []string{}, CreatedAt: t.CreatedAt, Revoked: t.RevokedAt.Valid}
+		_ = json.Unmarshal([]byte(t.Commands), &r.Commands)
+		out = append(out, r)
 	}
 	return out, nil
 }
@@ -110,9 +120,9 @@ func (a *App) tokensCommands() []*registry.Command {
 		registry.Def("token_create", "Create automation token",
 			"Creates a token for a terminal agent, Shortcuts or a script; it acts as the master and may call only the listed commands.",
 			registry.OwnerOnly, a.tokenCreate),
-		registry.Def("tokens_list", "Automation tokens",
+		registry.Read("tokens_list", "Automation tokens",
 			"Lists automation tokens with their commands; revoked ones too.",
-			registry.OwnerOnly, a.tokensList),
+			registry.OwnerOnly, a.tokensList).On("tokens"),
 		registry.Def("token_revoke", "Revoke token",
 			"Revokes an automation token; calls with it are refused from then on.",
 			registry.OwnerOnly, a.tokenRevoke).As(registry.External),

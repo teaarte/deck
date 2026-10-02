@@ -165,6 +165,8 @@ func (c *screenCheck) block(where string, b Block) {
 // form checks a form: one command the owner may call, or a choice of them from the commands source.
 func (c *screenCheck) form(where string, b Block) {
 	switch {
+	case b.Source != nil && b.Source.From != CommandsSource:
+		c.fail("%s: a form picks its command from %s", where, CommandsSource)
 	case b.Source != nil:
 		c.source(where, b.Type, *b.Source)
 	case b.Command == RecordUpdate:
@@ -247,8 +249,12 @@ func (c *screenCheck) source(where, typ string, src Source) ([]string, bool) {
 	if from == "" {
 		from = "collection"
 	}
-	if (typ == "log") != (from == "log") {
-		c.fail("%s: log blocks and only they read the log", where)
+	if (typ == "log") != (from == LogSource) {
+		c.fail("%s: log blocks and only they read %s", where, LogSource)
+		return nil, false
+	}
+	if from == "collection" && (src.Input != nil || src.Rows != "") {
+		c.fail("%s source: a collection takes no input or rows", where)
 		return nil, false
 	}
 	var fields []string
@@ -268,19 +274,23 @@ func (c *screenCheck) source(where, typ string, src Source) ([]string, bool) {
 		if col.fields != nil {
 			fields = append(slices.Clone(col.fields), "_id", "_updated")
 		}
+	case src.Collection != "" || src.Project != "":
+		c.fail("%s source: %s takes no collection or project", where, from)
+		return nil, false
+	case from == LogSource && c.screen.Record != DeckRecord:
+		c.fail("%s source: the log is read on a page of a process", where)
+		return nil, false
+	case from == LogSource:
 	default:
-		switch {
-		case slices.Contains(deckSources, from) && !c.deck:
-			c.fail("%s source: %s is read only by deck screens", where, from)
-			return nil, false
-		case src.Collection != "" || src.Project != "":
-			c.fail("%s source: %s takes no collection or project", where, from)
-			return nil, false
-		case from == "log" && c.screen.Record != DeckRecord:
-			c.fail("%s source: the log is read on a page of a process", where)
+		rc, ok := Reads(from)
+		if !ok {
+			c.fail("%s source: %s is not a deck command that only reads", where, from)
 			return nil, false
 		}
-		fields = slices.Clone(SourceFields[from])
+		if fields, ok = rc.Fields(src.Rows); !ok {
+			c.fail("%s source: %s gives no list of objects (rows %q)", where, from, src.Rows)
+			return nil, false
+		}
 	}
 	if fields != nil && c.screen.Record != "" {
 		fields = append(fields, "record")

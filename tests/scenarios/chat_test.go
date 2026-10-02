@@ -45,7 +45,7 @@ func TestOwnerMessageGetsAMasterReplyInTheTopic(t *testing.T) {
 		t.Fatal("a new topic has nothing to retell")
 	}
 	p := e.full(ms[0].Process)
-	if p.Command != "reply" || p.Project == 0 {
+	if p.Command != "reply" || p.Project != "master" {
 		t.Fatalf("the reply is a process of command reply of project master: %+v", p)
 	}
 	var again struct{ Topic, Message int64 }

@@ -146,12 +146,12 @@ func TestTriggerParamsKeepLargeIntegers(t *testing.T) {
 	m := strings.Replace(calcManifest, `"executor": {"type": "agent", "prompt": "OLD PROMPT"}}]`,
 		`"executor": {"type": "agent", "prompt": "OLD PROMPT"}}],
   "triggers": [{"command": "calc", "cron": "0 9 * * *", "params": {"n": 9007199254740993}}]`, 1)
-	p := e.createProject("nums", m)
+	e.createProject("nums", m)
 	e.Clock.Add(48 * time.Hour)
 	e.App.Scheduler.Tick(context.Background())
 	e.App.Runner.Wait()
 	ps := e.processes()
-	if len(ps) != 1 || ps[0].Project != p {
+	if len(ps) != 1 || ps[0].Project != "nums" {
 		t.Fatalf("trigger params reach the command exactly: %+v", ps)
 	}
 	if got, _ := e.App.Store.Q.GetProcess(context.Background(), ps[0].ID); !strings.Contains(got.Input, "9007199254740993") {

@@ -28,12 +28,14 @@ Stage 1 plan: `docs/plan-stage1.md`.
 - `internal/store` — SQLite: one base schema `migrations/00001_base.sql` (old bases are not upgraded; a later
   change of the schema is a new goose migration), sqlc queries (`db/` is generated)
 - `internal/registry` — command registry: every input (API, MCP, triggers) calls commands through it;
-  input schemas limited to App Intents types; `registry.Def` takes the schema from the tagged input struct
+  input schemas limited to App Intents types; `registry.Def` takes the schema from the tagged input struct;
+  `registry.Read` declares a command that only reads, with its result schema from the Go type and `On` its event topic
 - `internal/docs` — documents with revisions, skill files, the manifest reader with its parse cache
 - `internal/app` — wiring, builtin `deck.*` commands (each `*_handlers.go` lists its own next to the handlers),
   projects, cards and board; who may touch what is `app/access.go`; `app/records` — records of collections;
-  `app/screens` — the rows of screen blocks, one file per tab, reading the rest of deck through `screens.Deck`
-  (the adapter is `screenDeck` in `app/screens.go`); deck's screens are data in `screens.json`: menu Cockpit, Schedule, Settings (tabs Projects, Providers, Secrets,
+  a screen block reads a `registry.Read` command (`"from": "deck.asks_list"`), called as the viewer in
+  `app/screens.go`; `app/screens` — boards, forms, documents and the buttons of deck's rows (`buttons.go`);
+  deck's screens are data in `screens.json`: menu Cockpit, Schedule, Settings (tabs Projects, Providers, Secrets,
   Tokens, General, Interface, Health), Journal (Calls, Spend, Files, Snapshots); `project` screens (Documents and
   the page of a document) deck adds to every project; settings the owner changes (`deck.settings_set`) are in
   `setting` with defaults from `Config`

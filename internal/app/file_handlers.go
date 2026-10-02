@@ -11,6 +11,7 @@ import (
 
 type fileView struct {
 	ID        int64  `json:"id"`
+	Project   string `json:"project"`
 	Name      string `json:"name"`
 	Type      string `json:"type"`
 	Size      int64  `json:"size"`
@@ -20,13 +21,14 @@ type fileView struct {
 }
 
 type filesListIn struct {
-	Record  int64 `type:"record" opt:"" desc:"Record"`
-	Card    int64 `type:"card" opt:"" desc:"Card"`
-	Process int64 `type:"process" opt:"" desc:"Process"`
+	Record  int64  `type:"record" opt:"" desc:"Record"`
+	Card    int64  `type:"card" opt:"" desc:"Card"`
+	Process int64  `type:"process" opt:"" desc:"Process"`
+	Project string `type:"project" opt:"" desc:"Without a record, card or process: the newest files of this project, or of every project the caller sees"`
 }
 
-// filesList lists the files of a record, card or process the actor can see.
-func (a *App) filesList(ctx context.Context, act registry.Actor, in filesListIn) (any, error) {
+// filesList lists the files of a record, card or process the actor can see, or the newest of its projects.
+func (a *App) filesList(ctx context.Context, act registry.Actor, in filesListIn) ([]fileView, error) {
 	var kind string
 	var id, projectID int64
 	var err error
@@ -50,7 +52,7 @@ func (a *App) filesList(ctx context.Context, act registry.Actor, in filesListIn)
 			projectID = p.ProjectID
 		}
 	default:
-		return nil, registry.Invalid("deck: give a record, a card or a process")
+		return a.newestFiles(ctx, act, in.Project)
 	}
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, registry.NotFound("deck: no %s %d", kind, id)
@@ -66,16 +68,42 @@ func (a *App) filesList(ctx context.Context, act registry.Actor, in filesListIn)
 		return nil, err
 	}
 	out := make([]fileView, 0, len(fs))
+	name := a.projectName(ctx, projectID)
 	for _, f := range fs {
-		out = append(out, fileView{ID: f.ID, Name: f.Name, Type: f.Type, Size: f.Size, OwnerKind: f.OwnerKind, OwnerID: f.OwnerID, CreatedAt: f.CreatedAt})
+		out = append(out, fileView{ID: f.ID, Project: name, Name: f.Name, Type: f.Type, Size: f.Size, OwnerKind: f.OwnerKind, OwnerID: f.OwnerID,
+			CreatedAt: f.CreatedAt})
+	}
+	return out, nil
+}
+
+// newestFiles are the newest files of a project, or of every project when the actor sees them all.
+func (a *App) newestFiles(ctx context.Context, act registry.Actor, project string) ([]fileView, error) {
+	pid, err := a.filter(ctx, act, project)
+	if err != nil {
+		return nil, err
+	}
+	fs, err := a.Store.Q.ListWorkspaceFiles(ctx, db.ListWorkspaceFilesParams{WorkspaceID: act.Workspace, Lim: 500})
+	if err != nil {
+		return nil, err
+	}
+	names, err := projectNames(ctx, a.Store.Q, act.Workspace)
+	if err != nil {
+		return nil, err
+	}
+	out := []fileView{}
+	for _, f := range fs {
+		if pid == 0 || f.ProjectID == pid {
+			out = append(out, fileView{ID: f.ID, Project: names[f.ProjectID], Name: f.Name, Type: f.Type, Size: f.Size, OwnerKind: f.OwnerKind,
+				OwnerID: f.OwnerID, CreatedAt: f.CreatedAt})
+		}
 	}
 	return out, nil
 }
 
 func (a *App) fileCommands() []*registry.Command {
 	return []*registry.Command{
-		registry.Def("files_list", "List files",
-			"Lists the files of a record, a card or a process.",
-			registry.Everyone, a.filesList),
+		registry.Read("files_list", "List files",
+			"Lists the files of a record, a card or a process, or the newest files of a project.",
+			registry.Everyone, a.filesList).On("files"),
 	}
 }

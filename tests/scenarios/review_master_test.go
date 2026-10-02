@@ -32,26 +32,11 @@ func (e *Env) runsOf(project, command string) []procFull {
 	e.T.Helper()
 	var out []procFull
 	for _, p := range e.processes() {
-		if p.Project == e.projectIDOr(project) && p.Command == command {
+		if p.Project == project && p.Command == command {
 			out = append(out, p)
 		}
 	}
 	return out
-}
-
-// projectIDOr is the id of a project by name, the built-in master too.
-func (e *Env) projectIDOr(name string) int64 {
-	var ps []struct {
-		ID   int64
-		Name string
-	}
-	e.must("deck.projects_list", nil, &ps)
-	for _, p := range ps {
-		if p.Name == name {
-			return p.ID
-		}
-	}
-	return 0
 }
 
 func (e *Env) masterAwake() {

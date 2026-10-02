@@ -81,13 +81,11 @@ func topicOf(b manifest.Block, deck bool) string {
 		}
 		return "collection"
 	}
-	switch b.Source.From {
-	case "", "collection":
+	if b.Source.From == "" || b.Source.From == "collection" {
 		return "collection"
-	case "providers":
-		return "health"
 	}
-	return b.Source.From
+	rc, _ := manifest.Reads(b.Source.From)
+	return rc.Topic
 }
 
 func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) {
@@ -219,7 +217,7 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 		lines := make([]map[string]any, 0, len(items))
 		for _, it := range items {
 			line := map[string]any{}
-			for _, k := range manifest.SourceFields["log"] {
+			for _, k := range []string{"at", "kind", "id", "title", "status", "text"} {
 				if v, ok := it[k]; ok && v != "" {
 					line[k] = v
 				}

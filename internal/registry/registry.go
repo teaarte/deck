@@ -95,6 +95,10 @@ type Command struct {
 	ProjectID   int64           `json:"-"`
 	// Journals marks a command that writes its own intent to the gateway journal.
 	Journals bool `json:"-"`
+	// Reads marks a builtin command that changes nothing; only such a command fills a screen block. Topic is
+	// the event after which its result may differ.
+	Reads bool   `json:"-"`
+	Topic string `json:"-"`
 	// Loose marks a tool whose input schema comes from elsewhere and is not held to App Intents types.
 	Loose bool `json:"-"`
 	// Fingerprint is what the tool would do apart from its input, so an old yes does not make a changed tool.
@@ -222,6 +226,9 @@ func (r *Registry) List(ctx context.Context, a Actor) ([]*Command, error) {
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 	return out, nil
 }
+
+// Builtin is a builtin command by name, or nil.
+func (r *Registry) Builtin(name string) *Command { return r.builtins[name] }
 
 func (r *Registry) Lookup(ctx context.Context, workspace int64, name string) (*Command, error) {
 	if c := r.builtins[name]; c != nil {

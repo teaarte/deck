@@ -92,19 +92,28 @@ func (a *App) writeSecret(workspace int64, name, value string) error {
 	return err
 }
 
-func (a *App) secretsList(ctx context.Context, act registry.Actor, _ struct{}) (any, error) {
+// secretRow is a secret by name; its value never leaves deck.
+type secretRow struct {
+	Name string `json:"name"`
+}
+
+func (a *App) secretsList(ctx context.Context, act registry.Actor, _ struct{}) ([]secretRow, error) {
 	es, err := os.ReadDir(a.secretsDir(act.Workspace))
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return nil, err
 	}
-	names := []string{}
+	var names []string
 	for _, e := range es {
 		if !strings.HasPrefix(e.Name(), ".") && e.Type().IsRegular() {
 			names = append(names, e.Name())
 		}
 	}
 	sort.Strings(names)
-	return names, nil
+	out := make([]secretRow, 0, len(names))
+	for _, n := range names {
+		out = append(out, secretRow{Name: n})
+	}
+	return out, nil
 }
 
 func validSecret(name string) bool {
@@ -116,8 +125,8 @@ func (a *App) secretsCommands() []*registry.Command {
 		registry.Def("secret_set", "Set secret",
 			"Stores a secret for tool headers as a file only deck reads; agents and scripts never see it.",
 			registry.OwnerOnly, a.secretSet),
-		registry.Def("secrets_list", "Secrets",
+		registry.Read("secrets_list", "Secrets",
 			"Lists the names of stored secrets, never their values.",
-			registry.OwnerOnly, a.secretsList),
+			registry.OwnerOnly, a.secretsList).On("secrets"),
 	}
 }

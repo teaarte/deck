@@ -110,7 +110,18 @@ type unattendedListIn struct {
 	Limit   int64  `opt:"" desc:"At most this many"`
 }
 
-func (a *App) unattendedList(ctx context.Context, act registry.Actor, in unattendedListIn) (any, error) {
+// unattendedRow is a change deck made without the owner; one with an undo command can be undone once.
+type unattendedRow struct {
+	ID        int64  `json:"id"`
+	Project   string `json:"project"`
+	Author    string `json:"author"`
+	Text      string `json:"text"`
+	CanUndo   bool   `json:"can_undo"`
+	Undone    bool   `json:"undone"`
+	CreatedAt string `json:"created_at"`
+}
+
+func (a *App) unattendedList(ctx context.Context, act registry.Actor, in unattendedListIn) ([]unattendedRow, error) {
 	projectID, err := a.filter(ctx, act, in.Project)
 	if err != nil {
 		return nil, err
@@ -120,10 +131,14 @@ func (a *App) unattendedList(ctx context.Context, act registry.Actor, in unatten
 	if err != nil {
 		return nil, err
 	}
-	out := make([]map[string]any, 0, len(rows))
+	names, err := projectNames(ctx, a.Store.Q, act.Workspace)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]unattendedRow, 0, len(rows))
 	for _, r := range rows {
-		out = append(out, map[string]any{"id": r.ID, "project": r.ProjectID, "author": r.Author, "text": r.Text,
-			"can_undo": r.Command != "" && !r.UndoneAt.Valid, "undone": r.UndoneAt.Valid, "created_at": r.CreatedAt})
+		out = append(out, unattendedRow{ID: r.ID, Project: names[r.ProjectID], Author: r.Author, Text: r.Text,
+			CanUndo: r.Command != "" && !r.UndoneAt.Valid, Undone: r.UndoneAt.Valid, CreatedAt: r.CreatedAt})
 	}
 	return out, nil
 }
@@ -292,9 +307,9 @@ func (a *App) draftsCommands() []*registry.Command {
 		registry.Def("command_try", "Trial run",
 			"Starts a trial run of a project command: calls that are not internal are declined, nothing leaves deck.",
 			registry.OwnerSide, a.commandTry),
-		registry.Def("unattended_list", "Done without you",
+		registry.Read("unattended_list", "Done without you",
 			"Lists changes made without the owner, newest first, with whether they can be undone.",
-			registry.OwnerSide, a.unattendedList),
+			registry.OwnerSide, a.unattendedList).On("unattended"),
 		registry.Def("unattended_undo", "Undo",
 			"Returns what a change made without the owner touched to how it was before.",
 			registry.OwnerOnly, a.unattendedUndo),

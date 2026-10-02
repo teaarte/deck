@@ -5,16 +5,16 @@
       "name": "cockpit",
       "title": "Cockpit",
       "blocks": [
-        {"type": "list", "title": "Waiting for you", "source": {"from": "asks"},
+        {"type": "list", "title": "Waiting for you", "source": {"from": "deck.asks_list"},
           "item": {"title": "what", "text": "where", "meta": "project + (who != '' ? ' · ' + who : '')"}},
         {"type": "columns", "blocks": [
           {"type": "list", "title": "Running now",
-            "source": {"from": "processes", "where": "state in ['running', 'waiting_answer', 'needs_login', 'rate_limited', 'waiting_provider', 'waiting_slot', 'waiting_folder']"},
+            "source": {"from": "deck.processes_list", "input": {"open": true}},
             "item": {"title": "project + '.' + command", "text": "silent ? 'silent' : state == 'waiting_slot' ? 'waits for a slot' : state == 'waiting_folder' ? 'waits for folder ' + folder : state", "meta": "'#' + string(id)"}},
-          {"type": "list", "title": "Done without you", "source": {"from": "unattended", "limit": 10},
+          {"type": "list", "title": "Done without you", "source": {"from": "deck.unattended_list", "limit": 10},
             "item": {"title": "text", "meta": "project + ' · ' + author"}}
         ]},
-        {"type": "list", "title": "Notifications", "source": {"from": "notifications", "limit": 20},
+        {"type": "list", "title": "Notifications", "source": {"from": "deck.notifications_list", "limit": 20},
           "item": {"title": "text", "meta": "project + ' · ' + created_at"}}
       ]
     },
@@ -22,7 +22,7 @@
       "name": "schedule",
       "title": "Schedule",
       "blocks": [
-        {"type": "table", "title": "Triggers", "source": {"from": "triggers", "sort": "project"},
+        {"type": "table", "title": "Triggers", "source": {"from": "deck.triggers_list", "sort": "project"},
           "columns": [
             {"label": "Project", "bind": "project"},
             {"label": "Command", "bind": "command"},
@@ -31,13 +31,13 @@
             {"label": "Last result", "bind": "last_state"},
             {"label": "State", "bind": "project_paused ? 'project paused' : paused ? 'paused' : 'on'"}
           ]},
-        {"type": "table", "title": "Projects", "source": {"from": "projects"},
+        {"type": "table", "title": "Projects", "source": {"from": "deck.projects_list"},
           "columns": [
             {"label": "Project", "bind": "name"},
             {"label": "Status", "bind": "status"},
             {"label": "Triggers", "bind": "paused ? 'paused' : 'on'"}
           ]},
-        {"type": "table", "title": "History", "source": {"from": "processes", "sort": "-id", "limit": 100}, "filter": ["project", "state"],
+        {"type": "table", "title": "History", "source": {"from": "deck.processes_list", "input": {"limit": 100}, "sort": "-id"}, "filter": ["project", "state"],
           "columns": [
             {"label": "#", "bind": "id"},
             {"label": "Project", "bind": "project"},
@@ -53,18 +53,18 @@
       "blocks": [
         {"type": "tabs", "tabs": [
           {"title": "Projects", "blocks": [
-            {"type": "list", "title": "Projects", "source": {"from": "projects", "sort": "name"}, "filter": ["status"],
+            {"type": "list", "title": "Projects", "source": {"from": "deck.projects_list", "sort": "name"}, "filter": ["status"],
               "item": {"title": "name + ' · ' + status + (paused ? ', paused' : '')", "text": "manifest_error != '' ? 'manifest: ' + manifest_error : description",
-                "meta": "'autonomy: ' + autonomy + (no_network ? ' · no network' : '') + (folders != '' ? ' · folders: ' + folders : '') + (rights != '' ? ' · enabling grants: ' + rights : '')"}},
+                "meta": "'autonomy: ' + autonomy + (no_network ? ' · no network' : '') + (len(folders) > 0 ? ' · folders: ' + join(map(folders, .name + ': ' + .path), '; ') : '') + (len(rights) > 0 ? ' · enabling grants: ' + join(rights, '; ') : '')"}},
             {"type": "form", "title": "Create project", "command": "deck.project_create"},
             {"type": "form", "title": "Import project", "command": "deck.project_import"},
             {"type": "form", "title": "Add folder", "command": "deck.folder_add"},
             {"type": "form", "title": "Remove folder", "command": "deck.folder_remove"},
             {"type": "form", "title": "Trial run", "command": "deck.command_try",
-              "choices": {"command": {"source": {"from": "commands", "where": "project != '' && executor != 'tool'", "sort": "name"}, "value": "name", "label": "title + ' (' + name + ')'"}}}
+              "choices": {"command": {"source": {"from": "deck.commands_list", "where": "project != '' && executor != 'tool'", "sort": "name"}, "value": "name", "label": "title + ' (' + name + ')'"}}}
           ]},
           {"title": "Providers", "blocks": [
-            {"type": "table", "title": "Providers", "source": {"from": "providers"},
+            {"type": "table", "title": "Providers", "source": {"from": "deck.providers_list", "rows": "providers"},
               "columns": [
                 {"label": "Name", "bind": "name"},
                 {"label": "Agent", "bind": "agent"},
@@ -75,30 +75,30 @@
                 {"label": "Error", "bind": "error"}
               ]},
             {"type": "form", "title": "Add a provider", "command": "deck.provider_add",
-              "choices": {"key_secret": {"source": {"from": "secrets"}, "value": "name"}}},
+              "choices": {"key_secret": {"source": {"from": "deck.secrets_list"}, "value": "name"}}},
             {"type": "form", "title": "Choose the provider of a command", "command": "deck.provider_set",
-              "choices": {"command": {"source": {"from": "commands", "where": "executor == 'agent'", "sort": "name"}, "value": "name", "label": "title + ' (' + name + ')'"},
-                "provider": {"source": {"from": "providers"}, "value": "name"}}},
+              "choices": {"command": {"source": {"from": "deck.commands_list", "where": "executor == 'agent'", "sort": "name"}, "value": "name", "label": "title + ' (' + name + ')'"},
+                "provider": {"source": {"from": "deck.providers_list", "rows": "providers"}, "value": "name"}}},
             {"type": "form", "title": "Speech to text", "command": "deck.stt_set",
-              "choices": {"key_secret": {"source": {"from": "secrets"}, "value": "name"}}}
+              "choices": {"key_secret": {"source": {"from": "deck.secrets_list"}, "value": "name"}}}
           ]},
           {"title": "Secrets", "blocks": [
-            {"type": "list", "title": "Secrets", "source": {"from": "secrets"}, "item": {"title": "name"}},
+            {"type": "list", "title": "Secrets", "source": {"from": "deck.secrets_list"}, "item": {"title": "name"}},
             {"type": "form", "title": "Set or replace a secret", "command": "deck.secret_set"}
           ]},
           {"title": "Tokens", "blocks": [
-            {"type": "table", "title": "Automation tokens", "source": {"from": "tokens", "sort": "-id"},
+            {"type": "table", "title": "Automation tokens", "source": {"from": "deck.tokens_list", "sort": "-id"},
               "columns": [
                 {"label": "Name", "bind": "name"},
-                {"label": "Commands", "bind": "commands"},
+                {"label": "Commands", "bind": "join(commands, ', ')"},
                 {"label": "Created", "bind": "created_at"},
                 {"label": "State", "bind": "revoked ? 'revoked' : 'live'"}
               ]},
             {"type": "form", "title": "Create a token", "command": "deck.token_create",
-              "choices": {"commands": {"source": {"from": "commands", "sort": "name"}, "value": "name"}}}
+              "choices": {"commands": {"source": {"from": "deck.commands_list", "sort": "name"}, "value": "name"}}}
           ]},
           {"title": "General", "blocks": [
-            {"type": "table", "title": "General", "source": {"from": "settings"},
+            {"type": "table", "title": "General", "source": {"from": "deck.settings_list"},
               "columns": [
                 {"label": "Setting", "bind": "title"},
                 {"label": "Value", "bind": "value"},
@@ -108,7 +108,7 @@
           ]},
           {"title": "Interface", "blocks": [{"type": "appearance", "title": "Appearance"}]},
           {"title": "Health", "blocks": [
-            {"type": "table", "title": "Health", "source": {"from": "health"}, "filter": ["status"],
+            {"type": "table", "title": "Health", "source": {"from": "deck.health_list"}, "filter": ["status"],
               "columns": [
                 {"label": "What", "bind": "subject"},
                 {"label": "Status", "bind": "status"},
@@ -126,7 +126,7 @@
       "blocks": [
         {"type": "tabs", "tabs": [
           {"title": "Calls", "blocks": [
-            {"type": "table", "title": "Calls of the gateway", "source": {"from": "calls"}, "filter": ["project", "outcome"],
+            {"type": "table", "title": "Calls of the gateway", "source": {"from": "deck.calls_list"}, "filter": ["project", "outcome"],
               "columns": [
                 {"label": "When", "bind": "created_at"},
                 {"label": "Tool", "bind": "tool"},
@@ -139,7 +139,7 @@
               ]}
           ]},
           {"title": "Spend", "blocks": [
-            {"type": "table", "title": "Tokens by command and provider", "source": {"from": "spend"}, "filter": ["provider"],
+            {"type": "table", "title": "Tokens by command and provider", "source": {"from": "deck.spend_list"}, "filter": ["provider"],
               "columns": [
                 {"label": "Project", "bind": "project"},
                 {"label": "Command", "bind": "command"},
@@ -154,18 +154,18 @@
               ]}
           ]},
           {"title": "Files", "blocks": [
-            {"type": "table", "title": "Files", "source": {"from": "files"}, "filter": ["project"],
+            {"type": "table", "title": "Files", "source": {"from": "deck.files_list"}, "filter": ["project"],
               "columns": [
                 {"label": "Name", "bind": "name"},
                 {"label": "Project", "bind": "project"},
                 {"label": "Type", "bind": "type"},
                 {"label": "Size", "bind": "size"},
-                {"label": "Belongs to", "bind": "owner"},
+                {"label": "Belongs to", "bind": "owner_kind + ' #' + string(owner_id)"},
                 {"label": "Added", "bind": "created_at"}
               ]}
           ]},
           {"title": "Snapshots", "blocks": [
-            {"type": "table", "title": "Snapshots", "source": {"from": "snapshots"},
+            {"type": "table", "title": "Snapshots", "source": {"from": "deck.snapshots_list"},
               "columns": [
                 {"label": "Snapshot", "bind": "name"},
                 {"label": "Taken", "bind": "taken_at"},
@@ -180,7 +180,7 @@
       "name": "share",
       "title": "Share",
       "blocks": [
-        {"type": "form", "title": "Send the shared files to", "source": {"from": "commands", "where": "len(files) > 0"}}
+        {"type": "form", "title": "Send the shared files to", "source": {"from": "deck.commands_list", "where": "len(files) > 0"}}
       ]
     },
     {
@@ -197,7 +197,7 @@
           {"label": "Error", "bind": "error"},
           {"label": "Open in a terminal", "bind": "terminal ?? ''"}
         ]},
-        {"type": "log", "title": "Log", "source": {"from": "log"}}
+        {"type": "log", "title": "Log", "source": {"from": "deck.process_log", "input": {"process": "$record.id"}}}
       ]
     },
     {
@@ -211,11 +211,11 @@
       "name": "documents",
       "title": "Documents",
       "blocks": [
-        {"type": "table", "title": "Documents", "source": {"from": "documents", "sort": "name"}, "filter": ["kind"],
+        {"type": "table", "title": "Documents", "source": {"from": "deck.documents_list", "input": {"with_deleted": true}, "sort": "name"}, "filter": ["kind"],
           "columns": [
             {"label": "Name", "bind": "name"},
             {"label": "Kind", "bind": "kind"},
-            {"label": "Belongs to", "bind": "owner"},
+            {"label": "Belongs to", "bind": "owner_kind != '' ? owner_kind + ' #' + string(owner_id) : ''"},
             {"label": "Revision", "bind": "revision"},
             {"label": "Deleted", "bind": "deleted ? 'deleted' : ''"}
           ]}

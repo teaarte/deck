@@ -8,9 +8,7 @@ import (
 
 	"deck2/internal/docs"
 	"deck2/internal/manifest"
-	"deck2/internal/process"
 	"deck2/internal/registry"
-	"deck2/internal/screen"
 )
 
 // Command is a command as a form shows it; the retry key deck adds to every command is not for the owner.
@@ -19,7 +17,13 @@ func (s Sources) Command(ctx context.Context, workspace int64, name string) (map
 	if err != nil {
 		return nil, err
 	}
-	return s.commandForm(ctx, c, ""), nil
+	project := ""
+	if c.ProjectID != 0 {
+		if p, err := s.Store.Q.GetProject(ctx, c.ProjectID); err == nil {
+			project = p.Name
+		}
+	}
+	return s.commandForm(ctx, c, project), nil
 }
 
 // commandForm is a command as a form needs it; its fields keep the order the manifest writes them in.
@@ -48,38 +52,4 @@ func (s Sources) commandForm(ctx context.Context, c *registry.Command, project s
 		out["result"] = c.Result
 	}
 	return out
-}
-
-// commandItems are the commands the owner may call, of one project or all; files are their file fields.
-func (s Sources) commandItems(ctx context.Context, sc screen.Scope, names map[int64]string) ([]map[string]any, error) {
-	cmds, err := s.Registry.List(ctx, registry.Actor{Kind: registry.Owner, Workspace: sc.Workspace})
-	if err != nil {
-		return nil, err
-	}
-	out := []map[string]any{}
-	manifests := map[int64]*manifest.Manifest{}
-	for _, c := range cmds {
-		if sc.Project != 0 && c.ProjectID != sc.Project {
-			continue
-		}
-		executor := ""
-		if c.ProjectID != 0 {
-			m, ok := manifests[c.ProjectID]
-			if !ok {
-				if p, err := s.Store.Q.GetProject(ctx, c.ProjectID); err == nil {
-					m, _ = docs.Manifest(ctx, s.Store.Q, p)
-				}
-				manifests[c.ProjectID] = m
-			}
-			if m != nil {
-				if mc := m.Command(strings.TrimPrefix(c.Name, names[c.ProjectID]+".")); mc != nil {
-					executor = mc.Executor.Type
-				}
-			}
-		}
-		f := s.commandForm(ctx, c, names[c.ProjectID])
-		out = append(out, map[string]any{"id": c.Name, "name": c.Name, "title": c.Title, "description": c.Description,
-			"project": names[c.ProjectID], "files": process.FileFields(c.Input), "executor": executor, "_command": f})
-	}
-	return out, nil
 }

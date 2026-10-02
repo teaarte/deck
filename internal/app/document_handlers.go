@@ -15,31 +15,32 @@ import (
 
 type documentView struct {
 	ID        int64  `json:"id"`
-	Project   int64  `json:"project,omitempty"`
-	OwnerKind string `json:"owner_kind,omitempty"`
-	OwnerID   int64  `json:"owner_id,omitempty"`
+	Project   string `json:"project,omitempty"`
+	OwnerKind string `json:"owner_kind"`
+	OwnerID   int64  `json:"owner_id"`
 	Kind      string `json:"kind"`
 	Name      string `json:"name"`
 	Revision  int64  `json:"revision"`
 	Text      string `json:"text,omitempty"`
-	Deleted   bool   `json:"deleted,omitempty"`
+	Deleted   bool   `json:"deleted"`
 	// Warning says what a save did that its author should know of, such as an index past its limit.
 	Warning string `json:"warning,omitempty"`
 }
 
-func docView(d db.Document) documentView {
+func (a *App) docView(ctx context.Context, d db.Document) documentView {
 	kind, owner := docs.Owner(d)
-	return documentView{ID: d.ID, Project: d.ProjectID.Int64, OwnerKind: kind, OwnerID: owner, Kind: d.Kind, Name: d.Name, Revision: d.Current,
+	return documentView{ID: d.ID, Project: a.projectName(ctx, d.ProjectID.Int64), OwnerKind: kind, OwnerID: owner, Kind: d.Kind, Name: d.Name, Revision: d.Current,
 		Deleted: d.DeletedAt.Valid}
 }
 
 type documentsListIn struct {
-	Project string `type:"project" opt:"" desc:"Project name; defaults to the caller's own project"`
-	Kind    string `opt:"" desc:"Only this kind"`
-	Deleted bool   `opt:"" desc:"The deleted documents instead, which the owner can bring back"`
+	Project     string `type:"project" opt:"" desc:"Project name; defaults to the caller's own project"`
+	Kind        string `opt:"" desc:"Only this kind"`
+	Deleted     bool   `opt:"" desc:"The deleted documents instead, which the owner can bring back"`
+	WithDeleted bool   `json:"with_deleted" opt:"" desc:"The deleted documents after the others, for the owner"`
 }
 
-func (a *App) documentsList(ctx context.Context, act registry.Actor, in documentsListIn) (any, error) {
+func (a *App) documentsList(ctx context.Context, act registry.Actor, in documentsListIn) ([]documentView, error) {
 	var s docs.Scope
 	var err error
 	if in.Project == "" && in.Kind == docs.KindMemory {
@@ -50,17 +51,21 @@ func (a *App) documentsList(ctx context.Context, act registry.Actor, in document
 	if err != nil {
 		return nil, err
 	}
-	var ds []db.Document
-	if in.Deleted {
-		if act.Kind != registry.Owner {
-			return nil, registry.Refuse("deck: only the owner lists deleted documents")
-		}
-		ds, err = a.Store.Q.ListDeletedDocuments(ctx, db.ListDeletedDocumentsParams{WorkspaceID: s.Workspace, ProjectID: store.ID(s.Project)})
-	} else {
-		ds, err = a.Store.Q.ListDocuments(ctx, db.ListDocumentsParams{WorkspaceID: s.Workspace, ProjectID: store.ID(s.Project), Kind: in.Kind})
+	if (in.Deleted || in.WithDeleted) && act.Kind != registry.Owner {
+		return nil, registry.Refuse("deck: only the owner lists deleted documents")
 	}
-	if err != nil {
-		return nil, err
+	var ds []db.Document
+	if !in.Deleted {
+		if ds, err = a.Store.Q.ListDocuments(ctx, db.ListDocumentsParams{WorkspaceID: s.Workspace, ProjectID: store.ID(s.Project), Kind: in.Kind}); err != nil {
+			return nil, err
+		}
+	}
+	if in.Deleted || in.WithDeleted {
+		gone, err := a.Store.Q.ListDeletedDocuments(ctx, db.ListDeletedDocumentsParams{WorkspaceID: s.Workspace, ProjectID: store.ID(s.Project)})
+		if err != nil {
+			return nil, err
+		}
+		ds = append(ds, gone...)
 	}
 	out := make([]documentView, 0, len(ds))
 	for _, d := range ds {
@@ -68,7 +73,7 @@ func (a *App) documentsList(ctx context.Context, act registry.Actor, in document
 		if d.ProjectID.Valid && a.mayRead(ctx, a.Store.Q, act, p, "", d.Name) != nil {
 			continue
 		}
-		out = append(out, docView(d))
+		out = append(out, a.docView(ctx, d))
 	}
 	return out, nil
 }
@@ -109,7 +114,7 @@ type documentGetIn struct {
 	Revision int64  `opt:"" desc:"Revision number"`
 }
 
-func (a *App) documentGet(ctx context.Context, act registry.Actor, in documentGetIn) (any, error) {
+func (a *App) documentGet(ctx context.Context, act registry.Actor, in documentGetIn) (documentView, error) {
 	var d db.Document
 	var err error
 	switch {
@@ -132,13 +137,13 @@ func (a *App) documentGet(ctx context.Context, act registry.Actor, in documentGe
 		err = registry.Invalid("deck: give a document id or a name")
 	}
 	if err != nil {
-		return nil, err
+		return documentView{}, err
 	}
 	r, err := docs.Revision(ctx, a.Store.Q, d, in.Revision)
 	if err != nil {
-		return nil, err
+		return documentView{}, err
 	}
-	v := docView(d)
+	v := a.docView(ctx, d)
 	v.Revision, v.Text = r.N, r.Text
 	return v, nil
 }
@@ -200,7 +205,7 @@ func (a *App) documentSave(ctx context.Context, act registry.Actor, in documentS
 		return nil, err
 	}
 	a.Bus.Publish("documents")
-	v := docView(d)
+	v := a.docView(ctx, d)
 	if kind, _ := docs.Owner(d); d.Name == docs.MemoryIndex && kind == "" {
 		if n := docs.IndexLines(in.Text); n > docs.IndexLimit {
 			v.Warning = fmt.Sprintf("the index has %d lines; only the first %d reach prompts: merge or drop lines, the most important first", n, docs.IndexLimit)
@@ -375,12 +380,12 @@ func (a *App) scriptChanged(ctx context.Context, q *db.Queries, act registry.Act
 
 func (a *App) documentCommands() []*registry.Command {
 	return []*registry.Command{
-		registry.Def("documents_list", "List documents",
+		registry.Read("documents_list", "List documents",
 			"Lists documents of a project, or workspace documents when no project is given; deleted ones for the owner when asked.",
-			registry.Everyone, a.documentsList).Enum("kind", docs.Kinds...),
-		registry.Def("document_get", "Get document",
+			registry.Everyone, a.documentsList).Enum("kind", docs.Kinds...).On("documents"),
+		registry.Read("document_get", "Get document",
 			"Returns a document by id, or by project and name; the current revision unless one is given.",
-			registry.Everyone, a.documentGet),
+			registry.Everyone, a.documentGet).On("documents"),
 		registry.Def("document_save", "Save document",
 			"Writes a new revision of a document, creating it on first save.",
 			registry.Everyone, a.documentSave).Enum("kind", docs.Kinds...),

@@ -3,6 +3,7 @@ package process
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"strings"
 
@@ -48,9 +49,32 @@ func (r *Runner) hold(ctx context.Context, t turn, state string) {
 	}
 }
 
-// Wake starts the held turns whose provider is ready, whose workspace has a slot or whose folder is free, oldest
-// first; each is checked before it is claimed, so a turn that cannot start stays as it is.
+// Wake starts held turns whose provider, slot or folder is free, oldest first, each checked before it is claimed.
+// A Wake during another makes that one look again; a pass does not end with its caller's context.
 func (r *Runner) Wake(ctx context.Context) {
+	r.mu.Lock()
+	if r.waking {
+		r.wakeAgain = true
+		r.mu.Unlock()
+		return
+	}
+	r.waking = true
+	r.mu.Unlock()
+	ctx = context.WithoutCancel(ctx)
+	for {
+		r.wake(ctx)
+		r.mu.Lock()
+		if !r.wakeAgain {
+			r.waking = false
+			r.mu.Unlock()
+			return
+		}
+		r.wakeAgain = false
+		r.mu.Unlock()
+	}
+}
+
+func (r *Runner) wake(ctx context.Context) {
 	r.mu.Lock()
 	stopped := r.stopped
 	r.mu.Unlock()
@@ -62,24 +86,31 @@ func (r *Runner) Wake(ctx context.Context) {
 		slog.Error("held processes", "err", err)
 		return
 	}
-	folders := map[string]bool{}
+	busy := map[string]bool{}
 	for _, h := range held {
 		p := h.Process
 		var s *slot
 		switch p.State {
 		case StateWaitingProvider:
-			if !r.providers.Ready(ctx, p.Provider) {
+			if busy["provider:"+p.Provider] || !r.providers.Ready(ctx, p.Provider) {
+				busy["provider:"+p.Provider] = true
 				continue
 			}
 		case StateWaitingSlot:
+			key := fmt.Sprint("slot:", h.WorkspaceID)
+			if busy[key] {
+				continue
+			}
 			if s = r.takeSlot(ctx, h.WorkspaceID); s == nil {
+				busy[key] = true
 				continue
 			}
 		case StateWaitingFolder:
-			if folders[p.Folder] || !r.folderFree(ctx, p.Folder) {
+			if busy["folder:"+p.Folder] || !r.folderFree(ctx, p.Folder) {
+				busy["folder:"+p.Folder] = true
 				continue
 			}
-			folders[p.Folder] = true
+			busy["folder:"+p.Folder] = true
 		}
 		if ok, err := r.claim(ctx, p.ID, p.State); err != nil || !ok {
 			s.release(ctx)

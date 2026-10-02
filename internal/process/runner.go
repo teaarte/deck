@@ -85,7 +85,9 @@ type Runner struct {
 	wg      sync.WaitGroup
 	mu      sync.Mutex
 	stopped bool
-	live    map[int64]*liveTurn
+	// waking is a Wake under way; wakeAgain asks it for one more look.
+	waking, wakeAgain bool
+	live              map[int64]*liveTurn
 	// marked is when the output time of each open process was last written.
 	marked map[int64]time.Time
 	// slots counts the agent turns of each workspace that hold a slot, taken or handed over.

@@ -25,7 +25,8 @@ Stage 1 plan: `docs/plan-stage1.md`.
 ## Layout
 
 - `cmd/deck` — entry point
-- `internal/store` — SQLite, goose migrations, sqlc queries (`db/` is generated)
+- `internal/store` — SQLite: one base schema `migrations/00001_base.sql` (old bases are not upgraded; a later
+  change of the schema is a new goose migration), sqlc queries (`db/` is generated)
 - `internal/registry` — command registry: every input (API, MCP, triggers) calls commands through it;
   input schemas limited to App Intents types; `registry.Def` takes the schema from the tagged input struct
 - `internal/docs` — documents with revisions, skill files, the manifest reader with its parse cache

@@ -385,3 +385,19 @@ func TestAnAfterTriggerCallTheOwnerAllowedKeepsItsParent(t *testing.T) {
 		}
 	}
 }
+
+// TestAnAllowedRunLaterStartsThoughItsTriggerIsGone: a run later of an external command waits for the owner, and
+// the yes starts it, though the trigger left the schedule when it fired.
+func TestAnAllowedRunLaterStartsThoughItsTriggerIsGone(t *testing.T) {
+	e := newClockEnv(t, ok)
+	e.createProject("later", strings.Replace(testManifest([]string{agentCommand("remind", "")}, nil), `"class": "internal"`, `"class": "external"`, 1))
+	e.must("deck.run_later", map[string]any{"command": "later.remind", "at": e.Clock.Now().Add(time.Hour).Format(time.RFC3339)}, nil)
+	e.Clock.Add(time.Hour)
+	e.tick()
+	a := e.waitAsk()
+	if a.Kind != "call" || len(e.triggers()) != 0 {
+		t.Fatalf("the fired run later waits for the owner and has left the schedule: %+v", a)
+	}
+	e.answer(a.ID, "allow")
+	e.waitFor("the allowed run", func() bool { return e.countOf("remind") == 1 })
+}

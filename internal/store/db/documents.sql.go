@@ -44,7 +44,7 @@ func (q *Queries) AddRevision(ctx context.Context, arg AddRevisionParams) (Docum
 }
 
 const createDocument = `-- name: CreateDocument :one
-INSERT INTO document (workspace_id, project_id, owner_kind, owner_id, kind, name) VALUES (?, ?, ?, ?, ?, ?) RETURNING id, workspace_id, project_id, owner_kind, owner_id, kind, name, "current", created_at, deleted_at
+INSERT INTO document (workspace_id, project_id, owner_kind, owner_id, kind, name) VALUES (?, ?, ?, ?, ?, ?) RETURNING id, workspace_id, project_id, owner_kind, owner_id, kind, name, "current", deleted_at, created_at
 `
 
 type CreateDocumentParams struct {
@@ -75,8 +75,8 @@ func (q *Queries) CreateDocument(ctx context.Context, arg CreateDocumentParams) 
 		&i.Kind,
 		&i.Name,
 		&i.Current,
-		&i.CreatedAt,
 		&i.DeletedAt,
+		&i.CreatedAt,
 	)
 	return i, err
 }
@@ -136,7 +136,7 @@ func (q *Queries) DeleteDocument(ctx context.Context, arg DeleteDocumentParams) 
 }
 
 const findAnyDocument = `-- name: FindAnyDocument :one
-SELECT id, workspace_id, project_id, owner_kind, owner_id, kind, name, "current", created_at, deleted_at FROM document
+SELECT id, workspace_id, project_id, owner_kind, owner_id, kind, name, "current", deleted_at, created_at FROM document
 WHERE workspace_id = ? AND project_id = ? AND owner_kind = ? AND owner_id = ? AND name = ?
 `
 
@@ -166,14 +166,14 @@ func (q *Queries) FindAnyDocument(ctx context.Context, arg FindAnyDocumentParams
 		&i.Kind,
 		&i.Name,
 		&i.Current,
-		&i.CreatedAt,
 		&i.DeletedAt,
+		&i.CreatedAt,
 	)
 	return i, err
 }
 
 const findDocument = `-- name: FindDocument :one
-SELECT id, workspace_id, project_id, owner_kind, owner_id, kind, name, "current", created_at, deleted_at FROM document
+SELECT id, workspace_id, project_id, owner_kind, owner_id, kind, name, "current", deleted_at, created_at FROM document
 WHERE workspace_id = ? AND project_id = ? AND owner_kind = ? AND owner_id = ? AND name = ? AND deleted_at IS NULL
 `
 
@@ -203,14 +203,14 @@ func (q *Queries) FindDocument(ctx context.Context, arg FindDocumentParams) (Doc
 		&i.Kind,
 		&i.Name,
 		&i.Current,
-		&i.CreatedAt,
 		&i.DeletedAt,
+		&i.CreatedAt,
 	)
 	return i, err
 }
 
 const getDocument = `-- name: GetDocument :one
-SELECT id, workspace_id, project_id, owner_kind, owner_id, kind, name, "current", created_at, deleted_at FROM document WHERE id = ?
+SELECT id, workspace_id, project_id, owner_kind, owner_id, kind, name, "current", deleted_at, created_at FROM document WHERE id = ?
 `
 
 func (q *Queries) GetDocument(ctx context.Context, id int64) (Document, error) {
@@ -225,8 +225,8 @@ func (q *Queries) GetDocument(ctx context.Context, id int64) (Document, error) {
 		&i.Kind,
 		&i.Name,
 		&i.Current,
-		&i.CreatedAt,
 		&i.DeletedAt,
+		&i.CreatedAt,
 	)
 	return i, err
 }
@@ -256,7 +256,7 @@ func (q *Queries) GetRevision(ctx context.Context, arg GetRevisionParams) (Docum
 }
 
 const listDeletedDocuments = `-- name: ListDeletedDocuments :many
-SELECT id, workspace_id, project_id, owner_kind, owner_id, kind, name, "current", created_at, deleted_at FROM document WHERE workspace_id = ? AND project_id = ? AND deleted_at IS NOT NULL ORDER BY deleted_at DESC
+SELECT id, workspace_id, project_id, owner_kind, owner_id, kind, name, "current", deleted_at, created_at FROM document WHERE workspace_id = ? AND project_id = ? AND deleted_at IS NOT NULL ORDER BY deleted_at DESC
 `
 
 type ListDeletedDocumentsParams struct {
@@ -282,8 +282,8 @@ func (q *Queries) ListDeletedDocuments(ctx context.Context, arg ListDeletedDocum
 			&i.Kind,
 			&i.Name,
 			&i.Current,
-			&i.CreatedAt,
 			&i.DeletedAt,
+			&i.CreatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -299,7 +299,7 @@ func (q *Queries) ListDeletedDocuments(ctx context.Context, arg ListDeletedDocum
 }
 
 const listDocuments = `-- name: ListDocuments :many
-SELECT id, workspace_id, project_id, owner_kind, owner_id, kind, name, "current", created_at, deleted_at FROM document
+SELECT id, workspace_id, project_id, owner_kind, owner_id, kind, name, "current", deleted_at, created_at FROM document
 WHERE workspace_id = ? AND project_id = ? AND (?3 = '' OR kind = ?3) AND deleted_at IS NULL
 ORDER BY name
 `
@@ -328,8 +328,8 @@ func (q *Queries) ListDocuments(ctx context.Context, arg ListDocumentsParams) ([
 			&i.Kind,
 			&i.Name,
 			&i.Current,
-			&i.CreatedAt,
 			&i.DeletedAt,
+			&i.CreatedAt,
 		); err != nil {
 			return nil, err
 		}

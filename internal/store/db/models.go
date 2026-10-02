@@ -10,21 +10,21 @@ import (
 
 type Ask struct {
 	ID          int64
-	ProcessID   sql.NullInt64
 	WorkspaceID int64
 	ProjectID   int64
+	ProcessID   sql.NullInt64
 	Kind        string
 	Text        string
 	Payload     string
 	Answer      string
 	State       string
+	Result      string
 	Delivered   int64
 	Used        int64
+	Dismissed   int64
 	CreatedAt   string
 	AnsweredAt  sql.NullString
 	ExpiresAt   sql.NullString
-	Result      string
-	Dismissed   int64
 }
 
 type AutomationToken struct {
@@ -95,8 +95,8 @@ type Document struct {
 	Kind        string
 	Name        string
 	Current     int64
-	CreatedAt   string
 	DeletedAt   sql.NullString
+	CreatedAt   string
 }
 
 type DocumentRevision struct {
@@ -129,10 +129,10 @@ type Health struct {
 	Subject   string
 	Status    string
 	Error     string
-	UpdatedAt string
 	Version   string
 	Verdict   string
 	Speed     float64
+	UpdatedAt string
 }
 
 type LlmCall struct {
@@ -179,6 +179,7 @@ type Process struct {
 	ID               int64
 	ProjectID        int64
 	Command          string
+	Kind             string
 	State            string
 	Provider         string
 	SessionID        string
@@ -186,36 +187,35 @@ type Process struct {
 	Result           string
 	NotBySchema      int64
 	Error            string
-	StartedAt        string
-	FinishedAt       sql.NullString
 	StartNote        string
 	ParentID         sql.NullInt64
 	Depth            int64
 	TriggerID        sql.NullInt64
 	RetryKey         string
+	ManifestRevision int64
+	Trial            int64
+	Folder           string
 	Pgid             int64
 	CeilingMs        int64
 	DeadlineMs       sql.NullInt64
 	OutputMs         int64
 	SilentSinceMs    sql.NullInt64
-	Kind             string
-	ManifestRevision int64
-	Trial            int64
 	PauseUntilMs     sql.NullInt64
 	PauseLimitMs     sql.NullInt64
 	WaitMessage      string
 	WaitFresh        int64
-	Folder           string
+	StartedAt        string
+	FinishedAt       sql.NullString
 }
 
 type Project struct {
 	ID          int64
-	Name        string
-	CreatedAt   string
 	WorkspaceID int64
+	Name        string
 	Status      string
 	Paused      int64
 	Builtin     int64
+	CreatedAt   string
 }
 
 type ProjectFolder struct {
@@ -264,22 +264,22 @@ type Setting struct {
 
 type ToolCall struct {
 	ID          int64
-	ProcessID   int64
+	WorkspaceID int64
 	ProjectID   int64
+	ProcessID   int64
+	Actor       string
+	Caller      string
 	Tool        string
 	Class       string
 	Outcome     string
 	Params      string
-	CreatedAt   string
-	Actor       string
 	ExternalID  string
 	Error       string
 	AskID       sql.NullInt64
-	WorkspaceID int64
-	Caller      string
+	CreatedAt   string
 }
 
-type TriggerState struct {
+type Trigger struct {
 	ID            int64
 	ProjectID     int64
 	Command       string

@@ -73,7 +73,7 @@ func (q *Queries) DeleteWorkspacePushSubscriptions(ctx context.Context, workspac
 }
 
 const listAsksAfter = `-- name: ListAsksAfter :many
-SELECT id, process_id, workspace_id, project_id, kind, text, payload, answer, state, delivered, used, created_at, answered_at, expires_at, result, dismissed FROM ask WHERE workspace_id = ? AND id > ? AND state = 'open' ORDER BY id
+SELECT id, workspace_id, project_id, process_id, kind, text, payload, answer, state, result, delivered, used, dismissed, created_at, answered_at, expires_at FROM ask WHERE workspace_id = ? AND id > ? AND state = 'open' ORDER BY id
 `
 
 type ListAsksAfterParams struct {
@@ -92,21 +92,21 @@ func (q *Queries) ListAsksAfter(ctx context.Context, arg ListAsksAfterParams) ([
 		var i Ask
 		if err := rows.Scan(
 			&i.ID,
-			&i.ProcessID,
 			&i.WorkspaceID,
 			&i.ProjectID,
+			&i.ProcessID,
 			&i.Kind,
 			&i.Text,
 			&i.Payload,
 			&i.Answer,
 			&i.State,
+			&i.Result,
 			&i.Delivered,
 			&i.Used,
+			&i.Dismissed,
 			&i.CreatedAt,
 			&i.AnsweredAt,
 			&i.ExpiresAt,
-			&i.Result,
-			&i.Dismissed,
 		); err != nil {
 			return nil, err
 		}
@@ -122,7 +122,7 @@ func (q *Queries) ListAsksAfter(ctx context.Context, arg ListAsksAfterParams) ([
 }
 
 const listFailedAfter = `-- name: ListFailedAfter :many
-SELECT p.id, p.project_id, p.command, p.state, p.provider, p.session_id, p.input, p.result, p.not_by_schema, p.error, p.started_at, p.finished_at, p.start_note, p.parent_id, p.depth, p.trigger_id, p.retry_key, p.pgid, p.ceiling_ms, p.deadline_ms, p.output_ms, p.silent_since_ms, p.kind, p.manifest_revision, p.trial, p.pause_until_ms, p.pause_limit_ms, p.wait_message, p.wait_fresh, p.folder FROM process p JOIN project j ON j.id = p.project_id
+SELECT p.id, p.project_id, p.command, p.kind, p.state, p.provider, p.session_id, p.input, p.result, p.not_by_schema, p.error, p.start_note, p.parent_id, p.depth, p.trigger_id, p.retry_key, p.manifest_revision, p.trial, p.folder, p.pgid, p.ceiling_ms, p.deadline_ms, p.output_ms, p.silent_since_ms, p.pause_until_ms, p.pause_limit_ms, p.wait_message, p.wait_fresh, p.started_at, p.finished_at FROM process p JOIN project j ON j.id = p.project_id
 WHERE j.workspace_id = ?1 AND p.state = 'error' AND p.trial = 0 AND j.builtin = 0
   AND (p.finished_at > ?2 OR p.finished_at = ?2 AND p.id > ?3)
 ORDER BY p.finished_at, p.id
@@ -147,6 +147,7 @@ func (q *Queries) ListFailedAfter(ctx context.Context, arg ListFailedAfterParams
 			&i.ID,
 			&i.ProjectID,
 			&i.Command,
+			&i.Kind,
 			&i.State,
 			&i.Provider,
 			&i.SessionID,
@@ -154,26 +155,25 @@ func (q *Queries) ListFailedAfter(ctx context.Context, arg ListFailedAfterParams
 			&i.Result,
 			&i.NotBySchema,
 			&i.Error,
-			&i.StartedAt,
-			&i.FinishedAt,
 			&i.StartNote,
 			&i.ParentID,
 			&i.Depth,
 			&i.TriggerID,
 			&i.RetryKey,
+			&i.ManifestRevision,
+			&i.Trial,
+			&i.Folder,
 			&i.Pgid,
 			&i.CeilingMs,
 			&i.DeadlineMs,
 			&i.OutputMs,
 			&i.SilentSinceMs,
-			&i.Kind,
-			&i.ManifestRevision,
-			&i.Trial,
 			&i.PauseUntilMs,
 			&i.PauseLimitMs,
 			&i.WaitMessage,
 			&i.WaitFresh,
-			&i.Folder,
+			&i.StartedAt,
+			&i.FinishedAt,
 		); err != nil {
 			return nil, err
 		}

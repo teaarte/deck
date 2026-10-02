@@ -114,7 +114,7 @@ func (q *Queries) ListWaitingFolders(ctx context.Context) ([]string, error) {
 }
 
 const listWaitingForFolder = `-- name: ListWaitingForFolder :many
-SELECT id, project_id, command, state, provider, session_id, input, result, not_by_schema, error, started_at, finished_at, start_note, parent_id, depth, trigger_id, retry_key, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, kind, manifest_revision, trial, pause_until_ms, pause_limit_ms, wait_message, wait_fresh, folder FROM process WHERE state = 'waiting_folder' AND folder = ? ORDER BY id
+SELECT id, project_id, command, kind, state, provider, session_id, input, result, not_by_schema, error, start_note, parent_id, depth, trigger_id, retry_key, manifest_revision, trial, folder, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, pause_until_ms, pause_limit_ms, wait_message, wait_fresh, started_at, finished_at FROM process WHERE state = 'waiting_folder' AND folder = ? ORDER BY id
 `
 
 func (q *Queries) ListWaitingForFolder(ctx context.Context, folder string) ([]Process, error) {
@@ -130,6 +130,7 @@ func (q *Queries) ListWaitingForFolder(ctx context.Context, folder string) ([]Pr
 			&i.ID,
 			&i.ProjectID,
 			&i.Command,
+			&i.Kind,
 			&i.State,
 			&i.Provider,
 			&i.SessionID,
@@ -137,26 +138,25 @@ func (q *Queries) ListWaitingForFolder(ctx context.Context, folder string) ([]Pr
 			&i.Result,
 			&i.NotBySchema,
 			&i.Error,
-			&i.StartedAt,
-			&i.FinishedAt,
 			&i.StartNote,
 			&i.ParentID,
 			&i.Depth,
 			&i.TriggerID,
 			&i.RetryKey,
+			&i.ManifestRevision,
+			&i.Trial,
+			&i.Folder,
 			&i.Pgid,
 			&i.CeilingMs,
 			&i.DeadlineMs,
 			&i.OutputMs,
 			&i.SilentSinceMs,
-			&i.Kind,
-			&i.ManifestRevision,
-			&i.Trial,
 			&i.PauseUntilMs,
 			&i.PauseLimitMs,
 			&i.WaitMessage,
 			&i.WaitFresh,
-			&i.Folder,
+			&i.StartedAt,
+			&i.FinishedAt,
 		); err != nil {
 			return nil, err
 		}

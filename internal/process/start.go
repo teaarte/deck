@@ -155,15 +155,20 @@ func (r *Runner) Start(ctx context.Context, projectID int64, m *manifest.Manifes
 				return err
 			}
 		}
+		// A call the owner allowed later may come from a trigger that is gone by then, as a run later is.
+		trigger := o.Trigger
+		if _, err := q.GetTrigger(ctx, trigger); errors.Is(err, sql.ErrNoRows) {
+			trigger = 0
+		}
 		p, err = q.CreateProcess(ctx, db.CreateProcessParams{Trial: b2i(trial), ProjectID: projectID, Command: command, Kind: kind, State: StateRunning,
 			Provider: providerName, Input: string(in), SessionID: session, ParentID: ref(o.Parent), Depth: depth,
-			TriggerID: ref(o.Trigger), RetryKey: o.Key, CeilingMs: r.ceilingOf(m, cmd).Milliseconds(), ManifestRevision: m.Revision, Folder: folder,
+			TriggerID: ref(trigger), RetryKey: o.Key, CeilingMs: r.ceilingOf(m, cmd).Milliseconds(), ManifestRevision: m.Revision, Folder: folder,
 			StartNote: o.Note})
 		if err != nil {
 			return err
 		}
-		if o.Trigger != 0 {
-			if err := q.SetTriggerLast(ctx, db.SetTriggerLastParams{LastProcessID: sql.NullInt64{Int64: p.ID, Valid: true}, ID: o.Trigger}); err != nil {
+		if trigger != 0 {
+			if err := q.SetTriggerLast(ctx, db.SetTriggerLastParams{LastProcessID: sql.NullInt64{Int64: p.ID, Valid: true}, ID: trigger}); err != nil {
 				return err
 			}
 		}

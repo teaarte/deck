@@ -18,7 +18,7 @@ import (
 )
 
 // ownTrigger loads a trigger of the actor's workspace; agents reach only their own project.
-func (a *App) ownTrigger(ctx context.Context, act registry.Actor, id int64) (db.TriggerState, db.Project, error) {
+func (a *App) ownTrigger(ctx context.Context, act registry.Actor, id int64) (db.Trigger, db.Project, error) {
 	t, err := a.Store.Q.GetTrigger(ctx, id)
 	return owned(ctx, a.Store.Q, act, t, err, t.ProjectID, registry.NotFound("deck: no trigger %d", id))
 }
@@ -53,7 +53,7 @@ func (a *App) runLater(ctx context.Context, act registry.Actor, in runLaterIn) (
 	}
 	_, name, _ := strings.Cut(in.Command, ".")
 	raw, _ := json.Marshal(params)
-	var t db.TriggerState
+	var t db.Trigger
 	err = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		if p, err := q.GetProject(ctx, cmd.ProjectID); err != nil || p.Status == store.ProjectDraft {
 			if err == nil {

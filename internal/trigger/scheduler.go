@@ -21,7 +21,7 @@ const (
 
 // Starter starts the command of a trigger row with the given input.
 type Starter interface {
-	Fire(ctx context.Context, t db.TriggerState, input map[string]any) (int64, error)
+	Fire(ctx context.Context, t db.Trigger, input map[string]any) (int64, error)
 }
 
 // Scheduler runs cron and run-later triggers in the local time zone. A run later than Grace was missed
@@ -51,14 +51,14 @@ func Identity(t manifest.Trigger) (kind, spec string) {
 }
 
 // Find is the stored row of a manifest trigger.
-func Find(rows []db.TriggerState, t manifest.Trigger) (db.TriggerState, bool) {
+func Find(rows []db.Trigger, t manifest.Trigger) (db.Trigger, bool) {
 	kind, spec := Identity(t)
 	for _, r := range rows {
 		if r.Command == t.Command && r.Kind == kind && r.Spec == spec {
 			return r, true
 		}
 	}
-	return db.TriggerState{}, false
+	return db.Trigger{}, false
 }
 
 // Sync stores the triggers of a manifest, keeping the next run, pause and id of unchanged ones and dropping
@@ -118,7 +118,7 @@ func (s *Scheduler) next(cron string, after time.Time) (string, error) {
 
 // Rewind moves a cron trigger whose next run has passed to its next slot after now, so a paused period is
 // not caught up.
-func (s *Scheduler) Rewind(ctx context.Context, q *db.Queries, t db.TriggerState) error {
+func (s *Scheduler) Rewind(ctx context.Context, q *db.Queries, t db.Trigger) error {
 	if t.Kind != KindCron || t.NextRunAt.String > store.Time(s.Now()) {
 		return nil
 	}
@@ -161,7 +161,7 @@ func (s *Scheduler) Tick(ctx context.Context) int {
 	return len(due)
 }
 
-func (s *Scheduler) fire(ctx context.Context, t db.TriggerState, now time.Time) {
+func (s *Scheduler) fire(ctx context.Context, t db.Trigger, now time.Time) {
 	params, err := manifest.DecodeObject([]byte(t.Params))
 	if err != nil {
 		slog.Error("trigger params", "trigger", t.ID, "err", err)
@@ -172,7 +172,7 @@ func (s *Scheduler) fire(ctx context.Context, t db.TriggerState, now time.Time) 
 }
 
 // after moves a fired or skipped trigger on: a cron trigger to its next slot, a run-later row away.
-func (s *Scheduler) after(ctx context.Context, t db.TriggerState, now time.Time) {
+func (s *Scheduler) after(ctx context.Context, t db.Trigger, now time.Time) {
 	s.tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		if t.Kind == KindOnce {
 			return q.DeleteTrigger(ctx, t.ID)

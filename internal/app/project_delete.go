@@ -73,7 +73,7 @@ func (a *App) projectDelete(ctx context.Context, act registry.Actor, in projectD
 		return nil, err
 	}
 	a.removeFiles(gone)
-	// A new project or process may get the same id, so deck's own folders of this one go with it.
+	// deck's own folders of the project and of its runs go with it.
 	for _, id := range runs {
 		_ = os.RemoveAll(filepath.Dir(a.Runner.LogPath(id)))
 	}

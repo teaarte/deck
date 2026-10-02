@@ -19,7 +19,7 @@ func (q *Queries) DeleteHealth(ctx context.Context, subject string) error {
 }
 
 const getHealth = `-- name: GetHealth :one
-SELECT subject, status, error, updated_at, version, verdict, speed FROM health WHERE subject = ?1
+SELECT subject, status, error, version, verdict, speed, updated_at FROM health WHERE subject = ?1
 `
 
 func (q *Queries) GetHealth(ctx context.Context, subject string) (Health, error) {
@@ -29,16 +29,16 @@ func (q *Queries) GetHealth(ctx context.Context, subject string) (Health, error)
 		&i.Subject,
 		&i.Status,
 		&i.Error,
-		&i.UpdatedAt,
 		&i.Version,
 		&i.Verdict,
 		&i.Speed,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
 
 const listHealth = `-- name: ListHealth :many
-SELECT subject, status, error, updated_at, version, verdict, speed FROM health ORDER BY subject
+SELECT subject, status, error, version, verdict, speed, updated_at FROM health ORDER BY subject
 `
 
 func (q *Queries) ListHealth(ctx context.Context) ([]Health, error) {
@@ -54,10 +54,10 @@ func (q *Queries) ListHealth(ctx context.Context) ([]Health, error) {
 			&i.Subject,
 			&i.Status,
 			&i.Error,
-			&i.UpdatedAt,
 			&i.Version,
 			&i.Verdict,
 			&i.Speed,
+			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}

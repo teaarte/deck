@@ -11,7 +11,7 @@ import (
 )
 
 const createOnceTrigger = `-- name: CreateOnceTrigger :one
-INSERT INTO trigger_state (project_id, command, kind, params, next_run_at) VALUES (?, ?, 'once', ?, ?) RETURNING id, project_id, command, kind, spec, params, next_run_at, paused, skip_missed, last_process_id
+INSERT INTO "trigger" (project_id, command, kind, params, next_run_at) VALUES (?, ?, 'once', ?, ?) RETURNING id, project_id, command, kind, spec, params, next_run_at, paused, skip_missed, last_process_id
 `
 
 type CreateOnceTriggerParams struct {
@@ -21,14 +21,14 @@ type CreateOnceTriggerParams struct {
 	NextRunAt sql.NullString
 }
 
-func (q *Queries) CreateOnceTrigger(ctx context.Context, arg CreateOnceTriggerParams) (TriggerState, error) {
+func (q *Queries) CreateOnceTrigger(ctx context.Context, arg CreateOnceTriggerParams) (Trigger, error) {
 	row := q.db.QueryRowContext(ctx, createOnceTrigger,
 		arg.ProjectID,
 		arg.Command,
 		arg.Params,
 		arg.NextRunAt,
 	)
-	var i TriggerState
+	var i Trigger
 	err := row.Scan(
 		&i.ID,
 		&i.ProjectID,
@@ -45,7 +45,7 @@ func (q *Queries) CreateOnceTrigger(ctx context.Context, arg CreateOnceTriggerPa
 }
 
 const deleteTrigger = `-- name: DeleteTrigger :exec
-DELETE FROM trigger_state WHERE id = ?
+DELETE FROM "trigger" WHERE id = ?
 `
 
 func (q *Queries) DeleteTrigger(ctx context.Context, id int64) error {
@@ -54,20 +54,20 @@ func (q *Queries) DeleteTrigger(ctx context.Context, id int64) error {
 }
 
 const dueTriggers = `-- name: DueTriggers :many
-SELECT t.id, t.project_id, t.command, t.kind, t.spec, t.params, t.next_run_at, t.paused, t.skip_missed, t.last_process_id FROM trigger_state t JOIN project p ON p.id = t.project_id
+SELECT t.id, t.project_id, t.command, t.kind, t.spec, t.params, t.next_run_at, t.paused, t.skip_missed, t.last_process_id FROM "trigger" t JOIN project p ON p.id = t.project_id
 WHERE t.kind IN ('cron', 'once') AND t.next_run_at <= CAST(?1 AS TEXT) AND t.paused = 0 AND p.paused = 0
 ORDER BY t.next_run_at, t.id
 `
 
-func (q *Queries) DueTriggers(ctx context.Context, now string) ([]TriggerState, error) {
+func (q *Queries) DueTriggers(ctx context.Context, now string) ([]Trigger, error) {
 	rows, err := q.db.QueryContext(ctx, dueTriggers, now)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []TriggerState
+	var items []Trigger
 	for rows.Next() {
-		var i TriggerState
+		var i Trigger
 		if err := rows.Scan(
 			&i.ID,
 			&i.ProjectID,
@@ -94,12 +94,12 @@ func (q *Queries) DueTriggers(ctx context.Context, now string) ([]TriggerState, 
 }
 
 const getTrigger = `-- name: GetTrigger :one
-SELECT id, project_id, command, kind, spec, params, next_run_at, paused, skip_missed, last_process_id FROM trigger_state WHERE id = ?
+SELECT id, project_id, command, kind, spec, params, next_run_at, paused, skip_missed, last_process_id FROM "trigger" WHERE id = ?
 `
 
-func (q *Queries) GetTrigger(ctx context.Context, id int64) (TriggerState, error) {
+func (q *Queries) GetTrigger(ctx context.Context, id int64) (Trigger, error) {
 	row := q.db.QueryRowContext(ctx, getTrigger, id)
-	var i TriggerState
+	var i Trigger
 	err := row.Scan(
 		&i.ID,
 		&i.ProjectID,
@@ -116,18 +116,18 @@ func (q *Queries) GetTrigger(ctx context.Context, id int64) (TriggerState, error
 }
 
 const listProjectTriggers = `-- name: ListProjectTriggers :many
-SELECT id, project_id, command, kind, spec, params, next_run_at, paused, skip_missed, last_process_id FROM trigger_state WHERE project_id = ? ORDER BY id
+SELECT id, project_id, command, kind, spec, params, next_run_at, paused, skip_missed, last_process_id FROM "trigger" WHERE project_id = ? ORDER BY id
 `
 
-func (q *Queries) ListProjectTriggers(ctx context.Context, projectID int64) ([]TriggerState, error) {
+func (q *Queries) ListProjectTriggers(ctx context.Context, projectID int64) ([]Trigger, error) {
 	rows, err := q.db.QueryContext(ctx, listProjectTriggers, projectID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []TriggerState
+	var items []Trigger
 	for rows.Next() {
-		var i TriggerState
+		var i Trigger
 		if err := rows.Scan(
 			&i.ID,
 			&i.ProjectID,
@@ -154,7 +154,7 @@ func (q *Queries) ListProjectTriggers(ctx context.Context, projectID int64) ([]T
 }
 
 const listWorkspaceTriggers = `-- name: ListWorkspaceTriggers :many
-SELECT t.id, t.project_id, t.command, t.kind, t.spec, t.params, t.next_run_at, t.paused, t.skip_missed, t.last_process_id FROM trigger_state t JOIN project p ON p.id = t.project_id
+SELECT t.id, t.project_id, t.command, t.kind, t.spec, t.params, t.next_run_at, t.paused, t.skip_missed, t.last_process_id FROM "trigger" t JOIN project p ON p.id = t.project_id
 WHERE p.workspace_id = ?1 AND (?2 = 0 OR t.project_id = ?2)
 ORDER BY p.name, t.id
 `
@@ -164,15 +164,15 @@ type ListWorkspaceTriggersParams struct {
 	ProjectID   interface{}
 }
 
-func (q *Queries) ListWorkspaceTriggers(ctx context.Context, arg ListWorkspaceTriggersParams) ([]TriggerState, error) {
+func (q *Queries) ListWorkspaceTriggers(ctx context.Context, arg ListWorkspaceTriggersParams) ([]Trigger, error) {
 	rows, err := q.db.QueryContext(ctx, listWorkspaceTriggers, arg.WorkspaceID, arg.ProjectID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []TriggerState
+	var items []Trigger
 	for rows.Next() {
-		var i TriggerState
+		var i Trigger
 		if err := rows.Scan(
 			&i.ID,
 			&i.ProjectID,
@@ -199,7 +199,7 @@ func (q *Queries) ListWorkspaceTriggers(ctx context.Context, arg ListWorkspaceTr
 }
 
 const setTriggerLast = `-- name: SetTriggerLast :exec
-UPDATE trigger_state SET last_process_id = ? WHERE id = ?
+UPDATE "trigger" SET last_process_id = ? WHERE id = ?
 `
 
 type SetTriggerLastParams struct {
@@ -213,7 +213,7 @@ func (q *Queries) SetTriggerLast(ctx context.Context, arg SetTriggerLastParams) 
 }
 
 const setTriggerNext = `-- name: SetTriggerNext :exec
-UPDATE trigger_state SET next_run_at = ? WHERE id = ?
+UPDATE "trigger" SET next_run_at = ? WHERE id = ?
 `
 
 type SetTriggerNextParams struct {
@@ -227,7 +227,7 @@ func (q *Queries) SetTriggerNext(ctx context.Context, arg SetTriggerNextParams) 
 }
 
 const setTriggerPaused = `-- name: SetTriggerPaused :exec
-UPDATE trigger_state SET paused = ? WHERE id = ?
+UPDATE "trigger" SET paused = ? WHERE id = ?
 `
 
 type SetTriggerPausedParams struct {
@@ -241,7 +241,7 @@ func (q *Queries) SetTriggerPaused(ctx context.Context, arg SetTriggerPausedPara
 }
 
 const upsertTrigger = `-- name: UpsertTrigger :exec
-INSERT INTO trigger_state (project_id, command, kind, spec, params, next_run_at, skip_missed) VALUES (?, ?, ?, ?, ?, ?, ?)
+INSERT INTO "trigger" (project_id, command, kind, spec, params, next_run_at, skip_missed) VALUES (?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT (project_id, command, kind, spec) WHERE kind != 'once'
 DO UPDATE SET params = excluded.params, skip_missed = excluded.skip_missed
 `

@@ -405,7 +405,7 @@ func (q *Queries) ListTopicsWithPending(ctx context.Context) ([]int64, error) {
 }
 
 const openTopicProcess = `-- name: OpenTopicProcess :one
-SELECT p.id, p.project_id, p.command, p.state, p.provider, p.session_id, p.input, p.result, p.not_by_schema, p.error, p.started_at, p.finished_at, p.start_note, p.parent_id, p.depth, p.trigger_id, p.retry_key, p.pgid, p.ceiling_ms, p.deadline_ms, p.output_ms, p.silent_since_ms, p.kind, p.manifest_revision, p.trial, p.pause_until_ms, p.pause_limit_ms, p.wait_message, p.wait_fresh, p.folder FROM process p
+SELECT p.id, p.project_id, p.command, p.kind, p.state, p.provider, p.session_id, p.input, p.result, p.not_by_schema, p.error, p.start_note, p.parent_id, p.depth, p.trigger_id, p.retry_key, p.manifest_revision, p.trial, p.folder, p.pgid, p.ceiling_ms, p.deadline_ms, p.output_ms, p.silent_since_ms, p.pause_until_ms, p.pause_limit_ms, p.wait_message, p.wait_fresh, p.started_at, p.finished_at FROM process p
 WHERE p.id IN (SELECT process_id FROM chat_message WHERE topic_id = ? AND process_id != 0)
   AND p.finished_at IS NULL
 ORDER BY p.id DESC
@@ -419,6 +419,7 @@ func (q *Queries) OpenTopicProcess(ctx context.Context, topicID int64) (Process,
 		&i.ID,
 		&i.ProjectID,
 		&i.Command,
+		&i.Kind,
 		&i.State,
 		&i.Provider,
 		&i.SessionID,
@@ -426,26 +427,25 @@ func (q *Queries) OpenTopicProcess(ctx context.Context, topicID int64) (Process,
 		&i.Result,
 		&i.NotBySchema,
 		&i.Error,
-		&i.StartedAt,
-		&i.FinishedAt,
 		&i.StartNote,
 		&i.ParentID,
 		&i.Depth,
 		&i.TriggerID,
 		&i.RetryKey,
+		&i.ManifestRevision,
+		&i.Trial,
+		&i.Folder,
 		&i.Pgid,
 		&i.CeilingMs,
 		&i.DeadlineMs,
 		&i.OutputMs,
 		&i.SilentSinceMs,
-		&i.Kind,
-		&i.ManifestRevision,
-		&i.Trial,
 		&i.PauseUntilMs,
 		&i.PauseLimitMs,
 		&i.WaitMessage,
 		&i.WaitFresh,
-		&i.Folder,
+		&i.StartedAt,
+		&i.FinishedAt,
 	)
 	return i, err
 }

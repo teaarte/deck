@@ -2,22 +2,17 @@ package scenarios
 
 import (
 	"context"
-	"database/sql"
 	"deck2/internal/app"
 	"deck2/internal/provider"
-	"deck2/internal/store"
 	"deck2/internal/store/db"
 	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"syscall"
 	"testing"
 	"time"
-
-	"github.com/pressly/goose/v3"
 )
 
 func TestAgentCallsReturnAtOnceAndRetryKeyReusesTheProcess(t *testing.T) {
@@ -488,41 +483,6 @@ func TestReworkKeepsTheRetryKeyUnique(t *testing.T) {
 	e.waitState(first.Process, "done")
 	e.must("jobs.work", map[string]any{"retry_key": "a"}, &second)
 	e.refused("deck.process_rework", map[string]any{"process": first.Process, "remark": "again"}, 422, "same retry key")
-}
-
-func TestUpgradeGivesProcessesInFlightACeiling(t *testing.T) {
-	home := t.TempDir()
-	path := filepath.Join(home, "deck.db")
-	conn, err := sql.Open("sqlite", path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	goose.SetBaseFS(os.DirFS("../../internal/store"))
-	if err := goose.SetDialect("sqlite3"); err != nil {
-		t.Fatal(err)
-	}
-	if err := goose.UpTo(conn, "migrations", 8); err != nil {
-		t.Fatal(err)
-	}
-	_, err = conn.Exec(`INSERT INTO project (id, name) VALUES (1, 'old');
-INSERT INTO process (id, project_id, command, state, session_id) VALUES (1, 1, 'job', 'running', 's'), (2, 1, 'job', 'done', 't');
-INSERT INTO ask (process_id, kind, text, created_at) VALUES (1, 'confirm', 'x', '2026-09-25T08:00:00.000Z')`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	_ = conn.Close()
-	st, err := store.Open(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer st.Close()
-	running, _ := st.Q.GetProcess(context.Background(), 1)
-	done, _ := st.Q.GetProcess(context.Background(), 2)
-	a, _ := st.Q.GetAsk(context.Background(), 1)
-	if running.CeilingMs != time.Hour.Milliseconds() || done.CeilingMs != 0 || a.ExpiresAt.String != "2026-09-26T08:00:00.000Z" {
-		t.Fatalf("a process in flight gets the default ceiling and an open confirmation the default day: %d %d %q",
-			running.CeilingMs, done.CeilingMs, a.ExpiresAt.String)
-	}
 }
 
 // TestProcessGetWaitsForTheEnd: with wait the status comes once the process finishes, so a caller does not poll.

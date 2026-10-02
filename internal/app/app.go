@@ -178,14 +178,14 @@ func (a *App) Close() error {
 
 // Fire starts the command of a trigger through the registry. Scheduled runs carry the trigger as their
 // retry key, so a run does not start while the previous one is still going.
-func (a *App) Fire(ctx context.Context, t db.TriggerState, input map[string]any) (int64, error) {
+func (a *App) Fire(ctx context.Context, t db.Trigger, input map[string]any) (int64, error) {
 	if t.Kind == trigger.KindCron || t.Kind == trigger.KindOnce {
 		input[manifest.RetryKey] = fmt.Sprintf("trigger:%d", t.ID)
 	}
 	return a.fire(ctx, t, input, 0)
 }
 
-func (a *App) fire(ctx context.Context, t db.TriggerState, input map[string]any, parent int64) (int64, error) {
+func (a *App) fire(ctx context.Context, t db.Trigger, input map[string]any, parent int64) (int64, error) {
 	p, err := a.Store.Q.GetProject(ctx, t.ProjectID)
 	if err != nil {
 		return 0, err

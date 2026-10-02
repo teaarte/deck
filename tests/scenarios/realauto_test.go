@@ -63,7 +63,7 @@ func realAutonomy(t *testing.T, home string, p provider.Provider, prompt string)
 		name, extra string
 		web         bool
 	}{{"open", "", true}, {"closed", `, "no_network": true`, false}} {
-		p := e.createProject(tc.name, autoManifest(prompt, tc.name, svc.URL, tc.extra, home))
+		p := e.createProject(tc.name, autoManifest(prompt, tc.name, svc.URL, tc.extra, deckhome.Layout(home).State()))
 		id := e.run(p, "work")
 		var asks []askView
 		confirmed := 0

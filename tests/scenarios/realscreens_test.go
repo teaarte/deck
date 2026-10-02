@@ -163,7 +163,7 @@ func TestRealBrowserSettings(t *testing.T) {
 	b.until("the revoked token", `[...document.querySelectorAll('tr')].some((r) => r.innerText.includes('shortcuts') && r.innerText.includes('revoked'))`)
 	b.shot("settings-tokens")
 
-	tab("Providers")
+	b.open(e.URL + "/#/p/web/settings")
 	b.until("the provider form", `document.querySelector('[data-form="deck.provider_set"] input[data-field="command"]')?.offsetParent`)
 	b.pick(`[data-form="deck.provider_set"] input[data-field="command"]`, "Score (web.score)")
 	b.pick(`[data-form="deck.provider_set"] input[data-field="provider"]`, "fake")

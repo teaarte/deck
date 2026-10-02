@@ -114,7 +114,7 @@ func TestRealACPAgents(t *testing.T) {
 			}
 			for i, tc := range []struct{ name, extra string }{{"open", ""}, {"closed", `, "no_network": true`}} {
 				data := filepath.Join(deckhome.Layout(home).Work(), "projects", itoa(next+int64(i)), "data")
-				p := e.acpProject(tc.name, acpRealManifest(tc.name, svc.URL, tc.extra, home, data))
+				p := e.acpProject(tc.name, acpRealManifest(tc.name, svc.URL, tc.extra, deckhome.Layout(home).State(), data))
 				if p != next+int64(i) {
 					t.Fatalf("project %s got id %d, the data folder in its prompt is for %d", tc.name, p, next+int64(i))
 				}

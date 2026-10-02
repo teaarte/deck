@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -322,4 +323,36 @@ func TestAPauseThatRunsOutFreesTheFolder(t *testing.T) {
 	}
 	e.waitState(a, "stopped")
 	e.waitState(b, "done")
+}
+
+// TestAStoppedAgentKeepsTheFolderUntilItsTurnExits: a stopped agent whose turn takes a while to die keeps the
+// folder, so the next one does not reach its provider in it until then, and it is not sent back meanwhile.
+func TestAStoppedAgentKeepsTheFolderUntilItsTurnExits(t *testing.T) {
+	dying := make(chan struct{})
+	var once sync.Once
+	let := func() { once.Do(func() { close(dying) }) }
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		if c.N == 1 {
+			<-ctx.Done()
+			<-dying
+		}
+		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
+	})
+	t.Cleanup(let)
+	p := e.createProject("code", testManifest([]string{folderCommand("run", "true")}, nil))
+	e.must("deck.folder_add", map[string]any{"project": "code", "path": repoFolder(t)}, nil)
+	first := e.run(p, "run")
+	e.waitFor("the first at its provider", func() bool { return len(e.Fake.Calls()) == 1 })
+	second := e.run(p, "run")
+	e.waitState(second, "waiting_folder")
+
+	e.must("deck.process_stop", map[string]any{"process": first}, nil)
+	e.waitState(first, "stopped")
+	e.refused("deck.process_rework", map[string]any{"process": first, "remark": "again"}, 409, "still stopping")
+	time.Sleep(300 * time.Millisecond)
+	if n := len(e.Fake.Calls()); n != 1 || e.process(second).State != "waiting_folder" {
+		t.Fatalf("the folder waits for the stopped turn to exit: %d calls, %s", n, e.process(second).State)
+	}
+	let()
+	e.waitState(second, "done")
 }

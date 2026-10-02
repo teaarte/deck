@@ -32,18 +32,17 @@ func (q *Queries) AddProjectFolder(ctx context.Context, arg AddProjectFolderPara
 	return i, err
 }
 
-const dropStaleFolderLock = `-- name: DropStaleFolderLock :exec
-DELETE FROM folder_lock
-WHERE path = ?1 AND process_id NOT IN (SELECT id FROM process WHERE finished_at IS NULL)
+const dropStaleFolderLocks = `-- name: DropStaleFolderLocks :exec
+DELETE FROM folder_lock WHERE process_id NOT IN (SELECT id FROM process WHERE finished_at IS NULL)
 `
 
-func (q *Queries) DropStaleFolderLock(ctx context.Context, path string) error {
-	_, err := q.db.ExecContext(ctx, dropStaleFolderLock, path)
+func (q *Queries) DropStaleFolderLocks(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, dropStaleFolderLocks)
 	return err
 }
 
 const folderBusy = `-- name: FolderBusy :one
-SELECT count(*) FROM folder_lock l JOIN process p ON p.id = l.process_id WHERE l.path = ? AND p.finished_at IS NULL
+SELECT count(*) FROM folder_lock WHERE path = ?
 `
 
 func (q *Queries) FolderBusy(ctx context.Context, path string) (int64, error) {

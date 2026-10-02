@@ -3,6 +3,7 @@ package process
 import (
 	"context"
 	"strings"
+	"time"
 
 	"deck2/internal/docs"
 	"deck2/internal/registry"
@@ -20,12 +21,12 @@ func (r *Runner) cut(ctx, turnCtx context.Context, processID int64) bool {
 	return err != nil || p.State != StateRunning
 }
 
-// Stop ends a process as stopped in the base, then cancels its live turn, whose outcome then finds it no longer
-// running; a live turn leaves the folder of the process when it exits.
+// stopGrace is how long a rework waits for the turn of a stopped process to exit.
+const stopGrace = 5 * time.Second
+
+// Stop ends a process as stopped in the base, then cancels the turn that lives by then, whose outcome finds it no
+// longer running; the folder, the hooks and a rework wait until that turn has exited.
 func (r *Runner) Stop(ctx context.Context, processID int64, reason string) error {
-	r.mu.Lock()
-	_, live := r.live[processID]
-	r.mu.Unlock()
 	var n int64
 	var closedCalls []db.Ask
 	err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
@@ -33,13 +34,8 @@ func (r *Runner) Stop(ctx context.Context, processID int64, reason string) error
 		if n, err = q.StopParkedProcess(ctx, db.StopParkedProcessParams{Error: reason, FinishedAt: r.stamp(), ID: processID}); err != nil || n == 0 {
 			return err
 		}
-		if closedCalls, err = q.CloseOpenAsksOfProcess(ctx, db.CloseOpenAsksOfProcessParams{ProcessID: processID, CallsToo: 1}); err != nil {
-			return err
-		}
-		if live {
-			return nil
-		}
-		return q.ReleaseFolderLocks(ctx, processID)
+		closedCalls, err = q.CloseOpenAsksOfProcess(ctx, db.CloseOpenAsksOfProcessParams{ProcessID: processID, CallsToo: 1})
+		return err
 	})
 	if err != nil {
 		return err
@@ -51,19 +47,40 @@ func (r *Runner) Stop(ctx context.Context, processID int64, reason string) error
 	lt := r.live[processID]
 	delete(r.marked, processID)
 	r.mu.Unlock()
-	if lt != nil {
-		lt.cancel(nil)
+	r.bus.Publish("processes")
+	after := func(ctx context.Context) {
+		r.dropped(ctx, closedCalls)
+		r.closed(ctx, processID)
 	}
-	if !live {
-		r.Wake(ctx)
+	if lt == nil {
+		r.leave(ctx, processID)
+		after(ctx)
+		return nil
 	}
-	r.dropped(ctx, closedCalls)
-	r.closed(ctx, processID)
+	lt.cancel(nil)
+	r.wg.Add(1)
+	go func() {
+		defer r.wg.Done()
+		<-lt.done
+		after(context.WithoutCancel(r.ctx))
+	}()
 	return nil
 }
 
 // Rework sends a finished process back to its session with the owner's remark and a full ceiling.
 func (r *Runner) Rework(ctx context.Context, processID int64, remark string) error {
+	r.mu.Lock()
+	lt := r.live[processID]
+	r.mu.Unlock()
+	if lt != nil {
+		select {
+		case <-lt.done:
+		case <-time.After(stopGrace):
+			return registry.Conflict("deck: process %d is still stopping; send it back once it has", processID)
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
 	p, err := r.st.Q.GetProcess(ctx, processID)
 	if err != nil {
 		return err

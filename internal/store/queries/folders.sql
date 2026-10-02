@@ -10,9 +10,8 @@ SELECT * FROM project_folder WHERE project_id = ? ORDER BY name;
 DELETE FROM project_folder WHERE project_id = ? AND name = ?;
 
 
--- name: DropStaleFolderLock :exec
-DELETE FROM folder_lock
-WHERE path = sqlc.arg(path) AND process_id NOT IN (SELECT id FROM process WHERE finished_at IS NULL);
+-- name: DropStaleFolderLocks :exec
+DELETE FROM folder_lock WHERE process_id NOT IN (SELECT id FROM process WHERE finished_at IS NULL);
 
 
 -- name: TakeFolderLock :exec
@@ -34,4 +33,4 @@ DELETE FROM folder_lock WHERE process_id = ?;
 
 
 -- name: FolderBusy :one
-SELECT count(*) FROM folder_lock l JOIN process p ON p.id = l.process_id WHERE l.path = ? AND p.finished_at IS NULL;
+SELECT count(*) FROM folder_lock WHERE path = ?;

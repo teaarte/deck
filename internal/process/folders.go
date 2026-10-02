@@ -12,9 +12,6 @@ import (
 func (r *Runner) holdFolder(ctx context.Context, t turn, folder string) bool {
 	held := false
 	err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		if err := q.DropStaleFolderLock(ctx, folder); err != nil {
-			return err
-		}
 		if err := q.TakeFolderLock(ctx, db.TakeFolderLockParams{Path: folder, ProcessID: t.process}); err != nil {
 			return err
 		}

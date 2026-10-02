@@ -94,6 +94,8 @@ type Runner struct {
 
 type liveTurn struct {
 	cancel context.CancelCauseFunc
+	// done closes once the turn has exited and left its folder.
+	done chan struct{}
 	// input carries the owner's messages into the turn; nil while the provider has none.
 	input chan provider.Message
 }
@@ -159,7 +161,7 @@ func (r *Runner) spawn(t turn) bool {
 		return false
 	}
 	ctx, cancel := context.WithCancelCause(r.ctx)
-	lt := &liveTurn{cancel: cancel}
+	lt := &liveTurn{cancel: cancel, done: make(chan struct{})}
 	r.live[t.process] = lt
 	t.live = lt
 	r.wg.Add(1)
@@ -173,6 +175,7 @@ func (r *Runner) spawn(t turn) bool {
 			r.mu.Unlock()
 			cancel(nil)
 			r.leave(context.WithoutCancel(ctx), t.process)
+			close(lt.done)
 		}()
 		r.run(ctx, t)
 	}()

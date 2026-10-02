@@ -134,6 +134,10 @@ func (r *Runner) ResumeInterrupted(ctx context.Context) error {
 	if err := r.reap(ctx); err != nil {
 		return err
 	}
+	// No turn lives yet, so a lock of a closed process is one an earlier deck left.
+	if err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error { return q.DropStaleFolderLocks(ctx) }); err != nil {
+		return err
+	}
 	if err := r.gw.Recover(ctx); err != nil {
 		return err
 	}

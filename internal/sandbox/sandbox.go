@@ -70,12 +70,17 @@ func real(path string) string {
 }
 
 // Hidden is what no confined program reads: the state of deck and the owner's credential stores.
-func Hidden(state string) []string {
-	out := []string{state}
-	if home, err := os.UserHomeDir(); err == nil {
-		for _, p := range private {
-			out = append(out, filepath.Join(home, p))
-		}
+func Hidden(state string) []string { return append([]string{state}, Private()...) }
+
+// Private are the owner's credential stores and the data of their other apps.
+func Private() []string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil
+	}
+	out := make([]string, 0, len(private))
+	for _, p := range private {
+		out = append(out, filepath.Join(home, p))
 	}
 	return out
 }

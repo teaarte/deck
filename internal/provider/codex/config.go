@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"deck2/internal/provider"
+	"deck2/internal/sandbox"
 )
 
 var envNames = []string{"PATH", "HOME", "USER", "LOGNAME", "SHELL", "LANG", "TZ", "TMPDIR", "CODEX_HOME"}
@@ -44,8 +45,10 @@ const profile = "deck"
 // the shell reads all but deck's and the owner's Codex folder and writes its own; the deepest path wins.
 func (a *Adapter) args(req provider.Request, skills string) ([]string, error) {
 	fs := map[string]string{":root": "read", ":tmpdir": "write", ":slash_tmp": "write"}
-	for _, p := range append(provider.Paths(a.Home), provider.Paths(codexHome())...) {
-		fs[p] = "deny"
+	for _, d := range append([]string{a.Home, codexHome()}, sandbox.Private()...) {
+		for _, p := range provider.Paths(d) {
+			fs[p] = "deny"
+		}
 	}
 	for _, h := range req.Hidden {
 		if !provider.Under(h, a.Home) {

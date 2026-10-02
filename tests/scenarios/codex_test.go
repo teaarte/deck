@@ -56,7 +56,9 @@ func TestCodexCommandAgentWorksThroughTheGateway(t *testing.T) {
 	}
 	work := filepath.Join(home, "runs", itoa(id), "work")
 	fs, _ := cc.config("permissions.deck.filesystem")
+	user, _ := os.UserHomeDir()
 	for _, want := range []string{quoteTOML(home) + `="deny"`, quoteTOML(cc.env["CODEX_HOME"]) + `="deny"`, quoteTOML(work) + `="write"`,
+		quoteTOML(filepath.Join(user, ".ssh")) + `="deny"`, quoteTOML(filepath.Join(user, ".claude")) + `="deny"`,
 		quoteTOML(filepath.Join(home, "projects", itoa(p), "data")) + `="write"`, quoteTOML(filepath.Join(home, "runs", itoa(id), "results")) + `="write"`} {
 		if !strings.Contains(fs, want) {
 			t.Fatalf("the profile of the turn has %s: %s", want, fs)

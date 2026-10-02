@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 	"syscall"
@@ -110,7 +111,7 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 		return provider.Result{}, err
 	}
 	defer os.Remove(cfg)
-	set, _ := json.Marshal(settings(req))
+	set, _ := json.Marshal(settings(req, filepath.Join(filepath.Dir(a.ConfigDir), "runs")))
 	setFile, err := a.writeFile("settings", set)
 	if err != nil {
 		return provider.Result{}, err

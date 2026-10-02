@@ -17,7 +17,6 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"deck2/internal/provider"
-	"deck2/internal/untrusted"
 )
 
 // Adapter runs `codex app-server` for one turn on the owner's shared login. See docs/spikes/codex.md.
@@ -51,14 +50,11 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 	}
 	thread := ""
 	if req.Resume {
-		b, err := os.ReadFile(a.sessionFile(req.SessionID))
-		if errors.Is(err, os.ErrNotExist) {
-			return provider.Result{SessionMissing: true}, nil
+		id, missing, err := provider.ReadSession(a.sessionFile(req.SessionID))
+		if missing || err != nil {
+			return provider.Result{SessionMissing: missing}, err
 		}
-		if err != nil {
-			return provider.Result{}, err
-		}
-		thread = strings.TrimSpace(string(b))
+		thread = id
 	}
 	if err := os.MkdirAll(a.Dir, 0o700); err != nil {
 		return provider.Result{}, err
@@ -74,17 +70,9 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 	if err != nil {
 		return provider.Result{}, err
 	}
-	stderr, err := os.CreateTemp(a.Dir, "stderr-*")
-	if err != nil {
-		return provider.Result{}, err
-	}
-	defer os.Remove(stderr.Name())
-	defer stderr.Close()
 	cmd := exec.Command(a.Binary, args...)
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	cmd.Dir = req.Cwd
 	cmd.Env = environ(os.Environ())
-	cmd.Stderr = stderr
 	in, err := cmd.StdinPipe()
 	if err != nil {
 		return provider.Result{}, err
@@ -93,13 +81,11 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 	if err != nil {
 		return provider.Result{}, err
 	}
-	if err := cmd.Start(); err != nil {
+	child, err := provider.Start(cmd, a.Dir, req.OnStart)
+	if err != nil {
 		return provider.Result{}, fmt.Errorf("start %s: %w", a.Binary, err)
 	}
-	if req.OnStart != nil {
-		req.OnStart(cmd.Process.Pid)
-	}
-	group := func(sig syscall.Signal) { _ = syscall.Kill(-cmd.Process.Pid, sig) }
+	defer child.Close()
 	exited := make(chan error, 1)
 	c := newConn(in, out)
 	t := &turn{a: a, req: req, c: c, thread: thread}
@@ -114,21 +100,19 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 	select {
 	case waitErr = <-exited:
 	case <-time.After(a.Linger):
-		group(syscall.SIGTERM)
+		child.Signal(syscall.SIGTERM)
 		select {
 		case waitErr = <-exited:
 		case <-time.After(5 * time.Second):
-			group(syscall.SIGKILL)
+			child.Signal(syscall.SIGKILL)
 			waitErr = <-exited
 		}
 	}
-	group(syscall.SIGKILL)
 	if err := ctx.Err(); err != nil {
 		return res, err
 	}
 	if runErr != nil {
-		b, _ := os.ReadFile(stderr.Name())
-		if tail := untrusted.Cut(strings.TrimSpace(string(b)), 2000); tail != "" && t.completed == 0 {
+		if tail := child.Stderr(); tail != "" && t.completed == 0 {
 			runErr = fmt.Errorf("%w (exit: %v): %s", runErr, waitErr, tail)
 		}
 	}

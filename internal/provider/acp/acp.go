@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"syscall"
 	"time"
 
 	sdk "github.com/coder/acp-go-sdk"
@@ -21,7 +22,6 @@ import (
 	"deck2/internal/nonce"
 	"deck2/internal/provider"
 	"deck2/internal/sandbox"
-	"deck2/internal/untrusted"
 )
 
 // Config is one provider of the owner: an ACP agent on the model of an OpenAI-compatible API.
@@ -110,14 +110,11 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 	dir := a.sessionDir(req.SessionID)
 	agentSession := ""
 	if req.Resume {
-		b, err := os.ReadFile(filepath.Join(dir, "session"))
-		if errors.Is(err, os.ErrNotExist) {
-			return provider.Result{SessionMissing: true}, nil
+		id, missing, err := provider.ReadSession(filepath.Join(dir, "session"))
+		if missing || err != nil {
+			return provider.Result{SessionMissing: missing}, err
 		}
-		if err != nil {
-			return provider.Result{}, err
-		}
-		agentSession = strings.TrimSpace(string(b))
+		agentSession = id
 	}
 	home := filepath.Join(dir, "home")
 	if err := os.MkdirAll(filepath.Join(home, "tmp"), 0o700); err != nil {
@@ -192,13 +189,6 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 	if err != nil {
 		return provider.Result{}, err
 	}
-	stderr, err := os.CreateTemp(dir, "stderr-*")
-	if err != nil {
-		return provider.Result{}, err
-	}
-	defer os.Remove(stderr.Name())
-	defer stderr.Close()
-	cmd.Stderr = stderr
 	in, err := cmd.StdinPipe()
 	if err != nil {
 		return provider.Result{}, err
@@ -207,13 +197,11 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 	if err != nil {
 		return provider.Result{}, err
 	}
-	if err := cmd.Start(); err != nil {
+	child, err := provider.Start(cmd, dir, req.OnStart)
+	if err != nil {
 		return provider.Result{}, fmt.Errorf("start %s: %w", a.cfg.Agent, err)
 	}
-	defer sandbox.End(cmd)
-	if req.OnStart != nil {
-		req.OnStart(cmd.Process.Pid)
-	}
+	defer child.Close()
 	c := &client{onEvent: req.OnEvent}
 	conn := sdk.NewClientSideConnection(c, in, out)
 	conn.SetLogger(slog.New(slog.DiscardHandler))
@@ -224,7 +212,7 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 	select {
 	case <-conn.Done():
 	case <-time.After(a.Linger):
-		sandbox.End(cmd)
+		child.Signal(syscall.SIGKILL)
 		select {
 		case <-conn.Done():
 		case <-time.After(5 * time.Second):
@@ -235,8 +223,7 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 		return res, err
 	}
 	if runErr != nil {
-		b, _ := os.ReadFile(stderr.Name())
-		if tail := untrusted.Cut(strings.TrimSpace(string(b)), 2000); tail != "" {
+		if tail := child.Stderr(); tail != "" {
 			runErr = fmt.Errorf("%w (exit: %v): %s", runErr, waitErr, tail)
 		}
 	}

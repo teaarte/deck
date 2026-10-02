@@ -2,6 +2,7 @@ package codex
 
 import (
 	"bufio"
+	"deck2/internal/provider"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -25,54 +26,23 @@ type rpcError struct {
 
 func (e *rpcError) Error() string { return fmt.Sprintf("%s (%d)", e.Message, e.Code) }
 
-// conn speaks JSON-RPC over the app-server's stdin and stdout; lines to stdin queue and go out in their own
-// goroutine, so the turn never stops reading while the app-server does not read.
+// conn speaks JSON-RPC over the app-server's stdin and stdout; lines to stdin go out in order from a writer of
+// their own, so the turn never stops reading while the app-server does not read.
 type conn struct {
 	mu      sync.Mutex
-	w       io.WriteCloser
+	out     *provider.Writer
 	next    int
 	pending map[string]chan message
 	closed  bool
 	// incoming gets notifications and server requests in order; it closes when the output ends.
 	incoming chan message
 	readErr  error
-
-	outMu   sync.Mutex
-	outWake *sync.Cond
-	out     [][]byte
-	ending  bool
 }
 
 func newConn(w io.WriteCloser, r io.Reader) *conn {
-	c := &conn{w: w, pending: map[string]chan message{}, incoming: make(chan message, 64)}
-	c.outWake = sync.NewCond(&c.outMu)
+	c := &conn{out: provider.NewWriter(w), pending: map[string]chan message{}, incoming: make(chan message, 64)}
 	go c.read(r)
-	go c.writeOut()
 	return c
-}
-
-func (c *conn) writeOut() {
-	defer c.w.Close()
-	for {
-		c.outMu.Lock()
-		for len(c.out) == 0 && !c.ending {
-			c.outWake.Wait()
-		}
-		lines, end := c.out, c.ending
-		c.out = nil
-		c.outMu.Unlock()
-		for _, l := range lines {
-			if _, err := c.w.Write(l); err != nil {
-				c.outMu.Lock()
-				c.ending = true
-				c.outMu.Unlock()
-				return
-			}
-		}
-		if end {
-			return
-		}
-	}
 }
 
 func (c *conn) read(r io.Reader) {
@@ -111,13 +81,9 @@ func (c *conn) write(v any) error {
 	if err != nil {
 		return err
 	}
-	c.outMu.Lock()
-	defer c.outMu.Unlock()
-	if c.ending {
+	if _, err := c.out.Write(append(b, '\n')); err != nil {
 		return errors.New("codex app-server input is closed")
 	}
-	c.out = append(c.out, append(b, '\n'))
-	c.outWake.Signal()
 	return nil
 }
 
@@ -183,9 +149,4 @@ func (c *conn) ended(text string) error {
 }
 
 // closeInput closes stdin once the queued lines are out.
-func (c *conn) closeInput() {
-	c.outMu.Lock()
-	c.ending = true
-	c.outWake.Signal()
-	c.outMu.Unlock()
-}
+func (c *conn) closeInput() { c.out.Close() }

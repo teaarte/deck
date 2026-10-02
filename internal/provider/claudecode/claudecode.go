@@ -11,11 +11,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"sync"
 	"syscall"
 	"time"
-
-	"deck2/internal/untrusted"
 
 	"deck2/internal/provider"
 )
@@ -124,12 +121,6 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 	if plugin != "" {
 		defer os.RemoveAll(plugin)
 	}
-	stderr, err := os.CreateTemp(a.ConfigDir, "stderr-*")
-	if err != nil {
-		return provider.Result{}, err
-	}
-	defer os.Remove(stderr.Name())
-	defer stderr.Close()
 	inR, inW, err := os.Pipe()
 	if err != nil {
 		return provider.Result{}, err
@@ -144,53 +135,29 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 	defer inW.Close()
 
 	cmd := exec.Command(a.Binary, a.args(req, cfg, setFile, plugin)...)
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	cmd.Dir = req.Cwd
 	cmd.Env = environ(os.Environ())
-	cmd.Stdin, cmd.Stdout, cmd.Stderr = inR, outW, stderr
-	err = cmd.Start()
+	cmd.Stdin, cmd.Stdout = inR, outW
+	child, err := provider.Start(cmd, a.ConfigDir, req.OnStart)
 	inR.Close()
 	outW.Close()
 	if err != nil {
+		inW.Close()
 		return provider.Result{}, fmt.Errorf("start %s: %w", a.Binary, err)
 	}
-	group := func(sig syscall.Signal) { _ = syscall.Kill(-cmd.Process.Pid, sig) }
-	if req.OnStart != nil {
-		req.OnStart(cmd.Process.Pid)
-	}
+	defer child.Close()
+	group := child.Signal
 
-	// stdin stays open for live messages until the first result; one writer writes them in order, then EOF.
-	type write struct {
-		b    []byte
-		done chan error
-	}
-	queue := make(chan write, 16)
-	var inMu sync.Mutex
-	inClosed := false
-	closeIn := func() {
-		inMu.Lock()
-		defer inMu.Unlock()
-		if !inClosed {
-			inClosed = true
-			close(queue)
+	// stdin stays open for live messages until the first result; they go out in order, then EOF.
+	stdin := provider.NewWriter(inW)
+	closeIn := stdin.Close
+	enqueue := func(b []byte) <-chan error {
+		done, err := stdin.Write(b)
+		if err != nil {
+			failed := make(chan error, 1)
+			failed <- err
+			return failed
 		}
-	}
-	go func() {
-		defer inW.Close()
-		for w := range queue {
-			_, err := inW.Write(w.b)
-			w.done <- err
-		}
-	}()
-	enqueue := func(b []byte) chan error {
-		done := make(chan error, 1)
-		inMu.Lock()
-		defer inMu.Unlock()
-		if inClosed {
-			done <- errors.New("stdin is closed")
-			return done
-		}
-		queue <- write{b, done}
 		return done
 	}
 	sent := enqueue(input(req))
@@ -288,6 +255,5 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 	if scanErr != nil && !errors.Is(scanErr, os.ErrClosed) {
 		return t.res, fmt.Errorf("read %s output: %w", a.Binary, scanErr)
 	}
-	b, _ := os.ReadFile(stderr.Name())
-	return t.finish(waitErr, untrusted.Cut(strings.TrimSpace(string(b)), 2000), promptErr)
+	return t.finish(waitErr, child.Stderr(), promptErr)
 }

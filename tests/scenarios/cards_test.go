@@ -452,10 +452,11 @@ func TestUndoOfAModuleButtonIsACallOfItsOwn(t *testing.T) {
 			`"actions": [{"label": "Open", "screen": "note"}, {"label": "Mark", "command": "mark"`+undo+`}]`, 1)
 	}
 	for undo, want := range map[string]string{
-		`, "confirm": true, "undo": {"command": "tag"}`: "asks no yes first",
-		`, "undo": {"command": "tag", "input": "tag"}`:  "a command with params, nothing else",
-		`, "undo": {"screen": "note"}`:                  "a command with params, nothing else",
-		`, "undo": {"command": "nope"}`:                 "nope",
+		`, "confirm": true, "undo": {"command": "tag"}`:                 "asks no yes first",
+		`, "undo": {"command": "tag", "input": "tag"}`:                  "a command with params, nothing else",
+		`, "undo": {"screen": "note"}`:                                  "a command with params, nothing else",
+		`, "undo": {"command": "tag", "until": "2026-01-01T00:00:00Z"}`: "a command with params, nothing else",
+		`, "undo": {"command": "nope"}`:                                 "nope",
 	} {
 		e.refused("deck.project_create", map[string]any{"name": "bad", "manifest": with(undo)}, 422, want)
 	}

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"reflect"
 	"slices"
 	"strconv"
 	"strings"
@@ -340,7 +341,7 @@ func (c *screenCheck) action(b Block, a Action, fields []string) error {
 			return errors.New("undo takes back a call; the button calls a command")
 		case a.Confirm:
 			return errors.New("a button with undo asks no yes first")
-		case u.Command == "" || u.Label != "" || u.Verb != "" || u.When != "" || u.Input != "" || u.Confirm || u.Chat || u.Undo != nil:
+		case u.Command == "" || !reflect.DeepEqual(Action{Command: u.Command, Params: u.Params}, *u):
 			return errors.New("undo is a command with params, nothing else")
 		}
 		v := *u

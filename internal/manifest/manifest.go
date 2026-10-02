@@ -85,9 +85,11 @@ type Executor struct {
 	Prompt     string   `json:"prompt,omitempty"`
 	PromptFile string   `json:"prompt_file,omitempty"`
 	Skills     []string `json:"skills,omitempty"`
-	Script     string   `json:"script,omitempty"`
-	Tool       string   `json:"tool,omitempty"`
-	Folder     Folder   `json:"folder,omitzero"`
+	// Calls, when set, are the registry commands an agent may call, as names or prefixes such as deck.*.
+	Calls  []string `json:"calls,omitempty"`
+	Script string   `json:"script,omitempty"`
+	Tool   string   `json:"tool,omitempty"`
+	Folder Folder   `json:"folder,omitzero"`
 }
 
 // Folder names the project folder an agent works in; Only is the one folder of a project with a single folder.

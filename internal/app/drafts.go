@@ -248,7 +248,7 @@ func rights(m *manifest.Manifest) []string {
 // that may try runs any project command this way, though not a command closed to its kind of caller.
 func (a *App) commandTry(ctx context.Context, act registry.Actor, in struct{ Command, Input string }) (any, error) {
 	probe := act
-	probe.Token = 0
+	probe.Token, probe.Commands = 0, nil
 	c, input, err := a.Registry.Resolve(ctx, probe, in.Command, json.RawMessage(in.Input))
 	switch {
 	case err != nil:

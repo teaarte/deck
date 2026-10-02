@@ -56,6 +56,13 @@
         "prompt_file": "prompts/memory.md",
         "skills": [
           "memory"
+        ],
+        "calls": [
+          "deck.projects_list",
+          "deck.documents_list",
+          "deck.document_get",
+          "deck.document_save",
+          "deck.document_delete"
         ]
       }
     },
@@ -77,6 +84,22 @@
         "prompt_file": "prompts/review.md",
         "skills": [
           "dispatch"
+        ],
+        "calls": [
+          "deck.projects_list",
+          "deck.cards_list",
+          "deck.card_get",
+          "deck.processes_list",
+          "deck.process_get",
+          "deck.process_log",
+          "deck.documents_list",
+          "deck.document_get",
+          "deck.manifest_get",
+          "deck.asks_list",
+          "deck.records_list",
+          "deck.record_get",
+          "deck.suggestions_rejected",
+          "deck.suggest"
         ]
       }
     },
@@ -108,7 +131,23 @@
       },
       "executor": {
         "type": "agent",
-        "prompt_file": "prompts/on_error.md"
+        "prompt_file": "prompts/on_error.md",
+        "calls": [
+          "deck.projects_list",
+          "deck.cards_list",
+          "deck.card_get",
+          "deck.processes_list",
+          "deck.process_get",
+          "deck.process_log",
+          "deck.documents_list",
+          "deck.document_get",
+          "deck.manifest_get",
+          "deck.asks_list",
+          "deck.records_list",
+          "deck.record_get",
+          "deck.suggestions_rejected",
+          "deck.suggest"
+        ]
       }
     }
   ],

@@ -2,6 +2,8 @@ package scenarios
 
 import (
 	"context"
+	"fmt"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -134,4 +136,43 @@ func TestMasterOwnErrorsDoNotReachItself(t *testing.T) {
 	if len(as) != 1 || as[0].Kind != "warning" || !strings.Contains(as[0].Text, "review failed:") || !strings.Contains(as[0].Text, "the model is overloaded") {
 		t.Fatalf("it waits for the owner instead: %+v", as)
 	}
+}
+
+// TestReviewCallsOnlyWhatItsCommandLists: the daily review reads and suggests; changing a project is not among
+// its tools, and a call by name is refused.
+func TestReviewCallsOnlyWhatItsCommandLists(t *testing.T) {
+	var tools []string
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		tools = c.Req.AllowedTools
+		out, bad := c.Tool(ctx, "manifest_save", map[string]any{"project": "work", "manifest": boardWork})
+		return provider.Result{Text: fmt.Sprintf("%v %s", bad, out)}
+	})
+	e.masterAwake()
+	e.createProject("work", boardWork)
+	var r struct{ Process int64 }
+	e.must("master.review", map[string]any{}, &r)
+	got := e.waitState(r.Process, "done", "error")
+	if !strings.HasPrefix(string(got.Result), `"true`) || !slices.Contains(tools, "mcp__deck__suggest") ||
+		slices.Contains(tools, "mcp__deck__manifest_save") || slices.Contains(tools, "mcp__deck__card_move") {
+		t.Fatalf("the review gets the tools it lists and no other: %s %v", got.Result, tools)
+	}
+}
+// TestReviewCallSuggestionRunsInAnAutoProject: the call a review suggests is done at once in a project on auto,
+// though the review itself may not call that command.
+func TestReviewCallSuggestionRunsInAnAutoProject(t *testing.T) {
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		if c.command() == "review" {
+			out, bad := c.Tool(ctx, "suggest", map[string]any{"command": "beta.work", "input": "{}", "reason": "it has not run for a week"})
+			return provider.Result{Text: fmt.Sprintf("%v %s", bad, out)}
+		}
+		return provider.Result{Text: "worked"}
+	})
+	e.masterAwake()
+	e.createProject("beta", strings.Replace(boardWork, `"version": 4,`, `"version": 4, "autonomy": "auto",`, 1))
+	var r struct{ Process int64 }
+	e.must("master.review", map[string]any{}, &r)
+	if got := e.waitState(r.Process, "done", "error"); !strings.HasPrefix(string(got.Result), `"false`) {
+		t.Fatalf("the suggested call is made: %s", got.Result)
+	}
+	e.waitFor("beta.work", func() bool { return len(e.runsOf("beta", "work")) == 1 })
 }

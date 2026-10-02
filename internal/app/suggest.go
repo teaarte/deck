@@ -154,6 +154,8 @@ func (a *App) doSuggestion(ctx context.Context, act registry.Actor, p db.Project
 		row.Command, row.Params = registry.Builtin+".card_delete", string(params)
 	} else {
 		var err error
+		// The suggestion names the call, so the calls list of the suggesting command does not narrow it.
+		act.Commands = nil
 		if out, err = a.Gateway.CallAs(ctx, act, s.Call.Command, s.Call.Input); err != nil {
 			return nil, err
 		}

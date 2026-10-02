@@ -121,7 +121,7 @@ func (r *Runner) run(ctx context.Context, t turn) {
 		sub = &gateway.Submit{Schema: t.cmd.Result, Validate: func(raw json.RawMessage) error { return validate(t.cmd, raw) }}
 	}
 	tok, err := r.gw.Register(bg, &gateway.Session{ProcessID: processID, ProjectID: t.project, Workspace: proj.WorkspaceID, Trial: trial, Submit: sub,
-		Ask: pv.QuestionTool() == provider.AskTool, Wait: callLimit(pv), Master: proj.Builtin == 1})
+		Ask: pv.QuestionTool() == provider.AskTool, Wait: callLimit(pv), Master: proj.Builtin == 1, Commands: t.cmd.Executor.Calls})
 	if err != nil {
 		r.finish(bg, processID, StateError, "", false, err.Error())
 		return

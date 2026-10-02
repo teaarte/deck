@@ -37,7 +37,8 @@ type Session struct {
 	Workspace int64
 	Trial     bool
 	// Token is set for an automation token: the caller acts as the master, limited to Commands.
-	Token    int64
+	Token int64
+	// Commands, when not nil, are all an automation token or an agent may call.
 	Commands []string
 	// Submit is set when the process hands in its result with result_submit.
 	Submit *Submit
@@ -54,9 +55,11 @@ func (s *Session) actor() registry.Actor {
 		return registry.Actor{Kind: registry.Master, Workspace: s.Workspace, Token: s.Token, Commands: s.Commands}
 	}
 	if s.Master {
-		return registry.Actor{Kind: registry.Master, Workspace: s.Workspace, ProjectID: s.ProjectID, ProcessID: s.ProcessID, Trial: s.Trial}
+		return registry.Actor{Kind: registry.Master, Workspace: s.Workspace, ProjectID: s.ProjectID, ProcessID: s.ProcessID, Trial: s.Trial,
+			Commands: s.Commands}
 	}
-	return registry.Actor{Kind: registry.Agent, Workspace: s.Workspace, ProjectID: s.ProjectID, ProcessID: s.ProcessID, Trial: s.Trial}
+	return registry.Actor{Kind: registry.Agent, Workspace: s.Workspace, ProjectID: s.ProjectID, ProcessID: s.ProcessID, Trial: s.Trial,
+		Commands: s.Commands}
 }
 
 // Projects gives the gateway the current manifest of a project.

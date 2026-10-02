@@ -58,6 +58,14 @@ func Widens(prev, next *Manifest) []string {
 		if c.Provider != old.Provider {
 			add("command %s: provider %q instead of %q", c.Name, c.Provider, old.Provider)
 		}
+		switch {
+		case old.Executor.Calls != nil && c.Executor.Calls == nil:
+			add("command %s: its agent may call every command", c.Name)
+		case old.Executor.Calls != nil:
+			for _, n := range added(old.Executor.Calls, c.Executor.Calls) {
+				add("command %s: its agent may call %s", c.Name, n)
+			}
+		}
 		for _, who := range added(old.Callable(), c.Callable()) {
 			add("command %s: callable by %s", c.Name, who)
 		}

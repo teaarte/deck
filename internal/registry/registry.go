@@ -43,8 +43,9 @@ type Actor struct {
 	TriggerID int64
 	// Confirmed marks a call of a trigger the owner asked for or said yes to: its schedule checks do not apply.
 	Confirmed bool
-	// Token is the automation token a master-side caller came with; Commands are the ones it may call.
-	Token    int64
+	// Token is the automation token a master-side caller came with.
+	Token int64
+	// Commands narrow what a token or an agent whose command lists its calls may call.
 	Commands []string
 	// Trial marks a trial run: every call that is not internal is declined.
 	Trial bool
@@ -282,6 +283,9 @@ func (r *Registry) reachable(a Actor, c *Command) error {
 	}
 	if a.Token != 0 && !Permits(a.Commands, c.Name) {
 		return Refuse("deck: this automation token may not call %s", c.Name)
+	}
+	if a.Commands != nil && !Permits(a.Commands, c.Name) {
+		return Refuse("deck: the command of this agent does not list %s in its calls", c.Name)
 	}
 	if a.Trial && c.Class != Internal {
 		return Refuse("deck: trial run: %s is %s, so it was declined", c.Name, c.Class)

@@ -234,3 +234,33 @@ func TestAYesThatFailsLeavesTheSuggestionOpen(t *testing.T) {
 		t.Fatal("the suggestion waits again after a yes that failed")
 	}
 }
+
+// TestASuggestionIsAFrozenCallInTheJournal: a suggested card is a frozen deck.card_create; the journal of calls
+// shows it waiting and, once the owner allows it, made as the owner.
+func TestASuggestionIsAFrozenCallInTheJournal(t *testing.T) {
+	e := newEnv(t, suggester)
+	e.createProject("alpha", suggestManifest)
+	e.createProject("beta", boardWork)
+	var r struct{ Process int64 }
+	e.must("alpha.work", map[string]any{"into": "beta"}, &r)
+	e.waitState(r.Process, "done")
+	ss := e.suggestions()
+	if len(ss) != 1 {
+		t.Fatalf("one suggestion: %+v", ss)
+	}
+	e.answer(ss[0].ID, "allow")
+	var calls []struct{ Tool, Actor, Outcome, Project string }
+	e.must("deck.calls_list", map[string]any{"project": "beta"}, &calls)
+	var outcomes []string
+	for _, c := range calls {
+		if c.Tool == "deck.card_create" {
+			outcomes = append(outcomes, c.Actor+" "+c.Outcome)
+		}
+	}
+	if len(outcomes) != 2 || outcomes[0] != "owner done" || !strings.HasSuffix(outcomes[1], " waiting") || !strings.HasPrefix(outcomes[1], "agent:") {
+		t.Fatalf("the journal shows the suggestion waiting for the agent and made as the owner: %v", outcomes)
+	}
+	if got := e.cardTitles("beta"); len(got) != 1 {
+		t.Fatalf("the card is made: %v", got)
+	}
+}

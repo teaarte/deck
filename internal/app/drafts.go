@@ -10,6 +10,7 @@ import (
 
 	"deck2/internal/ask"
 	"deck2/internal/docs"
+	"deck2/internal/gateway"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store"
@@ -32,13 +33,6 @@ func (a *App) widens(ctx context.Context, q *db.Queries, act registry.Actor, pro
 	return manifest.Widens(prev, next), nil
 }
 
-type grant struct {
-	Call     Call     `json:"call"`
-	Author   string   `json:"author"`
-	Widens   []string `json:"widens"`
-	Revision int64    `json:"revision"`
-}
-
 // ask freezes a change that widens rights until the owner allows it; the frozen call applies only while the
 // manifest is still at revision.
 func (a *App) ask(ctx context.Context, q *db.Queries, act registry.Actor, p db.Project, revision int64, widens []string, reason string, call Call) (Saved, error) {
@@ -46,41 +40,38 @@ func (a *App) ask(ctx context.Context, q *db.Queries, act registry.Actor, p db.P
 	for k, v := range call.Input {
 		input[k] = v
 	}
-	call.Input = input
-	payload, _ := json.Marshal(grant{Call: call, Author: act.Author(), Widens: widens, Revision: revision})
+	raw, _ := json.Marshal(input)
+	f := gateway.Freeze(act, call.Command, raw)
+	f.As, f.Reason, f.Widens = gateway.AsOwner, reason, widens
 	text := fmt.Sprintf("%s wants to change the manifest of %s (%s); it widens: %s", act.Author(), p.Name,
 		orText(reason, "no reason given"), strings.Join(widens, "; "))
-	row, err := ask.ForProject(ctx, q, p.WorkspaceID, p.ID, 0, ask.KindGrant, text, string(payload), time.Time{})
+	row, err := gateway.Hold(ctx, q, act, p.ID, ask.KindGrant, registry.Internal, text, f, time.Time{})
 	return Saved{Waiting: row.ID, Widens: widens}, err
 }
 
-// grantAnswer runs the frozen call of an allowed grant as the owner and closes the grant only when it applied.
+// grantAnswer makes the frozen call of an allowed grant as the owner; the grant closes only when it applied.
 func (a *App) grantAnswer(ctx context.Context, act registry.Actor, q db.Ask, answer string) (any, error) {
-	if answer != "allow" && answer != "deny" && !strings.HasPrefix(answer, "deny:") {
-		return nil, registry.Invalid("deck: answer a grant with allow, deny or deny:<reason>")
-	}
-	var out any = map[string]any{"ok": true}
-	if answer == "allow" {
-		var g grant
-		if err := json.Unmarshal([]byte(q.Payload), &g); err != nil {
-			return nil, err
+	switch {
+	case answer == "allow":
+		out, err := a.Gateway.Decide(ctx, act, q, answer, nil)
+		switch {
+		case errors.Is(err, ask.ErrNotOpen):
+			return nil, notOpen
+		case registry.Status(err) == 409:
+			return nil, registry.Conflict("deck: the manifest changed after this request; deny it and ask again")
 		}
-		in, _ := json.Marshal(g.Call.Input)
-		var err error
-		if out, err = a.Registry.Invoke(ctx, act, g.Call.Command, in); err != nil {
-			if registry.Status(err) == 409 {
-				return nil, registry.Conflict("deck: the manifest changed after this request; deny it and ask again")
+		return out, err
+	case answer == "deny" || strings.HasPrefix(answer, "deny:"):
+		if err := a.Asks.Answer(ctx, q.ID, answer); err != nil {
+			if errors.Is(err, ask.ErrNotOpen) {
+				return nil, notOpen
 			}
 			return nil, err
 		}
+		a.Gateway.Record(ctx, q, "rejected", "the owner said no")
+		return map[string]any{"ok": true}, nil
 	}
-	if err := a.Asks.Answer(ctx, q.ID, answer); err != nil {
-		if errors.Is(err, ask.ErrNotOpen) {
-			return nil, notOpen
-		}
-		return nil, err
-	}
-	return out, nil
+	return nil, registry.Invalid("deck: answer a grant with allow, deny or deny:<reason>")
 }
 
 type projectEnableIn struct {

@@ -32,7 +32,7 @@ func (a *App) decide(ctx context.Context, act registry.Actor, q db.Ask, answer s
 		if answer == "allow_always" {
 			then = func() error { return a.allowAlways(ctx, act, q) }
 		}
-		out, err := a.Gateway.Decide(ctx, q, answer, then)
+		out, err := a.Gateway.Decide(ctx, act, q, answer, then)
 		if errors.Is(err, ask.ErrNotOpen) {
 			return nil, notOpen
 		}

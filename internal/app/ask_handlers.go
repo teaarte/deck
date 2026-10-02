@@ -110,11 +110,9 @@ func (a *App) askRow(ctx context.Context, q db.Ask, names map[int64]string) askR
 		_ = json.Unmarshal([]byte(q.Payload), &pl)
 		r.Where = cmp.Or(pl["site"], pl["tool"])
 	case ask.KindSuggest:
-		var pl struct {
-			By string `json:"by"`
-		}
-		_ = json.Unmarshal([]byte(q.Payload), &pl)
-		r.Who, r.Where = pl.By, strings.TrimPrefix(q.Text, firstLine(q.Text)+"\n")
+		var f gateway.Frozen
+		_ = json.Unmarshal([]byte(q.Payload), &f)
+		r.Who, r.Where = a.callerName(ctx, f.Caller), strings.TrimPrefix(q.Text, firstLine(q.Text)+"\n")
 	}
 	return r
 }

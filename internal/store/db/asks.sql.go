@@ -700,15 +700,6 @@ func (q *Queries) ReopenDecision(ctx context.Context, id int64) error {
 	return err
 }
 
-const reopenSuggestion = `-- name: ReopenSuggestion :exec
-UPDATE ask SET state = 'open', answer = '', answered_at = NULL WHERE id = ? AND kind = 'suggest' AND state = 'answered'
-`
-
-func (q *Queries) ReopenSuggestion(ctx context.Context, id int64) error {
-	_, err := q.db.ExecContext(ctx, reopenSuggestion, id)
-	return err
-}
-
 const useApproval = `-- name: UseApproval :execrows
 UPDATE ask SET state = 'used', delivered_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ? AND state = 'answered'
 `

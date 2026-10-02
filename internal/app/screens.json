@@ -18,7 +18,7 @@
             {"verb": "yes", "primary": true, "command": "deck.ask_answer", "params": {"ask": "$record.id", "answer": "allow"}, "when": "kind == 'suggest' && !expired"},
             {"verb": "deny", "command": "deck.ask_answer", "params": {"ask": "$record.id", "answer": "deny"}, "when": "kind in ['call', 'confirm', 'grant', 'suggest'] && !expired"},
             {"verb": "deny_because", "command": "deck.ask_answer", "params": {"ask": "$record.id", "answer": "deny"}, "input": "reason", "when": "kind in ['call', 'confirm', 'grant', 'suggest'] && !expired"},
-            {"verb": "move", "command": "deck.ask_answer", "params": {"ask": "$record.id", "answer": "move"}, "input": "project", "when": "kind == 'suggest' && payload?.card != nil && !expired"},
+            {"verb": "move", "command": "deck.ask_answer", "params": {"ask": "$record.id", "answer": "move"}, "input": "project", "when": "kind == 'suggest' && payload?.call?.command == 'deck.card_create' && !expired"},
             {"verb": "retry", "primary": true, "command": "deck.ask_answer", "params": {"ask": "$record.id", "answer": "retry"}, "when": "kind == 'login' && !expired"},
             {"verb": "new_session", "command": "deck.ask_answer", "params": {"ask": "$record.id", "answer": "new_session"}, "when": "kind == 'login' && !expired"},
             {"verb": "continue", "primary": true, "command": "deck.ask_answer", "params": {"ask": "$record.id", "answer": "continue"}, "when": "kind == 'limit' && !expired"},

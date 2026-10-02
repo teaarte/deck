@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -18,32 +19,21 @@ import (
 	"deck2/internal/untrusted"
 )
 
-// suggestion is the draft an ask of kind suggest holds: one card for a project or one call of a command.
-type suggestion struct {
-	Card   *suggestedCard `json:"card,omitempty"`
-	Call   *suggestedCall `json:"call,omitempty"`
-	Reason string         `json:"reason"`
-	By     string         `json:"by"`
-}
-
-type suggestedCard struct {
+// cardSuggestion is the input of the deck.card_create a card suggestion freezes.
+type cardSuggestion struct {
 	Project string `json:"project"`
 	Title   string `json:"title"`
 	Text    string `json:"text,omitempty"`
 	Record  int64  `json:"record,omitempty"`
 }
 
-type suggestedCall struct {
-	Command string          `json:"command"`
-	Input   json.RawMessage `json:"input"`
-}
-
-// what is the draft in one line, as the owner and later suggesters read it.
-func (s suggestion) what() string {
-	if s.Card != nil {
-		return fmt.Sprintf("card in %s: %s", s.Card.Project, untrusted.Line(s.Card.Title, 200))
+// suggested is what a suggestion does, in one line as the owner and later suggesters read it.
+func suggested(f gateway.Frozen) string {
+	var c cardSuggestion
+	if f.Call.Command == registry.Builtin+".card_create" && json.Unmarshal(f.Call.Input, &c) == nil {
+		return fmt.Sprintf("card in %s: %s", c.Project, untrusted.Line(c.Title, 200))
 	}
-	return fmt.Sprintf("call %s with %s", s.Call.Command, untrusted.Cut(string(s.Call.Input), 300))
+	return fmt.Sprintf("call %s with %s", f.Call.Command, untrusted.Cut(string(f.Call.Input), 300))
 }
 
 // suggestDays is how many days a suggestion waits for the owner before it expires.
@@ -72,9 +62,10 @@ func (a *App) suggest(ctx context.Context, act registry.Actor, in suggestIn) (an
 	case (in.Title == "") == (in.Command == ""):
 		return nil, registry.Invalid("deck: suggest either a card (title) or a call (command), one of them")
 	}
-	s := suggestion{Reason: untrusted.Cut(strings.Join(strings.Fields(reason), " "), 300), By: act.Author()}
+	var f gateway.Frozen
 	var target db.Project
 	var err error
+	class := registry.Internal
 	if in.Command != "" {
 		c, err := a.Registry.Lookup(ctx, act.Workspace, in.Command)
 		if err != nil {
@@ -93,36 +84,38 @@ func (a *App) suggest(ctx context.Context, act registry.Actor, in suggestIn) (an
 		if _, err := c.Validate(input); err != nil {
 			return nil, err
 		}
-		s.Call = &suggestedCall{Command: in.Command, Input: json.RawMessage(gateway.Canonical(input))}
+		f, class = gateway.Freeze(act, in.Command, input), c.Class
 	} else {
 		if target, err = a.suggestTarget(ctx, act, in.Project); err != nil {
 			return nil, err
 		}
-		s.Card = &suggestedCard{Project: target.Name, Title: strings.TrimSpace(in.Title), Text: in.Text, Record: in.Record}
+		card, _ := json.Marshal(cardSuggestion{Project: target.Name, Title: strings.TrimSpace(in.Title), Text: in.Text, Record: in.Record})
+		f = gateway.Freeze(act, registry.Builtin+".card_create", card)
 	}
+	f.As, f.Reason = gateway.AsOwner, untrusted.Cut(strings.Join(strings.Fields(reason), " "), 300)
 	m, err := docs.Manifest(ctx, a.Store.Q, target)
 	if err != nil {
 		return nil, err
 	}
-	if s.Card != nil && (m.Board == nil || m.RoleLane("inbox") == nil) {
+	card := in.Command == ""
+	if card && (m.Board == nil || m.RoleLane("inbox") == nil) {
 		return nil, registry.Invalid("deck: project %s has no inbox lane for a card", target.Name)
 	}
-	if s.Card != nil && s.Card.Record != 0 {
-		if r, err := a.Store.Q.GetRecord(ctx, s.Card.Record); err != nil || r.ProjectID != target.ID {
-			return nil, registry.NotFound("deck: no record %d in %s", s.Card.Record, target.Name)
+	if card && in.Record != 0 {
+		if r, err := a.Store.Q.GetRecord(ctx, in.Record); err != nil || r.ProjectID != target.ID {
+			return nil, registry.NotFound("deck: no record %d in %s", in.Record, target.Name)
 		}
 	}
 	// Only the project's own agents, the master and the owner may have it done at once; a trial never does.
 	own := act.Within(target.ID)
 	if m.Autonomy == "auto" && target.Status == store.ProjectEnabled && own && !act.Trial {
-		return a.doSuggestion(ctx, act, target, s)
+		return a.doSuggestion(ctx, act, target, f)
 	}
-	payload, _ := json.Marshal(s)
 	expires := a.Cfg.Now().Add(time.Duration(a.suggestDays(ctx, target.WorkspaceID)) * 24 * time.Hour)
 	var q db.Ask
 	err = a.Store.Tx(ctx, func(ctx context.Context, tx *db.Queries) error {
 		var err error
-		q, err = ask.ForProject(ctx, tx, target.WorkspaceID, target.ID, 0, ask.KindSuggest, s.Reason+"\n"+s.what(), string(payload), expires)
+		q, err = gateway.Hold(ctx, tx, act, target.ID, ask.KindSuggest, class, f.Reason+"\n"+suggested(f), f, expires)
 		return err
 	})
 	if err != nil {
@@ -144,32 +137,25 @@ func (a *App) suggestTarget(ctx context.Context, act registry.Actor, name string
 	return p, nil
 }
 
-// doSuggestion carries a suggestion out in a project on autonomy auto and lists it in done without you; a
-// call keeps the class rules of its command.
-func (a *App) doSuggestion(ctx context.Context, act registry.Actor, p db.Project, s suggestion) (any, error) {
-	var out any
-	row := db.AddFeedParams{WorkspaceID: p.WorkspaceID, ProjectID: p.ID, Kind: feedChange, Author: s.By, Actions: "[]", Params: "{}",
-		Text: fmt.Sprintf("%s suggested and deck did it: %s (%s)", s.By, s.what(), s.Reason)}
-	if s.Card != nil {
-		v, err := a.suggestedCard(ctx, act, s.Card)
-		if err != nil {
-			return nil, err
-		}
-		out = v
-		params, _ := json.Marshal(map[string]any{"card": v.ID})
-		row.Command, row.Params = registry.Builtin+".card_delete", string(params)
-	} else {
-		var err error
-		// The suggestion names the call, so the calls list of the suggesting command does not narrow it.
-		act.Commands = nil
-		if out, err = a.Gateway.CallAs(ctx, act, s.Call.Command, s.Call.Input); err != nil {
-			return nil, err
-		}
-		if w, held := out.(gateway.Waiting); held {
-			return map[string]any{"done": false, "waiting": w.Ask, "text": w.Text}, nil
-		}
+// doSuggestion carries a suggestion out in a project on autonomy auto and lists it in the feed; a call keeps the
+// class rules of its command, and a card can be deleted again.
+func (a *App) doSuggestion(ctx context.Context, act registry.Actor, p db.Project, f gateway.Frozen) (any, error) {
+	row := db.AddFeedParams{WorkspaceID: p.WorkspaceID, ProjectID: p.ID, Kind: feedChange, Author: act.Author(), Actions: "[]", Params: "{}",
+		Text: fmt.Sprintf("%s suggested and deck did it: %s (%s)", act.Author(), suggested(f), f.Reason)}
+	// The suggestion names the call, so the calls list of the suggesting command does not narrow it.
+	act.Commands = nil
+	out, err := a.Gateway.CallAs(ctx, act, f.Call.Command, f.Call.Input)
+	if err != nil {
+		return nil, err
 	}
-	err := a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+	if w, held := out.(gateway.Waiting); held {
+		return map[string]any{"done": false, "waiting": w.Ask, "text": w.Text}, nil
+	}
+	if c, ok := out.(cardView); ok {
+		params, _ := json.Marshal(map[string]any{"card": c.ID})
+		row.Command, row.Params = registry.Builtin+".card_delete", string(params)
+	}
+	err = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		_, err := q.AddFeed(ctx, row)
 		return err
 	})
@@ -180,24 +166,17 @@ func (a *App) doSuggestion(ctx context.Context, act registry.Actor, p db.Project
 	return map[string]any{"done": true, "result": out}, nil
 }
 
-func (a *App) suggestedCard(ctx context.Context, act registry.Actor, c *suggestedCard) (cardView, error) {
-	out, err := a.cardCreate(ctx, act, cardCreateIn{Project: c.Project, Title: c.Title, Text: c.Text, Record: c.Record})
-	if err != nil {
-		return cardView{}, err
-	}
-	return out.(cardView), nil
-}
-
-// suggestionAnswer settles a suggestion: yes makes the card or the call, no rejects it with the reason, move
-// gives a card suggestion to another project, where it waits again.
+// suggestionAnswer settles a suggestion: yes makes the card or the call as the owner, no rejects it with the
+// reason, move gives a card suggestion to another project, where it waits again.
 func (a *App) suggestionAnswer(ctx context.Context, act registry.Actor, q db.Ask, answer, project string) (any, error) {
-	var s suggestion
-	if err := json.Unmarshal([]byte(q.Payload), &s); err != nil {
+	var f gateway.Frozen
+	if err := json.Unmarshal([]byte(q.Payload), &f); err != nil {
 		return nil, err
 	}
 	switch {
 	case answer == "move":
-		if s.Card == nil {
+		var c cardSuggestion
+		if f.Call.Command != registry.Builtin+".card_create" || json.Unmarshal(f.Call.Input, &c) != nil {
 			return nil, registry.Invalid("deck: only a card suggestion moves to another project")
 		}
 		p, err := a.suggestTarget(ctx, act, strings.TrimSpace(project))
@@ -207,15 +186,15 @@ func (a *App) suggestionAnswer(ctx context.Context, act registry.Actor, q db.Ask
 		if m, err := docs.Manifest(ctx, a.Store.Q, p); err != nil || m.RoleLane("inbox") == nil {
 			return nil, registry.Invalid("deck: project %s has no inbox lane for a card", p.Name)
 		}
-		if s.Card.Project != p.Name {
-			s.Card.Record = 0
+		if c.Project != p.Name {
+			c.Record = 0
 		}
-		s.Card.Project = p.Name
-		payload, _ := json.Marshal(s)
+		c.Project = p.Name
+		f.Call.Input, _ = json.Marshal(c)
 		var n int64
 		err = a.Store.Tx(ctx, func(ctx context.Context, tx *db.Queries) error {
 			var err error
-			n, err = tx.MoveSuggestion(ctx, db.MoveSuggestionParams{ProjectID: p.ID, Text: s.Reason + "\n" + s.what(), Payload: string(payload), ID: q.ID})
+			n, err = tx.MoveSuggestion(ctx, db.MoveSuggestionParams{ProjectID: p.ID, Text: f.Reason + "\n" + suggested(f), Payload: f.String(), ID: q.ID})
 			return err
 		})
 		if err != nil {
@@ -227,29 +206,16 @@ func (a *App) suggestionAnswer(ctx context.Context, act registry.Actor, q db.Ask
 		a.Bus.Publish("asks")
 		return map[string]any{"suggestion": q.ID, "project": p.Name}, nil
 	case answer == "allow":
-		if err := a.Asks.Answer(ctx, q.ID, answer); err != nil {
+		out, err := a.Gateway.Decide(ctx, act, q, answer, nil)
+		if errors.Is(err, ask.ErrNotOpen) {
 			return nil, notOpen
 		}
-		if now, err := a.Store.Q.GetAsk(ctx, q.ID); err == nil {
-			_ = json.Unmarshal([]byte(now.Payload), &s)
-		}
-		var out any
-		var err error
-		if s.Card != nil {
-			out, err = a.suggestedCard(ctx, act, s.Card)
-		} else {
-			out, err = a.Gateway.CallAs(ctx, act, s.Call.Command, s.Call.Input)
-		}
-		if err != nil {
-			_ = a.Store.Tx(ctx, func(ctx context.Context, tx *db.Queries) error { return tx.ReopenSuggestion(ctx, q.ID) })
-			a.Bus.Publish("asks")
-			return nil, err
-		}
-		return out, nil
+		return out, err
 	case answer == "deny" || strings.HasPrefix(answer, "deny:"):
 		if err := a.Asks.Answer(ctx, q.ID, answer); err != nil {
 			return nil, notOpen
 		}
+		a.Gateway.Record(ctx, q, "rejected", "the owner said no")
 		return map[string]any{"suggestion": q.ID, "rejected": true}, nil
 	}
 	return nil, registry.Invalid("deck: answer a suggestion with allow, deny, deny:<reason> or move with project")
@@ -270,28 +236,27 @@ func (a *App) suggestionsRejected(ctx context.Context, act registry.Actor, in su
 	}
 	out := []map[string]any{}
 	for _, q := range rows {
-		var s suggestion
-		if json.Unmarshal([]byte(q.Payload), &s) != nil {
+		var f gateway.Frozen
+		if json.Unmarshal([]byte(q.Payload), &f) != nil {
 			continue
 		}
-		if !act.Within(q.ProjectID) && !a.byProject(ctx, s.By, act.ProjectID) {
+		if !act.Within(q.ProjectID) && !a.byProject(ctx, f.Caller.Process, act.ProjectID) {
 			continue
 		}
 		why := strings.TrimPrefix(strings.TrimPrefix(q.Answer, "deny"), ":")
 		p, _ := a.Store.Q.GetProject(ctx, q.ProjectID)
-		out = append(out, map[string]any{"project": p.Name, "what": s.what(), "reason": s.Reason, "why_not": untrusted.Cut(why, 500),
-			"by": s.By, "answered_at": q.AnsweredAt.String})
+		out = append(out, map[string]any{"project": p.Name, "what": suggested(f), "reason": f.Reason, "why_not": untrusted.Cut(why, 500),
+			"by": f.Caller.Author(), "answered_at": q.AnsweredAt.String})
 	}
 	return out, nil
 }
 
-// byProject reports whether an author like agent:<process> is a process of the project.
-func (a *App) byProject(ctx context.Context, by string, projectID int64) bool {
-	var id int64
-	if _, err := fmt.Sscanf(by, "agent:%d", &id); err != nil {
+// byProject reports whether a process is one of the project.
+func (a *App) byProject(ctx context.Context, process, projectID int64) bool {
+	if process == 0 {
 		return false
 	}
-	p, err := a.Store.Q.GetProcess(ctx, id)
+	p, err := a.Store.Q.GetProcess(ctx, process)
 	return err == nil && p.ProjectID == projectID
 }
 

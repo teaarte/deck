@@ -48,29 +48,58 @@ func frozenCaller(a registry.Actor) string {
 	return string(b)
 }
 
+// Author is who made the call, as rows of deck name an actor.
+func (c Caller) Author() string { return c.actor().Author() }
+
 func (c Caller) actor() registry.Actor {
 	return registry.Actor{Kind: c.Kind, Workspace: c.Workspace, ProjectID: c.Project, ProcessID: c.Process,
 		TriggerID: c.Trigger, Confirmed: c.Trigger != 0, Token: c.Token, Commands: c.Commands}
 }
 
-// Frozen is a call with its parameters as they were when it was asked for.
+// Frozen is a call with its parameters as they were when it was asked for: a call that waits for a yes, a
+// change of rights, a suggestion.
 type Frozen struct {
 	Call struct {
 		Command string          `json:"command"`
 		Input   json.RawMessage `json:"input"`
 	} `json:"call"`
 	Caller Caller `json:"caller"`
+	// As is AsOwner for a call the owner's yes makes as the owner, else empty: as the caller.
+	As string `json:"as,omitempty"`
 	// Tool is the fingerprint of the tool, so a changed tool is not made on an old yes.
 	Tool string `json:"tool,omitempty"`
 	// Target is where the call goes, as the owner reads it: method and URL, a page, a server and tool.
 	Target string `json:"target,omitempty"`
+	// Reason is why the caller asks; Widens are the rights a change of a manifest would grant.
+	Reason string   `json:"reason,omitempty"`
+	Widens []string `json:"widens,omitempty"`
 }
 
-func frozen(act registry.Actor, command string, input json.RawMessage, tool, target string) string {
+// AsOwner makes a frozen call as the owner who allows it.
+const AsOwner = "owner"
+
+// Freeze is a call of the actor as it is now.
+func Freeze(act registry.Actor, command string, input json.RawMessage) Frozen {
 	var f Frozen
-	f.Call.Command, f.Call.Input, f.Caller, f.Tool, f.Target = command, json.RawMessage(Canonical(input)), freeze(act), tool, target
+	f.Call.Command, f.Call.Input, f.Caller = command, json.RawMessage(Canonical(input)), freeze(act)
+	return f
+}
+
+func (f Frozen) String() string {
 	b, _ := json.Marshal(f)
 	return string(b)
+}
+
+// Hold keeps a frozen call of a project in an ask of kind until the owner decides, with its row in the journal.
+func Hold(ctx context.Context, q *db.Queries, act registry.Actor, project int64, kind, class, text string, f Frozen, expires time.Time) (db.Ask, error) {
+	a, err := ask.ForProject(ctx, q, act.Workspace, project, 0, kind, text, f.String(), expires)
+	if err != nil {
+		return a, err
+	}
+	_, err = q.LogToolCall(ctx, db.LogToolCallParams{WorkspaceID: act.Workspace, ProcessID: store.ID(act.ProcessID), ProjectID: store.ID(project),
+		Actor: act.Author(), Caller: frozenCaller(act), Tool: f.Call.Command, Class: class, Outcome: "waiting", Params: Canonical(f.Call.Input),
+		AskID: sql.NullInt64{Int64: a.ID, Valid: true}})
+	return a, err
 }
 
 // canonical is JSON with sorted keys and no spaces, so identical calls compare equal.
@@ -151,7 +180,9 @@ func (g *Gateway) hold(ctx context.Context, act registry.Actor, c *registry.Comm
 	if c.Target != nil {
 		target = c.Target(print)
 	}
-	payload := frozen(act, c.Name, input, print, target)
+	f := Freeze(act, c.Name, input)
+	f.Tool, f.Target = print, target
+	payload := f.String()
 	process := act.ProcessID
 	if act.Kind == registry.Trigger {
 		process = 0
@@ -207,9 +238,9 @@ func Approved(ctx context.Context) (string, bool) {
 	return s, ok
 }
 
-// Decide makes the frozen call the owner allowed or retried and keeps what it gave on the journal row of the ask,
-// answered first, so the call runs once and not after its deadline; a failing then undoes the answer.
-func (g *Gateway) Decide(ctx context.Context, a db.Ask, answer string, then func() error) (any, error) {
+// Decide makes the frozen call the owner allowed and keeps what it gave on the journal row of the ask, answered
+// first, so it runs once; a failing then, or a failing call made as the owner, opens the ask again.
+func (g *Gateway) Decide(ctx context.Context, owner registry.Actor, a db.Ask, answer string, then func() error) (any, error) {
 	var f Frozen
 	if err := json.Unmarshal([]byte(a.Payload), &f); err != nil {
 		return nil, err
@@ -230,19 +261,31 @@ func (g *Gateway) Decide(ctx context.Context, a db.Ask, answer string, then func
 	if n == 0 {
 		return nil, ask.ErrNotOpen
 	}
+	reopen := func() {
+		_ = g.st.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error {
+			return errors.Join(q.UndoDecision(ctx, sql.NullInt64{Int64: a.ID, Valid: true}), q.ReopenDecision(ctx, a.ID))
+		})
+		g.bus.Publish("asks")
+	}
 	if then != nil {
 		if err := then(); err != nil {
-			_ = g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-				return errors.Join(q.UndoDecision(ctx, sql.NullInt64{Int64: a.ID, Valid: true}), q.ReopenDecision(ctx, a.ID))
-			})
+			reopen()
 			return nil, err
 		}
 	}
 	g.bus.Publish("asks")
 	act := f.Caller.actor()
 	act.Cleared = true
+	if f.As == AsOwner {
+		act = owner
+		act.ProjectID = a.ProjectID
+	}
 	run := context.WithValue(context.WithValue(context.WithoutCancel(ctx), retryingKey{}, a.ID), approvedKey{}, f.Tool)
 	out, err := g.call(run, act, f.Call.Command, f.Call.Input)
+	if err != nil && f.As == AsOwner {
+		reopen()
+		return nil, err
+	}
 	var o Outcome
 	if err != nil {
 		o.Error = err.Error()

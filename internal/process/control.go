@@ -2,7 +2,6 @@ package process
 
 import (
 	"context"
-	"errors"
 	"strings"
 
 	"deck2/internal/docs"
@@ -11,37 +10,22 @@ import (
 	"deck2/internal/untrusted"
 )
 
-// stopCause cancels a turn that has to end the process as stopped, not as a deck shutdown.
-type stopCause struct{ reason string }
-
-func (s stopCause) Error() string { return s.reason }
-
-// cancelled reports whether the turn of turnCtx was cancelled; a stop ends the process as stopped after drop,
-// a shutdown of deck leaves it to be resumed.
-func (r *Runner) cancelled(ctx, turnCtx context.Context, processID int64, drop func()) bool {
-	if turnCtx.Err() == nil {
-		return false
+// cut reports whether a turn was cut off: deck shut down, which leaves the process running to resume, or the
+// process is no longer running, as after a stop, so the outcome of the turn has nothing to write.
+func (r *Runner) cut(ctx, turnCtx context.Context, processID int64) bool {
+	if turnCtx.Err() != nil {
+		return true
 	}
-	var stop stopCause
-	if errors.As(context.Cause(turnCtx), &stop) {
-		drop()
-		r.finish(ctx, processID, StateStopped, "", false, stop.reason)
-	}
-	return true
+	p, err := r.st.Q.GetProcess(ctx, processID)
+	return err != nil || p.State != StateRunning
 }
 
-// Stop ends a process as stopped: a live turn is cancelled and its provider killed, any other is closed at once.
+// Stop ends a process as stopped in the base, then cancels its live turn, whose outcome then finds it no longer
+// running; a live turn leaves the folder of the process when it exits.
 func (r *Runner) Stop(ctx context.Context, processID int64, reason string) error {
 	r.mu.Lock()
-	lt := r.live[processID]
-	if lt != nil {
-		r.stopping[processID] = reason
-		lt.cancel(stopCause{reason})
-	}
+	_, live := r.live[processID]
 	r.mu.Unlock()
-	if lt != nil {
-		return nil
-	}
 	var n int64
 	var closedCalls []db.Ask
 	err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
@@ -52,6 +36,9 @@ func (r *Runner) Stop(ctx context.Context, processID int64, reason string) error
 		if closedCalls, err = q.CloseOpenAsksOfProcess(ctx, db.CloseOpenAsksOfProcessParams{ProcessID: processID, CallsToo: 1}); err != nil {
 			return err
 		}
+		if live {
+			return nil
+		}
 		return q.ReleaseFolderLocks(ctx, processID)
 	})
 	if err != nil {
@@ -60,7 +47,16 @@ func (r *Runner) Stop(ctx context.Context, processID int64, reason string) error
 	if n == 0 {
 		return registry.Invalid("deck: process %d has already finished", processID)
 	}
-	r.freeFolderOf(ctx, processID)
+	r.mu.Lock()
+	lt := r.live[processID]
+	delete(r.marked, processID)
+	r.mu.Unlock()
+	if lt != nil {
+		lt.cancel(nil)
+	}
+	if !live {
+		r.freeFolderOf(ctx, processID)
+	}
 	r.dropped(ctx, closedCalls)
 	r.closed(ctx, processID)
 	return nil

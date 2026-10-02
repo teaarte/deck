@@ -37,9 +37,6 @@ func (r *Runner) releaseSlot(ctx context.Context, workspace int64) {
 
 // waitSlot holds a turn that found every slot taken; its ceiling starts with the turn.
 func (r *Runner) waitSlot(ctx context.Context, t turn, workspace int64) {
-	if r.stopFirst(ctx, t.process) {
-		return
-	}
 	w, _ := json.Marshal(waiting{Message: t.message, told: t.asks})
 	var n int64
 	_ = r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {

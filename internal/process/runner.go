@@ -86,8 +86,6 @@ type Runner struct {
 	mu      sync.Mutex
 	stopped bool
 	live    map[int64]*liveTurn
-	// stopping holds stops of processes whose live turn was cancelled; a turn spawned after it does not run.
-	stopping map[int64]string
 	// marked is when the output time of each open process was last written.
 	marked map[int64]time.Time
 	// slots counts the agent turns of each workspace that hold a slot, taken or handed over.
@@ -128,7 +126,7 @@ type Projects interface {
 func NewRunner(st *store.Store, gw *gateway.Gateway, bus *events.Bus, p Providers, scripts *script.Exec, cfg Config, projects Projects) *Runner {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Runner{st: st, gw: gw, bus: bus, providers: p, scripts: scripts, cfg: cfg, projects: projects, ctx: ctx, cancel: cancel,
-		live: map[int64]*liveTurn{}, stopping: map[int64]string{}, marked: map[int64]time.Time{},
+		live: map[int64]*liveTurn{}, marked: map[int64]time.Time{},
 		slots: map[int64]int{}}
 }
 
@@ -157,14 +155,6 @@ func (r *Runner) spawn(t turn) bool {
 	if r.stopped {
 		return false
 	}
-	if reason, ok := r.stopping[t.process]; ok {
-		r.wg.Add(1)
-		go func() {
-			defer r.wg.Done()
-			r.finish(context.WithoutCancel(r.ctx), t.process, StateStopped, "", false, reason)
-		}()
-		return false
-	}
 	ctx, cancel := context.WithCancelCause(r.ctx)
 	lt := &liveTurn{cancel: cancel}
 	r.live[t.process] = lt
@@ -179,6 +169,7 @@ func (r *Runner) spawn(t turn) bool {
 			}
 			r.mu.Unlock()
 			cancel(nil)
+			r.leave(context.WithoutCancel(ctx), t.process)
 		}()
 		r.run(ctx, t)
 	}()
@@ -232,30 +223,10 @@ func (r *Runner) finish(ctx context.Context, processID int64, state, result stri
 	}
 	r.freeFolderOf(ctx, processID)
 	r.mu.Lock()
-	delete(r.stopping, processID)
 	delete(r.marked, processID)
 	r.mu.Unlock()
 	r.dropped(ctx, closedCalls)
 	r.closed(ctx, processID)
-}
-
-// settle takes a turn off the live ones before it writes its outcome: a stop that came first wins, a stop
-// that comes later finds no live turn and closes the process in the base, so the outcome write does nothing.
-func (r *Runner) settle(processID int64) (string, bool) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	delete(r.live, processID)
-	reason, ok := r.stopping[processID]
-	return reason, ok
-}
-
-// stopFirst ends a turn as stopped when a stop came before its outcome.
-func (r *Runner) stopFirst(ctx context.Context, processID int64) bool {
-	reason, ok := r.settle(processID)
-	if ok {
-		r.finish(ctx, processID, StateStopped, "", false, reason)
-	}
-	return ok
 }
 
 // closed announces a process that reached a final state; its log stays until deck clears old runs.

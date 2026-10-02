@@ -11,14 +11,7 @@ import (
 // holdFolder takes the lock of the folder a turn works in, or leaves the turn waiting for it; it reports
 // whether the turn goes on. The check and the wait are one transaction, so a release cannot slip between them.
 func (r *Runner) holdFolder(ctx context.Context, t turn, folder string) bool {
-	r.mu.Lock()
-	_, stopping := r.stopping[t.process]
-	r.mu.Unlock()
-	if stopping {
-		r.stopFirst(ctx, t.process)
-		return false
-	}
-	held, waits := false, false
+	held := false
 	w, _ := json.Marshal(waiting{Message: t.message, told: t.asks})
 	err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		if err := q.DropStaleFolderLock(ctx, folder); err != nil {
@@ -34,8 +27,7 @@ func (r *Runner) holdFolder(ctx context.Context, t turn, folder string) bool {
 		if held = holder == t.process; held {
 			return nil
 		}
-		n, err := q.WaitForFolder(ctx, db.WaitForFolderParams{Message: string(w), Fresh: b2i(!t.resume), ID: t.process})
-		waits = n > 0
+		_, err = q.WaitForFolder(ctx, db.WaitForFolderParams{Message: string(w), Fresh: b2i(!t.resume), ID: t.process})
 		return err
 	})
 	if err != nil {
@@ -50,18 +42,26 @@ func (r *Runner) holdFolder(ctx context.Context, t turn, folder string) bool {
 	if r.live[t.process] == t.live {
 		delete(r.live, t.process)
 	}
-	reason, stopped := r.stopping[t.process]
-	if waits && stopped && r.live[t.process] == nil {
-		delete(r.stopping, t.process)
-	} else {
-		stopped = false
-	}
 	r.mu.Unlock()
-	if stopped {
-		_ = r.Stop(ctx, t.process, reason)
-	}
 	r.bus.Publish("processes")
 	return false
+}
+
+// leave runs as a turn exits: the folder locks of a process that has closed meanwhile, as by a stop, go now
+// that its provider is gone, and the next waiter gets the folder.
+func (r *Runner) leave(ctx context.Context, processID int64) {
+	var paths []string
+	err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		var err error
+		paths, err = q.ReleaseClosedFolderLocks(ctx, processID)
+		return err
+	})
+	if err != nil {
+		slog.Error("leave the folder", "process", processID, "err", err)
+	}
+	for _, f := range paths {
+		r.freeFolder(ctx, f)
+	}
 }
 
 func (r *Runner) freeFolderOf(ctx context.Context, processID int64) {

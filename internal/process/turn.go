@@ -197,7 +197,7 @@ func (r *Runner) run(ctx context.Context, t turn) {
 		res, err := pv.Run(ctx, req)
 		listen(false)
 		r.setGroup(bg, processID, 0)
-		if r.cancelled(bg, ctx, processID, func() {}) {
+		if r.cut(bg, ctx, processID) {
 			return
 		}
 		if err == nil && res.SessionMissing {
@@ -231,9 +231,6 @@ func (r *Runner) run(ctx context.Context, t turn) {
 		blocked := settled && r.blocked(bg, processID)
 		if settled && !blocked {
 			verr = validate(t.cmd, res.Structured)
-		}
-		if (verr == nil || retried) && r.stopFirst(bg, processID) {
-			return
 		}
 		switch {
 		case err != nil:

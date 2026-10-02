@@ -131,9 +131,6 @@ type waiting struct {
 func (r *Runner) waitProvider(ctx context.Context, t turn) {
 	w, _ := json.Marshal(waiting{Message: t.message, told: t.asks})
 	var n int64
-	if r.stopFirst(ctx, t.process) {
-		return
-	}
 	_ = r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		var err error
 		n, err = q.WaitForProvider(ctx, db.WaitForProviderParams{Message: string(w), Fresh: b2i(!t.resume), ID: t.process})

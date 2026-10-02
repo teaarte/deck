@@ -81,11 +81,10 @@ func (r *Runner) runScript(ctx context.Context, t turn, trial bool) {
 	}
 	out, err := r.scripts.Run(ctx, job)
 	r.setGroup(bg, id, 0)
-	if r.cancelled(bg, ctx, id, func() { r.clearRun(dir) }) {
-		return
-	}
-	if r.stopFirst(bg, id) {
-		r.clearRun(dir)
+	if r.cut(bg, ctx, id) {
+		if r.ctx.Err() == nil {
+			r.clearRun(dir)
+		}
 		return
 	}
 	if err != nil {

@@ -23,6 +23,10 @@ INSERT INTO folder_lock (path, process_id) VALUES (?, ?) ON CONFLICT (path) DO N
 SELECT process_id FROM folder_lock WHERE path = ?;
 
 
+-- name: ReleaseClosedFolderLocks :many
+DELETE FROM folder_lock WHERE process_id = ? AND process_id IN (SELECT id FROM process WHERE finished_at IS NOT NULL) RETURNING path;
+
+
 -- name: ReleaseFolderLocks :exec
 DELETE FROM folder_lock WHERE process_id = ?;
 

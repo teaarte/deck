@@ -171,6 +171,33 @@ func (q *Queries) ListWaitingForFolder(ctx context.Context, folder string) ([]Pr
 	return items, nil
 }
 
+const releaseClosedFolderLocks = `-- name: ReleaseClosedFolderLocks :many
+DELETE FROM folder_lock WHERE process_id = ? AND process_id IN (SELECT id FROM process WHERE finished_at IS NOT NULL) RETURNING path
+`
+
+func (q *Queries) ReleaseClosedFolderLocks(ctx context.Context, processID int64) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, releaseClosedFolderLocks, processID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var path string
+		if err := rows.Scan(&path); err != nil {
+			return nil, err
+		}
+		items = append(items, path)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const releaseFolderLocks = `-- name: ReleaseFolderLocks :exec
 DELETE FROM folder_lock WHERE process_id = ?
 `

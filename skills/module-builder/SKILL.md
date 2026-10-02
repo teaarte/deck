@@ -22,8 +22,10 @@ Secrets (name and a hidden value), Tokens, Health; sign-ins wait in the cockpit.
 
 ## 1. Interview
 
-Ask one question at a time with your question tool; offer 2–4 options, the first one your recommendation.
-Stop asking when you could write the manifest without guessing. Cover:
+A draft sends nothing out until the owner enables it, so build first and ask only what a sensible default
+cannot settle: what leaves deck, what costs money, and choices that change the shape of the module. Everything
+else takes a sensible default, and the hand-over lists every choice you made yourself. Ask one question at a
+time with your question tool; offer 2–4 options, the first one your recommendation. What to settle:
 
 - the outcome: what the owner wants to see each day or week, and what "done" means for one item;
 - the inputs: where items come from, how often they change, whether a login is needed;
@@ -202,7 +204,9 @@ A script reads its input JSON from stdin and prints its result JSON to stdout. I
 - a script runs alone: its folder holds only its own file, so a helper shared by scripts is repeated in each
   (or read with `document_get` into the work folder);
 - deck commands over HTTP: `curl -s -H "Authorization: Bearer $DECK_TOKEN" -d '<json>' "$DECK_URL/commands/deck.records_upsert"`
-  (`GET $DECK_URL/commands` lists them; works through the proxy or without it); `records_upsert` takes JSONL
+  (`GET $DECK_URL/commands` lists them, with the `result` schema where a command has one; works through the proxy or without it).
+  A 200 body is the command's result itself, with no wrapper; an error is plain text with a 4xx/5xx status, 410
+  when the process has finished; `records_upsert` takes JSONL
   and returns `{"written", "ids", "errors"}`; `records_list` returns `[{"id", "key", "title", "data": {…}}]`,
   newest last, `process_get` `{"id", "command", "state", "result", "error", …}`, `documents_list`
   `[{"id", "name", "kind", "owner_kind", "owner_id"}]` (an artifact of a record has `owner_kind` `record`) and

@@ -94,7 +94,7 @@ func (a *Adapter) SelfCheck(ctx context.Context) provider.Check {
 		deny = append(deny, p+"/**")
 	}
 	req := provider.Request{Cwd: work, SessionID: uuid.NewString(), MCPURL: url,
-		PermissionMCP: "mcp__deck__approve", AllowedTools: []string{"Read", "StructuredOutput"}, Hidden: deny,
+		PermissionMCP: provider.Qualify("approve"), AllowedTools: []string{"Read", "StructuredOutput"}, Hidden: deny,
 		ResultSchema: json.RawMessage(`{"type":"object","required":["word","answer"],"properties":{"word":{"type":"string"},"answer":{"type":"string"}}}`),
 		Prompt: "This is a self-check of deck. Do these steps in order.\n1. Run exactly this Bash command once: " + command +
 			"\n2. Try once to read the file " + key + " with the Read tool. It is expected to be refused; do not try any other way." +

@@ -145,9 +145,7 @@ func (g *Gateway) Tools(tok string) []string {
 	return nil
 }
 
-func PermissionTool() string { return qualified(ApproveTool) }
-
-func qualified(tool string) string { return "mcp__" + ServerName + "__" + tool }
+func PermissionTool() string { return provider.Qualify(ApproveTool) }
 
 // ServeHTTP expects paths of the form /mcp/<token>; an existing MCP session is served only under its own token.
 func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -214,13 +212,13 @@ func (g *Gateway) newServer(ctx context.Context, tok string, s *Session) (*mcp.S
 		srv.AddTool(askTool(), func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return g.ask(ctx, s, req.Params.Arguments), nil
 		})
-		allowed, tools = append(allowed, qualified(AskTool)), append(tools, AskTool)
+		allowed, tools = append(allowed, provider.Qualify(AskTool)), append(tools, AskTool)
 	}
 	if s.Submit != nil {
 		srv.AddTool(s.Submit.tool(), func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return s.Submit.handle(ctx, req)
 		})
-		allowed, tools = append(allowed, qualified(SubmitTool)), append(tools, SubmitTool)
+		allowed, tools = append(allowed, provider.Qualify(SubmitTool)), append(tools, SubmitTool)
 	}
 	return srv, allowed, tools, err
 }
@@ -250,7 +248,7 @@ func (g *Gateway) addCommands(ctx context.Context, srv *mcp.Server, s *Session) 
 			func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 				return g.invoke(ctx, s, name, req.Params.Arguments), nil
 			})
-		allowed = append(allowed, qualified(tool))
+		allowed = append(allowed, provider.Qualify(tool))
 	}
 	return allowed, tools, nil
 }

@@ -83,11 +83,7 @@ func (t *turn) until(ctx context.Context) error {
 	}
 }
 
-func (t *turn) emit(e provider.Event) {
-	if t.req.OnEvent != nil {
-		t.req.OnEvent(e)
-	}
-}
+func (t *turn) emit(e provider.Event) { t.req.Emit(e) }
 
 // handle takes one notification or server request; those of other threads, such as sub-agents, are skipped.
 func (t *turn) handle(ctx context.Context, m message) {

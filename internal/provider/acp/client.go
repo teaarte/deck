@@ -138,8 +138,6 @@ func raw(v any) string {
 
 // RequestPermission allows the one call asked about; "always" is the owner's button, never deck's.
 func (c *client) RequestPermission(_ context.Context, r sdk.RequestPermissionRequest) (sdk.RequestPermissionResponse, error) {
-	c.mu.Lock()
-	c.mu.Unlock()
 	for _, o := range r.Options {
 		if o.Kind == sdk.PermissionOptionKindAllowOnce {
 			return sdk.RequestPermissionResponse{Outcome: sdk.NewRequestPermissionOutcomeSelected(o.OptionId)}, nil

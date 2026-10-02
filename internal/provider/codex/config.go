@@ -134,5 +134,5 @@ const server = provider.Server
 
 // approveTool is the gateway's permission tool as the gateway names it; the model does not see it.
 func approveTool(req provider.Request) string {
-	return strings.TrimPrefix(req.PermissionMCP, "mcp__"+server+"__")
+	return provider.Bare(req.PermissionMCP)
 }

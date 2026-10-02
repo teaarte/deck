@@ -37,7 +37,7 @@ func (a *App) terminal(ctx context.Context, p db.Process) string {
 	if _, err := os.Stat(dir); err != nil {
 		return cmd
 	}
-	return "cd '" + strings.ReplaceAll(dir, "'", `'\''`) + "' && " + cmd
+	return "cd " + provider.Quote(dir) + " && " + cmd
 }
 
 // processTell gives the owner's message to an agent process at work: into its turn when the provider takes

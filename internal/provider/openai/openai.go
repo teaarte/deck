@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
@@ -137,30 +136,24 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 			return res, err
 		}
 		if reply.Content != "" {
-			emit(req, provider.Event{Kind: provider.EventMessage, Text: reply.Content})
+			req.Emit(provider.Event{Kind: provider.EventMessage, Text: reply.Content})
 		}
 		if len(reply.ToolCalls) == 0 {
 			res.Text = reply.Content
 			return res, nil
 		}
 		for _, c := range reply.ToolCalls {
-			emit(req, provider.Event{Kind: provider.EventTool, ID: c.ID, Title: c.Function.Name, Text: c.Function.Arguments})
+			req.Emit(provider.Event{Kind: provider.EventTool, ID: c.ID, Title: c.Function.Name, Text: c.Function.Arguments})
 			out, ok := call(ctx, sess, c.Function.Name, c.Function.Arguments)
 			if ctx.Err() != nil {
 				return res, ctx.Err()
 			}
-			emit(req, provider.Event{Kind: provider.EventToolUpdate, ID: c.ID, Status: provider.ToolStatus(ok), Text: out})
+			req.Emit(provider.Event{Kind: provider.EventToolUpdate, ID: c.ID, Status: provider.ToolStatus(ok), Text: out})
 			msgs = append(msgs, openai.ToolMessage(out, c.ID))
 			if err := save(path, msgs); err != nil {
 				return res, err
 			}
 		}
-	}
-}
-
-func emit(req provider.Request, e provider.Event) {
-	if req.OnEvent != nil {
-		req.OnEvent(e)
 	}
 }
 
@@ -175,18 +168,7 @@ func refused(res provider.Result, err error, now time.Time) (provider.Result, er
 	if res.Text == "" {
 		res.Text = http.StatusText(api.StatusCode)
 	}
-	switch api.StatusCode {
-	case http.StatusTooManyRequests:
-		res.RateLimited = true
-		after := api.Response.Header.Get("Retry-After")
-		if s, err := strconv.Atoi(after); err == nil && s > 0 {
-			res.ResetsAt = now.Add(time.Duration(s) * time.Second).Unix()
-		} else if t, err := http.ParseTime(after); err == nil {
-			res.ResetsAt = t.Unix()
-		}
-		return res, nil
-	case http.StatusUnauthorized, http.StatusForbidden:
-		res.NeedsLogin = true
+	if provider.Refused(&res, api.StatusCode, api.Response.Header.Get("Retry-After"), now) {
 		return res, nil
 	}
 	return res, fmt.Errorf("openai: %d %s", api.StatusCode, res.Text)

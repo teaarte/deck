@@ -13,7 +13,7 @@ import (
 )
 
 // askName is the ask tool on the deck server; the model sees it under the name its prompt gives.
-var askName = strings.TrimPrefix(provider.AskTool, "mcp__"+provider.Server+"__")
+var askName = provider.Bare(provider.AskTool)
 
 // gatewayTools are the tools of the deck MCP server as function tools; the permission tool is deck's own.
 func gatewayTools(ctx context.Context, sess *mcp.ClientSession, permission string) ([]openai.ChatCompletionToolUnionParam, error) {

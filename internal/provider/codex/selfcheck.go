@@ -69,7 +69,7 @@ func (a *Adapter) SelfCheck(ctx context.Context) provider.Check {
 	var tokens int64
 	var mu sync.Mutex
 	req := provider.Request{Cwd: work, SessionID: uuid.NewString(), MCPURL: url,
-		PermissionMCP: "mcp__deck__approve",
+		PermissionMCP: provider.Qualify("approve"),
 		OnUsage: func(u provider.Usage) {
 			mu.Lock()
 			tokens += u.Input + u.Output + u.CacheRead

@@ -82,11 +82,7 @@ func (t *turn) line(raw []byte) {
 	if l.ParentToolUseID != "" || (l.Type == "system" && strings.HasPrefix(l.Subtype, "task_")) {
 		return
 	}
-	emit := func(e provider.Event) {
-		if t.req.OnEvent != nil {
-			t.req.OnEvent(e)
-		}
-	}
+	emit := t.req.Emit
 	switch l.Type {
 	case "system":
 		if l.Subtype == "init" {

@@ -3,7 +3,10 @@ package provider
 import (
 	"context"
 	"encoding/json"
+	"net/http"
 	"slices"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -123,6 +126,37 @@ const Server = "deck"
 
 // AskTool is the gateway tool a provider without a question tool of its own asks the owner with.
 const AskTool = "mcp__" + Server + "__ask"
+
+// Qualify is the name a gateway tool has among the tools of a provider session; Bare is the name on the server.
+func Qualify(tool string) string { return "mcp__" + Server + "__" + tool }
+
+func Bare(tool string) string { return strings.TrimPrefix(tool, "mcp__"+Server+"__") }
+
+// Emit hands an event to the request's listener, when it has one.
+func (r Request) Emit(e Event) {
+	if r.OnEvent != nil {
+		r.OnEvent(e)
+	}
+}
+
+// Refused marks a result by the HTTP status of a model API: a usage limit (429) pauses until Retry-After, a
+// refused key needs a login; false for any other status.
+func Refused(res *Result, status int, retryAfter string, now time.Time) bool {
+	switch status {
+	case http.StatusTooManyRequests:
+		res.RateLimited = true
+		if s, err := strconv.Atoi(retryAfter); err == nil && s > 0 {
+			res.ResetsAt = now.Add(time.Duration(s) * time.Second).Unix()
+		} else if t, err := http.ParseTime(retryAfter); err == nil {
+			res.ResetsAt = t.Unix()
+		}
+		return true
+	case http.StatusUnauthorized, http.StatusForbidden:
+		res.NeedsLogin = true
+		return true
+	}
+	return false
+}
 
 // StructuredOutput is output by schema; a provider without it hands the result in with result_submit.
 const StructuredOutput = "structured_output"

@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -89,17 +88,7 @@ func (e *entry) refused(res provider.Result) provider.Result {
 	e.mu.Lock()
 	status, after := e.last, e.retryAfter
 	e.mu.Unlock()
-	switch status {
-	case http.StatusTooManyRequests:
-		res.RateLimited = true
-		if s, err := strconv.Atoi(after); err == nil && s > 0 {
-			res.ResetsAt = e.now().Add(time.Duration(s) * time.Second).Unix()
-		} else if t, err := http.ParseTime(after); err == nil {
-			res.ResetsAt = t.Unix()
-		}
-	case http.StatusUnauthorized, http.StatusForbidden:
-		res.NeedsLogin = true
-	}
+	provider.Refused(&res, status, after, e.now())
 	return res
 }
 

@@ -524,3 +524,20 @@ INSERT INTO ask (process_id, kind, text, created_at) VALUES (1, 'confirm', 'x', 
 			running.CeilingMs, done.CeilingMs, a.ExpiresAt.String)
 	}
 }
+
+// TestProcessGetWaitsForTheEnd: with wait the status comes once the process finishes, so a caller does not poll.
+func TestProcessGetWaitsForTheEnd(t *testing.T) {
+	release := make(chan struct{})
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		<-release
+		return provider.Result{Structured: json.RawMessage(`{"written": 1}`)}
+	})
+	id := e.run(e.createProject("ideas", ideasManifest), "collect")
+	time.AfterFunc(time.Second, func() { close(release) })
+	var p struct{ State string }
+	began := time.Now()
+	e.must("deck.process_get", map[string]any{"process": id, "wait": 30}, &p)
+	if p.State != "done" || time.Since(began) < time.Second || time.Since(began) > 10*time.Second {
+		t.Fatalf("the status comes when the process is done: %+v after %s", p, time.Since(began))
+	}
+}

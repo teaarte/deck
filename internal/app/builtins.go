@@ -160,8 +160,9 @@ func (a *App) addBuiltins() {
 	add("processes_list", "List processes", "Lists recent processes, newest first.", everyone,
 		registry.Params(projectOpt, registry.Opt("state", "string", "Only this state"), registry.Opt("limit", "integer", "At most this many")),
 		registry.Typed(a.processesList))
-	add("process_get", "Process status", "Returns the state and result of a process.", everyone,
-		registry.Params(registry.P("process", "process", "Process id")), registry.Typed(a.processGet))
+	add("process_get", "Process status", "Returns the state and result of a process; with wait, once it finishes or waits for the owner.", everyone,
+		registry.Params(registry.P("process", "process", "Process id"),
+			registry.Opt("wait", "integer", "Seconds to wait, at most 40, for the process to finish or to wait for the owner")), registry.Typed(a.processGet))
 
 	add("process_stop", "Stop process", "Stops a process; a running agent is killed and what it did so far stays.", ownerSide,
 		registry.Params(registry.P("process", "process", "Process id")), registry.Typed(a.processStop))

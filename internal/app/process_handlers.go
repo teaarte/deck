@@ -93,10 +93,26 @@ func (a *App) processesList(ctx context.Context, act registry.Actor, in struct {
 	return out, nil
 }
 
-func (a *App) processGet(ctx context.Context, act registry.Actor, in struct{ Process int64 }) (any, error) {
+// maxWait is the longest process_get waits, in seconds: below the minute after which ACP agents give up a tool call.
+const maxWait = 40
+
+func (a *App) processGet(ctx context.Context, act registry.Actor, in struct{ Process, Wait int64 }) (any, error) {
 	p, err := a.ownProcess(ctx, act, in.Process)
 	if err != nil {
 		return nil, err
+	}
+	until := time.Now().Add(time.Duration(min(max(in.Wait, 0), maxWait)) * time.Second)
+	for !p.FinishedAt.Valid && p.State != process.StateWaitingAnswer && p.State != process.StateNeedsLogin && time.Now().Before(until) {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(250 * time.Millisecond):
+		}
+		if p, err = a.Store.Q.GetProcess(ctx, in.Process); errors.Is(err, sql.ErrNoRows) {
+			return nil, registry.NotFound("deck: no process %d", in.Process)
+		} else if err != nil {
+			return nil, err
+		}
 	}
 	v := procView(p)
 	v.Terminal = a.terminal(ctx, p)

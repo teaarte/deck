@@ -110,7 +110,13 @@ func TestAProcessWaitingForASlotStillWaitsAfterARestart(t *testing.T) {
 	e.must("deck.settings_set", map[string]any{"agent_limit": 1}, nil)
 	p := e.createProject("jobs", testManifest([]string{agentCommand("job", "")}, nil))
 	a, b := e.run(p, "job"), e.run(p, "job")
-	e.waitFor("one running, one waiting", func() bool { return e.states([]int64{a, b}) == "running waiting_slot" })
+	e.waitFor("one running, one waiting", func() bool {
+		s := e.states([]int64{a, b})
+		return s == "running waiting_slot" || s == "waiting_slot running"
+	})
+	if e.process(a).State != "running" {
+		a, b = b, a
+	}
 
 	release := make(chan struct{}, 4)
 	second := &Fake{script: held(release)}

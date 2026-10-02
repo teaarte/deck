@@ -21,7 +21,8 @@ const useMinute = () => useSyncExternalStore((f) => (minuteSubs.add(f), () => mi
 
 const ISO = /^\d{4}-\d\d-\d\d([T ]\d\d:\d\d(:\d\d(\.\d+)?)?(Z|[+-]\d\d:?\d\d)?)?$/;
 
-const when = (v: unknown): Date | undefined => {
+// when is the time of an ISO 8601 text with a date the calendar has; anything else is no time.
+export const when = (v: unknown): Date | undefined => {
   if (typeof v !== 'string' || !ISO.test(v)) return undefined;
   const d = new Date(v);
   if (isNaN(d.getTime())) return undefined;

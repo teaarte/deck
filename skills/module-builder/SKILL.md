@@ -151,7 +151,8 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   per item in the order of `sort`: `{"type": "chart", "title": "Price", "kind": "line", "source": {"collection":
   "prices", "sort": "at"}, "x": "at", "series": [{"label": "BTC", "y": "price"}, {"label": "Forecast", "y":
   "forecast"}], "format": "money", "currency": "USD", "empty": "No prices yet"}` — `kind` is `line`, `bar` or
-  `area`, a missing y is a gap, an ISO time x makes a time axis, and only the last 500 points are drawn. Action `params` are strings in the manifest; `$record.<field>`
+  `area`, a missing y is a gap, an ISO time x makes a time axis, and only the last 500 points by the sort are
+  drawn — `limit` keeps the first items, so do not cut a history with it. Action `params` are strings in the manifest; `$record.<field>`
   passes the field's value with its type (`$record.id` is a number, so that input field is an `integer`), and
   a fixed value becomes the type of its input field (`"days": "7"` to an `integer` is 7). An action passes
   every required parameter of its command

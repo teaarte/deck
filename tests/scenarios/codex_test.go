@@ -2,6 +2,7 @@ package scenarios
 
 import (
 	"context"
+	deckhome "deck2/internal/home"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -54,12 +55,12 @@ func TestCodexCommandAgentWorksThroughTheGateway(t *testing.T) {
 	if cc.env["CODEX_HOME"] == "" || cc.env["HOME"] == "" {
 		t.Fatalf("Codex runs on the owner's shared login: %v", cc.env)
 	}
-	work := filepath.Join(home, "runs", itoa(id), "work")
+	work := filepath.Join(deckhome.Layout(home).Work(), "runs", itoa(id), "work")
 	fs, _ := cc.config("permissions.deck.filesystem")
 	user, _ := os.UserHomeDir()
 	for _, want := range []string{quoteTOML(home) + `="deny"`, quoteTOML(cc.env["CODEX_HOME"]) + `="deny"`, quoteTOML(work) + `="write"`,
 		quoteTOML(filepath.Join(user, ".ssh")) + `="deny"`, quoteTOML(filepath.Join(user, ".claude")) + `="deny"`,
-		quoteTOML(filepath.Join(home, "projects", itoa(p), "data")) + `="write"`, quoteTOML(filepath.Join(home, "runs", itoa(id), "results")) + `="write"`} {
+		quoteTOML(filepath.Join(deckhome.Layout(home).Work(), "projects", itoa(p), "data")) + `="write"`, quoteTOML(filepath.Join(deckhome.Layout(home).Work(), "runs", itoa(id), "results")) + `="write"`} {
 		if !strings.Contains(fs, want) {
 			t.Fatalf("the profile of the turn has %s: %s", want, fs)
 		}
@@ -412,7 +413,7 @@ func TestCodexSessionWithoutItsThreadStartsOver(t *testing.T) {
 	p := e.createProject("paint", colorManifest)
 	id := e.run(p, "work")
 	e.waitState(id, "waiting_answer")
-	if err := os.RemoveAll(filepath.Join(home, "codex", "sessions")); err != nil {
+	if err := os.RemoveAll(filepath.Join(deckhome.Layout(home).State(), "codex", "sessions")); err != nil {
 		t.Fatal(err)
 	}
 	e.answer(e.waitAsk().ID, "blue")

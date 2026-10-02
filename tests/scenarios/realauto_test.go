@@ -1,6 +1,7 @@
 package scenarios
 
 import (
+	deckhome "deck2/internal/home"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -40,7 +41,7 @@ func realWaits(c *app.Config) { c.QuestionWait, c.ConfirmWait = 4*time.Minute, 4
 func TestRealClaudeCodeAutonomy(t *testing.T) {
 	realCLI(t)
 	home := t.TempDir()
-	realAutonomy(t, home, claudecode.New(filepath.Join(home, "mcp")), claudeAutoPrompt)
+	realAutonomy(t, home, claudecode.New(home), claudeAutoPrompt)
 }
 
 // TestRealCodexAutonomy runs a command agent on the installed Codex: its file and the web need no yes, the external
@@ -55,7 +56,7 @@ func realAutonomy(t *testing.T, home string, p provider.Provider, prompt string)
 	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { jsonReply(w, `{"ok": true}`) })
 	e := newEnvWith(t, home, p, realWaits)
 	owner := []byte("owner-token-" + fmt.Sprint(time.Now().UnixNano()))
-	if err := os.WriteFile(filepath.Join(home, "token"), owner, 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(deckhome.Layout(home).State(), "token"), owner, 0o600); err != nil {
 		t.Fatal(err)
 	}
 	for _, tc := range []struct {
@@ -86,7 +87,7 @@ func realAutonomy(t *testing.T, home string, p provider.Provider, prompt string)
 			time.Sleep(500 * time.Millisecond)
 		}
 		got := e.process(id)
-		b, _ := os.ReadFile(filepath.Join(home, "runs", itoa(id), "work", "marker.txt"))
+		b, _ := os.ReadFile(filepath.Join(deckhome.Layout(home).Work(), "runs", itoa(id), "work", "marker.txt"))
 		t.Logf("%s: state %s, file %q, result %s, error %s", tc.name, got.State, strings.TrimSpace(string(b)), got.Result, got.Error)
 		var res struct {
 			Title, Curl, Token string

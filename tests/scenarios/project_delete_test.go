@@ -2,6 +2,7 @@ package scenarios
 
 import (
 	"context"
+	deckhome "deck2/internal/home"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -34,7 +35,7 @@ func TestProjectDeleteTakesASnapshotAndLeavesNothingOfTheProject(t *testing.T) {
 	scan := e.upload("gone", "scan.txt", "text/plain", "a page")
 	e.waitState(e.start("gone", "score", map[string]any{"title": "x", "scan": fmt.Sprint(scan)}), "done")
 	e.must("deck.provider_set", map[string]any{"command": "gone.score", "provider": "fake"}, nil)
-	data := filepath.Join(e.App.Cfg.Home, "projects", fmt.Sprint(id), "data")
+	data := filepath.Join(deckhome.Layout(e.App.Cfg.Home).Work(), "projects", fmt.Sprint(id), "data")
 	if err := os.MkdirAll(data, 0o700); err != nil || os.WriteFile(filepath.Join(data, "keep.txt"), []byte("mine"), 0o600) != nil {
 		t.Fatal(err)
 	}
@@ -98,7 +99,7 @@ func TestProjectDeleteTakesASnapshotAndLeavesNothingOfTheProject(t *testing.T) {
 			t.Fatalf("nothing of the project stays in %s: %d", table, n)
 		}
 	}
-	if _, err := os.Stat(filepath.Join(e.App.Cfg.Home, "files", fmt.Sprint(scan))); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(deckhome.Layout(e.App.Cfg.Home).State(), "files", fmt.Sprint(scan))); !os.IsNotExist(err) {
 		t.Fatalf("the files of the project go: %v", err)
 	}
 	for _, dir := range []string{data, runDir} {

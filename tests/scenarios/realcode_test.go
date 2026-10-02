@@ -21,7 +21,7 @@ func TestRealCodeModule(t *testing.T) {
 		name, env, bin string
 		new            func(home string) provider.Provider
 	}{
-		{"claude-code", "DECK_REAL_CLI", "claude", func(home string) provider.Provider { return claudecode.New(filepath.Join(home, "mcp")) }},
+		{"claude-code", "DECK_REAL_CLI", "claude", func(home string) provider.Provider { return claudecode.New(home) }},
 		{"codex", "DECK_REAL_CODEX", "codex", func(home string) provider.Provider { return codex.New(home) }},
 	} {
 		t.Run(c.name, func(t *testing.T) {

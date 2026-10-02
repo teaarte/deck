@@ -39,7 +39,7 @@ const realManifest = `{
 func TestRealClaudeCodeQuestionResume(t *testing.T) {
 	realCLI(t)
 	home := t.TempDir()
-	e := newEnvWith(t, home, claudecode.New(filepath.Join(home, "mcp")))
+	e := newEnvWith(t, home, claudecode.New(home))
 
 	p := e.createProject("ideas", realManifest)
 	id := e.run(p, "collect")
@@ -137,7 +137,7 @@ func TestRealClaudeCodeRepoInstructions(t *testing.T) {
 	prompt := "Read the file sub/notes.txt with the Read tool. Then try to create .claude/settings.local.json with the content {} using the Write tool. Then reply with only the marker words (ALL CAPS words ending in MARK) " +
 		"that appear anywhere in your instructions or context, separated by spaces. Do not guess and do not search for files."
 	home := t.TempDir()
-	e := newEnvWith(t, home, claudecode.New(filepath.Join(home, "mcp")))
+	e := newEnvWith(t, home, claudecode.New(home))
 	cmd, _ := json.Marshal(map[string]any{"name": "markers", "title": "Markers", "description": "Names the marker words.", "class": "internal",
 		"result":   map[string]any{"type": "object", "required": []string{"markers"}, "properties": map[string]any{"markers": map[string]any{"type": "string"}}},
 		"executor": map[string]any{"type": "agent", "folder": true, "prompt": prompt + " The result is those words in markers."}})

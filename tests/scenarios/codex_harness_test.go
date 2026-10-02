@@ -1,6 +1,7 @@
 package scenarios
 
 import (
+	deckhome "deck2/internal/home"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -28,7 +29,7 @@ func newCodex(t *testing.T) *fakeCodex {
 }
 
 func (c *fakeCodex) adapter(home string) *codex.Adapter {
-	return &codex.Adapter{Binary: filepath.Join(c.dir, "codex"), Home: home, Dir: filepath.Join(home, "codex"), Linger: 300 * time.Millisecond}
+	return &codex.Adapter{Binary: filepath.Join(c.dir, "codex"), Home: home, Dir: filepath.Join(deckhome.Layout(home).State(), "codex"), Linger: 300 * time.Millisecond}
 }
 
 // codexEnv runs deck on a clock a few minutes before the limit reset the recorded streams carry.

@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"deck2/internal/home"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -58,7 +59,7 @@ type Browser struct {
 	cmds   []*registry.Command
 }
 
-func (b *Browser) dir(name string) string { return filepath.Join(b.Home, "browser", name) }
+func (b *Browser) dir(name string) string { return filepath.Join(home.Layout(b.Home).Browser(), name) }
 
 func (b *Browser) spec(open bool) mcphost.Spec {
 	args := append(slices.Clone(b.Argv[1:]), "--user-data-dir", b.dir("profile"), "--output-dir", b.dir("out"))

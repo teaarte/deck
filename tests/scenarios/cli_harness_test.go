@@ -2,6 +2,7 @@ package scenarios
 
 import (
 	"context"
+	deckhome "deck2/internal/home"
 	"deck2/internal/provider/claudecode"
 	"os"
 	"path/filepath"
@@ -51,7 +52,7 @@ func (c *fakeCLI) skipStdin() {
 }
 
 func (c *fakeCLI) adapter(home string) *claudecode.Adapter {
-	return &claudecode.Adapter{Binary: filepath.Join(c.dir, "claude"), ConfigDir: filepath.Join(home, "mcp"), Linger: 300 * time.Millisecond}
+	return &claudecode.Adapter{Binary: filepath.Join(c.dir, "claude"), ConfigDir: deckhome.Layout(home).Sessions(), RunsDir: deckhome.Layout(home).Runs(), Linger: 300 * time.Millisecond}
 }
 
 type cliCall struct {

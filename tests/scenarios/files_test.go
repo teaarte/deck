@@ -3,6 +3,7 @@ package scenarios
 import (
 	"bytes"
 	"context"
+	deckhome "deck2/internal/home"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -181,7 +182,7 @@ print(json.dumps({"files": [{"path": "a.txt"}]}))
 		t.Fatal(err)
 	}
 	left, _ := res.LastInsertId()
-	path := filepath.Join(e.App.Cfg.Home, "files", fmt.Sprint(left))
+	path := filepath.Join(deckhome.Layout(e.App.Cfg.Home).State(), "files", fmt.Sprint(left))
 	_ = os.WriteFile(path, []byte("b"), 0o600)
 	var shown []struct{ ID int64 }
 	e.must("deck.files_list", map[string]any{"process": id}, &shown)

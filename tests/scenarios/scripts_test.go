@@ -3,6 +3,7 @@ package scenarios
 import (
 	"archive/tar"
 	"compress/gzip"
+	deckhome "deck2/internal/home"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -65,7 +66,7 @@ func TestScriptCommandRunsInTheSandbox(t *testing.T) {
 	pid := e.createProject("tools", scriptManifest("collect", "", fmt.Sprintf(`, "domains": {"read": [%q]}`, host)))
 	e.saveScript("tools", "scripts/main.py", collectScript)
 	home := e.App.Cfg.Home
-	secret := filepath.Join(home, "secrets", "key")
+	secret := filepath.Join(deckhome.Layout(home).State(), "secrets", "key")
 	_ = os.MkdirAll(filepath.Dir(secret), 0o700)
 	_ = os.WriteFile(secret, []byte("s3cret"), 0o600)
 	outside := t.TempDir()
@@ -110,10 +111,10 @@ func TestScriptCommandRunsInTheSandbox(t *testing.T) {
 	if len(files) != 1 || files[0].Name != "report.txt" || files[0].OwnerKind != "record" {
 		t.Fatalf("the result file is bound to the record: %+v", files)
 	}
-	if b, _ := os.ReadFile(filepath.Join(home, "files", fmt.Sprint(files[0].ID))); string(b) != "report 7" {
+	if b, _ := os.ReadFile(filepath.Join(deckhome.Layout(home).State(), "files", fmt.Sprint(files[0].ID))); string(b) != "report 7" {
 		t.Fatalf("the file moved into files/: %q", b)
 	}
-	if left, _ := os.ReadDir(filepath.Join(home, "runs", fmt.Sprint(id))); len(left) != 1 || left[0].Name() != "stream" {
+	if left, _ := os.ReadDir(filepath.Join(deckhome.Layout(home).Work(), "runs", fmt.Sprint(id))); len(left) != 1 || left[0].Name() != "stream" {
 		t.Fatalf("a finished script leaves only its log in its run folder: %v", left)
 	}
 	if b, _ := json.Marshal(e.log(id)); strings.Contains(string(b), "xcodebuild") || strings.Contains(string(b), "DVTDeveloperPaths") {
@@ -124,7 +125,7 @@ func TestScriptCommandRunsInTheSandbox(t *testing.T) {
 		t.Fatalf("a process without an error shows no Error field: %s", b)
 	}
 	time.Sleep(2 * time.Second)
-	if _, err := os.Stat(filepath.Join(home, "projects", fmt.Sprint(pid), "data", "late")); err == nil {
+	if _, err := os.Stat(filepath.Join(deckhome.Layout(home).Work(), "projects", fmt.Sprint(pid), "data", "late")); err == nil {
 		t.Fatal("a program the script started outlived the run")
 	}
 }
@@ -160,7 +161,7 @@ func TestScriptKeepsAnIndexInTheProjectDataFolder(t *testing.T) {
 	var snap struct{ Path string }
 	e.must("deck.snapshot_create", nil, &snap)
 	names := tarNames(t, snap.Path)
-	want := fmt.Sprintf("projects/%d/data/index.json", pid)
+	want := fmt.Sprintf("work/projects/%d/data/index.json", pid)
 	if !names[want] || !names["deck.db"] {
 		t.Fatalf("the snapshot holds the base and the data folder: %v", names)
 	}
@@ -449,5 +450,31 @@ print(json.dumps({"named": fetch(inp["allowed"]), "local": fetch(inp["other"]), 
 	_ = json.Unmarshal(p.Result, &got)
 	if p.State != "done" || got.Named != float64(200) || got.Local != float64(403) || got.Tailnet != float64(403) {
 		t.Fatalf("a named host:port is reached, a local or tailnet address by \"*\" is not: %+v %s", p, p.Result)
+	}
+}
+
+// TestAScriptReadsNoFolderOfAnotherProject: the data of another project, its runs and deck's own files stay closed
+// to a script, which reads and writes only its own.
+func TestAScriptReadsNoFolderOfAnotherProject(t *testing.T) {
+	e := newEnv(t, nil)
+	e.createProject("other", scriptManifest("collect", "", ""))
+	b := e.createProject("tools", scriptManifest("collect", "", ""))
+	theirs := filepath.Join(deckhome.Layout(e.App.Cfg.Home).Work(), "projects", fmt.Sprint(b-1), "data", "secret.txt")
+	if err := os.MkdirAll(filepath.Dir(theirs), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(theirs, []byte("theirs"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	e.saveScript("tools", "scripts/main.py", pythonLib+`
+inp = json.load(sys.stdin)
+print(json.dumps({"read": can_read(inp["other"]), "write": can_write(os.path.join(os.path.dirname(inp["other"]), "x")),
+  "db": can_read(inp["outside"]), "own": can_write(os.path.join(os.environ["DECK_DATA"], "x"))}))
+`)
+	p := e.waitScript(e.start("tools", "collect", map[string]any{"other": theirs, "outside": filepath.Join(deckhome.Layout(e.App.Cfg.Home).State(), "deck.db")}), "done", "error")
+	var got struct{ Read, Write, DB, Own bool }
+	_ = json.Unmarshal(p.Result, &got)
+	if p.State != "done" || got.Read || got.Write || got.DB || !got.Own {
+		t.Fatalf("a script reads and writes only its own folders: %+v %s", p, p.Result)
 	}
 }

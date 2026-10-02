@@ -2,6 +2,7 @@ package scenarios
 
 import (
 	"context"
+	deckhome "deck2/internal/home"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -31,7 +32,7 @@ func TestJournalShowsTheCallsOfTheGatewayTheSpendFilesAndSnapshots(t *testing.T)
 	scan := e.upload("web", "scan.txt", "text/plain", "a page")
 	e.waitState(e.start("web", "score", map[string]any{"title": "x", "scan": fmt.Sprint(scan)}), "done")
 	e.must("deck.snapshot_create", nil, nil)
-	if err := os.WriteFile(filepath.Join(e.App.Cfg.Home, "backups", "deck-20200101T000000.tar.gz"), []byte("old"), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(deckhome.Layout(e.App.Cfg.Home).State(), "backups", "deck-20200101T000000.tar.gz"), []byte("old"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 

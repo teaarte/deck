@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"crypto/sha256"
+	"deck2/internal/home"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -62,7 +63,7 @@ func (x *MCP) spec(p db.Project, name string, s manifest.MCPServer) (mcphost.Spe
 	if s.URL != "" {
 		return mcphost.Spec{URL: s.URL}, nil
 	}
-	dir := filepath.Join(x.Home, "projects", strconv.FormatInt(p.ID, 10), "mcp", name)
+	dir := filepath.Join(home.Layout(x.Home).Project(p.ID), "mcp", name)
 	var env []string
 	for _, kv := range os.Environ() {
 		if baseEnv.MatchString(kv) && !strings.HasPrefix(kv, "HOME=") && !strings.HasPrefix(kv, "TMPDIR=") {

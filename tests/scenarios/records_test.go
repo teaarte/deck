@@ -2,6 +2,7 @@ package scenarios
 
 import (
 	"context"
+	deckhome "deck2/internal/home"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -56,7 +57,7 @@ func TestRecordIsReadByIDAndDeletedWithItsDocumentsAndFiles(t *testing.T) {
 			t.Fatalf("the documents of a deleted record go with it: %+v", docs)
 		}
 	}
-	if _, err := os.Stat(filepath.Join(e.App.Cfg.Home, "files", fmt.Sprint(photo))); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(deckhome.Layout(e.App.Cfg.Home).State(), "files", fmt.Sprint(photo))); !os.IsNotExist(err) {
 		t.Fatalf("the files of a deleted record go with it: %v", err)
 	}
 }

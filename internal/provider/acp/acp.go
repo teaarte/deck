@@ -4,6 +4,7 @@ package acp
 
 import (
 	"context"
+	"deck2/internal/home"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -58,7 +59,7 @@ func New(cfg Config) (*Adapter, error) {
 	if cfg.Binary == "" {
 		cfg.Binary = cfg.Agent
 	}
-	return &Adapter{cfg: cfg, agent: g, Dir: filepath.Join(cfg.Home, "acp"), Linger: 10 * time.Second}, nil
+	return &Adapter{cfg: cfg, agent: g, Dir: home.Layout(cfg.Home).ACP(), Linger: 10 * time.Second}, nil
 }
 
 // Names are the ACP agents deck knows.

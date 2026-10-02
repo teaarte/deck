@@ -2,6 +2,7 @@ package scenarios
 
 import (
 	"context"
+	deckhome "deck2/internal/home"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -88,7 +89,7 @@ func TestAHomeWithAQuestionMarkOrAHashKeepsTheDatabaseInside(t *testing.T) {
 	}
 	e := newEnvWith(t, home, &Fake{})
 	e.createProject("mine", ideasManifest)
-	if _, err := os.Stat(filepath.Join(home, "deck.db")); err != nil {
+	if _, err := os.Stat(filepath.Join(deckhome.Layout(home).State(), "deck.db")); err != nil {
 		t.Fatalf("the database lives in the home of deck: %v", err)
 	}
 }

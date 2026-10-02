@@ -1,6 +1,7 @@
 package scenarios
 
 import (
+	deckhome "deck2/internal/home"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -31,21 +32,20 @@ func TestCommandAgentCannotReadSecretsAndGetsEveryDeckTool(t *testing.T) {
 	}
 	real, _ := filepath.EvalSymlinks(home)
 	for _, h := range []string{home, real} {
-		for _, rule := range []string{"Read(/" + filepath.Join(h, "secrets") + "/**)", "Edit(/" + filepath.Join(h, "deck.db") + "*)",
-			"Read(/" + filepath.Join(h, "acp") + "/**)"} {
+		for _, rule := range []string{"Read(/" + deckhome.Layout(h).State() + "/**)", "Edit(/" + deckhome.Layout(h).State() + "/**)"} {
 			if !slices.Contains(set.Permissions.Deny, rule) {
 				t.Fatalf("the agent may not read %s: %v", rule, set.Permissions.Deny)
 			}
 		}
 	}
-	for _, rule := range []string{"Read(/" + filepath.Join(home, "tailscale") + "/**)", "Read(/" + filepath.Join(user, ".ssh") + "/**)",
+	for _, rule := range []string{"Read(/" + filepath.Join(user, ".ssh") + "/**)",
 		"Read(/" + filepath.Join(user, ".claude", "projects", "-elsewhere") + "/**)", "Read(/" + filepath.Join(user, ".claude", "settings.json") + ")",
 		"Edit(/" + filepath.Join(user, ".codex") + "/**)"} {
 		if !slices.Contains(set.Permissions.Deny, rule) {
 			t.Fatalf("the agent may not read the owner's %s: %v", rule, set.Permissions.Deny)
 		}
 	}
-	runs := regexp.MustCompile(`[^A-Za-z0-9]`).ReplaceAllString(filepath.Join(home, "runs"), "-")
+	runs := regexp.MustCompile(`[^A-Za-z0-9]`).ReplaceAllString(filepath.Join(deckhome.Layout(home).Work(), "runs"), "-")
 	if longer := "Read(/" + filepath.Join(user, ".claude", "projects", runs+"-??*-work") + "/**)"; !slices.Contains(set.Permissions.Deny, longer) {
 		t.Fatalf("the sessions of other runs of deck, made later too, stay hidden: want %s in %v", longer, set.Permissions.Deny)
 	}

@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -17,7 +16,7 @@ import (
 var secretName = regexp.MustCompile(`^[A-Za-z0-9_.-]{1,64}$`)
 
 func (a *App) secretsDir(workspace int64) string {
-	return filepath.Join(a.Cfg.Home, "secrets", fmt.Sprint(workspace))
+	return a.Home.Secrets(workspace)
 }
 
 // Secret is the value of a workspace secret, read when a tool call needs it.

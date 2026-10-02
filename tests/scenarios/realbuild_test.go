@@ -3,7 +3,6 @@ package scenarios
 import (
 	"encoding/json"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -20,7 +19,7 @@ func TestRealMasterBuildsAModuleFromAPhrase(t *testing.T) {
 		phrase = "Every morning, make me a list of the three top Hacker News stories, each with one line on why it matters."
 	}
 	home := t.TempDir()
-	e := newEnvWith(t, home, claudecode.New(filepath.Join(home, "mcp")), realWaits)
+	e := newEnvWith(t, home, claudecode.New(home), realWaits)
 	topic := e.say(0, phrase)
 	deadline := time.Now().Add(25 * time.Minute)
 	answered := map[int64]bool{}
@@ -115,7 +114,7 @@ func TestRealMasterBuildsAModuleFromAPhrase(t *testing.T) {
 func TestRealMasterInterviewsACard(t *testing.T) {
 	realCLI(t)
 	home := t.TempDir()
-	e := newEnvWith(t, home, claudecode.New(filepath.Join(home, "mcp")), realWaits)
+	e := newEnvWith(t, home, claudecode.New(home), realWaits)
 	e.must("deck.project_create", map[string]any{"name": "reports", "prompt": "# Reports: the weekly reports of the household budget.\n"}, nil)
 	c := e.card(map[string]any{"project": "reports", "title": "Export the weekly report", "text": "I want to get the weekly report out of deck."})
 	var out struct{ Topic int64 }

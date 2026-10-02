@@ -98,7 +98,7 @@ type snapshotRow struct {
 
 // snapshotsList is the snapshots in backups, newest first; deck keeps the newest few.
 func (a *App) snapshotsList(context.Context, registry.Actor, struct{}) ([]snapshotRow, error) {
-	paths, err := filepath.Glob(filepath.Join(a.Cfg.Home, "backups", "deck-*.tar.gz"))
+	paths, err := filepath.Glob(filepath.Join(a.Home.Backups(), "deck-*.tar.gz"))
 	if err != nil {
 		return nil, err
 	}

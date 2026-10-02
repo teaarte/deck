@@ -3,13 +3,13 @@ package claudecode
 import (
 	"bufio"
 	"context"
+	"deck2/internal/home"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -20,14 +20,17 @@ import (
 // Adapter runs the Claude Code CLI in print mode with stream-json output. See docs/spikes/claude-code.md.
 type Adapter struct {
 	Binary string
-	// ConfigDir holds per-turn MCP configs; it must be outside every folder the agent writes to.
-	ConfigDir string
+	// ConfigDir holds per-turn MCP configs; it must be outside every folder the agent writes to. RunsDir holds
+	// the folders of runs, whose sessions the agent of another run may not read.
+	ConfigDir, RunsDir string
 	// Linger is how long the CLI may stay silent after its result before its process group is killed.
 	Linger time.Duration
 }
 
-func New(configDir string) *Adapter {
-	return &Adapter{Binary: "claude", ConfigDir: configDir, Linger: 90 * time.Second}
+// New runs the CLI for the deck whose folder is root.
+func New(root string) *Adapter {
+	h := home.Layout(root)
+	return &Adapter{Binary: "claude", ConfigDir: h.Sessions(), RunsDir: h.Runs(), Linger: 90 * time.Second}
 }
 
 func (a *Adapter) Name() string { return "claude-code" }
@@ -108,7 +111,7 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 		return provider.Result{}, err
 	}
 	defer os.Remove(cfg)
-	set, _ := json.Marshal(settings(req, filepath.Join(filepath.Dir(a.ConfigDir), "runs")))
+	set, _ := json.Marshal(settings(req, a.RunsDir))
 	setFile, err := a.writeFile("settings", set)
 	if err != nil {
 		return provider.Result{}, err

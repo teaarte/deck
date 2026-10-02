@@ -4,6 +4,7 @@ package script
 import (
 	"bytes"
 	"context"
+	"deck2/internal/home"
 	"errors"
 	"fmt"
 	"io"
@@ -31,7 +32,7 @@ func New(sb sandbox.Sandbox, home string) *Exec { return &Exec{Sandbox: sb, Home
 
 // DataDir is the lasting folder of a project that its scripts and agents write indexes, caches and state to.
 func (x *Exec) DataDir(project int64) string {
-	return filepath.Join(x.Home, "projects", fmt.Sprint(project), "data")
+	return home.Layout(x.Home).Data(project)
 }
 
 // Job is one run of a script; Dir is its run folder, with work/ and results/ inside.

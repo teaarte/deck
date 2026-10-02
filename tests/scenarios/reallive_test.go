@@ -1,7 +1,6 @@
 package scenarios
 
 import (
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -46,7 +45,7 @@ func realLive(t *testing.T, pv provider.Provider, home string) {
 func TestRealClaudeCodeLiveMessage(t *testing.T) {
 	realCLI(t)
 	home := t.TempDir()
-	realLive(t, claudecode.New(filepath.Join(home, "mcp")), home)
+	realLive(t, claudecode.New(home), home)
 }
 
 // TestRealCodexSteer tells the installed Codex a code word by turn/steer while its turn runs.

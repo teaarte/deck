@@ -2,6 +2,7 @@ package scenarios
 
 import (
 	"context"
+	deckhome "deck2/internal/home"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -149,7 +150,7 @@ func TestEmptyResultStartsNothingAndIsPurgedAfterADay(t *testing.T) {
 	e.Clock.Add(2 * time.Hour)
 	e.sweep()
 	e.refused("deck.process_get", map[string]any{"process": id}, 404, "no process")
-	if _, err := os.Stat(filepath.Join(e.App.Cfg.Home, "runs", fmt.Sprint(id))); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(deckhome.Layout(e.App.Cfg.Home).Work(), "runs", fmt.Sprint(id))); !os.IsNotExist(err) {
 		t.Fatalf("the folder of a purged process goes with it: %v", err)
 	}
 	kept := e.run(p, "check")
@@ -157,7 +158,7 @@ func TestEmptyResultStartsNothingAndIsPurgedAfterADay(t *testing.T) {
 	e.settle()
 	e.Clock.Add(8 * 24 * time.Hour)
 	e.sweep()
-	if _, err := os.Stat(filepath.Join(e.App.Cfg.Home, "runs", fmt.Sprint(kept))); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(deckhome.Layout(e.App.Cfg.Home).Work(), "runs", fmt.Sprint(kept))); !os.IsNotExist(err) {
 		t.Fatalf("the run folder and log of a process finished a week ago are cleared: %v", err)
 	}
 }

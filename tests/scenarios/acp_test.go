@@ -3,6 +3,7 @@ package scenarios
 import (
 	"bytes"
 	"compress/gzip"
+	deckhome "deck2/internal/home"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -42,10 +43,10 @@ func TestACPCommandAgentWorksThroughTheGateway(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	e := acpEnv(t, f, "dsh", llm)
 	home := e.App.Cfg.Home
-	if err := os.WriteFile(filepath.Join(home, "token"), []byte("owner-token-value"), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(deckhome.Layout(home).State(), "token"), []byte("owner-token-value"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(f.dir, "probe"), []byte(filepath.Join(home, "token")), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(f.dir, "probe"), []byte(filepath.Join(deckhome.Layout(home).State(), "token")), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	e.App.Checks(t.Context(), time.Now().Add(time.Hour))
@@ -54,7 +55,7 @@ func TestACPCommandAgentWorksThroughTheGateway(t *testing.T) {
 		`{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,
 		`{"update": {"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "Painting."}}}`,
 		`{"shell": "echo painted > canvas.txt"}`,
-		`{"shell": "cat ` + filepath.Join(home, "token") + `"}`,
+		`{"shell": "cat ` + filepath.Join(deckhome.Layout(home).State(), "token") + `"}`,
 		`{"shell": "echo tampered > \"$HOME/../session\""}`,
 		acpModel,
 		`{"mcp": {"tool": "result_submit", "arguments": {"result": {"color": "blue"}}}}`,
@@ -84,7 +85,7 @@ func TestACPCommandAgentWorksThroughTheGateway(t *testing.T) {
 	if b, _ := os.ReadFile(filepath.Join(f.dir, "probe.out")); len(b) == 0 || string(b) == "<nil>" {
 		t.Fatalf("even the version of the agent is asked inside the sandbox: %q", b)
 	}
-	if h := c.env["HOME"]; !strings.HasPrefix(h, filepath.Join(home, "acp", "sessions")) {
+	if h := c.env["HOME"]; !strings.HasPrefix(h, filepath.Join(deckhome.Layout(home).State(), "acp", "sessions")) {
 		t.Fatalf("the agent lives in a home of its own session: %s", h)
 	}
 	var calls []map[string]any

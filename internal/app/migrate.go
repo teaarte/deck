@@ -135,7 +135,7 @@ func (a *App) runMigration(ctx context.Context, p db.Project, m *manifest.Manife
 	}
 	ctx, cancel := context.WithTimeout(ctx, limit)
 	defer cancel()
-	dir := filepath.Join(a.Cfg.Home, "runs", "migration-"+uuid.NewString())
+	dir := filepath.Join(a.Home.Runs(), "migration-"+uuid.NewString())
 	defer os.RemoveAll(dir)
 	out, err := a.Scripts.Run(ctx, script.Job{Project: p.ID, Manifest: m, Script: s, Source: src, Dir: dir, Stdin: []byte(input)})
 	if ctx.Err() != nil {

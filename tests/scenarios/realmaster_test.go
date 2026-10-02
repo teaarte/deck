@@ -2,7 +2,6 @@ package scenarios
 
 import (
 	"context"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -69,7 +68,7 @@ func (e *Env) replySession(topic int64, n int) (string, string) {
 func TestRealMasterTopicOnClaudeCode(t *testing.T) {
 	realCLI(t)
 	home := t.TempDir()
-	e := newEnvWith(t, home, claudecode.New(filepath.Join(home, "mcp")), realWaits)
+	e := newEnvWith(t, home, claudecode.New(home), realWaits)
 	e.must("deck.project_create", map[string]any{"name": "groceries", "prompt": "# Groceries: the shopping list of the household.\n"}, nil)
 	e.must("deck.project_create", map[string]any{"name": "garden", "prompt": "# Garden: work in the garden and its tools.\n"}, nil)
 	topic := e.say(0, "We are out of oat milk, put it on the list.")
@@ -103,7 +102,7 @@ func TestRealMasterSwitchesProvider(t *testing.T) {
 	realCLI(t)
 	realCodex(t)
 	home := t.TempDir()
-	e := newEnvBuiltin(t, home, []provider.Provider{claudecode.New(filepath.Join(home, "mcp")), codex.New(home)}, realWaits)
+	e := newEnvBuiltin(t, home, []provider.Provider{claudecode.New(home), codex.New(home)}, realWaits)
 	topic := e.say(0, "Remember: the code word of this conversation is PELICAN. Reply with OK only.")
 	e.masterReplies(topic, 1)
 	e.must("deck.provider_set", map[string]any{"command": "master.reply", "provider": "codex"}, nil)

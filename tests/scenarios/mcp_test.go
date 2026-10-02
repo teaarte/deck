@@ -2,6 +2,7 @@ package scenarios
 
 import (
 	"context"
+	deckhome "deck2/internal/home"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -184,7 +185,7 @@ func (e *Env) mcpDir(project, server string) string {
 	if err != nil {
 		e.T.Fatal(err)
 	}
-	return filepath.Join(e.App.Cfg.Home, "projects", fmt.Sprint(p.ID), "mcp", server)
+	return filepath.Join(deckhome.Layout(e.App.Cfg.Home).Work(), "projects", fmt.Sprint(p.ID), "mcp", server)
 }
 
 func TestMCPServerByURLAndTheEnvironmentOfAProgram(t *testing.T) {
@@ -215,8 +216,8 @@ func TestMCPServerByURLAndTheEnvironmentOfAProgram(t *testing.T) {
 		t.Fatalf("a program server gets its secrets and not deck's environment, and its answer comes without them: %+v", c)
 	}
 	home := e.App.Cfg.Home
-	for path, want := range map[string]string{filepath.Join(home, "secrets", "1", "fake_token"): "read=false",
-		filepath.Join(home, "deck.db"): "read=false", filepath.Join(e.mcpDir("srv", "fake"), "pid"): "read=true"} {
+	for path, want := range map[string]string{filepath.Join(deckhome.Layout(home).State(), "secrets", "1", "fake_token"): "read=false",
+		filepath.Join(deckhome.Layout(home).State(), "deck.db"): "read=false", filepath.Join(e.mcpDir("srv", "fake"), "pid"): "read=true"} {
 		out, _ := e.App.Gateway.CallAs(context.Background(), registry.Actor{Kind: registry.Agent, Workspace: 1, ProjectID: e.projectID("srv")},
 			"srv.fake.peek", json.RawMessage(fmt.Sprintf(`{"path": %q}`, path)))
 		if b, _ := json.Marshal(out); !strings.Contains(string(b), want) {

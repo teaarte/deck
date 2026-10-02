@@ -23,6 +23,7 @@ import (
 
 	"deck2/internal/docs"
 	"deck2/internal/health"
+	"deck2/internal/home"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
@@ -33,7 +34,7 @@ const snapshotLayout = "20060102T150405"
 // Snapshot writes backups/deck-<time>.tar.gz with a copy of the base, files/, the model sessions deck keeps
 // and the data folders of projects, then keeps only the newest ones; secrets and the token stay out.
 func (a *App) Snapshot(ctx context.Context) (string, error) {
-	dir := filepath.Join(a.Cfg.Home, "backups")
+	dir := a.Home.Backups()
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return "", err
 	}
@@ -48,7 +49,7 @@ func (a *App) Snapshot(ctx context.Context) (string, error) {
 		return "", err
 	}
 	part := path + ".part"
-	if err := writeSnapshot(part, a.Cfg.Home, copyDB, filesDone); err != nil {
+	if err := writeSnapshot(part, a.Home, copyDB, filesDone); err != nil {
 		_ = os.Remove(part)
 		return "", err
 	}
@@ -70,12 +71,12 @@ func (a *App) removeFiles(ids []int64) {
 	a.filesMu.RLock()
 	defer a.filesMu.RUnlock()
 	for _, id := range ids {
-		_ = os.Remove(filepath.Join(a.Cfg.Home, "files", fmt.Sprint(id)))
+		_ = os.Remove(filepath.Join(a.Home.Files(), fmt.Sprint(id)))
 	}
 }
 
 // writeSnapshot writes the archive; filesDone runs once files/ is in it.
-func writeSnapshot(path, home, copyDB string, filesDone func()) error {
+func writeSnapshot(path string, h home.Layout, copyDB string, filesDone func()) error {
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
 	if err != nil {
 		return err
@@ -86,14 +87,11 @@ func writeSnapshot(path, home, copyDB string, filesDone func()) error {
 	if err := addFile(tw, copyDB, "deck.db"); err != nil {
 		return err
 	}
-	dirs := []string{"files"}
-	data, _ := filepath.Glob(filepath.Join(home, "projects", "*", "data"))
-	for _, d := range data {
-		rel, _ := filepath.Rel(home, d)
-		dirs = append(dirs, rel)
-	}
-	for _, rel := range dirs {
-		err := filepath.WalkDir(filepath.Join(home, rel), func(p string, d fs.DirEntry, err error) error {
+	dirs := []string{h.Files()}
+	data, _ := filepath.Glob(filepath.Join(h.Projects(), "*", "data"))
+	dirs = append(dirs, data...)
+	for _, dir := range dirs {
+		err := filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
 			if err != nil {
 				if os.IsNotExist(err) {
 					return nil
@@ -103,7 +101,7 @@ func writeSnapshot(path, home, copyDB string, filesDone func()) error {
 			if !d.Type().IsRegular() {
 				return nil
 			}
-			name, _ := filepath.Rel(home, p)
+			name, _ := filepath.Rel(string(h), p)
 			if err := addFile(tw, p, filepath.ToSlash(name)); !os.IsNotExist(err) {
 				return err
 			}
@@ -112,7 +110,7 @@ func writeSnapshot(path, home, copyDB string, filesDone func()) error {
 		if err != nil {
 			return err
 		}
-		if rel == "files" {
+		if dir == h.Files() {
 			filesDone()
 		}
 	}
@@ -181,7 +179,7 @@ func (a *App) expire(ctx context.Context, q *db.Queries, now time.Time) ([]int64
 // daily takes a snapshot when the newest is a day old, trying at most once an hour, and runs the cleanup
 // once a day by the deck clock, each on its own.
 func (a *App) daily(ctx context.Context, now time.Time) {
-	old, _ := filepath.Glob(filepath.Join(a.Cfg.Home, "backups", "deck-*.tar.gz"))
+	old, _ := filepath.Glob(filepath.Join(a.Home.Backups(), "deck-*.tar.gz"))
 	slices.Sort(old)
 	due := true
 	if len(old) > 0 {
@@ -203,8 +201,8 @@ func (a *App) daily(ctx context.Context, now time.Time) {
 
 // journalKept is how long the journal of calls and spend keeps a row; notesKept, a note of the feed.
 const (
-	journalKept       = 180 * 24 * time.Hour
-	notesKept = 90 * 24 * time.Hour
+	journalKept = 180 * 24 * time.Hour
+	notesKept   = 90 * 24 * time.Hour
 )
 
 // cleanup removes expired records, files left without an owner, stale uploads, old journal rows and notify
@@ -232,13 +230,13 @@ func (a *App) cleanup(ctx context.Context, now time.Time) {
 		slog.Error("purge files", "err", err)
 	}
 	a.removeFiles(gone)
-	left, _ := filepath.Glob(filepath.Join(a.Cfg.Home, "files", ".upload-*"))
+	left, _ := filepath.Glob(filepath.Join(a.Home.Files(), ".upload-*"))
 	for _, f := range left {
 		if fi, err := os.Stat(f); err == nil && now.Sub(fi.ModTime()) > 24*time.Hour {
 			_ = os.Remove(f)
 		}
 	}
-	runs, _ := os.ReadDir(filepath.Join(a.Cfg.Home, "runs"))
+	runs, _ := os.ReadDir(a.Home.Runs())
 	for _, r := range runs {
 		id, err := strconv.ParseInt(r.Name(), 10, 64)
 		if err != nil {
@@ -246,7 +244,7 @@ func (a *App) cleanup(ctx context.Context, now time.Time) {
 		}
 		p, err := a.Store.Q.GetProcess(ctx, id)
 		if errors.Is(err, sql.ErrNoRows) || err == nil && p.FinishedAt.Valid && p.FinishedAt.String < store.Time(now.Add(-workKept)) {
-			_ = os.RemoveAll(filepath.Join(a.Cfg.Home, "runs", r.Name()))
+			_ = os.RemoveAll(filepath.Join(a.Home.Runs(), r.Name()))
 		}
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"compress/gzip"
 	"database/sql"
+	deckhome "deck2/internal/home"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -16,7 +17,7 @@ import (
 func TestDailySnapshotKeepsTheNewestSeven(t *testing.T) {
 	e := newClockEnv(t, nil)
 	backups := func() int {
-		m, _ := filepath.Glob(filepath.Join(e.App.Cfg.Home, "backups", "deck-*.tar.gz"))
+		m, _ := filepath.Glob(filepath.Join(deckhome.Layout(e.App.Cfg.Home).State(), "backups", "deck-*.tar.gz"))
 		return len(m)
 	}
 	e.sweep()
@@ -51,7 +52,7 @@ print(json.dumps({"files": [{"path": "f.txt", "record": out["ids"][0]}]}))
 	if p := e.waitScript(e.start("files", "make", nil), "done", "error"); p.State != "done" {
 		t.Fatalf("the script binds a file: %+v", p)
 	}
-	path := filepath.Join(e.App.Cfg.Home, "files", "1")
+	path := filepath.Join(deckhome.Layout(e.App.Cfg.Home).State(), "files", "1")
 	if _, err := os.Stat(path); err != nil {
 		t.Fatal(err)
 	}
@@ -113,7 +114,7 @@ func TestASnapshotHoldsEveryFileItsBaseNames(t *testing.T) {
 		}
 		named, stored := snapshotFiles(t, path.Path)
 		for _, id := range named {
-			if !stored["files/"+id] {
+			if !stored["state/files/"+id] {
 				t.Fatalf("round %d: the base of the snapshot names file %s, the archive lacks it", round, id)
 			}
 		}

@@ -2,6 +2,7 @@ package scenarios
 
 import (
 	"context"
+	deckhome "deck2/internal/home"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -112,7 +113,7 @@ func TestTerminalCommandOfAProcess(t *testing.T) {
 	}
 	e.must("deck.process_get", map[string]any{"process": id}, &v)
 	session := e.Fake.Calls()[0].SessionID
-	work := filepath.Join(e.App.Cfg.Home, "runs", fmt.Sprint(id), "work")
+	work := filepath.Join(deckhome.Layout(e.App.Cfg.Home).Work(), "runs", fmt.Sprint(id), "work")
 	if v.Terminal != "cd '"+work+"' && fake --resume "+session {
 		t.Fatalf("the folder of the turn and the command that goes on with its session: %q", v.Terminal)
 	}

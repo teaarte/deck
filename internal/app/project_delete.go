@@ -58,7 +58,7 @@ func (a *App) projectDelete(ctx context.Context, act registry.Actor, in projectD
 	for _, id := range runs {
 		_ = os.RemoveAll(filepath.Dir(a.Runner.LogPath(id)))
 	}
-	_ = os.RemoveAll(filepath.Join(a.Cfg.Home, "projects", fmt.Sprint(p.ID)))
+	_ = os.RemoveAll(a.Home.Project(p.ID))
 	if m != nil {
 		for name := range m.Tools.MCP.Servers {
 			a.Host.Stop(tools.ServerKey(p.ID, name))

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	deckhome "deck2/internal/home"
 	"errors"
 	"flag"
 	"fmt"
@@ -56,7 +57,10 @@ func run() error {
 	if err := os.Chmod(home, 0o700); err != nil {
 		return err
 	}
-	token, err := loadToken(filepath.Join(home, "token"))
+	if err := os.MkdirAll(deckhome.Layout(home).State(), 0o700); err != nil {
+		return err
+	}
+	token, err := loadToken(deckhome.Layout(home).Token())
 	if err != nil {
 		return err
 	}
@@ -73,7 +77,7 @@ func run() error {
 	a, err := app.New(app.Config{
 		Home: home, MCPBase: "http://" + ln.Addr().String(),
 		QuestionWait: 30 * time.Minute, ConfirmWait: 30 * time.Minute, ConfirmTTL: 24 * time.Hour,
-	}, claudecode.New(filepath.Join(home, "mcp")), codex.New(home))
+	}, claudecode.New(home), codex.New(home))
 	if err != nil {
 		return err
 	}
@@ -95,7 +99,7 @@ func run() error {
 	server := api.New(a, token, web.FS())
 	server.Pair(port, port+1)
 	if *tailnet != "" {
-		node, err := tsnet.Start(ctx, tsnet.Config{Hostname: *tailnet, Dir: filepath.Join(home, "tailscale"), Health: a.TailnetHealth}, server)
+		node, err := tsnet.Start(ctx, tsnet.Config{Hostname: *tailnet, Dir: deckhome.Layout(home).Tailscale(), Health: a.TailnetHealth}, server)
 		if err != nil {
 			return fmt.Errorf("tailscale: %w", err)
 		}

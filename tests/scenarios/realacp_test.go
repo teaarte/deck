@@ -1,6 +1,7 @@
 package scenarios
 
 import (
+	deckhome "deck2/internal/home"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -102,7 +103,7 @@ func TestRealACPAgents(t *testing.T) {
 			}
 			home := e.App.Cfg.Home
 			owner := "owner-token-" + fmt.Sprint(time.Now().UnixNano())
-			if err := os.WriteFile(filepath.Join(home, "token"), []byte(owner), 0o600); err != nil {
+			if err := os.WriteFile(filepath.Join(deckhome.Layout(home).State(), "token"), []byte(owner), 0o600); err != nil {
 				t.Fatal(err)
 			}
 			var all []struct{ ID int64 }
@@ -112,7 +113,7 @@ func TestRealACPAgents(t *testing.T) {
 				next = max(next, p.ID+1)
 			}
 			for i, tc := range []struct{ name, extra string }{{"open", ""}, {"closed", `, "no_network": true`}} {
-				data := filepath.Join(home, "projects", itoa(next+int64(i)), "data")
+				data := filepath.Join(deckhome.Layout(home).Work(), "projects", itoa(next+int64(i)), "data")
 				p := e.acpProject(tc.name, acpRealManifest(tc.name, svc.URL, tc.extra, home, data))
 				if p != next+int64(i) {
 					t.Fatalf("project %s got id %d, the data folder in its prompt is for %d", tc.name, p, next+int64(i))

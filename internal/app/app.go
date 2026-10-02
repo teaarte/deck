@@ -16,6 +16,7 @@ import (
 	"deck2/internal/events"
 	"deck2/internal/files"
 	"deck2/internal/gateway"
+	"deck2/internal/home"
 	"deck2/internal/manifest"
 	"deck2/internal/mcphost"
 	"deck2/internal/process"
@@ -30,7 +31,9 @@ import (
 )
 
 type App struct {
-	Cfg       Config
+	Cfg Config
+	// Home is the layout of the folder of deck.
+	Home      home.Layout
 	Store     *store.Store
 	Bus       *events.Bus
 	Asks      *ask.Broker
@@ -69,14 +72,17 @@ type App struct {
 // New starts deck with its main provider p and further built-in ones.
 func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, error) {
 	cfg.defaults()
-	if err := os.MkdirAll(filepath.Join(cfg.Home, "runs"), 0o700); err != nil {
-		return nil, err
+	h := home.Layout(cfg.Home)
+	for _, dir := range []string{h.State(), h.Runs()} {
+		if err := os.MkdirAll(dir, 0o700); err != nil {
+			return nil, err
+		}
 	}
-	st, err := store.Open(filepath.Join(cfg.Home, "deck.db"))
+	st, err := store.Open(h.DB())
 	if err != nil {
 		return nil, err
 	}
-	a := &App{Cfg: cfg, Store: st, Bus: events.NewBus(), Scripts: script.New(cfg.Sandbox, cfg.Home),
+	a := &App{Cfg: cfg, Home: h, Store: st, Bus: events.NewBus(), Scripts: script.New(cfg.Sandbox, cfg.Home),
 		builtin: append([]provider.Provider{p}, more...), check: map[string]*checks{}}
 	a.ctx, a.cancel = context.WithCancel(context.Background())
 	a.Asks = ask.NewBroker(st, a.Bus, cfg.Now)
@@ -98,8 +104,8 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	a.Registry.SetExtra(a.Browser.Commands)
 	a.Gateway.SetAutomation(a.Automation)
 	a.Runner = process.NewRunner(st, a.Gateway, a.Bus, a, a.Scripts,
-		process.Config{RunsDir: filepath.Join(cfg.Home, "runs"), MCPBase: cfg.MCPBase, Now: cfg.Now, FilesDir: filepath.Join(cfg.Home, "files"),
-			Hidden: hidden(cfg.Home), PauseLimit: cfg.PauseLimit, AgentSlots: a.agentSlots}, a)
+		process.Config{RunsDir: h.Runs(), MCPBase: cfg.MCPBase, Now: cfg.Now, FilesDir: h.Files(),
+			Hidden: hidden(h), PauseLimit: cfg.PauseLimit, AgentSlots: a.agentSlots}, a)
 	a.Runner.Hooks = []process.Hook{chatHook{a: a}, errorsHook{a: a}, afterHook{a: a}}
 	a.Scheduler = trigger.New(st, a, cfg.Now)
 	a.Asks.OnLateAnswer(a.lateAnswer)
@@ -114,43 +120,31 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 }
 
 func (a *App) dirs() files.Dirs {
-	return files.Dirs{Files: filepath.Join(a.Cfg.Home, "files"), Runs: filepath.Join(a.Cfg.Home, "runs")}
+	return files.Dirs{Files: a.Home.Files(), Runs: a.Home.Runs()}
 }
 
-// hidden are what an agent may not read or write under every path of home, since macOS links /tmp and /var:
-// all of deck but its own run and project data, later ones too; the adapters add the owner's credential stores.
-func hidden(home string) func(project, process int64) []string {
-	homes := []string{home}
-	if real, err := filepath.EvalSymlinks(home); err == nil && real != home {
-		homes = append(homes, real)
+// hidden are what an agent may not read or write under every path of home, since macOS links /tmp and /var: the
+// state of deck, the runs and projects but its own, and in its own project all but the data, later ones too.
+func hidden(h home.Layout) func(project, process int64) []string {
+	roots := []home.Layout{h}
+	if real, err := filepath.EvalSymlinks(string(h)); err == nil && real != string(h) {
+		roots = append(roots, home.Layout(real))
 	}
 	return func(project, process int64) []string {
 		var out []string
-		for _, h := range homes {
-			out = append(out, filepath.Join(h, "deck.db")+"*", filepath.Join(h, "token"), filepath.Join(h, "mcp", "*.json"),
-				filepath.Join(h, "mcp", "*.tmp"), filepath.Join(h, "mcp", "stderr-*"))
-			dirs := []string{"secrets", "files", "backups", "browser", "tailscale", "codex", "acp"}
-			top, _ := os.ReadDir(h)
-			for _, e := range top {
-				if e.IsDir() && !slices.Contains(append(dirs, "runs", "projects", "mcp"), e.Name()) {
-					dirs = append(dirs, e.Name())
-				}
-			}
-			for _, d := range dirs {
-				out = append(out, filepath.Join(h, d)+"/**")
-			}
-			out = append(out, others(filepath.Join(h, "runs"), fmt.Sprint(process))...)
-			out = append(out, others(filepath.Join(h, "projects"), fmt.Sprint(project))...)
-			own := filepath.Join(h, "projects", fmt.Sprint(project))
+		for _, r := range roots {
+			out = append(out, r.State()+"/**")
+			out = append(out, others(r.Runs(), fmt.Sprint(process))...)
+			out = append(out, others(r.Projects(), fmt.Sprint(project))...)
 			names := []string{"mcp"}
-			entries, _ := os.ReadDir(own)
+			entries, _ := os.ReadDir(r.Project(project))
 			for _, e := range entries {
 				if e.Name() != "data" && !slices.Contains(names, e.Name()) {
 					names = append(names, e.Name())
 				}
 			}
 			for _, n := range names {
-				out = append(out, filepath.Join(own, n)+"/**")
+				out = append(out, filepath.Join(r.Project(project), n)+"/**")
 			}
 		}
 		return out
@@ -330,7 +324,7 @@ func (a *App) purgeEmpty(ctx context.Context, now time.Time) {
 		return
 	}
 	for _, id := range ids {
-		_ = os.RemoveAll(filepath.Join(a.Cfg.Home, "runs", fmt.Sprint(id)))
+		_ = os.RemoveAll(a.Home.Run(id))
 	}
 	if len(ids) > 0 {
 		a.Bus.Publish("processes")

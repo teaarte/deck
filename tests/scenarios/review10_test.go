@@ -2,6 +2,7 @@ package scenarios
 
 import (
 	"context"
+	deckhome "deck2/internal/home"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -108,7 +109,7 @@ func TestWorkFolderOfAFinishedAgentGoesAfterAWeek(t *testing.T) {
 	p := e.createProject("plain", testManifest([]string{agentCommand("work", "")}, nil))
 	id := e.run(p, "work")
 	e.waitState(id, "done")
-	work := filepath.Join(e.App.Cfg.Home, "runs", fmt.Sprint(id))
+	work := filepath.Join(deckhome.Layout(e.App.Cfg.Home).Work(), "runs", fmt.Sprint(id))
 	e.Clock.Add(6 * 24 * time.Hour)
 	e.sweep()
 	if _, err := os.Stat(work); err != nil {

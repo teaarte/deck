@@ -2,6 +2,7 @@ package scenarios
 
 import (
 	"context"
+	deckhome "deck2/internal/home"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -58,7 +59,7 @@ func TestCommandAgentRunsInAutoModeWithItsOwnWeb(t *testing.T) {
 	for n := c.calls(); slices.Contains(call.args, "--resume"); n-- {
 		call = c.call(n - 1)
 	}
-	data := filepath.Join(home, "projects", fmt.Sprint(p), "data")
+	data := filepath.Join(deckhome.Layout(home).Work(), "projects", fmt.Sprint(p), "data")
 	if mode, _ := flag(call.args, "--permission-mode"); mode != "auto" {
 		t.Fatalf("the agent runs in the auto mode of the CLI: %v", call.args)
 	}
@@ -86,19 +87,19 @@ func TestCommandAgentRunsInAutoModeWithItsOwnWeb(t *testing.T) {
 	}
 	real, _ := filepath.EvalSymlinks(home)
 	for _, h := range []string{home, real} {
-		mine := []string{filepath.Join(h, "runs", fmt.Sprint(id), "work", "a.txt"), filepath.Join(h, "projects", fmt.Sprint(p), "data", "index")}
+		mine := []string{filepath.Join(deckhome.Layout(h).Work(), "runs", fmt.Sprint(id), "work", "a.txt"), filepath.Join(deckhome.Layout(h).Work(), "projects", fmt.Sprint(p), "data", "index")}
 		for _, path := range mine {
 			if denied(set.Permissions.Deny, path) {
 				t.Fatalf("the agent reads and writes its own folders: %s", path)
 			}
 		}
-		theirs := []string{filepath.Join(h, "token"), filepath.Join(h, "mcp", "mcp-1.json"), filepath.Join(h, "files", "3", "cv.pdf"),
-			filepath.Join(h, "secrets", "svc"), filepath.Join(h, "deck.db-wal"), filepath.Join(h, "backups", "x"),
-			filepath.Join(h, "projects", fmt.Sprint(other), "data", "index"), filepath.Join(h, "mcp", "mcp-1.tmp"),
-			filepath.Join(h, "projects", fmt.Sprint(p), "mcp", "srv", ".npmrc")}
+		theirs := []string{filepath.Join(deckhome.Layout(h).State(), "token"), filepath.Join(deckhome.Layout(h).State(), "mcp", "mcp-1.json"), filepath.Join(deckhome.Layout(h).State(), "files", "3", "cv.pdf"),
+			filepath.Join(deckhome.Layout(h).State(), "secrets", "svc"), filepath.Join(deckhome.Layout(h).State(), "deck.db-wal"), filepath.Join(deckhome.Layout(h).State(), "backups", "x"),
+			filepath.Join(deckhome.Layout(h).Work(), "projects", fmt.Sprint(other), "data", "index"), filepath.Join(deckhome.Layout(h).State(), "mcp", "mcp-1.tmp"),
+			filepath.Join(deckhome.Layout(h).Work(), "projects", fmt.Sprint(p), "mcp", "srv", ".npmrc")}
 		for _, n := range []int64{id + 1, id * 10, id + 100, 7, id / 10} {
 			if n != id {
-				theirs = append(theirs, filepath.Join(h, "runs", fmt.Sprint(n), "work", "a.txt"))
+				theirs = append(theirs, filepath.Join(deckhome.Layout(h).Work(), "runs", fmt.Sprint(n), "work", "a.txt"))
 			}
 		}
 		for _, path := range theirs {

@@ -4,6 +4,7 @@ package codex
 
 import (
 	"context"
+	deckhome "deck2/internal/home"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -31,7 +32,7 @@ type Adapter struct {
 }
 
 func New(home string) *Adapter {
-	return &Adapter{Binary: "codex", Home: home, Dir: filepath.Join(home, "codex"), Linger: 10 * time.Second}
+	return &Adapter{Binary: "codex", Home: home, Dir: deckhome.Layout(home).Codex(), Linger: 10 * time.Second}
 }
 
 func (a *Adapter) Name() string { return "codex" }

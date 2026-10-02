@@ -2,6 +2,7 @@ package scenarios
 
 import (
 	"context"
+	deckhome "deck2/internal/home"
 	"encoding/json"
 	"os"
 	"os/exec"
@@ -52,7 +53,7 @@ func TestCLIGetsOnlyAllowlistedEnvironment(t *testing.T) {
 	cfg, _ := flag(call.args, "--mcp-config")
 	cwd, _ := filepath.EvalSymlinks(call.cwd)
 	realCfg, _ := filepath.EvalSymlinks(filepath.Dir(cfg))
-	if strings.HasPrefix(realCfg, cwd) || strings.HasPrefix(cfg, filepath.Join(home, "runs")) {
+	if strings.HasPrefix(realCfg, cwd) || strings.HasPrefix(cfg, filepath.Join(deckhome.Layout(home).Work(), "runs")) {
 		t.Fatalf("the MCP config %s must be outside the agent folder %s", cfg, cwd)
 	}
 	if call.mcpMode != "-rw-------" || !strings.Contains(call.mcp, "/mcp/") {
@@ -72,7 +73,7 @@ func TestCLIGetsOnlyAllowlistedEnvironment(t *testing.T) {
 		set.Env["CLAUDE_CODE_USE_BEDROCK"] != "" {
 		t.Fatalf("deck settings must blank out the key helper and API variables: %s %s", call.settingsMode, call.settings)
 	}
-	if f, _ := flag(call.args, "--settings"); f == "" || !strings.HasPrefix(f, filepath.Join(home, "mcp")) {
+	if f, _ := flag(call.args, "--settings"); f == "" || !strings.HasPrefix(f, filepath.Join(deckhome.Layout(home).State(), "mcp")) {
 		t.Fatalf("settings must be a file of deck: %q", f)
 	}
 }
@@ -220,7 +221,7 @@ func TestSkillsReachTheCLIAsAPluginOutsideTheAgentFolder(t *testing.T) {
 	}
 	call := c.call(1)
 	dir, ok := flag(call.args, "--plugin-dir")
-	if !ok || strings.HasPrefix(dir, filepath.Join(home, "runs")) {
+	if !ok || strings.HasPrefix(dir, filepath.Join(deckhome.Layout(home).Work(), "runs")) {
 		t.Fatalf("skills go to a plugin folder outside the agent's folders: %q", dir)
 	}
 	copied := filepath.Join(c.dir, "calls", "1", "plugin")

@@ -2,6 +2,7 @@ package scenarios
 
 import (
 	"context"
+	deckhome "deck2/internal/home"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -251,7 +252,7 @@ print(json.dumps({"files": [{"path": "f.txt", "record": out["ids"][0]}]}))
 	if !strings.HasPrefix(created, t0.UTC().Format("2006-01-02T15:04")) {
 		t.Fatalf("a record is dated by the deck clock: %s", created)
 	}
-	file := filepath.Join(e.App.Cfg.Home, "files", "1")
+	file := filepath.Join(deckhome.Layout(e.App.Cfg.Home).State(), "files", "1")
 	e.Clock.Add(11 * 24 * time.Hour)
 	e.sweep()
 	var recs []map[string]any

@@ -8,7 +8,6 @@ import (
 	"strings"
 	"testing"
 
-	"deck2/internal/docs"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
 )
@@ -23,18 +22,6 @@ func TestQueryOutsideTheTransactionFailsLoudly(t *testing.T) {
 	})
 	if recovered == nil || !strings.Contains(recovered.(string), "inside a transaction") {
 		t.Fatalf("a query through Store.Q inside a transaction must panic, got %v", recovered)
-	}
-}
-
-func TestLegacyDescriptionBecomesThePrompt(t *testing.T) {
-	e := newEnv(t, nil)
-	e.createProject("ideas", ideasV1)
-	var projects []struct{ Description string }
-	e.projectsOf(&projects)
-	var prompt struct{ Text string }
-	e.must("deck.document_get", map[string]any{"project": "ideas", "name": "prompt.md"}, &prompt)
-	if len(projects) != 1 || projects[0].Description != "Ideas of the day" || prompt.Text != "Ideas of the day" {
-		t.Fatalf("the v1 description must move into the prompt: %+v %q", projects, prompt.Text)
 	}
 }
 
@@ -80,31 +67,6 @@ func TestOtherWorkspacesAreInvisible(t *testing.T) {
 	e.createProject("theirs", ideasManifest)
 	if code, out := e.call("deck.manifest_get", map[string]any{"project": "theirs"}); code != 200 || !strings.Contains(string(out), "collect") {
 		t.Fatalf("a name finds the project of the caller's workspace: %d %s", code, out)
-	}
-}
-
-func TestStoredV2DescriptionMovesToThePromptOnStart(t *testing.T) {
-	e := newEnv(t, nil)
-	p := e.createProject("ideas", ideasManifest)
-	v2 := strings.Replace(ideasManifest, `"version": 5,`, `"version": 2, "description": "Ideas of the day",`, 1)
-	ctx := context.Background()
-	err := e.App.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		_, _, err := docs.Save(ctx, q, docs.Ref{Scope: docs.Scope{Workspace: 1, Project: p}, Name: docs.ManifestName}, docs.KindManifest, v2, "owner", "stored by an older deck")
-		return err
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := e.App.UpgradeManifests(ctx); err != nil {
-		t.Fatal(err)
-	}
-	var projects []struct {
-		Description   string
-		ManifestError string `json:"manifest_error"`
-	}
-	e.projectsOf(&projects)
-	if len(projects) != 1 || projects[0].ManifestError != "" || projects[0].Description != "Ideas of the day" {
-		t.Fatalf("a v2 manifest with a description must upgrade and move it into the prompt: %+v", projects)
 	}
 }
 

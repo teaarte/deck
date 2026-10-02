@@ -82,31 +82,6 @@ func TestLaneRenameKeepsCardsRunsAndIntake(t *testing.T) {
 	}
 }
 
-func TestV3BoardGetsStableLaneNames(t *testing.T) {
-	e := newEnv(t, idle)
-	v3 := `{"version": 3,
-  "commands": [{"name": "pack", "title": "Pack", "description": "Packs the card.", "class": "internal",
-    "input": {"type": "object", "properties": {"card": {"type": "integer", "format": "card"}}},
-    "executor": {"type": "agent", "prompt": "Pack."}}],
-  "triggers": [{"command": "pack", "lane": "Пакет готов"}],
-  "board": {"lanes": [{"name": "Найдено", "role": "inbox"}, {"name": "Пакет готов"}, {"name": "In Review!"}, {"name": "Готово", "role": "done"}]}}`
-	e.createProject("work", v3)
-	bd := e.board("work", false)
-	var names, titles []string
-	for _, l := range bd.Lanes {
-		names, titles = append(names, l.Name), append(titles, l.Title)
-	}
-	if !slices.Equal(names, []string{"inbox", "lane-2", "in-review", "done"}) || titles[1] != "Пакет готов" {
-		t.Fatalf("v3 lanes get stable names and keep their titles: %v %v", names, titles)
-	}
-	c := e.card(map[string]any{"project": "work", "title": "x", "lane": "lane-2"})
-	e.must("deck.card_get", map[string]any{"card": c.ID}, &c)
-	if c.Process == 0 {
-		t.Fatalf("the lane trigger follows the upgraded name: %+v", c)
-	}
-	e.waitState(c.Process, "done")
-}
-
 func TestLinkedProcessIsAnnounced(t *testing.T) {
 	e := newEnv(t, idle)
 	e.createProject("work", boardManifest)
@@ -123,13 +98,4 @@ func TestLinkedProcessIsAnnounced(t *testing.T) {
 		t.Fatalf("the second board event comes after the process is linked: %+v", got)
 	}
 	e.waitState(got.Process, "done")
-}
-
-func TestV3BoardWithPartialRunRolesUpgrades(t *testing.T) {
-	e := newEnv(t, idle)
-	e.createProject("work", `{"version": 3, "board": {"lanes": [{"name": "Inbox", "role": "inbox"}, {"name": "Next", "role": "ready"}, {"name": "Done"}]}}`)
-	bd := e.board("work", false)
-	if bd.Runs || bd.Lanes[0].Role != "inbox" || bd.Lanes[1].Role != "" || bd.Lanes[1].Name != "next" {
-		t.Fatalf("partial run roles are dropped on upgrade, other roles stay: %+v", bd)
-	}
 }

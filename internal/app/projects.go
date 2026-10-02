@@ -34,9 +34,8 @@ func (a *App) Prompt(ctx context.Context, projectID int64) (string, error) {
 }
 
 type parsed struct {
-	m      *manifest.Manifest
-	text   []byte
-	legacy string
+	m    *manifest.Manifest
+	text []byte
 }
 
 // parseManifest validates a manifest and returns the text to store, upgraded to the current format.
@@ -45,7 +44,7 @@ func parseManifest(raw []byte) (parsed, error) {
 	if err != nil {
 		return parsed{}, registry.Invalid("deck: %v", err)
 	}
-	return parsed{m: m, text: m.Text(), legacy: manifest.LegacyDescription(raw)}, nil
+	return parsed{m: m, text: m.Text()}, nil
 }
 
 // CreateProject validates the manifest, stores it and the prompt as first revisions and registers triggers.
@@ -67,9 +66,6 @@ func (a *App) createProject(ctx context.Context, act registry.Actor, name string
 	pm, err := parseManifest(raw)
 	if err != nil {
 		return db.Project{}, err
-	}
-	if prompt == "" {
-		prompt = pm.legacy
 	}
 	var p db.Project
 	err = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
@@ -173,9 +169,6 @@ func (a *App) SaveManifest(ctx context.Context, act registry.Actor, p db.Project
 				return err
 			}
 		}
-		if err := keepLegacyDescription(ctx, q, p, pm.legacy, act.Author()); err != nil {
-			return err
-		}
 		if err := a.unattended(ctx, q, act, p.ID, cur, n, fmt.Sprintf("%s changed the manifest of %s", act.Author(), p.Name), reason); err != nil {
 			return err
 		}
@@ -193,52 +186,6 @@ func (a *App) SaveManifest(ctx context.Context, act registry.Actor, p db.Project
 	}
 	a.prepareLater(p.ID)
 	return saved, nil
-}
-
-// keepLegacyDescription turns the description of a format-1 manifest into the prompt when there is none.
-func keepLegacyDescription(ctx context.Context, q *db.Queries, p db.Project, legacy, author string) error {
-	if legacy == "" {
-		return nil
-	}
-	prompt, err := docs.CurrentText(ctx, q, docs.ProjectScope(p), docs.KindPrompt, docs.PromptName)
-	if err != nil || prompt != "" {
-		return err
-	}
-	_, _, err = docs.Save(ctx, q, docs.Ref{Scope: docs.ProjectScope(p), Name: docs.PromptName}, docs.KindPrompt, legacy, author, "description moved from the manifest")
-	return err
-}
-
-// UpgradeManifests raises stored manifests of an older format to the current one as new revisions; an
-// upgrade that does not pass the checks is not stored.
-func (a *App) UpgradeManifests(ctx context.Context) error {
-	ps, err := a.Store.Q.ListProjects(ctx)
-	if err != nil {
-		return err
-	}
-	for _, p := range ps {
-		err := a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-			raw, err := docs.CurrentText(ctx, q, docs.ProjectScope(p), docs.KindManifest, docs.ManifestName)
-			if err != nil {
-				return err
-			}
-			up, changed, err := manifest.Upgrade([]byte(raw))
-			if err != nil || !changed {
-				return err
-			}
-			if _, err := manifest.Parse(up); err != nil {
-				return err
-			}
-			reason := fmt.Sprintf("manifest format upgraded to version %d", manifest.FormatVersion)
-			if _, _, err := docs.Save(ctx, q, docs.Ref{Scope: docs.ProjectScope(p), Name: docs.ManifestName}, docs.KindManifest, string(up), "deck", reason); err != nil {
-				return err
-			}
-			return keepLegacyDescription(ctx, q, p, manifest.LegacyDescription([]byte(raw)), "deck")
-		})
-		if err != nil {
-			slog.Error("upgrade manifest; keeping the stored revision", "project", p.Name, "err", err)
-		}
-	}
-	return nil
 }
 
 // Reconcile brings stored triggers in line with the current manifests; run it on start.

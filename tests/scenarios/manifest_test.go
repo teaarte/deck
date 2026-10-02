@@ -7,9 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"deck2/internal/docs"
 	"deck2/internal/provider"
-	"deck2/internal/store/db"
 )
 
 const fullManifest = `{
@@ -196,55 +194,6 @@ func TestPromptFileAndSkillsFeedTheAgent(t *testing.T) {
 	}
 }
 
-const ideasV1 = `{
-  "version": 1,
-  "description": "Ideas of the day",
-  "collections": [{"name": "ideas", "description": "Short ideas", "key": "title", "title": "title",
-    "schema": {"type": "object", "properties": {"title": {"type": "string"}, "score": {"type": "integer"}}, "required": ["title"]}}],
-  "commands": [{"name": "collect", "title": "Collect ideas", "description": "Writes ideas", "class": "internal",
-    "executor": {"type": "agent", "prompt": "Write ideas."}, "result_schema": {"type": "object"}}]
-}`
-
-func TestOldManifestFormatIsUpgraded(t *testing.T) {
-	e := newEnv(t, nil)
-	p := e.createProject("ideas", ideasV1)
-	var cur struct{ Manifest string }
-	e.must("deck.manifest_get", map[string]any{"project": "ideas"}, &cur)
-	if !strings.Contains(cur.Manifest, `"version": 5`) || !strings.Contains(cur.Manifest, `"display": "title"`) || strings.Contains(cur.Manifest, "result_schema") {
-		t.Fatalf("saved v1 manifest must be stored upgraded:\n%s", cur.Manifest)
-	}
-
-	ctx := context.Background()
-	err := e.App.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		_, _, err := docs.Save(ctx, q, docs.Ref{Scope: docs.Scope{Workspace: 1, Project: p}, Name: docs.ManifestName}, docs.KindManifest, ideasV1, "owner", "stored by an old deck")
-		return err
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := e.App.UpgradeManifests(ctx); err != nil {
-		t.Fatal(err)
-	}
-	var revs []struct {
-		Revision int64
-		Author   string
-		Reason   string
-	}
-	var doc struct{ Document int64 }
-	e.must("deck.manifest_get", map[string]any{"project": "ideas"}, &doc)
-	e.must("deck.document_revisions", map[string]any{"document": doc.Document}, &revs)
-	if len(revs) != 3 || revs[0].Author != "deck" || !strings.Contains(revs[0].Reason, "version 5") {
-		t.Fatalf("startup upgrade must add a deck revision, got %+v", revs)
-	}
-	if err := e.App.UpgradeManifests(ctx); err != nil {
-		t.Fatal(err)
-	}
-	e.must("deck.document_revisions", map[string]any{"document": doc.Document}, &revs)
-	if len(revs) != 3 {
-		t.Fatalf("a current manifest must not be upgraded again, got %d revisions", len(revs))
-	}
-}
-
 func TestSchemaChangesAreCheckedAgainstRecords(t *testing.T) {
 	e := newEnv(t, nil)
 	e.createProject("links", fullManifest)
@@ -322,18 +271,18 @@ func TestImmutableFieldsCannotChange(t *testing.T) {
 	e.must("deck.record_update", map[string]any{"record": recs[0].ID, "data": string(b)}, nil)
 }
 
-func TestLooseV1ManifestUpgrades(t *testing.T) {
+func TestKeyFieldsStayAndEmptyTriggersAreRefused(t *testing.T) {
 	e := newEnv(t, nil)
-	loose := `{"version": 1, "description": "", "triggers": null, "screens": null,
-	  "collections": [{"name": "contacts", "description": "People", "key": "lower(email)", "title": "",
+	contacts := `{"version": 5,
+	  "collections": [{"name": "contacts", "description": "People", "key": "lower(email)",
 	    "schema": {"type": "object", "properties": {"email": {"type": "string"}, "big": {"type": "integer"}}, "required": ["email"]}}],
-	  "commands": [{"name": "fetch-all", "title": "Fetch", "description": "Fetches <all> & more", "class": "internal", "result_schema": null,
+	  "commands": [{"name": "fetch-all", "title": "Fetch", "description": "Fetches <all> & more", "class": "internal",
 	    "executor": {"type": "agent", "prompt": "Fetch."}}]}`
-	e.createProject("contacts", loose)
+	e.createProject("contacts", contacts)
 	var cur struct{ Manifest string }
 	e.must("deck.manifest_get", map[string]any{"project": "contacts"}, &cur)
-	if strings.Contains(cur.Manifest, "null") || !strings.Contains(cur.Manifest, "<all> & more") {
-		t.Fatalf("upgrade must drop empty values and keep text as is:\n%s", cur.Manifest)
+	if !strings.Contains(cur.Manifest, "<all> & more") {
+		t.Fatalf("a stored manifest keeps its text as is:\n%s", cur.Manifest)
 	}
 	e.must("deck.records_upsert", map[string]any{"project": "contacts", "collection": "contacts", "records": `{"email": "A@x.example"}`}, nil)
 	var recs []struct{ ID int64 }
@@ -348,4 +297,18 @@ func TestLooseV1ManifestUpgrades(t *testing.T) {
 			t.Errorf("trigger with %s must be refused, got %d", bad, code)
 		}
 	}
+}
+
+// TestAManifestOlderThanFormat4IsRefused: format 4 is still raised to the current one; older ones are refused.
+func TestAManifestOlderThanFormat4IsRefused(t *testing.T) {
+	e := newEnv(t, nil)
+	v4 := strings.Replace(ideasManifest, `"version": 5,`, `"version": 4,`, 1)
+	e.createProject("ideas", v4)
+	var cur struct{ Manifest string }
+	e.must("deck.manifest_get", map[string]any{"project": "ideas"}, &cur)
+	if !strings.Contains(cur.Manifest, `"version": 5`) {
+		t.Fatalf("a format 4 manifest is stored as format 5:\n%s", cur.Manifest)
+	}
+	v3 := strings.Replace(ideasManifest, `"version": 5,`, `"version": 3,`, 1)
+	e.refused("deck.project_create", map[string]any{"name": "old", "manifest": v3}, 422, "version must be 5")
 }

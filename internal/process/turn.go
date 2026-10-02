@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"deck2/internal/docs"
 	"deck2/internal/gateway"
 	"deck2/internal/manifest"
 	"deck2/internal/provider"
@@ -144,7 +145,7 @@ func (r *Runner) run(ctx context.Context, t turn) {
 	}
 
 	noNetwork := t.m.NoNetwork
-	if now, err := r.projects.ManifestAt(bg, t.project, 0); err == nil && now.NoNetwork {
+	if now, err := docs.ManifestAt(bg, r.st.Q, t.project, 0); err == nil && now.NoNetwork {
 		noNetwork = true
 	}
 	req := provider.Request{

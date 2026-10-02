@@ -10,7 +10,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	deckdocs "deck2/internal/app/docs"
+	deckdocs "deck2/internal/docs"
 	"deck2/internal/store"
 )
 

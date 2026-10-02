@@ -118,8 +118,6 @@ type Providers interface {
 
 // Projects gives the runner the current manifest and md prompt of a project.
 type Projects interface {
-	// ManifestAt is a stored revision of the manifest; 0 is the current one.
-	ManifestAt(ctx context.Context, projectID, revision int64) (*manifest.Manifest, error)
 	Prompt(ctx context.Context, projectID int64) (string, error)
 	// Text is the current text of a project document of the kind, of any kind for ""; empty when missing.
 	Text(ctx context.Context, projectID int64, kind, name string) (string, error)

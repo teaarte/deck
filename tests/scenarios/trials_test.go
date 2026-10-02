@@ -85,8 +85,12 @@ func TestTrialOfAToolIsRefusedAndNothingLeavesDeck(t *testing.T) {
 	e.createProject("notes", postManifest(svc.URL, ""))
 	_, tok := e.token("terminal", "deck.command_try")
 	for _, call := range []func() (int, []byte){
-		func() (int, []byte) { return e.call("deck.command_try", map[string]any{"command": "notes.post", "input": `{"id": "a", "text": "hi"}`}) },
-		func() (int, []byte) { return e.callWith(tok, "deck.command_try", map[string]any{"command": "notes.post", "input": `{"id": "a", "text": "hi"}`}) },
+		func() (int, []byte) {
+			return e.call("deck.command_try", map[string]any{"command": "notes.post", "input": `{"id": "a", "text": "hi"}`})
+		},
+		func() (int, []byte) {
+			return e.callWith(tok, "deck.command_try", map[string]any{"command": "notes.post", "input": `{"id": "a", "text": "hi"}`})
+		},
 	} {
 		if code, out := call(); code < 400 || len(svc.requests()) != 0 {
 			t.Fatalf("a trial of a tool is refused: %d %s, %d calls", code, out, len(svc.requests()))

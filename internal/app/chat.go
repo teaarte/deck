@@ -11,8 +11,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"deck2/internal/app/docs"
 	"deck2/internal/ask"
+	"deck2/internal/docs"
 	"deck2/internal/process"
 	"deck2/internal/registry"
 	"deck2/internal/store"

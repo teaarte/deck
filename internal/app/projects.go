@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"regexp"
 
-	"deck2/internal/app/docs"
+	"deck2/internal/docs"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store"
@@ -14,39 +14,6 @@ import (
 )
 
 var projectName = regexp.MustCompile(`^[a-z][a-z0-9-]{0,39}$`)
-
-// ManifestAt is a stored revision of the manifest of a project; revision 0 is the current one.
-func (a *App) ManifestAt(ctx context.Context, projectID, revision int64) (*manifest.Manifest, error) {
-	p, err := a.Store.Q.GetProject(ctx, projectID)
-	if err != nil || revision == 0 {
-		if err != nil {
-			return nil, err
-		}
-		return docs.Manifest(ctx, a.Store.Q, p)
-	}
-	d, err := a.Store.Q.FindDocument(ctx, docs.Ref{Scope: docs.ProjectScope(p), Name: docs.ManifestName}.Find())
-	if err != nil {
-		return nil, err
-	}
-	r, err := docs.Revision(ctx, a.Store.Q, d, revision)
-	if err != nil {
-		return nil, err
-	}
-	m, err := manifest.Parse([]byte(r.Text))
-	if err == nil {
-		m.Revision = revision
-	}
-	return m, err
-}
-
-// Manifest is the current manifest of a project, read outside any transaction.
-func (a *App) Manifest(ctx context.Context, projectID int64) (*manifest.Manifest, error) {
-	p, err := a.Store.Q.GetProject(ctx, projectID)
-	if err != nil {
-		return nil, err
-	}
-	return docs.Manifest(ctx, a.Store.Q, p)
-}
 
 // Text is the current text of a project document by kind and name, of any kind for ""; empty when missing.
 func (a *App) Text(ctx context.Context, projectID int64, kind, name string) (string, error) {

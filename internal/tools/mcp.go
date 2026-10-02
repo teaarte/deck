@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 
+	"deck2/internal/docs"
 	"deck2/internal/untrusted"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -35,8 +36,6 @@ type MCP struct {
 	Secrets func(workspace int64, name string) (string, error)
 	Dirs    files.Dirs
 	Home    string
-	// Manifests gives the current manifest of a project.
-	Manifests func(ctx context.Context, p db.Project) (*manifest.Manifest, error)
 }
 
 // ServerKey names a server of a project in the host.
@@ -125,7 +124,7 @@ func (x *MCP) Keep(ctx context.Context, project int64, server string, tools []*m
 	if err != nil {
 		return err
 	}
-	m, err := x.Manifests(ctx, p)
+	m, err := docs.Manifest(ctx, x.Store.Q, p)
 	if err != nil {
 		return err
 	}

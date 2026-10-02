@@ -55,7 +55,7 @@ SELECT id, document_id, n, author, reason, created_at FROM document_revision WHE
 
 
 -- name: CurrentText :one
-SELECT d.kind, r.text, r.n FROM document d JOIN document_revision r ON r.document_id = d.id AND r.n = d.current
+SELECT d.id, d.kind, r.text, r.n FROM document d JOIN document_revision r ON r.document_id = d.id AND r.n = d.current
 WHERE d.workspace_id = ? AND d.project_id = ? AND d.name = ? AND d.owner_kind = '' AND d.owner_id = 0
   AND (sqlc.arg(kind) = '' OR d.kind = sqlc.arg(kind)) AND d.deleted_at IS NULL;
 

@@ -1,0 +1,79 @@
+package docs
+
+import (
+	"context"
+	"crypto/sha256"
+	"database/sql"
+	"errors"
+	"sync"
+
+	"deck2/internal/manifest"
+	"deck2/internal/store/db"
+)
+
+// Manifest parses the current manifest of a project.
+func Manifest(ctx context.Context, q *db.Queries, p db.Project) (*manifest.Manifest, error) {
+	s := ProjectScope(p)
+	row, err := q.CurrentText(ctx, db.CurrentTextParams{WorkspaceID: s.Workspace, ProjectID: s.Project, Name: ManifestName, Kind: KindManifest})
+	if errors.Is(err, sql.ErrNoRows) {
+		return manifest.Parse(nil)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return parse(row.ID, row.N, row.Text)
+}
+
+// ManifestAt is a stored revision of the manifest of a project; revision 0 is the current one.
+func ManifestAt(ctx context.Context, q *db.Queries, projectID, revision int64) (*manifest.Manifest, error) {
+	p, err := q.GetProject(ctx, projectID)
+	if err != nil {
+		return nil, err
+	}
+	if revision == 0 {
+		return Manifest(ctx, q, p)
+	}
+	d, err := q.FindDocument(ctx, Ref{Scope: ProjectScope(p), Name: ManifestName}.Find())
+	if err != nil {
+		return nil, err
+	}
+	r, err := Revision(ctx, q, d, revision)
+	if err != nil {
+		return nil, err
+	}
+	return parse(d.ID, r.N, r.Text)
+}
+
+// parsed keeps manifests by document, revision and text, so a read does not parse and check the JSON again;
+// a kept manifest is shared and only read.
+var parsed = struct {
+	sync.Mutex
+	m map[parsedKey]*manifest.Manifest
+}{m: map[parsedKey]*manifest.Manifest{}}
+
+type parsedKey struct {
+	doc, revision int64
+	text          [sha256.Size]byte
+}
+
+func parse(doc, revision int64, text string) (*manifest.Manifest, error) {
+	key := parsedKey{doc, revision, sha256.Sum256([]byte(text))}
+	parsed.Lock()
+	m := parsed.m[key]
+	parsed.Unlock()
+	if m != nil {
+		return m, nil
+	}
+	m, err := manifest.Parse([]byte(text))
+	if err != nil {
+		return nil, err
+	}
+	m.Revision = revision
+	parsed.Lock()
+	if len(parsed.m) >= 512 {
+		clear(parsed.m)
+	}
+	parsed.m[key] = m
+	parsed.Unlock()
+	return m, nil
+}

@@ -11,6 +11,7 @@ import (
 	"strings"
 	"syscall"
 
+	"deck2/internal/docs"
 	"deck2/internal/untrusted"
 
 	"deck2/internal/gateway"
@@ -22,7 +23,7 @@ import (
 func (b *Browser) actor(tool string) registry.Handler {
 	name := registry.Builtin + "." + tool
 	return func(ctx context.Context, act registry.Actor, raw json.RawMessage) (any, error) {
-		m, err := b.Manifests(ctx, act.ProjectID)
+		m, err := docs.ManifestAt(ctx, b.Store.Q, act.ProjectID, 0)
 		if err != nil {
 			return nil, err
 		}

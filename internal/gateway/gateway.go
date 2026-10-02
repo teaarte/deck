@@ -13,7 +13,6 @@ import (
 
 	"deck2/internal/ask"
 	"deck2/internal/events"
-	"deck2/internal/manifest"
 	"deck2/internal/nonce"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
@@ -62,11 +61,6 @@ func (s *Session) actor() registry.Actor {
 		Commands: s.Commands}
 }
 
-// Projects gives the gateway the current manifest of a project.
-type Projects interface {
-	Manifest(ctx context.Context, projectID int64) (*manifest.Manifest, error)
-}
-
 type Config struct {
 	Now          func() time.Time
 	QuestionWait time.Duration
@@ -74,7 +68,6 @@ type Config struct {
 	// ConfirmTTL is how long an unanswered confirmation of a workspace stays open unless its tool sets its own;
 	// zero keeps it open.
 	ConfirmTTL func(ctx context.Context, workspace int64) time.Duration
-	Projects   Projects
 }
 
 type Gateway struct {

@@ -6,7 +6,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"deck2/internal/app/docs"
+	"deck2/internal/docs"
 	"deck2/internal/health"
 	"deck2/internal/tools"
 )

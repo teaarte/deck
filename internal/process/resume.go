@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"deck2/internal/ask"
+	"deck2/internal/docs"
 	"deck2/internal/gateway"
 	"deck2/internal/sandbox"
 	"deck2/internal/store"
@@ -279,7 +280,7 @@ func (r *Runner) turnOf(ctx context.Context, p db.Process) (turn, error) {
 	if p.SessionID == "" {
 		return turn{}, errors.New("process has no session to resume")
 	}
-	m, err := r.projects.ManifestAt(ctx, p.ProjectID, p.ManifestRevision)
+	m, err := docs.ManifestAt(ctx, r.st.Q, p.ProjectID, p.ManifestRevision)
 	if err != nil {
 		return turn{}, err
 	}

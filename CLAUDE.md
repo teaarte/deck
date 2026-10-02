@@ -27,9 +27,10 @@ Stage 1 plan: `docs/plan-stage1.md`.
 - `cmd/deck` — entry point
 - `internal/store` — SQLite, goose migrations, sqlc queries (`db/` is generated)
 - `internal/registry` — command registry: every input (API, MCP, triggers) calls commands through it;
-  input schemas limited to App Intents types
-- `internal/app` — wiring, builtin `deck.*` commands (`*_handlers.go`), projects, cards and board;
-  `app/docs` — documents with revisions, skill files, the manifest reader; `app/records` — records of collections;
+  input schemas limited to App Intents types; `registry.Def` takes the schema from the tagged input struct
+- `internal/docs` — documents with revisions, skill files, the manifest reader with its parse cache
+- `internal/app` — wiring, builtin `deck.*` commands (each `*_handlers.go` lists its own next to the handlers),
+  projects, cards and board; who may touch what is `app/access.go`; `app/records` — records of collections;
   `app/screens` — the rows of screen blocks, one file per tab, reading the rest of deck through `screens.Deck`
   (the adapter is `screenDeck` in `app/screens.go`); deck's screens are data in `screens.json`: menu Cockpit, Schedule, Settings (tabs Projects, Providers, Secrets,
   Tokens, General, Interface, Health), Journal (Calls, Spend, Files, Snapshots); `project` screens (Documents and

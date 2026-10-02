@@ -11,8 +11,8 @@ import (
 	"sync"
 	"time"
 
-	"deck2/internal/app/docs"
 	"deck2/internal/ask"
+	"deck2/internal/docs"
 	"deck2/internal/events"
 	"deck2/internal/files"
 	"deck2/internal/gateway"
@@ -83,8 +83,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	a.Asks = ask.NewBroker(st, a.Bus, cfg.Now)
 	a.Registry = registry.New(a.projectCommands)
 	a.addBuiltins()
-	a.Gateway = gateway.New(gateway.Config{Now: cfg.Now, QuestionWait: cfg.QuestionWait, ConfirmWait: cfg.ConfirmWait, ConfirmTTL: a.confirmTTL,
-		Projects: a}, st, a.Asks, a.Bus, a.Registry)
+	a.Gateway = gateway.New(gateway.Config{Now: cfg.Now, QuestionWait: cfg.QuestionWait, ConfirmWait: cfg.ConfirmWait, ConfirmTTL: a.confirmTTL}, st, a.Asks, a.Bus, a.Registry)
 	a.Tools = tools.NewHTTP(a.Gateway, a.Secret, a.dirs())
 	a.Tools.OAuth = &tools.OAuth{Secrets: a.Secret, Swap: a.SwapSecret}
 	a.Tools.Health, a.Tools.SignIn = a.setHealth, a.toolSignIn
@@ -94,11 +93,8 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	a.Host = mcphost.New(a.serverStatus)
 	a.Host.Now, a.Host.Sandbox = cfg.Now, cfg.Sandbox
 	a.Host.Hide = sandbox.Hidden(cfg.Home)
-	a.MCP = &tools.MCP{GW: a.Gateway, Host: a.Host, Store: st, Secrets: a.Secret, Dirs: a.dirs(), Home: cfg.Home,
-		Manifests: func(ctx context.Context, p db.Project) (*manifest.Manifest, error) {
-			return docs.Manifest(ctx, st.Q, p)
-		}}
-	a.Browser = &tools.Browser{GW: a.Gateway, Host: a.Host, Dirs: a.dirs(), Home: cfg.Home, Argv: cfg.Browser, Manifests: a.Manifest}
+	a.MCP = &tools.MCP{GW: a.Gateway, Host: a.Host, Store: st, Secrets: a.Secret, Dirs: a.dirs(), Home: cfg.Home}
+	a.Browser = &tools.Browser{GW: a.Gateway, Host: a.Host, Store: st, Dirs: a.dirs(), Home: cfg.Home, Argv: cfg.Browser}
 	a.Browser.Load()
 	a.Registry.SetExtra(a.Browser.Commands)
 	a.Gateway.SetAutomation(a.Automation)

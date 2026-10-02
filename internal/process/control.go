@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 
+	"deck2/internal/docs"
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
 	"deck2/internal/untrusted"
@@ -71,7 +72,7 @@ func (r *Runner) Rework(ctx context.Context, processID int64, remark string) err
 	if err != nil {
 		return err
 	}
-	m, err := r.projects.ManifestAt(ctx, p.ProjectID, p.ManifestRevision)
+	m, err := docs.ManifestAt(ctx, r.st.Q, p.ProjectID, p.ManifestRevision)
 	if err != nil {
 		return err
 	}

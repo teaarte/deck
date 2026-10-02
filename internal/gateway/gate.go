@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"deck2/internal/docs"
 	"deck2/internal/untrusted"
 
 	"deck2/internal/ask"
@@ -98,7 +99,7 @@ func (g *Gateway) gate(ctx context.Context, act registry.Actor, c *registry.Comm
 	if p.Status == store.ProjectDraft {
 		return false, registry.Refuse("deck: %s is a draft: %s is %s, so it was declined until the owner enables the project", p.Name, c.Name, c.Class)
 	}
-	m, err := g.cfg.Projects.Manifest(ctx, project)
+	m, err := docs.ManifestAt(ctx, g.st.Q, project, 0)
 	if err != nil {
 		return false, err
 	}

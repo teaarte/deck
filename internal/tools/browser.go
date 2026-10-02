@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 
+	"deck2/internal/docs"
+	"deck2/internal/store"
 	"deck2/internal/untrusted"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -42,13 +44,13 @@ var (
 // Browser is the browser MCP server with deck's own profile: reading pages of the read domains, acting
 // only on act domains unless the owner allows it. One call runs at a time, together with its domain check.
 type Browser struct {
-	GW   *gateway.Gateway
-	Host *mcphost.Host
-	Dirs files.Dirs
-	Home string
+	GW    *gateway.Gateway
+	Host  *mcphost.Host
+	Store *store.Store
+	Dirs  files.Dirs
+	Home  string
 	// Argv starts the server; deck adds the profile, the output folder and headless mode.
-	Argv      []string
-	Manifests func(ctx context.Context, project int64) (*manifest.Manifest, error)
+	Argv []string
 
 	mu     sync.Mutex
 	headed bool
@@ -129,7 +131,7 @@ func (b *Browser) build(list []*mcp.Tool) {
 			c.Class, c.Journals, c.Handler = registry.External, true, b.actor(t.Name)
 			c.Allowed = b.allowed
 			c.Fingerprint = func(ctx context.Context, project int64) string {
-				m, err := b.Manifests(ctx, project)
+				m, err := docs.ManifestAt(ctx, b.Store.Q, project, 0)
 				if err != nil {
 					return ""
 				}
@@ -203,7 +205,7 @@ func on(domains []string, page string) bool {
 
 // allowed lets an action run without the owner when the page is on an act domain.
 func (b *Browser) allowed(ctx context.Context, act registry.Actor, _ bool) (bool, error) {
-	m, err := b.Manifests(ctx, act.ProjectID)
+	m, err := docs.ManifestAt(ctx, b.Store.Q, act.ProjectID, 0)
 	if err != nil {
 		return false, err
 	}
@@ -217,7 +219,7 @@ func (b *Browser) reader(tool string) registry.Handler {
 	return func(ctx context.Context, act registry.Actor, raw json.RawMessage) (any, error) {
 		var args struct{ URL, Action string }
 		_ = json.Unmarshal(raw, &args)
-		m, err := b.Manifests(ctx, act.ProjectID)
+		m, err := docs.ManifestAt(ctx, b.Store.Q, act.ProjectID, 0)
 		if err != nil {
 			return nil, err
 		}
@@ -263,7 +265,7 @@ func ownTabs(res *mcp.CallToolResult, domains []string) {
 
 // offDomains reports the page the browser shows when it is off the project's read and act domains; b.mu is held.
 func (b *Browser) offDomains(ctx context.Context, project int64) (string, bool) {
-	m, err := b.Manifests(ctx, project)
+	m, err := docs.ManifestAt(ctx, b.Store.Q, project, 0)
 	if err != nil {
 		return "", true
 	}

@@ -7,7 +7,7 @@ import (
 	"io/fs"
 	"log/slog"
 
-	"deck2/internal/app/docs"
+	"deck2/internal/docs"
 	"deck2/internal/health"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"

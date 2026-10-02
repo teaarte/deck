@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"strings"
 
-	"deck2/internal/app/docs"
+	"deck2/internal/docs"
 	"deck2/internal/store/db"
 	"deck2/internal/untrusted"
 )

@@ -5,8 +5,8 @@ import (
 	"database/sql"
 	"errors"
 
-	"deck2/internal/app/docs"
 	"deck2/internal/app/records"
+	"deck2/internal/docs"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store"

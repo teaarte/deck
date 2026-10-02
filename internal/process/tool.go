@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"deck2/internal/ask"
+	"deck2/internal/docs"
 	"deck2/internal/gateway"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
@@ -107,7 +108,7 @@ func (r *Runner) deliverTool(ctx context.Context, p db.Process, pending []db.Ask
 		}
 		return nil
 	})
-	m, err := r.projects.ManifestAt(ctx, p.ProjectID, p.ManifestRevision)
+	m, err := docs.ManifestAt(ctx, r.st.Q, p.ProjectID, p.ManifestRevision)
 	var cmd *manifest.Command
 	if err == nil {
 		cmd = m.Command(p.Command)

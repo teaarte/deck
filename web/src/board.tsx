@@ -120,7 +120,8 @@ function CardEditor({ card, context, onClose }: { card: BoardCard; context: Comp
         <Textarea label={t('board.text')} autosize minRows={3} value={text} onChange={(e) => setText(e.currentTarget.value)} />
         <Group justify="space-between" align="flex-start">
           <Actions actions={card.actions} context={context} onDone={onClose} before={async () => {
-            if (title.trim() && (title !== card.title || text !== (card.text ?? ''))) await call('deck.card_update', { card: card.id, title, text });
+            if (!title.trim()) throw new Error(t('board.no_title'));
+            if (title !== card.title || text !== (card.text ?? '')) await call('deck.card_update', { card: card.id, title, text });
           }} />
           <Button loading={busy} disabled={!title.trim()} onClick={() => run(() => call('deck.card_update', { card: card.id, title, text }))}>
             {t('board.save')}

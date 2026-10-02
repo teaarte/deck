@@ -124,6 +124,13 @@ func TestRealBrowserWebClientII(t *testing.T) {
 
 	b.eval(`([...document.querySelectorAll('[data-card]')].find((c) => c.innerText.includes('Ship it')).querySelector('button').click(), '')`)
 	b.until("the card editor", `[...document.querySelectorAll('button')].some((x) => x.innerText === 'Delete')`)
+	b.type_(`document.querySelector('.mantine-Modal-body input')`, "")
+	b.eval(`([...document.querySelectorAll('button')].find((x) => x.innerText === 'Delete').click(), '')`)
+	b.until("the card window asking for a title", `document.body.innerText.includes('The card needs a title first')`)
+	if got := b.eval(`String([...document.querySelectorAll('[data-card]')].some((c) => c.innerText.includes('Ship it')))`); got != "true" {
+		t.Fatal("a button of a card without a title does not run")
+	}
+	b.type_(`document.querySelector('.mantine-Modal-body input')`, "Ship it")
 	b.eval(`([...document.querySelectorAll('button')].find((x) => x.innerText === 'Delete').click(), '')`)
 	b.until("the deleted card to leave", `![...document.querySelectorAll('[data-card]')].some((c) => c.innerText.includes('Ship it'))`)
 	if got := b.eval(`String(!!document.querySelector('[data-confirm-yes]'))`); got != "false" {

@@ -77,6 +77,7 @@
     "waits": "waits #{{id}}",
     "card": "Card #{{id}}",
     "title": "Title",
+    "no_title": "The card needs a title first",
     "text": "Text",
     "save": "Save",
     "delete": "Delete",

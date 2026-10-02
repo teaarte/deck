@@ -36,6 +36,7 @@ function ActionButton({ act, context, params, onDone, before }: { act: Action; c
       running.current = true;
       setBusy(true);
       try {
+        await before?.();
         await download(act.file);
       } catch (e) {
         notifications.show({ title: label, message: (e as Error).message, color: 'red', autoClose: 10000 });

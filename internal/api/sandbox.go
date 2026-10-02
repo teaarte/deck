@@ -60,15 +60,15 @@ func (s *Server) Sandbox() http.Handler {
 	return mux
 }
 
-// framesOnly keeps the frames of the client on its own origin and its second one, so a custom block cannot move
-// its frame to a page on the network, and its images on deck, so markdown cannot fetch a picture from one.
+// framesOnly keeps the frames of the client on its own origins and blobs (a PDF of a media block), so a custom
+// block cannot move its frame to a page on the network, and its images on deck, so markdown cannot fetch one.
 func (s *Server) framesOnly(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		src := "'self'"
 		if name, port := hostPort(r); s.pairs[port] != 0 {
 			src += " " + origin(r, name, s.pairs[port])
 		}
-		w.Header().Set("Content-Security-Policy", "frame-src "+src+"; img-src 'self' data: blob:; frame-ancestors 'self'")
+		w.Header().Set("Content-Security-Policy", "frame-src "+src+" blob:; img-src 'self' data: blob:; frame-ancestors 'self'")
 		next.ServeHTTP(w, r)
 	})
 }

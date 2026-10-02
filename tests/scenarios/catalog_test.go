@@ -3,6 +3,10 @@ package scenarios
 import (
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -16,7 +20,9 @@ const forecastManifest = `{"version": 5,
       "schema": {"type": "object", "properties": {"at": {"type": "string"}, "price": {"type": "number"}, "forecast": {"type": "number"}}, "required": ["at"]}},
     {"name": "forecasts", "description": "Forecasts", "key": "at", "display": "at",
       "schema": {"type": "object", "properties": {"at": {"type": "string"}, "horizon": {"type": "string"}, "change": {"type": "number"},
-        "confidence": {"type": "number"}, "status": {"type": "string"}, "source": {"type": "string"}}, "required": ["at"]}}],
+        "confidence": {"type": "number"}, "status": {"type": "string"}, "source": {"type": "string"}}, "required": ["at"]}},
+    {"name": "attachments", "description": "Files", "key": "title", "display": "title",
+      "schema": {"type": "object", "properties": {"title": {"type": "string"}, "file": {}}, "required": ["title"]}}],
   "screens": [
     {"name": "main", "title": "BTC", "blocks": [
       {"type": "stat", "title": "Last price", "source": {"collection": "prices", "sort": "-at", "limit": 1}, "value": "rows[0].price",
@@ -33,6 +39,9 @@ const forecastManifest = `{"version": 5,
         "item": {"title": "horizon"}},
       {"type": "chart", "title": "Price", "source": {"collection": "prices", "sort": "at"}, "x": "at",
         "series": [{"label": "BTC", "y": "price"}, {"label": "Forecast", "y": "forecast"}], "currency": "USD", "format": "money", "empty": "No prices yet"}]},
+    {"name": "files", "title": "Files", "blocks": [
+      {"type": "media", "title": "Attachments", "source": {"collection": "attachments", "sort": "title"}, "item": {"file": "file", "title": "title"},
+        "empty": "No files yet"}]},
     {"name": "projects", "title": "Projects", "blocks": [
       {"type": "chart", "kind": "bar", "title": "Revisions", "source": {"from": "deck.projects_list"}, "x": "name", "series": [{"label": "Revision", "y": "revision"}]}]},
     {"name": "forecast", "title": "Forecast", "record": "forecasts", "blocks": [
@@ -297,6 +306,88 @@ func TestAChartDrawsTheItemsOfItsSourceAsSeries(t *testing.T) {
 		{`"kind": "bar"`, `"kind": "pie"`, `value must be one of 'line', 'bar', 'area'`},
 		{`"series": [{"label": "Revision", "y": "revision"}]`, `"series": []`, `minItems`},
 		{`"x": "name", `, ``, `missing property 'x'`},
+	} {
+		if strings.Count(forecastManifest, tc.from) != 1 {
+			t.Fatalf("fixture has %s once", tc.from)
+		}
+		code, out := e.call("deck.manifest_save", map[string]any{"project": "btc", "manifest": strings.Replace(forecastManifest, tc.from, tc.to, 1)})
+		if code != 422 || !strings.Contains(string(out), tc.want) {
+			t.Fatalf("%s is refused with %q: %d %s", tc.to, tc.want, code, out)
+		}
+	}
+}
+
+// TestMediaShowsTheFilesOfItsProjectOnly: a media line names a stored file of the project or a file of its data
+// folder, given at its url; a file of another project or out of the data folder is an error of its line.
+func TestMediaShowsTheFilesOfItsProjectOnly(t *testing.T) {
+	e := newEnv(t, nil)
+	check := newCatalogCheck(t)
+	id := e.createProject("btc", forecastManifest)
+	e.createProject("other", forecastManifest)
+	if got := e.screenData("btc", "files", nil)["b0"]; string(got["empty"]) != `"No files yet"` {
+		t.Fatalf("media without files says so: %s", got["empty"])
+	}
+	png := "\x89PNG\r\n\x1a\nfake"
+	mine := e.upload("btc", "scan.png", "image/png", png)
+	theirs := e.upload("other", "theirs.png", "image/png", png)
+	data := e.App.Home.Data(id)
+	_ = os.MkdirAll(filepath.Join(data, "charts"), 0o700)
+	_ = os.WriteFile(filepath.Join(data, "charts", "today 1.pdf"), []byte("%PDF-1.4 fake"), 0o600)
+	_ = os.WriteFile(filepath.Join(filepath.Dir(data), "secret.txt"), []byte("top-secret-content"), 0o600)
+	_ = os.Symlink(filepath.Join(filepath.Dir(data), "secret.txt"), filepath.Join(data, "link.txt"))
+	e.must("deck.records_upsert", map[string]any{"project": "btc", "collection": "attachments", "records": jsonl(
+		map[string]any{"title": "a scan", "file": mine}, map[string]any{"title": "b theirs", "file": theirs},
+		map[string]any{"title": "c chart", "file": "charts/today 1.pdf"}, map[string]any{"title": "d escape", "file": "../secret.txt"},
+		map[string]any{"title": "e link", "file": "link.txt"}, map[string]any{"title": "f gone", "file": "nope.pdf"})}, nil)
+	check.messages(t, e.screenMessages("btc", "files", nil))
+	got := e.screenData("btc", "files", nil)["b0"]
+	var files []map[string]any
+	_ = json.Unmarshal(got["files"], &files)
+	if string(got["state"]) != `"ready"` || len(files) != 6 {
+		t.Fatalf("media shows a line per item: %s %s", got["state"], got["files"])
+	}
+	if f := files[0]; f["title"] != "a scan" || f["name"] != "scan.png" || f["type"] != "image/png" || f["url"] != fmt.Sprintf("/api/files/%d", mine) || f["error"] != nil {
+		t.Fatalf("a stored file of the project is shown: %v", f)
+	}
+	if f := files[2]; f["name"] != "today 1.pdf" || f["type"] != "application/pdf" || f["url"] != "/api/files/data/btc/charts/today%201.pdf" {
+		t.Fatalf("a file of the data folder is shown: %v", f)
+	}
+	for i, want := range map[int]string{1: fmt.Sprintf("no file %d in btc", theirs), 3: `no file "../secret.txt"`, 4: `no file "link.txt"`, 5: `no file "nope.pdf"`} {
+		if f := files[i]; f["url"] != nil || !strings.Contains(fmt.Sprint(f["error"]), want) {
+			t.Fatalf("line %d is an error of its own (%s): %v", i, want, f)
+		}
+	}
+	get := func(path string) (int, string) {
+		req, _ := http.NewRequest("GET", e.URL+path, nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		b, _ := io.ReadAll(resp.Body)
+		return resp.StatusCode, string(b)
+	}
+	if code, body := get(files[2]["url"].(string)); code != 200 || body != "%PDF-1.4 fake" {
+		t.Fatalf("the url of a data file gives the file: %d %q", code, body)
+	}
+	if code, body := get(files[0]["url"].(string)); code != 200 || body != png {
+		t.Fatalf("the url of a stored file gives the file: %d %q", code, body)
+	}
+	for _, path := range []string{"/api/files/data/btc/..%2Fsecret.txt", "/api/files/data/btc/link.txt", "/api/files/data/nowhere/charts/today%201.pdf"} {
+		if code, body := get(path); code != 404 || strings.Contains(body, "top-secret-content") {
+			t.Fatalf("%s gives nothing out of the data folder of a project: %d %q", path, code, body)
+		}
+	}
+	_, other := e.token("other", "other.*")
+	req, _ := http.NewRequest("GET", e.URL+files[2]["url"].(string), nil)
+	req.Header.Set("Authorization", "Bearer "+other)
+	if resp, err := http.DefaultClient.Do(req); err != nil || resp.StatusCode == 200 {
+		t.Fatalf("a token of another project gets no data file of this one: %v %v", resp.StatusCode, err)
+	}
+	for _, tc := range []struct{ from, to, want string }{
+		{`"item": {"file": "file", "title": "title"}`, `"item": {"file": "path", "title": "title"}`, `unknown field "path"`},
+		{`"item": {"file": "file", "title": "title"}`, `"item": {"title": "title"}`, `missing property 'file'`},
 	} {
 		if strings.Count(forecastManifest, tc.from) != 1 {
 			t.Fatalf("fixture has %s once", tc.from)

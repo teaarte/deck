@@ -139,7 +139,11 @@ func (c *screenCheck) block(where string, b Block) {
 			}
 		}
 		fields = c.recordFields()
-	case "table", "list", "stat", "log", "chart":
+	case "table", "list", "stat", "log", "chart", "media":
+		if b.Type == "media" && c.deck {
+			c.fail("%s: media shows the files of a project", where)
+			return
+		}
 		var ok bool
 		if fields, ok = c.source(where, b.Type, *b.Source); !ok {
 			return
@@ -169,7 +173,7 @@ func (c *screenCheck) block(where string, b Block) {
 			c.fail("%s actions_from: unknown field %q", where, b.ActionsFrom)
 		}
 		if b.Item != nil {
-			for _, e := range []string{b.Item.Title, b.Item.Text, b.Item.Meta, b.Item.Details, b.Item.Questions, b.Item.Tone} {
+			for _, e := range []string{b.Item.Title, b.Item.Text, b.Item.Meta, b.Item.Details, b.Item.Questions, b.Item.Tone, b.Item.File} {
 				if _, err := compileField(e, fields); e != "" && err != nil {
 					c.fail("%s item: %v", where, err)
 				}

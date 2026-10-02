@@ -199,6 +199,18 @@ export interface Data {
     actions?: Action[];
   }[];
   value?: unknown;
+  files?: {
+    id: unknown;
+    title?: string;
+    name?: string;
+    type?: string;
+    size?: number;
+    /**
+     * where the client reads the file, with its token
+     */
+    url?: string;
+    error?: string;
+  }[];
   lines?: {
     at: string;
     kind: string;

@@ -283,6 +283,8 @@ type Item struct {
 	Markdown bool `json:"markdown,omitempty"`
 	// Tone is an expression over the line: ok, warn, error or muted.
 	Tone string `json:"tone,omitempty"`
+	// File is the file of a line of a media block: a stored file id or a path in the data folder.
+	File string `json:"file,omitempty"`
 }
 
 type Tab struct {

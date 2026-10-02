@@ -103,6 +103,20 @@
         "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "value: {x: [...], series: [{label, values: [...]}]}"}
       }
     },
+    "media": {
+      "description": "Files of the items of a source: a picture as a thumbnail that opens in full, a PDF in place, any other file by name and size with a download.",
+      "block": {"description": "Needs source and item.file, an expression over an item: the id of a stored file of the project (a result of its process, an attachment of its record) or a path in the data folder of the project; item.title is the caption. A file of another project or a path that is no file of the data folder is an error of its line, not of the block.", "required": ["source", "item"], "properties": {
+        "source": {"$ref": "#/$defs/source"},
+        "item": {"type": "object", "additionalProperties": false, "required": ["file"], "properties": {"file": {"type": "string"}, "title": {"type": "string"}}},
+        "empty": {"$ref": "#/$defs/empty"}}},
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data"],
+      "properties": {
+        "title": {"type": "string"},
+        "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "files: [{id, title, name, type, size, url} or {id, title, error}]"}
+      }
+    },
     "actions": {
       "description": "A group of buttons without a source.",
       "block": {"description": "Needs actions; takes no source.", "required": ["actions"], "properties": {"actions": {"$ref": "#/$defs/actions"}}},
@@ -305,6 +319,11 @@
           }
         }},
         "value": {},
+        "files": {"type": "array", "items": {
+          "type": "object", "required": ["id"], "additionalProperties": false,
+          "properties": {"id": {}, "title": {"type": "string"}, "name": {"type": "string"}, "type": {"type": "string"}, "size": {"type": "integer"},
+            "url": {"type": "string", "description": "where the client reads the file, with its token"}, "error": {"type": "string"}}
+        }},
         "lines": {"type": "array", "items": {
           "type": "object", "required": ["at", "kind"],
           "properties": {"at": {"type": "string"}, "kind": {"type": "string"}, "id": {"type": "string"}, "title": {"type": "string"},

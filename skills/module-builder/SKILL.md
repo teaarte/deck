@@ -129,7 +129,7 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
 - **Screens** are lists of blocks from the catalog (`schemas/catalog.json`; in `manifest_format` each block type
   has its exact fields and its rules in words in `description`, and a refusal names the JSON path and the
   schema rule, such as `missing property 'item'` or `additional properties 'source' not allowed`):
-  `table`, `list`, `card` (the record of a record page), `stat`, `chart`, `actions`, `board`, `form`, `custom`, and
+  `table`, `list`, `card` (the record of a record page), `stat`, `chart`, `media`, `actions`, `board`, `form`, `custom`, and
   `columns`/`tabs` to lay them out. A table:
   `{"type": "table", "title": "Best", "source": {"collection": "items", "where": "score >= 7", "sort": "-score",
   "limit": 20}, "columns": [{"label": "Title", "bind": "title"}], "filter": ["status"], "actions": [{"label": "Rate", "command":
@@ -152,7 +152,11 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   "prices", "sort": "at"}, "x": "at", "series": [{"label": "BTC", "y": "price"}, {"label": "Forecast", "y":
   "forecast"}], "format": "money", "currency": "USD", "empty": "No prices yet"}` — `kind` is `line`, `bar` or
   `area`, a missing y is a gap, an ISO time x makes a time axis, and only the last 500 points by the sort are
-  drawn — `limit` keeps the first items, so do not cut a history with it. Action `params` are strings in the manifest; `$record.<field>`
+  drawn — `limit` keeps the first items, so do not cut a history with it. Files are a `media` block: `{"type":
+  "media", "source": {"collection": "scans"}, "item": {"file": "file", "title": "name"}}`, where `file` is the
+  id of a stored file of the project (a result file of its run, an attachment of its record) or a path in its
+  data folder (`"charts/today.png"`); a picture is a thumbnail, a PDF shows in place, anything else is a name
+  with a download. Action `params` are strings in the manifest; `$record.<field>`
   passes the field's value with its type (`$record.id` is a number, so that input field is an `integer`), and
   a fixed value becomes the type of its input field (`"days": "7"` to an `integer` is 7). An action passes
   every required parameter of its command

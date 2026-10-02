@@ -16,6 +16,7 @@ import { toneColor, Value, type Shown } from './format';
 import type { Action, ActionsValue, BoardValue, CardValue, ChartValue, ChatValue, CustomValue, Data, DocumentValue } from './catalog.gen';
 
 const Custom = lazy(() => import('./custom').then((m) => ({ default: m.Custom })));
+const Media = lazy(() => import('./media').then((m) => ({ default: m.Media })));
 const Chart = lazy(() => import('./chart').then((m) => ({ default: m.Chart })));
 
 export const CATALOG_ID = catalogSchema.catalogId;
@@ -155,6 +156,10 @@ const impls: ReactComponentImplementation[] = [
         {(d) => <Suspense fallback={<Loader size="xs" />}><div data-chart-block><Chart value={d.value as ChartValue} kind={p.kind} s={p} /></div></Suspense>}
       </Block>
     );
+  }),
+  createComponentImplementation(api('media'), ({ props }) => {
+    const p = props as { title?: string; data?: Data };
+    return <Block title={p.title} data={p.data}>{(d) => <Suspense fallback={<Loader size="xs" />}><Media items={d.files ?? []} /></Suspense>}</Block>;
   }),
   createComponentImplementation(api('actions'), ({ props, context }) => {
     const p = props as { title?: string; data?: Data };

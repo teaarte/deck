@@ -12,6 +12,7 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -45,6 +46,7 @@ func (s *Server) Handler() http.Handler {
 	api.HandleFunc("GET /api/events", s.ownerOnly(s.events))
 	api.HandleFunc("POST /api/files", s.upload)
 	api.HandleFunc("GET /api/files/{id}", s.download)
+	api.HandleFunc("GET /api/files/data/{project}/{path...}", s.downloadData)
 	mux.Handle("/api/", s.auth(api))
 	return mux
 }
@@ -170,13 +172,23 @@ func (s *Server) download(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	f, file, err := s.app.OpenFile(r.Context(), actor(r), id)
+	serveFile(w, r, f.Name, f.Type, file, err)
+}
+
+// downloadData gives a file of the data folder of a project, which a media block shows.
+func (s *Server) downloadData(w http.ResponseWriter, r *http.Request) {
+	f, file, err := s.app.OpenDataFile(r.Context(), actor(r), r.PathValue("project"), r.PathValue("path"))
+	serveFile(w, r, f.Name, f.Type, file, err)
+}
+
+func serveFile(w http.ResponseWriter, r *http.Request, name, typ string, file *os.File, err error) {
 	if err != nil {
 		http.Error(w, err.Error(), registry.Status(err))
 		return
 	}
 	defer file.Close()
-	w.Header().Set("Content-Type", f.Type)
-	w.Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": f.Name}))
+	w.Header().Set("Content-Type", typ)
+	w.Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": name}))
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Content-Security-Policy", "sandbox")
 	http.ServeContent(w, r, "", time.Time{}, file)

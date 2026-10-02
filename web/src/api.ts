@@ -82,11 +82,23 @@ export async function upload(project: string, files: File[]): Promise<Uploaded[]
 export async function download(id: number): Promise<void> {
   const r = await fetch('/api/files/' + id, { headers: { Authorization: 'Bearer ' + token() } });
   if (!r.ok) throw new CommandError((await r.text()).trim() || r.statusText);
+  saveBlob(new Blob([await r.arrayBuffer()]), fileName(r.headers.get('Content-Disposition') ?? ''));
+}
+
+// saveBlob hands a file to the browser to keep under its name.
+export function saveBlob(blob: Blob, name: string) {
   const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([await r.arrayBuffer()], { type: 'application/octet-stream' }));
-  a.download = fileName(r.headers.get('Content-Disposition') ?? '');
+  a.href = URL.createObjectURL(new Blob([blob], { type: 'application/octet-stream' }));
+  a.download = name;
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+}
+
+// fetchFile reads a file deck gives at its address, with the type it is stored with.
+export async function fetchFile(url: string): Promise<Blob> {
+  const r = await fetch(url, { headers: { Authorization: 'Bearer ' + token() } });
+  if (!r.ok) throw new CommandError((await r.text()).trim() || r.statusText);
+  return new Blob([await r.arrayBuffer()], { type: r.headers.get('Content-Type') ?? 'application/octet-stream' });
 }
 
 // fileName reads the name of Content-Disposition: percent-encoded in filename*, quoted or bare in filename.

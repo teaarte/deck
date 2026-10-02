@@ -270,7 +270,7 @@ func TestInvalidScreenIsRefusedWithItsReason(t *testing.T) {
 	e.createProject("notes", good)
 	for _, tc := range []struct{ from, to, want string }{
 		{`{"type": "stat", "title": "Notes", "source": {"collection": "notes"}}`, `{"type": "hologram"}`,
-			`value must be one of 'actions', 'appearance', 'board', 'card', 'chart', 'chat', 'columns', 'custom', 'document', 'form', 'list', 'log', 'stat', 'table', 'tabs'`},
+			`value must be one of 'actions', 'appearance', 'board', 'card', 'chart', 'chat', 'columns', 'custom', 'document', 'form', 'list', 'log', 'media', 'stat', 'table', 'tabs'`},
 		{`"value": "sum(rows, .score)"`, `"value": "sum(items, .score)"`, `value: unknown field "items"`},
 		{`{"type": "list", "title": "Waiting here", "source": {"from": "deck.asks_list"}, "item": {"title": "what"}}`,
 			`{"type": "list", "source": {"from": "deck.asks_list"}, "item": {"title": "whom"}}`, `unknown field "whom"`},
@@ -708,7 +708,7 @@ func TestCustomBlockGetsItsDataAndButtonsAndItsFrameLivesOnTheSecondOrigin(t *te
 		t.Fatal(err)
 	}
 	r0.Body.Close()
-	if got := r0.Header.Get("Content-Security-Policy"); got != "frame-src 'self' "+e.Side+"; img-src 'self' data: blob:; frame-ancestors 'self'" {
+	if got := r0.Header.Get("Content-Security-Policy"); got != "frame-src 'self' "+e.Side+" blob:; img-src 'self' data: blob:; frame-ancestors 'self'" {
 		t.Fatalf("the client's frames stay on its origins, so a block cannot move its frame to the network: %q", got)
 	}
 	noFollow := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}

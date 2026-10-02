@@ -109,6 +109,28 @@ func (r *renderer) block(id string, b manifest.Block) {
 	r.data[id] = value
 }
 
+// file is a line of a media block: the file it names, or why there is none.
+func (r *renderer) file(b manifest.Block, it map[string]any) map[string]any {
+	line := map[string]any{"id": it["_id"]}
+	if b.Item.Title != "" {
+		if v, err := manifest.Eval(b.Item.Title, it); err == nil && v != nil {
+			line["title"] = fmt.Sprint(v)
+		}
+	}
+	ref, err := manifest.Eval(b.Item.File, it)
+	if err != nil {
+		line["error"] = "file: " + err.Error()
+		return line
+	}
+	f, err := r.src.File(r.ctx, r.req.Project, ref)
+	if err != nil {
+		line["error"] = err.Error()
+		return line
+	}
+	maps.Copy(line, f)
+	return line
+}
+
 // ChartPoints is the most points a chart draws: the last ones of its source.
 const ChartPoints = 500
 
@@ -157,6 +179,8 @@ func empty(out map[string]any, b manifest.Block) map[string]any {
 		out["items"] = []any{}
 	case "log":
 		out["lines"] = []any{}
+	case "media":
+		out["files"] = []any{}
 	}
 	return out
 }
@@ -304,6 +328,12 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 		}
 		out["value"] = v
 		setTone(out, b.Tone, map[string]any{"rows": items})
+	case "media":
+		files := make([]map[string]any, 0, len(items))
+		for _, it := range items {
+			files = append(files, r.file(b, it))
+		}
+		out["files"] = files
 	case "chart":
 		v, err := chart(b, items)
 		if err != nil {

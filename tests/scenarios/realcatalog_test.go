@@ -1,7 +1,15 @@
 package scenarios
 
 import (
+	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
+	"image"
+	"image/color"
+	"image/draw"
+	"image/png"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -73,4 +81,53 @@ func TestRealBrowserCatalog(t *testing.T) {
 	b.until("the block its when now holds for, without a reload", `[...document.querySelectorAll('h4')].some(x => x.innerText === 'Missed')`)
 	e.must("deck.records_upsert", map[string]any{"project": "fresh", "collection": "forecasts", "records": jsonl(map[string]any{"at": "3", "horizon": "2d"})}, nil)
 	b.until("a time that is not one shown as it is", `[...document.querySelectorAll('[data-format="relative"]')].some(x => x.innerText === '3')`)
+}
+
+// TestRealBrowserMedia shows a picture, a PDF and another file of a module in the real browser of Playwright MCP;
+// a download gives the same file.
+func TestRealBrowserMedia(t *testing.T) {
+	if os.Getenv("DECK_REAL_BROWSER") == "" {
+		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
+	}
+	checkBuiltClient(t)
+	e := newEnv(t, nil)
+	id := e.createProject("btc", forecastManifest)
+	var pic bytes.Buffer
+	img := image.NewRGBA(image.Rect(0, 0, 64, 48))
+	draw.Draw(img, img.Bounds(), &image.Uniform{color.RGBA{30, 120, 220, 255}}, image.Point{}, draw.Src)
+	_ = png.Encode(&pic, img)
+	scan := e.upload("btc", "scan.png", "image/png", pic.String())
+	pdf := "%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj 2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj " +
+		"3 0 obj<</Type/Page/MediaBox[0 0 200 100]/Parent 2 0 R>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF"
+	data := e.App.Home.Data(id)
+	_ = os.MkdirAll(data, 0o700)
+	_ = os.WriteFile(filepath.Join(data, "report.pdf"), []byte(pdf), 0o600)
+	_ = os.WriteFile(filepath.Join(data, "notes.csv"), []byte("a,b\n1,2\n"), 0o600)
+	e.must("deck.records_upsert", map[string]any{"project": "btc", "collection": "attachments", "records": jsonl(
+		map[string]any{"title": "a scan", "file": scan}, map[string]any{"title": "b report", "file": "report.pdf"},
+		map[string]any{"title": "c notes", "file": "notes.csv"}, map[string]any{"title": "d gone", "file": "gone.png"})}, nil)
+
+	b := newPlaywright(t)
+	b.call("browser_resize", map[string]any{"width": 1280, "height": 900})
+	b.open(e.URL + "/?token=" + token + "#/p/btc/files")
+	b.until("the picture drawn from the file", `document.querySelector('[data-media="image"] img')?.naturalWidth === 64`)
+	b.until("the PDF in place", `document.querySelector('object[data-media="pdf"]')?.type === 'application/pdf'`)
+	b.until("the other file by name and size", `document.querySelector('[data-media="file"]')?.innerText.includes('notes.csv') && document.querySelector('[data-media="file"]').innerText.includes('8')`)
+	b.until("the error of a missing file on its line", `document.querySelector('[data-media="error"]')?.innerText.includes('gone.png')`)
+	b.shot("media")
+	if logs := b.call("browser_console_messages", map[string]any{}); strings.Contains(logs, "Content Security Policy") {
+		t.Fatalf("the PDF is drawn, not blocked: %s", logs)
+	}
+	b.eval(`(() => { window.saved = []; const make = URL.createObjectURL; URL.createObjectURL = (x) => { window.saved.push(x); return make(x) };
+		HTMLAnchorElement.prototype.click = function () { window.savedName = this.download }; return '' })()`)
+	b.eval(`document.querySelector('[data-media="image"]').click(), ''`)
+	b.until("the picture in full", `document.querySelector('[data-media-full]')`)
+	b.eval(`[...document.querySelectorAll('[data-download]')].at(-1).click(), ''`)
+	b.until("the download", `window.savedName === 'scan.png'`)
+	sum := sha256.Sum256(pic.Bytes())
+	got := b.eval(`(async () => { const x = window.saved.at(-1); const h = await crypto.subtle.digest('SHA-256', await x.arrayBuffer());
+		return [...new Uint8Array(h)].map(v => v.toString(16).padStart(2, '0')).join('') })()`)
+	if got != hex.EncodeToString(sum[:]) {
+		t.Fatalf("the download is the same file: %s", got)
+	}
 }

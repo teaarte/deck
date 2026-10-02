@@ -152,7 +152,6 @@ func (a *App) providerAdd(ctx context.Context, act registry.Actor, in providerAd
 		return nil, err
 	}
 	a.startCheck(in.Name, true)
-	a.Bus.Publish("health")
 	return map[string]any{"name": in.Name}, nil
 }
 
@@ -179,7 +178,6 @@ func (a *App) providerRemove(ctx context.Context, act registry.Actor, in provide
 	if n == 0 {
 		return nil, registry.NotFound("deck: no provider %q to remove", in.Name)
 	}
-	a.Bus.Publish("health")
 	return map[string]any{"removed": in.Name}, nil
 }
 
@@ -243,10 +241,10 @@ func (a *App) providerCommands() []*registry.Command {
 			registry.OwnerOnly, a.providerSet),
 		registry.Def("provider_add", "Add provider",
 			"Adds or changes a provider of this workspace: an ACP agent on an OpenAI-compatible API, such as Ollama, OpenRouter or DeepSeek.",
-			registry.OwnerOnly, a.providerAdd),
+			registry.OwnerOnly, a.providerAdd).Changes("health"),
 		registry.Def("provider_remove", "Remove provider",
 			"Removes a provider the owner added; commands set to it must get another.",
-			registry.OwnerOnly, a.providerRemove),
+			registry.OwnerOnly, a.providerRemove).Changes("health"),
 		registry.Def("provider_check", "Check provider",
 			"Runs the self-check of a provider's adapter again; its health shows the outcome.",
 			registry.OwnerOnly, a.providerCheck),

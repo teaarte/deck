@@ -84,7 +84,6 @@ func (a *App) browserNeedsLogin(ctx context.Context, act registry.Actor, in brow
 	if err != nil {
 		return nil, err
 	}
-	a.Bus.Publish("asks")
 	return map[string]any{"waiting": row.ID, "text": "deck asked the owner to sign in to " + site +
 		". Stop here and end your turn; deck resumes this session once the owner has signed in."}, nil
 }
@@ -118,6 +117,6 @@ func (a *App) browserCommands() []*registry.Command {
 			registry.OwnerOnly, a.browserLoginDone),
 		registry.Def("browser_needs_login", "Site needs a sign-in",
 			"Tells the owner that the session of a site ran out; the process waits until the owner signs in again.",
-			[]string{registry.Agent}, a.browserNeedsLogin),
+			[]string{registry.Agent}, a.browserNeedsLogin).Changes("asks"),
 	}
 }

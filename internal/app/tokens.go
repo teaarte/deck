@@ -64,7 +64,6 @@ func (a *App) tokenCreate(ctx context.Context, act registry.Actor, in tokenCreat
 	if err != nil {
 		return nil, err
 	}
-	a.Bus.Publish("tokens")
 	url := a.Cfg.MCPBase + "/mcp"
 	return map[string]any{
 		"id": t.ID, "token": raw, "mcp_url": url,
@@ -111,7 +110,6 @@ func (a *App) tokenRevoke(ctx context.Context, act registry.Actor, in tokenRevok
 		return nil, registry.NotFound("deck: no active token %d", in.Token)
 	}
 	a.Gateway.Journal(ctx, act, 0, registry.Builtin+".token_revoke", registry.External, "done", fmt.Sprintf(`{"token": %d}`, in.Token))
-	a.Bus.Publish("tokens")
 	return map[string]any{"revoked": in.Token}, nil
 }
 
@@ -119,12 +117,12 @@ func (a *App) tokensCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("token_create", "Create automation token",
 			"Creates a token for a terminal agent, Shortcuts or a script; it acts as the master and may call only the listed commands.",
-			registry.OwnerOnly, a.tokenCreate),
+			registry.OwnerOnly, a.tokenCreate).Changes("tokens"),
 		registry.Read("tokens_list", "Automation tokens",
 			"Lists automation tokens with their commands; revoked ones too.",
 			registry.OwnerOnly, a.tokensList).On("tokens"),
 		registry.Def("token_revoke", "Revoke token",
 			"Revokes an automation token; calls with it are refused from then on.",
-			registry.OwnerOnly, a.tokenRevoke).As(registry.External),
+			registry.OwnerOnly, a.tokenRevoke).Changes("tokens").As(registry.External),
 	}
 }

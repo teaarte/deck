@@ -82,7 +82,6 @@ func (a *App) notify(ctx context.Context, act registry.Actor, in notifyIn) (any,
 	if err != nil {
 		return nil, err
 	}
-	a.Bus.Publish("feed")
 	return map[string]any{"notification": n.ID}, nil
 }
 
@@ -90,6 +89,6 @@ func (a *App) notifyCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("notify", "Notify the owner",
 			"Writes a line to the feed of the cockpit, with a screen of the project to open and buttons; the caller decides it is worth it.",
-			registry.Everyone, a.notify),
+			registry.Everyone, a.notify).Changes("feed"),
 	}
 }

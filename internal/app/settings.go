@@ -72,7 +72,6 @@ func (a *App) settingsSet(ctx context.Context, act registry.Actor, in settingsSe
 	if err != nil {
 		return nil, err
 	}
-	a.Bus.Publish("settings")
 	if in.AgentLimit > 0 {
 		a.Runner.Wake(ctx)
 	}
@@ -105,6 +104,6 @@ func (a *App) settingsCommands() []*registry.Command {
 			registry.OwnerOnly, a.settingsList).On("settings"),
 		registry.Def("settings_set", "Change settings",
 			"Sets how long a confirmation and a suggestion wait for the owner and how many agent processes run at once; an omitted one stays.",
-			registry.OwnerOnly, a.settingsSet),
+			registry.OwnerOnly, a.settingsSet).Changes("settings"),
 	}
 }

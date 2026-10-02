@@ -72,7 +72,6 @@ func (a *App) sttSet(ctx context.Context, act registry.Actor, in sttSetIn) (any,
 	if err != nil {
 		return nil, err
 	}
-	a.Bus.Publish("settings")
 	return d, nil
 }
 
@@ -187,6 +186,6 @@ func (a *App) voiceCommands() []*registry.Command {
 			registry.OwnerOnly, a.transcribe),
 		registry.Def("stt_set", "Speech to text provider",
 			"Sets the speech-to-text provider: an OpenAI-compatible transcription url, such as a whisper.cpp server on this machine.",
-			registry.OwnerOnly, a.sttSet),
+			registry.OwnerOnly, a.sttSet).Changes("settings"),
 	}
 }

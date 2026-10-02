@@ -204,7 +204,6 @@ func (a *App) documentSave(ctx context.Context, act registry.Actor, in documentS
 	if err != nil {
 		return nil, err
 	}
-	a.Bus.Publish("documents")
 	v := a.docView(ctx, d)
 	if kind, _ := docs.Owner(d); d.Name == docs.MemoryIndex && kind == "" {
 		if n := docs.IndexLines(in.Text); n > docs.IndexLimit {
@@ -264,7 +263,6 @@ func (a *App) documentDelete(ctx context.Context, act registry.Actor, in documen
 	if err != nil {
 		return nil, err
 	}
-	a.Bus.Publish("documents")
 	return map[string]any{"document": d.ID, "deleted": true}, nil
 }
 
@@ -296,7 +294,6 @@ func (a *App) documentRestore(ctx context.Context, act registry.Actor, in docume
 	if n == 0 {
 		return nil, registry.Conflict("deck: document %d is not deleted", d.ID)
 	}
-	a.Bus.Publish("documents")
 	return map[string]any{"document": d.ID, "restored": true}, nil
 }
 
@@ -365,7 +362,6 @@ func (a *App) documentRevert(ctx context.Context, act registry.Actor, in documen
 	if err != nil {
 		return nil, err
 	}
-	a.Bus.Publish("documents")
 	return map[string]any{"revision": n}, nil
 }
 
@@ -388,18 +384,18 @@ func (a *App) documentCommands() []*registry.Command {
 			registry.Everyone, a.documentGet).On("documents"),
 		registry.Def("document_save", "Save document",
 			"Writes a new revision of a document, creating it on first save.",
-			registry.Everyone, a.documentSave).Enum("kind", docs.Kinds...),
+			registry.Everyone, a.documentSave).Changes("documents").Enum("kind", docs.Kinds...),
 		registry.Def("document_delete", "Delete document",
 			"Deletes a document; its revisions stay and the owner can bring it back. Agents delete only the memory of their project.",
-			registry.Everyone, a.documentDelete),
+			registry.Everyone, a.documentDelete).Changes("documents"),
 		registry.Def("document_restore", "Bring document back",
 			"Brings a deleted document back as it was.",
-			registry.OwnerOnly, a.documentRestore),
+			registry.OwnerOnly, a.documentRestore).Changes("documents"),
 		registry.Def("document_revisions", "Document history",
 			"Lists revisions of a document: who, when and why.",
 			registry.Everyone, a.documentRevisions),
 		registry.Def("document_revert", "Revert document",
 			"Makes an earlier revision current again as a new revision.",
-			registry.OwnerSide, a.documentRevert),
+			registry.OwnerSide, a.documentRevert).Changes("documents"),
 	}
 }

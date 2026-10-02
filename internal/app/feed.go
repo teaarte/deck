@@ -122,7 +122,6 @@ func (a *App) feedUndo(ctx context.Context, act registry.Actor, in feedUndoIn) (
 		_, err := q.MarkFeedUndone(ctx, r.ID)
 		return err
 	})
-	a.Bus.Publish("feed")
 	return out, err
 }
 
@@ -133,6 +132,6 @@ func (a *App) feedCommands() []*registry.Command {
 			registry.OwnerSide, a.feedList).On("feed"),
 		registry.Def("feed_undo", "Undo",
 			"Undoes a change made without the owner, unless the document changed since.",
-			registry.OwnerOnly, a.feedUndo),
+			registry.OwnerOnly, a.feedUndo).Changes("feed"),
 	}
 }

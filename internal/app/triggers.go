@@ -69,7 +69,6 @@ func (a *App) runLater(ctx context.Context, act registry.Actor, in runLaterIn) (
 	if err != nil {
 		return nil, err
 	}
-	a.Bus.Publish("triggers")
 	return map[string]any{"trigger": t.ID, "at": t.NextRunAt.String}, nil
 }
 
@@ -89,7 +88,6 @@ func (a *App) runLaterCancel(ctx context.Context, act registry.Actor, in runLate
 	if err != nil {
 		return nil, err
 	}
-	a.Bus.Publish("triggers")
 	return map[string]any{"ok": true}, nil
 }
 
@@ -181,7 +179,6 @@ func (a *App) triggerRun(ctx context.Context, act registry.Actor, in triggerRunI
 			return nil, err
 		}
 	}
-	a.Bus.Publish("triggers")
 	return out, nil
 }
 
@@ -208,7 +205,6 @@ func (a *App) triggerPause(ctx context.Context, act registry.Actor, in triggerPa
 	if err != nil {
 		return nil, err
 	}
-	a.Bus.Publish("triggers")
 	return map[string]any{"ok": true}, nil
 }
 
@@ -244,8 +240,6 @@ func (a *App) projectPause(ctx context.Context, act registry.Actor, in projectPa
 	if err != nil {
 		return nil, err
 	}
-	a.Bus.Publish("triggers")
-	a.Bus.Publish("projects")
 	return map[string]any{"ok": true}, nil
 }
 
@@ -260,21 +254,21 @@ func (a *App) triggersCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("run_later", "Run later",
 			"Runs a project command once at the given time; a run missed while deck was down runs after it starts.",
-			registry.Everyone, a.runLater),
+			registry.Everyone, a.runLater).Changes("triggers"),
 		registry.Def("run_later_cancel", "Cancel run later",
 			"Cancels a run scheduled with run later.",
-			registry.Everyone, a.runLaterCancel),
+			registry.Everyone, a.runLaterCancel).Changes("triggers"),
 		registry.Read("triggers_list", "Schedule",
 			"Lists triggers with their next run, pause and the state of their last run.",
 			registry.Everyone, a.triggersList).On("triggers"),
 		registry.Def("trigger_pause", "Pause trigger",
 			"Pauses or resumes one trigger; a resumed schedule does not catch up its pause.",
-			registry.OwnerSide, a.triggerPause),
+			registry.OwnerSide, a.triggerPause).Changes("triggers"),
 		registry.Def("trigger_run", "Run now",
 			"Starts the command of a schedule trigger now with its params; its schedule stays, and a run still going is returned.",
-			registry.OwnerSide, a.triggerRun),
+			registry.OwnerSide, a.triggerRun).Changes("triggers"),
 		registry.Def("project_pause", "Pause project",
 			"Pauses or resumes every trigger of a project, including triggers added later.",
-			registry.OwnerSide, a.projectPause),
+			registry.OwnerSide, a.projectPause).Changes("triggers", "projects"),
 	}
 }

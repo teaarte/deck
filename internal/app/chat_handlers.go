@@ -164,7 +164,6 @@ func (a *App) chatSend(ctx context.Context, act registry.Actor, in chatSendIn) (
 	if err != nil {
 		return nil, err
 	}
-	a.Bus.Publish("chat")
 	a.pump(context.WithoutCancel(ctx), msg.TopicID)
 	out := map[string]any{"topic": msg.TopicID, "message": msg.ID}
 	if m, err := a.Store.Q.GetMessage(ctx, msg.ID); err == nil && m.ProcessID != 0 {
@@ -257,7 +256,6 @@ func (a *App) chatTopicArchive(ctx context.Context, act registry.Actor, in chatT
 	if err != nil {
 		return nil, err
 	}
-	a.Bus.Publish("chat")
 	return map[string]any{"topic": in.Topic, "archived": in.Archived}, nil
 }
 
@@ -282,7 +280,6 @@ func (a *App) chatTopicDelete(ctx context.Context, act registry.Actor, in chatTo
 	if err == nil {
 		_ = a.Runner.Stop(ctx, p.ID, "deck: the owner deleted the chat topic")
 	}
-	a.Bus.Publish("chat")
 	return map[string]any{"topic": in.Topic, "deleted": true}, nil
 }
 
@@ -297,10 +294,10 @@ func (a *App) chatCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("chat_send", "Tell the master",
 			"Sends the owner's message to the master in a chat topic, a new one when none is given; the master's reply comes into the same topic.",
-			registry.OwnerOnly, a.chatSend),
+			registry.OwnerOnly, a.chatSend).Changes("chat"),
 		registry.Def("chat_interview", "Interview about a card",
 			"Opens a chat topic about a card in which the master interviews the owner and writes the spec into the card.",
-			registry.OwnerOnly, a.chatInterview),
+			registry.OwnerOnly, a.chatInterview).Changes("chat"),
 		registry.Def("chat_topics", "Chat topics",
 			"Lists the owner's chat topics with the master, newest first, with their last message and the reply still going.",
 			registry.OwnerOnly, a.chatTopics),
@@ -309,9 +306,9 @@ func (a *App) chatCommands() []*registry.Command {
 			registry.OwnerOnly, a.chatMessages),
 		registry.Def("chat_topic_archive", "Archive topic",
 			"Archives a chat topic or brings it back; a new message brings it back too.",
-			registry.OwnerOnly, a.chatTopicArchive),
+			registry.OwnerOnly, a.chatTopicArchive).Changes("chat"),
 		registry.Def("chat_topic_delete", "Delete topic",
 			"Deletes a chat topic with its messages and stops its reply if one is going.",
-			registry.OwnerOnly, a.chatTopicDelete),
+			registry.OwnerOnly, a.chatTopicDelete).Changes("chat"),
 	}
 }

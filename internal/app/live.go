@@ -70,7 +70,6 @@ func (a *App) processTell(ctx context.Context, act registry.Actor, in processTel
 	if err := a.Runner.Remark(ctx, p.ID, text); err != nil {
 		return nil, err
 	}
-	a.Bus.Publish("processes")
 	return map[string]any{"process": p.ID, "delivered": "after the turn"}, nil
 }
 
@@ -78,6 +77,6 @@ func (a *App) liveCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("process_tell", "Tell a process",
 			"Gives the owner's message to an agent process at work: into its turn when the provider takes it live, else right after the turn.",
-			registry.OwnerOnly, a.processTell),
+			registry.OwnerOnly, a.processTell).Changes("processes"),
 	}
 }

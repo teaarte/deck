@@ -121,7 +121,6 @@ func (a *App) suggest(ctx context.Context, act registry.Actor, in suggestIn) (an
 	if err != nil {
 		return nil, err
 	}
-	a.Bus.Publish("asks")
 	return map[string]any{"suggestion": q.ID, "waiting": true, "expires_at": q.ExpiresAt.String}, nil
 }
 
@@ -278,7 +277,7 @@ func (a *App) suggestCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("suggest", "Suggest",
 			"Suggests the owner one card for a project or one call of a project command, with the reason; it waits in waiting for you, or is done at once in a project on autonomy auto.",
-			registry.Everyone, a.suggest),
+			registry.Everyone, a.suggest).Changes("asks"),
 		registry.Def("suggestions_rejected", "Rejected suggestions",
 			"Lists the suggestions the owner said no to lately, with the reason, so the same is not suggested again.",
 			registry.Everyone, a.suggestionsRejected),

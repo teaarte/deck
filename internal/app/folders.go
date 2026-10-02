@@ -95,7 +95,6 @@ func (a *App) folderAdd(ctx context.Context, act registry.Actor, in folderAddIn)
 	if err != nil {
 		return nil, err
 	}
-	a.Bus.Publish("projects")
 	return map[string]any{"project": p.Name, "name": f.Name, "path": f.Path}, nil
 }
 
@@ -118,7 +117,6 @@ func (a *App) folderRemove(ctx context.Context, act registry.Actor, in folderRem
 	if n == 0 {
 		return nil, registry.NotFound("deck: project %s has no folder %s", p.Name, in.Name)
 	}
-	a.Bus.Publish("projects")
 	return map[string]any{"project": p.Name, "removed": in.Name}, nil
 }
 
@@ -170,9 +168,9 @@ func (a *App) foldersCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("folder_add", "Add folder",
 			"Gives a project a folder on disk that its agent commands with folder work in; only the owner, since it lets agents write there.",
-			registry.OwnerOnly, a.folderAdd),
+			registry.OwnerOnly, a.folderAdd).Changes("projects"),
 		registry.Def("folder_remove", "Remove folder",
 			"Takes a folder from a project; the folder on disk stays as it is.",
-			registry.OwnerOnly, a.folderRemove),
+			registry.OwnerOnly, a.folderRemove).Changes("projects"),
 	}
 }

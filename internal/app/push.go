@@ -122,7 +122,6 @@ func (a *App) pushSubscribe(ctx context.Context, act registry.Actor, in pushSubs
 		return nil, err
 	}
 	a.pushNew(ctx, act.Workspace)
-	a.Bus.Publish("settings")
 	return map[string]any{"device": row.ID, "name": row.Device}, nil
 }
 
@@ -144,7 +143,6 @@ func (a *App) pushUnsubscribe(ctx context.Context, act registry.Actor, in pushUn
 	if n == 0 {
 		return nil, registry.NotFound("deck: no such device")
 	}
-	a.Bus.Publish("settings")
 	return map[string]any{"removed": n}, nil
 }
 
@@ -399,10 +397,10 @@ func (a *App) pushCommands() []*registry.Command {
 			registry.OwnerOnly, a.pushKey),
 		registry.Def("push_subscribe", "Get pushes",
 			"Subscribes a device to pushes: what waits for the owner, failures, notify lines and the master's replies when no client is open.",
-			registry.OwnerOnly, a.pushSubscribe),
+			registry.OwnerOnly, a.pushSubscribe).Changes("settings"),
 		registry.Def("push_unsubscribe", "Stop pushes",
 			"Stops pushes to a device.",
-			registry.OwnerOnly, a.pushUnsubscribe),
+			registry.OwnerOnly, a.pushUnsubscribe).Changes("settings"),
 		registry.Def("push_devices", "Devices",
 			"Lists the devices that get pushes.",
 			registry.OwnerOnly, a.pushDevices),

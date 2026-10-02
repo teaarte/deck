@@ -115,7 +115,6 @@ func (a *App) projectEnable(ctx context.Context, act registry.Actor, in projectE
 	if err != nil {
 		return nil, err
 	}
-	a.Bus.Publish("projects")
 	return map[string]any{"project": p.Name, "status": store.ProjectEnabled, "rights": rights(m)}, nil
 }
 
@@ -194,7 +193,7 @@ func (a *App) draftsCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("project_enable", "Enable project",
 			"Turns a draft on: its triggers start running and the rights its manifest asks for count as allowed.",
-			registry.OwnerOnly, a.projectEnable),
+			registry.OwnerOnly, a.projectEnable).Changes("projects"),
 		registry.Def("project_autonomy", "Project autonomy",
 			"Sets whether a project suggests, so the owner says yes to its reversible changes, or acts on its own and reports; a new manifest revision.",
 			registry.OwnerOnly, a.projectAutonomy),

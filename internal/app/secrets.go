@@ -46,7 +46,6 @@ func (a *App) secretSet(ctx context.Context, act registry.Actor, in secretSetIn)
 	if err := a.writeSecret(act.Workspace, in.Name, in.Value); err != nil {
 		return nil, err
 	}
-	a.Bus.Publish("secrets")
 	return map[string]any{"name": in.Name}, nil
 }
 
@@ -123,7 +122,7 @@ func (a *App) secretsCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("secret_set", "Set secret",
 			"Stores a secret for tool headers as a file only deck reads; agents and scripts never see it.",
-			registry.OwnerOnly, a.secretSet),
+			registry.OwnerOnly, a.secretSet).Changes("secrets"),
 		registry.Read("secrets_list", "Secrets",
 			"Lists the names of stored secrets, never their values.",
 			registry.OwnerOnly, a.secretsList).On("secrets"),

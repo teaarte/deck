@@ -53,6 +53,12 @@ func TestInterviewTopicWritesTheSpecIntoTheCard(t *testing.T) {
 	if _, ok := e.Fake.Calls()[0].Skills["interview/SKILL.md"]; !ok {
 		t.Fatalf("the master gets the interview skill: %v", e.Fake.Calls()[0].Skills)
 	}
+	if _, ok := e.Fake.Calls()[0].Skills["code-project/example/prompts/run.md"]; !ok {
+		t.Fatal("the master gets the example module of the code-project skill")
+	}
+	if !strings.Contains(e.Fake.Calls()[0].Prompt, "no summary yet") {
+		t.Fatalf("a new topic says it has no summary: %s", e.Fake.Calls()[0].Prompt)
+	}
 	if q.Kind != "question" || !strings.Contains(q.Text, "Which format?") {
 		t.Fatalf("the question waits in waiting for you: %+v", q)
 	}

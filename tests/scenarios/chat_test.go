@@ -260,7 +260,8 @@ func TestTopicsRunInParallelAndRepliesQueue(t *testing.T) {
 		return release[key]
 	}
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
-		key := strings.Fields(lastLine(strings.Split(c.Req.Prompt, "The summary of this topic")[0]))[0]
+		head, _, _ := strings.Cut(strings.Replace(c.Req.Prompt, "This topic has no summary", "The summary of this topic", 1), "The summary of this topic")
+		key := strings.Fields(lastLine(head))[0]
 		select {
 		case <-gate(key):
 		case <-ctx.Done():

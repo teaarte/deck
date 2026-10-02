@@ -16,11 +16,11 @@ import (
 	"time"
 )
 
-// codeModule is a copy of examples/code; with a url it also takes GitLab issues from there, the way a terminal
+// codeModule is a copy of the example of the code-project skill; with a url it also takes GitLab issues from there, the way a terminal
 // agent adds a tracker by the code-project skill (testdata/tracker).
 func codeModule(t *testing.T, url string) string {
 	t.Helper()
-	src, _ := filepath.Abs("../../examples/code")
+	src, _ := filepath.Abs("../../skills/code-project/example")
 	dst := filepath.Join(t.TempDir(), "code")
 	err := filepath.WalkDir(src, func(p string, d os.DirEntry, err error) error {
 		if err != nil || d.IsDir() {

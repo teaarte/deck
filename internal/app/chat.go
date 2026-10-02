@@ -268,7 +268,13 @@ func (a *App) chatPrompt(ctx context.Context, t db.ChatTopic, pending []db.ChatM
 	if err != nil {
 		return "", "", err
 	}
-	fmt.Fprintf(&b, "The summary of this topic is document %s of project %s.", summaryName(t.ID), master.Name)
+	if since, _, err := a.summary(ctx, t); err != nil {
+		return "", "", err
+	} else if since == "" {
+		fmt.Fprintf(&b, "This topic has no summary yet; deck asks for one when it grows, as document %s of project %s.", summaryName(t.ID), master.Name)
+	} else {
+		fmt.Fprintf(&b, "The summary of this topic is document %s of project %s.", summaryName(t.ID), master.Name)
+	}
 	if grown >= summaryDue {
 		fmt.Fprintf(&b, " The topic has %d messages after its summary: update it by the topic-summary skill.", grown)
 	}

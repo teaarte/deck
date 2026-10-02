@@ -12,9 +12,9 @@ CLAUDE.md or AGENTS.md like a session in a terminal), and lets only one agent wo
 second one waits ("waits for folder …"). Everything else — stash, branch, commits, going back, merge,
 revert, push, diff — is the agent following its md.
 
-The module to start from is `examples/code` of the deck source: `manifest.json` (board and the `run`
-command), `prompt.md` and `prompts/run.md` (how a run goes). When it is not at hand, write the same shape
-yourself from this skill. Routines the owner asks for later (section 5) you add to the project's manifest.
+The module to start from is in the `example` folder of this skill: `manifest.json` (board and the `run`
+command), `prompt.md` and `prompts/run.md` (how a run goes). Copy it into your working folder, adapt it and
+`project_import` it. Routines the owner asks for later (section 5) you add to the project's manifest.
 
 ## 1. Ask the owner
 

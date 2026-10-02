@@ -27,6 +27,8 @@ description: Puts the owner's tasks into the right deck project as cards, or int
 - Something a project already does on request ("run the collection now", "merge it") — call that command
   instead of making a card.
 - A record of a project is the subject ("this job looks good, prepare it") — the card gets `record`.
+- A command that may not call `card_create` (the daily review) suggests the card instead: `suggest` with
+  command `deck.card_create` and the same input.
 
 ## Saying it
 

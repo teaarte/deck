@@ -1,7 +1,7 @@
 Look over deck once a day and suggest what is worth doing; do not do it yourself.
 
 1. `projects_list`, then for each enabled project: its board (`cards_list`), its processes of the last day
-   (`processes_list`), the documents its modules keep as summaries (`documents_list`; a module names its summary in
+   (`processes_list` with the project, newest first: stop at the first that started before then), the documents its modules keep as summaries (`documents_list`; a module names its summary in
    its md), and what is waiting for the owner (`asks_list`).
 2. Read the refusals of the last 30 days first (`suggestions_rejected`): do not suggest the same thing again, and
    take the reasons into account. What counts as the same is your judgement.

@@ -407,3 +407,13 @@ func TestAJSONParamTakesAnObjectAsWellAsItsText(t *testing.T) {
 	}
 	e.refused("deck.command_try", map[string]any{"command": "notes.work", "input": 5}, 422, "want string")
 }
+
+// TestAToolNameOfACommandIsAnsweredWithItsName: an agent that passes the name of the tool it sees is told the
+// name of the command.
+func TestAToolNameOfACommandIsAnsweredWithItsName(t *testing.T) {
+	e := newEnv(t, nil)
+	e.createProject("notes", plainManifest)
+	e.refused("deck.command_try", map[string]any{"command": "notes__work"}, 404, `as "notes.work"`)
+	e.refused("deck.suggest", map[string]any{"command": "card_create", "reason": "r"}, 404, `as "deck.card_create"`)
+	e.refused("deck.command_try", map[string]any{"command": "nothing"}, 404, `unknown command "nothing"`)
+}

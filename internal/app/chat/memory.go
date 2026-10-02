@@ -44,7 +44,7 @@ func (ch *Service) masterMemory(ctx context.Context, mp db.Project, topic int64)
 	v := struct{ Own, Card string }{Own: own}
 	sign := fmt.Sprint(rev)
 	if cp, ok := ch.topicProject(ctx, topic); ok && cp.ID != mp.ID {
-		idx, crev, err := ch.memoryIndex(ctx, cp, "Memory index of project "+cp.Name+", whose card this topic is about")
+		idx, crev, err := ch.memoryIndex(ctx, cp, "Memory index of project "+cp.Name+", whose card this topic is about (document_get with project "+cp.Name+")")
 		if err != nil {
 			return "", "", err
 		}

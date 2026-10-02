@@ -58,4 +58,4 @@ contradicts a fact, change that fact (it keeps its history in revisions); do not
 
 Once a week (and when an index passes 150 lines): read the index and the facts; merge duplicates; delete
 facts whose `expires` passed and facts the owner contradicted (`document_delete`, the owner can bring them
-back); shorten lines that grew; put the lines that matter most at the top. Say in one line what changed.
+back; a deleted name is not saved again, so a fact that comes back later takes another slug); shorten lines that grew; put the lines that matter most at the top. Say in one line what changed.

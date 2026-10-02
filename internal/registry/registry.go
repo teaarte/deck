@@ -294,7 +294,23 @@ func (r *Registry) Lookup(ctx context.Context, workspace int64, name string) (*C
 			}
 		}
 	}
+	if hint := commandName(name); hint != "" {
+		if _, err := r.Lookup(ctx, workspace, hint); err == nil {
+			return nil, NotFound("deck: unknown command %q; commands are named by project, as %q", name, hint)
+		}
+	}
 	return nil, NotFound("deck: unknown command %q", name)
+}
+
+// commandName is the command name a tool name stands for, as an agent sees it: card_create, code__run.
+func commandName(tool string) string {
+	switch {
+	case strings.Contains(tool, "."):
+		return ""
+	case strings.Contains(tool, "__"):
+		return strings.Replace(tool, "__", ".", 1)
+	}
+	return Builtin + "." + tool
 }
 
 // Invoke checks the caller, validates the input against the command schema and runs the command.

@@ -379,23 +379,23 @@ func screenText(raw string) string {
 }
 
 // replyOf is the topic of a reply process of the built-in master, or 0 for any other process.
-func (a *App) replyOf(ctx context.Context, processID int64) (db.Process, int64) {
-	p, err := a.Store.Q.GetProcess(ctx, processID)
-	if err != nil || p.Command != replyCommand {
-		return p, 0
+func (a *App) replyOf(ctx context.Context, p db.Process) int64 {
+	if p.Command != replyCommand {
+		return 0
 	}
 	proj, err := a.Store.Q.GetProject(ctx, p.ProjectID)
 	if err != nil || proj.Builtin == 0 {
-		return p, 0
+		return 0
 	}
 	var in struct{ Topic int64 }
 	_ = json.Unmarshal([]byte(p.Input), &in)
-	return p, in.Topic
+	return in.Topic
 }
 
-// chatTurn keeps the final text of a reply turn as the master's message in its topic.
-func (a *App) chatTurn(ctx context.Context, processID int64, text string) {
-	p, topic := a.replyOf(ctx, processID)
+// Turn keeps the final text of a reply turn as the master's message in its topic.
+func (h chatHook) Turn(ctx context.Context, p db.Process, text string) {
+	a := h.a
+	topic := a.replyOf(ctx, p)
 	if topic == 0 || strings.TrimSpace(text) == "" {
 		return
 	}
@@ -410,22 +410,22 @@ func (a *App) chatTurn(ctx context.Context, processID int64, text string) {
 		return q.SeeChat(ctx, db.SeeChatParams{Seen: m.ID, TopicID: topic, SessionID: p.SessionID})
 	})
 	if err != nil {
-		slog.Error("chat reply", "process", processID, "err", err)
+		slog.Error("chat reply", "process", p.ID, "err", err)
 	}
 	a.Bus.Publish("chat")
 }
 
-// closed runs after a process reached a final state: the chat goes on, a failed process goes to the master.
-func (a *App) closed(ctx context.Context, processID int64) {
-	a.chatClosed(ctx, processID)
-	a.toMaster(ctx, processID)
-}
+// chatHook keeps the master's replies in their topics and goes on with the messages a topic got while its
+// reply ran, once the reply closes or parks.
+type chatHook struct{ a *App }
 
-// chatClosed goes on with the messages a topic got while its reply ran; it runs when the reply closes or parks.
-func (a *App) chatClosed(ctx context.Context, processID int64) {
-	if _, topic := a.replyOf(ctx, processID); topic != 0 {
-		a.Bus.Publish("chat")
-		a.pump(context.WithoutCancel(ctx), topic)
+func (h chatHook) Closed(ctx context.Context, p db.Process) { h.goOn(ctx, p) }
+func (h chatHook) Parked(ctx context.Context, p db.Process) { h.goOn(ctx, p) }
+
+func (h chatHook) goOn(ctx context.Context, p db.Process) {
+	if topic := h.a.replyOf(ctx, p); topic != 0 {
+		h.a.Bus.Publish("chat")
+		h.a.pump(context.WithoutCancel(ctx), topic)
 	}
 }
 

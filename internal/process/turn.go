@@ -283,9 +283,7 @@ func (r *Runner) run(ctx context.Context, t turn) {
 }
 
 func (r *Runner) turnText(ctx context.Context, processID int64, text string) {
-	if r.OnTurn != nil {
-		r.OnTurn(ctx, processID, text)
-	}
+	r.hear(ctx, processID, func(h Hook, p db.Process) { h.Turn(ctx, p, text) })
 }
 
 // logLine is a line of the process log: an event in the words of ACP session/update.

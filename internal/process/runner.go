@@ -77,14 +77,8 @@ type Runner struct {
 	scripts   *script.Exec
 	cfg       Config
 	projects  Projects
-	// OnDone runs after a process finishes done with a result that is not empty and fits its schema.
-	OnDone func(ctx context.Context, p db.Process)
-	// OnClosed runs after a process reached a final state, whatever it is.
-	OnClosed func(ctx context.Context, processID int64)
-	// OnTurn gets the final text of an agent turn that ends the process done or parks it for the owner.
-	OnTurn func(ctx context.Context, processID int64, text string)
-	// OnParked runs after a process parked to wait for the owner.
-	OnParked func(ctx context.Context, processID int64)
+	// Hooks hear of processes that close, park or end a turn, in this order.
+	Hooks []Hook
 
 	ctx     context.Context
 	cancel  context.CancelFunc
@@ -243,11 +237,6 @@ func (r *Runner) finish(ctx context.Context, processID int64, state, result stri
 	r.mu.Unlock()
 	r.dropped(ctx, closedCalls)
 	r.closed(ctx, processID)
-	if state == StateDone && !notBySchema && result != Empty && r.OnDone != nil {
-		if p, err := r.st.Q.GetProcess(ctx, processID); err == nil {
-			r.OnDone(ctx, p)
-		}
-	}
 }
 
 // settle takes a turn off the live ones before it writes its outcome: a stop that came first wins, a stop
@@ -273,9 +262,7 @@ func (r *Runner) stopFirst(ctx context.Context, processID int64) bool {
 func (r *Runner) closed(ctx context.Context, processID int64) {
 	r.bus.Publish("processes")
 	r.bus.Publish("asks")
-	if r.OnClosed != nil {
-		r.OnClosed(ctx, processID)
-	}
+	r.hear(ctx, processID, func(h Hook, p db.Process) { h.Closed(ctx, p) })
 }
 
 // dropped journals the frozen calls a closed process took with it.

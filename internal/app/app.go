@@ -101,8 +101,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	a.Runner = process.NewRunner(st, a.Gateway, a.Bus, a, a.Scripts,
 		process.Config{RunsDir: filepath.Join(cfg.Home, "runs"), MCPBase: cfg.MCPBase, Now: cfg.Now, FilesDir: filepath.Join(cfg.Home, "files"),
 			Hidden: hidden(cfg.Home), PauseLimit: cfg.PauseLimit, AgentSlots: a.agentSlots}, a)
-	a.Runner.OnDone = a.afterTriggers
-	a.Runner.OnTurn, a.Runner.OnClosed, a.Runner.OnParked = a.chatTurn, a.closed, a.chatClosed
+	a.Runner.Hooks = []process.Hook{chatHook{a: a}, errorsHook{a: a}, afterHook{a: a}}
 	a.Scheduler = trigger.New(st, a, cfg.Now)
 	a.Asks.OnLateAnswer(a.lateAnswer)
 	if err := a.SeedSkills(a.ctx); err != nil {
@@ -202,6 +201,18 @@ func (a *App) fire(ctx context.Context, t db.TriggerState, input map[string]any,
 }
 
 // afterTriggers starts the commands that run when a command of the same project finishes.
+// afterHook fires the triggers that follow a command which finished done with a result by its schema.
+type afterHook struct {
+	process.NoHook
+	a *App
+}
+
+func (h afterHook) Closed(ctx context.Context, p db.Process) {
+	if p.State == process.StateDone && p.NotBySchema == 0 && p.Result != process.Empty {
+		h.a.afterTriggers(ctx, p)
+	}
+}
+
 func (a *App) afterTriggers(ctx context.Context, done db.Process) {
 	if done.TriggerID.Valid {
 		a.Bus.Publish("triggers")

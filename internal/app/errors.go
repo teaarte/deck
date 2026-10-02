@@ -21,11 +21,18 @@ const errorCommand = "on_error"
 // masterErrorPrefix keys the day a failed command of a project last went to the master.
 const masterErrorPrefix = "master_error:"
 
+// errorsHook hands the failed processes of projects to the master.
+type errorsHook struct {
+	process.NoHook
+	a *App
+}
+
+func (h errorsHook) Closed(ctx context.Context, p db.Process) { h.a.toMaster(ctx, p) }
+
 // toMaster hands a failed process of a project to the master: an error, a result not by its schema, or a
 // script failing the third time in a row; once a day per command, never for the master's own processes.
-func (a *App) toMaster(ctx context.Context, processID int64) {
-	p, err := a.Store.Q.GetProcess(ctx, processID)
-	if err != nil || p.Trial == 1 {
+func (a *App) toMaster(ctx context.Context, p db.Process) {
+	if p.Trial == 1 {
 		return
 	}
 	failed := p.State == process.StateError || p.State == process.StateDone && p.NotBySchema == 1

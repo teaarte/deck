@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"deck2/internal/health"
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
 	"deck2/internal/untrusted"
@@ -168,10 +169,7 @@ func (a *App) whisper(ctx context.Context, workspace int64, d sttDef, name strin
 func (a *App) setSTTHealth(ctx context.Context, failed error) {
 	status, text := "ok", ""
 	if failed != nil {
-		status, text = "error", untrusted.Cut(failed.Error(), 500)
+		status, text = "error", failed.Error()
 	}
-	_ = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		return q.SetHealth(ctx, db.SetHealthParams{Subject: sttHealth, Status: status, Error: text})
-	})
-	a.Bus.Publish("health")
+	health.Write(ctx, a.Store, a.Bus, sttHealth, status, text)
 }

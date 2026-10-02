@@ -17,6 +17,7 @@ import (
 	"github.com/SherClockHolmes/webpush-go"
 
 	"deck2/internal/app/docs"
+	"deck2/internal/health"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
@@ -366,9 +367,7 @@ func (a *App) pushHealth(ctx context.Context, failed string) {
 	if failed != "" {
 		status = "error"
 	}
-	_ = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		return q.SetHealth(ctx, db.SetHealthParams{Subject: "push", Status: status, Error: untrusted.Cut(failed, 500)})
-	})
+	health.Write(ctx, a.Store, a.Bus, "push", status, failed)
 }
 
 func oneLine(s string) string { return strings.Join(strings.Fields(s), " ") }

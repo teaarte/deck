@@ -7,7 +7,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"deck2/internal/app/docs"
-	"deck2/internal/store/db"
+	"deck2/internal/health"
 	"deck2/internal/tools"
 )
 
@@ -38,12 +38,7 @@ func (a *App) serverStatus(key string, list []*mcp.Tool, err error) {
 }
 
 func (a *App) setHealth(ctx context.Context, subject, status, text string) {
-	err := a.Store.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error {
-		return q.SetHealth(ctx, db.SetHealthParams{Subject: subject, Status: status, Error: text})
-	})
-	if err == nil {
-		a.Bus.Publish("health")
-	}
+	health.Write(ctx, a.Store, a.Bus, subject, status, text)
 }
 
 // Servers starts the MCP servers of a project whose tools deck has not listed yet, so a process that starts

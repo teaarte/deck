@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"deck2/internal/app/docs"
+	"deck2/internal/health"
 	"deck2/internal/manifest"
 	"deck2/internal/script"
 	"deck2/internal/store/db"
@@ -46,7 +47,7 @@ func (a *App) prepareScripts(ctx context.Context, projectID int64) error {
 		if sbErr != nil {
 			status, text = "error", a.Scripts.Sandbox.Name()+": "+sbErr.Error()
 		}
-		if err := q.SetHealth(ctx, db.SetHealthParams{Subject: sandboxHealth, Status: status, Error: text}); err != nil {
+		if err := health.Set(ctx, q, sandboxHealth, status, text); err != nil {
 			return err
 		}
 		keep := map[string]bool{}
@@ -57,7 +58,7 @@ func (a *App) prepareScripts(ctx context.Context, projectID int64) error {
 			subject := commandHealth(p.Name, c.Name)
 			keep[subject] = true
 			status, text := scriptHealth(&c, problems, sbErr)
-			if err := q.SetHealth(ctx, db.SetHealthParams{Subject: subject, Status: status, Error: text}); err != nil {
+			if err := health.Set(ctx, q, subject, status, text); err != nil {
 				return err
 			}
 		}

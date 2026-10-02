@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"deck2/internal/store/db"
 )
@@ -300,4 +301,12 @@ func TestSettingsHealthShowsWhatIsRedFirstWithWhy(t *testing.T) {
 			t.Fatalf("the filter keeps one state: %+v", r)
 		}
 	}
+}
+
+// TestTheDiskHealthReachesTheOpenScreens: a new disk reading tells the clients, so the Health tab is current.
+func TestTheDiskHealthReachesTheOpenScreens(t *testing.T) {
+	e := newEnv(t, nil)
+	events := e.sse(t.Context())
+	e.App.Sweep(context.Background(), time.Now().Add(time.Hour))
+	waitTopic(t, events, "health")
 }

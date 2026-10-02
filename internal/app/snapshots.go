@@ -22,6 +22,7 @@ import (
 	"github.com/google/uuid"
 
 	"deck2/internal/app/docs"
+	"deck2/internal/health"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
@@ -280,15 +281,10 @@ func (a *App) checkDisk(ctx context.Context, now time.Time) {
 	if free < lowDisk {
 		status, text = "warning", "the disk is almost full; "+text
 	}
-	_ = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		return q.SetHealth(ctx, db.SetHealthParams{Subject: "disk", Status: status, Error: text})
-	})
+	health.Write(ctx, a.Store, a.Bus, "disk", status, text)
 }
 
 // TailnetHealth records the state of deck on the owner's tailnet: the sign-in link while it waits for one.
 func (a *App) TailnetHealth(status, text string) {
-	_ = a.Store.Tx(context.Background(), func(ctx context.Context, q *db.Queries) error {
-		return q.SetHealth(ctx, db.SetHealthParams{Subject: "tailscale", Status: status, Error: text})
-	})
-	a.Bus.Publish("health")
+	health.Write(context.Background(), a.Store, a.Bus, "tailscale", status, text)
 }

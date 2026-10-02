@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"deck2/internal/health"
 	"deck2/internal/process"
 	"deck2/internal/provider"
 	"deck2/internal/store/db"
@@ -139,7 +140,7 @@ func (a *App) startCheck(name string, force bool) bool {
 
 func (a *App) writeCheck(ctx context.Context, subject, status, text, version, verdict string, speed float64) {
 	err := a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		if err := q.SetHealth(ctx, db.SetHealthParams{Subject: subject, Status: status, Error: text}); err != nil {
+		if err := health.Set(ctx, q, subject, status, text); err != nil {
 			return err
 		}
 		if status == "checking" {

@@ -45,6 +45,7 @@ Stage 1 plan: `docs/plan-stage1.md`.
 - `internal/sandbox` — script sandbox behind one interface: `sandbox-exec` on macOS, bubblewrap on Linux
 - `internal/script` — runs project scripts in the sandbox (a script installs its own packages through the proxy)
 - `internal/trigger` — cron scheduler with catch-up after sleep
+- `internal/health` — health rows: `Set` inside a transaction, `Write` on its own and published
 - `internal/screen` — stored screens resolved into A2UI messages (`render.go`, `blocks.go`, `items.go`, `actions.go`)
 - `internal/api` — HTTP API (`GET /api/commands`, `POST /api/commands/{name}`, files) and SSE; screens are the
   `deck.screen` command; `Sandbox` is the second origin of `custom` blocks (proxy page with a CSP without network,

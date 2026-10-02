@@ -6,6 +6,7 @@ import (
 	"errors"
 	"strings"
 
+	"deck2/internal/health"
 	"deck2/internal/process"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
@@ -124,7 +125,7 @@ func (a *App) providerAdd(ctx context.Context, act registry.Actor, in struct {
 			}
 		}
 		if d.Agent != "" {
-			if err := q.SetHealth(ctx, db.SetHealthParams{Subject: process.HealthSubject(in.Name), Status: "checking", Error: "the self-check of the new provider is about to run"}); err != nil {
+			if err := health.Set(ctx, q, process.HealthSubject(in.Name), "checking", "the self-check of the new provider is about to run"); err != nil {
 				return err
 			}
 		}

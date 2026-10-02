@@ -10,10 +10,10 @@ import (
 	"strings"
 
 	"deck2/internal/ask"
+	"deck2/internal/health"
 	"deck2/internal/provider"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
-	"deck2/internal/untrusted"
 )
 
 // needLogin parks the process until the owner logs the provider in again and picks how to continue.
@@ -58,13 +58,13 @@ func (r *Runner) providerHealth(ctx context.Context, pv provider.Provider, res p
 	_ = r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		switch {
 		case err != nil && !checked:
-			return q.SetHealth(ctx, db.SetHealthParams{Subject: subject, Status: "error", Error: untrusted.Cut(err.Error(), 2000)})
+			return health.Set(ctx, q, subject, "error", err.Error())
 		case err != nil || res.NeedsLogin || res.RateLimited:
 			return nil
 		case checked:
 			return q.MarkHealthy(ctx, subject)
 		}
-		return q.SetHealth(ctx, db.SetHealthParams{Subject: subject, Status: "ok"})
+		return health.Set(ctx, q, subject, "ok", "")
 	})
 	r.bus.Publish("health")
 }
@@ -78,7 +78,7 @@ func setHealth(ctx context.Context, q *db.Queries, pv provider.Provider, status,
 			return nil
 		}
 	}
-	return q.SetHealth(ctx, db.SetHealthParams{Subject: subject, Status: status, Error: text})
+	return health.Set(ctx, q, subject, status, text)
 }
 
 // usage writes one model call of a process to the journal of model calls.

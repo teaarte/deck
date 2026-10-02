@@ -302,7 +302,7 @@ func TestKeyFieldsStayAndEmptyTriggersAreRefused(t *testing.T) {
 // TestAManifestOlderThanFormat4IsRefused: format 4 is still raised to the current one; older ones are refused.
 func TestAManifestOlderThanFormat4IsRefused(t *testing.T) {
 	e := newEnv(t, nil)
-	v4 := strings.Replace(ideasManifest, `"version": 5,`, `"version": 5,`, 1)
+	v4 := strings.Replace(ideasManifest, `"version": 5,`, `"version": 4,`, 1)
 	e.createProject("ideas", v4)
 	var cur struct{ Manifest string }
 	e.must("deck.manifest_get", map[string]any{"project": "ideas"}, &cur)

@@ -133,12 +133,31 @@ type Script struct {
 }
 
 type Trigger struct {
-	Command    string         `json:"command"`
-	Cron       string         `json:"cron,omitempty"`
-	Lane       string         `json:"lane,omitempty"`
-	After      string         `json:"after,omitempty"`
+	Command string `json:"command"`
+	Cron    string `json:"cron,omitempty"`
+	Lane    string `json:"lane,omitempty"`
+	After   string `json:"after,omitempty"`
+	// On is an event of deck only the built-in project answers: OnMessage or OnFailure.
+	On         string         `json:"on,omitempty"`
 	Params     map[string]any `json:"params,omitempty"`
 	SkipMissed bool           `json:"skip_missed,omitempty"`
+}
+
+// Events of deck a trigger of the built-in project answers: the owner wrote in a chat topic, a process of another
+// project failed.
+const (
+	OnMessage = "message"
+	OnFailure = "failure"
+)
+
+// EventCommand is the command a trigger of the manifest runs on an event, or empty.
+func (m *Manifest) EventCommand(on string) string {
+	for _, t := range m.Triggers {
+		if t.On == on {
+			return t.Command
+		}
+	}
+	return ""
 }
 
 type Tools struct {
@@ -214,7 +233,7 @@ type Block struct {
 	// ActionsFrom is a field of an item with buttons of its own: label, command with its project, params.
 	ActionsFrom string  `json:"actions_from,omitempty"`
 	Blocks      []Block `json:"blocks,omitempty"`
-	Tabs    []Tab    `json:"tabs,omitempty"`
+	Tabs        []Tab   `json:"tabs,omitempty"`
 	// Filter names the fields of a table or list the owner narrows it by.
 	Filter []string `json:"filter,omitempty"`
 	// Command is the command of a form; Save a collection its result can be kept in.

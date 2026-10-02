@@ -41,6 +41,8 @@ func New(st *store.Store, s Starter, now func() time.Time) *Scheduler {
 // Identity is what a manifest trigger is known by across manifest revisions.
 func Identity(t manifest.Trigger) (kind, spec string) {
 	switch {
+	case t.On != "":
+		return t.On, ""
 	case t.Cron != "":
 		return KindCron, t.Cron
 	case t.Lane != "":
@@ -85,6 +87,9 @@ func (s *Scheduler) Sync(ctx context.Context, q *db.Queries, projectID int64, m 
 		}
 	}
 	for _, t := range m.Triggers {
+		if t.On != "" {
+			continue
+		}
 		kind, spec := Identity(t)
 		var next sql.NullString
 		if kind == KindCron {

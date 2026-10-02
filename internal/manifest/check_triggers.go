@@ -30,7 +30,7 @@ func (m *Manifest) checkTriggers(fail func(string, ...any)) {
 				fail("%s: command %q cannot be called by triggers", where, t.Command)
 			}
 			in := TriggerInput(t, 1)
-			for _, f := range []string{"card", "process"} {
+			for _, f := range []string{"card", "process", "topic"} {
 				if _, ok := in[f]; ok && !slices.Contains(schemaFields(c.Input), f) {
 					fail("%s: command %q must declare input field %q to be triggered this way", where, t.Command, f)
 				}
@@ -45,7 +45,10 @@ func (m *Manifest) checkTriggers(fail func(string, ...any)) {
 			}
 		}
 		for j := range i {
-			if u := m.Triggers[j]; u.Command == t.Command && u.Cron == t.Cron && u.Lane == t.Lane && u.After == t.After && !reflect.DeepEqual(u, t) {
+			if u := m.Triggers[j]; t.On != "" && u.On == t.On {
+				fail("%s: one trigger answers %s", where, t.On)
+			}
+			if u := m.Triggers[j]; u.Command == t.Command && u.Cron == t.Cron && u.Lane == t.Lane && u.After == t.After && u.On == t.On && !reflect.DeepEqual(u, t) {
 				fail("%s: %q already has a trigger on the same %s", where, t.Command, triggerSource(t))
 			}
 		}
@@ -91,8 +94,10 @@ func TriggerInput(t Trigger, ref int64) map[string]any {
 	switch {
 	case t.Lane != "":
 		in["card"] = ref
-	case t.After != "":
+	case t.After != "" || t.On == OnFailure:
 		in["process"] = ref
+	case t.On == OnMessage:
+		in["topic"] = ref
 	}
 	return in
 }

@@ -312,3 +312,12 @@ func TestAManifestOlderThanFormat4IsRefused(t *testing.T) {
 	v3 := strings.Replace(ideasManifest, `"version": 5,`, `"version": 3,`, 1)
 	e.refused("deck.project_create", map[string]any{"name": "old", "manifest": v3}, 422, "version must be 5")
 }
+
+// TestOnlyTheBuiltInProjectAnswersEventsOfDeck: a trigger on a message or a failure belongs to project master.
+func TestOnlyTheBuiltInProjectAnswersEventsOfDeck(t *testing.T) {
+	e := newEnv(t, nil)
+	m := strings.Replace(plainManifest, `"triggers": [],`, `"triggers": [{"command": "work", "on": "failure"}],`, 1)
+	m = strings.Replace(m, `"executor": {"type": "agent", "prompt": "Do the work."}`,
+		`"callers": ["trigger"], "input": {"type": "object", "properties": {"process": {"type": "integer", "format": "process"}}}, "executor": {"type": "agent", "prompt": "Do the work."}`, 1)
+	e.refused("deck.project_create", map[string]any{"name": "spy", "manifest": m}, 422, "belongs to the built-in project master")
+}

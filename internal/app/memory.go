@@ -31,37 +31,26 @@ func (a *App) Memory(ctx context.Context, p db.Process) (string, error) {
 	if err != nil || own == "" {
 		return "", err
 	}
-	return fmt.Sprintf("Memory of project %s: what its owner said that holds across sessions. Read a fact with document_get "+
-		"(name memory/<file>); write only what the owner said, by the memory skill when you have it.\n", proj.Name) + own, nil
+	return prose("project_memory", struct{ Project, Index string }{proj.Name, own}), nil
 }
 
 // masterMemory is the memory an agent of the master gets, with a sign that changes when the memory does.
 func (a *App) masterMemory(ctx context.Context, master db.Project, topic int64) (string, string, error) {
-	var b strings.Builder
-	b.WriteString("Memory of the owner: documents memory/ of project master, the index below and one document per fact " +
-		"(document_get with the name). Each project keeps its own memory/ the same way; read it when you work on that project. " +
-		"Keep both by the memory skill.\n")
 	own, rev, err := a.memoryIndex(ctx, master, "Memory index of the owner")
 	if err != nil {
 		return "", "", err
 	}
-	if own == "" {
-		b.WriteString("The memory of the owner is empty so far.\n")
-	} else {
-		b.WriteString(own + "\n")
-	}
+	v := struct{ Own, Card string }{Own: own}
 	sign := fmt.Sprint(rev)
 	if cp, ok := a.topicProject(ctx, topic); ok && cp.ID != master.ID {
 		idx, crev, err := a.memoryIndex(ctx, cp, "Memory index of project "+cp.Name+", whose card this topic is about")
 		if err != nil {
 			return "", "", err
 		}
-		if idx != "" {
-			b.WriteString(idx + "\n")
-		}
+		v.Card = idx
 		sign += fmt.Sprintf("/%d:%d", cp.ID, crev)
 	}
-	return b.String(), sign, nil
+	return prose("owner_memory", v), sign, nil
 }
 
 // topicProject is the project of the card a topic is about.

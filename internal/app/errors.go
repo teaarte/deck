@@ -16,8 +16,6 @@ import (
 	"deck2/master"
 )
 
-const errorCommand = "on_error"
-
 // masterErrorPrefix keys the day a failed command of a project last went to the master.
 const masterErrorPrefix = "master_error:"
 
@@ -60,7 +58,7 @@ func (a *App) toMaster(ctx context.Context, p db.Process) {
 		if mp, err = a.masterProject(ctx, proj.WorkspaceID); err != nil {
 			return
 		}
-		if mm, err = docs.Manifest(ctx, a.Store.Q, mp); err != nil || mm.Command(errorCommand) == nil || mp.Paused == 1 {
+		if mm, err = docs.Manifest(ctx, a.Store.Q, mp); err != nil || mm.Command(mm.EventCommand(manifest.OnFailure)) == nil || mp.Paused == 1 {
 			return
 		}
 	}
@@ -77,7 +75,7 @@ func (a *App) toMaster(ctx context.Context, p db.Process) {
 		if err := q.SetMark(ctx, db.SetMarkParams{WorkspaceID: proj.WorkspaceID, ProjectID: store.ID(proj.ID), Name: key, Value: store.Time(now)}); err != nil || !own {
 			return err
 		}
-		_, err := ask.New(ctx, q, p.ID, ask.KindWarning, fmt.Sprintf("The master's command %s failed: %s", p.Command, untrusted.Cut(p.Error, 500)), "{}", time.Time{})
+		_, err := ask.New(ctx, q, p.ID, ask.KindWarning, prose("master_failed", struct{ Command, Error string }{p.Command, untrusted.Cut(p.Error, 500)}), "{}", time.Time{})
 		return err
 	})
 	if err != nil || !due {
@@ -87,7 +85,7 @@ func (a *App) toMaster(ctx context.Context, p db.Process) {
 		a.Bus.Publish("asks")
 		return
 	}
-	if _, err := a.Runner.Start(context.WithoutCancel(ctx), mp.ID, mm, errorCommand, map[string]any{"process": p.ID}, process.Origin{}); err != nil {
+	if _, err := a.Runner.Start(context.WithoutCancel(ctx), mp.ID, mm, mm.EventCommand(manifest.OnFailure), map[string]any{"process": p.ID}, process.Origin{}); err != nil {
 		slog.Error("hand an error to the master", "process", p.ID, "project", master.Name, "err", err)
 		_ = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 			return q.DeleteMark(ctx, db.DeleteMarkParams{WorkspaceID: proj.WorkspaceID, Name: key})

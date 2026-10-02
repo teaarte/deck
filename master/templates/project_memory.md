@@ -1,0 +1,2 @@
+Memory of project {{.Project}}: what its owner said that holds across sessions. Read a fact with document_get (name memory/<file>); write only what the owner said, by the memory skill when you have it.
+{{.Index}}

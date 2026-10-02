@@ -13,12 +13,12 @@ import (
 
 	"deck2/internal/ask"
 	"deck2/internal/docs"
+	"deck2/internal/manifest"
 	"deck2/internal/process"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
 	"deck2/internal/untrusted"
-	"deck2/master"
 )
 
 const (
@@ -27,8 +27,7 @@ const (
 	// retellTail is how many messages after the summary a new session gets word for word.
 	retellTail = 30
 	// summaryDue is how many messages since the summary make deck ask the master to update it.
-	summaryDue   = 20
-	replyCommand = "reply"
+	summaryDue = 20
 )
 
 // chatQueue runs the replies of topics one at a time per topic; a pump that is asked while it runs, even from
@@ -143,9 +142,10 @@ func (a *App) reply(ctx context.Context, topicID int64) error {
 	if err != nil {
 		return err
 	}
-	cmd := m.Command(replyCommand)
+	reply := m.EventCommand(manifest.OnMessage)
+	cmd := m.Command(reply)
 	if cmd == nil {
-		return registry.Invalid("deck: project master has no command %s", replyCommand)
+		return registry.Invalid("deck: project master has no trigger on %s", manifest.OnMessage)
 	}
 	pv, err := a.For(ctx, p.ID, cmd)
 	if err != nil {
@@ -184,7 +184,7 @@ func (a *App) reply(ctx context.Context, topicID int64) error {
 		return err
 	}
 	o.Note = strings.TrimSpace(retell + "\n\n" + news)
-	id, err := a.Runner.Start(ctx, p.ID, m, replyCommand, map[string]any{"topic": topicID}, o)
+	id, err := a.Runner.Start(ctx, p.ID, m, reply, map[string]any{"topic": topicID}, o)
 	if err != nil {
 		return err
 	}
@@ -207,7 +207,21 @@ func (a *App) takeMessages(ctx context.Context, t db.ChatTopic, processID int64,
 // chatPrompt is what a reply turn gets: on resume the messages its session missed, then the owner's new
 // messages with their screens, the card of the topic and where its summary is.
 func (a *App) chatPrompt(ctx context.Context, t db.ChatTopic, pending []db.ChatMessage, session, provider string, resume bool) (string, string, error) {
-	var b strings.Builder
+	type message struct{ Where, Text string }
+	type card struct {
+		ID             int64
+		Project, Title string
+	}
+	v := struct {
+		MemoryChanged          bool
+		Memory, Retold, Missed string
+		Topic                  int64
+		Pending                []message
+		Card                   *card
+		Summarized             bool
+		Summary                string
+		Grown                  int64
+	}{Topic: t.ID, Summary: summaryName(t.ID)}
 	sign := ""
 	if resume {
 		s, err := a.Store.Q.GetChatSession(ctx, db.GetChatSessionParams{TopicID: t.ID, Provider: provider})
@@ -220,9 +234,8 @@ func (a *App) chatPrompt(ctx context.Context, t db.ChatTopic, pending []db.ChatM
 			if err != nil {
 				return "", "", err
 			}
-			if sign = now; now != s.Memory {
-				b.WriteString("deck: the memory changed since this session last got it; here it is now.\n" + mem + "\n")
-			}
+			sign = now
+			v.MemoryChanged, v.Memory = now != s.Memory, mem
 			missed, err := a.Store.Q.ListMessages(ctx, db.ListMessagesParams{TopicID: t.ID, After: s.Seen})
 			if err != nil {
 				return "", "", err
@@ -235,49 +248,36 @@ func (a *App) chatPrompt(ctx context.Context, t db.ChatTopic, pending []db.ChatM
 			}
 			switch {
 			case len(lines) > retellTail:
-				retell, err := a.retelling(ctx, t, pending[0].ID)
-				if err != nil {
+				if v.Retold, err = a.retelling(ctx, t, pending[0].ID); err != nil {
 					return "", "", err
 				}
-				b.WriteString("deck: much happened in this topic since your last turn.\n" + retell + "\n")
 			case len(lines) > 0:
-				b.WriteString("deck: these messages of the topic came after your last turn; another provider may have answered them.\n")
-				b.WriteString(untrusted.Block("Messages new to you, oldest first", transcript(lines)) + "\n\n")
+				v.Missed = untrusted.Block("Messages new to you, oldest first", transcript(lines))
 			}
 		}
 	}
-	if len(pending) > 1 {
-		fmt.Fprintf(&b, "The owner's %d new messages in chat topic %d, oldest first:\n", len(pending), t.ID)
-	} else {
-		fmt.Fprintf(&b, "The owner's new message in chat topic %d:\n", t.ID)
-	}
 	for _, m := range pending {
-		if where := screenText(m.Context); where != "" {
-			b.WriteString("(written on " + where + ")\n")
-		}
-		b.WriteString(strings.TrimSpace(m.Text) + "\n\n")
+		v.Pending = append(v.Pending, message{Where: screenText(m.Context), Text: strings.TrimSpace(m.Text)})
 	}
 	if t.CardID.Valid {
 		if c, err := a.Store.Q.GetCard(ctx, t.CardID.Int64); err == nil {
 			p, _ := a.Store.Q.GetProject(ctx, c.ProjectID)
-			fmt.Fprintf(&b, "This topic is about card %d of project %s, titled %s.\n", c.ID, p.Name, untrusted.Line(c.Title, 200))
+			v.Card = &card{ID: c.ID, Project: p.Name, Title: untrusted.Line(c.Title, 200)}
 		}
 	}
 	grown, err := a.sinceSummary(ctx, t)
 	if err != nil {
 		return "", "", err
 	}
-	if since, _, err := a.summary(ctx, t); err != nil {
+	since, _, err := a.summary(ctx, t)
+	if err != nil {
 		return "", "", err
-	} else if since == "" {
-		fmt.Fprintf(&b, "This topic has no summary yet; deck asks for one when it grows, as document %s of project %s.", summaryName(t.ID), master.Name)
-	} else {
-		fmt.Fprintf(&b, "The summary of this topic is document %s of project %s.", summaryName(t.ID), master.Name)
 	}
+	v.Summarized = since != ""
 	if grown >= summaryDue {
-		fmt.Fprintf(&b, " The topic has %d messages after its summary: update it by the topic-summary skill.", grown)
+		v.Grown = grown
 	}
-	return b.String(), sign, nil
+	return prose("turn", v), sign, nil
 }
 
 // sinceSummary counts the messages of a topic after the current revision of its summary.
@@ -326,15 +326,14 @@ func (a *App) retelling(ctx context.Context, t db.ChatTopic, before int64) (stri
 	if strings.TrimSpace(text) == "" && len(after) == 0 {
 		return "", nil
 	}
-	var b strings.Builder
-	b.WriteString("deck: this session did not see the earlier part of this topic; here it is.\n")
+	v := struct{ Summary, After string }{}
 	if strings.TrimSpace(text) != "" {
-		b.WriteString(untrusted.Block("Summary of the topic", text) + "\n")
+		v.Summary = untrusted.Block("Summary of the topic", text)
 	}
 	if len(after) > 0 {
-		b.WriteString(untrusted.Block("Messages after the summary, word for word, oldest first", transcript(after)) + "\n")
+		v.After = untrusted.Block("Messages after the summary, word for word, oldest first", transcript(after))
 	}
-	return b.String(), nil
+	return prose("retelling", v), nil
 }
 
 func transcript(ms []db.ChatMessage) string {
@@ -379,11 +378,11 @@ func screenText(raw string) string {
 
 // replyOf is the topic of a reply process of the built-in master, or 0 for any other process.
 func (a *App) replyOf(ctx context.Context, p db.Process) int64 {
-	if p.Command != replyCommand {
-		return 0
-	}
 	proj, err := a.Store.Q.GetProject(ctx, p.ProjectID)
 	if err != nil || proj.Builtin == 0 {
+		return 0
+	}
+	if m, err := docs.Manifest(ctx, a.Store.Q, proj); err != nil || p.Command != m.EventCommand(manifest.OnMessage) {
 		return 0
 	}
 	var in struct{ Topic int64 }

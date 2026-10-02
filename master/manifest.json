@@ -153,6 +153,14 @@
   ],
   "triggers": [
     {
+      "command": "reply",
+      "on": "message"
+    },
+    {
+      "command": "on_error",
+      "on": "failure"
+    },
+    {
       "command": "memory",
       "cron": "0 10 * * 1"
     },

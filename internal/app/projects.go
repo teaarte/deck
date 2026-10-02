@@ -11,6 +11,7 @@ import (
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
+	"deck2/master"
 )
 
 var projectName = regexp.MustCompile(`^[a-z][a-z0-9-]{0,39}$`)
@@ -38,11 +39,17 @@ type parsed struct {
 	text []byte
 }
 
-// parseManifest validates a manifest and returns the text to store, upgraded to the current format.
-func parseManifest(raw []byte) (parsed, error) {
+// parseManifest validates a manifest and returns the text to store, upgraded to the current format; only the
+// built-in project answers events of deck.
+func parseManifest(raw []byte, builtin bool) (parsed, error) {
 	m, err := manifest.Parse(raw)
 	if err != nil {
 		return parsed{}, registry.Invalid("deck: %v", err)
+	}
+	for _, t := range m.Triggers {
+		if t.On != "" && !builtin {
+			return parsed{}, registry.Invalid("deck: a trigger on %s belongs to the built-in project %s", t.On, master.Name)
+		}
 	}
 	return parsed{m: m, text: m.Text()}, nil
 }
@@ -63,7 +70,7 @@ func (a *App) createProject(ctx context.Context, act registry.Actor, name string
 	if !projectName.MatchString(name) || name == registry.Builtin {
 		return db.Project{}, registry.Invalid("deck: project name %q must be lowercase letters, digits and '-', start with a letter, and not be %q", name, registry.Builtin)
 	}
-	pm, err := parseManifest(raw)
+	pm, err := parseManifest(raw, false)
 	if err != nil {
 		return db.Project{}, err
 	}
@@ -122,7 +129,7 @@ type Saved struct {
 // SaveManifest checks a manifest and saves it with its triggers and migrated records in one transaction; a
 // change that widens rights waits for the owner as call; nonzero ifRevision must still be current.
 func (a *App) SaveManifest(ctx context.Context, act registry.Actor, p db.Project, raw []byte, reason string, revertTo, ifRevision int64, call Call) (Saved, error) {
-	pm, err := parseManifest(raw)
+	pm, err := parseManifest(raw, p.Builtin == 1)
 	if err != nil {
 		return Saved{}, err
 	}

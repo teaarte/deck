@@ -80,7 +80,7 @@ func (a *App) projectImport(ctx context.Context, act registry.Actor, in projectI
 	if raw == "" {
 		return nil, registry.Invalid("deck: %s has no %s", dir, docs.ManifestName)
 	}
-	pm, err := parseManifest([]byte(raw))
+	pm, err := parseManifest([]byte(raw), false)
 	if err != nil {
 		return nil, err
 	}

@@ -124,10 +124,11 @@
         "cron": {"type": "string", "minLength": 1, "description": "Five-field cron in local time."},
         "lane": {"$ref": "#/$defs/name", "description": "Runs when a card enters this board lane (by name); the command gets the card id as input field card."},
         "after": {"$ref": "#/$defs/name", "description": "Runs when this command of the project finishes with a non-null result; the command gets the finished process id as input field process."},
+        "on": {"enum": ["message", "failure"], "description": "Only in the built-in project master: message runs when the owner writes in a chat topic (input field topic), failure when a process of another project fails (input field process)."},
         "params": {"type": "object", "description": "Fixed input fields for the command."},
         "skip_missed": {"type": "boolean", "default": false}
       },
-      "oneOf": [{"required": ["cron"]}, {"required": ["lane"]}, {"required": ["after"]}]
+      "oneOf": [{"required": ["cron"]}, {"required": ["lane"]}, {"required": ["after"]}, {"required": ["on"]}]
     },
     "tools": {
       "type": "object",

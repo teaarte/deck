@@ -1,0 +1,1 @@
+The master's command {{.Command}} failed: {{.Error}}

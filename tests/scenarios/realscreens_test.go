@@ -361,3 +361,36 @@ func TestRealBrowserRework(t *testing.T) {
 	})
 	e.waitState(job, "done")
 }
+
+// TestRealBrowserScreenKeepsItsStateOnReturn: a screen read again when the owner comes back to it keeps the tab
+// picked and what the owner typed in a form.
+func TestRealBrowserScreenKeepsItsStateOnReturn(t *testing.T) {
+	if os.Getenv("DECK_REAL_BROWSER") == "" {
+		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
+	}
+	checkBuiltClient(t)
+	e := newEnv(t, nil)
+	e.createProject("web", strings.Replace(boardWebManifest, `{"type": "form", "title": "Score a title", "command": "score", "save": "notes"},`,
+		`{"type": "tabs", "tabs": [{"title": "Board", "blocks": [{"type": "stat", "title": "Notes", "source": {"collection": "notes"}}]},
+			{"title": "Score", "blocks": [{"type": "form", "title": "Score a title", "command": "score", "save": "notes"}]}]},`, 1))
+	b := newPlaywright(t)
+	b.open(e.URL + "/?token=" + token + "#/p/web/main")
+	b.until("the tabs", `[...document.querySelectorAll('[role="tab"]')].some(x => x.innerText === 'Score')`)
+	b.eval(`[...document.querySelectorAll('[role="tab"]')].find(x => x.innerText === 'Score').click(), ''`)
+	b.until("the form of the second tab", `document.querySelector('[data-field="title"]')?.offsetParent`)
+	b.eval(`(() => { const i = document.querySelector('[data-field="title"]');
+		Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(i, 'half typed');
+		i.dispatchEvent(new Event('input', { bubbles: true }));
+		window.reads = 0; const f = window.fetch;
+		window.fetch = (u, o) => { if (String(u).includes('deck.screen') && !String(o?.body ?? '').includes('topic')) window.reads++; return f(u, o) };
+		return '' })()`)
+	b.eval(`(document.dispatchEvent(new Event('visibilitychange')), '')`)
+	b.until("a full read on return", `window.reads > 0`)
+	time.Sleep(time.Second)
+	if got := b.eval(`document.querySelector('[role="tab"][aria-selected="true"]')?.innerText ?? ''`); got != "Score" {
+		t.Fatalf("the tab picked stays after the screen is read again: %q", got)
+	}
+	if got := b.eval(`document.querySelector('[data-field="title"]')?.value ?? ''`); got != "half typed" {
+		t.Fatalf("what the owner typed stays after the screen is read again: %q", got)
+	}
+}

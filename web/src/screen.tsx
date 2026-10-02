@@ -116,6 +116,14 @@ export function ScreenView({ route, onProjects }: { route: Route; onProjects: ()
       try {
         const msgs = await call<Message[]>('deck.screen', input());
         if (gone || mine !== generation) return;
+        // A read of a screen already drawn updates it in place, keeping the tab picked and what the owner typed.
+        if (proc.current) {
+          setError('');
+          feed(msgs.filter((m) => !m.createSurface), ticket);
+          fresh.root = ticket;
+          setStale(false);
+          return;
+        }
         const p = new MessageProcessor<ReactComponentImplementation>([catalog], (a) => (a.name === 'filter' ? filter(a) : act(a)));
         p.onSurfaceCreated((s) => setSurface(s));
         proc.current = p;
@@ -181,6 +189,7 @@ export function ScreenView({ route, onProjects }: { route: Route; onProjects: ()
     });
     const back = () => { if (!document.hidden) void load(); };
     document.addEventListener('visibilitychange', back);
+    proc.current = undefined;
     setSurface(undefined);
     void load();
     return () => {

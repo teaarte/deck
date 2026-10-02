@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"time"
 
@@ -73,6 +74,9 @@ func (a *App) suggest(ctx context.Context, act registry.Actor, in suggestIn) (an
 		}
 		if c.ProjectID == 0 || c.Fingerprint != nil {
 			return nil, registry.Invalid("deck: suggest calls of project commands; %s is not one", in.Command)
+		}
+		if !slices.Contains(c.Callers, registry.Owner) {
+			return nil, registry.Invalid("deck: the owner makes what a suggestion asks for, and the owner cannot call %s", in.Command)
 		}
 		if target, err = a.Store.Q.GetProject(ctx, c.ProjectID); err != nil {
 			return nil, err

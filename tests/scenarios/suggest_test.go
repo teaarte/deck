@@ -264,3 +264,12 @@ func TestASuggestionIsAFrozenCallInTheJournal(t *testing.T) {
 		t.Fatalf("the card is made: %v", got)
 	}
 }
+
+// TestASuggestionNamesACommandTheOwnerCanCall: the owner's yes makes what a suggestion asks for, so a command the
+// owner may not call is refused when it is suggested.
+func TestASuggestionNamesACommandTheOwnerCanCall(t *testing.T) {
+	e := newEnv(t, nil)
+	agentOnly := strings.Replace(agentCommand("inner", ""), `"class": "internal",`, `"class": "internal", "callers": ["agent"],`, 1)
+	e.createProject("tools", testManifest([]string{agentOnly}, nil))
+	e.refused("deck.suggest", map[string]any{"command": "tools.inner", "reason": "worth a run"}, 422, "the owner cannot call tools.inner")
+}

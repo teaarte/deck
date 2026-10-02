@@ -89,7 +89,7 @@ const baseManifest = `{"version": %d,
 
 type projectCreateIn struct {
 	Name     string `desc:"Project name: lowercase letters, digits and '-'"`
-	Manifest string `type:"text" opt:"" desc:"Manifest JSON; a project with only the base board when omitted"`
+	Manifest string `type:"json" opt:"" desc:"Manifest JSON; a project with only the base board when omitted"`
 	Prompt   string `type:"text" opt:"" desc:"Project md prompt"`
 }
 
@@ -127,7 +127,7 @@ func (a *App) manifestGet(ctx context.Context, act registry.Actor, in manifestGe
 
 type manifestSaveIn struct {
 	Project    string `type:"project" desc:"Project name"`
-	Manifest   string `type:"text" desc:"Manifest JSON"`
+	Manifest   string `type:"json" desc:"Manifest JSON"`
 	Reason     string `opt:"" desc:"Why it changed"`
 	IfRevision int64  `json:"if_revision" opt:"" desc:"Only while the current revision is still this one"`
 }

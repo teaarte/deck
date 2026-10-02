@@ -675,7 +675,7 @@ func TestNotifyWritesALineToTheCockpitFeed(t *testing.T) {
 	}{
 		{map[string]any{"project": "web", "text": "x", "screen": "nowhere"}, `no screen "nowhere"`},
 		{map[string]any{"project": "web", "text": "x", "screen": "note"}, "give record"},
-		{map[string]any{"project": "web", "text": "x", "actions": `[{"label": "Go", "command": "launch"}]`}, `unknown command "launch"`},
+		{map[string]any{"project": "web", "text": "x", "actions": []any{map[string]any{"label": "Go", "command": "launch"}}}, `unknown command "launch"`},
 		{map[string]any{"project": "web", "text": "x", "actions": `[{"label": "Go", "command": "touch", "params": {"page": 1}}]`}, `no input field "page"`},
 		{map[string]any{"project": "web", "text": " "}, "needs text"},
 	} {

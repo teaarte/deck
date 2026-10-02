@@ -162,7 +162,7 @@ func rights(m *manifest.Manifest) []string {
 
 type commandTryIn struct {
 	Command string `desc:"Command name, project.command"`
-	Input   string `type:"text" opt:"" desc:"Command input as a JSON object"`
+	Input   string `type:"json" opt:"" desc:"Command input: a JSON object"`
 }
 
 // commandTry starts a trial run of a project command: every call that is not internal is declined, so a token

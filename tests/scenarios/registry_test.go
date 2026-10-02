@@ -390,3 +390,20 @@ func TestWholeNumbersWrittenAsFloatsAreRefused(t *testing.T) {
 		t.Fatalf("a whole number beyond 64 bits is refused in any spelling: %+v", res)
 	}
 }
+
+// TestAJSONParamTakesAnObjectAsWellAsItsText: a model passes a manifest or an input as an object, as the
+// description says; deck takes it as its JSON text.
+func TestAJSONParamTakesAnObjectAsWellAsItsText(t *testing.T) {
+	e := newEnv(t, nil)
+	var m map[string]any
+	if err := json.Unmarshal([]byte(plainManifest), &m); err != nil {
+		t.Fatal(err)
+	}
+	e.must("deck.project_create", map[string]any{"name": "notes", "manifest": m}, nil)
+	var tried struct{ Process int64 }
+	e.must("deck.command_try", map[string]any{"command": "notes.work", "input": map[string]any{}}, &tried)
+	if tried.Process == 0 {
+		t.Fatal("a trial takes its input as an object")
+	}
+	e.refused("deck.command_try", map[string]any{"command": "notes.work", "input": 5}, 422, "want string")
+}

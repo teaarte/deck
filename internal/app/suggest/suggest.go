@@ -60,7 +60,7 @@ type suggestIn struct {
 	Text    string `type:"text" opt:"" desc:"Card text, markdown"`
 	Record  int64  `type:"record" opt:"" desc:"Record the card works on"`
 	Command string `opt:"" desc:"Command to call instead, project.command"`
-	Input   string `type:"text" opt:"" desc:"Its input as a JSON object"`
+	Input   string `type:"json" opt:"" desc:"Its input: a JSON object"`
 	Reason  string `desc:"Why, in one line the owner reads"`
 }
 

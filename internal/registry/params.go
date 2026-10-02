@@ -10,8 +10,8 @@ import (
 	"deck2/schemas"
 )
 
-// Param describes one input parameter. Type is string, text, secret, integer, number, boolean, date, datetime,
-// file, a ref from Refs, "enum" with Enum set, or any of these with a "[]" suffix for a list.
+// Param describes one input parameter. Type is string, text, json, secret, integer, number, boolean, date,
+// datetime, file, a ref from Refs, "enum" with Enum set, or any of these with a "[]" suffix for a list.
 type Param struct {
 	Name     string
 	Type     string
@@ -53,7 +53,7 @@ func paramSchema(p Param) map[string]any {
 	switch p.Type {
 	case "string", "integer", "number", "boolean":
 		s["type"] = p.Type
-	case "text":
+	case "text", "json":
 		s["type"], s["format"] = "string", "text"
 	case "secret":
 		s["type"], s["writeOnly"] = "string", true

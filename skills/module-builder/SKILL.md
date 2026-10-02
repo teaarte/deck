@@ -51,7 +51,8 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   records that many days after the file was added. `key`, `display`, `where` and `bind` are expr-lang
   expressions: a field named like one of its functions (`date`, `now`, `count`, `len`, `sum`, `max`, …) reads as
   the function there, so name such fields `day`, `ops` and so on.
-  `records_list` returns the newest records up to a limit, and `record_update` replaces the whole record: work
+  `records_list` returns every record of a collection (the newest `limit` when given; an agent passes one), and
+  `record_update` replaces the whole record: work
   over hundreds of records (filtering, batching, merging new fields into old ones) belongs in a script, and an
   agent gets only the slice it judges, from the script's result or its input.
 - **Commands** are the verbs. Each has a class: `internal` (records, cards, documents), `reversible`,
@@ -314,8 +315,8 @@ Name each of these rights in the hand-over: the owner grants them with "enable".
    the trials left that the owner should not start with: `record_delete` (in a draft only), `card_delete`;
    say in the hand-over what you kept; lines a trial sent with `notify` stay in the feed. `process_get` gives
    the state and result. A `lane` step is tried with `command_try` of its command and `{"card": <id>}`: in a
-   draft moving the card starts nothing; `process_log` shows events only while the
-   process is open, and a local model may think for many minutes before its first one: wait with
+   draft moving the card starts nothing; `process_log` shows the events of a process, also after it ended,
+   and a local model may think for many minutes before its first one: wait with
    `process_get` in the foreground. Time the trial on the provider the command will run on and set
    `timeout_minutes`, batch sizes and the schedule by it. A trial that ends `done` is not yet a proof: check
    that the chain gave what the owner will see (records, cards, documents). Check `records_list` and `cards_list`, and `health_list` after a save that adds programs or

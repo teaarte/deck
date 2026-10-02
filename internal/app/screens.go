@@ -114,7 +114,7 @@ type screenGetIn struct {
 	Screen  string `desc:"Screen name"`
 	Record  int64  `opt:"" desc:"Record id of a record page"`
 	Topic   string `opt:"" desc:"Event topic that changed"`
-	Filter  string `type:"text" opt:"" desc:"Values the owner picked in block filters, as JSON: block id to field to value"`
+	Filter  string `type:"json" opt:"" desc:"Values the owner picked in block filters, as JSON: block id to field to value"`
 }
 
 // screenGet resolves a screen of a project, or of deck without one, into A2UI messages.

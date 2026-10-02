@@ -74,7 +74,7 @@ func procView(p db.Process, project string) processView {
 }
 
 type processesListIn struct {
-	Project string `type:"project" opt:"" desc:"Project name; defaults to the caller's own project"`
+	Project string `type:"project" opt:"" desc:"Project name; without it an agent of a project gets its own, the owner and the master every project"`
 	State   string `opt:"" desc:"Only this state"`
 	Open    bool   `opt:"" desc:"Only the processes that have not finished, oldest first"`
 	Limit   int64  `opt:"" desc:"At most this many"`
@@ -209,7 +209,7 @@ func (a *App) processCommands() []*registry.Command {
 			"Sends a finished agent process back to the same session with a remark; changed artifacts get new revisions.",
 			registry.OwnerSide, a.processRework),
 		registry.Read("process_log", "Process log",
-			"Returns the last events of a process that is still open.",
+			"Returns the last events of a process, while it runs and for a week after it ended.",
 			registry.Everyone, a.processLog).On("log"),
 	}
 }

@@ -14,7 +14,7 @@ import (
 )
 
 type callsListIn struct {
-	Project string `type:"project" opt:"" desc:"Project name; defaults to the caller's own project"`
+	Project string `type:"project" opt:"" desc:"Project name; without it an agent of a project gets its own, the owner and the master every project"`
 	Outcome string `opt:"" desc:"Only this outcome: done, rejected, waiting, expired, unknown, started"`
 	Limit   int64  `opt:"" desc:"At most this many, 200 by default"`
 }

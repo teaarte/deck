@@ -27,7 +27,7 @@ func (a *App) ownTrigger(ctx context.Context, act registry.Actor, id int64) (db.
 type runLaterIn struct {
 	Command string `desc:"Command name, project.command"`
 	At      string `type:"datetime" desc:"When to run"`
-	Params  string `type:"text" opt:"" desc:"Command input as a JSON object"`
+	Params  string `type:"json" opt:"" desc:"Command input: a JSON object"`
 }
 
 func (a *App) runLater(ctx context.Context, act registry.Actor, in runLaterIn) (any, error) {
@@ -93,7 +93,7 @@ func (a *App) runLaterCancel(ctx context.Context, act registry.Actor, in runLate
 }
 
 type triggersListIn struct {
-	Project string `type:"project" opt:"" desc:"Project name; defaults to the caller's own project"`
+	Project string `type:"project" opt:"" desc:"Project name; without it an agent of a project gets its own, the owner and the master every project"`
 }
 
 // triggerView is a trigger with its next run, whose pause holds it, and how its last run ended.

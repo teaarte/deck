@@ -17,7 +17,7 @@ import (
 type recordsListIn struct {
 	Project    string `type:"project" opt:"" desc:"Project name; defaults to the caller's own project"`
 	Collection string `desc:"Collection name"`
-	Limit      int    `opt:"" desc:"At most this many"`
+	Limit      int    `opt:"" desc:"At most this many, the newest; every record when omitted"`
 }
 
 func (a *App) recordsList(ctx context.Context, act registry.Actor, in recordsListIn) (any, error) {
@@ -84,7 +84,7 @@ func (a *App) recordsUpsert(ctx context.Context, act registry.Actor, in recordsU
 
 type recordUpdateIn struct {
 	Record int64  `type:"record" desc:"Record id"`
-	Data   string `type:"text" desc:"New record JSON"`
+	Data   string `type:"json" desc:"New record JSON"`
 }
 
 func (a *App) recordUpdate(ctx context.Context, act registry.Actor, in recordUpdateIn) (any, error) {

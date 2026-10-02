@@ -25,7 +25,7 @@ type notifyIn struct {
 	Text    string `type:"text" desc:"What happened, in a sentence"`
 	Screen  string `opt:"" desc:"Screen of the project the line opens"`
 	Record  int64  `type:"record" opt:"" desc:"Record the screen shows"`
-	Actions string `type:"text" opt:"" desc:"Buttons as JSON: [{label, command, params}] with commands of the project"`
+	Actions string `type:"json" opt:"" desc:"Buttons: a JSON list [{label, command, params}] with commands of the project"`
 }
 
 // notify writes a line to the feed of the cockpit; push comes with stage 3. The caller decides whether it is worth it.

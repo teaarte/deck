@@ -201,7 +201,7 @@ func (s *Service) providerCheck(ctx context.Context, act registry.Actor, in prov
 }
 
 type llmCallsListIn struct {
-	Project string `type:"project" opt:"" desc:"Project name; defaults to the caller's own project"`
+	Project string `type:"project" opt:"" desc:"Project name; without it an agent of a project gets its own, the owner and the master every project"`
 	Process int64  `type:"process" opt:"" desc:"Only calls of this process"`
 	Limit   int64  `opt:"" desc:"At most this many"`
 }

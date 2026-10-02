@@ -35,7 +35,7 @@ func (a *App) docView(ctx context.Context, d db.Document) documentView {
 }
 
 type documentsListIn struct {
-	Project     string `type:"project" opt:"" desc:"Project name; defaults to the caller's own project"`
+	Project     string `type:"project" opt:"" desc:"Project name; without it an agent of a project works in its own, the owner and the master in the workspace documents (memory/ names: the owner's memory, in project master)"`
 	Kind        string `opt:"" desc:"Only this kind"`
 	Deleted     bool   `opt:"" desc:"The deleted documents instead, which the owner can bring back"`
 	WithDeleted bool   `json:"with_deleted" opt:"" desc:"The deleted documents after the others, for the owner"`
@@ -110,7 +110,7 @@ func (a *App) readableDocument(ctx context.Context, q *db.Queries, act registry.
 
 type documentGetIn struct {
 	Document int64  `type:"document" opt:"" desc:"Document id"`
-	Project  string `type:"project" opt:"" desc:"Project name; defaults to the caller's own project"`
+	Project  string `type:"project" opt:"" desc:"Project name; without it an agent of a project works in its own, the owner and the master in the workspace documents (memory/ names: the owner's memory, in project master)"`
 	Name     string `opt:"" desc:"Document name (path)"`
 	Revision int64  `opt:"" desc:"Revision number"`
 }
@@ -153,7 +153,7 @@ type documentSaveIn struct {
 	Name    string `desc:"Document name (path), e.g. notes/criteria.md; memory/MEMORY.md and memory/<fact>.md for memory"`
 	Kind    string `desc:"Document kind"`
 	Text    string `type:"text" desc:"Full new text"`
-	Project string `type:"project" opt:"" desc:"Project name; defaults to the caller's own project"`
+	Project string `type:"project" opt:"" desc:"Project name; without it an agent of a project works in its own, the owner and the master in the workspace documents (memory/ names: the owner's memory, in project master)"`
 	Record  int64  `type:"record" opt:"" desc:"Record the document belongs to"`
 	Card    int64  `type:"card" opt:"" desc:"Card the document belongs to"`
 	Reason  string `opt:"" desc:"Why it changed"`
@@ -226,7 +226,7 @@ func (a *App) memoryScope(ctx context.Context, act registry.Actor, project, name
 
 type documentDeleteIn struct {
 	Document int64  `type:"document" opt:"" desc:"Document id"`
-	Project  string `type:"project" opt:"" desc:"Project name; defaults to the caller's own project"`
+	Project  string `type:"project" opt:"" desc:"Project name; without it an agent of a project works in its own, the owner and the master in the workspace documents (memory/ names: the owner's memory, in project master)"`
 	Name     string `opt:"" desc:"Document name (path)"`
 }
 

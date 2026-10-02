@@ -339,6 +339,7 @@ func (c *Command) Validate(input json.RawMessage) (json.RawMessage, error) {
 	if t := bytes.TrimSpace(input); len(t) == 0 || string(t) == "null" {
 		input = json.RawMessage(`{}`)
 	}
+	input = c.jsonText(input)
 	v, err := jsonschema.UnmarshalJSON(bytes.NewReader(input))
 	if err != nil {
 		return nil, Invalid("deck: input of %s is not JSON: %v", c.Name, err)
@@ -347,6 +348,26 @@ func (c *Command) Validate(input json.RawMessage) (json.RawMessage, error) {
 		return nil, Invalid("deck: input of %s does not match its schema: %v", c.Name, err)
 	}
 	return input, nil
+}
+
+// jsonText turns the value of a json param that came as an object or a list into its JSON text.
+func (c *Command) jsonText(input json.RawMessage) json.RawMessage {
+	var m map[string]json.RawMessage
+	if json.Unmarshal(input, &m) != nil {
+		return input
+	}
+	changed := false
+	for _, p := range c.params {
+		if v := bytes.TrimSpace(m[p.Name]); p.Type == "json" && len(v) > 0 && (v[0] == '{' || v[0] == '[') {
+			m[p.Name], _ = json.Marshal(string(v))
+			changed = true
+		}
+	}
+	if !changed {
+		return input
+	}
+	out, _ := json.Marshal(m)
+	return out
 }
 
 // reachable reports whether the actor may call the command at all, before the class rules of the gateway.

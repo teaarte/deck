@@ -81,14 +81,14 @@ func topicTitle(text string) string {
 type chatSendIn struct {
 	Text     string `type:"text" desc:"The message"`
 	Topic    int64  `opt:"" desc:"Chat topic; a new topic when omitted"`
-	Screen   string `type:"text" opt:"" desc:"The screen the owner is on, as JSON: project, screen, record, card, process"`
+	Screen   string `type:"json" opt:"" desc:"The screen the owner is on, as JSON: project, screen, record, card, process"`
 	Card     int64  `type:"card" opt:"" desc:"Card a new topic is about"`
 	RetryKey string `json:"retry_key" opt:"" desc:"A key of this message: sending it again with the same key returns the first one"`
 }
 
 type chatInterviewIn struct {
 	Card   int64  `type:"card" desc:"The card the master interviews the owner about"`
-	Screen string `type:"text" opt:"" desc:"The screen the owner is on, as JSON: project, screen, record, card, process"`
+	Screen string `type:"json" opt:"" desc:"The screen the owner is on, as JSON: project, screen, record, card, process"`
 }
 
 // chatInterview opens a topic about a card in which the master interviews the owner and writes the spec into it.

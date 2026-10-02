@@ -8,17 +8,21 @@ export interface Shown {
   currency?: string;
 }
 
-let minute = Date.now();
+let minute = 0;
 const minuteSubs = new Set<() => void>();
-setInterval(() => {
-  minute = Date.now();
+const tick = () => {
+  minute++;
   minuteSubs.forEach((f) => f());
-}, 60000);
-// useMinute is the time now, moved once a minute, so relative times age without a read of the server.
+};
+setInterval(tick, 60000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) tick(); });
+// useMinute draws again once a minute and on return to the page, so relative times age without a read of the server.
 const useMinute = () => useSyncExternalStore((f) => (minuteSubs.add(f), () => minuteSubs.delete(f)), () => minute);
 
+const ISO = /^\d{4}-\d\d-\d\d([T ]\d\d:\d\d(:\d\d(\.\d+)?)?(Z|[+-]\d\d:?\d\d)?)?$/;
+
 const when = (v: unknown): Date | undefined => {
-  if (typeof v !== 'string') return undefined;
+  if (typeof v !== 'string' || !ISO.test(v)) return undefined;
   const d = new Date(v);
   return isNaN(d.getTime()) ? undefined : d;
 };
@@ -101,7 +105,7 @@ export const toneColor = (tone?: string | null) => (tone ? TONES[tone] : undefin
 
 // Value shows a value by its format: a link opens, a tag is a badge, a relative time ages by the minute.
 export function Value({ v, s, tone }: { v: unknown; s: Shown; tone?: string | null }): ReactNode {
-  const now = useMinute();
+  useMinute();
   const color = toneColor(tone);
   if (s.format === 'link' && typeof v === 'string' && /^https?:\/\//.test(v)) {
     return <Anchor href={v} target="_blank" rel="noopener noreferrer" size="sm" c={color}>{v}</Anchor>;
@@ -109,7 +113,7 @@ export function Value({ v, s, tone }: { v: unknown; s: Shown; tone?: string | nu
   if (s.format === 'tag' && v !== null && v !== undefined && v !== '') {
     return <Badge variant="light" color={color === 'dimmed' ? 'gray' : color ?? 'gray'} data-format="tag" data-tone={tone ?? undefined}>{show(v)}</Badge>;
   }
-  const text = formatted(v, s, now);
+  const text = formatted(v, s);
   if (!s.format && !color) return text;
   return (
     <Text span inherit c={color} data-format={s.format} data-tone={tone ?? undefined} title={s.format === 'relative' ? show(v) : undefined}>{text}</Text>

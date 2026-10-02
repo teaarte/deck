@@ -129,6 +129,10 @@ func TestBlocksTakeTheToneOfTheirValues(t *testing.T) {
 	if len(lines) != 2 || lines[0]["tone"] != nil || lines[1]["tone"] != "muted" {
 		t.Fatalf("a list line takes its tone; an empty one is none: %+v", lines)
 	}
+	e.must("deck.records_upsert", map[string]any{"project": "btc", "collection": "forecasts", "records": jsonl(map[string]any{"at": "2026-09-01T09:00:00Z"})}, nil)
+	if got := e.screenData("btc", "main", nil)["b1"]; string(got["state"]) != `"ready"` || len(blockData[[]screenRow](t, got["rows"])) != 3 {
+		t.Fatalf("a tone that fails over a row, such as change < 0 without change, is no tone: %s %s", got["state"], got["error"])
+	}
 	page := e.screenMessages("btc", "forecast", map[string]any{"record": rows[1].ID})
 	check.messages(t, page)
 	card := blockData[struct{ Fields []map[string]any }](t, e.screenData("btc", "forecast", map[string]any{"record": rows[1].ID})["b0"]["value"])

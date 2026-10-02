@@ -92,6 +92,10 @@ export function ScreenView({ route, onProjects }: { route: Route; onProjects: ()
     const feed = (msgs: Message[], ticket: number) => {
       for (const m of prepare(msgs)) {
         if (m.createSurface && fresh.root !== undefined) continue;
+        if (m.updateComponents) {
+          if ((fresh.components ?? 0) > ticket) continue;
+          fresh.components = ticket;
+        }
         let parts: Message[] = [m];
         const dm = m.updateDataModel;
         if (dm && dm.path === '/' && dm.value && typeof dm.value === 'object' && fresh.root !== undefined) {

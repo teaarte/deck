@@ -199,7 +199,7 @@ func (c *screenCheck) when(where string, b Block) {
 	if c.screen.Record != "" {
 		env = c.recordFields()
 	}
-	if env != nil && b.Source != nil {
+	if env != nil && b.Source != nil && b.Source.From != LogSource {
 		env = append(env, "rows")
 	}
 	if _, err := compileField(b.When, env); err != nil {

@@ -76,6 +76,8 @@ type Gateway struct {
 	asks *ask.Broker
 	bus  *events.Bus
 	reg  *registry.Registry
+	// clear is the one clearance of the registry: only the gateway lets a call that is not internal through.
+	clear registry.Clearance
 
 	mu         sync.Mutex
 	sessions   map[string]*entry
@@ -92,7 +94,7 @@ type entry struct {
 }
 
 func New(cfg Config, st *store.Store, asks *ask.Broker, bus *events.Bus, reg *registry.Registry) *Gateway {
-	g := &Gateway{cfg: cfg, st: st, asks: asks, bus: bus, reg: reg, sessions: map[string]*entry{}, tokens: map[int64]*automationEntry{}}
+	g := &Gateway{cfg: cfg, st: st, asks: asks, bus: bus, reg: reg, clear: reg.Clearance(), sessions: map[string]*entry{}, tokens: map[int64]*automationEntry{}}
 	g.handler = mcp.NewStreamableHTTPHandler(g.serverFor, &mcp.StreamableHTTPOptions{SessionTimeout: time.Hour})
 	return g
 }
@@ -270,12 +272,12 @@ func (g *Gateway) call(ctx context.Context, act registry.Actor, name string, arg
 	if class != registry.Internal {
 		params = Canonical(args)
 	}
-	if err == nil && class != registry.Internal && !act.Cleared && act.Kind != registry.Owner {
+	if err == nil && class != registry.Internal && !act.Cleared() && act.Kind != registry.Owner {
 		var now bool
 		if now, err = g.gate(ctx, act, c, project); err == nil && !now {
 			return g.hold(ctx, act, c, project, input)
 		}
-		act.Cleared = true
+		act = g.clear.Clear(act)
 	}
 	if err != nil {
 		g.journal(ctx, act, project, name, class, "rejected", params, err.Error())

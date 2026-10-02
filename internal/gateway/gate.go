@@ -274,8 +274,7 @@ func (g *Gateway) Decide(ctx context.Context, owner registry.Actor, a db.Ask, an
 		}
 	}
 	g.bus.Publish("asks")
-	act := f.Caller.actor()
-	act.Cleared = true
+	act := g.clear.Clear(f.Caller.actor())
 	if f.As == AsOwner {
 		act = owner
 		act.ProjectID = a.ProjectID

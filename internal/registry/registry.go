@@ -58,8 +58,33 @@ type Actor struct {
 	Commands []string
 	// Trial marks a trial run: every call that is not internal is declined.
 	Trial bool
-	// Cleared is set by the gateway once a call that is not internal passed its class rules.
-	Cleared bool
+	// cleared is set by the holder of the Clearance, the gateway, once a call that is not internal passed its
+	// class rules.
+	cleared bool
+}
+
+// Cleared says the gateway let a call that is not internal through.
+func (a Actor) Cleared() bool { return a.cleared }
+
+// Clearance lets its one holder, the gateway, clear an actor for calls that are not internal.
+type Clearance struct{ r *Registry }
+
+// Clear is the actor cleared for the call it makes now.
+func (c Clearance) Clear(a Actor) Actor {
+	if c.r == nil {
+		panic("registry: a clearance the registry did not issue")
+	}
+	a.cleared = true
+	return a
+}
+
+// Clearance issues the one clearance of the registry; a second ask panics, so only the gateway holds it.
+func (r *Registry) Clearance() Clearance {
+	if r.issued {
+		panic("registry: the clearance is already issued")
+	}
+	r.issued = true
+	return Clearance{r: r}
 }
 
 // Confined is an actor that stays inside its own project: an agent or a trigger.
@@ -168,6 +193,7 @@ type Registry struct {
 	builtins map[string]*Command
 	projects Projects
 	extra    func(ctx context.Context) []*Command
+	issued   bool
 }
 
 // SetExtra adds builtin tools whose descriptions come from a running server rather than from Go.
@@ -277,7 +303,7 @@ func (r *Registry) Invoke(ctx context.Context, a Actor, name string, input json.
 // Check does everything Invoke does except running the command.
 func (r *Registry) Check(ctx context.Context, a Actor, name string, input json.RawMessage) (*Command, json.RawMessage, error) {
 	c, input, err := r.Resolve(ctx, a, name, input)
-	if err == nil && a.Kind != Owner && c.Class != Internal && !a.Cleared {
+	if err == nil && a.Kind != Owner && c.Class != Internal && !a.cleared {
 		err = Refuse("deck: %s is %s; only the gateway calls it for %s", c.Name, c.Class, a.Kind)
 	}
 	return c, input, err

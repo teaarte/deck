@@ -16,8 +16,7 @@ import (
 	"deck2/internal/store/db"
 )
 
-// runTool makes the one gateway tool call of a tool command with the command input as it is. A tool no
-// stricter than its command was cleared when the command was called; a stricter one passes the class rules.
+// runTool makes the one gateway tool call of a tool command with the command input as it is.
 func (r *Runner) runTool(ctx context.Context, t turn, trial bool) {
 	bg := context.WithoutCancel(ctx)
 	id := t.process
@@ -48,9 +47,8 @@ func (r *Runner) runTool(ctx context.Context, t turn, trial bool) {
 		fail(err)
 		return
 	}
-	act := registry.Actor{Kind: registry.Agent, Workspace: proj.WorkspaceID, ProjectID: t.project, ProcessID: id, Trial: trial,
-		Cleared: registry.ClassRank(tool.Class) <= registry.ClassRank(t.cmd.Class)}
-	out, err := r.gw.CallAs(ctx, act, name, json.RawMessage(t.input))
+	act := registry.Actor{Kind: registry.Agent, Workspace: proj.WorkspaceID, ProjectID: t.project, ProcessID: id, Trial: trial}
+	out, err := r.gw.CallTool(ctx, act, t.cmd.Class, name, json.RawMessage(t.input))
 	if r.cut(bg, ctx, id) {
 		if r.ctx.Err() == nil {
 			r.clearRun(dir)

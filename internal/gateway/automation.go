@@ -94,3 +94,12 @@ func (g *Gateway) refresh(ctx context.Context, e *automationEntry, s *Session) e
 func (g *Gateway) CallAs(ctx context.Context, act registry.Actor, name string, args []byte) (any, error) {
 	return g.call(ctx, act, name, args)
 }
+
+// CallTool makes the one call of a tool command: a tool no stricter than its command was cleared when the
+// command was called, a stricter one passes the class rules.
+func (g *Gateway) CallTool(ctx context.Context, act registry.Actor, class, tool string, args []byte) (any, error) {
+	if c, err := g.reg.Lookup(ctx, act.Workspace, tool); err == nil && registry.ClassRank(c.Class) <= registry.ClassRank(class) {
+		act = g.clear.Clear(act)
+	}
+	return g.call(ctx, act, tool, args)
+}

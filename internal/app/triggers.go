@@ -44,7 +44,8 @@ func (a *App) runLater(ctx context.Context, act registry.Actor, in runLaterIn) (
 	if err != nil {
 		return nil, registry.Invalid("deck: params: %v", err)
 	}
-	cmd, _, err := a.Registry.Check(ctx, act, in.Command, json.RawMessage(in.Params))
+	// The class rules apply when the trigger fires, so only the caller and the input are checked now.
+	cmd, _, err := a.Registry.Resolve(ctx, act, in.Command, json.RawMessage(in.Params))
 	if err != nil {
 		return nil, err
 	}

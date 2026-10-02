@@ -402,3 +402,28 @@ func TestAnAllowedRunLaterStartsThoughItsTriggerIsGone(t *testing.T) {
 	e.answer(a.ID, "allow")
 	e.waitFor("the allowed run", func() bool { return e.countOf("remind") == 1 })
 }
+
+// TestAnAgentSchedulesAnExternalCommandAndTheOwnerSaysYesWhenItFires: run later checks only the caller and the
+// input; the class rules ask the owner when the run comes.
+func TestAnAgentSchedulesAnExternalCommandAndTheOwnerSaysYesWhenItFires(t *testing.T) {
+	var e *Env
+	e = newClockEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		if c.command() == "work" {
+			out, bad := c.Tool(ctx, "run_later", map[string]any{"command": "later.publish", "at": e.Clock.Now().Add(time.Hour).Format(time.RFC3339)})
+			if bad {
+				return provider.Result{Text: "refused: " + out}
+			}
+		}
+		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
+	})
+	publish := strings.Replace(agentCommand("publish", ""), `"class": "internal"`, `"class": "external"`, 1)
+	p := e.createProject("later", testManifest([]string{agentCommand("work", ""), publish}, nil))
+	if got := e.waitState(e.run(p, "work"), "done", "error"); got.State != "done" || len(e.triggers()) != 1 {
+		t.Fatalf("an agent schedules an external command of its project: %+v %+v", got, e.triggers())
+	}
+	e.Clock.Add(2 * time.Hour)
+	e.tick()
+	if a := e.waitAsk(); a.Kind != "call" || !strings.Contains(a.Text, "later.publish") || e.countOf("publish") != 0 {
+		t.Fatalf("when it fires, the external command waits for the owner: %+v", a)
+	}
+}

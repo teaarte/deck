@@ -62,6 +62,8 @@ type Config struct {
 	MCPBase  string
 	Now      func() time.Time
 	FilesDir string
+	// FilesMu keeps a snapshot from copying the base between the row of a kept file and its blob.
+	FilesMu *sync.RWMutex
 	// Hidden gives the path patterns an agent of a project and process may not read or write.
 	Hidden func(project, process int64) []string
 	// PauseLimit is how long one pause on a usage limit may last from the first refusal.

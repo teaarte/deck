@@ -56,6 +56,8 @@ func (a *App) Upload(ctx context.Context, act registry.Actor, project, name, cty
 	if n > maxUpload {
 		return fileView{}, registry.Invalid("deck: a file may be at most 1 GB")
 	}
+	a.filesMu.RLock()
+	defer a.filesMu.RUnlock()
 	var f db.File
 	err = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		var err error

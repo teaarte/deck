@@ -63,7 +63,7 @@ type App struct {
 	secretMu sync.Mutex
 	bg       sync.WaitGroup
 	disk     time.Time
-	// filesMu keeps stored files from going while a snapshot copies the base and files/.
+	// filesMu keeps stored files from coming or going while a snapshot copies the base and files/.
 	filesMu sync.RWMutex
 	// cleaned and snapTried are when the daily cleanup ran and a daily snapshot was last tried.
 	cleaned, snapTried time.Time
@@ -119,7 +119,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	a.Registry.SetExtra(a.Browser.Commands)
 	a.Gateway.SetAutomation(a.Automation)
 	a.Runner = process.NewRunner(st, a.Gateway, a.Bus, a, a.Scripts,
-		process.Config{RunsDir: h.Runs(), MCPBase: cfg.MCPBase, Now: cfg.Now, FilesDir: h.Files(),
+		process.Config{RunsDir: h.Runs(), MCPBase: cfg.MCPBase, Now: cfg.Now, FilesDir: h.Files(), FilesMu: &a.filesMu,
 			Hidden: hidden(h), PauseLimit: cfg.PauseLimit, AgentSlots: a.agentSlots}, a)
 	a.Chats.Runner, a.Suggest.Gateway = a.Runner, a.Gateway
 	a.Runner.Hooks = []process.Hook{a.Chats.NewHook(), errorsHook{a: a}, afterHook{a: a}}

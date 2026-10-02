@@ -1096,6 +1096,26 @@ func (q *Queries) PurgeEmptyProcesses(ctx context.Context, before string) ([]int
 	return items, nil
 }
 
+const purgeOldLLMCalls = `-- name: PurgeOldLLMCalls :exec
+DELETE FROM llm_call WHERE created_at < CAST(?1 AS TEXT)
+`
+
+func (q *Queries) PurgeOldLLMCalls(ctx context.Context, before string) error {
+	_, err := q.db.ExecContext(ctx, purgeOldLLMCalls, before)
+	return err
+}
+
+const purgeOldToolCalls = `-- name: PurgeOldToolCalls :exec
+DELETE FROM tool_call WHERE created_at < CAST(?1 AS TEXT) AND outcome NOT IN ('started', 'unknown')
+  AND (ask_id IS NULL OR ask_id NOT IN (SELECT id FROM ask WHERE state IN ('open', 'running')))
+  AND process_id NOT IN (SELECT id FROM process WHERE finished_at IS NULL)
+`
+
+func (q *Queries) PurgeOldToolCalls(ctx context.Context, before string) error {
+	_, err := q.db.ExecContext(ctx, purgeOldToolCalls, before)
+	return err
+}
+
 const recentOutcomes = `-- name: RecentOutcomes :many
 SELECT state FROM process
 WHERE project_id = ? AND command = ? AND finished_at IS NOT NULL

@@ -92,3 +92,13 @@ func (q *Queries) ListNotifications(ctx context.Context, arg ListNotificationsPa
 	}
 	return items, nil
 }
+
+const purgeOldNotifications = `-- name: PurgeOldNotifications :exec
+DELETE FROM notification WHERE created_at < CAST(?1 AS TEXT)
+  AND id < (SELECT max(n.id) FROM notification n WHERE n.workspace_id = notification.workspace_id)
+`
+
+func (q *Queries) PurgeOldNotifications(ctx context.Context, before string) error {
+	_, err := q.db.ExecContext(ctx, purgeOldNotifications, before)
+	return err
+}

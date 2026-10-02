@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"deck2/internal/provider"
 )
@@ -106,4 +107,34 @@ func TestJournalShowsTheCallsOfTheGatewayTheSpendFilesAndSnapshots(t *testing.T)
 	events := e.sse(t.Context())
 	e.must("deck.snapshot_create", nil, nil)
 	waitTopic(t, events, "snapshots")
+}
+
+// TestTheJournalKeepsHalfAYear: the daily cleanup drops calls older than 180 days and notify lines older than 90.
+func TestTheJournalKeepsHalfAYear(t *testing.T) {
+	e := newEnv(t, nil)
+	e.createProject("notes", plainManifest)
+	e.must("deck.notify", map[string]any{"project": "notes", "text": "done"}, nil)
+	e.createProject("old", plainManifest)
+	e.must("deck.project_delete", map[string]any{"project": "old"}, nil)
+	count := func(table string) (n int) {
+		_ = e.App.Store.DB.QueryRow(`SELECT count(*) FROM ` + table).Scan(&n)
+		return n
+	}
+	calls, notes := count("tool_call"), count("notification")
+	if calls == 0 || notes != 1 {
+		t.Fatalf("the calls and the line are kept: %d %d", calls, notes)
+	}
+	e.App.Sweep(context.Background(), time.Now().Add(91*24*time.Hour))
+	if count("tool_call") != calls || count("notification") != 1 {
+		t.Fatalf("after 91 days the calls stay, and the newest line, which keeps the push cursor right: %d %d", count("tool_call"), count("notification"))
+	}
+	e.must("deck.notify", map[string]any{"project": "notes", "text": "again"}, nil)
+	e.App.Sweep(context.Background(), time.Now().Add(2*91*24*time.Hour))
+	if count("notification") != 1 {
+		t.Fatalf("an older line goes: %d", count("notification"))
+	}
+	e.App.Sweep(context.Background(), time.Now().Add(3*181*24*time.Hour))
+	if count("tool_call") != 0 {
+		t.Fatalf("after 181 days the calls go: %d", count("tool_call"))
+	}
 }

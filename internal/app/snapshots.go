@@ -200,7 +200,14 @@ func (a *App) daily(ctx context.Context, now time.Time) {
 	}
 }
 
-// cleanup removes expired records, files left without an owner, stale uploads and old agent work folders.
+// journalKept is how long the journal of calls and spend keeps a row; notificationsKept, a notify line.
+const (
+	journalKept       = 180 * 24 * time.Hour
+	notificationsKept = 90 * 24 * time.Hour
+)
+
+// cleanup removes expired records, files left without an owner, stale uploads, old journal rows and notify
+// lines, and old agent work folders.
 func (a *App) cleanup(ctx context.Context, now time.Time) {
 	var gone []int64
 	err := a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
@@ -213,8 +220,12 @@ func (a *App) cleanup(ctx context.Context, now time.Time) {
 			return err
 		}
 		stale, err := q.PurgeStaleUploads(ctx, store.Time(now.Add(-24*time.Hour)))
-		gone = append(gone, stale...)
-		return err
+		if gone = append(gone, stale...); err != nil {
+			return err
+		}
+		return errors.Join(q.PurgeOldToolCalls(ctx, store.Time(now.Add(-journalKept))),
+			q.PurgeOldLLMCalls(ctx, store.Time(now.Add(-journalKept))),
+			q.PurgeOldNotifications(ctx, store.Time(now.Add(-notificationsKept))))
 	})
 	if err != nil {
 		slog.Error("purge files", "err", err)

@@ -14,8 +14,8 @@ var secretRef = regexp.MustCompile(`\$secret\.([A-Za-z0-9_.-]+)`)
 
 var classRank = map[string]int{"internal": 0, "reversible": 1, "external": 2}
 
-// Widens lists what next grants that prev does not: autonomy, allowed external actions, domains, secrets,
-// milder classes, MCP servers deck would start, reads, network for agents, and changed HTTP tools that run without asking.
+// Widens lists what next grants that prev does not: autonomy, allowed external actions, domains, secrets, milder
+// classes, dropped requirements, providers, callers, MCP servers, reads, network, changed HTTP tools that skip asking.
 func Widens(prev, next *Manifest) []string {
 	var out []string
 	add := func(format string, a ...any) { out = append(out, fmt.Sprintf(format, a...)) }
@@ -37,9 +37,29 @@ func Widens(prev, next *Manifest) []string {
 	for _, s := range added(serverSecrets(prev), serverSecrets(next)) {
 		add("secret: %s", s)
 	}
+	var required []string
+	for _, c := range prev.Commands {
+		required = append(required, c.Requires...)
+	}
 	for _, c := range next.Commands {
-		if old := prev.Command(c.Name); old != nil && classRank[c.Class] < classRank[old.Class] {
+		old := prev.Command(c.Name)
+		if old == nil {
+			for _, r := range added(c.Requires, required) {
+				add("command %s: new without %s", c.Name, r)
+			}
+			continue
+		}
+		if classRank[c.Class] < classRank[old.Class] {
 			add("command %s: class %s instead of %s", c.Name, c.Class, old.Class)
+		}
+		for _, r := range added(c.Requires, old.Requires) {
+			add("command %s: no longer requires %s", c.Name, r)
+		}
+		if c.Provider != old.Provider {
+			add("command %s: provider %q instead of %q", c.Name, c.Provider, old.Provider)
+		}
+		for _, who := range added(old.Callable(), c.Callable()) {
+			add("command %s: callable by %s", c.Name, who)
 		}
 	}
 	prevHTTP := map[string]HTTPTool{}

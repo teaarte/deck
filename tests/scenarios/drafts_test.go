@@ -364,3 +364,38 @@ func TestEnablingADraftDropsAScheduledRunAlreadyPicked(t *testing.T) {
 		t.Fatalf("no process for the missed draft schedule: %d", n)
 	}
 }
+
+// TestCommandRightsWidenToo: dropping no_cloud, another provider and more callers of a command wait for the owner,
+// so a private command does not go to the cloud without a yes.
+func TestCommandRightsWidenToo(t *testing.T) {
+	cmd := `{"version": 5, "commands": [{"name": "run", "title": "Run", "description": "Runs.", "class": "internal", %s
+    "executor": {"type": "agent", "prompt": "Run."}}]}`
+	from := fmt.Sprintf(cmd, `"requires": ["no_cloud"], "provider": "local", "callers": ["owner"],`)
+	cases := []struct{ name, to, want string }{
+		{"no_cloud", `"provider": "local", "callers": ["owner"],`, "command run: no longer requires no_cloud"},
+		{"provider", `"requires": ["no_cloud"], "provider": "cloud", "callers": ["owner"],`, `command run: provider "cloud" instead of "local"`},
+		{"callers", `"requires": ["no_cloud"], "provider": "local", "callers": ["owner", "agent"],`, "command run: callable by agent"},
+	}
+	renamed := strings.Replace(fmt.Sprintf(cmd, `"provider": "local", "callers": ["owner"],`), `"name": "run"`, `"name": "run2"`, 1)
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			e := newEnv(t, ok)
+			e.createProject("notes", from)
+			_, tok := e.token("terminal", "deck.*")
+			_, out := e.callWith(tok, "deck.manifest_save", map[string]any{"project": "notes", "manifest": fmt.Sprintf(cmd, c.to)})
+			var w struct {
+				Waiting int64
+				Widens  []string
+			}
+			if json.Unmarshal(out, &w) != nil || w.Waiting == 0 || !slices.Equal(w.Widens, []string{c.want}) {
+				t.Fatalf("want only %q waiting for the owner, got %s", c.want, out)
+			}
+		})
+	}
+	e := newEnv(t, ok)
+	e.createProject("notes", from)
+	_, tok := e.token("terminal", "deck.*")
+	if _, out := e.callWith(tok, "deck.manifest_save", map[string]any{"project": "notes", "manifest": renamed}); !strings.Contains(string(out), "command run2: new without no_cloud") {
+		t.Fatalf("a renamed command does not drop no_cloud quietly: %s", out)
+	}
+}

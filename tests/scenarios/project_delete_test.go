@@ -73,7 +73,7 @@ func TestProjectDeleteTakesASnapshotAndLeavesNothingOfTheProject(t *testing.T) {
 
 	tables := map[string]string{
 		"record": "project_id = ?1", "card": "project_id = ?1", "document": "project_id = ?1", "file": "project_id = ?1",
-		`"trigger"`: "project_id = ?1", "process": "project_id = ?1", "ask": "project_id = ?1", "notification": "project_id = ?1",
+		`"trigger"`: "project_id = ?1", "process": "project_id = ?1", "ask": "project_id = ?1", "feed": "project_id = ?1",
 		"command_provider": "project_id = ?1", "health": "project_id = ?1", "tool_call": "project_id = ?1",
 	}
 	count := func(table string) int {

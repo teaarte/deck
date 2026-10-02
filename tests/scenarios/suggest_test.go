@@ -153,11 +153,11 @@ func TestAutoModeRunsTheSuggestion(t *testing.T) {
 		Text    string
 		CanUndo bool `json:"can_undo"`
 	}
-	e.must("deck.unattended_list", map[string]any{}, &rows)
+	e.must("deck.feed_list", map[string]any{"kind": "change"}, &rows)
 	if len(rows) != 1 || !strings.Contains(rows[0].Text, "three runs lost a line") || !rows[0].CanUndo {
 		t.Fatalf("it shows in done without you with an undo: %+v", rows)
 	}
-	e.must("deck.unattended_undo", map[string]any{"entry": rows[0].ID}, nil)
+	e.must("deck.feed_undo", map[string]any{"entry": rows[0].ID}, nil)
 	if titles := e.cardTitles("alpha"); len(titles) != 0 {
 		t.Fatalf("undo takes the card away: %v", titles)
 	}

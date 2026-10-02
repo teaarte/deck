@@ -201,10 +201,10 @@ func (a *App) daily(ctx context.Context, now time.Time) {
 	}
 }
 
-// journalKept is how long the journal of calls and spend keeps a row; notificationsKept, a notify line.
+// journalKept is how long the journal of calls and spend keeps a row; notesKept, a note of the feed.
 const (
 	journalKept       = 180 * 24 * time.Hour
-	notificationsKept = 90 * 24 * time.Hour
+	notesKept = 90 * 24 * time.Hour
 )
 
 // cleanup removes expired records, files left without an owner, stale uploads, old journal rows and notify
@@ -226,7 +226,7 @@ func (a *App) cleanup(ctx context.Context, now time.Time) {
 		}
 		return errors.Join(q.PurgeOldToolCalls(ctx, store.Time(now.Add(-journalKept))),
 			q.PurgeOldLLMCalls(ctx, store.Time(now.Add(-journalKept))),
-			q.PurgeOldNotifications(ctx, store.Time(now.Add(-notificationsKept))))
+			q.PurgeOldNotes(ctx, store.Time(now.Add(-notesKept))))
 	})
 	if err != nil {
 		slog.Error("purge files", "err", err)

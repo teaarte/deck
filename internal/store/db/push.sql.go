@@ -233,40 +233,46 @@ func (q *Queries) ListMasterMessagesAfter(ctx context.Context, arg ListMasterMes
 	return items, nil
 }
 
-const listNotificationsAfter = `-- name: ListNotificationsAfter :many
-SELECT n.id, n.workspace_id, n.project_id, n.author, n.text, n.screen, n.record_id, n.actions, n.created_at, j.name AS project_name FROM notification n JOIN project j ON j.id = n.project_id
-WHERE n.workspace_id = ? AND n.id > ? ORDER BY n.id
+const listNotesAfter = `-- name: ListNotesAfter :many
+SELECT n.id, n.workspace_id, n.project_id, n.kind, n.author, n.text, n.screen, n.record_id, n.actions, n.command, n.params, n.document_id, n.revision, n.undone_at, n.created_at, j.name AS project_name FROM feed n JOIN project j ON j.id = n.project_id
+WHERE n.workspace_id = ? AND n.kind = 'note' AND n.id > ? ORDER BY n.id
 `
 
-type ListNotificationsAfterParams struct {
+type ListNotesAfterParams struct {
 	WorkspaceID int64
 	ID          int64
 }
 
-type ListNotificationsAfterRow struct {
-	Notification Notification
-	ProjectName  string
+type ListNotesAfterRow struct {
+	Feed        Feed
+	ProjectName string
 }
 
-func (q *Queries) ListNotificationsAfter(ctx context.Context, arg ListNotificationsAfterParams) ([]ListNotificationsAfterRow, error) {
-	rows, err := q.db.QueryContext(ctx, listNotificationsAfter, arg.WorkspaceID, arg.ID)
+func (q *Queries) ListNotesAfter(ctx context.Context, arg ListNotesAfterParams) ([]ListNotesAfterRow, error) {
+	rows, err := q.db.QueryContext(ctx, listNotesAfter, arg.WorkspaceID, arg.ID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []ListNotificationsAfterRow
+	var items []ListNotesAfterRow
 	for rows.Next() {
-		var i ListNotificationsAfterRow
+		var i ListNotesAfterRow
 		if err := rows.Scan(
-			&i.Notification.ID,
-			&i.Notification.WorkspaceID,
-			&i.Notification.ProjectID,
-			&i.Notification.Author,
-			&i.Notification.Text,
-			&i.Notification.Screen,
-			&i.Notification.RecordID,
-			&i.Notification.Actions,
-			&i.Notification.CreatedAt,
+			&i.Feed.ID,
+			&i.Feed.WorkspaceID,
+			&i.Feed.ProjectID,
+			&i.Feed.Kind,
+			&i.Feed.Author,
+			&i.Feed.Text,
+			&i.Feed.Screen,
+			&i.Feed.RecordID,
+			&i.Feed.Actions,
+			&i.Feed.Command,
+			&i.Feed.Params,
+			&i.Feed.DocumentID,
+			&i.Feed.Revision,
+			&i.Feed.UndoneAt,
+			&i.Feed.CreatedAt,
 			&i.ProjectName,
 		); err != nil {
 			return nil, err
@@ -339,12 +345,12 @@ func (q *Queries) MaxMasterMessageID(ctx context.Context, workspaceID int64) (in
 	return column_1, err
 }
 
-const maxNotificationID = `-- name: MaxNotificationID :one
-SELECT CAST(COALESCE(MAX(id), 0) AS INTEGER) FROM notification WHERE workspace_id = ?
+const maxNoteID = `-- name: MaxNoteID :one
+SELECT CAST(COALESCE(MAX(id), 0) AS INTEGER) FROM feed WHERE workspace_id = ? AND kind = 'note'
 `
 
-func (q *Queries) MaxNotificationID(ctx context.Context, workspaceID int64) (int64, error) {
-	row := q.db.QueryRowContext(ctx, maxNotificationID, workspaceID)
+func (q *Queries) MaxNoteID(ctx context.Context, workspaceID int64) (int64, error) {
+	row := q.db.QueryRowContext(ctx, maxNoteID, workspaceID)
 	var column_1 int64
 	err := row.Scan(&column_1)
 	return column_1, err

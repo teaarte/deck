@@ -188,7 +188,7 @@ func rehearseCodeModule(t *testing.T, newProvider func(home string) provider.Pro
 		t.Fatalf("in auto the agent merges its run itself: %s\n%s", subject, git("log", "--oneline", "main"))
 	}
 	var notes []string
-	rows, err := e.App.Store.DB.Query(`SELECT text FROM notification`)
+	rows, err := e.App.Store.DB.Query(`SELECT text FROM feed WHERE kind = 'note'`)
 	if err != nil {
 		t.Fatal(err)
 	}

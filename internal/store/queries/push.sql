@@ -27,13 +27,13 @@ WHERE j.workspace_id = sqlc.arg(workspace_id) AND p.state = 'error' AND p.trial 
 ORDER BY p.finished_at, p.id;
 
 
--- name: MaxNotificationID :one
-SELECT CAST(COALESCE(MAX(id), 0) AS INTEGER) FROM notification WHERE workspace_id = ?;
+-- name: MaxNoteID :one
+SELECT CAST(COALESCE(MAX(id), 0) AS INTEGER) FROM feed WHERE workspace_id = ? AND kind = 'note';
 
 
--- name: ListNotificationsAfter :many
-SELECT sqlc.embed(n), j.name AS project_name FROM notification n JOIN project j ON j.id = n.project_id
-WHERE n.workspace_id = ? AND n.id > ? ORDER BY n.id;
+-- name: ListNotesAfter :many
+SELECT sqlc.embed(n), j.name AS project_name FROM feed n JOIN project j ON j.id = n.project_id
+WHERE n.workspace_id = ? AND n.kind = 'note' AND n.id > ? ORDER BY n.id;
 
 
 -- name: MaxMasterMessageID :one

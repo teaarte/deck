@@ -83,103 +83,6 @@ func (a *App) grantAnswer(ctx context.Context, act registry.Actor, q db.Ask, ans
 	return out, nil
 }
 
-// unattended lists a change of a document by someone other than the owner in an enabled project, with its undo.
-func (a *App) unattended(ctx context.Context, q *db.Queries, act registry.Actor, projectID int64, prev db.Document, n int64, text, reason string) error {
-	if act.Kind == registry.Owner {
-		return nil
-	}
-	p, err := q.GetProject(ctx, projectID)
-	if err != nil || p.Status != store.ProjectEnabled {
-		return err
-	}
-	if reason != "" {
-		text += ": " + reason
-	}
-	row := db.AddUnattendedParams{WorkspaceID: p.WorkspaceID, ProjectID: p.ID, Author: act.Author(), Text: text, Params: "{}",
-		DocumentID: store.ID(prev.ID), Revision: n}
-	if prev.Current != 0 {
-		params, _ := json.Marshal(map[string]any{"document": prev.ID, "revision": prev.Current, "if_revision": n,
-			"reason": "undo a change made without the owner"})
-		row.Command, row.Params = registry.Builtin+".document_revert", string(params)
-	}
-	return q.AddUnattended(ctx, row)
-}
-
-type unattendedListIn struct {
-	Project string `type:"project" opt:"" desc:"Project name; defaults to the caller's own project"`
-	Limit   int64  `opt:"" desc:"At most this many"`
-}
-
-// unattendedRow is a change deck made without the owner; one with an undo command can be undone once.
-type unattendedRow struct {
-	ID        int64  `json:"id"`
-	Project   string `json:"project"`
-	Author    string `json:"author"`
-	Text      string `json:"text"`
-	CanUndo   bool   `json:"can_undo"`
-	Undone    bool   `json:"undone"`
-	CreatedAt string `json:"created_at"`
-}
-
-func (a *App) unattendedList(ctx context.Context, act registry.Actor, in unattendedListIn) ([]unattendedRow, error) {
-	projectID, err := a.filter(ctx, act, in.Project)
-	if err != nil {
-		return nil, err
-	}
-	in.Limit = registry.Limit(in.Limit, 50, 500)
-	rows, err := a.Store.Q.ListUnattended(ctx, db.ListUnattendedParams{WorkspaceID: act.Workspace, ProjectID: projectID, Lim: in.Limit})
-	if err != nil {
-		return nil, err
-	}
-	names, err := projectNames(ctx, a.Store.Q, act.Workspace)
-	if err != nil {
-		return nil, err
-	}
-	out := make([]unattendedRow, 0, len(rows))
-	for _, r := range rows {
-		out = append(out, unattendedRow{ID: r.ID, Project: names[r.ProjectID], Author: r.Author, Text: r.Text,
-			CanUndo: r.Command != "" && !r.UndoneAt.Valid, Undone: r.UndoneAt.Valid, CreatedAt: r.CreatedAt})
-	}
-	return out, nil
-}
-
-type unattendedUndoIn struct {
-	Entry int64 `desc:"Entry id from done without you"`
-}
-
-// unattendedUndo runs the undo of a change as the owner, unless the document has changed since.
-func (a *App) unattendedUndo(ctx context.Context, act registry.Actor, in unattendedUndoIn) (any, error) {
-	r, err := a.Store.Q.GetUnattended(ctx, in.Entry)
-	if err != nil || r.WorkspaceID != act.Workspace {
-		return nil, registry.NotFound("deck: no entry %d", in.Entry)
-	}
-	switch {
-	case r.UndoneAt.Valid:
-		return nil, registry.Conflict("deck: this change is already undone")
-	case r.Command == "":
-		return nil, registry.Invalid("deck: this change has no earlier version to return to")
-	}
-	if r.DocumentID.Valid {
-		d, err := docs.Get(ctx, a.Store.Q, r.DocumentID.Int64)
-		if err != nil {
-			return nil, err
-		}
-		if d.Current != r.Revision {
-			return nil, registry.Conflict("deck: the document changed after this; return to an earlier version from its history")
-		}
-	}
-	out, err := a.Registry.Invoke(ctx, act, r.Command, json.RawMessage(r.Params))
-	if err != nil {
-		return nil, err
-	}
-	err = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		_, err := q.MarkUnattendedUndone(ctx, r.ID)
-		return err
-	})
-	a.Bus.Publish("unattended")
-	return out, err
-}
-
 type projectEnableIn struct {
 	Project  string `type:"project" desc:"Project name"`
 	Revision int64  `desc:"The manifest revision whose rights the owner looked at"`
@@ -307,11 +210,5 @@ func (a *App) draftsCommands() []*registry.Command {
 		registry.Def("command_try", "Trial run",
 			"Starts a trial run of a project command: calls that are not internal are declined, nothing leaves deck.",
 			registry.OwnerSide, a.commandTry),
-		registry.Read("unattended_list", "Done without you",
-			"Lists changes made without the owner, newest first, with whether they can be undone.",
-			registry.OwnerSide, a.unattendedList).On("unattended"),
-		registry.Def("unattended_undo", "Undo",
-			"Returns what a change made without the owner touched to how it was before.",
-			registry.OwnerOnly, a.unattendedUndo),
 	}
 }

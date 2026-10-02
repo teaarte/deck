@@ -112,6 +112,24 @@ type DocumentRevision struct {
 	CreatedAt  string
 }
 
+type Feed struct {
+	ID          int64
+	WorkspaceID int64
+	ProjectID   int64
+	Kind        string
+	Author      string
+	Text        string
+	Screen      string
+	RecordID    sql.NullInt64
+	Actions     string
+	Command     string
+	Params      string
+	DocumentID  sql.NullInt64
+	Revision    int64
+	UndoneAt    sql.NullString
+	CreatedAt   string
+}
+
 type File struct {
 	ID        int64
 	ProjectID int64
@@ -173,18 +191,6 @@ type McpTool struct {
 	Fingerprint string
 	Approved    string
 	Listed      int64
-}
-
-type Notification struct {
-	ID          int64
-	WorkspaceID int64
-	ProjectID   int64
-	Author      string
-	Text        string
-	Screen      string
-	RecordID    sql.NullInt64
-	Actions     string
-	CreatedAt   string
 }
 
 type Process struct {
@@ -312,20 +318,6 @@ type Trigger struct {
 	Paused        int64
 	SkipMissed    int64
 	LastProcessID sql.NullInt64
-}
-
-type Unattended struct {
-	ID          int64
-	WorkspaceID int64
-	ProjectID   int64
-	Author      string
-	Text        string
-	Command     string
-	Params      string
-	DocumentID  sql.NullInt64
-	Revision    int64
-	UndoneAt    sql.NullString
-	CreatedAt   string
 }
 
 type Workspace struct {

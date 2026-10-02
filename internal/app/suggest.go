@@ -148,7 +148,7 @@ func (a *App) suggestTarget(ctx context.Context, act registry.Actor, name string
 // call keeps the class rules of its command.
 func (a *App) doSuggestion(ctx context.Context, act registry.Actor, p db.Project, s suggestion) (any, error) {
 	var out any
-	row := db.AddUnattendedParams{WorkspaceID: p.WorkspaceID, ProjectID: p.ID, Author: s.By, Params: "{}",
+	row := db.AddFeedParams{WorkspaceID: p.WorkspaceID, ProjectID: p.ID, Kind: feedChange, Author: s.By, Actions: "[]", Params: "{}",
 		Text: fmt.Sprintf("%s suggested and deck did it: %s (%s)", s.By, s.what(), s.Reason)}
 	if s.Card != nil {
 		v, err := a.suggestedCard(ctx, act, s.Card)
@@ -169,11 +169,14 @@ func (a *App) doSuggestion(ctx context.Context, act registry.Actor, p db.Project
 			return map[string]any{"done": false, "waiting": w.Ask, "text": w.Text}, nil
 		}
 	}
-	err := a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error { return q.AddUnattended(ctx, row) })
+	err := a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		_, err := q.AddFeed(ctx, row)
+		return err
+	})
 	if err != nil {
 		return nil, err
 	}
-	a.Bus.Publish("unattended")
+	a.Bus.Publish("feed")
 	return map[string]any{"done": true, "result": out}, nil
 }
 

@@ -110,15 +110,15 @@ func TestMasterManifestEditIsUndoneFromTheFeed(t *testing.T) {
 		CanUndo bool `json:"can_undo"`
 		Undone  bool
 	}
-	e.must("deck.unattended_list", map[string]any{}, &feed)
+	e.must("deck.feed_list", map[string]any{"kind": "change"}, &feed)
 	if len(feed) != 1 || !feed[0].CanUndo || !strings.HasPrefix(feed[0].Author, "token:") ||
 		!strings.Contains(feed[0].Text, "changed the manifest of notes: clearer title") {
 		t.Fatalf("the change is in done without you: %+v", feed)
 	}
-	if code, _ := e.callWith(tok, "deck.unattended_undo", map[string]any{"entry": feed[0].ID}); code != 403 {
+	if code, _ := e.callWith(tok, "deck.feed_undo", map[string]any{"entry": feed[0].ID}); code != 403 {
 		t.Fatalf("only the owner undoes: %d", code)
 	}
-	e.must("deck.unattended_undo", map[string]any{"entry": feed[0].ID}, nil)
+	e.must("deck.feed_undo", map[string]any{"entry": feed[0].ID}, nil)
 	var cur struct {
 		Manifest string
 		Revision int64
@@ -127,22 +127,22 @@ func TestMasterManifestEditIsUndoneFromTheFeed(t *testing.T) {
 	if cur.Revision != 3 || strings.Contains(cur.Manifest, "Work hard") {
 		t.Fatalf("undo returns the manifest as it was, as a new revision: %+v", cur)
 	}
-	if code, out := e.call("deck.unattended_undo", map[string]any{"entry": feed[0].ID}); code != 409 || !strings.Contains(string(out), "already undone") {
+	if code, out := e.call("deck.feed_undo", map[string]any{"entry": feed[0].ID}); code != 409 || !strings.Contains(string(out), "already undone") {
 		t.Fatalf("an undone change is not undone twice: %d %s", code, out)
 	}
 
 	use(s, "manifest_save", map[string]any{"project": "notes", "manifest": edited})
 	use(s, "manifest_save", map[string]any{"project": "notes", "manifest": plainManifest})
-	e.must("deck.unattended_list", map[string]any{}, &feed)
+	e.must("deck.feed_list", map[string]any{"kind": "change"}, &feed)
 	if len(feed) != 3 {
 		t.Fatalf("each change is a line: %+v", feed)
 	}
-	if code, out := e.call("deck.unattended_undo", map[string]any{"entry": feed[1].ID}); code != 409 || !strings.Contains(string(out), "changed after") {
+	if code, out := e.call("deck.feed_undo", map[string]any{"entry": feed[1].ID}); code != 409 || !strings.Contains(string(out), "changed after") {
 		t.Fatalf("undo of a change the document moved on from is refused: %d %s", code, out)
 	}
 
 	e.must("deck.manifest_save", map[string]any{"project": "notes", "manifest": edited}, nil)
-	e.must("deck.unattended_list", map[string]any{}, &feed)
+	e.must("deck.feed_list", map[string]any{"kind": "change"}, &feed)
 	if len(feed) != 3 {
 		t.Fatalf("the owner's own changes are not listed: %+v", feed)
 	}
@@ -166,17 +166,17 @@ func TestMasterScriptEditIsUndoneFromTheFeed(t *testing.T) {
 		Text    string
 		CanUndo bool `json:"can_undo"`
 	}
-	e.must("deck.unattended_list", map[string]any{"project": "tools"}, &feed)
+	e.must("deck.feed_list", map[string]any{"project": "tools", "kind": "change"}, &feed)
 	if len(feed) != 2 || feed[0].CanUndo || !feed[1].CanUndo || !strings.Contains(feed[1].Text, "changed script scripts/main.py: faster") {
 		t.Fatalf("script changes are listed; a new script has no earlier version: %+v", feed)
 	}
-	e.must("deck.unattended_undo", map[string]any{"entry": feed[1].ID}, nil)
+	e.must("deck.feed_undo", map[string]any{"entry": feed[1].ID}, nil)
 	var doc struct{ Text string }
 	e.must("deck.document_get", map[string]any{"project": "tools", "name": "scripts/main.py"}, &doc)
 	if doc.Text != "print('{}')\n" {
 		t.Fatalf("undo returns the script as it was: %q", doc.Text)
 	}
-	if code, _ := e.call("deck.unattended_undo", map[string]any{"entry": feed[0].ID}); code != 422 {
+	if code, _ := e.call("deck.feed_undo", map[string]any{"entry": feed[0].ID}); code != 422 {
 		t.Fatalf("a change without an earlier version cannot be undone: %d", code)
 	}
 	var d struct{ ID int64 }
@@ -187,7 +187,7 @@ func TestMasterScriptEditIsUndoneFromTheFeed(t *testing.T) {
 	if code, _ := e.callWith(tok, "deck.document_revert", map[string]any{"document": d.ID, "revision": 1, "if_revision": 3}); code != 409 {
 		t.Fatalf("if_revision guards a revert: %d", code)
 	}
-	e.must("deck.unattended_list", map[string]any{"project": "tools"}, &feed)
+	e.must("deck.feed_list", map[string]any{"project": "tools", "kind": "change"}, &feed)
 	if len(feed) != 3 || !feed[0].CanUndo || !strings.Contains(feed[0].Text, "revert to revision 2") {
 		t.Fatalf("a revert by the master is listed too: %+v", feed)
 	}

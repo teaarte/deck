@@ -73,68 +73,21 @@ func (a *App) notify(ctx context.Context, act registry.Actor, in notifyIn) (any,
 		}
 	}
 	raw, _ := json.Marshal(buttons)
-	var n db.Notification
+	var n db.Feed
 	err = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		n, err = q.AddNotification(ctx, db.AddNotificationParams{WorkspaceID: p.WorkspaceID, ProjectID: p.ID, Author: act.Author(),
-			Text: in.Text, Screen: in.Screen, RecordID: store.ID(in.Record), Actions: string(raw)})
+		n, err = q.AddFeed(ctx, db.AddFeedParams{WorkspaceID: p.WorkspaceID, ProjectID: p.ID, Kind: feedNote, Author: act.Author(),
+			Text: in.Text, Screen: in.Screen, RecordID: store.ID(in.Record), Actions: string(raw), Params: "{}"})
 		return err
 	})
 	if err != nil {
 		return nil, err
 	}
-	a.Bus.Publish("notifications")
+	a.Bus.Publish("feed")
 	return map[string]any{"notification": n.ID}, nil
-}
-
-type notificationsListIn struct {
-	Project string `type:"project" opt:"" desc:"Project name; every project without one"`
-	Limit   int64  `opt:"" desc:"At most this many, newest first"`
-}
-
-// notificationRow is a line of the feed of the cockpit with the screen it opens and its buttons, whose commands
-// carry the name of the project.
-type notificationRow struct {
-	ID        int64          `json:"id"`
-	Project   string         `json:"project"`
-	Text      string         `json:"text"`
-	Screen    string         `json:"screen"`
-	Record    int64          `json:"record"`
-	Buttons   []notifyButton `json:"buttons"`
-	CreatedAt string         `json:"created_at"`
-}
-
-func (a *App) notificationsList(ctx context.Context, act registry.Actor, in notificationsListIn) ([]notificationRow, error) {
-	pid, err := a.filter(ctx, act, in.Project)
-	if err != nil {
-		return nil, err
-	}
-	rows, err := a.Store.Q.ListNotifications(ctx, db.ListNotificationsParams{WorkspaceID: act.Workspace, ProjectID: pid,
-		Lim: registry.Limit(in.Limit, 50, 500)})
-	if err != nil {
-		return nil, err
-	}
-	names, err := projectNames(ctx, a.Store.Q, act.Workspace)
-	if err != nil {
-		return nil, err
-	}
-	out := make([]notificationRow, 0, len(rows))
-	for _, n := range rows {
-		r := notificationRow{ID: n.ID, Project: names[n.ProjectID], Text: n.Text, Screen: n.Screen, Record: n.RecordID.Int64,
-			Buttons: []notifyButton{}, CreatedAt: n.CreatedAt}
-		_ = json.Unmarshal([]byte(n.Actions), &r.Buttons)
-		for i := range r.Buttons {
-			r.Buttons[i].Command = r.Project + "." + r.Buttons[i].Command
-		}
-		out = append(out, r)
-	}
-	return out, nil
 }
 
 func (a *App) notifyCommands() []*registry.Command {
 	return []*registry.Command{
-		registry.Read("notifications_list", "Notifications",
-			"Lists the feed of the cockpit, newest first, with the screen each line opens and its buttons.",
-			registry.OwnerSide, a.notificationsList).On("notifications"),
 		registry.Def("notify", "Notify the owner",
 			"Writes a line to the feed of the cockpit, with a screen of the project to open and buttons; the caller decides it is worth it.",
 			registry.Everyone, a.notify),

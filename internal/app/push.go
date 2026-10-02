@@ -164,7 +164,7 @@ func (a *App) pushDevices(ctx context.Context, act registry.Actor, _ struct{}) (
 func (a *App) watchPush() {
 	var mu = make(chan struct{}, 1)
 	a.Bus.Watch(func(topic string) {
-		if !slices.Contains([]string{"asks", "processes", "notifications", "chat"}, topic) {
+		if !slices.Contains([]string{"asks", "processes", "feed", "chat"}, topic) {
 			return
 		}
 		select {
@@ -229,14 +229,14 @@ func (a *App) pushSources() []pushSource {
 				return items
 			}},
 		{"notify", func(ctx context.Context, ws int64) string {
-			n, _ := a.Store.Q.MaxNotificationID(ctx, ws)
+			n, _ := a.Store.Q.MaxNoteID(ctx, ws)
 			return fmt.Sprint(n)
 		},
 			func(ctx context.Context, ws int64, cursor string) []pushItem {
-				ns, _ := a.Store.Q.ListNotificationsAfter(ctx, db.ListNotificationsAfterParams{WorkspaceID: ws, ID: id(cursor)})
+				ns, _ := a.Store.Q.ListNotesAfter(ctx, db.ListNotesAfterParams{WorkspaceID: ws, ID: id(cursor)})
 				var items []pushItem
 				for _, row := range ns {
-					n := row.Notification
+					n := row.Feed
 					url := "/#/deck/cockpit"
 					if n.Screen != "" {
 						url = "/#/p/" + row.ProjectName + "/" + n.Screen

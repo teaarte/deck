@@ -66,7 +66,7 @@ func (a *App) projectDelete(ctx context.Context, act registry.Actor, in projectD
 	}
 	params, _ := json.Marshal(map[string]any{"project": p.Name, "snapshot": snapshot})
 	a.Gateway.Journal(ctx, act, 0, registry.Builtin+".project_delete", registry.External, "done", string(params))
-	for _, topic := range []string{"projects", "asks", "processes", "triggers", "health", "notifications", "unattended"} {
+	for _, topic := range []string{"projects", "asks", "processes", "triggers", "health", "feed"} {
 		a.Bus.Publish(topic)
 	}
 	return map[string]any{"deleted": p.Name, "snapshot": snapshot}, nil

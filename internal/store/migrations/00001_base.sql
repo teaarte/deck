@@ -288,21 +288,6 @@ CREATE TABLE automation_token (
     revoked_at    TEXT
 );
 
--- What deck did without the owner; command and params undo it, document and revision guard the undo.
-CREATE TABLE unattended (
-    id            INTEGER PRIMARY KEY AUTOINCREMENT,
-    workspace_id  INTEGER NOT NULL REFERENCES workspace(id) ON DELETE CASCADE,
-    project_id    INTEGER NOT NULL REFERENCES project(id) ON DELETE CASCADE,
-    author        TEXT NOT NULL,
-    text          TEXT NOT NULL,
-    command       TEXT NOT NULL DEFAULT '',
-    params        TEXT NOT NULL DEFAULT '{}',
-    document_id   INTEGER REFERENCES document(id) ON DELETE SET NULL,
-    revision      INTEGER NOT NULL DEFAULT 0,
-    undone_at     TEXT,
-    created_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
-);
-
 -- The tools an MCP server listed; approved is the fingerprint the owner's rights were given for.
 CREATE TABLE mcp_tool (
     project_id   INTEGER NOT NULL REFERENCES project(id) ON DELETE CASCADE,
@@ -318,18 +303,26 @@ CREATE TABLE mcp_tool (
     PRIMARY KEY (project_id, server, name)
 );
 
-CREATE TABLE notification (
+-- The owner's feed: a note a script or agent wrote with notify, or a change deck made without the owner, whose
+-- command and params undo it while document and revision guard the undo.
+CREATE TABLE feed (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     workspace_id  INTEGER NOT NULL REFERENCES workspace(id) ON DELETE CASCADE,
     project_id    INTEGER NOT NULL REFERENCES project(id) ON DELETE CASCADE,
+    kind          TEXT NOT NULL CHECK (kind IN ('note', 'change')),
     author        TEXT NOT NULL,
     text          TEXT NOT NULL,
     screen        TEXT NOT NULL DEFAULT '',
     record_id     INTEGER,
     actions       TEXT NOT NULL DEFAULT '[]',
+    command       TEXT NOT NULL DEFAULT '',
+    params        TEXT NOT NULL DEFAULT '{}',
+    document_id   INTEGER REFERENCES document(id) ON DELETE SET NULL,
+    revision      INTEGER NOT NULL DEFAULT 0,
+    undone_at     TEXT,
     created_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
-CREATE INDEX notification_workspace ON notification (workspace_id, id);
+CREATE INDEX feed_workspace ON feed (workspace_id, kind, id);
 
 CREATE TABLE chat_topic (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,

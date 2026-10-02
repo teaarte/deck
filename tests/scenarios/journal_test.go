@@ -109,7 +109,7 @@ func TestJournalShowsTheCallsOfTheGatewayTheSpendFilesAndSnapshots(t *testing.T)
 	waitTopic(t, events, "snapshots")
 }
 
-// TestTheJournalKeepsHalfAYear: the daily cleanup drops calls older than 180 days and notify lines older than 90.
+// TestTheJournalKeepsHalfAYear: the daily cleanup drops calls older than 180 days and notes of the feed older than 90.
 func TestTheJournalKeepsHalfAYear(t *testing.T) {
 	e := newEnv(t, nil)
 	e.createProject("notes", plainManifest)
@@ -120,18 +120,13 @@ func TestTheJournalKeepsHalfAYear(t *testing.T) {
 		_ = e.App.Store.DB.QueryRow(`SELECT count(*) FROM ` + table).Scan(&n)
 		return n
 	}
-	calls, notes := count("tool_call"), count("notification")
+	calls, notes := count("tool_call"), count("feed WHERE kind = 'note'")
 	if calls == 0 || notes != 1 {
 		t.Fatalf("the calls and the line are kept: %d %d", calls, notes)
 	}
 	e.App.Sweep(context.Background(), time.Now().Add(91*24*time.Hour))
-	if count("tool_call") != calls || count("notification") != 1 {
-		t.Fatalf("after 91 days the calls stay, and the newest line, which keeps the push cursor right: %d %d", count("tool_call"), count("notification"))
-	}
-	e.must("deck.notify", map[string]any{"project": "notes", "text": "again"}, nil)
-	e.App.Sweep(context.Background(), time.Now().Add(2*91*24*time.Hour))
-	if count("notification") != 1 {
-		t.Fatalf("an older line goes: %d", count("notification"))
+	if count("tool_call") != calls || count("feed WHERE kind = 'note'") != 0 {
+		t.Fatalf("after 91 days the calls stay and the note goes: %d %d", count("tool_call"), count("feed WHERE kind = 'note'"))
 	}
 	e.App.Sweep(context.Background(), time.Now().Add(3*181*24*time.Hour))
 	if count("tool_call") != 0 {

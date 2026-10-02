@@ -243,7 +243,7 @@ func TestWideningChangeWaitsForTheOwnersButton(t *testing.T) {
 		t.Fatalf("allow applies the frozen change: revision %d", rev)
 	}
 	var feed []any
-	e.must("deck.unattended_list", nil, &feed)
+	e.must("deck.feed_list", map[string]any{"kind": "change"}, &feed)
 	if len(feed) != 0 {
 		t.Fatalf("a change the owner allowed is not done without them: %v", feed)
 	}
@@ -279,7 +279,7 @@ func TestChangesToADraftApplyAtOnce(t *testing.T) {
 		t.Fatalf("in a draft rights are part of what the owner enables, so the change applies: %d %s", code, out)
 	}
 	var feed []any
-	e.must("deck.unattended_list", nil, &feed)
+	e.must("deck.feed_list", map[string]any{"kind": "change"}, &feed)
 	if len(feed) != 0 {
 		t.Fatalf("changes to a draft are not done without the owner: %v", feed)
 	}

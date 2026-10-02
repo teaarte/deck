@@ -36,13 +36,13 @@
               {"verb": "open", "screen": "process", "record": "$record.id"},
               {"verb": "stop", "command": "deck.process_stop", "params": {"process": "$record.id"}, "when": "(finished_at ?? '') == ''"}
             ]},
-          {"type": "list", "title": "Done without you", "source": {"from": "deck.unattended_list", "limit": 10},
+          {"type": "list", "title": "Done without you", "source": {"from": "deck.feed_list", "input": {"kind": "change"}, "limit": 10},
             "item": {"title": "text", "meta": "project + ' · ' + author"},
             "actions": [
-              {"verb": "undo", "command": "deck.unattended_undo", "params": {"entry": "$record.id"}, "when": "can_undo"}
+              {"verb": "undo", "command": "deck.feed_undo", "params": {"entry": "$record.id"}, "when": "can_undo"}
             ]}
         ]},
-        {"type": "list", "title": "Notifications", "source": {"from": "deck.notifications_list", "limit": 20},
+        {"type": "list", "title": "Notifications", "source": {"from": "deck.feed_list", "input": {"kind": "note"}, "limit": 20},
           "item": {"title": "text", "meta": "project + ' · ' + created_at"}, "actions_from": "buttons",
           "actions": [
             {"verb": "open", "screen": "$record.screen", "project": "$record.project", "record": "=record != 0 ? record : nil", "when": "screen != ''"}

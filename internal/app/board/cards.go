@@ -16,7 +16,7 @@ const cardRetention = 24 * time.Hour
 
 type cardView struct {
 	ID        int64   `json:"id"`
-	Project   int64   `json:"project"`
+	Project   string  `json:"project"`
 	Title     string  `json:"title"`
 	Text      string  `json:"text"`
 	Lane      string  `json:"lane"`
@@ -42,8 +42,8 @@ type boardView struct {
 	Deleted []cardView `json:"deleted,omitempty"`
 }
 
-func viewCard(c db.Card, waits map[int64][]int64) cardView {
-	return cardView{ID: c.ID, Project: c.ProjectID, Title: c.Title, Text: c.Text, Lane: c.Lane, Rank: c.Rank,
+func viewCard(c db.Card, project string, waits map[int64][]int64) cardView {
+	return cardView{ID: c.ID, Project: project, Title: c.Title, Text: c.Text, Lane: c.Lane, Rank: c.Rank,
 		Record: c.RecordID.Int64, Process: c.ProcessID.Int64, Waits: append([]int64{}, waits[c.ID]...),
 		DeletedAt: c.DeletedAt.String, UpdatedAt: c.UpdatedAt}
 }

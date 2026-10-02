@@ -37,6 +37,7 @@ const boardManifest = `{
 
 type cardV struct {
 	ID        int64   `json:"id"`
+	Project   string  `json:"project"`
 	Title     string  `json:"title"`
 	Text      string  `json:"text"`
 	Lane      string  `json:"lane"`
@@ -472,7 +473,7 @@ func TestUndoOfAModuleButtonIsACallOfItsOwn(t *testing.T) {
 }
 
 // TestACardMovesToAnotherProjectWithItsDocuments: the board offers the buttons of a card, among them a move to a
-// project with an inbox; the card lands there with its documents and without the record of the old project.
+// project with an inbox; the card lands there, named by it, with its documents and without the old record.
 func TestACardMovesToAnotherProjectWithItsDocuments(t *testing.T) {
 	e := newEnv(t, idle)
 	e.createProject("work", strings.NewReplacer(`"triggers": [{"command": "pack", "lane": "doing", "params": {"tone": "short"}}],`, "",
@@ -492,7 +493,7 @@ func TestACardMovesToAnotherProjectWithItsDocuments(t *testing.T) {
 	e.must(move["command"].(string), params, nil)
 	var moved cardV
 	e.must("deck.card_get", map[string]any{"card": c.ID}, &moved)
-	if moved.Lane != "inbox" || moved.Record != 0 {
+	if moved.Lane != "inbox" || moved.Record != 0 || moved.Project != "notes" {
 		t.Fatalf("the card lands in the inbox of the other project without the old record: %+v", moved)
 	}
 	var docs []struct {

@@ -39,7 +39,7 @@ func (s *Service) cardsList(ctx context.Context, act registry.Actor, in cardsLis
 		lv := laneView{Name: l.Name, Title: l.Title, Role: l.Role, Cards: []cardView{}}
 		for _, c := range cards {
 			if c.Lane == l.Name {
-				lv.Cards = append(lv.Cards, viewCard(c, waits))
+				lv.Cards = append(lv.Cards, viewCard(c, p.Name, waits))
 			}
 		}
 		out.Lanes = append(out.Lanes, lv)
@@ -51,7 +51,7 @@ func (s *Service) cardsList(ctx context.Context, act registry.Actor, in cardsLis
 		}
 		out.Deleted = []cardView{}
 		for _, c := range deleted {
-			out.Deleted = append(out.Deleted, viewCard(c, waits))
+			out.Deleted = append(out.Deleted, viewCard(c, p.Name, waits))
 		}
 	}
 	return out, nil
@@ -68,8 +68,7 @@ func (s *Service) cardGet(ctx context.Context, act registry.Actor, in cardGetIn)
 		if err != nil {
 			return err
 		}
-		waits, err := waitsOf(ctx, q, c.ProjectID)
-		v = viewCard(c, waits)
+		v, err = cardOut(ctx, q, c)
 		return err
 	})
 	return v, err
@@ -81,8 +80,17 @@ func cardResult(ctx context.Context, q *db.Queries, id int64) (cardView, error) 
 	if err != nil {
 		return cardView{}, err
 	}
+	return cardOut(ctx, q, c)
+}
+
+// cardOut is a card as commands return it, naming its project.
+func cardOut(ctx context.Context, q *db.Queries, c db.Card) (cardView, error) {
+	p, err := q.GetProject(ctx, c.ProjectID)
+	if err != nil {
+		return cardView{}, err
+	}
 	waits, err := waitsOf(ctx, q, c.ProjectID)
-	return viewCard(c, waits), err
+	return viewCard(c, p.Name, waits), err
 }
 
 type cardCreateIn struct {

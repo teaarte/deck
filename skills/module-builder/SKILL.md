@@ -15,10 +15,11 @@ You talk to deck through its MCP server (`deck`). The tools are deck commands: `
 `command_try`, `process_get`, `process_log`, `records_list`, `records_upsert`, `cards_list`, `files_list`,
 `projects_list`, `triggers_list`, `providers_list`, `health_list`, `asks_list`. Some commands only the owner runs:
 `secret_set`, `oauth_start`, `browser_login`, `provider_set`, `provider_add`, `project_enable`; say which one and
-why when the module needs it. The owner does them on deck's Settings screen: Projects (a draft with the rights
-enabling it grants, "Enable", autonomy, pause, a trial run), Providers (add one, pick the provider of a command),
-Secrets (name and a hidden value), Tokens, Health; sign-ins wait in the cockpit. So name the tab and the value
-("Settings → Secrets: `mail-key`, the API key of …"), never a `curl`.
+why when the module needs it. The owner does them in two places. The Settings of the project (Settings →
+Projects → "Settings" on its row): "Enable" with the rights enabling grants, autonomy, pause, the provider of
+each command, folders, the secrets its tools take. deck's Settings tabs: Projects (create, import, a trial run),
+Providers (add one), Secrets (name and a hidden value), Tokens, Health; sign-ins wait in the cockpit. So name
+the place and the value ("Settings → Secrets: `mail-key`, the API key of …"), never a `curl`.
 
 ## 1. Interview
 
@@ -247,8 +248,8 @@ to it. A deck tool of class `external` outside `allowed_external` still waits fo
 network of their own and reach outside only through deck tools; removing the flag later is a right. An agent
 that must work in a folder of the owner (a code repo, notes) gets `"folder": true` in `executor` (or the folder's
 name when the project has several): it works there instead of its own folder, with the repo's CLAUDE.md or
-AGENTS.md, and a second agent in the same folder waits. Only the owner adds folders (Settings → Projects → "Add
-folder"); a code repo is the code-project skill. List the
+AGENTS.md, and a second agent in the same folder waits. Only the owner adds folders (the Settings of the
+project → "Add folder"); a code repo is the code-project skill. List the
 skills it needs in `executor.skills`; a skill may not grant tools (`allowed-tools`, `hooks`) — rights come
 from deck.
 
@@ -256,7 +257,7 @@ The owner picks the model provider of each agent command in settings (`provider_
 what the command needs and suggests one. `requires` lists capabilities, and usually only two matter:
 `no_cloud` for personal data (finance, health) that must stay on the owner's hardware, and `sandbox` when the
 agent must run shell commands or write files (a provider in auto mode, or a model the owner runs in an ACP agent
-inside deck's sandbox; an OpenAI-compatible model without an agent has only deck's tools). The two go together:
+inside deck's sandbox). The two go together:
 a local model in an ACP agent has a shell and stays on the owner's hardware. `web` decides only which provider may run the command: an agent on Claude Code has the web
 whether or not it is required. Require it when the agent's result is wrong without its own research (reading
 changelogs or news it cannot know in advance), so the owner cannot move it to a local model that has none;
@@ -265,7 +266,8 @@ possible. Fetching known pages belongs in a script with `domains.read`. Repeatab
 runs the same way every time and works with any provider. Do not require `tools` or `structured_output`: every provider has deck's tools and hands in the result, and a
 requirement a local model lacks keeps routine work off it. `providers_list` with the command shows which
 providers fit it. `provider` suggests a provider by
-name — routine judgement suits a local model (`"provider": "ollama"`), heavy reasoning Claude Code. Write the
+name — routine judgement suits a local model in an ACP agent (the name the owner gave it, from
+`providers_list`), heavy reasoning Claude Code or Codex. Write the
 prompt so it works on a small model too: say which deck tool to call for what, and that the result is handed in
 at the end; a provider without output by schema gets the `result_submit` tool for it. A small model copies
 examples from the prompt word for word and misses checks that are plain in the text: give it the shape of the

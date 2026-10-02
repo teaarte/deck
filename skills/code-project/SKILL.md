@@ -25,7 +25,7 @@ One question at a time, the first option your recommendation:
 - the base branch: the repo's default (recommended), or another one;
 - autonomy: `suggest` (recommended; the agent hands cards back in Review and merges only when asked) or `auto`
   (it merges itself after its own checks and says so in the cockpit feed);
-- which provider runs it: Claude Code or Codex; the owner sets it in Settings → Providers.
+- which provider runs it: Claude Code or Codex; the owner sets it in the Settings of the project.
 
 The folder is the root of the repo (where `.git` is), not a folder inside it and not a git worktree.
 
@@ -35,11 +35,11 @@ The folder is the root of the repo (where `.git` is), not a folder inside it and
    describes the project; name the base branch there when it is not the default one; repo facts the agent
    should know), `"autonomy": "auto"` in the manifest when asked.
 2. `project_import` the folder. It is a draft until the owner enables it.
-3. Tell the owner what only they do, on the Settings screen:
-   - Projects → "Add folder": the project and the repo path (a folder lets agents write there, so only the
-     owner adds it);
-   - Providers: the provider of `<project>.run`;
-   - Projects → "Enable".
+3. Tell the owner what only they do, in the Settings of the project (Settings → Projects → "Settings" on its
+   row):
+   - "Add folder": the repo path (a folder lets agents write there, so only the owner adds it);
+   - "Choose the provider of a command": the provider of `<project>.run`;
+   - "Enable".
 
 ## 3. How a run goes (what `prompts/run.md` must keep)
 

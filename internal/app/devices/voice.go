@@ -44,9 +44,8 @@ func (dv *Service) stt(ctx context.Context, workspace int64) sttDef {
 	if raw, err := dv.St.Q.GetSetting(ctx, db.GetSettingParams{WorkspaceID: workspace, Key: settingSTT}); err == nil {
 		_ = json.Unmarshal([]byte(raw), &d)
 	}
-	if d.URL == "" {
-		d.URL = DefaultSTT
-	}
+	d.URL = cmp.Or(d.URL, dv.STT, DefaultSTT)
+	d.Language = cmp.Or(d.Language, "auto")
 	return d
 }
 

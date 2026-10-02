@@ -23,6 +23,7 @@ import (
 
 	"golang.org/x/crypto/hkdf"
 
+	"deck2/internal/app"
 	"deck2/internal/provider"
 )
 
@@ -279,8 +280,8 @@ func TestAPushThatFailsForNowIsSentAgain(t *testing.T) {
 	}
 }
 
-// TestTheLanguageOfSpeechIsDetectedByDefault: without a language whisper.cpp is asked for auto, and an
-// OpenAI-style API, which detects it when the field is left out, gets none.
+// TestTheLanguageOfSpeechIsDetectedByDefault: without a language whisper.cpp is asked for auto, also before the
+// owner set up speech at all; an OpenAI-style API, which detects it when the field is left out, gets none.
 func TestTheLanguageOfSpeechIsDetectedByDefault(t *testing.T) {
 	var mu sync.Mutex
 	langs := map[string]string{}
@@ -304,7 +305,9 @@ func TestTheLanguageOfSpeechIsDetectedByDefault(t *testing.T) {
 		_, _ = w.Write([]byte(`{"text": "hi"}`))
 	}))
 	t.Cleanup(whisper.Close)
-	e := newEnv(t, nil)
+	e := newEnv(t, nil, func(c *app.Config) { c.STT = whisper.URL + "/default" })
+	id := e.upload("master", "voice.wav", "audio/wav", "RIFF....WAVEfmt fake recording")
+	e.must("deck.transcribe", map[string]any{"file": itoa(id)}, nil)
 	for _, path := range []string{"/inference", "/v1/audio/transcriptions"} {
 		e.must("deck.stt_set", map[string]any{"url": whisper.URL + path}, nil)
 		id := e.upload("master", "voice.wav", "audio/wav", "RIFF....WAVEfmt fake recording")
@@ -312,7 +315,7 @@ func TestTheLanguageOfSpeechIsDetectedByDefault(t *testing.T) {
 	}
 	mu.Lock()
 	defer mu.Unlock()
-	if langs["/inference"] != "auto" || langs["/v1/audio/transcriptions"] != "-" {
+	if langs["/default"] != "auto" || langs["/inference"] != "auto" || langs["/v1/audio/transcriptions"] != "-" {
 		t.Fatalf("the language is detected by default: %v", langs)
 	}
 }

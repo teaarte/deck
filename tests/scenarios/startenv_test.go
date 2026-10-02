@@ -13,6 +13,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -43,9 +44,14 @@ func startDeck(t *testing.T, home string, env ...string) *deckBinary {
 	}
 	t.Cleanup(func() { _ = cmd.Process.Kill(); _ = cmd.Wait() })
 	up := make(chan []string, 1)
+	var mu sync.Mutex
+	var said []string
 	go func() {
 		sc := bufio.NewScanner(stderr)
 		for sc.Scan() {
+			mu.Lock()
+			said = append(said, sc.Text())
+			mu.Unlock()
 			if m := listening.FindStringSubmatch(sc.Text()); m != nil {
 				up <- m
 			}
@@ -55,7 +61,9 @@ func startDeck(t *testing.T, home string, env ...string) *deckBinary {
 	case m := <-up:
 		return &deckBinary{cmd: cmd, url: m[1], token: m[2]}
 	case <-time.After(30 * time.Second):
-		t.Fatal("deck did not start")
+		mu.Lock()
+		defer mu.Unlock()
+		t.Fatalf("deck did not start; it said:\n%s", strings.Join(said, "\n"))
 	}
 	return nil
 }

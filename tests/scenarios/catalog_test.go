@@ -2,6 +2,7 @@ package scenarios
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -18,14 +19,17 @@ const forecastManifest = `{"version": 5,
   "screens": [
     {"name": "main", "title": "BTC", "blocks": [
       {"type": "stat", "title": "Last price", "source": {"collection": "prices", "sort": "-at", "limit": 1}, "value": "rows[0].price",
-        "format": "money", "currency": "USD"},
+        "format": "money", "currency": "USD", "tone": "rows[0].price >= 60000 ? 'ok' : 'warn'"},
       {"type": "table", "title": "Forecasts", "source": {"collection": "forecasts", "sort": "-at"},
         "columns": [{"label": "Made", "bind": "at", "format": "relative"}, {"label": "Horizon", "bind": "horizon"},
-          {"label": "Change", "bind": "change", "format": "percent"}, {"label": "Status", "bind": "status", "format": "tag"},
+          {"label": "Change", "bind": "change", "format": "percent", "tone": "change < 0 ? 'error' : 'ok'"},
+          {"label": "Status", "bind": "status", "format": "tag", "tone": "status == 'missed' ? 'warn' : 'none'"},
           {"label": "Source", "bind": "source", "format": "link"}],
-        "actions": [{"label": "Open", "screen": "forecast"}]}]},
+        "actions": [{"label": "Open", "screen": "forecast"}]},
+      {"type": "list", "title": "Horizons", "source": {"collection": "forecasts", "sort": "-at"},
+        "item": {"title": "horizon", "tone": "status == 'missed' ? 'muted' : ''"}}]},
     {"name": "forecast", "title": "Forecast", "record": "forecasts", "blocks": [
-      {"type": "card", "fields": [{"label": "Made", "bind": "at", "format": "datetime"}, {"label": "Change", "bind": "change", "format": "percent"},
+      {"type": "card", "fields": [{"label": "Made", "bind": "at", "format": "datetime"}, {"label": "Change", "bind": "change", "format": "percent", "tone": "change < 0 ? 'error' : 'ok'"},
         {"label": "Confidence", "bind": "confidence", "format": "percent"}]}]}],
   "menu": ["main"]}`
 
@@ -35,7 +39,8 @@ func (e *Env) seedForecasts() {
 		"records": jsonl(map[string]any{"at": "2026-10-01T10:00:00Z", "price": 61000.5}, map[string]any{"at": "2026-10-02T10:00:00Z", "price": 62340.25})}, nil)
 	e.must("deck.records_upsert", map[string]any{"project": "btc", "collection": "forecasts",
 		"records": jsonl(map[string]any{"at": "2026-10-02T09:00:00Z", "horizon": "7d", "change": 0.042, "confidence": 0.6, "status": "open",
-			"source": "https://example.com/a"})}, nil)
+			"source": "https://example.com/a"},
+			map[string]any{"at": "2026-10-01T09:00:00Z", "horizon": "1d", "change": -0.01, "confidence": 0.3, "status": "missed"})}, nil)
 }
 
 // TestBlocksShowValuesByTheirFormat: a column, a card field and a stat carry their format to the client and keep
@@ -60,7 +65,7 @@ func TestBlocksShowValuesByTheirFormat(t *testing.T) {
 		t.Fatalf("a stat keeps its value raw: %s", v)
 	}
 	rows := blockData[[]screenRow](t, data["b1"]["rows"])
-	if len(rows) != 1 || rows[0].Cells[2] != 0.042 || rows[0].Cells[0] != "2026-10-02T09:00:00Z" {
+	if len(rows) != 2 || rows[0].Cells[2] != 0.042 || rows[0].Cells[0] != "2026-10-02T09:00:00Z" {
 		t.Fatalf("cells keep their values raw: %+v", rows)
 	}
 	page := e.screenMessages("btc", "forecast", map[string]any{"record": rows[0].ID})
@@ -73,11 +78,11 @@ func TestBlocksShowValuesByTheirFormat(t *testing.T) {
 	}
 
 	for _, tc := range []struct{ from, to, want string }{
-		{`"format": "percent"}, {"label": "Status"`, `"format": "percentage"}, {"label": "Status"`, `value must be one of 'number', 'percent', 'money'`},
+		{`"format": "relative"}`, `"format": "relatively"}`, `value must be one of 'number', 'percent', 'money'`},
 		{`"format": "money", "currency": "USD"`, `"format": "money"`, `format money needs currency`},
 		{`"format": "money", "currency": "USD"`, `"format": "money", "currency": "dollars"`, `does not match pattern`},
-		{`{"label": "Change", "bind": "change", "format": "percent"}, {"label": "Status"`,
-			`{"label": "Change", "bind": "change", "format": "percent", "currency": "EUR"}, {"label": "Status"`, `column "Change": currency goes with format money`},
+		{`{"label": "Made", "bind": "at", "format": "relative"}`, `{"label": "Made", "bind": "at", "format": "relative", "currency": "EUR"}`,
+			`column "Made": currency goes with format money`},
 		{`{"label": "Confidence", "bind": "confidence", "format": "percent"}`, `{"label": "Confidence", "bind": "confidence", "format": "money"}`,
 			`field "Confidence": format money needs currency`},
 	} {
@@ -93,5 +98,53 @@ func TestBlocksShowValuesByTheirFormat(t *testing.T) {
 	e.must("deck.manifest_format", nil, &format)
 	if !strings.Contains(string(format), "0.42 is 42 %") {
 		t.Fatalf("the model reads the formats in manifest_format: %.300s", format)
+	}
+}
+
+// TestBlocksTakeTheToneOfTheirValues: a column, a list line, a card field and a stat take a tone by an expression
+// over what they show; a value that is not a tone is none, and a tone over an unknown field is refused.
+func TestBlocksTakeTheToneOfTheirValues(t *testing.T) {
+	e := newEnv(t, nil)
+	check := newCatalogCheck(t)
+	e.createProject("btc", forecastManifest)
+	e.seedForecasts()
+	check.messages(t, e.screenMessages("btc", "main", nil))
+	data := e.screenData("btc", "main", nil)
+	if tone := string(data["b0"]["tone"]); tone != `"ok"` {
+		t.Fatalf("a stat takes its tone over rows: %s", tone)
+	}
+	var rows []struct {
+		ID    any   `json:"id"`
+		Tones []any `json:"tones"`
+	}
+	_ = json.Unmarshal(data["b1"]["rows"], &rows)
+	if len(rows) != 2 || fmt.Sprint(rows[0].Tones) != "[<nil> <nil> ok <nil> <nil>]" || fmt.Sprint(rows[1].Tones) != "[<nil> <nil> error warn <nil>]" {
+		t.Fatalf("a cell takes the tone of its column, parallel to the cells; none is null: %+v", rows)
+	}
+	var lines []map[string]any
+	_ = json.Unmarshal(data["b2"]["items"], &lines)
+	if len(lines) != 2 || lines[0]["tone"] != nil || lines[1]["tone"] != "muted" {
+		t.Fatalf("a list line takes its tone; an empty one is none: %+v", lines)
+	}
+	page := e.screenMessages("btc", "forecast", map[string]any{"record": rows[1].ID})
+	check.messages(t, page)
+	card := blockData[struct{ Fields []map[string]any }](t, e.screenData("btc", "forecast", map[string]any{"record": rows[1].ID})["b0"]["value"])
+	if card.Fields[1]["tone"] != "error" || card.Fields[0]["tone"] != nil {
+		t.Fatalf("a card field takes its tone over the record: %+v", card.Fields)
+	}
+	for _, tc := range []struct{ from, to, want string }{
+		{`"tone": "change < 0 ? 'error' : 'ok'"},
+          {"label": "Status"`, `"tone": "chnage < 0 ? 'error' : 'ok'"},
+          {"label": "Status"`, `column "Change" tone: unknown field "chnage"`},
+		{`"tone": "rows[0].price >= 60000 ? 'ok' : 'warn'"`, `"tone": "price >= 60000 ? 'ok' : 'warn'"`, `tone: unknown field "price"`},
+		{`"tone": "status == 'missed' ? 'muted' : ''"`, `"tone": "state == 'missed' ? 'muted' : ''"`, `item: unknown field "state"`},
+	} {
+		if strings.Count(forecastManifest, tc.from) != 1 {
+			t.Fatalf("fixture has %s once", tc.from)
+		}
+		code, out := e.call("deck.manifest_save", map[string]any{"project": "btc", "manifest": strings.Replace(forecastManifest, tc.from, tc.to, 1)})
+		if code != 422 || !strings.Contains(string(out), tc.want) {
+			t.Fatalf("%s is refused with %q: %d %s", tc.to, tc.want, code, out)
+		}
 	}
 }

@@ -1,5 +1,5 @@
 import { useSyncExternalStore, type ReactNode } from 'react';
-import { Anchor, Badge } from '@mantine/core';
+import { Anchor, Badge, Text } from '@mantine/core';
 import { show } from './block';
 
 // Shown is how the catalog says to show a value: its format and the currency of money.
@@ -95,15 +95,23 @@ export function formatted(v: unknown, s: Shown, now = Date.now()): string {
   return show(v);
 }
 
+// TONES are the colors of the tones a value takes.
+const TONES: Record<string, string> = { ok: 'green', warn: 'orange', error: 'red', muted: 'dimmed' };
+export const toneColor = (tone?: string | null) => (tone ? TONES[tone] : undefined);
+
 // Value shows a value by its format: a link opens, a tag is a badge, a relative time ages by the minute.
-export function Value({ v, s, color }: { v: unknown; s: Shown; color?: string }): ReactNode {
+export function Value({ v, s, tone }: { v: unknown; s: Shown; tone?: string | null }): ReactNode {
   const now = useMinute();
+  const color = toneColor(tone);
   if (s.format === 'link' && typeof v === 'string' && /^https?:\/\//.test(v)) {
     return <Anchor href={v} target="_blank" rel="noopener noreferrer" size="sm" c={color}>{v}</Anchor>;
   }
   if (s.format === 'tag' && v !== null && v !== undefined && v !== '') {
-    return <Badge variant="light" color={color ?? 'gray'} data-format="tag">{show(v)}</Badge>;
+    return <Badge variant="light" color={color === 'dimmed' ? 'gray' : color ?? 'gray'} data-format="tag" data-tone={tone ?? undefined}>{show(v)}</Badge>;
   }
   const text = formatted(v, s, now);
-  return s.format ? <span data-format={s.format} title={s.format === 'relative' ? show(v) : undefined}>{text}</span> : text;
+  if (!s.format && !color) return text;
+  return (
+    <Text span inherit c={color} data-format={s.format} data-tone={tone ?? undefined} title={s.format === 'relative' ? show(v) : undefined}>{text}</Text>
+  );
 }

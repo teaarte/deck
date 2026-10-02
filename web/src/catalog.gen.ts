@@ -1,6 +1,13 @@
 // Code generated from schemas/catalog.json by scripts/catalog-types.mjs. DO NOT EDIT.
 
 /**
+ * How a value stands: ok, warn, error or muted.
+ *
+ * This interface was referenced by `Catalog`'s JSON-Schema
+ * via the `definition` "tone".
+ */
+export type Tone = "ok" | "warn" | "error" | "muted";
+/**
  * This interface was referenced by `Catalog`'s JSON-Schema
  * via the `definition` "ActionsValue".
  */
@@ -12,6 +19,7 @@ export type ActionsValue = Action[];
 export type StatValue = number | string | boolean | null;
 
 export interface Catalog {
+  tone?: Tone;
   action?: Action;
   topic?: Topic;
   reply?: Reply;
@@ -146,6 +154,7 @@ export interface Reply {
 export interface Data {
   state: "ready" | "empty" | "error";
   error?: string;
+  tone?: Tone;
   /**
    * Choices the owner narrows the block by; the client sends the picked ones back to deck.screen.
    */
@@ -157,6 +166,10 @@ export interface Data {
   rows?: {
     id: unknown;
     cells: unknown[];
+    /**
+     * the tone of each cell, null for none
+     */
+    tones?: (Tone | null)[];
     actions?: Action[];
   }[];
   items?: {
@@ -169,6 +182,7 @@ export interface Data {
      * text is markdown
      */
     markdown?: boolean;
+    tone?: Tone;
     questions?: {
       question: string;
       multiSelect?: boolean;
@@ -200,6 +214,7 @@ export interface CardValue {
     markdown?: boolean;
     format?: string;
     currency?: string;
+    tone?: Tone;
   }[];
   actions: Action[];
 }

@@ -68,6 +68,21 @@ func shown(props map[string]any, format, currency string) map[string]any {
 	return props
 }
 
+// setTone sets the tone of a value by its expression; a value that is not a tone is none.
+func setTone(props map[string]any, expr string, env map[string]any) error {
+	if expr == "" {
+		return nil
+	}
+	v, err := manifest.Eval(expr, env)
+	if err != nil {
+		return err
+	}
+	if t, ok := v.(string); ok && slices.Contains([]string{"ok", "warn", "error", "muted"}, t) {
+		props["tone"] = t
+	}
+	return nil
+}
+
 // follows reports whether the block is read again after an event of the topic; the chat follows its turn too.
 func follows(b manifest.Block, deck bool, topic string) bool {
 	if b.Type == "chat" {
@@ -156,6 +171,9 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 			if f.Markdown {
 				field["markdown"] = true
 			}
+			if err := setTone(field, f.Tone, r.record); err != nil {
+				return nil, fmt.Errorf("field %q tone: %w", f.Label, err)
+			}
 			fields = append(fields, field)
 		}
 		acts := r.actions(b.Actions, r.req.Record, r.record)
@@ -183,18 +201,32 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 			return nil, fmt.Errorf("value: %w", err)
 		}
 		out["value"] = v
+		if err := setTone(out, b.Tone, map[string]any{"rows": items}); err != nil {
+			return nil, err
+		}
 	case "table":
 		rows := make([]map[string]any, 0, len(items))
 		for _, it := range items {
-			cells := make([]any, 0, len(b.Columns))
-			for _, c := range b.Columns {
+			cells, tones, toned := make([]any, 0, len(b.Columns)), make([]any, len(b.Columns)), false
+			for j, c := range b.Columns {
 				v, err := manifest.Eval(c.Bind, it)
 				if err != nil {
 					return nil, fmt.Errorf("column %q: %w", c.Label, err)
 				}
 				cells = append(cells, v)
+				cell := map[string]any{}
+				if err := setTone(cell, c.Tone, it); err != nil {
+					return nil, fmt.Errorf("column %q tone: %w", c.Label, err)
+				}
+				if t, ok := cell["tone"]; ok {
+					tones[j], toned = t, true
+				}
 			}
-			rows = append(rows, map[string]any{"id": it["_id"], "cells": cells, "actions": r.rowActions(b, it)})
+			row := map[string]any{"id": it["_id"], "cells": cells, "actions": r.rowActions(b, it)}
+			if toned {
+				row["tones"] = tones
+			}
+			rows = append(rows, row)
 		}
 		out["rows"] = rows
 	case "list":
@@ -203,6 +235,9 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 			line := map[string]any{"id": it["_id"], "actions": r.rowActions(b, it)}
 			if b.Item.Markdown {
 				line["markdown"] = true
+			}
+			if err := setTone(line, b.Item.Tone, it); err != nil {
+				return nil, fmt.Errorf("item tone: %w", err)
 			}
 			for key, e := range map[string]string{"title": b.Item.Title, "text": b.Item.Text, "meta": b.Item.Meta} {
 				if e == "" {

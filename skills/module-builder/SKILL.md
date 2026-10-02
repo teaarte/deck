@@ -138,7 +138,9 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   field and a `stat` take `format`, and the client shows the raw value in the owner's locale and time zone:
   `number`, `percent` (0.42 is 42 %), `money` with `currency` (`{"label": "Price", "bind": "price", "format":
   "money", "currency": "USD"}`), `date`, `datetime`, `relative` (5 min ago), `duration` (seconds), `bytes`,
-  `link`, `tag` — so a bind is never `string(round(change * 100)) + '%'`. Action `params` are strings in the manifest; `$record.<field>`
+  `link`, `tag` — so a bind is never `string(round(change * 100)) + '%'`. A column, a card field, a `list` line
+  (`item.tone`) and a `stat` (over `rows`) take `tone`, an expression giving `ok`, `warn`, `error` or `muted`:
+  `"tone": "change < 0 ? 'error' : 'ok'"`; any other value is no tone. Action `params` are strings in the manifest; `$record.<field>`
   passes the field's value with its type (`$record.id` is a number, so that input field is an `integer`), and
   a fixed value becomes the type of its input field (`"days": "7"` to an `integer` is 7). An action passes
   every required parameter of its command

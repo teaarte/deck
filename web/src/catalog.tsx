@@ -12,7 +12,7 @@ import { Actions, QuestionPicker } from './actions';
 import { Block, Details, show } from './block';
 import { Appearance } from './appearance';
 import { Chat } from './chat';
-import { Value, type Shown } from './format';
+import { toneColor, Value, type Shown } from './format';
 import type { Action, ActionsValue, BoardValue, CardValue, ChatValue, CustomValue, Data, DocumentValue } from './catalog.gen';
 
 const Custom = lazy(() => import('./custom').then((m) => ({ default: m.Custom })));
@@ -76,7 +76,7 @@ const impls: ReactComponentImplementation[] = [
               <Table.Tbody>
                 {(d.rows ?? []).map((r, i) => (
                   <Table.Tr key={show(r.id) || i}>
-                    {r.cells.map((v, j) => <Table.Td key={j}><Value v={v} s={p.columns[j] ?? {}} /></Table.Td>)}
+                    {r.cells.map((v, j) => <Table.Td key={j}><Value v={v} s={p.columns[j] ?? {}} tone={r.tones?.[j]} /></Table.Td>)}
                     {!!r.actions?.length && <Table.Td><Actions actions={r.actions} context={context} /></Table.Td>}
                   </Table.Tr>
                 ))}
@@ -97,7 +97,9 @@ const impls: ReactComponentImplementation[] = [
               const answer = it.questions ? it.actions?.find((a) => a.input) : undefined;
               const rest = (it.actions ?? []).filter((a) => a !== answer);
               return (
-                <Stack key={show(it.id) || i} gap={6} data-item>
+                <Stack key={show(it.id) || i} gap={6} data-item data-tone={it.tone}
+                  style={it.tone && it.tone !== 'muted' ? { borderLeft: `3px solid var(--mantine-color-${toneColor(it.tone)}-6)`, paddingLeft: 'var(--mantine-spacing-xs)' } : undefined}
+                  opacity={it.tone === 'muted' ? 0.6 : undefined}>
                   <Text fw={500}>{it.title}</Text>
                   {it.text && (it.markdown ? <Markdown text={it.text} /> : <Text size="sm">{it.text}</Text>)}
                   {it.meta && <Text size="xs" c="dimmed">{it.meta}</Text>}
@@ -129,7 +131,7 @@ const impls: ReactComponentImplementation[] = [
                 ) : (
                   <Group key={f.label} gap="sm" wrap="nowrap" align="flex-start">
                     <Text size="sm" c="dimmed" w={120}>{f.label}</Text>
-                    <Text size="sm" component="div"><Value v={f.value} s={f} /></Text>
+                    <Text size="sm" component="div"><Value v={f.value} s={f} tone={f.tone} /></Text>
                   </Group>
                 )
               ))}
@@ -142,7 +144,7 @@ const impls: ReactComponentImplementation[] = [
   }),
   createComponentImplementation(api('stat'), ({ props }) => {
     const p = props as Shown & { title?: string; data?: Data };
-    return <Block title={p.title} data={p.data}>{(d) => <Text fz={32} fw={700} component="div" data-stat><Value v={d.value} s={p} /></Text>}</Block>;
+    return <Block title={p.title} data={p.data}>{(d) => <Text fz={32} fw={700} component="div" data-stat><Value v={d.value} s={p} tone={d.tone} /></Text>}</Block>;
   }),
   createComponentImplementation(api('actions'), ({ props, context }) => {
     const p = props as { title?: string; data?: Data };

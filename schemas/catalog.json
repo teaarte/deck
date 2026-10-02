@@ -51,7 +51,7 @@
     },
     "list": {
       "description": "Lines of a source.",
-      "block": {"description": "Needs source and item, whose title, text and meta are expressions over each item; filter and actions are optional.", "required": ["source", "item"], "properties": {"source": {"$ref": "#/$defs/source"}, "item": {"type": "object", "additionalProperties": false, "required": ["title"], "description": "Expressions of each line; details is text shown in full on demand, questions what the owner answers in a picker; markdown says the text is markdown.", "properties": {"title": {"type": "string"}, "text": {"type": "string"}, "meta": {"type": "string"}, "details": {"type": "string"}, "questions": {"type": "string"}, "markdown": {"type": "boolean"}}}, "filter": {"$ref": "#/$defs/filter"}, "actions": {"$ref": "#/$defs/actions"}, "actions_from": {"$ref": "#/$defs/actions_from"}}},
+      "block": {"description": "Needs source and item, whose title, text and meta are expressions over each item; filter and actions are optional.", "required": ["source", "item"], "properties": {"source": {"$ref": "#/$defs/source"}, "item": {"type": "object", "additionalProperties": false, "required": ["title"], "description": "Expressions of each line; details is text shown in full on demand, questions what the owner answers in a picker; markdown says the text is markdown.", "properties": {"title": {"type": "string"}, "text": {"type": "string"}, "meta": {"type": "string"}, "details": {"type": "string"}, "questions": {"type": "string"}, "markdown": {"type": "boolean"}, "tone": {"$ref": "#/$defs/tone"}}}, "filter": {"$ref": "#/$defs/filter"}, "actions": {"$ref": "#/$defs/actions"}, "actions_from": {"$ref": "#/$defs/actions_from"}}},
       "type": "object",
       "additionalProperties": false,
       "required": ["data"],
@@ -62,7 +62,7 @@
     },
     "card": {
       "description": "Fields of the record of a record page.",
-      "block": {"description": "Shows the record of a record page; takes no source, only fields and actions; a field with no value (null or empty text) is not shown; a field with markdown shows its value as markdown.", "properties": {"fields": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["label", "bind"], "properties": {"label": {"type": "string"}, "bind": {"type": "string", "description": "Expression over the fields of the record."}, "markdown": {"type": "boolean"}, "format": {"$ref": "#/$defs/format"}, "currency": {"$ref": "#/$defs/currency"}}}}, "actions": {"$ref": "#/$defs/actions"}}},
+      "block": {"description": "Shows the record of a record page; takes no source, only fields and actions; a field with no value (null or empty text) is not shown; a field with markdown shows its value as markdown.", "properties": {"fields": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["label", "bind"], "properties": {"label": {"type": "string"}, "bind": {"type": "string", "description": "Expression over the fields of the record."}, "markdown": {"type": "boolean"}, "format": {"$ref": "#/$defs/format"}, "currency": {"$ref": "#/$defs/currency"}, "tone": {"$ref": "#/$defs/tone"}}}}, "actions": {"$ref": "#/$defs/actions"}}},
       "type": "object",
       "additionalProperties": false,
       "required": ["data"],
@@ -73,7 +73,7 @@
     },
     "stat": {
       "description": "One value over the items of a source.",
-      "block": {"description": "Needs source; value is an expression over rows, len(rows) by default.", "required": ["source"], "properties": {"source": {"$ref": "#/$defs/source"}, "value": {"type": "string", "description": "Expression over rows, the items of the source, such as len(rows) or sum(rows, .amount); len(rows) by default."}, "format": {"$ref": "#/$defs/format"}, "currency": {"$ref": "#/$defs/currency"}}},
+      "block": {"description": "Needs source; value is an expression over rows, len(rows) by default.", "required": ["source"], "properties": {"source": {"$ref": "#/$defs/source"}, "value": {"type": "string", "description": "Expression over rows, the items of the source, such as len(rows) or sum(rows, .amount); len(rows) by default."}, "format": {"$ref": "#/$defs/format"}, "currency": {"$ref": "#/$defs/currency"}, "tone": {"type": "string", "description": "Expression over rows that gives ok, warn, error or muted; any other value is no tone."}}},
       "type": "object",
       "additionalProperties": false,
       "required": ["data"],
@@ -174,6 +174,7 @@
     }
   },
   "$defs": {
+    "tone": {"enum": ["ok", "warn", "error", "muted"], "description": "How a value stands: ok, warn, error or muted."},
     "action": {
       "type": "object",
       "additionalProperties": false,
@@ -201,7 +202,7 @@
       "description": "The value of the data of each block that has one, by component.",
       "actions": {"type": "array", "items": {"$ref": "#/$defs/action"}},
       "card": {"type": "object", "additionalProperties": false, "required": ["fields", "actions"], "properties": {
-        "fields": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["label"], "properties": {"label": {"type": "string"}, "value": {}, "markdown": {"type": "boolean"}, "format": {"type": "string"}, "currency": {"type": "string"}}}},
+        "fields": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["label"], "properties": {"label": {"type": "string"}, "value": {}, "markdown": {"type": "boolean"}, "format": {"type": "string"}, "currency": {"type": "string"}, "tone": {"$ref": "#/$defs/tone"}}}},
         "actions": {"type": "array", "items": {"$ref": "#/$defs/action"}}}},
       "stat": {"type": ["number", "string", "boolean", "null"]},
       "board": {"type": "object", "additionalProperties": false, "required": ["project", "lanes", "deleted"], "properties": {
@@ -257,19 +258,20 @@
       "properties": {
         "state": {"enum": ["ready", "empty", "error"]},
         "error": {"type": "string"},
+        "tone": {"$ref": "#/$defs/tone"},
         "filters": {"type": "array", "description": "Choices the owner narrows the block by; the client sends the picked ones back to deck.screen.", "items": {
           "type": "object", "required": ["field", "options"], "additionalProperties": false,
           "properties": {"field": {"type": "string"}, "value": {"type": "string"}, "options": {"type": "array", "items": {"type": "string"}}}
         }},
         "rows": {"type": "array", "items": {
           "type": "object", "required": ["id", "cells"], "additionalProperties": false,
-          "properties": {"id": {}, "cells": {"type": "array"}, "actions": {"type": "array", "items": {"$ref": "#/$defs/action"}}}
+          "properties": {"id": {}, "cells": {"type": "array"}, "tones": {"type": "array", "description": "the tone of each cell, null for none", "items": {"oneOf": [{"$ref": "#/$defs/tone"}, {"type": "null"}]}}, "actions": {"type": "array", "items": {"$ref": "#/$defs/action"}}}
         }},
         "items": {"type": "array", "items": {
           "type": "object", "required": ["id", "title"], "additionalProperties": false,
           "properties": {
             "id": {}, "title": {"type": "string"}, "text": {"type": "string"}, "meta": {"type": "string"},
-            "details": {"type": "string"}, "markdown": {"type": "boolean", "description": "text is markdown"},
+            "details": {"type": "string"}, "markdown": {"type": "boolean", "description": "text is markdown"}, "tone": {"$ref": "#/$defs/tone"},
             "questions": {"type": "array", "items": {
               "type": "object", "required": ["question"],
               "properties": {"question": {"type": "string"}, "multiSelect": {"type": "boolean"},

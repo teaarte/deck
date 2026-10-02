@@ -230,9 +230,11 @@ type Block struct {
 	// Value is the expression of a stat block over rows, the items of its source.
 	Value string `json:"value,omitempty"`
 	// Format and Currency say how the client shows the value of a stat block.
-	Format   string   `json:"format,omitempty"`
-	Currency string   `json:"currency,omitempty"`
-	Actions  []Action `json:"actions,omitempty"`
+	Format   string `json:"format,omitempty"`
+	Currency string `json:"currency,omitempty"`
+	// Tone is the expression of a stat block over rows: ok, warn, error or muted.
+	Tone    string   `json:"tone,omitempty"`
+	Actions []Action `json:"actions,omitempty"`
 	// ActionsFrom is a field of an item with buttons of its own: label, command with its project, params.
 	ActionsFrom string  `json:"actions_from,omitempty"`
 	Blocks      []Block `json:"blocks,omitempty"`
@@ -265,6 +267,8 @@ type Item struct {
 	Questions string `json:"questions,omitempty"`
 	// Markdown says the text of each line is markdown.
 	Markdown bool `json:"markdown,omitempty"`
+	// Tone is an expression over the line: ok, warn, error or muted.
+	Tone string `json:"tone,omitempty"`
 }
 
 type Tab struct {
@@ -295,6 +299,8 @@ type Column struct {
 	// Format says how the client shows the value; Currency is the ISO 4217 code of money.
 	Format   string `json:"format,omitempty"`
 	Currency string `json:"currency,omitempty"`
+	// Tone is an expression over the item: ok, warn, error or muted.
+	Tone string `json:"tone,omitempty"`
 }
 
 // Action is a button. Params, Screen, Record, Project, File and Until take a fixed value, "$record.<field>"

@@ -96,6 +96,7 @@ func (c *screenCheck) block(where string, b Block) {
 				c.fail("%s field %q: %v", where, f.Label, err)
 			}
 			c.format(fmt.Sprintf("%s field %q", where, f.Label), f.Format, f.Currency)
+			c.tone(fmt.Sprintf("%s field %q", where, f.Label), f.Tone, fields)
 		}
 	case "board":
 		switch {
@@ -140,6 +141,7 @@ func (c *screenCheck) block(where string, b Block) {
 				c.fail("%s column %q: %v", where, col.Label, err)
 			}
 			c.format(fmt.Sprintf("%s column %q", where, col.Label), col.Format, col.Currency)
+			c.tone(fmt.Sprintf("%s column %q", where, col.Label), col.Tone, fields)
 		}
 		c.format(where, b.Format, b.Currency)
 		switch {
@@ -149,7 +151,7 @@ func (c *screenCheck) block(where string, b Block) {
 			c.fail("%s actions_from: unknown field %q", where, b.ActionsFrom)
 		}
 		if b.Item != nil {
-			for _, e := range []string{b.Item.Title, b.Item.Text, b.Item.Meta, b.Item.Details, b.Item.Questions} {
+			for _, e := range []string{b.Item.Title, b.Item.Text, b.Item.Meta, b.Item.Details, b.Item.Questions, b.Item.Tone} {
 				if _, err := compileField(e, fields); e != "" && err != nil {
 					c.fail("%s item: %v", where, err)
 				}
@@ -158,6 +160,11 @@ func (c *screenCheck) block(where string, b Block) {
 		if b.Value != "" {
 			if _, err := compileExpr(b.Value, []string{"rows"}); err != nil {
 				c.fail("%s value: %v", where, err)
+			}
+		}
+		if b.Tone != "" {
+			if _, err := compileExpr(b.Tone, []string{"rows"}); err != nil {
+				c.fail("%s tone: %v", where, err)
 			}
 		}
 	}
@@ -180,6 +187,12 @@ func (c *screenCheck) format(where, format, currency string) {
 		c.fail("%s: format money needs currency, an ISO 4217 code such as USD", where)
 	case format != "money" && currency != "":
 		c.fail("%s: currency goes with format money", where)
+	}
+}
+
+func (c *screenCheck) tone(where, tone string, fields []string) {
+	if _, err := compileField(tone, fields); tone != "" && err != nil {
+		c.fail("%s tone: %v", where, err)
 	}
 }
 

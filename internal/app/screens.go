@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"deck2/internal/app/access"
+	"deck2/internal/app/board"
 	_ "embed"
 	"encoding/json"
 	"fmt"
@@ -224,7 +225,7 @@ func paramTypes(schema json.RawMessage) map[string]string {
 type screenDeck struct{ a *App }
 
 func (d screenDeck) Waits(ctx context.Context, project int64) (map[int64][]int64, error) {
-	return waitsOf(ctx, d.a.Store.Q, project)
+	return board.Waits(ctx, d.a.Store.Q, project)
 }
 
 func (d screenDeck) Chat(ctx context.Context, workspace int64, topic string) (any, error) {

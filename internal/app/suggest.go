@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"deck2/internal/app/access"
+	"deck2/internal/app/board"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -155,7 +156,7 @@ func (a *App) doSuggestion(ctx context.Context, act registry.Actor, p db.Project
 	if w, held := out.(gateway.Waiting); held {
 		return map[string]any{"done": false, "waiting": w.Ask, "text": w.Text}, nil
 	}
-	if c, ok := out.(cardView); ok {
+	if c, ok := out.(board.Card); ok {
 		params, _ := json.Marshal(map[string]any{"card": c.ID})
 		row.Command, row.Params = registry.Builtin+".card_delete", string(params)
 	}

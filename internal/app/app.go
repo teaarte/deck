@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"deck2/internal/app/board"
 	"deck2/internal/ask"
 	"deck2/internal/docs"
 	"deck2/internal/events"
@@ -42,6 +43,7 @@ type App struct {
 	Gateway   *gateway.Gateway
 	Runner    *process.Runner
 	Scheduler *trigger.Scheduler
+	Board     *board.Service
 	Scripts   *script.Exec
 	Tools     *tools.HTTP
 	MCP       *tools.MCP
@@ -57,7 +59,6 @@ type App struct {
 	secretMu sync.Mutex
 	bg       sync.WaitGroup
 	disk     time.Time
-	boardMu  sync.Mutex
 	// filesMu keeps stored files from going while a snapshot copies the base and files/.
 	filesMu sync.RWMutex
 	// cleaned and snapTried are when the daily cleanup ran and a daily snapshot was last tried.
@@ -92,6 +93,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	a.Asks = ask.NewBroker(st, a.Bus, cfg.Now)
 	a.Registry = registry.New(a.projectCommands)
 	a.Registry.SetPublish(a.Bus.Publish)
+	a.Board = &board.Service{St: st, Bus: a.Bus, Now: cfg.Now, Fire: a.fire}
 	a.addBuiltins()
 	a.Gateway = gateway.New(gateway.Config{Now: cfg.Now, QuestionWait: cfg.QuestionWait, ConfirmWait: cfg.ConfirmWait, ConfirmTTL: a.confirmTTL}, st, a.Asks, a.Bus, a.Registry)
 	a.Tools = tools.NewHTTP(a.Gateway, a.Secret, a.dirs())
@@ -265,7 +267,7 @@ func (a *App) lateAnswer(ctx context.Context, q db.Ask) {
 // Sweep checks every deadline against now: deleted cards, expired confirmations, ceilings, pauses on a usage
 // limit, silent processes, empty results kept long enough, the disk, and the daily cleanup and snapshot.
 func (a *App) Sweep(ctx context.Context, now time.Time) {
-	a.purgeCards(ctx, now)
+	a.Board.Purge(ctx, now)
 	a.expireConfirms(ctx, now)
 	a.expireSuggestions(ctx, now)
 	a.stopAtCeiling(ctx, now)

@@ -1,4 +1,4 @@
-package app
+package board
 
 import (
 	"context"
@@ -17,20 +17,20 @@ type cardsListIn struct {
 	Deleted bool   `opt:"" desc:"Also list deleted cards that can still be restored"`
 }
 
-func (a *App) cardsList(ctx context.Context, act registry.Actor, in cardsListIn) (any, error) {
-	p, err := access.Project(ctx, a.Store.Q, act, in.Project)
+func (s *Service) cardsList(ctx context.Context, act registry.Actor, in cardsListIn) (any, error) {
+	p, err := access.Project(ctx, s.St.Q, act, in.Project)
 	if err != nil {
 		return nil, err
 	}
-	m, err := boardManifest(ctx, a.Store.Q, p)
+	m, err := boardManifest(ctx, s.St.Q, p)
 	if err != nil {
 		return nil, err
 	}
-	cards, err := a.Store.Q.ListCards(ctx, p.ID)
+	cards, err := s.St.Q.ListCards(ctx, p.ID)
 	if err != nil {
 		return nil, err
 	}
-	waits, err := waitsOf(ctx, a.Store.Q, p.ID)
+	waits, err := waitsOf(ctx, s.St.Q, p.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -45,7 +45,7 @@ func (a *App) cardsList(ctx context.Context, act registry.Actor, in cardsListIn)
 		out.Lanes = append(out.Lanes, lv)
 	}
 	if in.Deleted {
-		deleted, err := a.Store.Q.ListDeletedCards(ctx, p.ID)
+		deleted, err := s.St.Q.ListDeletedCards(ctx, p.ID)
 		if err != nil {
 			return nil, err
 		}
@@ -61,9 +61,9 @@ type cardGetIn struct {
 	Card int64 `type:"card" desc:"Card id"`
 }
 
-func (a *App) cardGet(ctx context.Context, act registry.Actor, in cardGetIn) (any, error) {
+func (s *Service) cardGet(ctx context.Context, act registry.Actor, in cardGetIn) (any, error) {
 	var v cardView
-	err := a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+	err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		c, err := cardFor(ctx, q, act, in.Card, &boardWrite{})
 		if err != nil {
 			return err
@@ -94,16 +94,16 @@ type cardCreateIn struct {
 	Waits   []int64 `type:"card[]" opt:"" desc:"Cards this one waits for"`
 }
 
-func (a *App) cardCreate(ctx context.Context, act registry.Actor, in cardCreateIn) (any, error) {
+func (s *Service) cardCreate(ctx context.Context, act registry.Actor, in cardCreateIn) (any, error) {
 	if strings.TrimSpace(in.Title) == "" {
 		return nil, registry.Invalid("deck: a card needs a title")
 	}
-	p, err := access.Project(ctx, a.Store.Q, act, in.Project)
+	p, err := access.Project(ctx, s.St.Q, act, in.Project)
 	if err != nil {
 		return nil, err
 	}
 	var v cardView
-	err = a.writeBoard(ctx, act, func(ctx context.Context, q *db.Queries, w *boardWrite) error {
+	err = s.writeBoard(ctx, act, func(ctx context.Context, q *db.Queries, w *boardWrite) error {
 		w.p = p
 		if w.m, err = boardManifest(ctx, q, p); err != nil {
 			return err
@@ -140,9 +140,9 @@ type cardUpdateIn struct {
 	Waits  *[]int64 `type:"card[]" opt:"" desc:"All cards this one waits for; an empty list clears them"`
 }
 
-func (a *App) cardUpdate(ctx context.Context, act registry.Actor, in cardUpdateIn) (any, error) {
+func (s *Service) cardUpdate(ctx context.Context, act registry.Actor, in cardUpdateIn) (any, error) {
 	var v cardView
-	err := a.writeBoard(ctx, act, func(ctx context.Context, q *db.Queries, w *boardWrite) error {
+	err := s.writeBoard(ctx, act, func(ctx context.Context, q *db.Queries, w *boardWrite) error {
 		c, err := cardFor(ctx, q, act, in.Card, w)
 		if err != nil {
 			return err
@@ -184,9 +184,9 @@ type cardMoveIn struct {
 	Before int64  `type:"card" opt:"" desc:"Place before this card of the lane; the end when omitted"`
 }
 
-func (a *App) cardMove(ctx context.Context, act registry.Actor, in cardMoveIn) (any, error) {
+func (s *Service) cardMove(ctx context.Context, act registry.Actor, in cardMoveIn) (any, error) {
 	var v cardView
-	err := a.writeBoard(ctx, act, func(ctx context.Context, q *db.Queries, w *boardWrite) error {
+	err := s.writeBoard(ctx, act, func(ctx context.Context, q *db.Queries, w *boardWrite) error {
 		c, err := cardFor(ctx, q, act, in.Card, w)
 		if err != nil {
 			return err
@@ -213,12 +213,12 @@ type cardDeleteIn struct {
 	Card int64 `type:"card" desc:"Card id"`
 }
 
-func (a *App) cardDelete(ctx context.Context, act registry.Actor, in cardDeleteIn) (any, error) {
-	err := a.writeBoard(ctx, act, func(ctx context.Context, q *db.Queries, w *boardWrite) error {
+func (s *Service) cardDelete(ctx context.Context, act registry.Actor, in cardDeleteIn) (any, error) {
+	err := s.writeBoard(ctx, act, func(ctx context.Context, q *db.Queries, w *boardWrite) error {
 		if _, err := cardFor(ctx, q, act, in.Card, w); err != nil {
 			return err
 		}
-		_, err := q.DeleteCard(ctx, db.DeleteCardParams{DeletedAt: sql.NullString{String: store.Time(a.Cfg.Now()), Valid: true}, ID: in.Card})
+		_, err := q.DeleteCard(ctx, db.DeleteCardParams{DeletedAt: sql.NullString{String: store.Time(s.Now()), Valid: true}, ID: in.Card})
 		return err
 	})
 	if err != nil {
@@ -234,13 +234,13 @@ type cardTransferIn struct {
 
 // cardTransfer gives a card to another project: into its inbox lane, with its documents and files, without the
 // record, the run and the waits of the old project.
-func (a *App) cardTransfer(ctx context.Context, act registry.Actor, in cardTransferIn) (any, error) {
-	to, err := access.Project(ctx, a.Store.Q, act, in.Project)
+func (s *Service) cardTransfer(ctx context.Context, act registry.Actor, in cardTransferIn) (any, error) {
+	to, err := access.Project(ctx, s.St.Q, act, in.Project)
 	if err != nil {
 		return nil, err
 	}
 	var v cardView
-	err = a.writeBoard(ctx, act, func(ctx context.Context, q *db.Queries, w *boardWrite) error {
+	err = s.writeBoard(ctx, act, func(ctx context.Context, q *db.Queries, w *boardWrite) error {
 		c, err := cardFor(ctx, q, act, in.Card, w)
 		if err != nil {
 			return err
@@ -285,9 +285,9 @@ type cardRestoreIn struct {
 	Card int64 `type:"card" desc:"Card id"`
 }
 
-func (a *App) cardRestore(ctx context.Context, act registry.Actor, in cardRestoreIn) (any, error) {
+func (s *Service) cardRestore(ctx context.Context, act registry.Actor, in cardRestoreIn) (any, error) {
 	var v cardView
-	err := a.writeBoard(ctx, act, func(ctx context.Context, q *db.Queries, w *boardWrite) error {
+	err := s.writeBoard(ctx, act, func(ctx context.Context, q *db.Queries, w *boardWrite) error {
 		c, err := cardFor(ctx, q, act, in.Card, w)
 		if err != nil {
 			return err
@@ -306,31 +306,32 @@ func (a *App) cardRestore(ctx context.Context, act registry.Actor, in cardRestor
 	return v, err
 }
 
-func (a *App) cardCommands() []*registry.Command {
+// Commands are the commands of the boards.
+func (s *Service) Commands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("cards_list", "Board",
 			"Returns the board of a project: lanes in order with their cards by rank, and recently deleted cards when asked.",
-			registry.Everyone, a.cardsList),
+			registry.Everyone, s.cardsList),
 		registry.Def("card_get", "Get card",
 			"Returns one card with the cards it waits for.",
-			registry.Everyone, a.cardGet),
+			registry.Everyone, s.cardGet),
 		registry.Def("card_transfer", "Move card to another project",
 			"Moves a card into the inbox lane of another project, with its documents and files; its record, run and waits stay behind.",
-			registry.OwnerOnly, a.cardTransfer),
+			registry.OwnerOnly, s.cardTransfer),
 		registry.Def("card_create", "Create card",
 			"Creates a card at the end of a lane; without a lane it lands in the inbox lane.",
-			registry.Everyone, a.cardCreate),
+			registry.Everyone, s.cardCreate),
 		registry.Def("card_update", "Edit card",
 			"Changes the title, text, record or the cards a card waits for; omitted fields stay.",
-			registry.Everyone, a.cardUpdate),
+			registry.Everyone, s.cardUpdate),
 		registry.Def("card_move", "Move card",
 			"Moves a card to a lane, before another card or to the end; entering a lane starts its commands.",
-			registry.Everyone, a.cardMove),
+			registry.Everyone, s.cardMove),
 		registry.Def("card_delete", "Delete card",
 			"Deletes a card; it can be restored for a day.",
-			registry.Everyone, a.cardDelete),
+			registry.Everyone, s.cardDelete),
 		registry.Def("card_restore", "Restore card",
 			"Brings a deleted card back to its lane, or to the inbox lane when that lane is gone.",
-			registry.Everyone, a.cardRestore),
+			registry.Everyone, s.cardRestore),
 	}
 }

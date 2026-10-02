@@ -1,4 +1,5 @@
-package app
+// Package board keeps the cards of the boards of projects: lanes, order, waits, and the commands a lane starts.
+package board
 
 import (
 	"context"
@@ -8,11 +9,14 @@ import (
 	"log/slog"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"deck2/internal/docs"
+	"deck2/internal/events"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
+	"deck2/internal/store"
 	"deck2/internal/store/db"
 	"deck2/internal/trigger"
 )
@@ -37,6 +41,25 @@ func landing(m *manifest.Manifest) string {
 	return m.Board.Lanes[0].Name
 }
 
+// Service keeps the boards. Fire starts the command of a trigger with its input after the process parent; it
+// gives the process, or 0 when nothing started.
+type Service struct {
+	St   *store.Store
+	Bus  *events.Bus
+	Now  func() time.Time
+	Fire func(ctx context.Context, t db.Trigger, input map[string]any, parent int64) (int64, error)
+	// mu lets card writes take turns, so a later move never has its triggers started before an earlier one.
+	mu sync.Mutex
+}
+
+// Card is a card as the commands of the board give it.
+type Card = cardView
+
+// Waits are the cards each card of a project waits for.
+func Waits(ctx context.Context, q *db.Queries, projectID int64) (map[int64][]int64, error) {
+	return waitsOf(ctx, q, projectID)
+}
+
 // boardWrite is one card write: the project, its manifest, and the cards that entered a lane.
 type boardWrite struct {
 	p       db.Project
@@ -55,33 +78,33 @@ func (w *boardWrite) enter(card int64, lane string) { w.entered = append(w.enter
 
 // writeBoard runs a card write in one transaction, then starts the lane triggers of the lanes cards entered;
 // card writes take turns, so a later move never has its triggers started before an earlier one.
-func (a *App) writeBoard(ctx context.Context, act registry.Actor, f func(ctx context.Context, q *db.Queries, w *boardWrite) error) error {
-	a.boardMu.Lock()
-	defer a.boardMu.Unlock()
+func (s *Service) writeBoard(ctx context.Context, act registry.Actor, f func(ctx context.Context, q *db.Queries, w *boardWrite) error) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	w := &boardWrite{parent: act.ProcessID}
-	if err := a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error { return f(ctx, q, w) }); err != nil {
+	if err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error { return f(ctx, q, w) }); err != nil {
 		return err
 	}
-	a.Bus.Publish("board")
+	s.Bus.Publish("board")
 	for _, e := range w.entered {
-		a.laneTriggers(ctx, w.p, w.m, e.card, e.lane, w.parent)
+		s.laneTriggers(ctx, w.p, w.m, e.card, e.lane, w.parent)
 	}
 	return nil
 }
 
 // laneTriggers starts the commands of a lane for a card that entered it and links the last process to the
 // card; while a card's run is still going, the card entering the lane again does not start another.
-func (a *App) laneTriggers(ctx context.Context, p db.Project, m *manifest.Manifest, card int64, lane string, parent int64) {
+func (s *Service) laneTriggers(ctx context.Context, p db.Project, m *manifest.Manifest, card int64, lane string, parent int64) {
 	linked := false
 	defer func() {
 		if linked {
-			a.Bus.Publish("board")
+			s.Bus.Publish("board")
 		}
 	}()
 	if p.Paused == 1 {
 		return
 	}
-	rows, err := a.Store.Q.ListProjectTriggers(ctx, p.ID)
+	rows, err := s.St.Q.ListProjectTriggers(ctx, p.ID)
 	if err != nil {
 		slog.Error("lane triggers", "project", p.Name, "err", err)
 		return
@@ -96,14 +119,14 @@ func (a *App) laneTriggers(ctx context.Context, p db.Project, m *manifest.Manife
 		}
 		input := manifest.TriggerInput(t, card)
 		input[manifest.RetryKey] = fmt.Sprintf("trigger:%d:card:%d", row.ID, card)
-		id, err := a.fire(ctx, row, input, parent)
+		id, err := s.Fire(ctx, row, input, parent)
 		if err != nil || id == 0 {
 			if err != nil {
 				slog.Error("lane trigger", "project", p.Name, "command", t.Command, "card", card, "err", err)
 			}
 			continue
 		}
-		err = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 			return q.SetCardProcess(ctx, db.SetCardProcessParams{ProcessID: sql.NullInt64{Int64: id, Valid: true}, ID: card})
 		})
 		if err != nil {
@@ -220,8 +243,8 @@ func waitPath(graph map[int64][]int64, from, to int64) []int64 {
 	return walk(from)
 }
 
-// checkLanes refuses a manifest that drops a lane still holding cards.
-func checkLanes(ctx context.Context, q *db.Queries, p db.Project, next *manifest.Manifest) error {
+// CheckLanes refuses a manifest that drops a lane still holding cards.
+func CheckLanes(ctx context.Context, q *db.Queries, p db.Project, next *manifest.Manifest) error {
 	counts, err := q.CountLaneCards(ctx, p.ID)
 	if err != nil {
 		return err
@@ -238,11 +261,11 @@ func checkLanes(ctx context.Context, q *db.Queries, p db.Project, next *manifest
 	return nil
 }
 
-// purgeCards removes cards deleted longer ago than cardRetention, with their documents.
-func (a *App) purgeCards(ctx context.Context, now time.Time) {
+// Purge removes cards deleted longer ago than cardRetention, with their documents.
+func (s *Service) Purge(ctx context.Context, now time.Time) {
 	before := now.Add(-cardRetention).UTC().Format("2006-01-02T15:04:05.000Z")
 	var n int64
-	err := a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+	err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		var err error
 		n, err = q.PurgeCards(ctx, sql.NullString{String: before, Valid: true})
 		return err
@@ -252,6 +275,6 @@ func (a *App) purgeCards(ctx context.Context, now time.Time) {
 		return
 	}
 	if n > 0 {
-		a.Bus.Publish("board")
+		s.Bus.Publish("board")
 	}
 }

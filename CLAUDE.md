@@ -32,7 +32,7 @@ Stage 1 plan: `docs/plan-stage1.md`.
   `registry.Read` declares a command that only reads, with its result schema from the Go type and `On` its event topic
 - `internal/docs` — documents with revisions, skill files, the manifest reader with its parse cache
 - `internal/app` — wiring, builtin `deck.*` commands (each `*_handlers.go` lists its own next to the handlers),
-  projects, cards and board; who may touch what is `app/access`; `app/records` — records of collections;
+  projects; `app/board` — cards and boards; who may touch what is `app/access`; `app/records` — records of collections;
   a screen block reads a `registry.Read` command (`"from": "deck.asks_list"`), called as the viewer in
   `app/screens.go`; `app/screens` — boards, forms, documents and the buttons of deck's rows (`buttons.go`);
   deck's screens are data in `screens.json`: menu Cockpit, Schedule, Settings (tabs Projects, Providers, Secrets,

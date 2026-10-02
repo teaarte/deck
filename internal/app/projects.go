@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"regexp"
 
+	"deck2/internal/app/board"
 	"deck2/internal/docs"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
@@ -148,7 +149,7 @@ func (a *App) SaveManifest(ctx context.Context, act registry.Actor, p db.Project
 		if err := checkRecords(ctx, q, p, pm.m, plan); err != nil {
 			return err
 		}
-		if err := checkLanes(ctx, q, p, pm.m); err != nil {
+		if err := board.CheckLanes(ctx, q, p, pm.m); err != nil {
 			return err
 		}
 		ref := docs.Ref{Scope: docs.ProjectScope(p), Name: docs.ManifestName}

@@ -93,8 +93,8 @@ RETURNING id;
 
 
 -- name: LogToolCall :one
-INSERT INTO tool_call (workspace_id, process_id, project_id, actor, tool, class, outcome, params, error, ask_id)
-VALUES (sqlc.arg(workspace_id), sqlc.arg(process_id), sqlc.arg(project_id), sqlc.arg(actor), sqlc.arg(tool), sqlc.arg(class),
+INSERT INTO tool_call (workspace_id, process_id, project_id, actor, caller, tool, class, outcome, params, error, ask_id)
+VALUES (sqlc.arg(workspace_id), sqlc.arg(process_id), sqlc.arg(project_id), sqlc.arg(actor), sqlc.arg(caller), sqlc.arg(tool), sqlc.arg(class),
     sqlc.arg(outcome), sqlc.arg(params), sqlc.arg(error), sqlc.narg(ask_id)) RETURNING id;
 
 

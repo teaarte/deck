@@ -313,7 +313,7 @@ func (g *Gateway) Journal(ctx context.Context, act registry.Actor, project int64
 func (g *Gateway) journal(ctx context.Context, act registry.Actor, project int64, tool, class, outcome, params, errText string) {
 	_ = g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		_, err := q.LogToolCall(ctx, db.LogToolCallParams{WorkspaceID: act.Workspace, ProcessID: act.ProcessID, ProjectID: project, Actor: act.Author(),
-			Tool: tool, Class: class, Outcome: outcome, Params: params, Error: errText})
+			Caller: frozenCaller(act), Tool: tool, Class: class, Outcome: outcome, Params: params, Error: errText})
 		return err
 	})
 }

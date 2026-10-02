@@ -341,7 +341,7 @@ func (q *Queries) GetProcess(ctx context.Context, id int64) (Process, error) {
 }
 
 const getToolCall = `-- name: GetToolCall :one
-SELECT id, process_id, project_id, tool, class, outcome, params, created_at, actor, external_id, error, ask_id, workspace_id FROM tool_call WHERE id = ?
+SELECT id, process_id, project_id, tool, class, outcome, params, created_at, actor, external_id, error, ask_id, workspace_id, caller FROM tool_call WHERE id = ?
 `
 
 func (q *Queries) GetToolCall(ctx context.Context, id int64) (ToolCall, error) {
@@ -361,6 +361,7 @@ func (q *Queries) GetToolCall(ctx context.Context, id int64) (ToolCall, error) {
 		&i.Error,
 		&i.AskID,
 		&i.WorkspaceID,
+		&i.Caller,
 	)
 	return i, err
 }
@@ -720,7 +721,7 @@ func (q *Queries) ListProjectProcessIDs(ctx context.Context, projectID int64) ([
 }
 
 const listToolCalls = `-- name: ListToolCalls :many
-SELECT id, process_id, project_id, tool, class, outcome, params, created_at, actor, external_id, error, ask_id, workspace_id FROM tool_call WHERE process_id = ? ORDER BY id
+SELECT id, process_id, project_id, tool, class, outcome, params, created_at, actor, external_id, error, ask_id, workspace_id, caller FROM tool_call WHERE process_id = ? ORDER BY id
 `
 
 func (q *Queries) ListToolCalls(ctx context.Context, processID int64) ([]ToolCall, error) {
@@ -746,6 +747,7 @@ func (q *Queries) ListToolCalls(ctx context.Context, processID int64) ([]ToolCal
 			&i.Error,
 			&i.AskID,
 			&i.WorkspaceID,
+			&i.Caller,
 		); err != nil {
 			return nil, err
 		}
@@ -879,7 +881,7 @@ func (q *Queries) ListWaitingForSlot(ctx context.Context, workspaceID int64) ([]
 }
 
 const listWorkspaceToolCalls = `-- name: ListWorkspaceToolCalls :many
-SELECT id, process_id, project_id, tool, class, outcome, params, created_at, actor, external_id, error, ask_id, workspace_id FROM tool_call
+SELECT id, process_id, project_id, tool, class, outcome, params, created_at, actor, external_id, error, ask_id, workspace_id, caller FROM tool_call
 WHERE workspace_id = ?1
   AND (?2 = 0 OR project_id = ?2)
   AND (CAST(?3 AS TEXT) = '' OR outcome = ?3)
@@ -921,6 +923,7 @@ func (q *Queries) ListWorkspaceToolCalls(ctx context.Context, arg ListWorkspaceT
 			&i.Error,
 			&i.AskID,
 			&i.WorkspaceID,
+			&i.Caller,
 		); err != nil {
 			return nil, err
 		}
@@ -936,9 +939,9 @@ func (q *Queries) ListWorkspaceToolCalls(ctx context.Context, arg ListWorkspaceT
 }
 
 const logToolCall = `-- name: LogToolCall :one
-INSERT INTO tool_call (workspace_id, process_id, project_id, actor, tool, class, outcome, params, error, ask_id)
-VALUES (?1, ?2, ?3, ?4, ?5, ?6,
-    ?7, ?8, ?9, ?10) RETURNING id
+INSERT INTO tool_call (workspace_id, process_id, project_id, actor, caller, tool, class, outcome, params, error, ask_id)
+VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7,
+    ?8, ?9, ?10, ?11) RETURNING id
 `
 
 type LogToolCallParams struct {
@@ -946,6 +949,7 @@ type LogToolCallParams struct {
 	ProcessID   int64
 	ProjectID   int64
 	Actor       string
+	Caller      string
 	Tool        string
 	Class       string
 	Outcome     string
@@ -960,6 +964,7 @@ func (q *Queries) LogToolCall(ctx context.Context, arg LogToolCallParams) (int64
 		arg.ProcessID,
 		arg.ProjectID,
 		arg.Actor,
+		arg.Caller,
 		arg.Tool,
 		arg.Class,
 		arg.Outcome,
@@ -1219,7 +1224,7 @@ func (q *Queries) StartProcessSession(ctx context.Context, arg StartProcessSessi
 }
 
 const startedToolCalls = `-- name: StartedToolCalls :many
-SELECT id, process_id, project_id, tool, class, outcome, params, created_at, actor, external_id, error, ask_id, workspace_id FROM tool_call WHERE outcome = 'started' ORDER BY id
+SELECT id, process_id, project_id, tool, class, outcome, params, created_at, actor, external_id, error, ask_id, workspace_id, caller FROM tool_call WHERE outcome = 'started' ORDER BY id
 `
 
 func (q *Queries) StartedToolCalls(ctx context.Context) ([]ToolCall, error) {
@@ -1245,6 +1250,7 @@ func (q *Queries) StartedToolCalls(ctx context.Context) ([]ToolCall, error) {
 			&i.Error,
 			&i.AskID,
 			&i.WorkspaceID,
+			&i.Caller,
 		); err != nil {
 			return nil, err
 		}

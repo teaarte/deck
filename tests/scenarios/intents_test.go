@@ -215,3 +215,37 @@ func TestAnAllowedCallCutOffByARestartBecomesAnUnknownOutcome(t *testing.T) {
 		t.Fatalf("a call cut off after yes and before it was sent is an unknown outcome for the owner: %+v", got)
 	}
 }
+
+// TestUnknownOutcomeKeepsItsCaller: a lost call of an automation token comes back as the token's, so a retry
+// is journaled under it and its command list still applies.
+func TestUnknownOutcomeKeepsItsCaller(t *testing.T) {
+	svc, release := hangingService(t, 1)
+	defer release(0)
+	home := t.TempDir()
+	clock := &Clock{now: t0}
+	e := newEnvWith(t, home, &Fake{}, withClock(clock))
+	e.Clock = clock
+	e.createProject("clips", generateManifest(svc.URL))
+	tid, tok := e.token("shortcuts", "clips.*")
+	go func() {
+		req, _ := http.NewRequest("POST", e.URL+"/api/commands/clips.generate", strings.NewReader(`{"topic": "owls"}`))
+		req.Header.Set("Authorization", "Bearer "+tok)
+		if r, err := http.DefaultClient.Do(req); err == nil {
+			r.Body.Close()
+		}
+	}()
+	e.waitFor("the call reaches the service", func() bool { return len(svc.requests()) == 1 })
+	e2 := restart(t, e, home, &Fake{})
+	a := e2.waitAsk()
+	var frozen struct {
+		Caller struct {
+			Kind     string
+			Token    int64
+			Commands []string
+		}
+	}
+	_ = json.Unmarshal(a.Payload, &frozen)
+	if a.Kind != "unknown" || frozen.Caller.Kind != "master" || frozen.Caller.Token != tid || len(frozen.Caller.Commands) != 1 {
+		t.Fatalf("the unknown outcome is the token's, not the owner's: %+v %s", a, a.Payload)
+	}
+}

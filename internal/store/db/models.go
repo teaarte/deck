@@ -276,6 +276,7 @@ type ToolCall struct {
 	Error       string
 	AskID       sql.NullInt64
 	WorkspaceID int64
+	Caller      string
 }
 
 type TriggerState struct {

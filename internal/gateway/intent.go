@@ -34,7 +34,7 @@ func (g *Gateway) Intent(ctx context.Context, act registry.Actor, project int64,
 			}
 			return err
 		}
-		id, err = q.LogToolCall(ctx, db.LogToolCallParams{WorkspaceID: act.Workspace, ProcessID: act.ProcessID, ProjectID: project, Actor: act.Author(), Tool: tool,
+		id, err = q.LogToolCall(ctx, db.LogToolCallParams{WorkspaceID: act.Workspace, ProcessID: act.ProcessID, ProjectID: project, Actor: act.Author(), Caller: frozenCaller(act), Tool: tool,
 			Class: registry.External, Outcome: "started", Params: p})
 		return err
 	})
@@ -84,13 +84,11 @@ func (g *Gateway) LostAt(ctx context.Context, id int64, tool string) {
 		if err != nil {
 			return err
 		}
-		act := registry.Actor{Kind: registry.Owner, Workspace: p.WorkspaceID}
-		if c.ProcessID != 0 {
-			act = registry.Actor{Kind: registry.Agent, Workspace: p.WorkspaceID, ProjectID: p.ID, ProcessID: c.ProcessID}
-			if pr, err := q.GetProcess(ctx, c.ProcessID); err == nil && c.Actor == registry.Master {
-				act = registry.Actor{Kind: registry.Master, Workspace: p.WorkspaceID, ProjectID: pr.ProjectID, ProcessID: c.ProcessID}
-			}
+		var caller Caller
+		if err := json.Unmarshal([]byte(c.Caller), &caller); err != nil {
+			return fmt.Errorf("the caller of tool call %d: %w", id, err)
 		}
+		act := caller.actor()
 		text := fmt.Sprintf("Outcome unknown: %s with %s. deck stopped or lost the connection while making this call; "+
 			"check the other side, then retry it or count it as done.", c.Tool, untrusted.Cut(c.Params, 500))
 		a, err := q.CreateCallAsk(ctx, db.CreateCallAskParams{ProcessID: sql.NullInt64{Int64: c.ProcessID, Valid: c.ProcessID != 0},

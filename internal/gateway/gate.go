@@ -41,6 +41,12 @@ func freeze(a registry.Actor) Caller {
 	return Caller{Kind: a.Kind, Workspace: a.Workspace, Project: a.ProjectID, Process: a.ProcessID, Trigger: a.TriggerID, Token: a.Token, Commands: a.Commands}
 }
 
+// frozenCaller is the actor of a call as the journal keeps it.
+func frozenCaller(a registry.Actor) string {
+	b, _ := json.Marshal(freeze(a))
+	return string(b)
+}
+
 func (c Caller) actor() registry.Actor {
 	return registry.Actor{Kind: c.Kind, Workspace: c.Workspace, ProjectID: c.Project, ProcessID: c.Process,
 		TriggerID: c.Trigger, Confirmed: c.Trigger != 0, Token: c.Token, Commands: c.Commands}
@@ -170,7 +176,7 @@ func (g *Gateway) hold(ctx context.Context, act registry.Actor, c *registry.Comm
 		if err != nil {
 			return err
 		}
-		_, err = q.LogToolCall(ctx, db.LogToolCallParams{WorkspaceID: act.Workspace, ProcessID: act.ProcessID, ProjectID: project, Actor: act.Author(), Tool: c.Name,
+		_, err = q.LogToolCall(ctx, db.LogToolCallParams{WorkspaceID: act.Workspace, ProcessID: act.ProcessID, ProjectID: project, Actor: act.Author(), Caller: frozenCaller(act), Tool: c.Name,
 			Class: c.Class, Outcome: "waiting", Params: Canonical(input), AskID: sql.NullInt64{Int64: a.ID, Valid: true}})
 		return err
 	})

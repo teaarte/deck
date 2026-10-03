@@ -1,9 +1,9 @@
 import { useRef, useState } from 'react';
 import type { ComponentContext } from '@a2ui/web_core/v0_9';
-import { Button, Chip, Code, Group, Modal, Select, Stack, Text, TextInput } from '@mantine/core';
+import { ActionIcon, Button, Chip, Code, Group, Menu, Modal, Select, Stack, Text, TextInput } from '@mantine/core';
 import { useInterval } from '@mantine/hooks';
 import { IconArchive, IconArrowBackUp, IconArrowUpRight, IconCheck, IconDownload, IconLogin, IconMessage, IconPlayerPause,
-  IconPlayerPlay, IconPlayerStop, IconRefresh, IconSend, IconSettings, IconTrash, IconX, type Icon } from '@tabler/icons-react';
+  IconDots, IconPlayerPlay, IconPlayerStop, IconRefresh, IconSend, IconSettings, IconTrash, IconX, type Icon } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { notifications } from '@mantine/notifications';
 import { download } from './api';
@@ -38,7 +38,7 @@ const verbIcon = (act: Action) => {
   return I ? <I size={14} stroke={2} /> : undefined;
 };
 
-function ActionButton({ act, context, params, onDone, before }: { act: Action; context: ComponentContext; params?: Record<string, unknown>; onDone?: () => void; before?: Before }) {
+function ActionButton({ act, context, params, onDone, before, inMenu }: { act: Action; context: ComponentContext; params?: Record<string, unknown>; onDone?: () => void; before?: Before; inMenu?: boolean }) {
   const { t } = useTranslation();
   const [busy, setBusy] = useState(false);
   const running = useRef(false);
@@ -83,7 +83,7 @@ function ActionButton({ act, context, params, onDone, before }: { act: Action; c
   };
   if (act.input && !params) {
     if (!typing) {
-      return <Button size="xs" variant={act.primary ? 'filled' : 'default'} leftSection={verbIcon(act)} data-verb={act.verb} onClick={() => setTyping(true)}>{label}</Button>;
+      return <Button size="xs" variant={inMenu ? 'subtle' : act.primary ? 'filled' : 'default'} justify={inMenu ? 'flex-start' : undefined} fullWidth={inMenu} leftSection={verbIcon(act)} data-verb={act.verb} onClick={() => setTyping(true)}>{label}</Button>;
     }
     return (
       <Group gap="xs" wrap="nowrap">
@@ -101,7 +101,8 @@ function ActionButton({ act, context, params, onDone, before }: { act: Action; c
     );
   }
   const button = (
-    <Button size="xs" variant={act.primary ? 'filled' : 'default'} loading={busy} data-verb={act.verb} leftSection={verbIcon(act)}
+    <Button size="xs" variant={inMenu ? 'subtle' : act.primary ? 'filled' : 'default'} justify={inMenu ? 'flex-start' : undefined} fullWidth={inMenu}
+      color={inMenu && ['delete', 'remove', 'revoke'].includes(act.verb ?? '') ? 'red' : undefined} loading={busy} data-verb={act.verb} leftSection={verbIcon(act)}
       onClick={() => (act.confirm ? setAsking(true) : void send())}>{label}</Button>
   );
   if (!act.confirm) return button;
@@ -162,12 +163,33 @@ function offerUndo(undo: Action, label: string, context: ComponentContext) {
   });
 }
 
-// Actions are the buttons of an item; before runs ahead of each call, onDone after one went through.
-export function Actions({ actions, context, onDone, before }: { actions?: Action[]; context: ComponentContext; onDone?: () => void; before?: Before }) {
+// Actions are the buttons of an item, the primary first; past max the rest wait in a menu. before runs ahead of
+// each call, onDone after one went through.
+export function Actions({ actions, context, onDone, before, max = 3 }: { actions?: Action[]; context: ComponentContext; onDone?: () => void; before?: Before; max?: number }) {
+  const { t } = useTranslation();
   const now = useNow();
   const shown = (actions ?? []).filter((a) => !a.until || Date.parse(a.until) > now);
   if (!shown.length) return null;
-  return <Group gap="xs">{shown.map((a, i) => <ActionButton key={i} act={a} context={context} onDone={onDone} before={before} />)}</Group>;
+  const sorted = [...shown.filter((a) => a.primary), ...shown.filter((a) => !a.primary)];
+  const cut = sorted.length > max ? max - 1 : sorted.length;
+  const rest = sorted.slice(cut);
+  return (
+    <Group gap={6} wrap="wrap" data-actions>
+      {sorted.slice(0, cut).map((a, i) => <ActionButton key={i} act={a} context={context} onDone={onDone} before={before} />)}
+      {rest.length > 0 && (
+        <Menu position="bottom-end" keepMounted closeOnItemClick={false} withinPortal shadow="md" radius="md">
+          <Menu.Target>
+            <ActionIcon variant="default" size={30} radius="md" aria-label={t('actions.more')} data-more><IconDots size={16} /></ActionIcon>
+          </Menu.Target>
+          <Menu.Dropdown p={4} miw={180}>
+            <Stack gap={2}>
+              {rest.map((a, i) => <ActionButton key={i} act={a} context={context} onDone={onDone} before={before} inMenu />)}
+            </Stack>
+          </Menu.Dropdown>
+        </Menu>
+      )}
+    </Group>
+  );
 }
 
 export function QuestionPicker({ questions, act, context }: { questions: Question[]; act?: Action; context: ComponentContext }) {

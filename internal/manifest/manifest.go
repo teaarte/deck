@@ -250,6 +250,8 @@ type Block struct {
 	ActionsFrom string  `json:"actions_from,omitempty"`
 	Blocks      []Block `json:"blocks,omitempty"`
 	Tabs        []Tab   `json:"tabs,omitempty"`
+	// Span is how many cells of the grid of the screen the block takes: 1, 2 or "full".
+	Span any `json:"span,omitempty"`
 	// Name opens a dialog from the address of its screen; Primary paints its button in the accent.
 	Name    string `json:"name,omitempty"`
 	Primary bool   `json:"primary,omitempty"`
@@ -284,6 +286,8 @@ type Item struct {
 	Title string `json:"title"`
 	Text  string `json:"text,omitempty"`
 	Meta  string `json:"meta,omitempty"`
+	// Icon is an expression giving the icon of a line.
+	Icon string `json:"icon,omitempty"`
 	// Details is text shown in full on demand; Questions are questions the owner answers in a picker.
 	Details   string `json:"details,omitempty"`
 	Questions string `json:"questions,omitempty"`
@@ -297,6 +301,7 @@ type Item struct {
 
 type Tab struct {
 	Title  string  `json:"title"`
+	Icon   string  `json:"icon,omitempty"`
 	Blocks []Block `json:"blocks"`
 }
 

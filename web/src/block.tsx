@@ -42,7 +42,9 @@ function Filters({ filters, context }: { filters?: Filter[]; context?: Component
   );
 }
 
-export function Block({ title, icon, data, context, children }: { title?: string; icon?: string; data?: Data; context?: ComponentContext; children: (d: Data) => ReactNode }) {
+export type Span = 1 | 2 | 'full';
+
+export function Block({ title, icon, span, data, context, children }: { title?: string; icon?: string; span?: Span; data?: Data; context?: ComponentContext; children: (d: Data) => ReactNode }) {
   const { t } = useTranslation();
   const old = useStale();
   let body: ReactNode;
@@ -58,7 +60,7 @@ export function Block({ title, icon, data, context, children }: { title?: string
   }
   else body = children(data);
   return (
-    <Card padding="lg" className={s.block} data-block>
+    <Card padding="lg" className={s.block} data-block data-span={String(span ?? 1)}>
       <Stack gap="sm">
         {(title || old) && (
           <Group justify="space-between">

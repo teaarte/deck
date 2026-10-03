@@ -129,7 +129,7 @@ func resolve(ctx context.Context, st *store.Store, src Sources, req Request) (*r
 		root["icon"] = req.Screen.Icon
 	}
 	r.comps = []map[string]any{root}
-	root["children"] = r.blocks("b", req.Screen.Blocks)
+	root["children"], root["dialogs"] = r.split(r.blocks("b", req.Screen.Blocks))
 	return r, nil
 }
 

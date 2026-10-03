@@ -190,6 +190,7 @@ export interface Data {
     title: string;
     text?: string;
     meta?: string;
+    icon?: string;
     details?: string;
     /**
      * text is markdown

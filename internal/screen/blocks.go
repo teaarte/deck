@@ -74,6 +74,7 @@ func (r *renderer) block(id string, b manifest.Block) {
 	if b.Icon != "" {
 		comp["icon"] = b.Icon
 	}
+	comp["span"] = span(b)
 	r.comps = append(r.comps, comp)
 	switch b.Type {
 	case "columns":
@@ -86,13 +87,15 @@ func (r *renderer) block(id string, b manifest.Block) {
 		}
 		return
 	case "tabs":
-		titles, children := []string{}, []string{}
+		titles, icons, children := []string{}, []string{}, []string{}
 		for j, t := range b.Tabs {
 			tid := fmt.Sprintf("%s-%d", id, j)
-			titles, children = append(titles, t.Title), append(children, tid)
-			r.comps = append(r.comps, map[string]any{"id": tid, "component": "screen", "children": r.blocks(tid+"-", t.Blocks)})
+			titles, icons, children = append(titles, t.Title), append(icons, t.Icon), append(children, tid)
+			panel := map[string]any{"id": tid, "component": "screen"}
+			r.comps = append(r.comps, panel)
+			panel["children"], panel["dialogs"] = r.split(r.blocks(tid+"-", t.Blocks))
 		}
-		comp["titles"], comp["children"] = titles, children
+		comp["titles"], comp["icons"], comp["children"] = titles, icons, children
 		return
 	case "table":
 		cols := make([]map[string]any, 0, len(b.Columns))
@@ -117,6 +120,40 @@ func (r *renderer) block(id string, b manifest.Block) {
 		return
 	}
 	r.data[id] = value
+}
+
+// wide are the blocks that take the whole width of the screen unless their span says otherwise.
+var wide = []string{"table", "board", "form", "document", "log", "chat", "custom", "tabs", "columns", "appearance"}
+
+// span is the cells of the grid of the screen a block takes: its own, or by its type.
+func span(b manifest.Block) any {
+	switch v := b.Span.(type) {
+	case float64:
+		return int(v)
+	case string:
+		return v
+	}
+	if slices.Contains(wide, b.Type) {
+		return "full"
+	}
+	return 1
+}
+
+// split puts the dialogs of a screen apart from its blocks: their buttons stand beside its title.
+func (r *renderer) split(ids []string) (blocks, dialogs []string) {
+	kind := map[string]any{}
+	for _, c := range r.comps {
+		kind[fmt.Sprint(c["id"])] = c["component"]
+	}
+	blocks, dialogs = []string{}, []string{}
+	for _, id := range ids {
+		if kind[id] == "dialog" {
+			dialogs = append(dialogs, id)
+		} else {
+			blocks = append(blocks, id)
+		}
+	}
+	return blocks, dialogs
 }
 
 // file is a line of a media block: the file it names, or why there is none.
@@ -381,7 +418,7 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 				line["markdown"] = true
 			}
 			setTone(line, b.Item.Tone, it)
-			for key, e := range map[string]string{"title": b.Item.Title, "text": b.Item.Text, "meta": b.Item.Meta} {
+			for key, e := range map[string]string{"title": b.Item.Title, "text": b.Item.Text, "meta": b.Item.Meta, "icon": b.Item.Icon} {
 				if e == "" {
 					continue
 				}

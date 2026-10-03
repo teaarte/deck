@@ -33,13 +33,13 @@ function prepare(msgs: Message[]): Message[] {
   });
 }
 
-// summary is the line a command result shows as: a started process, a text, or its JSON cut short.
+// summary is the line a command result shows as: a started process, its result or text, or done.
 function summary(out: unknown): string {
   if (out && typeof out === 'object') {
     const o = out as Record<string, unknown>;
     if (typeof o.process === 'number') return i18n.t('started', { id: o.process });
     const rest = Object.fromEntries(Object.entries(o).filter(([k]) => k !== 'ok'));
-    const shown = 'result' in rest ? rest.result : Object.keys(rest).length ? rest : undefined;
+    const shown = 'result' in rest ? rest.result : typeof rest.text === 'string' ? rest.text : undefined;
     if (shown === undefined || shown === null) return i18n.t('done');
     if (typeof shown === 'string') return shown;
     const text = JSON.stringify(shown);

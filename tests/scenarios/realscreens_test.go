@@ -196,7 +196,9 @@ func TestRealBrowserSettings(t *testing.T) {
 	if got := b.eval(`String(document.querySelector('nav').innerText.toLowerCase().includes('notes'))`); got != "true" {
 		t.Fatalf("the project is in the menu before the delete: %s", got)
 	}
-	b.eval(`([...document.querySelectorAll('[data-item]')].find((x) => x.offsetParent && x.innerText.includes('notes · enabled')).querySelector('[data-verb="delete"]').click(), '')`)
+	b.eval(`([...document.querySelectorAll('[data-item]')].find((x) => x.offsetParent && x.innerText.includes('notes · enabled')).querySelector('[data-more]').click(), '')`)
+	b.until("the more menu of the row", `document.querySelector('[data-more][aria-expanded="true"]')`)
+	b.eval(`(document.getElementById(document.querySelector('[data-more][aria-expanded="true"]').getAttribute('aria-controls')).querySelector('[data-verb="delete"]').click(), '')`)
 	b.until("the owner asked before the delete", `document.querySelector('[data-confirm]')?.innerText.includes('notes')`)
 	var still []projectV
 	e.projectsOf(&still)

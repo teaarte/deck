@@ -12,7 +12,9 @@
       "properties": {
         "title": {"type": "string"},
         "icon": {"type": "string"},
-        "children": {"$ref": "common_types.json#/$defs/ChildList"}
+        "span": {"enum": [1, 2, "full"]},
+        "children": {"$ref": "common_types.json#/$defs/ChildList"},
+        "dialogs": {"$ref": "common_types.json#/$defs/ChildList", "description": "The dialogs of the screen, their buttons beside its title."}
       }
     },
     "columns": {
@@ -24,6 +26,7 @@
       "properties": {
         "title": {"type": "string"},
         "icon": {"type": "string"},
+        "span": {"enum": [1, 2, "full"]},
         "children": {"$ref": "common_types.json#/$defs/ChildList"}
       }
     },
@@ -36,6 +39,7 @@
       "properties": {
         "title": {"type": "string"},
         "icon": {"type": "string"},
+        "span": {"enum": [1, 2, "full"]},
         "name": {"type": "string"},
         "primary": {"type": "boolean"},
         "children": {"$ref": "common_types.json#/$defs/ChildList"}
@@ -43,14 +47,16 @@
     },
     "tabs": {
       "description": "Blocks in tabs.",
-      "block": {"description": "Holds its tabs in tabs, each with a title and at least one block; nothing else.", "required": ["tabs"], "properties": {"tabs": {"type": "array", "minItems": 1, "items": {"type": "object", "additionalProperties": false, "required": ["title", "blocks"], "properties": {"title": {"type": "string", "minLength": 1}, "blocks": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/block"}}}}}}},
+      "block": {"description": "Holds its tabs in tabs, each with a title and at least one block; nothing else.", "required": ["tabs"], "properties": {"tabs": {"type": "array", "minItems": 1, "items": {"type": "object", "additionalProperties": false, "required": ["title", "blocks"], "properties": {"title": {"type": "string", "minLength": 1}, "icon": {"$ref": "#/$defs/icon"}, "blocks": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/block"}}}}}}},
       "type": "object",
       "additionalProperties": false,
       "required": ["titles", "children"],
       "properties": {
         "title": {"type": "string"},
         "icon": {"type": "string"},
+        "span": {"enum": [1, 2, "full"]},
         "titles": {"type": "array", "items": {"type": "string"}},
+        "icons": {"type": "array", "items": {"type": "string"}, "description": "The icon of each tab, empty for none."},
         "children": {"$ref": "common_types.json#/$defs/ChildList"}
       }
     },
@@ -63,19 +69,21 @@
       "properties": {
         "title": {"type": "string"},
         "icon": {"type": "string"},
+        "span": {"enum": [1, 2, "full"]},
         "columns": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["label"], "properties": {"label": {"type": "string"}, "format": {"type": "string"}, "currency": {"type": "string"}}}},
         "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "rows: [{id, cells, actions}]"}
       }
     },
     "list": {
       "description": "Lines of a source.",
-      "block": {"description": "Needs source and item, whose title, text and meta are expressions over each item; filter and actions are optional.", "required": ["source", "item"], "properties": {"source": {"$ref": "#/$defs/source"}, "item": {"type": "object", "additionalProperties": false, "required": ["title"], "description": "Expressions of each line; details is text shown in full on demand, questions what the owner answers in a picker; markdown says the text is markdown.", "properties": {"title": {"type": "string"}, "text": {"type": "string"}, "meta": {"type": "string"}, "details": {"type": "string"}, "questions": {"type": "string"}, "markdown": {"type": "boolean"}, "tone": {"$ref": "#/$defs/tone"}}}, "filter": {"$ref": "#/$defs/filter"}, "actions": {"$ref": "#/$defs/actions"}, "actions_from": {"$ref": "#/$defs/actions_from"}, "empty": {"$ref": "#/$defs/empty"}}},
+      "block": {"description": "Needs source and item, whose title, text and meta are expressions over each item; filter and actions are optional.", "required": ["source", "item"], "properties": {"source": {"$ref": "#/$defs/source"}, "item": {"type": "object", "additionalProperties": false, "required": ["title"], "description": "Expressions of each line; details is text shown in full on demand, questions what the owner answers in a picker; markdown says the text is markdown.", "properties": {"title": {"type": "string"}, "text": {"type": "string"}, "meta": {"type": "string"}, "icon": {"type": "string", "description": "Expression giving the name of a Tabler icon of the line."}, "details": {"type": "string"}, "questions": {"type": "string"}, "markdown": {"type": "boolean"}, "tone": {"$ref": "#/$defs/tone"}}}, "filter": {"$ref": "#/$defs/filter"}, "actions": {"$ref": "#/$defs/actions"}, "actions_from": {"$ref": "#/$defs/actions_from"}, "empty": {"$ref": "#/$defs/empty"}}},
       "type": "object",
       "additionalProperties": false,
       "required": ["data"],
       "properties": {
         "title": {"type": "string"},
         "icon": {"type": "string"},
+        "span": {"enum": [1, 2, "full"]},
         "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "items: [{id, title, text, meta, details, questions, actions}]"}
       }
     },
@@ -88,6 +96,7 @@
       "properties": {
         "title": {"type": "string"},
         "icon": {"type": "string"},
+        "span": {"enum": [1, 2, "full"]},
         "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "value: {fields: [{label, value}], actions}"}
       }
     },
@@ -100,6 +109,7 @@
       "properties": {
         "title": {"type": "string"},
         "icon": {"type": "string"},
+        "span": {"enum": [1, 2, "full"]},
         "format": {"type": "string"},
         "currency": {"type": "string"},
         "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "value: a number or a text"}
@@ -119,6 +129,7 @@
       "properties": {
         "title": {"type": "string"},
         "icon": {"type": "string"},
+        "span": {"enum": [1, 2, "full"]},
         "kind": {"type": "string"},
         "format": {"type": "string"},
         "currency": {"type": "string"},
@@ -137,6 +148,7 @@
       "properties": {
         "title": {"type": "string"},
         "icon": {"type": "string"},
+        "span": {"enum": [1, 2, "full"]},
         "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "files: [{id, title, name, type, size, url} or {id, title, error}]"}
       }
     },
@@ -149,6 +161,7 @@
       "properties": {
         "title": {"type": "string"},
         "icon": {"type": "string"},
+        "span": {"enum": [1, 2, "full"]},
         "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "value: the buttons, with the record of the page in their params"}
       }
     },
@@ -161,6 +174,7 @@
       "properties": {
         "title": {"type": "string"},
         "icon": {"type": "string"},
+        "span": {"enum": [1, 2, "full"]},
         "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "lines: [{at, kind, id, title, status, text}]"}
       }
     },
@@ -173,6 +187,7 @@
       "properties": {
         "title": {"type": "string"},
         "icon": {"type": "string"},
+        "span": {"enum": [1, 2, "full"]},
         "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "value: {project, lanes: [{name, title, role, cards: [{id, title, text, waits, record}]}], deleted: [{id, title}]}"}
       }
     },
@@ -185,6 +200,7 @@
       "properties": {
         "title": {"type": "string"},
         "icon": {"type": "string"},
+        "span": {"enum": [1, 2, "full"]},
         "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "value: {commands: [{name, title, project, input, result}], values, readonly, record, save}"}
       }
     },
@@ -197,6 +213,7 @@
       "properties": {
         "title": {"type": "string"},
         "icon": {"type": "string"},
+        "span": {"enum": [1, 2, "full"]},
         "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "the client keeps the look; the data is only its state"}
       }
     },
@@ -209,6 +226,7 @@
       "properties": {
         "title": {"type": "string"},
         "icon": {"type": "string"},
+        "span": {"enum": [1, 2, "full"]},
         "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "value: {id, project, name, kind, text, revision, editable, record, card, revisions}"}
       }
     },
@@ -221,6 +239,7 @@
       "properties": {
         "title": {"type": "string"},
         "icon": {"type": "string"},
+        "span": {"enum": [1, 2, "full"]},
         "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "value: {html, items, record, actions}"}
       }
     },
@@ -233,6 +252,7 @@
       "properties": {
         "title": {"type": "string"},
         "icon": {"type": "string"},
+        "span": {"enum": [1, 2, "full"]},
         "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "value: chat"}
       }
     }
@@ -340,7 +360,7 @@
         "items": {"type": "array", "items": {
           "type": "object", "required": ["id", "title"], "additionalProperties": false,
           "properties": {
-            "id": {}, "title": {"type": "string"}, "text": {"type": "string"}, "meta": {"type": "string"},
+            "id": {}, "title": {"type": "string"}, "text": {"type": "string"}, "meta": {"type": "string"}, "icon": {"type": "string"},
             "details": {"type": "string"}, "markdown": {"type": "boolean", "description": "text is markdown"}, "tone": {"$ref": "#/$defs/tone"},
             "questions": {"type": "array", "items": {
               "type": "object", "required": ["question"],

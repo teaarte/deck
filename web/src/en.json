@@ -1,4 +1,6 @@
 {
+  "actions": { "more": "More" },
+  "table": { "search": "Search", "nothing": "Nothing matches", "range": "{{from}}–{{to}} of {{of}}", "size": "Rows on a page" },
   "nav": { "deck": "deck", "menu": "Menu", "back": "Back", "hide": "Hide the menu", "show": "Show the menu", "running": "Running: {{n}}", "asks": "Waiting for you: {{n}}", "errors": "Failing checks: {{n}}" },
   "state": {
     "loading": "Loading…",
@@ -154,6 +156,7 @@
     "reply_stopped": "reply stopped",
     "reply_interrupted": "reply interrupted",
     "close": "Close the chat",
+    "working": "The master is working",
     "full": "Full screen",
     "exit_full": "Back to the screen",
     "resize": "Width of the chat",

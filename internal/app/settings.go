@@ -14,7 +14,20 @@ const (
 	settingConfirmHours = "setting:confirm_hours"
 	settingAgentLimit   = "setting:agent_limit"
 	settingSuggestDays  = "setting:suggest_days"
+	settingLanguage     = "setting:language"
 )
+
+// languages are the languages of the interface; auto follows the device.
+var languages = []string{"auto", "en", "ru"}
+
+// language is the language of the interface the owner picked, auto by default.
+func (a *App) language(ctx context.Context, workspace int64) string {
+	v, err := a.Store.Q.GetSetting(ctx, db.GetSettingParams{WorkspaceID: workspace, Key: settingLanguage})
+	if err != nil || v == "" {
+		return "auto"
+	}
+	return v
+}
 
 func (a *App) settingInt(ctx context.Context, workspace int64, key string) int {
 	v, err := a.Store.Q.GetSetting(ctx, db.GetSettingParams{WorkspaceID: workspace, Key: key})
@@ -42,15 +55,16 @@ func (a *App) confirmTTL(ctx context.Context, workspace int64) time.Duration {
 }
 
 type settingsSetIn struct {
-	ConfirmHours int64 `json:"confirm_hours" opt:"" desc:"Hours a confirmation waits, 1 to 720"`
-	AgentLimit   int64 `json:"agent_limit" opt:"" desc:"Agent processes at once, 1 to 20; more wait for a slot"`
-	SuggestDays  int64 `json:"suggest_days" opt:"" desc:"Days a suggestion waits before it expires, 1 to 90"`
+	ConfirmHours int64  `json:"confirm_hours" opt:"" desc:"Hours a confirmation waits, 1 to 720"`
+	AgentLimit   int64  `json:"agent_limit" opt:"" desc:"Agent processes at once, 1 to 20; more wait for a slot"`
+	SuggestDays  int64  `json:"suggest_days" opt:"" desc:"Days a suggestion waits before it expires, 1 to 90"`
+	Language     string `opt:"" enum:"auto|en|ru" desc:"Language of the interface: auto follows the device; agents and their prompts keep theirs"`
 }
 
 func (a *App) settingsSet(ctx context.Context, act registry.Actor, in settingsSetIn) (any, error) {
 	switch {
-	case in.ConfirmHours == 0 && in.AgentLimit == 0 && in.SuggestDays == 0:
-		return nil, registry.Invalid("deck: give confirm_hours, agent_limit or suggest_days")
+	case in.ConfirmHours == 0 && in.AgentLimit == 0 && in.SuggestDays == 0 && in.Language == "":
+		return nil, registry.Invalid("deck: give confirm_hours, agent_limit, suggest_days or language")
 	case in.SuggestDays < 0 || in.SuggestDays > 90:
 		return nil, registry.Invalid("deck: suggest_days is from 1 to 90")
 	case in.ConfirmHours < 0 || in.ConfirmHours > 720:
@@ -67,6 +81,9 @@ func (a *App) settingsSet(ctx context.Context, act registry.Actor, in settingsSe
 				return err
 			}
 		}
+		if in.Language != "" {
+			return q.SetSetting(ctx, db.SetSettingParams{WorkspaceID: act.Workspace, Key: settingLanguage, Value: in.Language})
+		}
 		return nil
 	})
 	if err != nil {
@@ -82,8 +99,10 @@ func (a *App) settingsSet(ctx context.Context, act registry.Actor, in settingsSe
 type settingRow struct {
 	Name    string `json:"name"`
 	Title   string `json:"title"`
-	Value   int64  `json:"value"`
-	Default int64  `json:"default"`
+	Value   any    `json:"value"`
+	Default any    `json:"default"`
+	// Options are the values a setting takes from a list.
+	Options []string `json:"options,omitempty"`
 }
 
 func (a *App) settingsList(ctx context.Context, act registry.Actor, _ struct{}) ([]settingRow, error) {
@@ -94,6 +113,8 @@ func (a *App) settingsList(ctx context.Context, act registry.Actor, _ struct{}) 
 			Value: int64(a.agentSlots(ctx, act.Workspace)), Default: agentLimit},
 		{Name: "suggest_days", Title: "Days a suggestion waits for the owner before it expires",
 			Value: int64(a.suggestDays(ctx, act.Workspace)), Default: 7},
+		{Name: "language", Title: "Language of the interface; auto follows the device",
+			Value: a.language(ctx, act.Workspace), Default: "auto", Options: languages},
 	}, nil
 }
 

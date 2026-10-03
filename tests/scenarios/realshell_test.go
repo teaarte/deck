@@ -158,4 +158,9 @@ func TestRealBrowserShell(t *testing.T) {
 	b.eval(`(document.querySelector('[data-nav-open]').click(), '')`)
 	b.until("the menu on a phone", `document.querySelector('[data-nav-phone] [data-group-head]')?.offsetParent`)
 	b.shot("shell-phone-menu")
+
+	b.call("browser_resize", map[string]any{"width": 1440, "height": 900})
+	e.must("deck.settings_set", map[string]any{"language": "ru"}, nil)
+	b.until("the interface in the language the owner picked", `document.querySelector('[data-nav]')?.innerText.includes('Кокпит') && document.querySelector('[data-chat-toggle]')?.innerText.includes('Мастер')`)
+	b.shot("shell-ru")
 }

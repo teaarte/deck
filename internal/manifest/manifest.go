@@ -32,6 +32,8 @@ type Manifest struct {
 	Menu            []string     `json:"menu,omitempty"`
 	Icon            string       `json:"icon,omitempty"`
 	Title           string       `json:"title,omitempty"`
+	// I18n translates the texts the owner sees, by language and then by the text as the manifest writes it.
+	I18n map[string]map[string]string `json:"i18n,omitempty"`
 	Autonomy        string       `json:"autonomy,omitempty"`
 	Reads           []Read       `json:"reads,omitempty"`
 	NoNetwork       bool         `json:"no_network,omitempty"`

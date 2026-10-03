@@ -66,7 +66,45 @@ type readOf struct {
 	err            error
 }
 
+// tr is a text of the screen in the owner's language, or itself without a translation.
+func (r *renderer) tr(s string) string {
+	if t, ok := r.req.Words[s]; ok && t != "" {
+		return t
+	}
+	return s
+}
+
+// translated is a block with its own texts in the owner's language; the blocks in it are translated in turn.
+func (r *renderer) translated(b manifest.Block) manifest.Block {
+	if len(r.req.Words) == 0 {
+		return b
+	}
+	b.Title, b.Description, b.Empty = r.tr(b.Title), r.tr(b.Description), r.tr(b.Empty)
+	b.Columns = slices.Clone(b.Columns)
+	for i := range b.Columns {
+		b.Columns[i].Label = r.tr(b.Columns[i].Label)
+	}
+	b.Fields = slices.Clone(b.Fields)
+	for i := range b.Fields {
+		b.Fields[i].Label = r.tr(b.Fields[i].Label)
+	}
+	b.Series = slices.Clone(b.Series)
+	for i := range b.Series {
+		b.Series[i].Label = r.tr(b.Series[i].Label)
+	}
+	b.Tabs = slices.Clone(b.Tabs)
+	for i := range b.Tabs {
+		b.Tabs[i].Title = r.tr(b.Tabs[i].Title)
+	}
+	b.Actions = slices.Clone(b.Actions)
+	for i := range b.Actions {
+		b.Actions[i].Label = r.tr(b.Actions[i].Label)
+	}
+	return b
+}
+
 func (r *renderer) block(id string, b manifest.Block) {
+	b = r.translated(b)
 	comp := map[string]any{"id": id, "component": b.Type}
 	if b.Title != "" {
 		comp["title"] = b.Title

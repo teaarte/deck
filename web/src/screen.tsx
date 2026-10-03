@@ -80,7 +80,7 @@ export function ScreenView({ route, onProjects }: { route: Route; onProjects: ()
     let gone = false;
     const picked: Record<string, Record<string, string>> = {};
     const params = serverParams(route);
-    const base = { project: route.project, screen: route.screen, record: route.record, ...(params ? { params: JSON.stringify(params) } : {}) };
+    const base = { project: route.project, screen: route.screen, record: route.record, lang: i18n.language, ...(params ? { params: JSON.stringify(params) } : {}) };
     const input = () => (Object.keys(picked).length ? { ...base, filter: JSON.stringify(picked) } : base);
     // Every read takes a ticket; the data of a block is never replaced by a read older than the one it shows.
     let tickets = 0;

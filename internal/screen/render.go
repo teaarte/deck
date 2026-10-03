@@ -62,6 +62,8 @@ type Request struct {
 	Card []manifest.Action
 	// Params are the parameters of the screen from its address, read as $param.<name>.
 	Params map[string]string
+	// Words translate the texts of the screen into the owner's language.
+	Words map[string]string
 }
 
 // Topics are the event topics after which a client reads blocks again; any other topic means the whole screen.
@@ -88,7 +90,7 @@ func Render(ctx context.Context, st *store.Store, src Sources, req Request) ([]m
 	}
 	root := r.comps[0]
 	if r.recordTitle != "" {
-		root["title"] = req.Screen.Title + ": " + r.recordTitle
+		root["title"] = r.tr(req.Screen.Title) + ": " + r.recordTitle
 	}
 	surface := r.surface()
 	if req.Topic != "" {
@@ -124,7 +126,7 @@ func resolve(ctx context.Context, st *store.Store, src Sources, req Request) (*r
 			return nil, err
 		}
 	}
-	root := map[string]any{"id": "root", "component": "screen", "title": req.Screen.Title}
+	root := map[string]any{"id": "root", "component": "screen", "title": r.tr(req.Screen.Title)}
 	if req.Screen.Icon != "" {
 		root["icon"] = req.Screen.Icon
 	}

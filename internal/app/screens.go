@@ -27,6 +27,8 @@ import (
 var deckScreensJSON []byte
 
 type shippedScreens struct {
+	// I18n translates deck's own screens, by language and then by text.
+	I18n    map[string]map[string]string
 	Menu    []string
 	Screens []manifest.Screen
 	// Project are the screens deck adds to every project, after the project's own; Card the buttons of a card.
@@ -41,8 +43,38 @@ var shipped = sync.OnceValue(func() (d shippedScreens) {
 	if d.Menu, d.Screens, d.Project, d.Card, err = manifest.DeckScreens(deckScreensJSON); err != nil {
 		panic(err)
 	}
+	var words struct {
+		I18n map[string]map[string]string `json:"i18n"`
+	}
+	if err := json.Unmarshal(deckScreensJSON, &words); err != nil {
+		panic(err)
+	}
+	d.I18n = words.I18n
 	return d
 })
+
+// words are the translations into a language of deck's screens and then of the manifest, which wins.
+func words(lang string, m *manifest.Manifest) map[string]string {
+	if lang == "" {
+		return nil
+	}
+	out := maps.Clone(shipped().I18n[lang])
+	if m != nil {
+		if out == nil {
+			out = map[string]string{}
+		}
+		maps.Copy(out, m.I18n[lang])
+	}
+	return out
+}
+
+// tr is a text in a language by words, or the text itself.
+func tr(ws map[string]string, s string) string {
+	if t := ws[s]; t != "" {
+		return t
+	}
+	return s
+}
 
 func deckScreen(name string) *manifest.Screen {
 	for i := range shipped().Screens {
@@ -83,11 +115,16 @@ type screenLink struct {
 }
 
 // menu is the navigation of the client: deck's screens, then each project's menu, or all its screens without one.
-func (a *App) menu(ctx context.Context, act registry.Actor, _ struct{}) (any, error) {
+type menuIn struct {
+	Lang string `opt:"" desc:"Language of the titles, such as ru; as written without one"`
+}
+
+func (a *App) menu(ctx context.Context, act registry.Actor, in menuIn) (any, error) {
 	out := []menuEntry{{Title: "deck"}}
+	deckWords := words(in.Lang, nil)
 	for _, name := range shipped().Menu {
 		s := deckScreen(name)
-		out[0].Screens = append(out[0].Screens, screenLink{Name: name, Title: s.Title, Icon: s.Icon})
+		out[0].Screens = append(out[0].Screens, screenLink{Name: name, Title: tr(deckWords, s.Title), Icon: s.Icon})
 	}
 	ps, err := a.Store.Q.ListWorkspaceProjects(ctx, act.Workspace)
 	if err != nil {
@@ -107,7 +144,8 @@ func (a *App) menu(ctx context.Context, act registry.Actor, _ struct{}) (any, er
 			continue
 		}
 		r := pulse[p.ID]
-		e := menuEntry{Project: p.Name, Title: cmp.Or(m.Title, p.Name), Icon: m.Icon, Screens: []screenLink{}, Running: r.Running, Asks: r.Asks, Errors: r.Errors}
+		ws := words(in.Lang, m)
+		e := menuEntry{Project: p.Name, Title: tr(ws, cmp.Or(m.Title, p.Name)), Icon: m.Icon, Screens: []screenLink{}, Running: r.Running, Asks: r.Asks, Errors: r.Errors}
 		names := m.Menu
 		if len(names) == 0 {
 			for _, s := range m.Screens {
@@ -118,11 +156,11 @@ func (a *App) menu(ctx context.Context, act registry.Actor, _ struct{}) (any, er
 		}
 		for _, n := range names {
 			s := m.Screen(n)
-			e.Screens = append(e.Screens, screenLink{Name: n, Title: s.Title, Icon: s.Icon})
+			e.Screens = append(e.Screens, screenLink{Name: n, Title: tr(ws, s.Title), Icon: s.Icon})
 		}
 		for _, s := range shipped().Project {
 			if s.Record == "" && m.Screen(s.Name) == nil {
-				e.Extra = append(e.Extra, screenLink{Name: s.Name, Title: s.Title, Icon: s.Icon})
+				e.Extra = append(e.Extra, screenLink{Name: s.Name, Title: tr(ws, s.Title), Icon: s.Icon})
 			}
 		}
 		out = append(out, e)
@@ -137,6 +175,7 @@ type screenGetIn struct {
 	Topic   string `opt:"" desc:"Event topic that changed"`
 	Filter  string `type:"json" opt:"" desc:"Values the owner picked in block filters, as JSON: block id to field to value"`
 	Params  string `type:"json" opt:"" desc:"Parameters of the screen from its address, as a JSON object of names to text: $param.<name> in the screen"`
+	Lang    string `opt:"" desc:"Language of the texts of the screen, such as ru; as written without one"`
 }
 
 // screenGet resolves a screen of a project, or of deck without one, into A2UI messages.
@@ -177,6 +216,7 @@ func (a *App) screenGet(ctx context.Context, act registry.Actor, in screenGetIn)
 	if req.Screen == nil {
 		return nil, registry.NotFound("deck: no screen %q", in.Screen)
 	}
+	req.Words = words(in.Lang, req.Manifest)
 	out, err := screen.Render(ctx, a.Store, a.sources(act), req)
 	if err != nil {
 		return nil, registry.NotFound("deck: %v", err)

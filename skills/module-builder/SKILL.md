@@ -131,8 +131,8 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
 - **Screens** are lists of blocks from the catalog (`schemas/catalog.json`; in `manifest_format` each block type
   has its exact fields and its rules in words in `description`, and a refusal names the JSON path and the
   schema rule, such as `missing property 'item'` or `additional properties 'source' not allowed`):
-  `table`, `list`, `card` (the record of a record page), `stat`, `chart`, `media`, `actions`, `board`, `form`, `custom`, and
-  `columns`/`tabs` to lay them out. A table:
+  `table`, `list`, `card` (the record of a record page), `stat`, `chart`, `media`, `actions`, `board`, `form`, `custom`,
+  `dialog` (a button that opens blocks in a window) and `columns`/`tabs` to lay them out. A table:
   `{"type": "table", "title": "Best", "source": {"collection": "items", "where": "score >= 7", "sort": "-score",
   "limit": 20}, "columns": [{"label": "Title", "bind": "title"}], "filter": ["status"], "actions": [{"label": "Rate", "command":
   "rate", "params": {"id": "$record.id"}}]}` — `where` and `bind` are expressions over record fields,
@@ -189,6 +189,14 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   them — a fixed color breaks in the owner's dark scheme. List screens in `menu`. A record page is a screen with
   `"record": "<collection>"`; a row's button `{"label", "screen": "<that page>"}` opens it with the row's record
   and takes no params.
+- **Look of a module**: `title` is the name the owner sees in the menu (the project name is for code), `icon` of
+  the project, a screen, a block or a button is a Tabler icon name; blocks flow in a grid, `span` (1, 2 or "full")
+  widens one, `description` says under a title what a block is for. Write the texts in English and add `i18n`
+  with a translation into the owner's language (`{"ru": {"Notes": "Заметки"}}`) for every title, label,
+  description and empty text, also when you change them later. A button to a screen takes `params`, read there
+  as `$param.<name>`, and a form fills fields with `values`.
+- **Changing a manifest**: send `manifest_save` a JSON Patch in `patch` (`[{"op": "replace", "path":
+  "/screens/0/blocks/2/title", "value": "…"}]`): a path names one place, so equal texts elsewhere never mix.
 - **Telling the owner**: a script or agent that finds something worth a look calls `notify` with `text`, and
   optionally the `screen` (and `record`) it opens and `actions` (`[{label, command, params}]`); it becomes a line
   in the cockpit feed. The caller decides it is worth it; a run with nothing new says nothing.

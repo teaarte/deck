@@ -522,7 +522,7 @@ func TestHistoryFindsAnOldRunOfAQuietProject(t *testing.T) {
 		}
 		return true
 	})
-	history := e.screenData("", "schedule", map[string]any{"filter": `{"b2": {"project": "quiet", "state": "done"}}`})["b2"]
+	history := e.screenData("", "schedule", map[string]any{"filter": `{"b4": {"project": "quiet", "state": "done"}}`})["b4"]
 	rows := blockData[[]screenRow](t, history["rows"])
 	if len(rows) != 1 || rows[0].Cells[0] != float64(old) || !strings.Contains(string(history["filters"]), `"options":["busy","quiet"]`) {
 		t.Fatalf("the history finds the run of the quiet project, and the picked project stays a choice: %+v %s", rows, history["filters"])

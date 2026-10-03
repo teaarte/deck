@@ -11,6 +11,7 @@ import { setChatScreen } from './chat';
 import { NamedIcon } from './icons';
 import { Backdrop } from './backdrop';
 import { Bell } from './bell';
+import i18n, { setLanguage } from './i18n';
 import s from './shell.module.css';
 
 export interface MenuEntry {
@@ -165,13 +166,21 @@ export function Shell() {
   const route = useRoute();
   const canBack = useCanGoBack();
   const [menu, setMenu] = useState<MenuEntry[]>([]);
-  const loadMenu = useCallback(() => { call<MenuEntry[]>('deck.menu').then(setMenu, () => setMenu([])); }, []);
+  const loadMenu = useCallback(() => { call<MenuEntry[]>('deck.menu', { lang: i18n.language }).then(setMenu, () => setMenu([])); }, []);
+  const loadLanguage = useCallback(() => {
+    call<{ name: string; value: unknown }[]>('deck.settings_list').then((ss) => {
+      const l = ss.find((x) => x.name === 'language');
+      if (l) setLanguage(String(l.value));
+    }, () => undefined);
+  }, []);
   const [phoneNav, setPhoneNav] = useState(false);
   useEffect(() => {
     loadMenu();
+    loadLanguage();
     let timer: ReturnType<typeof setTimeout> | undefined;
     let down = false;
     const stop = events((topic) => {
+      if (topic === 'settings') loadLanguage();
       if (!PULSE.includes(topic)) return;
       clearTimeout(timer);
       timer = setTimeout(loadMenu, 400);

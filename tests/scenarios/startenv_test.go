@@ -33,8 +33,15 @@ func startDeck(t *testing.T, home string, env ...string) *deckBinary {
 	if out, err := exec.Command("go", "build", "-o", bin, "../../cmd/deck").CombinedOutput(); err != nil {
 		t.Fatalf("build deck: %v\n%s", err, out)
 	}
+	// Agent CLIs that fail stand before the owner's, so a self-check never runs on the owner's accounts.
+	shims := t.TempDir()
+	for _, name := range []string{"claude", "codex"} {
+		if err := os.WriteFile(filepath.Join(shims, name), []byte("#!/bin/sh\nexit 1\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
 	cmd := exec.Command(bin, "-addr", "127.0.0.1:0")
-	cmd.Env = append(append(os.Environ(), "DECK_HOME="+home), env...)
+	cmd.Env = append(append(os.Environ(), "DECK_HOME="+home, "PATH="+shims+string(os.PathListSeparator)+os.Getenv("PATH")), env...)
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
 		t.Fatal(err)

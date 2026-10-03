@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActionIcon, Badge, Button, Collapse, Drawer, Group, ScrollArea, Tooltip, UnstyledButton } from '@mantine/core';
 import { useLocalStorage, useMediaQuery } from '@mantine/hooks';
-import { IconArrowsMaximize, IconArrowsMinimize, IconChevronRight, IconLayoutSidebarLeftCollapse,
+import { IconArrowLeft, IconArrowsMaximize, IconArrowsMinimize, IconChevronRight, IconLayoutSidebarLeftCollapse,
   IconLayoutSidebarLeftExpand, IconMenu2, IconSparkles, IconX } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { call, events } from './api';
-import { href, ScreenView, type Route } from './screen';
+import { ScreenView } from './screen';
+import { back, href, useCanGoBack, useRoute, type Route } from './router';
 import { setChatScreen } from './chat';
 import { NamedIcon } from './icons';
 import { Backdrop } from './backdrop';
@@ -19,13 +20,6 @@ export interface MenuEntry {
   running?: number;
   asks?: number;
   errors?: number;
-}
-
-function parse(hash: string): Route {
-  const [kind, a, b, c] = hash.replace(/^#\/?/, '').split('/').map(decodeURIComponent);
-  if (kind === 'p' && a && b) return { project: a, screen: b, record: c ? Number(c) : undefined };
-  if (kind === 'deck' && a) return { screen: a, record: b ? Number(b) : undefined };
-  return { screen: 'cockpit' };
 }
 
 const CHAT: Route = { screen: 'chat' };
@@ -122,13 +116,12 @@ function useGrip(width: number, setWidth: (w: number) => void) {
 // Shell is the frame of deck: the menu, the screen, and the chat with the master, each its own island.
 export function Shell() {
   const { t } = useTranslation();
-  const [route, setRoute] = useState(() => parse(location.hash));
+  const route = useRoute();
+  const canBack = useCanGoBack();
   const [menu, setMenu] = useState<MenuEntry[]>([]);
   const loadMenu = useCallback(() => { call<MenuEntry[]>('deck.menu').then(setMenu, () => setMenu([])); }, []);
   const [phoneNav, setPhoneNav] = useState(false);
   useEffect(() => {
-    const on = () => { setRoute(parse(location.hash)); setPhoneNav(false); };
-    window.addEventListener('hashchange', on);
     loadMenu();
     let timer: ReturnType<typeof setTimeout> | undefined;
     let down = false;
@@ -140,9 +133,9 @@ export function Shell() {
       if (live && down) loadMenu();
       down = !live;
     });
-    const back = () => { if (!document.hidden) loadMenu(); };
-    document.addEventListener('visibilitychange', back);
-    return () => { window.removeEventListener('hashchange', on); document.removeEventListener('visibilitychange', back); clearTimeout(timer); stop(); };
+    const shown = () => { if (!document.hidden) loadMenu(); };
+    document.addEventListener('visibilitychange', shown);
+    return () => { document.removeEventListener('visibilitychange', shown); clearTimeout(timer); stop(); };
   }, []);
   const current = href({ ...route, record: undefined });
   const [chat, setChat] = useLocalStorage({ key: 'deck-chat-open', defaultValue: false });
@@ -159,7 +152,7 @@ export function Shell() {
     document.querySelector<HTMLElement>(focusTo.current)?.focus();
     focusTo.current = '';
   }, [navOpen, chat]);
-  useEffect(() => setChatScreen(route), [route]);
+  useEffect(() => { setChatScreen(route); setPhoneNav(false); }, [route]);
   useEffect(() => {
     const open = () => setChat(true);
     window.addEventListener('deck-chat-open', open);
@@ -170,6 +163,13 @@ export function Shell() {
   const master = (
     <Button size="xs" radius="xl" variant={chat ? 'filled' : 'default'} leftSection={<IconSparkles size={14} />}
       onClick={() => { moveFocus(chat ? '[data-chat-toggle]' : '[data-chat-close]'); setChat(!chat); }} data-chat-toggle>{t('chat.master')}</Button>
+  );
+  const backButton = (
+    <Tooltip label={t('nav.back')}>
+      <ActionIcon variant="default" radius="xl" size="lg" onClick={back} aria-label={t('nav.back')} data-back>
+        <IconArrowLeft size={18} />
+      </ActionIcon>
+    </Tooltip>
   );
   const crumb = entry?.project && (
     <span className={s.crumb}><NamedIcon name={entry.icon} fallback={entry.title} size={16} />{entry.title}</span>
@@ -202,6 +202,7 @@ export function Shell() {
                 <ActionIcon variant="subtle" color="gray" radius="xl" size="lg" onClick={() => setPhoneNav(true)} aria-label={t('nav.menu')} data-nav-open>
                   <IconMenu2 size={20} />
                 </ActionIcon>
+                {canBack && backButton}
                 {crumb || <Logo />}
               </Group>
               {master}
@@ -216,6 +217,7 @@ export function Shell() {
                     </ActionIcon>
                   </Tooltip>
                 )}
+                {canBack && backButton}
                 {crumb}
               </Group>
               {!chat && master}

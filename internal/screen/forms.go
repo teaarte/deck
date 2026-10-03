@@ -59,6 +59,9 @@ func (r *renderer) form(b manifest.Block) (map[string]any, error) {
 		}
 	}
 	v["commands"] = cmds
+	if len(cmds) == 1 && len(b.Values) > 0 {
+		r.formValues(v, b.Values, cmds[0])
+	}
 	if len(cmds) == 1 && b.Source == nil {
 		choices, err := r.choices(b, cmds[0])
 		if err != nil {
@@ -76,6 +79,45 @@ func (r *renderer) form(b manifest.Block) (map[string]any, error) {
 		state = "empty"
 	}
 	return map[string]any{"state": state, "value": v}, nil
+}
+
+// formValues fill fields of a form from the manifest: fixed text in the type of its field, a parameter of the
+// screen or a field of the record of the page; an empty parameter leaves its field to the owner.
+func (r *renderer) formValues(v map[string]any, values map[string]string, cmd map[string]any) {
+	got, _ := v["values"].(map[string]any)
+	if got == nil {
+		got = map[string]any{}
+	}
+	types := map[string]string{}
+	if in, _ := cmd["input"].(map[string]any); in != nil {
+		props, _ := in["properties"].(map[string]any)
+		for k, p := range props {
+			if s, _ := p.(map[string]any); s != nil {
+				types[k], _ = s["type"].(string)
+			}
+		}
+	}
+	for field, raw := range values {
+		var val any
+		switch {
+		case strings.HasPrefix(raw, "$param."):
+			if p := r.req.Params[strings.TrimPrefix(raw, "$param.")]; p != "" {
+				val = fixedValue(p, types[field])
+			}
+		case strings.HasPrefix(raw, "$record."):
+			if r.record != nil {
+				val = r.record[strings.TrimPrefix(raw, "$record.")]
+			}
+		default:
+			val = fixedValue(raw, types[field])
+		}
+		if val != nil {
+			got[field] = val
+		}
+	}
+	if len(got) > 0 {
+		v["values"] = got
+	}
 }
 
 // choices are the values a form offers by field: those its block reads from a source, and the projects of the

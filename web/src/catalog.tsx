@@ -2,11 +2,13 @@ import { lazy, Suspense, type ReactNode } from 'react';
 import { z } from 'zod';
 import { Catalog, type ComponentApi } from '@a2ui/web_core/v0_9';
 import { createComponentImplementation, type ReactComponentImplementation } from '@a2ui/react/v0_9';
-import { Alert, Badge, Code, Group, Loader, SimpleGrid, Stack, Table, Tabs, Text, Title, UnstyledButton } from '@mantine/core';
+import { Alert, Badge, Button, Code, Group, Loader, Modal, SimpleGrid, Stack, Table, Tabs, Text, Title, UnstyledButton } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
 import catalogSchema from '../../schemas/catalog.json';
 import s from './shell.module.css';
 import { NamedIcon } from './icons';
+import { dropParam, setParam, useRoute } from './router';
+import { DialogClose } from './dialog';
 import { Board } from './board';
 import { Form, type FormValue } from './form';
 import { Document, Markdown } from './document';
@@ -67,16 +69,36 @@ const impls: ReactComponentImplementation[] = [
   createComponentImplementation(api('tabs'), ({ props, buildChild }) => {
     const p = props as { title?: string; icon?: string; titles: string[]; children: unknown[] };
     const ids = (p.children ?? []) as Children;
+    const route = useRoute();
+    const at = Math.max(0, p.titles.indexOf(route.params?.tab ?? ''));
     return (
       <Stack gap="xs">
       {p.title && <Title order={4}>{p.title}</Title>}
-      <Tabs defaultValue="0">
+      <Tabs value={String(at)} onChange={(v) => setParam('tab', v === '0' ? null : p.titles[Number(v)])}>
         <Tabs.List>{p.titles.map((title, i) => <Tabs.Tab key={i} value={String(i)}>{title}</Tabs.Tab>)}</Tabs.List>
         {ids.map((c, i) => (
           <Tabs.Panel key={i} value={String(i)} pt="sm">{typeof c === 'string' ? buildChild(c) : buildChild(c.id, c.basePath)}</Tabs.Panel>
         ))}
       </Tabs>
       </Stack>
+    );
+  }),
+  createComponentImplementation(api('dialog'), ({ props, buildChild }) => {
+    const p = props as { title?: string; icon?: string; name: string; primary?: boolean; children: unknown };
+    const route = useRoute();
+    const open = route.params?.dialog === p.name;
+    const close = () => dropParam('dialog');
+    return (
+      <>
+        <Button variant={p.primary ? 'filled' : 'default'} radius="xl" data-dialog-open={p.name} onClick={() => setParam('dialog', p.name)}
+          leftSection={p.icon ? <NamedIcon name={p.icon} fallback={p.title ?? ''} size={16} /> : undefined}>{p.title}</Button>
+        <Modal opened={open} onClose={close} size="lg" radius="lg" data-dialog={p.name} className={s.dialog}
+          title={<Group gap={8}>{p.icon && <NamedIcon name={p.icon} fallback={p.title ?? ''} size={20} />}<Text fw={700} size="lg">{p.title}</Text></Group>}>
+          <DialogClose.Provider value={close}>
+            {open && <Stack gap="md">{kids(p.children, buildChild)}</Stack>}
+          </DialogClose.Provider>
+        </Modal>
+      </>
     );
   }),
   createComponentImplementation(api('table'), ({ props, context }) => {

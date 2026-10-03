@@ -250,6 +250,9 @@ type Block struct {
 	ActionsFrom string  `json:"actions_from,omitempty"`
 	Blocks      []Block `json:"blocks,omitempty"`
 	Tabs        []Tab   `json:"tabs,omitempty"`
+	// Name opens a dialog from the address of its screen; Primary paints its button in the accent.
+	Name    string `json:"name,omitempty"`
+	Primary bool   `json:"primary,omitempty"`
 	// Filter names the fields of a table or list the owner narrows it by.
 	Filter []string `json:"filter,omitempty"`
 	// Command is the command of a form; Save a collection its result can be kept in.
@@ -257,6 +260,8 @@ type Block struct {
 	Save    string `json:"save,omitempty"`
 	// Choices offer the values of fields of a form from a source.
 	Choices map[string]Choice `json:"choices,omitempty"`
+	// Values fill fields of a form before the owner types: fixed text, $param.<name> or $record.<field>.
+	Values map[string]string `json:"values,omitempty"`
 	// Document is the custom/ document with the HTML of a custom block, or the document a document block shows.
 	Document string `json:"document,omitempty"`
 }

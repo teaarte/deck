@@ -81,11 +81,14 @@ func (r *renderer) items(src manifest.Source, picked map[string]string) ([]map[s
 	return items, nil
 }
 
-// input is the input of a command a block reads, with "$record.<field>" taken from the record of the page.
+// input is the input of a command a block reads, with "$record.<field>" taken from the record of the page and
+// "$param.<name>" from the address of the screen.
 func (r *renderer) input(in map[string]any) map[string]any {
 	out := make(map[string]any, len(in))
 	for k, v := range in {
-		if f, ok := strings.CutPrefix(fmt.Sprint(v), "$record."); ok {
+		if p, ok := strings.CutPrefix(fmt.Sprint(v), "$param."); ok {
+			v = r.req.Params[p]
+		} else if f, ok := strings.CutPrefix(fmt.Sprint(v), "$record."); ok {
 			switch {
 			case f == "id":
 				v = r.req.Record

@@ -2,6 +2,7 @@ package screen
 
 import (
 	"encoding/json"
+	"fmt"
 	"maps"
 	"math"
 	"strconv"
@@ -27,6 +28,7 @@ func (r *renderer) rowActions(b manifest.Block, it map[string]any) []map[string]
 func (r *renderer) actions(as []manifest.Action, id int64, env map[string]any) []map[string]any {
 	out := make([]map[string]any, 0, len(as))
 	for _, a := range as {
+		a = r.withParams(a)
 		if a.When != "" {
 			if ok, err := manifest.Eval(a.When, env); err != nil || ok != true {
 				continue
@@ -69,6 +71,13 @@ func (r *renderer) actions(as []manifest.Action, id int64, env map[string]any) [
 				if t := r.req.Manifest.Screen(a.Screen); t != nil && t.Record != "" {
 					act["record"] = id
 				}
+			}
+			if len(a.Params) > 0 {
+				ps := map[string]string{}
+				for k, v := range actionParams(a.Params, nil, id, env) {
+					ps[k] = fmt.Sprint(v)
+				}
+				act["params"] = ps
 			}
 		default:
 			name := a.Command
@@ -127,6 +136,25 @@ func (r *renderer) inputTypes(name string) map[string]string {
 	}
 	r.types[name] = out
 	return out
+}
+
+// withParams puts the parameters of the screen in place of the $param.<name> values of a button.
+func (r *renderer) withParams(a manifest.Action) manifest.Action {
+	param := func(v string) string {
+		if p, ok := strings.CutPrefix(v, "$param."); ok {
+			return r.req.Params[p]
+		}
+		return v
+	}
+	a.Screen, a.Record, a.Project = param(a.Screen), param(a.Record), param(a.Project)
+	if len(a.Params) > 0 {
+		ps := make(map[string]string, len(a.Params))
+		for k, v := range a.Params {
+			ps[k] = param(v)
+		}
+		a.Params = ps
+	}
+	return a
 }
 
 // itemValue is a value a button takes: fixed, $record.<field> of the item, or =<expression> over it.

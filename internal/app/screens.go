@@ -133,6 +133,7 @@ type screenGetIn struct {
 	Record  int64  `opt:"" desc:"Record id of a record page"`
 	Topic   string `opt:"" desc:"Event topic that changed"`
 	Filter  string `type:"json" opt:"" desc:"Values the owner picked in block filters, as JSON: block id to field to value"`
+	Params  string `type:"json" opt:"" desc:"Parameters of the screen from its address, as a JSON object of names to text: $param.<name> in the screen"`
 }
 
 // screenGet resolves a screen of a project, or of deck without one, into A2UI messages.
@@ -141,6 +142,16 @@ func (a *App) screenGet(ctx context.Context, act registry.Actor, in screenGetIn)
 	if strings.TrimSpace(in.Filter) != "" {
 		if err := json.Unmarshal([]byte(in.Filter), &req.Filter); err != nil {
 			return nil, registry.Invalid("deck: filter: a JSON object of block id to field to value: %v", err)
+		}
+	}
+	if strings.TrimSpace(in.Params) != "" {
+		var ps map[string]any
+		if err := json.Unmarshal([]byte(in.Params), &ps); err != nil {
+			return nil, registry.Invalid("deck: params: a JSON object of names to text: %v", err)
+		}
+		req.Params = make(map[string]string, len(ps))
+		for k, v := range ps {
+			req.Params[k] = fmt.Sprint(v)
 		}
 	}
 	if in.Project == "" {

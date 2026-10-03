@@ -79,7 +79,7 @@ func (c *screenCheck) block(where string, b Block) {
 	}
 	var fields []string
 	switch b.Type {
-	case "columns", "tabs":
+	case "columns", "tabs", "dialog":
 		for j, x := range b.Blocks {
 			c.block(fmt.Sprintf("%s block %d", where, j), x)
 		}
@@ -434,9 +434,6 @@ func (c *screenCheck) action(b Block, a Action, fields []string) error {
 	target := c.m.Screen(a.Screen)
 	if target == nil {
 		return fmt.Errorf("unknown screen %q", a.Screen)
-	}
-	if len(a.Params) > 0 {
-		return errors.New("a move to a screen takes no params; a record page gets the record of the row")
 	}
 	if target.Record == "" {
 		return nil

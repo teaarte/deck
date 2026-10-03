@@ -79,6 +79,12 @@ func (r *renderer) block(id string, b manifest.Block) {
 	case "columns":
 		comp["children"] = r.blocks(id+"-", b.Blocks)
 		return
+	case "dialog":
+		comp["children"], comp["name"] = r.blocks(id+"-", b.Blocks), b.Name
+		if b.Primary {
+			comp["primary"] = true
+		}
+		return
 	case "tabs":
 		titles, children := []string{}, []string{}
 		for j, t := range b.Tabs {

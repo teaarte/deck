@@ -27,6 +27,20 @@
         "children": {"$ref": "common_types.json#/$defs/ChildList"}
       }
     },
+    "dialog": {
+      "description": "A button that opens its blocks in a window over the screen; ?dialog=<name> in the address of the screen opens it too, and a form in it closes it once its call went through.",
+      "block": {"description": "Needs title (the label of its button), name and at least one block in blocks; primary paints its button in the accent.", "required": ["title", "name", "blocks"], "properties": {"name": {"$ref": "#/$defs/name"}, "primary": {"type": "boolean"}, "blocks": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/block"}}}},
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["children", "name"],
+      "properties": {
+        "title": {"type": "string"},
+        "icon": {"type": "string"},
+        "name": {"type": "string"},
+        "primary": {"type": "boolean"},
+        "children": {"$ref": "common_types.json#/$defs/ChildList"}
+      }
+    },
     "tabs": {
       "description": "Blocks in tabs.",
       "block": {"description": "Holds its tabs in tabs, each with a title and at least one block; nothing else.", "required": ["tabs"], "properties": {"tabs": {"type": "array", "minItems": 1, "items": {"type": "object", "additionalProperties": false, "required": ["title", "blocks"], "properties": {"title": {"type": "string", "minLength": 1}, "blocks": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/block"}}}}}}},
@@ -164,7 +178,7 @@
     },
     "form": {
       "description": "Asks for the input of a command and shows its result: one command, or a pick from deck.commands_list.",
-      "block": {"description": "Has either command or source from deck.commands_list to pick one, never both; it is its own button and takes no actions; save names a collection for the result.", "oneOf": [{"required": ["command"]}, {"required": ["source"]}], "properties": {"command": {"type": "string", "description": "deck.record_update on a record page edits the record."}, "source": {"allOf": [{"$ref": "#/$defs/source"}, {"required": ["from"], "properties": {"from": {"const": "deck.commands_list"}}}]}, "save": {"type": "string", "description": "Collection the owner can keep the result in."}, "choices": {"type": "object", "description": "Values offered for fields of the input, by field: a source and expressions over its items for the value and its label.", "additionalProperties": {"type": "object", "additionalProperties": false, "required": ["source", "value"], "properties": {"source": {"$ref": "#/$defs/source"}, "value": {"type": "string"}, "label": {"type": "string"}}}}}},
+      "block": {"description": "Has either command or source from deck.commands_list to pick one, never both; it is its own button and takes no actions; save names a collection for the result.", "oneOf": [{"required": ["command"]}, {"required": ["source"]}], "properties": {"command": {"type": "string", "description": "deck.record_update on a record page edits the record."}, "source": {"allOf": [{"$ref": "#/$defs/source"}, {"required": ["from"], "properties": {"from": {"const": "deck.commands_list"}}}]}, "save": {"type": "string", "description": "Collection the owner can keep the result in."}, "values": {"type": "object", "additionalProperties": {"type": "string"}, "description": "Fields filled before the owner types, by field: fixed text, $param.<name> from the address of the screen, or $record.<field>."}, "choices": {"type": "object", "description": "Values offered for fields of the input, by field: a source and expressions over its items for the value and its label.", "additionalProperties": {"type": "object", "additionalProperties": false, "required": ["source", "value"], "properties": {"source": {"$ref": "#/$defs/source"}, "value": {"type": "string"}, "label": {"type": "string"}}}}}},
       "type": "object",
       "additionalProperties": false,
       "required": ["data"],

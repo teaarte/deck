@@ -9,20 +9,14 @@ import { catalog, known, UNKNOWN, type Action } from './catalog';
 import { outcomes } from './actions';
 import { openTopic } from './chat';
 import { setStale } from './block';
+import { go, screenKey, serverParams, type Route } from './router';
 import i18n from './i18n';
 import catalogSchema from '../../schemas/catalog.json';
 
 export const VERSION = 'v0.9';
 const TOPICS: string[] = catalogSchema.topics;
 
-export interface Route {
-  project?: string;
-  screen: string;
-  record?: number;
-}
-
-export const href = (r: Route) =>
-  '#/' + (r.project ? 'p/' + encodeURIComponent(r.project) : 'deck') + '/' + encodeURIComponent(r.screen) + (r.record ? '/' + r.record : '');
+export { href, type Route } from './router';
 
 type Message = Record<string, any> & { version?: string };
 
@@ -57,7 +51,8 @@ function summary(out: unknown): string {
 async function act(a: A2uiClientAction) {
   const c = a.context as Action & { ticket?: string };
   if (a.name === 'open') {
-    location.hash = href({ project: c.project || undefined, screen: c.screen!, record: c.record });
+    const params = c.params as Record<string, string> | undefined;
+    go({ project: c.project || undefined, screen: c.screen!, record: c.record, params: params && Object.keys(params).length ? params : undefined });
     return;
   }
   try {
@@ -79,12 +74,13 @@ export function ScreenView({ route, onProjects }: { route: Route; onProjects: ()
   const [surface, setSurface] = useState<SurfaceModel<ReactComponentImplementation>>();
   const [error, setError] = useState('');
   const proc = useRef<MessageProcessor<ReactComponentImplementation>>(undefined);
-  const key = href(route);
+  const key = screenKey(route);
 
   useEffect(() => {
     let gone = false;
     const picked: Record<string, Record<string, string>> = {};
-    const base = { project: route.project, screen: route.screen, record: route.record };
+    const params = serverParams(route);
+    const base = { project: route.project, screen: route.screen, record: route.record, ...(params ? { params: JSON.stringify(params) } : {}) };
     const input = () => (Object.keys(picked).length ? { ...base, filter: JSON.stringify(picked) } : base);
     // Every read takes a ticket; the data of a block is never replaced by a read older than the one it shows.
     let tickets = 0;

@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useContext } from 'react';
 import {
   Alert, Button, FileInput, Group, Loader, MultiSelect, NumberInput, PasswordInput, Select, Stack, Switch, Table, TagsInput, Text,
   TextInput, Textarea,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { useTranslation } from 'react-i18next';
+import { DialogClose } from './dialog';
 import { call, events, upload } from './api';
 import { sharedFiles, sharedSent } from './share';
 import type { FormValue as Generated } from './catalog.gen';
@@ -153,6 +154,7 @@ interface Outcome {
 // Form asks for the input of a command by its schema, calls it and shows the result under the form.
 export function Form({ value }: { value: FormValue }) {
   const { t } = useTranslation();
+  const close = useContext(DialogClose);
   const [picked, setPicked] = useState(value.commands.length === 1 ? value.commands[0].name : '');
   const cmd = value.commands.find((c) => c.name === picked);
   // edited are the fields the owner changed; the rest follow the values the server sends now.
@@ -228,6 +230,13 @@ export function Form({ value }: { value: FormValue }) {
         && Object.keys(res).length === 1 ? (res as { process: number }).process : 0;
       if (!started) {
         if (alive.current) setOut({ state: 'done', result: res });
+        close?.();
+        return;
+      }
+      // In a dialog a started process is told about and the dialog closes; the process page follows it.
+      if (close) {
+        notifications.show({ message: t('started', { id: started }), color: 'green' });
+        close();
         return;
       }
       // The process is read again on each processes event, and every 10 s should an event be missed.

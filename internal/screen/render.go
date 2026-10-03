@@ -60,6 +60,8 @@ type Request struct {
 	Owner bool
 	// Card are the buttons of a card of a board.
 	Card []manifest.Action
+	// Params are the parameters of the screen from its address, read as $param.<name>.
+	Params map[string]string
 }
 
 // Topics are the event topics after which a client reads blocks again; any other topic means the whole screen.

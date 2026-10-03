@@ -644,8 +644,8 @@ func TestScreenSortsNumbersAndResolvesRowParams(t *testing.T) {
 	}
 }
 
-// TestNotifyWritesALineToTheCockpitFeed: an agent tells the owner; the line opens the page it names and has
-// the buttons it gave; a screen or a command the project lacks is refused.
+// TestNotifyWritesALineToTheCockpitFeed: an agent tells the owner; the line of the bell names the page it opens and
+// has the buttons it gave; a screen or a command the project lacks is refused.
 func TestNotifyWritesALineToTheCockpitFeed(t *testing.T) {
 	e := newEnv(t, boardWebAgent())
 	p := e.createProject("web", boardWebManifest)
@@ -656,19 +656,21 @@ func TestNotifyWritesALineToTheCockpitFeed(t *testing.T) {
 	if strings.Contains(string(done.Result), "error") {
 		t.Fatalf("the agent notifies the owner through the gateway: %s", done.Result)
 	}
-	var feed []listItem
-	for id, b := range e.screenData("", "cockpit", nil) {
-		if id == "b2" {
-			feed = blockData[[]listItem](t, b["items"])
+	var feed []struct {
+		Project, Text, Screen string
+		Record                int64
+		Buttons               []struct {
+			Label, Command string
+			Params         map[string]any
 		}
 	}
-	if len(feed) != 1 || feed[0].Title != "alpha scored high" || !strings.HasPrefix(feed[0].Meta, "web · ") || len(feed[0].Actions) != 2 {
-		t.Fatalf("the feed of the cockpit has the line: %+v", feed)
+	e.must("deck.feed_list", map[string]any{"kind": "note"}, &feed)
+	if len(feed) != 1 || feed[0].Text != "alpha scored high" || feed[0].Project != "web" || len(feed[0].Buttons) != 1 {
+		t.Fatalf("the feed has the line the bell shows: %+v", feed)
 	}
-	open, touch := feed[0].Actions[0], feed[0].Actions[1]
-	if open["screen"] != "note" || open["project"] != "web" || open["record"] != float64(rec[0].ID) ||
-		touch["command"] != "web.touch" || touch["label"] != "Touch it" || touch["params"].(map[string]any)["note"] != float64(rec[0].ID) {
-		t.Fatalf("the line opens its page and carries its buttons: %+v", feed[0].Actions)
+	if b := feed[0].Buttons[0]; feed[0].Screen != "note" || feed[0].Record != rec[0].ID ||
+		b.Command != "web.touch" || b.Label != "Touch it" || b.Params["note"] != float64(rec[0].ID) {
+		t.Fatalf("the line names its page and carries its buttons: %+v", feed[0])
 	}
 	for _, tc := range []struct {
 		in   map[string]any

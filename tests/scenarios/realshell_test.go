@@ -40,6 +40,12 @@ func TestRealBrowserShell(t *testing.T) {
 	}
 	b.until("the pattern of icons behind the shell", `getComputedStyle(document.querySelector('[data-backdrop] > div')).maskImage.startsWith('url(')`)
 	b.shot("shell-cockpit")
+	b.until("a new notification on the bell", `document.querySelector('[data-bell-count="1"]')`)
+	b.eval(`(document.querySelector('[data-bell]').click(), '')`)
+	b.until("the notification in the list of the bell", `document.querySelector('[data-bell-list] [data-note]')?.innerText.includes('alpha scored high')`)
+	b.shot("shell-bell")
+	b.until("the bell has nothing new once seen", `!document.querySelector('[data-bell-count]')`)
+	b.eval(`(document.querySelector('[data-bell]').click(), '')`)
 
 	b.eval(`(document.querySelector('[data-group="web"] [data-group-head]').click(), '')`)
 	b.until("the group of web folded", `!document.querySelector('[data-group="web"] a:not([data-extra])')?.offsetParent && document.querySelector('[data-group="web"] [data-group-head]').getAttribute('aria-expanded') === 'false'`)

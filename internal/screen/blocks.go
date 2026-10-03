@@ -126,7 +126,7 @@ func (r *renderer) block(id string, b manifest.Block) {
 }
 
 // wide are the blocks that take the whole width of the screen unless their span says otherwise.
-var wide = []string{"table", "board", "form", "document", "log", "chat", "custom", "tabs", "columns", "appearance"}
+var wide = []string{"table", "list", "board", "form", "document", "log", "chat", "custom", "tabs", "columns", "appearance"}
 
 // span is the cells of the grid of the screen a block takes: its own, or by its type.
 func span(b manifest.Block) any {
@@ -136,8 +136,11 @@ func span(b manifest.Block) any {
 	case string:
 		return v
 	}
-	if slices.Contains(wide, b.Type) {
+	switch {
+	case slices.Contains(wide, b.Type):
 		return "full"
+	case b.Type == "chart":
+		return 2
 	}
 	return 1
 }

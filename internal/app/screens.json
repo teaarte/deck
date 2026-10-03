@@ -42,17 +42,24 @@
               {"verb": "open", "screen": "process", "record": "$record.id"},
               {"verb": "stop", "command": "deck.process_stop", "params": {"process": "$record.id"}, "when": "(finished_at ?? '') == ''"}
             ]},
-          {"type": "list", "title": "Done without you", "source": {"from": "deck.feed_list", "input": {"kind": "change"}, "limit": 10},
+          {"type": "list", "title": "Done without you", "icon": "history", "source": {"from": "deck.feed_list", "input": {"kind": "change"}, "limit": 5},
+            "empty": "Nothing changed without you",
             "item": {"title": "text", "meta": "project + ' · ' + author"},
             "actions": [
               {"verb": "undo", "command": "deck.feed_undo", "params": {"entry": "$record.id"}, "when": "can_undo"}
             ]}
         ]},
-        {"type": "list", "title": "Notifications", "source": {"from": "deck.feed_list", "input": {"kind": "note"}, "limit": 20},
-          "item": {"title": "text", "meta": "project + ' · ' + created_at"}, "actions_from": "buttons",
-          "actions": [
-            {"verb": "open", "screen": "$record.screen", "project": "$record.project", "record": "=record != 0 ? record : nil", "when": "screen != ''"}
-          ]}
+        {"type": "dialog", "name": "changes", "title": "All changes", "icon": "history", "blocks": [
+          {"type": "table", "title": "Done without you", "source": {"from": "deck.feed_list", "input": {"kind": "change", "limit": 500}},
+            "columns": [
+              {"label": "What", "bind": "text"},
+              {"label": "Project", "bind": "project"},
+              {"label": "Who", "bind": "author"},
+              {"label": "When", "bind": "created_at", "format": "relative"}
+            ],
+            "actions": [
+              {"verb": "undo", "command": "deck.feed_undo", "params": {"entry": "$record.id"}, "when": "can_undo"}
+            ]}]}
       ]
     },
     {

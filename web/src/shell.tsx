@@ -10,6 +10,7 @@ import { back, href, useCanGoBack, useRoute, type Route } from './router';
 import { setChatScreen } from './chat';
 import { NamedIcon } from './icons';
 import { Backdrop } from './backdrop';
+import { Bell } from './bell';
 import s from './shell.module.css';
 
 export interface MenuEntry {
@@ -60,7 +61,7 @@ function Nav({ menu, current, onPick }: { menu: MenuEntry[]; current: string; on
               <span className={s.groupIcon}><NamedIcon name={m.icon ?? (m.project ? undefined : 'layout-grid')} fallback={m.title} size={16} /></span>
               <span className={s.groupTitle}>{m.project ? m.title : t('nav.deck')}</span>
               <Status m={m} />
-              <IconChevronRight size={14} className={s.chevron} data-open={open || undefined} />
+              {m.screens.length > 0 && <IconChevronRight size={14} className={s.chevron} data-open={open || undefined} />}
             </UnstyledButton>
             {!!m.extra?.length && (
               <span className={s.extras}>
@@ -231,11 +232,14 @@ export function Shell() {
           <nav className={`${s.island} ${s.nav}`} data-nav>
             <div className={s.navTop}>
               <Logo />
+              <Group gap={2}>
+              <Bell />
               <Tooltip label={t('nav.hide')}>
                 <ActionIcon variant="subtle" color="gray" radius="xl" onClick={() => { moveFocus('[data-nav-show]'); setNavOpen(false); }} aria-label={t('nav.hide')} data-nav-hide>
                   <IconLayoutSidebarLeftCollapse size={18} />
                 </ActionIcon>
               </Tooltip>
+              </Group>
             </div>
             <Nav menu={menu} current={current} />
           </nav>
@@ -250,7 +254,7 @@ export function Shell() {
                 {canBack && backButton}
                 {crumb || <Logo />}
               </Group>
-              {master}
+              <Group gap={4} wrap="nowrap"><Bell />{master}</Group>
             </header>
           ) : (
             <div className={s.toolbar}>

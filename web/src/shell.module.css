@@ -385,7 +385,7 @@
 .block {
   min-width: 0;
   height: 100%;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
   border: 0;
   border-radius: var(--deck-block-radius);
   box-shadow: var(--deck-ring), var(--deck-shadow);

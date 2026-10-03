@@ -17,9 +17,10 @@ func TestRealBrowserShell(t *testing.T) {
 	e := newEnv(t, boardWebAgent())
 	manifest := strings.Replace(boardWebManifest, `{"version": 5,`, `{"version": 5, "icon": "rocket",`, 1)
 	manifest = strings.Replace(manifest, `{"type": "table", "title": "Notes",`, `{"type": "table", "title": "Notes", "icon": "notes",`, 1)
+	manifest = strings.Replace(manifest, `"columns": [{"label": "Title", "bind": "title"}]`, `"columns": [{"label": "Title", "bind": "title"}, {"label": "Status", "bind": "source"}, {"label": "Note", "bind": "note"}]`, 1)
 	e.createProject("web", strings.Replace(manifest, `{"label": "Open", "screen": "note"}`, `{"label": "Open", "icon": "arrow-right", "screen": "note"}`, 1))
 	e.must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes",
-		"records": jsonl(map[string]any{"title": "alpha", "source": "mail"}, map[string]any{"title": "a-very-long-title-without-any-spaces-that-would-push-the-table-out-of-its-block-" + strings.Repeat("x", 120), "source": "web"})}, nil)
+		"records": jsonl(map[string]any{"title": "alpha", "source": "mail", "note": strings.Repeat("the model did not finish the self-check within the ceiling ", 6)}, map[string]any{"title": "a-very-long-title-without-any-spaces-that-would-push-the-table-out-of-its-block-" + strings.Repeat("x", 120), "source": "web"})}, nil)
 	e.waitState(e.start("web", "tell", nil), "done")
 
 	b := newPlaywright(t)
@@ -53,8 +54,19 @@ func TestRealBrowserShell(t *testing.T) {
 	if got := b.eval(`(() => { const t = [...document.querySelectorAll('[data-block]')].find((x) => x.querySelector('table')); return String(t.scrollWidth <= t.clientWidth + 1) })()`); got != "true" {
 		t.Fatalf("a long word stays inside its block: %s", got)
 	}
+	if got := b.eval(`[...document.querySelectorAll('th')].filter((x) => x.offsetParent && x.getBoundingClientRect().height > 48).map((x) => x.innerText).join('|')`); got != "" {
+		t.Fatalf("a header of a table beside a long column keeps its words whole: %s", got)
+	}
 	b.until("the icons of a block and its button", `document.querySelector('[data-block-icon] [data-icon="notes"]') && document.querySelector('button [data-icon="arrow-right"]')`)
 	b.shot("shell-light")
+
+	b.open(e.URL + "/#/deck/settings")
+	b.until("the tabs of settings", `[...document.querySelectorAll('[role=tab]')].some((x) => x.innerText.trim() === 'Providers')`)
+	b.eval(`([...document.querySelectorAll('[role=tab]')].find((x) => x.innerText.trim() === 'Providers').click(), '')`)
+	b.until("the providers table", `[...document.querySelectorAll('[data-block] table')].some((x) => x.offsetParent)`)
+	if got := b.eval(`[...document.querySelectorAll('th')].filter((x) => x.offsetParent && x.getBoundingClientRect().height > 48).map((x) => x.innerText).join('|')`); got != "" {
+		t.Fatalf("a header of a table keeps its words whole: %s", got)
+	}
 
 	b.eval(`(document.querySelector('[data-nav-hide]').click(), '')`)
 	b.until("the menu hidden, the focus on the button that brings it back", `!document.querySelector('[data-nav]') && document.activeElement === document.querySelector('[data-nav-show]')`)

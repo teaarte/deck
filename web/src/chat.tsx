@@ -103,8 +103,20 @@ export function Chat({ value, context }: { value: ChatValue; context: ComponentC
     return () => { opens.delete(show); };
   }, []);
   useEffect(() => { if (topic && !pinned.current) pick(String(topic.id)); }, [topic?.id]);
+  // The feed sticks to its last reply while the owner is at the bottom, also when a reply grows after it is drawn.
+  const stick = useRef(true);
+  const top = useRef(0);
+  const content = useRef<HTMLDivElement>(null);
+  const down = () => { if (feed.current && stick.current) feed.current.scrollTop = feed.current.scrollHeight; };
+  useEffect(() => {
+    const ro = new ResizeObserver(down);
+    if (content.current) ro.observe(content.current);
+    if (feed.current) ro.observe(feed.current);
+    return () => ro.disconnect();
+  }, []);
   const last = value.messages[value.messages.length - 1]?.id;
-  useEffect(() => { feed.current?.scrollTo({ top: feed.current.scrollHeight }); }, [last, value.turn?.lines.length]);
+  useEffect(down, [last, value.turn?.lines.length]);
+  useEffect(() => { stick.current = true; down(); }, [topic?.id]);
 
   const send = async () => {
     const message = text.trim();
@@ -118,6 +130,7 @@ export function Chat({ value, context }: { value: ChatValue; context: ComponentC
       });
       setText('');
       key.current = '';
+      stick.current = true;
       pick(String(out.topic));
     } catch (e) {
       notifications.show({ title: t('chat.send_failed'), message: (e as Error).message, color: 'red', autoClose: 10000 });
@@ -138,8 +151,15 @@ export function Chat({ value, context }: { value: ChatValue; context: ComponentC
         <Button size="xs" variant="default" leftSection={<IconPlus size={14} />} onClick={() => pick('new')} data-new-topic>{t('chat.new')}</Button>
       </Group>
       {topic && <Actions actions={[value.archive!, value.delete!].filter(Boolean)} context={context} />}
-      <ScrollArea style={{ flex: 1, minHeight: 80 }} viewportRef={feed} data-feed>
-        <Stack gap="xs" pr="xs">
+      <ScrollArea style={{ flex: 1, minHeight: 80 }} viewportRef={feed} data-feed
+        onScrollPositionChange={({ y }) => {
+          const v = feed.current;
+          if (!v) return;
+          if (y < top.current) stick.current = false;
+          if (v.scrollHeight - y - v.clientHeight < 48) stick.current = true;
+          top.current = y;
+        }}>
+        <Stack gap="xs" pr="xs" ref={content}>
           {!value.messages.length && <Text size="sm" c="dimmed">{t('chat.empty')}</Text>}
           {value.messages.map((m) => (
             <Group key={m.id} justify={m.role === 'owner' ? 'flex-end' : 'flex-start'} data-message={m.role}>

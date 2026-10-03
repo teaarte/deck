@@ -96,3 +96,11 @@ UPDATE project SET builtin = 1 WHERE id = ?;
 
 -- name: GetMessage :one
 SELECT * FROM chat_message WHERE id = ?;
+
+-- name: TopicProject :one
+SELECT CAST(COALESCE(
+    (SELECT pr.name FROM card c JOIN project pr ON pr.id = c.project_id WHERE c.id = t.card_id),
+    (SELECT json_extract(m.context, '$.project') FROM chat_message m
+        WHERE m.topic_id = t.id AND COALESCE(json_extract(m.context, '$.project'), '') != '' ORDER BY m.id LIMIT 1),
+    '') AS TEXT) AS project
+FROM chat_topic t WHERE t.id = ?;

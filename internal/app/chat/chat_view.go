@@ -48,6 +48,10 @@ func (ch *Service) chatTopicItem(ctx context.Context, t db.ChatTopic) map[string
 	if p, err := ch.St.Q.OpenTopicProcess(ctx, t.ID); err == nil {
 		v["reply"] = chatReply(p)
 	}
+	// The project of a topic is that of its card, else of the screen its first message was written on.
+	if p, err := ch.St.Q.TopicProject(ctx, t.ID); err == nil && p != "" {
+		v["project"] = p
+	}
 	return v
 }
 

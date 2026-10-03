@@ -23,6 +23,7 @@ type topicView struct {
 	ID        int64        `json:"id"`
 	Title     string       `json:"title"`
 	Card      int64        `json:"card,omitempty"`
+	Project   string       `json:"project,omitempty"`
 	Archived  bool         `json:"archived"`
 	UpdatedAt string       `json:"updated_at"`
 	Last      *messageView `json:"last,omitempty"`
@@ -79,11 +80,12 @@ func topicTitle(text string) string {
 }
 
 type chatSendIn struct {
-	Text     string `type:"text" desc:"The message"`
-	Topic    int64  `opt:"" desc:"Chat topic; a new topic when omitted"`
-	Screen   string `type:"json" opt:"" desc:"The screen the owner is on, as JSON: project, screen, record, card, process"`
-	Card     int64  `type:"card" opt:"" desc:"Card a new topic is about"`
-	RetryKey string `json:"retry_key" opt:"" desc:"A key of this message: sending it again with the same key returns the first one"`
+	Text     string   `type:"text" desc:"The message"`
+	Topic    int64    `opt:"" desc:"Chat topic; a new topic when omitted"`
+	Screen   string   `type:"json" opt:"" desc:"The screen the owner is on, as JSON: project, screen, record, card, process"`
+	Card     int64    `type:"card" opt:"" desc:"Card a new topic is about"`
+	RetryKey string   `json:"retry_key" opt:"" desc:"A key of this message: sending it again with the same key returns the first one"`
+	Files    []string `type:"file[]" opt:"" desc:"Uploads the owner attaches; the master reads them in the data folder of project master"`
 }
 
 type chatInterviewIn struct {
@@ -114,13 +116,22 @@ func (ch *Service) chatSend(ctx context.Context, act registry.Actor, in chatSend
 	case in.Topic != 0 && in.Card != 0:
 		return nil, registry.Invalid("deck: a card goes with a new topic only")
 	}
-	screen := ""
+	var s screenContext
 	if strings.TrimSpace(in.Screen) != "" {
-		var s screenContext
 		if err := json.Unmarshal([]byte(in.Screen), &s); err != nil {
 			return nil, registry.Invalid("deck: screen is a JSON object: %v", err)
 		}
-		b, _ := json.Marshal(s)
+	}
+	s.Files = nil
+	if len(in.Files) > 0 {
+		paths, err := ch.Attach(ctx, act, in.Files)
+		if err != nil {
+			return nil, err
+		}
+		s.Files = paths
+	}
+	screen := ""
+	if b, _ := json.Marshal(s); string(b) != "{}" {
 		screen = string(b)
 	}
 	if _, err := access.Master(ctx, ch.St.Q, act.Workspace); err != nil {
@@ -196,6 +207,7 @@ func (ch *Service) chatTopics(ctx context.Context, act registry.Actor, in chatTo
 		if p, err := ch.St.Q.OpenTopicProcess(ctx, t.ID); err == nil {
 			v.Reply = viewReply(p)
 		}
+		v.Project, _ = ch.St.Q.TopicProject(ctx, t.ID)
 		out = append(out, v)
 	}
 	return out, nil

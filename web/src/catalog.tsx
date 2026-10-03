@@ -12,7 +12,7 @@ import { DialogClose } from './dialog';
 import { Board } from './board';
 import { Form, type FormValue } from './form';
 import { Document, Markdown } from './document';
-import { Actions, QuestionPicker, rowOpen } from './actions';
+import { Actions, ActionsMenu, QuestionPicker, rowOpen } from './actions';
 import { Block, Details, show, type Span } from './block';
 import { DataTable } from './table';
 import { Appearance } from './appearance';
@@ -196,7 +196,11 @@ const impls: ReactComponentImplementation[] = [
     return <Block title={p.title} icon={p.icon} span={p.span} description={p.description} data={p.data}>{(d) => <Suspense fallback={<Loader size="xs" />}><Media items={d.files ?? []} /></Suspense>}</Block>;
   }),
   createComponentImplementation(api('actions'), ({ props, context }) => {
-    const p = props as { title?: string; icon?: string; span?: Span; description?: string; data?: Data };
+    const p = props as { title?: string; icon?: string; span?: Span; description?: string; menu?: boolean; data?: Data };
+    if (p.menu) {
+      return <ActionsMenu actions={p.data?.value as ActionsValue | undefined} context={context} label={p.title}
+        icon={p.icon ? <NamedIcon name={p.icon} fallback={p.title ?? ''} size={16} /> : undefined} />;
+    }
     return <Block title={p.title} icon={p.icon} span={p.span} description={p.description} data={p.data}>{(d) => <Actions actions={d.value as ActionsValue | undefined} context={context} />}</Block>;
   }),
   createComponentImplementation(api('log'), ({ props }) => {

@@ -164,7 +164,7 @@
     },
     "actions": {
       "description": "A group of buttons without a source.",
-      "block": {"description": "Needs actions; takes no source.", "required": ["actions"], "properties": {"actions": {"$ref": "#/$defs/actions"}}},
+      "block": {"description": "Needs actions; takes no source. With menu, the buttons open from one button, its title and icon, beside the title of the screen.", "required": ["actions"], "properties": {"actions": {"$ref": "#/$defs/actions"}, "menu": {"type": "boolean"}}},
       "type": "object",
       "additionalProperties": false,
       "required": ["data"],
@@ -173,6 +173,7 @@
         "icon": {"type": "string"},
         "span": {"enum": [1, 2, "full"]},
         "description": {"type": "string"},
+        "menu": {"type": "boolean"},
         "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "value: the buttons, with the record of the page in their params"}
       }
     },
@@ -354,7 +355,7 @@
         "send": {"$ref": "#/$defs/action"}, "archive": {"$ref": "#/$defs/action"}, "delete": {"$ref": "#/$defs/action"}}}
     },
     "topic": {"type": "object", "additionalProperties": false, "required": ["id", "title", "archived", "updated_at"], "properties": {
-      "id": {"type": "integer"}, "title": {"type": "string"}, "card": {"type": "integer"}, "archived": {"type": "boolean"}, "updated_at": {"type": "string"},
+      "id": {"type": "integer"}, "title": {"type": "string"}, "card": {"type": "integer"}, "project": {"type": "string", "description": "the project of its card, else of the screen of its first message"}, "archived": {"type": "boolean"}, "updated_at": {"type": "string"},
       "last": {"type": "string", "description": "the last message, cut short"}, "reply": {"$ref": "#/$defs/reply"}}},
     "reply": {"type": "object", "additionalProperties": false, "required": ["process", "state"], "properties": {
       "process": {"type": "integer"}, "state": {"type": "string"}, "provider": {"type": "string"}, "error": {"type": "string"},

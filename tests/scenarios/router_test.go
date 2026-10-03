@@ -10,6 +10,7 @@ import (
 var routedManifest = strings.Replace(boardWebManifest, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "blocks": [
       {"type": "dialog", "name": "rescore", "title": "Score again", "icon": "refresh", "primary": true, "blocks": [
         {"type": "form", "title": "Score", "command": "score", "values": {"title": "$param.title", "n": "3"}}]},
+      {"type": "actions", "title": "More", "icon": "dots", "menu": true, "actions": [{"label": "Tell", "command": "tell"}]},
       {"type": "table", "title": "Again", "source": {"collection": "notes"}, "columns": [{"label": "Title", "bind": "title"}],
         "actions": [{"label": "Again", "screen": "main", "params": {"title": "$record.title", "dialog": "rescore"}}]},`, 1)
 
@@ -39,6 +40,9 @@ func TestScreenParamsFillFormsAndTravelWithButtons(t *testing.T) {
 	}
 	if !strings.Contains(string(drawn), `"component":"dialog"`) || !strings.Contains(string(drawn), `"name":"rescore"`) {
 		t.Fatalf("a dialog is drawn with its name: %s", drawn)
+	}
+	if !strings.Contains(string(drawn), `"dialogs":["b0","b1"]`) || !strings.Contains(string(drawn), `"menu":true`) {
+		t.Fatalf("a dialog and a menu stand beside the title of the screen: %s", drawn)
 	}
 	without := e.screenData("web", "main", nil)
 	for _, d := range without {

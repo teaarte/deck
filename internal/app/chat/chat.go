@@ -46,6 +46,8 @@ type Service struct {
 	Asks   *ask.Broker
 	Runner *process.Runner
 	For    func(ctx context.Context, projectID int64, cmd *manifest.Command) (provider.Provider, error)
+	// Attach copies uploads of the owner where the master reads them and gives their paths.
+	Attach func(ctx context.Context, act registry.Actor, files []string) ([]string, error)
 
 	mu    sync.Mutex
 	queue chatQueue
@@ -377,6 +379,8 @@ type screenContext struct {
 	Record  int64  `json:"record,omitempty"`
 	Card    int64  `json:"card,omitempty"`
 	Process int64  `json:"process,omitempty"`
+	// Files are the paths of the files the owner attached to the message.
+	Files []string `json:"files,omitempty"`
 }
 
 func screenText(raw string) string {
@@ -399,7 +403,11 @@ func screenText(raw string) string {
 			parts = append(parts, fmt.Sprintf("%s %d", f.name, f.id))
 		}
 	}
-	return strings.Join(parts, ", ")
+	out := strings.Join(parts, ", ")
+	if len(s.Files) > 0 {
+		out = strings.TrimPrefix(out+"; the owner attached files: "+strings.Join(s.Files, ", "), "; ")
+	}
+	return out
 }
 
 // replyOf is the topic of a reply process of the built-in master, or 0 for any other process.

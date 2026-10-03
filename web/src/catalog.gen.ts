@@ -137,6 +137,10 @@ export interface Topic {
   id: number;
   title: string;
   card?: number;
+  /**
+   * the project of its card, else of the screen of its first message
+   */
+  project?: string;
   archived: boolean;
   updated_at: string;
   /**

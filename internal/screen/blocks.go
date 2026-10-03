@@ -78,6 +78,9 @@ func (r *renderer) block(id string, b manifest.Block) {
 		comp["description"] = b.Description
 	}
 	comp["span"] = span(b)
+	if b.Menu {
+		comp["menu"] = true
+	}
 	r.comps = append(r.comps, comp)
 	switch b.Type {
 	case "columns":
@@ -145,15 +148,15 @@ func span(b manifest.Block) any {
 	return 1
 }
 
-// split puts the dialogs of a screen apart from its blocks: their buttons stand beside its title.
+// split puts the dialogs and menus of a screen apart from its blocks: their buttons stand beside its title.
 func (r *renderer) split(ids []string) (blocks, dialogs []string) {
-	kind := map[string]any{}
+	head := map[string]bool{}
 	for _, c := range r.comps {
-		kind[fmt.Sprint(c["id"])] = c["component"]
+		head[fmt.Sprint(c["id"])] = c["component"] == "dialog" || c["menu"] == true
 	}
 	blocks, dialogs = []string{}, []string{}
 	for _, id := range ids {
-		if kind[id] == "dialog" {
+		if head[id] {
 			dialogs = append(dialogs, id)
 		} else {
 			blocks = append(blocks, id)

@@ -3,7 +3,7 @@ import type { ComponentContext } from '@a2ui/web_core/v0_9';
 import { ActionIcon, Button, Chip, Code, Group, Menu, Modal, Select, Stack, Text, TextInput } from '@mantine/core';
 import { useInterval } from '@mantine/hooks';
 import { IconArchive, IconArrowBackUp, IconArrowUpRight, IconCheck, IconDownload, IconLogin, IconMessage, IconPlayerPause,
-  IconCpu, IconDots, IconFlask, IconKey, IconPencil, IconPlayerPlay, IconReplace, IconPlayerStop, IconRefresh, IconSend, IconSettings, IconTrash, IconX, type Icon } from '@tabler/icons-react';
+  IconChevronDown, IconCpu, IconDots, IconFlask, IconKey, IconPencil, IconPlayerPlay, IconReplace, IconPlayerStop, IconRefresh, IconSend, IconSettings, IconTrash, IconX, type Icon } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { notifications } from '@mantine/notifications';
 import { download } from './api';
@@ -191,6 +191,29 @@ export function Actions({ actions, context, onDone, before, max = 3 }: { actions
         </Menu>
       )}
     </Group>
+  );
+}
+
+// ActionsMenu is one button that opens buttons in a menu: a label with its icon, or dots without one.
+export function ActionsMenu({ actions, context, label, icon, onDone }: { actions?: Action[]; context: ComponentContext; label?: string; icon?: React.ReactNode; onDone?: () => void }) {
+  const { t } = useTranslation();
+  const now = useNow();
+  const id = useId();
+  const shown = (actions ?? []).filter((a) => !a.until || Date.parse(a.until) > now);
+  if (!shown.length) return null;
+  return (
+    <Menu position="bottom-end" keepMounted closeOnItemClick={false} withinPortal shadow="md" radius="md">
+      <Menu.Target>
+        {label ? (
+          <Button variant="default" radius="xl" leftSection={icon} rightSection={<IconChevronDown size={14} />} data-more={id} data-menu>{label}</Button>
+        ) : (
+          <ActionIcon variant="subtle" color="gray" radius="xl" aria-label={t('actions.more')} data-more={id} data-menu><IconDots size={18} /></ActionIcon>
+        )}
+      </Menu.Target>
+      <Menu.Dropdown p={4} miw={190} data-more-menu={id}>
+        <Stack gap={2}>{shown.map((a, i) => <ActionButton key={i} act={a} context={context} onDone={onDone} inMenu />)}</Stack>
+      </Menu.Dropdown>
+    </Menu>
   );
 }
 

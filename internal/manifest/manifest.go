@@ -255,6 +255,8 @@ type Block struct {
 	Tabs        []Tab   `json:"tabs,omitempty"`
 	// Span is how many cells of the grid of the screen the block takes: 1, 2 or "full".
 	Span any `json:"span,omitempty"`
+	// Menu opens the buttons of an actions block from one button.
+	Menu bool `json:"menu,omitempty"`
 	// Name opens a dialog from the address of its screen; Primary paints its button in the accent.
 	Name    string `json:"name,omitempty"`
 	Primary bool   `json:"primary,omitempty"`

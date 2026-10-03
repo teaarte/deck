@@ -227,3 +227,12 @@ WHERE p.state IN ('waiting_provider', 'waiting_slot', 'waiting_folder') ORDER BY
 
 -- name: MoveAskCalls :exec
 UPDATE tool_call SET project_id = ? WHERE ask_id = ?;
+
+-- name: RunsSince :many
+SELECT CAST(substr(p.started_at, 1, 10) AS TEXT) AS day,
+    CAST(count(*) AS INTEGER) AS runs,
+    CAST(sum(CASE WHEN p.state IN ('error', 'interrupted') THEN 1 ELSE 0 END) AS INTEGER) AS failed,
+    CAST(sum(CASE WHEN p.trigger_id IS NOT NULL THEN 1 ELSE 0 END) AS INTEGER) AS scheduled
+FROM process p JOIN project j ON j.id = p.project_id
+WHERE j.workspace_id = sqlc.arg(workspace_id) AND p.started_at >= sqlc.arg(since)
+GROUP BY day;

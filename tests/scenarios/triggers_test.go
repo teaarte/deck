@@ -439,7 +439,7 @@ func TestScheduleShowsEveryTriggerRunsOneNowAndPausesAProject(t *testing.T) {
 	check.messages(t, e.screenMessages("", "schedule", nil))
 	rows := func() []screenRow {
 		var out []screenRow
-		for _, r := range blockData[[]screenRow](t, e.screenData("", "schedule", nil)["b0"]["rows"]) {
+		for _, r := range blockData[[]screenRow](t, e.screenData("", "schedule", nil)["b2"]["rows"]) {
 			if r.Cells[0] != "master" {
 				out = append(out, r)
 			}
@@ -485,7 +485,7 @@ func TestScheduleShowsEveryTriggerRunsOneNowAndPausesAProject(t *testing.T) {
 	}
 	button(job, "open")
 
-	projects := blockData[[]screenRow](t, e.screenData("", "schedule", nil)["b1"]["rows"])
+	projects := blockData[[]screenRow](t, e.screenData("", "schedule", nil)["b3"]["rows"])
 	press(button(projects[0], "pause"), nil)
 	if job = find(rows(), "alpha", "0 9 * * *"); job.Cells[5] != "project paused" {
 		t.Fatalf("a paused project shows on its triggers: %+v", job.Cells)
@@ -497,7 +497,7 @@ func TestScheduleShowsEveryTriggerRunsOneNowAndPausesAProject(t *testing.T) {
 	if n := e.countOf("job"); n != 1 {
 		t.Fatalf("a paused project runs nothing on schedule, only what the owner ran: %d", n)
 	}
-	projects = blockData[[]screenRow](t, e.screenData("", "schedule", nil)["b1"]["rows"])
+	projects = blockData[[]screenRow](t, e.screenData("", "schedule", nil)["b3"]["rows"])
 	press(button(projects[0], "resume"), nil)
 	press(button(find(rows(), "alpha", "0 9 * * *"), "pause"), nil)
 	if job = find(rows(), "alpha", "0 9 * * *"); job.Cells[5] != "paused" {
@@ -505,12 +505,12 @@ func TestScheduleShowsEveryTriggerRunsOneNowAndPausesAProject(t *testing.T) {
 	}
 	press(button(job, "resume"), nil)
 
-	history := e.screenData("", "schedule", map[string]any{"filter": `{"b2": {"project": "alpha"}}`})["b2"]
+	history := e.screenData("", "schedule", map[string]any{"filter": `{"b4": {"project": "alpha"}}`})["b4"]
 	hrows := blockData[[]screenRow](t, history["rows"])
 	if len(hrows) != 1 || hrows[0].Cells[1] != "alpha" || !strings.Contains(string(history["filters"]), `"value":"alpha"`) {
 		t.Fatalf("the history filters by project: %+v %s", hrows, history["filters"])
 	}
-	if states := blockData[[]screenRow](t, e.screenData("", "schedule", map[string]any{"filter": `{"b2": {"state": "error"}}`})["b2"]["rows"]); len(states) != 0 {
+	if states := blockData[[]screenRow](t, e.screenData("", "schedule", map[string]any{"filter": `{"b4": {"state": "error"}}`})["b4"]["rows"]); len(states) != 0 {
 		t.Fatalf("the history filters by state: %+v", states)
 	}
 	e.refused("deck.trigger_run", map[string]any{"trigger": 999}, 404, "no trigger")

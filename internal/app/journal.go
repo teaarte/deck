@@ -1,8 +1,10 @@
 package app
 
 import (
+	"cmp"
 	"context"
 	"deck2/internal/app/access"
+	"math"
 	"os"
 	"path/filepath"
 	"slices"
@@ -89,6 +91,130 @@ func (a *App) spendList(ctx context.Context, act registry.Actor, _ struct{}) ([]
 	return out, nil
 }
 
+type spendDailyIn struct {
+	Days int64  `opt:"" desc:"Days back from today, 1 to 366; 30 by default"`
+	By   string `opt:"" enum:"day|provider|project" desc:"day: a row for every day, the empty ones too; provider or project: their totals over the days"`
+}
+
+// spendDailyRow is the model calls of a day, a provider or a project; Age is how many days back the day is.
+type spendDailyRow struct {
+	Day          string  `json:"day,omitempty"`
+	Age          int64   `json:"age"`
+	Provider     string  `json:"provider,omitempty"`
+	Project      string  `json:"project,omitempty"`
+	Calls        int64   `json:"calls"`
+	InputTokens  int64   `json:"input_tokens"`
+	OutputTokens int64   `json:"output_tokens"`
+	Tokens       int64   `json:"tokens"`
+	CostUSD      float64 `json:"cost_usd"`
+	// Share is the part of all tokens of the days, from 0 to 1.
+	Share float64 `json:"share"`
+}
+
+// window is the first day of the last days and the days in order, oldest first, in UTC.
+func (a *App) window(days int64) (string, []string) {
+	if days < 1 || days > 366 {
+		days = 30
+	}
+	today := a.Cfg.Now().UTC()
+	out := make([]string, 0, days)
+	for i := days - 1; i >= 0; i-- {
+		out = append(out, today.AddDate(0, 0, -int(i)).Format("2006-01-02"))
+	}
+	return out[0], out
+}
+
+// spendDaily is the tokens and cost of model calls of the last days by day, provider or project.
+func (a *App) spendDaily(ctx context.Context, act registry.Actor, in spendDailyIn) ([]spendDailyRow, error) {
+	since, days := a.window(in.Days)
+	rows, err := a.Store.Q.SpendSince(ctx, db.SpendSinceParams{WorkspaceID: act.Workspace, Since: since})
+	if err != nil {
+		return nil, err
+	}
+	by := map[string]*spendDailyRow{}
+	var order []string
+	add := func(key string, r db.SpendSinceRow, base spendDailyRow) {
+		row, ok := by[key]
+		if !ok {
+			row = &base
+			by[key] = row
+			order = append(order, key)
+		}
+		row.Calls += r.Calls
+		row.InputTokens += r.InputTokens
+		row.OutputTokens += r.OutputTokens
+		row.Tokens += r.InputTokens + r.OutputTokens
+		row.CostUSD += r.CostUsd
+	}
+	if in.By == "" || in.By == "day" {
+		for i, d := range days {
+			by[d] = &spendDailyRow{Day: d, Age: int64(len(days) - 1 - i)}
+		}
+		order = days
+	}
+	var total int64
+	for _, r := range rows {
+		total += r.InputTokens + r.OutputTokens
+		switch in.By {
+		case "provider":
+			add(r.Provider, r, spendDailyRow{Provider: r.Provider})
+		case "project":
+			add(r.Project, r, spendDailyRow{Project: r.Project})
+		default:
+			if _, ok := by[r.Day]; ok {
+				add(r.Day, r, spendDailyRow{})
+			}
+		}
+	}
+	out := make([]spendDailyRow, 0, len(order))
+	for _, k := range order {
+		row := *by[k]
+		if total > 0 {
+			row.Share = math.Round(float64(row.Tokens)*1000/float64(total)) / 1000
+		}
+		out = append(out, row)
+	}
+	if in.By == "provider" || in.By == "project" {
+		slices.SortFunc(out, func(x, y spendDailyRow) int { return cmp.Compare(y.Tokens, x.Tokens) })
+	}
+	return out, nil
+}
+
+type runsDailyIn struct {
+	Days int64 `opt:"" desc:"Days back from today, 1 to 366; 14 by default"`
+}
+
+// runsDailyRow is the processes that started on a day: all, failed and started by a schedule.
+type runsDailyRow struct {
+	Day       string `json:"day"`
+	Age       int64  `json:"age"`
+	Runs      int64  `json:"runs"`
+	Failed    int64  `json:"failed"`
+	Scheduled int64  `json:"scheduled"`
+}
+
+// runsDaily is the processes of the last days by day, the empty days too.
+func (a *App) runsDaily(ctx context.Context, act registry.Actor, in runsDailyIn) ([]runsDailyRow, error) {
+	if in.Days == 0 {
+		in.Days = 14
+	}
+	since, days := a.window(in.Days)
+	rows, err := a.Store.Q.RunsSince(ctx, db.RunsSinceParams{WorkspaceID: act.Workspace, Since: since})
+	if err != nil {
+		return nil, err
+	}
+	got := map[string]db.RunsSinceRow{}
+	for _, r := range rows {
+		got[r.Day] = r
+	}
+	out := make([]runsDailyRow, 0, len(days))
+	for i, d := range days {
+		r := got[d]
+		out = append(out, runsDailyRow{Day: d, Age: int64(len(days) - 1 - i), Runs: r.Runs, Failed: r.Failed, Scheduled: r.Scheduled})
+	}
+	return out, nil
+}
+
 // snapshotRow is a snapshot of the base and files in backups.
 type snapshotRow struct {
 	Name    string `json:"name"`
@@ -129,6 +255,12 @@ func (a *App) journalCommands() []*registry.Command {
 		registry.Read("spend_list", "Spend",
 			"Lists the tokens and cost of model calls by project, command, provider and model, the largest first.",
 			registry.OwnerOnly, a.spendList),
+		registry.Read("spend_daily", "Spend by day",
+			"Gives the tokens, calls and cost of model calls of the last days: a row for every day, or the totals of each provider or project with their share.",
+			registry.OwnerOnly, a.spendDaily),
+		registry.Read("runs_daily", "Runs by day",
+			"Gives the processes started on each of the last days: all, failed and started by a schedule.",
+			registry.OwnerOnly, a.runsDaily).On("processes"),
 		registry.Read("snapshots_list", "Snapshots",
 			"Lists the snapshots of the base and files deck keeps, newest first.",
 			registry.OwnerOnly, a.snapshotsList).On("snapshots"),

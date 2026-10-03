@@ -66,6 +66,12 @@ func TestRealBrowserShell(t *testing.T) {
 	b.until("the icons of a block and its button", `document.querySelector('[data-block-icon] [data-icon="notes"]') && document.querySelector('button [data-icon="arrow-right"]')`)
 	b.shot("shell-light")
 
+	b.open(e.URL + "/#/deck/journal?tab=Spend")
+	b.until("the stats and the chart of the spend", `document.querySelectorAll('[data-stat]').length === 4 && document.querySelector('[data-chart-block] svg')`)
+	b.shot("shell-spend")
+	b.open(e.URL + "/#/deck/schedule")
+	b.until("the runs chart of the schedule", `document.querySelector('[data-chart-block] svg')`)
+	b.shot("shell-schedule")
 	b.open(e.URL + "/#/deck/settings")
 	b.until("the tabs of settings", `[...document.querySelectorAll('[role=tab]')].some((x) => x.innerText.trim() === 'Providers')`)
 	b.eval(`([...document.querySelectorAll('[role=tab]')].find((x) => x.innerText.trim() === 'Providers').click(), '')`)

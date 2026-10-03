@@ -87,10 +87,28 @@ func TestJournalShowsTheCallsOfTheGatewayTheSpendFilesAndSnapshots(t *testing.T)
 		}
 	}
 
-	spend := blockData[[]screenRow](t, data["b0-1-0"]["rows"])
+	spend := blockData[[]screenRow](t, data["b0-1-7"]["rows"])
 	if len(spend) != 1 || spend[0].Cells[1] != "tell" || spend[0].Cells[3] != "big" || spend[0].Cells[4] != float64(2) ||
 		spend[0].Cells[5] != float64(2000) || spend[0].Cells[6] != float64(400) {
 		t.Fatalf("spend sums the tokens of a command on a provider and model: %+v", spend)
+	}
+	var by []struct {
+		Provider string
+		Tokens   int64
+		Share    float64
+	}
+	e.must("deck.spend_daily", map[string]any{"by": "provider"}, &by)
+	if len(by) != 1 || by[0].Tokens != 2400 || by[0].Share != 1 {
+		t.Fatalf("spend by provider sums the tokens of the days with their share: %+v", by)
+	}
+	var days []struct {
+		Day    string
+		Age    int64
+		Tokens int64
+	}
+	e.must("deck.spend_daily", map[string]any{"days": 7}, &days)
+	if len(days) != 7 || days[6].Age != 0 || days[0].Age != 6 {
+		t.Fatalf("spend by day has every day of the window, today last: %+v", days)
 	}
 	files := blockData[[]screenRow](t, data["b0-2-0"]["rows"])
 	if len(files) != 1 || files[0].Cells[0] != "scan.txt" || files[0].Cells[1] != "web" || !strings.HasPrefix(files[0].Cells[4].(string), "process #") {

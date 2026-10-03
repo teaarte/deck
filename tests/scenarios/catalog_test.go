@@ -97,7 +97,7 @@ func TestBlocksShowValuesByTheirFormat(t *testing.T) {
 	}
 
 	for _, tc := range []struct{ from, to, want string }{
-		{`"format": "relative"}`, `"format": "relatively"}`, `value must be one of 'number', 'percent', 'money'`},
+		{`"format": "relative"}`, `"format": "relatively"}`, `value must be one of 'number', 'compact', 'percent', 'money'`},
 		{`"format": "money", "currency": "USD"`, `"format": "money"`, `format money needs currency`},
 		{`"format": "money", "currency": "USD"`, `"format": "money", "currency": "dollars"`, `does not match pattern`},
 		{`"format": "money", "currency": "USD"`, `"format": "money", "currency": "ZZZ"`, `currency "ZZZ" is not an ISO 4217 code`},

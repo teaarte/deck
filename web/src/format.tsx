@@ -71,6 +71,9 @@ export function formatted(v: unknown, s: Shown, now = Date.now()): string {
       case 'number':
         if (n !== undefined) return new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(n);
         break;
+      case 'compact':
+        if (n !== undefined) return new Intl.NumberFormat(undefined, { notation: 'compact', maximumFractionDigits: 1 }).format(n);
+        break;
       case 'percent':
         if (n !== undefined) return new Intl.NumberFormat(undefined, { style: 'percent', maximumFractionDigits: 1 }).format(n);
         break;

@@ -67,13 +67,19 @@
       "icon": "calendar-time",
       "title": "Schedule",
       "blocks": [
+        {"type": "list", "title": "Next up", "icon": "clock", "span": 1, "source": {"from": "deck.triggers_list", "where": "next_run_at != '' && !paused && !project_paused", "sort": "next_run_at", "limit": 8},
+          "empty": "Nothing is scheduled",
+          "item": {"title": "project + '.' + command", "meta": "kind == 'cron' ? spec : kind", "icon": "kind == 'cron' ? 'repeat' : kind == 'once' ? 'clock' : 'link'"},
+          "actions": [{"verb": "run_now", "command": "deck.trigger_run", "params": {"trigger": "$record.id"}, "when": "kind in ['cron', 'once']"}]},
+        {"type": "chart", "title": "Runs by day", "kind": "bar", "span": 2, "source": {"from": "deck.runs_daily"}, "x": "day",
+          "series": [{"label": "By schedule", "y": "scheduled"}, {"label": "Other", "y": "runs - scheduled"}, {"label": "Failed", "y": "failed"}]},
         {"type": "table", "title": "Triggers", "source": {"from": "deck.triggers_list", "sort": "project"},
           "columns": [
             {"label": "Project", "bind": "project"},
             {"label": "Command", "bind": "command"},
             {"label": "When", "bind": "kind == 'cron' ? spec : kind == 'once' ? 'once' : kind + ' ' + spec"},
-            {"label": "Next run", "bind": "next_run_at"},
-            {"label": "Last result", "bind": "last_state"},
+            {"label": "Next run", "bind": "next_run_at", "format": "relative"},
+            {"label": "Last result", "bind": "last_state", "format": "tag", "tone": "last_state == 'done' ? 'ok' : last_state in ['error', 'interrupted'] ? 'error' : ''"},
             {"label": "State", "bind": "project_paused ? 'project paused' : paused ? 'paused' : 'on'"}
           ],
           "actions": [
@@ -245,7 +251,28 @@
                 {"verb": "open", "screen": "process", "record": "$record.process", "when": "process != 0"}
               ]}
           ]},
-          {"title": "Spend", "blocks": [
+          {"title": "Spend", "icon": "chart-bar", "blocks": [
+            {"type": "stat", "title": "Tokens today", "icon": "bolt", "source": {"from": "deck.spend_daily", "input": {"days": 1}}, "value": "sum(map(rows, .tokens))", "format": "compact"},
+            {"type": "stat", "title": "Tokens, 7 days", "icon": "calendar-week", "source": {"from": "deck.spend_daily", "input": {"days": 7}}, "value": "sum(map(rows, .tokens))", "format": "compact"},
+            {"type": "stat", "title": "Cost, 30 days", "icon": "coin", "source": {"from": "deck.spend_daily"}, "value": "sum(map(rows, .cost_usd))", "format": "money", "currency": "USD"},
+            {"type": "stat", "title": "Model calls today", "icon": "message-chatbot", "source": {"from": "deck.spend_daily", "input": {"days": 1}}, "value": "sum(map(rows, .calls))"},
+            {"type": "chart", "title": "Tokens by day", "kind": "bar", "span": "full", "source": {"from": "deck.spend_daily"}, "x": "day",
+              "series": [{"label": "Input", "y": "input_tokens"}, {"label": "Output", "y": "output_tokens"}]},
+            {"type": "table", "title": "By provider, 30 days", "span": 2, "source": {"from": "deck.spend_daily", "input": {"by": "provider"}},
+              "columns": [
+                {"label": "Provider", "bind": "provider"},
+                {"label": "Tokens", "bind": "tokens", "format": "compact"},
+                {"label": "Share", "bind": "share", "format": "percent"},
+                {"label": "Calls", "bind": "calls"},
+                {"label": "Cost", "bind": "cost_usd", "format": "money", "currency": "USD"}
+              ]},
+            {"type": "table", "title": "By project, 30 days", "span": 2, "source": {"from": "deck.spend_daily", "input": {"by": "project"}},
+              "columns": [
+                {"label": "Project", "bind": "project"},
+                {"label": "Tokens", "bind": "tokens", "format": "compact"},
+                {"label": "Share", "bind": "share", "format": "percent"},
+                {"label": "Cost", "bind": "cost_usd", "format": "money", "currency": "USD"}
+              ]},
             {"type": "table", "title": "Tokens by command and provider", "source": {"from": "deck.spend_list"}, "filter": ["provider"],
               "columns": [
                 {"label": "Project", "bind": "project"},

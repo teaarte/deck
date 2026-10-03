@@ -1229,6 +1229,56 @@ func (q *Queries) ResetPauseLimit(ctx context.Context, arg ResetPauseLimitParams
 	return err
 }
 
+const runsSince = `-- name: RunsSince :many
+SELECT CAST(substr(p.started_at, 1, 10) AS TEXT) AS day,
+    CAST(count(*) AS INTEGER) AS runs,
+    CAST(sum(CASE WHEN p.state IN ('error', 'interrupted') THEN 1 ELSE 0 END) AS INTEGER) AS failed,
+    CAST(sum(CASE WHEN p.trigger_id IS NOT NULL THEN 1 ELSE 0 END) AS INTEGER) AS scheduled
+FROM process p JOIN project j ON j.id = p.project_id
+WHERE j.workspace_id = ?1 AND p.started_at >= ?2
+GROUP BY day
+`
+
+type RunsSinceParams struct {
+	WorkspaceID int64
+	Since       string
+}
+
+type RunsSinceRow struct {
+	Day       string
+	Runs      int64
+	Failed    int64
+	Scheduled int64
+}
+
+func (q *Queries) RunsSince(ctx context.Context, arg RunsSinceParams) ([]RunsSinceRow, error) {
+	rows, err := q.db.QueryContext(ctx, runsSince, arg.WorkspaceID, arg.Since)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []RunsSinceRow
+	for rows.Next() {
+		var i RunsSinceRow
+		if err := rows.Scan(
+			&i.Day,
+			&i.Runs,
+			&i.Failed,
+			&i.Scheduled,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const setProcessGroup = `-- name: SetProcessGroup :exec
 UPDATE process SET pgid = ? WHERE id = ?
 `

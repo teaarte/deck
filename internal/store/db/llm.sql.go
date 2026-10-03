@@ -165,3 +165,60 @@ func (q *Queries) SpendByCommand(ctx context.Context, workspaceID int64) ([]Spen
 	}
 	return items, nil
 }
+
+const spendSince = `-- name: SpendSince :many
+SELECT CAST(substr(c.created_at, 1, 10) AS TEXT) AS day, c.gen_ai_provider_name AS provider, j.name AS project,
+    CAST(count(*) AS INTEGER) AS calls,
+    CAST(sum(c.gen_ai_usage_input_tokens) AS INTEGER) AS input_tokens,
+    CAST(sum(c.gen_ai_usage_output_tokens) AS INTEGER) AS output_tokens,
+    CAST(COALESCE(sum(c.cost_usd), 0) AS REAL) AS cost_usd
+FROM llm_call c JOIN process p ON p.id = c.process_id JOIN project j ON j.id = p.project_id
+WHERE j.workspace_id = ?1 AND c.created_at >= ?2
+GROUP BY day, provider, project
+`
+
+type SpendSinceParams struct {
+	WorkspaceID int64
+	Since       string
+}
+
+type SpendSinceRow struct {
+	Day          string
+	Provider     string
+	Project      string
+	Calls        int64
+	InputTokens  int64
+	OutputTokens int64
+	CostUsd      float64
+}
+
+func (q *Queries) SpendSince(ctx context.Context, arg SpendSinceParams) ([]SpendSinceRow, error) {
+	rows, err := q.db.QueryContext(ctx, spendSince, arg.WorkspaceID, arg.Since)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SpendSinceRow
+	for rows.Next() {
+		var i SpendSinceRow
+		if err := rows.Scan(
+			&i.Day,
+			&i.Provider,
+			&i.Project,
+			&i.Calls,
+			&i.InputTokens,
+			&i.OutputTokens,
+			&i.CostUsd,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

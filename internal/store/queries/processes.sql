@@ -13,6 +13,7 @@ SELECT * FROM process
 WHERE project_id IN (SELECT id FROM project WHERE workspace_id = sqlc.arg(workspace_id))
   AND (sqlc.arg(project_id) = 0 OR project_id = sqlc.arg(project_id))
   AND (sqlc.arg(state) = '' OR state = sqlc.arg(state))
+  AND (sqlc.arg(command) = '' OR command = sqlc.arg(command))
 ORDER BY id DESC LIMIT sqlc.arg(lim);
 
 

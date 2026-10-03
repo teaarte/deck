@@ -58,6 +58,8 @@ type Actor struct {
 	Commands []string
 	// Trial marks a trial run: every call that is not internal is declined.
 	Trial bool
+	// CallLimit is how long a tool call of the calling agent may last; zero when it has no such limit.
+	CallLimit time.Duration
 	// cleared is set by the holder of the Clearance, the gateway, once a call that is not internal passed its
 	// class rules.
 	cleared bool
@@ -361,9 +363,33 @@ func (c *Command) Validate(input json.RawMessage) (json.RawMessage, error) {
 		return nil, Invalid("deck: input of %s is not JSON: %v", c.Name, err)
 	}
 	if err := c.schema.Validate(v); err != nil {
-		return nil, Invalid("deck: input of %s does not match its schema: %v", c.Name, err)
+		return nil, Invalid("deck: input of %s: %s; deck.command_describe gives its parameters", c.Name, schemaProblems(err))
 	}
 	return input, nil
+}
+
+// schemaProblems is each place an input breaks its schema, as "param: problem".
+func schemaProblems(err error) string {
+	var ve *jsonschema.ValidationError
+	if !errors.As(err, &ve) {
+		return err.Error()
+	}
+	var out []string
+	for _, u := range ve.BasicOutput().Errors {
+		if u.Error == nil {
+			continue
+		}
+		at := strings.TrimPrefix(u.InstanceLocation, "/")
+		if at == "" {
+			out = append(out, u.Error.String())
+		} else {
+			out = append(out, at+": "+u.Error.String())
+		}
+	}
+	if len(out) == 0 {
+		return err.Error()
+	}
+	return strings.Join(slices.Compact(out), "; ")
 }
 
 // jsonText turns the value of a json param that came as an object or a list into its JSON text.

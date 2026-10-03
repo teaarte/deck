@@ -257,6 +257,8 @@ func (r *Runner) converse(ctx context.Context, t *turn, a *agentTurn, fail func(
 			verr = validate(t.cmd, res.Structured)
 		}
 		switch {
+		case (err != nil || res.IsError) && r.questioned(bg, processID):
+			r.park(bg, processID)
 		case err != nil:
 			fail(err.Error())
 		case res.RateLimited:

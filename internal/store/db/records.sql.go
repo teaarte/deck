@@ -316,6 +316,30 @@ func (q *Queries) ListRecords(ctx context.Context, arg ListRecordsParams) ([]Rec
 	return items, nil
 }
 
+const newestRecord = `-- name: NewestRecord :one
+SELECT id, project_id, collection, "key", data, created_at, updated_at FROM record WHERE project_id = ? AND collection = ? ORDER BY id DESC LIMIT 1
+`
+
+type NewestRecordParams struct {
+	ProjectID  int64
+	Collection string
+}
+
+func (q *Queries) NewestRecord(ctx context.Context, arg NewestRecordParams) (Record, error) {
+	row := q.db.QueryRowContext(ctx, newestRecord, arg.ProjectID, arg.Collection)
+	var i Record
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.Collection,
+		&i.Key,
+		&i.Data,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const parkRecordKey = `-- name: ParkRecordKey :exec
 UPDATE record SET key = CAST(char(0) || 'migrating:' || id AS TEXT) WHERE id = ?
 `

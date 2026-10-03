@@ -131,8 +131,9 @@
                 {"label": "Name", "bind": "name"},
                 {"label": "Agent", "bind": "agent"},
                 {"label": "Model", "bind": "model"},
+                {"label": "Key", "bind": "key"},
                 {"label": "Status", "bind": "status"},
-                {"label": "Self-check", "bind": "verdict == 'model' ? 'the model does not manage it' : verdict == 'adapter' ? 'the adapter is broken' : ''"},
+                {"label": "Self-check", "bind": "verdict == 'model' ? 'the model failed it or was too slow' : verdict == 'adapter' ? 'the adapter is broken' : ''"},
                 {"label": "Tokens/s", "bind": "speed > 0 ? string(int(speed)) : ''"},
                 {"label": "Error", "bind": "error"}
               ],

@@ -75,7 +75,7 @@ func (t *turn) run(ctx context.Context) (provider.Result, error) {
 		select {
 		case got = <-done:
 		case <-time.After(15 * time.Second):
-			return provider.Result{}, ctx.Err()
+			return t.e.refused(provider.Result{}), ctx.Err()
 		}
 	case <-t.conn.Done():
 		return provider.Result{}, errors.New("acp: the agent exited before finishing the turn")
@@ -87,7 +87,7 @@ func (t *turn) run(ctx context.Context) (provider.Result, error) {
 	switch got.r.StopReason {
 	case sdk.StopReasonEndTurn:
 	case sdk.StopReasonCancelled:
-		res.IsError, res.Text = true, "acp: the turn was interrupted"
+		res = t.e.refused(provider.Result{IsError: true, Text: "acp: the turn was interrupted"})
 	default:
 		res = t.e.refused(provider.Result{IsError: true, Text: "acp: the turn ended as " + string(got.r.StopReason)})
 	}

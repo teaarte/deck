@@ -17,5 +17,6 @@
   "selfcheck_nodenial.jsonl": {"cli": "2.1.281", "date": "2026-09-26", "kind": "synthetic", "note": "selfcheck.jsonl whose result has no permission denials"},
   "selfcheck_offline.jsonl": {"cli": "2.1.281", "date": "2026-09-26", "kind": "real", "note": "self-check turn without network: curl in the sandbox of the CLI prints 000"},
   "selfcheck_online.jsonl": {"cli": "2.1.281", "date": "2026-09-26", "kind": "synthetic", "note": "selfcheck_offline.jsonl where curl got through"},
-  "background.jsonl": {"cli": "2.1.281", "date": "2026-10-02", "kind": "synthetic", "note": "ok.jsonl with a background task: the turn ends with a result, the finished task wakes the session and a second result follows, as 2.1.281 does for a sleep it moved to the background"}
+  "background.jsonl": {"cli": "2.1.281", "date": "2026-10-02", "kind": "synthetic", "note": "ok.jsonl with a background task: the turn ends with a result, the finished task wakes the session and a second result follows, as 2.1.281 does for a sleep it moved to the background"},
+  "background_agent.jsonl": {"cli": "2.1.281", "date": "2026-10-03", "kind": "synthetic", "note": "background.jsonl with an Agent tool run in the background: task_started, then an empty result while the task still runs"}
 }

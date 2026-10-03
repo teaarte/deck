@@ -711,13 +711,15 @@ SELECT id, project_id, command, kind, state, provider, session_id, input, result
 WHERE project_id IN (SELECT id FROM project WHERE workspace_id = ?1)
   AND (?2 = 0 OR project_id = ?2)
   AND (?3 = '' OR state = ?3)
-ORDER BY id DESC LIMIT ?4
+  AND (?4 = '' OR command = ?4)
+ORDER BY id DESC LIMIT ?5
 `
 
 type ListProcessesFilteredParams struct {
 	WorkspaceID int64
 	ProjectID   interface{}
 	State       interface{}
+	Command     interface{}
 	Lim         int64
 }
 
@@ -726,6 +728,7 @@ func (q *Queries) ListProcessesFiltered(ctx context.Context, arg ListProcessesFi
 		arg.WorkspaceID,
 		arg.ProjectID,
 		arg.State,
+		arg.Command,
 		arg.Lim,
 	)
 	if err != nil {

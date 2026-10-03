@@ -123,6 +123,8 @@ type Saved struct {
 	Revision int64    `json:"revision,omitempty"`
 	Waiting  int64    `json:"waiting,omitempty"`
 	Widens   []string `json:"widens,omitempty"`
+	// Screens name the blocks of the project's screens that fail on the data there is now.
+	Screens []string `json:"screens,omitempty"`
 }
 
 // SaveManifest checks a manifest and saves it with its triggers and migrated records in one transaction; a
@@ -191,6 +193,7 @@ func (a *App) SaveManifest(ctx context.Context, act registry.Actor, p db.Project
 		a.Bus.Publish("collection")
 	}
 	a.prepareLater(p.ID)
+	saved.Screens = a.checkScreens(ctx, act, p, pm.m)
 	return saved, nil
 }
 

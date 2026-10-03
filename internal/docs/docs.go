@@ -150,6 +150,47 @@ func Save(ctx context.Context, q *db.Queries, ref Ref, kind, text, author, reaso
 	return d, n, nil
 }
 
+// Edit replaces each old part of the text with its new one; each old part must occur in the text exactly once,
+// and the parts may not overlap.
+func Edit(text string, old, new []string) (string, error) {
+	if len(old) != len(new) {
+		return "", registry.Invalid("deck: %d old texts and %d new ones; give one new text for each old one", len(old), len(new))
+	}
+	type part struct{ at, i int }
+	parts := make([]part, 0, len(old))
+	for i, o := range old {
+		switch n := strings.Count(text, o); {
+		case o == "":
+			return "", registry.Invalid("deck: old text %d is empty", i+1)
+		case n == 0:
+			return "", registry.Invalid("deck: old text %d is not in the current text: %q", i+1, clip(o))
+		case n > 1:
+			return "", registry.Invalid("deck: old text %d occurs %d times; take more of its surroundings so it occurs once: %q", i+1, n, clip(o))
+		}
+		parts = append(parts, part{strings.Index(text, o), i})
+	}
+	slices.SortFunc(parts, func(a, b part) int { return a.at - b.at })
+	var b strings.Builder
+	last := 0
+	for _, p := range parts {
+		if p.at < last {
+			return "", registry.Invalid("deck: old text %d overlaps another one", p.i+1)
+		}
+		b.WriteString(text[last:p.at])
+		b.WriteString(new[p.i])
+		last = p.at + len(old[p.i])
+	}
+	b.WriteString(text[last:])
+	return b.String(), nil
+}
+
+func clip(s string) string {
+	if r := []rune(s); len(r) > 80 {
+		return string(r[:80]) + "…"
+	}
+	return s
+}
+
 // CurrentText returns the current text of a document of the given kind ("" for any); empty when missing.
 func CurrentText(ctx context.Context, q *db.Queries, s Scope, kind, name string) (string, error) {
 	row, err := q.CurrentText(ctx, db.CurrentTextParams{WorkspaceID: s.Workspace, ProjectID: store.ID(s.Project), Name: name, Kind: kind})

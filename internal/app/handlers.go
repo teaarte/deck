@@ -126,16 +126,41 @@ func (a *App) manifestGet(ctx context.Context, act registry.Actor, in manifestGe
 }
 
 type manifestSaveIn struct {
-	Project    string `type:"project" desc:"Project name"`
-	Manifest   string `type:"json" desc:"Manifest JSON"`
-	Reason     string `opt:"" desc:"Why it changed"`
-	IfRevision int64  `json:"if_revision" opt:"" desc:"Only while the current revision is still this one"`
+	Project    string   `type:"project" desc:"Project name"`
+	Manifest   string   `type:"json" opt:"" desc:"Manifest JSON; leave it out to change parts of the current manifest with old and new"`
+	Old        []string `type:"text[]" opt:"" desc:"Parts of the current manifest text to replace, each occurring in it exactly once"`
+	New        []string `type:"text[]" opt:"" desc:"The text that replaces each old part, in the same order"`
+	Reason     string   `opt:"" desc:"Why it changed"`
+	IfRevision int64    `json:"if_revision" opt:"" desc:"Only while the current revision is still this one"`
 }
 
 func (a *App) manifestSave(ctx context.Context, act registry.Actor, in manifestSaveIn) (any, error) {
 	p, err := access.Project(ctx, a.Store.Q, act, in.Project)
 	if err != nil {
 		return nil, err
+	}
+	if len(in.Old) > 0 || len(in.New) > 0 {
+		if in.Manifest != "" {
+			return nil, registry.Invalid("deck: give the whole manifest or old and new parts, not both")
+		}
+		d, err := a.Store.Q.FindDocument(ctx, docs.Ref{Scope: docs.ProjectScope(p), Name: docs.ManifestName}.Find())
+		if err != nil {
+			return nil, err
+		}
+		if in.IfRevision != 0 && d.Current != in.IfRevision {
+			return nil, registry.Conflict("deck: the manifest of %s is at revision %d now, not %d", p.Name, d.Current, in.IfRevision)
+		}
+		r, err := docs.Revision(ctx, a.Store.Q, d, 0)
+		if err != nil {
+			return nil, err
+		}
+		if in.Manifest, err = docs.Edit(r.Text, in.Old, in.New); err != nil {
+			return nil, err
+		}
+		in.IfRevision = d.Current
+	}
+	if strings.TrimSpace(in.Manifest) == "" {
+		return nil, registry.Invalid("deck: give the manifest JSON, or old and new parts of the current one")
 	}
 	return a.SaveManifest(ctx, act, p, []byte(in.Manifest), in.Reason, 0, in.IfRevision,
 		Call{Command: registry.Builtin + ".manifest_save", Input: map[string]any{"project": p.Name, "manifest": in.Manifest, "reason": in.Reason}})
@@ -153,7 +178,7 @@ func (a *App) projectsCommands() []*registry.Command {
 			"Returns the current manifest of a project.",
 			registry.Everyone, a.manifestGet),
 		registry.Def("manifest_save", "Save manifest",
-			"Validates a manifest and stores it as a new revision.",
+			"Validates a manifest and stores it as a new revision: the whole manifest, or old parts of the current text replaced with new ones.",
 			registry.OwnerSide, a.manifestSave),
 	}
 }

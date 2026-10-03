@@ -106,8 +106,16 @@ func (s ShellCheck) Check(ctx context.Context, start Check) (c Check) {
 		counted := tokens
 		mu.Unlock()
 		switch {
-		case err != nil && ctx.Err() != nil:
-			model(fmt.Errorf("%s: the model did not finish within the ceiling: %w", what, err))
+		case ctx.Err() != nil && res.NeedsLogin:
+			c.Err = fmt.Errorf("%s: the model API refused the key (401 or 403); check the key secret and the url", what)
+		case ctx.Err() != nil && res.RateLimited:
+			c.Err = fmt.Errorf("%s: the model API answered with a usage limit (429) until the ceiling", what)
+		case ctx.Err() != nil && counted == 0:
+			c.Slow = true
+			model(fmt.Errorf("%s: not one model call finished within the ceiling: the model may be slow to start (a cold start, the queue of a free tier), or its url or model id may be wrong", what))
+		case ctx.Err() != nil:
+			c.Slow = true
+			model(fmt.Errorf("%s: the model answered (%d tokens) but did not finish the steps within the ceiling: it is slow, such as a model that always reasons; commands with a long timeout_minutes may still run on it", what, counted))
 		case err != nil:
 			c.Err = fmt.Errorf("%s: %w", what, err)
 		case res.RateLimited || res.NeedsLogin || res.IsError:

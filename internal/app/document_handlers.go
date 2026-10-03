@@ -150,13 +150,16 @@ func (a *App) documentGet(ctx context.Context, act registry.Actor, in documentGe
 }
 
 type documentSaveIn struct {
-	Name    string `desc:"Document name (path), e.g. notes/criteria.md; memory/MEMORY.md and memory/<fact>.md for memory"`
-	Kind    string `desc:"Document kind"`
-	Text    string `type:"text" desc:"Full new text"`
-	Project string `type:"project" opt:"" desc:"Project name; without it an agent of a project works in its own, the owner and the master in the workspace documents (memory/ names: the owner's memory, in project master)"`
-	Record  int64  `type:"record" opt:"" desc:"Record the document belongs to"`
-	Card    int64  `type:"card" opt:"" desc:"Card the document belongs to"`
-	Reason  string `opt:"" desc:"Why it changed"`
+	Name       string   `desc:"Document name (path), e.g. notes/criteria.md; memory/MEMORY.md and memory/<fact>.md for memory"`
+	Kind       string   `desc:"Document kind"`
+	Text       string   `type:"text" opt:"" desc:"Full new text; leave it out to change parts of the current text with old and new"`
+	Old        []string `type:"text[]" opt:"" desc:"Parts of the current text to replace, each occurring in it exactly once"`
+	New        []string `type:"text[]" opt:"" desc:"The text that replaces each old part, in the same order"`
+	IfRevision int64    `json:"if_revision" opt:"" desc:"Only while the current revision is still this one"`
+	Project    string   `type:"project" opt:"" desc:"Project name; without it an agent of a project works in its own, the owner and the master in the workspace documents (memory/ names: the owner's memory, in project master)"`
+	Record     int64    `type:"record" opt:"" desc:"Record the document belongs to"`
+	Card       int64    `type:"card" opt:"" desc:"Card the document belongs to"`
+	Reason     string   `opt:"" desc:"Why it changed"`
 }
 
 func (a *App) documentSave(ctx context.Context, act registry.Actor, in documentSaveIn) (any, error) {
@@ -196,6 +199,9 @@ func (a *App) documentSave(ctx context.Context, act registry.Actor, in documentS
 			}
 			ref.OwnerKind, ref.OwnerID = "card", c.ID
 		}
+		if err := editText(ctx, q, ref, &in); err != nil {
+			return err
+		}
 		var n int64
 		if d, n, err = docs.Save(ctx, q, ref, in.Kind, in.Text, act.Author(), in.Reason); err != nil {
 			return err
@@ -212,6 +218,41 @@ func (a *App) documentSave(ctx context.Context, act registry.Actor, in documentS
 		}
 	}
 	return v, nil
+}
+
+// editText checks if_revision and, for old and new parts, makes the text of the save from the current one.
+func editText(ctx context.Context, q *db.Queries, ref docs.Ref, in *documentSaveIn) error {
+	if len(in.Old) == 0 && len(in.New) == 0 && in.Text == "" {
+		return registry.Invalid("deck: give the full text, or old and new parts of the current one")
+	}
+	if len(in.Old) == 0 && len(in.New) == 0 && in.IfRevision == 0 {
+		return nil
+	}
+	if len(in.Old) > 0 && in.Text != "" {
+		return registry.Invalid("deck: give the full text or old and new parts, not both")
+	}
+	d, err := q.FindDocument(ctx, ref.Find())
+	if errors.Is(err, sql.ErrNoRows) {
+		if in.IfRevision != 0 || len(in.Old) > 0 {
+			return registry.NotFound("deck: no document %q to change; save it with its full text", ref.Name)
+		}
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if in.IfRevision != 0 && d.Current != in.IfRevision {
+		return registry.Conflict("deck: %s is at revision %d now, not %d", ref.Name, d.Current, in.IfRevision)
+	}
+	if len(in.Old) == 0 && len(in.New) == 0 {
+		return nil
+	}
+	r, err := docs.Revision(ctx, q, d, 0)
+	if err != nil {
+		return err
+	}
+	in.Text, err = docs.Edit(r.Text, in.Old, in.New)
+	return err
 }
 
 // memoryScope is access.DocScope, except that memory of no project is the memory of the owner, in project master.

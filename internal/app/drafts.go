@@ -163,6 +163,7 @@ func rights(m *manifest.Manifest) []string {
 type commandTryIn struct {
 	Command string `desc:"Command name, project.command"`
 	Input   string `type:"json" opt:"" desc:"Command input: a JSON object"`
+	Live    bool   `opt:"" desc:"The project is enabled: the trial writes into its real records and cards"`
 }
 
 // commandTry starts a trial run of a project command: every call that is not internal is declined, so a token
@@ -179,8 +180,33 @@ func (a *App) commandTry(ctx context.Context, act registry.Actor, in commandTryI
 	case c.Fingerprint != nil:
 		return nil, registry.Invalid("deck: %s is a tool, the call itself; only commands have trial runs", c.Name)
 	}
+	if err := a.liveTrial(ctx, c, in.Live); err != nil {
+		return nil, err
+	}
 	act.Trial = true
 	return c.Handler(ctx, act, input)
+}
+
+// liveTrial lets a trial into an enabled project only when asked for, and never beside a real run of the command.
+func (a *App) liveTrial(ctx context.Context, c *registry.Command, live bool) error {
+	p, err := a.Store.Q.GetProject(ctx, c.ProjectID)
+	if err != nil || p.Status == store.ProjectDraft {
+		return err
+	}
+	if !live {
+		return registry.Invalid("deck: %s is enabled: a trial writes into its real records and cards and may run beside its own runs; "+
+			"try the change in a draft copy (project_import of its folder under another name), or pass live to try it here", p.Name)
+	}
+	open, err := a.Store.Q.ListOpenProcesses(ctx, db.ListOpenProcessesParams{WorkspaceID: p.WorkspaceID, ProjectID: p.ID})
+	if err != nil {
+		return err
+	}
+	for _, o := range open {
+		if o.Command == strings.TrimPrefix(c.Name, p.Name+".") && o.Trial == 0 {
+			return registry.Conflict("deck: %s is running now (process %d); try it once that run is over", c.Name, o.ID)
+		}
+	}
+	return nil
 }
 
 func orText(s, fallback string) string {

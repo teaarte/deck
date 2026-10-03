@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"time"
 
@@ -96,6 +97,13 @@ func (r *Runner) blocked(ctx context.Context, processID int64) bool {
 	open, _ := r.st.Q.ListOpenAsksOfProcess(ctx, processID)
 	pending, _ := r.untold(ctx, processID)
 	return len(open) > 0 || !pending.empty()
+}
+
+// questioned reports whether a question to the owner is still open; a turn that broke meanwhile waits for its
+// answer instead of failing, and the answer resumes the session.
+func (r *Runner) questioned(ctx context.Context, processID int64) bool {
+	open, _ := r.st.Q.ListOpenAsksOfProcess(ctx, processID)
+	return slices.ContainsFunc(open, func(a db.Ask) bool { return a.Kind == ask.KindQuestion && a.State == "open" })
 }
 
 // park moves the process to waiting_answer, where its ceiling does not tick, and immediately delivers

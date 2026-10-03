@@ -14,6 +14,7 @@ type line struct {
 	Subtype          string          `json:"subtype"`
 	SessionID        string          `json:"session_id"`
 	ParentToolUseID  string          `json:"parent_tool_use_id"`
+	TaskID           string          `json:"task_id"`
 	Result           string          `json:"result"`
 	IsError          bool            `json:"is_error"`
 	Errors           []string        `json:"errors"`
@@ -62,6 +63,8 @@ type turn struct {
 	live int
 	// background counts background tasks that finished; each wakes the session for one more result.
 	background int
+	// tasks are the tasks of the session that started and have not reported yet.
+	tasks map[string]bool
 	// started is set once the CLI reported its session; a message before that could meet a session that is gone.
 	started bool
 	// cost is the cost of the session the results so far reported.
@@ -78,6 +81,13 @@ func (t *turn) line(raw []byte) {
 	}
 	if l.Type == "system" && l.Subtype == "task_notification" && l.ParentToolUseID == "" {
 		t.background++
+		delete(t.tasks, l.TaskID)
+	}
+	if l.Type == "system" && l.Subtype == "task_started" && l.ParentToolUseID == "" && l.TaskID != "" {
+		if t.tasks == nil {
+			t.tasks = map[string]bool{}
+		}
+		t.tasks[l.TaskID] = true
 	}
 	if l.ParentToolUseID != "" || (l.Type == "system" && strings.HasPrefix(l.Subtype, "task_")) {
 		return

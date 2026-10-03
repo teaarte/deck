@@ -23,14 +23,15 @@ type Adapter struct {
 	// ConfigDir holds per-turn MCP configs; it must be outside every folder the agent writes to. RunsDir holds
 	// the folders of runs, whose sessions the agent of another run may not read.
 	ConfigDir, RunsDir string
-	// Linger is how long the CLI may stay silent after its result before its process group is killed.
-	Linger time.Duration
+	// Linger is how long the CLI may stay silent after its result before its process group is killed; TaskLinger
+	// is that time while a task it started has not reported.
+	Linger, TaskLinger time.Duration
 }
 
 // New runs the CLI for the deck whose folder is root.
 func New(root string) *Adapter {
 	h := home.Layout(root)
-	return &Adapter{Binary: "claude", ConfigDir: h.Sessions(), RunsDir: h.Runs(), Linger: 90 * time.Second}
+	return &Adapter{Binary: "claude", ConfigDir: h.Sessions(), RunsDir: h.Runs(), Linger: 90 * time.Second, TaskLinger: 30 * time.Minute}
 }
 
 func (a *Adapter) Name() string { return "claude-code" }
@@ -219,7 +220,11 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 				}
 				lingerC = nil
 				if t.results >= t.allowed() {
-					linger = time.NewTimer(a.Linger)
+					wait := a.Linger
+					if len(t.tasks) > 0 {
+						wait = max(wait, a.TaskLinger)
+					}
+					linger = time.NewTimer(wait)
 					lingerC = linger.C
 				}
 			}

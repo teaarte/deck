@@ -175,6 +175,26 @@ func TestABackgroundTaskOfClaudeCodeEndsTheTurnWithItsLastResult(t *testing.T) {
 	}
 }
 
+// TestAnEmptyResultWhileBackgroundAgentsRunIsNotTheEndOfTheTurn: Claude Code hands in a result at once after it
+// sends helpers to the background; deck keeps the CLI until they report and takes the result that follows.
+func TestAnEmptyResultWhileBackgroundAgentsRunIsNotTheEndOfTheTurn(t *testing.T) {
+	c := newCLI(t)
+	c.stream(0, "background_agent.jsonl")
+	rest := `{"type": "system", "subtype": "task_notification", "task_id": "bg1", "status": "completed", "session_id": "{{session}}"}
+{"type": "assistant", "message": {"role": "assistant", "content": [{"type": "text", "text": "agents said done"}]}, "session_id": "{{session}}"}
+{"type": "result", "subtype": "success", "is_error": false, "result": "agents said done", "session_id": "{{session}}"}
+`
+	if err := os.WriteFile(filepath.Join(c.dir, "rest"), []byte(rest), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	c.after(`sleep 1; sed "s/{{session}}/$session/g" "$d/rest"` + "\n")
+	e, _ := cliEnv(t, c)
+	p := e.createProject("plain", plainManifest)
+	if got := e.waitState(e.run(p, "work"), "done", "error"); got.State != "done" || string(got.Result) != `"agents said done"` {
+		t.Fatalf("the CLI outlives its linger while its background agent runs, and the later result counts: %+v", got)
+	}
+}
+
 func fileExists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil

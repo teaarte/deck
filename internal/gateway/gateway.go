@@ -55,10 +55,10 @@ func (s *Session) actor() registry.Actor {
 	}
 	if s.Master {
 		return registry.Actor{Kind: registry.Master, Workspace: s.Workspace, ProjectID: s.ProjectID, ProcessID: s.ProcessID, Trial: s.Trial,
-			Commands: s.Commands}
+			Commands: s.Commands, CallLimit: s.Wait}
 	}
 	return registry.Actor{Kind: registry.Agent, Workspace: s.Workspace, ProjectID: s.ProjectID, ProcessID: s.ProcessID, Trial: s.Trial,
-		Commands: s.Commands}
+		Commands: s.Commands, CallLimit: s.Wait}
 }
 
 type Config struct {

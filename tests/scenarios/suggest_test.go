@@ -209,7 +209,7 @@ func TestASuggestionIntoAnotherProjectWaitsEvenOnAuto(t *testing.T) {
 	trial := strings.Replace(suggestManifest, `"version": 5,`, `"version": 5, "autonomy": "auto",`, 1)
 	e.createProject("gamma", trial)
 	var tr struct{ Process int64 }
-	e.must("deck.command_try", map[string]any{"command": "gamma.work"}, &tr)
+	e.must("deck.command_try", map[string]any{"live": true, "command": "gamma.work"}, &tr)
 	e.waitState(tr.Process, "done")
 	if titles := e.cardTitles("gamma"); len(titles) != 0 || len(e.suggestions()) != 2 {
 		t.Fatalf("a trial run's suggestion waits too: %v", titles)

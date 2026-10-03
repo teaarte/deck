@@ -13,13 +13,14 @@ and presses "enable".
 You talk to deck through its MCP server (`deck`). The tools are deck commands: `manifest_format`,
 `project_import`, `documents_list`, `manifest_get`, `manifest_save`, `document_get`, `document_save`,
 `command_try`, `process_get`, `process_log`, `records_list`, `records_upsert`, `cards_list`, `files_list`,
-`projects_list`, `triggers_list`, `providers_list`, `health_list`, `asks_list`. Some commands only the owner runs:
+`projects_list`, `triggers_list`, `providers_list`, `health_list`, `asks_list`, `command_describe`. Some commands only the owner runs:
 `secret_set`, `oauth_start`, `browser_login`, `provider_set`, `provider_add`, `project_enable`; say which one and
 why when the module needs it. The owner does them in two places. The Settings of the project (Settings →
 Projects → "Settings" on its row): "Enable" with the rights enabling grants, autonomy, pause, the provider of
 each command, folders, the secrets its tools take. deck's Settings tabs: Projects (create, import, a trial run),
 Providers (add one), Secrets (name and a hidden value), Tokens, Health; sign-ins wait in the cockpit. So name
-the place and the value ("Settings → Secrets: `mail-key`, the API key of …"), never a `curl`.
+the place and the value ("Settings → Secrets: `mail-key`, the API key of …"), never a `curl`; the fields of
+these forms are the input of their command, which `command_describe` gives.
 
 ## 1. Interview
 
@@ -331,9 +332,16 @@ Name each of these rights in the hand-over: the owner grants them with "enable".
 2. `project_import` with the absolute folder path creates a **draft**. A refused import comes back with the
    reason and leaves nothing behind; fix the folder and import again. Once imported, change the draft with
    `manifest_save` and `document_save` (a second import of the same name is refused), and keep the folder
-   in step.
+   in step. Send only what changes: `old` (parts of the current text, each found exactly once) and `new`
+   (what replaces each); the whole text only for a new document or a rewrite. The answer of `manifest_save`
+   lists in `screens` each block that fails on the records there are now (a column that breaks on a record
+   without a field, a missing custom document): fix them before the owner opens the screen.
 3. `command_try` runs a command as a trial: everything that is not internal is declined, so nothing leaves
-   deck. It runs as you, the master: leave `callers` out (everyone) unless a command must be closed to
+   deck. Try in a draft. To try a change of an enabled module (a new command, one that waits for the owner's
+   button), import its folder as a draft copy under another name, try there, then save the change to the
+   module and tell the owner the copy can be deleted: a trial in the enabled module itself writes real
+   records and cards beside its own runs, so it takes `live` and is refused while a real run of the command
+   is going on. It runs as you, the master: leave `callers` out (everyone) unless a command must be closed to
    someone, and keep `master` in a list you give. The `after` and `lane` triggers it sets off run as trials too, so a whole chain can be tried from
    its first command. A trial is not a sandbox: internal writes (records, cards, documents) are real and stay
    in the draft, and so is what scripts write to `$DECK_DATA`, which you cannot reach: keep what a module
@@ -343,7 +351,8 @@ Name each of these rights in the hand-over: the owner grants them with "enable".
    the state and result. A `lane` step is tried with `command_try` of its command and `{"card": <id>}`: in a
    draft moving the card starts nothing; `process_log` shows the events of a process, also after it ended,
    and a local model may think for many minutes before its first one: wait with
-   `process_get` in the foreground. Time the trial on the provider the command will run on and set
+   `process_get` and `wait` in the foreground (up to 30 minutes on Claude Code and Codex). `processes_list`
+   with `command` and `brief` and `records_list` with `where` and `fields` keep long lists short. Time the trial on the provider the command will run on and set
    `timeout_minutes`, batch sizes and the schedule by it. A trial that ends `done` is not yet a proof: check
    that the chain gave what the owner will see (records, cards, documents). Check `records_list` and `cards_list`, and `health_list` after a save that adds programs or
    MCP servers: a missing program or a failed server shows there with its error.

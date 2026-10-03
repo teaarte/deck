@@ -76,8 +76,10 @@ func procView(p db.Process, project string) processView {
 type processesListIn struct {
 	Project string `type:"project" opt:"" desc:"Project name; without it an agent of a project gets its own, the owner and the master every project"`
 	State   string `opt:"" desc:"Only this state"`
+	Command string `opt:"" desc:"Only the processes of this command of the project, by its name in the manifest"`
 	Open    bool   `opt:"" desc:"Only the processes that have not finished, oldest first"`
 	Limit   int64  `opt:"" desc:"At most this many"`
+	Brief   bool   `opt:"" desc:"Leave the results out; process_get gives the result of one"`
 }
 
 func (a *App) processesList(ctx context.Context, act registry.Actor, in processesListIn) ([]processView, error) {
@@ -90,7 +92,7 @@ func (a *App) processesList(ctx context.Context, act registry.Actor, in processe
 		ps, err = a.Store.Q.ListOpenProcesses(ctx, db.ListOpenProcessesParams{WorkspaceID: act.Workspace, ProjectID: pid})
 	} else {
 		ps, err = a.Store.Q.ListProcessesFiltered(ctx, db.ListProcessesFilteredParams{WorkspaceID: act.Workspace, ProjectID: pid, State: in.State,
-			Lim: registry.Limit(in.Limit, 50, 500)})
+			Command: in.Command, Lim: registry.Limit(in.Limit, 50, 500)})
 	}
 	if err != nil {
 		return nil, err
@@ -101,20 +103,24 @@ func (a *App) processesList(ctx context.Context, act registry.Actor, in processe
 	}
 	out := make([]processView, 0, len(ps))
 	for _, p := range ps {
-		if in.Open && in.State != "" && p.State != in.State {
+		if in.Open && (in.State != "" && p.State != in.State || in.Command != "" && p.Command != in.Command) {
 			continue
 		}
-		out = append(out, procView(p, names[p.ProjectID]))
+		v := procView(p, names[p.ProjectID])
+		if in.Brief {
+			v.Result = nil
+		}
+		out = append(out, v)
 	}
 	return out, nil
 }
 
-// maxWait is the longest process_get waits, in seconds: below the minute after which ACP agents give up a tool call.
-const maxWait = 40
+// maxWait is the longest process_get waits; an agent whose tool calls time out sooner waits a little less than that.
+const maxWait = 30 * time.Minute
 
 type processGetIn struct {
 	Process int64 `type:"process" desc:"Process id"`
-	Wait    int64 `opt:"" desc:"Seconds to wait, at most 40, for the process to finish or to wait for the owner"`
+	Wait    int64 `opt:"" desc:"Seconds to wait, at most 1800 and less for agents whose tool calls time out sooner, for the process to finish or to wait for the owner"`
 }
 
 func (a *App) processGet(ctx context.Context, act registry.Actor, in processGetIn) (processView, error) {
@@ -122,8 +128,12 @@ func (a *App) processGet(ctx context.Context, act registry.Actor, in processGetI
 	if err != nil {
 		return processView{}, err
 	}
-	until := time.Now().Add(time.Duration(min(max(in.Wait, 0), maxWait)) * time.Second)
+	begin := time.Now()
+	until := begin.Add(min(time.Duration(max(in.Wait, 0))*time.Second, waitLimit(act)))
 	for !p.FinishedAt.Valid && p.State != process.StateWaitingAnswer && p.State != process.StateNeedsLogin && time.Now().Before(until) {
+		if p.State == process.StateWaitingSlot && time.Since(begin) > slotWait {
+			break
+		}
 		select {
 		case <-ctx.Done():
 			return processView{}, ctx.Err()
@@ -139,6 +149,17 @@ func (a *App) processGet(ctx context.Context, act registry.Actor, in processGetI
 	v := procView(p, project.Name)
 	v.Terminal = a.terminal(ctx, p)
 	return v, nil
+}
+
+// slotWait is the longest process_get waits on a process that waits for a slot, which the caller may hold.
+const slotWait = 40 * time.Second
+
+// waitLimit is how long process_get may wait for the caller: short of the limit of its tool calls, if it has one.
+func waitLimit(act registry.Actor) time.Duration {
+	if act.CallLimit > 0 {
+		return max(act.CallLimit-10*time.Second, act.CallLimit*3/4)
+	}
+	return maxWait
 }
 
 // ownProcess loads a process of the actor's workspace; agents reach only their own project.

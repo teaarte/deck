@@ -111,8 +111,10 @@ func (s *Service) startCheck(name string, force bool) bool {
 			status, text = "paused", "the self-check hit the usage limit; "+errText(res.Err)
 		case res.NeedsLogin:
 			status, text = "needs_login", "the self-check found no valid login; "+errText(res.Err)
+		case res.Err != nil && res.Slow:
+			status, text, verdict = "error", fmt.Sprintf("the model did not finish the self-check of %s within %s: %s", res.Version, s.SelfCheckCeiling, res.Err), "model"
 		case res.Err != nil && res.ModelFailed:
-			status, text, verdict = "error", fmt.Sprintf("the model does not manage the self-check of %s: %s; pick a stronger or faster model", res.Version, res.Err), "model"
+			status, text, verdict = "error", fmt.Sprintf("the model does not manage the self-check of %s: %s; pick a stronger model", res.Version, res.Err), "model"
 		case res.Err != nil:
 			status, text, verdict = "error", fmt.Sprintf("self-check of %s failed: %s", res.Version, res.Err), "adapter"
 		}

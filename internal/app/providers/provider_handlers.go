@@ -9,6 +9,7 @@ import (
 	"deck2/internal/health"
 	"deck2/internal/process"
 	"deck2/internal/provider"
+	"deck2/internal/provider/acp"
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
 )
@@ -16,13 +17,15 @@ import (
 type providerView struct {
 	Name string `json:"name"`
 	// Agent is the ACP agent a provider added with one runs.
-	Agent   string        `json:"agent"`
-	Caps    provider.Caps `json:"caps"`
-	URL     string        `json:"url"`
-	Model   string        `json:"model"`
-	Status  string        `json:"status"`
-	Error   string        `json:"error"`
-	Version string        `json:"version"`
+	Agent string        `json:"agent"`
+	Caps  provider.Caps `json:"caps"`
+	URL   string        `json:"url"`
+	Model string        `json:"model"`
+	// Key is how a provider the owner added passes its API key: the secret it names, or none.
+	Key     string `json:"key,omitempty"`
+	Status  string `json:"status"`
+	Error   string `json:"error"`
+	Version string `json:"version"`
 	// Verdict of a failed self-check: model when the model does not manage it, adapter when it broke.
 	Verdict string  `json:"verdict"`
 	Speed   float64 `json:"speed"`
@@ -77,6 +80,14 @@ func (s *Service) providersList(ctx context.Context, act registry.Actor, in prov
 		if o, ok := pv.(interface{ AgentName() string }); ok {
 			v.Agent = o.AgentName()
 		}
+		if raw, err := s.St.Q.GetSetting(ctx, db.GetSettingParams{WorkspaceID: act.Workspace, Key: providerPrefix + pv.Name()}); err == nil && !v.Builtin {
+			var d providerDef
+			_ = json.Unmarshal([]byte(raw), &d)
+			v.Key = "none"
+			if d.KeySecret != "" {
+				v.Key = "secret " + d.KeySecret
+			}
+		}
 		if h, err := s.St.Q.GetHealth(ctx, process.HealthSubject(pv.Name())); err == nil {
 			v.Status, v.Error, v.Version, v.Verdict, v.Speed = h.Status, h.Error, h.Version, h.Verdict, h.Speed
 		}
@@ -121,7 +132,7 @@ type providerAddIn struct {
 	Model     string `desc:"Model name"`
 	KeySecret string `json:"key_secret" opt:"" desc:"Name of the secret with the API key"`
 	NoCloud   bool   `json:"no_cloud" opt:"" desc:"The model runs on the owner's own hardware"`
-	Agent     string `desc:"The ACP agent that runs the model inside the sandbox of deck with a shell and files: opencode or dsh"`
+	Agent     string `desc:"The ACP agent that runs the model inside the sandbox of deck with a shell and files"`
 }
 
 func (s *Service) providerAdd(ctx context.Context, act registry.Actor, in providerAddIn) (any, error) {
@@ -243,7 +254,7 @@ func (s *Service) Commands() []*registry.Command {
 			registry.OwnerOnly, s.providerSet),
 		registry.Def("provider_add", "Add provider",
 			"Adds or changes a provider of this workspace: an ACP agent on an OpenAI-compatible API, such as Ollama, OpenRouter or DeepSeek.",
-			registry.OwnerOnly, s.providerAdd).Changes("health"),
+			registry.OwnerOnly, s.providerAdd).Enum("agent", acp.Names()...).Changes("health"),
 		registry.Def("provider_remove", "Remove provider",
 			"Removes a provider the owner added; commands set to it must get another.",
 			registry.OwnerOnly, s.providerRemove).Changes("health"),

@@ -4,7 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"deck2/internal/app/access"
+	"encoding/json"
 	"errors"
+	"reflect"
+	"slices"
+	"strings"
 
 	"deck2/internal/app/records"
 	"deck2/internal/docs"
@@ -15,9 +19,11 @@ import (
 )
 
 type recordsListIn struct {
-	Project    string `type:"project" opt:"" desc:"Project name; defaults to the caller's own project"`
-	Collection string `desc:"Collection name"`
-	Limit      int    `opt:"" desc:"At most this many, the newest; every record when omitted"`
+	Project    string   `type:"project" opt:"" desc:"Project name; defaults to the caller's own project"`
+	Collection string   `desc:"Collection name"`
+	Limit      int      `opt:"" desc:"At most this many, the newest; every record when omitted"`
+	Where      string   `type:"json" opt:"" desc:"Only the records whose data fields have these values, as a JSON object of field to value"`
+	Fields     []string `opt:"" desc:"Only these fields of the data of each record"`
 }
 
 func (a *App) recordsList(ctx context.Context, act registry.Actor, in recordsListIn) (any, error) {
@@ -33,18 +39,69 @@ func (a *App) recordsList(ctx context.Context, act registry.Actor, in recordsLis
 	if c == nil {
 		return nil, registry.Invalid("deck: unknown collection %q", in.Collection)
 	}
+	var where map[string]json.RawMessage
+	if strings.TrimSpace(in.Where) != "" {
+		if err := json.Unmarshal([]byte(in.Where), &where); err != nil {
+			return nil, registry.Invalid("deck: where: a JSON object of field to value: %v", err)
+		}
+	}
 	recs, err := a.Store.Q.ListRecords(ctx, db.ListRecordsParams{ProjectID: p.ID, Collection: in.Collection})
 	if err != nil {
 		return nil, err
+	}
+	if len(where) > 0 {
+		recs = slices.DeleteFunc(recs, func(r db.Record) bool { return !matches(r.Data, where) })
 	}
 	if in.Limit > 0 && len(recs) > in.Limit {
 		recs = recs[len(recs)-in.Limit:]
 	}
 	out := make([]records.View, 0, len(recs))
 	for _, r := range recs {
-		out = append(out, records.ViewOf(r, c))
+		v := records.ViewOf(r, c)
+		if len(in.Fields) > 0 {
+			v.Data = only(v.Data, in.Fields)
+		}
+		out = append(out, v)
 	}
 	return out, nil
+}
+
+// matches reports whether each field of where has the same JSON value in the data of a record.
+func matches(data string, where map[string]json.RawMessage) bool {
+	var d map[string]json.RawMessage
+	if json.Unmarshal([]byte(data), &d) != nil {
+		return false
+	}
+	for k, want := range where {
+		if !jsonEqual(d[k], want) {
+			return false
+		}
+	}
+	return true
+}
+
+func jsonEqual(a, b json.RawMessage) bool {
+	var x, y any
+	if a == nil {
+		a = json.RawMessage("null")
+	}
+	return json.Unmarshal(a, &x) == nil && json.Unmarshal(b, &y) == nil && reflect.DeepEqual(x, y)
+}
+
+// only keeps the named fields of a JSON object.
+func only(data json.RawMessage, fields []string) json.RawMessage {
+	var d map[string]json.RawMessage
+	if json.Unmarshal(data, &d) != nil {
+		return data
+	}
+	kept := map[string]json.RawMessage{}
+	for _, f := range fields {
+		if v, ok := d[f]; ok {
+			kept[f] = v
+		}
+	}
+	b, _ := json.Marshal(kept)
+	return b
 }
 
 // writeRecords runs a record write in one transaction with the manifest it validates against, so a manifest

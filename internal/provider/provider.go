@@ -191,6 +191,8 @@ type Check struct {
 	NeedsLogin  bool
 	// ModelFailed is set when Err is the model not doing the steps of the check, not a fault of the adapter.
 	ModelFailed bool
+	// Slow is set when the model ran out of time rather than failed a step.
+	Slow bool
 	// Speed is the output tokens per second of the model over the check, zero when not measured.
 	Speed float64
 }

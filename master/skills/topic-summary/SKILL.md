@@ -11,7 +11,8 @@ revision, word for word, at most 30 of them. Whatever is older and not in the su
 session. So the summary has to carry everything that still matters.
 
 Write it with `document_save`: project `master`, kind `doc`, the name deck gives (`topics/<topic>/summary.md`),
-the whole text each time (it is a new revision, not an append), reason "topic summary".
+reason "topic summary". Each save is a new revision of the whole text, not an append: send the whole text,
+or only the lines that change with `old` and `new`.
 
 What goes in, as short lines under these headings:
 

@@ -194,7 +194,7 @@ func TestRunLaterFiresOnTimeAndOnceAfterSleep(t *testing.T) {
 		t.Fatalf("a run later missed in sleep fires once, a cancelled one never: %d runs", n)
 	}
 	e.refused("deck.run_later", map[string]any{"command": "later.nope", "at": at(time.Hour)}, 404, "unknown command")
-	e.refused("deck.run_later", map[string]any{"command": "later.remind", "at": at(time.Hour), "params": `{"what": 5}`}, 422, "schema")
+	e.refused("deck.run_later", map[string]any{"command": "later.remind", "at": at(time.Hour), "params": `{"what": 5}`}, 422, "what: got number, want string")
 }
 
 func TestMissedRunsAreSpreadAfterSleep(t *testing.T) {

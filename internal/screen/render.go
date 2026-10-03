@@ -80,16 +80,11 @@ func Render(ctx context.Context, st *store.Store, src Sources, req Request) ([]m
 	if req.Topic != "" && changesWhen(req.Screen.Blocks, req.Screen.Record, req.Project.ID == 0, req.Topic) {
 		req.Topic = ""
 	}
-	r := &renderer{ctx: ctx, st: st, src: src, req: req, data: map[string]any{}, read: map[string]readOf{}}
-	r.scope = Scope{Workspace: req.Project.WorkspaceID, Project: req.Project.Name}
-	if req.Screen.Record != "" {
-		if err := r.loadRecord(); err != nil {
-			return nil, err
-		}
+	r, err := resolve(ctx, st, src, req)
+	if err != nil {
+		return nil, err
 	}
-	root := map[string]any{"id": "root", "component": "screen", "title": req.Screen.Title}
-	r.comps = []map[string]any{root}
-	root["children"] = r.blocks("b", req.Screen.Blocks)
+	root := r.comps[0]
 	if r.recordTitle != "" {
 		root["title"] = req.Screen.Title + ": " + r.recordTitle
 	}
@@ -109,6 +104,30 @@ func Render(ctx context.Context, st *store.Store, src Sources, req Request) ([]m
 	}, nil
 }
 
+// Check resolves a screen on the data there is now and names each block that failed.
+func Check(ctx context.Context, st *store.Store, src Sources, req Request) ([]string, error) {
+	req.Topic = ""
+	r, err := resolve(ctx, st, src, req)
+	if err != nil {
+		return nil, err
+	}
+	return r.errs, nil
+}
+
+func resolve(ctx context.Context, st *store.Store, src Sources, req Request) (*renderer, error) {
+	r := &renderer{ctx: ctx, st: st, src: src, req: req, data: map[string]any{}, read: map[string]readOf{}}
+	r.scope = Scope{Workspace: req.Project.WorkspaceID, Project: req.Project.Name}
+	if req.Screen.Record != "" {
+		if err := r.loadRecord(); err != nil {
+			return nil, err
+		}
+	}
+	root := map[string]any{"id": "root", "component": "screen", "title": req.Screen.Title}
+	r.comps = []map[string]any{root}
+	root["children"] = r.blocks("b", req.Screen.Blocks)
+	return r, nil
+}
+
 type renderer struct {
 	ctx         context.Context
 	st          *store.Store
@@ -122,6 +141,8 @@ type renderer struct {
 	// types are the input types of the commands buttons call, read once per screen.
 	types map[string]map[string]string
 	read  map[string]readOf
+	// errs name the blocks that failed to resolve.
+	errs []string
 }
 
 // changesWhen reports whether an event of the topic may put a block on the screen or take it off: its when

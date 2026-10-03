@@ -10,6 +10,10 @@ RETURNING *;
 SELECT * FROM record WHERE project_id = ? AND collection = ? ORDER BY id;
 
 
+-- name: NewestRecord :one
+SELECT * FROM record WHERE project_id = ? AND collection = ? ORDER BY id DESC LIMIT 1;
+
+
 -- name: GetRecordByKey :one
 SELECT * FROM record WHERE project_id = ? AND collection = ? AND key = ?;
 

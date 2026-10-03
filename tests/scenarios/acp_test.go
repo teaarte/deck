@@ -296,6 +296,42 @@ func TestACPRecordedTurnsOfBothAgents(t *testing.T) {
 	}
 }
 
+// TestACPSelfCheckPastItsCeilingSaysWhy: a self-check that runs out of time tells a key the model API refused
+// from a model that never finished a call and from one that answered but is slow.
+func TestACPSelfCheckPastItsCeilingSaysWhy(t *testing.T) {
+	start := []string{acpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`}
+	for _, tc := range []struct {
+		name          string
+		status        int
+		steps         []string
+		health, wants string
+	}{
+		{"refused key", 401, []string{acpModel}, "needs_login", "the model API refused the key (401 or 403)"},
+		{"silent model", 200, nil, "error", "not one model call finished within the ceiling"},
+		{"slow model", 200, []string{acpModel}, "error", "the model answered (150 tokens) but did not finish the steps"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newACP(t)
+			f.streamText(1, acpStream(append(append(slices.Clone(start), tc.steps...), `{"hang": true}`)...))
+			llm := newLLM(t, func(int, chatRequest) chatReply {
+				if tc.status != 200 {
+					return chatReply{status: tc.status, body: `{"error": {"message": "invalid key"}}`}
+				}
+				return textReply("ok")
+			})
+			e, h := acpAdded(t, f, "dsh", llm, func(c *app.Config) { c.SelfCheckCeiling = 2 * time.Second })
+			if h.Status != tc.health || !strings.Contains(h.Error, tc.wants) || strings.Contains(h.Error, "stronger") {
+				t.Fatalf("want %s with %q: %+v", tc.health, tc.wants, h)
+			}
+			var pl struct{ Providers []struct{ Name, Key string } }
+			e.must("deck.providers_list", nil, &pl)
+			if i := slices.IndexFunc(pl.Providers, func(p struct{ Name, Key string }) bool { return p.Name == "acp" }); i < 0 || pl.Providers[i].Key != "secret model_key" {
+				t.Fatalf("the providers list tells how the key of a provider is passed: %+v", pl.Providers)
+			}
+		})
+	}
+}
+
 // TestACPSelfCheckIsRedWhenTheSandboxOrTheProxyFails: the probes deck reads itself turn the self-check red, told
 // apart as a broken adapter (leak, open network, no tokens) or a model that did not do the steps.
 func TestACPSelfCheckIsRedWhenTheSandboxOrTheProxyFails(t *testing.T) {

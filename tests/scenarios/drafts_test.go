@@ -168,7 +168,7 @@ func TestDraftRunsOnlyTrialsAndNoTriggersUntilEnabled(t *testing.T) {
 
 	quiet.Store(false)
 	var tried struct{ Process int64 }
-	e.must("deck.command_try", map[string]any{"command": "notes.work"}, &tried)
+	e.must("deck.command_try", map[string]any{"live": true, "command": "notes.work"}, &tried)
 	_ = json.Unmarshal(e.waitState(tried.Process, "done").Result, &res)
 	_ = json.Unmarshal([]byte(res.Child), &child)
 	if res.Bash != gateway.TrialRefusal || child.Process == 0 || !e.trial(child.Process) {
@@ -183,7 +183,7 @@ func TestDraftRunsOnlyTrialsAndNoTriggersUntilEnabled(t *testing.T) {
 		return false
 	})
 	var try struct{ Process int64 }
-	if code, out := e.callWith(tok, "deck.command_try", map[string]any{"command": "notes.send"}); code != 200 || json.Unmarshal(out, &try) != nil {
+	if code, out := e.callWith(tok, "deck.command_try", map[string]any{"live": true, "command": "notes.send"}); code != 200 || json.Unmarshal(out, &try) != nil {
 		t.Fatalf("a trial of an external command is allowed, because nothing leaves deck: %d %s", code, out)
 	}
 	e.waitState(try.Process, "done")

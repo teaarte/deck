@@ -401,7 +401,7 @@ func TestAJSONParamTakesAnObjectAsWellAsItsText(t *testing.T) {
 	}
 	e.must("deck.project_create", map[string]any{"name": "notes", "manifest": m}, nil)
 	var tried struct{ Process int64 }
-	e.must("deck.command_try", map[string]any{"command": "notes.work", "input": map[string]any{}}, &tried)
+	e.must("deck.command_try", map[string]any{"live": true, "command": "notes.work", "input": map[string]any{}}, &tried)
 	if tried.Process == 0 {
 		t.Fatal("a trial takes its input as an object")
 	}

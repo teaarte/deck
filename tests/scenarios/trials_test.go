@@ -3,6 +3,7 @@ package scenarios
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 	"testing"
@@ -22,7 +23,7 @@ func TestTrialScriptWritesInsideDeckAndIsRefusedOutside(t *testing.T) {
 	e.createProject("tried", scriptManifest("run", "", ""))
 	e.saveScript("tried", "scripts/main.py", trialScript)
 	var try struct{ Process int64 }
-	e.must("deck.command_try", map[string]any{"command": "tried.run", "input": "{}"}, &try)
+	e.must("deck.command_try", map[string]any{"live": true, "command": "tried.run", "input": "{}"}, &try)
 	p := e.waitScript(try.Process, "done")
 	var res struct {
 		Internal bool
@@ -43,7 +44,9 @@ func TestTrialScriptWritesInsideDeckAndIsRefusedOutside(t *testing.T) {
 	}
 }
 
-func TestTrialAndRealRunsDoNotShareRetryKeys(t *testing.T) {
+// TestATrialInAnEnabledProjectIsAskedForAndNeverRunsBesideItsRealRun: a trial writes for real, so in an
+// enabled project it takes live, and it waits until a real run of the command is over.
+func TestATrialInAnEnabledProjectIsAskedForAndNeverRunsBesideItsRealRun(t *testing.T) {
 	release := make(chan struct{})
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		select {
@@ -52,14 +55,22 @@ func TestTrialAndRealRunsDoNotShareRetryKeys(t *testing.T) {
 		}
 		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
 	})
-	defer close(release)
 	e.createProject("keys", testManifest([]string{agentCommand("work", "")}, nil))
-	var real, again, try struct{ Process int64 }
+	var real, again struct{ Process int64 }
 	e.must("keys.work", map[string]any{"retry_key": "k"}, &real)
-	e.must("deck.command_try", map[string]any{"command": "keys.work", "input": `{"retry_key": "k"}`}, &try)
+	e.refused("deck.command_try", map[string]any{"command": "keys.work"}, 422, "draft copy")
+	e.refused("deck.command_try", map[string]any{"live": true, "command": "keys.work", "input": `{"retry_key": "k"}`}, 409,
+		fmt.Sprintf("running now (process %d)", real.Process))
 	e.must("keys.work", map[string]any{"retry_key": "k"}, &again)
-	if try.Process == real.Process || again.Process != real.Process || !e.trial(try.Process) || e.trial(real.Process) {
-		t.Fatalf("a trial never stands in for a real run with the same key, nor the other way: real %d, again %d, trial %d", real.Process, again.Process, try.Process)
+	if again.Process != real.Process || e.trial(real.Process) {
+		t.Fatalf("a real run with the same key is the one going on: real %d, again %d", real.Process, again.Process)
+	}
+	close(release)
+	e.waitState(real.Process, "done")
+	var try struct{ Process int64 }
+	e.must("deck.command_try", map[string]any{"live": true, "command": "keys.work"}, &try)
+	if e.waitState(try.Process, "done"); !e.trial(try.Process) {
+		t.Fatalf("once the real run is over the trial runs: %d", try.Process)
 	}
 }
 
@@ -86,10 +97,10 @@ func TestTrialOfAToolIsRefusedAndNothingLeavesDeck(t *testing.T) {
 	_, tok := e.token("terminal", "deck.command_try")
 	for _, call := range []func() (int, []byte){
 		func() (int, []byte) {
-			return e.call("deck.command_try", map[string]any{"command": "notes.post", "input": `{"id": "a", "text": "hi"}`})
+			return e.call("deck.command_try", map[string]any{"live": true, "command": "notes.post", "input": `{"id": "a", "text": "hi"}`})
 		},
 		func() (int, []byte) {
-			return e.callWith(tok, "deck.command_try", map[string]any{"command": "notes.post", "input": `{"id": "a", "text": "hi"}`})
+			return e.callWith(tok, "deck.command_try", map[string]any{"live": true, "command": "notes.post", "input": `{"id": "a", "text": "hi"}`})
 		},
 	} {
 		if code, out := call(); code < 400 || len(svc.requests()) != 0 {
@@ -97,7 +108,7 @@ func TestTrialOfAToolIsRefusedAndNothingLeavesDeck(t *testing.T) {
 		}
 	}
 	var try struct{ Process int64 }
-	code, out := e.callWith(tok, "deck.command_try", map[string]any{"command": "notes.work"})
+	code, out := e.callWith(tok, "deck.command_try", map[string]any{"live": true, "command": "notes.work"})
 	if code != 200 || json.Unmarshal(out, &try) != nil {
 		t.Fatalf("a token that may try runs a command of any project as a trial: %d %s", code, out)
 	}
@@ -107,7 +118,7 @@ func TestTrialOfAToolIsRefusedAndNothingLeavesDeck(t *testing.T) {
 	}
 	e.must("deck.manifest_save", map[string]any{"project": "notes",
 		"manifest": strings.Replace(postManifest(svc.URL, ""), `"class": "internal",`, `"class": "internal", "callers": ["owner"],`, 1)}, nil)
-	if code, out := e.callWith(tok, "deck.command_try", map[string]any{"command": "notes.work"}); code != 403 || !strings.Contains(string(out), "cannot be called by master") {
+	if code, out := e.callWith(tok, "deck.command_try", map[string]any{"live": true, "command": "notes.work"}); code != 403 || !strings.Contains(string(out), "cannot be called by master") {
 		t.Fatalf("a command closed to the master is not tried by a token: %d %s", code, out)
 	}
 }

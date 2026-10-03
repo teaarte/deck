@@ -19,6 +19,7 @@ import (
 	"deck2/internal/process"
 	"deck2/internal/registry"
 	"deck2/internal/screen"
+	"deck2/internal/store/db"
 )
 
 //go:embed screens.json
@@ -152,6 +153,35 @@ func (a *App) screenGet(ctx context.Context, act registry.Actor, in screenGetIn)
 	return out, nil
 }
 
+// checkScreens resolves each screen of a manifest as act on the data there is now, a record page on the newest
+// record, and names the blocks that fail.
+func (a *App) checkScreens(ctx context.Context, act registry.Actor, p db.Project, m *manifest.Manifest) []string {
+	var out []string
+	for i := range m.Screens {
+		sc := &m.Screens[i]
+		req := screen.Request{Project: p, Manifest: m, Screen: sc, Owner: act.Kind == registry.Owner, Card: shipped().Card}
+		switch sc.Record {
+		case "":
+		case manifest.DocumentRecord:
+			continue
+		default:
+			rec, err := a.Store.Q.NewestRecord(ctx, db.NewestRecordParams{ProjectID: p.ID, Collection: sc.Record})
+			if err != nil {
+				continue
+			}
+			req.Record = rec.ID
+		}
+		errs, err := screen.Check(ctx, a.Store, a.sources(act), req)
+		if err != nil {
+			errs = []string{err.Error()}
+		}
+		for _, e := range errs {
+			out = append(out, fmt.Sprintf("screen %q: %s", sc.Name, e))
+		}
+	}
+	return out
+}
+
 // screenSources read what a screen shows as the one who looks at it.
 type screenSources struct {
 	screens.Sources
@@ -245,6 +275,30 @@ type commandRow struct {
 	Tool        string   `json:"tool"`
 }
 
+type commandDescribeIn struct {
+	Command string `desc:"Command name, such as deck.provider_add or project.command"`
+}
+
+type commandSpec struct {
+	Name        string          `json:"name"`
+	Title       string          `json:"title"`
+	Description string          `json:"description"`
+	Class       string          `json:"class"`
+	Callers     []string        `json:"callers"`
+	Input       json.RawMessage `json:"input"`
+	Result      json.RawMessage `json:"result,omitempty"`
+}
+
+// commandDescribe tells what a command takes whoever may call it, so the master can say what to fill in.
+func (a *App) commandDescribe(ctx context.Context, act registry.Actor, in commandDescribeIn) (commandSpec, error) {
+	c, err := a.Registry.Lookup(ctx, act.Workspace, in.Command)
+	if err != nil {
+		return commandSpec{}, err
+	}
+	return commandSpec{Name: c.Name, Title: c.Title, Description: c.Description, Class: c.Class, Callers: c.Callers,
+		Input: c.Input, Result: c.Result}, nil
+}
+
 type commandsListIn struct {
 	Project string `type:"project" opt:"" desc:"Only the commands of this project"`
 }
@@ -310,5 +364,8 @@ func (a *App) screensCommands() []*registry.Command {
 		registry.Read("commands_list", "Commands",
 			"Lists the commands the caller may call, deck's and those of projects, with their file fields and what runs them.",
 			registry.OwnerSide, a.commandsList),
+		registry.Read("command_describe", "Describe command",
+			"Gives the parameters of any command of the workspace, also of one only the owner calls, such as the forms of Settings: its input and result schemas, class and callers.",
+			registry.OwnerSide, a.commandDescribe),
 	}
 }

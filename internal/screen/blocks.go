@@ -104,6 +104,7 @@ func (r *renderer) block(id string, b manifest.Block) {
 	value, err := r.resolve(id, b)
 	if err != nil {
 		r.data[id] = map[string]any{"state": "error", "error": err.Error()}
+		r.errs = append(r.errs, fmt.Sprintf("%s block %q: %v", b.Type, cmp.Or(b.Title, id), err))
 		return
 	}
 	r.data[id] = value

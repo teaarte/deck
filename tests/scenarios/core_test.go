@@ -109,6 +109,37 @@ func TestQuestionAnsweredLive(t *testing.T) {
 	}
 }
 
+// TestAQuestionWhoseCallDroppedStaysOpenWhenTheTurnBreaks: the transport drops while the owner is asked and the
+// turn ends with an error; the question stays for the owner and the answer resumes the session.
+func TestAQuestionWhoseCallDroppedStaysOpenWhenTheTurnBreaks(t *testing.T) {
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		if !c.Req.Resume {
+			dropped, cancel := context.WithTimeout(ctx, 200*time.Millisecond)
+			defer cancel()
+			c.Approve(dropped, "AskUserQuestion", map[string]any{"questions": []map[string]any{
+				{"question": "Which topic?", "options": []map[string]any{{"label": "go"}, {"label": "rust"}}}}})
+			return provider.Result{IsError: true, Text: `MCP server "deck" transport dropped mid-call`}
+		}
+		writeIdeas(ctx, c, map[bool]string{true: "rust", false: "?"}[strings.Contains(c.Req.Prompt, "rust")])
+		return provider.Result{Structured: json.RawMessage(`{"written": 3}`)}
+	})
+	p := e.createProject("ideas", ideasManifest)
+	id := e.run(p, "collect")
+	e.waitState(id, "waiting_answer", "error")
+	a := e.waitAsk()
+	if a.Kind != "question" || a.Text != "Which topic?" {
+		t.Fatalf("the question stays open for the owner: %+v", a)
+	}
+	e.answer(a.ID, `{"Which topic?":"rust"}`)
+	if got := e.waitState(id, "done", "error"); got.State != "done" {
+		t.Fatalf("the answer resumes the session: %+v", got)
+	}
+	recs, _ := e.App.Store.Q.ListRecords(context.Background(), db.ListRecordsParams{ProjectID: p, Collection: "ideas"})
+	if len(recs) == 0 || !strings.Contains(recs[0].Data, `"topic":"rust"`) {
+		t.Fatalf("the answer reached the agent: %v", recs)
+	}
+}
+
 func TestQuestionAnsweredLateResumesSession(t *testing.T) {
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		if !c.Req.Resume {

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button, CheckIcon, ColorSwatch, Group, SegmentedControl, Stack, Text, useMantineColorScheme, type MantineColorScheme } from '@mantine/core';
+import { Button, CheckIcon, ColorSwatch, Group, SegmentedControl, Slider, Stack, Switch, Text, useMantineColorScheme, type MantineColorScheme } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { useTranslation } from 'react-i18next';
 import { ACCENTS, DENSITIES, FONTS, RADII, THEMES, setLook, useLook, type Look } from './look';
@@ -28,6 +28,15 @@ export function Appearance() {
     <Stack gap="md" data-appearance>
       <Text size="sm" c="dimmed">{t('look.device')}</Text>
       <Choice label={t('look.theme')} name="theme" value={look.theme} options={THEMES} onChange={(v: Look['theme']) => setLook({ theme: v })} />
+      {look.theme === 'glass' && (
+        <Stack gap={4}>
+          <Text size="sm" fw={500}>{t('look.tint')}</Text>
+          <Slider value={look.tint} min={0} max={1} step={0.05} label={(v) => `${Math.round(v * 100)}%`} maw={360} data-look="tint"
+            marks={[{ value: 0, label: t('look.clear') }, { value: 1, label: t('look.tinted') }]} mb="md"
+            onChange={(v) => setLook({ tint: v })} />
+        </Stack>
+      )}
+      <Switch label={t('look.pattern')} checked={look.pattern} onChange={(e) => setLook({ pattern: e.currentTarget.checked })} data-look="pattern" />
       <Choice label={t('look.scheme')} name="scheme" value={colorScheme} options={['auto', 'light', 'dark'] as MantineColorScheme[]}
         onChange={setColorScheme} />
       <Stack gap={4}>

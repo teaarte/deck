@@ -5,6 +5,8 @@ import { createComponentImplementation, type ReactComponentImplementation } from
 import { Alert, Badge, Code, Group, Loader, SimpleGrid, Stack, Table, Tabs, Text, Title, UnstyledButton } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
 import catalogSchema from '../../schemas/catalog.json';
+import s from './shell.module.css';
+import { NamedIcon } from './icons';
 import { Board } from './board';
 import { Form, type FormValue } from './form';
 import { Document, Markdown } from './document';
@@ -32,26 +34,38 @@ const api = (name: string): ComponentApi => {
 };
 
 type Children = (string | { id: string; basePath?: string })[];
-const kids = (children: unknown, build: (id: string, base?: string) => ReactNode) =>
+const kids = (children: unknown, build: (id: string, base?: string) => ReactNode, className?: string) =>
   ((Array.isArray(children) ? children : []) as Children).map((c, i) =>
-    typeof c === 'string' ? <div key={c}>{build(c)}</div> : <div key={c.id + i}>{build(c.id, c.basePath)}</div>);
+    typeof c === 'string' ? <div key={c} className={className}>{build(c)}</div> : <div key={c.id + i} className={className}>{build(c.id, c.basePath)}</div>);
 
 const impls: ReactComponentImplementation[] = [
   createComponentImplementation(api('screen'), ({ props, buildChild }) => {
-    const p = props as { title?: string; children: unknown };
-    return <Stack gap="md">{p.title && <Title order={2}>{p.title}</Title>}{kids(p.children, buildChild)}</Stack>;
+    const p = props as { title?: string; icon?: string; children: unknown };
+    return (
+      <Stack gap="lg" data-screen>
+        {p.title && (
+          <Title order={2} lh={1.2} lts={-0.4}>
+            {p.icon && <span className={s.titleIcon}><NamedIcon name={p.icon} fallback={p.title} size={22} /></span>}{p.title}
+          </Title>
+        )}
+        {kids(p.children, buildChild)}
+      </Stack>
+    );
   }),
   createComponentImplementation(api('columns'), ({ props, buildChild }) => {
-    const p = props as { title?: string; children: unknown[] };
+    const p = props as { title?: string; icon?: string; children: unknown[] };
+    const n = Math.max(1, (p.children ?? []).length);
     return (
       <Stack gap="xs">
         {p.title && <Title order={4}>{p.title}</Title>}
-        <SimpleGrid cols={{ base: 1, md: Math.max(1, (p.children ?? []).length) }}>{kids(p.children, buildChild)}</SimpleGrid>
+        <SimpleGrid cols={{ base: 1, sm: Math.min(2, n), lg: n }} spacing="lg" verticalSpacing="lg" data-columns>
+          {kids(p.children, buildChild, s.cell)}
+        </SimpleGrid>
       </Stack>
     );
   }),
   createComponentImplementation(api('tabs'), ({ props, buildChild }) => {
-    const p = props as { title?: string; titles: string[]; children: unknown[] };
+    const p = props as { title?: string; icon?: string; titles: string[]; children: unknown[] };
     const ids = (p.children ?? []) as Children;
     return (
       <Stack gap="xs">
@@ -66,9 +80,9 @@ const impls: ReactComponentImplementation[] = [
     );
   }),
   createComponentImplementation(api('table'), ({ props, context }) => {
-    const p = props as { title?: string; columns: (Shown & { label: string })[]; data?: Data };
+    const p = props as { title?: string; icon?: string; columns: (Shown & { label: string })[]; data?: Data };
     return (
-      <Block title={p.title} data={p.data} context={context}>
+      <Block title={p.title} icon={p.icon} data={p.data} context={context}>
         {(d) => (
           <Table.ScrollContainer minWidth={400}>
             <Table striped highlightOnHover>
@@ -90,9 +104,9 @@ const impls: ReactComponentImplementation[] = [
     );
   }),
   createComponentImplementation(api('list'), ({ props, context }) => {
-    const p = props as { title?: string; data?: Data };
+    const p = props as { title?: string; icon?: string; data?: Data };
     return (
-      <Block title={p.title} data={p.data} context={context}>
+      <Block title={p.title} icon={p.icon} data={p.data} context={context}>
         {(d) => (
           <Stack gap="sm">
             {(d.items ?? []).map((it, i) => {
@@ -118,9 +132,9 @@ const impls: ReactComponentImplementation[] = [
     );
   }),
   createComponentImplementation(api('card'), ({ props, context }) => {
-    const p = props as { title?: string; data?: Data };
+    const p = props as { title?: string; icon?: string; data?: Data };
     return (
-      <Block title={p.title} data={p.data}>
+      <Block title={p.title} icon={p.icon} data={p.data}>
         {(d) => {
           const v = (d.value ?? {}) as Partial<CardValue>;
           return (
@@ -146,30 +160,30 @@ const impls: ReactComponentImplementation[] = [
     );
   }),
   createComponentImplementation(api('stat'), ({ props }) => {
-    const p = props as Shown & { title?: string; data?: Data };
-    return <Block title={p.title} data={p.data}>{(d) => <Text fz={32} fw={700} component="div" data-stat><Value v={d.value} s={p} tone={d.tone} /></Text>}</Block>;
+    const p = props as Shown & { title?: string; icon?: string; data?: Data };
+    return <Block title={p.title} icon={p.icon} data={p.data}>{(d) => <Text fz={32} fw={700} component="div" data-stat><Value v={d.value} s={p} tone={d.tone} /></Text>}</Block>;
   }),
   createComponentImplementation(api('chart'), ({ props }) => {
-    const p = props as Shown & { title?: string; kind?: string; data?: Data };
+    const p = props as Shown & { title?: string; icon?: string; kind?: string; data?: Data };
     return (
-      <Block title={p.title} data={p.data}>
+      <Block title={p.title} icon={p.icon} data={p.data}>
         {(d) => <Suspense fallback={<Loader size="xs" />}><div data-chart-block><Chart value={d.value as ChartValue} kind={p.kind} s={p} /></div></Suspense>}
       </Block>
     );
   }),
   createComponentImplementation(api('media'), ({ props }) => {
-    const p = props as { title?: string; data?: Data };
-    return <Block title={p.title} data={p.data}>{(d) => <Suspense fallback={<Loader size="xs" />}><Media items={d.files ?? []} /></Suspense>}</Block>;
+    const p = props as { title?: string; icon?: string; data?: Data };
+    return <Block title={p.title} icon={p.icon} data={p.data}>{(d) => <Suspense fallback={<Loader size="xs" />}><Media items={d.files ?? []} /></Suspense>}</Block>;
   }),
   createComponentImplementation(api('actions'), ({ props, context }) => {
-    const p = props as { title?: string; data?: Data };
-    return <Block title={p.title} data={p.data}>{(d) => <Actions actions={d.value as ActionsValue | undefined} context={context} />}</Block>;
+    const p = props as { title?: string; icon?: string; data?: Data };
+    return <Block title={p.title} icon={p.icon} data={p.data}>{(d) => <Actions actions={d.value as ActionsValue | undefined} context={context} />}</Block>;
   }),
   createComponentImplementation(api('log'), ({ props }) => {
     const { t } = useTranslation();
-    const p = props as { title?: string; data?: Data };
+    const p = props as { title?: string; icon?: string; data?: Data };
     return (
-      <Block title={p.title} data={p.data}>
+      <Block title={p.title} icon={p.icon} data={p.data}>
         {(d) => {
           const done = new Map((d.lines ?? []).filter((l) => l.kind === 'tool_update' && l.id).map((l) => [l.id, l]));
           return (
@@ -195,28 +209,28 @@ const impls: ReactComponentImplementation[] = [
     );
   }),
   createComponentImplementation(api('board'), ({ props, context }) => {
-    const p = props as { title?: string; data?: Data };
-    return <Block title={p.title} data={p.data}>{(d) => <Board value={d.value as BoardValue} context={context} />}</Block>;
+    const p = props as { title?: string; icon?: string; data?: Data };
+    return <Block title={p.title} icon={p.icon} data={p.data}>{(d) => <Board value={d.value as BoardValue} context={context} />}</Block>;
   }),
   createComponentImplementation(api('form'), ({ props }) => {
-    const p = props as { title?: string; data?: Data };
-    return <Block title={p.title} data={p.data}>{(d) => <Form value={d.value as FormValue} />}</Block>;
+    const p = props as { title?: string; icon?: string; data?: Data };
+    return <Block title={p.title} icon={p.icon} data={p.data}>{(d) => <Form value={d.value as FormValue} />}</Block>;
   }),
   createComponentImplementation(api('custom'), ({ props }) => {
-    const p = props as { title?: string; data?: Data };
-    return <Block title={p.title} data={p.data}>{(d) => <Suspense fallback={<Loader size="xs" />}><Custom value={d.value as CustomValue} /></Suspense>}</Block>;
+    const p = props as { title?: string; icon?: string; data?: Data };
+    return <Block title={p.title} icon={p.icon} data={p.data}>{(d) => <Suspense fallback={<Loader size="xs" />}><Custom value={d.value as CustomValue} /></Suspense>}</Block>;
   }),
   createComponentImplementation(api('document'), ({ props }) => {
-    const p = props as { title?: string; data?: Data };
-    return <Block title={p.title} data={p.data}>{(d) => <Document value={d.value as DocumentValue} />}</Block>;
+    const p = props as { title?: string; icon?: string; data?: Data };
+    return <Block title={p.title} icon={p.icon} data={p.data}>{(d) => <Document value={d.value as DocumentValue} />}</Block>;
   }),
   createComponentImplementation(api('chat'), ({ props, context }) => {
-    const p = props as { title?: string; data?: Data };
-    return <Block title={p.title} data={p.data}>{(d) => <Chat value={d.value as ChatValue} context={context} />}</Block>;
+    const p = props as { title?: string; icon?: string; data?: Data };
+    return <Block title={p.title} icon={p.icon} data={p.data}>{(d) => <Chat value={d.value as ChatValue} context={context} />}</Block>;
   }),
   createComponentImplementation(api('appearance'), ({ props }) => {
-    const p = props as { title?: string; data?: Data };
-    return <Block title={p.title} data={p.data}>{() => <Appearance />}</Block>;
+    const p = props as { title?: string; icon?: string; data?: Data };
+    return <Block title={p.title} icon={p.icon} data={p.data}>{() => <Appearance />}</Block>;
   }),
   createComponentImplementation({ name: UNKNOWN, schema: z.object({ type: z.string() }) }, ({ props }) => {
     const { t } = useTranslation();

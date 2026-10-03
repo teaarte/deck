@@ -4,6 +4,7 @@ import { useSortable } from '@dnd-kit/react/sortable';
 import { move } from '@dnd-kit/helpers';
 import { Anchor, Badge, Button, Collapse, Group, Modal, Paper, ScrollArea, Stack, Text, TextInput, Textarea, UnstyledButton } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
+import { IconGripVertical } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { call } from './api';
 import type { ComponentContext } from '@a2ui/web_core/v0_9';
@@ -23,10 +24,10 @@ function Card({ card, lane, index, onOpen }: { card: BoardCard; lane: string; in
   const { t } = useTranslation();
   const { ref, handleRef, isDragging } = useSortable({ id: card.id, index, group: lane, type: 'card', accept: 'card' });
   return (
-    <Paper ref={ref} withBorder p="xs" data-card={card.id} style={{ opacity: isDragging ? 0.5 : 1 }}>
+    <Paper ref={ref} p="xs" radius="md" shadow="xs" data-card={card.id} style={{ opacity: isDragging ? 0.5 : 1 }}>
       <Group gap="xs" wrap="nowrap" align="flex-start">
-        <Text ref={handleRef} c="dimmed" data-handle={card.id} aria-label={t('board.move')}
-          style={{ cursor: 'grab', touchAction: 'none', userSelect: 'none', padding: '0 4px' }}>⠿</Text>
+        <Text ref={handleRef} c="dimmed" data-handle={card.id} aria-label={t('board.move')} lh={0}
+          style={{ cursor: 'grab', touchAction: 'none', userSelect: 'none', padding: '2px 0' }}><IconGripVertical size={16} /></Text>
         <UnstyledButton onClick={onOpen} style={{ flex: 1, minWidth: 0 }}>
           <Text size="sm" fw={500}>{card.title}</Text>
           {card.text && <Text size="xs" c="dimmed" lineClamp={3}>{card.text}</Text>}
@@ -42,7 +43,7 @@ function Card({ card, lane, index, onOpen }: { card: BoardCard; lane: string; in
 function Lane({ name, title, children, adding }: { name: string; title: string; children: React.ReactNode; adding?: React.ReactNode }) {
   const { ref } = useDroppable({ id: name, type: 'lane', accept: 'card', collisionPriority: 0 });
   return (
-    <Paper ref={ref} bg="gray.0" withBorder p="xs" w={260} miw={260} data-lane={name} style={{ minHeight: 160 }}>
+    <Paper ref={ref} bg="var(--mantine-color-default-hover)" p="sm" radius="lg" w={264} miw={264} data-lane={name} style={{ minHeight: 160 }}>
       <Stack gap="xs">
         <Text fw={600} size="sm">{title}</Text>
         {children}

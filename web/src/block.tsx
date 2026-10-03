@@ -2,7 +2,10 @@ import { useState, useSyncExternalStore, type ReactNode } from 'react';
 import type { ComponentContext } from '@a2ui/web_core/v0_9';
 import { Alert, Anchor, Badge, Card, Code, Collapse, Group, Loader, Select, Stack, Text, Title } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
+import { IconAlertTriangle, IconInbox } from '@tabler/icons-react';
 import type { Data } from './catalog.gen';
+import s from './shell.module.css';
+import { NamedIcon } from './icons';
 
 type Filter = NonNullable<Data['filters']>[number];
 
@@ -39,20 +42,31 @@ function Filters({ filters, context }: { filters?: Filter[]; context?: Component
   );
 }
 
-export function Block({ title, data, context, children }: { title?: string; data?: Data; context?: ComponentContext; children: (d: Data) => ReactNode }) {
+export function Block({ title, icon, data, context, children }: { title?: string; icon?: string; data?: Data; context?: ComponentContext; children: (d: Data) => ReactNode }) {
   const { t } = useTranslation();
   const old = useStale();
   let body: ReactNode;
   if (!data) body = <Group gap="xs"><Loader size="xs" /><Text size="sm" c="dimmed">{t('state.loading')}</Text></Group>;
-  else if (data.state === 'error') body = <Alert color="red" title={t('state.error')}>{data.error}</Alert>;
-  else if (data.state === 'empty') body = <Text size="sm" c="dimmed" data-empty>{data.empty || t('state.empty')}</Text>;
+  else if (data.state === 'error') body = <Alert color="red" radius="md" icon={<IconAlertTriangle size={18} />} title={t('state.error')}>{data.error}</Alert>;
+  else if (data.state === 'empty') {
+    body = (
+      <Group gap={8} c="dimmed" wrap="nowrap">
+        <IconInbox size={18} stroke={1.5} />
+        <Text size="sm" c="dimmed" data-empty>{data.empty || t('state.empty')}</Text>
+      </Group>
+    );
+  }
   else body = children(data);
   return (
-    <Card withBorder padding="md" data-block>
+    <Card padding="lg" className={s.block} data-block>
       <Stack gap="sm">
         {(title || old) && (
           <Group justify="space-between">
-            {title ? <Title order={4}>{title}</Title> : <span />}
+            {title ? (
+              <Title order={3} className={s.blockTitle}>
+                {icon && <span className={s.titleIcon} data-block-icon><NamedIcon name={icon} fallback={title} size={18} /></span>}{title}
+              </Title>
+            ) : <span />}
             {old && <Badge color="yellow" variant="light" title={t('state.stale_why')} data-stale>{t('state.stale')}</Badge>}
           </Group>
         )}

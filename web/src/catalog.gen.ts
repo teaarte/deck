@@ -43,6 +43,10 @@ export interface Catalog {
 export interface Action {
   label?: string;
   verb?: string;
+  /**
+   * Name of a Tabler icon on the button.
+   */
+  icon?: string;
   primary?: boolean;
   command?: string;
   params?: {};
@@ -85,6 +89,10 @@ export interface Action {
 export interface Action1 {
   label?: string;
   verb?: string;
+  /**
+   * Name of a Tabler icon on the button.
+   */
+  icon?: string;
   primary?: boolean;
   command?: string;
   params?: {};

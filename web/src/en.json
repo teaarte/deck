@@ -1,5 +1,5 @@
 {
-  "nav": { "deck": "deck", "menu": "Menu" },
+  "nav": { "deck": "deck", "menu": "Menu", "hide": "Hide the menu", "show": "Show the menu", "running": "Running: {{n}}", "asks": "Waiting for you: {{n}}", "errors": "Failing checks: {{n}}" },
   "state": {
     "loading": "Loading…",
     "empty": "Nothing here",
@@ -97,6 +97,10 @@
     "saved": "Kept in {{collection}}"
   },
   "look": {
+    "tint": "Glass: clear to tinted",
+    "clear": "Clear",
+    "tinted": "Tinted",
+    "pattern": "Icons behind the screen",
     "device": "These choices stay on this device.",
     "theme": "Theme",
     "glass": "Glass",
@@ -150,6 +154,9 @@
     "reply_stopped": "reply stopped",
     "reply_interrupted": "reply interrupted",
     "close": "Close the chat",
+    "full": "Full screen",
+    "exit_full": "Back to the screen",
+    "resize": "Width of the chat",
     "process": "reply #{{id}}",
     "mic": "Speak",
     "stop_recording": "Stop · {{s}} s",

@@ -19,6 +19,7 @@
     "board": {"$ref": "#/$defs/board"},
     "screens": {"type": "array", "items": {"$ref": "#/$defs/screen"}},
     "menu": {"type": "array", "items": {"$ref": "#/$defs/name"}, "uniqueItems": true, "description": "Screen names in menu order."},
+    "icon": {"$ref": "#/$defs/icon", "description": "Icon of the project in the menu."},
     "autonomy": {"enum": ["suggest", "auto"], "default": "suggest",
       "description": "suggest: reversible actions wait for the owner; auto: they run at once and are reported."},
     "reads": {"type": "array", "items": {"$ref": "#/$defs/read"}, "description": "Data of other projects this project may read."},
@@ -29,6 +30,7 @@
   },
   "$defs": {
     "name": {"type": "string", "pattern": "^[a-z][a-z0-9_-]{0,39}$"},
+    "icon": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,59}$", "description": "Name of an outline icon of Tabler Icons (tabler.io/icons), e.g. rocket or chart-line; an unknown name shows the first letter."},
     "expr": {"type": "string", "minLength": 1, "description": "expr-lang expression over record fields."},
     "class": {"enum": ["internal", "reversible", "external"]},
     "schema": {"type": "object", "description": "JSON Schema (draft 2020-12)."},
@@ -229,6 +231,7 @@
       "properties": {
         "name": {"$ref": "#/$defs/name"},
         "title": {"type": "string", "minLength": 1},
+        "icon": {"$ref": "#/$defs/icon", "description": "Icon of the screen in the menu."},
         "record": {"type": "string", "description": "Collection whose record the screen shows: a record page, opened with the record id."},
         "blocks": {"type": "array", "items": {"$ref": "#/$defs/block"}}
       }
@@ -271,6 +274,7 @@
       "properties": {
         "label": {"type": "string", "minLength": 1},
         "verb": {"type": "string", "description": "A built-in label the client translates, instead of label."},
+        "icon": {"$ref": "#/$defs/icon", "description": "Icon on the button."},
         "command": {"type": "string"},
         "screen": {"type": "string"},
         "params": {"type": "object", "additionalProperties": {"type": "string"}},

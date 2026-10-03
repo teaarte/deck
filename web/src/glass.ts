@@ -4,9 +4,8 @@ import g from './glass.module.css';
 const dropdown = { classNames: { dropdown: g.popover } };
 const sheet = { classNames: { content: g.sheet }, defaultProps: { overlayProps: { backgroundOpacity: 0.25 } } };
 
-// glass is the look of the shell, overlays and controls in the glass theme; the content of blocks stays solid.
+// glass is the look of overlays and controls in the glass theme; the menu island takes it in its own styles.
 export const glass: MantineThemeComponents = {
-  AppShell: { classNames: { header: g.bar, navbar: g.panel, main: g.main } },
   Modal: sheet,
   Drawer: sheet,
   Popover: dropdown,

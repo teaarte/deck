@@ -33,7 +33,7 @@ func (r *renderer) actions(as []manifest.Action, id int64, env map[string]any) [
 			}
 		}
 		act := map[string]any{}
-		for k, v := range map[string]string{"label": a.Label, "verb": a.Verb, "input": a.Input} {
+		for k, v := range map[string]string{"label": a.Label, "verb": a.Verb, "icon": a.Icon, "input": a.Input} {
 			if v != "" {
 				act[k] = v
 			}

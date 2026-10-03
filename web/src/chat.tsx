@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { ComponentContext } from '@a2ui/web_core/v0_9';
 import { Anchor, Badge, Box, Button, Group, Loader, Paper, ScrollArea, Select, Stack, Text, Textarea } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
+import { IconArrowUp, IconMicrophone, IconPlayerStopFilled, IconPlus } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { call, upload } from './api';
 import { record, type Recording } from './voice';
@@ -134,7 +135,7 @@ export function Chat({ value, context }: { value: ChatValue; context: ComponentC
       <Group gap="xs" wrap="nowrap">
         <Select size="xs" style={{ flex: 1 }} placeholder={t('chat.new_topic')} data={options} value={topic ? String(topic.id) : null}
           onChange={(v) => pick(v ?? 'new')} data-topics searchable nothingFoundMessage={t('chat.no_topics')} />
-        <Button size="xs" variant="default" onClick={() => pick('new')} data-new-topic>{t('chat.new')}</Button>
+        <Button size="xs" variant="default" leftSection={<IconPlus size={14} />} onClick={() => pick('new')} data-new-topic>{t('chat.new')}</Button>
       </Group>
       {topic && <Actions actions={[value.archive!, value.delete!].filter(Boolean)} context={context} />}
       <ScrollArea style={{ flex: 1, minHeight: 80 }} viewportRef={feed} data-feed>
@@ -142,8 +143,8 @@ export function Chat({ value, context }: { value: ChatValue; context: ComponentC
           {!value.messages.length && <Text size="sm" c="dimmed">{t('chat.empty')}</Text>}
           {value.messages.map((m) => (
             <Group key={m.id} justify={m.role === 'owner' ? 'flex-end' : 'flex-start'} data-message={m.role}>
-              <Paper maw="88%" px="sm" py={6} radius="md" withBorder={m.role === 'master'}
-                bg={m.role === 'owner' ? 'var(--mantine-primary-color-light)' : undefined}>
+              <Paper maw="88%" px="md" py={8} radius="lg" withBorder={m.role === 'master'}
+                bg={m.role === 'owner' ? 'var(--mantine-primary-color-light)' : 'var(--mantine-color-default)'}>
                 {m.role === 'master' ? <Markdown text={m.text} /> : <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>{m.text}</Text>}
                 {m.reply && failed.includes(m.reply.state) && (
                   <Group gap={4} mt={4}>
@@ -179,16 +180,16 @@ export function Chat({ value, context }: { value: ChatValue; context: ComponentC
         </Paper>
       )}
       <Stack gap={4}>
-        <Textarea autosize minRows={2} maxRows={8} placeholder={t('chat.placeholder')} value={text} data-chat-input
+        <Textarea autosize minRows={2} maxRows={8} radius="lg" placeholder={t('chat.placeholder')} value={text} data-chat-input
           onChange={(e) => { setText(e.currentTarget.value); if (!e.currentTarget.value.trim()) key.current = ''; }}
           onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(); } }} />
         <Group justify="space-between">
           {recording ? (
-            <Button size="xs" color="red" onClick={() => void hear()} data-mic-stop>{t('chat.stop_recording', { s: recording - 1 })}</Button>
+            <Button size="xs" color="red" radius="xl" leftSection={<IconPlayerStopFilled size={12} />} onClick={() => void hear()} data-mic-stop>{t('chat.stop_recording', { s: recording - 1 })}</Button>
           ) : (
-            <Button size="xs" variant="default" loading={hearing} onClick={() => void listen()} data-mic>{t('chat.mic')}</Button>
+            <Button size="xs" variant="default" radius="xl" leftSection={<IconMicrophone size={14} />} loading={hearing} onClick={() => void listen()} data-mic>{t('chat.mic')}</Button>
           )}
-          <Button size="xs" loading={busy} disabled={!text.trim()} onClick={() => void send()} data-chat-send>{t('verb.send')}</Button>
+          <Button size="xs" radius="xl" rightSection={<IconArrowUp size={14} stroke={2.25} />} loading={busy} disabled={!text.trim()} onClick={() => void send()} data-chat-send>{t('verb.send')}</Button>
         </Group>
       </Stack>
     </Stack>

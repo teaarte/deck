@@ -78,7 +78,7 @@ func TestRealBrowserCatalog(t *testing.T) {
 	}
 	e.must("deck.records_upsert", map[string]any{"project": "fresh", "collection": "forecasts",
 		"records": jsonl(map[string]any{"at": "2026-09-01T09:00:00Z", "horizon": "1d", "change": -0.01, "status": "missed"})}, nil)
-	b.until("the block its when now holds for, without a reload", `[...document.querySelectorAll('h4')].some(x => x.innerText === 'Missed')`)
+	b.until("the block its when now holds for, without a reload", `[...document.querySelectorAll('[data-block] h3')].some(x => x.innerText === 'Missed')`)
 	e.must("deck.records_upsert", map[string]any{"project": "fresh", "collection": "forecasts", "records": jsonl(map[string]any{"at": "3", "horizon": "2d"})}, nil)
 	b.until("a time that is not one shown as it is", `[...document.querySelectorAll('[data-format="relative"]')].some(x => x.innerText === '3')`)
 }

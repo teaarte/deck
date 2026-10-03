@@ -65,30 +65,46 @@ func projectScreen(name string) *manifest.Screen {
 type menuEntry struct {
 	Project string       `json:"project,omitempty"`
 	Title   string       `json:"title"`
+	Icon    string       `json:"icon,omitempty"`
 	Screens []screenLink `json:"screens"`
+	// Running, Asks and Errors are the project's running processes, open questions and failing health rows.
+	Running int64 `json:"running,omitempty"`
+	Asks    int64 `json:"asks,omitempty"`
+	Errors  int64 `json:"errors,omitempty"`
 }
 
 type screenLink struct {
 	Name  string `json:"name"`
 	Title string `json:"title"`
+	Icon  string `json:"icon,omitempty"`
 }
 
 // menu is the navigation of the client: deck's screens, then each project's menu, or all its screens without one.
 func (a *App) menu(ctx context.Context, act registry.Actor, _ struct{}) (any, error) {
 	out := []menuEntry{{Title: "deck"}}
 	for _, name := range shipped().Menu {
-		out[0].Screens = append(out[0].Screens, screenLink{Name: name, Title: deckScreen(name).Title})
+		s := deckScreen(name)
+		out[0].Screens = append(out[0].Screens, screenLink{Name: name, Title: s.Title, Icon: s.Icon})
 	}
 	ps, err := a.Store.Q.ListWorkspaceProjects(ctx, act.Workspace)
 	if err != nil {
 		return nil, err
+	}
+	pulses, err := a.Store.Q.ProjectPulses(ctx, act.Workspace)
+	if err != nil {
+		return nil, err
+	}
+	pulse := map[int64]db.ProjectPulsesRow{}
+	for _, r := range pulses {
+		pulse[r.ID] = r
 	}
 	for _, p := range ps {
 		m, err := docs.Manifest(ctx, a.Store.Q, p)
 		if err != nil {
 			continue
 		}
-		e := menuEntry{Project: p.Name, Title: p.Name, Screens: []screenLink{}}
+		r := pulse[p.ID]
+		e := menuEntry{Project: p.Name, Title: p.Name, Icon: m.Icon, Screens: []screenLink{}, Running: r.Running, Asks: r.Asks, Errors: r.Errors}
 		names := m.Menu
 		if len(names) == 0 {
 			for _, s := range m.Screens {
@@ -98,11 +114,12 @@ func (a *App) menu(ctx context.Context, act registry.Actor, _ struct{}) (any, er
 			}
 		}
 		for _, n := range names {
-			e.Screens = append(e.Screens, screenLink{Name: n, Title: m.Screen(n).Title})
+			s := m.Screen(n)
+			e.Screens = append(e.Screens, screenLink{Name: n, Title: s.Title, Icon: s.Icon})
 		}
 		for _, s := range shipped().Project {
 			if s.Record == "" && m.Screen(s.Name) == nil {
-				e.Screens = append(e.Screens, screenLink{Name: s.Name, Title: s.Title})
+				e.Screens = append(e.Screens, screenLink{Name: s.Name, Title: s.Title, Icon: s.Icon})
 			}
 		}
 		out = append(out, e)

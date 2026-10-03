@@ -2,9 +2,12 @@ import { useRef, useState } from 'react';
 import type { ComponentContext } from '@a2ui/web_core/v0_9';
 import { Button, Chip, Code, Group, Modal, Select, Stack, Text, TextInput } from '@mantine/core';
 import { useInterval } from '@mantine/hooks';
+import { IconArchive, IconArrowBackUp, IconArrowUpRight, IconCheck, IconDownload, IconLogin, IconMessage, IconPlayerPause,
+  IconPlayerPlay, IconPlayerStop, IconRefresh, IconSend, IconSettings, IconTrash, IconX, type Icon } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { notifications } from '@mantine/notifications';
 import { download } from './api';
+import { NamedIcon } from './icons';
 import i18n from './i18n';
 import type { Action, Data } from './catalog.gen';
 
@@ -21,6 +24,19 @@ const useNow = () => {
 };
 
 type Before = () => Promise<void>;
+
+// verbIcons are the icons of deck's own verbs; a button with a label and no icon of its own has none.
+const verbIcons: Record<string, Icon> = {
+  open: IconArrowUpRight, stop: IconPlayerStop, cancel_run: IconPlayerStop, run_now: IconPlayerPlay, resume: IconPlayerPlay,
+  continue: IconPlayerPlay, pause: IconPlayerPause, retry: IconRefresh, remove: IconTrash, delete: IconTrash, archive: IconArchive,
+  download: IconDownload, allow: IconCheck, yes: IconCheck, dismiss: IconCheck, mark_done: IconCheck, deny: IconX,
+  answer: IconMessage, tell: IconMessage, send: IconSend, undo: IconArrowBackUp, settings: IconSettings, sign_in: IconLogin,
+};
+const verbIcon = (act: Action) => {
+  if (act.icon) return <NamedIcon name={act.icon} fallback={act.label || act.verb || ''} size={14} stroke={2} />;
+  const I = !act.label && act.verb ? verbIcons[act.verb] : undefined;
+  return I ? <I size={14} stroke={2} /> : undefined;
+};
 
 function ActionButton({ act, context, params, onDone, before }: { act: Action; context: ComponentContext; params?: Record<string, unknown>; onDone?: () => void; before?: Before }) {
   const { t } = useTranslation();
@@ -67,7 +83,7 @@ function ActionButton({ act, context, params, onDone, before }: { act: Action; c
   };
   if (act.input && !params) {
     if (!typing) {
-      return <Button size="xs" variant={act.primary ? 'filled' : 'default'} data-verb={act.verb} onClick={() => setTyping(true)}>{label}</Button>;
+      return <Button size="xs" variant={act.primary ? 'filled' : 'default'} leftSection={verbIcon(act)} data-verb={act.verb} onClick={() => setTyping(true)}>{label}</Button>;
     }
     return (
       <Group gap="xs" wrap="nowrap">
@@ -85,7 +101,7 @@ function ActionButton({ act, context, params, onDone, before }: { act: Action; c
     );
   }
   const button = (
-    <Button size="xs" variant={act.primary ? 'filled' : 'default'} loading={busy} data-verb={act.verb}
+    <Button size="xs" variant={act.primary ? 'filled' : 'default'} loading={busy} data-verb={act.verb} leftSection={verbIcon(act)}
       onClick={() => (act.confirm ? setAsking(true) : void send())}>{label}</Button>
   );
   if (!act.confirm) return button;

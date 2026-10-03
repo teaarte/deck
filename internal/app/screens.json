@@ -8,6 +8,7 @@
   "screens": [
     {
       "name": "cockpit",
+      "icon": "layout-dashboard",
       "title": "Cockpit",
       "blocks": [
         {"type": "list", "title": "Waiting for you", "source": {"from": "deck.asks_list"},
@@ -56,6 +57,7 @@
     },
     {
       "name": "schedule",
+      "icon": "calendar-time",
       "title": "Schedule",
       "blocks": [
         {"type": "table", "title": "Triggers", "source": {"from": "deck.triggers_list", "sort": "project"},
@@ -104,6 +106,7 @@
     },
     {
       "name": "settings",
+      "icon": "settings",
       "title": "Settings",
       "blocks": [
         {"type": "tabs", "tabs": [
@@ -193,6 +196,7 @@
     },
     {
       "name": "journal",
+      "icon": "history",
       "title": "Journal",
       "blocks": [
         {"type": "tabs", "tabs": [
@@ -255,6 +259,7 @@
     },
     {
       "name": "share",
+      "icon": "share",
       "title": "Share",
       "blocks": [
         {"type": "form", "title": "Send the shared files to", "source": {"from": "deck.commands_list", "where": "len(files) > 0"}}
@@ -262,6 +267,7 @@
     },
     {
       "name": "process",
+      "icon": "activity",
       "title": "Process",
       "record": "process",
       "blocks": [
@@ -284,6 +290,7 @@
     },
     {
       "name": "chat",
+      "icon": "sparkles",
       "title": "Master",
       "blocks": [{"type": "chat"}]
     }
@@ -291,6 +298,7 @@
   "project": [
     {
       "name": "documents",
+      "icon": "files",
       "title": "Documents",
       "blocks": [
         {"type": "table", "title": "Documents", "source": {"from": "deck.documents_list", "input": {"with_deleted": true}, "sort": "name"}, "filter": ["kind"],
@@ -310,6 +318,7 @@
     },
     {
       "name": "settings",
+      "icon": "adjustments",
       "title": "Settings",
       "blocks": [
         {"type": "list", "title": "Project", "source": {"from": "deck.projects_list"},
@@ -365,6 +374,7 @@
     },
     {
       "name": "document",
+      "icon": "file-text",
       "title": "Document",
       "record": "document",
       "blocks": [{"type": "document"}]

@@ -48,6 +48,7 @@ var Format = func() []byte {
 		props := maps.Clone(form["properties"].(map[string]any))
 		props["type"], props["title"] = map[string]any{"const": name}, map[string]any{"type": "string"}
 		props["when"] = map[string]any{"$ref": "#/$defs/when"}
+		props["icon"] = map[string]any{"$ref": "#/$defs/icon"}
 		rules, _ := form["description"].(string)
 		form["properties"], form["type"], form["additionalProperties"] = props, "object", false
 		form["description"] = strings.TrimSpace(c.Description + " " + rules)

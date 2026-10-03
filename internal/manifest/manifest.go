@@ -30,6 +30,7 @@ type Manifest struct {
 	Board           *Board       `json:"board,omitempty"`
 	Screens         []Screen     `json:"screens,omitempty"`
 	Menu            []string     `json:"menu,omitempty"`
+	Icon            string       `json:"icon,omitempty"`
 	Autonomy        string       `json:"autonomy,omitempty"`
 	Reads           []Read       `json:"reads,omitempty"`
 	NoNetwork       bool         `json:"no_network,omitempty"`
@@ -215,6 +216,7 @@ type Read struct {
 type Screen struct {
 	Name  string `json:"name"`
 	Title string `json:"title"`
+	Icon  string `json:"icon,omitempty"`
 	// Record is the collection whose record the screen shows; the client opens it with the record id.
 	Record string  `json:"record,omitempty"`
 	Blocks []Block `json:"blocks"`
@@ -223,6 +225,7 @@ type Screen struct {
 type Block struct {
 	Type  string `json:"type"`
 	Title string `json:"title,omitempty"`
+	Icon  string `json:"icon,omitempty"`
 	// When is an expression over the record of the page and rows; where it does not hold the block is left out.
 	When    string   `json:"when,omitempty"`
 	Source  *Source  `json:"source,omitempty"`
@@ -325,6 +328,7 @@ type Action struct {
 	// Label is the text of the button; Verb names a built-in label the client translates.
 	Label   string            `json:"label,omitempty"`
 	Verb    string            `json:"verb,omitempty"`
+	Icon    string            `json:"icon,omitempty"`
 	Command string            `json:"command,omitempty"`
 	Screen  string            `json:"screen,omitempty"`
 	Params  map[string]string `json:"params,omitempty"`

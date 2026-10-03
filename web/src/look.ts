@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react';
 import { createTheme, DEFAULT_THEME, type MantineThemeOverride } from '@mantine/core';
 import { glass } from './glass';
+import { palette } from './palette';
 
 // Look is how deck looks on this device; the color scheme itself is kept by Mantine.
 export interface Look {
@@ -9,6 +10,9 @@ export interface Look {
   font: 'small' | 'default' | 'large';
   radius: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
   theme: 'default' | 'glass';
+  // pattern draws the icons behind the screen; tint goes from clear (0) to opaque (1) glass.
+  pattern: boolean;
+  tint: number;
 }
 
 const KEY = 'deck-look';
@@ -17,7 +21,7 @@ export const DENSITIES: Look['density'][] = ['compact', 'default', 'comfortable'
 export const FONTS: Look['font'][] = ['small', 'default', 'large'];
 export const RADII: Look['radius'][] = ['xs', 'sm', 'md', 'lg', 'xl'];
 export const THEMES: Look['theme'][] = ['default', 'glass'];
-const DEFAULT: Look = { accent: 'blue', density: 'default', font: 'default', radius: 'md', theme: 'default' };
+const DEFAULT: Look = { accent: 'blue', density: 'default', font: 'default', radius: 'md', theme: 'default', pattern: true, tint: 0.35 };
 
 function read(): Look {
   try {
@@ -28,6 +32,8 @@ function read(): Look {
       font: FONTS.includes(got.font!) ? got.font! : DEFAULT.font,
       radius: RADII.includes(got.radius!) ? got.radius! : DEFAULT.radius,
       theme: THEMES.includes(got.theme!) ? got.theme! : DEFAULT.theme,
+      pattern: typeof got.pattern === 'boolean' ? got.pattern : DEFAULT.pattern,
+      tint: typeof got.tint === 'number' && got.tint >= 0 && got.tint <= 1 ? got.tint : DEFAULT.tint,
     };
   } catch {
     return DEFAULT;
@@ -35,7 +41,10 @@ function read(): Look {
 }
 
 // The theme marks the root element: the glass styles and their backdrop hang on it.
-const mark = () => { document.documentElement.dataset.deckTheme = look.theme; };
+const mark = () => {
+  document.documentElement.dataset.deckTheme = look.theme;
+  document.documentElement.style.setProperty('--glass-tint-user', String(look.tint));
+};
 let look = read();
 mark();
 const subs = new Set<() => void>();
@@ -65,6 +74,10 @@ export function theme(l: Look): MantineThemeOverride {
     [k, { ...h, fontSize: text === 1 ? h.fontSize : `calc(${h.fontSize} * ${text})` }]));
   return createTheme({
     primaryColor: l.accent,
+    colors: palette,
+    primaryShade: { light: 6, dark: 6 },
+    autoContrast: true,
+    respectReducedMotion: true,
     defaultRadius: l.radius,
     spacing: scaled(DEFAULT_THEME.spacing, space),
     fontSizes: scaled(DEFAULT_THEME.fontSizes, text),

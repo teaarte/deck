@@ -71,6 +71,9 @@ func (r *renderer) block(id string, b manifest.Block) {
 	if b.Title != "" {
 		comp["title"] = b.Title
 	}
+	if b.Icon != "" {
+		comp["icon"] = b.Icon
+	}
 	r.comps = append(r.comps, comp)
 	switch b.Type {
 	case "columns":

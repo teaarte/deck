@@ -20,6 +20,7 @@
     "screens": {"type": "array", "items": {"$ref": "#/$defs/screen"}},
     "menu": {"type": "array", "items": {"$ref": "#/$defs/name"}, "uniqueItems": true, "description": "Screen names in menu order."},
     "icon": {"$ref": "#/$defs/icon", "description": "Icon of the project in the menu."},
+    "title": {"type": "string", "minLength": 1, "maxLength": 60, "description": "Name of the project the owner sees in the menu, such as BTC forecast; the project name by default. i18n translates it."},
     "autonomy": {"enum": ["suggest", "auto"], "default": "suggest",
       "description": "suggest: reversible actions wait for the owner; auto: they run at once and are reported."},
     "reads": {"type": "array", "items": {"$ref": "#/$defs/read"}, "description": "Data of other projects this project may read."},

@@ -13,6 +13,7 @@
         "title": {"type": "string"},
         "icon": {"type": "string"},
         "span": {"enum": [1, 2, "full"]},
+        "description": {"type": "string"},
         "children": {"$ref": "common_types.json#/$defs/ChildList"},
         "dialogs": {"$ref": "common_types.json#/$defs/ChildList", "description": "The dialogs of the screen, their buttons beside its title."}
       }
@@ -27,6 +28,7 @@
         "title": {"type": "string"},
         "icon": {"type": "string"},
         "span": {"enum": [1, 2, "full"]},
+        "description": {"type": "string"},
         "children": {"$ref": "common_types.json#/$defs/ChildList"}
       }
     },
@@ -40,6 +42,7 @@
         "title": {"type": "string"},
         "icon": {"type": "string"},
         "span": {"enum": [1, 2, "full"]},
+        "description": {"type": "string"},
         "name": {"type": "string"},
         "primary": {"type": "boolean"},
         "children": {"$ref": "common_types.json#/$defs/ChildList"}
@@ -55,6 +58,7 @@
         "title": {"type": "string"},
         "icon": {"type": "string"},
         "span": {"enum": [1, 2, "full"]},
+        "description": {"type": "string"},
         "titles": {"type": "array", "items": {"type": "string"}},
         "icons": {"type": "array", "items": {"type": "string"}, "description": "The icon of each tab, empty for none."},
         "children": {"$ref": "common_types.json#/$defs/ChildList"}
@@ -70,6 +74,7 @@
         "title": {"type": "string"},
         "icon": {"type": "string"},
         "span": {"enum": [1, 2, "full"]},
+        "description": {"type": "string"},
         "columns": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["label"], "properties": {"label": {"type": "string"}, "format": {"type": "string"}, "currency": {"type": "string"}}}},
         "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "rows: [{id, cells, actions}]"}
       }
@@ -84,6 +89,7 @@
         "title": {"type": "string"},
         "icon": {"type": "string"},
         "span": {"enum": [1, 2, "full"]},
+        "description": {"type": "string"},
         "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "items: [{id, title, text, meta, details, questions, actions}]"}
       }
     },
@@ -97,6 +103,7 @@
         "title": {"type": "string"},
         "icon": {"type": "string"},
         "span": {"enum": [1, 2, "full"]},
+        "description": {"type": "string"},
         "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "value: {fields: [{label, value}], actions}"}
       }
     },
@@ -110,6 +117,7 @@
         "title": {"type": "string"},
         "icon": {"type": "string"},
         "span": {"enum": [1, 2, "full"]},
+        "description": {"type": "string"},
         "format": {"type": "string"},
         "currency": {"type": "string"},
         "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "value: a number or a text"}
@@ -130,6 +138,7 @@
         "title": {"type": "string"},
         "icon": {"type": "string"},
         "span": {"enum": [1, 2, "full"]},
+        "description": {"type": "string"},
         "kind": {"type": "string"},
         "format": {"type": "string"},
         "currency": {"type": "string"},
@@ -149,6 +158,7 @@
         "title": {"type": "string"},
         "icon": {"type": "string"},
         "span": {"enum": [1, 2, "full"]},
+        "description": {"type": "string"},
         "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "files: [{id, title, name, type, size, url} or {id, title, error}]"}
       }
     },
@@ -162,6 +172,7 @@
         "title": {"type": "string"},
         "icon": {"type": "string"},
         "span": {"enum": [1, 2, "full"]},
+        "description": {"type": "string"},
         "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "value: the buttons, with the record of the page in their params"}
       }
     },
@@ -175,6 +186,7 @@
         "title": {"type": "string"},
         "icon": {"type": "string"},
         "span": {"enum": [1, 2, "full"]},
+        "description": {"type": "string"},
         "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "lines: [{at, kind, id, title, status, text}]"}
       }
     },
@@ -188,12 +200,13 @@
         "title": {"type": "string"},
         "icon": {"type": "string"},
         "span": {"enum": [1, 2, "full"]},
+        "description": {"type": "string"},
         "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "value: {project, lanes: [{name, title, role, cards: [{id, title, text, waits, record}]}], deleted: [{id, title}]}"}
       }
     },
     "form": {
       "description": "Asks for the input of a command and shows its result: one command, or a pick from deck.commands_list.",
-      "block": {"description": "Has either command or source from deck.commands_list to pick one, never both; it is its own button and takes no actions; save names a collection for the result.", "oneOf": [{"required": ["command"]}, {"required": ["source"]}], "properties": {"command": {"type": "string", "description": "deck.record_update on a record page edits the record."}, "source": {"allOf": [{"$ref": "#/$defs/source"}, {"required": ["from"], "properties": {"from": {"const": "deck.commands_list"}}}]}, "save": {"type": "string", "description": "Collection the owner can keep the result in."}, "values": {"type": "object", "additionalProperties": {"type": "string"}, "description": "Fields filled before the owner types, by field: fixed text, $param.<name> from the address of the screen, or $record.<field>."}, "choices": {"type": "object", "description": "Values offered for fields of the input, by field: a source and expressions over its items for the value and its label.", "additionalProperties": {"type": "object", "additionalProperties": false, "required": ["source", "value"], "properties": {"source": {"$ref": "#/$defs/source"}, "value": {"type": "string"}, "label": {"type": "string"}}}}}},
+      "block": {"description": "Has either command or source from deck.commands_list to pick one, never both; it is its own button and takes no actions; save names a collection for the result.", "oneOf": [{"required": ["command"]}, {"required": ["source"]}], "properties": {"command": {"type": "string", "description": "deck.record_update on a record page edits the record."}, "source": {"allOf": [{"$ref": "#/$defs/source"}, {"required": ["from"], "properties": {"from": {"const": "deck.commands_list"}}}]}, "save": {"type": "string", "description": "Collection the owner can keep the result in."}, "keep_open": {"type": "boolean", "description": "In a dialog the form stays open after its call to show the result, such as a token shown once; otherwise the dialog closes."}, "values": {"type": "object", "additionalProperties": {"type": "string"}, "description": "Fields filled before the owner types, by field: fixed text, $param.<name> from the address of the screen, or $record.<field>."}, "choices": {"type": "object", "description": "Values offered for fields of the input, by field: a source and expressions over its items for the value and its label.", "additionalProperties": {"type": "object", "additionalProperties": false, "required": ["source", "value"], "properties": {"source": {"$ref": "#/$defs/source"}, "value": {"type": "string"}, "label": {"type": "string"}}}}}},
       "type": "object",
       "additionalProperties": false,
       "required": ["data"],
@@ -201,6 +214,7 @@
         "title": {"type": "string"},
         "icon": {"type": "string"},
         "span": {"enum": [1, 2, "full"]},
+        "description": {"type": "string"},
         "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "value: {commands: [{name, title, project, input, result}], values, readonly, record, save}"}
       }
     },
@@ -214,6 +228,7 @@
         "title": {"type": "string"},
         "icon": {"type": "string"},
         "span": {"enum": [1, 2, "full"]},
+        "description": {"type": "string"},
         "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "the client keeps the look; the data is only its state"}
       }
     },
@@ -227,6 +242,7 @@
         "title": {"type": "string"},
         "icon": {"type": "string"},
         "span": {"enum": [1, 2, "full"]},
+        "description": {"type": "string"},
         "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "value: {id, project, name, kind, text, revision, editable, record, card, revisions}"}
       }
     },
@@ -240,6 +256,7 @@
         "title": {"type": "string"},
         "icon": {"type": "string"},
         "span": {"enum": [1, 2, "full"]},
+        "description": {"type": "string"},
         "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "value: {html, items, record, actions}"}
       }
     },
@@ -253,6 +270,7 @@
         "title": {"type": "string"},
         "icon": {"type": "string"},
         "span": {"enum": [1, 2, "full"]},
+        "description": {"type": "string"},
         "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "value: chat"}
       }
     }
@@ -306,7 +324,7 @@
         "commands": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["name", "title", "input", "order"], "properties": {
           "name": {"type": "string"}, "title": {"type": "string"}, "description": {"type": "string"}, "project": {"type": "string"},
           "input": {"type": "object"}, "order": {"type": ["array", "null"], "items": {"type": "string"}}, "result": {}}}},
-        "values": {"type": "object"}, "readonly": {"type": "array", "items": {"type": "string"}}, "record": {"type": "integer"}, "save": {"type": "string"},
+        "values": {"type": "object"}, "readonly": {"type": "array", "items": {"type": "string"}}, "record": {"type": "integer"}, "save": {"type": "string"}, "keep_open": {"type": "boolean"},
         "choices": {"type": "object", "description": "Values offered by field", "additionalProperties": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["value", "label"], "properties": {"value": {}, "label": {"type": "string"}}}}}}},
       "document": {"type": "object", "additionalProperties": false, "required": ["id", "project", "name", "kind", "text", "revision", "editable", "revisions"], "properties": {
         "id": {"type": "integer", "description": "0 while the document is not written yet"}, "project": {"type": "string"}, "name": {"type": "string"}, "kind": {"type": "string"},

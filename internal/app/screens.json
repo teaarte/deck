@@ -110,75 +110,97 @@
       "title": "Settings",
       "blocks": [
         {"type": "tabs", "tabs": [
-          {"title": "Projects", "blocks": [
+          {"title": "Projects", "icon": "folders", "blocks": [
+            {"type": "dialog", "name": "create-project", "title": "Create project", "icon": "plus", "primary": true, "blocks": [
+              {"type": "form", "command": "deck.project_create", "values": {"name": "$param.name"}}]},
+            {"type": "dialog", "name": "import-project", "title": "Import project", "icon": "file-import", "blocks": [
+              {"type": "form", "command": "deck.project_import"}]},
+            {"type": "dialog", "name": "try-command", "title": "Try a command", "icon": "flask", "blocks": [
+              {"type": "form", "command": "deck.command_try", "keep_open": true, "values": {"command": "$param.command"},
+                "choices": {"command": {"source": {"from": "deck.commands_list", "where": "project != '' && executor != 'tool'", "sort": "name"}, "value": "name", "label": "title + ' (' + name + ')'"}}}]},
             {"type": "list", "title": "Projects", "source": {"from": "deck.projects_list", "sort": "name"}, "filter": ["status"],
-              "item": {"title": "name + ' · ' + status + (paused ? ', paused' : '')", "text": "manifest_error != '' ? 'manifest: ' + manifest_error : description",
-                "meta": "'autonomy: ' + autonomy + (no_network ? ' · no network' : '') + (len(folders) > 0 ? ' · folders: ' + join(map(folders, .name + ': ' + .path), '; ') : '') + (len(rights) > 0 ? ' · enabling grants: ' + join(rights, '; ') : '')"},
+              "item": {"title": "title", "icon": "icon != '' ? icon : 'box'", "text": "manifest_error != '' ? 'manifest: ' + manifest_error : description",
+                "meta": "(title != name ? name + ' · ' : '') + status + (paused ? ', paused' : '') + ' · autonomy: ' + autonomy + (no_network ? ' · no network' : '') + (len(folders) > 0 ? ' · folders: ' + join(map(folders, .name + ': ' + .path), '; ') : '') + (len(rights) > 0 ? ' · enabling grants: ' + join(rights, '; ') : '')",
+                "tone": "manifest_error != '' ? 'error' : paused ? 'muted' : status == 'draft' ? 'warn' : ''"},
               "actions": [
-                {"verb": "settings", "screen": "settings", "project": "$record.name"},
+                {"verb": "settings", "primary": true, "screen": "settings", "project": "$record.name", "when": "status != 'draft' || manifest_error != ''"},
                 {"verb": "enable", "primary": true, "command": "deck.project_enable", "params": {"project": "$record.name", "revision": "$record.revision"}, "when": "manifest_error == '' && status == 'draft'"},
                 {"verb": "autonomy_auto", "command": "deck.project_autonomy", "params": {"project": "$record.name", "autonomy": "auto"}, "when": "manifest_error == '' && autonomy != 'auto'"},
                 {"verb": "autonomy_suggest", "command": "deck.project_autonomy", "params": {"project": "$record.name", "autonomy": "suggest"}, "when": "manifest_error == '' && autonomy == 'auto'"},
                 {"verb": "pause", "command": "deck.project_pause", "params": {"project": "$record.name", "paused": "true"}, "when": "!paused"},
                 {"verb": "resume", "command": "deck.project_pause", "params": {"project": "$record.name", "paused": "false"}, "when": "paused"},
                 {"verb": "delete", "confirm": true, "command": "deck.project_delete", "params": {"project": "$record.name"}, "when": "!builtin"}
-              ]},
-            {"type": "form", "title": "Create project", "command": "deck.project_create"},
-            {"type": "form", "title": "Import project", "command": "deck.project_import"},
-            {"type": "form", "title": "Trial run", "command": "deck.command_try",
-              "choices": {"command": {"source": {"from": "deck.commands_list", "where": "project != '' && executor != 'tool'", "sort": "name"}, "value": "name", "label": "title + ' (' + name + ')'"}}}
+              ]}
           ]},
-          {"title": "Providers", "blocks": [
+          {"title": "Providers", "icon": "cpu", "blocks": [
+            {"type": "dialog", "name": "provider", "title": "Add a provider", "icon": "plus", "primary": true, "blocks": [
+              {"type": "form", "command": "deck.provider_add", "description": "A model behind an OpenAI-compatible API, run by an ACP agent inside the sandbox of deck. A provider with the same name is replaced.",
+                "values": {"name": "$param.name", "agent": "$param.agent", "url": "$param.url", "model": "$param.model", "key_secret": "$param.key_secret", "no_cloud": "$param.no_cloud"},
+                "choices": {"key_secret": {"source": {"from": "deck.secrets_list"}, "value": "name"}}}]},
+            {"type": "dialog", "name": "speech", "title": "Speech to text", "icon": "microphone", "blocks": [
+              {"type": "form", "command": "deck.stt_set", "choices": {"key_secret": {"source": {"from": "deck.secrets_list"}, "value": "name"}}}]},
             {"type": "table", "title": "Providers", "source": {"from": "deck.providers_list", "rows": "providers"},
+              "description": "Where agent commands run. A self-check runs after a change; a provider that fails it runs nothing until it passes.",
               "columns": [
                 {"label": "Name", "bind": "name"},
+                {"label": "Status", "bind": "status", "format": "tag", "tone": "status == 'ok' ? 'ok' : status == 'error' ? 'error' : 'warn'"},
                 {"label": "Agent", "bind": "agent"},
                 {"label": "Model", "bind": "model"},
                 {"label": "Key", "bind": "key"},
-                {"label": "Status", "bind": "status"},
-                {"label": "Self-check", "bind": "verdict == 'model' ? 'the model failed it or was too slow' : verdict == 'adapter' ? 'the adapter is broken' : ''"},
-                {"label": "Tokens/s", "bind": "speed > 0 ? string(int(speed)) : ''"},
-                {"label": "Error", "bind": "error"}
+                {"label": "Tokens/s", "bind": "speed > 0 ? int(speed) : nil"},
+                {"label": "Why", "bind": "verdict == 'model' ? 'the model failed the self-check or was too slow: ' + error : verdict == 'adapter' ? 'the adapter is broken: ' + error : error"}
               ],
               "actions": [
+                {"verb": "edit", "screen": "settings", "params": {"tab": "Providers", "dialog": "provider", "name": "$record.name", "agent": "$record.agent", "url": "$record.url", "model": "$record.model", "key_secret": "=key startsWith 'secret ' ? trimPrefix(key, 'secret ') : ''"}, "when": "!builtin"},
                 {"verb": "check", "command": "deck.provider_check", "params": {"provider": "$record.name"}, "when": "self_check"},
                 {"verb": "remove", "confirm": true, "command": "deck.provider_remove", "params": {"name": "$record.name"}, "when": "!builtin"}
-              ]},
-            {"type": "form", "title": "Add a provider", "command": "deck.provider_add",
-              "choices": {"key_secret": {"source": {"from": "deck.secrets_list"}, "value": "name"}}},
-            {"type": "form", "title": "Speech to text", "command": "deck.stt_set",
-              "choices": {"key_secret": {"source": {"from": "deck.secrets_list"}, "value": "name"}}}
+              ]}
           ]},
-          {"title": "Secrets", "blocks": [
-            {"type": "list", "title": "Secrets", "source": {"from": "deck.secrets_list"}, "item": {"title": "name"}},
-            {"type": "form", "title": "Set or replace a secret", "command": "deck.secret_set"}
+          {"title": "Secrets", "icon": "key", "blocks": [
+            {"type": "dialog", "name": "secret", "title": "Add a secret", "icon": "plus", "primary": true, "blocks": [
+              {"type": "form", "command": "deck.secret_set", "values": {"name": "$param.name"}}]},
+            {"type": "table", "title": "Secrets", "source": {"from": "deck.secrets_list"},
+              "description": "API keys and passwords that tools and providers name; deck keeps them as files only it reads, agents and scripts never see them.",
+              "empty": "No secrets yet",
+              "columns": [{"label": "Name", "bind": "name"}],
+              "actions": [
+                {"verb": "replace", "screen": "settings", "params": {"tab": "Secrets", "dialog": "secret", "name": "$record.name"}},
+                {"verb": "delete", "confirm": true, "command": "deck.secret_delete", "params": {"name": "$record.name"}}
+              ]}
           ]},
-          {"title": "Tokens", "blocks": [
+          {"title": "Tokens", "icon": "ticket", "blocks": [
+            {"type": "dialog", "name": "token", "title": "Create a token", "icon": "plus", "primary": true, "blocks": [
+              {"type": "form", "command": "deck.token_create", "keep_open": true,
+                "choices": {"commands": {"source": {"from": "deck.commands_list", "sort": "name"}, "value": "name"}}}]},
             {"type": "table", "title": "Automation tokens", "source": {"from": "deck.tokens_list", "sort": "-id"},
+              "description": "A token lets Shortcuts, a terminal agent or a script call the commands it lists: POST /api/commands/<command> with the header Authorization: Bearer <token>. The token shows once, when it is created.",
+              "empty": "No tokens yet",
               "columns": [
                 {"label": "Name", "bind": "name"},
+                {"label": "State", "bind": "revoked ? 'revoked' : 'live'", "format": "tag", "tone": "revoked ? 'muted' : 'ok'"},
                 {"label": "Commands", "bind": "join(commands, ', ')"},
-                {"label": "Created", "bind": "created_at"},
-                {"label": "State", "bind": "revoked ? 'revoked' : 'live'"}
+                {"label": "Created", "bind": "created_at", "format": "relative"}
               ],
               "actions": [
                 {"verb": "revoke", "confirm": true, "command": "deck.token_revoke", "params": {"token": "$record.id"}, "when": "!revoked"}
-              ]},
-            {"type": "form", "title": "Create a token", "command": "deck.token_create",
-              "choices": {"commands": {"source": {"from": "deck.commands_list", "sort": "name"}, "value": "name"}}}
+              ]}
           ]},
-          {"title": "General", "blocks": [
+          {"title": "General", "icon": "adjustments", "blocks": [
             {"type": "table", "title": "General", "source": {"from": "deck.settings_list"},
               "columns": [
                 {"label": "Setting", "bind": "title"},
                 {"label": "Value", "bind": "value"},
                 {"label": "Default", "bind": "default"}
-              ]},
-            {"type": "form", "title": "Change settings", "command": "deck.settings_set"}
+              ],
+              "actions": [
+                {"verb": "edit", "primary": true, "command": "deck.settings_set", "input": "confirm_hours", "when": "name == 'confirm_hours'"},
+                {"verb": "edit", "primary": true, "command": "deck.settings_set", "input": "agent_limit", "when": "name == 'agent_limit'"},
+                {"verb": "edit", "primary": true, "command": "deck.settings_set", "input": "suggest_days", "when": "name == 'suggest_days'"}
+              ]}
           ]},
-          {"title": "Interface", "blocks": [{"type": "appearance", "title": "Appearance"},
+          {"title": "Interface", "icon": "palette", "blocks": [{"type": "appearance", "title": "Appearance"},
             {"type": "actions", "title": "Pushes", "actions": [{"verb": "reset_push", "confirm": true, "command": "deck.push_reset"}]}]},
-          {"title": "Health", "blocks": [
+          {"title": "Health", "icon": "heartbeat", "blocks": [
             {"type": "table", "title": "Health of the machine", "source": {"from": "deck.health_list", "input": {"machine": true}}, "filter": ["status"],
               "columns": [
                 {"label": "What", "bind": "subject"},
@@ -321,9 +343,17 @@
       "icon": "adjustments",
       "title": "Settings",
       "blocks": [
+        {"type": "dialog", "name": "try-command", "title": "Try a command", "icon": "flask", "blocks": [
+          {"type": "form", "command": "deck.command_try", "keep_open": true, "values": {"command": "$param.command"},
+            "choices": {"command": {"source": {"from": "deck.commands_list", "where": "executor != 'tool' && executor != ''", "sort": "name"}, "value": "name", "label": "title + ' (' + name + ')'"}}}]},
+        {"type": "dialog", "name": "folder", "title": "Add a folder", "icon": "folder-plus", "blocks": [
+          {"type": "form", "command": "deck.folder_add"}]},
+        {"type": "dialog", "name": "secret", "title": "Set a secret", "icon": "key", "blocks": [
+          {"type": "form", "command": "deck.secret_set", "values": {"name": "$param.name"}}]},
         {"type": "list", "title": "Project", "source": {"from": "deck.projects_list"},
-          "item": {"title": "name + ' · ' + status + (paused ? ', paused' : '')", "text": "manifest_error != '' ? 'manifest: ' + manifest_error : description",
-            "meta": "'autonomy: ' + autonomy + (no_network ? ' · no network' : '') + (len(folders) > 0 ? ' · folders: ' + join(map(folders, .name + ': ' + .path), '; ') : '') + (len(rights) > 0 ? ' · enabling grants: ' + join(rights, '; ') : '')"},
+          "item": {"title": "title", "icon": "icon != '' ? icon : 'box'", "text": "manifest_error != '' ? 'manifest: ' + manifest_error : description",
+            "meta": "(title != name ? name + ' · ' : '') + status + (paused ? ', paused' : '') + ' · autonomy: ' + autonomy + (no_network ? ' · no network' : '') + (len(rights) > 0 ? ' · enabling grants: ' + join(rights, '; ') : '')",
+            "tone": "manifest_error != '' ? 'error' : paused ? 'muted' : status == 'draft' ? 'warn' : ''"},
           "actions": [
             {"verb": "enable", "primary": true, "command": "deck.project_enable", "params": {"project": "$record.name", "revision": "$record.revision"}, "when": "manifest_error == '' && status == 'draft'"},
             {"verb": "autonomy_auto", "command": "deck.project_autonomy", "params": {"project": "$record.name", "autonomy": "auto"}, "when": "manifest_error == '' && autonomy != 'auto'"},
@@ -333,17 +363,27 @@
             {"verb": "delete", "confirm": true, "command": "deck.project_delete", "params": {"project": "$record.name"}, "when": "!builtin"}
           ]},
         {"type": "table", "title": "Commands", "source": {"from": "deck.commands_list", "where": "tool == ''", "sort": "name"},
+          "description": "What the project can do and where its agent commands run; a provider picked here replaces the one the manifest suggests.",
           "columns": [
-            {"label": "Command", "bind": "name"},
-            {"label": "Title", "bind": "title"},
-            {"label": "Runs as", "bind": "executor"},
+            {"label": "Command", "bind": "title"},
+            {"label": "Name", "bind": "name"},
+            {"label": "Runs as", "bind": "executor", "format": "tag"},
             {"label": "Provider", "bind": "provider"}
+          ],
+          "actions": [
+            {"verb": "provider", "command": "deck.provider_set", "params": {"command": "$record.name"}, "input": "provider", "options": "$record.providers", "when": "executor == 'agent'"},
+            {"verb": "try", "screen": "settings", "params": {"dialog": "try-command", "command": "$record.name"}}
           ]},
-        {"type": "form", "title": "Choose the provider of a command", "command": "deck.provider_set",
-          "choices": {"command": {"source": {"from": "deck.commands_list", "where": "executor == 'agent'", "sort": "name"}, "value": "name", "label": "title + ' (' + name + ')'"},
-            "provider": {"source": {"from": "deck.providers_list", "rows": "providers"}, "value": "name"}}},
-        {"type": "form", "title": "Add folder", "command": "deck.folder_add"},
-        {"type": "form", "title": "Remove folder", "command": "deck.folder_remove"},
+        {"type": "table", "title": "Folders", "source": {"from": "deck.folders_list"},
+          "description": "Folders on disk the agent commands of the project with a folder work in.",
+          "empty": "No folders; add one for commands that work on files of a repository",
+          "columns": [
+            {"label": "Name", "bind": "name"},
+            {"label": "Path", "bind": "path"}
+          ],
+          "actions": [
+            {"verb": "remove", "confirm": true, "command": "deck.folder_remove", "params": {"name": "$record.name"}}
+          ]},
         {"type": "table", "title": "Tools", "source": {"from": "deck.commands_list", "where": "tool != ''", "sort": "name"},
           "columns": [
             {"label": "Tool", "bind": "name"},
@@ -351,11 +391,15 @@
             {"label": "What it does", "bind": "description"}
           ]},
         {"type": "table", "title": "Secrets", "source": {"from": "deck.secrets_list"},
+          "description": "The secrets the manifest of the project names; the values stay with deck.",
           "columns": [
             {"label": "Secret", "bind": "name"},
-            {"label": "State", "bind": "set ? 'set' : 'not set'"}
+            {"label": "State", "bind": "set ? 'set' : 'not set'", "format": "tag", "tone": "set ? 'ok' : 'warn'"}
+          ],
+          "actions": [
+            {"verb": "replace", "screen": "settings", "params": {"dialog": "secret", "name": "$record.name"}, "when": "set"},
+            {"verb": "set", "primary": true, "screen": "settings", "params": {"dialog": "secret", "name": "$record.name"}, "when": "!set"}
           ]},
-        {"type": "form", "title": "Set or replace a secret", "command": "deck.secret_set"},
         {"type": "table", "title": "Tokens with access", "source": {"from": "deck.tokens_list", "sort": "-id"},
           "columns": [
             {"label": "Name", "bind": "name"},

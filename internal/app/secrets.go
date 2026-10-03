@@ -63,6 +63,27 @@ func (a *App) secretSet(ctx context.Context, act registry.Actor, in secretSetIn)
 	return map[string]any{"name": in.Name}, nil
 }
 
+type secretDeleteIn struct {
+	Name string `desc:"Secret name"`
+}
+
+// secretDelete removes a stored secret; tools and providers that name it fail until it is set again.
+func (a *App) secretDelete(ctx context.Context, act registry.Actor, in secretDeleteIn) (any, error) {
+	if !access.ValidSecret(in.Name) || slices.Contains(serviceSecrets, in.Name) {
+		return nil, registry.Invalid("deck: no secret %q the owner can delete", in.Name)
+	}
+	a.secretMu.Lock()
+	defer a.secretMu.Unlock()
+	err := os.Remove(filepath.Join(a.secretsDir(act.Workspace), in.Name))
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, registry.NotFound("deck: no secret %q", in.Name)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{"deleted": in.Name}, nil
+}
+
 // SwapSecret writes a secret only while it still holds old, the value deck read before; an unset secret
 // holds "".
 func (a *App) SwapSecret(workspace int64, name, old, value string) (bool, error) {
@@ -159,6 +180,9 @@ func (a *App) secretsCommands() []*registry.Command {
 		registry.Def("secret_set", "Set secret",
 			"Stores a secret for tool headers as a file only deck reads; agents and scripts never see it.",
 			registry.OwnerOnly, a.secretSet).Changes("secrets"),
+		registry.Def("secret_delete", "Delete secret",
+			"Deletes a stored secret; the tools and providers that name it fail until it is set again.",
+			registry.OwnerOnly, a.secretDelete).Changes("secrets"),
 		registry.Read("secrets_list", "Secrets",
 			"Lists the names of stored secrets, never their values.",
 			registry.OwnerOnly, a.secretsList).On("secrets"),

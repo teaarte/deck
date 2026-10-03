@@ -287,14 +287,12 @@ func TestTheProjectsTabCreatesAProjectAndGivesItAFolder(t *testing.T) {
 	if len(list) != 1 || list[0].Status != "enabled" || list[0].Description != "Notes of the owner." {
 		t.Fatalf("a project from a name and a prompt: %+v", list)
 	}
-	for _, title := range []string{"Add folder", "Remove folder"} {
-		f := blockData[struct {
-			Values   map[string]any
-			Readonly []string
-		}](t, e.screenBlock("notes", "settings", title, nil)["value"])
-		if f.Values["project"] != "notes" || !slices.Contains(f.Readonly, "project") {
-			t.Fatalf("%s on the settings of a project works on that project: %+v", title, f)
-		}
+	f := blockData[struct {
+		Values   map[string]any
+		Readonly []string
+	}](t, e.screenForm("notes", "settings", "deck.folder_add")["value"])
+	if f.Values["project"] != "notes" || !slices.Contains(f.Readonly, "project") {
+		t.Fatalf("adding a folder on the settings of a project works on that project: %+v", f)
 	}
 	var board struct{ Lanes []struct{ Name string } }
 	e.must("deck.cards_list", map[string]any{"project": "notes"}, &board)

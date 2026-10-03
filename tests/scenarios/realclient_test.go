@@ -402,3 +402,15 @@ func (b *playwright) until(what, cond string) {
 func (b *playwright) shot(name string) {
 	b.call("browser_take_screenshot", map[string]any{"filename": fmt.Sprintf("web-%s.png", name), "fullPage": true})
 }
+
+// pressIn clicks the button of a verb in a row or an item, also when it waits in the row's more menu.
+func pressIn(scope, verb string) string {
+	return `(() => { const s = ` + scope + `; let b = s.querySelector('[data-verb="` + verb + `"]');
+		if (!b) { const m = s.querySelector('[data-more]'); m.click(); b = document.querySelector('[data-more-menu="' + m.dataset.more + '"] [data-verb="` + verb + `"]'); }
+		b.click(); return '' })()`
+}
+
+// itemOf finds a list item by its title and a part of its text.
+func itemOf(title, part string) string {
+	return `[...document.querySelectorAll('[data-item]')].find((x) => x.innerText.split('\n')[0].trim() === '` + title + `' && x.innerText.includes('` + part + `'))`
+}

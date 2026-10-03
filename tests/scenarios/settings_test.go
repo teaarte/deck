@@ -95,6 +95,30 @@ func (e *Env) screenBlock(project, screen, title string, extra map[string]any) m
 	return nil
 }
 
+// formID is the block id of the deck settings form of a command.
+func formID(t *testing.T, e *Env, command string) string {
+	t.Helper()
+	for id, d := range e.screenData("", "settings", nil) {
+		if strings.Contains(string(d["value"]), `"name":"`+command+`"`) && strings.Contains(string(d["value"]), `"commands":[{`) {
+			return id
+		}
+	}
+	t.Fatalf("no form of %s", command)
+	return ""
+}
+
+// screenForm is the data of the form of a screen that calls this command, in a dialog or not.
+func (e *Env) screenForm(project, screen, command string) map[string]json.RawMessage {
+	e.T.Helper()
+	for _, d := range e.screenData(project, screen, nil) {
+		if strings.Contains(string(d["value"]), `"commands":[{`) && strings.Contains(string(d["value"]), `"name":"`+command+`"`) {
+			return d
+		}
+	}
+	e.T.Fatalf("%s has no form of %s", screen, command)
+	return nil
+}
+
 func findItem(t *testing.T, items []listItem, prefix string) listItem {
 	t.Helper()
 	for _, it := range items {
@@ -132,7 +156,7 @@ func TestSettingsProjectsEnableADraftAtTheRevisionItShowsAndSwitchAutonomy(t *te
 	items := func() []listItem { return blockData[[]listItem](t, e.settingsBlock("Projects", nil)["items"]) }
 	press := func(a map[string]any) { t.Helper(); e.must(a["command"].(string), a["params"], nil) }
 	notes := findItem(t, items(), "notes")
-	if notes.Title != "notes · draft" || !strings.Contains(notes.Meta, "autonomy: suggest") ||
+	if notes.Title != "notes" || !strings.HasPrefix(notes.Meta, "draft · ") || !strings.Contains(notes.Meta, "autonomy: suggest") ||
 		!strings.Contains(notes.Meta, "enabling grants: "+strings.Join(e.project("notes").Rights, "; ")) {
 		t.Fatalf("a draft shows its autonomy and the rights enabling grants: %+v", notes)
 	}
@@ -146,14 +170,14 @@ func TestSettingsProjectsEnableADraftAtTheRevisionItShowsAndSwitchAutonomy(t *te
 	var m struct{ Manifest string }
 	e.must("deck.manifest_get", map[string]any{"project": "notes"}, &m)
 	_, granted, _ := strings.Cut(notes.Meta, "enabling grants: ")
-	if !strings.HasPrefix(notes.Meta, "autonomy: auto") || !strings.Contains(granted, "autonomy: auto") ||
+	if !strings.Contains(notes.Meta, " · autonomy: auto") || !strings.Contains(granted, "autonomy: auto") ||
 		!strings.Contains(m.Manifest, `"autonomy": "auto"`) || !strings.Contains(m.Manifest, `"prompt": "Do the work."`) {
 		t.Fatalf("autonomy is a new revision of the manifest, the rest kept; enabling now grants it: %+v\n%s", notes, m.Manifest)
 	}
 	e.refused(stale["command"].(string), stale["params"], 409, "look at its rights again")
 	press(verb(t, notes.Actions, "enable"))
 	notes = findItem(t, items(), "notes")
-	if notes.Title != "notes · enabled" || hasVerb(notes.Actions, "enable") || strings.Contains(notes.Meta, "grants") {
+	if !strings.HasPrefix(notes.Meta, "enabled · ") || hasVerb(notes.Actions, "enable") || strings.Contains(notes.Meta, "grants") {
 		t.Fatalf("an enabled project has no enable button and asks for nothing: %+v", notes)
 	}
 	press(verb(t, notes.Actions, "autonomy_suggest"))
@@ -162,14 +186,14 @@ func TestSettingsProjectsEnableADraftAtTheRevisionItShowsAndSwitchAutonomy(t *te
 		t.Fatalf("suggest is the default and leaves the manifest without autonomy: %s", m.Manifest)
 	}
 	press(verb(t, findItem(t, items(), "notes").Actions, "pause"))
-	if notes = findItem(t, items(), "notes"); notes.Title != "notes · enabled, paused" || !hasVerb(notes.Actions, "resume") {
+	if notes = findItem(t, items(), "notes"); !strings.HasPrefix(notes.Meta, "enabled, paused · ") || !hasVerb(notes.Actions, "resume") {
 		t.Fatalf("a paused project says so and resumes: %+v", notes)
 	}
 	if code, _ := e.callWith(tok, "deck.project_autonomy", map[string]any{"project": "notes", "autonomy": "auto"}); code != 403 {
 		t.Fatalf("only the owner switches autonomy: %d", code)
 	}
-	if f := e.settingsBlock("Trial run", nil); !strings.Contains(string(f["value"]), `"deck.command_try"`) {
-		t.Fatalf("a trial run is a form on the projects tab: %s", f["value"])
+	if f := e.screenForm("", "settings", "deck.command_try"); !strings.Contains(string(f["value"]), `"deck.command_try"`) {
+		t.Fatalf("trying a command is a form on the projects tab: %s", f["value"])
 	}
 }
 
@@ -178,15 +202,22 @@ func TestSettingsProjectsEnableADraftAtTheRevisionItShowsAndSwitchAutonomy(t *te
 func TestSettingsSecretsAndTokensShowOnlyNames(t *testing.T) {
 	e := newEnv(t, nil)
 	events := e.sse(t.Context())
-	form := blockData[formV](t, e.settingsBlock("Set or replace a secret", nil)["value"])
+	form := blockData[formV](t, e.screenForm("", "settings", "deck.secret_set")["value"])
 	if form.Commands[0].Input.Properties["value"]["writeOnly"] != true {
 		t.Fatalf("the value of a secret is a field that hides what is typed: %+v", form.Commands[0].Input.Properties)
 	}
 	e.must("deck.secret_set", map[string]any{"name": "mail-key", "value": "s3cret-value"}, nil)
 	waitTopic(t, events, "secrets")
 	secrets := e.settingsBlock("Secrets", map[string]any{"topic": "secrets"})
-	if got := blockData[[]listItem](t, secrets["items"]); len(got) != 1 || got[0].Title != "mail-key" {
-		t.Fatalf("the secrets tab lists names and follows the secrets topic: %s", secrets["items"])
+	got := blockData[[]screenRow](t, secrets["rows"])
+	if len(got) != 1 || got[0].Cells[0] != "mail-key" || !hasVerb(got[0].Actions, "replace") || verb(t, got[0].Actions, "delete")["confirm"] != true {
+		t.Fatalf("the secrets tab lists names with replace and delete, and follows the secrets topic: %s", secrets["rows"])
+	}
+	del := verb(t, got[0].Actions, "delete")
+	e.must(del["command"].(string), del["params"], nil)
+	waitTopic(t, events, "secrets")
+	if left := blockData[[]screenRow](t, e.settingsBlock("Secrets", nil)["rows"]); len(left) != 0 {
+		t.Fatalf("a deleted secret is gone: %+v", left)
 	}
 
 	var made struct {
@@ -200,7 +231,7 @@ func TestSettingsSecretsAndTokensShowOnlyNames(t *testing.T) {
 		t.Fatalf("no secret value or token is on the screen after it was made: %s", all)
 	}
 	rows := blockData[[]screenRow](t, e.settingsBlock("Automation tokens", map[string]any{"topic": "tokens"})["rows"])
-	if len(rows) != 1 || rows[0].Cells[0] != "shortcuts" || rows[0].Cells[1] != "deck.notify, web.*" || rows[0].Cells[3] != "live" {
+	if len(rows) != 1 || rows[0].Cells[0] != "shortcuts" || rows[0].Cells[2] != "deck.notify, web.*" || rows[0].Cells[1] != "live" {
 		t.Fatalf("a token shows its name, commands and state: %+v", rows)
 	}
 	revoke := verb(t, rows[0].Actions, "revoke")
@@ -210,7 +241,7 @@ func TestSettingsSecretsAndTokensShowOnlyNames(t *testing.T) {
 	e.must(revoke["command"].(string), revoke["params"], nil)
 	waitTopic(t, events, "tokens")
 	rows = blockData[[]screenRow](t, e.settingsBlock("Automation tokens", nil)["rows"])
-	if rows[0].Cells[3] != "revoked" || hasVerb(rows[0].Actions, "revoke") {
+	if rows[0].Cells[1] != "revoked" || hasVerb(rows[0].Actions, "revoke") {
 		t.Fatalf("a revoked token stays in the list without the button: %+v", rows)
 	}
 	if code, _ := e.callWith(made.Token, "deck.notify", map[string]any{"text": "hi"}); code != 401 {
@@ -240,7 +271,7 @@ func TestSettingsSecretsAndTokensShowOnlyNames(t *testing.T) {
 func TestSettingsProvidersAddAndRemoveOnTheScreen(t *testing.T) {
 	e := newEnv(t, nil)
 	events := e.sse(t.Context())
-	if f := e.settingsBlock("Add a provider", nil); !strings.Contains(string(f["value"]), `"deck.provider_add"`) {
+	if f := e.screenForm("", "settings", "deck.provider_add"); !strings.Contains(string(f["value"]), `"deck.provider_add"`) {
 		t.Fatalf("the providers tab adds a provider with a form: %s", f["value"])
 	}
 	e.must("deck.provider_add", map[string]any{"name": "ollama", "url": "http://127.0.0.1:1/v1", "model": "small", "agent": "opencode", "no_cloud": true}, nil)
@@ -258,8 +289,17 @@ func TestSettingsProvidersAddAndRemoveOnTheScreen(t *testing.T) {
 		t.Fatalf("an added provider runs in an ACP agent, which has a self-check and its button: %+v", added.Actions)
 	}
 	remove := verb(t, added.Actions, "remove")
-	if remove["confirm"] != true || added.Cells[2] != "small" {
+	if remove["confirm"] != true || added.Cells[3] != "small" {
 		t.Fatalf("an added provider shows its model and is removed after a yes: %+v", added)
+	}
+	edit := verb(t, added.Actions, "edit")["params"].(map[string]any)
+	if edit["dialog"] != "provider" || edit["model"] != "small" || edit["url"] != "http://127.0.0.1:1/v1" {
+		t.Fatalf("edit opens the dialog of the provider filled with its values: %+v", edit)
+	}
+	var f formV
+	_ = json.Unmarshal(e.screenData("", "settings", map[string]any{"params": `{"name": "ollama", "model": "small"}`})[formID(t, e, "deck.provider_add")]["value"], &f)
+	if f.Values["name"] != "ollama" || f.Values["model"] != "small" {
+		t.Fatalf("the form of a provider takes its values from the address: %+v", f.Values)
 	}
 	e.must(remove["command"].(string), remove["params"], nil)
 	waitTopic(t, events, "health")
@@ -333,10 +373,10 @@ func TestAProjectHasItsOwnSettings(t *testing.T) {
 		return out
 	}
 	project := blockData[[]listItem](t, e.screenBlock("notes", "settings", "Project", nil)["items"])
-	if len(project) != 1 || !strings.HasPrefix(project[0].Title, "notes · enabled") || !hasVerb(project[0].Actions, "pause") || !hasVerb(project[0].Actions, "delete") {
+	if len(project) != 1 || project[0].Title != "notes" || !strings.HasPrefix(project[0].Meta, "enabled · ") || !hasVerb(project[0].Actions, "pause") || !hasVerb(project[0].Actions, "delete") {
 		t.Fatalf("the settings show the project with its buttons: %+v", project)
 	}
-	if c := cells("Commands"); len(c) != 1 || c[0][0] != "notes.collect" || c[0][2] != "agent" {
+	if c := cells("Commands"); len(c) != 1 || c[0][1] != "notes.collect" || c[0][2] != "agent" {
 		t.Fatalf("the commands of the project with what runs them: %v", c)
 	}
 	if c := cells("Tools"); len(c) != 1 || c[0][0] != "notes.post" || c[0][1] != "http" {

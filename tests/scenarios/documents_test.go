@@ -61,10 +61,11 @@ func TestDocumentsOfAProjectAreListedOnItsDocumentsScreenAndEditedOnTheirPage(t 
 	var menu []struct {
 		Project string
 		Screens []struct{ Name, Title string }
+		Extra   []struct{ Name, Title string }
 	}
 	e.menuOf(&menu)
-	if s := menu[1].Screens; menu[1].Project != "other" && menu[2].Project != "web" || len(s) != 3 || s[1].Name != "documents" || s[2].Name != "settings" {
-		t.Fatalf("each project menu ends with its documents and its settings: %+v", menu)
+	if s, x := menu[1].Screens, menu[1].Extra; menu[1].Project != "other" && menu[2].Project != "web" || len(s) != 1 || len(x) != 2 || x[0].Name != "documents" || x[1].Name != "settings" {
+		t.Fatalf("each project menu has its own screens, its documents and settings apart: %+v", menu)
 	}
 	check.messages(t, e.screenMessages("web", "documents", nil))
 	list := e.screenData("web", "documents", nil)["b0"]

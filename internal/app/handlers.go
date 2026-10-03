@@ -5,6 +5,7 @@ import (
 	"context"
 	"deck2/internal/app/access"
 	"fmt"
+	jsonpatch "github.com/evanphx/json-patch/v5"
 	"strings"
 
 	"deck2/internal/docs"
@@ -30,6 +31,9 @@ type projectView struct {
 	// Autonomy and NoNetwork are of the manifest; empty and false when it does not load.
 	Autonomy  string `json:"autonomy"`
 	NoNetwork bool   `json:"no_network"`
+	// Icon and Title are the icon and the name the owner sees that its manifest gives; Title is the name without one.
+	Icon  string `json:"icon,omitempty"`
+	Title string `json:"title"`
 }
 
 type screenView struct {
@@ -59,7 +63,7 @@ func (a *App) projectsList(ctx context.Context, act registry.Actor, in projectsL
 
 // viewProject is a project as the owner sees it, with its manifest when that loads.
 func (a *App) viewProject(ctx context.Context, p db.Project) (projectView, *manifest.Manifest) {
-	v := projectView{ID: p.ID, Name: p.Name, Status: p.Status, Paused: p.Paused == 1, Builtin: p.Builtin == 1, Screens: []screenView{},
+	v := projectView{ID: p.ID, Name: p.Name, Title: p.Name, Status: p.Status, Paused: p.Paused == 1, Builtin: p.Builtin == 1, Screens: []screenView{},
 		Rights: []string{}, Folders: a.folders(ctx, p.ID)}
 	if prompt, err := docs.CurrentText(ctx, a.Store.Q, docs.ProjectScope(p), docs.KindPrompt, docs.PromptName); err == nil {
 		v.Description = docs.Description(prompt)
@@ -69,7 +73,7 @@ func (a *App) viewProject(ctx context.Context, p db.Project) (projectView, *mani
 		v.ManifestError = err.Error()
 		return v, nil
 	}
-	v.Revision, v.Autonomy, v.NoNetwork = m.Revision, cmp.Or(m.Autonomy, "suggest"), m.NoNetwork
+	v.Revision, v.Autonomy, v.NoNetwork, v.Icon, v.Title = m.Revision, cmp.Or(m.Autonomy, "suggest"), m.NoNetwork, m.Icon, cmp.Or(m.Title, p.Name)
 	for _, s := range m.Screens {
 		v.Screens = append(v.Screens, screenView{Name: s.Name, Title: s.Title})
 	}
@@ -130,6 +134,7 @@ type manifestSaveIn struct {
 	Manifest   string   `type:"json" opt:"" desc:"Manifest JSON; leave it out to change parts of the current manifest with old and new"`
 	Old        []string `type:"text[]" opt:"" desc:"Parts of the current manifest text to replace, each occurring in it exactly once"`
 	New        []string `type:"text[]" opt:"" desc:"The text that replaces each old part, in the same order"`
+	Patch      string   `type:"json" opt:"" desc:"JSON Patch (RFC 6902) of the current manifest, such as [{\"op\": \"replace\", \"path\": \"/screens/0/title\", \"value\": \"Overview\"}]: paths point at one place, so equal texts elsewhere stay"`
 	Reason     string   `opt:"" desc:"Why it changed"`
 	IfRevision int64    `json:"if_revision" opt:"" desc:"Only while the current revision is still this one"`
 }
@@ -139,9 +144,9 @@ func (a *App) manifestSave(ctx context.Context, act registry.Actor, in manifestS
 	if err != nil {
 		return nil, err
 	}
-	if len(in.Old) > 0 || len(in.New) > 0 {
-		if in.Manifest != "" {
-			return nil, registry.Invalid("deck: give the whole manifest or old and new parts, not both")
+	if len(in.Old) > 0 || len(in.New) > 0 || strings.TrimSpace(in.Patch) != "" {
+		if in.Manifest != "" || (strings.TrimSpace(in.Patch) != "" && (len(in.Old) > 0 || len(in.New) > 0)) {
+			return nil, registry.Invalid("deck: give the whole manifest, old and new parts, or a patch; one of them")
 		}
 		d, err := a.Store.Q.FindDocument(ctx, docs.Ref{Scope: docs.ProjectScope(p), Name: docs.ManifestName}.Find())
 		if err != nil {
@@ -154,7 +159,17 @@ func (a *App) manifestSave(ctx context.Context, act registry.Actor, in manifestS
 		if err != nil {
 			return nil, err
 		}
-		if in.Manifest, err = docs.Edit(r.Text, in.Old, in.New); err != nil {
+		if strings.TrimSpace(in.Patch) != "" {
+			patch, err := jsonpatch.DecodePatch([]byte(in.Patch))
+			if err != nil {
+				return nil, registry.Invalid("deck: patch: %v", err)
+			}
+			out, err := patch.ApplyIndent([]byte(r.Text), "  ")
+			if err != nil {
+				return nil, registry.Invalid("deck: patch: %v", err)
+			}
+			in.Manifest = string(out)
+		} else if in.Manifest, err = docs.Edit(r.Text, in.Old, in.New); err != nil {
 			return nil, err
 		}
 		in.IfRevision = d.Current

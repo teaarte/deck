@@ -49,6 +49,7 @@ var Format = func() []byte {
 		props["type"], props["title"] = map[string]any{"const": name}, map[string]any{"type": "string"}
 		props["when"] = map[string]any{"$ref": "#/$defs/when"}
 		props["icon"] = map[string]any{"$ref": "#/$defs/icon"}
+		props["description"] = map[string]any{"type": "string", "description": "A line under the title that says what the block is for and how to use it."}
 		props["span"] = map[string]any{"enum": []any{1, 2, "full"}, "description": "Cells of the grid of the screen the block takes; tables, boards, forms, documents, logs, chats, custom blocks, tabs and columns take the full width by default, the rest one cell."}
 		rules, _ := form["description"].(string)
 		form["properties"], form["type"], form["additionalProperties"] = props, "object", false

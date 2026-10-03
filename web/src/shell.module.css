@@ -129,6 +129,53 @@
   }
 }
 
+.group {
+  position: relative;
+}
+
+.extras {
+  position: absolute;
+  top: 6px;
+  right: 30px;
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+
+.group:hover .extras,
+.group:focus-within .extras,
+.extras:has([data-active]) {
+  opacity: 1;
+}
+
+.extra {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  color: var(--mantine-color-dimmed);
+  background: var(--deck-island-bg);
+
+  &:hover {
+    color: var(--mantine-color-text);
+    background: var(--mantine-color-default-hover);
+  }
+
+  &[data-active] {
+    color: var(--mantine-primary-color-contrast);
+    background: var(--mantine-primary-color-filled);
+  }
+}
+
+@media (hover: none) {
+  .extras {
+    opacity: 1;
+  }
+}
+
 .groupIcon {
   display: inline-flex;
   align-items: center;

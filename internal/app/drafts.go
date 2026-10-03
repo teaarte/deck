@@ -224,8 +224,8 @@ func (a *App) draftsCommands() []*registry.Command {
 		registry.Def("project_autonomy", "Project autonomy",
 			"Sets whether a project suggests, so the owner says yes to its reversible changes, or acts on its own and reports; a new manifest revision.",
 			registry.OwnerOnly, a.projectAutonomy),
-		registry.Def("command_try", "Trial run",
-			"Starts a trial run of a project command: calls that are not internal are declined, nothing leaves deck.",
+		registry.Def("command_try", "Try a command",
+			"Runs a command of a project once as a trial to check it before a button or a schedule runs it: calls that are not internal are declined, nothing leaves deck.",
 			registry.OwnerSide, a.commandTry),
 	}
 }

@@ -26,28 +26,31 @@ func TestRealBrowserCodeProject(t *testing.T) {
 	submit := func(cmd string) {
 		b.eval(`(document.querySelector('[data-form="` + cmd + `"] [data-submit]').click(), '')`)
 	}
-	item := func(text string) string {
-		return `[...document.querySelectorAll('[data-item]')].find((x) => x.innerText.includes('` + text + `'))`
-	}
 
+	b.until("the create button", `document.querySelector('[data-dialog-open="create-project"]')`)
+	b.eval(`(document.querySelector('[data-dialog-open="create-project"]').click(), '')`)
 	b.until("the create form", form("deck.project_create", "name"))
 	b.type_(form("deck.project_create", "name"), "notes")
 	b.type_(form("deck.project_create", "prompt"), "Notes of the owner.")
 	submit("deck.project_create")
-	b.until("the new project in the list", item("notes · enabled"))
+	b.until("the new project in the list", itemOf("notes", "enabled · "))
 
+	b.eval(`(document.querySelector('[data-dialog-open="import-project"]').click(), '')`)
+	b.until("the import form", form("deck.project_import", "folder"))
 	b.type_(form("deck.project_import", "folder"), module)
 	b.type_(form("deck.project_import", "name"), "code")
 	submit("deck.project_import")
-	b.until("the imported draft", item("code · draft"))
-	b.eval(`(` + item("code · draft") + `.querySelector('[data-verb="enable"]').click(), '')`)
-	b.until("the enabled project", item("code · enabled"))
+	b.until("the imported draft", itemOf("code", "draft · "))
+	b.eval(pressIn(itemOf("code", "draft · "), "enable"))
+	b.until("the enabled project", itemOf("code", "enabled · "))
 
-	b.eval(`(` + item("code · enabled") + `.querySelector('[data-verb="settings"]').click(), '')`)
-	b.until("the settings of the project", form("deck.folder_add", "path"))
+	b.eval(pressIn(itemOf("code", "enabled · "), "settings"))
+	b.until("the settings of the project", `document.querySelector('[data-dialog-open="folder"]')`)
+	b.eval(`(document.querySelector('[data-dialog-open="folder"]').click(), '')`)
+	b.until("the folder form", form("deck.folder_add", "path"))
 	b.type_(form("deck.folder_add", "path"), repo)
 	submit("deck.folder_add")
-	b.until("the folder in the project line", item("folders: my-repo: "+repo))
+	b.until("the folder in the folders of the project", `[...document.querySelectorAll('tr')].some((r) => r.innerText.includes('my-repo') && r.innerText.includes('`+repo+`'))`)
 	b.until("the commands of the project", `[...document.querySelectorAll('tr')].some((r) => r.innerText.includes('code.run'))`)
 	b.shot("code-settings")
 

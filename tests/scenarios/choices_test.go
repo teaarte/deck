@@ -48,18 +48,22 @@ func TestFormFieldsOfferValuesFromASourceAndProjectFieldsTheProjects(t *testing.
 		t.Fatalf("a field that names a project offers the projects: %+v", hand.Choices)
 	}
 
-	set := e.screenBlock("web", "settings", "Choose the provider of a command", nil)
-	pick := blockData[struct{ Choices map[string][]choiceV }](t, set["value"])
 	var cmds []string
-	for _, c := range pick.Choices["command"] {
-		cmds = append(cmds, c.Value.(string))
+	for _, r := range blockData[[]screenRow](t, e.screenBlock("web", "settings", "Commands", nil)["rows"]) {
+		if !hasVerb(r.Actions, "provider") {
+			continue
+		}
+		pick := verb(t, r.Actions, "provider")
+		if opts, _ := pick["options"].([]any); len(opts) == 0 || opts[0] != "fake" || pick["input"] != "provider" {
+			t.Fatalf("the provider of an agent command is picked from the providers in its row: %+v", pick)
+		}
+		cmds = append(cmds, r.Cells[1].(string))
 	}
-	if strings.Join(cmds, " ") != "web.hand web.mark web.publish web.score web.tag web.tell web.touch" ||
-		pick.Choices["command"][0].Label != "Hand over (web.hand)" || pick.Choices["provider"][0].Value != "fake" {
-		t.Fatalf("the provider of an agent command of the project is picked on its settings: %+v", pick.Choices)
+	if strings.Join(cmds, " ") != "web.hand web.mark web.publish web.score web.tag web.tell web.touch" {
+		t.Fatalf("every agent command of the project has its provider button: %v", cmds)
 	}
 	e.must("deck.secret_set", map[string]any{"name": "or-key", "value": "x"}, nil)
-	add := blockData[struct{ Choices map[string][]choiceV }](t, e.settingsBlock("Add a provider", nil)["value"])
+	add := blockData[struct{ Choices map[string][]choiceV }](t, e.screenForm("", "settings", "deck.provider_add")["value"])
 	if k := add.Choices["key_secret"]; len(k) != 1 || k[0].Value != "or-key" {
 		t.Fatalf("the key of a provider is picked from the secrets: %+v", add.Choices)
 	}
@@ -144,14 +148,5 @@ func TestFormAsksForTheInputAndShowsTheResultBySchema(t *testing.T) {
 	}
 	if !slices.Contains(names, "web.score") || slices.Contains(names, "web.touch") || slices.Contains(names, "web.ingest") {
 		t.Fatalf("shared files go to a command of the owner that takes a file: %v", names)
-	}
-	var picked formV
-	for _, b := range e.screenData("web", "settings", nil) {
-		if raw, ok := b["value"]; ok && strings.Contains(string(raw), `"commands":[{"description":"Sets the provider`) {
-			picked = blockData[formV](t, raw)
-		}
-	}
-	if len(picked.Commands) != 1 || picked.Commands[0].Name != "deck.provider_set" {
-		t.Fatalf("the provider of a command is chosen with a form: %+v", picked)
 	}
 }

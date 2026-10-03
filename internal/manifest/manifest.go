@@ -31,6 +31,7 @@ type Manifest struct {
 	Screens         []Screen     `json:"screens,omitempty"`
 	Menu            []string     `json:"menu,omitempty"`
 	Icon            string       `json:"icon,omitempty"`
+	Title           string       `json:"title,omitempty"`
 	Autonomy        string       `json:"autonomy,omitempty"`
 	Reads           []Read       `json:"reads,omitempty"`
 	NoNetwork       bool         `json:"no_network,omitempty"`
@@ -226,6 +227,8 @@ type Block struct {
 	Type  string `json:"type"`
 	Title string `json:"title,omitempty"`
 	Icon  string `json:"icon,omitempty"`
+	// Description is a line under the title of the block.
+	Description string `json:"description,omitempty"`
 	// When is an expression over the record of the page and rows; where it does not hold the block is left out.
 	When    string   `json:"when,omitempty"`
 	Source  *Source  `json:"source,omitempty"`
@@ -264,6 +267,8 @@ type Block struct {
 	Choices map[string]Choice `json:"choices,omitempty"`
 	// Values fill fields of a form before the owner types: fixed text, $param.<name> or $record.<field>.
 	Values map[string]string `json:"values,omitempty"`
+	// KeepOpen keeps the dialog of a form open after its call, to show the result.
+	KeepOpen bool `json:"keep_open,omitempty"`
 	// Document is the custom/ document with the HTML of a custom block, or the document a document block shows.
 	Document string `json:"document,omitempty"`
 }

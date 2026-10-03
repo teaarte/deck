@@ -16,6 +16,11 @@
     "open_in_web": "Open in web"
   },
   "verb": {
+    "edit": "Edit",
+    "replace": "Replace",
+    "provider": "Provider",
+    "try": "Try",
+    "set": "Set",
     "answer": "Answer",
     "allow": "Allow",
     "allow_always": "Always allow here",

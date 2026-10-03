@@ -106,6 +106,9 @@ export function Chat({ value, context }: { value: ChatValue; context: ComponentC
   // The feed sticks to its last reply while the owner is at the bottom, also when a reply grows after it is drawn.
   const stick = useRef(true);
   const top = useRef(0);
+  // touched is when the owner last moved the feed; a scroll the browser makes when the feed shrinks is not theirs.
+  const touched = useRef(0);
+  const hand = () => { touched.current = Date.now(); };
   const content = useRef<HTMLDivElement>(null);
   const down = () => { if (feed.current && stick.current) feed.current.scrollTop = feed.current.scrollHeight; };
   useEffect(() => {
@@ -122,6 +125,8 @@ export function Chat({ value, context }: { value: ChatValue; context: ComponentC
     const message = text.trim();
     if (!message || busy) return;
     setBusy(true);
+    stick.current = true;
+    down();
     key.current ||= newKey();
     try {
       const out = await call<{ topic: number }>(value.send.command!, {
@@ -152,10 +157,11 @@ export function Chat({ value, context }: { value: ChatValue; context: ComponentC
       </Group>
       {topic && <Actions actions={[value.archive!, value.delete!].filter(Boolean)} context={context} />}
       <ScrollArea style={{ flex: 1, minHeight: 80 }} viewportRef={feed} data-feed
+        onWheel={hand} onTouchMove={hand} onKeyDown={hand} onPointerDown={hand}
         onScrollPositionChange={({ y }) => {
           const v = feed.current;
           if (!v) return;
-          if (y < top.current) stick.current = false;
+          if (y < top.current && Date.now() - touched.current < 800) stick.current = false;
           if (v.scrollHeight - y - v.clientHeight < 48) stick.current = true;
           top.current = y;
         }}>

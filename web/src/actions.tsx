@@ -1,9 +1,9 @@
-import { useRef, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import type { ComponentContext } from '@a2ui/web_core/v0_9';
 import { ActionIcon, Button, Chip, Code, Group, Menu, Modal, Select, Stack, Text, TextInput } from '@mantine/core';
 import { useInterval } from '@mantine/hooks';
 import { IconArchive, IconArrowBackUp, IconArrowUpRight, IconCheck, IconDownload, IconLogin, IconMessage, IconPlayerPause,
-  IconDots, IconPlayerPlay, IconPlayerStop, IconRefresh, IconSend, IconSettings, IconTrash, IconX, type Icon } from '@tabler/icons-react';
+  IconCpu, IconDots, IconFlask, IconKey, IconPencil, IconPlayerPlay, IconReplace, IconPlayerStop, IconRefresh, IconSend, IconSettings, IconTrash, IconX, type Icon } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { notifications } from '@mantine/notifications';
 import { download } from './api';
@@ -30,6 +30,7 @@ const verbIcons: Record<string, Icon> = {
   open: IconArrowUpRight, stop: IconPlayerStop, cancel_run: IconPlayerStop, run_now: IconPlayerPlay, resume: IconPlayerPlay,
   continue: IconPlayerPlay, pause: IconPlayerPause, retry: IconRefresh, remove: IconTrash, delete: IconTrash, archive: IconArchive,
   download: IconDownload, allow: IconCheck, yes: IconCheck, dismiss: IconCheck, mark_done: IconCheck, deny: IconX,
+  edit: IconPencil, replace: IconReplace, provider: IconCpu, try: IconFlask, set: IconKey,
   answer: IconMessage, tell: IconMessage, send: IconSend, undo: IconArrowBackUp, settings: IconSettings, sign_in: IconLogin,
 };
 const verbIcon = (act: Action) => {
@@ -168,6 +169,7 @@ function offerUndo(undo: Action, label: string, context: ComponentContext) {
 export function Actions({ actions, context, onDone, before, max = 3 }: { actions?: Action[]; context: ComponentContext; onDone?: () => void; before?: Before; max?: number }) {
   const { t } = useTranslation();
   const now = useNow();
+  const more = useId();
   const shown = (actions ?? []).filter((a) => !a.until || Date.parse(a.until) > now);
   if (!shown.length) return null;
   const sorted = [...shown.filter((a) => a.primary), ...shown.filter((a) => !a.primary)];
@@ -179,9 +181,9 @@ export function Actions({ actions, context, onDone, before, max = 3 }: { actions
       {rest.length > 0 && (
         <Menu position="bottom-end" keepMounted closeOnItemClick={false} withinPortal shadow="md" radius="md">
           <Menu.Target>
-            <ActionIcon variant="default" size={30} radius="md" aria-label={t('actions.more')} data-more><IconDots size={16} /></ActionIcon>
+            <ActionIcon variant="default" size={30} radius="md" aria-label={t('actions.more')} data-more={more}><IconDots size={16} /></ActionIcon>
           </Menu.Target>
-          <Menu.Dropdown p={4} miw={180}>
+          <Menu.Dropdown p={4} miw={180} data-more-menu={more}>
             <Stack gap={2}>
               {rest.map((a, i) => <ActionButton key={i} act={a} context={context} onDone={onDone} before={before} inMenu />)}
             </Stack>

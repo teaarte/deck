@@ -1,6 +1,7 @@
 package app
 
 import (
+	"cmp"
 	"context"
 	"deck2/internal/app/access"
 	"deck2/internal/app/board"
@@ -67,6 +68,8 @@ type menuEntry struct {
 	Title   string       `json:"title"`
 	Icon    string       `json:"icon,omitempty"`
 	Screens []screenLink `json:"screens"`
+	// Extra are the screens deck adds to every project, shown apart from the project's own.
+	Extra []screenLink `json:"extra,omitempty"`
 	// Running, Asks and Errors are the project's running processes, open questions and failing health rows.
 	Running int64 `json:"running,omitempty"`
 	Asks    int64 `json:"asks,omitempty"`
@@ -104,7 +107,7 @@ func (a *App) menu(ctx context.Context, act registry.Actor, _ struct{}) (any, er
 			continue
 		}
 		r := pulse[p.ID]
-		e := menuEntry{Project: p.Name, Title: p.Name, Icon: m.Icon, Screens: []screenLink{}, Running: r.Running, Asks: r.Asks, Errors: r.Errors}
+		e := menuEntry{Project: p.Name, Title: cmp.Or(m.Title, p.Name), Icon: m.Icon, Screens: []screenLink{}, Running: r.Running, Asks: r.Asks, Errors: r.Errors}
 		names := m.Menu
 		if len(names) == 0 {
 			for _, s := range m.Screens {
@@ -119,7 +122,7 @@ func (a *App) menu(ctx context.Context, act registry.Actor, _ struct{}) (any, er
 		}
 		for _, s := range shipped().Project {
 			if s.Record == "" && m.Screen(s.Name) == nil {
-				e.Screens = append(e.Screens, screenLink{Name: s.Name, Title: s.Title, Icon: s.Icon})
+				e.Extra = append(e.Extra, screenLink{Name: s.Name, Title: s.Title, Icon: s.Icon})
 			}
 		}
 		out = append(out, e)
@@ -301,6 +304,8 @@ type commandRow struct {
 	Executor    string   `json:"executor"`
 	Provider    string   `json:"provider"`
 	Tool        string   `json:"tool"`
+	// Providers are the providers of the workspace an agent command may be set to run on.
+	Providers []string `json:"providers,omitempty"`
 }
 
 type commandDescribeIn struct {
@@ -346,6 +351,7 @@ func (a *App) commandsList(ctx context.Context, act registry.Actor, in commandsL
 		return nil, err
 	}
 	manifests := map[int64]*manifest.Manifest{}
+	var all []string
 	out := []commandRow{}
 	for _, c := range cmds {
 		if pid != 0 && c.ProjectID != pid {
@@ -369,6 +375,17 @@ func (a *App) commandsList(ctx context.Context, act registry.Actor, in commandsL
 				r.Executor = mc.Executor.Type
 				if pv, err := a.For(ctx, c.ProjectID, mc); err == nil && r.Executor == "agent" {
 					r.Provider = pv.Name()
+				}
+				if r.Executor == "agent" {
+					if all == nil {
+						all = []string{}
+						if pvs, err := a.Providers.All(ctx, act.Workspace); err == nil {
+							for _, pv := range pvs {
+								all = append(all, pv.Name())
+							}
+						}
+					}
+					r.Providers = all
 				}
 			case slices.ContainsFunc(m.Tools.HTTP, func(t manifest.HTTPTool) bool { return t.Name == short }):
 				r.Tool = "http"

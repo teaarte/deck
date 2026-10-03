@@ -18,13 +18,13 @@ func TestRealBrowserProjectSettings(t *testing.T) {
 	b := newPlaywright(t)
 	b.call("browser_resize", map[string]any{"width": 1400, "height": 1000})
 	b.open(e.URL + "/?token=" + token + "#/deck/settings")
-	item := `[...document.querySelectorAll('[data-item]')].find((x) => x.innerText.includes('notes · enabled'))`
+	item := itemOf("notes", "enabled · ")
 	b.until("the project in the Projects tab", item)
-	b.eval(`(` + item + `.querySelector('[data-verb="settings"]').click(), '')`)
+	b.eval(pressIn(item, "settings"))
 	b.until("the commands of the project", `[...document.querySelectorAll('tr')].some((r) => r.innerText.includes('notes.collect'))`)
 	b.until("the tools of the project", `[...document.querySelectorAll('tr')].some((r) => r.innerText.includes('notes.post'))`)
 	b.shot("project-settings")
-	b.eval(`(` + item + `.querySelector('[data-verb="pause"]').click(), '')`)
+	b.eval(pressIn(item, "pause"))
 	e.waitFor("the paused project", func() bool {
 		var ps []struct {
 			Name   string
@@ -33,5 +33,5 @@ func TestRealBrowserProjectSettings(t *testing.T) {
 		e.projectsOf(&ps)
 		return len(ps) == 1 && ps[0].Paused
 	})
-	b.until("the paused project on its settings", `[...document.querySelectorAll('[data-item]')].some((x) => x.innerText.includes('notes · enabled, paused'))`)
+	b.until("the paused project on its settings", itemOf("notes", "enabled, paused · "))
 }

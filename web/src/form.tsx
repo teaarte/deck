@@ -154,7 +154,8 @@ interface Outcome {
 // Form asks for the input of a command by its schema, calls it and shows the result under the form.
 export function Form({ value }: { value: FormValue }) {
   const { t } = useTranslation();
-  const close = useContext(DialogClose);
+  const inDialog = useContext(DialogClose);
+  const close = value.keep_open ? undefined : inDialog;
   const [picked, setPicked] = useState(value.commands.length === 1 ? value.commands[0].name : '');
   const cmd = value.commands.find((c) => c.name === picked);
   // edited are the fields the owner changed; the rest follow the values the server sends now.

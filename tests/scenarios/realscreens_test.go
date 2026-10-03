@@ -115,15 +115,17 @@ func TestRealBrowserSettings(t *testing.T) {
 		b.eval(`(` + find + `.click(), '')`)
 	}
 	b.open(e.URL + "/#/deck/settings")
-	b.until("the projects tab", `[...document.querySelectorAll('[data-item]')].some((x) => x.innerText.includes('notes · draft') && x.innerText.includes('enabling grants'))`)
-	b.eval(`([...document.querySelectorAll('[data-item]')].find((x) => x.innerText.includes('notes · draft')).querySelector('[data-verb="enable"]').click(), '')`)
-	b.until("the enabled draft", `[...document.querySelectorAll('[data-item]')].some((x) => x.innerText.includes('notes · enabled'))`)
+	b.until("the projects tab", itemOf("notes", "enabling grants"))
+	b.eval(pressIn(itemOf("notes", "draft · "), "enable"))
+	b.until("the enabled draft", itemOf("notes", "enabled · "))
 	if p := e.project("notes"); p.Status != "enabled" {
 		t.Fatalf("enable on the projects tab turns the draft on: %+v", p)
 	}
 	b.shot("settings-projects")
 
 	tab("Secrets")
+	b.until("the add secret button", `document.querySelector('[data-dialog-open="secret"]')`)
+	b.eval(`(document.querySelector('[data-dialog-open="secret"]').click(), '')`)
 	secret := `document.querySelector('[data-form="deck.secret_set"] input[data-field="value"]')`
 	b.until("the secret form", secret)
 	if got := b.eval(secret + `.type`); got != "password" {
@@ -132,12 +134,14 @@ func TestRealBrowserSettings(t *testing.T) {
 	b.type_(`document.querySelector('[data-form="deck.secret_set"] input[data-field="name"]')`, "mail-key")
 	b.type_(secret, "s3cret-value")
 	b.eval(`(document.querySelector('[data-form="deck.secret_set"] [data-submit]').click(), '')`)
-	b.until("the secret in the list and its value gone from the field", `[...document.querySelectorAll('[data-item]')].some((x) => x.innerText.trim() === 'mail-key') && `+secret+`.value === ''`)
+	b.until("the secret in the list and the dialog closed", `[...document.querySelectorAll('tr')].some((x) => x.innerText.includes('mail-key')) && !`+secret)
 	if got := b.eval(`String(document.body.innerText.includes('s3cret-value'))`); got != "false" {
 		t.Fatal("the value of a secret is not on the page after it is set")
 	}
 
 	tab("Tokens")
+	b.until("the create token button", `document.querySelector('[data-dialog-open="token"]')`)
+	b.eval(`(document.querySelector('[data-dialog-open="token"]').click(), '')`)
 	b.until("the token form", `document.querySelector('[data-form="deck.token_create"]')`)
 	b.type_(`document.querySelector('[data-form="deck.token_create"] input[data-field="name"]')`, "shortcuts")
 	b.eval(`(() => { const i = document.querySelector('[data-form="deck.token_create"] input[data-field="commands"]'); i.focus();
@@ -148,7 +152,8 @@ func TestRealBrowserSettings(t *testing.T) {
 	if got := b.eval(`[...document.querySelectorAll('[data-form="deck.token_create"] [data-field]')].map((x) => x.dataset.field).join(' ')`); got != "name commands" {
 		t.Fatalf("a form asks in the order of the command's params: %s", got)
 	}
-	b.until("the token in the list", `[...document.querySelectorAll('tr')].some((r) => r.innerText.includes('shortcuts') && r.innerText.includes('live'))`)
+	b.eval(`(document.querySelector('[data-dialog="token"] .mantine-Modal-close').click(), '')`)
+	b.until("the token in the list", `[...document.querySelectorAll('tr')].some((r) => r.innerText.includes('shortcuts') && r.innerText.toLowerCase().includes('live'))`)
 	b.eval(`([...document.querySelectorAll('tr')].find((r) => r.innerText.includes('shortcuts')).querySelector('[data-verb="revoke"]').click(), '')`)
 	b.until("the owner asked before the revoke", `document.querySelector('[data-confirm]')`)
 	var toks []struct {
@@ -162,15 +167,21 @@ func TestRealBrowserSettings(t *testing.T) {
 		}
 	}
 	b.eval(`(document.querySelector('[data-confirm-yes]').click(), '')`)
-	b.until("the revoked token", `[...document.querySelectorAll('tr')].some((r) => r.innerText.includes('shortcuts') && r.innerText.includes('revoked'))`)
+	b.until("the revoked token", `[...document.querySelectorAll('tr')].some((r) => r.innerText.includes('shortcuts') && r.innerText.toLowerCase().includes('revoked'))`)
 	b.shot("settings-tokens")
 
 	b.open(e.URL + "/#/p/web/settings")
-	b.until("the provider form", `document.querySelector('[data-form="deck.provider_set"] input[data-field="command"]')?.offsetParent`)
-	b.pick(`[data-form="deck.provider_set"] input[data-field="command"]`, "Score (web.score)")
-	b.pick(`[data-form="deck.provider_set"] input[data-field="provider"]`, "fake")
-	b.eval(`(document.querySelector('[data-form="deck.provider_set"] [data-submit]').click(), '')`)
-	b.until("the provider set", `document.querySelector('[data-form="deck.provider_set"] [data-outcome="done"]')`)
+	row := `[...document.querySelectorAll('tr')].find((r) => r.innerText.includes('web.score'))`
+	b.until("the commands of the project", row)
+	b.eval(pressIn(row, "provider"))
+	b.until("the providers to pick from in the row", row+`.querySelector('[data-options]')`)
+	b.pick(`tr:has([data-options]) [data-options]`, "fake")
+	b.eval(`([...`+row+`.querySelectorAll('button')].find((x) => x.innerText.trim() === 'Send').click(), '')`)
+	e.waitFor("the provider set", func() bool {
+		var got struct{ Chosen string }
+		e.must("deck.providers_list", map[string]any{"command": "web.score"}, &got)
+		return got.Chosen == "fake"
+	})
 	var chosen struct{ Chosen string }
 	e.must("deck.providers_list", map[string]any{"command": "web.score"}, &chosen)
 	if chosen.Chosen != "fake" {
@@ -180,7 +191,7 @@ func TestRealBrowserSettings(t *testing.T) {
 	b.call("browser_resize", map[string]any{"width": 390, "height": 844})
 	b.open(e.URL + "/#/deck/settings")
 	tab("Projects")
-	b.until("the projects tab on a phone", `[...document.querySelectorAll('[data-item]')].some((x) => x.offsetParent && x.innerText.includes('notes · enabled'))`)
+	b.until("the projects tab on a phone", `[...document.querySelectorAll('[data-item]')].some((x) => x.offsetParent && x.innerText.includes('enabled · '))`)
 	if got := b.eval(`String(document.documentElement.scrollWidth <= innerWidth + 1)`); got != "true" {
 		t.Fatalf("the projects tab fits the width of a phone: %s", got)
 	}
@@ -193,12 +204,10 @@ func TestRealBrowserSettings(t *testing.T) {
 	b.shot("settings-phone")
 
 	tab("Projects")
-	if got := b.eval(`String(document.querySelector('nav').innerText.toLowerCase().includes('notes'))`); got != "true" {
+	if got := b.eval(`String(document.querySelector('nav').textContent.toLowerCase().includes('notes'))`); got != "true" {
 		t.Fatalf("the project is in the menu before the delete: %s", got)
 	}
-	b.eval(`([...document.querySelectorAll('[data-item]')].find((x) => x.offsetParent && x.innerText.includes('notes · enabled')).querySelector('[data-more]').click(), '')`)
-	b.until("the more menu of the row", `document.querySelector('[data-more][aria-expanded="true"]')`)
-	b.eval(`(document.getElementById(document.querySelector('[data-more][aria-expanded="true"]').getAttribute('aria-controls')).querySelector('[data-verb="delete"]').click(), '')`)
+	b.eval(pressIn(itemOf("notes", "enabled · "), "delete"))
 	b.until("the owner asked before the delete", `document.querySelector('[data-confirm]')?.innerText.includes('notes')`)
 	var still []projectV
 	e.projectsOf(&still)
@@ -246,7 +255,7 @@ func TestRealBrowserDocuments(t *testing.T) {
 		t.Fatalf("a picture in markdown is not fetched from the network: %d requests", n)
 	}
 
-	b.eval(`([...document.querySelectorAll('nav a')].find((a) => a.innerText.trim() === 'Documents' && a.getAttribute('href').includes('/p/web/')).click(), '')`)
+	b.eval(`(document.querySelector('[data-group="web"] [data-extra="documents"]').click(), '')`)
 	b.until("the documents screen", `[...document.querySelectorAll('tr')].some((r) => r.innerText.includes('notes/criteria.md'))`)
 	b.eval(`([...document.querySelectorAll('tr')].find((r) => r.innerText.includes('notes/criteria.md')).querySelector('button').click(), '')`)
 	b.until("the document page", `location.hash === '#/p/web/document/`+fmt.Sprint(d.ID)+`' && document.querySelector('[data-edit]')`)

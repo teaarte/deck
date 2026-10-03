@@ -298,6 +298,7 @@ export interface FormValue {
   readonly?: string[];
   record?: number;
   save?: string;
+  keep_open?: boolean;
   /**
    * Values offered by field
    */

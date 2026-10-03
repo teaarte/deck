@@ -42,9 +42,9 @@ func TestRealBrowserShell(t *testing.T) {
 	b.shot("shell-cockpit")
 
 	b.eval(`(document.querySelector('[data-group="web"] [data-group-head]').click(), '')`)
-	b.until("the group of web folded", `!document.querySelector('[data-group="web"] a')?.offsetParent && document.querySelector('[data-group="web"] [data-group-head]').getAttribute('aria-expanded') === 'false'`)
+	b.until("the group of web folded", `!document.querySelector('[data-group="web"] a:not([data-extra])')?.offsetParent && document.querySelector('[data-group="web"] [data-group-head]').getAttribute('aria-expanded') === 'false'`)
 	b.eval(`(document.querySelector('[data-group="web"] [data-group-head]').click(), '')`)
-	b.until("the group of web open again", `document.querySelector('[data-group="web"] a')?.offsetParent`)
+	b.until("the group of web open again", `document.querySelector('[data-group="web"] a:not([data-extra])')?.offsetParent`)
 
 	b.open(e.URL + "/#/p/web/main")
 	b.until("the project screen", `document.querySelector('[data-block] table')`)

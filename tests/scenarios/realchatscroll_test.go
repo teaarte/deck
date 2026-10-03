@@ -41,7 +41,9 @@ func TestRealBrowserChatStaysOnTheLastReply(t *testing.T) {
 	b.eval(`(location.reload(), '')`)
 	b.until("the chat after a reload", `document.querySelectorAll('[data-message="master"]').length === 6`)
 	b.until("the feed at its last reply after a reload", bottom)
-	b.eval(`(document.querySelector('[data-feed] .mantine-ScrollArea-viewport').scrollTop = 0, '')`)
+	b.call("browser_run_code_unsafe", map[string]any{"code": `async (page) => { const box = await page.locator('[data-feed]').boundingBox();
+		await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2); await page.mouse.wheel(0, -5000); }`})
+	b.until("the owner up in the feed", `document.querySelector('[data-feed] .mantine-ScrollArea-viewport').scrollTop < 100`)
 	b.type_(`document.querySelector('[data-chat-input]')`, "one more")
 	b.eval(`(document.querySelector('[data-chat-send]').click(), '')`)
 	b.until("the feed at the reply to a message the owner sent from above", `document.querySelectorAll('[data-message="master"]').length === 7 && `+bottom)

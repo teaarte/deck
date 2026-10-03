@@ -44,7 +44,7 @@ function Filters({ filters, context }: { filters?: Filter[]; context?: Component
 
 export type Span = 1 | 2 | 'full';
 
-export function Block({ title, icon, span, data, context, children }: { title?: string; icon?: string; span?: Span; data?: Data; context?: ComponentContext; children: (d: Data) => ReactNode }) {
+export function Block({ title, icon, span, description, data, context, children }: { title?: string; icon?: string; span?: Span; description?: string; data?: Data; context?: ComponentContext; children: (d: Data) => ReactNode }) {
   const { t } = useTranslation();
   const old = useStale();
   let body: ReactNode;
@@ -72,6 +72,7 @@ export function Block({ title, icon, span, data, context, children }: { title?: 
             {old && <Badge color="yellow" variant="light" title={t('state.stale_why')} data-stale>{t('state.stale')}</Badge>}
           </Group>
         )}
+        {description && <Text size="sm" c="dimmed" mt={title ? -6 : 0} lh={1.5} data-description>{description}</Text>}
         <Filters filters={data?.filters} context={context} />
         {body}
       </Stack>

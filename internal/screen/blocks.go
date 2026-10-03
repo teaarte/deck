@@ -74,6 +74,9 @@ func (r *renderer) block(id string, b manifest.Block) {
 	if b.Icon != "" {
 		comp["icon"] = b.Icon
 	}
+	if b.Description != "" {
+		comp["description"] = b.Description
+	}
 	comp["span"] = span(b)
 	r.comps = append(r.comps, comp)
 	switch b.Type {

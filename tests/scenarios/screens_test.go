@@ -252,11 +252,12 @@ func TestScreenBlocksFollowTheCatalog(t *testing.T) {
 	var menu []struct {
 		Project string
 		Screens []struct{ Name string }
+		Extra   []struct{ Name string }
 	}
 	e.menuOf(&menu)
 	if len(menu) != 2 || menu[0].Project != "" || menu[0].Screens[0].Name != "cockpit" || menu[1].Project != "notes" ||
-		len(menu[1].Screens) != 3 || menu[1].Screens[0].Name != "main" || menu[1].Screens[1].Name != "documents" || menu[1].Screens[2].Name != "settings" {
-		t.Fatalf("the menu has deck's screens, then the project menu, its documents and its settings: %+v", menu)
+		len(menu[1].Screens) != 1 || menu[1].Screens[0].Name != "main" || len(menu[1].Extra) != 2 || menu[1].Extra[0].Name != "documents" || menu[1].Extra[1].Name != "settings" {
+		t.Fatalf("the menu has deck's screens, then the project menu with its documents and settings apart: %+v", menu)
 	}
 	for _, name := range []string{"cockpit", "schedule", "settings"} {
 		check.messages(t, e.screenMessages("", name, nil))
@@ -416,7 +417,7 @@ func TestScreenTopicReadsOnlyTheBlocksItChanges(t *testing.T) {
 	if got := paths("", "cockpit", "processes"); !slices.Equal(got, []string{"/b1-0"}) {
 		t.Fatalf("processes reads the processes block: %v", got)
 	}
-	if got := paths("", "settings", "health"); !slices.Equal(got, []string{"/b0-1-0", "/b0-6-0"}) {
+	if got := paths("", "settings", "health"); !slices.Equal(got, []string{"/b0-1-2", "/b0-6-0"}) {
 		t.Fatalf("health reads the providers and the health: %v", got)
 	}
 	for _, topic := range []string{"projects", "spaceship"} {

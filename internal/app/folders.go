@@ -165,8 +165,36 @@ func (a *App) Folder(ctx context.Context, projectID int64, f manifest.Folder) (s
 	return real, nil
 }
 
+type foldersListIn struct {
+	Project string `type:"project" desc:"Project name"`
+}
+
+type folderRow struct {
+	Name string `json:"name"`
+	Path string `json:"path"`
+}
+
+func (a *App) foldersList(ctx context.Context, act registry.Actor, in foldersListIn) ([]folderRow, error) {
+	p, err := access.Project(ctx, a.Store.Q, act, in.Project)
+	if err != nil {
+		return nil, err
+	}
+	fs, err := a.Store.Q.ListProjectFolders(ctx, p.ID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]folderRow, 0, len(fs))
+	for _, f := range fs {
+		out = append(out, folderRow{Name: f.Name, Path: f.Path})
+	}
+	return out, nil
+}
+
 func (a *App) foldersCommands() []*registry.Command {
 	return []*registry.Command{
+		registry.Read("folders_list", "Folders",
+			"Lists the folders on disk a project's agent commands work in.",
+			registry.OwnerOnly, a.foldersList).On("projects"),
 		registry.Def("folder_add", "Add folder",
 			"Gives a project a folder on disk that its agent commands with folder work in; only the owner, since it lets agents write there.",
 			registry.OwnerOnly, a.folderAdd).Changes("projects"),

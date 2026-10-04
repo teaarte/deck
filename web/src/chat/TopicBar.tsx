@@ -1,4 +1,3 @@
-import type { ComponentContext } from '@a2ui/web_core/v0_9';
 import { ActionIcon, Group, Select, Tooltip } from '@mantine/core';
 import { IconPlus } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
@@ -7,7 +6,7 @@ import { ActionsMenu } from '../ui/ActionsMenu';
 import type { useTopics } from './useTopics';
 
 // TopicBar picks the topic of the chat, narrows the topics to a module, starts a new one, and holds its buttons.
-export function TopicBar({ value, topics, context }: { value: ChatValue; topics: ReturnType<typeof useTopics>; context: ComponentContext }) {
+export function TopicBar({ value, topics }: { value: ChatValue; topics: ReturnType<typeof useTopics> }) {
   const { t } = useTranslation();
   const topic = value.topic;
   return (
@@ -21,7 +20,7 @@ export function TopicBar({ value, topics, context }: { value: ChatValue; topics:
       <Tooltip label={t('chat.new_topic')}>
         <ActionIcon variant="default" radius="xl" size={30} onClick={() => topics.pick('new')} aria-label={t('chat.new_topic')} data-new-topic><IconPlus size={16} /></ActionIcon>
       </Tooltip>
-      {topic && <ActionsMenu actions={[value.archive!, value.delete!].filter(Boolean)} context={context} />}
+      {topic && <ActionsMenu actions={[value.archive!, value.delete!].filter(Boolean)} />}
     </Group>
   );
 }

@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import type { ComponentContext } from '@a2ui/web_core/v0_9';
 import { Button, Chip, Group, Stack, Text, TextInput } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
 import type { Action, Data } from '../lib/catalog.gen';
@@ -8,7 +7,7 @@ import { ActionButton } from './ActionButton';
 type Question = NonNullable<NonNullable<Data['items']>[number]['questions']>[number];
 
 // QuestionPicker answers the questions of an agent: options to pick, or a text of the owner's own.
-export function QuestionPicker({ questions, act, context }: { questions: Question[]; act?: Action; context: ComponentContext }) {
+export function QuestionPicker({ questions, act }: { questions: Question[]; act?: Action }) {
   const { t } = useTranslation();
   const [picked, setPicked] = useState<Record<string, string | string[]>>({});
   const [other, setOther] = useState<Record<string, string>>({});
@@ -40,7 +39,7 @@ export function QuestionPicker({ questions, act, context }: { questions: Questio
         </Stack>
       ))}
       <Group>
-        {ready ? <ActionButton act={act} context={context} params={{ [act.input ?? 'answer']: JSON.stringify(all) }} />
+        {ready ? <ActionButton act={act} params={{ [act.input ?? 'answer']: JSON.stringify(all) }} />
           : <Button size="xs" disabled>{act.label || t('verb.' + (act.verb ?? 'answer'))}</Button>}
       </Group>
     </Stack>

@@ -6,7 +6,7 @@ import { Value } from '../ui/Value';
 import { blockImpl } from './blockImpl';
 
 // card draws the fields of one record, label by value, and its buttons.
-export const card = blockImpl('card', (_, d, context) => {
+export const card = blockImpl('card', (_, d) => {
   const v = (d.value ?? {}) as Partial<CardValue>;
   return (
     <Stack gap="xs">
@@ -23,7 +23,7 @@ export const card = blockImpl('card', (_, d, context) => {
           </Group>
         )
       ))}
-      <Actions actions={v.actions} context={context} />
+      <Actions actions={v.actions} />
     </Stack>
   );
 });

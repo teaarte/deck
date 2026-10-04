@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { ComponentContext } from '@a2ui/web_core/v0_9';
 import { useTranslation } from 'react-i18next';
 import type { ChatValue } from '../lib/catalog.gen';
+import { useScreenActions } from '../screen/ScreenActions';
 import { onTopicOpen } from './chatStore';
 
 const ALL = '*';
@@ -11,11 +12,12 @@ const NONE = '-';
 // offers; the topics on offer narrow to a module.
 export function useTopics(value: ChatValue, context: ComponentContext) {
   const { t } = useTranslation();
+  const { filter } = useScreenActions();
   const pinned = useRef(false);
   const [scope, setScope] = useState<string | null>(null);
   const pick = (topic: string) => {
     pinned.current = true;
-    void context.dispatchAction({ event: { name: 'filter', context: { block: context.componentModel.id, field: 'topic', value: topic } } });
+    filter(context.componentModel.id, 'topic', topic);
   };
   const topic = value.topic;
   useEffect(() => onTopicOpen((id) => pick(String(id))), []);

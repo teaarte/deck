@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import type { ComponentContext } from '@a2ui/web_core/v0_9';
 import { Button } from '@mantine/core';
 import type { Action } from '../lib/catalog.gen';
 import { ActionInput } from './ActionInput';
@@ -8,8 +7,8 @@ import { useActionRun, type Before } from './useActionRun';
 import { verbIcon } from './verbIcons';
 
 // ActionButton is one button of a screen: it asks for its input or a confirmation first when it has one.
-export function ActionButton({ act, context, params, onDone, before, inMenu }: { act: Action; context: ComponentContext; params?: Record<string, unknown>; onDone?: () => void; before?: Before; inMenu?: boolean }) {
-  const { busy, label, send } = useActionRun(act, context, { params, onDone, before });
+export function ActionButton({ act, params, onDone, before, inMenu }: { act: Action; params?: Record<string, unknown>; onDone?: () => void; before?: Before; inMenu?: boolean }) {
+  const { busy, label, send } = useActionRun(act, { params, onDone, before });
   const [typing, setTyping] = useState(false);
   const [asking, setAsking] = useState(false);
   const variant = inMenu ? 'subtle' : act.primary ? 'filled' : 'default';

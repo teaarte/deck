@@ -30,14 +30,14 @@ export function Chat({ value, context }: { value: ChatValue; context: ComponentC
   });
   return (
     <Stack gap="sm" h="calc(100dvh - 190px)" mih={360} data-chat>
-      <TopicBar value={value} topics={topics} context={context} />
+      <TopicBar value={value} topics={topics} />
       <Feed messages={value.messages} stick={stick} />
       {value.questions.map((q) => (
         <Paper key={q.ask} withBorder p="sm" radius="lg" data-question={q.ask}>
-          <QuestionPicker questions={q.questions} act={q.answer} context={context} />
+          <QuestionPicker questions={q.questions} act={q.answer} />
         </Paper>
       ))}
-      {value.turn && <Turn turn={value.turn} context={context} />}
+      {value.turn && <Turn turn={value.turn} />}
       <Composer text={text} setText={setText} files={files} busy={chat.busy} onNewTopic={() => topics.pick('new')}
         onSend={(detached) => void chat.send(text, detached)}
         onEdit={(v) => { setText(v); if (!v.trim()) chat.forgetKey(); }} />

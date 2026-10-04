@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { DragDropProvider } from '@dnd-kit/react';
 import { Group, ScrollArea } from '@mantine/core';
-import type { ComponentContext } from '@a2ui/web_core/v0_9';
 import type { BoardValue } from '../../lib/catalog.gen';
 import { Card, type BoardCard } from './Card';
 import { CardEditor } from './CardEditor';
@@ -11,7 +10,7 @@ import { NewCard } from './NewCard';
 import { useBoardOrder } from './useBoardOrder';
 
 // Board draws the board of a project; a card moves by its handle, which on a phone takes a long press.
-export function Board({ value, context }: { value: BoardValue; context: ComponentContext }) {
+export function Board({ value }: { value: BoardValue }) {
   const { order, onDragStart, onDragOver, onDragEnd } = useBoardOrder(value);
   const [open, setOpen] = useState<BoardCard>();
   const cards = new Map(value.lanes.flatMap((l) => l.cards.map((c) => [c.id, c] as const)));
@@ -37,7 +36,7 @@ export function Board({ value, context }: { value: BoardValue; context: Componen
         </ScrollArea>
       </DragDropProvider>
       <Deleted cards={value.deleted ?? []} />
-      {open && <CardEditor card={open} context={context} onClose={() => setOpen(undefined)} />}
+      {open && <CardEditor card={open} onClose={() => setOpen(undefined)} />}
     </>
   );
 }

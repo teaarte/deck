@@ -1,7 +1,7 @@
 import { useContext, useRef, useState } from 'react';
 import { Alert, Button, Group, Loader, Select, Stack, Text } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
-import { DialogClose } from '../../dialog';
+import { DialogClose } from '../../screen/dialogContext';
 import { call } from '../../lib/api';
 import { sharedSent } from '../../lib/share';
 import { notifyDone, notifyError } from '../../lib/notify';

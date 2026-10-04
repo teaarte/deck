@@ -1,18 +1,18 @@
 import { useRef, useState } from 'react';
-import type { ComponentContext } from '@a2ui/web_core/v0_9';
 import { useTranslation } from 'react-i18next';
 import { download } from '../lib/api';
 import { notifyError } from '../lib/notify';
 import type { Action } from '../lib/catalog.gen';
-import { dispatch } from './dispatch';
+import { useScreenActions } from '../screen/ScreenActions';
 import { offerUndo } from './undo';
 
 export type Before = () => Promise<void>;
 
 // useActionRun runs a button once at a time: its download or its call, the undo it offers and onDone after it went
 // through; send says whether it did.
-export function useActionRun(act: Action, context: ComponentContext, { params, onDone, before }: { params?: Record<string, unknown>; onDone?: () => void; before?: Before } = {}) {
+export function useActionRun(act: Action, { params, onDone, before }: { params?: Record<string, unknown>; onDone?: () => void; before?: Before } = {}) {
   const { t } = useTranslation();
+  const { run } = useScreenActions();
   const [busy, setBusy] = useState(false);
   const running = useRef(false);
   const label = act.label || (act.verb ? t('verb.' + act.verb) : '');
@@ -26,9 +26,9 @@ export function useActionRun(act: Action, context: ComponentContext, { params, o
         await download(act.file);
         return false;
       }
-      const ok = await dispatch(context, { ...act, params: { ...act.params, ...params, ...extra } });
+      const ok = await run({ ...act, params: { ...act.params, ...params, ...extra } });
       if (ok) {
-        if (act.undo) offerUndo(act.undo, label, context);
+        if (act.undo) offerUndo(act.undo, label, run);
         onDone?.();
       }
       return ok;

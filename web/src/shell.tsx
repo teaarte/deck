@@ -6,7 +6,7 @@ import { IconArrowLeft, IconArrowsMaximize, IconArrowsMinimize, IconChevronRight
 import { useTranslation } from 'react-i18next';
 import { call } from './lib/api';
 import { events } from './lib/events';
-import { ScreenView } from './screen';
+import { ScreenView } from './screen/ScreenView';
 import { back, href, useCanGoBack, useRoute, type Route } from './router';
 import { setChatScreen, useChatPanel } from './chat/chatStore';
 import { NamedIcon } from './ui/NamedIcon';

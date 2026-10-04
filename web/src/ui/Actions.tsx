@@ -1,5 +1,4 @@
 import { useId } from 'react';
-import type { ComponentContext } from '@a2ui/web_core/v0_9';
 import { ActionIcon, Group, Menu, Stack } from '@mantine/core';
 import { IconDots } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
@@ -10,7 +9,7 @@ import { useVisibleActions } from './useVisibleActions';
 
 // Actions are the buttons of an item, the primary first; past max the rest wait in a menu. before runs ahead of
 // each call, onDone after one went through.
-export function Actions({ actions, context, onDone, before, max = 3 }: { actions?: Action[]; context: ComponentContext; onDone?: () => void; before?: Before; max?: number }) {
+export function Actions({ actions, onDone, before, max = 3 }: { actions?: Action[]; onDone?: () => void; before?: Before; max?: number }) {
   const { t } = useTranslation();
   const more = useId();
   const shown = useVisibleActions(actions);
@@ -20,7 +19,7 @@ export function Actions({ actions, context, onDone, before, max = 3 }: { actions
   const rest = sorted.slice(cut);
   return (
     <Group gap={6} wrap="wrap" data-actions>
-      {sorted.slice(0, cut).map((a, i) => <ActionButton key={i} act={a} context={context} onDone={onDone} before={before} />)}
+      {sorted.slice(0, cut).map((a, i) => <ActionButton key={i} act={a} onDone={onDone} before={before} />)}
       {rest.length > 0 && (
         <Menu position="bottom-end" keepMounted closeOnItemClick={false} withinPortal shadow="md" radius="md">
           <Menu.Target>
@@ -28,7 +27,7 @@ export function Actions({ actions, context, onDone, before, max = 3 }: { actions
           </Menu.Target>
           <Menu.Dropdown p={4} miw={180} data-more-menu={more}>
             <Stack gap={2}>
-              {rest.map((a, i) => <ActionButton key={i} act={a} context={context} onDone={onDone} before={before} inMenu />)}
+              {rest.map((a, i) => <ActionButton key={i} act={a} onDone={onDone} before={before} inMenu />)}
             </Stack>
           </Menu.Dropdown>
         </Menu>

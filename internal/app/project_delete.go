@@ -34,7 +34,7 @@ func (a *App) projectDelete(ctx context.Context, act registry.Actor, in projectD
 		return nil, err
 	}
 	m, _ := docs.Manifest(ctx, a.Store.Q, p)
-	snapshot, err := a.Snapshot(ctx)
+	snapshot, err := a.Snapshots.Snapshot(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("deck: the snapshot before deleting %s failed, nothing was deleted: %w", p.Name, err)
 	}

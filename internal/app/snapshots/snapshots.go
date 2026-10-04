@@ -1,4 +1,6 @@
-package app
+// Package snapshots keeps deck's state safe and small: a snapshot of the base and files a day, the cleanup of
+// what expired, and the health of the disk.
+package snapshots
 
 import (
 	"archive/tar"
@@ -22,6 +24,7 @@ import (
 	"github.com/google/uuid"
 
 	"deck2/internal/docs"
+	"deck2/internal/events"
 	"deck2/internal/health"
 	"deck2/internal/home"
 	"deck2/internal/registry"
@@ -29,25 +32,47 @@ import (
 	"deck2/internal/store/db"
 )
 
+// Service takes the snapshots and runs the cleanup; LockFiles and UnlockFiles hold the stored files while a
+// snapshot copies them, RemoveFiles deletes the files whose rows are gone.
+type Service struct {
+	St          *store.Store
+	Bus         *events.Bus
+	Home        home.Layout
+	Now         func() time.Time
+	LockFiles   func()
+	UnlockFiles func()
+	RemoveFiles func(ids []int64)
+	// cleaned and snapTried are when the daily cleanup ran and a daily snapshot was last tried; disk, when the
+	// disk was last looked at.
+	cleaned, snapTried, disk time.Time
+}
+
+const (
+	// snapshotsKept is how many daily snapshots stay in backups/.
+	snapshotsKept = 7
+	// workKept is how long the work folder of a finished agent process stays for rework.
+	workKept = 7 * 24 * time.Hour
+)
+
 // Snapshot writes backups/deck-<time>.tar.gz with a copy of the base, files/, the model sessions deck keeps
 // and the data folders of projects, then keeps only the newest ones; secrets and the token stay out.
-func (a *App) Snapshot(ctx context.Context) (string, error) {
-	dir := a.Home.Backups()
+func (s *Service) Snapshot(ctx context.Context) (string, error) {
+	dir := s.Home.Backups()
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return "", err
 	}
-	path := filepath.Join(dir, "deck-"+a.Cfg.Now().UTC().Format(home.SnapshotLayout)+".tar.gz")
+	path := filepath.Join(dir, "deck-"+s.Now().UTC().Format(home.SnapshotLayout)+".tar.gz")
 	copyDB := filepath.Join(dir, ".deck-"+uuid.NewString()+".db")
 	defer os.Remove(copyDB)
-	a.Files.Mu.Lock()
+	s.LockFiles()
 	var once sync.Once
-	filesDone := func() { once.Do(a.Files.Mu.Unlock) }
+	filesDone := func() { once.Do(s.UnlockFiles) }
 	defer filesDone()
-	if _, err := a.Store.DB.ExecContext(ctx, "VACUUM INTO ?", copyDB); err != nil {
+	if _, err := s.St.DB.ExecContext(ctx, "VACUUM INTO ?", copyDB); err != nil {
 		return "", err
 	}
 	part := path + ".part"
-	if err := writeSnapshot(part, a.Home, copyDB, filesDone); err != nil {
+	if err := writeSnapshot(part, s.Home, copyDB, filesDone); err != nil {
 		_ = os.Remove(part)
 		return "", err
 	}
@@ -60,7 +85,7 @@ func (a *App) Snapshot(ctx context.Context) (string, error) {
 		_ = os.Remove(old[0])
 		old = old[1:]
 	}
-	a.Bus.Publish("snapshots")
+	s.Bus.Publish("snapshots")
 	return path, nil
 }
 
@@ -132,7 +157,7 @@ func addFile(tw *tar.Writer, path, name string) error {
 
 // expire deletes the records and files of each collection older than its retention, and the documents of
 // those records; the files it returns are removed from the disk after the transaction.
-func (a *App) expire(ctx context.Context, q *db.Queries, now time.Time) ([]int64, error) {
+func (s *Service) expire(ctx context.Context, q *db.Queries, now time.Time) ([]int64, error) {
 	projects, err := q.ListProjects(ctx)
 	if err != nil {
 		return nil, err
@@ -166,10 +191,10 @@ func (a *App) expire(ctx context.Context, q *db.Queries, now time.Time) ([]int64
 	return gone, nil
 }
 
-// daily takes a snapshot when the newest is a day old, trying at most once an hour, and runs the cleanup
+// Daily takes a snapshot when the newest is a day old, trying at most once an hour, and runs the cleanup
 // once a day by the deck clock, each on its own.
-func (a *App) daily(ctx context.Context, now time.Time) {
-	old, _ := filepath.Glob(filepath.Join(a.Home.Backups(), "deck-*.tar.gz"))
+func (s *Service) Daily(ctx context.Context, now time.Time) {
+	old, _ := filepath.Glob(filepath.Join(s.Home.Backups(), "deck-*.tar.gz"))
 	slices.Sort(old)
 	due := true
 	if len(old) > 0 {
@@ -177,15 +202,15 @@ func (a *App) daily(ctx context.Context, now time.Time) {
 		t, err := time.Parse(home.SnapshotLayout, stamp)
 		due = err != nil || now.Sub(t) >= 24*time.Hour
 	}
-	if due && now.Sub(a.snapTried) >= time.Hour {
-		a.snapTried = now
-		if _, err := a.Snapshot(ctx); err != nil {
+	if due && now.Sub(s.snapTried) >= time.Hour {
+		s.snapTried = now
+		if _, err := s.Snapshot(ctx); err != nil {
 			slog.Error("daily snapshot", "err", err)
 		}
 	}
-	if now.Sub(a.cleaned) >= 24*time.Hour {
-		a.cleaned = now
-		a.cleanup(ctx, now)
+	if now.Sub(s.cleaned) >= 24*time.Hour {
+		s.cleaned = now
+		s.cleanup(ctx, now)
 	}
 }
 
@@ -199,11 +224,11 @@ const (
 
 // cleanup removes expired records, files left without an owner, stale uploads, old journal rows and notify
 // lines, and old agent work folders.
-func (a *App) cleanup(ctx context.Context, now time.Time) {
+func (s *Service) cleanup(ctx context.Context, now time.Time) {
 	var gone []int64
-	err := a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+	err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		var err error
-		if gone, err = a.expire(ctx, q, now); err != nil {
+		if gone, err = s.expire(ctx, q, now); err != nil {
 			return err
 		}
 		deleted := sql.NullString{String: store.Time(now.Add(-topicsKept)), Valid: true}
@@ -228,28 +253,28 @@ func (a *App) cleanup(ctx context.Context, now time.Time) {
 	if err != nil {
 		slog.Error("purge files", "err", err)
 	}
-	a.Files.Remove(gone)
-	left, _ := filepath.Glob(filepath.Join(a.Home.Files(), ".upload-*"))
+	s.RemoveFiles(gone)
+	left, _ := filepath.Glob(filepath.Join(s.Home.Files(), ".upload-*"))
 	for _, f := range left {
 		if fi, err := os.Stat(f); err == nil && now.Sub(fi.ModTime()) > 24*time.Hour {
 			_ = os.Remove(f)
 		}
 	}
-	runs, _ := os.ReadDir(a.Home.Runs())
+	runs, _ := os.ReadDir(s.Home.Runs())
 	for _, r := range runs {
 		id, err := strconv.ParseInt(r.Name(), 10, 64)
 		if err != nil {
 			continue
 		}
-		p, err := a.Store.Q.GetProcess(ctx, id)
+		p, err := s.St.Q.GetProcess(ctx, id)
 		if errors.Is(err, sql.ErrNoRows) || err == nil && p.FinishedAt.Valid && p.FinishedAt.String < store.Time(now.Add(-workKept)) {
-			_ = os.RemoveAll(filepath.Join(a.Home.Runs(), r.Name()))
+			_ = os.RemoveAll(filepath.Join(s.Home.Runs(), r.Name()))
 		}
 	}
 }
 
-func (a *App) snapshotCreate(ctx context.Context, _ registry.Actor, _ struct{}) (any, error) {
-	path, err := a.Snapshot(ctx)
+func (s *Service) snapshotCreate(ctx context.Context, _ registry.Actor, _ struct{}) (any, error) {
+	path, err := s.Snapshot(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -259,18 +284,18 @@ func (a *App) snapshotCreate(ctx context.Context, _ registry.Actor, _ struct{}) 
 // lowDisk is the free space below which the disk health turns to a warning.
 const lowDisk = 5 << 30
 
-// checkDisk records the size of files/ and the free space of the disk deck keeps its state on.
-func (a *App) checkDisk(ctx context.Context, now time.Time) {
-	if now.Sub(a.disk) < 10*time.Minute {
+// CheckDisk records the size of files/ and the free space of the disk deck keeps its state on.
+func (s *Service) CheckDisk(ctx context.Context, now time.Time) {
+	if now.Sub(s.disk) < 10*time.Minute {
 		return
 	}
-	a.disk = now
-	size, err := a.Store.Q.TotalFileSize(ctx)
+	s.disk = now
+	size, err := s.St.Q.TotalFileSize(ctx)
 	if err != nil {
 		return
 	}
 	var st syscall.Statfs_t
-	if err := syscall.Statfs(a.Cfg.Home, &st); err != nil {
+	if err := syscall.Statfs(string(s.Home), &st); err != nil {
 		return
 	}
 	free := uint64(st.Bavail) * uint64(st.Bsize)
@@ -278,18 +303,14 @@ func (a *App) checkDisk(ctx context.Context, now time.Time) {
 	if free < lowDisk {
 		status, text = "warning", "the disk is almost full; "+text
 	}
-	health.Write(ctx, a.Store, health.Of{}, "disk", status, text)
+	health.Write(ctx, s.St, health.Of{}, "disk", status, text)
 }
 
-// TailnetHealth records the state of deck on the owner's tailnet: the sign-in link while it waits for one.
-func (a *App) TailnetHealth(status, text string) {
-	health.Write(context.Background(), a.Store, health.Of{}, "tailscale", status, text)
-}
-
-func (a *App) snapshotsCommands() []*registry.Command {
+// Commands are the commands of snapshots.
+func (s *Service) Commands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("snapshot_create", "Take snapshot",
 			"Writes a snapshot of the base, files and project data folders to backups; the newest seven stay.",
-			registry.OwnerOnly, a.snapshotCreate),
+			registry.OwnerOnly, s.snapshotCreate),
 	}
 }

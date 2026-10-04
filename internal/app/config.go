@@ -40,10 +40,6 @@ const (
 	silentAfter = 30 * time.Minute
 	// emptyKept is how long a process with an empty result stays in the history.
 	emptyKept = 24 * time.Hour
-	// snapshotsKept is how many daily snapshots stay in backups/.
-	snapshotsKept = 7
-	// workKept is how long the work folder of a finished agent process stays for rework.
-	workKept = 7 * 24 * time.Hour
 )
 
 func (c *Config) defaults() {

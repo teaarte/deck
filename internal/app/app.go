@@ -21,6 +21,7 @@ import (
 	"deck2/internal/app/providers"
 	"deck2/internal/app/secrets"
 	"deck2/internal/app/settings"
+	"deck2/internal/app/snapshots"
 	"deck2/internal/app/suggest"
 	"deck2/internal/app/tokens"
 	"deck2/internal/ask"
@@ -28,6 +29,7 @@ import (
 	"deck2/internal/events"
 	"deck2/internal/files"
 	"deck2/internal/gateway"
+	"deck2/internal/health"
 	"deck2/internal/home"
 	"deck2/internal/manifest"
 	"deck2/internal/mcphost"
@@ -64,6 +66,7 @@ type App struct {
 	Folders   *folders.Service
 	Files     *appfiles.Service
 	Journal   *journal.Service
+	Snapshots *snapshots.Service
 	Scripts   *script.Exec
 	Tools     *tools.HTTP
 	MCP       *tools.MCP
@@ -74,12 +77,9 @@ type App struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 	bg     sync.WaitGroup
-	disk   time.Time
 	// preparedCmds are the registry commands of each manifest revision.
 	preparedMu   sync.Mutex
 	preparedCmds map[preparedKey][]*registry.Command
-	// cleaned and snapTried are when the daily cleanup ran and a daily snapshot was last tried.
-	cleaned, snapTried time.Time
 }
 
 // New starts deck with its main provider p and further built-in ones.
@@ -107,6 +107,8 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	a.Folders = &folders.Service{St: st, Home: cfg.Home}
 	a.Files = &appfiles.Service{St: st, Home: h, Now: cfg.Now}
 	a.Journal = &journal.Service{St: st, Now: cfg.Now, Backups: h.Backups()}
+	a.Snapshots = &snapshots.Service{St: st, Bus: a.Bus, Home: h, Now: cfg.Now, LockFiles: a.Files.Mu.Lock, UnlockFiles: a.Files.Mu.Unlock,
+		RemoveFiles: a.Files.Remove}
 	a.Settings = &settings.Service{St: st, DefaultTTL: cfg.ConfirmTTL, Wake: func(ctx context.Context) { a.Runner.Wake(ctx) }}
 	a.Asks = ask.NewBroker(st, a.Bus, cfg.Now)
 	a.Registry = registry.New(a.projectCommands)
@@ -327,13 +329,13 @@ func (a *App) Sweep(ctx context.Context, now time.Time) {
 	a.Runner.Unpause(ctx, now)
 	a.markSilent(ctx, now)
 	a.purgeEmpty(ctx, now)
-	a.checkDisk(ctx, now)
+	a.Snapshots.CheckDisk(ctx, now)
 	if spaces, err := a.Store.Q.ListWorkspaces(ctx); err == nil {
 		for _, ws := range spaces {
 			a.Devices.PushNew(ctx, ws)
 		}
 	}
-	a.daily(ctx, now)
+	a.Snapshots.Daily(ctx, now)
 }
 
 func (a *App) expireConfirms(ctx context.Context, now time.Time) {
@@ -412,4 +414,9 @@ func (a *App) Loop(ctx context.Context, every time.Duration) {
 // Folder is the real path of the project folder an agent command works in, for the runner.
 func (a *App) Folder(ctx context.Context, projectID int64, f manifest.Folder) (string, error) {
 	return a.Folders.Folder(ctx, projectID, f)
+}
+
+// TailnetHealth records the state of deck on the owner's tailnet: the sign-in link while it waits for one.
+func (a *App) TailnetHealth(status, text string) {
+	health.Write(context.Background(), a.Store, health.Of{}, "tailscale", status, text)
 }

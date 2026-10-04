@@ -17,6 +17,7 @@ import (
 	"deck2/internal/app/devices"
 	"deck2/internal/app/providers"
 	"deck2/internal/app/suggest"
+	"deck2/internal/app/tokens"
 	"deck2/internal/ask"
 	"deck2/internal/docs"
 	"deck2/internal/events"
@@ -52,6 +53,7 @@ type App struct {
 	Devices   *devices.Service
 	Chats     *chat.Service
 	Suggest   *suggest.Service
+	Tokens    *tokens.Service
 	Scripts   *script.Exec
 	Tools     *tools.HTTP
 	MCP       *tools.MCP
@@ -109,6 +111,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 		Invoke: func(ctx context.Context, act registry.Actor, name string, in json.RawMessage) (any, error) {
 			return a.Registry.Invoke(ctx, act, name, in)
 		}}
+	a.Tokens = &tokens.Service{St: st, MCPBase: cfg.MCPBase}
 	a.addBuiltins()
 	a.Gateway = gateway.New(gateway.Config{Now: cfg.Now, QuestionWait: cfg.QuestionWait, ConfirmWait: cfg.ConfirmWait, ConfirmTTL: a.confirmTTL}, st, a.Asks, a.Bus, a.Registry)
 	a.Tools = tools.NewHTTP(a.Gateway, a.Secret, a.dirs())
@@ -124,11 +127,11 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	a.Browser = &tools.Browser{GW: a.Gateway, Host: a.Host, Store: st, Dirs: a.dirs(), Home: cfg.Home, Argv: cfg.Browser, Ctx: a.ctx}
 	a.Browser.Load()
 	a.Registry.SetExtra(a.Browser.Commands)
-	a.Gateway.SetAutomation(a.Automation)
+	a.Gateway.SetAutomation(a.Tokens.Automation)
 	a.Runner = process.NewRunner(st, a.Gateway, a.Bus, a, a.Scripts,
 		process.Config{RunsDir: h.Runs(), MCPBase: cfg.MCPBase, Now: cfg.Now, FilesDir: h.Files(), FilesMu: &a.filesMu,
 			Hidden: hidden(h), PauseLimit: cfg.PauseLimit, AgentSlots: a.agentSlots}, a)
-	a.Chats.Runner, a.Suggest.Gateway = a.Runner, a.Gateway
+	a.Chats.Runner, a.Suggest.Gateway, a.Tokens.Journal = a.Runner, a.Gateway, a.Gateway.Journal
 	a.Runner.Hooks = []process.Hook{a.Chats.NewHook(), errorsHook{a: a}, afterHook{a: a}}
 	a.Scheduler = trigger.New(st, a, cfg.Now)
 	a.Asks.OnLateAnswer(a.lateAnswer)

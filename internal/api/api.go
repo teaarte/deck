@@ -80,7 +80,7 @@ func (s *Server) auth(next http.Handler) http.Handler {
 		act := owner
 		if s.token == "" || subtle.ConstantTimeCompare([]byte(got), []byte("Bearer "+s.token)) != 1 {
 			var err error
-			if act, err = s.app.Automation(r.Context(), strings.TrimPrefix(got, "Bearer ")); err != nil {
+			if act, err = s.app.Tokens.Automation(r.Context(), strings.TrimPrefix(got, "Bearer ")); err != nil {
 				http.Error(w, "unauthorized", http.StatusUnauthorized)
 				return
 			}

@@ -330,47 +330,66 @@ func (dv *Service) pushSources() []pushSource {
 	}
 }
 
-// PushNew pushes what came since the last delivered push of each source; a cursor moves only past what a device
-// took or refused for good, and past a reply of the master that came while a client was open.
+// PushNew pushes to each device what came since the last push it took of each source; a cursor moves only past
+// what the device took or refused for good, and past a reply of the master that came while a client was open.
 func (dv *Service) PushNew(ctx context.Context, workspace int64) {
 	dv.pushMu.Lock()
 	defer dv.pushMu.Unlock()
 	subs, err := dv.St.Q.ListPushSubscriptions(ctx, workspace)
-	if err != nil || len(subs) == 0 {
+	if err != nil {
 		return
 	}
-	set := func(key, v string) {
+	_ = dv.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error { return q.DeleteStalePushMarks(ctx, workspace) })
+	set := func(name, v string) {
 		_ = dv.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-			return q.SetMark(ctx, db.SetMarkParams{WorkspaceID: workspace, Name: "push:" + key, Value: v})
+			return q.SetMark(ctx, db.SetMarkParams{WorkspaceID: workspace, Name: name, Value: v})
 		})
 	}
 	var k vapid
-	for _, src := range dv.pushSources() {
-		cursor, err := dv.St.Q.GetMark(ctx, db.GetMarkParams{WorkspaceID: workspace, Name: "push:" + src.key})
-		if err != nil {
-			set(src.key, src.start(ctx, workspace))
-			continue
-		}
-		items := src.after(ctx, workspace, cursor)
-		if len(items) > pushBatch {
-			items = items[:pushBatch]
-		}
-		for _, it := range items {
-			if it.msg == (pushMessage{}) {
-				set(src.key, it.cursor)
+	var failed []string
+	tried := false
+	for _, s := range subs {
+	sources:
+		for _, src := range dv.pushSources() {
+			name := fmt.Sprintf("push:%d:%s", s.ID, src.key)
+			cursor, err := dv.St.Q.GetMark(ctx, db.GetMarkParams{WorkspaceID: workspace, Name: name})
+			if err != nil {
+				set(name, src.start(ctx, workspace))
 				continue
 			}
-			if k.Public == "" {
-				if k, err = dv.vapidKeys(workspace); err != nil {
-					slog.Error("push keys", "err", err)
-					return
+			items := src.after(ctx, workspace, cursor)
+			if len(items) > pushBatch {
+				items = items[:pushBatch]
+			}
+			for _, it := range items {
+				if it.msg == (pushMessage{}) {
+					set(name, it.cursor)
+					continue
 				}
+				if k.Public == "" {
+					if k, err = dv.vapidKeys(workspace); err != nil {
+						slog.Error("push keys", "err", err)
+						return
+					}
+				}
+				tried = true
+				res, why := dv.deliver(ctx, workspace, k, s, it.msg)
+				if why != "" {
+					failed = append(failed, s.Device+": "+why)
+				}
+				if res != pushDone {
+					break sources
+				}
+				set(name, it.cursor)
 			}
-			if !dv.deliver(ctx, workspace, k, subs, it.msg) {
-				break
-			}
-			set(src.key, it.cursor)
 		}
+	}
+	if tried {
+		status := "ok"
+		if len(failed) > 0 {
+			status = "error"
+		}
+		health.Write(ctx, dv.St, health.Of{}, "push", status, strings.Join(failed, "; "))
 	}
 }
 
@@ -405,48 +424,41 @@ func (dv *Service) pushText(ctx context.Context, projectID int64, title, text, u
 var pushClient = &http.Client{Timeout: 15 * time.Second,
 	CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 
-// deliver sends one push to every device; false when a device failed in a way worth a retry at the next look.
-// A device the service no longer knows goes away; one that refuses the push for good is only logged.
-func (dv *Service) deliver(ctx context.Context, workspace int64, k vapid, subs []db.PushSubscription, m pushMessage) bool {
-	payload, _ := json.Marshal(m)
-	retry := false
-	for _, s := range subs {
-		resp, err := webpush.SendNotificationWithContext(ctx, payload, &webpush.Subscription{Endpoint: s.Endpoint,
-			Keys: webpush.Keys{P256dh: s.P256dh, Auth: s.Auth}}, &webpush.Options{HTTPClient: pushClient, Subscriber: "deck@example.com",
-			VAPIDPublicKey: k.Public, VAPIDPrivateKey: k.Private, TTL: 3600, Urgency: webpush.UrgencyHigh})
-		if err != nil {
-			slog.Error("push", "device", s.Device, "err", err)
-			dv.pushHealth(ctx, s.Device+": "+err.Error())
-			retry = true
-			continue
-		}
-		_, _ = io.Copy(io.Discard, resp.Body)
-		resp.Body.Close()
-		switch code := resp.StatusCode; {
-		case code >= 200 && code < 300:
-			dv.pushHealth(ctx, "")
-		case code == http.StatusGone || code == http.StatusNotFound:
-			_ = dv.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-				_, err := q.DeletePushSubscription(ctx, db.DeletePushSubscriptionParams{WorkspaceID: workspace, Endpoint: s.Endpoint})
-				return err
-			})
-		case code == http.StatusTooManyRequests || code >= 500:
-			dv.pushHealth(ctx, fmt.Sprintf("%s: %s", s.Device, resp.Status))
-			retry = true
-		default:
-			slog.Error("push refused", "device", s.Device, "status", resp.Status)
-			dv.pushHealth(ctx, fmt.Sprintf("%s: the push service refused it: %s", s.Device, resp.Status))
-		}
-	}
-	return !retry
-}
+// What a push to a device came to: taken or refused for good, failed for now, or the device is gone.
+const (
+	pushDone = iota
+	pushRetry
+	pushGone
+)
 
-func (dv *Service) pushHealth(ctx context.Context, failed string) {
-	status := "ok"
-	if failed != "" {
-		status = "error"
+// deliver sends one push to a device and says why it failed, if it did; a device the service no longer knows
+// goes away, one that refuses the push for good is only logged.
+func (dv *Service) deliver(ctx context.Context, workspace int64, k vapid, s db.PushSubscription, m pushMessage) (int, string) {
+	payload, _ := json.Marshal(m)
+	resp, err := webpush.SendNotificationWithContext(ctx, payload, &webpush.Subscription{Endpoint: s.Endpoint,
+		Keys: webpush.Keys{P256dh: s.P256dh, Auth: s.Auth}}, &webpush.Options{HTTPClient: pushClient, Subscriber: "deck@example.com",
+		VAPIDPublicKey: k.Public, VAPIDPrivateKey: k.Private, TTL: 3600, Urgency: webpush.UrgencyHigh})
+	if err != nil {
+		slog.Error("push", "device", s.Device, "err", err)
+		return pushRetry, err.Error()
 	}
-	health.Write(ctx, dv.St, health.Of{}, "push", status, failed)
+	_, _ = io.Copy(io.Discard, resp.Body)
+	resp.Body.Close()
+	switch code := resp.StatusCode; {
+	case code >= 200 && code < 300:
+		return pushDone, ""
+	case code == http.StatusGone || code == http.StatusNotFound:
+		_ = dv.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+			_, err := q.DeletePushSubscription(ctx, db.DeletePushSubscriptionParams{WorkspaceID: workspace, Endpoint: s.Endpoint})
+			return err
+		})
+		return pushGone, ""
+	case code == http.StatusTooManyRequests || code >= 500:
+		return pushRetry, resp.Status
+	default:
+		slog.Error("push refused", "device", s.Device, "status", resp.Status)
+		return pushDone, "the push service refused it: " + resp.Status
+	}
 }
 
 func oneLine(s string) string { return strings.Join(strings.Fields(s), " ") }

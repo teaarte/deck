@@ -47,3 +47,8 @@ WHERE t.workspace_id = ? AND m.id > ? AND m.role = 'master' AND t.deleted_at IS 
 
 -- name: DeleteWorkspacePushSubscriptions :exec
 DELETE FROM push_subscription WHERE workspace_id = ?;
+
+
+-- name: DeleteStalePushMarks :exec
+DELETE FROM mark WHERE mark.workspace_id = sqlc.arg(workspace_id) AND mark.name LIKE 'push:%' AND NOT EXISTS (
+    SELECT 1 FROM push_subscription s WHERE s.workspace_id = mark.workspace_id AND mark.name LIKE 'push:' || s.id || ':%');

@@ -63,6 +63,16 @@ func (q *Queries) DeletePushSubscription(ctx context.Context, arg DeletePushSubs
 	return result.RowsAffected()
 }
 
+const deleteStalePushMarks = `-- name: DeleteStalePushMarks :exec
+DELETE FROM mark WHERE mark.workspace_id = ?1 AND mark.name LIKE 'push:%' AND NOT EXISTS (
+    SELECT 1 FROM push_subscription s WHERE s.workspace_id = mark.workspace_id AND mark.name LIKE 'push:' || s.id || ':%')
+`
+
+func (q *Queries) DeleteStalePushMarks(ctx context.Context, workspaceID int64) error {
+	_, err := q.db.ExecContext(ctx, deleteStalePushMarks, workspaceID)
+	return err
+}
+
 const deleteWorkspacePushSubscriptions = `-- name: DeleteWorkspacePushSubscriptions :exec
 DELETE FROM push_subscription WHERE workspace_id = ?
 `

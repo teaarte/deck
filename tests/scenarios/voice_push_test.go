@@ -372,3 +372,27 @@ func TestSpeechToTextNamesARealSecret(t *testing.T) {
 	e := newEnv(t, nil)
 	e.refused("deck.stt_set", map[string]any{"url": "http://127.0.0.1:1/inference", "key_secret": ".."}, 422, "bad secret name")
 }
+
+// TestADeviceThatFailsHoldsBackOnlyItself: each device keeps its own place in what was pushed, so a device whose
+// service fails for now gets it later and the others get each push once; the health of pushes names the failing one.
+func TestADeviceThatFailsHoldsBackOnlyItself(t *testing.T) {
+	e := newEnv(t, nil)
+	good, srv := newPushDevice(t)
+	good.subscribe(e, srv, "iPhone")
+	broken := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusServiceUnavailable) }))
+	t.Cleanup(broken.Close)
+	good.subscribe(e, broken, "mac")
+	e.createProject("work", boardWork)
+	time.Sleep(700 * time.Millisecond)
+	e.must("deck.notify", map[string]any{"project": "work", "text": "The report is ready"}, nil)
+	good.wait(e, 1)
+	for range 3 {
+		e.App.Sweep(context.Background(), time.Now())
+	}
+	if n := len(good.wait(e, 1)); n != 1 {
+		t.Fatalf("a device that took a push does not get it again while another fails: %d pushes", n)
+	}
+	if h := e.waitHealth("push", "error"); !strings.Contains(h.Error, "mac") {
+		t.Fatalf("the health of pushes names the device that fails: %+v", h)
+	}
+}

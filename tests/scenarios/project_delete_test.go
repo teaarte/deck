@@ -4,6 +4,7 @@ import (
 	"context"
 	deckhome "deck2/internal/home"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -16,6 +17,7 @@ import (
 
 	"deck2/internal/provider"
 	"deck2/internal/registry"
+	"deck2/internal/store/db"
 )
 
 // TestProjectDeleteTakesASnapshotAndLeavesNothingOfTheProject: only the owner, with no open process and no reader;
@@ -261,5 +263,38 @@ func TestDeletingAModuleArchivesItsTopics(t *testing.T) {
 	}
 	if got := ids(false); !slices.Equal(got, []int64{elsewhere}) {
 		t.Fatalf("other topics stay: %v", got)
+	}
+}
+
+// TestTheMasterHearsOfADeletedDraftFromItsData: a draft imported from a folder in the data of the master, once
+// deleted, names its folder in the answer and in the master's next turn; deck leaves the folder.
+func TestTheMasterHearsOfADeletedDraftFromItsData(t *testing.T) {
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result { return provider.Result{Text: "Noted."} })
+	mp, err := e.App.Store.Q.GetProjectByName(context.Background(), db.GetProjectByNameParams{WorkspaceID: 1, Name: "master"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := filepath.Join(e.App.Home.Data(mp.ID), "drafts", "sketch")
+	if err := errors.Join(os.MkdirAll(dir, 0o700), os.WriteFile(filepath.Join(dir, "manifest.json"), []byte(boardWebManifest), 0o600)); err != nil {
+		t.Fatal(err)
+	}
+	e.must("deck.project_import", map[string]any{"folder": dir, "name": "sketch"}, nil)
+	var out struct{ Folder string }
+	e.must("deck.project_delete", map[string]any{"project": "sketch"}, &out)
+	if out.Folder != dir {
+		t.Fatalf("the answer names the folder deck left: %+v", out)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "manifest.json")); err != nil {
+		t.Fatalf("deck leaves the folder: %v", err)
+	}
+	topic := e.say(0, "hello")
+	e.masterSaid(topic, 1)
+	if p := e.Fake.Calls()[0].Prompt; !strings.Contains(p, "sketch") || !strings.Contains(p, dir) {
+		t.Fatalf("the master's next turn says which draft went and where its folder is:\n%s", p)
+	}
+	e.say(topic, "again")
+	e.masterSaid(topic, 2)
+	if p := e.Fake.Calls()[1].Prompt; strings.Contains(p, dir) {
+		t.Fatalf("the master hears of it once:\n%s", p)
 	}
 }

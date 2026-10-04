@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"deck2/internal/app/access"
+	"deck2/internal/app/chat"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -38,11 +39,15 @@ func (a *App) projectDelete(ctx context.Context, act registry.Actor, in projectD
 		return nil, fmt.Errorf("deck: the snapshot before deleting %s failed, nothing was deleted: %w", p.Name, err)
 	}
 	var gone, runs []int64
+	left := ""
 	err = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		if err := a.deletable(ctx, q, act, p); err != nil {
 			return err
 		}
 		var err error
+		if left, err = a.leftInMaster(ctx, q, act, p); err != nil {
+			return err
+		}
 		if gone, err = q.DeleteProjectFiles(ctx, p.ID); err != nil {
 			return err
 		}
@@ -74,7 +79,33 @@ func (a *App) projectDelete(ctx context.Context, act registry.Actor, in projectD
 	for _, topic := range []string{"projects", "asks", "processes", "triggers", "health", "feed", "chat"} {
 		a.Bus.Publish(topic)
 	}
-	return map[string]any{"deleted": p.Name, "snapshot": snapshot}, nil
+	out := map[string]any{"deleted": p.Name, "snapshot": snapshot}
+	if left != "" {
+		out["folder"] = left
+	}
+	return out, nil
+}
+
+// leftInMaster is the folder in the data of the master a project was imported from, which deck leaves; when
+// someone else deletes the project, the master hears of it on its next turn.
+func (a *App) leftInMaster(ctx context.Context, q *db.Queries, act registry.Actor, p db.Project) (string, error) {
+	dir, err := q.GetMark(ctx, db.GetMarkParams{WorkspaceID: p.WorkspaceID, Name: importMark(p.ID)})
+	if err != nil {
+		return "", nil
+	}
+	mp, err := access.Master(ctx, q, p.WorkspaceID)
+	if err != nil {
+		return "", err
+	}
+	if rel, err := filepath.Rel(a.Home.Data(mp.ID), dir); err != nil || rel == ".." || strings.HasPrefix(rel, "../") {
+		return "", nil
+	}
+	if act.Kind == registry.Master && act.Token == 0 {
+		return dir, nil
+	}
+	notes, _ := q.GetMark(ctx, db.GetMarkParams{WorkspaceID: p.WorkspaceID, Name: chat.NotesMark})
+	line := fmt.Sprintf("draft %s, imported from %s, was deleted; deck left its folder", p.Name, dir)
+	return dir, q.SetMark(ctx, db.SetMarkParams{WorkspaceID: p.WorkspaceID, Name: chat.NotesMark, Value: strings.TrimSpace(notes + "\n" + line)})
 }
 
 // deletable refuses to delete a project that still has open processes or that another project reads; the master

@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -25,6 +26,9 @@ func absFolder(path string) (string, error) {
 	}
 	return filepath.Clean(path), nil
 }
+
+// importMark keeps the folder a project was imported from.
+func importMark(project int64) string { return fmt.Sprintf("imported_from:%d", project) }
 
 // moduleKind is the document kind of a file of a module folder.
 func moduleKind(m *manifest.Manifest, name string) string {
@@ -90,6 +94,9 @@ func (a *App) projectImport(ctx context.Context, act registry.Actor, in projectI
 	}
 	reason := "imported from " + dir
 	p, err := a.createProject(ctx, act, name, []byte(raw), prompt, store.ProjectDraft, func(ctx context.Context, q *db.Queries, p db.Project) error {
+		if err := q.SetMark(ctx, db.SetMarkParams{WorkspaceID: p.WorkspaceID, ProjectID: store.ID(p.ID), Name: importMark(p.ID), Value: dir}); err != nil {
+			return err
+		}
 		for _, f := range files {
 			if f.path == docs.ManifestName || f.path == docs.PromptName {
 				continue

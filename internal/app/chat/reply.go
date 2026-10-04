@@ -90,6 +90,7 @@ func (ch *Service) reply(ctx context.Context, topicID int64) error {
 	}
 	first, last := pending[0].ID, pending[len(pending)-1].ID
 	files := attached(pending)
+	notes, _ := ch.St.Q.GetMark(ctx, db.GetMarkParams{WorkspaceID: t.WorkspaceID, Name: NotesMark})
 	open, err := ch.St.Q.OpenTopicProcess(ctx, topicID)
 	if err == nil {
 		given := ""
@@ -107,27 +108,27 @@ func (ch *Service) reply(ctx context.Context, topicID int64) error {
 				texts = append(texts, given)
 			}
 			if err := ch.Asks.Answer(ctx, q, strings.Join(texts, "\n\n")); err == nil {
-				return ch.takeMessages(ctx, t, open.ID, open.SessionID, "", last)
+				return ch.takeMessages(ctx, t, open.ID, open.SessionID, "", "", last)
 			}
 		}
 		if open.State == process.StateRunning {
-			news, _, err := ch.chatPrompt(ctx, t, pending, "", "", false)
+			news, _, err := ch.chatPrompt(ctx, t, pending, "", "", notes, false)
 			if err != nil || ch.Runner.Say(ctx, open.ID, strings.TrimSpace("deck: the owner wrote while you work.\n"+news+"\n"+given)) == process.Refused {
 				return err
 			}
-			return ch.takeMessages(ctx, t, open.ID, open.SessionID, "", last)
+			return ch.takeMessages(ctx, t, open.ID, open.SessionID, "", notes, last)
 		}
 		if open.State != process.StateWaitingAnswer {
 			return nil
 		}
-		msg, sign, err := ch.chatPrompt(ctx, t, pending, open.SessionID, open.Provider, true)
+		msg, sign, err := ch.chatPrompt(ctx, t, pending, open.SessionID, open.Provider, notes, true)
 		if err != nil {
 			return err
 		}
 		if err := ch.Runner.Remark(ctx, open.ID, strings.TrimSpace(msg+"\n\n"+given)); err != nil {
 			return err
 		}
-		return ch.takeMessages(ctx, t, open.ID, open.SessionID, sign, last)
+		return ch.takeMessages(ctx, t, open.ID, open.SessionID, sign, notes, last)
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
 		return err
@@ -155,7 +156,7 @@ func (ch *Service) reply(ctx context.Context, topicID int64) error {
 	switch {
 	case err == nil:
 		o.Session, o.Resume = s.SessionID, true
-		if o.Message, sign, err = ch.chatPrompt(ctx, t, pending, s.SessionID, pv.Name(), true); err != nil {
+		if o.Message, sign, err = ch.chatPrompt(ctx, t, pending, s.SessionID, pv.Name(), notes, true); err != nil {
 			return err
 		}
 	case errors.Is(err, sql.ErrNoRows):
@@ -177,7 +178,7 @@ func (ch *Service) reply(ctx context.Context, topicID int64) error {
 	if err != nil {
 		return err
 	}
-	news, _, err := ch.chatPrompt(ctx, t, pending, "", "", false)
+	news, _, err := ch.chatPrompt(ctx, t, pending, "", "", notes, false)
 	if err != nil {
 		return err
 	}
@@ -186,13 +187,18 @@ func (ch *Service) reply(ctx context.Context, topicID int64) error {
 	if err != nil {
 		return err
 	}
-	return ch.takeMessages(ctx, t, id, o.Session, sign, last)
+	return ch.takeMessages(ctx, t, id, o.Session, sign, notes, last)
 }
 
-// takeMessages gives the waiting messages up to through to the reply process, and keeps the sign of the memory
-// its session was given, when it was given one.
-func (ch *Service) takeMessages(ctx context.Context, t db.ChatTopic, processID int64, session, sign string, through int64) error {
+// takeMessages gives the waiting messages up to through to the reply process, keeps the sign of the memory its
+// session was given, when it was given one, and drops the notes of deck the turn was told.
+func (ch *Service) takeMessages(ctx context.Context, t db.ChatTopic, processID int64, session, sign, notes string, through int64) error {
 	err := ch.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		if cur, err := q.GetMark(ctx, db.GetMarkParams{WorkspaceID: t.WorkspaceID, Name: NotesMark}); err == nil && notes != "" && cur == notes {
+			if err := q.DeleteMark(ctx, db.DeleteMarkParams{WorkspaceID: t.WorkspaceID, Name: NotesMark}); err != nil {
+				return err
+			}
+		}
 		if err := q.TakeMessages(ctx, db.TakeMessagesParams{ProcessID: processID, TopicID: t.ID, Through: through}); err != nil || sign == "" {
 			return err
 		}
@@ -203,7 +209,7 @@ func (ch *Service) takeMessages(ctx context.Context, t db.ChatTopic, processID i
 
 // chatPrompt is what a reply turn gets: on resume the messages its session missed, then the owner's new
 // messages with their screens, the card of the topic and where its summary is.
-func (ch *Service) chatPrompt(ctx context.Context, t db.ChatTopic, pending []db.ChatMessage, session, provider string, resume bool) (string, string, error) {
+func (ch *Service) chatPrompt(ctx context.Context, t db.ChatTopic, pending []db.ChatMessage, session, provider, notes string, resume bool) (string, string, error) {
 	type message struct{ Where, Text string }
 	type card struct {
 		ID             int64
@@ -218,7 +224,8 @@ func (ch *Service) chatPrompt(ctx context.Context, t db.ChatTopic, pending []db.
 		Summarized             bool
 		Summary                string
 		Grown                  int64
-	}{Topic: t.ID, Summary: summaryName(t.ID)}
+		Notes                  string
+	}{Topic: t.ID, Summary: summaryName(t.ID), Notes: notes}
 	sign := ""
 	if resume {
 		s, err := ch.St.Q.GetChatSession(ctx, db.GetChatSessionParams{TopicID: t.ID, Provider: provider})

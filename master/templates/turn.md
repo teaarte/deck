@@ -1,4 +1,7 @@
-{{if .MemoryChanged}}deck: the memory changed since this session last got it; here it is now.
+{{with .Notes}}deck: since your last turn:
+{{.}}
+
+{{end}}{{if .MemoryChanged}}deck: the memory changed since this session last got it; here it is now.
 {{.Memory}}
 {{end}}{{if .Retold}}deck: much happened in this topic since your last turn.
 {{.Retold}}

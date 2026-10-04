@@ -181,7 +181,6 @@
     "full": "Full screen",
     "exit_full": "Back to the screen",
     "resize": "Width of the chat",
-    "process": "reply #{{id}}",
     "mic": "Speak",
     "stop_recording": "Stop · {{s}} s",
     "mic_failed": "The microphone did not start",

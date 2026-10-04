@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import { ActionIcon, Anchor, Badge, CopyButton, Group, Stack, Text, Tooltip } from '@mantine/core';
+import { ActionIcon, Badge, CopyButton, Group, Stack, Text, Tooltip } from '@mantine/core';
 import { IconCheck, IconCopy, IconPaperclip } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import catalogSchema from '../lib/catalogSchema';
@@ -46,7 +46,6 @@ export const Message = memo(function Message({ m }: { m: ChatMessage }) {
             <ActionIcon variant="subtle" color="gray" size="sm" onClick={copy} aria-label={t('chat.copy')}>{copied ? <IconCheck size={14} /> : <IconCopy size={14} />}</ActionIcon>
           </Tooltip>
         )}</CopyButton>
-        {m.reply?.open && <Anchor size="xs" c="dimmed" href={'#/deck/process/' + m.reply.process} data-reply-open>{t('chat.process', { id: m.reply.process })}</Anchor>}
       </Group>
     </div>
   );

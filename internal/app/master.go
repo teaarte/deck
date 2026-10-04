@@ -82,7 +82,7 @@ func (a *App) seedMaster(ctx context.Context, workspace int64, m *manifest.Manif
 			} else if !errors.Is(err, sql.ErrNoRows) {
 				return err
 			}
-			if _, _, err := docs.Save(ctx, q, ref, moduleKind(m, path), text, "deck", "built-in project"); err != nil {
+			if _, _, _, err := docs.Save(ctx, q, ref, moduleKind(m, path), text, "deck", "built-in project"); err != nil {
 				return err
 			}
 			changed = changed || path == docs.ManifestName

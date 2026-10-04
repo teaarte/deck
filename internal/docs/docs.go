@@ -96,30 +96,32 @@ func checkDocName(name string) error {
 	return nil
 }
 
-// Save writes a new revision and makes it current, creating the document on first save.
-func Save(ctx context.Context, q *db.Queries, ref Ref, kind, text, author, reason string) (db.Document, int64, error) {
+// Save writes a new revision and makes it current, creating the document on first save; the text the document
+// has already is no new revision, and changed is false.
+func Save(ctx context.Context, q *db.Queries, ref Ref, kind, text, author, reason string) (d db.Document, n int64, changed bool, err error) {
 	if !slices.Contains(Kinds, kind) {
-		return db.Document{}, 0, registry.Invalid("deck: unknown document kind %q; one of %s", kind, strings.Join(Kinds, ", "))
+		return db.Document{}, 0, false, registry.Invalid("deck: unknown document kind %q; one of %s", kind, strings.Join(Kinds, ", "))
 	}
 	if err := checkDocName(ref.Name); err != nil {
-		return db.Document{}, 0, err
+		return db.Document{}, 0, false, err
 	}
 	if want, ok := reservedNames[ref.Name]; ok && ref.OwnerKind == "" && kind != want {
-		return db.Document{}, 0, registry.Invalid("deck: %q is reserved for the %s document", ref.Name, want)
+		return db.Document{}, 0, false, registry.Invalid("deck: %q is reserved for the %s document", ref.Name, want)
 	}
 	if err := checkSkillText(kind, ref.Name, text); err != nil {
-		return db.Document{}, 0, err
+		return db.Document{}, 0, false, err
 	}
 	if err := checkMemoryText(kind, ref.Name, text); err != nil {
-		return db.Document{}, 0, err
+		return db.Document{}, 0, false, err
 	}
-	d, err := q.FindAnyDocument(ctx, db.FindAnyDocumentParams(ref.Find()))
+	d, err = q.FindAnyDocument(ctx, db.FindAnyDocumentParams(ref.Find()))
 	if err == nil && d.DeletedAt.Valid && author != registry.Owner {
-		return d, 0, registry.Conflict("deck: %s was deleted; the owner can bring it back, or save it under another name", ref.Name)
+		return d, 0, false, registry.Conflict("deck: %s was deleted; the owner can bring it back, or save it under another name", ref.Name)
 	}
-	if err == nil && d.DeletedAt.Valid {
+	restored := err == nil && d.DeletedAt.Valid
+	if restored {
 		if _, err := q.RestoreDocument(ctx, d.ID); err != nil {
-			return d, 0, err
+			return d, 0, false, err
 		}
 		d.DeletedAt = sql.NullString{}
 	}
@@ -129,25 +131,30 @@ func Save(ctx context.Context, q *db.Queries, ref Ref, kind, text, author, reaso
 		d, err = q.CreateDocument(ctx, db.CreateDocumentParams{WorkspaceID: f.WorkspaceID, ProjectID: f.ProjectID,
 			RecordID: f.RecordID, CardID: f.CardID, Kind: kind, Name: ref.Name})
 		if err != nil {
-			return d, 0, err
+			return d, 0, false, err
 		}
 	case err != nil:
-		return d, 0, err
+		return d, 0, false, err
 	case d.Kind != kind:
-		return d, 0, registry.Invalid("deck: document %q is a %s, not a %s", ref.Name, d.Kind, kind)
+		return d, 0, false, registry.Invalid("deck: document %q is a %s, not a %s", ref.Name, d.Kind, kind)
 	}
-	n, err := q.NextRevision(ctx, d.ID)
+	if d.Current != 0 && !restored {
+		if r, err := q.GetRevision(ctx, db.GetRevisionParams{DocumentID: d.ID, N: d.Current}); err == nil && r.Text == text {
+			return d, d.Current, false, nil
+		}
+	}
+	n, err = q.NextRevision(ctx, d.ID)
 	if err != nil {
-		return d, 0, err
+		return d, 0, false, err
 	}
 	if _, err := q.AddRevision(ctx, db.AddRevisionParams{DocumentID: d.ID, N: n, Text: text, Author: author, Reason: reason}); err != nil {
-		return d, 0, err
+		return d, 0, false, err
 	}
 	if err := q.SetDocumentCurrent(ctx, db.SetDocumentCurrentParams{Current: n, ID: d.ID}); err != nil {
-		return d, 0, err
+		return d, 0, false, err
 	}
 	d.Current = n
-	return d, n, nil
+	return d, n, true, nil
 }
 
 // Edit replaces each old part of the text with its new one; each old part must occur in the text exactly once,

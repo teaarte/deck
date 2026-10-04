@@ -88,7 +88,7 @@ func (a *App) seedSkills(ctx context.Context, workspace int64) error {
 					return err
 				}
 			}
-			_, _, err = docs.Save(ctx, q, ref, docs.KindSkill, string(b), "deck", "built-in skill")
+			_, _, _, err = docs.Save(ctx, q, ref, docs.KindSkill, string(b), "deck", "built-in skill")
 			return err
 		})
 	})

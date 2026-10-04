@@ -95,7 +95,7 @@ func (a *App) projectImport(ctx context.Context, act registry.Actor, in projectI
 				continue
 			}
 			ref := docs.Ref{Scope: docs.ProjectScope(p), Name: f.path}
-			if _, _, err := docs.Save(ctx, q, ref, moduleKind(pm.m, f.path), f.text, act.Author(), reason); err != nil {
+			if _, _, _, err := docs.Save(ctx, q, ref, moduleKind(pm.m, f.path), f.text, act.Author(), reason); err != nil {
 				return registry.Invalid("deck: %s: %v", f.path, err)
 			}
 		}

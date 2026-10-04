@@ -2,6 +2,7 @@ package scenarios
 
 import (
 	"context"
+	"encoding/json"
 	"deck2/internal/api"
 	"deck2/web"
 	"fmt"
@@ -235,8 +236,38 @@ func TestAChangeWithoutTheOwnerReachesTheBell(t *testing.T) {
 	waitTopic(t, phone, "feed")
 	var m struct{ Manifest string }
 	e.must("deck.manifest_get", map[string]any{"project": "tools"}, &m)
-	if code, out := e.callWith(tok, "deck.manifest_save", map[string]any{"project": "tools", "manifest": strings.Replace(m.Manifest, `"tools"`, `"tools" `, 1)}); code != 200 {
+	if code, out := e.callWith(tok, "deck.manifest_save", map[string]any{"project": "tools", "manifest": strings.Replace(m.Manifest, `An item.`, `An item of the list.`, 1)}); code != 200 {
 		t.Fatalf("manifest_save: %d %s", code, out)
 	}
 	waitTopic(t, phone, "feed")
+}
+
+// TestASaveOfTheSameTextChangesNothing: saving the text a document has keeps its revision, and a manifest or a
+// script saved again without the owner puts no line in the feed.
+func TestASaveOfTheSameTextChangesNothing(t *testing.T) {
+	e := newEnv(t, ok)
+	e.createProject("tools", scriptManifest("run", "", ""))
+	e.saveScript("tools", "scripts/main.py", "print('{}')\n")
+	_, tok := e.token("terminal", "deck.*")
+	var before struct{ Revision int64 }
+	e.must("deck.document_get", map[string]any{"project": "tools", "name": "scripts/main.py"}, &before)
+	var saved struct{ Revision int64 }
+	code, out := e.callWith(tok, "deck.document_save", map[string]any{"project": "tools", "name": "scripts/main.py", "kind": "script", "text": "print('{}')\n"})
+	_ = json.Unmarshal(out, &saved)
+	if code != 200 || saved.Revision != before.Revision {
+		t.Fatalf("the same text keeps the revision %d: %d %s", before.Revision, code, out)
+	}
+	var m struct {
+		Manifest string
+		Revision int64
+	}
+	e.must("deck.manifest_get", map[string]any{"project": "tools"}, &m)
+	if code, out := e.callWith(tok, "deck.manifest_save", map[string]any{"project": "tools", "manifest": m.Manifest}); code != 200 || !strings.Contains(string(out), fmt.Sprintf(`"revision":%d`, m.Revision)) {
+		t.Fatalf("the same manifest keeps revision %d: %d %s", m.Revision, code, out)
+	}
+	var feed []map[string]any
+	e.must("deck.feed_list", map[string]any{"kind": "change"}, &feed)
+	if len(feed) != 0 {
+		t.Fatalf("no change is listed: %+v", feed)
+	}
 }

@@ -203,7 +203,8 @@ func (a *App) documentSave(ctx context.Context, act registry.Actor, in documentS
 			return err
 		}
 		var n int64
-		if d, n, err = docs.Save(ctx, q, ref, in.Kind, in.Text, act.Author(), in.Reason); err != nil {
+		var changed bool
+		if d, n, changed, err = docs.Save(ctx, q, ref, in.Kind, in.Text, act.Author(), in.Reason); err != nil || !changed {
 			return err
 		}
 		return a.scriptChanged(ctx, q, act, d, n, in.Reason)
@@ -396,7 +397,8 @@ func (a *App) documentRevert(ctx context.Context, act registry.Actor, in documen
 			}
 			return err
 		}
-		if _, n, err = docs.Save(ctx, q, ref, d.Kind, r.Text, act.Author(), reason); err != nil {
+		var changed bool
+		if _, n, changed, err = docs.Save(ctx, q, ref, d.Kind, r.Text, act.Author(), reason); err != nil || !changed {
 			return err
 		}
 		return a.scriptChanged(ctx, q, act, d, n, reason)

@@ -259,7 +259,7 @@ func TestWideningChangeWaitsForTheOwnersButton(t *testing.T) {
 		t.Fatalf("a revert that widens rights waits too: %d %s", code, out)
 	}
 	stale := e.waitAsk()
-	e.must("deck.manifest_save", map[string]any{"project": "notes", "manifest": plainManifest, "reason": "owner"}, nil)
+	e.must("deck.manifest_save", map[string]any{"project": "notes", "manifest": strings.Replace(plainManifest, `"Does work"`, `"Does the work"`, 1), "reason": "owner"}, nil)
 	if code, out := e.call("deck.ask_answer", map[string]any{"ask": stale.ID, "answer": "allow"}); code != 409 || !strings.Contains(string(out), "changed after") {
 		t.Fatalf("a frozen change older than the manifest is not applied: %d %s", code, out)
 	}

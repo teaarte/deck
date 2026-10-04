@@ -93,12 +93,12 @@ func (a *App) createProject(ctx context.Context, act registry.Actor, name string
 			return err
 		}
 		ref := docs.Ref{Scope: docs.ProjectScope(p), Name: docs.ManifestName}
-		if _, _, err := docs.Save(ctx, q, ref, docs.KindManifest, string(pm.text), act.Author(), "create project"); err != nil {
+		if _, _, _, err := docs.Save(ctx, q, ref, docs.KindManifest, string(pm.text), act.Author(), "create project"); err != nil {
 			return err
 		}
 		if prompt != "" {
 			ref.Name = docs.PromptName
-			if _, _, err := docs.Save(ctx, q, ref, docs.KindPrompt, prompt, act.Author(), "create project"); err != nil {
+			if _, _, _, err := docs.Save(ctx, q, ref, docs.KindPrompt, prompt, act.Author(), "create project"); err != nil {
 				return err
 			}
 		}
@@ -174,10 +174,13 @@ func (a *App) SaveManifest(ctx context.Context, act registry.Actor, p db.Project
 			return err
 		}
 		var n int64
-		if _, n, err = docs.Save(ctx, q, ref, docs.KindManifest, string(pm.text), act.Author(), reason); err != nil {
+		var changed bool
+		if _, n, changed, err = docs.Save(ctx, q, ref, docs.KindManifest, string(pm.text), act.Author(), reason); err != nil {
 			return err
 		}
-		saved.Revision = n
+		if saved.Revision = n; !changed {
+			return nil
+		}
 		for name, mg := range plan {
 			if err := applyMigration(ctx, q, store.Time(a.Cfg.Now()), p.ID, pm.m.Collection(name), mg, cur.Current, n); err != nil {
 				return err

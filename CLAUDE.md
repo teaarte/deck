@@ -2,7 +2,7 @@
 
 Personal control panel for AI agents: one Go binary, SQLite, web client. Spec: `docs/spec.md` (Russian).
 Protocol facts: Claude Code — `docs/spikes/claude-code.md`, Codex app-server — `docs/spikes/codex.md`.
-Stage 1 plan: `docs/plan-stage1.md`; next: block catalog `docs/plan-catalog.md`.
+Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, cleanup, models and connections).
 
 ## Commands
 

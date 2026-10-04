@@ -1,4 +1,4 @@
-package app
+package project
 
 import (
 	"context"
@@ -19,7 +19,7 @@ import (
 )
 
 // widens lists what a change by the actor would grant an enabled project; the owner and drafts are not asked.
-func (a *App) widens(ctx context.Context, q *db.Queries, act registry.Actor, projectID int64, next *manifest.Manifest) ([]string, error) {
+func (pj *Service) widens(ctx context.Context, q *db.Queries, act registry.Actor, projectID int64, next *manifest.Manifest) ([]string, error) {
 	if act.Kind == registry.Owner {
 		return nil, nil
 	}
@@ -36,7 +36,7 @@ func (a *App) widens(ctx context.Context, q *db.Queries, act registry.Actor, pro
 
 // ask freezes a change that widens rights until the owner allows it; the frozen call applies only while the
 // manifest is still at revision.
-func (a *App) ask(ctx context.Context, q *db.Queries, act registry.Actor, p db.Project, revision int64, widens []string, reason string, call Call) (Saved, error) {
+func (pj *Service) ask(ctx context.Context, q *db.Queries, act registry.Actor, p db.Project, revision int64, widens []string, reason string, call Call) (Saved, error) {
 	input := map[string]any{"if_revision": revision}
 	for k, v := range call.Input {
 		input[k] = v
@@ -50,11 +50,11 @@ func (a *App) ask(ctx context.Context, q *db.Queries, act registry.Actor, p db.P
 	return Saved{Waiting: row.ID, Widens: widens}, err
 }
 
-// grantAnswer makes the frozen call of an allowed grant as the owner; the grant closes only when it applied.
-func (a *App) grantAnswer(ctx context.Context, act registry.Actor, q db.Ask, answer string) (any, error) {
+// AnswerGrant makes the frozen call of an allowed grant as the owner; the grant closes only when it applied.
+func (pj *Service) AnswerGrant(ctx context.Context, act registry.Actor, q db.Ask, answer string) (any, error) {
 	switch {
 	case answer == "allow":
-		out, err := a.Gateway.Decide(ctx, act, q, answer, nil)
+		out, err := pj.Gateway.Decide(ctx, act, q, answer, nil)
 		switch {
 		case errors.Is(err, ask.ErrNotOpen):
 			return nil, ask.NotOpen
@@ -63,13 +63,13 @@ func (a *App) grantAnswer(ctx context.Context, act registry.Actor, q db.Ask, ans
 		}
 		return out, err
 	case answer == "deny" || strings.HasPrefix(answer, "deny:"):
-		if err := a.Asks.Answer(ctx, q.ID, answer); err != nil {
+		if err := pj.Broker.Answer(ctx, q.ID, answer); err != nil {
 			if errors.Is(err, ask.ErrNotOpen) {
 				return nil, ask.NotOpen
 			}
 			return nil, err
 		}
-		a.Gateway.Record(ctx, q, "rejected", "the owner said no")
+		pj.Gateway.Record(ctx, q, "rejected", "the owner said no")
 		return map[string]any{"ok": true}, nil
 	}
 	return nil, registry.Invalid("deck: answer a grant with allow, deny or deny:<reason>")
@@ -82,13 +82,13 @@ type projectEnableIn struct {
 
 // projectEnable turns a draft on at the manifest revision the owner saw: its triggers start from now, and
 // the rights of that revision count as allowed.
-func (a *App) projectEnable(ctx context.Context, act registry.Actor, in projectEnableIn) (any, error) {
-	p, err := access.Project(ctx, a.Store.Q, act, in.Project)
+func (pj *Service) projectEnable(ctx context.Context, act registry.Actor, in projectEnableIn) (any, error) {
+	p, err := access.Project(ctx, pj.St.Q, act, in.Project)
 	if err != nil {
 		return nil, err
 	}
 	var m *manifest.Manifest
-	err = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+	err = pj.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		if m, err = docs.Manifest(ctx, q, p); err != nil {
 			return registry.Invalid("deck: the manifest of %s does not load: %v", p.Name, err)
 		}
@@ -107,7 +107,7 @@ func (a *App) projectEnable(ctx context.Context, act registry.Actor, in projectE
 			return err
 		}
 		for _, t := range rows {
-			if err := a.Scheduler.Rewind(ctx, q, t); err != nil {
+			if err := pj.Scheduler.Rewind(ctx, q, t); err != nil {
 				return err
 			}
 		}
@@ -125,16 +125,16 @@ type projectAutonomyIn struct {
 }
 
 // projectAutonomy writes the autonomy of a project into a new revision of its manifest, the rest as it was.
-func (a *App) projectAutonomy(ctx context.Context, act registry.Actor, in projectAutonomyIn) (any, error) {
-	p, err := access.Project(ctx, a.Store.Q, act, in.Project)
+func (pj *Service) projectAutonomy(ctx context.Context, act registry.Actor, in projectAutonomyIn) (any, error) {
+	p, err := access.Project(ctx, pj.St.Q, act, in.Project)
 	if err != nil {
 		return nil, err
 	}
-	d, err := a.Store.Q.FindDocument(ctx, docs.Ref{Scope: docs.ProjectScope(p), Name: docs.ManifestName}.Find())
+	d, err := pj.St.Q.FindDocument(ctx, docs.Ref{Scope: docs.ProjectScope(p), Name: docs.ManifestName}.Find())
 	if err != nil {
 		return nil, err
 	}
-	r, err := docs.Revision(ctx, a.Store.Q, d, 0)
+	r, err := docs.Revision(ctx, pj.St.Q, d, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -148,7 +148,7 @@ func (a *App) projectAutonomy(ctx context.Context, act registry.Actor, in projec
 	}
 	raw, _ := json.MarshalIndent(doc, "", "  ")
 	reason := "autonomy: " + in.Autonomy
-	return a.SaveManifest(ctx, act, p, raw, reason, 0, d.Current,
+	return pj.SaveManifest(ctx, act, p, raw, reason, 0, d.Current,
 		Call{Command: registry.Builtin + ".manifest_save", Input: map[string]any{"project": p.Name, "manifest": string(raw), "reason": reason}})
 }
 
@@ -168,10 +168,10 @@ type commandTryIn struct {
 
 // commandTry starts a trial run of a project command: every call that is not internal is declined, so a token
 // that may try runs any project command this way, though not a command closed to its kind of caller.
-func (a *App) commandTry(ctx context.Context, act registry.Actor, in commandTryIn) (any, error) {
+func (pj *Service) commandTry(ctx context.Context, act registry.Actor, in commandTryIn) (any, error) {
 	probe := act
 	probe.Token, probe.Commands = 0, nil
-	c, input, err := a.Registry.Resolve(ctx, probe, in.Command, json.RawMessage(in.Input))
+	c, input, err := pj.Registry.Resolve(ctx, probe, in.Command, json.RawMessage(in.Input))
 	switch {
 	case err != nil:
 		return nil, err
@@ -180,7 +180,7 @@ func (a *App) commandTry(ctx context.Context, act registry.Actor, in commandTryI
 	case c.Fingerprint != nil:
 		return nil, registry.Invalid("deck: %s is a tool, the call itself; only commands have trial runs", c.Name)
 	}
-	if err := a.liveTrial(ctx, c, in.Live); err != nil {
+	if err := pj.liveTrial(ctx, c, in.Live); err != nil {
 		return nil, err
 	}
 	act.Trial = true
@@ -188,8 +188,8 @@ func (a *App) commandTry(ctx context.Context, act registry.Actor, in commandTryI
 }
 
 // liveTrial lets a trial into an enabled project only when asked for, and never beside a real run of the command.
-func (a *App) liveTrial(ctx context.Context, c *registry.Command, live bool) error {
-	p, err := a.Store.Q.GetProject(ctx, c.ProjectID)
+func (pj *Service) liveTrial(ctx context.Context, c *registry.Command, live bool) error {
+	p, err := pj.St.Q.GetProject(ctx, c.ProjectID)
 	if err != nil || p.Status == store.ProjectDraft {
 		return err
 	}
@@ -197,7 +197,7 @@ func (a *App) liveTrial(ctx context.Context, c *registry.Command, live bool) err
 		return registry.Invalid("deck: %s is enabled: a trial writes into its real records and cards and may run beside its own runs; "+
 			"try the change in a draft copy (project_import of its folder under another name), or pass live to try it here", p.Name)
 	}
-	open, err := a.Store.Q.ListOpenProcesses(ctx, db.ListOpenProcessesParams{WorkspaceID: p.WorkspaceID, ProjectID: p.ID})
+	open, err := pj.St.Q.ListOpenProcesses(ctx, db.ListOpenProcessesParams{WorkspaceID: p.WorkspaceID, ProjectID: p.ID})
 	if err != nil {
 		return err
 	}
@@ -216,16 +216,16 @@ func orText(s, fallback string) string {
 	return s
 }
 
-func (a *App) draftsCommands() []*registry.Command {
+func (pj *Service) draftsCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("project_enable", "Enable project",
 			"Turns a draft on: its triggers start running and the rights its manifest asks for count as allowed.",
-			registry.OwnerOnly, a.projectEnable),
+			registry.OwnerOnly, pj.projectEnable),
 		registry.Def("project_autonomy", "Project autonomy",
 			"Sets whether a project suggests, so the owner says yes to its reversible changes, or acts on its own and reports; a new manifest revision.",
-			registry.OwnerOnly, a.projectAutonomy),
+			registry.OwnerOnly, pj.projectAutonomy),
 		registry.Def("command_try", "Try a command",
 			"Runs a command of a project once as a trial to check it before a button or a schedule runs it: calls that are not internal are declined, nothing leaves deck.",
-			registry.OwnerSide, a.commandTry),
+			registry.OwnerSide, pj.commandTry),
 	}
 }

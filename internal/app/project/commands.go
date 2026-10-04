@@ -1,4 +1,4 @@
-package app
+package project
 
 import (
 	"bytes"
@@ -14,17 +14,17 @@ import (
 	"deck2/internal/store/db"
 )
 
-// projectCommands turns the commands of workspace manifests into registry commands.
-func (a *App) projectCommands(ctx context.Context, workspace int64, name string) ([]*registry.Command, error) {
+// ProjectCommands turns the commands of workspace manifests into registry commands.
+func (pj *Service) ProjectCommands(ctx context.Context, workspace int64, name string) ([]*registry.Command, error) {
 	var ps []db.Project
 	if name == "" {
-		all, err := a.Store.Q.ListWorkspaceProjects(ctx, workspace)
+		all, err := pj.St.Q.ListWorkspaceProjects(ctx, workspace)
 		if err != nil {
 			return nil, err
 		}
 		ps = all
 	} else {
-		p, err := a.Store.Q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: workspace, Name: name})
+		p, err := pj.St.Q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: workspace, Name: name})
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
@@ -34,15 +34,15 @@ func (a *App) projectCommands(ctx context.Context, workspace int64, name string)
 		ps = []db.Project{p}
 	}
 	var out []*registry.Command
-	ms, failed := a.Manifests.All(ctx, ps)
+	ms, failed := pj.Manifests.All(ctx, ps)
 	for _, p := range ps {
 		m := ms[p.ID]
 		if m == nil {
 			slog.Error("project manifest", "project", p.Name, "err", failed[p.ID])
 			continue
 		}
-		out = append(out, a.prepared(p, m)...)
-		mcpCmds, err := a.MCP.Commands(ctx, a.Store.Q, p, m)
+		out = append(out, pj.prepared(p, m)...)
+		mcpCmds, err := pj.MCP.Commands(ctx, pj.St.Q, p, m)
 		if err != nil {
 			return nil, err
 		}
@@ -58,11 +58,11 @@ func (a *App) projectCommands(ctx context.Context, workspace int64, name string)
 }
 
 // prepared are the commands and HTTP tools of a manifest as registry commands, compiled once per revision.
-func (a *App) prepared(p db.Project, m *manifest.Manifest) []*registry.Command {
+func (pj *Service) prepared(p db.Project, m *manifest.Manifest) []*registry.Command {
 	key := preparedKey{p.ID, m}
-	a.preparedMu.Lock()
-	cmds, ok := a.preparedCmds[key]
-	a.preparedMu.Unlock()
+	pj.preparedMu.Lock()
+	cmds, ok := pj.preparedCmds[key]
+	pj.preparedMu.Unlock()
 	if ok {
 		return cmds
 	}
@@ -70,7 +70,7 @@ func (a *App) prepared(p db.Project, m *manifest.Manifest) []*registry.Command {
 		cmd := &registry.Command{
 			Name: p.Name + "." + c.Name, Title: c.Title, Description: c.Description, Class: c.Class,
 			Input: withRetryKey(c.InputSchema()), Result: c.Result, ProjectID: p.ID, Callers: c.Callable(),
-			Handler: a.startHandler(p.ID, m, c.Name),
+			Handler: pj.startHandler(p.ID, m, c.Name),
 		}
 		if err := registry.Prepare(cmd); err != nil {
 			slog.Error("project command", "command", cmd.Name, "err", err)
@@ -79,19 +79,19 @@ func (a *App) prepared(p db.Project, m *manifest.Manifest) []*registry.Command {
 		cmds = append(cmds, cmd)
 	}
 	for _, t := range m.Tools.HTTP {
-		cmd := a.Tools.Command(p, t)
+		cmd := pj.Tools.Command(p, t)
 		if err := registry.Prepare(cmd); err != nil {
 			slog.Error("project tool", "tool", cmd.Name, "err", err)
 			continue
 		}
 		cmds = append(cmds, cmd)
 	}
-	a.preparedMu.Lock()
-	if a.preparedCmds == nil || len(a.preparedCmds) >= 256 {
-		a.preparedCmds = map[preparedKey][]*registry.Command{}
+	pj.preparedMu.Lock()
+	if pj.preparedCmds == nil || len(pj.preparedCmds) >= 256 {
+		pj.preparedCmds = map[preparedKey][]*registry.Command{}
 	}
-	a.preparedCmds[key] = cmds
-	a.preparedMu.Unlock()
+	pj.preparedCmds[key] = cmds
+	pj.preparedMu.Unlock()
 	return cmds
 }
 
@@ -102,7 +102,7 @@ type preparedKey struct {
 
 // startHandler runs a command of the manifest the registry checked the call against; the calling process
 // or the finished process of a trigger becomes its parent.
-func (a *App) startHandler(projectID int64, m *manifest.Manifest, command string) registry.Handler {
+func (pj *Service) startHandler(projectID int64, m *manifest.Manifest, command string) registry.Handler {
 	return func(ctx context.Context, act registry.Actor, raw json.RawMessage) (any, error) {
 		input, err := manifest.DecodeObject(raw)
 		if err != nil {
@@ -111,7 +111,7 @@ func (a *App) startHandler(projectID int64, m *manifest.Manifest, command string
 		key, _ := input[manifest.RetryKey].(string)
 		delete(input, manifest.RetryKey)
 		o := process.Origin{Parent: act.ProcessID, Trigger: act.TriggerID, Confirmed: act.Confirmed, Key: key, Trial: act.Trial}
-		id, err := a.Runner.Start(ctx, projectID, m, command, input, o)
+		id, err := pj.Runner.Start(ctx, projectID, m, command, input, o)
 		if err != nil {
 			return nil, err
 		}

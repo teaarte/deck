@@ -1,4 +1,4 @@
-package app
+package project
 
 import (
 	"context"
@@ -50,7 +50,7 @@ type projectImportIn struct {
 }
 
 // projectImport creates a draft from a module folder in one transaction; hidden files are left out.
-func (a *App) projectImport(ctx context.Context, act registry.Actor, in projectImportIn) (any, error) {
+func (pj *Service) projectImport(ctx context.Context, act registry.Actor, in projectImportIn) (any, error) {
 	dir, err := folders.Abs(in.Folder)
 	if err != nil {
 		return nil, err
@@ -88,7 +88,7 @@ func (a *App) projectImport(ctx context.Context, act registry.Actor, in projectI
 		name = filepath.Base(dir)
 	}
 	reason := "imported from " + dir
-	p, err := a.createProject(ctx, act, name, []byte(raw), prompt, store.ProjectDraft, func(ctx context.Context, q *db.Queries, p db.Project) error {
+	p, err := pj.createProject(ctx, act, name, []byte(raw), prompt, store.ProjectDraft, func(ctx context.Context, q *db.Queries, p db.Project) error {
 		if err := q.SetMark(ctx, db.SetMarkParams{WorkspaceID: p.WorkspaceID, ProjectID: store.ID(p.ID), Name: importMark(p.ID), Value: dir}); err != nil {
 			return err
 		}
@@ -165,10 +165,10 @@ func readFolder(root string) (files []folderFile, skipped []string, err error) {
 	return files, skipped, err
 }
 
-func (a *App) importCommands() []*registry.Command {
+func (pj *Service) importCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("project_import", "Import project",
 			"Creates a draft project from a module folder: manifest.json, prompt.md and the other files by their document names.",
-			registry.OwnerSide, a.projectImport),
+			registry.OwnerSide, pj.projectImport),
 	}
 }

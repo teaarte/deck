@@ -1,4 +1,4 @@
-package app
+package project
 
 import (
 	"context"
@@ -18,21 +18,21 @@ import (
 )
 
 // Text is the current text of a project document by kind and name, of any kind for ""; empty when missing.
-func (a *App) Text(ctx context.Context, projectID int64, kind, name string) (string, error) {
-	p, err := a.Store.Q.GetProject(ctx, projectID)
+func (pj *Service) Text(ctx context.Context, projectID int64, kind, name string) (string, error) {
+	p, err := pj.St.Q.GetProject(ctx, projectID)
 	if err != nil {
 		return "", err
 	}
-	return docs.CurrentText(ctx, a.Store.Q, docs.ProjectScope(p), kind, name)
+	return docs.CurrentText(ctx, pj.St.Q, docs.ProjectScope(p), kind, name)
 }
 
 // Prompt is the current md prompt of a project; empty when it has none.
-func (a *App) Prompt(ctx context.Context, projectID int64) (string, error) {
-	p, err := a.Store.Q.GetProject(ctx, projectID)
+func (pj *Service) Prompt(ctx context.Context, projectID int64) (string, error) {
+	p, err := pj.St.Q.GetProject(ctx, projectID)
 	if err != nil {
 		return "", err
 	}
-	return docs.CurrentText(ctx, a.Store.Q, docs.ProjectScope(p), docs.KindPrompt, docs.PromptName)
+	return docs.CurrentText(ctx, pj.St.Q, docs.ProjectScope(p), docs.KindPrompt, docs.PromptName)
 }
 
 type parsed struct {
@@ -60,16 +60,16 @@ func parseManifest(raw []byte, builtin bool) (parsed, error) {
 
 // CreateProject validates the manifest, stores it and the prompt as first revisions and registers triggers.
 // The owner's project is enabled; anyone else's is a draft.
-func (a *App) CreateProject(ctx context.Context, act registry.Actor, name string, raw []byte, prompt string) (db.Project, error) {
+func (pj *Service) CreateProject(ctx context.Context, act registry.Actor, name string, raw []byte, prompt string) (db.Project, error) {
 	status := store.ProjectDraft
 	if act.Kind == registry.Owner {
 		status = store.ProjectEnabled
 	}
-	return a.createProject(ctx, act, name, raw, prompt, status, nil)
+	return pj.createProject(ctx, act, name, raw, prompt, status, nil)
 }
 
 // createProject stores a new project; more stores further documents in the same transaction before the checks.
-func (a *App) createProject(ctx context.Context, act registry.Actor, name string, raw []byte, prompt, status string,
+func (pj *Service) createProject(ctx context.Context, act registry.Actor, name string, raw []byte, prompt, status string,
 	more func(ctx context.Context, q *db.Queries, p db.Project) error) (db.Project, error) {
 	if !access.ProjectName.MatchString(name) || name == registry.Builtin {
 		return db.Project{}, registry.Invalid("deck: project name %q must be lowercase letters, digits and '-', start with a letter, and not be %q", name, registry.Builtin)
@@ -79,14 +79,14 @@ func (a *App) createProject(ctx context.Context, act registry.Actor, name string
 		return db.Project{}, err
 	}
 	var p db.Project
-	err = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+	err = pj.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		if _, err := q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: act.Workspace, Name: name}); err == nil {
 			return registry.Invalid("deck: project %q already exists", name)
 		}
 		if err := checkReads(ctx, q, act.Workspace, name, pm.m); err != nil {
 			return err
 		}
-		if err := a.checkToolFit(ctx, q, act.Workspace, 0, pm.m); err != nil {
+		if err := pj.checkToolFit(ctx, q, act.Workspace, 0, pm.m); err != nil {
 			return err
 		}
 		if p, err = q.CreateProject(ctx, db.CreateProjectParams{WorkspaceID: act.Workspace, Name: name, Status: status}); err != nil {
@@ -107,12 +107,12 @@ func (a *App) createProject(ctx context.Context, act registry.Actor, name string
 				return err
 			}
 		}
-		return a.Scheduler.Sync(ctx, q, p.ID, pm.m)
+		return pj.Scheduler.Sync(ctx, q, p.ID, pm.m)
 	})
 	if err != nil {
 		return db.Project{}, err
 	}
-	a.Documents.PrepareLater(p.ID)
+	pj.PrepareLater(p.ID)
 	return p, nil
 }
 
@@ -135,21 +135,21 @@ type Saved struct {
 
 // SaveManifest checks a manifest and saves it with its triggers and migrated records in one transaction; a
 // change that widens rights waits for the owner as call; nonzero ifRevision must still be current.
-func (a *App) SaveManifest(ctx context.Context, act registry.Actor, p db.Project, raw []byte, reason string, revertTo, ifRevision int64, call Call) (Saved, error) {
+func (pj *Service) SaveManifest(ctx context.Context, act registry.Actor, p db.Project, raw []byte, reason string, revertTo, ifRevision int64, call Call) (Saved, error) {
 	pm, err := parseManifest(raw, p.Builtin == 1)
 	if err != nil {
 		return Saved{}, err
 	}
-	plan, err := a.migrate(ctx, p, pm.m, revertTo)
+	plan, err := pj.migrate(ctx, p, pm.m, revertTo)
 	if err != nil {
 		return Saved{}, err
 	}
 	var saved Saved
-	err = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+	err = pj.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		if err := checkReads(ctx, q, p.WorkspaceID, p.Name, pm.m); err != nil {
 			return err
 		}
-		if err := a.checkToolFit(ctx, q, p.WorkspaceID, p.ID, pm.m); err != nil {
+		if err := pj.checkToolFit(ctx, q, p.WorkspaceID, p.ID, pm.m); err != nil {
 			return err
 		}
 		if err := checkRecords(ctx, q, p, pm.m, plan); err != nil {
@@ -166,10 +166,10 @@ func (a *App) SaveManifest(ctx context.Context, act registry.Actor, p db.Project
 		if ifRevision != 0 && cur.Current != ifRevision {
 			return registry.Conflict("deck: the manifest of %s is at revision %d now, not %d", p.Name, cur.Current, ifRevision)
 		}
-		w, err := a.widens(ctx, q, act, p.ID, pm.m)
+		w, err := pj.widens(ctx, q, act, p.ID, pm.m)
 		if err != nil || len(w) > 0 {
 			if err == nil {
-				saved, err = a.ask(ctx, q, act, p, cur.Current, w, reason, call)
+				saved, err = pj.ask(ctx, q, act, p, cur.Current, w, reason, call)
 			}
 			return err
 		}
@@ -185,43 +185,43 @@ func (a *App) SaveManifest(ctx context.Context, act registry.Actor, p db.Project
 			return err
 		}
 		for name, mg := range plan {
-			if err := applyMigration(ctx, q, store.Time(a.Cfg.Now()), p.ID, pm.m.Collection(name), mg, cur.Current, n); err != nil {
+			if err := applyMigration(ctx, q, store.Time(pj.Now()), p.ID, pm.m.Collection(name), mg, cur.Current, n); err != nil {
 				return err
 			}
 		}
-		if err = a.Devices.Changed(ctx, q, act, p.ID, cur, n, fmt.Sprintf("%s changed the manifest of %s", act.Author(), p.Name), reason); err != nil {
+		if err = pj.Changed(ctx, q, act, p.ID, cur, n, fmt.Sprintf("%s changed the manifest of %s", act.Author(), p.Name), reason); err != nil {
 			return err
 		}
-		return a.Scheduler.Sync(ctx, q, p.ID, pm.m)
+		return pj.Scheduler.Sync(ctx, q, p.ID, pm.m)
 	})
 	if err != nil || saved.Waiting != 0 {
 		return saved, err
 	}
-	a.Bus.Emit(events.Event{Workspace: p.WorkspaceID, Topic: "projects", Project: p.Name})
-	a.Documents.PrepareLater(p.ID)
-	saved.Screens = a.checkScreens(ctx, act, p, pm.m)
+	pj.Bus.Emit(events.Event{Workspace: p.WorkspaceID, Topic: "projects", Project: p.Name})
+	pj.PrepareLater(p.ID)
+	saved.Screens = pj.CheckScreens(ctx, act, p, pm.m)
 	saved.Unused = pm.m.UnusedWords()
 	return saved, nil
 }
 
 // Reconcile brings stored triggers in line with the current manifests; run it on start.
-func (a *App) Reconcile(ctx context.Context) error {
-	ps, err := a.Store.Q.ListProjects(ctx)
+func (pj *Service) Reconcile(ctx context.Context) error {
+	ps, err := pj.St.Q.ListProjects(ctx)
 	if err != nil {
 		return err
 	}
 	for _, p := range ps {
-		err := a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		err := pj.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 			m, err := docs.Manifest(ctx, q, p)
 			if err != nil {
 				return err
 			}
-			return a.Scheduler.Sync(ctx, q, p.ID, m)
+			return pj.Scheduler.Sync(ctx, q, p.ID, m)
 		})
 		if err != nil {
 			slog.Error("reconcile triggers", "project", p.Name, "err", err)
 		}
-		a.Documents.PrepareLater(p.ID)
+		pj.PrepareLater(p.ID)
 	}
 	return nil
 }

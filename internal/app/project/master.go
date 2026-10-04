@@ -1,4 +1,4 @@
-package app
+package project
 
 import (
 	"context"
@@ -16,7 +16,7 @@ import (
 )
 
 // SeedMaster stores the built-in project master in every workspace; a file someone else edited stays theirs.
-func (a *App) SeedMaster(ctx context.Context) error {
+func (pj *Service) SeedMaster(ctx context.Context) error {
 	files := map[string]string{}
 	err := fs.WalkDir(master.FS, ".", func(path string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() {
@@ -33,21 +33,21 @@ func (a *App) SeedMaster(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	ws, err := a.Store.Q.ListWorkspaces(ctx)
+	ws, err := pj.St.Q.ListWorkspaces(ctx)
 	if err != nil {
 		return err
 	}
 	for _, w := range ws {
-		if err := a.seedMaster(ctx, w, m, files); err != nil {
+		if err := pj.seedMaster(ctx, w, m, files); err != nil {
 			return err
 		}
 	}
-	a.Bus.Publish("projects")
+	pj.Bus.Publish("projects")
 	return nil
 }
 
-func (a *App) seedMaster(ctx context.Context, workspace int64, m *manifest.Manifest, files map[string]string) error {
-	return a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+func (pj *Service) seedMaster(ctx context.Context, workspace int64, m *manifest.Manifest, files map[string]string) error {
+	return pj.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		p, err := q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: workspace, Name: master.Name})
 		switch {
 		case errors.Is(err, sql.ErrNoRows):
@@ -94,6 +94,6 @@ func (a *App) seedMaster(ctx context.Context, workspace int64, m *manifest.Manif
 		if err != nil {
 			return err
 		}
-		return a.Scheduler.Sync(ctx, q, p.ID, cur)
+		return pj.Scheduler.Sync(ctx, q, p.ID, cur)
 	})
 }

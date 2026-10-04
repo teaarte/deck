@@ -21,6 +21,7 @@ import (
 	appfiles "deck2/internal/app/files"
 	"deck2/internal/app/folders"
 	"deck2/internal/app/journal"
+	"deck2/internal/app/project"
 	"deck2/internal/app/providers"
 	"deck2/internal/app/secrets"
 	"deck2/internal/app/settings"
@@ -76,6 +77,7 @@ type App struct {
 	// Answers are what waits for the owner and their answers; Asks is the broker processes wait on.
 	Answers     *asks.Service
 	Connections *connections.Service
+	Projects    *project.Service
 	Scripts     *script.Exec
 	Tools       *tools.HTTP
 	MCP         *tools.MCP
@@ -86,9 +88,6 @@ type App struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 	bg     sync.WaitGroup
-	// preparedCmds are the registry commands of each manifest revision.
-	preparedMu   sync.Mutex
-	preparedCmds map[preparedKey][]*registry.Command
 }
 
 // New starts deck with its main provider p and further built-in ones.
@@ -112,25 +111,26 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	st.Changed = func(c store.Change) {
 		a.Bus.Emit(events.Event{Workspace: c.Workspace, Topic: c.Topic, Project: c.Project})
 	}
+	a.Projects = &project.Service{St: st, Bus: a.Bus, Now: cfg.Now, Home: h, Manifests: a.Manifests, Scripts: a.Scripts}
 	a.Secrets = &secrets.Service{St: st, Dir: h.Secrets}
 	a.Folders = &folders.Service{St: st, Home: cfg.Home}
 	a.Files = &appfiles.Service{St: st, Home: h, Now: cfg.Now}
 	a.Journal = &journal.Service{St: st, Now: cfg.Now, Backups: h.Backups()}
 	a.Triggers = &triggers.Service{St: st}
 	a.Documents = &documents.Service{St: st, Now: cfg.Now, Sandbox: cfg.Sandbox, Ctx: a.ctx, BG: &a.bg,
-		SaveManifest: a.saveManifestAny}
+		SaveManifest: a.Projects.SaveCall}
 	a.Snapshots = &snapshots.Service{St: st, Bus: a.Bus, Home: h, Now: cfg.Now, LockFiles: a.Files.Mu.Lock, UnlockFiles: a.Files.Mu.Unlock,
 		RemoveFiles: a.Files.Remove}
 	a.Settings = &settings.Service{St: st, DefaultTTL: cfg.ConfirmTTL, Wake: func(ctx context.Context) { a.Runner.Wake(ctx) }}
 	a.Asks = ask.NewBroker(st, a.Bus, cfg.Now)
-	a.Registry = registry.New(a.projectCommands)
+	a.Registry = registry.New(a.Projects.ProjectCommands)
 	a.Registry.SetPublish(a.Bus.Publish)
 	a.Board = &board.Service{St: st, Bus: a.Bus, Now: cfg.Now, Fire: a.fire}
 	a.Providers = &providers.Service{St: st, Bus: a.Bus, Now: cfg.Now, Home: cfg.Home, Sandbox: cfg.Sandbox, ACPBinaries: cfg.ACPBinaries,
 		ACPCallLimit: cfg.ACPCallLimit, SelfCheckCeiling: cfg.SelfCheckCeiling, Secret: a.Secrets.Secret, Wake: func(ctx context.Context) { a.Runner.Wake(ctx) },
 		Builtin: append([]provider.Provider{p}, more...), Ctx: a.ctx, BG: &a.bg}
-	a.Answers = &asks.Service{St: st, Now: cfg.Now, Broker: a.Asks, Registry: a.Registry, AnswerGrant: a.grantAnswer,
-		SaveManifest: a.saveManifestAny}
+	a.Answers = &asks.Service{St: st, Now: cfg.Now, Broker: a.Asks, Registry: a.Registry, AnswerGrant: a.Projects.AnswerGrant,
+		SaveManifest: a.Projects.SaveCall}
 	a.Connections = &connections.Service{St: st, Ctx: a.ctx, Broker: a.Asks}
 	a.Suggest = &suggest.Service{St: st, Bus: a.Bus, Now: cfg.Now, Registry: a.Registry, Asks: a.Asks, Days: a.Settings.SuggestDays}
 	a.Chats = &chat.Service{St: st, Bus: a.Bus, Now: cfg.Now, Asks: a.Asks, For: a.For}
@@ -168,11 +168,16 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	a.Runner.Hooks = []process.Hook{a.Chats.NewHook(), errorsHook{a: a}, afterHook{a: a}}
 	a.Scheduler = trigger.New(st, a, cfg.Now)
 	a.Triggers.Scheduler, a.Triggers.Gateway, a.Triggers.Registry = a.Scheduler, a.Gateway, a.Registry
+	pj := a.Projects
+	pj.Registry, pj.Gateway, pj.Runner, pj.Scheduler, pj.Broker = a.Registry, a.Gateway, a.Runner, a.Scheduler, a.Asks
+	pj.Tools, pj.MCP, pj.Host = a.Tools, a.MCP, a.Host
+	pj.PrepareLater, pj.Changed, pj.Folders = a.Documents.PrepareLater, a.Devices.Changed, a.Folders.List
+	pj.Snapshot, pj.RemoveFiles, pj.CheckScreens = a.Snapshots.Snapshot, a.Files.Remove, a.checkScreens
 	a.Asks.OnLateAnswer(a.Answers.LateAnswer)
 	if err := a.Documents.SeedSkills(a.ctx); err != nil {
 		return nil, err
 	}
-	if err := a.SeedMaster(a.ctx); err != nil {
+	if err := a.Projects.SeedMaster(a.ctx); err != nil {
 		return nil, err
 	}
 	a.Devices.WatchPush()
@@ -415,10 +420,13 @@ func (a *App) Skills(ctx context.Context, projectID int64, names []string) (map[
 	return a.Documents.Skills(ctx, projectID, names)
 }
 
-// saveManifestAny is SaveManifest for a service that names the call the owner allows by command and input.
-func (a *App) saveManifestAny(ctx context.Context, act registry.Actor, p db.Project, raw []byte, reason string, revertTo, ifRevision int64,
-	command string, input map[string]any) (any, error) {
-	return a.SaveManifest(ctx, act, p, raw, reason, revertTo, ifRevision, Call{Command: command, Input: input})
+// Prompt and Text are the prompt and documents of a project, for the runner.
+func (a *App) Prompt(ctx context.Context, projectID int64) (string, error) {
+	return a.Projects.Prompt(ctx, projectID)
+}
+
+func (a *App) Text(ctx context.Context, projectID int64, kind, name string) (string, error) {
+	return a.Projects.Text(ctx, projectID, kind, name)
 }
 
 // Servers starts the MCP servers of a project whose tools deck has not listed yet, for the runner.

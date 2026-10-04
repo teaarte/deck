@@ -21,11 +21,3 @@ func words(lang string, m *manifest.Manifest) map[string]string {
 	}
 	return out
 }
-
-// tr is a text in a language by words, or the text itself.
-func tr(ws map[string]string, s string) string {
-	if t := ws[s]; t != "" {
-		return t
-	}
-	return s
-}

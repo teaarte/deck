@@ -1,51 +1,25 @@
 package app
 
 import (
-	"cmp"
 	"context"
 	_ "embed"
 
-	"deck2/internal/manifest"
+	"deck2/internal/app/project"
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
 )
 
-// projectNav is how a project shows in the menu and in the list of projects: its title, its icon and the
-// screens of its menu, in the owner's words.
-func projectNav(p db.Project, m *manifest.Manifest, ws map[string]string) (string, string, []screenLink) {
-	names := m.Menu
-	if len(names) == 0 {
-		for _, s := range m.Screens {
-			if s.Record == "" {
-				names = append(names, s.Name)
-			}
-		}
-	}
-	links := []screenLink{}
-	for _, n := range names {
-		s := m.Screen(n)
-		links = append(links, screenLink{Name: n, Title: tr(ws, s.Title), Icon: s.Icon})
-	}
-	return tr(ws, cmp.Or(m.Title, p.Name)), m.Icon, links
-}
-
 type menuEntry struct {
-	Project string       `json:"project,omitempty"`
-	Title   string       `json:"title"`
-	Icon    string       `json:"icon,omitempty"`
-	Screens []screenLink `json:"screens"`
+	Project string               `json:"project,omitempty"`
+	Title   string               `json:"title"`
+	Icon    string               `json:"icon,omitempty"`
+	Screens []project.ScreenLink `json:"screens"`
 	// Extra are the screens deck adds to every project, shown apart from the project's own.
-	Extra []screenLink `json:"extra,omitempty"`
+	Extra []project.ScreenLink `json:"extra,omitempty"`
 	// Running, Asks and Errors are the project's running processes, open questions and failing health rows.
 	Running int64 `json:"running,omitempty"`
 	Asks    int64 `json:"asks,omitempty"`
 	Errors  int64 `json:"errors,omitempty"`
-}
-
-type screenLink struct {
-	Name  string `json:"name"`
-	Title string `json:"title"`
-	Icon  string `json:"icon,omitempty"`
 }
 
 // menu is the navigation of the client: deck's screens, then each project's menu, or all its screens without one.
@@ -58,7 +32,7 @@ func (a *App) menu(ctx context.Context, act registry.Actor, in menuIn) (any, err
 	deckWords := words(in.Lang, nil)
 	for _, name := range shipped().Menu {
 		s := deckScreen(name)
-		out[0].Screens = append(out[0].Screens, screenLink{Name: name, Title: tr(deckWords, s.Title), Icon: s.Icon})
+		out[0].Screens = append(out[0].Screens, project.ScreenLink{Name: name, Title: project.Tr(deckWords, s.Title), Icon: s.Icon})
 	}
 	ps, err := a.Store.Q.ListWorkspaceProjects(ctx, act.Workspace)
 	if err != nil {
@@ -81,10 +55,10 @@ func (a *App) menu(ctx context.Context, act registry.Actor, in menuIn) (any, err
 		r := pulse[p.ID]
 		ws := words(in.Lang, m)
 		e := menuEntry{Project: p.Name, Running: r.Running, Asks: r.Asks, Errors: r.Errors}
-		e.Title, e.Icon, e.Screens = projectNav(p, m, ws)
+		e.Title, e.Icon, e.Screens = project.Nav(p, m, ws)
 		for _, s := range shipped().Project {
 			if s.Record == "" && m.Screen(s.Name) == nil {
-				e.Extra = append(e.Extra, screenLink{Name: s.Name, Title: tr(ws, s.Title), Icon: s.Icon})
+				e.Extra = append(e.Extra, project.ScreenLink{Name: s.Name, Title: project.Tr(ws, s.Title), Icon: s.Icon})
 			}
 		}
 		out = append(out, e)

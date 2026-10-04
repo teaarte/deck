@@ -63,3 +63,46 @@ func TestAChangeOfAnotherProjectDoesNotRereadAScreen(t *testing.T) {
 		t.Fatalf("a change in a reads the block of c that reads a: %s", got)
 	}
 }
+
+// TestACardThatLeavesARedrawsBothBoards: a card moved to another project is heard on the board it left and on the
+// one it entered.
+func TestACardThatLeavesARedrawsBothBoards(t *testing.T) {
+	e := newEnv(t, idle)
+	e.createProject("work", boardManifest)
+	e.createProject("home", boardManifest)
+	c := e.card(map[string]any{"project": "work", "title": "Move me"})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	phone := e.live(ctx)
+	e.must("deck.card_transfer", map[string]any{"card": c.ID, "project": "home"}, nil)
+	heard := map[string]bool{}
+	timeout := time.After(5 * time.Second)
+	for !heard["work"] || !heard["home"] {
+		select {
+		case ev := <-phone:
+			if ev.Topic == "board" {
+				heard[ev.Project] = true
+			}
+		case <-timeout:
+			t.Fatalf("both boards are heard: %v", heard)
+		}
+	}
+}
+
+// TestABlockThatReadsEveryProjectFollowsThemAll: a block whose read names no project follows the changes of every
+// project, and a when of another screen does not draw that screen whole for them.
+func TestABlockThatReadsEveryProjectFollowsThemAll(t *testing.T) {
+	e := newEnv(t, boardWebAgent())
+	e.createProject("a", boardWebManifest)
+	e.createProject("b", strings.Replace(boardWebManifest, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "blocks": [
+      {"type": "list", "title": "All files", "source": {"from": "deck.files_list", "input": {"project": ""}}, "item": {"title": "name"}},
+      {"type": "stat", "title": "Some", "when": "len(rows) > 0", "source": {"collection": "notes"}},`, 1))
+	msgs := e.screenMessages("b", "main", map[string]any{"topic": "files", "changed": "a"})
+	drawn, _ := json.Marshal(msgs)
+	if !strings.Contains(string(drawn), `"path":"/b0"`) {
+		t.Fatalf("the files of every project are read again for a change in a: %s", drawn)
+	}
+	if msgs := e.screenMessages("b", "main", map[string]any{"topic": "collection", "changed": "a"}); len(msgs) > 0 && msgs[0]["createSurface"] != nil {
+		t.Fatal("a when over b's notes does not draw b whole for a change in a")
+	}
+}

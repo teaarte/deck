@@ -62,7 +62,9 @@ func Waits(ctx context.Context, q *db.Queries, projectID int64) (map[int64][]int
 
 // boardWrite is one card write: the project, its manifest, and the cards that entered a lane.
 type boardWrite struct {
-	p       db.Project
+	p db.Project
+	// from is the project a card left, whose board changed too.
+	from    db.Project
 	m       *manifest.Manifest
 	entered []entry
 	// parent is the process of the agent that moved the cards; the lane commands continue its chain.
@@ -86,6 +88,9 @@ func (s *Service) writeBoard(ctx context.Context, act registry.Actor, f func(ctx
 		return err
 	}
 	s.Bus.Emit(events.Event{Workspace: w.p.WorkspaceID, Topic: "board", Project: w.p.Name})
+	if w.from.ID != 0 {
+		s.Bus.Emit(events.Event{Workspace: w.from.WorkspaceID, Topic: "board", Project: w.from.Name})
+	}
 	for _, e := range w.entered {
 		s.laneTriggers(ctx, w.p, w.m, e.card, e.lane, w.parent)
 	}

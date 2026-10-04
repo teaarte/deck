@@ -70,6 +70,12 @@
   box-shadow: 3px 3px 0 0 var(--mantine-color-text);
 }
 
+:root[data-deck-theme='pixel'] [data-actions],
+:root[data-deck-theme='pixel'] [data-screen-head] .mantine-Group-root {
+  gap: 10px;
+  padding: 0 3px 3px 0;
+}
+
 :root[data-deck-theme='pixel'] [data-nav] a[data-active] {
   box-shadow: 3px 3px 0 0 var(--mantine-color-text);
 }

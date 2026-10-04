@@ -28,6 +28,7 @@ export function Appearance({ part }: { part?: string }) {
   return (
     <Stack gap="lg" data-appearance>
       <Text size="sm" c="dimmed">{t('look.device')}</Text>
+      <Language />
       <Choice label={t('look.theme')} name="theme" value={look.theme} options={THEMES} onChange={(v: Look['theme']) => setLook({ theme: v })} />
       <SimpleGrid cols={{ base: 1, md: 2 }} spacing="lg" verticalSpacing="lg">
         <Choice label={t('look.scheme')} name="scheme" value={colorScheme} options={['auto', 'light', 'dark'] as MantineColorScheme[]}
@@ -61,6 +62,27 @@ export function Appearance({ part }: { part?: string }) {
         <Choice label={t('look.font')} name="font" value={look.font} options={FONTS} onChange={(v: Look['font']) => setLook({ font: v })} />
         <Choice label={t('look.radius')} name="radius" value={look.radius} options={RADII} onChange={(v: Look['radius']) => setLook({ radius: v })} />
       </SimpleGrid>
+    </Stack>
+  );
+}
+
+// Language is the language of the interface for the whole workspace; auto follows each device.
+function Language() {
+  const { t } = useTranslation();
+  const [value, setValue] = useState(() => localStorage.getItem('deck-language') ?? 'auto');
+  const pick = async (v: string) => {
+    setValue(v);
+    try {
+      await call('deck.settings_set', { language: v });
+    } catch (e) {
+      notifications.show({ title: t('look.language'), message: (e as Error).message, color: 'red' });
+    }
+  };
+  return (
+    <Stack gap={6}>
+      <Text size="sm" fw={600}>{t('look.language')}</Text>
+      <SegmentedControl data-look="language" value={value} onChange={(v) => void pick(v)} fullWidth size="xs" radius="xl"
+        data={[{ value: 'auto', label: t('look.auto') }, { value: 'en', label: 'English' }, { value: 'ru', label: 'Русский' }]} />
     </Stack>
   );
 }

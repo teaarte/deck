@@ -20,7 +20,7 @@ import (
 )
 
 const boardManifest = `{
-  "version": 5,
+  "version": 6,
   "collections": [{"name": "items", "description": "An item", "key": "url",
     "schema": {"type": "object", "properties": {"url": {"type": "string"}}, "required": ["url"]}}],
   "commands": [{"name": "pack", "title": "Pack", "description": "Packs the card.", "class": "internal",
@@ -381,7 +381,7 @@ func TestADeletedCardGoesADayLaterByTheClockOfDeck(t *testing.T) {
 }
 
 // twoLanes has a command on entering each of two lanes.
-const twoLanes = `{"version": 5,
+const twoLanes = `{"version": 6,
   "commands": [
     {"name": "onx", "title": "X", "description": "Runs in x.", "class": "internal",
       "input": {"type": "object", "properties": {"card": {"type": "integer", "format": "card"}}, "required": ["card"]},

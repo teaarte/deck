@@ -21,7 +21,7 @@ import (
 
 // webManifest is a project with every block of the catalog, a record page and an external tool.
 func webManifest(url string) string {
-	return fmt.Sprintf(`{"version": 5,
+	return fmt.Sprintf(`{"version": 6,
   "collections": [{"name": "notes", "description": "Notes", "key": "title", "display": "title",
     "schema": {"type": "object", "properties": {"title": {"type": "string"}, "score": {"type": "integer"}}, "required": ["title"]}}],
   "commands": [
@@ -599,7 +599,7 @@ func TestButtonsOfARecordPageFollowTheRecordAfterAnEvent(t *testing.T) {
 // its when holds for, takes a param from an expression over the row, asks first or asks for a typed value.
 func TestAModuleButtonShowsWhereItHoldsAndTakesValuesFromTheRow(t *testing.T) {
 	e := newEnv(t, nil)
-	e.createProject("notes", `{"version": 5,
+	e.createProject("notes", `{"version": 6,
   "collections": [{"name": "notes", "description": "Notes", "key": "title", "display": "title",
     "schema": {"type": "object", "properties": {"title": {"type": "string"}, "score": {"type": "integer"}}, "required": ["title"]}}],
   "commands": [{"name": "touch", "title": "Touch", "description": "Touches a note.", "class": "internal", "result": {"type": "object"},

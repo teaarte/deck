@@ -53,7 +53,7 @@ func (e *Env) screenRows(project int64, screen string) []screenRow {
 
 // boardWebManifest is a project with a board, a form that can keep its result, a custom block and a record
 // page whose form edits the record.
-const boardWebManifest = `{"version": 5,
+const boardWebManifest = `{"version": 6,
   "collections": [{"name": "notes", "description": "Notes", "key": "title", "display": "title", "immutable": ["source"],
     "schema": {"type": "object", "properties": {"title": {"type": "string"}, "score": {"type": "integer"}, "source": {"type": "string"},
       "note": {"type": "string"}}, "required": ["title"]}}],

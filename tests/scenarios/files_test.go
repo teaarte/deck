@@ -47,7 +47,7 @@ func (e *Env) upload(project, name, ctype, content string) int64 {
 }
 
 func filesManifest() string {
-	return `{"version": 5,
+	return `{"version": 6,
   "collections": [{"name": "items", "description": "An item.", "key": "name",
     "schema": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}}],
   "commands": [
@@ -282,7 +282,7 @@ func TestAgentGetsACopyOfItsInputFile(t *testing.T) {
 		}
 		return provider.Result{Structured: json.RawMessage(`{}`)}
 	})
-	e.createProject("docs", `{"version": 5, "commands": [{"name": "look", "title": "Look", "description": "Looks at a file.", "class": "internal",
+	e.createProject("docs", `{"version": 6, "commands": [{"name": "look", "title": "Look", "description": "Looks at a file.", "class": "internal",
 	  "input": {"type": "object", "properties": {"doc": {"type": "string", "format": "file"}}}, "result": {"type": "object"},
 	  "executor": {"type": "agent", "prompt": "Look."}}]}`)
 	doc := e.upload("docs", "a.txt", "text/plain", "hello")

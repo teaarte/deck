@@ -22,6 +22,44 @@ var upgrades = map[int]func(m map[string]any){
 			dropEmpty(c, "requires")
 		}
 	},
+	5: func(m map[string]any) {
+		for _, s := range items(m["screens"]) {
+			params, _ := s["params"].(map[string]any)
+			if params == nil {
+				params = map[string]any{}
+			}
+			s["blocks"] = fromParam(s["blocks"], params)
+			if len(params) > 0 {
+				s["params"] = params
+			}
+		}
+	},
+}
+
+// fromParam turns the $param.<name> values of format 5 into =param.<name>, declaring each name as text, and
+// drops menu of an actions block.
+func fromParam(v any, params map[string]any) any {
+	switch v := v.(type) {
+	case map[string]any:
+		if v["type"] == "actions" {
+			delete(v, "menu")
+		}
+		for k, x := range v {
+			v[k] = fromParam(x, params)
+		}
+	case []any:
+		for i, x := range v {
+			v[i] = fromParam(x, params)
+		}
+	case string:
+		if name, ok := strings.CutPrefix(v, "$param."); ok {
+			if _, declared := params[name]; !declared {
+				params[name] = "string"
+			}
+			return "=param." + name
+		}
+	}
+	return v
 }
 
 // dropEmpty removes keys whose value is null, an empty string or an empty list.

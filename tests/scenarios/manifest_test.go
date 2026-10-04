@@ -11,7 +11,7 @@ import (
 )
 
 const fullManifest = `{
-  "version": 5,
+  "version": 6,
   "collections": [
     {"name": "sources", "description": "A page to watch", "key": "url", "display": "url",
      "schema": {"type": "object", "properties": {"url": {"type": "string"}, "status": {"type": "string"}}, "required": ["url"]}},
@@ -273,7 +273,7 @@ func TestImmutableFieldsCannotChange(t *testing.T) {
 
 func TestKeyFieldsStayAndEmptyTriggersAreRefused(t *testing.T) {
 	e := newEnv(t, nil)
-	contacts := `{"version": 5,
+	contacts := `{"version": 6,
 	  "collections": [{"name": "contacts", "description": "People", "key": "lower(email)",
 	    "schema": {"type": "object", "properties": {"email": {"type": "string"}, "big": {"type": "integer"}}, "required": ["email"]}}],
 	  "commands": [{"name": "fetch-all", "title": "Fetch", "description": "Fetches <all> & more", "class": "internal",
@@ -302,15 +302,15 @@ func TestKeyFieldsStayAndEmptyTriggersAreRefused(t *testing.T) {
 // TestAManifestOlderThanFormat4IsRefused: format 4 is still raised to the current one; older ones are refused.
 func TestAManifestOlderThanFormat4IsRefused(t *testing.T) {
 	e := newEnv(t, nil)
-	v4 := strings.Replace(ideasManifest, `"version": 5,`, `"version": 4,`, 1)
+	v4 := strings.Replace(ideasManifest, `"version": 6,`, `"version": 4,`, 1)
 	e.createProject("ideas", v4)
 	var cur struct{ Manifest string }
 	e.must("deck.manifest_get", map[string]any{"project": "ideas"}, &cur)
-	if !strings.Contains(cur.Manifest, `"version": 5`) {
-		t.Fatalf("a format 4 manifest is stored as format 5:\n%s", cur.Manifest)
+	if !strings.Contains(cur.Manifest, `"version": 6`) {
+		t.Fatalf("a format 4 manifest is stored in the current format:\n%s", cur.Manifest)
 	}
-	v3 := strings.Replace(ideasManifest, `"version": 5,`, `"version": 3,`, 1)
-	e.refused("deck.project_create", map[string]any{"name": "old", "manifest": v3}, 422, "version must be 5")
+	v3 := strings.Replace(ideasManifest, `"version": 6,`, `"version": 3,`, 1)
+	e.refused("deck.project_create", map[string]any{"name": "old", "manifest": v3}, 422, "version must be 6")
 }
 
 // TestOnlyTheBuiltInProjectAnswersEventsOfDeck: a trigger on a message or a failure belongs to project master.
@@ -334,11 +334,11 @@ func TestFormatFiveDropsWhatNothingDoes(t *testing.T) {
 	e.createProject("old", old)
 	var got struct{ Manifest string }
 	e.must("deck.manifest_get", map[string]any{"project": "old"}, &got)
-	if !strings.Contains(got.Manifest, `"version": 5`) || strings.Contains(got.Manifest, "master_events") ||
+	if !strings.Contains(got.Manifest, `"version": 6`) || strings.Contains(got.Manifest, "master_events") ||
 		strings.Contains(got.Manifest, "live_input") || strings.Contains(got.Manifest, "browser_click") || strings.Contains(got.Manifest, "structured_output") || !strings.Contains(got.Manifest, `"no_cloud"`) {
 		t.Fatalf("format 4 comes up to 5 without the fields nothing reads:\n%s", got.Manifest)
 	}
-	code, out := e.call("deck.manifest_save", map[string]any{"project": "old", "manifest": strings.Replace(old, `"version": 4`, `"version": 5`, 1)})
+	code, out := e.call("deck.manifest_save", map[string]any{"project": "old", "manifest": strings.Replace(old, `"version": 4`, `"version": 6`, 1)})
 	if code == 200 || !strings.Contains(string(out), "master_events") {
 		t.Fatalf("format 5 has no master_events: %d %s", code, out)
 	}
@@ -370,4 +370,23 @@ func TestVariablesNeedKnownFields(t *testing.T) {
 	m := strings.NewReplacer(`"schema": {"type": "object", "properties": {"n": {"type": "integer"}}, "required": ["n"]}`, `"schema": {"type": "object"}`,
 		`"key": "n"`, `"key": "n", "display": "let n = 'x'; n"`).Replace(calcManifest)
 	e.refused("deck.project_create", map[string]any{"name": "a", "manifest": m}, 422, "need a schema that lists its properties")
+}
+
+// TestAFormatFiveManifestKeepsItsParamsAndMenus: a manifest of format 5 still loads; its $param values are read
+// as declared params, and the menu of a group of buttons is dropped.
+func TestAFormatFiveManifestKeepsItsParamsAndMenus(t *testing.T) {
+	e := newEnv(t, nil)
+	old := strings.Replace(strings.Replace(boardWebManifest, `"version": 6,`, `"version": 5,`, 1), `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "blocks": [
+      {"type": "form", "title": "Again", "command": "score", "values": {"title": "$param.title"}},
+      {"type": "actions", "title": "More", "menu": true, "actions": [{"label": "Tell", "command": "tell"}]},`, 1)
+	e.createProject("web", old)
+	var cur struct{ Manifest string }
+	e.must("deck.manifest_get", map[string]any{"project": "web"}, &cur)
+	if !strings.Contains(cur.Manifest, `"=param.title"`) || !strings.Contains(cur.Manifest, `"title": "string"`) || strings.Contains(cur.Manifest, `"menu": true`) {
+		t.Fatalf("format 5 is raised to the current one:\n%s", cur.Manifest)
+	}
+	data := e.screenData("web", "main", map[string]any{"params": `{"title": "alpha"}`})
+	if !strings.Contains(string(data["b0"]["value"]), `"values":{"title":"alpha"}`) {
+		t.Fatalf("the declared param fills the form: %s", data["b0"]["value"])
+	}
 }

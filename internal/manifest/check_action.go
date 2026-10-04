@@ -8,7 +8,12 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+
+	"deck2/schemas"
 )
+
+// deckLink tells where a screen of deck opens from.
+const deckLink = "a screen of deck opens from a link [text](#/deck/<screen>?<param>=<value>) in a text shown with markdown"
 
 // action checks a button: a command the owner may call, a screen to open with the record it needs, or a file;
 // its condition and the values it takes from the item read fields the item has.
@@ -54,6 +59,8 @@ func (c *screenCheck) action(b Block, a Action, fields []string) error {
 			return errors.New("a button of a deck screen calls a deck command")
 		}
 		return nil
+	case a.Command != "" && strings.HasPrefix(a.Command, schemas.Builtin+".") && c.m.commands[a.Command] == nil:
+		return fmt.Errorf("unknown command %q: a button calls a command of its module; %s", a.Command, deckLink)
 	case a.Command != "":
 		return c.m.checkAction(a)
 	case a.File != "" || c.deck:
@@ -63,8 +70,7 @@ func (c *screenCheck) action(b Block, a Action, fields []string) error {
 	}
 	target := c.m.Screen(a.Screen)
 	if target == nil {
-		return fmt.Errorf("unknown screen %q: a button opens a screen of its module; a screen of deck opens from a link "+
-			"[text](#/deck/<screen>?<param>=<value>) in a text shown with markdown", a.Screen)
+		return fmt.Errorf("unknown screen %q: a button opens a screen of its module; %s", a.Screen, deckLink)
 	}
 	for k := range a.Params {
 		if _, ok := target.Params[k]; !ok && k != "tab" && k != "dialog" && c.warn != nil {

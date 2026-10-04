@@ -119,6 +119,11 @@ func TestRefusalsSayWhereAndWhatToDo(t *testing.T) {
 	if code != 422 || !strings.Contains(string(out), `unknown screen "process"`) || !strings.Contains(string(out), "#/deck/") {
 		t.Fatalf("a button to a screen the module lacks says how to open a screen of deck: %d %s", code, out)
 	}
+	deckCmd := strings.Replace(boardWebManifest, `{"label": "Mark", "command": "mark"}`, `{"label": "Mark", "command": "deck.provider_add"}`, 1)
+	code, out = e.call("deck.project_create", map[string]any{"name": "web", "manifest": deckCmd})
+	if code != 422 || !strings.Contains(string(out), `unknown command "deck.provider_add"`) || !strings.Contains(string(out), "#/deck/") {
+		t.Fatalf("a button to a command of deck says how to open a screen of deck: %d %s", code, out)
+	}
 	e.must("deck.document_save", map[string]any{"project": "master", "name": "notes.md", "kind": "artifact", "text": "one two three"}, nil)
 	code, out = e.call("deck.document_save", map[string]any{"project": "master", "name": "notes.md", "kind": "artifact",
 		"old": []string{"one two", "two three"}, "new": []string{"1 2", "2 3"}})

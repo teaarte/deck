@@ -102,6 +102,9 @@ func (pj *Service) projectEnable(ctx context.Context, act registry.Actor, in pro
 			}
 			return err
 		}
+		if err := q.GrantProject(ctx, db.GrantProjectParams{GrantedRevision: store.ID(in.Revision), ID: p.ID}); err != nil {
+			return err
+		}
 		rows, err := q.ListProjectTriggers(ctx, p.ID)
 		if err != nil {
 			return err

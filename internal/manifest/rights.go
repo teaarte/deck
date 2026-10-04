@@ -69,23 +69,8 @@ func Widens(prev, next *Manifest) []string {
 			add("command %s: callable by %s", c.Name, who)
 		}
 	}
-	prevHTTP := map[string]HTTPTool{}
-	for _, t := range prev.Tools.HTTP {
-		prevHTTP[t.Name] = t
-	}
 	for _, t := range next.Tools.HTTP {
-		old, ok := prevHTTP[t.Name]
-		for _, sc := range added(toolSecrets(old), toolSecrets(t)) {
-			add("secret: %s", sc)
-		}
-		switch {
-		case !ok && t.Class != "external":
-			add("tool %s: new with class %s", t.Name, t.Class)
-		case ok && registry.ClassRank(t.Class) < registry.ClassRank(old.Class):
-			add("tool %s: class %s instead of %s", t.Name, t.Class, old.Class)
-		case ok && (t.Class != "external" || slices.Contains(prev.AllowedExternal, t.Name) && slices.Contains(next.AllowedExternal, t.Name)) && !sameCall(old, t):
-			add("tool %s runs without asking: method, URL, headers, auth or body changed", t.Name)
-		}
+		out = append(out, toolWidens(prev, next, t)...)
 	}
 	for _, name := range sortedKeys(next.Tools.MCP.Servers) {
 		s := next.Tools.MCP.Servers[name]
@@ -125,6 +110,71 @@ func Widens(prev, next *Manifest) []string {
 		}
 		for _, d := range added(old.Documents, r.Documents) {
 			add("reads document %s/%s", r.Project, d)
+		}
+	}
+	return out
+}
+
+// toolWidens lists what HTTP tool t of next grants beyond its namesake in prev: secrets, a milder class, a
+// changed call that runs without asking.
+func toolWidens(prev, next *Manifest, t HTTPTool) []string {
+	var out []string
+	add := func(format string, a ...any) { out = append(out, fmt.Sprintf(format, a...)) }
+	i := slices.IndexFunc(prev.Tools.HTTP, func(o HTTPTool) bool { return o.Name == t.Name })
+	var old HTTPTool
+	if i >= 0 {
+		old = prev.Tools.HTTP[i]
+	}
+	for _, sc := range added(toolSecrets(old), toolSecrets(t)) {
+		add("secret: %s", sc)
+	}
+	switch {
+	case i < 0 && t.Class != "external":
+		add("tool %s: new with class %s", t.Name, t.Class)
+	case i >= 0 && registry.ClassRank(t.Class) < registry.ClassRank(old.Class):
+		add("tool %s: class %s instead of %s", t.Name, t.Class, old.Class)
+	case i >= 0 && (t.Class != "external" || slices.Contains(prev.AllowedExternal, t.Name) && slices.Contains(next.AllowedExternal, t.Name)) && !sameCall(old, t):
+		add("tool %s runs without asking: method, URL, headers, auth or body changed", t.Name)
+	}
+	return out
+}
+
+// Clip is m with only the rights granted gives: autonomy, network, allowed external actions, domains and reads
+// it lacks are dropped, and an HTTP tool that would widen them is external and asks the owner on every call.
+func Clip(granted, m *Manifest) *Manifest {
+	c := *m
+	if granted.Autonomy != "auto" {
+		c.Autonomy = ""
+	}
+	c.NoNetwork = m.NoNetwork || granted.NoNetwork
+	c.Domains = Domains{Read: kept(m.Domains.Read, granted.Domains.Read), Act: kept(m.Domains.Act, granted.Domains.Act)}
+	c.AllowedExternal = kept(m.AllowedExternal, granted.AllowedExternal)
+	c.Tools.HTTP = slices.Clone(m.Tools.HTTP)
+	for i, t := range c.Tools.HTTP {
+		if len(toolWidens(granted, m, t)) > 0 {
+			c.Tools.HTTP[i].Class = registry.External
+			c.AllowedExternal = slices.DeleteFunc(c.AllowedExternal, func(n string) bool { return n == t.Name })
+		}
+	}
+	c.Reads = nil
+	for _, r := range m.Reads {
+		i := slices.IndexFunc(granted.Reads, func(g Read) bool { return g.Project == r.Project })
+		if i < 0 {
+			continue
+		}
+		g := granted.Reads[i]
+		r.Collections, r.Documents = kept(r.Collections, g.Collections), kept(r.Documents, g.Documents)
+		c.Reads = append(c.Reads, r)
+	}
+	return &c
+}
+
+// kept are the values of next that granted has too.
+func kept(next, granted []string) []string {
+	var out []string
+	for _, n := range next {
+		if slices.Contains(granted, n) {
+			out = append(out, n)
 		}
 	}
 	return out

@@ -93,7 +93,11 @@ func (pj *Service) createProject(ctx context.Context, act registry.Actor, name s
 			return err
 		}
 		ref := docs.Ref{Scope: docs.ProjectScope(p), Name: docs.ManifestName}
-		if _, _, _, err := docs.Save(ctx, q, ref, docs.KindManifest, string(pm.text), act.Author(), "create project"); err != nil {
+		_, n, _, err := docs.Save(ctx, q, ref, docs.KindManifest, string(pm.text), act.Author(), "create project")
+		if err != nil {
+			return err
+		}
+		if err := grant(ctx, q, p, n, pm.m); err != nil {
 			return err
 		}
 		if prompt != "" {
@@ -181,6 +185,9 @@ func (pj *Service) SaveManifest(ctx context.Context, act registry.Actor, p db.Pr
 		if saved.Revision = n; !changed {
 			return nil
 		}
+		if err := grant(ctx, q, p, n, pm.m); err != nil {
+			return err
+		}
 		if err := q.DeleteScreenHealth(ctx, store.ID(p.ID)); err != nil {
 			return err
 		}
@@ -202,6 +209,27 @@ func (pj *Service) SaveManifest(ctx context.Context, act registry.Actor, p db.Pr
 	saved.Screens = pj.CheckScreens(ctx, act, p, pm.m)
 	saved.Unused = pm.m.UnusedWords()
 	return saved, nil
+}
+
+// grant moves the rights the owner gave to revision n of the manifest: an enabled project's save passed the
+// owner's check of what it widens; a draft's only when it widens nothing beyond the grant.
+func grant(ctx context.Context, q *db.Queries, p db.Project, n int64, next *manifest.Manifest) error {
+	p, err := q.GetProject(ctx, p.ID)
+	if err != nil {
+		return err
+	}
+	if p.Status != store.ProjectEnabled {
+		prev := &manifest.Manifest{}
+		if p.GrantedRevision.Valid {
+			if prev, err = docs.ManifestAt(ctx, q, p.ID, p.GrantedRevision.Int64); err != nil {
+				return err
+			}
+		}
+		if len(manifest.Widens(prev, next)) > 0 {
+			return nil
+		}
+	}
+	return q.GrantProject(ctx, db.GrantProjectParams{GrantedRevision: store.ID(n), ID: p.ID})
 }
 
 // Reconcile brings stored triggers in line with the current manifests; run it on start.

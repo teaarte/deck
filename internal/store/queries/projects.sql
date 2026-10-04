@@ -47,3 +47,7 @@ LEFT JOIN (SELECT x.project_id, count(*) AS n FROM process x WHERE x.state = 'ru
 LEFT JOIN (SELECT y.project_id, count(*) AS n FROM ask y WHERE y.workspace_id = sqlc.arg(workspace_id) AND y.state = 'open' GROUP BY y.project_id) a ON a.project_id = p.id
 LEFT JOIN (SELECT z.project_id, count(*) AS n FROM health z WHERE z.workspace_id = sqlc.arg(workspace_id) AND z.status = 'error' GROUP BY z.project_id) h ON h.project_id = p.id
 WHERE p.workspace_id = sqlc.arg(workspace_id);
+
+
+-- name: GrantProject :exec
+UPDATE project SET granted_revision = ? WHERE id = ?;

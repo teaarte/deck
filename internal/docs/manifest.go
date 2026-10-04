@@ -78,3 +78,33 @@ func parse(doc, revision int64, text string) (*manifest.Manifest, error) {
 	parsed.Unlock()
 	return m, nil
 }
+
+// InForce is m, a manifest of project p, with only the rights the owner gave: those of the granted revision;
+// the built-in project has every right.
+func InForce(ctx context.Context, q *db.Queries, p db.Project, m *manifest.Manifest) (*manifest.Manifest, error) {
+	if p.Builtin == 1 || p.GrantedRevision.Valid && p.GrantedRevision.Int64 == m.Revision && m.Revision != 0 {
+		return m, nil
+	}
+	granted := &manifest.Manifest{}
+	if p.GrantedRevision.Valid {
+		g, err := ManifestAt(ctx, q, p.ID, p.GrantedRevision.Int64)
+		if err != nil {
+			return nil, err
+		}
+		granted = g
+	}
+	return manifest.Clip(granted, m), nil
+}
+
+// CurrentInForce is the current manifest of a project with the rights the owner gave.
+func CurrentInForce(ctx context.Context, q *db.Queries, projectID int64) (*manifest.Manifest, error) {
+	p, err := q.GetProject(ctx, projectID)
+	if err != nil {
+		return nil, err
+	}
+	m, err := Manifest(ctx, q, p)
+	if err != nil {
+		return nil, err
+	}
+	return InForce(ctx, q, p, m)
+}

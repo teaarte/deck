@@ -8,6 +8,7 @@ import (
 	"errors"
 	"log/slog"
 
+	"deck2/internal/docs"
 	"deck2/internal/manifest"
 	"deck2/internal/process"
 	"deck2/internal/registry"
@@ -41,7 +42,7 @@ func (pj *Service) ProjectCommands(ctx context.Context, workspace int64, name st
 			slog.Error("project manifest", "project", p.Name, "err", failed[p.ID])
 			continue
 		}
-		out = append(out, pj.prepared(p, m)...)
+		out = append(out, pj.prepared(ctx, p, m)...)
 		mcpCmds, err := pj.MCP.Commands(ctx, pj.St.Q, p, m)
 		if err != nil {
 			return nil, err
@@ -57,9 +58,10 @@ func (pj *Service) ProjectCommands(ctx context.Context, workspace int64, name st
 	return out, nil
 }
 
-// prepared are the commands and HTTP tools of a manifest as registry commands, compiled once per revision.
-func (pj *Service) prepared(p db.Project, m *manifest.Manifest) []*registry.Command {
-	key := preparedKey{p.ID, m}
+// prepared are the commands and HTTP tools of a manifest as registry commands, compiled once per revision and
+// grant; a tool has the rights the owner gave.
+func (pj *Service) prepared(ctx context.Context, p db.Project, m *manifest.Manifest) []*registry.Command {
+	key := preparedKey{p.ID, m, p.GrantedRevision.Int64}
 	pj.preparedMu.Lock()
 	cmds, ok := pj.preparedCmds[key]
 	pj.preparedMu.Unlock()
@@ -78,7 +80,12 @@ func (pj *Service) prepared(p db.Project, m *manifest.Manifest) []*registry.Comm
 		}
 		cmds = append(cmds, cmd)
 	}
-	for _, t := range m.Tools.HTTP {
+	granted, err := docs.InForce(ctx, pj.St.Q, p, m)
+	if err != nil {
+		slog.Error("project rights", "project", p.Name, "err", err)
+		granted = manifest.Clip(&manifest.Manifest{}, m)
+	}
+	for _, t := range granted.Tools.HTTP {
 		cmd := pj.Tools.Command(p, t)
 		if err := registry.Prepare(cmd); err != nil {
 			slog.Error("project tool", "tool", cmd.Name, "err", err)
@@ -98,6 +105,7 @@ func (pj *Service) prepared(p db.Project, m *manifest.Manifest) []*registry.Comm
 type preparedKey struct {
 	project  int64
 	manifest *manifest.Manifest
+	granted  int64
 }
 
 // startHandler runs a command of the manifest the registry checked the call against; the calling process

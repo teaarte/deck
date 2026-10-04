@@ -235,13 +235,14 @@ type ProcessRemark struct {
 }
 
 type Project struct {
-	ID          int64
-	WorkspaceID int64
-	Name        string
-	Status      string
-	Paused      int64
-	Builtin     int64
-	CreatedAt   string
+	ID              int64
+	WorkspaceID     int64
+	Name            string
+	Status          string
+	Paused          int64
+	Builtin         int64
+	CreatedAt       string
+	GrantedRevision sql.NullInt64
 }
 
 type ProjectFolder struct {

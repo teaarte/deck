@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"deck2/internal/app/screens"
+	"deck2/internal/docs"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/screen"
@@ -74,6 +75,9 @@ func (a *App) screenGet(ctx context.Context, act registry.Actor, in screenGetIn)
 		}
 		m, err := a.Manifests.Of(ctx, p)
 		if err != nil {
+			return nil, err
+		}
+		if m, err = docs.InForce(ctx, a.Store.Q, p, m); err != nil {
 			return nil, err
 		}
 		req.Project, req.Manifest, req.Screen = p, m, m.Screen(in.Screen)

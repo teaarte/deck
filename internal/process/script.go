@@ -14,6 +14,7 @@ import (
 	"deck2/internal/untrusted"
 
 	"deck2/internal/ask"
+	"deck2/internal/docs"
 	"deck2/internal/gateway"
 	"deck2/internal/provider"
 	"deck2/internal/script"
@@ -31,6 +32,11 @@ func (r *Runner) runScript(ctx context.Context, t turn, trial bool) {
 		r.failedInARow(bg, t, err.Error())
 	}
 	proj, err := r.st.Q.GetProject(bg, t.project)
+	if err != nil {
+		fail(err)
+		return
+	}
+	granted, err := docs.InForce(bg, r.st.Q, proj, t.m)
 	if err != nil {
 		fail(err)
 		return
@@ -61,7 +67,7 @@ func (r *Runner) runScript(ctx context.Context, t turn, trial bool) {
 	self := r.scripts.Sandbox.Addr(ln)
 	runCtx, endRun := context.WithCancel(bg)
 	defer endRun()
-	srv := &http.Server{Handler: r.gw.ScriptHandler(runCtx, tok, self, t.m.Domains.Read)}
+	srv := &http.Server{Handler: r.gw.ScriptHandler(runCtx, tok, self, granted.Domains.Read)}
 	go func() { _ = srv.Serve(ln) }()
 	defer srv.Close()
 	url, proxy := "http://"+self, "http://deck:"+tok+"@"+self

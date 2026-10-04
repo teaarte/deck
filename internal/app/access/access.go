@@ -153,6 +153,9 @@ func reads(ctx context.Context, q *db.Queries, act registry.Actor, other string)
 	if err != nil {
 		return nil, nil, false, err
 	}
+	if m, err = docs.InForce(ctx, q, own, m); err != nil {
+		return nil, nil, false, err
+	}
 	for _, r := range m.Reads {
 		if r.Project == other {
 			return r.Collections, r.Documents, true, nil

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"slices"
 	"strings"
 	"sync/atomic"
@@ -443,5 +444,80 @@ func TestCommandRunsTheRevisionItWasAuthorizedAgainst(t *testing.T) {
 	e.waitState(out.(process.Started).Process, "done")
 	if calls := e.Fake.Calls(); len(calls) != 1 || !strings.Contains(calls[0].Prompt, "OLD PROMPT") || strings.Contains(calls[0].Prompt, "NEW PROMPT") {
 		t.Fatalf("the process must run the command of the revision the call was checked against: %+v", calls)
+	}
+}
+
+// TestADraftHasOnlyTheRightsTheOwnerGave: a draft the master writes sends no secret, reaches no domain of its
+// scripts and reads no other project until the owner enables it at the revision he saw.
+func TestADraftHasOnlyTheRightsTheOwnerGave(t *testing.T) {
+	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { jsonReply(w, `{"ok": true}`) })
+	e := newEnv(t, nil)
+	e.must("deck.secret_set", map[string]any{"name": "svc", "value": "s3cret"}, nil)
+	_, tok := e.token("terminal", "deck.*", "leak.*", "net.*")
+	if code, out := e.callWith(tok, "deck.project_create", map[string]any{"name": "leak", "manifest": postManifest(svc.URL, `, "class": "internal"`)}); code != 200 {
+		t.Fatalf("project_create: %d %s", code, out)
+	}
+	e.callWith(tok, "leak.post", map[string]any{"id": "a", "text": "hi"})
+	if n := len(svc.requests()); n != 0 {
+		t.Fatalf("a tool of a draft that calls itself internal sends no secret before the owner enables it: %d requests", n)
+	}
+
+	host := strings.TrimPrefix(svc.URL, "http://")
+	if code, out := e.callWith(tok, "deck.project_create", map[string]any{"name": "net",
+		"manifest": scriptManifest("run", "", fmt.Sprintf(`, "domains": {"read": [%q]}`, host))}); code != 200 {
+		t.Fatalf("project_create: %d %s", code, out)
+	}
+	e.saveScript("net", "scripts/main.py", pythonLib+`
+print(json.dumps({"status": fetch(json.load(sys.stdin)["allowed"])}))
+`)
+	var run struct{ Process int64 }
+	e.must("net.run", map[string]any{"allowed": svc.URL + "/x"}, &run)
+	if p := e.waitScript(run.Process, "done", "error"); string(p.Result) == `{"status":200}` || len(svc.requests()) != 0 {
+		t.Fatalf("a script of a draft reaches only package registries, not the domains it asks for: %+v", p)
+	}
+
+	e.createProject("source", sourceManifest)
+	e.must("deck.records_upsert", map[string]any{"project": "source", "collection": "items", "records": `{"name": "a"}`}, nil)
+	reads := `, "reads": [{"project": "source", "collections": ["items"]}],
+  "screens": [{"name": "main", "title": "Items", "blocks": [{"type": "table", "source": {"project": "source", "collection": "items"},
+    "columns": [{"label": "Name", "bind": "name"}]}]}]`
+	var peek struct{ ID int64 }
+	if code, out := e.callWith(tok, "deck.project_create", map[string]any{"name": "peek", "manifest": readerManifest(reads)}); code != 200 || json.Unmarshal(out, &peek) != nil {
+		t.Fatalf("project_create: %d %s", code, out)
+	}
+	e.names[peek.ID] = "peek"
+	if rows := e.screenRows(peek.ID, "main"); len(rows) != 0 {
+		t.Fatalf("a draft reads no other project: %v", rows)
+	}
+
+	e.must("deck.project_enable", map[string]any{"project": "leak", "revision": e.project("leak").Revision}, nil)
+	code, posted := e.callWith(tok, "leak.post", map[string]any{"id": "a", "text": "hi"})
+	if seen := svc.requests(); code != 200 || len(seen) != 1 || seen[0].Header.Get("X-Key") != "s3cret" {
+		t.Fatalf("once enabled, the tool has the rights of the revision the owner saw: %d %s %+v", code, posted, seen)
+	}
+}
+
+// TestABaseFromBeforeGrantsKeepsTheRightsOfEnabledProjects: an enabled project of an older base has the rights
+// of its current manifest; a draft there has none.
+func TestABaseFromBeforeGrantsKeepsTheRightsOfEnabledProjects(t *testing.T) {
+	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { jsonReply(w, `{"ok": true}`) })
+	home := t.TempDir()
+	e := newEnvWith(t, home, &Fake{})
+	e.must("deck.secret_set", map[string]any{"name": "svc", "value": "s3cret"}, nil)
+	_, tok := e.token("terminal", "deck.*", "on.*", "off.*")
+	e.createProject("on", postManifest(svc.URL, `, "class": "internal"`))
+	if code, out := e.callWith(tok, "deck.project_create", map[string]any{"name": "off", "manifest": postManifest(svc.URL, `, "class": "internal"`)}); code != 200 {
+		t.Fatalf("project_create: %d %s", code, out)
+	}
+	for _, q := range []string{`ALTER TABLE project DROP COLUMN granted_revision`, `DELETE FROM goose_db_version WHERE version_id = 2`} {
+		if _, err := e.App.Store.DB.Exec(q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	_ = e.App.Close()
+	e = newEnvWith(t, home, &Fake{})
+	e.callWith(tok, "off.post", map[string]any{"id": "a", "text": "hi"})
+	if code, out := e.callWith(tok, "on.post", map[string]any{"id": "a", "text": "hi"}); code != 200 || len(svc.requests()) != 1 {
+		t.Fatalf("only the enabled project keeps its rights: %d %s, %d requests", code, out, len(svc.requests()))
 	}
 }

@@ -161,7 +161,7 @@ func (r *Runner) prepare(ctx context.Context, t *turn, p db.Process, trial bool,
 		return nil, false
 	}
 	noNetwork := t.m.NoNetwork
-	if now, err := docs.ManifestAt(ctx, r.st.Q, t.project, 0); err == nil && now.NoNetwork {
+	if now, err := docs.CurrentInForce(ctx, r.st.Q, t.project); err == nil && now.NoNetwork {
 		noNetwork = true
 	}
 	processID := t.process

@@ -180,7 +180,7 @@ func (b *Browser) build(list []*mcp.Tool) {
 			c.Class, c.Journals, c.Handler = registry.External, true, b.actor(t.Name)
 			c.Allowed = b.allowed
 			c.Fingerprint = func(ctx context.Context, project int64) string {
-				m, err := docs.ManifestAt(ctx, b.Store.Q, project, 0)
+				m, err := docs.CurrentInForce(ctx, b.Store.Q, project)
 				if err != nil {
 					return ""
 				}
@@ -254,7 +254,7 @@ func on(domains []string, page string) bool {
 
 // allowed lets an action run without the owner when the page is on an act domain.
 func (b *Browser) allowed(ctx context.Context, act registry.Actor, _ json.RawMessage, _ bool) (bool, error) {
-	m, err := docs.ManifestAt(ctx, b.Store.Q, act.ProjectID, 0)
+	m, err := docs.CurrentInForce(ctx, b.Store.Q, act.ProjectID)
 	if err != nil {
 		return false, err
 	}
@@ -268,7 +268,7 @@ func (b *Browser) reader(tool string) registry.Handler {
 	return func(ctx context.Context, act registry.Actor, raw json.RawMessage) (any, error) {
 		var args struct{ URL, Action string }
 		_ = json.Unmarshal(raw, &args)
-		m, err := docs.ManifestAt(ctx, b.Store.Q, act.ProjectID, 0)
+		m, err := docs.CurrentInForce(ctx, b.Store.Q, act.ProjectID)
 		if err != nil {
 			return nil, err
 		}
@@ -314,7 +314,7 @@ func ownTabs(res *mcp.CallToolResult, domains []string) {
 
 // offDomains reports the page the browser shows when it is off the project's read and act domains; b.mu is held.
 func (b *Browser) offDomains(ctx context.Context, project int64) (string, bool) {
-	m, err := docs.ManifestAt(ctx, b.Store.Q, project, 0)
+	m, err := docs.CurrentInForce(ctx, b.Store.Q, project)
 	if err != nil {
 		return "", true
 	}

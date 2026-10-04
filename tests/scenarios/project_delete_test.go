@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -226,5 +227,39 @@ func TestATopicOfADeletedModuleHasNoModule(t *testing.T) {
 	all = append(all, ts...)
 	if len(all) != 1 || all[0].ID != topic || all[0].Project != "" {
 		t.Fatalf("the topic stays, without the deleted module: %+v", all)
+	}
+}
+
+// TestDeletingAModuleArchivesItsTopics: the topics of a deleted module, by its card or the screen of their first
+// message, go to the archive; others stay.
+func TestDeletingAModuleArchivesItsTopics(t *testing.T) {
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result { return provider.Result{Text: "Noted."} })
+	e.createProject("web", boardWebManifest)
+	e.createProject("other", boardWebManifest)
+	onScreen := e.say(0, "look", map[string]any{"screen": `{"project":"web","screen":"main"}`})
+	e.masterSaid(onScreen, 1)
+	card := e.card(map[string]any{"project": "web", "title": "A card"})
+	byCard := e.say(0, "the card", map[string]any{"card": card.ID, "screen": `{"project":"other","screen":"main"}`})
+	e.masterSaid(byCard, 1)
+	elsewhere := e.say(0, "else", map[string]any{"screen": `{"project":"other","screen":"main"}`})
+	e.masterSaid(elsewhere, 1)
+	events := e.sse(t.Context())
+	e.must("deck.project_delete", map[string]any{"project": "web"}, nil)
+	waitTopic(t, events, "chat")
+	ids := func(archived bool) []int64 {
+		var ts []struct{ ID int64 }
+		e.must("deck.chat_topics", map[string]any{"archived": archived}, &ts)
+		var out []int64
+		for _, x := range ts {
+			out = append(out, x.ID)
+		}
+		slices.Sort(out)
+		return out
+	}
+	if got := ids(true); !slices.Equal(got, []int64{onScreen, byCard}) {
+		t.Fatalf("the topics of the module are archived: %v", got)
+	}
+	if got := ids(false); !slices.Equal(got, []int64{elsewhere}) {
+		t.Fatalf("other topics stay: %v", got)
 	}
 }

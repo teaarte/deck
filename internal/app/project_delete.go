@@ -49,6 +49,9 @@ func (a *App) projectDelete(ctx context.Context, act registry.Actor, in projectD
 		if runs, err = q.ListProjectProcessIDs(ctx, p.ID); err != nil {
 			return err
 		}
+		if err := q.ArchiveProjectTopics(ctx, db.ArchiveProjectTopicsParams{WorkspaceID: p.WorkspaceID, ProjectID: p.ID, Name: p.Name}); err != nil {
+			return err
+		}
 		_, err = q.DeleteProject(ctx, p.ID)
 		return err
 	})
@@ -68,7 +71,7 @@ func (a *App) projectDelete(ctx context.Context, act registry.Actor, in projectD
 	}
 	params, _ := json.Marshal(map[string]any{"project": p.Name, "snapshot": snapshot})
 	a.Gateway.Journal(ctx, act, 0, registry.Builtin+".project_delete", registry.External, "done", string(params))
-	for _, topic := range []string{"projects", "asks", "processes", "triggers", "health", "feed"} {
+	for _, topic := range []string{"projects", "asks", "processes", "triggers", "health", "feed", "chat"} {
 		a.Bus.Publish(topic)
 	}
 	return map[string]any{"deleted": p.Name, "snapshot": snapshot}, nil

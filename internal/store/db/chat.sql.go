@@ -46,6 +46,26 @@ func (q *Queries) AddMessage(ctx context.Context, arg AddMessageParams) (ChatMes
 	return i, err
 }
 
+const archiveProjectTopics = `-- name: ArchiveProjectTopics :exec
+UPDATE chat_topic SET archived = 1
+WHERE workspace_id = ?1 AND deleted_at IS NULL AND archived = 0 AND (
+    card_id IN (SELECT id FROM card WHERE project_id = ?2)
+    OR card_id IS NULL AND (SELECT json_extract(m.context, '$.project') FROM chat_message m
+        WHERE m.topic_id = chat_topic.id AND json_valid(m.context) AND COALESCE(json_extract(m.context, '$.project'), '') != ''
+        ORDER BY m.id LIMIT 1) = ?3)
+`
+
+type ArchiveProjectTopicsParams struct {
+	WorkspaceID int64
+	ProjectID   int64
+	Name        string
+}
+
+func (q *Queries) ArchiveProjectTopics(ctx context.Context, arg ArchiveProjectTopicsParams) error {
+	_, err := q.db.ExecContext(ctx, archiveProjectTopics, arg.WorkspaceID, arg.ProjectID, arg.Name)
+	return err
+}
+
 const archiveTopic = `-- name: ArchiveTopic :execrows
 UPDATE chat_topic SET archived = ? WHERE id = ? AND deleted_at IS NULL
 `

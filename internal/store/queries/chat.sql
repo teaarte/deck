@@ -90,6 +90,15 @@ UPDATE project SET builtin = 1 WHERE id = ?;
 -- name: GetMessage :one
 SELECT * FROM chat_message WHERE id = ?;
 
+-- name: ArchiveProjectTopics :exec
+UPDATE chat_topic SET archived = 1
+WHERE workspace_id = sqlc.arg(workspace_id) AND deleted_at IS NULL AND archived = 0 AND (
+    card_id IN (SELECT id FROM card WHERE project_id = sqlc.arg(project_id))
+    OR card_id IS NULL AND (SELECT json_extract(m.context, '$.project') FROM chat_message m
+        WHERE m.topic_id = chat_topic.id AND json_valid(m.context) AND COALESCE(json_extract(m.context, '$.project'), '') != ''
+        ORDER BY m.id LIMIT 1) = sqlc.arg(name));
+
+
 -- name: ListTopicSummaries :many
 SELECT t.id, t.title, t.card_id, t.archived, t.updated_at,
     CAST(COALESCE((SELECT m.text FROM chat_message m WHERE m.topic_id = t.id ORDER BY m.id DESC LIMIT 1), '') AS TEXT) AS last_text,

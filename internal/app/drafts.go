@@ -220,7 +220,7 @@ func (a *App) draftsCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("project_enable", "Enable project",
 			"Turns a draft on: its triggers start running and the rights its manifest asks for count as allowed.",
-			registry.OwnerOnly, a.projectEnable).Changes("projects"),
+			registry.OwnerOnly, a.projectEnable),
 		registry.Def("project_autonomy", "Project autonomy",
 			"Sets whether a project suggests, so the owner says yes to its reversible changes, or acts on its own and reports; a new manifest revision.",
 			registry.OwnerOnly, a.projectAutonomy),

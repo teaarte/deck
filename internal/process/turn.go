@@ -333,18 +333,9 @@ func (r *Runner) event(ctx context.Context, processID int64, stream *os.File, e 
 	if !due {
 		return
 	}
-	wasSilent := false
 	_ = r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		p, err := q.GetProcess(ctx, processID)
-		if err != nil {
-			return err
-		}
-		wasSilent = p.SilentSinceMs.Valid
 		return q.SetProcessOutput(ctx, db.SetProcessOutputParams{OutputMs: now.UnixMilli(), ID: processID})
 	})
-	if wasSilent {
-		r.changed(ctx, processID, "processes")
-	}
 }
 
 // runDir is the folder of an open process: its work, results and log.

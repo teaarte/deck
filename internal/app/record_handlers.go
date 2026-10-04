@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"deck2/internal/app/access"
-	"deck2/internal/events"
 	"encoding/json"
 	"errors"
 	"reflect"
@@ -108,17 +107,13 @@ func only(data json.RawMessage, fields []string) json.RawMessage {
 // writeRecords runs a record write in one transaction with the manifest it validates against, so a manifest
 // save cannot change the schema between the check and the write.
 func (a *App) writeRecords(ctx context.Context, p db.Project, f func(ctx context.Context, q *db.Queries, m *manifest.Manifest) error) error {
-	err := a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+	return a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		m, err := docs.Manifest(ctx, q, p)
 		if err != nil {
 			return err
 		}
 		return f(ctx, q, m)
 	})
-	if err == nil {
-		a.Bus.Emit(events.Event{Workspace: p.WorkspaceID, Topic: "collection", Project: p.Name})
-	}
-	return err
 }
 
 type recordsUpsertIn struct {

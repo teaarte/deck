@@ -125,12 +125,12 @@ func (a *App) tokensCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("token_create", "Create automation token",
 			"Creates a token for a terminal agent, Shortcuts or a script; it acts as the master and may call only the listed commands.",
-			registry.OwnerOnly, a.tokenCreate).Changes("tokens"),
+			registry.OwnerOnly, a.tokenCreate),
 		registry.Read("tokens_list", "Automation tokens",
 			"Lists automation tokens with their commands; revoked ones too.",
 			registry.OwnerOnly, a.tokensList).On("tokens"),
 		registry.Def("token_revoke", "Revoke token",
 			"Revokes an automation token; calls with it are refused from then on.",
-			registry.OwnerOnly, a.tokenRevoke).Changes("tokens").As(registry.External),
+			registry.OwnerOnly, a.tokenRevoke).As(registry.External),
 	}
 }

@@ -108,7 +108,6 @@ func (a *App) createProject(ctx context.Context, act registry.Actor, name string
 	if err != nil {
 		return db.Project{}, err
 	}
-	a.Bus.Publish("projects")
 	a.prepareLater(p.ID)
 	return p, nil
 }
@@ -142,7 +141,6 @@ func (a *App) SaveManifest(ctx context.Context, act registry.Actor, p db.Project
 		return Saved{}, err
 	}
 	var saved Saved
-	var listed bool
 	err = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		if err := checkReads(ctx, q, p.WorkspaceID, p.Name, pm.m); err != nil {
 			return err
@@ -181,25 +179,15 @@ func (a *App) SaveManifest(ctx context.Context, act registry.Actor, p db.Project
 				return err
 			}
 		}
-		if listed, err = a.Devices.Changed(ctx, q, act, p.ID, cur, n, fmt.Sprintf("%s changed the manifest of %s", act.Author(), p.Name), reason); err != nil {
+		if err = a.Devices.Changed(ctx, q, act, p.ID, cur, n, fmt.Sprintf("%s changed the manifest of %s", act.Author(), p.Name), reason); err != nil {
 			return err
 		}
 		return a.Scheduler.Sync(ctx, q, p.ID, pm.m)
 	})
 	if err != nil || saved.Waiting != 0 {
-		if saved.Waiting != 0 {
-			a.Bus.Publish("asks")
-			a.Bus.Publish("calls")
-		}
 		return saved, err
 	}
 	a.Bus.Emit(events.Event{Workspace: p.WorkspaceID, Topic: "projects", Project: p.Name})
-	if listed {
-		a.Bus.Publish("feed")
-	}
-	if len(plan) > 0 {
-		a.Bus.Emit(events.Event{Workspace: p.WorkspaceID, Topic: "collection", Project: p.Name})
-	}
 	a.prepareLater(p.ID)
 	saved.Screens = a.checkScreens(ctx, act, p, pm.m)
 	saved.Unused = pm.m.UnusedWords()

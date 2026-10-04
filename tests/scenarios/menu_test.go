@@ -83,7 +83,7 @@ func TestMenuShowsIconsAndWhatEachProjectIsBusyWith(t *testing.T) {
 	if m := e.menuEntry("web"); m.Asks != 1 || m.Running != 2 {
 		t.Fatalf("the menu counts the open question and both running processes, the one that asks too: %+v", m)
 	}
-	health.Write(context.Background(), e.App.Store, e.App.Bus, health.Of{Workspace: 1, Project: p}, "server:x", "error", "down")
+	health.Write(context.Background(), e.App.Store, health.Of{Workspace: 1, Project: p}, "server:x", "error", "down")
 	if m := e.menuEntry("web"); m.Errors != 1 {
 		t.Fatalf("the menu counts a failing health row of the project: %+v", m)
 	}

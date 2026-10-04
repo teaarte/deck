@@ -125,7 +125,6 @@ func (r *Runner) warn(ctx context.Context, processID int64, text string) {
 		_, err := ask.New(ctx, q, processID, ask.KindWarning, text, "{}", time.Time{})
 		return err
 	})
-	r.bus.Publish("asks")
 }
 
 // failedInARow warns once when a command script has just failed for the third time in a row.

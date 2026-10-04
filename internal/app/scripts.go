@@ -72,9 +72,6 @@ func (a *App) prepareScripts(ctx context.Context, projectID int64) error {
 		}
 		return nil
 	})
-	if err == nil {
-		a.Bus.Publish("health")
-	}
 	return err
 }
 

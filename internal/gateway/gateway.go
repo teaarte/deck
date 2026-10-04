@@ -309,8 +309,8 @@ func (g *Gateway) journal(ctx context.Context, act registry.Actor, project int64
 			Caller: frozenCaller(act), Tool: tool, Class: class, Outcome: outcome, Params: params, Error: errText})
 		return err
 	})
-	if err == nil {
-		g.bus.Publish("calls")
+	if err != nil {
+		slog.Error("journal", "tool", tool, "err", err)
 	}
 }
 

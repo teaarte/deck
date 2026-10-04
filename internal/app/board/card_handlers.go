@@ -278,7 +278,7 @@ func (s *Service) cardTransfer(ctx context.Context, act registry.Actor, in cardT
 			return err
 		}
 		c.ProjectID = to.ID
-		w.from, w.p, w.m = w.p, to, m
+		w.p, w.m = to, m
 		if err := place(ctx, q, c, landing(m), 0); err != nil {
 			return err
 		}

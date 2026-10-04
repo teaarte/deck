@@ -134,6 +134,6 @@ func (a *App) settingsCommands() []*registry.Command {
 			registry.OwnerOnly, a.settingsList).On("settings"),
 		registry.Def("settings_set", "Change settings",
 			"Sets how long a confirmation and a suggestion wait for the owner, how many agent processes run at once and the language of the interface; an omitted one stays.",
-			registry.OwnerOnly, a.settingsSet).Changes("settings"),
+			registry.OwnerOnly, a.settingsSet),
 	}
 }

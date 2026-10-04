@@ -168,7 +168,6 @@ func (s *Service) writeCheck(ctx context.Context, subject, status, text, version
 	if err != nil {
 		slog.Error("self-check health", "err", err)
 	}
-	s.Bus.Publish("health")
 }
 
 func errText(err error) string {

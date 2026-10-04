@@ -68,16 +68,13 @@ func (a *App) linkTriggeredCard(ctx context.Context, asked db.Ask, out any) {
 	if json.Unmarshal(f.Call.Input, &in) != nil || in.Card == 0 {
 		return
 	}
-	err := a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+	_ = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		c, err := q.GetCard(ctx, in.Card)
 		if err != nil || c.ProjectID != asked.ProjectID {
 			return err
 		}
 		return q.SetCardProcess(ctx, db.SetCardProcessParams{ProcessID: sql.NullInt64{Int64: started.Process, Valid: true}, ID: in.Card})
 	})
-	if err == nil {
-		a.Bus.Publish("board")
-	}
 }
 
 // allowAlways adds the tool or command of a frozen call to the allowed external list of its project, or the

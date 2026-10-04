@@ -440,7 +440,7 @@ func (dv *Service) pushHealth(ctx context.Context, failed string) {
 	if failed != "" {
 		status = "error"
 	}
-	health.Write(ctx, dv.St, dv.Bus, health.Of{}, "push", status, failed)
+	health.Write(ctx, dv.St, health.Of{}, "push", status, failed)
 }
 
 func oneLine(s string) string { return strings.Join(strings.Fields(s), " ") }
@@ -453,13 +453,13 @@ func (dv *Service) PushCommands() []*registry.Command {
 			registry.OwnerOnly, dv.pushKey),
 		registry.Def("push_subscribe", "Get pushes",
 			"Subscribes a device to pushes: what waits for the owner, failures, notify lines and the master's replies when no client is open.",
-			registry.OwnerOnly, dv.pushSubscribe).Changes("settings"),
+			registry.OwnerOnly, dv.pushSubscribe),
 		registry.Def("push_unsubscribe", "Stop pushes",
 			"Stops pushes to a device.",
-			registry.OwnerOnly, dv.pushUnsubscribe).Changes("settings"),
+			registry.OwnerOnly, dv.pushUnsubscribe),
 		registry.Def("push_reset", "Reset the push key",
 			"Makes a new key for pushes; every device subscribed with the old one has to subscribe again.",
-			registry.OwnerOnly, dv.pushReset).Changes("settings"),
+			registry.OwnerOnly, dv.pushReset),
 		registry.Def("push_devices", "Devices",
 			"Lists the devices that get pushes.",
 			registry.OwnerOnly, dv.pushDevices),

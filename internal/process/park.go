@@ -40,9 +40,6 @@ func (r *Runner) needLogin(ctx context.Context, pv provider.Provider, processID 
 	if n == 0 {
 		return
 	}
-	r.changed(ctx, processID, "processes")
-	r.bus.Publish("asks")
-	r.bus.Publish("health")
 }
 
 // HealthSubject is the health row of a provider.
@@ -64,7 +61,6 @@ func (r *Runner) providerHealth(ctx context.Context, pv provider.Provider, res p
 		}
 		return health.Set(ctx, q, health.Of{}, subject, "ok", "")
 	})
-	r.bus.Publish("health")
 }
 
 // setHealth records what a turn found about its provider, unless its self-check is running or red: then the
@@ -88,9 +84,7 @@ func (r *Runner) usage(ctx context.Context, processID int64, name string, u prov
 	})
 	if err != nil {
 		slog.Error("model call journal", "process", processID, "err", err)
-		return
 	}
-	r.bus.Publish("usage")
 }
 
 // blocked reports whether the owner still owes the agent an answer; a result produced meanwhile is
@@ -120,7 +114,6 @@ func (r *Runner) park(ctx context.Context, processID int64) {
 	if !parked {
 		return
 	}
-	r.changed(ctx, processID, "processes")
 	if err := r.Deliver(ctx, processID); err != nil {
 		r.finish(ctx, processID, StateError, "", false, "resume after answer: "+err.Error())
 	}

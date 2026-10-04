@@ -316,7 +316,6 @@ func (a *App) dismissExpired(ctx context.Context, q db.Ask, answer string) (any,
 	if err != nil {
 		return nil, err
 	}
-	a.Bus.Publish("asks")
 	return map[string]any{"ok": true}, nil
 }
 

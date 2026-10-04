@@ -62,9 +62,7 @@ func Waits(ctx context.Context, q *db.Queries, projectID int64) (map[int64][]int
 
 // boardWrite is one card write: the project, its manifest, and the cards that entered a lane.
 type boardWrite struct {
-	p db.Project
-	// from is the project a card left, whose board changed too.
-	from    db.Project
+	p       db.Project
 	m       *manifest.Manifest
 	entered []entry
 	// parent is the process of the agent that moved the cards; the lane commands continue its chain.
@@ -87,10 +85,6 @@ func (s *Service) writeBoard(ctx context.Context, act registry.Actor, f func(ctx
 	if err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error { return f(ctx, q, w) }); err != nil {
 		return err
 	}
-	s.Bus.Emit(events.Event{Workspace: w.p.WorkspaceID, Topic: "board", Project: w.p.Name})
-	if w.from.ID != 0 {
-		s.Bus.Emit(events.Event{Workspace: w.from.WorkspaceID, Topic: "board", Project: w.from.Name})
-	}
 	for _, e := range w.entered {
 		s.laneTriggers(ctx, w.p, w.m, e.card, e.lane, w.parent)
 	}
@@ -100,12 +94,6 @@ func (s *Service) writeBoard(ctx context.Context, act registry.Actor, f func(ctx
 // laneTriggers starts the commands of a lane for a card that entered it and links the last process to the
 // card; while a card's run is still going, the card entering the lane again does not start another.
 func (s *Service) laneTriggers(ctx context.Context, p db.Project, m *manifest.Manifest, card int64, lane string, parent int64) {
-	linked := false
-	defer func() {
-		if linked {
-			s.Bus.Emit(events.Event{Workspace: p.WorkspaceID, Topic: "board", Project: p.Name})
-		}
-	}()
 	if p.Paused == 1 {
 		return
 	}
@@ -137,7 +125,6 @@ func (s *Service) laneTriggers(ctx context.Context, p db.Project, m *manifest.Ma
 		if err != nil {
 			slog.Error("link card process", "card", card, "err", err)
 		}
-		linked = linked || err == nil
 	}
 }
 
@@ -269,17 +256,11 @@ func CheckLanes(ctx context.Context, q *db.Queries, p db.Project, next *manifest
 // Purge removes cards deleted longer ago than cardRetention, with their documents.
 func (s *Service) Purge(ctx context.Context, now time.Time) {
 	before := now.Add(-cardRetention).UTC().Format("2006-01-02T15:04:05.000Z")
-	var n int64
 	err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		var err error
-		n, err = q.PurgeCards(ctx, sql.NullString{String: before, Valid: true})
+		_, err := q.PurgeCards(ctx, sql.NullString{String: before, Valid: true})
 		return err
 	})
 	if err != nil {
 		slog.Error("purge cards", "err", err)
-		return
-	}
-	if n > 0 {
-		s.Bus.Publish("board")
 	}
 }

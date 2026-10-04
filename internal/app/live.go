@@ -77,6 +77,6 @@ func (a *App) liveCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("process_tell", "Tell a process",
 			"Gives the owner's message to an agent process at work: into its turn when the provider takes it live, else right after the turn.",
-			registry.OwnerOnly, a.processTell).Changes("processes"),
+			registry.OwnerOnly, a.processTell),
 	}
 }

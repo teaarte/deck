@@ -261,10 +261,10 @@ func (ch *Service) Commands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("chat_send", "Tell the master",
 			"Sends the owner's message to the master in a chat topic, a new one when none is given; the master's reply comes into the same topic.",
-			registry.OwnerOnly, ch.chatSend).Changes("chat"),
+			registry.OwnerOnly, ch.chatSend),
 		registry.Def("chat_interview", "Interview about a card",
 			"Opens a chat topic about a card in which the master interviews the owner and writes the spec into the card.",
-			registry.OwnerOnly, ch.chatInterview).Changes("chat"),
+			registry.OwnerOnly, ch.chatInterview),
 		registry.Read("chat_topics", "Chat topics",
 			"Lists the owner's chat topics with the master, newest first, with their last message and the reply still going.",
 			registry.OwnerOnly, ch.chatTopics).On("chat", "processes"),
@@ -276,9 +276,9 @@ func (ch *Service) Commands() []*registry.Command {
 			registry.OwnerOnly, ch.chat).On("chat", "asks", "log", "processes"),
 		registry.Def("chat_topic_archive", "Archive topic",
 			"Archives a chat topic or brings it back; a new message brings it back too.",
-			registry.OwnerOnly, ch.chatTopicArchive).Changes("chat"),
+			registry.OwnerOnly, ch.chatTopicArchive),
 		registry.Def("chat_topic_delete", "Delete topic",
 			"Deletes a chat topic with its messages and stops its reply if one is going.",
-			registry.OwnerOnly, ch.chatTopicDelete).Changes("chat"),
+			registry.OwnerOnly, ch.chatTopicDelete),
 	}
 }

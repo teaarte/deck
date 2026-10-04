@@ -184,9 +184,9 @@ func (a *App) foldersCommands() []*registry.Command {
 			registry.OwnerOnly, a.foldersList).On("projects"),
 		registry.Def("folder_add", "Add folder",
 			"Gives a project a folder on disk that its agent commands with folder work in; only the owner, since it lets agents write there.",
-			registry.OwnerOnly, a.folderAdd).Changes("projects"),
+			registry.OwnerOnly, a.folderAdd),
 		registry.Def("folder_remove", "Remove folder",
 			"Takes a folder from a project; the folder on disk stays as it is.",
-			registry.OwnerOnly, a.folderRemove).Changes("projects"),
+			registry.OwnerOnly, a.folderRemove),
 	}
 }

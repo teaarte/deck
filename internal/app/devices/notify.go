@@ -95,6 +95,6 @@ func (dv *Service) NotifyCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("notify", "Notify the owner",
 			"Writes a line to the feed of the cockpit, with a screen of the project to open and buttons; the caller decides it is worth it.",
-			registry.Everyone, dv.notify).Changes("feed"),
+			registry.Everyone, dv.notify),
 	}
 }

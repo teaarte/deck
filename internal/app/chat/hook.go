@@ -47,7 +47,6 @@ func (h Hook) Turn(ctx context.Context, p db.Process, text string) {
 	if err != nil {
 		slog.Error("chat reply", "process", p.ID, "err", err)
 	}
-	ch.Bus.Publish("chat")
 }
 
 // Hook keeps the master's replies in their topics and goes on with the messages a topic got while its
@@ -60,7 +59,6 @@ func (h Hook) Parked(ctx context.Context, p db.Process) { h.goOn(ctx, p) }
 
 func (h Hook) goOn(ctx context.Context, p db.Process) {
 	if topic := h.ch.replyOf(ctx, p); topic != 0 {
-		h.ch.Bus.Publish("chat")
 		h.ch.pump(context.WithoutCancel(ctx), topic)
 	}
 }

@@ -40,9 +40,6 @@ func (g *Gateway) Intent(ctx context.Context, act registry.Actor, project int64,
 			Class: registry.External, Outcome: "started", Params: p})
 		return err
 	})
-	if err == nil {
-		g.bus.Publish("calls")
-	}
 	return id, err
 }
 
@@ -54,13 +51,10 @@ func (g *Gateway) Refused(ctx context.Context, act registry.Actor, project int64
 // Finish records the outcome of an action whose intent is id: done when the other side answered, rejected
 // when the call never left deck.
 func (g *Gateway) Finish(ctx context.Context, id int64, outcome, externalID, errText string) {
-	err := g.st.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error {
+	_ = g.st.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error {
 		_, err := q.FinishToolCall(ctx, db.FinishToolCallParams{Outcome: outcome, ExternalID: externalID, Error: untrusted.Cut(errText, 2000), ID: id})
 		return err
 	})
-	if err == nil {
-		g.bus.Publish("calls")
-	}
 }
 
 // Lost marks an action whose answer never came as of unknown outcome and asks the owner to retry it or
@@ -81,9 +75,8 @@ func (g *Gateway) Lost(ctx context.Context, id int64) {
 // LostAt is Lost for a tool that knows its own fingerprint, such as one that holds the lock the
 // fingerprint needs.
 func (g *Gateway) LostAt(ctx context.Context, id int64, tool string) {
-	var made bool
 	ctx = context.WithoutCancel(ctx)
-	err := g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+	_ = g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		c, err := q.GetToolCall(ctx, id)
 		if err != nil || c.Outcome != "started" {
 			return err
@@ -105,14 +98,9 @@ func (g *Gateway) LostAt(ctx context.Context, id int64, tool string) {
 		if err != nil {
 			return err
 		}
-		n, err := q.MarkToolCallUnknown(ctx, db.MarkToolCallUnknownParams{AskID: sql.NullInt64{Int64: a.ID, Valid: true}, ID: id})
-		made = n > 0
+		_, err = q.MarkToolCallUnknown(ctx, db.MarkToolCallUnknownParams{AskID: sql.NullInt64{Int64: a.ID, Valid: true}, ID: id})
 		return err
 	})
-	if err == nil && made {
-		g.bus.Publish("asks")
-		g.bus.Publish("calls")
-	}
 }
 
 // Recover runs on start: actions left without an answer get an unknown outcome; a call deck was making for
@@ -173,10 +161,6 @@ func (g *Gateway) Recover(ctx context.Context) error {
 		}
 		return nil
 	})
-	if err == nil && len(running) > 0 {
-		g.bus.Publish("asks")
-		g.bus.Publish("calls")
-	}
 	return err
 }
 

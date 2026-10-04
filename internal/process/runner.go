@@ -246,7 +246,6 @@ func (r *Runner) finish(ctx context.Context, processID int64, state, result stri
 		return
 	}
 	if parked {
-		r.changed(ctx, processID, "processes")
 		if err := r.Deliver(ctx, processID); err != nil {
 			r.finish(ctx, processID, StateError, "", false, "resume with a message: "+err.Error())
 		}

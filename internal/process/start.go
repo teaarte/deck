@@ -200,9 +200,6 @@ func (r *Runner) Start(ctx context.Context, projectID int64, m *manifest.Manifes
 		}
 	}
 	r.changed(ctx, p.ID, "processes")
-	if o.Trigger != 0 {
-		r.bus.Publish("triggers")
-	}
 	resume := o.Resume && kind == KindAgent && o.Session != ""
 	r.spawn(turn{process: p.ID, project: projectID, m: m, cmd: cmd, input: string(in), session: session, resume: resume, message: o.Message})
 	return p.ID, nil

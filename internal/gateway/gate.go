@@ -217,8 +217,6 @@ func (g *Gateway) hold(ctx context.Context, act registry.Actor, c *registry.Comm
 	if err != nil {
 		return nil, err
 	}
-	g.bus.Publish("asks")
-	g.bus.Publish("calls")
 	return Waiting{Ask: a.ID, Text: fmt.Sprintf("deck: %s is %s, so it waits for the owner's confirmation (ask %d); it was not made yet. "+
 		"Go on with other work: once the owner allows it, deck makes exactly this call and tells you the result.", c.Name, c.Class, a.ID)}, nil
 }
@@ -269,7 +267,6 @@ func (g *Gateway) Decide(ctx context.Context, owner registry.Actor, a db.Ask, an
 		_ = g.st.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error {
 			return errors.Join(q.UndoDecision(ctx, sql.NullInt64{Int64: a.ID, Valid: true}), q.ReopenDecision(ctx, a.ID))
 		})
-		g.bus.Publish("asks")
 	}
 	if then != nil {
 		if err := then(); err != nil {
@@ -277,7 +274,6 @@ func (g *Gateway) Decide(ctx context.Context, owner registry.Actor, a db.Ask, an
 			return nil, err
 		}
 	}
-	g.bus.Publish("asks")
 	act := g.clear.Clear(f.Caller.actor())
 	if f.As == AsOwner {
 		act = owner

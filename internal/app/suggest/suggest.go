@@ -174,7 +174,6 @@ func (sg *Service) doSuggestion(ctx context.Context, act registry.Actor, p db.Pr
 	if err != nil {
 		return nil, err
 	}
-	sg.Bus.Publish("feed")
 	return map[string]any{"done": true, "result": out}, nil
 }
 
@@ -218,7 +217,6 @@ func (sg *Service) Answer(ctx context.Context, act registry.Actor, q db.Ask, ans
 		if n == 0 {
 			return nil, ask.NotOpen
 		}
-		sg.Bus.Publish("asks")
 		return map[string]any{"suggestion": q.ID, "project": p.Name}, nil
 	case answer == "allow":
 		out, err := sg.Gateway.Decide(ctx, act, q, answer, nil)
@@ -277,15 +275,11 @@ func (sg *Service) byProject(ctx context.Context, process, projectID int64) bool
 
 // Expire closes suggestions the owner left unanswered past their term; that is not a refusal.
 func (sg *Service) Expire(ctx context.Context, now time.Time) {
-	n, err := store.TxGet(sg.St, ctx, func(ctx context.Context, q *db.Queries) (int64, error) {
+	_, err := store.TxGet(sg.St, ctx, func(ctx context.Context, q *db.Queries) (int64, error) {
 		return q.ExpireSuggestions(ctx, store.Time(now))
 	})
 	if err != nil {
 		slog.Error("expire suggestions", "err", err)
-		return
-	}
-	if n > 0 {
-		sg.Bus.Publish("asks")
 	}
 }
 
@@ -294,7 +288,7 @@ func (sg *Service) Commands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("suggest", "Suggest",
 			"Suggests the owner one card for a project or one call of a project command, with the reason; it waits in waiting for you, or is done at once in a project on autonomy auto.",
-			registry.Everyone, sg.suggest).Changes("asks", "calls"),
+			registry.Everyone, sg.suggest),
 		registry.Def("suggestions_rejected", "Rejected suggestions",
 			"Lists the suggestions the owner said no to lately, with the reason, so the same is not suggested again.",
 			registry.Everyone, sg.suggestionsRejected),

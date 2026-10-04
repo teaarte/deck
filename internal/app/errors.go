@@ -83,7 +83,6 @@ func (a *App) toMaster(ctx context.Context, p db.Process) {
 		return
 	}
 	if own {
-		a.Bus.Publish("asks")
 		return
 	}
 	if _, err := a.Runner.Start(context.WithoutCancel(ctx), mp.ID, mm, mm.EventCommand(manifest.OnFailure), map[string]any{"process": p.ID}, process.Origin{}); err != nil {

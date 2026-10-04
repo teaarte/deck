@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/pressly/goose/v3"
-	_ "modernc.org/sqlite"
+	"modernc.org/sqlite"
 
 	"deck2/internal/store/db"
 )
@@ -21,6 +21,9 @@ var migrations embed.FS
 type Store struct {
 	DB *sql.DB
 	Q  *db.Queries
+	// Changed hears what each committed transaction changed, once it committed.
+	Changed func(Change)
+	changes *changes
 }
 
 // TimeLayout is how deck stores times as text; the text sorts like the times.
@@ -94,10 +97,12 @@ func (g guard) QueryRowContext(ctx context.Context, q string, a ...any) *sql.Row
 
 func Open(path string) (*Store, error) {
 	uri := strings.NewReplacer("%", "%25", "?", "%3f", "#", "%23").Replace(path)
-	conn, err := sql.Open("sqlite", "file:"+uri+"?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)")
+	base, err := sqlite.NewConnector("file:" + uri + "?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)")
 	if err != nil {
 		return nil, err
 	}
+	ch := &changes{}
+	conn := sql.OpenDB(hooked{base, ch})
 	conn.SetMaxOpenConns(1)
 	goose.SetBaseFS(migrations)
 	goose.SetLogger(goose.NopLogger())
@@ -107,7 +112,10 @@ func Open(path string) (*Store, error) {
 	if err := goose.Up(conn, "migrations"); err != nil {
 		return nil, fmt.Errorf("migrate: %w", err)
 	}
-	return &Store{DB: conn, Q: db.New(guard{conn})}, nil
+	if err := ch.readColumns(conn); err != nil {
+		return nil, err
+	}
+	return &Store{DB: conn, Q: db.New(guard{conn}), changes: ch}, nil
 }
 
 func (s *Store) Close() error { return s.DB.Close() }
@@ -138,7 +146,17 @@ func (s *Store) Tx(ctx context.Context, f func(ctx context.Context, q *db.Querie
 	}()
 	if err := f(context.WithValue(ctx, txKey{}, true), s.Q.WithTx(tx)); err != nil {
 		_ = tx.Rollback()
+		s.changes.take()
 		return err
 	}
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		s.changes.take()
+		return err
+	}
+	if ws := s.changes.take(); len(ws) > 0 && s.Changed != nil {
+		for _, c := range s.resolve(ctx, ws) {
+			s.Changed(c)
+		}
+	}
+	return nil
 }

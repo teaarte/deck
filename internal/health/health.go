@@ -4,7 +4,6 @@ package health
 import (
 	"context"
 
-	"deck2/internal/events"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
 	"deck2/internal/untrusted"
@@ -19,16 +18,13 @@ type Of struct{ Workspace, Project int64 }
 // Project is the health of a project.
 func Project(p db.Project) Of { return Of{Workspace: p.WorkspaceID, Project: p.ID} }
 
-// Set writes a health row in a transaction; the caller publishes "health" once it commits.
+// Set writes a health row in a transaction.
 func Set(ctx context.Context, q *db.Queries, of Of, subject, status, text string) error {
 	return q.SetHealth(ctx, db.SetHealthParams{WorkspaceID: store.ID(of.Workspace), ProjectID: store.ID(of.Project), Subject: subject,
 		Status: status, Error: untrusted.Cut(text, limit)})
 }
 
-// Write sets a health row in a transaction of its own and tells the screens.
-func Write(ctx context.Context, st *store.Store, bus *events.Bus, of Of, subject, status, text string) {
-	err := st.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error { return Set(ctx, q, of, subject, status, text) })
-	if err == nil {
-		bus.Publish("health")
-	}
+// Write sets a health row in a transaction of its own.
+func Write(ctx context.Context, st *store.Store, of Of, subject, status, text string) {
+	_ = st.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error { return Set(ctx, q, of, subject, status, text) })
 }

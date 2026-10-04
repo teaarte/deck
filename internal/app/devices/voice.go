@@ -178,7 +178,7 @@ func (dv *Service) setSTTHealth(ctx context.Context, failed error) {
 	if failed != nil {
 		status, text = "error", failed.Error()
 	}
-	health.Write(ctx, dv.St, dv.Bus, health.Of{}, sttHealth, status, text)
+	health.Write(ctx, dv.St, health.Of{}, sttHealth, status, text)
 }
 
 // VoiceCommands are the commands of speech to text.

@@ -139,7 +139,6 @@ func (b *Broker) CreateRaw(ctx context.Context, processID int64, kind, text, pay
 	b.mu.Lock()
 	b.waiters[a.ID] = make(chan string, 1)
 	b.mu.Unlock()
-	b.bus.Publish("asks")
 	return a, nil
 }
 
@@ -202,7 +201,6 @@ func (b *Broker) Answer(ctx context.Context, id int64, answer string) error {
 	if n == 0 {
 		return ErrNotOpen
 	}
-	b.bus.Publish("asks")
 	b.mu.Lock()
 	ch := b.waiters[id]
 	if ch != nil {

@@ -56,10 +56,6 @@ func (r *Runner) pause(ctx context.Context, pv provider.Provider, processID int6
 		r.pauseEnded(ctx, *ended)
 		return
 	}
-	if n > 0 {
-		r.changed(ctx, processID, "processes")
-		r.bus.Publish("health")
-	}
 }
 
 // Unpause tries again every paused process whose next try is due, in the same session; a refusal at or past

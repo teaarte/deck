@@ -35,9 +35,6 @@ func (a *App) toolSignIn(ctx context.Context, p db.Project, tool, why string) {
 		_, err := ask.ForProject(ctx, q, p.WorkspaceID, p.ID, 0, ask.KindSignIn, text, string(payload), time.Time{})
 		return err
 	})
-	if err == nil {
-		a.Bus.Publish("asks")
-	}
 }
 
 type oauthStartIn struct {

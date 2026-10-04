@@ -91,6 +91,9 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	}
 	a := &App{Cfg: cfg, Home: h, Store: st, Bus: events.NewBus(), Scripts: script.New(cfg.Sandbox, cfg.Home), Manifests: &docs.Manifests{St: st}}
 	a.ctx, a.cancel = context.WithCancel(context.Background())
+	st.Changed = func(c store.Change) {
+		a.Bus.Emit(events.Event{Workspace: c.Workspace, Topic: c.Topic, Project: c.Project})
+	}
 	a.Asks = ask.NewBroker(st, a.Bus, cfg.Now)
 	a.Registry = registry.New(a.projectCommands)
 	a.Registry.SetPublish(a.Bus.Publish)
@@ -337,9 +340,6 @@ func (a *App) expireConfirms(ctx context.Context, now time.Time) {
 		seen[q.ProcessID.Int64] = true
 		a.lateAnswer(ctx, q)
 	}
-	if len(expired) > 0 {
-		a.Bus.Publish("asks")
-	}
 }
 
 func (a *App) stopAtCeiling(ctx context.Context, now time.Time) {
@@ -356,14 +356,11 @@ func (a *App) stopAtCeiling(ctx context.Context, now time.Time) {
 }
 
 func (a *App) markSilent(ctx context.Context, now time.Time) {
-	ids, err := store.TxGet(a.Store, ctx, func(ctx context.Context, q *db.Queries) ([]int64, error) {
+	_, err := store.TxGet(a.Store, ctx, func(ctx context.Context, q *db.Queries) ([]int64, error) {
 		return q.MarkSilentProcesses(ctx, now.Add(-silentAfter).UnixMilli())
 	})
 	if err != nil {
 		slog.Error("silent processes", "err", err)
-	}
-	if len(ids) > 0 {
-		a.Bus.Publish("processes")
 	}
 }
 
@@ -378,9 +375,6 @@ func (a *App) purgeEmpty(ctx context.Context, now time.Time) {
 	for _, id := range ids {
 		_ = os.RemoveAll(a.Home.Run(id))
 	}
-	if len(ids) > 0 {
-		a.Bus.Publish("processes")
-	}
 }
 
 // Loop runs the scheduler, the sweep and the self-checks by the deck clock until ctx ends; after a sleep of
@@ -389,9 +383,7 @@ func (a *App) Loop(ctx context.Context, every time.Duration) {
 	t := time.NewTicker(every)
 	defer t.Stop()
 	for {
-		if a.Scheduler.Tick(ctx) > 0 {
-			a.Bus.Publish("triggers")
-		}
+		a.Scheduler.Tick(ctx)
 		a.Sweep(ctx, a.Cfg.Now())
 		a.Providers.Checks(ctx, a.Cfg.Now())
 		select {

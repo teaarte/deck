@@ -44,7 +44,6 @@ func (r *Runner) hold(ctx context.Context, t turn, state string) {
 		return err
 	})
 	if held {
-		r.changed(ctx, t.process, "processes")
 		r.Wake(ctx)
 	}
 }

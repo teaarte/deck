@@ -32,15 +32,15 @@ func (a *App) serverStatus(key string, list []*mcp.Tool, err error) {
 		}
 	}
 	if err != nil {
-		health.Write(ctx, a.Store, a.Bus, of, subject, "error", err.Error())
+		health.Write(ctx, a.Store, of, subject, "error", err.Error())
 		return
 	}
-	health.Write(ctx, a.Store, a.Bus, of, subject, "ok", "")
+	health.Write(ctx, a.Store, of, subject, "ok", "")
 }
 
 // toolHealth is the health of a tool of a project.
 func (a *App) toolHealth(ctx context.Context, p db.Project, tool, status, text string) {
-	health.Write(ctx, a.Store, a.Bus, health.Project(p), "tool:"+tool, status, text)
+	health.Write(ctx, a.Store, health.Project(p), "tool:"+tool, status, text)
 }
 
 // Servers starts the MCP servers of a project whose tools deck has not listed yet, so a process that starts

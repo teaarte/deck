@@ -177,7 +177,6 @@ func (a *App) documentSave(ctx context.Context, act registry.Actor, in documentS
 		return nil, err
 	}
 	var d db.Document
-	var listed bool
 	err = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		ref := docs.Ref{Scope: s, Name: in.Name}
 		if in.Record != 0 {
@@ -207,14 +206,10 @@ func (a *App) documentSave(ctx context.Context, act registry.Actor, in documentS
 		if d, n, err = docs.Save(ctx, q, ref, in.Kind, in.Text, act.Author(), in.Reason); err != nil {
 			return err
 		}
-		listed, err = a.scriptChanged(ctx, q, act, d, n, in.Reason)
-		return err
+		return a.scriptChanged(ctx, q, act, d, n, in.Reason)
 	})
 	if err != nil {
 		return nil, err
-	}
-	if listed {
-		a.Bus.Publish("feed")
 	}
 	v := a.docView(ctx, d)
 	if kind, _ := docs.Owner(d); d.Name == docs.MemoryIndex && kind == "" {
@@ -390,7 +385,6 @@ func (a *App) documentRevert(ctx context.Context, act registry.Actor, in documen
 			Call{Command: registry.Builtin + ".document_revert", Input: map[string]any{"document": d.ID, "revision": r.N, "reason": in.Reason}})
 	}
 	var n int64
-	var listed bool
 	err = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		ref := docs.RefOf(d)
 		if cur, err := q.GetDocument(ctx, d.ID); err != nil || cur.DeletedAt.Valid || in.IfRevision != 0 && cur.Current != in.IfRevision {
@@ -405,22 +399,18 @@ func (a *App) documentRevert(ctx context.Context, act registry.Actor, in documen
 		if _, n, err = docs.Save(ctx, q, ref, d.Kind, r.Text, act.Author(), reason); err != nil {
 			return err
 		}
-		listed, err = a.scriptChanged(ctx, q, act, d, n, reason)
-		return err
+		return a.scriptChanged(ctx, q, act, d, n, reason)
 	})
 	if err != nil {
 		return nil, err
-	}
-	if listed {
-		a.Bus.Publish("feed")
 	}
 	return map[string]any{"revision": n}, nil
 }
 
 // scriptChanged lists a script change made without the owner, undone by returning to the revision before n.
-func (a *App) scriptChanged(ctx context.Context, q *db.Queries, act registry.Actor, d db.Document, n int64, reason string) (bool, error) {
+func (a *App) scriptChanged(ctx context.Context, q *db.Queries, act registry.Actor, d db.Document, n int64, reason string) error {
 	if d.Kind != docs.KindScript || !d.ProjectID.Valid || d.RecordID.Valid || d.CardID.Valid {
-		return false, nil
+		return nil
 	}
 	prev := db.Document{ID: d.ID, Current: n - 1}
 	return a.Devices.Changed(ctx, q, act, d.ProjectID.Int64, prev, n, fmt.Sprintf("%s changed script %s", act.Author(), d.Name), reason)
@@ -436,18 +426,18 @@ func (a *App) documentCommands() []*registry.Command {
 			registry.Everyone, a.documentGet).On("documents"),
 		registry.Def("document_save", "Save document",
 			"Writes a new revision of a document, creating it on first save.",
-			registry.Everyone, a.documentSave).Changes("documents").Enum("kind", docs.Kinds...),
+			registry.Everyone, a.documentSave).Enum("kind", docs.Kinds...),
 		registry.Def("document_delete", "Delete document",
 			"Deletes a document; its revisions stay and the owner can bring it back. Agents delete only the memory of their project.",
-			registry.Everyone, a.documentDelete).Changes("documents"),
+			registry.Everyone, a.documentDelete),
 		registry.Def("document_restore", "Bring document back",
 			"Brings a deleted document back as it was.",
-			registry.OwnerOnly, a.documentRestore).Changes("documents"),
+			registry.OwnerOnly, a.documentRestore),
 		registry.Def("document_revisions", "Document history",
 			"Lists revisions of a document: who, when and why.",
 			registry.Everyone, a.documentRevisions),
 		registry.Def("document_revert", "Revert document",
 			"Makes an earlier revision current again as a new revision.",
-			registry.OwnerSide, a.documentRevert).Changes("documents"),
+			registry.OwnerSide, a.documentRevert),
 	}
 }

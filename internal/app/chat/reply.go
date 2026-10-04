@@ -198,7 +198,6 @@ func (ch *Service) takeMessages(ctx context.Context, t db.ChatTopic, processID i
 		}
 		return q.SetChatMemory(ctx, db.SetChatMemoryParams{Memory: sign, TopicID: t.ID, SessionID: session})
 	})
-	ch.Bus.Publish("chat")
 	return err
 }
 

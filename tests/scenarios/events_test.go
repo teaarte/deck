@@ -106,3 +106,29 @@ func TestABlockThatReadsEveryProjectFollowsThemAll(t *testing.T) {
 		t.Fatal("a when over b's notes does not draw b whole for a change in a")
 	}
 }
+
+// TestAWriteTellsTheReadersOfItsTable: a write of a table is an event of the topic its readers follow, in the
+// project of the row, whichever command wrote it.
+func TestAWriteTellsTheReadersOfItsTable(t *testing.T) {
+	e := newEnv(t, nil)
+	e.createProject("web", boardWebManifest)
+	ev := e.live(t.Context())
+	e.upload("web", "scan.txt", "text/plain", "a page")
+	waitEvent(t, ev, events.Event{Topic: "files", Project: "web"})
+}
+
+// waitEvent waits for an event of the topic in the project.
+func waitEvent(t *testing.T, ch <-chan events.Event, want events.Event) {
+	t.Helper()
+	timeout := time.After(5 * time.Second)
+	for {
+		select {
+		case got := <-ch:
+			if got.Topic == want.Topic && got.Project == want.Project {
+				return
+			}
+		case <-timeout:
+			t.Fatalf("no %+v event", want)
+		}
+	}
+}

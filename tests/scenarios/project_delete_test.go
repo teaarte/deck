@@ -205,3 +205,26 @@ func TestTheMasterDeletesOnlyDrafts(t *testing.T) {
 		t.Fatalf("only the draft is gone: %+v", ps)
 	}
 }
+
+// TestATopicOfADeletedModuleHasNoModule: a topic begun on a screen of a module keeps no module once it is deleted.
+func TestATopicOfADeletedModuleHasNoModule(t *testing.T) {
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result { return provider.Result{Text: "Noted."} })
+	e.createProject("web", boardWebManifest)
+	topic := e.say(0, "look", map[string]any{"screen": `{"project":"web","screen":"main"}`})
+	e.masterSaid(topic, 1)
+	e.must("deck.project_delete", map[string]any{"project": "web"}, nil)
+	var ts []struct {
+		ID      int64
+		Project string
+	}
+	e.must("deck.chat_topics", map[string]any{"archived": true}, &ts)
+	var all []struct {
+		ID      int64
+		Project string
+	}
+	e.must("deck.chat_topics", nil, &all)
+	all = append(all, ts...)
+	if len(all) != 1 || all[0].ID != topic || all[0].Project != "" {
+		t.Fatalf("the topic stays, without the deleted module: %+v", all)
+	}
+}

@@ -338,9 +338,10 @@ SELECT t.id, t.title, t.card_id, t.archived, t.updated_at,
     CAST(COALESCE(op.provider, '') AS TEXT) AS open_provider, CAST(COALESCE(op.error, '') AS TEXT) AS open_error,
     CAST(COALESCE(
         (SELECT pr.name FROM card c JOIN project pr ON pr.id = c.project_id WHERE c.id = t.card_id),
-        (SELECT json_extract(m.context, '$.project') FROM chat_message m
-            WHERE m.topic_id = t.id AND json_valid(m.context) AND COALESCE(json_extract(m.context, '$.project'), '') != ''
-            ORDER BY m.id LIMIT 1),
+        (SELECT pr.name FROM project pr WHERE pr.workspace_id = t.workspace_id AND pr.name =
+            (SELECT json_extract(m.context, '$.project') FROM chat_message m
+                WHERE m.topic_id = t.id AND json_valid(m.context) AND COALESCE(json_extract(m.context, '$.project'), '') != ''
+                ORDER BY m.id LIMIT 1)),
         '') AS TEXT) AS project
 FROM chat_topic t
 LEFT JOIN process op ON op.id = (SELECT p.id FROM process p

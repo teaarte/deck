@@ -330,7 +330,7 @@
           {"title": "General", "icon": "adjustments", "blocks": [
             {"type": "table", "title": "General", "source": {"from": "deck.settings_list"},
               "columns": [
-                {"label": "Setting", "bind": "title"},
+                {"label": "Setting", "bind": "name", "format": "label"},
                 {"label": "Value", "bind": "value"},
                 {"label": "Default", "bind": "default"}
               ],

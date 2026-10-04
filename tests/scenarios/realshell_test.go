@@ -203,4 +203,6 @@ func TestRealBrowserShell(t *testing.T) {
 	b.eval(`([...document.querySelectorAll('[role="tab"]')].find((x) => x.innerText.includes('Вызовы')).click(), '')`)
 	b.eval(`([...document.querySelectorAll('[role="tab"]')].find((x) => x.innerText.includes('Файлы')).click(), '')`)
 	b.until("the address names the tab as written", `location.hash.endsWith('tab=Files')`)
+	b.open(e.URL + "/#/deck/settings?tab=General")
+	b.until("the settings named in the language of the owner", `document.body.innerText.includes('Язык интерфейса')`)
 }

@@ -1,8 +1,8 @@
 import { AreaChart, BarChart, LineChart } from '@mantine/charts';
 import '@mantine/charts/styles.css';
-import { useLook } from './theme/look';
-import { formatted, show, when, type Shown } from './lib/format';
-import type { ChartValue } from './lib/catalog.gen';
+import { useLook } from '../../theme/look';
+import { formatted, show, when, type Shown } from '../../lib/format';
+import type { ChartValue } from '../../lib/catalog.gen';
 
 // SERIES are the colors of the series after the first, which takes the accent of the device.
 const SERIES = ['orange', 'teal', 'grape', 'yellow', 'cyan', 'pink', 'lime', 'indigo'];
@@ -27,6 +27,7 @@ function short(v: number, s: Shown): string {
   return new Intl.NumberFormat(undefined, { notation: 'compact', maximumFractionDigits: 1 }).format(v);
 }
 
+// Chart draws the series of a source over x: lines, areas or bars; times on x make a time axis.
 export function Chart({ value, kind, s }: { value: ChartValue; kind?: string; s: Shown }) {
   const look = useLook();
   const ms = times(value.x);

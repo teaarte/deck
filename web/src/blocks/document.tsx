@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { Anchor, Badge, Button, Code, Collapse, Group, Stack, Text, TextInput, Textarea } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
-import { call } from './lib/api';
-import type { DocumentValue } from './lib/catalog.gen';
-import { Markdown } from './ui/Markdown';
-import { notifyError, notifyDone } from './lib/notify';
+import { call } from '../lib/api';
+import type { DocumentValue } from '../lib/catalog.gen';
+import { Markdown } from '../ui/Markdown';
+import { blockImpl } from './blockImpl';
+import { notifyError, notifyDone } from '../lib/notify';
 
 // Document shows a document with its revisions; an md one is edited as text and saved as a new revision.
-export function Document({ value }: { value: DocumentValue }) {
+function Document({ value }: { value: DocumentValue }) {
   const { t } = useTranslation();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
@@ -96,3 +97,5 @@ export function Document({ value }: { value: DocumentValue }) {
     </Stack>
   );
 }
+
+export const documentBlock = blockImpl('document', (_, d) => <Document value={d.value as DocumentValue} />);

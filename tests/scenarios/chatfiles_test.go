@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
+	deckhome "deck2/internal/home"
 	"deck2/internal/provider"
 )
 
@@ -45,4 +47,19 @@ func TestOwnerAttachesFilesAndTopicsKnowTheirModule(t *testing.T) {
 		t.Fatalf("a topic knows the module of the screen it began on: %+v", ts)
 	}
 	e.refused("deck.chat_send", map[string]any{"text": "x", "files": []string{"nope"}}, 422, "the id of an upload")
+}
+
+// TestARetriedMessageDoesNotAttachItsFilesAgain: a message sent again with its retry key is the one already
+// sent, even when its upload is gone by now.
+func TestARetriedMessageDoesNotAttachItsFilesAgain(t *testing.T) {
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result { return provider.Result{Text: "Read it."} })
+	id := e.upload("master", "plan.txt", "text/plain", "the plan")
+	in := map[string]any{"files": []string{fmt.Sprint(id)}, "retry_key": "k1"}
+	topic := e.say(0, "look at the plan", in)
+	if err := os.Remove(filepath.Join(deckhome.Layout(e.App.Cfg.Home).Files(), fmt.Sprint(id))); err != nil {
+		t.Fatal(err)
+	}
+	if again := e.say(0, "look at the plan", in); again != topic {
+		t.Fatalf("the retry is the message already sent: %d, not %d", again, topic)
+	}
 }

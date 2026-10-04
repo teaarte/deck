@@ -122,6 +122,11 @@ func (ch *Service) chatSend(ctx context.Context, act registry.Actor, in chatSend
 			return nil, registry.Invalid("deck: screen is a JSON object: %v", err)
 		}
 	}
+	if in.RetryKey != "" {
+		if old, err := ch.St.Q.FindMessageByKey(ctx, db.FindMessageByKeyParams{WorkspaceID: act.Workspace, RetryKey: in.RetryKey}); err == nil {
+			return ch.sent(ctx, old), nil
+		}
+	}
 	s.Files = nil
 	if len(in.Files) > 0 {
 		paths, err := ch.Attach(ctx, act, in.Files)
@@ -177,12 +182,17 @@ func (ch *Service) chatSend(ctx context.Context, act registry.Actor, in chatSend
 	if err != nil {
 		return nil, err
 	}
+	return ch.sent(ctx, msg), nil
+}
+
+// sent wakes the master for a message of the owner and says where it went.
+func (ch *Service) sent(ctx context.Context, msg db.ChatMessage) map[string]any {
 	ch.pump(context.WithoutCancel(ctx), msg.TopicID)
 	out := map[string]any{"topic": msg.TopicID, "message": msg.ID}
 	if m, err := ch.St.Q.GetMessage(ctx, msg.ID); err == nil && m.ProcessID != 0 {
 		out["process"] = m.ProcessID
 	}
-	return out, nil
+	return out
 }
 
 type chatTopicsIn struct {

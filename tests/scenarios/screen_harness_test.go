@@ -113,7 +113,7 @@ func boardWebAgent() Script {
 			out, _ := c.Tool(ctx, "records_list", map[string]any{"collection": "notes"})
 			_ = json.Unmarshal([]byte(out), &recs)
 			if text, bad := c.Tool(ctx, "notify", map[string]any{"text": "alpha scored high", "screen": "note", "record": recs[0].ID,
-				"actions": fmt.Sprintf(`[{"label": "Touch it", "command": "touch", "params": {"note": %d}}]`, recs[0].ID)}); bad {
+				"actions": fmt.Sprintf(`[{"label": "Touch it", "icon": "hand-finger", "confirm": true, "command": "touch", "params": {"note": %d}}]`, recs[0].ID)}); bad {
 				return provider.Result{Structured: json.RawMessage(fmt.Sprintf(`{"error": %q}`, text))}
 			}
 		}

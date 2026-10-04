@@ -18,6 +18,10 @@ type Button struct {
 	Label   string         `json:"label"`
 	Command string         `json:"command"`
 	Params  map[string]any `json:"params,omitempty"`
+	// Icon, Confirm and Input are as for a button of a screen: a Tabler icon, a yes first, a param the owner types.
+	Icon    string `json:"icon,omitempty"`
+	Confirm bool   `json:"confirm,omitempty"`
+	Input   string `json:"input,omitempty"`
 }
 
 type notifyIn struct {
@@ -25,7 +29,7 @@ type notifyIn struct {
 	Text    string `type:"text" desc:"What happened, in a sentence"`
 	Screen  string `opt:"" desc:"Screen of the project the line opens"`
 	Record  int64  `type:"record" opt:"" desc:"Record the screen shows"`
-	Actions string `type:"json" opt:"" desc:"Buttons: a JSON list [{label, command, params}] with commands of the project"`
+	Actions string `type:"json" opt:"" desc:"Buttons: a JSON list [{label, command, params, icon?, confirm?, input?}] with commands of the project; confirm asks the owner first, input names a param the owner types"`
 }
 
 // notify writes a line to the feed of the cockpit; push comes with stage 3. The caller decides whether it is worth it.

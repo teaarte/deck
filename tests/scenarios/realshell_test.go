@@ -45,7 +45,21 @@ func TestRealBrowserShell(t *testing.T) {
 	b.until("the notification in the list of the bell", `document.querySelector('[data-bell-list] [data-note]')?.innerText.includes('alpha scored high')`)
 	b.shot("shell-bell")
 	b.until("the bell has nothing new once seen", `!document.querySelector('[data-bell-count]')`)
-	b.eval(`(document.querySelector('[data-bell]').click(), '')`)
+	b.until("a button of a notification with its icon", `document.querySelector('[data-bell-list] [data-note] [data-icon="hand-finger"]')`)
+	b.eval(`([...document.querySelectorAll('[data-bell-list] button')].find((x) => x.innerText.includes('Touch it')).click(), '')`)
+	b.until("the button asks first, as a button of a screen does", `document.querySelector('[data-confirm-yes]')`)
+	b.eval(`(document.querySelector('[data-confirm-yes]').click(), '')`)
+	e.waitFor("the call of the button", func() bool {
+		for _, p := range e.processes() {
+			if p.Command == "touch" {
+				return true
+			}
+		}
+		return false
+	})
+	if b.eval(`String(!!document.querySelector('[data-bell-list]'))`) == "true" {
+		b.eval(`(document.querySelector('[data-bell]').click(), '')`)
+	}
 
 	b.eval(`(document.querySelector('[data-group="web"] [data-group-head]').click(), '')`)
 	b.until("the group of web folded", `!document.querySelector('[data-group="web"] a:not([data-extra])')?.offsetParent && document.querySelector('[data-group="web"] [data-group-head]').getAttribute('aria-expanded') === 'false'`)

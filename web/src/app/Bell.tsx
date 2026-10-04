@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActionIcon, Button, Group, Indicator, Popover, ScrollArea, Stack, Text, UnstyledButton } from '@mantine/core';
+import { ActionIcon, Group, Indicator, Popover, ScrollArea, Stack, Text, UnstyledButton } from '@mantine/core';
 import { IconBell, IconBellOff } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { call } from '../lib/api';
@@ -7,7 +7,8 @@ import { events } from '../lib/events';
 import { formatted } from '../lib/format';
 import { go } from './router';
 import s from './bell.module.css';
-import { notifyError, notifyDone } from '../lib/notify';
+import type { Action } from '../lib/catalog.gen';
+import { Actions } from '../ui/Actions';
 
 interface Note {
   id: number;
@@ -15,7 +16,7 @@ interface Note {
   text: string;
   screen: string;
   record: number;
-  buttons?: { label: string; command: string; params?: Record<string, unknown> }[];
+  buttons?: Action[];
   created_at: string;
 }
 
@@ -41,14 +42,6 @@ export function Bell() {
     }
     setOpen(!open);
   };
-  const press = async (b: NonNullable<Note['buttons']>[number]) => {
-    try {
-      await call(b.command, b.params ?? {});
-      notifyDone();
-    } catch (e) {
-      notifyError(e, b.label);
-    }
-  };
   return (
     <Popover opened={open} onChange={setOpen} position="bottom-start" width={340} shadow="lg" radius="lg" withinPortal>
       <Popover.Target>
@@ -72,11 +65,7 @@ export function Bell() {
                     <Text size="sm" lh={1.4}>{n.text}</Text>
                     <Text size="xs" c="dimmed" mt={2}>{n.project} · {formatted(n.created_at, { format: 'relative' })}</Text>
                   </UnstyledButton>
-                  {!!n.buttons?.length && (
-                    <Group gap={6} mt={6}>
-                      {n.buttons.map((b, i) => <Button key={i} size="compact-xs" radius="xl" variant="light" onClick={() => void press(b)}>{b.label}</Button>)}
-                    </Group>
-                  )}
+                  {!!n.buttons?.length && <div className={s.noteActions}><Actions actions={n.buttons} /></div>}
                 </div>
               ))}
             </Stack>

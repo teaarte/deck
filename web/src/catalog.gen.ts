@@ -360,6 +360,10 @@ export interface ChatValue {
     role: "owner" | "master";
     text: string;
     process?: number;
+    files?: {
+      id: number;
+      name: string;
+    }[];
     /**
      * the screen the owner wrote it on: project, screen, record, card, process
      */

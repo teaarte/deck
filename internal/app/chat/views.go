@@ -60,7 +60,14 @@ type messageView struct {
 	Screen    json.RawMessage `json:"screen,omitempty"`
 	Process   int64           `json:"process,omitempty"`
 	Reply     *replyView      `json:"reply,omitempty"`
+	Files     []fileView      `json:"files,omitempty"`
 	CreatedAt string          `json:"created_at"`
+}
+
+// fileView is a file the owner attached to a message.
+type fileView struct {
+	ID   int64  `json:"id"`
+	Name string `json:"name"`
 }
 
 type questionView struct {
@@ -128,12 +135,19 @@ func (ch *Service) topics(ctx context.Context, workspace int64, archived bool, t
 	return out, nil
 }
 
-// messages are messages of a topic with the reply each message of the owner got.
-func (ch *Service) messages(ctx context.Context, rows []db.ChatMessage) []messageView {
+// messages are messages of a topic with the reply each message of the owner got and the files it has.
+func (ch *Service) messages(ctx context.Context, topic int64, rows []db.ChatMessage) []messageView {
 	replies := map[int64]*replyView{}
+	files := map[int64][]fileView{}
+	if fs, err := ch.St.Q.ListMessageFiles(ctx, topic); err == nil {
+		for _, f := range fs {
+			files[f.OwnerID] = append(files[f.OwnerID], fileView{ID: f.ID, Name: f.Name})
+		}
+	}
 	out := make([]messageView, 0, len(rows))
 	for _, r := range rows {
 		m := viewMessage(r)
+		m.Files = files[r.ID]
 		if r.Role == roleOwner && r.ProcessID != 0 {
 			if _, seen := replies[r.ProcessID]; !seen {
 				replies[r.ProcessID] = nil
@@ -192,7 +206,7 @@ func (ch *Service) chat(ctx context.Context, act registry.Actor, in chatIn) (cha
 	if err != nil {
 		return v, err
 	}
-	v.Messages = ch.messages(ctx, rows)
+	v.Messages = ch.messages(ctx, t.ID, rows)
 	if t.Reply == nil {
 		return v, nil
 	}

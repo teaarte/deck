@@ -184,6 +184,43 @@ func (q *Queries) ListFilesOf(ctx context.Context, arg ListFilesOfParams) ([]Fil
 	return items, nil
 }
 
+const listMessageFiles = `-- name: ListMessageFiles :many
+SELECT f.id, f.project_id, f.owner_kind, f.owner_id, f.name, f.type, f.size, f.created_at FROM file f JOIN chat_message m ON m.id = f.owner_id
+WHERE f.owner_kind = 'chat_message' AND m.topic_id = ? ORDER BY f.id
+`
+
+func (q *Queries) ListMessageFiles(ctx context.Context, topicID int64) ([]File, error) {
+	rows, err := q.db.QueryContext(ctx, listMessageFiles, topicID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []File
+	for rows.Next() {
+		var i File
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProjectID,
+			&i.OwnerKind,
+			&i.OwnerID,
+			&i.Name,
+			&i.Type,
+			&i.Size,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listWorkspaceFiles = `-- name: ListWorkspaceFiles :many
 SELECT id, project_id, owner_kind, owner_id, name, type, size, created_at FROM file WHERE project_id IN (SELECT id FROM project WHERE workspace_id = ?1)
   AND (?2 = 0 OR project_id = ?2)
@@ -233,6 +270,7 @@ DELETE FROM file
 WHERE (owner_kind = 'record' AND owner_id NOT IN (SELECT id FROM record))
    OR (owner_kind = 'card' AND owner_id NOT IN (SELECT id FROM card))
    OR (owner_kind = 'process' AND owner_id NOT IN (SELECT id FROM process))
+   OR (owner_kind = 'chat_message' AND owner_id NOT IN (SELECT id FROM chat_message))
 RETURNING id
 `
 

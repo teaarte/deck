@@ -19,6 +19,10 @@ type chatMessage struct {
 	Screen  json.RawMessage `json:"screen"`
 	Process int64           `json:"process"`
 	Reply   *topicReply     `json:"reply"`
+	Files   []struct {
+		ID   int64  `json:"id"`
+		Name string `json:"name"`
+	} `json:"files"`
 }
 
 type chatTopic struct {

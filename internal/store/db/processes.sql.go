@@ -1307,6 +1307,20 @@ func (q *Queries) SetProcessOutput(ctx context.Context, arg SetProcessOutputPara
 	return err
 }
 
+const setStartNote = `-- name: SetStartNote :exec
+UPDATE process SET start_note = ? WHERE id = ?
+`
+
+type SetStartNoteParams struct {
+	StartNote string
+	ID        int64
+}
+
+func (q *Queries) SetStartNote(ctx context.Context, arg SetStartNoteParams) error {
+	_, err := q.db.ExecContext(ctx, setStartNote, arg.StartNote, arg.ID)
+	return err
+}
+
 const settleDecision = `-- name: SettleDecision :exec
 UPDATE tool_call SET run = 'settled', result = ? WHERE ask_id = ? AND run = 'running'
 `

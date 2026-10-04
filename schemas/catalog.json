@@ -341,6 +341,7 @@
         "archived": {"type": "array", "items": {"$ref": "#/$defs/topic"}},
         "messages": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["id", "role", "text", "created_at"], "properties": {
           "id": {"type": "integer"}, "role": {"enum": ["owner", "master"]}, "text": {"type": "string"}, "process": {"type": "integer"},
+          "files": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["id", "name"], "properties": {"id": {"type": "integer"}, "name": {"type": "string"}}}},
           "screen": {"type": "object", "description": "the screen the owner wrote it on: project, screen, record, card, process"},
           "reply": {"$ref": "#/$defs/reply"}, "created_at": {"type": "string"}}}},
         "questions": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["ask", "text", "questions", "answer"], "properties": {

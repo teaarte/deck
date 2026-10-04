@@ -236,3 +236,7 @@ SELECT CAST(substr(p.started_at, 1, 10) AS TEXT) AS day,
 FROM process p JOIN project j ON j.id = p.project_id
 WHERE j.workspace_id = sqlc.arg(workspace_id) AND p.started_at >= sqlc.arg(since)
 GROUP BY day;
+
+
+-- name: SetStartNote :exec
+UPDATE process SET start_note = ? WHERE id = ?;

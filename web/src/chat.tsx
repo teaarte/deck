@@ -195,7 +195,7 @@ export function Chat({ value, context }: { value: ChatValue; context: ComponentC
         <Stack gap="md" pr="xs" py="xs" ref={content}>
           {!value.messages.length && <Text size="sm" c="dimmed" ta="center" mt="xl">{t('chat.empty')}</Text>}
           {value.messages.map((m) => {
-            const files = ((m as { screen?: { files?: string[] } }).screen?.files ?? []).map((f) => f.split('/').pop()!.replace(/^\d+-/, ''));
+            const files = (m.files ?? []).map((f) => f.name);
             return m.role === 'owner' ? (
               <Stack key={m.id} gap={4} align="flex-end" data-message="owner">
                 <div className={s.ownerBubble}>

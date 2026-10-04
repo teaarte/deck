@@ -35,6 +35,8 @@ type Origin struct {
 	Message string
 	// Note goes into the first prompt of a fresh session, also of one that replaces a lost session.
 	Note string
+	// Files are stored files of the project given to the agent with its first message, as with Give.
+	Files []int64
 }
 
 func (r *Runner) ceilingOf(m *manifest.Manifest, cmd *manifest.Command) time.Duration {
@@ -183,6 +185,19 @@ func (r *Runner) Start(ctx context.Context, projectID int64, m *manifest.Manifes
 	}
 	if reused {
 		return p.ID, nil
+	}
+	if len(o.Files) > 0 {
+		line, err := r.Give(ctx, p.ID, o.Files)
+		if err == nil {
+			o.Message = strings.TrimSpace(o.Message + "\n\n" + line)
+			err = r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+				return q.SetStartNote(ctx, db.SetStartNoteParams{StartNote: strings.TrimSpace(o.Note + "\n\n" + line), ID: p.ID})
+			})
+		}
+		if err != nil {
+			r.finish(ctx, p.ID, StateError, "", false, "give files: "+err.Error())
+			return 0, err
+		}
 	}
 	r.changed(ctx, p.ID, "processes")
 	if o.Trigger != 0 {

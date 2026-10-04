@@ -32,6 +32,8 @@ import (
 const (
 	roleOwner  = "owner"
 	roleMaster = "master"
+	// FileOwner is the owner kind of a file attached to a message.
+	FileOwner = "chat_message"
 	// retellTail is how many messages after the summary a new session gets word for word.
 	retellTail = 30
 	// summaryDue is how many messages since the summary make deck ask the master to update it.
@@ -46,8 +48,6 @@ type Service struct {
 	Asks   *ask.Broker
 	Runner *process.Runner
 	For    func(ctx context.Context, projectID int64, cmd *manifest.Command) (provider.Provider, error)
-	// Attach copies uploads of the owner where the master reads them and gives their paths.
-	Attach func(ctx context.Context, act registry.Actor, files []string) ([]string, error)
 
 	mu    sync.Mutex
 	queue chatQueue
@@ -129,12 +129,22 @@ func (ch *Service) reply(ctx context.Context, topicID int64) error {
 		return err
 	}
 	first, last := pending[0].ID, pending[len(pending)-1].ID
+	files := attached(pending)
 	open, err := ch.St.Q.OpenTopicProcess(ctx, topicID)
 	if err == nil {
+		given := ""
+		if len(files) > 0 {
+			if given, err = ch.Runner.Give(ctx, open.ID, files); err != nil {
+				return err
+			}
+		}
 		if q := ch.openQuestion(ctx, open.ID); q != 0 {
-			texts := make([]string, 0, len(pending))
+			texts := make([]string, 0, len(pending)+1)
 			for _, m := range pending {
 				texts = append(texts, strings.TrimSpace(m.Text))
+			}
+			if given != "" {
+				texts = append(texts, given)
 			}
 			if err := ch.Asks.Answer(ctx, q, strings.Join(texts, "\n\n")); err == nil {
 				return ch.takeMessages(ctx, t, open.ID, open.SessionID, "", last)
@@ -142,7 +152,7 @@ func (ch *Service) reply(ctx context.Context, topicID int64) error {
 		}
 		if open.State == process.StateRunning {
 			news, _, err := ch.chatPrompt(ctx, t, pending, "", "", false)
-			if err != nil || ch.Runner.Say(ctx, open.ID, "deck: the owner wrote while you work.\n"+news) == process.Refused {
+			if err != nil || ch.Runner.Say(ctx, open.ID, strings.TrimSpace("deck: the owner wrote while you work.\n"+news+"\n"+given)) == process.Refused {
 				return err
 			}
 			return ch.takeMessages(ctx, t, open.ID, open.SessionID, "", last)
@@ -154,7 +164,7 @@ func (ch *Service) reply(ctx context.Context, topicID int64) error {
 		if err != nil {
 			return err
 		}
-		if err := ch.Runner.Remark(ctx, open.ID, msg); err != nil {
+		if err := ch.Runner.Remark(ctx, open.ID, strings.TrimSpace(msg+"\n\n"+given)); err != nil {
 			return err
 		}
 		return ch.takeMessages(ctx, t, open.ID, open.SessionID, sign, last)
@@ -179,7 +189,7 @@ func (ch *Service) reply(ctx context.Context, topicID int64) error {
 	if err != nil {
 		return err
 	}
-	o := process.Origin{Session: uuid.NewString()}
+	o := process.Origin{Session: uuid.NewString(), Files: files}
 	sign := ""
 	s, err := ch.St.Q.GetChatSession(ctx, db.GetChatSessionParams{TopicID: topicID, Provider: pv.Name()})
 	switch {
@@ -372,6 +382,18 @@ func transcript(ms []db.ChatMessage) string {
 	return b.String()
 }
 
+// attached are the files the owner attached to messages.
+func attached(ms []db.ChatMessage) []int64 {
+	var out []int64
+	for _, m := range ms {
+		var s screenContext
+		if json.Unmarshal([]byte(m.Context), &s) == nil {
+			out = append(out, s.Files...)
+		}
+	}
+	return out
+}
+
 // screenContext is the screen of the owner a message was written on.
 type screenContext struct {
 	Project string `json:"project,omitempty"`
@@ -379,8 +401,8 @@ type screenContext struct {
 	Record  int64  `json:"record,omitempty"`
 	Card    int64  `json:"card,omitempty"`
 	Process int64  `json:"process,omitempty"`
-	// Files are the paths of the files the owner attached to the message.
-	Files []string `json:"files,omitempty"`
+	// Files are the stored files the owner attached to the message.
+	Files []int64 `json:"files,omitempty"`
 }
 
 func screenText(raw string) string {
@@ -403,11 +425,7 @@ func screenText(raw string) string {
 			parts = append(parts, fmt.Sprintf("%s %d", f.name, f.id))
 		}
 	}
-	out := strings.Join(parts, ", ")
-	if len(s.Files) > 0 {
-		out = strings.TrimPrefix(out+"; the owner attached files: "+strings.Join(s.Files, ", "), "; ")
-	}
-	return out
+	return strings.Join(parts, ", ")
 }
 
 // replyOf is the topic of a reply process of the built-in master, or 0 for any other process.

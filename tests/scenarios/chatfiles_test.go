@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
@@ -13,8 +15,8 @@ import (
 	"deck2/internal/provider"
 )
 
-// TestOwnerAttachesFilesAndTopicsKnowTheirModule: a file the owner attaches lands in the data folder of project
-// master and its path goes with the message to the master; a topic knows the module it was opened on.
+// TestOwnerAttachesFilesAndTopicsKnowTheirModule: an attached file belongs to the message, the turn that takes
+// it gets a copy in its input folder; a topic knows the module it was opened on.
 func TestOwnerAttachesFilesAndTopicsKnowTheirModule(t *testing.T) {
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		return provider.Result{Text: "Read it."}
@@ -26,17 +28,27 @@ func TestOwnerAttachesFilesAndTopicsKnowTheirModule(t *testing.T) {
 	ms := e.chatMessages(topic)
 	var screen struct {
 		Project string
-		Files   []string
+		Files   []int64
 	}
 	_ = json.Unmarshal(ms[0].Screen, &screen)
-	if len(screen.Files) != 1 || !strings.HasSuffix(screen.Files[0], "-plan.txt") || !strings.Contains(screen.Files[0], "/attachments/") {
-		t.Fatalf("the message keeps the path of the attached file: %s", ms[0].Screen)
+	if !slices.Equal(screen.Files, []int64{id}) || strings.Contains(string(ms[0].Screen), "/") {
+		t.Fatalf("the message keeps the id of the attached file, no path: %s", ms[0].Screen)
 	}
-	if b, err := os.ReadFile(screen.Files[0]); err != nil || string(b) != "the plan" {
-		t.Fatalf("the file is in the data folder of project master: %q %v", b, err)
+	if raw, _ := json.Marshal(ms[0]); !strings.Contains(string(raw), fmt.Sprintf(`"files":[{"id":%d,"name":"plan.txt"}]`, id)) {
+		t.Fatalf("the message lists its files by name: %s", raw)
 	}
-	if req := e.Fake.Calls()[0]; !strings.Contains(req.Prompt, "the owner attached files: "+screen.Files[0]) {
-		t.Fatalf("the master is told where the file is:\n%s", req.Prompt)
+	prompt := e.Fake.Calls()[0].Prompt
+	at := regexp.MustCompile(`(/\S+/input/` + fmt.Sprint(id) + `-plan\.txt)`).FindStringSubmatch(prompt)
+	if at == nil {
+		t.Fatalf("the master is told where the copy of the file is:\n%s", prompt)
+	}
+	if b, err := os.ReadFile(at[1]); err != nil || string(b) != "the plan" {
+		t.Fatalf("the copy is in the input folder of the turn: %q %v", b, err)
+	}
+	if _, err := os.Stat(filepath.Join(deckhome.Layout(e.App.Cfg.Home).Work(), "projects")); err == nil {
+		if m, _ := filepath.Glob(filepath.Join(deckhome.Layout(e.App.Cfg.Home).Work(), "projects", "*", "data", "attachments")); len(m) > 0 {
+			t.Fatalf("nothing is copied into the data of master: %v", m)
+		}
 	}
 	var ts []struct {
 		ID      int64
@@ -47,6 +59,7 @@ func TestOwnerAttachesFilesAndTopicsKnowTheirModule(t *testing.T) {
 		t.Fatalf("a topic knows the module of the screen it began on: %+v", ts)
 	}
 	e.refused("deck.chat_send", map[string]any{"text": "x", "files": []string{"nope"}}, 422, "the id of an upload")
+	e.refused("deck.chat_send", map[string]any{"text": "again", "files": []string{fmt.Sprint(id)}}, 404, "no upload")
 }
 
 // TestARetriedMessageDoesNotAttachItsFilesAgain: a message sent again with its retry key is the one already

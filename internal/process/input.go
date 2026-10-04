@@ -113,6 +113,29 @@ func (r *Runner) inputFiles(ctx context.Context, cmd *manifest.Command, projectI
 	return string(out), dir, nil
 }
 
+// Give puts read-only copies of stored files of the project of a process into its input folder and says where
+// they are, a line for the agent's next message.
+func (r *Runner) Give(ctx context.Context, processID int64, files []int64) (string, error) {
+	p, err := r.st.Q.GetProcess(ctx, processID)
+	if err != nil {
+		return "", err
+	}
+	dir := filepath.Join(r.runDir(processID), "input")
+	paths := make([]string, 0, len(files))
+	for _, id := range files {
+		f, err := r.st.Q.GetFile(ctx, id)
+		if err != nil || f.ProjectID != p.ProjectID {
+			return "", fmt.Errorf("no file %d in this project", id)
+		}
+		path, err := r.place(f, dir, true)
+		if err != nil {
+			return "", err
+		}
+		paths = append(paths, path)
+	}
+	return "Files given with this message, read-only: " + strings.Join(paths, ", "), nil
+}
+
 // place links or copies a stored file into a folder under its id and name; a copy is read-only.
 func (r *Runner) place(f db.File, dir string, copies bool) (string, error) {
 	if err := os.MkdirAll(dir, 0o700); err != nil {

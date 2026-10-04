@@ -5,8 +5,6 @@ import (
 	"context"
 	"deck2/internal/app/access"
 	"encoding/base64"
-	"errors"
-	"fmt"
 	"io"
 	"mime"
 	"os"
@@ -116,42 +114,6 @@ func (a *App) OpenFile(ctx context.Context, act registry.Actor, id int64) (fileV
 		return fileView{}, nil, missing
 	}
 	return fileView{ID: f.ID, Name: f.Name, Type: f.Type, Size: f.Size, OwnerKind: f.OwnerKind, OwnerID: f.OwnerID, CreatedAt: f.CreatedAt}, file, nil
-}
-
-// attach copies files the owner uploaded into the data folder of project master, so the master reads them in
-// any later reply; the paths it gives go with the message.
-func (a *App) attach(ctx context.Context, act registry.Actor, ids []string) ([]string, error) {
-	m, err := access.Master(ctx, a.Store.Q, act.Workspace)
-	if err != nil {
-		return nil, err
-	}
-	dir := filepath.Join(a.Home.Data(m.ID), "attachments")
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return nil, err
-	}
-	out := make([]string, 0, len(ids))
-	for _, s := range ids {
-		id, err := strconv.ParseInt(s, 10, 64)
-		if err != nil {
-			return nil, registry.Invalid("deck: a file is the id of an upload: %q", s)
-		}
-		f, src, err := a.OpenFile(ctx, act, id)
-		if err != nil {
-			return nil, err
-		}
-		path := filepath.Join(dir, fmt.Sprintf("%d-%s", f.ID, filepath.Base(f.Name)))
-		dst, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
-		if err == nil {
-			_, err = io.Copy(dst, src)
-			err = errors.Join(err, dst.Close())
-		}
-		src.Close()
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, path)
-	}
-	return out, nil
 }
 
 func (a *App) uploadCommands() []*registry.Command {

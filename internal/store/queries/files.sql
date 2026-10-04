@@ -25,6 +25,7 @@ DELETE FROM file
 WHERE (owner_kind = 'record' AND owner_id NOT IN (SELECT id FROM record))
    OR (owner_kind = 'card' AND owner_id NOT IN (SELECT id FROM card))
    OR (owner_kind = 'process' AND owner_id NOT IN (SELECT id FROM process))
+   OR (owner_kind = 'chat_message' AND owner_id NOT IN (SELECT id FROM chat_message))
 RETURNING id;
 
 
@@ -47,3 +48,8 @@ RETURNING id;
 SELECT * FROM file WHERE project_id IN (SELECT id FROM project WHERE workspace_id = sqlc.arg(workspace_id))
   AND (sqlc.arg(project_id) = 0 OR project_id = sqlc.arg(project_id))
 ORDER BY id DESC LIMIT sqlc.arg(lim);
+
+
+-- name: ListMessageFiles :many
+SELECT f.* FROM file f JOIN chat_message m ON m.id = f.owner_id
+WHERE f.owner_kind = 'chat_message' AND m.topic_id = ? ORDER BY f.id;

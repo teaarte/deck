@@ -7,6 +7,7 @@ import (
 	"deck2/master"
 	"encoding/json"
 	"errors"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 
@@ -44,7 +45,7 @@ type chatSendIn struct {
 	Screen   string   `type:"json" opt:"" desc:"The screen the owner is on, as JSON: project, screen, record, card, process"`
 	Card     int64    `type:"card" opt:"" desc:"Card a new topic is about"`
 	RetryKey string   `json:"retry_key" opt:"" desc:"A key of this message: sending it again with the same key returns the first one"`
-	Files    []string `type:"file[]" opt:"" desc:"Uploads the owner attaches; the master reads them in the data folder of project master"`
+	Files    []string `type:"file[]" opt:"" desc:"Uploads of project master the owner attaches; the turn that takes the message gets copies"`
 }
 
 type chatInterviewIn struct {
@@ -87,22 +88,23 @@ func (ch *Service) chatSend(ctx context.Context, act registry.Actor, in chatSend
 		}
 	}
 	s.Files = nil
-	if len(in.Files) > 0 {
-		paths, err := ch.Attach(ctx, act, in.Files)
+	for _, f := range in.Files {
+		id, err := strconv.ParseInt(f, 10, 64)
 		if err != nil {
-			return nil, err
+			return nil, registry.Invalid("deck: a file is the id of an upload: %q", f)
 		}
-		s.Files = paths
+		s.Files = append(s.Files, id)
 	}
 	screen := ""
 	if b, _ := json.Marshal(s); string(b) != "{}" {
 		screen = string(b)
 	}
-	if _, err := access.Master(ctx, ch.St.Q, act.Workspace); err != nil {
+	master, err := access.Master(ctx, ch.St.Q, act.Workspace)
+	if err != nil {
 		return nil, err
 	}
 	var msg db.ChatMessage
-	err := ch.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+	err = ch.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		if in.RetryKey != "" {
 			old, err := q.FindMessageByKey(ctx, db.FindMessageByKeyParams{WorkspaceID: act.Workspace, RetryKey: in.RetryKey})
 			if err == nil {
@@ -135,6 +137,15 @@ func (ch *Service) chatSend(ctx context.Context, act registry.Actor, in chatSend
 		}
 		if msg, err = q.AddMessage(ctx, db.AddMessageParams{TopicID: t.ID, Role: roleOwner, Text: text, Context: screen, RetryKey: in.RetryKey}); err != nil {
 			return err
+		}
+		for _, id := range s.Files {
+			n, err := q.BindFile(ctx, db.BindFileParams{OwnerKind: FileOwner, OwnerID: msg.ID, ID: id, ProjectID: master.ID, FromKind: "upload", FromID: 0})
+			if err != nil {
+				return err
+			}
+			if n == 0 {
+				return registry.NotFound("deck: no upload %d of project master", id)
+			}
 		}
 		return q.TouchTopic(ctx, db.TouchTopicParams{Now: store.Time(ch.Now()), ID: t.ID})
 	})
@@ -192,7 +203,7 @@ func (ch *Service) chatMessages(ctx context.Context, act registry.Actor, in chat
 	if err != nil || len(ts) == 0 {
 		return topicMessages{}, err
 	}
-	return topicMessages{Topic: ts[0], Messages: ch.messages(ctx, rows)}, nil
+	return topicMessages{Topic: ts[0], Messages: ch.messages(ctx, t.ID, rows)}, nil
 }
 
 type chatTopicArchiveIn struct {

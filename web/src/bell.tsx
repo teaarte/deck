@@ -3,8 +3,9 @@ import { ActionIcon, Button, Group, Indicator, Popover, ScrollArea, Stack, Text,
 import { notifications } from '@mantine/notifications';
 import { IconBell, IconBellOff } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import { call, events } from './api';
-import { formatted } from './format';
+import { call } from './lib/api';
+import { events } from './lib/events';
+import { formatted } from './lib/format';
 import { go } from './router';
 import s from './shell.module.css';
 

@@ -1,16 +1,16 @@
 import '@mantine/core/styles.css';
 import '@mantine/notifications/styles.css';
-import './touch.css';
-import './themes.css';
-import './i18n';
+import './theme/touch.css';
+import './theme/themes.css';
+import './lib/i18n';
 import { StrictMode, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Button, MantineProvider, PasswordInput, Stack, Text, Title } from '@mantine/core';
 import { Notifications } from '@mantine/notifications';
 import { useTranslation } from 'react-i18next';
-import { setToken, token } from './api';
-import { theme, useLook } from './look';
-import { resolver } from './palette';
+import { setToken, token } from './lib/api';
+import { theme, useLook } from './theme/look';
+import { resolver } from './theme/palette';
 import { Shell } from './shell';
 
 // TokenPrompt takes the access token once on a device: an app on the home screen does not share the browser's storage.

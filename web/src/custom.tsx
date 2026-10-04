@@ -3,8 +3,8 @@ import { Button, Code, Group, Modal, Stack, Text, useComputedColorScheme, useMan
 import { useTranslation } from 'react-i18next';
 import { AppBridge, PostMessageTransport, type McpUiHostContext, type McpUiStyles } from '@modelcontextprotocol/ext-apps/app-bridge';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
-import { call } from './api';
-import type { CustomValue } from './catalog.gen';
+import { call } from './lib/api';
+import type { CustomValue } from './lib/catalog.gen';
 
 type CustomButton = NonNullable<CustomValue['actions']>[number];
 

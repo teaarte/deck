@@ -4,14 +4,15 @@ import { useLocalStorage, useMediaQuery } from '@mantine/hooks';
 import { IconArrowLeft, IconArrowsMaximize, IconArrowsMinimize, IconChevronRight, IconLayoutSidebarLeftCollapse,
   IconLayoutSidebarLeftExpand, IconMenu2, IconSparkles, IconX } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import { call, events } from './api';
+import { call } from './lib/api';
+import { events } from './lib/events';
 import { ScreenView } from './screen';
 import { back, href, useCanGoBack, useRoute, type Route } from './router';
 import { setChatScreen } from './chat';
-import { NamedIcon } from './icons';
+import { NamedIcon } from './lib/icons';
 import { Backdrop } from './backdrop';
 import { Bell } from './bell';
-import i18n, { setLanguage } from './i18n';
+import i18n, { setLanguage } from './lib/i18n';
 import s from './shell.module.css';
 
 export interface MenuEntry {

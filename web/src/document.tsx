@@ -3,8 +3,8 @@ import { Anchor, Badge, Button, Code, Collapse, Group, Stack, Text, TextInput, T
 import { notifications } from '@mantine/notifications';
 import { useTranslation } from 'react-i18next';
 import { renderMarkdown } from '@a2ui/markdown-it';
-import { call } from './api';
-import type { DocumentValue } from './catalog.gen';
+import { call } from './lib/api';
+import type { DocumentValue } from './lib/catalog.gen';
 
 // Markdown draws markdown text as HTML the renderer has sanitized.
 export function Markdown({ text }: { text: string }) {

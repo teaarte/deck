@@ -4,13 +4,14 @@ import { A2uiSurface, type ReactComponentImplementation } from '@a2ui/react/v0_9
 import { Alert, Loader } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { useTranslation } from 'react-i18next';
-import { call, events, type LiveEvent } from './api';
+import { call } from './lib/api';
+import { events, type LiveEvent } from './lib/events';
 import { catalog, known, UNKNOWN, type Action } from './catalog';
 import { outcomes } from './actions';
 import { openTopic } from './chat';
 import { go, screenKey, serverParams, type Route } from './router';
-import i18n from './i18n';
-import catalogSchema from '../../schemas/catalog.json';
+import i18n from './lib/i18n';
+import catalogSchema from './lib/catalogSchema';
 
 export const VERSION = 'v0.9';
 const TOPICS: string[] = catalogSchema.topics;

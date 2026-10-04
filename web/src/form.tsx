@@ -6,10 +6,11 @@ import {
 import { notifications } from '@mantine/notifications';
 import { useTranslation } from 'react-i18next';
 import { DialogClose } from './dialog';
-import { call, events, upload } from './api';
-import { sharedFiles, sharedSent } from './share';
-import type { FormValue as Generated } from './catalog.gen';
-import catalogSchema from '../../schemas/catalog.json';
+import { call, upload } from './lib/api';
+import { events } from './lib/events';
+import { sharedFiles, sharedSent } from './lib/share';
+import type { FormValue as Generated } from './lib/catalog.gen';
+import catalogSchema from './lib/catalogSchema';
 
 export interface Schema {
   type?: string | string[];

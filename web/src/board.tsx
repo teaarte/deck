@@ -6,11 +6,11 @@ import { Anchor, Badge, Button, Collapse, Group, Modal, Paper, ScrollArea, Stack
 import { notifications } from '@mantine/notifications';
 import { IconGripVertical } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import { call } from './api';
+import { call } from './lib/api';
 import type { ComponentContext } from '@a2ui/web_core/v0_9';
 import { Actions } from './actions';
 import { setChatCard } from './chat';
-import type { BoardValue } from './catalog.gen';
+import type { BoardValue } from './lib/catalog.gen';
 
 type BoardCard = BoardValue['lanes'][number]['cards'][number];
 

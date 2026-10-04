@@ -1,4 +1,4 @@
-import { call } from './api';
+import { call } from './lib/api';
 
 // keyBytes turns the base64url VAPID key of deck into the bytes PushManager takes.
 function keyBytes(key: string): Uint8Array<ArrayBuffer> {

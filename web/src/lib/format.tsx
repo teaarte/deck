@@ -1,6 +1,6 @@
 import { useSyncExternalStore, type ReactNode } from 'react';
 import { Anchor, Badge, Text } from '@mantine/core';
-import { show } from './block';
+import { show } from '../block';
 
 // Shown is how the catalog says to show a value: its format and the currency of money.
 export interface Shown {

@@ -4,9 +4,9 @@ import { Catalog, type ComponentApi, type ComponentContext } from '@a2ui/web_cor
 import { createComponentImplementation, type ReactComponentImplementation } from '@a2ui/react/v0_9';
 import { Alert, Badge, Button, Code, Group, Loader, Modal, SimpleGrid, Stack, Tabs, Text, Title, UnstyledButton } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
-import catalogSchema from '../../schemas/catalog.json';
+import catalogSchema from './lib/catalogSchema';
 import s from './shell.module.css';
-import { NamedIcon } from './icons';
+import { NamedIcon } from './lib/icons';
 import { dropParam, setParam, useRoute } from './router';
 import { DialogClose } from './dialog';
 import { Board } from './board';
@@ -17,8 +17,8 @@ import { Block, Details, show, type Span } from './block';
 import { DataTable } from './table';
 import { Appearance } from './appearance';
 import { Chat } from './chat';
-import { toneColor, Value, type Shown } from './format';
-import type { Action, ActionsValue, BoardValue, CardValue, ChartValue, ChatValue, CustomValue, Data, DocumentValue } from './catalog.gen';
+import { toneColor, Value, type Shown } from './lib/format';
+import type { Action, ActionsValue, BoardValue, CardValue, ChartValue, ChatValue, CustomValue, Data, DocumentValue } from './lib/catalog.gen';
 
 const Custom = lazy(() => import('./custom').then((m) => ({ default: m.Custom })));
 const Media = lazy(() => import('./media').then((m) => ({ default: m.Media })));

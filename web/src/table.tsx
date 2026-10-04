@@ -5,8 +5,8 @@ import { IconArrowDown, IconArrowUp, IconSearch, IconSelector } from '@tabler/ic
 import { useTranslation } from 'react-i18next';
 import { Actions, rowOpen } from './actions';
 import { show } from './block';
-import { Value, type Shown } from './format';
-import type { Data } from './catalog.gen';
+import { Value, type Shown } from './lib/format';
+import type { Data } from './lib/catalog.gen';
 import s from './shell.module.css';
 
 type Row = NonNullable<Data['rows']>[number];

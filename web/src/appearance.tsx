@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react';
 import { Button, CheckIcon, ColorSwatch, Group, SegmentedControl, SimpleGrid, Slider, Stack, Switch, Text, useMantineColorScheme, type MantineColorScheme } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { useTranslation } from 'react-i18next';
-import { ACCENTS, DENSITIES, FONTS, RADII, SURFACES, THEMES, setLook, useLook, type Look } from './look';
-import { call } from './api';
+import { ACCENTS, DENSITIES, FONTS, RADII, SURFACES, THEMES, setLook, useLook, type Look } from './theme/look';
+import { call } from './lib/api';
 import { pushSupported, reconcilePush, subscribePush, unsubscribePush } from './push';
 
 function Choice<T extends string>({ label, name, value, options, onChange }: {

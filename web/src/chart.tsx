@@ -1,9 +1,9 @@
 import { AreaChart, BarChart, LineChart } from '@mantine/charts';
 import '@mantine/charts/styles.css';
-import { useLook } from './look';
-import { formatted, when, type Shown } from './format';
+import { useLook } from './theme/look';
+import { formatted, when, type Shown } from './lib/format';
 import { show } from './block';
-import type { ChartValue } from './catalog.gen';
+import type { ChartValue } from './lib/catalog.gen';
 
 // SERIES are the colors of the series after the first, which takes the accent of the device.
 const SERIES = ['orange', 'teal', 'grape', 'yellow', 'cyan', 'pink', 'lime', 'indigo'];

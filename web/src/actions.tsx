@@ -6,10 +6,10 @@ import { IconArchive, IconArrowBackUp, IconArrowUpRight, IconCheck, IconDownload
   IconChevronDown, IconCpu, IconDots, IconFlask, IconKey, IconPencil, IconPlayerPlay, IconReplace, IconPlayerStop, IconRefresh, IconSend, IconSettings, IconTrash, IconX, type Icon } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { notifications } from '@mantine/notifications';
-import { download } from './api';
-import { NamedIcon } from './icons';
-import i18n from './i18n';
-import type { Action, Data } from './catalog.gen';
+import { download } from './lib/api';
+import { NamedIcon } from './lib/icons';
+import i18n from './lib/i18n';
+import type { Action, Data } from './lib/catalog.gen';
 
 type Question = NonNullable<NonNullable<Data['items']>[number]['questions']>[number];
 

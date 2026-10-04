@@ -2,9 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { notifications } from '@mantine/notifications';
 import { Alert, Button, Group, Image, Loader, Modal, SimpleGrid, Stack, Text, UnstyledButton } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
-import { fetchFile, saveBlob } from './api';
-import { formatted } from './format';
-import type { Data } from './catalog.gen';
+import { fetchFile, saveBlob } from './lib/api';
+import { formatted } from './lib/format';
+import type { Data } from './lib/catalog.gen';
 
 type Item = NonNullable<Data['files']>[number];
 

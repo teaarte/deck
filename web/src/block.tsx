@@ -3,10 +3,10 @@ import type { ComponentContext } from '@a2ui/web_core/v0_9';
 import { Alert, Anchor, Badge, Card, Code, Collapse, Group, Loader, Select, Stack, Text, Title } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
 import { IconAlertTriangle, IconInbox } from '@tabler/icons-react';
-import type { Data } from './catalog.gen';
+import type { Data } from './lib/catalog.gen';
 import s from './shell.module.css';
-import { NamedIcon } from './icons';
-import { useLive } from './api';
+import { NamedIcon } from './lib/icons';
+import { useLive } from './lib/events';
 
 type Filter = NonNullable<Data['filters']>[number];
 

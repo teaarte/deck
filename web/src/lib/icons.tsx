@@ -11,7 +11,7 @@ let failed = false;
 let loading: Promise<Nodes> | undefined;
 const subs = new Set<() => void>();
 export function loadIcons(): Promise<Nodes> {
-  loading ??= import('../node_modules/@tabler/icons/tabler-nodes-outline.json').then((m) => {
+  loading ??= import('../../node_modules/@tabler/icons/tabler-nodes-outline.json').then((m) => {
     nodes = m.default as unknown as Nodes;
     return nodes;
   }, (e) => {

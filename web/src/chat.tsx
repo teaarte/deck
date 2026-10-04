@@ -4,13 +4,13 @@ import { ActionIcon, Anchor, Badge, Button, CloseButton, CopyButton, Group, Load
 import { notifications } from '@mantine/notifications';
 import { IconArrowUp, IconCheck, IconCopy, IconMapPin, IconMessagePlus, IconMicrophone, IconPaperclip, IconPlayerStopFilled, IconPlus } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import { call, upload } from './api';
+import { call, upload } from './lib/api';
 import { record, type Recording } from './voice';
 import { useRoute } from './router';
 import { Actions, ActionsMenu, QuestionPicker } from './actions';
 import { Markdown } from './document';
-import type { ChatValue } from './catalog.gen';
-import catalogSchema from '../../schemas/catalog.json';
+import type { ChatValue } from './lib/catalog.gen';
+import catalogSchema from './lib/catalogSchema';
 import s from './shell.module.css';
 
 export interface ChatScreen {

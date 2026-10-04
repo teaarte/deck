@@ -96,7 +96,7 @@ func TestAnErrorReachesTheMasterOncePerDay(t *testing.T) {
 func TestErrorsStayWithAProjectThatTurnedThemOff(t *testing.T) {
 	e := newEnv(t, masterScript)
 	e.masterAwake()
-	p := e.createProject("work", strings.Replace(boardWork, `"version": 6,`, `"version": 6, "master_errors": false,`, 1))
+	p := e.createProject("work", strings.Replace(boardWork, `"version": 7,`, `"version": 7, "master_errors": false,`, 1))
 	e.waitState(e.run(p, "work"), "error")
 	time.Sleep(200 * time.Millisecond)
 	if n := len(e.runsOf("master", "on_error")); n != 0 {
@@ -206,7 +206,7 @@ func TestABlockThatFailsIsInTheHealthOfItsModuleWithoutTheMaster(t *testing.T) {
 	e := newEnv(t, masterScript)
 	e.masterAwake()
 	broken := strings.Replace(boardWebManifest, `"columns": [{"label": "Title", "bind": "title"}`, `"columns": [{"label": "Title", "bind": "title"}, {"label": "Score", "bind": "score > 0 ? score : nil"}`, 1)
-	e.createProject("web", strings.Replace(broken, `"version": 6,`, `"version": 6, "master_errors": false,`, 1))
+	e.createProject("web", strings.Replace(broken, `"version": 7,`, `"version": 7, "master_errors": false,`, 1))
 	e.must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": "<p>x</p>"}, nil)
 	e.must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": jsonl(map[string]any{"title": "b"})}, nil)
 	e.screenMessages("web", "main", nil)

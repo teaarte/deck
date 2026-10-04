@@ -417,7 +417,7 @@ func (r *Runner) firstPrompt(ctx context.Context, proj db.Project, t turn, tools
 	return p, nil
 }
 
-// validate checks structured output against the result schema; an empty result (null) always fits.
+// validate checks structured output against the result schema; null, nothing to do, only where the schema takes it.
 func validate(cmd *manifest.Command, structured json.RawMessage) error {
 	if len(cmd.Result) == 0 {
 		return nil
@@ -428,9 +428,6 @@ func validate(cmd *manifest.Command, structured json.RawMessage) error {
 	var v any
 	if err := json.Unmarshal(structured, &v); err != nil {
 		return err
-	}
-	if v == nil {
-		return nil
 	}
 	return cmd.ValidateResult(v)
 }

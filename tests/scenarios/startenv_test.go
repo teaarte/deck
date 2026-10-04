@@ -109,7 +109,7 @@ func TestAStopOfDeckLetsACallInFlightFinish(t *testing.T) {
 		jsonReply(w, `{"ok": true}`)
 	})
 	d := startDeck(t, t.TempDir())
-	m := fmt.Sprintf(`{"version": 6, "tools": {"http": [{"name": "slow", "description": "Answers slowly.", "method": "GET",
+	m := fmt.Sprintf(`{"version": 7, "tools": {"http": [{"name": "slow", "description": "Answers slowly.", "method": "GET",
   "url": %q, "class": "internal", "input": {"type": "object", "properties": {}}}]}}`, slow.URL+"/slow")
 	if code, out, err := d.call("deck.project_create", map[string]any{"name": "late", "manifest": m}); err != nil || code != 200 {
 		t.Fatalf("project: %d %s %v", code, out, err)

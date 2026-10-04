@@ -28,7 +28,7 @@ func TestRealBrowserShell(t *testing.T) {
 		}
 		return boardWebAgent()(ctx, c)
 	})
-	manifest := strings.Replace(boardWebManifest, `{"version": 6,`, `{"version": 6, "icon": "rocket",`, 1)
+	manifest := strings.Replace(boardWebManifest, `{"version": 7,`, `{"version": 7, "icon": "rocket",`, 1)
 	manifest = strings.Replace(manifest, `{"type": "table", "title": "Notes",`, `{"type": "table", "title": "Notes", "icon": "notes",`, 1)
 	manifest = strings.Replace(manifest, `"columns": [{"label": "Title", "bind": "title"}]`, `"columns": [{"label": "Title", "bind": "title"}, {"label": "Status", "bind": "source"}, {"label": "Note", "bind": "note"}]`, 1)
 	e.createProject("web", strings.Replace(manifest, `{"label": "Open", "screen": "note"}`, `{"label": "Open", "icon": "arrow-right", "screen": "note"}`, 1))

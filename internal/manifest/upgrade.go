@@ -35,6 +35,29 @@ var upgrades = map[int]func(m map[string]any){
 			}
 		}
 	},
+	6: func(m map[string]any) {
+		for _, c := range items(m["commands"]) {
+			if r, ok := c["result"].(map[string]any); ok {
+				r["type"] = withNull(r["type"])
+			}
+		}
+	},
+}
+
+// withNull is the type of a result schema that takes null too, as every result did before format 7.
+func withNull(t any) any {
+	switch t := t.(type) {
+	case string:
+		if t == "null" {
+			return t
+		}
+		return []any{t, "null"}
+	case []any:
+		if !slices.Contains(t, any("null")) {
+			return append(t, "null")
+		}
+	}
+	return t
 }
 
 // fromParam turns the $param.<name> values of format 5 into =param.<name>, declaring each name as text, and

@@ -42,7 +42,7 @@ func TestRealCodexQuestion(t *testing.T) {
 	realCodex(t)
 	home := t.TempDir()
 	e := newEnvWith(t, home, codex.New(home), realWaits)
-	p := e.createProject("ask", `{"version": 6,
+	p := e.createProject("ask", `{"version": 7,
   "commands": [{"name": "work", "title": "Work", "description": "Asks the owner", "class": "internal",
     "result": {"type": "object", "required": ["color"], "properties": {"color": {"type": "string"}}},
     "executor": {"type": "agent", "prompt": "Ask the owner which color the report should use, with the options red and blue. The result is the color the owner picked."}}]}`)
@@ -104,7 +104,7 @@ func TestRealCodexCommitsInTheFolder(t *testing.T) {
 		"executor": map[string]any{"type": "agent", "folder": true, "prompt": "Create the file hello.txt with the text hi in the current folder " +
 			"and commit it with git with the message 'add hello'. The result: markers are the marker words (ALL CAPS words ending in MARK) " +
 			"that appear in your instructions, separated by spaces; commit is the full sha of your commit."}})
-	p := e.createProject("code", `{"version": 6, "commands": [`+string(cmd)+`]}`)
+	p := e.createProject("code", `{"version": 7, "commands": [`+string(cmd)+`]}`)
 	e.must("deck.folder_add", map[string]any{"project": "code", "path": repo}, nil)
 	id := e.run(p, "work")
 	got := e.pollState(id, 6*time.Minute, time.Second, "done", "error")

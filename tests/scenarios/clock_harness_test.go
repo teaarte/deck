@@ -94,8 +94,13 @@ func agentCommand(name, input string) string {
 
 const processField = `{"type": "object", "properties": {"process": {"type": "integer", "format": "process"}}, "required": ["process"]}`
 
+// nullable lets the results of the agent commands of a manifest be null, nothing to do.
+func nullable(m string) string {
+	return strings.ReplaceAll(m, `"result": {"type": "object"`, `"result": {"type": ["object", "null"]`)
+}
+
 func testManifest(commands []string, triggers []string) string {
-	return fmt.Sprintf(`{"version": 6, "commands": [%s], "triggers": [%s]}`, strings.Join(commands, ","), strings.Join(triggers, ","))
+	return fmt.Sprintf(`{"version": 7, "commands": [%s], "triggers": [%s]}`, strings.Join(commands, ","), strings.Join(triggers, ","))
 }
 
 func ok(context.Context, *Call) provider.Result {

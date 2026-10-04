@@ -23,7 +23,7 @@ import (
 
 const acpInit = `{"reply": "initialize", "result": {"protocolVersion": 1, "agentCapabilities": {"mcpCapabilities": {"http": true}, "sessionCapabilities": {"resume": {}, "list": {}}}, "authMethods": []}}`
 
-const writtenManifest = `{"version": 6,
+const writtenManifest = `{"version": 7,
   "commands": [{"name": "work", "title": "Work", "description": "Writes a file", "class": "internal",
     "result": {"type": "object", "required": ["written"], "properties": {"written": {"type": "integer"}}},
     "executor": {"type": "agent", "prompt": "Write the file."}}]}`

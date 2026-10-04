@@ -195,7 +195,7 @@ func TestTheSpendOfAPurgedProcessStays(t *testing.T) {
 		c.Req.OnUsage(provider.Usage{RequestModel: "big", Model: "big", Input: 1200, Output: 300, CostUSD: &cost})
 		return provider.Result{Structured: json.RawMessage(`null`)}
 	})
-	p := e.createProject("quiet", testManifest([]string{agentCommand("check", "")}, nil))
+	p := e.createProject("quiet", nullable(testManifest([]string{agentCommand("check", "")}, nil)))
 	id := e.run(p, "check")
 	e.waitState(id, "done")
 	e.settle()

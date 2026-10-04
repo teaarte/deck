@@ -60,7 +60,7 @@ func suggester(ctx context.Context, c *Call) provider.Result {
 	return provider.Result{Text: "seen: " + seen}
 }
 
-const suggestManifest = `{"version": 6, "board": {"lanes": [{"name": "inbox", "title": "Inbox", "role": "inbox"}]},
+const suggestManifest = `{"version": 7, "board": {"lanes": [{"name": "inbox", "title": "Inbox", "role": "inbox"}]},
   "commands": [{"name": "work", "title": "Work", "description": "Suggests", "class": "internal",
     "input": {"type": "object", "properties": {"into": {"type": "string"}}},
     "executor": {"type": "agent", "prompt": "Suggest."}}]}`
@@ -145,7 +145,7 @@ func TestSuggestionMovesToAnotherProject(t *testing.T) {
 
 func TestAutoModeRunsTheSuggestion(t *testing.T) {
 	e := newEnv(t, suggester)
-	p := e.createProject("alpha", strings.Replace(suggestManifest, `"version": 6,`, `"version": 6, "autonomy": "auto",`, 1))
+	p := e.createProject("alpha", strings.Replace(suggestManifest, `"version": 7,`, `"version": 7, "autonomy": "auto",`, 1))
 	got := e.waitState(e.run(p, "work"), "done")
 	if strings.Contains(string(got.Result), "refused") || len(e.suggestions()) != 0 {
 		t.Fatalf("in auto a suggestion is done at once: %s", got.Result)
@@ -199,14 +199,14 @@ func TestAnUnansweredSuggestionExpires(t *testing.T) {
 func TestASuggestionIntoAnotherProjectWaitsEvenOnAuto(t *testing.T) {
 	e := newEnv(t, suggester)
 	p := e.createProject("alpha", suggestManifest)
-	e.createProject("beta", strings.Replace(boardWork, `"version": 6,`, `"version": 6, "autonomy": "auto",`, 1))
+	e.createProject("beta", strings.Replace(boardWork, `"version": 7,`, `"version": 7, "autonomy": "auto",`, 1))
 	var r struct{ Process int64 }
 	e.must("alpha.work", map[string]any{"into": "beta"}, &r)
 	e.waitState(r.Process, "done")
 	if titles := e.cardTitles("beta"); len(titles) != 0 || len(e.suggestions()) != 1 {
 		t.Fatalf("an agent writes into another project only by a suggestion that waits: %v", titles)
 	}
-	trial := strings.Replace(suggestManifest, `"version": 6,`, `"version": 6, "autonomy": "auto",`, 1)
+	trial := strings.Replace(suggestManifest, `"version": 7,`, `"version": 7, "autonomy": "auto",`, 1)
 	e.createProject("gamma", trial)
 	var tr struct{ Process int64 }
 	e.must("deck.command_try", map[string]any{"live": true, "command": "gamma.work"}, &tr)
@@ -222,7 +222,7 @@ func TestAYesThatFailsLeavesTheSuggestionOpen(t *testing.T) {
 		out, _ := c.Tool(ctx, "suggest", map[string]any{"command": "tools.go", "input": `{"n": 1}`, "reason": "worth a run"})
 		return provider.Result{Text: out}
 	})
-	e.createProject("tools", `{"version": 6, "commands": [{"name": "go", "title": "Go", "description": "Goes", "class": "internal",
+	e.createProject("tools", `{"version": 7, "commands": [{"name": "go", "title": "Go", "description": "Goes", "class": "internal",
 	  "input": {"type": "object", "properties": {"n": {"type": "integer"}}}, "executor": {"type": "agent", "prompt": "Go."}}]}`)
 	p := e.createProject("alpha", suggestManifest)
 	e.waitState(e.run(p, "work"), "done")
@@ -230,7 +230,7 @@ func TestAYesThatFailsLeavesTheSuggestionOpen(t *testing.T) {
 	if len(ss) != 1 {
 		t.Fatalf("the call waits: %+v", ss)
 	}
-	e.must("deck.manifest_save", map[string]any{"project": "tools", "manifest": `{"version": 6, "commands": [{"name": "go", "title": "Go", "description": "Goes", "class": "internal",
+	e.must("deck.manifest_save", map[string]any{"project": "tools", "manifest": `{"version": 7, "commands": [{"name": "go", "title": "Go", "description": "Goes", "class": "internal",
 	  "input": {"type": "object", "properties": {"n": {"type": "string"}}}, "executor": {"type": "agent", "prompt": "Go."}}]}`}, nil)
 	if code, _ := e.call("deck.ask_answer", map[string]any{"ask": ss[0].ID, "answer": "allow"}); code == 200 {
 		t.Fatal("a call whose input no longer fits fails")
@@ -289,7 +289,7 @@ func TestASuggestionOfTheMasterKeepsItsCalls(t *testing.T) {
 		}
 		return provider.Result{Structured: json.RawMessage(`{}`)}
 	})
-	e.createProject("beta", strings.Replace(boardWork, `"version": 6,`, `"version": 6, "autonomy": "auto",`, 1))
+	e.createProject("beta", strings.Replace(boardWork, `"version": 7,`, `"version": 7, "autonomy": "auto",`, 1))
 	var r struct{ Process int64 }
 	e.must("master.review", map[string]any{}, &r)
 	e.waitState(r.Process, "done")

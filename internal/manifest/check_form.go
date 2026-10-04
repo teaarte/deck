@@ -120,11 +120,27 @@ func (c *screenCheck) choices(where string, b Block) {
 // recordShaped says a result schema gives objects: one, or a list of them.
 func recordShaped(schema json.RawMessage) bool {
 	var r struct {
-		Type  string `json:"type"`
+		Type  any `json:"type"`
 		Items struct {
-			Type string `json:"type"`
+			Type any `json:"type"`
 		} `json:"items"`
 	}
 	_ = json.Unmarshal(schema, &r)
-	return r.Type == "object" || (r.Type == "array" && r.Items.Type == "object")
+	t := valueType(r.Type)
+	return t == "object" || (t == "array" && valueType(r.Items.Type) == "object")
+}
+
+// valueType is the type of a schema other than null: "object" for ["object", "null"].
+func valueType(t any) string {
+	switch t := t.(type) {
+	case string:
+		return t
+	case []any:
+		for _, x := range t {
+			if s, _ := x.(string); s != "null" {
+				return s
+			}
+		}
+	}
+	return ""
 }

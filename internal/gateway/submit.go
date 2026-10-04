@@ -39,9 +39,9 @@ func (s *Submit) Spend() {
 
 func (s *Submit) tool() *mcp.Tool {
 	return &mcp.Tool{Name: SubmitTool, Title: "Hand in the result",
-		Description: "Hands in the final result of the task by its schema, once; null means there was nothing to do.",
+		Description: "Hands in the final result of the task by its schema, once; where the schema takes null, null means there was nothing to do.",
 		InputSchema: map[string]any{"type": "object", "required": []string{"result"}, "properties": map[string]any{
-			"result": map[string]any{"anyOf": []any{s.Schema, map[string]any{"type": "null"}}}}}}
+			"result": s.Schema}}}
 }
 
 func (s *Submit) handle(_ context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {

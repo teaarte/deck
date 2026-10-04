@@ -209,9 +209,9 @@ type frontServer struct {
 	streams atomic.Int32
 	// slow delays the next asks read by two seconds after deck answered it.
 	slow, delayed, fail atomic.Bool
-	mu            sync.Mutex
-	down          bool
-	cancels       []context.CancelFunc
+	mu                  sync.Mutex
+	down                bool
+	cancels             []context.CancelFunc
 }
 
 // cut drops the live connections and refuses new ones until heal.

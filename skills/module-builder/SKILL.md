@@ -120,7 +120,9 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   read those (`records_list`, `document_get` with `project`) and screens show them (`source.project`).
   Nothing ever writes to another project.
 - **Results** are JSON by schema. Decisions use typed shapes: a choice with probabilities and confidence,
-  a score 2–10 with confidence, yes/no with a probability. A result of `null` means "nothing to do".
+  a score 2–10 with confidence, yes/no with a probability. A result of `null` means "nothing to do", and an agent
+  may give it only where the result schema takes it: `"type": ["object", "null"]`; with `"type": "object"` a null
+  is not by the schema.
 - **Triggers**: `cron` for schedules, `lane` when a card enters a lane, `after` when another command of the
   project finishes with a result that is not `null` (a poll with nothing new returns `null` and the chain stops). The command a trigger starts gets the trigger's fixed `params` plus `{"card": <id>}` for
   `lane` or `{"process": <id>}` of the finished one for `after`, so its input declares that field as

@@ -139,16 +139,16 @@ func TestAPatchKeepsTheTypesOfItsValues(t *testing.T) {
 	e.createProject("web", boardWebManifest)
 	var saved struct{ Revision int64 }
 	e.must("deck.manifest_save", map[string]any{"project": "web",
-		"patch": `[{"op": "replace", "path": "/version", "value": 6},
+		"patch": `[{"op": "replace", "path": "/version", "value": 7},
 			{"op": "replace", "path": "/commands/2", "value": {"name": "tell", "title": "Tell", "description": "Tells the owner.",
 				"class": "internal", "result": {"type": "object"}, "timeout_minutes": 20, "executor": {"type": "agent", "prompt": "Tell."}}}]`}, &saved)
 	var m struct{ Manifest string }
 	e.must("deck.manifest_get", map[string]any{"project": "web"}, &m)
-	if !strings.Contains(m.Manifest, `"version": 6`) || !strings.Contains(m.Manifest, `"timeout_minutes":20`) {
+	if !strings.Contains(m.Manifest, `"version": 7`) || !strings.Contains(m.Manifest, `"timeout_minutes":20`) {
 		t.Fatalf("numbers of a patch stay numbers: %d\n%s", saved.Revision, m.Manifest)
 	}
 	e.must("deck.manifest_save", map[string]any{"project": "web",
-		"patch": `[{"op": "test", "path": "/version", "value": 6}]`}, &saved)
+		"patch": `[{"op": "test", "path": "/version", "value": 7}]`}, &saved)
 	var again struct{ Manifest string }
 	e.must("deck.manifest_get", map[string]any{"project": "web"}, &again)
 	if again.Manifest != m.Manifest || saved.Revision != 2 {

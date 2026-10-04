@@ -134,8 +134,8 @@ func TestEmptyResultStartsNothingAndIsPurgedAfterADay(t *testing.T) {
 	e := newClockEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		return provider.Result{Structured: json.RawMessage(`null`)}
 	})
-	p := e.createProject("quiet", testManifest([]string{agentCommand("check", ""), agentCommand("notify", processField)},
-		[]string{`{"command": "notify", "after": "check"}`}))
+	p := e.createProject("quiet", nullable(testManifest([]string{agentCommand("check", ""), agentCommand("notify", processField)},
+		[]string{`{"command": "notify", "after": "check"}`})))
 	id := e.run(p, "check")
 	e.waitState(id, "done")
 	e.settle()

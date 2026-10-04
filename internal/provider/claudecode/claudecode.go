@@ -80,9 +80,7 @@ func (a *Adapter) args(req provider.Request, mcp, settings, plugin string) []str
 // wrap makes a result schema nullable; the CLI takes only object schemas, so the result is one field.
 func wrap(schema json.RawMessage) map[string]any {
 	return map[string]any{"type": "object", "required": []string{"result"}, "additionalProperties": false,
-		"properties": map[string]any{"result": map[string]any{
-			"anyOf":       []any{schema, map[string]any{"type": "null"}},
-			"description": "The result, or null when there is nothing to do."}}}
+		"properties": map[string]any{"result": schema}}
 }
 
 // input is what the CLI reads from stdin: the result schema, then the prompt as one user message.

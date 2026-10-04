@@ -1111,7 +1111,7 @@ func (q *Queries) PauseProcess(ctx context.Context, arg PauseProcessParams) (int
 }
 
 const purgeEmptyProcesses = `-- name: PurgeEmptyProcesses :many
-DELETE FROM process WHERE state = 'done' AND result = 'null' AND finished_at < CAST(?1 AS TEXT)
+DELETE FROM process WHERE state = 'done' AND result = 'null' AND not_by_schema = 0 AND finished_at < CAST(?1 AS TEXT)
   AND NOT EXISTS (SELECT 1 FROM ask a WHERE a.process_id = process.id AND a.kind IN ('call', 'unknown')
     AND (a.state = 'open' OR EXISTS (SELECT 1 FROM tool_call t WHERE t.ask_id = a.id AND t.run = 'running')))
 RETURNING id

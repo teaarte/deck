@@ -380,8 +380,8 @@ func TestClaudeCodeEmptyResultIsNull(t *testing.T) {
 	c := newCLI(t)
 	c.stream(0, "empty_result.jsonl")
 	e, _ := cliEnv(t, c)
-	p := e.createProject("quiet", testManifest([]string{agentCommand("check", ""), agentCommand("notify", processField)},
-		[]string{`{"command": "notify", "after": "check"}`}))
+	p := e.createProject("quiet", nullable(testManifest([]string{agentCommand("check", ""), agentCommand("notify", processField)},
+		[]string{`{"command": "notify", "after": "check"}`})))
 	id := e.run(p, "check")
 	got := e.waitState(id, "done", "error")
 	e.settle()
@@ -389,7 +389,7 @@ func TestClaudeCodeEmptyResultIsNull(t *testing.T) {
 		t.Fatalf("a null result of the CLI is an empty result: %+v", got)
 	}
 	in := c.call(1).stdin
-	if !strings.Contains(in, `"anyOf"`) || !strings.Contains(in, `{"type":"null"}`) || !strings.Contains(in, `"required":["result"]`) {
+	if !strings.Contains(in, `"type":["object","null"]`) || !strings.Contains(in, `"required":["result"]`) || !strings.Contains(in, "nothing to do, the result is null") {
 		t.Fatalf("the CLI gets an object schema with a nullable result: %s", in)
 	}
 }
@@ -572,4 +572,25 @@ func TestCeilingWaitsForAConfirmationToo(t *testing.T) {
 	}
 	e.answer(a.ID, "deny")
 	e.waitFor("the ceiling to run again", func() bool { return e.full(id).Deadline != "" })
+}
+
+// TestNullIsAResultOnlyWhereTheSchemaAllowsIt: in format 7 an agent's null is nothing to do only when the result
+// schema takes null; a module of format 6 is raised so that it still does.
+func TestNullIsAResultOnlyWhereTheSchemaAllowsIt(t *testing.T) {
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		return provider.Result{Structured: json.RawMessage(`null`)}
+	})
+	p := e.createProject("strict", testManifest([]string{agentCommand("check", "")}, nil))
+	if got := e.full(e.waitState(e.run(p, "check"), "done", "error").ID); !got.NotBySchema || got.Empty {
+		t.Fatalf("null against a schema of an object is not by the schema: %+v", got)
+	}
+	old := e.createProject("old", strings.Replace(testManifest([]string{agentCommand("check", "")}, nil), `"version": 7`, `"version": 6`, 1))
+	if got := e.full(e.waitState(e.run(old, "check"), "done", "error").ID); got.NotBySchema || !got.Empty {
+		t.Fatalf("a module of format 6 still takes null as nothing to do: %+v", got)
+	}
+	var m struct{ Manifest string }
+	e.must("deck.manifest_get", map[string]any{"project": "old"}, &m)
+	if !strings.Contains(m.Manifest, `"version": 7`) || !strings.Contains(m.Manifest, `"null"`) {
+		t.Fatalf("format 6 is raised to 7 with null in its result schemas:\n%s", m.Manifest)
+	}
 }

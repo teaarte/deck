@@ -69,6 +69,9 @@ func (m *Manifest) Screen(name string) *Screen {
 	return nil
 }
 
+// TakesNull reports whether the command may finish with null, nothing to do: no result schema, or one that takes null.
+func (c *Command) TakesNull() bool { return c.result == nil || c.result.Validate(nil) == nil }
+
 func (c *Command) ValidateResult(v any) error {
 	if c.result == nil {
 		return nil

@@ -119,3 +119,22 @@ func TestADeletedTopicIsGoneAfterAMonth(t *testing.T) {
 		t.Fatalf("the archive stays: %+v", ts)
 	}
 }
+
+// TestAnOldMessageWithFilePathsKeepsItsScreen: a message written when files were paths still tells the master
+// the screen it was written on; its paths are skipped.
+func TestAnOldMessageWithFilePathsKeepsItsScreen(t *testing.T) {
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result { return provider.Result{Text: "Read it."} })
+	e.createProject("web", boardWebManifest)
+	topic := e.say(0, "hello")
+	e.masterSaid(topic, 1)
+	if _, err := e.App.Store.DB.Exec(`INSERT INTO chat_message (topic_id, role, text, context) VALUES (?, 'owner', 'old plan', ?)`,
+		topic, `{"project":"web","screen":"main","files":["/x/data/attachments/12-plan.txt"]}`); err != nil {
+		t.Fatal(err)
+	}
+	e.say(topic, "and now")
+	e.masterSaid(topic, 2)
+	prompt := e.Fake.Calls()[1].Prompt
+	if !strings.Contains(prompt, `written on project "web", screen "main"`) || !strings.Contains(prompt, "old plan") {
+		t.Fatalf("the old message keeps its screen in the prompt:\n%s", prompt)
+	}
+}

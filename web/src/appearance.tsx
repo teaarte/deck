@@ -31,8 +31,12 @@ export function Appearance({ part }: { part?: string }) {
       <Language />
       <Choice label={t('look.theme')} name="theme" value={look.theme} options={THEMES} onChange={(v: Look['theme']) => setLook({ theme: v })} />
       <SimpleGrid cols={{ base: 1, md: 2 }} spacing="lg" verticalSpacing="lg">
-        <Choice label={t('look.scheme')} name="scheme" value={colorScheme} options={['auto', 'light', 'dark'] as MantineColorScheme[]}
-          onChange={setColorScheme} />
+        {look.theme === 'neon' ? (
+          <Text size="sm" c="dimmed" data-look-note="scheme">{t('look.dark_only')}</Text>
+        ) : (
+          <Choice label={t('look.scheme')} name="scheme" value={colorScheme} options={['auto', 'light', 'dark'] as MantineColorScheme[]}
+            onChange={setColorScheme} />
+        )}
         <Choice label={t('look.surface')} name="surface" value={look.surface} options={SURFACES} onChange={(v: Look['surface']) => setLook({ surface: v })} />
         <Stack gap={6}>
           <Text size="sm" fw={600}>{t('look.accent')}</Text>
@@ -60,7 +64,9 @@ export function Appearance({ part }: { part?: string }) {
       <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="lg">
         <Choice label={t('look.density')} name="density" value={look.density} options={DENSITIES} onChange={(v: Look['density']) => setLook({ density: v })} />
         <Choice label={t('look.font')} name="font" value={look.font} options={FONTS} onChange={(v: Look['font']) => setLook({ font: v })} />
-        <Choice label={t('look.radius')} name="radius" value={look.radius} options={RADII} onChange={(v: Look['radius']) => setLook({ radius: v })} />
+        {look.theme !== 'pixel' && (
+          <Choice label={t('look.radius')} name="radius" value={look.radius} options={RADII} onChange={(v: Look['radius']) => setLook({ radius: v })} />
+        )}
       </SimpleGrid>
     </Stack>
   );

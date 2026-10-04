@@ -175,6 +175,10 @@ func TestRealBrowserShell(t *testing.T) {
 		t.Fatalf("the hard shadow of a pixel button leaves room before the next one: %s", got)
 	}
 	b.shot("theme-pixel-settings")
+	b.eval(`([...document.querySelectorAll('[role=tab]')].find((x) => x.innerText.trim() === 'Interface').click(), '')`)
+	b.until("no corners in pixels", `document.querySelector('[data-look="theme"]')?.offsetParent && !document.querySelector('[data-look="radius"]')`)
+	b.eval(`(document.querySelector('[data-look="theme"] input[value="neon"]').click(), '')`)
+	b.until("no scheme in neon, only its note", `!document.querySelector('[data-look="scheme"]') && document.querySelector('[data-look-note="scheme"]') && document.querySelector('[data-look="radius"]')`)
 	e.must("deck.settings_set", map[string]any{"language": "ru"}, nil)
 	b.until("the interface in the language the owner picked", `document.querySelector('[data-nav]')?.innerText.includes('Кокпит') && document.querySelector('[data-chat-toggle]')?.innerText.includes('Мастер')`)
 	b.shot("shell-ru")

@@ -118,6 +118,7 @@
     "pattern": "Icons behind the screen",
     "device": "These choices stay on this device.",
     "language": "Language of the interface (for the whole workspace)",
+    "dark_only": "Neon is dark only.",
     "theme": "Theme",
     "glass": "Glass",
     "scheme": "Color scheme",

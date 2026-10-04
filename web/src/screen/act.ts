@@ -9,15 +9,15 @@ import { go } from '../app/router';
 export function summary(out: unknown): string {
   if (out && typeof out === 'object') {
     const o = out as Record<string, unknown>;
-    if (typeof o.process === 'number') return i18n.t('started', { id: o.process });
+    if (typeof o.process === 'number') return i18n.t('common.started', { id: o.process });
     const rest = Object.fromEntries(Object.entries(o).filter(([k]) => k !== 'ok'));
     const shown = 'result' in rest ? rest.result : typeof rest.text === 'string' ? rest.text : undefined;
-    if (shown === undefined || shown === null) return i18n.t('done');
+    if (shown === undefined || shown === null) return i18n.t('common.done');
     if (typeof shown === 'string') return shown;
     const text = JSON.stringify(shown);
     return text.length > 200 ? text.slice(0, 200) + '…' : text;
   }
-  return typeof out === 'string' && out ? out : i18n.t('done');
+  return typeof out === 'string' && out ? out : i18n.t('common.done');
 }
 
 // act runs a button: a move to its screen, or its call with the outcome told; a chat button opens the topic it made.

@@ -61,7 +61,7 @@ export function Form({ value }: { value: FormValue }) {
       }
       // In a dialog a started process is told about and the dialog closes; the process page follows it.
       if (close) {
-        notifyDone(t('started', { id: started }));
+        notifyDone(t('common.started', { id: started }));
         close();
         return;
       }

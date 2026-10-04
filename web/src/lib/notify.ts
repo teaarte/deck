@@ -10,6 +10,6 @@ export function notifyError(e: unknown, title?: string) {
 }
 
 // notifyDone tells that a call went through.
-export function notifyDone(message: string = i18n.t('done')) {
+export function notifyDone(message: string = i18n.t('common.done')) {
   notifications.show({ message, color: 'green' });
 }

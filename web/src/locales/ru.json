@@ -88,9 +88,6 @@
     "no_title": "Сначала нужно название карточки",
     "text": "Текст",
     "save": "Сохранить",
-    "delete": "Удалить",
-    "download": "Скачать",
-    "deleted": "Удалено: {{title}}",
     "recently_deleted": "Удалены за день ({{count}})",
     "restore": "Вернуть"
   },
@@ -155,12 +152,10 @@
     "reverted": "Возврат к ревизии {{n}}"
   },
   "details": { "show": "Показать вызов целиком", "hide": "Скрыть вызов" },
-  "done": "Готово",
-  "started": "Запущен процесс №{{id}}",
+  "common": { "done": "Готово", "started": "Запущен процесс №{{id}}" },
   "log": { "message": "Агент", "thought": "Мысли", "tool": "Инструмент", "rate_limit": "Лимит", "stderr": "stderr" },
   "chat": {
     "master": "Мастер",
-    "new": "Новая",
     "new_topic": "Новая тема",
     "no_topics": "Тем нет",
     "archived": "{{title}} (в архиве)",

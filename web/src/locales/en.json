@@ -88,9 +88,6 @@
     "no_title": "The card needs a title first",
     "text": "Text",
     "save": "Save",
-    "delete": "Delete",
-    "download": "Download",
-    "deleted": "Deleted {{title}}",
     "recently_deleted": "Deleted in the last day ({{count}})",
     "restore": "Restore"
   },
@@ -153,12 +150,10 @@
     "reverted": "Back to revision {{n}}"
   },
   "details": { "show": "Show the whole call", "hide": "Hide the call" },
-  "done": "Done",
-  "started": "Started process #{{id}}",
+  "common": { "done": "Done", "started": "Started process #{{id}}" },
   "log": { "message": "Agent", "thought": "Thinking", "tool": "Tool", "rate_limit": "Limit", "stderr": "stderr" },
   "chat": {
     "master": "Master",
-    "new": "New",
     "new_topic": "New topic",
     "no_topics": "No topics",
     "archived": "{{title}} (archived)",

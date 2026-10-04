@@ -18,10 +18,13 @@ import (
 const (
 	selfCheckRetry = 30 * time.Minute
 	versionEvery   = 10 * time.Minute
+	versionTimeout = 30 * time.Second
 )
 
 type checks struct {
 	running bool
+	// probing is set while the version of the provider is asked for.
+	probing bool
 	// again is set when the provider changed during a running check, which then checks it once more.
 	again   bool
 	started bool
@@ -50,22 +53,37 @@ func (s *Service) Checks(ctx context.Context, now time.Time) {
 		c := s.checksOf(pv.Name())
 		due := !c.started || !now.Before(c.version)
 		retry := !c.retry.IsZero() && !now.Before(c.retry)
-		if c.running || !due && !retry {
+		if c.running || c.probing || !due && !retry {
 			s.mu.Unlock()
 			continue
 		}
-		c.version = now.Add(versionEvery)
+		c.version, c.probing = now.Add(versionEvery), true
 		first := !c.started
 		s.mu.Unlock()
-		v, err := sc.Version(ctx)
-		if err != nil {
-			v = "unknown: " + err.Error()
-		}
-		h, _ := s.St.Q.GetHealth(ctx, process.HealthSubject(pv.Name()))
-		if first || retry || v != h.Version {
-			s.startCheck(pv.Name(), false)
-		}
+		s.BG.Add(1)
+		go func() {
+			defer s.BG.Done()
+			v := version(s.Ctx, sc)
+			h, _ := s.St.Q.GetHealth(s.Ctx, process.HealthSubject(pv.Name()))
+			s.mu.Lock()
+			c.probing = false
+			s.mu.Unlock()
+			if s.Ctx.Err() == nil && (first || retry || v != h.Version) {
+				s.startCheck(pv.Name(), false)
+			}
+		}()
 	}
+}
+
+// version is what the provider reports as its version, or why it does not, within versionTimeout.
+func version(ctx context.Context, sc provider.SelfChecker) string {
+	ctx, cancel := context.WithTimeout(ctx, versionTimeout)
+	defer cancel()
+	v, err := sc.Version(ctx)
+	if err != nil {
+		return "unknown: " + err.Error()
+	}
+	return v
 }
 
 // startCheck runs a self-check in the background unless one is running; a change of version or a red check
@@ -86,17 +104,14 @@ func (s *Service) startCheck(name string, force bool) bool {
 	s.mu.Unlock()
 	ctx := s.Ctx
 	subject := process.HealthSubject(name)
-	v, err := sc.Version(ctx)
-	if err != nil {
-		v = "unknown: " + err.Error()
-	}
-	h, _ := s.St.Q.GetHealth(ctx, subject)
-	if force || v != h.Version || h.Status == "error" || h.Status == "checking" {
-		s.writeCheck(ctx, subject, "checking", "self-check of "+v+" is running", "", "", 0)
-	}
 	s.BG.Add(1)
 	go func() {
 		defer s.BG.Done()
+		v := version(ctx, sc)
+		h, _ := s.St.Q.GetHealth(ctx, subject)
+		if force || v != h.Version || h.Status == "error" || h.Status == "checking" {
+			s.writeCheck(ctx, subject, "checking", "self-check of "+v+" is running", "", "", 0)
+		}
 		ceiling := s.SelfCheckCeiling
 		if c, ok := sc.(interface{ CheckCeiling() time.Duration }); ok && c.CheckCeiling() > 0 {
 			ceiling = c.CheckCeiling()

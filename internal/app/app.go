@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"deck2/internal/app/asks"
@@ -89,6 +90,8 @@ type App struct {
 	cancel   context.CancelFunc
 	bg       sync.WaitGroup
 	stopOnce sync.Once
+	// slowRunning is set while the loop pushes and takes the daily snapshot.
+	slowRunning atomic.Bool
 }
 
 // New starts deck with its main provider p and further built-in ones.
@@ -352,9 +355,15 @@ func (a *App) afterTriggers(ctx context.Context, done db.Process) {
 	}
 }
 
-// Sweep checks every deadline against now: deleted cards, expired confirmations, ceilings, pauses on a usage
-// limit, silent processes, empty results kept long enough, the disk, and the daily cleanup and snapshot.
+// Sweep checks every deadline against now, then pushes and runs the daily cleanup and snapshot.
 func (a *App) Sweep(ctx context.Context, now time.Time) {
+	a.deadlines(ctx, now)
+	a.slow(ctx, now)
+}
+
+// deadlines are what is due by now: deleted cards, expired confirmations, ceilings, pauses on a usage limit,
+// silent processes, empty results kept long enough, the disk.
+func (a *App) deadlines(ctx context.Context, now time.Time) {
 	a.Board.Purge(ctx, now)
 	a.Answers.ExpireConfirms(ctx, now)
 	a.Suggest.Expire(ctx, now)
@@ -363,13 +372,22 @@ func (a *App) Sweep(ctx context.Context, now time.Time) {
 	a.markSilent(ctx, now)
 	a.purgeEmpty(ctx, now)
 	a.Snapshots.CheckDisk(ctx, now)
-	if spaces, err := a.Store.Q.ListWorkspaces(ctx); err == nil {
+}
+
+// slow is the work of the loop that waits on the network or the disk: pushes, within pushTimeout, and the daily
+// cleanup and snapshot.
+func (a *App) slow(ctx context.Context, now time.Time) {
+	pctx, cancel := context.WithTimeout(ctx, pushTimeout)
+	if spaces, err := a.Store.Q.ListWorkspaces(pctx); err == nil {
 		for _, ws := range spaces {
-			a.Devices.PushNew(ctx, ws)
+			a.Devices.PushNew(pctx, ws)
 		}
 	}
+	cancel()
 	a.Snapshots.Daily(ctx, now)
 }
+
+const pushTimeout = 2 * time.Minute
 
 func (a *App) stopAtCeiling(ctx context.Context, now time.Time) {
 	ids, err := a.Store.Q.ListCeilingReached(ctx, now.UnixMilli())
@@ -406,15 +424,24 @@ func (a *App) purgeEmpty(ctx context.Context, now time.Time) {
 	}
 }
 
-// Loop runs the scheduler, the sweep and the self-checks by the deck clock until ctx ends; after a sleep of
-// the machine the first tick finds every deadline that passed.
+// Loop runs the scheduler and the deadlines by the deck clock until ctx ends, pushes, snapshots and self-checks
+// beside it; after a sleep of the machine the first tick finds every deadline that passed.
 func (a *App) Loop(ctx context.Context, every time.Duration) {
 	t := time.NewTicker(every)
 	defer t.Stop()
 	for {
 		a.Scheduler.Tick(ctx)
-		a.Sweep(ctx, a.Cfg.Now())
-		a.Providers.Checks(ctx, a.Cfg.Now())
+		now := a.Cfg.Now()
+		a.deadlines(ctx, now)
+		if a.slowRunning.CompareAndSwap(false, true) {
+			a.bg.Add(1)
+			go func() {
+				defer a.bg.Done()
+				defer a.slowRunning.Store(false)
+				a.slow(ctx, now)
+			}()
+		}
+		a.Providers.Checks(ctx, now)
 		select {
 		case <-ctx.Done():
 			return

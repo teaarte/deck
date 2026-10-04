@@ -229,3 +229,36 @@ func readFile(t *testing.T, path string) string {
 	}
 	return string(b)
 }
+
+// hungVersion is the fake provider whose version probe hangs until released.
+type hungVersion struct {
+	*Fake
+	release chan struct{}
+}
+
+func (h *hungVersion) Version(ctx context.Context) (string, error) {
+	select {
+	case <-h.release:
+	case <-ctx.Done():
+	}
+	return "1.0", nil
+}
+
+func (h *hungVersion) SelfCheck(context.Context) provider.Check { return provider.Check{Version: "1.0"} }
+
+// TestAHungVersionProbeDoesNotStopTheSchedule: the loop of deck only finds what is due; a provider whose
+// version probe hangs does not hold the schedule.
+func TestAHungVersionProbeDoesNotStopTheSchedule(t *testing.T) {
+	hv := &hungVersion{Fake: &Fake{}, release: make(chan struct{})}
+	clock := &Clock{now: t0}
+	e := newEnvWith(t, t.TempDir(), hv, withClock(clock))
+	t.Cleanup(func() { close(hv.release) })
+	e.Clock = clock
+	p := e.createProject("plain", plainManifest)
+	e.App.Start(20 * time.Millisecond)
+	time.Sleep(200 * time.Millisecond)
+	e.must("deck.run_later", map[string]any{"command": "plain.work", "at": t0.Add(time.Hour).Format(time.RFC3339)}, nil)
+	clock.Add(2 * time.Hour)
+	e.waitFor("the run that came due", func() bool { return len(e.runsOf("plain", "work")) == 1 })
+	_ = p
+}

@@ -1,4 +1,6 @@
-package app
+// Package journal reads what deck did: the calls of the gateway, the spend of model calls, the runs by day and
+// the snapshots it keeps.
+package journal
 
 import (
 	"cmp"
@@ -11,9 +13,18 @@ import (
 	"strings"
 	"time"
 
+	"deck2/internal/home"
 	"deck2/internal/registry"
+	"deck2/internal/store"
 	"deck2/internal/store/db"
 )
+
+// Service reads the journal; Backups is the folder of the snapshots.
+type Service struct {
+	St      *store.Store
+	Now     func() time.Time
+	Backups string
+}
 
 type callsListIn struct {
 	Project string `type:"project" opt:"" desc:"Project name; without it an agent of a project gets its own, the owner and the master every project"`
@@ -37,17 +48,17 @@ type callRow struct {
 }
 
 // callsList is the journal of gateway calls of the workspace, newest first: who called what and how it ended.
-func (a *App) callsList(ctx context.Context, act registry.Actor, in callsListIn) ([]callRow, error) {
-	project, err := access.Filter(ctx, a.Store.Q, act, in.Project)
+func (s *Service) callsList(ctx context.Context, act registry.Actor, in callsListIn) ([]callRow, error) {
+	project, err := access.Filter(ctx, s.St.Q, act, in.Project)
 	if err != nil {
 		return nil, err
 	}
-	rows, err := a.Store.Q.ListWorkspaceToolCalls(ctx, db.ListWorkspaceToolCallsParams{WorkspaceID: act.Workspace, ProjectID: project,
+	rows, err := s.St.Q.ListWorkspaceToolCalls(ctx, db.ListWorkspaceToolCallsParams{WorkspaceID: act.Workspace, ProjectID: project,
 		Outcome: in.Outcome, Lim: registry.Limit(in.Limit, 200, 500)})
 	if err != nil {
 		return nil, err
 	}
-	names, err := access.Names(ctx, a.Store.Q, act.Workspace)
+	names, err := access.Names(ctx, s.St.Q, act.Workspace)
 	if err != nil {
 		return nil, err
 	}
@@ -74,12 +85,12 @@ type spendRow struct {
 }
 
 // spendList is the tokens and cost of model calls by project, command, provider and model, the largest first.
-func (a *App) spendList(ctx context.Context, act registry.Actor, _ struct{}) ([]spendRow, error) {
-	rows, err := a.Store.Q.SpendByCommand(ctx, act.Workspace)
+func (s *Service) spendList(ctx context.Context, act registry.Actor, _ struct{}) ([]spendRow, error) {
+	rows, err := s.St.Q.SpendByCommand(ctx, act.Workspace)
 	if err != nil {
 		return nil, err
 	}
-	names, err := access.Names(ctx, a.Store.Q, act.Workspace)
+	names, err := access.Names(ctx, s.St.Q, act.Workspace)
 	if err != nil {
 		return nil, err
 	}
@@ -112,11 +123,11 @@ type spendDailyRow struct {
 }
 
 // window is the first day of the last days and the days in order, oldest first, in UTC.
-func (a *App) window(days int64) (string, []string) {
+func (s *Service) window(days int64) (string, []string) {
 	if days < 1 || days > 366 {
 		days = 30
 	}
-	today := a.Cfg.Now().UTC()
+	today := s.Now().UTC()
 	out := make([]string, 0, days)
 	for i := days - 1; i >= 0; i-- {
 		out = append(out, today.AddDate(0, 0, -int(i)).Format("2006-01-02"))
@@ -125,9 +136,9 @@ func (a *App) window(days int64) (string, []string) {
 }
 
 // spendDaily is the tokens and cost of model calls of the last days by day, provider or project.
-func (a *App) spendDaily(ctx context.Context, act registry.Actor, in spendDailyIn) ([]spendDailyRow, error) {
-	since, days := a.window(in.Days)
-	rows, err := a.Store.Q.SpendSince(ctx, db.SpendSinceParams{WorkspaceID: act.Workspace, Since: since})
+func (s *Service) spendDaily(ctx context.Context, act registry.Actor, in spendDailyIn) ([]spendDailyRow, error) {
+	since, days := s.window(in.Days)
+	rows, err := s.St.Q.SpendSince(ctx, db.SpendSinceParams{WorkspaceID: act.Workspace, Since: since})
 	if err != nil {
 		return nil, err
 	}
@@ -194,12 +205,12 @@ type runsDailyRow struct {
 }
 
 // runsDaily is the processes of the last days by day, the empty days too.
-func (a *App) runsDaily(ctx context.Context, act registry.Actor, in runsDailyIn) ([]runsDailyRow, error) {
+func (s *Service) runsDaily(ctx context.Context, act registry.Actor, in runsDailyIn) ([]runsDailyRow, error) {
 	if in.Days == 0 {
 		in.Days = 14
 	}
-	since, days := a.window(in.Days)
-	rows, err := a.Store.Q.RunsSince(ctx, db.RunsSinceParams{WorkspaceID: act.Workspace, Since: since})
+	since, days := s.window(in.Days)
+	rows, err := s.St.Q.RunsSince(ctx, db.RunsSinceParams{WorkspaceID: act.Workspace, Since: since})
 	if err != nil {
 		return nil, err
 	}
@@ -224,8 +235,8 @@ type snapshotRow struct {
 }
 
 // snapshotsList is the snapshots in backups, newest first; deck keeps the newest few.
-func (a *App) snapshotsList(context.Context, registry.Actor, struct{}) ([]snapshotRow, error) {
-	paths, err := filepath.Glob(filepath.Join(a.Home.Backups(), "deck-*.tar.gz"))
+func (s *Service) snapshotsList(context.Context, registry.Actor, struct{}) ([]snapshotRow, error) {
+	paths, err := filepath.Glob(filepath.Join(s.Backups, "deck-*.tar.gz"))
 	if err != nil {
 		return nil, err
 	}
@@ -239,7 +250,7 @@ func (a *App) snapshotsList(context.Context, registry.Actor, struct{}) ([]snapsh
 		}
 		name := filepath.Base(p)
 		at := ""
-		if t, err := time.Parse(snapshotLayout, strings.TrimSuffix(strings.TrimPrefix(name, "deck-"), ".tar.gz")); err == nil {
+		if t, err := time.Parse(home.SnapshotLayout, strings.TrimSuffix(strings.TrimPrefix(name, "deck-"), ".tar.gz")); err == nil {
 			at = t.UTC().Format(time.RFC3339)
 		}
 		out = append(out, snapshotRow{Name: name, Size: st.Size(), TakenAt: at, Path: p})
@@ -247,22 +258,23 @@ func (a *App) snapshotsList(context.Context, registry.Actor, struct{}) ([]snapsh
 	return out, nil
 }
 
-func (a *App) journalCommands() []*registry.Command {
+// Commands are the commands of the journal.
+func (s *Service) Commands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("calls_list", "Journal of calls",
 			"Lists the calls of the gateway, newest first: tool, who, project, process, class, outcome, external id and error; params only of external and waiting calls.",
-			registry.OwnerOnly, a.callsList).On("calls"),
+			registry.OwnerOnly, s.callsList).On("calls"),
 		registry.Read("spend_list", "Spend",
 			"Lists the tokens and cost of model calls by project, command, provider and model, the largest first.",
-			registry.OwnerOnly, a.spendList).On("usage"),
+			registry.OwnerOnly, s.spendList).On("usage"),
 		registry.Read("spend_daily", "Spend by day",
 			"Gives the tokens, calls and cost of model calls of the last days: a row for every day, or the totals of each provider or project with their share.",
-			registry.OwnerOnly, a.spendDaily).On("usage"),
+			registry.OwnerOnly, s.spendDaily).On("usage"),
 		registry.Read("runs_daily", "Runs by day",
 			"Gives the processes started on each of the last days: all, failed and started by a schedule.",
-			registry.OwnerOnly, a.runsDaily).On("processes"),
+			registry.OwnerOnly, s.runsDaily).On("processes"),
 		registry.Read("snapshots_list", "Snapshots",
 			"Lists the snapshots of the base and files deck keeps, newest first.",
-			registry.OwnerOnly, a.snapshotsList).On("snapshots"),
+			registry.OwnerOnly, s.snapshotsList).On("snapshots"),
 	}
 }

@@ -25,10 +25,14 @@ func (l Layout) State() string { return l.state() }
 // Work holds the folders of runs and the folders of projects.
 func (l Layout) Work() string { return l.work() }
 
-func (l Layout) DB() string        { return l.state("deck.db") }
-func (l Layout) Token() string     { return l.state("token") }
-func (l Layout) Files() string     { return l.state("files") }
-func (l Layout) Backups() string   { return l.state("backups") }
+func (l Layout) DB() string      { return l.state("deck.db") }
+func (l Layout) Token() string   { return l.state("token") }
+func (l Layout) Files() string   { return l.state("files") }
+func (l Layout) Backups() string { return l.state("backups") }
+
+// SnapshotLayout is the time in the name of a snapshot in backups/, deck-<time>.tar.gz.
+const SnapshotLayout = "20060102T150405"
+
 func (l Layout) Browser() string   { return l.state("browser") }
 func (l Layout) Tailscale() string { return l.state("tailscale") }
 func (l Layout) Codex() string     { return l.state("codex") }

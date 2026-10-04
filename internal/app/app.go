@@ -17,6 +17,7 @@ import (
 	"deck2/internal/app/devices"
 	appfiles "deck2/internal/app/files"
 	"deck2/internal/app/folders"
+	"deck2/internal/app/journal"
 	"deck2/internal/app/providers"
 	"deck2/internal/app/secrets"
 	"deck2/internal/app/settings"
@@ -62,6 +63,7 @@ type App struct {
 	Settings  *settings.Service
 	Folders   *folders.Service
 	Files     *appfiles.Service
+	Journal   *journal.Service
 	Scripts   *script.Exec
 	Tools     *tools.HTTP
 	MCP       *tools.MCP
@@ -104,6 +106,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	a.Secrets = &secrets.Service{St: st, Dir: h.Secrets}
 	a.Folders = &folders.Service{St: st, Home: cfg.Home}
 	a.Files = &appfiles.Service{St: st, Home: h, Now: cfg.Now}
+	a.Journal = &journal.Service{St: st, Now: cfg.Now, Backups: h.Backups()}
 	a.Settings = &settings.Service{St: st, DefaultTTL: cfg.ConfirmTTL, Wake: func(ctx context.Context) { a.Runner.Wake(ctx) }}
 	a.Asks = ask.NewBroker(st, a.Bus, cfg.Now)
 	a.Registry = registry.New(a.projectCommands)

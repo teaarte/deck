@@ -11,7 +11,7 @@ import (
 func (a *App) addBuiltins() {
 	for _, cs := range [][]*registry.Command{a.askCommands(), a.browserCommands(), a.Board.Commands(), a.Chats.Commands(),
 		a.documentCommands(), a.draftsCommands(), a.Devices.FeedCommands(), a.Folders.Commands(), a.projectsCommands(),
-		a.importCommands(), a.journalCommands(), a.liveCommands(), a.Devices.NotifyCommands(), a.oauthCommands(),
+		a.importCommands(), a.Journal.Commands(), a.liveCommands(), a.Devices.NotifyCommands(), a.oauthCommands(),
 		a.processCommands(), a.projectDeleteCommands(), a.Providers.Commands(), a.Devices.PushCommands(), a.recordCommands(),
 		a.screensCommands(), a.Secrets.Commands(), a.Settings.Commands(), a.snapshotsCommands(), a.Suggest.Commands(),
 		a.Tokens.Commands(), a.triggersCommands(), a.Files.Commands(), a.Devices.VoiceCommands(), a.Cfg.Commands} {

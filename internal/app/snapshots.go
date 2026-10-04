@@ -29,8 +29,6 @@ import (
 	"deck2/internal/store/db"
 )
 
-const snapshotLayout = "20060102T150405"
-
 // Snapshot writes backups/deck-<time>.tar.gz with a copy of the base, files/, the model sessions deck keeps
 // and the data folders of projects, then keeps only the newest ones; secrets and the token stay out.
 func (a *App) Snapshot(ctx context.Context) (string, error) {
@@ -38,7 +36,7 @@ func (a *App) Snapshot(ctx context.Context) (string, error) {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return "", err
 	}
-	path := filepath.Join(dir, "deck-"+a.Cfg.Now().UTC().Format(snapshotLayout)+".tar.gz")
+	path := filepath.Join(dir, "deck-"+a.Cfg.Now().UTC().Format(home.SnapshotLayout)+".tar.gz")
 	copyDB := filepath.Join(dir, ".deck-"+uuid.NewString()+".db")
 	defer os.Remove(copyDB)
 	a.Files.Mu.Lock()
@@ -176,7 +174,7 @@ func (a *App) daily(ctx context.Context, now time.Time) {
 	due := true
 	if len(old) > 0 {
 		stamp := strings.TrimSuffix(strings.TrimPrefix(filepath.Base(old[len(old)-1]), "deck-"), ".tar.gz")
-		t, err := time.Parse(snapshotLayout, stamp)
+		t, err := time.Parse(home.SnapshotLayout, stamp)
 		due = err != nil || now.Sub(t) >= 24*time.Hour
 	}
 	if due && now.Sub(a.snapTried) >= time.Hour {

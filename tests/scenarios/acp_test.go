@@ -202,8 +202,8 @@ func TestACPExternalToolStillWaitsForYes(t *testing.T) {
 	}
 }
 
-// TestACPProjectWithoutNetworkHasNoWebThroughTheProxy: the proxy of the sandbox carries the agent only to public
-// addresses, and nowhere in a project without network, where the agent's own web tools are off too.
+// TestACPProjectWithoutNetworkHasNoWebThroughTheProxy: the proxy of the sandbox carries the agent only to the hosts
+// of its project, and nowhere in a project without network, where the agent's own web tools are off too.
 func TestACPProjectWithoutNetworkHasNoWebThroughTheProxy(t *testing.T) {
 	site := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { jsonReply(w, `{}`) })
 	curl := `{"shell": "curl -s --noproxy '' --proxy \"$HTTP_PROXY\" ` + site.URL + `/page"}`
@@ -223,7 +223,7 @@ func TestACPProjectWithoutNetworkHasNoWebThroughTheProxy(t *testing.T) {
 	}
 	e.waitState(e.run(e.acpProject("private", noNetworkManifest), "work"), "done")
 	web, off := f.call(4), f.call(5)
-	if !strings.Contains(web.shell[0]["out"], "not a public address") || !strings.Contains(off.shell[0]["out"], "not reachable") || len(site.requests()) != 0 {
+	if !strings.Contains(web.shell[0]["out"], "not in the domains") || !strings.Contains(off.shell[0]["out"], "not reachable") || len(site.requests()) != 0 {
 		t.Fatalf("the proxy carries no agent to deck or local services, and nowhere without network: %q / %q", web.shell[0]["out"], off.shell[0]["out"])
 	}
 	if web.shell[1]["out"] != "000" || off.shell[1]["out"] != "000" {

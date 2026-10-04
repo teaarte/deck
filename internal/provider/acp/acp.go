@@ -157,7 +157,7 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 	e := &entry{ctx: life, self: self, mcp: mcp, model: model, modelAt: "/model/" + nonce.Hex(16), key: key, proxyKey: nonce.Hex(16), name: a.cfg.Model,
 		onUsage: req.OnUsage, now: a.now}
 	if !req.NoNetwork {
-		e.domains = []string{"*"}
+		e.domains = req.Hosts
 	}
 	srv := &http.Server{Handler: e}
 	go func() { _ = srv.Serve(ln) }()

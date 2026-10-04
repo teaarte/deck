@@ -24,7 +24,9 @@ type Request struct {
 	// Dirs are folders outside Cwd the agent also writes to, such as the data folder of the project.
 	Dirs []string
 	// NoNetwork takes away the provider's own web and the network of its shell.
-	NoNetwork     bool
+	NoNetwork bool
+	// Hosts are what the shell reaches: hosts with their subdomains, host:port, IPs; "*" is every one.
+	Hosts         []string
 	AllowedTools  []string
 	PermissionMCP string
 	// SessionID is assigned by deck; Resume continues it instead of starting it.

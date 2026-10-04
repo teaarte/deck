@@ -140,7 +140,28 @@ func toolWidens(prev, next *Manifest, t HTTPTool) []string {
 }
 
 // Registries are the package registries a manifest reaches by naming them, before any grant.
-var Registries = []string{"pypi.org", "files.pythonhosted.org", "registry.npmjs.org"}
+var Registries = []string{"pypi.org", "files.pythonhosted.org", "registry.npmjs.org", "proxy.golang.org", "sum.golang.org"}
+
+// AgentHosts are what the shell of an agent reaches besides the read domains of its project: the registries
+// and GitHub, where code and its packages come from.
+var AgentHosts = append(slices.Clone(Registries), "github.com", "codeload.github.com", "objects.githubusercontent.com")
+
+// ShellHosts are the hosts the shell of an agent of m reaches: none without network, every one for "*" in read.
+func ShellHosts(m *Manifest) []string {
+	switch {
+	case m.NoNetwork:
+		return nil
+	case slices.Contains(m.Domains.Read, "*"):
+		return []string{"*"}
+	}
+	out := slices.Clone(AgentHosts)
+	for _, d := range m.Domains.Read {
+		if !slices.Contains(out, d) {
+			out = append(out, d)
+		}
+	}
+	return out
+}
 
 // Clip is m with only the rights granted gives: autonomy, network, allowed external actions, domains other than
 // registries and reads it lacks are dropped; an HTTP tool that would widen them asks the owner on every call.

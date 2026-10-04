@@ -161,14 +161,19 @@ func (r *Runner) prepare(ctx context.Context, t *turn, p db.Process, trial bool,
 		return nil, false
 	}
 	noNetwork := t.m.NoNetwork
-	if now, err := docs.CurrentInForce(ctx, r.st.Q, t.project); err == nil && now.NoNetwork {
-		noNetwork = true
+	var hosts []string
+	if now, err := docs.CurrentInForce(ctx, r.st.Q, t.project); err == nil {
+		noNetwork = noNetwork || now.NoNetwork
+		hosts = manifest.ShellHosts(now)
+	}
+	if noNetwork {
+		hosts = nil
 	}
 	processID := t.process
 	a.req = provider.Request{
 		Cwd: work, Repo: repo, Prompt: t.message, ResultSchema: t.cmd.Result,
 		MCPURL: r.cfg.MCPBase + "/mcp/" + tok, AllowedTools: r.gw.AllowedTools(tok), PermissionMCP: gateway.PermissionTool(),
-		SessionID: t.session, Resume: t.resume, Hidden: r.cfg.Hidden(t.project, processID), Dirs: []string{a.data, filepath.Join(a.dir, "results")}, NoNetwork: noNetwork,
+		SessionID: t.session, Resume: t.resume, Hidden: r.cfg.Hidden(t.project, processID), Dirs: []string{a.data, filepath.Join(a.dir, "results")}, NoNetwork: noNetwork, Hosts: hosts,
 		OnStart: func(pid int) { r.setGroup(ctx, processID, pid) },
 		OnEvent: func(e provider.Event) { r.event(ctx, processID, stream, e) },
 		OnUsage: func(u provider.Usage) { r.usage(ctx, processID, pv.Name(), u) },

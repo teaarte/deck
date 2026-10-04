@@ -3,6 +3,7 @@ package claudecode
 import (
 	"encoding/json"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -113,10 +114,8 @@ func settings(req provider.Request, runs string) map[string]any {
 		}
 	}
 	s["permissions"] = map[string]any{"deny": deny}
-	if req.NoNetwork {
-		s["sandbox"] = map[string]any{"enabled": true, "failIfUnavailable": true, "allowUnsandboxedCommands": false,
-			"network": map[string]any{"allowedDomains": []string{}, "strictAllowlist": true}}
-	}
+	s["sandbox"] = map[string]any{"enabled": true, "failIfUnavailable": true, "allowUnsandboxedCommands": false,
+		"network": map[string]any{"allowedDomains": allowed(req.Hosts), "strictAllowlist": true}}
 	if !req.Repo {
 		return s
 	}
@@ -140,6 +139,24 @@ func settings(req provider.Request, runs string) map[string]any {
 	s["claudeMdExcludes"] = excludes(req.Cwd)
 	s["permissions"] = map[string]any{"deny": deny}
 	return s
+}
+
+// allowed are the hosts as the sandbox of the CLI names them: a host and its subdomains, host:port or an IP; a
+// network such as 10.0.0.0/8 it cannot name is left out.
+func allowed(hosts []string) []string {
+	out := []string{}
+	for _, h := range hosts {
+		switch {
+		case h == "*" || strings.Contains(h, ":"):
+			out = append(out, h)
+		case strings.Contains(h, "/"):
+		case net.ParseIP(h) != nil:
+			out = append(out, h)
+		default:
+			out = append(out, h, "*."+h)
+		}
+	}
+	return out
 }
 
 // writeFile writes a per-turn file into ConfigDir atomically with mode 600.

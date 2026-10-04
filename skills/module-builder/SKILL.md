@@ -291,7 +291,9 @@ documents it reads, and a skill carries a reusable way of working. The agent rea
 deck MCP server. A provider with a shell (Claude Code, Codex, an ACP agent) runs it in its auto mode: the agent works in its own
 folder and in the project's data folder (the prompt names it; indexes, caches and state live there between
 runs), runs shell commands, and searches and fetches the web without asking; the provider itself refuses
-what looks risky and asks the owner only about that. Secrets, deck's own files and other projects stay closed
+what looks risky and asks the owner only about that. Its shell reaches only package registries (PyPI, npm, the
+go proxy), GitHub and the project's `domains.read`; `"*"` in `domains.read` opens the whole network, a right the
+owner gives. Secrets, deck's own files and other projects stay closed
 to it. A deck tool of class `external` outside `allowed_external` still waits for the owner. Set
 `"no_network": true` for a project with personal data (finance, health, mail): its agents get no web and no
 network of their own and reach outside only through deck tools; removing the flag later is a right. An agent

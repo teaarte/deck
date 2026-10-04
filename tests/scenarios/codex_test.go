@@ -531,3 +531,28 @@ func TestTheFinalAnswerOfCodexIsTheTextOfItsTurn(t *testing.T) {
 		t.Fatalf("the final answer of a Codex turn is its text: %+v", said)
 	}
 }
+
+// TestCodexShellReachesTheRegistriesAndTheDomainsOfItsProject: the shell of Codex reaches package registries and
+// the read domains of its project through Codex's proxy; "*" in read is the whole network.
+func TestCodexShellReachesTheRegistriesAndTheDomainsOfItsProject(t *testing.T) {
+	c := newCodex(t)
+	c.stream(0, "ok.jsonl")
+	c.stream(1, "ok.jsonl")
+	e, _ := codexEnv(t, c)
+	listed := e.createProject("paint", strings.Replace(colorManifest, `"version": 7,`, `"version": 7, "domains": {"read": ["data.example.org"]},`, 1))
+	e.waitState(e.run(listed, "work"), "done", "error")
+	cc := c.call(1)
+	mode, _ := cc.config("permissions.deck.network.mode")
+	domains, _ := cc.config("permissions.deck.network.domains")
+	if mode != `"limited"` || !strings.Contains(domains, `"pypi.org"="allow"`) || !strings.Contains(domains, `"*.data.example.org"="allow"`) {
+		t.Fatalf("the shell reaches the registries and the read domains of the project: %s %s", mode, domains)
+	}
+	open := e.createProject("open", strings.Replace(colorManifest, `"version": 7,`, `"version": 7, "domains": {"read": ["*"]},`, 1))
+	e.waitState(e.run(open, "work"), "done", "error")
+	cc = c.call(2)
+	mode, _ = cc.config("permissions.deck.network.mode")
+	net, _ := cc.config("permissions.deck.network.enabled")
+	if mode != "" || net != "true" {
+		t.Fatalf("\"*\" in read is the whole network: %s %s", mode, net)
+	}
+}

@@ -4,6 +4,7 @@ import (
 	"context"
 	deckhome "deck2/internal/home"
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -281,5 +282,46 @@ func TestClaudeCodeLimitPausesUntilItsReset(t *testing.T) {
 	e.sweep()
 	if got := e.waitState(id, "done", "error"); got.State != "done" || !slices.Contains(c.call(2).args, "--resume") {
 		t.Fatalf("after the reset the session is resumed: %+v %v", got, c.call(2).args)
+	}
+}
+
+// TestClaudeCodeShellReachesTheRegistriesAndTheDomainsOfItsProject: the shell of Claude Code always runs in its
+// sandbox and reaches package registries and the read domains of its project; "*" in read is the whole network.
+func TestClaudeCodeShellReachesTheRegistriesAndTheDomainsOfItsProject(t *testing.T) {
+	c := newCLI(t)
+	c.stream(0, "ok.jsonl")
+	e, _ := cliEnv(t, c)
+	for i, tc := range []struct {
+		domains string
+		want    []string
+	}{
+		{`"domains": {"read": ["data.example.org"]},`, []string{"pypi.org", "data.example.org", "*.data.example.org"}},
+		{`"domains": {"read": ["*"]},`, []string{"*"}},
+		{`"no_network": true,`, nil},
+	} {
+		p := e.createProject(fmt.Sprintf("ideas%d", i), strings.Replace(ideasManifest, `"version": 7,`, `"version": 7, `+tc.domains, 1))
+		e.waitState(e.run(p, "collect"), "done", "error")
+		var set struct {
+			Sandbox struct {
+				Enabled                  bool `json:"enabled"`
+				AllowUnsandboxedCommands bool `json:"allowUnsandboxedCommands"`
+				Network                  struct {
+					AllowedDomains  []string `json:"allowedDomains"`
+					StrictAllowlist bool     `json:"strictAllowlist"`
+				} `json:"network"`
+			} `json:"sandbox"`
+		}
+		call := c.call(c.calls())
+		if err := json.Unmarshal([]byte(call.settings), &set); err != nil {
+			t.Fatal(err)
+		}
+		got := set.Sandbox.Network.AllowedDomains
+		ok := set.Sandbox.Enabled && !set.Sandbox.AllowUnsandboxedCommands && set.Sandbox.Network.StrictAllowlist
+		for _, w := range tc.want {
+			ok = ok && slices.Contains(got, w)
+		}
+		if !ok || tc.want == nil && len(got) != 0 || len(tc.want) == 1 && len(got) != 1 {
+			t.Fatalf("%s: the sandbox of the shell reaches %v: %s", tc.domains, tc.want, call.settings)
+		}
 	}
 }

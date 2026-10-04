@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"deck2/internal/app/folders"
 	"fmt"
 	"io/fs"
 	"os"
@@ -19,13 +20,6 @@ import (
 
 // maxFolder is the most text an import takes from one folder.
 const maxFolder = 32 << 20
-
-func absFolder(path string) (string, error) {
-	if !filepath.IsAbs(path) {
-		return "", registry.Invalid("deck: %q is not an absolute path", path)
-	}
-	return filepath.Clean(path), nil
-}
 
 // importMark keeps the folder a project was imported from.
 func importMark(project int64) string { return fmt.Sprintf("imported_from:%d", project) }
@@ -56,7 +50,7 @@ type projectImportIn struct {
 
 // projectImport creates a draft from a module folder in one transaction; hidden files are left out.
 func (a *App) projectImport(ctx context.Context, act registry.Actor, in projectImportIn) (any, error) {
-	dir, err := absFolder(in.Folder)
+	dir, err := folders.Abs(in.Folder)
 	if err != nil {
 		return nil, err
 	}

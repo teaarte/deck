@@ -15,6 +15,7 @@ import (
 	"deck2/internal/app/board"
 	"deck2/internal/app/chat"
 	"deck2/internal/app/devices"
+	"deck2/internal/app/folders"
 	"deck2/internal/app/providers"
 	"deck2/internal/app/secrets"
 	"deck2/internal/app/settings"
@@ -58,6 +59,7 @@ type App struct {
 	Tokens    *tokens.Service
 	Secrets   *secrets.Service
 	Settings  *settings.Service
+	Folders   *folders.Service
 	Scripts   *script.Exec
 	Tools     *tools.HTTP
 	MCP       *tools.MCP
@@ -100,6 +102,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 		a.Bus.Emit(events.Event{Workspace: c.Workspace, Topic: c.Topic, Project: c.Project})
 	}
 	a.Secrets = &secrets.Service{St: st, Dir: h.Secrets}
+	a.Folders = &folders.Service{St: st, Home: cfg.Home}
 	a.Settings = &settings.Service{St: st, DefaultTTL: cfg.ConfirmTTL, Wake: func(ctx context.Context) { a.Runner.Wake(ctx) }}
 	a.Asks = ask.NewBroker(st, a.Bus, cfg.Now)
 	a.Registry = registry.New(a.projectCommands)
@@ -400,4 +403,9 @@ func (a *App) Loop(ctx context.Context, every time.Duration) {
 		case <-t.C:
 		}
 	}
+}
+
+// Folder is the real path of the project folder an agent command works in, for the runner.
+func (a *App) Folder(ctx context.Context, projectID int64, f manifest.Folder) (string, error) {
+	return a.Folders.Folder(ctx, projectID, f)
 }

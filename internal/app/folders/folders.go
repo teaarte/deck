@@ -1,4 +1,5 @@
-package app
+// Package folders keeps the folders on disk a project's agent commands work in.
+package folders
 
 import (
 	"context"
@@ -15,16 +16,31 @@ import (
 	"deck2/internal/store/db"
 )
 
+// Service keeps the folders; Home is deck's own folder, which no project folder holds or is in.
+type Service struct {
+	St   *store.Store
+	Home string
+}
+
 var folderName = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,39}$`)
 
-type folderRow struct {
+// Row is a folder of a project by its name.
+type Row struct {
 	Name string `json:"name"`
 	Path string `json:"path"`
 }
 
+// Abs is a path that must be absolute, cleaned.
+func Abs(path string) (string, error) {
+	if !filepath.IsAbs(path) {
+		return "", registry.Invalid("deck: %q is not an absolute path", path)
+	}
+	return filepath.Clean(path), nil
+}
+
 // realFolder is the real path of an existing folder outside deck's own.
-func (a *App) realFolder(path string) (string, error) {
-	dir, err := absFolder(path)
+func (s *Service) realFolder(path string) (string, error) {
+	dir, err := Abs(path)
 	if err != nil {
 		return "", err
 	}
@@ -35,9 +51,9 @@ func (a *App) realFolder(path string) (string, error) {
 	if st, err := os.Stat(real); err != nil || !st.IsDir() {
 		return "", registry.Invalid("deck: %s is not a folder", dir)
 	}
-	for _, home := range provider.Paths(a.Cfg.Home) {
+	for _, home := range provider.Paths(s.Home) {
 		if real == home || strings.HasPrefix(real, home+"/") || strings.HasPrefix(home, strings.TrimSuffix(real, "/")+"/") {
-			return "", registry.Invalid("deck: folder %s holds or is inside deck's own folder %s", dir, a.Cfg.Home)
+			return "", registry.Invalid("deck: folder %s holds or is inside deck's own folder %s", dir, s.Home)
 		}
 	}
 	return real, nil
@@ -60,12 +76,12 @@ type folderAddIn struct {
 	Name    string `opt:"" desc:"Folder name in the project; the folder's own name when omitted"`
 }
 
-func (a *App) folderAdd(ctx context.Context, act registry.Actor, in folderAddIn) (any, error) {
-	p, err := access.Project(ctx, a.Store.Q, act, in.Project)
+func (s *Service) folderAdd(ctx context.Context, act registry.Actor, in folderAddIn) (any, error) {
+	p, err := access.Project(ctx, s.St.Q, act, in.Project)
 	if err != nil {
 		return nil, err
 	}
-	real, err := a.realFolder(in.Path)
+	real, err := s.realFolder(in.Path)
 	if err != nil {
 		return nil, err
 	}
@@ -77,7 +93,7 @@ func (a *App) folderAdd(ctx context.Context, act registry.Actor, in folderAddIn)
 		return nil, registry.Invalid("deck: folder name %q must be lowercase letters, digits, '-' and '_', starting with a letter", name)
 	}
 	var f db.ProjectFolder
-	err = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		have, err := q.ListProjectFolders(ctx, p.ID)
 		if err != nil {
 			return err
@@ -104,12 +120,12 @@ type folderRemoveIn struct {
 	Name    string `desc:"Folder name in the project"`
 }
 
-func (a *App) folderRemove(ctx context.Context, act registry.Actor, in folderRemoveIn) (any, error) {
-	p, err := access.Project(ctx, a.Store.Q, act, in.Project)
+func (s *Service) folderRemove(ctx context.Context, act registry.Actor, in folderRemoveIn) (any, error) {
+	p, err := access.Project(ctx, s.St.Q, act, in.Project)
 	if err != nil {
 		return nil, err
 	}
-	n, err := store.TxGet(a.Store, ctx, func(ctx context.Context, q *db.Queries) (int64, error) {
+	n, err := store.TxGet(s.St, ctx, func(ctx context.Context, q *db.Queries) (int64, error) {
 		return q.RemoveProjectFolder(ctx, db.RemoveProjectFolderParams{ProjectID: p.ID, Name: in.Name})
 	})
 	if err != nil {
@@ -121,22 +137,23 @@ func (a *App) folderRemove(ctx context.Context, act registry.Actor, in folderRem
 	return map[string]any{"project": p.Name, "removed": in.Name}, nil
 }
 
-func (a *App) folders(ctx context.Context, projectID int64) ([]folderRow, error) {
-	fs, err := a.Store.Q.ListProjectFolders(ctx, projectID)
-	out := make([]folderRow, 0, len(fs))
+// List are the folders of a project.
+func (s *Service) List(ctx context.Context, projectID int64) ([]Row, error) {
+	fs, err := s.St.Q.ListProjectFolders(ctx, projectID)
+	out := make([]Row, 0, len(fs))
 	for _, f := range fs {
-		out = append(out, folderRow{Name: f.Name, Path: f.Path})
+		out = append(out, Row{Name: f.Name, Path: f.Path})
 	}
 	return out, err
 }
 
 // Folder is the real path of the project folder an agent command works in, checked to still be there.
-func (a *App) Folder(ctx context.Context, projectID int64, f manifest.Folder) (string, error) {
-	p, err := a.Store.Q.GetProject(ctx, projectID)
+func (s *Service) Folder(ctx context.Context, projectID int64, f manifest.Folder) (string, error) {
+	p, err := s.St.Q.GetProject(ctx, projectID)
 	if err != nil {
 		return "", err
 	}
-	fs, err := a.Store.Q.ListProjectFolders(ctx, projectID)
+	fs, err := s.St.Q.ListProjectFolders(ctx, projectID)
 	if err != nil {
 		return "", err
 	}
@@ -158,7 +175,7 @@ func (a *App) Folder(ctx context.Context, projectID int64, f manifest.Folder) (s
 	default:
 		path = fs[0].Path
 	}
-	real, err := a.realFolder(path)
+	real, err := s.realFolder(path)
 	if err != nil {
 		return "", registry.Invalid("deck: folder %s of project %s is gone or moved: %v", path, p.Name, err)
 	}
@@ -169,24 +186,25 @@ type foldersListIn struct {
 	Project string `type:"project" desc:"Project name"`
 }
 
-func (a *App) foldersList(ctx context.Context, act registry.Actor, in foldersListIn) ([]folderRow, error) {
-	p, err := access.Project(ctx, a.Store.Q, act, in.Project)
+func (s *Service) foldersList(ctx context.Context, act registry.Actor, in foldersListIn) ([]Row, error) {
+	p, err := access.Project(ctx, s.St.Q, act, in.Project)
 	if err != nil {
 		return nil, err
 	}
-	return a.folders(ctx, p.ID)
+	return s.List(ctx, p.ID)
 }
 
-func (a *App) foldersCommands() []*registry.Command {
+// Commands are the commands of folders.
+func (s *Service) Commands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("folders_list", "Folders",
 			"Lists the folders on disk a project's agent commands work in.",
-			registry.OwnerOnly, a.foldersList).On("projects"),
+			registry.OwnerOnly, s.foldersList).On("projects"),
 		registry.Def("folder_add", "Add folder",
 			"Gives a project a folder on disk that its agent commands with folder work in; only the owner, since it lets agents write there.",
-			registry.OwnerOnly, a.folderAdd),
+			registry.OwnerOnly, s.folderAdd),
 		registry.Def("folder_remove", "Remove folder",
 			"Takes a folder from a project; the folder on disk stays as it is.",
-			registry.OwnerOnly, a.folderRemove),
+			registry.OwnerOnly, s.folderRemove),
 	}
 }

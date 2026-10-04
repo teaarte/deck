@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"deck2/internal/app/access"
+	"deck2/internal/app/folders"
 	"fmt"
 	"slices"
 	"strings"
@@ -25,9 +26,9 @@ type projectView struct {
 	Screens       []screenLink `json:"screens"`
 	ManifestError string       `json:"manifest_error"`
 	// Rights are what enabling a draft at Revision of its manifest grants.
-	Rights   []string    `json:"rights"`
-	Revision int64       `json:"revision"`
-	Folders  []folderRow `json:"folders"`
+	Rights   []string      `json:"rights"`
+	Revision int64         `json:"revision"`
+	Folders  []folders.Row `json:"folders"`
 	// Autonomy and NoNetwork are of the manifest; empty and false when it does not load.
 	Autonomy  string `json:"autonomy"`
 	NoNetwork bool   `json:"no_network"`
@@ -60,7 +61,7 @@ func (a *App) projectsList(ctx context.Context, act registry.Actor, in projectsL
 func (a *App) viewProject(ctx context.Context, p db.Project, m *manifest.Manifest, err error) projectView {
 	v := projectView{ID: p.ID, Name: p.Name, Title: p.Name, Status: p.Status, Paused: p.Paused == 1, Builtin: p.Builtin == 1, Screens: []screenLink{},
 		Rights: []string{}}
-	v.Folders, _ = a.folders(ctx, p.ID)
+	v.Folders, _ = a.Folders.List(ctx, p.ID)
 	if prompt, err := docs.CurrentText(ctx, a.Store.Q, docs.ProjectScope(p), docs.KindPrompt, docs.PromptName); err == nil {
 		v.Description = docs.Description(prompt)
 	}

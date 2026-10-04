@@ -2,6 +2,7 @@ package screen
 
 import (
 	"cmp"
+	"encoding/json"
 	"fmt"
 	"maps"
 	"math"
@@ -74,33 +75,20 @@ func (r *renderer) tr(s string) string {
 	return s
 }
 
-// translated is a block with its own texts in the owner's language; the blocks in it are translated in turn.
+// translated is a block with its texts in the owner's language.
 func (r *renderer) translated(b manifest.Block) manifest.Block {
 	if len(r.req.Words) == 0 {
 		return b
 	}
-	b.Title, b.Description, b.Empty = r.tr(b.Title), r.tr(b.Description), r.tr(b.Empty)
-	b.Columns = slices.Clone(b.Columns)
-	for i := range b.Columns {
-		b.Columns[i].Label = r.tr(b.Columns[i].Label)
+	raw, _ := json.Marshal(b)
+	var v any
+	_ = json.Unmarshal(raw, &v)
+	raw, _ = json.Marshal(manifest.Translate(v, r.tr))
+	var out manifest.Block
+	if json.Unmarshal(raw, &out) != nil {
+		return b
 	}
-	b.Fields = slices.Clone(b.Fields)
-	for i := range b.Fields {
-		b.Fields[i].Label = r.tr(b.Fields[i].Label)
-	}
-	b.Series = slices.Clone(b.Series)
-	for i := range b.Series {
-		b.Series[i].Label = r.tr(b.Series[i].Label)
-	}
-	b.Tabs = slices.Clone(b.Tabs)
-	for i := range b.Tabs {
-		b.Tabs[i].Title = r.tr(b.Tabs[i].Title)
-	}
-	b.Actions = slices.Clone(b.Actions)
-	for i := range b.Actions {
-		b.Actions[i].Label = r.tr(b.Actions[i].Label)
-	}
-	return b
+	return out
 }
 
 func (r *renderer) block(id string, b manifest.Block) {
@@ -109,30 +97,15 @@ func (r *renderer) block(id string, b manifest.Block) {
 		keys = append(keys, t.Title)
 	}
 	b = r.translated(b)
-	comp := map[string]any{"id": id, "component": b.Type}
-	if b.Title != "" {
-		comp["title"] = b.Title
-	}
-	if b.Icon != "" {
-		comp["icon"] = b.Icon
-	}
-	if b.Description != "" {
-		comp["description"] = b.Description
-	}
-	comp["span"] = span(b)
-	if b.Part != "" {
-		comp["part"] = b.Part
-	}
+	comp := static(b)
+	comp["id"], comp["component"], comp["span"] = id, b.Type, span(b)
 	r.comps = append(r.comps, comp)
 	switch b.Type {
 	case "columns":
 		comp["children"] = r.blocks(id+"-", b.Blocks)
 		return
 	case "dialog":
-		comp["children"], comp["name"] = r.blocks(id+"-", b.Blocks), b.Name
-		if b.Primary {
-			comp["primary"] = true
-		}
+		comp["children"] = r.blocks(id+"-", b.Blocks)
 		return
 	case "tabs":
 		titles, icons, children := []string{}, []string{}, []string{}
@@ -168,24 +141,6 @@ func (r *renderer) block(id string, b manifest.Block) {
 		return
 	}
 	r.data[id] = value
-}
-
-// wide are the blocks that take the whole width of the screen unless their span says otherwise.
-var wide = []string{"table", "list", "board", "form", "document", "log", "chat", "custom", "tabs", "columns", "appearance"}
-
-// span is the cells of the grid of the screen a block takes: its own, or by its type.
-func span(b manifest.Block) any {
-	switch {
-	case b.Span.Full:
-		return "full"
-	case b.Span.N > 0:
-		return b.Span.N
-	case slices.Contains(wide, b.Type):
-		return "full"
-	case b.Type == "chart":
-		return 2
-	}
-	return 1
 }
 
 // split puts the dialogs and menus of a screen apart from its blocks: their buttons stand beside its title.

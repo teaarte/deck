@@ -44,6 +44,32 @@ func Texts(raw []byte) map[string]bool {
 	return out
 }
 
+// Translate gives a decoded JSON value with each of its texts put through tr.
+func Translate(v any, tr func(string) string) any {
+	switch v := v.(type) {
+	case map[string]any:
+		out := make(map[string]any, len(v))
+		for k, x := range v {
+			switch s, ok := x.(string); {
+			case ok && slices.Contains(textKeys, k):
+				out[k] = tr(s)
+			case slices.Contains(notTexts, k):
+				out[k] = x
+			default:
+				out[k] = Translate(x, tr)
+			}
+		}
+		return out
+	case []any:
+		out := make([]any, len(v))
+		for i, x := range v {
+			out[i] = Translate(x, tr)
+		}
+		return out
+	}
+	return v
+}
+
 // UnusedWords are the keys of the i18n of a manifest that no text of it is, by language.
 func (m *Manifest) UnusedWords() []string {
 	texts := Texts(m.text)

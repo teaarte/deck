@@ -23,8 +23,8 @@ const (
 
 type checks struct {
 	running bool
-	// probing is set while the version of the provider is asked for.
-	probing bool
+	// probing is set while the version of the provider is asked for; recheck, when a retry came due meanwhile.
+	probing, recheck bool
 	// again is set when the provider changed during a running check, which then checks it once more.
 	again   bool
 	started bool
@@ -53,7 +53,12 @@ func (s *Service) Checks(ctx context.Context, now time.Time) {
 		c := s.checksOf(pv.Name())
 		due := !c.started || !now.Before(c.version)
 		retry := !c.retry.IsZero() && !now.Before(c.retry)
-		if c.running || c.probing || !due && !retry {
+		if c.running || !due && !retry {
+			s.mu.Unlock()
+			continue
+		}
+		if c.probing {
+			c.recheck = c.recheck || retry
 			s.mu.Unlock()
 			continue
 		}
@@ -66,7 +71,8 @@ func (s *Service) Checks(ctx context.Context, now time.Time) {
 			v := version(s.Ctx, sc)
 			h, _ := s.St.Q.GetHealth(s.Ctx, process.HealthSubject(pv.Name()))
 			s.mu.Lock()
-			c.probing = false
+			retry := retry || c.recheck
+			c.probing, c.recheck = false, false
 			s.mu.Unlock()
 			if s.Ctx.Err() == nil && (first || retry || v != h.Version) {
 				s.startCheck(pv.Name(), false)

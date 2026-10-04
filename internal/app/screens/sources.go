@@ -18,6 +18,18 @@ type Sources struct {
 	Deck      Deck
 }
 
+func (s Sources) Records(ctx context.Context, project int64, collection string) ([]db.Record, error) {
+	return s.Store.Q.ListRecords(ctx, db.ListRecordsParams{ProjectID: project, Collection: collection})
+}
+
+func (s Sources) Record(ctx context.Context, id int64) (db.Record, error) {
+	return s.Store.Q.GetRecord(ctx, id)
+}
+
+func (s Sources) ProjectByName(ctx context.Context, workspace int64, name string) (db.Project, error) {
+	return s.Store.Q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: workspace, Name: name})
+}
+
 func (s Sources) Board(ctx context.Context, p db.Project, m *manifest.Manifest) (any, error) {
 	cards, err := s.Store.Q.ListCards(ctx, p.ID)
 	if err != nil {

@@ -8,7 +8,6 @@ import (
 	"slices"
 
 	"deck2/internal/manifest"
-	"deck2/internal/store"
 	"deck2/internal/store/db"
 	"deck2/schemas"
 )
@@ -18,8 +17,8 @@ const (
 	CatalogID = "https://deck2.local/catalog/v1"
 )
 
-// Sources reads what a screen shows besides collections: the commands its blocks read, boards, commands of
-// forms and the HTML of custom blocks.
+// Sources reads what a screen shows: records, the commands its blocks read, boards, commands of forms and the
+// HTML of custom blocks; the screen itself touches no store.
 type Sources interface {
 	// Read calls a command that only reads, as the one who looks at the screen, decoded with integers as int64;
 	// the scope adds the project and the values picked in filters that the command takes.
@@ -34,6 +33,9 @@ type Sources interface {
 	// File is a file a media block shows: a stored file of the project by id or a path in its data folder, as
 	// name, type, size and the url the client reads it at.
 	File(ctx context.Context, project db.Project, ref any) (map[string]any, error)
+	Records(ctx context.Context, project int64, collection string) ([]db.Record, error)
+	Record(ctx context.Context, id int64) (db.Record, error)
+	ProjectByName(ctx context.Context, workspace int64, name string) (db.Project, error)
 }
 
 // Scope is whose items a command gives: a project, or with none every project of the workspace.
@@ -75,7 +77,7 @@ var Topics = func() []string {
 
 // Render resolves a stored screen into A2UI messages: createSurface, updateComponents, updateDataModel.
 // Clients only draw components and send actions back.
-func Render(ctx context.Context, st *store.Store, src Sources, req Request) ([]map[string]any, error) {
+func Render(ctx context.Context, src Sources, req Request) ([]map[string]any, error) {
 	if !slices.Contains(Topics, req.Topic) {
 		req.Topic = ""
 	}
@@ -85,7 +87,7 @@ func Render(ctx context.Context, st *store.Store, src Sources, req Request) ([]m
 	if req.Topic == "projects" && req.Project.ID != 0 && (req.Changed == "" || req.Changed == req.Project.Name) {
 		req.Topic = ""
 	}
-	r, err := resolve(ctx, st, src, req)
+	r, err := resolve(ctx, src, req)
 	if err != nil {
 		return nil, err
 	}
@@ -110,17 +112,17 @@ func Render(ctx context.Context, st *store.Store, src Sources, req Request) ([]m
 }
 
 // Check resolves a screen on the data there is now and names each block that failed.
-func Check(ctx context.Context, st *store.Store, src Sources, req Request) ([]string, error) {
+func Check(ctx context.Context, src Sources, req Request) ([]string, error) {
 	req.Topic = ""
-	r, err := resolve(ctx, st, src, req)
+	r, err := resolve(ctx, src, req)
 	if err != nil {
 		return nil, err
 	}
 	return r.errs, nil
 }
 
-func resolve(ctx context.Context, st *store.Store, src Sources, req Request) (*renderer, error) {
-	r := &renderer{ctx: ctx, st: st, src: src, req: req, data: map[string]any{}, read: map[string]readOf{}, fetched: map[string]fetchOf{}}
+func resolve(ctx context.Context, src Sources, req Request) (*renderer, error) {
+	r := &renderer{ctx: ctx, src: src, req: req, data: map[string]any{}, read: map[string]readOf{}, fetched: map[string]fetchOf{}}
 	r.scope = Scope{Workspace: req.Project.WorkspaceID, Project: req.Project.Name}
 	r.params = map[string]any{}
 	for name, typ := range req.Screen.Params {
@@ -144,7 +146,6 @@ func resolve(ctx context.Context, st *store.Store, src Sources, req Request) (*r
 
 type renderer struct {
 	ctx         context.Context
-	st          *store.Store
 	src         Sources
 	req         Request
 	scope       Scope
@@ -212,7 +213,7 @@ func (r *renderer) loadRecord() error {
 		r.record, r.recordTitle = rec, fmt.Sprint(rec["name"])
 		return nil
 	}
-	rec, err := r.st.Q.GetRecord(r.ctx, r.req.Record)
+	rec, err := r.src.Record(r.ctx, r.req.Record)
 	if err != nil || rec.ProjectID != r.req.Project.ID || rec.Collection != r.req.Screen.Record {
 		return fmt.Errorf("no %s record %d", r.req.Screen.Record, r.req.Record)
 	}

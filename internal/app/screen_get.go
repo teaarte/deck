@@ -85,7 +85,7 @@ func (a *App) screenGet(ctx context.Context, act registry.Actor, in screenGetIn)
 		return nil, registry.NotFound("deck: no screen %q", in.Screen)
 	}
 	req.Words = words(in.Lang, req.Manifest)
-	out, err := screen.Render(ctx, a.Store, a.sources(act), req)
+	out, err := screen.Render(ctx, a.sources(act), req)
 	if err != nil {
 		return nil, registry.NotFound("deck: %v", err)
 	}
@@ -110,7 +110,7 @@ func (a *App) checkScreens(ctx context.Context, act registry.Actor, p db.Project
 			}
 			req.Record = rec.ID
 		}
-		errs, err := screen.Check(ctx, a.Store, a.sources(act), req)
+		errs, err := screen.Check(ctx, a.sources(act), req)
 		if err != nil {
 			errs = []string{err.Error()}
 		}

@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"deck2/internal/manifest"
-	"deck2/internal/store/db"
 )
 
 // items are the items of a source as expression environments, kept by its where.
@@ -65,7 +64,7 @@ func (r *renderer) load(src manifest.Source, input map[string]any, picked map[st
 		if err != nil {
 			return nil, err
 		}
-		recs, err := r.st.Q.ListRecords(r.ctx, db.ListRecordsParams{ProjectID: project, Collection: src.Collection})
+		recs, err := r.src.Records(r.ctx, project, src.Collection)
 		if err != nil {
 			return nil, err
 		}
@@ -202,7 +201,7 @@ func (r *renderer) sourceProject(src manifest.Source) (int64, error) {
 	if src.Project == "" {
 		return r.req.Project.ID, nil
 	}
-	other, err := r.st.Q.GetProjectByName(r.ctx, db.GetProjectByNameParams{WorkspaceID: r.req.Project.WorkspaceID, Name: src.Project})
+	other, err := r.src.ProjectByName(r.ctx, r.req.Project.WorkspaceID, src.Project)
 	if err != nil {
 		return 0, fmt.Errorf("no project %q", src.Project)
 	}

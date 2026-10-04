@@ -3,22 +3,20 @@ import { DragDropProvider, useDroppable } from '@dnd-kit/react';
 import { useSortable } from '@dnd-kit/react/sortable';
 import { move } from '@dnd-kit/helpers';
 import { Anchor, Badge, Button, Collapse, Group, Modal, Paper, ScrollArea, Stack, Text, TextInput, Textarea, UnstyledButton } from '@mantine/core';
-import { notifications } from '@mantine/notifications';
 import { IconGripVertical } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { call } from './lib/api';
 import type { ComponentContext } from '@a2ui/web_core/v0_9';
-import { Actions } from './actions';
+import { Actions } from './ui/Actions';
 import { setChatCard } from './chat';
 import type { BoardValue } from './lib/catalog.gen';
+import { notifyError } from './lib/notify';
 
 type BoardCard = BoardValue['lanes'][number]['cards'][number];
 
 type Order = Record<string, number[]>;
 
 const orderOf = (v: BoardValue): Order => Object.fromEntries(v.lanes.map((l) => [l.name, l.cards.map((c) => c.id)]));
-
-const failed = (e: unknown) => notifications.show({ message: (e as Error).message, color: 'red', autoClose: 10000 });
 
 function Card({ card, lane, index, onOpen }: { card: BoardCard; lane: string; index: number; onOpen: () => void }) {
   const { t } = useTranslation();
@@ -64,7 +62,7 @@ function NewCard({ project, lane }: { project: string; lane: string }) {
       await call('deck.card_create', { project, lane, title: title.trim() });
       setTitle('');
     } catch (e) {
-      failed(e);
+      notifyError(e);
     } finally {
       setBusy(false);
     }
@@ -88,7 +86,7 @@ function Deleted({ cards }: { cards: { id: number; title: string }[] }) {
           {cards.map((c) => (
             <Group key={c.id} gap="xs" data-deleted={c.id}>
               <Text size="sm" c="dimmed">{c.title}</Text>
-              <Button size="compact-xs" variant="subtle" onClick={() => call('deck.card_restore', { card: c.id }).catch(failed)}>{t('board.restore')}</Button>
+              <Button size="compact-xs" variant="subtle" onClick={() => call('deck.card_restore', { card: c.id }).catch((e) => notifyError(e))}>{t('board.restore')}</Button>
             </Group>
           ))}
         </Stack>
@@ -109,7 +107,7 @@ function CardEditor({ card, context, onClose }: { card: BoardCard; context: Comp
       await f();
       onClose();
     } catch (e) {
-      failed(e);
+      notifyError(e);
     } finally {
       setBusy(false);
     }
@@ -170,7 +168,7 @@ export function Board({ value, context }: { value: BoardValue; context: Componen
           if (was === lane && before.current[lane].join() === list.join()) return;
           call('deck.card_move', next ? { card: id, lane, before: next } : { card: id, lane }).catch((err) => {
             put(orderOf(value));
-            failed(err);
+            notifyError(err);
           });
         }}>
         <ScrollArea type="auto" offsetScrollbars>

@@ -2,16 +2,16 @@ import { useEffect, useRef, useState } from 'react';
 import { MessageProcessor, type A2uiClientAction, type SurfaceModel } from '@a2ui/web_core/v0_9';
 import { A2uiSurface, type ReactComponentImplementation } from '@a2ui/react/v0_9';
 import { Alert, Loader } from '@mantine/core';
-import { notifications } from '@mantine/notifications';
 import { useTranslation } from 'react-i18next';
 import { call } from './lib/api';
 import { events, type LiveEvent } from './lib/events';
 import { catalog, known, UNKNOWN, type Action } from './catalog';
-import { outcomes } from './actions';
+import { outcomes } from './ui/dispatch';
 import { openTopic } from './chat';
 import { go, screenKey, serverParams, type Route } from './router';
 import i18n from './lib/i18n';
 import catalogSchema from './lib/catalogSchema';
+import { notifyError, notifyDone } from './lib/notify';
 
 export const VERSION = 'v0.9';
 const TOPICS: string[] = catalogSchema.topics;
@@ -62,10 +62,10 @@ async function act(a: A2uiClientAction) {
       openTopic(topic);
       return;
     }
-    notifications.show({ message: summary(out), color: 'green' });
+    notifyDone(summary(out));
   } catch (e) {
     if (c.ticket) outcomes.set(c.ticket, false);
-    notifications.show({ title: c.label || i18n.t('verb.' + (c.verb ?? '')), message: (e as Error).message, color: 'red', autoClose: 10000 });
+    notifyError(e, c.label || i18n.t('verb.' + (c.verb ?? '')));
   }
 }
 
@@ -149,7 +149,7 @@ export function ScreenView({ route, onProjects }: { route: Route; onProjects: ()
         const msgs = await call<Message[]>('deck.screen', input());
         if (!gone && mine === generation && n === filtering) feed(msgs.filter((m) => m.updateDataModel), ticket);
       } catch (e) {
-        if (!gone) notifications.show({ message: (e as Error).message, color: 'red' });
+        if (!gone) notifyError(e);
       }
     };
     // Events wait at most 200 ms, merged by topic and project, so a fast stream still redraws as it goes.
@@ -163,7 +163,7 @@ export function ScreenView({ route, onProjects }: { route: Route; onProjects: ()
         const msgs = await call<Message[]>('deck.screen', { ...input(), topic: e.topic, ...(e.project ? { changed: e.project } : {}) });
         if (!gone && mine === generation) feed(msgs, ticket);
       } catch (e) {
-        if (!gone) notifications.show({ message: (e as Error).message, color: 'red' });
+        if (!gone) notifyError(e);
       }
     };
     const onEvent = (e: LiveEvent) => {

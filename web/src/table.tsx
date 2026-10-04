@@ -3,9 +3,10 @@ import type { ComponentContext } from '@a2ui/web_core/v0_9';
 import { Group, Pagination, Select, Table, Text, TextInput, UnstyledButton } from '@mantine/core';
 import { IconArrowDown, IconArrowUp, IconSearch, IconSelector } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import { Actions, rowOpen } from './actions';
-import { show } from './block';
-import { Value, type Shown } from './lib/format';
+import { Actions } from './ui/Actions';
+import { rowOpen } from './ui/rowOpen';
+import { show, text, type Shown } from './lib/format';
+import { Value } from './ui/Value';
 import type { Data } from './lib/catalog.gen';
 import s from './shell.module.css';
 
@@ -13,8 +14,6 @@ type Row = NonNullable<Data['rows']>[number];
 type Column = Shown & { label: string };
 
 const SIZES = ['10', '25', '50', '100'];
-
-const text = (v: unknown) => (v === null || v === undefined ? '' : typeof v === 'object' ? JSON.stringify(v) : String(v));
 
 function compare(a: unknown, b: unknown): number {
   if (typeof a === 'number' && typeof b === 'number') return a - b;

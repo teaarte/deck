@@ -9,7 +9,7 @@ import { events } from './lib/events';
 import { ScreenView } from './screen';
 import { back, href, useCanGoBack, useRoute, type Route } from './router';
 import { setChatScreen } from './chat';
-import { NamedIcon } from './lib/icons';
+import { NamedIcon } from './ui/NamedIcon';
 import { Backdrop } from './backdrop';
 import { Bell } from './bell';
 import i18n, { setLanguage } from './lib/i18n';

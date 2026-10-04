@@ -6,18 +6,23 @@ import { Alert, Badge, Button, Code, Group, Loader, Modal, SimpleGrid, Stack, Ta
 import { useTranslation } from 'react-i18next';
 import catalogSchema from './lib/catalogSchema';
 import s from './shell.module.css';
-import { NamedIcon } from './lib/icons';
+import { NamedIcon } from './ui/NamedIcon';
 import { dropParam, setParam, useRoute } from './router';
 import { DialogClose } from './dialog';
 import { Board } from './board';
 import { Form, type FormValue } from './form';
-import { Document, Markdown } from './document';
-import { Actions, QuestionPicker, rowOpen } from './actions';
-import { Block, Details, show, type Span } from './block';
+import { Document } from './document';
+import { Markdown } from './ui/Markdown';
+import { Details } from './ui/Details';
+import { Actions } from './ui/Actions';
+import { QuestionPicker } from './ui/QuestionPicker';
+import { rowOpen } from './ui/rowOpen';
+import { Block, type Span } from './block';
 import { DataTable } from './table';
 import { Appearance } from './appearance';
 import { Chat } from './chat';
-import { toneColor, Value, type Shown } from './lib/format';
+import { show, toneColor, type Shown } from './lib/format';
+import { Value } from './ui/Value';
 import type { Action, ActionsValue, BoardValue, CardValue, ChartValue, ChatValue, CustomValue, Data, DocumentValue } from './lib/catalog.gen';
 
 const Custom = lazy(() => import('./custom').then((m) => ({ default: m.Custom })));

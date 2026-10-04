@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { notifications } from '@mantine/notifications';
 import { Alert, Button, Group, Image, Loader, Modal, SimpleGrid, Stack, Text, UnstyledButton } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
 import { fetchFile, saveBlob } from './lib/api';
 import { formatted } from './lib/format';
 import type { Data } from './lib/catalog.gen';
+import { notifyError } from './lib/notify';
 
 type Item = NonNullable<Data['files']>[number];
 
@@ -42,7 +42,7 @@ function Download({ it }: { it: Item }) {
       try {
         saveBlob(await fetchFile(it.url!), it.name ?? 'file');
       } catch (e) {
-        notifications.show({ title: it.title || it.name, message: (e as Error).message, color: 'red' });
+        notifyError(e, it.title || it.name);
       } finally {
         setBusy(false);
       }

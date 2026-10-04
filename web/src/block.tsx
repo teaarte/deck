@@ -1,23 +1,14 @@
-import { useState, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import type { ComponentContext } from '@a2ui/web_core/v0_9';
-import { Alert, Anchor, Badge, Card, Code, Collapse, Group, Loader, Select, Stack, Text, Title } from '@mantine/core';
+import { Alert, Badge, Card, Group, Loader, Select, Stack, Text, Title } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
 import { IconAlertTriangle, IconInbox } from '@tabler/icons-react';
 import type { Data } from './lib/catalog.gen';
 import s from './shell.module.css';
-import { NamedIcon } from './lib/icons';
+import { NamedIcon } from './ui/NamedIcon';
 import { useLive } from './lib/events';
 
 type Filter = NonNullable<Data['filters']>[number];
-
-const moment = /^\d{4}-\d\d-\d\dT\d\d:\d\d(:\d\d(\.\d+)?)?(Z|[+-]\d\d:\d\d)$/;
-
-export function show(v: unknown): string {
-  if (v === null || v === undefined) return '';
-  if (typeof v === 'object') return JSON.stringify(v);
-  if (typeof v === 'string' && moment.test(v)) return new Date(v).toLocaleString();
-  return String(v);
-}
 
 // Filters narrow a block by the values its source has; the pick goes back to the server with the screen.
 function Filters({ filters, context }: { filters?: Filter[]; context?: ComponentContext }) {
@@ -70,16 +61,5 @@ export function Block({ title, icon, span, description, data, context, children 
         {body}
       </Stack>
     </Card>
-  );
-}
-
-export function Details({ text }: { text: string }) {
-  const { t } = useTranslation();
-  const [open, setOpen] = useState(false);
-  return (
-    <Stack gap={4} align="flex-start">
-      <Anchor component="button" size="xs" onClick={() => setOpen(!open)}>{open ? t('details.hide') : t('details.show')}</Anchor>
-      <Collapse expanded={open} w="100%"><Code block>{text}</Code></Collapse>
-    </Stack>
   );
 }

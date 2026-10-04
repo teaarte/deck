@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Button, CheckIcon, ColorSwatch, Group, SegmentedControl, SimpleGrid, Slider, Stack, Switch, Text, useMantineColorScheme, type MantineColorScheme } from '@mantine/core';
-import { notifications } from '@mantine/notifications';
 import { useTranslation } from 'react-i18next';
 import { ACCENTS, DENSITIES, FONTS, RADII, SURFACES, THEMES, setLook, useLook, type Look } from './theme/look';
 import { call } from './lib/api';
 import { pushSupported, reconcilePush, subscribePush, unsubscribePush } from './push';
+import { notifyError } from './lib/notify';
 
 function Choice<T extends string>({ label, name, value, options, onChange }: {
   label: string; name: string; value: T; options: readonly T[]; onChange: (v: T) => void;
@@ -81,7 +81,7 @@ function Language() {
     try {
       await call('deck.settings_set', { language: v });
     } catch (e) {
-      notifications.show({ title: t('look.language'), message: (e as Error).message, color: 'red' });
+      notifyError(e, t('look.language'));
     }
   };
   return (
@@ -114,7 +114,7 @@ function Pushes() {
       else await subscribePush(device);
       await load();
     } catch (e) {
-      notifications.show({ title: t('push.title'), message: (e as Error).message, color: 'red', autoClose: 10000 });
+      notifyError(e, t('push.title'));
     } finally {
       setBusy(false);
     }
@@ -131,7 +131,7 @@ function Pushes() {
       {devices.map((d) => (
         <Group key={d.id} gap="xs" data-push-device>
           <Text size="xs">{d.name}</Text>
-          <Button size="compact-xs" variant="subtle" onClick={() => void call('deck.push_unsubscribe', { device: d.id }).then(load, (e: Error) => notifications.show({ title: t('push.title'), message: e.message, color: 'red' }))}>{t('verb.remove')}</Button>
+          <Button size="compact-xs" variant="subtle" onClick={() => void call('deck.push_unsubscribe', { device: d.id }).then(load, (e: Error) => notifyError(e, t('push.title')))}>{t('verb.remove')}</Button>
         </Group>
       ))}
     </Stack>

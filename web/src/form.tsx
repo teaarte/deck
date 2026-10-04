@@ -3,14 +3,15 @@ import {
   Alert, Button, FileInput, Group, Loader, MultiSelect, NumberInput, PasswordInput, Select, Stack, Switch, Table, TagsInput, Text,
   TextInput, Textarea,
 } from '@mantine/core';
-import { notifications } from '@mantine/notifications';
 import { useTranslation } from 'react-i18next';
 import { DialogClose } from './dialog';
 import { call, upload } from './lib/api';
 import { events } from './lib/events';
 import { sharedFiles, sharedSent } from './lib/share';
 import type { FormValue as Generated } from './lib/catalog.gen';
+import { text } from './lib/format';
 import catalogSchema from './lib/catalogSchema';
+import { notifyError, notifyDone } from './lib/notify';
 
 export interface Schema {
   type?: string | string[];
@@ -32,7 +33,6 @@ const FINAL: string[] = catalogSchema.final_states;
 
 const kind = (s: Schema) => (Array.isArray(s.type) ? s.type.find((x) => x !== 'null') : s.type) ?? '';
 const isFile = (s: Schema) => s.format === 'file' || s.items?.format === 'file';
-const show = (v: unknown) => (v === null || v === undefined ? '' : typeof v === 'object' ? JSON.stringify(v) : String(v));
 
 type Choice = { value: unknown; label: string };
 
@@ -81,19 +81,19 @@ function Field({ name, schema, value, files, readOnly, required, choices, onValu
     }
     case 'string':
       if (schema.writeOnly) {
-        return <PasswordInput {...common} autoComplete="off" value={show(value)} onChange={(e) => onValue(e.currentTarget.value)} />;
+        return <PasswordInput {...common} autoComplete="off" value={text(value)} onChange={(e) => onValue(e.currentTarget.value)} />;
       }
       if (schema.format === 'text') {
-        return <Textarea {...common} autosize minRows={2} value={show(value)} onChange={(e) => onValue(e.currentTarget.value)} />;
+        return <Textarea {...common} autosize minRows={2} value={text(value)} onChange={(e) => onValue(e.currentTarget.value)} />;
       }
       if (schema.format === 'date' || schema.format === 'date-time') {
-        const local = schema.format === 'date-time' && typeof value === 'string' && value ? toLocal(value) : show(value);
+        const local = schema.format === 'date-time' && typeof value === 'string' && value ? toLocal(value) : text(value);
         return <TextInput {...common} type={schema.format === 'date' ? 'date' : 'datetime-local'} value={local}
           onChange={(e) => onValue(schema.format === 'date' ? e.currentTarget.value : fromLocal(e.currentTarget.value))} />;
       }
-      return <TextInput {...common} value={show(value)} onChange={(e) => onValue(e.currentTarget.value)} />;
+      return <TextInput {...common} value={text(value)} onChange={(e) => onValue(e.currentTarget.value)} />;
   }
-  return <Textarea {...common} autosize minRows={2} value={typeof value === 'string' ? value : show(value)}
+  return <Textarea {...common} autosize minRows={2} value={typeof value === 'string' ? value : text(value)}
     description={schema.description ?? 'JSON'} onChange={(e) => onValue(e.currentTarget.value)} />;
 }
 
@@ -110,7 +110,7 @@ export function Result({ value, schema }: { value: unknown; schema?: Schema }) {
   const k = schema ? kind(schema) : Array.isArray(value) ? 'array' : typeof value;
   if (k === 'array' && Array.isArray(value)) {
     const objects = value.every((v) => v && typeof v === 'object' && !Array.isArray(v));
-    if (!objects) return <Stack gap={2}>{value.map((v, i) => <Text key={i} size="sm">{show(v)}</Text>)}</Stack>;
+    if (!objects) return <Stack gap={2}>{value.map((v, i) => <Text key={i} size="sm">{text(v)}</Text>)}</Stack>;
     const cols = schema?.items?.properties ? Object.keys(schema.items.properties)
       : [...new Set(value.flatMap((v) => Object.keys(v as object)))];
     return (
@@ -119,7 +119,7 @@ export function Result({ value, schema }: { value: unknown; schema?: Schema }) {
           <Table.Thead><Table.Tr>{cols.map((c) => <Table.Th key={c}>{schema?.items?.properties?.[c]?.title || c}</Table.Th>)}</Table.Tr></Table.Thead>
           <Table.Tbody>
             {value.map((row, i) => (
-              <Table.Tr key={i}>{cols.map((c) => <Table.Td key={c}>{show((row as Record<string, unknown>)[c])}</Table.Td>)}</Table.Tr>
+              <Table.Tr key={i}>{cols.map((c) => <Table.Td key={c}>{text((row as Record<string, unknown>)[c])}</Table.Td>)}</Table.Tr>
             ))}
           </Table.Tbody>
         </Table>
@@ -135,14 +135,14 @@ export function Result({ value, schema }: { value: unknown; schema?: Schema }) {
             <Text size="sm" c="dimmed" w={140}>{schema?.properties?.[key]?.title || key}</Text>
             {o[key] !== null && typeof o[key] === 'object'
               ? <Result value={o[key]} schema={schema?.properties?.[key]} />
-              : <Text size="sm" style={{ overflowWrap: 'anywhere' }}>{show(o[key])}</Text>}
+              : <Text size="sm" style={{ overflowWrap: 'anywhere' }}>{text(o[key])}</Text>}
           </Group>
         ))}
       </Stack>
     );
   }
   if (typeof value === 'number') return <Text fz={32} fw={700} data-result="number">{value}</Text>;
-  return <Text size="sm" style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }} data-result="text">{show(value)}</Text>;
+  return <Text size="sm" style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }} data-result="text">{text(value)}</Text>;
 }
 
 interface Outcome {
@@ -237,7 +237,7 @@ export function Form({ value }: { value: FormValue }) {
       }
       // In a dialog a started process is told about and the dialog closes; the process page follows it.
       if (close) {
-        notifications.show({ message: t('started', { id: started }), color: 'green' });
+        notifyDone(t('started', { id: started }));
         close();
         return;
       }
@@ -266,7 +266,7 @@ export function Form({ value }: { value: FormValue }) {
         void check();
       });
     } catch (e) {
-      notifications.show({ title: cmd.title, message: (e as Error).message, color: 'red', autoClose: 10000 });
+      notifyError(e, cmd.title);
     } finally {
       running.current = false;
       if (alive.current) setBusy(false);
@@ -278,9 +278,9 @@ export function Form({ value }: { value: FormValue }) {
     const rows = Array.isArray(out.result) ? out.result : [out.result];
     try {
       await call('deck.records_upsert', { project, collection: value.save, records: rows.map((r) => JSON.stringify(r)).join('\n') });
-      notifications.show({ message: t('form.saved', { collection: value.save }), color: 'green' });
+      notifyDone(t('form.saved', { collection: value.save }));
     } catch (e) {
-      notifications.show({ message: (e as Error).message, color: 'red', autoClose: 10000 });
+      notifyError(e);
     }
   };
 

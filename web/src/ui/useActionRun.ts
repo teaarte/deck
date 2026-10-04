@@ -1,0 +1,44 @@
+import { useRef, useState } from 'react';
+import type { ComponentContext } from '@a2ui/web_core/v0_9';
+import { useTranslation } from 'react-i18next';
+import { download } from '../lib/api';
+import { notifyError } from '../lib/notify';
+import type { Action } from '../lib/catalog.gen';
+import { dispatch } from './dispatch';
+import { offerUndo } from './undo';
+
+export type Before = () => Promise<void>;
+
+// useActionRun runs a button once at a time: its download or its call, the undo it offers and onDone after it went
+// through; send says whether it did.
+export function useActionRun(act: Action, context: ComponentContext, { params, onDone, before }: { params?: Record<string, unknown>; onDone?: () => void; before?: Before } = {}) {
+  const { t } = useTranslation();
+  const [busy, setBusy] = useState(false);
+  const running = useRef(false);
+  const label = act.label || (act.verb ? t('verb.' + act.verb) : '');
+  const send = async (extra?: Record<string, unknown>): Promise<boolean> => {
+    if (running.current) return false;
+    running.current = true;
+    setBusy(true);
+    try {
+      await before?.();
+      if (act.file) {
+        await download(act.file);
+        return false;
+      }
+      const ok = await dispatch(context, { ...act, params: { ...act.params, ...params, ...extra } });
+      if (ok) {
+        if (act.undo) offerUndo(act.undo, label, context);
+        onDone?.();
+      }
+      return ok;
+    } catch (e) {
+      notifyError(e, label);
+      return false;
+    } finally {
+      running.current = false;
+      setBusy(false);
+    }
+  };
+  return { busy, label, send };
+}

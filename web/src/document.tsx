@@ -1,21 +1,10 @@
-import { useEffect, useState } from 'react';
-import { Anchor, Badge, Button, Code, Collapse, Group, Stack, Text, TextInput, Textarea, Typography } from '@mantine/core';
-import { notifications } from '@mantine/notifications';
+import { useState } from 'react';
+import { Anchor, Badge, Button, Code, Collapse, Group, Stack, Text, TextInput, Textarea } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
-import { renderMarkdown } from '@a2ui/markdown-it';
 import { call } from './lib/api';
 import type { DocumentValue } from './lib/catalog.gen';
-
-// Markdown draws markdown text as HTML the renderer has sanitized.
-export function Markdown({ text }: { text: string }) {
-  const [html, setHtml] = useState('');
-  useEffect(() => {
-    let live = true;
-    void renderMarkdown(text).then((h) => { if (live) setHtml(h); });
-    return () => { live = false; };
-  }, [text]);
-  return <Typography data-markdown><div dangerouslySetInnerHTML={{ __html: html }} /></Typography>;
-}
+import { Markdown } from './ui/Markdown';
+import { notifyError, notifyDone } from './lib/notify';
 
 // Document shows a document with its revisions; an md one is edited as text and saved as a new revision.
 export function Document({ value }: { value: DocumentValue }) {
@@ -31,10 +20,10 @@ export function Document({ value }: { value: DocumentValue }) {
     setBusy(true);
     try {
       await call(command, input);
-      notifications.show({ message: done, color: 'green' });
+      notifyDone(done);
       return true;
     } catch (e) {
-      notifications.show({ title: value.name, message: (e as Error).message, color: 'red', autoClose: 10000 });
+      notifyError(e, value.name);
       return false;
     } finally {
       setBusy(false);

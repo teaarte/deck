@@ -1,23 +1,16 @@
-import { useSyncExternalStore, type ReactNode } from 'react';
-import { Anchor, Badge, Text } from '@mantine/core';
-import { show } from '../block';
-
 // Shown is how the catalog says to show a value: its format and the currency of money.
 export interface Shown {
   format?: string;
   currency?: string;
 }
 
-let minute = 0;
-const minuteSubs = new Set<() => void>();
-const tick = () => {
-  minute++;
-  minuteSubs.forEach((f) => f());
-};
-setInterval(tick, 60000);
-document.addEventListener('visibilitychange', () => { if (!document.hidden) tick(); });
-// useMinute draws again once a minute and on return to the page, so relative times age without a read of the server.
-const useMinute = () => useSyncExternalStore((f) => (minuteSubs.add(f), () => minuteSubs.delete(f)), () => minute);
+const MOMENT = /^\d{4}-\d\d-\d\dT\d\d:\d\d(:\d\d(\.\d+)?)?(Z|[+-]\d\d:\d\d)$/;
+
+// text is a value as plain text: an object as JSON, nothing as empty.
+export const text = (v: unknown): string => (v === null || v === undefined ? '' : typeof v === 'object' ? JSON.stringify(v) : String(v));
+
+// show is a value as the owner reads it: a moment in the time of the device, the rest as text.
+export const show = (v: unknown): string => (typeof v === 'string' && MOMENT.test(v) ? new Date(v).toLocaleString() : text(v));
 
 const ISO = /^\d{4}-\d\d-\d\d([T ]\d\d:\d\d(:\d\d(\.\d+)?)?(Z|[+-]\d\d:?\d\d)?)?$/;
 
@@ -111,20 +104,3 @@ export function formatted(v: unknown, s: Shown, now = Date.now()): string {
 // TONES are the colors of the tones a value takes.
 const TONES: Record<string, string> = { ok: 'green', warn: 'orange', error: 'red', muted: 'dimmed' };
 export const toneColor = (tone?: string | null) => (tone ? TONES[tone] : undefined);
-
-// Value shows a value by its format: a link opens, a tag is a badge, a relative time ages by the minute.
-export function Value({ v, s, tone }: { v: unknown; s: Shown; tone?: string | null }): ReactNode {
-  useMinute();
-  const color = toneColor(tone);
-  if (s.format === 'link' && typeof v === 'string' && /^https?:\/\//.test(v)) {
-    return <Anchor href={v} target="_blank" rel="noopener noreferrer" size="sm" c={color}>{v}</Anchor>;
-  }
-  if (s.format === 'tag' && v !== null && v !== undefined && v !== '') {
-    return <Badge variant="light" color={color === 'dimmed' ? 'gray' : color ?? 'gray'} data-format="tag" data-tone={tone ?? undefined} miw="max-content">{show(v)}</Badge>;
-  }
-  const text = formatted(v, s);
-  if (!s.format && !color) return text;
-  return (
-    <Text span inherit c={color} data-format={s.format} data-tone={tone ?? undefined} title={s.format === 'relative' ? show(v) : undefined}>{text}</Text>
-  );
-}

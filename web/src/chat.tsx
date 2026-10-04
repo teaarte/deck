@@ -1,17 +1,19 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ComponentContext } from '@a2ui/web_core/v0_9';
 import { ActionIcon, Anchor, Badge, Button, CloseButton, CopyButton, Group, Loader, Menu, Paper, ScrollArea, Select, Stack, Text, Textarea, Tooltip } from '@mantine/core';
-import { notifications } from '@mantine/notifications';
 import { IconArrowUp, IconCheck, IconCopy, IconMapPin, IconMessagePlus, IconMicrophone, IconPaperclip, IconPlayerStopFilled, IconPlus } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { call, upload } from './lib/api';
 import { record, type Recording } from './voice';
 import { useRoute } from './router';
-import { Actions, ActionsMenu, QuestionPicker } from './actions';
-import { Markdown } from './document';
+import { Actions } from './ui/Actions';
+import { ActionsMenu } from './ui/ActionsMenu';
+import { QuestionPicker } from './ui/QuestionPicker';
+import { Markdown } from './ui/Markdown';
 import type { ChatValue } from './lib/catalog.gen';
 import catalogSchema from './lib/catalogSchema';
 import s from './shell.module.css';
+import { notifyError } from './lib/notify';
 
 export interface ChatScreen {
   project?: string;
@@ -85,7 +87,7 @@ export function Chat({ value, context }: { value: ChatValue; context: ComponentC
       rec.current = await record(() => void hear());
       setRecording(1);
     } catch (e) {
-      notifications.show({ title: t('chat.mic_failed'), message: (e as Error).message, color: 'red' });
+      notifyError(e, t('chat.mic_failed'));
     }
   };
   const hear = async () => {
@@ -100,7 +102,7 @@ export function Chat({ value, context }: { value: ChatValue; context: ComponentC
       const out = await call<{ text: string }>('deck.transcribe', { file: String(f.id) });
       setText((prev) => (prev.trim() ? prev.trimEnd() + ' ' : '') + out.text);
     } catch (e) {
-      notifications.show({ title: t('chat.voice_failed'), message: (e as Error).message, color: 'red', autoClose: 10000 });
+      notifyError(e, t('chat.voice_failed'));
     } finally {
       setHearing(false);
     }
@@ -155,7 +157,7 @@ export function Chat({ value, context }: { value: ChatValue; context: ComponentC
       stick.current = true;
       pick(String(out.topic));
     } catch (e) {
-      notifications.show({ title: t('chat.send_failed'), message: (e as Error).message, color: 'red', autoClose: 10000 });
+      notifyError(e, t('chat.send_failed'));
     } finally {
       setBusy(false);
     }

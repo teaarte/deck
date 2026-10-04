@@ -115,9 +115,8 @@ func Canonical(raw json.RawMessage) string {
 	return string(b)
 }
 
-// gate reports whether a call that is not internal runs now: reversible in a project on autonomy auto,
-// external when the project lists it as allowed or the tool itself allows it. A draft declines both, and a
-// tool of a draft or a trial waits for the owner's yes on that call.
+// gate reports whether a call that is not internal runs now: reversible on autonomy auto, external when allowed
+// by the project or the tool; a draft declines both, and a tool of a draft or a trial waits for the owner.
 func (g *Gateway) gate(ctx context.Context, act registry.Actor, c *registry.Command, project int64, input json.RawMessage) (bool, error) {
 	if project == 0 {
 		if c.Class == registry.External && c.Allowed != nil {

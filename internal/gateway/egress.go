@@ -34,9 +34,8 @@ func dialPinned(ctx context.Context, network, addr string) (net.Conn, error) {
 	return nil, err
 }
 
-// Reachable reports whether a page at host:port is in the domains: a host with its subdomains on any port, an
-// exact host:port, an IP, a network such as 192.168.1.0/24, or "*" for any host. A name reaches only public
-// addresses; a listed name that does not resolve passes, as nothing loads from it.
+// Reachable reports whether a page at host:port is in the domains (host with subdomains, host:port, IP, network,
+// "*"); a name reaches only public addresses, and a listed name that does not resolve passes: nothing loads.
 func Reachable(domains []string, hostport string) bool {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

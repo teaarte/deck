@@ -105,14 +105,14 @@ func (r *renderer) formValues(v map[string]any, values map[string]string, cmd ma
 		switch {
 		case strings.HasPrefix(raw, "$param."):
 			if p := r.req.Params[strings.TrimPrefix(raw, "$param.")]; p != "" {
-				val = fixedValue(p, types[field])
+				val = manifest.Typed(p, types[field])
 			}
 		case strings.HasPrefix(raw, "$record."):
 			if r.record != nil {
 				val = r.record[strings.TrimPrefix(raw, "$record.")]
 			}
 		default:
-			val = fixedValue(raw, types[field])
+			val = manifest.Typed(raw, types[field])
 		}
 		if val != nil {
 			got[field] = val

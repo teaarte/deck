@@ -87,6 +87,9 @@ func (r *renderer) input(in map[string]any) map[string]any {
 	out := make(map[string]any, len(in))
 	for k, v := range in {
 		if p, ok := strings.CutPrefix(fmt.Sprint(v), "$param."); ok {
+			if r.req.Params[p] == "" {
+				continue
+			}
 			v = r.req.Params[p]
 		} else if f, ok := strings.CutPrefix(fmt.Sprint(v), "$record."); ok {
 			switch {

@@ -4,8 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
-	"math"
-	"strconv"
 	"strings"
 
 	"deck2/internal/manifest"
@@ -198,26 +196,9 @@ func actionParams(params map[string]string, types map[string]string, id int64, e
 		if strings.HasPrefix(v, "$record.") || strings.HasPrefix(v, "=") {
 			out[k] = itemValue(v, id, env)
 		} else {
-			out[k] = fixedValue(v, types[k])
+			out[k] = manifest.Typed(v, types[k])
 		}
 	}
 	return out
 }
 
-func fixedValue(v, typ string) any {
-	switch typ {
-	case "integer":
-		if n, err := strconv.ParseInt(v, 10, 64); err == nil {
-			return n
-		}
-	case "number":
-		if f, err := strconv.ParseFloat(v, 64); err == nil && !math.IsNaN(f) && !math.IsInf(f, 0) {
-			return f
-		}
-	case "boolean":
-		if b, err := strconv.ParseBool(v); err == nil {
-			return b
-		}
-	}
-	return v
-}

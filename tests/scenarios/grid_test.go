@@ -28,3 +28,17 @@ func TestTheSpanOfAModuleBlockReachesTheScreen(t *testing.T) {
 		t.Fatalf("a block takes the span of its manifest: %v", spans)
 	}
 }
+
+// TestAParamOfASourceTakesTheTypeOfItsField: a number from the address reaches a read as a number, and an
+// empty one is left out.
+func TestAParamOfASourceTakesTheTypeOfItsField(t *testing.T) {
+	e := newEnv(t, boardWebAgent())
+	e.createProject("web", strings.Replace(boardWebManifest, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "blocks": [
+      {"type": "list", "title": "Latest", "source": {"from": "deck.feed_list", "input": {"limit": "$param.n"}}, "item": {"title": "text"}},`, 1))
+	for _, params := range []map[string]any{{"params": `{"n": "2"}`}, nil} {
+		drawn, _ := json.Marshal(e.screenData("web", "main", params)["b0"])
+		if !strings.Contains(string(drawn), `"state":"empty"`) {
+			t.Fatalf("the source reads with %v: %s", params, drawn)
+		}
+	}
+}

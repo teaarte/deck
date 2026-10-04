@@ -275,9 +275,12 @@ func (s screenSources) Read(ctx context.Context, command string, input map[strin
 		return nil, fmt.Errorf("%s is not a command that only reads", command)
 	}
 	types := paramTypes(c.Input)
-	in := maps.Clone(input)
-	if in == nil {
-		in = map[string]any{}
+	in := map[string]any{}
+	for k, v := range input {
+		if t, ok := v.(string); ok {
+			v = manifest.Typed(t, types[k])
+		}
+		in[k] = v
 	}
 	if _, ok := types["project"]; ok && sc.Project != "" && in["project"] == nil {
 		in["project"] = sc.Project

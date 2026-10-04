@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -194,4 +195,27 @@ func (e *Env) projectID(name string) int64 {
 	}
 	e.T.Fatalf("no project %s", name)
 	return 0
+}
+
+// olderBase takes the base of deck back to the schema of a migration version, as a deck of then left it.
+func (e *Env) olderBase(version int) {
+	e.T.Helper()
+	undo := map[int][]string{
+		3: {`CREATE TABLE llm_old AS SELECT id, process_id, gen_ai_provider_name, gen_ai_request_model, gen_ai_response_model,
+		   gen_ai_usage_input_tokens, gen_ai_usage_output_tokens, gen_ai_usage_cache_read_input_tokens,
+		   gen_ai_usage_cache_creation_input_tokens, duration_ms, cost_usd, created_at FROM llm_call`,
+			`DROP TABLE llm_call`, `ALTER TABLE llm_old RENAME TO llm_call`},
+		2: {`ALTER TABLE project DROP COLUMN granted_revision`},
+	}
+	var top int
+	if err := e.App.Store.DB.QueryRow(`SELECT max(version_id) FROM goose_db_version`).Scan(&top); err != nil {
+		e.T.Fatal(err)
+	}
+	for v := top; v > version; v-- {
+		for _, q := range append(undo[v], fmt.Sprintf(`DELETE FROM goose_db_version WHERE version_id = %d`, v)) {
+			if _, err := e.App.Store.DB.Exec(q); err != nil {
+				e.T.Fatalf("undo migration %d: %v", v, err)
+			}
+		}
+	}
 }

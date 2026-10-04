@@ -228,16 +228,7 @@ func TestModelCallsOfABaseFromBeforeKeepTheirProject(t *testing.T) {
 	}})
 	p := e.createProject("loud", testManifest([]string{agentCommand("check", "")}, nil))
 	e.waitState(e.run(p, "check"), "done")
-	for _, q := range []string{
-		`CREATE TABLE llm_old AS SELECT id, process_id, gen_ai_provider_name, gen_ai_request_model, gen_ai_response_model,
-		   gen_ai_usage_input_tokens, gen_ai_usage_output_tokens, gen_ai_usage_cache_read_input_tokens,
-		   gen_ai_usage_cache_creation_input_tokens, duration_ms, cost_usd, created_at FROM llm_call`,
-		`DROP TABLE llm_call`, `ALTER TABLE llm_old RENAME TO llm_call`,
-		`DELETE FROM goose_db_version WHERE version_id = 3`} {
-		if _, err := e.App.Store.DB.Exec(q); err != nil {
-			t.Fatal(err)
-		}
-	}
+	e.olderBase(2)
 	_ = e.App.Close()
 	e = newEnvWith(t, home, &Fake{})
 	var spend []struct{ Project, Command string }

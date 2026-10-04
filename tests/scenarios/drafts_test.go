@@ -510,11 +510,7 @@ func TestABaseFromBeforeGrantsKeepsTheRightsOfEnabledProjects(t *testing.T) {
 	if code, out := e.callWith(tok, "deck.project_create", map[string]any{"name": "off", "manifest": postManifest(svc.URL, `, "class": "internal"`)}); code != 200 {
 		t.Fatalf("project_create: %d %s", code, out)
 	}
-	for _, q := range []string{`ALTER TABLE project DROP COLUMN granted_revision`, `DELETE FROM goose_db_version WHERE version_id = 2`} {
-		if _, err := e.App.Store.DB.Exec(q); err != nil {
-			t.Fatal(err)
-		}
-	}
+	e.olderBase(1)
 	_ = e.App.Close()
 	e = newEnvWith(t, home, &Fake{})
 	e.callWith(tok, "off.post", map[string]any{"id": "a", "text": "hi"})

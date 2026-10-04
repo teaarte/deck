@@ -256,7 +256,7 @@ type Block struct {
 	Blocks      []Block `json:"blocks,omitempty"`
 	Tabs        []Tab   `json:"tabs,omitempty"`
 	// Span is how many cells of the grid of the screen the block takes: 1, 2 or "full".
-	Span any `json:"span,omitempty"`
+	Span Span `json:"span,omitzero"`
 	// Part is the part of the device an appearance block shows: its look or its pushes.
 	Part string `json:"part,omitempty"`
 	// Menu opens the buttons of an actions block from one button.
@@ -277,6 +277,40 @@ type Block struct {
 	KeepOpen bool `json:"keep_open,omitempty"`
 	// Document is the custom/ document with the HTML of a custom block, or the document a document block shows.
 	Document string `json:"document,omitempty"`
+}
+
+// Span is the cells of the grid a block takes: N of them, or the whole width.
+type Span struct {
+	N    int
+	Full bool
+}
+
+func (s Span) IsZero() bool { return s.N == 0 && !s.Full }
+
+func (s Span) MarshalJSON() ([]byte, error) {
+	if s.Full {
+		return json.Marshal("full")
+	}
+	return json.Marshal(s.N)
+}
+
+func (s *Span) UnmarshalJSON(b []byte) error {
+	var v any
+	if err := json.Unmarshal(b, &v); err != nil {
+		return err
+	}
+	switch v := v.(type) {
+	case float64:
+		*s = Span{N: int(v)}
+	case string:
+		if v != "full" {
+			return fmt.Errorf("span is 1, 2 or \"full\"")
+		}
+		*s = Span{Full: true}
+	default:
+		return fmt.Errorf("span is 1, 2 or \"full\"")
+	}
+	return nil
 }
 
 // Series is a line of a chart: its label and the expression of its value over an item.

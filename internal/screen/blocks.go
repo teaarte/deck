@@ -174,13 +174,11 @@ var wide = []string{"table", "list", "board", "form", "document", "log", "chat",
 
 // span is the cells of the grid of the screen a block takes: its own, or by its type.
 func span(b manifest.Block) any {
-	switch v := b.Span.(type) {
-	case float64:
-		return int(v)
-	case string:
-		return v
-	}
 	switch {
+	case b.Span.Full:
+		return "full"
+	case b.Span.N > 0:
+		return b.Span.N
 	case slices.Contains(wide, b.Type):
 		return "full"
 	case b.Type == "chart":

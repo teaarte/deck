@@ -197,13 +197,14 @@ func (s *Service) builtinNamed(name string) provider.Provider {
 	return nil
 }
 
-// Ready holds turns on a built-in provider while its self-check runs after a change of version or is red.
+// Ready holds turns on a built-in provider while its self-check runs or finds the adapter broken (a lost login
+// waits by its own ask); a model that fails or is slow holds none.
 func (s *Service) Ready(ctx context.Context, name string) bool {
 	if _, ok := s.named(ctx, name).(provider.SelfChecker); !ok {
 		return true
 	}
 	h, err := s.St.Q.GetHealth(ctx, process.HealthSubject(name))
-	return err != nil || h.Status != "checking" && h.Status != "error"
+	return err != nil || h.Status != "checking" && (h.Status != "error" || h.Verdict == "model")
 }
 
 // agentCommand finds an agent command of the workspace by its place, project.command.

@@ -58,7 +58,7 @@ func (a *App) healthList(ctx context.Context, act registry.Actor, in healthListI
 			worst[p.Name].Status, worst[p.Name].Error = "error", "manifest: "+err.Error()
 		}
 	}
-	rank := map[string]int{"ok": 0, "checking": 1, "paused": 1, "needs_login": 1, "error": 2}
+	rank := map[string]int{"ok": 0, "checking": 1, "paused": 1, "needs_login": 1, "warning": 1, "error": 2}
 	out := make([]healthRow, 0, len(hs)+len(ps))
 	shown := func(project string) bool {
 		return (in.Project == "" || project == in.Project) && (!in.Machine || project == "")
@@ -82,7 +82,7 @@ func (a *App) healthList(ctx context.Context, act registry.Actor, in healthListI
 			out = append(out, *worst[p.Name])
 		}
 	}
-	order := map[string]int{"error": 0, "needs_login": 1, "paused": 1, "checking": 2, "ok": 3}
+	order := map[string]int{"error": 0, "needs_login": 1, "paused": 1, "warning": 1, "checking": 2, "ok": 3}
 	slices.SortStableFunc(out, func(x, y healthRow) int { return order[x.Status] - order[y.Status] })
 	return out, nil
 }

@@ -264,3 +264,28 @@ func TestAHungVersionProbeDoesNotStopTheSchedule(t *testing.T) {
 	e.waitFor("the run that came due", func() bool { return len(e.runsOf("plain", "work")) == 1 })
 	_ = p
 }
+
+// slowCheck is the fake provider whose self-check finds a model too slow for its ceiling.
+type slowCheck struct{ *Fake }
+
+func (s *slowCheck) Version(context.Context) (string, error) { return "1.0", nil }
+
+func (s *slowCheck) SelfCheck(context.Context) provider.Check {
+	return provider.Check{Version: "1.0", Slow: true, Err: errors.New("the model did not finish")}
+}
+
+// TestASlowModelIsAWarningThatHoldsNoTurn: a self-check that finds the model slow warns in the health of the
+// provider, and its commands run on.
+func TestASlowModelIsAWarningThatHoldsNoTurn(t *testing.T) {
+	clock := &Clock{now: t0}
+	e := newEnvWith(t, t.TempDir(), &slowCheck{Fake: &Fake{}}, withClock(clock))
+	e.Clock = clock
+	e.App.Checks(context.Background(), e.Clock.Now())
+	if h := e.waitHealth("provider:fake", "warning"); !strings.Contains(h.Error, "did not finish") {
+		t.Fatalf("a slow model is a warning with the reason: %+v", h)
+	}
+	p := e.createProject("plain", plainManifest)
+	if got := e.waitState(e.run(p, "work"), "done", "error", "waiting_provider"); got.State != "done" {
+		t.Fatalf("a slow model holds no turn: %+v", got)
+	}
+}

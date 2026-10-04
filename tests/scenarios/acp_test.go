@@ -307,8 +307,8 @@ func TestACPSelfCheckPastItsCeilingSaysWhy(t *testing.T) {
 		health, wants string
 	}{
 		{"refused key", 401, []string{acpModel}, "needs_login", "the model API refused the key (401 or 403)"},
-		{"silent model", 200, nil, "error", "not one model call finished within the ceiling"},
-		{"slow model", 200, []string{acpModel}, "error", "the model answered (150 tokens) but did not finish the steps"},
+		{"silent model", 200, nil, "warning", "not one model call finished within the ceiling"},
+		{"slow model", 200, []string{acpModel}, "warning", "the model answered (150 tokens) but did not finish the steps"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			f := newACP(t)
@@ -379,9 +379,13 @@ func TestACPSelfCheckIsRedWhenTheSandboxOrTheProxyFails(t *testing.T) {
 		f.streamText(0, acpStream(acpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,
 			`{"mcp": {"tool": "result_submit", "arguments": {"result": {"color": "blue"}}}}`, `{"end": "end_turn"}`))
 		id := e.run(e.acpProject("paint", colorManifest), "work")
+		if verdict == "model" {
+			e.waitState(id, "done")
+			continue
+		}
 		e.waitState(id, "waiting_provider")
 		if n := f.calls(); n > len(tc.streams)+1 {
-			t.Fatalf("a process on a red provider waits: %d calls", n)
+			t.Fatalf("a process on a provider whose adapter is broken waits; one whose model fails runs: %d calls", n)
 		}
 	}
 }

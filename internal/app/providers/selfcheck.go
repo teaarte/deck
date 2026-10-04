@@ -137,7 +137,7 @@ func (s *Service) startCheck(name string, force bool) bool {
 		case res.NeedsLogin:
 			status, text = "needs_login", "the self-check found no valid login; "+errText(res.Err)
 		case res.Err != nil && res.Slow:
-			status, text, verdict = "error", fmt.Sprintf("the model did not finish the self-check of %s within %s: %s", res.Version, ceiling, res.Err), "model"
+			status, text, verdict = "warning", fmt.Sprintf("the model did not finish the self-check of %s within %s: %s", res.Version, ceiling, res.Err), "model"
 		case res.Err != nil && res.ModelFailed:
 			status, text, verdict = "error", fmt.Sprintf("the model does not manage the self-check of %s: %s; pick a stronger model", res.Version, res.Err), "model"
 		case res.Err != nil:
@@ -147,7 +147,7 @@ func (s *Service) startCheck(name string, force bool) bool {
 			text = strings.TrimPrefix(text+fmt.Sprintf("; the model answered at %.0f tokens/s", res.Speed), "; ")
 		}
 		version := res.Version
-		if status != "ok" && status != "error" {
+		if status != "ok" && status != "error" && status != "warning" {
 			version = ""
 		}
 		s.mu.Lock()

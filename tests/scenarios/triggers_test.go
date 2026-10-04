@@ -599,3 +599,35 @@ func TestTriggerParamsKeepLargeIntegers(t *testing.T) {
 		t.Fatalf("trigger params reach the command exactly: %s", got.Input)
 	}
 }
+
+// TestARunLaterThatFailsToStartIsKept: a run later whose start fails stays in the schedule, tries again later and
+// shows the reason in the health of its project until it starts.
+func TestARunLaterThatFailsToStartIsKept(t *testing.T) {
+	e := newClockEnv(t, ok)
+	text := testManifest([]string{agentCommand("remind", `{"type": "object", "properties": {"what": {"type": "string"}}}`)}, nil)
+	e.createProject("later", text)
+	e.must("deck.run_later", map[string]any{"command": "later.remind", "at": e.Clock.Now().Add(time.Hour).Format(time.RFC3339), "params": `{"what": "call"}`}, nil)
+	e.must("deck.manifest_save", map[string]any{"project": "later", "manifest": strings.Replace(text, `"what": {"type": "string"}`, `"what": {"type": "integer"}`, 1)}, nil)
+	e.Clock.Add(time.Hour)
+	e.tick()
+	if ts := e.triggers(); len(ts) != 1 || e.countOf("remind") != 0 {
+		t.Fatalf("a run later that did not start stays in the schedule: %+v", ts)
+	}
+	if h := e.waitHealth("trigger:later.remind", "error"); !strings.Contains(h.Error, "what") {
+		t.Fatalf("the health of the project says why it did not start: %+v", h)
+	}
+	e.must("deck.manifest_save", map[string]any{"project": "later", "manifest": text}, nil)
+	e.Clock.Add(time.Hour)
+	e.tick()
+	e.waitFor("the run once it starts", func() bool { return e.countOf("remind") == 1 })
+	if len(e.triggers()) != 0 {
+		t.Fatal("a run later that started leaves the schedule")
+	}
+	var hs []healthRow
+	e.must("deck.health_list", nil, &hs)
+	for _, h := range hs {
+		if h.Subject == "trigger:later.remind" {
+			t.Fatalf("the health row goes once it starts: %+v", h)
+		}
+	}
+}

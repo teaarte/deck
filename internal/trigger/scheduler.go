@@ -4,8 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"time"
+
+	"deck2/internal/health"
 
 	"deck2/internal/manifest"
 	"deck2/internal/store"
@@ -166,15 +169,42 @@ func (s *Scheduler) Tick(ctx context.Context) int {
 	return len(due)
 }
 
+// fire starts the command of a trigger and moves it on; a run later that does not start stays and tries again
+// after retryAfter, and why it did not start is in the health of its project until it does.
 func (s *Scheduler) fire(ctx context.Context, t db.Trigger, now time.Time) {
 	params, err := manifest.DecodeObject([]byte(t.Params))
-	if err != nil {
-		slog.Error("trigger params", "trigger", t.ID, "err", err)
-	} else if _, err := s.start.Fire(ctx, t, params); err != nil {
-		slog.Error("trigger start", "trigger", t.ID, "command", t.Command, "err", err)
+	if err == nil {
+		_, err = s.start.Fire(ctx, t, params)
 	}
-	s.after(ctx, t, now)
+	p, perr := s.st.Q.GetProject(ctx, t.ProjectID)
+	subject := "trigger:" + p.Name + "." + t.Command
+	if err == nil {
+		if perr == nil {
+			s.tx(ctx, func(ctx context.Context, q *db.Queries) error {
+				return q.DeleteHealth(ctx, db.DeleteHealthParams{ProjectID: store.ID(p.ID), Subject: subject})
+			})
+		}
+		s.after(ctx, t, now)
+		return
+	}
+	slog.Error("trigger start", "trigger", t.ID, "command", t.Command, "err", err)
+	text := fmt.Sprintf("the %s trigger did not start %s: %v", t.Kind, t.Command, err)
+	if t.Kind == KindOnce {
+		retry := now.Add(retryAfter)
+		text += "; it tries again at " + retry.Format(time.RFC3339)
+		s.tx(ctx, func(ctx context.Context, q *db.Queries) error {
+			return q.SetTriggerNext(ctx, db.SetTriggerNextParams{NextRunAt: sql.NullString{String: store.Time(retry), Valid: true}, ID: t.ID})
+		})
+	} else {
+		s.after(ctx, t, now)
+	}
+	if perr == nil {
+		health.Write(ctx, s.st, health.Project(p), subject, "error", text)
+	}
 }
+
+// retryAfter is when a run later that did not start tries again.
+const retryAfter = 30 * time.Minute
 
 // after moves a fired or skipped trigger on: a cron trigger to its next slot, a run-later row away.
 func (s *Scheduler) after(ctx context.Context, t db.Trigger, now time.Time) {

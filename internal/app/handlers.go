@@ -106,21 +106,29 @@ type manifestGetIn struct {
 	Project string `type:"project" opt:"" desc:"Project name; defaults to the caller's own project"`
 }
 
-func (a *App) manifestGet(ctx context.Context, act registry.Actor, in manifestGetIn) (any, error) {
+// manifestView is the current manifest of a project with its document and revision.
+type manifestView struct {
+	Project  string `json:"project"`
+	Document int64  `json:"document"`
+	Revision int64  `json:"revision"`
+	Manifest string `json:"manifest"`
+}
+
+func (a *App) manifestGet(ctx context.Context, act registry.Actor, in manifestGetIn) (manifestView, error) {
 	p, err := access.Project(ctx, a.Store.Q, act, in.Project)
 	if err != nil {
-		return nil, err
+		return manifestView{}, err
 	}
 	ref := docs.Ref{Scope: docs.ProjectScope(p), Name: docs.ManifestName}
 	d, err := a.Store.Q.FindDocument(ctx, ref.Find())
 	if err != nil {
-		return nil, err
+		return manifestView{}, err
 	}
 	r, err := docs.Revision(ctx, a.Store.Q, d, 0)
 	if err != nil {
-		return nil, err
+		return manifestView{}, err
 	}
-	return map[string]any{"project": p.Name, "document": d.ID, "revision": d.Current, "manifest": r.Text}, nil
+	return manifestView{Project: p.Name, Document: d.ID, Revision: d.Current, Manifest: r.Text}, nil
 }
 
 type manifestSaveIn struct {
@@ -183,9 +191,9 @@ func (a *App) projectsCommands() []*registry.Command {
 		registry.Def("project_create", "Create project",
 			"Creates a project from its name, an md prompt and a manifest; without a manifest it has only the base board.",
 			registry.OwnerSide, a.projectCreate),
-		registry.Def("manifest_get", "Get manifest",
+		registry.Read("manifest_get", "Get manifest",
 			"Returns the current manifest of a project.",
-			registry.Everyone, a.manifestGet),
+			registry.Everyone, a.manifestGet).On("projects"),
 		registry.Def("manifest_save", "Save manifest",
 			"Validates a manifest and stores it as a new revision: the whole manifest, or old parts of the current text replaced with new ones.",
 			registry.OwnerSide, a.manifestSave),

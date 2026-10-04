@@ -217,7 +217,7 @@ type llmCallsListIn struct {
 	Limit   int64  `opt:"" desc:"At most this many"`
 }
 
-func (s *Service) llmCallsList(ctx context.Context, act registry.Actor, in llmCallsListIn) (any, error) {
+func (s *Service) llmCallsList(ctx context.Context, act registry.Actor, in llmCallsListIn) ([]map[string]any, error) {
 	pid, err := access.Filter(ctx, s.St.Q, act, in.Project)
 	if err != nil {
 		return nil, err
@@ -261,8 +261,8 @@ func (s *Service) Commands() []*registry.Command {
 		registry.Def("provider_check", "Check provider",
 			"Runs the self-check of a provider's adapter again; its health shows the outcome.",
 			registry.OwnerOnly, s.providerCheck),
-		registry.Def("llm_calls_list", "Model calls",
+		registry.Read("llm_calls_list", "Model calls",
 			"Lists model calls with their provider, model, tokens and duration, newest first.",
-			registry.Everyone, s.llmCallsList),
+			registry.Everyone, s.llmCallsList).On("usage"),
 	}
 }

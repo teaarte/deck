@@ -27,7 +27,7 @@ type recordsListIn struct {
 	Fields     []string `opt:"" desc:"Only these fields of the data of each record"`
 }
 
-func (a *App) recordsList(ctx context.Context, act registry.Actor, in recordsListIn) (any, error) {
+func (a *App) recordsList(ctx context.Context, act registry.Actor, in recordsListIn) ([]records.View, error) {
 	p, err := access.ReadProject(ctx, a.Store.Q, act, in.Project, in.Collection, "")
 	if err != nil {
 		return nil, err
@@ -215,17 +215,17 @@ type recordGetIn struct {
 	Record int64 `type:"record" desc:"Record id"`
 }
 
-func (a *App) recordGet(ctx context.Context, act registry.Actor, in recordGetIn) (any, error) {
+func (a *App) recordGet(ctx context.Context, act registry.Actor, in recordGetIn) (records.View, error) {
 	rec, p, err := a.recordOf(ctx, act, in.Record)
 	if err != nil {
-		return nil, err
+		return records.View{}, err
 	}
 	if err := access.MayRead(ctx, a.Store.Q, act, p, rec.Collection, ""); err != nil {
-		return nil, registry.NotFound("deck: no record %d", in.Record)
+		return records.View{}, registry.NotFound("deck: no record %d", in.Record)
 	}
 	m, err := docs.Manifest(ctx, a.Store.Q, p)
 	if err != nil {
-		return nil, err
+		return records.View{}, err
 	}
 	return records.ViewOf(rec, m.Collection(rec.Collection)), nil
 }
@@ -264,18 +264,18 @@ func (a *App) recordDelete(ctx context.Context, act registry.Actor, in recordDel
 
 func (a *App) recordCommands() []*registry.Command {
 	return []*registry.Command{
-		registry.Def("records_list", "List records",
+		registry.Read("records_list", "List records",
 			"Lists records of a collection, newest last.",
-			registry.Everyone, a.recordsList),
+			registry.Everyone, a.recordsList).On("collection"),
 		registry.Def("records_upsert", "Write records",
 			"Writes records into a collection; records with an existing key are updated.",
 			registry.Everyone, a.recordsUpsert),
 		registry.Def("record_update", "Edit record",
 			"Replaces the data of one record; key fields cannot change.",
 			registry.Everyone, a.recordUpdate),
-		registry.Def("record_get", "Get record",
+		registry.Read("record_get", "Get record",
 			"Returns one record by its id.",
-			registry.Everyone, a.recordGet),
+			registry.Everyone, a.recordGet).On("collection"),
 		registry.Def("record_delete", "Delete record",
 			"Deletes a record with its documents and files for good; outside a draft only the owner may.",
 			registry.OwnerSide, a.recordDelete),

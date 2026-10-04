@@ -35,3 +35,18 @@ func TestTheMasterReadsTheFieldsOfAFormOnlyTheOwnerFillsIn(t *testing.T) {
 	e.refused("deck.provider_add", map[string]any{"name": "x", "url": "http://localhost:1/v1", "model": "m", "agent": "foo"}, 422,
 		"agent: value must be one of 'dsh', 'opencode'")
 }
+
+// TestReadsGiveTheirResultSchema: commands that only read are reads, with the schema of their result, so a
+// screen can show them.
+func TestReadsGiveTheirResultSchema(t *testing.T) {
+	e := newEnv(t, nil)
+	for _, name := range []string{"cards_list", "card_get", "records_list", "record_get", "llm_calls_list", "manifest_get", "chat_topics", "chat_messages"} {
+		var d struct {
+			Result json.RawMessage `json:"result"`
+		}
+		e.must("deck.command_describe", map[string]any{"command": "deck." + name}, &d)
+		if len(d.Result) == 0 || string(d.Result) == "{}" {
+			t.Errorf("%s gives the schema of its result: %s", name, d.Result)
+		}
+	}
+}

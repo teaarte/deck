@@ -17,22 +17,22 @@ type cardsListIn struct {
 	Deleted bool   `opt:"" desc:"Also list deleted cards that can still be restored"`
 }
 
-func (s *Service) cardsList(ctx context.Context, act registry.Actor, in cardsListIn) (any, error) {
+func (s *Service) cardsList(ctx context.Context, act registry.Actor, in cardsListIn) (boardView, error) {
 	p, err := access.Project(ctx, s.St.Q, act, in.Project)
 	if err != nil {
-		return nil, err
+		return boardView{}, err
 	}
 	m, err := boardManifest(ctx, s.St.Q, p)
 	if err != nil {
-		return nil, err
+		return boardView{}, err
 	}
 	cards, err := s.St.Q.ListCards(ctx, p.ID)
 	if err != nil {
-		return nil, err
+		return boardView{}, err
 	}
 	waits, err := waitsOf(ctx, s.St.Q, p.ID)
 	if err != nil {
-		return nil, err
+		return boardView{}, err
 	}
 	out := boardView{Project: p.Name, Runs: m.Runs(), Lanes: []laneView{}}
 	for _, l := range m.Board.Lanes {
@@ -47,7 +47,7 @@ func (s *Service) cardsList(ctx context.Context, act registry.Actor, in cardsLis
 	if in.Deleted {
 		deleted, err := s.St.Q.ListDeletedCards(ctx, p.ID)
 		if err != nil {
-			return nil, err
+			return boardView{}, err
 		}
 		out.Deleted = []cardView{}
 		for _, c := range deleted {
@@ -61,7 +61,7 @@ type cardGetIn struct {
 	Card int64 `type:"card" desc:"Card id"`
 }
 
-func (s *Service) cardGet(ctx context.Context, act registry.Actor, in cardGetIn) (any, error) {
+func (s *Service) cardGet(ctx context.Context, act registry.Actor, in cardGetIn) (cardView, error) {
 	var v cardView
 	err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		c, err := cardFor(ctx, q, act, in.Card, &boardWrite{})
@@ -317,12 +317,12 @@ func (s *Service) cardRestore(ctx context.Context, act registry.Actor, in cardRe
 // Commands are the commands of the boards.
 func (s *Service) Commands() []*registry.Command {
 	return []*registry.Command{
-		registry.Def("cards_list", "Board",
+		registry.Read("cards_list", "Board",
 			"Returns the board of a project: lanes in order with their cards by rank, and recently deleted cards when asked.",
-			registry.Everyone, s.cardsList),
-		registry.Def("card_get", "Get card",
+			registry.Everyone, s.cardsList).On("board"),
+		registry.Read("card_get", "Get card",
 			"Returns one card with the cards it waits for.",
-			registry.Everyone, s.cardGet),
+			registry.Everyone, s.cardGet).On("board"),
 		registry.Def("card_transfer", "Move card to another project",
 			"Moves a card into the inbox lane of another project, with its documents and files; its record, run and waits stay behind.",
 			registry.OwnerOnly, s.cardTransfer),

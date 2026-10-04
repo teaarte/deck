@@ -101,6 +101,8 @@ Stage 1 plan: `docs/plan-stage1.md`; next: block catalog `docs/plan-catalog.md`.
   waiting transaction freezes all of deck. Write the intent, commit, act, then record the outcome in a new one.
   Helpers that may run inside a transaction take `*db.Queries`. Nothing is hardcoded to workspace 1:
   scope comes from the project or the actor.
+- A new restriction of the manifest comes with a format bump (a step in `manifest.Upgrade`), or is a warning on
+  read and an error only on save: `manifest.Parse` runs on every read, so a plain new check turns off saved modules.
 - New behaviour is a registry command (`deck.<name>` builtin or `<project>.<name>` from a manifest), not a
   new HTTP endpoint.
 - Web client (stage 1+): React + Vite + Mantine v9. Mantine v9 is new — check https://mantine.dev before

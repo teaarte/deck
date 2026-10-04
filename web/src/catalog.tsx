@@ -1,6 +1,6 @@
 import { lazy, Suspense, type ReactNode } from 'react';
 import { z } from 'zod';
-import { Catalog, type ComponentApi } from '@a2ui/web_core/v0_9';
+import { Catalog, type ComponentApi, type ComponentContext } from '@a2ui/web_core/v0_9';
 import { createComponentImplementation, type ReactComponentImplementation } from '@a2ui/react/v0_9';
 import { Alert, Badge, Button, Code, Group, Loader, Modal, SimpleGrid, Stack, Tabs, Text, Title, UnstyledButton } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
@@ -35,6 +35,39 @@ const api = (name: string): ComponentApi => {
   if (!c) throw new Error('catalog has no ' + name);
   return c;
 };
+
+type BlockProps = { title?: string; icon?: string; span?: Span; description?: string; data?: Data };
+
+// blockImpl draws a block of the catalog in its frame: title, icon, span, description, filters and state.
+function blockImpl<P = object>(name: string, body: (p: BlockProps & P, d: Data, context: ComponentContext) => ReactNode) {
+  return createComponentImplementation(api(name), ({ props, context }) => {
+    const p = props as BlockProps & P;
+    return <Block title={p.title} icon={p.icon} span={p.span} description={p.description} data={p.data} context={context}>{(d) => body(p, d, context)}</Block>;
+  });
+}
+
+function LogLines({ lines }: { lines: NonNullable<Data['lines']> }) {
+  const { t } = useTranslation();
+  const done = new Map(lines.filter((l) => l.kind === 'tool_update' && l.id).map((l) => [l.id, l]));
+  return (
+    <Stack gap={6}>
+      {lines.filter((l) => l.kind !== 'tool_update' || !l.id).map((l, i) => {
+        const end = l.kind === 'tool' && l.id ? done.get(l.id) : undefined;
+        return (
+          <Stack key={i} gap={2} data-line={l.kind}>
+            <Group gap="xs">
+              <Badge size="xs" variant="light" color={end?.status === 'failed' ? 'red' : 'gray'}>{t('log.' + l.kind, { defaultValue: l.kind })}</Badge>
+              {l.title && <Text size="xs" ff="monospace">{l.title}</Text>}
+              <Text size="xs" c="dimmed">{new Date(l.at).toLocaleTimeString()}</Text>
+            </Group>
+            {l.text && <Text size="sm" c={l.kind === 'thought' ? 'dimmed' : undefined} style={{ whiteSpace: 'pre-wrap' }} lineClamp={l.kind === 'message' ? undefined : 4}>{l.text}</Text>}
+            {end?.text && <Code block>{end.text.slice(0, 1000)}</Code>}
+          </Stack>
+        );
+      })}
+    </Stack>
+  );
+}
 
 type Children = (string | { id: string; basePath?: string })[];
 const kids = (children: unknown, build: (id: string, base?: string) => ReactNode, className?: string) =>
@@ -110,152 +143,74 @@ const impls: ReactComponentImplementation[] = [
       </>
     );
   }),
-  createComponentImplementation(api('table'), ({ props, context }) => {
-    const p = props as { title?: string; icon?: string; span?: Span; description?: string; columns: (Shown & { label: string })[]; data?: Data };
-    return (
-      <Block title={p.title} icon={p.icon} span={p.span} description={p.description} data={p.data} context={context}>
-        {(d) => <DataTable columns={p.columns} rows={d.rows ?? []} context={context} />}
-      </Block>
-    );
-  }),
-  createComponentImplementation(api('list'), ({ props, context }) => {
-    const p = props as { title?: string; icon?: string; span?: Span; description?: string; data?: Data };
-    return (
-      <Block title={p.title} icon={p.icon} span={p.span} description={p.description} data={p.data} context={context}>
-        {(d) => (
-          <Stack gap="sm">
-            {(d.items ?? []).map((it, i) => {
-              const answer = it.questions ? it.actions?.find((a) => a.input) : undefined;
-              const rest = (it.actions ?? []).filter((a) => a !== answer);
-              const opens = rowOpen(it.actions, context);
-              return (
-                <Stack key={show(it.id) || i} gap={6} data-item data-tone={it.tone} {...opens}
-                  style={{ ...opens.style, ...(it.tone && it.tone !== 'muted' ? { borderLeft: `3px solid var(--mantine-color-${toneColor(it.tone)}-6)`, paddingLeft: 'var(--mantine-spacing-xs)' } : {}) }}
-                  opacity={it.tone === 'muted' ? 0.6 : undefined}>
-                  <Group gap={10} wrap="nowrap" align="flex-start">
-                    {it.icon && <span className={s.itemIcon}><NamedIcon name={it.icon} fallback={it.title} size={18} /></span>}
-                    <Stack gap={2} miw={0} style={{ flex: 1 }}>
-                      <Text fw={600} size="md" lh={1.35} className={s.itemTitle}>{it.title}</Text>
-                      {it.text && (it.markdown ? <Markdown text={it.text} /> : <Text size="sm" c="var(--deck-text-2)" lh={1.5}>{it.text}</Text>)}
-                      {it.meta && <Text size="xs" c="dimmed" className={s.meta}>{it.meta}</Text>}
-                    </Stack>
-                  </Group>
-                  {it.details && <Details text={it.details} />}
-                  {it.questions && <QuestionPicker questions={it.questions} act={answer} context={context} />}
-                  <Actions actions={rest} context={context} />
-                </Stack>
-              );
-            })}
+  blockImpl<{ columns: (Shown & { label: string })[] }>('table', (p, d, context) => <DataTable columns={p.columns} rows={d.rows ?? []} context={context} />),
+  blockImpl('list', (_, d, context) => (
+    <Stack gap="sm">
+      {(d.items ?? []).map((it, i) => {
+        const answer = it.questions ? it.actions?.find((a) => a.input) : undefined;
+        const rest = (it.actions ?? []).filter((a) => a !== answer);
+        const opens = rowOpen(it.actions, context);
+        return (
+          <Stack key={show(it.id) || i} gap={6} data-item data-tone={it.tone} {...opens}
+            style={{ ...opens.style, ...(it.tone && it.tone !== 'muted' ? { borderLeft: `3px solid var(--mantine-color-${toneColor(it.tone)}-6)`, paddingLeft: 'var(--mantine-spacing-xs)' } : {}) }}
+            opacity={it.tone === 'muted' ? 0.6 : undefined}>
+            <Group gap={10} wrap="nowrap" align="flex-start">
+              {it.icon && <span className={s.itemIcon}><NamedIcon name={it.icon} fallback={it.title} size={18} /></span>}
+              <Stack gap={2} miw={0} style={{ flex: 1 }}>
+                <Text fw={600} size="md" lh={1.35} className={s.itemTitle}>{it.title}</Text>
+                {it.text && (it.markdown ? <Markdown text={it.text} /> : <Text size="sm" c="var(--deck-text-2)" lh={1.5}>{it.text}</Text>)}
+                {it.meta && <Text size="xs" c="dimmed" className={s.meta}>{it.meta}</Text>}
+              </Stack>
+            </Group>
+            {it.details && <Details text={it.details} />}
+            {it.questions && <QuestionPicker questions={it.questions} act={answer} context={context} />}
+            <Actions actions={rest} context={context} />
           </Stack>
-        )}
-      </Block>
-    );
-  }),
-  createComponentImplementation(api('card'), ({ props, context }) => {
-    const p = props as { title?: string; icon?: string; span?: Span; description?: string; data?: Data };
+        );
+      })}
+    </Stack>
+  )),
+  blockImpl('card', (_, d, context) => {
+    const v = (d.value ?? {}) as Partial<CardValue>;
     return (
-      <Block title={p.title} icon={p.icon} span={p.span} description={p.description} data={p.data}>
-        {(d) => {
-          const v = (d.value ?? {}) as Partial<CardValue>;
-          return (
-            <Stack gap="xs">
-              {(v.fields ?? []).map((f) => (
-                f.markdown && typeof f.value === 'string' ? (
-                  <Stack key={f.label} gap={2}>
-                    <Text size="sm" c="dimmed">{f.label}</Text>
-                    <Markdown text={f.value} />
-                  </Stack>
-                ) : (
-                  <Group key={f.label} gap="sm" wrap="nowrap" align="flex-start">
-                    <Text size="sm" c="dimmed" w={120}>{f.label}</Text>
-                    <Text size="sm" component="div"><Value v={f.value} s={f} tone={f.tone} /></Text>
-                  </Group>
-                )
-              ))}
-              <Actions actions={v.actions} context={context} />
+      <Stack gap="xs">
+        {(v.fields ?? []).map((f) => (
+          f.markdown && typeof f.value === 'string' ? (
+            <Stack key={f.label} gap={2}>
+              <Text size="sm" c="dimmed">{f.label}</Text>
+              <Markdown text={f.value} />
             </Stack>
-          );
-        }}
-      </Block>
+          ) : (
+            <Group key={f.label} gap="sm" wrap="nowrap" align="flex-start">
+              <Text size="sm" c="dimmed" w={120}>{f.label}</Text>
+              <Text size="sm" component="div"><Value v={f.value} s={f} tone={f.tone} /></Text>
+            </Group>
+          )
+        ))}
+        <Actions actions={v.actions} context={context} />
+      </Stack>
     );
   }),
-  createComponentImplementation(api('stat'), ({ props }) => {
-    const p = props as Shown & { title?: string; icon?: string; span?: Span; description?: string; data?: Data };
-    return <Block title={p.title} icon={p.icon} span={p.span} description={p.description} data={p.data}>{(d) => <Text fz={32} fw={700} component="div" data-stat><Value v={d.value} s={p} tone={d.tone} /></Text>}</Block>;
-  }),
-  createComponentImplementation(api('chart'), ({ props }) => {
-    const p = props as Shown & { title?: string; icon?: string; span?: Span; description?: string; kind?: string; data?: Data };
-    return (
-      <Block title={p.title} icon={p.icon} span={p.span} description={p.description} data={p.data}>
-        {(d) => <Suspense fallback={<Loader size="xs" />}><div data-chart-block><Chart value={d.value as ChartValue} kind={p.kind} s={p} /></div></Suspense>}
-      </Block>
-    );
-  }),
-  createComponentImplementation(api('media'), ({ props }) => {
-    const p = props as { title?: string; icon?: string; span?: Span; description?: string; data?: Data };
-    return <Block title={p.title} icon={p.icon} span={p.span} description={p.description} data={p.data}>{(d) => <Suspense fallback={<Loader size="xs" />}><Media items={d.files ?? []} /></Suspense>}</Block>;
-  }),
+  blockImpl<Shown>('stat', (p, d) => <Text fz={32} fw={700} component="div" data-stat><Value v={d.value} s={p} tone={d.tone} /></Text>),
+  blockImpl<Shown & { kind?: string }>('chart', (p, d) => (
+    <Suspense fallback={<Loader size="xs" />}><div data-chart-block><Chart value={d.value as ChartValue} kind={p.kind} s={p} /></div></Suspense>
+  )),
+  blockImpl('media', (_, d) => <Suspense fallback={<Loader size="xs" />}><Media items={d.files ?? []} /></Suspense>),
   createComponentImplementation(api('actions'), ({ props, context }) => {
-    const p = props as { title?: string; icon?: string; span?: Span; description?: string; menu?: boolean; data?: Data };
+    const p = props as BlockProps & { menu?: boolean };
     if (p.menu) {
       return <ActionsMenu actions={p.data?.value as ActionsValue | undefined} context={context} label={p.title}
         icon={p.icon ? <NamedIcon name={p.icon} fallback={p.title ?? ''} size={16} /> : undefined} />;
     }
-    return <Block title={p.title} icon={p.icon} span={p.span} description={p.description} data={p.data}>{(d) => <Actions actions={d.value as ActionsValue | undefined} context={context} />}</Block>;
+    return <Block {...p} context={context}>{(d) => <Actions actions={d.value as ActionsValue | undefined} context={context} />}</Block>;
   }),
-  createComponentImplementation(api('log'), ({ props }) => {
-    const { t } = useTranslation();
-    const p = props as { title?: string; icon?: string; span?: Span; description?: string; data?: Data };
-    return (
-      <Block title={p.title} icon={p.icon} span={p.span} description={p.description} data={p.data}>
-        {(d) => {
-          const done = new Map((d.lines ?? []).filter((l) => l.kind === 'tool_update' && l.id).map((l) => [l.id, l]));
-          return (
-            <Stack gap={6}>
-              {(d.lines ?? []).filter((l) => l.kind !== 'tool_update' || !l.id).map((l, i) => {
-                const end = l.kind === 'tool' && l.id ? done.get(l.id) : undefined;
-                return (
-                  <Stack key={i} gap={2} data-line={l.kind}>
-                    <Group gap="xs">
-                      <Badge size="xs" variant="light" color={end?.status === 'failed' ? 'red' : 'gray'}>{t('log.' + l.kind, { defaultValue: l.kind })}</Badge>
-                      {l.title && <Text size="xs" ff="monospace">{l.title}</Text>}
-                      <Text size="xs" c="dimmed">{new Date(l.at).toLocaleTimeString()}</Text>
-                    </Group>
-                    {l.text && <Text size="sm" c={l.kind === 'thought' ? 'dimmed' : undefined} style={{ whiteSpace: 'pre-wrap' }} lineClamp={l.kind === 'message' ? undefined : 4}>{l.text}</Text>}
-                    {end?.text && <Code block>{end.text.slice(0, 1000)}</Code>}
-                  </Stack>
-                );
-              })}
-            </Stack>
-          );
-        }}
-      </Block>
-    );
-  }),
-  createComponentImplementation(api('board'), ({ props, context }) => {
-    const p = props as { title?: string; icon?: string; span?: Span; description?: string; data?: Data };
-    return <Block title={p.title} icon={p.icon} span={p.span} description={p.description} data={p.data}>{(d) => <Board value={d.value as BoardValue} context={context} />}</Block>;
-  }),
-  createComponentImplementation(api('form'), ({ props }) => {
-    const p = props as { title?: string; icon?: string; span?: Span; description?: string; data?: Data };
-    return <Block title={p.title} icon={p.icon} span={p.span} description={p.description} data={p.data}>{(d) => <Form value={d.value as FormValue} />}</Block>;
-  }),
-  createComponentImplementation(api('custom'), ({ props }) => {
-    const p = props as { title?: string; icon?: string; span?: Span; description?: string; data?: Data };
-    return <Block title={p.title} icon={p.icon} span={p.span} description={p.description} data={p.data}>{(d) => <Suspense fallback={<Loader size="xs" />}><Custom value={d.value as CustomValue} /></Suspense>}</Block>;
-  }),
-  createComponentImplementation(api('document'), ({ props }) => {
-    const p = props as { title?: string; icon?: string; span?: Span; description?: string; data?: Data };
-    return <Block title={p.title} icon={p.icon} span={p.span} description={p.description} data={p.data}>{(d) => <Document value={d.value as DocumentValue} />}</Block>;
-  }),
-  createComponentImplementation(api('chat'), ({ props, context }) => {
-    const p = props as { title?: string; icon?: string; span?: Span; description?: string; data?: Data };
-    return <Block title={p.title} icon={p.icon} span={p.span} description={p.description} data={p.data}>{(d) => <Chat value={d.value as ChatValue} context={context} />}</Block>;
-  }),
-  createComponentImplementation(api('appearance'), ({ props }) => {
-    const p = props as { title?: string; icon?: string; span?: Span; description?: string; part?: string; data?: Data };
-    return <Block title={p.title} icon={p.icon} span={p.span} description={p.description} data={p.data}>{() => <Appearance part={p.part} />}</Block>;
-  }),
+  blockImpl('log', (_, d) => <LogLines lines={d.lines ?? []} />),
+  blockImpl('board', (_, d, context) => <Board value={d.value as BoardValue} context={context} />),
+  blockImpl('form', (_, d) => <Form value={d.value as FormValue} />),
+  blockImpl('custom', (_, d) => <Suspense fallback={<Loader size="xs" />}><Custom value={d.value as CustomValue} /></Suspense>),
+  blockImpl('document', (_, d) => <Document value={d.value as DocumentValue} />),
+  blockImpl('chat', (_, d, context) => <Chat value={d.value as ChatValue} context={context} />),
+  blockImpl<{ part?: string }>('appearance', (p) => <Appearance part={p.part} />),
   createComponentImplementation({ name: UNKNOWN, schema: z.object({ type: z.string() }) }, ({ props }) => {
     const { t } = useTranslation();
     return (

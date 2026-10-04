@@ -1,10 +1,13 @@
 package scenarios
 
 import (
+	"context"
 	"os"
 	"strconv"
 	"strings"
 	"testing"
+
+	"deck2/internal/provider"
 )
 
 // TestRealBrowserShell drives the islands of deck in a real browser, menu, chat and columns:
@@ -14,7 +17,17 @@ func TestRealBrowserShell(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	e := newEnv(t, boardWebAgent())
+	hold := make(chan struct{})
+	t.Cleanup(func() { close(hold) })
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		if c.command() == "score" {
+			select {
+			case <-hold:
+			case <-ctx.Done():
+			}
+		}
+		return boardWebAgent()(ctx, c)
+	})
 	manifest := strings.Replace(boardWebManifest, `{"version": 6,`, `{"version": 6, "icon": "rocket",`, 1)
 	manifest = strings.Replace(manifest, `{"type": "table", "title": "Notes",`, `{"type": "table", "title": "Notes", "icon": "notes",`, 1)
 	manifest = strings.Replace(manifest, `"columns": [{"label": "Title", "bind": "title"}]`, `"columns": [{"label": "Title", "bind": "title"}, {"label": "Status", "bind": "source"}, {"label": "Note", "bind": "note"}]`, 1)
@@ -22,6 +35,7 @@ func TestRealBrowserShell(t *testing.T) {
 	e.must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes",
 		"records": jsonl(map[string]any{"title": "alpha", "source": "mail", "note": strings.Repeat("the model did not finish the self-check within the ceiling ", 6)}, map[string]any{"title": "a-very-long-title-without-any-spaces-that-would-push-the-table-out-of-its-block-" + strings.Repeat("x", 120), "source": "web"})}, nil)
 	e.waitState(e.start("web", "tell", nil), "done")
+	e.waitState(e.start("web", "score", map[string]any{"title": "x"}), "running")
 
 	b := newPlaywright(t)
 	b.call("browser_resize", map[string]any{"width": 1440, "height": 900})

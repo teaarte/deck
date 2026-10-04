@@ -304,11 +304,14 @@ func (g *Gateway) Journal(ctx context.Context, act registry.Actor, project int64
 }
 
 func (g *Gateway) journal(ctx context.Context, act registry.Actor, project int64, tool, class, outcome, params, errText string) {
-	_ = g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+	err := g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		_, err := q.LogToolCall(ctx, db.LogToolCallParams{WorkspaceID: act.Workspace, ProcessID: store.ID(act.ProcessID), ProjectID: store.ID(project), Actor: act.Author(),
 			Caller: frozenCaller(act), Tool: tool, Class: class, Outcome: outcome, Params: params, Error: errText})
 		return err
 	})
+	if err == nil {
+		g.bus.Publish("calls")
+	}
 }
 
 // Command looks a registry command up for callers that need its class.

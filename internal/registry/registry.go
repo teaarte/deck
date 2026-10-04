@@ -226,6 +226,9 @@ func (r *Registry) Add(c *Command) {
 	if err := Prepare(c); err != nil {
 		panic(err)
 	}
+	if c.Reads && c.Topic == "" {
+		panic("registry: read " + c.Name + " names no topic it follows")
+	}
 	r.builtins[c.Name] = c
 }
 

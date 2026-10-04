@@ -163,3 +163,26 @@ func TestStoppingAProcessJournalsTheCallsItDropped(t *testing.T) {
 		t.Fatalf("a call dropped by a stop is in the journal:\n%s", j)
 	}
 }
+
+// TestTheJournalFollowsCallsAndSpendLive: a call of the gateway and a model call are heard live, and each
+// redraws only the blocks that read them.
+func TestTheJournalFollowsCallsAndSpendLive(t *testing.T) {
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		c.Tool(ctx, "document_save", map[string]any{"name": "report.md", "kind": "artifact", "text": "done"})
+		c.Req.OnUsage(provider.Usage{RequestModel: "big", Model: "big", Input: 1200, Output: 300})
+		return provider.Result{Structured: json.RawMessage(`{}`)}
+	})
+	e.createProject("web", boardWebManifest)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	phone := e.sse(ctx)
+	e.waitState(e.start("web", "score", map[string]any{"title": "x"}), "done")
+	waitTopic(t, phone, "calls")
+	waitTopic(t, phone, "usage")
+	for _, topic := range []string{"calls", "usage"} {
+		msgs := e.screenMessages("", "journal", map[string]any{"topic": topic})
+		if len(msgs) == 0 || msgs[0]["createSurface"] != nil {
+			t.Fatalf("%s redraws only its blocks: %d messages", topic, len(msgs))
+		}
+	}
+}

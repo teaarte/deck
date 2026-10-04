@@ -88,7 +88,9 @@ func (r *Runner) usage(ctx context.Context, processID int64, name string, u prov
 	})
 	if err != nil {
 		slog.Error("model call journal", "process", processID, "err", err)
+		return
 	}
+	r.bus.Publish("usage")
 }
 
 // blocked reports whether the owner still owes the agent an answer; a result produced meanwhile is

@@ -186,6 +186,7 @@ func (a *App) SaveManifest(ctx context.Context, act registry.Actor, p db.Project
 	if err != nil || saved.Waiting != 0 {
 		if saved.Waiting != 0 {
 			a.Bus.Publish("asks")
+			a.Bus.Publish("calls")
 		}
 		return saved, err
 	}

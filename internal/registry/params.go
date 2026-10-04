@@ -88,6 +88,9 @@ func Def[In any](name, title, desc string, callers []string, h func(ctx context.
 }
 
 // On names the event topic after which a read gives another result, so a screen reads it again.
+// Static is the topic of a read whose result no event changes.
+const Static = "static"
+
 func (c *Command) On(topic string) *Command {
 	c.Topic = topic
 	return c

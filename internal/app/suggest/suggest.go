@@ -294,7 +294,7 @@ func (sg *Service) Commands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("suggest", "Suggest",
 			"Suggests the owner one card for a project or one call of a project command, with the reason; it waits in waiting for you, or is done at once in a project on autonomy auto.",
-			registry.Everyone, sg.suggest).Changes("asks"),
+			registry.Everyone, sg.suggest).Changes("asks", "calls"),
 		registry.Def("suggestions_rejected", "Rejected suggestions",
 			"Lists the suggestions the owner said no to lately, with the reason, so the same is not suggested again.",
 			registry.Everyone, sg.suggestionsRejected),

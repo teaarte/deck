@@ -40,6 +40,9 @@ func (g *Gateway) Intent(ctx context.Context, act registry.Actor, project int64,
 			Class: registry.External, Outcome: "started", Params: p})
 		return err
 	})
+	if err == nil {
+		g.bus.Publish("calls")
+	}
 	return id, err
 }
 
@@ -51,10 +54,13 @@ func (g *Gateway) Refused(ctx context.Context, act registry.Actor, project int64
 // Finish records the outcome of an action whose intent is id: done when the other side answered, rejected
 // when the call never left deck.
 func (g *Gateway) Finish(ctx context.Context, id int64, outcome, externalID, errText string) {
-	_ = g.st.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error {
+	err := g.st.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error {
 		_, err := q.FinishToolCall(ctx, db.FinishToolCallParams{Outcome: outcome, ExternalID: externalID, Error: untrusted.Cut(errText, 2000), ID: id})
 		return err
 	})
+	if err == nil {
+		g.bus.Publish("calls")
+	}
 }
 
 // Lost marks an action whose answer never came as of unknown outcome and asks the owner to retry it or
@@ -105,6 +111,7 @@ func (g *Gateway) LostAt(ctx context.Context, id int64, tool string) {
 	})
 	if err == nil && made {
 		g.bus.Publish("asks")
+		g.bus.Publish("calls")
 	}
 }
 
@@ -168,6 +175,7 @@ func (g *Gateway) Recover(ctx context.Context) error {
 	})
 	if err == nil && len(running) > 0 {
 		g.bus.Publish("asks")
+		g.bus.Publish("calls")
 	}
 	return err
 }

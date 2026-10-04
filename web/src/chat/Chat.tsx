@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { ComponentContext } from '@a2ui/web_core/v0_9';
 import { Paper, Stack } from '@mantine/core';
 import type { ChatValue } from '../lib/catalog.gen';
@@ -17,7 +17,8 @@ export function Chat({ value, context }: { value: ChatValue; context: ComponentC
   const [text, setText] = useState('');
   const topics = useTopics(value, context);
   const stick = useStickToBottom(value.messages[value.messages.length - 1]?.id, value.turn?.lines.length, value.topic?.id);
-  const files = useAttachments();
+  const forget = useRef(() => undefined as void);
+  const files = useAttachments(() => forget.current());
   const chat = useChatSend(value, {
     before: stick.follow,
     files: files.ids,
@@ -28,6 +29,7 @@ export function Chat({ value, context }: { value: ChatValue; context: ComponentC
       topics.pick(String(topic));
     },
   });
+  forget.current = chat.forgetKey;
   return (
     <Stack gap="sm" h="calc(100dvh - 190px)" mih={360} data-chat>
       <TopicBar value={value} topics={topics} />

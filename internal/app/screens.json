@@ -249,15 +249,16 @@
       "name": "settings",
       "icon": "settings",
       "title": "Settings",
+      "params": {"name": "string", "command": "string", "agent": "string", "url": "string", "model": "string", "key_secret": "string", "no_cloud": "boolean"},
       "blocks": [
         {"type": "tabs", "tabs": [
           {"title": "Projects", "icon": "folders", "blocks": [
             {"type": "dialog", "name": "create-project", "title": "Create project", "icon": "plus", "primary": true, "blocks": [
-              {"type": "form", "command": "deck.project_create", "values": {"name": "$param.name"}}]},
+              {"type": "form", "command": "deck.project_create", "values": {"name": "=param.name"}}]},
             {"type": "dialog", "name": "import-project", "title": "Import project", "icon": "file-import", "blocks": [
               {"type": "form", "command": "deck.project_import"}]},
             {"type": "dialog", "name": "try-command", "title": "Try a command", "icon": "flask", "blocks": [
-              {"type": "form", "command": "deck.command_try", "keep_open": true, "values": {"command": "$param.command"},
+              {"type": "form", "command": "deck.command_try", "keep_open": true, "values": {"command": "=param.command"},
                 "choices": {"command": {"source": {"from": "deck.commands_list", "where": "project != '' && executor != 'tool'", "sort": "name"}, "value": "name", "label": "title + ' (' + name + ')'"}}}]},
             {"type": "list", "title": "Projects", "source": {"from": "deck.projects_list", "sort": "name"}, "filter": ["status"],
               "item": {"title": "title", "icon": "icon != '' ? icon : 'box'", "text": "manifest_error != '' ? 'manifest: ' + manifest_error : description",
@@ -276,7 +277,7 @@
           {"title": "Providers", "icon": "cpu", "blocks": [
             {"type": "dialog", "name": "provider", "title": "Add a provider", "icon": "plus", "primary": true, "blocks": [
               {"type": "form", "command": "deck.provider_add", "description": "A model behind an OpenAI-compatible API, run by an ACP agent inside the sandbox of deck. A provider with the same name is replaced.",
-                "values": {"name": "$param.name", "agent": "$param.agent", "url": "$param.url", "model": "$param.model", "key_secret": "$param.key_secret", "no_cloud": "$param.no_cloud"},
+                "values": {"name": "=param.name", "agent": "=param.agent", "url": "=param.url", "model": "=param.model", "key_secret": "=param.key_secret", "no_cloud": "=param.no_cloud"},
                 "choices": {"key_secret": {"source": {"from": "deck.secrets_list"}, "value": "name"}}}]},
             {"type": "dialog", "name": "speech", "title": "Speech to text", "icon": "microphone", "blocks": [
               {"type": "form", "command": "deck.stt_set", "choices": {"key_secret": {"source": {"from": "deck.secrets_list"}, "value": "name"}}}]},
@@ -299,7 +300,7 @@
           ]},
           {"title": "Secrets", "icon": "key", "blocks": [
             {"type": "dialog", "name": "secret", "title": "Add a secret", "icon": "plus", "primary": true, "blocks": [
-              {"type": "form", "command": "deck.secret_set", "values": {"name": "$param.name"}}]},
+              {"type": "form", "command": "deck.secret_set", "values": {"name": "=param.name"}}]},
             {"type": "table", "title": "Secrets", "source": {"from": "deck.secrets_list"},
               "description": "API keys and passwords that tools and providers name; deck keeps them as files only it reads, agents and scripts never see them.",
               "empty": "No secrets yet",
@@ -508,14 +509,15 @@
       "name": "settings",
       "icon": "adjustments",
       "title": "Settings",
+      "params": {"name": "string", "command": "string"},
       "blocks": [
         {"type": "dialog", "name": "try-command", "title": "Try a command", "icon": "flask", "blocks": [
-          {"type": "form", "command": "deck.command_try", "keep_open": true, "values": {"command": "$param.command"},
+          {"type": "form", "command": "deck.command_try", "keep_open": true, "values": {"command": "=param.command"},
             "choices": {"command": {"source": {"from": "deck.commands_list", "where": "executor != 'tool' && executor != ''", "sort": "name"}, "value": "name", "label": "title + ' (' + name + ')'"}}}]},
         {"type": "dialog", "name": "folder", "title": "Add a folder", "icon": "folder-plus", "blocks": [
           {"type": "form", "command": "deck.folder_add"}]},
         {"type": "dialog", "name": "secret", "title": "Set a secret", "icon": "key", "blocks": [
-          {"type": "form", "command": "deck.secret_set", "values": {"name": "$param.name"}}]},
+          {"type": "form", "command": "deck.secret_set", "values": {"name": "=param.name"}}]},
         {"type": "list", "title": "Project", "source": {"from": "deck.projects_list"},
           "item": {"title": "title", "icon": "icon != '' ? icon : 'box'", "text": "manifest_error != '' ? 'manifest: ' + manifest_error : description",
             "meta": "(title != name ? name + ' · ' : '') + status + (paused ? ', paused' : '') + ' · autonomy: ' + autonomy + (no_network ? ' · no network' : '') + (len(rights) > 0 ? ' · enabling grants: ' + join(rights, '; ') : '')",

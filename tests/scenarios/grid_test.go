@@ -34,13 +34,21 @@ func TestTheSpanOfAModuleBlockReachesTheScreen(t *testing.T) {
 // empty one is left out.
 func TestAParamOfASourceTakesTheTypeOfItsField(t *testing.T) {
 	e := newEnv(t, boardWebAgent())
-	e.createProject("web", strings.Replace(boardWebManifest, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "blocks": [
-      {"type": "list", "title": "Latest", "source": {"from": "deck.feed_list", "input": {"limit": "$param.n"}}, "item": {"title": "text"}},`, 1))
+	e.createProject("web", strings.Replace(boardWebManifest, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "params": {"n": "integer"}, "blocks": [
+      {"type": "list", "title": "Latest", "source": {"from": "deck.feed_list", "input": {"limit": "=param.n"}}, "item": {"title": "text"}},
+      {"type": "stat", "title": "Many", "when": "(param.n ?? 0) > 1", "source": {"from": "deck.probe"}},`, 1))
 	for _, params := range []map[string]any{{"params": `{"n": "2"}`}, nil} {
 		drawn, _ := json.Marshal(e.screenData("web", "main", params)["b0"])
 		if !strings.Contains(string(drawn), `"state":"empty"`) {
 			t.Fatalf("the source reads with %v: %s", params, drawn)
 		}
+	}
+	many := func(params map[string]any) bool {
+		drawn, _ := json.Marshal(e.screenMessages("web", "main", params))
+		return strings.Contains(string(drawn), `"title":"Many"`)
+	}
+	if !many(map[string]any{"params": `{"n": "2"}`}) || many(map[string]any{"params": `{"n": "1"}`}) || many(nil) {
+		t.Fatal("a when reads the parameters of the screen in their type")
 	}
 }
 

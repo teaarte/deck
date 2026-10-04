@@ -58,7 +58,7 @@ type Request struct {
 	Filter map[string]map[string]string
 	// Card are the buttons of a card of a board.
 	Card []manifest.Action
-	// Params are the parameters of the screen from its address, read as $param.<name>.
+	// Params are the parameters of the screen from its address, read as param.<name> when the screen declares them.
 	Params map[string]string
 	// Words translate the texts of the screen into the owner's language.
 	Words map[string]string
@@ -122,6 +122,12 @@ func Check(ctx context.Context, st *store.Store, src Sources, req Request) ([]st
 func resolve(ctx context.Context, st *store.Store, src Sources, req Request) (*renderer, error) {
 	r := &renderer{ctx: ctx, st: st, src: src, req: req, data: map[string]any{}, read: map[string]readOf{}, fetched: map[string]fetchOf{}}
 	r.scope = Scope{Workspace: req.Project.WorkspaceID, Project: req.Project.Name}
+	r.params = map[string]any{}
+	for name, typ := range req.Screen.Params {
+		if v := req.Params[name]; v != "" {
+			r.params[name] = manifest.Typed(v, typ)
+		}
+	}
 	if req.Screen.Record != "" {
 		if err := r.loadRecord(); err != nil {
 			return nil, err
@@ -151,6 +157,8 @@ type renderer struct {
 	read  map[string]readOf
 	// fetched are the items of each source read for this screen.
 	fetched map[string]fetchOf
+	// params are the parameters the screen declares, from its address in their types.
+	params map[string]any
 	// errs name the blocks that failed to resolve.
 	errs []string
 }
@@ -189,6 +197,22 @@ func (r *renderer) surface() string {
 }
 
 func (r *renderer) deck() bool { return r.req.Project.ID == 0 }
+
+// withParam is an expression environment with the parameters of the screen as param.
+func (r *renderer) withParam(env map[string]any) map[string]any {
+	if len(r.req.Screen.Params) == 0 {
+		return env
+	}
+	out := make(map[string]any, len(env)+1)
+	maps.Copy(out, env)
+	out["param"] = r.params
+	return out
+}
+
+// eval is an expression over env and the parameters of the screen.
+func (r *renderer) eval(e string, env map[string]any) (any, error) {
+	return manifest.Eval(e, r.withParam(env))
+}
 
 func (r *renderer) loadRecord() error {
 	if r.req.Record <= 0 {

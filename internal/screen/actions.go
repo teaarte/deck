@@ -25,8 +25,8 @@ func (r *renderer) rowActions(b manifest.Block, it map[string]any) []map[string]
 // actions are the buttons that hold for an item, with what they take from it.
 func (r *renderer) actions(as []manifest.Action, id int64, env map[string]any) []map[string]any {
 	out := make([]map[string]any, 0, len(as))
+	env = r.withParam(env)
 	for _, a := range as {
-		a = r.withParams(a)
 		if a.When != "" {
 			if ok, err := manifest.Eval(a.When, env); err != nil || ok != true {
 				continue
@@ -117,17 +117,13 @@ func (r *renderer) inputTypes(name string) map[string]string {
 	if t, ok := r.types[name]; ok {
 		return t
 	}
-	out := map[string]string{}
+	var out map[string]string
 	if r.deck() || strings.HasPrefix(name, "deck.") {
 		c, _ := r.src.Command(r.ctx, r.scope.Workspace, name)
-		in, _ := c["input"].(map[string]any)
-		props, _ := in["properties"].(map[string]any)
-		for k, p := range props {
-			s, _ := p.(map[string]any)
-			out[k], _ = s["type"].(string)
-		}
-	} else {
-		out = fieldTypes(r.req.Manifest.Command(strings.TrimPrefix(name, r.req.Project.Name+".")))
+		in, _ := json.Marshal(c["input"])
+		out = manifest.FieldTypes(in)
+	} else if c := r.req.Manifest.Command(strings.TrimPrefix(name, r.req.Project.Name+".")); c != nil {
+		out = manifest.FieldTypes(c.InputSchema())
 	}
 	if r.types == nil {
 		r.types = map[string]map[string]string{}
@@ -136,56 +132,9 @@ func (r *renderer) inputTypes(name string) map[string]string {
 	return out
 }
 
-// withParams puts the parameters of the screen in place of the $param.<name> values of a button.
-func (r *renderer) withParams(a manifest.Action) manifest.Action {
-	param := func(v string) string {
-		if p, ok := strings.CutPrefix(v, "$param."); ok {
-			return r.req.Params[p]
-		}
-		return v
-	}
-	a.Screen, a.Record, a.Project = param(a.Screen), param(a.Record), param(a.Project)
-	if len(a.Params) > 0 {
-		ps := make(map[string]string, len(a.Params))
-		for k, v := range a.Params {
-			ps[k] = param(v)
-		}
-		a.Params = ps
-	}
-	return a
-}
-
 // itemValue is a value a button takes: fixed, $record.<field> of the item, or =<expression> over it.
 func itemValue(v string, id int64, env map[string]any) any {
-	if v == "" {
-		return nil
-	}
-	if f, ok := strings.CutPrefix(v, "$record."); ok {
-		if f == "id" {
-			return id
-		}
-		return env[f]
-	}
-	if e, ok := strings.CutPrefix(v, "="); ok {
-		out, _ := manifest.Eval(e, env)
-		return out
-	}
-	return v
-}
-
-// fieldTypes are the JSON types of the input fields of a command.
-func fieldTypes(c *manifest.Command) map[string]string {
-	var in struct {
-		Properties map[string]struct{ Type any } `json:"properties"`
-	}
-	if c != nil {
-		_ = json.Unmarshal(c.InputSchema(), &in)
-	}
-	out := map[string]string{}
-	for k, p := range in.Properties {
-		out[k], _ = p.Type.(string)
-	}
-	return out
+	return manifest.Resolve(v, "", id, env)
 }
 
 // actionParams fills a button's params: a fixed value is text the manifest gives, turned into the type of its
@@ -193,11 +142,7 @@ func fieldTypes(c *manifest.Command) map[string]string {
 func actionParams(params map[string]string, types map[string]string, id int64, env map[string]any) map[string]any {
 	out := map[string]any{}
 	for k, v := range params {
-		if strings.HasPrefix(v, "$record.") || strings.HasPrefix(v, "=") {
-			out[k] = itemValue(v, id, env)
-		} else {
-			out[k] = manifest.Typed(v, types[k])
-		}
+		out[k] = manifest.Resolve(v, types[k], id, env)
 	}
 	return out
 }

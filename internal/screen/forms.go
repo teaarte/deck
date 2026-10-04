@@ -1,6 +1,7 @@
 package screen
 
 import (
+	"encoding/json"
 	"fmt"
 	"maps"
 	"slices"
@@ -84,37 +85,18 @@ func (r *renderer) form(b manifest.Block) (map[string]any, error) {
 	return map[string]any{"state": state, "value": v}, nil
 }
 
-// formValues fill fields of a form from the manifest: fixed text in the type of its field, a parameter of the
-// screen or a field of the record of the page; an empty parameter leaves its field to the owner.
+// formValues fill fields of a form from the manifest, resolved over the record of the page and the parameters
+// of the screen; a value that resolves to nothing leaves its field to the owner.
 func (r *renderer) formValues(v map[string]any, values map[string]string, cmd map[string]any) {
 	got, _ := v["values"].(map[string]any)
 	if got == nil {
 		got = map[string]any{}
 	}
-	types := map[string]string{}
-	if in, _ := cmd["input"].(map[string]any); in != nil {
-		props, _ := in["properties"].(map[string]any)
-		for k, p := range props {
-			if s, _ := p.(map[string]any); s != nil {
-				types[k], _ = s["type"].(string)
-			}
-		}
-	}
+	in, _ := json.Marshal(cmd["input"])
+	types := manifest.FieldTypes(in)
+	env := r.withParam(r.record)
 	for field, raw := range values {
-		var val any
-		switch {
-		case strings.HasPrefix(raw, "$param."):
-			if p := r.req.Params[strings.TrimPrefix(raw, "$param.")]; p != "" {
-				val = manifest.Typed(p, types[field])
-			}
-		case strings.HasPrefix(raw, "$record."):
-			if r.record != nil {
-				val = r.record[strings.TrimPrefix(raw, "$record.")]
-			}
-		default:
-			val = manifest.Typed(raw, types[field])
-		}
-		if val != nil {
+		if val := manifest.Resolve(raw, types[field], r.req.Record, env); val != nil {
 			got[field] = val
 		}
 	}

@@ -8,9 +8,9 @@ import (
 )
 
 // routedManifest has a dialog with a form its address fills, and rows whose button opens it with their title.
-var routedManifest = strings.Replace(boardWebManifest, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "blocks": [
+var routedManifest = strings.Replace(boardWebManifest, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "params": {"title": "string"}, "blocks": [
       {"type": "dialog", "name": "rescore", "title": "Score again", "icon": "refresh", "primary": true, "blocks": [
-        {"type": "form", "title": "Score", "command": "score", "values": {"title": "$param.title", "n": "3"}}]},
+        {"type": "form", "title": "Score", "command": "score", "values": {"title": "=param.title", "n": "3"}}]},
       {"type": "actions", "title": "More", "icon": "dots", "menu": true, "actions": [{"label": "Tell", "command": "tell"}]},
       {"type": "table", "title": "Again", "source": {"collection": "notes"}, "columns": [{"label": "Title", "bind": "title"}],
         "actions": [{"label": "Again", "screen": "main", "params": {"title": "$record.title", "dialog": "rescore"}}]},`, 1)
@@ -61,7 +61,10 @@ func TestScreenParamsFillFormsAndTravelWithButtons(t *testing.T) {
 func TestValuesIconsAndDialogNamesAreCheckedOnSave(t *testing.T) {
 	e := newEnv(t, boardWebAgent())
 	cases := []struct{ name, old, new, want string }{
-		{"values field", `"values": {"title": "$param.title", "n": "3"}`, `"values": {"titel": "$param.title"}`, `no field "titel"`},
+		{"values field", `"values": {"title": "=param.title", "n": "3"}`, `"values": {"titel": "=param.title"}`, `no field "titel"`},
+		{"undeclared param", `"values": {"title": "=param.title", "n": "3"}`, `"values": {"title": "=param.name"}`, `no param "name"`},
+		{"old param", `"values": {"title": "=param.title", "n": "3"}`, `"values": {"title": "$param.title"}`, `=param.title`},
+		{"param type", `"params": {"title": "string"}`, `"params": {"title": "text"}`, `params`},
 		{"record field", `"values": {"title": "$record.title"}`, `"values": {"title": "$record.name"}`, `unknown field "name"`},
 		{"item icon", `{"type": "actions", "title": "More"`, `{"type": "list", "title": "Lines", "source": {"collection": "notes"}, "item": {"title": "title", "icon": "shout(title)"}},
       {"type": "actions", "title": "More"`, `unknown function "shout"`},

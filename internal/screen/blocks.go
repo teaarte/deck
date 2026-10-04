@@ -41,7 +41,7 @@ func (r *renderer) holds(id string, b manifest.Block) (bool, error) {
 		}
 		env["rows"] = items
 	}
-	v, err := manifest.Eval(b.When, env)
+	v, err := r.eval(b.When, env)
 	if err != nil {
 		return true, err
 	}
@@ -387,7 +387,7 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 	if b.Type == "card" {
 		fields := make([]map[string]any, 0, len(b.Fields))
 		for _, f := range b.Fields {
-			v, err := manifest.Eval(f.Bind, r.record)
+			v, err := r.eval(f.Bind, r.record)
 			if err != nil {
 				return nil, fmt.Errorf("field %q: %w", f.Label, err)
 			}
@@ -447,7 +447,7 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 		for _, it := range items {
 			cells, tones, toned := make([]any, 0, len(b.Columns)), make([]any, len(b.Columns)), false
 			for j, c := range b.Columns {
-				v, err := manifest.Eval(c.Bind, it)
+				v, err := r.eval(c.Bind, it)
 				if err != nil {
 					return nil, fmt.Errorf("column %q: %w", c.Label, err)
 				}
@@ -477,7 +477,7 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 				if e == "" {
 					continue
 				}
-				v, err := manifest.Eval(e, it)
+				v, err := r.eval(e, it)
 				if err != nil {
 					return nil, fmt.Errorf("item %s: %w", key, err)
 				}
@@ -492,7 +492,7 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 				if e == "" {
 					continue
 				}
-				v, err := manifest.Eval(e, it)
+				v, err := r.eval(e, it)
 				if err != nil {
 					return nil, fmt.Errorf("item %s: %w", key, err)
 				}

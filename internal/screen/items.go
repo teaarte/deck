@@ -26,7 +26,7 @@ func (r *renderer) items(src manifest.Source, picked map[string]string) ([]map[s
 			if r.record != nil {
 				env = withRecord(it, r.record)
 			}
-			ok, err := manifest.Eval(src.Where, env)
+			ok, err := r.eval(src.Where, env)
 			if err != nil {
 				return nil, fmt.Errorf("where: %w", err)
 			}
@@ -107,22 +107,14 @@ func (r *renderer) load(src manifest.Source, input map[string]any, picked map[st
 	return items, nil
 }
 
-// input is the input of a command a block reads, with "$record.<field>" taken from the record of the page and
-// "$param.<name>" from the address of the screen.
+// input is the input of a command a block reads: its values resolved over the record of the page and the
+// parameters of the screen; a value that resolves to nothing is left out.
 func (r *renderer) input(in map[string]any) map[string]any {
 	out := make(map[string]any, len(in))
 	for k, v := range in {
-		if p, ok := strings.CutPrefix(fmt.Sprint(v), "$param."); ok {
-			if r.req.Params[p] == "" {
+		if s, ok := v.(string); ok && s != "" {
+			if v = manifest.Resolve(s, "", r.req.Record, r.withParam(r.record)); v == nil {
 				continue
-			}
-			v = r.req.Params[p]
-		} else if f, ok := strings.CutPrefix(fmt.Sprint(v), "$record."); ok {
-			switch {
-			case f == "id":
-				v = r.req.Record
-			case r.record != nil:
-				v = r.record[f]
 			}
 		}
 		out[k] = v

@@ -237,6 +237,7 @@
         "title": {"type": "string", "minLength": 1},
         "icon": {"$ref": "#/$defs/icon", "description": "Icon of the screen in the menu."},
         "record": {"type": "string", "description": "Collection whose record the screen shows: a record page, opened with the record id."},
+        "params": {"type": "object", "additionalProperties": {"enum": ["string", "integer", "number", "boolean"]}, "description": "Parameters of the address of the screen by name and type, read in expressions as param.<name>, such as =param.title in values or input."},
         "blocks": {"type": "array", "items": {"$ref": "#/$defs/block"}}
       }
     },
@@ -281,7 +282,7 @@
         "icon": {"$ref": "#/$defs/icon", "description": "Icon on the button."},
         "command": {"type": "string"},
         "screen": {"type": "string"},
-        "params": {"type": "object", "additionalProperties": {"type": "string"}, "description": "Input of the command; on a move to a screen, the parameters of its address, read there as $param.<name> (dialog=<name> opens a dialog)."},
+        "params": {"type": "object", "additionalProperties": {"type": "string"}, "description": "Input of the command; on a move to a screen, the parameters of its address, read there as param.<name> (dialog=<name> opens a dialog)."},
         "record": {"type": "string", "description": "The record a move to a screen opens; the item by default."},
         "project": {"type": "string", "description": "The project of the screen a button of a deck screen opens."},
         "file": {"type": "string", "description": "A stored file the button downloads instead."},

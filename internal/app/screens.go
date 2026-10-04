@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"maps"
 	"slices"
-	"strconv"
 	"strings"
 	"sync"
 
@@ -184,7 +183,7 @@ type screenGetIn struct {
 	Topic   string `opt:"" desc:"Event topic that changed"`
 	Changed string `opt:"" desc:"Project the topic changed in; blocks that read no part of it are left out"`
 	Filter  string `type:"json" opt:"" desc:"Values the owner picked in block filters, as JSON: block id to field to value"`
-	Params  string `type:"json" opt:"" desc:"Parameters of the screen from its address, as a JSON object of names to text: $param.<name> in the screen"`
+	Params  string `type:"json" opt:"" desc:"Parameters of the screen from its address, as a JSON object of names to text: param.<name> in the screen, typed as it declares them"`
 	Lang    string `opt:"" desc:"Language of the texts of the screen, such as ru; as written without one"`
 }
 
@@ -284,7 +283,7 @@ func (s screenSources) Read(ctx context.Context, command string, input map[strin
 	if !c.Reads {
 		return nil, fmt.Errorf("%s is not a command that only reads", command)
 	}
-	types := paramTypes(c.Input)
+	types := manifest.FieldTypes(c.Input)
 	in := map[string]any{}
 	for k, v := range input {
 		if t, ok := v.(string); ok {
@@ -296,16 +295,8 @@ func (s screenSources) Read(ctx context.Context, command string, input map[strin
 		in["project"] = sc.Project
 	}
 	for k, v := range sc.Filter {
-		switch types[k] {
-		case "":
-		case "integer":
-			if n, err := strconv.ParseInt(v, 10, 64); err == nil {
-				in[k] = n
-			}
-		case "boolean":
-			in[k] = v == "true"
-		default:
-			in[k] = v
+		if types[k] != "" {
+			in[k] = manifest.Typed(v, types[k])
 		}
 	}
 	raw, _ := json.Marshal(in)
@@ -320,21 +311,6 @@ func (s screenSources) Read(ctx context.Context, command string, input map[strin
 	return manifest.DecodeExact(b)
 }
 
-// paramTypes are the JSON types of the input fields of a command.
-func paramTypes(schema json.RawMessage) map[string]string {
-	var in struct {
-		Properties map[string]struct{ Type any } `json:"properties"`
-	}
-	_ = json.Unmarshal(schema, &in)
-	out := map[string]string{}
-	for k, p := range in.Properties {
-		out[k], _ = p.Type.(string)
-		if out[k] == "" {
-			out[k] = "any"
-		}
-	}
-	return out
-}
 
 type screenDeck struct{ a *App }
 

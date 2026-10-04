@@ -221,8 +221,10 @@ type Screen struct {
 	Title string `json:"title"`
 	Icon  string `json:"icon,omitempty"`
 	// Record is the collection whose record the screen shows; the client opens it with the record id.
-	Record string  `json:"record,omitempty"`
-	Blocks []Block `json:"blocks"`
+	Record string `json:"record,omitempty"`
+	// Params are the parameters of its address by name and JSON type, param.<name> in its expressions.
+	Params map[string]string `json:"params,omitempty"`
+	Blocks []Block           `json:"blocks"`
 }
 
 type Block struct {
@@ -271,7 +273,7 @@ type Block struct {
 	Save    string `json:"save,omitempty"`
 	// Choices offer the values of fields of a form from a source.
 	Choices map[string]Choice `json:"choices,omitempty"`
-	// Values fill fields of a form before the owner types: fixed text, $param.<name> or $record.<field>.
+	// Values fill fields of a form before the owner types: fixed text, $record.<field> or =<expression>.
 	Values map[string]string `json:"values,omitempty"`
 	// KeepOpen keeps the dialog of a form open after its call, to show the result.
 	KeepOpen bool `json:"keep_open,omitempty"`

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"maps"
 	"reflect"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -59,10 +60,39 @@ func (m *Manifest) checkScreenList(deck bool, fail func(string, ...any)) {
 			fail("screen %q record: unknown collection %q", s.Name, s.Record)
 		}
 		c := &screenCheck{m: m, deck: deck, screen: s, fail: fail, dialogs: map[string]bool{}}
+		c.params()
 		for j, b := range s.Blocks {
 			c.block(fmt.Sprintf("screen %q block %d", s.Name, j), b)
 		}
 	}
+}
+
+var (
+	oldParam = regexp.MustCompile(`\$param\.([A-Za-z_][A-Za-z0-9_]*)`)
+	paramRef = regexp.MustCompile(`\bparam\.([A-Za-z_][A-Za-z0-9_]*)`)
+)
+
+// params checks that the expressions of a screen read only the parameters it declares, as param.<name>.
+func (c *screenCheck) params() {
+	raw, _ := json.Marshal(c.screen.Blocks)
+	text := string(raw)
+	for _, m := range oldParam.FindAllStringSubmatch(text, -1) {
+		c.fail("screen %q: $param.%s is now =param.%s, with %s declared in params of the screen", c.screen.Name, m[1], m[1], m[1])
+	}
+	text = oldParam.ReplaceAllString(text, "")
+	for _, m := range paramRef.FindAllStringSubmatch(text, -1) {
+		if _, ok := c.screen.Params[m[1]]; !ok {
+			c.fail("screen %q: no param %q; declare it in params of the screen", c.screen.Name, m[1])
+		}
+	}
+}
+
+// withParam adds param to the names an expression of the screen reads when the screen declares parameters.
+func (c *screenCheck) withParam(fields []string) []string {
+	if fields == nil || len(c.screen.Params) == 0 {
+		return fields
+	}
+	return append(slices.Clone(fields), "param")
 }
 
 // recordFields are the fields of the record of the page; nil when any name is a field.
@@ -71,7 +101,7 @@ func (c *screenCheck) recordFields() []string {
 	if col == nil || col.fields == nil {
 		return nil
 	}
-	return append(slices.Clone(col.fields), "_id", "_updated")
+	return c.withParam(append(slices.Clone(col.fields), "_id", "_updated"))
 }
 
 func (c *screenCheck) block(where string, b Block) {
@@ -235,6 +265,7 @@ func (c *screenCheck) when(where string, b Block) {
 	if env != nil && b.Source != nil && b.Source.From != LogSource {
 		env = append(env, "rows")
 	}
+	env = c.withParam(env)
 	if _, err := compileField(b.When, env); err != nil {
 		c.fail("%s when: %v", where, err)
 	}
@@ -297,6 +328,16 @@ func (c *screenCheck) values(where string, b Block) {
 		at := fmt.Sprintf("%s values %q", where, field)
 		if input != nil && !slices.Contains(props, field) {
 			c.fail("%s: the input has no field %q", at, field)
+		}
+		if e, ok := strings.CutPrefix(b.Values[field], "="); ok {
+			env := record
+			if env == nil && c.screen.Record == "" {
+				env = c.withParam([]string{})
+			}
+			if _, err := compileField(e, env); err != nil {
+				c.fail("%s: %v", at, err)
+			}
+			continue
 		}
 		f, ok := strings.CutPrefix(b.Values[field], "$record.")
 		switch {
@@ -409,6 +450,7 @@ func (c *screenCheck) source(where, typ string, src Source) ([]string, bool) {
 	if fields != nil && c.screen.Record != "" {
 		fields = append(fields, "record")
 	}
+	fields = c.withParam(fields)
 	if src.Where != "" {
 		if _, err := compileField(src.Where, fields); err != nil {
 			c.fail("%s where: %v", where, err)

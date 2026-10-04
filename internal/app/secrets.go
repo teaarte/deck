@@ -185,6 +185,6 @@ func (a *App) secretsCommands() []*registry.Command {
 			registry.OwnerOnly, a.secretDelete).Changes("secrets"),
 		registry.Read("secrets_list", "Secrets",
 			"Lists the names of stored secrets, never their values.",
-			registry.OwnerOnly, a.secretsList).On("secrets"),
+			registry.OwnerSide, a.secretsList).On("secrets"),
 	}
 }

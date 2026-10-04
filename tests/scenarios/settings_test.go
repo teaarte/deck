@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"deck2/internal/registry"
 	"deck2/internal/store/db"
 )
 
@@ -387,5 +388,16 @@ func TestAProjectHasItsOwnSettings(t *testing.T) {
 	}
 	if c := cells("Tokens with access"); len(c) != 1 || c[0][0] != "mine" {
 		t.Fatalf("only the tokens that reach the project: %v", c)
+	}
+}
+
+// TestTheMasterSeesTheNamesOfSecrets: the master lists the names of the secrets, never their values.
+func TestTheMasterSeesTheNamesOfSecrets(t *testing.T) {
+	e := newEnv(t, nil)
+	e.must("deck.secret_set", map[string]any{"name": "mail-key", "value": "s3cret-value"}, nil)
+	out, err := e.App.Registry.Invoke(context.Background(), registry.Actor{Kind: registry.Master, Workspace: 1}, "deck.secrets_list", []byte(`{}`))
+	raw, _ := json.Marshal(out)
+	if err != nil || string(raw) != `[{"name":"mail-key","set":true}]` {
+		t.Fatalf("the master gets the names of the secrets and no value: %s %v", raw, err)
 	}
 }

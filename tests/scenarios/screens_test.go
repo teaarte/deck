@@ -414,8 +414,11 @@ func TestScreenTopicReadsOnlyTheBlocksItChanges(t *testing.T) {
 	if got := paths("notes", "main", "asks"); !slices.Equal(got, []string{"/b2"}) {
 		t.Fatalf("asks reads the asks block: %v", got)
 	}
-	if got := paths("", "cockpit", "processes"); !slices.Equal(got, []string{"/b1-0"}) {
-		t.Fatalf("processes reads the processes block: %v", got)
+	if got := paths("", "cockpit", "feed"); !slices.Equal(got, []string{"/b1-1", "/b2-0"}) {
+		t.Fatalf("feed reads the blocks of the feed: %v", got)
+	}
+	if msgs := e.screenMessages("", "cockpit", map[string]any{"topic": "processes"}); len(msgs) != 3 {
+		t.Fatalf("processes draws the cockpit whole: Running now is there only while something runs: %v", msgs)
 	}
 	if got := paths("", "settings", "health"); !slices.Equal(got, []string{"/b0-1-2", "/b0-6-0"}) {
 		t.Fatalf("health reads the providers and the health: %v", got)

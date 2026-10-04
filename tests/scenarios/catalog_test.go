@@ -1,6 +1,7 @@
 package scenarios
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -12,6 +13,8 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	"deck2/internal/provider"
 )
 
 // forecastManifest is a module that tracks a price and forecasts its change: a stat of the last price, a table
@@ -425,4 +428,27 @@ func TestAPipeInTheDataFolderDoesNotHangMedia(t *testing.T) {
 	case <-time.After(10 * time.Second):
 		t.Fatal("a pipe in the data folder hangs the screen")
 	}
+}
+
+// TestTheCockpitHidesRunningNowWhenNothingRuns: the list of running processes is on the cockpit only while one
+// runs.
+func TestTheCockpitHidesRunningNowWhenNothingRuns(t *testing.T) {
+	hold := make(chan struct{})
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		select {
+		case <-hold:
+		case <-ctx.Done():
+		}
+		return provider.Result{Text: "{}"}
+	})
+	comps := func() string { return string(e.screenMessages("", "cockpit", nil)[1]["updateComponents"]) }
+	if strings.Contains(comps(), `"title":"Running now"`) {
+		t.Fatalf("nothing runs, so no list of what runs: %s", comps())
+	}
+	e.createProject("web", boardWebManifest)
+	e.waitState(e.start("web", "score", map[string]any{"title": "x"}), "running")
+	if !strings.Contains(comps(), `"title":"Running now"`) {
+		t.Fatalf("a running process shows the list: %s", comps())
+	}
+	close(hold)
 }

@@ -163,7 +163,7 @@
             {"verb": "deny", "primary": true, "command": "deck.ask_answer", "params": {"ask": "$record.id", "answer": "deny"}, "when": "expired"}
           ]},
         {"type": "columns", "blocks": [
-          {"type": "list", "title": "Running now",
+          {"type": "list", "title": "Running now", "when": "len(rows) > 0",
             "source": {"from": "deck.processes_list", "input": {"open": true}},
             "item": {"title": "project + '.' + command", "text": "silent ? 'silent' : state == 'waiting_slot' ? 'waits for a slot' : state == 'waiting_folder' ? 'waits for folder ' + folder : state", "meta": "'#' + string(id)"},
             "actions": [

@@ -24,6 +24,7 @@ import (
 	"deck2/internal/app/snapshots"
 	"deck2/internal/app/suggest"
 	"deck2/internal/app/tokens"
+	"deck2/internal/app/triggers"
 	"deck2/internal/ask"
 	"deck2/internal/docs"
 	"deck2/internal/events"
@@ -67,6 +68,7 @@ type App struct {
 	Files     *appfiles.Service
 	Journal   *journal.Service
 	Snapshots *snapshots.Service
+	Triggers  *triggers.Service
 	Scripts   *script.Exec
 	Tools     *tools.HTTP
 	MCP       *tools.MCP
@@ -107,6 +109,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	a.Folders = &folders.Service{St: st, Home: cfg.Home}
 	a.Files = &appfiles.Service{St: st, Home: h, Now: cfg.Now}
 	a.Journal = &journal.Service{St: st, Now: cfg.Now, Backups: h.Backups()}
+	a.Triggers = &triggers.Service{St: st}
 	a.Snapshots = &snapshots.Service{St: st, Bus: a.Bus, Home: h, Now: cfg.Now, LockFiles: a.Files.Mu.Lock, UnlockFiles: a.Files.Mu.Unlock,
 		RemoveFiles: a.Files.Remove}
 	a.Settings = &settings.Service{St: st, DefaultTTL: cfg.ConfirmTTL, Wake: func(ctx context.Context) { a.Runner.Wake(ctx) }}
@@ -148,6 +151,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	a.Chats.Runner, a.Suggest.Gateway, a.Tokens.Journal = a.Runner, a.Gateway, a.Gateway.Journal
 	a.Runner.Hooks = []process.Hook{a.Chats.NewHook(), errorsHook{a: a}, afterHook{a: a}}
 	a.Scheduler = trigger.New(st, a, cfg.Now)
+	a.Triggers.Scheduler, a.Triggers.Gateway, a.Triggers.Registry = a.Scheduler, a.Gateway, a.Registry
 	a.Asks.OnLateAnswer(a.lateAnswer)
 	if err := a.SeedSkills(a.ctx); err != nil {
 		return nil, err

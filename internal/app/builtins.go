@@ -14,7 +14,7 @@ func (a *App) addBuiltins() {
 		a.importCommands(), a.Journal.Commands(), a.liveCommands(), a.Devices.NotifyCommands(), a.oauthCommands(),
 		a.processCommands(), a.projectDeleteCommands(), a.Providers.Commands(), a.Devices.PushCommands(), a.recordCommands(),
 		a.screensCommands(), a.Secrets.Commands(), a.Settings.Commands(), a.Snapshots.Commands(), a.Suggest.Commands(),
-		a.Tokens.Commands(), a.triggersCommands(), a.Files.Commands(), a.Devices.VoiceCommands(), a.Cfg.Commands} {
+		a.Tokens.Commands(), a.Triggers.Commands(), a.Files.Commands(), a.Devices.VoiceCommands(), a.Cfg.Commands} {
 		for _, c := range cs {
 			a.Registry.Add(c)
 		}

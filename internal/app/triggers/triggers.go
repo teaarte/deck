@@ -1,4 +1,5 @@
-package app
+// Package triggers keeps the schedule of projects as commands: the triggers of manifests, runs later, pauses.
+package triggers
 
 import (
 	"cmp"
@@ -11,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"deck2/internal/gateway"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store"
@@ -18,10 +20,18 @@ import (
 	"deck2/internal/trigger"
 )
 
+// Service keeps the triggers; the scheduler fires them, the gateway runs a trigger now.
+type Service struct {
+	St        *store.Store
+	Scheduler *trigger.Scheduler
+	Gateway   *gateway.Gateway
+	Registry  *registry.Registry
+}
+
 // ownTrigger loads a trigger of the actor's workspace; agents reach only their own project.
-func (a *App) ownTrigger(ctx context.Context, act registry.Actor, id int64) (db.Trigger, db.Project, error) {
-	t, err := a.Store.Q.GetTrigger(ctx, id)
-	return access.Owned(ctx, a.Store.Q, act, t, err, t.ProjectID, registry.NotFound("deck: no trigger %d", id))
+func (s *Service) ownTrigger(ctx context.Context, act registry.Actor, id int64) (db.Trigger, db.Project, error) {
+	t, err := s.St.Q.GetTrigger(ctx, id)
+	return access.Owned(ctx, s.St.Q, act, t, err, t.ProjectID, registry.NotFound("deck: no trigger %d", id))
 }
 
 type runLaterIn struct {
@@ -30,7 +40,7 @@ type runLaterIn struct {
 	Params  string `type:"json" opt:"" desc:"Command input: a JSON object"`
 }
 
-func (a *App) runLater(ctx context.Context, act registry.Actor, in runLaterIn) (any, error) {
+func (s *Service) runLater(ctx context.Context, act registry.Actor, in runLaterIn) (any, error) {
 	if act.Trial {
 		return nil, registry.Refuse("deck: trial run: run later would start a real run, so it was declined")
 	}
@@ -46,7 +56,7 @@ func (a *App) runLater(ctx context.Context, act registry.Actor, in runLaterIn) (
 		return nil, registry.Invalid("deck: params: %v", err)
 	}
 	// The class rules apply when the trigger fires, so only the caller and the input are checked now.
-	cmd, _, err := a.Registry.Resolve(ctx, act, in.Command, json.RawMessage(in.Params))
+	cmd, _, err := s.Registry.Resolve(ctx, act, in.Command, json.RawMessage(in.Params))
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +66,7 @@ func (a *App) runLater(ctx context.Context, act registry.Actor, in runLaterIn) (
 	_, name, _ := strings.Cut(in.Command, ".")
 	raw, _ := json.Marshal(params)
 	var t db.Trigger
-	err = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		if p, err := q.GetProject(ctx, cmd.ProjectID); err != nil || p.Status == store.ProjectDraft {
 			if err == nil {
 				err = registry.Invalid("deck: %s is a draft; it runs on a schedule after the owner enables it", p.Name)
@@ -77,15 +87,15 @@ type runLaterCancelIn struct {
 	Trigger int64 `desc:"Trigger id"`
 }
 
-func (a *App) runLaterCancel(ctx context.Context, act registry.Actor, in runLaterCancelIn) (any, error) {
-	t, _, err := a.ownTrigger(ctx, act, in.Trigger)
+func (s *Service) runLaterCancel(ctx context.Context, act registry.Actor, in runLaterCancelIn) (any, error) {
+	t, _, err := s.ownTrigger(ctx, act, in.Trigger)
 	if err != nil {
 		return nil, err
 	}
 	if t.Kind != trigger.KindOnce {
 		return nil, registry.Invalid("deck: trigger %d comes from the manifest; pause it instead", t.ID)
 	}
-	err = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error { return q.DeleteTrigger(ctx, t.ID) })
+	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error { return q.DeleteTrigger(ctx, t.ID) })
 	if err != nil {
 		return nil, err
 	}
@@ -114,12 +124,12 @@ type triggerView struct {
 	LastState     string `json:"last_state"`
 }
 
-func (a *App) triggersList(ctx context.Context, act registry.Actor, in triggersListIn) ([]triggerView, error) {
-	pid, err := access.Filter(ctx, a.Store.Q, act, in.Project)
+func (s *Service) triggersList(ctx context.Context, act registry.Actor, in triggersListIn) ([]triggerView, error) {
+	pid, err := access.Filter(ctx, s.St.Q, act, in.Project)
 	if err != nil {
 		return nil, err
 	}
-	ts, err := a.Store.Q.ListWorkspaceTriggers(ctx, db.ListWorkspaceTriggersParams{WorkspaceID: act.Workspace, ProjectID: pid})
+	ts, err := s.St.Q.ListWorkspaceTriggers(ctx, db.ListWorkspaceTriggersParams{WorkspaceID: act.Workspace, ProjectID: pid})
 	if err != nil {
 		return nil, err
 	}
@@ -128,7 +138,7 @@ func (a *App) triggersList(ctx context.Context, act registry.Actor, in triggersL
 	for _, t := range ts {
 		p, ok := names[t.ProjectID]
 		if !ok {
-			if p, err = a.Store.Q.GetProject(ctx, t.ProjectID); err != nil {
+			if p, err = s.St.Q.GetProject(ctx, t.ProjectID); err != nil {
 				return nil, err
 			}
 			names[t.ProjectID] = p
@@ -138,7 +148,7 @@ func (a *App) triggersList(ctx context.Context, act registry.Actor, in triggersL
 			SkipMissed: t.SkipMissed == 1}
 		if t.LastProcessID.Valid {
 			v.LastProcess = t.LastProcessID.Int64
-			if lp, err := a.Store.Q.GetProcess(ctx, v.LastProcess); err == nil {
+			if lp, err := s.St.Q.GetProcess(ctx, v.LastProcess); err == nil {
 				v.LastState = lp.State
 			}
 		}
@@ -153,8 +163,8 @@ type triggerRunIn struct {
 
 // triggerRun starts the command of a schedule trigger now with its params, with the trigger's rights but not
 // as its slot: a pause does not hold it, its schedule stays, and a run of it still going is returned.
-func (a *App) triggerRun(ctx context.Context, act registry.Actor, in triggerRunIn) (any, error) {
-	t, p, err := a.ownTrigger(ctx, act, in.Trigger)
+func (s *Service) triggerRun(ctx context.Context, act registry.Actor, in triggerRunIn) (any, error) {
+	t, p, err := s.ownTrigger(ctx, act, in.Trigger)
 	if err != nil {
 		return nil, err
 	}
@@ -171,12 +181,12 @@ func (a *App) triggerRun(ctx context.Context, act registry.Actor, in triggerRunI
 	params[manifest.RetryKey] = fmt.Sprintf("trigger:%d", t.ID)
 	raw, _ := json.Marshal(params)
 	as := registry.Actor{Kind: registry.Trigger, Workspace: p.WorkspaceID, ProjectID: p.ID, TriggerID: t.ID, Confirmed: true}
-	out, err := a.Gateway.CallAs(ctx, as, p.Name+"."+t.Command, raw)
+	out, err := s.Gateway.CallAs(ctx, as, p.Name+"."+t.Command, raw)
 	if err != nil {
 		return nil, err
 	}
 	if t.Kind == trigger.KindOnce {
-		if err := a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error { return q.DeleteTrigger(ctx, t.ID) }); err != nil {
+		if err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error { return q.DeleteTrigger(ctx, t.ID) }); err != nil {
 			return nil, err
 		}
 	}
@@ -189,19 +199,19 @@ type triggerPauseIn struct {
 }
 
 // triggerPause pauses one trigger; a cron trigger that goes on again skips the runs of its pause.
-func (a *App) triggerPause(ctx context.Context, act registry.Actor, in triggerPauseIn) (any, error) {
-	t, _, err := a.ownTrigger(ctx, act, in.Trigger)
+func (s *Service) triggerPause(ctx context.Context, act registry.Actor, in triggerPauseIn) (any, error) {
+	t, _, err := s.ownTrigger(ctx, act, in.Trigger)
 	if err != nil {
 		return nil, err
 	}
-	err = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		if err := q.SetTriggerPaused(ctx, db.SetTriggerPausedParams{Paused: flag(in.Paused), ID: t.ID}); err != nil {
 			return err
 		}
 		if in.Paused {
 			return nil
 		}
-		return a.Scheduler.Rewind(ctx, q, t)
+		return s.Scheduler.Rewind(ctx, q, t)
 	})
 	if err != nil {
 		return nil, err
@@ -215,12 +225,12 @@ type projectPauseIn struct {
 }
 
 // projectPause pauses every trigger of a project, including those it gets later.
-func (a *App) projectPause(ctx context.Context, act registry.Actor, in projectPauseIn) (any, error) {
-	p, err := access.Project(ctx, a.Store.Q, act, in.Project)
+func (s *Service) projectPause(ctx context.Context, act registry.Actor, in projectPauseIn) (any, error) {
+	p, err := access.Project(ctx, s.St.Q, act, in.Project)
 	if err != nil {
 		return nil, err
 	}
-	err = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		if err := q.SetProjectPaused(ctx, db.SetProjectPausedParams{Paused: flag(in.Paused), ID: p.ID}); err != nil {
 			return err
 		}
@@ -232,7 +242,7 @@ func (a *App) projectPause(ctx context.Context, act registry.Actor, in projectPa
 			return err
 		}
 		for _, t := range ts {
-			if err := a.Scheduler.Rewind(ctx, q, t); err != nil {
+			if err := s.Scheduler.Rewind(ctx, q, t); err != nil {
 				return err
 			}
 		}
@@ -251,25 +261,26 @@ func flag(b bool) int64 {
 	return 0
 }
 
-func (a *App) triggersCommands() []*registry.Command {
+// Commands are the commands of triggers.
+func (s *Service) Commands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("run_later", "Run later",
 			"Runs a project command once at the given time; a run missed while deck was down runs after it starts.",
-			registry.Everyone, a.runLater),
+			registry.Everyone, s.runLater),
 		registry.Def("run_later_cancel", "Cancel run later",
 			"Cancels a run scheduled with run later.",
-			registry.Everyone, a.runLaterCancel),
+			registry.Everyone, s.runLaterCancel),
 		registry.Read("triggers_list", "Schedule",
 			"Lists triggers with their next run, pause and the state of their last run.",
-			registry.Everyone, a.triggersList).On("triggers"),
+			registry.Everyone, s.triggersList).On("triggers"),
 		registry.Def("trigger_pause", "Pause trigger",
 			"Pauses or resumes one trigger; a resumed schedule does not catch up its pause.",
-			registry.OwnerSide, a.triggerPause),
+			registry.OwnerSide, s.triggerPause),
 		registry.Def("trigger_run", "Run now",
 			"Starts the command of a schedule trigger now with its params; its schedule stays, and a run still going is returned.",
-			registry.OwnerSide, a.triggerRun),
+			registry.OwnerSide, s.triggerRun),
 		registry.Def("project_pause", "Pause project",
 			"Pauses or resumes every trigger of a project, including triggers added later.",
-			registry.OwnerSide, a.projectPause).Changes("triggers"),
+			registry.OwnerSide, s.projectPause).Changes("triggers"),
 	}
 }

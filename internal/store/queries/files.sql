@@ -25,7 +25,8 @@ DELETE FROM file
 WHERE (owner_kind = 'record' AND owner_id NOT IN (SELECT id FROM record))
    OR (owner_kind = 'card' AND owner_id NOT IN (SELECT id FROM card))
    OR (owner_kind = 'process' AND owner_id NOT IN (SELECT id FROM process))
-   OR (owner_kind = 'chat_message' AND owner_id NOT IN (SELECT id FROM chat_message))
+   OR (owner_kind = 'chat_message' AND owner_id NOT IN (SELECT m.id FROM chat_message m JOIN chat_topic t ON t.id = m.topic_id
+       WHERE t.deleted_at IS NULL))
 RETURNING id;
 
 

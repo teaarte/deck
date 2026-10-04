@@ -2,7 +2,7 @@ import { memo } from 'react';
 import { A2uiSurface } from '@a2ui/react/v0_9';
 import { Alert, Loader } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
-import type { Route } from '../router';
+import type { Route } from '../app/router';
 import { ScreenActionsContext } from './ScreenActions';
 import { useScreen } from './useScreen';
 

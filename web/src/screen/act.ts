@@ -3,7 +3,7 @@ import i18n from '../lib/i18n';
 import { notifyDone, notifyError } from '../lib/notify';
 import type { Action } from '../lib/catalog.gen';
 import { openTopic } from '../chat/chatStore';
-import { go } from '../router';
+import { go } from '../app/router';
 
 // summary is the line a command result shows as: a started process, its result or text, or done.
 export function summary(out: unknown): string {

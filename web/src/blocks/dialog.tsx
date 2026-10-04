@@ -2,7 +2,7 @@ import { createComponentImplementation } from '@a2ui/react/v0_9';
 import { Button, Group, Modal, Stack, Text } from '@mantine/core';
 import s from '../shell.module.css';
 import { DialogClose } from '../screen/dialogContext';
-import { dropParam, setParam, useRoute } from '../router';
+import { dropParam, setParam, useRoute } from '../app/router';
 import { NamedIcon } from '../ui/NamedIcon';
 import { api, kids } from './blockImpl';
 

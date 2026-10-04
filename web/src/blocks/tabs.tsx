@@ -1,7 +1,7 @@
 import { createComponentImplementation } from '@a2ui/react/v0_9';
 import { Stack, Tabs, Title } from '@mantine/core';
 import s from '../shell.module.css';
-import { setParam, useRoute } from '../router';
+import { setParam, useRoute } from '../app/router';
 import { NamedIcon } from '../ui/NamedIcon';
 import type { Span } from './Block';
 import { api, children } from './blockImpl';

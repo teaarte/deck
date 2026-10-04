@@ -7,7 +7,7 @@ import i18n from '../lib/i18n';
 import { notifyError } from '../lib/notify';
 import catalogSchema from '../lib/catalogSchema';
 import type { Action } from '../lib/catalog.gen';
-import { screenKey, serverParams, type Route } from '../router';
+import { screenKey, serverParams, type Route } from '../app/router';
 import { act } from './act';
 import { catalog } from './catalog';
 import { Feed, type Message } from './feed';

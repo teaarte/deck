@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ActionIcon, Badge, Button, CloseButton, Group, Menu, Textarea, Tooltip } from '@mantine/core';
 import { IconArrowUp, IconMapPin, IconMessagePlus, IconMicrophone, IconPaperclip, IconPlayerStopFilled, IconPlus } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import { useRoute } from '../router';
+import { useRoute } from '../app/router';
 import s from '../shell.module.css';
 import type { useAttachments } from './useAttachments';
 import { useVoice } from './useVoice';

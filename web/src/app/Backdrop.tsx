@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { loadIcons, svgOf, type Nodes } from './lib/icons';
-import { useLook } from './theme/look';
-import s from './shell.module.css';
+import { loadIcons, svgOf, type Nodes } from '../lib/icons';
+import { useLook } from '../theme/look';
+import s from '../shell.module.css';
 
 const CELL = 72;
 const CELLS = 10;

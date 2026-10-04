@@ -2,12 +2,12 @@ import { useCallback, useEffect, useState } from 'react';
 import { ActionIcon, Button, Group, Indicator, Popover, ScrollArea, Stack, Text, UnstyledButton } from '@mantine/core';
 import { IconBell, IconBellOff } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import { call } from './lib/api';
-import { events } from './lib/events';
-import { formatted } from './lib/format';
+import { call } from '../lib/api';
+import { events } from '../lib/events';
+import { formatted } from '../lib/format';
 import { go } from './router';
-import s from './shell.module.css';
-import { notifyError, notifyDone } from './lib/notify';
+import s from '../shell.module.css';
+import { notifyError, notifyDone } from '../lib/notify';
 
 interface Note {
   id: number;

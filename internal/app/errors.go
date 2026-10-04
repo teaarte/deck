@@ -72,7 +72,7 @@ func (a *App) screenFailed(ctx context.Context, p db.Project, revision int64, na
 		if !a.firstTime(ctx, p, screenErrorPrefix+key) {
 			continue
 		}
-		health.Write(ctx, a.Store, health.Project(p), "screen:"+name, "error", e)
+		health.Write(ctx, a.Store, health.Project(p), "screen:"+p.Name+"."+name, "error", e)
 		a.handOver(ctx, p, masterErrorPrefix+key, 0, map[string]any{"project": p.Name, "screen": name, "error": e}, nil)
 	}
 }

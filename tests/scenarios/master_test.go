@@ -164,33 +164,37 @@ func TestABlockThatFailsOnAScreenReachesTheMaster(t *testing.T) {
 	if broken == boardWebManifest {
 		t.Fatal("fixture replacement did not apply")
 	}
-	e.createProject("web", broken)
-	e.must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": "<p>x</p>"}, nil)
-	e.must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": jsonl(map[string]any{"title": "b"})}, nil)
+	for _, name := range []string{"web", "web2"} {
+		e.createProject(name, broken)
+		e.must("deck.document_save", map[string]any{"project": name, "name": "custom/chart.html", "kind": "custom", "text": "<p>x</p>"}, nil)
+		e.must("deck.records_upsert", map[string]any{"project": name, "collection": "notes", "records": jsonl(map[string]any{"title": "b"})}, nil)
+	}
 	e.screenMessages("web", "main", nil)
 	e.waitFor("on_error", func() bool { return len(e.runsOf("master", "on_error")) == 1 })
 	got, _ := e.App.Store.Q.GetProcess(context.Background(), e.runsOf("master", "on_error")[0].ID)
 	if !strings.Contains(got.Input, `"screen":"main"`) || !strings.Contains(got.Input, `"project":"web"`) || !strings.Contains(got.Input, "Score") {
 		t.Fatalf("the master gets the screen, the block and the error: %s", got.Input)
 	}
+	e.screenMessages("web2", "main", nil)
+	e.waitHealth("screen:web2.main", "error")
 	var hs []struct{ Subject, Status string }
 	e.must("deck.health_list", map[string]any{"project": "web"}, &hs)
 	found := false
 	for _, h := range hs {
-		found = found || h.Subject == "screen:main" && h.Status == "error"
+		found = found || h.Subject == "screen:web.main" && h.Status == "error"
 	}
 	if !found {
 		t.Fatalf("the health of the module names the screen: %+v", hs)
 	}
 	e.screenMessages("web", "main", nil)
 	time.Sleep(100 * time.Millisecond)
-	if n := len(e.runsOf("master", "on_error")); n != 1 {
-		t.Fatalf("once per block and revision: %d", n)
+	if n := len(e.runsOf("master", "on_error")); n != 2 {
+		t.Fatalf("once per block and revision of each module: %d", n)
 	}
 	e.must("deck.manifest_save", map[string]any{"project": "web", "manifest": boardWebManifest}, nil)
 	e.must("deck.health_list", map[string]any{"project": "web"}, &hs)
 	for _, h := range hs {
-		if h.Subject == "screen:main" {
+		if h.Subject == "screen:web.main" {
 			t.Fatalf("a new revision starts the screen over: %+v", hs)
 		}
 	}
@@ -209,7 +213,7 @@ func TestABlockThatFailsIsInTheHealthOfItsModuleWithoutTheMaster(t *testing.T) {
 	var hs []struct{ Subject, Status string }
 	e.must("deck.health_list", map[string]any{"project": "web"}, &hs)
 	if !slices.ContainsFunc(hs, func(h struct{ Subject, Status string }) bool {
-		return h.Subject == "screen:main" && h.Status == "error"
+		return h.Subject == "screen:web.main" && h.Status == "error"
 	}) {
 		t.Fatalf("the health of the module names the screen: %+v", hs)
 	}

@@ -68,9 +68,16 @@ func TestRealBrowserShell(t *testing.T) {
 
 	b.open(e.URL + "/#/deck/journal?tab=Spend")
 	b.until("the stats and the chart of the spend", `document.querySelectorAll('[data-stat]').length === 4 && document.querySelector('[data-chart-block] svg')`)
+	if got := b.eval(`String(new Set([...document.querySelectorAll('[data-stat]')].map((x) => Math.round(x.closest('[data-block]').getBoundingClientRect().top))).size)`); got != "1" {
+		t.Fatalf("the four numbers of the spend stand in one row: %s", got)
+	}
 	b.shot("shell-spend")
 	b.open(e.URL + "/#/deck/schedule")
 	b.until("the runs chart of the schedule", `document.querySelector('[data-chart-block] svg')`)
+	if got := b.eval(`(() => { const g = document.querySelector('[data-grid]').getBoundingClientRect(); const cells = [...document.querySelector('[data-grid]').children].map((c) => c.getBoundingClientRect());
+		const top = cells.filter((c) => Math.abs(c.top - cells[0].top) < 2); return String(Math.abs(top[top.length - 1].right - g.right) < 2) })()`); got != "true" {
+		t.Fatalf("the blocks of a row fill the width of the screen: %s", got)
+	}
 	b.shot("shell-schedule")
 	b.open(e.URL + "/#/deck/settings")
 	b.until("the tabs of settings", `[...document.querySelectorAll('[role=tab]')].some((x) => x.innerText.trim() === 'Providers')`)

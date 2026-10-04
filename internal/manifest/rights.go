@@ -139,15 +139,18 @@ func toolWidens(prev, next *Manifest, t HTTPTool) []string {
 	return out
 }
 
-// Clip is m with only the rights granted gives: autonomy, network, allowed external actions, domains and reads
-// it lacks are dropped, and an HTTP tool that would widen them is external and asks the owner on every call.
+// Registries are the package registries a manifest reaches by naming them, before any grant.
+var Registries = []string{"pypi.org", "files.pythonhosted.org", "registry.npmjs.org"}
+
+// Clip is m with only the rights granted gives: autonomy, network, allowed external actions, domains other than
+// registries and reads it lacks are dropped; an HTTP tool that would widen them asks the owner on every call.
 func Clip(granted, m *Manifest) *Manifest {
 	c := *m
 	if granted.Autonomy != "auto" {
 		c.Autonomy = ""
 	}
 	c.NoNetwork = m.NoNetwork || granted.NoNetwork
-	c.Domains = Domains{Read: kept(m.Domains.Read, granted.Domains.Read), Act: kept(m.Domains.Act, granted.Domains.Act)}
+	c.Domains = Domains{Read: kept(m.Domains.Read, append(slices.Clone(Registries), granted.Domains.Read...)), Act: kept(m.Domains.Act, granted.Domains.Act)}
 	c.AllowedExternal = kept(m.AllowedExternal, granted.AllowedExternal)
 	c.Tools.HTTP = slices.Clone(m.Tools.HTTP)
 	for i, t := range c.Tools.HTTP {

@@ -522,3 +522,35 @@ func TestABaseFromBeforeGrantsKeepsTheRightsOfEnabledProjects(t *testing.T) {
 		t.Fatalf("only the enabled project keeps its rights: %d %s, %d requests", code, out, len(svc.requests()))
 	}
 }
+
+// TestAScriptOfADraftInstallsItsPackages: before the owner enables a draft, its scripts reach the package
+// registries its domains name and nothing else there.
+func TestAScriptOfADraftInstallsItsPackages(t *testing.T) {
+	e := newEnv(t, nil)
+	_, tok := e.token("terminal", "deck.*", "pkgs.*")
+	if code, out := e.callWith(tok, "deck.project_create", map[string]any{"name": "pkgs",
+		"manifest": scriptManifest("run", "", `, "domains": {"read": ["pypi.org", "example.com"]}`)}); code != 200 {
+		t.Fatalf("project_create: %d %s", code, out)
+	}
+	e.saveScript("pkgs", "scripts/main.py", pythonLib+`
+def why(url):
+    proxy = os.environ["HTTP_PROXY"]
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({"http": proxy, "https": proxy}))
+    try:
+        with opener.open(url, timeout=10) as r:
+            return "reached"
+    except urllib.error.HTTPError as e:
+        return e.read().decode()
+    except Exception as e:
+        return str(e)
+print(json.dumps({"registry": why("http://pypi.org/simple/"), "site": why("http://example.com/")}))
+`)
+	var run struct{ Process int64 }
+	e.must("pkgs.run", map[string]any{}, &run)
+	p := e.waitScript(run.Process, "done", "error")
+	var got struct{ Registry, Site string }
+	_ = json.Unmarshal(p.Result, &got)
+	if strings.Contains(got.Registry, "not in the domains") || !strings.Contains(got.Site, "not in the domains") {
+		t.Fatalf("a draft's script reaches the registries it names, not its other domains: %s", p.Result)
+	}
+}

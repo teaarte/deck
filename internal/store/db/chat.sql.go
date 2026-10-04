@@ -508,6 +508,25 @@ func (q *Queries) OpenTopicProcess(ctx context.Context, topicID int64) (Process,
 	return i, err
 }
 
+const purgeDeletedTopics = `-- name: PurgeDeletedTopics :exec
+DELETE FROM chat_topic WHERE deleted_at < ?1
+`
+
+func (q *Queries) PurgeDeletedTopics(ctx context.Context, before sql.NullString) error {
+	_, err := q.db.ExecContext(ctx, purgeDeletedTopics, before)
+	return err
+}
+
+const purgeTopicSummaries = `-- name: PurgeTopicSummaries :exec
+DELETE FROM document WHERE project_id IN (SELECT id FROM project WHERE builtin = 1) AND name GLOB 'topics/*/*'
+    AND CAST(substr(name, 8, instr(substr(name, 8), '/') - 1) AS INTEGER) IN (SELECT t.id FROM chat_topic t WHERE t.deleted_at < ?1)
+`
+
+func (q *Queries) PurgeTopicSummaries(ctx context.Context, before sql.NullString) error {
+	_, err := q.db.ExecContext(ctx, purgeTopicSummaries, before)
+	return err
+}
+
 const seeChat = `-- name: SeeChat :exec
 UPDATE chat_session SET seen = MAX(seen, ?1) WHERE topic_id = ?2 AND session_id = ?3
 `

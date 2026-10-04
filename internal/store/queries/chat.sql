@@ -119,3 +119,12 @@ WHERE t.workspace_id = sqlc.arg(workspace_id) AND t.deleted_at IS NULL
     AND (CAST(sqlc.arg(topic) AS INTEGER) = 0 AND t.archived = sqlc.arg(archived) OR t.id = CAST(sqlc.arg(topic) AS INTEGER))
 ORDER BY t.updated_at DESC, t.id DESC
 LIMIT sqlc.arg(lim);
+
+
+-- name: PurgeTopicSummaries :exec
+DELETE FROM document WHERE project_id IN (SELECT id FROM project WHERE builtin = 1) AND name GLOB 'topics/*/*'
+    AND CAST(substr(name, 8, instr(substr(name, 8), '/') - 1) AS INTEGER) IN (SELECT t.id FROM chat_topic t WHERE t.deleted_at < sqlc.arg(before));
+
+
+-- name: PurgeDeletedTopics :exec
+DELETE FROM chat_topic WHERE deleted_at < sqlc.arg(before);

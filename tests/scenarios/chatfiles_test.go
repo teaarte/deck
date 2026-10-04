@@ -93,3 +93,29 @@ func TestTheFilesOfADeletedTopicGoWithTheCleanup(t *testing.T) {
 		t.Fatalf("the attachment of a deleted topic is removed: %v", err)
 	}
 }
+
+// TestADeletedTopicIsGoneAfterAMonth: the daily cleanup removes a topic deleted more than 30 days ago with its
+// messages and summary; an archived topic stays.
+func TestADeletedTopicIsGoneAfterAMonth(t *testing.T) {
+	e := newClockEnv(t, func(ctx context.Context, c *Call) provider.Result { return provider.Result{Text: "Noted."} })
+	e.sweep()
+	gone := e.say(0, "drop me")
+	e.masterSaid(gone, 1)
+	kept := e.say(0, "keep me")
+	e.masterSaid(kept, 1)
+	e.must("deck.document_save", map[string]any{"project": "master", "name": fmt.Sprintf("topics/%d/summary.md", gone), "kind": "artifact", "text": "s"}, nil)
+	e.must("deck.chat_topic_delete", map[string]any{"topic": gone}, nil)
+	e.must("deck.chat_topic_archive", map[string]any{"topic": kept, "archived": true}, nil)
+	e.Clock.Add(31 * 24 * time.Hour)
+	e.sweep()
+	var n int
+	if err := e.App.Store.DB.QueryRow(`SELECT (SELECT COUNT(*) FROM chat_message WHERE topic_id = ?) + (SELECT COUNT(*) FROM chat_topic WHERE id = ?)
+		+ (SELECT COUNT(*) FROM document WHERE name = ?)`, gone, gone, fmt.Sprintf("topics/%d/summary.md", gone)).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("the deleted topic, its messages and summary are gone: %d %v", n, err)
+	}
+	var ts []struct{ ID int64 }
+	e.must("deck.chat_topics", map[string]any{"archived": true}, &ts)
+	if len(ts) != 1 || ts[0].ID != kept {
+		t.Fatalf("the archive stays: %+v", ts)
+	}
+}

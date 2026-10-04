@@ -200,10 +200,12 @@ func (a *App) daily(ctx context.Context, now time.Time) {
 	}
 }
 
-// journalKept is how long the journal of calls and spend keeps a row; notesKept, a note of the feed.
+// journalKept is how long the journal of calls and spend keeps a row; notesKept, a note of the feed; topicsKept,
+// a deleted chat topic.
 const (
 	journalKept = 180 * 24 * time.Hour
 	notesKept   = 90 * 24 * time.Hour
+	topicsKept  = 30 * 24 * time.Hour
 )
 
 // cleanup removes expired records, files left without an owner, stale uploads, old journal rows and notify
@@ -213,6 +215,13 @@ func (a *App) cleanup(ctx context.Context, now time.Time) {
 	err := a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		var err error
 		if gone, err = a.expire(ctx, q, now); err != nil {
+			return err
+		}
+		deleted := sql.NullString{String: store.Time(now.Add(-topicsKept)), Valid: true}
+		if err := q.PurgeTopicSummaries(ctx, deleted); err != nil {
+			return err
+		}
+		if err := q.PurgeDeletedTopics(ctx, deleted); err != nil {
 			return err
 		}
 		orphans, err := q.PurgeOrphanFiles(ctx)

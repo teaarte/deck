@@ -146,11 +146,9 @@ func (s *Store) Tx(ctx context.Context, f func(ctx context.Context, q *db.Querie
 	}()
 	if err := f(context.WithValue(ctx, txKey{}, true), s.Q.WithTx(tx)); err != nil {
 		_ = tx.Rollback()
-		s.changes.take()
 		return err
 	}
 	if err := tx.Commit(); err != nil {
-		s.changes.take()
 		return err
 	}
 	if ws := s.changes.take(); len(ws) > 0 && s.Changed != nil {

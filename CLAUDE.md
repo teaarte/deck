@@ -25,7 +25,8 @@ Stage 1 plan: `docs/plan-stage1.md`; next: block catalog `docs/plan-catalog.md`.
 ## Layout
 
 - `cmd/deck` — entry point
-- `internal/store` — SQLite: one base schema `migrations/00001_base.sql` (old bases are not upgraded; a later
+- `internal/store` — SQLite: a committed write publishes the topic of its table in the project of the row
+  (`changes.go`, the SQLite pre-update hook); one base schema `migrations/00001_base.sql` (old bases are not upgraded; a later
   change of the schema is a new goose migration), sqlc queries (`db/` is generated)
 - `internal/registry` — command registry: every input (API, MCP, triggers) calls commands through it;
   input schemas limited to App Intents types; `registry.Def` takes the schema from the tagged input struct;
@@ -33,16 +34,23 @@ Stage 1 plan: `docs/plan-stage1.md`; next: block catalog `docs/plan-catalog.md`.
   topics (a read without them panics; `registry.Static` for none); `actor.go`, `errors.go`
 - `internal/docs` — documents with revisions, skill files, the manifest reader with its parse cache, `Manifests` (the
   current manifests of a deck kept by document and revision), `Patch` (JSON Patch keeping the text around a replace)
-- `internal/app` — wiring, builtin `deck.*` commands (each `*_handlers.go` lists its own next to the handlers),
-  projects; `app/board` — cards and boards; `app/providers` — providers, which command runs on which, self-checks; `app/devices` — the feed, push, speech to text; who may touch what is `app/access`; `app/records` — records of collections;
+- `internal/app` — wiring: `App` builds the domain services, hands them each other's functions, registers their
+  commands and runs `Loop`/`Sweep`; it still keeps the processes (`process_handlers.go`, `live.go`), errors to the
+  master (`errors.go`), records (`record_handlers.go`), `health_list.go` and the screens below. Each domain is a package
+  `app/<area>` with a `Service` (narrow dependencies as fields, functions of other services as fields) and
+  `Commands()`; no domain package imports `internal/app`: `project` (manifests, drafts, import, delete, migrations,
+  the commands a manifest gives the registry), `asks` (what waits for the owner and its answers), `connections`
+  (sign-ins of the browser and oauth2 tools, MCP servers), `documents` (documents, shipped skills, health of
+  scripts), `triggers`, `snapshots` (snapshots, cleanup, disk), `journal`, `files`, `folders`, `settings` (one table
+  `settingDefs`), `secrets`, `tokens`, `board`, `providers`, `devices` (feed, push, speech to text), `chat`,
+  `suggest`, `records`, `screens`; who may touch what is `app/access`;
   a screen block reads a `registry.Read` command (`"from": "deck.asks_list"`), called as the viewer in
   `app/screen_get.go` (`deck.screen`; the menu `menu.go`, `commands_list.go`, translations `i18n.go`); `app/screens` —
   the sources of screens: records, boards, forms, documents;
   deck's screens are data in `screens.json`: menu Cockpit, Schedule, Settings (tabs Projects, Providers, Secrets,
   Tokens, General, Interface, Health), Journal (Calls, Spend, Files, Snapshots); `project` screens (Documents, the page of
   a document and Settings of the project: its commands and providers, folders, tools, secrets, tokens, health) deck adds
-  to every project; settings the owner changes (`deck.settings_set`) are one table `settingDefs` (`settings.go`), kept
-  in `setting` with defaults from `Config`
+  to every project
 - `internal/manifest` — project manifest: `types.go`, `parse.go`, `lookup.go`, `collection.go`, checks of screens by
   part (`check_*.go`), expressions; one `Resolve` of a value (fixed, `$record.<field>`, `=<expression>` with
   `param` of the screen) and `FieldTypes`; the texts of a manifest and their translation `words.go`

@@ -60,11 +60,12 @@ type rowWrite struct {
 	ids   []int64
 }
 
-// changes keeps the writes of the open transaction until it commits.
+// changes keeps the writes of the open transaction until it commits, then until they are published.
 type changes struct {
-	mu      sync.Mutex
-	columns map[string][]string
-	pending []rowWrite
+	mu        sync.Mutex
+	columns   map[string][]string
+	pending   []rowWrite
+	committed []rowWrite
 }
 
 func (c *changes) preUpdate(d sqlite.SQLitePreUpdateData) {
@@ -136,6 +137,13 @@ func scopeID(row []any, at int) (int64, bool) {
 	return id, ok
 }
 
+func (c *changes) commit() int32 {
+	c.mu.Lock()
+	c.committed, c.pending = append(c.committed, c.pending...), nil
+	c.mu.Unlock()
+	return 0
+}
+
 func (c *changes) rollback() {
 	c.mu.Lock()
 	c.pending = nil
@@ -145,8 +153,8 @@ func (c *changes) rollback() {
 func (c *changes) take() []rowWrite {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	out := c.pending
-	c.pending = nil
+	out := c.committed
+	c.committed = nil
 	return out
 }
 
@@ -160,6 +168,7 @@ func (h hooked) Connect(ctx context.Context) (driver.Conn, error) {
 	conn, err := h.Connector.Connect(ctx)
 	if r, ok := conn.(sqlite.HookRegisterer); ok && err == nil {
 		r.RegisterPreUpdateHook(h.c.preUpdate)
+		r.RegisterCommitHook(h.c.commit)
 		r.RegisterRollbackHook(h.c.rollback)
 	}
 	return conn, err
@@ -184,7 +193,7 @@ func (c *changes) readColumns(conn *sql.DB) error {
 		rows.Close()
 	}
 	c.mu.Lock()
-	c.columns, c.pending = cols, nil
+	c.columns, c.pending, c.committed = cols, nil, nil
 	c.mu.Unlock()
 	return nil
 }

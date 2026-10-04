@@ -158,13 +158,13 @@ func (r *renderer) choices(b manifest.Block, cmd map[string]any) (map[string]any
 		}
 		opts := make([]map[string]any, 0, len(items))
 		for _, it := range items {
-			v, err := manifest.Eval(ch.Value, it)
+			v, err := r.eval(ch.Value, it)
 			if err != nil {
 				return nil, fmt.Errorf("choices %q value: %w", field, err)
 			}
 			label := fmt.Sprint(v)
 			if ch.Label != "" {
-				l, err := manifest.Eval(ch.Label, it)
+				l, err := r.eval(ch.Label, it)
 				if err != nil {
 					return nil, fmt.Errorf("choices %q label: %w", field, err)
 				}

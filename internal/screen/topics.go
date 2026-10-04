@@ -2,6 +2,7 @@ package screen
 
 import (
 	"slices"
+	"strings"
 
 	"deck2/internal/manifest"
 )
@@ -11,15 +12,27 @@ func follows(b manifest.Block, deck bool, topic string) bool {
 	return slices.Contains(topicsOf(b, deck), topic)
 }
 
-// reads says whether a block reads a part of a project: a block of a deck screen reads every project.
+// reads says whether a block of the screen reads a part of a project.
 func (r *renderer) reads(b manifest.Block, project string) bool {
+	return readsProject(b, r.deck(), r.req.Project.Name, project)
+}
+
+// readsProject says whether a block of the screen of project own reads a part of project: a block of a deck
+// screen reads every one; a command reads the project its input names, every one for an empty or computed name.
+func readsProject(b manifest.Block, deck bool, own, project string) bool {
 	switch {
-	case project == "" || r.deck():
+	case project == "" || deck:
 		return true
-	case b.Source != nil && b.Source.Project != "":
+	case b.Source == nil:
+		return project == own
+	case b.Source.Project != "":
 		return b.Source.Project == project
 	}
-	return project == r.req.Project.Name
+	if v, ok := b.Source.Input["project"]; ok {
+		s, _ := v.(string)
+		return s == "" || strings.HasPrefix(s, "=") || strings.HasPrefix(s, "$") || s == project
+	}
+	return project == own
 }
 
 // topicsOf are the event topics after which the block is read again.
@@ -47,9 +60,9 @@ func topicsOf(b manifest.Block, deck bool) []string {
 	return rc.Topics
 }
 
-// changesWhen reports whether an event of the topic may put a block on the screen or take it off: its when
-// reads its source or the record of the page. The screen is then resolved whole.
-func changesWhen(bs []manifest.Block, record string, deck bool, topic string) bool {
+// changesWhen reports whether an event of the topic in project changed may put a block of the screen of project
+// own on it or take it off: its when reads its source or the record of the page. The screen is then resolved whole.
+func changesWhen(bs []manifest.Block, record string, deck bool, own, changed, topic string) bool {
 	page := "collection"
 	switch {
 	case deck:
@@ -59,13 +72,13 @@ func changesWhen(bs []manifest.Block, record string, deck bool, topic string) bo
 	}
 	for _, b := range bs {
 		switch {
-		case b.When != "" && record != "" && topic == page,
-			b.When != "" && b.Source != nil && slices.Contains(topicsOf(b, deck), topic),
-			changesWhen(b.Blocks, record, deck, topic):
+		case b.When != "" && record != "" && topic == page && (changed == "" || deck || changed == own),
+			b.When != "" && b.Source != nil && slices.Contains(topicsOf(b, deck), topic) && readsProject(b, deck, own, changed),
+			changesWhen(b.Blocks, record, deck, own, changed, topic):
 			return true
 		}
 		for _, t := range b.Tabs {
-			if changesWhen(t.Blocks, record, deck, topic) {
+			if changesWhen(t.Blocks, record, deck, own, changed, topic) {
 				return true
 			}
 		}

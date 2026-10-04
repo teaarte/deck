@@ -13,11 +13,11 @@ import (
 func (r *renderer) file(b manifest.Block, it map[string]any) map[string]any {
 	line := map[string]any{"id": it["_id"]}
 	if b.Item.Title != "" {
-		if v, err := manifest.Eval(b.Item.Title, it); err == nil && v != nil {
+		if v, err := r.eval(b.Item.Title, it); err == nil && v != nil {
 			line["title"] = fmt.Sprint(v)
 		}
 	}
-	ref, err := manifest.Eval(b.Item.File, it)
+	ref, err := r.eval(b.Item.File, it)
 	if err != nil {
 		line["error"] = "file: " + err.Error()
 		return line
@@ -35,13 +35,13 @@ func (r *renderer) file(b manifest.Block, it map[string]any) map[string]any {
 const ChartPoints = 500
 
 // chart is the data of a chart: the x of each item and, by series, its value; a value that is not a number is a gap.
-func chart(b manifest.Block, items []map[string]any) (map[string]any, error) {
+func (r *renderer) chart(b manifest.Block, items []map[string]any) (map[string]any, error) {
 	if len(items) > ChartPoints {
 		items = items[len(items)-ChartPoints:]
 	}
 	xs := make([]any, 0, len(items))
 	for _, it := range items {
-		x, err := manifest.Eval(b.X, it)
+		x, err := r.eval(b.X, it)
 		if err != nil {
 			return nil, fmt.Errorf("x: %w", err)
 		}
@@ -51,7 +51,7 @@ func chart(b manifest.Block, items []map[string]any) (map[string]any, error) {
 	for _, s := range b.Series {
 		values := make([]any, 0, len(items))
 		for _, it := range items {
-			y, err := manifest.Eval(s.Y, it)
+			y, err := r.eval(s.Y, it)
 			if err != nil {
 				return nil, fmt.Errorf("series %q: %w", s.Label, err)
 			}
@@ -98,11 +98,11 @@ func shown(props map[string]any, format, currency string) map[string]any {
 
 // setTone sets the tone of a value by its expression; a value that is not a tone, or an expression that fails
 // over this item, is none.
-func setTone(props map[string]any, expr string, env map[string]any) {
+func (r *renderer) setTone(props map[string]any, expr string, env map[string]any) {
 	if expr == "" {
 		return
 	}
-	v, _ := manifest.Eval(expr, env)
+	v, _ := r.eval(expr, env)
 	if t, ok := v.(string); ok && slices.Contains([]string{"ok", "warn", "error", "muted"}, t) {
 		props["tone"] = t
 	}
@@ -170,7 +170,7 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 			if f.Markdown {
 				field["markdown"] = true
 			}
-			setTone(field, f.Tone, r.record)
+			r.setTone(field, f.Tone, r.record)
 			fields = append(fields, field)
 		}
 		acts := r.actions(b.Actions, r.req.Record, r.record)
@@ -193,7 +193,7 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 		if expr == "" {
 			expr = "len(rows)"
 		}
-		v, err := manifest.Eval(expr, map[string]any{"rows": items})
+		v, err := r.eval(expr, map[string]any{"rows": items})
 		if err != nil {
 			return nil, fmt.Errorf("value: %w", err)
 		}
@@ -201,7 +201,7 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 			return empty(out, b), nil
 		}
 		out["value"] = v
-		setTone(out, b.Tone, map[string]any{"rows": items})
+		r.setTone(out, b.Tone, map[string]any{"rows": items})
 	case "media":
 		files := make([]map[string]any, 0, len(items))
 		for _, it := range items {
@@ -209,7 +209,7 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 		}
 		out["files"] = files
 	case "chart":
-		v, err := chart(b, items)
+		v, err := r.chart(b, items)
 		if err != nil {
 			return nil, err
 		}
@@ -225,7 +225,7 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 				}
 				cells = append(cells, v)
 				cell := map[string]any{}
-				setTone(cell, c.Tone, it)
+				r.setTone(cell, c.Tone, it)
 				if t, ok := cell["tone"]; ok {
 					tones[j], toned = t, true
 				}
@@ -244,7 +244,7 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 			if b.Item.Markdown {
 				line["markdown"] = true
 			}
-			setTone(line, b.Item.Tone, it)
+			r.setTone(line, b.Item.Tone, it)
 			for key, e := range map[string]string{"title": b.Item.Title, "text": b.Item.Text, "meta": b.Item.Meta, "icon": b.Item.Icon} {
 				if e == "" {
 					continue

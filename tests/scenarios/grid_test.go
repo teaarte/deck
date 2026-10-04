@@ -69,3 +69,17 @@ func TestEachSourceOfAScreenIsReadOnce(t *testing.T) {
 		t.Fatalf("each block still shapes the read its own way: %v", data)
 	}
 }
+
+// TestAParamReachesEveryExpressionOfAScreen: the series of a chart and the tone of a stat read the parameters
+// of the screen like any other expression.
+func TestAParamReachesEveryExpressionOfAScreen(t *testing.T) {
+	e := newEnv(t, boardWebAgent())
+	e.createProject("web", strings.Replace(boardWebManifest, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "params": {"k": "integer"}, "blocks": [
+      {"type": "chart", "title": "Scaled", "source": {"from": "deck.probe"}, "x": "name", "series": [{"label": "N", "y": "id * param.k"}]},
+      {"type": "stat", "title": "Toned", "source": {"from": "deck.probe"}, "tone": "param.k > 1 ? 'warn' : 'ok'"},`, 1))
+	data := e.screenData("web", "main", map[string]any{"params": `{"k": "3"}`})
+	chart, _ := json.Marshal(data["b0"])
+	if !strings.Contains(string(chart), `"values":[3,6]`) || string(data["b1"]["tone"]) != `"warn"` {
+		t.Fatalf("the chart and the tone read param: %s %s", chart, data["b1"]["tone"])
+	}
+}

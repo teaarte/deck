@@ -73,7 +73,9 @@ func (r *renderer) actions(as []manifest.Action, id int64, env map[string]any) [
 			if len(a.Params) > 0 {
 				ps := map[string]string{}
 				for k, v := range actionParams(a.Params, nil, id, env) {
-					ps[k] = fmt.Sprint(v)
+					if v != nil {
+						ps[k] = fmt.Sprint(v)
+					}
 				}
 				act["params"] = ps
 			}

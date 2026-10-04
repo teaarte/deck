@@ -222,12 +222,12 @@ func (c *screenCheck) block(where string, b Block) {
 			}
 		}
 		if b.Value != "" {
-			if _, err := compileExpr(b.Value, []string{"rows"}); err != nil {
+			if _, err := compileExpr(b.Value, c.withParam([]string{"rows"})); err != nil {
 				c.fail("%s value: %v", where, err)
 			}
 		}
 		if b.Tone != "" {
-			if _, err := compileExpr(b.Tone, []string{"rows"}); err != nil {
+			if _, err := compileExpr(b.Tone, c.withParam([]string{"rows"})); err != nil {
 				c.fail("%s tone: %v", where, err)
 			}
 		}

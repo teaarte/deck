@@ -81,7 +81,7 @@ func Render(ctx context.Context, src Sources, req Request) ([]map[string]any, er
 	if !slices.Contains(Topics, req.Topic) {
 		req.Topic = ""
 	}
-	if req.Topic != "" && changesWhen(req.Screen.Blocks, req.Screen.Record, req.Project.ID == 0, req.Topic) {
+	if req.Topic != "" && changesWhen(req.Screen.Blocks, req.Screen.Record, req.Project.ID == 0, req.Project.Name, req.Changed, req.Topic) {
 		req.Topic = ""
 	}
 	if req.Topic == "projects" && req.Project.ID != 0 && (req.Changed == "" || req.Changed == req.Project.Name) {

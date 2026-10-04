@@ -22,6 +22,13 @@ Providers (add one), Secrets (name and a hidden value), Tokens, Health; sign-ins
 the place and the value ("Settings → Secrets: `mail-key`, the API key of …"), never a `curl`; the fields of
 these forms are the input of their command, which `command_describe` gives.
 
+When the module needs something only the owner gives — an API key or token, an account or sign-in, a right of
+the manifest, a program installed on the machine, a paid call in a trial — stop and ask the owner in the chat:
+what, why, and where to put it. Do not work around it: no other service or free key in its place without the
+owner's word, no `internal` class or wider right just to get past a refusal, no key written into a document,
+a script or the environment, no copy by hand of what deck or its sandbox refuses. Build the rest, then go on
+with that part once the owner has done it.
+
 ## 1. Interview
 
 A draft sends nothing out until the owner enables it, so build first and ask only what a sensible default

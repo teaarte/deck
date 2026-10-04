@@ -1,18 +1,42 @@
-package app
+// Package documents keeps the documents of projects and the workspace with their revisions, the skills deck
+// ships and the health of script commands.
+package documents
 
 import (
 	"context"
 	"database/sql"
-	"deck2/internal/app/access"
 	"errors"
 	"fmt"
+	"io/fs"
+	"log/slog"
 	"strings"
+	"sync"
+	"time"
 
+	"deck2/internal/app/access"
 	"deck2/internal/docs"
+	"deck2/internal/health"
+	"deck2/internal/manifest"
 	"deck2/internal/registry"
+	"deck2/internal/sandbox"
+	"deck2/internal/script"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
+	"deck2/skills"
 )
+
+// Service keeps the documents; Ctx and BG are the life of deck, for the checks of scripts in the background.
+type Service struct {
+	St      *store.Store
+	Now     func() time.Time
+	Sandbox sandbox.Sandbox
+	// Changed lists a change made without the owner.
+	Changed func(ctx context.Context, q *db.Queries, act registry.Actor, projectID int64, prev db.Document, n int64, text, reason string) error
+	// SaveManifest saves a manifest through its checks, with the call the owner allows when it widens rights.
+	SaveManifest func(ctx context.Context, act registry.Actor, p db.Project, raw []byte, reason string, revertTo, ifRevision int64, command string, input map[string]any) (any, error)
+	Ctx          context.Context
+	BG           *sync.WaitGroup
+}
 
 type documentView struct {
 	ID        int64  `json:"id"`
@@ -28,9 +52,9 @@ type documentView struct {
 	Warning string `json:"warning,omitempty"`
 }
 
-func (a *App) docView(ctx context.Context, d db.Document) documentView {
+func (dc *Service) docView(ctx context.Context, d db.Document) documentView {
 	kind, owner := docs.Owner(d)
-	return documentView{ID: d.ID, Project: access.Name(ctx, a.Store.Q, d.ProjectID.Int64), OwnerKind: kind, OwnerID: owner, Kind: d.Kind, Name: d.Name, Revision: d.Current,
+	return documentView{ID: d.ID, Project: access.Name(ctx, dc.St.Q, d.ProjectID.Int64), OwnerKind: kind, OwnerID: owner, Kind: d.Kind, Name: d.Name, Revision: d.Current,
 		Deleted: d.DeletedAt.Valid}
 }
 
@@ -41,13 +65,13 @@ type documentsListIn struct {
 	WithDeleted bool   `json:"with_deleted" opt:"" desc:"The deleted documents after the others, for the owner"`
 }
 
-func (a *App) documentsList(ctx context.Context, act registry.Actor, in documentsListIn) ([]documentView, error) {
+func (dc *Service) documentsList(ctx context.Context, act registry.Actor, in documentsListIn) ([]documentView, error) {
 	var s docs.Scope
 	var err error
 	if in.Project == "" && in.Kind == docs.KindMemory {
-		s, err = a.memoryScope(ctx, act, "", docs.MemoryIndex)
+		s, err = dc.memoryScope(ctx, act, "", docs.MemoryIndex)
 	} else {
-		s, err = a.readDocScope(ctx, act, in.Project, "")
+		s, err = dc.readDocScope(ctx, act, in.Project, "")
 	}
 	if err != nil {
 		return nil, err
@@ -57,12 +81,12 @@ func (a *App) documentsList(ctx context.Context, act registry.Actor, in document
 	}
 	var ds []db.Document
 	if !in.Deleted {
-		if ds, err = a.Store.Q.ListDocuments(ctx, db.ListDocumentsParams{WorkspaceID: s.Workspace, ProjectID: store.ID(s.Project), Kind: in.Kind}); err != nil {
+		if ds, err = dc.St.Q.ListDocuments(ctx, db.ListDocumentsParams{WorkspaceID: s.Workspace, ProjectID: store.ID(s.Project), Kind: in.Kind}); err != nil {
 			return nil, err
 		}
 	}
 	if in.Deleted || in.WithDeleted {
-		gone, err := a.Store.Q.ListDeletedDocuments(ctx, db.ListDeletedDocumentsParams{WorkspaceID: s.Workspace, ProjectID: store.ID(s.Project)})
+		gone, err := dc.St.Q.ListDeletedDocuments(ctx, db.ListDeletedDocumentsParams{WorkspaceID: s.Workspace, ProjectID: store.ID(s.Project)})
 		if err != nil {
 			return nil, err
 		}
@@ -71,26 +95,26 @@ func (a *App) documentsList(ctx context.Context, act registry.Actor, in document
 	out := make([]documentView, 0, len(ds))
 	for _, d := range ds {
 		p := db.Project{ID: d.ProjectID.Int64, Name: in.Project}
-		if d.ProjectID.Valid && access.MayRead(ctx, a.Store.Q, act, p, "", d.Name) != nil {
+		if d.ProjectID.Valid && access.MayRead(ctx, dc.St.Q, act, p, "", d.Name) != nil {
 			continue
 		}
-		out = append(out, a.docView(ctx, d))
+		out = append(out, dc.docView(ctx, d))
 	}
 	return out, nil
 }
 
 // readDocScope is where a document read works; another project only as far as reads allow.
-func (a *App) readDocScope(ctx context.Context, act registry.Actor, project, name string) (docs.Scope, error) {
+func (dc *Service) readDocScope(ctx context.Context, act registry.Actor, project, name string) (docs.Scope, error) {
 	if project == "" {
-		return access.DocScope(ctx, a.Store.Q, act, project)
+		return access.DocScope(ctx, dc.St.Q, act, project)
 	}
-	p, err := access.ReadProject(ctx, a.Store.Q, act, project, "", name)
+	p, err := access.ReadProject(ctx, dc.St.Q, act, project, "", name)
 	return docs.ProjectScope(p), err
 }
 
 // readableDocument loads a document the actor may read: its own project's, its workspace's, or one that reads
 // in its manifest names.
-func (a *App) readableDocument(ctx context.Context, q *db.Queries, act registry.Actor, id int64) (db.Document, error) {
+func (dc *Service) readableDocument(ctx context.Context, q *db.Queries, act registry.Actor, id int64) (db.Document, error) {
 	d, err := docs.Get(ctx, q, id)
 	if err != nil {
 		return d, err
@@ -115,21 +139,21 @@ type documentGetIn struct {
 	Revision int64  `opt:"" desc:"Revision number"`
 }
 
-func (a *App) documentGet(ctx context.Context, act registry.Actor, in documentGetIn) (documentView, error) {
+func (dc *Service) documentGet(ctx context.Context, act registry.Actor, in documentGetIn) (documentView, error) {
 	var d db.Document
 	var err error
 	switch {
 	case in.Document != 0:
-		d, err = a.readableDocument(ctx, a.Store.Q, act, in.Document)
+		d, err = dc.readableDocument(ctx, dc.St.Q, act, in.Document)
 	case in.Name != "":
 		var s docs.Scope
 		if in.Project == "" {
-			s, err = a.memoryScope(ctx, act, "", in.Name)
+			s, err = dc.memoryScope(ctx, act, "", in.Name)
 		} else {
-			s, err = a.readDocScope(ctx, act, in.Project, in.Name)
+			s, err = dc.readDocScope(ctx, act, in.Project, in.Name)
 		}
 		if err == nil {
-			d, err = a.Store.Q.FindDocument(ctx, docs.Ref{Scope: s, Name: in.Name}.Find())
+			d, err = dc.St.Q.FindDocument(ctx, docs.Ref{Scope: s, Name: in.Name}.Find())
 			if errors.Is(err, sql.ErrNoRows) {
 				err = registry.NotFound("deck: no document %q", in.Name)
 			}
@@ -140,11 +164,11 @@ func (a *App) documentGet(ctx context.Context, act registry.Actor, in documentGe
 	if err != nil {
 		return documentView{}, err
 	}
-	r, err := docs.Revision(ctx, a.Store.Q, d, in.Revision)
+	r, err := docs.Revision(ctx, dc.St.Q, d, in.Revision)
 	if err != nil {
 		return documentView{}, err
 	}
-	v := a.docView(ctx, d)
+	v := dc.docView(ctx, d)
 	v.Revision, v.Text = r.N, r.Text
 	return v, nil
 }
@@ -162,7 +186,7 @@ type documentSaveIn struct {
 	Reason     string   `opt:"" desc:"Why it changed"`
 }
 
-func (a *App) documentSave(ctx context.Context, act registry.Actor, in documentSaveIn) (any, error) {
+func (dc *Service) documentSave(ctx context.Context, act registry.Actor, in documentSaveIn) (any, error) {
 	if in.Record != 0 && in.Card != 0 {
 		return nil, registry.Invalid("deck: a document belongs to a record or a card, not both")
 	}
@@ -172,12 +196,12 @@ func (a *App) documentSave(ctx context.Context, act registry.Actor, in documentS
 	if act.Kind == registry.Agent && in.Kind != docs.KindArtifact && in.Kind != docs.KindMemory {
 		return nil, registry.Refuse("deck: agents write only artifacts and the memory of their project")
 	}
-	s, err := a.memoryScope(ctx, act, in.Project, in.Name)
+	s, err := dc.memoryScope(ctx, act, in.Project, in.Name)
 	if err != nil {
 		return nil, err
 	}
 	var d db.Document
-	err = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+	err = dc.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		ref := docs.Ref{Scope: s, Name: in.Name}
 		if in.Record != 0 {
 			rec, err := q.GetRecord(ctx, in.Record)
@@ -207,12 +231,12 @@ func (a *App) documentSave(ctx context.Context, act registry.Actor, in documentS
 		if d, n, changed, err = docs.Save(ctx, q, ref, in.Kind, in.Text, act.Author(), in.Reason); err != nil || !changed {
 			return err
 		}
-		return a.scriptChanged(ctx, q, act, d, n, in.Reason)
+		return dc.scriptChanged(ctx, q, act, d, n, in.Reason)
 	})
 	if err != nil {
 		return nil, err
 	}
-	v := a.docView(ctx, d)
+	v := dc.docView(ctx, d)
 	if kind, _ := docs.Owner(d); d.Name == docs.MemoryIndex && kind == "" {
 		if n := docs.IndexLines(in.Text); n > docs.IndexLimit {
 			v.Warning = fmt.Sprintf("the index has %d lines; only the first %d reach prompts: merge or drop lines, the most important first", n, docs.IndexLimit)
@@ -257,12 +281,12 @@ func editText(ctx context.Context, q *db.Queries, ref docs.Ref, in *documentSave
 }
 
 // memoryScope is access.DocScope, except that memory of no project is the memory of the owner, in project master.
-func (a *App) memoryScope(ctx context.Context, act registry.Actor, project, name string) (docs.Scope, error) {
-	s, err := access.DocScope(ctx, a.Store.Q, act, project)
+func (dc *Service) memoryScope(ctx context.Context, act registry.Actor, project, name string) (docs.Scope, error) {
+	s, err := access.DocScope(ctx, dc.St.Q, act, project)
 	if err != nil || s.Project != 0 || !strings.HasPrefix(name, docs.MemoryDir) {
 		return s, err
 	}
-	p, err := access.Master(ctx, a.Store.Q, act.Workspace)
+	p, err := access.Master(ctx, dc.St.Q, act.Workspace)
 	return docs.ProjectScope(p), err
 }
 
@@ -273,16 +297,16 @@ type documentDeleteIn struct {
 }
 
 // documentDelete hides a document with its revisions; agents delete only the memory of their project.
-func (a *App) documentDelete(ctx context.Context, act registry.Actor, in documentDeleteIn) (any, error) {
+func (dc *Service) documentDelete(ctx context.Context, act registry.Actor, in documentDeleteIn) (any, error) {
 	var d db.Document
 	var err error
 	switch {
 	case in.Document != 0:
-		d, err = a.readableDocument(ctx, a.Store.Q, act, in.Document)
+		d, err = dc.readableDocument(ctx, dc.St.Q, act, in.Document)
 	case in.Name != "":
 		var s docs.Scope
-		if s, err = a.memoryScope(ctx, act, in.Project, in.Name); err == nil {
-			d, err = a.Store.Q.FindDocument(ctx, docs.Ref{Scope: s, Name: in.Name}.Find())
+		if s, err = dc.memoryScope(ctx, act, in.Project, in.Name); err == nil {
+			d, err = dc.St.Q.FindDocument(ctx, docs.Ref{Scope: s, Name: in.Name}.Find())
 			if errors.Is(err, sql.ErrNoRows) {
 				err = registry.NotFound("deck: no document %q", in.Name)
 			}
@@ -299,8 +323,8 @@ func (a *App) documentDelete(ctx context.Context, act registry.Actor, in documen
 	case act.Kind == registry.Agent && (d.Kind != docs.KindMemory || d.ProjectID.Int64 != act.ProjectID):
 		return nil, registry.Refuse("deck: agents delete only the memory of their project")
 	}
-	err = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		_, err := q.DeleteDocument(ctx, db.DeleteDocumentParams{DeletedAt: sql.NullString{String: store.Time(a.Cfg.Now()), Valid: true}, ID: d.ID})
+	err = dc.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		_, err := q.DeleteDocument(ctx, db.DeleteDocumentParams{DeletedAt: sql.NullString{String: store.Time(dc.Now()), Valid: true}, ID: d.ID})
 		return err
 	})
 	if err != nil {
@@ -314,8 +338,8 @@ type documentRestoreIn struct {
 }
 
 // documentRestore brings a deleted document back as it was.
-func (a *App) documentRestore(ctx context.Context, act registry.Actor, in documentRestoreIn) (any, error) {
-	d, err := a.Store.Q.GetDocument(ctx, in.Document)
+func (dc *Service) documentRestore(ctx context.Context, act registry.Actor, in documentRestoreIn) (any, error) {
+	d, err := dc.St.Q.GetDocument(ctx, in.Document)
 	if errors.Is(err, sql.ErrNoRows) || err == nil && d.WorkspaceID != act.Workspace {
 		return nil, registry.NotFound("deck: no document %d", in.Document)
 	}
@@ -323,7 +347,7 @@ func (a *App) documentRestore(ctx context.Context, act registry.Actor, in docume
 		return nil, err
 	}
 	var n int64
-	err = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+	err = dc.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		if _, err := q.FindDocument(ctx, docs.RefOf(d).Find()); err == nil {
 			return nil
 		}
@@ -344,12 +368,12 @@ type documentRevisionsIn struct {
 	Document int64 `type:"document" desc:"Document id"`
 }
 
-func (a *App) documentRevisions(ctx context.Context, act registry.Actor, in documentRevisionsIn) (any, error) {
-	d, err := a.readableDocument(ctx, a.Store.Q, act, in.Document)
+func (dc *Service) documentRevisions(ctx context.Context, act registry.Actor, in documentRevisionsIn) (any, error) {
+	d, err := dc.readableDocument(ctx, dc.St.Q, act, in.Document)
 	if err != nil {
 		return nil, err
 	}
-	rs, err := a.Store.Q.ListRevisions(ctx, d.ID)
+	rs, err := dc.St.Q.ListRevisions(ctx, d.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -367,26 +391,26 @@ type documentRevertIn struct {
 	IfRevision int64  `json:"if_revision" opt:"" desc:"Only while the current revision is still this one"`
 }
 
-func (a *App) documentRevert(ctx context.Context, act registry.Actor, in documentRevertIn) (any, error) {
-	d, err := a.readableDocument(ctx, a.Store.Q, act, in.Document)
+func (dc *Service) documentRevert(ctx context.Context, act registry.Actor, in documentRevertIn) (any, error) {
+	d, err := dc.readableDocument(ctx, dc.St.Q, act, in.Document)
 	if err != nil {
 		return nil, err
 	}
-	r, err := docs.Revision(ctx, a.Store.Q, d, in.Revision)
+	r, err := docs.Revision(ctx, dc.St.Q, d, in.Revision)
 	if err != nil {
 		return nil, err
 	}
 	reason := docs.RevertReason(r.N, in.Reason)
 	if d.Kind == docs.KindManifest {
-		p, err := a.Store.Q.GetProject(ctx, d.ProjectID.Int64)
+		p, err := dc.St.Q.GetProject(ctx, d.ProjectID.Int64)
 		if err != nil {
 			return nil, err
 		}
-		return a.SaveManifest(ctx, act, p, []byte(r.Text), reason, r.N, in.IfRevision,
-			Call{Command: registry.Builtin + ".document_revert", Input: map[string]any{"document": d.ID, "revision": r.N, "reason": in.Reason}})
+		return dc.SaveManifest(ctx, act, p, []byte(r.Text), reason, r.N, in.IfRevision,
+			registry.Builtin+".document_revert", map[string]any{"document": d.ID, "revision": r.N, "reason": in.Reason})
 	}
 	var n int64
-	err = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+	err = dc.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		ref := docs.RefOf(d)
 		if cur, err := q.GetDocument(ctx, d.ID); err != nil || cur.DeletedAt.Valid || in.IfRevision != 0 && cur.Current != in.IfRevision {
 			switch {
@@ -401,7 +425,7 @@ func (a *App) documentRevert(ctx context.Context, act registry.Actor, in documen
 		if _, n, changed, err = docs.Save(ctx, q, ref, d.Kind, r.Text, act.Author(), reason); err != nil || !changed {
 			return err
 		}
-		return a.scriptChanged(ctx, q, act, d, n, reason)
+		return dc.scriptChanged(ctx, q, act, d, n, reason)
 	})
 	if err != nil {
 		return nil, err
@@ -410,36 +434,190 @@ func (a *App) documentRevert(ctx context.Context, act registry.Actor, in documen
 }
 
 // scriptChanged lists a script change made without the owner, undone by returning to the revision before n.
-func (a *App) scriptChanged(ctx context.Context, q *db.Queries, act registry.Actor, d db.Document, n int64, reason string) error {
+func (dc *Service) scriptChanged(ctx context.Context, q *db.Queries, act registry.Actor, d db.Document, n int64, reason string) error {
 	if d.Kind != docs.KindScript || !d.ProjectID.Valid || d.RecordID.Valid || d.CardID.Valid {
 		return nil
 	}
 	prev := db.Document{ID: d.ID, Current: n - 1}
-	return a.Devices.Changed(ctx, q, act, d.ProjectID.Int64, prev, n, fmt.Sprintf("%s changed script %s", act.Author(), d.Name), reason)
+	return dc.Changed(ctx, q, act, d.ProjectID.Int64, prev, n, fmt.Sprintf("%s changed script %s", act.Author(), d.Name), reason)
 }
 
-func (a *App) documentCommands() []*registry.Command {
+// Commands are the commands of documents.
+func (dc *Service) Commands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("documents_list", "List documents",
 			"Lists documents of a project, or workspace documents when no project is given; deleted ones for the owner when asked.",
-			registry.Everyone, a.documentsList).Enum("kind", docs.Kinds...).On("documents"),
+			registry.Everyone, dc.documentsList).Enum("kind", docs.Kinds...).On("documents"),
 		registry.Read("document_get", "Get document",
 			"Returns a document by id, or by project and name; the current revision unless one is given.",
-			registry.Everyone, a.documentGet).On("documents"),
+			registry.Everyone, dc.documentGet).On("documents"),
 		registry.Def("document_save", "Save document",
 			"Writes a new revision of a document, creating it on first save.",
-			registry.Everyone, a.documentSave).Enum("kind", docs.Kinds...),
+			registry.Everyone, dc.documentSave).Enum("kind", docs.Kinds...),
 		registry.Def("document_delete", "Delete document",
 			"Deletes a document; its revisions stay and the owner can bring it back. Agents delete only the memory of their project.",
-			registry.Everyone, a.documentDelete),
+			registry.Everyone, dc.documentDelete),
 		registry.Def("document_restore", "Bring document back",
 			"Brings a deleted document back as it was.",
-			registry.OwnerOnly, a.documentRestore),
+			registry.OwnerOnly, dc.documentRestore),
 		registry.Def("document_revisions", "Document history",
 			"Lists revisions of a document: who, when and why.",
-			registry.Everyone, a.documentRevisions),
+			registry.Everyone, dc.documentRevisions),
 		registry.Def("document_revert", "Revert document",
 			"Makes an earlier revision current again as a new revision.",
-			registry.OwnerSide, a.documentRevert),
+			registry.OwnerSide, dc.documentRevert),
 	}
+}
+
+// MaxFile is the largest file deck takes into a document from a folder.
+const MaxFile = 1 << 20
+
+// Skills returns the files of the named skills by path under the skill folder; a project skill hides a
+// workspace skill of the same name.
+func (dc *Service) Skills(ctx context.Context, projectID int64, names []string) (map[string]string, error) {
+	if len(names) == 0 {
+		return nil, nil
+	}
+	p, err := dc.St.Q.GetProject(ctx, projectID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := dc.St.Q.ListSkillFiles(ctx, db.ListSkillFilesParams{WorkspaceID: p.WorkspaceID, ProjectID: store.ID(p.ID)})
+	if err != nil {
+		return nil, err
+	}
+	has := map[string]bool{}
+	for _, r := range rows {
+		if s := docs.SkillOf(r.Name); s != "" && r.Name == docs.SkillsDir+s+"/SKILL.md" {
+			has[fmt.Sprint(r.ProjectID, "/", s)] = true
+		}
+	}
+	out := map[string]string{}
+	for _, n := range names {
+		from := p.ID
+		if !has[fmt.Sprint(p.ID, "/", n)] {
+			if from = 0; !has[fmt.Sprint(0, "/", n)] {
+				return nil, registry.Invalid("deck: skill %q is missing: no skills/%s/SKILL.md in the project or the workspace", n, n)
+			}
+		}
+		for _, r := range rows {
+			if r.ProjectID == from && docs.SkillOf(r.Name) == n {
+				out[strings.TrimPrefix(r.Name, docs.SkillsDir)] = r.Text
+			}
+		}
+	}
+	return out, nil
+}
+
+// SeedSkills stores the skills built into deck as skills of every workspace; a skill someone else edited stays theirs.
+func (dc *Service) SeedSkills(ctx context.Context) error {
+	ws, err := dc.St.Q.ListWorkspaces(ctx)
+	if err != nil {
+		return err
+	}
+	for _, w := range ws {
+		if err := dc.seedSkills(ctx, w); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (dc *Service) seedSkills(ctx context.Context, workspace int64) error {
+	return fs.WalkDir(skills.FS, ".", func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() || !strings.Contains(path, "/") {
+			return err
+		}
+		b, err := fs.ReadFile(skills.FS, path)
+		if err != nil {
+			return err
+		}
+		return dc.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+			ref := docs.Ref{Scope: docs.Scope{Workspace: workspace}, Name: docs.SkillsDir + path}
+			d, err := q.FindAnyDocument(ctx, db.FindAnyDocumentParams(ref.Find()))
+			if err == nil {
+				if d.DeletedAt.Valid {
+					return nil
+				}
+				r, err := docs.Revision(ctx, q, d, 0)
+				if err != nil || r.Author != "deck" || r.Text == string(b) {
+					return err
+				}
+			}
+			_, _, _, err = docs.Save(ctx, q, ref, docs.KindSkill, string(b), "deck", "built-in skill")
+			return err
+		})
+	})
+}
+
+const sandboxHealth = "sandbox"
+
+func commandHealth(project, command string) string { return "command:" + project + "." + command }
+
+// PrepareLater records the health of the script commands of a project in the background.
+func (dc *Service) PrepareLater(projectID int64) {
+	dc.BG.Add(1)
+	go func() {
+		defer dc.BG.Done()
+		if err := dc.prepareScripts(dc.Ctx, projectID); err != nil && dc.Ctx.Err() == nil {
+			slog.Error("prepare scripts", "project", projectID, "err", err)
+		}
+	}()
+}
+
+func (dc *Service) prepareScripts(ctx context.Context, projectID int64) error {
+	p, err := dc.St.Q.GetProject(ctx, projectID)
+	if err != nil {
+		return err
+	}
+	m, err := docs.Manifest(ctx, dc.St.Q, p)
+	if err != nil {
+		return err
+	}
+	problems := script.Check(m)
+	sbErr := dc.Sandbox.Check()
+	known, err := dc.St.Q.ListHealth(ctx, store.ID(p.WorkspaceID))
+	if err != nil {
+		return err
+	}
+	err = dc.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		status, text := "ok", ""
+		if sbErr != nil {
+			status, text = "error", dc.Sandbox.Name()+": "+sbErr.Error()
+		}
+		if err := health.Set(ctx, q, health.Of{}, sandboxHealth, status, text); err != nil {
+			return err
+		}
+		keep := map[string]bool{}
+		for _, c := range m.Commands {
+			if c.Executor.Type != "script" {
+				continue
+			}
+			subject := commandHealth(p.Name, c.Name)
+			keep[subject] = true
+			status, text := scriptHealth(&c, problems, sbErr)
+			if err := health.Set(ctx, q, health.Project(p), subject, status, text); err != nil {
+				return err
+			}
+		}
+		for _, row := range known {
+			if h := row.Health; h.ProjectID.Int64 == p.ID && strings.HasPrefix(h.Subject, commandHealth(p.Name, "")) && !keep[h.Subject] {
+				if err := q.DeleteHealth(ctx, db.DeleteHealthParams{ProjectID: store.ID(p.ID), Subject: h.Subject}); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	})
+	return err
+}
+
+func scriptHealth(c *manifest.Command, problems map[string]error, sbErr error) (string, string) {
+	if sbErr != nil {
+		return "error", "the script sandbox does not work: " + sbErr.Error()
+	}
+	if err := problems[c.Executor.Script]; err != nil {
+		return "error", err.Error()
+	}
+	return "ok", ""
 }

@@ -112,7 +112,7 @@ func (a *App) createProject(ctx context.Context, act registry.Actor, name string
 	if err != nil {
 		return db.Project{}, err
 	}
-	a.prepareLater(p.ID)
+	a.Documents.PrepareLater(p.ID)
 	return p, nil
 }
 
@@ -198,7 +198,7 @@ func (a *App) SaveManifest(ctx context.Context, act registry.Actor, p db.Project
 		return saved, err
 	}
 	a.Bus.Emit(events.Event{Workspace: p.WorkspaceID, Topic: "projects", Project: p.Name})
-	a.prepareLater(p.ID)
+	a.Documents.PrepareLater(p.ID)
 	saved.Screens = a.checkScreens(ctx, act, p, pm.m)
 	saved.Unused = pm.m.UnusedWords()
 	return saved, nil
@@ -221,7 +221,7 @@ func (a *App) Reconcile(ctx context.Context) error {
 		if err != nil {
 			slog.Error("reconcile triggers", "project", p.Name, "err", err)
 		}
-		a.prepareLater(p.ID)
+		a.Documents.PrepareLater(p.ID)
 	}
 	return nil
 }

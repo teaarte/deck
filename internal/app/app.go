@@ -15,6 +15,7 @@ import (
 	"deck2/internal/app/board"
 	"deck2/internal/app/chat"
 	"deck2/internal/app/devices"
+	"deck2/internal/app/documents"
 	appfiles "deck2/internal/app/files"
 	"deck2/internal/app/folders"
 	"deck2/internal/app/journal"
@@ -69,6 +70,7 @@ type App struct {
 	Journal   *journal.Service
 	Snapshots *snapshots.Service
 	Triggers  *triggers.Service
+	Documents *documents.Service
 	Scripts   *script.Exec
 	Tools     *tools.HTTP
 	MCP       *tools.MCP
@@ -110,6 +112,10 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	a.Files = &appfiles.Service{St: st, Home: h, Now: cfg.Now}
 	a.Journal = &journal.Service{St: st, Now: cfg.Now, Backups: h.Backups()}
 	a.Triggers = &triggers.Service{St: st}
+	a.Documents = &documents.Service{St: st, Now: cfg.Now, Sandbox: cfg.Sandbox, Ctx: a.ctx, BG: &a.bg,
+		SaveManifest: func(ctx context.Context, act registry.Actor, p db.Project, raw []byte, reason string, revertTo, ifRevision int64, command string, input map[string]any) (any, error) {
+			return a.SaveManifest(ctx, act, p, raw, reason, revertTo, ifRevision, Call{Command: command, Input: input})
+		}}
 	a.Snapshots = &snapshots.Service{St: st, Bus: a.Bus, Home: h, Now: cfg.Now, LockFiles: a.Files.Mu.Lock, UnlockFiles: a.Files.Mu.Unlock,
 		RemoveFiles: a.Files.Remove}
 	a.Settings = &settings.Service{St: st, DefaultTTL: cfg.ConfirmTTL, Wake: func(ctx context.Context) { a.Runner.Wake(ctx) }}
@@ -148,12 +154,12 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	a.Runner = process.NewRunner(st, a.Gateway, a.Bus, a, a.Scripts,
 		process.Config{RunsDir: h.Runs(), MCPBase: cfg.MCPBase, Now: cfg.Now, FilesDir: h.Files(), FilesMu: &a.Files.Mu,
 			Hidden: hidden(h), PauseLimit: cfg.PauseLimit, AgentSlots: a.Settings.AgentSlots}, a)
-	a.Chats.Runner, a.Suggest.Gateway, a.Tokens.Journal = a.Runner, a.Gateway, a.Gateway.Journal
+	a.Chats.Runner, a.Suggest.Gateway, a.Tokens.Journal, a.Documents.Changed = a.Runner, a.Gateway, a.Gateway.Journal, a.Devices.Changed
 	a.Runner.Hooks = []process.Hook{a.Chats.NewHook(), errorsHook{a: a}, afterHook{a: a}}
 	a.Scheduler = trigger.New(st, a, cfg.Now)
 	a.Triggers.Scheduler, a.Triggers.Gateway, a.Triggers.Registry = a.Scheduler, a.Gateway, a.Registry
 	a.Asks.OnLateAnswer(a.lateAnswer)
-	if err := a.SeedSkills(a.ctx); err != nil {
+	if err := a.Documents.SeedSkills(a.ctx); err != nil {
 		return nil, err
 	}
 	if err := a.SeedMaster(a.ctx); err != nil {
@@ -423,4 +429,9 @@ func (a *App) Folder(ctx context.Context, projectID int64, f manifest.Folder) (s
 // TailnetHealth records the state of deck on the owner's tailnet: the sign-in link while it waits for one.
 func (a *App) TailnetHealth(status, text string) {
 	health.Write(context.Background(), a.Store, health.Of{}, "tailscale", status, text)
+}
+
+// Skills are the files of the named skills, for the runner.
+func (a *App) Skills(ctx context.Context, projectID int64, names []string) (map[string]string, error) {
+	return a.Documents.Skills(ctx, projectID, names)
 }

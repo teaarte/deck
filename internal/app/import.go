@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"deck2/internal/app/documents"
 	"deck2/internal/app/folders"
 	"fmt"
 	"io/fs"
@@ -146,7 +147,7 @@ func readFolder(root string) (files []folderFile, skipped []string, err error) {
 			skipped = append(skipped, rel+": not a regular file")
 			return nil
 		}
-		if info.Size() > maxFile {
+		if info.Size() > documents.MaxFile {
 			skipped = append(skipped, rel+": larger than 1 MB")
 			return nil
 		}

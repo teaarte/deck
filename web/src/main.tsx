@@ -1,6 +1,7 @@
 import '@mantine/core/styles.css';
 import '@mantine/notifications/styles.css';
 import './touch.css';
+import './themes.css';
 import './i18n';
 import { StrictMode, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -33,7 +34,7 @@ function Themed() {
   const look = useLook();
   const themed = useMemo(() => theme(look), [look]);
   return (
-    <MantineProvider theme={themed} defaultColorScheme="auto" cssVariablesResolver={resolver}>
+    <MantineProvider theme={themed} defaultColorScheme="auto" cssVariablesResolver={resolver} forceColorScheme={look.theme === 'neon' ? 'dark' : undefined}>
       <Notifications />
       {token() ? <Shell /> : <TokenPrompt />}
     </MantineProvider>

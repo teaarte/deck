@@ -61,7 +61,7 @@ Stage 1 plan: `docs/plan-stage1.md`; next: block catalog `docs/plan-catalog.md`.
 - `web` — client: Vite + React + Mantine v9 + `@a2ui/react` (protocol v0.9, `/v0_9` imports); blocks in
   `src/catalog.tsx` (buttons in `actions.tsx`, block frame in `block.tsx`, `appearance.tsx`); the frame of islands (menu,
   screen, chat with the master) — `src/shell.tsx`, the icon pattern behind it `backdrop.tsx`, Tabler icons by name
-  `icons.tsx`, accents `palette.ts`, the address of a screen with its parameters and the back button `router.ts`, the board (`@dnd-kit/react`), forms, documents with markdown (`@a2ui/markdown-it`) and the MCP
+  `icons.tsx`, accents `palette.ts`, the address of a screen with its parameters and the back button `router.ts`, the themes and surfaces `themes.css`, the notifications `bell.tsx`, tables `table.tsx`, the board (`@dnd-kit/react`), forms, documents with markdown (`@a2ui/markdown-it`) and the MCP
   Apps host (`@modelcontextprotocol/ext-apps` 1.7.5 — 2.x needs zod 4) in their own files; the look of the device
   (scheme, accent, density, font, corners) — `src/look.ts`, passed to `custom` blocks as MCP Apps host context; PWA and Share Target — `public/manifest.webmanifest`, `public/sw.js`;
   `web/dist` is the embedded build — rebuild and commit it with the sources

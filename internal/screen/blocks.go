@@ -119,6 +119,9 @@ func (r *renderer) block(id string, b manifest.Block) {
 	if b.Menu {
 		comp["menu"] = true
 	}
+	if b.Part != "" {
+		comp["part"] = b.Part
+	}
 	r.comps = append(r.comps, comp)
 	switch b.Type {
 	case "columns":

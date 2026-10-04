@@ -253,8 +253,8 @@ const impls: ReactComponentImplementation[] = [
     return <Block title={p.title} icon={p.icon} span={p.span} description={p.description} data={p.data}>{(d) => <Chat value={d.value as ChatValue} context={context} />}</Block>;
   }),
   createComponentImplementation(api('appearance'), ({ props }) => {
-    const p = props as { title?: string; icon?: string; span?: Span; description?: string; data?: Data };
-    return <Block title={p.title} icon={p.icon} span={p.span} description={p.description} data={p.data}>{() => <Appearance />}</Block>;
+    const p = props as { title?: string; icon?: string; span?: Span; description?: string; part?: string; data?: Data };
+    return <Block title={p.title} icon={p.icon} span={p.span} description={p.description} data={p.data}>{() => <Appearance part={p.part} />}</Block>;
   }),
   createComponentImplementation({ name: UNKNOWN, schema: z.object({ type: z.string() }) }, ({ props }) => {
     const { t } = useTranslation();

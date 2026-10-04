@@ -160,6 +160,13 @@ func TestRealBrowserShell(t *testing.T) {
 	b.shot("shell-phone-menu")
 
 	b.call("browser_resize", map[string]any{"width": 1440, "height": 900})
+	for _, look := range []string{"pixel vivid light", "neon tinted dark", "paper neutral light", "default vivid dark"} {
+		parts := strings.Fields(look)
+		b.eval(`(localStorage.setItem('deck-look', JSON.stringify({ ...JSON.parse(localStorage.getItem('deck-look')), theme: '` + parts[0] + `', surface: '` + parts[1] + `' })),
+			localStorage.setItem('mantine-color-scheme-value', '` + parts[2] + `'), location.hash = '#/p/web/main', location.reload(), '')`)
+		b.until("the look "+look, `document.documentElement.dataset.deckTheme === '`+parts[0]+`' && document.documentElement.dataset.deckSurface === '`+parts[1]+`' && document.querySelector('[data-block] table')`)
+		b.shot("theme-" + parts[0] + "-" + parts[1])
+	}
 	e.must("deck.settings_set", map[string]any{"language": "ru"}, nil)
 	b.until("the interface in the language the owner picked", `document.querySelector('[data-nav]')?.innerText.includes('Кокпит') && document.querySelector('[data-chat-toggle]')?.innerText.includes('Мастер')`)
 	b.shot("shell-ru")

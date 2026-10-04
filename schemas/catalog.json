@@ -220,8 +220,8 @@
       }
     },
     "appearance": {
-      "description": "How deck looks on the device: color scheme, accent, density, font size, corners.",
-      "block": {"description": "Only on deck's own screens; takes no source and no other field.", "properties": {}},
+      "description": "How deck looks on the device: theme, color scheme, accent, surfaces, density, font size, corners; with part pushes, the pushes of the device.",
+      "block": {"description": "Only on deck's own screens; takes no source; part picks the look (by default) or the pushes of the device.", "properties": {"part": {"enum": ["look", "pushes"]}}},
       "type": "object",
       "additionalProperties": false,
       "required": ["data"],
@@ -230,6 +230,7 @@
         "icon": {"type": "string"},
         "span": {"enum": [1, 2, "full"]},
         "description": {"type": "string"},
+        "part": {"enum": ["look", "pushes"]},
         "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "the client keeps the look; the data is only its state"}
       }
     },

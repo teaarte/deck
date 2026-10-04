@@ -33,10 +33,10 @@ type Manifest struct {
 	Icon            string       `json:"icon,omitempty"`
 	Title           string       `json:"title,omitempty"`
 	// I18n translates the texts the owner sees, by language and then by the text as the manifest writes it.
-	I18n map[string]map[string]string `json:"i18n,omitempty"`
-	Autonomy        string       `json:"autonomy,omitempty"`
-	Reads           []Read       `json:"reads,omitempty"`
-	NoNetwork       bool         `json:"no_network,omitempty"`
+	I18n      map[string]map[string]string `json:"i18n,omitempty"`
+	Autonomy  string                       `json:"autonomy,omitempty"`
+	Reads     []Read                       `json:"reads,omitempty"`
+	NoNetwork bool                         `json:"no_network,omitempty"`
 	// MasterErrors off keeps the failed processes of the project from the master; absent is on.
 	MasterErrors *bool `json:"master_errors,omitempty"`
 
@@ -257,6 +257,8 @@ type Block struct {
 	Tabs        []Tab   `json:"tabs,omitempty"`
 	// Span is how many cells of the grid of the screen the block takes: 1, 2 or "full".
 	Span any `json:"span,omitempty"`
+	// Part is the part of the device an appearance block shows: its look or its pushes.
+	Part string `json:"part,omitempty"`
 	// Menu opens the buttons of an actions block from one button.
 	Menu bool `json:"menu,omitempty"`
 	// Name opens a dialog from the address of its screen; Primary paints its button in the accent.

@@ -1,6 +1,9 @@
 {
   "i18n": {
     "ru": {
+      "Push key": "Ключ пушей",
+      "deck sends a push when something waits for you or a module tells you; each device turns them on for itself.": "deck присылает пуш, когда что-то ждёт вас или модуль сообщает новость; каждое устройство включает их само.",
+      "A new key stops the pushes of every device until each turns them on again.": "Новый ключ останавливает пуши всех устройств, пока каждое не включит их снова.",
       "#": "№",
       "A model behind an OpenAI-compatible API, run by an ACP agent inside the sandbox of deck. A provider with the same name is replaced.": "Модель за OpenAI-совместимым API; её запускает ACP-агент в песочнице deck. Провайдер с тем же именем заменяется.",
       "A token lets Shortcuts, a terminal agent or a script call the commands it lists: POST /api/commands/<command> with the header Authorization: Bearer <token>. The token shows once, when it is created.": "Токен даёт Быстрым командам, агенту в терминале или скрипту вызывать перечисленные команды: POST /api/commands/<команда> с заголовком Authorization: Bearer <токен>. Токен показывается один раз, при создании.",
@@ -337,8 +340,11 @@
                 {"verb": "edit", "primary": true, "command": "deck.settings_set", "input": "language", "options": "$record.options", "when": "name == 'language'"}
               ]}
           ]},
-          {"title": "Interface", "icon": "palette", "blocks": [{"type": "appearance", "title": "Appearance"},
-            {"type": "actions", "title": "Pushes", "actions": [{"verb": "reset_push", "confirm": true, "command": "deck.push_reset"}]}]},
+          {"title": "Interface", "icon": "palette", "blocks": [{"type": "appearance", "title": "Appearance", "icon": "palette"},
+            {"type": "appearance", "title": "Pushes", "icon": "bell-ringing", "part": "pushes", "span": 2,
+              "description": "deck sends a push when something waits for you or a module tells you; each device turns them on for itself."},
+            {"type": "actions", "title": "Push key", "icon": "key", "description": "A new key stops the pushes of every device until each turns them on again.",
+              "actions": [{"verb": "reset_push", "confirm": true, "command": "deck.push_reset"}]}]},
           {"title": "Health", "icon": "heartbeat", "blocks": [
             {"type": "table", "title": "Health of the machine", "source": {"from": "deck.health_list", "input": {"machine": true}}, "filter": ["status"],
               "columns": [

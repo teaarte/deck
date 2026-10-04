@@ -9,7 +9,9 @@ export interface Look {
   density: 'compact' | 'default' | 'comfortable';
   font: 'small' | 'default' | 'large';
   radius: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
-  theme: 'default' | 'glass';
+  theme: 'default' | 'glass' | 'pixel' | 'neon' | 'paper';
+  // surface is how much of the accent the islands and blocks take.
+  surface: 'neutral' | 'tinted' | 'vivid';
   // pattern draws the icons behind the screen; tint goes from clear (0) to opaque (1) glass.
   pattern: boolean;
   tint: number;
@@ -20,8 +22,9 @@ export const ACCENTS = ['blue', 'indigo', 'violet', 'grape', 'pink', 'red', 'ora
 export const DENSITIES: Look['density'][] = ['compact', 'default', 'comfortable'];
 export const FONTS: Look['font'][] = ['small', 'default', 'large'];
 export const RADII: Look['radius'][] = ['xs', 'sm', 'md', 'lg', 'xl'];
-export const THEMES: Look['theme'][] = ['default', 'glass'];
-const DEFAULT: Look = { accent: 'blue', density: 'default', font: 'default', radius: 'md', theme: 'default', pattern: true, tint: 0.35 };
+export const THEMES: Look['theme'][] = ['default', 'glass', 'pixel', 'neon', 'paper'];
+export const SURFACES: Look['surface'][] = ['neutral', 'tinted', 'vivid'];
+const DEFAULT: Look = { accent: 'blue', density: 'default', font: 'default', radius: 'md', theme: 'default', surface: 'neutral', pattern: true, tint: 0.35 };
 
 function read(): Look {
   try {
@@ -32,6 +35,7 @@ function read(): Look {
       font: FONTS.includes(got.font!) ? got.font! : DEFAULT.font,
       radius: RADII.includes(got.radius!) ? got.radius! : DEFAULT.radius,
       theme: THEMES.includes(got.theme!) ? got.theme! : DEFAULT.theme,
+      surface: SURFACES.includes(got.surface!) ? got.surface! : DEFAULT.surface,
       pattern: typeof got.pattern === 'boolean' ? got.pattern : DEFAULT.pattern,
       tint: typeof got.tint === 'number' && got.tint >= 0 && got.tint <= 1 ? got.tint : DEFAULT.tint,
     };
@@ -43,6 +47,7 @@ function read(): Look {
 // The theme marks the root element: the glass styles and their backdrop hang on it.
 const mark = () => {
   document.documentElement.dataset.deckTheme = look.theme;
+  document.documentElement.dataset.deckSurface = look.surface;
   document.documentElement.style.setProperty('--glass-tint-user', String(look.tint));
 };
 let look = read();
@@ -65,6 +70,12 @@ export const useLook = () => useSyncExternalStore((f) => (subs.add(f), () => sub
 const scaled = (sizes: Record<string, string>, by: number) =>
   Object.fromEntries(Object.entries(sizes).map(([k, v]) => [k, by === 1 ? v : `calc(${v} * ${by})`]));
 
+// fonts are the faces of the themes that have their own: pixel monospace, paper with serifs.
+const fonts: Partial<Record<Look['theme'], string>> = {
+  pixel: 'ui-monospace, "SF Mono", Menlo, Consolas, monospace',
+  paper: 'ui-serif, "New York", Charter, Georgia, serif',
+};
+
 // theme is the Mantine theme of a look: the accent is the primary color, density scales spacing, font the text,
 // and the glass theme puts glass on the shell, overlays and controls.
 export function theme(l: Look): MantineThemeOverride {
@@ -78,10 +89,10 @@ export function theme(l: Look): MantineThemeOverride {
     primaryShade: { light: 6, dark: 6 },
     autoContrast: true,
     respectReducedMotion: true,
-    defaultRadius: l.radius,
+    defaultRadius: l.theme === 'pixel' ? 0 : l.radius,
     spacing: scaled(DEFAULT_THEME.spacing, space),
     fontSizes: scaled(DEFAULT_THEME.fontSizes, text),
-    headings: { sizes: headings },
+    ...(fonts[l.theme] ? { fontFamily: fonts[l.theme], headings: { sizes: headings, fontFamily: fonts[l.theme] } } : { headings: { sizes: headings } }),
     components: l.theme === 'glass' ? glass : {},
   });
 }

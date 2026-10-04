@@ -26,14 +26,16 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
 
 - `cmd/deck` — entry point
 - `internal/store` — SQLite: a committed write publishes the topic of its table in the project of the row
-  (`changes.go`, the SQLite pre-update hook); one base schema `migrations/00001_base.sql` (old bases are not upgraded; a later
-  change of the schema is a new goose migration), sqlc queries (`db/` is generated)
+  (`changes.go`, the SQLite pre-update hook); the base schema `migrations/00001_base.sql` and goose migrations after it
+  (`00002_granted`, `00003_llm_call`, `00004_ask_workspace`: a table rebuilt with foreign keys off is a NO TRANSACTION
+  migration), sqlc queries (`db/` is generated)
 - `internal/registry` — command registry: every input (API, MCP, triggers) calls commands through it;
   input schemas limited to App Intents types; `registry.Def` takes the schema from the tagged input struct;
   `registry.Read` declares a command that only reads, with its result schema from the Go type and `On` its event
   topics (a read without them panics; `registry.Static` for none); `actor.go`, `errors.go`
 - `internal/docs` — documents with revisions, skill files, the manifest reader with its parse cache, `Manifests` (the
-  current manifests of a deck kept by document and revision), `Patch` (JSON Patch keeping the text around a replace)
+  current manifests of a deck kept by document and revision), `InForce` (a manifest with only the rights of the
+  revision the owner granted, `project.granted_revision`), `Patch` (JSON Patch keeping the text around a replace)
 - `internal/app` — wiring: `App` builds the domain services, hands them each other's functions, registers their
   commands and runs `Loop`/`Sweep`; it still keeps the processes (`process_handlers.go`, `live.go`), errors to the
   master (`errors.go`), records (`record_handlers.go`), `health_list.go` and the screens below. Each domain is a package
@@ -51,11 +53,13 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
   Tokens, General, Interface, Health), Journal (Calls, Spend, Files, Snapshots); `project` screens (Documents, the page of
   a document and Settings of the project: its commands and providers, folders, tools, secrets, tokens, health) deck adds
   to every project
-- `internal/manifest` — project manifest: `types.go`, `parse.go`, `lookup.go`, `collection.go`, checks of screens by
+- `internal/manifest` — project manifest (format 7: `upgrade.go` raises older ones): `types.go`, `parse.go`,
+  `lookup.go`, `collection.go`, rights (`rights.go`: `Widens`, `Clip`, the hosts of agent shells), checks of screens by
   part (`check_*.go`), expressions; one `Resolve` of a value (fixed, `$record.<field>`, `=<expression>` with
   `param` of the screen) and `FieldTypes`; the texts of a manifest and their translation `words.go`
 - `internal/gateway` — deck MCP server per process: permission prompts, questions, confirmations, registry
-  commands as tools; HTTP entry and domain proxy for scripts
+  commands as tools; HTTP entry and domain proxy for scripts (`egress.go`: a name resolves once, the proxy dials its
+  addresses, a name reaches only public ones)
 - `internal/provider` — model providers; `claudecode` runs the CLI isolated from user settings; `codex` runs
   `codex app-server` on the owner's shared login (`protocol.go` is generated); `acp` runs ACP agents (OpenCode, `dsh`)
   on an OpenAI-compatible model inside deck's sandbox — deck has no tool loop of its own

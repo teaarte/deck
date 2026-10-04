@@ -594,3 +594,17 @@ func TestNullIsAResultOnlyWhereTheSchemaAllowsIt(t *testing.T) {
 		t.Fatalf("format 6 is raised to 7 with null in its result schemas:\n%s", m.Manifest)
 	}
 }
+
+// TestAResultSchemaOfFormatSixWithoutATypeStillLoads: a result schema of format 6 with no type of its own, such as
+// one of enum or properties only, is raised to take null too and the module still loads.
+func TestAResultSchemaOfFormatSixWithoutATypeStillLoads(t *testing.T) {
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result { return provider.Result{Structured: json.RawMessage(`null`)} })
+	for i, result := range []string{`{"enum": [1, 2]}`, `{"properties": {"n": {"type": "integer"}}}`} {
+		m := strings.Replace(testManifest([]string{agentCommand("check", "")}, nil), `"version": 7`, `"version": 6`, 1)
+		m = strings.Replace(m, `"result": {"type": "object", "properties": {"n": {"type": "integer"}}}`, `"result": `+result, 1)
+		p := e.createProject(fmt.Sprintf("old%d", i), m)
+		if got := e.full(e.waitState(e.run(p, "check"), "done", "error").ID); got.NotBySchema || !got.Empty {
+			t.Fatalf("%s: a module of format 6 takes null as nothing to do: %+v", result, got)
+		}
+	}
+}

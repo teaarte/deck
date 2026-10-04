@@ -37,7 +37,12 @@ var upgrades = map[int]func(m map[string]any){
 	},
 	6: func(m map[string]any) {
 		for _, c := range items(m["commands"]) {
-			if r, ok := c["result"].(map[string]any); ok {
+			r, ok := c["result"].(map[string]any)
+			switch {
+			case !ok:
+			case r["type"] == nil:
+				c["result"] = map[string]any{"anyOf": []any{r, map[string]any{"type": "null"}}}
+			default:
 				r["type"] = withNull(r["type"])
 			}
 		}

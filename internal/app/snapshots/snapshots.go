@@ -48,7 +48,7 @@ type Service struct {
 }
 
 const (
-	// snapshotsKept is how many daily snapshots stay in backups/.
+	// snapshotsKept is how many snapshots of each kind stay in backups/.
 	snapshotsKept = 7
 	// workKept is how long the work folder of a finished agent process stays for rework.
 	workKept = 7 * 24 * time.Hour
@@ -56,12 +56,17 @@ const (
 
 // Snapshot writes backups/deck-<time>.tar.gz with a copy of the base, files/, the model sessions deck keeps
 // and the data folders of projects, then keeps only the newest ones; secrets and the token stay out.
-func (s *Service) Snapshot(ctx context.Context) (string, error) {
+func (s *Service) Snapshot(ctx context.Context) (string, error) { return s.take(ctx, home.SnapshotDaily) }
+
+// BeforeDelete is a snapshot before a project is deleted, kept in a turn of its own beside the daily ones.
+func (s *Service) BeforeDelete(ctx context.Context) (string, error) { return s.take(ctx, home.SnapshotDelete) }
+
+func (s *Service) take(ctx context.Context, kind string) (string, error) {
 	dir := s.Home.Backups()
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return "", err
 	}
-	path := filepath.Join(dir, "deck-"+s.Now().UTC().Format(home.SnapshotLayout)+".tar.gz")
+	path := filepath.Join(dir, kind+"-"+s.Now().UTC().Format(home.SnapshotLayout)+".tar.gz")
 	copyDB := filepath.Join(dir, ".deck-"+uuid.NewString()+".db")
 	defer os.Remove(copyDB)
 	s.LockFiles()
@@ -79,7 +84,7 @@ func (s *Service) Snapshot(ctx context.Context) (string, error) {
 	if err := os.Rename(part, path); err != nil {
 		return "", err
 	}
-	old, _ := filepath.Glob(filepath.Join(dir, "deck-*.tar.gz"))
+	old, _ := filepath.Glob(filepath.Join(dir, kind+"-*.tar.gz"))
 	slices.Sort(old)
 	for len(old) > snapshotsKept {
 		_ = os.Remove(old[0])

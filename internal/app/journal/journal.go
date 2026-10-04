@@ -236,12 +236,12 @@ type snapshotRow struct {
 
 // snapshotsList is the snapshots in backups, newest first; deck keeps the newest few.
 func (s *Service) snapshotsList(context.Context, registry.Actor, struct{}) ([]snapshotRow, error) {
-	paths, err := filepath.Glob(filepath.Join(s.Backups, "deck-*.tar.gz"))
+	paths, err := filepath.Glob(filepath.Join(s.Backups, "*-*.tar.gz"))
 	if err != nil {
 		return nil, err
 	}
-	slices.Sort(paths)
-	slices.Reverse(paths)
+	stamp := func(p string) string { _, t, _ := strings.Cut(filepath.Base(p), "-"); return t }
+	slices.SortFunc(paths, func(a, b string) int { return strings.Compare(stamp(b), stamp(a)) })
 	out := make([]snapshotRow, 0, len(paths))
 	for _, p := range paths {
 		st, err := os.Stat(p)
@@ -250,7 +250,7 @@ func (s *Service) snapshotsList(context.Context, registry.Actor, struct{}) ([]sn
 		}
 		name := filepath.Base(p)
 		at := ""
-		if t, err := time.Parse(home.SnapshotLayout, strings.TrimSuffix(strings.TrimPrefix(name, "deck-"), ".tar.gz")); err == nil {
+		if t, err := time.Parse(home.SnapshotLayout, strings.TrimSuffix(stamp(name), ".tar.gz")); err == nil {
 			at = t.UTC().Format(time.RFC3339)
 		}
 		out = append(out, snapshotRow{Name: name, Size: st.Size(), TakenAt: at, Path: p})

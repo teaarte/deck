@@ -169,3 +169,34 @@ func snapshotFiles(t *testing.T, path string) ([]string, map[string]bool) {
 	}
 	return named, stored
 }
+
+// TestSnapshotsBeforeDeletesKeepTheirOwnTurn: snapshots taken before deleting projects rotate among themselves
+// and never push out the daily ones.
+func TestSnapshotsBeforeDeletesKeepTheirOwnTurn(t *testing.T) {
+	e := newClockEnv(t, nil)
+	backups := func(pattern string) int {
+		m, _ := filepath.Glob(filepath.Join(deckhome.Layout(e.App.Cfg.Home).State(), "backups", pattern))
+		return len(m)
+	}
+	e.sweep()
+	for i := range 9 {
+		e.Clock.Add(time.Minute)
+		name := fmt.Sprintf("p%d", i)
+		e.createProject(name, plainManifest)
+		e.must("deck.project_delete", map[string]any{"project": name}, nil)
+	}
+	if n := backups("deck-*.tar.gz"); n != 1 {
+		t.Fatalf("the daily snapshot stays after nine deletes: %d", n)
+	}
+	if n := backups("*.tar.gz"); n != 8 {
+		t.Fatalf("the newest seven snapshots before a delete stay beside it: %d", n)
+	}
+	var list []struct {
+		Name    string
+		TakenAt string `json:"taken_at"`
+	}
+	e.must("deck.snapshots_list", nil, &list)
+	if len(list) != 8 || list[0].TakenAt == "" {
+		t.Fatalf("the journal lists both kinds with their time: %+v", list)
+	}
+}

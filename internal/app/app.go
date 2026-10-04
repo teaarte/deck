@@ -172,7 +172,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	pj.Registry, pj.Gateway, pj.Runner, pj.Scheduler, pj.Broker = a.Registry, a.Gateway, a.Runner, a.Scheduler, a.Asks
 	pj.Tools, pj.MCP, pj.Host = a.Tools, a.MCP, a.Host
 	pj.PrepareLater, pj.Changed, pj.Folders = a.Documents.PrepareLater, a.Devices.Changed, a.Folders.List
-	pj.Snapshot, pj.RemoveFiles, pj.CheckScreens = a.Snapshots.Snapshot, a.Files.Remove, a.checkScreens
+	pj.Snapshot, pj.RemoveFiles, pj.CheckScreens = a.Snapshots.BeforeDelete, a.Files.Remove, a.checkScreens
 	a.Asks.OnLateAnswer(a.Answers.LateAnswer)
 	if err := a.Documents.SeedSkills(a.ctx); err != nil {
 		return nil, err

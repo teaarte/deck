@@ -30,8 +30,13 @@ func (l Layout) Token() string   { return l.state("token") }
 func (l Layout) Files() string   { return l.state("files") }
 func (l Layout) Backups() string { return l.state("backups") }
 
-// SnapshotLayout is the time in the name of a snapshot in backups/, deck-<time>.tar.gz.
-const SnapshotLayout = "20060102T150405"
+// SnapshotLayout is the time in the name of a snapshot in backups/, <kind>-<time>.tar.gz: SnapshotDaily for the
+// daily and hand ones, SnapshotDelete for those before a project is deleted.
+const (
+	SnapshotLayout = "20060102T150405"
+	SnapshotDaily  = "deck"
+	SnapshotDelete = "deleted"
+)
 
 func (l Layout) Browser() string   { return l.state("browser") }
 func (l Layout) Tailscale() string { return l.state("tailscale") }

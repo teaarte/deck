@@ -85,9 +85,10 @@ type App struct {
 	Host        *mcphost.Host
 	Manifests   *docs.Manifests
 
-	ctx    context.Context
-	cancel context.CancelFunc
-	bg     sync.WaitGroup
+	ctx      context.Context
+	cancel   context.CancelFunc
+	bg       sync.WaitGroup
+	stopOnce sync.Once
 }
 
 // New starts deck with its main provider p and further built-in ones.
@@ -134,7 +135,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	a.Connections = &connections.Service{St: st, Ctx: a.ctx, Broker: a.Asks}
 	a.Suggest = &suggest.Service{St: st, Bus: a.Bus, Now: cfg.Now, Registry: a.Registry, Asks: a.Asks, Days: a.Settings.SuggestDays}
 	a.Chats = &chat.Service{St: st, Bus: a.Bus, Now: cfg.Now, Asks: a.Asks, For: a.For}
-	a.Devices = &devices.Service{St: st, Bus: a.Bus, Now: cfg.Now, Ctx: a.ctx, STT: cfg.STT, Files: a.dirs(), RemoveFiles: a.Files.Remove,
+	a.Devices = &devices.Service{St: st, Bus: a.Bus, Now: cfg.Now, Ctx: a.ctx, BG: &a.bg, STT: cfg.STT, Files: a.dirs(), RemoveFiles: a.Files.Remove,
 		Secret: a.Secrets.Secret, ReadSecret: a.Secrets.Read, WriteSecret: a.Secrets.Write, SecretsDir: a.Secrets.Dir,
 		LockSecrets: a.Secrets.Lock, UnlockSecrets: a.Secrets.Unlock,
 		Invoke: func(ctx context.Context, act registry.Actor, name string, in json.RawMessage) (any, error) {
@@ -237,11 +238,28 @@ func others(dir, own string) []string {
 
 // Close interrupts running providers; their processes stay running and resume on the next start.
 func (a *App) Close() error {
-	a.cancel()
-	a.bg.Wait()
-	a.Runner.Shutdown()
+	a.Stop()
 	a.Host.Close()
 	return a.Store.Close()
+}
+
+// Stop ends the turns of the runner, then the loop and the background work; deck still answers, so a stop
+// takes it before the server goes.
+func (a *App) Stop() {
+	a.stopOnce.Do(func() {
+		a.Runner.Shutdown()
+		a.cancel()
+		a.bg.Wait()
+	})
+}
+
+// Start runs the loop of deck every interval until Stop.
+func (a *App) Start(every time.Duration) {
+	a.bg.Add(1)
+	go func() {
+		defer a.bg.Done()
+		a.Loop(a.ctx, every)
+	}()
 }
 
 // Fire starts the command of a trigger through the registry. Scheduled runs carry the trigger as their

@@ -94,7 +94,7 @@ func run() error {
 		slog.Error("resume interrupted", "err", err)
 	}
 	a.PumpChats(ctx)
-	go a.Loop(ctx, 30*time.Second)
+	a.Start(30 * time.Second)
 
 	server := api.New(a, token, web.FS())
 	server.Pair(port, port+1)
@@ -112,6 +112,7 @@ func run() error {
 	go func() {
 		defer close(stopped)
 		<-ctx.Done()
+		a.Stop()
 		sctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		_ = side.Shutdown(sctx)

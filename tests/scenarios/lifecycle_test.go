@@ -317,3 +317,28 @@ func TestResumeAfterItsCommandWasRenamedFinishesTheSession(t *testing.T) {
 		t.Fatalf("the session goes on by the manifest revision it started by: %+v", got)
 	}
 }
+
+// TestAStopEndsTheTurnsBeforeTheServerGoes: a stop of deck ends the turns of agents and its background work
+// first, while deck still answers, so no agent loses deck's tools in the middle of a turn.
+func TestAStopEndsTheTurnsBeforeTheServerGoes(t *testing.T) {
+	started, ended := make(chan struct{}), make(chan struct{})
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		close(started)
+		<-ctx.Done()
+		close(ended)
+		return provider.Result{}
+	})
+	p := e.createProject("long", testManifest([]string{agentCommand("work", "")}, nil))
+	id := e.run(p, "work")
+	<-started
+	e.App.Start(time.Hour)
+	e.App.Stop()
+	select {
+	case <-ended:
+	default:
+		t.Fatal("the turn has ended when the stop returns")
+	}
+	if code, out := e.call("deck.process_get", map[string]any{"process": id}); code != 200 || !strings.Contains(string(out), `"running"`) {
+		t.Fatalf("deck still answers after the stop, and the turn resumes on the next start: %d %s", code, out)
+	}
+}

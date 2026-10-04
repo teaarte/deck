@@ -63,6 +63,7 @@ type Service struct {
 	Bus           *events.Bus
 	Now           func() time.Time
 	Ctx           context.Context
+	BG            *sync.WaitGroup
 	Files         files.Dirs
 	RemoveFiles   func(ids []int64)
 	Secret        func(workspace int64, name string) (string, error)
@@ -220,12 +221,17 @@ func (dv *Service) WatchPush() {
 		if !slices.Contains([]string{"asks", "processes", "feed", "chat"}, topic) {
 			return
 		}
+		if dv.Ctx.Err() != nil {
+			return
+		}
 		select {
 		case mu <- struct{}{}:
 		default:
 			return
 		}
+		dv.BG.Add(1)
 		time.AfterFunc(pushPause, func() {
+			defer dv.BG.Done()
 			<-mu
 			if dv.Ctx.Err() != nil {
 				return

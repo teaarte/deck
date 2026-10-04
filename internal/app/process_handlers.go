@@ -198,7 +198,7 @@ func (a *App) processRework(ctx context.Context, act registry.Actor, in processR
 	if err := a.Runner.Rework(ctx, in.Process, in.Remark); err != nil {
 		return nil, err
 	}
-	return Started{Process: in.Process}, nil
+	return process.Started{Process: in.Process}, nil
 }
 
 type processLogIn struct {

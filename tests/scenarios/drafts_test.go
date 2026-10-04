@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"deck2/internal/app"
 	"deck2/internal/gateway"
+	"deck2/internal/process"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
 	"deck2/internal/store"
@@ -440,7 +440,7 @@ func TestCommandRunsTheRevisionItWasAuthorizedAgainst(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	e.waitState(out.(app.Started).Process, "done")
+	e.waitState(out.(process.Started).Process, "done")
 	if calls := e.Fake.Calls(); len(calls) != 1 || !strings.Contains(calls[0].Prompt, "OLD PROMPT") || strings.Contains(calls[0].Prompt, "NEW PROMPT") {
 		t.Fatalf("the process must run the command of the revision the call was checked against: %+v", calls)
 	}

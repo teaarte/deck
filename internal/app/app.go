@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"deck2/internal/app/asks"
 	"deck2/internal/app/board"
 	"deck2/internal/app/chat"
 	"deck2/internal/app/devices"
@@ -71,6 +72,8 @@ type App struct {
 	Snapshots *snapshots.Service
 	Triggers  *triggers.Service
 	Documents *documents.Service
+	// Answers are what waits for the owner and their answers; Asks is the broker processes wait on.
+	Answers   *asks.Service
 	Scripts   *script.Exec
 	Tools     *tools.HTTP
 	MCP       *tools.MCP
@@ -113,9 +116,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	a.Journal = &journal.Service{St: st, Now: cfg.Now, Backups: h.Backups()}
 	a.Triggers = &triggers.Service{St: st}
 	a.Documents = &documents.Service{St: st, Now: cfg.Now, Sandbox: cfg.Sandbox, Ctx: a.ctx, BG: &a.bg,
-		SaveManifest: func(ctx context.Context, act registry.Actor, p db.Project, raw []byte, reason string, revertTo, ifRevision int64, command string, input map[string]any) (any, error) {
-			return a.SaveManifest(ctx, act, p, raw, reason, revertTo, ifRevision, Call{Command: command, Input: input})
-		}}
+		SaveManifest: a.saveManifestAny}
 	a.Snapshots = &snapshots.Service{St: st, Bus: a.Bus, Home: h, Now: cfg.Now, LockFiles: a.Files.Mu.Lock, UnlockFiles: a.Files.Mu.Unlock,
 		RemoveFiles: a.Files.Remove}
 	a.Settings = &settings.Service{St: st, DefaultTTL: cfg.ConfirmTTL, Wake: func(ctx context.Context) { a.Runner.Wake(ctx) }}
@@ -126,6 +127,8 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	a.Providers = &providers.Service{St: st, Bus: a.Bus, Now: cfg.Now, Home: cfg.Home, Sandbox: cfg.Sandbox, ACPBinaries: cfg.ACPBinaries,
 		ACPCallLimit: cfg.ACPCallLimit, SelfCheckCeiling: cfg.SelfCheckCeiling, Secret: a.Secrets.Secret, Wake: func(ctx context.Context) { a.Runner.Wake(ctx) },
 		Builtin: append([]provider.Provider{p}, more...), Ctx: a.ctx, BG: &a.bg}
+	a.Answers = &asks.Service{St: st, Now: cfg.Now, Broker: a.Asks, Registry: a.Registry, AnswerGrant: a.grantAnswer,
+		SaveManifest: a.saveManifestAny}
 	a.Suggest = &suggest.Service{St: st, Bus: a.Bus, Now: cfg.Now, Registry: a.Registry, Asks: a.Asks, Days: a.Settings.SuggestDays}
 	a.Chats = &chat.Service{St: st, Bus: a.Bus, Now: cfg.Now, Asks: a.Asks, For: a.For}
 	a.Devices = &devices.Service{St: st, Bus: a.Bus, Now: cfg.Now, Ctx: a.ctx, STT: cfg.STT, Files: a.dirs(), RemoveFiles: a.Files.Remove,
@@ -155,10 +158,12 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 		process.Config{RunsDir: h.Runs(), MCPBase: cfg.MCPBase, Now: cfg.Now, FilesDir: h.Files(), FilesMu: &a.Files.Mu,
 			Hidden: hidden(h), PauseLimit: cfg.PauseLimit, AgentSlots: a.Settings.AgentSlots}, a)
 	a.Chats.Runner, a.Suggest.Gateway, a.Tokens.Journal, a.Documents.Changed = a.Runner, a.Gateway, a.Gateway.Journal, a.Devices.Changed
+	a.Answers.Gateway, a.Answers.Deliver = a.Gateway, a.Runner.Deliver
+	a.Answers.ExpireSuggestions, a.Answers.AnswerSuggestion = a.Suggest.Expire, a.Suggest.Answer
 	a.Runner.Hooks = []process.Hook{a.Chats.NewHook(), errorsHook{a: a}, afterHook{a: a}}
 	a.Scheduler = trigger.New(st, a, cfg.Now)
 	a.Triggers.Scheduler, a.Triggers.Gateway, a.Triggers.Registry = a.Scheduler, a.Gateway, a.Registry
-	a.Asks.OnLateAnswer(a.lateAnswer)
+	a.Asks.OnLateAnswer(a.Answers.LateAnswer)
 	if err := a.Documents.SeedSkills(a.ctx); err != nil {
 		return nil, err
 	}
@@ -271,7 +276,7 @@ func (a *App) fire(ctx context.Context, t db.Trigger, input map[string]any, pare
 	if err != nil {
 		return 0, err
 	}
-	started, _ := out.(Started)
+	started, _ := out.(process.Started)
 	return started.Process, nil
 }
 
@@ -319,21 +324,11 @@ func (a *App) afterTriggers(ctx context.Context, done db.Process) {
 	}
 }
 
-// lateAnswer delivers an answer nobody was waiting for live; Deliver ignores processes that are not parked.
-func (a *App) lateAnswer(ctx context.Context, q db.Ask) {
-	if !q.ProcessID.Valid {
-		return
-	}
-	if err := a.Runner.Deliver(ctx, q.ProcessID.Int64); err != nil {
-		slog.Error("deliver answer", "process", q.ProcessID.Int64, "err", err)
-	}
-}
-
 // Sweep checks every deadline against now: deleted cards, expired confirmations, ceilings, pauses on a usage
 // limit, silent processes, empty results kept long enough, the disk, and the daily cleanup and snapshot.
 func (a *App) Sweep(ctx context.Context, now time.Time) {
 	a.Board.Purge(ctx, now)
-	a.expireConfirms(ctx, now)
+	a.Answers.ExpireConfirms(ctx, now)
 	a.Suggest.Expire(ctx, now)
 	a.stopAtCeiling(ctx, now)
 	a.Runner.Unpause(ctx, now)
@@ -346,27 +341,6 @@ func (a *App) Sweep(ctx context.Context, now time.Time) {
 		}
 	}
 	a.Snapshots.Daily(ctx, now)
-}
-
-func (a *App) expireConfirms(ctx context.Context, now time.Time) {
-	expired, err := store.TxGet(a.Store, ctx, func(ctx context.Context, q *db.Queries) ([]db.Ask, error) {
-		return q.ExpireStaleConfirms(ctx, store.Time(now))
-	})
-	if err != nil {
-		slog.Error("expire confirmations", "err", err)
-		return
-	}
-	seen := map[int64]bool{}
-	for _, q := range expired {
-		if q.Kind == ask.KindCall {
-			a.Gateway.Record(ctx, q, "expired", "the owner did not answer in time")
-		}
-		if seen[q.ProcessID.Int64] {
-			continue
-		}
-		seen[q.ProcessID.Int64] = true
-		a.lateAnswer(ctx, q)
-	}
 }
 
 func (a *App) stopAtCeiling(ctx context.Context, now time.Time) {
@@ -434,4 +408,10 @@ func (a *App) TailnetHealth(status, text string) {
 // Skills are the files of the named skills, for the runner.
 func (a *App) Skills(ctx context.Context, projectID int64, names []string) (map[string]string, error) {
 	return a.Documents.Skills(ctx, projectID, names)
+}
+
+// saveManifestAny is SaveManifest for a service that names the call the owner allows by command and input.
+func (a *App) saveManifestAny(ctx context.Context, act registry.Actor, p db.Project, raw []byte, reason string, revertTo, ifRevision int64,
+	command string, input map[string]any) (any, error) {
+	return a.SaveManifest(ctx, act, p, raw, reason, revertTo, ifRevision, Call{Command: command, Input: input})
 }

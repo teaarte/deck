@@ -20,6 +20,11 @@ import (
 	"github.com/google/uuid"
 )
 
+// Started is what a call that starts a process gives back.
+type Started struct {
+	Process int64 `json:"process"`
+}
+
 // Origin is who started a process: the process that called or triggered it, the trigger, the retry key;
 // Trial asks for a trial run, which processes of a draft and children of a trial run always are.
 type Origin struct {

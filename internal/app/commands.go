@@ -115,7 +115,7 @@ func (a *App) startHandler(projectID int64, m *manifest.Manifest, command string
 		if err != nil {
 			return nil, err
 		}
-		return Started{Process: id}, nil
+		return process.Started{Process: id}, nil
 	}
 }
 
@@ -139,8 +139,4 @@ func withRetryKey(in json.RawMessage) json.RawMessage {
 		return in
 	}
 	return b
-}
-
-type Started struct {
-	Process int64 `json:"process"`
 }

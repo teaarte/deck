@@ -13,6 +13,7 @@ import (
 	"deck2/internal/docs"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
+	"deck2/internal/store"
 	"deck2/internal/store/db"
 	"deck2/internal/tools"
 )
@@ -28,7 +29,7 @@ func (a *App) projectDelete(ctx context.Context, act registry.Actor, in projectD
 	if err != nil {
 		return nil, err
 	}
-	if err := a.deletable(ctx, a.Store.Q, p); err != nil {
+	if err := a.deletable(ctx, a.Store.Q, act, p); err != nil {
 		return nil, err
 	}
 	m, _ := docs.Manifest(ctx, a.Store.Q, p)
@@ -38,7 +39,7 @@ func (a *App) projectDelete(ctx context.Context, act registry.Actor, in projectD
 	}
 	var gone, runs []int64
 	err = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		if err := a.deletable(ctx, q, p); err != nil {
+		if err := a.deletable(ctx, q, act, p); err != nil {
 			return err
 		}
 		var err error
@@ -73,10 +74,20 @@ func (a *App) projectDelete(ctx context.Context, act registry.Actor, in projectD
 	return map[string]any{"deleted": p.Name, "snapshot": snapshot}, nil
 }
 
-// deletable refuses to delete a project that still has open processes or that another project reads.
-func (a *App) deletable(ctx context.Context, q *db.Queries, p db.Project) error {
+// deletable refuses to delete a project that still has open processes or that another project reads; the master
+// deletes only drafts.
+func (a *App) deletable(ctx context.Context, q *db.Queries, act registry.Actor, p db.Project) error {
 	if p.Builtin == 1 {
 		return registry.Invalid("deck: %s is built into deck; it cannot be deleted", p.Name)
+	}
+	if act.Kind != registry.Owner {
+		cur, err := q.GetProject(ctx, p.ID)
+		if err != nil {
+			return err
+		}
+		if cur.Status != store.ProjectDraft {
+			return registry.Refuse("deck: %s is not a draft; only the owner deletes an enabled project", p.Name)
+		}
 	}
 	open, err := q.ListOpenProcesses(ctx, db.ListOpenProcessesParams{WorkspaceID: p.WorkspaceID, ProjectID: p.ID})
 	if err != nil {
@@ -106,9 +117,28 @@ func (a *App) deletable(ctx context.Context, q *db.Queries, p db.Project) error 
 }
 
 func (a *App) projectDeleteCommands() []*registry.Command {
-	return []*registry.Command{
-		registry.Def("project_delete", "Delete project",
-			"Deletes a project after a snapshot of deck: its records, documents, files, triggers, cards, processes and settings; folders on disk stay.",
-			registry.OwnerOnly, a.projectDelete).As(registry.External),
+	del := registry.Def("project_delete", "Delete project",
+		"Deletes a project after a snapshot of deck (the master deletes only drafts): its records, documents, files, triggers, cards, processes and settings; folders on disk stay.",
+		registry.OwnerSide, a.projectDelete).As(registry.External)
+	del.Allowed = a.draftOfMaster
+	return []*registry.Command{del}
+}
+
+// draftOfMaster lets the master delete a draft without the owner and refuses it any other project.
+func (a *App) draftOfMaster(ctx context.Context, act registry.Actor, input json.RawMessage, _ bool) (bool, error) {
+	if act.Kind != registry.Master || act.Token != 0 {
+		return false, registry.Refuse("deck: only the owner and the master delete a project")
 	}
+	var in projectDeleteIn
+	if err := json.Unmarshal(input, &in); err != nil {
+		return false, err
+	}
+	p, err := access.Project(ctx, a.Store.Q, act, in.Project)
+	if err != nil {
+		return false, err
+	}
+	if p.Status != store.ProjectDraft {
+		return false, registry.Refuse("deck: %s is not a draft; only the owner deletes an enabled project", p.Name)
+	}
+	return true, nil
 }

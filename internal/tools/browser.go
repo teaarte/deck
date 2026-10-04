@@ -253,7 +253,7 @@ func on(domains []string, page string) bool {
 }
 
 // allowed lets an action run without the owner when the page is on an act domain.
-func (b *Browser) allowed(ctx context.Context, act registry.Actor, _ bool) (bool, error) {
+func (b *Browser) allowed(ctx context.Context, act registry.Actor, _ json.RawMessage, _ bool) (bool, error) {
 	m, err := docs.ManifestAt(ctx, b.Store.Q, act.ProjectID, 0)
 	if err != nil {
 		return false, err

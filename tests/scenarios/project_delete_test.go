@@ -8,10 +8,13 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"syscall"
 	"testing"
 
 	"deck2/internal/provider"
+	"deck2/internal/registry"
 )
 
 // TestProjectDeleteTakesASnapshotAndLeavesNothingOfTheProject: only the owner, with no open process and no reader;
@@ -168,4 +171,37 @@ func TestProjectDeleteStopsTheMCPServersOfTheProject(t *testing.T) {
 	}
 	e.must("deck.project_delete", map[string]any{"project": "srv"}, nil)
 	e.waitFor("the server to stop", func() bool { return syscall.Kill(n, 0) != nil })
+}
+
+// TestTheMasterDeletesOnlyDrafts: the master deletes a draft at once, after a snapshot like the owner; an enabled
+// project only the owner deletes.
+func TestTheMasterDeletesOnlyDrafts(t *testing.T) {
+	var said sync.Map
+	var turn atomic.Int32
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		name := []string{"sketch", "live"}[turn.Add(1)-1]
+		out, isErr := c.Tool(ctx, "project_delete", map[string]any{"project": name})
+		said.Store(name, fmt.Sprint(isErr, " ", out))
+		return provider.Result{Text: "Tried."}
+	})
+	if _, err := e.App.Registry.Invoke(context.Background(), registry.Actor{Kind: registry.Master, Workspace: 1}, "deck.project_create",
+		[]byte(fmt.Sprintf(`{"name": "sketch", "manifest": %q}`, boardWebManifest))); err != nil {
+		t.Fatal(err)
+	}
+	e.createProject("live", boardWebManifest)
+	topic := e.say(0, "sketch")
+	e.masterSaid(topic, 1)
+	if got, _ := said.Load("sketch"); !strings.HasPrefix(fmt.Sprint(got), "false ") || !strings.Contains(fmt.Sprint(got), "snapshot") {
+		t.Fatalf("the master deletes a draft at once, after a snapshot: %v", got)
+	}
+	e.say(topic, "live")
+	e.masterSaid(topic, 2)
+	if got, _ := said.Load("live"); !strings.HasPrefix(fmt.Sprint(got), "true ") || !strings.Contains(fmt.Sprint(got), "not a draft") {
+		t.Fatalf("an enabled project only the owner deletes: %v", got)
+	}
+	var ps []struct{ Name string }
+	e.projectsOf(&ps)
+	if len(ps) != 1 || ps[0].Name != "live" {
+		t.Fatalf("only the draft is gone: %+v", ps)
+	}
 }

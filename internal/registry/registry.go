@@ -72,8 +72,9 @@ type Command struct {
 	Target func(print string) string `json:"-"`
 	// ConfirmTTL is the tool's own term for its confirmations.
 	ConfirmTTL time.Duration `json:"-"`
-	// Allowed decides whether an external call runs without the owner; listed says the project allows it.
-	Allowed func(ctx context.Context, a Actor, listed bool) (bool, error) `json:"-"`
+	// Allowed decides whether an external call with this input runs without the owner; listed says the project
+	// allows it.
+	Allowed func(ctx context.Context, a Actor, input json.RawMessage, listed bool) (bool, error) `json:"-"`
 
 	Handler Handler `json:"-"`
 	schema  *jsonschema.Schema

@@ -117,8 +117,11 @@ func Canonical(raw json.RawMessage) string {
 
 // gate reports whether a call that is not internal runs now: reversible in a project on autonomy auto,
 // external when the project lists it as allowed or the tool itself allows it. A draft declines both.
-func (g *Gateway) gate(ctx context.Context, act registry.Actor, c *registry.Command, project int64) (bool, error) {
+func (g *Gateway) gate(ctx context.Context, act registry.Actor, c *registry.Command, project int64, input json.RawMessage) (bool, error) {
 	if project == 0 {
+		if c.Class == registry.External && c.Allowed != nil {
+			return c.Allowed(ctx, act, input, false)
+		}
 		return false, nil
 	}
 	p, err := g.st.Q.GetProject(ctx, project)
@@ -138,7 +141,7 @@ func (g *Gateway) gate(ctx context.Context, act registry.Actor, c *registry.Comm
 	case registry.External:
 		listed := slices.Contains(m.AllowedExternal, strings.TrimPrefix(c.Name, p.Name+".")) || slices.Contains(m.AllowedExternal, c.Name)
 		if c.Allowed != nil {
-			return c.Allowed(ctx, act, listed)
+			return c.Allowed(ctx, act, input, listed)
 		}
 		return listed, nil
 	}

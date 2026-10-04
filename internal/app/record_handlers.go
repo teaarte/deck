@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"deck2/internal/app/access"
+	"deck2/internal/events"
 	"encoding/json"
 	"errors"
 	"reflect"
@@ -115,7 +116,7 @@ func (a *App) writeRecords(ctx context.Context, p db.Project, f func(ctx context
 		return f(ctx, q, m)
 	})
 	if err == nil {
-		a.Bus.Publish("collection")
+		a.Bus.Emit(events.Event{Workspace: p.WorkspaceID, Topic: "collection", Project: p.Name})
 	}
 	return err
 }

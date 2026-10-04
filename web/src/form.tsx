@@ -254,7 +254,7 @@ export function Form({ value }: { value: FormValue }) {
           }
         };
         const timer = setInterval(() => void check(), 10000);
-        const off = events((topic) => { if (topic === 'processes') void check(); }, () => {});
+        const off = events((e) => { if (e.topic === 'processes') void check(); });
         const end = (e?: unknown) => {
           if (over) return;
           over = true;

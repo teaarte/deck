@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"deck2/internal/events"
 	"deck2/internal/process"
 	"deck2/internal/provider"
 	"deck2/internal/store/db"
@@ -236,22 +237,39 @@ func TestAgentWritesCardsOfItsProjectOnly(t *testing.T) {
 
 // sse reads topics from the events stream, like a second device would.
 func (e *Env) sse(ctx context.Context) <-chan string {
+	out := make(chan string, 64)
+	in := e.live(ctx)
+	go func() {
+		for ev := range in {
+			out <- ev.Topic
+		}
+	}()
+	return out
+}
+
+// live reads the events of the events stream: their topics and projects.
+func (e *Env) live(ctx context.Context) <-chan events.Event {
 	req, _ := http.NewRequestWithContext(ctx, "GET", e.URL+"/api/events", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		e.T.Fatal(err)
 	}
-	ch := make(chan string, 64)
+	ch := make(chan events.Event, 64)
 	var once sync.Once
 	ready := make(chan struct{})
 	go func() {
+		defer close(ch)
 		defer resp.Body.Close()
 		sc := bufio.NewScanner(resp.Body)
 		for sc.Scan() {
 			once.Do(func() { close(ready) })
-			if topic, ok := strings.CutPrefix(sc.Text(), "data: "); ok {
-				ch <- topic
+			if raw, ok := strings.CutPrefix(sc.Text(), "data: "); ok {
+				var ev events.Event
+				if err := json.Unmarshal([]byte(raw), &ev); err != nil {
+					e.T.Errorf("an event is a JSON object: %q", raw)
+				}
+				ch <- ev
 			}
 		}
 	}()

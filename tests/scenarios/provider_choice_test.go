@@ -177,8 +177,8 @@ func TestTheProviderColumnFollowsProviderSet(t *testing.T) {
 	defer cancel()
 	phone := e.sse(ctx)
 	e.must("deck.provider_set", map[string]any{"command": "plain.work", "provider": "api"}, nil)
-	waitTopic(t, phone, "health")
-	drawn, _ := json.Marshal(e.screenMessages("plain", "settings", map[string]any{"topic": "health"}))
+	waitTopic(t, phone, "projects")
+	drawn, _ := json.Marshal(e.screenMessages("plain", "settings", map[string]any{"topic": "projects", "changed": "plain"}))
 	if !strings.Contains(string(drawn), `"cells":["Work","plain.work","agent","api"]`) {
 		t.Fatalf("the commands of the project are read again with the provider picked: %s", drawn)
 	}

@@ -4,7 +4,7 @@ import { A2uiSurface, type ReactComponentImplementation } from '@a2ui/react/v0_9
 import { Alert, Loader } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { useTranslation } from 'react-i18next';
-import { call, events } from './api';
+import { call, events, type LiveEvent } from './api';
 import { catalog, known, UNKNOWN, type Action } from './catalog';
 import { outcomes } from './actions';
 import { openTopic } from './chat';
@@ -151,41 +151,33 @@ export function ScreenView({ route, onProjects }: { route: Route; onProjects: ()
         if (!gone) notifications.show({ message: (e as Error).message, color: 'red' });
       }
     };
-    const pending = new Set<string>();
+    // Events wait at most 200 ms, merged by topic and project, so a fast stream still redraws as it goes.
+    const pending = new Map<string, LiveEvent>();
     let timer: ReturnType<typeof setTimeout> | undefined;
-    const reread = async (topic: string) => {
+    const reread = async (e: LiveEvent) => {
       if (!proc.current) return;
       const mine = generation;
       const ticket = ++tickets;
       try {
-        const msgs = await call<Message[]>('deck.screen', { ...input(), topic });
+        const msgs = await call<Message[]>('deck.screen', { ...input(), topic: e.topic, ...(e.project ? { changed: e.project } : {}) });
         if (!gone && mine === generation) feed(msgs, ticket);
       } catch (e) {
         if (!gone) notifications.show({ message: (e as Error).message, color: 'red' });
       }
     };
-    const onTopic = (topic: string) => {
-      if (topic === 'projects') {
-        onProjects();
-        void load();
-        return;
-      }
-      if (!TOPICS.includes(topic)) return;
-      pending.add(topic);
-      clearTimeout(timer);
+    const onEvent = (e: LiveEvent) => {
+      if (e.topic === 'projects') onProjects();
+      if (!TOPICS.includes(e.topic)) return;
+      pending.set(e.topic + ' ' + (e.project ?? ''), e);
+      if (timer) return;
       timer = setTimeout(() => {
-        const ts = [...pending];
+        timer = undefined;
+        const es = [...pending.values()];
         pending.clear();
-        ts.forEach((x) => void reread(x));
+        es.forEach((x) => void reread(x));
       }, 200);
     };
-    let down = false;
-    const stop = events(onTopic, (live) => {
-      if (live && down) void load();
-      down = !live;
-    });
-    const back = () => { if (!document.hidden) void load(); };
-    document.addEventListener('visibilitychange', back);
+    const stop = events(onEvent, () => void load());
     proc.current = undefined;
     setSurface(undefined);
     void load();
@@ -193,7 +185,6 @@ export function ScreenView({ route, onProjects }: { route: Route; onProjects: ()
       gone = true;
       clearTimeout(timer);
       stop();
-      document.removeEventListener('visibilitychange', back);
     };
   }, [key]);
 

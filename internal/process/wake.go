@@ -44,7 +44,7 @@ func (r *Runner) hold(ctx context.Context, t turn, state string) {
 		return err
 	})
 	if held {
-		r.bus.Publish("processes")
+		r.changed(ctx, t.process, "processes")
 		r.Wake(ctx)
 	}
 }
@@ -123,7 +123,7 @@ func (r *Runner) wake(ctx context.Context) {
 			continue
 		}
 		t.slot = s
-		r.bus.Publish("processes")
+		r.changed(ctx, p.ID, "processes")
 		if !r.spawn(t) {
 			_ = r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 				_, err := q.ClaimProcess(ctx, db.ClaimProcessParams{ToState: p.State, ID: p.ID, FromState: StateRunning})

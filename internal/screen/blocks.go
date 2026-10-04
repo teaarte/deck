@@ -157,7 +157,7 @@ func (r *renderer) block(id string, b manifest.Block) {
 		comp["kind"] = cmp.Or(b.Kind, "line")
 	}
 	comp["data"] = map[string]any{"path": "/" + id}
-	if r.req.Topic != "" && !follows(b, r.deck(), r.req.Topic) {
+	if r.req.Topic != "" && (!follows(b, r.deck(), r.req.Topic) || !r.reads(b, r.req.Changed)) {
 		return
 	}
 	value, err := r.resolve(id, b)
@@ -309,6 +309,17 @@ func follows(b manifest.Block, deck bool, topic string) bool {
 		return slices.Contains([]string{"chat", "asks", "log", "processes"}, topic)
 	}
 	return topic == topicOf(b, deck)
+}
+
+// reads says whether a block reads a part of a project: a block of a deck screen reads every project.
+func (r *renderer) reads(b manifest.Block, project string) bool {
+	switch {
+	case project == "" || r.deck():
+		return true
+	case b.Source != nil && b.Source.Project != "":
+		return b.Source.Project == project
+	}
+	return project == r.req.Project.Name
 }
 
 // topicOf is the event topic after which the block is read again.

@@ -184,7 +184,7 @@ func (r *Runner) Start(ctx context.Context, projectID int64, m *manifest.Manifes
 	if reused {
 		return p.ID, nil
 	}
-	r.bus.Publish("processes")
+	r.changed(ctx, p.ID, "processes")
 	if o.Trigger != 0 {
 		r.bus.Publish("triggers")
 	}

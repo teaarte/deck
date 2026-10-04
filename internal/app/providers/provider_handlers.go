@@ -251,7 +251,7 @@ func (s *Service) Commands() []*registry.Command {
 			registry.OwnerSide, s.providersList).On("health"),
 		registry.Def("provider_set", "Choose provider",
 			"Sets the provider an agent command runs on from its next start; empty goes back to the default.",
-			registry.OwnerOnly, s.providerSet).Changes("health"),
+			registry.OwnerOnly, s.providerSet).Changes("projects"),
 		registry.Def("provider_add", "Add provider",
 			"Adds or changes a provider of this workspace: an ACP agent on an OpenAI-compatible API, such as Ollama, OpenRouter or DeepSeek.",
 			registry.OwnerOnly, s.providerAdd).Enum("agent", acp.Names()...).Changes("health"),

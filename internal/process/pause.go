@@ -57,7 +57,7 @@ func (r *Runner) pause(ctx context.Context, pv provider.Provider, processID int6
 		return
 	}
 	if n > 0 {
-		r.bus.Publish("processes")
+		r.changed(ctx, processID, "processes")
 		r.bus.Publish("health")
 	}
 }

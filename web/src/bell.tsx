@@ -29,7 +29,7 @@ export function Bell() {
   const load = useCallback(() => { call<Note[]>('deck.feed_list', { kind: 'note', limit: 30 }).then(setNotes, () => undefined); }, []);
   useEffect(() => {
     load();
-    return events((topic) => { if (topic === 'feed') load(); }, () => undefined);
+    return events((e) => { if (e.topic === 'feed') load(); });
   }, []);
   const fresh = notes.filter((n) => n.id > seen).length;
   const toggle = () => {

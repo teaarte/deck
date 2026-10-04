@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"deck2/internal/app/access"
+	"deck2/internal/events"
 	"fmt"
 	"log/slog"
 
@@ -190,12 +191,12 @@ func (a *App) SaveManifest(ctx context.Context, act registry.Actor, p db.Project
 		}
 		return saved, err
 	}
-	a.Bus.Publish("projects")
+	a.Bus.Emit(events.Event{Workspace: p.WorkspaceID, Topic: "projects", Project: p.Name})
 	if listed {
 		a.Bus.Publish("feed")
 	}
 	if len(plan) > 0 {
-		a.Bus.Publish("collection")
+		a.Bus.Emit(events.Event{Workspace: p.WorkspaceID, Topic: "collection", Project: p.Name})
 	}
 	a.prepareLater(p.ID)
 	saved.Screens = a.checkScreens(ctx, act, p, pm.m)

@@ -322,7 +322,7 @@ func (r *Runner) event(ctx context.Context, processID int64, stream *os.File, e 
 	now := r.now()
 	b, _ := json.Marshal(logLine{At: store.Time(now), Kind: e.Kind, ID: e.ID, Title: e.Title, Status: e.Status, Text: untrusted.Cut(e.Text, 4000)})
 	_, _ = stream.Write(append(b, '\n'))
-	r.bus.Publish("log")
+	r.changed(ctx, processID, "log")
 	r.mu.Lock()
 	last, seen := r.marked[processID]
 	due := !seen || now.Sub(last) >= time.Second
@@ -343,7 +343,7 @@ func (r *Runner) event(ctx context.Context, processID int64, stream *os.File, e 
 		return q.SetProcessOutput(ctx, db.SetProcessOutputParams{OutputMs: now.UnixMilli(), ID: processID})
 	})
 	if wasSilent {
-		r.bus.Publish("processes")
+		r.changed(ctx, processID, "processes")
 	}
 }
 

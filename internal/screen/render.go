@@ -52,8 +52,10 @@ type Request struct {
 	Manifest *manifest.Manifest
 	Screen   *manifest.Screen
 	Record   int64
-	// Topic, when set, resolves only the blocks it changes and returns their data.
-	Topic string
+	// Topic, when set, resolves only the blocks it changes and returns their data; with Changed, only those
+	// that read that project.
+	Topic   string
+	Changed string
 	// Filter holds the values the owner picked, by block id and field.
 	Filter map[string]map[string]string
 	// Owner is set when the owner asks; only the owner reads the chat.
@@ -82,6 +84,9 @@ func Render(ctx context.Context, st *store.Store, src Sources, req Request) ([]m
 		req.Topic = ""
 	}
 	if req.Topic != "" && changesWhen(req.Screen.Blocks, req.Screen.Record, req.Project.ID == 0, req.Topic) {
+		req.Topic = ""
+	}
+	if req.Topic == "projects" && req.Project.ID != 0 && (req.Changed == "" || req.Changed == req.Project.Name) {
 		req.Topic = ""
 	}
 	r, err := resolve(ctx, st, src, req)

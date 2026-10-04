@@ -202,7 +202,7 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
-	ch, cancel := s.app.Bus.Subscribe()
+	sub, cancel := s.app.Bus.Subscribe(actor(r).Workspace)
 	defer cancel()
 	fmt.Fprint(w, ": ok\n\n")
 	flusher.Flush()
@@ -210,8 +210,11 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 		select {
 		case <-r.Context().Done():
 			return
-		case topic := <-ch:
-			fmt.Fprintf(w, "data: %s\n\n", topic)
+		case <-sub.Ready():
+			for _, e := range sub.Take() {
+				b, _ := json.Marshal(e)
+				fmt.Fprintf(w, "data: %s\n\n", b)
+			}
 			flusher.Flush()
 		}
 	}

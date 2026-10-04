@@ -47,7 +47,7 @@ func (r *Runner) Stop(ctx context.Context, processID int64, reason string) error
 	lt := r.live[processID]
 	delete(r.marked, processID)
 	r.mu.Unlock()
-	r.bus.Publish("processes")
+	r.changed(ctx, processID, "processes")
 	after := func(ctx context.Context) {
 		r.dropped(ctx, closedCalls)
 		r.closed(ctx, processID)

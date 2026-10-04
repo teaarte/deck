@@ -38,7 +38,7 @@ func (r *Runner) holdFolder(ctx context.Context, t turn, folder string) bool {
 		delete(r.live, t.process)
 	}
 	r.mu.Unlock()
-	r.bus.Publish("processes")
+	r.changed(ctx, t.process, "processes")
 	return false
 }
 

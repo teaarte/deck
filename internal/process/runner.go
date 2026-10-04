@@ -97,6 +97,27 @@ type Runner struct {
 	marked map[int64]time.Time
 	// slots counts the agent turns of each workspace that hold a slot, taken or handed over.
 	slots map[int64]int
+	// of is the workspace and project of each process an event was published for.
+	of map[int64]events.Event
+}
+
+// changed publishes a topic in the project of a process.
+func (r *Runner) changed(ctx context.Context, processID int64, topic string) {
+	r.mu.Lock()
+	e, ok := r.of[processID]
+	r.mu.Unlock()
+	if !ok {
+		if p, err := r.st.Q.GetProcess(ctx, processID); err == nil {
+			if pr, err := r.st.Q.GetProject(ctx, p.ProjectID); err == nil {
+				e = events.Event{Workspace: pr.WorkspaceID, Project: pr.Name}
+				r.mu.Lock()
+				r.of[processID] = e
+				r.mu.Unlock()
+			}
+		}
+	}
+	e.Topic = topic
+	r.bus.Emit(e)
 }
 
 type liveTurn struct {
@@ -136,7 +157,7 @@ func NewRunner(st *store.Store, gw *gateway.Gateway, bus *events.Bus, p Provider
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Runner{st: st, gw: gw, bus: bus, providers: p, scripts: scripts, cfg: cfg, projects: projects, ctx: ctx, cancel: cancel,
 		live: map[int64]*liveTurn{}, marked: map[int64]time.Time{},
-		slots: map[int64]int{}}
+		slots: map[int64]int{}, of: map[int64]events.Event{}}
 }
 
 // Shutdown interrupts running providers and waits; interrupted processes stay running and resume on next start.
@@ -225,7 +246,7 @@ func (r *Runner) finish(ctx context.Context, processID int64, state, result stri
 		return
 	}
 	if parked {
-		r.bus.Publish("processes")
+		r.changed(ctx, processID, "processes")
 		if err := r.Deliver(ctx, processID); err != nil {
 			r.finish(ctx, processID, StateError, "", false, "resume with a message: "+err.Error())
 		}
@@ -244,7 +265,10 @@ func (r *Runner) finish(ctx context.Context, processID int64, state, result stri
 
 // closed announces a process that reached a final state; its log stays until deck clears old runs.
 func (r *Runner) closed(ctx context.Context, processID int64) {
-	r.bus.Publish("processes")
+	r.changed(ctx, processID, "processes")
+	r.mu.Lock()
+	delete(r.of, processID)
+	r.mu.Unlock()
 	r.bus.Publish("asks")
 	r.hear(ctx, processID, func(h Hook, p db.Process) { h.Closed(ctx, p) })
 }

@@ -257,7 +257,7 @@ func (r *Runner) resumeTurn(ctx context.Context, processID int64, message string
 		}
 	}
 	t.slot = s
-	r.bus.Publish("processes")
+	r.changed(ctx, processID, "processes")
 	r.spawn(t)
 	return nil
 }

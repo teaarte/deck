@@ -85,7 +85,7 @@ func (s *Service) writeBoard(ctx context.Context, act registry.Actor, f func(ctx
 	if err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error { return f(ctx, q, w) }); err != nil {
 		return err
 	}
-	s.Bus.Publish("board")
+	s.Bus.Emit(events.Event{Workspace: w.p.WorkspaceID, Topic: "board", Project: w.p.Name})
 	for _, e := range w.entered {
 		s.laneTriggers(ctx, w.p, w.m, e.card, e.lane, w.parent)
 	}
@@ -98,7 +98,7 @@ func (s *Service) laneTriggers(ctx context.Context, p db.Project, m *manifest.Ma
 	linked := false
 	defer func() {
 		if linked {
-			s.Bus.Publish("board")
+			s.Bus.Emit(events.Event{Workspace: p.WorkspaceID, Topic: "board", Project: p.Name})
 		}
 	}()
 	if p.Paused == 1 {

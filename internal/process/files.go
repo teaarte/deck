@@ -50,7 +50,7 @@ func (r *Runner) keepFiles(ctx context.Context, projectID, processID int64, resu
 	if len(res.Files) == 0 {
 		err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error { return rebind(ctx, q, projectID, processID, given) })
 		if err == nil {
-			r.bus.Publish("files")
+			r.changed(ctx, processID, "files")
 		}
 		return err
 	}
@@ -121,7 +121,7 @@ func (r *Runner) keepFiles(ctx context.Context, projectID, processID int64, resu
 		r.dropFiles(ctx, rows)
 		return err
 	}
-	r.bus.Publish("files")
+	r.changed(ctx, processID, "files")
 	return nil
 }
 

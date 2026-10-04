@@ -178,19 +178,12 @@ export function Shell() {
     loadMenu();
     loadLanguage();
     let timer: ReturnType<typeof setTimeout> | undefined;
-    let down = false;
-    const stop = events((topic) => {
-      if (topic === 'settings') loadLanguage();
-      if (!PULSE.includes(topic)) return;
-      clearTimeout(timer);
-      timer = setTimeout(loadMenu, 400);
-    }, (live) => {
-      if (live && down) loadMenu();
-      down = !live;
-    });
-    const shown = () => { if (!document.hidden) loadMenu(); };
-    document.addEventListener('visibilitychange', shown);
-    return () => { document.removeEventListener('visibilitychange', shown); clearTimeout(timer); stop(); };
+    const stop = events((e) => {
+      if (e.topic === 'settings') loadLanguage();
+      if (!PULSE.includes(e.topic) || timer) return;
+      timer = setTimeout(() => { timer = undefined; loadMenu(); }, 400);
+    }, loadMenu);
+    return () => { clearTimeout(timer); stop(); };
   }, []);
   const current = href({ ...route, record: undefined });
   const [chat, setChat] = useLocalStorage({ key: 'deck-chat-open', defaultValue: false });

@@ -40,7 +40,7 @@ func (r *Runner) needLogin(ctx context.Context, pv provider.Provider, processID 
 	if n == 0 {
 		return
 	}
-	r.bus.Publish("processes")
+	r.changed(ctx, processID, "processes")
 	r.bus.Publish("asks")
 	r.bus.Publish("health")
 }
@@ -120,7 +120,7 @@ func (r *Runner) park(ctx context.Context, processID int64) {
 	if !parked {
 		return
 	}
-	r.bus.Publish("processes")
+	r.changed(ctx, processID, "processes")
 	if err := r.Deliver(ctx, processID); err != nil {
 		r.finish(ctx, processID, StateError, "", false, "resume after answer: "+err.Error())
 	}

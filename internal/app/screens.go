@@ -173,6 +173,7 @@ type screenGetIn struct {
 	Screen  string `desc:"Screen name"`
 	Record  int64  `opt:"" desc:"Record id of a record page"`
 	Topic   string `opt:"" desc:"Event topic that changed"`
+	Changed string `opt:"" desc:"Project the topic changed in; blocks that read no part of it are left out"`
 	Filter  string `type:"json" opt:"" desc:"Values the owner picked in block filters, as JSON: block id to field to value"`
 	Params  string `type:"json" opt:"" desc:"Parameters of the screen from its address, as a JSON object of names to text: $param.<name> in the screen"`
 	Lang    string `opt:"" desc:"Language of the texts of the screen, such as ru; as written without one"`
@@ -180,7 +181,7 @@ type screenGetIn struct {
 
 // screenGet resolves a screen of a project, or of deck without one, into A2UI messages.
 func (a *App) screenGet(ctx context.Context, act registry.Actor, in screenGetIn) (any, error) {
-	req := screen.Request{Record: in.Record, Topic: in.Topic, Owner: act.Kind == registry.Owner, Card: shipped().Card}
+	req := screen.Request{Record: in.Record, Topic: in.Topic, Changed: in.Changed, Owner: act.Kind == registry.Owner, Card: shipped().Card}
 	if strings.TrimSpace(in.Filter) != "" {
 		if err := json.Unmarshal([]byte(in.Filter), &req.Filter); err != nil {
 			return nil, registry.Invalid("deck: filter: a JSON object of block id to field to value: %v", err)
@@ -451,7 +452,7 @@ func (a *App) screensCommands() []*registry.Command {
 			registry.OwnerSide, a.screenGet),
 		registry.Read("commands_list", "Commands",
 			"Lists the commands the caller may call, deck's and those of projects, with their file fields and what runs them.",
-			registry.OwnerSide, a.commandsList).On("health"),
+			registry.OwnerSide, a.commandsList).On("projects"),
 		registry.Read("command_describe", "Describe command",
 			"Gives the parameters of any command of the workspace, also of one only the owner calls, such as the forms of Settings: its input and result schemas, class and callers.",
 			registry.OwnerSide, a.commandDescribe).On(registry.Static),

@@ -6,13 +6,6 @@ INSERT INTO chat_topic (workspace_id, title, card_id) VALUES (?, ?, ?) RETURNING
 SELECT * FROM chat_topic WHERE id = ? AND deleted_at IS NULL;
 
 
--- name: ListTopics :many
-SELECT * FROM chat_topic
-WHERE workspace_id = sqlc.arg(workspace_id) AND deleted_at IS NULL AND archived = sqlc.arg(archived)
-ORDER BY updated_at DESC, id DESC
-LIMIT sqlc.arg(lim);
-
-
 -- name: TouchTopic :exec
 UPDATE chat_topic SET updated_at = sqlc.arg(now), archived = 0 WHERE id = sqlc.arg(id);
 
@@ -97,10 +90,22 @@ UPDATE project SET builtin = 1 WHERE id = ?;
 -- name: GetMessage :one
 SELECT * FROM chat_message WHERE id = ?;
 
--- name: TopicProject :one
-SELECT CAST(COALESCE(
-    (SELECT pr.name FROM card c JOIN project pr ON pr.id = c.project_id WHERE c.id = t.card_id),
-    (SELECT json_extract(m.context, '$.project') FROM chat_message m
-        WHERE m.topic_id = t.id AND COALESCE(json_extract(m.context, '$.project'), '') != '' ORDER BY m.id LIMIT 1),
-    '') AS TEXT) AS project
-FROM chat_topic t WHERE t.id = ?;
+-- name: ListTopicSummaries :many
+SELECT t.id, t.title, t.card_id, t.archived, t.updated_at,
+    CAST(COALESCE((SELECT m.text FROM chat_message m WHERE m.topic_id = t.id ORDER BY m.id DESC LIMIT 1), '') AS TEXT) AS last_text,
+    CAST(COALESCE(op.id, 0) AS INTEGER) AS open_id, CAST(COALESCE(op.state, '') AS TEXT) AS open_state,
+    CAST(COALESCE(op.provider, '') AS TEXT) AS open_provider, CAST(COALESCE(op.error, '') AS TEXT) AS open_error,
+    CAST(COALESCE(
+        (SELECT pr.name FROM card c JOIN project pr ON pr.id = c.project_id WHERE c.id = t.card_id),
+        (SELECT json_extract(m.context, '$.project') FROM chat_message m
+            WHERE m.topic_id = t.id AND json_valid(m.context) AND COALESCE(json_extract(m.context, '$.project'), '') != ''
+            ORDER BY m.id LIMIT 1),
+        '') AS TEXT) AS project
+FROM chat_topic t
+LEFT JOIN process op ON op.id = (SELECT p.id FROM process p
+    WHERE p.id IN (SELECT process_id FROM chat_message WHERE topic_id = t.id AND process_id != 0) AND p.finished_at IS NULL
+    ORDER BY p.id DESC LIMIT 1)
+WHERE t.workspace_id = sqlc.arg(workspace_id) AND t.deleted_at IS NULL
+    AND (CAST(sqlc.arg(topic) AS INTEGER) = 0 AND t.archived = sqlc.arg(archived) OR t.id = CAST(sqlc.arg(topic) AS INTEGER))
+ORDER BY t.updated_at DESC, t.id DESC
+LIMIT sqlc.arg(lim);

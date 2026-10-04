@@ -125,6 +125,9 @@ func (c *screenCheck) block(where string, b Block) {
 		c.form(where, b)
 		return
 	case "chat":
+		if b.Source == nil || b.Source.From != ChatSource {
+			c.fail("%s: a chat reads %s", where, ChatSource)
+		}
 		return
 	case "appearance":
 		if !c.deck {

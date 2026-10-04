@@ -22,12 +22,12 @@ type chatMessage struct {
 }
 
 type chatTopic struct {
-	ID       int64        `json:"id"`
-	Title    string       `json:"title"`
-	Card     int64        `json:"card"`
-	Archived bool         `json:"archived"`
-	Last     *chatMessage `json:"last"`
-	Reply    *topicReply  `json:"reply"`
+	ID       int64       `json:"id"`
+	Title    string      `json:"title"`
+	Card     int64       `json:"card"`
+	Archived bool        `json:"archived"`
+	Last     string      `json:"last"`
+	Reply    *topicReply `json:"reply"`
 }
 
 // say sends the owner's message to the master; topic 0 opens a new topic. It returns the topic.

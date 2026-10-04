@@ -181,7 +181,7 @@ type screenGetIn struct {
 
 // screenGet resolves a screen of a project, or of deck without one, into A2UI messages.
 func (a *App) screenGet(ctx context.Context, act registry.Actor, in screenGetIn) (any, error) {
-	req := screen.Request{Record: in.Record, Topic: in.Topic, Changed: in.Changed, Owner: act.Kind == registry.Owner, Card: shipped().Card}
+	req := screen.Request{Record: in.Record, Topic: in.Topic, Changed: in.Changed, Card: shipped().Card}
 	if strings.TrimSpace(in.Filter) != "" {
 		if err := json.Unmarshal([]byte(in.Filter), &req.Filter); err != nil {
 			return nil, registry.Invalid("deck: filter: a JSON object of block id to field to value: %v", err)
@@ -231,7 +231,7 @@ func (a *App) checkScreens(ctx context.Context, act registry.Actor, p db.Project
 	var out []string
 	for i := range m.Screens {
 		sc := &m.Screens[i]
-		req := screen.Request{Project: p, Manifest: m, Screen: sc, Owner: act.Kind == registry.Owner, Card: shipped().Card}
+		req := screen.Request{Project: p, Manifest: m, Screen: sc, Card: shipped().Card}
 		switch sc.Record {
 		case "":
 		case manifest.DocumentRecord:
@@ -331,10 +331,6 @@ type screenDeck struct{ a *App }
 
 func (d screenDeck) Waits(ctx context.Context, project int64) (map[int64][]int64, error) {
 	return board.Waits(ctx, d.a.Store.Q, project)
-}
-
-func (d screenDeck) Chat(ctx context.Context, workspace int64, topic string) (any, error) {
-	return d.a.Chats.Chat(ctx, workspace, topic)
 }
 
 // commandRow is a command the caller may call, with its project, its file fields and what runs it: an executor

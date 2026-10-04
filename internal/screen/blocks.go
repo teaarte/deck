@@ -303,12 +303,9 @@ func setTone(props map[string]any, expr string, env map[string]any) {
 	}
 }
 
-// follows reports whether the block is read again after an event of the topic; the chat follows its turn too.
+// follows reports whether the block is read again after an event of the topic.
 func follows(b manifest.Block, deck bool, topic string) bool {
-	if b.Type == "chat" {
-		return slices.Contains([]string{"chat", "asks", "log", "processes"}, topic)
-	}
-	return topic == topicOf(b, deck)
+	return slices.Contains(topicsOf(b, deck), topic)
 }
 
 // reads says whether a block reads a part of a project: a block of a deck screen reads every project.
@@ -322,29 +319,29 @@ func (r *renderer) reads(b manifest.Block, project string) bool {
 	return project == r.req.Project.Name
 }
 
-// topicOf is the event topic after which the block is read again.
-func topicOf(b manifest.Block, deck bool) string {
+// topicsOf are the event topics after which the block is read again.
+func topicsOf(b manifest.Block, deck bool) []string {
 	switch {
 	case b.Type == "board":
-		return "board"
+		return []string{"board"}
 	case b.Type == "appearance", b.Type == "actions" && deck:
-		return ""
+		return nil
 	case b.Type == "document":
-		return "documents"
+		return []string{"documents"}
 	case b.Type == "form" && b.Source == nil:
-		return "collection"
+		return []string{"collection"}
 	}
 	if b.Source == nil {
 		if deck {
-			return "processes"
+			return []string{"processes"}
 		}
-		return "collection"
+		return []string{"collection"}
 	}
 	if b.Source.From == "" || b.Source.From == "collection" {
-		return "collection"
+		return []string{"collection"}
 	}
 	rc, _ := manifest.Reads(b.Source.From)
-	return rc.Topic
+	return rc.Topics
 }
 
 func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) {
@@ -365,10 +362,9 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 	case "appearance":
 		return map[string]any{"state": "ready"}, nil
 	case "chat":
-		if !r.req.Owner {
-			return nil, fmt.Errorf("the chat with the master is the owner's")
-		}
-		v, err := r.src.Chat(r.ctx, r.scope.Workspace, r.req.Filter[id]["topic"])
+		scope := r.scope
+		scope.Filter = r.req.Filter[id]
+		v, err := r.src.Read(r.ctx, b.Source.From, r.input(b.Source.Input), scope)
 		if err != nil {
 			return nil, err
 		}

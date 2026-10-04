@@ -2,6 +2,7 @@ package scenarios
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
@@ -25,7 +26,7 @@ func TestOwnerMessageGetsAMasterReplyInTheTopic(t *testing.T) {
 	}
 	var ts []chatTopic
 	e.must("deck.chat_topics", nil, &ts)
-	if len(ts) != 1 || ts[0].ID != topic || ts[0].Title != "Remember to buy milk" || ts[0].Last == nil || ts[0].Last.Role != "master" {
+	if len(ts) != 1 || ts[0].ID != topic || ts[0].Title != "Remember to buy milk" || ts[0].Last != "Put it into the inbox." {
 		t.Fatalf("the topic is named by the first line of its first message: %+v", ts)
 	}
 	ms := e.chatMessages(topic)
@@ -482,7 +483,28 @@ func TestAMessageAnswersTheQuestionOfTheReply(t *testing.T) {
 	}
 	out, err := e.App.Registry.Invoke(context.Background(), registry.Actor{Kind: registry.Master, Workspace: 1}, "deck.screen",
 		[]byte(`{"screen": "chat"}`))
-	if err != nil || !strings.Contains(fmt.Sprint(out), "the owner's") {
+	if err != nil || !strings.Contains(fmt.Sprint(out), "deck.chat cannot be called by master") {
 		t.Fatalf("only the owner reads the chat: %v %v", out, err)
+	}
+}
+
+// TestTheChatReadAndTheTopicsAreOneModel: the chat a screen shows is a read like any other, and its topics are
+// the ones chat_topics lists, field for field.
+func TestTheChatReadAndTheTopicsAreOneModel(t *testing.T) {
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result { return provider.Result{Text: "Noted."} })
+	e.createProject("web", boardWebManifest)
+	topic := e.say(0, "look at this", map[string]any{"screen": `{"project":"web","screen":"main"}`})
+	e.masterSaid(topic, 1)
+	var view struct {
+		Topics []json.RawMessage `json:"topics"`
+	}
+	e.must("deck.chat", nil, &view)
+	var listed []json.RawMessage
+	e.must("deck.chat_topics", nil, &listed)
+	if len(view.Topics) != 1 || len(listed) != 1 || string(view.Topics[0]) != string(listed[0]) {
+		t.Fatalf("one topic, one shape:\n%s\n%s", view.Topics, listed)
+	}
+	if !strings.Contains(string(listed[0]), `"last":"Noted."`) || !strings.Contains(string(listed[0]), `"project":"web"`) {
+		t.Fatalf("the topic has its last message and module: %s", listed[0])
 	}
 }

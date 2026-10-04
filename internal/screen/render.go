@@ -34,8 +34,6 @@ type Sources interface {
 	// File is a file a media block shows: a stored file of the project by id or a path in its data folder, as
 	// name, type, size and the url the client reads it at.
 	File(ctx context.Context, project db.Project, ref any) (map[string]any, error)
-	// Chat is what a chat block shows: the topic picked, "new" for none, empty for the newest.
-	Chat(ctx context.Context, workspace int64, topic string) (any, error)
 }
 
 // Scope is whose items a command gives: a project, or with none every project of the workspace.
@@ -58,8 +56,6 @@ type Request struct {
 	Changed string
 	// Filter holds the values the owner picked, by block id and field.
 	Filter map[string]map[string]string
-	// Owner is set when the owner asks; only the owner reads the chat.
-	Owner bool
 	// Card are the buttons of a card of a board.
 	Card []manifest.Action
 	// Params are the parameters of the screen from its address, read as $param.<name>.
@@ -170,7 +166,7 @@ func changesWhen(bs []manifest.Block, record string, deck bool, topic string) bo
 	for _, b := range bs {
 		switch {
 		case b.When != "" && record != "" && topic == page,
-			b.When != "" && b.Source != nil && topic == topicOf(b, deck),
+			b.When != "" && b.Source != nil && slices.Contains(topicsOf(b, deck), topic),
 			changesWhen(b.Blocks, record, deck, topic):
 			return true
 		}

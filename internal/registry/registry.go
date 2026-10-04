@@ -133,10 +133,10 @@ type Command struct {
 	ProjectID   int64           `json:"-"`
 	// Journals marks a command that writes its own intent to the gateway journal.
 	Journals bool `json:"-"`
-	// Reads marks a builtin command that changes nothing; only such a command fills a screen block. Topic is
-	// the event after which its result may differ.
-	Reads bool   `json:"-"`
-	Topic string `json:"-"`
+	// Reads marks a builtin command that changes nothing; only such a command fills a screen block. Topics are
+	// the events after which its result may differ.
+	Reads  bool     `json:"-"`
+	Topics []string `json:"-"`
 	// changes are the event topics a call that went through changes; the registry publishes them.
 	changes []string
 	// Loose marks a tool whose input schema comes from elsewhere and is not held to App Intents types.
@@ -226,7 +226,7 @@ func (r *Registry) Add(c *Command) {
 	if err := Prepare(c); err != nil {
 		panic(err)
 	}
-	if c.Reads && c.Topic == "" {
+	if c.Reads && len(c.Topics) == 0 {
 		panic("registry: read " + c.Name + " names no topic it follows")
 	}
 	r.builtins[c.Name] = c

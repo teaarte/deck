@@ -480,7 +480,7 @@
       "name": "chat",
       "icon": "sparkles",
       "title": "Master",
-      "blocks": [{"type": "chat"}]
+      "blocks": [{"type": "chat", "source": {"from": "deck.chat"}}]
     }
   ],
   "project": [

@@ -19,47 +19,6 @@ import (
 // maxChatText is the longest message the owner sends in one go.
 const maxChatText = 20000
 
-type topicView struct {
-	ID        int64        `json:"id"`
-	Title     string       `json:"title"`
-	Card      int64        `json:"card,omitempty"`
-	Project   string       `json:"project,omitempty"`
-	Archived  bool         `json:"archived"`
-	UpdatedAt string       `json:"updated_at"`
-	Last      *messageView `json:"last,omitempty"`
-	// Reply is the reply process of the topic still going, with its state.
-	Reply *replyView `json:"reply,omitempty"`
-}
-
-type replyView struct {
-	Process  int64  `json:"process"`
-	State    string `json:"state"`
-	Provider string `json:"provider"`
-	Error    string `json:"error,omitempty"`
-}
-
-type messageView struct {
-	ID        int64           `json:"id"`
-	Role      string          `json:"role"`
-	Text      string          `json:"text"`
-	Screen    json.RawMessage `json:"screen,omitempty"`
-	Process   int64           `json:"process,omitempty"`
-	Reply     *replyView      `json:"reply,omitempty"`
-	CreatedAt string          `json:"created_at"`
-}
-
-func viewMessage(m db.ChatMessage) messageView {
-	v := messageView{ID: m.ID, Role: m.Role, Text: m.Text, Process: m.ProcessID, CreatedAt: m.CreatedAt}
-	if m.Context != "" {
-		v.Screen = json.RawMessage(m.Context)
-	}
-	return v
-}
-
-func viewReply(p db.Process) *replyView {
-	return &replyView{Process: p.ID, State: p.State, Provider: p.Provider, Error: p.Error}
-}
-
 // ownTopic is a topic of the actor's workspace.
 func (ch *Service) ownTopic(ctx context.Context, q *db.Queries, act registry.Actor, id int64) (db.ChatTopic, error) {
 	t, err := q.GetTopic(ctx, id)
@@ -200,27 +159,8 @@ type chatTopicsIn struct {
 	Limit    int64 `opt:"" desc:"At most this many"`
 }
 
-func (ch *Service) chatTopics(ctx context.Context, act registry.Actor, in chatTopicsIn) (any, error) {
-	in.Limit = registry.Limit(in.Limit, 100, 500)
-	ts, err := ch.St.Q.ListTopics(ctx, db.ListTopicsParams{WorkspaceID: act.Workspace, Archived: b2i(in.Archived), Lim: in.Limit})
-	if err != nil {
-		return nil, err
-	}
-	out := make([]topicView, 0, len(ts))
-	for _, t := range ts {
-		v := topicView{ID: t.ID, Title: t.Title, Card: t.CardID.Int64, Archived: t.Archived == 1, UpdatedAt: t.UpdatedAt}
-		if last, err := ch.St.Q.LastMessages(ctx, db.LastMessagesParams{TopicID: t.ID, Before: 1 << 62, Lim: 1}); err == nil && len(last) == 1 {
-			m := viewMessage(last[0])
-			m.Text = untrusted.Cut(m.Text, 200)
-			v.Last = &m
-		}
-		if p, err := ch.St.Q.OpenTopicProcess(ctx, t.ID); err == nil {
-			v.Reply = viewReply(p)
-		}
-		v.Project, _ = ch.St.Q.TopicProject(ctx, t.ID)
-		out = append(out, v)
-	}
-	return out, nil
+func (ch *Service) chatTopics(ctx context.Context, act registry.Actor, in chatTopicsIn) ([]topicView, error) {
+	return ch.topics(ctx, act.Workspace, in.Archived, 0, registry.Limit(in.Limit, 100, 500))
 }
 
 type chatMessagesIn struct {
@@ -229,39 +169,30 @@ type chatMessagesIn struct {
 	Limit int64 `opt:"" desc:"At most this many of the newest, 200 by default"`
 }
 
-func (ch *Service) chatMessages(ctx context.Context, act registry.Actor, in chatMessagesIn) (any, error) {
+// topicMessages is a topic with its messages, oldest first.
+type topicMessages struct {
+	Topic    topicView     `json:"topic"`
+	Messages []messageView `json:"messages"`
+}
+
+func (ch *Service) chatMessages(ctx context.Context, act registry.Actor, in chatMessagesIn) (topicMessages, error) {
 	t, err := ch.ownTopic(ctx, ch.St.Q, act, in.Topic)
 	if err != nil {
-		return nil, err
+		return topicMessages{}, err
 	}
 	in.Limit = registry.Limit(in.Limit, 200, 1000)
 	rows, err := ch.St.Q.ListMessages(ctx, db.ListMessagesParams{TopicID: t.ID, After: in.After})
 	if err != nil {
-		return nil, err
+		return topicMessages{}, err
 	}
 	if int64(len(rows)) > in.Limit {
 		rows = rows[int64(len(rows))-in.Limit:]
 	}
-	replies := map[int64]*replyView{}
-	ms := make([]messageView, 0, len(rows))
-	for _, r := range rows {
-		m := viewMessage(r)
-		if r.Role == roleOwner && r.ProcessID != 0 {
-			if _, seen := replies[r.ProcessID]; !seen {
-				replies[r.ProcessID] = nil
-				if p, err := ch.St.Q.GetProcess(ctx, r.ProcessID); err == nil {
-					replies[r.ProcessID] = viewReply(p)
-				}
-			}
-			m.Reply = replies[r.ProcessID]
-		}
-		ms = append(ms, m)
+	ts, err := ch.topics(ctx, act.Workspace, false, t.ID, 1)
+	if err != nil || len(ts) == 0 {
+		return topicMessages{}, err
 	}
-	v := topicView{ID: t.ID, Title: t.Title, Card: t.CardID.Int64, Archived: t.Archived == 1, UpdatedAt: t.UpdatedAt}
-	if p, err := ch.St.Q.OpenTopicProcess(ctx, t.ID); err == nil {
-		v.Reply = viewReply(p)
-	}
-	return map[string]any{"topic": v, "messages": ms}, nil
+	return topicMessages{Topic: ts[0], Messages: ch.messages(ctx, rows)}, nil
 }
 
 type chatTopicArchiveIn struct {
@@ -323,12 +254,15 @@ func (ch *Service) Commands() []*registry.Command {
 		registry.Def("chat_interview", "Interview about a card",
 			"Opens a chat topic about a card in which the master interviews the owner and writes the spec into the card.",
 			registry.OwnerOnly, ch.chatInterview).Changes("chat"),
-		registry.Def("chat_topics", "Chat topics",
+		registry.Read("chat_topics", "Chat topics",
 			"Lists the owner's chat topics with the master, newest first, with their last message and the reply still going.",
-			registry.OwnerOnly, ch.chatTopics),
-		registry.Def("chat_messages", "Chat messages",
+			registry.OwnerOnly, ch.chatTopics).On("chat", "processes"),
+		registry.Read("chat_messages", "Chat messages",
 			"Returns the messages of a chat topic, oldest first, with the state of the reply each one got.",
-			registry.OwnerOnly, ch.chatMessages),
+			registry.OwnerOnly, ch.chatMessages).On("chat", "processes"),
+		registry.Read("chat", "Chat",
+			"Gives the chat with the master as a chat block shows it: the topics, and of the topic picked its messages, the questions of its reply and the lines of the turn going on.",
+			registry.OwnerOnly, ch.chat).On("chat", "asks", "log", "processes"),
 		registry.Def("chat_topic_archive", "Archive topic",
 			"Archives a chat topic or brings it back; a new message brings it back too.",
 			registry.OwnerOnly, ch.chatTopicArchive).Changes("chat"),

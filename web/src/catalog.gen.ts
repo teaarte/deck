@@ -359,6 +359,7 @@ export interface ChatValue {
     id: number;
     role: "owner" | "master";
     text: string;
+    process?: number;
     /**
      * the screen the owner wrote it on: project, screen, record, card, process
      */

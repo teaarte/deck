@@ -16,13 +16,14 @@ import (
 // after which the result may differ.
 type ReadCommand struct {
 	Result json.RawMessage
-	Topic  string
+	Topics []string
 }
 
 // LogSource is the command a log block reads; CommandsSource is the one a form picks its command from.
 const (
 	LogSource      = "deck.process_log"
 	CommandsSource = "deck.commands_list"
+	ChatSource     = "deck.chat"
 )
 
 var reads atomic.Pointer[func(string) (ReadCommand, bool)]

@@ -331,37 +331,74 @@ func (q *Queries) ListPendingMessages(ctx context.Context, topicID int64) ([]Cha
 	return items, nil
 }
 
-const listTopics = `-- name: ListTopics :many
-SELECT id, workspace_id, title, card_id, archived, deleted_at, created_at, updated_at FROM chat_topic
-WHERE workspace_id = ?1 AND deleted_at IS NULL AND archived = ?2
-ORDER BY updated_at DESC, id DESC
-LIMIT ?3
+const listTopicSummaries = `-- name: ListTopicSummaries :many
+SELECT t.id, t.title, t.card_id, t.archived, t.updated_at,
+    CAST(COALESCE((SELECT m.text FROM chat_message m WHERE m.topic_id = t.id ORDER BY m.id DESC LIMIT 1), '') AS TEXT) AS last_text,
+    CAST(COALESCE(op.id, 0) AS INTEGER) AS open_id, CAST(COALESCE(op.state, '') AS TEXT) AS open_state,
+    CAST(COALESCE(op.provider, '') AS TEXT) AS open_provider, CAST(COALESCE(op.error, '') AS TEXT) AS open_error,
+    CAST(COALESCE(
+        (SELECT pr.name FROM card c JOIN project pr ON pr.id = c.project_id WHERE c.id = t.card_id),
+        (SELECT json_extract(m.context, '$.project') FROM chat_message m
+            WHERE m.topic_id = t.id AND json_valid(m.context) AND COALESCE(json_extract(m.context, '$.project'), '') != ''
+            ORDER BY m.id LIMIT 1),
+        '') AS TEXT) AS project
+FROM chat_topic t
+LEFT JOIN process op ON op.id = (SELECT p.id FROM process p
+    WHERE p.id IN (SELECT process_id FROM chat_message WHERE topic_id = t.id AND process_id != 0) AND p.finished_at IS NULL
+    ORDER BY p.id DESC LIMIT 1)
+WHERE t.workspace_id = ?1 AND t.deleted_at IS NULL
+    AND (CAST(?2 AS INTEGER) = 0 AND t.archived = ?3 OR t.id = CAST(?2 AS INTEGER))
+ORDER BY t.updated_at DESC, t.id DESC
+LIMIT ?4
 `
 
-type ListTopicsParams struct {
+type ListTopicSummariesParams struct {
 	WorkspaceID int64
+	Topic       int64
 	Archived    int64
 	Lim         int64
 }
 
-func (q *Queries) ListTopics(ctx context.Context, arg ListTopicsParams) ([]ChatTopic, error) {
-	rows, err := q.db.QueryContext(ctx, listTopics, arg.WorkspaceID, arg.Archived, arg.Lim)
+type ListTopicSummariesRow struct {
+	ID           int64
+	Title        string
+	CardID       sql.NullInt64
+	Archived     int64
+	UpdatedAt    string
+	LastText     string
+	OpenID       int64
+	OpenState    string
+	OpenProvider string
+	OpenError    string
+	Project      string
+}
+
+func (q *Queries) ListTopicSummaries(ctx context.Context, arg ListTopicSummariesParams) ([]ListTopicSummariesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listTopicSummaries,
+		arg.WorkspaceID,
+		arg.Topic,
+		arg.Archived,
+		arg.Lim,
+	)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []ChatTopic
+	var items []ListTopicSummariesRow
 	for rows.Next() {
-		var i ChatTopic
+		var i ListTopicSummariesRow
 		if err := rows.Scan(
 			&i.ID,
-			&i.WorkspaceID,
 			&i.Title,
 			&i.CardID,
 			&i.Archived,
-			&i.DeletedAt,
-			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.LastText,
+			&i.OpenID,
+			&i.OpenState,
+			&i.OpenProvider,
+			&i.OpenError,
+			&i.Project,
 		); err != nil {
 			return nil, err
 		}
@@ -528,22 +565,6 @@ type TakeMessagesParams struct {
 func (q *Queries) TakeMessages(ctx context.Context, arg TakeMessagesParams) error {
 	_, err := q.db.ExecContext(ctx, takeMessages, arg.ProcessID, arg.TopicID, arg.Through)
 	return err
-}
-
-const topicProject = `-- name: TopicProject :one
-SELECT CAST(COALESCE(
-    (SELECT pr.name FROM card c JOIN project pr ON pr.id = c.project_id WHERE c.id = t.card_id),
-    (SELECT json_extract(m.context, '$.project') FROM chat_message m
-        WHERE m.topic_id = t.id AND COALESCE(json_extract(m.context, '$.project'), '') != '' ORDER BY m.id LIMIT 1),
-    '') AS TEXT) AS project
-FROM chat_topic t WHERE t.id = ?
-`
-
-func (q *Queries) TopicProject(ctx context.Context, id int64) (string, error) {
-	row := q.db.QueryRowContext(ctx, topicProject, id)
-	var project string
-	err := row.Scan(&project)
-	return project, err
 }
 
 const touchTopic = `-- name: TouchTopic :exec

@@ -264,7 +264,7 @@
     },
     "chat": {
       "description": "The chat with the master: the topics, the messages of one, the master's questions in it and the turn going on, with send, stop, archive and delete.",
-      "block": {"description": "Takes no source and no other field; the client picks the topic as the filter topic of the block: a topic id, new for a new one, empty for the newest.", "properties": {}},
+      "block": {"description": "Needs source deck.chat and no other field; the client picks the topic as the filter topic of the block: a topic id, new for a new one, empty for the newest.", "required": ["source"], "properties": {"source": {"$ref": "#/$defs/source"}}},
       "type": "object",
       "additionalProperties": false,
       "required": ["data"],
@@ -340,7 +340,7 @@
         "topic": {"$ref": "#/$defs/topic"}, "topics": {"type": "array", "items": {"$ref": "#/$defs/topic"}},
         "archived": {"type": "array", "items": {"$ref": "#/$defs/topic"}},
         "messages": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["id", "role", "text", "created_at"], "properties": {
-          "id": {"type": "integer"}, "role": {"enum": ["owner", "master"]}, "text": {"type": "string"},
+          "id": {"type": "integer"}, "role": {"enum": ["owner", "master"]}, "text": {"type": "string"}, "process": {"type": "integer"},
           "screen": {"type": "object", "description": "the screen the owner wrote it on: project, screen, record, card, process"},
           "reply": {"$ref": "#/$defs/reply"}, "created_at": {"type": "string"}}}},
         "questions": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["ask", "text", "questions", "answer"], "properties": {

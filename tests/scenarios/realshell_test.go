@@ -168,6 +168,15 @@ func TestRealBrowserShell(t *testing.T) {
 		b.until("the look "+look, `document.documentElement.dataset.deckTheme === '`+parts[0]+`' && document.documentElement.dataset.deckSurface === '`+parts[1]+`' && document.querySelector('[data-block] table')`)
 		b.shot("theme-" + parts[0] + "-" + parts[1])
 	}
+	b.eval(`(document.querySelector('[data-chat-toggle]').click(), '')`)
+	b.until("the chat on a vivid surface", `document.querySelector('[data-chat-panel] [data-block]')`)
+	if got := b.eval(`getComputedStyle(document.querySelector('[data-chat-panel] [data-block]')).backgroundColor`); got != "rgba(0, 0, 0, 0)" {
+		t.Fatalf("the chat has one background, none of a block under its text: %s", got)
+	}
+	if got := b.eval(`getComputedStyle([...document.querySelectorAll('[data-block]')].find((x) => !x.closest('[data-chat-panel]'))).backgroundColor`); got == "rgba(0, 0, 0, 0)" {
+		t.Fatalf("a block on the screen keeps its own background: %s", got)
+	}
+	b.eval(`(document.querySelector('[data-chat-close]').click(), '')`)
 	b.eval(`(localStorage.setItem('deck-look', JSON.stringify({ ...JSON.parse(localStorage.getItem('deck-look')), theme: 'pixel', surface: 'neutral' })), location.hash = '#/deck/settings', location.reload(), '')`)
 	b.until("the projects of settings in pixels", `document.documentElement.dataset.deckTheme === 'pixel' && document.querySelector('[data-item] [data-actions]')`)
 	if got := b.eval(`(() => { const bs = [...document.querySelector('[data-item] [data-actions]').children].map((x) => x.getBoundingClientRect());

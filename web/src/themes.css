@@ -9,8 +9,8 @@
   --deck-canvas: color-mix(in srgb, var(--mantine-primary-color-filled) 14%, #08080b);
 }
 
-:root[data-deck-surface='tinted'] [data-block] {
-  background: color-mix(in srgb, var(--mantine-primary-color-filled) 4%, var(--mantine-color-body));
+:root[data-deck-surface='tinted'] {
+  --deck-block-bg: color-mix(in srgb, var(--mantine-primary-color-filled) 4%, var(--mantine-color-body));
 }
 
 :root[data-deck-surface='vivid'] {
@@ -36,8 +36,8 @@
   background: #fff;
 }
 
-:root[data-deck-surface='vivid'] [data-block] {
-  background: color-mix(in srgb, var(--mantine-primary-color-filled) 8%, var(--mantine-color-body));
+:root[data-deck-surface='vivid'] {
+  --deck-block-bg: color-mix(in srgb, var(--mantine-primary-color-filled) 8%, var(--mantine-color-body));
 }
 
 :root[data-deck-surface='vivid'] [data-chat-panel] {
@@ -106,8 +106,8 @@
   color-scheme: dark;
 }
 
-:root[data-deck-theme='neon'] [data-block] {
-  background: rgb(16 16 26);
+:root[data-deck-theme='neon'] {
+  --deck-block-bg: rgb(16 16 26);
 }
 
 :root[data-deck-theme='neon'] h2 {
@@ -138,8 +138,8 @@
   --deck-pattern-color: rgb(240 220 190 / 0.1);
 }
 
-:root[data-deck-theme='paper'] [data-block] {
-  background: var(--deck-island-bg);
+:root[data-deck-theme='paper'] {
+  --deck-block-bg: var(--deck-island-bg);
 }
 
 @media (prefers-contrast: more) {

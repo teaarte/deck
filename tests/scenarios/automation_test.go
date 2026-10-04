@@ -1,6 +1,7 @@
 package scenarios
 
 import (
+	"context"
 	"deck2/internal/api"
 	"deck2/web"
 	"fmt"
@@ -211,4 +212,31 @@ func TestEmptyTokenDoesNotOpenTheAPI(t *testing.T) {
 	if resp.StatusCode != 401 {
 		t.Fatalf("empty token must refuse every request, got %d", resp.StatusCode)
 	}
+}
+
+// TestAChangeWithoutTheOwnerReachesTheBell: a line of the feed written by a change of an agent is heard live.
+func TestAChangeWithoutTheOwnerReachesTheBell(t *testing.T) {
+	e := newEnv(t, ok)
+	e.createProject("tools", scriptManifest("run", "", ""))
+	e.saveScript("tools", "scripts/main.py", "print('{}')\n")
+	_, tok := e.token("terminal", "deck.*")
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	phone := e.sse(ctx)
+	if code, out := e.callWith(tok, "deck.document_save", map[string]any{"project": "tools", "name": "scripts/main.py", "kind": "script", "text": "print(1)\n"}); code != 200 {
+		t.Fatalf("document_save: %d %s", code, out)
+	}
+	waitTopic(t, phone, "feed")
+	var d struct{ ID int64 }
+	e.must("deck.document_get", map[string]any{"project": "tools", "name": "scripts/main.py"}, &d)
+	if code, out := e.callWith(tok, "deck.document_revert", map[string]any{"document": d.ID, "revision": 1}); code != 200 {
+		t.Fatalf("document_revert: %d %s", code, out)
+	}
+	waitTopic(t, phone, "feed")
+	var m struct{ Manifest string }
+	e.must("deck.manifest_get", map[string]any{"project": "tools"}, &m)
+	if code, out := e.callWith(tok, "deck.manifest_save", map[string]any{"project": "tools", "manifest": strings.Replace(m.Manifest, `"tools"`, `"tools" `, 1)}); code != 200 {
+		t.Fatalf("manifest_save: %d %s", code, out)
+	}
+	waitTopic(t, phone, "feed")
 }

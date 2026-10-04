@@ -11,14 +11,15 @@ import (
 	"deck2/internal/store/db"
 )
 
-// Changed lists a change of a document by someone other than the owner in an enabled project, with its undo.
-func (dv *Service) Changed(ctx context.Context, q *db.Queries, act registry.Actor, projectID int64, prev db.Document, n int64, text, reason string) error {
+// Changed lists a change of a document by someone other than the owner in an enabled project, with its undo;
+// it says whether it wrote a line, which the caller publishes as feed after its commit.
+func (dv *Service) Changed(ctx context.Context, q *db.Queries, act registry.Actor, projectID int64, prev db.Document, n int64, text, reason string) (bool, error) {
 	if act.Kind == registry.Owner {
-		return nil
+		return false, nil
 	}
 	p, err := q.GetProject(ctx, projectID)
 	if err != nil || p.Status != store.ProjectEnabled {
-		return err
+		return false, err
 	}
 	if reason != "" {
 		text += ": " + reason
@@ -31,7 +32,7 @@ func (dv *Service) Changed(ctx context.Context, q *db.Queries, act registry.Acto
 		row.Command, row.Params = registry.Builtin+".document_revert", string(params)
 	}
 	_, err = q.AddFeed(ctx, row)
-	return err
+	return err == nil, err
 }
 
 type feedListIn struct {

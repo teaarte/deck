@@ -139,6 +139,7 @@ func (a *App) SaveManifest(ctx context.Context, act registry.Actor, p db.Project
 		return Saved{}, err
 	}
 	var saved Saved
+	var listed bool
 	err = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		if err := checkReads(ctx, q, p.WorkspaceID, p.Name, pm.m); err != nil {
 			return err
@@ -177,7 +178,7 @@ func (a *App) SaveManifest(ctx context.Context, act registry.Actor, p db.Project
 				return err
 			}
 		}
-		if err := a.Devices.Changed(ctx, q, act, p.ID, cur, n, fmt.Sprintf("%s changed the manifest of %s", act.Author(), p.Name), reason); err != nil {
+		if listed, err = a.Devices.Changed(ctx, q, act, p.ID, cur, n, fmt.Sprintf("%s changed the manifest of %s", act.Author(), p.Name), reason); err != nil {
 			return err
 		}
 		return a.Scheduler.Sync(ctx, q, p.ID, pm.m)
@@ -189,6 +190,9 @@ func (a *App) SaveManifest(ctx context.Context, act registry.Actor, p db.Project
 		return saved, err
 	}
 	a.Bus.Publish("projects")
+	if listed {
+		a.Bus.Publish("feed")
+	}
 	if len(plan) > 0 {
 		a.Bus.Publish("collection")
 	}

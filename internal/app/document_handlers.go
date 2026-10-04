@@ -177,6 +177,7 @@ func (a *App) documentSave(ctx context.Context, act registry.Actor, in documentS
 		return nil, err
 	}
 	var d db.Document
+	var listed bool
 	err = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		ref := docs.Ref{Scope: s, Name: in.Name}
 		if in.Record != 0 {
@@ -206,10 +207,14 @@ func (a *App) documentSave(ctx context.Context, act registry.Actor, in documentS
 		if d, n, err = docs.Save(ctx, q, ref, in.Kind, in.Text, act.Author(), in.Reason); err != nil {
 			return err
 		}
-		return a.scriptChanged(ctx, q, act, d, n, in.Reason)
+		listed, err = a.scriptChanged(ctx, q, act, d, n, in.Reason)
+		return err
 	})
 	if err != nil {
 		return nil, err
+	}
+	if listed {
+		a.Bus.Publish("feed")
 	}
 	v := a.docView(ctx, d)
 	if kind, _ := docs.Owner(d); d.Name == docs.MemoryIndex && kind == "" {
@@ -385,6 +390,7 @@ func (a *App) documentRevert(ctx context.Context, act registry.Actor, in documen
 			Call{Command: registry.Builtin + ".document_revert", Input: map[string]any{"document": d.ID, "revision": r.N, "reason": in.Reason}})
 	}
 	var n int64
+	var listed bool
 	err = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		ref := docs.RefOf(d)
 		if cur, err := q.GetDocument(ctx, d.ID); err != nil || cur.DeletedAt.Valid || in.IfRevision != 0 && cur.Current != in.IfRevision {
@@ -399,18 +405,22 @@ func (a *App) documentRevert(ctx context.Context, act registry.Actor, in documen
 		if _, n, err = docs.Save(ctx, q, ref, d.Kind, r.Text, act.Author(), reason); err != nil {
 			return err
 		}
-		return a.scriptChanged(ctx, q, act, d, n, reason)
+		listed, err = a.scriptChanged(ctx, q, act, d, n, reason)
+		return err
 	})
 	if err != nil {
 		return nil, err
+	}
+	if listed {
+		a.Bus.Publish("feed")
 	}
 	return map[string]any{"revision": n}, nil
 }
 
 // scriptChanged lists a script change made without the owner, undone by returning to the revision before n.
-func (a *App) scriptChanged(ctx context.Context, q *db.Queries, act registry.Actor, d db.Document, n int64, reason string) error {
+func (a *App) scriptChanged(ctx context.Context, q *db.Queries, act registry.Actor, d db.Document, n int64, reason string) (bool, error) {
 	if d.Kind != docs.KindScript || !d.ProjectID.Valid || d.RecordID.Valid || d.CardID.Valid {
-		return nil
+		return false, nil
 	}
 	prev := db.Document{ID: d.ID, Current: n - 1}
 	return a.Devices.Changed(ctx, q, act, d.ProjectID.Int64, prev, n, fmt.Sprintf("%s changed script %s", act.Author(), d.Name), reason)

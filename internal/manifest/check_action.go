@@ -1,0 +1,94 @@
+package manifest
+
+import (
+	"errors"
+	"fmt"
+	"reflect"
+	"slices"
+	"strconv"
+	"strings"
+)
+
+// action checks a button: a command the owner may call, a screen to open with the record it needs, or a file;
+// its condition and the values it takes from the item read fields the item has.
+func (c *screenCheck) action(b Block, a Action, fields []string) error {
+	if (a.Label == "") == (a.Verb == "") {
+		return errors.New("a button has a label or a verb")
+	}
+	if a.When != "" {
+		if _, err := compileField(a.When, fields); err != nil {
+			return fmt.Errorf("when: %w", err)
+		}
+	}
+	values := map[string]string{"screen": a.Screen, "record": a.Record, "project": a.Project, "file": a.File, "until": a.Until,
+		"options": a.Options}
+	for k, v := range a.Params {
+		values["param "+strconv.Quote(k)] = v
+	}
+	for k, v := range values {
+		if err := checkValue(v, fields); err != nil {
+			return fmt.Errorf("%s: %w", k, err)
+		}
+	}
+	if u := a.Undo; u != nil {
+		switch {
+		case a.Command == "":
+			return errors.New("undo takes back a call; the button calls a command")
+		case a.Confirm:
+			return errors.New("a button with undo asks no yes first")
+		case u.Command == "" || !reflect.DeepEqual(Action{Command: u.Command, Params: u.Params}, *u):
+			return errors.New("undo is a command with params, nothing else")
+		}
+		v := *u
+		v.Verb = "undo"
+		if err := c.action(b, v, fields); err != nil {
+			return fmt.Errorf("undo: %w", err)
+		}
+	}
+	switch n := btoi(a.Command != "") + btoi(a.Screen != "") + btoi(a.File != ""); {
+	case n != 1:
+		return errors.New("a button has a command, a screen or a file")
+	case a.Command != "" && c.deck:
+		if !strings.HasPrefix(a.Command, "deck.") {
+			return errors.New("a button of a deck screen calls a deck command")
+		}
+		return nil
+	case a.Command != "":
+		return c.m.checkAction(a)
+	case a.File != "" || c.deck:
+		return nil
+	case a.Project != "" || a.Record != "":
+		return errors.New("a move to a screen of the project takes no project or record; a record page gets the record of the row")
+	}
+	target := c.m.Screen(a.Screen)
+	if target == nil {
+		return fmt.Errorf("unknown screen %q", a.Screen)
+	}
+	if target.Record == "" {
+		return nil
+	}
+	own := ""
+	switch {
+	case b.Type == "card" || b.Type == "actions":
+		own = c.screen.Record
+	case b.Source != nil && b.Source.Project == "" && (b.Source.From == "" || b.Source.From == "collection"):
+		own = b.Source.Collection
+	}
+	if own != target.Record {
+		return fmt.Errorf("screen %q shows a record of %s; open it from a row of %s", a.Screen, target.Record, target.Record)
+	}
+	return nil
+}
+
+// checkValue checks a value a button takes from its item: $record.<field> or =<expression> over its fields.
+func checkValue(v string, fields []string) error {
+	if f, ok := strings.CutPrefix(v, "$record."); ok && f != "id" && fields != nil && !slices.Contains(fields, f) {
+		return fmt.Errorf("unknown field %q", f)
+	}
+	if e, ok := strings.CutPrefix(v, "="); ok {
+		if _, err := compileField(e, fields); err != nil {
+			return err
+		}
+	}
+	return nil
+}

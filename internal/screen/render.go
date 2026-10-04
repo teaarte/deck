@@ -163,32 +163,6 @@ type renderer struct {
 	errs []string
 }
 
-// changesWhen reports whether an event of the topic may put a block on the screen or take it off: its when
-// reads its source or the record of the page. The screen is then resolved whole.
-func changesWhen(bs []manifest.Block, record string, deck bool, topic string) bool {
-	page := "collection"
-	switch {
-	case deck:
-		page = "processes"
-	case record == manifest.DocumentRecord:
-		page = "documents"
-	}
-	for _, b := range bs {
-		switch {
-		case b.When != "" && record != "" && topic == page,
-			b.When != "" && b.Source != nil && slices.Contains(topicsOf(b, deck), topic),
-			changesWhen(b.Blocks, record, deck, topic):
-			return true
-		}
-		for _, t := range b.Tabs {
-			if changesWhen(t.Blocks, record, deck, topic) {
-				return true
-			}
-		}
-	}
-	return false
-}
-
 func (r *renderer) surface() string {
 	if r.req.Project.ID == 0 {
 		return "deck-" + r.req.Screen.Name

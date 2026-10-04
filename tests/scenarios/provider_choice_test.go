@@ -166,3 +166,20 @@ func TestProviderURLCarriesNoKey(t *testing.T) {
 		t.Fatalf("an MCP server url with a key in it is refused: %d %s", code, out)
 	}
 }
+
+// TestTheProviderColumnFollowsProviderSet: a provider picked for a command is heard live and redraws the
+// commands of the project's settings.
+func TestTheProviderColumnFollowsProviderSet(t *testing.T) {
+	e, api, _ := acpPair(t, nil)
+	e.addACP(api, 1, "api", "opencode", acpLLM(t), false)
+	e.createProject("plain", plainManifest)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	phone := e.sse(ctx)
+	e.must("deck.provider_set", map[string]any{"command": "plain.work", "provider": "api"}, nil)
+	waitTopic(t, phone, "health")
+	drawn, _ := json.Marshal(e.screenMessages("plain", "settings", map[string]any{"topic": "health"}))
+	if !strings.Contains(string(drawn), `"cells":["Work","plain.work","agent","api"]`) {
+		t.Fatalf("the commands of the project are read again with the provider picked: %s", drawn)
+	}
+}

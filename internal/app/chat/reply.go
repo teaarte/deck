@@ -247,7 +247,10 @@ func (ch *Service) chatPrompt(ctx context.Context, t db.ChatTopic, pending []db.
 		Summary                string
 		Grown                  int64
 		Notes                  string
-	}{Topic: t.ID, Summary: summaryName(t.ID), Notes: notes}
+	}{Topic: t.ID, Summary: summaryName(t.ID)}
+	if notes != "" {
+		v.Notes = untrusted.Block("notes", notes)
+	}
 	sign := ""
 	if resume {
 		s, err := ch.St.Q.GetChatSession(ctx, db.GetChatSessionParams{TopicID: t.ID, Provider: provider})

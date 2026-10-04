@@ -2,6 +2,7 @@ package project
 
 import (
 	"context"
+	"deck2/internal/app/access"
 	"deck2/internal/app/documents"
 	"deck2/internal/app/folders"
 	"fmt"
@@ -49,11 +50,41 @@ type projectImportIn struct {
 	Name   string `opt:"" desc:"Project name; the folder name when omitted"`
 }
 
+// importable lets someone other than the owner import from the owner's own folders and from the data of the
+// master, never from the rest of deck's home, such as the data of another project.
+func (pj *Service) importable(ctx context.Context, act registry.Actor, dir string) error {
+	real, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		return registry.Invalid("deck: folder %s does not exist", dir)
+	}
+	home, err := filepath.EvalSymlinks(string(pj.Home))
+	if err != nil || !within(home, real) {
+		return nil
+	}
+	if mp, err := access.Master(ctx, pj.St.Q, act.Workspace); err == nil {
+		if data, err := filepath.EvalSymlinks(pj.Home.Data(mp.ID)); err == nil && within(data, real) {
+			return nil
+		}
+	}
+	return registry.Refuse("deck: %s is inside deck's own folders; a draft comes from a folder of the owner or from the data of the master", dir)
+}
+
+// within reports whether path is dir or inside it.
+func within(dir, path string) bool {
+	rel, err := filepath.Rel(dir, path)
+	return err == nil && rel != ".." && !strings.HasPrefix(rel, "../")
+}
+
 // projectImport creates a draft from a module folder in one transaction; hidden files are left out.
 func (pj *Service) projectImport(ctx context.Context, act registry.Actor, in projectImportIn) (any, error) {
 	dir, err := folders.Abs(in.Folder)
 	if err != nil {
 		return nil, err
+	}
+	if act.Kind != registry.Owner {
+		if err := pj.importable(ctx, act, dir); err != nil {
+			return nil, err
+		}
 	}
 	files, skipped, err := readFolder(dir)
 	if err != nil {

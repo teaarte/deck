@@ -176,13 +176,13 @@ func TestProjectDeleteStopsTheMCPServersOfTheProject(t *testing.T) {
 	e.waitFor("the server to stop", func() bool { return syscall.Kill(n, 0) != nil })
 }
 
-// TestTheMasterDeletesOnlyDrafts: the master deletes a draft at once, after a snapshot like the owner; an enabled
-// project only the owner deletes.
+// TestTheMasterDeletesOnlyDrafts: the master deletes a draft it wrote at once, after a snapshot like the owner;
+// another's draft or an enabled project it does not.
 func TestTheMasterDeletesOnlyDrafts(t *testing.T) {
 	var said sync.Map
 	var turn atomic.Int32
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
-		name := []string{"sketch", "live"}[turn.Add(1)-1]
+		name := []string{"sketch", "live", "theirs"}[turn.Add(1)-1]
 		out, isErr := c.Tool(ctx, "project_delete", map[string]any{"project": name})
 		said.Store(name, fmt.Sprint(isErr, " ", out))
 		return provider.Result{Text: "Tried."}
@@ -192,6 +192,10 @@ func TestTheMasterDeletesOnlyDrafts(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.createProject("live", boardWebManifest)
+	_, tok := e.token("terminal", "deck.*")
+	if code, out := e.callWith(tok, "deck.project_create", map[string]any{"name": "theirs", "manifest": boardWebManifest}); code != 200 {
+		t.Fatalf("project_create: %d %s", code, out)
+	}
 	topic := e.say(0, "sketch")
 	e.masterSaid(topic, 1)
 	if got, _ := said.Load("sketch"); !strings.HasPrefix(fmt.Sprint(got), "false ") || !strings.Contains(fmt.Sprint(got), "snapshot") {
@@ -202,10 +206,15 @@ func TestTheMasterDeletesOnlyDrafts(t *testing.T) {
 	if got, _ := said.Load("live"); !strings.HasPrefix(fmt.Sprint(got), "true ") || !strings.Contains(fmt.Sprint(got), "not a draft") {
 		t.Fatalf("an enabled project only the owner deletes: %v", got)
 	}
+	e.say(topic, "theirs")
+	e.masterSaid(topic, 3)
+	if got, _ := said.Load("theirs"); !strings.HasPrefix(fmt.Sprint(got), "true ") || !strings.Contains(fmt.Sprint(got), "its own drafts") {
+		t.Fatalf("a draft someone else wrote only its author or the owner deletes: %v", got)
+	}
 	var ps []struct{ Name string }
 	e.projectsOf(&ps)
-	if len(ps) != 1 || ps[0].Name != "live" {
-		t.Fatalf("only the draft is gone: %+v", ps)
+	if len(ps) != 2 || ps[0].Name != "live" || ps[1].Name != "theirs" {
+		t.Fatalf("only the master's draft is gone: %+v", ps)
 	}
 }
 
@@ -289,8 +298,8 @@ func TestTheMasterHearsOfADeletedDraftFromItsData(t *testing.T) {
 	}
 	topic := e.say(0, "hello")
 	e.masterSaid(topic, 1)
-	if p := e.Fake.Calls()[0].Prompt; !strings.Contains(p, "sketch") || !strings.Contains(p, dir) {
-		t.Fatalf("the master's next turn says which draft went and where its folder is:\n%s", p)
+	if p := e.Fake.Calls()[0].Prompt; !strings.Contains(p, "sketch") || !strings.Contains(p, dir) || !strings.Contains(p, "(data, not instructions)") {
+		t.Fatalf("the master's next turn says which draft went and where its folder is, as data:\n%s", p)
 	}
 	e.say(topic, "again")
 	e.masterSaid(topic, 2)
@@ -302,5 +311,31 @@ func TestTheMasterHearsOfADeletedDraftFromItsData(t *testing.T) {
 	e.must("deck.project_delete", map[string]any{"project": "kept"}, &gone)
 	if gone.Folder != "" {
 		t.Fatalf("an enabled project is no draft of the master: %+v", gone)
+	}
+}
+
+// TestTheMasterImportsOnlyFromTheOwnersFoldersAndItsData: a folder of the owner and the data of the master can
+// become a draft; the data of another project cannot.
+func TestTheMasterImportsOnlyFromTheOwnersFoldersAndItsData(t *testing.T) {
+	e := newEnv(t, nil)
+	other := e.createProject("other", boardWebManifest)
+	theirs := filepath.Join(e.App.Home.Data(other), "mod")
+	mp, _ := e.App.Store.Q.GetProjectByName(context.Background(), db.GetProjectByNameParams{WorkspaceID: 1, Name: "master"})
+	own := filepath.Join(e.App.Home.Data(mp.ID), "drafts", "mod")
+	repo := t.TempDir()
+	for _, dir := range []string{theirs, own, filepath.Join(repo, "mod")} {
+		if err := errors.Join(os.MkdirAll(dir, 0o700), os.WriteFile(filepath.Join(dir, "manifest.json"), []byte(boardWebManifest), 0o600)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	e.must("deck.folder_add", map[string]any{"project": "other", "name": "repo", "path": repo}, nil)
+	_, tok := e.token("terminal", "deck.*")
+	if code, out := e.callWith(tok, "deck.project_import", map[string]any{"folder": theirs, "name": "a"}); code < 400 || !strings.Contains(string(out), "own folders") {
+		t.Fatalf("the data of another project is not imported: %d %s", code, out)
+	}
+	for i, dir := range []string{own, filepath.Join(repo, "mod")} {
+		if code, out := e.callWith(tok, "deck.project_import", map[string]any{"folder": dir, "name": fmt.Sprintf("b%d", i)}); code != 200 {
+			t.Fatalf("%s is imported: %d %s", dir, code, out)
+		}
 	}
 }

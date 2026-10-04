@@ -348,7 +348,8 @@ Name each of these rights in the hand-over: the owner grants them with "enable".
    deck and the master choose the project by), `prompts/*.md`, `scripts/*`, `skills/<name>/SKILL.md`,
    other md documents by their names. Only `prompt.md` has kind `prompt`; `prompts/*.md` and the other md
    come in as `doc`, so later `document_save` them with kind `doc`. Keep test data outside the module folder.
-2. `project_import` with the absolute folder path creates a **draft**. A refused import comes back with the
+2. `project_import` with the absolute folder path creates a **draft**; the folder is one of the owner's or in your
+   data (the master's), never inside the rest of deck's home. A refused import comes back with the
    reason and leaves nothing behind; fix the folder and import again. Once imported, change the draft with
    `manifest_save` and `document_save` (a second import of the same name is refused), and keep the folder
    in step. Send only what changes: a JSON Patch in `patch` for the manifest; for a document `old` (parts of the

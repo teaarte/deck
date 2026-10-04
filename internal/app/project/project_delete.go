@@ -122,6 +122,17 @@ func (pj *Service) deletable(ctx context.Context, q *db.Queries, act registry.Ac
 		if cur.Status != store.ProjectDraft {
 			return registry.Refuse("deck: %s is not a draft; only the owner deletes an enabled project", p.Name)
 		}
+		d, err := q.FindDocument(ctx, docs.Ref{Scope: docs.ProjectScope(p), Name: docs.ManifestName}.Find())
+		if err != nil {
+			return err
+		}
+		first, err := docs.Revision(ctx, q, d, 1)
+		if err != nil {
+			return err
+		}
+		if first.Author != act.Author() {
+			return registry.Refuse("deck: %s is a draft of %s; the master deletes only its own drafts, the owner any", p.Name, first.Author)
+		}
 	}
 	open, err := q.ListOpenProcesses(ctx, db.ListOpenProcessesParams{WorkspaceID: p.WorkspaceID, ProjectID: p.ID})
 	if err != nil {

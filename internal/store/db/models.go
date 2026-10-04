@@ -11,7 +11,7 @@ import (
 type Ask struct {
 	ID          int64
 	WorkspaceID int64
-	ProjectID   int64
+	ProjectID   sql.NullInt64
 	ProcessID   sql.NullInt64
 	Kind        string
 	Text        string

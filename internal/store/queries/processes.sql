@@ -119,12 +119,12 @@ UPDATE tool_call SET outcome = 'unknown', ask_id = sqlc.narg(ask_id) WHERE id = 
 -- name: CountUnknownCalls :one
 SELECT count(*) FROM tool_call t JOIN ask a ON a.id = t.ask_id
 WHERE t.outcome = 'unknown' AND a.state = 'open' AND a.id != sqlc.arg(retrying)
-  AND t.project_id = sqlc.arg(project_id) AND t.tool = sqlc.arg(tool) AND t.params = sqlc.arg(params);
+  AND t.project_id IS sqlc.arg(project_id) AND t.tool = sqlc.arg(tool) AND t.params = sqlc.arg(params);
 
 
 -- name: CountStartedCalls :one
 SELECT count(*) FROM tool_call
-WHERE outcome = 'started' AND project_id = sqlc.arg(project_id) AND tool = sqlc.arg(tool) AND params = sqlc.arg(params);
+WHERE outcome = 'started' AND project_id IS sqlc.arg(project_id) AND tool = sqlc.arg(tool) AND params = sqlc.arg(params);
 
 
 -- name: ListToolCalls :many

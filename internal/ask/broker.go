@@ -86,7 +86,7 @@ func New(ctx context.Context, q *db.Queries, processID int64, kind, text, payloa
 // ForProject stores an ask of a project that no process, or the given one, waits on.
 func ForProject(ctx context.Context, q *db.Queries, workspace, project, processID int64, kind, text, payload string, expires time.Time) (db.Ask, error) {
 	return q.CreateProjectAsk(ctx, db.CreateProjectAskParams{ProcessID: sql.NullInt64{Int64: processID, Valid: processID != 0},
-		WorkspaceID: workspace, ProjectID: project, Kind: kind, Text: text, Payload: payload, ExpiresAt: At(expires)})
+		WorkspaceID: workspace, ProjectID: store.ID(project), Kind: kind, Text: text, Payload: payload, ExpiresAt: At(expires)})
 }
 
 // Remark keeps a message of the owner for an open process; sql.ErrNoRows when the process has finished.

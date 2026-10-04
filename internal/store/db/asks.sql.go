@@ -195,7 +195,7 @@ VALUES (?1, ?2, ?3, ?4, ?5, ?6,
 type CreateProjectAskParams struct {
 	ProcessID   sql.NullInt64
 	WorkspaceID int64
-	ProjectID   int64
+	ProjectID   sql.NullInt64
 	Kind        string
 	Text        string
 	Payload     string
@@ -324,7 +324,7 @@ func (q *Queries) ExpireSuggestions(ctx context.Context, now string) (int64, err
 
 const findOpenCallAsk = `-- name: FindOpenCallAsk :one
 SELECT id, workspace_id, project_id, process_id, kind, text, payload, answer, state, created_at, answered_at, expires_at, delivered_at FROM ask
-WHERE kind = 'call' AND state = 'open' AND project_id = ?1 AND payload = ?2
+WHERE kind = 'call' AND state = 'open' AND coalesce(project_id, 0) = CAST(?1 AS INTEGER) AND payload = ?2
   AND coalesce(process_id, 0) = CAST(?3 AS INTEGER)
 ORDER BY id LIMIT 1
 `
@@ -672,7 +672,7 @@ UPDATE ask SET project_id = ?, text = ?, payload = ? WHERE id = ? AND kind = 'su
 `
 
 type MoveSuggestionParams struct {
-	ProjectID int64
+	ProjectID sql.NullInt64
 	Text      string
 	Payload   string
 	ID        int64

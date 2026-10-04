@@ -48,7 +48,7 @@ func (q *Queries) CountActiveOnProvider(ctx context.Context, arg CountActiveOnPr
 
 const countStartedCalls = `-- name: CountStartedCalls :one
 SELECT count(*) FROM tool_call
-WHERE outcome = 'started' AND project_id = ?1 AND tool = ?2 AND params = ?3
+WHERE outcome = 'started' AND project_id IS ?1 AND tool = ?2 AND params = ?3
 `
 
 type CountStartedCallsParams struct {
@@ -67,7 +67,7 @@ func (q *Queries) CountStartedCalls(ctx context.Context, arg CountStartedCallsPa
 const countUnknownCalls = `-- name: CountUnknownCalls :one
 SELECT count(*) FROM tool_call t JOIN ask a ON a.id = t.ask_id
 WHERE t.outcome = 'unknown' AND a.state = 'open' AND a.id != ?1
-  AND t.project_id = ?2 AND t.tool = ?3 AND t.params = ?4
+  AND t.project_id IS ?2 AND t.tool = ?3 AND t.params = ?4
 `
 
 type CountUnknownCallsParams struct {

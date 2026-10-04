@@ -86,7 +86,7 @@ func (s *Service) asksList(ctx context.Context, act registry.Actor, in asksListI
 	slices.SortFunc(all, func(x, y db.Ask) int { return cmp.Compare(x.ID, y.ID) })
 	out := make([]askRow, 0, len(all))
 	for _, q := range all {
-		if pid != 0 && q.ProjectID != pid {
+		if pid != 0 && q.ProjectID.Int64 != pid {
 			continue
 		}
 		out = append(out, s.askRow(ctx, q, names))
@@ -95,7 +95,7 @@ func (s *Service) asksList(ctx context.Context, act registry.Actor, in asksListI
 }
 
 func (s *Service) askRow(ctx context.Context, q db.Ask, names map[int64]string) askRow {
-	r := askRow{ID: q.ID, Kind: q.Kind, Project: names[q.ProjectID], Process: q.ProcessID.Int64, Text: q.Text, What: firstLine(q.Text),
+	r := askRow{ID: q.ID, Kind: q.Kind, Project: names[q.ProjectID.Int64], Process: q.ProcessID.Int64, Text: q.Text, What: firstLine(q.Text),
 		Payload: json.RawMessage(cmp.Or(q.Payload, "null")), CreatedAt: q.CreatedAt, ExpiresAt: q.ExpiresAt.String, Expired: q.State == "expired"}
 	if q.ProcessID.Valid {
 		r.Who = s.processName(ctx, q.ProcessID.Int64)
@@ -330,7 +330,7 @@ func (s *Service) linkTriggeredCard(ctx context.Context, asked db.Ask, out any) 
 	}
 	_ = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		c, err := q.GetCard(ctx, in.Card)
-		if err != nil || c.ProjectID != asked.ProjectID {
+		if err != nil || c.ProjectID != asked.ProjectID.Int64 {
 			return err
 		}
 		return q.SetCardProcess(ctx, db.SetCardProcessParams{ProcessID: sql.NullInt64{Int64: started.Process, Valid: true}, ID: in.Card})
@@ -344,7 +344,7 @@ func (s *Service) allowAlways(ctx context.Context, act registry.Actor, q db.Ask)
 	if err := json.Unmarshal([]byte(q.Payload), &f); err != nil {
 		return err
 	}
-	p, err := s.St.Q.GetProject(ctx, q.ProjectID)
+	p, err := s.St.Q.GetProject(ctx, q.ProjectID.Int64)
 	if err != nil {
 		return registry.Invalid("deck: only a tool or command of a project can be allowed always")
 	}

@@ -337,3 +337,28 @@ func TestAllowOnceAllowsExactlyOneCall(t *testing.T) {
 		t.Fatalf("allow once must let exactly one of the concurrent calls through, got %v", behaviors)
 	}
 }
+
+// TestACallWaitingInABaseFromBeforeStillWaits: a call that waits for the owner in an older base waits on, and
+// the owner's yes makes it.
+func TestACallWaitingInABaseFromBeforeStillWaits(t *testing.T) {
+	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { jsonReply(w, `{"id": "x"}`) })
+	home := t.TempDir()
+	e := newEnvWith(t, home, &Fake{})
+	e.must("deck.secret_set", map[string]any{"name": "svc", "value": "s3cret"}, nil)
+	e.createProject("notes", postManifest(svc.URL, ""))
+	_, tok := e.token("terminal", "notes.*")
+	code, out := e.callWith(tok, "notes.post", map[string]any{"id": "a", "text": "hi"})
+	var held struct{ Waiting int64 }
+	if code != 200 || json.Unmarshal(out, &held) != nil || held.Waiting == 0 {
+		t.Fatalf("the call waits: %d %s", code, out)
+	}
+	e.olderBase(1)
+	_ = e.App.Close()
+	e = newEnvWith(t, home, &Fake{})
+	e.answer(held.Waiting, "allow")
+	var waited int
+	_ = e.App.Store.DB.QueryRow(`SELECT count(*) FROM tool_call WHERE ask_id = ? AND outcome = 'waiting'`, held.Waiting).Scan(&waited)
+	if len(svc.requests()) != 1 || waited != 1 {
+		t.Fatalf("the owner's yes makes the call and the journal keeps its ask: %d requests, %d waiting rows", len(svc.requests()), waited)
+	}
+}

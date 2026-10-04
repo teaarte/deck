@@ -73,7 +73,7 @@ UPDATE ask SET state = 'used', delivered_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'no
 
 -- name: FindOpenCallAsk :one
 SELECT * FROM ask
-WHERE kind = 'call' AND state = 'open' AND project_id = sqlc.arg(project_id) AND payload = sqlc.arg(payload)
+WHERE kind = 'call' AND state = 'open' AND coalesce(project_id, 0) = CAST(sqlc.arg(project_id) AS INTEGER) AND payload = sqlc.arg(payload)
   AND coalesce(process_id, 0) = CAST(sqlc.arg(process_id) AS INTEGER)
 ORDER BY id LIMIT 1;
 

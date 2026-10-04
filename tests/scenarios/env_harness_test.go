@@ -201,6 +201,13 @@ func (e *Env) projectID(name string) int64 {
 func (e *Env) olderBase(version int) {
 	e.T.Helper()
 	undo := map[int][]string{
+		4: {`PRAGMA foreign_keys = OFF`, `CREATE TABLE ask_old (id INTEGER PRIMARY KEY AUTOINCREMENT,
+		   workspace_id INTEGER NOT NULL REFERENCES workspace(id) ON DELETE CASCADE,
+		   project_id INTEGER NOT NULL REFERENCES project(id) ON DELETE CASCADE,
+		   process_id INTEGER REFERENCES process(id) ON DELETE CASCADE, kind TEXT NOT NULL, text TEXT NOT NULL,
+		   payload TEXT NOT NULL DEFAULT '{}', answer TEXT NOT NULL DEFAULT '', state TEXT NOT NULL DEFAULT 'open',
+		   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')), answered_at TEXT, expires_at TEXT, delivered_at TEXT)`,
+			`INSERT INTO ask_old SELECT * FROM ask`, `DROP TABLE ask`, `ALTER TABLE ask_old RENAME TO ask`, `PRAGMA foreign_keys = ON`},
 		3: {`CREATE TABLE llm_old AS SELECT id, process_id, gen_ai_provider_name, gen_ai_request_model, gen_ai_response_model,
 		   gen_ai_usage_input_tokens, gen_ai_usage_output_tokens, gen_ai_usage_cache_read_input_tokens,
 		   gen_ai_usage_cache_creation_input_tokens, duration_ms, cost_usd, created_at FROM llm_call`,

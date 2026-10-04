@@ -3,6 +3,8 @@ package scenarios
 import (
 	"context"
 	"deck2/internal/api"
+	"deck2/internal/app"
+	"deck2/internal/registry"
 	"deck2/web"
 	"encoding/json"
 	"fmt"
@@ -10,6 +12,7 @@ import (
 	"net/http/httptest"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 )
 
@@ -269,5 +272,27 @@ func TestASaveOfTheSameTextChangesNothing(t *testing.T) {
 	e.must("deck.feed_list", map[string]any{"kind": "change"}, &feed)
 	if len(feed) != 0 {
 		t.Fatalf("no change is listed: %+v", feed)
+	}
+}
+
+// TestACallOfATokenThatWaitsForTheOwnerIsKept: an external builtin a token calls waits for the owner like any
+// other call, though no project made it, and the owner's yes makes it.
+func TestACallOfATokenThatWaitsForTheOwnerIsKept(t *testing.T) {
+	var sent atomic.Int64
+	out := registry.Def("send_out", "Send out", "Sends something outside deck.", registry.OwnerSide,
+		func(context.Context, registry.Actor, struct{}) (any, error) {
+			sent.Add(1)
+			return map[string]any{"sent": true}, nil
+		}).As(registry.External)
+	e := newEnv(t, nil, func(c *app.Config) { c.Commands = append(c.Commands, out) })
+	_, tok := e.token("terminal", "deck.*")
+	code, body := e.callWith(tok, "deck.send_out", map[string]any{})
+	var held struct{ Waiting int64 }
+	if code != 200 || json.Unmarshal(body, &held) != nil || held.Waiting == 0 || sent.Load() != 0 {
+		t.Fatalf("the call waits for the owner: %d %s", code, body)
+	}
+	e.answer(held.Waiting, "allow")
+	if sent.Load() != 1 {
+		t.Fatal("the owner's yes makes the call")
 	}
 }

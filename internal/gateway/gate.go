@@ -280,7 +280,7 @@ func (g *Gateway) Decide(ctx context.Context, owner registry.Actor, a db.Ask, an
 	act := g.clear.Clear(f.Caller.actor())
 	if f.As == AsOwner {
 		act = owner
-		act.ProjectID = a.ProjectID
+		act.ProjectID = a.ProjectID.Int64
 	}
 	run := context.WithValue(context.WithValue(context.WithoutCancel(ctx), retryingKey{}, a.ID), approvedKey{}, f.Tool)
 	out, err := g.call(run, act, f.Call.Command, f.Call.Input)
@@ -313,5 +313,5 @@ func (g *Gateway) Record(ctx context.Context, a db.Ask, outcome, why string) {
 	if c, err := g.reg.Lookup(ctx, act.Workspace, f.Call.Command); err == nil {
 		class = c.Class
 	}
-	g.journal(ctx, act, a.ProjectID, f.Call.Command, class, outcome, string(f.Call.Input), why)
+	g.journal(ctx, act, a.ProjectID.Int64, f.Call.Command, class, outcome, string(f.Call.Input), why)
 }

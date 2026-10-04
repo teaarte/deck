@@ -81,10 +81,6 @@ func (g *Gateway) LostAt(ctx context.Context, id int64, tool string) {
 		if err != nil || c.Outcome != "started" {
 			return err
 		}
-		p, err := q.GetProject(ctx, c.ProjectID.Int64)
-		if err != nil {
-			return err
-		}
 		var caller Caller
 		if err := json.Unmarshal([]byte(c.Caller), &caller); err != nil {
 			return fmt.Errorf("the caller of tool call %d: %w", id, err)
@@ -94,7 +90,7 @@ func (g *Gateway) LostAt(ctx context.Context, id int64, tool string) {
 			"check the other side, then retry it or count it as done.", c.Tool, untrusted.Cut(c.Params, 500))
 		f := Freeze(act, c.Tool, json.RawMessage(c.Params))
 		f.Tool = tool
-		a, err := ask.ForProject(ctx, q, p.WorkspaceID, p.ID, c.ProcessID.Int64, ask.KindUnknown, text, f.String(), time.Time{})
+		a, err := ask.ForProject(ctx, q, c.WorkspaceID, c.ProjectID.Int64, c.ProcessID.Int64, ask.KindUnknown, text, f.String(), time.Time{})
 		if err != nil {
 			return err
 		}
@@ -137,7 +133,7 @@ func (g *Gateway) Recover(ctx context.Context) error {
 			}
 			var f Frozen
 			_ = json.Unmarshal([]byte(a.Payload), &f)
-			if lost[fmt.Sprint(a.ProjectID, f.Call.Command, string(f.Call.Input))] {
+			if lost[fmt.Sprint(a.ProjectID.Int64, f.Call.Command, string(f.Call.Input))] {
 				continue
 			}
 			if err := q.MarkAskDelivered(ctx, a.ID); err != nil {
@@ -145,15 +141,15 @@ func (g *Gateway) Recover(ctx context.Context) error {
 			}
 			text := fmt.Sprintf("Outcome unknown: %s with %s. deck stopped while making this allowed call; "+
 				"check the other side, then retry it or count it as done.", f.Call.Command, untrusted.Cut(string(f.Call.Input), 500))
-			u, err := ask.ForProject(ctx, q, a.WorkspaceID, a.ProjectID, a.ProcessID.Int64, ask.KindUnknown, text, a.Payload, time.Time{})
+			u, err := ask.ForProject(ctx, q, a.WorkspaceID, a.ProjectID.Int64, a.ProcessID.Int64, ask.KindUnknown, text, a.Payload, time.Time{})
 			if err != nil {
 				return err
 			}
 			act := f.Caller.actor()
 			if f.As == AsOwner {
-				act = registry.Actor{Kind: registry.Owner, Workspace: a.WorkspaceID, ProjectID: a.ProjectID}
+				act = registry.Actor{Kind: registry.Owner, Workspace: a.WorkspaceID, ProjectID: a.ProjectID.Int64}
 			}
-			if _, err := q.LogToolCall(ctx, db.LogToolCallParams{WorkspaceID: a.WorkspaceID, ProcessID: store.ID(act.ProcessID), ProjectID: store.ID(a.ProjectID),
+			if _, err := q.LogToolCall(ctx, db.LogToolCallParams{WorkspaceID: a.WorkspaceID, ProcessID: store.ID(act.ProcessID), ProjectID: a.ProjectID,
 				Actor: act.Author(), Caller: frozenCaller(act), Tool: f.Call.Command, Class: classes[f.Call.Command], Outcome: "unknown",
 				Params: Canonical(f.Call.Input), AskID: sql.NullInt64{Int64: u.ID, Valid: true}}); err != nil {
 				return err

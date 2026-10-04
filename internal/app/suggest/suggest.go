@@ -207,7 +207,7 @@ func (sg *Service) Answer(ctx context.Context, act registry.Actor, q db.Ask, ans
 		var n int64
 		err = sg.St.Tx(ctx, func(ctx context.Context, tx *db.Queries) error {
 			var err error
-			n, err = tx.MoveSuggestion(ctx, db.MoveSuggestionParams{ProjectID: p.ID, Text: f.Reason + "\n" + suggested(f), Payload: f.String(), ID: q.ID})
+			n, err = tx.MoveSuggestion(ctx, db.MoveSuggestionParams{ProjectID: store.ID(p.ID), Text: f.Reason + "\n" + suggested(f), Payload: f.String(), ID: q.ID})
 			if err != nil || n == 0 {
 				return err
 			}
@@ -255,11 +255,11 @@ func (sg *Service) suggestionsRejected(ctx context.Context, act registry.Actor, 
 		if json.Unmarshal([]byte(q.Payload), &f) != nil {
 			continue
 		}
-		if !act.Within(q.ProjectID) && !sg.byProject(ctx, f.Caller.Process, act.ProjectID) {
+		if !act.Within(q.ProjectID.Int64) && !sg.byProject(ctx, f.Caller.Process, act.ProjectID) {
 			continue
 		}
 		why := strings.TrimPrefix(strings.TrimPrefix(q.Answer, "deny"), ":")
-		p, _ := sg.St.Q.GetProject(ctx, q.ProjectID)
+		p, _ := sg.St.Q.GetProject(ctx, q.ProjectID.Int64)
 		out = append(out, map[string]any{"project": p.Name, "what": suggested(f), "reason": f.Reason, "why_not": untrusted.Cut(why, 500),
 			"by": f.Caller.Author(), "answered_at": q.AnsweredAt.String})
 	}

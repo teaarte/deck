@@ -115,7 +115,7 @@ func Save(ctx context.Context, q *db.Queries, ref Ref, kind, text, author, reaso
 		return db.Document{}, 0, false, err
 	}
 	d, err = q.FindAnyDocument(ctx, db.FindAnyDocumentParams(ref.Find()))
-	if err == nil && d.DeletedAt.Valid && author != registry.Owner {
+	if err == nil && d.DeletedAt.Valid && author != registry.Owner && !ownMemory(ctx, q, ref, kind, author) {
 		return d, 0, false, registry.Conflict("deck: %s was deleted; the owner can bring it back, or save it under another name", ref.Name)
 	}
 	restored := err == nil && d.DeletedAt.Valid
@@ -155,6 +155,15 @@ func Save(ctx context.Context, q *db.Queries, ref Ref, kind, text, author, reaso
 	}
 	d.Current = n
 	return d, n, true, nil
+}
+
+// ownMemory is the memory of the master in its own project, which it may write again after a delete.
+func ownMemory(ctx context.Context, q *db.Queries, ref Ref, kind, author string) bool {
+	if kind != KindMemory || author != registry.Master || ref.OwnerKind != "" {
+		return false
+	}
+	p, err := q.GetProject(ctx, ref.Scope.Project)
+	return err == nil && p.Builtin == 1
 }
 
 // Edit replaces each old part of the text with its new one; each old part must occur in the text exactly once,

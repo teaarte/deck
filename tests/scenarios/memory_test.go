@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 
 	"deck2/internal/provider"
@@ -265,4 +267,42 @@ func TestMemoryStaysWithItsOwnersAndDeletesHold(t *testing.T) {
 	_ = e.App.Close()
 	e2 := newEnvWith(t, home, &Fake{script: script})
 	e2.refused("deck.document_get", map[string]any{"project": "master", "name": "prompts/memory.md"}, 404, "no document")
+}
+
+// TestTheMasterWritesItsDeletedMemoryIndexAgain: a memory document of its own project that was deleted the master
+// writes again as a new revision; any other deleted document stays the owner's to bring back.
+func TestTheMasterWritesItsDeletedMemoryIndexAgain(t *testing.T) {
+	var said sync.Map
+	var turn atomic.Int32
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		n := turn.Add(1)
+		for _, name := range []string{"memory/MEMORY.md", "notes.md"} {
+			kind := map[string]string{"memory/MEMORY.md": "memory", "notes.md": "artifact"}[name]
+			out, isErr := c.Tool(ctx, "document_save", map[string]any{"name": name, "kind": kind, "text": fmt.Sprintf("- turn %d", n)})
+			said.Store(fmt.Sprint(n, name), fmt.Sprint(isErr, " ", out))
+		}
+		return provider.Result{Text: "Saved."}
+	})
+	topic := e.say(0, "remember")
+	e.masterSaid(topic, 1)
+	for _, name := range []string{"memory/MEMORY.md", "notes.md"} {
+		if got, _ := said.Load("1" + name); !strings.HasPrefix(fmt.Sprint(got), "false ") {
+			t.Fatalf("the master saves %s: %v", name, got)
+		}
+	}
+	e.must("deck.document_delete", map[string]any{"project": "master", "name": "memory/MEMORY.md"}, nil)
+	e.must("deck.document_delete", map[string]any{"name": "notes.md"}, nil)
+	e.say(topic, "again")
+	e.masterSaid(topic, 2)
+	if got, _ := said.Load("2memory/MEMORY.md"); !strings.HasPrefix(fmt.Sprint(got), "false ") {
+		t.Fatalf("the master writes its deleted memory index again: %v", got)
+	}
+	if got, _ := said.Load("2notes.md"); !strings.HasPrefix(fmt.Sprint(got), "true ") || !strings.Contains(fmt.Sprint(got), "was deleted") {
+		t.Fatalf("another deleted document stays deleted: %v", got)
+	}
+	var d struct{ Text string }
+	e.must("deck.document_get", map[string]any{"project": "master", "name": "memory/MEMORY.md"}, &d)
+	if d.Text != "- turn 2" {
+		t.Fatalf("the index is the new text: %+v", d)
+	}
 }

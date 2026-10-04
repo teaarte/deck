@@ -68,6 +68,25 @@ func words(lang string, m *manifest.Manifest) map[string]string {
 	return out
 }
 
+// projectNav is how a project shows in the menu and in the list of projects: its title, its icon and the
+// screens of its menu, in the owner's words.
+func projectNav(p db.Project, m *manifest.Manifest, ws map[string]string) (string, string, []screenLink) {
+	names := m.Menu
+	if len(names) == 0 {
+		for _, s := range m.Screens {
+			if s.Record == "" {
+				names = append(names, s.Name)
+			}
+		}
+	}
+	links := []screenLink{}
+	for _, n := range names {
+		s := m.Screen(n)
+		links = append(links, screenLink{Name: n, Title: tr(ws, s.Title), Icon: s.Icon})
+	}
+	return tr(ws, cmp.Or(m.Title, p.Name)), m.Icon, links
+}
+
 // tr is a text in a language by words, or the text itself.
 func tr(ws map[string]string, s string) string {
 	if t := ws[s]; t != "" {
@@ -146,19 +165,8 @@ func (a *App) menu(ctx context.Context, act registry.Actor, in menuIn) (any, err
 		}
 		r := pulse[p.ID]
 		ws := words(in.Lang, m)
-		e := menuEntry{Project: p.Name, Title: tr(ws, cmp.Or(m.Title, p.Name)), Icon: m.Icon, Screens: []screenLink{}, Running: r.Running, Asks: r.Asks, Errors: r.Errors}
-		names := m.Menu
-		if len(names) == 0 {
-			for _, s := range m.Screens {
-				if s.Record == "" {
-					names = append(names, s.Name)
-				}
-			}
-		}
-		for _, n := range names {
-			s := m.Screen(n)
-			e.Screens = append(e.Screens, screenLink{Name: n, Title: tr(ws, s.Title), Icon: s.Icon})
-		}
+		e := menuEntry{Project: p.Name, Running: r.Running, Asks: r.Asks, Errors: r.Errors}
+		e.Title, e.Icon, e.Screens = projectNav(p, m, ws)
 		for _, s := range shipped().Project {
 			if s.Record == "" && m.Screen(s.Name) == nil {
 				e.Extra = append(e.Extra, screenLink{Name: s.Name, Title: tr(ws, s.Title), Icon: s.Icon})

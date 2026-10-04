@@ -17,7 +17,7 @@ import (
 
 var folderName = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,39}$`)
 
-type folderView struct {
+type folderRow struct {
 	Name string `json:"name"`
 	Path string `json:"path"`
 }
@@ -121,13 +121,13 @@ func (a *App) folderRemove(ctx context.Context, act registry.Actor, in folderRem
 	return map[string]any{"project": p.Name, "removed": in.Name}, nil
 }
 
-func (a *App) folders(ctx context.Context, projectID int64) []folderView {
-	fs, _ := a.Store.Q.ListProjectFolders(ctx, projectID)
-	out := make([]folderView, 0, len(fs))
+func (a *App) folders(ctx context.Context, projectID int64) ([]folderRow, error) {
+	fs, err := a.Store.Q.ListProjectFolders(ctx, projectID)
+	out := make([]folderRow, 0, len(fs))
 	for _, f := range fs {
-		out = append(out, folderView{Name: f.Name, Path: f.Path})
+		out = append(out, folderRow{Name: f.Name, Path: f.Path})
 	}
-	return out
+	return out, err
 }
 
 // Folder is the real path of the project folder an agent command works in, checked to still be there.
@@ -169,25 +169,12 @@ type foldersListIn struct {
 	Project string `type:"project" desc:"Project name"`
 }
 
-type folderRow struct {
-	Name string `json:"name"`
-	Path string `json:"path"`
-}
-
 func (a *App) foldersList(ctx context.Context, act registry.Actor, in foldersListIn) ([]folderRow, error) {
 	p, err := access.Project(ctx, a.Store.Q, act, in.Project)
 	if err != nil {
 		return nil, err
 	}
-	fs, err := a.Store.Q.ListProjectFolders(ctx, p.ID)
-	if err != nil {
-		return nil, err
-	}
-	out := make([]folderRow, 0, len(fs))
-	for _, f := range fs {
-		out = append(out, folderRow{Name: f.Name, Path: f.Path})
-	}
-	return out, nil
+	return a.folders(ctx, p.ID)
 }
 
 func (a *App) foldersCommands() []*registry.Command {

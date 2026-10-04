@@ -23,22 +23,17 @@ type projectView struct {
 	Paused        bool         `json:"paused"`
 	Builtin       bool         `json:"builtin"`
 	Description   string       `json:"description"`
-	Screens       []screenView `json:"screens"`
+	Screens       []screenLink `json:"screens"`
 	ManifestError string       `json:"manifest_error"`
 	// Rights are what enabling a draft at Revision of its manifest grants.
-	Rights   []string     `json:"rights"`
-	Revision int64        `json:"revision"`
-	Folders  []folderView `json:"folders"`
+	Rights   []string    `json:"rights"`
+	Revision int64       `json:"revision"`
+	Folders  []folderRow `json:"folders"`
 	// Autonomy and NoNetwork are of the manifest; empty and false when it does not load.
 	Autonomy  string `json:"autonomy"`
 	NoNetwork bool   `json:"no_network"`
 	// Icon and Title are the icon and the name the owner sees that its manifest gives; Title is the name without one.
 	Icon  string `json:"icon,omitempty"`
-	Title string `json:"title"`
-}
-
-type screenView struct {
-	Name  string `json:"name"`
 	Title string `json:"title"`
 }
 
@@ -64,8 +59,9 @@ func (a *App) projectsList(ctx context.Context, act registry.Actor, in projectsL
 
 // viewProject is a project as the owner sees it, with its manifest when that loads.
 func (a *App) viewProject(ctx context.Context, p db.Project, m *manifest.Manifest, err error) projectView {
-	v := projectView{ID: p.ID, Name: p.Name, Title: p.Name, Status: p.Status, Paused: p.Paused == 1, Builtin: p.Builtin == 1, Screens: []screenView{},
-		Rights: []string{}, Folders: a.folders(ctx, p.ID)}
+	v := projectView{ID: p.ID, Name: p.Name, Title: p.Name, Status: p.Status, Paused: p.Paused == 1, Builtin: p.Builtin == 1, Screens: []screenLink{},
+		Rights: []string{}}
+	v.Folders, _ = a.folders(ctx, p.ID)
 	if prompt, err := docs.CurrentText(ctx, a.Store.Q, docs.ProjectScope(p), docs.KindPrompt, docs.PromptName); err == nil {
 		v.Description = docs.Description(prompt)
 	}
@@ -73,10 +69,8 @@ func (a *App) viewProject(ctx context.Context, p db.Project, m *manifest.Manifes
 		v.ManifestError = err.Error()
 		return v
 	}
-	v.Revision, v.Autonomy, v.NoNetwork, v.Icon, v.Title = m.Revision, cmp.Or(m.Autonomy, "suggest"), m.NoNetwork, m.Icon, cmp.Or(m.Title, p.Name)
-	for _, s := range m.Screens {
-		v.Screens = append(v.Screens, screenView{Name: s.Name, Title: s.Title})
-	}
+	v.Revision, v.Autonomy, v.NoNetwork = m.Revision, cmp.Or(m.Autonomy, "suggest"), m.NoNetwork
+	v.Title, v.Icon, v.Screens = projectNav(p, m, nil)
 	if p.Status == store.ProjectDraft {
 		v.Rights = append(v.Rights, rights(m)...)
 	}

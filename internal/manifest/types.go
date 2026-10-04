@@ -40,6 +40,8 @@ type Manifest struct {
 	scripts     map[string]*Script
 	// text is the manifest as Parse read it, upgraded to the current format.
 	text []byte
+	// warnings are problems a read lets pass and a save refuses.
+	warnings []string
 }
 
 type Collection struct {

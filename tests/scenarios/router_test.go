@@ -87,3 +87,29 @@ func TestValuesIconsAndDialogNamesAreCheckedOnSave(t *testing.T) {
 		}
 	}
 }
+
+// TestAButtonGivesOnlyTheParamsOfItsScreen: a move to a screen gives the params that screen declares and the
+// client's tab and dialog; a typo fails the save, while a module saved with one still reads and is warned of.
+func TestAButtonGivesOnlyTheParamsOfItsScreen(t *testing.T) {
+	e := newEnv(t, boardWebAgent())
+	typo := strings.Replace(routedManifest, `"params": {"title": "$record.title", "dialog": "rescore"}`, `"params": {"titel": "$record.title", "dialog": "rescore"}`, 1)
+	if typo == routedManifest {
+		t.Fatal("fixture replacement did not apply")
+	}
+	code, out := e.call("deck.project_create", map[string]any{"name": "web", "manifest": typo})
+	if code != 422 || !strings.Contains(string(out), `param "titel"`) || !strings.Contains(string(out), "title") {
+		t.Fatalf("an unknown param of a move to a screen fails the save with the params it takes: %d %s", code, out)
+	}
+	e.createProject("web", routedManifest)
+	doc := `(SELECT id FROM document WHERE name = 'manifest.json' AND project_id = (SELECT id FROM project WHERE name = 'web'))`
+	if _, err := e.App.Store.DB.Exec(`INSERT INTO document_revision (document_id, n, text, author) VALUES (`+doc+`, 2, ?, 'old deck');
+		UPDATE document SET current = 2 WHERE id = `+doc, typo); err != nil {
+		t.Fatal(err)
+	}
+	e.screenMessages("web", "main", nil)
+	var got struct{ Warnings []string }
+	e.must("deck.manifest_get", map[string]any{"project": "web"}, &got)
+	if len(got.Warnings) != 1 || !strings.Contains(got.Warnings[0], `param "titel"`) {
+		t.Fatalf("a saved module with the typo reads, and manifest_get warns of it: %+v", got)
+	}
+}

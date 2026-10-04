@@ -61,5 +61,8 @@ func Parse(raw []byte) (*Manifest, error) {
 	return &m, nil
 }
 
+// Warnings are the problems a stored manifest is read with; a save refuses them.
+func (m *Manifest) Warnings() []string { return m.warnings }
+
 // Text is the manifest in the current format.
 func (m *Manifest) Text() []byte { return m.text }

@@ -36,6 +36,7 @@ type screenCheck struct {
 	deck    bool
 	screen  *Screen
 	fail    func(string, ...any)
+	warn    func(string, ...any)
 	dialogs map[string]bool
 	tabs    map[string]bool
 }
@@ -56,6 +57,7 @@ func (m *Manifest) checkScreenList(deck bool, fail func(string, ...any)) {
 			fail("screen %q record: unknown collection %q", s.Name, s.Record)
 		}
 		c := &screenCheck{m: m, deck: deck, screen: s, fail: fail, dialogs: map[string]bool{}, tabs: map[string]bool{}}
+		c.warn = func(format string, a ...any) { m.warnings = append(m.warnings, fmt.Sprintf(format, a...)) }
 		c.params()
 		for j, b := range s.Blocks {
 			c.block(fmt.Sprintf("screen %q block %d", s.Name, j), b)

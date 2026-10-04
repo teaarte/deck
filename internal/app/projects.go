@@ -6,6 +6,7 @@ import (
 	"deck2/internal/events"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"deck2/internal/app/board"
 	"deck2/internal/docs"
@@ -45,6 +46,9 @@ func parseManifest(raw []byte, builtin bool) (parsed, error) {
 	m, err := manifest.Parse(raw)
 	if err != nil {
 		return parsed{}, registry.Invalid("deck: %v", err)
+	}
+	if w := m.Warnings(); len(w) > 0 {
+		return parsed{}, registry.Invalid("deck: %s", strings.Join(w, "\n"))
 	}
 	for _, t := range m.Triggers {
 		if t.On != "" && !builtin {

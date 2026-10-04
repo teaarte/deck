@@ -3,6 +3,7 @@ package manifest
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"reflect"
 	"slices"
 	"strconv"
@@ -63,6 +64,12 @@ func (c *screenCheck) action(b Block, a Action, fields []string) error {
 	target := c.m.Screen(a.Screen)
 	if target == nil {
 		return fmt.Errorf("unknown screen %q", a.Screen)
+	}
+	for k := range a.Params {
+		if _, ok := target.Params[k]; !ok && k != "tab" && k != "dialog" && c.warn != nil {
+			c.warn("screen %q: a button to %q gives param %q; it takes %s", c.screen.Name, a.Screen, k,
+				strings.Join(append(slices.Sorted(maps.Keys(target.Params)), "tab", "dialog"), ", "))
+		}
 	}
 	if target.Record == "" {
 		return nil

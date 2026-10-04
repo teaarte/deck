@@ -111,6 +111,8 @@ type manifestView struct {
 	Document int64  `json:"document"`
 	Revision int64  `json:"revision"`
 	Manifest string `json:"manifest"`
+	// Warnings are problems the manifest is read with; its next save fails on them.
+	Warnings []string `json:"warnings,omitempty"`
 }
 
 func (a *App) manifestGet(ctx context.Context, act registry.Actor, in manifestGetIn) (manifestView, error) {
@@ -127,7 +129,11 @@ func (a *App) manifestGet(ctx context.Context, act registry.Actor, in manifestGe
 	if err != nil {
 		return manifestView{}, err
 	}
-	return manifestView{Project: p.Name, Document: d.ID, Revision: d.Current, Manifest: r.Text}, nil
+	v := manifestView{Project: p.Name, Document: d.ID, Revision: d.Current, Manifest: r.Text}
+	if m, err := docs.ManifestAt(ctx, a.Store.Q, p.ID, d.Current); err == nil {
+		v.Warnings = m.Warnings()
+	}
+	return v, nil
 }
 
 type manifestSaveIn struct {

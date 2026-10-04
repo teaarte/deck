@@ -63,9 +63,7 @@ func (g *Gateway) question(ctx context.Context, s *Session, in approveInput) dec
 	if err != nil {
 		return decision{Behavior: "deny", Message: "deck: could not deliver the question: " + err.Error()}
 	}
-	g.ceiling(ctx, s.ProcessID, false)
-	answer, ok := g.asks.Wait(ctx, a.ID, until)
-	g.ceiling(ctx, s.ProcessID, true)
+	answer, ok := g.awaitOwner(ctx, s, a.ID, until)
 	if !ok {
 		return decision{Behavior: "deny", Message: "deck: the owner has not answered yet." + stopAndWait}
 	}
@@ -133,7 +131,7 @@ func (g *Gateway) confirm(ctx context.Context, s *Session, in approveInput) deci
 	if err != nil {
 		return decision{Behavior: "deny", Message: "deck: could not request confirmation: " + err.Error()}
 	}
-	answer, ok := g.asks.Wait(ctx, a.ID, now.Add(s.wait(g.cfg.ConfirmWait)))
+	answer, ok := g.awaitOwner(ctx, s, a.ID, now.Add(s.wait(g.cfg.ConfirmWait)))
 	if !ok {
 		return decision{Behavior: "deny", Message: "deck: waiting for the owner to confirm this call; it was not made." + stopAndWait}
 	}
@@ -159,6 +157,14 @@ func RejectMessage(answer string) string {
 		msg += " Reason: " + untrusted.Line(reason, 500)
 	}
 	return msg
+}
+
+// awaitOwner waits until the owner answers ask id or until passes, with the ceiling of the process paused
+// meanwhile; the ceiling runs again even when the call went away.
+func (g *Gateway) awaitOwner(ctx context.Context, s *Session, id int64, until time.Time) (string, bool) {
+	g.ceiling(ctx, s.ProcessID, false)
+	defer g.ceiling(context.WithoutCancel(ctx), s.ProcessID, true)
+	return g.asks.Wait(ctx, id, until)
 }
 
 // ceiling runs or pauses the ceiling of a process: it does not tick while the owner owes a blocking answer.

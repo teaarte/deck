@@ -552,3 +552,24 @@ func TestFinishedProcessSessionIsClosed(t *testing.T) {
 		t.Fatalf("a finished process's session takes no calls: %d, %d records", resp.StatusCode, len(recs))
 	}
 }
+
+// TestCeilingWaitsForAConfirmationToo: while the owner decides on a call the agent waits for, its ceiling does
+// not tick, as for a question.
+func TestCeilingWaitsForAConfirmationToo(t *testing.T) {
+	e := newClockEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		c.Approve(ctx, "Bash", map[string]any{"command": "curl https://example.com"})
+		<-ctx.Done()
+		return provider.Result{}
+	}, func(c *app.Config) { c.ConfirmWait = 3 * time.Hour })
+	p := e.createProject("ask", testManifest([]string{agentCommand("job", "")}, nil))
+	id := e.run(p, "job")
+	a := e.waitAsk()
+	e.waitFor("the ceiling to pause", func() bool { return e.full(id).Deadline == "" })
+	e.Clock.Add(2 * time.Hour)
+	e.sweep()
+	if got := e.full(id); got.State != "running" {
+		t.Fatalf("while the owner decides on a call the ceiling does not tick: %+v", got)
+	}
+	e.answer(a.ID, "deny")
+	e.waitFor("the ceiling to run again", func() bool { return e.full(id).Deadline != "" })
+}

@@ -116,9 +116,6 @@ func (r *renderer) block(id string, b manifest.Block) {
 		comp["description"] = b.Description
 	}
 	comp["span"] = span(b)
-	if b.Menu {
-		comp["menu"] = true
-	}
 	if b.Part != "" {
 		comp["part"] = b.Part
 	}
@@ -191,7 +188,7 @@ func span(b manifest.Block) any {
 func (r *renderer) split(ids []string) (blocks, dialogs []string) {
 	head := map[string]bool{}
 	for _, c := range r.comps {
-		head[fmt.Sprint(c["id"])] = c["component"] == "dialog" || c["menu"] == true
+		head[fmt.Sprint(c["id"])] = c["component"] == "dialog"
 	}
 	blocks, dialogs = []string{}, []string{}
 	for _, id := range ids {

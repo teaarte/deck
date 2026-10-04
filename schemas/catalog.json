@@ -164,7 +164,7 @@
     },
     "actions": {
       "description": "A group of buttons without a source.",
-      "block": {"description": "Needs actions; takes no source. With menu, the buttons open from one button, its title and icon, beside the title of the screen.", "required": ["actions"], "properties": {"actions": {"$ref": "#/$defs/actions"}, "menu": {"type": "boolean"}}},
+      "block": {"description": "Needs actions; takes no source. The buttons past a few wait in its own menu.", "required": ["actions"], "properties": {"actions": {"$ref": "#/$defs/actions"}}},
       "type": "object",
       "additionalProperties": false,
       "required": ["data"],
@@ -173,7 +173,6 @@
         "icon": {"type": "string"},
         "span": {"enum": [1, 2, "full"]},
         "description": {"type": "string"},
-        "menu": {"type": "boolean"},
         "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "value: the buttons, with the record of the page in their params"}
       }
     },

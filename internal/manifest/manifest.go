@@ -261,8 +261,6 @@ type Block struct {
 	Span Span `json:"span,omitzero"`
 	// Part is the part of the device an appearance block shows: its look or its pushes.
 	Part string `json:"part,omitempty"`
-	// Menu opens the buttons of an actions block from one button.
-	Menu bool `json:"menu,omitempty"`
 	// Name opens a dialog from the address of its screen; Primary paints its button in the accent.
 	Name    string `json:"name,omitempty"`
 	Primary bool   `json:"primary,omitempty"`

@@ -12,7 +12,7 @@ import { DialogClose } from './dialog';
 import { Board } from './board';
 import { Form, type FormValue } from './form';
 import { Document, Markdown } from './document';
-import { Actions, ActionsMenu, QuestionPicker, rowOpen } from './actions';
+import { Actions, QuestionPicker, rowOpen } from './actions';
 import { Block, Details, show, type Span } from './block';
 import { DataTable } from './table';
 import { Appearance } from './appearance';
@@ -196,14 +196,7 @@ const impls: ReactComponentImplementation[] = [
     <Suspense fallback={<Loader size="xs" />}><div data-chart-block><Chart value={d.value as ChartValue} kind={p.kind} s={p} /></div></Suspense>
   )),
   blockImpl('media', (_, d) => <Suspense fallback={<Loader size="xs" />}><Media items={d.files ?? []} /></Suspense>),
-  createComponentImplementation(api('actions'), ({ props, context }) => {
-    const p = props as BlockProps & { menu?: boolean };
-    if (p.menu) {
-      return <ActionsMenu actions={p.data?.value as ActionsValue | undefined} context={context} label={p.title}
-        icon={p.icon ? <NamedIcon name={p.icon} fallback={p.title ?? ''} size={16} /> : undefined} />;
-    }
-    return <Block {...p} context={context}>{(d) => <Actions actions={d.value as ActionsValue | undefined} context={context} />}</Block>;
-  }),
+  blockImpl('actions', (_, d, context) => <Actions actions={d.value as ActionsValue | undefined} context={context} />),
   blockImpl('log', (_, d) => <LogLines lines={d.lines ?? []} />),
   blockImpl('board', (_, d, context) => <Board value={d.value as BoardValue} context={context} />),
   blockImpl('form', (_, d) => <Form value={d.value as FormValue} />),

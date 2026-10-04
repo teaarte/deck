@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -130,5 +131,24 @@ func waitEvent(t *testing.T, ch <-chan events.Event, want events.Event) {
 		case <-timeout:
 			t.Fatalf("no %+v event", want)
 		}
+	}
+}
+
+// TestADeckReadWithoutAProjectFollowsEveryProject: a block of a module screen that reads a deck command taking no
+// project reads every project, so a change in any project reads it again.
+func TestADeckReadWithoutAProjectFollowsEveryProject(t *testing.T) {
+	e := newEnv(t, boardWebAgent())
+	e.createProject("a", boardWebManifest)
+	e.createProject("c", strings.Replace(boardWebManifest, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "blocks": [
+      {"type": "table", "title": "Runs", "source": {"from": "deck.runs_daily"}, "columns": [{"label": "Day", "bind": "day"}]},`, 1))
+	var paths []string
+	for _, m := range e.screenMessages("c", "main", map[string]any{"topic": "processes", "changed": "a"}) {
+		var dm struct{ Path string }
+		if m["updateDataModel"] != nil && json.Unmarshal(m["updateDataModel"], &dm) == nil {
+			paths = append(paths, dm.Path)
+		}
+	}
+	if !slices.Contains(paths, "/b0") {
+		t.Fatalf("a run in a reads the runs of every project again: %v", paths)
 	}
 }

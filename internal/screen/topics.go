@@ -17,8 +17,8 @@ func (r *renderer) reads(b manifest.Block, project string) bool {
 	return readsProject(b, r.deck(), r.req.Project.Name, project)
 }
 
-// readsProject says whether a block of the screen of project own reads a part of project: a block of a deck
-// screen reads every one; a command reads the project its input names, every one for an empty or computed name.
+// readsProject says whether a block of a screen of project own reads project: a deck screen reads every one, a
+// command the project its input names, every one for an empty or computed name or when it takes no project.
 func readsProject(b manifest.Block, deck bool, own, project string) bool {
 	switch {
 	case project == "" || deck:
@@ -31,6 +31,9 @@ func readsProject(b manifest.Block, deck bool, own, project string) bool {
 	if v, ok := b.Source.Input["project"]; ok {
 		s, _ := v.(string)
 		return s == "" || strings.HasPrefix(s, "=") || strings.HasPrefix(s, "$") || s == project
+	}
+	if c, ok := manifest.Reads(b.Source.From); ok && manifest.FieldTypes(c.Input)["project"] == "" {
+		return true
 	}
 	return project == own
 }

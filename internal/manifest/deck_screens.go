@@ -12,11 +12,11 @@ import (
 	"github.com/santhosh-tekuri/jsonschema/v6"
 )
 
-// ReadCommand is what a screen block needs of a command it reads: the schema of its result and the event topic
-// after which the result may differ.
+// ReadCommand is what a screen block needs of a command it reads: the schemas of its input and result and the
+// event topics after which the result may differ.
 type ReadCommand struct {
-	Result json.RawMessage
-	Topics []string
+	Input, Result json.RawMessage
+	Topics        []string
 }
 
 // LogSource is the command a log block reads; CommandsSource is the one a form picks its command from.

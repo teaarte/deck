@@ -29,7 +29,7 @@ func (a *App) addBuiltins() {
 		if c == nil || !c.Reads {
 			return manifest.ReadCommand{}, false
 		}
-		return manifest.ReadCommand{Result: c.Result, Topics: c.Topics}, true
+		return manifest.ReadCommand{Input: c.Input, Result: c.Result, Topics: c.Topics}, true
 	})
 	shipped()
 }

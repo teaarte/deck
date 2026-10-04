@@ -208,7 +208,9 @@ func TestABlockThatFailsIsInTheHealthOfItsModuleWithoutTheMaster(t *testing.T) {
 	e.screenMessages("web", "main", nil)
 	var hs []struct{ Subject, Status string }
 	e.must("deck.health_list", map[string]any{"project": "web"}, &hs)
-	if !slices.ContainsFunc(hs, func(h struct{ Subject, Status string }) bool { return h.Subject == "screen:main" && h.Status == "error" }) {
+	if !slices.ContainsFunc(hs, func(h struct{ Subject, Status string }) bool {
+		return h.Subject == "screen:main" && h.Status == "error"
+	}) {
 		t.Fatalf("the health of the module names the screen: %+v", hs)
 	}
 	if n := len(e.runsOf("master", "on_error")); n != 0 {

@@ -56,10 +56,14 @@ const (
 
 // Snapshot writes backups/deck-<time>.tar.gz with a copy of the base, files/, the model sessions deck keeps
 // and the data folders of projects, then keeps only the newest ones; secrets and the token stay out.
-func (s *Service) Snapshot(ctx context.Context) (string, error) { return s.take(ctx, home.SnapshotDaily) }
+func (s *Service) Snapshot(ctx context.Context) (string, error) {
+	return s.take(ctx, home.SnapshotDaily)
+}
 
 // BeforeDelete is a snapshot before a project is deleted, kept in a turn of its own beside the daily ones.
-func (s *Service) BeforeDelete(ctx context.Context) (string, error) { return s.take(ctx, home.SnapshotDelete) }
+func (s *Service) BeforeDelete(ctx context.Context) (string, error) {
+	return s.take(ctx, home.SnapshotDelete)
+}
 
 func (s *Service) take(ctx context.Context, kind string) (string, error) {
 	dir := s.Home.Backups()

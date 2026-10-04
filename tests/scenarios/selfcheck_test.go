@@ -244,7 +244,9 @@ func (h *hungVersion) Version(ctx context.Context) (string, error) {
 	return "1.0", nil
 }
 
-func (h *hungVersion) SelfCheck(context.Context) provider.Check { return provider.Check{Version: "1.0"} }
+func (h *hungVersion) SelfCheck(context.Context) provider.Check {
+	return provider.Check{Version: "1.0"}
+}
 
 // TestAHungVersionProbeDoesNotStopTheSchedule: the loop of deck only finds what is due; a provider whose
 // version probe hangs does not hold the schedule.

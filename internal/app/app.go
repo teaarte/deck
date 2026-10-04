@@ -17,6 +17,7 @@ import (
 	"deck2/internal/app/devices"
 	"deck2/internal/app/providers"
 	"deck2/internal/app/secrets"
+	"deck2/internal/app/settings"
 	"deck2/internal/app/suggest"
 	"deck2/internal/app/tokens"
 	"deck2/internal/ask"
@@ -56,6 +57,7 @@ type App struct {
 	Suggest   *suggest.Service
 	Tokens    *tokens.Service
 	Secrets   *secrets.Service
+	Settings  *settings.Service
 	Scripts   *script.Exec
 	Tools     *tools.HTTP
 	MCP       *tools.MCP
@@ -98,6 +100,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 		a.Bus.Emit(events.Event{Workspace: c.Workspace, Topic: c.Topic, Project: c.Project})
 	}
 	a.Secrets = &secrets.Service{St: st, Dir: h.Secrets}
+	a.Settings = &settings.Service{St: st, DefaultTTL: cfg.ConfirmTTL, Wake: func(ctx context.Context) { a.Runner.Wake(ctx) }}
 	a.Asks = ask.NewBroker(st, a.Bus, cfg.Now)
 	a.Registry = registry.New(a.projectCommands)
 	a.Registry.SetPublish(a.Bus.Publish)
@@ -105,7 +108,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	a.Providers = &providers.Service{St: st, Bus: a.Bus, Now: cfg.Now, Home: cfg.Home, Sandbox: cfg.Sandbox, ACPBinaries: cfg.ACPBinaries,
 		ACPCallLimit: cfg.ACPCallLimit, SelfCheckCeiling: cfg.SelfCheckCeiling, Secret: a.Secrets.Secret, Wake: func(ctx context.Context) { a.Runner.Wake(ctx) },
 		Builtin: append([]provider.Provider{p}, more...), Ctx: a.ctx, BG: &a.bg}
-	a.Suggest = &suggest.Service{St: st, Bus: a.Bus, Now: cfg.Now, Registry: a.Registry, Asks: a.Asks, Days: a.suggestDays}
+	a.Suggest = &suggest.Service{St: st, Bus: a.Bus, Now: cfg.Now, Registry: a.Registry, Asks: a.Asks, Days: a.Settings.SuggestDays}
 	a.Chats = &chat.Service{St: st, Bus: a.Bus, Now: cfg.Now, Asks: a.Asks, For: a.For}
 	a.Devices = &devices.Service{St: st, Bus: a.Bus, Now: cfg.Now, Ctx: a.ctx, STT: cfg.STT, Files: a.dirs(), RemoveFiles: a.removeFiles,
 		Secret: a.Secrets.Secret, ReadSecret: a.Secrets.Read, WriteSecret: a.Secrets.Write, SecretsDir: a.Secrets.Dir,
@@ -115,7 +118,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 		}}
 	a.Tokens = &tokens.Service{St: st, MCPBase: cfg.MCPBase}
 	a.addBuiltins()
-	a.Gateway = gateway.New(gateway.Config{Now: cfg.Now, QuestionWait: cfg.QuestionWait, ConfirmWait: cfg.ConfirmWait, ConfirmTTL: a.confirmTTL}, st, a.Asks, a.Bus, a.Registry)
+	a.Gateway = gateway.New(gateway.Config{Now: cfg.Now, QuestionWait: cfg.QuestionWait, ConfirmWait: cfg.ConfirmWait, ConfirmTTL: a.Settings.ConfirmTTL}, st, a.Asks, a.Bus, a.Registry)
 	a.Tools = tools.NewHTTP(a.Gateway, a.Secrets.Secret, a.dirs())
 	a.Tools.OAuth = &tools.OAuth{Secrets: a.Secrets.Secret, Swap: a.Secrets.Swap}
 	a.Tools.Health, a.Tools.SignIn = a.toolHealth, a.toolSignIn
@@ -132,7 +135,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	a.Gateway.SetAutomation(a.Tokens.Automation)
 	a.Runner = process.NewRunner(st, a.Gateway, a.Bus, a, a.Scripts,
 		process.Config{RunsDir: h.Runs(), MCPBase: cfg.MCPBase, Now: cfg.Now, FilesDir: h.Files(), FilesMu: &a.filesMu,
-			Hidden: hidden(h), PauseLimit: cfg.PauseLimit, AgentSlots: a.agentSlots}, a)
+			Hidden: hidden(h), PauseLimit: cfg.PauseLimit, AgentSlots: a.Settings.AgentSlots}, a)
 	a.Chats.Runner, a.Suggest.Gateway, a.Tokens.Journal = a.Runner, a.Gateway, a.Gateway.Journal
 	a.Runner.Hooks = []process.Hook{a.Chats.NewHook(), errorsHook{a: a}, afterHook{a: a}}
 	a.Scheduler = trigger.New(st, a, cfg.Now)

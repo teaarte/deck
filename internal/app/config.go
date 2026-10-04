@@ -36,8 +36,6 @@ type Config struct {
 }
 
 const (
-	// agentLimit is how many agent turns a workspace runs at once unless the owner set it.
-	agentLimit = 3
 	// silentAfter is how long a running process may go without output before it shows as silent.
 	silentAfter = 30 * time.Minute
 	// emptyKept is how long a process with an empty result stays in the history.

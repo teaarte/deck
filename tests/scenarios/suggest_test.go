@@ -278,3 +278,22 @@ func TestASuggestionNamesACommandTheOwnerCanCall(t *testing.T) {
 	e.createProject("tools", testManifest([]string{agentOnly}, nil))
 	e.refused("deck.suggest", map[string]any{"command": "tools.inner", "reason": "worth a run"}, 422, "the owner cannot call tools.inner")
 }
+
+// TestASuggestionOfTheMasterKeepsItsCalls: on autonomy auto a suggestion of the master is done at once only
+// for a call its list of calls allows; any other waits for the owner.
+func TestASuggestionOfTheMasterKeepsItsCalls(t *testing.T) {
+	var got string
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		if c.command() == "review" {
+			got, _ = c.Tool(ctx, "suggest", map[string]any{"command": "beta.work", "reason": "try it"})
+		}
+		return provider.Result{Structured: json.RawMessage(`{}`)}
+	})
+	e.createProject("beta", strings.Replace(boardWork, `"version": 6,`, `"version": 6, "autonomy": "auto",`, 1))
+	var r struct{ Process int64 }
+	e.must("master.review", map[string]any{}, &r)
+	e.waitState(r.Process, "done")
+	if !strings.Contains(got, `"suggestion"`) || len(e.runsOf("beta", "work")) != 0 || len(e.suggestions()) != 1 {
+		t.Fatalf("a call outside the calls of the master's command is a suggestion that waits: %s", got)
+	}
+}

@@ -143,26 +143,6 @@ func TestReviewCallsOnlyWhatItsCommandLists(t *testing.T) {
 	}
 }
 
-// TestReviewCallSuggestionRunsInAnAutoProject: the call a review suggests is done at once in a project on auto,
-// though the review itself may not call that command.
-func TestReviewCallSuggestionRunsInAnAutoProject(t *testing.T) {
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
-		if c.command() == "review" {
-			out, bad := c.Tool(ctx, "suggest", map[string]any{"command": "beta.work", "input": "{}", "reason": "it has not run for a week"})
-			return provider.Result{Text: fmt.Sprintf("%v %s", bad, out)}
-		}
-		return provider.Result{Text: "worked"}
-	})
-	e.masterAwake()
-	e.createProject("beta", strings.Replace(boardWork, `"version": 6,`, `"version": 6, "autonomy": "auto",`, 1))
-	var r struct{ Process int64 }
-	e.must("master.review", map[string]any{}, &r)
-	if got := e.waitState(r.Process, "done", "error"); !strings.HasPrefix(string(got.Result), `"false`) {
-		t.Fatalf("the suggested call is made: %s", got.Result)
-	}
-	e.waitFor("beta.work", func() bool { return len(e.runsOf("beta", "work")) == 1 })
-}
-
 // TestADeletedProjectTakesItsErrorDayWithIt: a new project under the name of a deleted one does not inherit its
 // day of silence towards the master.
 func TestADeletedProjectTakesItsErrorDayWithIt(t *testing.T) {

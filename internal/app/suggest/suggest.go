@@ -119,8 +119,10 @@ func (sg *Service) suggest(ctx context.Context, act registry.Actor, in suggestIn
 			return nil, registry.NotFound("deck: no record %d in %s", in.Record, target.Name)
 		}
 	}
-	// Only the project's own agents, the master and the owner may have it done at once; a trial never does.
-	own := act.Within(target.ID)
+	// Only the project's own agents, the master and the owner may have it done at once, the master only in its
+	// project or for a call its list of calls allows; a trial never does.
+	own := act.Within(target.ID) && (act.Kind != registry.Master || target.ID == act.ProjectID ||
+		act.Commands == nil || registry.Permits(act.Commands, f.Call.Command))
 	if m.Autonomy == "auto" && target.Status == store.ProjectEnabled && own && !act.Trial {
 		return sg.doSuggestion(ctx, act, target, f)
 	}

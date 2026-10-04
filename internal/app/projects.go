@@ -181,6 +181,9 @@ func (a *App) SaveManifest(ctx context.Context, act registry.Actor, p db.Project
 		if saved.Revision = n; !changed {
 			return nil
 		}
+		if err := q.DeleteScreenHealth(ctx, store.ID(p.ID)); err != nil {
+			return err
+		}
 		for name, mg := range plan {
 			if err := applyMigration(ctx, q, store.Time(a.Cfg.Now()), p.ID, pm.m.Collection(name), mg, cur.Current, n); err != nil {
 				return err

@@ -75,9 +75,9 @@ var Topics = func() []string {
 	return c.Topics
 }()
 
-// Render resolves a stored screen into A2UI messages: createSurface, updateComponents, updateDataModel.
-// Clients only draw components and send actions back.
-func Render(ctx context.Context, src Sources, req Request) ([]map[string]any, error) {
+// Render resolves a stored screen into A2UI messages (createSurface, updateComponents, updateDataModel) and
+// names the blocks that failed; clients only draw components and send actions back.
+func Render(ctx context.Context, src Sources, req Request) ([]map[string]any, []string, error) {
 	if !slices.Contains(Topics, req.Topic) {
 		req.Topic = ""
 	}
@@ -89,7 +89,7 @@ func Render(ctx context.Context, src Sources, req Request) ([]map[string]any, er
 	}
 	r, err := resolve(ctx, src, req)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	root := r.comps[0]
 	if r.recordTitle != "" {
@@ -102,13 +102,13 @@ func Render(ctx context.Context, src Sources, req Request) ([]map[string]any, er
 			out = append(out, map[string]any{"version": Version,
 				"updateDataModel": map[string]any{"surfaceId": surface, "path": "/" + id, "value": r.data[id]}})
 		}
-		return out, nil
+		return out, r.errs, nil
 	}
 	return []map[string]any{
 		{"version": Version, "createSurface": map[string]any{"surfaceId": surface, "catalogId": CatalogID}},
 		{"version": Version, "updateComponents": map[string]any{"surfaceId": surface, "components": r.comps}},
 		{"version": Version, "updateDataModel": map[string]any{"surfaceId": surface, "path": "/", "value": r.data}},
-	}, nil
+	}, r.errs, nil
 }
 
 // Check resolves a screen on the data there is now and names each block that failed.

@@ -2,13 +2,16 @@ package app
 
 import (
 	"context"
-	"deck2/internal/app/access"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
+
+	"deck2/internal/app/access"
 
 	"deck2/internal/ask"
 	"deck2/internal/docs"
+	"deck2/internal/health"
 	"deck2/internal/manifest"
 	"deck2/internal/process"
 	"deck2/internal/store"
@@ -48,47 +51,71 @@ func (a *App) toMaster(ctx context.Context, p db.Process) {
 	if err != nil {
 		return
 	}
+	key := fmt.Sprintf("%s%d.%s", masterErrorPrefix, proj.ID, p.Command)
 	// The master's own failure waits for the owner instead.
-	own := proj.Builtin == 1
-	if m, err := docs.Manifest(ctx, a.Store.Q, proj); err != nil || !own && m.MasterErrors != nil && !*m.MasterErrors {
-		return
+	a.handOver(ctx, proj, key, 24*time.Hour, map[string]any{"process": p.ID}, func(ctx context.Context, q *db.Queries) error {
+		_, err := ask.New(ctx, q, p.ID, ask.KindWarning, master.Text("master_failed", struct{ Command, Error string }{p.Command, untrusted.Cut(p.Error, 500)}), "{}", time.Time{})
+		return err
+	})
+}
+
+// screenFailed puts a block of a module screen that failed into the health of the module and hands it to the
+// master, once per block and revision of the manifest.
+func (a *App) screenFailed(ctx context.Context, p db.Project, revision int64, name string, errs []string) {
+	for _, e := range errs {
+		block, _, _ := strings.Cut(e, ": ")
+		key := fmt.Sprintf("%s%d.screen:%s:%s@%d", masterErrorPrefix, p.ID, name, block, revision)
+		if a.handOver(ctx, p, key, 0, map[string]any{"project": p.Name, "screen": name, "error": e}, nil) {
+			health.Write(ctx, a.Store, health.Project(p), "screen:"+name, "error", e)
+		}
+	}
+}
+
+// handOver gives an error of a project to the on_error command of the master, at most once in every while under
+// key, forever when every is zero; an error of the master itself goes to own instead. It says whether it was due.
+func (a *App) handOver(ctx context.Context, proj db.Project, key string, every time.Duration, input map[string]any,
+	own func(context.Context, *db.Queries) error) bool {
+	isOwn := proj.Builtin == 1
+	if m, err := docs.Manifest(ctx, a.Store.Q, proj); err != nil || !isOwn && m.MasterErrors != nil && !*m.MasterErrors {
+		return false
 	}
 	var mp db.Project
 	var mm *manifest.Manifest
-	if !own {
+	var err error
+	if !isOwn {
 		if mp, err = access.Master(ctx, a.Store.Q, proj.WorkspaceID); err != nil {
-			return
+			return false
 		}
 		if mm, err = docs.Manifest(ctx, a.Store.Q, mp); err != nil || mm.Command(mm.EventCommand(manifest.OnFailure)) == nil || mp.Paused == 1 {
-			return
+			return false
 		}
 	}
-	key := fmt.Sprintf("%s%d.%s", masterErrorPrefix, proj.ID, p.Command)
 	now := a.Cfg.Now()
 	due := true
 	err = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		if last, err := q.GetMark(ctx, db.GetMarkParams{WorkspaceID: proj.WorkspaceID, Name: key}); err == nil {
-			if t, err := time.Parse(store.TimeLayout, last); err == nil && now.Sub(t) < 24*time.Hour {
+			if t, err := time.Parse(store.TimeLayout, last); err == nil && (every == 0 || now.Sub(t) < every) {
 				due = false
 				return nil
 			}
 		}
-		if err := q.SetMark(ctx, db.SetMarkParams{WorkspaceID: proj.WorkspaceID, ProjectID: store.ID(proj.ID), Name: key, Value: store.Time(now)}); err != nil || !own {
+		if err := q.SetMark(ctx, db.SetMarkParams{WorkspaceID: proj.WorkspaceID, ProjectID: store.ID(proj.ID), Name: key, Value: store.Time(now)}); err != nil || !isOwn || own == nil {
 			return err
 		}
-		_, err := ask.New(ctx, q, p.ID, ask.KindWarning, master.Text("master_failed", struct{ Command, Error string }{p.Command, untrusted.Cut(p.Error, 500)}), "{}", time.Time{})
-		return err
+		return own(ctx, q)
 	})
 	if err != nil || !due {
-		return
+		return false
 	}
-	if own {
-		return
+	if isOwn {
+		return true
 	}
-	if _, err := a.Runner.Start(context.WithoutCancel(ctx), mp.ID, mm, mm.EventCommand(manifest.OnFailure), map[string]any{"process": p.ID}, process.Origin{}); err != nil {
-		slog.Error("hand an error to the master", "process", p.ID, "project", master.Name, "err", err)
+	if _, err := a.Runner.Start(context.WithoutCancel(ctx), mp.ID, mm, mm.EventCommand(manifest.OnFailure), input, process.Origin{}); err != nil {
+		slog.Error("hand an error to the master", "project", proj.Name, "input", input, "err", err)
 		_ = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 			return q.DeleteMark(ctx, db.DeleteMarkParams{WorkspaceID: proj.WorkspaceID, Name: key})
 		})
+		return false
 	}
+	return true
 }

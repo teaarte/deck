@@ -107,7 +107,7 @@
     {
       "name": "on_error",
       "title": "Look into an error",
-      "description": "Finds out why a process of a project failed and suggests a fix.",
+      "description": "Finds out why a process or a block of a screen of a project failed and suggests a fix.",
       "class": "internal",
       "callers": [
         "owner",
@@ -124,11 +124,20 @@
             "type": "integer",
             "format": "process",
             "description": "The process that failed"
+          },
+          "project": {
+            "type": "string",
+            "description": "The project with a screen that failed"
+          },
+          "screen": {
+            "type": "string",
+            "description": "The screen with a block that failed"
+          },
+          "error": {
+            "type": "string",
+            "description": "The block and its error"
           }
-        },
-        "required": [
-          "process"
-        ]
+        }
       },
       "executor": {
         "type": "agent",

@@ -32,3 +32,7 @@ UPDATE health SET version = sqlc.arg(version) WHERE workspace_id IS NULL AND sub
 
 -- name: SetHealthCheck :exec
 UPDATE health SET verdict = sqlc.arg(verdict), speed = sqlc.arg(speed) WHERE workspace_id IS NULL AND subject = sqlc.arg(subject);
+
+
+-- name: DeleteScreenHealth :exec
+DELETE FROM health WHERE project_id = ? AND subject GLOB 'screen:*';

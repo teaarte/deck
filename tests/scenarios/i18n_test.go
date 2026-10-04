@@ -47,3 +47,17 @@ func TestScreensAndTheMenuSpeakTheLanguageOfTheOwner(t *testing.T) {
 	}
 	e.refused("deck.settings_set", map[string]any{"language": "klingon"}, 422, "")
 }
+
+// TestATabKeepsItsKeyInEveryLanguage: a tab is named in the address by its title as written, so a link to it
+// opens the same tab whatever language the screen is drawn in; the tabs of a screen have their own titles.
+func TestATabKeepsItsKeyInEveryLanguage(t *testing.T) {
+	e := newEnv(t, nil)
+	drawn, _ := json.Marshal(e.screenMessages("", "journal", map[string]any{"lang": "ru"}))
+	if !strings.Contains(string(drawn), `"Расходы"`) || !strings.Contains(string(drawn), `"keys":["Calls","Spend",`) {
+		t.Fatalf("a tab shows its title translated and keeps its key: %s", drawn)
+	}
+	twice := strings.Replace(boardWebManifest, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "blocks": [
+      {"type": "tabs", "tabs": [{"title": "One", "blocks": [{"type": "board"}]}]},
+      {"type": "tabs", "tabs": [{"title": "One", "blocks": [{"type": "board"}]}]},`, 1)
+	e.refused("deck.project_create", map[string]any{"name": "twice", "manifest": twice}, 422, `tab "One": duplicate`)
+}

@@ -198,4 +198,9 @@ func TestRealBrowserShell(t *testing.T) {
 	e.must("deck.settings_set", map[string]any{"language": "ru"}, nil)
 	b.until("the interface in the language the owner picked", `document.querySelector('[data-nav]')?.innerText.includes('Кокпит') && document.querySelector('[data-chat-toggle]')?.innerText.includes('Мастер')`)
 	b.shot("shell-ru")
+	b.open(e.URL + "/#/deck/journal?tab=Spend")
+	b.until("a link to a tab opens it in any language", `document.querySelector('[role="tab"][aria-selected="true"]')?.innerText.includes('Расходы')`)
+	b.eval(`([...document.querySelectorAll('[role="tab"]')].find((x) => x.innerText.includes('Вызовы')).click(), '')`)
+	b.eval(`([...document.querySelectorAll('[role="tab"]')].find((x) => x.innerText.includes('Файлы')).click(), '')`)
+	b.until("the address names the tab as written", `location.hash.endsWith('tab=Files')`)
 }

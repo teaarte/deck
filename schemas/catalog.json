@@ -60,6 +60,7 @@
         "span": {"enum": [1, 2, "full"]},
         "description": {"type": "string"},
         "titles": {"type": "array", "items": {"type": "string"}},
+        "keys": {"type": "array", "items": {"type": "string"}, "description": "The title of each tab as written, its name in the address in every language."},
         "icons": {"type": "array", "items": {"type": "string"}, "description": "The icon of each tab, empty for none."},
         "children": {"$ref": "common_types.json#/$defs/ChildList"}
       }

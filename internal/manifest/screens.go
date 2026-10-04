@@ -42,6 +42,7 @@ type screenCheck struct {
 	screen  *Screen
 	fail    func(string, ...any)
 	dialogs map[string]bool
+	tabs    map[string]bool
 }
 
 func (m *Manifest) checkScreenList(deck bool, fail func(string, ...any)) {
@@ -59,7 +60,7 @@ func (m *Manifest) checkScreenList(deck bool, fail func(string, ...any)) {
 		case !deck && m.collections[s.Record] == nil:
 			fail("screen %q record: unknown collection %q", s.Name, s.Record)
 		}
-		c := &screenCheck{m: m, deck: deck, screen: s, fail: fail, dialogs: map[string]bool{}}
+		c := &screenCheck{m: m, deck: deck, screen: s, fail: fail, dialogs: map[string]bool{}, tabs: map[string]bool{}}
 		c.params()
 		for j, b := range s.Blocks {
 			c.block(fmt.Sprintf("screen %q block %d", s.Name, j), b)
@@ -113,6 +114,12 @@ func (c *screenCheck) block(where string, b Block) {
 			c.fail("%s dialog %q: duplicate", where, b.Name)
 		}
 		c.dialogs[b.Name] = true
+	}
+	for _, t := range b.Tabs {
+		if c.tabs[t.Title] {
+			c.fail("%s tab %q: duplicate; the tabs of a screen have their own titles, the names of the address", where, t.Title)
+		}
+		c.tabs[t.Title] = true
 	}
 	var fields []string
 	switch b.Type {

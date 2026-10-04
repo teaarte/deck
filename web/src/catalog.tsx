@@ -107,14 +107,15 @@ const impls: ReactComponentImplementation[] = [
     );
   }),
   createComponentImplementation(api('tabs'), ({ props, buildChild }) => {
-    const p = props as { title?: string; icon?: string; span?: Span; description?: string; titles: string[]; icons?: string[]; children: unknown[] };
+    const p = props as { title?: string; icon?: string; span?: Span; description?: string; titles: string[]; keys?: string[]; icons?: string[]; children: unknown[] };
     const ids = (p.children ?? []) as Children;
+    const keys = p.keys ?? p.titles;
     const route = useRoute();
-    const at = Math.max(0, p.titles.indexOf(route.params?.tab ?? ''));
+    const at = Math.max(0, keys.indexOf(route.params?.tab ?? ''));
     return (
       <Stack gap="xs" data-span={String(p.span ?? 'full')}>
       {p.title && <Title order={3} className={s.blockTitle}>{p.title}</Title>}
-      <Tabs value={String(at)} onChange={(v) => setParam('tab', v === '0' ? null : p.titles[Number(v)])}>
+      <Tabs value={String(at)} onChange={(v) => setParam('tab', v === '0' ? null : keys[Number(v)])}>
         <Tabs.List>{p.titles.map((title, i) => (
           <Tabs.Tab key={i} value={String(i)} leftSection={p.icons?.[i] ? <NamedIcon name={p.icons[i]} fallback={title} size={16} /> : undefined}>{title}</Tabs.Tab>
         ))}</Tabs.List>

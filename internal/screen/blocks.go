@@ -104,6 +104,10 @@ func (r *renderer) translated(b manifest.Block) manifest.Block {
 }
 
 func (r *renderer) block(id string, b manifest.Block) {
+	keys := make([]string, 0, len(b.Tabs))
+	for _, t := range b.Tabs {
+		keys = append(keys, t.Title)
+	}
 	b = r.translated(b)
 	comp := map[string]any{"id": id, "component": b.Type}
 	if b.Title != "" {
@@ -139,7 +143,7 @@ func (r *renderer) block(id string, b manifest.Block) {
 			r.comps = append(r.comps, panel)
 			panel["children"], panel["dialogs"] = r.split(r.blocks(tid+"-", t.Blocks))
 		}
-		comp["titles"], comp["icons"], comp["children"] = titles, icons, children
+		comp["titles"], comp["keys"], comp["icons"], comp["children"] = titles, keys, icons, children
 		return
 	case "table":
 		cols := make([]map[string]any, 0, len(b.Columns))

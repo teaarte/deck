@@ -5,7 +5,6 @@ import (
 	"context"
 	"deck2/internal/app/access"
 	"fmt"
-	jsonpatch "github.com/evanphx/json-patch/v5"
 	"slices"
 	"strings"
 
@@ -132,13 +131,11 @@ func (a *App) manifestGet(ctx context.Context, act registry.Actor, in manifestGe
 }
 
 type manifestSaveIn struct {
-	Project    string   `type:"project" desc:"Project name"`
-	Manifest   string   `type:"json" opt:"" desc:"Manifest JSON; leave it out to change parts of the current manifest with old and new"`
-	Old        []string `type:"text[]" opt:"" desc:"Parts of the current manifest text to replace, each occurring in it exactly once"`
-	New        []string `type:"text[]" opt:"" desc:"The text that replaces each old part, in the same order"`
-	Patch      string   `type:"json" opt:"" desc:"JSON Patch (RFC 6902) of the current manifest, such as [{\"op\": \"replace\", \"path\": \"/screens/0/title\", \"value\": \"Overview\"}]: paths point at one place, so equal texts elsewhere stay"`
-	Reason     string   `opt:"" desc:"Why it changed"`
-	IfRevision int64    `json:"if_revision" opt:"" desc:"Only while the current revision is still this one"`
+	Project    string `type:"project" desc:"Project name"`
+	Manifest   string `type:"json" opt:"" desc:"The whole manifest JSON; leave it out to change the current one with patch"`
+	Patch      string `type:"json" opt:"" desc:"JSON Patch (RFC 6902) of the current manifest, such as [{\"op\": \"replace\", \"path\": \"/screens/0/title\", \"value\": \"Overview\"}]: paths point at one place, so equal texts elsewhere stay"`
+	Reason     string `opt:"" desc:"Why it changed"`
+	IfRevision int64  `json:"if_revision" opt:"" desc:"Only while the current revision is still this one"`
 }
 
 func (a *App) manifestSave(ctx context.Context, act registry.Actor, in manifestSaveIn) (any, error) {
@@ -146,9 +143,9 @@ func (a *App) manifestSave(ctx context.Context, act registry.Actor, in manifestS
 	if err != nil {
 		return nil, err
 	}
-	if len(in.Old) > 0 || len(in.New) > 0 || strings.TrimSpace(in.Patch) != "" {
-		if in.Manifest != "" || (strings.TrimSpace(in.Patch) != "" && (len(in.Old) > 0 || len(in.New) > 0)) {
-			return nil, registry.Invalid("deck: give the whole manifest, old and new parts, or a patch; one of them")
+	if strings.TrimSpace(in.Patch) != "" {
+		if in.Manifest != "" {
+			return nil, registry.Invalid("deck: give the whole manifest or a patch, not both")
 		}
 		d, err := a.Store.Q.FindDocument(ctx, docs.Ref{Scope: docs.ProjectScope(p), Name: docs.ManifestName}.Find())
 		if err != nil {
@@ -161,23 +158,13 @@ func (a *App) manifestSave(ctx context.Context, act registry.Actor, in manifestS
 		if err != nil {
 			return nil, err
 		}
-		if strings.TrimSpace(in.Patch) != "" {
-			patch, err := jsonpatch.DecodePatch([]byte(in.Patch))
-			if err != nil {
-				return nil, registry.Invalid("deck: patch: %v", err)
-			}
-			out, err := patch.ApplyIndent([]byte(r.Text), "  ")
-			if err != nil {
-				return nil, registry.Invalid("deck: patch: %v", err)
-			}
-			in.Manifest = string(out)
-		} else if in.Manifest, err = docs.Edit(r.Text, in.Old, in.New); err != nil {
+		if in.Manifest, err = docs.Patch(r.Text, in.Patch); err != nil {
 			return nil, err
 		}
 		in.IfRevision = d.Current
 	}
 	if strings.TrimSpace(in.Manifest) == "" {
-		return nil, registry.Invalid("deck: give the manifest JSON, or old and new parts of the current one")
+		return nil, registry.Invalid("deck: give the whole manifest JSON or a JSON Patch of the current one")
 	}
 	return a.SaveManifest(ctx, act, p, []byte(in.Manifest), in.Reason, 0, in.IfRevision,
 		Call{Command: registry.Builtin + ".manifest_save", Input: map[string]any{"project": p.Name, "manifest": in.Manifest, "reason": in.Reason}})
@@ -195,7 +182,7 @@ func (a *App) projectsCommands() []*registry.Command {
 			"Returns the current manifest of a project.",
 			registry.Everyone, a.manifestGet).On("projects"),
 		registry.Def("manifest_save", "Save manifest",
-			"Validates a manifest and stores it as a new revision: the whole manifest, or old parts of the current text replaced with new ones.",
+			"Validates a manifest and stores it as a new revision: the whole manifest, or a JSON Patch of the current one; a replace keeps the text around it as written.",
 			registry.OwnerSide, a.manifestSave),
 	}
 }

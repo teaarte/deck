@@ -342,8 +342,9 @@ Name each of these rights in the hand-over: the owner grants them with "enable".
 2. `project_import` with the absolute folder path creates a **draft**. A refused import comes back with the
    reason and leaves nothing behind; fix the folder and import again. Once imported, change the draft with
    `manifest_save` and `document_save` (a second import of the same name is refused), and keep the folder
-   in step. Send only what changes: `old` (parts of the current text, each found exactly once) and `new`
-   (what replaces each); the whole text only for a new document or a rewrite. The answer of `manifest_save`
+   in step. Send only what changes: a JSON Patch in `patch` for the manifest; for a document `old` (parts of the
+   current text, each found exactly once) and `new` (what replaces each); the whole text only for a new one or a
+   rewrite. The answer of `manifest_save`
    lists in `screens` each block that fails on the records there are now (a column that breaks on a record
    without a field, a missing custom document): fix them before the owner opens the screen.
 3. `command_try` runs a command as a trial: everything that is not internal is declined, so nothing leaves

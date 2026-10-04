@@ -1,6 +1,7 @@
 package scenarios
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 )
@@ -57,15 +58,19 @@ func TestPartsOfADocumentAndOfAManifestChangeWithoutSendingTheWholeText(t *testi
 
 	var saved struct{ Revision int64 }
 	e.must("deck.manifest_save", map[string]any{"project": "web", "reason": "rename",
-		"old": []string{`"title": "Notes"`}, "new": []string{`"title": "All notes"`}}, &saved)
+		"patch": `[{"op": "replace", "path": "/screens/0/blocks/3/title", "value": "All notes"}]`}, &saved)
 	var m struct{ Manifest string }
 	e.must("deck.manifest_get", map[string]any{"project": "web"}, &m)
-	if saved.Revision != 2 || !strings.Contains(m.Manifest, `"All notes"`) || !strings.Contains(m.Manifest, `"title": "Web"`) {
-		t.Fatalf("a part of the manifest changes, the rest stays: %d %s", saved.Revision, m.Manifest)
+	if want := strings.Replace(boardWebManifest, `"title": "Notes"`, `"title": "All notes"`, 1); saved.Revision != 2 || m.Manifest != want {
+		t.Fatalf("a replace changes its place and keeps the text around it as written: %d\n%s", saved.Revision, m.Manifest)
+	}
+	if code, body := e.call("deck.manifest_save", map[string]any{"project": "web",
+		"patch": `[{"op": "replace", "path": "/menu/0", "value": "none"}]`}); code != 422 {
+		t.Fatalf("a patched manifest is checked like a whole one: %d %s", code, body)
 	}
 	if code, body := e.call("deck.manifest_save", map[string]any{"project": "web",
 		"old": []string{`"menu": ["main"]`}, "new": []string{`"menu": ["none"]`}}); code != 422 {
-		t.Fatalf("an edited manifest is checked like a whole one: %d %s", code, body)
+		t.Fatalf("a manifest changes by a patch or whole, not by old and new parts: %d %s", code, body)
 	}
 }
 
@@ -79,10 +84,10 @@ func TestASavedManifestNamesTheBlocksThatFailOnTheRecordsThereAre(t *testing.T) 
 		"records": jsonl(map[string]any{"title": "a", "score": 3}, map[string]any{"title": "b"})}, nil)
 	column := func(bind string) []string {
 		var saved struct{ Screens []string }
-		e.must("deck.manifest_save", map[string]any{"project": "web",
-			"old": []string{`"columns": [{"label": "Title", "bind": "title"}`, `{"type": "form", "title": "Edit", "command": "deck.record_update"}`},
-			"new": []string{`"columns": [{"label": "Title", "bind": "title"}, {"label": "Score", "bind": "` + bind + `"}`,
-				`{"type": "form", "title": "Edit", "command": "deck.record_update"}, {"type": "card", "fields": [{"label": "Score", "bind": "` + bind + `"}]}`}}, &saved)
+		patch, _ := json.Marshal([]map[string]any{
+			{"op": "add", "path": "/screens/0/blocks/3/columns/-", "value": map[string]any{"label": "Score", "bind": bind}},
+			{"op": "add", "path": "/screens/1/blocks/-", "value": map[string]any{"type": "card", "fields": []any{map[string]any{"label": "Score", "bind": bind}}}}})
+		e.must("deck.manifest_save", map[string]any{"project": "web", "patch": string(patch)}, &saved)
 		e.must("deck.manifest_save", map[string]any{"project": "web", "manifest": boardWebManifest}, nil)
 		return saved.Screens
 	}

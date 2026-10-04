@@ -86,11 +86,11 @@ func (pj *Service) projectDelete(ctx context.Context, act registry.Actor, in pro
 	return out, nil
 }
 
-// leftInMaster is the folder in the data of the master a project was imported from, which deck leaves; when
-// someone else deletes the project, the master hears of it on its next turn.
+// leftInMaster is the folder in the data of the master a draft was imported from, which deck leaves; when
+// someone else deletes the draft, the master hears of it on its next turn.
 func (pj *Service) leftInMaster(ctx context.Context, q *db.Queries, act registry.Actor, p db.Project) (string, error) {
 	dir, err := q.GetMark(ctx, db.GetMarkParams{WorkspaceID: p.WorkspaceID, Name: importMark(p.ID)})
-	if err != nil {
+	if err != nil || p.Status != store.ProjectDraft {
 		return "", nil
 	}
 	mp, err := access.Master(ctx, q, p.WorkspaceID)

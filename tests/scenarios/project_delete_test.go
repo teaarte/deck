@@ -297,4 +297,10 @@ func TestTheMasterHearsOfADeletedDraftFromItsData(t *testing.T) {
 	if p := e.Fake.Calls()[1].Prompt; strings.Contains(p, dir) {
 		t.Fatalf("the master hears of it once:\n%s", p)
 	}
+	e.importEnabled(dir, "kept")
+	var gone struct{ Folder string }
+	e.must("deck.project_delete", map[string]any{"project": "kept"}, &gone)
+	if gone.Folder != "" {
+		t.Fatalf("an enabled project is no draft of the master: %+v", gone)
+	}
 }

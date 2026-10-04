@@ -190,8 +190,8 @@ func Edit(text string, old, new []string) (string, error) {
 	last, prev := 0, 0
 	for _, p := range parts {
 		if p.at < last {
-			a, b := min(p.i, prev)+1, max(p.i, prev)+1
-			return "", registry.Invalid("deck: old text %d overlaps old text %d (%q); give the two as one old text", b, a, clip(old[prev]))
+			a, b := min(p.i, prev), max(p.i, prev)
+			return "", registry.Invalid("deck: old text %d overlaps old text %d (%q); give the two as one old text", b+1, a+1, clip(old[a]))
 		}
 		prev = p.i
 		b.WriteString(text[last:p.at])

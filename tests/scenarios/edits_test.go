@@ -125,4 +125,9 @@ func TestRefusalsSayWhereAndWhatToDo(t *testing.T) {
 	if code != 422 || !strings.Contains(string(out), "old text 2 overlaps old text 1") {
 		t.Fatalf("overlapping old texts name each other: %d %s", code, out)
 	}
+	code, out = e.call("deck.document_save", map[string]any{"project": "master", "name": "notes.md", "kind": "artifact",
+		"old": []string{"two three", "one two"}, "new": []string{"2 3", "1 2"}})
+	if code != 422 || !strings.Contains(string(out), `old text 2 overlaps old text 1 ("two three")`) {
+		t.Fatalf("the overlap quotes old text 1: %d %s", code, out)
+	}
 }

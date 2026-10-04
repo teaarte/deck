@@ -1,4 +1,4 @@
-import { useState, useSyncExternalStore, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import type { ComponentContext } from '@a2ui/web_core/v0_9';
 import { Alert, Anchor, Badge, Card, Code, Collapse, Group, Loader, Select, Stack, Text, Title } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
@@ -6,16 +6,9 @@ import { IconAlertTriangle, IconInbox } from '@tabler/icons-react';
 import type { Data } from './catalog.gen';
 import s from './shell.module.css';
 import { NamedIcon } from './icons';
+import { useLive } from './api';
 
 type Filter = NonNullable<Data['filters']>[number];
-
-let stale = false;
-const staleSubs = new Set<() => void>();
-export function setStale(v: boolean) {
-  stale = v;
-  staleSubs.forEach((f) => f());
-}
-const useStale = () => useSyncExternalStore((f) => (staleSubs.add(f), () => staleSubs.delete(f)), () => stale);
 
 const moment = /^\d{4}-\d\d-\d\dT\d\d:\d\d(:\d\d(\.\d+)?)?(Z|[+-]\d\d:\d\d)$/;
 
@@ -46,7 +39,7 @@ export type Span = 1 | 2 | 'full';
 
 export function Block({ title, icon, span, description, data, context, children }: { title?: string; icon?: string; span?: Span; description?: string; data?: Data; context?: ComponentContext; children: (d: Data) => ReactNode }) {
   const { t } = useTranslation();
-  const old = useStale();
+  const old = !useLive();
   let body: ReactNode;
   if (!data) body = <Group gap="xs"><Loader size="xs" /><Text size="sm" c="dimmed">{t('state.loading')}</Text></Group>;
   else if (data.state === 'error') body = <Alert color="red" radius="md" icon={<IconAlertTriangle size={18} />} title={t('state.error')}>{data.error}</Alert>;

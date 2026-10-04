@@ -132,6 +132,13 @@ func TestRealBrowserWebClient(t *testing.T) {
 	b.until("the stale mark while the live connection is down", `document.querySelector('[data-stale]')`)
 	e.waitFor("a refused reconnect", func() bool { return front.refused.Load() > 0 })
 	before = front.full.Load()
+	b.eval(`(document.dispatchEvent(new Event('visibilitychange')), '')`)
+	e.waitFor("a full read while the live connection is down", func() bool { return front.full.Load() > before })
+	time.Sleep(300 * time.Millisecond)
+	if b.eval(`String(!!document.querySelector('[data-stale]'))`) != "true" {
+		t.Fatal("a read while the live connection is down leaves the stale mark")
+	}
+	before = front.full.Load()
 	front.heal()
 	b.until("the stale mark to clear", `!document.querySelector('[data-stale]')`)
 	if front.full.Load() <= before {

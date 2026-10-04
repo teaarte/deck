@@ -8,7 +8,6 @@ import { call, events } from './api';
 import { catalog, known, UNKNOWN, type Action } from './catalog';
 import { outcomes } from './actions';
 import { openTopic } from './chat';
-import { setStale } from './block';
 import { go, screenKey, serverParams, type Route } from './router';
 import i18n from './i18n';
 import catalogSchema from '../../schemas/catalog.json';
@@ -122,7 +121,6 @@ export function ScreenView({ route, onProjects }: { route: Route; onProjects: ()
           setError('');
           feed(msgs, ticket);
           fresh.root = ticket;
-          setStale(false);
           return;
         }
         const p = new MessageProcessor<ReactComponentImplementation>([catalog], (a) => (a.name === 'filter' ? filter(a) : act(a)));
@@ -132,7 +130,6 @@ export function ScreenView({ route, onProjects }: { route: Route; onProjects: ()
         fresh = {};
         feed(msgs, ticket);
         fresh.root = ticket;
-        setStale(false);
       } catch (e) {
         if (!gone) setError((e as Error).message);
       }
@@ -186,7 +183,6 @@ export function ScreenView({ route, onProjects }: { route: Route; onProjects: ()
     const stop = events(onTopic, (live) => {
       if (live && down) void load();
       down = !live;
-      setStale(!live);
     });
     const back = () => { if (!document.hidden) void load(); };
     document.addEventListener('visibilitychange', back);

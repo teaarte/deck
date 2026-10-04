@@ -1,3 +1,5 @@
+import { useSyncExternalStore } from 'react';
+
 const params = new URLSearchParams(location.search);
 const fromUrl = params.get('token');
 if (fromUrl) {
@@ -32,14 +34,20 @@ const listeners = new Set<Listener>();
 let source: EventSource | undefined;
 let retry: ReturnType<typeof setTimeout> | undefined;
 let live = false;
+// lost is set while a live channel that was open is down; screens drawn meanwhile may be old.
+let lost = false;
+const lostSubs = new Set<() => void>();
+const setLost = (v: boolean) => { lost = v; lostSubs.forEach((f) => f()); };
+export const useLive = () => !useSyncExternalStore((f) => (lostSubs.add(f), () => lostSubs.delete(f)), () => lost);
 
 // openSource keeps one live channel for every screen of the page and opens it again when the browser gives up.
 function openSource() {
   source = new EventSource('/api/events?token=' + encodeURIComponent(token()));
-  source.onopen = () => { live = true; listeners.forEach((l) => l.state(true)); };
+  source.onopen = () => { live = true; setLost(false); listeners.forEach((l) => l.state(true)); };
   source.onmessage = (e) => listeners.forEach((l) => l.topic(String(e.data)));
   source.onerror = () => {
     live = false;
+    setLost(true);
     listeners.forEach((l) => l.state(false));
     if (source?.readyState === EventSource.CLOSED && listeners.size) retry = setTimeout(openSource, 3000);
   };
@@ -58,6 +66,7 @@ export function events(onTopic: (topic: string) => void, onState: (live: boolean
     source?.close();
     source = undefined;
     live = false;
+    setLost(false);
   };
 }
 

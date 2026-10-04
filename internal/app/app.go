@@ -16,6 +16,7 @@ import (
 	"deck2/internal/app/chat"
 	"deck2/internal/app/devices"
 	"deck2/internal/app/providers"
+	"deck2/internal/app/secrets"
 	"deck2/internal/app/suggest"
 	"deck2/internal/app/tokens"
 	"deck2/internal/ask"
@@ -54,6 +55,7 @@ type App struct {
 	Chats     *chat.Service
 	Suggest   *suggest.Service
 	Tokens    *tokens.Service
+	Secrets   *secrets.Service
 	Scripts   *script.Exec
 	Tools     *tools.HTTP
 	MCP       *tools.MCP
@@ -61,11 +63,10 @@ type App struct {
 	Host      *mcphost.Host
 	Manifests *docs.Manifests
 
-	ctx      context.Context
-	cancel   context.CancelFunc
-	secretMu sync.Mutex
-	bg       sync.WaitGroup
-	disk     time.Time
+	ctx    context.Context
+	cancel context.CancelFunc
+	bg     sync.WaitGroup
+	disk   time.Time
 	// filesMu keeps stored files from coming or going while a snapshot copies the base and files/.
 	filesMu sync.RWMutex
 	// preparedCmds are the registry commands of each manifest revision.
@@ -96,26 +97,27 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	st.Changed = func(c store.Change) {
 		a.Bus.Emit(events.Event{Workspace: c.Workspace, Topic: c.Topic, Project: c.Project})
 	}
+	a.Secrets = &secrets.Service{St: st, Dir: h.Secrets}
 	a.Asks = ask.NewBroker(st, a.Bus, cfg.Now)
 	a.Registry = registry.New(a.projectCommands)
 	a.Registry.SetPublish(a.Bus.Publish)
 	a.Board = &board.Service{St: st, Bus: a.Bus, Now: cfg.Now, Fire: a.fire}
 	a.Providers = &providers.Service{St: st, Bus: a.Bus, Now: cfg.Now, Home: cfg.Home, Sandbox: cfg.Sandbox, ACPBinaries: cfg.ACPBinaries,
-		ACPCallLimit: cfg.ACPCallLimit, SelfCheckCeiling: cfg.SelfCheckCeiling, Secret: a.Secret, Wake: func(ctx context.Context) { a.Runner.Wake(ctx) },
+		ACPCallLimit: cfg.ACPCallLimit, SelfCheckCeiling: cfg.SelfCheckCeiling, Secret: a.Secrets.Secret, Wake: func(ctx context.Context) { a.Runner.Wake(ctx) },
 		Builtin: append([]provider.Provider{p}, more...), Ctx: a.ctx, BG: &a.bg}
 	a.Suggest = &suggest.Service{St: st, Bus: a.Bus, Now: cfg.Now, Registry: a.Registry, Asks: a.Asks, Days: a.suggestDays}
 	a.Chats = &chat.Service{St: st, Bus: a.Bus, Now: cfg.Now, Asks: a.Asks, For: a.For}
 	a.Devices = &devices.Service{St: st, Bus: a.Bus, Now: cfg.Now, Ctx: a.ctx, STT: cfg.STT, Files: a.dirs(), RemoveFiles: a.removeFiles,
-		Secret: a.Secret, ReadSecret: a.readSecret, WriteSecret: a.writeSecret, SecretsDir: a.secretsDir,
-		LockSecrets: a.secretMu.Lock, UnlockSecrets: a.secretMu.Unlock,
+		Secret: a.Secrets.Secret, ReadSecret: a.Secrets.Read, WriteSecret: a.Secrets.Write, SecretsDir: a.Secrets.Dir,
+		LockSecrets: a.Secrets.Lock, UnlockSecrets: a.Secrets.Unlock,
 		Invoke: func(ctx context.Context, act registry.Actor, name string, in json.RawMessage) (any, error) {
 			return a.Registry.Invoke(ctx, act, name, in)
 		}}
 	a.Tokens = &tokens.Service{St: st, MCPBase: cfg.MCPBase}
 	a.addBuiltins()
 	a.Gateway = gateway.New(gateway.Config{Now: cfg.Now, QuestionWait: cfg.QuestionWait, ConfirmWait: cfg.ConfirmWait, ConfirmTTL: a.confirmTTL}, st, a.Asks, a.Bus, a.Registry)
-	a.Tools = tools.NewHTTP(a.Gateway, a.Secret, a.dirs())
-	a.Tools.OAuth = &tools.OAuth{Secrets: a.Secret, Swap: a.SwapSecret}
+	a.Tools = tools.NewHTTP(a.Gateway, a.Secrets.Secret, a.dirs())
+	a.Tools.OAuth = &tools.OAuth{Secrets: a.Secrets.Secret, Swap: a.Secrets.Swap}
 	a.Tools.Health, a.Tools.SignIn = a.toolHealth, a.toolSignIn
 	a.Tools.Resolve = func(ctx context.Context, project, process int64, ref string) (files.Ref, error) {
 		return a.dirs().Resolve(ctx, a.Store.Q, project, process, ref)
@@ -123,7 +125,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	a.Host = mcphost.New(a.serverStatus)
 	a.Host.Now, a.Host.Sandbox = cfg.Now, cfg.Sandbox
 	a.Host.Hide = sandbox.Hidden(cfg.Home)
-	a.MCP = &tools.MCP{GW: a.Gateway, Host: a.Host, Store: st, Secrets: a.Secret, Dirs: a.dirs(), Home: cfg.Home}
+	a.MCP = &tools.MCP{GW: a.Gateway, Host: a.Host, Store: st, Secrets: a.Secrets.Secret, Dirs: a.dirs(), Home: cfg.Home}
 	a.Browser = &tools.Browser{GW: a.Gateway, Host: a.Host, Store: st, Dirs: a.dirs(), Home: cfg.Home, Argv: cfg.Browser, Ctx: a.ctx}
 	a.Browser.Load()
 	a.Registry.SetExtra(a.Browser.Commands)

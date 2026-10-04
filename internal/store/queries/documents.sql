@@ -69,3 +69,9 @@ JOIN document_revision r ON r.document_id = d.id AND r.n = d.current
 WHERE d.workspace_id = ? AND (d.project_id IS NULL OR d.project_id = sqlc.arg(project_id)) AND d.record_id IS NULL AND d.card_id IS NULL
   AND d.kind = 'skill' AND d.deleted_at IS NULL
 ORDER BY coalesce(d.project_id, 0), d.name;
+
+
+-- name: CurrentManifests :many
+SELECT CAST(d.project_id AS INTEGER) AS project_id, d.id AS document_id, d.current FROM document d
+WHERE d.workspace_id = ? AND d.project_id IS NOT NULL AND d.name = 'manifest.json' AND d.kind = 'manifest'
+  AND d.record_id IS NULL AND d.card_id IS NULL AND d.deleted_at IS NULL;

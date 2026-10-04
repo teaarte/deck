@@ -5,6 +5,7 @@ import (
 	"context"
 	"deck2/internal/app/access"
 	"deck2/internal/app/board"
+	"deck2/internal/provider"
 	_ "embed"
 	"encoding/json"
 	"fmt"
@@ -15,7 +16,6 @@ import (
 	"sync"
 
 	"deck2/internal/app/screens"
-	"deck2/internal/docs"
 	"deck2/internal/manifest"
 	"deck2/internal/process"
 	"deck2/internal/registry"
@@ -138,9 +138,10 @@ func (a *App) menu(ctx context.Context, act registry.Actor, in menuIn) (any, err
 	for _, r := range pulses {
 		pulse[r.ID] = r
 	}
+	ms, _ := a.Manifests.All(ctx, ps)
 	for _, p := range ps {
-		m, err := docs.Manifest(ctx, a.Store.Q, p)
-		if err != nil {
+		m := ms[p.ID]
+		if m == nil {
 			continue
 		}
 		r := pulse[p.ID]
@@ -205,7 +206,7 @@ func (a *App) screenGet(ctx context.Context, act registry.Actor, in screenGetIn)
 		if err != nil {
 			return nil, err
 		}
-		m, err := docs.Manifest(ctx, a.Store.Q, p)
+		m, err := a.Manifests.Of(ctx, p)
 		if err != nil {
 			return nil, err
 		}
@@ -262,7 +263,7 @@ type screenSources struct {
 }
 
 func (a *App) sources(act registry.Actor) screenSources {
-	return screenSources{Sources: screens.Sources{Store: a.Store, Registry: a.Registry, Deck: screenDeck{a}}, a: a, act: act}
+	return screenSources{Sources: screens.Sources{Store: a.Store, Registry: a.Registry, Manifests: a.Manifests, Deck: screenDeck{a}}, a: a, act: act}
 }
 
 // Read calls a command that only reads with the project of a project screen and the values picked in filters
@@ -391,7 +392,7 @@ func (a *App) commandsList(ctx context.Context, act registry.Actor, in commandsL
 		return nil, err
 	}
 	manifests := map[int64]*manifest.Manifest{}
-	var all []string
+	var all []provider.Provider
 	out := []commandRow{}
 	for _, c := range cmds {
 		if pid != 0 && c.ProjectID != pid {
@@ -403,7 +404,7 @@ func (a *App) commandsList(ctx context.Context, act registry.Actor, in commandsL
 			m, ok := manifests[c.ProjectID]
 			if !ok {
 				if p, err := a.Store.Q.GetProject(ctx, c.ProjectID); err == nil {
-					m, _ = docs.Manifest(ctx, a.Store.Q, p)
+					m, _ = a.Manifests.Of(ctx, p)
 				}
 				manifests[c.ProjectID] = m
 			}
@@ -413,19 +414,20 @@ func (a *App) commandsList(ctx context.Context, act registry.Actor, in commandsL
 			case m.Command(short) != nil:
 				mc := m.Command(short)
 				r.Executor = mc.Executor.Type
-				if pv, err := a.For(ctx, c.ProjectID, mc); err == nil && r.Executor == "agent" {
+				if r.Executor != "agent" {
+					break
+				}
+				if pv, err := a.For(ctx, c.ProjectID, mc); err == nil {
 					r.Provider = pv.Name()
 				}
-				if r.Executor == "agent" {
-					if all == nil {
-						all = []string{}
-						if pvs, err := a.Providers.All(ctx, act.Workspace); err == nil {
-							for _, pv := range pvs {
-								all = append(all, pv.Name())
-							}
-						}
+				if all == nil {
+					all, _ = a.Providers.All(ctx, act.Workspace)
+				}
+				r.Providers = []string{}
+				for _, pv := range all {
+					if len(pv.Caps().Missing(mc.Requires)) == 0 {
+						r.Providers = append(r.Providers, pv.Name())
 					}
-					r.Providers = all
 				}
 			case slices.ContainsFunc(m.Tools.HTTP, func(t manifest.HTTPTool) bool { return t.Name == short }):
 				r.Tool = "http"

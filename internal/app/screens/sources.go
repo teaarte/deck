@@ -12,9 +12,10 @@ import (
 
 // Sources read what the blocks of screens show besides the commands they read: boards, chats, forms and documents.
 type Sources struct {
-	Store    *store.Store
-	Registry *registry.Registry
-	Deck     Deck
+	Store     *store.Store
+	Registry  *registry.Registry
+	Manifests *docs.Manifests
+	Deck      Deck
 }
 
 func (s Sources) Board(ctx context.Context, p db.Project, m *manifest.Manifest) (any, error) {
@@ -54,8 +55,9 @@ func (s Sources) Board(ctx context.Context, p db.Project, m *manifest.Manifest) 
 	if err != nil {
 		return nil, err
 	}
+	ms, _ := s.Manifests.All(ctx, ps)
 	for _, o := range ps {
-		if om, err := docs.Manifest(ctx, s.Store.Q, o); o.ID != p.ID && err == nil && om.RoleLane("inbox") != nil {
+		if om := ms[o.ID]; o.ID != p.ID && om != nil && om.RoleLane("inbox") != nil {
 			others = append(others, o.Name)
 		}
 	}

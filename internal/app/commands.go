@@ -8,7 +8,6 @@ import (
 	"errors"
 	"log/slog"
 
-	"deck2/internal/docs"
 	"deck2/internal/manifest"
 	"deck2/internal/process"
 	"deck2/internal/registry"
@@ -35,33 +34,19 @@ func (a *App) projectCommands(ctx context.Context, workspace int64, name string)
 		ps = []db.Project{p}
 	}
 	var out []*registry.Command
+	ms, failed := a.Manifests.All(ctx, ps)
 	for _, p := range ps {
-		m, err := docs.Manifest(ctx, a.Store.Q, p)
-		if err != nil {
-			slog.Error("project manifest", "project", p.Name, "err", err)
+		m := ms[p.ID]
+		if m == nil {
+			slog.Error("project manifest", "project", p.Name, "err", failed[p.ID])
 			continue
 		}
-		for _, c := range m.Commands {
-			cmd := &registry.Command{
-				Name: p.Name + "." + c.Name, Title: c.Title, Description: c.Description, Class: c.Class,
-				Input: withRetryKey(c.InputSchema()), Result: c.Result, ProjectID: p.ID, Callers: c.Callable(),
-				Handler: a.startHandler(p.ID, m, c.Name),
-			}
-			if err := registry.Prepare(cmd); err != nil {
-				slog.Error("project command", "command", cmd.Name, "err", err)
-				continue
-			}
-			out = append(out, cmd)
-		}
-		var toolCmds []*registry.Command
-		for _, t := range m.Tools.HTTP {
-			toolCmds = append(toolCmds, a.Tools.Command(p, t))
-		}
+		out = append(out, a.prepared(p, m)...)
 		mcpCmds, err := a.MCP.Commands(ctx, a.Store.Q, p, m)
 		if err != nil {
 			return nil, err
 		}
-		for _, cmd := range append(toolCmds, mcpCmds...) {
+		for _, cmd := range mcpCmds {
 			if err := registry.Prepare(cmd); err != nil {
 				slog.Error("project tool", "tool", cmd.Name, "err", err)
 				continue
@@ -70,6 +55,49 @@ func (a *App) projectCommands(ctx context.Context, workspace int64, name string)
 		}
 	}
 	return out, nil
+}
+
+// prepared are the commands and HTTP tools of a manifest as registry commands, compiled once per revision.
+func (a *App) prepared(p db.Project, m *manifest.Manifest) []*registry.Command {
+	key := preparedKey{p.ID, m}
+	a.preparedMu.Lock()
+	cmds, ok := a.preparedCmds[key]
+	a.preparedMu.Unlock()
+	if ok {
+		return cmds
+	}
+	for _, c := range m.Commands {
+		cmd := &registry.Command{
+			Name: p.Name + "." + c.Name, Title: c.Title, Description: c.Description, Class: c.Class,
+			Input: withRetryKey(c.InputSchema()), Result: c.Result, ProjectID: p.ID, Callers: c.Callable(),
+			Handler: a.startHandler(p.ID, m, c.Name),
+		}
+		if err := registry.Prepare(cmd); err != nil {
+			slog.Error("project command", "command", cmd.Name, "err", err)
+			continue
+		}
+		cmds = append(cmds, cmd)
+	}
+	for _, t := range m.Tools.HTTP {
+		cmd := a.Tools.Command(p, t)
+		if err := registry.Prepare(cmd); err != nil {
+			slog.Error("project tool", "tool", cmd.Name, "err", err)
+			continue
+		}
+		cmds = append(cmds, cmd)
+	}
+	a.preparedMu.Lock()
+	if a.preparedCmds == nil || len(a.preparedCmds) >= 256 {
+		a.preparedCmds = map[preparedKey][]*registry.Command{}
+	}
+	a.preparedCmds[key] = cmds
+	a.preparedMu.Unlock()
+	return cmds
+}
+
+type preparedKey struct {
+	project  int64
+	manifest *manifest.Manifest
 }
 
 // startHandler runs a command of the manifest the registry checked the call against; the calling process

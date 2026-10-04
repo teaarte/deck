@@ -57,6 +57,7 @@ type App struct {
 	MCP       *tools.MCP
 	Browser   *tools.Browser
 	Host      *mcphost.Host
+	Manifests *docs.Manifests
 
 	ctx      context.Context
 	cancel   context.CancelFunc
@@ -65,6 +66,9 @@ type App struct {
 	disk     time.Time
 	// filesMu keeps stored files from coming or going while a snapshot copies the base and files/.
 	filesMu sync.RWMutex
+	// preparedCmds are the registry commands of each manifest revision.
+	preparedMu   sync.Mutex
+	preparedCmds map[preparedKey][]*registry.Command
 	// cleaned and snapTried are when the daily cleanup ran and a daily snapshot was last tried.
 	cleaned, snapTried time.Time
 }
@@ -85,7 +89,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	if err != nil {
 		return nil, err
 	}
-	a := &App{Cfg: cfg, Home: h, Store: st, Bus: events.NewBus(), Scripts: script.New(cfg.Sandbox, cfg.Home)}
+	a := &App{Cfg: cfg, Home: h, Store: st, Bus: events.NewBus(), Scripts: script.New(cfg.Sandbox, cfg.Home), Manifests: &docs.Manifests{St: st}}
 	a.ctx, a.cancel = context.WithCancel(context.Background())
 	a.Asks = ask.NewBroker(st, a.Bus, cfg.Now)
 	a.Registry = registry.New(a.projectCommands)

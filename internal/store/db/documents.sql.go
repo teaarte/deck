@@ -82,6 +82,41 @@ func (q *Queries) CreateDocument(ctx context.Context, arg CreateDocumentParams) 
 	return i, err
 }
 
+const currentManifests = `-- name: CurrentManifests :many
+SELECT CAST(d.project_id AS INTEGER) AS project_id, d.id AS document_id, d.current FROM document d
+WHERE d.workspace_id = ? AND d.project_id IS NOT NULL AND d.name = 'manifest.json' AND d.kind = 'manifest'
+  AND d.record_id IS NULL AND d.card_id IS NULL AND d.deleted_at IS NULL
+`
+
+type CurrentManifestsRow struct {
+	ProjectID  int64
+	DocumentID int64
+	Current    int64
+}
+
+func (q *Queries) CurrentManifests(ctx context.Context, workspaceID int64) ([]CurrentManifestsRow, error) {
+	rows, err := q.db.QueryContext(ctx, currentManifests, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CurrentManifestsRow
+	for rows.Next() {
+		var i CurrentManifestsRow
+		if err := rows.Scan(&i.ProjectID, &i.DocumentID, &i.Current); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const currentText = `-- name: CurrentText :one
 SELECT d.id, d.kind, r.text, r.n FROM document d JOIN document_revision r ON r.document_id = d.id AND r.n = d.current
 WHERE d.workspace_id = ?1 AND d.project_id IS ?2 AND d.name = ?3

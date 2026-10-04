@@ -6,7 +6,6 @@ import (
 	"slices"
 	"strings"
 
-	"deck2/internal/docs"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
 )
@@ -36,7 +35,7 @@ func (s Sources) commandForm(ctx context.Context, c *registry.Command, project s
 	raw := c.Input
 	if c.ProjectID != 0 {
 		if p, err := s.Store.Q.GetProject(ctx, c.ProjectID); err == nil {
-			if m, err := docs.Manifest(ctx, s.Store.Q, p); err == nil {
+			if m, err := s.Manifests.Of(ctx, p); err == nil {
 				if mc := m.Command(strings.TrimPrefix(c.Name, p.Name+".")); mc != nil {
 					raw = mc.InputSchema()
 				}

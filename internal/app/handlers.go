@@ -6,6 +6,7 @@ import (
 	"deck2/internal/app/access"
 	"fmt"
 	jsonpatch "github.com/evanphx/json-patch/v5"
+	"slices"
 	"strings"
 
 	"deck2/internal/docs"
@@ -50,28 +51,27 @@ func (a *App) projectsList(ctx context.Context, act registry.Actor, in projectsL
 	if err != nil {
 		return nil, err
 	}
+	if in.Project != "" {
+		ps = slices.DeleteFunc(ps, func(p db.Project) bool { return p.Name != in.Project })
+	}
+	ms, failed := a.Manifests.All(ctx, ps)
 	out := make([]projectView, 0, len(ps))
 	for _, p := range ps {
-		if in.Project != "" && p.Name != in.Project {
-			continue
-		}
-		v, _ := a.viewProject(ctx, p)
-		out = append(out, v)
+		out = append(out, a.viewProject(ctx, p, ms[p.ID], failed[p.ID]))
 	}
 	return out, nil
 }
 
 // viewProject is a project as the owner sees it, with its manifest when that loads.
-func (a *App) viewProject(ctx context.Context, p db.Project) (projectView, *manifest.Manifest) {
+func (a *App) viewProject(ctx context.Context, p db.Project, m *manifest.Manifest, err error) projectView {
 	v := projectView{ID: p.ID, Name: p.Name, Title: p.Name, Status: p.Status, Paused: p.Paused == 1, Builtin: p.Builtin == 1, Screens: []screenView{},
 		Rights: []string{}, Folders: a.folders(ctx, p.ID)}
 	if prompt, err := docs.CurrentText(ctx, a.Store.Q, docs.ProjectScope(p), docs.KindPrompt, docs.PromptName); err == nil {
 		v.Description = docs.Description(prompt)
 	}
-	m, err := docs.Manifest(ctx, a.Store.Q, p)
 	if err != nil {
 		v.ManifestError = err.Error()
-		return v, nil
+		return v
 	}
 	v.Revision, v.Autonomy, v.NoNetwork, v.Icon, v.Title = m.Revision, cmp.Or(m.Autonomy, "suggest"), m.NoNetwork, m.Icon, cmp.Or(m.Title, p.Name)
 	for _, s := range m.Screens {
@@ -80,7 +80,7 @@ func (a *App) viewProject(ctx context.Context, p db.Project) (projectView, *mani
 	if p.Status == store.ProjectDraft {
 		v.Rights = append(v.Rights, rights(m)...)
 	}
-	return v, m
+	return v
 }
 
 // baseManifest is a project with only the base board and its screen.

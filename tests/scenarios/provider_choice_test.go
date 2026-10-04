@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 
@@ -182,4 +183,28 @@ func TestTheProviderColumnFollowsProviderSet(t *testing.T) {
 	if !strings.Contains(string(drawn), `"cells":["Work","plain.work","agent","api"]`) {
 		t.Fatalf("the commands of the project are read again with the provider picked: %s", drawn)
 	}
+}
+
+// TestTheCommandsOfAProjectOfferOnlyProvidersThatFit: the provider picker of a command lists only the providers
+// provider_set would take for it.
+func TestTheCommandsOfAProjectOfferOnlyProvidersThatFit(t *testing.T) {
+	e, cloud, local := acpPair(t, ok)
+	e.addACP(cloud, 1, "cloud", "opencode", acpLLM(t), false)
+	e.addACP(local, 1, "local", "dsh", acpLLM(t), true)
+	e.createProject("notes", notesManifest)
+	var rows []struct {
+		Name      string   `json:"name"`
+		Provider  string   `json:"provider"`
+		Providers []string `json:"providers"`
+	}
+	e.must("deck.commands_list", map[string]any{"project": "notes"}, &rows)
+	for _, r := range rows {
+		if r.Name == "notes.collect" {
+			if r.Provider != "local" || !slices.Equal(r.Providers, []string{"local"}) {
+				t.Fatalf("only the provider on own hardware is offered: %+v", r)
+			}
+			return
+		}
+	}
+	t.Fatalf("no notes.collect: %+v", rows)
 }

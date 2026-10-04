@@ -7,7 +7,7 @@ import { call } from './lib/api';
 import { events, type LiveEvent } from './lib/events';
 import { catalog, known, UNKNOWN, type Action } from './catalog';
 import { outcomes } from './ui/dispatch';
-import { openTopic } from './chat';
+import { openTopic } from './chat/chatStore';
 import { go, screenKey, serverParams, type Route } from './router';
 import i18n from './lib/i18n';
 import catalogSchema from './lib/catalogSchema';

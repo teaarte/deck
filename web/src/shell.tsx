@@ -8,7 +8,7 @@ import { call } from './lib/api';
 import { events } from './lib/events';
 import { ScreenView } from './screen';
 import { back, href, useCanGoBack, useRoute, type Route } from './router';
-import { setChatScreen } from './chat';
+import { setChatScreen, useChatPanel } from './chat/chatStore';
 import { NamedIcon } from './ui/NamedIcon';
 import { Backdrop } from './backdrop';
 import { Bell } from './bell';
@@ -187,7 +187,7 @@ export function Shell() {
     return () => { clearTimeout(timer); stop(); };
   }, []);
   const current = href({ ...route, record: undefined });
-  const [chat, setChat] = useLocalStorage({ key: 'deck-chat-open', defaultValue: false });
+  const { open: chat, setOpen: setChat } = useChatPanel();
   const [full, setFull] = useLocalStorage({ key: 'deck-chat-full', defaultValue: false });
   const [width, setWidth] = useLocalStorage({ key: 'deck-chat-width', defaultValue: 420 });
   const [navOpen, setNavOpen] = useLocalStorage({ key: 'deck-nav-open', defaultValue: true });
@@ -203,11 +203,6 @@ export function Shell() {
   }, [navOpen, chat]);
   useEffect(() => setChatScreen(route), [route.project, route.screen, route.record]);
   useEffect(() => setPhoneNav(false), [route]);
-  useEffect(() => {
-    const open = () => setChat(true);
-    window.addEventListener('deck-chat-open', open);
-    return () => window.removeEventListener('deck-chat-open', open);
-  }, []);
   const entry = menu.find((m) => (m.project ?? '') === (route.project ?? ''));
   const panel = <ScreenView route={CHAT} onProjects={loadMenu} />;
   const master = (

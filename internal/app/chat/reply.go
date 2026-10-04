@@ -53,10 +53,32 @@ func (ch *Service) pump(ctx context.Context, topic int64) {
 		}
 		delete(ch.queue.due, next)
 		ch.mu.Unlock()
-		if err := ch.reply(ctx, next); err != nil && ctx.Err() == nil {
+		err := ch.reply(ctx, next)
+		if err != nil && ctx.Err() == nil {
 			slog.Error("chat reply", "topic", next, "err", err)
 		}
+		ch.unstart(next, err, ctx.Err() == nil)
 		ch.mu.Lock()
+	}
+}
+
+// unstart keeps why the reply of a topic did not start, so its messages show it, and forgets it once one does.
+func (ch *Service) unstart(topic int64, err error, live bool) {
+	ch.mu.Lock()
+	was := ch.unstarted[topic]
+	switch {
+	case err == nil:
+		delete(ch.unstarted, topic)
+	case live:
+		if ch.unstarted == nil {
+			ch.unstarted = map[int64]string{}
+		}
+		ch.unstarted[topic] = err.Error()
+	}
+	now := ch.unstarted[topic]
+	ch.mu.Unlock()
+	if was != now {
+		ch.Bus.Publish("chat")
 	}
 }
 

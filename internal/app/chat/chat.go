@@ -38,6 +38,8 @@ type Service struct {
 
 	mu    sync.Mutex
 	queue chatQueue
+	// unstarted is why the reply of a topic did not start, until one does.
+	unstarted map[int64]string
 	// start keeps a reply starting apart from a topic being deleted.
 	start sync.Mutex
 }

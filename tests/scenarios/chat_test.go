@@ -508,3 +508,25 @@ func TestTheChatReadAndTheTopicsAreOneModel(t *testing.T) {
 		t.Fatalf("the topic has its last message and module: %s", listed[0])
 	}
 }
+
+// TestAReplyThatDoesNotStartIsSeenInTheTopic: when the master's reply cannot start, the owner's message shows why
+// in its topic instead of waiting silently.
+func TestAReplyThatDoesNotStartIsSeenInTheTopic(t *testing.T) {
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result { return provider.Result{Text: "Hi."} })
+	if _, err := e.App.Store.DB.Exec(`INSERT INTO command_provider (project_id, command, provider)
+		SELECT id, 'reply', 'gone' FROM project WHERE name = 'master'`); err != nil {
+		t.Fatal(err)
+	}
+	topic := e.say(0, "hello")
+	e.waitFor("the reply that did not start", func() bool {
+		var v struct {
+			Messages []struct {
+				Role  string
+				Reply *struct{ State, Error string }
+			}
+		}
+		e.must("deck.chat", map[string]any{"topic": fmt.Sprint(topic)}, &v)
+		return len(v.Messages) == 1 && v.Messages[0].Reply != nil && v.Messages[0].Reply.State == "error" &&
+			strings.Contains(v.Messages[0].Reply.Error, "gone")
+	})
+}

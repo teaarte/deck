@@ -144,10 +144,16 @@ func (ch *Service) messages(ctx context.Context, topic int64, rows []db.ChatMess
 			files[f.OwnerID] = append(files[f.OwnerID], fileView{ID: f.ID, Name: f.Name})
 		}
 	}
+	ch.mu.Lock()
+	unstarted := ch.unstarted[topic]
+	ch.mu.Unlock()
 	out := make([]messageView, 0, len(rows))
 	for _, r := range rows {
 		m := viewMessage(r)
 		m.Files = files[r.ID]
+		if r.Role == roleOwner && r.ProcessID == 0 && unstarted != "" {
+			m.Reply = &replyView{State: process.StateError, Error: untrusted.Cut("the reply did not start: "+unstarted, 500)}
+		}
 		if r.Role == roleOwner && r.ProcessID != 0 {
 			if _, seen := replies[r.ProcessID]; !seen {
 				replies[r.ProcessID] = nil

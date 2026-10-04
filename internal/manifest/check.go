@@ -5,8 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
+	"net/netip"
 	"slices"
 	"strings"
+
+	"golang.org/x/net/publicsuffix"
 
 	"deck2/schemas"
 )
@@ -41,8 +45,37 @@ func (m *Manifest) compile() error {
 			fail("reads[%d]: project is required", i)
 		}
 	}
+	m.Domains.Read, m.Domains.Act = m.checkDomains("read", m.Domains.Read), m.checkDomains("act", m.Domains.Act)
 	return errors.Join(errs...)
 }
+
+// checkDomains gives the domains with "*.x" as x, which already takes the subdomains of x; a URL or a public
+// suffix is a warning, so a stored manifest still loads and a save refuses it.
+func (m *Manifest) checkDomains(kind string, domains []string) []string {
+	out := make([]string, 0, len(domains))
+	for _, d := range domains {
+		d = strings.ToLower(strings.TrimSpace(d))
+		d = strings.TrimPrefix(d, "*.")
+		host := d
+		if h, _, err := net.SplitHostPort(d); err == nil {
+			host = strings.Trim(h, "[]")
+		}
+		_, prefixErr := netip.ParsePrefix(d)
+		_, ipErr := netip.ParseAddr(strings.Trim(host, "[]"))
+		switch {
+		case d == "*" || prefixErr == nil || ipErr == nil:
+		case strings.ContainsAny(d, "/?#@ ") || host == "":
+			m.warnings = append(m.warnings, fmt.Sprintf("domains.%s: %q: a domain is a host such as example.com or host:port, not a URL", kind, d))
+		default:
+			if suffix, icann := publicsuffix.PublicSuffix(host); suffix == host && (icann || strings.Contains(host, ".")) {
+				m.warnings = append(m.warnings, fmt.Sprintf("domains.%s: %q is a public suffix, which would open every site under it; name the site", kind, d))
+			}
+		}
+		out = append(out, d)
+	}
+	return out
+}
+
 
 func (m *Manifest) compileCollections(fail func(string, ...any)) {
 	m.collections = map[string]*Collection{}

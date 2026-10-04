@@ -243,7 +243,9 @@ These live here, not in deck: deck stays small and you combine them.
 A script reads its input JSON from stdin and prints its result JSON to stdout. It runs in a sandbox:
 
 - write access only to its run folder and `$DECK_DATA`; the project folders are read-only;
-- network only to the manifest's `domains.read`, through the proxy deck sets in `HTTP(S)_PROXY`;
+- network only to the manifest's `domains.read`, through the proxy deck sets in `HTTP(S)_PROXY`; a domain is a
+  host (`hf.co` takes its subdomains too) or `host:port`, never a URL or a public suffix such as `co.uk`; a name
+  reaches only public addresses, so a service on the owner's machine or network is named by its IP or IP:port;
 - no secrets and no keys of the owner; ask for an HTTP tool of the manifest instead. Never ask the owner to
   `export` a key for a module: on macOS a confined program reads the environment of the owner's processes, so
   keys live only in deck secrets;

@@ -2,6 +2,7 @@ package gateway
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -33,20 +34,46 @@ func dialPinned(ctx context.Context, network, addr string) (net.Conn, error) {
 	return nil, err
 }
 
-// Reachable reports whether host:port is in the domains: a host with its subdomains on any port, an exact
-// host:port, an IP, a network such as 192.168.1.0/24, or "*" for any host that has no local address.
+// Reachable reports whether a page at host:port is in the domains: a host with its subdomains on any port, an
+// exact host:port, an IP, a network such as 192.168.1.0/24, or "*" for any host. A name reaches only public
+// addresses; a listed name that does not resolve passes, as nothing loads from it.
 func Reachable(domains []string, hostport string) bool {
-	if listed(domains, hostport) {
-		return true
-	}
-	if !wildcard(domains) {
-		return false
-	}
-	host, _, _ := net.SplitHostPort(hostport)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	ips, _ := net.DefaultResolver.LookupNetIP(ctx, "ip", host)
-	return !slices.ContainsFunc(ips, func(ip netip.Addr) bool { return !Public(ip) })
+	_, err := destination(ctx, domains, hostport)
+	return err == nil || errors.Is(err, errUnresolved) && listed(domains, hostport)
+}
+
+var errUnresolved = errors.New("does not resolve")
+
+// destination resolves host:port once and gives the addresses to dial, when the domains let it go there.
+func destination(ctx context.Context, domains []string, hostport string) ([]string, error) {
+	host, port, err := net.SplitHostPort(hostport)
+	if err != nil {
+		return nil, err
+	}
+	if !listed(domains, hostport) && !wildcard(domains) {
+		return nil, fmt.Errorf("%s is not in the domains of this project", hostport)
+	}
+	if ip, err := netip.ParseAddr(host); err == nil {
+		if !Public(ip) && !listed(domains, hostport) {
+			return nil, fmt.Errorf("%s is not a public address; local services are reached by naming their IP, network or IP:port", host)
+		}
+		return []string{hostport}, nil
+	}
+	ips, err := net.DefaultResolver.LookupNetIP(ctx, "ip", host)
+	if err != nil || len(ips) == 0 {
+		return nil, fmt.Errorf("%s %w", host, errUnresolved)
+	}
+	out := make([]string, 0, len(ips))
+	for _, ip := range ips {
+		addr := net.JoinHostPort(ip.Unmap().String(), port)
+		if !Public(ip) && !listed(domains, addr) {
+			return nil, fmt.Errorf("%s resolves to %s, not a public address; local services are reached by naming their IP, network or IP:port", host, ip.Unmap())
+		}
+		out = append(out, addr)
+	}
+	return out, nil
 }
 
 func wildcard(domains []string) bool {
@@ -95,8 +122,8 @@ func Public(ip netip.Addr) bool {
 // shared is the carrier-grade NAT range, which tailnets use.
 var shared = netip.MustParsePrefix("100.64.0.0/10")
 
-// Egress carries a proxy request of a confined program to a host in the domains; tunnels close when ctx ends.
-// A host reached only by "*" must resolve to public addresses and is dialled as resolved.
+// Egress carries a proxy request of a confined program to a host in the domains, dialled at the addresses it
+// resolved to once; tunnels close when ctx ends.
 func Egress(ctx context.Context, w http.ResponseWriter, r *http.Request, domains []string) {
 	target := r.Host
 	if r.Method != http.MethodConnect {
@@ -106,40 +133,17 @@ func Egress(ctx context.Context, w http.ResponseWriter, r *http.Request, domains
 		}
 		target = net.JoinHostPort(r.URL.Hostname(), port)
 	}
-	if !listed(domains, target) {
-		if !wildcard(domains) {
-			http.Error(w, "deck: "+target+" is not in the domains of this project", http.StatusForbidden)
-			return
-		}
-		pinned, err := public(r.Context(), target)
-		if err != nil {
-			http.Error(w, "deck: "+err.Error(), http.StatusForbidden)
-			return
-		}
-		r = r.WithContext(context.WithValue(r.Context(), pinnedKey{}, pinned))
+	pinned, err := destination(r.Context(), domains, target)
+	if err != nil {
+		http.Error(w, "deck: "+err.Error(), http.StatusForbidden)
+		return
 	}
+	r = r.WithContext(context.WithValue(r.Context(), pinnedKey{}, pinned))
 	if r.Method == http.MethodConnect {
 		tunnel(ctx, w, r, target)
 		return
 	}
 	forward.ServeHTTP(w, r)
-}
-
-// public resolves host:port once and gives the addresses to dial, when every address of the host is public.
-func public(ctx context.Context, hostport string) ([]string, error) {
-	host, port, _ := net.SplitHostPort(hostport)
-	ips, err := net.DefaultResolver.LookupNetIP(ctx, "ip", host)
-	if err != nil || len(ips) == 0 {
-		return nil, fmt.Errorf("%s does not resolve", host)
-	}
-	out := make([]string, 0, len(ips))
-	for _, ip := range ips {
-		if !Public(ip) {
-			return nil, fmt.Errorf("%s is not a public address; local services are reached by naming their IP, network or host:port", host)
-		}
-		out = append(out, net.JoinHostPort(ip.Unmap().String(), port))
-	}
-	return out, nil
 }
 
 // forward carries a plain HTTP proxy request as it is, without hop-by-hop headers either way.

@@ -132,7 +132,7 @@ func TestBrowserReadsAnySiteWithAStarAndSendsOnlyOwnFiles(t *testing.T) {
 	ag := &seqAgent{files: []string{"cv.pdf"}}
 	e := newEnv(t, ag.script)
 	e.createProject("web", browserManifest(`{"read": ["*"], "act": ["jobs.example"]}`))
-	e.waitState(e.start("web", "browse", steps(nav("https://anything.example/x"), nav("https://jobs.example/apply"),
+	e.waitState(e.start("web", "browse", steps(nav("https://198.51.100.7/x"), nav("https://jobs.example/apply"),
 		step{"browser_file_upload", map[string]any{"paths": []string{"/etc/passwd"}}},
 		step{"browser_file_upload", map[string]any{"paths": []string{"results/cv.pdf"}}})), "done")
 	got := ag.last(4)
@@ -174,13 +174,13 @@ func TestAHungBrowserToolFreesTheBrowserForOtherProjects(t *testing.T) {
 	e.App.Host.CallTimeout = 500 * time.Millisecond
 	e.createProject("one", browserManifest(`{"read": ["*"]}`))
 	e.createProject("two", browserManifest(`{"read": ["*"]}`))
-	e.waitState(e.start("one", "browse", steps(nav("https://one.example/"))), "done")
+	e.waitState(e.start("one", "browse", steps(nav("https://198.51.100.1/"))), "done")
 	if err := os.WriteFile(filepath.Join(e.Browser, "hang"), nil, 0o600); err != nil {
 		t.Fatal(err)
 	}
 	snap := step{"browser_snapshot", map[string]any{}}
 	e.waitState(e.start("one", "browse", steps(snap)), "done")
-	e.waitState(e.start("two", "browse", steps(nav("https://two.example/"), snap)), "done")
+	e.waitState(e.start("two", "browse", steps(nav("https://198.51.100.2/"), snap)), "done")
 	got := ag.last(3)
 	if !got[0].isErr || !strings.Contains(got[0].out, "did not answer") || got[1].isErr || got[2].isErr {
 		t.Fatalf("a tool that hangs fails after its deadline and the browser works again for the next project: %+v", got)
@@ -192,9 +192,10 @@ func TestStarInReadIsOnlyThePublicInternet(t *testing.T) {
 	ag := &seqAgent{}
 	e := newEnv(t, ag.script)
 	e.createProject("web", browserManifest(`{"read": ["*", "127.0.0.1:8080"]}`))
-	e.waitState(e.start("web", "browse", steps(nav("http://127.0.0.1:11434/"), nav("http://localhost:3000/"), nav("http://127.0.0.1:8080/"))), "done")
-	if got := ag.last(3); !got[0].isErr || !got[1].isErr || got[2].isErr {
-		t.Fatalf("a local page opens only when its host:port is named: %+v", got)
+	e.waitState(e.start("web", "browse", steps(nav("http://127.0.0.1:11434/"), nav("http://localhost:3000/"), nav("http://127.0.0.1:8080/"),
+		nav("https://nowhere.invalid/"))), "done")
+	if got := ag.last(4); !got[0].isErr || !got[1].isErr || got[2].isErr || !got[3].isErr {
+		t.Fatalf("a local page opens only when its host:port is named, and \"*\" opens no name that does not resolve: %+v", got)
 	}
 }
 
@@ -267,7 +268,7 @@ func TestAProjectThatReadsAnySiteGetsABrowserWithoutSignIns(t *testing.T) {
 	e.createProject("mail", browserManifest(`{"read": ["mail.example"]}`))
 	e.createProject("research", browserManifest(`{"read": ["*"]}`))
 	e.waitState(e.start("mail", "browse", steps(nav("https://mail.example/inbox/offer-from-acme"))), "done")
-	e.waitState(e.start("research", "browse", steps(nav("https://mail.example/inbox"),
+	e.waitState(e.start("research", "browse", steps(nav("https://198.51.100.3/inbox"),
 		step{"browser_tabs", map[string]any{"action": "list"}})), "done")
 	got := ag.last(2)
 	if got[0].isErr || strings.Contains(got[1].out, "offer-from-acme") {
@@ -336,7 +337,7 @@ func TestTheBrowserWithoutSignInsReachesNoLocalAddress(t *testing.T) {
 	ag := &seqAgent{}
 	e := newEnv(t, ag.script)
 	e.createProject("research", browserManifest(`{"read": ["*"]}`))
-	e.waitState(e.start("research", "browse", steps(nav("https://news.example/a"))), "done")
+	e.waitState(e.start("research", "browse", steps(nav("https://198.51.100.4/a"))), "done")
 	var proxy string
 	for _, l := range fakeLog(e.Browser) {
 		if p, ok := strings.CutPrefix(l, "proxy:"); ok {

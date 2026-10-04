@@ -500,3 +500,34 @@ func ownerHome(t *testing.T) string {
 	t.Cleanup(func() { _ = os.RemoveAll(dir) })
 	return dir
 }
+
+// TestADomainIsAHostThatResolvesOnceToWhereItMayGo: a domain is a bare host; "*.x" is x, a public suffix or a URL
+// is refused on save; a name that resolves to the owner's machine or does not resolve is not reached.
+func TestADomainIsAHostThatResolvesOnceToWhereItMayGo(t *testing.T) {
+	e := newEnv(t, nil)
+	for domain, says := range map[string]string{"https://hf.co/models": "a host", "co.uk": "public suffix", "com": "public suffix"} {
+		code, out := e.call("deck.project_create", map[string]any{"name": "bad", "manifest": scriptManifest("collect", "", fmt.Sprintf(`, "domains": {"read": [%q]}`, domain))})
+		if code != 422 || !strings.Contains(string(out), says) {
+			t.Errorf("%s is refused on save naming %q: %d %s", domain, says, code, out)
+		}
+	}
+	_, tok := e.token("terminal", "deck.*")
+	e.callWith(tok, "deck.project_create", map[string]any{"name": "masks", "manifest": scriptManifest("collect", "", `, "domains": {"read": ["*.hf.co"]}`)})
+	if r := e.project("masks").Rights; len(r) != 1 || r[0] != "read domain: hf.co" {
+		t.Fatalf("*.hf.co is hf.co with its subdomains: %v", r)
+	}
+
+	local := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { _, _ = w.Write([]byte("hello")) })
+	_, port, _ := net.SplitHostPort(strings.TrimPrefix(local.URL, "http://"))
+	e.createProject("tools", scriptManifest("collect", "", fmt.Sprintf(`, "domains": {"read": ["localhost:%s", "nowhere.invalid"]}`, port)))
+	e.saveScript("tools", "scripts/main.py", pythonLib+`
+inp = json.load(sys.stdin)
+print(json.dumps({"local": fetch(inp["allowed"]), "nowhere": fetch("http://nowhere.invalid/")}))
+`)
+	p := e.waitScript(e.start("tools", "collect", map[string]any{"allowed": "http://localhost:" + port + "/"}), "done", "error")
+	var got struct{ Local, Nowhere any }
+	_ = json.Unmarshal(p.Result, &got)
+	if got.Local != float64(403) || got.Nowhere != float64(403) || len(local.requests()) != 0 {
+		t.Fatalf("a name of the owner's machine and a name that does not resolve are refused: %s", p.Result)
+	}
+}

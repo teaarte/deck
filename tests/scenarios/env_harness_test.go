@@ -10,12 +10,14 @@ import (
 	"net/http/httptest"
 	"os"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"deck2/internal/api"
 	"deck2/internal/app"
 	"deck2/internal/provider"
+	"deck2/internal/registry"
 	"deck2/web"
 )
 
@@ -32,6 +34,26 @@ type Env struct {
 	// Browser is the folder of the fake browser server: its log of what it did.
 	Browser string
 	names   map[int64]string
+	// Probes counts the reads of deck.probe, a read every test deck has.
+	Probes *atomic.Int64
+}
+
+type probeIn struct {
+	Days int64 `opt:"" desc:"Days"`
+}
+
+type probeRow struct {
+	ID   int64  `json:"id"`
+	Name string `json:"name"`
+}
+
+// probe is deck.probe: two rows, and a count of its reads.
+func probe(n *atomic.Int64) *registry.Command {
+	return registry.Read("probe", "Probe", "Gives two rows and counts its reads.", registry.OwnerSide,
+		func(context.Context, registry.Actor, probeIn) ([]probeRow, error) {
+			n.Add(1)
+			return []probeRow{{1, "a"}, {2, "b"}}, nil
+		}).On("collection")
 }
 
 // Clock is the deck clock of a test: it stands still until the test moves it.
@@ -81,6 +103,8 @@ func newEnvBuiltin(t *testing.T, home string, ps []provider.Provider, cfg ...fun
 	self, _ := os.Executable()
 	c := app.Config{Home: home, MCPBase: base, QuestionWait: 5 * time.Second, ConfirmWait: 5 * time.Second,
 		Browser: []string{"env", "DECK_FAKE_MCP=browser", "DECK_FAKE_DIR=" + browser, self}}
+	probes := &atomic.Int64{}
+	c.Commands = []*registry.Command{probe(probes)}
 	for _, f := range cfg {
 		f(&c)
 	}
@@ -101,7 +125,7 @@ func newEnvBuiltin(t *testing.T, home string, ps []provider.Provider, cfg ...fun
 		ts.Close()
 		side.Close()
 	})
-	e := &Env{T: t, App: a, URL: base, Side: side.URL, names: map[int64]string{}, Browser: browser}
+	e := &Env{T: t, App: a, URL: base, Side: side.URL, names: map[int64]string{}, Browser: browser, Probes: probes}
 	// The master looks into failed processes on a provider of its own, so tests of failures see only their calls.
 	e.must("deck.provider_set", map[string]any{"command": "master.on_error", "provider": "quiet"}, nil)
 	// Its schedule stays out of the clocks of tests; a test of the master's own triggers resumes them.

@@ -2,6 +2,7 @@ package app
 
 import (
 	"deck2/internal/app/devices"
+	"deck2/internal/registry"
 	"time"
 
 	"deck2/internal/sandbox"
@@ -30,6 +31,8 @@ type Config struct {
 	SelfCheckCeiling time.Duration
 	// STT is the speech-to-text url unless the owner set one; devices.DefaultSTT when empty.
 	STT string
+	// Commands are more builtin commands, such as the probes of tests.
+	Commands []*registry.Command
 }
 
 const (

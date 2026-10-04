@@ -13,8 +13,51 @@ import (
 	"deck2/internal/store/db"
 )
 
-// items are the items of a source as expression environments, filtered, sorted and cut.
+// items are the items of a source as expression environments, kept by its where.
 func (r *renderer) items(src manifest.Source, picked map[string]string) ([]map[string]any, error) {
+	items, err := r.fetch(src, picked)
+	if err != nil {
+		return nil, err
+	}
+	if src.Where != "" {
+		kept := items[:0]
+		for _, it := range items {
+			env := it
+			if r.record != nil {
+				env = withRecord(it, r.record)
+			}
+			ok, err := manifest.Eval(src.Where, env)
+			if err != nil {
+				return nil, fmt.Errorf("where: %w", err)
+			}
+			if ok == true {
+				kept = append(kept, it)
+			}
+		}
+		items = kept
+	}
+	return items, nil
+}
+
+// fetch reads the items of a source once per screen for what it reads: the collection, or the command with its
+// input and the values picked; each caller gets its own list of the shared items.
+func (r *renderer) fetch(src manifest.Source, picked map[string]string) ([]map[string]any, error) {
+	input := r.input(src.Input)
+	k, _ := json.Marshal([]any{src.From, src.Project, src.Collection, src.Rows, input, picked})
+	if got, ok := r.fetched[string(k)]; ok {
+		return slices.Clone(got.items), got.err
+	}
+	items, err := r.load(src, input, picked)
+	r.fetched[string(k)] = fetchOf{items, err}
+	return slices.Clone(items), err
+}
+
+type fetchOf struct {
+	items []map[string]any
+	err   error
+}
+
+func (r *renderer) load(src manifest.Source, input map[string]any, picked map[string]string) ([]map[string]any, error) {
 	var items []map[string]any
 	switch src.From {
 	case "", "collection":
@@ -37,7 +80,7 @@ func (r *renderer) items(src manifest.Source, picked map[string]string) ([]map[s
 	default:
 		scope := r.scope
 		scope.Filter = picked
-		got, err := r.src.Read(r.ctx, src.From, r.input(src.Input), scope)
+		got, err := r.src.Read(r.ctx, src.From, input, scope)
 		if err != nil {
 			return nil, err
 		}
@@ -60,23 +103,6 @@ func (r *renderer) items(src manifest.Source, picked map[string]string) ([]map[s
 			}
 			items = append(items, it)
 		}
-	}
-	if src.Where != "" {
-		kept := items[:0]
-		for _, it := range items {
-			env := it
-			if r.record != nil {
-				env = withRecord(it, r.record)
-			}
-			ok, err := manifest.Eval(src.Where, env)
-			if err != nil {
-				return nil, fmt.Errorf("where: %w", err)
-			}
-			if ok == true {
-				kept = append(kept, it)
-			}
-		}
-		items = kept
 	}
 	return items, nil
 }

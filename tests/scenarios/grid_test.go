@@ -2,6 +2,7 @@ package scenarios
 
 import (
 	"encoding/json"
+
 	"strings"
 	"testing"
 )
@@ -40,5 +41,23 @@ func TestAParamOfASourceTakesTheTypeOfItsField(t *testing.T) {
 		if !strings.Contains(string(drawn), `"state":"empty"`) {
 			t.Fatalf("the source reads with %v: %s", params, drawn)
 		}
+	}
+}
+
+// TestEachSourceOfAScreenIsReadOnce: blocks that read the same command with the same input share one read.
+func TestEachSourceOfAScreenIsReadOnce(t *testing.T) {
+	e := newEnv(t, boardWebAgent())
+	e.createProject("web", strings.Replace(boardWebManifest, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "blocks": [
+      {"type": "stat", "title": "Today", "source": {"from": "deck.probe", "input": {"days": 1}}},
+      {"type": "stat", "title": "Today again", "source": {"from": "deck.probe", "input": {"days": 1}}, "value": "len(rows) * 2"},
+      {"type": "table", "title": "All", "source": {"from": "deck.probe", "sort": "-name"}, "columns": [{"label": "Name", "bind": "name"}]},
+      {"type": "stat", "title": "Some", "source": {"from": "deck.probe", "where": "name == 'a'"}},`, 1))
+	e.Probes.Store(0)
+	data := e.screenData("web", "main", nil)
+	if n := e.Probes.Load(); n != 2 {
+		t.Fatalf("two sources, two reads: %d", n)
+	}
+	if string(data["b2"]["rows"]) == "" || !strings.Contains(string(data["b2"]["rows"]), `["b"]`) || string(data["b3"]["value"]) != "1" || string(data["b1"]["value"]) != "4" {
+		t.Fatalf("each block still shapes the read its own way: %v", data)
 	}
 }

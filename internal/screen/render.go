@@ -120,7 +120,7 @@ func Check(ctx context.Context, st *store.Store, src Sources, req Request) ([]st
 }
 
 func resolve(ctx context.Context, st *store.Store, src Sources, req Request) (*renderer, error) {
-	r := &renderer{ctx: ctx, st: st, src: src, req: req, data: map[string]any{}, read: map[string]readOf{}}
+	r := &renderer{ctx: ctx, st: st, src: src, req: req, data: map[string]any{}, read: map[string]readOf{}, fetched: map[string]fetchOf{}}
 	r.scope = Scope{Workspace: req.Project.WorkspaceID, Project: req.Project.Name}
 	if req.Screen.Record != "" {
 		if err := r.loadRecord(); err != nil {
@@ -149,6 +149,8 @@ type renderer struct {
 	// types are the input types of the commands buttons call, read once per screen.
 	types map[string]map[string]string
 	read  map[string]readOf
+	// fetched are the items of each source read for this screen.
+	fetched map[string]fetchOf
 	// errs name the blocks that failed to resolve.
 	errs []string
 }

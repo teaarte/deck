@@ -201,4 +201,3 @@ func actionParams(params map[string]string, types map[string]string, id int64, e
 	}
 	return out
 }
-

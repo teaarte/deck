@@ -176,7 +176,7 @@ func TestRealBrowserSettings(t *testing.T) {
 	b.eval(pressIn(row, "provider"))
 	b.until("the providers to pick from in the row", row+`.querySelector('[data-options]')`)
 	b.pick(`tr:has([data-options]) [data-options]`, "fake")
-	b.eval(`([...`+row+`.querySelectorAll('button')].find((x) => x.innerText.trim() === 'Send').click(), '')`)
+	b.eval(`([...` + row + `.querySelectorAll('button')].find((x) => x.innerText.trim() === 'Send').click(), '')`)
 	e.waitFor("the provider set", func() bool {
 		var got struct{ Chosen string }
 		e.must("deck.providers_list", map[string]any{"command": "web.score"}, &got)

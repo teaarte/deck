@@ -205,11 +205,13 @@ func pastUntil(v any) {
 type frontServer struct {
 	*httptest.Server
 	full, topics, answers, refused atomic.Int32
+	// streams counts the live connections open now; fail refuses every screen read.
+	streams atomic.Int32
 	// slow delays the next asks read by two seconds after deck answered it.
-	slow, delayed atomic.Bool
+	slow, delayed, fail atomic.Bool
 	mu            sync.Mutex
 	down          bool
-	streams       []context.CancelFunc
+	cancels       []context.CancelFunc
 }
 
 // cut drops the live connections and refuses new ones until heal.
@@ -217,10 +219,10 @@ func (f *frontServer) cut() {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.down = true
-	for _, c := range f.streams {
+	for _, c := range f.cancels {
 		c()
 	}
-	f.streams = nil
+	f.cancels = nil
 }
 
 func (f *frontServer) heal() {
@@ -241,6 +243,10 @@ func newFront(t *testing.T, deck string) *frontServer {
 			http.Error(w, "deck: refused by the test", http.StatusConflict)
 			return
 		case "/api/commands/deck.screen":
+			if f.fail.Load() {
+				http.Error(w, "deck: the read failed in the test", http.StatusInternalServerError)
+				return
+			}
 		case "/api/commands/deck.ask_answer":
 			body, _ := io.ReadAll(r.Body)
 			if bytes.Contains(body, []byte(`"reason":"keep me"`)) {
@@ -260,8 +266,10 @@ func newFront(t *testing.T, deck string) *frontServer {
 				return
 			}
 			ctx, cancel := context.WithCancel(r.Context())
-			f.streams = append(f.streams, cancel)
+			f.cancels = append(f.cancels, cancel)
 			f.mu.Unlock()
+			f.streams.Add(1)
+			defer f.streams.Add(-1)
 			proxy.ServeHTTP(w, r.WithContext(ctx))
 			return
 		default:

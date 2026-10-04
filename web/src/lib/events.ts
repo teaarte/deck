@@ -25,20 +25,27 @@ function resume() {
 }
 document.addEventListener('visibilitychange', () => { if (!document.hidden && listeners.size) resume(); });
 
-// openSource keeps one live channel for every screen of the page and opens it again when the browser gives up.
+// openSource keeps one live channel for every screen of the page and opens it again when the browser gives up;
+// a channel it replaced says nothing more.
 function openSource() {
-  source = new EventSource('/api/events?token=' + encodeURIComponent(token()));
-  source.onopen = () => {
+  clearTimeout(retry);
+  source?.close();
+  const es = new EventSource('/api/events?token=' + encodeURIComponent(token()));
+  source = es;
+  es.onopen = () => {
+    if (es !== source) return;
     if (lost) resume();
     setLost(false);
   };
-  source.onmessage = (m) => {
+  es.onmessage = (m) => {
+    if (es !== source) return;
     const e = JSON.parse(String(m.data)) as LiveEvent;
     listeners.forEach((l) => l.event(e));
   };
-  source.onerror = () => {
+  es.onerror = () => {
+    if (es !== source) return;
     setLost(true);
-    if (source?.readyState === EventSource.CLOSED && listeners.size) retry = setTimeout(openSource, 3000);
+    if (es.readyState === EventSource.CLOSED && listeners.size) retry = setTimeout(openSource, 3000);
   };
 }
 

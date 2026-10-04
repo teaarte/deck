@@ -18,9 +18,9 @@ const TOPICS: string[] = catalogSchema.topics;
 type Processor = MessageProcessor<ReactComponentImplementation>;
 
 // useScreen reads a screen and keeps it fresh: events read it again at most every 200 ms, merged by topic and project,
-// a return to the page reads it whole; a screen already drawn updates in place, keeping the tab and what was typed.
+// a return to the page reads it whole; a drawn screen updates in place, keeping the tab and what was typed, or a read error.
 export function useScreen(route: Route, onProjects: () => void) {
-  const [surface, setSurface] = useState<SurfaceModel<ReactComponentImplementation>>();
+  const [drawn, setDrawn] = useState<{ surface: SurfaceModel<ReactComponentImplementation>; key: string }>();
   const [error, setError] = useState('');
   const proc = useRef<Processor>(undefined);
   const filterRef = useRef<ScreenActions['filter']>(() => undefined);
@@ -40,6 +40,8 @@ export function useScreen(route: Route, onProjects: () => void) {
       }
     });
     let generation = 0;
+    // shown is set once the screen is drawn; a failed read then leaves it drawn.
+    let shown = false;
     const load = async () => {
       const mine = ++generation;
       const ticket = feed.ticket();
@@ -55,14 +57,19 @@ export function useScreen(route: Route, onProjects: () => void) {
             }
             return act(a.context as Action).then(() => undefined);
           });
-          p.onSurfaceCreated((s) => setSurface(s));
+          p.onSurfaceCreated((s) => {
+            shown = true;
+            setDrawn({ surface: s, key });
+          });
           proc.current = p;
           feed.reset();
         }
         setError('');
         feed.whole(msgs, ticket);
       } catch (e) {
-        if (!gone) setError((e as Error).message);
+        if (gone) return;
+        if (shown) notifyError(e);
+        else setError((e as Error).message);
       }
     };
     let filtering = 0;
@@ -109,7 +116,7 @@ export function useScreen(route: Route, onProjects: () => void) {
     };
     const stop = events(onEvent, () => void load());
     proc.current = undefined;
-    setSurface(undefined);
+    setDrawn(undefined);
     void load();
     return () => {
       gone = true;
@@ -119,5 +126,7 @@ export function useScreen(route: Route, onProjects: () => void) {
   }, [key]);
 
   const actions = useMemo<ScreenActions>(() => ({ run: act, filter: (block, field, value) => filterRef.current(block, field, value) }), []);
+  // A surface of the screen before is not drawn again under the key of the next one.
+  const surface = drawn?.key === key ? drawn.surface : undefined;
   return { surface, error, key, actions };
 }

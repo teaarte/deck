@@ -424,7 +424,7 @@ func (dv *Service) pushText(ctx context.Context, projectID int64, title, text, u
 var pushClient = &http.Client{Timeout: 15 * time.Second,
 	CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 
-// What a push to a device came to: taken or refused for good, failed for now, or the device is gone.
+// What a push to a device came to: taken or refused for good, to be sent again, or the device is gone.
 const (
 	pushDone = iota
 	pushRetry

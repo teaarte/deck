@@ -374,7 +374,7 @@ func TestSpeechToTextNamesARealSecret(t *testing.T) {
 }
 
 // TestADeviceThatFailsHoldsBackOnlyItself: each device keeps its own place in what was pushed, so a device whose
-// service fails for now gets it later and the others get each push once; the health of pushes names the failing one.
+// service fails gets it later and the others get each push once; the health of pushes names the failing one.
 func TestADeviceThatFailsHoldsBackOnlyItself(t *testing.T) {
 	e := newEnv(t, nil)
 	good, srv := newPushDevice(t)

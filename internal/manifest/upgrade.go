@@ -3,6 +3,7 @@ package manifest
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -90,7 +91,7 @@ func Upgrade(raw []byte) (out []byte, changed bool, err error) {
 	dec.UseNumber()
 	var m map[string]any
 	if err := dec.Decode(&m); err != nil {
-		return nil, false, fmt.Errorf("manifest: %w", err)
+		return nil, false, fmt.Errorf("manifest: %w", where(raw, err))
 	}
 	n, _ := m["version"].(json.Number)
 	v, _ := n.Int64()
@@ -124,4 +125,25 @@ func items(v any) []map[string]any {
 		}
 	}
 	return out
+}
+
+// where adds to a JSON error the line and column it stopped at and the text around.
+func where(raw []byte, err error) error {
+	var off int64
+	var syn *json.SyntaxError
+	var typ *json.UnmarshalTypeError
+	switch {
+	case errors.As(err, &syn):
+		off = syn.Offset
+	case errors.As(err, &typ):
+		off = typ.Offset
+	default:
+		return err
+	}
+	off = min(off, int64(len(raw)))
+	before := raw[:off]
+	line := bytes.Count(before, []byte("\n")) + 1
+	col := int(off) - bytes.LastIndexByte(before, '\n')
+	from, to := max(0, int(off)-40), min(len(raw), int(off)+20)
+	return fmt.Errorf("%w at line %d, column %d: %q", err, line, col, raw[from:to])
 }

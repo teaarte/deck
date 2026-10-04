@@ -63,7 +63,8 @@ func (c *screenCheck) action(b Block, a Action, fields []string) error {
 	}
 	target := c.m.Screen(a.Screen)
 	if target == nil {
-		return fmt.Errorf("unknown screen %q", a.Screen)
+		return fmt.Errorf("unknown screen %q: a button opens a screen of its module; a screen of deck opens from a link "+
+			"[text](#/deck/<screen>?<param>=<value>) in a text shown with markdown", a.Screen)
 	}
 	for k := range a.Params {
 		if _, ok := target.Params[k]; !ok && k != "tab" && k != "dialog" && c.warn != nil {

@@ -2,9 +2,9 @@ package scenarios
 
 import (
 	"context"
-	"encoding/json"
 	"deck2/internal/api"
 	"deck2/web"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"

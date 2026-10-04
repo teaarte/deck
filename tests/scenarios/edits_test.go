@@ -2,6 +2,7 @@ package scenarios
 
 import (
 	"encoding/json"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -98,5 +99,30 @@ func TestASavedManifestNamesTheBlocksThatFailOnTheRecordsThereAre(t *testing.T) 
 	}
 	if got := column("(score ?? 0) > 0 ? score : nil"); len(got) != 0 {
 		t.Fatalf("a column that holds on every record names nothing: %q", got)
+	}
+}
+
+// TestRefusalsSayWhereAndWhatToDo: a broken JSON gives its line, column and text; a button to a screen the
+// module lacks says how to open a screen of deck; overlapping old texts name each other.
+func TestRefusalsSayWhereAndWhatToDo(t *testing.T) {
+	e := newEnv(t, boardWebAgent())
+	broken := strings.Replace(boardWebManifest, `"title": "Web"`, `"title": "Web",,`, 1)
+	if broken == boardWebManifest {
+		t.Fatal("fixture replacement did not apply")
+	}
+	code, out := e.call("deck.project_create", map[string]any{"name": "web", "manifest": broken})
+	if code != 422 || !regexp.MustCompile(`line \d+, column \d+`).Match(out) || !strings.Contains(string(out), `Web\",,`) {
+		t.Fatalf("a JSON error gives its line, column and the text around it: %d %s", code, out)
+	}
+	lost := strings.Replace(routedManifest, `"screen": "main", "params"`, `"screen": "process", "params"`, 1)
+	code, out = e.call("deck.project_create", map[string]any{"name": "web", "manifest": lost})
+	if code != 422 || !strings.Contains(string(out), `unknown screen "process"`) || !strings.Contains(string(out), "#/deck/") {
+		t.Fatalf("a button to a screen the module lacks says how to open a screen of deck: %d %s", code, out)
+	}
+	e.must("deck.document_save", map[string]any{"project": "master", "name": "notes.md", "kind": "artifact", "text": "one two three"}, nil)
+	code, out = e.call("deck.document_save", map[string]any{"project": "master", "name": "notes.md", "kind": "artifact",
+		"old": []string{"one two", "two three"}, "new": []string{"1 2", "2 3"}})
+	if code != 422 || !strings.Contains(string(out), "old text 2 overlaps old text 1") {
+		t.Fatalf("overlapping old texts name each other: %d %s", code, out)
 	}
 }

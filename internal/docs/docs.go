@@ -178,11 +178,13 @@ func Edit(text string, old, new []string) (string, error) {
 	}
 	slices.SortFunc(parts, func(a, b part) int { return a.at - b.at })
 	var b strings.Builder
-	last := 0
+	last, prev := 0, 0
 	for _, p := range parts {
 		if p.at < last {
-			return "", registry.Invalid("deck: old text %d overlaps another one", p.i+1)
+			a, b := min(p.i, prev)+1, max(p.i, prev)+1
+			return "", registry.Invalid("deck: old text %d overlaps old text %d (%q); give the two as one old text", b, a, clip(old[prev]))
 		}
+		prev = p.i
 		b.WriteString(text[last:p.at])
 		b.WriteString(new[p.i])
 		last = p.at + len(old[p.i])

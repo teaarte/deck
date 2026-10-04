@@ -33,6 +33,7 @@ var tables = map[string]table{
 	"project":           {"projects", "id", nil},
 	"project_folder":    {"projects", "project_id", nil},
 	"command_provider":  {"projects", "project_id", nil},
+	"mcp_tool":          {"projects", "project_id", nil},
 	"trigger":           {"triggers", "project_id", nil},
 	"process":           {"processes", "project_id", []string{"output_ms"}},
 	"process_remark":    {"processes", "process_id", nil},

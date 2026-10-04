@@ -17,6 +17,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"deck2/internal/events"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
@@ -422,4 +423,14 @@ func TestMCPSessionNeedsItsOwnToken(t *testing.T) {
 	if status != http.StatusNotFound || len(recs) != 0 {
 		t.Fatalf("a session id under another token must be refused: status %d, %d records", status, len(recs))
 	}
+}
+
+// TestTheToolsAServerListsReachTheCommandsOfItsProject: the tools an MCP server lists are commands of its
+// project, so the list of commands, which follows projects, reads them again.
+func TestTheToolsAServerListsReachTheCommandsOfItsProject(t *testing.T) {
+	e := newEnv(t, stepAgent(map[string]toolCall{}, nil))
+	e.createProject("srv", mcpManifest(""))
+	ev := e.live(t.Context())
+	e.waitState(e.start("srv", "work", map[string]any{}), "done")
+	waitEvent(t, ev, events.Event{Topic: "projects", Project: "srv"})
 }

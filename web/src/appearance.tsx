@@ -131,7 +131,7 @@ function Pushes() {
       {devices.map((d) => (
         <Group key={d.id} gap="xs" data-push-device>
           <Text size="xs">{d.name}</Text>
-          <Button size="compact-xs" variant="subtle" onClick={() => void call('deck.push_unsubscribe', { device: d.id }).then(load)}>{t('verb.remove')}</Button>
+          <Button size="compact-xs" variant="subtle" onClick={() => void call('deck.push_unsubscribe', { device: d.id }).then(load, (e: Error) => notifications.show({ title: t('push.title'), message: e.message, color: 'red' }))}>{t('verb.remove')}</Button>
         </Group>
       ))}
     </Stack>

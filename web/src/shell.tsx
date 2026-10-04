@@ -166,7 +166,7 @@ export function Shell() {
   const route = useRoute();
   const canBack = useCanGoBack();
   const [menu, setMenu] = useState<MenuEntry[]>([]);
-  const loadMenu = useCallback(() => { call<MenuEntry[]>('deck.menu', { lang: i18n.language }).then(setMenu, () => setMenu([])); }, []);
+  const loadMenu = useCallback(() => { call<MenuEntry[]>('deck.menu', { lang: i18n.language }).then(setMenu, () => undefined); }, []);
   const loadLanguage = useCallback(() => {
     call<{ name: string; value: unknown }[]>('deck.settings_list').then((ss) => {
       const l = ss.find((x) => x.name === 'language');
@@ -207,7 +207,8 @@ export function Shell() {
     document.querySelector<HTMLElement>(focusTo.current)?.focus();
     focusTo.current = '';
   }, [navOpen, chat]);
-  useEffect(() => { setChatScreen(route); setPhoneNav(false); }, [route]);
+  useEffect(() => setChatScreen(route), [route.project, route.screen, route.record]);
+  useEffect(() => setPhoneNav(false), [route]);
   useEffect(() => {
     const open = () => setChat(true);
     window.addEventListener('deck-chat-open', open);

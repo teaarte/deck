@@ -188,3 +188,36 @@ func TestRealBrowserInterviewFromACard(t *testing.T) {
 	}
 	b.shot("interview")
 }
+
+// TestRealBrowserTheOpenCardStaysWithTheChatAcrossTabs: a message sent while a card is open names the card, also
+// after the address changed only a tab of the same screen.
+func TestRealBrowserTheOpenCardStaysWithTheChatAcrossTabs(t *testing.T) {
+	if os.Getenv("DECK_REAL_BROWSER") == "" {
+		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
+	}
+	checkBuiltClient(t)
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result { return provider.Result{Text: "Seen."} })
+	e.must("deck.project_create", map[string]any{"name": "work"}, nil)
+	e.card(map[string]any{"project": "work", "title": "Export the report"})
+	b := newPlaywright(t)
+	b.call("browser_resize", map[string]any{"width": 1400, "height": 900})
+	b.open(e.URL + "/?token=" + token + "#/p/work/board")
+	b.until("the chat toggle", `document.querySelector('[data-chat-toggle]')`)
+	b.eval(`(document.querySelector('[data-chat-toggle]').click(), '')`)
+	b.until("the card", `[...document.querySelectorAll('[data-card]')].some((c) => c.innerText.includes('Export the report'))`)
+	b.eval(`([...document.querySelectorAll('[data-card]')].find((c) => c.innerText.includes('Export the report')).querySelector('button').click(), '')`)
+	b.until("the card editor", `document.querySelector('[data-verb="interview"]')`)
+	b.eval(`(location.hash = '#/p/work/board?tab=Other', '')`)
+	b.until("the tab in the address", `location.hash.endsWith('tab=Other')`)
+	b.type_(`document.querySelector('[data-chat-input]')`, "what about this one")
+	b.eval(`(document.querySelector('[data-chat-send]').click(), '')`)
+	b.until("the reply", `[...document.querySelectorAll('[data-message="master"]')].some((m) => m.innerText.includes('Seen.'))`)
+	var ts []chatTopic
+	e.must("deck.chat_topics", nil, &ts)
+	if len(ts) != 1 {
+		t.Fatalf("one topic: %+v", ts)
+	}
+	if ms := e.chatMessages(ts[0].ID); len(ms) == 0 || !strings.Contains(string(ms[0].Screen), `"card"`) {
+		t.Fatalf("the message names the open card: %+v", ms)
+	}
+}

@@ -15,6 +15,7 @@ import (
 	"deck2/internal/app/asks"
 	"deck2/internal/app/board"
 	"deck2/internal/app/chat"
+	"deck2/internal/app/connections"
 	"deck2/internal/app/devices"
 	"deck2/internal/app/documents"
 	appfiles "deck2/internal/app/files"
@@ -73,13 +74,14 @@ type App struct {
 	Triggers  *triggers.Service
 	Documents *documents.Service
 	// Answers are what waits for the owner and their answers; Asks is the broker processes wait on.
-	Answers   *asks.Service
-	Scripts   *script.Exec
-	Tools     *tools.HTTP
-	MCP       *tools.MCP
-	Browser   *tools.Browser
-	Host      *mcphost.Host
-	Manifests *docs.Manifests
+	Answers     *asks.Service
+	Connections *connections.Service
+	Scripts     *script.Exec
+	Tools       *tools.HTTP
+	MCP         *tools.MCP
+	Browser     *tools.Browser
+	Host        *mcphost.Host
+	Manifests   *docs.Manifests
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -129,6 +131,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 		Builtin: append([]provider.Provider{p}, more...), Ctx: a.ctx, BG: &a.bg}
 	a.Answers = &asks.Service{St: st, Now: cfg.Now, Broker: a.Asks, Registry: a.Registry, AnswerGrant: a.grantAnswer,
 		SaveManifest: a.saveManifestAny}
+	a.Connections = &connections.Service{St: st, Ctx: a.ctx, Broker: a.Asks}
 	a.Suggest = &suggest.Service{St: st, Bus: a.Bus, Now: cfg.Now, Registry: a.Registry, Asks: a.Asks, Days: a.Settings.SuggestDays}
 	a.Chats = &chat.Service{St: st, Bus: a.Bus, Now: cfg.Now, Asks: a.Asks, For: a.For}
 	a.Devices = &devices.Service{St: st, Bus: a.Bus, Now: cfg.Now, Ctx: a.ctx, STT: cfg.STT, Files: a.dirs(), RemoveFiles: a.Files.Remove,
@@ -142,15 +145,17 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	a.Gateway = gateway.New(gateway.Config{Now: cfg.Now, QuestionWait: cfg.QuestionWait, ConfirmWait: cfg.ConfirmWait, ConfirmTTL: a.Settings.ConfirmTTL}, st, a.Asks, a.Bus, a.Registry)
 	a.Tools = tools.NewHTTP(a.Gateway, a.Secrets.Secret, a.dirs())
 	a.Tools.OAuth = &tools.OAuth{Secrets: a.Secrets.Secret, Swap: a.Secrets.Swap}
-	a.Tools.Health, a.Tools.SignIn = a.toolHealth, a.toolSignIn
+	a.Connections.OAuth = a.Tools.OAuth
+	a.Tools.Health, a.Tools.SignIn = a.Connections.ToolHealth, a.Connections.ToolSignIn
 	a.Tools.Resolve = func(ctx context.Context, project, process int64, ref string) (files.Ref, error) {
 		return a.dirs().Resolve(ctx, a.Store.Q, project, process, ref)
 	}
-	a.Host = mcphost.New(a.serverStatus)
+	a.Host = mcphost.New(a.Connections.ServerStatus)
 	a.Host.Now, a.Host.Sandbox = cfg.Now, cfg.Sandbox
 	a.Host.Hide = sandbox.Hidden(cfg.Home)
 	a.MCP = &tools.MCP{GW: a.Gateway, Host: a.Host, Store: st, Secrets: a.Secrets.Secret, Dirs: a.dirs(), Home: cfg.Home}
 	a.Browser = &tools.Browser{GW: a.Gateway, Host: a.Host, Store: st, Dirs: a.dirs(), Home: cfg.Home, Argv: cfg.Browser, Ctx: a.ctx}
+	a.Connections.Browser, a.Connections.MCP = a.Browser, a.MCP
 	a.Browser.Load()
 	a.Registry.SetExtra(a.Browser.Commands)
 	a.Gateway.SetAutomation(a.Tokens.Automation)
@@ -415,3 +420,6 @@ func (a *App) saveManifestAny(ctx context.Context, act registry.Actor, p db.Proj
 	command string, input map[string]any) (any, error) {
 	return a.SaveManifest(ctx, act, p, raw, reason, revertTo, ifRevision, Call{Command: command, Input: input})
 }
+
+// Servers starts the MCP servers of a project whose tools deck has not listed yet, for the runner.
+func (a *App) Servers(ctx context.Context, projectID int64) { a.Connections.Servers(ctx, projectID) }

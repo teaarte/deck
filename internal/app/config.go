@@ -62,3 +62,7 @@ func (c *Config) defaults() {
 		c.STT = devices.DefaultSTT
 	}
 }
+
+// DefaultBrowser starts Playwright MCP of a known version, so the tools deck sorts into reading and acting
+// stay the ones it knows.
+var DefaultBrowser = []string{"npm", "exec", "--yes", "--package=@playwright/mcp@0.0.82", "--", "playwright-mcp"}

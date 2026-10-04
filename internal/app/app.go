@@ -15,6 +15,7 @@ import (
 	"deck2/internal/app/board"
 	"deck2/internal/app/chat"
 	"deck2/internal/app/devices"
+	appfiles "deck2/internal/app/files"
 	"deck2/internal/app/folders"
 	"deck2/internal/app/providers"
 	"deck2/internal/app/secrets"
@@ -60,6 +61,7 @@ type App struct {
 	Secrets   *secrets.Service
 	Settings  *settings.Service
 	Folders   *folders.Service
+	Files     *appfiles.Service
 	Scripts   *script.Exec
 	Tools     *tools.HTTP
 	MCP       *tools.MCP
@@ -71,8 +73,6 @@ type App struct {
 	cancel context.CancelFunc
 	bg     sync.WaitGroup
 	disk   time.Time
-	// filesMu keeps stored files from coming or going while a snapshot copies the base and files/.
-	filesMu sync.RWMutex
 	// preparedCmds are the registry commands of each manifest revision.
 	preparedMu   sync.Mutex
 	preparedCmds map[preparedKey][]*registry.Command
@@ -103,6 +103,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	}
 	a.Secrets = &secrets.Service{St: st, Dir: h.Secrets}
 	a.Folders = &folders.Service{St: st, Home: cfg.Home}
+	a.Files = &appfiles.Service{St: st, Home: h, Now: cfg.Now}
 	a.Settings = &settings.Service{St: st, DefaultTTL: cfg.ConfirmTTL, Wake: func(ctx context.Context) { a.Runner.Wake(ctx) }}
 	a.Asks = ask.NewBroker(st, a.Bus, cfg.Now)
 	a.Registry = registry.New(a.projectCommands)
@@ -113,7 +114,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 		Builtin: append([]provider.Provider{p}, more...), Ctx: a.ctx, BG: &a.bg}
 	a.Suggest = &suggest.Service{St: st, Bus: a.Bus, Now: cfg.Now, Registry: a.Registry, Asks: a.Asks, Days: a.Settings.SuggestDays}
 	a.Chats = &chat.Service{St: st, Bus: a.Bus, Now: cfg.Now, Asks: a.Asks, For: a.For}
-	a.Devices = &devices.Service{St: st, Bus: a.Bus, Now: cfg.Now, Ctx: a.ctx, STT: cfg.STT, Files: a.dirs(), RemoveFiles: a.removeFiles,
+	a.Devices = &devices.Service{St: st, Bus: a.Bus, Now: cfg.Now, Ctx: a.ctx, STT: cfg.STT, Files: a.dirs(), RemoveFiles: a.Files.Remove,
 		Secret: a.Secrets.Secret, ReadSecret: a.Secrets.Read, WriteSecret: a.Secrets.Write, SecretsDir: a.Secrets.Dir,
 		LockSecrets: a.Secrets.Lock, UnlockSecrets: a.Secrets.Unlock,
 		Invoke: func(ctx context.Context, act registry.Actor, name string, in json.RawMessage) (any, error) {
@@ -137,7 +138,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	a.Registry.SetExtra(a.Browser.Commands)
 	a.Gateway.SetAutomation(a.Tokens.Automation)
 	a.Runner = process.NewRunner(st, a.Gateway, a.Bus, a, a.Scripts,
-		process.Config{RunsDir: h.Runs(), MCPBase: cfg.MCPBase, Now: cfg.Now, FilesDir: h.Files(), FilesMu: &a.filesMu,
+		process.Config{RunsDir: h.Runs(), MCPBase: cfg.MCPBase, Now: cfg.Now, FilesDir: h.Files(), FilesMu: &a.Files.Mu,
 			Hidden: hidden(h), PauseLimit: cfg.PauseLimit, AgentSlots: a.Settings.AgentSlots}, a)
 	a.Chats.Runner, a.Suggest.Gateway, a.Tokens.Journal = a.Runner, a.Gateway, a.Gateway.Journal
 	a.Runner.Hooks = []process.Hook{a.Chats.NewHook(), errorsHook{a: a}, afterHook{a: a}}

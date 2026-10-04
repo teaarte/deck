@@ -253,7 +253,7 @@ func (a *App) recordDelete(ctx context.Context, act registry.Actor, in recordDel
 	if err != nil {
 		return nil, err
 	}
-	a.removeFiles(gone)
+	a.Files.Remove(gone)
 	return map[string]any{"ok": true}, nil
 }
 

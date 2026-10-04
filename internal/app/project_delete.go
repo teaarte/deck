@@ -63,7 +63,7 @@ func (a *App) projectDelete(ctx context.Context, act registry.Actor, in projectD
 	if err != nil {
 		return nil, err
 	}
-	a.removeFiles(gone)
+	a.Files.Remove(gone)
 	// deck's own folders of the project and of its runs go with it.
 	for _, id := range runs {
 		_ = os.RemoveAll(filepath.Dir(a.Runner.LogPath(id)))

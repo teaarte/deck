@@ -41,9 +41,9 @@ func (a *App) Snapshot(ctx context.Context) (string, error) {
 	path := filepath.Join(dir, "deck-"+a.Cfg.Now().UTC().Format(snapshotLayout)+".tar.gz")
 	copyDB := filepath.Join(dir, ".deck-"+uuid.NewString()+".db")
 	defer os.Remove(copyDB)
-	a.filesMu.Lock()
+	a.Files.Mu.Lock()
 	var once sync.Once
-	filesDone := func() { once.Do(a.filesMu.Unlock) }
+	filesDone := func() { once.Do(a.Files.Mu.Unlock) }
 	defer filesDone()
 	if _, err := a.Store.DB.ExecContext(ctx, "VACUUM INTO ?", copyDB); err != nil {
 		return "", err
@@ -64,15 +64,6 @@ func (a *App) Snapshot(ctx context.Context) (string, error) {
 	}
 	a.Bus.Publish("snapshots")
 	return path, nil
-}
-
-// removeFiles deletes stored files whose rows are gone; it waits while a snapshot copies the base and files/.
-func (a *App) removeFiles(ids []int64) {
-	a.filesMu.RLock()
-	defer a.filesMu.RUnlock()
-	for _, id := range ids {
-		_ = os.Remove(filepath.Join(a.Home.Files(), fmt.Sprint(id)))
-	}
 }
 
 // writeSnapshot writes the archive; filesDone runs once files/ is in it.
@@ -239,7 +230,7 @@ func (a *App) cleanup(ctx context.Context, now time.Time) {
 	if err != nil {
 		slog.Error("purge files", "err", err)
 	}
-	a.removeFiles(gone)
+	a.Files.Remove(gone)
 	left, _ := filepath.Glob(filepath.Join(a.Home.Files(), ".upload-*"))
 	for _, f := range left {
 		if fi, err := os.Stat(f); err == nil && now.Sub(fi.ModTime()) > 24*time.Hour {

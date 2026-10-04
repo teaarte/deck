@@ -150,7 +150,7 @@ func (s *Server) upload(w http.ResponseWriter, r *http.Request) {
 		if part.FileName() == "" {
 			continue
 		}
-		f, err := s.app.Upload(r.Context(), actor(r), r.URL.Query().Get("project"), part.FileName(), part.Header.Get("Content-Type"), part)
+		f, err := s.app.Files.Upload(r.Context(), actor(r), r.URL.Query().Get("project"), part.FileName(), part.Header.Get("Content-Type"), part)
 		if err != nil {
 			http.Error(w, err.Error(), registry.Status(err))
 			return
@@ -171,13 +171,13 @@ func (s *Server) download(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "deck: a file id is a number", http.StatusBadRequest)
 		return
 	}
-	f, file, err := s.app.OpenFile(r.Context(), actor(r), id)
+	f, file, err := s.app.Files.OpenFile(r.Context(), actor(r), id)
 	serveFile(w, r, f.Name, f.Type, file, err)
 }
 
 // downloadData gives a file of the data folder of a project, which a media block shows.
 func (s *Server) downloadData(w http.ResponseWriter, r *http.Request) {
-	f, file, err := s.app.OpenDataFile(r.Context(), actor(r), r.PathValue("project"), r.PathValue("path"))
+	f, file, err := s.app.Files.OpenDataFile(r.Context(), actor(r), r.PathValue("project"), r.PathValue("path"))
 	serveFile(w, r, f.Name, f.Type, file, err)
 }
 

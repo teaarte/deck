@@ -135,6 +135,11 @@ func (a *App) sources(act registry.Actor) screenSources {
 	return screenSources{Sources: screens.Sources{Store: a.Store, Registry: a.Registry, Manifests: a.Manifests, Deck: screenDeck{a}}, a: a, act: act}
 }
 
+// File is a file a media block of the project shows.
+func (s screenSources) File(ctx context.Context, p db.Project, ref any) (map[string]any, error) {
+	return s.a.Files.File(ctx, p, ref)
+}
+
 // Read calls a command that only reads with the project of a project screen and the values picked in filters
 // that it takes.
 func (s screenSources) Read(ctx context.Context, command string, input map[string]any, sc screen.Scope) (any, error) {

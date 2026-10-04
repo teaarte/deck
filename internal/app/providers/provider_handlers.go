@@ -231,7 +231,7 @@ func (s *Service) llmCallsList(ctx context.Context, act registry.Actor, in llmCa
 	}
 	out := make([]map[string]any, 0, len(rows))
 	for _, c := range rows {
-		m := map[string]any{"id": c.ID, "process": c.ProcessID, "gen_ai.provider.name": c.GenAiProviderName,
+		m := map[string]any{"id": c.ID, "process": c.ProcessID.Int64, "command": c.Command, "gen_ai.provider.name": c.GenAiProviderName,
 			"gen_ai.request.model": c.GenAiRequestModel, "gen_ai.response.model": c.GenAiResponseModel,
 			"gen_ai.usage.input_tokens": c.GenAiUsageInputTokens, "gen_ai.usage.output_tokens": c.GenAiUsageOutputTokens,
 			"gen_ai.usage.cache_read.input_tokens":     c.GenAiUsageCacheReadInputTokens,

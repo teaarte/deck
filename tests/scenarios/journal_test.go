@@ -186,3 +186,63 @@ func TestTheJournalFollowsCallsAndSpendLive(t *testing.T) {
 		}
 	}
 }
+
+// TestTheSpendOfAPurgedProcessStays: a process with nothing to do goes after a day, and what its model cost
+// stays in the spend of its project and command.
+func TestTheSpendOfAPurgedProcessStays(t *testing.T) {
+	e := newClockEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		cost := 0.5
+		c.Req.OnUsage(provider.Usage{RequestModel: "big", Model: "big", Input: 1200, Output: 300, CostUSD: &cost})
+		return provider.Result{Structured: json.RawMessage(`null`)}
+	})
+	p := e.createProject("quiet", testManifest([]string{agentCommand("check", "")}, nil))
+	id := e.run(p, "check")
+	e.waitState(id, "done")
+	e.settle()
+	e.Clock.Add(25 * time.Hour)
+	e.sweep()
+	e.refused("deck.process_get", map[string]any{"process": id}, 404, "no process")
+	var spend []struct {
+		Project, Command string
+		Calls            int64
+		CostUSD          float64 `json:"cost_usd"`
+	}
+	e.must("deck.spend_list", nil, &spend)
+	if len(spend) != 1 || spend[0].Project != "quiet" || spend[0].Command != "check" || spend[0].Calls != 1 || spend[0].CostUSD != 0.5 {
+		t.Fatalf("the spend of a purged process stays with its project and command: %+v", spend)
+	}
+	var calls []map[string]any
+	e.must("deck.llm_calls_list", map[string]any{"project": "quiet"}, &calls)
+	if len(calls) != 1 {
+		t.Fatalf("its model call stays in the journal: %+v", calls)
+	}
+}
+
+// TestModelCallsOfABaseFromBeforeKeepTheirProject: the model calls of an older base keep their project and
+// command when it learns to keep them without the process.
+func TestModelCallsOfABaseFromBeforeKeepTheirProject(t *testing.T) {
+	home := t.TempDir()
+	e := newEnvWith(t, home, &Fake{script: func(ctx context.Context, c *Call) provider.Result {
+		c.Req.OnUsage(provider.Usage{Model: "big", Input: 10, Output: 5})
+		return provider.Result{Structured: json.RawMessage(`{}`)}
+	}})
+	p := e.createProject("loud", testManifest([]string{agentCommand("check", "")}, nil))
+	e.waitState(e.run(p, "check"), "done")
+	for _, q := range []string{
+		`CREATE TABLE llm_old AS SELECT id, process_id, gen_ai_provider_name, gen_ai_request_model, gen_ai_response_model,
+		   gen_ai_usage_input_tokens, gen_ai_usage_output_tokens, gen_ai_usage_cache_read_input_tokens,
+		   gen_ai_usage_cache_creation_input_tokens, duration_ms, cost_usd, created_at FROM llm_call`,
+		`DROP TABLE llm_call`, `ALTER TABLE llm_old RENAME TO llm_call`,
+		`DELETE FROM goose_db_version WHERE version_id = 3`} {
+		if _, err := e.App.Store.DB.Exec(q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	_ = e.App.Close()
+	e = newEnvWith(t, home, &Fake{})
+	var spend []struct{ Project, Command string }
+	e.must("deck.spend_list", nil, &spend)
+	if len(spend) != 1 || spend[0].Project != "loud" || spend[0].Command != "check" {
+		t.Fatalf("the model calls of an older base keep their project and command: %+v", spend)
+	}
+}

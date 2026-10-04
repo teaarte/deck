@@ -457,9 +457,10 @@ func TestADraftHasOnlyTheRightsTheOwnerGave(t *testing.T) {
 	if code, out := e.callWith(tok, "deck.project_create", map[string]any{"name": "leak", "manifest": postManifest(svc.URL, `, "class": "internal"`)}); code != 200 {
 		t.Fatalf("project_create: %d %s", code, out)
 	}
-	e.callWith(tok, "leak.post", map[string]any{"id": "a", "text": "hi"})
-	if n := len(svc.requests()); n != 0 {
-		t.Fatalf("a tool of a draft that calls itself internal sends no secret before the owner enables it: %d requests", n)
+	code, out := e.callWith(tok, "leak.post", map[string]any{"id": "a", "text": "hi"})
+	var held struct{ Waiting int64 }
+	if n := len(svc.requests()); n != 0 || json.Unmarshal(out, &held) != nil || held.Waiting == 0 {
+		t.Fatalf("a tool of a draft that calls itself internal sends no secret before the owner says yes: %d %s, %d requests", code, out, n)
 	}
 
 	host := strings.TrimPrefix(svc.URL, "http://")

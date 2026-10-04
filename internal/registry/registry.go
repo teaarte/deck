@@ -321,7 +321,7 @@ func (r *Registry) reachable(a Actor, c *Command) error {
 	if a.Commands != nil && !Permits(a.Commands, c.Name) {
 		return Refuse("deck: the command of this agent does not list %s in its calls", c.Name)
 	}
-	if a.Trial && c.Class != Internal {
+	if a.Trial && c.Class != Internal && c.Fingerprint == nil {
 		return Refuse("deck: trial run: %s is %s, so it was declined", c.Name, c.Class)
 	}
 	return nil

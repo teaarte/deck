@@ -169,8 +169,8 @@ type commandTryIn struct {
 	Live    bool   `opt:"" desc:"The project is enabled: the trial writes into its real records and cards"`
 }
 
-// commandTry starts a trial run of a project command: every call that is not internal is declined, so a token
-// that may try runs any project command this way, though not a command closed to its kind of caller.
+// commandTry starts a trial run of a project command: a call that is not internal is declined or, for a tool,
+// waits for the owner; a token that may try runs any project command this way, though not one closed to it.
 func (pj *Service) commandTry(ctx context.Context, act registry.Actor, in commandTryIn) (any, error) {
 	probe := act
 	probe.Token, probe.Commands = 0, nil
@@ -228,7 +228,7 @@ func (pj *Service) draftsCommands() []*registry.Command {
 			"Sets whether a project suggests, so the owner says yes to its reversible changes, or acts on its own and reports; a new manifest revision.",
 			registry.OwnerOnly, pj.projectAutonomy),
 		registry.Def("command_try", "Try a command",
-			"Runs a command of a project once as a trial to check it before a button or a schedule runs it: calls that are not internal are declined, nothing leaves deck.",
+			"Runs a command of a project once as a trial to check it before a button or a schedule runs it: calls that are not internal are declined, a tool call waits for the owner's yes on that call.",
 			registry.OwnerSide, pj.commandTry),
 	}
 }

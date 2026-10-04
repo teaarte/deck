@@ -84,12 +84,14 @@ func TestScriptRunsOnlyFromAScriptDocument(t *testing.T) {
 }
 
 // TestTrialOfAToolIsRefusedAndNothingLeavesDeck: a tool is the call itself, so it has no trial run; a token
-// that may try runs any command of a project as a trial, whose agent has no external tool.
+// that may try runs any command of a project as a trial, whose agent calls a tool only on the owner's yes.
 func TestTrialOfAToolIsRefusedAndNothingLeavesDeck(t *testing.T) {
 	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { jsonReply(w, `{"ok": true}`) })
 	var posted string
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
-		posted, _ = c.Tool(ctx, "notes__post", map[string]any{"id": "a", "text": "hi"})
+		if c.N == 1 {
+			posted, _ = c.Tool(ctx, "notes__post", map[string]any{"id": "a", "text": "hi"})
+		}
 		return provider.Result{Structured: json.RawMessage(`{}`)}
 	})
 	e.must("deck.secret_set", map[string]any{"name": "svc", "value": "s3cret"}, nil)
@@ -112,10 +114,16 @@ func TestTrialOfAToolIsRefusedAndNothingLeavesDeck(t *testing.T) {
 	if code != 200 || json.Unmarshal(out, &try) != nil {
 		t.Fatalf("a token that may try runs a command of any project as a trial: %d %s", code, out)
 	}
-	e.waitState(try.Process, "done")
-	if !strings.Contains(posted, "unknown tool") || len(svc.requests()) != 0 {
-		t.Fatalf("an agent of a trial has no external tool to call: %q, %d calls", posted, len(svc.requests()))
+	e.waitState(try.Process, "waiting_answer")
+	var held struct{ Waiting int64 }
+	if json.Unmarshal([]byte(posted), &held) != nil || held.Waiting == 0 || len(svc.requests()) != 0 {
+		t.Fatalf("a tool call of a trial waits for the owner's yes on that call: %q, %d calls", posted, len(svc.requests()))
 	}
+	e.must("deck.ask_answer", map[string]any{"ask": held.Waiting, "answer": "allow"}, nil)
+	if seen := svc.requests(); len(seen) != 1 || seen[0].Header.Get("X-Key") != "s3cret" {
+		t.Fatalf("the owner's yes makes that one call: %+v", seen)
+	}
+	e.waitState(try.Process, "done")
 	e.must("deck.manifest_save", map[string]any{"project": "notes",
 		"manifest": strings.Replace(postManifest(svc.URL, ""), `"class": "internal",`, `"class": "internal", "callers": ["owner"],`, 1)}, nil)
 	if code, out := e.callWith(tok, "deck.command_try", map[string]any{"live": true, "command": "notes.work"}); code != 403 || !strings.Contains(string(out), "cannot be called by master") {

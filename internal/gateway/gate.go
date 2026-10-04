@@ -116,7 +116,8 @@ func Canonical(raw json.RawMessage) string {
 }
 
 // gate reports whether a call that is not internal runs now: reversible in a project on autonomy auto,
-// external when the project lists it as allowed or the tool itself allows it. A draft declines both.
+// external when the project lists it as allowed or the tool itself allows it. A draft declines both, and a
+// tool of a draft or a trial waits for the owner's yes on that call.
 func (g *Gateway) gate(ctx context.Context, act registry.Actor, c *registry.Command, project int64, input json.RawMessage) (bool, error) {
 	if project == 0 {
 		if c.Class == registry.External && c.Allowed != nil {
@@ -127,6 +128,9 @@ func (g *Gateway) gate(ctx context.Context, act registry.Actor, c *registry.Comm
 	p, err := g.st.Q.GetProject(ctx, project)
 	if err != nil {
 		return false, err
+	}
+	if c.Fingerprint != nil && (act.Trial || p.Status == store.ProjectDraft) {
+		return false, nil
 	}
 	if p.Status == store.ProjectDraft {
 		return false, registry.Refuse("deck: %s is a draft: %s is %s, so it was declined until the owner enables the project", p.Name, c.Name, c.Class)

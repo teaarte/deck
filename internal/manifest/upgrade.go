@@ -100,7 +100,11 @@ func Upgrade(raw []byte) (out []byte, changed bool, err error) {
 		return raw, false, nil
 	}
 	if version < 4 || version > FormatVersion {
-		return nil, false, fmt.Errorf("manifest: version must be %d, got %v", FormatVersion, m["version"])
+		got := fmt.Sprint(m["version"])
+		if t, ok := m["version"].(string); ok {
+			got = fmt.Sprintf("the text %q", t)
+		}
+		return nil, false, fmt.Errorf("manifest: version must be the number %d, got %s", FormatVersion, got)
 	}
 	for ; version < FormatVersion; version++ {
 		upgrades[version](m)

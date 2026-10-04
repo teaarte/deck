@@ -310,7 +310,7 @@ func TestAManifestOlderThanFormat4IsRefused(t *testing.T) {
 		t.Fatalf("a format 4 manifest is stored in the current format:\n%s", cur.Manifest)
 	}
 	v3 := strings.Replace(ideasManifest, `"version": 6,`, `"version": 3,`, 1)
-	e.refused("deck.project_create", map[string]any{"name": "old", "manifest": v3}, 422, "version must be 6")
+	e.refused("deck.project_create", map[string]any{"name": "old", "manifest": v3}, 422, "version must be the number 6")
 }
 
 // TestOnlyTheBuiltInProjectAnswersEventsOfDeck: a trigger on a message or a failure belongs to project master.
@@ -388,5 +388,17 @@ func TestAFormatFiveManifestKeepsItsParamsAndMenus(t *testing.T) {
 	data := e.screenData("web", "main", map[string]any{"params": `{"title": "alpha"}`})
 	if !strings.Contains(string(data["b0"]["value"]), `"values":{"title":"alpha"}`) {
 		t.Fatalf("the declared param fills the form: %s", data["b0"]["value"])
+	}
+}
+
+// TestAVersionThatIsNoNumberSaysSo: a version written as text or a fraction is refused with what it is.
+func TestAVersionThatIsNoNumberSaysSo(t *testing.T) {
+	e := newEnv(t, nil)
+	for i, c := range []struct{ version, want string }{{`"6"`, `the text "6"`}, {`6.0`, `6.0`}} {
+		m := strings.Replace(boardWebManifest, `"version": 6`, `"version": `+c.version, 1)
+		code, out := e.call("deck.project_create", map[string]any{"name": fmt.Sprintf("v%d", i), "manifest": m})
+		if code != 422 || !strings.Contains(string(out), c.want) || !strings.Contains(string(out), "the number 6") {
+			t.Errorf("%s: want 422 naming %s, got %d %s", c.version, c.want, code, out)
+		}
 	}
 }

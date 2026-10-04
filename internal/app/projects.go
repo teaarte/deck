@@ -126,6 +126,8 @@ type Saved struct {
 	Widens   []string `json:"widens,omitempty"`
 	// Screens name the blocks of the project's screens that fail on the data there is now.
 	Screens []string `json:"screens,omitempty"`
+	// Unused are the keys of its i18n that are no text of the manifest.
+	Unused []string `json:"unused_i18n,omitempty"`
 }
 
 // SaveManifest checks a manifest and saves it with its triggers and migrated records in one transaction; a
@@ -200,6 +202,7 @@ func (a *App) SaveManifest(ctx context.Context, act registry.Actor, p db.Project
 	}
 	a.prepareLater(p.ID)
 	saved.Screens = a.checkScreens(ctx, act, p, pm.m)
+	saved.Unused = pm.m.UnusedWords()
 	return saved, nil
 }
 

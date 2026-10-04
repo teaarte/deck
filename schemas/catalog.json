@@ -372,7 +372,7 @@
         "tone": {"$ref": "#/$defs/tone"},
         "filters": {"type": "array", "description": "Choices the owner narrows the block by; the client sends the picked ones back to deck.screen.", "items": {
           "type": "object", "required": ["field", "options"], "additionalProperties": false,
-          "properties": {"field": {"type": "string"}, "value": {"type": "string"}, "options": {"type": "array", "items": {"type": "string"}}}
+          "properties": {"field": {"type": "string"}, "label": {"type": "string", "description": "the field in the owner's language"}, "value": {"type": "string"}, "options": {"type": "array", "items": {"type": "string"}}}
         }},
         "rows": {"type": "array", "items": {
           "type": "object", "required": ["id", "cells"], "additionalProperties": false,

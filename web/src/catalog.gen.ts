@@ -177,6 +177,10 @@ export interface Data {
    */
   filters?: {
     field: string;
+    /**
+     * the field in the owner's language
+     */
+    label?: string;
     value?: string;
     options: string[];
   }[];

@@ -1,7 +1,10 @@
 package scenarios
 
 import (
+	"deck2/internal/manifest"
 	"encoding/json"
+	"os"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -60,4 +63,57 @@ func TestATabKeepsItsKeyInEveryLanguage(t *testing.T) {
       {"type": "tabs", "tabs": [{"title": "One", "blocks": [{"type": "board"}]}]},
       {"type": "tabs", "tabs": [{"title": "One", "blocks": [{"type": "board"}]}]},`, 1)
 	e.refused("deck.project_create", map[string]any{"name": "twice", "manifest": twice}, 422, `tab "One": duplicate`)
+}
+
+// TestEveryTextOfDeckScreensHasItsTranslation: each text of deck's screens is translated, and each translation
+// is of a text there is.
+func TestEveryTextOfDeckScreensHasItsTranslation(t *testing.T) {
+	raw, err := os.ReadFile("../../internal/app/screens.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var s struct {
+		I18n map[string]map[string]string `json:"i18n"`
+	}
+	_ = json.Unmarshal(raw, &s)
+	texts := manifest.Texts(raw)
+	for text := range texts {
+		if s.I18n["ru"][text] == "" {
+			t.Errorf("no ru for %q", text)
+		}
+	}
+	for k := range s.I18n["ru"] {
+		if !texts[k] {
+			t.Errorf("ru translates %q, which is no text", k)
+		}
+	}
+}
+
+// TestASavedManifestNamesTranslationsOfNoText: a key of i18n that is no text of the manifest is named when it is
+// saved, so a renamed text does not lose its translation unseen.
+func TestASavedManifestNamesTranslationsOfNoText(t *testing.T) {
+	e := newEnv(t, nil)
+	e.createProject("web", boardWebManifest)
+	var saved struct {
+		Unused []string `json:"unused_i18n"`
+	}
+	e.must("deck.manifest_save", map[string]any{"project": "web", "manifest": strings.Replace(boardWebManifest, `{"version": 5,`,
+		`{"version": 5, "i18n": {"ru": {"Notes": "Заметки", "Old title": "Старое"}},`, 1)}, &saved)
+	if !slices.Equal(saved.Unused, []string{"ru: Old title"}) {
+		t.Fatalf("the translation of no text is named: %v", saved.Unused)
+	}
+}
+
+// TestFormsLanesAndFiltersSpeakTheLanguageOfTheOwner: the title and description of the command of a form, its
+// fields, the lanes of the board and the fields of filters are translated too.
+func TestFormsLanesAndFiltersSpeakTheLanguageOfTheOwner(t *testing.T) {
+	e := newEnv(t, boardWebAgent())
+	e.createProject("web", strings.Replace(boardWebManifest, `{"version": 5,`, `{"version": 5, "i18n": {"ru": {"Score": "Оценить",
+      "Scores a title.": "Оценивает заголовок.", "title": "Заголовок", "Backlog": "Входящие", "source": "Источник"}},`, 1))
+	drawn, _ := json.Marshal(e.screenMessages("web", "main", map[string]any{"lang": "ru"}))
+	for _, want := range []string{`"title":"Оценить"`, `"description":"Оценивает заголовок."`, `"title":"Заголовок"`, `"title":"Входящие"`, `"label":"Источник"`} {
+		if !strings.Contains(string(drawn), want) {
+			t.Errorf("no %s in %s", want, drawn)
+		}
+	}
 }

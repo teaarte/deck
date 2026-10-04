@@ -59,6 +59,9 @@ func (r *renderer) form(b manifest.Block) (map[string]any, error) {
 			cmds = append(cmds, c)
 		}
 	}
+	for _, c := range cmds {
+		r.trCommand(c)
+	}
 	v["commands"] = cmds
 	if len(cmds) == 1 && len(b.Values) > 0 {
 		r.formValues(v, b.Values, cmds[0])
@@ -83,6 +86,32 @@ func (r *renderer) form(b manifest.Block) (map[string]any, error) {
 		state = "empty"
 	}
 	return map[string]any{"state": state, "value": v}, nil
+}
+
+// trCommand puts the texts of a command a form shows in the owner's language: its title, its description, and
+// the title and description of each field, the field named by a translation of its name where it has no title.
+func (r *renderer) trCommand(c map[string]any) {
+	for _, k := range []string{"title", "description"} {
+		if s, ok := c[k].(string); ok {
+			c[k] = r.tr(s)
+		}
+	}
+	in, _ := c["input"].(map[string]any)
+	props, _ := in["properties"].(map[string]any)
+	for name, p := range props {
+		s, ok := p.(map[string]any)
+		if !ok {
+			continue
+		}
+		if t, ok := s["title"].(string); ok {
+			s["title"] = r.tr(t)
+		} else if t := r.tr(name); t != name {
+			s["title"] = t
+		}
+		if d, ok := s["description"].(string); ok {
+			s["description"] = r.tr(d)
+		}
+	}
 }
 
 // formValues fill fields of a form from the manifest, resolved over the record of the page and the parameters

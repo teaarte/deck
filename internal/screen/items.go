@@ -139,6 +139,9 @@ func (r *renderer) filtered(src manifest.Source, fields []string, picked map[str
 			}
 		}
 		fl := map[string]any{"field": f}
+		if l := r.tr(f); l != f {
+			fl["label"] = l
+		}
 		if v := picked[f]; v != "" {
 			fl["value"], seen[v], chosen[f] = v, true, v
 		}

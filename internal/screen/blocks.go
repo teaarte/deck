@@ -353,6 +353,14 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 			return nil, err
 		}
 		r.cardActions(v)
+		if b, ok := v.(map[string]any); ok {
+			lanes, _ := b["lanes"].([]map[string]any)
+			for _, l := range lanes {
+				if t, ok := l["title"].(string); ok {
+					l["title"] = r.tr(t)
+				}
+			}
+		}
 		return map[string]any{"state": "ready", "value": v}, nil
 	case "form":
 		return r.form(b)

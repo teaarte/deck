@@ -215,3 +215,23 @@ func TestABlockThatFailsOnAScreenReachesTheMaster(t *testing.T) {
 		}
 	}
 }
+
+// TestABlockThatFailsIsInTheHealthOfItsModuleWithoutTheMaster: a module that keeps its errors from the master still
+// shows a failing block in its health.
+func TestABlockThatFailsIsInTheHealthOfItsModuleWithoutTheMaster(t *testing.T) {
+	e := newEnv(t, masterScript)
+	e.masterAwake()
+	broken := strings.Replace(boardWebManifest, `"columns": [{"label": "Title", "bind": "title"}`, `"columns": [{"label": "Title", "bind": "title"}, {"label": "Score", "bind": "score > 0 ? score : nil"}`, 1)
+	e.createProject("web", strings.Replace(broken, `"version": 6,`, `"version": 6, "master_errors": false,`, 1))
+	e.must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": "<p>x</p>"}, nil)
+	e.must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": jsonl(map[string]any{"title": "b"})}, nil)
+	e.screenMessages("web", "main", nil)
+	var hs []struct{ Subject, Status string }
+	e.must("deck.health_list", map[string]any{"project": "web"}, &hs)
+	if !slices.ContainsFunc(hs, func(h struct{ Subject, Status string }) bool { return h.Subject == "screen:main" && h.Status == "error" }) {
+		t.Fatalf("the health of the module names the screen: %+v", hs)
+	}
+	if n := len(e.runsOf("master", "on_error")); n != 0 {
+		t.Fatalf("the master does not get it: %d", n)
+	}
+}

@@ -76,7 +76,6 @@ func (m *Manifest) checkDomains(kind string, domains []string) []string {
 	return out
 }
 
-
 func (m *Manifest) compileCollections(fail func(string, ...any)) {
 	m.collections = map[string]*Collection{}
 	for i := range m.Collections {

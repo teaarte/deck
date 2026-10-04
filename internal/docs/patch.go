@@ -13,14 +13,26 @@ import (
 )
 
 // Patch applies a JSON Patch to a JSON text. A replace changes only the value at its path, so the text around
-// it stays as written; a patch with any other operation gives the whole document indented anew.
+// it stays as written; a patch of tests only keeps the text; any other operation indents the whole document anew.
 func Patch(text, patch string) (string, error) {
 	p, err := jsonpatch.DecodePatch([]byte(patch))
 	if err != nil {
 		return "", registry.Invalid("deck: patch: %v", err)
 	}
+	var raw []struct {
+		Value json.RawMessage `json:"value"`
+	}
+	if err := json.Unmarshal([]byte(patch), &raw); err != nil || len(raw) != len(p) {
+		return "", registry.Invalid("deck: patch: %v", err)
+	}
+	if onlyTests(p) {
+		if _, err := p.Apply([]byte(text)); err != nil {
+			return "", registry.Invalid("deck: patch: %v", err)
+		}
+		return text, nil
+	}
 	out := []byte(text)
-	for _, op := range p {
+	for i, op := range p {
 		path, err := op.Path()
 		if err != nil {
 			return "", registry.Invalid("deck: patch: %v", err)
@@ -33,17 +45,22 @@ func Patch(text, patch string) (string, error) {
 			}
 			return string(whole), nil
 		}
-		v, err := op.ValueInterface()
-		if err != nil {
+		var value bytes.Buffer
+		if err := json.Compact(&value, raw[i].Value); err != nil {
 			return "", registry.Invalid("deck: patch: %v", err)
 		}
-		value, err := json.Marshal(v)
-		if err != nil {
-			return "", registry.Invalid("deck: patch: %v", err)
-		}
-		out = append(out[:start:start], append(value, out[end:]...)...)
+		out = append(out[:start:start], append(value.Bytes(), out[end:]...)...)
 	}
 	return string(out), nil
+}
+
+func onlyTests(p jsonpatch.Patch) bool {
+	for _, op := range p {
+		if op.Kind() != "test" {
+			return false
+		}
+	}
+	return len(p) > 0
 }
 
 // valueSpan is where the value at a JSON pointer starts and ends in a JSON text.

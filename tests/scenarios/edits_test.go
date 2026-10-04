@@ -131,3 +131,27 @@ func TestRefusalsSayWhereAndWhatToDo(t *testing.T) {
 		t.Fatalf("the overlap quotes old text 1: %d %s", code, out)
 	}
 }
+
+// TestAPatchKeepsTheTypesOfItsValues: a number in a patch stays a number in the saved manifest, and a patch
+// that only tests changes nothing.
+func TestAPatchKeepsTheTypesOfItsValues(t *testing.T) {
+	e := newEnv(t, nil)
+	e.createProject("web", boardWebManifest)
+	var saved struct{ Revision int64 }
+	e.must("deck.manifest_save", map[string]any{"project": "web",
+		"patch": `[{"op": "replace", "path": "/version", "value": 6},
+			{"op": "replace", "path": "/commands/2", "value": {"name": "tell", "title": "Tell", "description": "Tells the owner.",
+				"class": "internal", "result": {"type": "object"}, "timeout_minutes": 20, "executor": {"type": "agent", "prompt": "Tell."}}}]`}, &saved)
+	var m struct{ Manifest string }
+	e.must("deck.manifest_get", map[string]any{"project": "web"}, &m)
+	if !strings.Contains(m.Manifest, `"version": 6`) || !strings.Contains(m.Manifest, `"timeout_minutes":20`) {
+		t.Fatalf("numbers of a patch stay numbers: %d\n%s", saved.Revision, m.Manifest)
+	}
+	e.must("deck.manifest_save", map[string]any{"project": "web",
+		"patch": `[{"op": "test", "path": "/version", "value": 6}]`}, &saved)
+	var again struct{ Manifest string }
+	e.must("deck.manifest_get", map[string]any{"project": "web"}, &again)
+	if again.Manifest != m.Manifest || saved.Revision != 2 {
+		t.Fatalf("a patch that only tests changes nothing: %d\n%s", saved.Revision, again.Manifest)
+	}
+}

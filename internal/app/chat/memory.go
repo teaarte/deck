@@ -44,7 +44,7 @@ func (ch *Service) masterMemory(ctx context.Context, mp db.Project, topic int64)
 	v := struct{ Own, Card string }{Own: own}
 	sign := fmt.Sprint(rev)
 	if cp, ok := ch.topicProject(ctx, topic); ok && cp.ID != mp.ID {
-		idx, crev, err := ch.memoryIndex(ctx, cp, "Memory index of project "+cp.Name+", whose card this topic is about (document_get with project "+cp.Name+")")
+		idx, crev, err := ch.memoryIndex(ctx, cp, "Memory index of project "+cp.Name+", which this topic is about (document_get with project "+cp.Name+")")
 		if err != nil {
 			return "", "", err
 		}
@@ -54,20 +54,21 @@ func (ch *Service) masterMemory(ctx context.Context, mp db.Project, topic int64)
 	return master.Text("owner_memory", v), sign, nil
 }
 
-// topicProject is the project of the card a topic is about.
+// topicProject is the project a topic is about, as the list of topics names it: that of its card, else of the
+// screen of its first message.
 func (ch *Service) topicProject(ctx context.Context, topic int64) (db.Project, bool) {
 	if topic == 0 {
 		return db.Project{}, false
 	}
 	t, err := ch.St.Q.GetTopic(ctx, topic)
-	if err != nil || !t.CardID.Valid {
-		return db.Project{}, false
-	}
-	c, err := ch.St.Q.GetCard(ctx, t.CardID.Int64)
 	if err != nil {
 		return db.Project{}, false
 	}
-	p, err := ch.St.Q.GetProject(ctx, c.ProjectID)
+	ts, err := ch.topics(ctx, t.WorkspaceID, false, topic, 1)
+	if err != nil || len(ts) == 0 || ts[0].Project == "" {
+		return db.Project{}, false
+	}
+	p, err := ch.St.Q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: t.WorkspaceID, Name: ts[0].Project})
 	return p, err == nil
 }
 

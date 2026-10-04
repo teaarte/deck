@@ -59,7 +59,10 @@
 :root[data-deck-theme='pixel'] .mantine-Paper-root,
 :root[data-deck-theme='pixel'] .mantine-Modal-content,
 :root[data-deck-theme='pixel'] .mantine-Menu-dropdown,
-:root[data-deck-theme='pixel'] .mantine-Popover-dropdown {
+:root[data-deck-theme='pixel'] .mantine-Popover-dropdown,
+:root[data-deck-theme='pixel'] [data-composer],
+:root[data-deck-theme='pixel'] [data-turn],
+:root[data-deck-theme='pixel'] [data-message] > div {
   border-radius: 0 !important;
 }
 

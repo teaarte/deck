@@ -2,10 +2,11 @@ import { useEffect, useRef, useState } from 'react';
 import type { ComponentContext } from '@a2ui/web_core/v0_9';
 import { ActionIcon, Anchor, Badge, Button, CloseButton, CopyButton, Group, Loader, Menu, Paper, ScrollArea, Select, Stack, Text, Textarea, Tooltip } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconArrowUp, IconCheck, IconCopy, IconMessagePlus, IconMicrophone, IconPaperclip, IconPlayerStopFilled, IconPlus } from '@tabler/icons-react';
+import { IconArrowUp, IconCheck, IconCopy, IconMapPin, IconMessagePlus, IconMicrophone, IconPaperclip, IconPlayerStopFilled, IconPlus } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { call, upload } from './api';
 import { record, type Recording } from './voice';
+import { useRoute } from './router';
 import { Actions, ActionsMenu, QuestionPicker } from './actions';
 import { Markdown } from './document';
 import type { ChatValue } from './catalog.gen';
@@ -49,6 +50,8 @@ function newKey(): string {
 }
 
 const failed = catalogSchema.final_states.filter((s) => s !== 'done');
+const ALL = '*';
+const NONE = '-';
 
 // Chat is the chat with the master: topics, the feed of one, its questions, the turn going on and the input.
 export function Chat({ value, context }: { value: ChatValue; context: ComponentContext }) {
@@ -64,6 +67,10 @@ export function Chat({ value, context }: { value: ChatValue; context: ComponentC
   const [files, setFiles] = useState<File[]>([]);
   const [dropping, setDropping] = useState(false);
   const [scope, setScope] = useState<string | null>(null);
+  // detached sends the message without the screen the owner is on, so a new topic belongs to no module.
+  const route = useRoute();
+  const [detached, setDetached] = useState(false);
+  useEffect(() => setDetached(false), [route.project, route.screen, route.record]);
   const picker = useRef<HTMLInputElement>(null);
   // sent are the ids of the files of the message being sent, so a retry does not upload them again.
   const sent = useRef<string[] | undefined>(undefined);
@@ -139,7 +146,7 @@ export function Chat({ value, context }: { value: ChatValue; context: ComponentC
       if (files.length && !sent.current) sent.current = (await upload('master', files)).map((f) => String(f.id));
       const out = await call<{ topic: number }>(value.send.command!, {
         ...value.send.params, ...(!(value.send.params as { topic?: number } | undefined)?.topic && card ? { card } : {}),
-        text: message, screen: screenOf(current), retry_key: key.current, ...(sent.current ? { files: sent.current } : {}),
+        text: message, ...(detached ? {} : { screen: screenOf(current) }), retry_key: key.current, ...(sent.current ? { files: sent.current } : {}),
       });
       setText('');
       setFiles([]);
@@ -155,7 +162,7 @@ export function Chat({ value, context }: { value: ChatValue; context: ComponentC
   };
 
   const projects = [...new Set([...value.topics, ...value.archived].map((x) => (x as { project?: string }).project).filter(Boolean) as string[])].sort();
-  const inProject = (x: { project?: string }) => !scope || x.project === scope;
+  const inProject = (x: { project?: string }) => !scope || (scope === NONE ? !x.project : x.project === scope);
   const options = [
     ...value.topics.filter(inProject).map((x) => ({ value: String(x.id), label: x.title })),
     ...value.archived.filter(inProject).map((x) => ({ value: String(x.id), label: t('chat.archived', { title: x.title }) })),
@@ -167,8 +174,9 @@ export function Chat({ value, context }: { value: ChatValue; context: ComponentC
         <Select size="xs" radius="xl" style={{ flex: 1 }} placeholder={t('chat.new_topic')} data={options} value={topic ? String(topic.id) : null}
           onChange={(v) => pick(v ?? 'new')} data-topics searchable nothingFoundMessage={t('chat.no_topics')} />
         {projects.length > 0 && (
-          <Select size="xs" radius="xl" w={130} clearable placeholder={t('chat.all_modules')} data={projects} value={scope}
-            onChange={setScope} data-topic-project aria-label={t('chat.module')} />
+          <Select size="xs" radius="xl" w={140} allowDeselect={false} data-topic-project aria-label={t('chat.module')}
+            data={[{ value: ALL, label: t('chat.all_modules') }, { value: NONE, label: t('chat.no_module') }, ...projects.map((p) => ({ value: p, label: p }))]}
+            value={scope ?? ALL} onChange={(v) => setScope(v === ALL ? null : v)} />
         )}
         <Tooltip label={t('chat.new_topic')}>
           <ActionIcon variant="default" radius="xl" size={30} onClick={() => pick('new')} aria-label={t('chat.new_topic')} data-new-topic><IconPlus size={16} /></ActionIcon>
@@ -245,6 +253,20 @@ export function Chat({ value, context }: { value: ChatValue; context: ComponentC
       <div className={s.composer} data-composer data-drop={dropping || undefined}
         onDragOver={(e) => { e.preventDefault(); setDropping(true); }} onDragLeave={() => setDropping(false)}
         onDrop={(e) => { e.preventDefault(); setDropping(false); attach(e.dataTransfer.files); }}>
+        {(route.project || route.screen) && (
+          <Group gap={6} px={6} pt={2}>
+            {detached ? (
+              <Badge size="sm" radius="sm" variant="outline" color="gray" tt="none" style={{ cursor: "pointer" }} onClick={() => setDetached(false)} data-context-off>
+                {t('chat.no_context')}
+              </Badge>
+            ) : (
+              <Badge size="sm" radius="sm" variant="light" tt="none" leftSection={<IconMapPin size={11} />} data-context
+                rightSection={<CloseButton size="xs" onClick={() => setDetached(true)} aria-label={t('chat.drop_context')} />}>
+                {[route.project, route.screen].filter(Boolean).join(' · ')}
+              </Badge>
+            )}
+          </Group>
+        )}
         {files.length > 0 && (
           <Group gap={6} px={6} pt={4} data-attached>
             {files.map((f, i) => (

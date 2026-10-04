@@ -53,6 +53,11 @@ func TestRealBrowserMasterChat(t *testing.T) {
 	say("we are out of milk")
 	b.until("the master's reply in the feed", `[...document.querySelectorAll('[data-message="master"]')].some((m) => m.querySelector('strong')?.innerText === 'groceries')`)
 	b.shot("chat-reply")
+	b.until("the screen the message goes with", `document.querySelector('[data-context]')?.innerText.includes('groceries')`)
+	b.eval(`(document.querySelector('[data-context] button').click(), '')`)
+	b.until("a message without the screen", `document.querySelector('[data-context-off]')`)
+	b.eval(`(document.querySelector('[data-context-off]').click(), '')`)
+	b.until("the screen back", `document.querySelector('[data-context]')`)
 	ms := e.chatMessages(1)
 	if len(ms) != 2 || !strings.Contains(string(ms[0].Screen), `"project":"groceries"`) || !strings.Contains(string(ms[0].Screen), `"screen":"board"`) {
 		t.Fatalf("the message carries the screen the owner is on: %+v", ms)

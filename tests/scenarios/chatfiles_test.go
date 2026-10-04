@@ -78,19 +78,27 @@ func TestARetriedMessageDoesNotAttachItsFilesAgain(t *testing.T) {
 	}
 }
 
-// TestTheFilesOfADeletedTopicGoWithTheCleanup: a deleted topic keeps its attachments no longer than the next
-// daily cleanup.
-func TestTheFilesOfADeletedTopicGoWithTheCleanup(t *testing.T) {
+// TestTheFilesOfADeletedTopicGoWithTheTopic: a deleted topic keeps its attachments while it can be brought
+// back, and they go when the topic itself goes a month later.
+func TestTheFilesOfADeletedTopicGoWithTheTopic(t *testing.T) {
 	e := newClockEnv(t, func(ctx context.Context, c *Call) provider.Result { return provider.Result{Text: "Read it."} })
 	e.sweep()
 	id := e.upload("master", "plan.txt", "text/plain", "the plan")
 	topic := e.say(0, "look", map[string]any{"files": []string{fmt.Sprint(id)}})
 	e.masterSaid(topic, 1)
 	e.must("deck.chat_topic_delete", map[string]any{"topic": topic}, nil)
+	path := filepath.Join(deckhome.Layout(e.App.Cfg.Home).Files(), fmt.Sprint(id))
 	e.Clock.Add(25 * time.Hour)
 	e.sweep()
-	if _, err := os.Stat(filepath.Join(deckhome.Layout(e.App.Cfg.Home).Files(), fmt.Sprint(id))); !os.IsNotExist(err) {
-		t.Fatalf("the attachment of a deleted topic is removed: %v", err)
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("the attachment of a deleted topic stays while the topic does: %v", err)
+	}
+	e.Clock.Add(30 * 24 * time.Hour)
+	e.sweep()
+	e.Clock.Add(25 * time.Hour)
+	e.sweep()
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("the attachment goes with the topic: %v", err)
 	}
 }
 

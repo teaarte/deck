@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import s from '../../shell.module.css';
+import s from './table.module.css';
 
 // Cell holds a value in at most three lines; a click on a cut one shows it whole.
 export function Cell({ children }: { children: ReactNode }) {

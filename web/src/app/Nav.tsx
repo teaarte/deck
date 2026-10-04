@@ -5,7 +5,7 @@ import { IconChevronRight } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { MenuEntry } from '../hooks/useMenu';
 import { NamedIcon } from '../ui/NamedIcon';
-import s from '../shell.module.css';
+import s from './nav.module.css';
 import { NavStatus } from './NavStatus';
 import { href } from './router';
 

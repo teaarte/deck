@@ -3,7 +3,7 @@ import { IconArrowsMaximize, IconArrowsMinimize, IconSparkles, IconX } from '@ta
 import { useTranslation } from 'react-i18next';
 import { useResizable } from '../hooks/useResizable';
 import { ScreenView } from '../screen/ScreenView';
-import s from '../shell.module.css';
+import s from './shell.module.css';
 import { Logo } from './Logo';
 import type { useChatLayout } from './useChatLayout';
 import type { Route } from './router';

@@ -1,0 +1,29 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: var(--deck-canvas);
+  pointer-events: none;
+}
+
+.pattern {
+  position: absolute;
+  inset: 0;
+  background: var(--deck-pattern-color);
+  mask-size: 720px;
+  -webkit-mask-size: 720px;
+  mask-repeat: repeat;
+  -webkit-mask-repeat: repeat;
+}
+
+.patternAlt {
+  background: var(--deck-pattern-alt);
+  mask-position: 36px 36px;
+  -webkit-mask-position: 36px 36px;
+}
+
+@media (prefers-contrast: more) {
+  .pattern {
+    display: none;
+  }
+}

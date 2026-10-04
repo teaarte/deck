@@ -8,7 +8,7 @@ import { useLanguageSetting } from '../hooks/useLanguageSetting';
 import { useMenu } from '../hooks/useMenu';
 import { usePhone } from '../hooks/usePhone';
 import { ScreenView } from '../screen/ScreenView';
-import s from '../shell.module.css';
+import s from './shell.module.css';
 import { Backdrop } from './Backdrop';
 import { Bell } from './Bell';
 import { ChatPanel } from './ChatPanel';

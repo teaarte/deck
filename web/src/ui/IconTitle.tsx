@@ -1,5 +1,5 @@
 import { Title, type TitleOrder } from '@mantine/core';
-import s from '../shell.module.css';
+import s from './IconTitle.module.css';
 import { NamedIcon } from './NamedIcon';
 
 // IconTitle is the title of a screen or a block with its icon ahead; block marks the icon of a block.

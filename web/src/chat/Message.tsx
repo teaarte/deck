@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import catalogSchema from '../lib/catalogSchema';
 import type { ChatValue } from '../lib/catalog.gen';
 import { Markdown } from '../ui/Markdown';
-import s from '../shell.module.css';
+import s from './chat.module.css';
 
 type ChatMessage = ChatValue['messages'][number];
 

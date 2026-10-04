@@ -4,7 +4,7 @@ import { Alert, Badge, Card, Group, Loader, Stack, Text } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
 import { IconAlertTriangle, IconInbox } from '@tabler/icons-react';
 import type { Data } from '../lib/catalog.gen';
-import s from '../shell.module.css';
+import s from './blocks.module.css';
 import { IconTitle } from '../ui/IconTitle';
 import { useLive } from '../lib/events';
 import { Filters } from './Filters';

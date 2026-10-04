@@ -6,7 +6,7 @@ import { call } from '../lib/api';
 import { events } from '../lib/events';
 import { formatted } from '../lib/format';
 import { go } from './router';
-import s from '../shell.module.css';
+import s from './bell.module.css';
 import { notifyError, notifyDone } from '../lib/notify';
 
 interface Note {

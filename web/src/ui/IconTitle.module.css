@@ -1,0 +1,6 @@
+.titleIcon {
+  display: inline-flex;
+  vertical-align: -0.12em;
+  margin-right: 0.4em;
+  color: var(--mantine-primary-color-filled);
+}

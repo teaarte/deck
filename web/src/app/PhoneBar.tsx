@@ -3,7 +3,7 @@ import { ActionIcon, Group } from '@mantine/core';
 import { IconMenu2 } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { MenuEntry } from '../hooks/useMenu';
-import s from '../shell.module.css';
+import s from './shell.module.css';
 import { Bell } from './Bell';
 import { Logo } from './Logo';
 import { BackButton, Crumb } from './Toolbar';

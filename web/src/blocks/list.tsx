@@ -1,5 +1,5 @@
 import { Group, Stack, Text } from '@mantine/core';
-import s from '../shell.module.css';
+import s from './list.module.css';
 import { show, toneColor } from '../lib/format';
 import { Actions } from '../ui/Actions';
 import { Details } from '../ui/Details';

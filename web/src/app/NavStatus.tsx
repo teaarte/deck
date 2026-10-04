@@ -1,7 +1,7 @@
 import { Badge, Group, Tooltip } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
 import type { MenuEntry } from '../hooks/useMenu';
-import s from '../shell.module.css';
+import s from './nav.module.css';
 
 // NavStatus shows what a project is busy with: running processes, questions to the owner, failing health.
 export function NavStatus({ m }: { m: MenuEntry }) {

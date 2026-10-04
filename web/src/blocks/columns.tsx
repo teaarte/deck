@@ -1,6 +1,6 @@
 import { createComponentImplementation } from '@a2ui/react/v0_9';
 import { SimpleGrid, Stack, Title } from '@mantine/core';
-import s from '../shell.module.css';
+import s from './blocks.module.css';
 import type { Span } from './Block';
 import { api, kids } from './blockImpl';
 

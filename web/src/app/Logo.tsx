@@ -1,5 +1,5 @@
 import { IconSparkles } from '@tabler/icons-react';
-import s from '../shell.module.css';
+import s from './shell.module.css';
 
 export function Logo() {
   return (

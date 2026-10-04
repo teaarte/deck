@@ -1,6 +1,6 @@
 import { createComponentImplementation } from '@a2ui/react/v0_9';
 import { Group, Stack } from '@mantine/core';
-import s from '../shell.module.css';
+import s from './blocks.module.css';
 import { IconTitle } from '../ui/IconTitle';
 import { api, kids } from './blockImpl';
 

@@ -1,0 +1,238 @@
+.shell {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: var(--deck-gap);
+  height: 100dvh;
+  padding: var(--deck-gap);
+  padding-left: max(var(--deck-gap), env(safe-area-inset-left));
+  padding-right: max(var(--deck-gap), env(safe-area-inset-right));
+}
+
+.island {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--deck-island-bg);
+  border-radius: var(--deck-island-radius);
+  box-shadow: var(--deck-ring), var(--deck-shadow);
+  overflow: hidden;
+}
+
+.nav {
+  width: 264px;
+}
+
+.navTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 14px 12px 8px 18px;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 800;
+  font-size: 18px;
+  letter-spacing: -0.02em;
+}
+
+.logoMark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  color: var(--mantine-primary-color-contrast);
+  background: linear-gradient(135deg, var(--mantine-primary-color-5), var(--mantine-primary-color-7));
+  box-shadow: 0 4px 12px -2px color-mix(in srgb, var(--mantine-primary-color-filled) 55%, transparent);
+}
+
+.main {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  margin: calc(var(--deck-gap) * -1) 0;
+  padding: var(--deck-gap) 6px calc(var(--deck-gap) * 3);
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 36px;
+  margin-bottom: 8px;
+}
+
+.crumb {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: var(--mantine-color-dimmed);
+  font-size: var(--mantine-font-size-sm);
+  font-weight: 500;
+}
+
+.aside {
+  min-width: 300px;
+}
+
+.asideHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 10px 4px 16px;
+  font-weight: 700;
+}
+
+.asideBody {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 4px 12px 12px;
+}
+
+.grip {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 10px;
+  z-index: 2;
+  cursor: col-resize;
+  touch-action: none;
+
+  &::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 3px;
+    width: 4px;
+    height: 44px;
+    margin-top: -22px;
+    border-radius: 4px;
+    background: var(--mantine-color-default-border);
+    opacity: 0;
+    transition: opacity 150ms ease;
+  }
+
+  &:hover::after,
+  &[data-dragging]::after {
+    opacity: 1;
+  }
+}
+
+.shell[data-full] .main {
+  display: none;
+}
+
+.shell[data-full] .aside {
+  width: auto !important;
+}
+
+.shell[data-full] .grip {
+  display: none;
+}
+
+.shell[data-dragging] {
+  cursor: col-resize;
+  user-select: none;
+}
+
+/* The chat fills the height of its panel; the screen around it gives up its title and its block frame. */
+.fill {
+  & :global([data-screen-head]) {
+    display: none;
+  }
+
+  & :global([data-block]) {
+    padding: 0;
+    background: transparent;
+    box-shadow: none;
+    border: 0;
+    border-radius: 0;
+    animation: none;
+  }
+
+  & *:has(:global([data-chat])) {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    height: 100%;
+  }
+
+  & :global([data-chat]) {
+    flex: 1;
+    height: auto !important;
+    min-height: 0 !important;
+  }
+}
+
+.fill:has(:global([data-chat])) {
+  display: flex;
+  flex-direction: column;
+}
+
+.phoneBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 6px 6px 10px;
+  margin-bottom: 12px;
+  border-radius: 999px;
+  background: var(--deck-island-bg);
+  box-shadow: var(--deck-ring), var(--deck-shadow);
+  position: sticky;
+  top: env(safe-area-inset-top);
+  z-index: 5;
+}
+
+.safe {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+@media (max-width: 48em) {
+  .shell {
+    display: block;
+    height: auto;
+    min-height: 100dvh;
+    padding-top: max(var(--deck-gap), env(safe-area-inset-top));
+  }
+
+  .main {
+    overflow: visible;
+    margin: 0;
+    padding: 0 0 calc(var(--deck-gap) * 3);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .island {
+    animation: fade 240ms ease both;
+  }
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-contrast: more) {
+  .island {
+    box-shadow: 0 0 0 1px var(--mantine-color-text);
+  }
+}

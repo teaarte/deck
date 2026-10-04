@@ -3,6 +3,7 @@ import { MantineProvider } from '@mantine/core';
 import { Notifications } from '@mantine/notifications';
 import { token } from '../lib/api';
 import { theme, useLook } from '../theme/look';
+import '../theme/base.css';
 import { resolver } from '../theme/palette';
 import { Shell } from './Shell';
 import { TokenPrompt } from './TokenPrompt';

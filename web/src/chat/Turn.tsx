@@ -2,7 +2,7 @@ import { Group, Loader, Text } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
 import type { ChatValue } from '../lib/catalog.gen';
 import { Actions } from '../ui/Actions';
-import s from '../shell.module.css';
+import s from './chat.module.css';
 
 // Turn is the reply going on: who replies or what it waits for, its last tools, and its buttons.
 export function Turn({ turn }: { turn: NonNullable<ChatValue['turn']> }) {

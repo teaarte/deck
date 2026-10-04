@@ -1,7 +1,7 @@
 import { Group, Pagination, Select, Table, Text, TextInput, UnstyledButton } from '@mantine/core';
 import { IconArrowDown, IconArrowUp, IconSearch, IconSelector } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import s from '../../shell.module.css';
+import s from './table.module.css';
 import { show, type Shown } from '../../lib/format';
 import { Actions } from '../../ui/Actions';
 import { rowOpen } from '../../ui/rowOpen';

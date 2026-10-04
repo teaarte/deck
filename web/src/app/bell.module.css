@@ -1,0 +1,14 @@
+.note {
+  padding: 10px 16px;
+  border-top: 1px solid var(--mantine-color-default-border);
+
+  &[data-fresh] {
+    background: color-mix(in srgb, var(--mantine-primary-color-filled) 7%, transparent);
+  }
+}
+
+.noteBody {
+  display: block;
+  width: 100%;
+  text-align: left;
+}

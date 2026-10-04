@@ -1,0 +1,66 @@
+.table {
+  font-variant-numeric: tabular-nums;
+
+  & th {
+    font-size: var(--mantine-font-size-xs);
+    font-weight: 650;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--mantine-color-dimmed);
+    white-space: nowrap;
+    vertical-align: bottom;
+  }
+
+  & td {
+    vertical-align: top;
+    font-size: var(--mantine-font-size-sm);
+  }
+
+  & tbody tr {
+    transition: background-color 150ms ease;
+  }
+}
+
+.sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+}
+
+.sortHint {
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+
+.sort:hover .sortHint,
+.sort:focus-visible .sortHint {
+  opacity: 1;
+}
+
+.clamp {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  max-width: 48ch;
+  min-width: 6ch;
+
+  &[data-whole] {
+    display: block;
+    -webkit-line-clamp: unset;
+  }
+}
+
+.rowActions {
+  width: 1%;
+  white-space: nowrap;
+
+  & :global([data-actions]) {
+    flex-wrap: nowrap;
+    justify-content: flex-end;
+  }
+}

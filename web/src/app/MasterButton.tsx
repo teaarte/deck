@@ -3,7 +3,8 @@ import { Button, Tooltip } from '@mantine/core';
 import { IconSparkles } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { MenuEntry } from '../hooks/useMenu';
-import s from '../shell.module.css';
+import n from './nav.module.css';
+import s from './master.module.css';
 
 const GLYPHS = ['✦', '✧', '✶', '✷', '✸', '✹', '✺', '✹', '✸', '✷', '✶', '✧'];
 
@@ -28,7 +29,7 @@ export function MasterButton({ m, open, onClick }: { m?: MenuEntry; open: boolea
     <Tooltip label={state ?? t('chat.master')} disabled={!state}>
       <Button size="xs" radius="xl" variant="filled" className={s.master} data-busy={busy || undefined} data-open={open || undefined}
         leftSection={<Glyph busy={busy} />} onClick={onClick} aria-label={state ? `${t('chat.master')}: ${state}` : undefined} data-chat-toggle
-        rightSection={m?.asks ? <span className={s.masterAsks} data-master-asks>{m.asks}</span> : m?.errors ? <span className={s.dot} /> : undefined}>
+        rightSection={m?.asks ? <span className={s.masterAsks} data-master-asks>{m.asks}</span> : m?.errors ? <span className={n.dot} /> : undefined}>
         {t('chat.master')}
       </Button>
     </Tooltip>

@@ -57,6 +57,8 @@ type providerDef struct {
 	NoCloud   bool   `json:"no_cloud,omitempty"`
 	// Agent is the ACP agent that runs the model inside the sandbox of deck.
 	Agent string `json:"agent,omitempty"`
+	// CheckMinutes bound its self-check; deck's own ceiling when zero.
+	CheckMinutes int64 `json:"check_minutes,omitempty"`
 }
 
 // Named is the provider of a workspace by name: a built-in one of deck or one the owner added.
@@ -96,7 +98,8 @@ func (s *Service) Provider(ctx context.Context, workspace int64, name string) (p
 		return nil, registry.Invalid("deck: provider %q has no ACP agent; add it again with agent %s", name, strings.Join(acp.Names(), " or "))
 	}
 	return acp.New(acp.Config{Name: name, Agent: d.Agent, Binary: s.ACPBinaries[d.Agent], URL: d.URL, Model: d.Model,
-		Key: key, NoCloud: d.NoCloud, Home: s.Home, Sandbox: s.Sandbox, CallLimit: s.ACPCallLimit, Now: s.Now})
+		Key: key, NoCloud: d.NoCloud, Home: s.Home, Sandbox: s.Sandbox, CallLimit: s.ACPCallLimit, Now: s.Now,
+		CheckCeiling: time.Duration(d.CheckMinutes) * time.Minute})
 }
 
 // named is a built-in provider, or one the owner added to any workspace; nil when there is none.
@@ -243,6 +246,8 @@ func checkDef(name string, d providerDef, builtin []string) error {
 		return registry.Invalid("deck: provider needs a model")
 	case d.KeySecret != "" && !access.ValidSecret(d.KeySecret):
 		return registry.Invalid("deck: bad secret name %q", d.KeySecret)
+	case d.CheckMinutes < 0 || d.CheckMinutes > 60:
+		return registry.Invalid("deck: check_minutes is 1 to 60, or 0 for deck's own ceiling")
 	case acp.Agents[d.Agent].Start == nil:
 		return registry.Invalid("deck: no ACP agent %q; deck knows %s", d.Agent, strings.Join(acp.Names(), ", "))
 	}

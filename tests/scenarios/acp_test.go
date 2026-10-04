@@ -603,3 +603,22 @@ func TestACPProviderIsNotUsedBeforeItsFirstSelfCheck(t *testing.T) {
 		t.Fatalf("the first agent run is the self-check, the command waits for it: %+v", got)
 	}
 }
+
+// TestAProviderTakesItsOwnSelfCheckCeiling: a slow model gets more time for its self-check than deck's default.
+func TestAProviderTakesItsOwnSelfCheckCeiling(t *testing.T) {
+	f := newACP(t)
+	f.streamText(1, acpStream(acpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`, acpModel, `{"hang": true}`))
+	llm := newLLM(t, func(int, chatRequest) chatReply { return textReply("ok") })
+	e := newEnv(t, nil, func(c *app.Config) {
+		c.ACPBinaries = map[string]string{"dsh": filepath.Join(f.dir, "dsh")}
+		c.Sandbox = fakeDirSandbox{sandbox.New(), f.dir, nil}
+		c.ACPCallLimit = 2 * time.Second
+		c.SelfCheckCeiling = time.Second
+	})
+	e.must("deck.provider_add", map[string]any{"name": "acp", "url": llm.URL, "model": "m", "agent": "dsh", "check_minutes": 1}, nil)
+	time.Sleep(2500 * time.Millisecond)
+	h, err := e.App.Store.Q.GetHealth(t.Context(), "provider:acp")
+	if err != nil || h.Status != "checking" {
+		t.Fatalf("the self-check of a provider with a minute still runs past deck's second: %+v %v", h, err)
+	}
+}

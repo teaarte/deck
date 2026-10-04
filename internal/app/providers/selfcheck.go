@@ -97,7 +97,11 @@ func (s *Service) startCheck(name string, force bool) bool {
 	s.BG.Add(1)
 	go func() {
 		defer s.BG.Done()
-		cctx, cancel := context.WithTimeout(ctx, s.SelfCheckCeiling)
+		ceiling := s.SelfCheckCeiling
+		if c, ok := sc.(interface{ CheckCeiling() time.Duration }); ok && c.CheckCeiling() > 0 {
+			ceiling = c.CheckCeiling()
+		}
+		cctx, cancel := context.WithTimeout(ctx, ceiling)
 		res := sc.SelfCheck(cctx)
 		cancel()
 		if res.Version == "" {
@@ -112,7 +116,7 @@ func (s *Service) startCheck(name string, force bool) bool {
 		case res.NeedsLogin:
 			status, text = "needs_login", "the self-check found no valid login; "+errText(res.Err)
 		case res.Err != nil && res.Slow:
-			status, text, verdict = "error", fmt.Sprintf("the model did not finish the self-check of %s within %s: %s", res.Version, s.SelfCheckCeiling, res.Err), "model"
+			status, text, verdict = "error", fmt.Sprintf("the model did not finish the self-check of %s within %s: %s", res.Version, ceiling, res.Err), "model"
 		case res.Err != nil && res.ModelFailed:
 			status, text, verdict = "error", fmt.Sprintf("the model does not manage the self-check of %s: %s; pick a stronger model", res.Version, res.Err), "model"
 		case res.Err != nil:

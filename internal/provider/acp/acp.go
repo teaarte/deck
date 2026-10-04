@@ -40,6 +40,8 @@ type Config struct {
 	CallLimit time.Duration
 	// Now is the deck clock, for the reset time of a usage limit.
 	Now func() time.Time
+	// CheckCeiling bounds a self-check of a slow model; deck's own when zero.
+	CheckCeiling time.Duration
 }
 
 type Adapter struct {
@@ -50,6 +52,9 @@ type Adapter struct {
 	// Linger is how long the agent may take to exit after its turn before its process group is killed.
 	Linger time.Duration
 }
+
+// CheckCeiling is how long a self-check of this provider may take; zero is deck's own.
+func (a *Adapter) CheckCeiling() time.Duration { return a.cfg.CheckCeiling }
 
 func New(cfg Config) (*Adapter, error) {
 	g, ok := Agents[cfg.Agent]

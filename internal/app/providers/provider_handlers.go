@@ -133,10 +133,12 @@ type providerAddIn struct {
 	KeySecret string `json:"key_secret" opt:"" desc:"Name of the secret with the API key"`
 	NoCloud   bool   `json:"no_cloud" opt:"" desc:"The model runs on the owner's own hardware"`
 	Agent     string `desc:"The ACP agent that runs the model inside the sandbox of deck with a shell and files"`
+	// CheckMinutes give a slow model more time for its self-check.
+	CheckMinutes int64 `json:"check_minutes" opt:"" desc:"Minutes the self-check of the model may take, for a slow one; deck's own ceiling when left out"`
 }
 
 func (s *Service) providerAdd(ctx context.Context, act registry.Actor, in providerAddIn) (any, error) {
-	d := providerDef{URL: in.URL, Model: in.Model, KeySecret: in.KeySecret, NoCloud: in.NoCloud, Agent: in.Agent}
+	d := providerDef{URL: in.URL, Model: in.Model, KeySecret: in.KeySecret, NoCloud: in.NoCloud, Agent: in.Agent, CheckMinutes: in.CheckMinutes}
 	var builtin []string
 	for _, pv := range s.Builtin {
 		builtin = append(builtin, pv.Name())

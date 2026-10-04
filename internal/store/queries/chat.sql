@@ -122,8 +122,10 @@ LIMIT sqlc.arg(lim);
 
 
 -- name: PurgeTopicSummaries :exec
-DELETE FROM document WHERE project_id IN (SELECT id FROM project WHERE builtin = 1) AND name GLOB 'topics/*/*'
-    AND CAST(substr(name, 8, instr(substr(name, 8), '/') - 1) AS INTEGER) IN (SELECT t.id FROM chat_topic t WHERE t.deleted_at < sqlc.arg(before));
+DELETE FROM document WHERE id IN (SELECT d.id FROM document d
+    JOIN project p ON p.id = d.project_id AND p.builtin = 1
+    JOIN chat_topic t ON t.workspace_id = p.workspace_id AND t.deleted_at < sqlc.arg(before)
+    WHERE d.name GLOB 'topics/' || t.id || '/*');
 
 
 -- name: PurgeDeletedTopics :exec

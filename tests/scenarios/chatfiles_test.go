@@ -104,6 +104,7 @@ func TestADeletedTopicIsGoneAfterAMonth(t *testing.T) {
 	kept := e.say(0, "keep me")
 	e.masterSaid(kept, 1)
 	e.must("deck.document_save", map[string]any{"project": "master", "name": fmt.Sprintf("topics/%d/summary.md", gone), "kind": "artifact", "text": "s"}, nil)
+	e.must("deck.document_save", map[string]any{"project": "master", "name": fmt.Sprintf("topics/%dabc/keep.md", gone), "kind": "artifact", "text": "k"}, nil)
 	e.must("deck.chat_topic_delete", map[string]any{"topic": gone}, nil)
 	e.must("deck.chat_topic_archive", map[string]any{"topic": kept, "archived": true}, nil)
 	e.Clock.Add(31 * 24 * time.Hour)
@@ -117,6 +118,9 @@ func TestADeletedTopicIsGoneAfterAMonth(t *testing.T) {
 	e.must("deck.chat_topics", map[string]any{"archived": true}, &ts)
 	if len(ts) != 1 || ts[0].ID != kept {
 		t.Fatalf("the archive stays: %+v", ts)
+	}
+	if code, out := e.call("deck.document_get", map[string]any{"project": "master", "name": fmt.Sprintf("topics/%dabc/keep.md", gone)}); code != 200 {
+		t.Fatalf("a document of another name stays: %d %s", code, out)
 	}
 }
 

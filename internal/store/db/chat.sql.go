@@ -518,8 +518,10 @@ func (q *Queries) PurgeDeletedTopics(ctx context.Context, before sql.NullString)
 }
 
 const purgeTopicSummaries = `-- name: PurgeTopicSummaries :exec
-DELETE FROM document WHERE project_id IN (SELECT id FROM project WHERE builtin = 1) AND name GLOB 'topics/*/*'
-    AND CAST(substr(name, 8, instr(substr(name, 8), '/') - 1) AS INTEGER) IN (SELECT t.id FROM chat_topic t WHERE t.deleted_at < ?1)
+DELETE FROM document WHERE id IN (SELECT d.id FROM document d
+    JOIN project p ON p.id = d.project_id AND p.builtin = 1
+    JOIN chat_topic t ON t.workspace_id = p.workspace_id AND t.deleted_at < ?1
+    WHERE d.name GLOB 'topics/' || t.id || '/*')
 `
 
 func (q *Queries) PurgeTopicSummaries(ctx context.Context, before sql.NullString) error {

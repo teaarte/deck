@@ -38,7 +38,7 @@ func TestRealBrowser(t *testing.T) {
 	ag := &seqAgent{files: []string{"cv.txt"}}
 	e := newEnv(t, ag.script, func(c *app.Config) { c.Browser = app.DefaultBrowser })
 	host := strings.TrimPrefix(page.URL, "http://")
-	e.createProject("web", browserManifest(`{"read": ["localhost"], "act": ["`+host+`"]}`))
+	e.createProject("web", browserManifest(`{"read": ["127.0.0.1"], "act": ["`+host+`"]}`))
 	e.waitState(e.start("web", "browse", steps(nav(page.URL), step{"browser_snapshot", map[string]any{}})), "done")
 	snap := ag.last(1)[0]
 	m := refOf.FindStringSubmatch(snap.out)
@@ -59,7 +59,9 @@ func TestRealBrowser(t *testing.T) {
 	if got := ag.last(3); got[1].isErr || !strings.Contains(got[2].out, "Got cv.txt") {
 		t.Fatalf("the real browser uploads a file of the process: %+v", got)
 	}
-	other := strings.Replace(page.URL, "127.0.0.1", "localhost", 1)
+	second := httptest.NewServer(page.Config.Handler)
+	t.Cleanup(second.Close)
+	other := second.URL
 	id := e.start("web", "browse", steps(nav(other), step{"browser_snapshot", map[string]any{}}, click("e2")))
 	e.waitState(id, "waiting_answer")
 	if got := ag.last(1)[0]; !strings.Contains(got.out, `"waiting"`) {
@@ -67,7 +69,7 @@ func TestRealBrowser(t *testing.T) {
 	}
 	e.createProject("research", browserManifest(`{"read": ["*", "`+host+`"]}`))
 	e.waitState(e.start("research", "browse", steps(nav("https://example.com/"), step{"browser_tabs", map[string]any{"action": "list"}})), "done")
-	if got := ag.last(2); got[0].isErr || !strings.Contains(got[1].out, "Example Domain") || strings.Contains(got[1].out, "localhost") {
+	if got := ag.last(2); got[0].isErr || !strings.Contains(got[1].out, "Example Domain") || strings.Contains(got[1].out, second.URL) {
 		t.Fatalf("a project reading any site reads the internet in a browser of its own, without the signed-in tabs: %+v", got)
 	}
 	e.waitState(e.start("research", "browse", steps(nav(page.URL+"/leak"))), "done")

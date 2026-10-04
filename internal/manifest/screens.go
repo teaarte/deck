@@ -36,10 +36,11 @@ func (m *Manifest) checkScreens(fail func(string, ...any)) {
 }
 
 type screenCheck struct {
-	m      *Manifest
-	deck   bool
-	screen *Screen
-	fail   func(string, ...any)
+	m       *Manifest
+	deck    bool
+	screen  *Screen
+	fail    func(string, ...any)
+	dialogs map[string]bool
 }
 
 func (m *Manifest) checkScreenList(deck bool, fail func(string, ...any)) {
@@ -57,7 +58,7 @@ func (m *Manifest) checkScreenList(deck bool, fail func(string, ...any)) {
 		case !deck && m.collections[s.Record] == nil:
 			fail("screen %q record: unknown collection %q", s.Name, s.Record)
 		}
-		c := &screenCheck{m: m, deck: deck, screen: s, fail: fail}
+		c := &screenCheck{m: m, deck: deck, screen: s, fail: fail, dialogs: map[string]bool{}}
 		for j, b := range s.Blocks {
 			c.block(fmt.Sprintf("screen %q block %d", s.Name, j), b)
 		}
@@ -76,6 +77,12 @@ func (c *screenCheck) recordFields() []string {
 func (c *screenCheck) block(where string, b Block) {
 	if b.When != "" {
 		c.when(where, b)
+	}
+	if b.Type == "dialog" && b.Name != "" {
+		if c.dialogs[b.Name] {
+			c.fail("%s dialog %q: duplicate", where, b.Name)
+		}
+		c.dialogs[b.Name] = true
 	}
 	var fields []string
 	switch b.Type {
@@ -173,7 +180,7 @@ func (c *screenCheck) block(where string, b Block) {
 			c.fail("%s actions_from: unknown field %q", where, b.ActionsFrom)
 		}
 		if b.Item != nil {
-			for _, e := range []string{b.Item.Title, b.Item.Text, b.Item.Meta, b.Item.Details, b.Item.Questions, b.Item.Tone, b.Item.File} {
+			for _, e := range []string{b.Item.Title, b.Item.Text, b.Item.Meta, b.Item.Icon, b.Item.Details, b.Item.Questions, b.Item.Tone, b.Item.File} {
 				if _, err := compileField(e, fields); e != "" && err != nil {
 					c.fail("%s item: %v", where, err)
 				}
@@ -261,11 +268,41 @@ func (c *screenCheck) form(where string, b Block) {
 		}
 	}
 	c.choices(where, b)
+	c.values(where, b)
 	if b.Save != "" && (c.deck || c.m.collections[b.Save] == nil) {
 		c.fail("%s save: unknown collection %q", where, b.Save)
 	}
 	if cmd := c.m.commands[b.Command]; b.Save != "" && cmd != nil && !recordShaped(cmd.Result) {
 		c.fail("%s save: the result of %q is not an object or a list of objects, so it cannot be kept as records", where, b.Command)
+	}
+}
+
+// values checks the values of a form: fields of its input, filled from fields of the record of the page.
+func (c *screenCheck) values(where string, b Block) {
+	var input json.RawMessage
+	switch cmd := c.m.commands[b.Command]; {
+	case b.Command == RecordUpdate:
+		if col := c.m.collections[c.screen.Record]; col != nil {
+			input = col.Schema
+		}
+	case cmd != nil:
+		input = cmd.InputSchema()
+	}
+	props := PropertyOrder(input)
+	record := c.recordFields()
+	for _, field := range slices.Sorted(maps.Keys(b.Values)) {
+		at := fmt.Sprintf("%s values %q", where, field)
+		if input != nil && !slices.Contains(props, field) {
+			c.fail("%s: the input has no field %q", at, field)
+		}
+		f, ok := strings.CutPrefix(b.Values[field], "$record.")
+		switch {
+		case !ok:
+		case c.screen.Record == "":
+			c.fail("%s: $record needs a record page", at)
+		case record != nil && !slices.Contains(record, f):
+			c.fail("%s: unknown field %q", at, f)
+		}
 	}
 }
 

@@ -2,6 +2,7 @@ package scenarios
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -52,5 +53,31 @@ func TestScreenParamsFillFormsAndTravelWithButtons(t *testing.T) {
 	}
 	if code, out := e.call("deck.screen", map[string]any{"project": "web", "screen": "main", "params": `[1]`}); code != 422 {
 		t.Fatalf("params are an object of names to text: %d %s", code, out)
+	}
+}
+
+// TestValuesIconsAndDialogNamesAreCheckedOnSave: a form fills only fields of its input, from fields the record
+// has; the icon of a line is an expression; the dialogs of a screen have their own names.
+func TestValuesIconsAndDialogNamesAreCheckedOnSave(t *testing.T) {
+	e := newEnv(t, boardWebAgent())
+	cases := []struct{ name, old, new, want string }{
+		{"values field", `"values": {"title": "$param.title", "n": "3"}`, `"values": {"titel": "$param.title"}`, `no field "titel"`},
+		{"record field", `"values": {"title": "$record.title"}`, `"values": {"title": "$record.name"}`, `unknown field "name"`},
+		{"item icon", `{"type": "actions", "title": "More"`, `{"type": "list", "title": "Lines", "source": {"collection": "notes"}, "item": {"title": "title", "icon": "shout(title)"}},
+      {"type": "actions", "title": "More"`, `unknown function "shout"`},
+		{"dialog name", `{"type": "actions", "title": "More"`, `{"type": "dialog", "name": "rescore", "title": "Twice", "blocks": [{"type": "form", "command": "tell"}]},
+      {"type": "actions", "title": "More"`, `dialog "rescore": duplicate`},
+	}
+	for i, c := range cases {
+		base := strings.Replace(routedManifest, `{"type": "form", "title": "Edit", "command": "deck.record_update"}`,
+			`{"type": "form", "title": "Edit", "command": "deck.record_update"}, {"type": "form", "title": "Again", "command": "score", "values": {"title": "$record.title"}}`, 1)
+		m := strings.Replace(base, c.old, c.new, 1)
+		if m == base {
+			t.Fatalf("%s: fixture replacement did not apply", c.name)
+		}
+		code, out := e.call("deck.project_create", map[string]any{"name": fmt.Sprintf("web%d", i), "manifest": m})
+		if code != 422 || !strings.Contains(string(out), c.want) {
+			t.Errorf("%s: want 422 containing %q, got %d %s", c.name, c.want, code, out)
+		}
 	}
 }

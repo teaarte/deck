@@ -32,9 +32,8 @@ type ModelHop struct {
 	Model      string
 	// Over says why the day of its connection or project is past its limit; deck skips such a hop.
 	Over string
-	// Open lets modules call the connection without asking within its limit; Local is one on the owner's hardware;
-	// Free is a model that costs nothing.
-	Open, Local, Free bool
+	// Local is a connection on the owner's hardware; Free is a model that costs nothing.
+	Local, Free bool
 	// Done keeps the call: the status the API answered and what it used, nil when it did not say.
 	Done func(ctx context.Context, status int, u *provider.Usage)
 }
@@ -137,9 +136,9 @@ func Metered(body io.ReadCloser, start time.Time, done func(*provider.Usage)) io
 	}}
 }
 
-// ProxyModel serves one call of a model: the hops in order, a fallback after an explicit refusal or a hop past
+// relayHops serves one call of a model: the hops in order, a fallback after an explicit refusal or a hop past
 // its limit, the answer streamed back as it comes.
-func ProxyModel(w http.ResponseWriter, r *http.Request, path string, body []byte, asked string, hops []ModelHop) {
+func relayHops(w http.ResponseWriter, r *http.Request, path string, body []byte, asked string, hops []ModelHop) {
 	var last string
 	for i, h := range hops {
 		if h.Over != "" {
@@ -408,5 +407,5 @@ func (g *Gateway) proxyModel(w http.ResponseWriter, r *http.Request, act registr
 		_ = json.NewEncoder(w).Encode(out)
 		return
 	}
-	ProxyModel(w, r, path, body, asked, hops)
+	relayHops(w, r, path, body, asked, hops)
 }

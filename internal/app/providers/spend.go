@@ -123,7 +123,7 @@ func (s *Service) Route(ctx context.Context, act registry.Actor, connection, ask
 			key = strings.TrimSpace(k)
 		}
 		h := gateway.ModelHop{Target: gateway.ModelTarget{URL: p.c.Url, API: p.c.Api, Key: key}, Connection: p.c.Name, Model: p.m.Model,
-			Open: p.c.Open != 0, Local: p.c.Local != 0, Free: p.m.Free != 0}
+			Local: p.c.Local != 0, Free: p.m.Free != 0}
 		h.Over, _ = s.over(ctx, p.c, act.ProjectID)
 		if h.Over == "" && p.c.DailyUsd.Valid && p.m.Free == 0 && !p.m.InputUsd.Valid && !p.m.OutputUsd.Valid && !p.m.CallUsd.Valid {
 			h.Over = fmt.Sprintf("deck: model %s of connection %s has no price, so its limit cannot count it; the owner sets one with deck.model_set", p.m.Model, p.c.Name)
@@ -219,13 +219,7 @@ func (s *Service) allowed(ctx context.Context, act registry.Actor, input json.Ra
 
 // use is what a call of a model goes through, as a manifest names it: an @role, a model by name, or a connection.
 func (s *Service) use(input json.RawMessage) (string, string) {
-	var in struct {
-		Connection string `json:"connection"`
-		Body       string `json:"body"`
-		Model      string `json:"model"`
-		Kind       string `json:"kind"`
-	}
-	_ = json.Unmarshal(input, &in)
+	in, _ := parseCall(input)
 	switch {
 	case in.Kind != "" && in.Model == "":
 		return "@" + in.Kind, ""
@@ -303,16 +297,27 @@ func (s *Service) free(ctx context.Context, act registry.Actor, input json.RawMe
 	return free
 }
 
+// call is what a call of a model names: a request through a connection with its body, or a model or kind.
+type call struct {
+	Connection string `json:"connection"`
+	Body       string `json:"body"`
+	Model      string `json:"model"`
+	Kind       string `json:"kind"`
+}
+
+func parseCall(input json.RawMessage) (call, error) {
+	var in call
+	if err := json.Unmarshal(input, &in); err != nil {
+		return in, registry.Invalid("deck: %v", err)
+	}
+	return in, nil
+}
+
 // requested is the connection and the model a call of a model names: a request with its body, or a call of a kind.
 func (s *Service) requested(ctx context.Context, workspace int64, input json.RawMessage) (string, string, error) {
-	var in struct {
-		Connection string `json:"connection"`
-		Body       string `json:"body"`
-		Model      string `json:"model"`
-		Kind       string `json:"kind"`
-	}
-	if err := json.Unmarshal(input, &in); err != nil {
-		return "", "", registry.Invalid("deck: %v", err)
+	in, err := parseCall(input)
+	if err != nil {
+		return "", "", err
 	}
 	if in.Kind != "" {
 		return s.modelRef(ctx, workspace, in.Model, in.Kind)
@@ -320,9 +325,9 @@ func (s *Service) requested(ctx context.Context, workspace int64, input json.Raw
 	return cmp.Or(in.Connection, "@"), gateway.AskedModel([]byte(in.Body)), nil
 }
 
-// sendHops makes a request through the hops in order: one past its limit is skipped unless the owner said yes to
-// this call, an explicit refusal goes to the next.
-func (s *Service) sendHops(ctx context.Context, hops []gateway.ModelHop, method, path string, header http.Header, body func(h gateway.ModelHop) []byte) (*http.Response, gateway.ModelHop, error) {
+// sendHops makes the request each hop builds, in order: one past its limit is skipped unless the owner said yes to
+// this call; one that never reached its API, a 429 or a 5xx goes to the next.
+func (s *Service) sendHops(ctx context.Context, hops []gateway.ModelHop, build func(gateway.ModelHop) (modelReq, error)) (*http.Response, gateway.ModelHop, error) {
 	_, approved := gateway.Approved(ctx)
 	var last error = registry.Invalid("deck: no model to call")
 	for i, h := range hops {
@@ -330,7 +335,18 @@ func (s *Service) sendHops(ctx context.Context, hops []gateway.ModelHop, method,
 			last = registry.Invalid("%s", h.Over)
 			continue
 		}
-		resp, err := gateway.SendModel(ctx, h.Target, method, path, "", header, body(h))
+		req, err := build(h)
+		if err != nil {
+			return nil, h, err
+		}
+		send := func(r modelReq) (*http.Response, error) {
+			return gateway.SendModel(ctx, h.Target, cmp.Or(r.method, http.MethodPost), r.path, "", r.header, r.body)
+		}
+		resp, err := send(req)
+		if err == nil && req.retry != nil && (resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusMethodNotAllowed) {
+			_ = resp.Body.Close()
+			resp, err = send(*req.retry)
+		}
 		if err != nil {
 			h.Done(ctx, 0, nil)
 			last = fmt.Errorf("deck: %s: %v", h.Connection, err)
@@ -372,11 +388,7 @@ func (s *Service) answer(act registry.Actor, name string, resp *http.Response, h
 		}
 		return map[string]any{"text": string(raw)}, nil
 	}
-	file, n, err := s.Dirs.Save(act.ProcessID, name, ct, body, 1<<30)
-	if err != nil {
-		return nil, err
-	}
-	return map[string]any{"file": file, "type": ct, "size": n}, nil
+	return s.keep(act, name, ct, body)
 }
 
 func (s *Service) modelRequest(ctx context.Context, act registry.Actor, in modelRequestIn) (any, error) {
@@ -397,11 +409,12 @@ func (s *Service) modelRequest(ctx context.Context, act registry.Actor, in model
 		header.Set("Content-Type", "application/json")
 	}
 	start := time.Now()
-	resp, h, err := s.sendHops(ctx, hops, method, in.Path, header, func(h gateway.ModelHop) []byte {
+	resp, h, err := s.sendHops(ctx, hops, func(h gateway.ModelHop) (modelReq, error) {
+		body := []byte(in.Body)
 		if strings.HasPrefix(asked, "@") {
-			return gateway.WithModel([]byte(in.Body), h.Model)
+			body = gateway.WithModel(body, h.Model)
 		}
-		return []byte(in.Body)
+		return modelReq{method: method, path: in.Path, header: header, body: body}, nil
 	})
 	if err != nil {
 		return nil, err

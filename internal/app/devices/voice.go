@@ -237,6 +237,6 @@ func (dv *Service) VoiceCommands() []*registry.Command {
 			registry.OwnerOnly, dv.transcribe),
 		registry.Def("stt_set", "Speech to text provider",
 			"Sets the speech-to-text provider: an OpenAI-compatible transcription url, such as a whisper.cpp server on this machine.",
-			registry.OwnerOnly, dv.sttSet).Changes("settings"),
+			registry.OwnerOnly, dv.sttSet),
 	}
 }

@@ -55,23 +55,6 @@ func (q *Queries) DeleteMarksWithPrefix(ctx context.Context, arg DeleteMarksWith
 	return err
 }
 
-const deleteSetting = `-- name: DeleteSetting :execrows
-DELETE FROM setting WHERE workspace_id = ?1 AND key = ?2
-`
-
-type DeleteSettingParams struct {
-	WorkspaceID int64
-	Key         string
-}
-
-func (q *Queries) DeleteSetting(ctx context.Context, arg DeleteSettingParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, deleteSetting, arg.WorkspaceID, arg.Key)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
-}
-
 const getMark = `-- name: GetMark :one
 SELECT value FROM mark WHERE workspace_id = ? AND name = ?
 `
@@ -102,43 +85,6 @@ func (q *Queries) GetSetting(ctx context.Context, arg GetSettingParams) (string,
 	var value string
 	err := row.Scan(&value)
 	return value, err
-}
-
-const listSettings = `-- name: ListSettings :many
-SELECT key, value FROM setting WHERE workspace_id = ?1 AND key LIKE CAST(?2 AS TEXT) || '%' ORDER BY key
-`
-
-type ListSettingsParams struct {
-	WorkspaceID int64
-	Prefix      string
-}
-
-type ListSettingsRow struct {
-	Key   string
-	Value string
-}
-
-func (q *Queries) ListSettings(ctx context.Context, arg ListSettingsParams) ([]ListSettingsRow, error) {
-	rows, err := q.db.QueryContext(ctx, listSettings, arg.WorkspaceID, arg.Prefix)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ListSettingsRow
-	for rows.Next() {
-		var i ListSettingsRow
-		if err := rows.Scan(&i.Key, &i.Value); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const setMark = `-- name: SetMark :exec

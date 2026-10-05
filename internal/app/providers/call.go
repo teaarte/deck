@@ -80,47 +80,18 @@ func (s *Service) modelCall(ctx context.Context, act registry.Actor, in modelCal
 		}
 		audio = &f
 	}
-	_, approved := gateway.Approved(ctx)
-	var last error = registry.Invalid("deck: no model to call")
-	for i, h := range hops {
-		if h.Over != "" && !approved {
-			last = registry.Invalid("%s", h.Over)
-			continue
-		}
-		req, err := build(in, h, options, audio)
-		if err != nil {
-			return nil, err
-		}
-		start := time.Now()
-		resp, err := gateway.SendModel(ctx, h.Target, http.MethodPost, req.path, "", req.header, req.body)
-		if err == nil && req.retry != nil && (resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusMethodNotAllowed) {
-			_ = resp.Body.Close()
-			req = *req.retry
-			resp, err = gateway.SendModel(ctx, h.Target, http.MethodPost, req.path, "", req.header, req.body)
-		}
-		if err != nil {
-			h.Done(ctx, 0, nil)
-			last = fmt.Errorf("deck: %s: %v", h.Connection, err)
-			if gateway.Unsent(err) {
-				continue
-			}
-			return nil, last
-		}
-		if gateway.Fallible(resp.StatusCode) && i < len(hops)-1 {
-			raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<16))
-			_ = resp.Body.Close()
-			h.Done(ctx, resp.StatusCode, nil)
-			last = fmt.Errorf("deck: %s answered %s: %s", h.Connection, resp.Status, untrusted.Cut(strings.TrimSpace(string(raw)), 500))
-			continue
-		}
-		return s.read(act, in, h, resp, start)
+	start := time.Now()
+	resp, h, err := s.sendHops(ctx, hops, func(h gateway.ModelHop) (modelReq, error) { return build(in, h, options, audio) })
+	if err != nil {
+		return nil, err
 	}
-	return nil, last
+	return s.read(act, in, h, resp, start)
 }
 
 // modelReq is a request of one kind in the words of one API; retry is the other way to ask the same when the
 // API has no such path.
 type modelReq struct {
+	method string
 	path   string
 	header http.Header
 	body   []byte

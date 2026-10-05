@@ -38,7 +38,7 @@ func (r *Runner) runTool(ctx context.Context, t turn, trial bool) {
 	if !strings.HasPrefix(name, registry.Builtin+".") {
 		name = proj.Name + "." + name
 	}
-	r.projects.Servers(bg, t.project)
+	r.deps.Servers(bg, t.project)
 	tool, err := r.gw.Command(bg, proj.WorkspaceID, name)
 	if err == nil {
 		err = manifest.FitsTool(*t.cmd, name, tool.Input)

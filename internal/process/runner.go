@@ -79,13 +79,12 @@ type Config struct {
 // Runner owns process lifecycles. A process stops in waiting_answer when the agent is blocked on the
 // owner; answers that arrive later are delivered in one resume message.
 type Runner struct {
-	st        *store.Store
-	gw        *gateway.Gateway
-	bus       *events.Bus
-	providers Providers
-	scripts   *script.Exec
-	cfg       Config
-	projects  Projects
+	st      *store.Store
+	gw      *gateway.Gateway
+	bus     *events.Bus
+	scripts *script.Exec
+	cfg     Config
+	deps    Deps
 	// Hooks hear of processes that close, park or end a turn, in this order.
 	Hooks []Hook
 
@@ -132,34 +131,30 @@ type liveTurn struct {
 	input chan provider.Message
 }
 
-// Providers gives the runner the provider of a process.
-type Providers interface {
+// Deps are what the runner takes from the rest of deck.
+type Deps struct {
 	// For picks the provider a command starts on.
-	For(ctx context.Context, projectID int64, cmd *manifest.Command) (provider.Provider, error)
+	For func(ctx context.Context, projectID int64, cmd *manifest.Command) (provider.Provider, error)
 	// Named is the provider a process started on; its session belongs to it.
-	Named(ctx context.Context, projectID int64, name string) (provider.Provider, error)
+	Named func(ctx context.Context, projectID int64, name string) (provider.Provider, error)
 	// Ready reports whether a turn may start on the provider; not while its self-check runs after a change or is red.
-	Ready(ctx context.Context, name string) bool
-}
-
-// Projects gives the runner the current manifest and md prompt of a project.
-type Projects interface {
-	Prompt(ctx context.Context, projectID int64) (string, error)
+	Ready  func(ctx context.Context, name string) bool
+	Prompt func(ctx context.Context, projectID int64) (string, error)
 	// Text is the current text of a project document of the kind, of any kind for ""; empty when missing.
-	Text(ctx context.Context, projectID int64, kind, name string) (string, error)
+	Text func(ctx context.Context, projectID int64, kind, name string) (string, error)
 	// Skills are the files of the named skills: the project's own, else the workspace's.
-	Skills(ctx context.Context, projectID int64, names []string) (map[string]string, error)
+	Skills func(ctx context.Context, projectID int64, names []string) (map[string]string, error)
 	// Servers starts the MCP servers of a project whose tools deck has not listed yet.
-	Servers(ctx context.Context, projectID int64)
+	Servers func(ctx context.Context, projectID int64)
 	// Folder is the real path of the project folder an agent command works in.
-	Folder(ctx context.Context, projectID int64, f manifest.Folder) (string, error)
+	Folder func(ctx context.Context, projectID int64, f manifest.Folder) (string, error)
 	// Memory is the memory a fresh session of the process gets, as data; empty when there is none.
-	Memory(ctx context.Context, p db.Process) (string, error)
+	Memory func(ctx context.Context, p db.Process) (string, error)
 }
 
-func NewRunner(st *store.Store, gw *gateway.Gateway, bus *events.Bus, p Providers, scripts *script.Exec, cfg Config, projects Projects) *Runner {
+func NewRunner(st *store.Store, gw *gateway.Gateway, bus *events.Bus, scripts *script.Exec, cfg Config, deps Deps) *Runner {
 	ctx, cancel := context.WithCancel(context.Background())
-	return &Runner{st: st, gw: gw, bus: bus, providers: p, scripts: scripts, cfg: cfg, projects: projects, ctx: ctx, cancel: cancel,
+	return &Runner{st: st, gw: gw, bus: bus, scripts: scripts, cfg: cfg, deps: deps, ctx: ctx, cancel: cancel,
 		live: map[int64]*liveTurn{}, marked: map[int64]time.Time{},
 		slots: map[int64]int{}, of: map[int64]events.Event{}}
 }

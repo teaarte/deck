@@ -97,7 +97,7 @@ func (a *App) commandsList(ctx context.Context, act registry.Actor, in commandsL
 				if r.Executor != "agent" {
 					break
 				}
-				if pv, err := a.For(ctx, c.ProjectID, mc); err == nil {
+				if pv, err := a.Providers.For(ctx, c.ProjectID, mc); err == nil {
 					r.Provider = pv.Name()
 				}
 				if all == nil {

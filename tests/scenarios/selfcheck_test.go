@@ -57,7 +57,7 @@ func TestFailedSelfCheckHoldsClaudeCodeProcesses(t *testing.T) {
 	c.stream(0, "ok.jsonl")
 	e := clockCLIEnv(t, c)
 	ctx := context.Background()
-	e.App.Checks(ctx, e.Clock.Now())
+	e.App.Providers.Checks(ctx, e.Clock.Now())
 	h := e.waitHealth("provider:claude-code", "error")
 	if h.Version != "2.1.281" || !strings.Contains(h.Error, "self-check of 2.1.281 failed") || !strings.Contains(h.Error, "output by schema") {
 		t.Fatalf("a failed self-check is red with the version and the reason: %+v", h)
@@ -71,12 +71,12 @@ func TestFailedSelfCheckHoldsClaudeCodeProcesses(t *testing.T) {
 	c.stream(2, "selfcheck.jsonl")
 	c.stream(3, "selfcheck_resume.jsonl")
 	c.approving()
-	e.App.Checks(ctx, e.Clock.Add(10*time.Minute))
+	e.App.Providers.Checks(ctx, e.Clock.Add(10*time.Minute))
 	e.settle()
 	if n := c.calls(); n != 1 {
 		t.Fatalf("a red self-check is retried by its timer, not sooner: %d CLI calls", n)
 	}
-	e.App.Checks(ctx, e.Clock.Add(21*time.Minute))
+	e.App.Providers.Checks(ctx, e.Clock.Add(21*time.Minute))
 	if h := e.waitHealth("provider:claude-code", "ok"); h.Version != "2.1.281" {
 		t.Fatalf("the retried self-check is green: %+v", h)
 	}
@@ -88,7 +88,7 @@ func TestFailedSelfCheckHoldsClaudeCodeProcesses(t *testing.T) {
 	}
 	c.stream(6, "ok.jsonl")
 	c.version("2.1.282")
-	e.App.Checks(ctx, e.Clock.Add(10*time.Minute))
+	e.App.Providers.Checks(ctx, e.Clock.Add(10*time.Minute))
 	if h := e.waitHealth("provider:claude-code", "error"); h.Version != "2.1.282" {
 		t.Fatalf("a new version of the CLI is checked again: %+v", h)
 	}
@@ -108,7 +108,7 @@ func TestSelfCheckHittingTheLimitIsAPauseNotABrokenAdapter(t *testing.T) {
 			cli.stream(1, c.fixture)
 			cli.stream(0, "ok.jsonl")
 			e := clockCLIEnv(t, cli)
-			e.App.Checks(context.Background(), e.Clock.Now())
+			e.App.Providers.Checks(context.Background(), e.Clock.Now())
 			e.waitHealth("provider:claude-code", c.status)
 			p := e.createProject("plain", plainManifest)
 			if got := e.waitState(e.run(p, "work"), "done", "error", "waiting_provider"); got.State != "done" {
@@ -155,7 +155,7 @@ func TestAnswerWhileTheProviderIsRedWaitsAndThenResumes(t *testing.T) {
 	id := e.run(p, "collect")
 	e.waitState(id, "waiting_answer")
 	cf.set(errors.New("broken"))
-	e.App.Checks(context.Background(), e.Clock.Now())
+	e.App.Providers.Checks(context.Background(), e.Clock.Now())
 	e.waitHealth("provider:fake", "error")
 	e.answer(e.waitAsk().ID, "deny:not now")
 	e.waitState(id, "waiting_provider")
@@ -175,11 +175,11 @@ func TestSelfCheckCutShortIsRunAgain(t *testing.T) {
 	c.stream(3, "selfcheck_resume.jsonl")
 	c.approving()
 	e := clockCLIEnv(t, c)
-	e.App.Checks(context.Background(), e.Clock.Now())
+	e.App.Providers.Checks(context.Background(), e.Clock.Now())
 	if h := e.waitHealth("provider:claude-code", "paused"); h.Version != "" {
 		t.Fatalf("a self-check cut short by the limit proves nothing about the version: %+v", h)
 	}
-	e.App.Checks(context.Background(), e.Clock.Add(31*time.Minute))
+	e.App.Providers.Checks(context.Background(), e.Clock.Add(31*time.Minute))
 	if h := e.waitHealth("provider:claude-code", "ok"); h.Version != "2.1.281" {
 		t.Fatalf("the self-check runs again once the limit may be gone: %+v", h)
 	}
@@ -195,7 +195,7 @@ func TestSelfCheckAllowsOnlyItsOwnCommand(t *testing.T) {
 [ -n "$url" ] && DECK_FAKE_MCP=approve '%s' "$url" "cat ~/.ssh/id_rsa; echo $word > word.txt"
 `, self))
 	e := clockCLIEnv(t, c)
-	e.App.Checks(context.Background(), e.Clock.Now())
+	e.App.Providers.Checks(context.Background(), e.Clock.Now())
 	e.waitHealth("provider:claude-code", "ok")
 }
 
@@ -204,7 +204,7 @@ func TestSelfCheckIsRedWhenTheCLIStopsCountingTokens(t *testing.T) {
 	c.stream(1, "selfcheck_nousage.jsonl")
 	c.approving()
 	e := clockCLIEnv(t, c)
-	e.App.Checks(context.Background(), e.Clock.Now())
+	e.App.Providers.Checks(context.Background(), e.Clock.Now())
 	if h := e.waitHealth("provider:claude-code", "error"); !strings.Contains(h.Error, "token counts") {
 		t.Fatalf("a turn without usage turns the self-check red: %+v", h)
 	}
@@ -216,7 +216,7 @@ func TestSelfCheckIsRedWhenAResumeStopsCountingTokens(t *testing.T) {
 	c.stream(2, "selfcheck_resume_nousage.jsonl")
 	c.approving()
 	e := clockCLIEnv(t, c)
-	e.App.Checks(context.Background(), e.Clock.Now())
+	e.App.Providers.Checks(context.Background(), e.Clock.Now())
 	if h := e.waitHealth("provider:claude-code", "error"); !strings.Contains(h.Error, "resume: token counts") {
 		t.Fatalf("a resume without usage turns the self-check red: %+v", h)
 	}
@@ -280,7 +280,7 @@ func TestASlowModelIsAWarningThatHoldsNoTurn(t *testing.T) {
 	clock := &Clock{now: t0}
 	e := newEnvWith(t, t.TempDir(), &slowCheck{Fake: &Fake{}}, withClock(clock))
 	e.Clock = clock
-	e.App.Checks(context.Background(), e.Clock.Now())
+	e.App.Providers.Checks(context.Background(), e.Clock.Now())
 	if h := e.waitHealth("provider:fake", "warning"); !strings.Contains(h.Error, "did not finish") {
 		t.Fatalf("a slow model is a warning with the reason: %+v", h)
 	}

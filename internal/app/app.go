@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"path/filepath"
-	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -42,6 +40,7 @@ import (
 	"deck2/internal/process"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
+	"deck2/internal/sandbox"
 	"deck2/internal/script"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
@@ -136,7 +135,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 		SaveManifest: a.Projects.SaveCall}
 	a.Connections = &connections.Service{St: st, Ctx: a.ctx, Broker: a.Asks}
 	a.Suggest = &suggest.Service{St: st, Bus: a.Bus, Now: cfg.Now, Registry: a.Registry, Asks: a.Asks, Days: a.Settings.SuggestDays}
-	a.Chats = &chat.Service{St: st, Bus: a.Bus, Now: cfg.Now, Asks: a.Asks, For: a.For}
+	a.Chats = &chat.Service{St: st, Bus: a.Bus, Now: cfg.Now, Asks: a.Asks, For: a.Providers.For}
 	a.Devices = &devices.Service{St: st, Bus: a.Bus, Now: cfg.Now, Ctx: a.ctx, BG: &a.bg, STT: cfg.STT, Files: a.dirs(), RemoveFiles: a.Files.Remove,
 		Secret: a.Secrets.Secret, ReadSecret: a.Secrets.Read, WriteSecret: a.Secrets.Write, SecretsDir: a.Secrets.Dir,
 		LockSecrets: a.Secrets.Lock, UnlockSecrets: a.Secrets.Unlock,
@@ -168,9 +167,12 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	a.Browser.Load()
 	a.Registry.SetExtra(a.Browser.Commands)
 	a.Gateway.SetAutomation(a.Tokens.Automation)
-	a.Runner = process.NewRunner(st, a.Gateway, a.Bus, a, a.Scripts,
+	a.Runner = process.NewRunner(st, a.Gateway, a.Bus, a.Scripts,
 		process.Config{RunsDir: h.Runs(), MCPBase: cfg.MCPBase, Now: cfg.Now, FilesDir: h.Files(), FilesMu: &a.Files.Mu,
-			Hidden: hidden(h), PauseLimit: cfg.PauseLimit, AgentSlots: a.Settings.AgentSlots, OpenSandbox: a.Settings.OpenSandbox, Closed: closed.Add}, a)
+			Hidden: sandbox.Agent(h), PauseLimit: cfg.PauseLimit, AgentSlots: a.Settings.AgentSlots, OpenSandbox: a.Settings.OpenSandbox, Closed: closed.Add},
+		process.Deps{For: a.Providers.For, Named: a.Providers.Named, Ready: a.Providers.Ready, Prompt: a.Projects.Prompt,
+			Text: a.Projects.Text, Skills: a.Documents.Skills, Servers: a.Connections.Servers, Folder: a.Folders.Folder,
+			Memory: a.Chats.Memory})
 	a.Chats.Runner, a.Suggest.Gateway, a.Tokens.Journal, a.Documents.Changed = a.Runner, a.Gateway, a.Gateway.Journal, a.Devices.Changed
 	a.Answers.Gateway, a.Answers.Deliver = a.Gateway, a.Runner.Deliver
 	a.Answers.ExpireSuggestions, a.Answers.AnswerSuggestion = a.Suggest.Expire, a.Suggest.Answer
@@ -195,53 +197,6 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 
 func (a *App) dirs() files.Dirs {
 	return files.Dirs{Files: a.Home.Files(), Runs: a.Home.Runs()}
-}
-
-// hidden are what an agent may not read or write under every path of home, since macOS links /tmp and /var: all
-// of home but the runs and projects of work, then those but its own, and in its own project all but the data.
-func hidden(h home.Layout) func(project, process int64) []string {
-	roots := []home.Layout{h}
-	if real, err := filepath.EvalSymlinks(string(h)); err == nil && real != string(h) {
-		roots = append(roots, home.Layout(real))
-	}
-	return func(project, process int64) []string {
-		var out []string
-		for _, r := range roots {
-			out = append(out, r.State()+"/**")
-			top, _ := os.ReadDir(string(r))
-			for _, e := range top {
-				switch {
-				case e.Name() == "work" || e.Name() == "state":
-				case e.IsDir():
-					out = append(out, filepath.Join(string(r), e.Name())+"/**")
-				default:
-					out = append(out, filepath.Join(string(r), e.Name()))
-				}
-			}
-			out = append(out, others(r.Runs(), fmt.Sprint(process))...)
-			out = append(out, others(r.Projects(), fmt.Sprint(project))...)
-			names := []string{"mcp"}
-			entries, _ := os.ReadDir(r.Project(project))
-			for _, e := range entries {
-				if e.Name() != "data" && !slices.Contains(names, e.Name()) {
-					names = append(names, e.Name())
-				}
-			}
-			for _, n := range names {
-				out = append(out, filepath.Join(r.Project(project), n)+"/**")
-			}
-		}
-		return out
-	}
-}
-
-// others are patterns for every folder of dir with a decimal name other than own.
-func others(dir, own string) []string {
-	var out []string
-	for _, n := range provider.Others("", own, "") {
-		out = append(out, filepath.Join(dir, n)+"/**")
-	}
-	return out
 }
 
 // Close interrupts running providers; their processes stay running and resume on the next start.
@@ -278,28 +233,6 @@ func (a *App) Fire(ctx context.Context, t db.Trigger, input map[string]any) (int
 	}
 	return a.fire(ctx, t, input, 0)
 }
-
-// Memory is what a fresh session of a process gets of the memory.
-func (a *App) Memory(ctx context.Context, p db.Process) (string, error) {
-	return a.Chats.Memory(ctx, p)
-}
-
-// PumpChats starts the replies to the owner's messages that wait since deck stopped.
-func (a *App) PumpChats(ctx context.Context) { a.Chats.PumpChats(ctx) }
-
-// Named, For and Ready are the providers the runner asks for.
-func (a *App) Named(ctx context.Context, projectID int64, name string) (provider.Provider, error) {
-	return a.Providers.Named(ctx, projectID, name)
-}
-
-func (a *App) For(ctx context.Context, projectID int64, cmd *manifest.Command) (provider.Provider, error) {
-	return a.Providers.For(ctx, projectID, cmd)
-}
-
-func (a *App) Ready(ctx context.Context, name string) bool { return a.Providers.Ready(ctx, name) }
-
-// Checks runs the self-checks of providers that are due.
-func (a *App) Checks(ctx context.Context, now time.Time) { a.Providers.Checks(ctx, now) }
 
 func (a *App) fire(ctx context.Context, t db.Trigger, input map[string]any, parent int64) (int64, error) {
 	p, err := a.Store.Q.GetProject(ctx, t.ProjectID)
@@ -372,10 +305,7 @@ func (a *App) deadlines(ctx context.Context, now time.Time) {
 	a.Board.Purge(ctx, now)
 	a.Answers.ExpireConfirms(ctx, now)
 	a.Suggest.Expire(ctx, now)
-	a.stopAtCeiling(ctx, now)
-	a.Runner.Unpause(ctx, now)
-	a.markSilent(ctx, now)
-	a.purgeEmpty(ctx, now)
+	a.Runner.Due(ctx, now)
 	a.Snapshots.CheckDisk(ctx, now)
 }
 
@@ -393,41 +323,6 @@ func (a *App) slow(ctx context.Context, now time.Time) {
 }
 
 const pushTimeout = 2 * time.Minute
-
-func (a *App) stopAtCeiling(ctx context.Context, now time.Time) {
-	ids, err := a.Store.Q.ListCeilingReached(ctx, now.UnixMilli())
-	if err != nil {
-		slog.Error("ceilings", "err", err)
-		return
-	}
-	for _, id := range ids {
-		if err := a.Runner.Stop(ctx, id, "deck: the process reached its time ceiling"); err != nil {
-			slog.Error("stop at ceiling", "process", id, "err", err)
-		}
-	}
-}
-
-func (a *App) markSilent(ctx context.Context, now time.Time) {
-	_, err := store.TxGet(a.Store, ctx, func(ctx context.Context, q *db.Queries) ([]int64, error) {
-		return q.MarkSilentProcesses(ctx, now.Add(-silentAfter).UnixMilli())
-	})
-	if err != nil {
-		slog.Error("silent processes", "err", err)
-	}
-}
-
-func (a *App) purgeEmpty(ctx context.Context, now time.Time) {
-	ids, err := store.TxGet(a.Store, ctx, func(ctx context.Context, q *db.Queries) ([]int64, error) {
-		return q.PurgeEmptyProcesses(ctx, store.Time(now.Add(-emptyKept)))
-	})
-	if err != nil {
-		slog.Error("purge empty processes", "err", err)
-		return
-	}
-	for _, id := range ids {
-		_ = os.RemoveAll(a.Home.Run(id))
-	}
-}
 
 // Loop runs the scheduler and the deadlines by the deck clock until ctx ends, pushes, snapshots and self-checks
 // beside it; after a sleep of the machine the first tick finds every deadline that passed.
@@ -455,29 +350,7 @@ func (a *App) Loop(ctx context.Context, every time.Duration) {
 	}
 }
 
-// Folder is the real path of the project folder an agent command works in, for the runner.
-func (a *App) Folder(ctx context.Context, projectID int64, f manifest.Folder) (string, error) {
-	return a.Folders.Folder(ctx, projectID, f)
-}
-
 // TailnetHealth records the state of deck on the owner's tailnet: the sign-in link while it waits for one.
 func (a *App) TailnetHealth(status, text string) {
 	health.Write(context.Background(), a.Store, health.Of{}, "tailscale", status, text)
 }
-
-// Skills are the files of the named skills, for the runner.
-func (a *App) Skills(ctx context.Context, projectID int64, names []string) (map[string]string, error) {
-	return a.Documents.Skills(ctx, projectID, names)
-}
-
-// Prompt and Text are the prompt and documents of a project, for the runner.
-func (a *App) Prompt(ctx context.Context, projectID int64) (string, error) {
-	return a.Projects.Prompt(ctx, projectID)
-}
-
-func (a *App) Text(ctx context.Context, projectID int64, kind, name string) (string, error) {
-	return a.Projects.Text(ctx, projectID, kind, name)
-}
-
-// Servers starts the MCP servers of a project whose tools deck has not listed yet, for the runner.
-func (a *App) Servers(ctx context.Context, projectID int64) { a.Connections.Servers(ctx, projectID) }

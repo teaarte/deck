@@ -60,7 +60,7 @@ func cliState(dir, runs string, req provider.Request) []string {
 		prefix := nonWord.ReplaceAllString(r, "-") + "-"
 		names := []string{prefix + "?*-work"}
 		if run != "" {
-			names = provider.Others(prefix, run, "-work")
+			names = sandbox.Others(prefix, run, "-work")
 		}
 		for _, n := range names {
 			hide(filepath.Join(dir, "projects", n), true)

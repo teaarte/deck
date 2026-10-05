@@ -89,11 +89,11 @@ func run() error {
 	if err := a.Projects.Reconcile(ctx); err != nil {
 		slog.Error("reconcile triggers", "err", err)
 	}
-	a.Checks(ctx, a.Cfg.Now())
+	a.Providers.Checks(ctx, a.Cfg.Now())
 	if err := a.Runner.ResumeInterrupted(ctx); err != nil {
 		slog.Error("resume interrupted", "err", err)
 	}
-	a.PumpChats(ctx)
+	a.Chats.PumpChats(ctx)
 	a.Start(30 * time.Second)
 
 	server := api.New(a, token, web.FS())

@@ -202,7 +202,7 @@ func selfCheckWith(t *testing.T, fixture, before, offline, status string) string
 		c.before(strings.Replace(string(b), "selfcheck_offline.jsonl", offline, 1))
 	}
 	e := clockCLIEnv(t, c)
-	e.App.Checks(context.Background(), e.Clock.Now())
+	e.App.Providers.Checks(context.Background(), e.Clock.Now())
 	return e.waitHealth("provider:claude-code", status).Error
 }
 

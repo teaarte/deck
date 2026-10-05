@@ -59,7 +59,7 @@ func (r *Runner) runScript(ctx context.Context, t turn, trial bool) {
 		return
 	}
 	defer stream.Close()
-	r.projects.Servers(bg, t.project)
+	r.deps.Servers(bg, t.project)
 	tok := r.gw.Grant(&gateway.Session{ProcessID: id, ProjectID: t.project, Workspace: proj.WorkspaceID, Trial: trial})
 	defer r.gw.Unregister(tok)
 	ln, err := r.scripts.Sandbox.Listen(dir)

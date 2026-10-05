@@ -74,7 +74,7 @@ func (r *Runner) Start(ctx context.Context, projectID int64, m *manifest.Manifes
 	kind, providerName, session, folder := cmd.Executor.Type, "", uuid.NewString(), ""
 	switch kind {
 	case KindAgent:
-		pv, err := r.providers.For(ctx, projectID, cmd)
+		pv, err := r.deps.For(ctx, projectID, cmd)
 		if err != nil {
 			return 0, err
 		}
@@ -82,7 +82,7 @@ func (r *Runner) Start(ctx context.Context, projectID int64, m *manifest.Manifes
 		if _, err := r.commandBody(ctx, projectID, cmd); err != nil {
 			return 0, err
 		}
-		if _, err := r.projects.Skills(ctx, projectID, cmd.Executor.Skills); err != nil {
+		if _, err := r.deps.Skills(ctx, projectID, cmd.Executor.Skills); err != nil {
 			return 0, err
 		}
 		if o.Session != "" {
@@ -92,7 +92,7 @@ func (r *Runner) Start(ctx context.Context, projectID int64, m *manifest.Manifes
 			if !slices.Contains(pv.Caps(), provider.Folder) {
 				return 0, registry.Invalid("deck: %s works in a project folder, and provider %s cannot yet; pick Claude Code or Codex for it", cmd.Name, pv.Name())
 			}
-			if folder, err = r.projects.Folder(ctx, projectID, cmd.Executor.Folder); err != nil {
+			if folder, err = r.deps.Folder(ctx, projectID, cmd.Executor.Folder); err != nil {
 				return 0, err
 			}
 		}
@@ -213,7 +213,7 @@ func (r *Runner) Start(ctx context.Context, projectID int64, m *manifest.Manifes
 // scriptSource is the current text of the script a command runs.
 func (r *Runner) scriptSource(ctx context.Context, projectID int64, m *manifest.Manifest, cmd *manifest.Command) (string, error) {
 	s := m.Script(cmd.Executor.Script)
-	src, err := r.projects.Text(ctx, projectID, "script", s.File)
+	src, err := r.deps.Text(ctx, projectID, "script", s.File)
 	if err != nil {
 		return "", err
 	}
@@ -236,7 +236,7 @@ func (r *Runner) commandBody(ctx context.Context, projectID int64, cmd *manifest
 	if cmd.Executor.PromptFile == "" {
 		return cmd.Executor.Prompt, nil
 	}
-	body, err := r.projects.Text(ctx, projectID, "", cmd.Executor.PromptFile)
+	body, err := r.deps.Text(ctx, projectID, "", cmd.Executor.PromptFile)
 	if err != nil {
 		return "", err
 	}

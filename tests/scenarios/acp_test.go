@@ -49,7 +49,7 @@ func TestACPCommandAgentWorksThroughTheGateway(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(f.dir, "probe"), []byte(filepath.Join(deckhome.Layout(home).State(), "token")), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	e.App.Checks(t.Context(), time.Now().Add(time.Hour))
+	e.App.Providers.Checks(t.Context(), time.Now().Add(time.Hour))
 	e.waitFor("the version check", func() bool { _, err := os.Stat(filepath.Join(f.dir, "probe.out")); return err == nil })
 	f.streamText(4, strings.Join([]string{acpInit,
 		`{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,

@@ -18,7 +18,7 @@ func (a *App) terminal(ctx context.Context, p db.Process) string {
 	if p.Kind != process.KindAgent || p.SessionID == "" {
 		return ""
 	}
-	pv, err := a.Named(ctx, p.ProjectID, p.Provider)
+	pv, err := a.Providers.Named(ctx, p.ProjectID, p.Provider)
 	if err != nil {
 		return ""
 	}

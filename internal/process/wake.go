@@ -91,7 +91,7 @@ func (r *Runner) wake(ctx context.Context) {
 		var s *slot
 		switch p.State {
 		case StateWaitingProvider:
-			if busy["provider:"+p.Provider] || !r.providers.Ready(ctx, p.Provider) {
+			if busy["provider:"+p.Provider] || !r.deps.Ready(ctx, p.Provider) {
 				busy["provider:"+p.Provider] = true
 				continue
 			}

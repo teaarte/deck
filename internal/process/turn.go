@@ -86,7 +86,7 @@ func (r *Runner) runAgent(ctx context.Context, t *turn, p db.Process, trial bool
 // prepare gets a turn its provider, folder and slot, or leaves it waiting for them, then its folders, gateway
 // session, log and request; false when the turn does not go on.
 func (r *Runner) prepare(ctx context.Context, t *turn, p db.Process, trial bool, fail func(string)) (*agentTurn, bool) {
-	pv, err := r.providers.Named(ctx, t.project, p.Provider)
+	pv, err := r.deps.Named(ctx, t.project, p.Provider)
 	if err != nil {
 		fail(err.Error())
 		return nil, false
@@ -96,7 +96,7 @@ func (r *Runner) prepare(ctx context.Context, t *turn, p db.Process, trial bool,
 		return nil, false
 	}
 	t.pv = pv
-	if !r.providers.Ready(ctx, pv.Name()) {
+	if !r.deps.Ready(ctx, pv.Name()) {
 		r.hold(ctx, *t, StateWaitingProvider)
 		return nil, false
 	}
@@ -135,7 +135,7 @@ func (r *Runner) prepare(ctx context.Context, t *turn, p db.Process, trial bool,
 		fail(err.Error())
 		return nil, false
 	}
-	r.projects.Servers(ctx, t.project)
+	r.deps.Servers(ctx, t.project)
 	if len(t.cmd.Result) > 0 && !slices.Contains(pv.Caps(), provider.StructuredOutput) {
 		a.sub = &gateway.Submit{Schema: t.cmd.Result, Validate: func(raw json.RawMessage) error { return validate(t.cmd, raw) }}
 	}
@@ -206,7 +206,7 @@ func (r *Runner) prepare(ctx context.Context, t *turn, p db.Process, trial bool,
 			a.req.Prompt += "\nWhen you are done, hand in the whole final result with the result_submit tool of the deck MCP server, then end your turn.\n"
 		}
 	}
-	if a.req.Skills, err = r.projects.Skills(ctx, t.project, t.cmd.Executor.Skills); err == nil {
+	if a.req.Skills, err = r.deps.Skills(ctx, t.project, t.cmd.Executor.Skills); err == nil {
 		t.input, _, err = r.inputFiles(ctx, t.cmd, t.project, processID, t.input, true)
 	}
 	if err == nil && !t.resume {
@@ -400,7 +400,7 @@ func (r *Runner) firstPrompt(ctx context.Context, proj db.Project, t turn, tools
 	if err != nil {
 		return "", err
 	}
-	instructions, err := r.projects.Prompt(ctx, t.project)
+	instructions, err := r.deps.Prompt(ctx, t.project)
 	if err != nil {
 		return "", err
 	}
@@ -415,7 +415,7 @@ func (r *Runner) firstPrompt(ctx context.Context, proj db.Project, t turn, tools
 	if t.folder != "" {
 		p += "\nYou work in the project folder " + t.folder + ": the owner's own folder, not a scratch copy. No other agent of deck works in it while you do.\n"
 	}
-	mem, err := r.projects.Memory(ctx, proc)
+	mem, err := r.deps.Memory(ctx, proc)
 	if err != nil {
 		return "", err
 	}

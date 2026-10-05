@@ -320,7 +320,7 @@ func TestFailedCodexSelfCheckHoldsCodexProcesses(t *testing.T) {
 	e := newEnvBuiltin(t, home, []provider.Provider{fake, c.adapter(home)}, withClock(clock))
 	e.Clock = clock
 	ctx := context.Background()
-	e.App.Checks(ctx, e.Clock.Now())
+	e.App.Providers.Checks(ctx, e.Clock.Now())
 	h := e.waitHealth("provider:codex", "error")
 	if h.Version != "0.155.1" || !strings.Contains(h.Error, "self-check of 0.155.1 failed") {
 		t.Fatalf("a failed self-check of Codex is red with the version and the reason: %+v", h)
@@ -337,12 +337,12 @@ func TestFailedCodexSelfCheckHoldsCodexProcesses(t *testing.T) {
 	c.stream(before+1, "selfcheck.jsonl")
 	c.stream(before+2, "selfcheck_resume.jsonl")
 	c.stream(before+3, "selfcheck_offline.jsonl")
-	e.App.Checks(ctx, e.Clock.Add(10*time.Minute))
+	e.App.Providers.Checks(ctx, e.Clock.Add(10*time.Minute))
 	e.settle()
 	if c.calls() != before {
 		t.Fatalf("a red self-check is retried by its timer, not sooner: %d calls", c.calls())
 	}
-	e.App.Checks(ctx, e.Clock.Add(21*time.Minute))
+	e.App.Providers.Checks(ctx, e.Clock.Add(21*time.Minute))
 	if h := e.waitHealth("provider:codex", "ok"); h.Version != "0.155.1" {
 		t.Fatalf("the retried self-check is green: %+v", h)
 	}
@@ -368,7 +368,7 @@ func TestCodexSelfCheckIsRedWhenAutoModeStopsWorking(t *testing.T) {
 			c.stream(i+1, s)
 		}
 		e, _ := codexEnv(t, c)
-		e.App.Checks(context.Background(), time.Now())
+		e.App.Providers.Checks(context.Background(), time.Now())
 		status := "error"
 		if tc.want == "no valid login" {
 			status = "needs_login"

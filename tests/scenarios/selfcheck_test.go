@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 
 	"deck2/internal/provider"
 	"os"
@@ -273,12 +274,16 @@ func TestAHungVersionProbeDoesNotStopTheSchedule(t *testing.T) {
 	_ = p
 }
 
-// slowCheck is the fake provider whose self-check finds a model too slow for its ceiling.
-type slowCheck struct{ *Fake }
+// slowCheck is the fake provider whose self-check finds a model too slow for its ceiling; it counts its checks.
+type slowCheck struct {
+	*Fake
+	checks atomic.Int32
+}
 
 func (s *slowCheck) Version(context.Context) (string, error) { return "1.0", nil }
 
 func (s *slowCheck) SelfCheck(context.Context) provider.Check {
+	s.checks.Add(1)
 	return provider.Check{Version: "1.0", Slow: true, Err: errors.New("the model did not finish")}
 }
 
@@ -286,11 +291,17 @@ func (s *slowCheck) SelfCheck(context.Context) provider.Check {
 // provider, and its commands run on.
 func TestASlowModelIsAWarningThatHoldsNoTurn(t *testing.T) {
 	clock := &Clock{now: t0}
-	e := newEnvWith(t, t.TempDir(), &slowCheck{Fake: &Fake{}}, withClock(clock))
+	slow := &slowCheck{Fake: &Fake{}}
+	e := newEnvWith(t, t.TempDir(), slow, withClock(clock))
 	e.Clock = clock
 	e.App.Providers.Checks(context.Background(), e.Clock.Now())
 	if h := e.waitHealth("provider:fake", "warning"); !strings.Contains(h.Error, "did not finish") {
 		t.Fatalf("a slow model is a warning with the reason: %+v", h)
+	}
+	e.App.Providers.Checks(context.Background(), e.Clock.Add(31*time.Minute))
+	e.settle()
+	if n := slow.checks.Load(); n != 1 {
+		t.Fatalf("a warning is not checked again by the timer, which repeats only what holds turns: %d checks", n)
 	}
 	p := e.createProject("plain", plainManifest)
 	if got := e.waitState(e.run(p, "work"), "done", "error", "waiting_provider"); got.State != "done" {

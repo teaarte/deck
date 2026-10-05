@@ -14,7 +14,8 @@ import (
 	"deck2/internal/store/db"
 )
 
-// selfCheckRetry repeats a red self-check, and is the least time between self-checks a broken turn starts.
+// selfCheckRetry repeats a self-check that holds turns or was cut short, and is the least time between self-checks a
+// broken turn starts.
 const (
 	selfCheckRetry = 30 * time.Minute
 	versionTimeout = 30 * time.Second
@@ -164,7 +165,7 @@ func (s *Service) startCheck(name string, force bool) bool {
 		}
 		s.mu.Lock()
 		c.running = false
-		if status != "ok" {
+		if status != "ok" && status != "warning" {
 			c.retry = s.Now().Add(selfCheckRetry)
 		}
 		s.mu.Unlock()

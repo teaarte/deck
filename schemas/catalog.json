@@ -147,10 +147,11 @@
       }
     },
     "media": {
-      "description": "Files of the items of a source: a picture as a thumbnail that opens in full, a PDF in place, any other file by name and size with a download.",
-      "block": {"description": "Needs source and item.file, an expression over an item: the id of a stored file of the project (a result of its process, an attachment of its record) or a path in the data folder of the project; item.title is the caption. A file of another project or a path that is no file of the data folder is an error of its line, not of the block.", "required": ["source", "item"], "properties": {
+      "description": "Files of the items of a source: a picture as a thumbnail that opens in full, a PDF in place, a video or a sound in a player that steps by frames and shows the time as a timecode, any other file by name and size with a download.",
+      "block": {"description": "Needs source and item.file, an expression over an item: the id of a stored file of the project (a result of its process, an attachment of its record) or a path in the data folder of the project; item.title is the caption. A file of another project or a path that is no file of the data folder is an error of its line, not of the block. item.marks puts marks on the timeline of a player: a list of {at, text} or of seconds. mark is the button of a player that marks the second it is paused at: its command gets file (as item.file gives it) and at (seconds) beside its params, and the text the owner types into its input, such as a note the module sends back for rework. The address of the screen with t, in seconds, opens its first player there.", "required": ["source", "item"], "properties": {
         "source": {"$ref": "#/$defs/source"},
-        "item": {"type": "object", "additionalProperties": false, "required": ["file"], "properties": {"file": {"type": "string"}, "title": {"type": "string"}}},
+        "item": {"type": "object", "additionalProperties": false, "required": ["file"], "properties": {"file": {"type": "string"}, "title": {"type": "string"}, "marks": {"type": "string"}}},
+        "mark": {"$ref": "#/$defs/action"},
         "empty": {"$ref": "#/$defs/empty"}}},
       "type": "object",
       "additionalProperties": false,
@@ -160,7 +161,7 @@
         "icon": {"type": "string"},
         "span": {"enum": [1, 2, "full"], "default": 1},
         "description": {"type": "string"},
-        "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "files: [{id, title, name, type, size, url} or {id, title, error}]"}
+        "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "files: [{id, title, name, type, size, url, file, marks: [{at, text}], mark} or {id, title, error}]"}
       }
     },
     "actions": {
@@ -395,7 +396,10 @@
         "files": {"type": "array", "items": {
           "type": "object", "required": ["id"], "additionalProperties": false,
           "properties": {"id": {}, "title": {"type": "string"}, "name": {"type": "string"}, "type": {"type": "string"}, "size": {"type": "integer"},
-            "url": {"type": "string", "description": "where the client reads the file, with its token"}, "error": {"type": "string"}}
+            "url": {"type": "string", "description": "where the client reads the file, with its token"}, "error": {"type": "string"},
+            "file": {"description": "the file as item.file gives it, which the mark of a player passes on"},
+            "marks": {"type": "array", "items": {"type": "object", "required": ["at"], "additionalProperties": false, "properties": {"at": {"type": "number"}, "text": {"type": "string"}}}},
+            "mark": {"$ref": "#/$defs/action"}}
         }},
         "lines": {"type": "array", "items": {
           "type": "object", "required": ["at", "kind"],

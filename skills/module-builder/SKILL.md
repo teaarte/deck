@@ -166,8 +166,14 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   drawn — `limit` keeps the first items, so do not cut a history with it. Files are a `media` block: `{"type":
   "media", "source": {"collection": "scans"}, "item": {"file": "file", "title": "name"}}`, where `file` is the
   id of a stored file of the project (a result file of its run, an attachment of its record) or a path in its
-  data folder (`"charts/today.png"`); a picture is a thumbnail, a PDF shows in place, anything else is a name
-  with a download. Action `params` are strings in the manifest; `$record.<field>`
+  data folder (`"charts/today.png"`); a picture is a thumbnail, a PDF shows in place, a video or a sound plays in
+  a player with frame steps and a timecode, anything else is a name with a download. The player shows
+  `item.marks` (a list of `{at, text}` or of seconds) on its timeline, and its `mark` button — an action such
+  as `{"verb": "mark", "command": "note", "params": {"video": "$record.slug"}, "input": "note"}` — calls the
+  command with `file` (as `item.file` gives it) and `at` (the second it is paused at) beside its params, so a
+  note such as "scene 4, 0:12" reaches a rework; the command's input takes `file` and `at`. A screen opened
+  with `t` in seconds (declare it in `params`) starts its first player there; `timecode` formats seconds.
+  Action `params` are strings in the manifest; `$record.<field>`
   passes the field's value with its type (`$record.id` is a number, so that input field is an `integer`), and
   a fixed value becomes the type of its input field (`"days": "7"` to an `integer` is 7). An action passes
   every required parameter of its command

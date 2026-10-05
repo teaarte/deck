@@ -3,6 +3,7 @@ package manifest
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"regexp"
 	"slices"
 
@@ -217,7 +218,7 @@ func (c *screenCheck) block(where string, b Block) {
 			c.fail("%s actions_from: unknown field %q", where, b.ActionsFrom)
 		}
 		if b.Item != nil {
-			for _, e := range []string{b.Item.Title, b.Item.Text, b.Item.Meta, b.Item.Icon, b.Item.Details, b.Item.Questions, b.Item.Tone, b.Item.File} {
+			for _, e := range []string{b.Item.Title, b.Item.Text, b.Item.Meta, b.Item.Icon, b.Item.Details, b.Item.Questions, b.Item.Tone, b.Item.File, b.Item.Marks} {
 				if _, err := compileField(e, fields); e != "" && err != nil {
 					c.fail("%s item: %v", where, err)
 				}
@@ -242,6 +243,24 @@ func (c *screenCheck) block(where string, b Block) {
 	for _, a := range b.Actions {
 		if err := c.action(b, a, fields); err != nil {
 			c.fail("%s action %q: %v", where, a.Label, err)
+		}
+	}
+	if b.Mark != nil {
+		mark := *b.Mark
+		mark.Params = maps.Clone(mark.Params)
+		if mark.Params == nil {
+			mark.Params = map[string]string{}
+		}
+		mark.Params["file"], mark.Params["at"] = "", ""
+		switch {
+		case b.Type != "media":
+			c.fail("%s mark: only the player of a media block marks a second", where)
+		case mark.Command == "":
+			c.fail("%s mark: a mark calls a command with file and at", where)
+		default:
+			if err := c.action(b, mark, fields); err != nil {
+				c.fail("%s mark: %v", where, err)
+			}
 		}
 	}
 }

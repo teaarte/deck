@@ -1,0 +1,27 @@
+.media {
+  width: 100%;
+  max-height: 70vh;
+  border-radius: var(--mantine-radius-sm);
+  background: var(--mantine-color-black);
+}
+
+audio.media {
+  background: none;
+}
+
+.timeline {
+  position: relative;
+  height: 10px;
+  border-radius: 5px;
+  background: var(--mantine-color-default-border);
+}
+
+.tick {
+  position: absolute;
+  top: 0;
+  width: 10px;
+  height: 10px;
+  margin-left: -5px;
+  border-radius: 50%;
+  background: var(--mantine-primary-color-filled);
+}

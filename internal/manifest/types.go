@@ -261,6 +261,8 @@ type Block struct {
 	KeepOpen bool `json:"keep_open,omitempty"`
 	// Document is the custom/ document with the HTML of a custom block, or the document a document block shows.
 	Document string `json:"document,omitempty"`
+	// Mark is the button of the player of a media block: its command gets file and at, the second paused at.
+	Mark *Action `json:"mark,omitempty"`
 }
 
 // Span is the cells of the grid a block takes: N of them, or the whole width.
@@ -326,6 +328,8 @@ type Item struct {
 	Tone string `json:"tone,omitempty"`
 	// File is the file of a line of a media block: a stored file id or a path in the data folder.
 	File string `json:"file,omitempty"`
+	// Marks are the marks on the timeline of a video or sound of a line: a list of {at, text} or of seconds.
+	Marks string `json:"marks,omitempty"`
 }
 
 type Tab struct {

@@ -227,6 +227,17 @@ export interface Data {
      */
     url?: string;
     error?: string;
+    /**
+     * the file as item.file gives it, which the mark of a player passes on
+     */
+    file?: {
+      [k: string]: unknown;
+    };
+    marks?: {
+      at: number;
+      text?: string;
+    }[];
+    mark?: Action;
   }[];
   lines?: {
     at: string;

@@ -105,6 +105,22 @@ func Unsent(err error) bool {
 	return errors.As(err, &op) && op.Op == "dial"
 }
 
+// RolePath reports whether a request is one an @role may make: a POST of a model call, not the account, files or
+// other paths of the connection behind the role.
+func RolePath(method, path string) bool {
+	path = strings.TrimPrefix(path, "/")
+	if method != http.MethodPost {
+		return false
+	}
+	for _, p := range []string{"chat/completions", "completions", "responses", "embeddings", "messages", "images/generations",
+		"images/edits", "audio/speech", "audio/transcriptions", "audio/translations"} {
+		if path == p {
+			return true
+		}
+	}
+	return strings.HasPrefix(path, "models/") && (strings.HasSuffix(path, ":generateContent") || strings.HasSuffix(path, ":streamGenerateContent"))
+}
+
 // Fallible reports whether a hop's answer is an explicit refusal a fallback may take over: a limit or a fault of
 // the service, not an answer about the request.
 func Fallible(status int) bool { return status == http.StatusTooManyRequests || status >= 500 }
@@ -345,6 +361,10 @@ func (g *Gateway) proxyModel(w http.ResponseWriter, r *http.Request, act registr
 		return
 	}
 	asked := AskedModel(body)
+	if strings.HasPrefix(asked, "@") && !RolePath(r.Method, path) {
+		http.Error(w, "deck: "+asked+" makes a POST of a model call, such as chat/completions or audio/speech; "+r.Method+" "+path+" goes through a connection the manifest names", http.StatusForbidden)
+		return
+	}
 	hops, err := g.cfg.Models(r.Context(), act, connection, asked)
 	if err != nil {
 		http.Error(w, err.Error(), registry.Status(err))
@@ -378,6 +398,10 @@ func (g *Gateway) proxyModel(w http.ResponseWriter, r *http.Request, act registr
 		if err != nil {
 			http.Error(w, err.Error(), registry.Status(err))
 			return
+		}
+		if held, ok := out.(Waiting); ok && len(hops) > 0 && hops[0].Over != "" {
+			held.Text = hops[0].Over + ". " + held.Text
+			out = held
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusAccepted)

@@ -144,9 +144,12 @@ func ask(in modelCallIn) string {
 	return text
 }
 
+// merged is a body with the options added; the model stays the one deck picked and priced.
 func merged(body map[string]any, options map[string]any) map[string]any {
 	for k, v := range options {
-		body[k] = v
+		if k != "model" {
+			body[k] = v
+		}
 	}
 	return body
 }

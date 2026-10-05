@@ -279,8 +279,16 @@ func TestAScriptCallsAModelThroughDeckWithinTheDayOfItsConnection(t *testing.T) 
 	e.must("deck.secret_set", map[string]any{"name": "openrouter", "value": "sk-or-real"}, nil)
 	e.must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": api.URL + "/api/v1", "key_secret": "openrouter",
 		"daily_usd": 0.05, "open": true}, nil)
+	model := map[string]any{"connection": "openrouter", "model": "google/gemini-3.1-flash-lite-image", "kind": "image"}
 	e.createProject("shorts", scriptManifest("media", "", `, "models": ["openrouter"]`))
 	e.saveScript("shorts", "scripts/main.py", modelScript)
+	got := e.waitScript(e.start("shorts", "media", map[string]any{"key": "openrouter/chat/completions", "other": picture}), "done", "error")
+	if !strings.Contains(string(got.Result), "has no price") || len(api.calls()) != 0 {
+		t.Fatalf("a model without a price on a connection with a limit waits for the owner to price it: %+v", got)
+	}
+	e.answer(e.waitAsk().ID, "deny")
+	model["call_usd"] = 0.04
+	e.must("deck.model_set", model, nil)
 	run := func() map[string]any {
 		got := e.waitScript(e.start("shorts", "media", map[string]any{"key": "openrouter/chat/completions", "other": picture}), "done", "error")
 		var out map[string]any
@@ -422,6 +430,10 @@ func TestAScriptCallsARoleAndAFallbackTakesARefusal(t *testing.T) {
 	got = e.waitScript(e.start("shorts", "voice", map[string]any{"key": "@/audio/speech", "other": speech}), "done", "error")
 	if json.Unmarshal(got.Result, &out) != nil || out["status"] != 202.0 || len(spare.calls()) != 2 {
 		t.Fatalf("a connection modules may not call without asking makes the call wait for the owner: %+v", got)
+	}
+	got = e.waitScript(e.start("shorts", "voice", map[string]any{"key": "@/files", "other": `{"model": "@tts"}`}), "done", "error")
+	if json.Unmarshal(got.Result, &out) != nil || out["status"] != 403.0 || !strings.Contains(out["answer"].(string), "POST of a model call") {
+		t.Fatalf("a role reaches only the paths of model calls, not the rest of the connection behind it: %+v", got)
 	}
 	got = e.waitScript(e.start("shorts", "voice", map[string]any{"key": "spare/audio/speech", "other": `{"model": "@stt"}`}), "done", "error")
 	if json.Unmarshal(got.Result, &out) != nil || out["status"] != 422.0 || !strings.Contains(out["answer"].(string), "no model is assigned to stt") {

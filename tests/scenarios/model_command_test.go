@@ -24,7 +24,7 @@ const modelManifest = `{"version": 7,
      "executor": {"type": "model", "kind": "image", "prompt": "Draw the scene, no text in the picture.", "options": {"image_config": {"aspect_ratio": "9:16"}}}},
     {"name": "voice", "title": "Voice", "description": "Speaks a line.", "class": "internal",
      "input": {"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"]},
-     "executor": {"type": "model", "kind": "tts", "prompt": "Calm, like a documentary.", "options": {"voice": "onyx"}}},
+     "executor": {"type": "model", "kind": "tts", "prompt": "Calm, like a documentary.", "options": {"voice": "onyx", "model": "an-ungranted-model"}}},
     {"name": "words", "title": "Words", "description": "Writes down a recording.", "class": "internal",
      "input": {"type": "object", "properties": {"voice": {"type": "string", "format": "file"}}, "required": ["voice"]},
      "executor": {"type": "model", "kind": "stt", "options": {"timestamp_granularities[]": "word"}}}
@@ -109,8 +109,8 @@ func TestModelCommandsMakeFilesOfPicturesAndSpeechAndTextOfRecordings(t *testing
 		calls[1].Body["image_config"].(map[string]any)["aspect_ratio"] != "9:16" || fmt.Sprint(calls[1].Body["modalities"]) != "[image text]" {
 		t.Fatalf("a picture is asked of the images path, then of chat completions with the options of the command: %+v", calls)
 	}
-	if calls[2].Body["input"] != "Knights against snails" || calls[2].Body["voice"] != "onyx" || calls[2].Body["instructions"] != "Calm, like a documentary." {
-		t.Fatalf("speech speaks the text field with the voice of the options and the prompt as instructions: %+v", calls[2].Body)
+	if calls[2].Body["input"] != "Knights against snails" || calls[2].Model != "openai/gpt-5-mini-tts" || calls[2].Body["voice"] != "onyx" || calls[2].Body["instructions"] != "Calm, like a documentary." {
+		t.Fatalf("speech speaks the text field with the voice of the options (never their model) and the prompt as instructions: %+v", calls[2].Body)
 	}
 	var f struct{ ID int64 }
 	e.must("deck.file_upload", map[string]any{"project": "shorts", "name": "voice.mp3", "content": base64.StdEncoding.EncodeToString([]byte("ID3-recorded"))}, &f)

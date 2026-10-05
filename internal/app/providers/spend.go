@@ -125,6 +125,9 @@ func (s *Service) Route(ctx context.Context, act registry.Actor, connection, ask
 		h := gateway.ModelHop{Target: gateway.ModelTarget{URL: p.c.Url, API: p.c.Api, Key: key}, Connection: p.c.Name, Model: p.m.Model,
 			Open: p.c.Open != 0, Local: p.c.Local != 0, Free: p.m.Free != 0}
 		h.Over, _ = s.over(ctx, p.c, act.ProjectID)
+		if h.Over == "" && p.c.DailyUsd.Valid && p.m.Free == 0 && !p.m.InputUsd.Valid && !p.m.OutputUsd.Valid && !p.m.CallUsd.Valid {
+			h.Over = fmt.Sprintf("deck: model %s of connection %s has no price, so its limit cannot count it; the owner sets one with deck.model_set", p.m.Model, p.c.Name)
+		}
 		if h.Over == "" && closed && p.c.Open == 0 {
 			h.Over = fmt.Sprintf("deck: connection %s is not open to modules, so its calls wait for the owner", p.c.Name)
 		}
@@ -381,11 +384,14 @@ func (s *Service) modelRequest(ctx context.Context, act registry.Actor, in model
 		in.Connection = "@"
 	}
 	asked := gateway.AskedModel([]byte(in.Body))
+	method := cmp.Or(strings.ToUpper(in.Method), http.MethodPost)
+	if strings.HasPrefix(asked, "@") && !gateway.RolePath(method, in.Path) {
+		return nil, registry.Refuse("deck: %s makes a POST of a model call, such as chat/completions; %s %s goes through a connection the manifest names", asked, method, in.Path)
+	}
 	hops, err := s.Route(ctx, act, in.Connection, asked)
 	if err != nil {
 		return nil, err
 	}
-	method := cmp.Or(strings.ToUpper(in.Method), http.MethodPost)
 	header := http.Header{}
 	if in.Body != "" {
 		header.Set("Content-Type", "application/json")

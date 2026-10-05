@@ -62,8 +62,9 @@ SELECT workspace_id, url, key_secret, max(local) AS local, min(rowid) AS n,
 FROM old_provider GROUP BY workspace_id, url, key_secret;
 INSERT INTO connection (workspace_id, name, api, url, key_secret, local)
 SELECT c.workspace_id,
-    CASE WHEN (SELECT count(*) FROM old_connection o WHERE o.workspace_id = c.workspace_id AND o.base = c.base AND o.n < c.n) = 0
-        THEN c.base ELSE c.base || '-' || c.n END,
+    CASE WHEN (SELECT count(*) FROM old_connection o WHERE o.workspace_id = c.workspace_id AND o.base = c.base AND o.n < c.n) = 0 THEN c.base
+        WHEN EXISTS (SELECT 1 FROM old_connection o WHERE o.workspace_id = c.workspace_id AND o.base = c.base || '-' || c.n) THEN 'connection-' || c.n
+        ELSE c.base || '-' || c.n END,
     'openai', c.url, c.key_secret, c.local
 FROM old_connection c ORDER BY c.n;
 INSERT INTO model (workspace_id, connection_id, name, model, kind, agent, check_minutes)

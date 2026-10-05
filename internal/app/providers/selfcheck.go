@@ -10,6 +10,7 @@ import (
 	"deck2/internal/health"
 	"deck2/internal/process"
 	"deck2/internal/provider"
+	"deck2/internal/provider/acp"
 	"deck2/internal/store/db"
 )
 
@@ -40,9 +41,22 @@ func (s *Service) checksOf(name string) *checks {
 	return c
 }
 
-// Checks runs the self-check of each provider that has one at the first call and again while it is red; only the
-// Loop calls it, so tests run self-checks on purpose.
+// Checks finds the ACP agents and runs the self-check of each provider that has one at the first call, and again
+// while it is red; only the Loop calls it, so tests run self-checks on purpose.
 func (s *Service) Checks(ctx context.Context, now time.Time) {
+	s.mu.Lock()
+	found := s.found
+	s.found = true
+	s.mu.Unlock()
+	if !found {
+		s.BG.Add(1)
+		go func() {
+			defer s.BG.Done()
+			for _, name := range acp.Names() {
+				s.discover(s.Ctx, name)
+			}
+		}()
+	}
 	for _, pv := range s.checked(ctx) {
 		s.mu.Lock()
 		c := s.checksOf(pv.Name())
@@ -145,6 +159,9 @@ func (s *Service) startCheck(name string, force bool) bool {
 		}
 		s.mu.Unlock()
 		s.writeCheck(context.WithoutCancel(ctx), subject, status, text, version, verdict, res.Speed)
+		if a, ok := sc.(interface{ AgentName() string }); ok && ctx.Err() == nil {
+			s.discover(ctx, a.AgentName())
+		}
 		s.mu.Lock()
 		c.running = false
 		if status != "ok" {

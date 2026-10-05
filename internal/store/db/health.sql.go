@@ -11,7 +11,7 @@ import (
 )
 
 const deleteHealth = `-- name: DeleteHealth :exec
-DELETE FROM health WHERE project_id = ? AND subject = ?
+DELETE FROM health WHERE project_id IS ? AND subject = ?
 `
 
 type DeleteHealthParams struct {

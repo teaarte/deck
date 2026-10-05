@@ -18,6 +18,12 @@ import (
 )
 
 type modelsOut struct {
+	Agents []struct {
+		Name    string `json:"name"`
+		Version string `json:"version"`
+		Status  string `json:"status"`
+		Error   string `json:"error"`
+	} `json:"agents"`
 	Connections []struct {
 		Name     string   `json:"name"`
 		API      string   `json:"api"`

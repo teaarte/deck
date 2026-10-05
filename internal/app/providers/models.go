@@ -100,6 +100,7 @@ type assignmentView struct {
 }
 
 type modelsOut struct {
+	Agents      []agentView      `json:"agents"`
 	Connections []connectionView `json:"connections"`
 	Models      []modelView      `json:"models"`
 	Assignments []assignmentView `json:"assignments"`
@@ -113,7 +114,7 @@ func nullable(f sql.NullFloat64) *float64 {
 }
 
 func (s *Service) modelsList(ctx context.Context, act registry.Actor, _ struct{}) (modelsOut, error) {
-	out := modelsOut{Connections: []connectionView{}, Models: []modelView{}, Assignments: []assignmentView{}}
+	out := modelsOut{Agents: s.agents(ctx), Connections: []connectionView{}, Models: []modelView{}, Assignments: []assignmentView{}}
 	conns, err := s.St.Q.ListConnections(ctx, act.Workspace)
 	if err != nil {
 		return out, err

@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"strconv"
+	"strings"
 
 	"deck2/internal/provider"
 )
@@ -23,10 +25,23 @@ type Agent struct {
 	// Web is set when the agent has its own web fetch or search.
 	Web   bool
 	Start func(l Launch) (argv, env []string, files map[string]string)
+	// Major is the major version deck runs, any when zero; Back says how to install it.
+	Major int
+	Back  string
 }
 
 // Agents are the ACP agents deck starts; docs/spikes/acp.md has what each one does.
-var Agents = map[string]Agent{"opencode": {Web: true, Start: opencode}, "dsh": {Start: dsh}}
+var Agents = map[string]Agent{"opencode": {Web: true, Start: opencode, Major: 1, Back: "npm i -g opencode-ai@1.18.30"}, "dsh": {Start: dsh}}
+
+// Supports refuses a version of the agent deck does not run, such as "opencode 2.0.20", with how to go back.
+func (g Agent) Supports(version string) error {
+	_, v, _ := strings.Cut(version, " ")
+	major, _, _ := strings.Cut(v, ".")
+	if g.Major == 0 || major == strconv.Itoa(g.Major) {
+		return nil
+	}
+	return fmt.Errorf("%s is not supported: deck runs %d.x; install it with %s", version, g.Major, g.Back)
+}
 
 func opencode(l Launch) ([]string, []string, map[string]string) {
 	perm := map[string]any{"*": "allow", "question": "deny"}

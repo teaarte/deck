@@ -54,6 +54,8 @@ type Service struct {
 
 	mu    sync.Mutex
 	check map[string]*checks
+	// found is set once the ACP agents were looked for.
+	found bool
 }
 
 // Named is the provider of a workspace by name: a built-in one of deck or one the owner added.

@@ -13,7 +13,7 @@ ORDER BY h.subject;
 
 
 -- name: DeleteHealth :exec
-DELETE FROM health WHERE project_id = ? AND subject = ?;
+DELETE FROM health WHERE project_id IS ? AND subject = ?;
 
 
 -- name: MarkHealthy :exec

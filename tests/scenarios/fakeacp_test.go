@@ -29,7 +29,11 @@ func serveACP(dir string) {
 			_, err := os.ReadFile(strings.TrimSpace(string(probe)))
 			_ = os.WriteFile(filepath.Join(dir, "probe.out"), []byte(fmt.Sprint(err)), 0o644)
 		}
-		fmt.Println("fake-acp 1.0.0")
+		if v, err := os.ReadFile(filepath.Join(dir, "version")); err == nil {
+			fmt.Println(string(v))
+		} else {
+			fmt.Println("fake-acp 1.0.0")
+		}
 		os.Exit(0)
 	}
 	f := &fakeACPRun{fakeServer: newFakeServer("fake acp", dir, args)}

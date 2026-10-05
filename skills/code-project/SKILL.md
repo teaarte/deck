@@ -38,7 +38,7 @@ The folder is the root of the repo (where `.git` is), not a folder inside it and
 3. Tell the owner what only they do, in the Settings of the project (Settings → Projects → "Settings" on its
    row):
    - "Add folder": the repo path (a folder lets agents write there, so only the owner adds it);
-   - "Choose the provider of a command": the provider of `<project>.run`;
+   - "Models" on the row of `<project>.run`: the model it runs on;
    - "Enable".
 
 ## 3. How a run goes (what `prompts/run.md` must keep)

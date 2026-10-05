@@ -28,14 +28,12 @@ import (
 // Service keeps the providers. Wake lets turns that wait for a provider go on once it is ready; Ctx and BG are
 // the life of deck, for the self-checks it runs in the background.
 type Service struct {
-	St          *store.Store
-	Bus         *events.Bus
-	Now         func() time.Time
-	Home        string
-	Sandbox     sandbox.Sandbox
-	ACPBinaries map[string]string
-	// Rules are the setting of the old sandbox the ACP agents of a workspace run in.
-	Rules            sandbox.Rules
+	St               *store.Store
+	Bus              *events.Bus
+	Now              func() time.Time
+	Home             string
+	Sandbox          sandbox.Sandbox
+	ACPBinaries      map[string]string
 	ACPCallLimit     time.Duration
 	SelfCheckCeiling time.Duration
 	Secret           func(workspace int64, name string) (string, error)

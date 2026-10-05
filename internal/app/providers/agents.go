@@ -3,6 +3,7 @@ package providers
 import (
 	"cmp"
 	"context"
+	"errors"
 	"os/exec"
 
 	"deck2/internal/health"
@@ -41,21 +42,37 @@ func (s *Service) discover(ctx context.Context, name string) {
 	vctx, cancel := context.WithTimeout(ctx, versionTimeout)
 	v, err := a.Version(vctx)
 	cancel()
+	s.agentRow(ctx, name, v, err)
+}
+
+// agentRow writes the health row of an ACP agent from the version it gave or why it gave none.
+func (s *Service) agentRow(ctx context.Context, name, version string, failed error) {
 	status, text := "ok", ""
-	if err == nil {
-		err = acp.Agents[name].Supports(v)
+	if failed == nil {
+		failed = acp.Agents[name].Supports(version)
 	} else {
-		v = ""
+		version = ""
 	}
-	if err != nil {
-		status, text = "error", err.Error()
+	if failed != nil {
+		status, text = "error", failed.Error()
 	}
 	_ = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		if err := health.Set(ctx, q, health.Of{}, subject, status, text); err != nil {
+		if err := health.Set(ctx, q, health.Of{}, agentSubject(name), status, text); err != nil {
 			return err
 		}
-		return q.SetHealthVersion(ctx, db.SetHealthVersionParams{Version: v, Subject: subject})
+		return q.SetHealthVersion(ctx, db.SetHealthVersionParams{Version: version, Subject: agentSubject(name)})
 	})
+}
+
+// versionErr is why a self-check found no version of its agent; nil when it found one.
+func versionErr(c provider.Check) error {
+	if c.Version != "" {
+		return nil
+	}
+	if c.Err != nil {
+		return c.Err
+	}
+	return errors.New("the self-check found no version")
 }
 
 // agents are the built-in providers with a self-check and the ACP agents deck knows.

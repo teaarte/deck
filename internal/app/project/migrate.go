@@ -137,7 +137,7 @@ func (sv *Saver) runMigration(ctx context.Context, p db.Project, m *manifest.Man
 	defer cancel()
 	dir := filepath.Join(sv.Home.Runs(), "migration-"+uuid.NewString())
 	defer os.RemoveAll(dir)
-	out, err := sv.Scripts.Run(ctx, script.Job{Project: p.ID, Manifest: m, Script: s, Source: src, Dir: dir, Stdin: []byte(input)})
+	out, err := sv.Scripts.Run(ctx, script.Job{Project: p.ID, Script: s, Source: src, Dir: dir, Stdin: []byte(input)})
 	if ctx.Err() != nil {
 		return nil, fmt.Errorf("it ran longer than %s", limit)
 	}

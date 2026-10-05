@@ -66,7 +66,6 @@ type Service struct {
 	BG            *sync.WaitGroup
 	Files         files.Dirs
 	RemoveFiles   func(ids []int64)
-	Secret        func(workspace int64, name string) (string, error)
 	ReadSecret    func(workspace int64, name string) (string, error)
 	WriteSecret   func(workspace int64, name, value string) error
 	SecretsDir    func(workspace int64) string

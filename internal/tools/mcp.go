@@ -38,7 +38,7 @@ type MCP struct {
 	Secrets func(workspace int64, name string) (string, error)
 	Dirs    files.Dirs
 	Home    string
-	// Rules are the setting of the old sandbox and who hears what the sandbox kept closed from a server.
+	// Rules say who hears what the sandbox kept closed from a server.
 	Rules sandbox.Rules
 }
 

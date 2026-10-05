@@ -163,7 +163,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	*a.Providers = providers.Service{St: st, Bus: a.Bus, Now: cfg.Now, Home: cfg.Home, Sandbox: cfg.Sandbox, ACPBinaries: cfg.ACPBinaries,
 		ACPCallLimit: cfg.ACPCallLimit, SelfCheckCeiling: cfg.SelfCheckCeiling, Secret: a.Secrets.Secret, WriteSecret: a.Secrets.Write,
 		Wake: a.Runner.Wake, Dirs: a.dirs(), Resolve: a.Tools.Resolve,
-		Rules: rules, Builtin: append([]provider.Provider{p}, more...), Ctx: a.ctx, BG: &a.bg}
+		Builtin: append([]provider.Provider{p}, more...), Ctx: a.ctx, BG: &a.bg}
 	*a.Answers = asks.Service{St: st, Now: cfg.Now, Broker: a.Asks, Registry: a.Registry, Gateway: a.Gateway, Deliver: a.Runner.Deliver,
 		AnswerGrant: a.Saver.AnswerGrant, SaveManifest: a.Saver.SaveCall, ExpireSuggestions: a.Suggest.Expire,
 		AnswerSuggestion: a.Suggest.Answer}
@@ -171,7 +171,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	*a.Suggest = suggest.Service{St: st, Bus: a.Bus, Now: cfg.Now, Registry: a.Registry, Asks: a.Asks, Gateway: a.Gateway, Days: a.Settings.SuggestDays}
 	*a.Chats = chat.Service{St: st, Bus: a.Bus, Now: cfg.Now, Asks: a.Asks, Runner: a.Runner, For: a.Providers.For, RemoveFiles: a.Files.Remove}
 	*a.Devices = devices.Service{St: st, Bus: a.Bus, Now: cfg.Now, Ctx: a.ctx, BG: &a.bg, Files: a.dirs(), RemoveFiles: a.Files.Remove,
-		Secret: a.Secrets.Secret, ReadSecret: a.Secrets.Read, WriteSecret: a.Secrets.Write, SecretsDir: h.Secrets,
+		ReadSecret: a.Secrets.Read, WriteSecret: a.Secrets.Write, SecretsDir: h.Secrets,
 		LockSecrets: a.Secrets.Lock, UnlockSecrets: a.Secrets.Unlock, Invoke: a.Registry.Invoke}
 	*a.Failures = failures.Service{St: st, Now: cfg.Now, Runner: a.Runner}
 	*a.Processes = processes.Service{St: st, Runner: a.Runner, Named: a.Providers.Named}

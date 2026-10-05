@@ -70,7 +70,7 @@ func (s *status) Flush() {
 }
 
 // refused tells a failed turn by the last answer of the model API: a usage limit (429) pauses, a refused key
-// needs a login, as in deck's own tool loop.
+// needs a login.
 func (e *entry) refused(res provider.Result) provider.Result {
 	e.mu.Lock()
 	status, after := e.last, e.retryAfter

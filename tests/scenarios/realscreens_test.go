@@ -173,7 +173,7 @@ func TestRealBrowserSettings(t *testing.T) {
 	b.open(e.URL + "/#/p/web/settings")
 	row := `[...document.querySelectorAll('tr')].find((r) => r.innerText.includes('web.score'))`
 	b.until("the commands of the project", row)
-	b.eval(pressIn(row, "provider"))
+	b.eval(pressIn(row, "models"))
 	models := `[data-form="deck.assignment_set"] input[data-field="models"]`
 	b.until("the dialog of the models of the command", `document.querySelector('`+models+`')`)
 	b.pick(models, "fake")

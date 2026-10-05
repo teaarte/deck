@@ -37,12 +37,11 @@ func (x *Exec) DataDir(project int64) string {
 
 // Job is one run of a script; Dir is its run folder, with work/ and results/ inside.
 type Job struct {
-	Project  int64
-	Manifest *manifest.Manifest
-	Script   *manifest.Script
-	Source   string
-	Dir      string
-	Stdin    []byte
+	Project int64
+	Script  *manifest.Script
+	Source  string
+	Dir     string
+	Stdin   []byte
 	// Out is the gateway listener of the run; without it the script has no network.
 	Out net.Listener
 	Env []string

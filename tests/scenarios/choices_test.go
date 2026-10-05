@@ -50,10 +50,10 @@ func TestFormFieldsOfferValuesFromASourceAndProjectFieldsTheProjects(t *testing.
 
 	var cmds []string
 	for _, r := range blockData[[]screenRow](t, e.screenBlock("web", "settings", "Commands", nil)["rows"]) {
-		if !hasVerb(r.Actions, "provider") {
+		if !hasVerb(r.Actions, "models") {
 			continue
 		}
-		pick := verb(t, r.Actions, "provider")
+		pick := verb(t, r.Actions, "models")
 		if params, _ := pick["params"].(map[string]any); pick["screen"] != "settings" || params["dialog"] != "assign" || params["command"] != strings.TrimPrefix(r.Cells[1].(string), "web.") {
 			t.Fatalf("the provider of an agent command is picked in the dialog of its models: %+v", pick)
 		}

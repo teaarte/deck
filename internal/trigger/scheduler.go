@@ -27,18 +27,22 @@ type Starter interface {
 	Fire(ctx context.Context, t db.Trigger, input map[string]any) (int64, error)
 }
 
-// Scheduler runs cron and run-later triggers in the local time zone. A run later than Grace was missed
-// (deck down or the machine asleep): it fires once, and several missed runs are spaced Spread apart.
+// spread spaces missed runs apart; grace is how late a run may be before it counts as missed.
+const (
+	spread = time.Minute
+	grace  = 2 * time.Minute
+)
+
+// Scheduler runs cron and run-later triggers in the local time zone. A run later than grace was missed
+// (deck down or the machine asleep): it fires once, and several missed runs are spaced spread apart.
 type Scheduler struct {
-	st     *store.Store
-	start  Starter
-	Now    func() time.Time
-	Spread time.Duration
-	Grace  time.Duration
+	st    *store.Store
+	start Starter
+	Now   func() time.Time
 }
 
 func New(st *store.Store, s Starter, now func() time.Time) *Scheduler {
-	return &Scheduler{st: st, start: s, Now: now, Spread: time.Minute, Grace: 2 * time.Minute}
+	return &Scheduler{st: st, start: s, Now: now}
 }
 
 // Identity is what a manifest trigger is known by across manifest revisions.
@@ -146,7 +150,7 @@ func (s *Scheduler) Tick(ctx context.Context) int {
 		slog.Error("due triggers", "err", err)
 		return 0
 	}
-	missedBefore := store.Time(now.Add(-s.Grace))
+	missedBefore := store.Time(now.Add(-grace))
 	late := 0
 	for _, t := range due {
 		missed := t.NextRunAt.String < missedBefore
@@ -154,7 +158,7 @@ func (s *Scheduler) Tick(ctx context.Context) int {
 		case missed && t.Kind == KindCron && t.SkipMissed == 1:
 			s.after(ctx, t, now)
 		case missed && late > 0:
-			slot := store.Time(now.Add(time.Duration(late) * s.Spread))
+			slot := store.Time(now.Add(time.Duration(late) * spread))
 			late++
 			s.tx(ctx, func(ctx context.Context, q *db.Queries) error {
 				return q.SetTriggerNext(ctx, db.SetTriggerNextParams{NextRunAt: sql.NullString{String: slot, Valid: true}, ID: t.ID})

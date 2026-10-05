@@ -452,7 +452,7 @@ func (s *Service) modelRequest(ctx context.Context, act registry.Actor, in model
 }
 
 // modelRequestCommand is a request of a model API through deck: deck puts in the key, counts the spend and keeps
-// to the daily limits; past them, or on a connection modules may not call without asking, it waits for the owner.
+// to the daily limits; past them it waits for the owner.
 func (s *Service) modelRequestCommand() *registry.Command {
 	c := registry.Def("model_request", "Call a model",
 		"Sends one request to the API of a connection with deck's key, such as chat/completions with model @text; the answer comes back as the API gave it, a file for audio or pictures.",

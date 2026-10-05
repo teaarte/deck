@@ -32,13 +32,6 @@ type Config struct {
 	Commands []*registry.Command
 }
 
-const (
-	// silentAfter is how long a running process may go without output before it shows as silent.
-	silentAfter = 30 * time.Minute
-	// emptyKept is how long a process with an empty result stays in the history.
-	emptyKept = 24 * time.Hour
-)
-
 func (c *Config) defaults() {
 	if c.Now == nil {
 		c.Now = time.Now

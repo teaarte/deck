@@ -1,6 +1,7 @@
 package providers
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"log/slog"
@@ -80,17 +81,6 @@ func (s *Service) Broke(ctx context.Context, name string) {
 	}
 }
 
-// version is what the provider reports as its version, or why it does not, within versionTimeout.
-func version(ctx context.Context, sc provider.SelfChecker) string {
-	ctx, cancel := context.WithTimeout(ctx, versionTimeout)
-	defer cancel()
-	v, err := sc.Version(ctx)
-	if err != nil {
-		return "unknown: " + err.Error()
-	}
-	return v
-}
-
 // startCheck runs a self-check in the background unless one is running; one the owner asked for or of a red
 // provider holds its turns until it ends. One cut short by a limit or a login keeps no version, so it reruns.
 func (s *Service) startCheck(name string, force bool) bool {
@@ -112,10 +102,9 @@ func (s *Service) startCheck(name string, force bool) bool {
 	s.BG.Add(1)
 	go func() {
 		defer s.BG.Done()
-		v := version(ctx, sc)
 		h, _ := s.St.Q.GetHealth(ctx, subject)
 		if force || h.Status == "error" || h.Status == "checking" {
-			s.writeCheck(ctx, subject, "checking", "self-check of "+v+" is running", "", "", 0)
+			s.writeCheck(ctx, subject, "checking", "the self-check is running", "", "", 0)
 		}
 		ceiling := s.SelfCheckCeiling
 		if c, ok := sc.(interface{ CheckCeiling() time.Duration }); ok && c.CheckCeiling() > 0 {
@@ -124,9 +113,7 @@ func (s *Service) startCheck(name string, force bool) bool {
 		cctx, cancel := context.WithTimeout(ctx, ceiling)
 		res := sc.SelfCheck(cctx)
 		cancel()
-		if res.Version == "" {
-			res.Version = v
-		}
+		of := cmp.Or(res.Version, "an unknown version")
 		status, text, verdict := "ok", "", ""
 		switch {
 		case ctx.Err() != nil:
@@ -136,11 +123,11 @@ func (s *Service) startCheck(name string, force bool) bool {
 		case res.NeedsLogin:
 			status, text = "needs_login", "the self-check found no valid login; "+errText(res.Err)
 		case res.Err != nil && res.Slow:
-			status, text, verdict = "warning", fmt.Sprintf("the model did not finish the self-check of %s within %s: %s", res.Version, ceiling, res.Err), "model"
+			status, text, verdict = "warning", fmt.Sprintf("the model did not finish the self-check of %s within %s: %s", of, ceiling, res.Err), "model"
 		case res.Err != nil && res.ModelFailed:
-			status, text, verdict = "error", fmt.Sprintf("the model does not manage the self-check of %s: %s; pick a stronger model", res.Version, res.Err), "model"
+			status, text, verdict = "error", fmt.Sprintf("the model does not manage the self-check of %s: %s; pick a stronger model", of, res.Err), "model"
 		case res.Err != nil:
-			status, text, verdict = "error", fmt.Sprintf("self-check of %s failed: %s", res.Version, res.Err), "adapter"
+			status, text, verdict = "error", fmt.Sprintf("self-check of %s failed: %s", of, res.Err), "adapter"
 		}
 		if res.Speed > 0 {
 			text = strings.TrimPrefix(text+fmt.Sprintf("; the model answered at %.0f tokens/s", res.Speed), "; ")
@@ -161,7 +148,7 @@ func (s *Service) startCheck(name string, force bool) bool {
 		s.mu.Unlock()
 		s.writeCheck(context.WithoutCancel(ctx), subject, status, text, version, verdict, res.Speed)
 		if a, ok := sc.(interface{ AgentName() string }); ok && ctx.Err() == nil {
-			s.discover(ctx, a.AgentName())
+			s.agentRow(ctx, a.AgentName(), res.Version, versionErr(res))
 		}
 		s.mu.Lock()
 		c.running = false

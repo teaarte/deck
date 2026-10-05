@@ -73,7 +73,7 @@ type Config struct {
 	PauseLimit time.Duration
 	// AgentSlots is how many agent turns a workspace runs at once; scripts and tools do not count.
 	AgentSlots func(ctx context.Context, workspace int64) int
-	// Rules are the setting of the old sandbox and who hears what the sandbox kept closed.
+	// Rules say who hears what the sandbox kept closed.
 	Rules sandbox.Rules
 }
 

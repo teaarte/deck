@@ -16,7 +16,7 @@ You talk to deck through its MCP server (`deck`). The tools are deck commands: `
 `projects_list`, `triggers_list`, `models_list`, `health_list`, `asks_list`, `command_describe`. Some commands only the owner runs:
 `secret_set`, `oauth_start`, `browser_login`, `assignment_set`, `model_set`, `project_enable`; say which one and
 why when the module needs it. The owner does them in two places. The Settings of the project (Settings →
-Projects → "Settings" on its row): "Enable" with the rights enabling grants, autonomy, pause, the provider of
+Projects → "Settings" on its row): "Enable" with the rights enabling grants, autonomy, pause, the models of
 each command, folders, the secrets its tools take. deck's Settings tabs: Projects (create, import, a trial run),
 Models (assignments, a model and its agent), Connections (where models are reached, and the other secrets: a
 name and a hidden value), Tokens, Health; sign-ins wait in the cockpit. So name

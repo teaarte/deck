@@ -106,7 +106,6 @@ func Hold(ctx context.Context, q *db.Queries, act registry.Actor, project int64,
 	return a, err
 }
 
-// canonical is JSON with sorted keys and no spaces, so identical calls compare equal.
 // Canonical is JSON with sorted keys and numbers as they came, so the same input compares equal.
 func Canonical(raw json.RawMessage) string {
 	d := json.NewDecoder(bytes.NewReader(raw))

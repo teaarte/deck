@@ -15,6 +15,7 @@ import (
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
+	"deck2/internal/trigger"
 
 	"github.com/google/uuid"
 )
@@ -141,7 +142,7 @@ func (r *Runner) Start(ctx context.Context, projectID int64, m *manifest.Manifes
 			if t.Paused == 1 || pr.Paused == 1 {
 				return registry.Invalid("deck: %s was not started: its trigger or project is paused", command)
 			}
-			if (t.Kind == "cron" || t.Kind == "once") && t.NextRunAt.String > store.Time(r.now()) {
+			if (t.Kind == trigger.KindCron || t.Kind == trigger.KindOnce) && t.NextRunAt.String > store.Time(r.now()) {
 				return registry.Invalid("deck: %s was not started: its trigger moved to %s since it was due", command, t.NextRunAt.String)
 			}
 			if pr.Status == store.ProjectDraft && parent.Trial != 1 {

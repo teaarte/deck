@@ -609,7 +609,7 @@
             {"label": "Provider", "bind": "provider"}
           ],
           "actions": [
-            {"verb": "provider", "screen": "settings", "params": {"dialog": "assign", "command": "=trimPrefix(name, project + '.')", "models": "=provider"}, "when": "executor == 'agent'"},
+            {"verb": "models", "screen": "settings", "params": {"dialog": "assign", "command": "=trimPrefix(name, project + '.')", "models": "=provider"}, "when": "executor == 'agent'"},
             {"verb": "try", "screen": "settings", "params": {"dialog": "try-command", "command": "$record.name"}}
           ]},
         {"type": "table", "title": "Folders", "source": {"from": "deck.folders_list"},

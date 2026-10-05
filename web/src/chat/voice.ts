@@ -1,4 +1,4 @@
-// A recording of the microphone as 16 kHz mono WAV, which every whisper server reads.
+// A recording of the microphone as 16 kHz mono WAV, which every speech-to-text model reads.
 export interface Recording {
   stop: () => Promise<Blob>;
   cancel: () => void;

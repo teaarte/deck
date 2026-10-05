@@ -4,6 +4,8 @@ package settings
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"slices"
 	"strconv"
 	"strings"
@@ -83,32 +85,66 @@ func (s *Service) SuggestDays(ctx context.Context, workspace int64) int {
 	return int(s.setting(ctx, workspace, "suggest_days").(int64))
 }
 
-type settingsSetIn struct {
-	ConfirmHours int64  `json:"confirm_hours" opt:"" desc:"Hours a confirmation waits, 1 to 720"`
-	AgentLimit   int64  `json:"agent_limit" opt:"" desc:"Agent processes at once, 1 to 20; more wait for a slot"`
-	SuggestDays  int64  `json:"suggest_days" opt:"" desc:"Days a suggestion waits before it expires, 1 to 90"`
-	Language     string `opt:"" enum:"auto|en|ru" desc:"Language of the interface: auto follows the device; agents and their prompts keep theirs"`
-	Sandbox      string `opt:"" enum:"closed|open" desc:"Sandbox of scripts, MCP servers and ACP agents: closed reads of the home folder only runtimes and project folders; open is the old one"`
+// setParams are the fields of settings_set: one for each setting, and a setting by its name with its value as
+// text, which the edit button of the General tab sends.
+func setParams() []registry.Param {
+	ps := make([]registry.Param, 0, len(settingDefs)+2)
+	names := make([]string, 0, len(settingDefs))
+	for _, d := range settingDefs {
+		names = append(names, d.name)
+		if d.options != nil {
+			ps = append(ps, registry.Param{Name: d.name, Type: "enum", Enum: d.options, Desc: d.title, Optional: true})
+			continue
+		}
+		ps = append(ps, registry.Opt(d.name, "integer", fmt.Sprintf("%s, %d to %d", d.title, d.min, d.max)))
+	}
+	return append(ps, registry.Param{Name: "name", Type: "enum", Enum: names, Desc: "A setting to set to value", Optional: true},
+		registry.Opt("value", "string", "The value of the setting called name"))
 }
 
-func (s *Service) settingsSet(ctx context.Context, act registry.Actor, in settingsSetIn) (any, error) {
-	given := map[string]any{"confirm_hours": in.ConfirmHours, "agent_limit": in.AgentLimit, "suggest_days": in.SuggestDays, "language": in.Language, "sandbox": in.Sandbox}
+// value is the stored text of a setting given as v, a number or text; empty when it is not given.
+func (d settingDef) value(v json.RawMessage) (string, error) {
+	var text string
+	if json.Unmarshal(v, &text) != nil {
+		text = string(v)
+	}
+	text = strings.TrimSpace(text)
+	if text == "" || text == "0" && d.options == nil {
+		return "", nil
+	}
+	if d.options != nil {
+		if !slices.Contains(d.options, text) {
+			return "", registry.Invalid("deck: %s is one of %s", d.name, strings.Join(d.options, ", "))
+		}
+		return text, nil
+	}
+	n, err := strconv.ParseInt(text, 10, 64)
+	if err != nil || n < d.min || n > d.max {
+		return "", registry.Invalid("deck: %s is from %d to %d", d.name, d.min, d.max)
+	}
+	return strconv.FormatInt(n, 10), nil
+}
+
+func (s *Service) settingsSet(ctx context.Context, act registry.Actor, raw json.RawMessage) (any, error) {
+	var in map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &in); err != nil {
+		return nil, registry.Invalid("deck: %v", err)
+	}
+	if name, ok := in["name"]; ok {
+		var n string
+		_ = json.Unmarshal(name, &n)
+		in[n] = in["value"]
+	}
 	values := map[string]string{}
 	names := []string{}
 	for _, d := range settingDefs {
 		names = append(names, d.name)
-		switch v := given[d.name].(type) {
-		case int64:
-			if v != 0 && (v < d.min || v > d.max) {
-				return nil, registry.Invalid("deck: %s is from %d to %d", d.name, d.min, d.max)
-			}
-			if v != 0 {
-				values[d.name] = strconv.FormatInt(v, 10)
-			}
-		case string:
-			if v != "" {
-				values[d.name] = v
-			}
+		v, err := d.value(in[d.name])
+		if err != nil {
+			return nil, err
+		}
+		if v != "" {
+			values[d.name] = v
 		}
 	}
 	if len(values) == 0 {
@@ -155,8 +191,8 @@ func (s *Service) Commands() []*registry.Command {
 		registry.Read("settings_list", "Settings",
 			"Lists the settings of the workspace with their values and defaults.",
 			registry.OwnerOnly, s.settingsList).On("settings"),
-		registry.Def("settings_set", "Change settings",
-			"Sets how long a confirmation and a suggestion wait for the owner, how many agent processes run at once, the language of the interface and the sandbox; an omitted one stays.",
-			registry.OwnerOnly, s.settingsSet),
+		registry.DefOf("settings_set", "Change settings",
+			"Sets settings of the workspace, each by its field or one by name and value; an omitted one stays.",
+			registry.OwnerOnly, setParams(), s.settingsSet),
 	}
 }

@@ -3,6 +3,7 @@ package scenarios
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -400,4 +401,68 @@ func TestTheMasterSeesTheNamesOfSecrets(t *testing.T) {
 	if err != nil || string(raw) != `[{"name":"mail-key","set":true}]` {
 		t.Fatalf("the master gets the names of the secrets and no value: %s %v", raw, err)
 	}
+}
+
+// TestEverySettingIsEditedFromItsOneDefinition: each setting of the list is a field of settings_set and has the
+// one edit button of the General tab, which sets it by its name.
+func TestEverySettingIsEditedFromItsOneDefinition(t *testing.T) {
+	e := newEnv(t, nil)
+	var list []struct {
+		Name    string
+		Options []string
+	}
+	e.must("deck.settings_list", nil, &list)
+	var set struct {
+		Input struct{ Properties map[string]json.RawMessage }
+	}
+	e.must("deck.command_describe", map[string]any{"command": "deck.settings_set"}, &set)
+	var rows []struct {
+		ID      string
+		Actions []struct {
+			Verb, Command, Input string
+			Params               map[string]any
+		}
+	}
+	_ = json.Unmarshal(e.settingsBlock("General", nil)["rows"], &rows)
+	if len(rows) != len(list) {
+		t.Fatalf("the General tab lists every setting: %+v", rows)
+	}
+	for _, s := range list {
+		if set.Input.Properties[s.Name] == nil {
+			t.Fatalf("settings_set takes %s as a field of its own: %+v", s.Name, set)
+		}
+		r := rows[slices.IndexFunc(rows, func(r struct {
+			ID      string
+			Actions []struct {
+				Verb, Command, Input string
+				Params               map[string]any
+			}
+		}) bool {
+			return r.ID == s.Name
+		})]
+		if len(r.Actions) != 1 || r.Actions[0].Verb != "edit" {
+			t.Fatalf("%s has the edit button: %+v", s.Name, r)
+		}
+		value := "2"
+		if len(s.Options) > 0 {
+			value = s.Options[len(s.Options)-1]
+		}
+		in := map[string]any{r.Actions[0].Input: value}
+		for k, v := range r.Actions[0].Params {
+			in[k] = v
+		}
+		e.must(r.Actions[0].Command, in, nil)
+	}
+	var after []struct {
+		Name  string
+		Value any
+	}
+	e.must("deck.settings_list", nil, &after)
+	for _, s := range after {
+		if fmt.Sprint(s.Value) != "2" && fmt.Sprint(s.Value) != "open" && fmt.Sprint(s.Value) != "ru" {
+			t.Fatalf("the button set %s: %+v", s.Name, after)
+		}
+	}
+	e.refused("deck.settings_set", map[string]any{"name": "agent_limit", "value": "50"}, 422, "1 to 20")
+	e.refused("deck.settings_set", map[string]any{"name": "nothing", "value": "1"}, 422, "")
 }

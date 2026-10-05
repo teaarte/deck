@@ -87,6 +87,13 @@ func Def[In any](name, title, desc string, callers []string, h func(ctx context.
 		Input: Params(ps...), Handler: Typed(h), params: ps}
 }
 
+// DefOf declares a builtin command of class internal whose parameters are listed in code, such as a list of
+// settings kept in Go; h gets the input as it came, checked by their schema.
+func DefOf(name, title, desc string, callers []string, ps []Param, h Handler) *Command {
+	return &Command{Name: Builtin + "." + name, Title: title, Description: desc, Class: Internal, Callers: callers,
+		Input: Params(ps...), Handler: h, params: ps}
+}
+
 // Static is the topic of a read whose result no event changes.
 const Static = "static"
 

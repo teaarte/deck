@@ -68,6 +68,8 @@ type Config struct {
 	// ConfirmTTL is how long an unanswered confirmation of a workspace stays open unless its tool sets its own;
 	// zero keeps it open.
 	ConfirmTTL func(ctx context.Context, workspace int64) time.Duration
+	// Models finds where a script's call of a model through the proxy of deck goes.
+	Models ModelRoute
 }
 
 type Gateway struct {

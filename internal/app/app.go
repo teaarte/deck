@@ -126,7 +126,8 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	a.Asks = ask.NewBroker(st, a.Bus, cfg.Now)
 	a.Registry = registry.New(a.Saver.ProjectCommands)
 	a.Registry.SetPublish(a.Bus.Publish)
-	a.Gateway = gateway.New(gateway.Config{Now: cfg.Now, QuestionWait: cfg.QuestionWait, ConfirmWait: cfg.ConfirmWait, ConfirmTTL: a.Settings.ConfirmTTL}, st, a.Asks, a.Bus, a.Registry)
+	a.Gateway = gateway.New(gateway.Config{Now: cfg.Now, QuestionWait: cfg.QuestionWait, ConfirmWait: cfg.ConfirmWait, ConfirmTTL: a.Settings.ConfirmTTL,
+		Models: a.Providers.Route}, st, a.Asks, a.Bus, a.Registry)
 	a.Gateway.SetAutomation(a.Tokens.Automation)
 	oauth := &tools.OAuth{Secrets: a.Secrets.Secret, Swap: a.Secrets.Swap}
 	a.Tools = tools.NewHTTP(a.Gateway, a.Secrets.Secret, a.dirs())
@@ -160,7 +161,8 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 		RemoveFiles: a.Files.Remove}
 	*a.Board = board.Service{St: st, Bus: a.Bus, Now: cfg.Now, Fire: a.Triggers.Start}
 	*a.Providers = providers.Service{St: st, Bus: a.Bus, Now: cfg.Now, Home: cfg.Home, Sandbox: cfg.Sandbox, ACPBinaries: cfg.ACPBinaries,
-		ACPCallLimit: cfg.ACPCallLimit, SelfCheckCeiling: cfg.SelfCheckCeiling, Secret: a.Secrets.Secret, Wake: a.Runner.Wake,
+		ACPCallLimit: cfg.ACPCallLimit, SelfCheckCeiling: cfg.SelfCheckCeiling, Secret: a.Secrets.Secret, WriteSecret: a.Secrets.Write,
+		Wake: a.Runner.Wake, Dirs: a.dirs(),
 		Rules: rules, Builtin: append([]provider.Provider{p}, more...), Ctx: a.ctx, BG: &a.bg}
 	*a.Answers = asks.Service{St: st, Now: cfg.Now, Broker: a.Asks, Registry: a.Registry, Gateway: a.Gateway, Deliver: a.Runner.Deliver,
 		AnswerGrant: a.Saver.AnswerGrant, SaveManifest: a.Saver.SaveCall, ExpireSuggestions: a.Suggest.Expire,

@@ -16,6 +16,7 @@ import (
 
 	"deck2/internal/docs"
 	"deck2/internal/events"
+	"deck2/internal/files"
 	"deck2/internal/manifest"
 	"deck2/internal/process"
 	"deck2/internal/provider"
@@ -40,11 +41,14 @@ type Service struct {
 	ACPCallLimit     time.Duration
 	SelfCheckCeiling time.Duration
 	Secret           func(workspace int64, name string) (string, error)
+	WriteSecret      func(workspace int64, name, value string) error
 	Wake             func(ctx context.Context)
 	// Builtin are the providers deck was started with, the main one first; the owner adds ACP ones per workspace.
 	Builtin []provider.Provider
 	Ctx     context.Context
 	BG      *sync.WaitGroup
+	// Dirs keep a file a model answered with in the results folder of the calling process.
+	Dirs files.Dirs
 
 	mu    sync.Mutex
 	check map[string]*checks
@@ -86,7 +90,19 @@ func (s *Service) Provider(ctx context.Context, workspace int64, name string) (p
 	return acp.New(acp.Config{Name: name, Agent: m.Agent, Binary: s.ACPBinaries[m.Agent], URL: c.Url, Model: m.Model,
 		Key: key, NoCloud: c.Local != 0, Home: s.Home, Sandbox: s.Sandbox, CallLimit: s.ACPCallLimit, Now: s.Now,
 		Open:         func() bool { return s.Rules.IsOpen(context.Background(), workspace) },
-		CheckCeiling: time.Duration(m.CheckMinutes) * time.Minute})
+		CheckCeiling: time.Duration(m.CheckMinutes) * time.Minute,
+		Price: func(u *provider.Usage) {
+			if u.CostUSD == nil {
+				u.CostUSD = price(m, *u)
+			}
+		},
+		Over: func() (string, time.Time) {
+			c, err := s.St.Q.GetConnectionByID(context.Background(), c.ID)
+			if err != nil {
+				return "", time.Time{}
+			}
+			return s.over(context.Background(), c, 0)
+		}})
 }
 
 // named is a built-in provider, or one the owner added to any workspace; nil when there is none.

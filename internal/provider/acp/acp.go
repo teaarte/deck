@@ -4,6 +4,7 @@ package acp
 
 import (
 	"context"
+	"deck2/internal/gateway"
 	"deck2/internal/home"
 	"errors"
 	"fmt"
@@ -45,6 +46,10 @@ type Config struct {
 	Now func() time.Time
 	// CheckCeiling bounds a self-check of a slow model; deck's own when zero.
 	CheckCeiling time.Duration
+	// Price fills in the cost of a call by the price of the model when the API does not report one.
+	Price func(*provider.Usage)
+	// Over says why the day of the model's connection is past its limit, and until when; empty within it.
+	Over func() (string, time.Time)
 }
 
 type Adapter struct {
@@ -136,10 +141,6 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 	if err != nil {
 		return provider.Result{}, err
 	}
-	model, err := url.Parse(a.cfg.URL)
-	if err != nil {
-		return provider.Result{}, err
-	}
 	mcp, err := url.Parse(req.MCPURL)
 	if err != nil {
 		return provider.Result{}, err
@@ -157,8 +158,8 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 	life, stop := context.WithCancel(context.WithoutCancel(ctx))
 	defer stop()
 	self := a.cfg.Sandbox.Addr(ln)
-	e := &entry{ctx: life, self: self, mcp: mcp, model: model, modelAt: "/model/" + nonce.Hex(16), key: key, proxyKey: nonce.Hex(16), name: a.cfg.Model,
-		onUsage: req.OnUsage, now: a.now}
+	e := &entry{ctx: life, self: self, mcp: mcp, model: gateway.ModelTarget{URL: a.cfg.URL, API: "openai", Key: key}, modelAt: "/model/" + nonce.Hex(16),
+		proxyKey: nonce.Hex(16), name: a.cfg.Model, onUsage: req.OnUsage, price: a.cfg.Price, over: a.cfg.Over, now: a.now}
 	if !req.NoNetwork {
 		e.domains = req.Hosts
 	}

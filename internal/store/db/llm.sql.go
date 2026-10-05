@@ -11,7 +11,7 @@ import (
 )
 
 const listLLMCalls = `-- name: ListLLMCalls :many
-SELECT c.id, c.workspace_id, c.project_id, c.process_id, c.command, c.gen_ai_provider_name, c.gen_ai_request_model, c.gen_ai_response_model, c.gen_ai_usage_input_tokens, c.gen_ai_usage_output_tokens, c.gen_ai_usage_cache_read_input_tokens, c.gen_ai_usage_cache_creation_input_tokens, c.duration_ms, c.cost_usd, c.created_at FROM llm_call c
+SELECT c.id, c.workspace_id, c.project_id, c.process_id, c.command, c.gen_ai_provider_name, c.gen_ai_request_model, c.gen_ai_response_model, c.gen_ai_usage_input_tokens, c.gen_ai_usage_output_tokens, c.gen_ai_usage_cache_read_input_tokens, c.gen_ai_usage_cache_creation_input_tokens, c.duration_ms, c.cost_usd, c.created_at, c.connection_id FROM llm_call c
 WHERE c.workspace_id = ?1 AND (?2 = 0 OR c.process_id = ?2)
   AND (?3 = 0 OR c.project_id = ?3)
 ORDER BY c.id DESC LIMIT ?4
@@ -54,6 +54,7 @@ func (q *Queries) ListLLMCalls(ctx context.Context, arg ListLLMCallsParams) ([]L
 			&i.DurationMs,
 			&i.CostUsd,
 			&i.CreatedAt,
+			&i.ConnectionID,
 		); err != nil {
 			return nil, err
 		}
@@ -69,10 +70,12 @@ func (q *Queries) ListLLMCalls(ctx context.Context, arg ListLLMCallsParams) ([]L
 }
 
 const logLLMCall = `-- name: LogLLMCall :exec
-INSERT INTO llm_call (workspace_id, project_id, process_id, command, gen_ai_provider_name, gen_ai_request_model, gen_ai_response_model,
+INSERT INTO llm_call (workspace_id, project_id, process_id, command, connection_id, gen_ai_provider_name, gen_ai_request_model, gen_ai_response_model,
     gen_ai_usage_input_tokens, gen_ai_usage_output_tokens, gen_ai_usage_cache_read_input_tokens, gen_ai_usage_cache_creation_input_tokens,
     duration_ms, cost_usd, created_at)
-SELECT j.workspace_id, p.project_id, p.id, p.command, ?1, ?2, ?3,
+SELECT j.workspace_id, p.project_id, p.id, p.command,
+    (SELECT m.connection_id FROM model m WHERE m.workspace_id = j.workspace_id AND m.name = ?1),
+    ?1, ?2, ?3,
     ?4, ?5, ?6, ?7,
     ?8, ?9, ?10
 FROM process p JOIN project j ON j.id = p.project_id WHERE p.id = ?11
@@ -105,6 +108,54 @@ func (q *Queries) LogLLMCall(ctx context.Context, arg LogLLMCallParams) error {
 		arg.CostUsd,
 		arg.CreatedAt,
 		arg.ProcessID,
+	)
+	return err
+}
+
+const logModelCall = `-- name: LogModelCall :exec
+INSERT INTO llm_call (workspace_id, project_id, process_id, command, connection_id, gen_ai_provider_name, gen_ai_request_model,
+    gen_ai_response_model, gen_ai_usage_input_tokens, gen_ai_usage_output_tokens, gen_ai_usage_cache_read_input_tokens,
+    gen_ai_usage_cache_creation_input_tokens, duration_ms, cost_usd, created_at)
+VALUES (?1, ?2, ?3, ?4, ?5,
+    ?6, ?7, ?8, ?9, ?10,
+    ?11, ?12, ?13, ?14, ?15)
+`
+
+type LogModelCallParams struct {
+	WorkspaceID         int64
+	ProjectID           sql.NullInt64
+	ProcessID           sql.NullInt64
+	Command             string
+	ConnectionID        sql.NullInt64
+	Provider            string
+	RequestModel        string
+	ResponseModel       string
+	InputTokens         int64
+	OutputTokens        int64
+	CacheReadTokens     int64
+	CacheCreationTokens int64
+	DurationMs          int64
+	CostUsd             sql.NullFloat64
+	CreatedAt           string
+}
+
+func (q *Queries) LogModelCall(ctx context.Context, arg LogModelCallParams) error {
+	_, err := q.db.ExecContext(ctx, logModelCall,
+		arg.WorkspaceID,
+		arg.ProjectID,
+		arg.ProcessID,
+		arg.Command,
+		arg.ConnectionID,
+		arg.Provider,
+		arg.RequestModel,
+		arg.ResponseModel,
+		arg.InputTokens,
+		arg.OutputTokens,
+		arg.CacheReadTokens,
+		arg.CacheCreationTokens,
+		arg.DurationMs,
+		arg.CostUsd,
+		arg.CreatedAt,
 	)
 	return err
 }
@@ -225,4 +276,36 @@ func (q *Queries) SpendSince(ctx context.Context, arg SpendSinceParams) ([]Spend
 		return nil, err
 	}
 	return items, nil
+}
+
+const spentOfConnection = `-- name: SpentOfConnection :one
+SELECT CAST(COALESCE(sum(cost_usd), 0) AS REAL) FROM llm_call WHERE connection_id = ?1 AND created_at >= ?2
+`
+
+type SpentOfConnectionParams struct {
+	ConnectionID sql.NullInt64
+	Since        string
+}
+
+func (q *Queries) SpentOfConnection(ctx context.Context, arg SpentOfConnectionParams) (float64, error) {
+	row := q.db.QueryRowContext(ctx, spentOfConnection, arg.ConnectionID, arg.Since)
+	var column_1 float64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const spentOfProject = `-- name: SpentOfProject :one
+SELECT CAST(COALESCE(sum(cost_usd), 0) AS REAL) FROM llm_call WHERE project_id = ?1 AND created_at >= ?2
+`
+
+type SpentOfProjectParams struct {
+	ProjectID sql.NullInt64
+	Since     string
+}
+
+func (q *Queries) SpentOfProject(ctx context.Context, arg SpentOfProjectParams) (float64, error) {
+	row := q.db.QueryRowContext(ctx, spentOfProject, arg.ProjectID, arg.Since)
+	var column_1 float64
+	err := row.Scan(&column_1)
+	return column_1, err
 }

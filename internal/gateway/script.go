@@ -59,6 +59,18 @@ func (g *Gateway) ScriptHandler(ctx context.Context, tok, self string, domains [
 		}
 		reply(w, out)
 	})
+	mux.HandleFunc("/models/{connection}/{path...}", func(w http.ResponseWriter, r *http.Request) {
+		body, err := ReadBody(w, r)
+		if err != nil {
+			return
+		}
+		s := g.session(tok)
+		if s == nil {
+			http.Error(w, "deck: this process has finished", http.StatusGone)
+			return
+		}
+		g.proxyModel(w, r, s.actor(), r.PathValue("connection"), r.PathValue("path"), body)
+	})
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodConnect || r.URL.IsAbs() && r.URL.Host != self {
 			if ProxyAuthorized(w, r, tok) && g.session(tok) != nil {

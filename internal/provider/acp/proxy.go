@@ -1,13 +1,11 @@
 package acp
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
-	"io"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -22,15 +20,17 @@ type entry struct {
 	ctx     context.Context
 	self    string
 	mcp     *url.URL
-	model   *url.URL
+	model   gateway.ModelTarget
 	modelAt string
-	key     string
 	// proxyKey is the password of the web proxy, given to the agent in its proxy address.
 	proxyKey string
 	name     string
 	domains  []string
 	onUsage  func(provider.Usage)
-	now      func() time.Time
+	// price fills in the cost of a call the API did not price; over says why the day is past its limit and until when.
+	price func(*provider.Usage)
+	over  func() (string, time.Time)
+	now   func() time.Time
 
 	mu sync.Mutex
 	// last is the status and Retry-After of the last answer of the model API.
@@ -56,30 +56,43 @@ func (e *entry) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// callModel passes a call of the agent to its model API with deck's key, unless the day is past the limit of the
+// connection or the project: then the agent hears a usage limit until the day is over.
 func (e *entry) callModel(w http.ResponseWriter, r *http.Request) {
-	start := time.Now()
-	(&httputil.ReverseProxy{FlushInterval: -1,
-		Rewrite: func(pr *httputil.ProxyRequest) {
-			pr.SetURL(e.model)
-			pr.Out.URL.Path = strings.TrimSuffix(e.model.Path, "/") + strings.TrimPrefix(r.URL.Path, e.modelAt)
-			pr.Out.URL.RawPath = ""
-			pr.Out.Header.Del("Authorization")
-			pr.Out.Header.Del("Accept-Encoding")
-			if e.key != "" {
-				pr.Out.Header.Set("Authorization", "Bearer "+e.key)
-			}
-		},
-		ModifyResponse: func(resp *http.Response) error {
+	if e.over != nil {
+		if why, until := e.over(); why != "" {
+			after := strconv.Itoa(max(1, int(until.Sub(e.now()).Seconds())))
 			e.mu.Lock()
-			e.last, e.retryAfter = resp.StatusCode, resp.Header.Get("Retry-After")
+			e.last, e.retryAfter = http.StatusTooManyRequests, after
 			e.mu.Unlock()
-			resp.Body = &meter{body: resp.Body, done: func(model string, u *usage) {
-				if u != nil && e.onUsage != nil {
-					e.onUsage(u.of(model, e.name, time.Since(start)))
-				}
-			}}
-			return nil
-		}}).ServeHTTP(w, r)
+			w.Header().Set("Retry-After", after)
+			http.Error(w, why, http.StatusTooManyRequests)
+			return
+		}
+	}
+	body, err := gateway.ReadBody(w, r)
+	if err != nil {
+		return
+	}
+	start := time.Now()
+	resp, err := gateway.SendModel(r.Context(), e.model, r.Method, strings.TrimPrefix(r.URL.Path, e.modelAt), r.URL.RawQuery, r.Header, body)
+	if err != nil {
+		http.Error(w, "deck: the model API: "+err.Error(), http.StatusBadGateway)
+		return
+	}
+	e.mu.Lock()
+	e.last, e.retryAfter = resp.StatusCode, resp.Header.Get("Retry-After")
+	e.mu.Unlock()
+	gateway.Relay(w, resp, start, func(u *provider.Usage) {
+		if u == nil || e.onUsage == nil {
+			return
+		}
+		u.RequestModel = e.name
+		if e.price != nil {
+			e.price(u)
+		}
+		e.onUsage(*u)
+	})
 }
 
 // refused tells a failed turn by the last answer of the model API: a usage limit (429) pauses, a refused key
@@ -100,75 +113,4 @@ func (e *entry) egress(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	gateway.Egress(e.ctx, w, r, e.domains)
-}
-
-// usage is the token count of one chat completion as OpenAI-compatible APIs report it; deck's own loop reads the same.
-type usage struct {
-	Prompt     int64 `json:"prompt_tokens"`
-	Completion int64 `json:"completion_tokens"`
-	Details    struct {
-		Cached  int64 `json:"cached_tokens"`
-		Written int64 `json:"cache_write_tokens"`
-	} `json:"prompt_tokens_details"`
-}
-
-func (u *usage) of(model, asked string, d time.Duration) provider.Usage {
-	return provider.Usage{Model: model, RequestModel: asked, Input: u.Prompt, Output: u.Completion,
-		CacheRead: u.Details.Cached, CacheCreation: u.Details.Written, Duration: d}
-}
-
-// meter passes a model response through and finds its usage: in the body, or in the last event of a stream.
-type meter struct {
-	body  io.ReadCloser
-	line  []byte
-	whole []byte
-	model string
-	u     *usage
-	done  func(model string, u *usage)
-	shut  bool
-}
-
-func (m *meter) Read(p []byte) (int, error) {
-	n, err := m.body.Read(p)
-	for _, b := range p[:n] {
-		if b == '\n' {
-			m.scan(m.line)
-			m.line = m.line[:0]
-		} else if len(m.line) < 1<<20 {
-			m.line = append(m.line, b)
-		}
-	}
-	if len(m.whole) < 4<<20 {
-		m.whole = append(m.whole, p[:n]...)
-	}
-	return n, err
-}
-
-func (m *meter) scan(line []byte) {
-	line = bytes.TrimSpace(bytes.TrimPrefix(bytes.TrimSpace(line), []byte("data:")))
-	var v struct {
-		Model string `json:"model"`
-		Usage *usage `json:"usage"`
-	}
-	if json.Unmarshal(line, &v) != nil {
-		return
-	}
-	if v.Model != "" {
-		m.model = v.Model
-	}
-	if v.Usage != nil {
-		m.u = v.Usage
-	}
-}
-
-func (m *meter) Close() error {
-	if !m.shut {
-		m.shut = true
-		m.scan(m.line)
-		if m.u == nil {
-			m.scan(m.whole)
-		}
-		m.done(m.model, m.u)
-	}
-	return m.body.Close()
 }

@@ -192,6 +192,7 @@ type LlmCall struct {
 	DurationMs                         int64
 	CostUsd                            sql.NullFloat64
 	CreatedAt                          string
+	ConnectionID                       sql.NullInt64
 }
 
 type Mark struct {
@@ -283,6 +284,7 @@ type Project struct {
 	CreatedAt       string
 	GrantedRevision sql.NullInt64
 	ImportedFrom    string
+	ModelDailyUsd   sql.NullFloat64
 }
 
 type ProjectFolder struct {

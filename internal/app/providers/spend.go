@@ -177,7 +177,7 @@ func (s *Service) record(ctx context.Context, act registry.Actor, m db.Model, c 
 	}
 	err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		return q.LogModelCall(ctx, db.LogModelCallParams{WorkspaceID: act.Workspace, ProjectID: store.ID(act.ProjectID), ProcessID: store.ID(act.ProcessID),
-			ConnectionID: store.ID(c.ID), Provider: c.Name, RequestModel: m.Model, ResponseModel: u.Model,
+			ConnectionID: store.ID(c.ID), Provider: m.Name, RequestModel: m.Model, ResponseModel: u.Model,
 			InputTokens: u.Input, OutputTokens: u.Output, CacheReadTokens: u.CacheRead, CacheCreationTokens: u.CacheCreation,
 			DurationMs: u.Duration.Milliseconds(), CostUsd: nullFloat(cost), CreatedAt: store.Time(s.Now())})
 	})

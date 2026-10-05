@@ -432,7 +432,7 @@ func TestAScriptCallsARoleAndAFallbackTakesARefusal(t *testing.T) {
 	}
 	var spend []spendRow
 	e.must("deck.llm_calls_list", map[string]any{"project": "shorts"}, &spend)
-	if len(spend) != 1 || spend[0].Provider != "spare" || spend[0].Cost == nil || *spend[0].Cost != 0.02 {
+	if len(spend) != 1 || spend[0].Provider != "spare/voice-2" || spend[0].Cost == nil || *spend[0].Cost != 0.02 {
 		t.Fatalf("the call is counted on the model that made it, by its price per call: %+v", spend)
 	}
 

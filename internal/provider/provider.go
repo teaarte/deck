@@ -203,9 +203,8 @@ type Check struct {
 	Speed float64
 }
 
-// SelfChecker is a provider whose adapter deck checks at start and when the version of its program changes.
+// SelfChecker is a provider whose adapter deck checks at start, on a button and on a broken turn.
 type SelfChecker interface {
-	Version(ctx context.Context) (string, error)
 	SelfCheck(ctx context.Context) Check
 }
 

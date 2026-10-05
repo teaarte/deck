@@ -641,7 +641,7 @@ func TestTheSandboxSaysWhatItKeptClosed(t *testing.T) {
 	self, _ := os.Executable()
 	e.createProject("tools", scriptManifest("collect", "", fmt.Sprintf(`, "tools": {"mcp": {"servers": {"fake": {"command": %q,
     "env": {"DECK_FAKE_MCP": "project"}, "toolFilter": ["peek"], "classes": {"peek": "internal"}}}}}`, self)))
-	e.saveScript("tools", "scripts/main.py", "import json, sys\nprint(open(json.load(sys.stdin)[\"key\"]).read())\n")
+	e.saveScript("tools", "scripts/main.py", "import json, os, sys\ntry:\n    os.listdir(os.path.dirname(os.environ[\"DECK_DATA\"]))\nexcept OSError:\n    pass\nprint(open(json.load(sys.stdin)[\"key\"]).read())\n")
 	id := e.start("tools", "collect", map[string]any{"key": filepath.Join(owner, ".zshrc")})
 	p := e.waitScript(id, "done", "error")
 	if p.State != "error" || !strings.Contains(p.Error, filepath.Join(owner, ".zshrc")) || !strings.Contains(p.Error, "Settings → Projects") {
@@ -649,6 +649,9 @@ func TestTheSandboxSaysWhatItKeptClosed(t *testing.T) {
 	}
 	if b, _ := json.Marshal(e.log(id)); !strings.Contains(string(b), "deck: the sandbox kept "+filepath.Join(owner, ".zshrc")+" closed") {
 		t.Fatalf("the log of the script has the path the sandbox kept closed: %s", b)
+	}
+	if strings.Count(p.Error, "kept closed") != 1 || strings.Contains(p.Error, deckhome.Layout(e.App.Cfg.Home).Projects()) {
+		t.Fatalf("a look into a folder above its own is not what the script was kept from: %s", p.Error)
 	}
 	_, _ = e.App.Gateway.CallAs(context.Background(), registry.Actor{Kind: registry.Agent, Workspace: 1, ProjectID: e.projectID("tools")},
 		"tools.fake.peek", json.RawMessage(fmt.Sprintf(`{"path": %q}`, filepath.Join(owner, "Documents", "notes.txt"))))

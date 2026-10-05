@@ -82,8 +82,13 @@ func profile(p Policy) string {
 	for _, w := range p.Write {
 		fmt.Fprintf(&b, "(allow file-read* file-write* (subpath %s))\n", quote(real(w)))
 	}
-	for _, d := range ancestors(append(slices.Clone(p.Read), p.Write...)) {
+	open := append(slices.Clone(p.Read), p.Write...)
+	for _, d := range ancestors(open) {
 		fmt.Fprintf(&b, "(allow file-read-metadata (literal %s))\n", quote(d))
+		hidden := slices.ContainsFunc(p.Hide, func(h string) bool { return strings.HasPrefix(d+"/", real(h)+"/") })
+		if hidden && !slices.ContainsFunc(open, func(o string) bool { return strings.HasPrefix(d+"/", real(o)+"/") }) {
+			fmt.Fprintf(&b, "(deny file-read-data (literal %s) (with no-report))\n", quote(d))
+		}
 	}
 	b.WriteString(`(allow file-write* file-ioctl (literal "/dev/null") (literal "/dev/zero") (literal "/dev/tty") (literal "/dev/dtracehelper"))` + "\n")
 	b.WriteString("(allow mach-lookup")
@@ -181,7 +186,8 @@ func (s *seatbelt) stream() func() {
 	return cancel
 }
 
-// ancestors are the folders above paths, so a program resolves the path of a folder it may read.
+// ancestors are the folders above paths: a program resolves the path of a folder it may read, and a look into a
+// hidden one, as a bundler that walks up for its packages does, stays closed without a report.
 func ancestors(paths []string) []string {
 	var out []string
 	for _, p := range paths {

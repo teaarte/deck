@@ -201,6 +201,9 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 		if !seen && req.OnEvent != nil {
 			req.OnEvent(provider.Event{Kind: provider.EventStderr, Text: "deck: the sandbox kept " + path + " closed"})
 		}
+		if !seen && req.Kept != nil {
+			req.Kept(path)
+		}
 	})
 	defer unwatch()
 	cmd, err := a.cfg.Sandbox.Command(life, a.closed(sandbox.Policy{

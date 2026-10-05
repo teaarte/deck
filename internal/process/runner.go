@@ -12,6 +12,7 @@ import (
 	"deck2/internal/gateway"
 	"deck2/internal/manifest"
 	"deck2/internal/provider"
+	"deck2/internal/sandbox"
 	"deck2/internal/script"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
@@ -70,10 +71,8 @@ type Config struct {
 	PauseLimit time.Duration
 	// AgentSlots is how many agent turns a workspace runs at once; scripts and tools do not count.
 	AgentSlots func(ctx context.Context, workspace int64) int
-	// OpenSandbox is whether the scripts of a workspace run in the old sandbox, which reads the home folder.
-	OpenSandbox func(ctx context.Context, workspace int64) bool
-	// Closed hears of a path the sandbox kept closed from a script of a project.
-	Closed func(ctx context.Context, project int64, who, path string)
+	// Rules are the setting of the old sandbox and who hears what the sandbox kept closed.
+	Rules sandbox.Rules
 }
 
 // Runner owns process lifecycles. A process stops in waiting_answer when the agent is blocked on the

@@ -41,6 +41,8 @@ type Request struct {
 	OnStart func(pgid int)
 	// Live brings the owner's messages into the running turn, for a provider with live input.
 	Live <-chan Message
+	// Kept hears of a path deck's sandbox kept closed from the agent, for a provider deck confines.
+	Kept func(path string)
 }
 
 // Message is the owner's message into a running turn; the provider tells on Taken whether the turn took it.

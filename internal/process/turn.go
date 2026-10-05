@@ -183,6 +183,7 @@ func (r *Runner) prepare(ctx context.Context, t *turn, p db.Process, trial bool,
 		OnStart: func(pid int) { r.setGroup(ctx, processID, pid) },
 		OnEvent: func(e provider.Event) { r.event(ctx, processID, stream, e) },
 		OnUsage: func(u provider.Usage) { r.usage(ctx, processID, pv.Name(), u) },
+		Kept:    func(path string) { r.cfg.Rules.Report(context.WithoutCancel(ctx), t.project, t.cmd.Name, path) },
 	}
 	var in chan provider.Message
 	if slices.Contains(pv.Caps(), provider.LiveInput) && t.live != nil {

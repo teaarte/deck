@@ -124,13 +124,14 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	a.Snapshots = &snapshots.Service{St: st, Bus: a.Bus, Home: h, Now: cfg.Now, LockFiles: a.Files.Mu.Lock, UnlockFiles: a.Files.Mu.Unlock,
 		RemoveFiles: a.Files.Remove}
 	a.Settings = &settings.Service{St: st, DefaultTTL: cfg.ConfirmTTL, Wake: func(ctx context.Context) { a.Runner.Wake(ctx) }}
+	rules := sandbox.Rules{Open: a.Settings.OpenSandbox, Kept: (&health.Closed{St: st}).Add}
 	a.Asks = ask.NewBroker(st, a.Bus, cfg.Now)
 	a.Registry = registry.New(a.Projects.ProjectCommands)
 	a.Registry.SetPublish(a.Bus.Publish)
 	a.Board = &board.Service{St: st, Bus: a.Bus, Now: cfg.Now, Fire: a.fire}
 	a.Providers = &providers.Service{St: st, Bus: a.Bus, Now: cfg.Now, Home: cfg.Home, Sandbox: cfg.Sandbox, ACPBinaries: cfg.ACPBinaries,
 		ACPCallLimit: cfg.ACPCallLimit, SelfCheckCeiling: cfg.SelfCheckCeiling, Secret: a.Secrets.Secret, Wake: func(ctx context.Context) { a.Runner.Wake(ctx) },
-		OpenSandbox: a.Settings.OpenSandbox, Builtin: append([]provider.Provider{p}, more...), Ctx: a.ctx, BG: &a.bg}
+		Rules: rules, Builtin: append([]provider.Provider{p}, more...), Ctx: a.ctx, BG: &a.bg}
 	a.Answers = &asks.Service{St: st, Now: cfg.Now, Broker: a.Asks, Registry: a.Registry, AnswerGrant: a.Projects.AnswerGrant,
 		SaveManifest: a.Projects.SaveCall}
 	a.Connections = &connections.Service{St: st, Ctx: a.ctx, Broker: a.Asks}
@@ -155,13 +156,8 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	a.Host = mcphost.New(a.Connections.ServerStatus)
 	a.Host.Now, a.Host.Sandbox = cfg.Now, cfg.Sandbox
 	a.Host.Home = cfg.Home
-	closed := &health.Closed{St: st}
-	a.Host.Closed = func(key, path string) {
-		if project, server, ok := tools.ParseKey(key); ok {
-			closed.Add(context.Background(), project, "MCP server "+server, path)
-		}
-	}
-	a.MCP = &tools.MCP{GW: a.Gateway, Host: a.Host, Store: st, Secrets: a.Secrets.Secret, Dirs: a.dirs(), Home: cfg.Home, OpenSandbox: a.Settings.OpenSandbox}
+	a.MCP = &tools.MCP{GW: a.Gateway, Host: a.Host, Store: st, Secrets: a.Secrets.Secret, Dirs: a.dirs(), Home: cfg.Home, Rules: rules}
+	a.Host.Closed = a.MCP.Kept
 	a.Browser = &tools.Browser{GW: a.Gateway, Host: a.Host, Store: st, Dirs: a.dirs(), Home: cfg.Home, Argv: cfg.Browser, Ctx: a.ctx}
 	a.Connections.Browser, a.Connections.MCP = a.Browser, a.MCP
 	a.Browser.Load()
@@ -169,7 +165,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	a.Gateway.SetAutomation(a.Tokens.Automation)
 	a.Runner = process.NewRunner(st, a.Gateway, a.Bus, a.Scripts,
 		process.Config{RunsDir: h.Runs(), MCPBase: cfg.MCPBase, Now: cfg.Now, FilesDir: h.Files(), FilesMu: &a.Files.Mu,
-			Hidden: sandbox.Agent(h), PauseLimit: cfg.PauseLimit, AgentSlots: a.Settings.AgentSlots, OpenSandbox: a.Settings.OpenSandbox, Closed: closed.Add},
+			Hidden: sandbox.Agent(h), PauseLimit: cfg.PauseLimit, AgentSlots: a.Settings.AgentSlots, Rules: rules},
 		process.Deps{For: a.Providers.For, Named: a.Providers.Named, Ready: a.Providers.Ready, Prompt: a.Projects.Prompt,
 			Text: a.Projects.Text, Skills: a.Documents.Skills, Servers: a.Connections.Servers, Folder: a.Folders.Folder,
 			Memory: a.Chats.Memory})

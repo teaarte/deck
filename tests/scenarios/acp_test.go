@@ -3,6 +3,7 @@ package scenarios
 import (
 	"bytes"
 	"compress/gzip"
+	"database/sql"
 	deckhome "deck2/internal/home"
 	"encoding/json"
 	"fmt"
@@ -11,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -625,4 +627,31 @@ func TestAProviderTakesItsOwnSelfCheckCeiling(t *testing.T) {
 	if err != nil || h.Status != "checking" {
 		t.Fatalf("the self-check of a provider with a minute still runs past deck's second: %+v %v", h, err)
 	}
+}
+
+// TestACPRefusalsReachTheHealthOfTheProject: a path the sandbox kept closed from an ACP agent is in the log of the
+// process and in the health row of its project, as for scripts and MCP servers.
+func TestACPRefusalsReachTheHealthOfTheProject(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("bubblewrap shows a closed path as missing and reports nothing")
+	}
+	owner := ownerHome(t)
+	_ = os.WriteFile(filepath.Join(owner, ".zshrc"), []byte("private"), 0o600)
+	f := newACP(t)
+	t.Setenv("HOME", owner)
+	f.streamText(4, acpStream(acpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,
+		`{"shell": "cat `+filepath.Join(owner, ".zshrc")+`"}`,
+		`{"mcp": {"tool": "result_submit", "arguments": {"result": {"written": 0}}}}`, `{"end": "end_turn"}`))
+	e := acpEnv(t, f, "opencode", acpLLM(t))
+	id := e.run(e.acpProject("paint", writtenManifest), "work")
+	e.waitState(id, "done")
+	if strings.Contains(f.call(4).shell[0]["out"], "private") {
+		t.Fatalf("the agent does not read the owner's home: %v", f.call(4).shell)
+	}
+	e.waitFor("the closed path in the health of the project", func() bool {
+		rows, _ := e.App.Store.Q.ListHealth(t.Context(), sql.NullInt64{Int64: 1, Valid: true})
+		return slices.ContainsFunc(rows, func(r db.ListHealthRow) bool {
+			return r.Health.Subject == "sandbox:paint" && strings.Contains(r.Health.Error, ".zshrc (work)")
+		})
+	})
 }

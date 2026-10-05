@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"deck2/internal/home"
+	"deck2/internal/sandbox"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -37,8 +38,8 @@ type MCP struct {
 	Secrets func(workspace int64, name string) (string, error)
 	Dirs    files.Dirs
 	Home    string
-	// OpenSandbox is whether the servers of a workspace run in the old sandbox, which reads the home folder.
-	OpenSandbox func(ctx context.Context, workspace int64) bool
+	// Rules are the setting of the old sandbox and who hears what the sandbox kept closed from a server.
+	Rules sandbox.Rules
 }
 
 // ServerKey names a server of a project in the host.
@@ -89,7 +90,7 @@ func (x *MCP) spec(ctx context.Context, p db.Project, name string, s manifest.MC
 	for _, f := range folders {
 		read = append(read, f.Path)
 	}
-	open := x.OpenSandbox != nil && x.OpenSandbox(ctx, p.WorkspaceID)
+	open := x.Rules.IsOpen(ctx, p.WorkspaceID)
 	return mcphost.Spec{Command: s.Command, Args: s.Args, Env: env, Dir: dir, Read: read, Open: open, Confine: true, Secrets: secrets}, nil
 }
 
@@ -291,4 +292,11 @@ func sortedKeys[V any](m map[string]V) []string {
 	}
 	slices.Sort(out)
 	return out
+}
+
+// Kept passes on a path the sandbox kept closed from the server with key.
+func (x *MCP) Kept(key, path string) {
+	if project, server, ok := ParseKey(key); ok {
+		x.Rules.Report(context.Background(), project, "MCP server "+server, path)
+	}
 }

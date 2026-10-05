@@ -104,9 +104,7 @@ func (r *Runner) runScript(ctx context.Context, t turn, trial bool) {
 		closedMu.Unlock()
 		if !seen {
 			r.event(bg, id, stream, provider.Event{Kind: provider.EventStderr, Text: "deck: the sandbox kept " + path + " closed"})
-			if r.cfg.Closed != nil {
-				r.cfg.Closed(bg, t.project, t.cmd.Name, path)
-			}
+			r.cfg.Rules.Report(bg, t.project, t.cmd.Name, path)
 		}
 	})
 	defer unwatch()
@@ -115,7 +113,7 @@ func (r *Runner) runScript(ctx context.Context, t turn, trial bool) {
 	case <-time.After(5 * time.Second):
 	}
 	job := script.Job{Project: t.project, Manifest: t.m, Script: t.m.Script(t.cmd.Executor.Script), Source: src, Dir: dir,
-		Stdin: []byte(input), Out: ln, Env: env, Read: read, Tag: tag, Open: r.cfg.OpenSandbox != nil && r.cfg.OpenSandbox(bg, proj.WorkspaceID),
+		Stdin: []byte(input), Out: ln, Env: env, Read: read, Tag: tag, Open: r.cfg.Rules.IsOpen(bg, proj.WorkspaceID),
 		OnLine:  func(line string) { r.event(bg, id, stream, provider.Event{Kind: provider.EventStderr, Text: line}) },
 		OnStart: func(pgid int) { r.setGroup(bg, id, pgid) },
 	}

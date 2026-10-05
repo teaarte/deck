@@ -30,8 +30,10 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
   (`00002_granted`, `00003_llm_call`, `00004_ask_workspace`: a table rebuilt with foreign keys off is a NO TRANSACTION
   migration; `00005_marks` — `project.imported_from` and the notes for the master as feed rows, `00006_feed_read` —
   warnings as notes of the feed, `00007_sandbox_health`, `00008_alone` — a trial of one command, `00009_models` — connections, models and
-  assignments from the providers of settings, `00010_spend` — the connection of a model call, a project's limit,
-  `00011_whisper` — the whisper.cpp of the machine as the model of speech to text), sqlc queries
+  assignments from the providers of settings, `00010_spend` — the connection of a model call,
+  `00011_whisper` — the whisper.cpp of the machine as the model of speech to text, `00012_no_project_limit`,
+  `00013_google_openai` — a Google connection on its OpenAI-compatible address, `00014_pause` — a pause without an end
+  of its own, `00015_no_opencode`), sqlc queries
   (`db/` is generated); `mark` keeps only cursors and throttles
 - `internal/registry` — command registry: every input (API, MCP, triggers) calls commands through it;
   input schemas limited to App Intents types; `registry.Def` takes the schema from the tagged input struct;

@@ -95,7 +95,7 @@ func (r *Runner) runScript(ctx context.Context, t turn, trial bool) {
 	tag := fmt.Sprintf("r%d", id)
 	var closedMu sync.Mutex
 	var closed []string
-	defer r.scripts.Sandbox.Watch(tag, func(path string) {
+	unwatch, heard := r.scripts.Sandbox.Watch(tag, func(path string) {
 		closedMu.Lock()
 		seen := slices.Contains(closed, path)
 		if !seen {
@@ -108,7 +108,12 @@ func (r *Runner) runScript(ctx context.Context, t turn, trial bool) {
 				r.cfg.Closed(bg, t.project, t.cmd.Name, path)
 			}
 		}
-	})()
+	})
+	defer unwatch()
+	select {
+	case <-heard:
+	case <-time.After(5 * time.Second):
+	}
 	job := script.Job{Project: t.project, Manifest: t.m, Script: t.m.Script(t.cmd.Executor.Script), Source: src, Dir: dir,
 		Stdin: []byte(input), Out: ln, Env: env, Read: read, Tag: tag, Open: r.cfg.OpenSandbox != nil && r.cfg.OpenSandbox(bg, proj.WorkspaceID),
 		OnLine:  func(line string) { r.event(bg, id, stream, provider.Event{Kind: provider.EventStderr, Text: line}) },

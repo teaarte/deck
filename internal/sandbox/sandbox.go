@@ -43,8 +43,9 @@ type Sandbox interface {
 	Addr(ln net.Listener) string
 	// Command builds the confined command; it runs in its own process group, killed as a whole on cancel.
 	Command(ctx context.Context, p Policy) (*exec.Cmd, error)
-	// Watch passes f each path the sandbox kept closed from a program with tag, until stop.
-	Watch(tag string, f func(path string)) (stop func())
+	// Watch passes f each path the sandbox kept closed from a program with tag, until stop; ready closes once
+	// refusals are heard.
+	Watch(tag string, f func(path string)) (stop func(), ready <-chan struct{})
 }
 
 // New returns the sandbox of this operating system.

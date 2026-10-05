@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"os/exec"
 	"path/filepath"
@@ -24,6 +25,7 @@ type seatbelt struct {
 	subs  map[string]func(string)
 	end   func()
 	ready chan struct{}
+	idle  *time.Timer
 }
 
 func platform() Sandbox { return &seatbelt{} }
@@ -124,9 +126,10 @@ const mark = "deck-sandbox:"
 // refused is a read of the contents of a path; a look at whether it exists is not reported.
 var refused = regexp.MustCompile(`(?s)deny\(\d+\) file-read-data (.+?)\n` + mark + ` (\S+)`)
 
-func (s *seatbelt) Watch(tag string, f func(string)) func() {
+func (s *seatbelt) Watch(tag string, f func(string)) (func(), <-chan struct{}) {
 	var stopped atomic.Bool
 	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.subs == nil {
 		s.subs = map[string]func(string){}
 	}
@@ -135,24 +138,32 @@ func (s *seatbelt) Watch(tag string, f func(string)) func() {
 			f(path)
 		}
 	}
+	if s.idle != nil {
+		s.idle.Stop()
+		s.idle = nil
+	}
 	if s.end == nil {
 		s.start()
-	}
-	ready := s.ready
-	s.mu.Unlock()
-	select {
-	case <-ready:
-	case <-time.After(10 * time.Second):
 	}
 	return func() {
 		stopped.Store(true)
 		s.mu.Lock()
 		defer s.mu.Unlock()
 		delete(s.subs, tag)
-		if len(s.subs) == 0 && s.end != nil {
-			s.end()
-			s.end = nil
+		if len(s.subs) == 0 && s.end != nil && s.idle == nil {
+			s.idle = time.AfterFunc(time.Minute, s.quiet)
 		}
+	}, s.ready
+}
+
+// quiet ends the log stream once no program has been watched for a minute.
+func (s *seatbelt) quiet() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.idle = nil
+	if len(s.subs) == 0 && s.end != nil {
+		s.end()
+		s.end = nil
 	}
 }
 
@@ -162,9 +173,14 @@ func (s *seatbelt) start() {
 	ctx, cancel := context.WithCancel(context.Background())
 	ready := make(chan struct{})
 	s.end, s.ready = cancel, ready
-	cmd := exec.CommandContext(ctx, "/usr/bin/log", "stream", "--style", "ndjson", "--predicate",
-		`sender == "Sandbox" AND eventMessage CONTAINS "`+mark+`"`)
-	out, err := cmd.StdoutPipe()
+	// The shell ends the stream once deck's end of its stdin closes, so a stream never outlives deck.
+	cmd := group(exec.CommandContext(ctx, "/bin/sh", "-c", `/usr/bin/log stream --style ndjson --predicate "$0" & read _; kill $!`,
+		`sender == "Sandbox" AND eventMessage CONTAINS "`+mark+`"`))
+	in, err := cmd.StdinPipe()
+	var out io.ReadCloser
+	if err == nil {
+		out, err = cmd.StdoutPipe()
+	}
 	if err == nil {
 		err = cmd.Start()
 	}
@@ -172,6 +188,7 @@ func (s *seatbelt) start() {
 		close(ready)
 		return
 	}
+	s.end = func() { cancel(); _ = in.Close() }
 	go func() {
 		started := sync.OnceFunc(func() { close(ready) })
 		defer started()

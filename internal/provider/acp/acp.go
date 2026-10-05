@@ -193,7 +193,7 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 		"NO_PROXY=127.0.0.1,localhost", "no_proxy=127.0.0.1,localhost"}, env...)...)
 	tag, kept := "a"+nonce.Hex(8), map[string]bool{}
 	var keptMu sync.Mutex
-	defer a.cfg.Sandbox.Watch(tag, func(path string) {
+	unwatch, _ := a.cfg.Sandbox.Watch(tag, func(path string) {
 		keptMu.Lock()
 		seen := kept[path]
 		kept[path] = true
@@ -201,7 +201,8 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 		if !seen && req.OnEvent != nil {
 			req.OnEvent(provider.Event{Kind: provider.EventStderr, Text: "deck: the sandbox kept " + path + " closed"})
 		}
-	})()
+	})
+	defer unwatch()
 	cmd, err := a.cfg.Sandbox.Command(life, a.closed(sandbox.Policy{
 		Argv: append([]string{"/bin/sh", "-c", `"$@"; exit $?`, marker(req.SessionID)}, argv...),
 		Dir:  req.Cwd, Env: env, Write: append([]string{req.Cwd, home}, req.Dirs...), Read: req.Read, Out: ln, Port: port, Tag: tag}, bin))

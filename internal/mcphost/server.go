@@ -70,7 +70,7 @@ func (s *server) start(ctx context.Context, h *Host, key string, spec Spec) erro
 			return fmt.Errorf("MCP server %s did not start: %v", key, err)
 		}
 		if spec.Confine && h.Sandbox != nil && h.Closed != nil {
-			s.unwatch = h.Sandbox.Watch(tag, func(path string) { h.Closed(key, path) })
+			s.unwatch, _ = h.Sandbox.Watch(tag, func(path string) { h.Closed(key, path) })
 		}
 		s.stderr, s.secrets = &tail{}, spec.Secrets
 		cmd.Stderr = s.stderr

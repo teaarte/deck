@@ -103,8 +103,9 @@ type Runner struct {
 	of map[int64]events.Event
 }
 
-// changed publishes a topic in the project of a process.
-func (r *Runner) changed(ctx context.Context, processID int64, topic string) {
+// logged publishes that the log of a process grew, in its project: the log is a file, which no write of the base
+// announces.
+func (r *Runner) logged(ctx context.Context, processID int64) {
 	r.mu.Lock()
 	e, ok := r.of[processID]
 	r.mu.Unlock()
@@ -118,7 +119,7 @@ func (r *Runner) changed(ctx context.Context, processID int64, topic string) {
 			}
 		}
 	}
-	e.Topic = topic
+	e.Topic = "log"
 	r.bus.Emit(e)
 }
 
@@ -264,11 +265,9 @@ func (r *Runner) finish(ctx context.Context, processID int64, state, result stri
 
 // closed announces a process that reached a final state; its log stays until deck clears old runs.
 func (r *Runner) closed(ctx context.Context, processID int64) {
-	r.changed(ctx, processID, "processes")
 	r.mu.Lock()
 	delete(r.of, processID)
 	r.mu.Unlock()
-	r.bus.Publish("asks")
 	r.hear(ctx, processID, func(h Hook, p db.Process) { h.Closed(ctx, p) })
 }
 

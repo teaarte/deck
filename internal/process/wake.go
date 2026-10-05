@@ -122,7 +122,6 @@ func (r *Runner) wake(ctx context.Context) {
 			continue
 		}
 		t.slot = s
-		r.changed(ctx, p.ID, "processes")
 		if !r.spawn(t) {
 			_ = r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 				_, err := q.ClaimProcess(ctx, db.ClaimProcessParams{ToState: p.State, ID: p.ID, FromState: StateRunning})

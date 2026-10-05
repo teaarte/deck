@@ -307,7 +307,6 @@ func (g *Gateway) Decide(ctx context.Context, owner registry.Actor, a db.Ask, an
 	_ = g.st.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error {
 		return q.SettleDecision(ctx, db.SettleDecisionParams{Result: string(res), AskID: sql.NullInt64{Int64: a.ID, Valid: true}})
 	})
-	g.bus.Publish("asks")
 	return out, err
 }
 

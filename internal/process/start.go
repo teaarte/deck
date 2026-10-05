@@ -191,7 +191,6 @@ func (r *Runner) Start(ctx context.Context, projectID int64, m *manifest.Manifes
 		return 0, err
 	}
 	if refused != nil {
-		r.bus.Publish("asks")
 		return 0, refused
 	}
 	if reused {
@@ -210,7 +209,6 @@ func (r *Runner) Start(ctx context.Context, projectID int64, m *manifest.Manifes
 			return 0, err
 		}
 	}
-	r.changed(ctx, p.ID, "processes")
 	resume := o.Resume && kind == KindAgent && o.Session != ""
 	r.spawn(turn{process: p.ID, project: projectID, m: m, cmd: cmd, input: string(in), session: session, resume: resume, message: o.Message})
 	return p.ID, nil

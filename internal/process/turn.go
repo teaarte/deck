@@ -338,7 +338,7 @@ func (r *Runner) event(ctx context.Context, processID int64, stream *os.File, e 
 	now := r.now()
 	b, _ := json.Marshal(logLine{At: store.Time(now), Kind: e.Kind, ID: e.ID, Title: e.Title, Status: e.Status, Text: untrusted.Cut(e.Text, 4000)})
 	_, _ = stream.Write(append(b, '\n'))
-	r.changed(ctx, processID, "log")
+	r.logged(ctx, processID)
 	r.mu.Lock()
 	last, seen := r.marked[processID]
 	due := !seen || now.Sub(last) >= time.Second

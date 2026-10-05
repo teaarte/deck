@@ -2,6 +2,7 @@ package process
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -16,21 +17,21 @@ type waiting struct {
 	told
 }
 
-// leaveRunning moves a running process to a state where it waits, with what its next turn carries; its ceiling stops in
-// the same write, so no way out of running can forget it. Every one goes through here but the pause on a limit.
-func (r *Runner) leaveRunning(ctx context.Context, q *db.Queries, processID int64, state string, w waiting, fresh bool) (int64, error) {
+// leaveRunning moves a running process to a state where it waits, with what its next turn carries and, on a pause,
+// when it tries again; its ceiling stops in the same write, so no way out of running can forget it.
+func (r *Runner) leaveRunning(ctx context.Context, q *db.Queries, processID int64, state string, w waiting, fresh bool, until sql.NullInt64) (int64, error) {
 	raw := ""
 	if w.Message != "" || len(w.Asks) > 0 || len(w.Remarks) > 0 {
 		b, _ := json.Marshal(w)
 		raw = string(b)
 	}
-	return q.LeaveRunning(ctx, db.LeaveRunningParams{State: state, Message: raw, Fresh: b2i(fresh), Now: r.now().UnixMilli(), ID: processID})
+	return q.LeaveRunning(ctx, db.LeaveRunningParams{State: state, Message: raw, Fresh: b2i(fresh), Until: until, Now: r.now().UnixMilli(), ID: processID})
 }
 
 // holdIn keeps a turn that cannot start yet in a waiting state, with what its resume carries. It reports false
 // when the process is no longer running.
 func (r *Runner) holdIn(ctx context.Context, q *db.Queries, t turn, state string) (bool, error) {
-	n, err := r.leaveRunning(ctx, q, t.process, state, waiting{Message: t.message, told: t.asks}, !t.resume)
+	n, err := r.leaveRunning(ctx, q, t.process, state, waiting{Message: t.message, told: t.asks}, !t.resume, sql.NullInt64{})
 	return n > 0, err
 }
 
@@ -48,8 +49,8 @@ func (r *Runner) hold(ctx context.Context, t turn, state string) {
 	}
 }
 
-// Wake starts held turns whose provider, slot or folder is free, oldest first, each checked before it is claimed.
-// A Wake during another makes that one look again; a pass does not end with its caller's context.
+// Wake starts held turns whose provider, slot or folder is free or whose pause is over, oldest first; a Wake during
+// another makes that one look again, and a pass does not end with its caller's context.
 func (r *Runner) Wake(ctx context.Context) {
 	r.mu.Lock()
 	if r.waking {
@@ -80,7 +81,7 @@ func (r *Runner) wake(ctx context.Context) {
 	if stopped {
 		return
 	}
-	held, err := r.st.Q.ListHeld(ctx)
+	held, err := r.st.Q.ListHeld(ctx, r.now().UnixMilli())
 	if err != nil {
 		slog.Error("held processes", "err", err)
 		return

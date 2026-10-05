@@ -252,15 +252,7 @@ func (r *Runner) converse(ctx context.Context, t *turn, a *agentTurn, fail func(
 			// A turn that ended on its own with its result in is done, whatever a later call of the model got.
 			res.RateLimited, res.NeedsLogin = false, false
 		}
-		_ = r.st.Tx(bg, func(ctx context.Context, q *db.Queries) error {
-			if err := asks.mark(ctx, q); err != nil {
-				return err
-			}
-			if err == nil && !res.RateLimited {
-				return q.EndPause(ctx, processID)
-			}
-			return nil
-		})
+		_ = r.st.Tx(bg, func(ctx context.Context, q *db.Queries) error { return asks.mark(ctx, q) })
 		asks = told{}
 		r.providerHealth(bg, pv, res, err)
 		settled := err == nil && !res.NeedsLogin && !res.RateLimited && !res.IsError

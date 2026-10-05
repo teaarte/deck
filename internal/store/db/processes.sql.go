@@ -171,15 +171,6 @@ func (q *Queries) CreateProcess(ctx context.Context, arg CreateProcessParams) (P
 	return i, err
 }
 
-const endPause = `-- name: EndPause :exec
-UPDATE process SET pause_until_ms = NULL WHERE id = ?1
-`
-
-func (q *Queries) EndPause(ctx context.Context, id int64) error {
-	_, err := q.db.ExecContext(ctx, endPause, id)
-	return err
-}
-
 const findActiveProcess = `-- name: FindActiveProcess :one
 SELECT id, project_id, command, kind, state, provider, session_id, input, result, not_by_schema, error, start_note, parent_id, depth, trigger_id, retry_key, manifest_revision, trial, folder, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, pause_until_ms, wait_message, wait_fresh, started_at, finished_at, alone FROM process
 WHERE project_id = ? AND command = ? AND retry_key = ? AND retry_key != '' AND trial = ?
@@ -362,16 +353,17 @@ func (q *Queries) GetToolCall(ctx context.Context, id int64) (ToolCall, error) {
 }
 
 const leaveRunning = `-- name: LeaveRunning :execrows
-UPDATE process SET state = ?1, wait_message = ?2, wait_fresh = ?3,
-    ceiling_ms = CASE WHEN deadline_ms IS NULL THEN ceiling_ms ELSE MAX(0, deadline_ms - CAST(?4 AS INTEGER)) END,
+UPDATE process SET state = ?1, wait_message = ?2, wait_fresh = ?3, pause_until_ms = ?4,
+    ceiling_ms = CASE WHEN deadline_ms IS NULL THEN ceiling_ms ELSE MAX(0, deadline_ms - CAST(?5 AS INTEGER)) END,
     deadline_ms = NULL, silent_since_ms = NULL
-WHERE id = ?5 AND state = 'running'
+WHERE id = ?6 AND state = 'running'
 `
 
 type LeaveRunningParams struct {
 	State   string
 	Message string
 	Fresh   int64
+	Until   sql.NullInt64
 	Now     int64
 	ID      int64
 }
@@ -381,6 +373,7 @@ func (q *Queries) LeaveRunning(ctx context.Context, arg LeaveRunningParams) (int
 		arg.State,
 		arg.Message,
 		arg.Fresh,
+		arg.Until,
 		arg.Now,
 		arg.ID,
 	)
@@ -419,7 +412,9 @@ func (q *Queries) ListCeilingReached(ctx context.Context, now int64) ([]int64, e
 
 const listHeld = `-- name: ListHeld :many
 SELECT p.id, p.project_id, p.command, p.kind, p.state, p.provider, p.session_id, p.input, p.result, p.not_by_schema, p.error, p.start_note, p.parent_id, p.depth, p.trigger_id, p.retry_key, p.manifest_revision, p.trial, p.folder, p.pgid, p.ceiling_ms, p.deadline_ms, p.output_ms, p.silent_since_ms, p.pause_until_ms, p.wait_message, p.wait_fresh, p.started_at, p.finished_at, p.alone, j.workspace_id FROM process p JOIN project j ON j.id = p.project_id
-WHERE p.state IN ('waiting_provider', 'waiting_slot', 'waiting_folder') ORDER BY p.id
+WHERE p.state IN ('waiting_provider', 'waiting_slot', 'waiting_folder')
+   OR p.state = 'rate_limited' AND p.pause_until_ms <= CAST(?1 AS INTEGER)
+ORDER BY p.id
 `
 
 type ListHeldRow struct {
@@ -427,8 +422,8 @@ type ListHeldRow struct {
 	WorkspaceID int64
 }
 
-func (q *Queries) ListHeld(ctx context.Context) ([]ListHeldRow, error) {
-	rows, err := q.db.QueryContext(ctx, listHeld)
+func (q *Queries) ListHeld(ctx context.Context, now int64) ([]ListHeldRow, error) {
+	rows, err := q.db.QueryContext(ctx, listHeld, now)
 	if err != nil {
 		return nil, err
 	}
@@ -497,64 +492,6 @@ type ListOpenProcessesParams struct {
 
 func (q *Queries) ListOpenProcesses(ctx context.Context, arg ListOpenProcessesParams) ([]Process, error) {
 	rows, err := q.db.QueryContext(ctx, listOpenProcesses, arg.WorkspaceID, arg.ProjectID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []Process
-	for rows.Next() {
-		var i Process
-		if err := rows.Scan(
-			&i.ID,
-			&i.ProjectID,
-			&i.Command,
-			&i.Kind,
-			&i.State,
-			&i.Provider,
-			&i.SessionID,
-			&i.Input,
-			&i.Result,
-			&i.NotBySchema,
-			&i.Error,
-			&i.StartNote,
-			&i.ParentID,
-			&i.Depth,
-			&i.TriggerID,
-			&i.RetryKey,
-			&i.ManifestRevision,
-			&i.Trial,
-			&i.Folder,
-			&i.Pgid,
-			&i.CeilingMs,
-			&i.DeadlineMs,
-			&i.OutputMs,
-			&i.SilentSinceMs,
-			&i.PauseUntilMs,
-			&i.WaitMessage,
-			&i.WaitFresh,
-			&i.StartedAt,
-			&i.FinishedAt,
-			&i.Alone,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listPausesDue = `-- name: ListPausesDue :many
-SELECT id, project_id, command, kind, state, provider, session_id, input, result, not_by_schema, error, start_note, parent_id, depth, trigger_id, retry_key, manifest_revision, trial, folder, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, pause_until_ms, wait_message, wait_fresh, started_at, finished_at, alone FROM process WHERE state = 'rate_limited' AND pause_until_ms <= CAST(?1 AS INTEGER) ORDER BY id
-`
-
-func (q *Queries) ListPausesDue(ctx context.Context, now int64) ([]Process, error) {
-	rows, err := q.db.QueryContext(ctx, listPausesDue, now)
 	if err != nil {
 		return nil, err
 	}
@@ -1083,27 +1020,6 @@ WHERE id = ? AND deadline_ms IS NOT NULL
 func (q *Queries) PauseCeilingAtLastOutput(ctx context.Context, id int64) error {
 	_, err := q.db.ExecContext(ctx, pauseCeilingAtLastOutput, id)
 	return err
-}
-
-const pauseProcess = `-- name: PauseProcess :execrows
-UPDATE process SET state = 'rate_limited', pause_until_ms = ?1,
-    ceiling_ms = CASE WHEN deadline_ms IS NULL THEN ceiling_ms ELSE MAX(0, deadline_ms - CAST(?2 AS INTEGER)) END,
-    deadline_ms = NULL, silent_since_ms = NULL
-WHERE id = ?3 AND state = 'running'
-`
-
-type PauseProcessParams struct {
-	UntilMs sql.NullInt64
-	Now     int64
-	ID      int64
-}
-
-func (q *Queries) PauseProcess(ctx context.Context, arg PauseProcessParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, pauseProcess, arg.UntilMs, arg.Now, arg.ID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
 }
 
 const purgeEmptyProcesses = `-- name: PurgeEmptyProcesses :many

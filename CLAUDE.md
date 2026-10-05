@@ -73,8 +73,8 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
   `param` of the screen) and `FieldTypes`; the texts of a manifest and their translation `words.go`
 - `internal/gateway` — deck MCP server per process: permission prompts, questions, confirmations, registry
   commands as tools; HTTP entry and domain proxy for scripts (`egress.go`: a name resolves once, the proxy dials its
-  addresses, a name reaches only public ones); the proxy of models (`models.go`: `DECK_MODELS` of scripts, `ServeHops` also for the model of ACP
-  turns, deck's key, the usage of OpenAI, Google and Anthropic answers, fallbacks on refusals)
+  addresses, a name reaches only public ones); the proxy of models (`models.go`: `DECK_MODELS` of scripts; `SendHops` — the one loop of fallbacks of
+  scripts, commands and the model of ACP turns, with deck's key and the usage of OpenAI, Google and Anthropic answers)
 - `internal/provider` — model providers; `claudecode` runs the CLI isolated from user settings; `codex` runs
   `codex app-server` on the owner's shared login (`protocol.go` is generated); `acp` runs ACP agents (OpenCode 1.x, `dsh`)
   on an OpenAI-compatible model inside deck's sandbox, the model through deck's proxy — deck has no tool loop of its own

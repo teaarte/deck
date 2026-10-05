@@ -8,18 +8,14 @@ import (
 	"fmt"
 	"io"
 	"maps"
-	"mime"
 	"mime/multipart"
 	"net/http"
-	"net/url"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"deck2/internal/files"
 	"deck2/internal/gateway"
 	"deck2/internal/manifest"
-	"deck2/internal/provider"
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
 	"deck2/internal/untrusted"
@@ -81,29 +77,18 @@ func (s *Service) modelCall(ctx context.Context, act registry.Actor, in modelCal
 		}
 		audio = &f
 	}
-	start := time.Now()
-	resp, h, err := s.sendHops(ctx, hops, func(h gateway.ModelHop) (modelReq, error) {
+	resp, h, err := gateway.SendHops(ctx, hops, func(h gateway.ModelHop) (gateway.ModelCall, error) {
 		return build(in, h, merged(maps.Clone(h.Options), options), audio)
 	})
 	if err != nil {
 		return nil, err
 	}
-	return s.read(act, in, h, resp, start)
+	return s.read(act, in, h, resp)
 }
 
-// modelReq is a request of one kind in the words of one API; retry is the other way to ask the same when the
-// API has no such path.
-type modelReq struct {
-	method string
-	path   string
-	header http.Header
-	body   []byte
-	retry  *modelReq
-}
-
-func jsonReq(path string, v any) modelReq {
+func jsonReq(path string, v any) gateway.ModelCall {
 	b, _ := json.Marshal(v)
-	return modelReq{path: path, header: http.Header{"Content-Type": {"application/json"}}, body: b}
+	return gateway.ModelCall{Path: path, Header: http.Header{"Content-Type": {"application/json"}}, Body: b}
 }
 
 // ask is the prompt with its input, the way a model reads a task and its data.
@@ -131,75 +116,59 @@ func merged(body map[string]any, options map[string]any) map[string]any {
 	return body
 }
 
-// build is the request of a call for the API of a hop.
-func build(in modelCallIn, h gateway.ModelHop, options map[string]any, audio *files.Ref) (modelReq, error) {
-	var schema any
-	if strings.TrimSpace(in.Schema) != "" {
-		if err := json.Unmarshal([]byte(in.Schema), &schema); err != nil {
-			return modelReq{}, registry.Invalid("deck: schema is JSON: %v", err)
-		}
+// build is the request of a call in the OpenAI-compatible protocol, the one deck asks models in.
+func build(in modelCallIn, h gateway.ModelHop, options map[string]any, audio *files.Ref) (gateway.ModelCall, error) {
+	if api := h.Target.API; api == "google" || api == "anthropic" {
+		return gateway.ModelCall{}, registry.Invalid("deck: connection %s speaks the %s API; deck asks models in the OpenAI-compatible protocol, so give the connection the OpenAI-compatible address of %s, or call its own API from a script through $DECK_MODELS", h.Connection, api, api)
 	}
-	api := h.Target.API
-	switch {
-	case in.Kind == RoleText && api == "google":
-		cfg := map[string]any{}
-		if schema != nil {
-			cfg["responseMimeType"], cfg["responseJsonSchema"] = "application/json", schema
-		}
-		return jsonReq("models/"+url.PathEscape(h.Model)+":generateContent", merged(map[string]any{
-			"contents": []any{map[string]any{"role": "user", "parts": []any{map[string]any{"text": ask(in)}}}}, "generationConfig": cfg}, options)), nil
-	case in.Kind == RoleImage && api == "google":
-		return jsonReq("models/"+url.PathEscape(h.Model)+":generateContent", merged(map[string]any{
-			"contents":         []any{map[string]any{"role": "user", "parts": []any{map[string]any{"text": ask(in)}}}},
-			"generationConfig": map[string]any{"responseModalities": []string{"TEXT", "IMAGE"}}}, options)), nil
-	case in.Kind == RoleText && api == "anthropic":
-		return jsonReq("messages", merged(map[string]any{"model": h.Model, "max_tokens": 8192,
-			"messages": []any{map[string]any{"role": "user", "content": ask(in)}}}, options)), nil
-	case api == "google" || api == "anthropic":
-		return modelReq{}, registry.Invalid("deck: connection %s speaks %s, which deck calls for text only; %s goes through an openai-compatible connection or a script", h.Connection, api, in.Kind)
-	case in.Kind == RoleText:
+	switch in.Kind {
+	case RoleText:
 		body := map[string]any{"model": h.Model, "messages": []any{map[string]any{"role": "user", "content": ask(in)}}}
-		if schema != nil {
+		if strings.TrimSpace(in.Schema) != "" {
+			var schema any
+			if err := json.Unmarshal([]byte(in.Schema), &schema); err != nil {
+				return gateway.ModelCall{}, registry.Invalid("deck: schema is JSON: %v", err)
+			}
 			body["response_format"] = map[string]any{"type": "json_schema", "json_schema": map[string]any{"name": "result", "schema": schema}}
 		}
 		return jsonReq("chat/completions", merged(body, options)), nil
-	case in.Kind == RoleImage:
+	case RoleImage:
 		chat := jsonReq("chat/completions", merged(map[string]any{"model": h.Model, "modalities": []string{"image", "text"},
 			"messages": []any{map[string]any{"role": "user", "content": ask(in)}}}, options))
 		r := jsonReq("images/generations", merged(map[string]any{"model": h.Model, "prompt": ask(in), "n": 1, "response_format": "b64_json"}, options))
-		r.retry = &chat
+		r.Retry = &chat
 		return r, nil
-	case in.Kind == RoleTTS:
+	case RoleTTS:
 		if strings.TrimSpace(in.Text) == "" {
-			return modelReq{}, registry.Invalid("deck: tts needs the words in text")
+			return gateway.ModelCall{}, registry.Invalid("deck: tts needs the words in text")
 		}
 		body := map[string]any{"model": h.Model, "input": in.Text, "voice": "alloy"}
 		if p := strings.TrimSpace(in.Prompt); p != "" {
 			body["instructions"] = p
 		}
 		return jsonReq("audio/speech", merged(body, options)), nil
-	case in.Kind == RoleSTT:
+	case RoleSTT:
 		return transcription(h, options, audio)
 	}
-	return modelReq{}, registry.Invalid("deck: no kind %q", in.Kind)
+	return gateway.ModelCall{}, registry.Invalid("deck: no kind %q", in.Kind)
 }
 
 // transcription is a recording posted as a form the way OpenAI's transcriptions and whisper.cpp's server take it;
 // a raw connection is the full address of the service.
-func transcription(h gateway.ModelHop, options map[string]any, audio *files.Ref) (modelReq, error) {
+func transcription(h gateway.ModelHop, options map[string]any, audio *files.Ref) (gateway.ModelCall, error) {
 	f, n, err := audio.Open()
 	if err != nil {
-		return modelReq{}, err
+		return gateway.ModelCall{}, err
 	}
 	defer f.Close()
 	var b bytes.Buffer
 	w := multipart.NewWriter(&b)
 	part, err := w.CreateFormFile("file", filepath.Base(audio.Name))
 	if err != nil {
-		return modelReq{}, err
+		return gateway.ModelCall{}, err
 	}
 	if _, err := io.Copy(part, io.LimitReader(f, n)); err != nil {
-		return modelReq{}, err
+		return gateway.ModelCall{}, err
 	}
 	fields := map[string]any{"response_format": "json"}
 	if h.Model != "" {
@@ -213,24 +182,14 @@ func transcription(h gateway.ModelHop, options map[string]any, audio *files.Ref)
 	if h.Target.API == "raw" {
 		path = ""
 	}
-	return modelReq{path: path, header: http.Header{"Content-Type": {w.FormDataContentType()}}, body: b.Bytes()}, nil
+	return gateway.ModelCall{Path: path, Header: http.Header{"Content-Type": {w.FormDataContentType()}}, Body: b.Bytes()}, nil
 }
 
-// read turns what the API answered into the result of the call and keeps its usage.
-func (s *Service) read(act registry.Actor, in modelCallIn, h gateway.ModelHop, resp *http.Response, start time.Time) (any, error) {
-	ctx := context.Background()
-	body := gateway.Metered(resp.Body, start, func(u *provider.Usage) { h.Done(ctx, resp.StatusCode, u) })
-	defer body.Close()
-	ct, _, _ := mime.ParseMediaType(resp.Header.Get("Content-Type"))
-	if resp.StatusCode < 400 && (strings.HasPrefix(ct, "audio/") || strings.HasPrefix(ct, "image/") || ct == "application/octet-stream") {
-		return s.keep(act, in.Kind, ct, body)
-	}
-	raw, err := io.ReadAll(io.LimitReader(body, 64<<20))
-	if err != nil {
-		return nil, err
-	}
-	if resp.StatusCode >= 400 {
-		return nil, registry.Invalid("deck: %s answered HTTP %d: %s", h.Connection, resp.StatusCode, untrusted.Cut(string(raw), 2000))
+// read turns what the API answered into the result of the call.
+func (s *Service) read(act registry.Actor, in modelCallIn, h gateway.ModelHop, resp *http.Response) (any, error) {
+	file, raw, err := s.answer(act, in.Kind, resp, h)
+	if file != nil || err != nil {
+		return file, err
 	}
 	var v struct {
 		Choices []struct {
@@ -246,32 +205,13 @@ func (s *Service) read(act registry.Actor, in modelCallIn, h gateway.ModelHop, r
 		Data []struct {
 			B64 string `json:"b64_json"`
 		} `json:"data"`
-		Candidates []struct {
-			Content struct {
-				Parts []struct {
-					Text   string `json:"text"`
-					Inline *struct {
-						MimeType string `json:"mimeType"`
-						Data     string `json:"data"`
-					} `json:"inlineData"`
-				} `json:"parts"`
-			} `json:"content"`
-		} `json:"candidates"`
-		Content []struct {
-			Type string `json:"type"`
-			Text string `json:"text"`
-		} `json:"content"`
 	}
 	if err := json.Unmarshal(raw, &v); err != nil {
 		return nil, fmt.Errorf("deck: %s answered what is not JSON: %s", h.Connection, untrusted.Cut(string(raw), 500))
 	}
 	switch in.Kind {
 	case RoleSTT:
-		out, err := manifest.DecodeValue(raw)
-		if err != nil {
-			return nil, err
-		}
-		return out, nil
+		return manifest.DecodeValue(raw)
 	case RoleImage:
 		for _, d := range v.Data {
 			if d.B64 != "" {
@@ -282,13 +222,6 @@ func (s *Service) read(act registry.Actor, in modelCallIn, h gateway.ModelHop, r
 			for _, img := range c.Message.Images {
 				if ct, data, ok := dataURL(img.ImageURL.URL); ok {
 					return s.keepBase64(act, ct, data)
-				}
-			}
-		}
-		for _, c := range v.Candidates {
-			for _, p := range c.Content.Parts {
-				if p.Inline != nil && p.Inline.Data != "" {
-					return s.keepBase64(act, p.Inline.MimeType, p.Inline.Data)
 				}
 			}
 		}
@@ -306,16 +239,6 @@ func (s *Service) read(act registry.Actor, in modelCallIn, h gateway.ModelHop, r
 					text.WriteString(t)
 				}
 			}
-		}
-	}
-	for _, c := range v.Candidates {
-		for _, p := range c.Content.Parts {
-			text.WriteString(p.Text)
-		}
-	}
-	for _, c := range v.Content {
-		if c.Type == "text" {
-			text.WriteString(c.Text)
 		}
 	}
 	if strings.TrimSpace(in.Schema) == "" {

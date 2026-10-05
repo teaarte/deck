@@ -107,7 +107,7 @@ func (s *Service) Route(ctx context.Context, act registry.Actor, connection, ask
 			return nil, err
 		}
 		m, c := p.m, p.c
-		h.Done = func(ctx context.Context, status int, u *provider.Usage) { s.record(ctx, act, command, m, c, status, u) }
+		h.Done = func(ctx context.Context, status int, u *provider.Usage) { s.record(ctx, act, m, c, status, u) }
 		hops = append(hops, h)
 	}
 	return hops, nil
@@ -164,7 +164,7 @@ func (s *Service) turnModel(workspace int64, m db.Model, c db.Connection) func(o
 
 // record keeps a call of a model made past an agent in the journal of model calls, priced by its model when the
 // API did not say.
-func (s *Service) record(ctx context.Context, act registry.Actor, command string, m db.Model, c db.Connection, status int, u *provider.Usage) {
+func (s *Service) record(ctx context.Context, act registry.Actor, m db.Model, c db.Connection, status int, u *provider.Usage) {
 	if u == nil {
 		if status == 0 || status >= 400 {
 			return
@@ -177,7 +177,7 @@ func (s *Service) record(ctx context.Context, act registry.Actor, command string
 	}
 	err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		return q.LogModelCall(ctx, db.LogModelCallParams{WorkspaceID: act.Workspace, ProjectID: store.ID(act.ProjectID), ProcessID: store.ID(act.ProcessID),
-			Command: command, ConnectionID: store.ID(c.ID), Provider: c.Name, RequestModel: m.Model, ResponseModel: u.Model,
+			ConnectionID: store.ID(c.ID), Provider: c.Name, RequestModel: m.Model, ResponseModel: u.Model,
 			InputTokens: u.Input, OutputTokens: u.Output, CacheReadTokens: u.CacheRead, CacheCreationTokens: u.CacheCreation,
 			DurationMs: u.Duration.Milliseconds(), CostUsd: nullFloat(cost), CreatedAt: store.Time(s.Now())})
 	})
@@ -344,70 +344,24 @@ func (s *Service) requested(ctx context.Context, workspace int64, input json.Raw
 	return cmp.Or(in.Connection, "@"), gateway.AskedModel([]byte(in.Body)), nil
 }
 
-// sendHops makes the request each hop builds, in order: one past its limit is skipped unless the owner said yes to
-// this call; one that never reached its API, a 429 or a 5xx goes to the next.
-func (s *Service) sendHops(ctx context.Context, hops []gateway.ModelHop, build func(gateway.ModelHop) (modelReq, error)) (*http.Response, gateway.ModelHop, error) {
-	_, approved := gateway.Approved(ctx)
-	var last error = registry.Invalid("deck: no model to call")
-	for i, h := range hops {
-		if h.Over != "" && !approved {
-			last = registry.Invalid("%s", h.Over)
-			continue
-		}
-		req, err := build(h)
-		if err != nil {
-			return nil, h, err
-		}
-		send := func(r modelReq) (*http.Response, error) {
-			return gateway.SendModel(ctx, h.Target, cmp.Or(r.method, http.MethodPost), r.path, "", r.header, r.body)
-		}
-		resp, err := send(req)
-		if err == nil && req.retry != nil && (resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusMethodNotAllowed) {
-			_ = resp.Body.Close()
-			resp, err = send(*req.retry)
-		}
-		if err != nil {
-			h.Done(ctx, 0, nil)
-			last = fmt.Errorf("deck: %s: %v", h.Connection, err)
-			if gateway.Unsent(err) {
-				continue
-			}
-			return nil, h, last
-		}
-		if gateway.Fallible(resp.StatusCode) && i < len(hops)-1 {
-			raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<16))
-			_ = resp.Body.Close()
-			h.Done(ctx, resp.StatusCode, nil)
-			last = fmt.Errorf("deck: %s answered %s: %s", h.Connection, resp.Status, untrusted.Cut(strings.TrimSpace(string(raw)), 500))
-			continue
-		}
-		return resp, h, nil
-	}
-	return nil, gateway.ModelHop{}, last
-}
-
-// answer reads what a model API answered into the result of a call: JSON as it is, text of a stream, or a
-// binary body saved as a file in the results folder of the calling process.
-func (s *Service) answer(act registry.Actor, name string, resp *http.Response, h gateway.ModelHop, start time.Time) (any, error) {
-	ctx := context.Background()
-	body := gateway.Metered(resp.Body, start, func(u *provider.Usage) { h.Done(ctx, resp.StatusCode, u) })
-	defer body.Close()
+// answer reads what a model API answered: a binary body is kept as a file in the results folder of the calling
+// process, the rest comes back as its bytes; an answer past 400 is an error.
+func (s *Service) answer(act registry.Actor, name string, resp *http.Response, h gateway.ModelHop) (any, []byte, error) {
+	defer resp.Body.Close()
 	ct, _, _ := mime.ParseMediaType(resp.Header.Get("Content-Type"))
-	jsonish := ct == "application/json" || strings.HasSuffix(ct, "+json")
-	if resp.StatusCode >= 400 || jsonish || strings.HasPrefix(ct, "text/") || ct == "" {
-		raw, err := io.ReadAll(io.LimitReader(body, 32<<20))
-		if err != nil {
-			return nil, err
-		}
-		if resp.StatusCode >= 400 {
-			return nil, registry.Invalid("deck: %s answered HTTP %d: %s", h.Connection, resp.StatusCode, untrusted.Cut(string(raw), 2000))
-		}
-		if v, err := manifest.DecodeValue(raw); err == nil && !strings.HasPrefix(ct, "text/event-stream") {
-			return v, nil
-		}
-		return map[string]any{"text": string(raw)}, nil
+	text := ct == "" || ct == "application/json" || strings.HasSuffix(ct, "+json") || strings.HasPrefix(ct, "text/")
+	if resp.StatusCode < 400 && !text {
+		file, err := s.keep(act, name, ct, resp.Body)
+		return file, nil, err
 	}
-	return s.keep(act, name, ct, body)
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, 64<<20))
+	if err != nil {
+		return nil, nil, err
+	}
+	if resp.StatusCode >= 400 {
+		return nil, nil, registry.Invalid("deck: %s answered HTTP %d: %s", h.Connection, resp.StatusCode, untrusted.Cut(string(raw), 2000))
+	}
+	return nil, raw, nil
 }
 
 func (s *Service) modelRequest(ctx context.Context, act registry.Actor, in modelRequestIn) (any, error) {
@@ -427,18 +381,24 @@ func (s *Service) modelRequest(ctx context.Context, act registry.Actor, in model
 	if in.Body != "" {
 		header.Set("Content-Type", "application/json")
 	}
-	start := time.Now()
-	resp, h, err := s.sendHops(ctx, hops, func(h gateway.ModelHop) (modelReq, error) {
+	resp, h, err := gateway.SendHops(ctx, hops, func(h gateway.ModelHop) (gateway.ModelCall, error) {
 		body := []byte(in.Body)
 		if strings.HasPrefix(asked, "@") {
 			body = gateway.WithModel(body, h.Model)
 		}
-		return modelReq{method: method, path: in.Path, header: header, body: body}, nil
+		return gateway.ModelCall{Method: method, Path: in.Path, Header: header, Body: body}, nil
 	})
 	if err != nil {
 		return nil, err
 	}
-	return s.answer(act, "model", resp, h, start)
+	file, raw, err := s.answer(act, "model", resp, h)
+	if file != nil || err != nil {
+		return file, err
+	}
+	if v, err := manifest.DecodeValue(raw); err == nil && !strings.Contains(resp.Header.Get("Content-Type"), "event-stream") {
+		return v, nil
+	}
+	return map[string]any{"text": string(raw)}, nil
 }
 
 // modelRequestCommand is a request of a model API through deck: deck puts in the key, counts the spend and keeps

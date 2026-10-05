@@ -151,32 +151,40 @@ func TestAModelCommandPastTheLimitWaitsForTheOwner(t *testing.T) {
 	}
 }
 
-// TestAModelCommandOnGoogleSpeaksItsOwnAPI: text on a google connection goes to generateContent with the key in its
-// own header and the schema as the response schema.
-func TestAModelCommandOnGoogleSpeaksItsOwnAPI(t *testing.T) {
+// TestAModelCallSpeaksTheOpenAICompatibleProtocol: a connection of the Google API says how to reach it, and a base
+// from before moves a Google connection to the OpenAI-compatible address of Google.
+func TestAModelCallSpeaksTheOpenAICompatibleProtocol(t *testing.T) {
 	api := newModels(t, map[string]func(int, map[string]any) (int, string, string){
-		"/v1beta/models/gemini-3.8-flash:generateContent": func(int, map[string]any) (int, string, string) {
-			return 200, "application/json", `{"candidates": [{"content": {"parts": [{"text": "{\"verdict\": \"unclear\", \"confidence\": 0.4}"}]}}],
-			  "usageMetadata": {"promptTokenCount": 120, "candidatesTokenCount": 12}, "modelVersion": "gemini-3.8-flash"}`
+		"/v1beta/openai/chat/completions": func(int, map[string]any) (int, string, string) {
+			return 200, "application/json", chatText(`{"verdict": "unclear", "confidence": 0.4}`)
 		},
 	})
-	e := newEnv(t, nil)
-	e.must("deck.connection_set", map[string]any{"name": "google", "api": "google", "url": api.URL + "/v1beta", "key": "AIza-1"}, nil)
-	e.must("deck.model_set", map[string]any{"connection": "google", "model": "gemini-3.8-flash", "name": "gemini", "kind": "text"}, nil)
-	e.createProject("shorts", strings.Replace(modelManifest, `"kind": "text",`, `"kind": "text", "model": "gemini",`, 1))
+	home := t.TempDir()
+	e := newEnvWith(t, home, &Fake{})
+	e.must("deck.connection_set", map[string]any{"name": "native", "api": "google", "url": api.URL + "/v1beta", "key": "AIza-1"}, nil)
+	e.must("deck.model_set", map[string]any{"connection": "native", "model": "gemini-3.8-flash", "name": "native-gemini", "kind": "text"}, nil)
+	e.createProject("shorts", strings.Replace(modelManifest, `"kind": "text",`, `"kind": "text", "model": "native-gemini",`, 1))
 	got := e.waitState(e.start("shorts", "factcheck", map[string]any{"claim": "x"}), "done", "error")
-	if got.State != "done" || string(got.Result) != `{"confidence":0.4,"verdict":"unclear"}` {
-		t.Fatalf("the answer of Google is the result: %+v", got)
+	if got.State != "error" || !strings.Contains(got.Error, "OpenAI-compatible") || len(api.made()) != 0 {
+		t.Fatalf("a connection of the Google API says to use its OpenAI-compatible address: %+v", got)
 	}
-	c := api.made()
-	cfg, _ := c[0].Body["generationConfig"].(map[string]any)
-	if len(c) != 1 || c[0].Auth != "" || cfg["responseMimeType"] != "application/json" || cfg["responseJsonSchema"] == nil {
-		t.Fatalf("Google gets its own request with the schema: %+v", c)
+	e.olderBase(12)
+	if _, err := e.App.Store.DB.Exec(`INSERT INTO connection (workspace_id, name, api, url, key_secret) VALUES (1, 'google', 'google', 'https://generativelanguage.googleapis.com/v1beta', 'google')`); err != nil {
+		t.Fatal(err)
 	}
-	var spend []spendRow
-	e.must("deck.llm_calls_list", map[string]any{"project": "shorts"}, &spend)
-	if len(spend) != 1 || spend[0].Provider != "google" {
-		t.Fatalf("the call is in the journal: %+v", spend)
+	_ = e.App.Close()
+	e = newEnvWith(t, home, &Fake{})
+	var api2, url string
+	if err := e.App.Store.DB.QueryRow(`SELECT api, url FROM connection WHERE name = 'google'`).Scan(&api2, &url); err != nil {
+		t.Fatal(err)
+	}
+	if api2 != "openai" || url != "https://generativelanguage.googleapis.com/v1beta/openai/" {
+		t.Fatalf("a Google connection of a base from before is on the OpenAI-compatible address of Google: %s %s", api2, url)
+	}
+	e.must("deck.connection_set", map[string]any{"name": "native", "api": "openai", "url": api.URL + "/v1beta/openai", "key": "AIza-1"}, nil)
+	got = e.waitState(e.start("shorts", "factcheck", map[string]any{"claim": "x"}), "done", "error")
+	if got.State != "done" || string(got.Result) != `{"confidence":0.4,"verdict":"unclear"}` || api.made()[0].Auth != "Bearer AIza-1" {
+		t.Fatalf("the OpenAI-compatible address of Google answers: %+v %+v", got, api.made())
 	}
 }
 

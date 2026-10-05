@@ -76,9 +76,10 @@ func setHealth(ctx context.Context, q *db.Queries, pv provider.Provider, status,
 }
 
 // usage writes one model call of a process to the journal of model calls.
-func (r *Runner) usage(ctx context.Context, processID int64, name string, u provider.Usage) {
+func (r *Runner) usage(ctx context.Context, workspace, processID int64, name string, u provider.Usage) {
 	err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		return q.LogLLMCall(ctx, db.LogLLMCallParams{ProcessID: processID, Provider: name, RequestModel: u.RequestModel, ResponseModel: u.Model,
+		return q.LogModelCall(ctx, db.LogModelCallParams{WorkspaceID: workspace, ProcessID: store.ID(processID), Provider: name,
+			RequestModel: u.RequestModel, ResponseModel: u.Model,
 			InputTokens: u.Input, OutputTokens: u.Output, CacheReadTokens: u.CacheRead, CacheCreationTokens: u.CacheCreation,
 			DurationMs: u.Duration.Milliseconds(), CostUsd: nullFloat(u.CostUSD), CreatedAt: store.Time(r.now())})
 	})

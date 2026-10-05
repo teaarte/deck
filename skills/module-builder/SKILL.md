@@ -315,7 +315,8 @@ A script reads its input JSON from stdin and prints its result JSON to stdout. I
 
 ### Models a kind does not cover: video, music, special APIs
 
-`model` commands and `deck.model_call` know text, image, tts and stt. Anything else — video, music, a service
+`model` commands and `deck.model_call` know text, image, tts and stt, asked in the OpenAI-compatible protocol (a
+connection of another API, such as Google's own, is reached only from a script). Anything else — video, music, a service
 with its own API (fal, Replicate, ElevenLabs, Google Veo) — is a script that calls the API through
 `$DECK_MODELS`, so the key stays with deck and the spend counts. The owner adds the service as a connection
 (Settings → Connections: `raw` for a service that takes a bearer key, `google` for Google's own API) and a model

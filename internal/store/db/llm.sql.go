@@ -69,63 +69,22 @@ func (q *Queries) ListLLMCalls(ctx context.Context, arg ListLLMCallsParams) ([]L
 	return items, nil
 }
 
-const logLLMCall = `-- name: LogLLMCall :exec
-INSERT INTO llm_call (workspace_id, project_id, process_id, command, connection_id, gen_ai_provider_name, gen_ai_request_model, gen_ai_response_model,
-    gen_ai_usage_input_tokens, gen_ai_usage_output_tokens, gen_ai_usage_cache_read_input_tokens, gen_ai_usage_cache_creation_input_tokens,
-    duration_ms, cost_usd, created_at)
-SELECT j.workspace_id, p.project_id, p.id, p.command,
-    (SELECT m.connection_id FROM model m WHERE m.workspace_id = j.workspace_id AND m.name = ?1),
-    ?1, ?2, ?3,
-    ?4, ?5, ?6, ?7,
-    ?8, ?9, ?10
-FROM process p JOIN project j ON j.id = p.project_id WHERE p.id = ?11
-`
-
-type LogLLMCallParams struct {
-	Provider            string
-	RequestModel        string
-	ResponseModel       string
-	InputTokens         int64
-	OutputTokens        int64
-	CacheReadTokens     int64
-	CacheCreationTokens int64
-	DurationMs          int64
-	CostUsd             sql.NullFloat64
-	CreatedAt           string
-	ProcessID           int64
-}
-
-func (q *Queries) LogLLMCall(ctx context.Context, arg LogLLMCallParams) error {
-	_, err := q.db.ExecContext(ctx, logLLMCall,
-		arg.Provider,
-		arg.RequestModel,
-		arg.ResponseModel,
-		arg.InputTokens,
-		arg.OutputTokens,
-		arg.CacheReadTokens,
-		arg.CacheCreationTokens,
-		arg.DurationMs,
-		arg.CostUsd,
-		arg.CreatedAt,
-		arg.ProcessID,
-	)
-	return err
-}
-
 const logModelCall = `-- name: LogModelCall :exec
 INSERT INTO llm_call (workspace_id, project_id, process_id, command, connection_id, gen_ai_provider_name, gen_ai_request_model,
     gen_ai_response_model, gen_ai_usage_input_tokens, gen_ai_usage_output_tokens, gen_ai_usage_cache_read_input_tokens,
     gen_ai_usage_cache_creation_input_tokens, duration_ms, cost_usd, created_at)
-VALUES (?1, ?2, ?3, ?4, ?5,
-    ?6, ?7, ?8, ?9, ?10,
-    ?11, ?12, ?13, ?14, ?15)
+VALUES (?1,
+    COALESCE((SELECT p.project_id FROM process p WHERE p.id = ?2), CAST(?3 AS INTEGER)), ?2,
+    COALESCE((SELECT p.command FROM process p WHERE p.id = ?2), ''),
+    COALESCE(CAST(?4 AS INTEGER), (SELECT m.connection_id FROM model m WHERE m.workspace_id = ?1 AND m.name = ?5)),
+    ?5, ?6, ?7, ?8, ?9,
+    ?10, ?11, ?12, ?13, ?14)
 `
 
 type LogModelCallParams struct {
 	WorkspaceID         int64
-	ProjectID           sql.NullInt64
 	ProcessID           sql.NullInt64
-	Command             string
+	ProjectID           sql.NullInt64
 	ConnectionID        sql.NullInt64
 	Provider            string
 	RequestModel        string
@@ -139,12 +98,13 @@ type LogModelCallParams struct {
 	CreatedAt           string
 }
 
+// A call of a process takes the project and command of the process; one without a connection takes the connection
+// of the model named as its provider.
 func (q *Queries) LogModelCall(ctx context.Context, arg LogModelCallParams) error {
 	_, err := q.db.ExecContext(ctx, logModelCall,
 		arg.WorkspaceID,
-		arg.ProjectID,
 		arg.ProcessID,
-		arg.Command,
+		arg.ProjectID,
 		arg.ConnectionID,
 		arg.Provider,
 		arg.RequestModel,

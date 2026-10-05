@@ -2,6 +2,7 @@ package gateway
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -16,6 +17,7 @@ import (
 
 	"deck2/internal/provider"
 	"deck2/internal/registry"
+	"deck2/internal/untrusted"
 )
 
 // ModelTarget is the API of a connection: where it is, the family it speaks (openai, google, anthropic, raw) and its key.
@@ -60,27 +62,35 @@ var modelClient = &http.Client{
 var dropped = []string{"Authorization", "X-Api-Key", "X-Goog-Api-Key", "Cookie", "Proxy-Authorization", "Accept-Encoding",
 	"Connection", "Keep-Alive", "Te", "Trailer", "Transfer-Encoding", "Upgrade", "Content-Length", "Host"}
 
-// SendModel makes one request of path under the API of t with deck's key in place of any the caller sent.
-func SendModel(ctx context.Context, t ModelTarget, method, path, query string, header http.Header, body []byte) (*http.Response, error) {
+// ModelCall is one request of a model API; Retry is the other way to ask the same when the API has no such path.
+type ModelCall struct {
+	Method, Path, Query string
+	Header              http.Header
+	Body                []byte
+	Retry               *ModelCall
+}
+
+// SendModel makes one request under the API of t with deck's key in place of any the caller sent.
+func SendModel(ctx context.Context, t ModelTarget, c ModelCall) (*http.Response, error) {
 	u, err := url.Parse(t.URL)
 	if err != nil {
 		return nil, err
 	}
-	if path = strings.TrimPrefix(path, "/"); path != "" {
+	if path := strings.TrimPrefix(c.Path, "/"); path != "" {
 		u.Path = strings.TrimSuffix(u.Path, "/") + "/" + path
 		u.RawPath = ""
 	}
-	q, _ := url.ParseQuery(query)
+	q, _ := url.ParseQuery(c.Query)
 	q.Del("key")
 	for k, vs := range u.Query() {
 		q[k] = vs
 	}
 	u.RawQuery = q.Encode()
-	req, err := http.NewRequestWithContext(ctx, method, u.String(), bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, cmp.Or(c.Method, http.MethodPost), u.String(), bytes.NewReader(c.Body))
 	if err != nil {
 		return nil, err
 	}
-	for k, vs := range header {
+	for k, vs := range c.Header {
 		req.Header[k] = vs
 	}
 	for _, h := range dropped {
@@ -100,6 +110,49 @@ func SendModel(ctx context.Context, t ModelTarget, method, path, query string, h
 		}
 	}
 	return modelClient.Do(req)
+}
+
+// SendHops makes the call each hop builds, in order, past a hop over its day unless the owner said yes and past one
+// unsent, a 429 or a 5xx; the usage of the answer reaches the Done of its hop when its body closes.
+func SendHops(ctx context.Context, hops []ModelHop, build func(ModelHop) (ModelCall, error)) (*http.Response, ModelHop, error) {
+	_, approved := Approved(ctx)
+	var last error = registry.Invalid("deck: no model to call")
+	for i, h := range hops {
+		if h.Over != "" && !approved {
+			last = &registry.Error{Status: http.StatusTooManyRequests, Text: h.Over}
+			continue
+		}
+		c, err := build(h)
+		if err != nil {
+			return nil, h, err
+		}
+		start := time.Now()
+		resp, err := SendModel(ctx, h.Target, c)
+		if err == nil && c.Retry != nil && (resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusMethodNotAllowed) {
+			_ = resp.Body.Close()
+			resp, err = SendModel(ctx, h.Target, *c.Retry)
+		}
+		if err != nil {
+			h.Done(ctx, 0, nil)
+			last = &registry.Error{Status: http.StatusBadGateway, Text: fmt.Sprintf("deck: %s: %v", h.Connection, err)}
+			if Unsent(err) {
+				continue
+			}
+			return nil, h, last
+		}
+		if Fallible(resp.StatusCode) && i < len(hops)-1 {
+			raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<16))
+			_ = resp.Body.Close()
+			h.Done(ctx, resp.StatusCode, nil)
+			last = &registry.Error{Status: http.StatusBadGateway,
+				Text: fmt.Sprintf("deck: %s answered %s: %s", h.Connection, resp.Status, untrusted.Cut(strings.TrimSpace(string(raw)), 500))}
+			continue
+		}
+		done, status := context.WithoutCancel(ctx), resp.StatusCode
+		resp.Body = metered(resp.Body, start, func(u *provider.Usage) { h.Done(done, status, u) })
+		return resp, h, nil
+	}
+	return nil, ModelHop{}, last
 }
 
 // Unsent reports whether a failed request never reached the API, so a fallback may take it: only a failed dial
@@ -129,8 +182,8 @@ func RolePath(method, path string) bool {
 // the service, not an answer about the request.
 func Fallible(status int) bool { return status == http.StatusTooManyRequests || status >= 500 }
 
-// Metered passes an answer of a model API through and calls done with the usage it reports once it is read.
-func Metered(body io.ReadCloser, start time.Time, done func(*provider.Usage)) io.ReadCloser {
+// metered passes an answer of a model API through and calls done with the usage it reports once it is read.
+func metered(body io.ReadCloser, start time.Time, done func(*provider.Usage)) io.ReadCloser {
 	return &meter{body: body, done: func(model string, u *apiUsage) {
 		if u == nil {
 			done(nil)
@@ -141,62 +194,39 @@ func Metered(body io.ReadCloser, start time.Time, done func(*provider.Usage)) io
 	}}
 }
 
-// ServeHops serves one call of a model through the hops in order, the next after a refusal or a day past its limit;
-// replace puts the model of each hop in the body. Past every limit it is a 429 until the first day ends.
+// ServeHops serves one call of a model through the hops and passes the answer on as it comes; replace puts the
+// model of each hop in the body. Past every limit it is a 429 until the first day ends.
 func ServeHops(w http.ResponseWriter, r *http.Request, path string, body []byte, replace bool, hops []ModelHop) {
-	var last string
-	var wait time.Duration
-	for i, h := range hops {
-		if h.Over != "" {
-			last = h.Over
-			if wait == 0 || h.Wait < wait {
-				wait = h.Wait
-			}
-			continue
-		}
+	resp, _, err := SendHops(r.Context(), hops, func(h ModelHop) (ModelCall, error) {
 		b := body
 		if replace {
 			b = WithModel(body, h.Model)
 		}
-		start := time.Now()
-		resp, err := SendModel(r.Context(), h.Target, r.Method, path, r.URL.RawQuery, r.Header, b)
-		if err != nil {
-			last = fmt.Sprintf("deck: %s: %v", h.Connection, err)
-			h.Done(r.Context(), 0, nil)
-			if Unsent(err) && i < len(hops)-1 {
-				continue
+		return ModelCall{Method: r.Method, Path: path, Query: r.URL.RawQuery, Header: r.Header, Body: b}, nil
+	})
+	if err != nil {
+		if registry.Status(err) == http.StatusTooManyRequests {
+			var wait time.Duration
+			for _, h := range hops {
+				if h.Over != "" && (wait == 0 || h.Wait < wait) {
+					wait = h.Wait
+				}
 			}
-			http.Error(w, last, http.StatusBadGateway)
-			return
+			if wait > 0 {
+				w.Header().Set("Retry-After", strconv.Itoa(max(1, int(wait.Seconds()))))
+			}
 		}
-		if Fallible(resp.StatusCode) && i < len(hops)-1 {
-			raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<16))
-			_ = resp.Body.Close()
-			last = fmt.Sprintf("deck: %s answered %s: %s", h.Connection, resp.Status, strings.TrimSpace(string(raw)))
-			h.Done(r.Context(), resp.StatusCode, nil)
-			continue
-		}
-		ctx := context.WithoutCancel(r.Context())
-		Relay(w, resp, start, func(u *provider.Usage) { h.Done(ctx, resp.StatusCode, u) })
+		http.Error(w, err.Error(), registry.Status(err))
 		return
 	}
-	if wait > 0 {
-		w.Header().Set("Retry-After", strconv.Itoa(max(1, int(wait.Seconds()))))
-	}
-	http.Error(w, last, http.StatusTooManyRequests)
-}
-
-// Relay passes an answer of a model API to the caller as it comes and calls done with its usage once it is read.
-func Relay(w http.ResponseWriter, resp *http.Response, start time.Time, done func(*provider.Usage)) {
-	body := Metered(resp.Body, start, done)
-	defer body.Close()
+	defer resp.Body.Close()
 	for k, vs := range resp.Header {
 		if k != "Content-Length" && k != "Connection" && k != "Transfer-Encoding" {
 			w.Header()[k] = vs
 		}
 	}
 	w.WriteHeader(resp.StatusCode)
-	flush(w, body)
+	flush(w, resp.Body)
 }
 
 // flush copies an answer as it comes, so a stream of events reaches the caller event by event.

@@ -3,7 +3,6 @@ package codex
 import (
 	"encoding/json"
 	"fmt"
-	"net"
 	"os"
 	"path/filepath"
 	"slices"
@@ -84,34 +83,15 @@ func (a *Adapter) args(req provider.Request, skills string) ([]string, error) {
 		web = "disabled"
 	}
 	args := []string{"app-server"}
-	for _, kv := range append(append(slices.Clone(off),
+	for _, kv := range append(slices.Clone(off),
 		"web_search="+quote(web),
 		"default_permissions="+quote(":read-only"),
 		"permissions."+profile+".description="+quote("deck session "+req.SessionID),
 		"permissions."+profile+".filesystem={"+strings.Join(table, ",")+"}",
-		fmt.Sprintf("permissions.%s.network.enabled=%t", profile, !req.NoNetwork)), network(req)...) {
+		fmt.Sprintf("permissions.%s.network.enabled=%t", profile, !req.NoNetwork)) {
 		args = append(args, "-c", kv)
 	}
 	return args, nil
-}
-
-// network keeps the shell to the hosts of the turn through the proxy of Codex; "*" leaves it the whole network.
-func network(req provider.Request) []string {
-	if req.NoNetwork || slices.Contains(req.Hosts, "*") {
-		return nil
-	}
-	var domains []string
-	for _, h := range req.Hosts {
-		switch {
-		case strings.Contains(h, "/"):
-		case strings.Contains(h, ":") || net.ParseIP(h) != nil:
-			domains = append(domains, quote(h)+`="allow"`)
-		default:
-			domains = append(domains, quote(h)+`="allow"`, quote("*."+h)+`="allow"`)
-		}
-	}
-	return []string{"features.network_proxy=true", "permissions." + profile + `.network.mode="full"`,
-		"permissions." + profile + ".network.domains={" + strings.Join(domains, ",") + "}"}
 }
 
 // gitDirs is the .git folder of a repo, which Codex may keep read-only in a folder it writes. A .git file or link

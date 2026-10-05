@@ -47,8 +47,10 @@ type Service struct {
 	Builtin []provider.Provider
 	Ctx     context.Context
 	BG      *sync.WaitGroup
-	// Dirs keep a file a model answered with in the results folder of the calling process.
-	Dirs files.Dirs
+	// Dirs keep a file a model answered with in the results folder of the calling process; Resolve finds a file an
+	// input points to for a process of a project.
+	Dirs    files.Dirs
+	Resolve func(ctx context.Context, project, process int64, ref string) (files.Ref, error)
 
 	mu    sync.Mutex
 	check map[string]*checks

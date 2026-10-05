@@ -171,7 +171,7 @@ type modelRequestIn struct {
 // allowed decides whether a call of a model runs without the owner: some model of it is within the limits of the
 // day, and its connection lets modules call it without asking or the project lists the call.
 func (s *Service) allowed(ctx context.Context, act registry.Actor, input json.RawMessage, listed bool) (bool, error) {
-	connection, asked, err := requested(input)
+	connection, asked, err := s.requested(ctx, act.Workspace, input)
 	if err != nil {
 		return false, err
 	}
@@ -187,19 +187,21 @@ func (s *Service) allowed(ctx context.Context, act registry.Actor, input json.Ra
 	return false, nil
 }
 
-// requested is the connection and the model a frozen call of a model names.
-func requested(input json.RawMessage) (string, string, error) {
+// requested is the connection and the model a call of a model names: a request with its body, or a call of a kind.
+func (s *Service) requested(ctx context.Context, workspace int64, input json.RawMessage) (string, string, error) {
 	var in struct {
 		Connection string `json:"connection"`
 		Body       string `json:"body"`
+		Model      string `json:"model"`
+		Kind       string `json:"kind"`
 	}
 	if err := json.Unmarshal(input, &in); err != nil {
 		return "", "", registry.Invalid("deck: %v", err)
 	}
-	if in.Connection == "" {
-		in.Connection = "@"
+	if in.Kind != "" {
+		return s.modelRef(ctx, workspace, in.Model, in.Kind)
 	}
-	return in.Connection, gateway.AskedModel([]byte(in.Body)), nil
+	return cmp.Or(in.Connection, "@"), gateway.AskedModel([]byte(in.Body)), nil
 }
 
 // sendHops makes a request through the hops in order: one past its limit is skipped unless the owner said yes to

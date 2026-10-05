@@ -293,7 +293,7 @@ func (s *Service) Commands() []*registry.Command {
 		registry.Def("project_model_limit", "Model limit of a project",
 			"Sets the most the models a project's commands call may cost in a day; past it a call waits for the owner.",
 			registry.OwnerOnly, s.projectModelLimit).Changes("projects"),
-		s.modelRequestCommand(),
+		s.modelRequestCommand(), s.modelCallCommand(),
 		registry.Read("llm_calls_list", "Model calls",
 			"Lists model calls with their provider, model, tokens and duration, newest first.",
 			registry.Everyone, s.llmCallsList).On("usage"),

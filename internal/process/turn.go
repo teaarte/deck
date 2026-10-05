@@ -55,6 +55,8 @@ func (r *Runner) run(ctx context.Context, t turn) {
 		r.runScript(ctx, t, trial)
 	case KindTool:
 		r.runTool(ctx, t, trial)
+	case KindModel:
+		r.runModel(ctx, t, trial)
 	default:
 		r.runAgent(ctx, &t, p, trial)
 	}

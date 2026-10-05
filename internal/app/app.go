@@ -162,7 +162,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	*a.Board = board.Service{St: st, Bus: a.Bus, Now: cfg.Now, Fire: a.Triggers.Start}
 	*a.Providers = providers.Service{St: st, Bus: a.Bus, Now: cfg.Now, Home: cfg.Home, Sandbox: cfg.Sandbox, ACPBinaries: cfg.ACPBinaries,
 		ACPCallLimit: cfg.ACPCallLimit, SelfCheckCeiling: cfg.SelfCheckCeiling, Secret: a.Secrets.Secret, WriteSecret: a.Secrets.Write,
-		Wake: a.Runner.Wake, Dirs: a.dirs(),
+		Wake: a.Runner.Wake, Dirs: a.dirs(), Resolve: a.Tools.Resolve,
 		Rules: rules, Builtin: append([]provider.Provider{p}, more...), Ctx: a.ctx, BG: &a.bg}
 	*a.Answers = asks.Service{St: st, Now: cfg.Now, Broker: a.Asks, Registry: a.Registry, Gateway: a.Gateway, Deliver: a.Runner.Deliver,
 		AnswerGrant: a.Saver.AnswerGrant, SaveManifest: a.Saver.SaveCall, ExpireSuggestions: a.Suggest.Expire,

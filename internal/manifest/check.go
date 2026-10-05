@@ -144,6 +144,8 @@ func (m *Manifest) compileCommands(fail func(string, ...any)) {
 			if m.scripts[e.Script] == nil {
 				fail("command %q: unknown script %q", c.Name, e.Script)
 			}
+		case "model":
+			checkModel(c, fail)
 		case "tool":
 			if !m.knownTool(e.Tool) {
 				fail("command %q: unknown tool %q", c.Name, e.Tool)
@@ -310,4 +312,34 @@ func PropertyOrder(schema json.RawMessage) []string {
 		}
 	}
 	return out
+}
+
+// checkModel checks that a model command gives its model what its kind needs.
+func checkModel(c *Command, fail func(string, ...any)) {
+	e := c.Executor
+	var in struct {
+		Properties map[string]struct {
+			Type   string `json:"type"`
+			Format string `json:"format"`
+		} `json:"properties"`
+		Required []string `json:"required"`
+	}
+	_ = json.Unmarshal(c.Input, &in)
+	if role, ok := strings.CutPrefix(e.Model, "@"); ok && role != e.Kind {
+		fail("command %q: a model of kind %s is @%s or a model by name, not %s", c.Name, e.Kind, e.Kind, e.Model)
+	}
+	switch e.Kind {
+	case "text", "image":
+		if e.Prompt == "" && e.PromptFile == "" {
+			fail("command %q: a %s model needs prompt or prompt_file", c.Name, e.Kind)
+		}
+	case "tts":
+		if in.Properties["text"].Type != "string" || !slices.Contains(in.Required, "text") {
+			fail("command %q: a tts model speaks the input field text, a required string", c.Name)
+		}
+	case "stt":
+		if n := len(FileFields(c.Input)); n != 1 {
+			fail("command %q: an stt model takes one input field of format file, the recording; it has %d", c.Name, n)
+		}
+	}
 }

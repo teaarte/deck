@@ -56,6 +56,8 @@ const (
 	KindAgent  = "agent"
 	KindScript = "script"
 	KindTool   = "tool"
+	// KindModel is one call of a model through deck; like a tool it holds no agent slot.
+	KindModel = "model"
 )
 
 type Config struct {

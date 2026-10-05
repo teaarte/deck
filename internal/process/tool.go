@@ -18,6 +18,65 @@ import (
 
 // runTool makes the one gateway tool call of a tool command with the command input as it is.
 func (r *Runner) runTool(ctx context.Context, t turn, trial bool) {
+	name := t.cmd.Executor.Tool
+	r.runCall(ctx, t, trial, true, func(proj db.Project) (string, json.RawMessage, error) {
+		if !strings.HasPrefix(name, registry.Builtin+".") {
+			name = proj.Name + "." + name
+		}
+		r.deps.Servers(context.WithoutCancel(ctx), t.project)
+		tool, err := r.gw.Command(context.WithoutCancel(ctx), proj.WorkspaceID, name)
+		if err == nil {
+			err = manifest.FitsTool(*t.cmd, name, tool.Input)
+		}
+		return name, json.RawMessage(t.input), err
+	})
+}
+
+// runModel makes the one call of a model of a model command: its prompt, the command input, and the result
+// schema for text; the words of tts and the recording of stt are input fields.
+func (r *Runner) runModel(ctx context.Context, t turn, trial bool) {
+	r.runCall(ctx, t, trial, false, func(db.Project) (string, json.RawMessage, error) {
+		prompt, err := r.commandBody(context.WithoutCancel(ctx), t.project, t.cmd)
+		if err != nil {
+			return "", nil, err
+		}
+		e := t.cmd.Executor
+		var input map[string]any
+		_ = json.Unmarshal([]byte(t.input), &input)
+		call := map[string]any{"kind": e.Kind, "prompt": prompt}
+		if e.Model != "" {
+			call["model"] = e.Model
+		}
+		if len(e.Options) > 0 {
+			b, _ := json.Marshal(e.Options)
+			call["options"] = string(b)
+		}
+		switch e.Kind {
+		case "tts":
+			call["text"] = input["text"]
+			delete(input, "text")
+		case "stt":
+			for _, f := range manifest.FileFields(t.cmd.Input) {
+				call["file"] = input[f]
+				delete(input, f)
+			}
+		case "text":
+			if len(t.cmd.Result) > 0 {
+				call["schema"] = string(t.cmd.Result)
+			}
+		}
+		if len(input) > 0 {
+			b, _ := json.Marshal(input)
+			call["input"] = string(b)
+		}
+		b, _ := json.Marshal(call)
+		return registry.Builtin + ".model_call", b, nil
+	})
+}
+
+// runCall makes the one gateway call of a command whose executor is a call: what call names with its input; a tool
+// no stricter than its command is cleared with it, a model keeps to its own limits whatever the command's class.
+func (r *Runner) runCall(ctx context.Context, t turn, trial, tool bool, call func(db.Project) (string, json.RawMessage, error)) {
 	bg := context.WithoutCancel(ctx)
 	id := t.process
 	dir := r.runDir(id)
@@ -34,21 +93,18 @@ func (r *Runner) runTool(ctx context.Context, t turn, trial bool) {
 		fail(err)
 		return
 	}
-	name := t.cmd.Executor.Tool
-	if !strings.HasPrefix(name, registry.Builtin+".") {
-		name = proj.Name + "." + name
-	}
-	r.deps.Servers(bg, t.project)
-	tool, err := r.gw.Command(bg, proj.WorkspaceID, name)
-	if err == nil {
-		err = manifest.FitsTool(*t.cmd, name, tool.Input)
-	}
+	name, input, err := call(proj)
 	if err != nil {
 		fail(err)
 		return
 	}
 	act := registry.Actor{Kind: registry.Agent, Workspace: proj.WorkspaceID, ProjectID: t.project, ProcessID: id, Trial: trial}
-	out, err := r.gw.CallTool(ctx, act, proj.Name+"."+t.cmd.Name, name, json.RawMessage(t.input))
+	var out any
+	if tool {
+		out, err = r.gw.CallTool(ctx, act, proj.Name+"."+t.cmd.Name, name, input)
+	} else {
+		out, err = r.gw.CallAs(ctx, act, name, input)
+	}
 	if r.cut(bg, ctx, id) {
 		if r.ctx.Err() == nil {
 			r.clearRun(dir)

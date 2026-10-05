@@ -89,6 +89,11 @@ type Executor struct {
 	Script string   `json:"script,omitempty"`
 	Tool   string   `json:"tool,omitempty"`
 	Folder Folder   `json:"folder,omitzero"`
+	// Kind is what a model executor makes; Model an @role or a model of the owner, the kind's assignment when empty;
+	// Options are fields deck adds to its request as they are.
+	Kind    string         `json:"kind,omitempty"`
+	Model   string         `json:"model,omitempty"`
+	Options map[string]any `json:"options,omitempty"`
 }
 
 // Folder names the project folder an agent works in; Only is the one folder of a project with a single folder.

@@ -31,7 +31,7 @@ func (r *Runner) Deliver(ctx context.Context, processID int64) error {
 	if err != nil {
 		return err
 	}
-	if p.Kind == KindTool {
+	if p.Kind == KindTool || p.Kind == KindModel {
 		return r.deliverTool(ctx, p, pending)
 	}
 	if p.State == StateRateLimited {
@@ -146,8 +146,8 @@ func (r *Runner) ResumeInterrupted(ctx context.Context) error {
 		return err
 	}
 	for _, p := range ps {
-		if p.Kind == KindTool {
-			r.finish(ctx, p.ID, StateInterrupted, "", false, "deck restarted while the tool call ran")
+		if p.Kind == KindTool || p.Kind == KindModel {
+			r.finish(ctx, p.ID, StateInterrupted, "", false, "deck restarted while the "+p.Kind+" call ran")
 			_ = os.RemoveAll(r.runDir(p.ID))
 			continue
 		}

@@ -535,7 +535,7 @@ func TestACPProviderChangedDuringItsSelfCheckIsCheckedAgain(t *testing.T) {
 	e.must("deck.provider_add", map[string]any{"name": "acp", "url": llm.URL, "model": "m", "agent": "dsh"}, nil)
 	e.waitFor("the first check", func() bool { return f.calls() >= 1 })
 	e.must("deck.provider_add", map[string]any{"name": "acp", "url": llm.URL, "model": "m2", "agent": "dsh"}, nil)
-	e.waitFor("the second check", func() bool {
+	e.waitWithin("the second check", 40*time.Second, func() bool {
 		h, _ := e.App.Store.Q.GetHealth(t.Context(), "provider:acp")
 		return f.calls() >= 6 && h.Status == "ok"
 	})

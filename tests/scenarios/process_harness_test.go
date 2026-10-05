@@ -99,7 +99,13 @@ func (e *Env) full(id int64) procFull {
 // waitFor polls until ok holds.
 func (e *Env) waitFor(what string, ok func() bool) {
 	e.T.Helper()
-	deadline := time.Now().Add(10 * time.Second)
+	e.waitWithin(what, 10*time.Second, ok)
+}
+
+// waitWithin waits for ok as long as d, for what runs several sandboxed programs one after another.
+func (e *Env) waitWithin(what string, d time.Duration, ok func() bool) {
+	e.T.Helper()
+	deadline := time.Now().Add(d)
 	for !ok() {
 		if time.Now().After(deadline) {
 			e.T.Fatalf("timed out waiting for %s", what)

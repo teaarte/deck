@@ -21,7 +21,7 @@ import (
 
 // webManifest is a project with every block of the catalog, a record page and an external tool.
 func webManifest(url string) string {
-	return fmt.Sprintf(`{"version": 7,
+	return fmt.Sprintf(`{"version": 8,
   "collections": [{"name": "notes", "description": "Notes", "key": "title", "display": "title",
     "schema": {"type": "object", "properties": {"title": {"type": "string"}, "score": {"type": "integer"}}, "required": ["title"]}}],
   "commands": [
@@ -43,16 +43,16 @@ func webManifest(url string) string {
       {"type": "tabs", "title": "Views", "tabs": [
         {"title": "All", "blocks": [{"type": "table", "title": "All notes", "source": {"collection": "notes", "sort": "-score"},
           "columns": [{"label": "Title", "bind": "title"}, {"label": "Score", "bind": "score"}],
-          "actions": [{"label": "Open", "screen": "note"}, {"label": "Touch", "command": "touch", "params": {"note": "$record.id"}}]}]},
+          "actions": [{"label": "Open", "screen": "note"}, {"label": "Touch", "command": "touch", "params": {"note": "=_id"}}]}]},
         {"title": "Top", "blocks": [{"type": "list", "source": {"collection": "notes", "where": "score >= 5"},
           "item": {"title": "title", "meta": "'score ' + string(score)"}}]}]},
       {"type": "list", "title": "Waiting here", "source": {"from": "deck.asks_list"}, "item": {"title": "what"}},
       {"type": "actions", "title": "Run", "actions": [{"label": "Work", "command": "work"}]}]},
     {"name": "note", "title": "Note", "record": "notes", "blocks": [
       {"type": "card", "fields": [{"label": "Title", "bind": "title"}, {"label": "Score", "bind": "score"}],
-        "actions": [{"label": "Touch", "command": "touch", "params": {"note": "$record.id"}}]},
+        "actions": [{"label": "Touch", "command": "touch", "params": {"note": "=_id"}}]},
       {"type": "list", "title": "Better", "source": {"collection": "notes", "where": "score > record.score"}, "item": {"title": "title"}},
-      {"type": "actions", "title": "Rate", "actions": [{"label": "Rate", "command": "touch", "params": {"note": "$record.id", "score": "$record.score"}}]}]}],
+      {"type": "actions", "title": "Rate", "actions": [{"label": "Rate", "command": "touch", "params": {"note": "=_id", "score": "=score"}}]}]}],
   "menu": ["main"]}`, url)
 }
 
@@ -276,7 +276,7 @@ func TestInvalidScreenIsRefusedWithItsReason(t *testing.T) {
 		{`{"type": "list", "title": "Waiting here", "source": {"from": "deck.asks_list"}, "item": {"title": "what"}}`,
 			`{"type": "list", "source": {"from": "deck.asks_list"}, "item": {"title": "whom"}}`, `unknown field "whom"`},
 		{`{"type": "list", "title": "Waiting here", "source": {"from": "deck.asks_list"}, "item": {"title": "what"}}`,
-			`{"type": "log", "source": {"from": "deck.process_log", "input": {"process": "$record.id"}}}`, `source: the log is read on a page of a process`},
+			`{"type": "log", "source": {"from": "deck.process_log", "input": {"process": "=_id"}}}`, `source: the log is read on a page of a process`},
 		{`{"type": "list", "title": "Waiting here", "source": {"from": "deck.asks_list"}, "item": {"title": "what"}}`,
 			`{"type": "table", "source": {"from": "deck.project_delete"}, "columns": [{"label": "N", "bind": "name"}]}`, `source: deck.project_delete is not a deck command that only reads`},
 		{`{"type": "list", "title": "Waiting here", "source": {"from": "deck.asks_list"}, "item": {"title": "what"}}`,
@@ -605,7 +605,7 @@ func TestButtonsOfARecordPageFollowTheRecordAfterAnEvent(t *testing.T) {
 // its when holds for, takes a param from an expression over the row, asks first or asks for a typed value.
 func TestAModuleButtonShowsWhereItHoldsAndTakesValuesFromTheRow(t *testing.T) {
 	e := newEnv(t, nil)
-	e.createProject("notes", `{"version": 7,
+	e.createProject("notes", `{"version": 8,
   "collections": [{"name": "notes", "description": "Notes", "key": "title", "display": "title",
     "schema": {"type": "object", "properties": {"title": {"type": "string"}, "score": {"type": "integer"}}, "required": ["title"]}}],
   "commands": [{"name": "touch", "title": "Touch", "description": "Touches a note.", "class": "internal", "result": {"type": "object"},
@@ -613,8 +613,8 @@ func TestAModuleButtonShowsWhereItHoldsAndTakesValuesFromTheRow(t *testing.T) {
     "executor": {"type": "agent", "prompt": "Touch."}}],
   "screens": [{"name": "main", "title": "Notes", "blocks": [{"type": "table", "title": "Notes", "source": {"collection": "notes", "sort": "title"},
     "columns": [{"label": "Title", "bind": "title"}],
-    "actions": [{"label": "Boost", "command": "touch", "params": {"note": "$record.id", "score": "=string(score * 2)"}, "when": "score >= 5", "confirm": true},
-      {"label": "Rate", "command": "touch", "params": {"note": "$record.id"}, "input": "score"}]}]}]}`)
+    "actions": [{"label": "Boost", "command": "touch", "params": {"note": "=_id", "score": "=string(score * 2)"}, "when": "score >= 5", "confirm": true},
+      {"label": "Rate", "command": "touch", "params": {"note": "=_id"}, "input": "score"}]}]}]}`)
 	e.must("deck.records_upsert", map[string]any{"project": "notes", "collection": "notes",
 		"records": jsonl(map[string]any{"title": "a", "score": 1}, map[string]any{"title": "b", "score": 7})}, nil)
 	rows := blockData[[]screenRow](t, e.screenData("notes", "main", nil)["b0"]["rows"])
@@ -631,6 +631,39 @@ func TestAModuleButtonShowsWhereItHoldsAndTakesValuesFromTheRow(t *testing.T) {
 	if code, out := e.call("deck.manifest_save", map[string]any{"project": "notes", "manifest": strings.Replace(cur.Manifest,
 		`"=string(score * 2)"`, `"=string(scor * 2)"`, 1)}); code != 422 || !strings.Contains(string(out), `param "score": unknown field "scor"`) {
 		t.Fatalf("an expression of a param reads fields of the row: %d %s", code, out)
+	}
+}
+
+// TestAValueIsFixedTextOrAnExpression: a module of format 7 reads as format 8, where $record.<field> is the
+// expression =<field> and $record.id =_id with the same values; a manifest of format 8 with $record is refused.
+func TestAValueIsFixedTextOrAnExpression(t *testing.T) {
+	e := newEnv(t, nil)
+	old := `{"version": 7,
+  "collections": [{"name": "notes", "description": "Notes", "key": "title", "display": "title",
+    "schema": {"type": "object", "properties": {"title": {"type": "string"}, "id": {"type": "string"}}, "required": ["title"]}}],
+  "commands": [{"name": "touch", "title": "Touch", "description": "Touches a note.", "class": "internal", "result": {"type": "object"},
+    "input": {"type": "object", "properties": {"note": {"type": "integer", "format": "record"}, "score": {"type": "string"}}, "required": ["note"]},
+    "executor": {"type": "agent", "prompt": "Touch."}}],
+  "screens": [{"name": "main", "title": "Notes", "blocks": [{"type": "table", "title": "Notes", "source": {"collection": "notes"},
+    "columns": [{"label": "Title", "bind": "title"}],
+    "actions": [{"label": "Touch", "command": "touch", "params": {"note": "$record.id", "score": "$record.title"}}, {"label": "Open", "screen": "note"}]}]},
+    {"name": "note", "title": "Note", "record": "notes", "blocks": [{"type": "form", "title": "Again", "command": "touch",
+      "values": {"note": "$record.id", "score": "$record.title"}}]}]}`
+	e.createProject("notes", old)
+	e.must("deck.records_upsert", map[string]any{"project": "notes", "collection": "notes", "records": jsonl(map[string]any{"title": "a", "id": "mine"})}, nil)
+	rows := blockData[[]screenRow](t, e.screenData("notes", "main", nil)["b0"]["rows"])
+	params, _ := rows[0].Actions[0]["params"].(map[string]any)
+	if len(rows) != 1 || params["note"] != rows[0].ID || params["score"] != "a" {
+		t.Fatalf("a button of format 7 takes the id of the record and its field: %+v", rows)
+	}
+	var form struct{ Values map[string]any }
+	_ = json.Unmarshal(e.screenData("notes", "note", map[string]any{"record": rows[0].ID})["b0"]["value"], &form)
+	if form.Values["note"] != rows[0].ID || form.Values["score"] != "a" {
+		t.Fatalf("a form of format 7 takes the record of the page: %+v", form)
+	}
+	code, out := e.call("deck.project_create", map[string]any{"name": "new", "manifest": strings.Replace(old, `"version": 7`, `"version": 8`, 1)})
+	if code != 422 || !strings.Contains(string(out), "=_id") {
+		t.Fatalf("format 8 writes a value from the item as =<expression>: %d %s", code, out)
 	}
 }
 
@@ -800,15 +833,15 @@ func TestNewBlocksAreRefusedWithTheirReason(t *testing.T) {
 	}
 }
 
-// TestCustomButtonsOnARecordPageTakeTheFieldsOfTheRecord: $record in a custom block's button is the record of the
-// page, whatever the block reads.
+// TestCustomButtonsOnARecordPageTakeTheFieldsOfTheRecord: an expression of a custom block's button reads the
+// record of the page, whatever the block reads.
 func TestCustomButtonsOnARecordPageTakeTheFieldsOfTheRecord(t *testing.T) {
 	e := newEnv(t, nil)
 	e.createProject("web", boardWebManifest)
 	page := `{"type": "form", "title": "Edit", "command": "deck.record_update"}`
 	custom := func(field string) string {
 		return strings.Replace(boardWebManifest, page, page+`, {"type": "custom", "document": "custom/c.html", "source": {"from": "deck.asks_list"},
-			"actions": [{"label": "Touch", "command": "touch", "params": {"note": "$record.`+field+`"}}]}`, 1)
+			"actions": [{"label": "Touch", "command": "touch", "params": {"note": "=`+field+`"}}]}`, 1)
 	}
 	e.must("deck.manifest_save", map[string]any{"project": "web", "manifest": custom("score")}, nil)
 	e.refused("deck.manifest_save", map[string]any{"project": "web", "manifest": custom("what")}, 422, `unknown field "what"`)
@@ -836,7 +869,7 @@ func TestAHiddenButtonOfACustomBlockLeavesTheClassOfTheOthers(t *testing.T) {
 // has still loads, as a module of before; only that block is an error, and a save with it is refused.
 func TestABlockOfACommandDeckNoLongerHasTurnsOffOnlyThatBlock(t *testing.T) {
 	e := newEnv(t, nil)
-	m := `{"version": 7, "screens": [{"name": "main", "title": "Main", "blocks": [
+	m := `{"version": 8, "screens": [{"name": "main", "title": "Main", "blocks": [
     {"type": "list", "source": {"from": "deck.projects_list"}, "item": {"title": "name"}},
     {"type": "list", "source": {"from": "deck.models_list", "rows": "models"}, "item": {"title": "name"}}]}]}`
 	e.createProject("old", m)

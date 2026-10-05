@@ -112,7 +112,7 @@ func (r *renderer) input(in map[string]any) map[string]any {
 	out := make(map[string]any, len(in))
 	for k, v := range in {
 		if s, ok := v.(string); ok && s != "" {
-			if v = manifest.Resolve(s, "", r.req.Record, r.withParam(r.record)); v == nil {
+			if v = manifest.Resolve(s, "", r.withParam(r.record)); v == nil {
 				continue
 			}
 		}

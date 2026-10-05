@@ -20,7 +20,7 @@ import (
 )
 
 const boardManifest = `{
-  "version": 7,
+  "version": 8,
   "collections": [{"name": "items", "description": "An item", "key": "url",
     "schema": {"type": "object", "properties": {"url": {"type": "string"}}, "required": ["url"]}}],
   "commands": [{"name": "pack", "title": "Pack", "description": "Packs the card.", "class": "internal",
@@ -381,7 +381,7 @@ func TestADeletedCardGoesADayLaterByTheClockOfDeck(t *testing.T) {
 }
 
 // twoLanes has a command on entering each of two lanes.
-const twoLanes = `{"version": 7,
+const twoLanes = `{"version": 8,
   "commands": [
     {"name": "onx", "title": "X", "description": "Runs in x.", "class": "internal",
       "input": {"type": "object", "properties": {"card": {"type": "integer", "format": "card"}}, "required": ["card"]},
@@ -478,7 +478,7 @@ func TestUndoOfAModuleButtonIsACallOfItsOwn(t *testing.T) {
 	} {
 		e.refused("deck.project_create", map[string]any{"name": "bad", "manifest": with(undo)}, 422, want)
 	}
-	e.createProject("web", with(`, "undo": {"command": "tag", "params": {"tag": "$record.title"}}`))
+	e.createProject("web", with(`, "undo": {"command": "tag", "params": {"tag": "=title"}}`))
 	e.must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": `{"title": "alpha"}`}, nil)
 	found := false
 	for _, v := range e.screenData("web", "main", nil) {

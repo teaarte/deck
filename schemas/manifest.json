@@ -7,7 +7,7 @@
   "additionalProperties": false,
   "required": ["version"],
   "properties": {
-    "version": {"const": 7, "description": "Manifest format version."},
+    "version": {"const": 8, "description": "Manifest format version."},
     "collections": {"type": "array", "items": {"$ref": "#/$defs/collection"}},
     "commands": {"type": "array", "items": {"$ref": "#/$defs/command"}},
     "scripts": {"type": "array", "items": {"$ref": "#/$defs/script"}},
@@ -263,7 +263,7 @@
       "additionalProperties": false,
       "properties": {
         "from": {"type": "string", "description": "What the block reads: collection by default, or a deck command that only reads, such as deck.asks_list; on a project screen it gets the project when it takes one, and the values the owner picked in filters it takes."},
-        "input": {"type": "object", "description": "Input of the command; \"$record.<field>\" is a field of the record of the page."},
+        "input": {"type": "object", "description": "Input of the command; a text \"=<expression>\" is read over the record of the page."},
         "rows": {"type": "string", "description": "The list in the result of a command that gives an object."},
         "project": {"type": "string", "description": "Another project the manifest reads."},
         "collection": {"type": "string"},
@@ -292,7 +292,7 @@
     "action": {
       "type": "object",
       "additionalProperties": false,
-      "description": "A button: command calls a command of the project, screen opens a screen of the project. Params and record take a fixed value, $record.<field> or =<expression> over the item.",
+      "description": "A button: command calls a command of the project, screen opens a screen of the project. Params and record take a fixed value or =<expression> over the item; _id is the id of a record.",
       "properties": {
         "label": {"type": "string", "minLength": 1},
         "verb": {"type": "string", "description": "A built-in label the client translates, instead of label."},

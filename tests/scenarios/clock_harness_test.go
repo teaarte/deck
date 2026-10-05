@@ -100,7 +100,7 @@ func nullable(m string) string {
 }
 
 func testManifest(commands []string, triggers []string) string {
-	return fmt.Sprintf(`{"version": 7, "commands": [%s], "triggers": [%s]}`, strings.Join(commands, ","), strings.Join(triggers, ","))
+	return fmt.Sprintf(`{"version": 8, "commands": [%s], "triggers": [%s]}`, strings.Join(commands, ","), strings.Join(triggers, ","))
 }
 
 func ok(context.Context, *Call) provider.Result {

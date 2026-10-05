@@ -9,7 +9,7 @@ import (
 	"github.com/santhosh-tekuri/jsonschema/v6"
 )
 
-const FormatVersion = 7
+const FormatVersion = 8
 
 type Manifest struct {
 	Version         int          `json:"version"`
@@ -288,7 +288,7 @@ type Block struct {
 	Save    string `json:"save,omitempty"`
 	// Choices offer the values of fields of a form from a source.
 	Choices map[string]Choice `json:"choices,omitempty"`
-	// Values fill fields of a form before the owner types: fixed text, $record.<field> or =<expression>.
+	// Values fill fields of a form before the owner types: fixed text or =<expression> over the record of the page.
 	Values map[string]string `json:"values,omitempty"`
 	// KeepOpen keeps the dialog of a form open after its call, to show the result.
 	KeepOpen bool `json:"keep_open,omitempty"`
@@ -374,7 +374,7 @@ type Tab struct {
 type Source struct {
 	// From is what the block reads: a collection (the default) or a command that only reads.
 	From string `json:"from,omitempty"`
-	// Input is the input of the command; "$record.<field>" is a field of the record of the page.
+	// Input is the input of the command; a text "=<expression>" is read over the record of the page.
 	Input map[string]any `json:"input,omitempty"`
 	// Rows names the list in the result of a command that gives an object.
 	Rows string `json:"rows,omitempty"`
@@ -400,8 +400,8 @@ type Column struct {
 	Details string `json:"details,omitempty"`
 }
 
-// Action is a button. Params, Screen, Record, Project, File and Until take a fixed value, "$record.<field>"
-// or "=<expression>" over the item the button is on.
+// Action is a button. Params, Screen, Record, Project, File and Until take a fixed value or "=<expression>" over
+// the item the button is on.
 type Action struct {
 	// Label is the text of the button; Verb names a built-in label the client translates.
 	Label   string            `json:"label,omitempty"`

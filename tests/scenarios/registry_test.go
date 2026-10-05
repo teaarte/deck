@@ -129,7 +129,7 @@ func TestManifestRevisionsAndRevert(t *testing.T) {
 		t.Fatalf("removed trigger must be dropped, got %+v", ts)
 	}
 
-	code, out := e.call("deck.manifest_save", map[string]any{"project": "ideas", "manifest": `{"version": 7, "commands": [{"name": "x"}]}`})
+	code, out := e.call("deck.manifest_save", map[string]any{"project": "ideas", "manifest": `{"version": 8, "commands": [{"name": "x"}]}`})
 	if code != 422 || !strings.Contains(string(out), "title") || !strings.Contains(string(out), "executor") {
 		t.Fatalf("invalid manifest: want 422 with reason, got %d %s", code, out)
 	}

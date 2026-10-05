@@ -15,7 +15,7 @@ import (
 
 // playerManifest is a module of short videos: a media block plays each video with its marks, and its mark sends
 // a second of a video back with a note.
-const playerManifest = `{"version": 7,
+const playerManifest = `{"version": 8,
   "collections": [{"name": "videos", "description": "Videos", "key": "slug", "display": "slug",
     "schema": {"type": "object", "properties": {"slug": {"type": "string"}, "file": {"type": "string"}, "marks": {"type": "array"}}, "required": ["slug"]}}],
   "commands": [{"name": "note", "title": "Note", "description": "Sends a second of a video back for rework.", "class": "internal",
@@ -25,7 +25,7 @@ const playerManifest = `{"version": 7,
   "screens": [{"name": "watch", "title": "Watch", "params": {"t": "number"}, "blocks": [
     {"type": "media", "title": "Videos", "source": {"collection": "videos", "sort": "slug"},
       "item": {"file": "file", "title": "slug", "marks": "marks"},
-      "mark": {"verb": "mark", "command": "note", "params": {"video": "$record.slug"}, "input": "note"}}]}],
+      "mark": {"verb": "mark", "command": "note", "params": {"video": "=slug"}, "input": "note"}}]}],
   "menu": ["watch"]}`
 
 // TestAPlayerShowsMarksAndMarksASecond: a video of the data folder plays with its marks in order of time; the mark

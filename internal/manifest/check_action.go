@@ -12,6 +12,14 @@ import (
 	"deck2/schemas"
 )
 
+// gone refuses a $record.<field> of format 7 with the expression that took its place.
+func gone(f string) error {
+	if f == "id" {
+		f = "_id"
+	}
+	return fmt.Errorf("$record.%s is format 7; a value from the item is the expression =%s", strings.TrimPrefix(f, "_"), f)
+}
+
 // deckLink tells where a screen of deck opens from.
 const deckLink = "a screen of deck opens from a link [text](#/deck/<screen>?<param>=<value>) in a text shown with markdown"
 
@@ -94,10 +102,10 @@ func (c *screenCheck) action(b Block, a Action, fields []string) error {
 	return nil
 }
 
-// checkValue checks a value a button takes from its item: $record.<field> or =<expression> over its fields.
+// checkValue checks a value a button takes from its item: fixed text or =<expression> over its fields.
 func checkValue(v string, fields []string) error {
-	if f, ok := strings.CutPrefix(v, "$record."); ok && f != "id" && fields != nil && !slices.Contains(fields, f) {
-		return fmt.Errorf("unknown field %q", f)
+	if f, ok := strings.CutPrefix(v, "$record."); ok {
+		return gone(f)
 	}
 	if e, ok := strings.CutPrefix(v, "="); ok {
 		if _, err := compileField(e, fields); err != nil {

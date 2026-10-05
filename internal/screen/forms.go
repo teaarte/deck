@@ -125,7 +125,7 @@ func (r *renderer) formValues(v map[string]any, values map[string]string, cmd ma
 	types := manifest.FieldTypes(in)
 	env := r.withParam(r.record)
 	for field, raw := range values {
-		if val := manifest.Resolve(raw, types[field], r.req.Record, env); val != nil {
+		if val := manifest.Resolve(raw, types[field], env); val != nil {
 			got[field] = val
 		}
 	}

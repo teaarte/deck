@@ -26,17 +26,11 @@ func Typed(v, typ string) any {
 	return v
 }
 
-// Resolve is a value a manifest gives a field of the type typ: fixed text in that type, $record.<field> of the
-// record in env (id is its id), or =<expression> over env, where param holds the parameters of the screen.
-func Resolve(v, typ string, id int64, env map[string]any) any {
+// Resolve is a value a manifest gives a field of the type typ: fixed text in that type, or =<expression> over env,
+// where param holds the parameters of the screen.
+func Resolve(v, typ string, env map[string]any) any {
 	if v == "" {
 		return nil
-	}
-	if f, ok := strings.CutPrefix(v, "$record."); ok {
-		if f == "id" {
-			return id
-		}
-		return env[f]
 	}
 	if e, ok := strings.CutPrefix(v, "="); ok {
 		out, _ := Eval(e, env)

@@ -12,7 +12,7 @@ import (
 
 // modelManifest is a project with commands of type model: a fact check by a schema, a picture, speech and the
 // words of a recording.
-const modelManifest = `{"version": 7,
+const modelManifest = `{"version": 8,
   "commands": [
     {"name": "factcheck", "title": "Fact check", "description": "Checks a claim.", "class": "internal",
      "input": {"type": "object", "properties": {"claim": {"type": "string"}}, "required": ["claim"]},

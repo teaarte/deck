@@ -70,13 +70,8 @@ func (c *screenCheck) values(where string, b Block) {
 			}
 			continue
 		}
-		f, ok := strings.CutPrefix(b.Values[field], "$record.")
-		switch {
-		case !ok:
-		case c.screen.Record == "":
-			c.fail("%s: $record needs a record page", at)
-		case record != nil && !slices.Contains(record, f):
-			c.fail("%s: unknown field %q", at, f)
+		if f, ok := strings.CutPrefix(b.Values[field], "$record."); ok {
+			c.fail("%s: %v", at, gone(f))
 		}
 	}
 }

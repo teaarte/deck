@@ -157,7 +157,8 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   `dialog` (a button that opens blocks in a window) and `columns`/`tabs` to lay them out. A table:
   `{"type": "table", "title": "Best", "source": {"collection": "items", "where": "score >= 7", "sort": "-score",
   "limit": 20}, "columns": [{"label": "Title", "bind": "title"}], "filter": ["status"], "actions": [{"label": "Rate", "command":
-  "rate", "params": {"id": "$record.id"}}]}` — `where` and `bind` are expressions over record fields,
+  "rate", "params": {"id": "=_id"}}]}` — `where` and `bind` are expressions over record fields (`_id` is the id
+  of the record, `record.<field>` the record of a record page),
   `sort` is a field with `-` for descending, `filter` lists fields the owner narrows by. A column, a `card`
   field and a `stat` take `format`, and the client shows the raw value in the owner's locale and time zone:
   `number`, `percent` (0.42 is 42 %), `money` with `currency` (`{"label": "Price", "bind": "price", "format":
@@ -182,17 +183,17 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   data folder (`"charts/today.png"`); a picture is a thumbnail, a PDF shows in place, a video or a sound plays in
   a player with frame steps and a timecode, anything else is a name with a download. The player shows
   `item.marks` (a list of `{at, text}` or of seconds) on its timeline, and its `mark` button — an action such
-  as `{"verb": "mark", "command": "note", "params": {"video": "$record.slug"}, "input": "note"}` — calls the
+  as `{"verb": "mark", "command": "note", "params": {"video": "=slug"}, "input": "note"}` — calls the
   command with `file` (as `item.file` gives it) and `at` (the second it is paused at) beside its params, so a
   note such as "scene 4, 0:12" reaches a rework; the command's input takes `file` and `at`. A screen opened
   with `t` in seconds (declare it in `params`) starts its first player there; `timecode` formats seconds.
-  Action `params` are strings in the manifest; `$record.<field>`
-  passes the field's value with its type (`$record.id` is a number, so that input field is an `integer`), and
+  A value in the manifest — action `params`, `screen`, `record`, form `values`, a source's `input` — is fixed
+  text or `=<expression>` over the item it is on (a form and an input: the record of the page) and `param`:
+  `=title` passes the field's value with its type (`=_id` is a number, so that input field is an `integer`), and
   a fixed value becomes the type of its input field (`"days": "7"` to an `integer` is 7). An action passes
-  every required parameter of its command
-  (from `$record.<field>` or fixed values); deck asks for nothing that is missing, so a choice the owner
+  every required parameter of its command; deck asks for nothing that is missing, so a choice the owner
   makes in a row is one action per option. A button whose call the owner may want back names the call that takes
-  it back, `"undo": {"command": "unrate", "params": {"id": "$record.id"}}`, offered for a moment after it went
+  it back, `"undo": {"command": "unrate", "params": {"id": "=_id"}}`, offered for a moment after it went
   through. A command the owner fills in by hand is a `form`:
   `{"type": "form", "command": "score", "save": "items"}` asks for the command's input by its schema, shows the
   result by the result schema and, with `save`, keeps it as records; a field picked from a source takes

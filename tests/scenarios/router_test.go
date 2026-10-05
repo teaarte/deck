@@ -13,7 +13,7 @@ var routedManifest = strings.Replace(boardWebManifest, `{"name": "main", "title"
         {"type": "form", "title": "Score", "command": "score", "values": {"title": "=param.title", "n": "3"}}]},
       {"type": "actions", "title": "More", "icon": "dots", "actions": [{"label": "Tell", "command": "tell"}]},
       {"type": "table", "title": "Again", "source": {"collection": "notes"}, "columns": [{"label": "Title", "bind": "title"}],
-        "actions": [{"label": "Again", "screen": "main", "params": {"title": "$record.title", "dialog": "rescore"}}]},`, 1)
+        "actions": [{"label": "Again", "screen": "main", "params": {"title": "=title", "dialog": "rescore"}}]},`, 1)
 
 // TestScreenParamsFillFormsAndTravelWithButtons: the address of a screen carries parameters; a form takes them
 // as its values in the type of its fields, and a button to a screen takes them from its row.
@@ -68,7 +68,7 @@ func TestValuesIconsAndDialogNamesAreCheckedOnSave(t *testing.T) {
 		{"undeclared param", `"values": {"title": "=param.title", "n": "3"}`, `"values": {"title": "=param.name"}`, `no param "name"`},
 		{"old param", `"values": {"title": "=param.title", "n": "3"}`, `"values": {"title": "$param.title"}`, `=param.title`},
 		{"param type", `"params": {"title": "string"}`, `"params": {"title": "text"}`, `params`},
-		{"record field", `"values": {"title": "$record.title"}`, `"values": {"title": "$record.name"}`, `unknown field "name"`},
+		{"record field", `"values": {"title": "=title"}`, `"values": {"title": "=name"}`, `unknown field "name"`},
 		{"item icon", `{"type": "actions", "title": "More"`, `{"type": "list", "title": "Lines", "source": {"collection": "notes"}, "item": {"title": "title", "icon": "shout(title)"}},
       {"type": "actions", "title": "More"`, `unknown function "shout"`},
 		{"dialog name", `{"type": "actions", "title": "More"`, `{"type": "dialog", "name": "rescore", "title": "Twice", "blocks": [{"type": "form", "command": "tell"}]},
@@ -76,7 +76,7 @@ func TestValuesIconsAndDialogNamesAreCheckedOnSave(t *testing.T) {
 	}
 	for i, c := range cases {
 		base := strings.Replace(routedManifest, `{"type": "form", "title": "Edit", "command": "deck.record_update"}`,
-			`{"type": "form", "title": "Edit", "command": "deck.record_update"}, {"type": "form", "title": "Again", "command": "score", "values": {"title": "$record.title"}}`, 1)
+			`{"type": "form", "title": "Edit", "command": "deck.record_update"}, {"type": "form", "title": "Again", "command": "score", "values": {"title": "=title"}}`, 1)
 		m := strings.Replace(base, c.old, c.new, 1)
 		if m == base {
 			t.Fatalf("%s: fixture replacement did not apply", c.name)
@@ -92,7 +92,7 @@ func TestValuesIconsAndDialogNamesAreCheckedOnSave(t *testing.T) {
 // client's tab and dialog; a typo fails the save, while a module saved with one still reads and is warned of.
 func TestAButtonGivesOnlyTheParamsOfItsScreen(t *testing.T) {
 	e := newEnv(t, boardWebAgent())
-	typo := strings.Replace(routedManifest, `"params": {"title": "$record.title", "dialog": "rescore"}`, `"params": {"titel": "$record.title", "dialog": "rescore"}`, 1)
+	typo := strings.Replace(routedManifest, `"params": {"title": "=title", "dialog": "rescore"}`, `"params": {"titel": "=title", "dialog": "rescore"}`, 1)
 	if typo == routedManifest {
 		t.Fatal("fixture replacement did not apply")
 	}

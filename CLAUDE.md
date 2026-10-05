@@ -67,9 +67,9 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
   Tokens, General, Interface, Health), Journal (Calls, Spend, Files, Snapshots); `project` screens (Documents, the page of
   a document and Settings of the project: its commands and providers, folders, tools, secrets, tokens, health) deck adds
   to every project
-- `internal/manifest` — project manifest (format 7: `upgrade.go` raises older ones): `types.go`, `parse.go`,
+- `internal/manifest` — project manifest (format 8: `upgrade.go` raises older ones): `types.go`, `parse.go`,
   `lookup.go`, `collection.go`, rights (`rights.go`: `Widens`, `Clip`, the hosts of agent shells), checks of screens by
-  part (`check_*.go`), expressions; one `Resolve` of a value (fixed, `$record.<field>`, `=<expression>` with
+  part (`check_*.go`), expressions; one `Resolve` of a value (fixed or `=<expression>` with
   `param` of the screen) and `FieldTypes`; the texts of a manifest and their translation `words.go`
 - `internal/gateway` — deck MCP server per process: permission prompts, questions, confirmations, registry
   commands as tools; HTTP entry and domain proxy for scripts (`egress.go`: a name resolves once, the proxy dials its

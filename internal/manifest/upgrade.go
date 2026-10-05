@@ -35,6 +35,9 @@ var upgrades = map[int]func(m map[string]any){
 			}
 		}
 	},
+	7: func(m map[string]any) {
+		fromRecord(m["screens"])
+	},
 	6: func(m map[string]any) {
 		for _, c := range items(m["commands"]) {
 			r, ok := c["result"].(map[string]any)
@@ -86,6 +89,28 @@ func fromParam(v any, params map[string]any) any {
 				params[name] = "string"
 			}
 			return "=param." + name
+		}
+	}
+	return v
+}
+
+// fromRecord turns the $record.<field> values of format 7 into =<field>, and $record.id into =_id, in place.
+func fromRecord(v any) any {
+	switch v := v.(type) {
+	case map[string]any:
+		for k, x := range v {
+			v[k] = fromRecord(x)
+		}
+	case []any:
+		for i, x := range v {
+			v[i] = fromRecord(x)
+		}
+	case string:
+		if f, ok := strings.CutPrefix(v, "$record."); ok {
+			if f == "id" {
+				f = "_id"
+			}
+			return "=" + f
 		}
 	}
 	return v

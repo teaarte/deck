@@ -13,7 +13,7 @@ import (
 )
 
 func toolManifest(url, extra string) string {
-	return fmt.Sprintf(`{"version": 7,
+	return fmt.Sprintf(`{"version": 8,
   "commands": [
     {"name": "fetch", "title": "Fetch", "description": "Fetches a picture.", "class": "internal",
      "input": {"type": "object", "properties": {"name": {"type": "string"}, "size": {"type": "string"}}},
@@ -123,12 +123,12 @@ func TestHTTPToolTemplatesStayOnTheirHost(t *testing.T) {
 		{`{"name": "t", "description": "d", "method": "GET", "url": "https://a.com/{id}"}`, "{id} is not an input field"},
 		{`{"name": "t", "description": "d", "method": "GET", "url": "ftp://a.com/x"}`, "absolute http"},
 	} {
-		code, out := e.call("deck.project_create", map[string]any{"name": "bad", "manifest": `{"version": 7, "tools": {"http": [` + c.tool + `]}}`})
+		code, out := e.call("deck.project_create", map[string]any{"name": "bad", "manifest": `{"version": 8, "tools": {"http": [` + c.tool + `]}}`})
 		if code != 422 || !strings.Contains(string(out), c.want) {
 			t.Fatalf("%s: want 422 with %q, got %d %s", c.tool, c.want, code, out)
 		}
 	}
-	unfit := `{"version": 7, "commands": [{"name": "c", "title": "C", "description": "d", "class": "external",
+	unfit := `{"version": 8, "commands": [{"name": "c", "title": "C", "description": "d", "class": "external",
     "input": {"type": "object", "properties": {"other": {"type": "string"}}}, "executor": {"type": "tool", "tool": "t"}}],
   "tools": {"http": [{"name": "t", "description": "d", "method": "POST", "url": "https://a.com/x",
     "input": {"type": "object", "properties": {"id": {"type": "string"}}, "required": ["id"]}}]}}`
@@ -155,7 +155,7 @@ func TestHTTPToolKeepsSecretsInItsOwnHeaders(t *testing.T) {
 	e := newEnv(t, nil)
 	e.must("deck.secret_set", map[string]any{"name": "k", "value": "the-key"}, nil)
 	e.must("deck.secret_set", map[string]any{"name": "other", "value": "other-key"}, nil)
-	e.createProject("svc", fmt.Sprintf(`{"version": 7, "tools": {"http": [
+	e.createProject("svc", fmt.Sprintf(`{"version": 8, "tools": {"http": [
     {"name": "echo", "description": "d", "method": "GET", "url": "%[1]s/echo", "class": "internal",
      "headers": {"X-Key": "$secret.k", "X-Title": "{title}"}, "input": {"type": "object", "properties": {"title": {"type": "string"}}}},
     {"name": "moved", "description": "d", "method": "GET", "url": "%[1]s/moved", "class": "internal", "headers": {"X-Key": "$secret.k"}},
@@ -244,7 +244,7 @@ func TestSecretEchoedByAServiceNeverReachesTheAgent(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`{"ok": true}`)}
 	})
 	e.must("deck.secret_set", map[string]any{"name": "svc", "value": key}, nil)
-	m := strings.Replace(postManifest(svc.URL, ""), `{"version": 7,`, `{"version": 7, "allowed_external": ["post"],`, 1)
+	m := strings.Replace(postManifest(svc.URL, ""), `{"version": 8,`, `{"version": 8, "allowed_external": ["post"],`, 1)
 	id := e.run(e.createProject("notes", m), "work")
 	e.waitState(id, "done")
 	mu.Lock()

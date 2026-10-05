@@ -8,13 +8,13 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-const peopleV1 = `{"version": 7,
+const peopleV1 = `{"version": 8,
   "collections": [{"name": "people", "description": "A person.", "key": "name",
     "schema": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}}],
   "board": {"lanes": [{"name": "inbox", "title": "Inbox", "role": "inbox"}]}}`
 
 func peopleV2(migration string) string {
-	m := `{"version": 7,
+	m := `{"version": 8,
   "collections": [{"name": "people", "description": "A person.", "key": "full_name", MIGRATION
     "schema": {"type": "object", "properties": {"full_name": {"type": "string"}}, "required": ["full_name"], "additionalProperties": false}}],
   "scripts": [{"name": "rename", "file": "scripts/rename.py", "runtime": "python"}],

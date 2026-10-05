@@ -103,8 +103,8 @@ func Close(deck, path string, open bool) Closure {
 	return Closure{Hide: []string{deck, home}, Read: read, Private: Private()}
 }
 
-// shared are the folders of a home that hold the data of many programs; none of them is an installation.
-var shared = []string{".local", ".config", ".cache", "Library"}
+// common are the folders of a home that hold the data of many programs; none of them is an installation.
+var common = []string{".local", ".config", ".cache", "Library"}
 
 // Runtimes are the folders of path inside home by both names, with the installation above each that holds lib,
 // libexec or versions (node, python, a JDK, pyenv shims); a linked program opens alone or with its installation.
@@ -126,7 +126,7 @@ func Runtimes(home, path string) []string {
 			add(c)
 		}
 		add(r)
-		if up := filepath.Dir(r); up != home && !slices.Contains(shared, strings.TrimPrefix(up, home+"/")) && installation(up) {
+		if up := filepath.Dir(r); up != home && !slices.Contains(common, strings.TrimPrefix(up, home+"/")) && installation(up) {
 			add(up)
 		}
 		if links == 0 {

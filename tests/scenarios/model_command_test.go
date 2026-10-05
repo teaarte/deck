@@ -4,6 +4,8 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 )
@@ -204,5 +206,39 @@ func TestAModelCommandGetsWhatItsKindNeeds(t *testing.T) {
 		if code == 200 || !strings.Contains(string(out), c.want) {
 			t.Fatalf("%s: refused with %q, got %d %s", c.to, c.want, code, out)
 		}
+	}
+}
+
+// TestAModelThatBrokeOffAfterTheRequestHasNoFallback: an answer cut after the request reached the model may have
+// been billed, so the call fails rather than ask the fallback; the project's day counts only calls of connections.
+func TestAModelThatBrokeOffAfterTheRequestHasNoFallback(t *testing.T) {
+	cut := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, _, _ := w.(http.Hijacker).Hijack()
+		_ = conn.Close()
+	}))
+	t.Cleanup(cut.Close)
+	spare := newModels(t, map[string]func(int, map[string]any) (int, string, string){
+		"/v1/chat/completions": func(int, map[string]any) (int, string, string) {
+			return 200, "application/json", chatText(`{"verdict": "true", "confidence": 1}`)
+		},
+	})
+	e := newEnv(t, nil)
+	e.must("deck.connection_set", map[string]any{"name": "cut", "api": "openai", "url": cut.URL + "/v1", "open": true}, nil)
+	e.must("deck.connection_set", map[string]any{"name": "spare", "api": "openai", "url": spare.URL + "/v1", "open": true}, nil)
+	e.must("deck.model_set", map[string]any{"connection": "cut", "model": "a", "kind": "text", "free": true}, nil)
+	e.must("deck.model_set", map[string]any{"connection": "spare", "model": "b", "kind": "text", "free": true}, nil)
+	e.must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"cut/a", "spare/b"}}, nil)
+	p := e.createProject("shorts", modelManifest)
+	if got := e.waitState(e.start("shorts", "factcheck", map[string]any{"claim": "x"}), "done", "error"); got.State != "error" || len(spare.made()) != 0 {
+		t.Fatalf("a cut answer is an error and the fallback is not asked: %+v", got)
+	}
+	if _, err := e.App.Store.DB.Exec(`INSERT INTO llm_call (workspace_id, project_id, command, gen_ai_provider_name, cost_usd, created_at)
+		VALUES (1, ?, 'factcheck', 'claude-code', 5, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`, p); err != nil {
+		t.Fatal(err)
+	}
+	e.must("deck.project_model_limit", map[string]any{"project": "shorts", "daily_usd": 1}, nil)
+	e.must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"spare/b"}}, nil)
+	if got := e.waitState(e.start("shorts", "factcheck", map[string]any{"claim": "x"}), "done", "error"); got.State != "done" {
+		t.Fatalf("the notional cost of a subscription turn does not count to the project's day: %+v", got)
 	}
 }

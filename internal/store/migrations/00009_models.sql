@@ -56,7 +56,9 @@ SELECT workspace_id, substr(key, 10) AS name, CAST(json_extract(value, '$.url') 
 FROM setting WHERE substr(key, 1, 9) = 'provider:' AND json_valid(value) AND json_extract(value, '$.url') IS NOT NULL;
 CREATE TEMP TABLE old_connection AS
 SELECT workspace_id, url, key_secret, max(local) AS local, min(rowid) AS n,
-    CASE WHEN key_secret != '' THEN key_secret ELSE 'local' END AS base
+    CASE WHEN lower(replace(replace(key_secret, '_', '-'), '.', '-')) GLOB '[a-z]*'
+        AND lower(replace(replace(key_secret, '_', '-'), '.', '-')) NOT GLOB '*[^a-z0-9-]*'
+        THEN lower(replace(replace(key_secret, '_', '-'), '.', '-')) ELSE 'local' END AS base
 FROM old_provider GROUP BY workspace_id, url, key_secret;
 INSERT INTO connection (workspace_id, name, api, url, key_secret, local)
 SELECT c.workspace_id,

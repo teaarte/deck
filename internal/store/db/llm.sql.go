@@ -295,7 +295,8 @@ func (q *Queries) SpentOfConnection(ctx context.Context, arg SpentOfConnectionPa
 }
 
 const spentOfProject = `-- name: SpentOfProject :one
-SELECT CAST(COALESCE(sum(cost_usd), 0) AS REAL) FROM llm_call WHERE project_id = ?1 AND created_at >= ?2
+SELECT CAST(COALESCE(sum(cost_usd), 0) AS REAL) FROM llm_call
+WHERE project_id = ?1 AND connection_id IS NOT NULL AND created_at >= ?2
 `
 
 type SpentOfProjectParams struct {

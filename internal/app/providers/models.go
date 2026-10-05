@@ -239,8 +239,8 @@ func connectionFor(ctx context.Context, q *db.Queries, workspace int64, rawURL, 
 // connectionName is a name for a new connection: its key's secret, else local for this machine and the network
 // of the owner, else the name of the host's site.
 func connectionName(rawURL, keySecret string) string {
-	if keySecret != "" && access.ProjectName.MatchString(keySecret) {
-		return keySecret
+	if name := strings.ToLower(strings.NewReplacer("_", "-", ".", "-").Replace(keySecret)); access.ProjectName.MatchString(name) {
+		return name
 	}
 	u, err := url.Parse(rawURL)
 	if err != nil {
@@ -269,7 +269,7 @@ type connectionSetIn struct {
 	Name      string  `desc:"Connection name: lowercase letters, digits and '-'"`
 	API       string  `json:"api" enum:"openai|google|anthropic|raw" desc:"What the API speaks: openai for OpenAI-compatible ones (OpenRouter, Ollama, Groq, NVIDIA), google and anthropic for their own, raw for a service deck passes the key to as a bearer token"`
 	URL       string  `desc:"Base URL of the API, such as https://openrouter.ai/api/v1"`
-	KeySecret string  `json:"key_secret" opt:"" desc:"Name of the secret with the API key"`
+	KeySecret string  `json:"key_secret" opt:"" desc:"Name of the secret with the API key; a connection changed without it keeps its own"`
 	Key       string  `type:"secret" opt:"" desc:"The API key; deck keeps it in the secret key_secret names, or one named after the connection"`
 	Local     bool    `opt:"" desc:"The models run on the owner's own hardware"`
 	DailyUSD  float64 `json:"daily_usd" opt:"" desc:"The most its models may cost in a day in USD; past it a call waits for the owner; 0 for no limit"`
@@ -297,6 +297,9 @@ func (s *Service) connectionSet(ctx context.Context, act registry.Actor, in conn
 	}
 	limit := sql.NullFloat64{Float64: in.DailyUSD, Valid: in.DailyUSD > 0}
 	err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		if old, err := q.GetConnection(ctx, db.GetConnectionParams{WorkspaceID: act.Workspace, Name: in.Name}); err == nil && in.KeySecret == "" {
+			in.KeySecret = old.KeySecret
+		}
 		_, err := q.AddConnection(ctx, db.AddConnectionParams{WorkspaceID: act.Workspace, Name: in.Name, Api: in.API, Url: in.URL,
 			KeySecret: in.KeySecret, Local: b2i(in.Local), DailyUsd: limit, Open: b2i(in.Open)})
 		return err

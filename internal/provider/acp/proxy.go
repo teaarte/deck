@@ -57,7 +57,7 @@ func (e *entry) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // callModel passes a call of the agent to its model API with deck's key, unless the day is past the limit of the
-// connection or the project: then the agent hears a usage limit until the day is over.
+// connection: then the agent hears a usage limit until the day is over.
 func (e *entry) callModel(w http.ResponseWriter, r *http.Request) {
 	if e.over != nil {
 		if why, until := e.over(); why != "" {

@@ -396,3 +396,23 @@ func TestADeviceThatFailsHoldsBackOnlyItself(t *testing.T) {
 		t.Fatalf("the health of pushes names the device that fails: %+v", h)
 	}
 }
+
+// TestSpeechToTextTakesNoNameOfAnotherModel: a provider already named stt keeps its agent when the owner sets
+// speech to text, which takes a name of its own.
+func TestSpeechToTextTakesNoNameOfAnotherModel(t *testing.T) {
+	e := newEnv(t, nil)
+	if _, err := e.App.Store.DB.Exec(`INSERT INTO connection (id, workspace_id, name, url) VALUES (7, 1, 'stt', 'https://x.example/v1');
+		INSERT INTO model (workspace_id, connection_id, name, model, agent) VALUES (1, 7, 'stt', 'm', 'opencode')`); err != nil {
+		t.Fatal(err)
+	}
+	e.must("deck.stt_set", map[string]any{"url": "http://127.0.0.1:1/inference"}, nil)
+	e.must("deck.stt_set", map[string]any{"url": "http://127.0.0.1:2/inference"}, nil)
+	var agent, url string
+	if err := e.App.Store.DB.QueryRow(`SELECT m.agent, k.url FROM model m JOIN connection k ON k.id = m.connection_id WHERE m.name = 'stt'`).Scan(&agent, &url); err != nil || agent != "opencode" || url != "https://x.example/v1" {
+		t.Fatalf("the provider stays as it was: %q %q %v", agent, url, err)
+	}
+	var n int
+	if err := e.App.Store.DB.QueryRow(`SELECT count(*) FROM model WHERE kind = 'stt'`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("speech to text is one model of its own, changed in place: %d %v", n, err)
+	}
+}

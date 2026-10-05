@@ -60,6 +60,33 @@ func (dv *Service) stt(ctx context.Context, workspace int64) sttDef {
 	return d
 }
 
+// sttNames are the model and connection speech to text is set on: those assigned to it when they are its own, else
+// names no other model or connection has.
+func sttNames(ctx context.Context, q *db.Queries, workspace int64) (string, string) {
+	var names []string
+	if raw, err := q.GetAssignment(ctx, db.GetAssignmentParams{WorkspaceID: workspace, Role: stt}); err == nil && json.Unmarshal([]byte(raw), &names) == nil && len(names) > 0 {
+		if row, err := q.GetModel(ctx, db.GetModelParams{WorkspaceID: workspace, Name: names[0]}); err == nil && row.Model.Kind == stt && row.Connection.Api == "raw" {
+			return row.Model.Name, row.Connection.Name
+		}
+	}
+	free := func(taken func(string) bool) string {
+		name := stt
+		for n := 2; taken(name); n++ {
+			name = fmt.Sprintf("%s-%d", stt, n)
+		}
+		return name
+	}
+	model := free(func(n string) bool {
+		_, err := q.GetModel(ctx, db.GetModelParams{WorkspaceID: workspace, Name: n})
+		return err == nil
+	})
+	conn := free(func(n string) bool {
+		_, err := q.GetConnection(ctx, db.GetConnectionParams{WorkspaceID: workspace, Name: n})
+		return err == nil
+	})
+	return model, conn
+}
+
 type sttSetIn struct {
 	URL       string `desc:"Transcription url, such as http://127.0.0.1:8178/inference or https://api.openai.com/v1/audio/transcriptions"`
 	Model     string `opt:"" desc:"Model name, when the service takes one"`
@@ -79,15 +106,17 @@ func (dv *Service) sttSet(ctx context.Context, act registry.Actor, in sttSetIn) 
 	}
 	options, _ := json.Marshal(map[string]string{"language": d.Language})
 	err := dv.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		c, err := q.AddConnection(ctx, db.AddConnectionParams{WorkspaceID: act.Workspace, Name: stt, Api: "raw", Url: d.URL, KeySecret: d.KeySecret})
+		model, conn := sttNames(ctx, q, act.Workspace)
+		c, err := q.AddConnection(ctx, db.AddConnectionParams{WorkspaceID: act.Workspace, Name: conn, Api: "raw", Url: d.URL, KeySecret: d.KeySecret})
 		if err != nil {
 			return err
 		}
-		_, err = q.AddModel(ctx, db.AddModelParams{WorkspaceID: act.Workspace, ConnectionID: c.ID, Name: stt, Model: d.Model, Kind: stt, Options: string(options)})
+		_, err = q.AddModel(ctx, db.AddModelParams{WorkspaceID: act.Workspace, ConnectionID: c.ID, Name: model, Model: d.Model, Kind: stt, Options: string(options)})
 		if err != nil {
 			return err
 		}
-		return q.SetAssignment(ctx, db.SetAssignmentParams{WorkspaceID: act.Workspace, Command: "", Role: stt, Models: `["stt"]`})
+		names, _ := json.Marshal([]string{model})
+		return q.SetAssignment(ctx, db.SetAssignmentParams{WorkspaceID: act.Workspace, Command: "", Role: stt, Models: string(names)})
 	})
 	if err != nil {
 		return nil, err

@@ -110,6 +110,8 @@ func (s *Service) Route(ctx context.Context, act registry.Actor, connection, ask
 		}
 		picks = append(picks, pick{m, c})
 	}
+	_, approved := gateway.Approved(ctx)
+	closed := !approved && s.module(ctx, act)
 	hops := make([]gateway.ModelHop, 0, len(picks))
 	for _, p := range picks {
 		key := ""
@@ -123,11 +125,32 @@ func (s *Service) Route(ctx context.Context, act registry.Actor, connection, ask
 		h := gateway.ModelHop{Target: gateway.ModelTarget{URL: p.c.Url, API: p.c.Api, Key: key}, Connection: p.c.Name, Model: p.m.Model,
 			Open: p.c.Open != 0, Local: p.c.Local != 0, Free: p.m.Free != 0}
 		h.Over, _ = s.over(ctx, p.c, act.ProjectID)
+		if h.Over == "" && closed && p.c.Open == 0 {
+			h.Over = fmt.Sprintf("deck: connection %s is not open to modules, so its calls wait for the owner", p.c.Name)
+		}
 		m, c := p.m, p.c
 		h.Done = func(ctx context.Context, status int, u *provider.Usage) { s.record(ctx, act, command, m, c, status, u) }
 		hops = append(hops, h)
 	}
 	return hops, nil
+}
+
+// module reports whether a caller is a process of a project that does not list calls of models in allowed_external:
+// a connection not open to modules is closed to it.
+func (s *Service) module(ctx context.Context, act registry.Actor) bool {
+	if act.Kind != registry.Agent || act.ProjectID == 0 {
+		return false
+	}
+	m, err := docs.CurrentInForce(ctx, s.St.Q, act.ProjectID)
+	if err != nil {
+		return true
+	}
+	for _, name := range []string{"model_call", "model_request"} {
+		if slices.Contains(m.AllowedExternal, name) || slices.Contains(m.AllowedExternal, registry.Builtin+"."+name) {
+			return false
+		}
+	}
+	return true
 }
 
 // record keeps a call of a model made past an agent in the journal of model calls, priced by its model when the
@@ -169,9 +192,9 @@ type modelRequestIn struct {
 	Body       string `type:"json" opt:"" desc:"JSON body of the request; its model may be an @role such as @text"`
 }
 
-// allowed decides whether a call of a model runs without the owner: the granted models of the project name it, a
-// model of it is within the day's limits, and its connection is open to modules or the project allows the call.
-func (s *Service) allowed(ctx context.Context, act registry.Actor, input json.RawMessage, listed bool) (bool, error) {
+// allowed decides whether a call of a model runs without the owner: the granted models of the project name it, and
+// a model of it is within the day's limits on a connection open to modules, unless the project allows the calls.
+func (s *Service) allowed(ctx context.Context, act registry.Actor, input json.RawMessage, _ bool) (bool, error) {
 	connection, asked, err := s.requested(ctx, act.Workspace, input)
 	if err != nil {
 		return false, err
@@ -184,7 +207,7 @@ func (s *Service) allowed(ctx context.Context, act registry.Actor, input json.Ra
 		return false, err
 	}
 	for _, h := range hops {
-		if h.Over == "" && (h.Open || listed) {
+		if h.Over == "" {
 			return true, nil
 		}
 	}
@@ -239,8 +262,8 @@ func (s *Service) granted(ctx context.Context, act registry.Actor, input json.Ra
 	return registry.Refuse("deck: project %s does not name %s in the models of its manifest; add %q to models, and the owner grants it", p.Name, use, use)
 }
 
-// free says a call of a model costs nothing: its first model that is within its day is free or on the owner's own
-// hardware, and the manifest names it.
+// free says a call of a model costs nothing: every model it may reach is free or on the owner's own hardware, and
+// the manifest names it.
 func (s *Service) free(ctx context.Context, act registry.Actor, input json.RawMessage) bool {
 	if act.ProjectID == 0 {
 		return false
@@ -265,12 +288,16 @@ func (s *Service) free(ctx context.Context, act registry.Actor, input json.RawMe
 	if err != nil {
 		return false
 	}
+	free := false
 	for _, h := range hops {
 		if h.Over == "" {
-			return h.Local || h.Free
+			if !h.Local && !h.Free {
+				return false
+			}
+			free = true
 		}
 	}
-	return false
+	return free
 }
 
 // requested is the connection and the model a call of a model names: a request with its body, or a call of a kind.
@@ -304,7 +331,10 @@ func (s *Service) sendHops(ctx context.Context, hops []gateway.ModelHop, method,
 		if err != nil {
 			h.Done(ctx, 0, nil)
 			last = fmt.Errorf("deck: %s: %v", h.Connection, err)
-			continue
+			if gateway.Unsent(err) {
+				continue
+			}
+			return nil, h, last
 		}
 		if gateway.Fallible(resp.StatusCode) && i < len(hops)-1 {
 			raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<16))

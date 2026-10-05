@@ -101,7 +101,10 @@ func (s *Service) modelCall(ctx context.Context, act registry.Actor, in modelCal
 		if err != nil {
 			h.Done(ctx, 0, nil)
 			last = fmt.Errorf("deck: %s: %v", h.Connection, err)
-			continue
+			if gateway.Unsent(err) {
+				continue
+			}
+			return nil, last
 		}
 		if gateway.Fallible(resp.StatusCode) && i < len(hops)-1 {
 			raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<16))

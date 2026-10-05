@@ -98,6 +98,13 @@ func SendModel(ctx context.Context, t ModelTarget, method, path, query string, h
 	return modelClient.Do(req)
 }
 
+// Unsent reports whether a failed request never reached the API, so a fallback may take it: only a failed dial
+// proves that; a timeout or a cut answer may have been billed.
+func Unsent(err error) bool {
+	var op *net.OpError
+	return errors.As(err, &op) && op.Op == "dial"
+}
+
 // Fallible reports whether a hop's answer is an explicit refusal a fallback may take over: a limit or a fault of
 // the service, not an answer about the request.
 func Fallible(status int) bool { return status == http.StatusTooManyRequests || status >= 500 }
@@ -132,8 +139,7 @@ func ProxyModel(w http.ResponseWriter, r *http.Request, path string, body []byte
 		if err != nil {
 			last = fmt.Sprintf("deck: %s: %v", h.Connection, err)
 			h.Done(r.Context(), 0, nil)
-			var op *net.OpError
-			if errors.As(err, &op) && op.Op == "dial" && i < len(hops)-1 {
+			if Unsent(err) && i < len(hops)-1 {
 				continue
 			}
 			http.Error(w, last, http.StatusBadGateway)

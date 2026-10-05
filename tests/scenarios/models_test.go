@@ -62,6 +62,7 @@ func TestTheProvidersOfABaseFromBeforeAreConnectionsModelsAndAssignments(t *test
 		"provider:openrouter-thinkingmachines-free": `{"url":"https://openrouter.ai/api/v1","model":"thinkingmachines/inkling:free","key_secret":"openrouter","agent":"opencode"}`,
 		"provider:openrouter-nemotron-free":         `{"url":"https://openrouter.ai/api/v1","model":"nvidia/nemotron-3-ultra-550b-a55b:free","key_secret":"openrouter","agent":"opencode"}`,
 		"provider:google-gemini-3-8-flash":          `{"url":"https://generativelanguage.googleapis.com/v1beta/openai/","model":"gemini-3.8-flash","key_secret":"google","agent":"opencode","check_minutes":5}`,
+		"provider:old-env":                          `{"url":"https://api.example.com/v1","model":"m","key_secret":"OPENAI_API_KEY","agent":"opencode"}`,
 		"setting:stt":                               `{"url":"https://api.openai.com/v1/audio/transcriptions","model":"whisper-1","key_secret":"openai","language":"ru"}`,
 		"setting:language":                          `ru`,
 	} {
@@ -86,11 +87,12 @@ func TestTheProvidersOfABaseFromBeforeAreConnectionsModelsAndAssignments(t *test
 		}
 	}
 	want := map[string]string{
-		"openrouter": "https://openrouter.ai/api/v1 secret openrouter openai",
-		"nvidia":     "https://integrate.api.nvidia.com/v1 secret nvidia openai",
-		"google":     "https://generativelanguage.googleapis.com/v1beta/openai/ secret google openai",
-		"local":      "http://localhost:11434/v1 none openai",
-		"stt":        "https://api.openai.com/v1/audio/transcriptions secret openai raw",
+		"openrouter":     "https://openrouter.ai/api/v1 secret openrouter openai",
+		"nvidia":         "https://integrate.api.nvidia.com/v1 secret nvidia openai",
+		"google":         "https://generativelanguage.googleapis.com/v1beta/openai/ secret google openai",
+		"local":          "http://localhost:11434/v1 none openai",
+		"stt":            "https://api.openai.com/v1/audio/transcriptions secret openai raw",
+		"openai-api-key": "https://api.example.com/v1 secret OPENAI_API_KEY openai",
 	}
 	if len(conns) != len(want) || counts["openrouter"] != 3 {
 		t.Fatalf("one connection per address and key: %v %v", conns, counts)
@@ -106,7 +108,7 @@ func TestTheProvidersOfABaseFromBeforeAreConnectionsModelsAndAssignments(t *test
 			agents++
 		}
 	}
-	if len(m.Models) != 7 || agents != 6 {
+	if len(m.Models) != 8 || agents != 7 {
 		t.Fatalf("a model per provider, run by its agent, and the model of speech to text: %+v", m.Models)
 	}
 	got := map[string][]string{}
@@ -128,7 +130,7 @@ func TestTheProvidersOfABaseFromBeforeAreConnectionsModelsAndAssignments(t *test
 	for _, pv := range list.Providers {
 		keys[pv.Name] = pv.Connection + " " + pv.Key
 	}
-	if list.Chosen != "openrouter-thinkingmachines-free" || len(keys) != len(e.App.Providers.Builtin)+6 || keys["openrouter-qwen-free"] != "openrouter secret openrouter" ||
+	if list.Chosen != "openrouter-thinkingmachines-free" || len(keys) != len(e.App.Providers.Builtin)+7 || keys["openrouter-qwen-free"] != "openrouter secret openrouter" ||
 		keys["local-qwen"] != "local none" {
 		t.Fatalf("the providers are the models with an agent, the command keeps its own: %+v", list)
 	}
@@ -333,7 +335,7 @@ func TestAnAgentTurnPastTheDayOfItsConnectionPausesUntilTheDayEnds(t *testing.T)
 	f.streamText(5, acpStream(acpInit, `{"reply": "session/new", "result": {"sessionId": "s-2"}}`, `{"reply": "session/prompt"}`, acpModel,
 		`{"fail": {"code": -32603, "message": "Internal error: turn failed"}}`))
 	e := acpEnv(t, f, "dsh", llm)
-	e.must("deck.model_set", map[string]any{"connection": "local", "model": "m", "name": "acp", "input_usd": 1000, "output_usd": 2000}, nil)
+	e.must("deck.model_set", map[string]any{"connection": "model-key", "model": "m", "name": "acp", "input_usd": 1000, "output_usd": 2000}, nil)
 	p := e.acpProject("paint", colorManifest)
 	if got := e.waitState(e.run(p, "work"), "done", "error"); got.State != "done" {
 		t.Fatalf("the first turn runs: %+v", got)
@@ -347,11 +349,17 @@ func TestAnAgentTurnPastTheDayOfItsConnectionPausesUntilTheDayEnds(t *testing.T)
 	e.must("deck.models_list", nil, &m)
 	url := ""
 	for _, c := range m.Connections {
-		if c.Name == "local" {
+		if c.Name == "model-key" {
 			url = c.URL
 		}
 	}
-	e.must("deck.connection_set", map[string]any{"name": "local", "api": "openai", "url": url, "key_secret": "model_key", "daily_usd": 0.1}, nil)
+	e.must("deck.connection_set", map[string]any{"name": "model-key", "api": "openai", "url": url, "daily_usd": 0.1}, nil)
+	e.must("deck.models_list", nil, &m)
+	for _, c := range m.Connections {
+		if c.Name == "model-key" && c.Key != "secret model_key" {
+			t.Fatalf("a connection changed without its key keeps it: %+v", c)
+		}
+	}
 	before := len(llm.requests())
 	id := e.run(p, "work")
 	got := e.waitState(id, "done", "error", "rate_limited")
@@ -404,10 +412,15 @@ func TestAScriptCallsARoleAndAFallbackTakesARefusal(t *testing.T) {
 		t.Fatalf("the call is counted on the model that made it, by its price per call: %+v", spend)
 	}
 
+	e.must("deck.connection_set", map[string]any{"name": "busy", "api": "openai", "url": busy.URL + "/v1"}, nil)
+	got = e.waitScript(e.start("shorts", "voice", map[string]any{"key": "@/audio/speech", "other": speech}), "done", "error")
+	if json.Unmarshal(got.Result, &out) != nil || out["status"] != 200.0 || len(busy.calls()) != 1 || len(spare.calls()) != 2 {
+		t.Fatalf("a connection not open to modules is passed over for the open fallback: %+v", got)
+	}
 	e.must("deck.connection_set", map[string]any{"name": "spare", "api": "openai", "url": spare.URL + "/v1"}, nil)
 	e.must("deck.assignment_set", map[string]any{"role": "tts", "models": []string{"spare/voice-2"}}, nil)
 	got = e.waitScript(e.start("shorts", "voice", map[string]any{"key": "@/audio/speech", "other": speech}), "done", "error")
-	if json.Unmarshal(got.Result, &out) != nil || out["status"] != 202.0 || len(spare.calls()) != 1 {
+	if json.Unmarshal(got.Result, &out) != nil || out["status"] != 202.0 || len(spare.calls()) != 2 {
 		t.Fatalf("a connection modules may not call without asking makes the call wait for the owner: %+v", got)
 	}
 	got = e.waitScript(e.start("shorts", "voice", map[string]any{"key": "spare/audio/speech", "other": `{"model": "@stt"}`}), "done", "error")
@@ -499,5 +512,13 @@ func TestAModuleCallsOnlyTheModelsTheOwnerGranted(t *testing.T) {
 	}
 	if out := call("draft", "ollama/chat/completions"); out["status"] != 200.0 || len(api.calls()) != before+1 {
 		t.Fatalf("a draft's call of a free model on the owner's machine goes: %v", out)
+	}
+	e.must("deck.model_set", map[string]any{"connection": "openrouter", "model": "paid", "kind": "text", "call_usd": 0.1}, nil)
+	e.must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"ollama/qwen", "openrouter/paid"}}, nil)
+	e.must("deck.manifest_save", map[string]any{"project": "draft", "manifest": scriptManifest("media", "", `, "models": ["@text"]`)}, nil)
+	got := e.waitScript(e.start("draft", "media", map[string]any{"key": "@/chat/completions", "other": `{"model": "@text", "messages": []}`}), "done", "error")
+	var out map[string]any
+	if json.Unmarshal(got.Result, &out) != nil || out["status"] != 202.0 || len(api.calls()) != before+1 {
+		t.Fatalf("a draft's call that may fall back to a paid model waits for the owner: %+v", got)
 	}
 }

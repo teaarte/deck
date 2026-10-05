@@ -24,7 +24,8 @@ SELECT CAST(COALESCE(sum(cost_usd), 0) AS REAL) FROM llm_call WHERE connection_i
 
 
 -- name: SpentOfProject :one
-SELECT CAST(COALESCE(sum(cost_usd), 0) AS REAL) FROM llm_call WHERE project_id = sqlc.arg(project_id) AND created_at >= sqlc.arg(since);
+SELECT CAST(COALESCE(sum(cost_usd), 0) AS REAL) FROM llm_call
+WHERE project_id = sqlc.arg(project_id) AND connection_id IS NOT NULL AND created_at >= sqlc.arg(since);
 
 
 -- name: ListLLMCalls :many

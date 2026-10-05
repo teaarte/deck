@@ -290,7 +290,6 @@ func TestInvalidScreenIsRefusedWithItsReason(t *testing.T) {
 		{`{"label": "Open", "screen": "note"}`, `{"label": "Open", "screen": "nowhere"}`, `unknown screen "nowhere"`},
 		{`{"label": "Open", "screen": "note"}`, `{"label": "Open"}`, `a button has a command, a screen or a file`},
 		{`{"label": "Open", "screen": "note"}`, `{"label": "Open", "screen": "note", "when": "scor > 1"}`, `when: unknown field "scor"`},
-		{`"item": {"title": "title", "meta": "'score ' + string(score)"}`, `"item": {"title": "title", "meta": "'score ' + string(score)"}, "actions_from": "title"`, `only deck's own screens take buttons from their rows`},
 		{`"item": {"title": "title", "meta": "'score ' + string(score)"}`, `"title": "x"`, `missing property 'item'`},
 		{`{"type": "tabs", "title": "Views", "tabs": [`, `{"type": "tabs", "blocks": [{"type": "stat", "source": {"collection": "notes"}}], "tabs": [`, `additional properties 'blocks' not allowed`},
 		{`{"type": "columns", "blocks": [`, `{"type": "columns", "tabs": [{"title": "x", "blocks": []}], "blocks": [`, `additional properties 'tabs' not allowed`},

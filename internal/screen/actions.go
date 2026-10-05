@@ -9,17 +9,10 @@ import (
 	"deck2/internal/manifest"
 )
 
-// rowActions are the buttons of a row: the block's own that hold for it, then those the row carries.
+// rowActions are the buttons of a block that hold for a row.
 func (r *renderer) rowActions(b manifest.Block, it map[string]any) []map[string]any {
 	id, _ := it["_id"].(int64)
-	acts := r.actions(b.Actions, id, it)
-	own, _ := it[b.ActionsFrom].([]any)
-	for _, e := range own {
-		if o, ok := e.(map[string]any); ok && b.ActionsFrom != "" {
-			acts = append(acts, map[string]any{"label": o["label"], "command": o["command"], "params": o["params"]})
-		}
-	}
-	return acts
+	return r.actions(b.Actions, id, it)
 }
 
 // actions are the buttons that hold for an item, with what they take from it.

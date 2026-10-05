@@ -217,12 +217,6 @@ func (c *screenCheck) block(where string, b Block) {
 				c.fail("%s series %q: %v", where, s.Label, err)
 			}
 		}
-		switch {
-		case b.ActionsFrom != "" && !c.deck:
-			c.fail("%s actions_from: only deck's own screens take buttons from their rows", where)
-		case b.ActionsFrom != "" && fields != nil && !slices.Contains(fields, b.ActionsFrom):
-			c.fail("%s actions_from: unknown field %q", where, b.ActionsFrom)
-		}
 		if b.Item != nil {
 			for _, e := range []string{b.Item.Title, b.Item.Text, b.Item.Meta, b.Item.Icon, b.Item.Details, b.Item.Questions, b.Item.Tone, b.Item.File, b.Item.Marks} {
 				if _, err := compileField(e, fields); e != "" && err != nil {

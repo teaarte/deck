@@ -270,8 +270,6 @@ type Block struct {
 	// Tone is the expression of a stat block over rows: ok, warn, error or muted.
 	Tone    string   `json:"tone,omitempty"`
 	Actions []Action `json:"actions,omitempty"`
-	// ActionsFrom is a field of an item with buttons of its own: label, command with its project, params.
-	ActionsFrom string  `json:"actions_from,omitempty"`
 	Blocks      []Block `json:"blocks,omitempty"`
 	Tabs        []Tab   `json:"tabs,omitempty"`
 	// Span is how many cells of the grid of the screen the block takes: 1, 2 or "full".

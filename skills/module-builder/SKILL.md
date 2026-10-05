@@ -71,7 +71,12 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
     call (`["deck.records_list", "<project>.score"]`, or every command of a project as `"<project>.*"`), so a
     page cannot steer it into the rest;
   - `tool` for exactly one call of a tool: `{"type": "tool", "tool": "<http tool>"}`; the tool gets the
-    command input as it is (declare the same input), and the process result is what the tool answered.
+    command input as it is (declare the same input), and the process result is what the tool answered;
+  - `model` for one call of a model without an agent: `{"type": "model", "kind": "text", "prompt_file": …}` —
+    `text` answers the prompt with the input by the result schema, `image` draws the prompt with the input, `tts`
+    speaks the input field `text` (the prompt says how), `stt` writes down the one input field of format file;
+    a picture or speech is a file of the result. The model is the one the owner assigned to the kind (with
+    fallbacks); `"model"` names another, `"options"` adds fields to the request (`voice`, `image_config`).
   A script that cannot do something reliably becomes an agent, not a bigger script. `timeout_minutes` raises
   the ceiling of a slow command (agents 60, scripts 10 by default).
 - **HTTP tools** (`tools.http`) are how the module reaches a service's API: method, `url` with `{field}` from the
@@ -90,6 +95,13 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   such a field has `"format": "file"` and takes a file id or `results/<name>` from the caller's own results
   folder, so a script can hand a file it just made to a tool at once. A service that uploads in parts gets
   one HTTP tool per step from its API docs.
+  An input field of `"format": "json"` is text with JSON for the caller; `"{field}"` alone in a JSON body puts
+  the value it holds (a list, an object), so one tool serves every shape of body.
+- **Models** the owner added (connections such as OpenRouter or Ollama, their models with prices, and which model
+  does text, image, tts, stt) are called through deck, never with a key of the module: a command of type
+  `model`, `deck.model_call` from a script or agent, or any API path through `$DECK_MODELS` (below). The manifest
+  names what it calls in `models`: a connection, a model by name or `@text`/`@image`/`@tts`/`@stt` for the
+  assigned ones; deck counts the spend, and past the day's limit a call waits for the owner.
 - **MCP servers** (`tools.mcp.servers`, the usual `mcp.servers` shape): `command`/`args`/`env` (values may use
   `$secret.<name>`) or `url`; `toolFilter` lists the tools the module uses, `classes` their classes — every
   other tool is `external`. Tools are `<server>.<tool>` in `executor.tool` and `allowed_external`. deck starts
@@ -259,6 +271,11 @@ A script reads its input JSON from stdin and prints its result JSON to stdout. I
 - network only to the manifest's `domains.read`, through the proxy deck sets in `HTTP(S)_PROXY`; a domain is a
   host (`hf.co` takes its subdomains too) or `host:port`, never a URL or a public suffix such as `co.uk`; a name
   reaches only public addresses, so a service on the owner's machine or network is named by its IP or IP:port;
+- models through `$DECK_MODELS/<connection>/<API path>` with `Authorization: Bearer $DECK_TOKEN` (an OpenAI SDK
+  takes it as its base URL with the token as its key): deck puts in the key and counts the spend; a body with
+  `"model": "@tts"` and the connection `@` takes the model the owner assigned, a fallback when it refuses. A
+  202 with `{"waiting": <ask>}` means the call waits for the owner (past the day's limit, or a draft): stop and
+  say so, do not retry in a loop;
 - no secrets and no keys of the owner; ask for an HTTP tool of the manifest instead. Never ask the owner to
   `export` a key for a module: on macOS a confined program reads the environment of the owner's processes, so
   keys live only in deck secrets;
@@ -415,8 +432,8 @@ Name each of these rights in the hand-over: the owner grants them with "enable".
 
 ## 9. Rights
 
-Ask only for what the module needs. Autonomy `auto`, `allowed_external`, domains, secrets, milder classes of
-tools, `reads` of other projects and removing `no_network` are rights: in a draft they are part of what the owner enables; in an
+Ask only for what the module needs. Autonomy `auto`, `allowed_external`, domains, secrets, `models`, milder classes
+of tools, `reads` of other projects and removing `no_network` are rights: in a draft they are part of what the owner enables; in an
 enabled project a change that widens them waits for the owner's button. Every other change you make to an
 enabled project is listed as "done without you" with an undo.
 

@@ -48,7 +48,7 @@ func (s *Service) unheard(ctx context.Context, p db.Process, a db.Ask, why strin
 	who := fmt.Sprintf("process #%d (%s.%s)", p.ID, proj.Name, p.Command)
 	answer := answered(a.Answer)
 	_ = s.St.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error {
-		if err := q.MarkAskDelivered(ctx, a.ID); err != nil {
+		if n, err := q.DeliverAsk(ctx, a.ID); err != nil || n == 0 && !a.DeliveredAt.Valid {
 			return err
 		}
 		err := q.AddMasterNote(ctx, db.AddMasterNoteParams{WorkspaceID: proj.WorkspaceID, ProjectID: mp.ID,
@@ -58,7 +58,7 @@ func (s *Service) unheard(ctx context.Context, p db.Process, a db.Ask, why strin
 			return err
 		}
 		return q.AddDeckNote(ctx, db.AddDeckNoteParams{ProjectID: proj.ID,
-			Text: fmt.Sprintf("%s did not act on your answer %q; the master has it on its next turn.", who, untrusted.Cut(answer, 200))})
+			Text: fmt.Sprintf("%s ended with nothing after your answer %q; the master has it on its next turn.", who, untrusted.Cut(answer, 200))})
 	})
 }
 

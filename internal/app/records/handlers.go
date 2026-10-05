@@ -23,7 +23,7 @@ type recordsListIn struct {
 	Project    string   `type:"project" opt:"" desc:"Project name; defaults to the caller's own project"`
 	Collection string   `desc:"Collection name"`
 	Limit      int      `opt:"" desc:"At most this many, the newest; every record when omitted"`
-	Where      string   `opt:"" desc:"Only the records this expression over their fields is true for, as the where of a source of a screen, such as status == 'new' && score > 2; a JSON object of field to value means each field equals its value"`
+	Where      string   `type:"json" opt:"" desc:"Only the records this expression over their fields is true for, as the where of a source of a screen, such as status == 'new' && score > 2; a JSON object of field to value means each field equals its value"`
 	Fields     []string `opt:"" desc:"Only these fields of the data of each record"`
 }
 
@@ -102,7 +102,7 @@ func equality(where string) (string, error) {
 		case strings.HasPrefix(v, "{") || strings.HasPrefix(v, "["):
 			parts = append(parts, "toJSON("+field+") == toJSON(fromJSON("+strconv.Quote(v)+"))")
 		default:
-			parts = append(parts, field+" == "+v)
+			parts = append(parts, field+" == fromJSON("+strconv.Quote(v)+")")
 		}
 	}
 	if len(parts) == 0 {

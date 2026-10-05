@@ -2,11 +2,11 @@ import { useEffect, useRef, useState } from 'react';
 import { ActionIcon, Badge, Button, Group, Stack, Text, Tooltip, UnstyledButton } from '@mantine/core';
 import { IconChevronLeft, IconChevronRight, IconFlag } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import { call, token } from '../../lib/api';
+import { token } from '../../lib/api';
 import { timecode } from '../../lib/format';
-import { notifyError } from '../../lib/notify';
 import { useRoute } from '../../app/router';
 import { ActionInput } from '../../ui/ActionInput';
+import { useActionRun } from '../../ui/useActionRun';
 import { Download } from './Download';
 import type { Item } from './Media';
 import s from './player.module.css';
@@ -25,7 +25,6 @@ export function Player({ it, first }: { it: Item; first: boolean }) {
   const [now, setNow] = useState(0);
   const [length, setLength] = useState(0);
   const [marking, setMarking] = useState(false);
-  const [busy, setBusy] = useState(false);
   const start = Number(useRoute().params?.t);
   const video = it.type?.startsWith('video/');
   const src = it.url + (it.url?.includes('?') ? '&' : '?') + 'token=' + encodeURIComponent(token());
@@ -48,17 +47,10 @@ export function Player({ it, first }: { it: Item; first: boolean }) {
     m.currentTime = Math.min(Math.max(at, 0), m.duration || at);
   };
   const mark = it.mark;
-  const send = async (text: string) => {
+  const { busy, send: run } = useActionRun(mark ?? {}, { onDone: () => setMarking(false) });
+  const send = (text: string) => {
     if (!mark?.command) return;
-    setBusy(true);
-    try {
-      await call(mark.command, { ...mark.params, file: it.file, at: Math.round(now * 100) / 100, ...(mark.input ? { [mark.input]: text } : {}) });
-      setMarking(false);
-    } catch (e) {
-      notifyError(e, it.title || it.name);
-    } finally {
-      setBusy(false);
-    }
+    void run({ file: it.file, at: Math.round(now * 100) / 100, ...(mark.input ? { [mark.input]: text } : {}) });
   };
   const props = {
     ref: media, src, controls: true, preload: 'metadata', className: s.media, 'data-player': video ? 'video' : 'audio',

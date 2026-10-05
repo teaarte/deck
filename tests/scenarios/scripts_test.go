@@ -683,6 +683,9 @@ func TestTheSandboxSaysWhatItKeptClosed(t *testing.T) {
 			t.Fatalf("the note says how to open a folder: %+v", n)
 		}
 	}
+	if n := e.warnings("The sandbox kept closed"); n != 1 {
+		t.Fatalf("the paths join one unread note of the project: %d", n)
+	}
 	rows, _ := e.App.Store.Q.ListHealth(t.Context(), sql.NullInt64{Int64: 1, Valid: true})
 	if slices.ContainsFunc(rows, func(r db.ListHealthRow) bool { return strings.HasPrefix(r.Health.Subject, "sandbox:") }) {
 		t.Fatalf("what the sandbox kept closed is an event of the feed, not a state of health: %+v", rows)

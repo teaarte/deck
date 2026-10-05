@@ -31,12 +31,9 @@ func (r *renderer) file(b manifest.Block, it map[string]any) map[string]any {
 	maps.Copy(line, f)
 	line["file"] = ref
 	if b.Item.Marks != "" {
-		v, err := r.eval(b.Item.Marks, it)
-		if err != nil {
-			line["error"] = "marks: " + err.Error()
-			return line
+		if v, err := r.eval(b.Item.Marks, it); err == nil {
+			line["marks"] = marks(v)
 		}
-		line["marks"] = marks(v)
 	}
 	if b.Mark != nil {
 		id, _ := it["_id"].(int64)

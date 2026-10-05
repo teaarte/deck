@@ -20,7 +20,8 @@ UPDATE feed SET undone_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ? A
 
 
 -- name: PurgeOldNotes :exec
-DELETE FROM feed WHERE kind = 'note' AND created_at < CAST(sqlc.arg(before) AS TEXT);
+DELETE FROM feed WHERE kind = 'note' AND for_master = 0 AND (read_at IS NOT NULL OR author != 'deck')
+  AND created_at < CAST(sqlc.arg(before) AS TEXT);
 
 
 -- name: AddMasterNote :exec
@@ -43,3 +44,13 @@ SELECT j.workspace_id, j.id, 'note', 'deck', sqlc.arg(text) FROM project j WHERE
 -- name: MarkFeedRead :execrows
 UPDATE feed SET read_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
 WHERE id = sqlc.arg(id) AND workspace_id = sqlc.arg(workspace_id) AND kind = 'note' AND for_master = 0 AND read_at IS NULL;
+
+
+-- name: UnreadDeckNote :one
+SELECT * FROM feed WHERE project_id = ? AND kind = 'note' AND author = 'deck' AND for_master = 0 AND read_at IS NULL
+  AND substr(text, 1, length(CAST(sqlc.arg(prefix) AS TEXT))) = CAST(sqlc.arg(prefix) AS TEXT)
+ORDER BY id DESC LIMIT 1;
+
+
+-- name: SetFeedText :exec
+UPDATE feed SET text = ? WHERE id = ?;

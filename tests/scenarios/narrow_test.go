@@ -35,6 +35,14 @@ func TestListsOfRecordsAndProcessesNarrowToWhatTheCallerAsks(t *testing.T) {
 	if len(recs) != 1 || recs[0].Key != "b" {
 		t.Fatalf("a JSON object of field to value still narrows by equality: %+v", recs)
 	}
+	e.must("deck.records_list", map[string]any{"project": "web", "collection": "notes", "where": `{"source": "y", "title": "\/c"}`}, &recs)
+	if len(recs) != 0 {
+		t.Fatalf("an object of field to value narrows too, a JSON escape included: %+v", recs)
+	}
+	e.must("deck.records_list", map[string]any{"project": "web", "collection": "notes", "where": map[string]any{"source": "y"}}, &recs)
+	if len(recs) != 1 || recs[0].Key != "c" {
+		t.Fatalf("a where sent as an object, as saved calls do: %+v", recs)
+	}
 	e.refused("deck.records_list", map[string]any{"project": "web", "collection": "notes", "where": `[1]`}, 422, "where")
 	e.refused("deck.records_list", map[string]any{"project": "web", "collection": "notes", "where": "score >"}, 422, "where")
 

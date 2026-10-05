@@ -257,6 +257,18 @@ func (q *Queries) CreateRemark(ctx context.Context, arg CreateRemarkParams) (Pro
 	return i, err
 }
 
+const deliverAsk = `-- name: DeliverAsk :execrows
+UPDATE ask SET delivered_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ? AND delivered_at IS NULL
+`
+
+func (q *Queries) DeliverAsk(ctx context.Context, id int64) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deliverAsk, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const dismissExpiredAsk = `-- name: DismissExpiredAsk :execrows
 UPDATE ask SET state = 'dismissed' WHERE id = ? AND state = 'expired'
 `

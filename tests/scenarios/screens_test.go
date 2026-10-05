@@ -642,7 +642,7 @@ func TestAValueIsFixedTextOrAnExpression(t *testing.T) {
   "collections": [{"name": "notes", "description": "Notes", "key": "title", "display": "title",
     "schema": {"type": "object", "properties": {"title": {"type": "string"}, "id": {"type": "string"}}, "required": ["title"]}}],
   "commands": [{"name": "touch", "title": "Touch", "description": "Touches a note.", "class": "internal", "result": {"type": "object"},
-    "input": {"type": "object", "properties": {"note": {"type": "integer", "format": "record"}, "score": {"type": "string"}}, "required": ["note"]},
+    "input": {"type": "object", "properties": {"score": {"type": "string"}, "note": {"type": "integer", "format": "record"}}, "required": ["note"]},
     "executor": {"type": "agent", "prompt": "Touch."}}],
   "screens": [{"name": "main", "title": "Notes", "blocks": [{"type": "table", "title": "Notes", "source": {"collection": "notes"},
     "columns": [{"label": "Title", "bind": "title"}],
@@ -660,6 +660,11 @@ func TestAValueIsFixedTextOrAnExpression(t *testing.T) {
 	_ = json.Unmarshal(e.screenData("notes", "note", map[string]any{"record": rows[0].ID})["b0"]["value"], &form)
 	if form.Values["note"] != rows[0].ID || form.Values["score"] != "a" {
 		t.Fatalf("a form of format 7 takes the record of the page: %+v", form)
+	}
+	var cur struct{ Manifest string }
+	e.must("deck.manifest_get", map[string]any{"project": "notes"}, &cur)
+	if !strings.Contains(cur.Manifest, `"note": "=_id"`) || strings.Index(cur.Manifest, `"score": {`) > strings.Index(cur.Manifest, `"note": {`) {
+		t.Fatalf("the raised manifest keeps the order it was written in: %s", cur.Manifest)
 	}
 	code, out := e.call("deck.project_create", map[string]any{"name": "new", "manifest": strings.Replace(old, `"version": 7`, `"version": 8`, 1)})
 	if code != 422 || !strings.Contains(string(out), "=_id") {

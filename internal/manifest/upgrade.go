@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 )
@@ -164,13 +165,81 @@ func Upgrade(raw []byte) (out []byte, changed bool, err error) {
 	}
 	m["version"] = FormatVersion
 	var buf bytes.Buffer
-	enc := json.NewEncoder(&buf)
-	enc.SetEscapeHTML(false)
-	enc.SetIndent("", "  ")
-	if err := enc.Encode(m); err != nil {
+	if err := json.Indent(&buf, ordered(m, raw), "", "  "); err != nil {
 		return nil, false, err
 	}
-	return bytes.TrimRight(buf.Bytes(), "\n"), true, nil
+	return buf.Bytes(), true, nil
+}
+
+// ordered is v as JSON with the keys of each object in the order the same object has in was, new keys after them
+// sorted, so a raised manifest keeps the order of its fields and of the properties of its schemas.
+func ordered(v any, was []byte) []byte {
+	switch v := v.(type) {
+	case map[string]any:
+		var old map[string]json.RawMessage
+		_ = json.Unmarshal(was, &old)
+		keys := keysOf(was)
+		for _, k := range slices.Sorted(maps.Keys(v)) {
+			if !slices.Contains(keys, k) {
+				keys = append(keys, k)
+			}
+		}
+		out := []byte{'{'}
+		for _, k := range keys {
+			x, ok := v[k]
+			if !ok {
+				continue
+			}
+			if len(out) > 1 {
+				out = append(out, ',')
+			}
+			name, _ := json.Marshal(k)
+			out = append(append(append(out, name...), ':'), ordered(x, old[k])...)
+		}
+		return append(out, '}')
+	case []any:
+		var old []json.RawMessage
+		_ = json.Unmarshal(was, &old)
+		out := []byte{'['}
+		for i, x := range v {
+			if i > 0 {
+				out = append(out, ',')
+			}
+			var w []byte
+			if i < len(old) {
+				w = old[i]
+			}
+			out = append(out, ordered(x, w)...)
+		}
+		return append(out, ']')
+	}
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	enc.SetEscapeHTML(false)
+	_ = enc.Encode(v)
+	return bytes.TrimRight(buf.Bytes(), "\n")
+}
+
+// keysOf are the keys of a JSON object in the order they are written.
+func keysOf(raw []byte) []string {
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	if t, err := dec.Token(); err != nil || t != json.Delim('{') {
+		return nil
+	}
+	var keys []string
+	for dec.More() {
+		t, err := dec.Token()
+		k, ok := t.(string)
+		if err != nil || !ok {
+			return keys
+		}
+		keys = append(keys, k)
+		var skip json.RawMessage
+		if dec.Decode(&skip) != nil {
+			return keys
+		}
+	}
+	return keys
 }
 
 func items(v any) []map[string]any {

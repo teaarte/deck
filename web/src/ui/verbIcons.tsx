@@ -7,7 +7,7 @@ import { NamedIcon } from './NamedIcon';
 const verbIcons: Record<string, Icon> = {
   open: IconArrowUpRight, stop: IconPlayerStop, cancel_run: IconPlayerStop, run_now: IconPlayerPlay, resume: IconPlayerPlay,
   continue: IconPlayerPlay, pause: IconPlayerPause, retry: IconRefresh, remove: IconTrash, delete: IconTrash, archive: IconArchive,
-  download: IconDownload, allow: IconCheck, yes: IconCheck, dismiss: IconCheck, mark_done: IconCheck, deny: IconX,
+  download: IconDownload, allow: IconCheck, yes: IconCheck, mark_read: IconCheck, mark_done: IconCheck, deny: IconX,
   edit: IconPencil, replace: IconReplace, provider: IconCpu, try: IconFlask, set: IconKey,
   answer: IconMessage, tell: IconMessage, send: IconSend, undo: IconArrowBackUp, settings: IconSettings, sign_in: IconLogin,
 };

@@ -15,7 +15,6 @@ import (
 
 	"deck2/internal/untrusted"
 
-	"deck2/internal/ask"
 	"deck2/internal/docs"
 	"deck2/internal/gateway"
 	"deck2/internal/health"
@@ -164,10 +163,14 @@ func (r *Runner) runScript(ctx context.Context, t turn, trial bool) {
 	r.finish(bg, id, StateDone, result, false, "")
 }
 
+// warn tells the owner in the feed about something of a process deck refused or gave up on.
 func (r *Runner) warn(ctx context.Context, processID int64, text string) {
 	_ = r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		_, err := ask.New(ctx, q, processID, ask.KindWarning, text, "{}", time.Time{})
-		return err
+		p, err := q.GetProcess(ctx, processID)
+		if err != nil {
+			return err
+		}
+		return q.AddDeckNote(ctx, db.AddDeckNoteParams{ProjectID: p.ProjectID, Text: text})
 	})
 }
 

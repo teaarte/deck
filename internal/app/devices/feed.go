@@ -38,22 +38,26 @@ type feedListIn struct {
 	Project string `type:"project" opt:"" desc:"Project name; every project without one"`
 	Kind    string `opt:"" enum:"note|change" desc:"Only notes written with notify, or only changes made without the owner"`
 	Limit   int64  `opt:"" desc:"At most this many, newest first"`
+	Unread  bool   `opt:"" desc:"Only the notes the owner has not marked read"`
 }
 
 // feedRow is a line of the owner's feed: a note with the screen it opens and its buttons, whose commands carry
 // the name of the project, or a change made without the owner, which can be undone once when it has an undo.
 type feedRow struct {
-	ID        int64    `json:"id"`
-	Kind      string   `json:"kind"`
-	Project   string   `json:"project"`
-	Author    string   `json:"author"`
-	Text      string   `json:"text"`
-	Screen    string   `json:"screen"`
-	Record    int64    `json:"record"`
-	Buttons   []Button `json:"buttons"`
-	CanUndo   bool     `json:"can_undo"`
-	Undone    bool     `json:"undone"`
-	CreatedAt string   `json:"created_at"`
+	ID      int64    `json:"id"`
+	Kind    string   `json:"kind"`
+	Project string   `json:"project"`
+	Author  string   `json:"author"`
+	Text    string   `json:"text"`
+	Screen  string   `json:"screen"`
+	Record  int64    `json:"record"`
+	Buttons []Button `json:"buttons"`
+	CanUndo bool     `json:"can_undo"`
+	Undone  bool     `json:"undone"`
+	// Read is a note the owner marked read; CanRead one they still may.
+	Read      bool   `json:"read"`
+	CanRead   bool   `json:"can_read"`
+	CreatedAt string `json:"created_at"`
 }
 
 func (dv *Service) feedList(ctx context.Context, act registry.Actor, in feedListIn) ([]feedRow, error) {
@@ -61,8 +65,12 @@ func (dv *Service) feedList(ctx context.Context, act registry.Actor, in feedList
 	if err != nil {
 		return nil, err
 	}
+	unread := int64(0)
+	if in.Unread {
+		unread = 1
+	}
 	rows, err := dv.St.Q.ListFeed(ctx, db.ListFeedParams{WorkspaceID: act.Workspace, ProjectID: pid, Kind: in.Kind,
-		Lim: registry.Limit(in.Limit, 50, 500)})
+		Unread: unread, Lim: registry.Limit(in.Limit, 50, 500)})
 	if err != nil {
 		return nil, err
 	}
@@ -74,7 +82,7 @@ func (dv *Service) feedList(ctx context.Context, act registry.Actor, in feedList
 	for _, f := range rows {
 		r := feedRow{ID: f.ID, Kind: f.Kind, Project: names[f.ProjectID], Author: f.Author, Text: f.Text, Screen: f.Screen,
 			Record: f.RecordID.Int64, Buttons: []Button{}, CanUndo: f.Command != "" && !f.UndoneAt.Valid, Undone: f.UndoneAt.Valid,
-			CreatedAt: f.CreatedAt}
+			Read: f.ReadAt.Valid, CanRead: f.Kind == FeedNote && !f.ReadAt.Valid, CreatedAt: f.CreatedAt}
 		_ = json.Unmarshal([]byte(f.Actions), &r.Buttons)
 		for i := range r.Buttons {
 			r.Buttons[i].Command = r.Project + "." + r.Buttons[i].Command
@@ -120,6 +128,24 @@ func (dv *Service) feedUndo(ctx context.Context, act registry.Actor, in feedUndo
 	return out, err
 }
 
+type feedReadIn struct {
+	Entry int64 `desc:"Id of a note in the feed"`
+}
+
+// feedRead marks a note of the feed read.
+func (dv *Service) feedRead(ctx context.Context, act registry.Actor, in feedReadIn) (any, error) {
+	n, err := store.TxGet(dv.St, ctx, func(ctx context.Context, q *db.Queries) (int64, error) {
+		return q.MarkFeedRead(ctx, db.MarkFeedReadParams{ID: in.Entry, WorkspaceID: act.Workspace})
+	})
+	if err != nil {
+		return nil, err
+	}
+	if n == 0 {
+		return nil, registry.NotFound("deck: no unread note %d", in.Entry)
+	}
+	return map[string]any{"ok": true}, nil
+}
+
 // FeedCommands are the commands of the feed.
 func (dv *Service) FeedCommands() []*registry.Command {
 	return []*registry.Command{
@@ -129,5 +155,8 @@ func (dv *Service) FeedCommands() []*registry.Command {
 		registry.Def("feed_undo", "Undo",
 			"Undoes a change made without the owner, unless the document changed since.",
 			registry.OwnerOnly, dv.feedUndo),
+		registry.Def("feed_read", "Mark read",
+			"Marks a note of the feed read.",
+			registry.OwnerOnly, dv.feedRead),
 	}
 }

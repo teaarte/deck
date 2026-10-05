@@ -116,10 +116,8 @@ func TestMasterOwnErrorsDoNotReachItself(t *testing.T) {
 	if n := len(e.runsOf("master", "on_error")); n != 0 {
 		t.Fatalf("the master's own failure does not go to itself: %d", n)
 	}
-	var as []askView
-	e.must("deck.asks_list", nil, &as)
-	if len(as) != 1 || as[0].Kind != "warning" || !strings.Contains(as[0].Text, "review failed:") || !strings.Contains(as[0].Text, "the model is overloaded") {
-		t.Fatalf("it waits for the owner instead: %+v", as)
+	if n := e.waitNote("review failed:"); !strings.Contains(n.Text, "the model is overloaded") {
+		t.Fatalf("the owner hears of it in the feed instead: %+v", n)
 	}
 }
 

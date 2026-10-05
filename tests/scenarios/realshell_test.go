@@ -71,6 +71,12 @@ func TestRealBrowserShell(t *testing.T) {
 		}
 		return false
 	})
+	if b.eval(`String(!!document.querySelector('[data-bell-list]'))`) != "true" {
+		b.eval(`(document.querySelector('[data-bell]').click(), '')`)
+	}
+	b.until("a note to mark read", `document.querySelector('[data-bell-list] [data-note-read]')`)
+	b.eval(`(document.querySelector('[data-bell-list] [data-note-read]').click(), '')`)
+	b.until("the note marked read", `document.querySelector('[data-bell-list] [data-note][data-read]') && !document.querySelector('[data-bell-list] [data-note-read]')`)
 	if b.eval(`String(!!document.querySelector('[data-bell-list]'))`) == "true" {
 		b.eval(`(document.querySelector('[data-bell]').click(), '')`)
 	}

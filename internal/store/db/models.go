@@ -129,6 +129,7 @@ type Feed struct {
 	UndoneAt    sql.NullString
 	CreatedAt   string
 	ForMaster   int64
+	ReadAt      sql.NullString
 }
 
 type File struct {

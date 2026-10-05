@@ -10,7 +10,6 @@ import (
 
 	"deck2/internal/app/access"
 
-	"deck2/internal/ask"
 	"deck2/internal/docs"
 	"deck2/internal/health"
 	"deck2/internal/manifest"
@@ -64,10 +63,10 @@ func (s *Service) toMaster(ctx context.Context, p db.Process) {
 		return
 	}
 	key := fmt.Sprintf("%s%d.%s", masterErrorPrefix, proj.ID, p.Command)
-	// The master's own failure waits for the owner instead.
+	// The master's own failure goes to the owner's feed instead.
 	s.handOver(ctx, proj, key, 24*time.Hour, map[string]any{"process": p.ID}, func(ctx context.Context, q *db.Queries) error {
-		_, err := ask.New(ctx, q, p.ID, ask.KindWarning, master.Text("master_failed", struct{ Command, Error string }{p.Command, untrusted.Cut(p.Error, 500)}), "{}", time.Time{})
-		return err
+		return q.AddDeckNote(ctx, db.AddDeckNoteParams{ProjectID: p.ProjectID,
+			Text: master.Text("master_failed", struct{ Command, Error string }{p.Command, untrusted.Cut(p.Error, 500)})})
 	})
 }
 

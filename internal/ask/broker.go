@@ -29,8 +29,6 @@ const (
 	KindUnknown = "unknown"
 	// KindSignIn asks the owner to sign in to a site or service; its payload names the site or the tool.
 	KindSignIn = "sign_in"
-	// KindWarning tells the owner about something deck refused to do; no process waits for it.
-	KindWarning = "warning"
 	// KindLimit offers to continue a process stopped when its pause on a usage limit ran out.
 	KindLimit = "limit"
 	// KindSuggest is a draft of a card or a call that waits for the owner's yes; its payload holds the draft.

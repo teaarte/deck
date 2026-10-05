@@ -70,10 +70,14 @@ func TestTriggerChainStopsAtSixthStep(t *testing.T) {
 	e := newEnv(t, ok)
 	p := e.createProject("chain", testManifest(cmds, trigs))
 	e.run(p, "c1")
-	a := e.waitAsk()
+	n := e.waitNote("chain.c6")
 	e.settle()
-	if a.Kind != "warning" || !strings.Contains(a.Text, "chain.c6") {
-		t.Fatalf("the sixth step must be refused with a warning, got %+v", a)
+	if !n.CanRead {
+		t.Fatalf("the sixth step is refused with a note the owner marks read: %+v", n)
+	}
+	var as []askView
+	if e.must("deck.asks_list", nil, &as); len(as) != 0 {
+		t.Fatalf("a warning waits for no answer, so it is not among the asks: %+v", as)
 	}
 	ps := e.processes()
 	if len(ps) != 5 || e.countOf("c6") != 0 {
@@ -84,10 +88,28 @@ func TestTriggerChainStopsAtSixthStep(t *testing.T) {
 			t.Fatalf("depth of %s must be %d: %+v", pr.Command, want, pr)
 		}
 	}
-	e.answer(a.ID, "ok")
-	if _, out := e.call("deck.asks_list", nil); strings.Contains(string(out), "warning") {
-		t.Fatalf("an answered warning leaves the list: %s", out)
+	e.must("deck.feed_read", map[string]any{"entry": n.ID}, nil)
+	if e.warnings("chain.c6") != 0 {
+		t.Fatalf("a note marked read stays read: %+v", e.notes())
 	}
+}
+
+// TestAWarningOfABaseFromBeforeIsANote: an open warning an older base kept among the asks is a note of the feed.
+func TestAWarningOfABaseFromBeforeIsANote(t *testing.T) {
+	home := t.TempDir()
+	e := newEnvWith(t, home, &Fake{})
+	p := e.createProject("chain", testManifest([]string{agentCommand("c1", "")}, nil))
+	e.olderBase(5)
+	if _, err := e.App.Store.DB.Exec(`INSERT INTO ask (workspace_id, project_id, kind, text) VALUES (1, ?, 'warning', 'deck stopped a chain')`, p); err != nil {
+		t.Fatal(err)
+	}
+	_ = e.App.Close()
+	e = newEnvWith(t, home, &Fake{})
+	var as []askView
+	if e.must("deck.asks_list", nil, &as); len(as) != 0 {
+		t.Fatalf("the warning is no ask any more: %+v", as)
+	}
+	e.waitNote("deck stopped a chain")
 }
 
 func TestScheduledRunDoesNotOverlapItsPrevious(t *testing.T) {

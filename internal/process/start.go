@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"deck2/internal/ask"
 	"deck2/internal/manifest"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
@@ -158,8 +157,7 @@ func (r *Runner) Start(ctx context.Context, projectID int64, m *manifest.Manifes
 				text := fmt.Sprintf("deck stopped a chain of %d processes: %s.%s was not started after process %d (%s).",
 					MaxDepth, proj.Name, command, parent.ID, parent.Command)
 				refused = registry.Refuse("deck: %s was not started: a chain of processes may be at most %d long", command, MaxDepth)
-				_, err := ask.New(ctx, q, parent.ID, ask.KindWarning, text, "{}", time.Time{})
-				return err
+				return q.AddDeckNote(ctx, db.AddDeckNoteParams{ProjectID: proj.ID, Text: text})
 			}
 		}
 		// A call the owner allowed later may come from a trigger that is gone by then, as a run later is.

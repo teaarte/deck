@@ -414,7 +414,7 @@ func TestScreenTopicReadsOnlyTheBlocksItChanges(t *testing.T) {
 	if got := paths("notes", "main", "asks"); !slices.Equal(got, []string{"/b2"}) {
 		t.Fatalf("asks reads the asks block: %v", got)
 	}
-	if got := paths("", "cockpit", "feed"); !slices.Equal(got, []string{"/b1-1", "/b2-0"}) {
+	if got := paths("", "cockpit", "feed"); !slices.Equal(got, []string{"/b1", "/b2-1", "/b3-0"}) {
 		t.Fatalf("feed reads the blocks of the feed: %v", got)
 	}
 	if msgs := e.screenMessages("", "cockpit", map[string]any{"topic": "processes"}); len(msgs) != 3 {
@@ -485,7 +485,7 @@ func TestProcessPageShowsItsLogInTheWordsOfACP(t *testing.T) {
 func (e *Env) cockpitRunning() []listItem {
 	e.T.Helper()
 	var items []listItem
-	_ = json.Unmarshal(e.screenData("", "cockpit", nil)["b1-0"]["items"], &items)
+	_ = json.Unmarshal(e.screenData("", "cockpit", nil)["b2-0"]["items"], &items)
 	return items
 }
 

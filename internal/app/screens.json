@@ -118,6 +118,8 @@
       "Value": "Значение",
       "Version": "Версия",
       "Waiting for you": "Ждёт вас",
+      "Notes": "Заметки",
+      "Nothing to read": "Читать нечего",
       "What": "Что",
       "What it does": "Что делает",
       "What the project can do and where its agent commands run; a provider picked here replaces the one the manifest suggests.": "Что умеет проект и где работают его агентские команды; выбранный здесь провайдер заменяет предложенный манифестом.",
@@ -159,9 +161,12 @@
             {"verb": "sign_in", "primary": true, "command": "deck.browser_login", "params": {"url": "='https://' + payload.site"}, "when": "kind == 'sign_in' && (payload?.site ?? '') != '' && !expired"},
             {"verb": "signed_in", "command": "deck.browser_login_done", "params": {"url": "='https://' + payload.site"}, "when": "kind == 'sign_in' && (payload?.site ?? '') != '' && !expired"},
             {"verb": "sign_in", "primary": true, "command": "deck.oauth_start", "params": {"tool": "=payload?.tool ?? ''"}, "when": "kind == 'sign_in' && (payload?.site ?? '') == '' && !expired"},
-            {"verb": "dismiss", "primary": true, "command": "deck.ask_answer", "params": {"ask": "$record.id", "answer": "ok"}, "when": "kind == 'warning' && !expired"},
             {"verb": "deny", "primary": true, "command": "deck.ask_answer", "params": {"ask": "$record.id", "answer": "deny"}, "when": "expired"}
           ]},
+        {"type": "list", "title": "Notes", "icon": "bell", "empty": "Nothing to read",
+          "source": {"from": "deck.feed_list", "input": {"kind": "note", "unread": true}, "limit": 10},
+          "item": {"title": "text", "meta": "project + ' · ' + author"},
+          "actions": [{"verb": "mark_read", "primary": true, "command": "deck.feed_read", "params": {"entry": "$record.id"}}]},
         {"type": "columns", "blocks": [
           {"type": "list", "title": "Running now", "when": "len(rows) > 0",
             "source": {"from": "deck.processes_list", "input": {"open": true}},

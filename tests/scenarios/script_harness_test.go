@@ -2,7 +2,6 @@ package scenarios
 
 import (
 	"archive/zip"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -78,16 +77,45 @@ func (e *Env) waitScript(id int64, states ...string) proc {
 
 func (e *Env) warnings(contains string) int {
 	e.T.Helper()
-	_, out := e.call("deck.asks_list", nil)
-	var as []askView
-	_ = json.Unmarshal(out, &as)
 	n := 0
-	for _, a := range as {
-		if a.Kind == "warning" && strings.Contains(a.Text, contains) {
+	for _, f := range e.notes() {
+		if f.Author == "deck" && !f.Read && strings.Contains(f.Text, contains) {
 			n++
 		}
 	}
 	return n
+}
+
+// feedNote is a note of the owner's feed.
+type feedNote struct {
+	ID           int64
+	Author, Text string
+	Read         bool
+	CanRead      bool `json:"can_read"`
+}
+
+// notes are the notes of the owner's feed, newest first.
+func (e *Env) notes() []feedNote {
+	e.T.Helper()
+	var out []feedNote
+	e.must("deck.feed_list", map[string]any{"kind": "note"}, &out)
+	return out
+}
+
+// waitNote waits for an unread note of deck that holds contains.
+func (e *Env) waitNote(contains string) feedNote {
+	e.T.Helper()
+	var got feedNote
+	e.waitFor("a note of deck with "+contains, func() bool {
+		for _, f := range e.notes() {
+			if f.Author == "deck" && !f.Read && strings.Contains(f.Text, contains) {
+				got = f
+				return true
+			}
+		}
+		return false
+	})
+	return got
 }
 
 // wheel builds a python package and returns the path of the wheel.

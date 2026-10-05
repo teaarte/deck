@@ -10,11 +10,26 @@ import (
 	"database/sql"
 )
 
+const addDeckNote = `-- name: AddDeckNote :exec
+INSERT INTO feed (workspace_id, project_id, kind, author, text)
+SELECT j.workspace_id, j.id, 'note', 'deck', ?1 FROM project j WHERE j.id = ?2
+`
+
+type AddDeckNoteParams struct {
+	Text      string
+	ProjectID int64
+}
+
+func (q *Queries) AddDeckNote(ctx context.Context, arg AddDeckNoteParams) error {
+	_, err := q.db.ExecContext(ctx, addDeckNote, arg.Text, arg.ProjectID)
+	return err
+}
+
 const addFeed = `-- name: AddFeed :one
 INSERT INTO feed (workspace_id, project_id, kind, author, text, screen, record_id, actions, command, params, document_id, revision)
 VALUES (?1, ?2, ?3, ?4, ?5, ?6,
     ?7, ?8, ?9, ?10, ?11, ?12)
-RETURNING id, workspace_id, project_id, kind, author, text, screen, record_id, actions, command, params, document_id, revision, undone_at, created_at, for_master
+RETURNING id, workspace_id, project_id, kind, author, text, screen, record_id, actions, command, params, document_id, revision, undone_at, created_at, for_master, read_at
 `
 
 type AddFeedParams struct {
@@ -65,6 +80,7 @@ func (q *Queries) AddFeed(ctx context.Context, arg AddFeedParams) (Feed, error) 
 		&i.UndoneAt,
 		&i.CreatedAt,
 		&i.ForMaster,
+		&i.ReadAt,
 	)
 	return i, err
 }
@@ -99,7 +115,7 @@ func (q *Queries) DeleteMasterNotes(ctx context.Context, arg DeleteMasterNotesPa
 }
 
 const getFeed = `-- name: GetFeed :one
-SELECT id, workspace_id, project_id, kind, author, text, screen, record_id, actions, command, params, document_id, revision, undone_at, created_at, for_master FROM feed WHERE id = ?
+SELECT id, workspace_id, project_id, kind, author, text, screen, record_id, actions, command, params, document_id, revision, undone_at, created_at, for_master, read_at FROM feed WHERE id = ?
 `
 
 func (q *Queries) GetFeed(ctx context.Context, id int64) (Feed, error) {
@@ -122,20 +138,22 @@ func (q *Queries) GetFeed(ctx context.Context, id int64) (Feed, error) {
 		&i.UndoneAt,
 		&i.CreatedAt,
 		&i.ForMaster,
+		&i.ReadAt,
 	)
 	return i, err
 }
 
 const listFeed = `-- name: ListFeed :many
-SELECT id, workspace_id, project_id, kind, author, text, screen, record_id, actions, command, params, document_id, revision, undone_at, created_at, for_master FROM feed WHERE workspace_id = ?1 AND (?2 = 0 OR project_id = ?2)
-  AND (?3 = '' OR kind = ?3) AND for_master = 0
-ORDER BY id DESC LIMIT ?4
+SELECT id, workspace_id, project_id, kind, author, text, screen, record_id, actions, command, params, document_id, revision, undone_at, created_at, for_master, read_at FROM feed WHERE workspace_id = ?1 AND (?2 = 0 OR project_id = ?2)
+  AND (?3 = '' OR kind = ?3) AND for_master = 0 AND (CAST(?4 AS INTEGER) = 0 OR read_at IS NULL)
+ORDER BY id DESC LIMIT ?5
 `
 
 type ListFeedParams struct {
 	WorkspaceID int64
 	ProjectID   interface{}
 	Kind        interface{}
+	Unread      int64
 	Lim         int64
 }
 
@@ -144,6 +162,7 @@ func (q *Queries) ListFeed(ctx context.Context, arg ListFeedParams) ([]Feed, err
 		arg.WorkspaceID,
 		arg.ProjectID,
 		arg.Kind,
+		arg.Unread,
 		arg.Lim,
 	)
 	if err != nil {
@@ -170,6 +189,7 @@ func (q *Queries) ListFeed(ctx context.Context, arg ListFeedParams) ([]Feed, err
 			&i.UndoneAt,
 			&i.CreatedAt,
 			&i.ForMaster,
+			&i.ReadAt,
 		); err != nil {
 			return nil, err
 		}
@@ -185,7 +205,7 @@ func (q *Queries) ListFeed(ctx context.Context, arg ListFeedParams) ([]Feed, err
 }
 
 const listMasterNotes = `-- name: ListMasterNotes :many
-SELECT id, workspace_id, project_id, kind, author, text, screen, record_id, actions, command, params, document_id, revision, undone_at, created_at, for_master FROM feed WHERE workspace_id = ? AND for_master = 1 ORDER BY id
+SELECT id, workspace_id, project_id, kind, author, text, screen, record_id, actions, command, params, document_id, revision, undone_at, created_at, for_master, read_at FROM feed WHERE workspace_id = ? AND for_master = 1 ORDER BY id
 `
 
 func (q *Queries) ListMasterNotes(ctx context.Context, workspaceID int64) ([]Feed, error) {
@@ -214,6 +234,7 @@ func (q *Queries) ListMasterNotes(ctx context.Context, workspaceID int64) ([]Fee
 			&i.UndoneAt,
 			&i.CreatedAt,
 			&i.ForMaster,
+			&i.ReadAt,
 		); err != nil {
 			return nil, err
 		}
@@ -226,6 +247,24 @@ func (q *Queries) ListMasterNotes(ctx context.Context, workspaceID int64) ([]Fee
 		return nil, err
 	}
 	return items, nil
+}
+
+const markFeedRead = `-- name: MarkFeedRead :execrows
+UPDATE feed SET read_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+WHERE id = ?1 AND workspace_id = ?2 AND kind = 'note' AND for_master = 0 AND read_at IS NULL
+`
+
+type MarkFeedReadParams struct {
+	ID          int64
+	WorkspaceID int64
+}
+
+func (q *Queries) MarkFeedRead(ctx context.Context, arg MarkFeedReadParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, markFeedRead, arg.ID, arg.WorkspaceID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const markFeedUndone = `-- name: MarkFeedUndone :execrows

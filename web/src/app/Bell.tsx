@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActionIcon, Group, Indicator, Popover, ScrollArea, Stack, Text, UnstyledButton } from '@mantine/core';
+import { ActionIcon, Button, Group, Indicator, Popover, ScrollArea, Stack, Text, UnstyledButton } from '@mantine/core';
 import { IconBell, IconBellOff } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { call } from '../lib/api';
@@ -17,6 +17,8 @@ interface Note {
   screen: string;
   record: number;
   buttons?: Action[];
+  read: boolean;
+  can_read: boolean;
   created_at: string;
 }
 
@@ -33,7 +35,8 @@ export function Bell() {
     load();
     return events((e) => { if (e.topic === 'feed') load(); });
   }, []);
-  const fresh = notes.filter((n) => n.id > seen).length;
+  const fresh = notes.filter((n) => n.id > seen && !n.read).length;
+  const markRead = (id: number) => { call('deck.feed_read', { entry: id }).then(load, () => undefined); };
   const toggle = () => {
     if (!open && notes.length) {
       const top = Math.max(...notes.map((n) => n.id));
@@ -59,13 +62,18 @@ export function Bell() {
           <ScrollArea.Autosize mah={420} type="hover">
             <Stack gap={0} pb={6}>
               {notes.map((n) => (
-                <div key={n.id} className={s.note} data-note={n.id} data-fresh={n.id > seen || undefined}>
+                <div key={n.id} className={s.note} data-note={n.id} data-fresh={(n.id > seen && !n.read) || undefined} data-read={n.read || undefined}>
                   <UnstyledButton disabled={!n.screen} onClick={() => { setOpen(false); go({ project: n.project || undefined, screen: n.screen, record: n.record || undefined }); }}
                     className={s.noteBody}>
                     <Text size="sm" lh={1.4}>{n.text}</Text>
                     <Text size="xs" c="dimmed" mt={2}>{n.project} · {formatted(n.created_at, { format: 'relative' })}</Text>
                   </UnstyledButton>
-                  {!!n.buttons?.length && <div className={s.noteActions}><Actions actions={n.buttons} /></div>}
+                  {(!!n.buttons?.length || n.can_read) && (
+                    <Group gap={6} className={s.noteActions}>
+                      {!!n.buttons?.length && <Actions actions={n.buttons} />}
+                      {n.can_read && <Button size="compact-xs" variant="subtle" onClick={() => markRead(n.id)} data-note-read>{t('verb.mark_read')}</Button>}
+                    </Group>
+                  )}
                 </div>
               ))}
             </Stack>

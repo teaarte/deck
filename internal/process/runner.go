@@ -218,7 +218,6 @@ func (r *Runner) finish(ctx context.Context, processID int64, state, result stri
 		nbs = 1
 	}
 	var n int64
-	var closedCalls []db.Ask
 	parked := false
 	err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		// A message of the owner that came as the turn ended goes on in the same session instead.
@@ -236,8 +235,8 @@ func (r *Runner) finish(ctx context.Context, processID int64, state, result stri
 		if err != nil || n == 0 {
 			return err
 		}
-		closedCalls, err = q.CloseOpenAsksOfProcess(ctx, db.CloseOpenAsksOfProcessParams{ProcessID: processID, CallsToo: b2i(state == StateStopped)})
-		if err != nil {
+		// A frozen call outlives its process: the owner may still allow it.
+		if _, err = q.CloseOpenAsksOfProcess(ctx, db.CloseOpenAsksOfProcessParams{ProcessID: processID}); err != nil {
 			return err
 		}
 		return q.ReleaseFolderLocks(ctx, processID)
@@ -259,7 +258,6 @@ func (r *Runner) finish(ctx context.Context, processID int64, state, result stri
 	r.mu.Lock()
 	delete(r.marked, processID)
 	r.mu.Unlock()
-	r.dropped(ctx, closedCalls)
 	r.closed(ctx, processID)
 }
 

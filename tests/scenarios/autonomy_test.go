@@ -82,8 +82,8 @@ func TestCommandAgentRunsInAutoModeWithItsOwnWeb(t *testing.T) {
 	if err := json.Unmarshal([]byte(call.settings), &set); err != nil {
 		t.Fatal(err)
 	}
-	if set.Sandbox != nil {
-		t.Fatalf("a project with network has no sandbox of the CLI: %s", call.settings)
+	if set.Sandbox == nil || !set.Sandbox.Enabled || !slices.Contains(set.Sandbox.Network.AllowedDomains, "registry.npmjs.org") {
+		t.Fatalf("a project with network runs its shell in the sandbox of the CLI with the hosts of the project: %s", call.settings)
 	}
 	real, _ := filepath.EvalSymlinks(home)
 	for _, h := range []string{home, real} {

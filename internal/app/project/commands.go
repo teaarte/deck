@@ -118,7 +118,7 @@ func (sv *Saver) startHandler(projectID int64, m *manifest.Manifest, command str
 		}
 		key, _ := input[manifest.RetryKey].(string)
 		delete(input, manifest.RetryKey)
-		o := process.Origin{Parent: act.ProcessID, Trigger: act.TriggerID, Confirmed: act.Confirmed, Key: key, Trial: act.Trial}
+		o := process.Origin{Parent: act.ProcessID, Trigger: act.TriggerID, Confirmed: act.Confirmed, Key: key, Trial: act.Trial, Alone: act.Alone}
 		id, err := sv.Runner.Start(ctx, projectID, m, command, input, o)
 		if err != nil {
 			return nil, err

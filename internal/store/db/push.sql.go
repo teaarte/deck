@@ -129,7 +129,7 @@ func (q *Queries) ListAsksAfter(ctx context.Context, arg ListAsksAfterParams) ([
 }
 
 const listFailedAfter = `-- name: ListFailedAfter :many
-SELECT p.id, p.project_id, p.command, p.kind, p.state, p.provider, p.session_id, p.input, p.result, p.not_by_schema, p.error, p.start_note, p.parent_id, p.depth, p.trigger_id, p.retry_key, p.manifest_revision, p.trial, p.folder, p.pgid, p.ceiling_ms, p.deadline_ms, p.output_ms, p.silent_since_ms, p.pause_until_ms, p.pause_limit_ms, p.wait_message, p.wait_fresh, p.started_at, p.finished_at, j.name AS project_name FROM process p JOIN project j ON j.id = p.project_id
+SELECT p.id, p.project_id, p.command, p.kind, p.state, p.provider, p.session_id, p.input, p.result, p.not_by_schema, p.error, p.start_note, p.parent_id, p.depth, p.trigger_id, p.retry_key, p.manifest_revision, p.trial, p.folder, p.pgid, p.ceiling_ms, p.deadline_ms, p.output_ms, p.silent_since_ms, p.pause_until_ms, p.pause_limit_ms, p.wait_message, p.wait_fresh, p.started_at, p.finished_at, p.alone, j.name AS project_name FROM process p JOIN project j ON j.id = p.project_id
 WHERE j.workspace_id = ?1 AND p.state = 'error' AND p.trial = 0 AND j.builtin = 0
   AND (p.finished_at > ?2 OR p.finished_at = ?2 AND p.id > ?3)
 ORDER BY p.finished_at, p.id
@@ -186,6 +186,7 @@ func (q *Queries) ListFailedAfter(ctx context.Context, arg ListFailedAfterParams
 			&i.Process.WaitFresh,
 			&i.Process.StartedAt,
 			&i.Process.FinishedAt,
+			&i.Process.Alone,
 			&i.ProjectName,
 		); err != nil {
 			return nil, err

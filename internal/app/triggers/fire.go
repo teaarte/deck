@@ -46,7 +46,7 @@ type After struct {
 }
 
 func (h After) Closed(ctx context.Context, p db.Process) {
-	if p.State == process.StateDone && p.NotBySchema == 0 && p.Result != process.Empty {
+	if p.State == process.StateDone && p.NotBySchema == 0 && p.Result != process.Empty && p.Alone == 0 {
 		h.S.after(ctx, p)
 	}
 }

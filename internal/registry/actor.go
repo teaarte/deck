@@ -30,6 +30,8 @@ type Actor struct {
 	Commands []string
 	// Trial marks a trial run: every call that is not internal is declined.
 	Trial bool
+	// Alone marks a trial of only the command called: the commands after it do not start.
+	Alone bool
 	// CallLimit is how long a tool call of the calling agent may last; zero when it has no such limit.
 	CallLimit time.Duration
 	// cleared is set by the holder of the Clearance, the gateway, once a call that is not internal passed its

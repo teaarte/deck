@@ -105,6 +105,7 @@ type commandTryIn struct {
 	Command string `desc:"Command name, project.command"`
 	Input   string `type:"json" opt:"" desc:"Command input: a JSON object"`
 	Live    bool   `opt:"" desc:"The project is enabled: the trial writes into its real records and cards"`
+	Only    bool   `opt:"" desc:"Only this command: the commands that run after it do not start; the whole chain runs when omitted"`
 }
 
 // commandTry starts a trial run of a project command: a call that is not internal is declined or, for a tool,
@@ -124,7 +125,7 @@ func (pj *Service) commandTry(ctx context.Context, act registry.Actor, in comman
 	if err := pj.liveTrial(ctx, c, in.Live); err != nil {
 		return nil, err
 	}
-	act.Trial = true
+	act.Trial, act.Alone = true, in.Only
 	return c.Handler(ctx, act, input)
 }
 

@@ -229,6 +229,7 @@ type Process struct {
 	WaitFresh        int64
 	StartedAt        string
 	FinishedAt       sql.NullString
+	Alone            int64
 }
 
 type ProcessRemark struct {

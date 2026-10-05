@@ -130,3 +130,21 @@ func TestTrialOfAToolIsRefusedAndNothingLeavesDeck(t *testing.T) {
 		t.Fatalf("a command closed to the master is not tried by a token: %d %s", code, out)
 	}
 }
+
+// TestATrialOfOneCommandStartsNoChain: a trial of only this command does not start the commands that run after
+// it; a trial of the chain, as before, does.
+func TestATrialOfOneCommandStartsNoChain(t *testing.T) {
+	e := newEnv(t, ok)
+	e.createProject("chain", testManifest([]string{agentCommand("c1", ""), agentCommand("c2", processField)},
+		[]string{`{"command": "c2", "after": "c1"}`}))
+	var try struct{ Process int64 }
+	e.must("deck.command_try", map[string]any{"live": true, "command": "chain.c1", "only": true}, &try)
+	e.waitState(try.Process, "done")
+	e.settle()
+	if n := e.countOf("c2"); n != 0 {
+		t.Fatalf("a trial of only c1 starts no c2: %d", n)
+	}
+	e.must("deck.command_try", map[string]any{"live": true, "command": "chain.c1"}, &try)
+	e.waitState(try.Process, "done")
+	e.waitFor("the trial of the chain", func() bool { return e.countOf("c2") == 1 })
+}

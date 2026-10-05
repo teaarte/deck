@@ -367,7 +367,8 @@ Name each of these rights in the hand-over: the owner grants them with "enable".
    lists in `screens` each block that fails on the records there are now (a column that breaks on a record
    without a field, a missing custom document): fix them before the owner opens the screen.
 3. `command_try` runs a command as a trial: everything that is not internal is declined, and a call of an HTTP
-   or MCP tool waits for the owner's yes on that one call. Try in a draft. Until the owner enables a draft it
+   or MCP tool waits for the owner's yes on that one call; the commands that run `after` it are tried too,
+   unless `only` asks for this command alone. Try in a draft. Until the owner enables a draft it
    has none of the rights its manifest asks for: its tools ask the owner on every call, its scripts reach only
    package registries, its `reads` and `domains` do nothing. To try a change of an enabled module (a new command, one that waits for the owner's
    button), import its folder as a draft copy under another name, try there, then save the change to the

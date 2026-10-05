@@ -33,6 +33,8 @@ type Origin struct {
 	Confirmed bool
 	Key       string
 	Trial     bool
+	// Alone is a trial of only this command: the commands after it do not start.
+	Alone bool
 	// Session is an existing session the agent continues, by resume with Message when Resume is set.
 	Session string
 	Resume  bool
@@ -168,7 +170,7 @@ func (r *Runner) Start(ctx context.Context, projectID int64, m *manifest.Manifes
 		p, err = q.CreateProcess(ctx, db.CreateProcessParams{Trial: b2i(trial), ProjectID: projectID, Command: command, Kind: kind, State: StateRunning,
 			Provider: providerName, Input: string(in), SessionID: session, ParentID: ref(o.Parent), Depth: depth,
 			TriggerID: ref(trigger), RetryKey: o.Key, CeilingMs: r.ceilingOf(m, cmd).Milliseconds(), ManifestRevision: m.Revision, Folder: folder,
-			StartNote: o.Note})
+			StartNote: o.Note, Alone: b2i(o.Alone && trial)})
 		if err != nil {
 			return err
 		}

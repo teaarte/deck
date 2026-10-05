@@ -43,10 +43,18 @@ var services = []string{"com.apple.system.opendirectoryd.libinfo", "com.apple.sy
 var netServices = []string{"com.apple.dnssd.service", "com.apple.SystemConfiguration.configd",
 	"com.apple.SystemConfiguration.DNSConfiguration", "com.apple.networkd"}
 
+// sysctls are what the machine and its system are; the processes on it are not.
+const sysctls = `(allow sysctl-read (sysctl-name-prefix "hw.") (sysctl-name-prefix "machdep.") (sysctl-name-prefix "kern.")
+  (sysctl-name-prefix "vm.") (sysctl-name-prefix "sysctl.") (sysctl-name-prefix "user.") (sysctl-name-prefix "net.routetable")
+  (sysctl-name "security.mac.lockdown_mode_state"))
+(deny sysctl-read (sysctl-name-prefix "kern.proc"))
+`
+
 func profile(p Policy) string {
 	var b strings.Builder
 	b.WriteString("(version 1)\n(deny default)\n")
-	b.WriteString("(allow process-exec process-fork sysctl-read file-read-metadata ipc-posix-shm iokit-open pseudo-tty)\n")
+	b.WriteString("(allow process-exec process-fork file-read-metadata ipc-posix-shm iokit-open pseudo-tty)\n")
+	b.WriteString(sysctls)
 	b.WriteString("(allow signal (target same-sandbox))\n(allow file-read*)\n")
 	for _, h := range p.Hide {
 		fmt.Fprintf(&b, "(deny file-read* (subpath %s))\n", quote(real(h)))

@@ -591,3 +591,32 @@ func TestTheSandboxClosesTheHomeButForRuntimesAndTheFoldersOfTheProject(t *testi
 		}
 	}
 }
+
+const processesScript = pythonLib + `
+import ctypes, platform
+inp = json.load(sys.stdin)
+listed = len([d for d in os.listdir("/proc") if d.isdigit()]) > 10 if os.path.isdir("/proc") else None
+if sys.platform == "darwin":
+    libc, size = ctypes.CDLL(None), ctypes.c_size_t(0)
+    listed = libc.sysctl((ctypes.c_int * 3)(1, 14, 0), 3, None, ctypes.byref(size), None, 0) == 0 and size.value > 0
+print(json.dumps({"listed": listed, "deck": os.path.exists("/proc/%d/environ" % inp["n"]), "cpus": os.cpu_count(),
+  "system": platform.system(), "release": platform.release()}))
+`
+
+// TestAScriptSeesNoOtherProcess: a script lists no processes of the machine but reads what the machine and its
+// system are.
+func TestAScriptSeesNoOtherProcess(t *testing.T) {
+	e := newEnv(t, nil)
+	e.createProject("tools", scriptManifest("collect", "", ""))
+	e.saveScript("tools", "scripts/main.py", processesScript)
+	p := e.waitScript(e.start("tools", "collect", map[string]any{"n": os.Getpid()}), "done", "error")
+	var got struct {
+		Listed, Deck    bool
+		CPUs            int
+		System, Release string
+	}
+	_ = json.Unmarshal(p.Result, &got)
+	if p.State != "done" || got.Listed || got.Deck || got.CPUs < 1 || got.System == "" || got.Release == "" {
+		t.Fatalf("a script sees the machine and its system, not the processes on it: %+v %s", p, p.Result)
+	}
+}

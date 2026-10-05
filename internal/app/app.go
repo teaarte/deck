@@ -77,6 +77,7 @@ type App struct {
 	Answers     *asks.Service
 	Connections *connections.Service
 	Projects    *project.Service
+	Saver       *project.Saver
 	Scripts     *script.Exec
 	Tools       *tools.HTTP
 	MCP         *tools.MCP
@@ -110,7 +111,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	}
 	// Every service is allocated first, so each is then built whole with the functions of the others.
 	a := &App{Cfg: cfg, Home: h, Store: st, Bus: events.NewBus(), Scripts: script.New(cfg.Sandbox, cfg.Home), Manifests: &docs.Manifests{St: st},
-		Projects: &project.Service{}, Secrets: &secrets.Service{}, Folders: &folders.Service{}, Files: &appfiles.Service{},
+		Projects: &project.Service{}, Saver: &project.Saver{}, Secrets: &secrets.Service{}, Folders: &folders.Service{}, Files: &appfiles.Service{},
 		Journal: &journal.Service{}, Triggers: &triggers.Service{}, Documents: &documents.Service{}, Snapshots: &snapshots.Service{},
 		Settings: &settings.Service{}, Board: &board.Service{}, Providers: &providers.Service{}, Answers: &asks.Service{},
 		Connections: &connections.Service{}, Suggest: &suggest.Service{}, Chats: &chat.Service{}, Devices: &devices.Service{},
@@ -121,7 +122,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	}
 	rules := sandbox.Rules{Open: a.Settings.OpenSandbox, Kept: (&health.Closed{St: st}).Add}
 	a.Asks = ask.NewBroker(st, a.Bus, cfg.Now)
-	a.Registry = registry.New(a.Projects.ProjectCommands)
+	a.Registry = registry.New(a.Saver.ProjectCommands)
 	a.Registry.SetPublish(a.Bus.Publish)
 	a.Gateway = gateway.New(gateway.Config{Now: cfg.Now, QuestionWait: cfg.QuestionWait, ConfirmWait: cfg.ConfirmWait, ConfirmTTL: a.Settings.ConfirmTTL}, st, a.Asks, a.Bus, a.Registry)
 	a.Gateway.SetAutomation(a.Tokens.Automation)
@@ -139,8 +140,8 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	a.Runner = process.NewRunner(st, a.Gateway, a.Bus, a.Scripts,
 		process.Config{RunsDir: h.Runs(), MCPBase: cfg.MCPBase, Now: cfg.Now, FilesDir: h.Files(), FilesMu: &a.Files.Mu,
 			Hidden: sandbox.Agent(h), PauseLimit: cfg.PauseLimit, AgentSlots: a.Settings.AgentSlots, Rules: rules},
-		process.Deps{For: a.Providers.For, Named: a.Providers.Named, Ready: a.Providers.Ready, Prompt: a.Projects.Prompt,
-			Text: a.Projects.Text, Skills: a.Documents.Skills, Servers: a.Connections.Servers, Folder: a.Folders.Folder,
+		process.Deps{For: a.Providers.For, Named: a.Providers.Named, Ready: a.Providers.Ready, Prompt: a.Saver.Prompt,
+			Text: a.Saver.Text, Skills: a.Documents.Skills, Servers: a.Connections.Servers, Folder: a.Folders.Folder,
 			Memory: a.Chats.Memory})
 	a.Runner.Hooks = []process.Hook{a.Chats.NewHook(), errorsHook{a: a}, afterHook{a: a}}
 	a.Scheduler = trigger.New(st, a, cfg.Now)
@@ -152,7 +153,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	*a.Settings = settings.Service{St: st, DefaultTTL: cfg.ConfirmTTL, Wake: a.Runner.Wake}
 	*a.Triggers = triggers.Service{St: st, Scheduler: a.Scheduler, Gateway: a.Gateway, Registry: a.Registry}
 	*a.Documents = documents.Service{St: st, Now: cfg.Now, Sandbox: cfg.Sandbox, Ctx: a.ctx, BG: &a.bg,
-		SaveManifest: a.Projects.SaveCall, Changed: a.Devices.Changed}
+		SaveManifest: a.Saver.SaveCall, Changed: a.Devices.Changed}
 	*a.Snapshots = snapshots.Service{St: st, Bus: a.Bus, Home: h, Now: cfg.Now, LockFiles: a.Files.Mu.Lock, UnlockFiles: a.Files.Mu.Unlock,
 		RemoveFiles: a.Files.Remove}
 	*a.Board = board.Service{St: st, Bus: a.Bus, Now: cfg.Now, Fire: a.fire}
@@ -160,7 +161,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 		ACPCallLimit: cfg.ACPCallLimit, SelfCheckCeiling: cfg.SelfCheckCeiling, Secret: a.Secrets.Secret, Wake: a.Runner.Wake,
 		Rules: rules, Builtin: append([]provider.Provider{p}, more...), Ctx: a.ctx, BG: &a.bg}
 	*a.Answers = asks.Service{St: st, Now: cfg.Now, Broker: a.Asks, Registry: a.Registry, Gateway: a.Gateway, Deliver: a.Runner.Deliver,
-		AnswerGrant: a.Projects.AnswerGrant, SaveManifest: a.Projects.SaveCall, ExpireSuggestions: a.Suggest.Expire,
+		AnswerGrant: a.Saver.AnswerGrant, SaveManifest: a.Saver.SaveCall, ExpireSuggestions: a.Suggest.Expire,
 		AnswerSuggestion: a.Suggest.Answer}
 	*a.Connections = connections.Service{St: st, Ctx: a.ctx, Broker: a.Asks, OAuth: oauth, Browser: a.Browser, MCP: a.MCP}
 	*a.Suggest = suggest.Service{St: st, Bus: a.Bus, Now: cfg.Now, Registry: a.Registry, Asks: a.Asks, Gateway: a.Gateway, Days: a.Settings.SuggestDays}
@@ -169,10 +170,12 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 		Secret: a.Secrets.Secret, ReadSecret: a.Secrets.Read, WriteSecret: a.Secrets.Write, SecretsDir: h.Secrets,
 		LockSecrets: a.Secrets.Lock, UnlockSecrets: a.Secrets.Unlock, Invoke: a.Registry.Invoke}
 	*a.Tokens = tokens.Service{St: st, MCPBase: cfg.MCPBase, Journal: a.Gateway.Journal}
-	*a.Projects = project.Service{St: st, Bus: a.Bus, Now: cfg.Now, Home: h, Manifests: a.Manifests, Scripts: a.Scripts,
-		Registry: a.Registry, Gateway: a.Gateway, Runner: a.Runner, Scheduler: a.Scheduler, Broker: a.Asks,
-		Tools: a.Tools, MCP: a.MCP, Host: a.Host, PrepareLater: a.Documents.PrepareLater, Changed: a.Devices.Changed,
-		Folders: a.Folders.List, Snapshot: a.Snapshots.BeforeDelete, RemoveFiles: a.Files.Remove, CheckScreens: a.checkScreens}
+	*a.Saver = project.Saver{St: st, Bus: a.Bus, Now: cfg.Now, Home: h, Manifests: a.Manifests, Registry: a.Registry,
+		Gateway: a.Gateway, Runner: a.Runner, Scheduler: a.Scheduler, Broker: a.Asks, Scripts: a.Scripts, Tools: a.Tools,
+		MCP: a.MCP, PrepareLater: a.Documents.PrepareLater, Changed: a.Devices.Changed, CheckScreens: a.checkScreens}
+	*a.Projects = project.Service{St: st, Bus: a.Bus, Home: h, Manifests: a.Manifests, Registry: a.Registry, Gateway: a.Gateway,
+		Runner: a.Runner, Scheduler: a.Scheduler, Host: a.Host, Save: a.Saver, Folders: a.Folders.List,
+		Snapshot: a.Snapshots.BeforeDelete, RemoveFiles: a.Files.Remove}
 	a.addBuiltins()
 	a.Browser.Load()
 	a.Registry.SetExtra(a.Browser.Commands)

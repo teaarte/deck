@@ -1,5 +1,5 @@
-// Package project keeps the projects of a workspace: their manifests with the checks, migrations and rights of a
-// save, drafts and their trial runs, import and delete, and the commands a manifest gives the registry.
+// Package project keeps the projects of a workspace: their lifecycle (drafts and their trial runs, import and
+// delete), and their manifests with the checks, migrations and rights of a save and the commands they give.
 package project
 
 import (
@@ -25,8 +25,27 @@ import (
 	"deck2/internal/trigger"
 )
 
-// Service keeps the projects; the pointers are the parts of deck a project runs on, set once they exist.
+// Service keeps the lifecycle of projects: create, enable, trial runs, import and delete; Save keeps their manifests.
 type Service struct {
+	St        *store.Store
+	Bus       *events.Bus
+	Home      home.Layout
+	Manifests *docs.Manifests
+	Registry  *registry.Registry
+	Gateway   *gateway.Gateway
+	Runner    *process.Runner
+	Scheduler *trigger.Scheduler
+	Host      *mcphost.Host
+	Save      *Saver
+	Folders   func(ctx context.Context, projectID int64) ([]folders.Row, error)
+	// Snapshot writes a snapshot before a delete; RemoveFiles deletes the files whose rows are gone.
+	Snapshot    func(ctx context.Context) (string, error)
+	RemoveFiles func(ids []int64)
+}
+
+// Saver saves the manifests of projects with their checks, migrations and grants, and gives the registry the
+// commands of the manifests in force.
+type Saver struct {
 	St        *store.Store
 	Bus       *events.Bus
 	Now       func() time.Time
@@ -40,15 +59,10 @@ type Service struct {
 	Scripts   *script.Exec
 	Tools     *tools.HTTP
 	MCP       *tools.MCP
-	Host      *mcphost.Host
 	// PrepareLater records the health of the script commands of a project in the background.
 	PrepareLater func(projectID int64)
 	// Changed lists a change made without the owner.
 	Changed func(ctx context.Context, q *db.Queries, act registry.Actor, projectID int64, prev db.Document, n int64, text, reason string) error
-	Folders func(ctx context.Context, projectID int64) ([]folders.Row, error)
-	// Snapshot writes a snapshot before a delete; RemoveFiles deletes the files whose rows are gone.
-	Snapshot    func(ctx context.Context) (string, error)
-	RemoveFiles func(ids []int64)
 	// CheckScreens names the blocks of the screens of a saved manifest that fail on the data there is now.
 	CheckScreens func(ctx context.Context, act registry.Actor, p db.Project, m *manifest.Manifest) []string
 
@@ -63,7 +77,7 @@ func (pj *Service) Commands() []*registry.Command {
 }
 
 // SaveCall is SaveManifest for a service that names the call the owner allows by command and input.
-func (pj *Service) SaveCall(ctx context.Context, act registry.Actor, p db.Project, raw []byte, reason string, revertTo, ifRevision int64,
+func (sv *Saver) SaveCall(ctx context.Context, act registry.Actor, p db.Project, raw []byte, reason string, revertTo, ifRevision int64,
 	command string, input map[string]any) (any, error) {
-	return pj.SaveManifest(ctx, act, p, raw, reason, revertTo, ifRevision, Call{Command: command, Input: input})
+	return sv.SaveManifest(ctx, act, p, raw, reason, revertTo, ifRevision, Call{Command: command, Input: input})
 }

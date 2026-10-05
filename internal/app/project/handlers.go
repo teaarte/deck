@@ -3,7 +3,6 @@ package project
 import (
 	"cmp"
 	"context"
-	"deck2/internal/app/access"
 	"deck2/internal/app/folders"
 	"fmt"
 	"slices"
@@ -95,86 +94,11 @@ func (pj *Service) projectCreate(ctx context.Context, act registry.Actor, in pro
 	if strings.TrimSpace(in.Manifest) == "" {
 		in.Manifest = fmt.Sprintf(baseManifest, manifest.FormatVersion)
 	}
-	p, err := pj.CreateProject(ctx, act, in.Name, []byte(in.Manifest), in.Prompt)
+	p, err := pj.Save.CreateProject(ctx, act, in.Name, []byte(in.Manifest), in.Prompt)
 	if err != nil {
 		return nil, err
 	}
 	return map[string]any{"id": p.ID, "name": p.Name}, nil
-}
-
-type manifestGetIn struct {
-	Project string `type:"project" opt:"" desc:"Project name; defaults to the caller's own project"`
-}
-
-// manifestView is the current manifest of a project with its document and revision.
-type manifestView struct {
-	Project  string `json:"project"`
-	Document int64  `json:"document"`
-	Revision int64  `json:"revision"`
-	Manifest string `json:"manifest"`
-	// Warnings are problems the manifest is read with; its next save fails on them.
-	Warnings []string `json:"warnings,omitempty"`
-}
-
-func (pj *Service) manifestGet(ctx context.Context, act registry.Actor, in manifestGetIn) (manifestView, error) {
-	p, err := access.Project(ctx, pj.St.Q, act, in.Project)
-	if err != nil {
-		return manifestView{}, err
-	}
-	ref := docs.Ref{Scope: docs.ProjectScope(p), Name: docs.ManifestName}
-	d, err := pj.St.Q.FindDocument(ctx, ref.Find())
-	if err != nil {
-		return manifestView{}, err
-	}
-	r, err := docs.Revision(ctx, pj.St.Q, d, 0)
-	if err != nil {
-		return manifestView{}, err
-	}
-	v := manifestView{Project: p.Name, Document: d.ID, Revision: d.Current, Manifest: r.Text}
-	if m, err := docs.ManifestAt(ctx, pj.St.Q, p.ID, d.Current); err == nil {
-		v.Warnings = m.Warnings()
-	}
-	return v, nil
-}
-
-type manifestSaveIn struct {
-	Project    string `type:"project" desc:"Project name"`
-	Manifest   string `type:"json" opt:"" desc:"The whole manifest JSON; leave it out to change the current one with patch"`
-	Patch      string `type:"json" opt:"" desc:"JSON Patch (RFC 6902) of the current manifest, such as [{\"op\": \"replace\", \"path\": \"/screens/0/title\", \"value\": \"Overview\"}]: paths point at one place, so equal texts elsewhere stay"`
-	Reason     string `opt:"" desc:"Why it changed"`
-	IfRevision int64  `json:"if_revision" opt:"" desc:"Only while the current revision is still this one"`
-}
-
-func (pj *Service) manifestSave(ctx context.Context, act registry.Actor, in manifestSaveIn) (any, error) {
-	p, err := access.Project(ctx, pj.St.Q, act, in.Project)
-	if err != nil {
-		return nil, err
-	}
-	if strings.TrimSpace(in.Patch) != "" {
-		if in.Manifest != "" {
-			return nil, registry.Invalid("deck: give the whole manifest or a patch, not both")
-		}
-		d, err := pj.St.Q.FindDocument(ctx, docs.Ref{Scope: docs.ProjectScope(p), Name: docs.ManifestName}.Find())
-		if err != nil {
-			return nil, err
-		}
-		if in.IfRevision != 0 && d.Current != in.IfRevision {
-			return nil, registry.Conflict("deck: the manifest of %s is at revision %d now, not %d", p.Name, d.Current, in.IfRevision)
-		}
-		r, err := docs.Revision(ctx, pj.St.Q, d, 0)
-		if err != nil {
-			return nil, err
-		}
-		if in.Manifest, err = docs.Patch(r.Text, in.Patch); err != nil {
-			return nil, err
-		}
-		in.IfRevision = d.Current
-	}
-	if strings.TrimSpace(in.Manifest) == "" {
-		return nil, registry.Invalid("deck: give the whole manifest JSON or a JSON Patch of the current one")
-	}
-	return pj.SaveManifest(ctx, act, p, []byte(in.Manifest), in.Reason, 0, in.IfRevision,
-		Call{Command: registry.Builtin + ".manifest_save", Input: map[string]any{"project": p.Name, "manifest": in.Manifest, "reason": in.Reason}})
 }
 
 func (pj *Service) projectsCommands() []*registry.Command {
@@ -185,12 +109,6 @@ func (pj *Service) projectsCommands() []*registry.Command {
 		registry.Def("project_create", "Create project",
 			"Creates a project from its name, an md prompt and a manifest; without a manifest it has only the base board.",
 			registry.OwnerSide, pj.projectCreate),
-		registry.Read("manifest_get", "Get manifest",
-			"Returns the current manifest of a project.",
-			registry.Everyone, pj.manifestGet).On("projects"),
-		registry.Def("manifest_save", "Save manifest",
-			"Validates a manifest and stores it as a new revision: the whole manifest, or a JSON Patch of the current one; a replace keeps the text around it as written.",
-			registry.OwnerSide, pj.manifestSave),
 	}
 }
 

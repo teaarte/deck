@@ -10,7 +10,7 @@ import (
 
 func (a *App) addBuiltins() {
 	for _, cs := range [][]*registry.Command{a.Answers.Commands(), a.healthCommands(), a.Connections.Commands(), a.Board.Commands(), a.Chats.Commands(),
-		a.Documents.Commands(), a.Devices.FeedCommands(), a.Folders.Commands(), a.Projects.Commands(),
+		a.Documents.Commands(), a.Devices.FeedCommands(), a.Folders.Commands(), a.Projects.Commands(), a.Saver.Commands(),
 		a.Journal.Commands(), a.liveCommands(), a.Devices.NotifyCommands(),
 		a.processCommands(), a.Providers.Commands(), a.Devices.PushCommands(), a.recordCommands(),
 		a.screensCommands(), a.Secrets.Commands(), a.Settings.Commands(), a.Snapshots.Commands(), a.Suggest.Commands(),

@@ -86,7 +86,7 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	if err := a.Projects.Reconcile(ctx); err != nil {
+	if err := a.Saver.Reconcile(ctx); err != nil {
 		slog.Error("reconcile triggers", "err", err)
 	}
 	a.Providers.Checks(ctx, a.Cfg.Now())

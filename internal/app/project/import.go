@@ -119,7 +119,7 @@ func (pj *Service) projectImport(ctx context.Context, act registry.Actor, in pro
 		name = filepath.Base(dir)
 	}
 	reason := "imported from " + dir
-	p, err := pj.createProject(ctx, act, name, []byte(raw), prompt, store.ProjectDraft, func(ctx context.Context, q *db.Queries, p db.Project) error {
+	p, err := pj.Save.createProject(ctx, act, name, []byte(raw), prompt, store.ProjectDraft, func(ctx context.Context, q *db.Queries, p db.Project) error {
 		if err := q.SetMark(ctx, db.SetMarkParams{WorkspaceID: p.WorkspaceID, ProjectID: store.ID(p.ID), Name: importMark(p.ID), Value: dir}); err != nil {
 			return err
 		}

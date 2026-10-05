@@ -66,10 +66,13 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
 - `internal/process` — process runner: agent and script executors, start, resume, result schema check, result files;
   agent turns take a slot of the workspace (`slots.go`), the rest wait in `waiting_slot`
 - `internal/home` — the layout of `DECK_HOME`: `state/` only deck reads, `work/` the folders of runs and projects
-- `internal/sandbox` — script sandbox behind one interface: `sandbox-exec` on macOS, bubblewrap on Linux
+- `internal/sandbox` — sandbox of scripts, MCP servers and ACP agents behind one interface: `sandbox-exec` on macOS,
+  bubblewrap on Linux; `Close` — deck's folder and the owner's home closed but for the runtimes on PATH (`Runtimes`)
+  and the project folders, the old sandbox by the setting `sandbox`; `Watch` — refusals from the log of macOS
 - `internal/script` — runs project scripts in the sandbox (a script installs its own packages through the proxy)
 - `internal/trigger` — cron scheduler with catch-up after sleep
-- `internal/health` — health rows: `Set` inside a transaction, `Write` on its own and published
+- `internal/health` — health rows: `Set` inside a transaction, `Write` on its own and published; `Closed` — the
+  row `sandbox:<project>` with the last paths the sandbox kept from its programs
 - `internal/screen` — stored screens resolved into A2UI messages without a store of its own (`render.go`, `blocks.go`,
   `data.go`, `items.go` with the reads of a screen kept by source, `actions.go`, `forms.go`, the topics a block follows
   `topics.go`, components and spans from the catalog `catalog.go`, `i18n.go`)

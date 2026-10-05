@@ -291,7 +291,7 @@ func TestSettingsModelsAddAndRemoveOnTheScreen(t *testing.T) {
 	for _, r := range rows {
 		if r.Cells[0] == "ollama-small" {
 			added = r
-		} else if hasVerb(r.Actions, "remove") {
+		} else if r.Cells[2] == "subscription" && hasVerb(r.Actions, "remove") {
 			t.Fatalf("a built-in provider cannot be removed: %+v", r)
 		}
 	}

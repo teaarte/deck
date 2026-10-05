@@ -453,8 +453,8 @@ func TestAScriptCallsARoleAndAFallbackTakesARefusal(t *testing.T) {
 	if json.Unmarshal(got.Result, &out) != nil || out["status"] != 403.0 || !strings.Contains(out["answer"].(string), "POST of a model call") {
 		t.Fatalf("a role reaches only the paths of model calls, not the rest of the connection behind it: %+v", got)
 	}
-	got = e.waitScript(e.start("shorts", "voice", map[string]any{"key": "spare/audio/speech", "other": `{"model": "@stt"}`}), "done", "error")
-	if json.Unmarshal(got.Result, &out) != nil || out["status"] != 422.0 || !strings.Contains(out["answer"].(string), "no model is assigned to stt") {
+	got = e.waitScript(e.start("shorts", "voice", map[string]any{"key": "spare/images/generations", "other": `{"model": "@image"}`}), "done", "error")
+	if json.Unmarshal(got.Result, &out) != nil || out["status"] != 422.0 || !strings.Contains(out["answer"].(string), "no model is assigned to image") {
 		t.Fatalf("a role nothing is assigned to is refused with what to do: %+v", got)
 	}
 }

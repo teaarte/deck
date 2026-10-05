@@ -99,8 +99,8 @@ func TestTheModelsAndConnectionsTabsShowWhatRunsTheModels(t *testing.T) {
 		t.Fatalf("the agents show their version, and one not installed: %+v", agents)
 	}
 	conns := blockData[[]screenRow](t, e.settingsBlock("Connections", nil)["rows"])
-	if len(conns) != 1 || conns[0].Cells[0] != "router" {
-		t.Fatalf("the connections tab lists the connections: %+v", conns)
+	if len(conns) != 2 || conns[0].Cells[0] != "router" || conns[1].Cells[0] != "whisper" || fmt.Sprint(verb(t, conns[1].Actions, "edit")["params"].(map[string]any)["local"]) != "true" {
+		t.Fatalf("the connections tab lists the connections, the whisper of deck too, and edits each as it is: %+v", conns)
 	}
 	secrets := blockData[[]screenRow](t, e.settingsBlock("Other secrets", nil)["rows"])
 	if !strings.Contains(fmt.Sprint(secrets), "wiki") {

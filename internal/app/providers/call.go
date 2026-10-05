@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"mime"
 	"mime/multipart"
 	"net/http"
@@ -81,7 +82,9 @@ func (s *Service) modelCall(ctx context.Context, act registry.Actor, in modelCal
 		audio = &f
 	}
 	start := time.Now()
-	resp, h, err := s.sendHops(ctx, hops, func(h gateway.ModelHop) (modelReq, error) { return build(in, h, options, audio) })
+	resp, h, err := s.sendHops(ctx, hops, func(h gateway.ModelHop) (modelReq, error) {
+		return build(in, h, merged(maps.Clone(h.Options), options), audio)
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -117,6 +120,9 @@ func ask(in modelCallIn) string {
 
 // merged is a body with the options added; the model stays the one deck picked and priced.
 func merged(body map[string]any, options map[string]any) map[string]any {
+	if body == nil {
+		body = map[string]any{}
+	}
 	for k, v := range options {
 		if k != "model" {
 			body[k] = v

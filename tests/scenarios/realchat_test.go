@@ -119,7 +119,7 @@ func TestRealBrowserVoice(t *testing.T) {
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		return provider.Result{Text: "Put it into groceries."}
 	})
-	e.must("deck.stt_set", map[string]any{"url": whisper.URL + "/inference"}, nil)
+	e.must("deck.connection_set", map[string]any{"name": "whisper", "api": "raw", "url": whisper.URL + "/inference", "local": true}, nil)
 	b := newPlaywright(t)
 	b.call("browser_resize", map[string]any{"width": 1400, "height": 900})
 	b.open(e.URL + "/?token=" + token + "#/deck/cockpit")

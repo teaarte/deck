@@ -363,6 +363,7 @@ type modelSetIn struct {
 	OutputUSD  float64 `json:"output_usd" opt:"" desc:"USD per million output tokens"`
 	CallUSD    float64 `json:"call_usd" opt:"" desc:"USD per call, for a model priced per picture, clip or request"`
 	Free       bool    `opt:"" desc:"The model costs nothing"`
+	Options    string  `type:"json" opt:"" desc:"Fields deck adds to every call of the model of a kind, such as {\"language\": \"ru\"} of speech to text; a model changed without them keeps its own"`
 	Agent      string  `opt:"" desc:"The ACP agent that runs a text model inside the sandbox of deck with a shell and files, for agent commands; the name is then the name of a provider. A model changed without it keeps its own"`
 	// CheckMinutes give a slow model more time for its self-check.
 	CheckMinutes int64 `json:"check_minutes" opt:"" desc:"Minutes the self-check of a model in an agent may take, for a slow one; deck's own ceiling when left out"`
@@ -398,10 +399,19 @@ func (s *Service) modelSet(ctx context.Context, act registry.Actor, in modelSetI
 		}
 	}
 	m.Kind = cmp.Or(m.Kind, RoleText)
+	if in.Options != "" {
+		var o map[string]any
+		if err := json.Unmarshal([]byte(in.Options), &o); err != nil {
+			return nil, registry.Invalid("deck: options are a JSON object: %v", err)
+		}
+		m.Options = in.Options
+	}
 	var out db.Model
 	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		if old, err := q.GetModel(ctx, db.GetModelParams{WorkspaceID: act.Workspace, Name: in.Name}); err == nil {
-			m.Options = old.Model.Options
+			if in.Options == "" {
+				m.Options = old.Model.Options
+			}
 			if in.Agent == "" {
 				m.Agent, m.CheckMinutes = old.Model.Agent, old.Model.CheckMinutes
 			}

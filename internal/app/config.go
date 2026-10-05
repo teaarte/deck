@@ -1,7 +1,6 @@
 package app
 
 import (
-	"deck2/internal/app/devices"
 	"deck2/internal/registry"
 	"time"
 
@@ -29,8 +28,6 @@ type Config struct {
 	PauseLimit time.Duration
 	// SelfCheckCeiling bounds a self-check of a built-in provider.
 	SelfCheckCeiling time.Duration
-	// STT is the speech-to-text url unless the owner set one; devices.DefaultSTT when empty.
-	STT string
 	// Commands are more builtin commands, such as the probes of tests.
 	Commands []*registry.Command
 }
@@ -57,9 +54,6 @@ func (c *Config) defaults() {
 	}
 	if c.Browser == nil {
 		c.Browser = DefaultBrowser
-	}
-	if c.STT == "" {
-		c.STT = devices.DefaultSTT
 	}
 }
 

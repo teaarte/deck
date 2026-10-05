@@ -72,8 +72,6 @@ type Service struct {
 	SecretsDir    func(workspace int64) string
 	LockSecrets   func()
 	UnlockSecrets func()
-	// STT is the speech-to-text url unless the owner set one.
-	STT string
 	// Invoke calls a command, as the undo of a change does.
 	Invoke func(ctx context.Context, act registry.Actor, name string, input json.RawMessage) (any, error)
 

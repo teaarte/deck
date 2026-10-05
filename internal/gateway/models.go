@@ -37,6 +37,8 @@ type ModelHop struct {
 	Wait time.Duration
 	// Local is a connection on the owner's hardware; Free is a model that costs nothing.
 	Local, Free bool
+	// Options are the fields a call of a kind adds to the request of this model, such as language.
+	Options map[string]any
 	// Done keeps the call: the status the API answered and what it used, nil when it did not say.
 	Done func(ctx context.Context, status int, u *provider.Usage)
 }

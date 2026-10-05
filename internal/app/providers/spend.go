@@ -135,6 +135,7 @@ func (s *Service) hop(ctx context.Context, workspace, project int64, m db.Model,
 	}
 	h := gateway.ModelHop{Target: gateway.ModelTarget{URL: c.Url, API: c.Api, Key: key}, Connection: c.Name, Model: m.Model,
 		Local: c.Local != 0, Free: m.Free != 0}
+	_ = json.Unmarshal([]byte(m.Options), &h.Options)
 	var end time.Time
 	if h.Over, end = s.over(ctx, c, project); h.Over != "" {
 		h.Wait = end.Sub(s.Now())

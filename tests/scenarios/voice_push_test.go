@@ -23,7 +23,6 @@ import (
 
 	"golang.org/x/crypto/hkdf"
 
-	"deck2/internal/app"
 	"deck2/internal/provider"
 )
 
@@ -63,7 +62,8 @@ func TestVoiceBecomesTextOfTheMessage(t *testing.T) {
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		return provider.Result{Text: "Put it into groceries."}
 	})
-	e.must("deck.stt_set", map[string]any{"url": whisper.URL + "/inference", "language": "en"}, nil)
+	e.must("deck.connection_set", map[string]any{"name": "whisper", "api": "raw", "url": whisper.URL + "/inference", "local": true}, nil)
+	e.must("deck.model_set", map[string]any{"connection": "whisper", "model": "whisper", "kind": "stt", "name": "whisper", "free": true, "options": `{"language": "en"}`}, nil)
 	id := e.upload("master", "voice.wav", "audio/wav", "RIFF....WAVEfmt fake recording")
 	var out struct{ Text string }
 	e.must("deck.transcribe", map[string]any{"file": itoa(id)}, &out)
@@ -79,19 +79,15 @@ func TestVoiceBecomesTextOfTheMessage(t *testing.T) {
 	if said := e.masterSaid(topic, 1); said[0].Text != "Put it into groceries." {
 		t.Fatalf("the text goes to the master as the owner's message: %+v", said)
 	}
-	e.must("deck.stt_set", map[string]any{"url": "http://127.0.0.1:1/inference"}, nil)
+	var calls []spendRow
+	e.must("deck.llm_calls_list", nil, &calls)
+	if len(calls) != 1 || calls[0].Provider != "whisper" || calls[0].Model != "whisper" {
+		t.Fatalf("speech to text is a call of its model in the journal: %+v", calls)
+	}
+	e.must("deck.connection_set", map[string]any{"name": "whisper", "api": "raw", "url": "http://127.0.0.1:1/inference", "local": true}, nil)
 	id = e.upload("master", "voice.wav", "audio/wav", "RIFF")
 	if code, msg := e.call("deck.transcribe", map[string]any{"file": itoa(id)}); code != 422 || !strings.Contains(string(msg), "speech to text") {
 		t.Fatalf("a whisper that does not answer is an error the owner reads: %d %s", code, msg)
-	}
-	var health []struct{ Subject, Status string }
-	e.must("deck.health_list", nil, &health)
-	found := false
-	for _, h := range health {
-		found = found || h.Subject == "stt" && h.Status == "error"
-	}
-	if !found {
-		t.Fatalf("the provider shows in health: %+v", health)
 	}
 }
 
@@ -280,7 +276,7 @@ func TestAPushThatFailsForNowIsSentAgain(t *testing.T) {
 	}
 }
 
-// TestTheLanguageOfSpeechIsDetectedByDefault: without a language whisper.cpp is asked for auto, also before the
+// TestTheLanguageOfSpeechIsDetectedByDefault: the whisper.cpp deck sets up asks for auto, also before the
 // owner set up speech at all; an OpenAI-style API, which detects it when the field is left out, gets none.
 func TestTheLanguageOfSpeechIsDetectedByDefault(t *testing.T) {
 	var mu sync.Mutex
@@ -305,18 +301,19 @@ func TestTheLanguageOfSpeechIsDetectedByDefault(t *testing.T) {
 		_, _ = w.Write([]byte(`{"text": "hi"}`))
 	}))
 	t.Cleanup(whisper.Close)
-	e := newEnv(t, nil, func(c *app.Config) { c.STT = whisper.URL + "/default" })
+	e := newEnv(t, nil)
+	e.must("deck.connection_set", map[string]any{"name": "whisper", "api": "raw", "url": whisper.URL + "/inference", "local": true}, nil)
 	id := e.upload("master", "voice.wav", "audio/wav", "RIFF....WAVEfmt fake recording")
 	e.must("deck.transcribe", map[string]any{"file": itoa(id)}, nil)
-	for _, path := range []string{"/inference", "/v1/audio/transcriptions"} {
-		e.must("deck.stt_set", map[string]any{"url": whisper.URL + path}, nil)
-		id := e.upload("master", "voice.wav", "audio/wav", "RIFF....WAVEfmt fake recording")
-		e.must("deck.transcribe", map[string]any{"file": itoa(id)}, nil)
-	}
+	e.must("deck.connection_set", map[string]any{"name": "openai", "api": "openai", "url": whisper.URL + "/v1", "key": "sk-o"}, nil)
+	e.must("deck.model_set", map[string]any{"connection": "openai", "model": "whisper-1", "kind": "stt"}, nil)
+	e.must("deck.assignment_set", map[string]any{"role": "stt", "models": []string{"openai/whisper-1"}}, nil)
+	id = e.upload("master", "voice.wav", "audio/wav", "RIFF....WAVEfmt fake recording")
+	e.must("deck.transcribe", map[string]any{"file": itoa(id)}, nil)
 	mu.Lock()
 	defer mu.Unlock()
-	if langs["/default"] != "auto" || langs["/inference"] != "auto" || langs["/v1/audio/transcriptions"] != "-" {
-		t.Fatalf("the language is detected by default: %v", langs)
+	if langs["/inference"] != "auto" || langs["/v1/audio/transcriptions"] != "-" {
+		t.Fatalf("the whisper of deck detects the language, an OpenAI-style service is not told one: %v", langs)
 	}
 }
 
@@ -367,12 +364,6 @@ func TestNoToolGetsThePushKey(t *testing.T) {
 	}
 }
 
-// TestSpeechToTextNamesARealSecret: a key secret of only dots is refused when speech to text is set.
-func TestSpeechToTextNamesARealSecret(t *testing.T) {
-	e := newEnv(t, nil)
-	e.refused("deck.stt_set", map[string]any{"url": "http://127.0.0.1:1/inference", "key_secret": ".."}, 422, "bad secret name")
-}
-
 // TestADeviceThatFailsHoldsBackOnlyItself: each device keeps its own place in what was pushed, so a device whose
 // service fails gets it later and the others get each push once; the health of pushes names the failing one.
 func TestADeviceThatFailsHoldsBackOnlyItself(t *testing.T) {
@@ -394,25 +385,5 @@ func TestADeviceThatFailsHoldsBackOnlyItself(t *testing.T) {
 	}
 	if h := e.waitHealth("push", "error"); !strings.Contains(h.Error, "mac") {
 		t.Fatalf("the health of pushes names the device that fails: %+v", h)
-	}
-}
-
-// TestSpeechToTextTakesNoNameOfAnotherModel: a provider already named stt keeps its agent when the owner sets
-// speech to text, which takes a name of its own.
-func TestSpeechToTextTakesNoNameOfAnotherModel(t *testing.T) {
-	e := newEnv(t, nil)
-	if _, err := e.App.Store.DB.Exec(`INSERT INTO connection (id, workspace_id, name, url) VALUES (7, 1, 'stt', 'https://x.example/v1');
-		INSERT INTO model (workspace_id, connection_id, name, model, agent) VALUES (1, 7, 'stt', 'm', 'opencode')`); err != nil {
-		t.Fatal(err)
-	}
-	e.must("deck.stt_set", map[string]any{"url": "http://127.0.0.1:1/inference"}, nil)
-	e.must("deck.stt_set", map[string]any{"url": "http://127.0.0.1:2/inference"}, nil)
-	var agent, url string
-	if err := e.App.Store.DB.QueryRow(`SELECT m.agent, k.url FROM model m JOIN connection k ON k.id = m.connection_id WHERE m.name = 'stt'`).Scan(&agent, &url); err != nil || agent != "opencode" || url != "https://x.example/v1" {
-		t.Fatalf("the provider stays as it was: %q %q %v", agent, url, err)
-	}
-	var n int
-	if err := e.App.Store.DB.QueryRow(`SELECT count(*) FROM model WHERE kind = 'stt'`).Scan(&n); err != nil || n != 1 {
-		t.Fatalf("speech to text is one model of its own, changed in place: %d %v", n, err)
 	}
 }

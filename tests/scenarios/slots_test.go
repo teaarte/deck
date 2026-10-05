@@ -76,7 +76,7 @@ func TestAgentLimitHoldsTheFourthAgentUntilASlotFreesAndScriptsDoNotCount(t *tes
 	waitTopic(t, events, "settings")
 	e.waitFor("a raised limit to run the last one", func() bool { return e.process(ids[4]).State == "running" })
 	rows := blockData[[]screenRow](t, e.settingsBlock("General", nil)["rows"])
-	if len(rows) != 4 || rows[1].Cells[1] != float64(5) || rows[1].Cells[2] != float64(3) {
+	if len(rows) != 5 || rows[1].Cells[1] != float64(5) || rows[1].Cells[2] != float64(3) {
 		t.Fatalf("the general tab shows the limit and its default: %+v", rows)
 	}
 

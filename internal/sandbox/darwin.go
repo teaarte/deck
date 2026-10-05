@@ -176,7 +176,7 @@ func (s *seatbelt) stream() func() {
 	}()
 	select {
 	case <-ready:
-	case <-time.After(3 * time.Second):
+	case <-time.After(10 * time.Second):
 	}
 	return cancel
 }

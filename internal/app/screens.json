@@ -338,7 +338,8 @@
                 {"verb": "edit", "primary": true, "command": "deck.settings_set", "input": "confirm_hours", "when": "name == 'confirm_hours'"},
                 {"verb": "edit", "primary": true, "command": "deck.settings_set", "input": "agent_limit", "when": "name == 'agent_limit'"},
                 {"verb": "edit", "primary": true, "command": "deck.settings_set", "input": "suggest_days", "when": "name == 'suggest_days'"},
-                {"verb": "edit", "primary": true, "command": "deck.settings_set", "input": "language", "options": "$record.options", "when": "name == 'language'"}
+                {"verb": "edit", "primary": true, "command": "deck.settings_set", "input": "language", "options": "$record.options", "when": "name == 'language'"},
+                {"verb": "edit", "primary": true, "command": "deck.settings_set", "input": "sandbox", "options": "$record.options", "when": "name == 'sandbox'"}
               ]}
           ]},
           {"title": "Interface", "icon": "palette", "blocks": [{"type": "appearance", "title": "Appearance", "icon": "palette"},

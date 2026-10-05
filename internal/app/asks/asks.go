@@ -416,13 +416,19 @@ func (s *Service) addToList(ctx context.Context, act registry.Actor, p db.Projec
 	return err
 }
 
-// LateAnswer delivers an answer nobody was waiting for live; Deliver ignores processes that are not parked.
+// LateAnswer delivers an answer nobody was waiting for live; an answer to a process that has finished goes to the
+// master.
 func (s *Service) LateAnswer(ctx context.Context, q db.Ask) {
 	if !q.ProcessID.Valid {
 		return
 	}
 	if err := s.Deliver(ctx, q.ProcessID.Int64); err != nil {
 		slog.Error("deliver answer", "process", q.ProcessID.Int64, "err", err)
+	}
+	p, err := s.St.Q.GetProcess(ctx, q.ProcessID.Int64)
+	a, aerr := s.St.Q.GetAsk(ctx, q.ID)
+	if err == nil && aerr == nil && p.FinishedAt.Valid && a.Kind == ask.KindQuestion && a.State == "answered" && !a.DeliveredAt.Valid {
+		s.unheard(ctx, p, a, "it had finished before the answer came")
 	}
 }
 

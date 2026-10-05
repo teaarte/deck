@@ -144,6 +144,32 @@ func TestAnAnswerTheProcessDidNotActOnGoesToTheMaster(t *testing.T) {
 	}
 }
 
+// TestAnAnswerAfterTheProcessFinishedGoesToTheMaster: the owner answers a question whose process finished in the
+// meantime; no process takes the answer, so the master does.
+func TestAnAnswerAfterTheProcessFinishedGoesToTheMaster(t *testing.T) {
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		return provider.Result{Structured: json.RawMessage(`null`)}
+	})
+	p := e.createProject("ideas", nullable(ideasManifest))
+	id := e.run(p, "collect")
+	e.waitState(id, "done")
+	if _, err := e.App.Store.DB.Exec(`INSERT INTO ask (workspace_id, project_id, process_id, kind, text) VALUES (1, ?, ?, 'question', 'Which voice?')`, p, id); err != nil {
+		t.Fatal(err)
+	}
+	a := e.waitAsk()
+	e.answer(a.ID, `{"Which voice?":"the calm one"}`)
+	if n := e.waitNote("the calm one"); !strings.Contains(n.Text, fmt.Sprintf("#%d", id)) {
+		t.Fatalf("the owner hears that the master has the answer: %+v", n)
+	}
+	var feed []struct{ Kind string }
+	e.must("deck.feed_list", map[string]any{"unread": true}, &feed)
+	for _, f := range feed {
+		if f.Kind != "note" {
+			t.Fatalf("unread are notes only: %+v", feed)
+		}
+	}
+}
+
 // TestAQuestionWhoseCallDroppedStaysOpenWhenTheTurnBreaks: the transport drops while the owner is asked and the
 // turn ends with an error; the question stays for the owner and the answer resumes the session.
 func TestAQuestionWhoseCallDroppedStaysOpenWhenTheTurnBreaks(t *testing.T) {

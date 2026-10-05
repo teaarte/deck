@@ -145,7 +145,7 @@ func (q *Queries) GetFeed(ctx context.Context, id int64) (Feed, error) {
 
 const listFeed = `-- name: ListFeed :many
 SELECT id, workspace_id, project_id, kind, author, text, screen, record_id, actions, command, params, document_id, revision, undone_at, created_at, for_master, read_at FROM feed WHERE workspace_id = ?1 AND (?2 = 0 OR project_id = ?2)
-  AND (?3 = '' OR kind = ?3) AND for_master = 0 AND (CAST(?4 AS INTEGER) = 0 OR read_at IS NULL)
+  AND (?3 = '' OR kind = ?3) AND for_master = 0 AND (CAST(?4 AS INTEGER) = 0 OR kind = 'note' AND read_at IS NULL)
 ORDER BY id DESC LIMIT ?5
 `
 

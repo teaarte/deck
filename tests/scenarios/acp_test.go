@@ -507,7 +507,10 @@ func TestACPProviderNameIsUniqueAcrossWorkspaces(t *testing.T) {
 	if _, err := e.App.Store.DB.ExecContext(ctx, `INSERT INTO workspace (id, name) VALUES (2, 'other')`); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := e.App.Store.DB.ExecContext(ctx, `INSERT INTO setting (workspace_id, key, value) VALUES (2, 'provider:shared', '{"url":"http://x/v1","model":"m","agent":"dsh"}')`); err != nil {
+	if _, err := e.App.Store.DB.ExecContext(ctx, `INSERT INTO connection (id, workspace_id, name, url) VALUES (9, 2, 'x', 'http://x/v1')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.App.Store.DB.ExecContext(ctx, `INSERT INTO model (workspace_id, connection_id, name, model, agent) VALUES (2, 9, 'shared', 'm', 'dsh')`); err != nil {
 		t.Fatal(err)
 	}
 	code, out := e.call("deck.provider_add", map[string]any{"name": "shared", "url": "http://localhost:1/v1", "model": "m", "agent": "dsh"})
@@ -594,7 +597,7 @@ func TestACPProviderIsNotUsedBeforeItsFirstSelfCheck(t *testing.T) {
 		_, _ = e.call("deck.provider_add", map[string]any{"name": "acp", "url": llm.URL, "model": "m", "agent": "dsh"})
 	}()
 	e.waitFor("the provider", func() bool {
-		_, err := e.App.Store.Q.GetSetting(t.Context(), db.GetSettingParams{WorkspaceID: 1, Key: "provider:acp"})
+		_, err := e.App.Store.Q.GetModel(t.Context(), db.GetModelParams{WorkspaceID: 1, Name: "acp"})
 		return err == nil
 	})
 	e.must("deck.provider_set", map[string]any{"command": "paint.work", "provider": "acp"}, nil)

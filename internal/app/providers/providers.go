@@ -8,6 +8,7 @@ import (
 	"deck2/internal/app/access"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 	"sync"
@@ -24,8 +25,6 @@ import (
 	"deck2/internal/store"
 	"deck2/internal/store/db"
 )
-
-const providerPrefix = "provider:"
 
 // Service keeps the providers. Wake lets turns that wait for a provider go on once it is ready; Ctx and BG are
 // the life of deck, for the self-checks it runs in the background.
@@ -51,18 +50,6 @@ type Service struct {
 	check map[string]*checks
 }
 
-// providerDef is a provider the owner added to a workspace: an ACP agent on an OpenAI-compatible API.
-type providerDef struct {
-	URL       string `json:"url"`
-	Model     string `json:"model"`
-	KeySecret string `json:"key_secret,omitempty"`
-	NoCloud   bool   `json:"no_cloud,omitempty"`
-	// Agent is the ACP agent that runs the model inside the sandbox of deck.
-	Agent string `json:"agent,omitempty"`
-	// CheckMinutes bound its self-check; deck's own ceiling when zero.
-	CheckMinutes int64 `json:"check_minutes,omitempty"`
-}
-
 // Named is the provider of a workspace by name: a built-in one of deck or one the owner added.
 func (s *Service) Named(ctx context.Context, projectID int64, name string) (provider.Provider, error) {
 	p, err := s.St.Q.GetProject(ctx, projectID)
@@ -76,33 +63,30 @@ func (s *Service) Provider(ctx context.Context, workspace int64, name string) (p
 	if pv := s.builtinNamed(name); pv != nil {
 		return pv, nil
 	}
-	raw, err := s.St.Q.GetSetting(ctx, db.GetSettingParams{WorkspaceID: workspace, Key: providerPrefix + name})
+	row, err := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: workspace, Name: name})
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, registry.NotFound("deck: no provider %q; add it with deck.provider_add", name)
 	}
 	if err != nil {
 		return nil, err
 	}
-	var d providerDef
-	if err := json.Unmarshal([]byte(raw), &d); err != nil {
-		return nil, err
+	m, c := row.Model, row.Connection
+	if strings.ContainsAny(c.Url, "@?#") {
+		return nil, registry.Invalid("deck: the url of connection %q holds a user, query or key; add it again with deck.provider_add and key_secret", c.Name)
 	}
-	if strings.ContainsAny(d.URL, "@?#") {
-		return nil, registry.Invalid("deck: the url of provider %q holds a user, query or key; add it again with deck.provider_add and key_secret", name)
+	if m.Agent == "" {
+		return nil, registry.Invalid("deck: model %q runs in no agent; add it again with agent %s", name, strings.Join(acp.Names(), " or "))
 	}
 	key := func() (string, error) {
-		if d.KeySecret == "" {
+		if c.KeySecret == "" {
 			return "", nil
 		}
-		return s.Secret(workspace, d.KeySecret)
+		return s.Secret(workspace, c.KeySecret)
 	}
-	if d.Agent == "" {
-		return nil, registry.Invalid("deck: provider %q has no ACP agent; add it again with agent %s", name, strings.Join(acp.Names(), " or "))
-	}
-	return acp.New(acp.Config{Name: name, Agent: d.Agent, Binary: s.ACPBinaries[d.Agent], URL: d.URL, Model: d.Model,
-		Key: key, NoCloud: d.NoCloud, Home: s.Home, Sandbox: s.Sandbox, CallLimit: s.ACPCallLimit, Now: s.Now,
+	return acp.New(acp.Config{Name: name, Agent: m.Agent, Binary: s.ACPBinaries[m.Agent], URL: c.Url, Model: m.Model,
+		Key: key, NoCloud: c.Local != 0, Home: s.Home, Sandbox: s.Sandbox, CallLimit: s.ACPCallLimit, Now: s.Now,
 		Open:         func() bool { return s.Rules.IsOpen(context.Background(), workspace) },
-		CheckCeiling: time.Duration(d.CheckMinutes) * time.Minute})
+		CheckCeiling: time.Duration(m.CheckMinutes) * time.Minute})
 }
 
 // named is a built-in provider, or one the owner added to any workspace; nil when there is none.
@@ -138,42 +122,60 @@ func (s *Service) checked(ctx context.Context) []provider.Provider {
 	return out
 }
 
-// providers lists every provider of a workspace, the built-in ones first.
+// All lists every provider of a workspace, the built-in ones first, then the models that run in an agent.
 func (s *Service) All(ctx context.Context, workspace int64) ([]provider.Provider, error) {
-	rows, err := s.St.Q.ListSettings(ctx, db.ListSettingsParams{WorkspaceID: workspace, Prefix: providerPrefix})
+	rows, err := s.St.Q.ListModels(ctx, workspace)
 	if err != nil {
 		return nil, err
 	}
 	out := slices.Clone(s.Builtin)
 	for _, r := range rows {
-		if pv, err := s.Provider(ctx, workspace, strings.TrimPrefix(r.Key, providerPrefix)); err == nil {
+		if r.Model.Agent == "" {
+			continue
+		}
+		if pv, err := s.Provider(ctx, workspace, r.Model.Name); err == nil {
 			out = append(out, pv)
 		}
 	}
 	return out, nil
 }
 
-// For picks the provider a command starts on: the owner's setting, else the suggestion of the manifest,
-// else the main provider, else any that fits. A setting that no longer fits refuses the start.
+// For picks the provider a command starts on: the first of its assignment that fits and is up, else the suggestion of
+// the manifest, else the main provider, else any that fits; an assignment none of which fits refuses the start.
 func (s *Service) For(ctx context.Context, projectID int64, cmd *manifest.Command) (provider.Provider, error) {
 	p, err := s.St.Q.GetProject(ctx, projectID)
 	if err != nil {
 		return nil, err
 	}
 	place := p.Name + "." + cmd.Name
-	chosen, err := s.St.Q.GetCommandProvider(ctx, db.GetCommandProviderParams{ProjectID: p.ID, Command: cmd.Name})
-	if err == nil {
-		pv, err := s.Provider(ctx, p.WorkspaceID, chosen)
-		if err != nil {
-			return nil, registry.Invalid("deck: %s is set to provider %q, which is gone; pick another with deck.provider_set", place, chosen)
-		}
-		if missing := pv.Caps().Missing(cmd.Requires); len(missing) > 0 {
-			return nil, registry.Invalid("deck: provider %s set for %s lacks %s; pick another with deck.provider_set", chosen, place, strings.Join(missing, ", "))
-		}
-		return pv, nil
-	}
-	if !errors.Is(err, sql.ErrNoRows) {
+	names, err := Assigned(ctx, s.St.Q, p.WorkspaceID, p.ID, cmd.Name, RoleAgent)
+	if err != nil {
 		return nil, err
+	}
+	if len(names) > 0 {
+		var fits []provider.Provider
+		var why []string
+		for _, name := range names {
+			pv, err := s.Provider(ctx, p.WorkspaceID, name)
+			if err != nil {
+				why = append(why, fmt.Sprintf("deck: %s is set to provider %q, which is gone; pick another with deck.provider_set", place, name))
+				continue
+			}
+			if missing := pv.Caps().Missing(cmd.Requires); len(missing) > 0 {
+				why = append(why, fmt.Sprintf("deck: provider %s set for %s lacks %s; pick another with deck.provider_set", name, place, strings.Join(missing, ", ")))
+				continue
+			}
+			fits = append(fits, pv)
+		}
+		if len(fits) == 0 {
+			return nil, registry.Invalid("%s", strings.Join(why, "; "))
+		}
+		for _, pv := range fits {
+			if s.up(ctx, pv.Name()) {
+				return pv, nil
+			}
+		}
+		return fits[0], nil
 	}
 	all, err := s.All(ctx, p.WorkspaceID)
 	if err != nil {
@@ -189,6 +191,13 @@ func (s *Service) For(ctx context.Context, projectID int64, cmd *manifest.Comman
 		}
 	}
 	return nil, registry.Invalid("deck: no provider fits %s, which requires %s; add one with deck.provider_add", place, strings.Join(cmd.Requires, ", "))
+}
+
+// up reports whether a provider's health lets a new turn start on it rather than on a fallback: not red, not
+// waiting for a login, not paused by a limit.
+func (s *Service) up(ctx context.Context, name string) bool {
+	h, err := s.St.Q.GetHealth(ctx, process.HealthSubject(name))
+	return err != nil || h.Status != "error" && h.Status != "needs_login" && h.Status != "paused"
 }
 
 func (s *Service) builtinNamed(name string) provider.Provider {
@@ -229,31 +238,32 @@ func (s *Service) agentCommand(ctx context.Context, workspace int64, place strin
 }
 
 // setPlace keeps the provider the owner chose for an agent command; empty goes back to the default.
-func (s *Service) setPlace(ctx context.Context, project int64, command, name string) error {
+func (s *Service) setPlace(ctx context.Context, workspace, project int64, command, name string) error {
 	return s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		if name == "" {
-			return q.DeleteCommandProvider(ctx, db.DeleteCommandProviderParams{ProjectID: project, Command: command})
+			return q.DeleteAssignment(ctx, db.DeleteAssignmentParams{WorkspaceID: workspace, ProjectID: project, Command: command, Role: RoleAgent})
 		}
-		return q.SetCommandProvider(ctx, db.SetCommandProviderParams{ProjectID: project, Command: command, Provider: name})
+		models, _ := json.Marshal([]string{name})
+		return q.SetAssignment(ctx, db.SetAssignmentParams{WorkspaceID: workspace, ProjectID: store.ID(project), Command: command, Role: RoleAgent, Models: string(models)})
 	})
 }
 
-func checkDef(name string, d providerDef, builtin []string) error {
+func checkAdd(in providerAddIn, builtin []string) error {
 	switch {
-	case !access.ProjectName.MatchString(name) || slices.Contains(builtin, name):
-		return registry.Invalid("deck: provider name %q: lowercase letters, digits and '-', not %s", name, strings.Join(builtin, " or "))
-	case !strings.HasPrefix(d.URL, "http://") && !strings.HasPrefix(d.URL, "https://"):
-		return registry.Invalid("deck: provider url must be http or https, got %q", d.URL)
-	case strings.ContainsAny(d.URL, "@?#"):
+	case !access.ProjectName.MatchString(in.Name) || slices.Contains(builtin, in.Name):
+		return registry.Invalid("deck: provider name %q: lowercase letters, digits and '-', not %s", in.Name, strings.Join(builtin, " or "))
+	case !strings.HasPrefix(in.URL, "http://") && !strings.HasPrefix(in.URL, "https://"):
+		return registry.Invalid("deck: provider url must be http or https, got %q", in.URL)
+	case strings.ContainsAny(in.URL, "@?#"):
 		return registry.Invalid("deck: provider url takes no user, query or key; keep the API key in a secret and name it in key_secret")
-	case strings.TrimSpace(d.Model) == "":
+	case strings.TrimSpace(in.Model) == "":
 		return registry.Invalid("deck: provider needs a model")
-	case d.KeySecret != "" && !access.ValidSecret(d.KeySecret):
-		return registry.Invalid("deck: bad secret name %q", d.KeySecret)
-	case d.CheckMinutes < 0 || d.CheckMinutes > 60:
+	case in.KeySecret != "" && !access.ValidSecret(in.KeySecret):
+		return registry.Invalid("deck: bad secret name %q", in.KeySecret)
+	case in.CheckMinutes < 0 || in.CheckMinutes > 60:
 		return registry.Invalid("deck: check_minutes is 1 to 60, or 0 for deck's own ceiling")
-	case acp.Agents[d.Agent].Start == nil:
-		return registry.Invalid("deck: no ACP agent %q; deck knows %s", d.Agent, strings.Join(acp.Names(), ", "))
+	case acp.Agents[in.Agent].Start == nil:
+		return registry.Invalid("deck: no ACP agent %q; deck knows %s", in.Agent, strings.Join(acp.Names(), ", "))
 	}
 	return nil
 }

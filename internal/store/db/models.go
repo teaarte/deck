@@ -24,6 +24,15 @@ type Ask struct {
 	DeliveredAt sql.NullString
 }
 
+type Assignment struct {
+	ID          int64
+	WorkspaceID int64
+	ProjectID   sql.NullInt64
+	Command     string
+	Role        string
+	Models      string
+}
+
 type AutomationToken struct {
 	ID          int64
 	WorkspaceID int64
@@ -83,10 +92,17 @@ type ChatTopic struct {
 	UpdatedAt   string
 }
 
-type CommandProvider struct {
-	ProjectID int64
-	Command   string
-	Provider  string
+type Connection struct {
+	ID          int64
+	WorkspaceID int64
+	Name        string
+	Api         string
+	Url         string
+	KeySecret   string
+	Local       int64
+	DailyUsd    sql.NullFloat64
+	Open        int64
+	CreatedAt   string
 }
 
 type Document struct {
@@ -196,6 +212,23 @@ type McpTool struct {
 	Fingerprint string
 	Approved    string
 	Listed      int64
+}
+
+type Model struct {
+	ID           int64
+	WorkspaceID  int64
+	ConnectionID int64
+	Name         string
+	Model        string
+	Kind         string
+	Agent        string
+	InputUsd     sql.NullFloat64
+	OutputUsd    sql.NullFloat64
+	CallUsd      sql.NullFloat64
+	Free         int64
+	Options      string
+	CheckMinutes int64
+	CreatedAt    string
 }
 
 type Process struct {

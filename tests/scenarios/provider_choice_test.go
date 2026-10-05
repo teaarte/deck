@@ -152,8 +152,8 @@ func TestProviderURLCarriesNoKey(t *testing.T) {
 		}
 	}
 	e.must("deck.provider_add", map[string]any{"name": "cloud", "url": "https://api.example/v1", "model": "m", "key_secret": "k", "agent": "opencode"}, nil)
-	_, err := e.App.Store.DB.Exec(`INSERT INTO setting (workspace_id, key, value) VALUES (1, 'provider:old', ?)`,
-		`{"url": "https://api.example/v1?key=sk-stored", "model": "m"}`)
+	_, err := e.App.Store.DB.Exec(`INSERT INTO connection (workspace_id, name, url) VALUES (1, 'old', 'https://api.example/v1?key=sk-stored');
+		INSERT INTO model (workspace_id, connection_id, name, model, agent) SELECT 1, id, 'old', 'm', 'opencode' FROM connection WHERE name = 'old'`)
 	if err != nil {
 		t.Fatal(err)
 	}

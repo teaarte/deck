@@ -23,7 +23,8 @@ import (
 )
 
 const (
-	settingSTT = "setting:stt"
+	// stt names the connection, the model and the role of speech to text the owner sets.
+	stt = "stt"
 	// DefaultSTT is the whisper.cpp server on this machine.
 	DefaultSTT = "http://127.0.0.1:8178/inference"
 	// maxVoice is the largest recording deck turns into text.
@@ -39,10 +40,20 @@ type sttDef struct {
 	Language  string `json:"language,omitempty"`
 }
 
+// stt is the first model assigned to speech to text in the workspace, else the whisper.cpp server of deck.
 func (dv *Service) stt(ctx context.Context, workspace int64) sttDef {
 	var d sttDef
-	if raw, err := dv.St.Q.GetSetting(ctx, db.GetSettingParams{WorkspaceID: workspace, Key: settingSTT}); err == nil {
-		_ = json.Unmarshal([]byte(raw), &d)
+	var names []string
+	if raw, err := dv.St.Q.GetAssignment(ctx, db.GetAssignmentParams{WorkspaceID: workspace, Role: stt}); err == nil && json.Unmarshal([]byte(raw), &names) == nil && len(names) > 0 {
+		if row, err := dv.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: workspace, Name: names[0]}); err == nil {
+			d = sttDef{URL: row.Connection.Url, Model: row.Model.Model, KeySecret: row.Connection.KeySecret}
+			if row.Connection.Api == "openai" {
+				d.URL = strings.TrimRight(d.URL, "/") + "/audio/transcriptions"
+			}
+			var o struct{ Language string }
+			_ = json.Unmarshal([]byte(row.Model.Options), &o)
+			d.Language = o.Language
+		}
 	}
 	d.URL = cmp.Or(d.URL, dv.STT, DefaultSTT)
 	d.Language = cmp.Or(d.Language, "auto")
@@ -66,9 +77,17 @@ func (dv *Service) sttSet(ctx context.Context, act registry.Actor, in sttSetIn) 
 	case d.KeySecret != "" && !access.ValidSecret(d.KeySecret):
 		return nil, registry.Invalid("deck: bad secret name %q", d.KeySecret)
 	}
-	raw, _ := json.Marshal(d)
+	options, _ := json.Marshal(map[string]string{"language": d.Language})
 	err := dv.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		return q.SetSetting(ctx, db.SetSettingParams{WorkspaceID: act.Workspace, Key: settingSTT, Value: string(raw)})
+		c, err := q.AddConnection(ctx, db.AddConnectionParams{WorkspaceID: act.Workspace, Name: stt, Api: "raw", Url: d.URL, KeySecret: d.KeySecret})
+		if err != nil {
+			return err
+		}
+		_, err = q.AddModel(ctx, db.AddModelParams{WorkspaceID: act.Workspace, ConnectionID: c.ID, Name: stt, Model: d.Model, Kind: stt, Options: string(options)})
+		if err != nil {
+			return err
+		}
+		return q.SetAssignment(ctx, db.SetAssignmentParams{WorkspaceID: act.Workspace, Command: "", Role: stt, Models: `["stt"]`})
 	})
 	if err != nil {
 		return nil, err

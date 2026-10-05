@@ -513,8 +513,8 @@ func TestTheChatReadAndTheTopicsAreOneModel(t *testing.T) {
 // in its topic instead of waiting silently.
 func TestAReplyThatDoesNotStartIsSeenInTheTopic(t *testing.T) {
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result { return provider.Result{Text: "Hi."} })
-	if _, err := e.App.Store.DB.Exec(`INSERT INTO command_provider (project_id, command, provider)
-		SELECT id, 'reply', 'gone' FROM project WHERE name = 'master'`); err != nil {
+	if _, err := e.App.Store.DB.Exec(`INSERT INTO assignment (workspace_id, project_id, command, role, models)
+		SELECT 1, id, 'reply', 'agent', '["gone"]' FROM project WHERE name = 'master'`); err != nil {
 		t.Fatal(err)
 	}
 	topic := e.say(0, "hello")

@@ -32,7 +32,9 @@ type table struct {
 var tables = map[string]table{
 	"project":           {"projects", "id", nil},
 	"project_folder":    {"projects", "project_id", nil},
-	"command_provider":  {"projects", "project_id", nil},
+	"assignment":        {"projects", "project_id", nil},
+	"connection":        {"models", "workspace_id", nil},
+	"model":             {"models", "workspace_id", nil},
 	"mcp_tool":          {"projects", "project_id", nil},
 	"trigger":           {"triggers", "project_id", nil},
 	"process":           {"processes", "project_id", []string{"output_ms"}},

@@ -21,11 +21,13 @@ type providerView struct {
 	Caps  provider.Caps `json:"caps"`
 	URL   string        `json:"url"`
 	Model string        `json:"model"`
-	// Key is how a provider the owner added passes its API key: the secret it names, or none.
-	Key     string `json:"key,omitempty"`
-	Status  string `json:"status"`
-	Error   string `json:"error"`
-	Version string `json:"version"`
+	// Connection is where a provider the owner added reaches its model; Key how it passes its API key: the secret
+	// it names, or none.
+	Connection string `json:"connection,omitempty"`
+	Key        string `json:"key,omitempty"`
+	Status     string `json:"status"`
+	Error      string `json:"error"`
+	Version    string `json:"version"`
 	// Verdict of a failed self-check: model when the model does not manage it, adapter when it broke.
 	Verdict string  `json:"verdict"`
 	Speed   float64 `json:"speed"`
@@ -63,7 +65,12 @@ func (s *Service) providersList(ctx context.Context, act registry.Actor, in prov
 			return out, err
 		}
 		out.Requires, out.Suggested = cmd.Requires, cmd.Provider
-		out.Chosen, _ = s.St.Q.GetCommandProvider(ctx, db.GetCommandProviderParams{ProjectID: p.ID, Command: cmd.Name})
+		if raw, err := s.St.Q.GetAssignment(ctx, db.GetAssignmentParams{WorkspaceID: act.Workspace, ProjectID: p.ID, Command: cmd.Name, Role: RoleAgent}); err == nil {
+			var names []string
+			if json.Unmarshal([]byte(raw), &names) == nil && len(names) > 0 {
+				out.Chosen = names[0]
+			}
+		}
 		if pv, err := s.For(ctx, p.ID, cmd); err == nil {
 			out.Effective = pv.Name()
 		} else {
@@ -80,12 +87,10 @@ func (s *Service) providersList(ctx context.Context, act registry.Actor, in prov
 		if o, ok := pv.(interface{ AgentName() string }); ok {
 			v.Agent = o.AgentName()
 		}
-		if raw, err := s.St.Q.GetSetting(ctx, db.GetSettingParams{WorkspaceID: act.Workspace, Key: providerPrefix + pv.Name()}); err == nil && !v.Builtin {
-			var d providerDef
-			_ = json.Unmarshal([]byte(raw), &d)
-			v.Key = "none"
-			if d.KeySecret != "" {
-				v.Key = "secret " + d.KeySecret
+		if row, err := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: act.Workspace, Name: pv.Name()}); err == nil && !v.Builtin {
+			v.Connection, v.Key = row.Connection.Name, "none"
+			if row.Connection.KeySecret != "" {
+				v.Key = "secret " + row.Connection.KeySecret
 			}
 		}
 		if h, err := s.St.Q.GetHealth(ctx, process.HealthSubject(pv.Name())); err == nil {
@@ -120,7 +125,7 @@ func (s *Service) providerSet(ctx context.Context, act registry.Actor, in provid
 			return nil, registry.Invalid("deck: provider %s does not fit %s: it lacks %v", in.Provider, in.Command, missing)
 		}
 	}
-	if err := s.setPlace(ctx, p.ID, cmd.Name, in.Provider); err != nil {
+	if err := s.setPlace(ctx, act.Workspace, p.ID, cmd.Name, in.Provider); err != nil {
 		return nil, err
 	}
 	return map[string]any{"command": in.Command, "provider": in.Provider}, nil
@@ -138,29 +143,35 @@ type providerAddIn struct {
 }
 
 func (s *Service) providerAdd(ctx context.Context, act registry.Actor, in providerAddIn) (any, error) {
-	d := providerDef{URL: in.URL, Model: in.Model, KeySecret: in.KeySecret, NoCloud: in.NoCloud, Agent: in.Agent, CheckMinutes: in.CheckMinutes}
 	var builtin []string
 	for _, pv := range s.Builtin {
 		builtin = append(builtin, pv.Name())
 	}
-	if err := checkDef(in.Name, d, builtin); err != nil {
+	if err := checkAdd(in, builtin); err != nil {
 		return nil, err
 	}
-	raw, _ := json.Marshal(d)
 	err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		spaces, err := q.ListWorkspaces(ctx)
+		if n, err := q.ModelInOtherWorkspace(ctx, db.ModelInOtherWorkspaceParams{Name: in.Name, WorkspaceID: act.Workspace}); err != nil || n > 0 {
+			if err != nil {
+				return err
+			}
+			return registry.Invalid("deck: another workspace has a provider %q; its health and self-check go by name, so pick another", in.Name)
+		}
+		c, err := connectionFor(ctx, q, act.Workspace, in.URL, in.KeySecret, in.NoCloud)
 		if err != nil {
 			return err
-		}
-		for _, ws := range spaces {
-			if _, err := q.GetSetting(ctx, db.GetSettingParams{WorkspaceID: ws, Key: providerPrefix + in.Name}); ws != act.Workspace && err == nil {
-				return registry.Invalid("deck: another workspace has a provider %q; its health and self-check go by name, so pick another", in.Name)
-			}
 		}
 		if err := health.Set(ctx, q, health.Of{}, process.HealthSubject(in.Name), "checking", "the self-check of the new provider is about to run"); err != nil {
 			return err
 		}
-		return q.SetSetting(ctx, db.SetSettingParams{WorkspaceID: act.Workspace, Key: providerPrefix + in.Name, Value: string(raw)})
+		old, err := q.GetModel(ctx, db.GetModelParams{WorkspaceID: act.Workspace, Name: in.Name})
+		m := db.AddModelParams{WorkspaceID: act.Workspace, ConnectionID: c.ID, Name: in.Name, Model: in.Model, Kind: RoleText,
+			Agent: in.Agent, Options: "{}", CheckMinutes: in.CheckMinutes}
+		if err == nil {
+			m.InputUsd, m.OutputUsd, m.CallUsd, m.Free, m.Options = old.Model.InputUsd, old.Model.OutputUsd, old.Model.CallUsd, old.Model.Free, old.Model.Options
+		}
+		_, err = q.AddModel(ctx, m)
+		return err
 	})
 	if err != nil {
 		return nil, err
@@ -183,7 +194,7 @@ func (s *Service) providerRemove(ctx context.Context, act registry.Actor, in pro
 		if active > 0 {
 			return registry.Invalid("deck: %d processes still run on %s; stop them or let them finish first", active, in.Name)
 		}
-		n, err = q.DeleteSetting(ctx, db.DeleteSettingParams{WorkspaceID: act.Workspace, Key: providerPrefix + in.Name})
+		n, err = q.DeleteModel(ctx, db.DeleteModelParams{WorkspaceID: act.Workspace, Name: in.Name})
 		return err
 	})
 	if err != nil {
@@ -250,7 +261,7 @@ func (s *Service) Commands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("providers_list", "Providers",
 			"Lists model providers with what they can do and their health; with a command, which fit it and which it runs on.",
-			registry.OwnerSide, s.providersList).On("health"),
+			registry.OwnerSide, s.providersList).On("health", "models"),
 		registry.Def("provider_set", "Choose provider",
 			"Sets the provider an agent command runs on from its next start; empty goes back to the default.",
 			registry.OwnerOnly, s.providerSet),
@@ -263,6 +274,12 @@ func (s *Service) Commands() []*registry.Command {
 		registry.Def("provider_check", "Check provider",
 			"Runs the self-check of a provider's adapter again; its health shows the outcome.",
 			registry.OwnerOnly, s.providerCheck),
+		registry.Read("models_list", "Models",
+			"Lists the connections models are reached through, the models with their kind and price, and which models do which work.",
+			registry.OwnerSide, s.modelsList).On("models", "projects", "health"),
+		registry.Def("assignment_set", "Assign models",
+			"Sets the models that do a kind of work in the workspace, a project or a command: the first, then the fallbacks a new turn or call takes when it is down.",
+			registry.OwnerOnly, s.assignmentSet).Changes("projects"),
 		registry.Read("llm_calls_list", "Model calls",
 			"Lists model calls with their provider, model, tokens and duration, newest first.",
 			registry.Everyone, s.llmCallsList).On("usage"),

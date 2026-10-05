@@ -10,20 +10,6 @@ import (
 	"database/sql"
 )
 
-const deleteCommandProvider = `-- name: DeleteCommandProvider :exec
-DELETE FROM command_provider WHERE project_id = ? AND command = ?
-`
-
-type DeleteCommandProviderParams struct {
-	ProjectID int64
-	Command   string
-}
-
-func (q *Queries) DeleteCommandProvider(ctx context.Context, arg DeleteCommandProviderParams) error {
-	_, err := q.db.ExecContext(ctx, deleteCommandProvider, arg.ProjectID, arg.Command)
-	return err
-}
-
 const deleteMark = `-- name: DeleteMark :exec
 DELETE FROM mark WHERE workspace_id = ? AND name = ?
 `
@@ -84,22 +70,6 @@ func (q *Queries) DeleteSetting(ctx context.Context, arg DeleteSettingParams) (i
 		return 0, err
 	}
 	return result.RowsAffected()
-}
-
-const getCommandProvider = `-- name: GetCommandProvider :one
-SELECT provider FROM command_provider WHERE project_id = ? AND command = ?
-`
-
-type GetCommandProviderParams struct {
-	ProjectID int64
-	Command   string
-}
-
-func (q *Queries) GetCommandProvider(ctx context.Context, arg GetCommandProviderParams) (string, error) {
-	row := q.db.QueryRowContext(ctx, getCommandProvider, arg.ProjectID, arg.Command)
-	var provider string
-	err := row.Scan(&provider)
-	return provider, err
 }
 
 const getMark = `-- name: GetMark :one
@@ -169,22 +139,6 @@ func (q *Queries) ListSettings(ctx context.Context, arg ListSettingsParams) ([]L
 		return nil, err
 	}
 	return items, nil
-}
-
-const setCommandProvider = `-- name: SetCommandProvider :exec
-INSERT INTO command_provider (project_id, command, provider) VALUES (?, ?, ?)
-ON CONFLICT (project_id, command) DO UPDATE SET provider = excluded.provider
-`
-
-type SetCommandProviderParams struct {
-	ProjectID int64
-	Command   string
-	Provider  string
-}
-
-func (q *Queries) SetCommandProvider(ctx context.Context, arg SetCommandProviderParams) error {
-	_, err := q.db.ExecContext(ctx, setCommandProvider, arg.ProjectID, arg.Command, arg.Provider)
-	return err
 }
 
 const setMark = `-- name: SetMark :exec

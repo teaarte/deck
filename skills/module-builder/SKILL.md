@@ -13,13 +13,14 @@ and presses "enable".
 You talk to deck through its MCP server (`deck`). The tools are deck commands: `manifest_format`,
 `project_import`, `documents_list`, `manifest_get`, `manifest_save`, `document_get`, `document_save`,
 `command_try`, `process_get`, `process_log`, `records_list`, `records_upsert`, `cards_list`, `files_list`,
-`projects_list`, `triggers_list`, `providers_list`, `health_list`, `asks_list`, `command_describe`. Some commands only the owner runs:
-`secret_set`, `oauth_start`, `browser_login`, `provider_set`, `provider_add`, `project_enable`; say which one and
+`projects_list`, `triggers_list`, `models_list`, `health_list`, `asks_list`, `command_describe`. Some commands only the owner runs:
+`secret_set`, `oauth_start`, `browser_login`, `assignment_set`, `model_set`, `project_enable`; say which one and
 why when the module needs it. The owner does them in two places. The Settings of the project (Settings →
 Projects → "Settings" on its row): "Enable" with the rights enabling grants, autonomy, pause, the provider of
 each command, folders, the secrets its tools take. deck's Settings tabs: Projects (create, import, a trial run),
-Providers (add one), Secrets (name and a hidden value), Tokens, Health; sign-ins wait in the cockpit. So name
-the place and the value ("Settings → Secrets: `mail-key`, the API key of …"), never a `curl`; the fields of
+Models (assignments, a model and its agent), Connections (where models are reached, and the other secrets: a
+name and a hidden value), Tokens, Health; sign-ins wait in the cockpit. So name
+the place and the value ("Settings → Connections → Other secrets: `mail-key`, the API key of …"), never a `curl`; the fields of
 these forms are the input of their command, which `command_describe` gives.
 
 When the module needs something only the owner gives — an API key or token, an account or sign-in, a right of
@@ -366,7 +367,7 @@ project → "Add folder"); a code repo is the code-project skill. List the
 skills it needs in `executor.skills`; a skill may not grant tools (`allowed-tools`, `hooks`) — rights come
 from deck.
 
-The owner picks the model provider of each agent command in settings (`provider_set`); the manifest only says
+The owner picks the models of each agent command in settings (`assignment_set`); the manifest only says
 what the command needs and suggests one. `requires` lists capabilities, and usually only two matter:
 `no_cloud` for personal data (finance, health) that must stay on the owner's hardware, and `sandbox` when the
 agent must run shell commands or write files (a provider in auto mode, or a model the owner runs in an ACP agent
@@ -377,10 +378,10 @@ changelogs or news it cannot know in advance), so the owner cannot move it to a 
 leave it out when a script brings the pages the agent judges, which is cheaper and keeps local models
 possible. Fetching known pages belongs in a script with `domains.read`. Repeatable mechanics still belong in a script: it is cheaper,
 runs the same way every time and works with any provider. Do not require `tools` or `structured_output`: every provider has deck's tools and hands in the result, and a
-requirement a local model lacks keeps routine work off it. `providers_list` with the command shows which
-providers fit it. `provider` suggests a provider by
+requirement a local model lacks keeps routine work off it. `commands_list` gives each agent command the
+providers that fit it. `provider` suggests a provider by
 name — routine judgement suits a local model in an ACP agent (the name the owner gave it, from
-`providers_list`), heavy reasoning Claude Code or Codex. Write the
+`models_list`), heavy reasoning Claude Code or Codex. Write the
 prompt so it works on a small model too: say which deck tool to call for what, and that the result is handed in
 at the end; a provider without output by schema gets the `result_submit` tool for it. A small model copies
 examples from the prompt word for word and misses checks that are plain in the text: give it the shape of the

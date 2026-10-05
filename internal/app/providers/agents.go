@@ -38,8 +38,16 @@ func (s *Service) discover(ctx context.Context, name string) {
 	if err != nil {
 		return
 	}
-	v, status, text := version(ctx, a), "ok", ""
-	if err := acp.Agents[name].Supports(v); err != nil {
+	vctx, cancel := context.WithTimeout(ctx, versionTimeout)
+	v, err := a.Version(vctx)
+	cancel()
+	status, text := "ok", ""
+	if err == nil {
+		err = acp.Agents[name].Supports(v)
+	} else {
+		v = ""
+	}
+	if err != nil {
 		status, text = "error", err.Error()
 	}
 	_ = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {

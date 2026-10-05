@@ -69,6 +69,14 @@ func TestTheModelsAndConnectionsTabsShowWhatRunsTheModels(t *testing.T) {
 	e.must("deck.model_set", map[string]any{"connection": "router", "model": "m", "name": "acp", "agent": "opencode"}, nil)
 	e.waitHealth("provider:acp", "error")
 	e.must("deck.assignment_set", map[string]any{"role": "image", "models": []string{"router/x/pic"}}, nil)
+	var kept struct {
+		Kind    string
+		CallUSD float64 `json:"call_usd"`
+	}
+	e.must("deck.model_set", map[string]any{"connection": "router", "model": "x/pic"}, &kept)
+	if kept.Kind != "image" || kept.CallUSD != 0.04 {
+		t.Fatalf("a model changed without its kind and price keeps them: %+v", kept)
+	}
 
 	rows := blockData[[]screenRow](t, e.settingsBlock("Assignments", nil)["rows"])
 	i := slices.IndexFunc(rows, func(r screenRow) bool { return r.Cells[0] == "image" })
@@ -105,5 +113,24 @@ func TestTheModelsAndConnectionsTabsShowWhatRunsTheModels(t *testing.T) {
 	secrets := blockData[[]screenRow](t, e.settingsBlock("Other secrets", nil)["rows"])
 	if !strings.Contains(fmt.Sprint(secrets), "wiki") {
 		t.Fatalf("the connections tab lists the secrets of tools too: %+v", secrets)
+	}
+}
+
+// TestAnAgentWhoseVersionFailsIsNotTakenForAnotherVersion: an agent whose --version fails is red with that error and
+// no version, not as a version deck does not run.
+func TestAnAgentWhoseVersionFailsIsNotTakenForAnotherVersion(t *testing.T) {
+	f := newACP(t)
+	if err := os.WriteFile(filepath.Join(f.dir, "versionfails"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	e := newEnv(t, nil, func(c *app.Config) {
+		c.ACPBinaries = map[string]string{"opencode": filepath.Join(f.dir, "opencode"), "dsh": filepath.Join(f.dir, "dsh")}
+		c.Sandbox = fakeDirSandbox{sandbox.New(), f.dir, nil}
+	})
+	e.App.Providers.Checks(t.Context(), time.Now())
+	for _, agent := range []string{"opencode", "dsh"} {
+		if h := e.waitHealth("agent:"+agent, "error"); h.Version != "" || strings.Contains(h.Error, "not supported") || !strings.Contains(h.Error, "--version") {
+			t.Fatalf("%s: a failing --version is the error it is: %+v", agent, h)
+		}
 	}
 }

@@ -282,6 +282,7 @@ func (r *Runner) converse(ctx context.Context, t *turn, a *agentTurn, fail func(
 			r.needLogin(bg, pv, processID, res.Text)
 		case res.IsError:
 			r.finish(bg, processID, StateError, res.Text, false, "provider reported an error: "+res.Text)
+			r.deps.Broke(bg, pv.Name())
 		case blocked:
 			r.turnText(bg, processID, res.Text)
 			r.park(bg, processID)

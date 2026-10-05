@@ -22,6 +22,10 @@ import (
 func serveACP(dir string) {
 	args := os.Args[1:]
 	if len(args) == 1 && args[0] == "--version" {
+		if _, err := os.Stat(filepath.Join(dir, "versionfails")); err == nil {
+			fmt.Fprintln(os.Stderr, "broken install")
+			os.Exit(1)
+		}
 		if _, err := os.Stat(filepath.Join(dir, "slowversion")); err == nil {
 			time.Sleep(500 * time.Millisecond)
 		}

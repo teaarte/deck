@@ -325,8 +325,8 @@ type modelSetIn struct {
 	Connection string  `desc:"Connection the model is reached through"`
 	Model      string  `desc:"The model's name in the API, such as google/gemini-3.1-flash-lite-image"`
 	Name       string  `opt:"" desc:"How deck names the model in assignments and calls; connection/model when left out"`
-	Kind       string  `enum:"text|image|tts|stt" opt:"" desc:"What the model makes; from the catalog of the connection, else text"`
-	InputUSD   float64 `json:"input_usd" opt:"" desc:"USD per million input tokens; from the catalog of the connection when left out"`
+	Kind       string  `enum:"text|image|tts|stt" opt:"" desc:"What the model makes; a model changed without it keeps its own, a new one takes it from the catalog of the connection, else text"`
+	InputUSD   float64 `json:"input_usd" opt:"" desc:"USD per million input tokens; a model changed without a price keeps its own, a new one takes it from the catalog of the connection"`
 	OutputUSD  float64 `json:"output_usd" opt:"" desc:"USD per million output tokens"`
 	CallUSD    float64 `json:"call_usd" opt:"" desc:"USD per call, for a model priced per picture, clip or request"`
 	Free       bool    `opt:"" desc:"The model costs nothing"`
@@ -357,9 +357,16 @@ func (s *Service) modelSet(ctx context.Context, act registry.Actor, in modelSetI
 	m := db.AddModelParams{WorkspaceID: act.Workspace, ConnectionID: c.ID, Name: in.Name, Model: in.Model, Kind: in.Kind, Options: "{}",
 		InputUsd: positive(in.InputUSD), OutputUsd: positive(in.OutputUSD), CallUsd: positive(in.CallUSD), Free: b2i(in.Free),
 		Agent: in.Agent, CheckMinutes: in.CheckMinutes}
-	if !in.Free && !m.InputUsd.Valid && !m.OutputUsd.Valid && !m.CallUsd.Valid || m.Kind == "" {
+	unpriced := !in.Free && !m.InputUsd.Valid && !m.OutputUsd.Valid && !m.CallUsd.Valid
+	if old, err := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: act.Workspace, Name: in.Name}); err == nil {
+		if unpriced {
+			m.InputUsd, m.OutputUsd, m.CallUsd, m.Free, unpriced = old.Model.InputUsd, old.Model.OutputUsd, old.Model.CallUsd, old.Model.Free, false
+		}
+		m.Kind, m.CheckMinutes = cmp.Or(m.Kind, old.Model.Kind), cmp.Or(m.CheckMinutes, old.Model.CheckMinutes)
+	}
+	if unpriced || m.Kind == "" {
 		if got, ok := s.catalog(ctx, act.Workspace, c, in.Model); ok {
-			if !in.Free && !m.InputUsd.Valid && !m.OutputUsd.Valid && !m.CallUsd.Valid {
+			if unpriced {
 				m.InputUsd, m.OutputUsd, m.CallUsd, m.Free = got.InputUsd, got.OutputUsd, got.CallUsd, got.Free
 			}
 			m.Kind = cmp.Or(m.Kind, got.Kind)

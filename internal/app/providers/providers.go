@@ -85,7 +85,7 @@ func (s *Service) Provider(ctx context.Context, workspace int64, name string) (p
 	}
 	return acp.New(acp.Config{Name: name, Agent: m.Agent, Binary: s.ACPBinaries[m.Agent], Model: m.Model,
 		NoCloud: c.Local != 0, Home: s.Home, Sandbox: s.Sandbox, CallLimit: s.ACPCallLimit, Now: s.Now,
-		CheckCeiling: time.Duration(m.CheckMinutes) * time.Minute, API: s.turnModel(workspace, name)})
+		CheckCeiling: time.Duration(m.CheckMinutes) * time.Minute, API: s.turnModel(workspace, m, c)})
 }
 
 // named is a built-in provider, or one the owner added to any workspace; nil when there is none.

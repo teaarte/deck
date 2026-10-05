@@ -143,21 +143,16 @@ func (s *Service) hop(ctx context.Context, workspace, project int64, m db.Model,
 	return h, nil
 }
 
-// turnModel is deck's proxy of the model of an agent turn on the model name: every call goes to that model with
-// deck's key, within the day of its connection and of the project, and its usage, priced, goes to onUsage.
-func (s *Service) turnModel(workspace int64, name string) func(project int64, onUsage func(provider.Usage)) http.Handler {
+// turnModel is deck's proxy of model m of an agent turn: every call goes to that model with deck's key, within the
+// day of its connection and of the project, and its usage, priced, goes to onUsage.
+func (s *Service) turnModel(workspace int64, m db.Model, c db.Connection) func(project int64, onUsage func(provider.Usage)) http.Handler {
 	return func(project int64, onUsage func(provider.Usage)) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			body, err := gateway.ReadBody(w, r)
 			if err != nil {
 				return
 			}
-			row, err := s.St.Q.GetModel(r.Context(), db.GetModelParams{WorkspaceID: workspace, Name: name})
-			if err != nil {
-				http.Error(w, "deck: no model "+name, http.StatusNotFound)
-				return
-			}
-			h, err := s.hop(r.Context(), workspace, project, row.Model, row.Connection)
+			h, err := s.hop(r.Context(), workspace, project, m, c)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusBadGateway)
 				return
@@ -166,9 +161,9 @@ func (s *Service) turnModel(workspace int64, name string) func(project int64, on
 				if u == nil || onUsage == nil {
 					return
 				}
-				u.RequestModel = row.Model.Model
+				u.RequestModel = m.Model
 				if u.CostUSD == nil {
-					u.CostUSD = price(row.Model, *u)
+					u.CostUSD = price(m, *u)
 				}
 				onUsage(*u)
 			}

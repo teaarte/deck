@@ -170,33 +170,6 @@ func (q *Queries) DeleteModel(ctx context.Context, arg DeleteModelParams) (int64
 	return result.RowsAffected()
 }
 
-const findConnection = `-- name: FindConnection :one
-SELECT id, workspace_id, name, api, url, key_secret, local, daily_usd, created_at FROM connection WHERE workspace_id = ? AND url = ? AND key_secret = ? ORDER BY id LIMIT 1
-`
-
-type FindConnectionParams struct {
-	WorkspaceID int64
-	Url         string
-	KeySecret   string
-}
-
-func (q *Queries) FindConnection(ctx context.Context, arg FindConnectionParams) (Connection, error) {
-	row := q.db.QueryRowContext(ctx, findConnection, arg.WorkspaceID, arg.Url, arg.KeySecret)
-	var i Connection
-	err := row.Scan(
-		&i.ID,
-		&i.WorkspaceID,
-		&i.Name,
-		&i.Api,
-		&i.Url,
-		&i.KeySecret,
-		&i.Local,
-		&i.DailyUsd,
-		&i.CreatedAt,
-	)
-	return i, err
-}
-
 const getAssignment = `-- name: GetAssignment :one
 SELECT models FROM assignment
 WHERE workspace_id = ?1 AND coalesce(project_id, 0) = CAST(?2 AS INTEGER) AND command = ?3 AND role = ?4
@@ -232,27 +205,6 @@ type GetConnectionParams struct {
 
 func (q *Queries) GetConnection(ctx context.Context, arg GetConnectionParams) (Connection, error) {
 	row := q.db.QueryRowContext(ctx, getConnection, arg.WorkspaceID, arg.Name)
-	var i Connection
-	err := row.Scan(
-		&i.ID,
-		&i.WorkspaceID,
-		&i.Name,
-		&i.Api,
-		&i.Url,
-		&i.KeySecret,
-		&i.Local,
-		&i.DailyUsd,
-		&i.CreatedAt,
-	)
-	return i, err
-}
-
-const getConnectionByID = `-- name: GetConnectionByID :one
-SELECT id, workspace_id, name, api, url, key_secret, local, daily_usd, created_at FROM connection WHERE id = ?
-`
-
-func (q *Queries) GetConnectionByID(ctx context.Context, id int64) (Connection, error) {
-	row := q.db.QueryRowContext(ctx, getConnectionByID, id)
 	var i Connection
 	err := row.Scan(
 		&i.ID,

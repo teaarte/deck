@@ -387,3 +387,28 @@ func TestADeviceThatFailsHoldsBackOnlyItself(t *testing.T) {
 		t.Fatalf("the health of pushes names the device that fails: %+v", h)
 	}
 }
+
+// TestABaseWithAConnectionNamedWhisperGetsTheWhisperOfDeckToo: a base from before whose owner has a connection named
+// whisper still gets the whisper.cpp of deck as speech to text, under a name of its own.
+func TestABaseWithAConnectionNamedWhisperGetsTheWhisperOfDeckToo(t *testing.T) {
+	home := t.TempDir()
+	e := newEnvWith(t, home, &Fake{})
+	e.olderBase(10)
+	if _, err := e.App.Store.DB.Exec(`INSERT INTO connection (workspace_id, name, api, url) VALUES (1, 'whisper', 'openai', 'https://api.example/v1')`); err != nil {
+		t.Fatal(err)
+	}
+	_ = e.App.Close()
+	e = newEnvWith(t, home, &Fake{})
+	var m modelsOut
+	e.must("deck.models_list", nil, &m)
+	conn := map[string]string{}
+	for _, x := range m.Models {
+		conn[x.Name] = x.Connection
+	}
+	for _, a := range m.Assignments {
+		if a.Role == "stt" && len(a.Models) == 1 && conn[a.Models[0]] == "deck-whisper" {
+			return
+		}
+	}
+	t.Fatalf("speech to text is the whisper of deck on a connection of a free name: %+v %v", m.Assignments, conn)
+}

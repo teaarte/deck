@@ -297,3 +297,21 @@ func TestASlowModelIsAWarningThatHoldsNoTurn(t *testing.T) {
 		t.Fatalf("a slow model holds no turn: %+v", got)
 	}
 }
+
+// TestATurnTheProviderReportsAsAnErrorChecksIt: a turn the CLI ends with an error result starts a self-check too.
+func TestATurnTheProviderReportsAsAnErrorChecksIt(t *testing.T) {
+	c := newCLI(t)
+	c.stream(1, "selfcheck.jsonl")
+	c.stream(2, "selfcheck_resume.jsonl")
+	c.approving()
+	e := clockCLIEnv(t, c)
+	e.App.Providers.Checks(context.Background(), e.Clock.Now())
+	e.waitHealth("provider:claude-code", "ok")
+	c.stream(4, "error.jsonl")
+	c.stream(5, "ok.jsonl")
+	e.Clock.Add(31 * time.Minute)
+	if got := e.waitState(e.run(e.createProject("plain", plainManifest), "work"), "done", "error"); got.State != "error" {
+		t.Fatalf("the turn fails: %+v", got)
+	}
+	e.waitHealth("provider:claude-code", "error")
+}

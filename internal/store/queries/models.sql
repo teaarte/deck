@@ -6,14 +6,6 @@ SELECT * FROM connection WHERE workspace_id = ? ORDER BY name;
 SELECT * FROM connection WHERE workspace_id = ? AND name = ?;
 
 
--- name: GetConnectionByID :one
-SELECT * FROM connection WHERE id = ?;
-
-
--- name: FindConnection :one
-SELECT * FROM connection WHERE workspace_id = ? AND url = ? AND key_secret = ? ORDER BY id LIMIT 1;
-
-
 -- name: AddConnection :one
 INSERT INTO connection (workspace_id, name, api, url, key_secret, local, daily_usd)
 VALUES (sqlc.arg(workspace_id), sqlc.arg(name), sqlc.arg(api), sqlc.arg(url), sqlc.arg(key_secret), sqlc.arg(local),

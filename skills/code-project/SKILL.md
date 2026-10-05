@@ -75,7 +75,7 @@ The owner asks in a phrase ("take the open issues of github.com/team/app as card
 project the way the module-builder skill builds any routine, then try it and hand it over. A routine that
 brings tasks from a tracker:
 
-- a secret for the tracker's token (the owner sets it in Settings → Secrets; say its name and the scope it
+- a secret for the tracker's token (the owner sets it in Settings → Connections → Other secrets; say its name and the scope it
   needs, read-only when it only reads);
 - an HTTP tool from the tracker's API docs that lists open issues created since a time, oldest first, signed
   in with that secret, class `internal` (it only reads);

@@ -25,7 +25,6 @@ type modelsOut struct {
 		Key      string   `json:"key"`
 		Local    bool     `json:"local"`
 		DailyUSD *float64 `json:"daily_usd"`
-		Open     bool     `json:"open"`
 		Models   int      `json:"models"`
 	} `json:"connections"`
 	Models []struct {
@@ -278,7 +277,7 @@ func TestAScriptCallsAModelThroughDeckWithinTheDayOfItsConnection(t *testing.T) 
 	e := newEnv(t, nil)
 	e.must("deck.secret_set", map[string]any{"name": "openrouter", "value": "sk-or-real"}, nil)
 	e.must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": api.URL + "/api/v1", "key_secret": "openrouter",
-		"daily_usd": 0.05, "open": true}, nil)
+		"daily_usd": 0.05}, nil)
 	model := map[string]any{"connection": "openrouter", "model": "google/gemini-3.1-flash-lite-image", "kind": "image"}
 	e.createProject("shorts", scriptManifest("media", "", `, "models": ["openrouter"]`))
 	e.saveScript("shorts", "scripts/main.py", modelScript)
@@ -387,7 +386,7 @@ func TestAnAgentTurnPastTheDayOfItsConnectionPausesUntilTheDayEnds(t *testing.T)
 }
 
 // TestAScriptCallsARoleAndAFallbackTakesARefusal: @tts goes to the first model assigned, past a 429 to the next, priced
-// per call; a connection modules may not call without asking makes each call wait for the owner.
+// per call; a role reaches only the paths of model calls.
 func TestAScriptCallsARoleAndAFallbackTakesARefusal(t *testing.T) {
 	busy := newModels(t, map[string]func(int, map[string]any) (int, string, string){
 		"/v1/audio/speech": func(int, map[string]any) (int, string, string) {
@@ -398,8 +397,8 @@ func TestAScriptCallsARoleAndAFallbackTakesARefusal(t *testing.T) {
 		"/v1/audio/speech": func(int, map[string]any) (int, string, string) { return 200, "audio/mpeg", "ID3-voice" },
 	})
 	e := newEnv(t, nil)
-	e.must("deck.connection_set", map[string]any{"name": "busy", "api": "openai", "url": busy.URL + "/v1", "open": true}, nil)
-	e.must("deck.connection_set", map[string]any{"name": "spare", "api": "openai", "url": spare.URL + "/v1", "open": true}, nil)
+	e.must("deck.connection_set", map[string]any{"name": "busy", "api": "openai", "url": busy.URL + "/v1"}, nil)
+	e.must("deck.connection_set", map[string]any{"name": "spare", "api": "openai", "url": spare.URL + "/v1"}, nil)
 	e.must("deck.model_set", map[string]any{"connection": "busy", "model": "voice-1", "kind": "tts", "call_usd": 0.01}, nil)
 	e.must("deck.model_set", map[string]any{"connection": "spare", "model": "voice-2", "kind": "tts", "call_usd": 0.02}, nil)
 	e.must("deck.assignment_set", map[string]any{"role": "tts", "models": []string{"busy/voice-1", "spare/voice-2"}}, nil)
@@ -420,17 +419,6 @@ func TestAScriptCallsARoleAndAFallbackTakesARefusal(t *testing.T) {
 		t.Fatalf("the call is counted on the model that made it, by its price per call: %+v", spend)
 	}
 
-	e.must("deck.connection_set", map[string]any{"name": "busy", "api": "openai", "url": busy.URL + "/v1"}, nil)
-	got = e.waitScript(e.start("shorts", "voice", map[string]any{"key": "@/audio/speech", "other": speech}), "done", "error")
-	if json.Unmarshal(got.Result, &out) != nil || out["status"] != 200.0 || len(busy.calls()) != 1 || len(spare.calls()) != 2 {
-		t.Fatalf("a connection not open to modules is passed over for the open fallback: %+v", got)
-	}
-	e.must("deck.connection_set", map[string]any{"name": "spare", "api": "openai", "url": spare.URL + "/v1"}, nil)
-	e.must("deck.assignment_set", map[string]any{"role": "tts", "models": []string{"spare/voice-2"}}, nil)
-	got = e.waitScript(e.start("shorts", "voice", map[string]any{"key": "@/audio/speech", "other": speech}), "done", "error")
-	if json.Unmarshal(got.Result, &out) != nil || out["status"] != 202.0 || len(spare.calls()) != 2 {
-		t.Fatalf("a connection modules may not call without asking makes the call wait for the owner: %+v", got)
-	}
 	got = e.waitScript(e.start("shorts", "voice", map[string]any{"key": "@/files", "other": `{"model": "@tts"}`}), "done", "error")
 	if json.Unmarshal(got.Result, &out) != nil || out["status"] != 403.0 || !strings.Contains(out["answer"].(string), "POST of a model call") {
 		t.Fatalf("a role reaches only the paths of model calls, not the rest of the connection behind it: %+v", got)
@@ -484,8 +472,8 @@ func TestAModuleCallsOnlyTheModelsTheOwnerGranted(t *testing.T) {
 		"/v1/chat/completions": func(int, map[string]any) (int, string, string) { return 200, "application/json", chatText("hi") },
 	})
 	e := newEnv(t, nil)
-	e.must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": api.URL + "/v1", "open": true}, nil)
-	e.must("deck.connection_set", map[string]any{"name": "ollama", "api": "openai", "url": api.URL + "/v1", "open": true, "local": true}, nil)
+	e.must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": api.URL + "/v1"}, nil)
+	e.must("deck.connection_set", map[string]any{"name": "ollama", "api": "openai", "url": api.URL + "/v1", "local": true}, nil)
 	e.must("deck.model_set", map[string]any{"connection": "ollama", "model": "qwen", "kind": "text", "free": true}, nil)
 	call := func(project, path string) map[string]any {
 		got := e.waitScript(e.start(project, "media", map[string]any{"key": path, "other": `{"model": "qwen", "messages": []}`}), "done", "error")

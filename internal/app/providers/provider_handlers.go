@@ -281,7 +281,7 @@ func (s *Service) Commands() []*registry.Command {
 			"Sets the models that do a kind of work in the workspace, a project or a command: the first, then the fallbacks a new turn or call takes when it is down.",
 			registry.OwnerOnly, s.assignmentSet).Changes("projects"),
 		registry.Def("connection_set", "Set connection",
-			"Adds or changes a connection models are reached through: its API, address and key, its daily limit and whether modules call it without asking.",
+			"Adds or changes a connection models are reached through: its API, address and key, and its daily limit.",
 			registry.OwnerOnly, s.connectionSet).Enum("api", "openai", "google", "anthropic", "raw").Changes("models"),
 		registry.Def("connection_remove", "Remove connection", "Removes a connection that has no models left.",
 			registry.OwnerOnly, s.connectionRemove).Changes("models"),

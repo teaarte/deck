@@ -101,7 +101,6 @@ type Connection struct {
 	KeySecret   string
 	Local       int64
 	DailyUsd    sql.NullFloat64
-	Open        int64
 	CreatedAt   string
 }
 

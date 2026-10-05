@@ -45,7 +45,7 @@ func TestAModelCommandAnswersByItsSchema(t *testing.T) {
 		},
 	})
 	e := newEnv(t, nil)
-	e.must("deck.connection_set", map[string]any{"name": "groq", "api": "openai", "url": api.URL + "/v1", "key": "gsk-1", "open": true}, nil)
+	e.must("deck.connection_set", map[string]any{"name": "groq", "api": "openai", "url": api.URL + "/v1", "key": "gsk-1"}, nil)
 	e.must("deck.model_set", map[string]any{"connection": "groq", "model": "fact-model", "kind": "text", "input_usd": 0.5, "output_usd": 1}, nil)
 	e.must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"groq/fact-model"}}, nil)
 	e.createProject("shorts", modelManifest)
@@ -80,7 +80,7 @@ func TestModelCommandsMakeFilesOfPicturesAndSpeechAndTextOfRecordings(t *testing
 		},
 	})
 	e := newEnv(t, nil)
-	e.must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": api.URL + "/api/v1", "key": "sk-or", "open": true}, nil)
+	e.must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": api.URL + "/api/v1", "key": "sk-or"}, nil)
 	for kind, model := range map[string]string{"image": "google/gemini-3.1-flash-lite-image", "tts": "openai/gpt-5-mini-tts", "stt": "openai/whisper-1"} {
 		e.must("deck.model_set", map[string]any{"connection": "openrouter", "model": model, "kind": kind}, nil)
 		e.must("deck.assignment_set", map[string]any{"role": kind, "models": []string{"openrouter/" + model}}, nil)
@@ -132,7 +132,7 @@ func TestAModelCommandPastTheLimitWaitsForTheOwner(t *testing.T) {
 		},
 	})
 	e := newEnv(t, nil)
-	e.must("deck.connection_set", map[string]any{"name": "groq", "api": "openai", "url": api.URL + "/v1", "open": true, "daily_usd": 0.0001}, nil)
+	e.must("deck.connection_set", map[string]any{"name": "groq", "api": "openai", "url": api.URL + "/v1", "daily_usd": 0.0001}, nil)
 	e.must("deck.model_set", map[string]any{"connection": "groq", "model": "fact-model", "kind": "text", "call_usd": 0.001}, nil)
 	e.must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"groq/fact-model"}}, nil)
 	e.createProject("shorts", modelManifest)
@@ -161,7 +161,7 @@ func TestAModelCommandOnGoogleSpeaksItsOwnAPI(t *testing.T) {
 		},
 	})
 	e := newEnv(t, nil)
-	e.must("deck.connection_set", map[string]any{"name": "google", "api": "google", "url": api.URL + "/v1beta", "key": "AIza-1", "open": true}, nil)
+	e.must("deck.connection_set", map[string]any{"name": "google", "api": "google", "url": api.URL + "/v1beta", "key": "AIza-1"}, nil)
 	e.must("deck.model_set", map[string]any{"connection": "google", "model": "gemini-3.8-flash", "name": "gemini", "kind": "text"}, nil)
 	e.createProject("shorts", strings.Replace(modelManifest, `"kind": "text",`, `"kind": "text", "model": "gemini",`, 1))
 	got := e.waitState(e.start("shorts", "factcheck", map[string]any{"claim": "x"}), "done", "error")
@@ -223,8 +223,8 @@ func TestAModelThatBrokeOffAfterTheRequestHasNoFallback(t *testing.T) {
 		},
 	})
 	e := newEnv(t, nil)
-	e.must("deck.connection_set", map[string]any{"name": "cut", "api": "openai", "url": cut.URL + "/v1", "open": true}, nil)
-	e.must("deck.connection_set", map[string]any{"name": "spare", "api": "openai", "url": spare.URL + "/v1", "open": true}, nil)
+	e.must("deck.connection_set", map[string]any{"name": "cut", "api": "openai", "url": cut.URL + "/v1"}, nil)
+	e.must("deck.connection_set", map[string]any{"name": "spare", "api": "openai", "url": spare.URL + "/v1"}, nil)
 	e.must("deck.model_set", map[string]any{"connection": "cut", "model": "a", "kind": "text", "free": true}, nil)
 	e.must("deck.model_set", map[string]any{"connection": "spare", "model": "b", "kind": "text", "free": true}, nil)
 	e.must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"cut/a", "spare/b"}}, nil)

@@ -74,9 +74,7 @@ type connectionView struct {
 	Local bool   `json:"local"`
 	// DailyUSD is the most its models may cost in a day; none without a limit.
 	DailyUSD *float64 `json:"daily_usd,omitempty"`
-	// Open lets modules call its models without asking while the day stays within the limit.
-	Open   bool  `json:"open"`
-	Models int64 `json:"models"`
+	Models   int64    `json:"models"`
 }
 
 type modelView struct {
@@ -125,7 +123,7 @@ func (s *Service) modelsList(ctx context.Context, act registry.Actor, _ struct{}
 		return out, err
 	}
 	for _, c := range conns {
-		v := connectionView{Name: c.Name, API: c.Api, URL: c.Url, Key: "none", Local: c.Local != 0, DailyUSD: nullable(c.DailyUsd), Open: c.Open != 0}
+		v := connectionView{Name: c.Name, API: c.Api, URL: c.Url, Key: "none", Local: c.Local != 0, DailyUSD: nullable(c.DailyUsd)}
 		if c.KeySecret != "" {
 			v.Key = "secret " + c.KeySecret
 		}
@@ -218,7 +216,7 @@ func connectionFor(ctx context.Context, q *db.Queries, workspace int64, rawURL, 
 		if local && c.Local == 0 {
 			c.Local = 1
 			return q.AddConnection(ctx, db.AddConnectionParams{WorkspaceID: workspace, Name: c.Name, Api: c.Api, Url: c.Url, KeySecret: c.KeySecret,
-				Local: 1, DailyUsd: c.DailyUsd, Open: c.Open})
+				Local: 1, DailyUsd: c.DailyUsd})
 		}
 		return c, nil
 	}
@@ -273,7 +271,6 @@ type connectionSetIn struct {
 	Key       string  `type:"secret" opt:"" desc:"The API key; deck keeps it in the secret key_secret names, or one named after the connection"`
 	Local     bool    `opt:"" desc:"The models run on the owner's own hardware"`
 	DailyUSD  float64 `json:"daily_usd" opt:"" desc:"The most its models may cost in a day in USD; past it a call waits for the owner; 0 for no limit"`
-	Open      bool    `opt:"" desc:"Modules call its models without asking while the day stays within the limit"`
 }
 
 func (s *Service) connectionSet(ctx context.Context, act registry.Actor, in connectionSetIn) (any, error) {
@@ -301,7 +298,7 @@ func (s *Service) connectionSet(ctx context.Context, act registry.Actor, in conn
 			in.KeySecret = old.KeySecret
 		}
 		_, err := q.AddConnection(ctx, db.AddConnectionParams{WorkspaceID: act.Workspace, Name: in.Name, Api: in.API, Url: in.URL,
-			KeySecret: in.KeySecret, Local: b2i(in.Local), DailyUsd: limit, Open: b2i(in.Open)})
+			KeySecret: in.KeySecret, Local: b2i(in.Local), DailyUsd: limit})
 		return err
 	})
 	if err != nil {

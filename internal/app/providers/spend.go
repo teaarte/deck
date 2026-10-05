@@ -110,8 +110,6 @@ func (s *Service) Route(ctx context.Context, act registry.Actor, connection, ask
 		}
 		picks = append(picks, pick{m, c})
 	}
-	_, approved := gateway.Approved(ctx)
-	closed := !approved && s.module(ctx, act)
 	hops := make([]gateway.ModelHop, 0, len(picks))
 	for _, p := range picks {
 		key := ""
@@ -128,32 +126,11 @@ func (s *Service) Route(ctx context.Context, act registry.Actor, connection, ask
 		if h.Over == "" && p.c.DailyUsd.Valid && p.m.Free == 0 && !p.m.InputUsd.Valid && !p.m.OutputUsd.Valid && !p.m.CallUsd.Valid {
 			h.Over = fmt.Sprintf("deck: model %s of connection %s has no price, so its limit cannot count it; the owner sets one with deck.model_set", p.m.Model, p.c.Name)
 		}
-		if h.Over == "" && closed && p.c.Open == 0 {
-			h.Over = fmt.Sprintf("deck: connection %s is not open to modules, so its calls wait for the owner", p.c.Name)
-		}
 		m, c := p.m, p.c
 		h.Done = func(ctx context.Context, status int, u *provider.Usage) { s.record(ctx, act, command, m, c, status, u) }
 		hops = append(hops, h)
 	}
 	return hops, nil
-}
-
-// module reports whether a caller is a process of a project that does not list calls of models in allowed_external:
-// a connection not open to modules is closed to it.
-func (s *Service) module(ctx context.Context, act registry.Actor) bool {
-	if act.Kind != registry.Agent || act.ProjectID == 0 {
-		return false
-	}
-	m, err := docs.CurrentInForce(ctx, s.St.Q, act.ProjectID)
-	if err != nil {
-		return true
-	}
-	for _, name := range []string{"model_call", "model_request"} {
-		if slices.Contains(m.AllowedExternal, name) || slices.Contains(m.AllowedExternal, registry.Builtin+"."+name) {
-			return false
-		}
-	}
-	return true
 }
 
 // record keeps a call of a model made past an agent in the journal of model calls, priced by its model when the
@@ -196,7 +173,7 @@ type modelRequestIn struct {
 }
 
 // allowed decides whether a call of a model runs without the owner: the granted models of the project name it, and
-// a model of it is within the day's limits on a connection open to modules, unless the project allows the calls.
+// a model of it is within the day's limits.
 func (s *Service) allowed(ctx context.Context, act registry.Actor, input json.RawMessage, _ bool) (bool, error) {
 	connection, asked, err := s.requested(ctx, act.Workspace, input)
 	if err != nil {

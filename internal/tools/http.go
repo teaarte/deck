@@ -151,8 +151,8 @@ func segment(v string) string {
 	return url.PathEscape(v)
 }
 
-// fill puts input fields into a body template: a string that is exactly {field} takes the field as it is
-// and is left out when the input has no such field; other strings get fields as text.
+// fill puts input fields into a body template: a string that is exactly {field} takes the field as it is and is left
+// out when the input has no such field; other strings get fields as text.
 func fill(v any, in map[string]any) any {
 	switch x := v.(type) {
 	case string:

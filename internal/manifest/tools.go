@@ -107,7 +107,10 @@ func FitsTool(c Command, name string, input json.RawMessage) error {
 }
 
 // FileFields are the input fields of a schema whose values point to files.
-func FileFields(input json.RawMessage) []string {
+func FileFields(input json.RawMessage) []string { return FieldsOf(input, "file") }
+
+// FieldsOf are the input fields of a format, such as json: text with JSON a tool sends on as the value itself.
+func FieldsOf(input json.RawMessage, format string) []string {
 	var s struct {
 		Properties map[string]struct {
 			Format string `json:"format"`
@@ -116,7 +119,7 @@ func FileFields(input json.RawMessage) []string {
 	_ = json.Unmarshal(input, &s)
 	var out []string
 	for _, name := range sortedKeys(s.Properties) {
-		if s.Properties[name].Format == "file" {
+		if s.Properties[name].Format == format {
 			out = append(out, name)
 		}
 	}

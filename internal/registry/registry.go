@@ -305,16 +305,36 @@ func schemaProblems(err error) string {
 	return strings.Join(slices.Compact(out), "; ")
 }
 
-// jsonText turns the value of a json param that came as an object or a list into its JSON text.
+// jsonText turns the value of a json param, or of an input field of format json, that came as an object or a list
+// into its JSON text.
 func (c *Command) jsonText(input json.RawMessage) json.RawMessage {
 	var m map[string]json.RawMessage
 	if json.Unmarshal(input, &m) != nil {
 		return input
 	}
-	changed := false
+	var names []string
 	for _, p := range c.params {
-		if v := bytes.TrimSpace(m[p.Name]); p.Type == "json" && len(v) > 0 && (v[0] == '{' || v[0] == '[') {
-			m[p.Name], _ = json.Marshal(string(v))
+		if p.Type == "json" {
+			names = append(names, p.Name)
+		}
+	}
+	if c.params == nil {
+		var s struct {
+			Properties map[string]struct {
+				Format string `json:"format"`
+			} `json:"properties"`
+		}
+		_ = json.Unmarshal(c.Input, &s)
+		for name, p := range s.Properties {
+			if p.Format == "json" {
+				names = append(names, name)
+			}
+		}
+	}
+	changed := false
+	for _, name := range names {
+		if v := bytes.TrimSpace(m[name]); len(v) > 0 && (v[0] == '{' || v[0] == '[') {
+			m[name], _ = json.Marshal(string(v))
 			changed = true
 		}
 	}

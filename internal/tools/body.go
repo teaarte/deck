@@ -30,8 +30,9 @@ type part struct {
 	file *files.Ref
 }
 
-// makeBody reads the body template of a tool; resolve turns a file field into the file it points to.
-func makeBody(t manifest.HTTPTool, in map[string]any, resolve func(string) (files.Ref, error)) (*body, error) {
+// makeBody reads the body template of a tool: form parts take the input as text, a JSON body the values of json
+// fields; resolve turns a file field into the file it points to.
+func makeBody(t manifest.HTTPTool, in, values map[string]any, resolve func(string) (files.Ref, error)) (*body, error) {
 	fileOf := func(tmpl string) (*files.Ref, bool, error) {
 		m := field.FindStringSubmatch(tmpl)
 		if m == nil || m[0] != tmpl || !slices.Contains(manifest.FileFields(t.Input), m[1]) {
@@ -86,7 +87,7 @@ func makeBody(t manifest.HTTPTool, in map[string]any, resolve func(string) (file
 	if err := d.Decode(&tmpl); err != nil {
 		return nil, registry.Invalid("deck: body template of %s: %v", t.Name, err)
 	}
-	b, _ := json.Marshal(fill(tmpl, in))
+	b, _ := json.Marshal(fill(tmpl, values))
 	return &body{json: b}, nil
 }
 

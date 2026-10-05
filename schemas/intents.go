@@ -14,7 +14,7 @@ const Builtin = "deck"
 var Refs = []string{"record", "card", "project", "document", "process", "ask"}
 
 var scalarFormats = map[string][]string{
-	"string":  {"", "text", "date", "date-time", "file", "project"},
+	"string":  {"", "text", "json", "date", "date-time", "file", "project"},
 	"integer": append([]string{""}, Refs...),
 	"number":  {""},
 	"boolean": {""},

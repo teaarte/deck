@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -48,15 +49,19 @@ func (h *HTTP) request(ctx context.Context, act registry.Actor, p db.Project, t 
 		u += "?" + put(query, url.QueryEscape)
 	}
 	out := &outgoing{}
+	values, err := jsonValues(t, in)
+	if err != nil {
+		return nil, err
+	}
 	switch {
 	case len(t.Body) > 0:
-		b, err := makeBody(t, in, func(ref string) (files.Ref, error) { return h.Resolve(ctx, p.ID, act.ProcessID, ref) })
+		b, err := makeBody(t, in, values, func(ref string) (files.Ref, error) { return h.Resolve(ctx, p.ID, act.ProcessID, ref) })
 		if err != nil {
 			return nil, err
 		}
 		out.body = b
 	case t.Method == http.MethodPost || t.Method == http.MethodPut || t.Method == http.MethodPatch:
-		b, _ := json.Marshal(in)
+		b, _ := json.Marshal(values)
 		out.body = &body{json: b}
 	}
 	req, err := http.NewRequestWithContext(ctx, t.Method, u, nil)
@@ -140,4 +145,25 @@ func (h *HTTP) send(ctx context.Context, p db.Project, o *outgoing) (*http.Respo
 			return nil, false, &ErrSignIn{Why: "the service refused a fresh token"}
 		}
 	}
+}
+
+// jsonValues is the input with each field of format json as the value its text holds, for the body of a request.
+func jsonValues(t manifest.HTTPTool, in map[string]any) (map[string]any, error) {
+	fields := manifest.FieldsOf(t.Input, "json")
+	if len(fields) == 0 {
+		return in, nil
+	}
+	out := maps.Clone(in)
+	for _, name := range fields {
+		text, ok := in[name].(string)
+		if !ok {
+			continue
+		}
+		v, err := manifest.DecodeValue([]byte(text))
+		if err != nil {
+			return nil, registry.Invalid("deck: input field %s of %s is JSON text: %v", name, t.Name, err)
+		}
+		out[name] = v
+	}
+	return out, nil
 }

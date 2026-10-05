@@ -81,9 +81,13 @@ func (s *Service) Provider(ctx context.Context, workspace int64, name string) (p
 	if m.Agent == "" {
 		return nil, registry.Invalid("deck: model %q runs in no agent; set it again with deck.model_set and agent %s", name, strings.Join(acp.Names(), " or "))
 	}
-	return acp.New(acp.Config{Name: name, Agent: m.Agent, Binary: s.ACPBinaries[m.Agent], Model: m.Model,
+	a, err := acp.New(acp.Config{Name: name, Agent: m.Agent, Binary: s.ACPBinaries[m.Agent], Model: m.Model,
 		NoCloud: c.Local != 0, Home: s.Home, Sandbox: s.Sandbox, CallLimit: s.ACPCallLimit, Now: s.Now,
 		CheckCeiling: time.Duration(m.CheckMinutes) * time.Minute, API: s.turnModel(workspace, m, c)})
+	if err != nil {
+		return nil, registry.Invalid("deck: %v", err)
+	}
+	return a, nil
 }
 
 // named is a built-in provider, or one the owner added to any workspace; nil when there is none.
@@ -155,7 +159,7 @@ func (s *Service) For(ctx context.Context, projectID int64, cmd *manifest.Comman
 		for _, name := range names {
 			pv, err := s.Provider(ctx, p.WorkspaceID, name)
 			if err != nil {
-				why = append(why, fmt.Sprintf("deck: %s is set to provider %q, which is gone; assign another with deck.assignment_set", place, name))
+				why = append(why, fmt.Sprintf("deck: %s is set to model %q, which does not run: %v; assign another with deck.assignment_set", place, name, err))
 				continue
 			}
 			if missing := pv.Caps().Missing(cmd.Requires); len(missing) > 0 {

@@ -61,7 +61,7 @@ func (a *Adapter) CheckCeiling() time.Duration { return a.cfg.CheckCeiling }
 func New(cfg Config) (*Adapter, error) {
 	g, ok := Agents[cfg.Agent]
 	if !ok {
-		return nil, fmt.Errorf("acp: no agent %q; deck knows %s", cfg.Agent, strings.Join(Names(), ", "))
+		return nil, fmt.Errorf("acp: deck runs no agent %q; set the model again with deck.model_set and agent %s", cfg.Agent, strings.Join(Names(), " or "))
 	}
 	if cfg.Binary == "" {
 		cfg.Binary = cfg.Agent

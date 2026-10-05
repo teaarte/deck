@@ -125,3 +125,39 @@ func TestAnAgentWhoseVersionFailsSaysSo(t *testing.T) {
 		}
 	}
 }
+
+// TestAModelOfOpenCodeSaysToSetItAgain: deck runs OpenCode no more; a base from before keeps such a model, red with
+// what to do, and a command assigned to it refuses with that reason.
+func TestAModelOfOpenCodeSaysToSetItAgain(t *testing.T) {
+	home := t.TempDir()
+	e := newEnvWith(t, home, &Fake{})
+	e.olderBase(14)
+	for _, q := range []string{
+		`INSERT INTO connection (workspace_id, name, api, url) VALUES (1, 'router', 'openai', 'https://openrouter.ai/api/v1')`,
+		`INSERT INTO model (workspace_id, connection_id, name, model, kind, agent) SELECT 1, id, 'free', 'x/free', 'text', 'opencode' FROM connection WHERE name = 'router'`,
+		`INSERT INTO health (subject, status, error) VALUES ('provider:free', 'error', 'install it with npm i -g opencode-ai@1.18.30'), ('agent:opencode', 'error', 'opencode 2.0.20 is not supported')`,
+	} {
+		if _, err := e.App.Store.DB.Exec(q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	_ = e.App.Close()
+	e = newEnvWith(t, home, &Fake{})
+	if _, err := e.App.Store.Q.GetHealth(t.Context(), "agent:opencode"); err == nil {
+		t.Fatal("the health row of OpenCode is gone with it")
+	}
+	if h, err := e.App.Store.Q.GetHealth(t.Context(), "provider:free"); err != nil || h.Status != "error" || !strings.Contains(h.Error, "goose") {
+		t.Fatalf("a model of OpenCode is red with what to do: %+v %v", h, err)
+	}
+	e.createProject("plain", testManifest([]string{agentCommand("work", "")}, nil))
+	if code, out := e.call("deck.assignment_set", map[string]any{"role": "agent", "project": "plain", "command": "work", "models": []string{"free"}}); code != 422 || !strings.Contains(string(out), "goose") {
+		t.Fatalf("a model of OpenCode is not assigned anew: %d %s", code, out)
+	}
+	if _, err := e.App.Store.DB.Exec(`INSERT INTO assignment (workspace_id, project_id, command, role, models) SELECT 1, id, 'work', 'agent', '["free"]' FROM project WHERE name = 'plain'`); err != nil {
+		t.Fatal(err)
+	}
+	if code, out := e.call("plain.work", map[string]any{}); code == 200 || !strings.Contains(string(out), "goose") {
+		t.Fatalf("a command on it refuses with the reason: %d %s", code, out)
+	}
+}
+

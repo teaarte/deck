@@ -12,7 +12,7 @@ export function Cell({ children, details }: { children: ReactNode; details?: str
         const el = e.currentTarget;
         if (!whole && el.scrollHeight > el.clientHeight + 1) { e.stopPropagation(); setWhole(true); }
       }}>{children}</div>
-      {details && <div onClick={(e) => e.stopPropagation()} data-cell-details><Details text={details} /></div>}
+      {details && <div onClick={(e) => e.stopPropagation()} data-cell-details><Details text={details} of="text" /></div>}
     </>
   );
 }

@@ -150,7 +150,7 @@
     "revert": "Back to this",
     "reverted": "Back to revision {{n}}"
   },
-  "details": { "show": "Show the whole call", "hide": "Hide the call" },
+  "details": { "call": { "show": "Show the whole call", "hide": "Hide the call" }, "text": { "show": "Show in full", "hide": "Hide" } },
   "labels": { "confirm_hours": "How long a confirmation waits for the owner, hours", "agent_limit": "Agent processes that run at once; scripts and tools do not count", "suggest_days": "Days a suggestion waits for the owner before it expires", "language": "Language of the interface; auto follows the device" },
   "common": { "done": "Done", "started": "Started process #{{id}}" },
   "log": { "message": "Agent", "thought": "Thinking", "tool": "Tool", "rate_limit": "Limit", "stderr": "stderr" },

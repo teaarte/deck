@@ -5,10 +5,14 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 	"time"
+
+	"deck2/internal/app"
+	"deck2/internal/sandbox"
 )
 
 // themeProbe is the HTML of a custom block that reports the theme of its host, first and after each change.
@@ -51,7 +55,16 @@ func TestRealBrowserSettings(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	e := newEnv(t, boardWebAgent())
+	f := newACP(t)
+	if err := os.WriteFile(filepath.Join(f.dir, "version"), []byte("opencode v2.0.20"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	e := newEnv(t, boardWebAgent(), func(c *app.Config) {
+		c.ACPBinaries = map[string]string{"opencode": filepath.Join(f.dir, "opencode"), "dsh": filepath.Join(f.dir, "no-dsh")}
+		c.Sandbox = fakeDirSandbox{sandbox.New(), f.dir, nil}
+	})
+	e.App.Providers.Checks(t.Context(), time.Now())
+	e.waitHealth("agent:opencode", "error")
 	e.createProject("web", boardWebManifest)
 	e.must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": themeProbe}, nil)
 
@@ -123,7 +136,17 @@ func TestRealBrowserSettings(t *testing.T) {
 	}
 	b.shot("settings-projects")
 
-	tab("Secrets")
+	tab("Models")
+	agent := `[...document.querySelectorAll('tr')].find((r) => r.innerText.includes('opencode 2.0.20'))`
+	b.until("the agents with their version", agent)
+	if got := b.eval(`String(!!` + agent + `.querySelector('[data-one]'))`); got != "true" {
+		t.Fatal("the error of an agent shows in one line")
+	}
+	b.eval(`(` + agent + `.querySelector('[data-cell-details] button').click(), '')`)
+	b.until("the whole error on demand", agent+`.querySelector('[data-cell-details] pre')?.innerText.includes('npm i -g opencode-ai@1.18.30')`)
+	b.shot("settings-models")
+
+	tab("Connections")
 	b.until("the add secret button", `document.querySelector('[data-dialog-open="secret"]')`)
 	b.eval(`(document.querySelector('[data-dialog-open="secret"]').click(), '')`)
 	secret := `document.querySelector('[data-form="deck.secret_set"] input[data-field="value"]')`
@@ -176,7 +199,9 @@ func TestRealBrowserSettings(t *testing.T) {
 	b.eval(pressIn(row, "models"))
 	models := `[data-form="deck.assignment_set"] input[data-field="models"]`
 	b.until("the dialog of the models of the command", `document.querySelector('`+models+`')`)
-	b.pick(models, "fake")
+	b.eval(`(() => { const i = document.querySelector('` + models + `'); i.focus();
+		Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(i, 'fake');
+		i.dispatchEvent(new Event('input', { bubbles: true })); i.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); return '' })()`)
 	b.eval(`(document.querySelector('[data-form="deck.assignment_set"] [data-submit]').click(), '')`)
 	assigned := func() string {
 		var m struct {

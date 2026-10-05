@@ -845,13 +845,17 @@ func TestABlockOfACommandDeckNoLongerHasTurnsOffOnlyThatBlock(t *testing.T) {
 		t.Fatal(err)
 	}
 	var ps []struct {
-		Name, ManifestError string `json:"manifest_error"`
+		Name          string
+		ManifestError string `json:"manifest_error"`
 	}
 	e.must("deck.projects_list", nil, &ps)
-	for _, p := range ps {
-		if p.Name == "old" && p.ManifestError != "" {
-			t.Fatalf("the module still loads: %s", p.ManifestError)
-		}
+	if i := slices.IndexFunc(ps, func(p struct {
+		Name          string
+		ManifestError string `json:"manifest_error"`
+	}) bool {
+		return p.Name == "old"
+	}); i < 0 || ps[i].ManifestError != "" {
+		t.Fatalf("the module still loads: %+v", ps)
 	}
 	data := e.screenData("old", "main", nil)
 	if string(data["b0"]["state"]) == `"error"` || !strings.Contains(string(data["b1"]["error"]), "providers_list") {

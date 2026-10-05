@@ -691,3 +691,26 @@ func TestTheSandboxSaysWhatItKeptClosed(t *testing.T) {
 		t.Fatalf("what the sandbox kept closed is an event of the feed, not a state of health: %+v", rows)
 	}
 }
+
+// TestAScriptEndsWhenItExitsThoughAChildHoldsItsOutput: a program the script left running with its stdout and
+// stderr does not hold the run; output past 32 MB is an error.
+func TestAScriptEndsWhenItExitsThoughAChildHoldsItsOutput(t *testing.T) {
+	e := newEnv(t, nil)
+	e.createProject("tools", scriptManifest("collect", "", ""))
+	e.saveScript("tools", "scripts/main.py", `import json, subprocess, sys
+if json.load(sys.stdin).get("n") == 1:
+    sys.stdout.write("x" * (33 << 20))
+    sys.exit(0)
+subprocess.Popen(["sleep", "60"])
+print(json.dumps({"ok": True}))
+`)
+	start := time.Now()
+	got := e.waitScript(e.start("tools", "collect", nil), "done", "error")
+	if got.State != "done" || string(got.Result) != `{"ok":true}` || time.Since(start) > 30*time.Second {
+		t.Fatalf("the run ends with the script, not with its child: %+v after %s", got, time.Since(start))
+	}
+	got = e.waitScript(e.start("tools", "collect", map[string]any{"n": 1}), "done", "error")
+	if got.State != "error" {
+		t.Fatalf("output past 32 MB is an error: %+v", got)
+	}
+}

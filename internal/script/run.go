@@ -165,8 +165,8 @@ func realPython(path string) string {
 	return real
 }
 
-// pipes gives the command its own stdout and stderr, so Wait returns when it exits even if programs it
-// started still hold them. started closes deck's ends of the writers; drain takes what comes within 2 s.
+// pipes gives the command its own stdout and stderr, so Wait returns when it exits and its group dies at once,
+// unlike WaitDelay, which waits for programs it started; started closes deck's ends, drain takes what comes in 2 s.
 func pipes(cmd *exec.Cmd, stdout, stderr io.Writer) (started, drain func(), err error) {
 	var writers []*os.File
 	var gates []*gate

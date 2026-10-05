@@ -20,7 +20,6 @@ type Param struct {
 	Enum     []string
 }
 
-func P(name, typ, desc string) Param { return Param{Name: name, Type: typ, Desc: desc} }
 func Opt(name, typ, desc string) Param {
 	return Param{Name: name, Type: typ, Desc: desc, Optional: true}
 }

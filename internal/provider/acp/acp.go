@@ -30,8 +30,8 @@ import (
 type Config struct {
 	Name, Agent string
 	// Binary is the program of the agent; empty looks the agent's name up in PATH.
-	Binary     string
-	URL, Model string
+	Binary string
+	Model  string
 	// API is deck's proxy of the model for a turn of a project: the key, the limits and the journal are deck's.
 	API     func(project int64, onUsage func(provider.Usage)) http.Handler
 	NoCloud bool
@@ -85,9 +85,6 @@ func (a *Adapter) Caps() provider.Caps { return a.agent.caps(a.cfg.NoCloud) }
 
 // AgentName is the ACP agent the provider starts.
 func (a *Adapter) AgentName() string { return a.cfg.Agent }
-
-// Endpoint is the model API and the model the agent runs on.
-func (a *Adapter) Endpoint() (string, string) { return a.cfg.URL, a.cfg.Model }
 
 // QuestionTool is the ask tool of the gateway; ACP agents have no question for the client.
 func (a *Adapter) QuestionTool() string { return provider.AskTool }

@@ -73,9 +73,6 @@ func Check(kind, answer string) error {
 	return registry.Invalid("deck: %s", a.say)
 }
 
-// Refused reports a no to a call: deny, with or without a reason.
-func Refused(answer string) bool { return answer == "deny" || strings.HasPrefix(answer, "deny:") }
-
 // New stores an ask a process waits on in the caller's transaction; a zero expires is no deadline.
 func New(ctx context.Context, q *db.Queries, processID int64, kind, text, payload string, expires time.Time) (db.Ask, error) {
 	return q.CreateAsk(ctx, db.CreateAskParams{ProcessID: processID, Kind: kind, Text: text, Payload: payload, ExpiresAt: At(expires)})

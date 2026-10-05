@@ -108,78 +108,74 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	if err != nil {
 		return nil, err
 	}
-	a := &App{Cfg: cfg, Home: h, Store: st, Bus: events.NewBus(), Scripts: script.New(cfg.Sandbox, cfg.Home), Manifests: &docs.Manifests{St: st}}
+	// Every service is allocated first, so each is then built whole with the functions of the others.
+	a := &App{Cfg: cfg, Home: h, Store: st, Bus: events.NewBus(), Scripts: script.New(cfg.Sandbox, cfg.Home), Manifests: &docs.Manifests{St: st},
+		Projects: &project.Service{}, Secrets: &secrets.Service{}, Folders: &folders.Service{}, Files: &appfiles.Service{},
+		Journal: &journal.Service{}, Triggers: &triggers.Service{}, Documents: &documents.Service{}, Snapshots: &snapshots.Service{},
+		Settings: &settings.Service{}, Board: &board.Service{}, Providers: &providers.Service{}, Answers: &asks.Service{},
+		Connections: &connections.Service{}, Suggest: &suggest.Service{}, Chats: &chat.Service{}, Devices: &devices.Service{},
+		Tokens: &tokens.Service{}}
 	a.ctx, a.cancel = context.WithCancel(context.Background())
 	st.Changed = func(c store.Change) {
 		a.Bus.Emit(events.Event{Workspace: c.Workspace, Topic: c.Topic, Project: c.Project})
 	}
-	a.Projects = &project.Service{St: st, Bus: a.Bus, Now: cfg.Now, Home: h, Manifests: a.Manifests, Scripts: a.Scripts}
-	a.Secrets = &secrets.Service{St: st, Dir: h.Secrets}
-	a.Folders = &folders.Service{St: st, Home: cfg.Home}
-	a.Files = &appfiles.Service{St: st, Home: h, Now: cfg.Now}
-	a.Journal = &journal.Service{St: st, Now: cfg.Now, Backups: h.Backups()}
-	a.Triggers = &triggers.Service{St: st}
-	a.Documents = &documents.Service{St: st, Now: cfg.Now, Sandbox: cfg.Sandbox, Ctx: a.ctx, BG: &a.bg,
-		SaveManifest: a.Projects.SaveCall}
-	a.Snapshots = &snapshots.Service{St: st, Bus: a.Bus, Home: h, Now: cfg.Now, LockFiles: a.Files.Mu.Lock, UnlockFiles: a.Files.Mu.Unlock,
-		RemoveFiles: a.Files.Remove}
-	a.Settings = &settings.Service{St: st, DefaultTTL: cfg.ConfirmTTL, Wake: func(ctx context.Context) { a.Runner.Wake(ctx) }}
 	rules := sandbox.Rules{Open: a.Settings.OpenSandbox, Kept: (&health.Closed{St: st}).Add}
 	a.Asks = ask.NewBroker(st, a.Bus, cfg.Now)
 	a.Registry = registry.New(a.Projects.ProjectCommands)
 	a.Registry.SetPublish(a.Bus.Publish)
-	a.Board = &board.Service{St: st, Bus: a.Bus, Now: cfg.Now, Fire: a.fire}
-	a.Providers = &providers.Service{St: st, Bus: a.Bus, Now: cfg.Now, Home: cfg.Home, Sandbox: cfg.Sandbox, ACPBinaries: cfg.ACPBinaries,
-		ACPCallLimit: cfg.ACPCallLimit, SelfCheckCeiling: cfg.SelfCheckCeiling, Secret: a.Secrets.Secret, Wake: func(ctx context.Context) { a.Runner.Wake(ctx) },
-		Rules: rules, Builtin: append([]provider.Provider{p}, more...), Ctx: a.ctx, BG: &a.bg}
-	a.Answers = &asks.Service{St: st, Now: cfg.Now, Broker: a.Asks, Registry: a.Registry, AnswerGrant: a.Projects.AnswerGrant,
-		SaveManifest: a.Projects.SaveCall}
-	a.Connections = &connections.Service{St: st, Ctx: a.ctx, Broker: a.Asks}
-	a.Suggest = &suggest.Service{St: st, Bus: a.Bus, Now: cfg.Now, Registry: a.Registry, Asks: a.Asks, Days: a.Settings.SuggestDays}
-	a.Chats = &chat.Service{St: st, Bus: a.Bus, Now: cfg.Now, Asks: a.Asks, For: a.Providers.For}
-	a.Devices = &devices.Service{St: st, Bus: a.Bus, Now: cfg.Now, Ctx: a.ctx, BG: &a.bg, STT: cfg.STT, Files: a.dirs(), RemoveFiles: a.Files.Remove,
-		Secret: a.Secrets.Secret, ReadSecret: a.Secrets.Read, WriteSecret: a.Secrets.Write, SecretsDir: a.Secrets.Dir,
-		LockSecrets: a.Secrets.Lock, UnlockSecrets: a.Secrets.Unlock,
-		Invoke: func(ctx context.Context, act registry.Actor, name string, in json.RawMessage) (any, error) {
-			return a.Registry.Invoke(ctx, act, name, in)
-		}}
-	a.Tokens = &tokens.Service{St: st, MCPBase: cfg.MCPBase}
-	a.addBuiltins()
 	a.Gateway = gateway.New(gateway.Config{Now: cfg.Now, QuestionWait: cfg.QuestionWait, ConfirmWait: cfg.ConfirmWait, ConfirmTTL: a.Settings.ConfirmTTL}, st, a.Asks, a.Bus, a.Registry)
+	a.Gateway.SetAutomation(a.Tokens.Automation)
+	oauth := &tools.OAuth{Secrets: a.Secrets.Secret, Swap: a.Secrets.Swap}
 	a.Tools = tools.NewHTTP(a.Gateway, a.Secrets.Secret, a.dirs())
-	a.Tools.OAuth = &tools.OAuth{Secrets: a.Secrets.Secret, Swap: a.Secrets.Swap}
-	a.Connections.OAuth = a.Tools.OAuth
-	a.Tools.Health, a.Tools.SignIn = a.Connections.ToolHealth, a.Connections.ToolSignIn
+	a.Tools.OAuth, a.Tools.Health, a.Tools.SignIn = oauth, a.Connections.ToolHealth, a.Connections.ToolSignIn
 	a.Tools.Resolve = func(ctx context.Context, project, process int64, ref string) (files.Ref, error) {
 		return a.dirs().Resolve(ctx, a.Store.Q, project, process, ref)
 	}
 	a.Host = mcphost.New(a.Connections.ServerStatus)
-	a.Host.Now, a.Host.Sandbox = cfg.Now, cfg.Sandbox
-	a.Host.Home = cfg.Home
+	a.Host.Now, a.Host.Sandbox, a.Host.Home = cfg.Now, cfg.Sandbox, cfg.Home
 	a.MCP = &tools.MCP{GW: a.Gateway, Host: a.Host, Store: st, Secrets: a.Secrets.Secret, Dirs: a.dirs(), Home: cfg.Home, Rules: rules}
 	a.Host.Closed = a.MCP.Kept
 	a.Browser = &tools.Browser{GW: a.Gateway, Host: a.Host, Store: st, Dirs: a.dirs(), Home: cfg.Home, Argv: cfg.Browser, Ctx: a.ctx}
-	a.Connections.Browser, a.Connections.MCP = a.Browser, a.MCP
-	a.Browser.Load()
-	a.Registry.SetExtra(a.Browser.Commands)
-	a.Gateway.SetAutomation(a.Tokens.Automation)
 	a.Runner = process.NewRunner(st, a.Gateway, a.Bus, a.Scripts,
 		process.Config{RunsDir: h.Runs(), MCPBase: cfg.MCPBase, Now: cfg.Now, FilesDir: h.Files(), FilesMu: &a.Files.Mu,
 			Hidden: sandbox.Agent(h), PauseLimit: cfg.PauseLimit, AgentSlots: a.Settings.AgentSlots, Rules: rules},
 		process.Deps{For: a.Providers.For, Named: a.Providers.Named, Ready: a.Providers.Ready, Prompt: a.Projects.Prompt,
 			Text: a.Projects.Text, Skills: a.Documents.Skills, Servers: a.Connections.Servers, Folder: a.Folders.Folder,
 			Memory: a.Chats.Memory})
-	a.Chats.Runner, a.Suggest.Gateway, a.Tokens.Journal, a.Documents.Changed = a.Runner, a.Gateway, a.Gateway.Journal, a.Devices.Changed
-	a.Answers.Gateway, a.Answers.Deliver = a.Gateway, a.Runner.Deliver
-	a.Answers.ExpireSuggestions, a.Answers.AnswerSuggestion = a.Suggest.Expire, a.Suggest.Answer
 	a.Runner.Hooks = []process.Hook{a.Chats.NewHook(), errorsHook{a: a}, afterHook{a: a}}
 	a.Scheduler = trigger.New(st, a, cfg.Now)
-	a.Triggers.Scheduler, a.Triggers.Gateway, a.Triggers.Registry = a.Scheduler, a.Gateway, a.Registry
-	pj := a.Projects
-	pj.Registry, pj.Gateway, pj.Runner, pj.Scheduler, pj.Broker = a.Registry, a.Gateway, a.Runner, a.Scheduler, a.Asks
-	pj.Tools, pj.MCP, pj.Host = a.Tools, a.MCP, a.Host
-	pj.PrepareLater, pj.Changed, pj.Folders = a.Documents.PrepareLater, a.Devices.Changed, a.Folders.List
-	pj.Snapshot, pj.RemoveFiles, pj.CheckScreens = a.Snapshots.BeforeDelete, a.Files.Remove, a.checkScreens
+
+	*a.Secrets = secrets.Service{St: st, Dir: h.Secrets}
+	*a.Folders = folders.Service{St: st, Home: cfg.Home}
+	*a.Files = appfiles.Service{St: st, Home: h, Now: cfg.Now}
+	*a.Journal = journal.Service{St: st, Now: cfg.Now, Backups: h.Backups()}
+	*a.Settings = settings.Service{St: st, DefaultTTL: cfg.ConfirmTTL, Wake: a.Runner.Wake}
+	*a.Triggers = triggers.Service{St: st, Scheduler: a.Scheduler, Gateway: a.Gateway, Registry: a.Registry}
+	*a.Documents = documents.Service{St: st, Now: cfg.Now, Sandbox: cfg.Sandbox, Ctx: a.ctx, BG: &a.bg,
+		SaveManifest: a.Projects.SaveCall, Changed: a.Devices.Changed}
+	*a.Snapshots = snapshots.Service{St: st, Bus: a.Bus, Home: h, Now: cfg.Now, LockFiles: a.Files.Mu.Lock, UnlockFiles: a.Files.Mu.Unlock,
+		RemoveFiles: a.Files.Remove}
+	*a.Board = board.Service{St: st, Bus: a.Bus, Now: cfg.Now, Fire: a.fire}
+	*a.Providers = providers.Service{St: st, Bus: a.Bus, Now: cfg.Now, Home: cfg.Home, Sandbox: cfg.Sandbox, ACPBinaries: cfg.ACPBinaries,
+		ACPCallLimit: cfg.ACPCallLimit, SelfCheckCeiling: cfg.SelfCheckCeiling, Secret: a.Secrets.Secret, Wake: a.Runner.Wake,
+		Rules: rules, Builtin: append([]provider.Provider{p}, more...), Ctx: a.ctx, BG: &a.bg}
+	*a.Answers = asks.Service{St: st, Now: cfg.Now, Broker: a.Asks, Registry: a.Registry, Gateway: a.Gateway, Deliver: a.Runner.Deliver,
+		AnswerGrant: a.Projects.AnswerGrant, SaveManifest: a.Projects.SaveCall, ExpireSuggestions: a.Suggest.Expire,
+		AnswerSuggestion: a.Suggest.Answer}
+	*a.Connections = connections.Service{St: st, Ctx: a.ctx, Broker: a.Asks, OAuth: oauth, Browser: a.Browser, MCP: a.MCP}
+	*a.Suggest = suggest.Service{St: st, Bus: a.Bus, Now: cfg.Now, Registry: a.Registry, Asks: a.Asks, Gateway: a.Gateway, Days: a.Settings.SuggestDays}
+	*a.Chats = chat.Service{St: st, Bus: a.Bus, Now: cfg.Now, Asks: a.Asks, Runner: a.Runner, For: a.Providers.For}
+	*a.Devices = devices.Service{St: st, Bus: a.Bus, Now: cfg.Now, Ctx: a.ctx, BG: &a.bg, STT: cfg.STT, Files: a.dirs(), RemoveFiles: a.Files.Remove,
+		Secret: a.Secrets.Secret, ReadSecret: a.Secrets.Read, WriteSecret: a.Secrets.Write, SecretsDir: h.Secrets,
+		LockSecrets: a.Secrets.Lock, UnlockSecrets: a.Secrets.Unlock, Invoke: a.Registry.Invoke}
+	*a.Tokens = tokens.Service{St: st, MCPBase: cfg.MCPBase, Journal: a.Gateway.Journal}
+	*a.Projects = project.Service{St: st, Bus: a.Bus, Now: cfg.Now, Home: h, Manifests: a.Manifests, Scripts: a.Scripts,
+		Registry: a.Registry, Gateway: a.Gateway, Runner: a.Runner, Scheduler: a.Scheduler, Broker: a.Asks,
+		Tools: a.Tools, MCP: a.MCP, Host: a.Host, PrepareLater: a.Documents.PrepareLater, Changed: a.Devices.Changed,
+		Folders: a.Folders.List, Snapshot: a.Snapshots.BeforeDelete, RemoveFiles: a.Files.Remove, CheckScreens: a.checkScreens}
+	a.addBuiltins()
+	a.Browser.Load()
+	a.Registry.SetExtra(a.Browser.Commands)
 	a.Asks.OnLateAnswer(a.Answers.LateAnswer)
 	if err := a.Documents.SeedSkills(a.ctx); err != nil {
 		return nil, err

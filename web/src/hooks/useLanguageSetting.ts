@@ -13,6 +13,6 @@ export function useLanguageSetting() {
       }, () => undefined);
     };
     load();
-    return events((e) => { if (e.topic === 'settings') load(); });
+    return events((e) => { if (e.topic === 'settings') load(); }, load);
   }, []);
 }

@@ -33,7 +33,7 @@ export function Bell() {
   const load = useCallback(() => { call<Note[]>('deck.feed_list', { kind: 'note', limit: 30 }).then(setNotes, () => undefined); }, []);
   useEffect(() => {
     load();
-    return events((e) => { if (e.topic === 'feed') load(); });
+    return events((e) => { if (e.topic === 'feed') load(); }, load);
   }, []);
   const fresh = notes.filter((n) => n.id > seen && !n.read).length;
   const markRead = (id: number) => { call('deck.feed_read', { entry: id }).then(load, () => undefined); };

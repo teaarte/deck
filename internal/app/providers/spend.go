@@ -116,9 +116,6 @@ func (s *Service) Route(ctx context.Context, act registry.Actor, connection, ask
 		if err != nil {
 			return nil, err
 		}
-		if h.Over == "" && p.c.DailyUsd.Valid && p.m.Free == 0 && !p.m.InputUsd.Valid && !p.m.OutputUsd.Valid && !p.m.CallUsd.Valid {
-			h.Over = fmt.Sprintf("deck: model %s of connection %s has no price, so its limit cannot count it; the owner sets one with deck.model_set", p.m.Model, p.c.Name)
-		}
 		m, c := p.m, p.c
 		h.Done = func(ctx context.Context, status int, u *provider.Usage) { s.record(ctx, act, command, m, c, status, u) }
 		hops = append(hops, h)

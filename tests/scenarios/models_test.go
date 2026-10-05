@@ -266,8 +266,8 @@ type spendRow struct {
 	Cost     *float64 `json:"cost_usd"`
 }
 
-// TestAScriptCallsAModelThroughDeckWithinTheDayOfItsConnection: a script calls a model through DECK_MODELS without its
-// key, deck counts what OpenRouter says it cost; past the day's limit a call waits for the owner, whose yes makes it.
+// TestAScriptCallsAModelThroughDeckWithinTheDayOfItsConnection: a script calls a model deck has no row of through
+// DECK_MODELS without its key, deck counts what OpenRouter says it cost; past the day's limit a call waits for the owner.
 func TestAScriptCallsAModelThroughDeckWithinTheDayOfItsConnection(t *testing.T) {
 	api := newModels(t, map[string]func(int, map[string]any) (int, string, string){
 		"/api/v1/chat/completions": func(int, map[string]any) (int, string, string) {
@@ -278,16 +278,8 @@ func TestAScriptCallsAModelThroughDeckWithinTheDayOfItsConnection(t *testing.T) 
 	e.must("deck.secret_set", map[string]any{"name": "openrouter", "value": "sk-or-real"}, nil)
 	e.must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": api.URL + "/api/v1", "key_secret": "openrouter",
 		"daily_usd": 0.05}, nil)
-	model := map[string]any{"connection": "openrouter", "model": "google/gemini-3.1-flash-lite-image", "kind": "image"}
 	e.createProject("shorts", scriptManifest("media", "", `, "models": ["openrouter"]`))
 	e.saveScript("shorts", "scripts/main.py", modelScript)
-	got := e.waitScript(e.start("shorts", "media", map[string]any{"key": "openrouter/chat/completions", "other": picture}), "done", "error")
-	if !strings.Contains(string(got.Result), "has no price") || len(api.calls()) != 0 {
-		t.Fatalf("a model without a price on a connection with a limit waits for the owner to price it: %+v", got)
-	}
-	e.answer(e.waitAsk().ID, "deny")
-	model["call_usd"] = 0.04
-	e.must("deck.model_set", model, nil)
 	run := func() map[string]any {
 		got := e.waitScript(e.start("shorts", "media", map[string]any{"key": "openrouter/chat/completions", "other": picture}), "done", "error")
 		var out map[string]any

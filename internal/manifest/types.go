@@ -270,8 +270,8 @@ type Block struct {
 	// Tone is the expression of a stat block over rows: ok, warn, error or muted.
 	Tone    string   `json:"tone,omitempty"`
 	Actions []Action `json:"actions,omitempty"`
-	Blocks      []Block `json:"blocks,omitempty"`
-	Tabs        []Tab   `json:"tabs,omitempty"`
+	Blocks  []Block  `json:"blocks,omitempty"`
+	Tabs    []Tab    `json:"tabs,omitempty"`
 	// Span is how many cells of the grid of the screen the block takes: 1, 2 or "full".
 	Span Span `json:"span,omitzero"`
 	// Part is the part of the device an appearance block shows: its look or its pushes.

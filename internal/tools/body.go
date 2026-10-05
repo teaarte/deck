@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"mime/multipart"
 	"net/http"
 	"net/textproto"
@@ -54,7 +55,7 @@ func makeBody(t manifest.HTTPTool, in, values map[string]any, resolve func(strin
 				return nil, registry.Invalid("deck: multipart body of %s: %v", t.Name, err)
 			}
 			b := &body{}
-			for _, name := range sortedKeys(tmpl) {
+			for _, name := range slices.Sorted(maps.Keys(tmpl)) {
 				f, isFile, err := fileOf(tmpl[name])
 				if err != nil {
 					return nil, err

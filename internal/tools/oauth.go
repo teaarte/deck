@@ -43,10 +43,6 @@ type OAuth struct {
 	Secrets func(workspace int64, name string) (string, error)
 	// Swap writes a secret only while it still holds old; false when it changed meanwhile.
 	Swap func(workspace int64, name, old, value string) (bool, error)
-	// Client makes the token requests.
-	Client *http.Client
-	// FlowTTL is how long a sign-in may take.
-	FlowTTL time.Duration
 
 	mu    sync.Mutex
 	locks map[string]*sync.Mutex
@@ -78,13 +74,6 @@ func (o *OAuth) lock(workspace int64, name string) *sync.Mutex {
 	return o.locks[k]
 }
 
-func (o *OAuth) ctx(ctx context.Context) context.Context {
-	if o.Client != nil {
-		return context.WithValue(ctx, oauth2.HTTPClient, o.Client)
-	}
-	return ctx
-}
-
 // Access is a valid access token, refreshed first when it ran out or when force says the service refused it.
 func (o *OAuth) Access(ctx context.Context, workspace int64, a Auth, force bool) (string, error) {
 	l := o.lock(workspace, a.Token)
@@ -110,7 +99,7 @@ func (o *OAuth) Access(ctx context.Context, workspace int64, a Auth, force bool)
 	}
 	old := tok
 	old.Expiry = time.Now().Add(-time.Hour)
-	next, err := conf.TokenSource(o.ctx(ctx), &old).Token()
+	next, err := conf.TokenSource(ctx, &old).Token()
 	if err != nil {
 		var re *oauth2.RetrieveError
 		if errors.As(err, &re) && re.Response != nil && re.Response.StatusCode < 500 {
@@ -179,10 +168,7 @@ func (o *OAuth) Start(ctx context.Context, workspace int64, a Auth, done func(er
 		finish(err)
 	})
 	go func() { _ = srv.Serve(ln) }()
-	ttl := o.FlowTTL
-	if ttl <= 0 {
-		ttl = 10 * time.Minute
-	}
+	const ttl = 10 * time.Minute
 	time.AfterFunc(ttl, func() { finish(registry.Invalid("deck: the sign-in was not finished within %s", ttl)) })
 	return conf.AuthCodeURL(state, oauth2.S256ChallengeOption(verifier)), nil
 }
@@ -191,7 +177,7 @@ func (o *OAuth) exchange(ctx context.Context, workspace int64, a Auth, conf *oau
 	if refused != "" || code == "" {
 		return fmt.Errorf("deck: the service did not grant access: %s", refused)
 	}
-	tok, err := conf.Exchange(o.ctx(ctx), code, oauth2.VerifierOption(verifier))
+	tok, err := conf.Exchange(ctx, code, oauth2.VerifierOption(verifier))
 	if err != nil {
 		return fmt.Errorf("deck: getting the token: %v", err)
 	}

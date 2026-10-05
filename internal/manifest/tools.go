@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"net"
 	"net/url"
 	"regexp"
@@ -93,7 +94,7 @@ func FitsTool(c Command, name string, input json.RawMessage) error {
 		_ = json.Unmarshal(input, &tool)
 	}
 	var errs []error
-	for _, f := range sortedKeys(cmd.Properties) {
+	for _, f := range slices.Sorted(maps.Keys(cmd.Properties)) {
 		if _, ok := tool.Properties[f]; !ok {
 			errs = append(errs, fmt.Errorf("input field %q is not an input field of tool %q, which gets the command input as it is", f, name))
 		}
@@ -118,7 +119,7 @@ func FieldsOf(input json.RawMessage, format string) []string {
 	}
 	_ = json.Unmarshal(input, &s)
 	var out []string
-	for _, name := range sortedKeys(s.Properties) {
+	for _, name := range slices.Sorted(maps.Keys(s.Properties)) {
 		if s.Properties[name].Format == format {
 			out = append(out, name)
 		}

@@ -187,9 +187,6 @@ func (r *Registry) List(ctx context.Context, a Actor) ([]*Command, error) {
 	return out, nil
 }
 
-// Builtin is a builtin command by name, or nil.
-func (r *Registry) Builtin(name string) *Command { return r.builtins[name] }
-
 func (r *Registry) Lookup(ctx context.Context, workspace int64, name string) (*Command, error) {
 	if c := r.builtins[name]; c != nil {
 		return c, nil

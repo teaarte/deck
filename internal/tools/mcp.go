@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -75,7 +76,7 @@ func (x *MCP) spec(ctx context.Context, p db.Project, name string, s manifest.MC
 	}
 	env = append(env, "HOME="+dir, "TMPDIR="+dir)
 	var secrets []string
-	for _, k := range sortedKeys(s.Env) {
+	for _, k := range slices.Sorted(maps.Keys(s.Env)) {
 		v, used, err := x.expand(p.WorkspaceID, s.Env[k])
 		if err != nil {
 			return mcphost.Spec{}, err
@@ -118,7 +119,7 @@ func (x *MCP) Start(ctx context.Context, p db.Project, m *manifest.Manifest) {
 	if err != nil {
 		return
 	}
-	for _, name := range sortedKeys(m.Tools.MCP.Servers) {
+	for _, name := range slices.Sorted(maps.Keys(m.Tools.MCP.Servers)) {
 		s := m.Tools.MCP.Servers[name]
 		if slices.ContainsFunc(rows, func(r db.McpTool) bool { return r.Server == name && r.Spec == SpecID(s) }) {
 			continue
@@ -282,15 +283,6 @@ func redactErr(err error, secrets []string) error {
 		return errors.New(clean)
 	}
 	return err
-}
-
-func sortedKeys[V any](m map[string]V) []string {
-	out := make([]string, 0, len(m))
-	for k := range m {
-		out = append(out, k)
-	}
-	slices.Sort(out)
-	return out
 }
 
 // Kept passes on a path the sandbox kept closed from the server with key.

@@ -5,10 +5,10 @@ import (
 	"deck2/internal/registry"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"reflect"
 	"regexp"
 	"slices"
-	"sort"
 )
 
 var secretRef = regexp.MustCompile(`\$secret\.([A-Za-z0-9_.-]+)`)
@@ -75,7 +75,7 @@ func Widens(prev, next *Manifest) []string {
 	for _, t := range next.Tools.HTTP {
 		out = append(out, toolWidens(prev, next, t)...)
 	}
-	for _, name := range sortedKeys(next.Tools.MCP.Servers) {
+	for _, name := range slices.Sorted(maps.Keys(next.Tools.MCP.Servers)) {
 		s := next.Tools.MCP.Servers[name]
 		old, ok := prev.Tools.MCP.Servers[name]
 		if !ok || old.Command != s.Command || !slices.Equal(old.Args, s.Args) || old.URL != s.URL || !reflect.DeepEqual(old.Env, s.Env) {
@@ -87,7 +87,7 @@ func Widens(prev, next *Manifest) []string {
 				add("MCP server %s: tool %s", name, t)
 			}
 		}
-		for _, tool := range sortedKeys(s.Classes) {
+		for _, tool := range slices.Sorted(maps.Keys(s.Classes)) {
 			was, known := old.Classes[tool]
 			if !known {
 				was = "external"
@@ -273,13 +273,4 @@ func compact(raw json.RawMessage) []byte {
 		return raw
 	}
 	return b.Bytes()
-}
-
-func sortedKeys[V any](m map[string]V) []string {
-	out := make([]string, 0, len(m))
-	for k := range m {
-		out = append(out, k)
-	}
-	sort.Strings(out)
-	return out
 }

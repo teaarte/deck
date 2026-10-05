@@ -1,6 +1,6 @@
-// Package connections keeps what deck reaches outside for projects: the sign-ins of deck's browser and of oauth2
+// Package signins keeps what deck reaches outside for projects: the sign-ins of deck's browser and of oauth2
 // tools, and the MCP servers with the health of their tools.
-package connections
+package signins
 
 import (
 	"context"

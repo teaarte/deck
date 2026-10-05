@@ -49,7 +49,7 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
   enable, trials, import, delete; `Saver` the manifests — save with checks, migrations and grants, the commands a
   manifest gives the registry), `asks` (what waits for the owner and its answers; `Unheard` hands the master an answer
   its process did not act on), `processes` (the commands of processes), `failures` (failed processes and screens to
-  the master), `health` (the list of health), `connections`
+  the master), `health` (the list of health), `signins`
   (sign-ins of the browser and oauth2 tools, MCP servers), `documents` (documents, shipped skills, health of
   scripts), `triggers`, `snapshots` (snapshots, cleanup, disk), `journal`, `files`, `folders`, `settings` (one table
   `settingDefs` gives the row, the field of `settings_set` and the edit button), `secrets`, `tokens`, `board`,

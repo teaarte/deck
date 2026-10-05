@@ -17,7 +17,7 @@ const chatLines = 30
 
 // waitsFor says what a reply waits for, by its state.
 var waitsFor = map[string]string{
-	process.StateWaitingAnswer: "the owner", process.StateWaitingSlot: "a free slot", process.StateWaitingProvider: "its provider",
+	process.StateWaitingAnswer: "the owner", process.StateWaitingSlot: "a free slot", process.StateWaitingProvider: "its model",
 	process.StateRateLimited: "the usage limit to reset", process.StateNeedsLogin: "a login", process.StateWaitingFolder: "a folder",
 }
 

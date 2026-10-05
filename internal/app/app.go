@@ -15,7 +15,6 @@ import (
 	"deck2/internal/app/asks"
 	"deck2/internal/app/board"
 	"deck2/internal/app/chat"
-	"deck2/internal/app/connections"
 	"deck2/internal/app/devices"
 	"deck2/internal/app/documents"
 	appfiles "deck2/internal/app/files"
@@ -26,6 +25,7 @@ import (
 	"deck2/internal/app/records"
 	"deck2/internal/app/secrets"
 	"deck2/internal/app/settings"
+	"deck2/internal/app/signins"
 	"deck2/internal/app/snapshots"
 	"deck2/internal/app/suggest"
 	"deck2/internal/app/tokens"
@@ -73,19 +73,19 @@ type App struct {
 	Triggers  *triggers.Service
 	Documents *documents.Service
 	// Answers are what waits for the owner and their answers; Asks is the broker processes wait on.
-	Answers     *asks.Service
-	Connections *connections.Service
-	Projects    *project.Service
-	Saver       *project.Saver
-	Records     *records.Service
-	Health      *apphealth.Service
-	Processes   *processes.Service
-	Failures    *failures.Service
-	Scripts     *script.Exec
-	Tools       *tools.HTTP
-	MCP         *tools.MCP
-	Browser     *tools.Browser
-	Host        *mcphost.Host
+	Answers   *asks.Service
+	Signins   *signins.Service
+	Projects  *project.Service
+	Saver     *project.Saver
+	Records   *records.Service
+	Health    *apphealth.Service
+	Processes *processes.Service
+	Failures  *failures.Service
+	Scripts   *script.Exec
+	Tools     *tools.HTTP
+	MCP       *tools.MCP
+	Browser   *tools.Browser
+	Host      *mcphost.Host
 
 	ctx      context.Context
 	cancel   context.CancelFunc
@@ -116,7 +116,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 		Projects: &project.Service{}, Saver: &project.Saver{}, Secrets: &secrets.Service{}, Folders: &folders.Service{}, Files: &appfiles.Service{},
 		Journal: &journal.Service{}, Triggers: &triggers.Service{}, Documents: &documents.Service{}, Snapshots: &snapshots.Service{},
 		Settings: &settings.Service{}, Board: &board.Service{}, Providers: &providers.Service{}, Answers: &asks.Service{},
-		Connections: &connections.Service{}, Suggest: &suggest.Service{}, Chats: &chat.Service{}, Devices: &devices.Service{},
+		Signins: &signins.Service{}, Suggest: &suggest.Service{}, Chats: &chat.Service{}, Devices: &devices.Service{},
 		Tokens: &tokens.Service{}, Records: &records.Service{}, Health: &apphealth.Service{}, Processes: &processes.Service{}, Failures: &failures.Service{}}
 	a.ctx, a.cancel = context.WithCancel(context.Background())
 	st.Changed = func(c store.Change) {
@@ -131,11 +131,11 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	a.Gateway.SetAutomation(a.Tokens.Automation)
 	oauth := &tools.OAuth{Secrets: a.Secrets.Secret, Swap: a.Secrets.Swap}
 	a.Tools = tools.NewHTTP(a.Gateway, a.Secrets.Secret, a.dirs())
-	a.Tools.OAuth, a.Tools.Health, a.Tools.SignIn = oauth, a.Connections.ToolHealth, a.Connections.ToolSignIn
+	a.Tools.OAuth, a.Tools.Health, a.Tools.SignIn = oauth, a.Signins.ToolHealth, a.Signins.ToolSignIn
 	a.Tools.Resolve = func(ctx context.Context, project, process int64, ref string) (files.Ref, error) {
 		return a.dirs().Resolve(ctx, a.Store.Q, project, process, ref)
 	}
-	a.Host = mcphost.New(a.Connections.ServerStatus)
+	a.Host = mcphost.New(a.Signins.ServerStatus)
 	a.Host.Now, a.Host.Sandbox, a.Host.Home = cfg.Now, cfg.Sandbox, cfg.Home
 	a.MCP = &tools.MCP{GW: a.Gateway, Host: a.Host, Store: st, Secrets: a.Secrets.Secret, Dirs: a.dirs(), Home: cfg.Home, Rules: rules}
 	a.Host.Closed = a.MCP.Kept
@@ -144,7 +144,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 		process.Config{RunsDir: h.Runs(), MCPBase: cfg.MCPBase, Now: cfg.Now, FilesDir: h.Files(), FilesMu: &a.Files.Mu,
 			Hidden: sandbox.Agent(h), AgentSlots: a.Settings.AgentSlots, Rules: rules},
 		process.Deps{For: a.Providers.For, Named: a.Providers.Named, Ready: a.Providers.Ready, Broke: a.Providers.Broke, Prompt: a.Saver.Prompt,
-			Text: a.Saver.Text, Skills: a.Documents.Skills, Servers: a.Connections.Servers, Folder: a.Folders.Folder,
+			Text: a.Saver.Text, Skills: a.Documents.Skills, Servers: a.Signins.Servers, Folder: a.Folders.Folder,
 			Memory: a.Chats.Memory})
 	a.Runner.Hooks = []process.Hook{a.Chats.NewHook(), failures.Hook{S: a.Failures}, triggers.After{S: a.Triggers}, asks.Unheard{S: a.Answers}}
 	a.Scheduler = trigger.New(st, a.Triggers, cfg.Now)
@@ -167,7 +167,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	*a.Answers = asks.Service{St: st, Now: cfg.Now, Broker: a.Asks, Registry: a.Registry, Gateway: a.Gateway, Deliver: a.Runner.Deliver,
 		AnswerGrant: a.Saver.AnswerGrant, SaveManifest: a.Saver.SaveCall, ExpireSuggestions: a.Suggest.Expire,
 		AnswerSuggestion: a.Suggest.Answer}
-	*a.Connections = connections.Service{St: st, Ctx: a.ctx, Broker: a.Asks, OAuth: oauth, Browser: a.Browser, MCP: a.MCP}
+	*a.Signins = signins.Service{St: st, Ctx: a.ctx, Broker: a.Asks, OAuth: oauth, Browser: a.Browser, MCP: a.MCP}
 	*a.Suggest = suggest.Service{St: st, Bus: a.Bus, Now: cfg.Now, Registry: a.Registry, Asks: a.Asks, Gateway: a.Gateway, Days: a.Settings.SuggestDays}
 	*a.Chats = chat.Service{St: st, Bus: a.Bus, Now: cfg.Now, Asks: a.Asks, Runner: a.Runner, For: a.Providers.For, RemoveFiles: a.Files.Remove}
 	*a.Devices = devices.Service{St: st, Bus: a.Bus, Now: cfg.Now, Ctx: a.ctx, BG: &a.bg, Files: a.dirs(), RemoveFiles: a.Files.Remove,

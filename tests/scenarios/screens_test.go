@@ -672,6 +672,33 @@ func TestAValueIsFixedTextOrAnExpression(t *testing.T) {
 	}
 }
 
+// TestAModuleOfFormatSevenOnAReadOfDeckStillLoads: $record.id on a block that reads a deck command, and a field
+// whose name is no name of an expression, rise to expressions that load and give the same values.
+func TestAModuleOfFormatSevenOnAReadOfDeckStillLoads(t *testing.T) {
+	e := newEnv(t, nil)
+	pid := e.createProject("notes", `{"version": 7,
+  "collections": [{"name": "notes", "description": "Notes", "key": "title",
+    "schema": {"type": "object", "properties": {"title": {"type": "string"}, "first-name": {"type": "string"}}, "required": ["title"]}}],
+  "commands": [{"name": "touch", "title": "Touch", "description": "Touches.", "class": "internal", "result": {"type": "object"},
+    "input": {"type": "object", "properties": {"process": {"type": "integer"}, "who": {"type": "string"}}},
+    "executor": {"type": "agent", "prompt": "Touch."}}],
+  "screens": [{"name": "main", "title": "Main", "blocks": [
+    {"type": "table", "title": "Runs", "source": {"from": "deck.processes_list"}, "columns": [{"label": "Command", "bind": "command"}],
+      "actions": [{"label": "Touch", "command": "touch", "params": {"process": "$record.id"}}]},
+    {"type": "table", "title": "Notes", "source": {"collection": "notes"}, "columns": [{"label": "Title", "bind": "title"}],
+      "actions": [{"label": "Who", "command": "touch", "params": {"who": "$record.first-name"}}]}]}]}`)
+	e.must("deck.records_upsert", map[string]any{"project": "notes", "collection": "notes", "records": jsonl(map[string]any{"title": "a", "first-name": "Ann"})}, nil)
+	e.run(pid, "touch")
+	data := e.screenData("notes", "main", nil)
+	runs := blockData[[]screenRow](t, data["b0"]["rows"])
+	notes := blockData[[]screenRow](t, data["b1"]["rows"])
+	p, _ := runs[0].Actions[0]["params"].(map[string]any)
+	n, _ := notes[0].Actions[0]["params"].(map[string]any)
+	if len(runs) != 1 || p["process"] != runs[0].ID || n["who"] != "Ann" {
+		t.Fatalf("the raised buttons give the id of the run and the field: %+v / %+v", runs, notes)
+	}
+}
+
 func TestScreenSortsNumbersAndResolvesRowParams(t *testing.T) {
 	e := newEnv(t, nil)
 	p := e.createProject("items", numbersManifest)

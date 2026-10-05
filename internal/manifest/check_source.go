@@ -59,6 +59,9 @@ func (c *screenCheck) source(where, typ string, src Source) ([]string, bool) {
 			c.fail("%s source: %s gives no list of objects (rows %q)", where, from, src.Rows)
 			return nil, false
 		}
+		if fields != nil {
+			fields = append(slices.Clone(fields), "_id")
+		}
 	}
 	if fields != nil && c.screen.Record != "" {
 		fields = append(fields, "record")

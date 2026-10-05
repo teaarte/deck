@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"regexp"
 	"slices"
 	"strings"
 )
@@ -95,7 +96,10 @@ func fromParam(v any, params map[string]any) any {
 	return v
 }
 
-// fromRecord turns the $record.<field> values of format 7 into =<field>, and $record.id into =_id, in place.
+var identifier = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+
+// fromRecord turns the $record.<field> values of format 7 into =<field>, $record.id into =_id and a field that is no
+// name of an expression into =$env["<field>"], in place.
 func fromRecord(v any) any {
 	switch v := v.(type) {
 	case map[string]any:
@@ -108,10 +112,14 @@ func fromRecord(v any) any {
 		}
 	case string:
 		if f, ok := strings.CutPrefix(v, "$record."); ok {
-			if f == "id" {
-				f = "_id"
+			switch {
+			case f == "id":
+				return "=_id"
+			case identifier.MatchString(f):
+				return "=" + f
 			}
-			return "=" + f
+			q, _ := json.Marshal(f)
+			return "=$env[" + string(q) + "]"
 		}
 	}
 	return v

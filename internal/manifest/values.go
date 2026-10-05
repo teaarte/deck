@@ -99,7 +99,9 @@ type names struct {
 func (v *names) Visit(n *ast.Node) {
 	switch x := (*n).(type) {
 	case *ast.IdentifierNode:
-		v.ids = append(v.ids, x)
+		if x.Value != "$env" {
+			v.ids = append(v.ids, x)
+		}
 	case *ast.CallNode:
 		if id, ok := x.Callee.(*ast.IdentifierNode); ok {
 			v.callees[id] = true

@@ -630,4 +630,17 @@ func TestARunLaterThatFailsToStartIsKept(t *testing.T) {
 			t.Fatalf("the health row goes once it starts: %+v", h)
 		}
 	}
+	var r struct{ Trigger int64 }
+	e.must("deck.run_later", map[string]any{"command": "later.remind", "at": e.Clock.Now().Add(time.Hour).Format(time.RFC3339), "params": `{"what": "call"}`}, &r)
+	e.must("deck.manifest_save", map[string]any{"project": "later", "manifest": strings.Replace(text, `"what": {"type": "string"}`, `"what": {"type": "integer"}`, 1)}, nil)
+	e.Clock.Add(time.Hour)
+	e.tick()
+	e.waitHealth("trigger:later.remind", "error")
+	e.must("deck.run_later_cancel", map[string]any{"trigger": r.Trigger}, nil)
+	e.must("deck.health_list", nil, &hs)
+	for _, h := range hs {
+		if h.Subject == "trigger:later.remind" {
+			t.Fatalf("the health row goes with the cancelled run later: %+v", h)
+		}
+	}
 }

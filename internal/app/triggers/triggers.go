@@ -95,7 +95,16 @@ func (s *Service) runLaterCancel(ctx context.Context, act registry.Actor, in run
 	if t.Kind != trigger.KindOnce {
 		return nil, registry.Invalid("deck: trigger %d comes from the manifest; pause it instead", t.ID)
 	}
-	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error { return q.DeleteTrigger(ctx, t.ID) })
+	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		if err := q.DeleteTrigger(ctx, t.ID); err != nil {
+			return err
+		}
+		p, err := q.GetProject(ctx, t.ProjectID)
+		if err != nil {
+			return err
+		}
+		return q.DeleteHealth(ctx, db.DeleteHealthParams{ProjectID: store.ID(p.ID), Subject: "trigger:" + p.Name + "." + t.Command})
+	})
 	if err != nil {
 		return nil, err
 	}

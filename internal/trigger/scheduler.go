@@ -176,6 +176,9 @@ func (s *Scheduler) fire(ctx context.Context, t db.Trigger, now time.Time) {
 	if err == nil {
 		_, err = s.start.Fire(ctx, t, params)
 	}
+	if ctx.Err() != nil {
+		return
+	}
 	p, perr := s.st.Q.GetProject(ctx, t.ProjectID)
 	subject := "trigger:" + p.Name + "." + t.Command
 	if err == nil {

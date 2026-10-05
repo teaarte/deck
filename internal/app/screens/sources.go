@@ -3,6 +3,7 @@ package screens
 import (
 	"context"
 
+	"deck2/internal/app/board"
 	"deck2/internal/docs"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
@@ -14,7 +15,6 @@ import (
 type Sources struct {
 	Store    *store.Store
 	Registry *registry.Registry
-	Deck     Deck
 }
 
 func (s Sources) Records(ctx context.Context, project int64, collection string) ([]db.Record, error) {
@@ -34,7 +34,7 @@ func (s Sources) Board(ctx context.Context, p db.Project, m *manifest.Manifest) 
 	if err != nil {
 		return nil, err
 	}
-	waits, err := s.Deck.Waits(ctx, p.ID)
+	waits, err := board.Waits(ctx, s.Store.Q, p.ID)
 	if err != nil {
 		return nil, err
 	}

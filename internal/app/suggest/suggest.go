@@ -128,7 +128,7 @@ func (sg *Service) suggest(ctx context.Context, act registry.Actor, in suggestIn
 	var q db.Ask
 	err = sg.St.Tx(ctx, func(ctx context.Context, tx *db.Queries) error {
 		var err error
-		q, err = gateway.Hold(ctx, tx, act, target.ID, ask.KindSuggest, class, f.Reason+"\n"+suggested(f), f, expires)
+		q, err = gateway.Hold(ctx, tx, act, target.ID, 0, ask.KindSuggest, class, f.Reason+"\n"+suggested(f), f, expires)
 		return err
 	})
 	if err != nil {

@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"deck2/internal/app/access"
-	"deck2/internal/app/board"
 	_ "embed"
 	"encoding/json"
 	"fmt"
@@ -136,7 +135,7 @@ type screenSources struct {
 }
 
 func (a *App) sources(act registry.Actor) screenSources {
-	return screenSources{Sources: screens.Sources{Store: a.Store, Registry: a.Registry, Deck: screenDeck{a}}, a: a, act: act}
+	return screenSources{Sources: screens.Sources{Store: a.Store, Registry: a.Registry}, a: a, act: act}
 }
 
 // File is a file a media block of the project shows.
@@ -180,10 +179,4 @@ func (s screenSources) Read(ctx context.Context, command string, input map[strin
 		return nil, err
 	}
 	return manifest.DecodeExact(b)
-}
-
-type screenDeck struct{ a *App }
-
-func (d screenDeck) Waits(ctx context.Context, project int64) (map[int64][]int64, error) {
-	return board.Waits(ctx, d.a.Store.Q, project)
 }

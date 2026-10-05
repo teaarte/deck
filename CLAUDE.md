@@ -71,8 +71,8 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
   and the project folders, the old sandbox by the setting `sandbox`; `Watch` — refusals from the log of macOS
 - `internal/script` — runs project scripts in the sandbox (a script installs its own packages through the proxy)
 - `internal/trigger` — cron scheduler with catch-up after sleep
-- `internal/health` — health rows: `Set` inside a transaction, `Write` on its own and published; `Closed` — the
-  row `sandbox:<project>` with the last paths the sandbox kept from its programs
+- `internal/health` — health rows: `Set` inside a transaction, `Write` on its own and published; health is the
+  state of what deck runs or reaches, events go to the feed
 - `internal/screen` — stored screens resolved into A2UI messages without a store of its own (`render.go`, `blocks.go`,
   `data.go`, `items.go` with the reads of a screen kept by source, `actions.go`, `forms.go`, the topics a block follows
   `topics.go`, components and spans from the catalog `catalog.go`, `i18n.go`)

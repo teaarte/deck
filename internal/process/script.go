@@ -13,11 +13,11 @@ import (
 	"sync"
 	"time"
 
+	"deck2/internal/sandbox"
 	"deck2/internal/untrusted"
 
 	"deck2/internal/docs"
 	"deck2/internal/gateway"
-	"deck2/internal/health"
 	"deck2/internal/provider"
 	"deck2/internal/script"
 	"deck2/internal/store/db"
@@ -128,7 +128,7 @@ func (r *Runner) runScript(ctx context.Context, t turn, trial bool) {
 		time.Sleep(500 * time.Millisecond)
 		closedMu.Lock()
 		if len(closed) > 0 {
-			err = fmt.Errorf("%w\ndeck: the sandbox kept closed: %s. %s", err, strings.Join(closed, ", "), health.OpenHint)
+			err = fmt.Errorf("%w\ndeck: the sandbox kept closed: %s. %s", err, strings.Join(closed, ", "), sandbox.OpenHint)
 		}
 		closedMu.Unlock()
 		fail(err)

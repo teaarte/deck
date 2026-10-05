@@ -678,13 +678,15 @@ func TestTheSandboxSaysWhatItKeptClosed(t *testing.T) {
 	}
 	_, _ = e.App.Gateway.CallAs(context.Background(), registry.Actor{Kind: registry.Agent, Workspace: 1, ProjectID: e.projectID("tools")},
 		"tools.fake.peek", json.RawMessage(fmt.Sprintf(`{"path": %q}`, filepath.Join(owner, "Documents", "notes.txt"))))
-	e.waitFor("the closed paths in the health of the project", func() bool {
-		rows, _ := e.App.Store.Q.ListHealth(t.Context(), sql.NullInt64{Int64: 1, Valid: true})
-		return slices.ContainsFunc(rows, func(r db.ListHealthRow) bool {
-			return r.Health.Subject == "sandbox:tools" && r.Health.Status == "warning" && strings.Contains(r.Health.Error, ".zshrc (collect)") &&
-				strings.Contains(r.Health.Error, "notes.txt (MCP server fake)")
-		})
-	})
+	for _, kept := range []string{".zshrc closed from collect", "notes.txt closed from MCP server fake"} {
+		if n := e.waitNote(kept); !strings.Contains(n.Text, "Settings → Projects") {
+			t.Fatalf("the note says how to open a folder: %+v", n)
+		}
+	}
+	rows, _ := e.App.Store.Q.ListHealth(t.Context(), sql.NullInt64{Int64: 1, Valid: true})
+	if slices.ContainsFunc(rows, func(r db.ListHealthRow) bool { return strings.HasPrefix(r.Health.Subject, "sandbox:") }) {
+		t.Fatalf("what the sandbox kept closed is an event of the feed, not a state of health: %+v", rows)
+	}
 }
 
 // TestTheOldSandboxIsASetting: the owner turns the old sandbox back on, which reads the home folder but for the

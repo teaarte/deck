@@ -249,7 +249,7 @@ A script reads its input JSON from stdin and prints its result JSON to stdout. I
   the project folders; the system folders read as usual. A file of the owner elsewhere is opened by the owner
   adding its folder to the project (Settings → Projects): ask for that, never copy the file around the sandbox.
   What the sandbox kept closed is a `deck: the sandbox kept <path> closed` line in the script's log and error, and
-  the health row `sandbox:<project>`; MCP servers of the project read the same;
+  a note of deck in the owner's feed; MCP servers and ACP agents of the project read the same;
 - network only to the manifest's `domains.read`, through the proxy deck sets in `HTTP(S)_PROXY`; a domain is a
   host (`hf.co` takes its subdomains too) or `host:port`, never a URL or a public suffix such as `co.uk`; a name
   reaches only public addresses, so a service on the owner's machine or network is named by its IP or IP:port;

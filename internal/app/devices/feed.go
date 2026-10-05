@@ -3,7 +3,9 @@ package devices
 import (
 	"context"
 	"deck2/internal/app/access"
+	"deck2/internal/sandbox"
 	"encoding/json"
+	"slices"
 
 	"deck2/internal/docs"
 	"deck2/internal/registry"
@@ -32,6 +34,27 @@ func (dv *Service) Changed(ctx context.Context, q *db.Queries, act registry.Acto
 	}
 	_, err = q.AddFeed(ctx, row)
 	return err
+}
+
+// Kept tells the owner in the feed that the sandbox kept path closed from who, a program of project, unless it
+// is among the last paths told for the project.
+func (dv *Service) Kept(ctx context.Context, project int64, who, path string) {
+	line := path + " closed from " + who
+	dv.keptMu.Lock()
+	if dv.kept == nil {
+		dv.kept = map[int64][]string{}
+	}
+	told := slices.Contains(dv.kept[project], line)
+	if !told {
+		dv.kept[project] = append([]string{line}, dv.kept[project][:min(len(dv.kept[project]), 99)]...)
+	}
+	dv.keptMu.Unlock()
+	if told {
+		return
+	}
+	_ = dv.St.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error {
+		return q.AddDeckNote(ctx, db.AddDeckNoteParams{ProjectID: project, Text: "The sandbox kept " + line + ". " + sandbox.OpenHint})
+	})
 }
 
 type feedListIn struct {

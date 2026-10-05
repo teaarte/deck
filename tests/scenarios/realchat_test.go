@@ -88,7 +88,7 @@ func TestRealBrowserMasterChat(t *testing.T) {
 	b.until("the reply on the phone", `[...document.querySelectorAll('[data-message="master"]')].some((m) => m.innerText.includes('groceries'))`)
 	b.shot("chat-phone")
 	var ts []chatTopic
-	e.must("deck.chat_topics", nil, &ts)
+	e.chatTopics(false, &ts)
 	if len(ts) != 2 || ts[0].Title != "from the phone" {
 		t.Fatalf("the phone opened a topic of its own: %+v", ts)
 	}
@@ -177,7 +177,7 @@ func TestRealBrowserInterviewFromACard(t *testing.T) {
 	b.eval(`([...document.querySelectorAll('[data-question] button')].find((x) => !x.disabled && x.innerText.trim() !== '').click(), '')`)
 	b.until("the reply", `[...document.querySelectorAll('[data-message="master"]')].some((m) => m.innerText.includes('PDF'))`)
 	var ts []chatTopic
-	e.must("deck.chat_topics", nil, &ts)
+	e.chatTopics(false, &ts)
 	if len(ts) != 1 || ts[0].Card == 0 {
 		t.Fatalf("the interview is a topic about the card: %+v", ts)
 	}
@@ -213,7 +213,7 @@ func TestRealBrowserTheOpenCardStaysWithTheChatAcrossTabs(t *testing.T) {
 	b.eval(`(document.querySelector('[data-chat-send]').click(), '')`)
 	b.until("the reply", `[...document.querySelectorAll('[data-message="master"]')].some((m) => m.innerText.includes('Seen.'))`)
 	var ts []chatTopic
-	e.must("deck.chat_topics", nil, &ts)
+	e.chatTopics(false, &ts)
 	if len(ts) != 1 {
 		t.Fatalf("one topic: %+v", ts)
 	}
@@ -261,7 +261,7 @@ func TestRealBrowserChatDeletesAWaitingMessage(t *testing.T) {
 	b.eval(`(document.querySelector('[data-message-delete]').click(), '')`)
 	b.until("the deleted message gone", `document.querySelectorAll('[data-message="owner"]').length === 1 && !document.querySelector('[data-message-delete]')`)
 	var topics []struct{ ID int64 }
-	e.must("deck.chat_topics", nil, &topics)
+	e.chatTopics(false, &topics)
 	if ms := e.chatMessages(topics[0].ID); len(ms) != 1 || ms[0].Text != "first" {
 		t.Fatalf("only the message the master took stays: %+v", ms)
 	}

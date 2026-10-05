@@ -2,6 +2,7 @@ package scenarios
 
 import (
 	"encoding/json"
+	"strconv"
 	"strings"
 )
 
@@ -58,8 +59,25 @@ func (e *Env) chatMessages(topic int64) []chatMessage {
 	var out struct {
 		Messages []chatMessage `json:"messages"`
 	}
-	e.must("deck.chat_messages", map[string]any{"topic": topic}, &out)
+	e.must("deck.chat", map[string]any{"topic": strconv.FormatInt(topic, 10)}, &out)
 	return out.Messages
+}
+
+// chatTopics reads the topics of the chat, or its archive, into out.
+func (e *Env) chatTopics(archived bool, out any) {
+	e.T.Helper()
+	var view struct {
+		Topics   json.RawMessage `json:"topics"`
+		Archived json.RawMessage `json:"archived"`
+	}
+	e.must("deck.chat", map[string]any{"topic": "new"}, &view)
+	raw := view.Topics
+	if archived {
+		raw = view.Archived
+	}
+	if err := json.Unmarshal(raw, out); err != nil {
+		e.T.Fatal(err)
+	}
 }
 
 // masterSaid waits until the topic has n replies of the master and returns them.

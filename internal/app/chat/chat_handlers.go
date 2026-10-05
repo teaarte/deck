@@ -166,47 +166,6 @@ func (ch *Service) sent(ctx context.Context, msg db.ChatMessage) map[string]any 
 	return out
 }
 
-type chatTopicsIn struct {
-	Archived bool  `opt:"" desc:"The archived topics instead"`
-	Limit    int64 `opt:"" desc:"At most this many"`
-}
-
-func (ch *Service) chatTopics(ctx context.Context, act registry.Actor, in chatTopicsIn) ([]topicView, error) {
-	return ch.topics(ctx, act.Workspace, in.Archived, 0, registry.Limit(in.Limit, 100, 500))
-}
-
-type chatMessagesIn struct {
-	Topic int64 `desc:"Chat topic"`
-	After int64 `opt:"" desc:"Only messages after this one"`
-	Limit int64 `opt:"" desc:"At most this many of the newest, 200 by default"`
-}
-
-// topicMessages is a topic with its messages, oldest first.
-type topicMessages struct {
-	Topic    topicView     `json:"topic"`
-	Messages []messageView `json:"messages"`
-}
-
-func (ch *Service) chatMessages(ctx context.Context, act registry.Actor, in chatMessagesIn) (topicMessages, error) {
-	t, err := ch.ownTopic(ctx, ch.St.Q, act, in.Topic)
-	if err != nil {
-		return topicMessages{}, err
-	}
-	in.Limit = registry.Limit(in.Limit, 200, 1000)
-	rows, err := ch.St.Q.ListMessages(ctx, db.ListMessagesParams{TopicID: t.ID, After: in.After})
-	if err != nil {
-		return topicMessages{}, err
-	}
-	if int64(len(rows)) > in.Limit {
-		rows = rows[int64(len(rows))-in.Limit:]
-	}
-	ts, err := ch.topics(ctx, act.Workspace, false, t.ID, 1)
-	if err != nil || len(ts) == 0 {
-		return topicMessages{}, err
-	}
-	return topicMessages{Topic: ts[0], Messages: ch.messages(ctx, t.ID, rows)}, nil
-}
-
 type chatTopicArchiveIn struct {
 	Topic    int64 `desc:"Chat topic"`
 	Archived bool  `desc:"Archive when true, bring back when false"`
@@ -305,12 +264,6 @@ func (ch *Service) Commands() []*registry.Command {
 		registry.Def("chat_interview", "Interview about a card",
 			"Opens a chat topic about a card in which the master interviews the owner and writes the spec into the card.",
 			registry.OwnerOnly, ch.chatInterview),
-		registry.Read("chat_topics", "Chat topics",
-			"Lists the owner's chat topics with the master, newest first, with their last message and the reply still going.",
-			registry.OwnerOnly, ch.chatTopics).On("chat", "processes"),
-		registry.Read("chat_messages", "Chat messages",
-			"Returns the messages of a chat topic, oldest first, with the state of the reply each one got.",
-			registry.OwnerOnly, ch.chatMessages).On("chat", "processes"),
 		registry.Read("chat", "Chat",
 			"Gives the chat with the master as a chat block shows it: the topics, and of the topic picked its messages, the questions of its reply and the lines of the turn going on.",
 			registry.OwnerOnly, ch.chat).On("chat", "asks", "log", "processes"),

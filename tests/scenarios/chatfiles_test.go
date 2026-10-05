@@ -56,7 +56,7 @@ func TestOwnerAttachesFilesAndTopicsKnowTheirModule(t *testing.T) {
 		ID      int64
 		Project string
 	}
-	e.must("deck.chat_topics", nil, &ts)
+	e.chatTopics(false, &ts)
 	if len(ts) != 1 || ts[0].Project != "web" {
 		t.Fatalf("a topic knows the module of the screen it began on: %+v", ts)
 	}
@@ -124,7 +124,7 @@ func TestADeletedTopicIsGoneAfterAMonth(t *testing.T) {
 		t.Fatalf("the deleted topic, its messages and summary are gone: %d %v", n, err)
 	}
 	var ts []struct{ ID int64 }
-	e.must("deck.chat_topics", map[string]any{"archived": true}, &ts)
+	e.chatTopics(true, &ts)
 	if len(ts) != 1 || ts[0].ID != kept {
 		t.Fatalf("the archive stays: %+v", ts)
 	}

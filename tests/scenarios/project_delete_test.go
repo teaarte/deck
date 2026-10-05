@@ -229,12 +229,12 @@ func TestATopicOfADeletedModuleHasNoModule(t *testing.T) {
 		ID      int64
 		Project string
 	}
-	e.must("deck.chat_topics", map[string]any{"archived": true}, &ts)
+	e.chatTopics(true, &ts)
 	var all []struct {
 		ID      int64
 		Project string
 	}
-	e.must("deck.chat_topics", nil, &all)
+	e.chatTopics(false, &all)
 	all = append(all, ts...)
 	if len(all) != 1 || all[0].ID != topic || all[0].Project != "" {
 		t.Fatalf("the topic stays, without the deleted module: %+v", all)
@@ -259,7 +259,7 @@ func TestDeletingAModuleArchivesItsTopics(t *testing.T) {
 	waitTopic(t, events, "chat")
 	ids := func(archived bool) []int64 {
 		var ts []struct{ ID int64 }
-		e.must("deck.chat_topics", map[string]any{"archived": archived}, &ts)
+		e.chatTopics(archived, &ts)
 		var out []int64
 		for _, x := range ts {
 			out = append(out, x.ID)

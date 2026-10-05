@@ -26,7 +26,7 @@ func TestRealMasterBuildsAModuleFromAPhrase(t *testing.T) {
 	var draft string
 	open := func() bool {
 		var ts []chatTopic
-		e.must("deck.chat_topics", nil, &ts)
+		e.chatTopics(false, &ts)
 		return len(ts) == 1 && ts[0].Reply != nil
 	}
 	for time.Now().Before(deadline) && (draft == "" || open()) {
@@ -153,7 +153,7 @@ func TestRealMasterInterviewsACard(t *testing.T) {
 		var got struct{ Text string }
 		e.must("deck.card_get", map[string]any{"card": c.ID}, &got)
 		var ts []chatTopic
-		e.must("deck.chat_topics", nil, &ts)
+		e.chatTopics(false, &ts)
 		if strings.Contains(got.Text, "## Spec") && len(ts) == 1 && ts[0].Reply == nil {
 			t.Logf("card after %d questions:\n%s", asked, got.Text)
 			for _, m := range e.chatMessages(out.Topic) {

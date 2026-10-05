@@ -45,7 +45,7 @@ func TestInterviewTopicWritesTheSpecIntoTheCard(t *testing.T) {
 	var out struct{ Topic int64 }
 	e.must("deck.chat_send", map[string]any{"card": c.ID, "text": "Interview me about this card and write the spec into it."}, &out)
 	var ts []chatTopic
-	e.must("deck.chat_topics", nil, &ts)
+	e.chatTopics(false, &ts)
 	if len(ts) != 1 || ts[0].Card != c.ID {
 		t.Fatalf("the interview is a topic about the card: %+v", ts)
 	}

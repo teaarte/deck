@@ -295,7 +295,7 @@ func TestClaudeCodeShellReachesTheRegistriesAndTheDomainsOfItsProject(t *testing
 		domains string
 		want    []string
 	}{
-		{`"domains": {"read": ["data.example.org", "intranet"]},`, []string{"pypi.org", "data.example.org", "*.data.example.org"}},
+		{`"domains": {"read": ["data.example.org", "intranet"]},`, []string{"pypi.org", "huggingface.co", "*.hf.co", "data.example.org", "*.data.example.org"}},
 		{`"domains": {"read": ["*"]},`, []string{"*"}},
 		{`"no_network": true,`, nil},
 	} {

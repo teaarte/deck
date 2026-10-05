@@ -142,9 +142,10 @@ func toolWidens(prev, next *Manifest, t HTTPTool) []string {
 // Registries are the package registries a manifest reaches by naming them, before any grant.
 var Registries = []string{"pypi.org", "files.pythonhosted.org", "registry.npmjs.org", "proxy.golang.org", "sum.golang.org"}
 
-// AgentHosts are what the shell of an agent reaches besides the read domains of its project: the registries
-// and GitHub, where code and its packages come from.
-var AgentHosts = append(slices.Clone(Registries), "github.com", "codeload.github.com", "objects.githubusercontent.com")
+// AgentHosts are what the shell of an agent reaches besides the read domains of its project: the registries,
+// GitHub, where code and its packages come from, and Hugging Face, where models do.
+var AgentHosts = append(slices.Clone(Registries), "github.com", "codeload.github.com", "objects.githubusercontent.com",
+	"huggingface.co", "hf.co")
 
 // ShellHosts are the hosts the shell of an agent of m reaches: none without network, every one for "*" in read.
 func ShellHosts(m *Manifest) []string {

@@ -37,6 +37,8 @@ type MCP struct {
 	Secrets func(workspace int64, name string) (string, error)
 	Dirs    files.Dirs
 	Home    string
+	// OpenSandbox is whether the servers of a workspace run in the old sandbox, which reads the home folder.
+	OpenSandbox func(ctx context.Context, workspace int64) bool
 }
 
 // ServerKey names a server of a project in the host.
@@ -87,7 +89,8 @@ func (x *MCP) spec(ctx context.Context, p db.Project, name string, s manifest.MC
 	for _, f := range folders {
 		read = append(read, f.Path)
 	}
-	return mcphost.Spec{Command: s.Command, Args: s.Args, Env: env, Dir: dir, Read: read, Confine: true, Secrets: secrets}, nil
+	open := x.OpenSandbox != nil && x.OpenSandbox(ctx, p.WorkspaceID)
+	return mcphost.Spec{Command: s.Command, Args: s.Args, Env: env, Dir: dir, Read: read, Open: open, Confine: true, Secrets: secrets}, nil
 }
 
 var envSecret = regexp.MustCompile(`\$secret\.[A-Za-z0-9_.-]+`)

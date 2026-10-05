@@ -131,7 +131,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	a.Board = &board.Service{St: st, Bus: a.Bus, Now: cfg.Now, Fire: a.fire}
 	a.Providers = &providers.Service{St: st, Bus: a.Bus, Now: cfg.Now, Home: cfg.Home, Sandbox: cfg.Sandbox, ACPBinaries: cfg.ACPBinaries,
 		ACPCallLimit: cfg.ACPCallLimit, SelfCheckCeiling: cfg.SelfCheckCeiling, Secret: a.Secrets.Secret, Wake: func(ctx context.Context) { a.Runner.Wake(ctx) },
-		Builtin: append([]provider.Provider{p}, more...), Ctx: a.ctx, BG: &a.bg}
+		OpenSandbox: a.Settings.OpenSandbox, Builtin: append([]provider.Provider{p}, more...), Ctx: a.ctx, BG: &a.bg}
 	a.Answers = &asks.Service{St: st, Now: cfg.Now, Broker: a.Asks, Registry: a.Registry, AnswerGrant: a.Projects.AnswerGrant,
 		SaveManifest: a.Projects.SaveCall}
 	a.Connections = &connections.Service{St: st, Ctx: a.ctx, Broker: a.Asks}
@@ -162,7 +162,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 			closed.Add(context.Background(), project, "MCP server "+server, path)
 		}
 	}
-	a.MCP = &tools.MCP{GW: a.Gateway, Host: a.Host, Store: st, Secrets: a.Secrets.Secret, Dirs: a.dirs(), Home: cfg.Home}
+	a.MCP = &tools.MCP{GW: a.Gateway, Host: a.Host, Store: st, Secrets: a.Secrets.Secret, Dirs: a.dirs(), Home: cfg.Home, OpenSandbox: a.Settings.OpenSandbox}
 	a.Browser = &tools.Browser{GW: a.Gateway, Host: a.Host, Store: st, Dirs: a.dirs(), Home: cfg.Home, Argv: cfg.Browser, Ctx: a.ctx}
 	a.Connections.Browser, a.Connections.MCP = a.Browser, a.MCP
 	a.Browser.Load()
@@ -170,7 +170,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	a.Gateway.SetAutomation(a.Tokens.Automation)
 	a.Runner = process.NewRunner(st, a.Gateway, a.Bus, a, a.Scripts,
 		process.Config{RunsDir: h.Runs(), MCPBase: cfg.MCPBase, Now: cfg.Now, FilesDir: h.Files(), FilesMu: &a.Files.Mu,
-			Hidden: hidden(h), PauseLimit: cfg.PauseLimit, AgentSlots: a.Settings.AgentSlots, Closed: closed.Add}, a)
+			Hidden: hidden(h), PauseLimit: cfg.PauseLimit, AgentSlots: a.Settings.AgentSlots, OpenSandbox: a.Settings.OpenSandbox, Closed: closed.Add}, a)
 	a.Chats.Runner, a.Suggest.Gateway, a.Tokens.Journal, a.Documents.Changed = a.Runner, a.Gateway, a.Gateway.Journal, a.Devices.Changed
 	a.Answers.Gateway, a.Answers.Deliver = a.Gateway, a.Runner.Deliver
 	a.Answers.ExpireSuggestions, a.Answers.AnswerSuggestion = a.Suggest.Expire, a.Suggest.Answer

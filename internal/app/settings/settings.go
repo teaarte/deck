@@ -43,6 +43,8 @@ var settingDefs = []settingDef{
 		def: func(*Service) any { return int64(7) }},
 	{name: "language", title: "Language of the interface; auto follows the device", options: []string{"auto", "en", "ru"},
 		def: func(*Service) any { return "auto" }},
+	{name: "sandbox", title: "Sandbox of scripts, MCP servers and ACP agents: closed reads of the home folder only runtimes and the folders of the project; open is the old one, which reads the home but for keys",
+		options: []string{"closed", "open"}, def: func(*Service) any { return "closed" }},
 }
 
 // setting is the value of a setting of a workspace, its default when the owner set none.
@@ -71,6 +73,11 @@ func (s *Service) ConfirmTTL(ctx context.Context, workspace int64) time.Duration
 	return time.Duration(s.setting(ctx, workspace, "confirm_hours").(int64)) * time.Hour
 }
 
+// OpenSandbox is whether confined programs of the workspace read the home folder but for keys, as before it closed.
+func (s *Service) OpenSandbox(ctx context.Context, workspace int64) bool {
+	return s.setting(ctx, workspace, "sandbox") == "open"
+}
+
 // SuggestDays is how many days a suggestion waits for the owner before it expires.
 func (s *Service) SuggestDays(ctx context.Context, workspace int64) int {
 	return int(s.setting(ctx, workspace, "suggest_days").(int64))
@@ -81,10 +88,11 @@ type settingsSetIn struct {
 	AgentLimit   int64  `json:"agent_limit" opt:"" desc:"Agent processes at once, 1 to 20; more wait for a slot"`
 	SuggestDays  int64  `json:"suggest_days" opt:"" desc:"Days a suggestion waits before it expires, 1 to 90"`
 	Language     string `opt:"" enum:"auto|en|ru" desc:"Language of the interface: auto follows the device; agents and their prompts keep theirs"`
+	Sandbox      string `opt:"" enum:"closed|open" desc:"Sandbox of scripts, MCP servers and ACP agents: closed reads of the home folder only runtimes and project folders; open is the old one"`
 }
 
 func (s *Service) settingsSet(ctx context.Context, act registry.Actor, in settingsSetIn) (any, error) {
-	given := map[string]any{"confirm_hours": in.ConfirmHours, "agent_limit": in.AgentLimit, "suggest_days": in.SuggestDays, "language": in.Language}
+	given := map[string]any{"confirm_hours": in.ConfirmHours, "agent_limit": in.AgentLimit, "suggest_days": in.SuggestDays, "language": in.Language, "sandbox": in.Sandbox}
 	values := map[string]string{}
 	names := []string{}
 	for _, d := range settingDefs {
@@ -148,7 +156,7 @@ func (s *Service) Commands() []*registry.Command {
 			"Lists the settings of the workspace with their values and defaults.",
 			registry.OwnerOnly, s.settingsList).On("settings"),
 		registry.Def("settings_set", "Change settings",
-			"Sets how long a confirmation and a suggestion wait for the owner, how many agent processes run at once and the language of the interface; an omitted one stays.",
+			"Sets how long a confirmation and a suggestion wait for the owner, how many agent processes run at once, the language of the interface and the sandbox; an omitted one stays.",
 			registry.OwnerOnly, s.settingsSet),
 	}
 }

@@ -30,12 +30,14 @@ const providerPrefix = "provider:"
 // Service keeps the providers. Wake lets turns that wait for a provider go on once it is ready; Ctx and BG are
 // the life of deck, for the self-checks it runs in the background.
 type Service struct {
-	St               *store.Store
-	Bus              *events.Bus
-	Now              func() time.Time
-	Home             string
-	Sandbox          sandbox.Sandbox
-	ACPBinaries      map[string]string
+	St          *store.Store
+	Bus         *events.Bus
+	Now         func() time.Time
+	Home        string
+	Sandbox     sandbox.Sandbox
+	ACPBinaries map[string]string
+	// OpenSandbox is whether the ACP agents of a workspace run in the old sandbox, which reads the home folder.
+	OpenSandbox      func(ctx context.Context, workspace int64) bool
 	ACPCallLimit     time.Duration
 	SelfCheckCeiling time.Duration
 	Secret           func(workspace int64, name string) (string, error)
@@ -99,6 +101,7 @@ func (s *Service) Provider(ctx context.Context, workspace int64, name string) (p
 	}
 	return acp.New(acp.Config{Name: name, Agent: d.Agent, Binary: s.ACPBinaries[d.Agent], URL: d.URL, Model: d.Model,
 		Key: key, NoCloud: d.NoCloud, Home: s.Home, Sandbox: s.Sandbox, CallLimit: s.ACPCallLimit, Now: s.Now,
+		Open:         func() bool { return s.OpenSandbox != nil && s.OpenSandbox(context.Background(), workspace) },
 		CheckCeiling: time.Duration(d.CheckMinutes) * time.Minute})
 }
 

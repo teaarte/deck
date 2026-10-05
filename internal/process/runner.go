@@ -70,6 +70,8 @@ type Config struct {
 	PauseLimit time.Duration
 	// AgentSlots is how many agent turns a workspace runs at once; scripts and tools do not count.
 	AgentSlots func(ctx context.Context, workspace int64) int
+	// OpenSandbox is whether the scripts of a workspace run in the old sandbox, which reads the home folder.
+	OpenSandbox func(ctx context.Context, workspace int64) bool
 	// Closed hears of a path the sandbox kept closed from a script of a project.
 	Closed func(ctx context.Context, project int64, who, path string)
 }

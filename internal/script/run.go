@@ -49,7 +49,9 @@ type Job struct {
 	// Read are files and folders the script may read, such as files of its input and the folders of its project.
 	Read []string
 	// Tag names the run in what the sandbox reports it kept closed.
-	Tag     string
+	Tag string
+	// Open runs the script in the old sandbox, which reads the home folder but for keys.
+	Open    bool
 	OnLine  func(line string)
 	OnStart func(pgid int)
 }
@@ -89,7 +91,7 @@ func (x *Exec) Run(ctx context.Context, j Job) ([]byte, error) {
 			env = append(env, k+"="+v)
 		}
 	}
-	c := sandbox.Close(x.Home, os.Getenv("PATH"), false)
+	c := sandbox.Close(x.Home, os.Getenv("PATH"), j.Open)
 	cmd, err := x.Sandbox.Command(ctx, sandbox.Policy{Argv: argv, Dir: j.Work(), Env: append(env, j.Env...),
 		Write: []string{j.Work(), j.Results(), data}, Read: append(append([]string{src}, j.Read...), c.Read...),
 		Hide: c.Hide, Private: c.Private, Out: j.Out, Tag: j.Tag})

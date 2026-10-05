@@ -8,7 +8,9 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"deck2/internal/untrusted"
@@ -16,6 +18,7 @@ import (
 	"deck2/internal/ask"
 	"deck2/internal/docs"
 	"deck2/internal/gateway"
+	"deck2/internal/health"
 	"deck2/internal/provider"
 	"deck2/internal/script"
 	"deck2/internal/store/db"
@@ -89,8 +92,25 @@ func (r *Runner) runScript(ctx context.Context, t turn, trial bool) {
 	for _, f := range folders {
 		read = append(read, f.Path)
 	}
+	tag := fmt.Sprintf("r%d", id)
+	var closedMu sync.Mutex
+	var closed []string
+	defer r.scripts.Sandbox.Watch(tag, func(path string) {
+		closedMu.Lock()
+		seen := slices.Contains(closed, path)
+		if !seen {
+			closed = append(closed, path)
+		}
+		closedMu.Unlock()
+		if !seen {
+			r.event(bg, id, stream, provider.Event{Kind: provider.EventStderr, Text: "deck: the sandbox kept " + path + " closed"})
+			if r.cfg.Closed != nil {
+				r.cfg.Closed(bg, t.project, t.cmd.Name, path)
+			}
+		}
+	})()
 	job := script.Job{Project: t.project, Manifest: t.m, Script: t.m.Script(t.cmd.Executor.Script), Source: src, Dir: dir,
-		Stdin: []byte(input), Out: ln, Env: env, Read: read,
+		Stdin: []byte(input), Out: ln, Env: env, Read: read, Tag: tag,
 		OnLine:  func(line string) { r.event(bg, id, stream, provider.Event{Kind: provider.EventStderr, Text: line}) },
 		OnStart: func(pgid int) { r.setGroup(bg, id, pgid) },
 	}
@@ -103,6 +123,12 @@ func (r *Runner) runScript(ctx context.Context, t turn, trial bool) {
 		return
 	}
 	if err != nil {
+		time.Sleep(500 * time.Millisecond)
+		closedMu.Lock()
+		if len(closed) > 0 {
+			err = fmt.Errorf("%w\ndeck: the sandbox kept closed: %s. %s", err, strings.Join(closed, ", "), health.OpenHint)
+		}
+		closedMu.Unlock()
 		fail(err)
 		return
 	}

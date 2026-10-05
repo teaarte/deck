@@ -21,7 +21,7 @@ import (
 
 // command is the program of a stdio server; a confined one runs in the sandbox with the network, writing
 // only its own folder and reading of the owner's home only the runtimes on PATH and the folders of its project.
-func (h *Host) command(spec Spec) (*exec.Cmd, error) {
+func (h *Host) command(spec Spec, tag string) (*exec.Cmd, error) {
 	if !spec.Confine || h.Sandbox == nil {
 		cmd := exec.Command(spec.Command, spec.Args...)
 		cmd.Env, cmd.Dir = spec.Env, spec.Dir
@@ -37,7 +37,7 @@ func (h *Host) command(spec Spec) (*exec.Cmd, error) {
 	}
 	c := sandbox.Close(h.Home, env(spec.Env, "PATH"), false)
 	return h.Sandbox.Command(context.Background(), sandbox.Policy{Argv: append([]string{path}, spec.Args...), Dir: spec.Dir,
-		Env: spec.Env, Write: []string{spec.Dir}, Read: append(slices.Clone(spec.Read), c.Read...), Hide: c.Hide, Private: c.Private, Net: true})
+		Env: spec.Env, Write: []string{spec.Dir}, Read: append(slices.Clone(spec.Read), c.Read...), Hide: c.Hide, Private: c.Private, Net: true, Tag: tag})
 }
 
 // env is the value of the variable name in kv.
@@ -63,9 +63,13 @@ func (s *server) start(ctx context.Context, h *Host, key string, spec Spec) erro
 				return err
 			}
 		}
-		cmd, err := h.command(spec)
+		tag := "m" + key
+		cmd, err := h.command(spec, tag)
 		if err != nil {
 			return fmt.Errorf("MCP server %s did not start: %v", key, err)
+		}
+		if spec.Confine && h.Sandbox != nil && h.Closed != nil {
+			s.unwatch = h.Sandbox.Watch(tag, func(path string) { h.Closed(key, path) })
 		}
 		s.stderr, s.secrets = &tail{}, spec.Secrets
 		cmd.Stderr = s.stderr
@@ -153,6 +157,10 @@ func (s *server) kill() {
 		_ = syscall.Kill(-s.cmd.Process.Pid, syscall.SIGKILL)
 	}
 	s.cmd = nil
+	if s.unwatch != nil {
+		s.unwatch()
+		s.unwatch = nil
+	}
 }
 
 // tail keeps the last 2 KB a server wrote to stderr.

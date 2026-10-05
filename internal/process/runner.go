@@ -70,6 +70,8 @@ type Config struct {
 	PauseLimit time.Duration
 	// AgentSlots is how many agent turns a workspace runs at once; scripts and tools do not count.
 	AgentSlots func(ctx context.Context, workspace int64) int
+	// Closed hears of a path the sandbox kept closed from a script of a project.
+	Closed func(ctx context.Context, project int64, who, path string)
 }
 
 // Runner owns process lifecycles. A process stops in waiting_answer when the agent is blocked on the

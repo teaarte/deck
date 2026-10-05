@@ -156,6 +156,12 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	a.Host = mcphost.New(a.Connections.ServerStatus)
 	a.Host.Now, a.Host.Sandbox = cfg.Now, cfg.Sandbox
 	a.Host.Home = cfg.Home
+	closed := &health.Closed{St: st}
+	a.Host.Closed = func(key, path string) {
+		if project, server, ok := tools.ParseKey(key); ok {
+			closed.Add(context.Background(), project, "MCP server "+server, path)
+		}
+	}
 	a.MCP = &tools.MCP{GW: a.Gateway, Host: a.Host, Store: st, Secrets: a.Secrets.Secret, Dirs: a.dirs(), Home: cfg.Home}
 	a.Browser = &tools.Browser{GW: a.Gateway, Host: a.Host, Store: st, Dirs: a.dirs(), Home: cfg.Home, Argv: cfg.Browser, Ctx: a.ctx}
 	a.Connections.Browser, a.Connections.MCP = a.Browser, a.MCP
@@ -164,7 +170,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	a.Gateway.SetAutomation(a.Tokens.Automation)
 	a.Runner = process.NewRunner(st, a.Gateway, a.Bus, a, a.Scripts,
 		process.Config{RunsDir: h.Runs(), MCPBase: cfg.MCPBase, Now: cfg.Now, FilesDir: h.Files(), FilesMu: &a.Files.Mu,
-			Hidden: hidden(h), PauseLimit: cfg.PauseLimit, AgentSlots: a.Settings.AgentSlots}, a)
+			Hidden: hidden(h), PauseLimit: cfg.PauseLimit, AgentSlots: a.Settings.AgentSlots, Closed: closed.Add}, a)
 	a.Chats.Runner, a.Suggest.Gateway, a.Tokens.Journal, a.Documents.Changed = a.Runner, a.Gateway, a.Gateway.Journal, a.Devices.Changed
 	a.Answers.Gateway, a.Answers.Deliver = a.Gateway, a.Runner.Deliver
 	a.Answers.ExpireSuggestions, a.Answers.AnswerSuggestion = a.Suggest.Expire, a.Suggest.Answer

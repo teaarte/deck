@@ -61,6 +61,9 @@ func (*bwrap) Listen(dir string) (net.Listener, error) {
 
 func (*bwrap) Addr(net.Listener) string { return bridgeAddr }
 
+// Watch reports nothing: a closed path is an empty folder or a missing file to the program.
+func (*bwrap) Watch(string, func(string)) func() { return func() {} }
+
 func (*bwrap) Command(ctx context.Context, p Policy) (*exec.Cmd, error) {
 	args := []string{"--die-with-parent", "--new-session", "--unshare-all"}
 	if p.Net {

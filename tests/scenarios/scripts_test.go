@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"compress/gzip"
 	"context"
+	"database/sql"
 	deckhome "deck2/internal/home"
 	"encoding/json"
 	"fmt"
@@ -14,12 +15,15 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"deck2/internal/registry"
+	"deck2/internal/store/db"
 )
 
 func served(t *testing.T) *httptest.Server {
@@ -619,4 +623,40 @@ func TestAScriptSeesNoOtherProcess(t *testing.T) {
 	if p.State != "done" || got.Listed || got.Deck || got.CPUs < 1 || got.System == "" || got.Release == "" {
 		t.Fatalf("a script sees the machine and its system, not the processes on it: %+v %s", p, p.Result)
 	}
+}
+
+// TestTheSandboxSaysWhatItKeptClosed: a path the sandbox kept closed is a line in the log of the script, in its
+// error and in the health of the project, with where the owner opens a folder.
+func TestTheSandboxSaysWhatItKeptClosed(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("bubblewrap shows a closed path as missing and reports nothing")
+	}
+	owner := ownerHome(t)
+	for _, path := range []string{".zshrc", "Documents/notes.txt"} {
+		_ = os.MkdirAll(filepath.Dir(filepath.Join(owner, path)), 0o700)
+		_ = os.WriteFile(filepath.Join(owner, path), []byte("private"), 0o600)
+	}
+	t.Setenv("HOME", owner)
+	e := newEnv(t, nil)
+	self, _ := os.Executable()
+	e.createProject("tools", scriptManifest("collect", "", fmt.Sprintf(`, "tools": {"mcp": {"servers": {"fake": {"command": %q,
+    "env": {"DECK_FAKE_MCP": "project"}, "toolFilter": ["peek"], "classes": {"peek": "internal"}}}}}`, self)))
+	e.saveScript("tools", "scripts/main.py", "import json, sys\nprint(open(json.load(sys.stdin)[\"key\"]).read())\n")
+	id := e.start("tools", "collect", map[string]any{"key": filepath.Join(owner, ".zshrc")})
+	p := e.waitScript(id, "done", "error")
+	if p.State != "error" || !strings.Contains(p.Error, filepath.Join(owner, ".zshrc")) || !strings.Contains(p.Error, "Settings → Projects") {
+		t.Fatalf("the error of the script names the path the sandbox kept closed and how to open a folder: %+v", p)
+	}
+	if b, _ := json.Marshal(e.log(id)); !strings.Contains(string(b), "deck: the sandbox kept "+filepath.Join(owner, ".zshrc")+" closed") {
+		t.Fatalf("the log of the script has the path the sandbox kept closed: %s", b)
+	}
+	_, _ = e.App.Gateway.CallAs(context.Background(), registry.Actor{Kind: registry.Agent, Workspace: 1, ProjectID: e.projectID("tools")},
+		"tools.fake.peek", json.RawMessage(fmt.Sprintf(`{"path": %q}`, filepath.Join(owner, "Documents", "notes.txt"))))
+	e.waitFor("the closed paths in the health of the project", func() bool {
+		rows, _ := e.App.Store.Q.ListHealth(t.Context(), sql.NullInt64{Int64: 1, Valid: true})
+		return slices.ContainsFunc(rows, func(r db.ListHealthRow) bool {
+			return r.Health.Subject == "sandbox:tools" && r.Health.Status == "warning" && strings.Contains(r.Health.Error, ".zshrc (collect)") &&
+				strings.Contains(r.Health.Error, "notes.txt (MCP server fake)")
+		})
+	})
 }

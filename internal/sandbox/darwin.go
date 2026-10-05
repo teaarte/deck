@@ -3,31 +3,41 @@
 package sandbox
 
 import (
+	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
+	"sync"
+	"time"
 )
 
-type seatbelt struct{}
+// seatbelt keeps the tags it watches and the log stream that reports them.
+type seatbelt struct {
+	mu   sync.Mutex
+	subs map[string]func(string)
+	end  func()
+}
 
-func platform() Sandbox { return seatbelt{} }
+func platform() Sandbox { return &seatbelt{} }
 
-func (seatbelt) Name() string { return "sandbox-exec" }
+func (*seatbelt) Name() string { return "sandbox-exec" }
 
-func (seatbelt) Check() error {
+func (*seatbelt) Check() error {
 	_, err := exec.LookPath("/usr/bin/sandbox-exec")
 	return err
 }
 
-func (seatbelt) Listen(string) (net.Listener, error) { return net.Listen("tcp", "127.0.0.1:0") }
+func (*seatbelt) Listen(string) (net.Listener, error) { return net.Listen("tcp", "127.0.0.1:0") }
 
-func (seatbelt) Addr(ln net.Listener) string { return ln.Addr().String() }
+func (*seatbelt) Addr(ln net.Listener) string { return ln.Addr().String() }
 
-func (seatbelt) Command(ctx context.Context, p Policy) (*exec.Cmd, error) {
+func (*seatbelt) Command(ctx context.Context, p Policy) (*exec.Cmd, error) {
 	cmd := exec.CommandContext(ctx, "/usr/bin/sandbox-exec", append([]string{"-p", profile(p), "--"}, p.Argv...)...)
 	cmd.Dir, cmd.Env = p.Dir, p.Env
 	return group(cmd), nil
@@ -56,14 +66,18 @@ func profile(p Policy) string {
 	b.WriteString("(allow process-exec process-fork file-read-metadata ipc-posix-shm iokit-open pseudo-tty)\n")
 	b.WriteString(sysctls)
 	b.WriteString("(allow signal (target same-sandbox))\n(allow file-read*)\n")
+	report := ""
+	if p.Tag != "" {
+		report = fmt.Sprintf(" (with message %s)", quote(mark+" "+p.Tag))
+	}
 	for _, h := range p.Hide {
-		fmt.Fprintf(&b, "(deny file-read* (subpath %s))\n", quote(real(h)))
+		fmt.Fprintf(&b, "(deny file-read* (subpath %s)%s)\n", quote(real(h)), report)
 	}
 	for _, r := range p.Read {
 		fmt.Fprintf(&b, "(allow file-read* (subpath %s))\n", quote(real(r)))
 	}
 	for _, h := range p.Private {
-		fmt.Fprintf(&b, "(deny file-read* (subpath %s))\n", quote(real(h)))
+		fmt.Fprintf(&b, "(deny file-read* (subpath %s)%s)\n", quote(real(h)), report)
 	}
 	for _, w := range p.Write {
 		fmt.Fprintf(&b, "(allow file-read* file-write* (subpath %s))\n", quote(real(w)))
@@ -95,6 +109,76 @@ func profile(p Policy) string {
 		}
 	}
 	return b.String()
+}
+
+// mark starts the message a refusal of a tagged program carries into the log of the system.
+const mark = "deck-sandbox:"
+
+// refused is a read of the contents of a path; a look at whether it exists is not reported.
+var refused = regexp.MustCompile(`(?s)deny\(\d+\) file-read-data (.+?)\n` + mark + ` (\S+)`)
+
+func (s *seatbelt) Watch(tag string, f func(string)) func() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.subs == nil {
+		s.subs = map[string]func(string){}
+	}
+	s.subs[tag] = f
+	if s.end == nil {
+		s.end = s.stream()
+	}
+	return func() {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		delete(s.subs, tag)
+		if len(s.subs) == 0 && s.end != nil {
+			s.end()
+			s.end = nil
+		}
+	}
+}
+
+// stream reads the refusals of tagged programs from the log of the system until the func it returns.
+func (s *seatbelt) stream() func() {
+	ctx, cancel := context.WithCancel(context.Background())
+	cmd := exec.CommandContext(ctx, "/usr/bin/log", "stream", "--style", "ndjson", "--predicate",
+		`sender == "Sandbox" AND eventMessage CONTAINS "`+mark+`"`)
+	out, err := cmd.StdoutPipe()
+	if err != nil || cmd.Start() != nil {
+		return cancel
+	}
+	ready := make(chan struct{})
+	go func() {
+		started := sync.OnceFunc(func() { close(ready) })
+		defer started()
+		sc := bufio.NewScanner(out)
+		sc.Buffer(make([]byte, 64<<10), 1<<20)
+		for sc.Scan() {
+			started()
+			var e struct {
+				EventMessage string `json:"eventMessage"`
+			}
+			if json.Unmarshal(sc.Bytes(), &e) != nil {
+				continue
+			}
+			m := refused.FindStringSubmatch(e.EventMessage)
+			if m == nil {
+				continue
+			}
+			s.mu.Lock()
+			f := s.subs[m[2]]
+			s.mu.Unlock()
+			if f != nil {
+				f(m[1])
+			}
+		}
+		_ = cmd.Wait()
+	}()
+	select {
+	case <-ready:
+	case <-time.After(3 * time.Second):
+	}
+	return cancel
 }
 
 // ancestors are the folders above paths, so a program resolves the path of a folder it may read.

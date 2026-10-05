@@ -47,7 +47,9 @@ type Job struct {
 	Out net.Listener
 	Env []string
 	// Read are files and folders the script may read, such as files of its input and the folders of its project.
-	Read    []string
+	Read []string
+	// Tag names the run in what the sandbox reports it kept closed.
+	Tag     string
 	OnLine  func(line string)
 	OnStart func(pgid int)
 }
@@ -90,7 +92,7 @@ func (x *Exec) Run(ctx context.Context, j Job) ([]byte, error) {
 	c := sandbox.Close(x.Home, os.Getenv("PATH"), false)
 	cmd, err := x.Sandbox.Command(ctx, sandbox.Policy{Argv: argv, Dir: j.Work(), Env: append(env, j.Env...),
 		Write: []string{j.Work(), j.Results(), data}, Read: append(append([]string{src}, j.Read...), c.Read...),
-		Hide: c.Hide, Private: c.Private, Out: j.Out})
+		Hide: c.Hide, Private: c.Private, Out: j.Out, Tag: j.Tag})
 	if err != nil {
 		return nil, err
 	}

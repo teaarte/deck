@@ -29,6 +29,8 @@ type Policy struct {
 	Net bool
 	// Port is a local port the program listens on itself; its own network namespace needs no rule for it.
 	Port int
+	// Tag names the program in what Watch reports.
+	Tag string
 }
 
 type Sandbox interface {
@@ -41,6 +43,8 @@ type Sandbox interface {
 	Addr(ln net.Listener) string
 	// Command builds the confined command; it runs in its own process group, killed as a whole on cancel.
 	Command(ctx context.Context, p Policy) (*exec.Cmd, error)
+	// Watch passes f each path the sandbox kept closed from a program with tag, until stop.
+	Watch(tag string, f func(path string)) (stop func())
 }
 
 // New returns the sandbox of this operating system.

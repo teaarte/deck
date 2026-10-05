@@ -69,8 +69,6 @@ type Config struct {
 	FilesMu *sync.RWMutex
 	// Hidden gives the path patterns an agent of a project and process may not read or write.
 	Hidden func(project, process int64) []string
-	// PauseLimit is how long one pause on a usage limit may last from the first refusal.
-	PauseLimit time.Duration
 	// AgentSlots is how many agent turns a workspace runs at once; scripts and tools do not count.
 	AgentSlots func(ctx context.Context, workspace int64) int
 	// Rules say who hears what the sandbox kept closed.

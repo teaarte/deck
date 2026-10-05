@@ -301,9 +301,9 @@ func TestTheProjectsTabCreatesAProjectAndGivesItAFolder(t *testing.T) {
 	}
 }
 
-// TestAPauseThatRunsOutFreesTheFolder: a process stopped at the end of its pause on a usage limit leaves the
+// TestAPauseTheOwnerStopsFreesTheFolder: a process the owner stops on its pause on a usage limit leaves the
 // folder, and the one that waited for it runs.
-func TestAPauseThatRunsOutFreesTheFolder(t *testing.T) {
+func TestAPauseTheOwnerStopsFreesTheFolder(t *testing.T) {
 	var first string
 	e := newClockEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		if first == "" || first == c.Req.SessionID {
@@ -318,11 +318,7 @@ func TestAPauseThatRunsOutFreesTheFolder(t *testing.T) {
 	e.waitState(a, "rate_limited")
 	b := e.run(p, "run")
 	e.waitState(b, "waiting_folder")
-	for range 7 {
-		e.Clock.Add(time.Hour)
-		e.sweep()
-		e.settle()
-	}
+	e.must("deck.process_stop", map[string]any{"process": a}, nil)
 	e.waitState(a, "stopped")
 	e.waitState(b, "done")
 }

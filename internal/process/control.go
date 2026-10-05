@@ -105,10 +105,8 @@ func (r *Runner) Rework(ctx context.Context, processID int64, remark string) err
 				return registry.Invalid("deck: process %d with the same retry key is still going", other.ID)
 			}
 		}
-		if n, err = q.ReopenProcess(ctx, db.ReopenProcessParams{CeilingMs: r.ceilingOf(m, cmd).Milliseconds(), StartNote: note, ID: processID}); err != nil || n == 0 {
-			return err
-		}
-		return q.CloseLimitAsks(ctx, processID)
+		n, err = q.ReopenProcess(ctx, db.ReopenProcessParams{CeilingMs: r.ceilingOf(m, cmd).Milliseconds(), StartNote: note, ID: processID})
+		return err
 	})
 	if err != nil {
 		return err

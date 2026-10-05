@@ -46,7 +46,7 @@ WHERE id = ? AND finished_at IS NULL;
 -- name: ReopenProcess :execrows
 UPDATE process
 SET state = 'running', error = '', finished_at = NULL, ceiling_ms = ?, deadline_ms = NULL, silent_since_ms = NULL,
-    start_note = ?, pause_until_ms = NULL, pause_limit_ms = NULL
+    start_note = ?, pause_until_ms = NULL
 WHERE id = ? AND finished_at IS NOT NULL AND session_id != '';
 
 
@@ -142,7 +142,7 @@ ORDER BY id DESC LIMIT 4;
 
 
 -- name: PauseProcess :execrows
-UPDATE process SET state = 'rate_limited', pause_until_ms = sqlc.arg(until_ms), pause_limit_ms = sqlc.arg(limit_ms),
+UPDATE process SET state = 'rate_limited', pause_until_ms = sqlc.arg(until_ms),
     ceiling_ms = CASE WHEN deadline_ms IS NULL THEN ceiling_ms ELSE MAX(0, deadline_ms - CAST(sqlc.arg(now) AS INTEGER)) END,
     deadline_ms = NULL, silent_since_ms = NULL
 WHERE id = sqlc.arg(id) AND state = 'running';
@@ -153,17 +153,13 @@ SELECT * FROM process WHERE state = 'rate_limited' AND pause_until_ms <= CAST(sq
 
 
 -- name: EndPause :exec
-UPDATE process SET pause_until_ms = NULL, pause_limit_ms = NULL WHERE id = sqlc.arg(id);
+UPDATE process SET pause_until_ms = NULL WHERE id = sqlc.arg(id);
 
 
 -- name: CountActiveOnProvider :one
 SELECT count(*) FROM process
 WHERE provider = sqlc.arg(provider) AND project_id IN (SELECT id FROM project WHERE workspace_id = sqlc.arg(workspace_id))
   AND finished_at IS NULL;
-
-
--- name: ResetPauseLimit :exec
-UPDATE process SET pause_limit_ms = sqlc.arg(limit_ms) WHERE id = sqlc.arg(id) AND state = 'rate_limited';
 
 
 

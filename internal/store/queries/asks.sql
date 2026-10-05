@@ -87,11 +87,6 @@ WHERE id = sqlc.arg(id) AND state = 'open' AND (expires_at IS NULL OR expires_at
 UPDATE ask SET state = 'open', answer = '', answered_at = NULL WHERE id = ? AND state = 'answered';
 
 
--- name: CloseLimitAsks :exec
-UPDATE ask SET state = CASE WHEN state = 'open' THEN 'expired' ELSE state END, delivered_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-WHERE process_id = CAST(sqlc.arg(process_id) AS INTEGER) AND kind = 'limit' AND delivered_at IS NULL;
-
-
 -- name: ListWorkspaceExpiredConfirms :many
 SELECT * FROM ask
 WHERE workspace_id = sqlc.arg(workspace_id) AND state = 'expired' AND kind IN ('confirm', 'call')

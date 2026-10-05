@@ -47,16 +47,6 @@ func (q *Queries) ClaimDecision(ctx context.Context, arg ClaimDecisionParams) (i
 	return result.RowsAffected()
 }
 
-const closeLimitAsks = `-- name: CloseLimitAsks :exec
-UPDATE ask SET state = CASE WHEN state = 'open' THEN 'expired' ELSE state END, delivered_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-WHERE process_id = CAST(?1 AS INTEGER) AND kind = 'limit' AND delivered_at IS NULL
-`
-
-func (q *Queries) CloseLimitAsks(ctx context.Context, processID int64) error {
-	_, err := q.db.ExecContext(ctx, closeLimitAsks, processID)
-	return err
-}
-
 const closeOpenAsksOfProcess = `-- name: CloseOpenAsksOfProcess :many
 UPDATE ask SET state = 'expired', delivered_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
 WHERE process_id = CAST(?1 AS INTEGER) AND state = 'open' AND kind NOT IN ('warning', 'unknown')

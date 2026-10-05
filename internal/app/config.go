@@ -24,8 +24,6 @@ type Config struct {
 	ACPCallLimit time.Duration
 	// Browser starts the browser MCP server; DefaultBrowser when nil, none when empty.
 	Browser []string
-	// PauseLimit is how long one pause on a usage limit lasts at most.
-	PauseLimit time.Duration
 	// SelfCheckCeiling bounds a self-check of a built-in provider.
 	SelfCheckCeiling time.Duration
 	// Commands are more builtin commands, such as the probes of tests.
@@ -38,9 +36,6 @@ func (c *Config) defaults() {
 	}
 	if c.Sandbox == nil {
 		c.Sandbox = sandbox.New()
-	}
-	if c.PauseLimit <= 0 {
-		c.PauseLimit = 6 * time.Hour
 	}
 	if c.SelfCheckCeiling <= 0 {
 		c.SelfCheckCeiling = 2 * time.Minute

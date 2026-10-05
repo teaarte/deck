@@ -257,7 +257,6 @@ type Process struct {
 	OutputMs         int64
 	SilentSinceMs    sql.NullInt64
 	PauseUntilMs     sql.NullInt64
-	PauseLimitMs     sql.NullInt64
 	WaitMessage      string
 	WaitFresh        int64
 	StartedAt        string

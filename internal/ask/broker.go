@@ -29,14 +29,9 @@ const (
 	KindUnknown = "unknown"
 	// KindSignIn asks the owner to sign in to a site or service; its payload names the site or the tool.
 	KindSignIn = "sign_in"
-	// KindLimit offers to continue a process stopped when its pause on a usage limit ran out.
-	KindLimit = "limit"
 	// KindSuggest is a draft of a card or a call that waits for the owner's yes; its payload holds the draft.
 	KindSuggest = "suggest"
 )
-
-// LimitContinue is the one answer to a limit ask.
-const LimitContinue = "continue"
 
 const (
 	LoginRetry      = "retry"
@@ -59,7 +54,6 @@ var answers = map[string]struct {
 	say string
 }{
 	KindLogin:   {LoginAnswers, "answer a login ask with retry or new_session"},
-	KindLimit:   {[]string{LimitContinue}, "answer a stopped pause with continue"},
 	KindUnknown: {UnknownAnswers, "answer an unknown outcome with retry or done"},
 	KindCall:    {[]string{"allow", "allow_always", "deny", "deny:"}, "answer a confirmation with allow, allow_always, deny or deny:<reason>"},
 }

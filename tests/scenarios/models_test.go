@@ -375,12 +375,8 @@ func TestAnAgentTurnPastTheDayOfItsConnectionPausesUntilTheDayEnds(t *testing.T)
 	pp, _ := e.App.Store.Q.GetProcess(t.Context(), id)
 	now := time.Now()
 	midnight := time.Date(now.Year(), now.Month(), now.Day()+1, 0, 0, 0, 0, time.Local)
-	want := midnight
-	if limit := now.Add(6 * time.Hour); limit.Before(want) {
-		want = limit
-	}
-	if until := time.UnixMilli(pp.PauseUntilMs.Int64); until.Sub(want).Abs() > 5*time.Second {
-		t.Fatalf("the pause lasts until the day is over or the pause limit comes: %s, want %s", until, want)
+	if until := time.UnixMilli(pp.PauseUntilMs.Int64); until.Sub(midnight).Abs() > 5*time.Second {
+		t.Fatalf("the pause lasts until the day is over: %s, want %s", until, midnight)
 	}
 }
 

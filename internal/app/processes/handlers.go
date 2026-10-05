@@ -41,9 +41,8 @@ type processView struct {
 	Folder   string `json:"folder,omitempty"`
 	Deadline string `json:"deadline,omitempty"`
 	Provider string `json:"provider,omitempty"`
-	// PausedUntil is the next try of a process paused on a usage limit; PauseEnds is when it stops instead.
+	// PausedUntil is the next try of a process paused on a usage limit.
 	PausedUntil string `json:"paused_until,omitempty"`
-	PauseEnds   string `json:"pause_ends,omitempty"`
 	// Terminal goes on with the session of the process in a terminal.
 	Terminal string `json:"terminal,omitempty"`
 }
@@ -61,7 +60,7 @@ func procView(p db.Process, project string) processView {
 		Trigger: p.TriggerID.Int64, RetryKey: p.RetryKey, Empty: p.State == process.StateDone && p.Result == process.Empty && p.NotBySchema == 0,
 		SilentSince: msTime(p.SilentSinceMs), SessionID: p.SessionID, Silent: p.SilentSinceMs.Valid, Folder: p.Folder, Deadline: msTime(p.DeadlineMs), Provider: p.Provider}
 	if p.State == process.StateRateLimited {
-		v.PausedUntil, v.PauseEnds = msTime(p.PauseUntilMs), msTime(p.PauseLimitMs)
+		v.PausedUntil = msTime(p.PauseUntilMs)
 	}
 	if p.Result != "" {
 		if json.Valid([]byte(p.Result)) {

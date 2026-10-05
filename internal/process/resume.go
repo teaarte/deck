@@ -35,14 +35,11 @@ func (r *Runner) Deliver(ctx context.Context, processID int64) error {
 		return r.deliverTool(ctx, p, pending)
 	}
 	if p.State == StateRateLimited {
-		return r.restartPause(ctx, processID)
+		return nil
 	}
 	for _, a := range pending.asks {
 		if a.Ask.Kind == ask.KindLogin {
 			return r.relogin(ctx, processID, a.Ask, pending)
-		}
-		if a.Ask.Kind == ask.KindLimit {
-			return r.continueAfterLimit(ctx, processID, a.Ask)
 		}
 	}
 	if ok, err := r.claim(ctx, processID, StateWaitingAnswer); err != nil || !ok {

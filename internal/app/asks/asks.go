@@ -271,7 +271,7 @@ func (s *Service) Commands() []*registry.Command {
 			"Lists what waits for the owner, oldest first: questions, confirmations, sign-ins and suggestions, with who asks, what and where; confirmations that expired stay until the owner clears them.",
 			registry.OwnerSide, s.asksList).On("asks"),
 		registry.Def("ask_answer", "Answer",
-			"Answers what waits for the owner: a question with text; a confirmation with allow, allow_always, deny or deny:<reason>; a login with retry or new_session; an unknown outcome with retry or done; a stopped pause with continue; a suggestion with allow, deny, deny:<reason> or move with project. Deny on an expired confirmation clears it.",
+			"Answers what waits for the owner: a question with text; a confirmation with allow, allow_always, deny or deny:<reason>; a login with retry or new_session; an unknown outcome with retry or done; a suggestion with allow, deny, deny:<reason> or move with project. Deny on an expired confirmation clears it.",
 			registry.OwnerOnly, s.askAnswer),
 	}
 }

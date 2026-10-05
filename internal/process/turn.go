@@ -275,6 +275,7 @@ func (r *Runner) converse(ctx context.Context, t *turn, a *agentTurn, fail func(
 			r.park(bg, processID)
 		case err != nil:
 			fail(err.Error())
+			r.deps.Broke(bg, pv.Name())
 		case res.RateLimited:
 			r.pause(bg, pv, processID, res.ResetsAt, res.Text)
 		case res.NeedsLogin:

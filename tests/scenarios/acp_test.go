@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	deckhome "deck2/internal/home"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -42,16 +43,14 @@ func TestACPCommandAgentWorksThroughTheGateway(t *testing.T) {
 	llm := acpLLM(t)
 	t.Setenv("DEEPSEEK_API_KEY", "sk-from-the-environment-of-deck")
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-	e := acpEnv(t, f, "dsh", llm)
+	e := acpEnv(t, f, "dsh", llm, func(c *app.Config) {
+		state := deckhome.Layout(c.Home).State()
+		if err := errors.Join(os.MkdirAll(state, 0o700), os.WriteFile(filepath.Join(state, "token"), []byte("owner-token-value"), 0o600),
+			os.WriteFile(filepath.Join(f.dir, "probe"), []byte(filepath.Join(state, "token")), 0o600)); err != nil {
+			t.Fatal(err)
+		}
+	})
 	home := e.App.Cfg.Home
-	if err := os.WriteFile(filepath.Join(deckhome.Layout(home).State(), "token"), []byte("owner-token-value"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(f.dir, "probe"), []byte(filepath.Join(deckhome.Layout(home).State(), "token")), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	e.App.Providers.Checks(t.Context(), time.Now().Add(time.Hour))
-	e.waitFor("the version check", func() bool { _, err := os.Stat(filepath.Join(f.dir, "probe.out")); return err == nil })
 	f.streamText(4, strings.Join([]string{acpInit,
 		`{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,
 		`{"update": {"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "Painting."}}}`,

@@ -138,8 +138,10 @@ type Deps struct {
 	For func(ctx context.Context, projectID int64, cmd *manifest.Command) (provider.Provider, error)
 	// Named is the provider a process started on; its session belongs to it.
 	Named func(ctx context.Context, projectID int64, name string) (provider.Provider, error)
-	// Ready reports whether a turn may start on the provider; not while its self-check runs after a change or is red.
-	Ready  func(ctx context.Context, name string) bool
+	// Ready reports whether a turn may start on the provider; not while a self-check the owner asked for runs or is red.
+	Ready func(ctx context.Context, name string) bool
+	// Broke hears that a turn on the provider failed.
+	Broke  func(ctx context.Context, name string)
 	Prompt func(ctx context.Context, projectID int64) (string, error)
 	// Text is the current text of a project document of the kind, of any kind for ""; empty when missing.
 	Text func(ctx context.Context, projectID int64, kind, name string) (string, error)

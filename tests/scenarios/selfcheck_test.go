@@ -86,14 +86,22 @@ func TestFailedSelfCheckHoldsClaudeCodeProcesses(t *testing.T) {
 	if !strings.Contains(c.call(2).stdin, "deck-check-") || !slices.Contains(c.call(3).args, "--resume") {
 		t.Fatalf("the self-check is a turn and a resume of its session: %v", c.call(3).args)
 	}
-	c.stream(6, "ok.jsonl")
 	c.version("2.1.282")
-	e.App.Providers.Checks(ctx, e.Clock.Add(10*time.Minute))
-	if h := e.waitHealth("provider:claude-code", "error"); h.Version != "2.1.282" {
-		t.Fatalf("a new version of the CLI is checked again: %+v", h)
+	e.App.Providers.Checks(ctx, e.Clock.Add(30*time.Minute))
+	e.settle()
+	if n := c.calls(); n != 5 {
+		t.Fatalf("a new version of the CLI alone runs no self-check: %d CLI calls", n)
 	}
-	c.stream(7, "selfcheck.jsonl")
-	c.stream(8, "selfcheck_resume.jsonl")
+	c.stream(6, "two_results.jsonl")
+	c.stream(7, "ok.jsonl")
+	if got := e.waitState(e.run(p, "work"), "done", "error"); got.State != "error" {
+		t.Fatalf("the broken turn fails: %+v", got)
+	}
+	if h := e.waitHealth("provider:claude-code", "error"); h.Version != "2.1.282" {
+		t.Fatalf("a turn that breaks checks the CLI again: %+v", h)
+	}
+	c.stream(8, "selfcheck.jsonl")
+	c.stream(9, "selfcheck_resume.jsonl")
 	e.must("deck.provider_check", map[string]any{"provider": "claude-code"}, nil)
 	e.waitHealth("provider:claude-code", "ok")
 	if code, _ := e.call("deck.provider_check", map[string]any{"provider": "fake"}); code == 200 {

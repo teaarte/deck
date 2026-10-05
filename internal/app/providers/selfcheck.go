@@ -13,22 +13,18 @@ import (
 	"deck2/internal/store/db"
 )
 
-// checks keeps when deck next looks at the version of a built-in provider and retries its red self-check.
-// selfCheckRetry repeats a red self-check; versionEvery looks for new programs of the built-in providers.
+// selfCheckRetry repeats a red self-check, and is the least time between self-checks a broken turn starts.
 const (
 	selfCheckRetry = 30 * time.Minute
-	versionEvery   = 10 * time.Minute
 	versionTimeout = 30 * time.Second
 )
 
 type checks struct {
 	running bool
-	// probing is set while the version of the provider is asked for; recheck, when a retry came due meanwhile.
-	probing, recheck bool
 	// again is set when the provider changed during a running check, which then checks it once more.
 	again   bool
 	started bool
-	version time.Time
+	last    time.Time
 	retry   time.Time
 }
 
@@ -44,40 +40,28 @@ func (s *Service) checksOf(name string) *checks {
 	return c
 }
 
-// Checks runs the self-check of each provider that has one at the first call, when its version changed, and again
-// while it is red; only the Loop calls it, so tests run self-checks on purpose.
+// Checks runs the self-check of each provider that has one at the first call and again while it is red; only the
+// Loop calls it, so tests run self-checks on purpose.
 func (s *Service) Checks(ctx context.Context, now time.Time) {
 	for _, pv := range s.checked(ctx) {
-		sc := pv.(provider.SelfChecker)
 		s.mu.Lock()
 		c := s.checksOf(pv.Name())
-		due := !c.started || !now.Before(c.version)
-		retry := !c.retry.IsZero() && !now.Before(c.retry)
-		if c.running || !due && !retry {
-			s.mu.Unlock()
-			continue
-		}
-		if c.probing {
-			c.recheck = c.recheck || retry
-			s.mu.Unlock()
-			continue
-		}
-		c.version, c.probing = now.Add(versionEvery), true
-		first := !c.started
+		due := !c.started || !c.retry.IsZero() && !now.Before(c.retry)
 		s.mu.Unlock()
-		s.BG.Add(1)
-		go func() {
-			defer s.BG.Done()
-			v := version(s.Ctx, sc)
-			h, _ := s.St.Q.GetHealth(s.Ctx, process.HealthSubject(pv.Name()))
-			s.mu.Lock()
-			retry := retry || c.recheck
-			c.probing, c.recheck = false, false
-			s.mu.Unlock()
-			if s.Ctx.Err() == nil && (first || retry || v != h.Version) {
-				s.startCheck(pv.Name(), false)
-			}
-		}()
+		if due {
+			s.startCheck(pv.Name(), false)
+		}
+	}
+}
+
+// Broke checks a provider whose turn failed, unless it was checked within selfCheckRetry.
+func (s *Service) Broke(ctx context.Context, name string) {
+	s.mu.Lock()
+	c := s.checksOf(name)
+	recent := !c.last.IsZero() && s.Now().Before(c.last.Add(selfCheckRetry))
+	s.mu.Unlock()
+	if !recent {
+		s.startCheck(name, false)
 	}
 }
 
@@ -92,8 +76,8 @@ func version(ctx context.Context, sc provider.SelfChecker) string {
 	return v
 }
 
-// startCheck runs a self-check in the background unless one is running; a change of version or a red check
-// holds the provider's turns until it ends. One cut short by a limit or a login keeps no version, so it reruns.
+// startCheck runs a self-check in the background unless one is running; one the owner asked for or of a red
+// provider holds its turns until it ends. One cut short by a limit or a login keeps no version, so it reruns.
 func (s *Service) startCheck(name string, force bool) bool {
 	sc, ok := s.named(s.Ctx, name).(provider.SelfChecker)
 	if !ok {
@@ -106,7 +90,7 @@ func (s *Service) startCheck(name string, force bool) bool {
 		s.mu.Unlock()
 		return false
 	}
-	c.running, c.started, c.retry = true, true, time.Time{}
+	c.running, c.started, c.last, c.retry = true, true, s.Now(), time.Time{}
 	s.mu.Unlock()
 	ctx := s.Ctx
 	subject := process.HealthSubject(name)
@@ -115,7 +99,7 @@ func (s *Service) startCheck(name string, force bool) bool {
 		defer s.BG.Done()
 		v := version(ctx, sc)
 		h, _ := s.St.Q.GetHealth(ctx, subject)
-		if force || v != h.Version || h.Status == "error" || h.Status == "checking" {
+		if force || h.Status == "error" || h.Status == "checking" {
 			s.writeCheck(ctx, subject, "checking", "self-check of "+v+" is running", "", "", 0)
 		}
 		ceiling := s.SelfCheckCeiling

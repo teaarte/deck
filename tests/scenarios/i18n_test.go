@@ -42,13 +42,13 @@ func TestScreensAndTheMenuSpeakTheLanguageOfTheOwner(t *testing.T) {
 		Value   any
 		Options []string
 	}
-	e.must("deck.settings_set", map[string]any{"language": "ru"}, &set)
+	e.must("deck.settings_set", map[string]any{"name": "language", "value": "ru"}, &set)
 	for _, s := range set {
 		if s.Name == "language" && (s.Value != "ru" || len(s.Options) != 3) {
 			t.Fatalf("the language of the interface is a setting with its options: %+v", s)
 		}
 	}
-	e.refused("deck.settings_set", map[string]any{"language": "klingon"}, 422, "")
+	e.refused("deck.settings_set", map[string]any{"name": "language", "value": "klingon"}, 422, "")
 }
 
 // TestATabKeepsItsKeyInEveryLanguage: a tab is named in the address by its title as written, so a link to it

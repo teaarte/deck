@@ -240,7 +240,7 @@ func TestRealBrowserChatDeletesAWaitingMessage(t *testing.T) {
 		}
 		return provider.Result{Text: "Hi."}
 	})
-	e.must("deck.settings_set", map[string]any{"agent_limit": 1}, nil)
+	e.must("deck.settings_set", map[string]any{"name": "agent_limit", "value": "1"}, nil)
 	e.waitState(e.run(e.createProject("busy", testManifest([]string{agentCommand("work", "")}, nil)), "work"), "running")
 
 	b := newPlaywright(t)

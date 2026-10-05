@@ -187,7 +187,7 @@ func TestAnUnansweredSuggestionExpires(t *testing.T) {
 	if len(e.suggestions()) != 0 || len(all) != 0 {
 		t.Fatalf("after seven days it expires, and that is no refusal: %+v", all)
 	}
-	e.must("deck.settings_set", map[string]any{"suggest_days": 1}, nil)
+	e.must("deck.settings_set", map[string]any{"name": "suggest_days", "value": "1"}, nil)
 	e.waitState(e.run(p, "work"), "done")
 	e.Clock.Add(25 * time.Hour)
 	e.sweep()

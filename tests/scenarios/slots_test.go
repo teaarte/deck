@@ -72,7 +72,7 @@ func TestAgentLimitHoldsTheFourthAgentUntilASlotFreesAndScriptsDoNotCount(t *tes
 		return st[3] == "running" && st[4] == "waiting_slot" && strings.Count(e.states(ids[:3]), "done") == 1
 	})
 	events := e.sse(t.Context())
-	e.must("deck.settings_set", map[string]any{"agent_limit": 5}, nil)
+	e.must("deck.settings_set", map[string]any{"name": "agent_limit", "value": "5"}, nil)
 	waitTopic(t, events, "settings")
 	e.waitFor("a raised limit to run the last one", func() bool { return e.process(ids[4]).State == "running" })
 	rows := blockData[[]screenRow](t, e.settingsBlock("General", nil)["rows"])
@@ -80,7 +80,7 @@ func TestAgentLimitHoldsTheFourthAgentUntilASlotFreesAndScriptsDoNotCount(t *tes
 		t.Fatalf("the general tab shows the limit and its default: %+v", rows)
 	}
 
-	e.must("deck.settings_set", map[string]any{"agent_limit": 1}, nil)
+	e.must("deck.settings_set", map[string]any{"name": "agent_limit", "value": "1"}, nil)
 	extra := e.run(p, "job")
 	e.waitFor("the new process to wait for a slot", func() bool { return e.process(extra).State == "waiting_slot" })
 	e.must("deck.process_stop", map[string]any{"process": extra}, nil)
@@ -94,8 +94,8 @@ func TestAgentLimitHoldsTheFourthAgentUntilASlotFreesAndScriptsDoNotCount(t *tes
 	if n := len(e.Fake.Calls()); n != 5 {
 		t.Fatalf("a stopped process that waited for a slot never ran: %d calls", n)
 	}
-	e.refused("deck.settings_set", map[string]any{"agent_limit": 21}, 422, "1 to 20")
-	e.refused("deck.settings_set", map[string]any{}, 422, "give confirm_hours")
+	e.refused("deck.settings_set", map[string]any{"name": "agent_limit", "value": "21"}, 422, "1 to 20")
+	e.refused("deck.settings_set", map[string]any{"name": "confirm_hours", "value": ""}, 422, "give confirm_hours a value")
 }
 
 // TestAProcessWaitingForASlotStillWaitsAfterARestart: the wait is in the base, so a restarted deck runs no more
@@ -107,7 +107,7 @@ func TestAProcessWaitingForASlotStillWaitsAfterARestart(t *testing.T) {
 	clock := &Clock{now: t0}
 	e := newEnvWith(t, home, first, withClock(clock))
 	e.Fake, e.Clock = first, clock
-	e.must("deck.settings_set", map[string]any{"agent_limit": 1}, nil)
+	e.must("deck.settings_set", map[string]any{"name": "agent_limit", "value": "1"}, nil)
 	p := e.createProject("jobs", testManifest([]string{agentCommand("job", "")}, nil))
 	a, b := e.run(p, "job"), e.run(p, "job")
 	e.waitFor("one running, one waiting", func() bool {
@@ -139,7 +139,7 @@ func TestConfirmationTermIsASettingOfTheWorkspace(t *testing.T) {
 		c.Approve(ctx, "WebFetch", map[string]any{"url": "https://example.com/page", "prompt": "read it"})
 		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
 	}, func(c *app.Config) { c.ConfirmTTL = 24 * time.Hour })
-	e.must("deck.settings_set", map[string]any{"confirm_hours": 2}, nil)
+	e.must("deck.settings_set", map[string]any{"name": "confirm_hours", "value": "2"}, nil)
 	p := e.createProject("jobs", testManifest([]string{agentCommand("job", "")}, nil))
 	e.run(p, "job")
 	var asks []struct {
@@ -168,7 +168,7 @@ func TestAProcessLeftWaitingForAFreeSlotStartsWhenDeckStarts(t *testing.T) {
 	first := &Fake{script: held(make(chan struct{}))}
 	e := newEnvWith(t, home, first, withClock(clock))
 	e.Fake, e.Clock = first, clock
-	e.must("deck.settings_set", map[string]any{"agent_limit": 1}, nil)
+	e.must("deck.settings_set", map[string]any{"name": "agent_limit", "value": "1"}, nil)
 	p := e.createProject("jobs", testManifest([]string{agentCommand("job", "")}, nil))
 	a, b := e.run(p, "job"), e.run(p, "job")
 	e.waitFor("one running, one waiting", func() bool { return e.states([]int64{a, b}) == "running waiting_slot" })
@@ -187,7 +187,7 @@ func TestAProcessLeftWaitingForAFreeSlotStartsWhenDeckStarts(t *testing.T) {
 // no turn, so the process stays waiting for a slot instead of passing for one that runs.
 func TestASlotFreedWhileDeckStopsLeavesTheWaitingProcessWaiting(t *testing.T) {
 	e := newEnv(t, held(make(chan struct{})))
-	e.must("deck.settings_set", map[string]any{"agent_limit": 1}, nil)
+	e.must("deck.settings_set", map[string]any{"name": "agent_limit", "value": "1"}, nil)
 	p := e.createProject("jobs", testManifest([]string{agentCommand("job", "")}, nil))
 	a, b := e.run(p, "job"), e.run(p, "job")
 	e.waitFor("one running, one waiting", func() bool { return e.states([]int64{a, b}) == "running waiting_slot" })

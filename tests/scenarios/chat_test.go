@@ -295,7 +295,7 @@ func TestTopicsRunInParallelAndRepliesQueue(t *testing.T) {
 	e.masterSaid(a, 2)
 	e.masterSaid(b, 1)
 
-	e.must("deck.settings_set", map[string]any{"agent_limit": 1}, nil)
+	e.must("deck.settings_set", map[string]any{"name": "agent_limit", "value": "1"}, nil)
 	c := e.say(0, "C1 first")
 	e.waitFor("the reply of C", func() bool { return len(e.Fake.Calls()) == 4 })
 	d := e.say(0, "D1 first")

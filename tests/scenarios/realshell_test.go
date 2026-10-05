@@ -229,7 +229,7 @@ func TestRealBrowserShell(t *testing.T) {
 	b.until("no corners in pixels", `document.querySelector('[data-look="theme"]')?.offsetParent && !document.querySelector('[data-look="radius"]')`)
 	b.eval(`(document.querySelector('[data-look="theme"] input[value="neon"]').click(), '')`)
 	b.until("no scheme in neon, only its note", `!document.querySelector('[data-look="scheme"]') && document.querySelector('[data-look-note="scheme"]') && document.querySelector('[data-look="radius"]')`)
-	e.must("deck.settings_set", map[string]any{"language": "ru"}, nil)
+	e.must("deck.settings_set", map[string]any{"name": "language", "value": "ru"}, nil)
 	b.until("the interface in the language the owner picked", `document.querySelector('[data-nav]')?.innerText.includes('Кокпит') && document.querySelector('[data-chat-toggle]')?.innerText.includes('Мастер')`)
 	b.shot("shell-ru")
 	b.open(e.URL + "/#/deck/journal?tab=Spend")

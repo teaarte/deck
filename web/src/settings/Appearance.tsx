@@ -79,7 +79,7 @@ function Language() {
   const pick = async (v: string) => {
     setValue(v);
     try {
-      await call('deck.settings_set', { language: v });
+      await call('deck.settings_set', { name: 'language', value: v });
     } catch (e) {
       notifyError(e, t('look.language'));
     }

@@ -37,8 +37,8 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
   input schemas limited to App Intents types; `registry.Def` takes the schema from the tagged input struct;
   `registry.Read` declares a command that only reads, with its result schema from the Go type and `On` its event
   topics (a read without them panics; `registry.Static` for none), kept by name for the screens (`registry.Reads`);
-  `registry.DefOf` declares a command whose parameters are listed in code; `actor.go` (an automation token is its own
-  kind `Token`, counted as the master in the callers of a command by `Actor.As`), `errors.go`
+  `actor.go` (an automation token is its own kind `Token`, counted as the master in the callers of a command by
+  `Actor.As`), `errors.go`
 - `internal/docs` — documents with revisions, skill files, the manifest reader with its one parse cache (`All` the
   current manifests of projects), `InForce` (a manifest with only the rights of the
   revision the owner granted, `project.granted_revision`), `Patch` (JSON Patch keeping the text around a replace)
@@ -52,7 +52,7 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
   the master), `health` (the list of health), `signins`
   (sign-ins of the browser and oauth2 tools, MCP servers), `documents` (documents, shipped skills, health of
   scripts), `triggers`, `snapshots` (snapshots, cleanup, disk), `journal`, `files`, `folders`, `settings` (one table
-  `settingDefs` gives the row, the field of `settings_set` and the edit button), `secrets`, `tokens`, `board`,
+  `settingDefs` gives the row, the names `settings_set` takes and the edit button), `secrets`, `tokens`, `board`,
   `providers` (connections, models with prices and options, assignments with fallbacks, the providers of agent
   turns — built-in or a model in an ACP agent, the agents found with their version, self-checks at start, by button
   and on a broken turn — the routes, limits and rights of direct calls `deck.model_call`/`deck.model_request` and of

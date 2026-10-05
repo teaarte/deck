@@ -4,8 +4,6 @@ package settings
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"slices"
 	"strconv"
 	"strings"
@@ -78,29 +76,8 @@ func (s *Service) SuggestDays(ctx context.Context, workspace int64) int {
 	return int(s.setting(ctx, workspace, "suggest_days").(int64))
 }
 
-// setParams are the fields of settings_set: one for each setting, and a setting by its name with its value as
-// text, which the edit button of the General tab sends.
-func setParams() []registry.Param {
-	ps := make([]registry.Param, 0, len(settingDefs)+2)
-	names := make([]string, 0, len(settingDefs))
-	for _, d := range settingDefs {
-		names = append(names, d.name)
-		if d.options != nil {
-			ps = append(ps, registry.Param{Name: d.name, Type: "enum", Enum: d.options, Desc: d.title, Optional: true})
-			continue
-		}
-		ps = append(ps, registry.Opt(d.name, "integer", fmt.Sprintf("%s, %d to %d", d.title, d.min, d.max)))
-	}
-	return append(ps, registry.Param{Name: "name", Type: "enum", Enum: names, Desc: "A setting to set to value", Optional: true},
-		registry.Opt("value", "string", "The value of the setting called name"))
-}
-
-// value is the stored text of a setting given as v, a number or text; empty when it is not given.
-func (d settingDef) value(v json.RawMessage) (string, error) {
-	var text string
-	if json.Unmarshal(v, &text) != nil {
-		text = string(v)
-	}
+// value is the stored text of a setting given as text; empty when it is not given.
+func (d settingDef) value(text string) (string, error) {
 	text = strings.TrimSpace(text)
 	if text == "" || text == "0" && d.options == nil {
 		return "", nil
@@ -118,43 +95,30 @@ func (d settingDef) value(v json.RawMessage) (string, error) {
 	return strconv.FormatInt(n, 10), nil
 }
 
-func (s *Service) settingsSet(ctx context.Context, act registry.Actor, raw json.RawMessage) (any, error) {
-	var in map[string]json.RawMessage
-	if err := json.Unmarshal(raw, &in); err != nil {
-		return nil, registry.Invalid("deck: %v", err)
+type settingsSetIn struct {
+	Name  string `desc:"The setting to change"`
+	Value string `desc:"Its new value"`
+}
+
+func (s *Service) settingsSet(ctx context.Context, act registry.Actor, in settingsSetIn) (any, error) {
+	i := slices.IndexFunc(settingDefs, func(d settingDef) bool { return d.name == in.Name })
+	if i < 0 {
+		return nil, registry.Invalid("deck: no setting %q; deck.settings_list names them", in.Name)
 	}
-	if name, ok := in["name"]; ok {
-		var n string
-		_ = json.Unmarshal(name, &n)
-		in[n] = in["value"]
+	v, err := settingDefs[i].value(in.Value)
+	if err != nil {
+		return nil, err
 	}
-	values := map[string]string{}
-	names := []string{}
-	for _, d := range settingDefs {
-		names = append(names, d.name)
-		v, err := d.value(in[d.name])
-		if err != nil {
-			return nil, err
-		}
-		if v != "" {
-			values[d.name] = v
-		}
+	if v == "" {
+		return nil, registry.Invalid("deck: give %s a value", in.Name)
 	}
-	if len(values) == 0 {
-		return nil, registry.Invalid("deck: give %s or %s", strings.Join(names[:len(names)-1], ", "), names[len(names)-1])
-	}
-	err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		for name, v := range values {
-			if err := q.SetSetting(ctx, db.SetSettingParams{WorkspaceID: act.Workspace, Key: "setting:" + name, Value: v}); err != nil {
-				return err
-			}
-		}
-		return nil
+	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		return q.SetSetting(ctx, db.SetSettingParams{WorkspaceID: act.Workspace, Key: "setting:" + in.Name, Value: v})
 	})
 	if err != nil {
 		return nil, err
 	}
-	if values["agent_limit"] != "" {
+	if in.Name == "agent_limit" {
 		s.Wake(ctx)
 	}
 	return s.settingsList(ctx, act, struct{}{})
@@ -184,8 +148,16 @@ func (s *Service) Commands() []*registry.Command {
 		registry.Read("settings_list", "Settings",
 			"Lists the settings of the workspace with their values and defaults.",
 			registry.OwnerSide, s.settingsList).On("settings"),
-		registry.DefOf("settings_set", "Change settings",
-			"Sets settings of the workspace, each by its field or one by name and value; an omitted one stays.",
-			registry.OwnerOnly, setParams(), s.settingsSet),
+		registry.Def("settings_set", "Change setting",
+			"Sets one setting of the workspace to a value.",
+			registry.OwnerOnly, s.settingsSet).Enum("name", names()...),
 	}
+}
+
+func names() []string {
+	out := make([]string, 0, len(settingDefs))
+	for _, d := range settingDefs {
+		out = append(out, d.name)
+	}
+	return out
 }

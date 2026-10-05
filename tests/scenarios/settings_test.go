@@ -435,8 +435,8 @@ func TestTheMasterReadsTheSettingsAndTheNamesOfTokens(t *testing.T) {
 	}
 }
 
-// TestEverySettingIsEditedFromItsOneDefinition: each setting of the list is a field of settings_set and has the
-// one edit button of the General tab, which sets it by its name.
+// TestEverySettingIsEditedFromItsOneDefinition: settings_set names each setting of the list, and each has the one
+// edit button of the General tab, which sets it by its name.
 func TestEverySettingIsEditedFromItsOneDefinition(t *testing.T) {
 	e := newEnv(t, nil)
 	var list []struct {
@@ -445,7 +445,9 @@ func TestEverySettingIsEditedFromItsOneDefinition(t *testing.T) {
 	}
 	e.must("deck.settings_list", nil, &list)
 	var set struct {
-		Input struct{ Properties map[string]json.RawMessage }
+		Input struct {
+			Properties struct{ Name struct{ Enum []string } }
+		}
 	}
 	e.must("deck.command_describe", map[string]any{"command": "deck.settings_set"}, &set)
 	var rows []struct {
@@ -460,8 +462,8 @@ func TestEverySettingIsEditedFromItsOneDefinition(t *testing.T) {
 		t.Fatalf("the General tab lists every setting: %+v", rows)
 	}
 	for _, s := range list {
-		if set.Input.Properties[s.Name] == nil {
-			t.Fatalf("settings_set takes %s as a field of its own: %+v", s.Name, set)
+		if !slices.Contains(set.Input.Properties.Name.Enum, s.Name) {
+			t.Fatalf("settings_set names %s: %+v", s.Name, set)
 		}
 		r := rows[slices.IndexFunc(rows, func(r struct {
 			ID      string

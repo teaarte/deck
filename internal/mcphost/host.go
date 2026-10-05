@@ -27,6 +27,8 @@ type Spec struct {
 	Env     []string
 	Dir     string
 	URL     string
+	// Read are folders of the owner a confined program reads.
+	Read []string
 	// Confine runs a program in the sandbox.
 	Confine bool
 	// Secrets are the secret values in Env; what the server writes to stderr shows without them.
@@ -51,9 +53,9 @@ type Host struct {
 	Pause  time.Duration
 	Now    func() time.Time
 	Status Status
-	// Sandbox confines programs of specs that ask for it; Hide is what they never read.
+	// Sandbox confines programs of specs that ask for it; they never read Home, deck's folder, but for their own.
 	Sandbox sandbox.Sandbox
-	Hide    []string
+	Home    string
 
 	mu      sync.Mutex
 	servers map[string]*server

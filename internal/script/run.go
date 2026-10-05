@@ -46,7 +46,7 @@ type Job struct {
 	// Out is the gateway listener of the run; without it the script has no network.
 	Out net.Listener
 	Env []string
-	// Read are files the script may read, such as files of its input.
+	// Read are files and folders the script may read, such as files of its input and the folders of its project.
 	Read    []string
 	OnLine  func(line string)
 	OnStart func(pgid int)
@@ -87,9 +87,10 @@ func (x *Exec) Run(ctx context.Context, j Job) ([]byte, error) {
 			env = append(env, k+"="+v)
 		}
 	}
+	c := sandbox.Close(x.Home, os.Getenv("PATH"), false)
 	cmd, err := x.Sandbox.Command(ctx, sandbox.Policy{Argv: argv, Dir: j.Work(), Env: append(env, j.Env...),
-		Write: []string{j.Work(), j.Results(), data}, Read: append([]string{src}, j.Read...),
-		Hide: sandbox.Hidden(x.Home), Out: j.Out})
+		Write: []string{j.Work(), j.Results(), data}, Read: append(append([]string{src}, j.Read...), c.Read...),
+		Hide: c.Hide, Private: c.Private, Out: j.Out})
 	if err != nil {
 		return nil, err
 	}

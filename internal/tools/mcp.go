@@ -59,7 +59,7 @@ func SpecID(s manifest.MCPServer) string {
 // baseEnv is what a stdio server inherits from deck; the manifest adds its own variables.
 var baseEnv = regexp.MustCompile(`^(PATH|HOME|USER|LOGNAME|SHELL|LANG|TZ|TMPDIR|LC_[A-Z_]+|XDG_[A-Z_]+|NODE_[A-Z_]+)=`)
 
-func (x *MCP) spec(p db.Project, name string, s manifest.MCPServer) (mcphost.Spec, error) {
+func (x *MCP) spec(ctx context.Context, p db.Project, name string, s manifest.MCPServer) (mcphost.Spec, error) {
 	if s.URL != "" {
 		return mcphost.Spec{URL: s.URL}, nil
 	}
@@ -79,7 +79,15 @@ func (x *MCP) spec(p db.Project, name string, s manifest.MCPServer) (mcphost.Spe
 		}
 		env, secrets = append(env, k+"="+v), append(secrets, used...)
 	}
-	return mcphost.Spec{Command: s.Command, Args: s.Args, Env: env, Dir: dir, Confine: true, Secrets: secrets}, nil
+	folders, err := x.Store.Q.ListProjectFolders(ctx, p.ID)
+	if err != nil {
+		return mcphost.Spec{}, err
+	}
+	var read []string
+	for _, f := range folders {
+		read = append(read, f.Path)
+	}
+	return mcphost.Spec{Command: s.Command, Args: s.Args, Env: env, Dir: dir, Read: read, Confine: true, Secrets: secrets}, nil
 }
 
 var envSecret = regexp.MustCompile(`\$secret\.[A-Za-z0-9_.-]+`)
@@ -112,7 +120,7 @@ func (x *MCP) Start(ctx context.Context, p db.Project, m *manifest.Manifest) {
 		if slices.ContainsFunc(rows, func(r db.McpTool) bool { return r.Server == name && r.Spec == SpecID(s) }) {
 			continue
 		}
-		if spec, err := x.spec(p, name, s); err == nil {
+		if spec, err := x.spec(ctx, p, name, s); err == nil {
 			_, _ = x.Host.Tools(ctx, ServerKey(p.ID, name), spec)
 		}
 	}
@@ -212,7 +220,7 @@ func (x *MCP) handler(p db.Project, server string, s manifest.MCPServer, tool, c
 	}
 	return func(ctx context.Context, act registry.Actor, raw json.RawMessage) (any, error) {
 		external := class == registry.External
-		spec, err := x.spec(p, server, s)
+		spec, err := x.spec(ctx, p, server, s)
 		if err == nil && external {
 			var intent int64
 			if intent, err = x.GW.Intent(ctx, act, p.ID, name, raw); err == nil {

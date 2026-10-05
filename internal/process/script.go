@@ -80,8 +80,17 @@ func (r *Runner) runScript(ctx context.Context, t turn, trial bool) {
 		fail(err)
 		return
 	}
+	folders, err := r.st.Q.ListProjectFolders(bg, t.project)
+	if err != nil {
+		fail(err)
+		return
+	}
+	read := []string{inDir}
+	for _, f := range folders {
+		read = append(read, f.Path)
+	}
 	job := script.Job{Project: t.project, Manifest: t.m, Script: t.m.Script(t.cmd.Executor.Script), Source: src, Dir: dir,
-		Stdin: []byte(input), Out: ln, Env: env, Read: []string{inDir},
+		Stdin: []byte(input), Out: ln, Env: env, Read: read,
 		OnLine:  func(line string) { r.event(bg, id, stream, provider.Event{Kind: provider.EventStderr, Text: line}) },
 		OnStart: func(pgid int) { r.setGroup(bg, id, pgid) },
 	}

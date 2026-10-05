@@ -7,19 +7,22 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
+	"strings"
 	"syscall"
 	"time"
 )
 
 // Policy is what a confined program may touch: everything is readable except Hide, Read reopens paths
-// inside Hide, only Write is writable.
+// inside Hide, Private closes paths inside Read again; only Write is writable, and it opens all of them.
 type Policy struct {
-	Argv  []string
-	Dir   string
-	Env   []string
-	Write []string
-	Read  []string
-	Hide  []string
+	Argv    []string
+	Dir     string
+	Env     []string
+	Write   []string
+	Read    []string
+	Hide    []string
+	Private []string
 	// Out is the listener of deck the program reaches; without it the program has no network.
 	Out net.Listener
 	// Net opens the whole network; only MCP servers of a project get it.
@@ -74,6 +77,71 @@ func real(path string) string {
 		}
 		rest = filepath.Join(filepath.Base(d), rest)
 	}
+}
+
+// Closure is what deck keeps from a confined program: Hide closes deck's folder and the owner's home, Read opens
+// the runtimes on PATH inside them again, Private keeps the credential stores closed inside Read.
+type Closure struct{ Hide, Read, Private []string }
+
+// Close is the closure of a program with path as its PATH under deck's folder deck; open is the old sandbox, which
+// reads the home folder but for the credential stores.
+func Close(deck, path string, open bool) Closure {
+	home, err := os.UserHomeDir()
+	if open || err != nil || real(home) == "/" {
+		return Closure{Hide: Hidden(deck)}
+	}
+	return Closure{Hide: []string{deck, home}, Read: Runtimes(home, path), Private: Private()}
+}
+
+// Runtimes are the folders of path inside home and the installations they are the bin of, with those of the
+// programs they link to: a node, a python or a JDK keeps its libraries next to its bin.
+func Runtimes(home, path string) []string {
+	home = real(home)
+	seen := map[string]bool{}
+	var out []string
+	var add func(dir string, links int)
+	add = func(dir string, links int) {
+		dir = real(dir)
+		if !strings.HasPrefix(dir, home+"/") || seen[dir] {
+			return
+		}
+		seen[dir] = true
+		root := dir
+		if up := filepath.Dir(dir); filepath.Base(dir) == "bin" && up != home && installation(up) {
+			root = up
+		}
+		if !slices.Contains(out, root) {
+			out = append(out, root)
+		}
+		if links == 0 {
+			return
+		}
+		entries, _ := os.ReadDir(dir)
+		for _, e := range entries {
+			if e.Type()&os.ModeSymlink == 0 {
+				continue
+			}
+			if to, err := filepath.EvalSymlinks(filepath.Join(dir, e.Name())); err == nil {
+				add(filepath.Dir(to), links-1)
+			}
+		}
+	}
+	for _, d := range filepath.SplitList(path) {
+		if filepath.IsAbs(d) {
+			add(d, 2)
+		}
+	}
+	return out
+}
+
+// installation is a folder that holds what the programs in its bin load.
+func installation(dir string) bool {
+	for _, n := range []string{"lib", "libexec", "versions"} {
+		if fi, err := os.Stat(filepath.Join(dir, n)); err == nil && fi.IsDir() {
+			return true
+		}
+	}
+	return false
 }
 
 // Hidden is what no confined program reads: the state of deck and the owner's credential stores.

@@ -13,7 +13,8 @@ import (
 var linuxTests = []string{"TestScriptCommandRunsInTheSandbox", "TestScriptKeepsAnIndexInTheProjectDataFolder",
 	"TestScriptInstallsItsPackagesThroughTheProxyAndMissingProgramShowsInHealth", "TestSchemaMigrationAppliesRecordsWithTheManifestAndRevertsBoth",
 	"TestUploadedAndRecordFilesReachTheScriptReadOnly", "TestHTTPToolSendsFilesAsItsBody", "TestMCPServerToolsFollowClassesAndFilter",
-	"TestACPCommandAgentWorksThroughTheGateway", "TestACPProjectWithoutNetworkHasNoWebThroughTheProxy", "TestACPSelfCheckIsRedWhenTheSandboxOrTheProxyFails"}
+	"TestACPCommandAgentWorksThroughTheGateway", "TestACPProjectWithoutNetworkHasNoWebThroughTheProxy", "TestACPSelfCheckIsRedWhenTheSandboxOrTheProxyFails",
+	"TestTheSandboxClosesTheHomeButForRuntimesAndTheFoldersOfTheProject", "TestAScriptReadsNoFolderOfAnotherProject"}
 
 // TestLinuxTestsExist fails when a listed test is renamed or gone from tests/scenarios.
 func TestLinuxTestsExist(t *testing.T) {

@@ -28,9 +28,8 @@ func (a *Adapter) Version(ctx context.Context) (string, error) {
 		return "", err
 	}
 	defer os.RemoveAll(home)
-	cmd, err := a.cfg.Sandbox.Command(ctx, sandbox.Policy{Argv: []string{bin, "--version"}, Dir: home,
-		Env: append(environ(os.Environ()), "HOME="+home, "TMPDIR="+home), Write: []string{home},
-		Hide: sandbox.Hidden(a.cfg.Home)})
+	cmd, err := a.cfg.Sandbox.Command(ctx, a.closed(sandbox.Policy{Argv: []string{bin, "--version"}, Dir: home,
+		Env: append(environ(os.Environ()), "HOME="+home, "TMPDIR="+home), Write: []string{home}}))
 	if err != nil {
 		return "", err
 	}

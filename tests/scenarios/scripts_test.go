@@ -3,6 +3,7 @@ package scenarios
 import (
 	"archive/tar"
 	"compress/gzip"
+	"context"
 	deckhome "deck2/internal/home"
 	"encoding/json"
 	"fmt"
@@ -17,6 +18,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"deck2/internal/registry"
 )
 
 func served(t *testing.T) *httptest.Server {
@@ -529,5 +532,62 @@ print(json.dumps({"local": fetch(inp["allowed"]), "nowhere": fetch("http://nowhe
 	_ = json.Unmarshal(p.Result, &got)
 	if got.Local != float64(403) || got.Nowhere != float64(403) || len(local.requests()) != 0 {
 		t.Fatalf("a name of the owner's machine and a name that does not resolve are refused: %s", p.Result)
+	}
+}
+
+const homeScript = pythonLib + `
+import subprocess
+inp = json.load(sys.stdin)
+home = os.path.expanduser(inp["home"])
+tool = subprocess.run(["tool"], capture_output=True, text=True)
+try:
+    listed = len(os.listdir(home)) > 0
+except OSError:
+    listed = False
+print(json.dumps({"rc": can_read(os.path.join(home, ".zshrc")), "documents": can_read(os.path.join(home, "Documents", "notes.txt")),
+  "config": can_read(os.path.join(home, ".config", "app", "token")), "listed": listed,
+  "runtime": tool.stdout.strip(), "folder": can_read(os.path.join(inp["folder"], "readme")),
+  "folder_write": can_write(os.path.join(inp["folder"], "x")), "cpus": os.cpu_count()}))
+`
+
+// TestTheSandboxClosesTheHomeButForRuntimesAndTheFoldersOfTheProject: a script and an MCP server read nothing of the
+// owner's home folder but the runtimes deck finds on PATH and the folders the owner gave the project, read-only.
+func TestTheSandboxClosesTheHomeButForRuntimesAndTheFoldersOfTheProject(t *testing.T) {
+	owner := ownerHome(t)
+	for path, text := range map[string]string{".zshrc": "export OPENAI_API_KEY=sk-owner", "Documents/notes.txt": "private",
+		".config/app/token": "t0ken", "rt/lib/tool/data": "runtime-data", "code/readme": "the code",
+		"rt/bin/tool": "#!/bin/sh\ncat \"$(dirname \"$0\")/../lib/tool/data\"\n"} {
+		p := filepath.Join(owner, path)
+		if err := os.MkdirAll(filepath.Dir(p), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(text), 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Setenv("HOME", owner)
+	t.Setenv("PATH", filepath.Join(owner, "rt", "bin")+string(os.PathListSeparator)+os.Getenv("PATH"))
+	e := newEnv(t, nil)
+	self, _ := os.Executable()
+	e.createProject("tools", scriptManifest("collect", "", fmt.Sprintf(`, "tools": {"mcp": {"servers": {"fake": {"command": %q,
+    "env": {"DECK_FAKE_MCP": "project"}, "toolFilter": ["peek"], "classes": {"peek": "internal"}}}}}`, self)))
+	e.must("deck.folder_add", map[string]any{"project": "tools", "path": filepath.Join(owner, "code")}, nil)
+	e.saveScript("tools", "scripts/main.py", homeScript)
+	p := e.waitScript(e.start("tools", "collect", map[string]any{"home": owner, "folder": filepath.Join(owner, "code")}), "done", "error")
+	var got struct {
+		RC, Documents, Config, Listed, Folder, FolderWrite bool
+		Runtime                                            string
+		CPUs                                               int
+	}
+	_ = json.Unmarshal(p.Result, &got)
+	if p.State != "done" || got.RC || got.Documents || got.Config || got.Listed || got.Runtime != "runtime-data" || !got.Folder || got.FolderWrite || got.CPUs < 1 {
+		t.Fatalf("a script reads of the home only the runtimes on PATH and the folders of its project: %+v %s", p, p.Result)
+	}
+	for path, want := range map[string]string{filepath.Join(owner, ".zshrc"): "read=false", filepath.Join(owner, "code", "readme"): "read=true"} {
+		out, _ := e.App.Gateway.CallAs(context.Background(), registry.Actor{Kind: registry.Agent, Workspace: 1, ProjectID: e.projectID("tools")},
+			"tools.fake.peek", json.RawMessage(fmt.Sprintf(`{"path": %q}`, path)))
+		if b, _ := json.Marshal(out); !strings.Contains(string(b), want) {
+			t.Fatalf("an MCP server reads of the home only what a script does: reading %s gave %s", path, b)
+		}
 	}
 }

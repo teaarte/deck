@@ -188,10 +188,9 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 	env = append(environ(os.Environ()), append([]string{"HOME=" + home, "TMPDIR=" + filepath.Join(home, "tmp"),
 		"HTTP_PROXY=" + proxy, "HTTPS_PROXY=" + proxy, "http_proxy=" + proxy, "https_proxy=" + proxy,
 		"NO_PROXY=127.0.0.1,localhost", "no_proxy=127.0.0.1,localhost"}, env...)...)
-	hide := sandbox.Hidden(a.cfg.Home)
-	cmd, err := a.cfg.Sandbox.Command(life, sandbox.Policy{
+	cmd, err := a.cfg.Sandbox.Command(life, a.closed(sandbox.Policy{
 		Argv: append([]string{"/bin/sh", "-c", `"$@"; exit $?`, marker(req.SessionID)}, argv...),
-		Dir:  req.Cwd, Env: env, Write: append([]string{req.Cwd, home}, req.Dirs...), Hide: hide, Out: ln, Port: port})
+		Dir:  req.Cwd, Env: env, Write: append([]string{req.Cwd, home}, req.Dirs...), Out: ln, Port: port}))
 	if err != nil {
 		return provider.Result{}, err
 	}
@@ -234,6 +233,13 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 		}
 	}
 	return res, runErr
+}
+
+// closed confines p as deck confines every program: its folder and the owner's home closed but for the runtimes on PATH.
+func (a *Adapter) closed(p sandbox.Policy) sandbox.Policy {
+	c := sandbox.Close(a.cfg.Home, os.Getenv("PATH"), false)
+	p.Hide, p.Read, p.Private = c.Hide, append(p.Read, c.Read...), c.Private
+	return p
 }
 
 func (a *Adapter) now() time.Time {

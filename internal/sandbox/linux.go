@@ -86,18 +86,20 @@ func (*bwrap) Command(ctx context.Context, p Policy) (*exec.Cmd, error) {
 			args = append(args, "--ro-bind-try", real(src), dst)
 		}
 	}
-	for _, h := range p.Hide {
-		switch fi, err := os.Stat(h); {
-		case err != nil:
-		case fi.IsDir():
-			args = append(args, "--tmpfs", real(h))
-		default:
-			args = append(args, "--ro-bind", "/dev/null", real(h))
-		}
-	}
+	args = append(args, closed(p.Hide)...)
 	for _, r := range p.Read {
 		args = append(args, "--ro-bind-try", real(r), real(r))
+		if r = filepath.Clean(r); r != real(r) {
+			args = append(args, "--ro-bind-try", real(r), r)
+		}
 	}
+	var private []string
+	for _, h := range p.Private {
+		if slices.ContainsFunc(p.Read, func(r string) bool { return strings.HasPrefix(real(h), real(r)+"/") }) {
+			private = append(private, h)
+		}
+	}
+	args = append(args, closed(private)...)
 	for _, w := range p.Write {
 		args = append(args, "--bind", real(w), real(w))
 	}
@@ -122,6 +124,21 @@ func (*bwrap) Command(ctx context.Context, p Policy) (*exec.Cmd, error) {
 	args = append(args, "--")
 	cmd := exec.CommandContext(ctx, "bwrap", append(args, argv...)...)
 	return group(cmd), nil
+}
+
+// closed are the arguments that empty folders and files that exist.
+func closed(paths []string) []string {
+	var args []string
+	for _, h := range paths {
+		switch fi, err := os.Stat(h); {
+		case err != nil:
+		case fi.IsDir():
+			args = append(args, "--tmpfs", real(h))
+		default:
+			args = append(args, "--ro-bind", "/dev/null", real(h))
+		}
+	}
+	return args
 }
 
 // rebuilt are the nearest folders above hidden paths that do not exist yet, shallowest first: each is shown

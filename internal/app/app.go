@@ -42,7 +42,6 @@ import (
 	"deck2/internal/process"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
-	"deck2/internal/sandbox"
 	"deck2/internal/script"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
@@ -156,7 +155,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	}
 	a.Host = mcphost.New(a.Connections.ServerStatus)
 	a.Host.Now, a.Host.Sandbox = cfg.Now, cfg.Sandbox
-	a.Host.Hide = sandbox.Hidden(cfg.Home)
+	a.Host.Home = cfg.Home
 	a.MCP = &tools.MCP{GW: a.Gateway, Host: a.Host, Store: st, Secrets: a.Secrets.Secret, Dirs: a.dirs(), Home: cfg.Home}
 	a.Browser = &tools.Browser{GW: a.Gateway, Host: a.Host, Store: st, Dirs: a.dirs(), Home: cfg.Home, Argv: cfg.Browser, Ctx: a.ctx}
 	a.Connections.Browser, a.Connections.MCP = a.Browser, a.MCP

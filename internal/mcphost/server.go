@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"slices"
 	"strings"
 	"sync"
 	"syscall"
@@ -19,7 +20,7 @@ import (
 )
 
 // command is the program of a stdio server; a confined one runs in the sandbox with the network, writing
-// only its own folder and seeing neither deck's folder nor the owner's keys.
+// only its own folder and reading of the owner's home only the runtimes on PATH and the folders of its project.
 func (h *Host) command(spec Spec) (*exec.Cmd, error) {
 	if !spec.Confine || h.Sandbox == nil {
 		cmd := exec.Command(spec.Command, spec.Args...)
@@ -34,8 +35,19 @@ func (h *Host) command(spec Spec) (*exec.Cmd, error) {
 	if err != nil {
 		return nil, err
 	}
+	c := sandbox.Close(h.Home, env(spec.Env, "PATH"), false)
 	return h.Sandbox.Command(context.Background(), sandbox.Policy{Argv: append([]string{path}, spec.Args...), Dir: spec.Dir,
-		Env: spec.Env, Write: []string{spec.Dir}, Hide: h.Hide, Net: true})
+		Env: spec.Env, Write: []string{spec.Dir}, Read: append(slices.Clone(spec.Read), c.Read...), Hide: c.Hide, Private: c.Private, Net: true})
+}
+
+// env is the value of the variable name in kv.
+func env(kv []string, name string) string {
+	for _, e := range kv {
+		if v, ok := strings.CutPrefix(e, name+"="); ok {
+			return v
+		}
+	}
+	return ""
 }
 
 func (s *server) start(ctx context.Context, h *Host, key string, spec Spec) error {

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"os/exec"
+	"path/filepath"
 	"slices"
 	"strings"
 )
@@ -53,8 +54,14 @@ func profile(p Policy) string {
 	for _, r := range p.Read {
 		fmt.Fprintf(&b, "(allow file-read* (subpath %s))\n", quote(real(r)))
 	}
+	for _, h := range p.Private {
+		fmt.Fprintf(&b, "(deny file-read* (subpath %s))\n", quote(real(h)))
+	}
 	for _, w := range p.Write {
 		fmt.Fprintf(&b, "(allow file-read* file-write* (subpath %s))\n", quote(real(w)))
+	}
+	for _, d := range ancestors(append(slices.Clone(p.Read), p.Write...)) {
+		fmt.Fprintf(&b, "(allow file-read-metadata (literal %s))\n", quote(d))
 	}
 	b.WriteString(`(allow file-write* file-ioctl (literal "/dev/null") (literal "/dev/zero") (literal "/dev/tty") (literal "/dev/dtracehelper"))` + "\n")
 	b.WriteString("(allow mach-lookup")
@@ -80,6 +87,17 @@ func profile(p Policy) string {
 		}
 	}
 	return b.String()
+}
+
+// ancestors are the folders above paths, so a program resolves the path of a folder it may read.
+func ancestors(paths []string) []string {
+	var out []string
+	for _, p := range paths {
+		for d := filepath.Dir(real(p)); d != "/" && !slices.Contains(out, d); d = filepath.Dir(d) {
+			out = append(out, d)
+		}
+	}
+	return out
 }
 
 func quote(s string) string {

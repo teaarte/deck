@@ -1,4 +1,4 @@
-// Package folders keeps the folders on disk a project's agent commands work in.
+// Package folders keeps the folders on disk a project's agent commands work in and its scripts and MCP servers read.
 package folders
 
 import (
@@ -201,7 +201,7 @@ func (s *Service) Commands() []*registry.Command {
 			"Lists the folders on disk a project's agent commands work in.",
 			registry.OwnerOnly, s.foldersList).On("projects"),
 		registry.Def("folder_add", "Add folder",
-			"Gives a project a folder on disk that its agent commands with folder work in; only the owner, since it lets agents write there.",
+			"Gives a project a folder on disk: its agent commands with folder work in it, its scripts and MCP servers read it; only the owner, since it lets agents write there.",
 			registry.OwnerOnly, s.folderAdd),
 		registry.Def("folder_remove", "Remove folder",
 			"Takes a folder from a project; the folder on disk stays as it is.",

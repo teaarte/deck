@@ -24,8 +24,15 @@ func newACP(t *testing.T) *fakeACP {
 	t.Helper()
 	dir := t.TempDir()
 	self, _ := os.Executable()
+	schema, err := os.ReadFile(acpSchema(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "schema.json"), schema, 0o600); err != nil {
+		t.Fatal(err)
+	}
 	for _, name := range []string{"opencode", "dsh"} {
-		script := "#!/bin/sh\nexec env DECK_FAKE_ACP='" + dir + "' DECK_FAKE_ACP_SCHEMA='" + acpSchema(t) + "' '" + self + "' \"$@\"\n"
+		script := "#!/bin/sh\nexec env DECK_FAKE_ACP='" + dir + "' DECK_FAKE_ACP_SCHEMA='" + filepath.Join(dir, "schema.json") + "' '" + self + "' \"$@\"\n"
 		if err := os.WriteFile(filepath.Join(dir, name), []byte(script), 0o755); err != nil {
 			t.Fatal(err)
 		}

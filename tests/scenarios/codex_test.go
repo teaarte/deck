@@ -544,7 +544,7 @@ func TestCodexShellReachesTheRegistriesAndTheDomainsOfItsProject(t *testing.T) {
 	cc := c.call(1)
 	mode, _ := cc.config("permissions.deck.network.mode")
 	domains, _ := cc.config("permissions.deck.network.domains")
-	if mode != `"limited"` || !strings.Contains(domains, `"pypi.org"="allow"`) || !strings.Contains(domains, `"*.data.example.org"="allow"`) {
+	if mode != `"full"` || !strings.Contains(domains, `"pypi.org"="allow"`) || !strings.Contains(domains, `"*.data.example.org"="allow"`) {
 		t.Fatalf("the shell reaches the registries and the read domains of the project: %s %s", mode, domains)
 	}
 	open := e.createProject("open", strings.Replace(colorManifest, `"version": 7,`, `"version": 7, "domains": {"read": ["*"]},`, 1))

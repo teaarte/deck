@@ -110,7 +110,7 @@ func network(req provider.Request) []string {
 			domains = append(domains, quote(h)+`="allow"`, quote("*."+h)+`="allow"`)
 		}
 	}
-	return []string{"features.network_proxy=true", "permissions." + profile + `.network.mode="limited"`,
+	return []string{"features.network_proxy=true", "permissions." + profile + `.network.mode="full"`,
 		"permissions." + profile + ".network.domains={" + strings.Join(domains, ",") + "}"}
 }
 

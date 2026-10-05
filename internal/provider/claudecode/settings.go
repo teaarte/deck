@@ -141,17 +141,15 @@ func settings(req provider.Request, runs string) map[string]any {
 	return s
 }
 
-// allowed are the hosts as the sandbox of the CLI names them: a host and its subdomains, host:port or an IP; a
-// network such as 10.0.0.0/8 it cannot name is left out.
+// allowed are the hosts as the sandbox of the CLI names them: a host and its subdomains, host:port, an IP or
+// localhost; a network such as 10.0.0.0/8 or a name without a dot, which it refuses, is left out.
 func allowed(hosts []string) []string {
 	out := []string{}
 	for _, h := range hosts {
 		switch {
-		case h == "*" || strings.Contains(h, ":"):
+		case h == "*" || h == "localhost" || strings.Contains(h, ":") || net.ParseIP(h) != nil:
 			out = append(out, h)
-		case strings.Contains(h, "/"):
-		case net.ParseIP(h) != nil:
-			out = append(out, h)
+		case strings.Contains(h, "/") || !strings.Contains(h, "."):
 		default:
 			out = append(out, h, "*."+h)
 		}

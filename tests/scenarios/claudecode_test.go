@@ -295,7 +295,7 @@ func TestClaudeCodeShellReachesTheRegistriesAndTheDomainsOfItsProject(t *testing
 		domains string
 		want    []string
 	}{
-		{`"domains": {"read": ["data.example.org"]},`, []string{"pypi.org", "data.example.org", "*.data.example.org"}},
+		{`"domains": {"read": ["data.example.org", "intranet"]},`, []string{"pypi.org", "data.example.org", "*.data.example.org"}},
 		{`"domains": {"read": ["*"]},`, []string{"*"}},
 		{`"no_network": true,`, nil},
 	} {
@@ -320,7 +320,7 @@ func TestClaudeCodeShellReachesTheRegistriesAndTheDomainsOfItsProject(t *testing
 		for _, w := range tc.want {
 			ok = ok && slices.Contains(got, w)
 		}
-		if !ok || tc.want == nil && len(got) != 0 || len(tc.want) == 1 && len(got) != 1 {
+		if !ok || tc.want == nil && len(got) != 0 || len(tc.want) == 1 && len(got) != 1 || slices.Contains(got, "intranet") || slices.Contains(got, "*.intranet") {
 			t.Fatalf("%s: the sandbox of the shell reaches %v: %s", tc.domains, tc.want, call.settings)
 		}
 	}

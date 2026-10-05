@@ -28,24 +28,32 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
 - `internal/store` — SQLite: a committed write publishes the topic of its table in the project of the row
   (`changes.go`, the SQLite pre-update hook); the base schema `migrations/00001_base.sql` and goose migrations after it
   (`00002_granted`, `00003_llm_call`, `00004_ask_workspace`: a table rebuilt with foreign keys off is a NO TRANSACTION
-  migration), sqlc queries (`db/` is generated)
+  migration; `00005_marks` — `project.imported_from` and the notes for the master as feed rows, `00006_feed_read` —
+  warnings as notes of the feed, `00007_sandbox_health`, `00008_alone` — a trial of one command), sqlc queries
+  (`db/` is generated); `mark` keeps only cursors and throttles
 - `internal/registry` — command registry: every input (API, MCP, triggers) calls commands through it;
   input schemas limited to App Intents types; `registry.Def` takes the schema from the tagged input struct;
   `registry.Read` declares a command that only reads, with its result schema from the Go type and `On` its event
-  topics (a read without them panics; `registry.Static` for none); `actor.go`, `errors.go`
-- `internal/docs` — documents with revisions, skill files, the manifest reader with its parse cache, `Manifests` (the
-  current manifests of a deck kept by document and revision), `InForce` (a manifest with only the rights of the
+  topics (a read without them panics; `registry.Static` for none), kept by name for the screens (`registry.Reads`);
+  `registry.DefOf` declares a command whose parameters are listed in code; `actor.go` (an automation token is its own
+  kind `Token`, counted as the master in the callers of a command by `Actor.As`), `errors.go`
+- `internal/docs` — documents with revisions, skill files, the manifest reader with its one parse cache (`All` the
+  current manifests of projects), `InForce` (a manifest with only the rights of the
   revision the owner granted, `project.granted_revision`), `Patch` (JSON Patch keeping the text around a replace)
-- `internal/app` — wiring: `App` builds the domain services, hands them each other's functions, registers their
-  commands and runs `Loop`/`Sweep`; it still keeps the processes (`process_handlers.go`, `live.go`), errors to the
-  master (`errors.go`), records (`record_handlers.go`), `health_list.go` and the screens below. Each domain is a package
-  `app/<area>` with a `Service` (narrow dependencies as fields, functions of other services as fields) and
-  `Commands()`; no domain package imports `internal/app`: `project` (manifests, drafts, import, delete, migrations,
-  the commands a manifest gives the registry), `asks` (what waits for the owner and its answers), `connections`
+- `internal/app` — wiring and the screens: `New` allocates every service first and builds each whole with the
+  functions of the others (a test checks none is left unset), registers their commands and runs `Loop`/`Sweep`. Each
+  domain is a package `app/<area>` with a `Service` (narrow dependencies as fields, functions of other services as
+  fields) and `Commands()`; no domain package imports `internal/app`: `project` (`Service` the lifecycle — create,
+  enable, trials, import, delete; `Saver` the manifests — save with checks, migrations and grants, the commands a
+  manifest gives the registry), `asks` (what waits for the owner and its answers; `Unheard` hands the master an answer
+  its process did not act on), `processes` (the commands of processes), `failures` (failed processes and screens to
+  the master), `health` (the list of health), `connections`
   (sign-ins of the browser and oauth2 tools, MCP servers), `documents` (documents, shipped skills, health of
   scripts), `triggers`, `snapshots` (snapshots, cleanup, disk), `journal`, `files`, `folders`, `settings` (one table
-  `settingDefs`), `secrets`, `tokens`, `board`, `providers`, `devices` (feed, push, speech to text), `chat`,
-  `suggest`, `records`, `screens`; who may touch what is `app/access`;
+  `settingDefs` gives the row, the field of `settings_set` and the edit button), `secrets`, `tokens`, `board`,
+  `providers`, `devices` (feed with notes of deck and `feed_read`, push, speech to text), `chat`, `suggest`, `records`
+  (records with `where` expressions), `triggers` (also the firing of triggers and `After`), `screens`; who may touch
+  what is `app/access`;
   a screen block reads a `registry.Read` command (`"from": "deck.asks_list"`), called as the viewer in
   `app/screen_get.go` (`deck.screen`; the menu `menu.go`, `commands_list.go`, translations `i18n.go`); `app/screens` —
   the sources of screens: records, boards, forms, documents;
@@ -64,11 +72,14 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
   `codex app-server` on the owner's shared login (`protocol.go` is generated); `acp` runs ACP agents (OpenCode, `dsh`)
   on an OpenAI-compatible model inside deck's sandbox — deck has no tool loop of its own
 - `internal/process` — process runner: agent and script executors, start, resume, result schema check, result files;
-  agent turns take a slot of the workspace (`slots.go`), the rest wait in `waiting_slot`
+  agent turns take a slot of the workspace (`slots.go`), the rest wait in `waiting_slot`; what it takes from deck is
+  `Deps` (functions), the deadlines of processes are `Due` (ceilings, pauses, silent, empty results)
 - `internal/home` — the layout of `DECK_HOME`: `state/` only deck reads, `work/` the folders of runs and projects
 - `internal/sandbox` — sandbox of scripts, MCP servers and ACP agents behind one interface: `sandbox-exec` on macOS,
   bubblewrap on Linux; `Close` — deck's folder and the owner's home closed but for the runtimes on PATH (`Runtimes`)
-  and the project folders, the old sandbox by the setting `sandbox`; `Watch` — refusals from the log of macOS
+  and the project folders, the old sandbox by the setting `sandbox`; `Watch` — refusals from the log of macOS;
+  `Agent` — what an agent CLI may not touch in deck's folder; `Rules` — the setting and who hears a refusal (a note
+  of the feed), one dependency of the runner, MCP servers and ACP agents
 - `internal/script` — runs project scripts in the sandbox (a script installs its own packages through the proxy)
 - `internal/trigger` — cron scheduler with catch-up after sleep
 - `internal/health` — health rows: `Set` inside a transaction, `Write` on its own and published; health is the
@@ -87,8 +98,8 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
   the notifications `Bell.tsx`, the icon pattern `Backdrop.tsx`, the address and back button `router.ts`); `screen/`
   a screen (`ScreenView.tsx`, `useScreen.ts`, buttons through the `ScreenActions` context, the catalog `catalog.ts`);
   `blocks/` a file or folder per block registered through `blockImpl.tsx` (frame `Block.tsx`; `table/`, `board/`
-  with `@dnd-kit/react`, `form/`, `media/`, `chart/`, `custom/` the MCP Apps host — `@modelcontextprotocol/ext-apps`
-  1.7.5, 2.x needs zod 4); `chat/` the chat with the master around `chatStore.ts`; `ui/` buttons, confirmation, icons by
+  with `@dnd-kit/react`, `form/`, `media/` (pictures, PDF, the player `Player.tsx` with marks), `chart/`,
+  `custom/` the MCP Apps host — `@modelcontextprotocol/ext-apps` 1.7.5, 2.x needs zod 4); `chat/` the chat with the master around `chatStore.ts`; `ui/` buttons, confirmation, icons by
   name, markdown (`@a2ui/markdown-it`), values; `hooks/`; `lib/` the API and live events (`events.ts`, `useLive`, one
   `onResume`), `notify.ts`, `format.ts`, `i18n.ts`, the catalog schema; `settings/` look and pushes; `theme/` the look of
   the device (`look.ts`: scheme, accent, density, font, corners — passed to `custom` blocks as host context), accents
@@ -96,7 +107,7 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
   `public/sw.js`; `web/dist` is the embedded build — rebuild and commit it with the sources
 - `master` — the built-in project `master`, embedded: manifest, prompts, skills (dispatch, topic-summary, interview);
   the chat and memory around it are `app/chat`, suggestions `app/suggest`, the handing of errors to the master is
-  `internal/app/errors.go`, voice and push in `app/devices`; deck's own texts for its agents are `master/templates` (`master.Text`); the client's chat is `web/src/chat/`
+  `app/failures`, voice and push in `app/devices`; deck's own texts for its agents are `master/templates` (`master.Text`); the client's chat is `web/src/chat/`
 - `internal/lint` — code rules checked by `tests/lint` (comments, requirement refs, vertical names)
 - `schemas` — contracts embedded in the binary: manifest JSON Schema, screen block catalog (`catalog.json`, read by
   the server and the client), App Intents parameter rules

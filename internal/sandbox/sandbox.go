@@ -175,5 +175,5 @@ func Private() []string {
 var private = []string{".ssh", ".aws", ".azure", ".gnupg", ".kube", ".docker", ".netrc", ".git-credentials", ".npmrc",
 	".pypirc", ".cargo/credentials", ".cargo/credentials.toml", ".terraform.d", ".password-store", ".mozilla",
 	".config/gcloud", ".config/gh", ".config/op", ".config/google-chrome", ".config/chromium", ".local/share/keyrings",
-	".claude", ".claude.json", ".codex", ".dsh", ".config/goose", ".local/share/goose", ".local/state/goose", "Library/Keychains", "Library/Cookies", "Library/Application Support",
+	".claude", ".claude.json", ".codex", ".dsh", ".config/opencode", ".local/share/opencode", ".config/goose", ".local/share/goose", ".local/state/goose", "Library/Keychains", "Library/Cookies", "Library/Application Support",
 	"Library/Containers", "Library/Group Containers", "Library/Mail", "Library/Messages", "Library/Safari"}

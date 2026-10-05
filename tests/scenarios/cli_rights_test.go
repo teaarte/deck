@@ -40,7 +40,8 @@ func TestCommandAgentCannotReadSecretsAndGetsEveryDeckTool(t *testing.T) {
 	}
 	for _, rule := range []string{"Read(/" + filepath.Join(user, ".ssh") + "/**)",
 		"Read(/" + filepath.Join(user, ".claude", "projects", "-elsewhere") + "/**)", "Read(/" + filepath.Join(user, ".claude", "settings.json") + ")",
-		"Edit(/" + filepath.Join(user, ".codex") + "/**)"} {
+		"Edit(/" + filepath.Join(user, ".codex") + "/**)", "Read(/" + filepath.Join(user, ".local", "share", "opencode") + "/**)",
+		"Read(/" + filepath.Join(user, ".config", "goose") + "/**)"} {
 		if !slices.Contains(set.Permissions.Deny, rule) {
 			t.Fatalf("the agent may not read the owner's %s: %v", rule, set.Permissions.Deny)
 		}

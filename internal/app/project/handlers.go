@@ -48,7 +48,7 @@ func (pj *Service) projectsList(ctx context.Context, act registry.Actor, in proj
 	if in.Project != "" {
 		ps = slices.DeleteFunc(ps, func(p db.Project) bool { return p.Name != in.Project })
 	}
-	ms, failed := pj.Manifests.All(ctx, ps)
+	ms, failed := docs.All(ctx, pj.St.Q, ps)
 	out := make([]projectView, 0, len(ps))
 	for _, p := range ps {
 		out = append(out, pj.viewProject(ctx, p, ms[p.ID], failed[p.ID]))

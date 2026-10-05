@@ -2,12 +2,12 @@ package manifest
 
 import (
 	"bytes"
+	"deck2/internal/registry"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"maps"
 	"slices"
-	"sync/atomic"
 
 	"github.com/santhosh-tekuri/jsonschema/v6"
 )
@@ -26,18 +26,13 @@ const (
 	ChatSource     = "deck.chat"
 )
 
-var reads atomic.Pointer[func(string) (ReadCommand, bool)]
-
-// UseReads names the commands a screen may read; deck sets it once, before it checks a screen.
-func UseReads(f func(command string) (ReadCommand, bool)) { reads.CompareAndSwap(nil, &f) }
-
-// Reads is a command a screen block may read.
+// Reads is a command a screen block may read: a builtin read of deck.
 func Reads(command string) (ReadCommand, bool) {
-	f := reads.Load()
-	if f == nil {
+	c := registry.Reads(command)
+	if c == nil {
 		return ReadCommand{}, false
 	}
-	return (*f)(command)
+	return ReadCommand{Input: c.Input, Result: c.Result, Topics: c.Topics}, true
 }
 
 // Fields are the fields of the items a read gives: those of its list, or of the list rows names in its object.

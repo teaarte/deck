@@ -5,6 +5,7 @@ import (
 	_ "embed"
 
 	"deck2/internal/app/project"
+	"deck2/internal/docs"
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
 )
@@ -46,7 +47,7 @@ func (a *App) menu(ctx context.Context, act registry.Actor, in menuIn) (any, err
 	for _, r := range pulses {
 		pulse[r.ID] = r
 	}
-	ms, _ := a.Manifests.All(ctx, ps)
+	ms, _ := docs.All(ctx, a.Store.Q, ps)
 	for _, p := range ps {
 		m := ms[p.ID]
 		if m == nil {

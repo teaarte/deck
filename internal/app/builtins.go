@@ -23,13 +23,5 @@ func (a *App) addBuiltins() {
 		func(context.Context, registry.Actor, struct{}) (any, error) {
 			return json.RawMessage(manifest.Format), nil
 		}))
-	reg := a.Registry
-	manifest.UseReads(func(name string) (manifest.ReadCommand, bool) {
-		c := reg.Builtin(name)
-		if c == nil || !c.Reads {
-			return manifest.ReadCommand{}, false
-		}
-		return manifest.ReadCommand{Input: c.Input, Result: c.Result, Topics: c.Topics}, true
-	})
 	shipped()
 }

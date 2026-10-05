@@ -10,7 +10,6 @@ import (
 
 	"deck2/internal/app/folders"
 	"deck2/internal/ask"
-	"deck2/internal/docs"
 	"deck2/internal/events"
 	"deck2/internal/gateway"
 	"deck2/internal/home"
@@ -30,7 +29,6 @@ type Service struct {
 	St        *store.Store
 	Bus       *events.Bus
 	Home      home.Layout
-	Manifests *docs.Manifests
 	Registry  *registry.Registry
 	Gateway   *gateway.Gateway
 	Runner    *process.Runner
@@ -50,7 +48,6 @@ type Saver struct {
 	Bus       *events.Bus
 	Now       func() time.Time
 	Home      home.Layout
-	Manifests *docs.Manifests
 	Registry  *registry.Registry
 	Gateway   *gateway.Gateway
 	Runner    *process.Runner

@@ -83,7 +83,6 @@ type App struct {
 	MCP         *tools.MCP
 	Browser     *tools.Browser
 	Host        *mcphost.Host
-	Manifests   *docs.Manifests
 
 	ctx      context.Context
 	cancel   context.CancelFunc
@@ -110,7 +109,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 		return nil, err
 	}
 	// Every service is allocated first, so each is then built whole with the functions of the others.
-	a := &App{Cfg: cfg, Home: h, Store: st, Bus: events.NewBus(), Scripts: script.New(cfg.Sandbox, cfg.Home), Manifests: &docs.Manifests{St: st},
+	a := &App{Cfg: cfg, Home: h, Store: st, Bus: events.NewBus(), Scripts: script.New(cfg.Sandbox, cfg.Home),
 		Projects: &project.Service{}, Saver: &project.Saver{}, Secrets: &secrets.Service{}, Folders: &folders.Service{}, Files: &appfiles.Service{},
 		Journal: &journal.Service{}, Triggers: &triggers.Service{}, Documents: &documents.Service{}, Snapshots: &snapshots.Service{},
 		Settings: &settings.Service{}, Board: &board.Service{}, Providers: &providers.Service{}, Answers: &asks.Service{},
@@ -170,10 +169,10 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 		Secret: a.Secrets.Secret, ReadSecret: a.Secrets.Read, WriteSecret: a.Secrets.Write, SecretsDir: h.Secrets,
 		LockSecrets: a.Secrets.Lock, UnlockSecrets: a.Secrets.Unlock, Invoke: a.Registry.Invoke}
 	*a.Tokens = tokens.Service{St: st, MCPBase: cfg.MCPBase, Journal: a.Gateway.Journal}
-	*a.Saver = project.Saver{St: st, Bus: a.Bus, Now: cfg.Now, Home: h, Manifests: a.Manifests, Registry: a.Registry,
+	*a.Saver = project.Saver{St: st, Bus: a.Bus, Now: cfg.Now, Home: h, Registry: a.Registry,
 		Gateway: a.Gateway, Runner: a.Runner, Scheduler: a.Scheduler, Broker: a.Asks, Scripts: a.Scripts, Tools: a.Tools,
 		MCP: a.MCP, PrepareLater: a.Documents.PrepareLater, Changed: a.Devices.Changed, CheckScreens: a.checkScreens}
-	*a.Projects = project.Service{St: st, Bus: a.Bus, Home: h, Manifests: a.Manifests, Registry: a.Registry, Gateway: a.Gateway,
+	*a.Projects = project.Service{St: st, Bus: a.Bus, Home: h, Registry: a.Registry, Gateway: a.Gateway,
 		Runner: a.Runner, Scheduler: a.Scheduler, Host: a.Host, Save: a.Saver, Folders: a.Folders.List,
 		Snapshot: a.Snapshots.BeforeDelete, RemoveFiles: a.Files.Remove}
 	a.addBuiltins()

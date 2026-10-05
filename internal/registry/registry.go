@@ -9,6 +9,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/santhosh-tekuri/jsonschema/v6"
@@ -122,6 +123,21 @@ func (r *Registry) Add(c *Command) {
 		panic("registry: read " + c.Name + " names no topic it follows")
 	}
 	r.builtins[c.Name] = c
+	if c.Reads {
+		reads.Store(c.Name, c)
+	}
+}
+
+// reads are the builtin reads of deck by name: the same commands in every registry, so screens check against them
+// without one.
+var reads sync.Map
+
+// Reads is the builtin read command name; nil when there is none.
+func Reads(name string) *Command {
+	if c, ok := reads.Load(name); ok {
+		return c.(*Command)
+	}
+	return nil
 }
 
 // Prepare checks a command description and compiles its input schema.

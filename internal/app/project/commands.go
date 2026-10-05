@@ -35,7 +35,7 @@ func (sv *Saver) ProjectCommands(ctx context.Context, workspace int64, name stri
 		ps = []db.Project{p}
 	}
 	var out []*registry.Command
-	ms, failed := sv.Manifests.All(ctx, ps)
+	ms, failed := docs.All(ctx, sv.St.Q, ps)
 	for _, p := range ps {
 		m := ms[p.ID]
 		if m == nil {

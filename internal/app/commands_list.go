@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"deck2/internal/app/access"
+	"deck2/internal/docs"
 	"deck2/internal/provider"
 	_ "embed"
 	"encoding/json"
@@ -84,7 +85,7 @@ func (a *App) commandsList(ctx context.Context, act registry.Actor, in commandsL
 			m, ok := manifests[c.ProjectID]
 			if !ok {
 				if p, err := a.Store.Q.GetProject(ctx, c.ProjectID); err == nil {
-					m, _ = a.Manifests.Of(ctx, p)
+					m, _ = docs.Manifest(ctx, a.Store.Q, p)
 				}
 				manifests[c.ProjectID] = m
 			}

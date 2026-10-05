@@ -73,7 +73,7 @@ func (a *App) screenGet(ctx context.Context, act registry.Actor, in screenGetIn)
 		if err != nil {
 			return nil, err
 		}
-		m, err := a.Manifests.Of(ctx, p)
+		m, err := docs.Manifest(ctx, a.Store.Q, p)
 		if err != nil {
 			return nil, err
 		}
@@ -136,7 +136,7 @@ type screenSources struct {
 }
 
 func (a *App) sources(act registry.Actor) screenSources {
-	return screenSources{Sources: screens.Sources{Store: a.Store, Registry: a.Registry, Manifests: a.Manifests, Deck: screenDeck{a}}, a: a, act: act}
+	return screenSources{Sources: screens.Sources{Store: a.Store, Registry: a.Registry, Deck: screenDeck{a}}, a: a, act: act}
 }
 
 // File is a file a media block of the project shows.

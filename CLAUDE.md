@@ -81,8 +81,8 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
 - `internal/home` — the layout of `DECK_HOME`: `state/` only deck reads, `work/` the folders of runs and projects
 - `internal/sandbox` — sandbox of scripts, MCP servers and ACP agents behind one interface: `sandbox-exec` on macOS,
   bubblewrap on Linux; `Close` — deck's folder and the owner's home closed but for the runtimes on PATH (`Runtimes`)
-  and the project folders, the old sandbox by the setting `sandbox`; `Watch` — refusals from the log of macOS;
-  `Agent` — what an agent CLI may not touch in deck's folder; `Rules` — the setting and who hears a refusal (a note
+  and the project folders; `Watch` — refusals from the log of macOS;
+  `Agent` — what an agent CLI may not touch in deck's folder; `Rules` — who hears a refusal (a note
   of the feed), one dependency of the runner, MCP servers and ACP agents
 - `internal/script` — runs project scripts in the sandbox (a script installs its own packages through the proxy)
 - `internal/trigger` — cron scheduler with catch-up after sleep

@@ -14,6 +14,7 @@ import (
 
 	deckhome "deck2/internal/home"
 	"deck2/internal/provider"
+	"deck2/internal/store/db"
 )
 
 // TestOwnerAttachesFilesAndTopicsKnowTheirModule: an attached file belongs to the message, the turn that takes
@@ -148,5 +149,46 @@ func TestAnOldMessageWithFilePathsKeepsItsScreen(t *testing.T) {
 	prompt := e.Fake.Calls()[1].Prompt
 	if !strings.Contains(prompt, `written on project "web", screen "main"`) || !strings.Contains(prompt, "old plan") {
 		t.Fatalf("the old message keeps its screen in the prompt:\n%s", prompt)
+	}
+}
+
+// TestTheOwnerDeletesAMessageTheMasterHasNotTaken: while the master's reply waits for a slot, the owner's next
+// message waits too; the owner deletes it with its file, and a message a turn took stays.
+func TestTheOwnerDeletesAMessageTheMasterHasNotTaken(t *testing.T) {
+	release := make(chan struct{})
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		if c.command() == "work" {
+			select {
+			case <-release:
+			case <-ctx.Done():
+			}
+			return provider.Result{Structured: json.RawMessage(`{}`)}
+		}
+		return provider.Result{Text: "Hi."}
+	})
+	e.must("deck.settings_set", map[string]any{"agent_limit": 1}, nil)
+	busy := e.run(e.createProject("busy", testManifest([]string{agentCommand("work", "")}, nil)), "work")
+	e.waitState(busy, "running")
+	topic := e.say(0, "first")
+	mp, _ := e.App.Store.Q.GetProjectByName(context.Background(), db.GetProjectByNameParams{WorkspaceID: 1, Name: "master"})
+	file := e.upload("master", "plan.txt", "text/plain", "the plan")
+	e.say(topic, "second, sent by mistake", map[string]any{"files": []string{fmt.Sprint(file)}})
+	var ms []chatMessage
+	ms = e.chatMessages(topic)
+	if len(ms) != 2 || ms[0].Process == 0 || ms[1].Process != 0 {
+		t.Fatalf("the first message is taken by the reply that waits for a slot, the second waits: %+v", ms)
+	}
+	e.refused("deck.chat_message_delete", map[string]any{"message": ms[0].ID}, 409, "taken")
+	e.must("deck.chat_message_delete", map[string]any{"message": ms[1].ID}, nil)
+	if left := e.chatMessages(topic); len(left) != 1 || left[0].ID != ms[0].ID {
+		t.Fatalf("only the message nobody took goes: %+v", left)
+	}
+	if fs, _ := e.App.Store.Q.ListFilesOf(context.Background(), db.ListFilesOfParams{ProjectID: mp.ID, OwnerKind: "chat_message", OwnerID: ms[1].ID}); len(fs) != 0 {
+		t.Fatalf("its file goes with it: %+v", fs)
+	}
+	close(release)
+	e.masterSaid(topic, 1)
+	if p := e.Fake.Calls()[len(e.Fake.Calls())-1].Prompt; strings.Contains(p, "by mistake") {
+		t.Fatalf("the master never hears a deleted message:\n%s", p)
 	}
 }

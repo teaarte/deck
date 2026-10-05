@@ -1,8 +1,10 @@
 import { memo } from 'react';
 import { ActionIcon, Badge, CopyButton, Group, Stack, Text, Tooltip } from '@mantine/core';
-import { IconCheck, IconCopy, IconPaperclip } from '@tabler/icons-react';
+import { IconCheck, IconCopy, IconPaperclip, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
+import { call } from '../lib/api';
 import catalogSchema from '../lib/catalogSchema';
+import { notifyError } from '../lib/notify';
 import type { ChatValue } from '../lib/catalog.gen';
 import { Markdown } from '../ui/Markdown';
 import s from './chat.module.css';
@@ -34,6 +36,14 @@ export const Message = memo(function Message({ m }: { m: ChatMessage }) {
           <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>{m.text}</Text>
         </div>
         {m.reply && failed.includes(m.reply.state) && <ReplyState reply={m.reply} />}
+        {!m.process && (
+          <Tooltip label={t('chat.delete')}>
+            <ActionIcon variant="subtle" color="gray" size="sm" aria-label={t('chat.delete')} data-message-delete={m.id}
+              onClick={() => { call('deck.chat_message_delete', { message: m.id }).catch((e) => notifyError(e)); }}>
+              <IconTrash size={14} />
+            </ActionIcon>
+          </Tooltip>
+        )}
       </Stack>
     );
   }

@@ -53,3 +53,7 @@ ORDER BY id DESC LIMIT sqlc.arg(lim);
 -- name: ListMessageFiles :many
 SELECT f.* FROM file f JOIN chat_message m ON m.id = f.owner_id
 WHERE f.owner_kind = 'chat_message' AND m.topic_id = ? ORDER BY f.id;
+
+
+-- name: DeleteFilesOf :many
+DELETE FROM file WHERE owner_kind = ? AND owner_id = ? RETURNING id;

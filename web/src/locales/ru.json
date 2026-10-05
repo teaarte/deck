@@ -156,6 +156,7 @@
   "common": { "done": "Готово", "started": "Запущен процесс №{{id}}" },
   "log": { "message": "Агент", "thought": "Мысли", "tool": "Инструмент", "rate_limit": "Лимит", "stderr": "stderr" },
   "chat": {
+    "delete": "Удалить, мастер его ещё не взял",
     "master": "Мастер",
     "new_topic": "Новая тема",
     "no_topics": "Тем нет",

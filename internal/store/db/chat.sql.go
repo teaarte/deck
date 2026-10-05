@@ -142,6 +142,18 @@ func (q *Queries) DeleteTopic(ctx context.Context, arg DeleteTopicParams) (int64
 	return result.RowsAffected()
 }
 
+const deleteWaitingMessage = `-- name: DeleteWaitingMessage :execrows
+DELETE FROM chat_message WHERE id = ? AND role = 'owner' AND process_id = 0
+`
+
+func (q *Queries) DeleteWaitingMessage(ctx context.Context, id int64) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteWaitingMessage, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const findMessageByKey = `-- name: FindMessageByKey :one
 SELECT m.id, m.topic_id, m.role, m.text, m.context, m.process_id, m.retry_key, m.created_at FROM chat_message m JOIN chat_topic t ON t.id = m.topic_id
 WHERE t.workspace_id = ? AND m.retry_key = ? AND m.retry_key != ''

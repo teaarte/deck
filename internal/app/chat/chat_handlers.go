@@ -1,6 +1,7 @@
 package chat
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"deck2/internal/app/access"
@@ -256,6 +257,45 @@ func b2i(b bool) int64 {
 	return 0
 }
 
+type chatMessageDeleteIn struct {
+	Message int64 `desc:"Id of the owner's message the master has not taken yet"`
+}
+
+// chatMessageDelete deletes a message of the owner with its files while no turn of the master has it.
+func (ch *Service) chatMessageDelete(ctx context.Context, act registry.Actor, in chatMessageDeleteIn) (any, error) {
+	ch.start.Lock()
+	defer ch.start.Unlock()
+	var gone []int64
+	err := ch.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		m, err := q.GetMessage(ctx, in.Message)
+		if errors.Is(err, sql.ErrNoRows) {
+			return registry.NotFound("deck: no message %d", in.Message)
+		}
+		if err != nil {
+			return err
+		}
+		if _, err := ch.ownTopic(ctx, q, act, m.TopicID); err != nil {
+			return registry.NotFound("deck: no message %d", in.Message)
+		}
+		switch {
+		case m.Role != roleOwner:
+			return registry.Refuse("deck: only a message of the owner can be deleted")
+		case m.ProcessID != 0:
+			return registry.Conflict("deck: the master's turn #%d has taken this message; it stays", m.ProcessID)
+		}
+		if n, err := q.DeleteWaitingMessage(ctx, m.ID); err != nil || n == 0 {
+			return cmp.Or(err, registry.Conflict("deck: the master has taken this message; it stays"))
+		}
+		gone, err = q.DeleteFilesOf(ctx, db.DeleteFilesOfParams{OwnerKind: FileOwner, OwnerID: m.ID})
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	ch.RemoveFiles(gone)
+	return map[string]any{"ok": true}, nil
+}
+
 // Commands are the commands of the chat.
 func (ch *Service) Commands() []*registry.Command {
 	return []*registry.Command{
@@ -277,6 +317,9 @@ func (ch *Service) Commands() []*registry.Command {
 		registry.Def("chat_topic_archive", "Archive topic",
 			"Archives a chat topic or brings it back; a new message brings it back too.",
 			registry.OwnerOnly, ch.chatTopicArchive),
+		registry.Def("chat_message_delete", "Delete message",
+			"Deletes a message of the owner with its files while the master has not taken it; a message a turn took stays.",
+			registry.OwnerOnly, ch.chatMessageDelete),
 		registry.Def("chat_topic_delete", "Delete topic",
 			"Deletes a chat topic with its messages and stops its reply if one is going.",
 			registry.OwnerOnly, ch.chatTopicDelete),

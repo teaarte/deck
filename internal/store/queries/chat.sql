@@ -130,3 +130,7 @@ DELETE FROM document WHERE id IN (SELECT d.id FROM document d
 
 -- name: PurgeDeletedTopics :exec
 DELETE FROM chat_topic WHERE deleted_at < sqlc.arg(before);
+
+
+-- name: DeleteWaitingMessage :execrows
+DELETE FROM chat_message WHERE id = ? AND role = 'owner' AND process_id = 0;

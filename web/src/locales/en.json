@@ -154,6 +154,7 @@
   "common": { "done": "Done", "started": "Started process #{{id}}" },
   "log": { "message": "Agent", "thought": "Thinking", "tool": "Tool", "rate_limit": "Limit", "stderr": "stderr" },
   "chat": {
+    "delete": "Delete, the master has not taken it",
     "master": "Master",
     "new_topic": "New topic",
     "no_topics": "No topics",

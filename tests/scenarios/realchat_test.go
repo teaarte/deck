@@ -221,3 +221,48 @@ func TestRealBrowserTheOpenCardStaysWithTheChatAcrossTabs(t *testing.T) {
 		t.Fatalf("the message names the open card: %+v", ms)
 	}
 }
+
+// TestRealBrowserChatDeletesAWaitingMessage: a message the master has not taken has a delete button, which takes
+// it away; the message its waiting reply took has none.
+func TestRealBrowserChatDeletesAWaitingMessage(t *testing.T) {
+	if os.Getenv("DECK_REAL_BROWSER") == "" {
+		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
+	}
+	checkBuiltClient(t)
+	release := make(chan struct{})
+	t.Cleanup(func() { close(release) })
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		if c.command() == "work" {
+			select {
+			case <-release:
+			case <-ctx.Done():
+			}
+		}
+		return provider.Result{Text: "Hi."}
+	})
+	e.must("deck.settings_set", map[string]any{"agent_limit": 1}, nil)
+	e.waitState(e.run(e.createProject("busy", testManifest([]string{agentCommand("work", "")}, nil)), "work"), "running")
+
+	b := newPlaywright(t)
+	b.call("browser_resize", map[string]any{"width": 1400, "height": 900})
+	b.open(e.URL + "/?token=" + token + "#/deck/cockpit")
+	b.until("the cockpit", `document.querySelector('[data-block]')`)
+	b.eval(`(document.querySelector('[data-chat-toggle]').click(), '')`)
+	b.until("the chat", `document.querySelector('[data-chat-panel] [data-chat-input]')`)
+	say := func(text string) {
+		b.type_(`document.querySelector('[data-chat-input]')`, text)
+		b.eval(`(document.querySelector('[data-chat-send]').click(), '')`)
+	}
+	say("first")
+	b.until("the first message, taken by the reply that waits for a slot", `document.querySelectorAll('[data-message="owner"]').length === 1 && !document.querySelector('[data-message-delete]')`)
+	say("sent by mistake")
+	b.until("the second message with its delete button", `document.querySelectorAll('[data-message="owner"]').length === 2 && document.querySelectorAll('[data-message-delete]').length === 1`)
+	b.shot("chat-delete")
+	b.eval(`(document.querySelector('[data-message-delete]').click(), '')`)
+	b.until("the deleted message gone", `document.querySelectorAll('[data-message="owner"]').length === 1 && !document.querySelector('[data-message-delete]')`)
+	var topics []struct{ ID int64 }
+	e.must("deck.chat_topics", nil, &topics)
+	if ms := e.chatMessages(topics[0].ID); len(ms) != 1 || ms[0].Text != "first" {
+		t.Fatalf("only the message the master took stays: %+v", ms)
+	}
+}

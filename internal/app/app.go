@@ -167,7 +167,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 		AnswerSuggestion: a.Suggest.Answer}
 	*a.Connections = connections.Service{St: st, Ctx: a.ctx, Broker: a.Asks, OAuth: oauth, Browser: a.Browser, MCP: a.MCP}
 	*a.Suggest = suggest.Service{St: st, Bus: a.Bus, Now: cfg.Now, Registry: a.Registry, Asks: a.Asks, Gateway: a.Gateway, Days: a.Settings.SuggestDays}
-	*a.Chats = chat.Service{St: st, Bus: a.Bus, Now: cfg.Now, Asks: a.Asks, Runner: a.Runner, For: a.Providers.For}
+	*a.Chats = chat.Service{St: st, Bus: a.Bus, Now: cfg.Now, Asks: a.Asks, Runner: a.Runner, For: a.Providers.For, RemoveFiles: a.Files.Remove}
 	*a.Devices = devices.Service{St: st, Bus: a.Bus, Now: cfg.Now, Ctx: a.ctx, BG: &a.bg, STT: cfg.STT, Files: a.dirs(), RemoveFiles: a.Files.Remove,
 		Secret: a.Secrets.Secret, ReadSecret: a.Secrets.Read, WriteSecret: a.Secrets.Write, SecretsDir: h.Secrets,
 		LockSecrets: a.Secrets.Lock, UnlockSecrets: a.Secrets.Unlock, Invoke: a.Registry.Invoke}

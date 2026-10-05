@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -30,8 +31,10 @@ type ModelHop struct {
 	// Connection names the target; Model is the name the API knows, which replaces an @role the caller asked for.
 	Connection string
 	Model      string
-	// Over says why the day of its connection or project is past its limit; deck skips such a hop.
+	// Over says why the day of its connection or project is past its limit, Wait how long until that day ends;
+	// deck skips such a hop.
 	Over string
+	Wait time.Duration
 	// Local is a connection on the owner's hardware; Free is a model that costs nothing.
 	Local, Free bool
 	// Done keeps the call: the status the API answered and what it used, nil when it did not say.
@@ -136,17 +139,21 @@ func Metered(body io.ReadCloser, start time.Time, done func(*provider.Usage)) io
 	}}
 }
 
-// relayHops serves one call of a model: the hops in order, a fallback after an explicit refusal or a hop past
-// its limit, the answer streamed back as it comes.
-func relayHops(w http.ResponseWriter, r *http.Request, path string, body []byte, asked string, hops []ModelHop) {
+// ServeHops serves one call of a model through the hops in order, the next after a refusal or a day past its limit;
+// replace puts the model of each hop in the body. Past every limit it is a 429 until the first day ends.
+func ServeHops(w http.ResponseWriter, r *http.Request, path string, body []byte, replace bool, hops []ModelHop) {
 	var last string
+	var wait time.Duration
 	for i, h := range hops {
 		if h.Over != "" {
 			last = h.Over
+			if wait == 0 || h.Wait < wait {
+				wait = h.Wait
+			}
 			continue
 		}
 		b := body
-		if strings.HasPrefix(asked, "@") {
+		if replace {
 			b = WithModel(body, h.Model)
 		}
 		start := time.Now()
@@ -170,6 +177,9 @@ func relayHops(w http.ResponseWriter, r *http.Request, path string, body []byte,
 		ctx := context.WithoutCancel(r.Context())
 		Relay(w, resp, start, func(u *provider.Usage) { h.Done(ctx, resp.StatusCode, u) })
 		return
+	}
+	if wait > 0 {
+		w.Header().Set("Retry-After", strconv.Itoa(max(1, int(wait.Seconds()))))
 	}
 	http.Error(w, last, http.StatusTooManyRequests)
 }
@@ -407,5 +417,5 @@ func (g *Gateway) proxyModel(w http.ResponseWriter, r *http.Request, act registr
 		_ = json.NewEncoder(w).Encode(out)
 		return
 	}
-	relayHops(w, r, path, body, asked, hops)
+	ServeHops(w, r, path, body, strings.HasPrefix(asked, "@"), hops)
 }

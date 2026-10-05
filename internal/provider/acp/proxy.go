@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -14,23 +13,18 @@ import (
 	"deck2/internal/provider"
 )
 
-// entry is all the network the agent has: the deck MCP server of the turn, the model API with the key put in by
-// deck, and a proxy to the web that is closed in a project without network.
+// entry is all the network the agent has: the deck MCP server of the turn, deck's proxy of the model API, and a
+// proxy to the web that is closed in a project without network.
 type entry struct {
 	ctx     context.Context
 	self    string
 	mcp     *url.URL
-	model   gateway.ModelTarget
+	api     http.Handler
 	modelAt string
 	// proxyKey is the password of the web proxy, given to the agent in its proxy address.
 	proxyKey string
-	name     string
 	domains  []string
-	onUsage  func(provider.Usage)
-	// price fills in the cost of a call the API did not price; over says why the day is past its limit and until when.
-	price func(*provider.Usage)
-	over  func() (string, time.Time)
-	now   func() time.Time
+	now      func() time.Time
 
 	mu sync.Mutex
 	// last is the status and Retry-After of the last answer of the model API.
@@ -50,49 +44,29 @@ func (e *entry) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			pr.Out.URL.Path, pr.Out.URL.RawPath = e.mcp.Path, ""
 		}}).ServeHTTP(w, r)
 	case strings.HasPrefix(r.URL.Path, e.modelAt+"/"):
-		e.callModel(w, r)
+		http.StripPrefix(e.modelAt, e.api).ServeHTTP(&status{ResponseWriter: w, e: e}, r)
 	default:
 		http.Error(w, "deck: not found", http.StatusNotFound)
 	}
 }
 
-// callModel passes a call of the agent to its model API with deck's key, unless the day is past the limit of the
-// connection: then the agent hears a usage limit until the day is over.
-func (e *entry) callModel(w http.ResponseWriter, r *http.Request) {
-	if e.over != nil {
-		if why, until := e.over(); why != "" {
-			after := strconv.Itoa(max(1, int(until.Sub(e.now()).Seconds())))
-			e.mu.Lock()
-			e.last, e.retryAfter = http.StatusTooManyRequests, after
-			e.mu.Unlock()
-			w.Header().Set("Retry-After", after)
-			http.Error(w, why, http.StatusTooManyRequests)
-			return
-		}
+// status keeps the status and Retry-After of an answer of the model API on its way to the agent.
+type status struct {
+	http.ResponseWriter
+	e *entry
+}
+
+func (s *status) WriteHeader(code int) {
+	s.e.mu.Lock()
+	s.e.last, s.e.retryAfter = code, s.Header().Get("Retry-After")
+	s.e.mu.Unlock()
+	s.ResponseWriter.WriteHeader(code)
+}
+
+func (s *status) Flush() {
+	if f, ok := s.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
 	}
-	body, err := gateway.ReadBody(w, r)
-	if err != nil {
-		return
-	}
-	start := time.Now()
-	resp, err := gateway.SendModel(r.Context(), e.model, r.Method, strings.TrimPrefix(r.URL.Path, e.modelAt), r.URL.RawQuery, r.Header, body)
-	if err != nil {
-		http.Error(w, "deck: the model API: "+err.Error(), http.StatusBadGateway)
-		return
-	}
-	e.mu.Lock()
-	e.last, e.retryAfter = resp.StatusCode, resp.Header.Get("Retry-After")
-	e.mu.Unlock()
-	gateway.Relay(w, resp, start, func(u *provider.Usage) {
-		if u == nil || e.onUsage == nil {
-			return
-		}
-		u.RequestModel = e.name
-		if e.price != nil {
-			e.price(u)
-		}
-		e.onUsage(*u)
-	})
 }
 
 // refused tells a failed turn by the last answer of the model API: a usage limit (429) pauses, a refused key

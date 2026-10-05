@@ -83,27 +83,9 @@ func (s *Service) Provider(ctx context.Context, workspace int64, name string) (p
 	if m.Agent == "" {
 		return nil, registry.Invalid("deck: model %q runs in no agent; add it again with agent %s", name, strings.Join(acp.Names(), " or "))
 	}
-	key := func() (string, error) {
-		if c.KeySecret == "" {
-			return "", nil
-		}
-		return s.Secret(workspace, c.KeySecret)
-	}
 	return acp.New(acp.Config{Name: name, Agent: m.Agent, Binary: s.ACPBinaries[m.Agent], URL: c.Url, Model: m.Model,
-		Key: key, NoCloud: c.Local != 0, Home: s.Home, Sandbox: s.Sandbox, CallLimit: s.ACPCallLimit, Now: s.Now,
-		CheckCeiling: time.Duration(m.CheckMinutes) * time.Minute,
-		Price: func(u *provider.Usage) {
-			if u.CostUSD == nil {
-				u.CostUSD = price(m, *u)
-			}
-		},
-		Over: func() (string, time.Time) {
-			c, err := s.St.Q.GetConnectionByID(context.Background(), c.ID)
-			if err != nil {
-				return "", time.Time{}
-			}
-			return s.over(context.Background(), c, 0)
-		}})
+		NoCloud: c.Local != 0, Home: s.Home, Sandbox: s.Sandbox, CallLimit: s.ACPCallLimit, Now: s.Now,
+		CheckCeiling: time.Duration(m.CheckMinutes) * time.Minute, API: s.turnModel(workspace, name)})
 }
 
 // named is a built-in provider, or one the owner added to any workspace; nil when there is none.

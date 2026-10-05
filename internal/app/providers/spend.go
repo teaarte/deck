@@ -112,17 +112,10 @@ func (s *Service) Route(ctx context.Context, act registry.Actor, connection, ask
 	}
 	hops := make([]gateway.ModelHop, 0, len(picks))
 	for _, p := range picks {
-		key := ""
-		if p.c.KeySecret != "" {
-			k, err := s.Secret(act.Workspace, p.c.KeySecret)
-			if err != nil {
-				return nil, err
-			}
-			key = strings.TrimSpace(k)
+		h, err := s.hop(ctx, act.Workspace, act.ProjectID, p.m, p.c)
+		if err != nil {
+			return nil, err
 		}
-		h := gateway.ModelHop{Target: gateway.ModelTarget{URL: p.c.Url, API: p.c.Api, Key: key}, Connection: p.c.Name, Model: p.m.Model,
-			Local: p.c.Local != 0, Free: p.m.Free != 0}
-		h.Over, _ = s.over(ctx, p.c, act.ProjectID)
 		if h.Over == "" && p.c.DailyUsd.Valid && p.m.Free == 0 && !p.m.InputUsd.Valid && !p.m.OutputUsd.Valid && !p.m.CallUsd.Valid {
 			h.Over = fmt.Sprintf("deck: model %s of connection %s has no price, so its limit cannot count it; the owner sets one with deck.model_set", p.m.Model, p.c.Name)
 		}
@@ -131,6 +124,59 @@ func (s *Service) Route(ctx context.Context, act registry.Actor, connection, ask
 		hops = append(hops, h)
 	}
 	return hops, nil
+}
+
+// hop is where a call of model m goes, with deck's key and whether the day of its connection or project is over.
+func (s *Service) hop(ctx context.Context, workspace, project int64, m db.Model, c db.Connection) (gateway.ModelHop, error) {
+	key := ""
+	if c.KeySecret != "" {
+		k, err := s.Secret(workspace, c.KeySecret)
+		if err != nil {
+			return gateway.ModelHop{}, err
+		}
+		key = strings.TrimSpace(k)
+	}
+	h := gateway.ModelHop{Target: gateway.ModelTarget{URL: c.Url, API: c.Api, Key: key}, Connection: c.Name, Model: m.Model,
+		Local: c.Local != 0, Free: m.Free != 0}
+	var end time.Time
+	if h.Over, end = s.over(ctx, c, project); h.Over != "" {
+		h.Wait = end.Sub(s.Now())
+	}
+	return h, nil
+}
+
+// turnModel is deck's proxy of the model of an agent turn on the model name: every call goes to that model with
+// deck's key, within the day of its connection and of the project, and its usage, priced, goes to onUsage.
+func (s *Service) turnModel(workspace int64, name string) func(project int64, onUsage func(provider.Usage)) http.Handler {
+	return func(project int64, onUsage func(provider.Usage)) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			body, err := gateway.ReadBody(w, r)
+			if err != nil {
+				return
+			}
+			row, err := s.St.Q.GetModel(r.Context(), db.GetModelParams{WorkspaceID: workspace, Name: name})
+			if err != nil {
+				http.Error(w, "deck: no model "+name, http.StatusNotFound)
+				return
+			}
+			h, err := s.hop(r.Context(), workspace, project, row.Model, row.Connection)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadGateway)
+				return
+			}
+			h.Done = func(_ context.Context, _ int, u *provider.Usage) {
+				if u == nil || onUsage == nil {
+					return
+				}
+				u.RequestModel = row.Model.Model
+				if u.CostUSD == nil {
+					u.CostUSD = price(row.Model, *u)
+				}
+				onUsage(*u)
+			}
+			gateway.ServeHops(w, r, r.URL.Path, body, true, []gateway.ModelHop{h})
+		})
+	}
 }
 
 // record keeps a call of a model made past an agent in the journal of model calls, priced by its model when the

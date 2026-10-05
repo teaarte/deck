@@ -4,7 +4,6 @@ package acp
 
 import (
 	"context"
-	"deck2/internal/gateway"
 	"deck2/internal/home"
 	"errors"
 	"fmt"
@@ -33,8 +32,9 @@ type Config struct {
 	// Binary is the program of the agent; empty looks the agent's name up in PATH.
 	Binary     string
 	URL, Model string
-	Key        func() (string, error)
-	NoCloud    bool
+	// API is deck's proxy of the model for a turn of a project: the key, the limits and the journal are deck's.
+	API     func(project int64, onUsage func(provider.Usage)) http.Handler
+	NoCloud bool
 	// Home is deck's folder, hidden from the agent but for the folders of its turn.
 	Home    string
 	Sandbox sandbox.Sandbox
@@ -44,10 +44,6 @@ type Config struct {
 	Now func() time.Time
 	// CheckCeiling bounds a self-check of a slow model; deck's own when zero.
 	CheckCeiling time.Duration
-	// Price fills in the cost of a call by the price of the model when the API does not report one.
-	Price func(*provider.Usage)
-	// Over says why the day of the model's connection is past its limit, and until when; empty within it.
-	Over func() (string, time.Time)
 }
 
 type Adapter struct {
@@ -135,10 +131,6 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 	if err := writeSkills(req.Cwd, req.Skills); err != nil {
 		return provider.Result{}, err
 	}
-	key, err := a.key()
-	if err != nil {
-		return provider.Result{}, err
-	}
 	mcp, err := url.Parse(req.MCPURL)
 	if err != nil {
 		return provider.Result{}, err
@@ -156,8 +148,8 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 	life, stop := context.WithCancel(context.WithoutCancel(ctx))
 	defer stop()
 	self := a.cfg.Sandbox.Addr(ln)
-	e := &entry{ctx: life, self: self, mcp: mcp, model: gateway.ModelTarget{URL: a.cfg.URL, API: "openai", Key: key}, modelAt: "/model/" + nonce.Hex(16),
-		proxyKey: nonce.Hex(16), name: a.cfg.Model, onUsage: req.OnUsage, price: a.cfg.Price, over: a.cfg.Over, now: a.now}
+	e := &entry{ctx: life, self: self, mcp: mcp, api: a.cfg.API(req.Project, req.OnUsage), modelAt: "/model/" + nonce.Hex(16),
+		proxyKey: nonce.Hex(16), now: a.now}
 	if !req.NoNetwork {
 		e.domains = req.Hosts
 	}
@@ -265,11 +257,4 @@ func (a *Adapter) now() time.Time {
 		return a.cfg.Now()
 	}
 	return time.Now()
-}
-
-func (a *Adapter) key() (string, error) {
-	if a.cfg.Key == nil {
-		return "", nil
-	}
-	return a.cfg.Key()
 }

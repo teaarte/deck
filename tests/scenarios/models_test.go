@@ -385,6 +385,34 @@ func TestAnAgentTurnPastTheDayOfItsConnectionPausesUntilTheDayEnds(t *testing.T)
 	}
 }
 
+// TestAnAgentTurnPastTheDayOfItsProjectPausesToo: a turn of an ACP agent calls its model through deck's proxy, so
+// the limit of its project holds it as the limit of its connection does, and it reaches only the model of the turn.
+func TestAnAgentTurnPastTheDayOfItsProjectPausesToo(t *testing.T) {
+	f := newACP(t)
+	llm := newLLM(t, func(int, chatRequest) chatReply { return textReply("ok") })
+	f.streamText(4, acpStream(acpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,
+		`{"model": {"model": "pricier-model", "messages": [{"role": "user", "content": "hi"}]}}`,
+		`{"mcp": {"tool": "result_submit", "arguments": {"result": {"color": "blue"}}}}`, `{"end": "end_turn"}`))
+	f.streamText(5, acpStream(acpInit, `{"reply": "session/new", "result": {"sessionId": "s-2"}}`, `{"reply": "session/prompt"}`, acpModel,
+		`{"fail": {"code": -32603, "message": "Internal error: turn failed"}}`))
+	e := acpEnv(t, f, "dsh", llm)
+	e.must("deck.model_set", map[string]any{"connection": "model-key", "model": "m", "name": "acp", "input_usd": 1000, "output_usd": 2000}, nil)
+	p := e.acpProject("paint", colorManifest)
+	if got := e.waitState(e.run(p, "work"), "done", "error"); got.State != "done" {
+		t.Fatalf("the first turn runs: %+v", got)
+	}
+	reqs := llm.requests()
+	if last := reqs[len(reqs)-1]; last.Model != "m" {
+		t.Fatalf("an agent reaches only the model of its turn: %+v", last)
+	}
+	e.must("deck.project_model_limit", map[string]any{"project": "paint", "daily_usd": 0.1}, nil)
+	before := len(llm.requests())
+	id := e.run(p, "work")
+	if got := e.waitState(id, "done", "error", "rate_limited"); got.State != "rate_limited" || len(llm.requests()) != before {
+		t.Fatalf("past the day of its project the turn pauses and the model is not called: %+v", got)
+	}
+}
+
 // TestAScriptCallsARoleAndAFallbackTakesARefusal: @tts goes to the first model assigned, past a 429 to the next, priced
 // per call; a role reaches only the paths of model calls.
 func TestAScriptCallsARoleAndAFallbackTakesARefusal(t *testing.T) {

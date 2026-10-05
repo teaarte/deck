@@ -38,8 +38,6 @@ type Config struct {
 	// Home is deck's folder, hidden from the agent but for the folders of its turn.
 	Home    string
 	Sandbox sandbox.Sandbox
-	// Open runs the agent in the old sandbox, which reads the home folder but for keys.
-	Open func() bool
 	// CallLimit is how long a call of a gateway tool may wait for the owner; 45 s, under the 60 s of the agents, when zero.
 	CallLimit time.Duration
 	// Now is the deck clock, for the reset time of a usage limit.
@@ -257,7 +255,7 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 // closed confines p, which runs the agent's program bin, as deck confines every program: its folder and the owner's
 // home closed but for the runtimes on PATH and the folder of bin.
 func (a *Adapter) closed(p sandbox.Policy, bin string) sandbox.Policy {
-	c := sandbox.Close(a.cfg.Home, os.Getenv("PATH")+string(os.PathListSeparator)+filepath.Dir(bin), a.cfg.Open != nil && a.cfg.Open())
+	c := sandbox.Close(a.cfg.Home, os.Getenv("PATH")+string(os.PathListSeparator)+filepath.Dir(bin))
 	p.Hide, p.Read, p.Private = c.Hide, append(p.Read, c.Read...), c.Private
 	return p
 }

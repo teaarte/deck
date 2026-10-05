@@ -88,12 +88,9 @@ func real(path string) string {
 // the runtimes on PATH inside them again, Private keeps the credential stores closed inside Read.
 type Closure struct{ Hide, Read, Private []string }
 
-// Close is the closure of a program with path as its PATH under deck's folder deck; open is the old sandbox, which
-// reads the home folder but for the credential stores. A home it cannot tell closes the folders of all homes.
-func Close(deck, path string, open bool) Closure {
-	if open {
-		return Closure{Hide: Hidden(deck), Private: Private()}
-	}
+// Close is the closure of a program with path as its PATH under deck's folder deck; a home it cannot tell closes the
+// folders of all homes.
+func Close(deck, path string) Closure {
 	home, err := os.UserHomeDir()
 	if err != nil || real(home) == "/" {
 		return Closure{Hide: []string{deck, "/Users", "/home"}}
@@ -163,9 +160,6 @@ func installation(dir string) bool {
 	}
 	return false
 }
-
-// Hidden is what no confined program reads: the state of deck and the owner's credential stores.
-func Hidden(state string) []string { return append([]string{state}, Private()...) }
 
 // Private are the owner's credential stores and the data of their other apps.
 func Private() []string {

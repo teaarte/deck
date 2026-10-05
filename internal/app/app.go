@@ -122,7 +122,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	st.Changed = func(c store.Change) {
 		a.Bus.Emit(events.Event{Workspace: c.Workspace, Topic: c.Topic, Project: c.Project})
 	}
-	rules := sandbox.Rules{Open: a.Settings.OpenSandbox, Kept: a.Devices.Kept}
+	rules := sandbox.Rules{Kept: a.Devices.Kept}
 	a.Asks = ask.NewBroker(st, a.Bus, cfg.Now)
 	a.Registry = registry.New(a.Saver.ProjectCommands)
 	a.Registry.SetPublish(a.Bus.Publish)

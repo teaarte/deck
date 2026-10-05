@@ -91,7 +91,6 @@ func (s *Service) Provider(ctx context.Context, workspace int64, name string) (p
 	}
 	return acp.New(acp.Config{Name: name, Agent: m.Agent, Binary: s.ACPBinaries[m.Agent], URL: c.Url, Model: m.Model,
 		Key: key, NoCloud: c.Local != 0, Home: s.Home, Sandbox: s.Sandbox, CallLimit: s.ACPCallLimit, Now: s.Now,
-		Open:         func() bool { return s.Rules.IsOpen(context.Background(), workspace) },
 		CheckCeiling: time.Duration(m.CheckMinutes) * time.Minute,
 		Price: func(u *provider.Usage) {
 			if u.CostUSD == nil {

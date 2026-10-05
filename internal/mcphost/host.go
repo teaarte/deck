@@ -29,8 +29,6 @@ type Spec struct {
 	URL     string
 	// Read are folders of the owner a confined program reads.
 	Read []string
-	// Open runs a confined program in the old sandbox, which reads the home folder but for keys.
-	Open bool
 	// Confine runs a program in the sandbox.
 	Confine bool
 	// Secrets are the secret values in Env; what the server writes to stderr shows without them.

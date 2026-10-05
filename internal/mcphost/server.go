@@ -36,7 +36,7 @@ func (h *Host) command(spec Spec, tag string) (*exec.Cmd, error) {
 	if err != nil {
 		return nil, err
 	}
-	c := sandbox.Close(h.Home, env(spec.Env, "PATH")+string(os.PathListSeparator)+filepath.Dir(path), spec.Open)
+	c := sandbox.Close(h.Home, env(spec.Env, "PATH")+string(os.PathListSeparator)+filepath.Dir(path))
 	return h.Sandbox.Command(context.Background(), sandbox.Policy{Argv: append([]string{path}, spec.Args...), Dir: spec.Dir,
 		Env: spec.Env, Write: []string{spec.Dir}, Read: append(slices.Clone(spec.Read), c.Read...), Hide: c.Hide, Private: c.Private, Net: true, Tag: tag})
 }

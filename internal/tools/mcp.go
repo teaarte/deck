@@ -90,8 +90,7 @@ func (x *MCP) spec(ctx context.Context, p db.Project, name string, s manifest.MC
 	for _, f := range folders {
 		read = append(read, f.Path)
 	}
-	open := x.Rules.IsOpen(ctx, p.WorkspaceID)
-	return mcphost.Spec{Command: s.Command, Args: s.Args, Env: env, Dir: dir, Read: read, Open: open, Confine: true, Secrets: secrets}, nil
+	return mcphost.Spec{Command: s.Command, Args: s.Args, Env: env, Dir: dir, Read: read, Confine: true, Secrets: secrets}, nil
 }
 
 var envSecret = regexp.MustCompile(`\$secret\.[A-Za-z0-9_.-]+`)

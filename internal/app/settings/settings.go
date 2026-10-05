@@ -45,8 +45,6 @@ var settingDefs = []settingDef{
 		def: func(*Service) any { return int64(7) }},
 	{name: "language", title: "Language of the interface; auto follows the device", options: []string{"auto", "en", "ru"},
 		def: func(*Service) any { return "auto" }},
-	{name: "sandbox", title: "Sandbox of scripts, MCP servers and ACP agents: closed reads of the home folder only runtimes and the folders of the project; open is the old one, which reads the home but for keys",
-		options: []string{"closed", "open"}, def: func(*Service) any { return "closed" }},
 }
 
 // setting is the value of a setting of a workspace, its default when the owner set none.
@@ -73,11 +71,6 @@ func (s *Service) AgentSlots(ctx context.Context, workspace int64) int {
 // ConfirmTTL is how long a confirmation of the workspace waits for the owner unless its tool sets its own.
 func (s *Service) ConfirmTTL(ctx context.Context, workspace int64) time.Duration {
 	return time.Duration(s.setting(ctx, workspace, "confirm_hours").(int64)) * time.Hour
-}
-
-// OpenSandbox is whether confined programs of the workspace read the home folder but for keys, as before it closed.
-func (s *Service) OpenSandbox(ctx context.Context, workspace int64) bool {
-	return s.setting(ctx, workspace, "sandbox") == "open"
 }
 
 // SuggestDays is how many days a suggestion waits for the owner before it expires.

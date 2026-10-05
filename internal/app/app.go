@@ -145,7 +145,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 		process.Deps{For: a.Providers.For, Named: a.Providers.Named, Ready: a.Providers.Ready, Prompt: a.Saver.Prompt,
 			Text: a.Saver.Text, Skills: a.Documents.Skills, Servers: a.Connections.Servers, Folder: a.Folders.Folder,
 			Memory: a.Chats.Memory})
-	a.Runner.Hooks = []process.Hook{a.Chats.NewHook(), failures.Hook{S: a.Failures}, triggers.After{S: a.Triggers}}
+	a.Runner.Hooks = []process.Hook{a.Chats.NewHook(), failures.Hook{S: a.Failures}, triggers.After{S: a.Triggers}, asks.Unheard{S: a.Answers}}
 	a.Scheduler = trigger.New(st, a.Triggers, cfg.Now)
 
 	*a.Secrets = secrets.Service{St: st, Dir: h.Secrets}

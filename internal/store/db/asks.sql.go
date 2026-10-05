@@ -381,6 +381,31 @@ func (q *Queries) GetAsk(ctx context.Context, id int64) (Ask, error) {
 	return i, err
 }
 
+const lastAskOfProcess = `-- name: LastAskOfProcess :one
+SELECT id, workspace_id, project_id, process_id, kind, text, payload, answer, state, created_at, answered_at, expires_at, delivered_at FROM ask WHERE process_id = ? ORDER BY id DESC LIMIT 1
+`
+
+func (q *Queries) LastAskOfProcess(ctx context.Context, processID sql.NullInt64) (Ask, error) {
+	row := q.db.QueryRowContext(ctx, lastAskOfProcess, processID)
+	var i Ask
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.ProjectID,
+		&i.ProcessID,
+		&i.Kind,
+		&i.Text,
+		&i.Payload,
+		&i.Answer,
+		&i.State,
+		&i.CreatedAt,
+		&i.AnsweredAt,
+		&i.ExpiresAt,
+		&i.DeliveredAt,
+	)
+	return i, err
+}
+
 const listOpenAsksOfProcess = `-- name: ListOpenAsksOfProcess :many
 SELECT id, workspace_id, project_id, process_id, kind, text, payload, answer, state, created_at, answered_at, expires_at, delivered_at FROM ask a
 WHERE a.process_id = CAST(?1 AS INTEGER) AND a.kind NOT IN ('warning', 'limit')

@@ -131,3 +131,7 @@ ORDER BY id DESC;
 
 -- name: ExpireSuggestions :execrows
 UPDATE ask SET state = 'expired' WHERE kind = 'suggest' AND state = 'open' AND expires_at <= CAST(sqlc.arg(now) AS TEXT);
+
+
+-- name: LastAskOfProcess :one
+SELECT * FROM ask WHERE process_id = ? ORDER BY id DESC LIMIT 1;

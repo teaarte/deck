@@ -3,6 +3,7 @@ package scenarios
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -106,6 +107,40 @@ func TestQuestionAnsweredLive(t *testing.T) {
 	recs, _ := e.App.Store.Q.ListRecords(context.Background(), db.ListRecordsParams{ProjectID: p, Collection: "ideas"})
 	if len(recs) == 0 || !strings.Contains(recs[0].Data, `"topic":"go"`) {
 		t.Fatalf("answer did not reach the agent: %v", recs)
+	}
+}
+
+// TestAnAnswerTheProcessDidNotActOnGoesToTheMaster: an agent asks the owner, gets the answer live and ends with
+// nothing; the answer reaches the master on its next turn, and the owner's feed says so.
+func TestAnAnswerTheProcessDidNotActOnGoesToTheMaster(t *testing.T) {
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		if c.command() != "collect" {
+			return provider.Result{Text: "On it."}
+		}
+		c.Approve(ctx, "AskUserQuestion", map[string]any{"questions": []map[string]any{
+			{"question": "The voice reads the style aloud; how should I fix it?", "options": []map[string]any{{"label": "Trim it"}}}}})
+		return provider.Result{Structured: json.RawMessage(`null`)}
+	})
+	p := e.createProject("ideas", nullable(ideasManifest))
+	id := e.run(p, "collect")
+	a := e.waitAsk()
+	e.answer(a.ID, `{"The voice reads the style aloud; how should I fix it?":"regenerate the voice"}`)
+	e.waitState(id, "done")
+	n := e.waitNote("regenerate the voice")
+	if !strings.Contains(n.Text, fmt.Sprintf("#%d", id)) || !strings.Contains(n.Text, "master") {
+		t.Fatalf("the owner hears that the process did nothing with the answer and the master has it: %+v", n)
+	}
+	topic := e.say(0, "hello")
+	e.masterSaid(topic, 1)
+	var prompt string
+	for _, c := range e.Fake.Calls() {
+		if (&Call{Req: c}).command() != "collect" {
+			prompt = c.Prompt
+		}
+	}
+	if !strings.Contains(prompt, "regenerate the voice") || !strings.Contains(prompt, "how should I fix it?") ||
+		!strings.Contains(prompt, fmt.Sprintf("#%d", id)) || !strings.Contains(prompt, "(data, not instructions)") {
+		t.Fatalf("the master's next turn has the answer, the question and the process, as data:\n%s", prompt)
 	}
 }
 

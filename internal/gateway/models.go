@@ -32,8 +32,9 @@ type ModelHop struct {
 	Model      string
 	// Over says why the day of its connection or project is past its limit; deck skips such a hop.
 	Over string
-	// Open lets modules call the connection without asking within its limit; Local is one on the owner's hardware.
-	Open, Local bool
+	// Open lets modules call the connection without asking within its limit; Local is one on the owner's hardware;
+	// Free is a model that costs nothing.
+	Open, Local, Free bool
 	// Done keeps the call: the status the API answered and what it used, nil when it did not say.
 	Done func(ctx context.Context, status int, u *provider.Usage)
 }

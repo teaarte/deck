@@ -3,6 +3,7 @@ package manifest
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 
 	"github.com/expr-lang/expr/vm"
 	"github.com/santhosh-tekuri/jsonschema/v6"
@@ -31,6 +32,9 @@ type Manifest struct {
 	NoNetwork bool                         `json:"no_network,omitempty"`
 	// MasterErrors off keeps the failed processes of the project from the master; absent is on.
 	MasterErrors *bool `json:"master_errors,omitempty"`
+	// Models are the connections, models and @roles the project calls models through, besides its commands of
+	// type model.
+	Models []string `json:"models,omitempty"`
 
 	// Revision is the stored revision the manifest was read from; 0 when it was not read from the base.
 	Revision int64 `json:"-"`
@@ -42,6 +46,30 @@ type Manifest struct {
 	text []byte
 	// warnings are problems a read lets pass and a save refuses.
 	warnings []string
+	// granted, once set by Clip, are the only model uses in force.
+	granted *[]string
+}
+
+// Uses are the connections, models and @roles the project calls models through: its models and what its
+// commands of type model name, the models assigned to their kind when they name none.
+func (m *Manifest) Uses() []string {
+	if m.granted != nil {
+		return *m.granted
+	}
+	out := slices.Clone(m.Models)
+	for _, c := range m.Commands {
+		if c.Executor.Type != "model" {
+			continue
+		}
+		use := c.Executor.Model
+		if use == "" {
+			use = "@" + c.Executor.Kind
+		}
+		if !slices.Contains(out, use) {
+			out = append(out, use)
+		}
+	}
+	return out
 }
 
 type Collection struct {

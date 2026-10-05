@@ -7,6 +7,7 @@ import (
 	"math"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -276,7 +277,7 @@ func TestAScriptCallsAModelThroughDeckWithinTheDayOfItsConnection(t *testing.T) 
 	e.must("deck.secret_set", map[string]any{"name": "openrouter", "value": "sk-or-real"}, nil)
 	e.must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": api.URL + "/api/v1", "key_secret": "openrouter",
 		"daily_usd": 0.05, "open": true}, nil)
-	e.createProject("shorts", scriptManifest("media", "", ""))
+	e.createProject("shorts", scriptManifest("media", "", `, "models": ["openrouter"]`))
 	e.saveScript("shorts", "scripts/main.py", modelScript)
 	run := func() map[string]any {
 		got := e.waitScript(e.start("shorts", "media", map[string]any{"key": "openrouter/chat/completions", "other": picture}), "done", "error")
@@ -386,7 +387,7 @@ func TestAScriptCallsARoleAndAFallbackTakesARefusal(t *testing.T) {
 	e.must("deck.model_set", map[string]any{"connection": "busy", "model": "voice-1", "kind": "tts", "call_usd": 0.01}, nil)
 	e.must("deck.model_set", map[string]any{"connection": "spare", "model": "voice-2", "kind": "tts", "call_usd": 0.02}, nil)
 	e.must("deck.assignment_set", map[string]any{"role": "tts", "models": []string{"busy/voice-1", "spare/voice-2"}}, nil)
-	e.createProject("shorts", scriptManifest("voice", "", ""))
+	e.createProject("shorts", scriptManifest("voice", "", `, "models": ["@tts", "spare"]`))
 	e.saveScript("shorts", "scripts/main.py", modelScript)
 	speech := `{"model": "@tts", "input": "Knights against snails", "voice": "alloy", "response_format": "mp3"}`
 	got := e.waitScript(e.start("shorts", "voice", map[string]any{"key": "@/audio/speech", "other": speech}), "done", "error")
@@ -448,5 +449,55 @@ func TestAModelTakesItsPriceAndKindFromTheCatalogOfItsConnection(t *testing.T) {
 	e.must("deck.secrets_list", nil, &secrets)
 	if len(secrets) != 1 || secrets[0].Name != "openrouter" {
 		t.Fatalf("the key is a secret named after the connection: %+v", secrets)
+	}
+}
+
+// TestAModuleCallsOnlyTheModelsTheOwnerGranted: a project calls models only through what its manifest names; a new
+// name waits for the owner's button, and a draft's call waits for a yes unless its model is free on this machine.
+func TestAModuleCallsOnlyTheModelsTheOwnerGranted(t *testing.T) {
+	api := newModels(t, map[string]func(int, map[string]any) (int, string, string){
+		"/v1/chat/completions": func(int, map[string]any) (int, string, string) { return 200, "application/json", chatText("hi") },
+	})
+	e := newEnv(t, nil)
+	e.must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": api.URL + "/v1", "open": true}, nil)
+	e.must("deck.connection_set", map[string]any{"name": "ollama", "api": "openai", "url": api.URL + "/v1", "open": true, "local": true}, nil)
+	e.must("deck.model_set", map[string]any{"connection": "ollama", "model": "qwen", "kind": "text", "free": true}, nil)
+	call := func(project, path string) map[string]any {
+		got := e.waitScript(e.start(project, "media", map[string]any{"key": path, "other": `{"model": "qwen", "messages": []}`}), "done", "error")
+		var out map[string]any
+		if json.Unmarshal(got.Result, &out) != nil {
+			t.Fatalf("the script ran: %+v", got)
+		}
+		return out
+	}
+	e.createProject("plain", scriptManifest("media", "", ""))
+	e.saveScript("plain", "scripts/main.py", modelScript)
+	if out := call("plain", "openrouter/chat/completions"); out["status"] != 403.0 || !strings.Contains(out["answer"].(string), `add "openrouter" to models`) {
+		t.Fatalf("a call through a connection the manifest does not name is refused with what to do: %v", out)
+	}
+	_, tok := e.token("terminal", "deck.*")
+	var w struct {
+		Waiting int64
+		Widens  []string
+	}
+	code, raw := e.callWith(tok, "deck.manifest_save", map[string]any{"project": "plain", "manifest": scriptManifest("media", "", `, "models": ["openrouter"]`)})
+	if code != 200 || json.Unmarshal(raw, &w) != nil || w.Waiting == 0 || !slices.Equal(w.Widens, []string{"calls models through openrouter"}) {
+		t.Fatalf("a new connection for models widens the rights and waits for the owner: %d %s", code, raw)
+	}
+	e.answer(w.Waiting, "allow")
+	if out := call("plain", "openrouter/chat/completions"); out["status"] != 200.0 {
+		t.Fatalf("once granted the call goes: %v", out)
+	}
+
+	if code, out := e.callWith(tok, "deck.project_create", map[string]any{"name": "draft", "manifest": scriptManifest("media", "", `, "models": ["openrouter", "ollama"]`)}); code != 200 {
+		t.Fatalf("project_create: %d %s", code, out)
+	}
+	e.saveScript("draft", "scripts/main.py", modelScript)
+	before := len(api.calls())
+	if out := call("draft", "openrouter/chat/completions"); out["status"] != 202.0 || len(api.calls()) != before {
+		t.Fatalf("a draft's call of a paid model waits for the owner's yes: %v", out)
+	}
+	if out := call("draft", "ollama/chat/completions"); out["status"] != 200.0 || len(api.calls()) != before+1 {
+		t.Fatalf("a draft's call of a free model on the owner's machine goes: %v", out)
 	}
 }

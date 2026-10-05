@@ -76,6 +76,8 @@ type Command struct {
 	// Allowed decides whether an external call with this input runs without the owner; listed says the project
 	// allows it.
 	Allowed func(ctx context.Context, a Actor, input json.RawMessage, listed bool) (bool, error) `json:"-"`
+	// Free says a call costs nothing and stays on the owner's machine, so it runs in a trial or a draft too.
+	Free func(ctx context.Context, a Actor, input json.RawMessage) bool `json:"-"`
 
 	Handler Handler `json:"-"`
 	schema  *jsonschema.Schema

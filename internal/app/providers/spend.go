@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"deck2/internal/docs"
 	"deck2/internal/gateway"
 	"deck2/internal/manifest"
 	"deck2/internal/provider"
@@ -120,7 +121,7 @@ func (s *Service) Route(ctx context.Context, act registry.Actor, connection, ask
 			key = strings.TrimSpace(k)
 		}
 		h := gateway.ModelHop{Target: gateway.ModelTarget{URL: p.c.Url, API: p.c.Api, Key: key}, Connection: p.c.Name, Model: p.m.Model,
-			Open: p.c.Open != 0, Local: p.c.Local != 0}
+			Open: p.c.Open != 0, Local: p.c.Local != 0, Free: p.m.Free != 0}
 		h.Over, _ = s.over(ctx, p.c, act.ProjectID)
 		m, c := p.m, p.c
 		h.Done = func(ctx context.Context, status int, u *provider.Usage) { s.record(ctx, act, command, m, c, status, u) }
@@ -168,11 +169,14 @@ type modelRequestIn struct {
 	Body       string `type:"json" opt:"" desc:"JSON body of the request; its model may be an @role such as @text"`
 }
 
-// allowed decides whether a call of a model runs without the owner: some model of it is within the limits of the
-// day, and its connection lets modules call it without asking or the project lists the call.
+// allowed decides whether a call of a model runs without the owner: the granted models of the project name it, a
+// model of it is within the day's limits, and its connection is open to modules or the project allows the call.
 func (s *Service) allowed(ctx context.Context, act registry.Actor, input json.RawMessage, listed bool) (bool, error) {
 	connection, asked, err := s.requested(ctx, act.Workspace, input)
 	if err != nil {
+		return false, err
+	}
+	if err := s.granted(ctx, act, input); err != nil {
 		return false, err
 	}
 	hops, err := s.Route(ctx, act, connection, asked)
@@ -185,6 +189,88 @@ func (s *Service) allowed(ctx context.Context, act registry.Actor, input json.Ra
 		}
 	}
 	return false, nil
+}
+
+// use is what a call of a model goes through, as a manifest names it: an @role, a model by name, or a connection.
+func (s *Service) use(input json.RawMessage) (string, string) {
+	var in struct {
+		Connection string `json:"connection"`
+		Body       string `json:"body"`
+		Model      string `json:"model"`
+		Kind       string `json:"kind"`
+	}
+	_ = json.Unmarshal(input, &in)
+	switch {
+	case in.Kind != "" && in.Model == "":
+		return "@" + in.Kind, ""
+	case in.Kind != "":
+		return in.Model, ""
+	}
+	if asked := gateway.AskedModel([]byte(in.Body)); strings.HasPrefix(asked, "@") {
+		return asked, ""
+	}
+	return in.Connection, in.Connection
+}
+
+// granted refuses a call of a project's process through what the manifest in force does not name; a call by name
+// of a model goes through its connection too.
+func (s *Service) granted(ctx context.Context, act registry.Actor, input json.RawMessage) error {
+	if act.Kind != registry.Agent || act.ProjectID == 0 {
+		return nil
+	}
+	m, err := docs.CurrentInForce(ctx, s.St.Q, act.ProjectID)
+	if err != nil {
+		return err
+	}
+	use, connection := s.use(input)
+	uses := m.Uses()
+	if slices.Contains(uses, use) {
+		return nil
+	}
+	if connection == "" && !strings.HasPrefix(use, "@") {
+		if row, err := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: act.Workspace, Name: use}); err == nil {
+			connection = row.Connection.Name
+		}
+	}
+	if connection != "" && slices.Contains(uses, connection) {
+		return nil
+	}
+	p, _ := s.St.Q.GetProject(ctx, act.ProjectID)
+	return registry.Refuse("deck: project %s does not name %s in the models of its manifest; add %q to models, and the owner grants it", p.Name, use, use)
+}
+
+// free says a call of a model costs nothing: its first model that is within its day is free or on the owner's own
+// hardware, and the manifest names it.
+func (s *Service) free(ctx context.Context, act registry.Actor, input json.RawMessage) bool {
+	if act.ProjectID == 0 {
+		return false
+	}
+	p, err := s.St.Q.GetProject(ctx, act.ProjectID)
+	if err != nil {
+		return false
+	}
+	m, err := docs.Manifest(ctx, s.St.Q, p)
+	if err != nil {
+		return false
+	}
+	use, connection := s.use(input)
+	if !slices.Contains(m.Uses(), use) && (connection == "" || !slices.Contains(m.Uses(), connection)) {
+		return false
+	}
+	connection, asked, err := s.requested(ctx, act.Workspace, input)
+	if err != nil {
+		return false
+	}
+	hops, err := s.Route(ctx, act, connection, asked)
+	if err != nil {
+		return false
+	}
+	for _, h := range hops {
+		if h.Over == "" {
+			return h.Local || h.Free
+		}
+	}
+	return false
 }
 
 // requested is the connection and the model a call of a model names: a request with its body, or a call of a kind.
@@ -293,7 +379,7 @@ func (s *Service) modelRequestCommand() *registry.Command {
 	c := registry.Def("model_request", "Call a model",
 		"Sends one request to the API of a connection with deck's key, such as chat/completions with model @text; the answer comes back as the API gave it, a file for audio or pictures.",
 		registry.Everyone, s.modelRequest)
-	c.Class, c.Allowed = registry.External, s.allowed
+	c.Class, c.Allowed, c.Free = registry.External, s.allowed, s.free
 	c.Fingerprint = func(context.Context, int64) string { return gateway.ModelRequest }
 	return c
 }

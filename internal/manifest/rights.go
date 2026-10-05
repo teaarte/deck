@@ -13,8 +13,8 @@ import (
 
 var secretRef = regexp.MustCompile(`\$secret\.([A-Za-z0-9_.-]+)`)
 
-// Widens lists what next grants that prev does not: autonomy, allowed external actions, domains, secrets, milder
-// classes, dropped requirements, providers, callers, MCP servers, reads, network, changed HTTP tools that skip asking.
+// Widens lists what next grants that prev does not: autonomy, allowed external actions, domains, secrets, models,
+// milder classes, dropped requirements, providers, callers, MCP servers, reads, network, HTTP tools that skip asking.
 func Widens(prev, next *Manifest) []string {
 	var out []string
 	add := func(format string, a ...any) { out = append(out, fmt.Sprintf(format, a...)) }
@@ -35,6 +35,9 @@ func Widens(prev, next *Manifest) []string {
 	}
 	for _, s := range added(serverSecrets(prev), serverSecrets(next)) {
 		add("secret: %s", s)
+	}
+	for _, u := range added(prev.Uses(), next.Uses()) {
+		add("calls models through %s", u)
 	}
 	var required []string
 	for _, c := range prev.Commands {
@@ -165,7 +168,7 @@ func ShellHosts(m *Manifest) []string {
 }
 
 // Clip is m with only the rights granted gives: autonomy, network, allowed external actions, domains other than
-// registries and reads it lacks are dropped; an HTTP tool that would widen them asks the owner on every call.
+// registries, models and reads it lacks are dropped; an HTTP tool that would widen them asks on every call.
 func Clip(granted, m *Manifest) *Manifest {
 	c := *m
 	if granted.Autonomy != "auto" {
@@ -174,6 +177,8 @@ func Clip(granted, m *Manifest) *Manifest {
 	c.NoNetwork = m.NoNetwork || granted.NoNetwork
 	c.Domains = Domains{Read: kept(m.Domains.Read, append(slices.Clone(Registries), granted.Domains.Read...)), Act: kept(m.Domains.Act, granted.Domains.Act)}
 	c.AllowedExternal = kept(m.AllowedExternal, granted.AllowedExternal)
+	uses := kept(m.Uses(), granted.Uses())
+	c.granted = &uses
 	c.Tools.HTTP = slices.Clone(m.Tools.HTTP)
 	for i, t := range c.Tools.HTTP {
 		if len(toolWidens(granted, m, t)) > 0 {

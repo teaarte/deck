@@ -3,7 +3,6 @@ package claudecode
 import (
 	"encoding/json"
 	"fmt"
-	"net"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -114,8 +113,12 @@ func settings(req provider.Request, runs string) map[string]any {
 		}
 	}
 	s["permissions"] = map[string]any{"deny": deny}
-	s["sandbox"] = map[string]any{"enabled": true, "failIfUnavailable": true, "allowUnsandboxedCommands": false,
-		"network": map[string]any{"allowedDomains": allowed(req.Hosts), "strictAllowlist": true}}
+	// The sandbox of the CLI closes the shell of a project without network only: with it on, a shell binds no port,
+	// gets no GPU and writes no cache outside its folders, which renders and local models need.
+	if req.NoNetwork {
+		s["sandbox"] = map[string]any{"enabled": true, "failIfUnavailable": true, "allowUnsandboxedCommands": false,
+			"network": map[string]any{"allowedDomains": []string{}, "strictAllowlist": true}}
+	}
 	if !req.Repo {
 		return s
 	}
@@ -139,22 +142,6 @@ func settings(req provider.Request, runs string) map[string]any {
 	s["claudeMdExcludes"] = excludes(req.Cwd)
 	s["permissions"] = map[string]any{"deny": deny}
 	return s
-}
-
-// allowed are the hosts as the sandbox of the CLI names them: a host and its subdomains, host:port, an IP or
-// localhost; a network such as 10.0.0.0/8 or a name without a dot, which it refuses, is left out.
-func allowed(hosts []string) []string {
-	out := []string{}
-	for _, h := range hosts {
-		switch {
-		case h == "*" || h == "localhost" || strings.Contains(h, ":") || net.ParseIP(h) != nil:
-			out = append(out, h)
-		case strings.Contains(h, "/") || !strings.Contains(h, "."):
-		default:
-			out = append(out, h, "*."+h)
-		}
-	}
-	return out
 }
 
 // writeFile writes a per-turn file into ConfigDir atomically with mode 600.

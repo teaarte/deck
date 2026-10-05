@@ -377,7 +377,7 @@
         }},
         "rows": {"type": "array", "items": {
           "type": "object", "required": ["id", "cells"], "additionalProperties": false,
-          "properties": {"id": {}, "cells": {"type": "array"}, "tones": {"type": "array", "description": "the tone of each cell, null for none", "items": {"oneOf": [{"$ref": "#/$defs/tone"}, {"type": "null"}]}}, "actions": {"type": "array", "items": {"$ref": "#/$defs/action"}}}
+          "properties": {"id": {}, "cells": {"type": "array"}, "tones": {"type": "array", "description": "the tone of each cell, null for none", "items": {"oneOf": [{"$ref": "#/$defs/tone"}, {"type": "null"}]}}, "details": {"type": "array", "description": "the text of each cell shown in full on demand, null for none; such a cell shows its value in one line", "items": {"type": ["string", "null"]}}, "actions": {"type": "array", "items": {"$ref": "#/$defs/action"}}}
         }},
         "items": {"type": "array", "items": {
           "type": "object", "required": ["id", "title"], "additionalProperties": false,

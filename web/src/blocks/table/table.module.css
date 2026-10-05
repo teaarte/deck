@@ -49,6 +49,10 @@
   max-width: 48ch;
   min-width: 6ch;
 
+  &[data-one] {
+    -webkit-line-clamp: 1;
+  }
+
   &[data-whole] {
     display: block;
     -webkit-line-clamp: unset;

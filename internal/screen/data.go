@@ -256,6 +256,7 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 		rows := make([]map[string]any, 0, len(items))
 		for _, it := range items {
 			cells, tones, toned := make([]any, 0, len(b.Columns)), make([]any, len(b.Columns)), false
+			details, detailed := make([]any, len(b.Columns)), false
 			for j, c := range b.Columns {
 				v, err := r.eval(c.Bind, it)
 				if err != nil {
@@ -267,10 +268,23 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 				if t, ok := cell["tone"]; ok {
 					tones[j], toned = t, true
 				}
+				if c.Details == "" {
+					continue
+				}
+				d, err := r.eval(c.Details, it)
+				if err != nil {
+					return nil, fmt.Errorf("column %q details: %w", c.Label, err)
+				}
+				if d != nil && d != "" {
+					details[j], detailed = fmt.Sprint(d), true
+				}
 			}
 			row := map[string]any{"id": it["_id"], "cells": cells, "actions": r.rowActions(b, it)}
 			if toned {
 				row["tones"] = tones
+			}
+			if detailed {
+				row["details"] = details
 			}
 			rows = append(rows, row)
 		}

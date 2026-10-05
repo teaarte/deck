@@ -280,7 +280,8 @@
       "additionalProperties": false,
       "required": ["label", "bind"],
       "properties": {"label": {"type": "string"}, "bind": {"type": "string", "description": "Expression over the fields of an item."},
-        "format": {"$ref": "#/$defs/format"}, "currency": {"$ref": "#/$defs/currency"}, "tone": {"$ref": "#/$defs/tone"}}
+        "format": {"$ref": "#/$defs/format"}, "currency": {"$ref": "#/$defs/currency"}, "tone": {"$ref": "#/$defs/tone"},
+        "details": {"type": "string", "description": "Only in a table: expression over the item giving text shown in full on demand, such as a whole error; the value of the column then shows in one line."}}
     },
     "when": {"type": "string", "description": "Expression; where it does not hold the block is not on the screen. It reads the fields of the record of a record page and rows, the items of the block's source, such as len(rows) > 0 or status == 'open'."},
     "empty": {"type": "string", "minLength": 1, "description": "Plain text the block shows when its source has no items, instead of the client's own; not an expression."},

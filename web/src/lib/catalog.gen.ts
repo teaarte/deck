@@ -191,6 +191,10 @@ export interface Data {
      * the tone of each cell, null for none
      */
     tones?: (Tone | null)[];
+    /**
+     * the text of each cell shown in full on demand, null for none; such a cell shows its value in one line
+     */
+    details?: (string | null)[];
     actions?: Action[];
   }[];
   items?: {

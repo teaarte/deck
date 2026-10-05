@@ -4,12 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 	"time"
 
+	"deck2/internal/app"
 	"deck2/internal/registry"
+	"deck2/internal/sandbox"
 	"deck2/internal/store/db"
 )
 
@@ -210,7 +213,7 @@ func TestSettingsSecretsAndTokensShowOnlyNames(t *testing.T) {
 	}
 	e.must("deck.secret_set", map[string]any{"name": "mail-key", "value": "s3cret-value"}, nil)
 	waitTopic(t, events, "secrets")
-	secrets := e.settingsBlock("Secrets", map[string]any{"topic": "secrets"})
+	secrets := e.settingsBlock("Other secrets", map[string]any{"topic": "secrets"})
 	got := blockData[[]screenRow](t, secrets["rows"])
 	if len(got) != 1 || got[0].Cells[0] != "mail-key" || !hasVerb(got[0].Actions, "replace") || verb(t, got[0].Actions, "delete")["confirm"] != true {
 		t.Fatalf("the secrets tab lists names with replace and delete, and follows the secrets topic: %s", secrets["rows"])
@@ -218,7 +221,7 @@ func TestSettingsSecretsAndTokensShowOnlyNames(t *testing.T) {
 	del := verb(t, got[0].Actions, "delete")
 	e.must(del["command"].(string), del["params"], nil)
 	waitTopic(t, events, "secrets")
-	if left := blockData[[]screenRow](t, e.settingsBlock("Secrets", nil)["rows"]); len(left) != 0 {
+	if left := blockData[[]screenRow](t, e.settingsBlock("Other secrets", nil)["rows"]); len(left) != 0 {
 		t.Fatalf("a deleted secret is gone: %+v", left)
 	}
 
@@ -268,46 +271,55 @@ func TestSettingsSecretsAndTokensShowOnlyNames(t *testing.T) {
 	}
 }
 
-// TestSettingsProvidersAddAndRemoveOnTheScreen: the providers tab adds a provider with a form and removes
-// an added one after the owner says yes; built-in providers have no remove.
-func TestSettingsProvidersAddAndRemoveOnTheScreen(t *testing.T) {
-	e := newEnv(t, nil)
+// TestSettingsModelsAddAndRemoveOnTheScreen: the models tab adds a model with a form and removes an added one after
+// the owner says yes; built-in providers have no remove.
+func TestSettingsModelsAddAndRemoveOnTheScreen(t *testing.T) {
+	f := newACP(t)
+	e := newEnv(t, nil, func(c *app.Config) {
+		c.ACPBinaries = map[string]string{"opencode": filepath.Join(f.dir, "opencode")}
+		c.Sandbox = fakeDirSandbox{sandbox.New(), f.dir, nil}
+	})
 	events := e.sse(t.Context())
-	if f := e.screenForm("", "settings", "deck.provider_add"); !strings.Contains(string(f["value"]), `"deck.provider_add"`) {
-		t.Fatalf("the providers tab adds a provider with a form: %s", f["value"])
+	if f := e.screenForm("", "settings", "deck.model_set"); !strings.Contains(string(f["value"]), `"deck.model_set"`) {
+		t.Fatalf("the models tab adds a model with a form: %s", f["value"])
 	}
-	e.must("deck.provider_add", map[string]any{"name": "ollama", "url": "http://127.0.0.1:1/v1", "model": "small", "agent": "opencode", "no_cloud": true}, nil)
+	e.must("deck.connection_set", map[string]any{"name": "ollama", "api": "openai", "url": "http://127.0.0.1:1/v1", "local": true}, nil)
+	e.must("deck.model_set", map[string]any{"connection": "ollama", "model": "small", "name": "ollama-small", "agent": "opencode"}, nil)
 	waitTopic(t, events, "health")
-	rows := blockData[[]screenRow](t, e.settingsBlock("Providers", map[string]any{"topic": "health"})["rows"])
+	rows := blockData[[]screenRow](t, e.settingsBlock("Models", map[string]any{"topic": "health"})["rows"])
 	var added screenRow
 	for _, r := range rows {
-		if r.Cells[0] == "ollama" {
+		if r.Cells[0] == "ollama-small" {
 			added = r
 		} else if hasVerb(r.Actions, "remove") {
 			t.Fatalf("a built-in provider cannot be removed: %+v", r)
 		}
 	}
 	if !hasVerb(added.Actions, "check") {
-		t.Fatalf("an added provider runs in an ACP agent, which has a self-check and its button: %+v", added.Actions)
+		t.Fatalf("a model in an ACP agent has a self-check and its button: %+v", added.Actions)
 	}
 	remove := verb(t, added.Actions, "remove")
-	if remove["confirm"] != true || added.Cells[3] != "small" {
-		t.Fatalf("an added provider shows its model and is removed after a yes: %+v", added)
+	if remove["confirm"] != true || added.Cells[2] != "ollama" || added.Cells[3] != "opencode" {
+		t.Fatalf("an added model shows its connection and agent and is removed after a yes: %+v", added)
 	}
 	edit := verb(t, added.Actions, "edit")["params"].(map[string]any)
-	if edit["dialog"] != "provider" || edit["model"] != "small" || edit["url"] != "http://127.0.0.1:1/v1" {
-		t.Fatalf("edit opens the dialog of the provider filled with its values: %+v", edit)
+	if edit["dialog"] != "model" || edit["model"] != "small" || edit["connection"] != "ollama" || edit["agent"] != "opencode" {
+		t.Fatalf("edit opens the dialog of the model filled with its values: %+v", edit)
 	}
-	var f formV
-	_ = json.Unmarshal(e.screenData("", "settings", map[string]any{"params": `{"name": "ollama", "model": "small"}`})[formID(t, e, "deck.provider_add")]["value"], &f)
-	if f.Values["name"] != "ollama" || f.Values["model"] != "small" {
-		t.Fatalf("the form of a provider takes its values from the address: %+v", f.Values)
+	var fv formV
+	_ = json.Unmarshal(e.screenData("", "settings", map[string]any{"params": `{"connection": "ollama", "model": "small"}`})[formID(t, e, "deck.model_set")]["value"], &fv)
+	if fv.Values["connection"] != "ollama" || fv.Values["model"] != "small" {
+		t.Fatalf("the form of a model takes its values from the address: %+v", fv.Values)
 	}
+	e.waitFor("the self-check", func() bool {
+		h, err := e.App.Store.Q.GetHealth(t.Context(), "provider:ollama-small")
+		return err == nil && h.Status != "checking"
+	})
 	e.must(remove["command"].(string), remove["params"], nil)
-	waitTopic(t, events, "health")
-	for _, r := range blockData[[]screenRow](t, e.settingsBlock("Providers", nil)["rows"]) {
-		if r.Cells[0] == "ollama" {
-			t.Fatalf("the removed provider is gone: %+v", r)
+	waitTopic(t, events, "models")
+	for _, r := range blockData[[]screenRow](t, e.settingsBlock("Models", nil)["rows"]) {
+		if r.Cells[0] == "ollama-small" {
+			t.Fatalf("the removed model is gone: %+v", r)
 		}
 	}
 }

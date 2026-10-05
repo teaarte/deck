@@ -396,6 +396,8 @@ type Column struct {
 	Currency string `json:"currency,omitempty"`
 	// Tone is an expression over the item: ok, warn, error or muted.
 	Tone string `json:"tone,omitempty"`
+	// Details is an expression over the item giving text the cell shows in full on demand, its value in one line.
+	Details string `json:"details,omitempty"`
 }
 
 // Action is a button. Params, Screen, Record, Project, File and Until take a fixed value, "$record.<field>"

@@ -287,7 +287,7 @@ func (s *Service) Commands() []*registry.Command {
 			registry.OwnerOnly, s.connectionRemove).Changes("models"),
 		registry.Def("model_set", "Set model",
 			"Adds or changes a model of a connection with its kind and price; what is left out comes from the catalog of the connection.",
-			registry.OwnerOnly, s.modelSet).Changes("models"),
+			registry.OwnerOnly, s.modelSet).Enum("agent", acp.Names()...).Changes("models", "health"),
 		registry.Def("model_remove", "Remove model", "Removes a model; assignments that name it skip it.",
 			registry.OwnerOnly, s.modelRemove).Changes("models"),
 		registry.Def("project_model_limit", "Model limit of a project",

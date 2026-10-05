@@ -34,6 +34,7 @@ type modelsOut struct {
 		Models   int      `json:"models"`
 	} `json:"connections"`
 	Models []struct {
+		Builtin    bool     `json:"builtin"`
 		Name       string   `json:"name"`
 		Connection string   `json:"connection"`
 		Model      string   `json:"model"`
@@ -107,13 +108,16 @@ func TestTheProvidersOfABaseFromBeforeAreConnectionsModelsAndAssignments(t *test
 			t.Fatalf("connection %s: %q, want %q", name, conns[name], w)
 		}
 	}
-	agents := 0
+	agents, builtin := 0, 0
 	for _, x := range m.Models {
 		if x.Agent == "opencode" && x.Kind == "text" {
 			agents++
 		}
+		if x.Builtin {
+			builtin++
+		}
 	}
-	if len(m.Models) != 8 || agents != 7 {
+	if len(m.Models)-builtin != 8 || agents != 7 {
 		t.Fatalf("a model per provider, run by its agent, and the model of speech to text: %+v", m.Models)
 	}
 	got := map[string][]string{}

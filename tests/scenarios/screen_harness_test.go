@@ -10,6 +10,7 @@ import (
 type screenRow struct {
 	ID      any              `json:"id"`
 	Cells   []any            `json:"cells"`
+	Details []any            `json:"details"`
 	Actions []map[string]any `json:"actions"`
 }
 

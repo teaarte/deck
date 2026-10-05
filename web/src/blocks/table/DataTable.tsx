@@ -44,7 +44,7 @@ export function DataTable({ columns, rows }: { columns: Column[]; rows: Row[] })
           <Table.Tbody>
             {v.slice.map((r, i) => (
               <Table.Tr key={show(r.id) || i} {...rowOpen(r.actions, run)}>
-                {r.cells.map((v, j) => <Table.Td key={j}><Cell><Value v={v} s={columns[j] ?? {}} tone={r.tones?.[j]} /></Cell></Table.Td>)}
+                {r.cells.map((v, j) => <Table.Td key={j}><Cell details={r.details?.[j]}><Value v={v} s={columns[j] ?? {}} tone={r.tones?.[j]} /></Cell></Table.Td>)}
                 {acts && <Table.Td className={s.rowActions}><Actions actions={r.actions} max={2} /></Table.Td>}
               </Table.Tr>
             ))}

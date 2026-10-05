@@ -18,7 +18,9 @@ import (
 
 	"deck2/internal/app/access"
 	"deck2/internal/gateway"
+	"deck2/internal/health"
 	"deck2/internal/process"
+	"deck2/internal/provider/acp"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
@@ -87,7 +89,20 @@ type modelView struct {
 	OutputUSD  *float64 `json:"output_usd,omitempty"`
 	CallUSD    *float64 `json:"call_usd,omitempty"`
 	Free       bool     `json:"free"`
-	Status     string   `json:"status,omitempty"`
+	// Builtin is a provider deck was started with; Status, Error, Verdict, Speed and Version are of its last self-check.
+	Builtin bool    `json:"builtin"`
+	Status  string  `json:"status,omitempty"`
+	Error   string  `json:"error,omitempty"`
+	Verdict string  `json:"verdict,omitempty"`
+	Speed   float64 `json:"speed,omitempty"`
+	Version string  `json:"version,omitempty"`
+}
+
+// lastCheck fills in the state of a model's last self-check.
+func (s *Service) lastCheck(ctx context.Context, v *modelView) {
+	if h, err := s.St.Q.GetHealth(ctx, process.HealthSubject(v.Name)); err == nil {
+		v.Status, v.Error, v.Verdict, v.Speed, v.Version = h.Status, h.Error, h.Verdict, h.Speed, h.Version
+	}
 }
 
 type assignmentView struct {
@@ -135,13 +150,16 @@ func (s *Service) modelsList(ctx context.Context, act registry.Actor, _ struct{}
 		}
 		out.Connections = append(out.Connections, v)
 	}
+	for _, pv := range s.Builtin {
+		v := modelView{Name: pv.Name(), Kind: RoleText, Agent: pv.Name(), Builtin: true}
+		s.lastCheck(ctx, &v)
+		out.Models = append(out.Models, v)
+	}
 	for _, r := range models {
 		m := r.Model
 		v := modelView{Name: m.Name, Connection: r.Connection.Name, Model: m.Model, Kind: m.Kind, Agent: m.Agent,
 			InputUSD: nullable(m.InputUsd), OutputUSD: nullable(m.OutputUsd), CallUSD: nullable(m.CallUsd), Free: m.Free != 0}
-		if h, err := s.St.Q.GetHealth(ctx, process.HealthSubject(m.Name)); err == nil {
-			v.Status = h.Status
-		}
+		s.lastCheck(ctx, &v)
 		out.Models = append(out.Models, v)
 	}
 	rows, err := s.St.Q.ListAssignments(ctx, act.Workspace)
@@ -345,6 +363,9 @@ type modelSetIn struct {
 	OutputUSD  float64 `json:"output_usd" opt:"" desc:"USD per million output tokens"`
 	CallUSD    float64 `json:"call_usd" opt:"" desc:"USD per call, for a model priced per picture, clip or request"`
 	Free       bool    `opt:"" desc:"The model costs nothing"`
+	Agent      string  `opt:"" desc:"The ACP agent that runs a text model inside the sandbox of deck with a shell and files, for agent commands; the name is then the name of a provider. A model changed without it keeps its own"`
+	// CheckMinutes give a slow model more time for its self-check.
+	CheckMinutes int64 `json:"check_minutes" opt:"" desc:"Minutes the self-check of a model in an agent may take, for a slow one; deck's own ceiling when left out"`
 }
 
 func (s *Service) modelSet(ctx context.Context, act registry.Actor, in modelSetIn) (any, error) {
@@ -359,8 +380,15 @@ func (s *Service) modelSet(ctx context.Context, act registry.Actor, in modelSetI
 	if strings.ContainsAny(in.Name, " @") {
 		return nil, registry.Invalid("deck: a model name has no spaces or @, got %q", in.Name)
 	}
+	if in.Agent != "" {
+		if err := s.checkAgent(ctx, act.Workspace, c, in); err != nil {
+			return nil, err
+		}
+		in.Kind = RoleText
+	}
 	m := db.AddModelParams{WorkspaceID: act.Workspace, ConnectionID: c.ID, Name: in.Name, Model: in.Model, Kind: in.Kind, Options: "{}",
-		InputUsd: positive(in.InputUSD), OutputUsd: positive(in.OutputUSD), CallUsd: positive(in.CallUSD), Free: b2i(in.Free)}
+		InputUsd: positive(in.InputUSD), OutputUsd: positive(in.OutputUSD), CallUsd: positive(in.CallUSD), Free: b2i(in.Free),
+		Agent: in.Agent, CheckMinutes: in.CheckMinutes}
 	if !in.Free && !m.InputUsd.Valid && !m.OutputUsd.Valid && !m.CallUsd.Valid || m.Kind == "" {
 		if got, ok := s.catalog(ctx, act.Workspace, c, in.Model); ok {
 			if !in.Free && !m.InputUsd.Valid && !m.OutputUsd.Valid && !m.CallUsd.Valid {
@@ -373,7 +401,15 @@ func (s *Service) modelSet(ctx context.Context, act registry.Actor, in modelSetI
 	var out db.Model
 	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		if old, err := q.GetModel(ctx, db.GetModelParams{WorkspaceID: act.Workspace, Name: in.Name}); err == nil {
-			m.Agent, m.Options, m.CheckMinutes = old.Model.Agent, old.Model.Options, old.Model.CheckMinutes
+			m.Options = old.Model.Options
+			if in.Agent == "" {
+				m.Agent, m.CheckMinutes = old.Model.Agent, old.Model.CheckMinutes
+			}
+		}
+		if in.Agent != "" {
+			if err := health.Set(ctx, q, health.Of{}, process.HealthSubject(in.Name), "checking", "the self-check of the model in its agent is about to run"); err != nil {
+				return err
+			}
 		}
 		out, err = q.AddModel(ctx, m)
 		return err
@@ -381,8 +417,33 @@ func (s *Service) modelSet(ctx context.Context, act registry.Actor, in modelSetI
 	if err != nil {
 		return nil, err
 	}
+	if in.Agent != "" {
+		s.startCheck(in.Name, true)
+	}
 	return modelView{Name: out.Name, Connection: c.Name, Model: out.Model, Kind: out.Kind, Agent: out.Agent, InputUSD: nullable(out.InputUsd),
 		OutputUSD: nullable(out.OutputUsd), CallUSD: nullable(out.CallUsd), Free: out.Free != 0}, nil
+}
+
+// checkAgent refuses a model in an agent deck cannot run: an agent it does not know or that is not installed, a
+// name that is not one of a provider, an API that is not OpenAI-compatible.
+func (s *Service) checkAgent(ctx context.Context, workspace int64, c db.Connection, in modelSetIn) error {
+	switch {
+	case acp.Agents[in.Agent].Start == nil:
+		return registry.Invalid("deck: no ACP agent %q; deck knows %s", in.Agent, strings.Join(acp.Names(), ", "))
+	case !installed(cmp.Or(s.ACPBinaries[in.Agent], in.Agent)):
+		return registry.Invalid("deck: %s is not installed on this machine", in.Agent)
+	case !access.ProjectName.MatchString(in.Name) || s.builtinNamed(in.Name) != nil:
+		return registry.Invalid("deck: a model in an agent is a provider; name it with lowercase letters, digits and '-', not %q or a built-in provider", in.Name)
+	case c.Api != "openai":
+		return registry.Invalid("deck: an agent runs a model of an OpenAI-compatible connection, not %s", c.Api)
+	case in.CheckMinutes < 0 || in.CheckMinutes > 60:
+		return registry.Invalid("deck: check_minutes is 1 to 60, or 0 for deck's own ceiling")
+	}
+	n, err := s.St.Q.ModelInOtherWorkspace(ctx, db.ModelInOtherWorkspaceParams{Name: in.Name, WorkspaceID: workspace})
+	if err == nil && n > 0 {
+		return registry.Invalid("deck: another workspace has a provider %q; its health and self-check go by name, so pick another", in.Name)
+	}
+	return err
 }
 
 func positive(f float64) sql.NullFloat64 { return sql.NullFloat64{Float64: f, Valid: f > 0} }

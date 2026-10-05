@@ -28,7 +28,7 @@ func agentSubject(name string) string { return "agent:" + name }
 func (s *Service) discover(ctx context.Context, name string) {
 	subject := agentSubject(name)
 	bin := cmp.Or(s.ACPBinaries[name], name)
-	if _, err := exec.LookPath(bin); err != nil {
+	if !installed(bin) {
 		_ = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 			return q.DeleteHealth(ctx, db.DeleteHealthParams{Subject: subject})
 		})
@@ -65,7 +65,7 @@ func (s *Service) agents(ctx context.Context) []agentView {
 	}
 	for _, name := range acp.Names() {
 		v := agentView{Name: name, Status: "missing"}
-		if _, err := exec.LookPath(cmp.Or(s.ACPBinaries[name], name)); err == nil {
+		if installed(cmp.Or(s.ACPBinaries[name], name)) {
 			v.Status = "checking"
 		}
 		if h, err := s.St.Q.GetHealth(ctx, agentSubject(name)); err == nil {
@@ -74,4 +74,9 @@ func (s *Service) agents(ctx context.Context) []agentView {
 		out = append(out, v)
 	}
 	return out
+}
+
+func installed(bin string) bool {
+	_, err := exec.LookPath(bin)
+	return err == nil
 }

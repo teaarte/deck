@@ -199,6 +199,13 @@ func (c *screenCheck) block(where string, b Block) {
 			}
 			c.format(fmt.Sprintf("%s column %q", where, col.Label), col.Format, col.Currency)
 			c.tone(fmt.Sprintf("%s column %q", where, col.Label), col.Tone, fields)
+			if col.Details != "" {
+				if b.Type != "table" {
+					c.fail("%s column %q: details is a property of a table column", where, col.Label)
+				} else if _, err := compileField(col.Details, fields); err != nil {
+					c.fail("%s column %q details: %v", where, col.Label, err)
+				}
+			}
 		}
 		c.format(where, b.Format, b.Currency)
 		if b.X != "" {

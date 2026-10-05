@@ -280,7 +280,7 @@ func TestInvalidScreenIsRefusedWithItsReason(t *testing.T) {
 		{`{"type": "list", "title": "Waiting here", "source": {"from": "deck.asks_list"}, "item": {"title": "what"}}`,
 			`{"type": "table", "source": {"from": "deck.project_delete"}, "columns": [{"label": "N", "bind": "name"}]}`, `source: deck.project_delete is not a deck command that only reads`},
 		{`{"type": "list", "title": "Waiting here", "source": {"from": "deck.asks_list"}, "item": {"title": "what"}}`,
-			`{"type": "table", "source": {"from": "deck.providers_list"}, "columns": [{"label": "N", "bind": "name"}]}`, `deck.providers_list gives no list of objects`},
+			`{"type": "table", "source": {"from": "deck.models_list"}, "columns": [{"label": "N", "bind": "name"}]}`, `deck.models_list gives no list of objects`},
 		{`{"type": "actions", "title": "Run", "actions": [{"label": "Work", "command": "work"}]}`,
 			`{"type": "card", "fields": [{"label": "T", "bind": "title"}]}`, `a card shows the record of its page`},
 		{`{"type": "actions", "title": "Run", "actions": [{"label": "Work", "command": "work"}]}`,

@@ -105,7 +105,7 @@ func TestRealMasterSwitchesProvider(t *testing.T) {
 	e := newEnvBuiltin(t, home, []provider.Provider{claudecode.New(home), codex.New(home)}, realWaits)
 	topic := e.say(0, "Remember: the code word of this conversation is PELICAN. Reply with OK only.")
 	e.masterReplies(topic, 1)
-	e.must("deck.provider_set", map[string]any{"command": "master.reply", "provider": "codex"}, nil)
+	e.useModels("master.reply", "codex")
 	e.say(topic, "What is the code word of this conversation? Reply with the word only.")
 	onCodex := e.masterReplies(topic, 2)[1]
 	t.Logf("codex: %s", onCodex.Text)
@@ -115,7 +115,7 @@ func TestRealMasterSwitchesProvider(t *testing.T) {
 	if _, pv := e.replySession(topic, 2); pv != "codex" {
 		t.Fatalf("the second reply ran on codex: %s", pv)
 	}
-	e.must("deck.provider_set", map[string]any{"command": "master.reply", "provider": ""}, nil)
+	e.useModels("master.reply")
 	e.say(topic, "The second code word is ZEBRA. Reply with both code words, separated by a space, and nothing else.")
 	back := e.masterReplies(topic, 3)[2]
 	t.Logf("claude-code: %s", back.Text)

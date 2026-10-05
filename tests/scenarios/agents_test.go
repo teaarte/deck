@@ -43,7 +43,7 @@ func TestAgentsAreFoundWithTheirVersion(t *testing.T) {
 		t.Fatalf("the models list shows each agent with its version, and one that is not installed: %+v", m.Agents)
 	}
 	e.must("deck.secret_set", map[string]any{"name": "model_key", "value": "sk-real-model-key"}, nil)
-	e.must("deck.provider_add", map[string]any{"name": "acp", "url": llm.URL, "model": "m", "key_secret": "model_key", "agent": "opencode"}, nil)
+	e.mustAgentModel(map[string]any{"name": "acp", "url": llm.URL, "model": "m", "key_secret": "model_key", "agent": "opencode"})
 	if h := e.waitHealth("provider:acp", "error"); !strings.Contains(h.Error, "1.x") || f.calls() != 0 {
 		t.Fatalf("a model on an opencode deck does not run fails its check for that reason, with no turn: %+v, %d calls", h, f.calls())
 	}

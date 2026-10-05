@@ -327,7 +327,7 @@ func TestFailedCodexSelfCheckHoldsCodexProcesses(t *testing.T) {
 	}
 	on := e.createProject("paint", colorManifest)
 	main := e.createProject("main", colorManifest)
-	e.must("deck.provider_set", map[string]any{"command": "paint.work", "provider": "codex"}, nil)
+	e.useModels("paint.work", "codex")
 	id := e.run(on, "work")
 	e.waitState(id, "waiting_provider")
 	if got := e.waitState(e.run(main, "work"), "done", "error"); got.State != "done" {

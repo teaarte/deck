@@ -169,19 +169,18 @@ func TestShellAndWebCommandsTakeOnlyAProviderInAutoModeWithItsWeb(t *testing.T) 
 	for _, req := range []string{`["sandbox"]`, `["web"]`} {
 		m := strings.Replace(plainManifest, `"class": "internal",`, `"class": "internal", "requires": `+req+`,`, 1)
 		e.createProject("p"+fmt.Sprint(len(req)), m)
-		var list struct {
-			Providers []struct {
-				Name    string
-				Fits    bool
-				Missing []string
-			}
+		var list []struct {
+			Name      string
+			Providers []string
 		}
-		e.must("deck.providers_list", map[string]any{"command": "p" + fmt.Sprint(len(req)) + ".work"}, &list)
-		fits := map[string]bool{}
-		for _, v := range list.Providers {
-			fits[v.Name] = v.Fits
-		}
-		if !fits["claude-code"] {
+		e.must("deck.commands_list", map[string]any{"project": "p" + fmt.Sprint(len(req))}, &list)
+		i := slices.IndexFunc(list, func(c struct {
+			Name      string
+			Providers []string
+		}) bool {
+			return strings.HasSuffix(c.Name, ".work")
+		})
+		if i < 0 || !slices.Contains(list[i].Providers, "claude-code") {
 			t.Fatalf("requires %s: only a provider with a shell in auto mode and its own web fits: %+v", req, list)
 		}
 	}

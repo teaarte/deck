@@ -31,7 +31,7 @@ type commandRow struct {
 }
 
 type commandDescribeIn struct {
-	Command string `desc:"Command name, such as deck.provider_add or project.command"`
+	Command string `desc:"Command name, such as deck.model_set or project.command"`
 }
 
 type commandSpec struct {

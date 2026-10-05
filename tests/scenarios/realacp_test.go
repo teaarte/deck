@@ -81,7 +81,7 @@ func TestRealACPAgents(t *testing.T) {
 				e.must("deck.secret_set", map[string]any{"name": "model_key", "value": key}, nil)
 				add["key_secret"], add["no_cloud"] = "model_key", false
 			}
-			e.must("deck.provider_add", add, nil)
+			e.mustAgentModel(add)
 			var h db.Health
 			for try := 1; try <= 3; try++ {
 				if try > 1 {

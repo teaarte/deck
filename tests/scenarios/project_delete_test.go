@@ -40,7 +40,7 @@ func TestProjectDeleteTakesASnapshotAndLeavesNothingOfTheProject(t *testing.T) {
 	e.must("deck.document_save", map[string]any{"project": "gone", "name": "custom/chart.html", "kind": "custom", "text": "<p>x</p>"}, nil)
 	scan := e.upload("gone", "scan.txt", "text/plain", "a page")
 	e.waitState(e.start("gone", "score", map[string]any{"title": "x", "scan": fmt.Sprint(scan)}), "done")
-	e.must("deck.provider_set", map[string]any{"command": "gone.score", "provider": "fake"}, nil)
+	e.useModels("gone.score", "fake")
 	data := filepath.Join(deckhome.Layout(e.App.Cfg.Home).Work(), "projects", fmt.Sprint(id), "data")
 	if err := os.MkdirAll(data, 0o700); err != nil || os.WriteFile(filepath.Join(data, "keep.txt"), []byte("mine"), 0o600) != nil {
 		t.Fatal(err)

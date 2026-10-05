@@ -42,7 +42,7 @@ func (e *Env) runsOf(project, command string) []procFull {
 func (e *Env) masterAwake() {
 	e.T.Helper()
 	e.must("deck.project_pause", map[string]any{"project": "master", "paused": false}, nil)
-	e.must("deck.provider_set", map[string]any{"command": "master.on_error", "provider": ""}, nil)
+	e.useModels("master.on_error")
 }
 
 func TestReviewRunsOnItsSchedule(t *testing.T) {

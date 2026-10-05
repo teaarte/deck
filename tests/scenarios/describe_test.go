@@ -10,8 +10,8 @@ import (
 // command closed to it, and a call that misses a field says which one in plain words.
 func TestTheMasterReadsTheFieldsOfAFormOnlyTheOwnerFillsIn(t *testing.T) {
 	e := newEnv(t, nil)
-	_, tok := e.token("helper", "deck.command_describe", "deck.provider_add")
-	code, out := e.callWith(tok, "deck.command_describe", map[string]any{"command": "deck.provider_add"})
+	_, tok := e.token("helper", "deck.command_describe", "deck.model_set")
+	code, out := e.callWith(tok, "deck.command_describe", map[string]any{"command": "deck.model_set"})
 	var spec struct {
 		Name    string
 		Callers []string
@@ -23,16 +23,16 @@ func TestTheMasterReadsTheFieldsOfAFormOnlyTheOwnerFillsIn(t *testing.T) {
 	if code != 200 || json.Unmarshal(out, &spec) != nil {
 		t.Fatalf("command_describe: %d %s", code, out)
 	}
-	if spec.Name != "deck.provider_add" || len(spec.Callers) != 1 || spec.Callers[0] != "owner" ||
+	if spec.Name != "deck.model_set" || len(spec.Callers) != 1 || spec.Callers[0] != "owner" ||
 		strings.Join(spec.Input.Properties["agent"].Enum, ",") != "dsh,opencode" {
-		t.Fatalf("the master sees the fields of the provider form and the agents to pick: %s", out)
+		t.Fatalf("the master sees the fields of the model form and the agents to pick: %s", out)
 	}
-	if code, out := e.callWith(tok, "deck.provider_add", map[string]any{"name": "x", "url": "http://localhost:1/v1", "model": "m", "agent": "dsh"}); code != 403 {
+	if code, out := e.callWith(tok, "deck.model_set", map[string]any{"connection": "x", "model": "m", "agent": "dsh"}); code != 403 {
 		t.Fatalf("describing a command does not open it: %d %s", code, out)
 	}
-	e.refused("deck.provider_add", map[string]any{"name": "x", "url": "http://localhost:1/v1", "model": "m"}, 422,
-		"input of deck.provider_add: missing property 'agent'; deck.command_describe gives its parameters")
-	e.refused("deck.provider_add", map[string]any{"name": "x", "url": "http://localhost:1/v1", "model": "m", "agent": "foo"}, 422,
+	e.refused("deck.model_set", map[string]any{"connection": "x"}, 422,
+		"input of deck.model_set: missing property 'model'; deck.command_describe gives its parameters")
+	e.refused("deck.model_set", map[string]any{"connection": "x", "model": "m", "agent": "foo"}, 422,
 		"agent: value must be one of 'dsh', 'opencode'")
 }
 

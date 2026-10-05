@@ -6,11 +6,8 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
-	"net"
 	"net/http"
-	"net/url"
 	"slices"
 	"strconv"
 	"strings"
@@ -19,6 +16,7 @@ import (
 	"deck2/internal/app/access"
 	"deck2/internal/gateway"
 	"deck2/internal/health"
+	"deck2/internal/manifest"
 	"deck2/internal/process"
 	"deck2/internal/provider/acp"
 	"deck2/internal/registry"
@@ -140,6 +138,9 @@ func (s *Service) modelsList(ctx context.Context, act registry.Actor, _ struct{}
 	}
 	for _, c := range conns {
 		v := connectionView{Name: c.Name, API: c.Api, URL: c.Url, Key: "none", Local: c.Local != 0, DailyUSD: nullable(c.DailyUsd)}
+		if strings.ContainsAny(c.Url, "@?#") {
+			v.URL = "(an address with a key in it; set it again without)"
+		}
 		if c.KeySecret != "" {
 			v.Key = "secret " + c.KeySecret
 		}
@@ -199,10 +200,24 @@ func (s *Service) assignmentSet(ctx context.Context, act registry.Actor, in assi
 		}
 		project = p.ID
 	}
+	var cmd *manifest.Command
+	if in.Role == RoleAgent && in.Command != "" {
+		var err error
+		if _, cmd, err = s.agentCommand(ctx, act.Workspace, in.Project+"."+in.Command); err != nil {
+			return nil, err
+		}
+	}
 	for _, name := range in.Models {
 		if in.Role == RoleAgent {
-			if _, err := s.Provider(ctx, act.Workspace, name); err != nil {
+			pv, err := s.Provider(ctx, act.Workspace, name)
+			if err != nil {
 				return nil, err
+			}
+			if cmd == nil {
+				continue
+			}
+			if missing := pv.Caps().Missing(cmd.Requires); len(missing) > 0 {
+				return nil, registry.Invalid("deck: provider %s does not fit %s.%s: it lacks %s", name, in.Project, in.Command, strings.Join(missing, ", "))
 			}
 			continue
 		}
@@ -225,54 +240,6 @@ func (s *Service) assignmentSet(ctx context.Context, act registry.Actor, in assi
 		return nil, err
 	}
 	return map[string]any{"role": in.Role, "project": in.Project, "command": in.Command, "models": in.Models}, nil
-}
-
-// connectionFor is the connection of an address and key in the workspace, added under a name of its own when
-// there is none yet.
-func connectionFor(ctx context.Context, q *db.Queries, workspace int64, rawURL, keySecret string, local bool) (db.Connection, error) {
-	c, err := q.FindConnection(ctx, db.FindConnectionParams{WorkspaceID: workspace, Url: rawURL, KeySecret: keySecret})
-	if err == nil {
-		if local && c.Local == 0 {
-			c.Local = 1
-			return q.AddConnection(ctx, db.AddConnectionParams{WorkspaceID: workspace, Name: c.Name, Api: c.Api, Url: c.Url, KeySecret: c.KeySecret,
-				Local: 1, DailyUsd: c.DailyUsd})
-		}
-		return c, nil
-	}
-	if !errors.Is(err, sql.ErrNoRows) {
-		return c, err
-	}
-	base := connectionName(rawURL, keySecret)
-	name := base
-	for n := 2; ; n++ {
-		if _, err := q.GetConnection(ctx, db.GetConnectionParams{WorkspaceID: workspace, Name: name}); errors.Is(err, sql.ErrNoRows) {
-			break
-		}
-		name = fmt.Sprintf("%s-%d", base, n)
-	}
-	return q.AddConnection(ctx, db.AddConnectionParams{WorkspaceID: workspace, Name: name, Api: "openai", Url: rawURL, KeySecret: keySecret, Local: b2i(local)})
-}
-
-// connectionName is a name for a new connection: its key's secret, else local for this machine and the network
-// of the owner, else the name of the host's site.
-func connectionName(rawURL, keySecret string) string {
-	if name := strings.ToLower(strings.NewReplacer("_", "-", ".", "-").Replace(keySecret)); access.ProjectName.MatchString(name) {
-		return name
-	}
-	u, err := url.Parse(rawURL)
-	if err != nil {
-		return "connection"
-	}
-	host := u.Hostname()
-	if ip := net.ParseIP(host); ip != nil || host == "localhost" || !strings.Contains(host, ".") {
-		return "local"
-	}
-	labels := strings.Split(host, ".")
-	name := strings.ToLower(labels[max(0, len(labels)-2)])
-	if !access.ProjectName.MatchString(name) {
-		return "connection"
-	}
-	return name
 }
 
 func b2i(b bool) int64 {
@@ -440,8 +407,6 @@ func (s *Service) checkAgent(ctx context.Context, workspace int64, c db.Connecti
 	switch {
 	case acp.Agents[in.Agent].Start == nil:
 		return registry.Invalid("deck: no ACP agent %q; deck knows %s", in.Agent, strings.Join(acp.Names(), ", "))
-	case !installed(cmp.Or(s.ACPBinaries[in.Agent], in.Agent)):
-		return registry.Invalid("deck: %s is not installed on this machine", in.Agent)
 	case !access.ProjectName.MatchString(in.Name) || s.builtinNamed(in.Name) != nil:
 		return registry.Invalid("deck: a model in an agent is a provider; name it with lowercase letters, digits and '-', not %q or a built-in provider", in.Name)
 	case c.Api != "openai":
@@ -450,10 +415,15 @@ func (s *Service) checkAgent(ctx context.Context, workspace int64, c db.Connecti
 		return registry.Invalid("deck: check_minutes is 1 to 60, or 0 for deck's own ceiling")
 	}
 	n, err := s.St.Q.ModelInOtherWorkspace(ctx, db.ModelInOtherWorkspaceParams{Name: in.Name, WorkspaceID: workspace})
-	if err == nil && n > 0 {
+	switch {
+	case err != nil:
+		return err
+	case n > 0:
 		return registry.Invalid("deck: another workspace has a provider %q; its health and self-check go by name, so pick another", in.Name)
+	case !installed(cmp.Or(s.ACPBinaries[in.Agent], in.Agent)):
+		return registry.Invalid("deck: %s is not installed on this machine", in.Agent)
 	}
-	return err
+	return nil
 }
 
 func positive(f float64) sql.NullFloat64 { return sql.NullFloat64{Float64: f, Valid: f > 0} }

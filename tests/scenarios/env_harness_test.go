@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -128,7 +129,7 @@ func newEnvBuiltin(t *testing.T, home string, ps []provider.Provider, cfg ...fun
 	})
 	e := &Env{T: t, App: a, URL: base, Side: side.URL, names: map[int64]string{}, Browser: browser, Probes: probes}
 	// The master looks into failed processes on a provider of its own, so tests of failures see only their calls.
-	e.must("deck.provider_set", map[string]any{"command": "master.on_error", "provider": "quiet"}, nil)
+	e.useModels("master.on_error", "quiet")
 	// Its schedule stays out of the clocks of tests; a test of the master's own triggers resumes them.
 	e.must("deck.project_pause", map[string]any{"project": "master", "paused": true}, nil)
 	return e
@@ -156,6 +157,43 @@ func (e *Env) do(method, path string, body any) (int, []byte) {
 func (e *Env) call(name string, input any) (int, []byte) {
 	e.T.Helper()
 	return e.do("POST", "/api/commands/"+name, input)
+}
+
+// useModels assigns the models an agent command, project.command, runs on, as the owner does on the Models tab; none
+// goes back to the default.
+func (e *Env) useModels(command string, models ...string) {
+	e.T.Helper()
+	project, cmd, _ := strings.Cut(command, ".")
+	e.must("deck.assignment_set", map[string]any{"role": "agent", "project": project, "command": cmd, "models": append([]string{}, models...)}, nil)
+}
+
+// agentModel adds a model an ACP agent runs on a connection of the same name, as the owner does in Settings, from
+// name, url, model, agent, key_secret, no_cloud and check_minutes; it gives the outcome of the first call that failed.
+func (e *Env) agentModel(in map[string]any) (int, []byte) {
+	e.T.Helper()
+	conn := map[string]any{"name": in["name"], "api": "openai", "url": in["url"]}
+	if v, ok := in["key_secret"]; ok {
+		conn["key_secret"] = v
+	}
+	if v, ok := in["no_cloud"]; ok {
+		conn["local"] = v
+	}
+	if code, out := e.call("deck.connection_set", conn); code != 200 {
+		return code, out
+	}
+	model := map[string]any{"connection": in["name"], "name": in["name"], "model": in["model"], "agent": in["agent"]}
+	if v, ok := in["check_minutes"]; ok {
+		model["check_minutes"] = v
+	}
+	return e.call("deck.model_set", model)
+}
+
+// mustAgentModel is agentModel that must succeed.
+func (e *Env) mustAgentModel(in map[string]any) {
+	e.T.Helper()
+	if code, out := e.agentModel(in); code != 200 {
+		e.T.Fatalf("add model %v: %d %s", in["name"], code, out)
+	}
 }
 
 // must invokes a command, fails the test on an error status and decodes the result into out.

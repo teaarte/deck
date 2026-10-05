@@ -54,8 +54,8 @@ func TestFormFieldsOfferValuesFromASourceAndProjectFieldsTheProjects(t *testing.
 			continue
 		}
 		pick := verb(t, r.Actions, "provider")
-		if opts, _ := pick["options"].([]any); len(opts) == 0 || opts[0] != "fake" || pick["input"] != "provider" {
-			t.Fatalf("the provider of an agent command is picked from the providers in its row: %+v", pick)
+		if params, _ := pick["params"].(map[string]any); pick["screen"] != "settings" || params["dialog"] != "assign" || params["command"] != strings.TrimPrefix(r.Cells[1].(string), "web.") {
+			t.Fatalf("the provider of an agent command is picked in the dialog of its models: %+v", pick)
 		}
 		cmds = append(cmds, r.Cells[1].(string))
 	}
@@ -63,9 +63,13 @@ func TestFormFieldsOfferValuesFromASourceAndProjectFieldsTheProjects(t *testing.
 		t.Fatalf("every agent command of the project has its provider button: %v", cmds)
 	}
 	e.must("deck.secret_set", map[string]any{"name": "or-key", "value": "x"}, nil)
-	add := blockData[struct{ Choices map[string][]choiceV }](t, e.screenForm("", "settings", "deck.provider_add")["value"])
+	add := blockData[struct{ Choices map[string][]choiceV }](t, e.screenForm("", "settings", "deck.connection_set")["value"])
 	if k := add.Choices["key_secret"]; len(k) != 1 || k[0].Value != "or-key" {
-		t.Fatalf("the key of a provider is picked from the secrets: %+v", add.Choices)
+		t.Fatalf("the key of a connection is picked from the secrets: %+v", add.Choices)
+	}
+	assign := blockData[struct{ Choices map[string][]choiceV }](t, e.screenForm("web", "settings", "deck.assignment_set")["value"])
+	if m := assign.Choices["models"]; len(m) == 0 || m[0].Value != "fake" {
+		t.Fatalf("the models of a command are picked from the models in an agent: %+v", assign.Choices)
 	}
 
 	for _, tc := range []struct{ from, to, want string }{

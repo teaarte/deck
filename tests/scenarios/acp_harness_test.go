@@ -124,15 +124,15 @@ func acpEnv(t *testing.T, f *fakeACP, agent string, llm *fakeLLM, cfg ...func(*a
 		t.Fatalf("the self-check of the fake agent is green and tells the speed of the model: %+v, %d calls", h, f.calls())
 	}
 	var pl struct {
-		Providers []struct {
+		Models []struct {
 			Name, Agent string
 			Speed       float64
 		}
 	}
-	e.must("deck.providers_list", nil, &pl)
-	for _, p := range pl.Providers {
+	e.must("deck.models_list", nil, &pl)
+	for _, p := range pl.Models {
 		if p.Name == "acp" && (p.Agent != agent || p.Speed != h.Speed) {
-			t.Fatalf("the providers list shows the agent and the speed of the model: %+v", p)
+			t.Fatalf("the models list shows the agent and the speed of the model: %+v", p)
 		}
 	}
 	return e
@@ -147,7 +147,7 @@ func acpAdded(t *testing.T, f *fakeACP, agent string, llm *fakeLLM, cfg ...func(
 		c.ACPCallLimit = 2 * time.Second
 	}}, cfg...)...)
 	e.must("deck.secret_set", map[string]any{"name": "model_key", "value": "sk-real-model-key"}, nil)
-	e.must("deck.provider_add", map[string]any{"name": "acp", "url": llm.URL, "model": "m", "key_secret": "model_key", "agent": agent}, nil)
+	e.mustAgentModel(map[string]any{"name": "acp", "url": llm.URL, "model": "m", "key_secret": "model_key", "agent": agent})
 	var h db.Health
 	e.waitFor("the self-check of the ACP provider", func() bool {
 		var err error
@@ -166,7 +166,7 @@ func (e *Env) acpProject(name, manifest string) int64 {
 	}
 	_ = json.Unmarshal([]byte(manifest), &m)
 	for _, c := range m.Commands {
-		e.must("deck.provider_set", map[string]any{"command": name + "." + c.Name, "provider": "acp"}, nil)
+		e.useModels(name+"."+c.Name, "acp")
 	}
 	return p
 }
@@ -190,8 +190,8 @@ func (e *Env) addACP(f *fakeACP, from int, name, agent string, llm *fakeLLM, noC
 		f.stream(from+i-1, "selfcheck_"+strconv.Itoa(i)+".jsonl")
 	}
 	e.must("deck.secret_set", map[string]any{"name": name + "-key", "value": "sk-" + name}, nil)
-	e.must("deck.provider_add", map[string]any{"name": name, "url": llm.URL, "model": "asked-model", "agent": agent,
-		"key_secret": name + "-key", "no_cloud": noCloud}, nil)
+	e.mustAgentModel(map[string]any{"name": name, "url": llm.URL, "model": "asked-model", "agent": agent,
+		"key_secret": name + "-key", "no_cloud": noCloud})
 	e.waitFor("the self-check of "+name, func() bool {
 		h, err := e.App.Store.Q.GetHealth(e.T.Context(), "provider:"+name)
 		return err == nil && h.Status == "ok"

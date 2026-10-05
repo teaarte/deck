@@ -174,19 +174,26 @@ func TestRealBrowserSettings(t *testing.T) {
 	row := `[...document.querySelectorAll('tr')].find((r) => r.innerText.includes('web.score'))`
 	b.until("the commands of the project", row)
 	b.eval(pressIn(row, "provider"))
-	b.until("the providers to pick from in the row", row+`.querySelector('[data-options]')`)
-	b.pick(`tr:has([data-options]) [data-options]`, "fake")
-	b.eval(`([...` + row + `.querySelectorAll('button')].find((x) => x.innerText.trim() === 'Send').click(), '')`)
-	e.waitFor("the provider set", func() bool {
-		var got struct{ Chosen string }
-		e.must("deck.providers_list", map[string]any{"command": "web.score"}, &got)
-		return got.Chosen == "fake"
-	})
-	var chosen struct{ Chosen string }
-	e.must("deck.providers_list", map[string]any{"command": "web.score"}, &chosen)
-	if chosen.Chosen != "fake" {
-		t.Fatalf("the command and provider picked from the lists are set: %+v", chosen)
+	models := `[data-form="deck.assignment_set"] input[data-field="models"]`
+	b.until("the dialog of the models of the command", `document.querySelector('`+models+`')`)
+	b.pick(models, "fake")
+	b.eval(`(document.querySelector('[data-form="deck.assignment_set"] [data-submit]').click(), '')`)
+	assigned := func() string {
+		var m struct {
+			Assignments []struct {
+				Project, Command, Role string
+				Models                 []string
+			}
+		}
+		e.must("deck.models_list", nil, &m)
+		for _, a := range m.Assignments {
+			if a.Project == "web" && a.Command == "score" && a.Role == "agent" {
+				return strings.Join(a.Models, ",")
+			}
+		}
+		return ""
 	}
+	e.waitFor("the models of the command", func() bool { return assigned() == "fake" })
 
 	b.call("browser_resize", map[string]any{"width": 390, "height": 844})
 	b.open(e.URL + "/#/deck/settings")

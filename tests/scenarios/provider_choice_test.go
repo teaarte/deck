@@ -27,27 +27,20 @@ func TestNoCloudCommandDoesNotTakeACloudProvider(t *testing.T) {
 	if code, body := e.call("notes.collect", map[string]any{}); code == 200 || !strings.Contains(string(body), "no provider fits") {
 		t.Fatalf("with no provider on own hardware the command does not start: %d %s", code, body)
 	}
-	if code, body := e.call("deck.provider_set", map[string]any{"command": "notes.collect", "provider": "cloud"}); code == 200 ||
+	if code, body := e.call("deck.assignment_set", map[string]any{"role": "agent", "project": "notes", "command": "collect", "models": []string{"cloud"}}); code == 200 ||
 		!strings.Contains(string(body), "no_cloud") {
 		t.Fatalf("a cloud provider is not picked for a command that stays off the cloud: %d %s", code, body)
 	}
 	e.addACP(local, 1, "local", "dsh", acpLLM(t), true)
-	var list struct {
-		Effective string `json:"effective"`
-		Providers []struct {
-			Name string `json:"name"`
-			Fits bool   `json:"fits"`
-		} `json:"providers"`
+	var list []struct {
+		Name, Provider string
+		Providers      []string
 	}
-	e.must("deck.providers_list", map[string]any{"command": "notes.collect"}, &list)
-	fits := map[string]bool{}
-	for _, v := range list.Providers {
-		fits[v.Name] = v.Fits
-	}
-	if list.Effective != "local" || fits["fake"] || fits["cloud"] || !fits["local"] {
+	e.must("deck.commands_list", map[string]any{"project": "notes"}, &list)
+	if list[0].Name != "notes.collect" || list[0].Provider != "local" || !slices.Equal(list[0].Providers, []string{"local"}) {
 		t.Fatalf("only the provider on own hardware fits: %+v", list)
 	}
-	e.must("deck.provider_set", map[string]any{"command": "notes.collect", "provider": "local"}, nil)
+	e.useModels("notes.collect", "local")
 	local.streamText(4, acpTurn(`{"written": 0}`))
 	if got := e.waitState(e.run(p, "collect"), "done", "error"); got.State != "done" || local.calls() != 4 {
 		t.Fatalf("the command runs on the chosen provider: %+v", got)
@@ -83,19 +76,17 @@ func TestProviderIsSwitchedWithoutARestart(t *testing.T) {
 	if got := e.waitState(e.run(p, "work"), "done"); string(got.Result) != `"from the main provider"` {
 		t.Fatalf("without a setting the main provider runs: %+v", got)
 	}
-	e.must("deck.provider_set", map[string]any{"command": "plain.work", "provider": "api"}, nil)
+	e.useModels("plain.work", "api")
 	if got := e.waitState(e.run(p, "work"), "done"); string(got.Result) != `"from the API"` {
 		t.Fatalf("the setting takes effect at the next start: %+v", got)
 	}
-	var list struct {
-		Chosen string `json:"chosen"`
-	}
-	e.must("deck.providers_list", map[string]any{"command": "plain.work"}, &list)
-	e.must("deck.provider_set", map[string]any{"command": "plain.work", "provider": ""}, nil)
-	if got := e.waitState(e.run(p, "work"), "done"); list.Chosen != "api" || string(got.Result) != `"from the main provider"` {
+	var list []struct{ Name, Provider string }
+	e.must("deck.commands_list", map[string]any{"project": "plain"}, &list)
+	e.useModels("plain.work")
+	if got := e.waitState(e.run(p, "work"), "done"); list[0].Provider != "api" || string(got.Result) != `"from the main provider"` {
 		t.Fatalf("an empty setting goes back to the default: %+v %+v", list, got)
 	}
-	if code, _ := e.call("deck.provider_set", map[string]any{"command": "plain.nothing", "provider": "api"}); code == 200 {
+	if code, _ := e.call("deck.assignment_set", map[string]any{"role": "agent", "project": "plain", "command": "nothing", "models": []string{"api"}}); code == 200 {
 		t.Fatal("only agent commands take a provider")
 	}
 	suggests := strings.Replace(plainManifest, `"class": "internal",`, `"class": "internal", "provider": "api",`, 1)
@@ -111,7 +102,7 @@ func TestProviderWithoutAKeySendsNone(t *testing.T) {
 	local.selfCheck()
 	local.streamText(4, acpTurn(`"ok"`))
 	llm := acpLLM(t)
-	e.must("deck.provider_add", map[string]any{"name": "acp", "url": llm.URL, "model": "m", "agent": "opencode", "no_cloud": true}, nil)
+	e.mustAgentModel(map[string]any{"name": "acp", "url": llm.URL, "model": "m", "agent": "opencode", "no_cloud": true})
 	e.waitFor("the self-check", func() bool {
 		h, err := e.App.Store.Q.GetHealth(t.Context(), "provider:acp")
 		return err == nil && h.Status == "ok"
@@ -121,10 +112,6 @@ func TestProviderWithoutAKeySendsNone(t *testing.T) {
 		if r.Auth != "" {
 			t.Fatalf("deck's own OPENAI_API_KEY never reaches a provider: %q", r.Auth)
 		}
-	}
-	if code, body := e.call("deck.provider_add", map[string]any{"name": "bare", "url": llm.URL, "model": "m"}); code != 422 ||
-		!strings.Contains(string(body), "agent") {
-		t.Fatalf("a provider runs in an ACP agent: %d %s", code, body)
 	}
 }
 
@@ -146,19 +133,19 @@ func TestProviderURLCarriesNoKey(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`{}`)}
 	})
 	for _, u := range []string{"https://me:sk-1@openrouter.example/api/v1", "https://api.example/v1?key=sk-1"} {
-		code, out := e.call("deck.provider_add", map[string]any{"name": "cloud", "url": u, "model": "m", "agent": "opencode"})
-		if code == 200 || !strings.Contains(string(out), "key_secret") {
-			t.Fatalf("a provider URL with a key in it is refused and points to key_secret: %s → %d %s", u, code, out)
+		code, out := e.agentModel(map[string]any{"name": "cloud", "url": u, "model": "m", "agent": "opencode"})
+		if code == 200 || !strings.Contains(string(out), "give the key in key") {
+			t.Fatalf("a connection URL with a key in it is refused and points to the key field: %s → %d %s", u, code, out)
 		}
 	}
-	e.must("deck.provider_add", map[string]any{"name": "cloud", "url": "https://api.example/v1", "model": "m", "key_secret": "k", "agent": "opencode"}, nil)
+	e.mustAgentModel(map[string]any{"name": "cloud", "url": "https://api.example/v1", "model": "m", "key_secret": "k", "agent": "opencode"})
 	_, err := e.App.Store.DB.Exec(`INSERT INTO connection (workspace_id, name, url) VALUES (1, 'old', 'https://api.example/v1?key=sk-stored');
 		INSERT INTO model (workspace_id, connection_id, name, model, agent) SELECT 1, id, 'old', 'm', 'opencode' FROM connection WHERE name = 'old'`)
 	if err != nil {
 		t.Fatal(err)
 	}
 	var list map[string]any
-	e.must("deck.providers_list", nil, &list)
+	e.must("deck.models_list", nil, &list)
 	if strings.Contains(fmt.Sprint(list), "sk-stored") {
 		t.Fatalf("a provider stored with a key in its url is neither shown nor used: %v", list)
 	}
@@ -177,7 +164,7 @@ func TestTheProviderColumnFollowsProviderSet(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	phone := e.sse(ctx)
-	e.must("deck.provider_set", map[string]any{"command": "plain.work", "provider": "api"}, nil)
+	e.useModels("plain.work", "api")
 	waitTopic(t, phone, "projects")
 	drawn, _ := json.Marshal(e.screenMessages("plain", "settings", map[string]any{"topic": "projects", "changed": "plain"}))
 	if !strings.Contains(string(drawn), `"cells":["Work","plain.work","agent","api"]`) {
@@ -185,8 +172,8 @@ func TestTheProviderColumnFollowsProviderSet(t *testing.T) {
 	}
 }
 
-// TestTheCommandsOfAProjectOfferOnlyProvidersThatFit: the provider picker of a command lists only the providers
-// provider_set would take for it.
+// TestTheCommandsOfAProjectOfferOnlyProvidersThatFit: the commands of a project list only the providers an
+// assignment of the command would take.
 func TestTheCommandsOfAProjectOfferOnlyProvidersThatFit(t *testing.T) {
 	e, cloud, local := acpPair(t, ok)
 	e.addACP(cloud, 1, "cloud", "opencode", acpLLM(t), false)

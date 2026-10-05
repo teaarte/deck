@@ -323,10 +323,10 @@ func TestACPSelfCheckPastItsCeilingSaysWhy(t *testing.T) {
 			if h.Status != tc.health || !strings.Contains(h.Error, tc.wants) || strings.Contains(h.Error, "stronger") {
 				t.Fatalf("want %s with %q: %+v", tc.health, tc.wants, h)
 			}
-			var pl struct{ Providers []struct{ Name, Key string } }
-			e.must("deck.providers_list", nil, &pl)
-			if i := slices.IndexFunc(pl.Providers, func(p struct{ Name, Key string }) bool { return p.Name == "acp" }); i < 0 || pl.Providers[i].Key != "secret model_key" {
-				t.Fatalf("the providers list tells how the key of a provider is passed: %+v", pl.Providers)
+			var pl struct{ Connections []struct{ Name, Key string } }
+			e.must("deck.models_list", nil, &pl)
+			if i := slices.IndexFunc(pl.Connections, func(p struct{ Name, Key string }) bool { return p.Name == "acp" }); i < 0 || pl.Connections[i].Key != "secret model_key" {
+				t.Fatalf("the models list tells how the key of a connection is passed: %+v", pl.Connections)
 			}
 		})
 	}
@@ -364,12 +364,12 @@ func TestACPSelfCheckIsRedWhenTheSandboxOrTheProxyFails(t *testing.T) {
 			t.Fatalf("the self-check is red with %q, told as %q: %+v", tc.want, tc.verdict, h)
 		}
 		var pl struct {
-			Providers []struct{ Agent, Verdict string }
+			Models []struct{ Agent, Verdict string }
 		}
-		e.must("deck.providers_list", nil, &pl)
+		e.must("deck.models_list", nil, &pl)
 		verdict := map[string]string{adapter: "adapter", model: "model"}[tc.verdict]
-		if i := slices.IndexFunc(pl.Providers, func(p struct{ Agent, Verdict string }) bool { return p.Agent == "dsh" }); i < 0 || pl.Providers[i].Verdict != verdict {
-			t.Fatalf("the providers list shows the agent and the verdict %q: %+v", verdict, pl.Providers)
+		if i := slices.IndexFunc(pl.Models, func(p struct{ Agent, Verdict string }) bool { return p.Agent == "dsh" }); i < 0 || pl.Models[i].Verdict != verdict {
+			t.Fatalf("the models list shows the agent and the verdict %q: %+v", verdict, pl.Models)
 		}
 		for _, r := range blockData[[]screenRow](t, e.settingsBlock("Models", nil)["rows"]) {
 			if r.Cells[0] == "acp" && !hasVerb(r.Actions, "check") {
@@ -512,7 +512,7 @@ func TestACPProviderNameIsUniqueAcrossWorkspaces(t *testing.T) {
 	if _, err := e.App.Store.DB.ExecContext(ctx, `INSERT INTO model (workspace_id, connection_id, name, model, agent) VALUES (2, 9, 'shared', 'm', 'dsh')`); err != nil {
 		t.Fatal(err)
 	}
-	code, out := e.call("deck.provider_add", map[string]any{"name": "shared", "url": "http://localhost:1/v1", "model": "m", "agent": "dsh"})
+	code, out := e.agentModel(map[string]any{"name": "shared", "url": "http://localhost:1/v1", "model": "m", "agent": "dsh"})
 	if code != 422 || !strings.Contains(string(out), "another workspace") {
 		t.Fatalf("a provider name of another workspace is refused: %d %s", code, out)
 	}
@@ -534,9 +534,9 @@ func TestACPProviderChangedDuringItsSelfCheckIsCheckedAgain(t *testing.T) {
 		c.ACPBinaries = map[string]string{"dsh": filepath.Join(f.dir, "dsh")}
 		c.Sandbox = fakeDirSandbox{sandbox.New(), f.dir, nil}
 	})
-	e.must("deck.provider_add", map[string]any{"name": "acp", "url": llm.URL, "model": "m", "agent": "dsh"}, nil)
+	e.mustAgentModel(map[string]any{"name": "acp", "url": llm.URL, "model": "m", "agent": "dsh"})
 	e.waitFor("the first check", func() bool { return f.calls() >= 1 })
-	e.must("deck.provider_add", map[string]any{"name": "acp", "url": llm.URL, "model": "m2", "agent": "dsh"}, nil)
+	e.mustAgentModel(map[string]any{"name": "acp", "url": llm.URL, "model": "m2", "agent": "dsh"})
 	e.waitWithin("the second check", 40*time.Second, func() bool {
 		h, _ := e.App.Store.Q.GetHealth(t.Context(), "provider:acp")
 		return f.calls() >= 6 && h.Status == "ok"
@@ -593,13 +593,13 @@ func TestACPProviderIsNotUsedBeforeItsFirstSelfCheck(t *testing.T) {
 	p := e.createProject("paint", colorManifest)
 	e.must("deck.secret_set", map[string]any{"name": "k", "value": "v"}, nil)
 	go func() {
-		_, _ = e.call("deck.provider_add", map[string]any{"name": "acp", "url": llm.URL, "model": "m", "agent": "dsh"})
+		_, _ = e.agentModel(map[string]any{"name": "acp", "url": llm.URL, "model": "m", "agent": "dsh"})
 	}()
 	e.waitFor("the provider", func() bool {
 		_, err := e.App.Store.Q.GetModel(t.Context(), db.GetModelParams{WorkspaceID: 1, Name: "acp"})
 		return err == nil
 	})
-	e.must("deck.provider_set", map[string]any{"command": "paint.work", "provider": "acp"}, nil)
+	e.useModels("paint.work", "acp")
 	id := e.run(p, "work")
 	e.waitFor("the self-check", func() bool {
 		h, err := e.App.Store.Q.GetHealth(t.Context(), "provider:acp")
@@ -622,7 +622,7 @@ func TestAProviderTakesItsOwnSelfCheckCeiling(t *testing.T) {
 		c.ACPCallLimit = 2 * time.Second
 		c.SelfCheckCeiling = time.Second
 	})
-	e.must("deck.provider_add", map[string]any{"name": "acp", "url": llm.URL, "model": "m", "agent": "dsh", "check_minutes": 1}, nil)
+	e.mustAgentModel(map[string]any{"name": "acp", "url": llm.URL, "model": "m", "agent": "dsh", "check_minutes": 1})
 	time.Sleep(2500 * time.Millisecond)
 	h, err := e.App.Store.Q.GetHealth(t.Context(), "provider:acp")
 	if err != nil || h.Status != "checking" {

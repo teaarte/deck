@@ -109,7 +109,7 @@ func TestAnotherProviderGetsTheRetelling(t *testing.T) {
 	e.say(topic, "two")
 	e.masterSaid(topic, 2)
 
-	e.must("deck.provider_set", map[string]any{"command": "master.reply", "provider": "other"}, nil)
+	e.useModels("master.reply", "other")
 	e.say(topic, "three")
 	e.masterSaid(topic, 3)
 	c := other.Calls()[0]
@@ -125,7 +125,7 @@ func TestAnotherProviderGetsTheRetelling(t *testing.T) {
 		t.Fatalf("the new message comes after the retelling:\n%s", c.Prompt)
 	}
 
-	e.must("deck.provider_set", map[string]any{"command": "master.reply", "provider": ""}, nil)
+	e.useModels("master.reply")
 	e.say(topic, "four")
 	e.masterSaid(topic, 4)
 	back := main.Calls()[2]
@@ -140,10 +140,10 @@ func TestAnotherProviderGetsTheRetelling(t *testing.T) {
 	mu.Lock()
 	summarize = true
 	mu.Unlock()
-	e.must("deck.provider_set", map[string]any{"command": "master.reply", "provider": "other"}, nil)
+	e.useModels("master.reply", "other")
 	e.say(topic, "five")
 	e.masterSaid(topic, 5)
-	e.must("deck.provider_set", map[string]any{"command": "master.reply", "provider": "third"}, nil)
+	e.useModels("master.reply", "third")
 	e.say(topic, "six")
 	e.masterSaid(topic, 6)
 	fresh := third.Calls()[0]

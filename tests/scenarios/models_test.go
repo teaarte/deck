@@ -130,18 +130,15 @@ func TestTheProvidersOfABaseFromBeforeAreConnectionsModelsAndAssignments(t *test
 		t.Fatalf("the provider of a command and speech to text are assignments: %v", got)
 	}
 
-	var list struct {
-		Providers []struct{ Name, Key, Connection string }
-		Chosen    string
+	var cmds []struct{ Name, Provider string }
+	e.must("deck.commands_list", map[string]any{"project": "plain"}, &cmds)
+	conn := map[string]string{}
+	for _, x := range m.Models {
+		conn[x.Name] = x.Connection
 	}
-	e.must("deck.providers_list", map[string]any{"command": "plain.work"}, &list)
-	keys := map[string]string{}
-	for _, pv := range list.Providers {
-		keys[pv.Name] = pv.Connection + " " + pv.Key
-	}
-	if list.Chosen != "openrouter-thinkingmachines-free" || len(keys) != len(e.App.Providers.Builtin)+7 || keys["openrouter-qwen-free"] != "openrouter secret openrouter" ||
-		keys["local-qwen"] != "local none" {
-		t.Fatalf("the providers are the models with an agent, the command keeps its own: %+v", list)
+	if i := slices.IndexFunc(cmds, func(c struct{ Name, Provider string }) bool { return c.Name == "plain.work" }); i < 0 ||
+		cmds[i].Provider != "openrouter-thinkingmachines-free" || conn["openrouter-qwen-free"] != "openrouter" || conn["local-qwen"] != "local" {
+		t.Fatalf("the providers are the models with an agent, the command keeps its own: %+v %v", cmds, conn)
 	}
 	var left int
 	if err := e.App.Store.DB.QueryRow(`SELECT count(*) FROM setting WHERE key LIKE 'provider:%' OR key = 'setting:stt'`).Scan(&left); err != nil || left != 0 {
@@ -344,7 +341,7 @@ func TestAnAgentTurnPastTheDayOfItsConnectionPausesUntilTheDayEnds(t *testing.T)
 	f.streamText(5, acpStream(acpInit, `{"reply": "session/new", "result": {"sessionId": "s-2"}}`, `{"reply": "session/prompt"}`, acpModel,
 		`{"fail": {"code": -32603, "message": "Internal error: turn failed"}}`))
 	e := acpEnv(t, f, "dsh", llm)
-	e.must("deck.model_set", map[string]any{"connection": "model-key", "model": "m", "name": "acp", "input_usd": 1000, "output_usd": 2000}, nil)
+	e.must("deck.model_set", map[string]any{"connection": "acp", "model": "m", "name": "acp", "input_usd": 1000, "output_usd": 2000}, nil)
 	p := e.acpProject("paint", colorManifest)
 	if got := e.waitState(e.run(p, "work"), "done", "error"); got.State != "done" {
 		t.Fatalf("the first turn runs: %+v", got)
@@ -358,14 +355,14 @@ func TestAnAgentTurnPastTheDayOfItsConnectionPausesUntilTheDayEnds(t *testing.T)
 	e.must("deck.models_list", nil, &m)
 	url := ""
 	for _, c := range m.Connections {
-		if c.Name == "model-key" {
+		if c.Name == "acp" {
 			url = c.URL
 		}
 	}
-	e.must("deck.connection_set", map[string]any{"name": "model-key", "api": "openai", "url": url, "daily_usd": 0.1}, nil)
+	e.must("deck.connection_set", map[string]any{"name": "acp", "api": "openai", "url": url, "daily_usd": 0.1}, nil)
 	e.must("deck.models_list", nil, &m)
 	for _, c := range m.Connections {
-		if c.Name == "model-key" && c.Key != "secret model_key" {
+		if c.Name == "acp" && c.Key != "secret model_key" {
 			t.Fatalf("a connection changed without its key keeps it: %+v", c)
 		}
 	}
@@ -398,7 +395,7 @@ func TestAnAgentTurnPastTheDayOfItsProjectPausesToo(t *testing.T) {
 	f.streamText(5, acpStream(acpInit, `{"reply": "session/new", "result": {"sessionId": "s-2"}}`, `{"reply": "session/prompt"}`, acpModel,
 		`{"fail": {"code": -32603, "message": "Internal error: turn failed"}}`))
 	e := acpEnv(t, f, "dsh", llm)
-	e.must("deck.model_set", map[string]any{"connection": "model-key", "model": "m", "name": "acp", "input_usd": 1000, "output_usd": 2000}, nil)
+	e.must("deck.model_set", map[string]any{"connection": "acp", "model": "m", "name": "acp", "input_usd": 1000, "output_usd": 2000}, nil)
 	p := e.acpProject("paint", colorManifest)
 	if got := e.waitState(e.run(p, "work"), "done", "error"); got.State != "done" {
 		t.Fatalf("the first turn runs: %+v", got)

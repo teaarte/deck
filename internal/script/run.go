@@ -91,7 +91,7 @@ func (x *Exec) Run(ctx context.Context, j Job) ([]byte, error) {
 			env = append(env, k+"="+v)
 		}
 	}
-	c := sandbox.Close(x.Home, os.Getenv("PATH"), j.Open)
+	c := sandbox.Close(x.Home, os.Getenv("PATH")+string(os.PathListSeparator)+filepath.Dir(argv[0]), j.Open)
 	cmd, err := x.Sandbox.Command(ctx, sandbox.Policy{Argv: argv, Dir: j.Work(), Env: append(env, j.Env...),
 		Write: []string{j.Work(), j.Results(), data}, Read: append(append([]string{src}, j.Read...), c.Read...),
 		Hide: c.Hide, Private: c.Private, Out: j.Out, Tag: j.Tag})

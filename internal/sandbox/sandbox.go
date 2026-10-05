@@ -88,51 +88,67 @@ func real(path string) string {
 type Closure struct{ Hide, Read, Private []string }
 
 // Close is the closure of a program with path as its PATH under deck's folder deck; open is the old sandbox, which
-// reads the home folder but for the credential stores.
+// reads the home folder but for the credential stores. A home it cannot tell closes the folders of all homes.
 func Close(deck, path string, open bool) Closure {
-	home, err := os.UserHomeDir()
-	if open || err != nil || real(home) == "/" {
-		return Closure{Hide: Hidden(deck)}
+	if open {
+		return Closure{Hide: Hidden(deck), Private: Private()}
 	}
-	return Closure{Hide: []string{deck, home}, Read: Runtimes(home, path), Private: Private()}
+	home, err := os.UserHomeDir()
+	if err != nil || real(home) == "/" {
+		return Closure{Hide: []string{deck, "/Users", "/home"}}
+	}
+	read := slices.DeleteFunc(Runtimes(home, path), func(r string) bool {
+		return strings.HasPrefix(real(deck)+"/", r+"/") || strings.HasPrefix(r+"/", real(deck)+"/")
+	})
+	return Closure{Hide: []string{deck, home}, Read: read, Private: Private()}
 }
 
-// Runtimes are the folders of path inside home and the installations they are the bin of, with those of the
-// programs they link to: a node, a python or a JDK keeps its libraries next to its bin.
+// shared are the folders of a home that hold the data of many programs; none of them is an installation.
+var shared = []string{".local", ".config", ".cache", "Library"}
+
+// Runtimes are the folders of path inside home, under the names path gives them and their own, with the
+// installation each belongs to when the folder above holds lib, libexec or versions (a node, a python, a JDK,
+// pyenv shims); a program a folder links to opens alone, or with its installation when it is in one.
 func Runtimes(home, path string) []string {
 	home = real(home)
-	seen := map[string]bool{}
 	var out []string
-	var add func(dir string, links int)
-	add = func(dir string, links int) {
-		dir = real(dir)
-		if !strings.HasPrefix(dir, home+"/") || seen[dir] {
+	add := func(p string) {
+		if !slices.Contains(out, p) {
+			out = append(out, p)
+		}
+	}
+	var folder func(dir string, links int)
+	folder = func(dir string, links int) {
+		r := real(dir)
+		if !strings.HasPrefix(r, home+"/") || slices.Contains(out, r) {
 			return
 		}
-		seen[dir] = true
-		root := dir
-		if up := filepath.Dir(dir); filepath.Base(dir) == "bin" && up != home && installation(up) {
-			root = up
+		if c := filepath.Clean(dir); c != r {
+			add(c)
 		}
-		if !slices.Contains(out, root) {
-			out = append(out, root)
+		add(r)
+		if up := filepath.Dir(r); up != home && !slices.Contains(shared, strings.TrimPrefix(up, home+"/")) && installation(up) {
+			add(up)
 		}
 		if links == 0 {
 			return
 		}
-		entries, _ := os.ReadDir(dir)
+		entries, _ := os.ReadDir(r)
 		for _, e := range entries {
-			if e.Type()&os.ModeSymlink == 0 {
+			to, err := filepath.EvalSymlinks(filepath.Join(r, e.Name()))
+			if e.Type()&os.ModeSymlink == 0 || err != nil || !strings.HasPrefix(to, home+"/") {
 				continue
 			}
-			if to, err := filepath.EvalSymlinks(filepath.Join(dir, e.Name())); err == nil {
-				add(filepath.Dir(to), links-1)
+			if up := filepath.Dir(filepath.Dir(to)); filepath.Base(filepath.Dir(to)) == "bin" || installation(up) {
+				folder(filepath.Dir(to), links-1)
+			} else {
+				add(to)
 			}
 		}
 	}
 	for _, d := range filepath.SplitList(path) {
 		if filepath.IsAbs(d) {
-			add(d, 2)
+			folder(d, 2)
 		}
 	}
 	return out

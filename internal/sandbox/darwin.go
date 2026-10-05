@@ -14,14 +14,16 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
 // seatbelt keeps the tags it watches and the log stream that reports them.
 type seatbelt struct {
-	mu   sync.Mutex
-	subs map[string]func(string)
-	end  func()
+	mu    sync.Mutex
+	subs  map[string]func(string)
+	end   func()
+	ready chan struct{}
 }
 
 func platform() Sandbox { return &seatbelt{} }
@@ -123,16 +125,27 @@ const mark = "deck-sandbox:"
 var refused = regexp.MustCompile(`(?s)deny\(\d+\) file-read-data (.+?)\n` + mark + ` (\S+)`)
 
 func (s *seatbelt) Watch(tag string, f func(string)) func() {
+	var stopped atomic.Bool
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	if s.subs == nil {
 		s.subs = map[string]func(string){}
 	}
-	s.subs[tag] = f
+	s.subs[tag] = func(path string) {
+		if !stopped.Load() {
+			f(path)
+		}
+	}
 	if s.end == nil {
-		s.end = s.stream()
+		s.start()
+	}
+	ready := s.ready
+	s.mu.Unlock()
+	select {
+	case <-ready:
+	case <-time.After(10 * time.Second):
 	}
 	return func() {
+		stopped.Store(true)
 		s.mu.Lock()
 		defer s.mu.Unlock()
 		delete(s.subs, tag)
@@ -143,16 +156,22 @@ func (s *seatbelt) Watch(tag string, f func(string)) func() {
 	}
 }
 
-// stream reads the refusals of tagged programs from the log of the system until the func it returns.
-func (s *seatbelt) stream() func() {
+// start runs the log stream that reports the refusals of tagged programs; one that ends while programs are
+// watched starts again. It runs under s.mu.
+func (s *seatbelt) start() {
 	ctx, cancel := context.WithCancel(context.Background())
+	ready := make(chan struct{})
+	s.end, s.ready = cancel, ready
 	cmd := exec.CommandContext(ctx, "/usr/bin/log", "stream", "--style", "ndjson", "--predicate",
 		`sender == "Sandbox" AND eventMessage CONTAINS "`+mark+`"`)
 	out, err := cmd.StdoutPipe()
-	if err != nil || cmd.Start() != nil {
-		return cancel
+	if err == nil {
+		err = cmd.Start()
 	}
-	ready := make(chan struct{})
+	if err != nil {
+		close(ready)
+		return
+	}
 	go func() {
 		started := sync.OnceFunc(func() { close(ready) })
 		defer started()
@@ -178,12 +197,16 @@ func (s *seatbelt) stream() func() {
 			}
 		}
 		_ = cmd.Wait()
+		if ctx.Err() != nil {
+			return
+		}
+		time.Sleep(time.Second)
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		if s.ready == ready && len(s.subs) > 0 {
+			s.start()
+		}
 	}()
-	select {
-	case <-ready:
-	case <-time.After(10 * time.Second):
-	}
-	return cancel
 }
 
 // ancestors are the folders above paths: a program resolves the path of a folder it may read, and a look into a

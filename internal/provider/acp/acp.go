@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -190,9 +191,20 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 	env = append(environ(os.Environ()), append([]string{"HOME=" + home, "TMPDIR=" + filepath.Join(home, "tmp"),
 		"HTTP_PROXY=" + proxy, "HTTPS_PROXY=" + proxy, "http_proxy=" + proxy, "https_proxy=" + proxy,
 		"NO_PROXY=127.0.0.1,localhost", "no_proxy=127.0.0.1,localhost"}, env...)...)
+	tag, kept := "a"+nonce.Hex(8), map[string]bool{}
+	var keptMu sync.Mutex
+	defer a.cfg.Sandbox.Watch(tag, func(path string) {
+		keptMu.Lock()
+		seen := kept[path]
+		kept[path] = true
+		keptMu.Unlock()
+		if !seen && req.OnEvent != nil {
+			req.OnEvent(provider.Event{Kind: provider.EventStderr, Text: "deck: the sandbox kept " + path + " closed"})
+		}
+	})()
 	cmd, err := a.cfg.Sandbox.Command(life, a.closed(sandbox.Policy{
 		Argv: append([]string{"/bin/sh", "-c", `"$@"; exit $?`, marker(req.SessionID)}, argv...),
-		Dir:  req.Cwd, Env: env, Write: append([]string{req.Cwd, home}, req.Dirs...), Out: ln, Port: port}))
+		Dir:  req.Cwd, Env: env, Write: append([]string{req.Cwd, home}, req.Dirs...), Read: req.Read, Out: ln, Port: port, Tag: tag}, bin))
 	if err != nil {
 		return provider.Result{}, err
 	}
@@ -237,9 +249,10 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 	return res, runErr
 }
 
-// closed confines p as deck confines every program: its folder and the owner's home closed but for the runtimes on PATH.
-func (a *Adapter) closed(p sandbox.Policy) sandbox.Policy {
-	c := sandbox.Close(a.cfg.Home, os.Getenv("PATH"), a.cfg.Open != nil && a.cfg.Open())
+// closed confines p, which runs the agent's program bin, as deck confines every program: its folder and the owner's
+// home closed but for the runtimes on PATH and the folder of bin.
+func (a *Adapter) closed(p sandbox.Policy, bin string) sandbox.Policy {
+	c := sandbox.Close(a.cfg.Home, os.Getenv("PATH")+string(os.PathListSeparator)+filepath.Dir(bin), a.cfg.Open != nil && a.cfg.Open())
 	p.Hide, p.Read, p.Private = c.Hide, append(p.Read, c.Read...), c.Private
 	return p
 }

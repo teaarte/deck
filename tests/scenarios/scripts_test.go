@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -544,6 +545,12 @@ import subprocess
 inp = json.load(sys.stdin)
 home = os.path.expanduser(inp["home"])
 tool = subprocess.run(["tool"], capture_output=True, text=True)
+tools = {}
+for t in ["local", "shim", "linked", "doc"]:
+    try:
+        tools[t] = subprocess.run([t], capture_output=True, text=True).stdout.strip()
+    except OSError as e:
+        tools[t] = str(e)
 try:
     listed = len(os.listdir(home)) > 0
 except OSError:
@@ -551,7 +558,8 @@ except OSError:
 print(json.dumps({"rc": can_read(os.path.join(home, ".zshrc")), "documents": can_read(os.path.join(home, "Documents", "notes.txt")),
   "config": can_read(os.path.join(home, ".config", "app", "token")), "listed": listed,
   "runtime": tool.stdout.strip(), "folder": can_read(os.path.join(inp["folder"], "readme")),
-  "folder_write": can_write(os.path.join(inp["folder"], "x")), "cpus": os.cpu_count()}))
+  "folder_write": can_write(os.path.join(inp["folder"], "x")), "cpus": os.cpu_count(), "tools": tools,
+  "state": can_read(os.path.join(home, ".local", "state", "history")), "beside": can_read(os.path.join(home, "Documents", "scripts", "other.txt"))}))
 `
 
 // TestTheSandboxClosesTheHomeButForRuntimesAndTheFoldersOfTheProject: a script and an MCP server read nothing of the
@@ -560,7 +568,11 @@ func TestTheSandboxClosesTheHomeButForRuntimesAndTheFoldersOfTheProject(t *testi
 	owner := ownerHome(t)
 	for path, text := range map[string]string{".zshrc": "export OPENAI_API_KEY=sk-owner", "Documents/notes.txt": "private",
 		".config/app/token": "t0ken", "rt/lib/tool/data": "runtime-data", "code/readme": "the code",
-		"rt/bin/tool": "#!/bin/sh\ncat \"$(dirname \"$0\")/../lib/tool/data\"\n"} {
+		"rt/bin/tool":      "#!/bin/sh\ncat \"$(dirname \"$0\")/../lib/tool/data\"\n",
+		".local/bin/local": "#!/bin/sh\necho local\n", ".local/lib/x": "", ".local/state/history": "rm -rf secrets",
+		".pyenv/shims/shim": "#!/bin/sh\ncat \"$(dirname \"$0\")/../versions/1/data\"\n", ".pyenv/versions/1/data": "shim-data",
+		"sdk/v1/bin/linked": "#!/bin/sh\ncat \"$(dirname \"$0\")/../lib/data\"\n", "sdk/v1/lib/data": "linked-data",
+		"Documents/scripts/doc.sh": "#!/bin/sh\necho doc\n", "Documents/scripts/other.txt": "private"} {
 		p := filepath.Join(owner, path)
 		if err := os.MkdirAll(filepath.Dir(p), 0o700); err != nil {
 			t.Fatal(err)
@@ -569,8 +581,16 @@ func TestTheSandboxClosesTheHomeButForRuntimesAndTheFoldersOfTheProject(t *testi
 			t.Fatal(err)
 		}
 	}
+	if err := os.Symlink(filepath.Join(owner, "sdk", "v1"), filepath.Join(owner, "sdk", "current")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(owner, "Documents", "scripts", "doc.sh"), filepath.Join(owner, "rt", "bin", "doc")); err != nil {
+		t.Fatal(err)
+	}
 	t.Setenv("HOME", owner)
-	t.Setenv("PATH", filepath.Join(owner, "rt", "bin")+string(os.PathListSeparator)+os.Getenv("PATH"))
+	path := []string{filepath.Join(owner, "rt", "bin"), filepath.Join(owner, ".local", "bin"), filepath.Join(owner, ".pyenv", "shims"),
+		filepath.Join(owner, "sdk", "current", "bin"), os.Getenv("PATH")}
+	t.Setenv("PATH", strings.Join(path, string(os.PathListSeparator)))
 	e := newEnv(t, nil)
 	self, _ := os.Executable()
 	e.createProject("tools", scriptManifest("collect", "", fmt.Sprintf(`, "tools": {"mcp": {"servers": {"fake": {"command": %q,
@@ -579,12 +599,15 @@ func TestTheSandboxClosesTheHomeButForRuntimesAndTheFoldersOfTheProject(t *testi
 	e.saveScript("tools", "scripts/main.py", homeScript)
 	p := e.waitScript(e.start("tools", "collect", map[string]any{"home": owner, "folder": filepath.Join(owner, "code")}), "done", "error")
 	var got struct {
-		RC, Documents, Config, Listed, Folder, FolderWrite bool
-		Runtime                                            string
-		CPUs                                               int
+		RC, Documents, Config, Listed, Folder, FolderWrite, State, Beside bool
+		Runtime                                                           string
+		CPUs                                                              int
+		Tools                                                             map[string]string
 	}
 	_ = json.Unmarshal(p.Result, &got)
-	if p.State != "done" || got.RC || got.Documents || got.Config || got.Listed || got.Runtime != "runtime-data" || !got.Folder || got.FolderWrite || got.CPUs < 1 {
+	want := map[string]string{"local": "local", "shim": "shim-data", "linked": "linked-data", "doc": "doc"}
+	if p.State != "done" || got.RC || got.Documents || got.Config || got.Listed || got.Runtime != "runtime-data" || !got.Folder || got.FolderWrite || got.CPUs < 1 ||
+		!maps.Equal(got.Tools, want) || got.State || got.Beside {
 		t.Fatalf("a script reads of the home only the runtimes on PATH and the folders of its project: %+v %s", p, p.Result)
 	}
 	for path, want := range map[string]string{filepath.Join(owner, ".zshrc"): "read=false", filepath.Join(owner, "code", "readme"): "read=true"} {
@@ -714,5 +737,12 @@ print(json.dumps({"rc": can_read(inp["secret"]), "key": can_read(inp["key"])}))
 	e.must("deck.settings_set", map[string]any{"sandbox": "closed"}, nil)
 	if rc, _, server := reads(); rc || !strings.Contains(server, "read=false") {
 		t.Fatalf("the sandbox closes again: %v %s", rc, server)
+	}
+	e.must("deck.folder_add", map[string]any{"project": "tools", "path": owner}, nil)
+	for _, mode := range []string{"closed", "open"} {
+		e.must("deck.settings_set", map[string]any{"sandbox": mode}, nil)
+		if rc, key, _ := reads(); !rc || key {
+			t.Fatalf("%s: a folder of the project with the home in it opens the home but not its keys: %v %v", mode, rc, key)
+		}
 	}
 }

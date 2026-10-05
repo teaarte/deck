@@ -23,6 +23,8 @@ type Request struct {
 	Hidden []string
 	// Dirs are folders outside Cwd the agent also writes to, such as the data folder of the project.
 	Dirs []string
+	// Read are folders the agent reads where its own sandbox closes the home folder: the folders of its project.
+	Read []string
 	// NoNetwork takes away the provider's own web and the network of its shell.
 	NoNetwork bool
 	// Hosts are what the shell reaches: hosts with their subdomains, host:port, IPs; "*" is every one.

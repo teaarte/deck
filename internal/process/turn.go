@@ -170,10 +170,16 @@ func (r *Runner) prepare(ctx context.Context, t *turn, p db.Process, trial bool,
 		hosts = nil
 	}
 	processID := t.process
+	var read []string
+	if folders, err := r.st.Q.ListProjectFolders(ctx, t.project); err == nil {
+		for _, f := range folders {
+			read = append(read, f.Path)
+		}
+	}
 	a.req = provider.Request{
 		Cwd: work, Repo: repo, Prompt: t.message, ResultSchema: t.cmd.Result,
 		MCPURL: r.cfg.MCPBase + "/mcp/" + tok, AllowedTools: r.gw.AllowedTools(tok), PermissionMCP: gateway.PermissionTool(),
-		SessionID: t.session, Resume: t.resume, Hidden: r.cfg.Hidden(t.project, processID), Dirs: []string{a.data, filepath.Join(a.dir, "results")}, NoNetwork: noNetwork, Hosts: hosts,
+		SessionID: t.session, Resume: t.resume, Hidden: r.cfg.Hidden(t.project, processID), Dirs: []string{a.data, filepath.Join(a.dir, "results")}, Read: read, NoNetwork: noNetwork, Hosts: hosts,
 		OnStart: func(pid int) { r.setGroup(ctx, processID, pid) },
 		OnEvent: func(e provider.Event) { r.event(ctx, processID, stream, e) },
 		OnUsage: func(u provider.Usage) { r.usage(ctx, processID, pv.Name(), u) },

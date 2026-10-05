@@ -318,8 +318,8 @@ func TestAScriptCallsAModelThroughDeckWithinTheDayOfItsConnection(t *testing.T) 
 		t.Fatalf("past the limit of the day the call waits for the owner and is not made: %v", out)
 	}
 	a := e.waitAsk()
-	if !strings.Contains(a.Text, "deck.model_request") {
-		t.Fatalf("the owner reads what waits: %+v", a)
+	if !strings.Contains(a.Text, "deck.model_request") || !strings.Contains(a.Text, "connection openrouter spent $0.07 of its $0.05 for today") {
+		t.Fatalf("the owner reads what waits and why: %+v", a)
 	}
 	e.must("deck.ask_answer", map[string]any{"ask": a.ID, "answer": "allow"}, nil)
 	if n := len(api.calls()); n != 3 {

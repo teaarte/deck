@@ -410,10 +410,6 @@ func (g *Gateway) proxyModel(w http.ResponseWriter, r *http.Request, act registr
 			http.Error(w, err.Error(), registry.Status(err))
 			return
 		}
-		if held, ok := out.(Waiting); ok && len(hops) > 0 && hops[0].Over != "" {
-			held.Text = hops[0].Over + ". " + held.Text
-			out = held
-		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusAccepted)
 		_ = json.NewEncoder(w).Encode(out)

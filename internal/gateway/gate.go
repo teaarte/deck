@@ -205,7 +205,13 @@ func (g *Gateway) hold(ctx context.Context, act registry.Actor, c *registry.Comm
 	if target != "" {
 		where = " (" + target + ")"
 	}
-	text := fmt.Sprintf("%s wants %s%s with %s", act.Author(), c.Name, where, untrusted.Cut(Canonical(input), 500))
+	why := ""
+	if c.Why != nil {
+		if why = c.Why(ctx, act, input); why != "" {
+			why += ". "
+		}
+	}
+	text := fmt.Sprintf("%s%s wants %s%s with %s", why, act.Author(), c.Name, where, untrusted.Cut(Canonical(input), 500))
 	var a db.Ask
 	err := g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		var err error
@@ -224,8 +230,8 @@ func (g *Gateway) hold(ctx context.Context, act registry.Actor, c *registry.Comm
 	if err != nil {
 		return nil, err
 	}
-	return Waiting{Ask: a.ID, Text: fmt.Sprintf("deck: %s is %s, so it waits for the owner's confirmation (ask %d); it was not made yet. "+
-		"Go on with other work: once the owner allows it, deck makes exactly this call and tells you the result.", c.Name, c.Class, a.ID)}, nil
+	return Waiting{Ask: a.ID, Text: fmt.Sprintf("%sdeck: %s is %s, so it waits for the owner's confirmation (ask %d); it was not made yet. "+
+		"Go on with other work: once the owner allows it, deck makes exactly this call and tells you the result.", why, c.Name, c.Class, a.ID)}, nil
 }
 
 // Outcome is what a frozen call gave when deck made it: the result, or the error text.

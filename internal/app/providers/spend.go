@@ -238,6 +238,19 @@ func (s *Service) allowed(ctx context.Context, act registry.Actor, input json.Ra
 	return false, nil
 }
 
+// why is what holds a call of a model past the day's limits: the limit of the first model it may reach.
+func (s *Service) why(ctx context.Context, act registry.Actor, input json.RawMessage) string {
+	connection, asked, err := s.requested(ctx, act.Workspace, input)
+	if err != nil {
+		return ""
+	}
+	hops, err := s.Route(ctx, act, connection, asked)
+	if err != nil || len(hops) == 0 || slices.ContainsFunc(hops, func(h gateway.ModelHop) bool { return h.Over == "" }) {
+		return ""
+	}
+	return hops[0].Over
+}
+
 // use is what a call of a model goes through, as a manifest names it: an @role, a model by name, or a connection.
 func (s *Service) use(input json.RawMessage) (string, string) {
 	in, _ := parseCall(input)
@@ -449,7 +462,7 @@ func (s *Service) modelRequestCommand() *registry.Command {
 	c := registry.Def("model_request", "Call a model",
 		"Sends one request to the API of a connection with deck's key, such as chat/completions with model @text; the answer comes back as the API gave it, a file for audio or pictures.",
 		registry.Everyone, s.modelRequest)
-	c.Class, c.Allowed, c.Free = registry.External, s.allowed, s.free
+	c.Class, c.Allowed, c.Free, c.Why = registry.External, s.allowed, s.free, s.why
 	c.Fingerprint = func(context.Context, int64) string { return gateway.ModelRequest }
 	return c
 }

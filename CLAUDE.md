@@ -30,7 +30,8 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
   (`00002_granted`, `00003_llm_call`, `00004_ask_workspace`: a table rebuilt with foreign keys off is a NO TRANSACTION
   migration; `00005_marks` — `project.imported_from` and the notes for the master as feed rows, `00006_feed_read` —
   warnings as notes of the feed, `00007_sandbox_health`, `00008_alone` — a trial of one command, `00009_models` — connections, models and
-  assignments from the providers of settings, `00010_spend` — the connection of a model call, a project's limit), sqlc queries
+  assignments from the providers of settings, `00010_spend` — the connection of a model call, a project's limit,
+  `00011_whisper` — the whisper.cpp of the machine as the model of speech to text), sqlc queries
   (`db/` is generated); `mark` keeps only cursors and throttles
 - `internal/registry` — command registry: every input (API, MCP, triggers) calls commands through it;
   input schemas limited to App Intents types; `registry.Def` takes the schema from the tagged input struct;
@@ -52,14 +53,17 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
   (sign-ins of the browser and oauth2 tools, MCP servers), `documents` (documents, shipped skills, health of
   scripts), `triggers`, `snapshots` (snapshots, cleanup, disk), `journal`, `files`, `folders`, `settings` (one table
   `settingDefs` gives the row, the field of `settings_set` and the edit button), `secrets`, `tokens`, `board`,
-  `providers` (connections, models with prices, assignments with fallbacks, the providers of agent turns, the
-  routes, limits and rights of direct calls `deck.model_call`/`deck.model_request`), `devices` (feed with notes of deck and `feed_read`, push, speech to text), `chat`, `suggest`, `records`
+  `providers` (connections, models with prices and options, assignments with fallbacks, the providers of agent
+  turns — built-in or a model in an ACP agent, the agents found with their version, self-checks at start, by button
+  and on a broken turn — the routes, limits and rights of direct calls `deck.model_call`/`deck.model_request` and of
+  the model of an ACP turn), `devices` (feed with notes of deck and `feed_read`, push, speech to text through
+  `deck.model_call`), `chat`, `suggest`, `records`
   (records with `where` expressions), `triggers` (also the firing of triggers and `After`), `screens`; who may touch
   what is `app/access`;
   a screen block reads a `registry.Read` command (`"from": "deck.asks_list"`), called as the viewer in
   `app/screen_get.go` (`deck.screen`; the menu `menu.go`, `commands_list.go`, translations `i18n.go`); `app/screens` —
   the sources of screens: records, boards, forms, documents;
-  deck's screens are data in `screens.json`: menu Cockpit, Schedule, Settings (tabs Projects, Providers, Secrets,
+  deck's screens are data in `screens.json`: menu Cockpit, Schedule, Settings (tabs Projects, Models, Connections,
   Tokens, General, Interface, Health), Journal (Calls, Spend, Files, Snapshots); `project` screens (Documents, the page of
   a document and Settings of the project: its commands and providers, folders, tools, secrets, tokens, health) deck adds
   to every project
@@ -69,11 +73,11 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
   `param` of the screen) and `FieldTypes`; the texts of a manifest and their translation `words.go`
 - `internal/gateway` — deck MCP server per process: permission prompts, questions, confirmations, registry
   commands as tools; HTTP entry and domain proxy for scripts (`egress.go`: a name resolves once, the proxy dials its
-  addresses, a name reaches only public ones); the proxy of models (`models.go`: `DECK_MODELS` of scripts and the
-  model API of ACP agents, deck's key, the usage of OpenAI, Google and Anthropic answers, fallbacks on refusals)
+  addresses, a name reaches only public ones); the proxy of models (`models.go`: `DECK_MODELS` of scripts, `ServeHops` also for the model of ACP
+  turns, deck's key, the usage of OpenAI, Google and Anthropic answers, fallbacks on refusals)
 - `internal/provider` — model providers; `claudecode` runs the CLI isolated from user settings; `codex` runs
-  `codex app-server` on the owner's shared login (`protocol.go` is generated); `acp` runs ACP agents (OpenCode, `dsh`)
-  on an OpenAI-compatible model inside deck's sandbox — deck has no tool loop of its own
+  `codex app-server` on the owner's shared login (`protocol.go` is generated); `acp` runs ACP agents (OpenCode 1.x, `dsh`)
+  on an OpenAI-compatible model inside deck's sandbox, the model through deck's proxy — deck has no tool loop of its own
 - `internal/process` — process runner: agent and script executors, start, resume, result schema check, result files;
   agent turns take a slot of the workspace (`slots.go`), the rest wait in `waiting_slot`; a tool or model command is
   one gateway call (`tool.go`); what it takes from deck is

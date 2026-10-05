@@ -2,9 +2,10 @@ package app
 
 import (
 	"context"
-	"encoding/json"
+	"deck2/internal/app/failures"
+	apphealth "deck2/internal/app/health"
+	"deck2/internal/app/processes"
 	"fmt"
-	"log/slog"
 	"os"
 	"strings"
 	"sync"
@@ -22,6 +23,7 @@ import (
 	"deck2/internal/app/journal"
 	"deck2/internal/app/project"
 	"deck2/internal/app/providers"
+	"deck2/internal/app/records"
 	"deck2/internal/app/secrets"
 	"deck2/internal/app/settings"
 	"deck2/internal/app/snapshots"
@@ -29,13 +31,11 @@ import (
 	"deck2/internal/app/tokens"
 	"deck2/internal/app/triggers"
 	"deck2/internal/ask"
-	"deck2/internal/docs"
 	"deck2/internal/events"
 	"deck2/internal/files"
 	"deck2/internal/gateway"
 	"deck2/internal/health"
 	"deck2/internal/home"
-	"deck2/internal/manifest"
 	"deck2/internal/mcphost"
 	"deck2/internal/process"
 	"deck2/internal/provider"
@@ -43,7 +43,6 @@ import (
 	"deck2/internal/sandbox"
 	"deck2/internal/script"
 	"deck2/internal/store"
-	"deck2/internal/store/db"
 	"deck2/internal/tools"
 	"deck2/internal/trigger"
 )
@@ -78,6 +77,10 @@ type App struct {
 	Connections *connections.Service
 	Projects    *project.Service
 	Saver       *project.Saver
+	Records     *records.Service
+	Health      *apphealth.Service
+	Processes   *processes.Service
+	Failures    *failures.Service
 	Scripts     *script.Exec
 	Tools       *tools.HTTP
 	MCP         *tools.MCP
@@ -114,7 +117,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 		Journal: &journal.Service{}, Triggers: &triggers.Service{}, Documents: &documents.Service{}, Snapshots: &snapshots.Service{},
 		Settings: &settings.Service{}, Board: &board.Service{}, Providers: &providers.Service{}, Answers: &asks.Service{},
 		Connections: &connections.Service{}, Suggest: &suggest.Service{}, Chats: &chat.Service{}, Devices: &devices.Service{},
-		Tokens: &tokens.Service{}}
+		Tokens: &tokens.Service{}, Records: &records.Service{}, Health: &apphealth.Service{}, Processes: &processes.Service{}, Failures: &failures.Service{}}
 	a.ctx, a.cancel = context.WithCancel(context.Background())
 	st.Changed = func(c store.Change) {
 		a.Bus.Emit(events.Event{Workspace: c.Workspace, Topic: c.Topic, Project: c.Project})
@@ -142,20 +145,20 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 		process.Deps{For: a.Providers.For, Named: a.Providers.Named, Ready: a.Providers.Ready, Prompt: a.Saver.Prompt,
 			Text: a.Saver.Text, Skills: a.Documents.Skills, Servers: a.Connections.Servers, Folder: a.Folders.Folder,
 			Memory: a.Chats.Memory})
-	a.Runner.Hooks = []process.Hook{a.Chats.NewHook(), errorsHook{a: a}, afterHook{a: a}}
-	a.Scheduler = trigger.New(st, a, cfg.Now)
+	a.Runner.Hooks = []process.Hook{a.Chats.NewHook(), failures.Hook{S: a.Failures}, triggers.After{S: a.Triggers}}
+	a.Scheduler = trigger.New(st, a.Triggers, cfg.Now)
 
 	*a.Secrets = secrets.Service{St: st, Dir: h.Secrets}
 	*a.Folders = folders.Service{St: st, Home: cfg.Home}
 	*a.Files = appfiles.Service{St: st, Home: h, Now: cfg.Now}
 	*a.Journal = journal.Service{St: st, Now: cfg.Now, Backups: h.Backups()}
 	*a.Settings = settings.Service{St: st, DefaultTTL: cfg.ConfirmTTL, Wake: a.Runner.Wake}
-	*a.Triggers = triggers.Service{St: st, Scheduler: a.Scheduler, Gateway: a.Gateway, Registry: a.Registry}
+	*a.Triggers = triggers.Service{St: st, Bus: a.Bus, Scheduler: a.Scheduler, Gateway: a.Gateway, Registry: a.Registry}
 	*a.Documents = documents.Service{St: st, Now: cfg.Now, Sandbox: cfg.Sandbox, Ctx: a.ctx, BG: &a.bg,
 		SaveManifest: a.Saver.SaveCall, Changed: a.Devices.Changed}
 	*a.Snapshots = snapshots.Service{St: st, Bus: a.Bus, Home: h, Now: cfg.Now, LockFiles: a.Files.Mu.Lock, UnlockFiles: a.Files.Mu.Unlock,
 		RemoveFiles: a.Files.Remove}
-	*a.Board = board.Service{St: st, Bus: a.Bus, Now: cfg.Now, Fire: a.fire}
+	*a.Board = board.Service{St: st, Bus: a.Bus, Now: cfg.Now, Fire: a.Triggers.Start}
 	*a.Providers = providers.Service{St: st, Bus: a.Bus, Now: cfg.Now, Home: cfg.Home, Sandbox: cfg.Sandbox, ACPBinaries: cfg.ACPBinaries,
 		ACPCallLimit: cfg.ACPCallLimit, SelfCheckCeiling: cfg.SelfCheckCeiling, Secret: a.Secrets.Secret, Wake: a.Runner.Wake,
 		Rules: rules, Builtin: append([]provider.Provider{p}, more...), Ctx: a.ctx, BG: &a.bg}
@@ -168,6 +171,10 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	*a.Devices = devices.Service{St: st, Bus: a.Bus, Now: cfg.Now, Ctx: a.ctx, BG: &a.bg, STT: cfg.STT, Files: a.dirs(), RemoveFiles: a.Files.Remove,
 		Secret: a.Secrets.Secret, ReadSecret: a.Secrets.Read, WriteSecret: a.Secrets.Write, SecretsDir: h.Secrets,
 		LockSecrets: a.Secrets.Lock, UnlockSecrets: a.Secrets.Unlock, Invoke: a.Registry.Invoke}
+	*a.Failures = failures.Service{St: st, Now: cfg.Now, Runner: a.Runner}
+	*a.Processes = processes.Service{St: st, Runner: a.Runner, Named: a.Providers.Named}
+	*a.Health = apphealth.Service{St: st, Providers: a.Providers.All}
+	*a.Records = records.Service{St: st, Now: cfg.Now, RemoveFiles: a.Files.Remove}
 	*a.Tokens = tokens.Service{St: st, MCPBase: cfg.MCPBase, Journal: a.Gateway.Journal}
 	*a.Saver = project.Saver{St: st, Bus: a.Bus, Now: cfg.Now, Home: h, Registry: a.Registry,
 		Gateway: a.Gateway, Runner: a.Runner, Scheduler: a.Scheduler, Broker: a.Asks, Scripts: a.Scripts, Tools: a.Tools,
@@ -217,74 +224,6 @@ func (a *App) Start(every time.Duration) {
 		defer a.bg.Done()
 		a.Loop(a.ctx, every)
 	}()
-}
-
-// Fire starts the command of a trigger through the registry. Scheduled runs carry the trigger as their
-// retry key, so a run does not start while the previous one is still going.
-func (a *App) Fire(ctx context.Context, t db.Trigger, input map[string]any) (int64, error) {
-	if t.Kind == trigger.KindCron || t.Kind == trigger.KindOnce {
-		input[manifest.RetryKey] = fmt.Sprintf("trigger:%d", t.ID)
-	}
-	return a.fire(ctx, t, input, 0)
-}
-
-func (a *App) fire(ctx context.Context, t db.Trigger, input map[string]any, parent int64) (int64, error) {
-	p, err := a.Store.Q.GetProject(ctx, t.ProjectID)
-	if err != nil {
-		return 0, err
-	}
-	raw, _ := json.Marshal(input)
-	act := registry.Actor{Kind: registry.Trigger, Workspace: p.WorkspaceID, ProjectID: p.ID, ProcessID: parent, TriggerID: t.ID}
-	out, err := a.Gateway.CallAs(ctx, act, p.Name+"."+t.Command, raw)
-	if err != nil {
-		return 0, err
-	}
-	started, _ := out.(process.Started)
-	return started.Process, nil
-}
-
-// afterTriggers starts the commands that run when a command of the same project finishes.
-// afterHook fires the triggers that follow a command which finished done with a result by its schema.
-type afterHook struct {
-	process.NoHook
-	a *App
-}
-
-func (h afterHook) Closed(ctx context.Context, p db.Process) {
-	if p.State == process.StateDone && p.NotBySchema == 0 && p.Result != process.Empty {
-		h.a.afterTriggers(ctx, p)
-	}
-}
-
-func (a *App) afterTriggers(ctx context.Context, done db.Process) {
-	if done.TriggerID.Valid {
-		a.Bus.Publish("triggers")
-	}
-	p, err := a.Store.Q.GetProject(ctx, done.ProjectID)
-	if err != nil || p.Paused == 1 {
-		return
-	}
-	m, err := docs.Manifest(ctx, a.Store.Q, p)
-	if err != nil {
-		slog.Error("after triggers", "project", p.Name, "err", err)
-		return
-	}
-	rows, err := a.Store.Q.ListProjectTriggers(ctx, p.ID)
-	if err != nil {
-		return
-	}
-	for _, t := range m.Triggers {
-		if t.After != done.Command {
-			continue
-		}
-		row, ok := trigger.Find(rows, t)
-		if !ok || row.Paused == 1 {
-			continue
-		}
-		if _, err := a.fire(ctx, row, manifest.TriggerInput(t, done.ID), done.ID); err != nil {
-			slog.Error("after trigger", "project", p.Name, "command", t.Command, "after", done.ID, "err", err)
-		}
-	}
 }
 
 // Sweep checks every deadline against now, then pushes and runs the daily cleanup and snapshot.

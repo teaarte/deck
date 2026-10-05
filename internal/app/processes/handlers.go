@@ -1,4 +1,4 @@
-package app
+package processes
 
 import (
 	"context"
@@ -82,22 +82,22 @@ type processesListIn struct {
 	Brief   bool   `opt:"" desc:"Leave the results out; process_get gives the result of one"`
 }
 
-func (a *App) processesList(ctx context.Context, act registry.Actor, in processesListIn) ([]processView, error) {
-	pid, err := access.Filter(ctx, a.Store.Q, act, in.Project)
+func (s *Service) processesList(ctx context.Context, act registry.Actor, in processesListIn) ([]processView, error) {
+	pid, err := access.Filter(ctx, s.St.Q, act, in.Project)
 	if err != nil {
 		return nil, err
 	}
 	var ps []db.Process
 	if in.Open {
-		ps, err = a.Store.Q.ListOpenProcesses(ctx, db.ListOpenProcessesParams{WorkspaceID: act.Workspace, ProjectID: pid})
+		ps, err = s.St.Q.ListOpenProcesses(ctx, db.ListOpenProcessesParams{WorkspaceID: act.Workspace, ProjectID: pid})
 	} else {
-		ps, err = a.Store.Q.ListProcessesFiltered(ctx, db.ListProcessesFilteredParams{WorkspaceID: act.Workspace, ProjectID: pid, State: in.State,
+		ps, err = s.St.Q.ListProcessesFiltered(ctx, db.ListProcessesFilteredParams{WorkspaceID: act.Workspace, ProjectID: pid, State: in.State,
 			Command: in.Command, Lim: registry.Limit(in.Limit, 50, 500)})
 	}
 	if err != nil {
 		return nil, err
 	}
-	names, err := access.Names(ctx, a.Store.Q, act.Workspace)
+	names, err := access.Names(ctx, s.St.Q, act.Workspace)
 	if err != nil {
 		return nil, err
 	}
@@ -123,8 +123,8 @@ type processGetIn struct {
 	Wait    int64 `opt:"" desc:"Seconds to wait, at most 1800 and less for agents whose tool calls time out sooner, for the process to finish or to wait for the owner"`
 }
 
-func (a *App) processGet(ctx context.Context, act registry.Actor, in processGetIn) (processView, error) {
-	p, err := a.ownProcess(ctx, act, in.Process)
+func (s *Service) processGet(ctx context.Context, act registry.Actor, in processGetIn) (processView, error) {
+	p, err := s.ownProcess(ctx, act, in.Process)
 	if err != nil {
 		return processView{}, err
 	}
@@ -139,15 +139,15 @@ func (a *App) processGet(ctx context.Context, act registry.Actor, in processGetI
 			return processView{}, ctx.Err()
 		case <-time.After(250 * time.Millisecond):
 		}
-		if p, err = a.Store.Q.GetProcess(ctx, in.Process); errors.Is(err, sql.ErrNoRows) {
+		if p, err = s.St.Q.GetProcess(ctx, in.Process); errors.Is(err, sql.ErrNoRows) {
 			return processView{}, registry.NotFound("deck: no process %d", in.Process)
 		} else if err != nil {
 			return processView{}, err
 		}
 	}
-	project, _ := a.Store.Q.GetProject(ctx, p.ProjectID)
+	project, _ := s.St.Q.GetProject(ctx, p.ProjectID)
 	v := procView(p, project.Name)
-	v.Terminal = a.terminal(ctx, p)
+	v.Terminal = s.terminal(ctx, p)
 	return v, nil
 }
 
@@ -163,9 +163,9 @@ func waitLimit(act registry.Actor) time.Duration {
 }
 
 // ownProcess loads a process of the actor's workspace; agents reach only their own project.
-func (a *App) ownProcess(ctx context.Context, act registry.Actor, id int64) (db.Process, error) {
-	p, err := a.Store.Q.GetProcess(ctx, id)
-	p, _, err = access.Owned(ctx, a.Store.Q, act, p, err, p.ProjectID, registry.NotFound("deck: no process %d", id))
+func (s *Service) ownProcess(ctx context.Context, act registry.Actor, id int64) (db.Process, error) {
+	p, err := s.St.Q.GetProcess(ctx, id)
+	p, _, err = access.Owned(ctx, s.St.Q, act, p, err, p.ProjectID, registry.NotFound("deck: no process %d", id))
 	return p, err
 }
 
@@ -173,11 +173,11 @@ type processStopIn struct {
 	Process int64 `type:"process" desc:"Process id"`
 }
 
-func (a *App) processStop(ctx context.Context, act registry.Actor, in processStopIn) (any, error) {
-	if _, err := a.ownProcess(ctx, act, in.Process); err != nil {
+func (s *Service) processStop(ctx context.Context, act registry.Actor, in processStopIn) (any, error) {
+	if _, err := s.ownProcess(ctx, act, in.Process); err != nil {
 		return nil, err
 	}
-	if err := a.Runner.Stop(ctx, in.Process, "stopped by "+act.Kind); err != nil {
+	if err := s.Runner.Stop(ctx, in.Process, "stopped by "+act.Kind); err != nil {
 		return nil, err
 	}
 	return map[string]any{"ok": true}, nil
@@ -188,14 +188,14 @@ type processReworkIn struct {
 	Remark  string `type:"text" desc:"What to change"`
 }
 
-func (a *App) processRework(ctx context.Context, act registry.Actor, in processReworkIn) (any, error) {
-	if _, err := a.ownProcess(ctx, act, in.Process); err != nil {
+func (s *Service) processRework(ctx context.Context, act registry.Actor, in processReworkIn) (any, error) {
+	if _, err := s.ownProcess(ctx, act, in.Process); err != nil {
 		return nil, err
 	}
 	if strings.TrimSpace(in.Remark) == "" {
 		return nil, registry.Invalid("deck: a rework needs a remark")
 	}
-	if err := a.Runner.Rework(ctx, in.Process, in.Remark); err != nil {
+	if err := s.Runner.Rework(ctx, in.Process, in.Remark); err != nil {
 		return nil, err
 	}
 	return process.Started{Process: in.Process}, nil
@@ -207,30 +207,30 @@ type processLogIn struct {
 }
 
 // processLog returns the last events of a process; deck clears the logs of old runs.
-func (a *App) processLog(ctx context.Context, act registry.Actor, in processLogIn) ([]json.RawMessage, error) {
-	if _, err := a.ownProcess(ctx, act, in.Process); err != nil {
+func (s *Service) processLog(ctx context.Context, act registry.Actor, in processLogIn) ([]json.RawMessage, error) {
+	if _, err := s.ownProcess(ctx, act, in.Process); err != nil {
 		return nil, err
 	}
 	in.Limit = registry.Limit(in.Limit, 200, 1000)
-	return a.Runner.Tail(in.Process, int(in.Limit))
+	return s.Runner.Tail(in.Process, int(in.Limit))
 }
 
-func (a *App) processCommands() []*registry.Command {
+func (s *Service) processCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("processes_list", "List processes",
 			"Lists recent processes, newest first, or only the open ones.",
-			registry.Everyone, a.processesList).On("processes"),
+			registry.Everyone, s.processesList).On("processes"),
 		registry.Read("process_get", "Process status",
 			"Returns the state and result of a process; with wait, once it finishes or waits for the owner.",
-			registry.Everyone, a.processGet).On("processes"),
+			registry.Everyone, s.processGet).On("processes"),
 		registry.Def("process_stop", "Stop process",
 			"Stops a process; a running agent is killed and what it did so far stays.",
-			registry.OwnerSide, a.processStop),
+			registry.OwnerSide, s.processStop),
 		registry.Def("process_rework", "Send back for rework",
 			"Sends a finished agent process back to the same session with a remark; changed artifacts get new revisions.",
-			registry.OwnerSide, a.processRework),
+			registry.OwnerSide, s.processRework),
 		registry.Read("process_log", "Process log",
 			"Returns the last events of a process, while it runs and for a week after it ended.",
-			registry.Everyone, a.processLog).On("log"),
+			registry.Everyone, s.processLog).On("log"),
 	}
 }

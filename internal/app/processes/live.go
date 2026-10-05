@@ -1,4 +1,4 @@
-package app
+package processes
 
 import (
 	"context"
@@ -14,11 +14,11 @@ import (
 
 // terminal is how the owner goes on with the session of an agent process in a terminal: the folder of its turn
 // and the command of its provider; empty when there is no session to go on with.
-func (a *App) terminal(ctx context.Context, p db.Process) string {
+func (s *Service) terminal(ctx context.Context, p db.Process) string {
 	if p.Kind != process.KindAgent || p.SessionID == "" {
 		return ""
 	}
-	pv, err := a.Providers.Named(ctx, p.ProjectID, p.Provider)
+	pv, err := s.Named(ctx, p.ProjectID, p.Provider)
 	if err != nil {
 		return ""
 	}
@@ -32,7 +32,7 @@ func (a *App) terminal(ctx context.Context, p db.Process) string {
 	}
 	dir := p.Folder
 	if dir == "" {
-		dir = filepath.Join(filepath.Dir(a.Runner.LogPath(p.ID)), "work")
+		dir = filepath.Join(filepath.Dir(s.Runner.LogPath(p.ID)), "work")
 	}
 	if _, err := os.Stat(dir); err != nil {
 		return cmd
@@ -47,8 +47,8 @@ type processTellIn struct {
 
 // processTell gives the owner's message to an agent process at work: into its turn when the provider takes
 // it live, else with the resume right after the turn.
-func (a *App) processTell(ctx context.Context, act registry.Actor, in processTellIn) (any, error) {
-	p, err := a.ownProcess(ctx, act, in.Process)
+func (s *Service) processTell(ctx context.Context, act registry.Actor, in processTellIn) (any, error) {
+	p, err := s.ownProcess(ctx, act, in.Process)
 	if err != nil {
 		return nil, err
 	}
@@ -61,22 +61,22 @@ func (a *App) processTell(ctx context.Context, act registry.Actor, in processTel
 	case p.FinishedAt.Valid:
 		return nil, registry.Invalid("deck: process %d has finished; send it back with a remark instead", p.ID)
 	}
-	switch a.Runner.Say(ctx, p.ID, "deck: the owner wrote while you work:\n"+text) {
+	switch s.Runner.Say(ctx, p.ID, "deck: the owner wrote while you work:\n"+text) {
 	case process.Taken:
 		return map[string]any{"process": p.ID, "delivered": "now"}, nil
 	case process.Unsure:
 		return map[string]any{"process": p.ID, "delivered": "sent; the provider did not confirm it"}, nil
 	}
-	if err := a.Runner.Remark(ctx, p.ID, text); err != nil {
+	if err := s.Runner.Remark(ctx, p.ID, text); err != nil {
 		return nil, err
 	}
 	return map[string]any{"process": p.ID, "delivered": "after the turn"}, nil
 }
 
-func (a *App) liveCommands() []*registry.Command {
+func (s *Service) liveCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("process_tell", "Tell a process",
 			"Gives the owner's message to an agent process at work: into its turn when the provider takes it live, else right after the turn.",
-			registry.OwnerOnly, a.processTell),
+			registry.OwnerOnly, s.processTell),
 	}
 }

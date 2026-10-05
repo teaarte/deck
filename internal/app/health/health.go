@@ -1,4 +1,5 @@
-package app
+// Package health lists the health of what deck runs or reaches in a workspace, worst first.
+package health
 
 import (
 	"context"
@@ -33,16 +34,16 @@ type healthListIn struct {
 	Machine bool   `opt:"" desc:"Only what the machine runs: providers, the disk, the sandbox, the tailnet"`
 }
 
-func (a *App) healthList(ctx context.Context, act registry.Actor, in healthListIn) ([]healthRow, error) {
-	hs, err := a.Store.Q.ListHealth(ctx, store.ID(act.Workspace))
+func (s *Service) list(ctx context.Context, act registry.Actor, in healthListIn) ([]healthRow, error) {
+	hs, err := s.St.Q.ListHealth(ctx, store.ID(act.Workspace))
 	if err != nil {
 		return nil, err
 	}
-	ps, err := a.Store.Q.ListWorkspaceProjects(ctx, act.Workspace)
+	ps, err := s.St.Q.ListWorkspaceProjects(ctx, act.Workspace)
 	if err != nil {
 		return nil, err
 	}
-	pvs, err := a.Providers.All(ctx, act.Workspace)
+	pvs, err := s.Providers(ctx, act.Workspace)
 	if err != nil {
 		return nil, err
 	}
@@ -54,7 +55,7 @@ func (a *App) healthList(ctx context.Context, act registry.Actor, in healthListI
 	worst := map[string]*healthRow{}
 	for _, p := range ps {
 		worst[p.Name] = &healthRow{Subject: "project:" + p.Name, Status: "ok"}
-		if _, err := docs.Manifest(ctx, a.Store.Q, p); err != nil {
+		if _, err := docs.Manifest(ctx, s.St.Q, p); err != nil {
 			worst[p.Name].Status, worst[p.Name].Error = "error", "manifest: "+err.Error()
 		}
 	}
@@ -87,10 +88,18 @@ func (a *App) healthList(ctx context.Context, act registry.Actor, in healthListI
 	return out, nil
 }
 
-func (a *App) healthCommands() []*registry.Command {
+// Service lists health rows.
+type Service struct {
+	St *store.Store
+	// Providers are the providers of a workspace.
+	Providers func(ctx context.Context, workspace int64) ([]provider.Provider, error)
+}
+
+// Commands are the commands of health.
+func (s *Service) Commands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("health_list", "Health",
 			"Lists the health of providers and other dependencies with the last error, worst first.",
-			registry.OwnerSide, a.healthList).On("health"),
+			registry.OwnerSide, s.list).On("health"),
 	}
 }

@@ -360,7 +360,7 @@ func TestEnablingADraftDropsAScheduledRunAlreadyPicked(t *testing.T) {
 		t.Fatalf("the missed run is due: %v %v", due, err)
 	}
 	e.must("deck.project_enable", map[string]any{"project": "late", "revision": e.project("late").Revision}, nil)
-	if _, err := e.App.Fire(context.Background(), due[0], map[string]any{}); err == nil || !strings.Contains(err.Error(), "moved") {
+	if _, err := e.App.Triggers.Fire(context.Background(), due[0], map[string]any{}); err == nil || !strings.Contains(err.Error(), "moved") {
 		t.Fatalf("a firing picked before enable does not run after it: %v", err)
 	}
 	if n := len(e.processes()); n != 0 {

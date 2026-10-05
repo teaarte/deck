@@ -6,6 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"deck2/internal/app/access"
+	"deck2/internal/events"
 	"encoding/json"
 	"fmt"
 	"slices"
@@ -23,6 +24,7 @@ import (
 // Service keeps the triggers; the scheduler fires them, the gateway runs a trigger now.
 type Service struct {
 	St        *store.Store
+	Bus       *events.Bus
 	Scheduler *trigger.Scheduler
 	Gateway   *gateway.Gateway
 	Registry  *registry.Registry

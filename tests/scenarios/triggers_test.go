@@ -328,12 +328,12 @@ func TestPauseBetweenReadingAndFiringATriggerHolds(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.must("deck.project_pause", map[string]any{"project": "race", "paused": true}, nil)
-	if _, err := e.App.Fire(context.Background(), rows[0], map[string]any{}); err == nil || !strings.Contains(err.Error(), "paused") {
+	if _, err := e.App.Triggers.Fire(context.Background(), rows[0], map[string]any{}); err == nil || !strings.Contains(err.Error(), "paused") {
 		t.Fatalf("a trigger read before its project paused does not start: %v", err)
 	}
 	e.must("deck.project_pause", map[string]any{"project": "race", "paused": false}, nil)
 	e.must("deck.trigger_pause", map[string]any{"trigger": rows[0].ID, "paused": true}, nil)
-	if _, err := e.App.Fire(context.Background(), rows[0], map[string]any{}); err == nil {
+	if _, err := e.App.Triggers.Fire(context.Background(), rows[0], map[string]any{}); err == nil {
 		t.Fatal("a trigger read before it paused does not start")
 	}
 	if n := e.countOf("job"); n != 0 {

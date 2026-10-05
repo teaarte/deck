@@ -94,7 +94,7 @@ func (a *App) screenGet(ctx context.Context, act registry.Actor, in screenGetIn)
 		return nil, registry.NotFound("deck: %v", err)
 	}
 	if len(errs) > 0 && req.Manifest != nil && req.Manifest.Screen(in.Screen) != nil {
-		a.screenFailed(ctx, req.Project, req.Manifest.Revision, in.Screen, errs)
+		a.Failures.Screen(ctx, req.Project, req.Manifest.Revision, in.Screen, errs)
 	}
 	return out, nil
 }

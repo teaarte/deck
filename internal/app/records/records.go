@@ -140,3 +140,11 @@ func ViewOf(r db.Record, c *manifest.Collection) View {
 	}
 	return v
 }
+
+// Service keeps the records of projects.
+type Service struct {
+	St  *store.Store
+	Now func() time.Time
+	// RemoveFiles deletes the files whose rows are gone.
+	RemoveFiles func(ids []int64)
+}

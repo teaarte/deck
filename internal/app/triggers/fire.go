@@ -1,0 +1,84 @@
+package triggers
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"log/slog"
+
+	"deck2/internal/docs"
+	"deck2/internal/manifest"
+	"deck2/internal/process"
+	"deck2/internal/registry"
+	"deck2/internal/store/db"
+	"deck2/internal/trigger"
+)
+
+// Fire starts the command of a trigger through the registry. Scheduled runs carry the trigger as their
+// retry key, so a run does not start while the previous one is still going.
+func (s *Service) Fire(ctx context.Context, t db.Trigger, input map[string]any) (int64, error) {
+	if t.Kind == trigger.KindCron || t.Kind == trigger.KindOnce {
+		input[manifest.RetryKey] = fmt.Sprintf("trigger:%d", t.ID)
+	}
+	return s.Start(ctx, t, input, 0)
+}
+
+// Start starts the command of a trigger as the trigger, with parent as the process whose finish fired it.
+func (s *Service) Start(ctx context.Context, t db.Trigger, input map[string]any, parent int64) (int64, error) {
+	p, err := s.St.Q.GetProject(ctx, t.ProjectID)
+	if err != nil {
+		return 0, err
+	}
+	raw, _ := json.Marshal(input)
+	act := registry.Actor{Kind: registry.Trigger, Workspace: p.WorkspaceID, ProjectID: p.ID, ProcessID: parent, TriggerID: t.ID}
+	out, err := s.Gateway.CallAs(ctx, act, p.Name+"."+t.Command, raw)
+	if err != nil {
+		return 0, err
+	}
+	started, _ := out.(process.Started)
+	return started.Process, nil
+}
+
+// After fires the triggers that follow a command which finished done with a result by its schema.
+type After struct {
+	process.NoHook
+	S *Service
+}
+
+func (h After) Closed(ctx context.Context, p db.Process) {
+	if p.State == process.StateDone && p.NotBySchema == 0 && p.Result != process.Empty {
+		h.S.after(ctx, p)
+	}
+}
+
+// after starts the commands that run when a command of the same project finishes.
+func (s *Service) after(ctx context.Context, done db.Process) {
+	if done.TriggerID.Valid {
+		s.Bus.Publish("triggers")
+	}
+	p, err := s.St.Q.GetProject(ctx, done.ProjectID)
+	if err != nil || p.Paused == 1 {
+		return
+	}
+	m, err := docs.Manifest(ctx, s.St.Q, p)
+	if err != nil {
+		slog.Error("after triggers", "project", p.Name, "err", err)
+		return
+	}
+	rows, err := s.St.Q.ListProjectTriggers(ctx, p.ID)
+	if err != nil {
+		return
+	}
+	for _, t := range m.Triggers {
+		if t.After != done.Command {
+			continue
+		}
+		row, ok := trigger.Find(rows, t)
+		if !ok || row.Paused == 1 {
+			continue
+		}
+		if _, err := s.Start(ctx, row, manifest.TriggerInput(t, done.ID), done.ID); err != nil {
+			slog.Error("after trigger", "project", p.Name, "command", t.Command, "after", done.ID, "err", err)
+		}
+	}
+}

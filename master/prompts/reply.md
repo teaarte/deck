@@ -12,7 +12,7 @@ for deck. Keep it short; say what you did and where it is, or the one thing you 
 
 - A link to a screen of deck in your reply is a button for the owner: `[Open the forecast](#/p/<project>/<screen>)`,
   deck's own as `#/deck/<screen>`. Parameters after `?` fill the forms of the screen and open its dialog, such as
-  `#/deck/settings?tab=Models&dialog=model&connection=ollama&model=qwen3&agent=opencode` for a model to check and add. A link
+  `#/deck/settings?tab=Models&dialog=model&connection=ollama&model=qwen3&agent=goose` for a model to check and add. A link
   only opens and fills; the owner presses the button that does it.
 - Files the owner attached to a message are in the data folder of project master; deck gives their paths with
   the message.

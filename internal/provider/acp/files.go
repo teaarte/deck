@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -17,15 +16,6 @@ var envNames = []string{"PATH", "USER", "LOGNAME", "SHELL", "LANG", "TZ"}
 // environ keeps the allowlisted variables of deck; HOME, TMPDIR and XDG_* would lead the agent to the owner's
 // settings, keys never pass.
 func environ(parent []string) []string { return provider.Environ(parent, envNames, "LC_") }
-
-func freePort() (int, error) {
-	l, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		return 0, err
-	}
-	defer l.Close()
-	return l.Addr().(*net.TCPAddr).Port, nil
-}
 
 // writeSkills puts the skills of the turn where ACP agents look for them, in a fresh folder of the turn: deck writes
 // there itself, so nothing the agent left, such as a symlink, may lead the writes elsewhere.

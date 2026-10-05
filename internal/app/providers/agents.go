@@ -24,8 +24,7 @@ type agentView struct {
 
 func agentSubject(name string) string { return "agent:" + name }
 
-// discover keeps one health row of an ACP agent: its version, red when deck does not run it, none when it is not
-// installed.
+// discover keeps one health row of an ACP agent: its version, red when it gives none, none when it is not installed.
 func (s *Service) discover(ctx context.Context, name string) {
 	subject := agentSubject(name)
 	bin := cmp.Or(s.ACPBinaries[name], name)
@@ -48,13 +47,8 @@ func (s *Service) discover(ctx context.Context, name string) {
 // agentRow writes the health row of an ACP agent from the version it gave or why it gave none.
 func (s *Service) agentRow(ctx context.Context, name, version string, failed error) {
 	status, text := "ok", ""
-	if failed == nil {
-		failed = acp.Agents[name].Supports(version)
-	} else {
-		version = ""
-	}
 	if failed != nil {
-		status, text = "error", failed.Error()
+		version, status, text = "", "error", failed.Error()
 	}
 	_ = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		if err := health.Set(ctx, q, health.Of{}, agentSubject(name), status, text); err != nil {

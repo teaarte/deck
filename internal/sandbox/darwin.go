@@ -112,10 +112,6 @@ func profile(p Policy) string {
 			_, port, _ := net.SplitHostPort(p.Out.Addr().String())
 			fmt.Fprintf(&b, "(allow system-socket)\n(allow network-outbound (remote ip \"localhost:%s\"))\n", port)
 		}
-		if p.Port != 0 {
-			fmt.Fprintf(&b, "(allow system-socket)\n(allow network-bind network-inbound (local ip \"localhost:%d\"))\n", p.Port)
-			fmt.Fprintf(&b, "(allow network-outbound (remote ip \"localhost:%d\"))\n", p.Port)
-		}
 	}
 	return b.String()
 }

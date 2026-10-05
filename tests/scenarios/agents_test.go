@@ -13,22 +13,19 @@ import (
 	"deck2/internal/sandbox"
 )
 
-// TestAgentsAreFoundWithTheirVersion: deck finds the ACP agents installed with their version, one health row each; an
-// opencode of 2.x is named with what deck runs and how to go back, and a model on it fails its check for that reason.
+// TestAgentsAreFoundWithTheirVersion: deck finds the ACP agents installed with their version, one health row each.
 func TestAgentsAreFoundWithTheirVersion(t *testing.T) {
 	f := newACP(t)
-	if err := os.WriteFile(filepath.Join(f.dir, "version"), []byte("opencode v2.0.20"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(f.dir, "version"), []byte(" 1.53.0"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	llm := acpLLM(t)
 	e := newEnv(t, nil, func(c *app.Config) {
-		c.ACPBinaries = map[string]string{"opencode": filepath.Join(f.dir, "opencode"), "dsh": filepath.Join(f.dir, "no-dsh")}
+		c.ACPBinaries = map[string]string{"goose": filepath.Join(f.dir, "goose"), "dsh": filepath.Join(f.dir, "no-dsh")}
 		c.Sandbox = fakeDirSandbox{sandbox.New(), f.dir, nil}
 	})
 	e.App.Providers.Checks(t.Context(), time.Now())
-	h := e.waitHealth("agent:opencode", "error")
-	if h.Version != "opencode 2.0.20" || !strings.Contains(h.Error, "1.x") || !strings.Contains(h.Error, "opencode-ai@1.18.30") {
-		t.Fatalf("an opencode of 2.x is red with what deck runs and how to go back: %+v", h)
+	if h := e.waitHealth("agent:goose", "ok"); h.Version != "goose 1.53.0" {
+		t.Fatalf("an agent is found with its version: %+v", h)
 	}
 	if _, err := e.App.Store.Q.GetHealth(t.Context(), "agent:dsh"); err == nil {
 		t.Fatal("an agent that is not installed has no health row")
@@ -39,13 +36,8 @@ func TestAgentsAreFoundWithTheirVersion(t *testing.T) {
 	for _, a := range m.Agents {
 		found[a.Name] = a.Version + "|" + a.Status
 	}
-	if found["opencode"] != "opencode 2.0.20|error" || found["dsh"] != "|missing" {
+	if found["goose"] != "goose 1.53.0|ok" || found["dsh"] != "|missing" {
 		t.Fatalf("the models list shows each agent with its version, and one that is not installed: %+v", m.Agents)
-	}
-	e.must("deck.secret_set", map[string]any{"name": "model_key", "value": "sk-real-model-key"}, nil)
-	e.mustAgentModel(map[string]any{"name": "acp", "url": llm.URL, "model": "m", "key_secret": "model_key", "agent": "opencode"})
-	if h := e.waitHealth("provider:acp", "error"); !strings.Contains(h.Error, "1.x") || f.calls() != 0 {
-		t.Fatalf("a model on an opencode deck does not run fails its check for that reason, with no turn: %+v, %d calls", h, f.calls())
 	}
 }
 
@@ -53,20 +45,20 @@ func TestAgentsAreFoundWithTheirVersion(t *testing.T) {
 // line and in full on demand, and the agents; Connections the connections and the other secrets.
 func TestTheModelsAndConnectionsTabsShowWhatRunsTheModels(t *testing.T) {
 	f := newACP(t)
-	if err := os.WriteFile(filepath.Join(f.dir, "version"), []byte("opencode v2.0.20"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(f.dir, "versionfails"), nil, 0o644); err != nil {
 		t.Fatal(err)
 	}
 	llm := acpLLM(t)
 	e := newEnv(t, nil, func(c *app.Config) {
-		c.ACPBinaries = map[string]string{"opencode": filepath.Join(f.dir, "opencode"), "dsh": filepath.Join(f.dir, "no-dsh")}
+		c.ACPBinaries = map[string]string{"goose": filepath.Join(f.dir, "goose"), "dsh": filepath.Join(f.dir, "no-dsh")}
 		c.Sandbox = fakeDirSandbox{sandbox.New(), f.dir, nil}
 	})
 	e.App.Providers.Checks(t.Context(), time.Now())
-	e.waitHealth("agent:opencode", "error")
+	e.waitHealth("agent:goose", "error")
 	e.must("deck.secret_set", map[string]any{"name": "wiki", "value": "w"}, nil)
 	e.must("deck.connection_set", map[string]any{"name": "router", "api": "openai", "url": llm.URL, "key": "sk-router"}, nil)
 	e.must("deck.model_set", map[string]any{"connection": "router", "model": "x/pic", "kind": "image", "call_usd": 0.04}, nil)
-	e.must("deck.model_set", map[string]any{"connection": "router", "model": "m", "name": "acp", "agent": "opencode"}, nil)
+	e.must("deck.model_set", map[string]any{"connection": "router", "model": "m", "name": "acp", "agent": "goose"}, nil)
 	e.waitHealth("provider:acp", "error")
 	e.must("deck.assignment_set", map[string]any{"role": "image", "models": []string{"router/x/pic"}}, nil)
 	var kept struct {
@@ -99,12 +91,12 @@ func TestTheModelsAndConnectionsTabsShowWhatRunsTheModels(t *testing.T) {
 			whole = s
 		}
 	}
-	if !strings.Contains(whole, "opencode-ai@1.18.30") || !hasVerb(acp.Actions, "check") {
+	if !strings.Contains(whole, "--version") || !hasVerb(acp.Actions, "check") {
 		t.Fatalf("the error of a model is in full on demand, and its check runs again: %+v", acp)
 	}
 	agents := blockData[[]screenRow](t, e.settingsBlock("Agents", nil)["rows"])
-	if !strings.Contains(fmt.Sprint(agents), "opencode 2.0.20") || !strings.Contains(fmt.Sprint(agents), "not installed") {
-		t.Fatalf("the agents show their version, and one not installed: %+v", agents)
+	if !strings.Contains(fmt.Sprint(agents), "goose --version") || !strings.Contains(fmt.Sprint(agents), "not installed") {
+		t.Fatalf("the agents show why one gives no version, and one not installed: %+v", agents)
 	}
 	conns := blockData[[]screenRow](t, e.settingsBlock("Connections", nil)["rows"])
 	if len(conns) != 2 || conns[0].Cells[0] != "router" || conns[1].Cells[0] != "whisper" || fmt.Sprint(verb(t, conns[1].Actions, "edit")["params"].(map[string]any)["local"]) != "true" {
@@ -116,20 +108,19 @@ func TestTheModelsAndConnectionsTabsShowWhatRunsTheModels(t *testing.T) {
 	}
 }
 
-// TestAnAgentWhoseVersionFailsIsNotTakenForAnotherVersion: an agent whose --version fails is red with that error and
-// no version, not as a version deck does not run.
-func TestAnAgentWhoseVersionFailsIsNotTakenForAnotherVersion(t *testing.T) {
+// TestAnAgentWhoseVersionFailsSaysSo: an agent whose --version fails is red with that error and no version.
+func TestAnAgentWhoseVersionFailsSaysSo(t *testing.T) {
 	f := newACP(t)
 	if err := os.WriteFile(filepath.Join(f.dir, "versionfails"), nil, 0o644); err != nil {
 		t.Fatal(err)
 	}
 	e := newEnv(t, nil, func(c *app.Config) {
-		c.ACPBinaries = map[string]string{"opencode": filepath.Join(f.dir, "opencode"), "dsh": filepath.Join(f.dir, "dsh")}
+		c.ACPBinaries = map[string]string{"goose": filepath.Join(f.dir, "goose"), "dsh": filepath.Join(f.dir, "dsh")}
 		c.Sandbox = fakeDirSandbox{sandbox.New(), f.dir, nil}
 	})
 	e.App.Providers.Checks(t.Context(), time.Now())
-	for _, agent := range []string{"opencode", "dsh"} {
-		if h := e.waitHealth("agent:"+agent, "error"); h.Version != "" || strings.Contains(h.Error, "not supported") || !strings.Contains(h.Error, "--version") {
+	for _, agent := range []string{"goose", "dsh"} {
+		if h := e.waitHealth("agent:"+agent, "error"); h.Version != "" || !strings.Contains(h.Error, "--version") {
 			t.Fatalf("%s: a failing --version is the error it is: %+v", agent, h)
 		}
 	}

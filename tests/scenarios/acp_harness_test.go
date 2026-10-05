@@ -17,7 +17,7 @@ import (
 	"deck2/internal/store/db"
 )
 
-// fakeACP is a folder with the fake ACP agent, started as opencode or dsh, and the streams it replays.
+// fakeACP is a folder with the fake ACP agent, started as goose or dsh, and the streams it replays.
 type fakeACP struct{ fakeBin }
 
 func newACP(t *testing.T) *fakeACP {
@@ -31,7 +31,7 @@ func newACP(t *testing.T) *fakeACP {
 	if err := os.WriteFile(filepath.Join(dir, "schema.json"), schema, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"opencode", "dsh"} {
+	for _, name := range []string{"goose", "dsh"} {
 		script := "#!/bin/sh\nexec env DECK_FAKE_ACP='" + dir + "' DECK_FAKE_ACP_SCHEMA='" + filepath.Join(dir, "schema.json") + "' '" + self + "' \"$@\"\n"
 		if err := os.WriteFile(filepath.Join(dir, name), []byte(script), 0o755); err != nil {
 			t.Fatal(err)
@@ -171,16 +171,16 @@ func (e *Env) acpProject(name, manifest string) int64 {
 	return p
 }
 
-// acpPair starts deck on script with two fake ACP agents: opencode and dsh, each with its own calls.
-func acpPair(t *testing.T, script Script) (e *Env, opencode, dsh *fakeACP) {
+// acpPair starts deck on script with two fake ACP agents: goose and dsh, each with its own calls.
+func acpPair(t *testing.T, script Script) (e *Env, goose, dsh *fakeACP) {
 	t.Helper()
-	opencode, dsh = newACP(t), newACP(t)
+	goose, dsh = newACP(t), newACP(t)
 	e = newEnv(t, script, func(c *app.Config) {
-		c.ACPBinaries = map[string]string{"opencode": filepath.Join(opencode.dir, "opencode"), "dsh": filepath.Join(dsh.dir, "dsh")}
-		c.Sandbox = fakeDirSandbox{sandbox.New(), opencode.dir, []string{dsh.dir}}
+		c.ACPBinaries = map[string]string{"goose": filepath.Join(goose.dir, "goose"), "dsh": filepath.Join(dsh.dir, "dsh")}
+		c.Sandbox = fakeDirSandbox{sandbox.New(), goose.dir, []string{dsh.dir}}
 		c.ACPCallLimit = 2 * time.Second
 	})
-	return e, opencode, dsh
+	return e, goose, dsh
 }
 
 // addACP adds or changes a provider on an agent over llm with its key, its self-check replayed from call from on.

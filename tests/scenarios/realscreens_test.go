@@ -56,15 +56,15 @@ func TestRealBrowserSettings(t *testing.T) {
 	}
 	checkBuiltClient(t)
 	f := newACP(t)
-	if err := os.WriteFile(filepath.Join(f.dir, "version"), []byte("opencode v2.0.20"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(f.dir, "versionfails"), nil, 0o644); err != nil {
 		t.Fatal(err)
 	}
 	e := newEnv(t, boardWebAgent(), func(c *app.Config) {
-		c.ACPBinaries = map[string]string{"opencode": filepath.Join(f.dir, "opencode"), "dsh": filepath.Join(f.dir, "no-dsh")}
+		c.ACPBinaries = map[string]string{"goose": filepath.Join(f.dir, "goose"), "dsh": filepath.Join(f.dir, "no-dsh")}
 		c.Sandbox = fakeDirSandbox{sandbox.New(), f.dir, nil}
 	})
 	e.App.Providers.Checks(t.Context(), time.Now())
-	e.waitHealth("agent:opencode", "error")
+	e.waitHealth("agent:goose", "error")
 	e.createProject("web", boardWebManifest)
 	e.must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": themeProbe}, nil)
 
@@ -137,13 +137,13 @@ func TestRealBrowserSettings(t *testing.T) {
 	b.shot("settings-projects")
 
 	tab("Models")
-	agent := `[...document.querySelectorAll('tr')].find((r) => r.innerText.includes('opencode 2.0.20'))`
-	b.until("the agents with their version", agent)
+	agent := `[...document.querySelectorAll('tr')].find((r) => r.innerText.includes('goose --version'))`
+	b.until("the agents with why one gives no version", agent)
 	if got := b.eval(`String(!!` + agent + `.querySelector('[data-one]'))`); got != "true" {
 		t.Fatal("the error of an agent shows in one line")
 	}
 	b.eval(`(` + agent + `.querySelector('[data-cell-details] button').click(), '')`)
-	b.until("the whole error on demand", agent+`.querySelector('[data-cell-details] pre')?.innerText.includes('npm i -g opencode-ai@1.18.30')`)
+	b.until("the whole error on demand", agent+`.querySelector('[data-cell-details] pre')?.innerText.includes('exit status 1')`)
 	b.shot("settings-models")
 
 	tab("Connections")

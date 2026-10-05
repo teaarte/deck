@@ -12,7 +12,7 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
 - Tests: `go test -race -timeout 30m ./...`
 - Real Claude Code end-to-end test: `DECK_REAL_CLI=1 go test ./tests/scenarios -run TestRealClaudeCode -v`
 - Real Codex end-to-end test (skipped without `codex`): `DECK_REAL_CODEX=1 go test ./tests/scenarios -run TestRealCodex -v`
-- ACP agents (OpenCode, `dsh`) on a local Ollama: `DECK_REAL_ACP=1 go test ./tests/scenarios -run TestRealACPAgents -v`
+- ACP agents (Goose, `dsh`) on a local Ollama: `DECK_REAL_ACP=1 go test ./tests/scenarios -run TestRealACPAgents -v`
   (`DECK_OLLAMA_MODEL`, default `laguna-xs-2.1:nvfp4`; `DECK_ACP_DSH` — path to `dsh` when it is not in PATH; a cloud
   model: `DECK_ACP_URL`, `DECK_ACP_MODEL`, `DECK_ACP_KEY`)
 - Script packages from PyPI and npm through deck's proxy: `DECK_REAL_PACKAGES=1 go test ./tests/scenarios -run TestRealScriptPackages -v`
@@ -76,7 +76,7 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
   addresses, a name reaches only public ones); the proxy of models (`models.go`: `DECK_MODELS` of scripts; `SendHops` — the one loop of fallbacks of
   scripts, commands and the model of ACP turns, with deck's key and the usage of OpenAI, Google and Anthropic answers)
 - `internal/provider` — model providers; `claudecode` runs the CLI isolated from user settings; `codex` runs
-  `codex app-server` on the owner's shared login (`protocol.go` is generated); `acp` runs ACP agents (OpenCode 1.x, `dsh`)
+  `codex app-server` on the owner's shared login (`protocol.go` is generated); `acp` runs ACP agents (Goose, `dsh`)
   on an OpenAI-compatible model inside deck's sandbox, the model through deck's proxy — deck has no tool loop of its own
 - `internal/process` — process runner: agent and script executors, start, resume, result schema check, result files;
   agent turns take a slot of the workspace (`slots.go`), the rest wait in `waiting_slot`; a tool or model command is

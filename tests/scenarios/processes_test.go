@@ -298,7 +298,7 @@ func TestLeftoverCLIGroupIsKilledBeforeResume(t *testing.T) {
 	}
 	ours := group("claude", "--session-id", "11111111-1111-1111-1111-111111111111")
 	foreign := group("someone-else")
-	removed := group("opencode", "deck session 44444444-4444-4444-4444-444444444444")
+	removed := group("goose", "deck session 44444444-4444-4444-4444-444444444444")
 	orphan := exec.Command("sh", "-c", "sleep 300 & exit 0")
 	orphan.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	if err := orphan.Run(); err != nil {

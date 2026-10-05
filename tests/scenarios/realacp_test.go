@@ -24,7 +24,7 @@ func realACP(t *testing.T) (map[string]string, string, string) {
 		t.Skip("set DECK_REAL_ACP=1 to run the installed ACP agents on a local Ollama")
 	}
 	bins := map[string]string{}
-	for _, name := range []string{"opencode", "dsh"} {
+	for _, name := range []string{"goose", "dsh"} {
 		if p, err := exec.LookPath(name); err == nil {
 			bins[name] = p
 		}

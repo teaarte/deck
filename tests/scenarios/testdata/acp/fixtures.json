@@ -4,9 +4,9 @@
   "date": "2026-09-27",
   "kind": "real"
  },
- "opencode_turn.jsonl": {
-  "agent": "opencode 1.18.20",
-  "date": "2026-09-27",
+ "goose_turn.jsonl": {
+  "agent": "goose 1.53.0",
+  "date": "2026-10-05",
   "kind": "real"
  },
  "selfcheck_1.jsonl": {

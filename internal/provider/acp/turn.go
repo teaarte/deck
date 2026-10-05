@@ -33,8 +33,8 @@ func (t *turn) run(ctx context.Context) (provider.Result, error) {
 		return provider.Result{}, fmt.Errorf("acp initialize: %w", err)
 	}
 	caps := init.AgentCapabilities
-	if !caps.McpCapabilities.Http || caps.SessionCapabilities.Resume == nil {
-		return provider.Result{}, fmt.Errorf("acp: %s lacks HTTP MCP servers or session/resume, which deck needs", t.a.cfg.Agent)
+	if !caps.McpCapabilities.Http || caps.SessionCapabilities.Resume == nil && !caps.LoadSession {
+		return provider.Result{}, fmt.Errorf("acp: %s lacks HTTP MCP servers or session/resume and session/load, which deck needs", t.a.cfg.Agent)
 	}
 	servers := []sdk.McpServer{{Http: &sdk.McpServerHttpInline{Type: "http", Name: provider.Server, Url: t.mcp, Headers: []sdk.HttpHeader{}}}}
 	if t.session == "" {
@@ -49,11 +49,11 @@ func (t *turn) run(ctx context.Context) (provider.Result, error) {
 		if err := provider.WriteFile(filepath.Join(t.dir, "session"), []byte(t.session)); err != nil {
 			return provider.Result{}, err
 		}
-	} else if _, err := t.conn.ResumeSession(ctx, sdk.ResumeSessionRequest{SessionId: sdk.SessionId(t.session), Cwd: t.req.Cwd, McpServers: servers}); err != nil {
+	} else if err := t.resume(ctx, caps, servers); err != nil {
 		if ctx.Err() == nil && !t.listed(ctx) {
 			return provider.Result{SessionMissing: true}, nil
 		}
-		return provider.Result{}, fmt.Errorf("acp session/resume: %w", err)
+		return provider.Result{}, err
 	}
 	t.c.mu.Lock()
 	t.c.session = sdk.SessionId(t.session)
@@ -86,12 +86,30 @@ func (t *turn) run(ctx context.Context) (provider.Result, error) {
 	res := provider.Result{Text: t.c.said()}
 	switch got.r.StopReason {
 	case sdk.StopReasonEndTurn:
+		// An agent may end its turn on an error of the model API, so the last answer of the API tells.
+		res = t.e.refused(res)
 	case sdk.StopReasonCancelled:
 		res = t.e.refused(provider.Result{IsError: true, Text: "acp: the turn was interrupted"})
 	default:
 		res = t.e.refused(provider.Result{IsError: true, Text: "acp: the turn ended as " + string(got.r.StopReason)})
 	}
 	return res, nil
+}
+
+// resume opens the session again in a new process of the agent: session/resume, or session/load, whose replay of
+// the history deck does not hear, since the session is set only after it.
+func (t *turn) resume(ctx context.Context, caps sdk.AgentCapabilities, servers []sdk.McpServer) error {
+	id := sdk.SessionId(t.session)
+	if caps.SessionCapabilities.Resume != nil {
+		if _, err := t.conn.ResumeSession(ctx, sdk.ResumeSessionRequest{SessionId: id, Cwd: t.req.Cwd, McpServers: servers}); err != nil {
+			return fmt.Errorf("acp session/resume: %w", err)
+		}
+		return nil
+	}
+	if _, err := t.conn.LoadSession(ctx, sdk.LoadSessionRequest{SessionId: id, Cwd: t.req.Cwd, McpServers: servers}); err != nil {
+		return fmt.Errorf("acp session/load: %w", err)
+	}
+	return nil
 }
 
 // listed reports whether the agent still has the session; an agent without session/list is taken to have it.

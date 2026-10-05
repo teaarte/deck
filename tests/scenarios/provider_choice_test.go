@@ -22,7 +22,7 @@ const notesManifest = `{"version": 8,
 
 func TestNoCloudCommandDoesNotTakeACloudProvider(t *testing.T) {
 	e, cloud, local := acpPair(t, ok)
-	e.addACP(cloud, 1, "cloud", "opencode", acpLLM(t), false)
+	e.addACP(cloud, 1, "cloud", "goose", acpLLM(t), false)
 	p := e.createProject("notes", notesManifest)
 	if code, body := e.call("notes.collect", map[string]any{}); code == 200 || !strings.Contains(string(body), "no provider fits") {
 		t.Fatalf("with no provider on own hardware the command does not start: %d %s", code, body)
@@ -71,7 +71,7 @@ func TestProviderThatLeftTheOwnersHardwareStopsTheNextTurn(t *testing.T) {
 func TestProviderIsSwitchedWithoutARestart(t *testing.T) {
 	e, api, _ := acpPair(t, func(context.Context, *Call) provider.Result { return provider.Result{Text: "from the main provider"} })
 	api.streamText(0, acpTurn(`"from the API"`))
-	e.addACP(api, 1, "api", "opencode", acpLLM(t), false)
+	e.addACP(api, 1, "api", "goose", acpLLM(t), false)
 	p := e.createProject("plain", plainManifest)
 	if got := e.waitState(e.run(p, "work"), "done"); string(got.Result) != `"from the main provider"` {
 		t.Fatalf("without a setting the main provider runs: %+v", got)
@@ -102,7 +102,7 @@ func TestProviderWithoutAKeySendsNone(t *testing.T) {
 	local.selfCheck()
 	local.streamText(4, acpTurn(`"ok"`))
 	llm := acpLLM(t)
-	e.mustAgentModel(map[string]any{"name": "acp", "url": llm.URL, "model": "m", "agent": "opencode", "no_cloud": true})
+	e.mustAgentModel(map[string]any{"name": "acp", "url": llm.URL, "model": "m", "agent": "goose", "no_cloud": true})
 	e.waitFor("the self-check", func() bool {
 		h, err := e.App.Store.Q.GetHealth(t.Context(), "provider:acp")
 		return err == nil && h.Status == "ok"
@@ -117,7 +117,7 @@ func TestProviderWithoutAKeySendsNone(t *testing.T) {
 
 func TestResultSubmitGetsOneRebuild(t *testing.T) {
 	e, local, _ := acpPair(t, nil)
-	e.addACP(local, 1, "acp", "opencode", acpLLM(t), true)
+	e.addACP(local, 1, "acp", "goose", acpLLM(t), true)
 	local.streamText(4, acpStream(acpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,
 		`{"mcp": {"tool": "result_submit", "arguments": {"result": {"written": "one"}}}}`,
 		`{"mcp": {"tool": "result_submit", "arguments": {"result": {"written": "still one"}}}}`,
@@ -133,14 +133,14 @@ func TestProviderURLCarriesNoKey(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`{}`)}
 	})
 	for _, u := range []string{"https://me:sk-1@openrouter.example/api/v1", "https://api.example/v1?key=sk-1"} {
-		code, out := e.agentModel(map[string]any{"name": "cloud", "url": u, "model": "m", "agent": "opencode"})
+		code, out := e.agentModel(map[string]any{"name": "cloud", "url": u, "model": "m", "agent": "goose"})
 		if code == 200 || !strings.Contains(string(out), "give the key in key") {
 			t.Fatalf("a connection URL with a key in it is refused and points to the key field: %s → %d %s", u, code, out)
 		}
 	}
-	e.mustAgentModel(map[string]any{"name": "cloud", "url": "https://api.example/v1", "model": "m", "key_secret": "k", "agent": "opencode"})
+	e.mustAgentModel(map[string]any{"name": "cloud", "url": "https://api.example/v1", "model": "m", "key_secret": "k", "agent": "goose"})
 	_, err := e.App.Store.DB.Exec(`INSERT INTO connection (workspace_id, name, url) VALUES (1, 'old', 'https://api.example/v1?key=sk-stored');
-		INSERT INTO model (workspace_id, connection_id, name, model, agent) SELECT 1, id, 'old', 'm', 'opencode' FROM connection WHERE name = 'old'`)
+		INSERT INTO model (workspace_id, connection_id, name, model, agent) SELECT 1, id, 'old', 'm', 'goose' FROM connection WHERE name = 'old'`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -159,7 +159,7 @@ func TestProviderURLCarriesNoKey(t *testing.T) {
 // commands of the project's settings.
 func TestTheProviderColumnFollowsProviderSet(t *testing.T) {
 	e, api, _ := acpPair(t, nil)
-	e.addACP(api, 1, "api", "opencode", acpLLM(t), false)
+	e.addACP(api, 1, "api", "goose", acpLLM(t), false)
 	e.createProject("plain", plainManifest)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -176,7 +176,7 @@ func TestTheProviderColumnFollowsProviderSet(t *testing.T) {
 // assignment of the command would take.
 func TestTheCommandsOfAProjectOfferOnlyProvidersThatFit(t *testing.T) {
 	e, cloud, local := acpPair(t, ok)
-	e.addACP(cloud, 1, "cloud", "opencode", acpLLM(t), false)
+	e.addACP(cloud, 1, "cloud", "goose", acpLLM(t), false)
 	e.addACP(local, 1, "local", "dsh", acpLLM(t), true)
 	e.createProject("notes", notesManifest)
 	var rows []struct {

@@ -23,6 +23,9 @@ import (
 	"deck2/internal/store/db"
 )
 
+// gooseInit is the initialize of Goose: no session/resume, session/load instead.
+const gooseInit = `{"reply": "initialize", "result": {"protocolVersion": 1, "agentCapabilities": {"loadSession": true, "mcpCapabilities": {"http": true}, "sessionCapabilities": {"list": {}, "close": {}}}, "authMethods": []}}`
+
 const acpInit = `{"reply": "initialize", "result": {"protocolVersion": 1, "agentCapabilities": {"mcpCapabilities": {"http": true}, "sessionCapabilities": {"resume": {}, "list": {}}}, "authMethods": []}}`
 
 const writtenManifest = `{"version": 8,
@@ -106,10 +109,10 @@ func TestACPCommandAgentWorksThroughTheGateway(t *testing.T) {
 func acpStream(lines ...string) string { return strings.Join(lines, "\n") }
 
 // TestACPQuestionStopsTheTurnBeforeTheAgentTimesOutAndTheAnswerResumes: an ACP agent gives a tool call 60 s, so a
-// question waits less, the turn ends and the owner's answer comes back through session/resume of the same session.
+// question waits less, the turn ends and the owner's answer comes back through session/load of the same session.
 func TestACPQuestionStopsTheTurnBeforeTheAgentTimesOutAndTheAnswerResumes(t *testing.T) {
 	f := newACP(t)
-	f.streamText(4, acpStream(acpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,
+	f.streamText(4, acpStream(gooseInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,
 		`{"update": {"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "Hi."}}}`,
 		`{"update": {"sessionUpdate": "agent_thought_chunk", "content": {"type": "text", "text": "Read "}}}`,
 		`{"update": {"sessionUpdate": "agent_thought_chunk", "content": {"type": "text", "text": "first."}}}`,
@@ -117,9 +120,9 @@ func TestACPQuestionStopsTheTurnBeforeTheAgentTimesOutAndTheAnswerResumes(t *tes
 		`{"update": {"sessionUpdate": "tool_call_update", "toolCallId": "c1", "status": "in_progress", "rawInput": {"path": "a.txt"}}}`,
 		`{"update": {"sessionUpdate": "tool_call_update", "toolCallId": "c1", "status": "completed", "rawInput": {"path": "a.txt"}, "rawOutput": {"output": "text of a"}}}`,
 		`{"mcp": {"tool": "ask", "arguments": {"question": "Which color should the report use?"}}}`, `{"end": "end_turn"}`))
-	f.streamText(5, acpStream(acpInit, `{"reply": "session/resume", "result": {}}`, `{"reply": "session/prompt"}`,
+	f.streamText(5, acpStream(gooseInit, `{"reply": "session/load", "result": {}, "replay": [{"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "Hi again."}}]}`, `{"reply": "session/prompt"}`,
 		`{"mcp": {"tool": "result_submit", "arguments": {"result": {"color": "blue"}}}}`, `{"end": "end_turn"}`))
-	e := acpEnv(t, f, "opencode", acpLLM(t), func(c *app.Config) { c.QuestionWait = 10 * time.Minute })
+	e := acpEnv(t, f, "goose", acpLLM(t), func(c *app.Config) { c.QuestionWait = 10 * time.Minute })
 	id := e.run(e.acpProject("paint", colorManifest), "work")
 	a := e.waitAsk()
 	if a.Kind != "question" || !strings.Contains(a.Text, "Which color") {
@@ -139,19 +142,21 @@ func TestACPQuestionStopsTheTurnBeforeTheAgentTimesOutAndTheAnswerResumes(t *tes
 		lines[4]["id"] != "c1" || lines[4]["status"] != "completed" || lines[4]["text"] != `{"output":"text of a"}` {
 		t.Fatalf("the log keeps the session updates of ACP: a thought whole, the call, its late input and its end: %v", lines)
 	}
-	if p := f.call(4).port; p != "bound true" {
-		t.Fatalf("the sandbox lets OpenCode serve itself on its own port: %q", p)
-	}
 	e.answer(a.ID, "blue")
 	got := e.waitState(id, "done", "error")
 	c := f.call(5)
 	var resume struct{ SessionID string }
-	_ = json.Unmarshal(c.request("session/resume"), &resume)
+	_ = json.Unmarshal(c.request("session/load"), &resume)
 	if got.State != "done" || string(got.Result) != `{"color":"blue"}` || resume.SessionID != "s-1" || c.violation != "" {
 		t.Fatalf("the answer resumes the session the agent opened: %+v %+v %s", got, resume, c.violation)
 	}
 	if !strings.Contains(string(c.request("session/prompt")), "blue") {
 		t.Fatalf("the resume brings the answer: %s", c.request("session/prompt"))
+	}
+	for _, l := range e.log(id) {
+		if l["text"] == "Hi again." {
+			t.Fatalf("the history a load replays is not logged again: %v", l)
+		}
 	}
 }
 
@@ -163,7 +168,7 @@ func TestACPAgentPermissionIsAllowedOnceWithoutTheOwner(t *testing.T) {
 		`{"permission": {"toolCall": {"toolCallId": "c1", "title": "cat notes", "kind": "execute"}, "options": [{"optionId": "always", "name": "Always", "kind": "allow_always"}, {"optionId": "once", "name": "Once", "kind": "allow_once"}, {"optionId": "no", "name": "No", "kind": "reject_once"}]}}`,
 		`{"permission": {"toolCall": {"toolCallId": "c2"}, "options": [{"optionId": "always", "name": "Always", "kind": "allow_always"}, {"optionId": "no", "name": "No", "kind": "reject_once"}]}}`,
 		`{"mcp": {"tool": "result_submit", "arguments": {"result": {"color": "red"}}}}`, `{"end": "end_turn"}`))
-	e := acpEnv(t, f, "opencode", acpLLM(t))
+	e := acpEnv(t, f, "goose", acpLLM(t))
 	id := e.run(e.acpProject("paint", colorManifest), "work")
 	got := e.waitState(id, "done", "error")
 	c := f.call(4)
@@ -203,7 +208,7 @@ func TestACPExternalToolStillWaitsForYes(t *testing.T) {
 }
 
 // TestACPProjectWithoutNetworkHasNoWebThroughTheProxy: the proxy of the sandbox carries the agent only to the hosts
-// of its project, and nowhere in a project without network, where the agent's own web tools are off too.
+// of its project, and nowhere in a project without network.
 func TestACPProjectWithoutNetworkHasNoWebThroughTheProxy(t *testing.T) {
 	site := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { jsonReply(w, `{}`) })
 	curl := `{"shell": "curl -s --noproxy '' --proxy \"$HTTP_PROXY\" ` + site.URL + `/page"}`
@@ -216,7 +221,7 @@ func TestACPProjectWithoutNetworkHasNoWebThroughTheProxy(t *testing.T) {
 			`{"update": {"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "the page."}}}`,
 			`{"mcp": {"tool": "result_submit", "arguments": {"result": {"written": 0}}}}`, `{"end": "end_turn"}`))
 	}
-	e := acpEnv(t, f, "opencode", acpLLM(t))
+	e := acpEnv(t, f, "goose", acpLLM(t))
 	open := strings.Replace(noNetworkManifest, `"no_network": true,`, "", 1)
 	if got := e.waitState(e.run(e.acpProject("open", open), "work"), "done"); !strings.Contains(string(got.Result), "Checked the page.") {
 		t.Fatalf("what the agent said is the result of a command without a schema: %s", got.Result)
@@ -232,8 +237,8 @@ func TestACPProjectWithoutNetworkHasNoWebThroughTheProxy(t *testing.T) {
 	if web.shell[2]["out"] != "407" {
 		t.Fatalf("the proxy takes only the agent that has its password: %q", web.shell[2]["out"])
 	}
-	if !strings.Contains(off.env["OPENCODE_CONFIG_CONTENT"], `"webfetch":"deny"`) || strings.Contains(web.env["OPENCODE_CONFIG_CONTENT"], `"webfetch":"deny"`) {
-		t.Fatalf("without network the agent's own web tools are off: %s", off.env["OPENCODE_CONFIG_CONTENT"])
+	if web.args[0] != "acp" || web.env["GOOSE_MODE"] != "auto" || web.env["OPENAI_API_KEY"] != "deck" || !strings.Contains(web.env["EXTENSIONS"], `"developer"`) {
+		t.Fatalf("Goose runs on deck's model with its own tools and no questions: %v %v", web.args, web.env)
 	}
 }
 
@@ -280,9 +285,9 @@ func TestACPStopCancelsTheTurn(t *testing.T) {
 	e.waitFor("the cancel", func() bool { return f.call(4).request("session/cancel") != nil })
 }
 
-// TestACPRecordedTurnsOfBothAgents replays turns recorded from dsh and OpenCode through the same adapter.
+// TestACPRecordedTurnsOfBothAgents replays turns recorded from dsh and Goose through the same adapter.
 func TestACPRecordedTurnsOfBothAgents(t *testing.T) {
-	for _, tc := range []struct{ agent, fixture string }{{"dsh", "dsh_turn.jsonl"}, {"opencode", "opencode_turn.jsonl"}} {
+	for _, tc := range []struct{ agent, fixture string }{{"dsh", "dsh_turn.jsonl"}, {"goose", "goose_turn.jsonl"}} {
 		t.Run(tc.agent, func(t *testing.T) {
 			f := newACP(t)
 			f.stream(4, tc.fixture)
@@ -444,6 +449,30 @@ func TestACPTurnSucceedsOnlyOnEndTurn(t *testing.T) {
 			if left := time.Until(time.UnixMilli(pp.PauseUntilMs.Int64)); left < 100*time.Second || left > 121*time.Second {
 				t.Fatalf("the pause lasts until Retry-After: %s", left)
 			}
+		}
+	}
+}
+
+// TestACPTurnThatEndsOnARefusalOfTheModelIsTheRefusal: Goose ends its turn as end_turn with the error of the model
+// API in its text, so the last answer of the API still tells a usage limit and a refused key.
+func TestACPTurnThatEndsOnARefusalOfTheModelIsTheRefusal(t *testing.T) {
+	for _, tc := range []struct {
+		status int
+		state  string
+	}{{429, "rate_limited"}, {401, "needs_login"}} {
+		f := newACP(t)
+		llm := newLLM(t, func(n int, _ chatRequest) chatReply {
+			if n <= 3 {
+				return textReply("ok")
+			}
+			return chatReply{status: tc.status, header: http.Header{"Retry-After": {"120"}}, body: `{"error": {"message": "no"}}`}
+		})
+		f.streamText(4, acpStream(gooseInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`, acpModel,
+			`{"update": {"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "Ran into this error: Rate limit exceeded."}}}`,
+			`{"end": "end_turn"}`))
+		e := acpEnv(t, f, "goose", llm)
+		if got := e.waitState(e.run(e.acpProject("paint", colorManifest), "work"), "done", "error", "needs_login", "rate_limited"); got.State != tc.state {
+			t.Fatalf("%d: want %s, got %+v", tc.status, tc.state, got)
 		}
 	}
 }
@@ -643,7 +672,7 @@ func TestACPRefusalsReachTheFeed(t *testing.T) {
 	f.streamText(4, acpStream(acpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,
 		`{"shell": "cat `+filepath.Join(owner, ".zshrc")+`"}`,
 		`{"mcp": {"tool": "result_submit", "arguments": {"result": {"written": 0}}}}`, `{"end": "end_turn"}`))
-	e := acpEnv(t, f, "opencode", acpLLM(t))
+	e := acpEnv(t, f, "goose", acpLLM(t))
 	id := e.run(e.acpProject("paint", writtenManifest), "work")
 	e.waitState(id, "done")
 	if strings.Contains(f.call(4).shell[0]["out"], "private") {

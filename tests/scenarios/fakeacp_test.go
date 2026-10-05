@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -41,38 +40,15 @@ func serveACP(dir string) {
 		os.Exit(0)
 	}
 	f := &fakeACPRun{fakeServer: newFakeServer("fake acp", dir, args)}
-	c := f.call
-	for i, a := range args {
-		if a == "--port" && i+1 < len(args) {
-			ln, err := net.Listen("tcp", "127.0.0.1:"+args[i+1])
-			if err != nil {
-				_ = os.WriteFile(filepath.Join(c, "port"), []byte(err.Error()), 0o644)
-			} else {
-				defer ln.Close()
-				conn, err := net.Dial("tcp", ln.Addr().String())
-				_ = os.WriteFile(filepath.Join(c, "port"), []byte(fmt.Sprint("bound ", err == nil)), 0o644)
-				if conn != nil {
-					conn.Close()
-				}
-			}
-		}
-	}
 	f.loadSchema(os.Getenv("DECK_FAKE_ACP_SCHEMA"))
 	f.model, f.key = fakeModel(args)
 	f.run(f.stream())
 }
 
-// fakeModel finds the model API deck gave the agent: in the config of OpenCode or in the patch of dsh.
+// fakeModel finds the model API deck gave the agent: in the environment of Goose or in the patch of dsh.
 func fakeModel(args []string) (url, key string) {
 	if len(args) > 0 && args[0] == "acp" {
-		var cfg struct {
-			Provider map[string]struct {
-				Options struct{ BaseURL, APIKey string }
-			}
-		}
-		_ = json.Unmarshal([]byte(os.Getenv("OPENCODE_CONFIG_CONTENT")), &cfg)
-		o := cfg.Provider["deck"].Options
-		return o.BaseURL, o.APIKey
+		return os.Getenv("OPENAI_BASE_URL"), os.Getenv("OPENAI_API_KEY")
 	}
 	for i, a := range args {
 		if a == "--patch" && i+1 < len(args) {
@@ -263,7 +239,8 @@ func (f *fakeACPRun) run(lines []string) {
 	}
 }
 
-// reply answers the next request, which must be the one the stream expects; a prompt waits for "end".
+// reply answers the next request, which must be the one the stream expects, after the updates it replays first;
+// a prompt waits for "end".
 func (f *fakeACPRun) reply(want string, l map[string]json.RawMessage) {
 	m := f.request()
 	var method string
@@ -284,6 +261,11 @@ func (f *fakeACPRun) reply(want string, l map[string]json.RawMessage) {
 	}
 	if p.SessionID != "" {
 		f.session = p.SessionID
+	}
+	var replay []json.RawMessage
+	_ = json.Unmarshal(l["replay"], &replay)
+	for _, u := range replay {
+		f.send(map[string]any{"jsonrpc": "2.0", "method": "session/update", "params": map[string]any{"sessionId": f.session, "update": u}})
 	}
 	if method == "session/prompt" && l["error"] == nil {
 		for _, b := range p.Prompt {

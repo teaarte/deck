@@ -24,7 +24,7 @@ func TestTheMasterReadsTheFieldsOfAFormOnlyTheOwnerFillsIn(t *testing.T) {
 		t.Fatalf("command_describe: %d %s", code, out)
 	}
 	if spec.Name != "deck.model_set" || len(spec.Callers) != 1 || spec.Callers[0] != "owner" ||
-		strings.Join(spec.Input.Properties["agent"].Enum, ",") != "dsh,opencode" {
+		strings.Join(spec.Input.Properties["agent"].Enum, ",") != "dsh,goose" {
 		t.Fatalf("the master sees the fields of the model form and the agents to pick: %s", out)
 	}
 	if code, out := e.callWith(tok, "deck.model_set", map[string]any{"connection": "x", "model": "m", "agent": "dsh"}); code != 403 {
@@ -33,7 +33,7 @@ func TestTheMasterReadsTheFieldsOfAFormOnlyTheOwnerFillsIn(t *testing.T) {
 	e.refused("deck.model_set", map[string]any{"connection": "x"}, 422,
 		"input of deck.model_set: missing property 'model'; deck.command_describe gives its parameters")
 	e.refused("deck.model_set", map[string]any{"connection": "x", "model": "m", "agent": "foo"}, 422,
-		"agent: value must be one of 'dsh', 'opencode'")
+		"agent: value must be one of 'dsh', 'goose'")
 }
 
 // TestReadsGiveTheirResultSchema: commands that only read are reads, with the schema of their result, so a

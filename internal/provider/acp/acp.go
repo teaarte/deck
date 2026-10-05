@@ -81,7 +81,7 @@ func Names() []string {
 
 func (a *Adapter) Name() string { return a.cfg.Name }
 
-func (a *Adapter) Caps() provider.Caps { return a.agent.caps(a.cfg.NoCloud) }
+func (a *Adapter) Caps() provider.Caps { return caps(a.cfg.NoCloud) }
 
 // AgentName is the ACP agent the provider starts.
 func (a *Adapter) AgentName() string { return a.cfg.Agent }
@@ -160,17 +160,13 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 		}
 	}()
 
-	port, err := freePort()
-	if err != nil {
-		return provider.Result{}, err
-	}
 	bin, err := exec.LookPath(a.cfg.Binary)
 	if err != nil {
 		return provider.Result{}, fmt.Errorf("acp: %s is not installed: %w", a.cfg.Agent, err)
 	}
 	proxy := "http://deck:" + e.proxyKey + "@" + self
 	argv, env, files := a.agent.Start(Launch{Binary: bin, Home: home, ModelURL: "http://" + self + e.modelAt, Model: a.cfg.Model,
-		Key: "deck", Port: port, NoNetwork: req.NoNetwork})
+		Key: "deck"})
 	for path, text := range files {
 		if err := writeNew(path, text); err != nil {
 			return provider.Result{}, err
@@ -196,7 +192,7 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 	defer unwatch()
 	cmd, err := a.cfg.Sandbox.Command(life, a.closed(sandbox.Policy{
 		Argv: append([]string{"/bin/sh", "-c", `"$@"; exit $?`, marker(req.SessionID)}, argv...),
-		Dir:  req.Cwd, Env: env, Write: append([]string{req.Cwd, home}, req.Dirs...), Read: req.Read, Out: ln, Port: port, Tag: tag}, bin))
+		Dir:  req.Cwd, Env: env, Write: append([]string{req.Cwd, home}, req.Dirs...), Read: req.Read, Out: ln, Tag: tag}, bin))
 	if err != nil {
 		return provider.Result{}, err
 	}

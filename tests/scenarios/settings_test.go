@@ -276,7 +276,7 @@ func TestSettingsSecretsAndTokensShowOnlyNames(t *testing.T) {
 func TestSettingsModelsAddAndRemoveOnTheScreen(t *testing.T) {
 	f := newACP(t)
 	e := newEnv(t, nil, func(c *app.Config) {
-		c.ACPBinaries = map[string]string{"opencode": filepath.Join(f.dir, "opencode")}
+		c.ACPBinaries = map[string]string{"goose": filepath.Join(f.dir, "goose")}
 		c.Sandbox = fakeDirSandbox{sandbox.New(), f.dir, nil}
 	})
 	events := e.sse(t.Context())
@@ -284,7 +284,7 @@ func TestSettingsModelsAddAndRemoveOnTheScreen(t *testing.T) {
 		t.Fatalf("the models tab adds a model with a form: %s", f["value"])
 	}
 	e.must("deck.connection_set", map[string]any{"name": "ollama", "api": "openai", "url": "http://127.0.0.1:1/v1", "local": true}, nil)
-	e.must("deck.model_set", map[string]any{"connection": "ollama", "model": "small", "name": "ollama-small", "agent": "opencode"}, nil)
+	e.must("deck.model_set", map[string]any{"connection": "ollama", "model": "small", "name": "ollama-small", "agent": "goose"}, nil)
 	waitTopic(t, events, "health")
 	rows := blockData[[]screenRow](t, e.settingsBlock("Models", map[string]any{"topic": "health"})["rows"])
 	var added screenRow
@@ -299,11 +299,11 @@ func TestSettingsModelsAddAndRemoveOnTheScreen(t *testing.T) {
 		t.Fatalf("a model in an ACP agent has a self-check and its button: %+v", added.Actions)
 	}
 	remove := verb(t, added.Actions, "remove")
-	if remove["confirm"] != true || added.Cells[2] != "ollama" || added.Cells[3] != "opencode" {
+	if remove["confirm"] != true || added.Cells[2] != "ollama" || added.Cells[3] != "goose" {
 		t.Fatalf("an added model shows its connection and agent and is removed after a yes: %+v", added)
 	}
 	edit := verb(t, added.Actions, "edit")["params"].(map[string]any)
-	if edit["dialog"] != "model" || edit["model"] != "small" || edit["connection"] != "ollama" || edit["agent"] != "opencode" {
+	if edit["dialog"] != "model" || edit["model"] != "small" || edit["connection"] != "ollama" || edit["agent"] != "goose" {
 		t.Fatalf("edit opens the dialog of the model filled with its values: %+v", edit)
 	}
 	var fv formV

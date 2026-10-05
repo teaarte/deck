@@ -62,13 +62,13 @@ func TestTheProvidersOfABaseFromBeforeAreConnectionsModelsAndAssignments(t *test
 	p := e.createProject("plain", plainManifest)
 	e.olderBase(8)
 	for key, value := range map[string]string{
-		"provider:openrouter-qwen-free":             `{"url":"https://openrouter.ai/api/v1","model":"qwen/qwen3.8-27b:free","key_secret":"openrouter","agent":"opencode"}`,
-		"provider:local-qwen":                       `{"url":"http://localhost:11434/v1","model":"qwen3.6:35b-a3b-nvfp4","no_cloud":true,"agent":"opencode"}`,
-		"provider:nvidia-nemotron-free":             `{"url":"https://integrate.api.nvidia.com/v1","model":"nvidia/nemotron-3-ultra-550b-a55b","key_secret":"nvidia","agent":"opencode"}`,
-		"provider:openrouter-thinkingmachines-free": `{"url":"https://openrouter.ai/api/v1","model":"thinkingmachines/inkling:free","key_secret":"openrouter","agent":"opencode"}`,
-		"provider:openrouter-nemotron-free":         `{"url":"https://openrouter.ai/api/v1","model":"nvidia/nemotron-3-ultra-550b-a55b:free","key_secret":"openrouter","agent":"opencode"}`,
-		"provider:google-gemini-3-8-flash":          `{"url":"https://generativelanguage.googleapis.com/v1beta/openai/","model":"gemini-3.8-flash","key_secret":"google","agent":"opencode","check_minutes":5}`,
-		"provider:old-env":                          `{"url":"https://api.example.com/v1","model":"m","key_secret":"OPENAI_API_KEY","agent":"opencode"}`,
+		"provider:openrouter-qwen-free":             `{"url":"https://openrouter.ai/api/v1","model":"qwen/qwen3.8-27b:free","key_secret":"openrouter","agent":"dsh"}`,
+		"provider:local-qwen":                       `{"url":"http://localhost:11434/v1","model":"qwen3.6:35b-a3b-nvfp4","no_cloud":true,"agent":"dsh"}`,
+		"provider:nvidia-nemotron-free":             `{"url":"https://integrate.api.nvidia.com/v1","model":"nvidia/nemotron-3-ultra-550b-a55b","key_secret":"nvidia","agent":"dsh"}`,
+		"provider:openrouter-thinkingmachines-free": `{"url":"https://openrouter.ai/api/v1","model":"thinkingmachines/inkling:free","key_secret":"openrouter","agent":"dsh"}`,
+		"provider:openrouter-nemotron-free":         `{"url":"https://openrouter.ai/api/v1","model":"nvidia/nemotron-3-ultra-550b-a55b:free","key_secret":"openrouter","agent":"dsh"}`,
+		"provider:google-gemini-3-8-flash":          `{"url":"https://generativelanguage.googleapis.com/v1beta/openai/","model":"gemini-3.8-flash","key_secret":"google","agent":"dsh","check_minutes":5}`,
+		"provider:old-env":                          `{"url":"https://api.example.com/v1","model":"m","key_secret":"OPENAI_API_KEY","agent":"dsh"}`,
 		"setting:stt":                               `{"url":"https://api.openai.com/v1/audio/transcriptions","model":"whisper-1","key_secret":"openai","language":"ru"}`,
 		"setting:language":                          `ru`,
 	} {
@@ -110,7 +110,7 @@ func TestTheProvidersOfABaseFromBeforeAreConnectionsModelsAndAssignments(t *test
 	}
 	agents, builtin := 0, 0
 	for _, x := range m.Models {
-		if x.Agent == "opencode" && x.Kind == "text" {
+		if x.Agent == "dsh" && x.Kind == "text" {
 			agents++
 		}
 		if x.Builtin {

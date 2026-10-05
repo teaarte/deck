@@ -10,6 +10,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"deck2/internal/provider"
 	"deck2/internal/registry"
 )
 
@@ -64,7 +65,7 @@ func (g *Gateway) automationEntry(token int64) *automationEntry {
 	}
 	srv := mcp.NewServer(&mcp.Implementation{Name: ServerName, Version: "0"}, &mcp.ServerOptions{Instructions: automationInstructions})
 	e := &automationEntry{server: srv}
-	e.handler = mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return srv }, &mcp.StreamableHTTPOptions{SessionTimeout: time.Hour})
+	e.handler = provider.Stateful(mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return srv }, &mcp.StreamableHTTPOptions{SessionTimeout: time.Hour}))
 	g.tokens[token] = e
 	return e
 }

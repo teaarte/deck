@@ -477,6 +477,20 @@ func TestACPTurnThatEndsOnARefusalOfTheModelIsTheRefusal(t *testing.T) {
 	}
 }
 
+// TestACPAgentThatDiscoversTheGatewayOpensASession: Goose asks server/discover first; told the method is not there,
+// it opens a session with initialize, which the gateway needs (told otherwise, it calls without one).
+func TestACPAgentThatDiscoversTheGatewayOpensASession(t *testing.T) {
+	f := newACP(t)
+	f.streamText(4, acpStream(gooseInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,
+		`{"discover": true}`, `{"mcp": {"tool": "result_submit", "arguments": {"result": {"color": "blue"}}}}`, `{"end": "end_turn"}`))
+	e := acpEnv(t, f, "goose", acpLLM(t))
+	got := e.waitState(e.run(e.acpProject("paint", colorManifest), "work"), "done", "error")
+	d := jsonLines[map[string]any](f.files(4)("discover.jsonl"))
+	if got.State != "done" || len(d) != 1 || !strings.Contains(fmt.Sprint(d[0]["body"]), "-32601") {
+		t.Fatalf("server/discover is a method the gateway does not have: %+v %v", got, d)
+	}
+}
+
 // TestACPDeckWritesNothingThroughWhatTheAgentLeft: skills and the profile files go into folders the agent writes
 // to, so deck replaces what it finds there rather than follow a symlink the agent planted in an earlier turn.
 func TestACPDeckWritesNothingThroughWhatTheAgentLeft(t *testing.T) {

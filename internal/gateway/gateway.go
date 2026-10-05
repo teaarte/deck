@@ -97,7 +97,7 @@ type entry struct {
 
 func New(cfg Config, st *store.Store, asks *ask.Broker, bus *events.Bus, reg *registry.Registry) *Gateway {
 	g := &Gateway{cfg: cfg, st: st, asks: asks, bus: bus, reg: reg, clear: reg.Clearance(), sessions: map[string]*entry{}, tokens: map[int64]*automationEntry{}}
-	g.handler = mcp.NewStreamableHTTPHandler(g.serverFor, &mcp.StreamableHTTPOptions{SessionTimeout: time.Hour})
+	g.handler = provider.Stateful(mcp.NewStreamableHTTPHandler(g.serverFor, &mcp.StreamableHTTPOptions{SessionTimeout: time.Hour}))
 	return g
 }
 

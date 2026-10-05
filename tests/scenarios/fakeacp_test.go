@@ -221,6 +221,8 @@ func (f *fakeACPRun) run(lines []string) {
 			f.record("shell.jsonl", map[string]string{"cmd": cmd, "out": string(out)})
 		case l["model"] != nil:
 			f.callModel(l["model"])
+		case l["discover"] != nil:
+			f.discover()
 		case l["hang"] != nil:
 			for m := range f.in {
 				if string(m["method"]) == `"session/cancel"` {
@@ -320,4 +322,22 @@ func (f *fakeACPRun) callModel(body json.RawMessage) {
 	defer resp.Body.Close()
 	b, _ := io.ReadAll(resp.Body)
 	f.record("model.jsonl", map[string]any{"status": resp.StatusCode, "body": string(b)})
+}
+
+// discover asks the deck MCP server for server/discover of the protocol of 2026-07-28, as Goose does before its
+// handshake, and records the answer.
+func (f *fakeACPRun) discover() {
+	body := `{"jsonrpc": "2.0", "id": 0, "method": "server/discover", "params": {"_meta": {"io.modelcontextprotocol/protocolVersion": "2026-07-28"}}}`
+	req, _ := http.NewRequest("POST", f.mcpURL, strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json, text/event-stream")
+	req.Header.Set("Mcp-Protocol-Version", "2026-07-28")
+	resp, err := (&http.Client{Transport: &http.Transport{Proxy: nil}}).Do(req)
+	if err != nil {
+		f.record("discover.jsonl", map[string]any{"error": err.Error()})
+		return
+	}
+	defer resp.Body.Close()
+	b, _ := io.ReadAll(resp.Body)
+	f.record("discover.jsonl", map[string]any{"status": resp.StatusCode, "body": string(b)})
 }

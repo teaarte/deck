@@ -23,7 +23,7 @@ func ServeCheck(srv *mcp.Server) (string, func(), error) {
 	if err != nil {
 		return "", nil, err
 	}
-	hs := &http.Server{Handler: mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return srv }, nil)}
+	hs := &http.Server{Handler: Stateful(mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return srv }, nil))}
 	go func() { _ = hs.Serve(ln) }()
 	return "http://" + ln.Addr().String() + "/mcp", func() { _ = hs.Close() }, nil
 }

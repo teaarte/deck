@@ -248,6 +248,10 @@ func (r *Runner) converse(ctx context.Context, t *turn, a *agentTurn, fail func(
 			req.Prompt += r.remarksText(bg, processID, asks.Remarks)
 			continue
 		}
+		if a.sub != nil && err == nil && !res.IsError && submitted(a.sub) {
+			// A turn that ended on its own with its result in is done, whatever a later call of the model got.
+			res.RateLimited, res.NeedsLogin = false, false
+		}
 		_ = r.st.Tx(bg, func(ctx context.Context, q *db.Queries) error {
 			if err := asks.mark(ctx, q); err != nil {
 				return err
@@ -453,4 +457,10 @@ func callLimit(pv provider.Provider) time.Duration {
 		return l.CallLimit()
 	}
 	return 0
+}
+
+// submitted reports whether the session handed in a result.
+func submitted(s *gateway.Submit) bool {
+	got, _ := s.Result()
+	return got != nil
 }

@@ -477,6 +477,24 @@ func TestACPTurnThatEndsOnARefusalOfTheModelIsTheRefusal(t *testing.T) {
 	}
 }
 
+// TestACPTurnThatHandedInItsResultIsDoneThoughALaterCallWasRefused: a call of the model refused after the result,
+// such as the title of a session Goose asks for on the side, does not undo the turn.
+func TestACPTurnThatHandedInItsResultIsDoneThoughALaterCallWasRefused(t *testing.T) {
+	f := newACP(t)
+	llm := newLLM(t, func(n int, _ chatRequest) chatReply {
+		if n <= 3 {
+			return textReply("ok")
+		}
+		return chatReply{status: 429, header: http.Header{"Retry-After": {"120"}}, body: `{"error": {"message": "no"}}`}
+	})
+	f.streamText(4, acpStream(gooseInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,
+		`{"mcp": {"tool": "result_submit", "arguments": {"result": {"color": "blue"}}}}`, acpModel, `{"end": "end_turn"}`))
+	e := acpEnv(t, f, "goose", llm)
+	if got := e.waitState(e.run(e.acpProject("paint", colorManifest), "work"), "done", "error", "needs_login", "rate_limited"); got.State != "done" || string(got.Result) != `{"color":"blue"}` {
+		t.Fatalf("the turn that handed in its result is done: %+v", got)
+	}
+}
+
 // TestACPAgentThatDiscoversTheGatewayOpensASession: Goose asks server/discover first; told the method is not there,
 // it opens a session with initialize, which the gateway needs (told otherwise, it calls without one).
 func TestACPAgentThatDiscoversTheGatewayOpensASession(t *testing.T) {

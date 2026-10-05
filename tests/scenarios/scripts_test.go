@@ -552,7 +552,7 @@ for t in ["local", "shim", "linked", "doc"]:
     except OSError as e:
         tools[t] = str(e)
 try:
-    listed = len(os.listdir(home)) > 0
+    listed = ".zshrc" in os.listdir(home)
 except OSError:
     listed = False
 print(json.dumps({"rc": can_read(os.path.join(home, ".zshrc")), "documents": can_read(os.path.join(home, "Documents", "notes.txt")),

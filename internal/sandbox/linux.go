@@ -90,11 +90,10 @@ func (*bwrap) Command(ctx context.Context, p Policy) (*exec.Cmd, error) {
 		}
 	}
 	args = append(args, closed(p.Hide)...)
+	made := map[string]bool{}
 	for _, r := range p.Read {
 		args = append(args, "--ro-bind-try", real(r), real(r))
-		if r = filepath.Clean(r); r != real(r) {
-			args = append(args, "--ro-bind-try", real(r), r)
-		}
+		args = append(args, links(r, p.Hide, made)...)
 	}
 	var private []string
 	for _, h := range p.Private {
@@ -127,6 +126,27 @@ func (*bwrap) Command(ctx context.Context, p Policy) (*exec.Cmd, error) {
 	args = append(args, "--")
 	cmd := exec.CommandContext(ctx, "bwrap", append(args, argv...)...)
 	return group(cmd), nil
+}
+
+// links recreate the links along path inside the hidden folders, so a program reaches it by the name it was given.
+func links(path string, hide []string, made map[string]bool) []string {
+	var args []string
+	p := "/"
+	for _, part := range strings.Split(filepath.Clean(path), "/")[1:] {
+		p = filepath.Join(p, part)
+		fi, err := os.Lstat(p)
+		if err != nil {
+			break
+		}
+		inside := slices.ContainsFunc(hide, func(h string) bool { return strings.HasPrefix(p, real(h)+"/") || strings.HasPrefix(p, h+"/") })
+		if fi.Mode()&os.ModeSymlink != 0 && inside && !made[p] {
+			if to, err := os.Readlink(p); err == nil {
+				made[p] = true
+				args = append(args, "--symlink", to, p)
+			}
+		}
+	}
+	return args
 }
 
 // closed are the arguments that empty folders and files that exist.

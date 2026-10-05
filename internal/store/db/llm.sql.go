@@ -293,20 +293,3 @@ func (q *Queries) SpentOfConnection(ctx context.Context, arg SpentOfConnectionPa
 	err := row.Scan(&column_1)
 	return column_1, err
 }
-
-const spentOfProject = `-- name: SpentOfProject :one
-SELECT CAST(COALESCE(sum(cost_usd), 0) AS REAL) FROM llm_call
-WHERE project_id = ?1 AND connection_id IS NOT NULL AND created_at >= ?2
-`
-
-type SpentOfProjectParams struct {
-	ProjectID sql.NullInt64
-	Since     string
-}
-
-func (q *Queries) SpentOfProject(ctx context.Context, arg SpentOfProjectParams) (float64, error) {
-	row := q.db.QueryRowContext(ctx, spentOfProject, arg.ProjectID, arg.Since)
-	var column_1 float64
-	err := row.Scan(&column_1)
-	return column_1, err
-}

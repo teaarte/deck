@@ -44,23 +44,13 @@ func (s *Service) dayStart() (string, time.Time) {
 	return store.Time(start), start.AddDate(0, 0, 1)
 }
 
-// over says why the day of a connection or a project is past its limit, empty within them, and when the day ends.
-func (s *Service) over(ctx context.Context, c db.Connection, project int64) (string, time.Time) {
+// over says why the day of a connection is past its limit, empty within it, and when the day ends.
+func (s *Service) over(ctx context.Context, c db.Connection) (string, time.Time) {
 	since, end := s.dayStart()
 	if c.DailyUsd.Valid {
 		if spent, err := s.St.Q.SpentOfConnection(ctx, db.SpentOfConnectionParams{ConnectionID: store.ID(c.ID), Since: since}); err == nil && spent >= c.DailyUsd.Float64 {
 			return fmt.Sprintf("deck: connection %s spent $%.2f of its $%.2f for today", c.Name, spent, c.DailyUsd.Float64), end
 		}
-	}
-	if project == 0 {
-		return "", end
-	}
-	p, err := s.St.Q.GetProject(ctx, project)
-	if err != nil || !p.ModelDailyUsd.Valid {
-		return "", end
-	}
-	if spent, err := s.St.Q.SpentOfProject(ctx, db.SpentOfProjectParams{ProjectID: store.ID(project), Since: since}); err == nil && spent >= p.ModelDailyUsd.Float64 {
-		return fmt.Sprintf("deck: project %s spent $%.2f of its $%.2f on models for today", p.Name, spent, p.ModelDailyUsd.Float64), end
 	}
 	return "", end
 }
@@ -112,7 +102,7 @@ func (s *Service) Route(ctx context.Context, act registry.Actor, connection, ask
 	}
 	hops := make([]gateway.ModelHop, 0, len(picks))
 	for _, p := range picks {
-		h, err := s.hop(ctx, act.Workspace, act.ProjectID, p.m, p.c)
+		h, err := s.hop(ctx, act.Workspace, p.m, p.c)
 		if err != nil {
 			return nil, err
 		}
@@ -123,8 +113,8 @@ func (s *Service) Route(ctx context.Context, act registry.Actor, connection, ask
 	return hops, nil
 }
 
-// hop is where a call of model m goes, with deck's key and whether the day of its connection or project is over.
-func (s *Service) hop(ctx context.Context, workspace, project int64, m db.Model, c db.Connection) (gateway.ModelHop, error) {
+// hop is where a call of model m goes, with deck's key and whether the day of its connection is over.
+func (s *Service) hop(ctx context.Context, workspace int64, m db.Model, c db.Connection) (gateway.ModelHop, error) {
 	key := ""
 	if c.KeySecret != "" {
 		k, err := s.Secret(workspace, c.KeySecret)
@@ -137,22 +127,22 @@ func (s *Service) hop(ctx context.Context, workspace, project int64, m db.Model,
 		Local: c.Local != 0, Free: m.Free != 0}
 	_ = json.Unmarshal([]byte(m.Options), &h.Options)
 	var end time.Time
-	if h.Over, end = s.over(ctx, c, project); h.Over != "" {
+	if h.Over, end = s.over(ctx, c); h.Over != "" {
 		h.Wait = end.Sub(s.Now())
 	}
 	return h, nil
 }
 
 // turnModel is deck's proxy of model m of an agent turn: every call goes to that model with deck's key, within the
-// day of its connection and of the project, and its usage, priced, goes to onUsage.
-func (s *Service) turnModel(workspace int64, m db.Model, c db.Connection) func(project int64, onUsage func(provider.Usage)) http.Handler {
-	return func(project int64, onUsage func(provider.Usage)) http.Handler {
+// day of its connection, and its usage, priced, goes to onUsage.
+func (s *Service) turnModel(workspace int64, m db.Model, c db.Connection) func(onUsage func(provider.Usage)) http.Handler {
+	return func(onUsage func(provider.Usage)) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			body, err := gateway.ReadBody(w, r)
 			if err != nil {
 				return
 			}
-			h, err := s.hop(r.Context(), workspace, project, m, c)
+			h, err := s.hop(r.Context(), workspace, m, c)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusBadGateway)
 				return

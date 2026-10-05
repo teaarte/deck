@@ -210,7 +210,7 @@ func TestAModelCommandGetsWhatItsKindNeeds(t *testing.T) {
 }
 
 // TestAModelThatBrokeOffAfterTheRequestHasNoFallback: an answer cut after the request reached the model may have
-// been billed, so the call fails rather than ask the fallback; the project's day counts only calls of connections.
+// been billed, so the call fails rather than ask the fallback.
 func TestAModelThatBrokeOffAfterTheRequestHasNoFallback(t *testing.T) {
 	cut := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		conn, _, _ := w.(http.Hijacker).Hijack()
@@ -228,17 +228,8 @@ func TestAModelThatBrokeOffAfterTheRequestHasNoFallback(t *testing.T) {
 	e.must("deck.model_set", map[string]any{"connection": "cut", "model": "a", "kind": "text", "free": true}, nil)
 	e.must("deck.model_set", map[string]any{"connection": "spare", "model": "b", "kind": "text", "free": true}, nil)
 	e.must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"cut/a", "spare/b"}}, nil)
-	p := e.createProject("shorts", modelManifest)
+	e.createProject("shorts", modelManifest)
 	if got := e.waitState(e.start("shorts", "factcheck", map[string]any{"claim": "x"}), "done", "error"); got.State != "error" || len(spare.made()) != 0 {
 		t.Fatalf("a cut answer is an error and the fallback is not asked: %+v", got)
-	}
-	if _, err := e.App.Store.DB.Exec(`INSERT INTO llm_call (workspace_id, project_id, command, gen_ai_provider_name, cost_usd, created_at)
-		VALUES (1, ?, 'factcheck', 'claude-code', 5, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`, p); err != nil {
-		t.Fatal(err)
-	}
-	e.must("deck.project_model_limit", map[string]any{"project": "shorts", "daily_usd": 1}, nil)
-	e.must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"spare/b"}}, nil)
-	if got := e.waitState(e.start("shorts", "factcheck", map[string]any{"claim": "x"}), "done", "error"); got.State != "done" {
-		t.Fatalf("the notional cost of a subscription turn does not count to the project's day: %+v", got)
 	}
 }

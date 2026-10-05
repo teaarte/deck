@@ -23,11 +23,6 @@ VALUES (sqlc.arg(workspace_id), sqlc.narg(project_id), sqlc.narg(process_id), sq
 SELECT CAST(COALESCE(sum(cost_usd), 0) AS REAL) FROM llm_call WHERE connection_id = sqlc.arg(connection_id) AND created_at >= sqlc.arg(since);
 
 
--- name: SpentOfProject :one
-SELECT CAST(COALESCE(sum(cost_usd), 0) AS REAL) FROM llm_call
-WHERE project_id = sqlc.arg(project_id) AND connection_id IS NOT NULL AND created_at >= sqlc.arg(since);
-
-
 -- name: ListLLMCalls :many
 SELECT c.* FROM llm_call c
 WHERE c.workspace_id = sqlc.arg(workspace_id) AND (sqlc.arg(process_id) = 0 OR c.process_id = sqlc.arg(process_id))

@@ -518,25 +518,3 @@ func (s *Service) modelRemove(ctx context.Context, act registry.Actor, in modelR
 	}
 	return map[string]any{"removed": in.Name}, nil
 }
-
-type projectModelLimitIn struct {
-	Project  string  `type:"project" desc:"Project name"`
-	DailyUSD float64 `json:"daily_usd" desc:"The most the models its commands call may cost in a day in USD; 0 for no limit of its own"`
-}
-
-func (s *Service) projectModelLimit(ctx context.Context, act registry.Actor, in projectModelLimitIn) (any, error) {
-	p, err := s.St.Q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: act.Workspace, Name: in.Project})
-	if err != nil {
-		return nil, registry.NotFound("deck: no project %q", in.Project)
-	}
-	if in.DailyUSD < 0 {
-		return nil, registry.Invalid("deck: daily_usd is a sum in USD, or 0 for no limit")
-	}
-	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		return q.SetProjectModelLimit(ctx, db.SetProjectModelLimitParams{DailyUsd: positive(in.DailyUSD), ID: p.ID})
-	})
-	if err != nil {
-		return nil, err
-	}
-	return map[string]any{"project": in.Project, "daily_usd": in.DailyUSD}, nil
-}

@@ -283,7 +283,6 @@ type Project struct {
 	CreatedAt       string
 	GrantedRevision sql.NullInt64
 	ImportedFrom    string
-	ModelDailyUsd   sql.NullFloat64
 }
 
 type ProjectFolder struct {

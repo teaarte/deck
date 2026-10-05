@@ -56,6 +56,3 @@ UPDATE project SET granted_revision = ? WHERE id = ?;
 -- name: SetImportedFrom :exec
 UPDATE project SET imported_from = ? WHERE id = ?;
 
-
--- name: SetProjectModelLimit :exec
-UPDATE project SET model_daily_usd = sqlc.narg(daily_usd) WHERE id = sqlc.arg(id);

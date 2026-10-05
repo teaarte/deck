@@ -32,8 +32,8 @@ type Config struct {
 	// Binary is the program of the agent; empty looks the agent's name up in PATH.
 	Binary string
 	Model  string
-	// API is deck's proxy of the model for a turn of a project: the key, the limits and the journal are deck's.
-	API     func(project int64, onUsage func(provider.Usage)) http.Handler
+	// API is deck's proxy of the model for a turn: the key, the limit and the journal are deck's.
+	API     func(onUsage func(provider.Usage)) http.Handler
 	NoCloud bool
 	// Home is deck's folder, hidden from the agent but for the folders of its turn.
 	Home    string
@@ -145,7 +145,7 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 	life, stop := context.WithCancel(context.WithoutCancel(ctx))
 	defer stop()
 	self := a.cfg.Sandbox.Addr(ln)
-	e := &entry{ctx: life, self: self, mcp: mcp, api: a.cfg.API(req.Project, req.OnUsage), modelAt: "/model/" + nonce.Hex(16),
+	e := &entry{ctx: life, self: self, mcp: mcp, api: a.cfg.API(req.OnUsage), modelAt: "/model/" + nonce.Hex(16),
 		proxyKey: nonce.Hex(16), now: a.now}
 	if !req.NoNetwork {
 		e.domains = req.Hosts

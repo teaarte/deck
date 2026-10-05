@@ -31,7 +31,7 @@ type ModelHop struct {
 	// Connection names the target; Model is the name the API knows, which replaces an @role the caller asked for.
 	Connection string
 	Model      string
-	// Over says why the day of its connection or project is past its limit, Wait how long until that day ends;
+	// Over says why the day of its connection is past its limit, Wait how long until that day ends;
 	// deck skips such a hop.
 	Over string
 	Wait time.Duration

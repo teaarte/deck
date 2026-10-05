@@ -179,7 +179,7 @@ func (r *Runner) prepare(ctx context.Context, t *turn, p db.Process, trial bool,
 		}
 	}
 	a.req = provider.Request{
-		Project: t.project, Cwd: work, Repo: repo, Prompt: t.message, ResultSchema: t.cmd.Result,
+		Cwd: work, Repo: repo, Prompt: t.message, ResultSchema: t.cmd.Result,
 		MCPURL: r.cfg.MCPBase + "/mcp/" + tok, AllowedTools: r.gw.AllowedTools(tok), PermissionMCP: gateway.PermissionTool(),
 		SessionID: t.session, Resume: t.resume, Hidden: r.cfg.Hidden(t.project, processID), Dirs: []string{a.data, filepath.Join(a.dir, "results")}, Read: read, NoNetwork: noNetwork, Hosts: hosts,
 		OnStart: func(pid int) { r.setGroup(ctx, processID, pid) },

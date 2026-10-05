@@ -11,9 +11,7 @@ import (
 )
 
 type Request struct {
-	// Project is the project of the turn; none for a self-check.
-	Project int64
-	Cwd     string
+	Cwd string
 	// Repo means Cwd is a code repository: its own instructions load, those of the folders above do not.
 	Repo         bool
 	Prompt       string

@@ -384,9 +384,9 @@ func TestAnAgentTurnPastTheDayOfItsConnectionPausesUntilTheDayEnds(t *testing.T)
 	}
 }
 
-// TestAnAgentTurnPastTheDayOfItsProjectPausesToo: a turn of an ACP agent calls its model through deck's proxy, so
-// the limit of its project holds it as the limit of its connection does, and it reaches only the model of the turn.
-func TestAnAgentTurnPastTheDayOfItsProjectPausesToo(t *testing.T) {
+// TestAnAgentTurnReachesOnlyTheModelOfItsTurn: a turn of an ACP agent calls its model through deck's proxy, which
+// sends every call to the model the turn started on, whatever model the agent names.
+func TestAnAgentTurnReachesOnlyTheModelOfItsTurn(t *testing.T) {
 	f := newACP(t)
 	llm := newLLM(t, func(int, chatRequest) chatReply { return textReply("ok") })
 	f.streamText(4, acpStream(acpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,
@@ -403,12 +403,6 @@ func TestAnAgentTurnPastTheDayOfItsProjectPausesToo(t *testing.T) {
 	reqs := llm.requests()
 	if last := reqs[len(reqs)-1]; last.Model != "m" {
 		t.Fatalf("an agent reaches only the model of its turn: %+v", last)
-	}
-	e.must("deck.project_model_limit", map[string]any{"project": "paint", "daily_usd": 0.1}, nil)
-	before := len(llm.requests())
-	id := e.run(p, "work")
-	if got := e.waitState(id, "done", "error", "rate_limited"); got.State != "rate_limited" || len(llm.requests()) != before {
-		t.Fatalf("past the day of its project the turn pauses and the model is not called: %+v", got)
 	}
 }
 

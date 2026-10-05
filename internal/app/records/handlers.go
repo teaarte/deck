@@ -6,8 +6,10 @@ import (
 	"deck2/internal/app/access"
 	"encoding/json"
 	"errors"
-	"reflect"
+	"fmt"
+	"maps"
 	"slices"
+	"strconv"
 	"strings"
 
 	"deck2/internal/docs"
@@ -21,7 +23,7 @@ type recordsListIn struct {
 	Project    string   `type:"project" opt:"" desc:"Project name; defaults to the caller's own project"`
 	Collection string   `desc:"Collection name"`
 	Limit      int      `opt:"" desc:"At most this many, the newest; every record when omitted"`
-	Where      string   `type:"json" opt:"" desc:"Only the records whose data fields have these values, as a JSON object of field to value"`
+	Where      string   `opt:"" desc:"Only the records this expression over their fields is true for, as the where of a source of a screen, such as status == 'new' && score > 2; a JSON object of field to value means each field equals its value"`
 	Fields     []string `opt:"" desc:"Only these fields of the data of each record"`
 }
 
@@ -38,18 +40,36 @@ func (s *Service) recordsList(ctx context.Context, act registry.Actor, in record
 	if c == nil {
 		return nil, registry.Invalid("deck: unknown collection %q", in.Collection)
 	}
-	var where map[string]json.RawMessage
-	if strings.TrimSpace(in.Where) != "" {
-		if err := json.Unmarshal([]byte(in.Where), &where); err != nil {
-			return nil, registry.Invalid("deck: where: a JSON object of field to value: %v", err)
-		}
-	}
 	recs, err := s.St.Q.ListRecords(ctx, db.ListRecordsParams{ProjectID: p.ID, Collection: in.Collection})
 	if err != nil {
 		return nil, err
 	}
-	if len(where) > 0 {
-		recs = slices.DeleteFunc(recs, func(r db.Record) bool { return !matches(r.Data, where) })
+	if where := strings.TrimSpace(in.Where); where != "" {
+		if strings.HasPrefix(where, "{") {
+			if where, err = equality(where); err != nil {
+				return nil, registry.Invalid("deck: where: %v", err)
+			}
+		}
+		keep, err := manifest.Filter(where)
+		if err != nil {
+			return nil, registry.Invalid("deck: where: %v", err)
+		}
+		kept := recs[:0]
+		for _, r := range recs {
+			env, err := manifest.DecodeObject([]byte(r.Data))
+			if err != nil {
+				continue
+			}
+			env["_id"], env["_updated"] = r.ID, r.UpdatedAt
+			ok, err := keep(env)
+			if err != nil {
+				return nil, registry.Invalid("deck: where: record %d: %v", r.ID, err)
+			}
+			if ok {
+				kept = append(kept, r)
+			}
+		}
+		recs = kept
 	}
 	if in.Limit > 0 && len(recs) > in.Limit {
 		recs = recs[len(recs)-in.Limit:]
@@ -65,26 +85,30 @@ func (s *Service) recordsList(ctx context.Context, act registry.Actor, in record
 	return out, nil
 }
 
-// matches reports whether each field of where has the same JSON value in the data of a record.
-func matches(data string, where map[string]json.RawMessage) bool {
-	var d map[string]json.RawMessage
-	if json.Unmarshal([]byte(data), &d) != nil {
-		return false
+// equality is the expression of a JSON object of field to value: each field equals its value.
+func equality(where string) (string, error) {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(where), &fields); err != nil {
+		return "", fmt.Errorf("a JSON object of field to value: %v", err)
 	}
-	for k, want := range where {
-		if !jsonEqual(d[k], want) {
-			return false
+	names := slices.Sorted(maps.Keys(fields))
+	parts := make([]string, 0, len(names))
+	for _, n := range names {
+		v := strings.TrimSpace(string(fields[n]))
+		field := "$env[" + strconv.Quote(n) + "]"
+		switch {
+		case v == "null":
+			parts = append(parts, field+" == nil")
+		case strings.HasPrefix(v, "{") || strings.HasPrefix(v, "["):
+			parts = append(parts, "toJSON("+field+") == toJSON(fromJSON("+strconv.Quote(v)+"))")
+		default:
+			parts = append(parts, field+" == "+v)
 		}
 	}
-	return true
-}
-
-func jsonEqual(a, b json.RawMessage) bool {
-	var x, y any
-	if a == nil {
-		a = json.RawMessage("null")
+	if len(parts) == 0 {
+		return "true", nil
 	}
-	return json.Unmarshal(a, &x) == nil && json.Unmarshal(b, &y) == nil && reflect.DeepEqual(x, y)
+	return strings.Join(parts, " && "), nil
 }
 
 // only keeps the named fields of a JSON object.

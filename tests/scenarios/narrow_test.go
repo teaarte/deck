@@ -27,7 +27,16 @@ func TestListsOfRecordsAndProcessesNarrowToWhatTheCallerAsks(t *testing.T) {
 	if len(recs) != 2 || recs[0].Key != "a" || recs[1].Key != "c" || len(recs[0].Data) != 2 || recs[0].Data["note"] != "long" || len(recs[1].Data) != 1 {
 		t.Fatalf("records with score 3, with only their title and note: %+v", recs)
 	}
-	e.refused("deck.records_list", map[string]any{"project": "web", "collection": "notes", "where": `[1]`}, 422, "JSON object")
+	e.must("deck.records_list", map[string]any{"project": "web", "collection": "notes", "where": "score > 2 && source == 'y'"}, &recs)
+	if len(recs) != 1 || recs[0].Key != "c" {
+		t.Fatalf("where is an expression over the fields, as in a source of a screen: %+v", recs)
+	}
+	e.must("deck.records_list", map[string]any{"project": "web", "collection": "notes", "where": `{"source": "x", "score": 1}`}, &recs)
+	if len(recs) != 1 || recs[0].Key != "b" {
+		t.Fatalf("a JSON object of field to value still narrows by equality: %+v", recs)
+	}
+	e.refused("deck.records_list", map[string]any{"project": "web", "collection": "notes", "where": `[1]`}, 422, "where")
+	e.refused("deck.records_list", map[string]any{"project": "web", "collection": "notes", "where": "score >"}, 422, "where")
 
 	e.waitState(e.run(p, "tell"), "done")
 	e.waitState(e.run(p, "touch"), "done")

@@ -109,6 +109,25 @@ func (v *names) Visit(n *ast.Node) {
 	}
 }
 
+// Filter compiles a where: an expression that is true for what it keeps.
+func Filter(src string) (func(env map[string]any) (bool, error), error) {
+	p, err := compileExpr(src, nil)
+	if err != nil {
+		return nil, err
+	}
+	return func(env map[string]any) (bool, error) {
+		v, err := expr.Run(p, env)
+		if err != nil {
+			return false, err
+		}
+		ok, isBool := v.(bool)
+		if !isBool {
+			return false, fmt.Errorf("gives %T, not true or false", v)
+		}
+		return ok, nil
+	}, nil
+}
+
 func Eval(src string, env map[string]any) (any, error) {
 	p, err := compileExpr(src, nil)
 	if err != nil {

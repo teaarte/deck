@@ -384,7 +384,7 @@ Name each of these rights in the hand-over: the owner grants them with "enable".
    draft moving the card starts nothing; `process_log` shows the events of a process, also after it ended,
    and a local model may think for many minutes before its first one: wait with
    `process_get` and `wait` in the foreground (up to 30 minutes on Claude Code and Codex). `processes_list`
-   with `command` and `brief` and `records_list` with `where` and `fields` keep long lists short. Time the trial on the provider the command will run on and set
+   with `command` and `brief` and `records_list` with `where` (an expression, as in a source) and `fields` keep long lists short. Time the trial on the provider the command will run on and set
    `timeout_minutes`, batch sizes and the schedule by it. A trial that ends `done` is not yet a proof: check
    that the chain gave what the owner will see (records, cards, documents). Check `records_list` and `cards_list`, and `health_list` after a save that adds programs or
    MCP servers: a missing program or a failed server shows there with its error.

@@ -183,7 +183,7 @@ func (s *Service) Commands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("settings_list", "Settings",
 			"Lists the settings of the workspace with their values and defaults.",
-			registry.OwnerOnly, s.settingsList).On("settings"),
+			registry.OwnerSide, s.settingsList).On("settings"),
 		registry.DefOf("settings_set", "Change settings",
 			"Sets settings of the workspace, each by its field or one by name and value; an omitted one stays.",
 			registry.OwnerOnly, setParams(), s.settingsSet),

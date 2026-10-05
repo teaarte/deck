@@ -415,6 +415,26 @@ func TestTheMasterSeesTheNamesOfSecrets(t *testing.T) {
 	}
 }
 
+// TestTheMasterReadsTheSettingsAndTheNamesOfTokens: the master reads the settings and the tokens by name and
+// commands, so the settings screen it opens has no error in them; a token itself never shows.
+func TestTheMasterReadsTheSettingsAndTheNamesOfTokens(t *testing.T) {
+	e := newEnv(t, nil)
+	var made struct{ Token string }
+	e.must("deck.token_create", map[string]any{"name": "shortcuts", "commands": []string{"deck.notify"}}, &made)
+	master := registry.Actor{Kind: registry.Master, Workspace: 1}
+	for _, name := range []string{"deck.settings_list", "deck.tokens_list"} {
+		out, err := e.App.Registry.Invoke(context.Background(), master, name, []byte(`{}`))
+		raw, _ := json.Marshal(out)
+		if err != nil || strings.Contains(string(raw), made.Token) {
+			t.Fatalf("the master reads %s without a token in it: %s %v", name, raw, err)
+		}
+	}
+	out, err := e.App.Registry.Invoke(context.Background(), master, "deck.screen", []byte(`{"screen": "settings"}`))
+	if drawn := fmt.Sprint(out); err != nil || strings.Contains(drawn, "settings_list cannot be called") || strings.Contains(drawn, "tokens_list cannot be called") {
+		t.Fatalf("the settings screen of the master reads the settings and the tokens: %v %v", err, drawn)
+	}
+}
+
 // TestEverySettingIsEditedFromItsOneDefinition: each setting of the list is a field of settings_set and has the
 // one edit button of the General tab, which sets it by its name.
 func TestEverySettingIsEditedFromItsOneDefinition(t *testing.T) {

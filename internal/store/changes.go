@@ -47,7 +47,7 @@ var tables = map[string]table{
 	"file":              {"files", "project_id", nil},
 	"ask":               {"asks", "project_id", nil},
 	"tool_call":         {"calls", "project_id", nil},
-	"llm_call":          {"usage", "process_id", nil},
+	"llm_call":          {"usage", "project_id", nil},
 	"health":            {"health", "project_id", nil},
 	"feed":              {"feed", "project_id", nil},
 	"setting":           {"settings", "workspace_id", nil},

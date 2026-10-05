@@ -6,7 +6,6 @@ import (
 	"context"
 	"database/sql"
 	"deck2/internal/app/access"
-	"deck2/internal/events"
 	"encoding/json"
 	"fmt"
 	"slices"
@@ -24,7 +23,6 @@ import (
 // Service keeps the triggers; the scheduler fires them, the gateway runs a trigger now.
 type Service struct {
 	St        *store.Store
-	Bus       *events.Bus
 	Scheduler *trigger.Scheduler
 	Gateway   *gateway.Gateway
 	Registry  *registry.Registry
@@ -283,7 +281,7 @@ func (s *Service) Commands() []*registry.Command {
 			registry.Everyone, s.runLaterCancel),
 		registry.Read("triggers_list", "Schedule",
 			"Lists triggers with their next run, pause and the state of their last run.",
-			registry.Everyone, s.triggersList).On("triggers"),
+			registry.Everyone, s.triggersList).On("triggers", "processes"),
 		registry.Def("trigger_pause", "Pause trigger",
 			"Pauses or resumes one trigger; a resumed schedule does not catch up its pause.",
 			registry.OwnerSide, s.triggerPause),

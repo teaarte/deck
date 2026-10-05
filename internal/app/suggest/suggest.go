@@ -8,7 +8,6 @@ import (
 	"deck2/internal/app/access"
 	"deck2/internal/app/board"
 	"deck2/internal/app/devices"
-	"deck2/internal/events"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -29,7 +28,6 @@ import (
 // Service keeps suggestions. Days is how many days a suggestion of a workspace waits for the owner.
 type Service struct {
 	St       *store.Store
-	Bus      *events.Bus
 	Now      func() time.Time
 	Registry *registry.Registry
 	Gateway  *gateway.Gateway

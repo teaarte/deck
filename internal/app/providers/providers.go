@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"deck2/internal/docs"
-	"deck2/internal/events"
 	"deck2/internal/files"
 	"deck2/internal/manifest"
 	"deck2/internal/process"
@@ -29,7 +28,6 @@ import (
 // the life of deck, for the self-checks it runs in the background.
 type Service struct {
 	St               *store.Store
-	Bus              *events.Bus
 	Now              func() time.Time
 	Home             string
 	Sandbox          sandbox.Sandbox

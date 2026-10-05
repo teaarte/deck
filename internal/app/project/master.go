@@ -42,7 +42,6 @@ func (pj *Service) SeedMaster(ctx context.Context) error {
 			return err
 		}
 	}
-	pj.Bus.Publish("projects")
 	return nil
 }
 

@@ -27,7 +27,6 @@ import (
 // Service keeps the lifecycle of projects: create, enable, trial runs, import and delete; Save keeps their manifests.
 type Service struct {
 	St        *store.Store
-	Bus       *events.Bus
 	Home      home.Layout
 	Registry  *registry.Registry
 	Gateway   *gateway.Gateway

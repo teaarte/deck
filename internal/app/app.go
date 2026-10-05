@@ -154,13 +154,13 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	*a.Files = appfiles.Service{St: st, Home: h, Now: cfg.Now}
 	*a.Journal = journal.Service{St: st, Now: cfg.Now, Backups: h.Backups()}
 	*a.Settings = settings.Service{St: st, DefaultTTL: cfg.ConfirmTTL, Wake: a.Runner.Wake}
-	*a.Triggers = triggers.Service{St: st, Bus: a.Bus, Scheduler: a.Scheduler, Gateway: a.Gateway, Registry: a.Registry}
+	*a.Triggers = triggers.Service{St: st, Scheduler: a.Scheduler, Gateway: a.Gateway, Registry: a.Registry}
 	*a.Documents = documents.Service{St: st, Now: cfg.Now, Sandbox: cfg.Sandbox, Ctx: a.ctx, BG: &a.bg,
 		SaveManifest: a.Saver.SaveCall, Changed: a.Devices.Changed}
 	*a.Snapshots = snapshots.Service{St: st, Bus: a.Bus, Home: h, Now: cfg.Now, LockFiles: a.Files.Mu.Lock, UnlockFiles: a.Files.Mu.Unlock,
 		RemoveFiles: a.Files.Remove}
-	*a.Board = board.Service{St: st, Bus: a.Bus, Now: cfg.Now, Fire: a.Triggers.Start}
-	*a.Providers = providers.Service{St: st, Bus: a.Bus, Now: cfg.Now, Home: cfg.Home, Sandbox: cfg.Sandbox, ACPBinaries: cfg.ACPBinaries,
+	*a.Board = board.Service{St: st, Now: cfg.Now, Fire: a.Triggers.Start}
+	*a.Providers = providers.Service{St: st, Now: cfg.Now, Home: cfg.Home, Sandbox: cfg.Sandbox, ACPBinaries: cfg.ACPBinaries,
 		ACPCallLimit: cfg.ACPCallLimit, SelfCheckCeiling: cfg.SelfCheckCeiling, Secret: a.Secrets.Secret, WriteSecret: a.Secrets.Write,
 		Wake: a.Runner.Wake, Dirs: a.dirs(), Resolve: a.Tools.Resolve,
 		Builtin: append([]provider.Provider{p}, more...), Ctx: a.ctx, BG: &a.bg}
@@ -168,7 +168,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 		AnswerGrant: a.Saver.AnswerGrant, SaveManifest: a.Saver.SaveCall, ExpireSuggestions: a.Suggest.Expire,
 		AnswerSuggestion: a.Suggest.Answer}
 	*a.Signins = signins.Service{St: st, Ctx: a.ctx, Broker: a.Asks, OAuth: oauth, Browser: a.Browser, MCP: a.MCP}
-	*a.Suggest = suggest.Service{St: st, Bus: a.Bus, Now: cfg.Now, Registry: a.Registry, Asks: a.Asks, Gateway: a.Gateway, Days: a.Settings.SuggestDays}
+	*a.Suggest = suggest.Service{St: st, Now: cfg.Now, Registry: a.Registry, Asks: a.Asks, Gateway: a.Gateway, Days: a.Settings.SuggestDays}
 	*a.Chats = chat.Service{St: st, Bus: a.Bus, Now: cfg.Now, Asks: a.Asks, Runner: a.Runner, For: a.Providers.For, RemoveFiles: a.Files.Remove}
 	*a.Devices = devices.Service{St: st, Bus: a.Bus, Now: cfg.Now, Ctx: a.ctx, BG: &a.bg, Files: a.dirs(), RemoveFiles: a.Files.Remove,
 		ReadSecret: a.Secrets.Read, WriteSecret: a.Secrets.Write, SecretsDir: h.Secrets,
@@ -181,7 +181,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	*a.Saver = project.Saver{St: st, Bus: a.Bus, Now: cfg.Now, Home: h, Registry: a.Registry,
 		Gateway: a.Gateway, Runner: a.Runner, Scheduler: a.Scheduler, Broker: a.Asks, Scripts: a.Scripts, Tools: a.Tools,
 		MCP: a.MCP, PrepareLater: a.Documents.PrepareLater, Changed: a.Devices.Changed, CheckScreens: a.checkScreens}
-	*a.Projects = project.Service{St: st, Bus: a.Bus, Home: h, Registry: a.Registry, Gateway: a.Gateway,
+	*a.Projects = project.Service{St: st, Home: h, Registry: a.Registry, Gateway: a.Gateway,
 		Runner: a.Runner, Scheduler: a.Scheduler, Host: a.Host, Save: a.Saver, Folders: a.Folders.List,
 		Snapshot: a.Snapshots.BeforeDelete, RemoveFiles: a.Files.Remove}
 	a.addBuiltins()

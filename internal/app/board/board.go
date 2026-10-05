@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"deck2/internal/docs"
-	"deck2/internal/events"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store"
@@ -45,7 +44,6 @@ func landing(m *manifest.Manifest) string {
 // gives the process, or 0 when nothing started.
 type Service struct {
 	St   *store.Store
-	Bus  *events.Bus
 	Now  func() time.Time
 	Fire func(ctx context.Context, t db.Trigger, input map[string]any, parent int64) (int64, error)
 	// mu lets card writes take turns, so a later move never has its triggers started before an earlier one.

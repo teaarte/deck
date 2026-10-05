@@ -53,9 +53,6 @@ func (h After) Closed(ctx context.Context, p db.Process) {
 
 // after starts the commands that run when a command of the same project finishes.
 func (s *Service) after(ctx context.Context, done db.Process) {
-	if done.TriggerID.Valid {
-		s.Bus.Publish("triggers")
-	}
 	p, err := s.St.Q.GetProject(ctx, done.ProjectID)
 	if err != nil || p.Paused == 1 {
 		return

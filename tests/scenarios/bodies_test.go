@@ -78,6 +78,12 @@ func TestHTTPToolSendsFilesAsItsBody(t *testing.T) {
 		strings.Join(got["form"], ";") != "title||Title: Sea;upload|photo.jpg|JPEGDATA" {
 		t.Fatalf("a multipart body sends file fields as files, with a length: %+v %v", p, got["form"])
 	}
+	tricky := fmt.Sprint(e.upload("media", "note.txt", "text/plain", "a\r\n--deck-form-boundary\r\nb"))
+	got["form"] = nil
+	if p := e.waitState(e.start("media", "form", map[string]any{"doc": tricky, "title": "x"}), "done", "error"); p.State != "done" ||
+		strings.Join(got["form"], ";") != "title||Title: x;upload|note.txt|a\r\n--deck-form-boundary\r\nb" {
+		t.Fatalf("a file holding the text of a boundary reaches the form whole: %+v %q", p, got["form"])
+	}
 	e.saveScript("media", "scripts/make.py", makeScript)
 	if p := e.waitScript(e.start("media", "make", nil), "done", "error"); !strings.Contains(string(p.Result), `"status":200`) ||
 		!strings.Contains(string(p.Result), `"escape":422`) ||

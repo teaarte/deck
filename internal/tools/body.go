@@ -13,6 +13,7 @@ import (
 
 	"deck2/internal/files"
 	"deck2/internal/manifest"
+	"deck2/internal/nonce"
 	"deck2/internal/registry"
 )
 
@@ -115,23 +116,25 @@ func (b *body) attach(r *http.Request) (*http.Request, error) {
 		r.Body, r.ContentLength = f, total
 		r.Header.Set("Content-Type", b.file.Type)
 	default:
-		length, err := b.multipart(io.Discard, false)
+		boundary := "deck-" + nonce.Hex(16)
+		length, err := b.multipart(io.Discard, boundary, false)
 		if err != nil {
 			return nil, err
 		}
 		pr, pw := io.Pipe()
-		go func() { _, err := b.multipart(pw, true); pw.CloseWithError(err) }()
+		go func() { _, err := b.multipart(pw, boundary, true); pw.CloseWithError(err) }()
 		r.Body, r.ContentLength = pr, length
-		r.Header.Set("Content-Type", "multipart/form-data; boundary=deck-form-boundary")
+		r.Header.Set("Content-Type", "multipart/form-data; boundary="+boundary)
 	}
 	return r, nil
 }
 
-// multipart writes the form to w and returns its length; without files it only counts their sizes.
-func (b *body) multipart(w io.Writer, withFiles bool) (int64, error) {
+// multipart writes the form to w and returns its length; without files it only counts their sizes. The boundary
+// is random, so no file holds it, and the same in both passes.
+func (b *body) multipart(w io.Writer, boundary string, withFiles bool) (int64, error) {
 	cw := &counter{w: w}
 	mw := multipart.NewWriter(cw)
-	_ = mw.SetBoundary("deck-form-boundary")
+	_ = mw.SetBoundary(boundary)
 	for _, p := range b.parts {
 		if p.file == nil {
 			if err := mw.WriteField(p.name, p.text); err != nil {

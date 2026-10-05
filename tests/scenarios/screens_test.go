@@ -831,3 +831,34 @@ func TestAHiddenButtonOfACustomBlockLeavesTheClassOfTheOthers(t *testing.T) {
 		t.Fatalf("each button keeps the class of its command: %+v", v.Actions)
 	}
 }
+
+// TestABlockOfACommandDeckNoLongerHasTurnsOffOnlyThatBlock: a saved screen that reads a deck command deck no longer
+// has still loads, as a module of before; only that block is an error, and a save with it is refused.
+func TestABlockOfACommandDeckNoLongerHasTurnsOffOnlyThatBlock(t *testing.T) {
+	e := newEnv(t, nil)
+	m := `{"version": 7, "screens": [{"name": "main", "title": "Main", "blocks": [
+    {"type": "list", "source": {"from": "deck.projects_list"}, "item": {"title": "name"}},
+    {"type": "list", "source": {"from": "deck.models_list", "rows": "models"}, "item": {"title": "name"}}]}]}`
+	e.createProject("old", m)
+	if _, err := e.App.Store.DB.Exec(`UPDATE document_revision SET text = replace(text, 'deck.models_list', 'deck.providers_list')
+		WHERE document_id IN (SELECT id FROM document WHERE kind = 'manifest' AND project_id = (SELECT id FROM project WHERE name = 'old'))`); err != nil {
+		t.Fatal(err)
+	}
+	var ps []struct {
+		Name, ManifestError string `json:"manifest_error"`
+	}
+	e.must("deck.projects_list", nil, &ps)
+	for _, p := range ps {
+		if p.Name == "old" && p.ManifestError != "" {
+			t.Fatalf("the module still loads: %s", p.ManifestError)
+		}
+	}
+	data := e.screenData("old", "main", nil)
+	if string(data["b0"]["state"]) == `"error"` || !strings.Contains(string(data["b1"]["error"]), "providers_list") {
+		t.Fatalf("only the block of the command that is gone is an error: %v", data)
+	}
+	code, out := e.call("deck.manifest_save", map[string]any{"project": "old", "manifest": strings.Replace(m, "deck.models_list", "deck.providers_list", 1)})
+	if code == 200 || !strings.Contains(string(out), "providers_list") {
+		t.Fatalf("a save with the command that is gone is refused: %d %s", code, out)
+	}
+}

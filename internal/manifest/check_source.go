@@ -47,7 +47,12 @@ func (c *screenCheck) source(where, typ string, src Source) ([]string, bool) {
 	default:
 		rc, ok := Reads(from)
 		if !ok {
-			c.fail("%s source: %s is not a deck command that only reads", where, from)
+			// A saved module keeps loading when deck drops a read: the block is an error, a save is refused.
+			report := c.warn
+			if c.deck {
+				report = c.fail
+			}
+			report("%s source: %s is not a deck command that only reads", where, from)
 			return nil, false
 		}
 		if fields, ok = rc.Fields(src.Rows); !ok {

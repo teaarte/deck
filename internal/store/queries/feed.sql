@@ -7,7 +7,7 @@ RETURNING *;
 
 -- name: ListFeed :many
 SELECT * FROM feed WHERE workspace_id = sqlc.arg(workspace_id) AND (sqlc.arg(project_id) = 0 OR project_id = sqlc.arg(project_id))
-  AND (sqlc.arg(kind) = '' OR kind = sqlc.arg(kind))
+  AND (sqlc.arg(kind) = '' OR kind = sqlc.arg(kind)) AND for_master = 0
 ORDER BY id DESC LIMIT sqlc.arg(lim);
 
 
@@ -21,3 +21,15 @@ UPDATE feed SET undone_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ? A
 
 -- name: PurgeOldNotes :exec
 DELETE FROM feed WHERE kind = 'note' AND created_at < CAST(sqlc.arg(before) AS TEXT);
+
+
+-- name: AddMasterNote :exec
+INSERT INTO feed (workspace_id, project_id, kind, author, text, for_master) VALUES (?, ?, 'note', 'deck', ?, 1);
+
+
+-- name: ListMasterNotes :many
+SELECT * FROM feed WHERE workspace_id = ? AND for_master = 1 ORDER BY id;
+
+
+-- name: DeleteMasterNotes :exec
+DELETE FROM feed WHERE workspace_id = sqlc.arg(workspace_id) AND for_master = 1 AND id <= sqlc.arg(through);

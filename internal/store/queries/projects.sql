@@ -51,3 +51,7 @@ WHERE p.workspace_id = sqlc.arg(workspace_id);
 
 -- name: GrantProject :exec
 UPDATE project SET granted_revision = ? WHERE id = ?;
+
+
+-- name: SetImportedFrom :exec
+UPDATE project SET imported_from = ? WHERE id = ?;

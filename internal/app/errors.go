@@ -64,8 +64,18 @@ func (a *App) toMaster(ctx context.Context, p db.Process) {
 }
 
 // screenFailed puts a block of a module screen that failed into the health of the module and hands it to the
-// master, once per block and revision of the manifest.
+// master, once per block and revision of the manifest; the marks of the other revisions go.
 func (a *App) screenFailed(ctx context.Context, p db.Project, revision int64, name string, errs []string) {
+	_ = a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		for _, prefix := range []string{screenErrorPrefix, masterErrorPrefix} {
+			err := q.DeleteMarksOfOtherRevisions(ctx, db.DeleteMarksOfOtherRevisionsParams{WorkspaceID: p.WorkspaceID,
+				Prefix: fmt.Sprintf("%s%d.screen:", prefix, p.ID), Revision: fmt.Sprintf("@%d", revision)})
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 	for _, e := range errs {
 		block, _, _ := strings.Cut(e, ": ")
 		key := fmt.Sprintf("%d.screen:%s:%s@%d", p.ID, name, block, revision)

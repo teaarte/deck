@@ -5,7 +5,6 @@ import (
 	"deck2/internal/app/access"
 	"deck2/internal/app/documents"
 	"deck2/internal/app/folders"
-	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -22,9 +21,6 @@ import (
 
 // maxFolder is the most text an import takes from one folder.
 const maxFolder = 32 << 20
-
-// importMark keeps the folder a project was imported from.
-func importMark(project int64) string { return fmt.Sprintf("imported_from:%d", project) }
 
 // moduleKind is the document kind of a file of a module folder.
 func moduleKind(m *manifest.Manifest, name string) string {
@@ -120,7 +116,7 @@ func (pj *Service) projectImport(ctx context.Context, act registry.Actor, in pro
 	}
 	reason := "imported from " + dir
 	p, err := pj.Save.createProject(ctx, act, name, []byte(raw), prompt, store.ProjectDraft, func(ctx context.Context, q *db.Queries, p db.Project) error {
-		if err := q.SetMark(ctx, db.SetMarkParams{WorkspaceID: p.WorkspaceID, ProjectID: store.ID(p.ID), Name: importMark(p.ID), Value: dir}); err != nil {
+		if err := q.SetImportedFrom(ctx, db.SetImportedFromParams{ImportedFrom: dir, ID: p.ID}); err != nil {
 			return err
 		}
 		for _, f := range files {

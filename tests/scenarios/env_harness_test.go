@@ -212,6 +212,7 @@ func (e *Env) olderBase(version int) {
 		   gen_ai_usage_input_tokens, gen_ai_usage_output_tokens, gen_ai_usage_cache_read_input_tokens,
 		   gen_ai_usage_cache_creation_input_tokens, duration_ms, cost_usd, created_at FROM llm_call`,
 			`DROP TABLE llm_call`, `ALTER TABLE llm_old RENAME TO llm_call`},
+		5: {`ALTER TABLE project DROP COLUMN imported_from`, `ALTER TABLE feed DROP COLUMN for_master`},
 		2: {`ALTER TABLE project DROP COLUMN granted_revision`},
 	}
 	var top int

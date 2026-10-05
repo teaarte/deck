@@ -11,7 +11,7 @@ import (
 )
 
 const createProject = `-- name: CreateProject :one
-INSERT INTO project (workspace_id, name, status) VALUES (?, ?, ?) RETURNING id, workspace_id, name, status, paused, builtin, created_at, granted_revision
+INSERT INTO project (workspace_id, name, status) VALUES (?, ?, ?) RETURNING id, workspace_id, name, status, paused, builtin, created_at, granted_revision, imported_from
 `
 
 type CreateProjectParams struct {
@@ -32,6 +32,7 @@ func (q *Queries) CreateProject(ctx context.Context, arg CreateProjectParams) (P
 		&i.Builtin,
 		&i.CreatedAt,
 		&i.GrantedRevision,
+		&i.ImportedFrom,
 	)
 	return i, err
 }
@@ -76,7 +77,7 @@ func (q *Queries) DeleteProjectFiles(ctx context.Context, projectID int64) ([]in
 }
 
 const getProject = `-- name: GetProject :one
-SELECT id, workspace_id, name, status, paused, builtin, created_at, granted_revision FROM project WHERE id = ?
+SELECT id, workspace_id, name, status, paused, builtin, created_at, granted_revision, imported_from FROM project WHERE id = ?
 `
 
 func (q *Queries) GetProject(ctx context.Context, id int64) (Project, error) {
@@ -91,12 +92,13 @@ func (q *Queries) GetProject(ctx context.Context, id int64) (Project, error) {
 		&i.Builtin,
 		&i.CreatedAt,
 		&i.GrantedRevision,
+		&i.ImportedFrom,
 	)
 	return i, err
 }
 
 const getProjectByName = `-- name: GetProjectByName :one
-SELECT id, workspace_id, name, status, paused, builtin, created_at, granted_revision FROM project WHERE workspace_id = ? AND name = ?
+SELECT id, workspace_id, name, status, paused, builtin, created_at, granted_revision, imported_from FROM project WHERE workspace_id = ? AND name = ?
 `
 
 type GetProjectByNameParams struct {
@@ -116,6 +118,7 @@ func (q *Queries) GetProjectByName(ctx context.Context, arg GetProjectByNamePara
 		&i.Builtin,
 		&i.CreatedAt,
 		&i.GrantedRevision,
+		&i.ImportedFrom,
 	)
 	return i, err
 }
@@ -135,7 +138,7 @@ func (q *Queries) GrantProject(ctx context.Context, arg GrantProjectParams) erro
 }
 
 const listProjects = `-- name: ListProjects :many
-SELECT id, workspace_id, name, status, paused, builtin, created_at, granted_revision FROM project ORDER BY name
+SELECT id, workspace_id, name, status, paused, builtin, created_at, granted_revision, imported_from FROM project ORDER BY name
 `
 
 func (q *Queries) ListProjects(ctx context.Context) ([]Project, error) {
@@ -156,6 +159,7 @@ func (q *Queries) ListProjects(ctx context.Context) ([]Project, error) {
 			&i.Builtin,
 			&i.CreatedAt,
 			&i.GrantedRevision,
+			&i.ImportedFrom,
 		); err != nil {
 			return nil, err
 		}
@@ -171,7 +175,7 @@ func (q *Queries) ListProjects(ctx context.Context) ([]Project, error) {
 }
 
 const listWorkspaceProjects = `-- name: ListWorkspaceProjects :many
-SELECT id, workspace_id, name, status, paused, builtin, created_at, granted_revision FROM project WHERE workspace_id = ? ORDER BY name
+SELECT id, workspace_id, name, status, paused, builtin, created_at, granted_revision, imported_from FROM project WHERE workspace_id = ? ORDER BY name
 `
 
 func (q *Queries) ListWorkspaceProjects(ctx context.Context, workspaceID int64) ([]Project, error) {
@@ -192,6 +196,7 @@ func (q *Queries) ListWorkspaceProjects(ctx context.Context, workspaceID int64) 
 			&i.Builtin,
 			&i.CreatedAt,
 			&i.GrantedRevision,
+			&i.ImportedFrom,
 		); err != nil {
 			return nil, err
 		}
@@ -278,6 +283,20 @@ func (q *Queries) ProjectPulses(ctx context.Context, workspaceID int64) ([]Proje
 		return nil, err
 	}
 	return items, nil
+}
+
+const setImportedFrom = `-- name: SetImportedFrom :exec
+UPDATE project SET imported_from = ? WHERE id = ?
+`
+
+type SetImportedFromParams struct {
+	ImportedFrom string
+	ID           int64
+}
+
+func (q *Queries) SetImportedFrom(ctx context.Context, arg SetImportedFromParams) error {
+	_, err := q.db.ExecContext(ctx, setImportedFrom, arg.ImportedFrom, arg.ID)
+	return err
 }
 
 const setProjectPaused = `-- name: SetProjectPaused :exec

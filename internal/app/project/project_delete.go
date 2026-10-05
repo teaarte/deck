@@ -3,7 +3,6 @@ package project
 import (
 	"context"
 	"deck2/internal/app/access"
-	"deck2/internal/app/chat"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -89,8 +88,8 @@ func (pj *Service) projectDelete(ctx context.Context, act registry.Actor, in pro
 // leftInMaster is the folder in the data of the master a draft was imported from, which deck leaves; when
 // someone else deletes the draft, the master hears of it on its next turn.
 func (pj *Service) leftInMaster(ctx context.Context, q *db.Queries, act registry.Actor, p db.Project) (string, error) {
-	dir, err := q.GetMark(ctx, db.GetMarkParams{WorkspaceID: p.WorkspaceID, Name: importMark(p.ID)})
-	if err != nil || p.Status != store.ProjectDraft {
+	dir := p.ImportedFrom
+	if dir == "" || p.Status != store.ProjectDraft {
 		return "", nil
 	}
 	mp, err := access.Master(ctx, q, p.WorkspaceID)
@@ -103,9 +102,8 @@ func (pj *Service) leftInMaster(ctx context.Context, q *db.Queries, act registry
 	if act.Kind == registry.Master && act.Token == 0 {
 		return dir, nil
 	}
-	notes, _ := q.GetMark(ctx, db.GetMarkParams{WorkspaceID: p.WorkspaceID, Name: chat.NotesMark})
 	line := fmt.Sprintf("draft %s, imported from %s, was deleted; deck left its folder", p.Name, dir)
-	return dir, q.SetMark(ctx, db.SetMarkParams{WorkspaceID: p.WorkspaceID, Name: chat.NotesMark, Value: strings.TrimSpace(notes + "\n" + line)})
+	return dir, q.AddMasterNote(ctx, db.AddMasterNoteParams{WorkspaceID: p.WorkspaceID, ProjectID: mp.ID, Text: line})
 }
 
 // deletable refuses to delete a project that still has open processes or that another project reads; the master

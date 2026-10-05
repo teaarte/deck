@@ -47,8 +47,5 @@ type Service struct {
 // NewHook is the hook of the runner that keeps the master's replies in their topics.
 func (ch *Service) NewHook() Hook { return Hook{ch: ch} }
 
-// NotesMark keeps the lines deck tells the master on its next turn, such as a draft deleted under it.
-const NotesMark = "master_notes"
-
 // summaryName is the document of project master with the summary of a topic.
 func summaryName(topic int64) string { return fmt.Sprintf("topics/%d/summary.md", topic) }

@@ -112,7 +112,7 @@ func (ch *Service) reply(ctx context.Context, topicID int64) error {
 	}
 	first, last := pending[0].ID, pending[len(pending)-1].ID
 	files := attached(pending)
-	notes, _ := ch.St.Q.GetMark(ctx, db.GetMarkParams{WorkspaceID: t.WorkspaceID, Name: NotesMark})
+	notes, told := ch.masterNotes(ctx, t.WorkspaceID)
 	open, err := ch.St.Q.OpenTopicProcess(ctx, topicID)
 	if err == nil {
 		given := ""
@@ -130,7 +130,7 @@ func (ch *Service) reply(ctx context.Context, topicID int64) error {
 				texts = append(texts, given)
 			}
 			if err := ch.Asks.Answer(ctx, q, strings.Join(texts, "\n\n")); err == nil {
-				return ch.takeMessages(ctx, t, open.ID, open.SessionID, "", "", last)
+				return ch.takeMessages(ctx, t, open.ID, open.SessionID, "", 0, last)
 			}
 		}
 		if open.State == process.StateRunning {
@@ -138,7 +138,7 @@ func (ch *Service) reply(ctx context.Context, topicID int64) error {
 			if err != nil || ch.Runner.Say(ctx, open.ID, strings.TrimSpace("deck: the owner wrote while you work.\n"+news+"\n"+given)) == process.Refused {
 				return err
 			}
-			return ch.takeMessages(ctx, t, open.ID, open.SessionID, "", notes, last)
+			return ch.takeMessages(ctx, t, open.ID, open.SessionID, "", told, last)
 		}
 		if open.State != process.StateWaitingAnswer {
 			return nil
@@ -150,7 +150,7 @@ func (ch *Service) reply(ctx context.Context, topicID int64) error {
 		if err := ch.Runner.Remark(ctx, open.ID, strings.TrimSpace(msg+"\n\n"+given)); err != nil {
 			return err
 		}
-		return ch.takeMessages(ctx, t, open.ID, open.SessionID, sign, notes, last)
+		return ch.takeMessages(ctx, t, open.ID, open.SessionID, sign, told, last)
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
 		return err
@@ -209,15 +209,15 @@ func (ch *Service) reply(ctx context.Context, topicID int64) error {
 	if err != nil {
 		return err
 	}
-	return ch.takeMessages(ctx, t, id, o.Session, sign, notes, last)
+	return ch.takeMessages(ctx, t, id, o.Session, sign, told, last)
 }
 
 // takeMessages gives the waiting messages up to through to the reply process, keeps the sign of the memory its
-// session was given, when it was given one, and drops the notes of deck the turn was told.
-func (ch *Service) takeMessages(ctx context.Context, t db.ChatTopic, processID int64, session, sign, notes string, through int64) error {
+// session was given, when it was given one, and drops the notes of deck the turn was told, up to told.
+func (ch *Service) takeMessages(ctx context.Context, t db.ChatTopic, processID int64, session, sign string, told, through int64) error {
 	err := ch.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		if cur, err := q.GetMark(ctx, db.GetMarkParams{WorkspaceID: t.WorkspaceID, Name: NotesMark}); err == nil && notes != "" && cur == notes {
-			if err := q.DeleteMark(ctx, db.DeleteMarkParams{WorkspaceID: t.WorkspaceID, Name: NotesMark}); err != nil {
+		if told > 0 {
+			if err := q.DeleteMasterNotes(ctx, db.DeleteMasterNotesParams{WorkspaceID: t.WorkspaceID, Through: told}); err != nil {
 				return err
 			}
 		}
@@ -227,6 +227,17 @@ func (ch *Service) takeMessages(ctx context.Context, t db.ChatTopic, processID i
 		return q.SetChatMemory(ctx, db.SetChatMemoryParams{Memory: sign, TopicID: t.ID, SessionID: session})
 	})
 	return err
+}
+
+// masterNotes are the notes deck tells the master on its next turn, one a line, and the last of them.
+func (ch *Service) masterNotes(ctx context.Context, workspace int64) (string, int64) {
+	rows, _ := ch.St.Q.ListMasterNotes(ctx, workspace)
+	lines := make([]string, 0, len(rows))
+	last := int64(0)
+	for _, r := range rows {
+		lines, last = append(lines, r.Text), r.ID
+	}
+	return strings.Join(lines, "\n"), last
 }
 
 // chatPrompt is what a reply turn gets: on resume the messages its session missed, then the owner's new

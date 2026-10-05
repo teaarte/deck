@@ -14,7 +14,7 @@ const addFeed = `-- name: AddFeed :one
 INSERT INTO feed (workspace_id, project_id, kind, author, text, screen, record_id, actions, command, params, document_id, revision)
 VALUES (?1, ?2, ?3, ?4, ?5, ?6,
     ?7, ?8, ?9, ?10, ?11, ?12)
-RETURNING id, workspace_id, project_id, kind, author, text, screen, record_id, actions, command, params, document_id, revision, undone_at, created_at
+RETURNING id, workspace_id, project_id, kind, author, text, screen, record_id, actions, command, params, document_id, revision, undone_at, created_at, for_master
 `
 
 type AddFeedParams struct {
@@ -64,12 +64,42 @@ func (q *Queries) AddFeed(ctx context.Context, arg AddFeedParams) (Feed, error) 
 		&i.Revision,
 		&i.UndoneAt,
 		&i.CreatedAt,
+		&i.ForMaster,
 	)
 	return i, err
 }
 
+const addMasterNote = `-- name: AddMasterNote :exec
+INSERT INTO feed (workspace_id, project_id, kind, author, text, for_master) VALUES (?, ?, 'note', 'deck', ?, 1)
+`
+
+type AddMasterNoteParams struct {
+	WorkspaceID int64
+	ProjectID   int64
+	Text        string
+}
+
+func (q *Queries) AddMasterNote(ctx context.Context, arg AddMasterNoteParams) error {
+	_, err := q.db.ExecContext(ctx, addMasterNote, arg.WorkspaceID, arg.ProjectID, arg.Text)
+	return err
+}
+
+const deleteMasterNotes = `-- name: DeleteMasterNotes :exec
+DELETE FROM feed WHERE workspace_id = ?1 AND for_master = 1 AND id <= ?2
+`
+
+type DeleteMasterNotesParams struct {
+	WorkspaceID int64
+	Through     int64
+}
+
+func (q *Queries) DeleteMasterNotes(ctx context.Context, arg DeleteMasterNotesParams) error {
+	_, err := q.db.ExecContext(ctx, deleteMasterNotes, arg.WorkspaceID, arg.Through)
+	return err
+}
+
 const getFeed = `-- name: GetFeed :one
-SELECT id, workspace_id, project_id, kind, author, text, screen, record_id, actions, command, params, document_id, revision, undone_at, created_at FROM feed WHERE id = ?
+SELECT id, workspace_id, project_id, kind, author, text, screen, record_id, actions, command, params, document_id, revision, undone_at, created_at, for_master FROM feed WHERE id = ?
 `
 
 func (q *Queries) GetFeed(ctx context.Context, id int64) (Feed, error) {
@@ -91,13 +121,14 @@ func (q *Queries) GetFeed(ctx context.Context, id int64) (Feed, error) {
 		&i.Revision,
 		&i.UndoneAt,
 		&i.CreatedAt,
+		&i.ForMaster,
 	)
 	return i, err
 }
 
 const listFeed = `-- name: ListFeed :many
-SELECT id, workspace_id, project_id, kind, author, text, screen, record_id, actions, command, params, document_id, revision, undone_at, created_at FROM feed WHERE workspace_id = ?1 AND (?2 = 0 OR project_id = ?2)
-  AND (?3 = '' OR kind = ?3)
+SELECT id, workspace_id, project_id, kind, author, text, screen, record_id, actions, command, params, document_id, revision, undone_at, created_at, for_master FROM feed WHERE workspace_id = ?1 AND (?2 = 0 OR project_id = ?2)
+  AND (?3 = '' OR kind = ?3) AND for_master = 0
 ORDER BY id DESC LIMIT ?4
 `
 
@@ -138,6 +169,51 @@ func (q *Queries) ListFeed(ctx context.Context, arg ListFeedParams) ([]Feed, err
 			&i.Revision,
 			&i.UndoneAt,
 			&i.CreatedAt,
+			&i.ForMaster,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listMasterNotes = `-- name: ListMasterNotes :many
+SELECT id, workspace_id, project_id, kind, author, text, screen, record_id, actions, command, params, document_id, revision, undone_at, created_at, for_master FROM feed WHERE workspace_id = ? AND for_master = 1 ORDER BY id
+`
+
+func (q *Queries) ListMasterNotes(ctx context.Context, workspaceID int64) ([]Feed, error) {
+	rows, err := q.db.QueryContext(ctx, listMasterNotes, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Feed
+	for rows.Next() {
+		var i Feed
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.ProjectID,
+			&i.Kind,
+			&i.Author,
+			&i.Text,
+			&i.Screen,
+			&i.RecordID,
+			&i.Actions,
+			&i.Command,
+			&i.Params,
+			&i.DocumentID,
+			&i.Revision,
+			&i.UndoneAt,
+			&i.CreatedAt,
+			&i.ForMaster,
 		); err != nil {
 			return nil, err
 		}

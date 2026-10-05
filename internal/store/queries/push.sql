@@ -28,12 +28,12 @@ ORDER BY p.finished_at, p.id;
 
 
 -- name: MaxNoteID :one
-SELECT CAST(COALESCE(MAX(id), 0) AS INTEGER) FROM feed WHERE workspace_id = ? AND kind = 'note';
+SELECT CAST(COALESCE(MAX(id), 0) AS INTEGER) FROM feed WHERE workspace_id = ? AND kind = 'note' AND for_master = 0;
 
 
 -- name: ListNotesAfter :many
 SELECT sqlc.embed(n), j.name AS project_name FROM feed n JOIN project j ON j.id = n.project_id
-WHERE n.workspace_id = ? AND n.kind = 'note' AND n.id > ? ORDER BY n.id;
+WHERE n.workspace_id = ? AND n.kind = 'note' AND n.for_master = 0 AND n.id > ? ORDER BY n.id;
 
 
 -- name: MaxMasterMessageID :one

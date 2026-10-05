@@ -38,6 +38,23 @@ func (q *Queries) DeleteMark(ctx context.Context, arg DeleteMarkParams) error {
 	return err
 }
 
+const deleteMarksOfOtherRevisions = `-- name: DeleteMarksOfOtherRevisions :exec
+DELETE FROM mark WHERE workspace_id = ?1
+  AND substr(name, 1, length(CAST(?2 AS TEXT))) = CAST(?2 AS TEXT)
+  AND substr(name, -length(CAST(?3 AS TEXT))) != CAST(?3 AS TEXT)
+`
+
+type DeleteMarksOfOtherRevisionsParams struct {
+	WorkspaceID int64
+	Prefix      string
+	Revision    string
+}
+
+func (q *Queries) DeleteMarksOfOtherRevisions(ctx context.Context, arg DeleteMarksOfOtherRevisionsParams) error {
+	_, err := q.db.ExecContext(ctx, deleteMarksOfOtherRevisions, arg.WorkspaceID, arg.Prefix, arg.Revision)
+	return err
+}
+
 const deleteMarksWithPrefix = `-- name: DeleteMarksWithPrefix :exec
 DELETE FROM mark WHERE workspace_id = ?1 AND substr(name, 1, length(CAST(?2 AS TEXT))) = CAST(?2 AS TEXT)
 `

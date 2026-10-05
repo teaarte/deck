@@ -128,6 +128,7 @@ type Feed struct {
 	Revision    int64
 	UndoneAt    sql.NullString
 	CreatedAt   string
+	ForMaster   int64
 }
 
 type File struct {
@@ -246,6 +247,7 @@ type Project struct {
 	Builtin         int64
 	CreatedAt       string
 	GrantedRevision sql.NullInt64
+	ImportedFrom    string
 }
 
 type ProjectFolder struct {

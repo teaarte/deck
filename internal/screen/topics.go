@@ -30,7 +30,7 @@ func readsProject(b manifest.Block, deck bool, own, project string) bool {
 	}
 	if v, ok := b.Source.Input["project"]; ok {
 		s, _ := v.(string)
-		return s == "" || strings.HasPrefix(s, "=") || strings.HasPrefix(s, "$") || s == project
+		return s == "" || strings.HasPrefix(s, "=") || s == project
 	}
 	if c, ok := manifest.Reads(b.Source.From); ok && manifest.FieldTypes(c.Input)["project"] == "" {
 		return true

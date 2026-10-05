@@ -699,6 +699,20 @@ func TestAModuleOfFormatSevenOnAReadOfDeckStillLoads(t *testing.T) {
 	}
 }
 
+// TestATextThatMentionsAnOldParamIsNoParam: only a value written as $param.<name> is the old form; a label or a
+// description that mentions it is text.
+func TestATextThatMentionsAnOldParamIsNoParam(t *testing.T) {
+	e := newEnv(t, nil)
+	m := `{"version": 8, "commands": [{"name": "touch", "title": "Touch", "description": "Touches.", "class": "internal",
+    "result": {"type": "object"}, "input": {"type": "object", "properties": {"n": {"type": "string"}}}, "executor": {"type": "agent", "prompt": "Touch."}}],
+  "screens": [{"name": "main", "title": "Main", "blocks": [{"type": "actions", "title": "Runs",
+    "description": "Old screens wrote $param.n", "actions": [{"label": "Touch", "command": "touch", "params": {"n": "%s"}}]}]}]}`
+	e.createProject("notes", fmt.Sprintf(m, "7"))
+	if code, out := e.call("deck.project_create", map[string]any{"name": "old", "manifest": fmt.Sprintf(m, "$param.n")}); code != 422 || !strings.Contains(string(out), "=param.n") {
+		t.Fatalf("a value of the old form is refused with the new one: %d %s", code, out)
+	}
+}
+
 func TestScreenSortsNumbersAndResolvesRowParams(t *testing.T) {
 	e := newEnv(t, nil)
 	p := e.createProject("items", numbersManifest)

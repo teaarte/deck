@@ -67,8 +67,8 @@ func (m *Manifest) checkScreenList(deck bool, fail func(string, ...any)) {
 }
 
 var (
-	oldParam = regexp.MustCompile(`\$param\.([A-Za-z_][A-Za-z0-9_]*)`)
-	paramRef = regexp.MustCompile(`\bparam\.([A-Za-z_][A-Za-z0-9_]*)`)
+	oldParam = regexp.MustCompile(`"\$param\.([A-Za-z_][A-Za-z0-9_]*)"`)
+	paramRef = regexp.MustCompile(`(?:^|[^$\w.])param\.([A-Za-z_][A-Za-z0-9_]*)`)
 )
 
 // params checks that the expressions of a screen read only the parameters it declares, as param.<name>.
@@ -78,7 +78,6 @@ func (c *screenCheck) params() {
 	for _, m := range oldParam.FindAllStringSubmatch(text, -1) {
 		c.fail("screen %q: $param.%s is now =param.%s, with %s declared in params of the screen", c.screen.Name, m[1], m[1], m[1])
 	}
-	text = oldParam.ReplaceAllString(text, "")
 	for _, m := range paramRef.FindAllStringSubmatch(text, -1) {
 		if _, ok := c.screen.Params[m[1]]; !ok {
 			c.fail("screen %q: no param %q; declare it in params of the screen", c.screen.Name, m[1])

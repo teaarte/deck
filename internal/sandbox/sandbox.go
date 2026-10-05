@@ -106,9 +106,8 @@ func Close(deck, path string, open bool) Closure {
 // shared are the folders of a home that hold the data of many programs; none of them is an installation.
 var shared = []string{".local", ".config", ".cache", "Library"}
 
-// Runtimes are the folders of path inside home, under the names path gives them and their own, with the
-// installation each belongs to when the folder above holds lib, libexec or versions (a node, a python, a JDK,
-// pyenv shims); a program a folder links to opens alone, or with its installation when it is in one.
+// Runtimes are the folders of path inside home by both names, with the installation above each that holds lib,
+// libexec or versions (node, python, a JDK, pyenv shims); a linked program opens alone or with its installation.
 func Runtimes(home, path string) []string {
 	home = real(home)
 	var out []string

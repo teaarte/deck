@@ -312,6 +312,39 @@ A script reads its input JSON from stdin and prints its result JSON to stdout. I
   const leftPad = require("node:module").createRequire(dir + "/")("left-pad");
   ```
 
+### Models a kind does not cover: video, music, special APIs
+
+`model` commands and `deck.model_call` know text, image, tts and stt. Anything else — video, music, a service
+with its own API (fal, Replicate, ElevenLabs, Google Veo) — is a script that calls the API through
+`$DECK_MODELS`, so the key stays with deck and the spend counts. The owner adds the service as a connection
+(Settings → Connections: `raw` for a service that takes a bearer key, `google` for Google's own API) and a model
+with its price per call; the manifest names the connection in `models`. One call, the answer a file:
+
+```python
+import json, os, sys, urllib.request
+inp = json.load(sys.stdin)
+req = urllib.request.Request(os.environ["DECK_MODELS"] + "/music/v1/generate",  # <connection>/<API path>
+    data=json.dumps({"prompt": inp["prompt"], "seconds": 30}).encode(),
+    headers={"Authorization": "Bearer " + os.environ["DECK_TOKEN"], "Content-Type": "application/json"})
+with urllib.request.urlopen(req, timeout=600) as r:
+    if r.status == 202:  # past the day's limit: the call waits for the owner
+        print(json.dumps({"waiting": json.load(r)})); sys.exit(0)
+    path = os.path.join(os.environ["DECK_RESULTS"], "track.mp3")
+    open(path, "wb").write(r.read())
+print(json.dumps({"files": [{"path": "track.mp3", "record": inp.get("record")}]}))
+```
+
+A long job (video takes minutes) is two commands, never a script that waits for an hour: `start` posts the job
+through `$DECK_MODELS`, keeps the job id in the record with status `waiting` and ends; `fetch`, on a schedule
+(`every 5m`), reads the waiting records, asks the status path of the API through `$DECK_MODELS`, and when the
+job is done downloads the file into `$DECK_RESULTS` and sets the record `done`. A file the service gives as a URL
+on its own storage host is fetched through the proxy, so that host goes into `domains.read`. Ask the owner for the price per call of such a model: a service that reports no
+`usage.cost` is counted by it, else as nothing.
+
+A tool of the manifest called from a script (`POST $DECK_URL/commands/<project>.<tool>`) that answers with a
+file returns `{"file": "<name>", "type", "size"}`: the file is `$DECK_RESULTS/<name>`, and `results/<name>`
+hands it to another tool or a `file` field.
+
 ## 5. Agent commands
 
 The prompt says what to do with the input and what the result means; facts and criteria live in md

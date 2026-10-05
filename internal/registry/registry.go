@@ -325,13 +325,13 @@ func (c *Command) jsonText(input json.RawMessage) json.RawMessage {
 
 // reachable reports whether the actor may call the command at all, before the class rules of the gateway.
 func (r *Registry) reachable(a Actor, c *Command) error {
-	if !slices.Contains(c.Callers, a.Kind) {
+	if !slices.Contains(c.Callers, a.As()) {
 		return Refuse("deck: %s cannot be called by %s", c.Name, a.Kind)
 	}
 	if c.ProjectID != 0 && (a.Kind == Agent || a.Kind == Trigger) && a.ProjectID != c.ProjectID {
 		return Refuse("deck: %s belongs to another project", c.Name)
 	}
-	if a.Token != 0 && !Permits(a.Commands, c.Name) {
+	if a.Kind == Token && !Permits(a.Commands, c.Name) {
 		return Refuse("deck: this automation token may not call %s", c.Name)
 	}
 	if a.Commands != nil && !Permits(a.Commands, c.Name) {

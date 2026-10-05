@@ -50,7 +50,7 @@ func TestAutomationTokenCallsOnlyAllowedCommands(t *testing.T) {
 		t.Fatalf("a command outside the list is refused over the API: %d %s", code, out)
 	}
 	for _, owners := range []string{"deck.token_create", "deck.project_enable"} {
-		if code, out := e.callWith(tok, owners, map[string]any{"name": "x", "commands": []string{"*"}, "project": "notes"}); code != 403 || !strings.Contains(string(out), "cannot be called by master") {
+		if code, out := e.callWith(tok, owners, map[string]any{"name": "x", "commands": []string{"*"}, "project": "notes"}); code != 403 || !strings.Contains(string(out), "cannot be called by token") {
 			t.Fatalf("%s stays the owner's even when listed: %d %s", owners, code, out)
 		}
 	}

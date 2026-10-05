@@ -10,6 +10,8 @@ const (
 	Master  = "master"
 	Agent   = "agent"
 	Trigger = "trigger"
+	// Token is a caller with an automation token: it calls what the master may, limited to its commands.
+	Token = "token"
 )
 
 // Actor is who invokes a command; agents and triggers act inside one project.
@@ -22,7 +24,7 @@ type Actor struct {
 	TriggerID int64
 	// Confirmed marks a call of a trigger the owner asked for or said yes to: its schedule checks do not apply.
 	Confirmed bool
-	// Token is the automation token a master-side caller came with.
+	// Token is the automation token of a caller of kind Token.
 	Token int64
 	// Commands narrow what a token or an agent whose command lists its calls may call.
 	Commands []string
@@ -63,14 +65,22 @@ func (r *Registry) Clearance() Clearance {
 func (a Actor) Confined() bool { return a.Kind == Agent || a.Kind == Trigger }
 
 // OwnerSide is the owner or the master, who work across the projects of the workspace.
-func (a Actor) OwnerSide() bool { return a.Kind == Owner || a.Kind == Master }
+func (a Actor) OwnerSide() bool { return a.Kind == Owner || a.Kind == Master || a.Kind == Token }
+
+// As is the kind of caller the actor counts as in the callers of a command: a token as the master.
+func (a Actor) As() string {
+	if a.Kind == Token {
+		return Master
+	}
+	return a.Kind
+}
 
 // Within reports whether the actor may touch a project.
 func (a Actor) Within(projectID int64) bool { return !a.Confined() || projectID == a.ProjectID }
 
 // Author is the actor as recorded in document revisions.
 func (a Actor) Author() string {
-	if a.Token != 0 {
+	if a.Kind == Token {
 		return fmt.Sprintf("token:%d", a.Token)
 	}
 	if a.Kind == Agent && a.ProcessID != 0 {

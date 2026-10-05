@@ -49,7 +49,7 @@ func (s *Service) Automation(ctx context.Context, raw string) (registry.Actor, e
 	if err := json.Unmarshal([]byte(t.Commands), &cmds); err != nil {
 		return registry.Actor{}, err
 	}
-	return registry.Actor{Kind: registry.Master, Workspace: t.WorkspaceID, Token: t.ID, Commands: cmds}, nil
+	return registry.Actor{Kind: registry.Token, Workspace: t.WorkspaceID, Token: t.ID, Commands: cmds}, nil
 }
 
 type tokenCreateIn struct {

@@ -35,7 +35,7 @@ type Session struct {
 	ProjectID int64
 	Workspace int64
 	Trial     bool
-	// Token is set for an automation token: the caller acts as the master, limited to Commands.
+	// Token is set for an automation token: the caller calls what the master may, limited to Commands.
 	Token int64
 	// Commands, when not nil, are all an automation token or an agent may call.
 	Commands []string
@@ -51,7 +51,7 @@ type Session struct {
 
 func (s *Session) actor() registry.Actor {
 	if s.Token != 0 {
-		return registry.Actor{Kind: registry.Master, Workspace: s.Workspace, Token: s.Token, Commands: s.Commands}
+		return registry.Actor{Kind: registry.Token, Workspace: s.Workspace, Token: s.Token, Commands: s.Commands}
 	}
 	if s.Master {
 		return registry.Actor{Kind: registry.Master, Workspace: s.Workspace, ProjectID: s.ProjectID, ProcessID: s.ProcessID, Trial: s.Trial,

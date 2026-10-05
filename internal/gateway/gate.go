@@ -52,7 +52,11 @@ func frozenCaller(a registry.Actor) string {
 func (c Caller) Author() string { return c.actor().Author() }
 
 func (c Caller) actor() registry.Actor {
-	return registry.Actor{Kind: c.Kind, Workspace: c.Workspace, ProjectID: c.Project, ProcessID: c.Process,
+	kind := c.Kind
+	if c.Token != 0 {
+		kind = registry.Token
+	}
+	return registry.Actor{Kind: kind, Workspace: c.Workspace, ProjectID: c.Project, ProcessID: c.Process,
 		TriggerID: c.Trigger, Confirmed: c.Trigger != 0, Token: c.Token, Commands: c.Commands}
 }
 

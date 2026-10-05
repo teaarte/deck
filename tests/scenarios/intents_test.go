@@ -254,7 +254,7 @@ func TestUnknownOutcomeKeepsItsCaller(t *testing.T) {
 		}
 	}
 	_ = json.Unmarshal(a.Payload, &frozen)
-	if a.Kind != "unknown" || frozen.Caller.Kind != "master" || frozen.Caller.Token != tid || len(frozen.Caller.Commands) != 1 {
+	if a.Kind != "unknown" || frozen.Caller.Kind != "token" || frozen.Caller.Token != tid || len(frozen.Caller.Commands) != 1 {
 		t.Fatalf("the unknown outcome is the token's, not the owner's: %+v %s", a, a.Payload)
 	}
 }

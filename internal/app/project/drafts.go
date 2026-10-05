@@ -111,7 +111,7 @@ type commandTryIn struct {
 // waits for the owner; a token that may try runs any project command this way, though not one closed to it.
 func (pj *Service) commandTry(ctx context.Context, act registry.Actor, in commandTryIn) (any, error) {
 	probe := act
-	probe.Token, probe.Commands = 0, nil
+	probe.Kind, probe.Token, probe.Commands = act.As(), 0, nil
 	c, input, err := pj.Registry.Resolve(ctx, probe, in.Command, json.RawMessage(in.Input))
 	switch {
 	case err != nil:

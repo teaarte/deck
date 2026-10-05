@@ -172,7 +172,7 @@ func (s *Service) processName(ctx context.Context, id int64) string {
 // callerName says who made a frozen call: a process, a token, a trigger, the master or the owner.
 func (s *Service) callerName(ctx context.Context, c gateway.Caller) string {
 	switch {
-	case c.Token != 0:
+	case c.Token != 0 || c.Kind == registry.Token:
 		return fmt.Sprintf("token #%d", c.Token)
 	case c.Process != 0:
 		return s.processName(ctx, c.Process)

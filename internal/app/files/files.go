@@ -131,7 +131,7 @@ const maxUpload = 1 << 30
 // Upload keeps a file sent by a form, Share or the API for a command of a project: it waits in files/ as
 // an upload until a command takes it, and the daily cleanup drops uploads nobody took for a day.
 func (s *Service) Upload(ctx context.Context, act registry.Actor, project, name, ctype string, body io.Reader) (View, error) {
-	if act.Token != 0 && !registry.Permits(act.Commands, project+".*") && !registry.Permits(act.Commands, "deck.command_try") {
+	if act.Kind == registry.Token && !registry.Permits(act.Commands, project+".*") && !registry.Permits(act.Commands, "deck.command_try") {
 		return View{}, registry.Refuse("deck: this automation token may not call every command of %s, so it does not upload for it", project)
 	}
 	p, err := access.Project(ctx, s.St.Q, act, project)
@@ -216,7 +216,7 @@ func (s *Service) OpenFile(ctx context.Context, act registry.Actor, id int64) (V
 	if err != nil {
 		return View{}, nil, err
 	}
-	if act.Token != 0 && !registry.Permits(act.Commands, p.Name+".*") {
+	if act.Kind == registry.Token && !registry.Permits(act.Commands, p.Name+".*") {
 		return View{}, nil, registry.Refuse("deck: this automation token may not call every command of %s, so it does not download its files", p.Name)
 	}
 	file, err := os.Open(filepath.Join(s.Home.Files(), strconv.FormatInt(f.ID, 10)))
@@ -321,7 +321,7 @@ func (s *Service) OpenDataFile(ctx context.Context, act registry.Actor, project,
 	if _, err := access.Of(ctx, s.St.Q, act, p.ID, missing); err != nil {
 		return View{}, nil, err
 	}
-	if act.Token != 0 && !registry.Permits(act.Commands, p.Name+".*") {
+	if act.Kind == registry.Token && !registry.Permits(act.Commands, p.Name+".*") {
 		return View{}, nil, registry.Refuse("deck: this automation token may not call every command of %s, so it does not download its files", p.Name)
 	}
 	file, err := s.dataFile(p.ID, path)

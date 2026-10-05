@@ -99,7 +99,7 @@ func (pj *Service) leftInMaster(ctx context.Context, q *db.Queries, act registry
 	if rel, err := filepath.Rel(pj.Home.Data(mp.ID), dir); err != nil || rel == ".." || strings.HasPrefix(rel, "../") {
 		return "", nil
 	}
-	if act.Kind == registry.Master && act.Token == 0 {
+	if act.Kind == registry.Master {
 		return dir, nil
 	}
 	line := fmt.Sprintf("draft %s, imported from %s, was deleted; deck left its folder", p.Name, dir)
@@ -169,7 +169,7 @@ func (pj *Service) projectDeleteCommands() []*registry.Command {
 
 // draftOfMaster lets the master delete a draft without the owner and refuses it any other project.
 func (pj *Service) draftOfMaster(ctx context.Context, act registry.Actor, input json.RawMessage, _ bool) (bool, error) {
-	if act.Kind != registry.Master || act.Token != 0 {
+	if act.Kind != registry.Master {
 		return false, registry.Refuse("deck: only the owner and the master delete a project")
 	}
 	var in projectDeleteIn

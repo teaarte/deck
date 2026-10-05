@@ -118,7 +118,7 @@ func (s *Server) invoke(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var out any
-	if act := actor(r); act.Token != 0 {
+	if act := actor(r); act.Kind == registry.Token {
 		out, err = s.app.Gateway.CallAs(r.Context(), act, r.PathValue("name"), body)
 	} else {
 		out, err = s.app.Registry.Invoke(r.Context(), act, r.PathValue("name"), body)

@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 
+	"deck2/internal/app"
 	"deck2/internal/provider"
 )
 
@@ -129,9 +131,10 @@ func TestResultSubmitGetsOneRebuild(t *testing.T) {
 }
 
 func TestProviderURLCarriesNoKey(t *testing.T) {
+	f := newACP(t)
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		return provider.Result{Structured: json.RawMessage(`{}`)}
-	})
+	}, func(c *app.Config) { c.ACPBinaries = map[string]string{"goose": filepath.Join(f.dir, "goose")} })
 	for _, u := range []string{"https://me:sk-1@openrouter.example/api/v1", "https://api.example/v1?key=sk-1"} {
 		code, out := e.agentModel(map[string]any{"name": "cloud", "url": u, "model": "m", "agent": "goose"})
 		if code == 200 || !strings.Contains(string(out), "give the key in key") {

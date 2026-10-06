@@ -127,6 +127,7 @@
     },
     "script": {
       "type": "object",
+      "description": "A script runs in deck's sandbox: it writes its run folder and $DECK_DATA (caches of uv, npm and Hugging Face live in $DECK_DATA/.cache), reads the project folders, of the owner's home only the runtimes on PATH, and reaches the network only through deck's proxy to domains.read (Node's fetch too). It opens no local port and has no GPU: rendering in a browser (Remotion) or a local model on Metal is an agent command, whose shell on Claude Code in a project with network has ports, the GPU and caches.",
       "additionalProperties": false,
       "required": ["name", "file", "runtime"],
       "properties": {
@@ -136,7 +137,7 @@
         "programs": {"type": "array", "uniqueItems": true, "description": "Programs that must exist on the machine: a name, or a name with how the owner installs it.",
           "items": {"oneOf": [{"type": "string", "minLength": 1}, {"type": "object", "additionalProperties": false, "required": ["name"],
             "properties": {"name": {"type": "string", "minLength": 1}, "install": {"type": "string", "description": "How the owner installs it, such as brew install ffmpeg; deck shows it while the program is missing."}}}]}},
-        "timeout_minutes": {"type": "integer", "minimum": 1, "maximum": 60}
+        "timeout_minutes": {"type": "integer", "minimum": 1, "maximum": 240, "description": "Ceiling of a run; 10 when not given."}
       }
     },
     "trigger": {

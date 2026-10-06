@@ -735,3 +735,22 @@ func TestAMissingProgramSaysHowToInstallItAndIsCheckedAgain(t *testing.T) {
 		t.Fatalf("the script runs with its program: %+v %s", p, p.Result)
 	}
 }
+
+// TestAScriptMayRunForHours: a script, such as a render or a long download, takes a ceiling of up to four hours.
+func TestAScriptMayRunForHours(t *testing.T) {
+	e := newClockEnv(t, nil)
+	e.createProject("slow", strings.Replace(scriptManifest("wait", "", ""), `"runtime": "python"`, `"runtime": "python", "timeout_minutes": 180`, 1))
+	e.saveScript("slow", "scripts/main.py", "import sys, time\nprint('started', file=sys.stderr, flush=True)\ntime.sleep(120)\n")
+	id := e.start("slow", "wait", nil)
+	e.waitFor("the script to start", func() bool { return len(e.log(id)) > 0 })
+	e.Clock.Add(170 * time.Minute)
+	e.sweep()
+	if p := e.process(id); p.State != "running" {
+		t.Fatalf("a script runs until its ceiling of three hours: %+v", p)
+	}
+	e.Clock.Add(11 * time.Minute)
+	e.sweep()
+	if p := e.waitScript(id, "stopped", "done", "error"); p.State != "stopped" || !strings.Contains(p.Error, "ceiling") {
+		t.Fatalf("the ceiling stops the script: %+v", p)
+	}
+}

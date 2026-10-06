@@ -268,9 +268,10 @@ A script reads its input JSON from stdin and prints its result JSON to stdout. I
 - of the owner's home folder it reads only the runtimes deck finds on `PATH` (an nvm node, a pyenv python) and
   the project folders; the system folders read as usual. A file of the owner elsewhere is opened by the owner
   adding its folder to the project (Settings → Projects): ask for that, never copy the file around the sandbox.
-  What the sandbox kept closed is a `deck: the sandbox kept <path> closed` line in the script's log and error, and
-  a note of deck in the owner's feed; MCP servers and ACP agents of the project read the same;
-- network only to the manifest's `domains.read`, through the proxy deck sets in `HTTP(S)_PROXY`; a domain is a
+  A program names the path it was refused in its stderr (`Operation not permitted`), and the error of a failed
+  script ends with where the owner opens a folder; MCP servers and ACP agents of the project read the same;
+- network only to the manifest's `domains.read`, through the proxy deck sets in `HTTP(S)_PROXY` (Node's `fetch`
+  takes it too; `$DECK_URL` is reached directly); a domain is a
   host (`hf.co` takes its subdomains too) or `host:port`, never a URL or a public suffix such as `co.uk`; a name
   reaches only public addresses, so a service on the owner's machine or network is named by its IP or IP:port;
 - models through `$DECK_MODELS/<connection>/<API path>` with `Authorization: Bearer $DECK_TOKEN` (an OpenAI SDK
@@ -281,8 +282,11 @@ A script reads its input JSON from stdin and prints its result JSON to stdout. I
 - no secrets and no keys of the owner; ask for an HTTP tool of the manifest instead. Never ask the owner to
   `export` a key for a module: on macOS a confined program reads the environment of the owner's processes, so
   keys live only in deck secrets;
-- `runtime` is `python`, `node`, `bash` or `exec` (a program that runs by itself); `timeout_minutes` as for
-  commands;
+- `runtime` is `python`, `node`, `bash` or `exec` (a program that runs by itself); `timeout_minutes` is the
+  ceiling of a run, 10 by default, up to 240;
+- no local port and no GPU: a script cannot serve a page to a browser (a Remotion render) or run a model on Metal
+  (MLX). That work is an agent command on Claude Code in a project with network: its shell binds ports, uses the
+  GPU and keeps its caches like the owner's own; the script readies the inputs and the agent renders;
 - a script runs alone: its folder holds only its own file, so a helper shared by scripts is repeated in each
   (or read with `document_get` into the work folder);
 - deck commands over HTTP: `curl -s -H "Authorization: Bearer $DECK_TOKEN" -d '<json>' "$DECK_URL/commands/deck.records_upsert"`
@@ -298,9 +302,12 @@ A script reads its input JSON from stdin and prints its result JSON to stdout. I
 - files go into `$DECK_RESULTS`; the result field `files: [{"path": "...", "record": <id>}]` attaches them;
 - a script installs its own packages when it runs; there is no `packages` field. The registries go into
   `domains.read` (Python: `pypi.org`, `files.pythonhosted.org`; Node: `registry.npmjs.org`), the package
-  manager goes through the proxy, its cache lives in `$DECK_DATA`, the install counts in `timeout_minutes`;
-  a project without the registries in `domains.read` has no packages. Programs it needs from the machine go
-  into `scripts[].programs` (`uv`, `npm`). Python: `"runtime": "exec"` and a PEP 723 block:
+  manager goes through the proxy, its cache lives in `$DECK_DATA/.cache` (uv, npm, Hugging Face) and stays between
+  runs, the install counts in `timeout_minutes`; a project without the registries in `domains.read` has no packages.
+  Programs it needs from the machine go into `scripts[].programs`: a name (`"uv"`) or a name with how the owner
+  installs it (`{"name": "ffmpeg", "install": "brew install ffmpeg"}`). A missing program refuses the run at once and
+  is a red health row of the command with that text; ask the owner to install it, never work around it — the
+  check button of the row, or the next run, finds it. Python: `"runtime": "exec"` and a PEP 723 block:
   ```python
   #!/usr/bin/env -S uv run --script
   # /// script
@@ -358,8 +365,8 @@ runs), runs shell commands, and searches and fetches the web without asking; the
 what looks risky and asks the owner only about that. The shell of Claude Code renders, binds local ports, uses the
 GPU and keeps its caches like the owner's own shell; the shells of Codex and ACP agents reach only package registries
 (PyPI, npm, the go proxy), GitHub, Hugging Face and the project's `domains.read` (`"*"` opens the whole network, a
-right the owner gives); a project with `no_network` closes every shell. Secrets, deck's own files and other projects stay closed
-to it. A deck tool of class `external` outside `allowed_external` still waits for the owner. Set
+right the owner gives); a project with `no_network` closes every shell. Secrets and deck's own state stay closed to it; on
+Claude Code with network its shell is the owner's, so another project's data is not a wall. A deck tool of class `external` outside `allowed_external` still waits for the owner. Set
 `"no_network": true` for a project with personal data (finance, health, mail): its agents get no web and no
 network of their own and reach outside only through deck tools; removing the flag later is a right. An agent
 that must work in a folder of the owner (a code repo, notes) gets `"folder": true` in `executor` (or the folder's

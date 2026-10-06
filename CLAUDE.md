@@ -26,7 +26,8 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
 
 - `cmd/deck` — entry point
 - `internal/store` — SQLite: a committed write publishes the topic of its table in the project of the row
-  (`changes.go`, the SQLite pre-update hook); the base schema `migrations/00001_base.sql` and goose migrations after it
+  (`changes.go`, the SQLite pre-update hook; the scope of a table is a closed set, a table no screen reads is in
+  `silent`, and a table in neither keeps deck from starting); the base schema `migrations/00001_base.sql` and goose migrations after it
   (`00002_granted`, `00003_llm_call`, `00004_ask_workspace`: a table rebuilt with foreign keys off is a NO TRANSACTION
   migration; `00005_marks` — `project.imported_from` and the notes for the master as feed rows, `00006_feed_read` —
   warnings as notes of the feed, `00007_sandbox_health`, `00008_alone` — a trial of one command, `00009_models` — connections, models and
@@ -83,7 +84,8 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
 - `internal/provider` — model providers; `claudecode` runs the CLI isolated from user settings; `codex` runs
   `codex app-server` on the owner's shared login (`protocol.go` is generated); `acp` runs ACP agents (Goose, `dsh`)
   on an OpenAI-compatible model inside deck's sandbox, the model through deck's proxy — deck has no tool loop of its own;
-  `Stateful` keeps clients of deck's MCP servers on the handshake (no `server/discover`, go-sdk #1111)
+  `Stateful` keeps clients of deck's MCP servers on the handshake (no `server/discover`, go-sdk #1111); `Within`/`Under`
+  — the one check that a path is inside a folder
 - `internal/process` — process runner: agent and script executors, start, resume, result schema check, result files;
   agent turns take a slot of the workspace (`slots.go`), the rest wait in `waiting_slot`; a tool or model command is
   one gateway call (`tool.go`); what it takes from deck is
@@ -91,17 +93,19 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
 - `internal/home` — the layout of `DECK_HOME`: `state/` only deck reads (deck's key of pushes in `state/push`, apart
   from the secrets), `work/` the folders of runs and projects
 - `internal/sandbox` — sandbox of scripts, MCP servers and ACP agents behind one interface: `sandbox-exec` on macOS,
-  bubblewrap on Linux; `Close` — deck's folder and the owner's home closed but for the runtimes on PATH (`Runtimes`)
+  bubblewrap on Linux; `Env` — the one environment of scripts, ACP agents and MCP servers (kept variables, own home,
+  deck's proxy with only its own address past it); `Close` — deck's folder and the owner's home closed but for the runtimes on PATH (`Runtimes`)
   and the project folders; `Agent` — what an agent CLI may not touch in deck's folder; `OpenHint` — where the owner
   opens a folder, at the end of the error of a failed script
 - `internal/script` — runs project scripts in the sandbox (a script installs its own packages through the proxy);
-  `environ` is the whole environment of a script, `Check` the programs its manifest names
+  `environ` is `sandbox.Env` with the folders and deck of a script, `Check` the programs its manifest names
 - `internal/trigger` — cron scheduler with catch-up after sleep
-- `internal/health` — health rows: `Set` inside a transaction, `Write` on its own and published; health is the
-  state of what deck runs or reaches, events go to the feed
+- `internal/health` — health rows: `Set` inside a transaction, `Write` on its own and published, the statuses and
+  their order (`Worse`); health is the state of what deck runs or reaches, events go to the feed
 - `internal/screen` — stored screens resolved into A2UI messages without a store of its own (`render.go`, `blocks.go`,
   `data.go`, `items.go` with the reads of a screen kept by source, `actions.go`, `forms.go`, the topics a block follows
-  `topics.go`, components and spans from the catalog `catalog.go`, `i18n.go`)
+  `topics.go`, components and spans from the catalog `catalog.go`, `i18n.go`); a document block reads
+  `deck.document_get` and `deck.document_revisions` as the viewer
 - `internal/events` — the bus: an event is a topic and the project it changed in; a subscriber keeps the events
   waiting for it merged, so none is dropped
 - `internal/api` — HTTP API (`POST /api/commands/{name}`, files) and SSE; screens are the

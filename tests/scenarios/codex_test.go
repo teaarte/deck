@@ -360,7 +360,7 @@ func TestCodexSelfCheckIsRedWhenAutoModeStopsWorking(t *testing.T) {
 		{[]string{"selfcheck_nousage.jsonl"}, "token counts"},
 		{[]string{"selfcheck_leak.jsonl"}, "read a file deck hides"},
 		{[]string{"selfcheck_noprobe.jsonl"}, "did not run"},
-		{[]string{"selfcheck.jsonl", "selfcheck_resume.jsonl", "selfcheck_online.jsonl"}, "no network"},
+		{[]string{"selfcheck.jsonl", "selfcheck_resume.jsonl", "selfcheck_online.jsonl"}, "turn without network"},
 		{[]string{"nologin.jsonl"}, "no valid login"},
 	} {
 		c := newCodex(t)

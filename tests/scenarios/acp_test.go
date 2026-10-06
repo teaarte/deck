@@ -357,8 +357,8 @@ func TestACPSelfCheckIsRedWhenTheSandboxOrTheProxyFails(t *testing.T) {
 		{[]string{strings.Replace(first, `{"shell": "sh probe.sh"}`+"\n", "", 1)}, "did not run", model},
 		{[]string{strings.Replace(first, acpModel+"\n", "", 1)}, "token counts", adapter},
 		{[]string{strings.Replace(first, `{"mcp": {"tool": "ask", "arguments": {"question": "Which answer should the result carry?"}}}`+"\n", "", 1)}, "question", model},
-		{[]string{first, second, strings.Replace(third, `{"shell": "sh net.sh"}`, `{"shell": "echo 200 > net.out"}`, 1)}, "no network", adapter},
-		{[]string{first, second, strings.Replace(third, `{"shell": "sh net.sh"}`+"\n", "", 1)}, "no network", model},
+		{[]string{first, second, strings.Replace(third, `{"shell": "sh net.sh"}`, `{"shell": "echo 200 > net.out"}`, 1)}, "turn without network", adapter},
+		{[]string{first, second, strings.Replace(third, `{"shell": "sh net.sh"}`+"\n", "", 1)}, "turn without network", model},
 	} {
 		f := newACP(t)
 		for i, s := range tc.streams {

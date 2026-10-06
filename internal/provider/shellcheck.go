@@ -165,14 +165,14 @@ func (s ShellCheck) Check(ctx context.Context, start Check) (c Check) {
 	off := Request{Cwd: work, SessionID: sessions[1], MCPURL: req.MCPURL, PermissionMCP: req.PermissionMCP, NoNetwork: true, OnUsage: req.OnUsage,
 		Prompt: "This is a self-check of deck. Run exactly this shell command once: sh " + filepath.Join(work, "net.sh") +
 			"\nDo not ask for approval. Then hand in {\"word\": \"done\", \"answer\": \"\"} with the result_submit tool of the deck MCP server, even if the command failed."}
-	if _, _, _, ok = step("no network", off); !ok {
+	if _, _, _, ok = step("turn without network", off); !ok {
 		return c
 	}
 	switch got, err := os.ReadFile(filepath.Join(work, "net.out")); {
 	case err != nil:
-		model(fmt.Errorf("no network: the probe that runs curl did not run: %v", err))
+		model(fmt.Errorf("turn without network: the probe that runs curl did not run: %v", err))
 	case strings.TrimSpace(string(got)) != "000":
-		c.Err = fmt.Errorf("no network: curl in the sandbox of %s printed %q, want 000", s.Agent, string(got))
+		c.Err = fmt.Errorf("turn without network: curl in the sandbox of %s printed %q, want 000", s.Agent, string(got))
 	}
 	return c
 }

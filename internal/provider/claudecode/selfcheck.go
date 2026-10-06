@@ -168,12 +168,12 @@ func (a *Adapter) SelfCheck(ctx context.Context) provider.Check {
 	_ = json.Unmarshal(res.Structured, &out)
 	switch {
 	case err != nil:
-		c.Err = fmt.Errorf("no network: %w", err)
+		c.Err = fmt.Errorf("turn without network: %w", err)
 	case res.RateLimited || res.NeedsLogin || res.IsError:
 		c.RateLimited, c.NeedsLogin = res.RateLimited, res.NeedsLogin
-		c.Err = fmt.Errorf("no network: %s", res.Text)
+		c.Err = fmt.Errorf("turn without network: %s", res.Text)
 	case strings.TrimSpace(out.Word) != "000":
-		c.Err = fmt.Errorf("no network: curl in the sandbox of the CLI printed %q, want 000", out.Word)
+		c.Err = fmt.Errorf("turn without network: curl in the sandbox of the CLI printed %q, want 000", out.Word)
 	}
 	return c
 }

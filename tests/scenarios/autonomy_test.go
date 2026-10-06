@@ -211,7 +211,7 @@ func TestSelfCheckIsRedWhenAutoModeStopsWorking(t *testing.T) {
 		{"write did not run", "selfcheck.jsonl", ":", "auto mode: the write in its own folder did not run", ""},
 		{"no question", "selfcheck.jsonl", `echo "$word" > word.txt; return 0`, "permission prompt: the question did not reach", ""},
 		{"hidden file read", "selfcheck_nodenial.jsonl", "", "secrets: the CLI did not refuse", ""},
-		{"network in a project without it", "selfcheck.jsonl", "", "no network: curl in the sandbox of the CLI printed", "selfcheck_online.jsonl"},
+		{"network in a project without it", "selfcheck.jsonl", "", "turn without network: curl in the sandbox of the CLI printed", "selfcheck_online.jsonl"},
 		{"secret leaked", "selfcheck.jsonl", `echo "$word" > word.txt; word=$(cat "$(grep -o '/[^ ]*/secrets/key.txt' "$c/stdin")")`, "the agent read a file deck hides", ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

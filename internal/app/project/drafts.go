@@ -134,7 +134,7 @@ func (pj *Service) draftsCommands() []*registry.Command {
 			"Turns a draft on: its triggers start running and the rights its manifest asks for count as allowed.",
 			registry.OwnerOnly, pj.projectEnable),
 		registry.Def("command_try", "Try a command",
-			"Runs a command of a project once as a trial to check it before a button or a schedule runs it: calls that are not internal are declined, a tool call waits for the owner's yes on that call.",
+			"Runs a command of a project once as a trial to check it before a button or a schedule runs it: calls of commands that are not internal are declined; a call of a tool, or of a model that is neither free nor local, waits for the owner's yes on that call, internal or not.",
 			registry.OwnerSide, pj.commandTry),
 	}
 }

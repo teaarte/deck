@@ -136,9 +136,9 @@ func (s *Service) window(days int64) (string, []string) {
 	return store.Time(first), out
 }
 
-// day is the day of the owner an hour of the base, 2006-01-02T15 in UTC, falls on.
-func day(hour string) string {
-	t, err := time.Parse("2006-01-02T15", hour)
+// day is the day of the owner a minute of the base, 2006-01-02T15:04 in UTC, falls on.
+func day(minute string) string {
+	t, err := time.Parse("2006-01-02T15:04", minute)
 	if err != nil {
 		return ""
 	}
@@ -182,7 +182,7 @@ func (s *Service) spendDaily(ctx context.Context, act registry.Actor, in spendDa
 		case "project":
 			add(r.Project, r, spendDailyRow{Project: r.Project})
 		default:
-			if d := day(r.Hour); by[d] != nil {
+			if d := day(r.Minute); by[d] != nil {
 				add(d, r, spendDailyRow{})
 			}
 		}
@@ -226,9 +226,9 @@ func (s *Service) runsDaily(ctx context.Context, act registry.Actor, in runsDail
 	}
 	got := map[string]db.RunsSinceRow{}
 	for _, r := range rows {
-		g := got[day(r.Hour)]
+		g := got[day(r.Minute)]
 		g.Runs, g.Failed, g.Scheduled = g.Runs+r.Runs, g.Failed+r.Failed, g.Scheduled+r.Scheduled
-		got[day(r.Hour)] = g
+		got[day(r.Minute)] = g
 	}
 	out := make([]runsDailyRow, 0, len(days))
 	for i, d := range days {

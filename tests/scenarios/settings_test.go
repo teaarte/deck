@@ -257,13 +257,10 @@ func TestSettingsSecretsAndTokensShowOnlyNames(t *testing.T) {
 	if len(journal) != 1 || journal[0]["tool"] != "deck.token_revoke" || journal[0]["class"] != "external" || journal[0]["actor"] != "owner" {
 		t.Fatalf("revoking a token is an external call in the journal: %+v", journal)
 	}
-	var listed []struct{ Name, Class string }
-	_, raw := e.do("GET", "/api/commands", nil)
-	_ = json.Unmarshal(raw, &listed)
-	for _, c := range listed {
-		if c.Name == "deck.token_revoke" && c.Class != "external" {
-			t.Fatalf("revoking a token is external: %q", c.Class)
-		}
+	var revoked commandView
+	e.must("deck.command_describe", map[string]any{"command": "deck.token_revoke"}, &revoked)
+	if revoked.Class != "external" {
+		t.Fatalf("revoking a token is external: %q", revoked.Class)
 	}
 	_, other := e.token("terminal", "deck.*")
 	if code, _ := e.callWith(other, "deck.calls_list", nil); code != 403 {

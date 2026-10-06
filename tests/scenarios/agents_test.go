@@ -167,4 +167,3 @@ func TestAModelOfOpenCodeSaysToSetItAgain(t *testing.T) {
 		t.Fatalf("a command on it refuses with the reason: %d %s", code, out)
 	}
 }
-

@@ -25,19 +25,6 @@ func (g *Gateway) Grant(s *Session) string {
 // proxy with the token as its password to the given domains whose tunnels close when ctx ends.
 func (g *Gateway) ScriptHandler(ctx context.Context, tok, self string, domains []string) http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /commands", func(w http.ResponseWriter, r *http.Request) {
-		s := g.session(tok)
-		if s == nil {
-			http.Error(w, "deck: this process has finished", http.StatusGone)
-			return
-		}
-		cmds, err := g.reg.List(r.Context(), s.actor())
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		reply(w, cmds)
-	})
 	mux.HandleFunc("POST /commands/{name}", func(w http.ResponseWriter, r *http.Request) {
 		body, err := ReadBody(w, r)
 		if err != nil {

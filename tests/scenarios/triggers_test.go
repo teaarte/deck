@@ -301,9 +301,10 @@ func TestTriggerIdentityAndReservedRetryKey(t *testing.T) {
 		t.Fatalf("retry_key is reserved: %d %s", code, out)
 	}
 	e.createProject("jobs", testManifest([]string{agentCommand("job", `{"type": "object", "properties": {}, "additionalProperties": false}`)}, nil))
-	_, out = e.do("GET", "/api/commands", nil)
-	if !strings.Contains(string(out), `"retry_key"`) {
-		t.Fatalf("every project command takes a retry key: %s", out)
+	var job commandView
+	e.must("deck.command_describe", map[string]any{"command": "jobs.job"}, &job)
+	if !strings.Contains(string(job.Input), `"retry_key"`) {
+		t.Fatalf("every project command takes a retry key: %s", job.Input)
 	}
 }
 

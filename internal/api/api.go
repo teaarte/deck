@@ -41,7 +41,6 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /custom", s.custom)
 
 	api := http.NewServeMux()
-	api.HandleFunc("GET /api/commands", s.listCommands)
 	api.HandleFunc("POST /api/commands/{name}", s.invoke)
 	api.HandleFunc("GET /api/events", s.ownerOnly(s.events))
 	api.HandleFunc("POST /api/files", s.upload)
@@ -102,15 +101,6 @@ func (s *Server) ownerOnly(next http.HandlerFunc) http.HandlerFunc {
 }
 
 var owner = registry.Actor{Kind: registry.Owner, Workspace: store.DefaultWorkspace}
-
-func (s *Server) listCommands(w http.ResponseWriter, r *http.Request) {
-	cmds, err := s.app.Registry.List(r.Context(), actor(r))
-	if err != nil {
-		fail(w, err)
-		return
-	}
-	send(w, cmds)
-}
 
 func (s *Server) invoke(w http.ResponseWriter, r *http.Request) {
 	body, err := gateway.ReadBody(w, r)

@@ -20,6 +20,20 @@ type commandView struct {
 	Class       string          `json:"class"`
 }
 
+// commands are what the owner may call, each as command_describe tells it.
+func (e *Env) commands() []commandView {
+	e.T.Helper()
+	var rows []struct{ Name string }
+	e.must("deck.commands_list", nil, &rows)
+	out := make([]commandView, 0, len(rows))
+	for _, r := range rows {
+		var c commandView
+		e.must("deck.command_describe", map[string]any{"command": r.Name}, &c)
+		out = append(out, c)
+	}
+	return out
+}
+
 type paramSchema struct {
 	Type   string       `json:"type"`
 	Format string       `json:"format"`
@@ -48,12 +62,10 @@ func intentType(p paramSchema, list bool) bool {
 func TestEveryCommandFitsAppIntents(t *testing.T) {
 	e := newEnv(t, nil)
 	e.createProject("ideas", ideasManifest)
-	code, out := e.do("GET", "/api/commands", nil)
-	if code != 200 {
-		t.Fatalf("commands: %d %s", code, out)
+	if code, _ := e.do("GET", "/api/commands", nil); code != 404 && code != 405 {
+		t.Fatalf("the list of commands is commands_list alone: %d", code)
 	}
-	var cmds []commandView
-	_ = json.Unmarshal(out, &cmds)
+	cmds := e.commands()
 	names := map[string]bool{}
 	for _, c := range cmds {
 		names[c.Name] = true

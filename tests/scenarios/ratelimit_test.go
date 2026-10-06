@@ -153,7 +153,9 @@ func TestAPauseOfABaseFromBeforeGoesOnInItsSession(t *testing.T) {
 		t.Fatal(err)
 	}
 	_ = e.App.Close()
-	f := &Fake{script: func(ctx context.Context, c *Call) provider.Result { return provider.Result{Structured: json.RawMessage(`{"n": 1}`)} }}
+	f := &Fake{script: func(ctx context.Context, c *Call) provider.Result {
+		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
+	}}
 	e = newEnvWith(t, home, f)
 	e.App.Sweep(t.Context(), time.Now())
 	e.waitState(1, "done", "error")

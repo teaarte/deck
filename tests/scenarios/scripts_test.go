@@ -35,6 +35,11 @@ inp = json.load(sys.stdin)
 checks = {}
 st, out = deck("deck.records_upsert", {"collection": "items", "records": json.dumps({"name": "a", "size": inp["n"]})})
 checks["internal_call"] = st == 200 and out["written"] == 1
+try:
+    urllib.request.urlopen(urllib.request.Request(URL + "/commands", headers={"Authorization": "Bearer " + TOKEN}), timeout=20)
+    checks["no_command_list"] = False
+except urllib.error.HTTPError as e:
+    checks["no_command_list"] = e.code in (404, 405)
 rid = out["ids"][0] if st == 200 else 0
 st, out = deck(inp["project"] + ".publish", {})
 checks["external_waits"] = st == 202 and out["waiting"] > 0
@@ -101,7 +106,7 @@ func TestScriptCommandRunsInTheSandbox(t *testing.T) {
 		Files  []struct{ Record int64 }
 	}
 	_ = json.Unmarshal(p.Result, &res)
-	for _, c := range []string{"internal_call", "external_waits", "allowed_domain", "other_domain_refused", "direct_network_blocked",
+	for _, c := range []string{"internal_call", "no_command_list", "external_waits", "allowed_domain", "other_domain_refused", "direct_network_blocked",
 		"outside_write_blocked", "secret_hidden", "owner_key_hidden", "late_key_hidden", "host_socket_blocked"} {
 		if !res.Checks[c] {
 			t.Errorf("check %s failed: %s", c, p.Result)

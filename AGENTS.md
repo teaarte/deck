@@ -30,7 +30,7 @@ Protocol facts about Claude Code: `docs/spikes/claude-code.md`. Stage 1 plan: `d
 - `internal/script` — runs project scripts in the sandbox; package environments per project (`uv`, `npm`)
 - `internal/trigger` — cron scheduler with catch-up after sleep
 - `internal/screen` — stored screens resolved into A2UI messages
-- `internal/api` — HTTP API (`GET /api/commands`, `POST /api/commands/{name}`, files) and SSE; screens are the
+- `internal/api` — HTTP API (`POST /api/commands/{name}`, files) and SSE; screens are the
   `deck.screen` command
 - `web` — client: Vite + React + Mantine v9 + `@a2ui/react` (protocol v0.9, `/v0_9` imports); `web/dist` is the
   embedded build — rebuild and commit it with the sources

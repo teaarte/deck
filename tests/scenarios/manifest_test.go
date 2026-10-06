@@ -71,14 +71,8 @@ func TestFullManifestIsAccepted(t *testing.T) {
 		!strings.Contains(string(b), "never both") || !strings.Contains(string(b), "Rows of a source.") {
 		t.Fatalf("the model reads the form of each block of the catalog and its rules in words: %s", b)
 	}
-	var cmds []commandView
-	code, out := e.do("GET", "/api/commands", nil)
-	if code != 200 {
-		t.Fatal(code)
-	}
-	_ = json.Unmarshal(out, &cmds)
 	found := false
-	for _, c := range cmds {
+	for _, c := range e.commands() {
 		if c.Name == "links.parse" {
 			found = strings.Contains(string(c.Input), `"record"`)
 		}

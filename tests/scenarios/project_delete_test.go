@@ -3,7 +3,6 @@ package scenarios
 import (
 	"context"
 	deckhome "deck2/internal/home"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -140,20 +139,10 @@ func TestProjectsTabDeletesAfterAYes(t *testing.T) {
 	if del["confirm"] != true || del["command"] != "deck.project_delete" {
 		t.Fatalf("delete asks the owner first: %+v", del)
 	}
-	var c struct {
-		Class string
-	}
-	var cmds []struct{ Name, Class string }
-	e.must("deck.menu", nil, nil)
-	_, raw := e.do("GET", "/api/commands", nil)
-	_ = json.Unmarshal(raw, &cmds)
-	for _, x := range cmds {
-		if x.Name == "deck.project_delete" {
-			c.Class = x.Class
-		}
-	}
-	if c.Class != "external" {
-		t.Fatalf("deleting a project is external: %q", c.Class)
+	var d commandView
+	e.must("deck.command_describe", map[string]any{"command": "deck.project_delete"}, &d)
+	if d.Class != "external" {
+		t.Fatalf("deleting a project is external: %q", d.Class)
 	}
 }
 

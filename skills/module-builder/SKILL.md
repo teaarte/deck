@@ -292,7 +292,7 @@ A script reads its input JSON from stdin and prints its result JSON to stdout. I
 - a script runs alone: its folder holds only its own file, so a helper shared by scripts is repeated in each
   (or read with `document_get` into the work folder);
 - deck commands over HTTP: `curl -s -H "Authorization: Bearer $DECK_TOKEN" -d '<json>' "$DECK_URL/commands/deck.records_upsert"`
-  (`GET $DECK_URL/commands` lists them, with the `result` schema where a command has one; works through the proxy or without it).
+  (`command_describe` gives the input and `result` schemas while you write the script; works through the proxy or without it).
   A 200 body is the command's result itself, with no wrapper; an error is plain text with a 4xx/5xx status, 410
   when the process has finished; `records_upsert` takes JSONL
   and returns `{"written", "ids", "errors"}`; `records_list` returns `[{"id", "key", "title", "data": {…}}]`,

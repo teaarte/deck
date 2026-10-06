@@ -43,11 +43,7 @@ func TestExternalCallWaitsForYesThenDeckMakesItFrozen(t *testing.T) {
 	e.must("deck.secret_set", map[string]any{"name": "svc", "value": "s3cret-value\n"}, nil)
 	p := e.createProject("notes", postManifest(svc.URL, ""))
 
-	var cmds []struct{ Name, Class string }
-	e.must("deck.projects_list", nil, nil)
-	_, out := e.do("GET", "/api/commands", nil)
-	_ = json.Unmarshal(out, &cmds)
-	for _, c := range cmds {
+	for _, c := range e.commands() {
 		if c.Name == "notes.post" && c.Class != "external" {
 			t.Fatalf("a tool without a class is external: %+v", c)
 		}

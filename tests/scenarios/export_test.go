@@ -195,15 +195,14 @@ func TestModuleAModelBuiltImportsAsADraft(t *testing.T) {
 	var im struct{ Name, Status string }
 	e.must("deck.project_import", map[string]any{"folder": dir}, &im)
 	var cmds []struct{ Name string }
-	code, out := e.do("GET", "/api/commands", nil)
-	_ = json.Unmarshal(out, &cmds)
+	e.must("deck.commands_list", nil, &cmds)
 	n := 0
 	for _, c := range cmds {
 		if strings.HasPrefix(c.Name, im.Name+".") {
 			n++
 		}
 	}
-	if code != 200 || im.Status != store.ProjectDraft || n == 0 {
+	if im.Status != store.ProjectDraft || n == 0 {
 		t.Fatalf("the rehearsal module imports as a draft with its commands: %+v, %d commands", im, n)
 	}
 }

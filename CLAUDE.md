@@ -100,7 +100,7 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
   `topics.go`, components and spans from the catalog `catalog.go`, `i18n.go`)
 - `internal/events` — the bus: an event is a topic and the project it changed in; a subscriber keeps the events
   waiting for it merged, so none is dropped
-- `internal/api` — HTTP API (`GET /api/commands`, `POST /api/commands/{name}`, files) and SSE; screens are the
+- `internal/api` — HTTP API (`POST /api/commands/{name}`, files) and SSE; screens are the
   `deck.screen` command; `Sandbox` is the second origin of `custom` blocks (proxy page with a CSP without network,
   `/ext-apps.js`), paired with the client's port (`Pair`)
 - `internal/tsnet` — deck on the owner's tailnet from inside the binary: HTTPS on 443, the second origin on 8443

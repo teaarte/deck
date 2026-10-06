@@ -134,7 +134,6 @@ type checkedFake struct {
 	err error
 }
 
-
 func (c *checkedFake) SelfCheck(context.Context) provider.Check {
 	c.mu.Lock()
 	defer c.mu.Unlock()

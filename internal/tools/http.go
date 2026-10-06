@@ -66,7 +66,7 @@ func (h *HTTP) Command(p db.Project, t manifest.HTTPTool) *registry.Command {
 	return &registry.Command{Name: p.Name + "." + t.Name, Title: title, Description: t.Description, Class: t.Class,
 		Input: t.Input, Result: t.Result, Callers: registry.Everyone, ProjectID: p.ID,
 		Journals: t.Class == registry.External, Handler: h.handler(p, t),
-		Fingerprint: func(context.Context, int64) string { return print }, Target: func(string) string { return t.Method + " " + t.URL }, ConfirmTTL: time.Duration(t.ConfirmTTLMinutes) * time.Minute}
+		Fingerprint: func(context.Context, int64) string { return print }, Target: func(_ string, input json.RawMessage) string { return t.Method + " " + target(t, input) }, ConfirmTTL: time.Duration(t.ConfirmTTLMinutes) * time.Minute}
 }
 
 func (h *HTTP) handler(p db.Project, t manifest.HTTPTool) registry.Handler {

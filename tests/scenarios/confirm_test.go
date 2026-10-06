@@ -270,7 +270,7 @@ func TestConfirmationNamesTheMethodAndHost(t *testing.T) {
 	e.must("deck.secret_set", map[string]any{"name": "svc", "value": "k"}, nil)
 	e.run(e.createProject("notes", postManifest(svc.URL, "")), "work")
 	host := strings.TrimPrefix(svc.URL, "http://")
-	if a := e.waitAsk(); !strings.Contains(a.Text, "POST http://"+host+"/items/{id}") {
+	if a := e.waitAsk(); !strings.Contains(a.Text, "POST http://"+host+"/items/x)") {
 		t.Fatalf("the owner sees where an HTTP call goes: %q", a.Text)
 	}
 }

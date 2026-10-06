@@ -33,21 +33,7 @@ type outgoing struct {
 
 func (h *HTTP) request(ctx context.Context, act registry.Actor, p db.Project, t manifest.HTTPTool, in map[string]any) (*outgoing, error) {
 	var missing []string
-	put := func(s string, esc func(string) string) string {
-		return field.ReplaceAllStringFunc(s, func(m string) string {
-			v, ok := in[m[1:len(m)-1]]
-			if !ok {
-				missing = append(missing, m)
-				return ""
-			}
-			return esc(fmt.Sprint(v))
-		})
-	}
-	path, query, hasQuery := strings.Cut(t.URL, "?")
-	u := put(path, segment)
-	if hasQuery {
-		u += "?" + put(query, url.QueryEscape)
-	}
+	u := fillURL(t.URL, in, &missing)
 	out := &outgoing{}
 	values, err := jsonValues(t, in)
 	if err != nil {
@@ -79,7 +65,7 @@ func (h *HTTP) request(ctx context.Context, act registry.Actor, p db.Project, t 
 				out.secrets = append(out.secrets, v)
 				return v
 			}
-			return put(m, func(s string) string { return s })
+			return put(m, in, func(s string) string { return s }, &missing)
 		})
 	}
 	for k, v := range t.Headers {
@@ -166,4 +152,40 @@ func jsonValues(t manifest.HTTPTool, in map[string]any) (map[string]any, error) 
 		out[name] = v
 	}
 	return out, nil
+}
+
+// put fills the {fields} of s from in, escaped by esc, and adds the fields in lacks to missing.
+func put(s string, in map[string]any, esc func(string) string, missing *[]string) string {
+	return field.ReplaceAllStringFunc(s, func(m string) string {
+		v, ok := in[m[1:len(m)-1]]
+		if !ok {
+			*missing = append(*missing, m)
+			return ""
+		}
+		return esc(fmt.Sprint(v))
+	})
+}
+
+// fillURL puts the values of the input into the {fields} of the URL of a tool, escaped for the path and the query.
+func fillURL(raw string, in map[string]any, missing *[]string) string {
+	path, query, hasQuery := strings.Cut(raw, "?")
+	u := put(path, in, segment, missing)
+	if hasQuery {
+		u += "?" + put(query, in, url.QueryEscape, missing)
+	}
+	return u
+}
+
+// target is where a call of a tool with input goes, as the owner is asked about it; its URL as written when the input
+// does not fill it.
+func target(t manifest.HTTPTool, input json.RawMessage) string {
+	in, err := manifest.DecodeObject(input)
+	if err != nil {
+		return t.URL
+	}
+	var missing []string
+	if u := fillURL(t.URL, in, &missing); len(missing) == 0 {
+		return u
+	}
+	return t.URL
 }

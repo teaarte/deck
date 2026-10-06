@@ -70,7 +70,7 @@ type Command struct {
 	// Fingerprint is what the tool would do apart from its input, so an old yes does not make a changed tool.
 	Fingerprint func(ctx context.Context, project int64) string `json:"-"`
 	// Target says where a call goes, from its fingerprint, for the owner who decides on it.
-	Target func(print string) string `json:"-"`
+	Target func(print string, input json.RawMessage) string `json:"-"`
 	// ConfirmTTL is the tool's own term for its confirmations.
 	ConfirmTTL time.Duration `json:"-"`
 	// Allowed decides whether an external call with this input runs without the owner; listed says the project

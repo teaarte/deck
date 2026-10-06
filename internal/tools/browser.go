@@ -183,7 +183,7 @@ func (b *Browser) build(list []*mcp.Tool) {
 				page, _ := b.current(ctx, readsAnySite(m))
 				return page
 			}
-			c.Target = func(page string) string {
+			c.Target = func(page string, _ json.RawMessage) string {
 				if page == "" {
 					return "on a page deck could not tell"
 				}

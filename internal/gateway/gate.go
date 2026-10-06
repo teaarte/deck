@@ -187,7 +187,7 @@ func (g *Gateway) hold(ctx context.Context, act registry.Actor, c *registry.Comm
 	}
 	target := ""
 	if c.Target != nil {
-		target = c.Target(print)
+		target = c.Target(print, input)
 	}
 	f := Freeze(act, c.Name, input)
 	f.Tool, f.Target = print, target

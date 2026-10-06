@@ -112,7 +112,7 @@ func (s *Service) askRow(ctx context.Context, q db.Ask, names map[int64]string) 
 		if c, err := s.Registry.Lookup(ctx, q.WorkspaceID, f.Call.Command); err == nil {
 			r.What = c.Title + " (" + f.Call.Command + ")"
 			if f.Target == "" && c.Target != nil {
-				r.Where = c.Target(f.Tool)
+				r.Where = c.Target(f.Tool, f.Call.Input)
 			}
 		}
 	case ask.KindConfirm:

@@ -63,7 +63,7 @@ func TestRealBrowserWebClient(t *testing.T) {
 		t.Fatalf("a block the client does not know is drawn as open in web: %q", got)
 	}
 	if got := b.eval(`W.querySelectorAll('[data-item]')[1].innerText`); !strings.Contains(got, "post (notes.post)") ||
-		!strings.Contains(got, "POST "+svc.URL+"/items/{id}") || !strings.Contains(got, "work") {
+		!strings.Contains(got, "POST "+svc.URL+"/items/n2") || !strings.Contains(got, "work") {
 		t.Fatalf("a confirmation says what, where and who: %q", got)
 	}
 	b.eval(`[...W.querySelectorAll('[data-item]')[1].querySelectorAll('button')].find(x => x.innerText.includes('Show the whole call')).click(), ''`)

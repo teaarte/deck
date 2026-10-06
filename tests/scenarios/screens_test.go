@@ -335,7 +335,7 @@ func TestCockpitShowsWhatWaitsWithItsVerbs(t *testing.T) {
 		return out
 	}
 	who := fmt.Sprintf("#%d work", second)
-	if fresh.Title != "post (notes.post)" || fresh.Text != "POST "+svc.URL+"/items/{id}" || !strings.Contains(fresh.Meta, who) {
+	if fresh.Title != "post (notes.post)" || fresh.Text != "POST "+svc.URL+"/items/n2" || !strings.Contains(fresh.Meta, who) {
 		t.Fatalf("a confirmation says what, where and who: %+v", fresh)
 	}
 	if !strings.Contains(fresh.Details, `"id": "n2"`) || !strings.Contains(fresh.Details, `"text": "hi"`) || !strings.Contains(fresh.Details, `"process": `) {
@@ -524,7 +524,7 @@ func TestConfirmationShowsWhereTheFrozenCallGoes(t *testing.T) {
 	e.must("deck.manifest_save", map[string]any{"project": "notes", "manifest": moved}, nil)
 	items := e.cockpitItems()
 	i := slices.IndexFunc(items, func(it listItem) bool { return strings.Contains(it.Title, "notes.post") })
-	if i < 0 || items[i].Text != "POST "+svc.URL+"/items/{id}" {
+	if i < 0 || items[i].Text != "POST "+svc.URL+"/items/n1" {
 		t.Fatalf("the confirmation shows where the frozen call goes, not the changed tool: %+v", items)
 	}
 }

@@ -112,7 +112,11 @@ func (x *Exec) Run(ctx context.Context, j Job) ([]byte, error) {
 	}
 	var exit *exec.ExitError
 	if errors.As(err, &exit) {
-		return nil, fmt.Errorf("script %s exited with code %d: %s\ndeck: %s", j.Script.Name, exit.ExitCode(), strings.Join(stderr.last, "\n"), sandbox.OpenHint)
+		tail := strings.Join(stderr.last, "\n")
+		if sandbox.Refused(tail) {
+			tail += "\ndeck: " + sandbox.OpenHint
+		}
+		return nil, fmt.Errorf("script %s exited with code %d: %s", j.Script.Name, exit.ExitCode(), tail)
 	}
 	if err != nil {
 		return nil, err

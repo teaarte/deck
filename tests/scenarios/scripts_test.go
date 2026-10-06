@@ -827,3 +827,18 @@ print(json.dumps({"status": st, "out": out}))
 		t.Fatalf("the other project starts nothing: %+v", ps)
 	}
 }
+
+// TestAScriptThatFailsForItsOwnReasonGetsNoHintOfFolders: a script that fails for a reason of its own, such as a 422
+// of deck, has the end of its stderr, without a hint about folders the sandbox keeps closed.
+func TestAScriptThatFailsForItsOwnReasonGetsNoHintOfFolders(t *testing.T) {
+	e := newEnv(t, nil)
+	e.createProject("tools", scriptManifest("collect", "", ""))
+	e.saveScript("tools", "scripts/main.py", pythonLib+`
+st, out = deck("deck.records_upsert", {"collection": "items", "records": [{"name": "a"}]})
+sys.exit("deck answered %d: %s" % (st, out))
+`)
+	p := e.waitScript(e.start("tools", "collect", nil), "done", "error")
+	if p.State != "error" || !strings.Contains(p.Error, "deck answered 422") || strings.Contains(p.Error, "Settings → Projects") {
+		t.Fatalf("the error is the script's own, without a hint of folders: %+v", p)
+	}
+}

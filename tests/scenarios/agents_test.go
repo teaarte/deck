@@ -57,14 +57,17 @@ func TestTheModelsAndConnectionsTabsShowWhatRunsTheModels(t *testing.T) {
 	e.waitHealth("agent:goose", "error")
 	e.must("deck.secret_set", map[string]any{"name": "wiki", "value": "w"}, nil)
 	e.must("deck.connection_set", map[string]any{"name": "router", "api": "openai", "url": llm.URL, "key": "sk-router"}, nil)
-	e.must("deck.model_set", map[string]any{"connection": "router", "model": "x/pic", "kind": "image"}, nil)
+	e.must("deck.model_set", map[string]any{"connection": "router", "model": "x/pic", "kind": "image", "call_usd": 0.04}, nil)
 	e.must("deck.model_set", map[string]any{"connection": "router", "model": "m", "name": "acp", "agent": "goose"}, nil)
 	e.waitHealth("provider:acp", "error")
 	e.must("deck.assignment_set", map[string]any{"role": "image", "models": []string{"router/x/pic"}}, nil)
-	var kept struct{ Kind string }
+	var kept struct {
+		Kind    string
+		CallUSD float64 `json:"call_usd"`
+	}
 	e.must("deck.model_set", map[string]any{"connection": "router", "model": "x/pic"}, &kept)
-	if kept.Kind != "image" {
-		t.Fatalf("a model changed without its kind keeps it: %+v", kept)
+	if kept.Kind != "image" || kept.CallUSD != 0.04 {
+		t.Fatalf("a model changed without its kind and price keeps them: %+v", kept)
 	}
 
 	rows := blockData[[]screenRow](t, e.settingsBlock("Assignments", nil)["rows"])

@@ -98,12 +98,12 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   one HTTP tool per step from its API docs.
   An input field of `"format": "json"` is text with JSON for the caller; `"{field}"` alone in a JSON body puts
   the value it holds (a list, an object), so one tool serves every shape of body.
-- **Models** the owner added (connections such as OpenRouter or Ollama, their models, and which model
+- **Models** the owner added (connections such as OpenRouter or Ollama, their models with prices, and which model
   does text, image, tts, stt) are called through deck, never with a key of the module: a command of type
   `model`, `deck.model_call` from a script or agent, or any API path through `$DECK_MODELS` (below). The manifest
   names what it calls in `models`: a connection, a model by name or `@text`/`@image`/`@tts`/`@stt` for the
-  assigned ones; deck keeps each call in its journal. deck has no limits of money: the owner sets them at the
-  provider, so a module never loops on paid calls.
+  assigned ones; deck keeps each call with its cost in its journal. deck has no limits of money: the owner sets
+  them at the provider, so a module never loops on paid calls.
 - **MCP servers** (`tools.mcp.servers`, the usual `mcp.servers` shape): `command`/`args`/`env` (values may use
   `$secret.<name>`) or `url`; `toolFilter` lists the tools the module uses, `classes` their classes — every
   other tool is `external`. Tools are `<server>.<tool>` in `executor.tool` and `allowed_external`. deck starts
@@ -321,8 +321,8 @@ A script reads its input JSON from stdin and prints its result JSON to stdout. I
 connection of another API, such as Google's own, is reached only from a script). Anything else — video, music, a service
 with its own API (fal, Replicate, ElevenLabs, Google Veo) — is a script that calls the API through
 `$DECK_MODELS`, so the key stays with deck and the call is in its journal. The owner adds the service as a
-connection (Settings → Connections: `raw` for a service that takes a bearer key, `google` for Google's own API);
-the manifest names the connection in `models`. One call, the answer a file:
+connection (Settings → Connections: `raw` for a service that takes a bearer key, `google` for Google's own API)
+and a model with its price per call; the manifest names the connection in `models`. One call, the answer a file:
 
 ```python
 import json, os, sys, urllib.request
@@ -342,7 +342,8 @@ A long job (video takes minutes) is two commands, never a script that waits for 
 through `$DECK_MODELS`, keeps the job id in the record with status `waiting` and ends; `fetch`, on a schedule
 (`every 5m`), reads the waiting records, asks the status path of the API through `$DECK_MODELS`, and when the
 job is done downloads the file into `$DECK_RESULTS` and sets the record `done`. A file the service gives as a URL
-on its own storage host is fetched through the proxy, so that host goes into `domains.read`.
+on its own storage host is fetched through the proxy, so that host goes into `domains.read`. Ask the owner for the
+price per call of such a model: a service that reports no `usage.cost` is counted by it, else without a cost.
 
 A tool of the manifest called from a script (`POST $DECK_URL/commands/<project>.<tool>`) that answers with a
 file returns `{"file": "<name>", "type", "size"}`: the file is `$DECK_RESULTS/<name>`, and `results/<name>`

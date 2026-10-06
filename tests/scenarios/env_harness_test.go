@@ -250,7 +250,6 @@ func (e *Env) olderBase(version int) {
 		   gen_ai_usage_input_tokens, gen_ai_usage_output_tokens, gen_ai_usage_cache_read_input_tokens,
 		   gen_ai_usage_cache_creation_input_tokens, duration_ms, cost_usd, created_at FROM llm_call`,
 			`DROP TABLE llm_call`, `ALTER TABLE llm_old RENAME TO llm_call`},
-		21: {`ALTER TABLE model ADD COLUMN input_usd REAL`, `ALTER TABLE model ADD COLUMN output_usd REAL`, `ALTER TABLE model ADD COLUMN call_usd REAL`},
 		20: {`ALTER TABLE connection ADD COLUMN daily_usd REAL`},
 		19: {`CREATE TABLE card (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER NOT NULL REFERENCES project(id) ON DELETE CASCADE,
 		   title TEXT NOT NULL, text TEXT NOT NULL DEFAULT '', lane TEXT NOT NULL, rank INTEGER NOT NULL,

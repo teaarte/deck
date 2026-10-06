@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -14,16 +15,6 @@ import (
 	"deck2/internal/health"
 	"deck2/internal/provider"
 )
-
-type modelRow struct {
-	Builtin    bool   `json:"builtin"`
-	Name       string `json:"name"`
-	Connection string `json:"connection"`
-	Model      string `json:"model"`
-	Kind       string `json:"kind"`
-	Agent      string `json:"agent"`
-	Free       bool   `json:"free"`
-}
 
 type modelsOut struct {
 	Agents []struct {
@@ -40,7 +31,18 @@ type modelsOut struct {
 		Local  bool   `json:"local"`
 		Models int    `json:"models"`
 	} `json:"connections"`
-	Models      []modelRow `json:"models"`
+	Models []struct {
+		Builtin    bool     `json:"builtin"`
+		Name       string   `json:"name"`
+		Connection string   `json:"connection"`
+		Model      string   `json:"model"`
+		Kind       string   `json:"kind"`
+		Agent      string   `json:"agent"`
+		InputUSD   *float64 `json:"input_usd"`
+		OutputUSD  *float64 `json:"output_usd"`
+		CallUSD    *float64 `json:"call_usd"`
+		Free       bool     `json:"free"`
+	} `json:"models"`
 	Assignments []struct {
 		Project string   `json:"project"`
 		Command string   `json:"command"`
@@ -318,7 +320,7 @@ func TestAScriptCallsAModelThroughDeckAndNoLimitOfABaseFromBeforeHoldsIt(t *test
 }
 
 // TestAnAgentTurnReachesOnlyTheModelOfItsTurn: a turn of an ACP agent calls its model through deck's proxy, which
-// sends every call to the model the turn started on, whatever model the agent names.
+// sends every call to the model the turn started on, whatever model the agent names, priced by that model.
 func TestAnAgentTurnReachesOnlyTheModelOfItsTurn(t *testing.T) {
 	f := newACP(t)
 	llm := newLLM(t, func(int, chatRequest) chatReply { return textReply("ok") })
@@ -328,7 +330,7 @@ func TestAnAgentTurnReachesOnlyTheModelOfItsTurn(t *testing.T) {
 	f.streamText(5, acpStream(acpInit, `{"reply": "session/new", "result": {"sessionId": "s-2"}}`, `{"reply": "session/prompt"}`, acpModel,
 		`{"fail": {"code": -32603, "message": "Internal error: turn failed"}}`))
 	e := acpEnv(t, f, "dsh", llm)
-	e.must("deck.model_set", map[string]any{"connection": "acp", "model": "m", "name": "acp"}, nil)
+	e.must("deck.model_set", map[string]any{"connection": "acp", "model": "m", "name": "acp", "input_usd": 1000, "output_usd": 2000}, nil)
 	p := e.acpProject("paint", colorManifest)
 	if got := e.waitState(e.run(p, "work"), "done", "error"); got.State != "done" {
 		t.Fatalf("the first turn runs: %+v", got)
@@ -337,10 +339,15 @@ func TestAnAgentTurnReachesOnlyTheModelOfItsTurn(t *testing.T) {
 	if last := reqs[len(reqs)-1]; last.Model != "m" {
 		t.Fatalf("an agent reaches only the model of its turn: %+v", last)
 	}
+	var spend []spendRow
+	e.modelCalls("paint", 0, &spend)
+	if len(spend) != 1 || spend[0].Cost == nil || math.Abs(*spend[0].Cost-0.12) > 1e-9 {
+		t.Fatalf("a turn is priced by its model, 100 tokens in and 10 out: %+v", spend)
+	}
 }
 
-// TestAScriptCallsARoleAndAFallbackTakesARefusal: @tts goes to the first model assigned, past a 429 to the next; a
-// role reaches only the paths of model calls.
+// TestAScriptCallsARoleAndAFallbackTakesARefusal: @tts goes to the first model assigned, past a 429 to the next, priced
+// per call; a role reaches only the paths of model calls.
 func TestAScriptCallsARoleAndAFallbackTakesARefusal(t *testing.T) {
 	busy := newModels(t, map[string]func(int, map[string]any) (int, string, string){
 		"/v1/audio/speech": func(int, map[string]any) (int, string, string) {
@@ -353,8 +360,8 @@ func TestAScriptCallsARoleAndAFallbackTakesARefusal(t *testing.T) {
 	e := newEnv(t, nil)
 	e.must("deck.connection_set", map[string]any{"name": "busy", "api": "openai", "url": busy.URL + "/v1"}, nil)
 	e.must("deck.connection_set", map[string]any{"name": "spare", "api": "openai", "url": spare.URL + "/v1"}, nil)
-	e.must("deck.model_set", map[string]any{"connection": "busy", "model": "voice-1", "kind": "tts"}, nil)
-	e.must("deck.model_set", map[string]any{"connection": "spare", "model": "voice-2", "kind": "tts"}, nil)
+	e.must("deck.model_set", map[string]any{"connection": "busy", "model": "voice-1", "kind": "tts", "call_usd": 0.01}, nil)
+	e.must("deck.model_set", map[string]any{"connection": "spare", "model": "voice-2", "kind": "tts", "call_usd": 0.02}, nil)
 	e.must("deck.assignment_set", map[string]any{"role": "tts", "models": []string{"busy/voice-1", "spare/voice-2"}}, nil)
 	e.createProject("shorts", scriptManifest("voice", "", `, "models": ["@tts", "spare"]`))
 	e.saveScript("shorts", "scripts/main.py", modelScript)
@@ -369,8 +376,8 @@ func TestAScriptCallsARoleAndAFallbackTakesARefusal(t *testing.T) {
 	}
 	var spend []spendRow
 	e.modelCalls("shorts", 0, &spend)
-	if len(spend) != 1 || spend[0].Provider != "spare/voice-2" || spend[0].Cost != nil {
-		t.Fatalf("the call is kept on the model that made it, without a cost the API did not say: %+v", spend)
+	if len(spend) != 1 || spend[0].Provider != "spare/voice-2" || spend[0].Cost == nil || *spend[0].Cost != 0.02 {
+		t.Fatalf("the call is counted on the model that made it, by its price per call: %+v", spend)
 	}
 
 	got = e.waitScript(e.start("shorts", "voice", map[string]any{"key": "@/files", "other": `{"model": "@tts"}`}), "done", "error")
@@ -383,25 +390,30 @@ func TestAScriptCallsARoleAndAFallbackTakesARefusal(t *testing.T) {
 	}
 }
 
-// TestAModelTakesItsKindFromTheCatalogOfItsConnection: a model added without a kind takes it from what OpenRouter
-// lists it outputs, and one listed at zero is free; deck keeps no prices, of a base from before neither.
-func TestAModelTakesItsKindFromTheCatalogOfItsConnection(t *testing.T) {
+// TestAModelTakesItsPriceAndKindFromTheCatalogOfItsConnection: a model added without a price takes the one
+// OpenRouter lists and the kind from what it outputs; free is kept when left out, and false clears it.
+func TestAModelTakesItsPriceAndKindFromTheCatalogOfItsConnection(t *testing.T) {
 	catalog := `{"data": [{"id": "google/gemini-3.1-flash-lite-image", "pricing": {"prompt": "0.0000003", "completion": "0.0000025", "request": "0", "image": "0.00003"},
 	  "architecture": {"input_modalities": ["text", "image"], "output_modalities": ["image", "text"]}},
 	  {"id": "qwen/qwen3.8-27b:free", "pricing": {"prompt": "0", "completion": "0"}, "architecture": {"output_modalities": ["text"]}}]}`
 	api := newModels(t, map[string]func(int, map[string]any) (int, string, string){
 		"/api/v1/models": func(int, map[string]any) (int, string, string) { return 200, "application/json", catalog },
 	})
-	home := t.TempDir()
-	e := newEnvWith(t, home, &Fake{})
+	e := newEnv(t, nil)
 	e.must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": api.URL + "/api/v1", "key": "sk-or-new"}, nil)
-	var m map[string]any
+	var m struct {
+		Name      string
+		Kind      string
+		InputUSD  float64 `json:"input_usd"`
+		OutputUSD float64 `json:"output_usd"`
+		Free      bool
+	}
 	e.must("deck.model_set", map[string]any{"connection": "openrouter", "model": "google/gemini-3.1-flash-lite-image"}, &m)
-	if m["name"] != "openrouter/google/gemini-3.1-flash-lite-image" || m["kind"] != "image" || m["free"] != false || m["input_usd"] != nil {
-		t.Fatalf("the kind comes from the catalog, and no price: %+v", m)
+	if m.Name != "openrouter/google/gemini-3.1-flash-lite-image" || m.Kind != "image" || math.Abs(m.InputUSD-0.3) > 1e-9 || math.Abs(m.OutputUSD-2.5) > 1e-9 || m.Free {
+		t.Fatalf("the price per million tokens and the kind come from the catalog: %+v", m)
 	}
 	e.must("deck.model_set", map[string]any{"connection": "openrouter", "model": "qwen/qwen3.8-27b:free", "name": "qwen"}, &m)
-	if m["kind"] != "text" || m["free"] != true {
+	if m.Kind != "text" || !m.Free {
 		t.Fatalf("a model the catalog lists at zero is free: %+v", m)
 	}
 	if c := api.calls(); len(c) != 2 || c[0].Auth != "Bearer sk-or-new" {
@@ -412,32 +424,16 @@ func TestAModelTakesItsKindFromTheCatalogOfItsConnection(t *testing.T) {
 	if len(secrets) != 1 || secrets[0].Name != "openrouter" {
 		t.Fatalf("the key is a secret named after the connection: %+v", secrets)
 	}
-	e.refused("deck.model_set", map[string]any{"connection": "openrouter", "model": "qwen/qwen3.8-27b:free", "input_usd": 1}, 422, "input_usd")
+	m.InputUSD = 0
 	e.must("deck.model_set", map[string]any{"connection": "openrouter", "model": "qwen/qwen3.8-27b:free", "name": "qwen", "kind": "text"}, &m)
-	if m["free"] != true {
-		t.Fatalf("a model changed without free keeps it: %+v", m)
+	if !m.Free || math.Abs(m.InputUSD) > 1e-9 {
+		t.Fatalf("a model changed without free or a price keeps them: %+v", m)
 	}
 	e.must("deck.model_set", map[string]any{"connection": "openrouter", "model": "qwen/qwen3.8-27b:free", "name": "qwen", "free": false}, &m)
-	if m["free"] != false {
+	if m.Free {
 		t.Fatalf("free false makes a model paid again: %+v", m)
 	}
 	e.must("deck.model_set", map[string]any{"connection": "openrouter", "model": "qwen/qwen3.8-27b:free", "name": "qwen", "free": true}, &m)
-
-	e.olderBase(20)
-	if _, err := e.App.Store.DB.Exec(`UPDATE model SET input_usd = 0.3, output_usd = 2.5, call_usd = 0.01`); err != nil {
-		t.Fatal(err)
-	}
-	_ = e.App.Close()
-	e = newEnvWith(t, home, &Fake{})
-	var n int
-	if err := e.App.Store.DB.QueryRow(`SELECT count(*) FROM pragma_table_info('model') WHERE name IN ('input_usd', 'output_usd', 'call_usd')`).Scan(&n); err != nil || n != 0 {
-		t.Fatalf("the prices of models go with the migration: %d %v", n, err)
-	}
-	var list modelsOut
-	e.must("deck.models_list", nil, &list)
-	if !slices.ContainsFunc(list.Models, func(m modelRow) bool { return m.Name == "qwen" && m.Free }) {
-		t.Fatalf("the models stay: %+v", list.Models)
-	}
 }
 
 // TestAModuleCallsOnlyTheModelsTheOwnerGranted: a project calls models only through what its manifest names; a new
@@ -488,7 +484,7 @@ func TestAModuleCallsOnlyTheModelsTheOwnerGranted(t *testing.T) {
 	if out := call("draft", "ollama/chat/completions"); out["status"] != 200.0 || len(api.calls()) != before+1 {
 		t.Fatalf("a draft's call of a free model on the owner's machine goes: %v", out)
 	}
-	e.must("deck.model_set", map[string]any{"connection": "openrouter", "model": "paid", "kind": "text"}, nil)
+	e.must("deck.model_set", map[string]any{"connection": "openrouter", "model": "paid", "kind": "text", "call_usd": 0.1}, nil)
 	e.must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"ollama/qwen", "openrouter/paid"}}, nil)
 	e.must("deck.manifest_save", map[string]any{"project": "draft", "manifest": scriptManifest("media", "", `, "models": ["@text"]`)}, nil)
 	got := e.waitScript(e.start("draft", "media", map[string]any{"key": "@/chat/completions", "other": `{"model": "@text", "messages": []}`}), "done", "error")

@@ -80,7 +80,7 @@ func (c *screenCheck) params() {
 	}
 	for _, m := range paramRef.FindAllStringSubmatch(text, -1) {
 		if _, ok := c.screen.Params[m[1]]; !ok {
-			c.fail("screen %q: no param %q; declare it in params of the screen", c.screen.Name, m[1])
+			c.warn("screen %q: no param %q; declare it in params of the screen", c.screen.Name, m[1])
 		}
 	}
 }

@@ -3,6 +3,7 @@ package scenarios
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -112,4 +113,35 @@ func TestAButtonGivesOnlyTheParamsOfItsScreen(t *testing.T) {
 	if len(got.Warnings) != 1 || !strings.Contains(got.Warnings[0], `param "titel"`) {
 		t.Fatalf("a saved module with the typo reads, and manifest_get warns of it: %+v", got)
 	}
+}
+
+// TestAModuleSavedBeforeANewCheckStillLoads: a check newer than a stored manifest (a block property the catalog
+// lacks, param.<name> in a text) only warns on read, so the module stays in the menu; a save refuses both.
+func TestAModuleSavedBeforeANewCheckStillLoads(t *testing.T) {
+	e := newEnv(t, nil)
+	e.createProject("ideas", ideasManifest)
+	old := strings.Replace(ideasManifest, `{"type": "table", "title": "Best ideas",`,
+		`{"type": "table", "title": "Best ideas", "colour": "teal", "description": "Open with param.day to see a day.",`, 1)
+	if old == ideasManifest {
+		t.Fatal("fixture replacement did not apply")
+	}
+	doc := `(SELECT id FROM document WHERE name = 'manifest.json' AND project_id = (SELECT id FROM project WHERE name = 'ideas'))`
+	if _, err := e.App.Store.DB.Exec(`INSERT INTO document_revision (document_id, n, text, author) VALUES (`+doc+`, 2, ?, 'old deck');
+		UPDATE document SET current = 2 WHERE id = `+doc, old); err != nil {
+		t.Fatal(err)
+	}
+	var menu []struct{ Project string }
+	e.menuOf(&menu)
+	if !slices.ContainsFunc(menu, func(m struct{ Project string }) bool { return m.Project == "ideas" }) {
+		t.Fatalf("the module stays in the menu: %+v", menu)
+	}
+	if code, out := e.call("deck.screen", map[string]any{"project": "ideas", "screen": "main"}); code != 200 {
+		t.Fatalf("its screen shows: %d %s", code, out)
+	}
+	var got struct{ Warnings []string }
+	e.must("deck.manifest_get", map[string]any{"project": "ideas"}, &got)
+	if w := strings.Join(got.Warnings, "|"); !strings.Contains(w, "colour") || !strings.Contains(w, `param "day"`) {
+		t.Fatalf("manifest_get warns of both: %+v", got)
+	}
+	e.refused("deck.manifest_save", map[string]any{"project": "ideas", "manifest": old}, 422, "colour")
 }

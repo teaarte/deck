@@ -248,14 +248,18 @@ func TestAModelInUseAndAConnectionWithModelsStay(t *testing.T) {
 			return 200, "application/json", chatText(`{"verdict": "true", "confidence": 0.5}`)
 		},
 	})
-	release := make(chan struct{}, 1)
-	e := newEnv(t, held(release))
-	p := e.createProject("jobs", testManifest([]string{agentCommand("job", "")}, nil))
-	id := e.run(p, "job")
-	e.waitFor("the agent at its model", func() bool { return len(e.Fake.Calls()) == 1 })
-	e.refused("deck.model_remove", map[string]any{"name": "fake"}, 422, "still run on fake")
-	release <- struct{}{}
-	e.waitState(id, "done")
+	f := newACP(t)
+	f.streamText(4, acpStream(acpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`, `{"hang": true}`))
+	e := acpEnv(t, f, "goose", acpLLM(t))
+	id := e.run(e.acpProject("paint", writtenManifest), "work")
+	e.waitFor("the turn", func() bool { return f.calls() >= 4 && f.call(4).request("session/prompt") != nil })
+	e.refused("deck.model_remove", map[string]any{"name": "acp"}, 422, "still run on acp")
+	e.must("deck.process_stop", map[string]any{"process": id}, nil)
+	e.waitState(id, "stopped")
+	e.waitFor("the turn to end", func() bool {
+		code, _ := e.call("deck.model_remove", map[string]any{"name": "acp"})
+		return code == 200
+	})
 
 	e.must("deck.connection_set", map[string]any{"name": "groq", "api": "openai", "url": api.URL + "/v1", "key": "gsk-1"}, nil)
 	for _, m := range []string{"fact-model", "spare-model"} {

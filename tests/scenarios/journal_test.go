@@ -245,15 +245,15 @@ func TestTheJournalCountsTheDaysOfTheOwner(t *testing.T) {
 	local := time.Local
 	time.Local = time.FixedZone("owner", 5*3600+30*60)
 	t.Cleanup(func() { time.Local = local })
-	clock := &Clock{now: time.Date(2026, 10, 6, 10, 0, 0, 0, time.UTC)}
+	clock := &Clock{now: time.Date(2026, 10, 6, 22, 30, 0, 0, time.UTC)}
 	e := newEnvWith(t, t.TempDir(), &Fake{}, withClock(clock))
 	p := e.createProject("work", plainManifest)
 	for _, q := range []string{
 		`INSERT INTO llm_call (workspace_id, gen_ai_provider_name, gen_ai_usage_input_tokens, created_at) VALUES
-		   (1, 'm', 10, '2026-10-04T18:20:00Z'), (1, 'm', 20, '2026-10-04T18:40:00Z')`,
+		   (1, 'm', 10, '2026-10-05T18:20:00Z'), (1, 'm', 20, '2026-10-05T18:40:00Z')`,
 		fmt.Sprintf(`INSERT INTO process (project_id, command, kind, state, started_at, finished_at) VALUES
-		   (%d, 'work', 'agent', 'done', '2026-10-04T18:20:00.000Z', '2026-10-04T18:21:00.000Z'),
-		   (%d, 'work', 'agent', 'done', '2026-10-04T18:40:00.000Z', '2026-10-04T18:41:00.000Z')`, p, p),
+		   (%d, 'work', 'agent', 'done', '2026-10-05T18:20:00.000Z', '2026-10-05T18:21:00.000Z'),
+		   (%d, 'work', 'agent', 'done', '2026-10-05T18:40:00.000Z', '2026-10-05T18:41:00.000Z')`, p, p),
 	} {
 		if _, err := e.App.Store.DB.Exec(q); err != nil {
 			t.Fatal(err)
@@ -269,7 +269,7 @@ func TestTheJournalCountsTheDaysOfTheOwner(t *testing.T) {
 		Runs int64
 	}
 	e.must("deck.runs_daily", map[string]any{"days": 3}, &runs)
-	if len(spend) != 3 || spend[0].Day != "2026-10-04" || spend[0].Tokens != 10 || spend[1].Day != "2026-10-05" || spend[1].Tokens != 20 {
+	if len(spend) != 3 || spend[0].Day != "2026-10-05" || spend[0].Tokens != 10 || spend[1].Day != "2026-10-06" || spend[2].Day != "2026-10-07" || spend[1].Tokens != 20 {
 		t.Fatalf("a call just past the owner's midnight counts on that day: %+v", spend)
 	}
 	if len(runs) != 3 || runs[0].Runs != 1 || runs[1].Runs != 1 {

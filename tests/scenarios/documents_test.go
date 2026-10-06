@@ -248,14 +248,14 @@ func TestAShippedSkillEditedByTheMasterTakesTheNextVersionOfDeck(t *testing.T) {
 		SELECT document_id, 0, 'the first skill of deck', 'deck', 'built-in skill' FROM document_revision WHERE document_id = ? AND n = 1`, d.ID); err != nil {
 		t.Fatal(err)
 	}
-	e.must("deck.document_save", map[string]any{"name": name, "kind": "skill", "text": shipped + "\nA chain runs at most five steps deep.\n"}, nil)
+	e.must("deck.document_save", map[string]any{"name": name, "kind": "skill", "text": shipped + "\nThe master's own line.\n"}, nil)
 	if _, err := e.App.Store.DB.Exec(`UPDATE document_revision SET author = 'master' WHERE document_id = ? AND author = 'owner'`, d.ID); err != nil {
 		t.Fatal(err)
 	}
 	_ = e.App.Close()
 	e = newEnvWith(t, home, &Fake{})
 	e.must("deck.document_get", map[string]any{"name": name}, &d)
-	if !strings.Contains(d.Text, "five steps") {
+	if !strings.Contains(d.Text, "The master's own line.") {
 		t.Fatal("an edit stays while deck ships the same skill")
 	}
 	if _, err := e.App.Store.DB.Exec(`UPDATE document_revision SET text = 'an older skill' WHERE document_id = ? AND author = 'deck'`, d.ID); err != nil {

@@ -275,7 +275,7 @@ func (g *Gateway) Decide(ctx context.Context, owner registry.Actor, a db.Ask, an
 			return nil, err
 		}
 	}
-	act := g.clear.Clear(f.Caller.actor())
+	act := g.clear.Clear(f.Caller.actor(), f.Call.Command)
 	if f.As == AsOwner {
 		act = owner
 		act.ProjectID = a.ProjectID.Int64

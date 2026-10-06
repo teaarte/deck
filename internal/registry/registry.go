@@ -243,7 +243,7 @@ func (r *Registry) Invoke(ctx context.Context, a Actor, name string, input json.
 // Check does everything Invoke does except running the command.
 func (r *Registry) Check(ctx context.Context, a Actor, name string, input json.RawMessage) (*Command, json.RawMessage, error) {
 	c, input, err := r.Resolve(ctx, a, name, input)
-	if err == nil && a.Kind != Owner && c.Class != Internal && !a.cleared {
+	if err == nil && a.Kind != Owner && c.Class != Internal && !a.Cleared(c.Name) {
 		err = Refuse("deck: %s is %s; only the gateway calls it for %s", c.Name, c.Class, a.Kind)
 	}
 	return c, input, err

@@ -104,7 +104,7 @@ func (g *Gateway) CallTool(ctx context.Context, act registry.Actor, command, too
 		return nil, err
 	}
 	if t, err := g.reg.Lookup(ctx, act.Workspace, tool); err == nil && registry.ClassRank(t.Class) <= registry.ClassRank(c.Class) {
-		act = g.clear.Clear(act)
+		act = g.clear.Clear(act, t.Name)
 	}
 	return g.call(ctx, act, tool, args)
 }

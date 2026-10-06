@@ -296,3 +296,32 @@ func TestACallOfATokenThatWaitsForTheOwnerIsKept(t *testing.T) {
 		t.Fatal("the owner's yes makes the call")
 	}
 }
+
+// TestAClearedCallDoesNotClearTheCallsItMakes: the owner's yes clears one call; a command that calls another
+// with its own caller does not pass the class rules of the other on that yes.
+func TestAClearedCallDoesNotClearTheCallsItMakes(t *testing.T) {
+	var inner atomic.Int64
+	var nested error
+	var e *Env
+	in := registry.Def("inner_send", "Send inside", "Sends something outside deck.", registry.OwnerSide,
+		func(context.Context, registry.Actor, struct{}) (any, error) {
+			inner.Add(1)
+			return map[string]any{"sent": true}, nil
+		}).As(registry.External)
+	out := registry.Def("outer_send", "Send", "Sends and sends again.", registry.OwnerSide,
+		func(ctx context.Context, act registry.Actor, _ struct{}) (any, error) {
+			_, nested = e.App.Registry.Invoke(ctx, act, "deck.inner_send", json.RawMessage(`{}`))
+			return map[string]any{"sent": true}, nil
+		}).As(registry.External)
+	e = newEnv(t, nil, func(c *app.Config) { c.Commands = append(c.Commands, in, out) })
+	_, tok := e.token("terminal", "deck.*")
+	code, body := e.callWith(tok, "deck.outer_send", map[string]any{})
+	var held struct{ Waiting int64 }
+	if code != 200 || json.Unmarshal(body, &held) != nil || held.Waiting == 0 {
+		t.Fatalf("the outer call waits for the owner: %d %s", code, body)
+	}
+	e.answer(held.Waiting, "allow")
+	if inner.Load() != 0 || nested == nil {
+		t.Fatalf("the yes to the outer call does not make the inner one: %d calls, %v", inner.Load(), nested)
+	}
+}

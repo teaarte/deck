@@ -325,12 +325,12 @@ func (g *Gateway) call(ctx context.Context, act registry.Actor, name string, arg
 	if class != registry.Internal {
 		params = Canonical(args)
 	}
-	if err == nil && class != registry.Internal && !act.Cleared() && act.Kind != registry.Owner {
+	if err == nil && class != registry.Internal && !act.Cleared(c.Name) && act.Kind != registry.Owner {
 		var now bool
 		if now, err = g.gate(ctx, act, c, project, input); err == nil && !now {
 			return g.hold(ctx, act, c, project, input)
 		}
-		act = g.clear.Clear(act)
+		act = g.clear.Clear(act, c.Name)
 	}
 	if err != nil {
 		g.journal(ctx, act, project, name, class, "rejected", params, err.Error())

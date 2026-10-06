@@ -34,23 +34,23 @@ type Actor struct {
 	Alone bool
 	// CallLimit is how long a tool call of the calling agent may last; zero when it has no such limit.
 	CallLimit time.Duration
-	// cleared is set by the holder of the Clearance, the gateway, once a call that is not internal passed its
-	// class rules.
-	cleared bool
+	// cleared is the command the holder of the Clearance, the gateway, let through its class rules; a call the
+	// command makes with this actor is not cleared by it.
+	cleared string
 }
 
-// Cleared says the gateway let a call that is not internal through.
-func (a Actor) Cleared() bool { return a.cleared }
+// Cleared says the gateway let a call of the command that is not internal through.
+func (a Actor) Cleared(command string) bool { return a.cleared != "" && a.cleared == command }
 
 // Clearance lets its one holder, the gateway, clear an actor for calls that are not internal.
 type Clearance struct{ r *Registry }
 
-// Clear is the actor cleared for the call it makes now.
-func (c Clearance) Clear(a Actor) Actor {
+// Clear is the actor cleared for the call of the command it makes now.
+func (c Clearance) Clear(a Actor, command string) Actor {
 	if c.r == nil {
 		panic("registry: a clearance the registry did not issue")
 	}
-	a.cleared = true
+	a.cleared = command
 	return a
 }
 

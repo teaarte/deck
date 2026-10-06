@@ -140,3 +140,24 @@ func TestAnAnswerDuringAPauseReachesTheNextTry(t *testing.T) {
 		t.Fatalf("the next try carries the answer: %q", prompts)
 	}
 }
+
+// TestAPauseOfABaseFromBeforeGoesOnInItsSession: a process paused by the deck of before, with what an older hold left,
+// resumes its own session once its try is due.
+func TestAPauseOfABaseFromBeforeGoesOnInItsSession(t *testing.T) {
+	home := t.TempDir()
+	e := newEnvWith(t, home, &Fake{})
+	p := e.createProject("plain", testManifest([]string{agentCommand("work", "")}, nil))
+	e.olderBase(13)
+	if _, err := e.App.Store.DB.Exec(`INSERT INTO process (project_id, command, state, provider, session_id, pause_until_ms, wait_fresh, wait_message, started_at)
+		VALUES (?, 'work', 'rate_limited', 'fake', 's-old', 1, 1, '', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`, p); err != nil {
+		t.Fatal(err)
+	}
+	_ = e.App.Close()
+	f := &Fake{script: func(ctx context.Context, c *Call) provider.Result { return provider.Result{Structured: json.RawMessage(`{"n": 1}`)} }}
+	e = newEnvWith(t, home, f)
+	e.App.Sweep(t.Context(), time.Now())
+	e.waitState(1, "done", "error")
+	if reqs := f.Calls(); len(reqs) != 1 || !reqs[0].Resume || reqs[0].SessionID != "s-old" || !strings.Contains(reqs[0].Prompt, "limit should have reset") {
+		t.Fatalf("the old pause resumes its session: %+v", reqs)
+	}
+}

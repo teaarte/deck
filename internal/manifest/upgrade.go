@@ -98,6 +98,9 @@ func fromParam(v any, params map[string]any) any {
 
 var identifier = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
+// keywords are names an expression reads as itself, not as a field.
+var keywords = []string{"in", "not", "and", "or", "matches", "contains", "startsWith", "endsWith", "let", "true", "false", "nil"}
+
 // fromRecord turns the $record.<field> values of format 7 into =<field>, $record.id into =_id and a field that is no
 // name of an expression into =$env["<field>"], in place.
 func fromRecord(v any) any {
@@ -115,7 +118,7 @@ func fromRecord(v any) any {
 			switch {
 			case f == "id":
 				return "=_id"
-			case identifier.MatchString(f):
+			case identifier.MatchString(f) && !slices.Contains(keywords, f):
 				return "=" + f
 			}
 			q, _ := json.Marshal(f)

@@ -5,3 +5,6 @@ ALTER TABLE process DROP COLUMN pause_limit_ms;
 UPDATE ask SET state = CASE WHEN state = 'open' THEN 'expired' ELSE state END,
     delivered_at = COALESCE(delivered_at, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 WHERE kind = 'limit';
+-- A process paused before goes on through Wake, as a held turn of the same session.
+UPDATE process SET wait_fresh = 0, wait_message = '{"message":"deck: the provider''s usage limit should have reset. Continue where you stopped."}'
+WHERE state = 'rate_limited';

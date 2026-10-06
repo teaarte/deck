@@ -185,38 +185,25 @@ func TestEmptyResultStartsNothingAndIsPurgedAfterADay(t *testing.T) {
 	}
 }
 
-func TestRunLaterFiresOnTimeAndOnceAfterSleep(t *testing.T) {
-	e := newClockEnv(t, ok)
-	e.createProject("later", testManifest([]string{agentCommand("remind", `{"type": "object", "properties": {"what": {"type": "string"}}}`)}, nil))
-	at := func(d time.Duration) string { return e.Clock.Now().Add(d).Format(time.RFC3339) }
-	var r struct{ Trigger int64 }
-	e.must("deck.run_later", map[string]any{"command": "later.remind", "at": at(time.Hour), "params": `{"what": "call"}`}, &r)
-	if ts := e.triggers(); len(ts) != 1 || ts[0].Kind != "once" || ts[0].ID != r.Trigger {
-		t.Fatalf("a run later is a row of the schedule: %+v", ts)
+// TestARunLaterOfABaseFromBeforeGoes: deck runs nothing once at a time any more; a run later an older base kept
+// leaves the schedule, and its commands are gone.
+func TestARunLaterOfABaseFromBeforeGoes(t *testing.T) {
+	home := t.TempDir()
+	e := newEnvWith(t, home, &Fake{})
+	e.createProject("later", testManifest([]string{agentCommand("remind", "")}, []string{`{"command": "remind", "cron": "0 9 * * *"}`}))
+	e.olderBase(16)
+	if _, err := e.App.Store.DB.Exec(`INSERT INTO "trigger" (project_id, command, kind, params, next_run_at)
+		SELECT id, 'remind', 'once', '{}', '2030-01-01T00:00:00.000Z' FROM project WHERE name = 'later'`); err != nil {
+		t.Fatal(err)
 	}
-	e.Clock.Add(30 * time.Minute)
-	e.tick()
-	if e.countOf("remind") != 0 {
-		t.Fatal("run later must not fire early")
+	_ = e.App.Close()
+	e = newEnvWith(t, home, &Fake{})
+	if ts := e.triggers(); len(ts) != 1 || ts[0].Kind != "cron" {
+		t.Fatalf("only the schedule of the manifest stays: %+v", ts)
 	}
-	e.Clock.Add(30 * time.Minute)
-	e.tick()
-	e.waitFor("the run at its time", func() bool { return e.countOf("remind") == 1 })
-	if len(e.triggers()) != 0 {
-		t.Fatal("a fired run later leaves the schedule")
+	for _, name := range []string{"deck.run_later", "deck.run_later_cancel"} {
+		e.refused(name, map[string]any{"command": "later.remind", "at": "2030-01-01T00:00:00Z", "trigger": 1}, 404, "unknown command")
 	}
-	e.must("deck.run_later", map[string]any{"command": "later.remind", "at": at(2 * time.Hour)}, nil)
-	e.must("deck.run_later", map[string]any{"command": "later.remind", "at": at(3 * time.Hour)}, &r)
-	e.must("deck.run_later_cancel", map[string]any{"trigger": r.Trigger}, nil)
-	e.Clock.Add(10 * time.Hour)
-	e.tick()
-	e.tick()
-	e.settle()
-	if n := e.countOf("remind"); n != 2 {
-		t.Fatalf("a run later missed in sleep fires once, a cancelled one never: %d runs", n)
-	}
-	e.refused("deck.run_later", map[string]any{"command": "later.nope", "at": at(time.Hour)}, 404, "unknown command")
-	e.refused("deck.run_later", map[string]any{"command": "later.remind", "at": at(time.Hour), "params": `{"what": 5}`}, 422, "what: got number, want string")
 }
 
 func TestMissedRunsAreSpreadAfterSleep(t *testing.T) {
@@ -409,47 +396,6 @@ func TestAnAfterTriggerCallTheOwnerAllowedKeepsItsParent(t *testing.T) {
 	}
 }
 
-// TestAnAllowedRunLaterStartsThoughItsTriggerIsGone: a run later of an external command waits for the owner, and
-// the yes starts it, though the trigger left the schedule when it fired.
-func TestAnAllowedRunLaterStartsThoughItsTriggerIsGone(t *testing.T) {
-	e := newClockEnv(t, ok)
-	e.createProject("later", strings.Replace(testManifest([]string{agentCommand("remind", "")}, nil), `"class": "internal"`, `"class": "external"`, 1))
-	e.must("deck.run_later", map[string]any{"command": "later.remind", "at": e.Clock.Now().Add(time.Hour).Format(time.RFC3339)}, nil)
-	e.Clock.Add(time.Hour)
-	e.tick()
-	a := e.waitAsk()
-	if a.Kind != "call" || len(e.triggers()) != 0 {
-		t.Fatalf("the fired run later waits for the owner and has left the schedule: %+v", a)
-	}
-	e.answer(a.ID, "allow")
-	e.waitFor("the allowed run", func() bool { return e.countOf("remind") == 1 })
-}
-
-// TestAnAgentSchedulesAnExternalCommandAndTheOwnerSaysYesWhenItFires: run later checks only the caller and the
-// input; the class rules ask the owner when the run comes.
-func TestAnAgentSchedulesAnExternalCommandAndTheOwnerSaysYesWhenItFires(t *testing.T) {
-	var e *Env
-	e = newClockEnv(t, func(ctx context.Context, c *Call) provider.Result {
-		if c.command() == "work" {
-			out, bad := c.Tool(ctx, "run_later", map[string]any{"command": "later.publish", "at": e.Clock.Now().Add(time.Hour).Format(time.RFC3339)})
-			if bad {
-				return provider.Result{Text: "refused: " + out}
-			}
-		}
-		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
-	})
-	publish := strings.Replace(agentCommand("publish", ""), `"class": "internal"`, `"class": "external"`, 1)
-	p := e.createProject("later", testManifest([]string{agentCommand("work", ""), publish}, nil))
-	if got := e.waitState(e.run(p, "work"), "done", "error"); got.State != "done" || len(e.triggers()) != 1 {
-		t.Fatalf("an agent schedules an external command of its project: %+v %+v", got, e.triggers())
-	}
-	e.Clock.Add(2 * time.Hour)
-	e.tick()
-	if a := e.waitAsk(); a.Kind != "call" || !strings.Contains(a.Text, "later.publish") || e.countOf("publish") != 0 {
-		t.Fatalf("when it fires, the external command waits for the owner: %+v", a)
-	}
-}
-
 // TestScheduleShowsEveryTriggerRunsOneNowAndPausesAProject: the schedule lists the triggers of all projects;
 // run now starts one and keeps its slot; a paused project runs nothing on schedule; the history filters.
 func TestScheduleShowsEveryTriggerRunsOneNowAndPausesAProject(t *testing.T) {
@@ -457,7 +403,6 @@ func TestScheduleShowsEveryTriggerRunsOneNowAndPausesAProject(t *testing.T) {
 	check := newCatalogCheck(t)
 	e.createProject("alpha", testManifest([]string{agentCommand("job", "")}, []string{`{"command": "job", "cron": "0 9 * * *"}`}))
 	e.createProject("beta", testManifest([]string{agentCommand("sync", "")}, []string{`{"command": "sync", "cron": "0 10 * * *"}`}))
-	e.must("deck.run_later", map[string]any{"command": "beta.sync", "at": t0.Add(90 * time.Minute).UTC().Format(time.RFC3339)}, nil)
 	check.messages(t, e.screenMessages("", "schedule", nil))
 	rows := func() []screenRow {
 		var out []screenRow
@@ -492,11 +437,10 @@ func TestScheduleShowsEveryTriggerRunsOneNowAndPausesAProject(t *testing.T) {
 	}
 	rs := rows()
 	job := find(rs, "alpha", "0 9 * * *")
-	if len(rs) != 3 || job.Cells[1] != "job" || job.Cells[3] == "" || job.Cells[5] != "on" {
+	if len(rs) != 2 || job.Cells[1] != "job" || job.Cells[3] == "" || job.Cells[5] != "on" {
 		t.Fatalf("every trigger of every project with its command, schedule and next run: %+v", rs)
 	}
 	next := job.Cells[3]
-	find(rs, "beta", "once")
 
 	var started struct{ Process int64 }
 	press(button(job, "run_now"), &started)
@@ -538,9 +482,8 @@ func TestScheduleShowsEveryTriggerRunsOneNowAndPausesAProject(t *testing.T) {
 	e.refused("deck.trigger_run", map[string]any{"trigger": 999}, 404, "no trigger")
 }
 
-// TestRunNowReturnsTheRunStillGoingAndSpendsARunLater: a second run now while the first goes gives that run;
-// run now on a run later starts it and takes it off the schedule.
-func TestRunNowReturnsTheRunStillGoingAndSpendsARunLater(t *testing.T) {
+// TestRunNowReturnsTheRunStillGoing: a second run now while the first goes gives that run.
+func TestRunNowReturnsTheRunStillGoing(t *testing.T) {
 	gate := make(chan struct{})
 	e := newClockEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		if c.command() == "job" {
@@ -551,16 +494,8 @@ func TestRunNowReturnsTheRunStillGoingAndSpendsARunLater(t *testing.T) {
 		}
 		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
 	})
-	e.createProject("alpha", testManifest([]string{agentCommand("job", ""), agentCommand("later", "")}, []string{`{"command": "job", "cron": "0 9 * * *"}`}))
-	e.must("deck.run_later", map[string]any{"command": "alpha.later", "at": t0.Add(90 * time.Minute).UTC().Format(time.RFC3339)}, nil)
-	var job, once int64
-	for _, tr := range e.triggers() {
-		if tr.Kind == "once" {
-			once = tr.ID
-		} else {
-			job = tr.ID
-		}
-	}
+	e.createProject("alpha", testManifest([]string{agentCommand("job", "")}, []string{`{"command": "job", "cron": "0 9 * * *"}`}))
+	job := e.triggers()[0].ID
 	var first, second struct{ Process int64 }
 	e.must("deck.trigger_run", map[string]any{"trigger": job}, &first)
 	e.must("deck.trigger_run", map[string]any{"trigger": job}, &second)
@@ -574,14 +509,6 @@ func TestRunNowReturnsTheRunStillGoingAndSpendsARunLater(t *testing.T) {
 	}
 	close(gate)
 	e.waitState(first.Process, "done")
-	var later struct{ Process int64 }
-	e.must("deck.trigger_run", map[string]any{"trigger": once}, &later)
-	e.waitState(later.Process, "done")
-	for _, tr := range e.triggers() {
-		if tr.ID == once {
-			t.Fatal("a run later that ran now is off the schedule")
-		}
-	}
 }
 
 // TestRunNowTakesACommandOnlyTriggersCallAndTheScheduleHearsAboutRuns: run now has the trigger's rights, and
@@ -622,47 +549,27 @@ func TestTriggerParamsKeepLargeIntegers(t *testing.T) {
 	}
 }
 
-// TestARunLaterThatFailsToStartIsKept: a run later whose start fails stays in the schedule, tries again later and
-// shows the reason in the health of its project until it starts.
-func TestARunLaterThatFailsToStartIsKept(t *testing.T) {
+// TestAScheduledRunThatFailsToStartSaysWhy: a cron trigger whose start fails shows the reason in the health of its
+// project until a run of it starts.
+func TestAScheduledRunThatFailsToStartSaysWhy(t *testing.T) {
 	e := newClockEnv(t, ok)
-	text := testManifest([]string{agentCommand("remind", `{"type": "object", "properties": {"what": {"type": "string"}}}`)}, nil)
+	text := strings.Replace(testManifest([]string{agentCommand("remind", "")}, []string{`{"command": "remind", "cron": "0 * * * *"}`}),
+		`"prompt": "Do remind."`, `"prompt_file": "prompts/remind.md"`, 1)
 	e.createProject("later", text)
-	e.must("deck.run_later", map[string]any{"command": "later.remind", "at": e.Clock.Now().Add(time.Hour).Format(time.RFC3339), "params": `{"what": "call"}`}, nil)
-	e.must("deck.manifest_save", map[string]any{"project": "later", "manifest": strings.Replace(text, `"what": {"type": "string"}`, `"what": {"type": "integer"}`, 1)}, nil)
 	e.Clock.Add(time.Hour)
 	e.tick()
-	if ts := e.triggers(); len(ts) != 1 || e.countOf("remind") != 0 {
-		t.Fatalf("a run later that did not start stays in the schedule: %+v", ts)
-	}
-	if h := e.waitHealth("trigger:later.remind", "error"); !strings.Contains(h.Error, "what") {
+	if h := e.waitHealth("trigger:later.remind", "error"); !strings.Contains(h.Error, "prompts/remind.md") || e.countOf("remind") != 0 {
 		t.Fatalf("the health of the project says why it did not start: %+v", h)
 	}
-	e.must("deck.manifest_save", map[string]any{"project": "later", "manifest": text}, nil)
+	e.must("deck.document_save", map[string]any{"project": "later", "name": "prompts/remind.md", "kind": "prompt", "text": "Remind."}, nil)
 	e.Clock.Add(time.Hour)
 	e.tick()
 	e.waitFor("the run once it starts", func() bool { return e.countOf("remind") == 1 })
-	if len(e.triggers()) != 0 {
-		t.Fatal("a run later that started leaves the schedule")
-	}
 	var hs []healthRow
 	e.must("deck.health_list", nil, &hs)
 	for _, h := range hs {
 		if h.Subject == "trigger:later.remind" {
 			t.Fatalf("the health row goes once it starts: %+v", h)
-		}
-	}
-	var r struct{ Trigger int64 }
-	e.must("deck.run_later", map[string]any{"command": "later.remind", "at": e.Clock.Now().Add(time.Hour).Format(time.RFC3339), "params": `{"what": "call"}`}, &r)
-	e.must("deck.manifest_save", map[string]any{"project": "later", "manifest": strings.Replace(text, `"what": {"type": "string"}`, `"what": {"type": "integer"}`, 1)}, nil)
-	e.Clock.Add(time.Hour)
-	e.tick()
-	e.waitHealth("trigger:later.remind", "error")
-	e.must("deck.run_later_cancel", map[string]any{"trigger": r.Trigger}, nil)
-	e.must("deck.health_list", nil, &hs)
-	for _, h := range hs {
-		if h.Subject == "trigger:later.remind" {
-			t.Fatalf("the health row goes with the cancelled run later: %+v", h)
 		}
 	}
 }

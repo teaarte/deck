@@ -10,40 +10,6 @@ import (
 	"database/sql"
 )
 
-const createOnceTrigger = `-- name: CreateOnceTrigger :one
-INSERT INTO "trigger" (project_id, command, kind, params, next_run_at) VALUES (?, ?, 'once', ?, ?) RETURNING id, project_id, command, kind, spec, params, next_run_at, paused, skip_missed, last_process_id
-`
-
-type CreateOnceTriggerParams struct {
-	ProjectID int64
-	Command   string
-	Params    string
-	NextRunAt sql.NullString
-}
-
-func (q *Queries) CreateOnceTrigger(ctx context.Context, arg CreateOnceTriggerParams) (Trigger, error) {
-	row := q.db.QueryRowContext(ctx, createOnceTrigger,
-		arg.ProjectID,
-		arg.Command,
-		arg.Params,
-		arg.NextRunAt,
-	)
-	var i Trigger
-	err := row.Scan(
-		&i.ID,
-		&i.ProjectID,
-		&i.Command,
-		&i.Kind,
-		&i.Spec,
-		&i.Params,
-		&i.NextRunAt,
-		&i.Paused,
-		&i.SkipMissed,
-		&i.LastProcessID,
-	)
-	return i, err
-}
-
 const deleteTrigger = `-- name: DeleteTrigger :exec
 DELETE FROM "trigger" WHERE id = ?
 `
@@ -55,7 +21,7 @@ func (q *Queries) DeleteTrigger(ctx context.Context, id int64) error {
 
 const dueTriggers = `-- name: DueTriggers :many
 SELECT t.id, t.project_id, t.command, t.kind, t.spec, t.params, t.next_run_at, t.paused, t.skip_missed, t.last_process_id FROM "trigger" t JOIN project p ON p.id = t.project_id
-WHERE t.kind IN ('cron', 'once') AND t.next_run_at <= CAST(?1 AS TEXT) AND t.paused = 0 AND p.paused = 0
+WHERE t.kind = 'cron' AND t.next_run_at <= CAST(?1 AS TEXT) AND t.paused = 0 AND p.paused = 0
 ORDER BY t.next_run_at, t.id
 `
 
@@ -242,7 +208,7 @@ func (q *Queries) SetTriggerPaused(ctx context.Context, arg SetTriggerPausedPara
 
 const upsertTrigger = `-- name: UpsertTrigger :exec
 INSERT INTO "trigger" (project_id, command, kind, spec, params, next_run_at, skip_missed) VALUES (?, ?, ?, ?, ?, ?, ?)
-ON CONFLICT (project_id, command, kind, spec) WHERE kind != 'once'
+ON CONFLICT (project_id, command, kind, spec)
 DO UPDATE SET params = excluded.params, skip_missed = excluded.skip_missed
 `
 

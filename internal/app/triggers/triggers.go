@@ -1,16 +1,12 @@
-// Package triggers keeps the schedule of projects as commands: the triggers of manifests, runs later, pauses.
+// Package triggers keeps the schedule of projects as commands: the triggers of manifests and their pauses.
 package triggers
 
 import (
 	"cmp"
 	"context"
-	"database/sql"
 	"deck2/internal/app/access"
 	"encoding/json"
 	"fmt"
-	"slices"
-	"strings"
-	"time"
 
 	"deck2/internal/gateway"
 	"deck2/internal/manifest"
@@ -32,83 +28,6 @@ type Service struct {
 func (s *Service) ownTrigger(ctx context.Context, act registry.Actor, id int64) (db.Trigger, db.Project, error) {
 	t, err := s.St.Q.GetTrigger(ctx, id)
 	return access.Owned(ctx, s.St.Q, act, t, err, t.ProjectID, registry.NotFound("deck: no trigger %d", id))
-}
-
-type runLaterIn struct {
-	Command string `desc:"Command name, project.command"`
-	At      string `type:"datetime" desc:"When to run"`
-	Params  string `type:"json" opt:"" desc:"Command input: a JSON object"`
-}
-
-func (s *Service) runLater(ctx context.Context, act registry.Actor, in runLaterIn) (any, error) {
-	if act.Trial {
-		return nil, registry.Refuse("deck: trial run: run later would start a real run, so it was declined")
-	}
-	at, err := time.Parse(time.RFC3339, in.At)
-	if err != nil {
-		return nil, registry.Invalid("deck: at: %v", err)
-	}
-	if strings.TrimSpace(in.Params) == "" {
-		in.Params = "{}"
-	}
-	params, err := manifest.DecodeObject([]byte(in.Params))
-	if err != nil {
-		return nil, registry.Invalid("deck: params: %v", err)
-	}
-	// The class rules apply when the trigger fires, so only the caller and the input are checked now.
-	cmd, _, err := s.Registry.Resolve(ctx, act, in.Command, json.RawMessage(in.Params))
-	if err != nil {
-		return nil, err
-	}
-	if cmd.ProjectID == 0 || !slices.Contains(cmd.Callers, registry.Trigger) {
-		return nil, registry.Invalid("deck: %s cannot be run later: only project commands that triggers may call", in.Command)
-	}
-	_, name, _ := strings.Cut(in.Command, ".")
-	raw, _ := json.Marshal(params)
-	var t db.Trigger
-	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		if p, err := q.GetProject(ctx, cmd.ProjectID); err != nil || p.Status == store.ProjectDraft {
-			if err == nil {
-				err = registry.Invalid("deck: %s is a draft; it runs on a schedule after the owner enables it", p.Name)
-			}
-			return err
-		}
-		t, err = q.CreateOnceTrigger(ctx, db.CreateOnceTriggerParams{ProjectID: cmd.ProjectID, Command: name, Params: string(raw),
-			NextRunAt: sql.NullString{String: store.Time(at), Valid: true}})
-		return err
-	})
-	if err != nil {
-		return nil, err
-	}
-	return map[string]any{"trigger": t.ID, "at": t.NextRunAt.String}, nil
-}
-
-type runLaterCancelIn struct {
-	Trigger int64 `desc:"Trigger id"`
-}
-
-func (s *Service) runLaterCancel(ctx context.Context, act registry.Actor, in runLaterCancelIn) (any, error) {
-	t, _, err := s.ownTrigger(ctx, act, in.Trigger)
-	if err != nil {
-		return nil, err
-	}
-	if t.Kind != trigger.KindOnce {
-		return nil, registry.Invalid("deck: trigger %d comes from the manifest; pause it instead", t.ID)
-	}
-	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		if err := q.DeleteTrigger(ctx, t.ID); err != nil {
-			return err
-		}
-		p, err := q.GetProject(ctx, t.ProjectID)
-		if err != nil {
-			return err
-		}
-		return q.DeleteHealth(ctx, db.DeleteHealthParams{ProjectID: store.ID(p.ID), Subject: "trigger:" + p.Name + "." + t.Command})
-	})
-	if err != nil {
-		return nil, err
-	}
-	return map[string]any{"ok": true}, nil
 }
 
 type triggersListIn struct {
@@ -177,7 +96,7 @@ func (s *Service) triggerRun(ctx context.Context, act registry.Actor, in trigger
 	if err != nil {
 		return nil, err
 	}
-	if t.Kind != trigger.KindCron && t.Kind != trigger.KindOnce {
+	if t.Kind != trigger.KindCron {
 		return nil, registry.Invalid("deck: trigger %d starts on a %s; only schedule triggers run now", t.ID, t.Kind)
 	}
 	params, err := manifest.DecodeObject([]byte(t.Params))
@@ -190,16 +109,7 @@ func (s *Service) triggerRun(ctx context.Context, act registry.Actor, in trigger
 	params[manifest.RetryKey] = fmt.Sprintf("trigger:%d", t.ID)
 	raw, _ := json.Marshal(params)
 	as := registry.Actor{Kind: registry.Trigger, Workspace: p.WorkspaceID, ProjectID: p.ID, TriggerID: t.ID, Confirmed: true}
-	out, err := s.Gateway.CallAs(ctx, as, p.Name+"."+t.Command, raw)
-	if err != nil {
-		return nil, err
-	}
-	if t.Kind == trigger.KindOnce {
-		if err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error { return q.DeleteTrigger(ctx, t.ID) }); err != nil {
-			return nil, err
-		}
-	}
-	return out, nil
+	return s.Gateway.CallAs(ctx, as, p.Name+"."+t.Command, raw)
 }
 
 type triggerPauseIn struct {
@@ -273,12 +183,6 @@ func flag(b bool) int64 {
 // Commands are the commands of triggers.
 func (s *Service) Commands() []*registry.Command {
 	return []*registry.Command{
-		registry.Def("run_later", "Run later",
-			"Runs a project command once at the given time; a run missed while deck was down runs after it starts.",
-			registry.Everyone, s.runLater),
-		registry.Def("run_later_cancel", "Cancel run later",
-			"Cancels a run scheduled with run later.",
-			registry.Everyone, s.runLaterCancel),
 		registry.Read("triggers_list", "Schedule",
 			"Lists triggers with their next run, pause and the state of their last run.",
 			registry.Everyone, s.triggersList).On("triggers", "processes"),

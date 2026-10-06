@@ -17,7 +17,7 @@ import (
 // Fire starts the command of a trigger through the registry. Scheduled runs carry the trigger as their
 // retry key, so a run does not start while the previous one is still going.
 func (s *Service) Fire(ctx context.Context, t db.Trigger, input map[string]any) (int64, error) {
-	if t.Kind == trigger.KindCron || t.Kind == trigger.KindOnce {
+	if t.Kind == trigger.KindCron {
 		input[manifest.RetryKey] = fmt.Sprintf("trigger:%d", t.ID)
 	}
 	return s.Start(ctx, t, input, 0)

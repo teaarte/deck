@@ -1,11 +1,7 @@
 -- name: UpsertTrigger :exec
 INSERT INTO "trigger" (project_id, command, kind, spec, params, next_run_at, skip_missed) VALUES (?, ?, ?, ?, ?, ?, ?)
-ON CONFLICT (project_id, command, kind, spec) WHERE kind != 'once'
+ON CONFLICT (project_id, command, kind, spec)
 DO UPDATE SET params = excluded.params, skip_missed = excluded.skip_missed;
-
-
--- name: CreateOnceTrigger :one
-INSERT INTO "trigger" (project_id, command, kind, params, next_run_at) VALUES (?, ?, 'once', ?, ?) RETURNING *;
 
 
 -- name: DeleteTrigger :exec
@@ -18,7 +14,7 @@ SELECT * FROM "trigger" WHERE id = ?;
 
 -- name: DueTriggers :many
 SELECT t.* FROM "trigger" t JOIN project p ON p.id = t.project_id
-WHERE t.kind IN ('cron', 'once') AND t.next_run_at <= CAST(sqlc.arg(now) AS TEXT) AND t.paused = 0 AND p.paused = 0
+WHERE t.kind = 'cron' AND t.next_run_at <= CAST(sqlc.arg(now) AS TEXT) AND t.paused = 0 AND p.paused = 0
 ORDER BY t.next_run_at, t.id;
 
 

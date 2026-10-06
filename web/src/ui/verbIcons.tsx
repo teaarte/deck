@@ -5,7 +5,7 @@ import { NamedIcon } from './NamedIcon';
 
 // verbIcons are the icons of deck's own verbs; a button with a label and no icon of its own has none.
 const verbIcons: Record<string, Icon> = {
-  open: IconArrowUpRight, stop: IconPlayerStop, cancel_run: IconPlayerStop, run_now: IconPlayerPlay, resume: IconPlayerPlay,
+  open: IconArrowUpRight, stop: IconPlayerStop, run_now: IconPlayerPlay, resume: IconPlayerPlay,
   continue: IconPlayerPlay, pause: IconPlayerPause, retry: IconRefresh, remove: IconTrash, delete: IconTrash, archive: IconArchive,
   download: IconDownload, allow: IconCheck, yes: IconCheck, mark_read: IconCheck, mark_done: IconCheck, deny: IconX,
   edit: IconPencil, replace: IconReplace, provider: IconCpu, try: IconFlask, set: IconKey,

@@ -48,8 +48,7 @@ func tryExternal(ctx context.Context, c *Call) provider.Result {
 	d := c.Approve(ctx, "Bash", map[string]any{"command": "curl https://example.com"})
 	send, _ := c.Tool(ctx, "notes__send", map[string]any{})
 	child, _ := c.Tool(ctx, "notes__child", map[string]any{})
-	later, _ := c.Tool(ctx, "run_later", map[string]any{"command": "notes.child", "at": "2030-01-01T00:00:00Z"})
-	out, _ := json.Marshal(map[string]any{"bash": d["message"], "send": send, "child": child, "later": later})
+	out, _ := json.Marshal(map[string]any{"bash": d["message"], "send": send, "child": child})
 	return provider.Result{Structured: out}
 }
 
@@ -86,9 +85,6 @@ func TestDraftRunsOnlyTrialsAndNoTriggersUntilEnabled(t *testing.T) {
 		t.Fatalf("a project the master creates is a draft that shows the rights it asks for: %+v", p)
 	}
 
-	if code, out := e.call("deck.run_later", map[string]any{"command": "notes.work", "at": t0.Add(time.Hour).Format(time.RFC3339)}); code != 422 || !strings.Contains(string(out), "draft") {
-		t.Fatalf("a draft takes no run later: %d %s", code, out)
-	}
 	e.Clock.Add(2 * time.Hour)
 	e.tick()
 	e.must("deck.card_create", map[string]any{"project": "notes", "title": "x", "lane": "go"}, nil)
@@ -100,10 +96,9 @@ func TestDraftRunsOnlyTrialsAndNoTriggersUntilEnabled(t *testing.T) {
 	var run struct{ Process int64 }
 	e.must("notes.work", map[string]any{}, &run)
 	got := e.waitState(run.Process, "done")
-	var res struct{ Bash, Send, Child, Later string }
+	var res struct{ Bash, Send, Child string }
 	_ = json.Unmarshal(got.Result, &res)
-	if res.Bash != gateway.TrialRefusal || !strings.Contains(res.Send, `unknown tool "notes__send"`) ||
-		!strings.Contains(res.Later, "trial run: run later would start a real run") {
+	if res.Bash != gateway.TrialRefusal || !strings.Contains(res.Send, `unknown tool "notes__send"`) {
 		t.Fatalf("a run in a draft declines everything external without asking: %+v", res)
 	}
 	var asks []askView

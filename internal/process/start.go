@@ -142,7 +142,7 @@ func (r *Runner) Start(ctx context.Context, projectID int64, m *manifest.Manifes
 			if t.Paused == 1 || pr.Paused == 1 {
 				return registry.Invalid("deck: %s was not started: its trigger or project is paused", command)
 			}
-			if (t.Kind == trigger.KindCron || t.Kind == trigger.KindOnce) && t.NextRunAt.String > store.Time(r.now()) {
+			if t.Kind == trigger.KindCron && t.NextRunAt.String > store.Time(r.now()) {
 				return registry.Invalid("deck: %s was not started: its trigger moved to %s since it was due", command, t.NextRunAt.String)
 			}
 			if pr.Status == store.ProjectDraft && parent.Trial != 1 {
@@ -168,7 +168,7 @@ func (r *Runner) Start(ctx context.Context, projectID int64, m *manifest.Manifes
 				return q.AddDeckNote(ctx, db.AddDeckNoteParams{ProjectID: proj.ID, Text: text})
 			}
 		}
-		// A call the owner allowed later may come from a trigger that is gone by then, as a run later is.
+		// A call the owner allowed later may come from a trigger its manifest dropped by then.
 		trigger := o.Trigger
 		if _, err := q.GetTrigger(ctx, trigger); errors.Is(err, sql.ErrNoRows) {
 			trigger = 0

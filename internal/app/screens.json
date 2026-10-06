@@ -222,24 +222,23 @@
       "blocks": [
         {"type": "list", "title": "Next up", "icon": "clock", "span": 1, "source": {"from": "deck.triggers_list", "where": "next_run_at != '' && !paused && !project_paused", "sort": "next_run_at", "limit": 8},
           "empty": "Nothing is scheduled",
-          "item": {"title": "project + '.' + command", "meta": "kind == 'cron' ? spec : kind", "icon": "kind == 'cron' ? 'repeat' : kind == 'once' ? 'clock' : 'link'"},
-          "actions": [{"verb": "run_now", "command": "deck.trigger_run", "params": {"trigger": "=id"}, "when": "kind in ['cron', 'once']"}]},
+          "item": {"title": "project + '.' + command", "meta": "kind == 'cron' ? spec : kind", "icon": "kind == 'cron' ? 'repeat' : 'link'"},
+          "actions": [{"verb": "run_now", "command": "deck.trigger_run", "params": {"trigger": "=id"}, "when": "kind == 'cron'"}]},
         {"type": "chart", "title": "Runs by day", "kind": "bar", "span": 2, "source": {"from": "deck.runs_daily"}, "x": "day",
           "series": [{"label": "By schedule", "y": "scheduled"}, {"label": "Other", "y": "runs - scheduled"}, {"label": "Failed", "y": "failed"}]},
         {"type": "table", "title": "Triggers", "source": {"from": "deck.triggers_list", "sort": "project"},
           "columns": [
             {"label": "Project", "bind": "project"},
             {"label": "Command", "bind": "command"},
-            {"label": "When", "bind": "kind == 'cron' ? spec : kind == 'once' ? 'once' : kind + ' ' + spec"},
+            {"label": "When", "bind": "kind == 'cron' ? spec : kind + ' ' + spec"},
             {"label": "Next run", "bind": "next_run_at", "format": "relative"},
             {"label": "Last result", "bind": "last_state", "format": "tag", "tone": "last_state == 'done' ? 'ok' : last_state in ['error', 'interrupted'] ? 'error' : ''"},
             {"label": "State", "bind": "project_paused ? 'project paused' : paused ? 'paused' : 'on'"}
           ],
           "actions": [
-            {"verb": "run_now", "command": "deck.trigger_run", "params": {"trigger": "=id"}, "when": "kind in ['cron', 'once']"},
-            {"verb": "cancel_run", "command": "deck.run_later_cancel", "params": {"trigger": "=id"}, "when": "kind == 'once'"},
-            {"verb": "resume", "command": "deck.trigger_pause", "params": {"trigger": "=id", "paused": "false"}, "when": "kind != 'once' && own_paused"},
-            {"verb": "pause", "command": "deck.trigger_pause", "params": {"trigger": "=id", "paused": "true"}, "when": "kind != 'once' && !own_paused"},
+            {"verb": "run_now", "command": "deck.trigger_run", "params": {"trigger": "=id"}, "when": "kind == 'cron'"},
+            {"verb": "resume", "command": "deck.trigger_pause", "params": {"trigger": "=id", "paused": "false"}, "when": "own_paused"},
+            {"verb": "pause", "command": "deck.trigger_pause", "params": {"trigger": "=id", "paused": "true"}, "when": "!own_paused"},
             {"verb": "open", "screen": "process", "record": "=last_process", "when": "last_process != 0"}
           ]},
         {"type": "table", "title": "Projects", "source": {"from": "deck.projects_list"},

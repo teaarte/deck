@@ -260,11 +260,10 @@ func TestAHungSelfCheckDoesNotStopTheSchedule(t *testing.T) {
 	e := newEnvWith(t, t.TempDir(), hv, withClock(clock))
 	t.Cleanup(func() { close(hv.release) })
 	e.Clock = clock
-	e.createProject("plain", plainManifest)
+	e.createProject("plain", strings.Replace(plainManifest, `"triggers": []`, `"triggers": [{"command": "work", "cron": "30 * * * *"}]`, 1))
 	e.App.Start(20 * time.Millisecond)
 	time.Sleep(200 * time.Millisecond)
-	e.must("deck.run_later", map[string]any{"command": "plain.work", "at": t0.Add(time.Hour).Format(time.RFC3339)}, nil)
-	clock.Add(2 * time.Hour)
+	clock.Add(time.Hour)
 	e.waitFor("the run that came due", func() bool { return len(e.runsOf("plain", "work")) == 1 })
 }
 

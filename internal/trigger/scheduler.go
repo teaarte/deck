@@ -19,7 +19,6 @@ const (
 	KindCron  = "cron"
 	KindLane  = "lane"
 	KindAfter = "after"
-	KindOnce  = "once"
 )
 
 // Starter starts the command of a trigger row with the given input.
@@ -33,7 +32,7 @@ const (
 	grace  = 2 * time.Minute
 )
 
-// Scheduler runs cron and run-later triggers in the local time zone. A run later than grace was missed
+// Scheduler runs cron triggers in the local time zone. A run later than grace was missed
 // (deck down or the machine asleep): it fires once, and several missed runs are spaced spread apart.
 type Scheduler struct {
 	st    *store.Store
@@ -71,16 +70,13 @@ func Find(rows []db.Trigger, t manifest.Trigger) (db.Trigger, bool) {
 }
 
 // Sync stores the triggers of a manifest, keeping the next run, pause and id of unchanged ones and dropping
-// those the manifest no longer has; run-later rows stay.
+// those the manifest no longer has.
 func (s *Scheduler) Sync(ctx context.Context, q *db.Queries, projectID int64, m *manifest.Manifest) error {
 	old, err := q.ListProjectTriggers(ctx, projectID)
 	if err != nil {
 		return err
 	}
 	for _, r := range old {
-		if r.Kind == KindOnce {
-			continue
-		}
 		gone := true
 		for _, t := range m.Triggers {
 			if k, sp := Identity(t); k == r.Kind && sp == r.Spec && t.Command == r.Command {
@@ -173,8 +169,8 @@ func (s *Scheduler) Tick(ctx context.Context) int {
 	return len(due)
 }
 
-// fire starts the command of a trigger and moves it on; a run later that does not start stays and tries again
-// after retryAfter, and why it did not start is in the health of its project until it does.
+// fire starts the command of a trigger and moves it on; why it did not start is in the health of its project
+// until a run of it does.
 func (s *Scheduler) fire(ctx context.Context, t db.Trigger, now time.Time) {
 	params, err := manifest.DecodeObject([]byte(t.Params))
 	if err == nil {
@@ -196,29 +192,15 @@ func (s *Scheduler) fire(ctx context.Context, t db.Trigger, now time.Time) {
 	}
 	slog.Error("trigger start", "trigger", t.ID, "command", t.Command, "err", err)
 	text := fmt.Sprintf("the %s trigger did not start %s: %v", t.Kind, t.Command, err)
-	if t.Kind == KindOnce {
-		retry := now.Add(retryAfter)
-		text += "; it tries again at " + retry.Format(time.RFC3339)
-		s.tx(ctx, func(ctx context.Context, q *db.Queries) error {
-			return q.SetTriggerNext(ctx, db.SetTriggerNextParams{NextRunAt: sql.NullString{String: store.Time(retry), Valid: true}, ID: t.ID})
-		})
-	} else {
-		s.after(ctx, t, now)
-	}
+	s.after(ctx, t, now)
 	if perr == nil {
 		health.Write(ctx, s.st, health.Project(p), subject, "error", text)
 	}
 }
 
-// retryAfter is when a run later that did not start tries again.
-const retryAfter = 30 * time.Minute
-
-// after moves a fired or skipped trigger on: a cron trigger to its next slot, a run-later row away.
+// after moves a fired or skipped cron trigger to its next slot.
 func (s *Scheduler) after(ctx context.Context, t db.Trigger, now time.Time) {
 	s.tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		if t.Kind == KindOnce {
-			return q.DeleteTrigger(ctx, t.ID)
-		}
 		next, err := s.next(t.Spec, now)
 		if err != nil {
 			return err

@@ -24,7 +24,7 @@ const (
 )
 
 func autoManifest(prompt, name, url, extra, home string) string {
-	return fmt.Sprintf(`{"version": 8%s,
+	return fmt.Sprintf(`{"version": 9%s,
   "commands": [{"name": "work", "title": "Work", "description": "Writes a file, searches the web and posts a note", "class": "internal",
     "result": {"type": "object", "required": ["title", "web", "curl", "token"], "properties": {"title": {"type": "string"}, "web": {"type": "boolean"}, "curl": {"type": "string"}, "token": {"type": "string"}}},
     "executor": {"type": "agent", "prompt": "`+prompt+`"}}],

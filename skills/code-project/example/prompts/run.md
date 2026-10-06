@@ -72,10 +72,9 @@ revert commits below.
 5. For each card write the report into the card: `card_update` with the card's text, then a line `---` and
    `**Run N** (branch deck/run-N):` and a few plain sentences — what changed, how you checked it, anything the
    owner should look at. Then move it to the lane with role `review`.
-6. Autonomy: `manifest_get` of this project. When `autonomy` is `auto` and every test passed, leave your
-   branch (above), merge the run yourself as in `do = merge` and write one `notify` line: what was merged into which branch, and that
-   "Revert the merge" on the board undoes it. When it is `suggest` (the default), do not merge: the owner reads
-   the reports and asks.
+6. When the project prompt says `Merge: yourself.` and every test passed, leave your branch (above), merge the
+   run yourself as in `do = merge` and write one `notify` line: what was merged into which branch, and that
+   "Revert the merge" on the board undoes it. Otherwise do not merge: the owner reads the reports and asks.
 7. Finish. Summary: the cards, the branch, the commits.
 
 ## do = merge

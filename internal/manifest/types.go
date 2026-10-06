@@ -9,7 +9,7 @@ import (
 	"github.com/santhosh-tekuri/jsonschema/v6"
 )
 
-const FormatVersion = 8
+const FormatVersion = 9
 
 type Manifest struct {
 	Version         int          `json:"version"`
@@ -27,7 +27,6 @@ type Manifest struct {
 	Title           string       `json:"title,omitempty"`
 	// I18n translates the texts the owner sees, by language and then by the text as the manifest writes it.
 	I18n      map[string]map[string]string `json:"i18n,omitempty"`
-	Autonomy  string                       `json:"autonomy,omitempty"`
 	Reads     []Read                       `json:"reads,omitempty"`
 	NoNetwork bool                         `json:"no_network,omitempty"`
 	// MasterErrors off keeps the failed processes of the project from the master; absent is on.

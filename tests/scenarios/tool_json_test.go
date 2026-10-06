@@ -9,7 +9,7 @@ import (
 // jsonToolManifest is a project with an HTTP tool whose input field messages is JSON text, put into the body as
 // the list it holds, and one that sends its whole input as the body.
 func jsonToolManifest(url string) string {
-	return fmt.Sprintf(`{"version": 8,
+	return fmt.Sprintf(`{"version": 9,
   "commands": [{"name": "ask", "title": "Ask", "description": "Asks a model.", "class": "internal",
     "input": {"type": "object", "properties": {"messages": {"type": "string", "format": "json"}}},
     "executor": {"type": "script", "script": "main"}}],

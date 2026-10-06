@@ -16,7 +16,7 @@ import (
 
 // playerManifest is a module of short videos: a media block plays each video with its marks, and its mark sends
 // a second of a video back with a note.
-const playerManifest = `{"version": 8,
+const playerManifest = `{"version": 9,
   "collections": [{"name": "videos", "description": "Videos", "key": "slug", "display": "slug",
     "schema": {"type": "object", "properties": {"slug": {"type": "string"}, "file": {"type": "string"}, "marks": {"type": "array"}}, "required": ["slug"]}}],
   "commands": [{"name": "note", "title": "Note", "description": "Sends a second of a video back for rework.", "class": "internal",

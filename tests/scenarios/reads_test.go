@@ -9,14 +9,14 @@ import (
 	"deck2/internal/provider"
 )
 
-const sourceManifest = `{"version": 8,
+const sourceManifest = `{"version": 9,
   "collections": [{"name": "items", "description": "An item.", "key": "name",
     "schema": {"type": "object", "properties": {"name": {"type": "string"}, "size": {"type": "integer"}}, "required": ["name"]}},
     {"name": "private", "description": "Not shared.", "key": "name",
     "schema": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}}]}`
 
 func readerManifest(reads string) string {
-	return `{"version": 8,
+	return `{"version": 9,
   "commands": [{"name": "look", "title": "Look", "description": "Looks at the other project.", "class": "internal",
     "result": {"type": "object"}, "executor": {"type": "agent", "prompt": "Look."}}]` + reads + `}`
 }

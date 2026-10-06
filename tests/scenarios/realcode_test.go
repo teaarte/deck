@@ -175,7 +175,6 @@ func rehearseCodeModule(t *testing.T, newProvider func(home string) provider.Pro
 		t.Fatalf("the revert says what it did: %s", got.Result)
 	}
 
-	e.must("deck.project_autonomy", map[string]any{"project": "code", "autonomy": "auto"}, nil)
 	e.must("deck.card_create", map[string]any{"project": "code", "title": "Add divide", "lane": "ready",
 		"text": "Add a function divide(a, b) to calc.py that returns a / b, with a test in test_calc.py."}, nil)
 	before := git("rev-parse", "main")

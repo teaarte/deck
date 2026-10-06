@@ -23,8 +23,8 @@ One question at a time, the first option your recommendation:
 - which repo (its absolute path), and whether its CLAUDE.md or AGENTS.md says how to build, test and commit —
   a run follows those; if they are missing, the repo needs them first (offer to write them with the owner);
 - the base branch: the repo's default (recommended), or another one;
-- autonomy: `suggest` (recommended; the agent hands cards back in Review and merges only when asked) or `auto`
-  (it merges itself after its own checks and says so in the cockpit feed);
+- merging: only when asked (recommended; the agent hands its work back for review) or by itself after its own
+  checks, saying so in the cockpit feed;
 - which provider runs it: Claude Code or Codex; the owner sets it in the Settings of the project.
 
 The folder is the root of the repo (where `.git` is), not a folder inside it and not a git worktree.
@@ -33,7 +33,7 @@ The folder is the root of the repo (where `.git` is), not a folder inside it and
 
 1. Copy the example into a new folder and change only what the answers need: `prompt.md` (its first line
    describes the project; name the base branch there when it is not the default one; repo facts the agent
-   should know), `"autonomy": "auto"` in the manifest when asked.
+   should know), and the line `Merge: yourself.` when the agent merges by itself.
 2. `project_import` the folder. It is a draft until the owner enables it.
 3. Tell the owner what only they do, in the Settings of the project (Settings → Projects → "Settings" on its
    row):

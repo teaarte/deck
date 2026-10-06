@@ -10,7 +10,7 @@ import (
 	"deck2/internal/provider/codex"
 )
 
-const liveManifest = `{"version": 8, "commands": [{"name": "wait", "title": "Wait", "description": "Waits for a code word", "class": "internal",
+const liveManifest = `{"version": 9, "commands": [{"name": "wait", "title": "Wait", "description": "Waits for a code word", "class": "internal",
   "requires": ["sandbox"],
   "executor": {"type": "agent", "prompt": "Run the shell command sleep 20; echo waited with your shell tool in the foreground, not as a background task. When it finishes, reply with exactly the code word the owner gave you meanwhile, or NONE if the owner gave none. Do nothing else."}}]}`
 

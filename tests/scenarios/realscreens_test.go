@@ -129,8 +129,8 @@ func TestRealBrowserSettings(t *testing.T) {
 	}
 	b.open(e.URL + "/#/deck/settings")
 	b.until("the projects tab", itemOf("notes", "enabling grants"))
-	b.eval(pressIn(itemOf("notes", "draft · "), "enable"))
-	b.until("the enabled draft", itemOf("notes", "enabled · "))
+	b.eval(pressIn(itemOf("notes", "draft"), "enable"))
+	b.until("the enabled draft", itemOf("notes", "enabled"))
 	if p := e.project("notes"); p.Status != "enabled" {
 		t.Fatalf("enable on the projects tab turns the draft on: %+v", p)
 	}
@@ -239,7 +239,7 @@ func TestRealBrowserSettings(t *testing.T) {
 	if got := b.eval(`String(document.querySelector('nav').textContent.toLowerCase().includes('notes'))`); got != "true" {
 		t.Fatalf("the project is in the menu before the delete: %s", got)
 	}
-	b.eval(pressIn(itemOf("notes", "enabled · "), "delete"))
+	b.eval(pressIn(itemOf("notes", "enabled"), "delete"))
 	b.until("the owner asked before the delete", `document.querySelector('[data-confirm]')?.innerText.includes('notes')`)
 	var still []projectV
 	e.projectsOf(&still)

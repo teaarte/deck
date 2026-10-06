@@ -150,9 +150,9 @@ func hasVerb(acts []map[string]any, v string) bool {
 	return slices.ContainsFunc(acts, func(a map[string]any) bool { return a["verb"] == v })
 }
 
-// TestSettingsProjectsEnableADraftAtTheRevisionItShowsAndSwitchAutonomy: a draft shows the rights enabling
-// grants; the enable button carries the revision the row shows, so a change after it is refused.
-func TestSettingsProjectsEnableADraftAtTheRevisionItShowsAndSwitchAutonomy(t *testing.T) {
+// TestSettingsProjectsEnableADraftAtTheRevisionItShows: a draft shows the rights enabling grants; the enable
+// button carries the revision the row shows, so a change after it is refused.
+func TestSettingsProjectsEnableADraftAtTheRevisionItShows(t *testing.T) {
 	e := newEnv(t, ok)
 	_, tok := e.token("terminal", "deck.*")
 	if code, out := e.callWith(tok, "deck.project_create", map[string]any{"name": "notes", "manifest": draftManifest}); code != 200 {
@@ -161,41 +161,26 @@ func TestSettingsProjectsEnableADraftAtTheRevisionItShowsAndSwitchAutonomy(t *te
 	items := func() []listItem { return blockData[[]listItem](t, e.settingsBlock("Projects", nil)["items"]) }
 	press := func(a map[string]any) { t.Helper(); e.must(a["command"].(string), a["params"], nil) }
 	notes := findItem(t, items(), "notes")
-	if notes.Title != "notes" || !strings.HasPrefix(notes.Meta, "draft · ") || !strings.Contains(notes.Meta, "autonomy: suggest") ||
+	if notes.Title != "notes" || !strings.HasPrefix(notes.Meta, "draft") || strings.Contains(notes.Meta, "autonomy") ||
 		!strings.Contains(notes.Meta, "enabling grants: "+strings.Join(e.project("notes").Rights, "; ")) {
-		t.Fatalf("a draft shows its autonomy and the rights enabling grants: %+v", notes)
+		t.Fatalf("a draft shows the rights enabling grants: %+v", notes)
 	}
 	stale := verb(t, notes.Actions, "enable")
 	if stale["params"].(map[string]any)["revision"] != float64(e.manifestRevision("notes")) {
 		t.Fatalf("enable carries the revision the row shows: %+v", stale)
 	}
 
-	press(verb(t, notes.Actions, "autonomy_auto"))
+	e.must("deck.manifest_save", map[string]any{"project": "notes", "patch": `[{"op": "replace", "path": "/commands/0/title", "value": "Work again"}]`}, nil)
 	notes = findItem(t, items(), "notes")
-	var m struct{ Manifest string }
-	e.must("deck.manifest_get", map[string]any{"project": "notes"}, &m)
-	_, granted, _ := strings.Cut(notes.Meta, "enabling grants: ")
-	if !strings.Contains(notes.Meta, " · autonomy: auto") || !strings.Contains(granted, "autonomy: auto") ||
-		!strings.Contains(m.Manifest, `"autonomy": "auto"`) || !strings.Contains(m.Manifest, `"prompt": "Do the work."`) {
-		t.Fatalf("autonomy is a new revision of the manifest, the rest kept; enabling now grants it: %+v\n%s", notes, m.Manifest)
-	}
 	e.refused(stale["command"].(string), stale["params"], 409, "look at its rights again")
 	press(verb(t, notes.Actions, "enable"))
 	notes = findItem(t, items(), "notes")
-	if !strings.HasPrefix(notes.Meta, "enabled · ") || hasVerb(notes.Actions, "enable") || strings.Contains(notes.Meta, "grants") {
+	if !strings.HasPrefix(notes.Meta, "enabled") || hasVerb(notes.Actions, "enable") || strings.Contains(notes.Meta, "grants") {
 		t.Fatalf("an enabled project has no enable button and asks for nothing: %+v", notes)
 	}
-	press(verb(t, notes.Actions, "autonomy_suggest"))
-	e.must("deck.manifest_get", map[string]any{"project": "notes"}, &m)
-	if strings.Contains(m.Manifest, "autonomy") || !strings.Contains(findItem(t, items(), "notes").Meta, "autonomy: suggest") {
-		t.Fatalf("suggest is the default and leaves the manifest without autonomy: %s", m.Manifest)
-	}
 	press(verb(t, findItem(t, items(), "notes").Actions, "pause"))
-	if notes = findItem(t, items(), "notes"); !strings.HasPrefix(notes.Meta, "enabled, paused · ") || !hasVerb(notes.Actions, "resume") {
+	if notes = findItem(t, items(), "notes"); !strings.HasPrefix(notes.Meta, "enabled, paused") || !hasVerb(notes.Actions, "resume") {
 		t.Fatalf("a paused project says so and resumes: %+v", notes)
-	}
-	if code, _ := e.callWith(tok, "deck.project_autonomy", map[string]any{"project": "notes", "autonomy": "auto"}); code != 403 {
-		t.Fatalf("only the owner switches autonomy: %d", code)
 	}
 	if f := e.screenForm("", "settings", "deck.command_try"); !strings.Contains(string(f["value"]), `"deck.command_try"`) {
 		t.Fatalf("trying a command is a form on the projects tab: %s", f["value"])
@@ -387,7 +372,7 @@ func TestAProjectHasItsOwnSettings(t *testing.T) {
 		return out
 	}
 	project := blockData[[]listItem](t, e.screenBlock("notes", "settings", "Project", nil)["items"])
-	if len(project) != 1 || project[0].Title != "notes" || !strings.HasPrefix(project[0].Meta, "enabled · ") || !hasVerb(project[0].Actions, "pause") || !hasVerb(project[0].Actions, "delete") {
+	if len(project) != 1 || project[0].Title != "notes" || !strings.HasPrefix(project[0].Meta, "enabled") || !hasVerb(project[0].Actions, "pause") || !hasVerb(project[0].Actions, "delete") {
 		t.Fatalf("the settings show the project with its buttons: %+v", project)
 	}
 	if c := cells("Commands"); len(c) != 1 || c[0][1] != "notes.collect" || c[0][2] != "agent" {

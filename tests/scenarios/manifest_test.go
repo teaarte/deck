@@ -11,7 +11,7 @@ import (
 )
 
 const fullManifest = `{
-  "version": 8,
+  "version": 9,
   "collections": [
     {"name": "sources", "description": "A page to watch", "key": "url", "display": "url",
      "schema": {"type": "object", "properties": {"url": {"type": "string"}, "status": {"type": "string"}}, "required": ["url"]}},
@@ -55,8 +55,7 @@ const fullManifest = `{
     "source": {"collection": "links", "where": "score >= 7", "sort": "-score", "limit": 20},
     "columns": [{"label": "Title", "bind": "title"}, {"label": "Score", "bind": "score"}],
     "actions": [{"label": "Share", "command": "share", "params": {"url": "=url"}}]}]}],
-  "menu": ["main"],
-  "autonomy": "suggest"
+  "menu": ["main"]
 }`
 
 func TestFullManifestIsAccepted(t *testing.T) {
@@ -128,8 +127,8 @@ func TestManifestReferencesAreChecked(t *testing.T) {
 		{"menu", `"menu": ["main"]`, `"menu": ["home"]`, `unknown screen "home"`},
 		{"unknown function", `"display": "title + ' (' + site + ')'"`, `"display": "shout(title)"`, `unknown function "shout"`},
 		{"action params", `"params": {"url": "=url"}`, `"params": {"link": "=url"}`, `needs param "url"`},
-		{"reads project", `"autonomy": "suggest"`, `"autonomy": "suggest", "reads": [{"project": "nope"}]`, `no project "nope"`},
-		{"reads collection", `"autonomy": "suggest"`, `"autonomy": "suggest", "reads": [{"project": "other", "collections": ["nope"]}]`, `no collection "nope"`},
+		{"reads project", `"menu": ["main"]`, `"menu": ["main"], "reads": [{"project": "nope"}]`, `no project "nope"`},
+		{"reads collection", `"menu": ["main"]`, `"menu": ["main"], "reads": [{"project": "other", "collections": ["nope"]}]`, `no collection "nope"`},
 		{"trigger caller", `"callers": ["agent", "owner"], "executor": {"type": "script"`, `"callers": ["agent"], "executor": {"type": "script"`, ""},
 	}
 	for i, c := range cases {
@@ -148,7 +147,7 @@ func TestManifestReferencesAreChecked(t *testing.T) {
 			t.Errorf("%s: want 422 containing %q, got %d %s", c.name, c.want, code, out)
 		}
 	}
-	m := strings.Replace(fullManifest, `"autonomy": "suggest"`, `"autonomy": "suggest", "reads": [{"project": "other", "collections": ["ideas"]}]`, 1)
+	m := strings.Replace(fullManifest, `"menu": ["main"]`, `"menu": ["main"], "reads": [{"project": "other", "collections": ["ideas"]}]`, 1)
 	e.createProject("links", m)
 }
 
@@ -267,7 +266,7 @@ func TestImmutableFieldsCannotChange(t *testing.T) {
 
 func TestKeyFieldsStayAndEmptyTriggersAreRefused(t *testing.T) {
 	e := newEnv(t, nil)
-	contacts := `{"version": 8,
+	contacts := `{"version": 9,
 	  "collections": [{"name": "contacts", "description": "People", "key": "lower(email)",
 	    "schema": {"type": "object", "properties": {"email": {"type": "string"}, "big": {"type": "integer"}}, "required": ["email"]}}],
 	  "commands": [{"name": "fetch-all", "title": "Fetch", "description": "Fetches <all> & more", "class": "internal",
@@ -296,15 +295,15 @@ func TestKeyFieldsStayAndEmptyTriggersAreRefused(t *testing.T) {
 // TestAManifestOlderThanFormat4IsRefused: format 4 is still raised to the current one; older ones are refused.
 func TestAManifestOlderThanFormat4IsRefused(t *testing.T) {
 	e := newEnv(t, nil)
-	v4 := strings.Replace(ideasManifest, `"version": 8,`, `"version": 4,`, 1)
+	v4 := strings.Replace(ideasManifest, `"version": 9,`, `"version": 4,`, 1)
 	e.createProject("ideas", v4)
 	var cur struct{ Manifest string }
 	e.must("deck.manifest_get", map[string]any{"project": "ideas"}, &cur)
-	if !strings.Contains(cur.Manifest, `"version": 8`) {
+	if !strings.Contains(cur.Manifest, `"version": 9`) {
 		t.Fatalf("a format 4 manifest is stored in the current format:\n%s", cur.Manifest)
 	}
-	v3 := strings.Replace(ideasManifest, `"version": 8,`, `"version": 3,`, 1)
-	e.refused("deck.project_create", map[string]any{"name": "old", "manifest": v3}, 422, "version must be the number 8")
+	v3 := strings.Replace(ideasManifest, `"version": 9,`, `"version": 3,`, 1)
+	e.refused("deck.project_create", map[string]any{"name": "old", "manifest": v3}, 422, "version must be the number 9")
 }
 
 // TestOnlyTheBuiltInProjectAnswersEventsOfDeck: a trigger on a message or a failure belongs to project master.
@@ -328,11 +327,11 @@ func TestFormatFiveDropsWhatNothingDoes(t *testing.T) {
 	e.createProject("old", old)
 	var got struct{ Manifest string }
 	e.must("deck.manifest_get", map[string]any{"project": "old"}, &got)
-	if !strings.Contains(got.Manifest, `"version": 8`) || strings.Contains(got.Manifest, "master_events") ||
+	if !strings.Contains(got.Manifest, `"version": 9`) || strings.Contains(got.Manifest, "master_events") ||
 		strings.Contains(got.Manifest, "live_input") || strings.Contains(got.Manifest, "browser_click") || strings.Contains(got.Manifest, "structured_output") || !strings.Contains(got.Manifest, `"no_cloud"`) {
 		t.Fatalf("format 4 comes up to 5 without the fields nothing reads:\n%s", got.Manifest)
 	}
-	code, out := e.call("deck.manifest_save", map[string]any{"project": "old", "manifest": strings.Replace(old, `"version": 4`, `"version": 8`, 1)})
+	code, out := e.call("deck.manifest_save", map[string]any{"project": "old", "manifest": strings.Replace(old, `"version": 4`, `"version": 9`, 1)})
 	if code == 200 || !strings.Contains(string(out), "master_events") {
 		t.Fatalf("format 5 has no master_events: %d %s", code, out)
 	}
@@ -370,7 +369,7 @@ func TestVariablesNeedKnownFields(t *testing.T) {
 // as declared params, and the menu of a group of buttons is dropped.
 func TestAFormatFiveManifestKeepsItsParamsAndMenus(t *testing.T) {
 	e := newEnv(t, nil)
-	old := strings.Replace(strings.Replace(boardWebManifest, `"version": 8,`, `"version": 5,`, 1), `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "blocks": [
+	old := strings.Replace(strings.Replace(boardWebManifest, `"version": 9,`, `"version": 5,`, 1), `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "blocks": [
       {"type": "form", "title": "Again", "command": "score", "values": {"title": "$param.title"}},
       {"type": "actions", "title": "More", "menu": true, "actions": [{"label": "Tell", "command": "tell"}]},`, 1)
 	e.createProject("web", old)
@@ -389,9 +388,9 @@ func TestAFormatFiveManifestKeepsItsParamsAndMenus(t *testing.T) {
 func TestAVersionThatIsNoNumberSaysSo(t *testing.T) {
 	e := newEnv(t, nil)
 	for i, c := range []struct{ version, want string }{{`"6"`, `the text "6"`}, {`6.0`, `6.0`}} {
-		m := strings.Replace(boardWebManifest, `"version": 8`, `"version": `+c.version, 1)
+		m := strings.Replace(boardWebManifest, `"version": 9`, `"version": `+c.version, 1)
 		code, out := e.call("deck.project_create", map[string]any{"name": fmt.Sprintf("v%d", i), "manifest": m})
-		if code != 422 || !strings.Contains(string(out), c.want) || !strings.Contains(string(out), "the number 8") {
+		if code != 422 || !strings.Contains(string(out), c.want) || !strings.Contains(string(out), "the number 9") {
 			t.Errorf("%s: want 422 naming %s, got %d %s", c.version, c.want, code, out)
 		}
 	}

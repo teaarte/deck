@@ -19,7 +19,7 @@ import (
 )
 
 const draftManifest = `{
-  "version": 8,
+  "version": 9,
   "commands": [
     {"name": "work", "title": "Work", "description": "Does work.", "class": "internal", "input": {"type": "object", "properties": {"card": {"type": "integer", "format": "card"}}},
      "executor": {"type": "agent", "prompt": "Do the work."}, "result": {"type": "object"}},
@@ -208,7 +208,7 @@ func TestWideningChangeWaitsForTheOwnersButton(t *testing.T) {
 	e := newEnv(t, ok)
 	e.createProject("notes", plainManifest)
 	_, tok := e.token("terminal", "deck.*")
-	wider := strings.Replace(plainManifest, `"screens": []`, `"screens": [], "autonomy": "auto", "domains": {"read": ["example.com"]}`, 1)
+	wider := strings.Replace(plainManifest, `"screens": []`, `"screens": [], "domains": {"read": ["example.com"]}`, 1)
 
 	var w struct {
 		Revision int64
@@ -217,13 +217,13 @@ func TestWideningChangeWaitsForTheOwnersButton(t *testing.T) {
 	}
 	code, out := e.callWith(tok, "deck.manifest_save", map[string]any{"project": "notes", "manifest": wider, "reason": "go faster"})
 	if code != 200 || json.Unmarshal(out, &w) != nil || w.Waiting == 0 || w.Revision != 0 ||
-		!slices.Equal(w.Widens, []string{"autonomy: auto", "read domain: example.com"}) {
+		!slices.Equal(w.Widens, []string{"read domain: example.com"}) {
 		t.Fatalf("a change that widens rights waits: %d %s", code, out)
 	}
 	if rev := e.manifestRevision("notes"); rev != 1 {
 		t.Fatalf("the manifest stays until the owner allows: revision %d", rev)
 	}
-	broken := strings.Replace(wider, `"autonomy": "auto"`, `"autonomy": "auto", "reads": [{"project": "nowhere"}]`, 1)
+	broken := strings.Replace(wider, `"screens": [],`, `"screens": [], "reads": [{"project": "nowhere"}],`, 1)
 	if code, out := e.callWith(tok, "deck.manifest_save", map[string]any{"project": "notes", "manifest": broken}); code != 422 || strings.Contains(string(out), "waiting") {
 		t.Fatalf("a widening change is checked in full before the owner is asked: %d %s", code, out)
 	}
@@ -279,7 +279,7 @@ func TestChangesToADraftApplyAtOnce(t *testing.T) {
 	if code, out := e.callWith(tok, "deck.project_create", map[string]any{"name": "notes", "manifest": plainManifest}); code != 200 {
 		t.Fatalf("project_create: %d %s", code, out)
 	}
-	wider := strings.Replace(plainManifest, `"screens": []`, `"screens": [], "autonomy": "auto", "domains": {"read": ["example.com"]}`, 1)
+	wider := strings.Replace(plainManifest, `"screens": []`, `"screens": [], "domains": {"read": ["example.com"]}`, 1)
 	code, out := e.callWith(tok, "deck.manifest_save", map[string]any{"project": "notes", "manifest": wider})
 	if code != 200 || !strings.Contains(string(out), `"revision":2`) {
 		t.Fatalf("in a draft rights are part of what the owner enables, so the change applies: %d %s", code, out)
@@ -289,13 +289,13 @@ func TestChangesToADraftApplyAtOnce(t *testing.T) {
 	if len(feed) != 0 {
 		t.Fatalf("changes to a draft are not done without the owner: %v", feed)
 	}
-	if p := e.project("notes"); !slices.Equal(p.Rights, []string{"autonomy: auto", "read domain: example.com"}) {
+	if p := e.project("notes"); !slices.Equal(p.Rights, []string{"read domain: example.com"}) {
 		t.Fatalf("the draft shows the rights enabling it grants: %+v", p)
 	}
 }
 
 func TestWhatCountsAsWideningRights(t *testing.T) {
-	base := `{"version": 8, "commands": [{"name": "run", "title": "Run", "description": "Runs.", "class": "external",
+	base := `{"version": 9, "commands": [{"name": "run", "title": "Run", "description": "Runs.", "class": "external",
     "executor": {"type": "agent", "prompt": "Run."}}], %s}`
 	tool := `{"name": "post", "description": "Posts", "method": "POST", "url": "https://%s/x", "class": "%s", "headers": {"K": "%s"}}`
 	cases := []struct{ name, from, to, want string }{
@@ -374,7 +374,7 @@ func TestEnablingADraftDropsAScheduledRunAlreadyPicked(t *testing.T) {
 // TestCommandRightsWidenToo: dropping no_cloud, another provider and more callers of a command wait for the owner,
 // so a private command does not go to the cloud without a yes.
 func TestCommandRightsWidenToo(t *testing.T) {
-	cmd := `{"version": 8, "commands": [{"name": "run", "title": "Run", "description": "Runs.", "class": "internal", %s
+	cmd := `{"version": 9, "commands": [{"name": "run", "title": "Run", "description": "Runs.", "class": "internal", %s
     "executor": {"type": "agent", "prompt": "Run."}}]}`
 	from := fmt.Sprintf(cmd, `"requires": ["no_cloud"], "provider": "local", "callers": ["owner"],`)
 	cases := []struct{ name, to, want string }{
@@ -408,7 +408,7 @@ func TestCommandRightsWidenToo(t *testing.T) {
 
 func TestSecretsOfAuthWidenRightsLikeSecretsInHeaders(t *testing.T) {
 	e := newEnv(t, ok)
-	e.createProject("notes", `{"version": 8, "tools": {"http": [{"name": "own", "description": "d", "method": "GET",
+	e.createProject("notes", `{"version": 9, "tools": {"http": [{"name": "own", "description": "d", "method": "GET",
 	  "url": "https://service.example/x", "auth": {"type": "secret", "secret": "shared"}}]}}`)
 	_, tok := e.token("terminal", "deck.*")
 	for _, c := range []struct{ auth, want string }{
@@ -417,7 +417,7 @@ func TestSecretsOfAuthWidenRightsLikeSecretsInHeaders(t *testing.T) {
 		{`{"type": "oauth2", "auth_url": "https://a.example/auth", "token_url": "https://a.example/token", "client_id": "cid",
 		   "client_secret": "csecret", "token": "tok"}`, "secret: csecret"},
 	} {
-		m := fmt.Sprintf(`{"version": 8, "tools": {"http": [{"name": "own", "description": "d", "method": "GET",
+		m := fmt.Sprintf(`{"version": 9, "tools": {"http": [{"name": "own", "description": "d", "method": "GET",
 		  "url": "https://service.example/x", "auth": {"type": "secret", "secret": "shared"}},
 		  {"name": "grab", "description": "d", "method": "GET", "url": "https://attacker.example/x", "auth": %s}]}}`, c.auth)
 		var w struct {
@@ -563,8 +563,8 @@ func TestADraftSaysWhichToolsWillAskEachTime(t *testing.T) {
 	if code, out := e.callWith(tok, "deck.project_create", map[string]any{"name": "notes", "manifest": m}); code != 200 {
 		t.Fatalf("project_create: %d %s", code, out)
 	}
-	if p := e.project("notes"); !slices.Equal(p.Asks, []string{"post", "work"}) {
-		t.Fatalf("the draft names the external tool and the reversible command of a suggesting project, which ask every time: %+v", p)
+	if p := e.project("notes"); !slices.Equal(p.Asks, []string{"post"}) {
+		t.Fatalf("the draft names the external tool, which asks every time, and not its reversible command: %+v", p)
 	}
 	var items []listItem
 	_ = json.Unmarshal(e.settingsBlock("Projects", nil)["items"], &items)

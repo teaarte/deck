@@ -1,4 +1,3 @@
-import i18n from './i18n';
 
 // Shown is how the catalog says to show a value: its format and the currency of money.
 export interface Shown {
@@ -105,9 +104,6 @@ export function formatted(v: unknown, s: Shown, now = Date.now()): string {
         if (d) return d.toLocaleString();
         break;
       }
-      case 'label':
-        if (typeof v === 'string') return i18n.t('labels.' + v, { defaultValue: v });
-        break;
       case 'relative': {
         const d = when(v);
         if (d) return relative(d, now);

@@ -118,8 +118,8 @@ func Canonical(raw json.RawMessage) string {
 	return string(b)
 }
 
-// gate reports whether a call that is not internal runs now: reversible on autonomy auto, external when allowed
-// by the project or the tool; a draft declines both, and a tool of a draft or a trial waits for the owner.
+// gate reports whether a call that is not internal runs now: reversible at once, external when allowed by the
+// project or the tool; a draft declines both, and a tool of a draft or a trial waits for the owner.
 func (g *Gateway) gate(ctx context.Context, act registry.Actor, c *registry.Command, project int64, input json.RawMessage) (bool, error) {
 	if project == 0 {
 		if c.Class == registry.External && c.Allowed != nil {
@@ -143,7 +143,7 @@ func (g *Gateway) gate(ctx context.Context, act registry.Actor, c *registry.Comm
 	}
 	switch c.Class {
 	case registry.Reversible:
-		return m.Autonomy == "auto", nil
+		return true, nil
 	case registry.External:
 		listed := slices.Contains(m.AllowedExternal, strings.TrimPrefix(c.Name, p.Name+".")) || slices.Contains(m.AllowedExternal, c.Name)
 		if c.Allowed != nil {

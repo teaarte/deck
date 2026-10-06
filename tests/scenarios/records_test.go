@@ -203,7 +203,7 @@ func TestConcurrentCreatesKeepTheFirstImmutableValue(t *testing.T) {
 
 func TestKeyFieldsStayImmutableWithReferencedSchemas(t *testing.T) {
 	e := newEnv(t, nil)
-	m := `{"version": 8, "collections": [{"name": "people", "description": "A person", "key": "lower(email)",
+	m := `{"version": 9, "collections": [{"name": "people", "description": "A person", "key": "lower(email)",
 	  "schema": {"$ref": "#/$defs/p", "$defs": {"p": {"type": "object", "properties": {"email": {"type": "string"}}, "required": ["email"]}}}}]}`
 	e.createProject("people", m)
 	e.must("deck.records_upsert", map[string]any{"project": "people", "collection": "people", "records": `{"email": "A@x.example"}`}, nil)
@@ -215,7 +215,7 @@ func TestKeyFieldsStayImmutableWithReferencedSchemas(t *testing.T) {
 }
 
 const numbersManifest = `{
-  "version": 8,
+  "version": 9,
   "collections": [{"name": "items", "description": "Items", "key": "id", "display": "name",
     "schema": {"type": "object", "properties": {"id": {"type": "integer"}, "name": {"type": "string"}, "score": {"type": "number"}}, "required": ["id"]}}],
   "commands": [{"name": "pick", "title": "Pick", "description": "Picks an item", "class": "internal",

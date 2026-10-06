@@ -18,7 +18,7 @@ func TestRealBrowserProjectSettings(t *testing.T) {
 	b := newPlaywright(t)
 	b.call("browser_resize", map[string]any{"width": 1400, "height": 1000})
 	b.open(e.URL + "/?token=" + token + "#/deck/settings")
-	item := itemOf("notes", "enabled · ")
+	item := itemOf("notes", "enabled")
 	b.until("the project in the Projects tab", item)
 	b.eval(pressIn(item, "settings"))
 	b.until("the commands of the project", `[...document.querySelectorAll('tr')].some((r) => r.innerText.includes('notes.collect'))`)
@@ -33,5 +33,5 @@ func TestRealBrowserProjectSettings(t *testing.T) {
 		e.projectsOf(&ps)
 		return len(ps) == 1 && ps[0].Paused
 	})
-	b.until("the paused project on its settings", itemOf("notes", "enabled, paused · "))
+	b.until("the paused project on its settings", itemOf("notes", "enabled, paused"))
 }

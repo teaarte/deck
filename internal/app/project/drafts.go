@@ -60,39 +60,6 @@ func (pj *Service) projectEnable(ctx context.Context, act registry.Actor, in pro
 	return map[string]any{"project": p.Name, "status": store.ProjectEnabled, "rights": rights(m)}, nil
 }
 
-type projectAutonomyIn struct {
-	Project  string `type:"project" desc:"Project name"`
-	Autonomy string `enum:"suggest|auto" desc:"suggest or auto"`
-}
-
-// projectAutonomy writes the autonomy of a project into a new revision of its manifest, the rest as it was.
-func (pj *Service) projectAutonomy(ctx context.Context, act registry.Actor, in projectAutonomyIn) (any, error) {
-	p, err := access.Project(ctx, pj.St.Q, act, in.Project)
-	if err != nil {
-		return nil, err
-	}
-	d, err := pj.St.Q.FindDocument(ctx, docs.Ref{Scope: docs.ProjectScope(p), Name: docs.ManifestName}.Find())
-	if err != nil {
-		return nil, err
-	}
-	r, err := docs.Revision(ctx, pj.St.Q, d, 0)
-	if err != nil {
-		return nil, err
-	}
-	var doc map[string]json.RawMessage
-	if err := json.Unmarshal([]byte(r.Text), &doc); err != nil {
-		return nil, registry.Invalid("deck: the manifest of %s is not a JSON object: %v", p.Name, err)
-	}
-	delete(doc, "autonomy")
-	if in.Autonomy == "auto" {
-		doc["autonomy"] = json.RawMessage(`"auto"`)
-	}
-	raw, _ := json.MarshalIndent(doc, "", "  ")
-	reason := "autonomy: " + in.Autonomy
-	return pj.Save.SaveManifest(ctx, act, p, raw, reason, 0, d.Current,
-		Call{Command: registry.Builtin + ".manifest_save", Input: map[string]any{"project": p.Name, "manifest": string(raw), "reason": reason}})
-}
-
 // rights are what a project is allowed beyond internal actions.
 func rights(m *manifest.Manifest) []string {
 	if w := manifest.Widens(&manifest.Manifest{}, m); w != nil {
@@ -163,9 +130,6 @@ func (pj *Service) draftsCommands() []*registry.Command {
 		registry.Def("project_enable", "Enable project",
 			"Turns a draft on: its triggers start running and the rights its manifest asks for count as allowed.",
 			registry.OwnerOnly, pj.projectEnable),
-		registry.Def("project_autonomy", "Project autonomy",
-			"Sets whether a project suggests, so the owner says yes to its reversible changes, or acts on its own and reports; a new manifest revision.",
-			registry.OwnerOnly, pj.projectAutonomy),
 		registry.Def("command_try", "Try a command",
 			"Runs a command of a project once as a trial to check it before a button or a schedule runs it: calls that are not internal are declined, a tool call waits for the owner's yes on that call.",
 			registry.OwnerSide, pj.commandTry),

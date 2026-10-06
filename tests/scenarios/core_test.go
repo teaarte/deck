@@ -16,7 +16,7 @@ import (
 )
 
 const ideasManifest = `{
-  "version": 8,
+  "version": 9,
   "collections": [{
     "name": "ideas", "description": "Short ideas", "key": "title", "display": "title",
     "schema": {"type": "object", "properties": {"title": {"type": "string"}, "score": {"type": "integer"}, "topic": {"type": "string"}},
@@ -282,7 +282,7 @@ func TestResultNotBySchemaAfterOneRetry(t *testing.T) {
 }
 
 const calcManifest = `{
-  "version": 8,
+  "version": 9,
   "collections": [{"name": "nums", "description": "A number", "key": "n",
     "schema": {"type": "object", "properties": {"n": {"type": "integer"}}, "required": ["n"]}}],
   "commands": [{"name": "calc", "title": "Calc", "description": "Uses a number.", "class": "internal",

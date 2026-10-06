@@ -19,7 +19,7 @@ import (
 )
 
 const realManifest = `{
-  "version": 8,
+  "version": 9,
   "collections": [{
     "name": "ideas", "description": "Short ideas", "key": "title", "display": "title",
     "schema": {"type": "object", "properties": {"title": {"type": "string"}, "score": {"type": "integer"}, "topic": {"type": "string"}},
@@ -141,7 +141,7 @@ func TestRealClaudeCodeRepoInstructions(t *testing.T) {
 	cmd, _ := json.Marshal(map[string]any{"name": "markers", "title": "Markers", "description": "Names the marker words.", "class": "internal",
 		"result":   map[string]any{"type": "object", "required": []string{"markers"}, "properties": map[string]any{"markers": map[string]any{"type": "string"}}},
 		"executor": map[string]any{"type": "agent", "folder": true, "prompt": prompt + " The result is those words in markers."}})
-	p := e.createProject("code", `{"version": 8, "commands": [`+string(cmd)+`]}`)
+	p := e.createProject("code", `{"version": 9, "commands": [`+string(cmd)+`]}`)
 	e.must("deck.folder_add", map[string]any{"project": "code", "path": repo}, nil)
 	id := e.run(p, "markers")
 	got := e.pollState(id, 5*time.Minute, time.Second, "done", "error")

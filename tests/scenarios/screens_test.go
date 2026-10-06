@@ -21,7 +21,7 @@ import (
 
 // webManifest is a project with every block of the catalog, a record page and an external tool.
 func webManifest(url string) string {
-	return fmt.Sprintf(`{"version": 8,
+	return fmt.Sprintf(`{"version": 9,
   "collections": [{"name": "notes", "description": "Notes", "key": "title", "display": "title",
     "schema": {"type": "object", "properties": {"title": {"type": "string"}, "score": {"type": "integer"}}, "required": ["title"]}}],
   "commands": [
@@ -604,7 +604,7 @@ func TestButtonsOfARecordPageFollowTheRecordAfterAnEvent(t *testing.T) {
 // its when holds for, takes a param from an expression over the row, asks first or asks for a typed value.
 func TestAModuleButtonShowsWhereItHoldsAndTakesValuesFromTheRow(t *testing.T) {
 	e := newEnv(t, nil)
-	e.createProject("notes", `{"version": 8,
+	e.createProject("notes", `{"version": 9,
   "collections": [{"name": "notes", "description": "Notes", "key": "title", "display": "title",
     "schema": {"type": "object", "properties": {"title": {"type": "string"}, "score": {"type": "integer"}}, "required": ["title"]}}],
   "commands": [{"name": "touch", "title": "Touch", "description": "Touches a note.", "class": "internal", "result": {"type": "object"},
@@ -665,7 +665,7 @@ func TestAValueIsFixedTextOrAnExpression(t *testing.T) {
 	if !strings.Contains(cur.Manifest, `"note": "=_id"`) || strings.Index(cur.Manifest, `"score": {`) > strings.Index(cur.Manifest, `"note": {`) {
 		t.Fatalf("the raised manifest keeps the order it was written in: %s", cur.Manifest)
 	}
-	code, out := e.call("deck.project_create", map[string]any{"name": "new", "manifest": strings.Replace(old, `"version": 7`, `"version": 8`, 1)})
+	code, out := e.call("deck.project_create", map[string]any{"name": "new", "manifest": strings.Replace(old, `"version": 7`, `"version": 9`, 1)})
 	if code != 422 || !strings.Contains(string(out), "=_id") {
 		t.Fatalf("format 8 writes a value from the item as =<expression>: %d %s", code, out)
 	}
@@ -703,7 +703,7 @@ func TestAModuleOfFormatSevenOnAReadOfDeckStillLoads(t *testing.T) {
 // description that mentions it is text.
 func TestATextThatMentionsAnOldParamIsNoParam(t *testing.T) {
 	e := newEnv(t, nil)
-	m := `{"version": 8, "commands": [{"name": "touch", "title": "Touch", "description": "Touches.", "class": "internal",
+	m := `{"version": 9, "commands": [{"name": "touch", "title": "Touch", "description": "Touches.", "class": "internal",
     "result": {"type": "object"}, "input": {"type": "object", "properties": {"n": {"type": "string"}}}, "executor": {"type": "agent", "prompt": "Touch."}}],
   "screens": [{"name": "main", "title": "Main", "blocks": [{"type": "actions", "title": "Runs",
     "description": "Old screens wrote $param.n", "actions": [{"label": "Touch", "command": "touch", "params": {"n": "%s"}}]}]}]}`
@@ -915,7 +915,7 @@ func TestAHiddenButtonOfACustomBlockLeavesTheClassOfTheOthers(t *testing.T) {
 // has still loads, as a module of before; only that block is an error, and a save with it is refused.
 func TestABlockOfACommandDeckNoLongerHasTurnsOffOnlyThatBlock(t *testing.T) {
 	e := newEnv(t, nil)
-	m := `{"version": 8, "screens": [{"name": "main", "title": "Main", "blocks": [
+	m := `{"version": 9, "screens": [{"name": "main", "title": "Main", "blocks": [
     {"type": "list", "source": {"from": "deck.projects_list"}, "item": {"title": "name"}},
     {"type": "list", "source": {"from": "deck.models_list", "rows": "models"}, "item": {"title": "name"}}]}]}`
 	e.createProject("old", m)

@@ -16,7 +16,7 @@ You talk to deck through its MCP server (`deck`). The tools are deck commands: `
 `projects_list`, `triggers_list`, `models_list`, `health_list`, `asks_list`, `command_describe`. Some commands only the owner runs:
 `secret_set`, `oauth_start`, `browser_login`, `assignment_set`, `model_set`, `project_enable`; say which one and
 why when the module needs it. The owner does them in two places. The Settings of the project (Settings →
-Projects → "Settings" on its row): "Enable" with the rights enabling grants, autonomy, pause, the models of
+Projects → "Settings" on its row): "Enable" with the rights enabling grants, pause, the models of
 each command, folders, the secrets its tools take. deck's Settings tabs: Projects (create, import, a trial run),
 Models (assignments, a model and its agent), Connections (where models are reached, and the other secrets: a
 name and a hidden value), Tokens, Health; sign-ins wait in the cockpit. So name
@@ -403,7 +403,7 @@ try the command on the model it will run on before the hand-over.
 Each "yes" the owner gives by habit is a failure of the module. What an agent does in its own folders, in its
 shell and on the web does not wait for the owner: the provider's auto mode passes it and asks only about what
 it finds risky, which should be rare in a normal run. What waits is deck tools of class `external` outside
-`allowed_external`, reversible actions in the `suggest` mode, and questions the agent asks. Before hand-over,
+`allowed_external` and questions the agent asks. Before hand-over,
 count what will wait for the owner in a normal week and remove what they would always allow:
 
 - a tool that only reads (search, fetch, status) gets `"class": "internal"`; `external` is for what changes
@@ -473,7 +473,7 @@ Name each of these rights in the hand-over: the owner grants them with "enable".
 
 ## 9. Rights
 
-Ask only for what the module needs. Autonomy `auto`, `allowed_external`, domains, secrets, `models`, milder classes
+Ask only for what the module needs. `allowed_external`, domains, secrets, `models`, milder classes
 of tools, `reads` of other projects and removing `no_network` are rights: in a draft they are part of what the owner enables; in an
 enabled project a change that widens them waits for the owner's button. Every other change you make to an
 enabled project is listed as "done without you" with an undo.

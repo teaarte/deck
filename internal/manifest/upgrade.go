@@ -40,6 +40,10 @@ var upgrades = map[int]func(m map[string]any){
 	7: func(m map[string]any) {
 		fromRecord(m["screens"])
 	},
+	8: func(m map[string]any) {
+		delete(m, "autonomy")
+		dropLabel(m["screens"])
+	},
 	6: func(m map[string]any) {
 		for _, c := range items(m["commands"]) {
 			r, ok := c["result"].(map[string]any)
@@ -52,6 +56,23 @@ var upgrades = map[int]func(m map[string]any){
 			}
 		}
 	},
+}
+
+// dropLabel drops the cell format label of format 8, which showed a name by deck's own words.
+func dropLabel(v any) {
+	switch v := v.(type) {
+	case map[string]any:
+		if v["format"] == "label" {
+			delete(v, "format")
+		}
+		for _, x := range v {
+			dropLabel(x)
+		}
+	case []any:
+		for _, x := range v {
+			dropLabel(x)
+		}
+	}
 }
 
 // withNull is the type of a result schema that takes null too, as every result did before format 7.

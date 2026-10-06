@@ -14,14 +14,11 @@ import (
 
 var secretRef = regexp.MustCompile(`\$secret\.([A-Za-z0-9_.-]+)`)
 
-// Widens lists what next grants that prev does not: autonomy, allowed external actions, domains, secrets, models,
+// Widens lists what next grants that prev does not: allowed external actions, domains, secrets, models,
 // milder classes, dropped requirements, providers, callers, MCP servers, reads, network, HTTP tools that skip asking.
 func Widens(prev, next *Manifest) []string {
 	var out []string
 	add := func(format string, a ...any) { out = append(out, fmt.Sprintf(format, a...)) }
-	if next.Autonomy == "auto" && prev.Autonomy != "auto" {
-		add("autonomy: auto")
-	}
 	if prev.NoNetwork && !next.NoNetwork {
 		add("no_network removed: agents get their own web")
 	}
@@ -168,13 +165,10 @@ func ShellHosts(m *Manifest) []string {
 	return out
 }
 
-// Clip is m with only the rights granted gives: autonomy, network, allowed external actions, domains other than
+// Clip is m with only the rights granted gives: network, allowed external actions, domains other than
 // registries, models and reads it lacks are dropped; an HTTP tool that would widen them asks on every call.
 func Clip(granted, m *Manifest) *Manifest {
 	c := *m
-	if granted.Autonomy != "auto" {
-		c.Autonomy = ""
-	}
 	c.NoNetwork = m.NoNetwork || granted.NoNetwork
 	c.Domains = Domains{Read: kept(m.Domains.Read, append(slices.Clone(Registries), granted.Domains.Read...)), Act: kept(m.Domains.Act, granted.Domains.Act)}
 	c.AllowedExternal = kept(m.AllowedExternal, granted.AllowedExternal)
@@ -277,7 +271,7 @@ func compact(raw json.RawMessage) []byte {
 }
 
 // AskEachTime are what waits for the owner on every call: external tools and commands outside allowed_external,
-// reversible commands of a project that suggests, and the tools of an MCP server without a class.
+// and the tools of an MCP server without a class.
 func (m *Manifest) AskEachTime() []string {
 	var out []string
 	external := func(name, class string) {
@@ -296,9 +290,7 @@ func (m *Manifest) AskEachTime() []string {
 		out = append(out, server+".* without a class")
 	}
 	for _, c := range m.Commands {
-		if c.Class == "external" && !slices.Contains(m.AllowedExternal, c.Name) || c.Class == "reversible" && m.Autonomy != "auto" {
-			out = append(out, c.Name)
-		}
+		external(c.Name, c.Class)
 	}
 	return out
 }

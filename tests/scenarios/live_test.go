@@ -13,7 +13,7 @@ import (
 	"deck2/internal/provider"
 )
 
-const tellManifest = `{"version": 8, "commands": [{"name": "work", "title": "Work", "description": "Works a while", "class": "internal",
+const tellManifest = `{"version": 9, "commands": [{"name": "work", "title": "Work", "description": "Works a while", "class": "internal",
   "executor": {"type": "agent", "prompt": "Work."}}]}`
 
 // heard waits for a message of the owner on the live channel of a turn and takes it.

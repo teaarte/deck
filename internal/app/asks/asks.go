@@ -343,7 +343,7 @@ func (s *Service) allowAlways(ctx context.Context, act registry.Actor, q db.Ask)
 		return registry.Invalid("deck: only a tool or command of the project can be allowed always")
 	}
 	if c, err := s.Registry.Lookup(ctx, p.WorkspaceID, f.Call.Command); err == nil && c.Class != registry.External {
-		return registry.Invalid("deck: %s is %s: it follows the autonomy of the project, not the allowed external list", c.Name, c.Class)
+		return registry.Invalid("deck: %s is %s: it runs without asking, so only external ones are allowed always", c.Name, c.Class)
 	}
 	m, err := docs.Manifest(ctx, s.St.Q, p)
 	if err != nil {

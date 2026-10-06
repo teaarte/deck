@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"database/sql/driver"
+	"fmt"
 	"slices"
 	"sync"
 
@@ -23,37 +24,70 @@ type Change struct {
 // its project or workspace; quiet are columns whose change no reader shows.
 type table struct {
 	topic string
-	// scope is project_id, workspace_id, or the id of the row of another table (process, document, chat_topic)
-	// the project or workspace comes from.
-	scope string
+	scope scope
 	quiet []string
 }
 
-var tables = map[string]table{
-	"project":           {"projects", "id", nil},
-	"project_folder":    {"projects", "project_id", nil},
-	"assignment":        {"projects", "project_id", nil},
-	"connection":        {"models", "workspace_id", nil},
-	"model":             {"models", "workspace_id", nil},
-	"mcp_tool":          {"projects", "project_id", nil},
-	"trigger":           {"triggers", "project_id", nil},
-	"process":           {"processes", "project_id", []string{"output_ms"}},
-	"process_remark":    {"processes", "process_id", nil},
-	"record":            {"collection", "project_id", nil},
-	"document":          {"documents", "project_id", nil},
-	"document_revision": {"documents", "document_id", nil},
-	"file":              {"files", "project_id", nil},
-	"ask":               {"asks", "project_id", nil},
-	"tool_call":         {"calls", "project_id", nil},
-	"llm_call":          {"usage", "project_id", nil},
-	"health":            {"health", "project_id", nil},
-	"feed":              {"feed", "project_id", nil},
-	"setting":           {"settings", "workspace_id", nil},
-	"push_subscription": {"settings", "workspace_id", nil},
-	"automation_token":  {"tokens", "workspace_id", nil},
-	"chat_topic":        {"chat", "workspace_id", nil},
-	"chat_message":      {"chat", "topic_id", nil},
+// scope is the column of a row its project or workspace comes from.
+type scope int
+
+const (
+	// ofProject is the row's project_id, ofSelf the id of a project row.
+	ofProject scope = iota
+	ofSelf
+	ofWorkspace
+	// ofProcess, ofDocument and ofTopic are the id of a row of another table the project or workspace comes from.
+	ofProcess
+	ofDocument
+	ofTopic
+)
+
+func (s scope) column() string {
+	switch s {
+	case ofProject:
+		return "project_id"
+	case ofSelf:
+		return "id"
+	case ofWorkspace:
+		return "workspace_id"
+	case ofProcess:
+		return "process_id"
+	case ofDocument:
+		return "document_id"
+	case ofTopic:
+		return "topic_id"
+	}
+	panic(fmt.Sprintf("store: no column of scope %d", s))
 }
+
+var tables = map[string]table{
+	"project":           {"projects", ofSelf, nil},
+	"project_folder":    {"projects", ofProject, nil},
+	"assignment":        {"projects", ofProject, nil},
+	"connection":        {"models", ofWorkspace, nil},
+	"model":             {"models", ofWorkspace, nil},
+	"mcp_tool":          {"projects", ofProject, nil},
+	"trigger":           {"triggers", ofProject, nil},
+	"process":           {"processes", ofProject, []string{"output_ms"}},
+	"process_remark":    {"processes", ofProcess, nil},
+	"record":            {"collection", ofProject, nil},
+	"document":          {"documents", ofProject, nil},
+	"document_revision": {"documents", ofDocument, nil},
+	"file":              {"files", ofProject, nil},
+	"ask":               {"asks", ofProject, nil},
+	"tool_call":         {"calls", ofProject, nil},
+	"llm_call":          {"usage", ofProject, nil},
+	"health":            {"health", ofProject, nil},
+	"feed":              {"feed", ofProject, nil},
+	"setting":           {"settings", ofWorkspace, nil},
+	"push_subscription": {"settings", ofWorkspace, nil},
+	"automation_token":  {"tokens", ofWorkspace, nil},
+	"chat_topic":        {"chat", ofWorkspace, nil},
+	"chat_message":      {"chat", ofTopic, nil},
+}
+
+// silent are the tables no screen shows, so their writes publish nothing; every other table is in tables.
+var silent = []string{"workspace", "goose_db_version", "mark", "folder_lock", "chat_session", "record_snapshot"}
 
 // rowWrite is a row a transaction changed: the table and the scope ids of the old and the new row.
 type rowWrite struct {
@@ -77,7 +111,7 @@ func (c *changes) preUpdate(d sqlite.SQLitePreUpdateData) {
 	c.mu.Lock()
 	cols := c.columns[d.TableName]
 	c.mu.Unlock()
-	at := slices.Index(cols, t.scope)
+	at := slices.Index(cols, t.scope.column())
 	var old, new []any
 	if d.Op != sqlite3.SQLITE_INSERT {
 		old = make([]any, len(cols))
@@ -175,8 +209,25 @@ func (h hooked) Connect(ctx context.Context) (driver.Conn, error) {
 	return conn, err
 }
 
-// readColumns learns the columns of the tables whose writes are events, in their order.
+// readColumns learns the columns of the tables whose writes are events, in their order; a table of the base that
+// is neither among them nor silent is an error.
 func (c *changes) readColumns(conn *sql.DB) error {
+	names, err := conn.Query(`SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'`)
+	if err != nil {
+		return err
+	}
+	for names.Next() {
+		var name string
+		if err := names.Scan(&name); err != nil {
+			names.Close()
+			return err
+		}
+		if _, ok := tables[name]; !ok && !slices.Contains(silent, name) {
+			names.Close()
+			return fmt.Errorf("store: table %s publishes no topic and is not silent", name)
+		}
+	}
+	names.Close()
 	cols := map[string][]string{}
 	for name := range tables {
 		rows, err := conn.Query(`SELECT name FROM pragma_table_info(?) ORDER BY cid`, name)
@@ -212,25 +263,26 @@ func (s *Store) resolve(ctx context.Context, ws []rowWrite) []Change {
 		t := tables[w.table]
 		for _, id := range w.ids {
 			c := Change{Topic: t.topic}
+			project := int64(0)
 			switch t.scope {
-			case "workspace_id":
+			case ofWorkspace:
 				c.Workspace = id
-			case "topic_id":
+			case ofTopic:
 				c.Workspace = s.one(ctx, `SELECT workspace_id FROM chat_topic WHERE id = ?`, id)
+			case ofProject, ofSelf:
+				project = id
+			case ofProcess:
+				project = s.one(ctx, `SELECT project_id FROM process WHERE id = ?`, id)
+			case ofDocument:
+				project = s.one(ctx, `SELECT COALESCE(project_id, 0) FROM document WHERE id = ?`, id)
 			default:
-				project := id
-				switch t.scope {
-				case "process_id":
-					project = s.one(ctx, `SELECT project_id FROM process WHERE id = ?`, id)
-				case "document_id":
-					project = s.one(ctx, `SELECT COALESCE(project_id, 0) FROM document WHERE id = ?`, id)
-				}
-				if project != 0 {
-					var name string
-					var ws int64
-					if s.reads.QueryRowContext(ctx, `SELECT name, workspace_id FROM project WHERE id = ?`, project).Scan(&name, &ws) == nil {
-						c.Project, c.Workspace = name, ws
-					}
+				panic(fmt.Sprintf("store: no scope %d", t.scope))
+			}
+			if project != 0 {
+				var name string
+				var ws int64
+				if s.reads.QueryRowContext(ctx, `SELECT name, workspace_id FROM project WHERE id = ?`, project).Scan(&name, &ws) == nil {
+					c.Project, c.Workspace = name, ws
 				}
 			}
 			add(c)

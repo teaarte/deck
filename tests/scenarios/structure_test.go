@@ -202,3 +202,17 @@ func TestATransactionOfAnotherContextInsideATransactionFailsInsteadOfFreezing(t 
 		t.Fatal("a transaction inside a transaction freezes deck")
 	}
 }
+
+// TestATableWithoutATopicKeepsDeckFromStarting: a table of the base whose writes would publish nothing and that is
+// not marked silent keeps deck from starting, so no new table goes unseen by the screens that follow it.
+func TestATableWithoutATopicKeepsDeckFromStarting(t *testing.T) {
+	home := t.TempDir()
+	e := newEnvWith(t, home, &Fake{})
+	if _, err := e.App.Store.DB.Exec(`CREATE TABLE stray (id INTEGER PRIMARY KEY, project_id INTEGER)`); err != nil {
+		t.Fatal(err)
+	}
+	_ = e.App.Close()
+	if _, err := app.New(app.Config{Home: home}, &Fake{}); err == nil || !strings.Contains(err.Error(), "table stray publishes no topic") {
+		t.Fatalf("deck does not start with a table it does not know: %v", err)
+	}
+}

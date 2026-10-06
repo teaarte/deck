@@ -61,7 +61,7 @@ func (c Caller) actor() registry.Actor {
 }
 
 // Frozen is a call with its parameters as they were when it was asked for: a call that waits for a yes, a
-// change of rights, a suggestion.
+// change of rights.
 type Frozen struct {
 	Call struct {
 		Command string          `json:"command"`

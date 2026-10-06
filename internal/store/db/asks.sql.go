@@ -353,18 +353,6 @@ func (q *Queries) ExpireStaleConfirms(ctx context.Context, now string) ([]Ask, e
 	return items, nil
 }
 
-const expireSuggestions = `-- name: ExpireSuggestions :execrows
-UPDATE ask SET state = 'expired' WHERE kind = 'suggest' AND state = 'open' AND expires_at <= CAST(?1 AS TEXT)
-`
-
-func (q *Queries) ExpireSuggestions(ctx context.Context, now string) (int64, error) {
-	result, err := q.db.ExecContext(ctx, expireSuggestions, now)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
-}
-
 const findOpenCallAsk = `-- name: FindOpenCallAsk :one
 SELECT id, workspace_id, project_id, process_id, kind, text, payload, answer, state, created_at, answered_at, expires_at, delivered_at FROM ask
 WHERE kind = 'call' AND state = 'open' AND coalesce(project_id, 0) = CAST(?1 AS INTEGER) AND payload = ?2
@@ -458,55 +446,6 @@ ORDER BY a.id
 
 func (q *Queries) ListOpenAsksOfProcess(ctx context.Context, processID int64) ([]Ask, error) {
 	rows, err := q.db.QueryContext(ctx, listOpenAsksOfProcess, processID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []Ask
-	for rows.Next() {
-		var i Ask
-		if err := rows.Scan(
-			&i.ID,
-			&i.WorkspaceID,
-			&i.ProjectID,
-			&i.ProcessID,
-			&i.Kind,
-			&i.Text,
-			&i.Payload,
-			&i.Answer,
-			&i.State,
-			&i.CreatedAt,
-			&i.AnsweredAt,
-			&i.ExpiresAt,
-			&i.DeliveredAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listRejectedSuggestions = `-- name: ListRejectedSuggestions :many
-SELECT id, workspace_id, project_id, process_id, kind, text, payload, answer, state, created_at, answered_at, expires_at, delivered_at FROM ask
-WHERE workspace_id = ?1 AND kind = 'suggest' AND state = 'answered' AND answer LIKE 'deny%'
-  AND answered_at >= ?2
-ORDER BY id DESC
-`
-
-type ListRejectedSuggestionsParams struct {
-	WorkspaceID int64
-	Since       sql.NullString
-}
-
-func (q *Queries) ListRejectedSuggestions(ctx context.Context, arg ListRejectedSuggestionsParams) ([]Ask, error) {
-	rows, err := q.db.QueryContext(ctx, listRejectedSuggestions, arg.WorkspaceID, arg.Since)
 	if err != nil {
 		return nil, err
 	}
@@ -733,30 +672,6 @@ UPDATE process_remark SET delivered_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') W
 func (q *Queries) MarkRemarkDelivered(ctx context.Context, id int64) error {
 	_, err := q.db.ExecContext(ctx, markRemarkDelivered, id)
 	return err
-}
-
-const moveSuggestion = `-- name: MoveSuggestion :execrows
-UPDATE ask SET project_id = ?, text = ?, payload = ? WHERE id = ? AND kind = 'suggest' AND state = 'open'
-`
-
-type MoveSuggestionParams struct {
-	ProjectID sql.NullInt64
-	Text      string
-	Payload   string
-	ID        int64
-}
-
-func (q *Queries) MoveSuggestion(ctx context.Context, arg MoveSuggestionParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, moveSuggestion,
-		arg.ProjectID,
-		arg.Text,
-		arg.Payload,
-		arg.ID,
-	)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
 }
 
 const reopenDecision = `-- name: ReopenDecision :exec

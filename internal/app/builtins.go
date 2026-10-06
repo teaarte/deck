@@ -13,7 +13,7 @@ func (a *App) addBuiltins() {
 		a.Documents.Commands(), a.Devices.FeedCommands(), a.Folders.Commands(), a.Projects.Commands(), a.Saver.Commands(),
 		a.Journal.Commands(), a.Devices.NotifyCommands(),
 		a.Processes.Commands(), a.Providers.Commands(), a.Devices.PushCommands(), a.Records.Commands(),
-		a.screensCommands(), a.Secrets.Commands(), a.Settings.Commands(), a.Snapshots.Commands(), a.Suggest.Commands(),
+		a.screensCommands(), a.Secrets.Commands(), a.Settings.Commands(), a.Snapshots.Commands(),
 		a.Tokens.Commands(), a.Triggers.Commands(), a.Files.Commands(), a.Devices.VoiceCommands(), a.Cfg.Commands} {
 		for _, c := range cs {
 			a.Registry.Add(c)

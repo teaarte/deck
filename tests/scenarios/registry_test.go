@@ -426,6 +426,6 @@ func TestAToolNameOfACommandIsAnsweredWithItsName(t *testing.T) {
 	e := newEnv(t, nil)
 	e.createProject("notes", plainManifest)
 	e.refused("deck.command_try", map[string]any{"command": "notes__work"}, 404, `as "notes.work"`)
-	e.refused("deck.suggest", map[string]any{"command": "card_create", "reason": "r"}, 404, `as "deck.card_create"`)
+	e.refused("deck.command_describe", map[string]any{"command": "command_try"}, 404, `as "deck.command_try"`)
 	e.refused("deck.command_try", map[string]any{"command": "nothing"}, 404, `unknown command "nothing"`)
 }

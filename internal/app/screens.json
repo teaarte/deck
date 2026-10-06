@@ -164,7 +164,7 @@
       "blocks": [
         {"type": "list", "title": "Waiting for you", "source": {"from": "deck.asks_list"},
           "item": {"title": "what", "text": "where", "meta": "project + (who != '' ? ' · ' + who : '')",
-            "details": "kind in ['call', 'unknown', 'confirm', 'grant', 'suggest'] ? toJSON(payload) : ''",
+            "details": "kind in ['call', 'unknown', 'confirm', 'grant'] ? toJSON(payload) : ''",
             "questions": "kind == 'question' && len(payload?.questions ?? []) > 0 ? payload.questions : nil"},
           "actions": [
             {"verb": "answer", "primary": true, "command": "deck.ask_answer", "params": {"ask": "=id"}, "input": "answer", "when": "kind == 'question' && !expired"},
@@ -172,10 +172,8 @@
             {"verb": "mark_done", "command": "deck.ask_answer", "params": {"ask": "=id", "answer": "done"}, "when": "kind == 'unknown' && !expired"},
             {"verb": "allow", "primary": true, "command": "deck.ask_answer", "params": {"ask": "=id", "answer": "allow"}, "until": "=expires_at", "when": "kind in ['call', 'confirm', 'grant'] && !expired"},
             {"verb": "allow_always", "command": "deck.ask_answer", "params": {"ask": "=id", "answer": "allow_always"}, "until": "=expires_at", "when": "kind == 'call' && !expired"},
-            {"verb": "yes", "primary": true, "command": "deck.ask_answer", "params": {"ask": "=id", "answer": "allow"}, "when": "kind == 'suggest' && !expired"},
-            {"verb": "deny", "command": "deck.ask_answer", "params": {"ask": "=id", "answer": "deny"}, "when": "kind in ['call', 'confirm', 'grant', 'suggest'] && !expired"},
-            {"verb": "deny_because", "command": "deck.ask_answer", "params": {"ask": "=id", "answer": "deny"}, "input": "reason", "when": "kind in ['call', 'confirm', 'grant', 'suggest'] && !expired"},
-            {"verb": "move", "command": "deck.ask_answer", "params": {"ask": "=id", "answer": "move"}, "input": "project", "when": "kind == 'suggest' && payload?.call?.command == 'deck.card_create' && !expired"},
+            {"verb": "deny", "command": "deck.ask_answer", "params": {"ask": "=id", "answer": "deny"}, "when": "kind in ['call', 'confirm', 'grant'] && !expired"},
+            {"verb": "deny_because", "command": "deck.ask_answer", "params": {"ask": "=id", "answer": "deny"}, "input": "reason", "when": "kind in ['call', 'confirm', 'grant'] && !expired"},
             {"verb": "retry", "primary": true, "command": "deck.ask_answer", "params": {"ask": "=id", "answer": "retry"}, "when": "kind == 'login' && !expired"},
             {"verb": "new_session", "command": "deck.ask_answer", "params": {"ask": "=id", "answer": "new_session"}, "when": "kind == 'login' && !expired"},
             {"verb": "sign_in", "primary": true, "command": "deck.browser_login", "params": {"url": "='https://' + payload.site"}, "when": "kind == 'sign_in' && (payload?.site ?? '') != '' && !expired"},

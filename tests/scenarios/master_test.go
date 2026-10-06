@@ -2,6 +2,7 @@ package scenarios
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"slices"
 	"strings"
@@ -11,15 +12,15 @@ import (
 	"deck2/internal/provider"
 )
 
-// masterScript plays the master: the review suggests a card, on_error says what it got; failing makes the
-// work command of the other projects fail.
+// masterScript plays the master: the review tells the owner in the feed, on_error says what it got; failing makes
+// the work command of the other projects fail.
 func masterScript(ctx context.Context, c *Call) provider.Result {
 	switch c.command() {
 	case "review":
-		if out, bad := c.Tool(ctx, "suggest", map[string]any{"project": "work", "title": "Unstick the queue", "reason": "the queue has not moved for three days"}); bad {
+		if out, bad := c.Tool(ctx, "notify", map[string]any{"project": "work", "text": "The queue has not moved for three days; say \"unstick it\" to have it done."}); bad {
 			return provider.Result{Text: "refused: " + out}
 		}
-		return provider.Result{Text: "one suggestion"}
+		return provider.Result{Text: "one note"}
 	case "on_error":
 		return provider.Result{Text: "looked"}
 	case "work":
@@ -57,10 +58,14 @@ func TestReviewRunsOnItsSchedule(t *testing.T) {
 	e.Clock.Add(2 * time.Minute)
 	e.tick()
 	e.waitFor("the review", func() bool { rs := e.runsOf("master", "review"); return len(rs) == 1 && rs[0].State == "done" })
-	ss := e.suggestions()
-	if len(ss) != 1 || !strings.Contains(ss[0].Text, "the queue has not moved") {
-		t.Fatalf("the review makes suggestions: %+v", ss)
-	}
+	e.waitFor("the note of the review", func() bool {
+		for _, n := range e.notes() {
+			if strings.Contains(n.Text, "The queue has not moved") {
+				return true
+			}
+		}
+		return false
+	})
 	var ts []struct{ Command, Spec string }
 	e.must("deck.triggers_list", map[string]any{"project": "master"}, &ts)
 	found := false
@@ -121,7 +126,7 @@ func TestMasterOwnErrorsDoNotReachItself(t *testing.T) {
 	}
 }
 
-// TestReviewCallsOnlyWhatItsCommandLists: the daily review reads and suggests; changing a project is not among
+// TestReviewCallsOnlyWhatItsCommandLists: the daily review reads and tells the owner; changing a project is not among
 // its tools, and a call by name is refused.
 func TestReviewCallsOnlyWhatItsCommandLists(t *testing.T) {
 	var tools []string
@@ -135,7 +140,7 @@ func TestReviewCallsOnlyWhatItsCommandLists(t *testing.T) {
 	var r struct{ Process int64 }
 	e.must("master.review", map[string]any{}, &r)
 	got := e.waitState(r.Process, "done", "error")
-	if !strings.HasPrefix(string(got.Result), `"true`) || !slices.Contains(tools, "mcp__deck__suggest") ||
+	if !strings.HasPrefix(string(got.Result), `"true`) || !slices.Contains(tools, "mcp__deck__notify") || slices.Contains(tools, "mcp__deck__suggest") ||
 		slices.Contains(tools, "mcp__deck__manifest_save") || slices.Contains(tools, "mcp__deck__card_move") {
 		t.Fatalf("the review gets the tools it lists and no other: %s %v", got.Result, tools)
 	}
@@ -217,5 +222,46 @@ func TestABlockThatFailsIsInTheHealthOfItsModuleWithoutTheMaster(t *testing.T) {
 	}
 	if n := len(e.runsOf("master", "on_error")); n != 0 {
 		t.Fatalf("the master does not get it: %d", n)
+	}
+}
+
+// TestASuggestionOfABaseFromBeforeExpires: deck makes suggestions no more; one an older base kept open expires with
+// its call in the journal, the setting of their days goes, and so do their commands.
+func TestASuggestionOfABaseFromBeforeExpires(t *testing.T) {
+	home := t.TempDir()
+	e := newEnvWith(t, home, &Fake{})
+	e.createProject("work", plainManifest)
+	e.olderBase(17)
+	for _, q := range []string{
+		`INSERT INTO ask (workspace_id, project_id, kind, text, payload, state) SELECT 1, id, 'suggest', 'Unstick the queue', '{"call":{"command":"work.work","input":{}}}', 'open' FROM project WHERE name = 'work'`,
+		`INSERT INTO tool_call (workspace_id, project_id, tool, class, outcome, ask_id) SELECT 1, project_id, 'work.work', 'internal', 'waiting', id FROM ask WHERE kind = 'suggest'`,
+		`INSERT INTO setting (workspace_id, key, value) VALUES (1, 'setting:suggest_days', '3')`,
+	} {
+		if _, err := e.App.Store.DB.Exec(q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	_ = e.App.Close()
+	e = newEnvWith(t, home, &Fake{})
+	var state, outcome string
+	var delivered sql.NullString
+	if err := e.App.Store.DB.QueryRow(`SELECT a.state, a.delivered_at, c.outcome FROM ask a JOIN tool_call c ON c.ask_id = a.id WHERE a.kind = 'suggest'`).Scan(&state, &delivered, &outcome); err != nil {
+		t.Fatal(err)
+	}
+	if state != "expired" || !delivered.Valid || outcome != "expired" {
+		t.Fatalf("the open suggestion expired with its call: %s %v %s", state, delivered, outcome)
+	}
+	var n int
+	_ = e.App.Store.DB.QueryRow(`SELECT count(*) FROM setting WHERE key = 'setting:suggest_days'`).Scan(&n)
+	if n != 0 {
+		t.Fatal("the setting of the days of suggestions goes")
+	}
+	for _, name := range []string{"deck.suggest", "deck.suggestions_rejected"} {
+		e.refused(name, map[string]any{"reason": "r"}, 404, "unknown command")
+	}
+	var asks []askView
+	e.must("deck.asks_list", nil, &asks)
+	if len(asks) != 0 {
+		t.Fatalf("nothing waits for the owner: %+v", asks)
 	}
 }

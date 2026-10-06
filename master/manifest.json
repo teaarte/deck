@@ -70,7 +70,7 @@
     {
       "name": "review",
       "title": "Daily review",
-      "description": "Looks over the projects of deck and suggests cards and command calls worth doing.",
+      "description": "Looks over the projects of deck and tells the owner in the feed what is worth doing.",
       "class": "internal",
       "callers": [
         "owner",
@@ -83,9 +83,6 @@
       "executor": {
         "type": "agent",
         "prompt_file": "prompts/review.md",
-        "skills": [
-          "dispatch"
-        ],
         "calls": [
           "deck.projects_list",
           "deck.cards_list",
@@ -99,15 +96,14 @@
           "deck.asks_list",
           "deck.records_list",
           "deck.record_get",
-          "deck.suggestions_rejected",
-          "deck.suggest"
+          "deck.notify"
         ]
       }
     },
     {
       "name": "on_error",
       "title": "Look into an error",
-      "description": "Finds out why a process or a block of a screen of a project failed and suggests a fix.",
+      "description": "Finds out why a process or a block of a screen of a project failed and tells the owner the fix in the feed.",
       "class": "internal",
       "callers": [
         "owner",
@@ -155,8 +151,7 @@
           "deck.asks_list",
           "deck.records_list",
           "deck.record_get",
-          "deck.suggestions_rejected",
-          "deck.suggest"
+          "deck.notify"
         ]
       }
     }

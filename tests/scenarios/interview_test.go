@@ -88,9 +88,6 @@ func TestInterviewTopicWritesTheSpecIntoTheCard(t *testing.T) {
 	if len(cards) != 3 || cards[2].Title != "Add the button" || len(cards[2].Waits) != 1 || cards[2].Waits[0] != cards[1].ID {
 		t.Fatalf("after the yes the split is cards that wait for each other: %+v", cards)
 	}
-	if len(e.suggestions()) != 0 {
-		t.Fatal("the split is made, not suggested")
-	}
 }
 
 func TestMasterPutsATaskIntoTheRightProject(t *testing.T) {

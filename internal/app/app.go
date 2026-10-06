@@ -27,7 +27,6 @@ import (
 	"deck2/internal/app/settings"
 	"deck2/internal/app/signins"
 	"deck2/internal/app/snapshots"
-	"deck2/internal/app/suggest"
 	"deck2/internal/app/tokens"
 	"deck2/internal/app/triggers"
 	"deck2/internal/ask"
@@ -62,7 +61,6 @@ type App struct {
 	Providers *providers.Service
 	Devices   *devices.Service
 	Chats     *chat.Service
-	Suggest   *suggest.Service
 	Tokens    *tokens.Service
 	Secrets   *secrets.Service
 	Settings  *settings.Service
@@ -116,7 +114,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 		Projects: &project.Service{}, Saver: &project.Saver{}, Secrets: &secrets.Service{}, Folders: &folders.Service{}, Files: &appfiles.Service{},
 		Journal: &journal.Service{}, Triggers: &triggers.Service{}, Documents: &documents.Service{}, Snapshots: &snapshots.Service{},
 		Settings: &settings.Service{}, Board: &board.Service{}, Providers: &providers.Service{}, Answers: &asks.Service{},
-		Signins: &signins.Service{}, Suggest: &suggest.Service{}, Chats: &chat.Service{}, Devices: &devices.Service{},
+		Signins: &signins.Service{}, Chats: &chat.Service{}, Devices: &devices.Service{},
 		Tokens: &tokens.Service{}, Records: &records.Service{}, Health: &apphealth.Service{}, Processes: &processes.Service{}, Failures: &failures.Service{}}
 	a.ctx, a.cancel = context.WithCancel(context.Background())
 	st.Changed = func(c store.Change) {
@@ -163,10 +161,8 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 		Wake: a.Runner.Wake, Dirs: a.dirs(), Resolve: a.Tools.Resolve,
 		Builtin: append([]provider.Provider{p}, more...), Ctx: a.ctx, BG: &a.bg}
 	*a.Answers = asks.Service{St: st, Now: cfg.Now, Broker: a.Asks, Registry: a.Registry, Gateway: a.Gateway, Deliver: a.Runner.Deliver,
-		AnswerGrant: a.Saver.AnswerGrant, SaveManifest: a.Saver.SaveCall, ExpireSuggestions: a.Suggest.Expire,
-		AnswerSuggestion: a.Suggest.Answer}
+		AnswerGrant: a.Saver.AnswerGrant, SaveManifest: a.Saver.SaveCall}
 	*a.Signins = signins.Service{St: st, Ctx: a.ctx, Broker: a.Asks, OAuth: oauth, Browser: a.Browser, MCP: a.MCP}
-	*a.Suggest = suggest.Service{St: st, Now: cfg.Now, Registry: a.Registry, Asks: a.Asks, Gateway: a.Gateway, Days: a.Settings.SuggestDays}
 	*a.Chats = chat.Service{St: st, Bus: a.Bus, Now: cfg.Now, Asks: a.Asks, Runner: a.Runner, For: a.Providers.For, RemoveFiles: a.Files.Remove}
 	*a.Devices = devices.Service{St: st, Bus: a.Bus, Now: cfg.Now, Files: a.dirs(), RemoveFiles: a.Files.Remove,
 		ReadSecret: a.Secrets.Read, WriteSecret: a.Secrets.Write, SecretsDir: h.Secrets,
@@ -236,7 +232,6 @@ func (a *App) Sweep(ctx context.Context, now time.Time) {
 func (a *App) deadlines(ctx context.Context, now time.Time) {
 	a.Board.Purge(ctx, now)
 	a.Answers.ExpireConfirms(ctx, now)
-	a.Suggest.Expire(ctx, now)
 	a.Runner.Due(ctx, now)
 	a.Snapshots.CheckDisk(ctx, now)
 }

@@ -593,3 +593,23 @@ func TestBoardBlockShowsTheLanesAndFollowsMoves(t *testing.T) {
 		t.Fatalf("a deleted card stays on the board to be restored from any device: %+v", gone)
 	}
 }
+
+// boardWork is plainManifest with a board, so cards land in its inbox lane.
+var boardWork = strings.Replace(plainManifest, `"triggers": [],`, `"triggers": [], "board": {"lanes": [{"name": "inbox", "title": "Inbox", "role": "inbox"}, {"name": "done", "title": "Done", "role": "done"}]},`, 1)
+
+func (e *Env) cardTitles(project string) []string {
+	e.T.Helper()
+	var board struct {
+		Lanes []struct {
+			Cards []struct{ Title string } `json:"cards"`
+		} `json:"lanes"`
+	}
+	e.must("deck.cards_list", map[string]any{"project": project}, &board)
+	var out []string
+	for _, l := range board.Lanes {
+		for _, c := range l.Cards {
+			out = append(out, c.Title)
+		}
+	}
+	return out
+}

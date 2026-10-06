@@ -212,9 +212,6 @@ WHERE p.state IN ('waiting_provider', 'waiting_slot', 'waiting_folder')
 ORDER BY p.id;
 
 
--- name: MoveAskCalls :exec
-UPDATE tool_call SET project_id = ? WHERE ask_id = ?;
-
 -- name: RunsSince :many
 SELECT CAST(substr(p.started_at, 1, 10) AS TEXT) AS day,
     CAST(count(*) AS INTEGER) AS runs,

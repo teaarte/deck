@@ -41,8 +41,8 @@ anything). Plain words, no invented requirements. Say in the topic that the spec
 When the work is more than one sitting, show the split in the topic as a numbered list: a title per card and,
 for each, which earlier ones it waits for. Ask "Shall I create these cards?". Only after the owner says yes in
 the topic, create them with `card_create` in the card's project, in order, each with `waits` on the cards it
-depends on (the new ids), and link back to the spec card in their text. Do not use `suggest` for this: the
-owner already said yes. Then say the numbers.
+depends on (the new ids), and link back to the spec card in their text. Then say the
+numbers.
 
 ## Without a card
 

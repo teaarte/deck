@@ -1,4 +1,4 @@
-// Package asks keeps what waits for the owner: questions, confirmations of calls, sign-ins and suggestions, and
+// Package asks keeps what waits for the owner: questions, confirmations of calls and sign-ins, and
 // the answers that let a parked process go on.
 package asks
 
@@ -34,10 +34,8 @@ type Service struct {
 	Gateway  *gateway.Gateway
 	Registry *registry.Registry
 	Deliver  func(ctx context.Context, process int64) error
-	// The answers of suggestions and of grants of rights are theirs.
-	ExpireSuggestions func(ctx context.Context, now time.Time)
-	AnswerSuggestion  func(ctx context.Context, act registry.Actor, q db.Ask, answer, project string) (any, error)
-	AnswerGrant       func(ctx context.Context, act registry.Actor, q db.Ask, answer string) (any, error)
+	// The answers of grants of rights are theirs.
+	AnswerGrant func(ctx context.Context, act registry.Actor, q db.Ask, answer string) (any, error)
 	// SaveManifest saves a manifest through its checks, with the call the owner allows when it widens rights.
 	SaveManifest func(ctx context.Context, act registry.Actor, p db.Project, raw []byte, reason string, revertTo, ifRevision int64, command string, input map[string]any) (any, error)
 }
@@ -130,10 +128,6 @@ func (s *Service) askRow(ctx context.Context, q db.Ask, names map[int64]string) 
 		var pl map[string]string
 		_ = json.Unmarshal([]byte(q.Payload), &pl)
 		r.Where = cmp.Or(pl["site"], pl["tool"])
-	case ask.KindSuggest:
-		var f gateway.Frozen
-		_ = json.Unmarshal([]byte(q.Payload), &f)
-		r.Who, r.Where = s.callerName(ctx, f.Caller), strings.TrimPrefix(q.Text, firstLine(q.Text)+"\n")
 	}
 	return r
 }
@@ -195,10 +189,9 @@ func confirmTarget(in map[string]any) string {
 }
 
 type askAnswerIn struct {
-	Ask     int64  `type:"ask" desc:"Ask id"`
-	Answer  string `type:"text" desc:"The answer"`
-	Reason  string `type:"text" opt:"" desc:"Why not, sent with deny to the agent"`
-	Project string `type:"project" opt:"" desc:"The project a suggestion moves to"`
+	Ask    int64  `type:"ask" desc:"Ask id"`
+	Answer string `type:"text" desc:"The answer"`
+	Reason string `type:"text" opt:"" desc:"Why not, sent with deny to the agent"`
 }
 
 func (s *Service) askAnswer(ctx context.Context, act registry.Actor, in askAnswerIn) (any, error) {
@@ -226,16 +219,6 @@ func (s *Service) askAnswer(ctx context.Context, act registry.Actor, in askAnswe
 	}
 	if q.Kind == ask.KindGrant && q.State == "open" {
 		return s.AnswerGrant(ctx, act, q, in.Answer)
-	}
-	if q.Kind == ask.KindSuggest {
-		s.ExpireSuggestions(ctx, s.Now())
-		if q, err = s.St.Q.GetAsk(ctx, in.Ask); err != nil {
-			return nil, err
-		}
-		if q.State != "open" {
-			return nil, ask.NotOpen
-		}
-		return s.AnswerSuggestion(ctx, act, q, in.Answer, in.Project)
 	}
 	if q.Kind == ask.KindCall || q.Kind == ask.KindUnknown {
 		return s.decide(ctx, act, q, in.Answer)
@@ -268,10 +251,10 @@ func (s *Service) dismissExpired(ctx context.Context, q db.Ask, answer string) (
 func (s *Service) Commands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("asks_list", "Waiting for you",
-			"Lists what waits for the owner, oldest first: questions, confirmations, sign-ins and suggestions, with who asks, what and where; confirmations that expired stay until the owner clears them.",
+			"Lists what waits for the owner, oldest first: questions, confirmations and sign-ins, with who asks, what and where; confirmations that expired stay until the owner clears them.",
 			registry.OwnerSide, s.asksList).On("asks"),
 		registry.Def("ask_answer", "Answer",
-			"Answers what waits for the owner: a question with text; a confirmation with allow, allow_always, deny or deny:<reason>; a login with retry or new_session; an unknown outcome with retry or done; a suggestion with allow, deny, deny:<reason> or move with project. Deny on an expired confirmation clears it.",
+			"Answers what waits for the owner: a question with text; a confirmation with allow, allow_always, deny or deny:<reason>; a login with retry or new_session; an unknown outcome with retry or done. Deny on an expired confirmation clears it.",
 			registry.OwnerOnly, s.askAnswer),
 	}
 }

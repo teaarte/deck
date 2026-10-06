@@ -29,8 +29,6 @@ const (
 	KindUnknown = "unknown"
 	// KindSignIn asks the owner to sign in to a site or service; its payload names the site or the tool.
 	KindSignIn = "sign_in"
-	// KindSuggest is a draft of a card or a call that waits for the owner's yes; its payload holds the draft.
-	KindSuggest = "suggest"
 )
 
 const (

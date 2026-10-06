@@ -113,21 +113,6 @@ SELECT * FROM process_remark WHERE process_id = ? AND delivered_at IS NULL ORDER
 UPDATE process_remark SET delivered_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ? AND delivered_at IS NULL;
 
 
--- name: MoveSuggestion :execrows
-UPDATE ask SET project_id = ?, text = ?, payload = ? WHERE id = ? AND kind = 'suggest' AND state = 'open';
-
-
--- name: ListRejectedSuggestions :many
-SELECT * FROM ask
-WHERE workspace_id = sqlc.arg(workspace_id) AND kind = 'suggest' AND state = 'answered' AND answer LIKE 'deny%'
-  AND answered_at >= sqlc.arg(since)
-ORDER BY id DESC;
-
-
--- name: ExpireSuggestions :execrows
-UPDATE ask SET state = 'expired' WHERE kind = 'suggest' AND state = 'open' AND expires_at <= CAST(sqlc.arg(now) AS TEXT);
-
-
 -- name: LastAskOfProcess :one
 SELECT * FROM ask WHERE process_id = ? ORDER BY id DESC LIMIT 1;
 

@@ -39,8 +39,6 @@ var settingDefs = []settingDef{
 		def: func(s *Service) any { return int64(s.DefaultTTL / time.Hour) }},
 	{name: "agent_limit", title: "Agent processes that run at once; scripts and tools do not count", min: 1, max: 20,
 		def: func(*Service) any { return int64(agentLimit) }},
-	{name: "suggest_days", title: "Days a suggestion waits for the owner before it expires", min: 1, max: 90,
-		def: func(*Service) any { return int64(7) }},
 	{name: "language", title: "Language of the interface; auto follows the device", options: []string{"auto", "en", "ru"},
 		def: func(*Service) any { return "auto" }},
 }
@@ -69,11 +67,6 @@ func (s *Service) AgentSlots(ctx context.Context, workspace int64) int {
 // ConfirmTTL is how long a confirmation of the workspace waits for the owner unless its tool sets its own.
 func (s *Service) ConfirmTTL(ctx context.Context, workspace int64) time.Duration {
 	return time.Duration(s.setting(ctx, workspace, "confirm_hours").(int64)) * time.Hour
-}
-
-// SuggestDays is how many days a suggestion waits for the owner before it expires.
-func (s *Service) SuggestDays(ctx context.Context, workspace int64) int {
-	return int(s.setting(ctx, workspace, "suggest_days").(int64))
 }
 
 // value is the stored text of a setting given as text; empty when it is not given.

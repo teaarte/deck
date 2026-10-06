@@ -142,6 +142,7 @@ func TestABoardOfABaseFromBeforeGoes(t *testing.T) {
 		`INSERT INTO document_revision (document_id, n, text, author) SELECT id, 1, 'the spec', 'owner' FROM document WHERE card_id = 1`,
 		`INSERT INTO document (workspace_id, project_id, kind, name, current) SELECT 1, id, 'doc', 'notes.md', 0 FROM project WHERE name = 'work'`,
 		`INSERT INTO chat_topic (workspace_id, title, card_id) VALUES (1, 'About the card', 1)`,
+		`INSERT INTO feed (workspace_id, project_id, kind, author, text, document_id) SELECT 1, project_id, 'change', 'master', 'spec', id FROM document WHERE card_id = 1`,
 		`INSERT INTO file (project_id, owner_kind, owner_id, name) SELECT id, 'card', 1, 'scan.txt' FROM project WHERE name = 'work'`,
 	} {
 		if _, err := e.App.Store.DB.Exec(q); err != nil {
@@ -157,6 +158,7 @@ func TestABoardOfABaseFromBeforeGoes(t *testing.T) {
 		`SELECT count(*) FROM document_revision WHERE text = 'the spec'`:         0,
 		`SELECT count(*) FROM document WHERE name = 'notes.md'`:                  1,
 		`SELECT count(*) FROM chat_topic WHERE title = 'About the card'`:         1,
+		`SELECT count(*) FROM feed WHERE text = 'spec' AND document_id IS NULL`:  1,
 	} {
 		var n int
 		if err := e.App.Store.DB.QueryRow(q).Scan(&n); err != nil || n != want {
@@ -173,10 +175,13 @@ func TestABoardOfABaseFromBeforeGoes(t *testing.T) {
 		e.refused(name, map[string]any{"project": "work", "card": 1, "title": "x"}, 404, "unknown command")
 	}
 	eight := `{"version": 8, "commands": [{"name": "work", "title": "Work", "description": "Works.", "class": "internal",
-    "input": {"type": "object", "properties": {"card": {"type": "integer"}}}, "executor": {"type": "agent", "prompt": "Work."}}],
+    "input": {"type": "object", "properties": {"card": {"type": "integer", "format": "card"}}}, "executor": {"type": "agent", "prompt": "Work."}}],
   "triggers": [{"command": "work", "lane": "doing"}, {"command": "work", "cron": "0 9 * * *"}],
   "board": {"lanes": [{"name": "doing", "title": "Doing", "role": "inbox"}]},
-  "screens": [{"name": "main", "title": "Main", "blocks": [{"type": "board", "title": "Work"}]}], "menu": ["main"]}`
+  "screens": [{"name": "main", "title": "Main", "blocks": [{"type": "board", "title": "Work"},
+    {"type": "columns", "blocks": [{"type": "board"}]},
+    {"type": "tabs", "tabs": [{"title": "Board", "blocks": [{"type": "board"}]}, {"title": "Notes", "blocks": [{"type": "columns", "blocks": [{"type": "board"}]}]}]},
+    {"type": "dialog", "title": "More", "name": "more", "blocks": [{"type": "board"}]}]}], "menu": ["main"]}`
 	e.createProject("old", eight)
 	if ts := e.triggers(); !slices.ContainsFunc(ts, func(tr triggerV) bool { return tr.Project == "old" && tr.Kind == "cron" }) ||
 		slices.ContainsFunc(ts, func(tr triggerV) bool { return tr.Kind == "lane" }) {
@@ -185,6 +190,6 @@ func TestABoardOfABaseFromBeforeGoes(t *testing.T) {
 	if code, out := e.call("deck.screen", map[string]any{"project": "old", "screen": "main"}); code != 200 || strings.Contains(string(out), "board") {
 		t.Fatalf("its screen shows without the board: %d %s", code, out)
 	}
-	nine := strings.Replace(strings.Replace(eight, `"version": 8`, `"version": 9`, 1), `{"command": "work", "lane": "doing"}, `, "", 1)
+	nine := strings.NewReplacer(`"version": 8`, `"version": 9`, `{"command": "work", "lane": "doing"}, `, "", `, "format": "card"`, "").Replace(eight)
 	e.refused("deck.manifest_save", map[string]any{"project": "old", "manifest": nine}, 422, "board")
 }

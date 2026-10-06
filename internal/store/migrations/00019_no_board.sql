@@ -5,6 +5,7 @@
 PRAGMA foreign_keys = OFF;
 BEGIN;
 DELETE FROM "trigger" WHERE kind = 'lane';
+UPDATE feed SET document_id = NULL WHERE document_id IN (SELECT id FROM document WHERE card_id IS NOT NULL);
 DELETE FROM document_revision WHERE document_id IN (SELECT id FROM document WHERE card_id IS NOT NULL);
 DELETE FROM document WHERE card_id IS NOT NULL;
 UPDATE file SET owner_kind = 'record', owner_id = 0 WHERE owner_kind = 'card';

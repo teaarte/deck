@@ -46,7 +46,7 @@ var upgrades = map[int]func(m map[string]any){
 		if list, ok := m["triggers"].([]any); ok {
 			m["triggers"] = slices.DeleteFunc(list, func(t any) bool { tm, _ := t.(map[string]any); return tm["lane"] != nil })
 		}
-		dropBoard(m["screens"])
+		dropBoard(m)
 	},
 	6: func(m map[string]any) {
 		for _, c := range items(m["commands"]) {
@@ -62,24 +62,40 @@ var upgrades = map[int]func(m map[string]any){
 	},
 }
 
-// dropBoard drops what format 9 has no more from the screens: the board block and the cell format label.
+// dropBoard drops what format 9 has no more: the board block, a container or tab it leaves empty, the cell
+// format label and the input format card.
 func dropBoard(v any) {
 	switch v := v.(type) {
 	case map[string]any:
-		if v["format"] == "label" {
+		if v["format"] == "label" || v["format"] == "card" {
 			delete(v, "format")
-		}
-		if blocks, ok := v["blocks"].([]any); ok {
-			v["blocks"] = slices.DeleteFunc(blocks, func(b any) bool { bm, _ := b.(map[string]any); return bm["type"] == "board" })
 		}
 		for _, x := range v {
 			dropBoard(x)
+		}
+		if blocks, ok := v["blocks"].([]any); ok {
+			v["blocks"] = slices.DeleteFunc(blocks, boardOnly)
+		}
+		if tabs, ok := v["tabs"].([]any); ok {
+			v["tabs"] = slices.DeleteFunc(tabs, func(t any) bool { tm, _ := t.(map[string]any); return empty(tm, "blocks") })
 		}
 	case []any:
 		for _, x := range v {
 			dropBoard(x)
 		}
 	}
+}
+
+// boardOnly is a board block, or a container its board blocks left empty.
+func boardOnly(b any) bool {
+	bm, _ := b.(map[string]any)
+	return bm["type"] == "board" || empty(bm, "blocks") || empty(bm, "tabs")
+}
+
+// empty reports whether m has the list key and nothing in it.
+func empty(m map[string]any, key string) bool {
+	list, ok := m[key].([]any)
+	return ok && len(list) == 0
 }
 
 // withNull is the type of a result schema that takes null too, as every result did before format 7.

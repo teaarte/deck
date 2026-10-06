@@ -541,19 +541,52 @@ func (dc *Service) seedSkills(ctx context.Context, workspace int64) error {
 		return dc.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 			ref := docs.Ref{Scope: docs.Scope{Workspace: workspace}, Name: docs.SkillsDir + path}
 			d, err := q.FindDocument(ctx, ref.Find())
+			edited := int64(0)
 			if err == nil {
 				if d.DeletedAt.Valid {
 					return nil
 				}
-				r, err := docs.Revision(ctx, q, d, 0)
-				if err != nil || r.Author != "deck" || r.Text == string(b) {
+				cur, err := docs.Revision(ctx, q, d, 0)
+				if err != nil || cur.Text == string(b) {
 					return err
 				}
+				if cur.Author != "deck" {
+					if shipped, err := lastOfDeck(ctx, q, d); err != nil || shipped == string(b) {
+						return err
+					}
+					edited = cur.N
+				}
 			}
-			_, _, _, err = docs.Save(ctx, q, ref, docs.KindSkill, string(b), "deck", "built-in skill")
-			return err
+			reason := "built-in skill"
+			if edited != 0 {
+				reason = fmt.Sprintf("built-in skill of a new deck; the edit of revision %d stays in the history", edited)
+			}
+			if _, _, _, err = docs.Save(ctx, q, ref, docs.KindSkill, string(b), "deck", reason); err != nil || edited == 0 {
+				return err
+			}
+			mp, err := access.Master(ctx, q, workspace)
+			if err != nil {
+				return err
+			}
+			return q.AddMasterNote(ctx, db.AddMasterNoteParams{WorkspaceID: workspace, ProjectID: mp.ID,
+				Text: fmt.Sprintf("deck shipped a new %s and it replaced the edit of revision %d, which stays in its history; bring back what of it still holds", ref.Name, edited)})
 		})
 	})
+}
+
+// lastOfDeck is the text of the newest revision deck itself wrote of d.
+func lastOfDeck(ctx context.Context, q *db.Queries, d db.Document) (string, error) {
+	rs, err := q.ListRevisions(ctx, d.ID)
+	if err != nil {
+		return "", err
+	}
+	for _, r := range rs {
+		if r.Author == "deck" {
+			rev, err := docs.Revision(ctx, q, d, r.N)
+			return rev.Text, err
+		}
+	}
+	return "", nil
 }
 
 const sandboxHealth = "sandbox"

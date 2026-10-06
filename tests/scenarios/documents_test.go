@@ -227,3 +227,42 @@ func TestDocumentIDsAreNotReused(t *testing.T) {
 	}
 	e.refused("deck.document_get", map[string]any{"document": old.ID}, 404, "no document")
 }
+
+// TestAShippedSkillEditedByTheMasterTakesTheNextVersionOfDeck: an edit of a built-in skill stays while deck ships the
+// same text; a new version of deck replaces it, the edit stays in the history, and the master is told to bring back
+// what still holds.
+func TestAShippedSkillEditedByTheMasterTakesTheNextVersionOfDeck(t *testing.T) {
+	home := t.TempDir()
+	e := newEnvWith(t, home, &Fake{})
+	const name = "skills/module-builder/SKILL.md"
+	var d struct {
+		ID   int64
+		Text string
+	}
+	e.must("deck.document_get", map[string]any{"name": name}, &d)
+	shipped := d.Text
+	if _, err := e.App.Store.DB.Exec(`INSERT INTO document_revision (document_id, n, text, author, reason)
+		SELECT document_id, 0, 'the first skill of deck', 'deck', 'built-in skill' FROM document_revision WHERE document_id = ? AND n = 1`, d.ID); err != nil {
+		t.Fatal(err)
+	}
+	e.must("deck.document_save", map[string]any{"name": name, "kind": "skill", "text": shipped + "\nA chain runs at most five steps deep.\n"}, nil)
+	_ = e.App.Close()
+	e = newEnvWith(t, home, &Fake{})
+	e.must("deck.document_get", map[string]any{"name": name}, &d)
+	if !strings.Contains(d.Text, "five steps") {
+		t.Fatal("an edit stays while deck ships the same skill")
+	}
+	if _, err := e.App.Store.DB.Exec(`UPDATE document_revision SET text = 'an older skill' WHERE document_id = ? AND author = 'deck'`, d.ID); err != nil {
+		t.Fatal(err)
+	}
+	_ = e.App.Close()
+	e = newEnvWith(t, home, &Fake{})
+	e.must("deck.document_get", map[string]any{"name": name}, &d)
+	if d.Text != shipped {
+		t.Fatalf("a new version of deck replaces the edited skill: %.80q", d.Text)
+	}
+	var note string
+	if err := e.App.Store.DB.QueryRow(`SELECT text FROM feed WHERE for_master = 1 ORDER BY id DESC LIMIT 1`).Scan(&note); err != nil || !strings.Contains(note, name) {
+		t.Fatalf("the master is told its edit was replaced: %q %v", note, err)
+	}
+}

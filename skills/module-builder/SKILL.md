@@ -141,7 +141,7 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   is not `null` (a poll with nothing new returns `null` and the chain stops). The command a trigger starts gets
   the trigger's fixed `params` plus `{"process": <id>}` of the finished one for `after`, so its input declares
   that field as `integer`; a later step that needs an earlier result
-  reads it with `process_get`, so keep what the chain needs in records rather than passing it along. Cycles are refused. After the Mac slept, each missed schedule runs once; `"skip_missed":
+  reads it with `process_get`, so keep what the chain needs in records rather than passing it along. Cycles are refused. A chain runs at most five steps deep, counted from the call that started it (a button, a schedule or a trial): a sixth `after` step does not start, and only the log of deck says so. Keep chains short — two `after` triggers on the same step run side by side, so a step that only prepares something can run beside the next one instead of before it. After the Mac slept, each missed schedule runs once; `"skip_missed":
   true` drops the missed run instead (a morning digest that is stale by noon).
 - **Stages** the owner acts on are a `status` field of the record (an `enum`), shown and filtered on a table;
   the owner changes it on the record page (a `form` of `deck.record_update`), and a command takes the records

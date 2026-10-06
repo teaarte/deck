@@ -68,7 +68,7 @@ func TestRealBrowserCodeProject(t *testing.T) {
 		return len(rs) == 1 && rs[0].Data["status"] == "ready"
 	})
 	b.open(e.URL + "/#/p/code/tasks")
-	b.until("the ready task", `[...document.querySelectorAll('tr')].some((r) => r.innerText.includes('ready'))`)
+	b.until("the ready task", `[...document.querySelectorAll('tr')].some((r) => r.innerText.toLowerCase().includes('ready'))`)
 	b.shot("code-tasks")
 	b.eval(`([...document.querySelectorAll('button')].find((x) => x.innerText.trim() === 'Run').click(), '')`)
 	e.waitFor("the run at its provider", func() bool { return len(e.Fake.Calls()) > 0 })

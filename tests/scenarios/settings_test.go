@@ -485,3 +485,26 @@ func TestEverySettingIsEditedFromItsOneDefinition(t *testing.T) {
 	e.refused("deck.settings_set", map[string]any{"name": "agent_limit", "value": "50"}, 422, "1 to 20")
 	e.refused("deck.settings_set", map[string]any{"name": "nothing", "value": "1"}, 422, "")
 }
+
+// TestTheNamesOfSettingsFollowTheLanguageOfTheWorkspace: the General tab names each setting in the language the
+// owner picked for the interface; auto keeps them in English.
+func TestTheNamesOfSettingsFollowTheLanguageOfTheWorkspace(t *testing.T) {
+	e := newEnv(t, nil)
+	title := func() string {
+		var rows []struct{ Name, Title string }
+		e.must("deck.settings_list", nil, &rows)
+		for _, r := range rows {
+			if r.Name == "language" {
+				return r.Title
+			}
+		}
+		return ""
+	}
+	if got := title(); !strings.HasPrefix(got, "Language of the interface") {
+		t.Fatalf("auto keeps the names in English: %q", got)
+	}
+	e.must("deck.settings_set", map[string]any{"name": "language", "value": "ru"}, nil)
+	if got := title(); !strings.HasPrefix(got, "Язык интерфейса") {
+		t.Fatalf("the names follow the language the owner picked: %q", got)
+	}
+}

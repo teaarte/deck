@@ -26,20 +26,23 @@ type Service struct {
 const agentLimit = 3
 
 // settingDef is a setting the owner changes on the General tab; every other value of Config stays in code. A
-// number lies from min to max; a text is one of options.
+// number lies from min to max; a text is one of options; ru is the title in Russian.
 type settingDef struct {
-	name, title string
-	min, max    int64
-	options     []string
-	def         func(s *Service) any
+	name, title, ru string
+	min, max        int64
+	options         []string
+	def             func(s *Service) any
 }
 
 var settingDefs = []settingDef{
 	{name: "confirm_hours", title: "How long a confirmation waits for the owner, hours", min: 1, max: 720,
+		ru:  "Сколько подтверждение ждёт владельца, часов",
 		def: func(s *Service) any { return int64(s.DefaultTTL / time.Hour) }},
 	{name: "agent_limit", title: "Agent processes that run at once; scripts and tools do not count", min: 1, max: 20,
+		ru:  "Сколько агентских процессов идёт одновременно; скрипты и инструменты не считаются",
 		def: func(*Service) any { return int64(agentLimit) }},
 	{name: "language", title: "Language of the interface; auto follows the device", options: []string{"auto", "en", "ru"},
+		ru:  "Язык интерфейса; auto — как на устройстве",
 		def: func(*Service) any { return "auto" }},
 }
 
@@ -129,8 +132,13 @@ type settingRow struct {
 
 func (s *Service) settingsList(ctx context.Context, act registry.Actor, _ struct{}) ([]settingRow, error) {
 	out := make([]settingRow, 0, len(settingDefs))
+	ru := s.setting(ctx, act.Workspace, "language") == "ru"
 	for _, d := range settingDefs {
-		out = append(out, settingRow{Name: d.name, Title: d.title, Value: s.setting(ctx, act.Workspace, d.name), Default: d.def(s), Options: d.options})
+		title := d.title
+		if ru {
+			title = d.ru
+		}
+		out = append(out, settingRow{Name: d.name, Title: title, Value: s.setting(ctx, act.Workspace, d.name), Default: d.def(s), Options: d.options})
 	}
 	return out, nil
 }

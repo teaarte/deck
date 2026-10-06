@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	"deck2/internal/app"
+	deckhome "deck2/internal/home"
 	"deck2/internal/registry"
 	"deck2/internal/sandbox"
 	"deck2/internal/store/db"
@@ -506,5 +508,25 @@ func TestTheNamesOfSettingsFollowTheLanguageOfTheWorkspace(t *testing.T) {
 	e.must("deck.settings_set", map[string]any{"name": "language", "value": "ru"}, nil)
 	if got := title(); !strings.HasPrefix(got, "Язык интерфейса") {
 		t.Fatalf("the names follow the language the owner picked: %q", got)
+	}
+}
+
+// TestASecretDeleteStaysInTheFolderOfSecrets: a name that would leave the folder of the secrets of the workspace is
+// refused, and the files there and above stay.
+func TestASecretDeleteStaysInTheFolderOfSecrets(t *testing.T) {
+	e := newEnv(t, nil)
+	e.must("deck.secret_set", map[string]any{"name": "svc", "value": "k"}, nil)
+	dir := deckhome.Layout(e.App.Cfg.Home).Secrets(1)
+	above := filepath.Join(filepath.Dir(dir), "x")
+	if err := os.WriteFile(above, []byte("keep"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"..", "...", "../x", "../1/svc", "a/b", ""} {
+		e.refused("deck.secret_delete", map[string]any{"name": name}, 422, "")
+	}
+	for _, f := range []string{above, filepath.Join(dir, "svc")} {
+		if _, err := os.Stat(f); err != nil {
+			t.Fatalf("the file stays: %v", err)
+		}
 	}
 }

@@ -139,3 +139,52 @@ type formV struct {
 	Record   int64          `json:"record"`
 	Save     string         `json:"save"`
 }
+
+// rowAction is the first button of a screen that calls command with params holding match, as the client gets it.
+func (e *Env) rowAction(project, screen, command string, match map[string]any) map[string]any {
+	e.T.Helper()
+	var find func(v any) map[string]any
+	find = func(v any) map[string]any {
+		switch v := v.(type) {
+		case map[string]any:
+			params, _ := v["params"].(map[string]any)
+			held := v["command"] == command
+			for k, want := range match {
+				held = held && fmt.Sprint(params[k]) == fmt.Sprint(want)
+			}
+			if held {
+				return v
+			}
+			for _, x := range v {
+				if a := find(x); a != nil {
+					return a
+				}
+			}
+		case []any:
+			for _, x := range v {
+				if a := find(x); a != nil {
+					return a
+				}
+			}
+		}
+		return nil
+	}
+	b, _ := json.Marshal(e.screenData(project, screen, nil))
+	var v any
+	_ = json.Unmarshal(b, &v)
+	a := find(v)
+	if a == nil {
+		e.T.Fatalf("no button of %s.%s calls %s", project, screen, command)
+	}
+	return a
+}
+
+// press calls the command of a button with its params, as the client does.
+func (e *Env) press(a map[string]any) (int, []byte) {
+	e.T.Helper()
+	params, _ := a["params"].(map[string]any)
+	if params == nil {
+		params = map[string]any{}
+	}
+	return e.call(a["command"].(string), params)
+}

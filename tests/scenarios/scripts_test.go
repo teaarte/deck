@@ -718,16 +718,15 @@ func TestAMissingProgramSaysHowToInstallItAndIsCheckedAgain(t *testing.T) {
 	if !strings.Contains(h.Error, "deck-later-tool") || !strings.Contains(h.Error, "brew install deck-later-tool") {
 		t.Fatalf("the health names the missing program and how to install it: %+v", h)
 	}
-	if b, _ := json.Marshal(e.screenMessages("progs", "settings", nil)); !strings.Contains(string(b), "deck.programs_check") {
-		t.Fatalf("the health row of the command has the check button on the settings of the project: %s", b)
-	}
 	if p := e.waitScript(e.start("progs", "use", nil), "done", "error"); p.State != "error" || !strings.Contains(p.Error, "brew install deck-later-tool") {
 		t.Fatalf("a run without its program is refused at once with the same line: %+v", p)
 	}
 	if err := os.WriteFile(filepath.Join(bin, "deck-later-tool"), []byte("#!/bin/sh\necho here\n"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	e.must("deck.programs_check", map[string]any{"project": "progs"}, nil)
+	if code, out := e.press(e.rowAction("progs", "settings", "deck.programs_check", nil)); code != 200 {
+		t.Fatalf("the check button of the health row of the command works: %d %s", code, out)
+	}
 	if h := e.waitHealth("command:progs.use", ""); h.Status != "ok" {
 		t.Fatalf("the check finds the program the owner installed: %+v", h)
 	}

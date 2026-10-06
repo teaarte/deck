@@ -77,7 +77,13 @@ func (r *renderer) actions(as []manifest.Action, id int64, env map[string]any) [
 			if !r.deck() && !strings.HasPrefix(name, "deck.") {
 				name = r.req.Project.Name + "." + a.Command
 			}
-			act["command"], act["params"] = name, actionParams(a.Params, r.inputTypes(name), env)
+			types := r.inputTypes(name)
+			params := actionParams(a.Params, types, env)
+			// A command of deck on a screen of a project acts on that project unless the button names another.
+			if _, ok := types["project"]; ok && strings.HasPrefix(name, "deck.") && params["project"] == nil && !r.deck() {
+				params["project"] = r.req.Project.Name
+			}
+			act["command"], act["params"] = name, params
 			if a.Undo != nil {
 				u := *a.Undo
 				u.Verb = "undo"

@@ -92,7 +92,9 @@ func TestAgentCommandWorksInTheProjectFolder(t *testing.T) {
 	if len(items) != 2 || !strings.Contains(items[0].Meta, "folders: my-repo: "+repo+"; notes: ") || strings.Contains(fmt.Sprint(items[1].Actions), "project_delete") {
 		t.Fatalf("the Projects tab shows the folders: %+v", items)
 	}
-	e.must("deck.folder_remove", map[string]any{"project": "code", "name": "notes"}, nil)
+	if code, out := e.press(e.rowAction("code", "settings", "deck.folder_remove", map[string]any{"name": "notes"})); code != 200 {
+		t.Fatalf("the remove button of a folder on the settings of the project works: %d %s", code, out)
+	}
 	e.refused("deck.folder_remove", map[string]any{"project": "code", "name": "notes"}, 404, "no folder notes")
 	if _, err := os.Stat(notes); err != nil {
 		t.Fatalf("removing a folder leaves it on disk: %v", err)

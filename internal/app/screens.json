@@ -51,6 +51,7 @@
       "Command": "Команда",
       "Commands": "Команды",
       "Cost": "Стоимость",
+      "The cost is what the provider said, such as OpenRouter or Claude Code; deck keeps no prices.": "Стоимость — та, что сообщил поставщик, например OpenRouter или Claude Code; своих цен у deck нет.",
       "Cost, $": "Стоимость, $",
       "Cost, 30 days": "Стоимость, 30 дней",
       "Create a token": "Создать токен",
@@ -444,6 +445,7 @@
             {"type": "chart", "title": "Tokens by day", "kind": "bar", "span": "full", "source": {"from": "deck.spend_daily"}, "x": "day",
               "series": [{"label": "Input", "y": "input_tokens"}, {"label": "Output", "y": "output_tokens"}]},
             {"type": "table", "title": "By model, 30 days", "span": 2, "source": {"from": "deck.spend_daily", "input": {"by": "provider"}},
+              "description": "The cost is what the provider said, such as OpenRouter or Claude Code; deck keeps no prices.",
               "columns": [
                 {"label": "Model", "bind": "provider"},
                 {"label": "Tokens", "bind": "tokens", "format": "compact"},

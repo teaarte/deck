@@ -98,11 +98,12 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   one HTTP tool per step from its API docs.
   An input field of `"format": "json"` is text with JSON for the caller; `"{field}"` alone in a JSON body puts
   the value it holds (a list, an object), so one tool serves every shape of body.
-- **Models** the owner added (connections such as OpenRouter or Ollama, their models with prices, and which model
+- **Models** the owner added (connections such as OpenRouter or Ollama, their models, and which model
   does text, image, tts, stt) are called through deck, never with a key of the module: a command of type
   `model`, `deck.model_call` from a script or agent, or any API path through `$DECK_MODELS` (below). The manifest
   names what it calls in `models`: a connection, a model by name or `@text`/`@image`/`@tts`/`@stt` for the
-  assigned ones; deck counts the spend, and past the day's limit a call waits for the owner.
+  assigned ones; deck keeps each call in its journal. deck has no limits of money: the owner sets them at the
+  provider, so a module never loops on paid calls.
 - **MCP servers** (`tools.mcp.servers`, the usual `mcp.servers` shape): `command`/`args`/`env` (values may use
   `$secret.<name>`) or `url`; `toolFilter` lists the tools the module uses, `classes` their classes — every
   other tool is `external`. Tools are `<server>.<tool>` in `executor.tool` and `allowed_external`. deck starts
@@ -269,9 +270,9 @@ A script reads its input JSON from stdin and prints its result JSON to stdout. I
   host (`hf.co` takes its subdomains too) or `host:port`, never a URL or a public suffix such as `co.uk`; a name
   reaches only public addresses, so a service on the owner's machine or network is named by its IP or IP:port;
 - models through `$DECK_MODELS/<connection>/<API path>` with `Authorization: Bearer $DECK_TOKEN` (an OpenAI SDK
-  takes it as its base URL with the token as its key): deck puts in the key and counts the spend; a body with
+  takes it as its base URL with the token as its key): deck puts in the key and keeps the call; a body with
   `"model": "@tts"` and the connection `@` takes the model the owner assigned, a fallback when it refuses. A
-  202 with `{"waiting": <ask>}` means the call waits for the owner (past the day's limit, or a draft): stop and
+  202 with `{"waiting": <ask>}` means the call waits for the owner (a draft or a trial of a paid model): stop and
   say so, do not retry in a loop;
 - no secrets and no keys of the owner; ask for an HTTP tool of the manifest instead. Never ask the owner to
   `export` a key for a module: on macOS a confined program reads the environment of the owner's processes, so
@@ -319,9 +320,9 @@ A script reads its input JSON from stdin and prints its result JSON to stdout. I
 `model` commands and `deck.model_call` know text, image, tts and stt, asked in the OpenAI-compatible protocol (a
 connection of another API, such as Google's own, is reached only from a script). Anything else — video, music, a service
 with its own API (fal, Replicate, ElevenLabs, Google Veo) — is a script that calls the API through
-`$DECK_MODELS`, so the key stays with deck and the spend counts. The owner adds the service as a connection
-(Settings → Connections: `raw` for a service that takes a bearer key, `google` for Google's own API) and a model
-with its price per call; the manifest names the connection in `models`. One call, the answer a file:
+`$DECK_MODELS`, so the key stays with deck and the call is in its journal. The owner adds the service as a
+connection (Settings → Connections: `raw` for a service that takes a bearer key, `google` for Google's own API);
+the manifest names the connection in `models`. One call, the answer a file:
 
 ```python
 import json, os, sys, urllib.request
@@ -330,7 +331,7 @@ req = urllib.request.Request(os.environ["DECK_MODELS"] + "/music/v1/generate",  
     data=json.dumps({"prompt": inp["prompt"], "seconds": 30}).encode(),
     headers={"Authorization": "Bearer " + os.environ["DECK_TOKEN"], "Content-Type": "application/json"})
 with urllib.request.urlopen(req, timeout=600) as r:
-    if r.status == 202:  # past the day's limit: the call waits for the owner
+    if r.status == 202:  # a draft or a trial: the call waits for the owner
         print(json.dumps({"waiting": json.load(r)})); sys.exit(0)
     path = os.path.join(os.environ["DECK_RESULTS"], "track.mp3")
     open(path, "wb").write(r.read())
@@ -341,8 +342,7 @@ A long job (video takes minutes) is two commands, never a script that waits for 
 through `$DECK_MODELS`, keeps the job id in the record with status `waiting` and ends; `fetch`, on a schedule
 (`every 5m`), reads the waiting records, asks the status path of the API through `$DECK_MODELS`, and when the
 job is done downloads the file into `$DECK_RESULTS` and sets the record `done`. A file the service gives as a URL
-on its own storage host is fetched through the proxy, so that host goes into `domains.read`. Ask the owner for the price per call of such a model: a service that reports no
-`usage.cost` is counted by it, else as nothing.
+on its own storage host is fetched through the proxy, so that host goes into `domains.read`.
 
 A tool of the manifest called from a script (`POST $DECK_URL/commands/<project>.<tool>`) that answers with a
 file returns `{"file": "<name>", "type", "size"}`: the file is `$DECK_RESULTS/<name>`, and `results/<name>`

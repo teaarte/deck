@@ -4,8 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"deck2/internal/app/access"
+	"deck2/internal/ask"
 	"encoding/json"
 	"errors"
+	"slices"
 	"strings"
 	"time"
 
@@ -114,8 +116,9 @@ func (s *Service) processesList(ctx context.Context, act registry.Actor, in proc
 			v.Result = nil
 		}
 		if !p.FinishedAt.Valid {
-			if asks, err := s.St.Q.ListOpenAsksOfProcess(ctx, p.ID); err == nil && len(asks) > 0 {
-				v.Ask, v.Question = asks[0].ID, asks[0].Text
+			asks, _ := s.St.Q.ListOpenAsksOfProcess(ctx, p.ID)
+			if i := slices.IndexFunc(asks, holds); i >= 0 {
+				v.Ask, v.Question = asks[i].ID, asks[i].Text
 			}
 		}
 		out = append(out, v)
@@ -227,7 +230,7 @@ func (s *Service) processCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("processes_list", "List processes",
 			"Lists recent processes, newest first, or only the open ones.",
-			registry.Everyone, s.processesList).On("processes"),
+			registry.Everyone, s.processesList).On("processes", "asks"),
 		registry.Read("process_get", "Process status",
 			"Returns the state and result of a process; with wait, once it finishes or waits for the owner.",
 			registry.Everyone, s.processGet).On("processes"),
@@ -241,4 +244,9 @@ func (s *Service) processCommands() []*registry.Command {
 			"Returns the last events of a process, while it runs and for a week after it ended.",
 			registry.Everyone, s.processLog).On("log"),
 	}
+}
+
+// holds is an open ask its process cannot go on without: a question or a confirmation; a frozen call lets it work on.
+func holds(a db.Ask) bool {
+	return a.State == "open" && (a.Kind == ask.KindQuestion || a.Kind == ask.KindConfirm)
 }

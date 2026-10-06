@@ -107,6 +107,9 @@ func TestQuestionAnsweredLive(t *testing.T) {
 		!strings.Contains(running[0].Text, "Which topic?") {
 		t.Fatalf("a process that waits for the owner says so in Running now, with its question: %+v", running)
 	}
+	if b, _ := json.Marshal(e.screenMessages("", "cockpit", map[string]any{"topic": "asks"})); !strings.Contains(string(b), "waits for your answer") {
+		t.Fatalf("a question that opens reads Running now again: %s", b)
+	}
 	e.answer(a.ID, `{"Which topic?":"go"}`)
 	e.waitState(id, "done")
 	recs, _ := e.App.Store.Q.ListRecords(context.Background(), db.ListRecordsParams{ProjectID: p, Collection: "ideas"})

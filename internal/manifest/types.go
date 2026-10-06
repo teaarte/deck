@@ -159,8 +159,22 @@ type Script struct {
 	Name           string   `json:"name"`
 	File           string   `json:"file"`
 	Runtime        string   `json:"runtime"`
-	Programs       []string `json:"programs,omitempty"`
-	TimeoutMinutes int      `json:"timeout_minutes,omitempty"`
+	Programs       []Program `json:"programs,omitempty"`
+	TimeoutMinutes int       `json:"timeout_minutes,omitempty"`
+}
+
+// Program is a program a script needs on the machine; Install says how the owner installs it.
+type Program struct {
+	Name    string `json:"name"`
+	Install string `json:"install,omitempty"`
+}
+
+func (p *Program) UnmarshalJSON(b []byte) error {
+	if json.Unmarshal(b, &p.Name) == nil {
+		return nil
+	}
+	type plain Program
+	return json.Unmarshal(b, (*plain)(p))
 }
 
 type Trigger struct {

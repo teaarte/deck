@@ -149,6 +149,8 @@ type Deps struct {
 	Folder func(ctx context.Context, projectID int64, f manifest.Folder) (string, error)
 	// Memory is the memory a fresh session of the process gets, as data; empty when there is none.
 	Memory func(ctx context.Context, p db.Process) (string, error)
+	// Programs looks for the programs of the scripts of a project again and writes the health of its commands.
+	Programs func(ctx context.Context, projectID int64) error
 }
 
 func NewRunner(st *store.Store, gw *gateway.Gateway, bus *events.Bus, scripts *script.Exec, cfg Config, deps Deps) *Runner {

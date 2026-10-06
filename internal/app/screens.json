@@ -650,7 +650,8 @@
             {"label": "Status", "bind": "status"},
             {"label": "Why", "bind": "error"},
             {"label": "Since", "bind": "updated_at"}
-          ]}
+          ],
+          "actions": [{"verb": "check", "command": "deck.programs_check", "when": "hasPrefix(subject, 'command:') && status != 'ok'"}]}
       ]
     },
     {

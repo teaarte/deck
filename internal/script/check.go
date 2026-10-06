@@ -23,11 +23,14 @@ func Check(m *manifest.Manifest) map[string]error {
 func check(s manifest.Script) error {
 	progs := s.Programs
 	if p := interpreters[s.Runtime]; p != "" {
-		progs = append([]string{p}, progs...)
+		progs = append([]manifest.Program{{Name: p}}, progs...)
 	}
 	for _, prog := range progs {
-		if _, err := exec.LookPath(prog); err != nil {
-			return fmt.Errorf("program %q that script %s needs is not on this machine", prog, s.Name)
+		if _, err := exec.LookPath(prog.Name); err != nil {
+			if prog.Install != "" {
+				return fmt.Errorf("program %q that script %s needs is not on this machine; the owner installs it: %s", prog.Name, s.Name, prog.Install)
+			}
+			return fmt.Errorf("program %q that script %s needs is not on this machine", prog.Name, s.Name)
 		}
 	}
 	return nil

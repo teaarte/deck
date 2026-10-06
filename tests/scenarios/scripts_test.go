@@ -703,3 +703,35 @@ console.log(JSON.stringify({deck: deck.status, outside}));
 		t.Fatalf("fetch of a node script reaches deck and asks deck's proxy for the rest: %+v %s", p, p.Result)
 	}
 }
+
+// TestAMissingProgramSaysHowToInstallItAndIsCheckedAgain: a missing program with its install text refuses the run
+// at once; once installed, the check button finds it without a new save of the manifest.
+func TestAMissingProgramSaysHowToInstallItAndIsCheckedAgain(t *testing.T) {
+	bin := t.TempDir()
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	e := newEnv(t, nil)
+	m := strings.Replace(scriptManifest("use", "", ""), `"runtime": "python"`,
+		`"runtime": "python", "programs": ["sh", {"name": "deck-later-tool", "install": "brew install deck-later-tool"}]`, 1)
+	e.createProject("progs", m)
+	e.saveScript("progs", "scripts/main.py", "import json, subprocess\nprint(json.dumps({'out': subprocess.run(['deck-later-tool'], capture_output=True, text=True).stdout.strip()}))\n")
+	h := e.waitHealth("command:progs.use", "error")
+	if !strings.Contains(h.Error, "deck-later-tool") || !strings.Contains(h.Error, "brew install deck-later-tool") {
+		t.Fatalf("the health names the missing program and how to install it: %+v", h)
+	}
+	if b, _ := json.Marshal(e.screenMessages("progs", "settings", nil)); !strings.Contains(string(b), "deck.programs_check") {
+		t.Fatalf("the health row of the command has the check button on the settings of the project: %s", b)
+	}
+	if p := e.waitScript(e.start("progs", "use", nil), "done", "error"); p.State != "error" || !strings.Contains(p.Error, "brew install deck-later-tool") {
+		t.Fatalf("a run without its program is refused at once with the same line: %+v", p)
+	}
+	if err := os.WriteFile(filepath.Join(bin, "deck-later-tool"), []byte("#!/bin/sh\necho here\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	e.must("deck.programs_check", map[string]any{"project": "progs"}, nil)
+	if h := e.waitHealth("command:progs.use", ""); h.Status != "ok" {
+		t.Fatalf("the check finds the program the owner installed: %+v", h)
+	}
+	if p := e.waitScript(e.start("progs", "use", nil), "done", "error"); p.State != "done" || !strings.Contains(string(p.Result), "here") {
+		t.Fatalf("the script runs with its program: %+v %s", p, p.Result)
+	}
+}

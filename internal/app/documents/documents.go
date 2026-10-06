@@ -466,6 +466,9 @@ func (dc *Service) Commands() []*registry.Command {
 		registry.Def("document_revert", "Revert document",
 			"Makes an earlier revision current again as a new revision.",
 			registry.OwnerSide, dc.documentRevert),
+		registry.Def("programs_check", "Check programs",
+			"Looks again for the programs the scripts of a project need, after the owner installed one, and updates the health of its commands.",
+			registry.OwnerSide, dc.programsCheck),
 	}
 }
 
@@ -559,13 +562,29 @@ func (dc *Service) PrepareLater(projectID int64) {
 	dc.BG.Add(1)
 	go func() {
 		defer dc.BG.Done()
-		if err := dc.prepareScripts(dc.Ctx, projectID); err != nil && dc.Ctx.Err() == nil {
+		if err := dc.Programs(dc.Ctx, projectID); err != nil && dc.Ctx.Err() == nil {
 			slog.Error("prepare scripts", "project", projectID, "err", err)
 		}
 	}()
 }
 
-func (dc *Service) prepareScripts(ctx context.Context, projectID int64) error {
+type programsCheckIn struct {
+	Project string `type:"project" desc:"Project name"`
+}
+
+func (dc *Service) programsCheck(ctx context.Context, act registry.Actor, in programsCheckIn) (any, error) {
+	p, err := access.Project(ctx, dc.St.Q, act, in.Project)
+	if err != nil {
+		return nil, err
+	}
+	if err := dc.Programs(ctx, p.ID); err != nil {
+		return nil, err
+	}
+	return map[string]any{"project": p.Name, "checked": true}, nil
+}
+
+// Programs looks for the programs of the scripts of a project and writes the health of its script commands.
+func (dc *Service) Programs(ctx context.Context, projectID int64) error {
 	p, err := dc.St.Q.GetProject(ctx, projectID)
 	if err != nil {
 		return err

@@ -143,7 +143,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 			Hidden: sandbox.Agent(h), AgentSlots: a.Settings.AgentSlots},
 		process.Deps{For: a.Providers.For, Named: a.Providers.Named, Ready: a.Providers.Ready, Broke: a.Providers.Broke, Prompt: a.Saver.Prompt,
 			Text: a.Saver.Text, Skills: a.Documents.Skills, Servers: a.Signins.Servers, Folder: a.Folders.Folder,
-			Memory: a.Chats.Memory})
+			Memory: a.Chats.Memory, Programs: a.Documents.Programs})
 	a.Runner.Hooks = []process.Hook{a.Chats.NewHook(), failures.Hook{S: a.Failures}, triggers.After{S: a.Triggers}, asks.Unheard{S: a.Answers}}
 	a.Scheduler = trigger.New(st, a.Triggers, cfg.Now)
 

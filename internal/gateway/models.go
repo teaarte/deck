@@ -11,7 +11,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 	"time"
 
@@ -33,10 +32,6 @@ type ModelHop struct {
 	// Connection names the target; Model is the name the API knows, which replaces an @role the caller asked for.
 	Connection string
 	Model      string
-	// Over says why the day of its connection is past its limit, Wait how long until that day ends;
-	// deck skips such a hop.
-	Over string
-	Wait time.Duration
 	// Local is a connection on the owner's hardware; Free is a model that costs nothing.
 	Local, Free bool
 	// Options are the fields a call of a kind adds to the request of this model, such as language.
@@ -112,16 +107,11 @@ func SendModel(ctx context.Context, t ModelTarget, c ModelCall) (*http.Response,
 	return modelClient.Do(req)
 }
 
-// SendHops makes the call each hop builds, in order, past a hop over its day unless the owner said yes and past one
-// unsent, a 429 or a 5xx; the usage of the answer reaches the Done of its hop when its body closes.
+// SendHops makes the call each hop builds, in order, past one unsent, a 429 or a 5xx; the usage of the answer
+// reaches the Done of its hop when its body closes.
 func SendHops(ctx context.Context, hops []ModelHop, build func(ModelHop) (ModelCall, error)) (*http.Response, ModelHop, error) {
-	_, approved := Approved(ctx)
 	var last error = registry.Invalid("deck: no model to call")
 	for i, h := range hops {
-		if h.Over != "" && !approved {
-			last = &registry.Error{Status: http.StatusTooManyRequests, Text: h.Over}
-			continue
-		}
 		c, err := build(h)
 		if err != nil {
 			return nil, h, err
@@ -195,7 +185,7 @@ func metered(body io.ReadCloser, start time.Time, done func(*provider.Usage)) io
 }
 
 // ServeHops serves one call of a model through the hops and passes the answer on as it comes; replace puts the
-// model of each hop in the body. Past every limit it is a 429 until the first day ends.
+// model of each hop in the body.
 func ServeHops(w http.ResponseWriter, r *http.Request, path string, body []byte, replace bool, hops []ModelHop) {
 	resp, _, err := SendHops(r.Context(), hops, func(h ModelHop) (ModelCall, error) {
 		b := body
@@ -205,17 +195,6 @@ func ServeHops(w http.ResponseWriter, r *http.Request, path string, body []byte,
 		return ModelCall{Method: r.Method, Path: path, Query: r.URL.RawQuery, Header: r.Header, Body: b}, nil
 	})
 	if err != nil {
-		if registry.Status(err) == http.StatusTooManyRequests {
-			var wait time.Duration
-			for _, h := range hops {
-				if h.Over != "" && (wait == 0 || h.Wait < wait) {
-					wait = h.Wait
-				}
-			}
-			if wait > 0 {
-				w.Header().Set("Retry-After", strconv.Itoa(max(1, int(wait.Seconds()))))
-			}
-		}
 		http.Error(w, err.Error(), registry.Status(err))
 		return
 	}
@@ -432,7 +411,7 @@ func (g *Gateway) proxyModel(w http.ResponseWriter, r *http.Request, act registr
 	}
 	if !now {
 		if len(body) > 0 && !json.Valid(body) {
-			http.Error(w, "deck: this call of a model waits for the owner, and only a JSON body can wait; call it again once the owner raised the limit", http.StatusTooManyRequests)
+			http.Error(w, "deck: this call of a model waits for the owner, and only a JSON body can wait; call it again once the owner enabled the project", http.StatusTooManyRequests)
 			return
 		}
 		out, err := g.hold(r.Context(), act, c, act.ProjectID, input)

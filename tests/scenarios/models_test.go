@@ -11,7 +11,6 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"time"
 
 	"deck2/internal/health"
 	"deck2/internal/provider"
@@ -25,13 +24,12 @@ type modelsOut struct {
 		Error   string `json:"error"`
 	} `json:"agents"`
 	Connections []struct {
-		Name     string   `json:"name"`
-		API      string   `json:"api"`
-		URL      string   `json:"url"`
-		Key      string   `json:"key"`
-		Local    bool     `json:"local"`
-		DailyUSD *float64 `json:"daily_usd"`
-		Models   int      `json:"models"`
+		Name   string `json:"name"`
+		API    string `json:"api"`
+		URL    string `json:"url"`
+		Key    string `json:"key"`
+		Local  bool   `json:"local"`
+		Models int    `json:"models"`
 	} `json:"connections"`
 	Models []struct {
 		Builtin    bool     `json:"builtin"`
@@ -273,111 +271,52 @@ type spendRow struct {
 	Cost     *float64 `json:"cost_usd"`
 }
 
-// TestAScriptCallsAModelThroughDeckWithinTheDayOfItsConnection: a script calls a model deck has no row of through
-// DECK_MODELS without its key, deck counts what OpenRouter says it cost; past the day's limit a call waits for the owner.
-func TestAScriptCallsAModelThroughDeckWithinTheDayOfItsConnection(t *testing.T) {
+// TestAScriptCallsAModelThroughDeckAndNoLimitOfABaseFromBeforeHoldsIt: a script calls a model through DECK_MODELS
+// without its key, deck keeps what OpenRouter says it cost; the daily limit of an older base goes.
+func TestAScriptCallsAModelThroughDeckAndNoLimitOfABaseFromBeforeHoldsIt(t *testing.T) {
 	api := newModels(t, map[string]func(int, map[string]any) (int, string, string){
 		"/api/v1/chat/completions": func(int, map[string]any) (int, string, string) {
 			return 200, "application/json", pictureAnswer(0.033631)
 		},
 	})
-	e := newEnv(t, nil)
+	home := t.TempDir()
+	e := newEnvWith(t, home, &Fake{})
 	e.must("deck.secret_set", map[string]any{"name": "openrouter", "value": "sk-or-real"}, nil)
-	e.must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": api.URL + "/api/v1", "key_secret": "openrouter",
-		"daily_usd": 0.05}, nil)
+	e.must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": api.URL + "/api/v1", "key_secret": "openrouter"}, nil)
+	e.olderBase(19)
+	if _, err := e.App.Store.DB.Exec(`UPDATE connection SET daily_usd = 0.05 WHERE name = 'openrouter'`); err != nil {
+		t.Fatal(err)
+	}
+	_ = e.App.Close()
+	e = newEnvWith(t, home, &Fake{})
+	var n int
+	if err := e.App.Store.DB.QueryRow(`SELECT count(*) FROM pragma_table_info('connection') WHERE name = 'daily_usd'`).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("the daily limit of a connection goes with the migration: %d %v", n, err)
+	}
 	e.createProject("shorts", scriptManifest("media", "", `, "models": ["openrouter"]`))
 	e.saveScript("shorts", "scripts/main.py", modelScript)
-	run := func() map[string]any {
+	for i := range 3 {
 		got := e.waitScript(e.start("shorts", "media", map[string]any{"key": "openrouter/chat/completions", "other": picture}), "done", "error")
 		var out map[string]any
 		if got.State != "done" || json.Unmarshal(got.Result, &out) != nil {
 			t.Fatalf("the script ran: %+v", got)
 		}
-		return out
-	}
-	for i := range 2 {
-		out := run()
 		if out["status"] != 200.0 || !strings.Contains(out["answer"].(string), "data:image/png;base64") || len(out["keys"].([]any)) != 0 {
-			t.Fatalf("call %d reaches the model with the answer as it came and no key in the script: %v", i, out)
+			t.Fatalf("call %d, past the old limit too, reaches the model with the answer as it came and no key in the script: %v", i, out)
 		}
 	}
 	calls := api.calls()
-	if len(calls) != 2 || calls[0].Auth != "Bearer sk-or-real" || calls[0].Model != "google/gemini-3.1-flash-lite-image" ||
+	if len(calls) != 3 || calls[0].Auth != "Bearer sk-or-real" || calls[0].Model != "google/gemini-3.1-flash-lite-image" ||
 		calls[0].Body["image_config"].(map[string]any)["aspect_ratio"] != "9:16" {
 		t.Fatalf("deck put in the key and passed the body on: %+v", calls)
 	}
 	var spend []spendRow
 	e.modelCalls("shorts", 0, &spend)
-	if len(spend) != 2 || spend[0].Provider != "openrouter" || spend[0].Model != "google/gemini-3.1-flash-lite-image" || spend[0].Command != "media" ||
+	if len(spend) != 3 || spend[0].Provider != "openrouter" || spend[0].Model != "google/gemini-3.1-flash-lite-image" || spend[0].Command != "media" ||
 		spend[0].Process == 0 || spend[0].Cost == nil || *spend[0].Cost != 0.033631 {
 		t.Fatalf("each call is in the journal of model calls with what OpenRouter said it cost: %+v", spend)
 	}
-
-	out := run()
-	if out["status"] != 202.0 || !strings.Contains(out["answer"].(string), `"waiting"`) || len(api.calls()) != 2 {
-		t.Fatalf("past the limit of the day the call waits for the owner and is not made: %v", out)
-	}
-	a := e.waitAsk()
-	if !strings.Contains(a.Text, "deck.model_request") || !strings.Contains(a.Text, "connection openrouter spent $0.07 of its $0.05 for today") {
-		t.Fatalf("the owner reads what waits and why: %+v", a)
-	}
-	e.must("deck.ask_answer", map[string]any{"ask": a.ID, "answer": "allow"}, nil)
-	if n := len(api.calls()); n != 3 {
-		t.Fatalf("the owner's yes makes the call: %d calls", n)
-	}
-	e.modelCalls("shorts", 0, &spend)
-	if len(spend) != 3 {
-		t.Fatalf("the call made on the owner's yes is counted too: %+v", spend)
-	}
-}
-
-// TestAnAgentTurnPastTheDayOfItsConnectionPausesUntilTheDayEnds: ACP turns are priced by their model and count to the
-// day of its connection; past its limit the turn pauses as on a usage limit until the day ends or the pause limit.
-func TestAnAgentTurnPastTheDayOfItsConnectionPausesUntilTheDayEnds(t *testing.T) {
-	f := newACP(t)
-	llm := newLLM(t, func(int, chatRequest) chatReply { return textReply("ok") })
-	f.streamText(4, acpStream(acpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`, acpModel,
-		`{"mcp": {"tool": "result_submit", "arguments": {"result": {"color": "blue"}}}}`, `{"end": "end_turn"}`))
-	f.streamText(5, acpStream(acpInit, `{"reply": "session/new", "result": {"sessionId": "s-2"}}`, `{"reply": "session/prompt"}`, acpModel,
-		`{"fail": {"code": -32603, "message": "Internal error: turn failed"}}`))
-	e := acpEnv(t, f, "dsh", llm)
-	e.must("deck.model_set", map[string]any{"connection": "acp", "model": "m", "name": "acp", "input_usd": 1000, "output_usd": 2000}, nil)
-	p := e.acpProject("paint", colorManifest)
-	if got := e.waitState(e.run(p, "work"), "done", "error"); got.State != "done" {
-		t.Fatalf("the first turn runs: %+v", got)
-	}
-	var spend []spendRow
-	e.modelCalls("paint", 0, &spend)
-	if len(spend) != 1 || spend[0].Cost == nil || math.Abs(*spend[0].Cost-0.12) > 1e-9 {
-		t.Fatalf("a turn is priced by its model, 100 tokens in and 10 out: %+v", spend)
-	}
-	var m modelsOut
-	e.must("deck.models_list", nil, &m)
-	url := ""
-	for _, c := range m.Connections {
-		if c.Name == "acp" {
-			url = c.URL
-		}
-	}
-	e.must("deck.connection_set", map[string]any{"name": "acp", "api": "openai", "url": url, "daily_usd": 0.1}, nil)
-	e.must("deck.models_list", nil, &m)
-	for _, c := range m.Connections {
-		if c.Name == "acp" && c.Key != "secret model_key" {
-			t.Fatalf("a connection changed without its key keeps it: %+v", c)
-		}
-	}
-	before := len(llm.requests())
-	id := e.run(p, "work")
-	got := e.waitState(id, "done", "error", "rate_limited")
-	if got.State != "rate_limited" || len(llm.requests()) != before {
-		t.Fatalf("past the day of its connection the turn pauses and the model is not called: %+v", got)
-	}
-	pp, _ := e.App.Store.Q.GetProcess(t.Context(), id)
-	now := time.Now()
-	midnight := time.Date(now.Year(), now.Month(), now.Day()+1, 0, 0, 0, 0, time.Local)
-	if until := time.UnixMilli(pp.PauseUntilMs.Int64); until.Sub(midnight).Abs() > 5*time.Second {
-		t.Fatalf("the pause lasts until the day is over: %s, want %s", until, midnight)
-	}
+	e.refused("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": api.URL + "/api/v1", "daily_usd": 1}, 422, "daily_usd")
 }
 
 // TestAnAgentTurnReachesOnlyTheModelOfItsTurn: a turn of an ACP agent calls its model through deck's proxy, which

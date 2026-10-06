@@ -70,11 +70,9 @@ type connectionView struct {
 	API  string `json:"api"`
 	URL  string `json:"url"`
 	// Key is the secret the API key is kept in, or none.
-	Key   string `json:"key"`
-	Local bool   `json:"local"`
-	// DailyUSD is the most its models may cost in a day; none without a limit.
-	DailyUSD *float64 `json:"daily_usd,omitempty"`
-	Models   int64    `json:"models"`
+	Key    string `json:"key"`
+	Local  bool   `json:"local"`
+	Models int64  `json:"models"`
 }
 
 type modelView struct {
@@ -137,7 +135,7 @@ func (s *Service) modelsList(ctx context.Context, act registry.Actor, _ struct{}
 		return out, err
 	}
 	for _, c := range conns {
-		v := connectionView{Name: c.Name, API: c.Api, URL: c.Url, Key: "none", Local: c.Local != 0, DailyUSD: nullable(c.DailyUsd)}
+		v := connectionView{Name: c.Name, API: c.Api, URL: c.Url, Key: "none", Local: c.Local != 0}
 		if strings.ContainsAny(c.Url, "@?#") {
 			v.URL = "(an address with a key in it; set it again without)"
 		}
@@ -250,13 +248,12 @@ func b2i(b bool) int64 {
 }
 
 type connectionSetIn struct {
-	Name      string  `desc:"Connection name: lowercase letters, digits and '-'"`
-	API       string  `json:"api" enum:"openai|google|anthropic|raw" desc:"What the API speaks: openai for OpenAI-compatible ones (OpenRouter, Ollama, Groq, NVIDIA), google and anthropic for their own, raw for a service deck passes the key to as a bearer token"`
-	URL       string  `desc:"Base URL of the API, such as https://openrouter.ai/api/v1"`
-	KeySecret string  `json:"key_secret" opt:"" desc:"Name of the secret with the API key; a connection changed without it keeps its own"`
-	Key       string  `type:"secret" opt:"" desc:"The API key; deck keeps it in the secret key_secret names, or one named after the connection"`
-	Local     bool    `opt:"" desc:"The models run on the owner's own hardware"`
-	DailyUSD  float64 `json:"daily_usd" opt:"" desc:"The most its models may cost in a day in USD; past it a call waits for the owner; 0 for no limit"`
+	Name      string `desc:"Connection name: lowercase letters, digits and '-'"`
+	API       string `json:"api" enum:"openai|google|anthropic|raw" desc:"What the API speaks: openai for OpenAI-compatible ones (OpenRouter, Ollama, Groq, NVIDIA), google and anthropic for their own, raw for a service deck passes the key to as a bearer token"`
+	URL       string `desc:"Base URL of the API, such as https://openrouter.ai/api/v1"`
+	KeySecret string `json:"key_secret" opt:"" desc:"Name of the secret with the API key; a connection changed without it keeps its own"`
+	Key       string `type:"secret" opt:"" desc:"The API key; deck keeps it in the secret key_secret names, or one named after the connection"`
+	Local     bool   `opt:"" desc:"The models run on the owner's own hardware"`
 }
 
 func (s *Service) connectionSet(ctx context.Context, act registry.Actor, in connectionSetIn) (any, error) {
@@ -269,8 +266,6 @@ func (s *Service) connectionSet(ctx context.Context, act registry.Actor, in conn
 		return nil, registry.Invalid("deck: the url takes no user, query or key; give the key in key, deck keeps it in a secret")
 	case in.KeySecret != "" && !access.ValidSecret(in.KeySecret):
 		return nil, registry.Invalid("deck: bad secret name %q", in.KeySecret)
-	case in.DailyUSD < 0:
-		return nil, registry.Invalid("deck: daily_usd is a sum in USD, or 0 for no limit")
 	}
 	if in.Key != "" {
 		in.KeySecret = cmp.Or(in.KeySecret, in.Name)
@@ -278,13 +273,12 @@ func (s *Service) connectionSet(ctx context.Context, act registry.Actor, in conn
 			return nil, err
 		}
 	}
-	limit := sql.NullFloat64{Float64: in.DailyUSD, Valid: in.DailyUSD > 0}
 	err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		if old, err := q.GetConnection(ctx, db.GetConnectionParams{WorkspaceID: act.Workspace, Name: in.Name}); err == nil && in.KeySecret == "" {
 			in.KeySecret = old.KeySecret
 		}
 		_, err := q.AddConnection(ctx, db.AddConnectionParams{WorkspaceID: act.Workspace, Name: in.Name, Api: in.API, Url: in.URL,
-			KeySecret: in.KeySecret, Local: b2i(in.Local), DailyUsd: limit})
+			KeySecret: in.KeySecret, Local: b2i(in.Local)})
 		return err
 	})
 	if err != nil {

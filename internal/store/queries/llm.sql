@@ -12,10 +12,6 @@ VALUES (sqlc.arg(workspace_id),
     sqlc.arg(cache_read_tokens), sqlc.arg(cache_creation_tokens), sqlc.arg(duration_ms), sqlc.narg(cost_usd), sqlc.arg(created_at));
 
 
--- name: SpentOfConnection :one
-SELECT CAST(COALESCE(sum(cost_usd), 0) AS REAL) FROM llm_call WHERE connection_id = sqlc.arg(connection_id) AND created_at >= sqlc.arg(since);
-
-
 -- name: SpendByCommand :many
 SELECT CAST(COALESCE(c.project_id, 0) AS INTEGER) AS project_id, c.command, c.gen_ai_provider_name AS provider, c.gen_ai_request_model AS model,
     CAST(count(*) AS INTEGER) AS calls,

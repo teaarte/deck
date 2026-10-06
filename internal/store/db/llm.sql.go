@@ -178,19 +178,3 @@ func (q *Queries) SpendSince(ctx context.Context, arg SpendSinceParams) ([]Spend
 	}
 	return items, nil
 }
-
-const spentOfConnection = `-- name: SpentOfConnection :one
-SELECT CAST(COALESCE(sum(cost_usd), 0) AS REAL) FROM llm_call WHERE connection_id = ?1 AND created_at >= ?2
-`
-
-type SpentOfConnectionParams struct {
-	ConnectionID sql.NullInt64
-	Since        string
-}
-
-func (q *Queries) SpentOfConnection(ctx context.Context, arg SpentOfConnectionParams) (float64, error) {
-	row := q.db.QueryRowContext(ctx, spentOfConnection, arg.ConnectionID, arg.Since)
-	var column_1 float64
-	err := row.Scan(&column_1)
-	return column_1, err
-}

@@ -123,30 +123,28 @@ func TestModelCommandsMakeFilesOfPicturesAndSpeechAndTextOfRecordings(t *testing
 	}
 }
 
-// TestAModelCommandPastTheLimitWaitsForTheOwner: past the day of its connection the call of a model command waits
-// for the owner and its process parks; the owner's yes makes it and the process ends with the answer.
-func TestAModelCommandPastTheLimitWaitsForTheOwner(t *testing.T) {
+// TestAModelCommandOfATrialWaitsForTheOwner: a trial calls a paid model only on the owner's yes; meanwhile its
+// process parks, and the yes makes the call and ends the process with the answer.
+func TestAModelCommandOfATrialWaitsForTheOwner(t *testing.T) {
 	api := newModels(t, map[string]func(int, map[string]any) (int, string, string){
 		"/v1/chat/completions": func(int, map[string]any) (int, string, string) {
 			return 200, "application/json", chatText(`{"verdict": "true", "confidence": 0.6}`)
 		},
 	})
 	e := newEnv(t, nil)
-	e.must("deck.connection_set", map[string]any{"name": "groq", "api": "openai", "url": api.URL + "/v1", "daily_usd": 0.0001}, nil)
-	e.must("deck.model_set", map[string]any{"connection": "groq", "model": "fact-model", "kind": "text", "call_usd": 0.001}, nil)
+	e.must("deck.connection_set", map[string]any{"name": "groq", "api": "openai", "url": api.URL + "/v1"}, nil)
+	e.must("deck.model_set", map[string]any{"connection": "groq", "model": "fact-model", "kind": "text"}, nil)
 	e.must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"groq/fact-model"}}, nil)
 	e.createProject("shorts", modelManifest)
-	if got := e.waitState(e.start("shorts", "factcheck", map[string]any{"claim": "one"}), "done", "error"); got.State != "done" {
-		t.Fatalf("the first call is within the day: %+v", got)
-	}
-	id := e.start("shorts", "factcheck", map[string]any{"claim": "two"})
-	e.waitState(id, "waiting_answer")
-	if n := len(api.calls()); n != 1 {
-		t.Fatalf("past the limit nothing reaches the model: %d calls", n)
+	var tried struct{ Process int64 }
+	e.must("deck.command_try", map[string]any{"live": true, "only": true, "command": "shorts.factcheck", "input": map[string]any{"claim": "two"}}, &tried)
+	e.waitState(tried.Process, "waiting_answer")
+	if n := len(api.made()); n != 0 {
+		t.Fatalf("a trial's call of a paid model does not reach it before the yes: %d calls", n)
 	}
 	a := e.waitAsk()
 	e.must("deck.ask_answer", map[string]any{"ask": a.ID, "answer": "allow"}, nil)
-	if got := e.waitState(id, "done", "error"); got.State != "done" || string(got.Result) != `{"confidence":0.6,"verdict":"true"}` {
+	if got := e.waitState(tried.Process, "done", "error"); got.State != "done" || string(got.Result) != `{"confidence":0.6,"verdict":"true"}` {
 		t.Fatalf("the owner's yes makes the call and the process ends with its answer: %+v", got)
 	}
 }

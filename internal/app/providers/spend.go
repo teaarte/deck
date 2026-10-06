@@ -5,14 +5,12 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"fmt"
 	"io"
 	"log/slog"
 	"mime"
 	"net/http"
 	"slices"
 	"strings"
-	"time"
 
 	"deck2/internal/docs"
 	"deck2/internal/gateway"
@@ -35,24 +33,6 @@ func price(m db.Model, u provider.Usage) *float64 {
 	}
 	cost := float64(u.Input)*m.InputUsd.Float64/1e6 + float64(u.Output)*m.OutputUsd.Float64/1e6 + m.CallUsd.Float64
 	return &cost
-}
-
-// dayStart is the start of the owner's day now, as the base keeps times.
-func (s *Service) dayStart() (string, time.Time) {
-	now := s.Now().Local()
-	start := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.Local)
-	return store.Time(start), start.AddDate(0, 0, 1)
-}
-
-// over says why the day of a connection is past its limit, empty within it, and when the day ends.
-func (s *Service) over(ctx context.Context, c db.Connection) (string, time.Time) {
-	since, end := s.dayStart()
-	if c.DailyUsd.Valid {
-		if spent, err := s.St.Q.SpentOfConnection(ctx, db.SpentOfConnectionParams{ConnectionID: store.ID(c.ID), Since: since}); err == nil && spent >= c.DailyUsd.Float64 {
-			return fmt.Sprintf("deck: connection %s spent $%.2f of its $%.2f for today", c.Name, spent, c.DailyUsd.Float64), end
-		}
-	}
-	return "", end
 }
 
 // Route finds where an actor's call of a model goes: the model of the body on the connection of the path, or for an
@@ -102,7 +82,7 @@ func (s *Service) Route(ctx context.Context, act registry.Actor, connection, ask
 	}
 	hops := make([]gateway.ModelHop, 0, len(picks))
 	for _, p := range picks {
-		h, err := s.hop(ctx, act.Workspace, p.m, p.c)
+		h, err := s.hop(act.Workspace, p.m, p.c)
 		if err != nil {
 			return nil, err
 		}
@@ -113,8 +93,8 @@ func (s *Service) Route(ctx context.Context, act registry.Actor, connection, ask
 	return hops, nil
 }
 
-// hop is where a call of model m goes, with deck's key and whether the day of its connection is over.
-func (s *Service) hop(ctx context.Context, workspace int64, m db.Model, c db.Connection) (gateway.ModelHop, error) {
+// hop is where a call of model m goes, with deck's key.
+func (s *Service) hop(workspace int64, m db.Model, c db.Connection) (gateway.ModelHop, error) {
 	key := ""
 	if c.KeySecret != "" {
 		k, err := s.Secret(workspace, c.KeySecret)
@@ -126,15 +106,11 @@ func (s *Service) hop(ctx context.Context, workspace int64, m db.Model, c db.Con
 	h := gateway.ModelHop{Target: gateway.ModelTarget{URL: c.Url, API: c.Api, Key: key}, Connection: c.Name, Model: m.Model,
 		Local: c.Local != 0, Free: m.Free != 0}
 	_ = json.Unmarshal([]byte(m.Options), &h.Options)
-	var end time.Time
-	if h.Over, end = s.over(ctx, c); h.Over != "" {
-		h.Wait = end.Sub(s.Now())
-	}
 	return h, nil
 }
 
-// turnModel is deck's proxy of model m of an agent turn: every call goes to that model with deck's key, within the
-// day of its connection, and its usage, priced, goes to onUsage.
+// turnModel is deck's proxy of model m of an agent turn: every call goes to that model with deck's key, and its
+// usage, priced, goes to onUsage.
 func (s *Service) turnModel(workspace int64, m db.Model, c db.Connection) func(onUsage func(provider.Usage)) http.Handler {
 	return func(onUsage func(provider.Usage)) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -142,7 +118,7 @@ func (s *Service) turnModel(workspace int64, m db.Model, c db.Connection) func(o
 			if err != nil {
 				return
 			}
-			h, err := s.hop(r.Context(), workspace, m, c)
+			h, err := s.hop(workspace, m, c)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusBadGateway)
 				return
@@ -202,7 +178,7 @@ type modelRequestIn struct {
 }
 
 // allowed decides whether a call of a model runs without the owner: the granted models of the project name it, and
-// a model of it is within the day's limits.
+// it reaches a model.
 func (s *Service) allowed(ctx context.Context, act registry.Actor, input json.RawMessage, _ bool) (bool, error) {
 	connection, asked, err := s.requested(ctx, act.Workspace, input)
 	if err != nil {
@@ -211,29 +187,10 @@ func (s *Service) allowed(ctx context.Context, act registry.Actor, input json.Ra
 	if err := s.granted(ctx, act, input); err != nil {
 		return false, err
 	}
-	hops, err := s.Route(ctx, act, connection, asked)
-	if err != nil {
+	if _, err := s.Route(ctx, act, connection, asked); err != nil {
 		return false, err
 	}
-	for _, h := range hops {
-		if h.Over == "" {
-			return true, nil
-		}
-	}
-	return false, nil
-}
-
-// why is what holds a call of a model past the day's limits: the limit of the first model it may reach.
-func (s *Service) why(ctx context.Context, act registry.Actor, input json.RawMessage) string {
-	connection, asked, err := s.requested(ctx, act.Workspace, input)
-	if err != nil {
-		return ""
-	}
-	hops, err := s.Route(ctx, act, connection, asked)
-	if err != nil || len(hops) == 0 || slices.ContainsFunc(hops, func(h gateway.ModelHop) bool { return h.Over == "" }) {
-		return ""
-	}
-	return hops[0].Over
+	return true, nil
 }
 
 // use is what a call of a model goes through, as a manifest names it: an @role, a model by name, or a connection.
@@ -304,16 +261,12 @@ func (s *Service) free(ctx context.Context, act registry.Actor, input json.RawMe
 	if err != nil {
 		return false
 	}
-	free := false
 	for _, h := range hops {
-		if h.Over == "" {
-			if !h.Local && !h.Free {
-				return false
-			}
-			free = true
+		if !h.Local && !h.Free {
+			return false
 		}
 	}
-	return free
+	return len(hops) > 0
 }
 
 // call is what a call of a model names: a request through a connection with its body, or a model or kind.
@@ -401,13 +354,13 @@ func (s *Service) modelRequest(ctx context.Context, act registry.Actor, in model
 	return map[string]any{"text": string(raw)}, nil
 }
 
-// modelRequestCommand is a request of a model API through deck: deck puts in the key, counts the spend and keeps
-// to the daily limits; past them it waits for the owner.
+// modelRequestCommand is a request of a model API through deck: deck puts in the key and keeps the call in the
+// journal.
 func (s *Service) modelRequestCommand() *registry.Command {
 	c := registry.Def("model_request", "Call a model",
 		"Sends one request to the API of a connection with deck's key, such as chat/completions with model @text; the answer comes back as the API gave it, a file for audio or pictures.",
 		registry.Everyone, s.modelRequest)
-	c.Class, c.Allowed, c.Free, c.Why = registry.External, s.allowed, s.free, s.why
+	c.Class, c.Allowed, c.Free = registry.External, s.allowed, s.free
 	c.Fingerprint = func(context.Context, int64) string { return gateway.ModelRequest }
 	return c
 }

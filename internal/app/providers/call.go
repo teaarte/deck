@@ -295,7 +295,7 @@ func (s *Service) modelCallCommand() *registry.Command {
 	c := registry.Def("model_call", "Ask a model",
 		"Asks the model assigned to a kind of work, or one named: text by a JSON schema, a picture, speech of text or text of a recording; pictures and speech come back as files.",
 		registry.Everyone, s.modelCall)
-	c.Class, c.Allowed, c.Free, c.Why = registry.External, s.allowed, s.free, s.why
+	c.Class, c.Allowed, c.Free = registry.External, s.allowed, s.free
 	c.Fingerprint = func(context.Context, int64) string { return gateway.ModelRequest }
 	return c
 }

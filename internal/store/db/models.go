@@ -80,7 +80,6 @@ type Connection struct {
 	Url         string
 	KeySecret   string
 	Local       int64
-	DailyUsd    sql.NullFloat64
 	CreatedAt   string
 }
 

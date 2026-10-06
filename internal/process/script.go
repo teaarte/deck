@@ -68,8 +68,6 @@ func (r *Runner) runScript(ctx context.Context, t turn, trial bool) {
 	srv := &http.Server{Handler: r.gw.ScriptHandler(runCtx, tok, self, granted.Domains.Read)}
 	go func() { _ = srv.Serve(ln) }()
 	defer srv.Close()
-	url, proxy := "http://"+self, "http://deck:"+tok+"@"+self
-	env := []string{"DECK_URL=" + url, "DECK_TOKEN=" + tok, "DECK_MODELS=" + url + "/models", "HTTP_PROXY=" + proxy, "HTTPS_PROXY=" + proxy, "http_proxy=" + proxy, "https_proxy=" + proxy}
 	_ = r.st.Tx(bg, func(ctx context.Context, q *db.Queries) error {
 		return q.StartCeiling(ctx, db.StartCeilingParams{Now: r.now().UnixMilli(), ID: id})
 	})
@@ -88,7 +86,7 @@ func (r *Runner) runScript(ctx context.Context, t turn, trial bool) {
 		read = append(read, f.Path)
 	}
 	job := script.Job{Project: t.project, Script: t.m.Script(t.cmd.Executor.Script), Source: src, Dir: dir,
-		Stdin: []byte(input), Out: ln, Env: env, Read: read,
+		Stdin: []byte(input), Out: ln, Gateway: self, Token: tok, Read: read,
 		OnLine:  func(line string) { r.event(bg, id, stream, provider.Event{Kind: provider.EventStderr, Text: line}) },
 		OnStart: func(pgid int) { r.setGroup(bg, id, pgid) },
 	}

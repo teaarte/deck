@@ -686,3 +686,20 @@ print(json.dumps({"ok": True}))
 		t.Fatalf("output past 32 MB is an error: %+v", got)
 	}
 }
+
+// TestANodeScriptFetchesThroughTheProxyOfDeck: fetch of Node goes through deck's proxy as Python's urllib does, so a
+// host outside the domains of the project is deck's refusal, not a failed connection, and deck itself answers.
+func TestANodeScriptFetchesThroughTheProxyOfDeck(t *testing.T) {
+	e := newEnv(t, nil)
+	e.createProject("tools", strings.Replace(scriptManifest("collect", "", ""), `"scripts/main.py", "runtime": "python"`, `"scripts/main.mjs", "runtime": "node"`, 1))
+	e.saveScript("tools", "scripts/main.mjs", `const deck = await fetch(process.env.DECK_URL + "/commands/deck.records_list", {method: "POST",
+  headers: {Authorization: "Bearer " + process.env.DECK_TOKEN, "Content-Type": "application/json"}, body: JSON.stringify({collection: "items"})});
+let outside;
+try { outside = (await fetch("http://example.com/")).status; } catch (e) { outside = String(e.cause?.cause?.message || e.cause?.code || e); }
+console.log(JSON.stringify({deck: deck.status, outside}));
+`)
+	p := e.waitScript(e.start("tools", "collect", nil), "done", "error")
+	if p.State != "done" || !strings.Contains(string(p.Result), `"deck":200`) || !strings.Contains(string(p.Result), `(403)`) {
+		t.Fatalf("fetch of a node script reaches deck and asks deck's proxy for the rest: %+v %s", p, p.Result)
+	}
+}

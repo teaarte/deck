@@ -56,10 +56,9 @@ const realHFScript = `#!/usr/bin/env -S uv run --script
 # dependencies = ["huggingface_hub"]
 # ///
 import json, os
-os.environ["HF_HUB_DISABLE_XET"] = "1"
 from huggingface_hub import hf_hub_download
-path = hf_hub_download("hf-internal-testing/tiny-random-bert", "model.safetensors", cache_dir=os.path.join(os.environ["DECK_DATA"], "hf"))
-print(json.dumps({"size": os.path.getsize(path)}))
+path = hf_hub_download("hf-internal-testing/tiny-random-LlamaForCausalLM", "model.safetensors")
+print(json.dumps({"size": os.path.getsize(path), "cached": path.startswith(os.path.join(os.environ["DECK_DATA"], ".cache"))}))
 `
 
 const realGitScript = `import json, os, subprocess
@@ -119,7 +118,7 @@ func TestRealReferenceScripts(t *testing.T) {
 	}
 	e := newEnv(t, nil)
 	cases := []struct{ project, runtime, file, src, domains, want string }{
-		{"hf", `"runtime": "exec", "programs": ["uv"]`, "scripts/main.py", realHFScript, `"pypi.org", "files.pythonhosted.org", "huggingface.co", "hf.co"`, `"size"`},
+		{"hf", `"runtime": "exec", "programs": ["uv"]`, "scripts/main.py", realHFScript, `"pypi.org", "files.pythonhosted.org", "huggingface.co", "hf.co"`, `"cached":true`},
 		{"git", `"runtime": "python", "programs": ["git"]`, "scripts/main.py", realGitScript, `"github.com"`, `"commits":2`},
 		{"ffmpeg", `"runtime": "python", "programs": ["ffmpeg", "ffprobe"]`, "scripts/main.py", realFFmpegScript, `"pypi.org"`, `"seconds":1`},
 		{"remotion", `"runtime": "node", "programs": ["npm", "curl", "unzip"]`, "scripts/main.js", realRemotionScript, `"registry.npmjs.org", "storage.googleapis.com"`, `"bundled":true`},

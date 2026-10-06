@@ -42,9 +42,11 @@ type Job struct {
 	Source  string
 	Dir     string
 	Stdin   []byte
-	// Out is the gateway listener of the run; without it the script has no network.
-	Out net.Listener
-	Env []string
+	// Out is the gateway listener of the run at Gateway, its host:port for the script, opened by Token; without it
+	// the script has no network.
+	Out     net.Listener
+	Gateway string
+	Token   string
 	// Read are files and folders the script may read, such as files of its input and the folders of its project.
 	Read    []string
 	OnLine  func(line string)
@@ -78,16 +80,8 @@ func (x *Exec) Run(ctx context.Context, j Job) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	env := []string{"PATH=" + os.Getenv("PATH"), "HOME=" + j.Work(), "TMPDIR=" + tmp, "TERM=dumb",
-		"DECK_RESULTS=" + j.Results(), "DECK_DATA=" + data, "XDG_CACHE_HOME=" + filepath.Join(data, ".cache"),
-		"npm_config_cache=" + filepath.Join(data, ".cache", "npm"), "PYTHONDONTWRITEBYTECODE=1", "PYTHONUNBUFFERED=1"}
-	for _, k := range []string{"LANG", "LC_ALL"} {
-		if v := os.Getenv(k); v != "" {
-			env = append(env, k+"="+v)
-		}
-	}
 	c := sandbox.Close(x.Home, os.Getenv("PATH")+string(os.PathListSeparator)+filepath.Dir(argv[0]))
-	cmd, err := x.Sandbox.Command(ctx, sandbox.Policy{Argv: argv, Dir: j.Work(), Env: append(env, j.Env...),
+	cmd, err := x.Sandbox.Command(ctx, sandbox.Policy{Argv: argv, Dir: j.Work(), Env: environ(j, data, tmp),
 		Write: []string{j.Work(), j.Results(), data}, Read: append(append([]string{src}, j.Read...), c.Read...),
 		Hide: c.Hide, Private: c.Private, Out: j.Out})
 	if err != nil {
@@ -124,6 +118,26 @@ func (x *Exec) Run(ctx context.Context, j Job) ([]byte, error) {
 		return nil, err
 	}
 	return out.Bytes(), nil
+}
+
+// environ is the whole environment of a script: its folders, caches in the data of its project, and deck with its
+// proxy for every client the script may use, Node's fetch too; only deck's own address is reached past the proxy.
+func environ(j Job, data, tmp string) []string {
+	env := []string{"PATH=" + os.Getenv("PATH"), "HOME=" + j.Work(), "TMPDIR=" + tmp, "TERM=dumb",
+		"DECK_RESULTS=" + j.Results(), "DECK_DATA=" + data, "XDG_CACHE_HOME=" + filepath.Join(data, ".cache"),
+		"npm_config_cache=" + filepath.Join(data, ".cache", "npm"), "PYTHONDONTWRITEBYTECODE=1", "PYTHONUNBUFFERED=1"}
+	for _, k := range []string{"LANG", "LC_ALL"} {
+		if v := os.Getenv(k); v != "" {
+			env = append(env, k+"="+v)
+		}
+	}
+	if j.Gateway == "" {
+		return env
+	}
+	url, proxy := "http://"+j.Gateway, "http://deck:"+j.Token+"@"+j.Gateway
+	return append(env, "DECK_URL="+url, "DECK_TOKEN="+j.Token, "DECK_MODELS="+url+"/models", "HTTP_PROXY="+proxy,
+		"HTTPS_PROXY="+proxy, "http_proxy="+proxy, "https_proxy="+proxy, "NO_PROXY="+j.Gateway, "no_proxy="+j.Gateway,
+		"NODE_USE_ENV_PROXY=1")
 }
 
 func argvOf(s *manifest.Script, file string) ([]string, error) {

@@ -26,11 +26,11 @@ GROUP BY c.project_id, c.command, c.gen_ai_provider_name, c.gen_ai_request_model
 ORDER BY sum(c.gen_ai_usage_input_tokens + c.gen_ai_usage_output_tokens) DESC;
 
 -- name: SpendSince :many
-SELECT CAST(substr(c.created_at, 1, 10) AS TEXT) AS day, c.gen_ai_provider_name AS provider, CAST(COALESCE(j.name, '') AS TEXT) AS project,
+SELECT CAST(substr(c.created_at, 1, 13) AS TEXT) AS hour, c.gen_ai_provider_name AS provider, CAST(COALESCE(j.name, '') AS TEXT) AS project,
     CAST(count(*) AS INTEGER) AS calls,
     CAST(sum(c.gen_ai_usage_input_tokens) AS INTEGER) AS input_tokens,
     CAST(sum(c.gen_ai_usage_output_tokens) AS INTEGER) AS output_tokens,
     CAST(COALESCE(sum(c.cost_usd), 0) AS REAL) AS cost_usd
 FROM llm_call c LEFT JOIN project j ON j.id = c.project_id
 WHERE c.workspace_id = sqlc.arg(workspace_id) AND c.created_at >= sqlc.arg(since)
-GROUP BY day, provider, project;
+GROUP BY hour, provider, project;

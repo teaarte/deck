@@ -123,14 +123,14 @@ func (q *Queries) SpendByCommand(ctx context.Context, workspaceID int64) ([]Spen
 }
 
 const spendSince = `-- name: SpendSince :many
-SELECT CAST(substr(c.created_at, 1, 10) AS TEXT) AS day, c.gen_ai_provider_name AS provider, CAST(COALESCE(j.name, '') AS TEXT) AS project,
+SELECT CAST(substr(c.created_at, 1, 13) AS TEXT) AS hour, c.gen_ai_provider_name AS provider, CAST(COALESCE(j.name, '') AS TEXT) AS project,
     CAST(count(*) AS INTEGER) AS calls,
     CAST(sum(c.gen_ai_usage_input_tokens) AS INTEGER) AS input_tokens,
     CAST(sum(c.gen_ai_usage_output_tokens) AS INTEGER) AS output_tokens,
     CAST(COALESCE(sum(c.cost_usd), 0) AS REAL) AS cost_usd
 FROM llm_call c LEFT JOIN project j ON j.id = c.project_id
 WHERE c.workspace_id = ?1 AND c.created_at >= ?2
-GROUP BY day, provider, project
+GROUP BY hour, provider, project
 `
 
 type SpendSinceParams struct {
@@ -139,7 +139,7 @@ type SpendSinceParams struct {
 }
 
 type SpendSinceRow struct {
-	Day          string
+	Hour         string
 	Provider     string
 	Project      string
 	Calls        int64
@@ -158,7 +158,7 @@ func (q *Queries) SpendSince(ctx context.Context, arg SpendSinceParams) ([]Spend
 	for rows.Next() {
 		var i SpendSinceRow
 		if err := rows.Scan(
-			&i.Day,
+			&i.Hour,
 			&i.Provider,
 			&i.Project,
 			&i.Calls,

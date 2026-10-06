@@ -122,17 +122,27 @@ type spendDailyRow struct {
 	Share float64 `json:"share"`
 }
 
-// window is the first day of the last days and the days in order, oldest first, in UTC.
+// window is the start of the first of the last days of the owner, as stored, and the days in order, oldest first.
 func (s *Service) window(days int64) (string, []string) {
 	if days < 1 || days > 366 {
 		days = 30
 	}
-	today := s.Now().UTC()
+	y, m, d := s.Now().Local().Date()
+	first := time.Date(y, m, d-int(days-1), 0, 0, 0, 0, time.Local)
 	out := make([]string, 0, days)
-	for i := days - 1; i >= 0; i-- {
-		out = append(out, today.AddDate(0, 0, -int(i)).Format("2006-01-02"))
+	for i := range int(days) {
+		out = append(out, first.AddDate(0, 0, i).Format(time.DateOnly))
 	}
-	return out[0], out
+	return store.Time(first), out
+}
+
+// day is the day of the owner an hour of the base, 2006-01-02T15 in UTC, falls on.
+func day(hour string) string {
+	t, err := time.Parse("2006-01-02T15", hour)
+	if err != nil {
+		return ""
+	}
+	return t.Local().Format(time.DateOnly)
 }
 
 // spendDaily is the tokens and cost of model calls of the last days by day, provider or project.
@@ -172,8 +182,8 @@ func (s *Service) spendDaily(ctx context.Context, act registry.Actor, in spendDa
 		case "project":
 			add(r.Project, r, spendDailyRow{Project: r.Project})
 		default:
-			if _, ok := by[r.Day]; ok {
-				add(r.Day, r, spendDailyRow{})
+			if d := day(r.Hour); by[d] != nil {
+				add(d, r, spendDailyRow{})
 			}
 		}
 	}
@@ -216,7 +226,9 @@ func (s *Service) runsDaily(ctx context.Context, act registry.Actor, in runsDail
 	}
 	got := map[string]db.RunsSinceRow{}
 	for _, r := range rows {
-		got[r.Day] = r
+		g := got[day(r.Hour)]
+		g.Runs, g.Failed, g.Scheduled = g.Runs+r.Runs, g.Failed+r.Failed, g.Scheduled+r.Scheduled
+		got[day(r.Hour)] = g
 	}
 	out := make([]runsDailyRow, 0, len(days))
 	for i, d := range days {

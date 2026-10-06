@@ -140,7 +140,7 @@ func TestReviewCallsOnlyWhatItsCommandLists(t *testing.T) {
 	var r struct{ Process int64 }
 	e.must("master.review", map[string]any{}, &r)
 	got := e.waitState(r.Process, "done", "error")
-	if !strings.HasPrefix(string(got.Result), `"true`) || !slices.Contains(tools, "mcp__deck__notify") || slices.Contains(tools, "mcp__deck__suggest") ||
+	if !strings.HasPrefix(string(got.Result), `"true`) || !slices.Contains(tools, "mcp__deck__notify") || !slices.Contains(tools, "mcp__deck__health_list") || slices.Contains(tools, "mcp__deck__suggest") ||
 		slices.Contains(tools, "mcp__deck__manifest_save") || slices.Contains(tools, "mcp__deck__record_delete") {
 		t.Fatalf("the review gets the tools it lists and no other: %s %v", got.Result, tools)
 	}

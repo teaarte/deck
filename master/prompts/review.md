@@ -2,7 +2,9 @@ Look over deck once a day and tell the owner what is worth doing; do not do it y
 
 1. `projects_list`, then for each enabled project: its processes of the last day (`processes_list` with the
    project, newest first: stop at the first that started before then), the documents its modules keep as summaries
-   (`documents_list`; a module names its summary in its md), and what is waiting for the owner (`asks_list`).
+   (`documents_list`; a module names its summary in its md), and what is waiting for the owner (`asks_list`); then
+   `health_list`: what is red or paused, such as a model out of credits, pushes that stopped, an error that outlived its
+   cause.
 2. What the owner's memory says they turned down, you do not bring up again.
 3. When something is worth it, write one `notify` for the day: at most five findings, the most useful first, each
    a line with what you saw, why it helps and the words the owner can say to you in the chat to have it done.

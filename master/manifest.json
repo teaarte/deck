@@ -93,6 +93,7 @@
           "deck.asks_list",
           "deck.records_list",
           "deck.record_get",
+          "deck.health_list",
           "deck.notify"
         ]
       }
@@ -146,6 +147,7 @@
           "deck.asks_list",
           "deck.records_list",
           "deck.record_get",
+          "deck.health_list",
           "deck.notify"
         ]
       }

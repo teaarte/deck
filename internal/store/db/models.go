@@ -200,9 +200,6 @@ type Model struct {
 	Model        string
 	Kind         string
 	Agent        string
-	InputUsd     sql.NullFloat64
-	OutputUsd    sql.NullFloat64
-	CallUsd      sql.NullFloat64
 	Free         int64
 	Options      string
 	CheckMinutes int64

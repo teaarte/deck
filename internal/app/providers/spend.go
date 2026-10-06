@@ -22,19 +22,6 @@ import (
 	"deck2/internal/untrusted"
 )
 
-// price is what a call cost by the price of its model when the API did not say; nil when the model has no price.
-func price(m db.Model, u provider.Usage) *float64 {
-	if m.Free != 0 {
-		zero := 0.0
-		return &zero
-	}
-	if !m.InputUsd.Valid && !m.OutputUsd.Valid && !m.CallUsd.Valid {
-		return nil
-	}
-	cost := float64(u.Input)*m.InputUsd.Float64/1e6 + float64(u.Output)*m.OutputUsd.Float64/1e6 + m.CallUsd.Float64
-	return &cost
-}
-
 // Route finds where an actor's call of a model goes: the model of the body on the connection of the path, or for an
 // @role the models assigned to it for the caller's command in order, on any connection when the path is @.
 func (s *Service) Route(ctx context.Context, act registry.Actor, connection, asked string) ([]gateway.ModelHop, error) {
@@ -110,7 +97,7 @@ func (s *Service) hop(workspace int64, m db.Model, c db.Connection) (gateway.Mod
 }
 
 // turnModel is deck's proxy of model m of an agent turn: every call goes to that model with deck's key, and its
-// usage, priced, goes to onUsage.
+// usage goes to onUsage.
 func (s *Service) turnModel(workspace int64, m db.Model, c db.Connection) func(onUsage func(provider.Usage)) http.Handler {
 	return func(onUsage func(provider.Usage)) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -128,9 +115,6 @@ func (s *Service) turnModel(workspace int64, m db.Model, c db.Connection) func(o
 					return
 				}
 				u.RequestModel = m.Model
-				if u.CostUSD == nil {
-					u.CostUSD = price(m, *u)
-				}
 				onUsage(*u)
 			}
 			gateway.ServeHops(w, r, r.URL.Path, body, true, []gateway.ModelHop{h})
@@ -138,8 +122,7 @@ func (s *Service) turnModel(workspace int64, m db.Model, c db.Connection) func(o
 	}
 }
 
-// record keeps a call of a model made past an agent in the journal of model calls, priced by its model when the
-// API did not say.
+// record keeps a call of a model made past an agent in the journal of model calls, with the cost the API said.
 func (s *Service) record(ctx context.Context, act registry.Actor, m db.Model, c db.Connection, status int, u *provider.Usage) {
 	if u == nil {
 		if status == 0 || status >= 400 {
@@ -147,15 +130,11 @@ func (s *Service) record(ctx context.Context, act registry.Actor, m db.Model, c 
 		}
 		u = &provider.Usage{}
 	}
-	cost := u.CostUSD
-	if cost == nil {
-		cost = price(m, *u)
-	}
 	err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		return q.LogModelCall(ctx, db.LogModelCallParams{WorkspaceID: act.Workspace, ProjectID: store.ID(act.ProjectID), ProcessID: store.ID(act.ProcessID),
 			ConnectionID: store.ID(c.ID), Provider: m.Name, RequestModel: m.Model, ResponseModel: u.Model,
 			InputTokens: u.Input, OutputTokens: u.Output, CacheReadTokens: u.CacheRead, CacheCreationTokens: u.CacheCreation,
-			DurationMs: u.Duration.Milliseconds(), CostUsd: nullFloat(cost), CreatedAt: store.Time(s.Now())})
+			DurationMs: u.Duration.Milliseconds(), CostUsd: nullFloat(u.CostUSD), CreatedAt: store.Time(s.Now())})
 	})
 	if err != nil {
 		slog.Error("model call journal", "connection", c.Name, "err", err)

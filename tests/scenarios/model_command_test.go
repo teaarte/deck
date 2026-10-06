@@ -46,7 +46,7 @@ func TestAModelCommandAnswersByItsSchema(t *testing.T) {
 	})
 	e := newEnv(t, nil)
 	e.must("deck.connection_set", map[string]any{"name": "groq", "api": "openai", "url": api.URL + "/v1", "key": "gsk-1"}, nil)
-	e.must("deck.model_set", map[string]any{"connection": "groq", "model": "fact-model", "kind": "text", "input_usd": 0.5, "output_usd": 1}, nil)
+	e.must("deck.model_set", map[string]any{"connection": "groq", "model": "fact-model", "kind": "text"}, nil)
 	e.must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"groq/fact-model"}}, nil)
 	e.createProject("shorts", modelManifest)
 	got := e.waitState(e.start("shorts", "factcheck", map[string]any{"claim": "Snails beat knights in 1300"}), "done", "error")
@@ -64,8 +64,8 @@ func TestAModelCommandAnswersByItsSchema(t *testing.T) {
 	}
 	var spend []spendRow
 	e.modelCalls("shorts", 0, &spend)
-	if len(spend) != 1 || spend[0].Command != "factcheck" || spend[0].Process != got.ID || spend[0].Cost == nil || *spend[0].Cost != 0.00012 {
-		t.Fatalf("the call is the command's in the journal, priced by its model: %+v", spend)
+	if len(spend) != 1 || spend[0].Command != "factcheck" || spend[0].Process != got.ID || spend[0].Cost != nil {
+		t.Fatalf("the call is the command's in the journal, without a cost the API did not say: %+v", spend)
 	}
 }
 

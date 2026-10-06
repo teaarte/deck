@@ -9,7 +9,6 @@ import (
 	"io"
 	"net/http"
 	"slices"
-	"strconv"
 	"strings"
 	"time"
 
@@ -76,15 +75,12 @@ type connectionView struct {
 }
 
 type modelView struct {
-	Name       string   `json:"name"`
-	Connection string   `json:"connection"`
-	Model      string   `json:"model"`
-	Kind       string   `json:"kind"`
-	Agent      string   `json:"agent,omitempty"`
-	InputUSD   *float64 `json:"input_usd,omitempty"`
-	OutputUSD  *float64 `json:"output_usd,omitempty"`
-	CallUSD    *float64 `json:"call_usd,omitempty"`
-	Free       bool     `json:"free"`
+	Name       string `json:"name"`
+	Connection string `json:"connection"`
+	Model      string `json:"model"`
+	Kind       string `json:"kind"`
+	Agent      string `json:"agent,omitempty"`
+	Free       bool   `json:"free"`
 	// Builtin is a provider deck was started with; Status, Error, Verdict, Speed and Version are of its last self-check.
 	Builtin bool    `json:"builtin"`
 	Status  string  `json:"status,omitempty"`
@@ -115,13 +111,6 @@ type modelsOut struct {
 	Connections []connectionView `json:"connections"`
 	Models      []modelView      `json:"models"`
 	Assignments []assignmentView `json:"assignments"`
-}
-
-func nullable(f sql.NullFloat64) *float64 {
-	if !f.Valid {
-		return nil
-	}
-	return &f.Float64
 }
 
 func (s *Service) modelsList(ctx context.Context, act registry.Actor, _ struct{}) (modelsOut, error) {
@@ -156,8 +145,7 @@ func (s *Service) modelsList(ctx context.Context, act registry.Actor, _ struct{}
 	}
 	for _, r := range models {
 		m := r.Model
-		v := modelView{Name: m.Name, Connection: r.Connection.Name, Model: m.Model, Kind: m.Kind, Agent: m.Agent,
-			InputUSD: nullable(m.InputUsd), OutputUSD: nullable(m.OutputUsd), CallUSD: nullable(m.CallUsd), Free: m.Free != 0}
+		v := modelView{Name: m.Name, Connection: r.Connection.Name, Model: m.Model, Kind: m.Kind, Agent: m.Agent, Free: m.Free != 0}
 		s.lastCheck(ctx, &v)
 		out.Models = append(out.Models, v)
 	}
@@ -316,16 +304,13 @@ func (s *Service) connectionRemove(ctx context.Context, act registry.Actor, in c
 }
 
 type modelSetIn struct {
-	Connection string  `desc:"Connection the model is reached through"`
-	Model      string  `desc:"The model's name in the API, such as google/gemini-3.1-flash-lite-image"`
-	Name       string  `opt:"" desc:"How deck names the model in assignments and calls; connection/model when left out"`
-	Kind       string  `enum:"text|image|tts|stt" opt:"" desc:"What the model makes; a model changed without it keeps its own, a new one takes it from the catalog of the connection, else text"`
-	InputUSD   float64 `json:"input_usd" opt:"" desc:"USD per million input tokens; a model changed without a price keeps its own, a new one takes it from the catalog of the connection"`
-	OutputUSD  float64 `json:"output_usd" opt:"" desc:"USD per million output tokens"`
-	CallUSD    float64 `json:"call_usd" opt:"" desc:"USD per call, for a model priced per picture, clip or request"`
-	Free       bool    `opt:"" desc:"The model costs nothing"`
-	Options    string  `type:"json" opt:"" desc:"Fields deck adds to every call of the model of a kind, such as {\"language\": \"ru\"} of speech to text; a model changed without them keeps its own"`
-	Agent      string  `opt:"" desc:"The ACP agent that runs a text model inside the sandbox of deck with a shell and files, for agent commands; the name is then the name of a provider. A model changed without it keeps its own"`
+	Connection string `desc:"Connection the model is reached through"`
+	Model      string `desc:"The model's name in the API, such as google/gemini-3.1-flash-lite-image"`
+	Name       string `opt:"" desc:"How deck names the model in assignments and calls; connection/model when left out"`
+	Kind       string `enum:"text|image|tts|stt" opt:"" desc:"What the model makes; a model changed without it keeps its own, a new one takes it from the catalog of the connection, else text"`
+	Free       bool   `opt:"" desc:"The model costs nothing, so a trial or a draft calls it without the owner's yes; a new model added without a kind takes it from the catalog of the connection"`
+	Options    string `type:"json" opt:"" desc:"Fields deck adds to every call of the model of a kind, such as {\"language\": \"ru\"} of speech to text; a model changed without them keeps its own"`
+	Agent      string `opt:"" desc:"The ACP agent that runs a text model inside the sandbox of deck with a shell and files, for agent commands; the name is then the name of a provider. A model changed without it keeps its own"`
 	// CheckMinutes give a slow model more time for its self-check.
 	CheckMinutes int64 `json:"check_minutes" opt:"" desc:"Minutes the self-check of a model in an agent may take, for a slow one; deck's own ceiling when left out"`
 }
@@ -349,21 +334,13 @@ func (s *Service) modelSet(ctx context.Context, act registry.Actor, in modelSetI
 		in.Kind = RoleText
 	}
 	m := db.AddModelParams{WorkspaceID: act.Workspace, ConnectionID: c.ID, Name: in.Name, Model: in.Model, Kind: in.Kind, Options: "{}",
-		InputUsd: positive(in.InputUSD), OutputUsd: positive(in.OutputUSD), CallUsd: positive(in.CallUSD), Free: b2i(in.Free),
-		Agent: in.Agent, CheckMinutes: in.CheckMinutes}
-	unpriced := !in.Free && !m.InputUsd.Valid && !m.OutputUsd.Valid && !m.CallUsd.Valid
+		Free: b2i(in.Free), Agent: in.Agent, CheckMinutes: in.CheckMinutes}
 	if old, err := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: act.Workspace, Name: in.Name}); err == nil {
-		if unpriced {
-			m.InputUsd, m.OutputUsd, m.CallUsd, m.Free, unpriced = old.Model.InputUsd, old.Model.OutputUsd, old.Model.CallUsd, old.Model.Free, false
-		}
-		m.Kind, m.CheckMinutes = cmp.Or(m.Kind, old.Model.Kind), cmp.Or(m.CheckMinutes, old.Model.CheckMinutes)
+		m.Kind, m.CheckMinutes, m.Free = cmp.Or(m.Kind, old.Model.Kind), cmp.Or(m.CheckMinutes, old.Model.CheckMinutes), max(m.Free, old.Model.Free)
 	}
-	if unpriced || m.Kind == "" {
+	if m.Kind == "" {
 		if got, ok := s.catalog(ctx, act.Workspace, c, in.Model); ok {
-			if unpriced {
-				m.InputUsd, m.OutputUsd, m.CallUsd, m.Free = got.InputUsd, got.OutputUsd, got.CallUsd, got.Free
-			}
-			m.Kind = cmp.Or(m.Kind, got.Kind)
+			m.Kind, m.Free = got.Kind, max(m.Free, got.Free)
 		}
 	}
 	m.Kind = cmp.Or(m.Kind, RoleText)
@@ -398,8 +375,7 @@ func (s *Service) modelSet(ctx context.Context, act registry.Actor, in modelSetI
 	if in.Agent != "" {
 		s.startCheck(in.Name, true)
 	}
-	return modelView{Name: out.Name, Connection: c.Name, Model: out.Model, Kind: out.Kind, Agent: out.Agent, InputUSD: nullable(out.InputUsd),
-		OutputUSD: nullable(out.OutputUsd), CallUSD: nullable(out.CallUsd), Free: out.Free != 0}, nil
+	return modelView{Name: out.Name, Connection: c.Name, Model: out.Model, Kind: out.Kind, Agent: out.Agent, Free: out.Free != 0}, nil
 }
 
 // checkAgent refuses a model in an agent deck cannot run: an agent it does not know or that is not installed, a
@@ -427,10 +403,8 @@ func (s *Service) checkAgent(ctx context.Context, workspace int64, c db.Connecti
 	return nil
 }
 
-func positive(f float64) sql.NullFloat64 { return sql.NullFloat64{Float64: f, Valid: f > 0} }
-
-// catalog reads the price and kind of a model from the list of models of its connection, as OpenRouter gives them:
-// USD per token as text, and the output modalities.
+// catalog reads the kind of a model and whether it is free from the list of models of its connection, as OpenRouter
+// gives them: the output modalities, and a price of zero.
 func (s *Service) catalog(ctx context.Context, workspace int64, c db.Connection, model string) (db.AddModelParams, bool) {
 	var out db.AddModelParams
 	key := ""
@@ -451,7 +425,6 @@ func (s *Service) catalog(ctx context.Context, workspace int64, c db.Connection,
 				Prompt     string `json:"prompt"`
 				Completion string `json:"completion"`
 				Request    string `json:"request"`
-				Image      string `json:"image"`
 			} `json:"pricing"`
 			Architecture struct {
 				Output []string `json:"output_modalities"`
@@ -461,19 +434,11 @@ func (s *Service) catalog(ctx context.Context, workspace int64, c db.Connection,
 	if resp.StatusCode != http.StatusOK || json.NewDecoder(io.LimitReader(resp.Body, 32<<20)).Decode(&list) != nil {
 		return out, false
 	}
-	perMillion := func(v string) sql.NullFloat64 {
-		f, err := strconv.ParseFloat(v, 64)
-		return sql.NullFloat64{Float64: f * 1e6, Valid: err == nil && f > 0}
-	}
 	for _, d := range list.Data {
 		if d.ID != model {
 			continue
 		}
-		out.InputUsd, out.OutputUsd = perMillion(d.Pricing.Prompt), perMillion(d.Pricing.Completion)
-		if f, err := strconv.ParseFloat(d.Pricing.Request, 64); err == nil && f > 0 {
-			out.CallUsd = sql.NullFloat64{Float64: f, Valid: true}
-		}
-		out.Free = b2i(d.Pricing.Prompt == "0" && d.Pricing.Completion == "0" && !out.CallUsd.Valid)
+		out.Free = b2i(d.Pricing.Prompt == "0" && d.Pricing.Completion == "0" && cmp.Or(d.Pricing.Request, "0") == "0")
 		switch {
 		case slices.Contains(d.Architecture.Output, "image"):
 			out.Kind = RoleImage

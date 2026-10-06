@@ -316,6 +316,11 @@ func TestTheMasterReadsTheDataFolderOfAProject(t *testing.T) {
 	if !strings.Contains(file.Text, `{"last": 7}`) {
 		t.Fatalf("a file of the data folder is read as text: %+v", file)
 	}
+	_ = os.WriteFile(filepath.Join(data, "long.txt"), []byte("a"+strings.Repeat("ж", 40000)), 0o600)
+	e.must("deck.data_read", map[string]any{"project": "notes", "path": "long.txt"}, &file)
+	if !strings.Contains(file.Text, "жжж") {
+		t.Fatalf("a long text cut in the middle of a letter is still text: %d", len(file.Text))
+	}
 	if code, out := e.call("deck.data_read", map[string]any{"project": "notes", "path": "../secret.txt"}); code == 200 && strings.Contains(string(out), "outside") {
 		t.Fatalf("nothing outside the data folder is read: %d %s", code, out)
 	}

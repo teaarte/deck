@@ -265,6 +265,11 @@ func TestWideningChangeWaitsForTheOwnersButton(t *testing.T) {
 	if n := e.waitNote("outdated"); !strings.Contains(n.Text, "notes") || !strings.Contains(n.Text, "revision 4") {
 		t.Fatalf("the owner hears that a request for rights older than the manifest is outdated: %+v", n)
 	}
+	var calls []struct{ Tool, Outcome string }
+	e.must("deck.calls_list", map[string]any{"project": "notes"}, &calls)
+	if !slices.ContainsFunc(calls, func(c struct{ Tool, Outcome string }) bool { return c.Outcome == "expired" }) {
+		t.Fatalf("the journal says the outdated request expired: %+v", calls)
+	}
 	if code, out := e.call("deck.ask_answer", map[string]any{"ask": stale.ID, "answer": "allow"}); code == 200 {
 		t.Fatalf("an outdated request for rights is closed: %d %s", code, out)
 	}
@@ -559,11 +564,12 @@ print(json.dumps({"registry": why("http://pypi.org/simple/"), "site": why("http:
 func TestADraftSaysWhichToolsWillAskEachTime(t *testing.T) {
 	e := newEnv(t, ok)
 	_, tok := e.token("terminal", "deck.*")
-	if code, out := e.callWith(tok, "deck.project_create", map[string]any{"name": "notes", "manifest": postManifest("http://127.0.0.1:1", "")}); code != 200 {
+	m := strings.Replace(postManifest("http://127.0.0.1:1", ""), `"class": "internal"`, `"class": "reversible"`, 1)
+	if code, out := e.callWith(tok, "deck.project_create", map[string]any{"name": "notes", "manifest": m}); code != 200 {
 		t.Fatalf("project_create: %d %s", code, out)
 	}
-	if p := e.project("notes"); !slices.Equal(p.Asks, []string{"post"}) {
-		t.Fatalf("the draft names the external tool that asks every time: %+v", p)
+	if p := e.project("notes"); !slices.Equal(p.Asks, []string{"post", "work"}) {
+		t.Fatalf("the draft names the external tool and the reversible command of a suggesting project, which ask every time: %+v", p)
 	}
 	var items []listItem
 	_ = json.Unmarshal(e.settingsBlock("Projects", nil)["items"], &items)

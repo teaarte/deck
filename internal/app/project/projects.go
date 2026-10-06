@@ -149,6 +149,7 @@ func (sv *Saver) SaveManifest(ctx context.Context, act registry.Actor, p db.Proj
 		return Saved{}, err
 	}
 	var saved Saved
+	var outdated []db.Ask
 	err = sv.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		if err := checkReads(ctx, q, p.WorkspaceID, p.Name, pm.m); err != nil {
 			return err
@@ -188,7 +189,7 @@ func (sv *Saver) SaveManifest(ctx context.Context, act registry.Actor, p db.Proj
 		if err := grant(ctx, q, p, n, pm.m); err != nil {
 			return err
 		}
-		if err := outdate(ctx, q, p, n); err != nil {
+		if outdated, err = outdate(ctx, q, p, n); err != nil {
 			return err
 		}
 		if err := q.DeleteScreenHealth(ctx, store.ID(p.ID)); err != nil {
@@ -206,6 +207,9 @@ func (sv *Saver) SaveManifest(ctx context.Context, act registry.Actor, p db.Proj
 	})
 	if err != nil || saved.Waiting != 0 {
 		return saved, err
+	}
+	for _, a := range outdated {
+		sv.Gateway.Record(ctx, a, "expired", "the manifest changed after this request")
 	}
 	sv.Bus.Emit(events.Event{Workspace: p.WorkspaceID, Topic: "projects", Project: p.Name})
 	sv.PrepareLater(p.ID)

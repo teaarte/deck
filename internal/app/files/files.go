@@ -364,6 +364,8 @@ type dataRead struct {
 	Entries []dataEntry `json:"entries,omitempty"`
 	Text    string      `json:"text,omitempty"`
 	Size    int64       `json:"size,omitempty"`
+	// Cut says the list or the text goes on past what data_read gives.
+	Cut bool `json:"cut,omitempty"`
 }
 
 // dataLimit is the most of a file data_read gives.
@@ -393,7 +395,13 @@ func (s *Service) dataRead(ctx context.Context, act registry.Actor, in dataReadI
 	out := dataRead{Path: path}
 	switch {
 	case fi.IsDir():
-		es, _ := f.ReadDir(1000)
+		es, err := f.ReadDir(1001)
+		if err != nil && !errors.Is(err, io.EOF) {
+			return nil, missing
+		}
+		if out.Cut = len(es) > 1000; out.Cut {
+			es = es[:1000]
+		}
 		slices.SortFunc(es, func(a, b os.DirEntry) int { return strings.Compare(a.Name(), b.Name()) })
 		for _, e := range es {
 			d := dataEntry{Name: e.Name(), Dir: e.IsDir()}
@@ -404,7 +412,10 @@ func (s *Service) dataRead(ctx context.Context, act registry.Actor, in dataReadI
 		}
 	case fi.Mode().IsRegular():
 		b, _ := io.ReadAll(io.LimitReader(f, dataLimit))
-		out.Size = fi.Size()
+		out.Size, out.Cut = fi.Size(), fi.Size() > dataLimit
+		for i := 0; out.Cut && i < utf8.UTFMax && !utf8.Valid(b); i++ {
+			b = b[:len(b)-1]
+		}
 		if utf8.Valid(b) {
 			out.Text = untrusted.Block("file "+path+" of the data folder of "+p.Name, string(b))
 		}

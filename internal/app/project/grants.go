@@ -74,18 +74,19 @@ func (sv *Saver) AnswerGrant(ctx context.Context, act registry.Actor, q db.Ask, 
 	return nil, registry.Invalid("deck: answer a grant with allow, deny or deny:<reason>")
 }
 
-// outdate closes the requests for rights frozen on an older manifest, which no longer apply, and tells the owner.
-func outdate(ctx context.Context, q *db.Queries, p db.Project, revision int64) error {
+// outdate closes the requests for rights frozen on an older manifest, which no longer apply, and tells the owner;
+// it gives them for the journal after the commit.
+func outdate(ctx context.Context, q *db.Queries, p db.Project, revision int64) ([]db.Ask, error) {
 	old, err := q.ExpireGrantAsks(ctx, store.ID(p.ID))
 	if err != nil {
-		return err
+		return nil, err
 	}
 	for _, a := range old {
 		text := fmt.Sprintf("A request for rights of %s is outdated: the manifest changed to revision %d; whoever asked asks again if it still needs them. It was: %s",
 			p.Name, revision, a.Text)
 		if err := q.AddDeckNote(ctx, db.AddDeckNoteParams{ProjectID: p.ID, Text: text}); err != nil {
-			return err
+			return nil, err
 		}
 	}
-	return nil
+	return old, nil
 }

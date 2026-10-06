@@ -276,8 +276,8 @@ func compact(raw json.RawMessage) []byte {
 	return b.Bytes()
 }
 
-// AskEachTime are the tools and commands of the manifest that wait for the owner on every call: external ones
-// outside allowed_external; a tool of an MCP server without a class is one too, named once the server lists it.
+// AskEachTime are what waits for the owner on every call: external tools and commands outside allowed_external,
+// reversible commands of a project that suggests, and the tools of an MCP server without a class.
 func (m *Manifest) AskEachTime() []string {
 	var out []string
 	external := func(name, class string) {
@@ -293,9 +293,10 @@ func (m *Manifest) AskEachTime() []string {
 		for _, tool := range slices.Sorted(maps.Keys(classes)) {
 			external(server+"."+tool, classes[tool])
 		}
+		out = append(out, server+".* without a class")
 	}
 	for _, c := range m.Commands {
-		if c.Class == "external" && !slices.Contains(m.AllowedExternal, c.Name) {
+		if c.Class == "external" && !slices.Contains(m.AllowedExternal, c.Name) || c.Class == "reversible" && m.Autonomy != "auto" {
 			out = append(out, c.Name)
 		}
 	}

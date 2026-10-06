@@ -84,7 +84,7 @@ type processesListIn struct {
 	Open    bool   `opt:"" desc:"Only the processes that have not finished, oldest first"`
 	Limit   int64  `opt:"" desc:"At most this many"`
 	Brief   bool   `opt:"" desc:"Leave the results out; process_get gives the result of one"`
-	Record  int64  `type:"record" opt:"" desc:"Only the processes whose input names this record by its id: how its pipeline goes"`
+	Record  int64  `type:"record" opt:"" desc:"Only the processes whose input holds the id of this record as a top-level number: how its pipeline goes"`
 }
 
 func (s *Service) processesList(ctx context.Context, act registry.Actor, in processesListIn) ([]processView, error) {

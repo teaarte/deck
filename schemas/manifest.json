@@ -135,7 +135,7 @@
         "file": {"type": "string", "minLength": 1, "description": "Project document holding the script source."},
         "runtime": {"enum": ["python", "node", "bash", "exec"], "description": "exec runs the file by its shebang. A script installs its own packages when it runs (Python: exec with #!/usr/bin/env -S uv run --script and a PEP 723 block; Node: npm install into $DECK_DATA); the registries go into domains.read."},
         "programs": {"type": "array", "uniqueItems": true, "description": "Programs that must exist on the machine: a name, or a name with how the owner installs it.",
-          "items": {"oneOf": [{"type": "string", "minLength": 1}, {"type": "object", "additionalProperties": false, "required": ["name"],
+          "items": {"oneOf": [{"type": "string"}, {"type": "object", "additionalProperties": false, "required": ["name"],
             "properties": {"name": {"type": "string", "minLength": 1}, "install": {"type": "string", "description": "How the owner installs it, such as brew install ffmpeg; deck shows it while the program is missing."}}}]}},
         "timeout_minutes": {"type": "integer", "minimum": 1, "maximum": 240, "description": "Ceiling of a run; 10 when not given."}
       }

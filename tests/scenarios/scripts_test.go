@@ -714,6 +714,10 @@ func TestAMissingProgramSaysHowToInstallItAndIsCheckedAgain(t *testing.T) {
 		`"runtime": "python", "programs": ["sh", {"name": "deck-later-tool", "install": "brew install deck-later-tool"}]`, 1)
 	e.createProject("progs", m)
 	e.saveScript("progs", "scripts/main.py", "import json, subprocess\nprint(json.dumps({'out': subprocess.run(['deck-later-tool'], capture_output=True, text=True).stdout.strip()}))\n")
+	if code, out := e.call("deck.project_create", map[string]any{"name": "blank", "manifest": strings.Replace(scriptManifest("use", "", ""),
+		`"runtime": "python"`, `"runtime": "python", "programs": [""]`, 1)}); code != 200 {
+		t.Fatalf("an empty program, which manifests took before, still loads: %d %s", code, out)
+	}
 	h := e.waitHealth("command:progs.use", "error")
 	if !strings.Contains(h.Error, "deck-later-tool") || !strings.Contains(h.Error, "brew install deck-later-tool") {
 		t.Fatalf("the health names the missing program and how to install it: %+v", h)

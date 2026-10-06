@@ -46,6 +46,7 @@ func TestCommandAgentRunsInAutoModeWithItsOwnWeb(t *testing.T) {
 	c := newCLI(t)
 	c.stream(0, "ok.jsonl")
 	e, home := cliEnv(t, c)
+	_ = os.WriteFile(filepath.Join(home, "deck.log"), []byte("deck listening url=http://127.0.0.1:7700/?token=x"), 0o600)
 	e.createProject("other", plainManifest)
 	p := e.createProject("notes", postManifest("http://127.0.0.1:1", ""))
 	var id int64
@@ -95,7 +96,7 @@ func TestCommandAgentRunsInAutoModeWithItsOwnWeb(t *testing.T) {
 		}
 		theirs := []string{filepath.Join(deckhome.Layout(h).State(), "token"), filepath.Join(deckhome.Layout(h).State(), "mcp", "mcp-1.json"), filepath.Join(deckhome.Layout(h).State(), "files", "3", "cv.pdf"),
 			filepath.Join(deckhome.Layout(h).State(), "secrets", "svc"), filepath.Join(deckhome.Layout(h).State(), "deck.db-wal"), filepath.Join(deckhome.Layout(h).State(), "backups", "x"),
-			filepath.Join(deckhome.Layout(h).State(), "mcp", "mcp-1.tmp")}
+			filepath.Join(deckhome.Layout(h).State(), "mcp", "mcp-1.tmp"), filepath.Join(h, "deck.log")}
 		if slices.ContainsFunc(set.Permissions.Deny, func(r string) bool { return strings.Contains(r, deckhome.Layout(h).Work()) }) {
 			t.Fatalf("the rules keep only deck's state from the agent, not masks of other runs and projects its shell passes anyway: %v", set.Permissions.Deny)
 		}

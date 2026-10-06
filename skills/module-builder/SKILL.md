@@ -271,7 +271,7 @@ A script reads its input JSON from stdin and prints its result JSON to stdout. I
   A program names the path it was refused in its stderr (`Operation not permitted`), and the error of a failed
   script ends with where the owner opens a folder; MCP servers and ACP agents of the project read the same;
 - network only to the manifest's `domains.read`, through the proxy deck sets in `HTTP(S)_PROXY` (Node's `fetch`
-  takes it too; `$DECK_URL` is reached directly); a domain is a
+  takes it too; `$DECK_URL` answers through the proxy or without it); a domain is a
   host (`hf.co` takes its subdomains too) or `host:port`, never a URL or a public suffix such as `co.uk`; a name
   reaches only public addresses, so a service on the owner's machine or network is named by its IP or IP:port;
 - models through `$DECK_MODELS/<connection>/<API path>` with `Authorization: Bearer $DECK_TOKEN` (an OpenAI SDK

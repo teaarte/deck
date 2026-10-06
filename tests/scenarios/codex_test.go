@@ -104,7 +104,7 @@ func TestCodexCommandAgentWorksThroughTheGateway(t *testing.T) {
 		t.Fatalf("the turn runs under the profile of deck and hands its result in with result_submit: %v", turn)
 	}
 	var calls []map[string]any
-	e.must("deck.llm_calls_list", map[string]any{"process": id}, &calls)
+	e.modelCalls("", id, &calls)
 	if len(calls) != 4 || calls[0]["gen_ai.provider.name"] != "codex" || calls[0]["gen_ai.response.model"] != "gpt-5.6-sol" ||
 		calls[0]["gen_ai.usage.input_tokens"].(float64) <= 0 {
 		t.Fatalf("each model call of the turn goes to the journal with its tokens: %v", calls)
@@ -260,7 +260,7 @@ func TestCodexSubAgentEventsAreNotProcessEvents(t *testing.T) {
 		t.Fatalf("a completed turn of another thread or an earlier turn does not end the turn: %+v", got)
 	}
 	var calls []map[string]any
-	e.must("deck.llm_calls_list", map[string]any{"process": id}, &calls)
+	e.modelCalls("", id, &calls)
 	for _, call := range calls {
 		if call["gen_ai.usage.input_tokens"] == 800.0 || call["gen_ai.usage.input_tokens"] == 700.0 {
 			t.Fatalf("model calls of another thread or an earlier turn are not the turn's: %v", calls)

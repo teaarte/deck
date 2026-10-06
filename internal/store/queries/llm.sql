@@ -16,13 +16,6 @@ VALUES (sqlc.arg(workspace_id),
 SELECT CAST(COALESCE(sum(cost_usd), 0) AS REAL) FROM llm_call WHERE connection_id = sqlc.arg(connection_id) AND created_at >= sqlc.arg(since);
 
 
--- name: ListLLMCalls :many
-SELECT c.* FROM llm_call c
-WHERE c.workspace_id = sqlc.arg(workspace_id) AND (sqlc.arg(process_id) = 0 OR c.process_id = sqlc.arg(process_id))
-  AND (sqlc.arg(project_id) = 0 OR c.project_id = sqlc.arg(project_id))
-ORDER BY c.id DESC LIMIT sqlc.arg(lim);
-
-
 -- name: SpendByCommand :many
 SELECT CAST(COALESCE(c.project_id, 0) AS INTEGER) AS project_id, c.command, c.gen_ai_provider_name AS provider, c.gen_ai_request_model AS model,
     CAST(count(*) AS INTEGER) AS calls,

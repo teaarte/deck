@@ -80,3 +80,38 @@ func completion(msg map[string]any) string {
 			"prompt_tokens_details": map[string]any{"cached_tokens": 40}}})
 	return string(b)
 }
+
+// modelCalls reads the journal of model calls, newest first, of a project and a process when they are given.
+func (e *Env) modelCalls(project string, process int64, out any) {
+	e.T.Helper()
+	rows, err := e.App.Store.DB.Query(`SELECT c.id, COALESCE(c.process_id, 0), c.command, c.gen_ai_provider_name, c.gen_ai_request_model,
+		c.gen_ai_response_model, c.gen_ai_usage_input_tokens, c.gen_ai_usage_output_tokens, c.gen_ai_usage_cache_read_input_tokens,
+		c.gen_ai_usage_cache_creation_input_tokens, c.duration_ms, c.cost_usd, c.created_at
+		FROM llm_call c LEFT JOIN project p ON p.id = c.project_id
+		WHERE (? = '' OR p.name = ?) AND (? = 0 OR c.process_id = ?) ORDER BY c.id DESC`, project, project, process, process)
+	if err != nil {
+		e.T.Fatal(err)
+	}
+	defer rows.Close()
+	var calls []map[string]any
+	for rows.Next() {
+		var id, proc, in, outT, read, created, ms int64
+		var command, prov, req, resp, at string
+		var cost *float64
+		if err := rows.Scan(&id, &proc, &command, &prov, &req, &resp, &in, &outT, &read, &created, &ms, &cost, &at); err != nil {
+			e.T.Fatal(err)
+		}
+		c := map[string]any{"id": id, "process": proc, "command": command, "gen_ai.provider.name": prov, "gen_ai.request.model": req,
+			"gen_ai.response.model": resp, "gen_ai.usage.input_tokens": in, "gen_ai.usage.output_tokens": outT,
+			"gen_ai.usage.cache_read.input_tokens": read, "gen_ai.usage.cache_creation.input_tokens": created,
+			"duration_ms": ms, "created_at": at}
+		if cost != nil {
+			c["cost_usd"] = *cost
+		}
+		calls = append(calls, c)
+	}
+	raw, _ := json.Marshal(calls)
+	if err := json.Unmarshal(raw, out); err != nil {
+		e.T.Fatal(err)
+	}
+}

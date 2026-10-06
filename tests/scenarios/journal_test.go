@@ -212,10 +212,11 @@ func TestTheSpendOfAPurgedProcessStays(t *testing.T) {
 		t.Fatalf("the spend of a purged process stays with its project and command: %+v", spend)
 	}
 	var calls []map[string]any
-	e.must("deck.llm_calls_list", map[string]any{"project": "quiet"}, &calls)
+	e.modelCalls("quiet", 0, &calls)
 	if len(calls) != 1 {
 		t.Fatalf("its model call stays in the journal: %+v", calls)
 	}
+	e.refused("deck.llm_calls_list", nil, 404, "unknown command")
 }
 
 // TestModelCallsOfABaseFromBeforeKeepTheirProject: the model calls of an older base keep their project and

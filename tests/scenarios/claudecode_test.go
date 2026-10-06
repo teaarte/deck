@@ -251,7 +251,7 @@ func TestModelCallsCountTokensFromTheTurnResult(t *testing.T) {
 	id := e.run(p, "work")
 	e.waitState(id, "done")
 	var calls []map[string]any
-	e.must("deck.llm_calls_list", map[string]any{"process": id}, &calls)
+	e.modelCalls("", id, &calls)
 	if len(calls) != 1 {
 		t.Fatalf("one turn of one model is one call: %v", calls)
 	}

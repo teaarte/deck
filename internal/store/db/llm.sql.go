@@ -10,65 +10,6 @@ import (
 	"database/sql"
 )
 
-const listLLMCalls = `-- name: ListLLMCalls :many
-SELECT c.id, c.workspace_id, c.project_id, c.process_id, c.command, c.gen_ai_provider_name, c.gen_ai_request_model, c.gen_ai_response_model, c.gen_ai_usage_input_tokens, c.gen_ai_usage_output_tokens, c.gen_ai_usage_cache_read_input_tokens, c.gen_ai_usage_cache_creation_input_tokens, c.duration_ms, c.cost_usd, c.created_at, c.connection_id FROM llm_call c
-WHERE c.workspace_id = ?1 AND (?2 = 0 OR c.process_id = ?2)
-  AND (?3 = 0 OR c.project_id = ?3)
-ORDER BY c.id DESC LIMIT ?4
-`
-
-type ListLLMCallsParams struct {
-	WorkspaceID int64
-	ProcessID   interface{}
-	ProjectID   interface{}
-	Lim         int64
-}
-
-func (q *Queries) ListLLMCalls(ctx context.Context, arg ListLLMCallsParams) ([]LlmCall, error) {
-	rows, err := q.db.QueryContext(ctx, listLLMCalls,
-		arg.WorkspaceID,
-		arg.ProcessID,
-		arg.ProjectID,
-		arg.Lim,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []LlmCall
-	for rows.Next() {
-		var i LlmCall
-		if err := rows.Scan(
-			&i.ID,
-			&i.WorkspaceID,
-			&i.ProjectID,
-			&i.ProcessID,
-			&i.Command,
-			&i.GenAiProviderName,
-			&i.GenAiRequestModel,
-			&i.GenAiResponseModel,
-			&i.GenAiUsageInputTokens,
-			&i.GenAiUsageOutputTokens,
-			&i.GenAiUsageCacheReadInputTokens,
-			&i.GenAiUsageCacheCreationInputTokens,
-			&i.DurationMs,
-			&i.CostUsd,
-			&i.CreatedAt,
-			&i.ConnectionID,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const logModelCall = `-- name: LogModelCall :exec
 INSERT INTO llm_call (workspace_id, project_id, process_id, command, connection_id, gen_ai_provider_name, gen_ai_request_model,
     gen_ai_response_model, gen_ai_usage_input_tokens, gen_ai_usage_output_tokens, gen_ai_usage_cache_read_input_tokens,

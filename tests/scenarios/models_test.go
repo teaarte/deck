@@ -307,7 +307,7 @@ func TestAScriptCallsAModelThroughDeckWithinTheDayOfItsConnection(t *testing.T) 
 		t.Fatalf("deck put in the key and passed the body on: %+v", calls)
 	}
 	var spend []spendRow
-	e.must("deck.llm_calls_list", map[string]any{"project": "shorts"}, &spend)
+	e.modelCalls("shorts", 0, &spend)
 	if len(spend) != 2 || spend[0].Provider != "openrouter" || spend[0].Model != "google/gemini-3.1-flash-lite-image" || spend[0].Command != "media" ||
 		spend[0].Process == 0 || spend[0].Cost == nil || *spend[0].Cost != 0.033631 {
 		t.Fatalf("each call is in the journal of model calls with what OpenRouter said it cost: %+v", spend)
@@ -325,7 +325,7 @@ func TestAScriptCallsAModelThroughDeckWithinTheDayOfItsConnection(t *testing.T) 
 	if n := len(api.calls()); n != 3 {
 		t.Fatalf("the owner's yes makes the call: %d calls", n)
 	}
-	e.must("deck.llm_calls_list", map[string]any{"project": "shorts"}, &spend)
+	e.modelCalls("shorts", 0, &spend)
 	if len(spend) != 3 {
 		t.Fatalf("the call made on the owner's yes is counted too: %+v", spend)
 	}
@@ -347,7 +347,7 @@ func TestAnAgentTurnPastTheDayOfItsConnectionPausesUntilTheDayEnds(t *testing.T)
 		t.Fatalf("the first turn runs: %+v", got)
 	}
 	var spend []spendRow
-	e.must("deck.llm_calls_list", map[string]any{"project": "paint"}, &spend)
+	e.modelCalls("paint", 0, &spend)
 	if len(spend) != 1 || spend[0].Cost == nil || math.Abs(*spend[0].Cost-0.12) > 1e-9 {
 		t.Fatalf("a turn is priced by its model, 100 tokens in and 10 out: %+v", spend)
 	}
@@ -431,7 +431,7 @@ func TestAScriptCallsARoleAndAFallbackTakesARefusal(t *testing.T) {
 		t.Fatalf("each model got the body with its own name in place of the role: %+v %+v", b, s)
 	}
 	var spend []spendRow
-	e.must("deck.llm_calls_list", map[string]any{"project": "shorts"}, &spend)
+	e.modelCalls("shorts", 0, &spend)
 	if len(spend) != 1 || spend[0].Provider != "spare/voice-2" || spend[0].Cost == nil || *spend[0].Cost != 0.02 {
 		t.Fatalf("the call is counted on the model that made it, by its price per call: %+v", spend)
 	}

@@ -2,13 +2,11 @@ package providers
 
 import (
 	"context"
-	"deck2/internal/app/access"
 	"errors"
 
 	"deck2/internal/provider"
 	"deck2/internal/provider/acp"
 	"deck2/internal/registry"
-	"deck2/internal/store/db"
 )
 
 type providerCheckIn struct {
@@ -27,38 +25,6 @@ func (s *Service) providerCheck(ctx context.Context, act registry.Actor, in prov
 		return nil, errors.New("deck: a self-check is already running")
 	}
 	return map[string]any{"checking": in.Provider}, nil
-}
-
-type llmCallsListIn struct {
-	Project string `type:"project" opt:"" desc:"Project name; without it an agent of a project gets its own, the owner and the master every project"`
-	Process int64  `type:"process" opt:"" desc:"Only calls of this process"`
-	Limit   int64  `opt:"" desc:"At most this many"`
-}
-
-func (s *Service) llmCallsList(ctx context.Context, act registry.Actor, in llmCallsListIn) ([]map[string]any, error) {
-	pid, err := access.Filter(ctx, s.St.Q, act, in.Project)
-	if err != nil {
-		return nil, err
-	}
-	in.Limit = registry.Limit(in.Limit, 50, 500)
-	rows, err := s.St.Q.ListLLMCalls(ctx, db.ListLLMCallsParams{WorkspaceID: act.Workspace, ProcessID: in.Process, ProjectID: pid, Lim: in.Limit})
-	if err != nil {
-		return nil, err
-	}
-	out := make([]map[string]any, 0, len(rows))
-	for _, c := range rows {
-		m := map[string]any{"id": c.ID, "process": c.ProcessID.Int64, "command": c.Command, "gen_ai.provider.name": c.GenAiProviderName,
-			"gen_ai.request.model": c.GenAiRequestModel, "gen_ai.response.model": c.GenAiResponseModel,
-			"gen_ai.usage.input_tokens": c.GenAiUsageInputTokens, "gen_ai.usage.output_tokens": c.GenAiUsageOutputTokens,
-			"gen_ai.usage.cache_read.input_tokens":     c.GenAiUsageCacheReadInputTokens,
-			"gen_ai.usage.cache_creation.input_tokens": c.GenAiUsageCacheCreationInputTokens,
-			"duration_ms": c.DurationMs, "created_at": c.CreatedAt}
-		if c.CostUsd.Valid {
-			m["cost_usd"] = c.CostUsd.Float64
-		}
-		out = append(out, m)
-	}
-	return out, nil
 }
 
 // Commands are the commands of providers.
@@ -84,8 +50,5 @@ func (s *Service) Commands() []*registry.Command {
 		registry.Def("model_remove", "Remove model", "Removes a model; assignments that name it skip it.",
 			registry.OwnerOnly, s.modelRemove),
 		s.modelRequestCommand(), s.modelCallCommand(),
-		registry.Read("llm_calls_list", "Model calls",
-			"Lists model calls with their provider, model, tokens and duration, newest first.",
-			registry.Everyone, s.llmCallsList).On("usage"),
 	}
 }

@@ -63,7 +63,7 @@ func TestAModelCommandAnswersByItsSchema(t *testing.T) {
 		t.Fatalf("the model gets the prompt, the input and the result schema: %v %v", msg, schema)
 	}
 	var spend []spendRow
-	e.must("deck.llm_calls_list", map[string]any{"project": "shorts"}, &spend)
+	e.modelCalls("shorts", 0, &spend)
 	if len(spend) != 1 || spend[0].Command != "factcheck" || spend[0].Process != got.ID || spend[0].Cost == nil || *spend[0].Cost != 0.00012 {
 		t.Fatalf("the call is the command's in the journal, priced by its model: %+v", spend)
 	}

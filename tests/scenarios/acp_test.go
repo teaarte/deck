@@ -92,7 +92,7 @@ func TestACPCommandAgentWorksThroughTheGateway(t *testing.T) {
 		t.Fatalf("the agent lives in a home of its own session: %s", h)
 	}
 	var calls []map[string]any
-	e.must("deck.llm_calls_list", map[string]any{"process": id}, &calls)
+	e.modelCalls("", id, &calls)
 	if len(calls) != 1 || calls[0]["gen_ai.provider.name"] != "acp" || calls[0]["gen_ai.usage.input_tokens"] != 100.0 ||
 		calls[0]["gen_ai.usage.cache_read.input_tokens"] != 40.0 || calls[0]["gen_ai.response.model"] != "fake-model" {
 		t.Fatalf("deck's proxy journals the tokens of each model call: %v", calls)
@@ -650,7 +650,7 @@ func TestACPCountsTokensOfCompressedReplies(t *testing.T) {
 	id := e.run(e.acpProject("paint", colorManifest), "work")
 	e.waitState(id, "done")
 	var calls []map[string]any
-	e.must("deck.llm_calls_list", map[string]any{"process": id}, &calls)
+	e.modelCalls("", id, &calls)
 	if len(calls) != 1 || calls[0]["gen_ai.usage.output_tokens"] != 10.0 {
 		t.Fatalf("the tokens of a compressed reply are counted: %v", calls)
 	}

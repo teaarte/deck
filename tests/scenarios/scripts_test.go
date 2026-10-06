@@ -802,3 +802,28 @@ func TestAProjectChangedWhileAScriptRunsLeavesDeckUp(t *testing.T) {
 		t.Fatalf("the script ends as it would: %+v", p)
 	}
 }
+
+// TestAScriptCannotCallACommandOfAnotherProject: a script that names a command of another project through deck is
+// refused, and that project starts nothing.
+func TestAScriptCannotCallACommandOfAnotherProject(t *testing.T) {
+	e := newEnv(t, nil)
+	e.createProject("a", scriptManifest("collect", "", ""))
+	e.createProject("b", scriptManifest("collect", "", ""))
+	e.saveScript("a", "scripts/main.py", pythonLib+`
+st, out = deck("b.publish", {})
+print(json.dumps({"status": st, "out": out}))
+`)
+	p := e.waitScript(e.start("a", "collect", nil), "done", "error")
+	var res struct {
+		Status int
+		Out    any
+	}
+	if err := json.Unmarshal(p.Result, &res); err != nil || res.Status != 403 || !strings.Contains(fmt.Sprint(res.Out), "another project") {
+		t.Fatalf("a command of another project is refused: %+v %s", p, p.Result)
+	}
+	var ps []proc
+	e.must("deck.processes_list", map[string]any{"project": "b"}, &ps)
+	if len(ps) != 0 {
+		t.Fatalf("the other project starts nothing: %+v", ps)
+	}
+}

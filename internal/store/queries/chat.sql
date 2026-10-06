@@ -80,7 +80,7 @@ UPDATE chat_session SET memory = ? WHERE topic_id = ? AND session_id = ?;
 
 
 -- name: SeeChat :exec
-UPDATE chat_session SET seen = MAX(seen, sqlc.arg(seen)) WHERE topic_id = sqlc.arg(topic_id) AND session_id = sqlc.arg(session_id);
+UPDATE chat_session SET seen = MAX(seen, CAST(sqlc.arg(seen) AS INTEGER)) WHERE topic_id = sqlc.arg(topic_id) AND session_id = sqlc.arg(session_id);
 
 
 -- name: SetProjectBuiltin :exec

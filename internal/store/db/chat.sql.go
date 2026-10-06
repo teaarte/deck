@@ -534,11 +534,11 @@ func (q *Queries) PurgeTopicSummaries(ctx context.Context, before sql.NullString
 }
 
 const seeChat = `-- name: SeeChat :exec
-UPDATE chat_session SET seen = MAX(seen, ?1) WHERE topic_id = ?2 AND session_id = ?3
+UPDATE chat_session SET seen = MAX(seen, CAST(?1 AS INTEGER)) WHERE topic_id = ?2 AND session_id = ?3
 `
 
 type SeeChatParams struct {
-	Seen      interface{}
+	Seen      int64
 	TopicID   int64
 	SessionID string
 }

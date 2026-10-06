@@ -36,5 +36,5 @@ SELECT * FROM "trigger" WHERE project_id = ? ORDER BY id;
 
 -- name: ListWorkspaceTriggers :many
 SELECT t.* FROM "trigger" t JOIN project p ON p.id = t.project_id
-WHERE p.workspace_id = sqlc.arg(workspace_id) AND (sqlc.arg(project_id) = 0 OR t.project_id = sqlc.arg(project_id))
+WHERE p.workspace_id = sqlc.arg(workspace_id) AND (CAST(sqlc.arg(project_id) AS INTEGER) = 0 OR t.project_id = CAST(sqlc.arg(project_id) AS INTEGER))
 ORDER BY p.name, t.id;

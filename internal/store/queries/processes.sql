@@ -11,9 +11,9 @@ SELECT * FROM process WHERE id = ?;
 -- name: ListProcessesFiltered :many
 SELECT * FROM process
 WHERE project_id IN (SELECT id FROM project WHERE workspace_id = sqlc.arg(workspace_id))
-  AND (sqlc.arg(project_id) = 0 OR project_id = sqlc.arg(project_id))
-  AND (sqlc.arg(state) = '' OR state = sqlc.arg(state))
-  AND (sqlc.arg(command) = '' OR command = sqlc.arg(command))
+  AND (CAST(sqlc.arg(project_id) AS INTEGER) = 0 OR project_id = CAST(sqlc.arg(project_id) AS INTEGER))
+  AND (CAST(sqlc.arg(state) AS TEXT) = '' OR state = CAST(sqlc.arg(state) AS TEXT))
+  AND (CAST(sqlc.arg(command) AS TEXT) = '' OR command = CAST(sqlc.arg(command) AS TEXT))
   AND (CAST(sqlc.arg(record) AS INTEGER) = 0 OR EXISTS (SELECT 1 FROM json_each(CASE WHEN json_valid(input) THEN input ELSE '{}' END) j
     WHERE j.type = 'integer' AND j.value = CAST(sqlc.arg(record) AS INTEGER)))
 ORDER BY id DESC LIMIT sqlc.arg(lim);
@@ -153,7 +153,7 @@ WHERE provider = sqlc.arg(provider) AND project_id IN (SELECT id FROM project WH
 -- name: ListOpenProcesses :many
 SELECT * FROM process
 WHERE project_id IN (SELECT id FROM project WHERE workspace_id = sqlc.arg(workspace_id))
-  AND (sqlc.arg(project_id) = 0 OR project_id = sqlc.arg(project_id))
+  AND (CAST(sqlc.arg(project_id) AS INTEGER) = 0 OR project_id = CAST(sqlc.arg(project_id) AS INTEGER))
   AND finished_at IS NULL
   AND (CAST(sqlc.arg(record) AS INTEGER) = 0 OR EXISTS (SELECT 1 FROM json_each(CASE WHEN json_valid(input) THEN input ELSE '{}' END) j
     WHERE j.type = 'integer' AND j.value = CAST(sqlc.arg(record) AS INTEGER)))
@@ -163,7 +163,7 @@ ORDER BY id DESC;
 -- name: ListWorkspaceToolCalls :many
 SELECT * FROM tool_call
 WHERE workspace_id = sqlc.arg(workspace_id)
-  AND (sqlc.arg(project_id) = 0 OR project_id = sqlc.arg(project_id))
+  AND (CAST(sqlc.arg(project_id) AS INTEGER) = 0 OR project_id = CAST(sqlc.arg(project_id) AS INTEGER))
   AND (CAST(sqlc.arg(outcome) AS TEXT) = '' OR outcome = sqlc.arg(outcome))
 ORDER BY id DESC LIMIT sqlc.arg(lim);
 

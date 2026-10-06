@@ -48,7 +48,7 @@ UPDATE ask SET delivered_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?
 -- name: CloseOpenAsksOfProcess :many
 UPDATE ask SET state = 'expired', delivered_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
 WHERE process_id = CAST(sqlc.arg(process_id) AS INTEGER) AND state = 'open' AND kind NOT IN ('warning', 'unknown')
-  AND (sqlc.arg(calls_too) = 1 OR kind != 'call')
+  AND (CAST(sqlc.arg(calls_too) AS INTEGER) = 1 OR kind != 'call')
 RETURNING *;
 
 

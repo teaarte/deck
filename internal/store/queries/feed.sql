@@ -5,8 +5,8 @@ VALUES (sqlc.arg(workspace_id), sqlc.arg(project_id), sqlc.arg(kind), sqlc.arg(a
 RETURNING *;
 
 -- name: ListFeed :many
-SELECT * FROM feed WHERE workspace_id = sqlc.arg(workspace_id) AND (sqlc.arg(project_id) = 0 OR project_id = sqlc.arg(project_id))
-  AND (sqlc.arg(kind) = '' OR kind = sqlc.arg(kind)) AND for_master = 0 AND (CAST(sqlc.arg(unread) AS INTEGER) = 0 OR kind = 'note' AND read_at IS NULL)
+SELECT * FROM feed WHERE workspace_id = sqlc.arg(workspace_id) AND (CAST(sqlc.arg(project_id) AS INTEGER) = 0 OR project_id = CAST(sqlc.arg(project_id) AS INTEGER))
+  AND (CAST(sqlc.arg(kind) AS TEXT) = '' OR kind = CAST(sqlc.arg(kind) AS TEXT)) AND for_master = 0 AND (CAST(sqlc.arg(unread) AS INTEGER) = 0 OR kind = 'note' AND read_at IS NULL)
 ORDER BY id DESC LIMIT sqlc.arg(lim);
 
 -- name: GetFeed :one

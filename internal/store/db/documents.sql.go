@@ -82,14 +82,14 @@ func (q *Queries) CreateDocument(ctx context.Context, arg CreateDocumentParams) 
 const currentText = `-- name: CurrentText :one
 SELECT d.id, d.kind, r.text, r.n FROM document d JOIN document_revision r ON r.document_id = d.id AND r.n = d.current
 WHERE d.workspace_id = ?1 AND d.project_id IS ?2 AND d.name = ?3
-  AND d.record_id IS NULL AND (?4 = '' OR d.kind = ?4) AND d.deleted_at IS NULL
+  AND d.record_id IS NULL AND (CAST(?4 AS TEXT) = '' OR d.kind = CAST(?4 AS TEXT)) AND d.deleted_at IS NULL
 `
 
 type CurrentTextParams struct {
 	WorkspaceID int64
 	ProjectID   sql.NullInt64
 	Name        string
-	Kind        interface{}
+	Kind        string
 }
 
 type CurrentTextRow struct {

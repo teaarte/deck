@@ -17,6 +17,7 @@ var (
 	reasoning    = regexp.MustCompile(`(?i)\b(we|let's|i think|note that|basically|actually|obviously|for now|hack|in order to|probably|seems|i guess|turns out)\b`)
 	verticals    = regexp.MustCompile(`(?i)vacanc|forecast|mailbox|brier|recruit`)
 	verticalFree = []string{"tests/", "internal/tools/"}
+	untyped      = regexp.MustCompile(`^\t\w+\s+interface\{\}`)
 )
 
 type Violation struct {
@@ -28,7 +29,7 @@ type Violation struct {
 func (v Violation) String() string { return fmt.Sprintf("%s:%d: %s", v.File, v.Line, v.Text) }
 
 // Check scans code under root for long comment blocks, requirement references and reasoning words in
-// comments, and vertical names outside built-in tools and test fixtures.
+// comments, vertical names outside built-in tools and test fixtures, and sqlc parameters without a type.
 func Check(root string) ([]Violation, error) {
 	var out []Violation
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
@@ -51,6 +52,13 @@ func Check(root string) ([]Violation, error) {
 		rel, _ := filepath.Rel(root, path)
 		rel = filepath.ToSlash(rel)
 		if isGenerated(string(src)) {
+			if strings.Contains(rel, "store/db/") {
+				for i, line := range strings.Split(string(src), "\n") {
+					if untyped.MatchString(line) {
+						out = append(out, Violation{rel, i + 1, "a parameter of sqlc without a type: CAST it in its query, as one compared with 0 or '' turns NULL"})
+					}
+				}
+			}
 			return nil
 		}
 		out = append(out, checkComments(rel, string(src))...)

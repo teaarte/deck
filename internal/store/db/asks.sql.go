@@ -50,13 +50,13 @@ func (q *Queries) ClaimDecision(ctx context.Context, arg ClaimDecisionParams) (i
 const closeOpenAsksOfProcess = `-- name: CloseOpenAsksOfProcess :many
 UPDATE ask SET state = 'expired', delivered_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
 WHERE process_id = CAST(?1 AS INTEGER) AND state = 'open' AND kind NOT IN ('warning', 'unknown')
-  AND (?2 = 1 OR kind != 'call')
+  AND (CAST(?2 AS INTEGER) = 1 OR kind != 'call')
 RETURNING id, workspace_id, project_id, process_id, kind, text, payload, answer, state, created_at, answered_at, expires_at, delivered_at
 `
 
 type CloseOpenAsksOfProcessParams struct {
 	ProcessID int64
-	CallsToo  interface{}
+	CallsToo  int64
 }
 
 func (q *Queries) CloseOpenAsksOfProcess(ctx context.Context, arg CloseOpenAsksOfProcessParams) ([]Ask, error) {

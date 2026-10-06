@@ -480,7 +480,7 @@ func (q *Queries) ListHeld(ctx context.Context, now int64) ([]ListHeldRow, error
 const listOpenProcesses = `-- name: ListOpenProcesses :many
 SELECT id, project_id, command, kind, state, provider, session_id, input, result, not_by_schema, error, start_note, parent_id, depth, trigger_id, retry_key, manifest_revision, trial, folder, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, pause_until_ms, wait_message, wait_fresh, started_at, finished_at, alone FROM process
 WHERE project_id IN (SELECT id FROM project WHERE workspace_id = ?1)
-  AND (?2 = 0 OR project_id = ?2)
+  AND (CAST(?2 AS INTEGER) = 0 OR project_id = CAST(?2 AS INTEGER))
   AND finished_at IS NULL
   AND (CAST(?3 AS INTEGER) = 0 OR EXISTS (SELECT 1 FROM json_each(CASE WHEN json_valid(input) THEN input ELSE '{}' END) j
     WHERE j.type = 'integer' AND j.value = CAST(?3 AS INTEGER)))
@@ -489,7 +489,7 @@ ORDER BY id DESC
 
 type ListOpenProcessesParams struct {
 	WorkspaceID int64
-	ProjectID   interface{}
+	ProjectID   int64
 	Record      int64
 }
 
@@ -651,9 +651,9 @@ func (q *Queries) ListProcessesByState(ctx context.Context, state string) ([]Pro
 const listProcessesFiltered = `-- name: ListProcessesFiltered :many
 SELECT id, project_id, command, kind, state, provider, session_id, input, result, not_by_schema, error, start_note, parent_id, depth, trigger_id, retry_key, manifest_revision, trial, folder, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, pause_until_ms, wait_message, wait_fresh, started_at, finished_at, alone FROM process
 WHERE project_id IN (SELECT id FROM project WHERE workspace_id = ?1)
-  AND (?2 = 0 OR project_id = ?2)
-  AND (?3 = '' OR state = ?3)
-  AND (?4 = '' OR command = ?4)
+  AND (CAST(?2 AS INTEGER) = 0 OR project_id = CAST(?2 AS INTEGER))
+  AND (CAST(?3 AS TEXT) = '' OR state = CAST(?3 AS TEXT))
+  AND (CAST(?4 AS TEXT) = '' OR command = CAST(?4 AS TEXT))
   AND (CAST(?5 AS INTEGER) = 0 OR EXISTS (SELECT 1 FROM json_each(CASE WHEN json_valid(input) THEN input ELSE '{}' END) j
     WHERE j.type = 'integer' AND j.value = CAST(?5 AS INTEGER)))
 ORDER BY id DESC LIMIT ?6
@@ -661,9 +661,9 @@ ORDER BY id DESC LIMIT ?6
 
 type ListProcessesFilteredParams struct {
 	WorkspaceID int64
-	ProjectID   interface{}
-	State       interface{}
-	Command     interface{}
+	ProjectID   int64
+	State       string
+	Command     string
 	Record      int64
 	Lim         int64
 }
@@ -848,14 +848,14 @@ func (q *Queries) ListToolCalls(ctx context.Context, processID sql.NullInt64) ([
 const listWorkspaceToolCalls = `-- name: ListWorkspaceToolCalls :many
 SELECT id, workspace_id, project_id, process_id, actor, caller, tool, class, outcome, params, external_id, error, ask_id, run, result, created_at FROM tool_call
 WHERE workspace_id = ?1
-  AND (?2 = 0 OR project_id = ?2)
+  AND (CAST(?2 AS INTEGER) = 0 OR project_id = CAST(?2 AS INTEGER))
   AND (CAST(?3 AS TEXT) = '' OR outcome = ?3)
 ORDER BY id DESC LIMIT ?4
 `
 
 type ListWorkspaceToolCallsParams struct {
 	WorkspaceID int64
-	ProjectID   interface{}
+	ProjectID   int64
 	Outcome     string
 	Lim         int64
 }

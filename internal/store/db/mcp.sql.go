@@ -64,13 +64,13 @@ func (q *Queries) ListMCPTools(ctx context.Context, projectID int64) ([]McpTool,
 
 const unlistMCPToolsExcept = `-- name: UnlistMCPToolsExcept :exec
 UPDATE mcp_tool SET listed = 0 WHERE project_id = ?1 AND server = ?2
-  AND name NOT IN (SELECT value FROM json_each(?3))
+  AND name NOT IN (SELECT value FROM json_each(CAST(?3 AS TEXT)))
 `
 
 type UnlistMCPToolsExceptParams struct {
 	ProjectID int64
 	Server    string
-	Keep      interface{}
+	Keep      string
 }
 
 func (q *Queries) UnlistMCPToolsExcept(ctx context.Context, arg UnlistMCPToolsExceptParams) error {

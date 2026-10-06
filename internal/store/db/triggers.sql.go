@@ -121,13 +121,13 @@ func (q *Queries) ListProjectTriggers(ctx context.Context, projectID int64) ([]T
 
 const listWorkspaceTriggers = `-- name: ListWorkspaceTriggers :many
 SELECT t.id, t.project_id, t.command, t.kind, t.spec, t.params, t.next_run_at, t.paused, t.skip_missed, t.last_process_id FROM "trigger" t JOIN project p ON p.id = t.project_id
-WHERE p.workspace_id = ?1 AND (?2 = 0 OR t.project_id = ?2)
+WHERE p.workspace_id = ?1 AND (CAST(?2 AS INTEGER) = 0 OR t.project_id = CAST(?2 AS INTEGER))
 ORDER BY p.name, t.id
 `
 
 type ListWorkspaceTriggersParams struct {
 	WorkspaceID int64
-	ProjectID   interface{}
+	ProjectID   int64
 }
 
 func (q *Queries) ListWorkspaceTriggers(ctx context.Context, arg ListWorkspaceTriggersParams) ([]Trigger, error) {

@@ -14,7 +14,7 @@ SELECT * FROM mcp_tool WHERE project_id = ? ORDER BY server, name;
 
 -- name: UnlistMCPToolsExcept :exec
 UPDATE mcp_tool SET listed = 0 WHERE project_id = sqlc.arg(project_id) AND server = sqlc.arg(server)
-  AND name NOT IN (SELECT value FROM json_each(sqlc.arg(keep)));
+  AND name NOT IN (SELECT value FROM json_each(CAST(sqlc.arg(keep) AS TEXT)));
 
 
 -- name: ApproveMCPTool :exec

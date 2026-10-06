@@ -41,7 +41,10 @@ func (r *renderer) items(src manifest.Source, picked map[string]string) ([]map[s
 // fetch reads the items of a source once per screen for what it reads: the collection, or the command with its
 // input and the values picked; each caller gets its own list of the shared items.
 func (r *renderer) fetch(src manifest.Source, picked map[string]string) ([]map[string]any, error) {
-	input := r.input(src.Input)
+	input, err := r.input(src.Input)
+	if err != nil {
+		return nil, err
+	}
 	k, _ := json.Marshal([]any{src.From, src.Project, src.Collection, src.Rows, input, picked})
 	if got, ok := r.fetched[string(k)]; ok {
 		return slices.Clone(got.items), got.err
@@ -107,18 +110,22 @@ func (r *renderer) load(src manifest.Source, input map[string]any, picked map[st
 }
 
 // input is the input of a command a block reads: its values resolved over the record of the page and the
-// parameters of the screen; a value that resolves to nothing is left out.
-func (r *renderer) input(in map[string]any) map[string]any {
+// parameters of the screen; a value that fails or resolves to nothing is an error, not a read without it.
+func (r *renderer) input(in map[string]any) (map[string]any, error) {
 	out := make(map[string]any, len(in))
 	for k, v := range in {
 		if s, ok := v.(string); ok && s != "" {
-			if v = manifest.Resolve(s, "", r.withParam(r.record)); v == nil {
-				continue
+			var err error
+			if v, err = manifest.Resolve(s, "", r.withParam(r.record)); err != nil {
+				return nil, fmt.Errorf("input %s: %w", k, err)
+			}
+			if v == nil {
+				return nil, fmt.Errorf("input %s: %s gives nothing", k, s)
 			}
 		}
 		out[k] = v
 	}
-	return out
+	return out, nil
 }
 
 // filtered are the items of a source narrowed by the values the owner picked, then sorted and cut; each

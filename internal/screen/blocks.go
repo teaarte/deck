@@ -43,7 +43,10 @@ func (r *renderer) holds(id string, b manifest.Block) (bool, error) {
 	if err != nil {
 		return true, err
 	}
-	return v == true, nil
+	if ok, err := manifest.Holds(v); err != nil || ok {
+		return true, err
+	}
+	return false, nil
 }
 
 // rows are the items of a block's source with the filters the owner picked, read once per screen without picks.

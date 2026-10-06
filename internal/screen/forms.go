@@ -64,7 +64,9 @@ func (r *renderer) form(b manifest.Block) (map[string]any, error) {
 	}
 	v["commands"] = cmds
 	if len(cmds) == 1 && len(b.Values) > 0 {
-		r.formValues(v, b.Values, cmds[0])
+		if err := r.formValues(v, b.Values, cmds[0]); err != nil {
+			return nil, err
+		}
 	}
 	if len(cmds) == 1 && b.Source == nil {
 		choices, err := r.choices(b, cmds[0])
@@ -115,8 +117,8 @@ func (r *renderer) trCommand(c map[string]any) {
 }
 
 // formValues fill fields of a form from the manifest, resolved over the record of the page and the parameters
-// of the screen; a value that resolves to nothing leaves its field to the owner.
-func (r *renderer) formValues(v map[string]any, values map[string]string, cmd map[string]any) {
+// of the screen; a value that resolves to nothing leaves its field to the owner, one that fails is an error.
+func (r *renderer) formValues(v map[string]any, values map[string]string, cmd map[string]any) error {
 	got, _ := v["values"].(map[string]any)
 	if got == nil {
 		got = map[string]any{}
@@ -125,13 +127,18 @@ func (r *renderer) formValues(v map[string]any, values map[string]string, cmd ma
 	types := manifest.FieldTypes(in)
 	env := r.withParam(r.record)
 	for field, raw := range values {
-		if val := manifest.Resolve(raw, types[field], env); val != nil {
+		val, err := manifest.Resolve(raw, types[field], env)
+		if err != nil {
+			return fmt.Errorf("values %s: %w", field, err)
+		}
+		if val != nil {
 			got[field] = val
 		}
 	}
 	if len(got) > 0 {
 		v["values"] = got
 	}
+	return nil
 }
 
 // choices are the values a form offers by field: those its block reads from a source, and the projects of the
@@ -184,7 +191,10 @@ func (r *renderer) custom(b manifest.Block) (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
-	acts := r.actions(b.Actions, r.req.Record, r.record)
+	acts, err := r.actions(b.Actions, r.req.Record, r.record)
+	if err != nil {
+		return nil, err
+	}
 	for _, act := range acts {
 		name, _ := act["command"].(string)
 		if c := r.req.Manifest.Command(strings.TrimPrefix(name, r.req.Project.Name+".")); c != nil {

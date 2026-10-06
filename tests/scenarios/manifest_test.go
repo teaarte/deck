@@ -389,3 +389,34 @@ func TestAVersionThatIsNoNumberSaysSo(t *testing.T) {
 		}
 	}
 }
+
+// TestAnInputThatGivesNothingIsAnErrorOfItsBlock: a source whose input resolves to nothing or fails shows an error
+// on its block, not a read without that filter; a button whose when fails says so too.
+func TestAnInputThatGivesNothingIsAnErrorOfItsBlock(t *testing.T) {
+	e := newEnv(t, nil)
+	e.createProject("ideas", ideasManifest)
+	e.waitState(e.start("ideas", "collect", nil), "done", "error")
+	runs := strings.Replace(webNotes, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "params": {"project": "string"}, "blocks": [
+      {"type": "table", "title": "Runs", "source": {"from": "deck.processes_list", "input": {"project": "=param.project"}}, "columns": [{"label": "Command", "bind": "command"}]},
+      {"type": "table", "title": "Bad", "source": {"from": "deck.processes_list", "input": {"project": "=upper(param.project) + 1"}}, "columns": [{"label": "Command", "bind": "command"}]},
+      {"type": "actions", "title": "Do", "actions": [{"label": "Tell", "command": "tell", "when": "param.project + 1 > 0"}]},`, 1)
+	if runs == webNotes {
+		t.Fatal("fixture replacement did not apply")
+	}
+	e.createProject("web", runs)
+	data := e.screenData("web", "main", map[string]any{"params": `{"project": "web"}`})
+	if string(data["b0"]["state"]) != `"empty"` && string(data["b0"]["state"]) != `"ready"` || strings.Contains(string(data["b0"]["value"]), "collect") {
+		t.Fatalf("with its param the block reads the runs of that project only: %s", data["b0"])
+	}
+	data = e.screenData("web", "main", nil)
+	if string(data["b0"]["state"]) != `"error"` || !strings.Contains(string(data["b0"]["error"]), "project") {
+		t.Fatalf("without its param the block is an error, not a read without the filter: %s", data["b0"])
+	}
+	data = e.screenData("web", "main", map[string]any{"params": `{"project": "web"}`})
+	if string(data["b1"]["state"]) != `"error"` {
+		t.Fatalf("an input whose expression fails is an error of its block: %s", data["b1"])
+	}
+	if string(data["b2"]["state"]) != `"error"` {
+		t.Fatalf("a button whose when fails is an error of its block, not a button that is quietly gone: %s", data["b2"])
+	}
+}

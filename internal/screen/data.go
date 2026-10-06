@@ -37,7 +37,10 @@ func (r *renderer) file(b manifest.Block, it map[string]any) map[string]any {
 	}
 	if b.Mark != nil {
 		id, _ := it["_id"].(int64)
-		if acts := r.actions([]manifest.Action{*b.Mark}, id, it); len(acts) == 1 {
+		acts, err := r.actions([]manifest.Action{*b.Mark}, id, it)
+		if err != nil {
+			line["error"] = err.Error()
+		} else if len(acts) == 1 {
 			line["mark"] = acts[0]
 		}
 	}
@@ -153,13 +156,21 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 	case "custom":
 		return r.custom(b)
 	case "actions":
-		return map[string]any{"state": "ready", "value": r.actions(b.Actions, r.req.Record, r.record)}, nil
+		acts, err := r.actions(b.Actions, r.req.Record, r.record)
+		if err != nil {
+			return nil, err
+		}
+		return map[string]any{"state": "ready", "value": acts}, nil
 	case "appearance":
 		return map[string]any{"state": "ready"}, nil
 	case "chat":
 		scope := r.scope
 		scope.Filter = r.req.Filter[id]
-		v, err := r.src.Read(r.ctx, b.Source.From, r.input(b.Source.Input), scope)
+		input, err := r.input(b.Source.Input)
+		if err != nil {
+			return nil, err
+		}
+		v, err := r.src.Read(r.ctx, b.Source.From, input, scope)
 		if err != nil {
 			return nil, err
 		}
@@ -199,7 +210,10 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 			r.setTone(field, f.Tone, r.record)
 			fields = append(fields, field)
 		}
-		acts := r.actions(b.Actions, r.req.Record, r.record)
+		acts, err := r.actions(b.Actions, r.req.Record, r.record)
+		if err != nil {
+			return nil, err
+		}
 		return map[string]any{"state": "ready", "value": map[string]any{"fields": fields, "actions": acts}}, nil
 	}
 	items, filters, err := r.rows(id, b, r.req.Filter[id])
@@ -267,7 +281,11 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 					details[j], detailed = fmt.Sprint(d), true
 				}
 			}
-			row := map[string]any{"id": it["_id"], "cells": cells, "actions": r.rowActions(b, it)}
+			acts, err := r.rowActions(b, it)
+			if err != nil {
+				return nil, err
+			}
+			row := map[string]any{"id": it["_id"], "cells": cells, "actions": acts}
 			if toned {
 				row["tones"] = tones
 			}
@@ -280,7 +298,11 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 	case "list":
 		lines := make([]map[string]any, 0, len(items))
 		for _, it := range items {
-			line := map[string]any{"id": it["_id"], "actions": r.rowActions(b, it)}
+			acts, err := r.rowActions(b, it)
+			if err != nil {
+				return nil, err
+			}
+			line := map[string]any{"id": it["_id"], "actions": acts}
 			if b.Item.Markdown {
 				line["markdown"] = true
 			}

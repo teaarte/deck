@@ -2,6 +2,7 @@ package manifest
 
 import (
 	"encoding/json"
+	"fmt"
 	"math"
 	"strconv"
 	"strings"
@@ -28,15 +29,29 @@ func Typed(v, typ string) any {
 
 // Resolve is a value a manifest gives a field of the type typ: fixed text in that type, or =<expression> over env,
 // where param holds the parameters of the screen.
-func Resolve(v, typ string, env map[string]any) any {
+func Resolve(v, typ string, env map[string]any) (any, error) {
 	if v == "" {
-		return nil
+		return nil, nil
 	}
 	if e, ok := strings.CutPrefix(v, "="); ok {
-		out, _ := Eval(e, env)
-		return out
+		out, err := Eval(e, env)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", v, err)
+		}
+		return out, nil
 	}
-	return Typed(v, typ)
+	return Typed(v, typ), nil
+}
+
+// Holds is whether a when gave true; nil holds not, and a value that is no boolean is an error.
+func Holds(v any) (bool, error) {
+	switch v := v.(type) {
+	case nil:
+		return false, nil
+	case bool:
+		return v, nil
+	}
+	return false, fmt.Errorf("gives %v, not true or false", v)
 }
 
 // FieldTypes are the JSON types of the fields of an object schema, "any" for a field without one.

@@ -102,6 +102,10 @@ func TestQuestionAnsweredLive(t *testing.T) {
 	if items := e.cockpitItems(); len(items) != 1 || items[0].Title != "Topic" {
 		t.Fatalf("a question the picker shows in full is headed by its header, not its text twice: %+v", items)
 	}
+	if running := e.cockpitRunning(); len(running) != 1 || !strings.Contains(running[0].Text, "waits for your answer") ||
+		!strings.Contains(running[0].Text, "Which topic?") {
+		t.Fatalf("a process that waits for the owner says so in Running now, with its question: %+v", running)
+	}
 	e.answer(a.ID, `{"Which topic?":"go"}`)
 	e.waitState(id, "done")
 	recs, _ := e.App.Store.Q.ListRecords(context.Background(), db.ListRecordsParams{ProjectID: p, Collection: "ideas"})

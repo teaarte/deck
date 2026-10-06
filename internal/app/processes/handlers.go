@@ -45,6 +45,9 @@ type processView struct {
 	PausedUntil string `json:"paused_until,omitempty"`
 	// Terminal goes on with the session of the process in a terminal.
 	Terminal string `json:"terminal,omitempty"`
+	// Ask and Question are what an open process waits for the owner to answer.
+	Ask      int64  `json:"ask,omitempty"`
+	Question string `json:"question,omitempty"`
 }
 
 func msTime(v sql.NullInt64) string {
@@ -108,6 +111,11 @@ func (s *Service) processesList(ctx context.Context, act registry.Actor, in proc
 		v := procView(p, names[p.ProjectID])
 		if in.Brief {
 			v.Result = nil
+		}
+		if !p.FinishedAt.Valid {
+			if asks, err := s.St.Q.ListOpenAsksOfProcess(ctx, p.ID); err == nil && len(asks) > 0 {
+				v.Ask, v.Question = asks[0].ID, asks[0].Text
+			}
 		}
 		out = append(out, v)
 	}

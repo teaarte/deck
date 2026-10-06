@@ -3,6 +3,7 @@ package gateway
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"maps"
 	"net/http"
@@ -83,7 +84,9 @@ type Gateway struct {
 	// clear is the one clearance of the registry: only the gateway lets a call that is not internal through.
 	clear registry.Clearance
 
-	mu         sync.Mutex
+	mu sync.Mutex
+	// renewing lets one renew of the live sessions run at a time.
+	renewing   sync.Mutex
 	sessions   map[string]*entry
 	tokens     map[int64]*automationEntry
 	handler    http.Handler
@@ -95,6 +98,8 @@ type entry struct {
 	server  *mcp.Server
 	allowed []string
 	tools   []string
+	// commands are the commands its tools were made of, so a renew that changes nothing leaves them.
+	commands string
 }
 
 func New(cfg Config, st *store.Store, asks *ask.Broker, bus *events.Bus, reg *registry.Registry) *Gateway {
@@ -113,10 +118,16 @@ func New(cfg Config, st *store.Store, asks *ask.Broker, bus *events.Bus, reg *re
 // renew gives every live session the commands it may call now, after a project changed: a new command is a tool
 // at once, one taken out is gone.
 func (g *Gateway) renew(ctx context.Context) {
+	g.renewing.Lock()
+	defer g.renewing.Unlock()
 	g.mu.Lock()
 	es := slices.Collect(maps.Values(g.sessions))
 	g.mu.Unlock()
 	for _, e := range es {
+		cmds, err := g.reg.List(ctx, e.session.actor())
+		if err != nil || commandsOf(cmds) == e.commands {
+			continue
+		}
 		allowed, tools, err := g.addCommands(ctx, e.server, e.session)
 		if err != nil {
 			continue
@@ -131,7 +142,7 @@ func (g *Gateway) renew(ctx context.Context) {
 				gone = append(gone, t)
 			}
 		}
-		e.tools, e.allowed = tools, allowed
+		e.tools, e.allowed, e.commands = tools, allowed, commandsOf(cmds)
 		g.mu.Unlock()
 		e.server.RemoveTools(gone...)
 	}
@@ -144,8 +155,9 @@ func (g *Gateway) Register(ctx context.Context, s *Session) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	cmds, _ := g.reg.List(ctx, s.actor())
 	g.mu.Lock()
-	g.sessions[tok] = &entry{session: s, server: srv, allowed: allowed, tools: tools}
+	g.sessions[tok] = &entry{session: s, server: srv, allowed: allowed, tools: tools, commands: commandsOf(cmds)}
 	g.mu.Unlock()
 	return tok, nil
 }
@@ -355,4 +367,13 @@ func (g *Gateway) journal(ctx context.Context, act registry.Actor, project int64
 // Command looks a registry command up for callers that need its class.
 func (g *Gateway) Command(ctx context.Context, workspace int64, name string) (*registry.Command, error) {
 	return g.reg.Lookup(ctx, workspace, name)
+}
+
+// commandsOf is what tools a list of commands makes, to compare.
+func commandsOf(cmds []*registry.Command) string {
+	var b strings.Builder
+	for _, c := range cmds {
+		fmt.Fprintf(&b, "%s\x00%s\x00%s\x00%s\n", c.Name, c.Title, c.Description, c.Input)
+	}
+	return b.String()
 }

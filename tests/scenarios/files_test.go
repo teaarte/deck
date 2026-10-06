@@ -291,3 +291,32 @@ func TestAgentGetsACopyOfItsInputFile(t *testing.T) {
 		t.Fatalf("an agent reads its input file from a copy, never the stored file itself: read %v, same %v", read, same)
 	}
 }
+
+// TestTheMasterReadsTheDataFolderOfAProject: a file or a folder of the data folder of a project is read by a command,
+// as data, and nothing outside the folder is reached.
+func TestTheMasterReadsTheDataFolderOfAProject(t *testing.T) {
+	e := newEnv(t, nil)
+	p := e.createProject("notes", plainManifest)
+	data := deckhome.Layout(e.App.Cfg.Home).Data(p)
+	_ = os.MkdirAll(filepath.Join(data, "cache"), 0o700)
+	_ = os.WriteFile(filepath.Join(data, "state.json"), []byte(`{"last": 7}`), 0o600)
+	_ = os.WriteFile(filepath.Join(filepath.Dir(data), "secret.txt"), []byte("outside"), 0o600)
+	var dir struct {
+		Entries []struct {
+			Name string
+			Dir  bool
+		}
+	}
+	e.must("deck.data_read", map[string]any{"project": "notes"}, &dir)
+	if len(dir.Entries) != 2 || dir.Entries[0].Name != "cache" || !dir.Entries[0].Dir || dir.Entries[1].Name != "state.json" {
+		t.Fatalf("the data folder lists its entries: %+v", dir)
+	}
+	var file struct{ Text string }
+	e.must("deck.data_read", map[string]any{"project": "notes", "path": "state.json"}, &file)
+	if !strings.Contains(file.Text, `{"last": 7}`) {
+		t.Fatalf("a file of the data folder is read as text: %+v", file)
+	}
+	if code, out := e.call("deck.data_read", map[string]any{"project": "notes", "path": "../secret.txt"}); code == 200 && strings.Contains(string(out), "outside") {
+		t.Fatalf("nothing outside the data folder is read: %d %s", code, out)
+	}
+}

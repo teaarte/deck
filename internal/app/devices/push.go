@@ -25,6 +25,7 @@ import (
 	"deck2/internal/docs"
 	"deck2/internal/events"
 	"deck2/internal/files"
+	"deck2/internal/home"
 	"deck2/internal/health"
 	"deck2/internal/registry"
 	"deck2/internal/store"
@@ -33,8 +34,6 @@ import (
 )
 
 const (
-	// VAPIDSecret keeps the key pair deck signs its pushes with.
-	VAPIDSecret = "push.vapid"
 	pushLength  = 100
 	// generic is what a push of a project without network says instead of its text.
 	generic = "Something in deck waits for you"
@@ -61,15 +60,11 @@ type Service struct {
 	Now           func() time.Time
 	Files         files.Dirs
 	RemoveFiles   func(ids []int64)
-	ReadSecret    func(workspace int64, name string) (string, error)
-	WriteSecret   func(workspace int64, name, value string) error
-	SecretsDir    func(workspace int64) string
-	LockSecrets   func()
-	UnlockSecrets func()
+	Home          home.Layout
 	// Invoke calls a command, as the undo of a change does.
 	Invoke func(ctx context.Context, act registry.Actor, name string, input json.RawMessage) (any, error)
 
-	pushMu sync.Mutex
+	pushMu, keyMu sync.Mutex
 }
 
 type vapid struct {
@@ -77,13 +72,26 @@ type vapid struct {
 	Private string `json:"private"`
 }
 
-// vapidKeys are the keys of the workspace, made on first use.
+// vapidKeys are the keys of the workspace, made on first use; a key of a base from before, kept among the secrets
+// of the workspace, moves out of them first.
 func (dv *Service) vapidKeys(workspace int64) (vapid, error) {
-	dv.LockSecrets()
-	defer dv.UnlockSecrets()
+	dv.keyMu.Lock()
+	defer dv.keyMu.Unlock()
+	path := dv.Home.PushKey(workspace)
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return vapid{}, err
+	}
+	if old := filepath.Join(dv.Home.Secrets(workspace), "push.vapid"); fileExists(old) && !fileExists(path) {
+		if err := os.Rename(old, path); err != nil {
+			return vapid{}, err
+		}
+	}
 	var k vapid
-	raw, err := dv.ReadSecret(workspace, VAPIDSecret)
-	if err == nil && json.Unmarshal([]byte(raw), &k) == nil && validVAPID(k) {
+	raw, err := os.ReadFile(path)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return k, err
+	}
+	if err == nil && json.Unmarshal(raw, &k) == nil && validVAPID(k) {
 		return k, nil
 	}
 	private, public, err := webpush.GenerateVAPIDKeys()
@@ -92,7 +100,7 @@ func (dv *Service) vapidKeys(workspace int64) (vapid, error) {
 	}
 	k = vapid{Public: public, Private: private}
 	b, _ := json.Marshal(k)
-	if err := dv.WriteSecret(workspace, VAPIDSecret, string(b)); err != nil || raw == "" {
+	if err := os.WriteFile(path, b, 0o600); err != nil || len(raw) == 0 {
 		return k, err
 	}
 	// Subscriptions made with the old key would fail now; their devices subscribe again.
@@ -179,9 +187,9 @@ func (dv *Service) pushUnsubscribe(ctx context.Context, act registry.Actor, in p
 
 // pushReset makes a new key for pushes on the next use; the devices subscribed with the old one subscribe again.
 func (dv *Service) pushReset(ctx context.Context, act registry.Actor, _ struct{}) (any, error) {
-	dv.LockSecrets()
-	err := os.Remove(filepath.Join(dv.SecretsDir(act.Workspace), VAPIDSecret))
-	dv.UnlockSecrets()
+	dv.keyMu.Lock()
+	err := os.Remove(dv.Home.PushKey(act.Workspace))
+	dv.keyMu.Unlock()
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return nil, err
 	}
@@ -437,4 +445,9 @@ func (dv *Service) PushCommands() []*registry.Command {
 			"Lists the devices that get pushes.",
 			registry.OwnerOnly, dv.pushDevices),
 	}
+}
+
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }

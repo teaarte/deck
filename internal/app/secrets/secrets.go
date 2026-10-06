@@ -5,12 +5,10 @@ package secrets
 import (
 	"context"
 	"deck2/internal/app/access"
-	"deck2/internal/app/devices"
 	"errors"
 	"io/fs"
 	"os"
 	"path/filepath"
-	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -27,19 +25,7 @@ type Service struct {
 	mu  sync.Mutex
 }
 
-// Lock and Unlock hold the secrets while a caller reads and writes one in turn.
-func (s *Service) Lock()   { s.mu.Lock() }
-func (s *Service) Unlock() { s.mu.Unlock() }
-
-// Secret is the value of a workspace secret, read when a tool call needs it.
-func (s *Service) Secret(workspace int64, name string) (string, error) {
-	if slices.Contains(serviceSecrets, name) {
-		return "", registry.Invalid("deck: %s is deck's own key; no tool, server or provider gets it", name)
-	}
-	return s.Read(workspace, name)
-}
-
-// Read is the value of any secret of a workspace, deck's own too.
+// Read is the value of a secret of the owner, read when a call needs it; deck's own keys live elsewhere.
 func (s *Service) Read(workspace int64, name string) (string, error) {
 	if !access.ValidSecret(name) {
 		return "", registry.Invalid("deck: bad secret name %q", name)
@@ -57,15 +43,9 @@ type secretSetIn struct {
 }
 
 // secretSet writes a secret file readable only by deck; the value never comes back out.
-// serviceSecrets are deck's own keys: the owner neither lists nor sets them, and resets them with their own button.
-var serviceSecrets = []string{devices.VAPIDSecret}
-
 func (s *Service) secretSet(ctx context.Context, act registry.Actor, in secretSetIn) (any, error) {
 	if !access.ValidSecret(in.Name) {
 		return nil, registry.Invalid("deck: a secret name is letters, digits, '.', '_' and '-'")
-	}
-	if slices.Contains(serviceSecrets, in.Name) {
-		return nil, registry.Invalid("deck: %s is deck's own key; reset it on the Interface tab of Settings", in.Name)
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -81,7 +61,7 @@ type secretDeleteIn struct {
 
 // secretDelete removes a stored secret; tools and providers that name it fail until it is set again.
 func (s *Service) secretDelete(ctx context.Context, act registry.Actor, in secretDeleteIn) (any, error) {
-	if !access.ValidSecret(in.Name) || slices.Contains(serviceSecrets, in.Name) {
+	if !access.ValidSecret(in.Name) {
 		return nil, registry.Invalid("deck: no secret %q the owner can delete", in.Name)
 	}
 	s.mu.Lock()
@@ -158,7 +138,7 @@ func (s *Service) secretsList(ctx context.Context, act registry.Actor, in secret
 	}
 	var names []string
 	for _, e := range es {
-		if !strings.HasPrefix(e.Name(), ".") && e.Type().IsRegular() && !slices.Contains(serviceSecrets, e.Name()) {
+		if !strings.HasPrefix(e.Name(), ".") && e.Type().IsRegular() {
 			names = append(names, e.Name())
 		}
 	}

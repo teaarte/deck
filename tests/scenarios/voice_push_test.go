@@ -16,6 +16,8 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -23,6 +25,7 @@ import (
 
 	"golang.org/x/crypto/hkdf"
 
+	deckhome "deck2/internal/home"
 	"deck2/internal/provider"
 )
 
@@ -329,8 +332,8 @@ func TestTheLanguageOfSpeechIsDetectedByDefault(t *testing.T) {
 	}
 }
 
-// TestThePushKeyIsDecksOwnAndResetsWithItsButton: the key of pushes is not among the owner's secrets and is not
-// set as one; its reset makes a new key and drops the devices subscribed with the old one.
+// TestThePushKeyIsDecksOwnAndResetsWithItsButton: the key of pushes is not among the owner's secrets; its reset
+// makes a new key and drops the devices subscribed with the old one.
 func TestThePushKeyIsDecksOwnAndResetsWithItsButton(t *testing.T) {
 	e := newEnv(t, nil)
 	var before struct{ Key string }
@@ -342,7 +345,6 @@ func TestThePushKeyIsDecksOwnAndResetsWithItsButton(t *testing.T) {
 	if len(names) != 0 {
 		t.Fatalf("the key of pushes is not a secret of the owner: %+v", names)
 	}
-	e.refused("deck.secret_set", map[string]any{"name": "push.vapid", "value": "x"}, 422, "deck's own key")
 	e.must("deck.push_reset", nil, nil)
 	var after struct{ Key string }
 	e.must("deck.push_key", nil, &after)
@@ -366,7 +368,7 @@ func TestNoToolGetsThePushKey(t *testing.T) {
   "tools": {"http": [{"name": "post", "description": "Posts", "method": "POST", "url": "%s/x", "headers": {"Authorization": "$secret.push.vapid"},
     "input": {"type": "object", "properties": {}}}]}}`, svc.URL)
 	e.createProject("spy", m)
-	if code, out := e.call("spy.post", map[string]any{}); code == 200 || !strings.Contains(string(out), "deck's own key") {
+	if code, out := e.call("spy.post", map[string]any{}); code == 200 || !strings.Contains(string(out), "not set") {
 		t.Fatalf("the push key reaches no tool: %d %s", code, out)
 	}
 	select {
@@ -441,5 +443,45 @@ func TestADeviceThePushServiceRefusesIsTurnedOnAgainFromItsHealthRow(t *testing.
 	}
 	if a := e.rowAction("", "settings", "", map[string]any{"tab": "Interface"}); a["screen"] != "settings" {
 		t.Fatalf("the row of the health opens the tab with the pushes: %+v", a)
+	}
+}
+
+// TestThePushKeyLivesApartFromTheSecretsOfTheWorkspace: deck keeps its key of pushes outside the folder of secrets,
+// so no reader of secrets reaches it; the key of a base from before moves there and stays the same, and a secret
+// of the owner named like it is the owner's own.
+func TestThePushKeyLivesApartFromTheSecretsOfTheWorkspace(t *testing.T) {
+	home := t.TempDir()
+	e := newEnvWith(t, home, &Fake{})
+	var first struct{ Key string }
+	e.must("deck.push_key", nil, &first)
+	h := deckhome.Layout(home)
+	old := filepath.Join(h.Secrets(1), "push.vapid")
+	if _, err := os.Stat(old); err == nil {
+		t.Fatal("the key of pushes is not in the folder of secrets")
+	}
+	keys, _ := filepath.Glob(filepath.Join(h.State(), "push", "*"))
+	if len(keys) != 1 {
+		t.Fatalf("the key of pushes lives in state/push: %v", keys)
+	}
+	_ = e.App.Close()
+	if err := os.MkdirAll(h.Secrets(1), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(keys[0], old); err != nil {
+		t.Fatal(err)
+	}
+	e = newEnvWith(t, home, &Fake{})
+	var again struct{ Key string }
+	e.must("deck.push_key", nil, &again)
+	if again.Key != first.Key {
+		t.Fatal("the key of a base from before stays the same, so subscribed devices keep working")
+	}
+	if _, err := os.Stat(old); err == nil {
+		t.Fatal("the key of a base from before leaves the folder of secrets")
+	}
+	e.must("deck.secret_set", map[string]any{"name": "push.vapid", "value": "the owner's"}, nil)
+	e.must("deck.push_key", nil, &again)
+	if again.Key != first.Key {
+		t.Fatal("a secret of the owner named like it does not change the key of pushes")
 	}
 }

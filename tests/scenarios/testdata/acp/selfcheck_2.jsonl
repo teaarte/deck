@@ -1,6 +1,6 @@
 {"reply": "initialize", "result": {"protocolVersion": 1, "agentInfo": {"name": "deepseek-harness-acp", "version": "0.0.1"}, "agentCapabilities": {"mcpCapabilities": {"http": true}, "promptCapabilities": {"image": false, "audio": false, "embeddedContext": false}, "sessionCapabilities": {"close": {}, "list": {}, "resume": {}}}, "authMethods": []}}
 {"reply": "session/resume", "result": {}}
 {"reply": "session/prompt"}
-{"model": {"model": "m", "messages": [{"role": "user", "content": "go"}]}}
+{"model": {"model": "m", "messages": [{"role": "user", "content": "go"}], "tools": [{"type": "function", "function": {"name": "shell"}}]}}
 {"mcp": {"tool": "result_submit", "arguments": {"result": {"word": "{{word}}", "answer": "{{word}}-answered"}}}}
 {"end": "end_turn"}

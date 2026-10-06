@@ -33,7 +33,8 @@ const writtenManifest = `{"version": 8,
     "result": {"type": "object", "required": ["written"], "properties": {"written": {"type": "integer"}}},
     "executor": {"type": "agent", "prompt": "Write the file."}}]}`
 
-const acpModel = `{"model": {"model": "m", "messages": [{"role": "user", "content": "go"}]}}`
+// acpModel is a call of the model of a turn, which carries the tools of the agent.
+const acpModel = `{"model": {"model": "m", "messages": [{"role": "user", "content": "go"}], "tools": [{"type": "function", "function": {"name": "shell"}}]}}`
 
 func acpLLM(t *testing.T) *fakeLLM {
 	return newLLM(t, func(int, chatRequest) chatReply { return textReply("ok") })
@@ -492,6 +493,26 @@ func TestACPTurnThatHandedInItsResultIsDoneThoughALaterCallWasRefused(t *testing
 	e := acpEnv(t, f, "goose", llm)
 	if got := e.waitState(e.run(e.acpProject("paint", colorManifest), "work"), "done", "error", "needs_login", "rate_limited"); got.State != "done" || string(got.Result) != `{"color":"blue"}` {
 		t.Fatalf("the turn that handed in its result is done: %+v", got)
+	}
+}
+
+// TestACPTurnIsNotUndoneByARefusedCallOnTheSide: a call of the model without tools, such as the title of a session
+// Goose asks for, tells nothing of the turn: a turn whose answer is its text is done though that call was refused.
+func TestACPTurnIsNotUndoneByARefusedCallOnTheSide(t *testing.T) {
+	f := newACP(t)
+	llm := newLLM(t, func(n int, _ chatRequest) chatReply {
+		if n <= 4 {
+			return textReply("ok")
+		}
+		return chatReply{status: 429, header: http.Header{"Retry-After": {"120"}}, body: `{"error": {"message": "no"}}`}
+	})
+	f.streamText(4, acpStream(gooseInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,
+		acpModel, `{"model": {"model": "m", "messages": [{"role": "user", "content": "a title for this session"}]}}`,
+		`{"update": {"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "Checked the page."}}}`, `{"end": "end_turn"}`))
+	e := acpEnv(t, f, "goose", llm)
+	open := strings.Replace(noNetworkManifest, `"no_network": true,`, "", 1)
+	if got := e.waitState(e.run(e.acpProject("open", open), "work"), "done", "error", "needs_login", "rate_limited"); got.State != "done" || !strings.Contains(string(got.Result), "Checked the page.") {
+		t.Fatalf("a turn is done though a call on its side was refused: %+v", got)
 	}
 }
 

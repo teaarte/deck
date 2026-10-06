@@ -2,6 +2,6 @@
 {"reply": "session/new", "result": {"sessionId": "s-check-2"}}
 {"reply": "session/prompt"}
 {"shell": "sh net.sh"}
-{"model": {"model": "m", "messages": [{"role": "user", "content": "go"}]}}
+{"model": {"model": "m", "messages": [{"role": "user", "content": "go"}], "tools": [{"type": "function", "function": {"name": "shell"}}]}}
 {"mcp": {"tool": "result_submit", "arguments": {"result": {"word": "done", "answer": ""}}}}
 {"end": "end_turn"}

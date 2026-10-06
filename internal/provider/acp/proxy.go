@@ -1,7 +1,10 @@
 package acp
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -44,10 +47,28 @@ func (e *entry) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			pr.Out.URL.Path, pr.Out.URL.RawPath = e.mcp.Path, ""
 		}}).ServeHTTP(w, r)
 	case strings.HasPrefix(r.URL.Path, e.modelAt+"/"):
-		http.StripPrefix(e.modelAt, e.api).ServeHTTP(&status{ResponseWriter: w, e: e}, r)
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		r.Body = io.NopCloser(bytes.NewReader(body))
+		if turnCall(body) {
+			w = &status{ResponseWriter: w, e: e}
+		}
+		http.StripPrefix(e.modelAt, e.api).ServeHTTP(w, r)
 	default:
 		http.Error(w, "deck: not found", http.StatusNotFound)
 	}
+}
+
+// turnCall reports whether a call of the model is one of the turn, which carries the tools of the agent, and not one
+// on its side such as the title of a session; only the turn's answers tell a limit or a refused key.
+func turnCall(body []byte) bool {
+	var v struct {
+		Tools []json.RawMessage `json:"tools"`
+	}
+	return json.Unmarshal(body, &v) == nil && len(v.Tools) > 0
 }
 
 // status keeps the status and Retry-After of an answer of the model API on its way to the agent.

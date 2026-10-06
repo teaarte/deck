@@ -3,7 +3,7 @@
 {"reply": "session/prompt"}
 {"shell": "echo {{word}} > word.txt"}
 {"shell": "sh probe.sh"}
-{"model": {"model": "m", "messages": [{"role": "user", "content": "go"}]}}
+{"model": {"model": "m", "messages": [{"role": "user", "content": "go"}], "tools": [{"type": "function", "function": {"name": "shell"}}]}}
 {"mcp": {"tool": "ask", "arguments": {"question": "Which answer should the result carry?"}}}
 {"mcp": {"tool": "result_submit", "arguments": {"result": {"word": "{{word}}", "answer": "{{word}}-answered"}}}}
 {"end": "end_turn"}

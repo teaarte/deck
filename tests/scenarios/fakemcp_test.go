@@ -33,6 +33,9 @@ func TestMain(m *testing.M) {
 	case "browser":
 		serveFake(browserTools(os.Getenv("DECK_FAKE_DIR")))
 	case "approve":
+		if len(os.Args) != 4 {
+			fakeFailed(fmt.Errorf("approve takes url, tool and input, got %q", os.Args[1:]))
+		}
 		askApprove(os.Args[1], os.Args[2], os.Args[3])
 	default:
 		os.Exit(m.Run())
@@ -44,17 +47,27 @@ func askApprove(url, tool, input string) {
 	ctx := context.Background()
 	sess, err := mcp.NewClient(&mcp.Implementation{Name: "fake-cli", Version: "0"}, nil).Connect(ctx, &mcp.StreamableClientTransport{Endpoint: url}, nil)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		fakeFailed(err)
 	}
 	var in map[string]any
-	_ = json.Unmarshal([]byte(input), &in)
+	if err := json.Unmarshal([]byte(input), &in); err != nil {
+		fakeFailed(err)
+	}
 	if _, err := sess.CallTool(ctx, &mcp.CallToolParams{Name: "approve",
 		Arguments: map[string]any{"tool_name": tool, "input": in, "tool_use_id": "t1"}}); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		fakeFailed(err)
 	}
 	os.Exit(0)
+}
+
+// fakeFailed leaves err where the test of the fake CLI that ran this helper finds it, and exits.
+func fakeFailed(err error) {
+	fmt.Fprintln(os.Stderr, err)
+	if f, ferr := os.OpenFile(os.Getenv("DECK_FAKE_FAILED"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644); ferr == nil {
+		fmt.Fprintln(f, err)
+		_ = f.Close()
+	}
+	os.Exit(1)
 }
 
 type fakeTool struct {

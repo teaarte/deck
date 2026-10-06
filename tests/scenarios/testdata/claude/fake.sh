@@ -44,6 +44,7 @@ if [ ! -f "$d/nostdin" ]; then
 fi
 word=$(grep -o 'deck-check-[0-9a-f]*' "$c/stdin" | head -1)
 if [ -n "$word" ]; then echo "$word" > "$d/word"; else word=$(cat "$d/word" 2>/dev/null); fi
+export DECK_FAKE_FAILED="$d/failed"
 [ -f "$d/before" ] && . "$d/before"
 stream="$d/stream.$n"
 [ -f "$stream" ] || stream="$d/stream"

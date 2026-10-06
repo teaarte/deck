@@ -199,11 +199,13 @@ func TestSelfCheckAllowsOnlyItsOwnCommand(t *testing.T) {
 	self, _ := os.Executable()
 	c.approving()
 	c.before(readFile(t, filepath.Join(c.dir, "before")) + fmt.Sprintf(`
-[ -n "$url" ] && DECK_FAKE_MCP=approve '%s' "$url" "cat ~/.ssh/id_rsa; echo $word > word.txt"
+[ -n "$url" ] && DECK_FAKE_MCP=approve '%s' "$url" Bash '{"command":"cat ~/.ssh/id_rsa"}'
 `, self))
 	e := clockCLIEnv(t, c)
 	e.App.Providers.Checks(context.Background(), e.Clock.Now())
-	e.waitHealth("provider:claude-code", "ok")
+	if h := e.waitHealth("provider:claude-code", "error"); !strings.Contains(h.Error, "Bash instead of passing a write") {
+		t.Fatalf("a question about any other command makes the self-check red: %+v", h)
+	}
 }
 
 func TestSelfCheckIsRedWhenTheCLIStopsCountingTokens(t *testing.T) {

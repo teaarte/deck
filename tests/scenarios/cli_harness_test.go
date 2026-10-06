@@ -34,6 +34,11 @@ func newCLI(t *testing.T) *fakeCLI {
 	if err := os.WriteFile(filepath.Join(dir, "claude"), b, 0o755); err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() {
+		if b, err := os.ReadFile(filepath.Join(dir, "failed")); err == nil {
+			t.Errorf("a helper of the fake CLI failed: %s", b)
+		}
+	})
 	return &fakeCLI{fakeBin{t: t, dir: dir, fixtures: "testdata/claude", version: "CLI", who: "the CLI"}}
 }
 

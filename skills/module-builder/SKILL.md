@@ -224,8 +224,9 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   with a translation into the owner's language (`{"ru": {"Notes": "Заметки"}}`) for every title, label,
   description and empty text, also when you change them later. A button to a screen takes `params`; the screen
   declares them with their types (`"params": {"title": "string", "n": "integer"}`) and reads them in expressions
-  as `param.<name>`: `"values": {"title": "=param.title"}` fills a form, `"input": {"days": "=param.n"}` a
-  source, `"when": "param.n > 1"` a block.
+  as `param.<name>`: `"values": {"title": "=param.title"}` fills a form, `"input": {"days": "=param.n ?? 7"}` a
+  source, `"when": "param.n > 1"` a block. An input that gives nothing or fails is an error on its block, not a read
+  without it, so give an optional param a default with `??`.
 - **Changing a manifest**: send `manifest_save` a JSON Patch in `patch` (`[{"op": "replace", "path":
   "/screens/0/blocks/2/title", "value": "…"}]`): a path names one place, so equal texts elsewhere never mix.
 - **Telling the owner**: a script or agent that finds something worth a look calls `notify` with `text`, and

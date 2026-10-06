@@ -35,13 +35,17 @@ func TestTheSpanOfAModuleBlockReachesTheScreen(t *testing.T) {
 func TestAParamOfASourceTakesTheTypeOfItsField(t *testing.T) {
 	e := newEnv(t, webNotesAgent())
 	e.createProject("web", strings.Replace(webNotes, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "params": {"n": "integer"}, "blocks": [
-      {"type": "list", "title": "Latest", "source": {"from": "deck.feed_list", "input": {"limit": "=param.n"}}, "item": {"title": "text"}},
-      {"type": "stat", "title": "Many", "when": "(param.n ?? 0) > 1", "source": {"from": "deck.probe"}},`, 1))
+      {"type": "list", "title": "Latest", "source": {"from": "deck.feed_list", "input": {"limit": "=param.n ?? 5"}}, "item": {"title": "text"}},
+      {"type": "stat", "title": "Many", "when": "(param.n ?? 0) > 1", "source": {"from": "deck.probe"}},
+      {"type": "list", "title": "Exact", "source": {"from": "deck.feed_list", "input": {"limit": "=param.n"}}, "item": {"title": "text"}},`, 1))
 	for _, params := range []map[string]any{{"params": `{"n": "2"}`}, nil} {
 		drawn, _ := json.Marshal(e.screenData("web", "main", params)["b0"])
 		if !strings.Contains(string(drawn), `"state":"empty"`) {
 			t.Fatalf("the source reads with %v: %s", params, drawn)
 		}
+	}
+	if drawn, _ := json.Marshal(e.screenData("web", "main", nil)["b2"]); !strings.Contains(string(drawn), `"state":"error"`) {
+		t.Fatalf("a param left out with no default is an error of the block, not a read without it: %s", drawn)
 	}
 	many := func(params map[string]any) bool {
 		drawn, _ := json.Marshal(e.screenMessages("web", "main", params))

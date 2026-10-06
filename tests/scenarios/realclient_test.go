@@ -362,6 +362,16 @@ func newPlaywright(t *testing.T) *playwright {
 
 func (b *playwright) call(tool string, args map[string]any) string {
 	b.t.Helper()
+	text, failed := b.try(tool, args)
+	if failed {
+		b.t.Fatalf("%s: %s", tool, text)
+	}
+	return text
+}
+
+// try calls a tool of the browser and says whether it failed, such as an evaluation a navigation cut short.
+func (b *playwright) try(tool string, args map[string]any) (string, bool) {
+	b.t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 	res, err := b.sess.CallTool(ctx, &mcp.CallToolParams{Name: tool, Arguments: args})
@@ -374,10 +384,7 @@ func (b *playwright) call(tool string, args map[string]any) string {
 			text.WriteString(tc.Text)
 		}
 	}
-	if res.IsError {
-		b.t.Fatalf("%s: %s", tool, text.String())
-	}
-	return text.String()
+	return text.String(), res.IsError
 }
 
 func (b *playwright) open(u string) { b.call("browser_navigate", map[string]any{"url": u}) }
@@ -405,7 +412,11 @@ func (b *playwright) until(what, cond string) {
 	b.t.Helper()
 	deadline := time.Now().Add(15 * time.Second)
 	for time.Now().Before(deadline) {
-		if b.eval("String(!!("+cond+"))") == "true" {
+		out, failed := b.try("browser_evaluate", map[string]any{"function": "() => { const W = document.querySelector('[data-block]') ?? document; return String(!!(" + cond + ")) }"})
+		if failed && !strings.Contains(out, "Execution context was destroyed") {
+			b.t.Fatalf("browser_evaluate: %s", out)
+		}
+		if _, after, _ := strings.Cut(out, "### Result"); !failed && strings.HasPrefix(strings.TrimSpace(after), `"true"`) {
 			return
 		}
 		time.Sleep(200 * time.Millisecond)

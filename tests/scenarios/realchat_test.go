@@ -267,8 +267,5 @@ func TestRealBrowserChatDeletesAWaitingMessage(t *testing.T) {
 	}
 	b.until("what the reply waits for, in the language of the interface", `document.querySelector('[data-turn="waiting_slot"]')?.innerText.includes('a free slot')`)
 	e.must("deck.settings_set", map[string]any{"name": "language", "value": "ru"}, nil)
-	b.eval(`(location.reload(), '')`)
-	b.until("the cockpit", `document.querySelector('[data-block]')`)
-	b.eval(`(document.querySelector('[data-chat-panel]') || document.querySelector('[data-chat-toggle]').click(), '')`)
 	b.until("what the reply waits for, in Russian", `(() => { const x = document.querySelector('[data-turn="waiting_slot"]')?.innerText ?? ''; return x.includes('свободного места') && !x.includes('slot') })()`)
 }

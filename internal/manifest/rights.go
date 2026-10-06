@@ -165,10 +165,8 @@ func ShellHosts(m *Manifest) []string {
 	return out
 }
 
-// Clip is m with only the rights granted gives, everything Widens sees: network, allowed external actions,
-// domains other than registries, models and reads it lacks are dropped; a command keeps the class, requirements,
-// provider, calls and callers it had; an MCP server keeps its granted filter and classes, a new or changed one
-// runs only without secrets and asks on every call, as an HTTP tool that would widen them does.
+// Clip is m with only the rights granted gives, everything Widens sees; an HTTP tool or MCP server that would widen
+// them asks on every call, and a new server with secrets is dropped.
 func Clip(granted, m *Manifest) *Manifest {
 	c := *m
 	c.Commands = slices.Clone(m.Commands)

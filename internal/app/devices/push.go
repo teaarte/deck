@@ -25,8 +25,8 @@ import (
 	"deck2/internal/docs"
 	"deck2/internal/events"
 	"deck2/internal/files"
-	"deck2/internal/home"
 	"deck2/internal/health"
+	"deck2/internal/home"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
@@ -34,7 +34,7 @@ import (
 )
 
 const (
-	pushLength  = 100
+	pushLength = 100
 	// generic is what a push of a project without network says instead of its text.
 	generic = "Something in deck waits for you"
 )
@@ -55,12 +55,12 @@ const (
 // Service reaches the owner. The secrets it keeps are the key of pushes and the one of speech to text; Files are
 // where recordings come in.
 type Service struct {
-	St            *store.Store
-	Bus           *events.Bus
-	Now           func() time.Time
-	Files         files.Dirs
-	RemoveFiles   func(ids []int64)
-	Home          home.Layout
+	St          *store.Store
+	Bus         *events.Bus
+	Now         func() time.Time
+	Files       files.Dirs
+	RemoveFiles func(ids []int64)
+	Home        home.Layout
 	// Invoke calls a command, as the undo of a change does.
 	Invoke func(ctx context.Context, act registry.Actor, name string, input json.RawMessage) (any, error)
 

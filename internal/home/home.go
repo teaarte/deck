@@ -47,7 +47,9 @@ func (l Layout) ACP() string       { return l.state("acp") }
 func (l Layout) Sessions() string { return l.state("mcp") }
 
 // PushKey is the key pair deck signs the pushes of a workspace with, apart from the secrets of the workspace.
-func (l Layout) PushKey(workspace int64) string { return l.state("push", fmt.Sprintf("%d.vapid", workspace)) }
+func (l Layout) PushKey(workspace int64) string {
+	return l.state("push", fmt.Sprintf("%d.vapid", workspace))
+}
 
 // Secrets holds the secrets of a workspace, a file each.
 func (l Layout) Secrets(workspace int64) string { return l.state("secrets", fmt.Sprint(workspace)) }

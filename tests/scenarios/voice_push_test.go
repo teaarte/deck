@@ -446,9 +446,8 @@ func TestADeviceThePushServiceRefusesIsTurnedOnAgainFromItsHealthRow(t *testing.
 	}
 }
 
-// TestThePushKeyLivesApartFromTheSecretsOfTheWorkspace: deck keeps its key of pushes outside the folder of secrets,
-// so no reader of secrets reaches it; the key of a base from before moves there and stays the same, and a secret
-// of the owner named like it is the owner's own.
+// TestThePushKeyLivesApartFromTheSecretsOfTheWorkspace: deck's key of pushes is outside the folder of secrets; the
+// key of a base from before moves out unchanged, and a secret named like it is the owner's own.
 func TestThePushKeyLivesApartFromTheSecretsOfTheWorkspace(t *testing.T) {
 	home := t.TempDir()
 	e := newEnvWith(t, home, &Fake{})

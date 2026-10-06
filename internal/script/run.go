@@ -120,24 +120,21 @@ func (x *Exec) Run(ctx context.Context, j Job) ([]byte, error) {
 	return out.Bytes(), nil
 }
 
-// environ is the whole environment of a script: its folders, caches in the data of its project, and deck with its
-// proxy for every client the script may use, Node's fetch too; only deck's own address is reached past the proxy.
+// environ is the whole environment of a script: the confined one with deck's proxy, its folders, caches in the data
+// of its project, and deck.
 func environ(j Job, data, tmp string) []string {
-	env := []string{"PATH=" + os.Getenv("PATH"), "HOME=" + j.Work(), "TMPDIR=" + tmp, "TERM=dumb",
-		"DECK_RESULTS=" + j.Results(), "DECK_DATA=" + data, "XDG_CACHE_HOME=" + filepath.Join(data, ".cache"),
-		"npm_config_cache=" + filepath.Join(data, ".cache", "npm"), "PYTHONDONTWRITEBYTECODE=1", "PYTHONUNBUFFERED=1"}
-	for _, k := range []string{"LANG", "LC_ALL"} {
-		if v := os.Getenv(k); v != "" {
-			env = append(env, k+"="+v)
-		}
+	proxy := ""
+	if j.Gateway != "" {
+		proxy = "http://deck:" + j.Token + "@" + j.Gateway
 	}
+	env := append(sandbox.Env(j.Work(), tmp, proxy, j.Gateway), "TERM=dumb",
+		"DECK_RESULTS="+j.Results(), "DECK_DATA="+data, "XDG_CACHE_HOME="+filepath.Join(data, ".cache"),
+		"npm_config_cache="+filepath.Join(data, ".cache", "npm"), "PYTHONDONTWRITEBYTECODE=1", "PYTHONUNBUFFERED=1")
 	if j.Gateway == "" {
 		return env
 	}
-	url, proxy := "http://"+j.Gateway, "http://deck:"+j.Token+"@"+j.Gateway
-	return append(env, "DECK_URL="+url, "DECK_TOKEN="+j.Token, "DECK_MODELS="+url+"/models", "HTTP_PROXY="+proxy,
-		"HTTPS_PROXY="+proxy, "http_proxy="+proxy, "https_proxy="+proxy, "NO_PROXY="+j.Gateway, "no_proxy="+j.Gateway,
-		"NODE_USE_ENV_PROXY=1")
+	url := "http://" + j.Gateway
+	return append(env, "DECK_URL="+url, "DECK_TOKEN="+j.Token, "DECK_MODELS="+url+"/models")
 }
 
 func argvOf(s *manifest.Script, file string) ([]string, error) {

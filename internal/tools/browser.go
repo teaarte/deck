@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"deck2/internal/home"
+	"deck2/internal/provider"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -77,12 +78,7 @@ func (b *Browser) spec(open bool) mcphost.Spec {
 	if !b.headed || open {
 		args = append(args, "--headless")
 	}
-	var env []string
-	for _, kv := range os.Environ() {
-		if baseEnv.MatchString(kv) {
-			env = append(env, kv)
-		}
-	}
+	env := provider.Environ(os.Environ(), []string{"PATH", "HOME", "USER", "LOGNAME", "SHELL", "LANG", "TZ", "TMPDIR"}, "LC_", "XDG_")
 	return mcphost.Spec{Command: b.Argv[0], Args: args, Env: env, Dir: b.dir("work")}
 }
 

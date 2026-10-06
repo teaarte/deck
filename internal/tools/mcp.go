@@ -4,12 +4,12 @@ import (
 	"context"
 	"crypto/sha256"
 	"deck2/internal/home"
+	"deck2/internal/sandbox"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"maps"
-	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -55,21 +55,12 @@ func SpecID(s manifest.MCPServer) string {
 	return hex.EncodeToString(sum[:8])
 }
 
-// baseEnv is what a stdio server inherits from deck; the manifest adds its own variables.
-var baseEnv = regexp.MustCompile(`^(PATH|HOME|USER|LOGNAME|SHELL|LANG|TZ|TMPDIR|LC_[A-Z_]+|XDG_[A-Z_]+|NODE_[A-Z_]+)=`)
-
 func (x *MCP) spec(ctx context.Context, p db.Project, name string, s manifest.MCPServer) (mcphost.Spec, error) {
 	if s.URL != "" {
 		return mcphost.Spec{URL: s.URL}, nil
 	}
 	dir := filepath.Join(x.Home.Project(p.ID), "mcp", name)
-	var env []string
-	for _, kv := range os.Environ() {
-		if baseEnv.MatchString(kv) && !strings.HasPrefix(kv, "HOME=") && !strings.HasPrefix(kv, "TMPDIR=") {
-			env = append(env, kv)
-		}
-	}
-	env = append(env, "HOME="+dir, "TMPDIR="+dir)
+	env := sandbox.Env(dir, dir, "", "")
 	var secrets []string
 	for _, k := range slices.Sorted(maps.Keys(s.Env)) {
 		v, used, err := x.expand(p.WorkspaceID, s.Env[k])

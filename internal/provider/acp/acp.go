@@ -171,9 +171,7 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 			return provider.Result{}, err
 		}
 	}
-	env = append(environ(os.Environ()), append([]string{"HOME=" + home, "TMPDIR=" + filepath.Join(home, "tmp"),
-		"HTTP_PROXY=" + proxy, "HTTPS_PROXY=" + proxy, "http_proxy=" + proxy, "https_proxy=" + proxy,
-		"NO_PROXY=127.0.0.1,localhost", "no_proxy=127.0.0.1,localhost"}, env...)...)
+	env = append(sandbox.Env(home, filepath.Join(home, "tmp"), proxy, self), env...)
 	cmd, err := a.cfg.Sandbox.Command(life, a.closed(sandbox.Policy{
 		Argv: append([]string{"/bin/sh", "-c", `"$@"; exit $?`, marker(req.SessionID)}, argv...),
 		Dir:  req.Cwd, Env: env, Write: append([]string{req.Cwd, home}, req.Dirs...), Read: req.Read, Out: ln}, bin))

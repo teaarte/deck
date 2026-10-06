@@ -11,12 +11,6 @@ import (
 	"deck2/internal/provider"
 )
 
-var envNames = []string{"PATH", "USER", "LOGNAME", "SHELL", "LANG", "TZ"}
-
-// environ keeps the allowlisted variables of deck; HOME, TMPDIR and XDG_* would lead the agent to the owner's
-// settings, keys never pass.
-func environ(parent []string) []string { return provider.Environ(parent, envNames, "LC_") }
-
 // writeSkills puts the skills of the turn where ACP agents look for them, in a fresh folder of the turn: deck writes
 // there itself, so nothing the agent left, such as a symlink, may lead the writes elsewhere.
 func writeSkills(cwd string, files map[string]string) error {

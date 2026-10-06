@@ -727,3 +727,20 @@ func TestACPAgentDoesNotReadTheOwnersHome(t *testing.T) {
 		t.Fatalf("the agent does not read the owner's home: %v", f.call(4).shell)
 	}
 }
+
+// TestACPAgentReachesALocalServiceItsProjectNames: a service of the owner's machine that the project names by IP and
+// port in domains.read is reached by the shell of an ACP agent through deck's proxy, as by a script.
+func TestACPAgentReachesALocalServiceItsProjectNames(t *testing.T) {
+	local := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { _, _ = w.Write([]byte("hello")) })
+	addr := strings.TrimPrefix(local.URL, "http://")
+	f := newACP(t)
+	f.streamText(4, acpStream(acpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,
+		`{"shell": "curl -s -m 5 -o /dev/null -w '%{http_code}' http://`+addr+`/"}`,
+		`{"mcp": {"tool": "result_submit", "arguments": {"result": {"written": 0}}}}`, `{"end": "end_turn"}`))
+	e := acpEnv(t, f, "goose", acpLLM(t))
+	m := strings.Replace(writtenManifest, `{"version": 9,`, fmt.Sprintf(`{"version": 9, "domains": {"read": [%q]},`, addr), 1)
+	e.waitState(e.run(e.acpProject("paint", m), "work"), "done")
+	if got := f.call(4).shell[0]["out"]; got != "200" || len(local.requests()) != 1 {
+		t.Fatalf("the shell reaches the service its project names: %q, %d requests", got, len(local.requests()))
+	}
+}

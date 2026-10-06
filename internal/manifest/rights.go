@@ -2,6 +2,7 @@ package manifest
 
 import (
 	"bytes"
+	"cmp"
 	"deck2/internal/registry"
 	"encoding/json"
 	"fmt"
@@ -273,4 +274,30 @@ func compact(raw json.RawMessage) []byte {
 		return raw
 	}
 	return b.Bytes()
+}
+
+// AskEachTime are the tools and commands of the manifest that wait for the owner on every call: external ones
+// outside allowed_external; a tool of an MCP server without a class is one too, named once the server lists it.
+func (m *Manifest) AskEachTime() []string {
+	var out []string
+	external := func(name, class string) {
+		if cmp.Or(class, "external") == "external" && !slices.Contains(m.AllowedExternal, name) {
+			out = append(out, name)
+		}
+	}
+	for _, t := range m.Tools.HTTP {
+		external(t.Name, t.Class)
+	}
+	for _, server := range slices.Sorted(maps.Keys(m.Tools.MCP.Servers)) {
+		classes := m.Tools.MCP.Servers[server].Classes
+		for _, tool := range slices.Sorted(maps.Keys(classes)) {
+			external(server+"."+tool, classes[tool])
+		}
+	}
+	for _, c := range m.Commands {
+		if c.Class == "external" && !slices.Contains(m.AllowedExternal, c.Name) {
+			out = append(out, c.Name)
+		}
+	}
+	return out
 }

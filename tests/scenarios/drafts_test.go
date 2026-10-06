@@ -57,6 +57,7 @@ type projectV struct {
 	Name     string
 	Status   string
 	Rights   []string
+	Asks     []string
 	Revision int64
 }
 
@@ -550,5 +551,23 @@ print(json.dumps({"registry": why("http://pypi.org/simple/"), "site": why("http:
 	_ = json.Unmarshal(p.Result, &got)
 	if strings.Contains(got.Registry, "not in the domains") || !strings.Contains(got.Site, "not in the domains") {
 		t.Fatalf("a draft's script reaches the registries it names, not its other domains: %s", p.Result)
+	}
+}
+
+// TestADraftSaysWhichToolsWillAskEachTime: before the owner enables a draft, its row names the tools and commands
+// that will still wait for the owner on every call.
+func TestADraftSaysWhichToolsWillAskEachTime(t *testing.T) {
+	e := newEnv(t, ok)
+	_, tok := e.token("terminal", "deck.*")
+	if code, out := e.callWith(tok, "deck.project_create", map[string]any{"name": "notes", "manifest": postManifest("http://127.0.0.1:1", "")}); code != 200 {
+		t.Fatalf("project_create: %d %s", code, out)
+	}
+	if p := e.project("notes"); !slices.Equal(p.Asks, []string{"post"}) {
+		t.Fatalf("the draft names the external tool that asks every time: %+v", p)
+	}
+	var items []listItem
+	_ = json.Unmarshal(e.settingsBlock("Projects", nil)["items"], &items)
+	if !slices.ContainsFunc(items, func(it listItem) bool { return strings.Contains(it.Meta, "asks you each time: post") }) {
+		t.Fatalf("the Projects tab says it before enabling: %+v", items)
 	}
 }

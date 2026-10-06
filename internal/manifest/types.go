@@ -156,9 +156,9 @@ func (f *Folder) UnmarshalJSON(b []byte) error {
 }
 
 type Script struct {
-	Name           string   `json:"name"`
-	File           string   `json:"file"`
-	Runtime        string   `json:"runtime"`
+	Name           string    `json:"name"`
+	File           string    `json:"file"`
+	Runtime        string    `json:"runtime"`
 	Programs       []Program `json:"programs,omitempty"`
 	TimeoutMinutes int       `json:"timeout_minutes,omitempty"`
 }

@@ -412,3 +412,24 @@ func TestABaseWithAConnectionNamedWhisperGetsTheWhisperOfDeckToo(t *testing.T) {
 	}
 	t.Fatalf("speech to text is the whisper of deck on a connection of a free name: %+v %v", m.Assignments, conn)
 }
+
+// TestADeviceThePushServiceRefusesIsTurnedOnAgainFromItsHealthRow: a refusal for good, such as 400, says how to turn
+// the pushes of that device on again, and the row of the health opens where that is done.
+func TestADeviceThePushServiceRefusesIsTurnedOnAgainFromItsHealthRow(t *testing.T) {
+	e := newEnv(t, nil)
+	dev, _ := newPushDevice(t)
+	refusing := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusBadRequest) }))
+	t.Cleanup(refusing.Close)
+	dev.subscribe(e, refusing, "MacIntel")
+	e.createProject("work", boardWork)
+	time.Sleep(700 * time.Millisecond)
+	e.must("deck.notify", map[string]any{"project": "work", "text": "The report is ready"}, nil)
+	e.App.Sweep(context.Background(), time.Now())
+	h := e.waitHealth("push", "error")
+	if !strings.Contains(h.Error, "MacIntel") || !strings.Contains(h.Error, "off and on again") {
+		t.Fatalf("the health says how to turn the pushes of the device on again: %+v", h)
+	}
+	if a := e.rowAction("", "settings", "", map[string]any{"tab": "Interface"}); a["screen"] != "settings" {
+		t.Fatalf("the row of the health opens the tab with the pushes: %+v", a)
+	}
+}

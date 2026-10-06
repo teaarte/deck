@@ -454,7 +454,7 @@ func (dv *Service) deliver(ctx context.Context, workspace int64, k vapid, s db.P
 		return pushRetry, resp.Status
 	default:
 		slog.Error("push refused", "device", s.Device, "status", resp.Status)
-		return pushDone, "the push service refused it: " + resp.Status
+		return pushDone, "the push service refused it: " + resp.Status + "; turn pushes off and on again on this device in Settings → Interface"
 	}
 }
 

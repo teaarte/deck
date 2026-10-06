@@ -140,7 +140,7 @@ type formV struct {
 	Save     string         `json:"save"`
 }
 
-// rowAction is the first button of a screen that calls command with params holding match, as the client gets it.
+// rowAction is the first button of a screen that calls command, any for "", with params holding match.
 func (e *Env) rowAction(project, screen, command string, match map[string]any) map[string]any {
 	e.T.Helper()
 	var find func(v any) map[string]any
@@ -148,7 +148,7 @@ func (e *Env) rowAction(project, screen, command string, match map[string]any) m
 		switch v := v.(type) {
 		case map[string]any:
 			params, _ := v["params"].(map[string]any)
-			held := v["command"] == command
+			held := command == "" || v["command"] == command
 			for k, want := range match {
 				held = held && fmt.Sprint(params[k]) == fmt.Sprint(want)
 			}

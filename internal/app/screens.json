@@ -421,7 +421,8 @@
                 {"label": "Since", "bind": "updated_at"}
               ],
               "actions": [
-                {"verb": "check", "command": "deck.provider_check", "params": {"provider": "=trimPrefix(subject, 'provider:')"}, "when": "self_check"}
+                {"verb": "check", "command": "deck.provider_check", "params": {"provider": "=trimPrefix(subject, 'provider:')"}, "when": "self_check"},
+                {"verb": "open", "screen": "settings", "params": {"tab": "Interface"}, "when": "subject == 'push' && status != 'ok'"}
               ]}
           ]}
         ]}

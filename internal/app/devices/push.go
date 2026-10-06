@@ -15,7 +15,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -37,8 +36,6 @@ const (
 	// VAPIDSecret keeps the key pair deck signs its pushes with.
 	VAPIDSecret = "push.vapid"
 	pushLength  = 100
-	// pushPause gathers the changes of a moment into one look for what to push.
-	pushPause = 500 * time.Millisecond
 	// generic is what a push of a project without network says instead of its text.
 	generic = "Something in deck waits for you"
 )
@@ -57,13 +54,11 @@ const (
 )
 
 // Service reaches the owner. The secrets it keeps are the key of pushes and the one of speech to text; Files are
-// where recordings come in; Ctx is the life of deck, for pushes sent in the background.
+// where recordings come in.
 type Service struct {
 	St            *store.Store
 	Bus           *events.Bus
 	Now           func() time.Time
-	Ctx           context.Context
-	BG            *sync.WaitGroup
 	Files         files.Dirs
 	RemoveFiles   func(ids []int64)
 	ReadSecret    func(workspace int64, name string) (string, error)
@@ -209,36 +204,6 @@ func (dv *Service) pushDevices(ctx context.Context, act registry.Actor, _ struct
 		out = append(out, map[string]any{"id": r.ID, "name": r.Device, "created_at": r.CreatedAt})
 	}
 	return out, nil
-}
-
-// WatchPush looks for what to push after the changes that can bring it, a moment after they settle.
-func (dv *Service) WatchPush() {
-	var mu = make(chan struct{}, 1)
-	dv.Bus.Watch(func(topic string) {
-		if !slices.Contains([]string{"asks", "processes", "feed", "chat"}, topic) {
-			return
-		}
-		if dv.Ctx.Err() != nil {
-			return
-		}
-		select {
-		case mu <- struct{}{}:
-		default:
-			return
-		}
-		dv.BG.Add(1)
-		time.AfterFunc(pushPause, func() {
-			defer dv.BG.Done()
-			<-mu
-			if dv.Ctx.Err() != nil {
-				return
-			}
-			spaces, _ := dv.St.Q.ListWorkspaces(dv.Ctx)
-			for _, ws := range spaces {
-				dv.PushNew(dv.Ctx, ws)
-			}
-		})
-	})
 }
 
 // pushItem is one push and the cursor of its source once it is delivered; an empty push only moves the cursor.

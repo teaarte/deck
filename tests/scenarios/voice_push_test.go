@@ -162,9 +162,15 @@ func (d *pushDevice) subscribe(e *Env, srv *httptest.Server, name string) {
 		"auth": b64(d.auth), "device": name}, nil)
 }
 
+// wait looks for what to push, as the loop of deck does every 30 seconds, until the device got n pushes.
 func (d *pushDevice) wait(e *Env, n int) []map[string]string {
 	e.T.Helper()
-	e.waitFor("pushes", func() bool { d.mu.Lock(); defer d.mu.Unlock(); return len(d.got) >= n })
+	e.waitFor("pushes", func() bool {
+		e.App.Sweep(context.Background(), time.Now())
+		d.mu.Lock()
+		defer d.mu.Unlock()
+		return len(d.got) >= n
+	})
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	return append([]map[string]string{}, d.got...)
@@ -188,8 +194,14 @@ func TestPushGoesToSubscribedDevices(t *testing.T) {
 	}
 	p := e.createProject("work", boardWork)
 	e.createProject("private", strings.Replace(boardWork, `"version": 8,`, `"version": 8, "no_network": true,`, 1))
-	time.Sleep(700 * time.Millisecond)
 	e.must("deck.notify", map[string]any{"project": "work", "text": "The report of the week is ready"}, nil)
+	time.Sleep(time.Second)
+	d.mu.Lock()
+	early := len(d.got)
+	d.mu.Unlock()
+	if early != 0 {
+		t.Fatalf("deck pushes only on its look every 30 seconds, not on each change: %d pushes", early)
+	}
 	got := d.wait(e, 1)
 	if got[0]["body"] != "The report of the week is ready" || got[0]["url"] != "/#/deck/cockpit" ||
 		!strings.Contains(d.vap[0], "vapid t=") || !strings.Contains(d.vap[0], "k="+key.Key) {
@@ -235,6 +247,7 @@ func TestPushGoesToSubscribedDevices(t *testing.T) {
 	d.mu.Unlock()
 	e.must("deck.notify", map[string]any{"project": "work", "text": "once more"}, nil)
 	e.waitFor("the gone device to go", func() bool {
+		e.App.Sweep(context.Background(), time.Now())
 		var ds []map[string]any
 		e.must("deck.push_devices", nil, &ds)
 		return len(ds) == 0
@@ -263,7 +276,7 @@ func TestAPushThatFailsForNowIsSentAgain(t *testing.T) {
 	e.createProject("work", boardWork)
 	topic := e.say(0, "update the list")
 	e.masterSaid(topic, 1)
-	time.Sleep(time.Second)
+	e.App.Sweep(context.Background(), time.Now())
 	if n := len(d.got); n != 0 {
 		t.Fatalf("nothing arrives while the service fails: %d", n)
 	}
@@ -374,7 +387,6 @@ func TestADeviceThatFailsHoldsBackOnlyItself(t *testing.T) {
 	t.Cleanup(broken.Close)
 	good.subscribe(e, broken, "mac")
 	e.createProject("work", boardWork)
-	time.Sleep(700 * time.Millisecond)
 	e.must("deck.notify", map[string]any{"project": "work", "text": "The report is ready"}, nil)
 	good.wait(e, 1)
 	for range 3 {
@@ -422,7 +434,6 @@ func TestADeviceThePushServiceRefusesIsTurnedOnAgainFromItsHealthRow(t *testing.
 	t.Cleanup(refusing.Close)
 	dev.subscribe(e, refusing, "MacIntel")
 	e.createProject("work", boardWork)
-	time.Sleep(700 * time.Millisecond)
 	e.must("deck.notify", map[string]any{"project": "work", "text": "The report is ready"}, nil)
 	e.App.Sweep(context.Background(), time.Now())
 	h := e.waitHealth("push", "error")

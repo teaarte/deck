@@ -4,6 +4,7 @@ package folders
 import (
 	"context"
 	"deck2/internal/app/access"
+	"deck2/internal/home"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -19,7 +20,7 @@ import (
 // Service keeps the folders; Home is deck's own folder, which no project folder holds or is in.
 type Service struct {
 	St   *store.Store
-	Home string
+	Home home.Layout
 }
 
 var folderName = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,39}$`)
@@ -51,7 +52,7 @@ func (s *Service) realFolder(path string) (string, error) {
 	if st, err := os.Stat(real); err != nil || !st.IsDir() {
 		return "", registry.Invalid("deck: %s is not a folder", dir)
 	}
-	for _, home := range provider.Paths(s.Home) {
+	for _, home := range provider.Paths(string(s.Home)) {
 		if real == home || strings.HasPrefix(real, home+"/") || strings.HasPrefix(home, strings.TrimSuffix(real, "/")+"/") {
 			return "", registry.Invalid("deck: folder %s holds or is inside deck's own folder %s", dir, s.Home)
 		}

@@ -14,6 +14,7 @@ import (
 	"strings"
 	"syscall"
 
+	"deck2/internal/home"
 	"deck2/internal/nonce"
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
@@ -21,9 +22,6 @@ import (
 
 // Results is the prefix of a file reference into the results folder of the calling process.
 const Results = "results/"
-
-// Dirs are where stored files and process run folders live.
-type Dirs struct{ Files, Runs string }
 
 // Ref is a file an input points to; a results file is opened again inside its folder whenever it is read.
 type Ref struct {
@@ -62,12 +60,12 @@ func (r Ref) Open() (*os.File, int64, error) {
 
 // Resolve finds the file of a reference: a stored file of the project by id, or results/<name> in the
 // results folder of the process, which stays inside that folder.
-func (d Dirs) Resolve(ctx context.Context, q *db.Queries, project, process int64, ref string) (Ref, error) {
+func Resolve(ctx context.Context, h home.Layout, q *db.Queries, project, process int64, ref string) (Ref, error) {
 	if rest, ok := strings.CutPrefix(ref, Results); ok {
 		if process == 0 {
 			return Ref{}, registry.Invalid("deck: %q is a results file, which only a process has", ref)
 		}
-		root := filepath.Join(d.Runs, strconv.FormatInt(process, 10), "results")
+		root := filepath.Join(h.Run(process), "results")
 		path, err := inside(root, rest)
 		if err != nil {
 			return Ref{}, registry.Invalid("deck: %q is not a file in the results folder of this process", ref)
@@ -85,7 +83,7 @@ func (d Dirs) Resolve(ctx context.Context, q *db.Queries, project, process int64
 	if err != nil {
 		return Ref{}, err
 	}
-	return Ref{ID: f.ID, Path: filepath.Join(d.Files, strconv.FormatInt(f.ID, 10)), Name: f.Name, Type: f.Type}, nil
+	return Ref{ID: f.ID, Path: filepath.Join(h.Files(), strconv.FormatInt(f.ID, 10)), Name: f.Name, Type: f.Type}, nil
 }
 
 // inside resolves name under root without following links out of it; the result is a regular file.
@@ -119,11 +117,11 @@ func typeOf(path string) string {
 }
 
 // Save writes a file a tool answered with into the results folder of the process and returns its name.
-func (d Dirs) Save(process int64, tool, ct string, body io.Reader, limit int64) (string, int64, error) {
+func Save(h home.Layout, process int64, tool, ct string, body io.Reader, limit int64) (string, int64, error) {
 	if process == 0 {
 		return "", 0, fmt.Errorf("deck: %s answered with a file, which only a process with a results folder can take", tool)
 	}
-	root, err := os.OpenRoot(filepath.Join(d.Runs, strconv.FormatInt(process, 10)))
+	root, err := os.OpenRoot(h.Run(process))
 	if err != nil {
 		return "", 0, fmt.Errorf("deck: %s answered with a file, but process %d has no results folder any more", tool, process)
 	}

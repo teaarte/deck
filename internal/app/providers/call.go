@@ -283,7 +283,7 @@ func (s *Service) keepBase64(act registry.Actor, ct, data string) (any, error) {
 
 // keep saves what a model made as a file in the results folder of the calling process.
 func (s *Service) keep(act registry.Actor, kind, ct string, body io.Reader) (any, error) {
-	name, n, err := s.Dirs.Save(act.ProcessID, kind, ct, body, 1<<30)
+	name, n, err := files.Save(s.Home, act.ProcessID, kind, ct, body, 1<<30)
 	if err != nil {
 		return nil, err
 	}

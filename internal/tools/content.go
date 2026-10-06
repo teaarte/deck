@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"deck2/internal/home"
 	"deck2/internal/untrusted"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -50,7 +51,7 @@ func done(ctx context.Context, gw *gateway.Gateway, intent int64, at string, err
 
 // Content turns a tool result into what the caller gets: its structured content, or its text with binary
 // parts saved as files in the results folder of the process; an error result is an error.
-func Content(dirs files.Dirs, process int64, tool string, res *mcp.CallToolResult) (any, error) {
+func Content(h home.Layout, process int64, tool string, res *mcp.CallToolResult) (any, error) {
 	var text []string
 	var saved []map[string]any
 	keep := func(data []byte, mime string) {
@@ -58,7 +59,7 @@ func Content(dirs files.Dirs, process int64, tool string, res *mcp.CallToolResul
 			text = append(text, "(a "+mime+" file was left out: only a process with a results folder takes files)")
 			return
 		}
-		name, n, err := dirs.Save(process, tool, mime, strings.NewReader(string(data)), maxFile)
+		name, n, err := files.Save(h, process, tool, mime, strings.NewReader(string(data)), maxFile)
 		if err != nil {
 			text = append(text, err.Error())
 			return

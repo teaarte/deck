@@ -9,7 +9,6 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"strconv"
 	"strings"
 	"time"
 
@@ -351,7 +350,7 @@ func (r *Runner) event(ctx context.Context, processID int64, stream *os.File, e 
 
 // runDir is the folder of an open process: its work, results and log.
 func (r *Runner) runDir(processID int64) string {
-	return filepath.Join(r.cfg.RunsDir, strconv.FormatInt(processID, 10))
+	return r.cfg.Home.Run(processID)
 }
 
 // clearRun removes what a script or tool left in its run folder but its log.

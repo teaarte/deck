@@ -24,7 +24,7 @@ import (
 type Adapter struct {
 	Binary string
 	// Home is deck's folder: the agent's shell may touch in it only the folders of its own turn.
-	Home string
+	Home deckhome.Layout
 	// Dir keeps the Codex thread of each deck session and the per-turn skill folders; it is inside Home.
 	Dir string
 	// Linger is how long the app-server may take to exit after its turn before its process group is killed.
@@ -32,7 +32,7 @@ type Adapter struct {
 }
 
 func New(home string) *Adapter {
-	return &Adapter{Binary: "codex", Home: home, Dir: deckhome.Layout(home).Codex(), Linger: 10 * time.Second}
+	return &Adapter{Binary: "codex", Home: deckhome.Layout(home), Dir: deckhome.Layout(home).Codex(), Linger: 10 * time.Second}
 }
 
 func (a *Adapter) Name() string { return "codex" }

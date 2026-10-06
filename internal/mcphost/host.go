@@ -17,6 +17,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"deck2/internal/home"
 	"deck2/internal/sandbox"
 )
 
@@ -55,7 +56,7 @@ type Host struct {
 	Status Status
 	// Sandbox confines programs of specs that ask for it; they never read Home, deck's folder, but for their own.
 	Sandbox sandbox.Sandbox
-	Home    string
+	Home    home.Layout
 
 	mu      sync.Mutex
 	servers map[string]*server

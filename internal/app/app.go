@@ -108,7 +108,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 		return nil, err
 	}
 	// Every service is allocated first, so each is then built whole with the functions of the others.
-	a := &App{Cfg: cfg, Home: h, Store: st, Bus: events.NewBus(), Scripts: script.New(cfg.Sandbox, cfg.Home),
+	a := &App{Cfg: cfg, Home: h, Store: st, Bus: events.NewBus(), Scripts: script.New(cfg.Sandbox, h),
 		Projects: &project.Service{}, Saver: &project.Saver{}, Secrets: &secrets.Service{}, Folders: &folders.Service{}, Files: &appfiles.Service{},
 		Journal: &journal.Service{}, Triggers: &triggers.Service{}, Documents: &documents.Service{}, Snapshots: &snapshots.Service{},
 		Settings: &settings.Service{}, Providers: &providers.Service{}, Answers: &asks.Service{},
@@ -125,17 +125,17 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 		Models: a.Providers.Route}, st, a.Asks, a.Bus, a.Registry)
 	a.Gateway.SetAutomation(a.Tokens.Automation)
 	oauth := &tools.OAuth{Secrets: a.Secrets.Read, Swap: a.Secrets.Swap}
-	a.Tools = tools.NewHTTP(a.Gateway, a.Secrets.Read, a.dirs())
+	a.Tools = tools.NewHTTP(a.Gateway, a.Secrets.Read, h)
 	a.Tools.OAuth, a.Tools.Health, a.Tools.SignIn = oauth, a.Signins.ToolHealth, a.Signins.ToolSignIn
 	a.Tools.Resolve = func(ctx context.Context, project, process int64, ref string) (files.Ref, error) {
-		return a.dirs().Resolve(ctx, a.Store.Q, project, process, ref)
+		return files.Resolve(ctx, h, a.Store.Q, project, process, ref)
 	}
 	a.Host = mcphost.New(a.Signins.ServerStatus)
-	a.Host.Now, a.Host.Sandbox, a.Host.Home = cfg.Now, cfg.Sandbox, cfg.Home
-	a.MCP = &tools.MCP{GW: a.Gateway, Host: a.Host, Store: st, Secrets: a.Secrets.Read, Dirs: a.dirs(), Home: cfg.Home}
-	a.Browser = &tools.Browser{GW: a.Gateway, Host: a.Host, Store: st, Dirs: a.dirs(), Home: cfg.Home, Argv: cfg.Browser, Ctx: a.ctx}
+	a.Host.Now, a.Host.Sandbox, a.Host.Home = cfg.Now, cfg.Sandbox, h
+	a.MCP = &tools.MCP{GW: a.Gateway, Host: a.Host, Store: st, Secrets: a.Secrets.Read, Home: h}
+	a.Browser = &tools.Browser{GW: a.Gateway, Host: a.Host, Store: st, Home: h, Argv: cfg.Browser, Ctx: a.ctx}
 	a.Runner = process.NewRunner(st, a.Gateway, a.Bus, a.Scripts,
-		process.Config{RunsDir: h.Runs(), MCPBase: cfg.MCPBase, Now: cfg.Now, FilesDir: h.Files(), FilesMu: &a.Files.Mu,
+		process.Config{Home: h, MCPBase: cfg.MCPBase, Now: cfg.Now, FilesMu: &a.Files.Mu,
 			Hidden: func() []string { return sandbox.Agent(h) }, AgentSlots: a.Settings.AgentSlots},
 		process.Deps{For: a.Providers.For, Named: a.Providers.Named, Ready: a.Providers.Ready, Broke: a.Providers.Broke, Prompt: a.Saver.Prompt,
 			Text: a.Saver.Text, Skills: a.Documents.Skills, Servers: a.Signins.Servers, Folder: a.Folders.Folder,
@@ -144,7 +144,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	a.Scheduler = trigger.New(st, a.Triggers, cfg.Now)
 
 	*a.Secrets = secrets.Service{St: st, Dir: h.Secrets}
-	*a.Folders = folders.Service{St: st, Home: cfg.Home}
+	*a.Folders = folders.Service{St: st, Home: h}
 	*a.Files = appfiles.Service{St: st, Home: h, Now: cfg.Now}
 	*a.Journal = journal.Service{St: st, Now: cfg.Now, Backups: h.Backups()}
 	*a.Settings = settings.Service{St: st, DefaultTTL: cfg.ConfirmTTL, Wake: a.Runner.Wake}
@@ -153,15 +153,15 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 		SaveManifest: a.Saver.SaveCall, Changed: a.Devices.Changed}
 	*a.Snapshots = snapshots.Service{St: st, Bus: a.Bus, Home: h, Now: cfg.Now, LockFiles: a.Files.Mu.Lock, UnlockFiles: a.Files.Mu.Unlock,
 		RemoveFiles: a.Files.Remove}
-	*a.Providers = providers.Service{St: st, Now: cfg.Now, Home: cfg.Home, Sandbox: cfg.Sandbox, ACPBinaries: cfg.ACPBinaries,
+	*a.Providers = providers.Service{St: st, Now: cfg.Now, Home: h, Sandbox: cfg.Sandbox, ACPBinaries: cfg.ACPBinaries,
 		ACPCallLimit: cfg.ACPCallLimit, SelfCheckCeiling: cfg.SelfCheckCeiling, Secret: a.Secrets.Read, WriteSecret: a.Secrets.Write,
-		Wake: a.Runner.Wake, Dirs: a.dirs(), Resolve: a.Tools.Resolve,
+		Wake: a.Runner.Wake, Resolve: a.Tools.Resolve,
 		Builtin: append([]provider.Provider{p}, more...), Ctx: a.ctx, BG: &a.bg}
 	*a.Answers = asks.Service{St: st, Now: cfg.Now, Broker: a.Asks, Registry: a.Registry, Gateway: a.Gateway, Deliver: a.Runner.Deliver,
 		AnswerGrant: a.Saver.AnswerGrant, SaveManifest: a.Saver.SaveCall}
 	*a.Signins = signins.Service{St: st, Ctx: a.ctx, Broker: a.Asks, OAuth: oauth, Browser: a.Browser, MCP: a.MCP}
 	*a.Chats = chat.Service{St: st, Bus: a.Bus, Now: cfg.Now, Asks: a.Asks, Runner: a.Runner, For: a.Providers.For, RemoveFiles: a.Files.Remove}
-	*a.Devices = devices.Service{St: st, Bus: a.Bus, Now: cfg.Now, Files: a.dirs(), RemoveFiles: a.Files.Remove,
+	*a.Devices = devices.Service{St: st, Bus: a.Bus, Now: cfg.Now, RemoveFiles: a.Files.Remove,
 		Home: h, Invoke: a.Registry.Invoke}
 	*a.Failures = failures.Service{St: st, Now: cfg.Now, Runner: a.Runner}
 	*a.Processes = processes.Service{St: st, Runner: a.Runner, Named: a.Providers.Named}
@@ -188,10 +188,6 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 		return nil, err
 	}
 	return a, nil
-}
-
-func (a *App) dirs() files.Dirs {
-	return files.Dirs{Files: a.Home.Files(), Runs: a.Home.Runs()}
 }
 
 // Close interrupts running providers; their processes stay running and resume on the next start.

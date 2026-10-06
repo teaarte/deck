@@ -91,11 +91,11 @@ func (r *Runner) keepFiles(ctx context.Context, projectID, processID int64, resu
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(r.cfg.FilesDir, 0o700); err != nil {
+	if err := os.MkdirAll(r.cfg.Home.Files(), 0o700); err != nil {
 		return err
 	}
 	for i, row := range rows {
-		if err := move(srcs[i], filepath.Join(r.cfg.FilesDir, fmt.Sprint(row.ID))); err != nil {
+		if err := move(srcs[i], filepath.Join(r.cfg.Home.Files(), fmt.Sprint(row.ID))); err != nil {
 			r.dropFiles(ctx, rows)
 			return err
 		}
@@ -153,7 +153,7 @@ func (r *Runner) dropFiles(ctx context.Context, rows []db.File) {
 		return nil
 	})
 	for _, f := range rows {
-		_ = os.Remove(filepath.Join(r.cfg.FilesDir, fmt.Sprint(f.ID)))
+		_ = os.Remove(filepath.Join(r.cfg.Home.Files(), fmt.Sprint(f.ID)))
 	}
 }
 

@@ -25,14 +25,14 @@ const maxStdout = 32 << 20
 // Exec runs scripts of projects whose state lives under Home.
 type Exec struct {
 	Sandbox sandbox.Sandbox
-	Home    string
+	Home    home.Layout
 }
 
-func New(sb sandbox.Sandbox, home string) *Exec { return &Exec{Sandbox: sb, Home: home} }
+func New(sb sandbox.Sandbox, h home.Layout) *Exec { return &Exec{Sandbox: sb, Home: h} }
 
 // DataDir is the lasting folder of a project that its scripts and agents write indexes, caches and state to.
 func (x *Exec) DataDir(project int64) string {
-	return home.Layout(x.Home).Data(project)
+	return x.Home.Data(project)
 }
 
 // Job is one run of a script; Dir is its run folder, with work/ and results/ inside.

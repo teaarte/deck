@@ -3,6 +3,7 @@ package sandbox
 
 import (
 	"context"
+	"deck2/internal/home"
 	"net"
 	"os"
 	"os/exec"
@@ -83,7 +84,8 @@ type Closure struct{ Hide, Read, Private []string }
 
 // Close is the closure of a program with path as its PATH under deck's folder deck; a home it cannot tell closes the
 // folders of all homes.
-func Close(deck, path string) Closure {
+func Close(layout home.Layout, path string) Closure {
+	deck := string(layout)
 	home, err := os.UserHomeDir()
 	if err != nil || real(home) == "/" {
 		return Closure{Hide: []string{deck, "/Users", "/home"}}

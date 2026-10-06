@@ -14,6 +14,7 @@ import (
 
 	"deck2/internal/docs"
 	"deck2/internal/files"
+	"deck2/internal/home"
 	"deck2/internal/manifest"
 	"deck2/internal/process"
 	"deck2/internal/provider"
@@ -29,7 +30,7 @@ import (
 type Service struct {
 	St               *store.Store
 	Now              func() time.Time
-	Home             string
+	Home             home.Layout
 	Sandbox          sandbox.Sandbox
 	ACPBinaries      map[string]string
 	ACPCallLimit     time.Duration
@@ -41,9 +42,7 @@ type Service struct {
 	Builtin []provider.Provider
 	Ctx     context.Context
 	BG      *sync.WaitGroup
-	// Dirs keep a file a model answered with in the results folder of the calling process; Resolve finds a file an
-	// input points to for a process of a project.
-	Dirs    files.Dirs
+	// Resolve finds a file an input points to for a process of a project.
 	Resolve func(ctx context.Context, project, process int64, ref string) (files.Ref, error)
 
 	mu    sync.Mutex

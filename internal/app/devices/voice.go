@@ -40,7 +40,7 @@ func (dv *Service) transcribe(ctx context.Context, act registry.Actor, in transc
 		_ = dv.St.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error { return q.DeleteFile(ctx, f.ID) })
 		dv.RemoveFiles([]int64{f.ID})
 	}()
-	info, err := os.Stat(filepath.Join(dv.Files.Files, strconv.FormatInt(f.ID, 10)))
+	info, err := os.Stat(filepath.Join(dv.Home.Files(), strconv.FormatInt(f.ID, 10)))
 	if err != nil {
 		return nil, err
 	}

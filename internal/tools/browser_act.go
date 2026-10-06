@@ -55,7 +55,7 @@ func (b *Browser) actor(tool string) registry.Handler {
 		if err != nil {
 			return nil, failed(ctx, b.GW, intent, name, page, err)
 		}
-		out, cerr := Content(b.Dirs, act.ProcessID, name, res)
+		out, cerr := Content(b.Home, act.ProcessID, name, res)
 		if now, off := b.offDomains(ctx, act.ProjectID); off && cerr == nil {
 			out = map[string]any{"text": "Done. The browser now shows " + untrusted.Line(now, 300) + ", which is not on a read or act domain of this project, so what it shows is withheld."}
 		}
@@ -72,7 +72,7 @@ func (b *Browser) ownPaths(process int64, raw json.RawMessage) (json.RawMessage,
 		return raw, "", nil
 	}
 	list, _ := args["paths"].([]any)
-	runs := filepath.Join(b.Dirs.Runs, strconv.FormatInt(process, 10))
+	runs := b.Home.Run(process)
 	base, err := filepath.EvalSymlinks(runs)
 	if process == 0 || err != nil {
 		return nil, "", registry.Refuse("deck: only a process sends files, from its own folder")

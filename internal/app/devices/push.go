@@ -24,7 +24,6 @@ import (
 
 	"deck2/internal/docs"
 	"deck2/internal/events"
-	"deck2/internal/files"
 	"deck2/internal/health"
 	"deck2/internal/home"
 	"deck2/internal/registry"
@@ -58,7 +57,6 @@ type Service struct {
 	St          *store.Store
 	Bus         *events.Bus
 	Now         func() time.Time
-	Files       files.Dirs
 	RemoveFiles func(ids []int64)
 	Home        home.Layout
 	// Invoke calls a command, as the undo of a change does.

@@ -23,7 +23,6 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"deck2/internal/files"
 	"deck2/internal/gateway"
 	"deck2/internal/manifest"
 	"deck2/internal/mcphost"
@@ -52,8 +51,7 @@ type Browser struct {
 	GW    *gateway.Gateway
 	Host  *mcphost.Host
 	Store *store.Store
-	Dirs  files.Dirs
-	Home  string
+	Home  home.Layout
 	// Argv starts the server; deck adds the profile, the output folder and headless mode.
 	Argv []string
 	// Ctx ends the proxy the browser without sign-ins goes through.
@@ -68,7 +66,7 @@ type Browser struct {
 	cmds   []*registry.Command
 }
 
-func (b *Browser) dir(name string) string { return filepath.Join(home.Layout(b.Home).Browser(), name) }
+func (b *Browser) dir(name string) string { return filepath.Join(b.Home.Browser(), name) }
 
 func (b *Browser) spec(open bool) mcphost.Spec {
 	args := append(slices.Clone(b.Argv[1:]), "--user-data-dir", b.dir("profile"), "--output-dir", b.dir("out"))
@@ -290,7 +288,7 @@ func (b *Browser) reader(tool string) registry.Handler {
 				return nil, registry.Refuse("deck: the browser shows %s, which is not on a read or act domain of this project; what it shows is withheld", untrusted.Line(page, 300))
 			}
 		}
-		return Content(b.Dirs, act.ProcessID, tool, res)
+		return Content(b.Home, act.ProcessID, tool, res)
 	}
 }
 

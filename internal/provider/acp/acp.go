@@ -35,7 +35,7 @@ type Config struct {
 	API     func(onUsage func(provider.Usage)) http.Handler
 	NoCloud bool
 	// Home is deck's folder, hidden from the agent but for the folders of its turn.
-	Home    string
+	Home    home.Layout
 	Sandbox sandbox.Sandbox
 	// CallLimit is how long a call of a gateway tool may wait for the owner; 45 s, under the 60 s of the agents, when zero.
 	CallLimit time.Duration
@@ -65,7 +65,7 @@ func New(cfg Config) (*Adapter, error) {
 	if cfg.Binary == "" {
 		cfg.Binary = cfg.Agent
 	}
-	return &Adapter{cfg: cfg, agent: g, Dir: home.Layout(cfg.Home).ACP(), Linger: 10 * time.Second}, nil
+	return &Adapter{cfg: cfg, agent: g, Dir: cfg.Home.ACP(), Linger: 10 * time.Second}, nil
 }
 
 // Names are the ACP agents deck knows.
@@ -107,7 +107,7 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 		return provider.Result{}, errors.New("acp: the session id must be assigned by deck")
 	}
 	for _, h := range req.Hidden {
-		if !provider.Under(h, a.cfg.Home) {
+		if !provider.Under(h, string(a.cfg.Home)) {
 			return provider.Result{}, fmt.Errorf("acp: hidden path %s is outside deck's folder, which is all the sandbox hides", h)
 		}
 	}

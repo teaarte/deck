@@ -45,13 +45,13 @@ const profile = "deck"
 // the shell reads all but deck's and the owner's Codex folder and writes its own; the deepest path wins.
 func (a *Adapter) args(req provider.Request, skills string) ([]string, error) {
 	fs := map[string]string{":root": "read", ":tmpdir": "write", ":slash_tmp": "write"}
-	for _, d := range append([]string{a.Home, codexHome()}, sandbox.Private()...) {
+	for _, d := range append([]string{string(a.Home), codexHome()}, sandbox.Private()...) {
 		for _, p := range provider.Paths(d) {
 			fs[p] = "deny"
 		}
 	}
 	for _, h := range req.Hidden {
-		if !provider.Under(h, a.Home) {
+		if !provider.Under(h, string(a.Home)) {
 			return nil, fmt.Errorf("codex: hidden path %s is outside deck's folder, which is all the profile hides", h)
 		}
 	}

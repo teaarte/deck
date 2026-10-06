@@ -10,6 +10,7 @@ import (
 	"deck2/internal/ask"
 	"deck2/internal/events"
 	"deck2/internal/gateway"
+	"deck2/internal/home"
 	"deck2/internal/manifest"
 	"deck2/internal/provider"
 	"deck2/internal/script"
@@ -60,10 +61,9 @@ const (
 )
 
 type Config struct {
-	RunsDir  string
-	MCPBase  string
-	Now      func() time.Time
-	FilesDir string
+	Home    home.Layout
+	MCPBase string
+	Now     func() time.Time
 	// FilesMu keeps a snapshot from copying the base between the row of a kept file and its blob.
 	FilesMu *sync.RWMutex
 	// Hidden gives the path patterns an agent may not read or write.

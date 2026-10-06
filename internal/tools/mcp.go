@@ -21,7 +21,6 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"deck2/internal/files"
 	"deck2/internal/gateway"
 	"deck2/internal/manifest"
 	"deck2/internal/mcphost"
@@ -36,8 +35,7 @@ type MCP struct {
 	Host    *mcphost.Host
 	Store   *store.Store
 	Secrets func(workspace int64, name string) (string, error)
-	Dirs    files.Dirs
-	Home    string
+	Home    home.Layout
 }
 
 // ServerKey names a server of a project in the host.
@@ -64,7 +62,7 @@ func (x *MCP) spec(ctx context.Context, p db.Project, name string, s manifest.MC
 	if s.URL != "" {
 		return mcphost.Spec{URL: s.URL}, nil
 	}
-	dir := filepath.Join(home.Layout(x.Home).Project(p.ID), "mcp", name)
+	dir := filepath.Join(x.Home.Project(p.ID), "mcp", name)
 	var env []string
 	for _, kv := range os.Environ() {
 		if baseEnv.MatchString(kv) && !strings.HasPrefix(kv, "HOME=") && !strings.HasPrefix(kv, "TMPDIR=") {
@@ -246,7 +244,7 @@ func (x *MCP) call(ctx context.Context, act registry.Actor, name, key string, sp
 	if err != nil {
 		return nil, failed(ctx, x.GW, intent, name, print, err, spec.Secrets...)
 	}
-	out, cerr := Content(x.Dirs, act.ProcessID, name, res)
+	out, cerr := Content(x.Home, act.ProcessID, name, res)
 	out, cerr = redacted(out, spec.Secrets), redactErr(cerr, spec.Secrets)
 	done(ctx, x.GW, intent, "", cerr)
 	return out, cerr

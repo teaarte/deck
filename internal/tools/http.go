@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"deck2/internal/home"
 	"deck2/internal/untrusted"
 
 	"deck2/internal/files"
@@ -32,7 +33,7 @@ const (
 type HTTP struct {
 	GW      *gateway.Gateway
 	Secrets func(workspace int64, name string) (string, error)
-	Dirs    files.Dirs
+	Home    home.Layout
 	Client  *http.Client
 	OAuth   *OAuth
 	// Resolve finds a file an input points to for a process of a project.
@@ -42,7 +43,7 @@ type HTTP struct {
 	SignIn func(ctx context.Context, p db.Project, tool, why string)
 }
 
-func NewHTTP(gw *gateway.Gateway, secrets func(int64, string) (string, error), dirs files.Dirs) *HTTP {
+func NewHTTP(gw *gateway.Gateway, secrets func(int64, string) (string, error), h home.Layout) *HTTP {
 	c := &http.Client{Timeout: 5 * time.Minute, Transport: &http.Transport{Proxy: nil,
 		DialContext: (&net.Dialer{Timeout: 10 * time.Second}).DialContext, ResponseHeaderTimeout: 5 * time.Minute},
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
@@ -51,7 +52,7 @@ func NewHTTP(gw *gateway.Gateway, secrets func(int64, string) (string, error), d
 			}
 			return nil
 		}}
-	return &HTTP{GW: gw, Secrets: secrets, Dirs: dirs, Client: c}
+	return &HTTP{GW: gw, Secrets: secrets, Home: h, Client: c}
 }
 
 // Command is the registry command of an HTTP tool of project p.
@@ -214,7 +215,7 @@ func (h *HTTP) response(act registry.Actor, t manifest.HTTPTool, resp *http.Resp
 		}
 		return v, ext, nil
 	}
-	name, n, err := h.Dirs.Save(act.ProcessID, t.Name, ct, resp.Body, maxFile)
+	name, n, err := files.Save(h.Home, act.ProcessID, t.Name, ct, resp.Body, maxFile)
 	if err != nil {
 		return nil, "", err
 	}

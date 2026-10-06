@@ -5,6 +5,10 @@ import (
 	"deck2/internal/store/db"
 	"encoding/json"
 	"fmt"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -264,5 +268,40 @@ func TestAShippedSkillEditedByTheMasterTakesTheNextVersionOfDeck(t *testing.T) {
 	var note string
 	if err := e.App.Store.DB.QueryRow(`SELECT text FROM feed WHERE for_master = 1 ORDER BY id DESC LIMIT 1`).Scan(&note); err != nil || !strings.Contains(note, name) {
 		t.Fatalf("the master is told its edit was replaced: %q %v", note, err)
+	}
+}
+
+// commandWord is a command a skill or a prompt names: deck.<name>, or a tool name in backticks.
+var commandWord = regexp.MustCompile("deck\\.([a-z]+(?:_[a-z]+)+)|`([a-z]+_(?:list|get|set|save|delete|remove|create|update|upsert|run|try|call|request|answer|describe|import|enable|pause|revert|restore|read|undo|send|add|check|format|stop|rework|log|key|subscribe|unsubscribe|revoke|archive|upload|move))`")
+
+// TestSkillsAndPromptsNameOnlyCommandsDeckHas: an agent trusts its skills and prompts; a command they name that deck
+// no longer has makes it report work it never did.
+func TestSkillsAndPromptsNameOnlyCommandsDeckHas(t *testing.T) {
+	e := newEnv(t, nil)
+	var cmds []struct{ Name string }
+	e.must("deck.commands_list", nil, &cmds)
+	have := map[string]bool{}
+	for _, c := range cmds {
+		have[strings.TrimPrefix(c.Name, "deck.")] = true
+	}
+	for _, root := range []string{"../../skills", "../../master"} {
+		err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+			if err != nil || d.IsDir() || !strings.HasSuffix(path, ".md") {
+				return err
+			}
+			b, err := os.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			for _, m := range commandWord.FindAllStringSubmatch(string(b), -1) {
+				if name := m[1] + m[2]; !have[name] {
+					t.Errorf("%s names %s, which deck does not have", path, name)
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
 }

@@ -22,7 +22,8 @@ VALUES (sqlc.arg(workspace_id), sqlc.narg(project_id), sqlc.narg(record_id), sql
 
 -- name: ListDocuments :many
 SELECT * FROM document
-WHERE workspace_id = sqlc.arg(workspace_id) AND project_id IS sqlc.narg(project_id) AND (sqlc.arg(kind) = '' OR kind = sqlc.arg(kind))
+WHERE workspace_id = sqlc.arg(workspace_id) AND project_id IS sqlc.narg(project_id)
+  AND (CAST(sqlc.arg(kind) AS TEXT) = '' OR kind = CAST(sqlc.arg(kind) AS TEXT))
   AND deleted_at IS NULL
 ORDER BY name;
 

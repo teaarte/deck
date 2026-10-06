@@ -257,7 +257,8 @@ func (q *Queries) ListDeletedDocuments(ctx context.Context, arg ListDeletedDocum
 
 const listDocuments = `-- name: ListDocuments :many
 SELECT id, workspace_id, project_id, record_id, kind, name, "current", deleted_at, created_at FROM document
-WHERE workspace_id = ?1 AND project_id IS ?2 AND (?3 = '' OR kind = ?3)
+WHERE workspace_id = ?1 AND project_id IS ?2
+  AND (CAST(?3 AS TEXT) = '' OR kind = CAST(?3 AS TEXT))
   AND deleted_at IS NULL
 ORDER BY name
 `
@@ -265,7 +266,7 @@ ORDER BY name
 type ListDocumentsParams struct {
 	WorkspaceID int64
 	ProjectID   sql.NullInt64
-	Kind        interface{}
+	Kind        string
 }
 
 func (q *Queries) ListDocuments(ctx context.Context, arg ListDocumentsParams) ([]Document, error) {

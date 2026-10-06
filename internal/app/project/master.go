@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io/fs"
 	"log/slog"
+	"time"
 
 	"deck2/internal/docs"
 	"deck2/internal/health"
@@ -86,6 +87,9 @@ func (pj *Service) seedMaster(ctx context.Context, workspace int64, m *manifest.
 			}
 			changed = changed || path == docs.ManifestName
 		}
+		if err := dropUnshipped(ctx, q, p, files, pj.Save.Now()); err != nil {
+			return err
+		}
 		if !changed {
 			return nil
 		}
@@ -95,4 +99,29 @@ func (pj *Service) seedMaster(ctx context.Context, workspace int64, m *manifest.
 		}
 		return pj.Scheduler.Sync(ctx, q, p.ID, cur)
 	})
+}
+
+// dropUnshipped deletes the documents deck wrote into project master that it ships no more; one the owner or an
+// agent changed since stays.
+func dropUnshipped(ctx context.Context, q *db.Queries, p db.Project, files map[string]string, now time.Time) error {
+	ds, err := q.ListDocuments(ctx, db.ListDocumentsParams{WorkspaceID: p.WorkspaceID, ProjectID: store.ID(p.ID)})
+	if err != nil {
+		return err
+	}
+	for _, d := range ds {
+		if _, shipped := files[d.Name]; shipped || d.RecordID.Valid {
+			continue
+		}
+		r, err := docs.Revision(ctx, q, d, 0)
+		if err != nil {
+			return err
+		}
+		if r.Author != "deck" {
+			continue
+		}
+		if _, err := q.DeleteDocument(ctx, db.DeleteDocumentParams{DeletedAt: sql.NullString{String: store.Time(now), Valid: true}, ID: d.ID}); err != nil {
+			return err
+		}
+	}
+	return nil
 }

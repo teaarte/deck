@@ -265,3 +265,29 @@ func TestASuggestionOfABaseFromBeforeExpires(t *testing.T) {
 		t.Fatalf("nothing waits for the owner: %+v", asks)
 	}
 }
+
+// TestADocumentDeckNoLongerShipsLeavesTheMaster: a document deck wrote into project master that it ships no more
+// goes on the next start; one the owner changed stays his.
+func TestADocumentDeckNoLongerShipsLeavesTheMaster(t *testing.T) {
+	home := t.TempDir()
+	e := newEnvWith(t, home, &Fake{})
+	for _, q := range []string{
+		`INSERT INTO document (workspace_id, project_id, kind, name, current) SELECT 1, id, 'skill', 'skills/old/SKILL.md', 1 FROM project WHERE name = 'master'`,
+		`INSERT INTO document_revision (document_id, n, text, author) SELECT id, 1, 'old', 'deck' FROM document WHERE name = 'skills/old/SKILL.md'`,
+		`INSERT INTO document (workspace_id, project_id, kind, name, current) SELECT 1, id, 'skill', 'skills/kept/SKILL.md', 2 FROM project WHERE name = 'master'`,
+		`INSERT INTO document_revision (document_id, n, text, author) SELECT id, 1, 'kept', 'deck' FROM document WHERE name = 'skills/kept/SKILL.md'`,
+		`INSERT INTO document_revision (document_id, n, text, author) SELECT id, 2, 'mine', 'owner' FROM document WHERE name = 'skills/kept/SKILL.md'`,
+	} {
+		if _, err := e.App.Store.DB.Exec(q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	_ = e.App.Close()
+	e = newEnvWith(t, home, &Fake{})
+	for name, gone := range map[string]bool{"skills/old/SKILL.md": true, "skills/kept/SKILL.md": false, "prompts/reply.md": false} {
+		var deleted sql.NullString
+		if err := e.App.Store.DB.QueryRow(`SELECT deleted_at FROM document WHERE name = ? AND project_id = (SELECT id FROM project WHERE name = 'master')`, name).Scan(&deleted); err != nil || deleted.Valid != gone {
+			t.Fatalf("%s: deleted %v, want %v (%v)", name, deleted.Valid, gone, err)
+		}
+	}
+}

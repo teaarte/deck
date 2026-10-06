@@ -32,9 +32,15 @@ func Paths(dir string) []string {
 	return out
 }
 
-// Under says a path lies inside a folder, by its absolute or its real path.
+// Under says a path lies inside a folder, by its absolute or its real path; an empty folder holds nothing.
 func Under(path, dir string) bool {
-	return slices.ContainsFunc(Paths(dir), func(d string) bool { return strings.HasPrefix(path, d+string(filepath.Separator)) })
+	return dir != "" && slices.ContainsFunc(Paths(dir), func(d string) bool { return path != d && Within(d, path) })
+}
+
+// Within says path is dir or lies inside it, as the two are written.
+func Within(dir, path string) bool {
+	rel, err := filepath.Rel(dir, path)
+	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
 // WriteFile writes a file atomically with mode 600, making its folder.

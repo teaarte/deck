@@ -5,6 +5,7 @@ import (
 	"deck2/internal/app/access"
 	"deck2/internal/app/documents"
 	"deck2/internal/app/folders"
+	"deck2/internal/provider"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -54,21 +55,15 @@ func (pj *Service) importable(ctx context.Context, act registry.Actor, dir strin
 		return registry.Invalid("deck: folder %s does not exist", dir)
 	}
 	home, err := filepath.EvalSymlinks(string(pj.Home))
-	if err != nil || !within(home, real) {
+	if err != nil || !provider.Within(home, real) {
 		return nil
 	}
 	if mp, err := access.Master(ctx, pj.St.Q, act.Workspace); err == nil {
-		if data, err := filepath.EvalSymlinks(pj.Home.Data(mp.ID)); err == nil && within(data, real) {
+		if data, err := filepath.EvalSymlinks(pj.Home.Data(mp.ID)); err == nil && provider.Within(data, real) {
 			return nil
 		}
 	}
 	return registry.Refuse("deck: %s is inside deck's own folders; a draft comes from a folder of the owner or from the data of the master", dir)
-}
-
-// within reports whether path is dir or inside it.
-func within(dir, path string) bool {
-	rel, err := filepath.Rel(dir, path)
-	return err == nil && rel != ".." && !strings.HasPrefix(rel, "../")
 }
 
 // projectImport creates a draft from a module folder in one transaction; hidden files are left out.

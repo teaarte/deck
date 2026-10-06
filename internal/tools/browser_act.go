@@ -8,10 +8,10 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"strings"
 	"syscall"
 
 	"deck2/internal/docs"
+	"deck2/internal/provider"
 	"deck2/internal/untrusted"
 
 	"deck2/internal/gateway"
@@ -96,11 +96,11 @@ func (b *Browser) ownPaths(process int64, raw json.RawMessage) (json.RawMessage,
 			s = filepath.Join(base, s)
 		}
 		real, err := filepath.EvalSymlinks(s)
-		rel, rerr := filepath.Rel(base, real)
-		if err != nil || rerr != nil || rel == ".." || strings.HasPrefix(rel, "../") {
+		if err != nil || !provider.Within(base, real) {
 			_ = os.RemoveAll(dest)
 			return nil, "", registry.Refuse("deck: %q is not a file in the folder of this process", p)
 		}
+		rel, _ := filepath.Rel(base, real)
 		sub := filepath.Join(dest, strconv.Itoa(len(out)))
 		if err := os.Mkdir(sub, 0o700); err != nil {
 			_ = os.RemoveAll(dest)

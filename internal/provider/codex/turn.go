@@ -82,7 +82,7 @@ func (t *turn) run(ctx context.Context, skills string) (provider.Result, error) 
 	var skillsOff []string
 	for _, e := range list.Data {
 		for _, s := range e.Skills {
-			if s.Enabled && !inside(string(s.Path), skills) {
+			if s.Enabled && !provider.Under(string(s.Path), skills) {
 				skillsOff = append(skillsOff, string(s.Path))
 			}
 		}
@@ -131,16 +131,4 @@ func (t *turn) run(ctx context.Context, skills string) (provider.Result, error) 
 		return t.res, err
 	}
 	return t.finish()
-}
-
-func inside(path, dir string) bool {
-	if dir == "" {
-		return false
-	}
-	for _, d := range provider.Paths(dir) {
-		if strings.HasPrefix(path, d+"/") {
-			return true
-		}
-	}
-	return false
 }

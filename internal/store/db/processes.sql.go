@@ -482,16 +482,19 @@ SELECT id, project_id, command, kind, state, provider, session_id, input, result
 WHERE project_id IN (SELECT id FROM project WHERE workspace_id = ?1)
   AND (?2 = 0 OR project_id = ?2)
   AND finished_at IS NULL
+  AND (CAST(?3 AS INTEGER) = 0 OR EXISTS (SELECT 1 FROM json_each(CASE WHEN json_valid(input) THEN input ELSE '{}' END) j
+    WHERE j.type = 'integer' AND j.value = CAST(?3 AS INTEGER)))
 ORDER BY id DESC
 `
 
 type ListOpenProcessesParams struct {
 	WorkspaceID int64
 	ProjectID   interface{}
+	Record      int64
 }
 
 func (q *Queries) ListOpenProcesses(ctx context.Context, arg ListOpenProcessesParams) ([]Process, error) {
-	rows, err := q.db.QueryContext(ctx, listOpenProcesses, arg.WorkspaceID, arg.ProjectID)
+	rows, err := q.db.QueryContext(ctx, listOpenProcesses, arg.WorkspaceID, arg.ProjectID, arg.Record)
 	if err != nil {
 		return nil, err
 	}
@@ -651,7 +654,9 @@ WHERE project_id IN (SELECT id FROM project WHERE workspace_id = ?1)
   AND (?2 = 0 OR project_id = ?2)
   AND (?3 = '' OR state = ?3)
   AND (?4 = '' OR command = ?4)
-ORDER BY id DESC LIMIT ?5
+  AND (CAST(?5 AS INTEGER) = 0 OR EXISTS (SELECT 1 FROM json_each(CASE WHEN json_valid(input) THEN input ELSE '{}' END) j
+    WHERE j.type = 'integer' AND j.value = CAST(?5 AS INTEGER)))
+ORDER BY id DESC LIMIT ?6
 `
 
 type ListProcessesFilteredParams struct {
@@ -659,6 +664,7 @@ type ListProcessesFilteredParams struct {
 	ProjectID   interface{}
 	State       interface{}
 	Command     interface{}
+	Record      int64
 	Lim         int64
 }
 
@@ -668,6 +674,7 @@ func (q *Queries) ListProcessesFiltered(ctx context.Context, arg ListProcessesFi
 		arg.ProjectID,
 		arg.State,
 		arg.Command,
+		arg.Record,
 		arg.Lim,
 	)
 	if err != nil {

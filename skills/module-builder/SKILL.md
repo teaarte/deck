@@ -217,7 +217,9 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   `applyHostStyleVariables` from `/ext-apps.js`, again on each change, and write CSS only with `var(--…)` of
   them — a fixed color breaks in the owner's dark scheme. List screens in `menu`. A record page is a screen with
   `"record": "<collection>"`; a row's button `{"label", "screen": "<that page>"}` opens it with the row's record
-  and takes no params.
+  and takes no params. How the pipeline of a record goes is a table on its page over
+  `{"from": "deck.processes_list", "input": {"record": "=_id"}}` — the processes whose input named the record by
+  its id (columns `command`, `state`, `question` when one waits for the owner; `after` triggers start the next).
 - **Look of a module**: `title` is the name the owner sees in the menu (the project name is for code), `icon` of
   the project, a screen, a block or a button is a Tabler icon name; blocks flow in a grid, `span` (1, 2 or "full")
   widens one, `description` says under a title what a block is for. Write the texts in English and add `i18n`

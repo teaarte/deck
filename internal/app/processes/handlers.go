@@ -82,6 +82,7 @@ type processesListIn struct {
 	Open    bool   `opt:"" desc:"Only the processes that have not finished, oldest first"`
 	Limit   int64  `opt:"" desc:"At most this many"`
 	Brief   bool   `opt:"" desc:"Leave the results out; process_get gives the result of one"`
+	Record  int64  `type:"record" opt:"" desc:"Only the processes whose input names this record by its id: how its pipeline goes"`
 }
 
 func (s *Service) processesList(ctx context.Context, act registry.Actor, in processesListIn) ([]processView, error) {
@@ -91,10 +92,10 @@ func (s *Service) processesList(ctx context.Context, act registry.Actor, in proc
 	}
 	var ps []db.Process
 	if in.Open {
-		ps, err = s.St.Q.ListOpenProcesses(ctx, db.ListOpenProcessesParams{WorkspaceID: act.Workspace, ProjectID: pid})
+		ps, err = s.St.Q.ListOpenProcesses(ctx, db.ListOpenProcessesParams{WorkspaceID: act.Workspace, ProjectID: pid, Record: in.Record})
 	} else {
 		ps, err = s.St.Q.ListProcessesFiltered(ctx, db.ListProcessesFilteredParams{WorkspaceID: act.Workspace, ProjectID: pid, State: in.State,
-			Command: in.Command, Lim: registry.Limit(in.Limit, 50, 500)})
+			Command: in.Command, Record: in.Record, Lim: registry.Limit(in.Limit, 50, 500)})
 	}
 	if err != nil {
 		return nil, err

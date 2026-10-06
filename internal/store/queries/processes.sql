@@ -14,6 +14,8 @@ WHERE project_id IN (SELECT id FROM project WHERE workspace_id = sqlc.arg(worksp
   AND (sqlc.arg(project_id) = 0 OR project_id = sqlc.arg(project_id))
   AND (sqlc.arg(state) = '' OR state = sqlc.arg(state))
   AND (sqlc.arg(command) = '' OR command = sqlc.arg(command))
+  AND (CAST(sqlc.arg(record) AS INTEGER) = 0 OR EXISTS (SELECT 1 FROM json_each(CASE WHEN json_valid(input) THEN input ELSE '{}' END) j
+    WHERE j.type = 'integer' AND j.value = CAST(sqlc.arg(record) AS INTEGER)))
 ORDER BY id DESC LIMIT sqlc.arg(lim);
 
 
@@ -153,6 +155,8 @@ SELECT * FROM process
 WHERE project_id IN (SELECT id FROM project WHERE workspace_id = sqlc.arg(workspace_id))
   AND (sqlc.arg(project_id) = 0 OR project_id = sqlc.arg(project_id))
   AND finished_at IS NULL
+  AND (CAST(sqlc.arg(record) AS INTEGER) = 0 OR EXISTS (SELECT 1 FROM json_each(CASE WHEN json_valid(input) THEN input ELSE '{}' END) j
+    WHERE j.type = 'integer' AND j.value = CAST(sqlc.arg(record) AS INTEGER)))
 ORDER BY id DESC;
 
 

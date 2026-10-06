@@ -11,7 +11,7 @@ import (
 const Builtin = "deck"
 
 // Refs are the entities a parameter may point to; they map to App Intents entities.
-var Refs = []string{"record", "card", "project", "document", "process", "ask"}
+var Refs = []string{"record", "project", "document", "process", "ask"}
 
 var scalarFormats = map[string][]string{
 	"string":  {"", "text", "json", "date", "date-time", "file", "project"},

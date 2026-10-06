@@ -296,11 +296,6 @@ func TestTheProjectsTabCreatesAProjectAndGivesItAFolder(t *testing.T) {
 	if f.Values["project"] != "notes" || !slices.Contains(f.Readonly, "project") {
 		t.Fatalf("adding a folder on the settings of a project works on that project: %+v", f)
 	}
-	var board struct{ Lanes []struct{ Name string } }
-	e.must("deck.cards_list", map[string]any{"project": "notes"}, &board)
-	if len(board.Lanes) == 0 {
-		t.Fatalf("the new project has the base board")
-	}
 }
 
 // TestAPauseTheOwnerStopsFreesTheFolder: a process the owner stops on its pause on a usage limit leaves the

@@ -271,7 +271,7 @@ func TestInvalidScreenIsRefusedWithItsReason(t *testing.T) {
 	e.createProject("notes", good)
 	for _, tc := range []struct{ from, to, want string }{
 		{`{"type": "stat", "title": "Notes", "source": {"collection": "notes"}}`, `{"type": "hologram"}`,
-			`value must be one of 'actions', 'appearance', 'board', 'card', 'chart', 'chat', 'columns', 'custom', 'dialog', 'document', 'form', 'list', 'log', 'media', 'stat', 'table', 'tabs'`},
+			`value must be one of 'actions', 'appearance', 'card', 'chart', 'chat', 'columns', 'custom', 'dialog', 'document', 'form', 'list', 'log', 'media', 'stat', 'table', 'tabs'`},
 		{`"value": "sum(rows, .score)"`, `"value": "sum(items, .score)"`, `value: unknown field "items"`},
 		{`{"type": "list", "title": "Waiting here", "source": {"from": "deck.asks_list"}, "item": {"title": "what"}}`,
 			`{"type": "list", "source": {"from": "deck.asks_list"}, "item": {"title": "whom"}}`, `unknown field "whom"`},
@@ -732,8 +732,8 @@ func TestScreenSortsNumbersAndResolvesRowParams(t *testing.T) {
 // TestNotifyWritesALineToTheCockpitFeed: an agent tells the owner; the line of the bell names the page it opens and
 // has the buttons it gave; a screen or a command the project lacks is refused.
 func TestNotifyWritesALineToTheCockpitFeed(t *testing.T) {
-	e := newEnv(t, boardWebAgent())
-	p := e.createProject("web", boardWebManifest)
+	e := newEnv(t, webNotesAgent())
+	p := e.createProject("web", webNotes)
 	e.must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": `{"title": "alpha"}`}, nil)
 	var rec []struct{ ID int64 }
 	e.must("deck.records_list", map[string]any{"project": "web", "collection": "notes"}, &rec)
@@ -774,8 +774,8 @@ func TestNotifyWritesALineToTheCockpitFeed(t *testing.T) {
 // TestCustomBlockGetsItsDataAndButtonsAndItsFrameLivesOnTheSecondOrigin: HTML, items and buttons come with the
 // block; the second origin serves only the proxy page with a CSP without network.
 func TestCustomBlockGetsItsDataAndButtonsAndItsFrameLivesOnTheSecondOrigin(t *testing.T) {
-	e := newEnv(t, boardWebAgent())
-	e.createProject("web", boardWebManifest)
+	e := newEnv(t, webNotesAgent())
+	e.createProject("web", webNotes)
 	if b := e.screenData("web", "main", nil)["b2"]; blockData[string](t, b["error"]) != `no custom document "custom/chart.html"` {
 		t.Fatalf("a custom block without its document shows why: %s", b["error"])
 	}
@@ -843,16 +843,12 @@ func TestCustomBlockGetsItsDataAndButtonsAndItsFrameLivesOnTheSecondOrigin(t *te
 	}
 }
 
-// TestNewBlocksAreRefusedWithTheirReason: a board, form, custom block or filter that cannot work is refused on save.
+// TestNewBlocksAreRefusedWithTheirReason: a form, custom block or filter that cannot work is refused on save.
 func TestNewBlocksAreRefusedWithTheirReason(t *testing.T) {
 	e := newEnv(t, nil)
-	e.createProject("web", boardWebManifest)
+	e.createProject("web", webNotes)
 	for _, tc := range []struct{ from, to, want string }{
-		{`{"type": "board", "title": "Work"}`, `{"type": "board", "source": {"collection": "notes"}}`, "additional properties 'source' not allowed"},
-		{`"board": {"lanes": [
-    {"name": "backlog", "title": "Backlog", "role": "inbox"},
-    {"name": "doing", "title": "Doing"},
-    {"name": "done", "title": "Done", "role": "done"}]},`, ``, "the project has no board"},
+		{`{"type": "form", "title": "Score a title", "command": "score", "save": "notes"}`, `{"type": "board", "title": "Work"}`, "/screens/0/blocks/1/type"},
 		{`"command": "score", "save": "notes"}`, `"save": "notes"}`, "missing property 'command'"},
 		{`"command": "score", "save": "notes"}`, `"command": "launch"}`, `unknown command "launch"`},
 		{`"command": "score", "save": "notes"}`, `"command": "deck.record_update"}`, "edits the record of its page"},
@@ -863,15 +859,15 @@ func TestNewBlocksAreRefusedWithTheirReason(t *testing.T) {
 		{`"document": "custom/chart.html", `, ``, "missing property 'document'"},
 		{`"filter": ["source"]`, `"filter": ["origin"]`, `filter: unknown field "origin"`},
 		{`{"label": "Mark", "command": "mark"}`, `{"label": "Go", "screen": "main"}`, "/actions/0': missing property 'command'"},
-		{`{"type": "board", "title": "Work"}`, `{"type": "stat", "source": {"collection": "notes"}, "filter": ["title"]}`, "additional properties 'filter' not allowed"},
-		{`{"type": "board", "title": "Work"}`, `{"type": "list", "source": {"from": "deck.projects_list"}, "item": {"title": "names"}}`, `unknown field "names"`},
-		{`{"type": "board", "title": "Work"}`, `{"type": "list", "source": {"from": "nowhere"}, "item": {"title": "name"}}`, "nowhere is not a deck command that only reads"},
-		{`{"type": "board", "title": "Work"}`, `{"type": "stat", "source": {"collection": "notes"}, "item": {"title": "title"}}`, "additional properties 'item' not allowed"},
+		{`{"type": "form", "title": "Score a title", "command": "score", "save": "notes"}`, `{"type": "stat", "source": {"collection": "notes"}, "filter": ["title"]}`, "additional properties 'filter' not allowed"},
+		{`{"type": "form", "title": "Score a title", "command": "score", "save": "notes"}`, `{"type": "list", "source": {"from": "deck.projects_list"}, "item": {"title": "names"}}`, `unknown field "names"`},
+		{`{"type": "form", "title": "Score a title", "command": "score", "save": "notes"}`, `{"type": "list", "source": {"from": "nowhere"}, "item": {"title": "name"}}`, "nowhere is not a deck command that only reads"},
+		{`{"type": "form", "title": "Score a title", "command": "score", "save": "notes"}`, `{"type": "stat", "source": {"collection": "notes"}, "item": {"title": "title"}}`, "additional properties 'item' not allowed"},
 	} {
-		if !strings.Contains(boardWebManifest, tc.from) {
+		if !strings.Contains(webNotes, tc.from) {
 			t.Fatalf("fixture lacks %s", tc.from)
 		}
-		bad := strings.Replace(boardWebManifest, tc.from, tc.to, 1)
+		bad := strings.Replace(webNotes, tc.from, tc.to, 1)
 		code, out := e.call("deck.manifest_save", map[string]any{"project": "web", "manifest": bad})
 		if code != 422 || !strings.Contains(string(out), tc.want) {
 			t.Fatalf("%s is refused with %q: %d %s", tc.to, tc.want, code, out)
@@ -883,10 +879,10 @@ func TestNewBlocksAreRefusedWithTheirReason(t *testing.T) {
 // record of the page, whatever the block reads.
 func TestCustomButtonsOnARecordPageTakeTheFieldsOfTheRecord(t *testing.T) {
 	e := newEnv(t, nil)
-	e.createProject("web", boardWebManifest)
+	e.createProject("web", webNotes)
 	page := `{"type": "form", "title": "Edit", "command": "deck.record_update"}`
 	custom := func(field string) string {
-		return strings.Replace(boardWebManifest, page, page+`, {"type": "custom", "document": "custom/c.html", "source": {"from": "deck.asks_list"},
+		return strings.Replace(webNotes, page, page+`, {"type": "custom", "document": "custom/c.html", "source": {"from": "deck.asks_list"},
 			"actions": [{"label": "Touch", "command": "touch", "params": {"note": "=`+field+`"}}]}`, 1)
 	}
 	e.must("deck.manifest_save", map[string]any{"project": "web", "manifest": custom("score")}, nil)
@@ -896,9 +892,9 @@ func TestCustomButtonsOnARecordPageTakeTheFieldsOfTheRecord(t *testing.T) {
 // TestAHiddenButtonOfACustomBlockLeavesTheClassOfTheOthers: a button whose when does not hold is not there, and
 // each of the others keeps the class of its own command, so an external call still waits for the owner.
 func TestAHiddenButtonOfACustomBlockLeavesTheClassOfTheOthers(t *testing.T) {
-	e := newEnv(t, boardWebAgent())
-	m := strings.Replace(boardWebManifest, `"actions": [{"label": "Mark", "command": "mark"},`, `"actions": [{"label": "Mark", "command": "mark", "when": "false"},`, 1)
-	if m == boardWebManifest {
+	e := newEnv(t, webNotesAgent())
+	m := strings.Replace(webNotes, `"actions": [{"label": "Mark", "command": "mark"},`, `"actions": [{"label": "Mark", "command": "mark", "when": "false"},`, 1)
+	if m == webNotes {
 		t.Fatal("fixture lacks the Mark button")
 	}
 	e.createProject("web", m)
@@ -943,5 +939,35 @@ func TestABlockOfACommandDeckNoLongerHasTurnsOffOnlyThatBlock(t *testing.T) {
 	code, out := e.call("deck.manifest_save", map[string]any{"project": "old", "manifest": strings.Replace(m, "deck.models_list", "deck.providers_list", 1)})
 	if code == 200 || !strings.Contains(string(out), "providers_list") {
 		t.Fatalf("a save with the command that is gone is refused: %d %s", code, out)
+	}
+}
+
+// TestUndoOfAModuleButtonIsACallOfItsOwn: a module's button takes back its call by a command of the project; undo
+// stands in for a yes and takes nothing the owner types.
+func TestUndoOfAModuleButtonIsACallOfItsOwn(t *testing.T) {
+	e := newEnv(t, idle)
+	with := func(undo string) string {
+		return strings.Replace(webNotes, `"actions": [{"label": "Open", "screen": "note"}]`,
+			`"actions": [{"label": "Open", "screen": "note"}, {"label": "Mark", "command": "mark"`+undo+`}]`, 1)
+	}
+	for undo, want := range map[string]string{
+		`, "confirm": true, "undo": {"command": "tag"}`:                 "asks no yes first",
+		`, "undo": {"command": "tag", "input": "tag"}`:                  "a command with params, nothing else",
+		`, "undo": {"screen": "note"}`:                                  "a command with params, nothing else",
+		`, "undo": {"command": "tag", "until": "2026-01-01T00:00:00Z"}`: "a command with params, nothing else",
+		`, "undo": {"command": "nope"}`:                                 "nope",
+	} {
+		e.refused("deck.project_create", map[string]any{"name": "bad", "manifest": with(undo)}, 422, want)
+	}
+	e.createProject("web", with(`, "undo": {"command": "tag", "params": {"tag": "=title"}}`))
+	e.must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": `{"title": "alpha"}`}, nil)
+	found := false
+	for _, v := range e.screenData("web", "main", nil) {
+		for _, raw := range v {
+			found = found || strings.Contains(string(raw), `"undo":{"command":"web.tag","params":{"tag":"alpha"}`)
+		}
+	}
+	if !found {
+		t.Fatal("the undo of a module's button calls the project's command with params from the row")
 	}
 }

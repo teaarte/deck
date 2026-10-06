@@ -21,16 +21,15 @@ import (
 const draftManifest = `{
   "version": 9,
   "commands": [
-    {"name": "work", "title": "Work", "description": "Does work.", "class": "internal", "input": {"type": "object", "properties": {"card": {"type": "integer", "format": "card"}}},
+    {"name": "work", "title": "Work", "description": "Does work.", "class": "internal", "input": {"type": "object", "properties": {}},
      "executor": {"type": "agent", "prompt": "Do the work."}, "result": {"type": "object"}},
     {"name": "child", "title": "Child", "description": "Helps.", "class": "internal", "input": {"type": "object", "properties": {"process": {"type": "integer", "format": "process"}}},
      "executor": {"type": "agent", "prompt": "Help."}, "result": {"type": "object"}},
     {"name": "send", "title": "Send", "description": "Sends it out.", "class": "external",
      "executor": {"type": "agent", "prompt": "Send."}, "result": {"type": "object"}}
   ],
-  "triggers": [{"command": "work", "cron": "0 9 * * *"}, {"command": "work", "lane": "go"}, {"command": "child", "after": "work"}],
-  "domains": {"read": ["example.com"]},
-  "board": {"lanes": [{"name": "found", "title": "Found", "role": "inbox"}, {"name": "go", "title": "Go"}]}
+  "triggers": [{"command": "work", "cron": "0 9 * * *"}, {"command": "child", "after": "work"}],
+  "domains": {"read": ["example.com"]}
 }`
 
 // trialAgent tries an external built-in tool and an external command, and starts a child command, until
@@ -87,7 +86,6 @@ func TestDraftRunsOnlyTrialsAndNoTriggersUntilEnabled(t *testing.T) {
 
 	e.Clock.Add(2 * time.Hour)
 	e.tick()
-	e.must("deck.card_create", map[string]any{"project": "notes", "title": "x", "lane": "go"}, nil)
 	e.settle()
 	if n := len(e.processes()); n != 0 {
 		t.Fatalf("a draft runs on none of its triggers, got %d processes", n)

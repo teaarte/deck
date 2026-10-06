@@ -191,14 +191,10 @@ type documentSaveIn struct {
 	IfRevision int64    `json:"if_revision" opt:"" desc:"Only while the current revision is still this one"`
 	Project    string   `type:"project" opt:"" desc:"Project name; without it an agent of a project works in its own, the owner and the master in the workspace documents (memory/ names: the owner's memory, in project master)"`
 	Record     int64    `type:"record" opt:"" desc:"Record the document belongs to"`
-	Card       int64    `type:"card" opt:"" desc:"Card the document belongs to"`
 	Reason     string   `opt:"" desc:"Why it changed"`
 }
 
 func (dc *Service) documentSave(ctx context.Context, act registry.Actor, in documentSaveIn) (any, error) {
-	if in.Record != 0 && in.Card != 0 {
-		return nil, registry.Invalid("deck: a document belongs to a record or a card, not both")
-	}
 	if in.Kind == docs.KindManifest {
 		return nil, registry.Invalid("deck: save manifests with deck.manifest_save")
 	}
@@ -221,16 +217,6 @@ func (dc *Service) documentSave(ctx context.Context, act registry.Actor, in docu
 				return err
 			}
 			ref.OwnerKind, ref.OwnerID = "record", rec.ID
-		}
-		if in.Card != 0 {
-			c, err := q.GetCard(ctx, in.Card)
-			if errors.Is(err, sql.ErrNoRows) || err == nil && (s.Project == 0 || c.ProjectID != s.Project) {
-				return registry.NotFound("deck: no card %d in this project", in.Card)
-			}
-			if err != nil {
-				return err
-			}
-			ref.OwnerKind, ref.OwnerID = "card", c.ID
 		}
 		if err := editText(ctx, q, ref, &in); err != nil {
 			return err
@@ -327,7 +313,7 @@ func (dc *Service) documentDelete(ctx context.Context, act registry.Actor, in do
 		return nil, err
 	}
 	switch {
-	case d.Kind == docs.KindManifest || d.Kind == docs.KindPrompt && !d.RecordID.Valid && !d.CardID.Valid:
+	case d.Kind == docs.KindManifest || d.Kind == docs.KindPrompt && !d.RecordID.Valid:
 		return nil, registry.Invalid("deck: a project keeps its %s; change it instead", d.Name)
 	case act.Kind == registry.Agent && (d.Kind != docs.KindMemory || d.ProjectID.Int64 != act.ProjectID):
 		return nil, registry.Refuse("deck: agents delete only the memory of their project")
@@ -444,7 +430,7 @@ func (dc *Service) documentRevert(ctx context.Context, act registry.Actor, in do
 
 // scriptChanged lists a script change made without the owner, undone by returning to the revision before n.
 func (dc *Service) scriptChanged(ctx context.Context, q *db.Queries, act registry.Actor, d db.Document, n int64, reason string) error {
-	if d.Kind != docs.KindScript || !d.ProjectID.Valid || d.RecordID.Valid || d.CardID.Valid {
+	if d.Kind != docs.KindScript || !d.ProjectID.Valid || d.RecordID.Valid {
 		return nil
 	}
 	prev := db.Document{ID: d.ID, Current: n - 1}

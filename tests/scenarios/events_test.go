@@ -37,10 +37,10 @@ func TestASlowDeviceHearsEveryChange(t *testing.T) {
 // TestAChangeOfAnotherProjectDoesNotRereadAScreen: a screen reads its blocks again only for a change in a project
 // they read, its own or one its manifest reads.
 func TestAChangeOfAnotherProjectDoesNotRereadAScreen(t *testing.T) {
-	e := newEnv(t, boardWebAgent())
-	e.createProject("a", boardWebManifest)
-	e.createProject("b", boardWebManifest)
-	e.createProject("c", strings.Replace(strings.Replace(boardWebManifest, `"menu": ["main"]}`, `"menu": ["main"], "reads": [{"project": "a", "collections": ["notes"]}]}`, 1),
+	e := newEnv(t, webNotesAgent())
+	e.createProject("a", webNotes)
+	e.createProject("b", webNotes)
+	e.createProject("c", strings.Replace(strings.Replace(webNotes, `"menu": ["main"]}`, `"menu": ["main"], "reads": [{"project": "a", "collections": ["notes"]}]}`, 1),
 		`{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "blocks": [
       {"type": "table", "title": "Of a", "source": {"project": "a", "collection": "notes"}, "columns": [{"label": "Title", "bind": "title"}]},`, 1))
 	data := func(project, changed string) string {
@@ -65,37 +65,12 @@ func TestAChangeOfAnotherProjectDoesNotRereadAScreen(t *testing.T) {
 	}
 }
 
-// TestACardThatLeavesARedrawsBothBoards: a card moved to another project is heard on the board it left and on the
-// one it entered.
-func TestACardThatLeavesARedrawsBothBoards(t *testing.T) {
-	e := newEnv(t, idle)
-	e.createProject("work", boardManifest)
-	e.createProject("home", boardManifest)
-	c := e.card(map[string]any{"project": "work", "title": "Move me"})
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	phone := e.live(ctx)
-	e.must("deck.card_transfer", map[string]any{"card": c.ID, "project": "home"}, nil)
-	heard := map[string]bool{}
-	timeout := time.After(5 * time.Second)
-	for !heard["work"] || !heard["home"] {
-		select {
-		case ev := <-phone:
-			if ev.Topic == "board" {
-				heard[ev.Project] = true
-			}
-		case <-timeout:
-			t.Fatalf("both boards are heard: %v", heard)
-		}
-	}
-}
-
 // TestABlockThatReadsEveryProjectFollowsThemAll: a block whose read names no project follows the changes of every
 // project, and a when of another screen does not draw that screen whole for them.
 func TestABlockThatReadsEveryProjectFollowsThemAll(t *testing.T) {
-	e := newEnv(t, boardWebAgent())
-	e.createProject("a", boardWebManifest)
-	e.createProject("b", strings.Replace(boardWebManifest, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "blocks": [
+	e := newEnv(t, webNotesAgent())
+	e.createProject("a", webNotes)
+	e.createProject("b", strings.Replace(webNotes, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "blocks": [
       {"type": "list", "title": "All files", "source": {"from": "deck.files_list", "input": {"project": ""}}, "item": {"title": "name"}},
       {"type": "stat", "title": "Some", "when": "len(rows) > 0", "source": {"collection": "notes"}},`, 1))
 	msgs := e.screenMessages("b", "main", map[string]any{"topic": "files", "changed": "a"})
@@ -112,7 +87,7 @@ func TestABlockThatReadsEveryProjectFollowsThemAll(t *testing.T) {
 // project of the row, whichever command wrote it.
 func TestAWriteTellsTheReadersOfItsTable(t *testing.T) {
 	e := newEnv(t, nil)
-	e.createProject("web", boardWebManifest)
+	e.createProject("web", webNotes)
 	ev := e.live(t.Context())
 	e.upload("web", "scan.txt", "text/plain", "a page")
 	waitEvent(t, ev, events.Event{Topic: "files", Project: "web"})
@@ -137,9 +112,9 @@ func waitEvent(t *testing.T, ch <-chan events.Event, want events.Event) {
 // TestADeckReadWithoutAProjectFollowsEveryProject: a block of a module screen that reads a deck command taking no
 // project reads every project, so a change in any project reads it again.
 func TestADeckReadWithoutAProjectFollowsEveryProject(t *testing.T) {
-	e := newEnv(t, boardWebAgent())
-	e.createProject("a", boardWebManifest)
-	e.createProject("c", strings.Replace(boardWebManifest, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "blocks": [
+	e := newEnv(t, webNotesAgent())
+	e.createProject("a", webNotes)
+	e.createProject("c", strings.Replace(webNotes, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "blocks": [
       {"type": "table", "title": "Runs", "source": {"from": "deck.runs_daily"}, "columns": [{"label": "Day", "bind": "day"}]},`, 1))
 	var paths []string
 	for _, m := range e.screenMessages("c", "main", map[string]any{"topic": "processes", "changed": "a"}) {

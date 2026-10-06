@@ -2,7 +2,7 @@
   "collections": [
     {
       "name": "intake",
-      "description": "A GitLab project whose open issues become cards, with the cursor of the last poll.",
+      "description": "A GitLab project whose open issues become tasks, with the cursor of the last poll.",
       "key": "project",
       "display": "project",
       "schema": {
@@ -96,7 +96,7 @@
     {
       "name": "follow_gitlab",
       "title": "Follow a GitLab project",
-      "description": "Makes the open issues of a GitLab project arrive as cards.",
+      "description": "Makes the open issues of a GitLab project arrive as tasks.",
       "class": "internal",
       "callers": [
         "owner",
@@ -137,15 +137,15 @@
     {
       "name": "poll_gitlab",
       "title": "Take GitLab issues",
-      "description": "Makes a card in Backlog for each new open issue of the followed GitLab projects.",
+      "description": "Makes a task in backlog for each new open issue of the followed GitLab projects.",
       "class": "internal",
       "result": {
         "type": "object",
         "required": [
-          "cards"
+          "tasks"
         ],
         "properties": {
-          "cards": {
+          "tasks": {
             "type": "array",
             "items": {
               "type": "integer"

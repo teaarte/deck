@@ -49,12 +49,10 @@
     "revoke": "Revoke",
     "remove": "Remove",
     "delete": "Delete",
-    "interview": "Interview",
     "download": "Download",
     "cancel": "Cancel",
     "archive": "Archive",
     "tell": "Tell it",
-    "move_project": "Move to another project",
     "reset_push": "Reset the push key",
     "settings": "Settings",
     "unarchive": "Bring back"
@@ -63,8 +61,7 @@
     "answer": "Your answer",
     "reason": "Why not",
     "remark": "What to change",
-    "text": "Your message",
-    "project": "Project name"
+    "text": "Your message"
   },
   "question": { "other": "Other" },
   "token": {
@@ -75,18 +72,7 @@
   "filter": { "any": "Any {{field}}" },
   "confirm": { "title": "{{action}}?" },
   "custom": { "ask": "A custom block wants to run a command that goes outside deck" },
-  "board": {
-    "move": "Move",
-    "new": "New card…",
-    "waits": "waits #{{id}}",
-    "card": "Card #{{id}}",
-    "title": "Title",
-    "no_title": "The card needs a title first",
-    "text": "Text",
-    "save": "Save",
-    "recently_deleted": "Deleted in the last day ({{count}})",
-    "restore": "Restore"
-  },
+
   "form": {
     "command": "Command",
     "run": "Run",

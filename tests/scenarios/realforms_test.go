@@ -34,7 +34,7 @@ try { const a = parent.document.createElement("a"); a.href = %q + "/parent"; par
 setTimeout(() => { location.href = %q + "/self"; }, 300);
 </script></body></html>`
 
-// TestRealBrowserWebClientII drives the board, forms, a custom block, sharing and the schedule in the real
+// TestRealBrowserWebClientII drives forms, a custom block, sharing and the schedule in the real
 // browser of Playwright MCP: DECK_REAL_BROWSER=1 go test ./tests/scenarios -run TestRealBrowser -v.
 func TestRealBrowserWebClientII(t *testing.T) {
 	if os.Getenv("DECK_REAL_BROWSER") == "" {
@@ -42,18 +42,16 @@ func TestRealBrowserWebClientII(t *testing.T) {
 	}
 	checkBuiltClient(t)
 	evil := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { w.Write([]byte("<p>out</p>")) })
-	e := newEnv(t, boardWebAgent())
-	e.createProject("web", boardWebManifest)
+	e := newEnv(t, webNotesAgent())
+	e.createProject("web", webNotes)
 	e.must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom",
 		"text": fmt.Sprintf(customProbe, e.URL, token, evil.URL, evil.URL)}, nil)
 	e.must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes",
 		"records": jsonl(map[string]any{"title": "gamma", "score": 1, "source": "seed", "extra": "keep me"})}, nil)
-	a := e.card(map[string]any{"project": "web", "title": "Write the plan"})
-	e.card(map[string]any{"project": "web", "title": "Ship it"})
 
 	b := newPlaywright(t)
 	b.open(e.URL + "/?token=" + token + "#/p/web/main")
-	b.until("the board", `document.querySelectorAll('[data-card]').length === 2`)
+	b.until("the screen", `document.querySelector('[data-form="web.score"]')`)
 
 	marks := func() []proc {
 		var ps []struct {
@@ -108,50 +106,6 @@ func TestRealBrowserWebClientII(t *testing.T) {
 		t.Fatalf("a custom block cannot move its frames to a page on the network: %d requests", n)
 	}
 	b.shot("web2-main")
-
-	handle := func(id int64) string { return fmt.Sprintf(`document.querySelector('[data-handle="%d"]')`, id) }
-	b.drag(handle(a.ID), `document.querySelector('[data-lane="doing"]')`)
-	e.waitFor("the moved card", func() bool {
-		var c cardV
-		e.must("deck.card_get", map[string]any{"card": a.ID}, &c)
-		return c.Lane == "doing"
-	})
-	b.until("the card in its new lane", `document.querySelector('[data-lane="doing"] [data-card="`+fmt.Sprint(a.ID)+`"]')`)
-
-	b.type_(`document.querySelector('[data-new-card]')`, "From the web")
-	b.eval(`(document.querySelector('[data-new-card]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })), '')`)
-	b.until("the new card in the inbox", `[...document.querySelectorAll('[data-lane="backlog"] [data-card]')].some((c) => c.innerText.includes('From the web'))`)
-
-	b.eval(`([...document.querySelectorAll('[data-card]')].find((c) => c.innerText.includes('Ship it')).querySelector('button').click(), '')`)
-	b.until("the card editor", `[...document.querySelectorAll('button')].some((x) => x.innerText === 'Delete')`)
-	b.type_(`document.querySelector('.mantine-Modal-body input')`, "")
-	b.eval(`([...document.querySelectorAll('button')].find((x) => x.innerText === 'Delete').click(), '')`)
-	b.until("the card window asking for a title", `document.body.innerText.includes('The card needs a title first')`)
-	if got := b.eval(`String([...document.querySelectorAll('[data-card]')].some((c) => c.innerText.includes('Ship it')))`); got != "true" {
-		t.Fatal("a button of a card without a title does not run")
-	}
-	b.type_(`document.querySelector('.mantine-Modal-body input')`, "Ship it")
-	b.eval(`([...document.querySelectorAll('button')].find((x) => x.innerText === 'Delete').click(), '')`)
-	b.until("the deleted card to leave", `![...document.querySelectorAll('[data-card]')].some((c) => c.innerText.includes('Ship it'))`)
-	if got := b.eval(`String(!!document.querySelector('[data-confirm-yes]'))`); got != "false" {
-		t.Fatal("a delete from the card window asks no yes")
-	}
-	b.until("the undo of the delete", `document.querySelector('[data-undo] button')`)
-	b.eval(`(document.querySelector('[data-undo] button').click(), '')`)
-	b.until("the restored card", `[...document.querySelectorAll('[data-card]')].some((c) => c.innerText.includes('Ship it'))`)
-	var shipped cardV
-	for _, l := range e.board("web", false).Lanes {
-		for _, c := range l.Cards {
-			if c.Title == "Ship it" {
-				shipped = c
-			}
-		}
-	}
-	e.must("deck.card_delete", map[string]any{"card": shipped.ID}, nil)
-	b.until("the card deleted on another device in the list of deleted ones", `document.querySelector('[data-deleted="`+fmt.Sprint(shipped.ID)+`"]')`)
-	b.eval(`([...document.querySelectorAll('button')].find((x) => x.innerText.startsWith('Deleted in the last day')).click(), '')`)
-	b.eval(`(document.querySelector('[data-deleted="` + fmt.Sprint(shipped.ID) + `"] button').click(), '')`)
-	b.until("the card restored from the list", `[...document.querySelectorAll('[data-card]')].some((c) => c.innerText.includes('Ship it'))`)
 
 	b.type_(`document.querySelector('[data-form="web.score"] input[data-field="title"]')`, "alpha")
 	b.file(`document.querySelector('[data-form="web.score"] input[type=file]')`, "scan.txt", "a scanned page")
@@ -240,37 +194,11 @@ func TestRealBrowserWebClientII(t *testing.T) {
 	b.call("browser_resize", map[string]any{"width": 390, "height": 844})
 	b.shot("web2-schedule-phone")
 	b.open(e.URL + "/#/p/web/main")
-	b.until("the board on a phone", `document.querySelectorAll('[data-card]').length === 3`)
+	b.until("the screen on a phone", `document.querySelector('[data-form="web.score"]')`)
 	if got := b.eval(`String(document.documentElement.scrollWidth <= innerWidth + 1)`); got != "true" {
-		t.Fatalf("the page fits the width of a phone; the board scrolls inside its block: %s", got)
+		t.Fatalf("the page fits the width of a phone: %s", got)
 	}
 	b.shot("web2-main-phone")
-}
-
-// center is the middle of the element an expression finds, in page coordinates.
-func (b *playwright) center(el string) (float64, float64) {
-	b.t.Helper()
-	var at struct{ X, Y float64 }
-	raw := b.eval(`(() => { const e = ` + el + `; e.scrollIntoView({ block: 'center' }); const r = e.getBoundingClientRect();
-		return JSON.stringify({ x: r.x + r.width / 2, y: r.y + Math.min(r.height / 2, 30) }) })()`)
-	if err := json.Unmarshal([]byte(raw), &at); err != nil {
-		b.t.Fatalf("no element %s: %s", el, raw)
-	}
-	return at.X, at.Y
-}
-
-// drag moves the mouse with its button down from one element to another in steps, as a hand does.
-func (b *playwright) drag(from, to string) {
-	b.t.Helper()
-	x0, y0 := b.center(from)
-	b.call("browser_mouse_move_xy", map[string]any{"element": "handle", "x": x0, "y": y0})
-	b.call("browser_mouse_down", map[string]any{})
-	x1, y1 := b.center(to)
-	for i := 1; i <= 8; i++ {
-		f := float64(i) / 8
-		b.call("browser_mouse_move_xy", map[string]any{"element": "lane", "x": x0 + (x1-x0)*f, "y": y0 + (y1-y0)*f})
-	}
-	b.call("browser_mouse_up", map[string]any{})
 }
 
 // type_ sets the value of an input the way typing does, so React sees it.

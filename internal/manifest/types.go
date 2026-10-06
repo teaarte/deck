@@ -20,7 +20,6 @@ type Manifest struct {
 	Tools           Tools        `json:"tools,omitzero"`
 	AllowedExternal []string     `json:"allowed_external,omitempty"`
 	Domains         Domains      `json:"domains,omitzero"`
-	Board           *Board       `json:"board,omitempty"`
 	Screens         []Screen     `json:"screens,omitempty"`
 	Menu            []string     `json:"menu,omitempty"`
 	Icon            string       `json:"icon,omitempty"`
@@ -179,7 +178,6 @@ func (p *Program) UnmarshalJSON(b []byte) error {
 type Trigger struct {
 	Command string `json:"command"`
 	Cron    string `json:"cron,omitempty"`
-	Lane    string `json:"lane,omitempty"`
 	After   string `json:"after,omitempty"`
 	// On is an event of deck only the built-in project answers: OnMessage or OnFailure.
 	On         string         `json:"on,omitempty"`
@@ -228,16 +226,6 @@ type MCPServer struct {
 type Domains struct {
 	Read []string `json:"read,omitempty"`
 	Act  []string `json:"act,omitempty"`
-}
-
-type Board struct {
-	Lanes []Lane `json:"lanes"`
-}
-
-type Lane struct {
-	Name  string `json:"name"`
-	Title string `json:"title"`
-	Role  string `json:"role,omitempty"`
 }
 
 type Read struct {

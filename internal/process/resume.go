@@ -121,7 +121,7 @@ func (r *Runner) report(ctx context.Context, processID int64) string {
 			b.WriteString("\n")
 		}
 	}
-	b.WriteString("Check what already exists (records, files, cards) before redoing any of it.")
+	b.WriteString("Check what already exists (records, files) before redoing any of it.")
 	return b.String()
 }
 

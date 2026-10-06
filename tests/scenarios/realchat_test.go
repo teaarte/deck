@@ -26,7 +26,7 @@ func TestRealBrowserMasterChat(t *testing.T) {
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		switch {
 		case strings.Contains(c.Req.Prompt, "which list"):
-			c.Req.OnEvent(provider.Event{Kind: provider.EventTool, ID: "t1", Title: "cards_list", Text: "{}"})
+			c.Req.OnEvent(provider.Event{Kind: provider.EventTool, ID: "t1", Title: "records_list", Text: "{}"})
 			d := c.Approve(ctx, "AskUserQuestion", map[string]any{"questions": []any{map[string]any{"question": "Which list?",
 				"options": []any{map[string]any{"label": "shop"}, map[string]any{"label": "market"}}}}})
 			answers, _ := d["updatedInput"].(map[string]any)["answers"].(map[string]any)
@@ -36,16 +36,16 @@ func TestRealBrowserMasterChat(t *testing.T) {
 			<-ctx.Done()
 			return provider.Result{}
 		}
-		return provider.Result{Text: "Put it into **groceries** as card #1."}
+		return provider.Result{Text: "Put it into **groceries** as task #1."}
 	}, func(c *app.Config) { c.QuestionWait = 2 * time.Minute })
-	e.must("deck.project_create", map[string]any{"name": "groceries", "prompt": "# Groceries: the shopping list.\n"}, nil)
+	e.must("deck.project_create", map[string]any{"name": "groceries", "prompt": "# Groceries: the shopping list.\n", "manifest": tasksManifest}, nil)
 
 	b := newPlaywright(t)
 	b.call("browser_resize", map[string]any{"width": 1400, "height": 900})
-	b.open(e.URL + "/?token=" + token + "#/p/groceries/board")
-	b.until("the board", `document.querySelector('[data-lane]')`)
+	b.open(e.URL + "/?token=" + token + "#/p/groceries/tasks")
+	b.until("the tasks", `document.querySelector('[data-block]')`)
 	b.eval(`(document.querySelector('[data-chat-toggle]').click(), '')`)
-	b.until("the chat beside the screen", `document.querySelector('[data-chat-panel] [data-chat-input]') && document.querySelector('[data-lane]')`)
+	b.until("the chat beside the screen", `document.querySelector('[data-chat-panel] [data-chat-input]') && document.querySelector('[data-block]')`)
 	say := func(text string) {
 		b.type_(`document.querySelector('[data-chat-input]')`, text)
 		b.eval(`(document.querySelector('[data-chat-send]').click(), '')`)
@@ -59,13 +59,13 @@ func TestRealBrowserMasterChat(t *testing.T) {
 	b.eval(`(document.querySelector('[data-context-off]').click(), '')`)
 	b.until("the screen back", `document.querySelector('[data-context]')`)
 	ms := e.chatMessages(1)
-	if len(ms) != 2 || !strings.Contains(string(ms[0].Screen), `"project":"groceries"`) || !strings.Contains(string(ms[0].Screen), `"screen":"board"`) {
+	if len(ms) != 2 || !strings.Contains(string(ms[0].Screen), `"project":"groceries"`) || !strings.Contains(string(ms[0].Screen), `"screen":"tasks"`) {
 		t.Fatalf("the message carries the screen the owner is on: %+v", ms)
 	}
 
 	say("which list then?")
 	b.until("the question in the feed", `document.querySelector('[data-question]')?.innerText.includes('Which list?')`)
-	b.until("the turn with its calls", `document.querySelector('[data-turn] [data-turn-line]')?.innerText.includes('cards_list')`)
+	b.until("the turn with its calls", `document.querySelector('[data-turn] [data-turn-line]')?.innerText.includes('records_list')`)
 	b.eval(`([...document.querySelectorAll('[data-question] input[type=checkbox], [data-question] input[type=radio]')].find((i) => i.value === 'market').click(), '')`)
 	b.eval(`([...document.querySelectorAll('[data-question] button')].find((x) => !x.disabled && x.innerText.trim() !== '').click(), '')`)
 	b.until("the reply after the answer", `[...document.querySelectorAll('[data-message="master"]')].some((m) => m.innerText.includes('Picked market'))`)
@@ -144,82 +144,6 @@ func TestRealBrowserVoice(t *testing.T) {
 	b.eval(`(document.querySelector('[data-chat-send]').click(), '')`)
 	b.until("the reply", `[...document.querySelectorAll('[data-message="master"]')].some((m) => m.innerText.includes('groceries'))`)
 	b.shot("chat-voice")
-}
-
-// TestRealBrowserInterviewFromACard edits a card and presses Interview: the edit is saved, the chat opens on a topic about
-// the card, and the master's question waits in the feed.
-func TestRealBrowserInterviewFromACard(t *testing.T) {
-	if os.Getenv("DECK_REAL_BROWSER") == "" {
-		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
-	}
-	checkBuiltClient(t)
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
-		if !strings.Contains(c.Req.Prompt, "This topic is about card") {
-			return provider.Result{Text: "no card"}
-		}
-		d := c.Approve(ctx, "AskUserQuestion", map[string]any{"questions": []any{map[string]any{"question": "Which format?",
-			"options": []any{map[string]any{"label": "CSV"}, map[string]any{"label": "PDF"}}}}})
-		answers, _ := d["updatedInput"].(map[string]any)["answers"].(map[string]any)
-		return provider.Result{Text: fmt.Sprint("The spec is in the card: ", answers["Which format?"])}
-	}, func(c *app.Config) { c.QuestionWait = 2 * time.Minute })
-	e.must("deck.project_create", map[string]any{"name": "work"}, nil)
-	e.card(map[string]any{"project": "work", "title": "Export the report"})
-	b := newPlaywright(t)
-	b.call("browser_resize", map[string]any{"width": 1400, "height": 900})
-	b.open(e.URL + "/?token=" + token + "#/p/work/board")
-	b.until("the card", `[...document.querySelectorAll('[data-card]')].some((c) => c.innerText.includes('Export the report'))`)
-	b.eval(`([...document.querySelectorAll('[data-card]')].find((c) => c.innerText.includes('Export the report')).querySelector('button').click(), '')`)
-	b.until("the card editor", `document.querySelector('[data-verb="interview"]')`)
-	b.type_(`document.querySelector('.mantine-Modal-body input')`, "Export the report as PDF")
-	b.eval(`(document.querySelector('[data-verb="interview"]').click(), '')`)
-	b.until("the chat with the question about the card", `document.querySelector('[data-chat-panel] [data-question]')?.innerText.includes('Which format?')`)
-	b.eval(`([...document.querySelectorAll('[data-question] input')].find((i) => i.value === 'PDF').click(), '')`)
-	b.eval(`([...document.querySelectorAll('[data-question] button')].find((x) => !x.disabled && x.innerText.trim() !== '').click(), '')`)
-	b.until("the reply", `[...document.querySelectorAll('[data-message="master"]')].some((m) => m.innerText.includes('PDF'))`)
-	var ts []chatTopic
-	e.chatTopics(false, &ts)
-	if len(ts) != 1 || ts[0].Card == 0 {
-		t.Fatalf("the interview is a topic about the card: %+v", ts)
-	}
-	var c cardV
-	e.must("deck.card_get", map[string]any{"card": ts[0].Card}, &c)
-	if c.Title != "Export the report as PDF" {
-		t.Fatalf("the interview keeps the edit of the card it starts from: %+v", c)
-	}
-	b.shot("interview")
-}
-
-// TestRealBrowserTheOpenCardStaysWithTheChatAcrossTabs: a message sent while a card is open names the card, also
-// after the address changed only a tab of the same screen.
-func TestRealBrowserTheOpenCardStaysWithTheChatAcrossTabs(t *testing.T) {
-	if os.Getenv("DECK_REAL_BROWSER") == "" {
-		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
-	}
-	checkBuiltClient(t)
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result { return provider.Result{Text: "Seen."} })
-	e.must("deck.project_create", map[string]any{"name": "work"}, nil)
-	e.card(map[string]any{"project": "work", "title": "Export the report"})
-	b := newPlaywright(t)
-	b.call("browser_resize", map[string]any{"width": 1400, "height": 900})
-	b.open(e.URL + "/?token=" + token + "#/p/work/board")
-	b.until("the chat toggle", `document.querySelector('[data-chat-toggle]')`)
-	b.eval(`(document.querySelector('[data-chat-toggle]').click(), '')`)
-	b.until("the card", `[...document.querySelectorAll('[data-card]')].some((c) => c.innerText.includes('Export the report'))`)
-	b.eval(`([...document.querySelectorAll('[data-card]')].find((c) => c.innerText.includes('Export the report')).querySelector('button').click(), '')`)
-	b.until("the card editor", `document.querySelector('[data-verb="interview"]')`)
-	b.eval(`(location.hash = '#/p/work/board?tab=Other', '')`)
-	b.until("the tab in the address", `location.hash.endsWith('tab=Other')`)
-	b.type_(`document.querySelector('[data-chat-input]')`, "what about this one")
-	b.eval(`(document.querySelector('[data-chat-send]').click(), '')`)
-	b.until("the reply", `[...document.querySelectorAll('[data-message="master"]')].some((m) => m.innerText.includes('Seen.'))`)
-	var ts []chatTopic
-	e.chatTopics(false, &ts)
-	if len(ts) != 1 {
-		t.Fatalf("one topic: %+v", ts)
-	}
-	if ms := e.chatMessages(ts[0].ID); len(ms) == 0 || !strings.Contains(string(ms[0].Screen), `"card"`) {
-		t.Fatalf("the message names the open card: %+v", ms)
-	}
 }
 
 // TestRealBrowserChatDeletesAWaitingMessage: a message the master has not taken has a delete button, which takes

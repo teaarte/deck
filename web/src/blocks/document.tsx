@@ -35,7 +35,6 @@ function Document({ value }: { value: DocumentValue }) {
   const save = async () => {
     const input: Record<string, unknown> = { project: value.project, name: value.name, kind: value.kind, text: draft, reason };
     if (value.record) input.record = value.record;
-    if (value.card) input.card = value.card;
     if (base > 0) input.if_revision = base;
     if (await run('deck.document_save', input, t('document.saved', { name: value.name }))) {
       setEditing(false);

@@ -28,7 +28,6 @@ export interface Catalog {
   CardValue?: CardValue;
   StatValue?: StatValue;
   ChartValue?: ChartValue;
-  BoardValue?: BoardValue;
   FormValue?: FormValue;
   DocumentValue?: DocumentValue;
   CustomValue?: CustomValue;
@@ -136,9 +135,8 @@ export interface Action1 {
 export interface Topic {
   id: number;
   title: string;
-  card?: number;
   /**
-   * the project of its card, else of the screen of its first message
+   * the project of the screen of its first message
    */
   project?: string;
   archived: boolean;
@@ -284,30 +282,6 @@ export interface ChartValue {
 }
 /**
  * This interface was referenced by `Catalog`'s JSON-Schema
- * via the `definition` "BoardValue".
- */
-export interface BoardValue {
-  project: string;
-  lanes: {
-    name: string;
-    title: string;
-    role?: string;
-    cards: {
-      id: number;
-      title: string;
-      text?: string;
-      waits?: number[];
-      record?: number;
-      actions?: Action[];
-    }[];
-  }[];
-  deleted: {
-    id: number;
-    title: string;
-  }[];
-}
-/**
- * This interface was referenced by `Catalog`'s JSON-Schema
  * via the `definition` "FormValue".
  */
 export interface FormValue {
@@ -352,7 +326,6 @@ export interface DocumentValue {
   revision: number;
   editable: boolean;
   record?: number;
-  card?: number;
   revisions: {
     revision: number;
     author: string;
@@ -388,7 +361,7 @@ export interface ChatValue {
       name: string;
     }[];
     /**
-     * the screen the owner wrote it on: project, screen, record, card, process
+     * the screen the owner wrote it on: project, screen, record, process
      */
     screen?: {};
     reply?: Reply;

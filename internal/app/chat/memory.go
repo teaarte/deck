@@ -16,7 +16,7 @@ import (
 )
 
 // Memory is what a fresh session of a process gets of the memory: the index of its own project, as data; an
-// agent of the master gets the owner's index and, in a topic of a card, the index of the card's project.
+// agent of the master gets the owner's index and, in a topic about a project, the index of that project.
 func (ch *Service) Memory(ctx context.Context, p db.Process) (string, error) {
 	proj, err := ch.St.Q.GetProject(ctx, p.ProjectID)
 	if err != nil {
@@ -41,21 +41,21 @@ func (ch *Service) masterMemory(ctx context.Context, mp db.Project, topic int64)
 	if err != nil {
 		return "", "", err
 	}
-	v := struct{ Own, Card string }{Own: own}
+	v := struct{ Own, Project string }{Own: own}
 	sign := fmt.Sprint(rev)
 	if cp, ok := ch.topicProject(ctx, topic); ok && cp.ID != mp.ID {
 		idx, crev, err := ch.memoryIndex(ctx, cp, "Memory index of project "+cp.Name+", which this topic is about (document_get with project "+cp.Name+")")
 		if err != nil {
 			return "", "", err
 		}
-		v.Card = idx
+		v.Project = idx
 		sign += fmt.Sprintf("/%d:%d", cp.ID, crev)
 	}
 	return master.Text("owner_memory", v), sign, nil
 }
 
-// topicProject is the project a topic is about, as the list of topics names it: that of its card, else of the
-// screen of its first message.
+// topicProject is the project a topic is about, as the list of topics names it: that of the screen of its first
+// message.
 func (ch *Service) topicProject(ctx context.Context, topic int64) (db.Project, bool) {
 	if topic == 0 {
 		return db.Project{}, false

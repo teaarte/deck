@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "catalogId": "https://deck2.local/catalog/v1",
   "final_states": ["done", "error", "interrupted", "stopped"],
-  "topics": ["collection", "asks", "processes", "feed", "health", "log", "board", "triggers", "secrets", "tokens", "settings", "documents", "files", "snapshots", "chat", "calls", "usage", "projects", "models"],
+  "topics": ["collection", "asks", "processes", "feed", "health", "log", "triggers", "secrets", "tokens", "settings", "documents", "files", "snapshots", "chat", "calls", "usage", "projects", "models"],
   "description": "Blocks of deck screens as A2UI components. A block's data is at the path of its data property: {state, error?, filters?, rows | items | value | lines}. block is the form a manifest stores the block in; its refs are the $defs of the manifest schema.",
   "components": {
     "screen": {
@@ -192,20 +192,6 @@
         "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "lines: [{at, kind, id, title, status, text}]"}
       }
     },
-    "board": {
-      "description": "The board of the project.",
-      "block": {"description": "Reads the board of its own project; takes no source and no other field.", "properties": {}},
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["data"],
-      "properties": {
-        "title": {"type": "string"},
-        "icon": {"type": "string"},
-        "span": {"enum": [1, 2, "full"], "default": "full"},
-        "description": {"type": "string"},
-        "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "value: {project, lanes: [{name, title, role, cards: [{id, title, text, waits, record}]}], deleted: [{id, title}]}"}
-      }
-    },
     "form": {
       "description": "Asks for the input of a command and shows its result: one command, or a pick from deck.commands_list.",
       "block": {"description": "Has either command or source from deck.commands_list to pick one, never both; it is its own button and takes no actions; save names a collection for the result.", "oneOf": [{"required": ["command"]}, {"required": ["source"]}], "properties": {"command": {"type": "string", "description": "deck.record_update on a record page edits the record."}, "source": {"allOf": [{"$ref": "#/$defs/source"}, {"required": ["from"], "properties": {"from": {"const": "deck.commands_list"}}}]}, "save": {"type": "string", "description": "Collection the owner can keep the result in."}, "keep_open": {"type": "boolean", "description": "In a dialog the form stays open after its call to show the result, such as a token shown once; otherwise the dialog closes."}, "values": {"type": "object", "additionalProperties": {"type": "string"}, "description": "Fields filled before the owner types, by field: fixed text, or =<expression> over the record of the page such as =title or =param.<name>, a parameter the screen declares."}, "choices": {"type": "object", "description": "Values offered for fields of the input, by field: a source and expressions over its items for the value and its label.", "additionalProperties": {"type": "object", "additionalProperties": false, "required": ["source", "value"], "properties": {"source": {"$ref": "#/$defs/source"}, "value": {"type": "string"}, "label": {"type": "string"}}}}}},
@@ -246,7 +232,7 @@
         "icon": {"type": "string"},
         "span": {"enum": [1, 2, "full"], "default": "full"},
         "description": {"type": "string"},
-        "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "value: {id, project, name, kind, text, revision, editable, record, card, revisions}"}
+        "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "value: {id, project, name, kind, text, revision, editable, record, revisions}"}
       }
     },
     "custom": {
@@ -315,13 +301,6 @@
         "x": {"type": "array"},
         "series": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["label", "values"], "properties": {
           "label": {"type": "string"}, "values": {"type": "array", "items": {"type": ["number", "null"]}}}}}}},
-      "board": {"type": "object", "additionalProperties": false, "required": ["project", "lanes", "deleted"], "properties": {
-        "project": {"type": "string"},
-        "lanes": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["name", "title", "cards"], "properties": {
-          "name": {"type": "string"}, "title": {"type": "string"}, "role": {"type": "string"},
-          "cards": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["id", "title"], "properties": {
-            "id": {"type": "integer"}, "title": {"type": "string"}, "text": {"type": "string"}, "waits": {"type": "array", "items": {"type": "integer"}}, "record": {"type": "integer"}, "actions": {"type": "array", "items": {"$ref": "#/$defs/action"}}}}}}}},
-        "deleted": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["id", "title"], "properties": {"id": {"type": "integer"}, "title": {"type": "string"}}}}}},
       "form": {"type": "object", "additionalProperties": false, "required": ["project", "commands"], "properties": {
         "project": {"type": "string"},
         "commands": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["name", "title", "input", "order"], "properties": {
@@ -331,7 +310,7 @@
         "choices": {"type": "object", "description": "Values offered by field", "additionalProperties": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["value", "label"], "properties": {"value": {}, "label": {"type": "string"}}}}}}},
       "document": {"type": "object", "additionalProperties": false, "required": ["id", "project", "name", "kind", "text", "revision", "editable", "revisions"], "properties": {
         "id": {"type": "integer", "description": "0 while the document is not written yet"}, "project": {"type": "string"}, "name": {"type": "string"}, "kind": {"type": "string"},
-        "text": {"type": "string"}, "revision": {"type": "integer"}, "editable": {"type": "boolean"}, "record": {"type": "integer"}, "card": {"type": "integer"},
+        "text": {"type": "string"}, "revision": {"type": "integer"}, "editable": {"type": "boolean"}, "record": {"type": "integer"},
         "revisions": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["revision", "author", "created_at"], "properties": {
           "revision": {"type": "integer"}, "author": {"type": "string"}, "reason": {"type": "string"}, "created_at": {"type": "string"}}}}}},
       "custom": {"type": "object", "additionalProperties": false, "required": ["html", "actions"], "properties": {
@@ -343,7 +322,7 @@
         "messages": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["id", "role", "text", "created_at"], "properties": {
           "id": {"type": "integer"}, "role": {"enum": ["owner", "master"]}, "text": {"type": "string"}, "process": {"type": "integer"},
           "files": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["id", "name"], "properties": {"id": {"type": "integer"}, "name": {"type": "string"}}}},
-          "screen": {"type": "object", "description": "the screen the owner wrote it on: project, screen, record, card, process"},
+          "screen": {"type": "object", "description": "the screen the owner wrote it on: project, screen, record, process"},
           "reply": {"$ref": "#/$defs/reply"}, "created_at": {"type": "string"}}}},
         "questions": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["ask", "text", "questions", "answer"], "properties": {
           "ask": {"type": "integer"}, "text": {"type": "string"},
@@ -358,7 +337,7 @@
         "send": {"$ref": "#/$defs/action"}, "archive": {"$ref": "#/$defs/action"}, "delete": {"$ref": "#/$defs/action"}}}
     },
     "topic": {"type": "object", "additionalProperties": false, "required": ["id", "title", "archived", "updated_at"], "properties": {
-      "id": {"type": "integer"}, "title": {"type": "string"}, "card": {"type": "integer"}, "project": {"type": "string", "description": "the project of its card, else of the screen of its first message"}, "archived": {"type": "boolean"}, "updated_at": {"type": "string"},
+      "id": {"type": "integer"}, "title": {"type": "string"}, "project": {"type": "string", "description": "the project of the screen of its first message"}, "archived": {"type": "boolean"}, "updated_at": {"type": "string"},
       "last": {"type": "string", "description": "the last message, cut short"}, "reply": {"$ref": "#/$defs/reply"}}},
     "reply": {"type": "object", "additionalProperties": false, "required": ["process", "state"], "properties": {
       "process": {"type": "integer"}, "state": {"type": "string"}, "provider": {"type": "string"}, "error": {"type": "string"},

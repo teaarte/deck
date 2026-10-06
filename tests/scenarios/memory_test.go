@@ -55,7 +55,7 @@ func TestProjectMemoryReachesItsOwnAgentsOnly(t *testing.T) {
 		}
 		return provider.Result{Text: "ok"}
 	})
-	alpha := e.createProject("alpha", strings.Replace(plainManifest, `"triggers": [],`, `"triggers": [], "board": {"lanes": [{"name": "inbox", "title": "Inbox", "role": "inbox"}]},`, 1))
+	alpha := e.createProject("alpha", plainManifest)
 	beta := e.createProject("beta", plainManifest)
 	e.must("deck.document_save", map[string]any{"project": "alpha", "name": "memory/MEMORY.md", "kind": "memory",
 		"text": "- [Plain tone](tone.md) — every alpha report\n"}, nil)
@@ -73,19 +73,13 @@ func TestProjectMemoryReachesItsOwnAgentsOnly(t *testing.T) {
 	plain := e.say(0, "hello")
 	e.masterSaid(plain, 1)
 	if strings.Contains(e.Fake.Calls()[2].Prompt, "Plain tone") {
-		t.Fatal("in a topic of no card the master reads project memory itself")
-	}
-	c := e.card(map[string]any{"project": "alpha", "title": "Report"})
-	about := e.say(0, "write the report", map[string]any{"card": c.ID})
-	e.masterSaid(about, 1)
-	if p := e.Fake.Calls()[3].Prompt; !strings.Contains(p, "Memory index of project alpha, which this topic is about") ||
-		!strings.Contains(p, "[Plain tone](tone.md)") {
-		t.Fatalf("in a topic of a card the master gets the index of the card's project:\n%s", p)
+		t.Fatal("in a topic about no project the master reads project memory itself")
 	}
 	onScreen := e.say(0, "and this one", map[string]any{"screen": `{"project":"alpha","screen":"main"}`})
 	e.masterSaid(onScreen, 1)
-	if p := e.Fake.Calls()[4].Prompt; !strings.Contains(p, "Memory index of project alpha, which this topic is about") {
-		t.Fatalf("a topic begun on a screen of the project gets its index too, as the filter of topics counts it:\n%s", p)
+	if p := e.Fake.Calls()[3].Prompt; !strings.Contains(p, "Memory index of project alpha, which this topic is about") ||
+		!strings.Contains(p, "[Plain tone](tone.md)") {
+		t.Fatalf("a topic begun on a screen of the project gets its index, as the filter of topics counts it:\n%s", p)
 	}
 	var tone struct{ Text string }
 	e.must("deck.document_get", map[string]any{"project": "alpha", "name": "memory/tone.md"}, &tone)

@@ -7,7 +7,7 @@ import (
 )
 
 // TestRealBrowserCodeProject walks the owner's way to a code project in the real browser: create a project, import
-// the code example, enable it, give it a repo folder, make a card, move it to Ready and press Run.
+// the code example, enable it, give it a repo folder, mark a task ready on its page and press Run.
 func TestRealBrowserCodeProject(t *testing.T) {
 	if os.Getenv("DECK_REAL_BROWSER") == "" {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
@@ -54,14 +54,22 @@ func TestRealBrowserCodeProject(t *testing.T) {
 	b.until("the commands of the project", `[...document.querySelectorAll('tr')].some((r) => r.innerText.includes('code.run'))`)
 	b.shot("code-settings")
 
-	b.open(e.URL + "/#/p/code/board")
-	b.until("the board", `document.querySelector('[data-lane="ready"]') && document.querySelector('[data-new-card]')`)
-	b.type_(`document.querySelector('[data-new-card]')`, "Fix the login button")
-	b.eval(`(document.querySelector('[data-new-card]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })), '')`)
-	b.until("the card in Backlog", `document.querySelector('[data-lane="backlog"] [data-card]')?.innerText.includes('Fix the login button')`)
-	b.drag(`document.querySelector('[data-lane="backlog"] [data-handle]')`, `document.querySelector('[data-lane="ready"]')`)
-	b.until("the card in Ready", `document.querySelector('[data-lane="ready"] [data-card]')`)
-	b.shot("code-board")
+	e.must("deck.records_upsert", map[string]any{"project": "code", "collection": "tasks",
+		"records": jsonl(map[string]any{"title": "Fix the login button", "status": "backlog"})}, nil)
+	b.open(e.URL + "/#/p/code/tasks")
+	b.until("the task", `[...document.querySelectorAll('tr')].some((r) => r.innerText.includes('Fix the login button'))`)
+	b.eval(`([...document.querySelectorAll('tr')].find((r) => r.innerText.includes('Fix the login button')).click(), '')`)
+	b.until("the form of the task", `document.querySelector('[data-form="deck.record_update"]')`)
+	b.pick(`[data-form="deck.record_update"] [data-field="status"]`, "ready")
+	b.eval(`(document.querySelector('[data-form="deck.record_update"] [data-submit]').click(), '')`)
+	e.waitFor("the task marked ready", func() bool {
+		var rs []recordRow
+		e.must("deck.records_list", map[string]any{"project": "code", "collection": "tasks"}, &rs)
+		return len(rs) == 1 && rs[0].Data["status"] == "ready"
+	})
+	b.open(e.URL + "/#/p/code/tasks")
+	b.until("the ready task", `[...document.querySelectorAll('tr')].some((r) => r.innerText.includes('ready'))`)
+	b.shot("code-tasks")
 	b.eval(`([...document.querySelectorAll('button')].find((x) => x.innerText.trim() === 'Run').click(), '')`)
 	e.waitFor("the run at its provider", func() bool { return len(e.Fake.Calls()) > 0 })
 	if c := e.Fake.Calls()[0]; c.Cwd != repo || !c.Repo || !strings.Contains(c.Prompt, `"do":"run"`) {

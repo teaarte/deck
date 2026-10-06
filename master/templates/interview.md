@@ -1,1 +1,0 @@
-Interview me about card #{{.Card}} ({{.Title}}) and write the spec into it.

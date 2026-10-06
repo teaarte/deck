@@ -42,7 +42,7 @@ type Scope struct {
 
 func ProjectScope(p db.Project) Scope { return Scope{Workspace: p.WorkspaceID, Project: p.ID} }
 
-// Ref locates a document; OwnerKind binds it to a record or card.
+// Ref locates a document; OwnerKind binds it to a record.
 type Ref struct {
 	Scope
 	OwnerKind string
@@ -52,28 +52,19 @@ type Ref struct {
 
 func (r Ref) Find() db.FindDocumentParams {
 	f := db.FindDocumentParams{WorkspaceID: r.Workspace, ProjectID: store.ID(r.Project), Name: r.Name}
-	switch r.OwnerKind {
-	case OwnerRecord:
+	if r.OwnerKind == OwnerRecord {
 		f.RecordID = store.ID(r.OwnerID)
-	case OwnerCard:
-		f.CardID = store.ID(r.OwnerID)
 	}
 	return f
 }
 
-// The kinds of rows that own a document of their project.
-const (
-	OwnerRecord = "record"
-	OwnerCard   = "card"
-)
+// OwnerRecord is the kind of row that owns a document of its project.
+const OwnerRecord = "record"
 
-// Owner is the kind and id of the record or card that owns a document; empty for none.
+// Owner is the kind and id of the record that owns a document; empty for none.
 func Owner(d db.Document) (string, int64) {
-	switch {
-	case d.RecordID.Valid:
+	if d.RecordID.Valid {
 		return OwnerRecord, d.RecordID.Int64
-	case d.CardID.Valid:
-		return OwnerCard, d.CardID.Int64
 	}
 	return "", 0
 }
@@ -129,7 +120,7 @@ func Save(ctx context.Context, q *db.Queries, ref Ref, kind, text, author, reaso
 	case errors.Is(err, sql.ErrNoRows):
 		f := ref.Find()
 		d, err = q.CreateDocument(ctx, db.CreateDocumentParams{WorkspaceID: f.WorkspaceID, ProjectID: f.ProjectID,
-			RecordID: f.RecordID, CardID: f.CardID, Kind: kind, Name: ref.Name})
+			RecordID: f.RecordID, Kind: kind, Name: ref.Name})
 		if err != nil {
 			return d, 0, false, err
 		}

@@ -15,8 +15,7 @@ Give your models a desk, tools, data and limits — then just watch the work get
 ---
 
 Most agent tools want you to babysit a chat. **deck** turns agents into workers: each line of your routine —
-code, mail, research, markets, video — becomes a **module** with its own board, data, commands, schedule and
-screens. Agents do the work; you review, approve and steer from one cockpit on your laptop or phone.
+code, mail, research, markets, video — becomes a **module** with its own data, commands, schedule and screens. Agents do the work; you review, approve and steer from one cockpit on your laptop or phone.
 
 It is a thin layer around smart models, not a framework that thinks for them. **The less of our own code, the
 better:** what a model can do with a script or an agent stays out of the core. As models get smarter, deck gets
@@ -30,11 +29,11 @@ more capable without a release.
 - **Modules are manifests, not code.** A JSON manifest declares collections, commands, scripts, triggers,
   screens and rights. Prompts and skills are documents the master agent can edit.
 - **A master agent you talk to.** Chat or voice: it routes tasks to the right module, builds new modules from an
-  interview, reviews failures and keeps a memory of what you told it.
+  interview, looks into failures and keeps a memory of what you told it.
 - **You stay in charge.** Every action is a registry command with a class; widening rights, external calls and
   spending wait for your yes. Everything done without you lands in a feed with an undo.
 - **Screens are data.** UI is server-driven ([A2UI](https://github.com/google/A2UI)) from a block catalog —
-  tables, boards, forms, charts, media. What the catalog lacks, a model writes as an MCP App.
+  tables, lists, forms, charts, media. What the catalog lacks, a model writes as an MCP App.
 - **Works where you are.** Installable PWA, push notifications, share-to-deck, and your own tailnet over
   HTTPS with one flag.
 

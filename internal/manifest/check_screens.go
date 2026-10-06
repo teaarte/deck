@@ -147,14 +147,6 @@ func (c *screenCheck) block(where string, b Block) {
 			c.format(fmt.Sprintf("%s field %q", where, f.Label), f.Format, f.Currency)
 			c.tone(fmt.Sprintf("%s field %q", where, f.Label), f.Tone, fields)
 		}
-	case "board":
-		switch {
-		case c.deck:
-			c.fail("%s: a board shows the board of a project", where)
-		case c.m.Board == nil || len(c.m.Board.Lanes) == 0:
-			c.fail("%s: the project has no board", where)
-		}
-		return
 	case "form":
 		c.form(where, b)
 		return

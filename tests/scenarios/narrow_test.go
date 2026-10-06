@@ -14,7 +14,7 @@ func TestListsOfRecordsAndProcessesNarrowToWhatTheCallerAsks(t *testing.T) {
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		return provider.Result{Structured: json.RawMessage(`{"big": "result"}`)}
 	})
-	p := e.createProject("web", boardWebManifest)
+	p := e.createProject("web", webNotes)
 	e.must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": jsonl(
 		map[string]any{"title": "a", "score": 3, "source": "x", "note": "long"},
 		map[string]any{"title": "b", "score": 1, "source": "x"},

@@ -6,19 +6,15 @@ export interface ChatScreen {
   record?: number;
 }
 
-// The screen the owner is on, and the card open on it, go with each message, so the master knows what "this" is.
+// The screen the owner is on goes with each message, so the master knows what "this" is.
 let current: ChatScreen = { screen: 'cockpit' };
-let card: number | undefined;
-export const setChatScreen = (s: ChatScreen) => { current = s; card = undefined; };
-export const setChatCard = (id?: number) => { card = id; };
-export const chatCard = () => card;
+export const setChatScreen = (s: ChatScreen) => { current = s; };
 
 // chatScreen is the screen of the owner as a message carries it.
 export function chatScreen(): string {
   const out: Record<string, unknown> = { screen: current.screen };
   if (current.project) out.project = current.project;
   if (current.record) out[current.screen === 'process' && !current.project ? 'process' : 'record'] = current.record;
-  if (card) out.card = card;
   return JSON.stringify(out);
 }
 

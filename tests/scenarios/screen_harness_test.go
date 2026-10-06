@@ -52,9 +52,9 @@ func (e *Env) screenRows(project int64, screen string) []screenRow {
 	return rows
 }
 
-// boardWebManifest is a project with a board, a form that can keep its result, a custom block and a record
+// webNotes is a project with a list, a form that can keep its result, a custom block and a record
 // page whose form edits the record.
-const boardWebManifest = `{"version": 9,
+const webNotes = `{"version": 9,
   "collections": [{"name": "notes", "description": "Notes", "key": "title", "display": "title", "immutable": ["source"],
     "schema": {"type": "object", "properties": {"title": {"type": "string"}, "score": {"type": "integer"}, "source": {"type": "string"},
       "note": {"type": "string"}}, "required": ["title"]}}],
@@ -79,13 +79,9 @@ const boardWebManifest = `{"version": 9,
     {"name": "mark", "title": "Mark", "description": "Marks what a custom block saw.", "class": "internal", "result": {"type": "object"},
       "input": {"type": "object", "properties": {"text": {"type": "string"}}},
       "executor": {"type": "agent", "prompt": "Mark."}}],
-  "board": {"lanes": [
-    {"name": "backlog", "title": "Backlog", "role": "inbox"},
-    {"name": "doing", "title": "Doing"},
-    {"name": "done", "title": "Done", "role": "done"}]},
   "screens": [
     {"name": "main", "title": "Web", "blocks": [
-      {"type": "board", "title": "Work"},
+      {"type": "list", "title": "Work", "source": {"collection": "notes"}, "item": {"title": "title"}},
       {"type": "form", "title": "Score a title", "command": "score", "save": "notes"},
       {"type": "custom", "title": "Chart", "document": "custom/chart.html", "source": {"collection": "notes", "sort": "title"},
         "actions": [{"label": "Mark", "command": "mark"}, {"label": "Tag a", "command": "tag", "params": {"tag": "a"}},
@@ -96,8 +92,8 @@ const boardWebManifest = `{"version": 9,
       {"type": "form", "title": "Edit", "command": "deck.record_update"}]}],
   "menu": ["main"]}`
 
-// boardWebAgent scores a title into two rows, and on tell notifies the owner with the note page and a button.
-func boardWebAgent() Script {
+// webNotesAgent scores a title into two rows, and on tell notifies the owner with the note page and a button.
+func webNotesAgent() Script {
 	return func(ctx context.Context, c *Call) provider.Result {
 		switch c.command() {
 		case "score":

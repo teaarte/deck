@@ -17,13 +17,12 @@ const (
 	CatalogID = "https://deck2.local/catalog/v1"
 )
 
-// Sources reads what a screen shows: records, the commands its blocks read, boards, commands of forms and the
+// Sources reads what a screen shows: records, the commands its blocks read, commands of forms and the
 // HTML of custom blocks; the screen itself touches no store.
 type Sources interface {
 	// Read calls a command that only reads, as the one who looks at the screen, decoded with integers as int64;
 	// the scope adds the project and the values picked in filters that the command takes.
 	Read(ctx context.Context, command string, input map[string]any, scope Scope) (any, error)
-	Board(ctx context.Context, project db.Project, m *manifest.Manifest) (any, error)
 	// Command is what a form needs of a command: name, title, project, input and result schemas.
 	Command(ctx context.Context, workspace int64, name string) (map[string]any, error)
 	Document(ctx context.Context, project db.Project, name string) (string, error)
@@ -58,8 +57,6 @@ type Request struct {
 	Changed string
 	// Filter holds the values the owner picked, by block id and field.
 	Filter map[string]map[string]string
-	// Card are the buttons of a card of a board.
-	Card []manifest.Action
 	// Params are the parameters of the screen from its address, read as param.<name> when the screen declares them.
 	Params map[string]string
 	// Words translate the texts of the screen into the owner's language.

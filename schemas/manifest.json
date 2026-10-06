@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://deck2.local/schemas/manifest.json",
   "title": "deck project manifest",
-  "description": "Structure of a deck project: data collections, commands and their executors, triggers, tools, rights, board and screens. Behaviour lives in md documents and skills; this file only wires them. The project's one-line description is the first line of its md prompt.",
+  "description": "Structure of a deck project: data collections, commands and their executors, triggers, tools, rights and screens. Behaviour lives in md documents and skills; this file only wires them. The project's one-line description is the first line of its md prompt.",
   "type": "object",
   "additionalProperties": false,
   "required": ["version"],
@@ -16,7 +16,6 @@
     "allowed_external": {"type": "array", "items": {"type": "string"}, "uniqueItems": true,
       "description": "External tools and commands that run without the owner's confirmation. Only the owner widens this list."},
     "domains": {"$ref": "#/$defs/domains"},
-    "board": {"$ref": "#/$defs/board"},
     "screens": {"type": "array", "items": {"$ref": "#/$defs/screen"}},
     "menu": {"type": "array", "items": {"$ref": "#/$defs/name"}, "uniqueItems": true, "description": "Screen names in menu order."},
     "icon": {"$ref": "#/$defs/icon", "description": "Icon of the project in the menu."},
@@ -145,13 +144,12 @@
       "properties": {
         "command": {"$ref": "#/$defs/name"},
         "cron": {"type": "string", "minLength": 1, "description": "Five-field cron in local time."},
-        "lane": {"$ref": "#/$defs/name", "description": "Runs when a card enters this board lane (by name); the command gets the card id as input field card."},
         "after": {"$ref": "#/$defs/name", "description": "Runs when this command of the project finishes with a non-null result; the command gets the finished process id as input field process."},
         "on": {"enum": ["message", "failure"], "description": "Only in the built-in project master: message runs when the owner writes in a chat topic (input field topic), failure when a process of another project fails (input field process)."},
         "params": {"type": "object", "description": "Fixed input fields for the command."},
         "skip_missed": {"type": "boolean", "default": false}
       },
-      "oneOf": [{"required": ["cron"]}, {"required": ["lane"]}, {"required": ["after"]}, {"required": ["on"]}]
+      "oneOf": [{"required": ["cron"]}, {"required": ["after"]}, {"required": ["on"]}]
     },
     "tools": {
       "type": "object",
@@ -215,24 +213,6 @@
       "properties": {
         "read": {"type": "array", "items": {"type": "string"}, "uniqueItems": true, "description": "Hosts to read; also the network allowlist of scripts."},
         "act": {"type": "array", "items": {"type": "string"}, "uniqueItems": true, "description": "Hosts where the browser may click, type and submit."}
-      }
-    },
-    "board": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["lanes"],
-      "properties": {
-        "lanes": {"type": "array", "minItems": 1, "items": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["name", "title"],
-          "properties": {
-            "name": {"$ref": "#/$defs/name", "description": "Stable lane name that cards and lane triggers refer to; renaming it removes the lane."},
-            "title": {"type": "string", "minLength": 1, "description": "Human lane name; change it freely."},
-            "role": {"enum": ["inbox", "ready", "running", "review", "done"],
-              "description": "What deck relies on: new cards land in inbox; code runs need ready, running and review together. One lane per role."}
-          }
-        }}
       }
     },
     "read": {

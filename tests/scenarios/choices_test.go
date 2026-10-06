@@ -23,7 +23,7 @@ var choicesManifest = strings.NewReplacer(
 	`{"name": "hand", "title": "Hand over", "description": "Hands a note to a project.", "class": "internal", "result": {"type": "object"},
       "input": {"type": "object", "properties": {"to": {"type": "string", "format": "project"}}}, "executor": {"type": "agent", "prompt": "Hand."}},
     {"name": "tell", "title": "Tell"`,
-).Replace(boardWebManifest)
+).Replace(webNotes)
 
 // TestFormFieldsOfferValuesFromASourceAndProjectFieldsTheProjects: a field offers the values of the source its
 // block names, a project field the projects; deck's forms pick providers and agent commands.
@@ -91,9 +91,9 @@ func TestFormFieldsOfferValuesFromASourceAndProjectFieldsTheProjects(t *testing.
 // TestFormAsksForTheInputAndShowsTheResultBySchema: a form carries the input and result schemas of its
 // command; the result can be kept as records; on a record page the form edits the record with its schema.
 func TestFormAsksForTheInputAndShowsTheResultBySchema(t *testing.T) {
-	e := newEnv(t, boardWebAgent())
+	e := newEnv(t, webNotesAgent())
 	check := newCatalogCheck(t)
-	e.createProject("web", boardWebManifest)
+	e.createProject("web", webNotes)
 	e.must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": "<p>chart</p>"}, nil)
 	check.messages(t, e.screenMessages("web", "main", nil))
 

@@ -59,13 +59,13 @@ func TestRealBrowserSettings(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(f.dir, "versionfails"), nil, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	e := newEnv(t, boardWebAgent(), func(c *app.Config) {
+	e := newEnv(t, webNotesAgent(), func(c *app.Config) {
 		c.ACPBinaries = map[string]string{"goose": filepath.Join(f.dir, "goose"), "dsh": filepath.Join(f.dir, "no-dsh")}
 		c.Sandbox = fakeDirSandbox{sandbox.New(), f.dir, nil}
 	})
 	e.App.Providers.Checks(t.Context(), time.Now())
 	e.waitHealth("agent:goose", "error")
-	e.createProject("web", boardWebManifest)
+	e.createProject("web", webNotes)
 	e.must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": themeProbe}, nil)
 
 	b := newPlaywright(t)
@@ -356,7 +356,7 @@ func TestRealBrowserJournal(t *testing.T) {
 	}
 	checkBuiltClient(t)
 	e := newEnv(t, nil)
-	e.createProject("web", boardWebManifest)
+	e.createProject("web", webNotes)
 	for _, name := range []string{"notes ü.txt", "100%.txt", `100% a;b".txt`} {
 		e.upload("web", name, "text/html", "body of "+name)
 	}
@@ -413,7 +413,7 @@ func TestRealBrowserScreenKeepsItsStateOnReturn(t *testing.T) {
 	}
 	checkBuiltClient(t)
 	e := newEnv(t, nil)
-	e.createProject("web", strings.Replace(boardWebManifest, `{"type": "form", "title": "Score a title", "command": "score", "save": "notes"},`,
+	e.createProject("web", strings.Replace(webNotes, `{"type": "form", "title": "Score a title", "command": "score", "save": "notes"},`,
 		`{"type": "tabs", "tabs": [{"title": "Board", "blocks": [{"type": "stat", "title": "Notes", "source": {"collection": "notes"}}]},
 			{"title": "Score", "blocks": [{"type": "form", "title": "Score a title", "command": "score", "save": "notes"}]}]},`, 1))
 	b := newPlaywright(t)

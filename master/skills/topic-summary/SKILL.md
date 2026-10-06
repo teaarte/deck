@@ -17,14 +17,14 @@ or only the lines that change with `old` and `new`.
 What goes in, as short lines under these headings:
 
 - **Goal** — what the owner wants from this topic, in one or two lines.
-- **Decided** — what the owner chose or said yes to, with the numbers of cards, processes, projects and
+- **Decided** — what the owner chose or said yes to, with the numbers of records, processes, projects and
   documents it touched.
 - **Done** — what was made and where it is.
 - **Open** — what waits: a question to the owner, a confirmation, a process still going, the next step.
 - **Owner's words** — exact phrases that matter later (names, limits, "never …"), quoted.
 
 Leave out greetings, your reasoning, tool output and anything a session can read again from deck (the text of
-a card, a manifest). Keep it under 60 lines; when it grows past that, merge old "Done" lines into one. Write it
+a record, a manifest). Keep it under 60 lines; when it grows past that, merge old "Done" lines into one. Write it
 in the language of the topic.
 
 Update it when deck says the topic has grown since the summary (it counts the messages for you), and when the

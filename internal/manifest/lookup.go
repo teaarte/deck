@@ -21,45 +21,6 @@ func (m *Manifest) Command(name string) *Command { return m.commands[name] }
 
 func (m *Manifest) Script(name string) *Script { return m.scripts[name] }
 
-// Lane returns a board lane by name; nil without a board or such lane.
-func (m *Manifest) Lane(name string) *Lane {
-	if m.Board == nil {
-		return nil
-	}
-	for i := range m.Board.Lanes {
-		if m.Board.Lanes[i].Name == name {
-			return &m.Board.Lanes[i]
-		}
-	}
-	return nil
-}
-
-// RoleLane returns the lane with a role; nil when no lane has it.
-func (m *Manifest) RoleLane(role string) *Lane {
-	if m.Board == nil {
-		return nil
-	}
-	for i := range m.Board.Lanes {
-		if m.Board.Lanes[i].Role == role {
-			return &m.Board.Lanes[i]
-		}
-	}
-	return nil
-}
-
-// RunRoles are the lane roles code runs need together.
-var RunRoles = []string{"ready", "running", "review"}
-
-// Runs reports whether the board has every lane role code runs need.
-func (m *Manifest) Runs() bool {
-	for _, r := range RunRoles {
-		if m.RoleLane(r) == nil {
-			return false
-		}
-	}
-	return true
-}
-
 func (m *Manifest) Screen(name string) *Screen {
 	for i := range m.Screens {
 		if m.Screens[i].Name == name {

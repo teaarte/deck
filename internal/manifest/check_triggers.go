@@ -8,12 +8,6 @@ import (
 )
 
 func (m *Manifest) checkTriggers(fail func(string, ...any)) {
-	lanes := map[string]bool{}
-	if m.Board != nil {
-		for _, l := range m.Board.Lanes {
-			lanes[l.Name] = true
-		}
-	}
 	after := map[string][]string{}
 	for i, t := range m.Triggers {
 		where := fmt.Sprintf("triggers[%d]", i)
@@ -30,7 +24,7 @@ func (m *Manifest) checkTriggers(fail func(string, ...any)) {
 				fail("%s: command %q cannot be called by triggers", where, t.Command)
 			}
 			in := TriggerInput(t, 1)
-			for _, f := range []string{"card", "process", "topic"} {
+			for _, f := range []string{"process", "topic"} {
 				if _, ok := in[f]; ok && !slices.Contains(schemaFields(c.Input), f) {
 					fail("%s: command %q must declare input field %q to be triggered this way", where, t.Command, f)
 				}
@@ -41,14 +35,14 @@ func (m *Manifest) checkTriggers(fail func(string, ...any)) {
 					fail("%s: params do not match the input of %q: %v", where, t.Command, err)
 				}
 			case len(c.Input) == 0 && len(in) > 0:
-				fail("%s: command %q takes no input; lane triggers pass card, after triggers pass process", where, t.Command)
+				fail("%s: command %q takes no input; after triggers pass process", where, t.Command)
 			}
 		}
 		for j := range i {
 			if u := m.Triggers[j]; t.On != "" && u.On == t.On {
 				fail("%s: one trigger answers %s", where, t.On)
 			}
-			if u := m.Triggers[j]; u.Command == t.Command && u.Cron == t.Cron && u.Lane == t.Lane && u.After == t.After && u.On == t.On && !reflect.DeepEqual(u, t) {
+			if u := m.Triggers[j]; u.Command == t.Command && u.Cron == t.Cron && u.After == t.After && u.On == t.On && !reflect.DeepEqual(u, t) {
 				fail("%s: %q already has a trigger on the same %s", where, t.Command, triggerSource(t))
 			}
 		}
@@ -56,10 +50,6 @@ func (m *Manifest) checkTriggers(fail func(string, ...any)) {
 		case t.Cron != "":
 			if _, err := CronParser.Parse(t.Cron); err != nil {
 				fail("%s: cron %q: %v", where, t.Cron, err)
-			}
-		case t.Lane != "":
-			if !lanes[t.Lane] {
-				fail("%s: unknown lane %q", where, t.Lane)
 			}
 		case t.After != "":
 			if m.commands[t.After] == nil {
@@ -77,23 +67,18 @@ func triggerSource(t Trigger) string {
 	switch {
 	case t.Cron != "":
 		return fmt.Sprintf("cron %q", t.Cron)
-	case t.Lane != "":
-		return fmt.Sprintf("lane %q", t.Lane)
 	default:
 		return fmt.Sprintf("finish of %q", t.After)
 	}
 }
 
-// TriggerInput is the command input a trigger passes: its params, plus the card for lane triggers and the
-// finished process for after triggers.
+// TriggerInput is the command input a trigger passes: its params, plus the finished process for after triggers.
 func TriggerInput(t Trigger, ref int64) map[string]any {
 	in := map[string]any{}
 	for k, v := range t.Params {
 		in[k] = v
 	}
 	switch {
-	case t.Lane != "":
-		in["card"] = ref
 	case t.After != "" || t.On == OnFailure:
 		in["process"] = ref
 	case t.On == OnMessage:

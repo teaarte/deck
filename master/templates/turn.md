@@ -13,5 +13,4 @@
 {{end}}{{range .Pending}}{{if .Where}}(written on {{.Where}})
 {{end}}{{.Text}}
 
-{{end}}{{with .Card}}This topic is about card {{.ID}} of project {{.Project}}, titled {{.Title}}.
 {{end}}{{if .Summarized}}The summary of this topic is document {{.Summary}} of project master.{{else}}This topic has no summary yet; deck asks for one when it grows, as document {{.Summary}} of project master.{{end}}{{if .Grown}} The topic has {{.Grown}} messages after its summary: update it by the topic-summary skill.{{end}}

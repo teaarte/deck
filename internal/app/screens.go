@@ -17,16 +17,15 @@ type shippedScreens struct {
 	I18n    map[string]map[string]string
 	Menu    []string
 	Screens []manifest.Screen
-	// Project are the screens deck adds to every project, after the project's own; Card the buttons of a card.
+	// Project are the screens deck adds to every project, after the project's own.
 	Project []manifest.Screen
-	Card    []manifest.Action
 }
 
 // shipped are the screens deck ships: the cockpit, settings, the journal and the page of a process; they are
 // checked once the commands they read are known.
 var shipped = sync.OnceValue(func() (d shippedScreens) {
 	var err error
-	if d.Menu, d.Screens, d.Project, d.Card, err = manifest.DeckScreens(deckScreensJSON); err != nil {
+	if d.Menu, d.Screens, d.Project, err = manifest.DeckScreens(deckScreensJSON); err != nil {
 		panic(err)
 	}
 	var words struct {

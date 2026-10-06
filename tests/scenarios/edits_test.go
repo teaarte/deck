@@ -11,7 +11,7 @@ import (
 // with new ones, each old part must occur once, and if_revision guards against a change made meanwhile.
 func TestPartsOfADocumentAndOfAManifestChangeWithoutSendingTheWholeText(t *testing.T) {
 	e := newEnv(t, nil)
-	e.createProject("web", boardWebManifest)
+	e.createProject("web", webNotes)
 	save := func(in map[string]any) (int, string) {
 		in["project"], in["name"], in["kind"] = "web", "notes/a.md", "doc"
 		code, body := e.call("deck.document_save", in)
@@ -62,7 +62,7 @@ func TestPartsOfADocumentAndOfAManifestChangeWithoutSendingTheWholeText(t *testi
 		"patch": `[{"op": "replace", "path": "/screens/0/blocks/3/title", "value": "All notes"}]`}, &saved)
 	var m struct{ Manifest string }
 	e.must("deck.manifest_get", map[string]any{"project": "web"}, &m)
-	if want := strings.Replace(boardWebManifest, `"title": "Notes"`, `"title": "All notes"`, 1); saved.Revision != 2 || m.Manifest != want {
+	if want := strings.Replace(webNotes, `"title": "Notes"`, `"title": "All notes"`, 1); saved.Revision != 2 || m.Manifest != want {
 		t.Fatalf("a replace changes its place and keeps the text around it as written: %d\n%s", saved.Revision, m.Manifest)
 	}
 	if code, body := e.call("deck.manifest_save", map[string]any{"project": "web",
@@ -79,7 +79,7 @@ func TestPartsOfADocumentAndOfAManifestChangeWithoutSendingTheWholeText(t *testi
 // record is named in the answer of the save, so the one who saved sees it before the owner does.
 func TestASavedManifestNamesTheBlocksThatFailOnTheRecordsThereAre(t *testing.T) {
 	e := newEnv(t, nil)
-	e.createProject("web", boardWebManifest)
+	e.createProject("web", webNotes)
 	e.must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": "<p>x</p>"}, nil)
 	e.must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes",
 		"records": jsonl(map[string]any{"title": "a", "score": 3}, map[string]any{"title": "b"})}, nil)
@@ -89,7 +89,7 @@ func TestASavedManifestNamesTheBlocksThatFailOnTheRecordsThereAre(t *testing.T) 
 			{"op": "add", "path": "/screens/0/blocks/3/columns/-", "value": map[string]any{"label": "Score", "bind": bind}},
 			{"op": "add", "path": "/screens/1/blocks/-", "value": map[string]any{"type": "card", "fields": []any{map[string]any{"label": "Score", "bind": bind}}}}})
 		e.must("deck.manifest_save", map[string]any{"project": "web", "patch": string(patch)}, &saved)
-		e.must("deck.manifest_save", map[string]any{"project": "web", "manifest": boardWebManifest}, nil)
+		e.must("deck.manifest_save", map[string]any{"project": "web", "manifest": webNotes}, nil)
 		return saved.Screens
 	}
 	got := column("score > 0 ? score : nil")
@@ -105,9 +105,9 @@ func TestASavedManifestNamesTheBlocksThatFailOnTheRecordsThereAre(t *testing.T) 
 // TestRefusalsSayWhereAndWhatToDo: a broken JSON gives its line, column and text; a button to a screen the
 // module lacks says how to open a screen of deck; overlapping old texts name each other.
 func TestRefusalsSayWhereAndWhatToDo(t *testing.T) {
-	e := newEnv(t, boardWebAgent())
-	broken := strings.Replace(boardWebManifest, `"title": "Web"`, `"title": "Web",,`, 1)
-	if broken == boardWebManifest {
+	e := newEnv(t, webNotesAgent())
+	broken := strings.Replace(webNotes, `"title": "Web"`, `"title": "Web",,`, 1)
+	if broken == webNotes {
 		t.Fatal("fixture replacement did not apply")
 	}
 	code, out := e.call("deck.project_create", map[string]any{"name": "web", "manifest": broken})
@@ -119,7 +119,7 @@ func TestRefusalsSayWhereAndWhatToDo(t *testing.T) {
 	if code != 422 || !strings.Contains(string(out), `unknown screen "process"`) || !strings.Contains(string(out), "#/deck/") {
 		t.Fatalf("a button to a screen the module lacks says how to open a screen of deck: %d %s", code, out)
 	}
-	deckCmd := strings.Replace(boardWebManifest, `{"label": "Mark", "command": "mark"}`, `{"label": "Mark", "command": "deck.model_set"}`, 1)
+	deckCmd := strings.Replace(webNotes, `{"label": "Mark", "command": "mark"}`, `{"label": "Mark", "command": "deck.model_set"}`, 1)
 	code, out = e.call("deck.project_create", map[string]any{"name": "web", "manifest": deckCmd})
 	if code != 422 || !strings.Contains(string(out), `unknown command "deck.model_set"`) || !strings.Contains(string(out), "#/deck/") {
 		t.Fatalf("a button to a command of deck says how to open a screen of deck: %d %s", code, out)
@@ -141,7 +141,7 @@ func TestRefusalsSayWhereAndWhatToDo(t *testing.T) {
 // that only tests changes nothing.
 func TestAPatchKeepsTheTypesOfItsValues(t *testing.T) {
 	e := newEnv(t, nil)
-	e.createProject("web", boardWebManifest)
+	e.createProject("web", webNotes)
 	var saved struct{ Revision int64 }
 	e.must("deck.manifest_save", map[string]any{"project": "web",
 		"patch": `[{"op": "replace", "path": "/version", "value": 9},

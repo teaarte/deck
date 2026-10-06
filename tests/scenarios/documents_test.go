@@ -28,12 +28,13 @@ type documentV struct {
 // docsManifest is the web project with a document block on its main screen and one of the record on its page,
 // a list and a card in markdown.
 var docsManifest = strings.NewReplacer(
-	`{"type": "board", "title": "Work"},`, `{"type": "board", "title": "Work"}, {"type": "document", "title": "Criteria", "document": "notes/criteria.md"},
+	`{"type": "list", "title": "Work", "source": {"collection": "notes"}, "item": {"title": "title"}},`, `{"type": "list", "title": "Work", "source": {"collection": "notes"}, "item": {"title": "title"}},
+      {"type": "document", "title": "Criteria", "document": "notes/criteria.md"},
       {"type": "list", "title": "Posts", "source": {"collection": "notes"}, "item": {"title": "title", "text": "note", "markdown": true}},`,
 	`{"type": "form", "title": "Edit", "command": "deck.record_update"}]}`, `{"type": "form", "title": "Edit", "command": "deck.record_update"},
       {"type": "card", "fields": [{"label": "Note", "bind": "note", "markdown": true}, {"label": "Title", "bind": "title"}]},
       {"type": "document", "title": "Report", "document": "report.md"}]}`,
-).Replace(boardWebManifest)
+).Replace(webNotes)
 
 // TestDocumentsOfAProjectAreListedOnItsDocumentsScreenAndEditedOnTheirPage: every project gets a documents
 // screen; a document page shows the text and revisions, and only md documents are edited on screen.
@@ -41,7 +42,7 @@ func TestDocumentsOfAProjectAreListedOnItsDocumentsScreenAndEditedOnTheirPage(t 
 	e := newEnv(t, nil)
 	check := newCatalogCheck(t)
 	e.createProject("web", docsManifest)
-	e.createProject("other", boardWebManifest)
+	e.createProject("other", webNotes)
 	save := func(name, kind, text string, extra map[string]any) (d struct{ ID int64 }) {
 		in := map[string]any{"project": "web", "name": name, "kind": kind, "text": text}
 		for k, v := range extra {

@@ -192,8 +192,8 @@ func TestPushGoesToSubscribedDevices(t *testing.T) {
 	if len(devices) != 1 || devices[0].Name != "iPhone" {
 		t.Fatalf("the device is listed: %+v", devices)
 	}
-	p := e.createProject("work", boardWork)
-	e.createProject("private", strings.Replace(boardWork, `"version": 9,`, `"version": 9, "no_network": true,`, 1))
+	p := e.createProject("work", plainManifest)
+	e.createProject("private", strings.Replace(plainManifest, `"version": 9,`, `"version": 9, "no_network": true,`, 1))
 	e.must("deck.notify", map[string]any{"project": "work", "text": "The report of the week is ready"}, nil)
 	time.Sleep(time.Second)
 	d.mu.Lock()
@@ -273,7 +273,7 @@ func TestAPushThatFailsForNowIsSentAgain(t *testing.T) {
 	}))
 	t.Cleanup(flaky.Close)
 	d.subscribe(e, flaky, "mac")
-	e.createProject("work", boardWork)
+	e.createProject("work", plainManifest)
 	topic := e.say(0, "update the list")
 	e.masterSaid(topic, 1)
 	e.App.Sweep(context.Background(), time.Now())
@@ -386,7 +386,7 @@ func TestADeviceThatFailsHoldsBackOnlyItself(t *testing.T) {
 	broken := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusServiceUnavailable) }))
 	t.Cleanup(broken.Close)
 	good.subscribe(e, broken, "mac")
-	e.createProject("work", boardWork)
+	e.createProject("work", plainManifest)
 	e.must("deck.notify", map[string]any{"project": "work", "text": "The report is ready"}, nil)
 	good.wait(e, 1)
 	for range 3 {
@@ -433,7 +433,7 @@ func TestADeviceThePushServiceRefusesIsTurnedOnAgainFromItsHealthRow(t *testing.
 	refusing := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusBadRequest) }))
 	t.Cleanup(refusing.Close)
 	dev.subscribe(e, refusing, "MacIntel")
-	e.createProject("work", boardWork)
+	e.createProject("work", plainManifest)
 	e.must("deck.notify", map[string]any{"project": "work", "text": "The report is ready"}, nil)
 	e.App.Sweep(context.Background(), time.Now())
 	h := e.waitHealth("push", "error")

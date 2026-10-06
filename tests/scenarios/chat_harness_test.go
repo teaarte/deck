@@ -6,6 +6,14 @@ import (
 	"strings"
 )
 
+// tasksManifest is a project that keeps its tasks in a collection, as the master puts them there.
+const tasksManifest = `{"version": 9,
+  "collections": [{"name": "tasks", "description": "A task of the project: what to do.", "key": "title",
+    "schema": {"type": "object", "properties": {"title": {"type": "string"}, "text": {"type": "string"}}, "required": ["title"]}}],
+  "screens": [{"name": "tasks", "title": "Tasks", "blocks": [{"type": "table", "title": "Tasks", "source": {"collection": "tasks"},
+    "columns": [{"label": "Task", "bind": "title"}]}]}],
+  "menu": ["tasks"]}`
+
 type topicReply struct {
 	Process  int64  `json:"process"`
 	State    string `json:"state"`

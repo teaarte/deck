@@ -3,7 +3,6 @@ import type { ReactComponentImplementation } from '@a2ui/react/v0_9';
 import catalogSchema from '../lib/catalogSchema';
 import { actions } from '../blocks/actions';
 import { appearance } from '../blocks/appearance';
-import { board } from '../blocks/board';
 import { card } from '../blocks/card';
 import { chart } from '../blocks/chart';
 import { chat } from '../blocks/chat';
@@ -26,7 +25,7 @@ export { UNKNOWN } from '../blocks/unknown';
 export type { Action } from '../lib/catalog.gen';
 
 const impls: ReactComponentImplementation[] = [
-  screen, columns, tabs, dialog, table, list, card, stat, chart, media, actions, log, board, form, custom, documentBlock, chat, appearance, unknown,
+  screen, columns, tabs, dialog, table, list, card, stat, chart, media, actions, log, form, custom, documentBlock, chat, appearance, unknown,
 ];
 
 export const catalog = new Catalog<ReactComponentImplementation>(CATALOG_ID, impls);

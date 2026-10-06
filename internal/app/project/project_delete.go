@@ -22,7 +22,7 @@ type projectDeleteIn struct {
 	Project string `type:"project" desc:"Project name"`
 }
 
-// projectDelete removes a project from deck after a snapshot of it: records, documents, files, triggers, cards,
+// projectDelete removes a project from deck after a snapshot of it: records, documents, files, triggers,
 // processes and their journals, asks, settings and deck's folders of it; no folder of the owner is touched.
 func (pj *Service) projectDelete(ctx context.Context, act registry.Actor, in projectDeleteIn) (any, error) {
 	p, err := access.Project(ctx, pj.St.Q, act, in.Project)
@@ -53,7 +53,7 @@ func (pj *Service) projectDelete(ctx context.Context, act registry.Actor, in pro
 		if runs, err = q.ListProjectProcessIDs(ctx, p.ID); err != nil {
 			return err
 		}
-		if err := q.ArchiveProjectTopics(ctx, db.ArchiveProjectTopicsParams{WorkspaceID: p.WorkspaceID, ProjectID: p.ID, Name: p.Name}); err != nil {
+		if err := q.ArchiveProjectTopics(ctx, db.ArchiveProjectTopicsParams{WorkspaceID: p.WorkspaceID, Name: p.Name}); err != nil {
 			return err
 		}
 		_, err = q.DeleteProject(ctx, p.ID)
@@ -158,7 +158,7 @@ func (pj *Service) deletable(ctx context.Context, q *db.Queries, act registry.Ac
 
 func (pj *Service) projectDeleteCommands() []*registry.Command {
 	del := registry.Def("project_delete", "Delete project",
-		"Deletes a project after a snapshot of deck (the master deletes only drafts): its records, documents, files, triggers, cards, processes and settings; folders on disk stay.",
+		"Deletes a project after a snapshot of deck (the master deletes only drafts): its records, documents, files, triggers, processes and settings; folders on disk stay.",
 		registry.OwnerSide, pj.projectDelete).As(registry.External)
 	del.Allowed = pj.draftOfMaster
 	return []*registry.Command{del}

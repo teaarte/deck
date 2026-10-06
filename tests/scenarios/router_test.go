@@ -8,7 +8,7 @@ import (
 )
 
 // routedManifest has a dialog with a form its address fills, and rows whose button opens it with their title.
-var routedManifest = strings.Replace(boardWebManifest, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "params": {"title": "string"}, "blocks": [
+var routedManifest = strings.Replace(webNotes, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "params": {"title": "string"}, "blocks": [
       {"type": "dialog", "name": "rescore", "title": "Score again", "icon": "refresh", "primary": true, "blocks": [
         {"type": "form", "title": "Score", "command": "score", "values": {"title": "=param.title", "n": "3"}}]},
       {"type": "actions", "title": "More", "icon": "dots", "actions": [{"label": "Tell", "command": "tell"}]},
@@ -18,7 +18,7 @@ var routedManifest = strings.Replace(boardWebManifest, `{"name": "main", "title"
 // TestScreenParamsFillFormsAndTravelWithButtons: the address of a screen carries parameters; a form takes them
 // as its values in the type of its fields, and a button to a screen takes them from its row.
 func TestScreenParamsFillFormsAndTravelWithButtons(t *testing.T) {
-	e := newEnv(t, boardWebAgent())
+	e := newEnv(t, webNotesAgent())
 	e.createProject("web", routedManifest)
 	e.must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": jsonl(map[string]any{"title": "alpha"})}, nil)
 
@@ -62,7 +62,7 @@ func TestScreenParamsFillFormsAndTravelWithButtons(t *testing.T) {
 // TestValuesIconsAndDialogNamesAreCheckedOnSave: a form fills only fields of its input, from fields the record
 // has; the icon of a line is an expression; the dialogs of a screen have their own names.
 func TestValuesIconsAndDialogNamesAreCheckedOnSave(t *testing.T) {
-	e := newEnv(t, boardWebAgent())
+	e := newEnv(t, webNotesAgent())
 	cases := []struct{ name, old, new, want string }{
 		{"values field", `"values": {"title": "=param.title", "n": "3"}`, `"values": {"titel": "=param.title"}`, `no field "titel"`},
 		{"undeclared param", `"values": {"title": "=param.title", "n": "3"}`, `"values": {"title": "=param.name"}`, `no param "name"`},
@@ -91,7 +91,7 @@ func TestValuesIconsAndDialogNamesAreCheckedOnSave(t *testing.T) {
 // TestAButtonGivesOnlyTheParamsOfItsScreen: a move to a screen gives the params that screen declares and the
 // client's tab and dialog; a typo fails the save, while a module saved with one still reads and is warned of.
 func TestAButtonGivesOnlyTheParamsOfItsScreen(t *testing.T) {
-	e := newEnv(t, boardWebAgent())
+	e := newEnv(t, webNotesAgent())
 	typo := strings.Replace(routedManifest, `"params": {"title": "=title", "dialog": "rescore"}`, `"params": {"titel": "=title", "dialog": "rescore"}`, 1)
 	if typo == routedManifest {
 		t.Fatal("fixture replacement did not apply")

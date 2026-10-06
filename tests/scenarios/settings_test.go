@@ -51,8 +51,8 @@ func TestSettingsIsInTheMenuAndItsInterfaceTabIsTheLookOfTheDevice(t *testing.T)
 		t.Fatalf("no event reads the look again: %d messages", n)
 	}
 
-	e.createProject("web", boardWebManifest)
-	bad := strings.Replace(boardWebManifest, `{"type": "board", "title": "Work"}`, `{"type": "appearance"}`, 1)
+	e.createProject("web", webNotes)
+	bad := strings.Replace(webNotes, `{"type": "form", "title": "Score a title", "command": "score", "save": "notes"}`, `{"type": "appearance"}`, 1)
 	code, out := e.call("deck.manifest_save", map[string]any{"project": "web", "manifest": bad})
 	if code != 422 || !strings.Contains(string(out), "only on deck's own screens") {
 		t.Fatalf("a project screen holds no appearance block: %d %s", code, out)
@@ -313,7 +313,7 @@ func TestSettingsModelsAddAndRemoveOnTheScreen(t *testing.T) {
 // the worst first, narrowed by state.
 func TestSettingsHealthShowsWhatIsRedFirstWithWhy(t *testing.T) {
 	e := newEnv(t, nil)
-	e.createProject("web", boardWebManifest)
+	e.createProject("web", webNotes)
 	ctx := t.Context()
 	for _, h := range []db.SetHealthParams{{Subject: "mcp:web.search", Status: "ok"}, {Subject: "tool:web.fetch", Status: "error", Error: "the server exited: 1"},
 		{Subject: "provider:elsewhere", Status: "error", Error: "a provider of another workspace"}} {

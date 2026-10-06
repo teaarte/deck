@@ -41,8 +41,6 @@ func readsProject(b manifest.Block, deck bool, own, project string) bool {
 // topicsOf are the event topics after which the block is read again.
 func topicsOf(b manifest.Block, deck bool) []string {
 	switch {
-	case b.Type == "board":
-		return []string{"board"}
 	case b.Type == "appearance", b.Type == "actions" && deck:
 		return nil
 	case b.Type == "document":

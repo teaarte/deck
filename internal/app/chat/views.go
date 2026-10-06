@@ -30,7 +30,6 @@ func openProcess(id int64) action {
 type topicView struct {
 	ID        int64      `json:"id"`
 	Title     string     `json:"title"`
-	Card      int64      `json:"card,omitempty"`
 	Project   string     `json:"project,omitempty"`
 	Archived  bool       `json:"archived"`
 	UpdatedAt string     `json:"updated_at"`
@@ -107,7 +106,7 @@ func viewMessage(m db.ChatMessage) messageView {
 }
 
 func viewTopic(t db.ListTopicSummariesRow) topicView {
-	v := topicView{ID: t.ID, Title: t.Title, Card: t.CardID.Int64, Project: t.Project, Archived: t.Archived == 1,
+	v := topicView{ID: t.ID, Title: t.Title, Project: t.Project, Archived: t.Archived == 1,
 		UpdatedAt: t.UpdatedAt, Last: untrusted.Cut(t.LastText, 200)}
 	if t.OpenID != 0 {
 		v.Reply = viewReply(db.Process{ID: t.OpenID, State: t.OpenState, Provider: t.OpenProvider, Error: t.OpenError})

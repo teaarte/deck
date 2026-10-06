@@ -134,24 +134,6 @@ func TestScheduledRunDoesNotOverlapItsPrevious(t *testing.T) {
 	e.waitFor("the next run once the previous finished", func() bool { return e.countOf("job") == 2 })
 }
 
-func TestLaneTriggerDoesNotStartTwiceForTheSameCard(t *testing.T) {
-	release := make(chan struct{})
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
-		<-release
-		return provider.Result{Text: "ok"}
-	})
-	e.createProject("work", boardManifest)
-	a := e.card(map[string]any{"project": "work", "title": "A", "lane": "doing"})
-	e.must("deck.card_move", map[string]any{"card": a.ID, "lane": "ready"}, nil)
-	e.must("deck.card_move", map[string]any{"card": a.ID, "lane": "doing"}, nil)
-	e.card(map[string]any{"project": "work", "title": "B", "lane": "doing"})
-	if n := e.countOf("pack"); n != 2 {
-		t.Fatalf("each card gets one run while it goes on, got %d", n)
-	}
-	close(release)
-	e.settle()
-}
-
 func TestEmptyResultStartsNothingAndIsPurgedAfterADay(t *testing.T) {
 	e := newClockEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		return provider.Result{Structured: json.RawMessage(`null`)}
@@ -269,11 +251,8 @@ func TestPausedTriggersAndProjectsDoNotRun(t *testing.T) {
 	e.waitFor("both triggers after the project goes on", func() bool { return len(e.processes()) == 2 })
 }
 
-func TestPausedProjectStartsNoLaneOrAfterTriggers(t *testing.T) {
+func TestPausedTriggersStartNoAfterTriggers(t *testing.T) {
 	e := newEnv(t, ok)
-	e.createProject("work", boardManifest)
-	e.must("deck.project_pause", map[string]any{"project": "work", "paused": true}, nil)
-	e.card(map[string]any{"project": "work", "title": "A", "lane": "doing"})
 	p := e.createProject("chain", testManifest([]string{agentCommand("a", ""), agentCommand("b", processField)}, []string{`{"command": "b", "after": "a"}`}))
 	for _, tr := range e.triggers() {
 		if tr.Command == "b" {
@@ -282,18 +261,18 @@ func TestPausedProjectStartsNoLaneOrAfterTriggers(t *testing.T) {
 	}
 	e.waitState(e.run(p, "a"), "done")
 	e.settle()
-	if e.countOf("pack") != 0 || e.countOf("b") != 0 {
-		t.Fatal("paused lane and after triggers start nothing")
+	if e.countOf("b") != 0 {
+		t.Fatal("a paused after trigger starts nothing")
 	}
 }
 
 func TestTriggerIdentityAndReservedRetryKey(t *testing.T) {
 	e := newEnv(t, nil)
-	code, out := e.call("deck.project_create", map[string]any{"name": "twice", "manifest": strings.Replace(boardManifest,
-		`"triggers": [{"command": "pack", "lane": "doing", "params": {"tone": "short"}}]`,
-		`"triggers": [{"command": "pack", "lane": "doing", "params": {"tone": "short"}}, {"command": "pack", "lane": "doing", "params": {"tone": "long"}}]`, 1)})
-	if code != 422 || !strings.Contains(string(out), `same lane "doing"`) {
-		t.Fatalf("one command has one trigger per lane: %d %s", code, out)
+	code, out := e.call("deck.project_create", map[string]any{"name": "twice", "manifest": testManifest(
+		[]string{agentCommand("pack", `{"type": "object", "properties": {"tone": {"type": "string"}}}`)},
+		[]string{`{"command": "pack", "cron": "0 9 * * *", "params": {"tone": "short"}}`, `{"command": "pack", "cron": "0 9 * * *", "params": {"tone": "long"}}`})})
+	if code != 422 || !strings.Contains(string(out), `same cron "0 9 * * *"`) {
+		t.Fatalf("one command has one trigger per schedule: %d %s", code, out)
 	}
 	code, out = e.call("deck.project_create", map[string]any{"name": "keyed", "manifest": testManifest([]string{
 		agentCommand("job", `{"type": "object", "properties": {"retry_key": {"type": "string"}}}`)}, nil)})
@@ -306,28 +285,6 @@ func TestTriggerIdentityAndReservedRetryKey(t *testing.T) {
 	if !strings.Contains(string(job.Input), `"retry_key"`) {
 		t.Fatalf("every project command takes a retry key: %s", job.Input)
 	}
-}
-
-func TestCardMovedByAnAgentContinuesItsChain(t *testing.T) {
-	var card int64
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
-		if c.command() == "mover" {
-			c.Tool(ctx, "card_move", map[string]any{"card": card, "lane": "doing"})
-		}
-		return provider.Result{Text: "ok"}
-	})
-	e.createProject("work", strings.Replace(boardManifest, `"commands": [`, `"commands": [{"name": "mover", "title": "Mover",
-    "description": "Moves a card.", "class": "internal", "executor": {"type": "agent", "prompt": "Move it."}}, `, 1))
-	card = e.card(map[string]any{"project": "work", "title": "A"}).ID
-	var mover struct{ Process int64 }
-	e.must("work.mover", map[string]any{}, &mover)
-	e.waitFor("the lane command", func() bool { return e.countOf("pack") == 1 })
-	for _, pr := range e.processes() {
-		if pr.Command == "pack" && (pr.Parent != mover.Process || pr.Depth != 2) {
-			t.Fatalf("a lane command started by an agent's move continues that agent's chain: %+v", pr)
-		}
-	}
-	e.settle()
 }
 
 func TestPauseBetweenReadingAndFiringATriggerHolds(t *testing.T) {

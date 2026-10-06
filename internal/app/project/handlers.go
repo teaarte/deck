@@ -77,23 +77,18 @@ func (pj *Service) viewProject(ctx context.Context, p db.Project, m *manifest.Ma
 	return v
 }
 
-// baseManifest is a project with only the base board and its screen.
-const baseManifest = `{"version": %d,
-  "board": {"lanes": [{"name": "backlog", "title": "Backlog", "role": "inbox"}, {"name": "ready", "title": "Ready", "role": "ready"},
-    {"name": "running", "title": "Running", "role": "running"}, {"name": "review", "title": "Review", "role": "review"},
-    {"name": "done", "title": "Done", "role": "done"}]},
-  "screens": [{"name": "board", "title": "Board", "blocks": [{"type": "board", "title": "Board"}]}],
-  "menu": ["board"]}`
+// emptyManifest is a project with nothing in it yet.
+const emptyManifest = `{"version": %d}`
 
 type projectCreateIn struct {
 	Name     string `desc:"Project name: lowercase letters, digits and '-'"`
-	Manifest string `type:"json" opt:"" desc:"Manifest JSON; a project with only the base board when omitted"`
+	Manifest string `type:"json" opt:"" desc:"Manifest JSON; an empty project when omitted"`
 	Prompt   string `type:"text" opt:"" desc:"Project md prompt"`
 }
 
 func (pj *Service) projectCreate(ctx context.Context, act registry.Actor, in projectCreateIn) (any, error) {
 	if strings.TrimSpace(in.Manifest) == "" {
-		in.Manifest = fmt.Sprintf(baseManifest, manifest.FormatVersion)
+		in.Manifest = fmt.Sprintf(emptyManifest, manifest.FormatVersion)
 	}
 	p, err := pj.Save.CreateProject(ctx, act, in.Name, []byte(in.Manifest), in.Prompt)
 	if err != nil {
@@ -108,7 +103,7 @@ func (pj *Service) projectsCommands() []*registry.Command {
 			"Lists projects with their description (the first line of the md prompt), screens, folders and what enabling a draft grants.",
 			registry.OwnerSide, pj.projectsList).On("projects"),
 		registry.Def("project_create", "Create project",
-			"Creates a project from its name, an md prompt and a manifest; without a manifest it has only the base board.",
+			"Creates a project from its name, an md prompt and a manifest; without a manifest it is empty.",
 			registry.OwnerSide, pj.projectCreate),
 	}
 }

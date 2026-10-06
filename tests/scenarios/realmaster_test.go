@@ -2,6 +2,7 @@ package scenarios
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -69,19 +70,15 @@ func TestRealMasterTopicOnClaudeCode(t *testing.T) {
 	realCLI(t)
 	home := t.TempDir()
 	e := newEnvWith(t, home, claudecode.New(home), realWaits)
-	e.must("deck.project_create", map[string]any{"name": "groceries", "prompt": "# Groceries: the shopping list of the household.\n"}, nil)
+	e.must("deck.project_create", map[string]any{"name": "groceries", "prompt": "# Groceries: the shopping list of the household.\n", "manifest": tasksManifest}, nil)
 	e.must("deck.project_create", map[string]any{"name": "garden", "prompt": "# Garden: work in the garden and its tools.\n"}, nil)
 	topic := e.say(0, "We are out of oat milk, put it on the list.")
 	first := e.masterReplies(topic, 1)
 	t.Logf("master: %s", first[0].Text)
-	var board struct {
-		Lanes []struct {
-			Cards []struct{ Title string } `json:"cards"`
-		} `json:"lanes"`
-	}
-	e.must("deck.cards_list", map[string]any{"project": "groceries"}, &board)
-	if len(board.Lanes) == 0 || len(board.Lanes[0].Cards) != 1 || !strings.Contains(strings.ToLower(board.Lanes[0].Cards[0].Title), "milk") {
-		t.Fatalf("the master puts the task into groceries as a card in the inbox lane: %+v", board)
+	var tasks []recordRow
+	e.must("deck.records_list", map[string]any{"project": "groceries", "collection": "tasks"}, &tasks)
+	if len(tasks) != 1 || !strings.Contains(strings.ToLower(fmt.Sprint(tasks[0].Data["title"])), "milk") {
+		t.Fatalf("the master puts the task into the tasks of groceries: %+v", tasks)
 	}
 	e.say(topic, "Which project did you put it into? Answer with the project name only.")
 	second := e.masterReplies(topic, 2)

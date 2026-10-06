@@ -1,5 +1,5 @@
 -- name: CreateTopic :one
-INSERT INTO chat_topic (workspace_id, title, card_id) VALUES (?, ?, ?) RETURNING *;
+INSERT INTO chat_topic (workspace_id, title) VALUES (?, ?) RETURNING *;
 
 
 -- name: GetTopic :one
@@ -92,20 +92,18 @@ SELECT * FROM chat_message WHERE id = ?;
 
 -- name: ArchiveProjectTopics :exec
 UPDATE chat_topic SET archived = 1
-WHERE workspace_id = sqlc.arg(workspace_id) AND deleted_at IS NULL AND archived = 0 AND (
-    card_id IN (SELECT id FROM card WHERE project_id = sqlc.arg(project_id))
-    OR card_id IS NULL AND (SELECT json_extract(m.context, '$.project') FROM chat_message m
+WHERE workspace_id = sqlc.arg(workspace_id) AND deleted_at IS NULL AND archived = 0
+  AND (SELECT json_extract(m.context, '$.project') FROM chat_message m
         WHERE m.topic_id = chat_topic.id AND json_valid(m.context) AND COALESCE(json_extract(m.context, '$.project'), '') != ''
-        ORDER BY m.id LIMIT 1) = sqlc.arg(name));
+        ORDER BY m.id LIMIT 1) = sqlc.arg(name);
 
 
 -- name: ListTopicSummaries :many
-SELECT t.id, t.title, t.card_id, t.archived, t.updated_at,
+SELECT t.id, t.title, t.archived, t.updated_at,
     CAST(COALESCE((SELECT m.text FROM chat_message m WHERE m.topic_id = t.id ORDER BY m.id DESC LIMIT 1), '') AS TEXT) AS last_text,
     CAST(COALESCE(op.id, 0) AS INTEGER) AS open_id, CAST(COALESCE(op.state, '') AS TEXT) AS open_state,
     CAST(COALESCE(op.provider, '') AS TEXT) AS open_provider, CAST(COALESCE(op.error, '') AS TEXT) AS open_error,
     CAST(COALESCE(
-        (SELECT pr.name FROM card c JOIN project pr ON pr.id = c.project_id WHERE c.id = t.card_id),
         (SELECT pr.name FROM project pr WHERE pr.workspace_id = t.workspace_id AND pr.name =
             (SELECT json_extract(m.context, '$.project') FROM chat_message m
                 WHERE m.topic_id = t.id AND json_valid(m.context) AND COALESCE(json_extract(m.context, '$.project'), '') != ''

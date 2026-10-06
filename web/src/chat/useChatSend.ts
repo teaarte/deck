@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { call } from '../lib/api';
 import { notifyError } from '../lib/notify';
 import type { ChatValue } from '../lib/catalog.gen';
-import { chatCard, chatScreen } from './chatStore';
+import { chatScreen } from './chatStore';
 
 // newKey is a retry key of a draft; it works on plain http, where randomUUID does not.
 function newKey(): string {
@@ -24,10 +24,8 @@ export function useChatSend(value: ChatValue, { before, files, sent }: { before:
     key.current ||= newKey();
     try {
       const ids = await files();
-      const card = chatCard();
       const out = await call<{ topic: number }>(value.send.command!, {
-        ...value.send.params, ...(!(value.send.params as { topic?: number } | undefined)?.topic && card ? { card } : {}),
-        text: message, ...(detached ? {} : { screen: chatScreen() }), retry_key: key.current, ...(ids ? { files: ids } : {}),
+        ...value.send.params, text: message, ...(detached ? {} : { screen: chatScreen() }), retry_key: key.current, ...(ids ? { files: ids } : {}),
       });
       key.current = '';
       sent(out.topic);

@@ -148,21 +148,6 @@ func (r *renderer) setTone(props map[string]any, expr string, env map[string]any
 
 func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) {
 	switch b.Type {
-	case "board":
-		v, err := r.src.Board(r.ctx, r.req.Project, r.req.Manifest)
-		if err != nil {
-			return nil, err
-		}
-		r.cardActions(v)
-		if b, ok := v.(map[string]any); ok {
-			lanes, _ := b["lanes"].([]map[string]any)
-			for _, l := range lanes {
-				if t, ok := l["title"].(string); ok {
-					l["title"] = r.tr(t)
-				}
-			}
-		}
-		return map[string]any{"state": "ready", "value": v}, nil
 	case "form":
 		return r.form(b)
 	case "custom":

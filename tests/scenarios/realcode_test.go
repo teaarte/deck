@@ -2,6 +2,7 @@ package scenarios
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -15,7 +16,7 @@ import (
 )
 
 // TestRealCodeModule rehearses the code module on the installed CLIs in a fresh repo with uncommitted work of
-// the owner: a run of two cards, a merge asked for by a remark, then a revert by the button's command.
+// the owner: a run of two tasks, a merge asked for by a remark, then a revert by the button's command.
 func TestRealCodeModule(t *testing.T) {
 	for _, c := range []struct {
 		name, env, bin string
@@ -85,7 +86,8 @@ func rehearseCodeModule(t *testing.T, newProvider func(home string) provider.Pro
 		{"Add subtract", "Add a function subtract(a, b) to calc.py that returns a - b, with a test in test_calc.py."},
 		{"Add multiply", "Add a function multiply(a, b) to calc.py that returns a * b, with a test in test_calc.py."},
 	} {
-		e.must("deck.card_create", map[string]any{"project": "code", "title": c.title, "text": c.text, "lane": "ready"}, nil)
+		e.must("deck.records_upsert", map[string]any{"project": "code", "collection": "tasks",
+			"records": jsonl(map[string]any{"title": c.title, "text": c.text, "status": "ready"})}, nil)
 	}
 	owner := func(what string) {
 		t.Helper()
@@ -113,18 +115,12 @@ func rehearseCodeModule(t *testing.T, newProvider func(home string) provider.Pro
 	}
 	lanes := func() map[string][]string {
 		t.Helper()
-		var b struct {
-			Lanes []struct {
-				Name  string
-				Cards []struct{ Title, Text string }
-			}
-		}
-		e.must("deck.cards_list", map[string]any{"project": "code"}, &b)
+		var rs []recordRow
+		e.must("deck.records_list", map[string]any{"project": "code", "collection": "tasks"}, &rs)
 		out := map[string][]string{}
-		for _, l := range b.Lanes {
-			for _, c := range l.Cards {
-				out[l.Name] = append(out[l.Name], c.Title+"\n"+c.Text)
-			}
+		for _, r := range rs {
+			status := fmt.Sprint(r.Data["status"])
+			out[status] = append(out[status], fmt.Sprint(r.Data["title"])+"\n"+fmt.Sprint(r.Data["text"]))
 		}
 		return out
 	}
@@ -138,11 +134,11 @@ func rehearseCodeModule(t *testing.T, newProvider func(home string) provider.Pro
 	calc := git("show", branch+":calc.py")
 	t.Logf("%s:\n%s", branch, commits)
 	if commits == "" || !strings.Contains(calc, "def subtract") || !strings.Contains(calc, "def multiply") || git("rev-parse", "main") != start {
-		t.Fatalf("the run commits both cards on its branch and leaves main: %s\n%s", commits, calc)
+		t.Fatalf("the run commits both tasks on its branch and leaves main: %s\n%s", commits, calc)
 	}
 	review := lanes()["review"]
 	if len(review) != 2 || !strings.Contains(review[0], "**Run "+itoa(run.Process)+"**") || !strings.Contains(review[1], "**Run "+itoa(run.Process)+"**") {
-		t.Fatalf("both cards are in Review with a report: %v", lanes())
+		t.Fatalf("both tasks are in review with a report: %v", lanes())
 	}
 	t.Logf("report: %s", review[0])
 
@@ -159,7 +155,7 @@ func rehearseCodeModule(t *testing.T, newProvider func(home string) provider.Pro
 		t.Fatalf("the merged branch is deleted: %s", got)
 	}
 	if done := lanes()["done"]; len(done) != 2 {
-		t.Fatalf("merged cards are done: %v", lanes())
+		t.Fatalf("merged tasks are done: %v", lanes())
 	}
 
 	var revert struct{ Process int64 }
@@ -175,8 +171,11 @@ func rehearseCodeModule(t *testing.T, newProvider func(home string) provider.Pro
 		t.Fatalf("the revert says what it did: %s", got.Result)
 	}
 
-	e.must("deck.card_create", map[string]any{"project": "code", "title": "Add divide", "lane": "ready",
-		"text": "Add a function divide(a, b) to calc.py that returns a / b, with a test in test_calc.py."}, nil)
+	var prompt struct{ Text string }
+	e.must("deck.document_get", map[string]any{"project": "code", "name": "prompt.md"}, &prompt)
+	e.must("deck.document_save", map[string]any{"project": "code", "name": "prompt.md", "kind": "prompt", "text": prompt.Text + "\nMerge: yourself.\n"}, nil)
+	e.must("deck.records_upsert", map[string]any{"project": "code", "collection": "tasks", "records": jsonl(map[string]any{"title": "Add divide",
+		"status": "ready", "text": "Add a function divide(a, b) to calc.py that returns a / b, with a test in test_calc.py."})}, nil)
 	before := git("rev-parse", "main")
 	var auto struct{ Process int64 }
 	e.must("code.run", map[string]any{"do": "run"}, &auto)

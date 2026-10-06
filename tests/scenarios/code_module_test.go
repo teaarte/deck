@@ -58,9 +58,10 @@ func addTracker(t *testing.T, dir, url string) {
 			t.Fatal(err)
 		}
 	}
-	for _, k := range []string{"collections", "scripts", "triggers"} {
+	for _, k := range []string{"scripts", "triggers"} {
 		m[k] = in[k]
 	}
+	m["collections"] = append(m["collections"].([]any), in["collections"].([]any)...)
 	m["tools"] = in["tools"]
 	m["commands"] = append(m["commands"].([]any), in["commands"].([]any)...)
 	m["screens"] = append(m["screens"].([]any), in["screen"])
@@ -102,8 +103,8 @@ type gitlabIssue struct {
 }
 
 // TestGitLabIssuesBecomeCardsOnce: a tracker intake by the code-project skill follows GitLab through an HTTP tool with
-// the token as a deck secret; each open issue becomes one card in Backlog, and polls again take only new ones.
-func TestGitLabIssuesBecomeCardsOnce(t *testing.T) {
+// the token as a deck secret; each open issue becomes one task in backlog, and polls again take only new ones.
+func TestGitLabIssuesBecomeTasksOnce(t *testing.T) {
 	var mu sync.Mutex
 	issues := []gitlabIssue{
 		{IID: 1, Title: "Login button is off", Description: "It sits too low.", CreatedAt: "2026-09-28T10:00:00.000Z", Labels: []string{"ui"}},
@@ -156,18 +157,12 @@ func TestGitLabIssuesBecomeCardsOnce(t *testing.T) {
 	}
 	board := func() []string {
 		t.Helper()
-		var b struct {
-			Lanes []struct {
-				Name  string
-				Cards []struct{ Title, Text string }
-			}
-		}
-		e.must("deck.cards_list", map[string]any{"project": "code"}, &b)
+		var rs []recordRow
+		e.must("deck.records_list", map[string]any{"project": "code", "collection": "tasks"}, &rs)
+		slices.SortFunc(rs, func(a, b recordRow) int { return int(a.ID - b.ID) })
 		var out []string
-		for _, l := range b.Lanes {
-			for _, c := range l.Cards {
-				out = append(out, l.Name+": "+c.Title+" | "+c.Text)
-			}
+		for _, r := range rs {
+			out = append(out, fmt.Sprint(r.Data["status"])+": "+fmt.Sprint(r.Data["title"])+" | "+fmt.Sprint(r.Data["text"]))
 		}
 		return out
 	}
@@ -187,7 +182,7 @@ func TestGitLabIssuesBecomeCardsOnce(t *testing.T) {
 	if len(cards) != 2 || !strings.HasPrefix(cards[0], "backlog: #1 Login button is off | It sits too low.") ||
 		!strings.Contains(cards[0], "GitLab: https://gitlab.example/team/app/-/issues/1") || !strings.Contains(cards[0], "Labels: ui") ||
 		!strings.HasPrefix(cards[1], "backlog: #2 Crash on save") {
-		t.Fatalf("each open issue becomes a card in Backlog: %v (%s)", cards, first.Result)
+		t.Fatalf("each open issue becomes a task in backlog: %v (%s)", cards, first.Result)
 	}
 	if got := poll(); string(got.Result) != "null" || len(board()) != 2 {
 		t.Fatalf("a second poll takes nothing again: %s %v", got.Result, board())
@@ -211,7 +206,7 @@ func TestGitLabIssuesBecomeCardsOnce(t *testing.T) {
 	mu.Unlock()
 	poll()
 	if n := len(board()); n != 4+65 {
-		t.Fatalf("an issue closed between pages shifts none past the poll: %d cards", n)
+		t.Fatalf("an issue closed between pages shifts none past the poll: %d tasks", n)
 	}
 	for _, r := range svc.requests() {
 		if !strings.Contains(r.Path, "labels=&") || !strings.Contains(r.Path, "per_page=50") {
@@ -230,18 +225,18 @@ func TestGitLabIssuesBecomeCardsOnce(t *testing.T) {
 	}
 }
 
-// TestTheCodeExampleImportsWithItsBoardAndRunButton: the example imports as it is, its board screen has the Run
-// button and the board, and its run command waits for the owner's folder.
-func TestTheCodeExampleImportsWithItsBoardAndRunButton(t *testing.T) {
+// TestTheCodeExampleImportsWithItsTasksAndRunButton: the example imports as it is, its Tasks screen has the Run
+// button and the table of tasks, and its run command waits for the owner's folder.
+func TestTheCodeExampleImportsWithItsTasksAndRunButton(t *testing.T) {
 	e := newEnv(t, ok)
 	check := newCatalogCheck(t)
 	p := e.importEnabled(codeModule(t, ""), "code")
-	msgs := e.screenMessages("code", "board", nil)
+	msgs := e.screenMessages("code", "tasks", nil)
 	check.messages(t, msgs)
 	raw, _ := json.Marshal(msgs)
-	for _, want := range []string{`"Run"`, `"Merge"`, `"Revert the merge"`, `"Show the diff"`, `"Push"`, `"component":"board"`} {
+	for _, want := range []string{`"Run"`, `"Merge"`, `"Revert the merge"`, `"Show the diff"`, `"Push"`, `"component":"table"`} {
 		if !strings.Contains(string(raw), want) {
-			t.Fatalf("the board screen has %s", want)
+			t.Fatalf("the tasks screen has %s", want)
 		}
 	}
 	e.refused("code.run", map[string]any{"do": "run"}, 422, "has no folder yet")

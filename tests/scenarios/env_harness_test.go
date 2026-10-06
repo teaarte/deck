@@ -250,6 +250,16 @@ func (e *Env) olderBase(version int) {
 		   gen_ai_usage_input_tokens, gen_ai_usage_output_tokens, gen_ai_usage_cache_read_input_tokens,
 		   gen_ai_usage_cache_creation_input_tokens, duration_ms, cost_usd, created_at FROM llm_call`,
 			`DROP TABLE llm_call`, `ALTER TABLE llm_old RENAME TO llm_call`},
+		19: {`CREATE TABLE card (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER NOT NULL REFERENCES project(id) ON DELETE CASCADE,
+		   title TEXT NOT NULL, text TEXT NOT NULL DEFAULT '', lane TEXT NOT NULL, rank INTEGER NOT NULL,
+		   record_id INTEGER REFERENCES record(id) ON DELETE SET NULL, process_id INTEGER REFERENCES process(id) ON DELETE SET NULL,
+		   deleted_at TEXT, created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+		   updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')))`,
+			`CREATE TABLE card_edge (card_id INTEGER NOT NULL REFERENCES card(id) ON DELETE CASCADE,
+		   waits_for INTEGER NOT NULL REFERENCES card(id) ON DELETE CASCADE, PRIMARY KEY (card_id, waits_for))`,
+			`ALTER TABLE document ADD COLUMN card_id INTEGER REFERENCES card(id) ON DELETE CASCADE`, `DROP INDEX document_name`,
+			`CREATE UNIQUE INDEX document_name ON document (workspace_id, coalesce(project_id, 0), coalesce(record_id, 0), coalesce(card_id, 0), name)`,
+			`ALTER TABLE chat_topic ADD COLUMN card_id INTEGER REFERENCES card(id) ON DELETE SET NULL`},
 		18: {},
 		17: {`DROP INDEX trigger_identity`, `CREATE UNIQUE INDEX trigger_identity ON "trigger" (project_id, command, kind, spec) WHERE kind != 'once'`},
 		16: {},
@@ -291,4 +301,25 @@ func (e *Env) olderBase(version int) {
 			}
 		}
 	}
+}
+
+func (e *Env) refused(name string, input any, status int, want string) {
+	e.T.Helper()
+	code, out := e.call(name, input)
+	if code != status || !strings.Contains(string(out), want) {
+		e.T.Fatalf("%s: want %d containing %q, got %d %s", name, status, want, code, out)
+	}
+}
+
+func idle(context.Context, *Call) provider.Result { return provider.Result{Text: "ok"} }
+
+func processInput(t *testing.T, e *Env, id int64) map[string]any {
+	t.Helper()
+	p, err := e.App.Store.Q.GetProcess(context.Background(), id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	in := map[string]any{}
+	_ = json.Unmarshal([]byte(p.Input), &in)
+	return in
 }

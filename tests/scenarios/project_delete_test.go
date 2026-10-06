@@ -30,12 +30,11 @@ func TestProjectDeleteTakesASnapshotAndLeavesNothingOfTheProject(t *testing.T) {
 			case <-ctx.Done():
 			}
 		}
-		return boardWebAgent()(ctx, c)
+		return webNotesAgent()(ctx, c)
 	})
-	withTrigger := strings.Replace(boardWebManifest, `"board": {`, `"triggers": [{"command": "tell", "cron": "0 9 * * *"}], "board": {`, 1)
+	withTrigger := strings.Replace(webNotes, `"screens": [`, `"triggers": [{"command": "tell", "cron": "0 9 * * *"}], "screens": [`, 1)
 	id := e.createProject("gone", withTrigger)
 	e.must("deck.records_upsert", map[string]any{"project": "gone", "collection": "notes", "records": jsonl(map[string]any{"title": "alpha"})}, nil)
-	e.card(map[string]any{"project": "gone", "title": "A card"})
 	e.must("deck.document_save", map[string]any{"project": "gone", "name": "custom/chart.html", "kind": "custom", "text": "<p>x</p>"}, nil)
 	scan := e.upload("gone", "scan.txt", "text/plain", "a page")
 	e.waitState(e.start("gone", "score", map[string]any{"title": "x", "scan": fmt.Sprint(scan)}), "done")
@@ -78,7 +77,7 @@ func TestProjectDeleteTakesASnapshotAndLeavesNothingOfTheProject(t *testing.T) {
 	e.waitState(tell, "done")
 
 	tables := map[string]string{
-		"record": "project_id = ?1", "card": "project_id = ?1", "document": "project_id = ?1", "file": "project_id = ?1",
+		"record": "project_id = ?1", "document": "project_id = ?1", "file": "project_id = ?1",
 		`"trigger"`: "project_id = ?1", "process": "project_id = ?1", "ask": "project_id = ?1", "feed": "project_id = ?1",
 		"assignment": "project_id = ?1", "health": "project_id = ?1", "tool_call": "project_id = ?1",
 	}
@@ -124,9 +123,11 @@ func TestProjectDeleteTakesASnapshotAndLeavesNothingOfTheProject(t *testing.T) {
 	if len(ps) != 0 {
 		t.Fatalf("the project is gone from the list: %+v", ps)
 	}
-	e.createProject("gone", boardWebManifest)
-	if n := len(e.board("gone", false).Lanes[0].Cards); n != 0 {
-		t.Fatalf("a new project of the same name starts empty: %d cards", n)
+	e.createProject("gone", webNotes)
+	var left []recordRow
+	e.must("deck.records_list", map[string]any{"project": "gone", "collection": "notes"}, &left)
+	if len(left) != 0 {
+		t.Fatalf("a new project of the same name starts empty: %+v", left)
 	}
 	e.refused("deck.project_delete", map[string]any{"project": "nowhere"}, 404, "nowhere")
 }
@@ -134,7 +135,7 @@ func TestProjectDeleteTakesASnapshotAndLeavesNothingOfTheProject(t *testing.T) {
 // TestProjectsTabDeletesAfterAYes: the delete button of a project asks the owner first.
 func TestProjectsTabDeletesAfterAYes(t *testing.T) {
 	e := newEnv(t, nil)
-	e.createProject("web", boardWebManifest)
+	e.createProject("web", webNotes)
 	del := verb(t, findItem(t, blockData[[]listItem](t, e.settingsBlock("Projects", nil)["items"]), "web").Actions, "delete")
 	if del["confirm"] != true || del["command"] != "deck.project_delete" {
 		t.Fatalf("delete asks the owner first: %+v", del)
@@ -177,12 +178,12 @@ func TestTheMasterDeletesOnlyDrafts(t *testing.T) {
 		return provider.Result{Text: "Tried."}
 	})
 	if _, err := e.App.Registry.Invoke(context.Background(), registry.Actor{Kind: registry.Master, Workspace: 1}, "deck.project_create",
-		[]byte(fmt.Sprintf(`{"name": "sketch", "manifest": %q}`, boardWebManifest))); err != nil {
+		[]byte(fmt.Sprintf(`{"name": "sketch", "manifest": %q}`, webNotes))); err != nil {
 		t.Fatal(err)
 	}
-	e.createProject("live", boardWebManifest)
+	e.createProject("live", webNotes)
 	_, tok := e.token("terminal", "deck.*")
-	if code, out := e.callWith(tok, "deck.project_create", map[string]any{"name": "theirs", "manifest": boardWebManifest}); code != 200 {
+	if code, out := e.callWith(tok, "deck.project_create", map[string]any{"name": "theirs", "manifest": webNotes}); code != 200 {
 		t.Fatalf("project_create: %d %s", code, out)
 	}
 	topic := e.say(0, "sketch")
@@ -210,7 +211,7 @@ func TestTheMasterDeletesOnlyDrafts(t *testing.T) {
 // TestATopicOfADeletedModuleHasNoModule: a topic begun on a screen of a module keeps no module once it is deleted.
 func TestATopicOfADeletedModuleHasNoModule(t *testing.T) {
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result { return provider.Result{Text: "Noted."} })
-	e.createProject("web", boardWebManifest)
+	e.createProject("web", webNotes)
 	topic := e.say(0, "look", map[string]any{"screen": `{"project":"web","screen":"main"}`})
 	e.masterSaid(topic, 1)
 	e.must("deck.project_delete", map[string]any{"project": "web"}, nil)
@@ -230,17 +231,14 @@ func TestATopicOfADeletedModuleHasNoModule(t *testing.T) {
 	}
 }
 
-// TestDeletingAModuleArchivesItsTopics: the topics of a deleted module, by its card or the screen of their first
-// message, go to the archive; others stay.
+// TestDeletingAModuleArchivesItsTopics: the topics of a deleted module, by the screen of their first message, go
+// to the archive; others stay.
 func TestDeletingAModuleArchivesItsTopics(t *testing.T) {
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result { return provider.Result{Text: "Noted."} })
-	e.createProject("web", boardWebManifest)
-	e.createProject("other", boardWebManifest)
+	e.createProject("web", webNotes)
+	e.createProject("other", webNotes)
 	onScreen := e.say(0, "look", map[string]any{"screen": `{"project":"web","screen":"main"}`})
 	e.masterSaid(onScreen, 1)
-	card := e.card(map[string]any{"project": "web", "title": "A card"})
-	byCard := e.say(0, "the card", map[string]any{"card": card.ID, "screen": `{"project":"other","screen":"main"}`})
-	e.masterSaid(byCard, 1)
 	elsewhere := e.say(0, "else", map[string]any{"screen": `{"project":"other","screen":"main"}`})
 	e.masterSaid(elsewhere, 1)
 	events := e.sse(t.Context())
@@ -256,7 +254,7 @@ func TestDeletingAModuleArchivesItsTopics(t *testing.T) {
 		slices.Sort(out)
 		return out
 	}
-	if got := ids(true); !slices.Equal(got, []int64{onScreen, byCard}) {
+	if got := ids(true); !slices.Equal(got, []int64{onScreen}) {
 		t.Fatalf("the topics of the module are archived: %v", got)
 	}
 	if got := ids(false); !slices.Equal(got, []int64{elsewhere}) {
@@ -273,7 +271,7 @@ func TestTheMasterHearsOfADeletedDraftFromItsData(t *testing.T) {
 		t.Fatal(err)
 	}
 	dir := filepath.Join(e.App.Home.Data(mp.ID), "drafts", "sketch")
-	if err := errors.Join(os.MkdirAll(dir, 0o700), os.WriteFile(filepath.Join(dir, "manifest.json"), []byte(boardWebManifest), 0o600)); err != nil {
+	if err := errors.Join(os.MkdirAll(dir, 0o700), os.WriteFile(filepath.Join(dir, "manifest.json"), []byte(webNotes), 0o600)); err != nil {
 		t.Fatal(err)
 	}
 	e.must("deck.project_import", map[string]any{"folder": dir, "name": "sketch"}, nil)
@@ -310,7 +308,7 @@ func TestTheImportsAndNotesOfABaseFromBeforeStay(t *testing.T) {
 	e := newEnvWith(t, home, &Fake{})
 	mp, _ := e.App.Store.Q.GetProjectByName(context.Background(), db.GetProjectByNameParams{WorkspaceID: 1, Name: "master"})
 	dir := filepath.Join(e.App.Home.Data(mp.ID), "drafts", "sketch")
-	if err := errors.Join(os.MkdirAll(dir, 0o700), os.WriteFile(filepath.Join(dir, "manifest.json"), []byte(boardWebManifest), 0o600)); err != nil {
+	if err := errors.Join(os.MkdirAll(dir, 0o700), os.WriteFile(filepath.Join(dir, "manifest.json"), []byte(webNotes), 0o600)); err != nil {
 		t.Fatal(err)
 	}
 	e.must("deck.project_import", map[string]any{"folder": dir, "name": "sketch"}, nil)
@@ -341,13 +339,13 @@ func TestTheImportsAndNotesOfABaseFromBeforeStay(t *testing.T) {
 // become a draft; the data of another project cannot.
 func TestTheMasterImportsOnlyFromTheOwnersFoldersAndItsData(t *testing.T) {
 	e := newEnv(t, nil)
-	other := e.createProject("other", boardWebManifest)
+	other := e.createProject("other", webNotes)
 	theirs := filepath.Join(e.App.Home.Data(other), "mod")
 	mp, _ := e.App.Store.Q.GetProjectByName(context.Background(), db.GetProjectByNameParams{WorkspaceID: 1, Name: "master"})
 	own := filepath.Join(e.App.Home.Data(mp.ID), "drafts", "mod")
 	repo := t.TempDir()
 	for _, dir := range []string{theirs, own, filepath.Join(repo, "mod")} {
-		if err := errors.Join(os.MkdirAll(dir, 0o700), os.WriteFile(filepath.Join(dir, "manifest.json"), []byte(boardWebManifest), 0o600)); err != nil {
+		if err := errors.Join(os.MkdirAll(dir, 0o700), os.WriteFile(filepath.Join(dir, "manifest.json"), []byte(webNotes), 0o600)); err != nil {
 			t.Fatal(err)
 		}
 	}

@@ -13,7 +13,6 @@ type screenContext struct {
 	Project string `json:"project,omitempty"`
 	Screen  string `json:"screen,omitempty"`
 	Record  int64  `json:"record,omitempty"`
-	Card    int64  `json:"card,omitempty"`
 	Process int64  `json:"process,omitempty"`
 	// Files are the stored files the owner attached to the message.
 	Files fileIDs `json:"files,omitempty"`
@@ -52,7 +51,7 @@ func screenText(raw string) string {
 	for _, f := range []struct {
 		name string
 		id   int64
-	}{{"record", s.Record}, {"card", s.Card}, {"process", s.Process}} {
+	}{{"record", s.Record}, {"process", s.Process}} {
 		if f.id != 0 {
 			parts = append(parts, fmt.Sprintf("%s %d", f.name, f.id))
 		}

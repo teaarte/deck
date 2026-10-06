@@ -49,7 +49,7 @@ func (e *Env) masterAwake() {
 func TestReviewRunsOnItsSchedule(t *testing.T) {
 	e := newClockEnv(t, masterScript)
 	e.masterAwake()
-	e.createProject("work", boardWork)
+	e.createProject("work", plainManifest)
 	e.Clock.Add(2*time.Hour + 29*time.Minute)
 	e.tick()
 	if n := len(e.runsOf("master", "review")); n != 0 {
@@ -80,7 +80,7 @@ func TestReviewRunsOnItsSchedule(t *testing.T) {
 func TestAnErrorReachesTheMasterOncePerDay(t *testing.T) {
 	e := newClockEnv(t, masterScript)
 	e.masterAwake()
-	p := e.createProject("work", boardWork)
+	p := e.createProject("work", plainManifest)
 	failed := e.waitState(e.run(p, "work"), "error")
 	e.waitFor("on_error", func() bool { return len(e.runsOf("master", "on_error")) == 1 })
 	in := e.App.Store.Q
@@ -101,7 +101,7 @@ func TestAnErrorReachesTheMasterOncePerDay(t *testing.T) {
 func TestErrorsStayWithAProjectThatTurnedThemOff(t *testing.T) {
 	e := newEnv(t, masterScript)
 	e.masterAwake()
-	p := e.createProject("work", strings.Replace(boardWork, `"version": 9,`, `"version": 9, "master_errors": false,`, 1))
+	p := e.createProject("work", strings.Replace(plainManifest, `"version": 9,`, `"version": 9, "master_errors": false,`, 1))
 	e.waitState(e.run(p, "work"), "error")
 	time.Sleep(200 * time.Millisecond)
 	if n := len(e.runsOf("master", "on_error")); n != 0 {
@@ -132,16 +132,16 @@ func TestReviewCallsOnlyWhatItsCommandLists(t *testing.T) {
 	var tools []string
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		tools = c.Req.AllowedTools
-		out, bad := c.Tool(ctx, "manifest_save", map[string]any{"project": "work", "manifest": boardWork})
+		out, bad := c.Tool(ctx, "manifest_save", map[string]any{"project": "work", "manifest": plainManifest})
 		return provider.Result{Text: fmt.Sprintf("%v %s", bad, out)}
 	})
 	e.masterAwake()
-	e.createProject("work", boardWork)
+	e.createProject("work", plainManifest)
 	var r struct{ Process int64 }
 	e.must("master.review", map[string]any{}, &r)
 	got := e.waitState(r.Process, "done", "error")
 	if !strings.HasPrefix(string(got.Result), `"true`) || !slices.Contains(tools, "mcp__deck__notify") || slices.Contains(tools, "mcp__deck__suggest") ||
-		slices.Contains(tools, "mcp__deck__manifest_save") || slices.Contains(tools, "mcp__deck__card_move") {
+		slices.Contains(tools, "mcp__deck__manifest_save") || slices.Contains(tools, "mcp__deck__record_delete") {
 		t.Fatalf("the review gets the tools it lists and no other: %s %v", got.Result, tools)
 	}
 }
@@ -151,10 +151,10 @@ func TestReviewCallsOnlyWhatItsCommandLists(t *testing.T) {
 func TestADeletedProjectTakesItsErrorDayWithIt(t *testing.T) {
 	e := newClockEnv(t, masterScript)
 	e.masterAwake()
-	e.waitState(e.run(e.createProject("work", boardWork), "work"), "error")
+	e.waitState(e.run(e.createProject("work", plainManifest), "work"), "error")
 	e.waitFor("on_error", func() bool { rs := e.runsOf("master", "on_error"); return len(rs) == 1 && rs[0].State == "done" })
 	e.must("deck.project_delete", map[string]any{"project": "work"}, nil)
-	e.waitState(e.run(e.createProject("work", boardWork), "work"), "error")
+	e.waitState(e.run(e.createProject("work", plainManifest), "work"), "error")
 	e.waitFor("on_error of the new project", func() bool { return len(e.runsOf("master", "on_error")) == 2 })
 }
 
@@ -163,8 +163,8 @@ func TestADeletedProjectTakesItsErrorDayWithIt(t *testing.T) {
 func TestABlockThatFailsOnAScreenReachesTheMaster(t *testing.T) {
 	e := newEnv(t, masterScript)
 	e.masterAwake()
-	broken := strings.Replace(boardWebManifest, `"columns": [{"label": "Title", "bind": "title"}`, `"columns": [{"label": "Title", "bind": "title"}, {"label": "Score", "bind": "score > 0 ? score : nil"}`, 1)
-	if broken == boardWebManifest {
+	broken := strings.Replace(webNotes, `"columns": [{"label": "Title", "bind": "title"}`, `"columns": [{"label": "Title", "bind": "title"}, {"label": "Score", "bind": "score > 0 ? score : nil"}`, 1)
+	if broken == webNotes {
 		t.Fatal("fixture replacement did not apply")
 	}
 	for _, name := range []string{"web", "web2"} {
@@ -194,7 +194,7 @@ func TestABlockThatFailsOnAScreenReachesTheMaster(t *testing.T) {
 	if n := len(e.runsOf("master", "on_error")); n != 2 {
 		t.Fatalf("once per block and revision of each module: %d", n)
 	}
-	e.must("deck.manifest_save", map[string]any{"project": "web", "manifest": boardWebManifest}, nil)
+	e.must("deck.manifest_save", map[string]any{"project": "web", "manifest": webNotes}, nil)
 	e.must("deck.health_list", map[string]any{"project": "web"}, &hs)
 	for _, h := range hs {
 		if h.Subject == "screen:web.main" {
@@ -208,7 +208,7 @@ func TestABlockThatFailsOnAScreenReachesTheMaster(t *testing.T) {
 func TestABlockThatFailsIsInTheHealthOfItsModuleWithoutTheMaster(t *testing.T) {
 	e := newEnv(t, masterScript)
 	e.masterAwake()
-	broken := strings.Replace(boardWebManifest, `"columns": [{"label": "Title", "bind": "title"}`, `"columns": [{"label": "Title", "bind": "title"}, {"label": "Score", "bind": "score > 0 ? score : nil"}`, 1)
+	broken := strings.Replace(webNotes, `"columns": [{"label": "Title", "bind": "title"}`, `"columns": [{"label": "Title", "bind": "title"}, {"label": "Score", "bind": "score > 0 ? score : nil"}`, 1)
 	e.createProject("web", strings.Replace(broken, `"version": 9,`, `"version": 9, "master_errors": false,`, 1))
 	e.must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": "<p>x</p>"}, nil)
 	e.must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": jsonl(map[string]any{"title": "b"})}, nil)

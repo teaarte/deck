@@ -12,7 +12,7 @@ and presses "enable".
 
 You talk to deck through its MCP server (`deck`). The tools are deck commands: `manifest_format`,
 `project_import`, `documents_list`, `manifest_get`, `manifest_save`, `document_get`, `document_save`,
-`command_try`, `process_get`, `process_log`, `records_list`, `records_upsert`, `cards_list`, `files_list`,
+`command_try`, `process_get`, `process_log`, `records_list`, `records_upsert`, `files_list`,
 `projects_list`, `triggers_list`, `models_list`, `health_list`, `asks_list`, `command_describe`. Some commands only the owner runs:
 `secret_set`, `oauth_start`, `browser_login`, `assignment_set`, `model_set`, `project_enable`; say which one and
 why when the module needs it. The owner does them in two places. The Settings of the project (Settings →
@@ -40,7 +40,7 @@ time with your question tool; offer 2–4 options, the first one your recommenda
 - the outcome: what the owner wants to see each day or week, and what "done" means for one item;
 - the inputs: where items come from, how often they change, whether a login is needed;
 - judgement vs mechanics: which steps need taste (an agent) and which are repeatable (a script);
-- the board: whether items need to move through stages the owner acts on, and which stages;
+- stages: whether items move through stages the owner acts on (a `status` field of the record), and which;
 - anything that leaves deck (posting, sending, paying, submitting): what exactly and how often;
 - criteria and voice: facts, rules and examples that belong in md documents, not in the manifest.
 
@@ -64,7 +64,7 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   `record_update` replaces the whole record: work
   over hundreds of records (filtering, batching, merging new fields into old ones) belongs in a script, and an
   agent gets only the slice it judges, from the script's result or its input.
-- **Commands** are the verbs. Each has a class: `internal` (records, cards, documents), `reversible`,
+- **Commands** are the verbs. Each has a class: `internal` (records, documents), `reversible`,
   `external` (leaves deck). Choose the executor:
   - `script` for mechanics that repeat the same way (fetch, parse, poll, convert, index) — cheap and exact;
   - `agent` for judgement (rate, summarise, write) — give it a prompt file, skills and a result schema; an
@@ -122,9 +122,9 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
 - **Command input** is a flat object; a choice is `{"type": "string", "enum": [...]}` — an `enum` without
   `"type": "string"` is refused.
 - **Files of the input**: a command field with `"format": "file"` takes a file id (from a form upload, Share, or
-  `files_list` of a record or card); scripts and agents get the path of a read-only copy. For a trial, upload
+  `files_list` of a record); scripts and agents get the path of a read-only copy. For a trial, upload
   a sample with `file_upload` (the file in base64) and pass the id it returns. A result may give such
-  a file to a record or card: `files: [{"file": <id>, "record": <id>}]`.
+  a file to a record: `files: [{"file": <id>, "record": <id>}]`.
 - **Documents to PDF** (a CV in Typst, say): a script with `programs: ["typst"]` writes the `.typ` documents it
   reads with `document_get` into its work folder, runs `typst compile` and puts the PDF into `$DECK_RESULTS`.
   To compare two revisions of a document, read both (`document_get` with `revision`) and say what changed;
@@ -136,24 +136,21 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   a score 2–10 with confidence, yes/no with a probability. A result of `null` means "nothing to do", and an agent
   may give it only where the result schema takes it: `"type": ["object", "null"]`; with `"type": "object"` a null
   is not by the schema.
-- **Triggers**: `cron` for schedules, `lane` when a card enters a lane, `after` when another command of the
-  project finishes with a result that is not `null` (a poll with nothing new returns `null` and the chain stops). The command a trigger starts gets the trigger's fixed `params` plus `{"card": <id>}` for
-  `lane` or `{"process": <id>}` of the finished one for `after`, so its input declares that field as
-  `integer`; a later step that needs an earlier result
+- **Triggers**: `cron` for schedules, `after` when another command of the project finishes with a result that
+  is not `null` (a poll with nothing new returns `null` and the chain stops). The command a trigger starts gets
+  the trigger's fixed `params` plus `{"process": <id>}` of the finished one for `after`, so its input declares
+  that field as `integer`; a later step that needs an earlier result
   reads it with `process_get`, so keep what the chain needs in records rather than passing it along. Cycles are refused. After the Mac slept, each missed schedule runs once; `"skip_missed":
   true` drops the missed run instead (a morning digest that is stale by noon).
-- **Board**: lanes have stable names, titles for people and optional roles (`inbox`, `ready`, `running`,
-  `review`, `done`), each role on at most one lane. New cards land in `inbox`, at the end of the lane; to keep the best on top, place each with `card_move` and
-  `before`. `ready`, `running` and
-  `review` are for code runs and come only all three together; a pipeline the owner drives by hand needs
-  only `inbox` and maybe `done`. A card can point at a record (`record`). A project can live without a board.
-- **Documents** agents and scripts write are artifacts only: each belongs to one card or one record, not
-  both. A daily digest or report is an artifact of a record made for it (one record a day); `prompt.md`,
+- **Stages** the owner acts on are a `status` field of the record (an `enum`), shown and filtered on a table;
+  the owner changes it on the record page (a `form` of `deck.record_update`), and a command takes the records
+  of its status with `records_list` and `where`.
+- **Documents** agents and scripts write are artifacts only: each belongs to one record. A daily digest or report is an artifact of a record made for it (one record a day); `prompt.md`,
   `prompts/*.md` and other module documents are written by you, not by the module at run time.
 - **Screens** are lists of blocks from the catalog (`schemas/catalog.json`; in `manifest_format` each block type
   has its exact fields and its rules in words in `description`, and a refusal names the JSON path and the
   schema rule, such as `missing property 'item'` or `additional properties 'source' not allowed`):
-  `table`, `list`, `card` (the record of a record page), `stat`, `chart`, `media`, `actions`, `board`, `form`, `custom`,
+  `table`, `list`, `card` (the record of a record page), `stat`, `chart`, `media`, `actions`, `form`, `custom`,
   `dialog` (a button that opens blocks in a window) and `columns`/`tabs` to lay them out. A table:
   `{"type": "table", "title": "Best", "source": {"collection": "items", "where": "score >= 7", "sort": "-score",
   "limit": 20}, "columns": [{"label": "Title", "bind": "title"}], "filter": ["status"], "actions": [{"label": "Rate", "command":
@@ -199,8 +196,8 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   result by the result schema and, with `save`, keeps it as records; a field picked from a source takes
   `"choices": {"note": {"source": {"collection": "notes"}, "value": "_id", "label": "title"}}`, and a field with
   `"format": "project"` offers the projects by itself; on a record page
-  `{"type": "form", "command": "deck.record_update"}` edits the record, `immutable` fields read only. `board`
-  shows the project's board (no source). `{"type": "document", "document": "prompts/criteria.md"}` shows a
+  `{"type": "form", "command": "deck.record_update"}` edits the record, `immutable` fields read only.
+  `{"type": "document", "document": "prompts/criteria.md"}` shows a
   document of the project, on a record page one of the record (an artifact): markdown drawn, an md document
   edited by the owner as a new revision, its revisions and going back to one; every project also gets a
   Documents screen from deck. Long text in a `list` is markdown with `"item": {…, "markdown": true}`, a `card`
@@ -234,7 +231,7 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   optionally the `screen` (and `record`) it opens and `actions` (`[{label, command, params}]`); it becomes a line
   in the cockpit feed. The caller decides it is worth it; a run with nothing new says nothing.
 - **Remembering what was seen**: `records_upsert` replaces a whole record by its key, so write every
-  required field. `record_get` reads one record by its id (a card's `record`); `records_list` gives the newest. `retention_days` deletes records with their documents: a collection that remembers what the
+  required field. `record_get` reads one record by its id ; `records_list` gives the newest. `retention_days` deletes records with their documents: a collection that remembers what the
   owner has already seen, or holds what they asked for, gets none.
 - **Starting records** (the first sources, say) are written after the import with `records_upsert`, or by the
   first run of the script that needs them.
@@ -292,8 +289,7 @@ A script reads its input JSON from stdin and prints its result JSON to stdout. I
   when the process has finished; `records_upsert` takes JSONL
   and returns `{"written", "ids", "errors"}`; `records_list` returns `[{"id", "key", "title", "data": {…}}]`,
   newest last, `process_get` `{"id", "command", "state", "result", "error", …}`, `documents_list`
-  `[{"id", "name", "kind", "owner_kind", "owner_id"}]` (an artifact of a record has `owner_kind` `record`) and
-  `card_create` the card with its `id`; a script may call commands and tools of its own project that
+  `[{"id", "name", "kind", "owner_kind", "owner_id"}]` (an artifact of a record has `owner_kind` `record`); a script may call commands and tools of its own project that
   allow `agent` callers; a call that waits for the owner answers HTTP 202 `{"waiting": <ask>}` — deck makes
   it later, the script goes on;
 - files go into `$DECK_RESULTS`; the result field `files: [{"path": "...", "record": <id>}]` attaches them;
@@ -437,29 +433,28 @@ Name each of these rights in the hand-over: the owner grants them with "enable".
    package registries, its `reads` and `domains` do nothing. To try a change of an enabled module (a new command, one that waits for the owner's
    button), import its folder as a draft copy under another name, try there, then save the change to the
    module and tell the owner the copy can be deleted: a trial in the enabled module itself writes real
-   records and cards beside its own runs, so it takes `live` and is refused while a real run of the command
+   records beside its own runs, so it takes `live` and is refused while a real run of the command
    is going on. It runs as you, the master: leave `callers` out (everyone) unless a command must be closed to
-   someone, and keep `master` in a list you give. The `after` and `lane` triggers it sets off run as trials too, so a whole chain can be tried from
-   its first command. A trial is not a sandbox: internal writes (records, cards, documents) are real and stay
+   someone, and keep `master` in a list you give. The `after` triggers it sets off run as trials too, so a whole chain can be tried from
+   its first command. A trial is not a sandbox: internal writes (records, documents) are real and stay
    in the draft, and so is what scripts write to `$DECK_DATA`, which you cannot reach: keep what a module
    remembers (seen items, cursors) in records when trials must be undone. Before the hand-over, delete what
-   the trials left that the owner should not start with: `record_delete` (in a draft only), `card_delete`;
+   the trials left that the owner should not start with: `record_delete` (in a draft only);
    say in the hand-over what you kept; lines a trial sent with `notify` stay in the feed. `process_get` gives
-   the state and result. A `lane` step is tried with `command_try` of its command and `{"card": <id>}`: in a
-   draft moving the card starts nothing; `process_log` shows the events of a process, also after it ended,
+   the state and result; `process_log` shows the events of a process, also after it ended,
    and a local model may think for many minutes before its first one: wait with
    `process_get` and `wait` in the foreground (up to 30 minutes on Claude Code and Codex). `processes_list`
    with `command` and `brief` and `records_list` with `where` (an expression, as in a source) and `fields` keep long lists short. Time the trial on the provider the command will run on and set
    `timeout_minutes`, batch sizes and the schedule by it. A trial that ends `done` is not yet a proof: check
-   that the chain gave what the owner will see (records, cards, documents). Check `records_list` and `cards_list`, and `health_list` after a save that adds programs or
+   that the chain gave what the owner will see (records, documents). Check `records_list` and `health_list` after a save that adds programs or
    MCP servers: a missing program or a failed server shows there with its error.
-4. A draft never runs on its schedule or on the owner's card moves. Only the owner enables it.
+4. A draft never runs on its schedule. Only the owner enables it.
 
 ## 8. Moving modules and skills
 
 - **Export a module** into a new or empty folder: `documents_list` of the project, then `document_get` of every
   document of kind manifest, prompt, script, skill, custom and doc that has no `owner_kind`, written to the
-  folder under its name. Artifacts and documents of records and cards are data, not the module; leave them
+  folder under its name. Artifacts and documents of records are data, not the module; leave them
   out. `project_import` of that folder gives the module back as a draft; kinds come from the path — scripts
   listed in `scripts[].file`, `skills/…`, `custom/…`, `manifest.json`, `prompt.md` — and anything else comes
   back as `doc`, so keep scripts listed and custom blocks under `custom/`.

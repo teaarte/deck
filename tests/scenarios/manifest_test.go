@@ -28,7 +28,7 @@ const fullManifest = `{
      "input": {"type": "object", "properties": {"source": {"type": "integer", "format": "record"}}, "required": ["source"]},
      "callers": ["agent", "owner"], "executor": {"type": "script", "script": "parse"}},
     {"name": "rate", "title": "Rate links", "description": "Scores new links.", "class": "internal",
-     "input": {"type": "object", "properties": {"limit": {"type": "integer"}, "card": {"type": "integer", "format": "card"},
+     "input": {"type": "object", "properties": {"limit": {"type": "integer"},
        "process": {"type": "integer", "format": "process"}}},
      "executor": {"type": "agent", "prompt": "Score the new links 1-10."}},
     {"name": "share", "title": "Share a link", "description": "Posts a link to the owner's feed service.", "class": "external",
@@ -38,8 +38,7 @@ const fullManifest = `{
   "scripts": [{"name": "parse", "file": "scripts/parse.py", "runtime": "python", "timeout_minutes": 5}],
   "triggers": [
     {"command": "collect", "cron": "0 8 * * *"},
-    {"command": "rate", "after": "collect", "params": {"limit": 20}},
-    {"command": "rate", "lane": "share"}
+    {"command": "rate", "after": "collect", "params": {"limit": 20}}
   ],
   "tools": {
     "http": [{"name": "post_link", "description": "Posts a link", "method": "POST", "url": "https://feed.example.com/api/links",
@@ -50,7 +49,6 @@ const fullManifest = `{
   },
   "allowed_external": ["post_link"],
   "domains": {"read": ["news.example.com"], "act": []},
-  "board": {"lanes": [{"name": "found", "title": "Found", "role": "inbox"}, {"name": "share", "title": "Share"}, {"name": "done", "title": "Done", "role": "done"}]},
   "screens": [{"name": "main", "title": "Links", "blocks": [{"type": "table", "title": "Best",
     "source": {"collection": "links", "where": "score >= 7", "sort": "-score", "limit": 20},
     "columns": [{"label": "Title", "bind": "title"}, {"label": "Score", "bind": "score"}],
@@ -108,17 +106,13 @@ func TestManifestReferencesAreChecked(t *testing.T) {
 		{"unknown field", `"menu": ["main"]`, `"menu": ["main"], "colour": "red"`, "colour"},
 		{"trigger cycle", `{"command": "rate", "after": "collect", "params": {"limit": 20}}`,
 			`{"command": "rate", "after": "collect", "params": {"limit": 20}}, {"command": "collect", "after": "rate"}`, "cycle: collect → rate → collect"},
-		{"unknown lane", `"lane": "share"`, `"lane": "later"`, `unknown lane "later"`},
 		{"trigger params", `"params": {"limit": 20}`, `"params": {"limit": "many"}`, "params do not match"},
-		{"nested input", `"properties": {"limit": {"type": "integer"}, "card"`, `"properties": {"limit": {"type": "object"}, "card"`, "App Intents"},
-		{"lane input", `"card": {"type": "integer", "format": "card"},`, ``, `must declare input field "card"`},
+		{"nested input", `"properties": {"limit": {"type": "integer"},`, `"properties": {"limit": {"type": "object"},`, "App Intents"},
+		{"after input", `"limit": {"type": "integer"},
+       "process": {"type": "integer", "format": "process"}}`, `"limit": {"type": "integer"}}`, `must declare input field "process"`},
 		{"unknown script", `"script": "parse"}`, `"script": "scrape"}`, `unknown script "scrape"`},
 		{"unknown tool", `"tool": "post_link"`, `"tool": "post_it"`, `unknown tool "post_it"`},
 		{"unknown external", `"allowed_external": ["post_link"]`, `"allowed_external": ["mail"]`, `"mail" is neither`},
-		{"duplicate role", `"title": "Share"}`, `"title": "Share", "role": "inbox"}`, `role "inbox"`},
-		{"duplicate lane", `{"name": "done", "title": "Done"`, `{"name": "share", "title": "Done"`, `duplicate lane "share"`},
-		{"partial run roles", `"title": "Share"}`, `"title": "Share", "role": "ready"}`, `missing running, review`},
-		{"lane title", `"title": "Share"}`, `"title": ""}`, `title`},
 		{"key field", `"key": "url", "display": "title`, `"key": "link", "display": "title`, `unknown field "link"`},
 		{"where field", `"where": "score >= 7"`, `"where": "rating >= 7"`, `unknown field "rating"`},
 		{"sort field", `"sort": "-score"`, `"sort": "-rank"`, `unknown field "rank"`},
@@ -284,7 +278,7 @@ func TestKeyFieldsStayAndEmptyTriggersAreRefused(t *testing.T) {
 	if code != 422 || !strings.Contains(string(out), `"email"`) {
 		t.Fatalf("a field of the key expression must stay immutable, got %d %s", code, out)
 	}
-	for _, bad := range []string{`"cron": ""`, `"lane": ""`} {
+	for _, bad := range []string{`"cron": ""`, `"after": ""`} {
 		m := strings.Replace(fullManifest, `"cron": "0 8 * * *"`, bad, 1)
 		if code, _ := e.call("deck.project_create", map[string]any{"name": "empty", "manifest": m}); code != 422 {
 			t.Errorf("trigger with %s must be refused, got %d", bad, code)
@@ -369,7 +363,7 @@ func TestVariablesNeedKnownFields(t *testing.T) {
 // as declared params, and the menu of a group of buttons is dropped.
 func TestAFormatFiveManifestKeepsItsParamsAndMenus(t *testing.T) {
 	e := newEnv(t, nil)
-	old := strings.Replace(strings.Replace(boardWebManifest, `"version": 9,`, `"version": 5,`, 1), `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "blocks": [
+	old := strings.Replace(strings.Replace(webNotes, `"version": 9,`, `"version": 5,`, 1), `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "blocks": [
       {"type": "form", "title": "Again", "command": "score", "values": {"title": "$param.title"}},
       {"type": "actions", "title": "More", "menu": true, "actions": [{"label": "Tell", "command": "tell"}]},`, 1)
 	e.createProject("web", old)
@@ -388,7 +382,7 @@ func TestAFormatFiveManifestKeepsItsParamsAndMenus(t *testing.T) {
 func TestAVersionThatIsNoNumberSaysSo(t *testing.T) {
 	e := newEnv(t, nil)
 	for i, c := range []struct{ version, want string }{{`"6"`, `the text "6"`}, {`6.0`, `6.0`}} {
-		m := strings.Replace(boardWebManifest, `"version": 9`, `"version": `+c.version, 1)
+		m := strings.Replace(webNotes, `"version": 9`, `"version": `+c.version, 1)
 		code, out := e.call("deck.project_create", map[string]any{"name": fmt.Sprintf("v%d", i), "manifest": m})
 		if code != 422 || !strings.Contains(string(out), c.want) || !strings.Contains(string(out), "the number 9") {
 			t.Errorf("%s: want 422 naming %s, got %d %s", c.version, c.want, code, out)

@@ -151,11 +151,6 @@
     }
   },
   "menu": ["cockpit", "schedule", "settings", "journal"],
-  "card": [
-    {"verb": "interview", "command": "deck.chat_interview", "params": {"card": "=id"}, "chat": true},
-    {"verb": "move_project", "command": "deck.card_transfer", "params": {"card": "=id"}, "input": "project", "options": "=projects", "when": "len(projects) > 0"},
-    {"verb": "delete", "command": "deck.card_delete", "params": {"card": "=id"}, "undo": {"command": "deck.card_restore", "params": {"card": "=id"}}}
-  ],
   "screens": [
     {
       "name": "cockpit",

@@ -1,4 +1,4 @@
-// Package files keeps the stored files of projects: uploads, the files of records, cards and processes, and the
+// Package files keeps the stored files of projects: uploads, the files of records and processes, and the
 // data folders media blocks show.
 package files
 
@@ -54,12 +54,11 @@ type View struct {
 
 type filesListIn struct {
 	Record  int64  `type:"record" opt:"" desc:"Record"`
-	Card    int64  `type:"card" opt:"" desc:"Card"`
 	Process int64  `type:"process" opt:"" desc:"Process"`
-	Project string `type:"project" opt:"" desc:"Without a record, card or process: the newest files of this project, or of every project the caller sees"`
+	Project string `type:"project" opt:"" desc:"Without a record or process: the newest files of this project, or of every project the caller sees"`
 }
 
-// filesList lists the files of a record, card or process the actor can see, or the newest of its projects.
+// filesList lists the files of a record or process the actor can see, or the newest of its projects.
 func (s *Service) filesList(ctx context.Context, act registry.Actor, in filesListIn) ([]View, error) {
 	var kind string
 	var id, projectID int64
@@ -70,12 +69,6 @@ func (s *Service) filesList(ctx context.Context, act registry.Actor, in filesLis
 		var r db.Record
 		if r, err = s.St.Q.GetRecord(ctx, id); err == nil {
 			projectID = r.ProjectID
-		}
-	case in.Card != 0:
-		kind, id = "card", in.Card
-		var c db.Card
-		if c, err = s.St.Q.GetCard(ctx, id); err == nil {
-			projectID = c.ProjectID
 		}
 	case in.Process != 0:
 		kind, id = "process", in.Process
@@ -234,7 +227,7 @@ func (s *Service) OpenFile(ctx context.Context, act registry.Actor, id int64) (V
 func (s *Service) Commands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("files_list", "List files",
-			"Lists the files of a record, a card or a process, or the newest files of a project.",
+			"Lists the files of a record or a process, or the newest files of a project.",
 			registry.Everyone, s.filesList).On("files"),
 		registry.Def("file_upload", "Upload file",
 			"Uploads a file for a project from base64 text and returns its id for a command input.",

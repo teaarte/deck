@@ -2,6 +2,7 @@ package scenarios
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
@@ -17,7 +18,7 @@ func TestOwnerMessageGetsAMasterReplyInTheTopic(t *testing.T) {
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		return provider.Result{Text: "Put it into the inbox."}
 	})
-	topic := e.say(0, "Remember to buy milk\nand bread", map[string]any{"screen": `{"project":"master","screen":"documents","card":7}`,
+	topic := e.say(0, "Remember to buy milk\nand bread", map[string]any{"screen": `{"project":"master","screen":"documents","record":7}`,
 		"retry_key": "k1"})
 	said := e.masterSaid(topic, 1)
 	if said[0].Text != "Put it into the inbox." {
@@ -35,7 +36,7 @@ func TestOwnerMessageGetsAMasterReplyInTheTopic(t *testing.T) {
 	}
 	req := e.Fake.Calls()[0]
 	for _, want := range []string{`command "reply" of deck project "master"`, "The master: takes the owner's tasks",
-		"Answer the owner in a chat topic", "Remember to buy milk\nand bread", `(written on project "master", screen "documents", card 7)`,
+		"Answer the owner in a chat topic", "Remember to buy milk\nand bread", `(written on project "master", screen "documents", record 7)`,
 		fmt.Sprintf("document topics/%d/summary.md of project master", topic)} {
 		if !strings.Contains(req.Prompt, want) {
 			t.Fatalf("the prompt of the reply lacks %q:\n%s", want, req.Prompt)
@@ -174,30 +175,26 @@ func TestALostSessionStartsAgainWithTheRetelling(t *testing.T) {
 
 func TestMasterActsAsMasterAcrossProjects(t *testing.T) {
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
-		out, bad := c.Tool(ctx, "card_create", map[string]any{"project": "work", "title": "Buy milk"})
+		out, bad := c.Tool(ctx, "records_upsert", map[string]any{"project": "work", "collection": "tasks", "records": `{"title": "Buy milk"}`})
 		if bad {
 			return provider.Result{Text: "refused: " + out}
 		}
 		return provider.Result{Text: "Put it into work."}
 	})
-	e.must("deck.project_create", map[string]any{"name": "work"}, nil)
+	e.createProject("work", tasksManifest)
 	e.createProject("other", plainManifest)
 	topic := e.say(0, "buy milk")
 	if said := e.masterSaid(topic, 1); said[0].Text != "Put it into work." {
-		t.Fatalf("the master creates a card in another project: %+v", said)
+		t.Fatalf("the master writes a task into another project: %+v", said)
 	}
-	var board struct {
-		Lanes []struct {
-			Cards []struct{ Title string } `json:"cards"`
-		} `json:"lanes"`
-	}
-	e.must("deck.cards_list", map[string]any{"project": "work"}, &board)
-	if len(board.Lanes) == 0 || len(board.Lanes[0].Cards) != 1 || board.Lanes[0].Cards[0].Title != "Buy milk" {
-		t.Fatalf("the card is in the inbox lane of work: %+v", board)
+	var tasks []recordRow
+	e.must("deck.records_list", map[string]any{"project": "work", "collection": "tasks"}, &tasks)
+	if len(tasks) != 1 || tasks[0].Data["title"] != "Buy milk" {
+		t.Fatalf("the task is in work: %+v", tasks)
 	}
 	found := false
 	for _, r := range e.journal() {
-		if r.Tool == "deck.card_create" && r.Actor == "master" && r.Outcome == "done" {
+		if r.Tool == "deck.records_upsert" && r.Actor == "master" && r.Outcome == "done" {
 			found = true
 		}
 	}
@@ -380,7 +377,7 @@ func TestTheChatBlockShowsTheTopicItsQuestionsAndTheTurn(t *testing.T) {
 		if c.N == 1 {
 			return provider.Result{Text: "Hello **there**"}
 		}
-		c.Req.OnEvent(provider.Event{Kind: provider.EventTool, ID: "t1", Title: "card_create", Text: "{}"})
+		c.Req.OnEvent(provider.Event{Kind: provider.EventTool, ID: "t1", Title: "records_upsert", Text: "{}"})
 		d := c.Approve(ctx, "AskUserQuestion", map[string]any{"questions": []any{map[string]any{"question": "Which list?",
 			"options": []any{map[string]any{"label": "shop"}, map[string]any{"label": "market"}}}}})
 		answers, _ := d["updatedInput"].(map[string]any)["answers"].(map[string]any)
@@ -412,7 +409,7 @@ func TestTheChatBlockShowsTheTopicItsQuestionsAndTheTurn(t *testing.T) {
 	})
 	q := c.Questions[0]
 	if q.Questions[0].Question != "Which list?" || q.Answer.Command != "deck.ask_answer" || q.Answer.Input != "answer" ||
-		c.Turn.Stop.Command != "deck.process_stop" || c.Turn.Lines[0].Title != "card_create" || c.Turn.State != "running" {
+		c.Turn.Stop.Command != "deck.process_stop" || c.Turn.Lines[0].Title != "records_upsert" || c.Turn.State != "running" {
 		t.Fatalf("the question has options and an answer, the turn shows its calls and a stop: %+v", c)
 	}
 	e.must(q.Answer.Command, map[string]any{"ask": q.Answer.Params["ask"], "answer": `{"Which list?": "market"}`}, nil)
@@ -507,4 +504,46 @@ func TestAReplyThatDoesNotStartIsSeenInTheTopic(t *testing.T) {
 		return len(v.Messages) == 1 && v.Messages[0].Reply != nil && v.Messages[0].Reply.State == "error" &&
 			strings.Contains(v.Messages[0].Reply.Error, "gone")
 	})
+}
+
+// TestMasterPutsATaskIntoTheRightProject: by the dispatch skill the master picks the project by the first line of
+// its md and writes the task into its tasks; a move writes it into the other project, and the owner deletes the first.
+func TestMasterPutsATaskIntoTheRightProject(t *testing.T) {
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		list, _ := c.Tool(ctx, "projects_list", map[string]any{})
+		var ps []struct{ Name, Description string }
+		_ = json.Unmarshal([]byte(list), &ps)
+		if strings.Contains(c.Req.Prompt, "move it to garden") {
+			c.Tool(ctx, "records_upsert", map[string]any{"project": "garden", "collection": "tasks", "records": `{"title": "Buy a rake"}`})
+			if out, bad := c.Tool(ctx, "record_delete", map[string]any{"record": 1}); !bad {
+				return provider.Result{Text: "deleted: " + out}
+			}
+			return provider.Result{Text: "Put it into garden; delete the old one in groceries."}
+		}
+		for _, p := range ps {
+			if strings.Contains(p.Description, "shopping") {
+				c.Tool(ctx, "records_upsert", map[string]any{"project": p.Name, "collection": "tasks", "records": `{"title": "Buy a rake"}`})
+				return provider.Result{Text: "Put it into " + p.Name + ". Move it?"}
+			}
+		}
+		return provider.Result{Text: "no project"}
+	})
+	e.must("deck.project_create", map[string]any{"name": "groceries", "prompt": "# The shopping list of the household.\n", "manifest": tasksManifest}, nil)
+	e.must("deck.project_create", map[string]any{"name": "garden", "prompt": "# Work in the garden.\n", "manifest": tasksManifest}, nil)
+	tasks := func(project string) int {
+		var rs []recordRow
+		e.must("deck.records_list", map[string]any{"project": project, "collection": "tasks"}, &rs)
+		return len(rs)
+	}
+	topic := e.say(0, "buy a rake")
+	if said := e.masterSaid(topic, 1); said[0].Text != "Put it into groceries. Move it?" || tasks("groceries") != 1 {
+		t.Fatalf("the master picks the project by the first line of its md: %+v", said)
+	}
+	if _, ok := e.Fake.Calls()[0].Skills["dispatch/SKILL.md"]; !ok {
+		t.Fatalf("the master gets the dispatch skill: %v", e.Fake.Calls()[0].Skills)
+	}
+	e.say(topic, "no, move it to garden")
+	if said := e.masterSaid(topic, 2); !strings.HasPrefix(said[1].Text, "Put it into garden") || tasks("garden") != 1 || tasks("groceries") != 1 {
+		t.Fatalf("move puts the task into the other project and leaves the old one to the owner: %+v", said)
+	}
 }

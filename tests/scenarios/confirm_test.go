@@ -156,27 +156,20 @@ func (e *Env) calls(process int64) string {
 func TestTriggeredExternalCallWaitsWithoutTheAgentAndRunsAfterYes(t *testing.T) {
 	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { jsonReply(w, `{"id": "n"}`) })
 	e := newClockEnv(t, func(ctx context.Context, c *Call) provider.Result {
-		if c.command() == "work" {
-			var card struct{ ID int64 }
-			out, _ := c.Tool(ctx, "card_create", map[string]any{"title": "x"})
-			_ = json.Unmarshal([]byte(out), &card)
-			c.Tool(ctx, "card_move", map[string]any{"card": card.ID, "lane": "go"})
-		}
 		return provider.Result{Structured: json.RawMessage(`{}`)}
 	})
 	p := e.createProject("feed", fmt.Sprintf(`{"version": 9,
   "commands": [
     {"name": "send", "title": "Send", "description": "Sends out.", "class": "external",
-     "input": {"type": "object", "properties": {"card": {"type": "integer", "format": "card"}}},
+     "input": {"type": "object", "properties": {"process": {"type": "integer", "format": "process"}}},
      "executor": {"type": "tool", "tool": "note"}},
     {"name": "work", "title": "Work", "description": "Works.", "class": "internal", "result": {"type": "object"},
      "executor": {"type": "agent", "prompt": "Work."}}],
-  "triggers": [{"command": "send", "lane": "go"}, {"command": "send", "cron": "0 9 * * *"}],
+  "triggers": [{"command": "send", "after": "work"}, {"command": "send", "cron": "0 9 * * *"}],
   "tools": {"http": [{"name": "note", "description": "d", "method": "POST", "url": "%s/n",
-    "input": {"type": "object", "properties": {"card": {"type": "integer", "format": "card"}}}}]},
-  "board": {"lanes": [{"name": "in", "title": "In", "role": "inbox"}, {"name": "go", "title": "Go"}]}}`, svc.URL))
+    "input": {"type": "object", "properties": {"process": {"type": "integer", "format": "process"}}}}]}}`, svc.URL))
 	if got := e.waitState(e.run(p, "work"), "done", "waiting_answer"); got.State != "done" {
-		t.Fatalf("the agent that moved the card does not wait for its trigger's confirmation: %+v", got)
+		t.Fatalf("the agent whose finish starts a trigger does not wait for its confirmation: %+v", got)
 	}
 	e.Clock.Add(time.Hour + time.Minute)
 	e.App.Scheduler.Tick(context.Background())
@@ -194,11 +187,6 @@ func TestTriggeredExternalCallWaitsWithoutTheAgentAndRunsAfterYes(t *testing.T) 
 		e.answer(a.ID, "allow")
 	}
 	e.waitFor("both triggered calls are made", func() bool { return len(svc.requests()) == 2 })
-	var card struct{ Process int64 }
-	e.must("deck.card_get", map[string]any{"card": 1}, &card)
-	if card.Process == 0 {
-		t.Fatalf("after yes the card is linked to the process its lane trigger started: %+v", card)
-	}
 }
 
 func TestAWaitingCallSurvivesTheEmptyProcessCleanup(t *testing.T) {

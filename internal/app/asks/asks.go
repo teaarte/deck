@@ -19,7 +19,6 @@ import (
 	"deck2/internal/ask"
 	"deck2/internal/docs"
 	"deck2/internal/gateway"
-	"deck2/internal/process"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
@@ -283,7 +282,6 @@ func (s *Service) decide(ctx context.Context, act registry.Actor, q db.Ask, answ
 		if err != nil {
 			return nil, err
 		}
-		s.linkTriggeredCard(ctx, q, out)
 		return map[string]any{"ok": true, "result": out}, nil
 	default:
 		if err := s.Broker.Answer(ctx, q.ID, answer); err != nil {
@@ -297,27 +295,6 @@ func (s *Service) decide(ctx context.Context, act registry.Actor, q db.Ask, answ
 		}
 		return map[string]any{"ok": true}, nil
 	}
-}
-
-// linkTriggeredCard links a card to the process a lane trigger started once the owner allowed it, as
-// the lane trigger does when the call runs at once.
-func (s *Service) linkTriggeredCard(ctx context.Context, asked db.Ask, out any) {
-	started, ok := out.(process.Started)
-	var f gateway.Frozen
-	if !ok || json.Unmarshal([]byte(asked.Payload), &f) != nil || f.Caller.Kind != registry.Trigger {
-		return
-	}
-	var in struct{ Card int64 }
-	if json.Unmarshal(f.Call.Input, &in) != nil || in.Card == 0 {
-		return
-	}
-	_ = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		c, err := q.GetCard(ctx, in.Card)
-		if err != nil || c.ProjectID != asked.ProjectID.Int64 {
-			return err
-		}
-		return q.SetCardProcess(ctx, db.SetCardProcessParams{ProcessID: sql.NullInt64{Int64: started.Process, Valid: true}, ID: in.Card})
-	})
 }
 
 // allowAlways adds the tool or command of a frozen call to the allowed external list of its project, or the

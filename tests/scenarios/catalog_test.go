@@ -14,7 +14,9 @@ import (
 	"testing"
 	"time"
 
+	"deck2/internal/process"
 	"deck2/internal/provider"
+	"deck2/schemas"
 )
 
 // forecastManifest is a module that tracks a price and forecasts its change: a stat of the last price, a table
@@ -445,10 +447,20 @@ func TestTheCockpitHidesRunningNowWhenNothingRuns(t *testing.T) {
 	if strings.Contains(comps(), `"title":"Running now"`) {
 		t.Fatalf("nothing runs, so no list of what runs: %s", comps())
 	}
-	e.createProject("web", boardWebManifest)
+	e.createProject("web", webNotes)
 	e.waitState(e.start("web", "score", map[string]any{"title": "x"}), "running")
 	if !strings.Contains(comps(), `"title":"Running now"`) {
 		t.Fatalf("a running process shows the list: %s", comps())
 	}
 	close(hold)
+}
+
+// TestTheCatalogKnowsTheStatesAProcessEndsIn: the client reads the final states from the catalog.
+func TestTheCatalogKnowsTheStatesAProcessEndsIn(t *testing.T) {
+	var c struct {
+		Final []string `json:"final_states"`
+	}
+	if err := json.Unmarshal(schemas.Catalog, &c); err != nil || !slices.Equal(c.Final, process.Final) {
+		t.Fatalf("the catalog lists the states a process ends in: %v %v", c.Final, err)
+	}
 }

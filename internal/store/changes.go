@@ -23,8 +23,8 @@ type Change struct {
 // its project or workspace; quiet are columns whose change no reader shows.
 type table struct {
 	topic string
-	// scope is project_id, workspace_id, or the id of the row of another table (process, card, document,
-	// chat_topic) the project or workspace comes from.
+	// scope is project_id, workspace_id, or the id of the row of another table (process, document, chat_topic)
+	// the project or workspace comes from.
 	scope string
 	quiet []string
 }
@@ -40,8 +40,6 @@ var tables = map[string]table{
 	"process":           {"processes", "project_id", []string{"output_ms"}},
 	"process_remark":    {"processes", "process_id", nil},
 	"record":            {"collection", "project_id", nil},
-	"card":              {"board", "project_id", nil},
-	"card_edge":         {"board", "card_id", nil},
 	"document":          {"documents", "project_id", nil},
 	"document_revision": {"documents", "document_id", nil},
 	"file":              {"files", "project_id", nil},
@@ -224,8 +222,6 @@ func (s *Store) resolve(ctx context.Context, ws []rowWrite) []Change {
 				switch t.scope {
 				case "process_id":
 					project = s.one(ctx, `SELECT project_id FROM process WHERE id = ?`, id)
-				case "card_id":
-					project = s.one(ctx, `SELECT project_id FROM card WHERE id = ?`, id)
 				case "document_id":
 					project = s.one(ctx, `SELECT COALESCE(project_id, 0) FROM document WHERE id = ?`, id)
 				}

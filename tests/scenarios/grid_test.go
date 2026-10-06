@@ -9,8 +9,8 @@ import (
 
 // TestTheSpanOfAModuleBlockReachesTheScreen: a block of a module's manifest takes the cells its span says.
 func TestTheSpanOfAModuleBlockReachesTheScreen(t *testing.T) {
-	e := newEnv(t, boardWebAgent())
-	e.createProject("web", strings.Replace(boardWebManifest, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "blocks": [
+	e := newEnv(t, webNotesAgent())
+	e.createProject("web", strings.Replace(webNotes, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "blocks": [
       {"type": "stat", "title": "Two", "span": 2, "source": {"collection": "notes"}, "value": "len(rows)"},
       {"type": "stat", "title": "Whole", "span": "full", "source": {"collection": "notes"}, "value": "len(rows)"},`, 1))
 	spans := map[string]any{}
@@ -33,8 +33,8 @@ func TestTheSpanOfAModuleBlockReachesTheScreen(t *testing.T) {
 // TestAParamOfASourceTakesTheTypeOfItsField: a number from the address reaches a read as a number, and an
 // empty one is left out.
 func TestAParamOfASourceTakesTheTypeOfItsField(t *testing.T) {
-	e := newEnv(t, boardWebAgent())
-	e.createProject("web", strings.Replace(boardWebManifest, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "params": {"n": "integer"}, "blocks": [
+	e := newEnv(t, webNotesAgent())
+	e.createProject("web", strings.Replace(webNotes, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "params": {"n": "integer"}, "blocks": [
       {"type": "list", "title": "Latest", "source": {"from": "deck.feed_list", "input": {"limit": "=param.n"}}, "item": {"title": "text"}},
       {"type": "stat", "title": "Many", "when": "(param.n ?? 0) > 1", "source": {"from": "deck.probe"}},`, 1))
 	for _, params := range []map[string]any{{"params": `{"n": "2"}`}, nil} {
@@ -54,8 +54,8 @@ func TestAParamOfASourceTakesTheTypeOfItsField(t *testing.T) {
 
 // TestEachSourceOfAScreenIsReadOnce: blocks that read the same command with the same input share one read.
 func TestEachSourceOfAScreenIsReadOnce(t *testing.T) {
-	e := newEnv(t, boardWebAgent())
-	e.createProject("web", strings.Replace(boardWebManifest, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "blocks": [
+	e := newEnv(t, webNotesAgent())
+	e.createProject("web", strings.Replace(webNotes, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "blocks": [
       {"type": "stat", "title": "Today", "source": {"from": "deck.probe", "input": {"days": 1}}},
       {"type": "stat", "title": "Today again", "source": {"from": "deck.probe", "input": {"days": 1}}, "value": "len(rows) * 2"},
       {"type": "table", "title": "All", "source": {"from": "deck.probe", "sort": "-name"}, "columns": [{"label": "Name", "bind": "name"}]},
@@ -73,8 +73,8 @@ func TestEachSourceOfAScreenIsReadOnce(t *testing.T) {
 // TestAParamReachesEveryExpressionOfAScreen: the series of a chart and the tone of a stat read the parameters
 // of the screen like any other expression.
 func TestAParamReachesEveryExpressionOfAScreen(t *testing.T) {
-	e := newEnv(t, boardWebAgent())
-	e.createProject("web", strings.Replace(boardWebManifest, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "params": {"k": "integer"}, "blocks": [
+	e := newEnv(t, webNotesAgent())
+	e.createProject("web", strings.Replace(webNotes, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "params": {"k": "integer"}, "blocks": [
       {"type": "chart", "title": "Scaled", "source": {"from": "deck.probe"}, "x": "name", "series": [{"label": "N", "y": "id * param.k"}]},
       {"type": "stat", "title": "Toned", "source": {"from": "deck.probe"}, "tone": "param.k > 1 ? 'warn' : 'ok'"},`, 1))
 	data := e.screenData("web", "main", map[string]any{"params": `{"k": "3"}`})

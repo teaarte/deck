@@ -42,7 +42,11 @@ var upgrades = map[int]func(m map[string]any){
 	},
 	8: func(m map[string]any) {
 		delete(m, "autonomy")
-		dropLabel(m["screens"])
+		delete(m, "board")
+		if list, ok := m["triggers"].([]any); ok {
+			m["triggers"] = slices.DeleteFunc(list, func(t any) bool { tm, _ := t.(map[string]any); return tm["lane"] != nil })
+		}
+		dropBoard(m["screens"])
 	},
 	6: func(m map[string]any) {
 		for _, c := range items(m["commands"]) {
@@ -58,19 +62,22 @@ var upgrades = map[int]func(m map[string]any){
 	},
 }
 
-// dropLabel drops the cell format label of format 8, which showed a name by deck's own words.
-func dropLabel(v any) {
+// dropBoard drops what format 9 has no more from the screens: the board block and the cell format label.
+func dropBoard(v any) {
 	switch v := v.(type) {
 	case map[string]any:
 		if v["format"] == "label" {
 			delete(v, "format")
 		}
+		if blocks, ok := v["blocks"].([]any); ok {
+			v["blocks"] = slices.DeleteFunc(blocks, func(b any) bool { bm, _ := b.(map[string]any); return bm["type"] == "board" })
+		}
 		for _, x := range v {
-			dropLabel(x)
+			dropBoard(x)
 		}
 	case []any:
 		for _, x := range v {
-			dropLabel(x)
+			dropBoard(x)
 		}
 	}
 }

@@ -3,7 +3,6 @@ package screen
 import (
 	"encoding/json"
 	"fmt"
-	"maps"
 	"strings"
 
 	"deck2/internal/manifest"
@@ -93,24 +92,6 @@ func (r *renderer) actions(as []manifest.Action, id int64, env map[string]any) [
 		out = append(out, act)
 	}
 	return out
-}
-
-// cardActions give each card of a board the buttons of a card; their expressions also read projects, the other
-// projects a card can move to.
-func (r *renderer) cardActions(board any) {
-	b, _ := board.(map[string]any)
-	others := b["projects"]
-	delete(b, "projects")
-	lanes, _ := b["lanes"].([]map[string]any)
-	for _, l := range lanes {
-		cards, _ := l["cards"].([]map[string]any)
-		for _, c := range cards {
-			env := maps.Clone(c)
-			env["projects"] = others
-			id, _ := c["id"].(int64)
-			c["actions"] = r.actions(r.req.Card, id, env)
-		}
-	}
 }
 
 // inputTypes are the JSON types of the input fields of a command a button calls.

@@ -17,7 +17,6 @@ import (
 
 const (
 	KindCron  = "cron"
-	KindLane  = "lane"
 	KindAfter = "after"
 )
 
@@ -51,8 +50,6 @@ func Identity(t manifest.Trigger) (kind, spec string) {
 		return t.On, ""
 	case t.Cron != "":
 		return KindCron, t.Cron
-	case t.Lane != "":
-		return KindLane, t.Lane
 	default:
 		return KindAfter, t.After
 	}

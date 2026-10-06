@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"strings"
 
-	"deck2/internal/app/board"
 	"deck2/internal/docs"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
@@ -158,9 +157,6 @@ func (sv *Saver) SaveManifest(ctx context.Context, act registry.Actor, p db.Proj
 			return err
 		}
 		if err := checkRecords(ctx, q, p, pm.m, plan); err != nil {
-			return err
-		}
-		if err := board.CheckLanes(ctx, q, p, pm.m); err != nil {
 			return err
 		}
 		ref := docs.Ref{Scope: docs.ProjectScope(p), Name: docs.ManifestName}

@@ -40,7 +40,7 @@ func TestTheMasterReadsTheFieldsOfAFormOnlyTheOwnerFillsIn(t *testing.T) {
 // screen can show them.
 func TestReadsGiveTheirResultSchema(t *testing.T) {
 	e := newEnv(t, nil)
-	for _, name := range []string{"cards_list", "card_get", "records_list", "record_get", "manifest_get", "chat"} {
+	for _, name := range []string{"records_list", "record_get", "manifest_get", "chat"} {
 		var d struct {
 			Result json.RawMessage `json:"result"`
 		}

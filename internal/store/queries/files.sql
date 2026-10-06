@@ -23,7 +23,6 @@ DELETE FROM file WHERE id = ?;
 -- name: PurgeOrphanFiles :many
 DELETE FROM file
 WHERE (owner_kind = 'record' AND owner_id NOT IN (SELECT id FROM record))
-   OR (owner_kind = 'card' AND owner_id NOT IN (SELECT id FROM card))
    OR (owner_kind = 'process' AND owner_id NOT IN (SELECT id FROM process))
    OR (owner_kind = 'chat_message' AND owner_id NOT IN (SELECT id FROM chat_message))
 RETURNING id;

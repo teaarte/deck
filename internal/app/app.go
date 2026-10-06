@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"deck2/internal/app/asks"
-	"deck2/internal/app/board"
 	"deck2/internal/app/chat"
 	"deck2/internal/app/devices"
 	"deck2/internal/app/documents"
@@ -57,7 +56,6 @@ type App struct {
 	Gateway   *gateway.Gateway
 	Runner    *process.Runner
 	Scheduler *trigger.Scheduler
-	Board     *board.Service
 	Providers *providers.Service
 	Devices   *devices.Service
 	Chats     *chat.Service
@@ -113,7 +111,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	a := &App{Cfg: cfg, Home: h, Store: st, Bus: events.NewBus(), Scripts: script.New(cfg.Sandbox, cfg.Home),
 		Projects: &project.Service{}, Saver: &project.Saver{}, Secrets: &secrets.Service{}, Folders: &folders.Service{}, Files: &appfiles.Service{},
 		Journal: &journal.Service{}, Triggers: &triggers.Service{}, Documents: &documents.Service{}, Snapshots: &snapshots.Service{},
-		Settings: &settings.Service{}, Board: &board.Service{}, Providers: &providers.Service{}, Answers: &asks.Service{},
+		Settings: &settings.Service{}, Providers: &providers.Service{}, Answers: &asks.Service{},
 		Signins: &signins.Service{}, Chats: &chat.Service{}, Devices: &devices.Service{},
 		Tokens: &tokens.Service{}, Records: &records.Service{}, Health: &apphealth.Service{}, Processes: &processes.Service{}, Failures: &failures.Service{}}
 	a.ctx, a.cancel = context.WithCancel(context.Background())
@@ -155,7 +153,6 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 		SaveManifest: a.Saver.SaveCall, Changed: a.Devices.Changed}
 	*a.Snapshots = snapshots.Service{St: st, Bus: a.Bus, Home: h, Now: cfg.Now, LockFiles: a.Files.Mu.Lock, UnlockFiles: a.Files.Mu.Unlock,
 		RemoveFiles: a.Files.Remove}
-	*a.Board = board.Service{St: st, Now: cfg.Now, Fire: a.Triggers.Start}
 	*a.Providers = providers.Service{St: st, Now: cfg.Now, Home: cfg.Home, Sandbox: cfg.Sandbox, ACPBinaries: cfg.ACPBinaries,
 		ACPCallLimit: cfg.ACPCallLimit, SelfCheckCeiling: cfg.SelfCheckCeiling, Secret: a.Secrets.Secret, WriteSecret: a.Secrets.Write,
 		Wake: a.Runner.Wake, Dirs: a.dirs(), Resolve: a.Tools.Resolve,
@@ -227,10 +224,9 @@ func (a *App) Sweep(ctx context.Context, now time.Time) {
 	a.slow(ctx, now)
 }
 
-// deadlines are what is due by now: deleted cards, expired confirmations, ceilings, pauses on a usage limit,
+// deadlines are what is due by now: expired confirmations, ceilings, pauses on a usage limit,
 // silent processes, empty results kept long enough, the disk.
 func (a *App) deadlines(ctx context.Context, now time.Time) {
-	a.Board.Purge(ctx, now)
 	a.Answers.ExpireConfirms(ctx, now)
 	a.Runner.Due(ctx, now)
 	a.Snapshots.CheckDisk(ctx, now)

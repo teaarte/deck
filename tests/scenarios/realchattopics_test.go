@@ -16,7 +16,7 @@ func TestRealBrowserChatTopicsFollowTheModuleFilter(t *testing.T) {
 	}
 	checkBuiltClient(t)
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result { return provider.Result{Text: "ok"} })
-	e.createProject("web", boardWebManifest)
+	e.createProject("web", webNotes)
 	e.masterSaid(e.say(0, "about web", map[string]any{"screen": `{"project":"web","screen":"main"}`}), 1)
 	e.masterSaid(e.say(0, "about master", map[string]any{"screen": `{"project":"master","screen":"documents"}`}), 1)
 	e.masterSaid(e.say(0, "about nothing"), 1)

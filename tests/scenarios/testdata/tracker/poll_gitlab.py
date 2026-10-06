@@ -1,7 +1,7 @@
-"""Make a card in Backlog for each new open issue of every followed GitLab project.
+"""Make a task in backlog for each new open issue of every followed GitLab project.
 
 Input (stdin JSON): {} (a schedule).
-Result (stdout JSON): {"cards": [ids]} or null when nothing is new.
+Result (stdout JSON): {"tasks": [ids]} or null when nothing is new.
 
 Each project in the intake collection keeps a cursor: the created_at of the newest issue taken
 and the iids taken at that very time, since GitLab's created_after includes it. After the Mac
@@ -33,15 +33,19 @@ def deck(command, payload):
         raise SystemExit("%s: %s %s" % (command, e.code, e.read().decode()[:500]))
 
 
-def card(issue):
+def task(issue):
     body = (issue.get("description") or "")[:TEXT_LIMIT]
     labels = ", ".join(issue.get("labels") or [])
     text = "%s\n\nGitLab: %s%s" % (body, issue["web_url"], "\nLabels: " + labels if labels else "")
-    return deck("deck.card_create", {"title": "#%d %s" % (issue["iid"], issue["title"]), "text": text.strip()})["id"]
+    rec = {"title": "#%d %s" % (issue["iid"], issue["title"]), "text": text.strip(), "status": "backlog"}
+    out = deck("deck.records_upsert", {"collection": "tasks", "records": json.dumps(rec)})
+    if out.get("errors"):
+        raise SystemExit("tasks: %s" % out["errors"])
+    return out["ids"][0]
 
 
 def poll(tool, d):
-    """Takes the new issues of one followed project, oldest first, and moves its cursor after each card.
+    """Takes the new issues of one followed project, oldest first, and moves its cursor after each task.
 
     Every page is asked again from the moved cursor: an issue closed meanwhile does not shift an unseen one
     past a page boundary. A full page with nothing new (all at the cursor's second) goes on to the next page.
@@ -56,7 +60,7 @@ def poll(tool, d):
             raise SystemExit("gitlab_issues: unexpected answer %r" % (got,))
         new = [i for i in got if i["created_at"] > cursor or (i["created_at"] == cursor and i["iid"] not in seen)]
         for issue in sorted(new, key=lambda i: (i["created_at"], i["iid"])):
-            made.append(card(issue))
+            made.append(task(issue))
             if issue["created_at"] > cursor:
                 cursor, seen = issue["created_at"], set()
             seen.add(issue["iid"])
@@ -70,14 +74,14 @@ def poll(tool, d):
 
 
 own = deck("deck.manifest_get", {})["project"]
-cards = []
+tasks = []
 errors = []
 for rec in deck("deck.records_list", {"collection": "intake"}) or []:
     try:
-        cards += poll(own + ".gitlab_issues", rec["data"])
+        tasks += poll(own + ".gitlab_issues", rec["data"])
     except SystemExit as e:
         errors.append("%s: %s" % (rec["data"].get("project"), e))
 if errors:
-    # The cards already made stay; the failure shows as the state of the process and in its health.
-    raise SystemExit("\n".join(errors) + ("\ncards made before the failure: %s" % cards if cards else ""))
-print(json.dumps({"cards": cards} if cards else None))
+    # The tasks already made stay; the failure shows as the state of the process and in its health.
+    raise SystemExit("\n".join(errors) + ("\ntasks made before the failure: %s" % tasks if tasks else ""))
+print(json.dumps({"tasks": tasks} if tasks else None))

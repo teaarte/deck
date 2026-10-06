@@ -23,7 +23,7 @@ func TestOwnerAttachesFilesAndTopicsKnowTheirModule(t *testing.T) {
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		return provider.Result{Text: "Read it."}
 	})
-	e.createProject("web", boardWebManifest)
+	e.createProject("web", webNotes)
 	id := e.upload("master", "plan.txt", "text/plain", "the plan")
 	topic := e.say(0, "look at the plan", map[string]any{"screen": `{"project":"web","screen":"main"}`, "files": []string{fmt.Sprint(id)}})
 	e.masterSaid(topic, 1)
@@ -137,7 +137,7 @@ func TestADeletedTopicIsGoneAfterAMonth(t *testing.T) {
 // the screen it was written on; its paths are skipped.
 func TestAnOldMessageWithFilePathsKeepsItsScreen(t *testing.T) {
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result { return provider.Result{Text: "Read it."} })
-	e.createProject("web", boardWebManifest)
+	e.createProject("web", webNotes)
 	topic := e.say(0, "hello")
 	e.masterSaid(topic, 1)
 	if _, err := e.App.Store.DB.Exec(`INSERT INTO chat_message (topic_id, role, text, context) VALUES (?, 'owner', 'old plan', ?)`,

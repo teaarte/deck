@@ -43,25 +43,6 @@ type AutomationToken struct {
 	RevokedAt   sql.NullString
 }
 
-type Card struct {
-	ID        int64
-	ProjectID int64
-	Title     string
-	Text      string
-	Lane      string
-	Rank      int64
-	RecordID  sql.NullInt64
-	ProcessID sql.NullInt64
-	DeletedAt sql.NullString
-	CreatedAt string
-	UpdatedAt string
-}
-
-type CardEdge struct {
-	CardID   int64
-	WaitsFor int64
-}
-
 type ChatMessage struct {
 	ID        int64
 	TopicID   int64
@@ -85,7 +66,6 @@ type ChatTopic struct {
 	ID          int64
 	WorkspaceID int64
 	Title       string
-	CardID      sql.NullInt64
 	Archived    int64
 	DeletedAt   sql.NullString
 	CreatedAt   string
@@ -109,7 +89,6 @@ type Document struct {
 	WorkspaceID int64
 	ProjectID   sql.NullInt64
 	RecordID    sql.NullInt64
-	CardID      sql.NullInt64
 	Kind        string
 	Name        string
 	Current     int64

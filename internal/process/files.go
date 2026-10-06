@@ -19,16 +19,15 @@ import (
 )
 
 // FileRef is an entry of the files field of a result: a file of the results folder, or File, a file the
-// process got in its input, and the record or card it belongs to.
+// process got in its input, and the record it belongs to.
 type FileRef struct {
 	Path   string `json:"path,omitempty"`
 	File   int64  `json:"file,omitempty"`
 	Record int64  `json:"record,omitempty"`
-	Card   int64  `json:"card,omitempty"`
 }
 
-// keepFiles moves the files a result names into files/ and binds them to their record or card, or to the
-// process when the result names neither; files it does not name go away with the run folder.
+// keepFiles moves the files a result names into files/ and binds them to their record, or to the process when
+// the result names none; files it does not name go away with the run folder.
 func (r *Runner) keepFiles(ctx context.Context, projectID, processID int64, results, result string) error {
 	var res struct {
 		Files []FileRef `json:"files"`
@@ -124,7 +123,7 @@ func (r *Runner) keepFiles(ctx context.Context, projectID, processID int64, resu
 // keeping owns the rows of result files while they move into files/; the daily sweep drops those a crash left.
 const keeping = "keeping"
 
-// rebind gives input files of the process to the record or card the result names.
+// rebind gives input files of the process to the record the result names.
 func rebind(ctx context.Context, q *db.Queries, projectID, processID int64, given []FileRef) error {
 	for _, f := range given {
 		kind, owner, err := fileOwner(ctx, q, projectID, processID, f)
@@ -159,23 +158,14 @@ func (r *Runner) dropFiles(ctx context.Context, rows []db.File) {
 }
 
 func fileOwner(ctx context.Context, q *db.Queries, projectID, processID int64, f FileRef) (string, int64, error) {
-	switch {
-	case f.Record != 0 && f.Card != 0:
-		return "", 0, errors.New("a result file belongs to a record or a card, not both")
-	case f.Record != 0:
-		rec, err := q.GetRecord(ctx, f.Record)
-		if errors.Is(err, sql.ErrNoRows) || err == nil && rec.ProjectID != projectID {
-			return "", 0, registry.Invalid("deck: result file %q: no record %d in this project", f.Path, f.Record)
-		}
-		return "record", f.Record, err
-	case f.Card != 0:
-		c, err := q.GetCard(ctx, f.Card)
-		if errors.Is(err, sql.ErrNoRows) || err == nil && c.ProjectID != projectID {
-			return "", 0, registry.Invalid("deck: result file %q: no card %d in this project", f.Path, f.Card)
-		}
-		return "card", f.Card, err
+	if f.Record == 0 {
+		return "process", processID, nil
 	}
-	return "process", processID, nil
+	rec, err := q.GetRecord(ctx, f.Record)
+	if errors.Is(err, sql.ErrNoRows) || err == nil && rec.ProjectID != projectID {
+		return "", 0, registry.Invalid("deck: result file %q: no record %d in this project", f.Path, f.Record)
+	}
+	return "record", f.Record, err
 }
 
 func move(src, dst string) error {

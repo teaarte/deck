@@ -48,21 +48,19 @@ func (q *Queries) AddMessage(ctx context.Context, arg AddMessageParams) (ChatMes
 
 const archiveProjectTopics = `-- name: ArchiveProjectTopics :exec
 UPDATE chat_topic SET archived = 1
-WHERE workspace_id = ?1 AND deleted_at IS NULL AND archived = 0 AND (
-    card_id IN (SELECT id FROM card WHERE project_id = ?2)
-    OR card_id IS NULL AND (SELECT json_extract(m.context, '$.project') FROM chat_message m
+WHERE workspace_id = ?1 AND deleted_at IS NULL AND archived = 0
+  AND (SELECT json_extract(m.context, '$.project') FROM chat_message m
         WHERE m.topic_id = chat_topic.id AND json_valid(m.context) AND COALESCE(json_extract(m.context, '$.project'), '') != ''
-        ORDER BY m.id LIMIT 1) = ?3)
+        ORDER BY m.id LIMIT 1) = ?2
 `
 
 type ArchiveProjectTopicsParams struct {
 	WorkspaceID int64
-	ProjectID   int64
 	Name        string
 }
 
 func (q *Queries) ArchiveProjectTopics(ctx context.Context, arg ArchiveProjectTopicsParams) error {
-	_, err := q.db.ExecContext(ctx, archiveProjectTopics, arg.WorkspaceID, arg.ProjectID, arg.Name)
+	_, err := q.db.ExecContext(ctx, archiveProjectTopics, arg.WorkspaceID, arg.Name)
 	return err
 }
 
@@ -100,23 +98,21 @@ func (q *Queries) CountMessagesAfter(ctx context.Context, arg CountMessagesAfter
 }
 
 const createTopic = `-- name: CreateTopic :one
-INSERT INTO chat_topic (workspace_id, title, card_id) VALUES (?, ?, ?) RETURNING id, workspace_id, title, card_id, archived, deleted_at, created_at, updated_at
+INSERT INTO chat_topic (workspace_id, title) VALUES (?, ?) RETURNING id, workspace_id, title, archived, deleted_at, created_at, updated_at
 `
 
 type CreateTopicParams struct {
 	WorkspaceID int64
 	Title       string
-	CardID      sql.NullInt64
 }
 
 func (q *Queries) CreateTopic(ctx context.Context, arg CreateTopicParams) (ChatTopic, error) {
-	row := q.db.QueryRowContext(ctx, createTopic, arg.WorkspaceID, arg.Title, arg.CardID)
+	row := q.db.QueryRowContext(ctx, createTopic, arg.WorkspaceID, arg.Title)
 	var i ChatTopic
 	err := row.Scan(
 		&i.ID,
 		&i.WorkspaceID,
 		&i.Title,
-		&i.CardID,
 		&i.Archived,
 		&i.DeletedAt,
 		&i.CreatedAt,
@@ -224,7 +220,7 @@ func (q *Queries) GetMessage(ctx context.Context, id int64) (ChatMessage, error)
 }
 
 const getTopic = `-- name: GetTopic :one
-SELECT id, workspace_id, title, card_id, archived, deleted_at, created_at, updated_at FROM chat_topic WHERE id = ? AND deleted_at IS NULL
+SELECT id, workspace_id, title, archived, deleted_at, created_at, updated_at FROM chat_topic WHERE id = ? AND deleted_at IS NULL
 `
 
 func (q *Queries) GetTopic(ctx context.Context, id int64) (ChatTopic, error) {
@@ -234,7 +230,6 @@ func (q *Queries) GetTopic(ctx context.Context, id int64) (ChatTopic, error) {
 		&i.ID,
 		&i.WorkspaceID,
 		&i.Title,
-		&i.CardID,
 		&i.Archived,
 		&i.DeletedAt,
 		&i.CreatedAt,
@@ -364,12 +359,11 @@ func (q *Queries) ListPendingMessages(ctx context.Context, topicID int64) ([]Cha
 }
 
 const listTopicSummaries = `-- name: ListTopicSummaries :many
-SELECT t.id, t.title, t.card_id, t.archived, t.updated_at,
+SELECT t.id, t.title, t.archived, t.updated_at,
     CAST(COALESCE((SELECT m.text FROM chat_message m WHERE m.topic_id = t.id ORDER BY m.id DESC LIMIT 1), '') AS TEXT) AS last_text,
     CAST(COALESCE(op.id, 0) AS INTEGER) AS open_id, CAST(COALESCE(op.state, '') AS TEXT) AS open_state,
     CAST(COALESCE(op.provider, '') AS TEXT) AS open_provider, CAST(COALESCE(op.error, '') AS TEXT) AS open_error,
     CAST(COALESCE(
-        (SELECT pr.name FROM card c JOIN project pr ON pr.id = c.project_id WHERE c.id = t.card_id),
         (SELECT pr.name FROM project pr WHERE pr.workspace_id = t.workspace_id AND pr.name =
             (SELECT json_extract(m.context, '$.project') FROM chat_message m
                 WHERE m.topic_id = t.id AND json_valid(m.context) AND COALESCE(json_extract(m.context, '$.project'), '') != ''
@@ -395,7 +389,6 @@ type ListTopicSummariesParams struct {
 type ListTopicSummariesRow struct {
 	ID           int64
 	Title        string
-	CardID       sql.NullInt64
 	Archived     int64
 	UpdatedAt    string
 	LastText     string
@@ -423,7 +416,6 @@ func (q *Queries) ListTopicSummaries(ctx context.Context, arg ListTopicSummaries
 		if err := rows.Scan(
 			&i.ID,
 			&i.Title,
-			&i.CardID,
 			&i.Archived,
 			&i.UpdatedAt,
 			&i.LastText,

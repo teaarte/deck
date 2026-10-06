@@ -241,19 +241,14 @@ func (ch *Service) masterNotes(ctx context.Context, workspace int64) (string, in
 }
 
 // chatPrompt is what a reply turn gets: on resume the messages its session missed, then the owner's new
-// messages with their screens, the card of the topic and where its summary is.
+// messages with their screens and where the summary of the topic is.
 func (ch *Service) chatPrompt(ctx context.Context, t db.ChatTopic, pending []db.ChatMessage, session, provider, notes string, resume bool) (string, string, error) {
 	type message struct{ Where, Text string }
-	type card struct {
-		ID             int64
-		Project, Title string
-	}
 	v := struct {
 		MemoryChanged          bool
 		Memory, Retold, Missed string
 		Topic                  int64
 		Pending                []message
-		Card                   *card
 		Summarized             bool
 		Summary                string
 		Grown                  int64
@@ -298,12 +293,6 @@ func (ch *Service) chatPrompt(ctx context.Context, t db.ChatTopic, pending []db.
 	}
 	for _, m := range pending {
 		v.Pending = append(v.Pending, message{Where: screenText(m.Context), Text: strings.TrimSpace(m.Text)})
-	}
-	if t.CardID.Valid {
-		if c, err := ch.St.Q.GetCard(ctx, t.CardID.Int64); err == nil {
-			p, _ := ch.St.Q.GetProject(ctx, c.ProjectID)
-			v.Card = &card{ID: c.ID, Project: p.Name, Title: untrusted.Line(c.Title, 200)}
-		}
 	}
 	grown, err := ch.sinceSummary(ctx, t)
 	if err != nil {

@@ -20,7 +20,7 @@ Protocol facts about Claude Code: `docs/spikes/claude-code.md`. Stage 1 plan: `d
 - `internal/store` — SQLite, goose migrations, sqlc queries (`db/` is generated)
 - `internal/registry` — command registry: every input (API, MCP, triggers) calls commands through it;
   input schemas limited to App Intents types
-- `internal/app` — wiring, builtin `deck.*` commands, projects, documents with revisions, records, cards and board
+- `internal/app` — wiring, builtin `deck.*` commands, projects, documents with revisions, records
 - `internal/manifest` — project manifest: parsing, validation, expressions
 - `internal/gateway` — deck MCP server per process: permission prompts, questions, confirmations, registry
   commands as tools; HTTP entry and domain proxy for scripts

@@ -31,7 +31,6 @@ func (m *Manifest) compile() error {
 	m.compileCommands(fail)
 	m.checkTools(fail)
 	m.checkTriggers(fail)
-	m.checkBoard(fail)
 	m.checkScreens(fail)
 	for _, name := range m.AllowedExternal {
 		if strings.HasPrefix(name, schemas.Builtin+".browser_") {
@@ -213,36 +212,6 @@ func (m *Manifest) knownTool(name string) bool {
 
 func (m *Manifest) knownAction(name string) bool {
 	return m.commands[name] != nil || m.knownTool(name)
-}
-
-func (m *Manifest) checkBoard(fail func(string, ...any)) {
-	if m.Board == nil {
-		return
-	}
-	names, roles := map[string]bool{}, map[string]bool{}
-	for _, l := range m.Board.Lanes {
-		if names[l.Name] {
-			fail("board: duplicate lane %q", l.Name)
-		}
-		names[l.Name] = true
-		if l.Role != "" {
-			if roles[l.Role] {
-				fail("board: role %q is used by more than one lane", l.Role)
-			}
-			roles[l.Role] = true
-		}
-	}
-	var have, miss []string
-	for _, r := range RunRoles {
-		if roles[r] {
-			have = append(have, r)
-		} else {
-			miss = append(miss, r)
-		}
-	}
-	if len(have) > 0 && len(miss) > 0 {
-		fail("board: code runs need lanes with roles %s together; missing %s", strings.Join(RunRoles, ", "), strings.Join(miss, ", "))
-	}
 }
 
 // checkAction verifies that a screen button can call its command: the owner may call it and the params

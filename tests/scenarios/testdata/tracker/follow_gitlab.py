@@ -1,4 +1,4 @@
-"""Start following a GitLab project: its open issues arrive as cards in Backlog.
+"""Start following a GitLab project: its open issues arrive as tasks in backlog.
 
 Input (stdin JSON): {"project": "group/name", "labels": "a,b"}; labels are optional.
 Result (stdout JSON): {"project": "group/name"}.

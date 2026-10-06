@@ -33,7 +33,6 @@
           "dispatch",
           "topic-summary",
           "memory",
-          "interview",
           "module-builder",
           "code-project"
         ]
@@ -85,8 +84,6 @@
         "prompt_file": "prompts/review.md",
         "calls": [
           "deck.projects_list",
-          "deck.cards_list",
-          "deck.card_get",
           "deck.processes_list",
           "deck.process_get",
           "deck.process_log",
@@ -140,8 +137,6 @@
         "prompt_file": "prompts/on_error.md",
         "calls": [
           "deck.projects_list",
-          "deck.cards_list",
-          "deck.card_get",
           "deck.processes_list",
           "deck.process_get",
           "deck.process_log",

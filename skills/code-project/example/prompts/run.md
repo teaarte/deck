@@ -2,9 +2,9 @@
 
 You work in the project folder, the owner's own git checkout. `do` in the input says what to do; `run` by default.
 `N` below is your deck process id (the first line of this prompt names it); `R` is the run `do` acts on: the
-`run` of the input, or else the run whose cards wait in the lane with role `review` (their text has
-`**Run R**`; for `revert`, the newest `deck run R:` merge on the base). When cards of several runs wait there,
-or none, ask the owner which run they mean; never guess by the newest branch.
+`run` of the input, or else the run whose tasks wait in `review` (their `run` is R; for `revert`, the newest
+`deck run R:` merge on the base). When tasks of several runs wait there, or none, ask the owner which run they
+mean; never guess by the newest branch.
 
 Rules for every `do`:
 
@@ -62,34 +62,34 @@ revert commits below.
 
 ## do = run
 
-1. `cards_list` of this project: take every card in the lane with role `ready`, in order. None: Finish and
-   hand in `null`.
-2. Move each to the lane with role `running` (`card_move`).
+1. `records_list` of collection `tasks` with `where` `status == 'ready'`: take every task, oldest first. None:
+   Finish and hand in `null`.
+2. Set each to `running` with `run` N: `record_update` with the whole record (`title`, `text`, `status`, `run`).
 3. `git switch -c deck/run-N <base>`; on a rework the branch exists: `git switch deck/run-N`.
-4. For each card: read it (`card_get`), do what it asks, run the tests the repo's instructions name, fix what
-   you broke, and commit with a message that names the card (`#<card id> <title>`). A card you cannot do: leave
-   the code as it was for it and say why in its report.
-5. For each card write the report into the card: `card_update` with the card's text, then a line `---` and
+4. For each task: do what it asks, run the tests the repo's instructions name, fix what you broke, and commit
+   with a message that names the task (`#<task id> <title>`). A task you cannot do: leave the code as it was
+   for it and say why in its report.
+5. For each task write the report into it: `record_update` with its text, then a line `---` and
    `**Run N** (branch deck/run-N):` and a few plain sentences — what changed, how you checked it, anything the
-   owner should look at. Then move it to the lane with role `review`.
+   owner should look at — and `status` `review`.
 6. When the project prompt says `Merge: yourself.` and every test passed, leave your branch (above), merge the
    run yourself as in `do = merge` and write one `notify` line: what was merged into which branch, and that
-   "Revert the merge" on the board undoes it. Otherwise do not merge: the owner reads the reports and asks.
-7. Finish. Summary: the cards, the branch, the commits.
+   "Revert the merge" on the Tasks screen undoes it. Otherwise do not merge: the owner reads the reports and asks.
+7. Finish. Summary: the tasks, the branch, the commits.
 
 ## do = merge
 
 1. Bring the run up to the base: `git switch deck/run-R`, `git rebase <base>`. A conflict: `git rebase
-   --abort`, merge nothing, keep the cards in review and say which files conflict. Run the tests again when
+   --abort`, merge nothing, keep the tasks in review and say which files conflict. Run the tests again when
    the rebase moved the branch.
 2. On the base: `git switch <base>`, then `git merge --squash deck/run-R`. It should not conflict now; if it
    does, `git reset --merge` and say so.
 3. Commit once (when the commit fails, a hook say, `git reset --merge` and say why): subject `deck run R:
-   <titles of the cards, shortened>`, and in the body one line per card, `#<id> <title>`. Move the cards of
-   run R (those whose text has `**Run R**`) from review to the lane with role `done`.
+   <titles of the tasks, shortened>`, and in the body one line per task, `#<id> <title>`. Set the tasks of
+   run R (`run` is R) from `review` to `done`.
 4. Only after that commit: `git branch -D deck/run-R` — the merge commit holds all of it, and a revert goes by
    that commit.
-5. Finish (you started on some branch; go back to it). Summary: the commit sha and the cards.
+5. Finish (you started on some branch; go back to it). Summary: the commit sha and the tasks.
 
 ## do = revert
 
@@ -97,7 +97,7 @@ revert commits below.
    None: say so and change nothing.
 2. `git switch <base>`, `git revert --no-edit <sha>`. A conflict: `git revert --abort` and say which files.
    To merge the run again later, revert this revert commit.
-3. Move the cards of run R back to the lane with role `review` and add a line `Reverted in <sha>.` to each.
+3. Set the tasks of run R back to `review` and add a line `Reverted in <sha>.` to the text of each.
 4. Finish. Summary: the revert commit.
 
 ## do = push

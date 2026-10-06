@@ -12,8 +12,8 @@ import (
 // TestScreensAndTheMenuSpeakTheLanguageOfTheOwner: the texts of deck's screens and of a manifest come in the
 // language asked for, by the i18n of each; a text without a translation stays as written.
 func TestScreensAndTheMenuSpeakTheLanguageOfTheOwner(t *testing.T) {
-	e := newEnv(t, boardWebAgent())
-	manifest := strings.Replace(boardWebManifest, `{"version": 9,`, `{"version": 9, "title": "Web notes", "i18n": {"ru": {"Web notes": "Веб-заметки", "Web": "Веб", "Notes": "Заметки", "Title": "Заголовок"}},`, 1)
+	e := newEnv(t, webNotesAgent())
+	manifest := strings.Replace(webNotes, `{"version": 9,`, `{"version": 9, "title": "Web notes", "i18n": {"ru": {"Web notes": "Веб-заметки", "Web": "Веб", "Notes": "Заметки", "Title": "Заголовок"}},`, 1)
 	e.createProject("web", manifest)
 
 	var menu []menuView
@@ -59,9 +59,9 @@ func TestATabKeepsItsKeyInEveryLanguage(t *testing.T) {
 	if !strings.Contains(string(drawn), `"Расходы"`) || !strings.Contains(string(drawn), `"keys":["Calls","Spend",`) {
 		t.Fatalf("a tab shows its title translated and keeps its key: %s", drawn)
 	}
-	twice := strings.Replace(boardWebManifest, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "blocks": [
-      {"type": "tabs", "tabs": [{"title": "One", "blocks": [{"type": "board"}]}]},
-      {"type": "tabs", "tabs": [{"title": "One", "blocks": [{"type": "board"}]}]},`, 1)
+	twice := strings.Replace(webNotes, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "blocks": [
+      {"type": "tabs", "tabs": [{"title": "One", "blocks": [{"type": "appearance"}]}]},
+      {"type": "tabs", "tabs": [{"title": "One", "blocks": [{"type": "appearance"}]}]},`, 1)
 	e.refused("deck.project_create", map[string]any{"name": "twice", "manifest": twice}, 422, `tab "One": duplicate`)
 }
 
@@ -93,25 +93,25 @@ func TestEveryTextOfDeckScreensHasItsTranslation(t *testing.T) {
 // saved, so a renamed text does not lose its translation unseen.
 func TestASavedManifestNamesTranslationsOfNoText(t *testing.T) {
 	e := newEnv(t, nil)
-	e.createProject("web", boardWebManifest)
+	e.createProject("web", webNotes)
 	var saved struct {
 		Unused []string `json:"unused_i18n"`
 	}
-	e.must("deck.manifest_save", map[string]any{"project": "web", "manifest": strings.Replace(boardWebManifest, `{"version": 9,`,
+	e.must("deck.manifest_save", map[string]any{"project": "web", "manifest": strings.Replace(webNotes, `{"version": 9,`,
 		`{"version": 9, "i18n": {"ru": {"Notes": "Заметки", "Old title": "Старое"}},`, 1)}, &saved)
 	if !slices.Equal(saved.Unused, []string{"ru: Old title"}) {
 		t.Fatalf("the translation of no text is named: %v", saved.Unused)
 	}
 }
 
-// TestFormsLanesAndFiltersSpeakTheLanguageOfTheOwner: the title and description of the command of a form, its
-// fields, the lanes of the board and the fields of filters are translated too.
-func TestFormsLanesAndFiltersSpeakTheLanguageOfTheOwner(t *testing.T) {
-	e := newEnv(t, boardWebAgent())
-	e.createProject("web", strings.Replace(boardWebManifest, `{"version": 9,`, `{"version": 9, "i18n": {"ru": {"Score": "Оценить",
-      "Scores a title.": "Оценивает заголовок.", "title": "Заголовок", "Backlog": "Входящие", "source": "Источник"}},`, 1))
+// TestFormsAndFiltersSpeakTheLanguageOfTheOwner: the title and description of the command of a form, its fields
+// and the fields of filters are translated too.
+func TestFormsAndFiltersSpeakTheLanguageOfTheOwner(t *testing.T) {
+	e := newEnv(t, webNotesAgent())
+	e.createProject("web", strings.Replace(webNotes, `{"version": 9,`, `{"version": 9, "i18n": {"ru": {"Score": "Оценить",
+      "Scores a title.": "Оценивает заголовок.", "title": "Заголовок", "source": "Источник"}},`, 1))
 	drawn, _ := json.Marshal(e.screenMessages("web", "main", map[string]any{"lang": "ru"}))
-	for _, want := range []string{`"title":"Оценить"`, `"description":"Оценивает заголовок."`, `"title":"Заголовок"`, `"title":"Входящие"`, `"label":"Источник"`} {
+	for _, want := range []string{`"title":"Оценить"`, `"description":"Оценивает заголовок."`, `"title":"Заголовок"`, `"label":"Источник"`} {
 		if !strings.Contains(string(drawn), want) {
 			t.Errorf("no %s in %s", want, drawn)
 		}

@@ -5,7 +5,6 @@ import (
 	"context"
 	"database/sql"
 	"deck2/internal/app/access"
-	"deck2/master"
 	"encoding/json"
 	"errors"
 	"strconv"
@@ -15,7 +14,6 @@ import (
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
-	"deck2/internal/untrusted"
 )
 
 // maxChatText is the longest message the owner sends in one go.
@@ -43,28 +41,9 @@ func topicTitle(text string) string {
 type chatSendIn struct {
 	Text     string   `type:"text" desc:"The message"`
 	Topic    int64    `opt:"" desc:"Chat topic; a new topic when omitted"`
-	Screen   string   `type:"json" opt:"" desc:"The screen the owner is on, as JSON: project, screen, record, card, process"`
-	Card     int64    `type:"card" opt:"" desc:"Card a new topic is about"`
+	Screen   string   `type:"json" opt:"" desc:"The screen the owner is on, as JSON: project, screen, record, process"`
 	RetryKey string   `json:"retry_key" opt:"" desc:"A key of this message: sending it again with the same key returns the first one"`
 	Files    []string `type:"file[]" opt:"" desc:"Uploads of project master the owner attaches; the turn that takes the message gets copies"`
-}
-
-type chatInterviewIn struct {
-	Card   int64  `type:"card" desc:"The card the master interviews the owner about"`
-	Screen string `type:"json" opt:"" desc:"The screen the owner is on, as JSON: project, screen, record, card, process"`
-}
-
-// chatInterview opens a topic about a card in which the master interviews the owner and writes the spec into it.
-func (ch *Service) chatInterview(ctx context.Context, act registry.Actor, in chatInterviewIn) (any, error) {
-	c, err := ch.St.Q.GetCard(ctx, in.Card)
-	if _, _, err = access.Owned(ctx, ch.St.Q, act, c, err, c.ProjectID, registry.NotFound("deck: no card %d", in.Card)); err != nil {
-		return nil, err
-	}
-	text := master.Text("interview", struct {
-		Card  int64
-		Title string
-	}{c.ID, untrusted.Line(c.Title, 200)})
-	return ch.chatSend(ctx, act, chatSendIn{Text: text, Card: c.ID, Screen: in.Screen})
 }
 
 func (ch *Service) chatSend(ctx context.Context, act registry.Actor, in chatSendIn) (any, error) {
@@ -74,8 +53,6 @@ func (ch *Service) chatSend(ctx context.Context, act registry.Actor, in chatSend
 		return nil, registry.Invalid("deck: the message is empty")
 	case len(text) > maxChatText:
 		return nil, registry.Invalid("deck: a message is at most %d bytes", maxChatText)
-	case in.Topic != 0 && in.Card != 0:
-		return nil, registry.Invalid("deck: a card goes with a new topic only")
 	}
 	var s screenContext
 	if strings.TrimSpace(in.Screen) != "" {
@@ -122,19 +99,8 @@ func (ch *Service) chatSend(ctx context.Context, act registry.Actor, in chatSend
 			if t, err = ch.ownTopic(ctx, q, act, in.Topic); err != nil {
 				return err
 			}
-		} else {
-			if in.Card != 0 {
-				c, err := q.GetCard(ctx, in.Card)
-				if err != nil || c.DeletedAt.Valid {
-					return registry.NotFound("deck: no card %d", in.Card)
-				}
-				if _, err := access.Of(ctx, q, act, c.ProjectID, registry.NotFound("deck: no card %d", in.Card)); err != nil {
-					return err
-				}
-			}
-			if t, err = q.CreateTopic(ctx, db.CreateTopicParams{WorkspaceID: act.Workspace, Title: topicTitle(text), CardID: store.ID(in.Card)}); err != nil {
-				return err
-			}
+		} else if t, err = q.CreateTopic(ctx, db.CreateTopicParams{WorkspaceID: act.Workspace, Title: topicTitle(text)}); err != nil {
+			return err
 		}
 		if msg, err = q.AddMessage(ctx, db.AddMessageParams{TopicID: t.ID, Role: roleOwner, Text: text, Context: screen, RetryKey: in.RetryKey}); err != nil {
 			return err
@@ -261,9 +227,6 @@ func (ch *Service) Commands() []*registry.Command {
 		registry.Def("chat_send", "Tell the master",
 			"Sends the owner's message to the master in a chat topic, a new one when none is given; the master's reply comes into the same topic.",
 			registry.OwnerOnly, ch.chatSend),
-		registry.Def("chat_interview", "Interview about a card",
-			"Opens a chat topic about a card in which the master interviews the owner and writes the spec into the card.",
-			registry.OwnerOnly, ch.chatInterview),
 		registry.Read("chat", "Chat",
 			"Gives the chat with the master as a chat block shows it: the topics, and of the topic picked its messages, the questions of its reply and the lines of the turn going on.",
 			registry.OwnerOnly, ch.chat).On("chat", "asks", "log", "processes"),

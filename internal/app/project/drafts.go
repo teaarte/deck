@@ -71,7 +71,7 @@ func rights(m *manifest.Manifest) []string {
 type commandTryIn struct {
 	Command string `desc:"Command name, project.command"`
 	Input   string `type:"json" opt:"" desc:"Command input: a JSON object"`
-	Live    bool   `opt:"" desc:"The project is enabled: the trial writes into its real records and cards"`
+	Live    bool   `opt:"" desc:"The project is enabled: the trial writes into its real records"`
 	Only    bool   `opt:"" desc:"Only this command: the commands that run after it do not start; the whole chain runs when omitted"`
 }
 
@@ -103,7 +103,7 @@ func (pj *Service) liveTrial(ctx context.Context, c *registry.Command, live bool
 		return err
 	}
 	if !live {
-		return registry.Invalid("deck: %s is enabled: a trial writes into its real records and cards and may run beside its own runs; "+
+		return registry.Invalid("deck: %s is enabled: a trial writes into its real records and may run beside its own runs; "+
 			"try the change in a draft copy (project_import of its folder under another name), or pass live to try it here", p.Name)
 	}
 	open, err := pj.St.Q.ListOpenProcesses(ctx, db.ListOpenProcessesParams{WorkspaceID: p.WorkspaceID, ProjectID: p.ID})

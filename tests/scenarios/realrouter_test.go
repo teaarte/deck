@@ -12,7 +12,7 @@ func TestRealBrowserRouter(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	e := newEnv(t, boardWebAgent())
+	e := newEnv(t, webNotesAgent())
 	e.createProject("web", routedManifest)
 	e.must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": jsonl(map[string]any{"title": "alpha"})}, nil)
 	b := newPlaywright(t)

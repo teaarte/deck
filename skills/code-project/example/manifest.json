@@ -1,10 +1,50 @@
 {
-  "version": 8,
+  "version": 9,
+  "collections": [
+    {
+      "name": "tasks",
+      "description": "A task of the repo: what the owner, the master or a routine asks, with the report of the run that did it.",
+      "key": "title",
+      "display": "title",
+      "schema": {
+        "type": "object",
+        "required": [
+          "title",
+          "status"
+        ],
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "A short imperative"
+          },
+          "text": {
+            "type": "string",
+            "description": "What to do, markdown; a run adds its report after a line ---"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "backlog",
+              "ready",
+              "running",
+              "review",
+              "done"
+            ],
+            "description": "backlog: later; ready: the next run takes it; running; review: a run did it and waits for the owner; done: merged"
+          },
+          "run": {
+            "type": "integer",
+            "description": "The run that worked on it"
+          }
+        }
+      }
+    }
+  ],
   "commands": [
     {
       "name": "run",
       "title": "Run",
-      "description": "Works on the cards in Ready in the repo folder, or merges, reverts, pushes or shows a run.",
+      "description": "Works on the ready tasks in the repo folder, or merges, reverts, pushes or shows a run.",
       "class": "internal",
       "callers": [
         "owner",
@@ -58,39 +98,10 @@
       }
     }
   ],
-  "board": {
-    "lanes": [
-      {
-        "name": "backlog",
-        "title": "Backlog",
-        "role": "inbox"
-      },
-      {
-        "name": "ready",
-        "title": "Ready",
-        "role": "ready"
-      },
-      {
-        "name": "running",
-        "title": "Running",
-        "role": "running"
-      },
-      {
-        "name": "review",
-        "title": "Review",
-        "role": "review"
-      },
-      {
-        "name": "done",
-        "title": "Done",
-        "role": "done"
-      }
-    ]
-  },
   "screens": [
     {
-      "name": "board",
-      "title": "Board",
+      "name": "tasks",
+      "title": "Tasks",
       "blocks": [
         {
           "type": "actions",
@@ -134,8 +145,36 @@
           ]
         },
         {
-          "type": "board",
-          "title": "Board"
+          "type": "table",
+          "title": "Tasks",
+          "source": {
+            "collection": "tasks"
+          },
+          "filter": [
+            "status"
+          ],
+          "columns": [
+            {
+              "label": "Task",
+              "bind": "title"
+            },
+            {
+              "label": "Status",
+              "bind": "status",
+              "format": "tag"
+            },
+            {
+              "label": "Run",
+              "bind": "run"
+            }
+          ],
+          "actions": [
+            {
+              "label": "Open",
+              "primary": true,
+              "screen": "task"
+            }
+          ]
         },
         {
           "type": "list",
@@ -152,9 +191,21 @@
           }
         }
       ]
+    },
+    {
+      "name": "task",
+      "title": "Task",
+      "record": "tasks",
+      "blocks": [
+        {
+          "type": "form",
+          "title": "Task",
+          "command": "deck.record_update"
+        }
+      ]
     }
   ],
   "menu": [
-    "board"
+    "tasks"
   ]
 }

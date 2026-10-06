@@ -53,7 +53,7 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
   its process did not act on), `processes` (the commands of processes), `failures` (failed processes and screens to
   the master), `health` (the list of health), `signins`
   (sign-ins of the browser and oauth2 tools, MCP servers), `documents` (documents, shipped skills, health of
-  scripts), `triggers`, `snapshots` (snapshots, cleanup, disk), `journal`, `files`, `folders`, `settings` (one table
+  scripts), `snapshots` (snapshots, cleanup, disk), `journal`, `files`, `folders`, `settings` (one table
   `settingDefs` gives the row, the names `settings_set` takes and the edit button), `secrets`, `tokens`, `board`,
   `providers` (connections, models with prices and options, assignments with fallbacks, the providers of agent
   turns — built-in or a model in an ACP agent, the agents found with their version, self-checks at start, by button

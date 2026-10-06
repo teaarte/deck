@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -285,3 +286,37 @@ const calcManifest = `{
     "input": {"type": "object", "properties": {"n": {"type": "integer"}}},
     "executor": {"type": "agent", "prompt": "OLD PROMPT"}}]
 }`
+
+// TestAToolAddedToTheProjectReachesARunningTurn: a command added to the manifest while an agent works is a tool of
+// its session at once, and a command taken out is gone, so the master tries what it just built in the same turn.
+func TestAToolAddedToTheProjectReachesARunningTurn(t *testing.T) {
+	saved, listed := make(chan struct{}), make(chan []string, 2)
+	names := func(ctx context.Context, c *Call) []string {
+		var out []string
+		for tool, err := range c.Session.Tools(ctx, nil) {
+			if err == nil {
+				out = append(out, tool.Name)
+			}
+		}
+		return out
+	}
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		listed <- names(ctx, c)
+		<-saved
+		time.Sleep(300 * time.Millisecond)
+		listed <- names(ctx, c)
+		return provider.Result{Structured: json.RawMessage(`{}`)}
+	})
+	p := e.createProject("notes", plainManifest)
+	id := e.run(p, "work")
+	before := <-listed
+	more := strings.Replace(plainManifest, `"commands": [{`, `"commands": [{"name": "extra", "title": "Extra", "description": "Does more", "class": "internal",
+    "executor": {"type": "agent", "prompt": "More."}}, {`, 1)
+	e.must("deck.manifest_save", map[string]any{"project": "notes", "manifest": more}, nil)
+	close(saved)
+	after := <-listed
+	if slices.Contains(before, "notes__extra") || !slices.Contains(after, "notes__extra") {
+		t.Fatalf("the new command is a tool of the running turn: before %v after %v", before, after)
+	}
+	e.waitState(id, "done")
+}

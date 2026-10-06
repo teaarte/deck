@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"maps"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -98,7 +100,41 @@ type entry struct {
 func New(cfg Config, st *store.Store, asks *ask.Broker, bus *events.Bus, reg *registry.Registry) *Gateway {
 	g := &Gateway{cfg: cfg, st: st, asks: asks, bus: bus, reg: reg, clear: reg.Clearance(), sessions: map[string]*entry{}, tokens: map[int64]*automationEntry{}}
 	g.handler = provider.Stateful(mcp.NewStreamableHTTPHandler(g.serverFor, &mcp.StreamableHTTPOptions{SessionTimeout: time.Hour}))
+	if bus != nil {
+		bus.Watch(func(topic string) {
+			if topic == "projects" {
+				go g.renew(context.Background())
+			}
+		})
+	}
 	return g
+}
+
+// renew gives every live session the commands it may call now, after a project changed: a new command is a tool
+// at once, one taken out is gone.
+func (g *Gateway) renew(ctx context.Context) {
+	g.mu.Lock()
+	es := slices.Collect(maps.Values(g.sessions))
+	g.mu.Unlock()
+	for _, e := range es {
+		allowed, tools, err := g.addCommands(ctx, e.server, e.session)
+		if err != nil {
+			continue
+		}
+		g.mu.Lock()
+		var gone []string
+		for _, t := range e.tools {
+			switch {
+			case t == AskTool || t == SubmitTool:
+				tools, allowed = append(tools, t), append(allowed, provider.Qualify(t))
+			case !slices.Contains(tools, t):
+				gone = append(gone, t)
+			}
+		}
+		e.tools, e.allowed = tools, allowed
+		g.mu.Unlock()
+		e.server.RemoveTools(gone...)
+	}
 }
 
 // Register issues a token for a process; the token is part of the MCP URL the provider connects to.

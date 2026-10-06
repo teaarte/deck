@@ -33,7 +33,7 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
   assignments from the providers of settings, `00010_spend` — the connection of a model call,
   `00011_whisper` — the whisper.cpp of the machine as the model of speech to text, `00012_no_project_limit`,
   `00013_google_openai` — a Google connection on its OpenAI-compatible address, `00014_pause` — a pause without an end
-  of its own, `00015_no_opencode`), sqlc queries
+  of its own, `00015_no_opencode`, `00016_orphan_health`), sqlc queries
   (`db/` is generated); `mark` keeps only cursors and throttles
 - `internal/registry` — command registry: every input (API, MCP, triggers) calls commands through it;
   input schemas limited to App Intents types; `registry.Def` takes the schema from the tagged input struct;

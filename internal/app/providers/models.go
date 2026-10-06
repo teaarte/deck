@@ -507,8 +507,10 @@ func (s *Service) modelRemove(ctx context.Context, act registry.Actor, in modelR
 		if active > 0 {
 			return registry.Invalid("deck: %d processes still run on %s; stop them or let them finish first", active, in.Name)
 		}
-		n, err = q.DeleteModel(ctx, db.DeleteModelParams{WorkspaceID: act.Workspace, Name: in.Name})
-		return err
+		if n, err = q.DeleteModel(ctx, db.DeleteModelParams{WorkspaceID: act.Workspace, Name: in.Name}); err != nil || n == 0 {
+			return err
+		}
+		return q.DeleteModelHealth(ctx, in.Name)
 	})
 	if err != nil {
 		return nil, err

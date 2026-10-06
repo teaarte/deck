@@ -24,6 +24,15 @@ func (q *Queries) DeleteHealth(ctx context.Context, arg DeleteHealthParams) erro
 	return err
 }
 
+const deleteModelHealth = `-- name: DeleteModelHealth :exec
+DELETE FROM health WHERE subject = 'provider:' || CAST(?1 AS TEXT) AND NOT EXISTS (SELECT 1 FROM model WHERE name = CAST(?1 AS TEXT))
+`
+
+func (q *Queries) DeleteModelHealth(ctx context.Context, name string) error {
+	_, err := q.db.ExecContext(ctx, deleteModelHealth, name)
+	return err
+}
+
 const deleteScreenHealth = `-- name: DeleteScreenHealth :exec
 DELETE FROM health WHERE project_id = ? AND subject GLOB 'screen:*'
 `

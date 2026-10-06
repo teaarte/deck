@@ -322,6 +322,9 @@ func TestSettingsModelsAddAndRemoveOnTheScreen(t *testing.T) {
 			t.Fatalf("the removed model is gone: %+v", r)
 		}
 	}
+	if _, err := e.App.Store.Q.GetHealth(t.Context(), "provider:ollama-small"); err == nil {
+		t.Fatal("the health of a removed model goes with it")
+	}
 }
 
 // TestSettingsHealthShowsWhatIsRedFirstWithWhy: health is a table of subjects with their state and error,

@@ -135,7 +135,8 @@ func TestAModelOfOpenCodeSaysToSetItAgain(t *testing.T) {
 	for _, q := range []string{
 		`INSERT INTO connection (workspace_id, name, api, url) VALUES (1, 'router', 'openai', 'https://openrouter.ai/api/v1')`,
 		`INSERT INTO model (workspace_id, connection_id, name, model, kind, agent) SELECT 1, id, 'free', 'x/free', 'text', 'opencode' FROM connection WHERE name = 'router'`,
-		`INSERT INTO health (subject, status, error) VALUES ('provider:free', 'error', 'install it with npm i -g opencode-ai@1.18.30'), ('agent:opencode', 'error', 'opencode 2.0.20 is not supported')`,
+		`INSERT INTO health (subject, status, error) VALUES ('provider:free', 'error', 'install it with npm i -g opencode-ai@1.18.30'), ('agent:opencode', 'error', 'opencode 2.0.20 is not supported'),
+		   ('provider:removed-long-ago', 'error', 'the model did not finish'), ('provider:codex', 'ok', '')`,
 	} {
 		if _, err := e.App.Store.DB.Exec(q); err != nil {
 			t.Fatal(err)
@@ -145,6 +146,12 @@ func TestAModelOfOpenCodeSaysToSetItAgain(t *testing.T) {
 	e = newEnvWith(t, home, &Fake{})
 	if _, err := e.App.Store.Q.GetHealth(t.Context(), "agent:opencode"); err == nil {
 		t.Fatal("the health row of OpenCode is gone with it")
+	}
+	if _, err := e.App.Store.Q.GetHealth(t.Context(), "provider:removed-long-ago"); err == nil {
+		t.Fatal("the health of a model removed before goes")
+	}
+	if _, err := e.App.Store.Q.GetHealth(t.Context(), "provider:codex"); err != nil {
+		t.Fatal("the health of a built-in provider stays")
 	}
 	if h, err := e.App.Store.Q.GetHealth(t.Context(), "provider:free"); err != nil || h.Status != "error" || !strings.Contains(h.Error, "goose") {
 		t.Fatalf("a model of OpenCode is red with what to do: %+v %v", h, err)

@@ -160,7 +160,7 @@ func (sv *Saver) SaveManifest(ctx context.Context, act registry.Actor, p db.Proj
 			return err
 		}
 		ref := docs.Ref{Scope: docs.ProjectScope(p), Name: docs.ManifestName}
-		cur, err := q.FindDocument(ctx, ref.Find())
+		cur, err := docs.Find(ctx, q, ref)
 		if err != nil {
 			return err
 		}

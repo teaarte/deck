@@ -324,7 +324,7 @@ func (ch *Service) summary(ctx context.Context, t db.ChatTopic) (since, text str
 	if err != nil {
 		return "", "", err
 	}
-	d, err := ch.St.Q.FindDocument(ctx, docs.Ref{Scope: docs.ProjectScope(p), Name: summaryName(t.ID)}.Find())
+	d, err := docs.Find(ctx, ch.St.Q, docs.Ref{Scope: docs.ProjectScope(p), Name: summaryName(t.ID)})
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", "", nil
 	}

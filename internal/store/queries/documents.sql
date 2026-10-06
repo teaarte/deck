@@ -1,10 +1,5 @@
 -- name: FindDocument :one
 SELECT * FROM document
-WHERE workspace_id = sqlc.arg(workspace_id) AND project_id IS sqlc.narg(project_id) AND record_id IS sqlc.narg(record_id) AND name = sqlc.arg(name) AND deleted_at IS NULL;
-
-
--- name: FindAnyDocument :one
-SELECT * FROM document
 WHERE workspace_id = sqlc.arg(workspace_id) AND project_id IS sqlc.narg(project_id) AND record_id IS sqlc.narg(record_id) AND name = sqlc.arg(name);
 
 

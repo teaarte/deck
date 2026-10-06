@@ -162,7 +162,7 @@ func (dc *Service) documentGet(ctx context.Context, act registry.Actor, in docum
 			ref.OwnerKind, ref.OwnerID = docs.OwnerRecord, in.Record
 		}
 		if err == nil {
-			d, err = dc.St.Q.FindDocument(ctx, ref.Find())
+			d, err = docs.Find(ctx, dc.St.Q, ref)
 			if errors.Is(err, sql.ErrNoRows) {
 				err = registry.NotFound("deck: no document %q", in.Name)
 			}
@@ -251,7 +251,7 @@ func editText(ctx context.Context, q *db.Queries, ref docs.Ref, in *documentSave
 	if len(in.Old) > 0 && in.Text != "" {
 		return registry.Invalid("deck: give the full text or old and new parts, not both")
 	}
-	d, err := q.FindDocument(ctx, ref.Find())
+	d, err := docs.Find(ctx, q, ref)
 	if errors.Is(err, sql.ErrNoRows) {
 		if in.IfRevision != 0 || len(in.Old) > 0 {
 			return registry.NotFound("deck: no document %q to change; save it with its full text", ref.Name)
@@ -301,7 +301,7 @@ func (dc *Service) documentDelete(ctx context.Context, act registry.Actor, in do
 	case in.Name != "":
 		var s docs.Scope
 		if s, err = dc.memoryScope(ctx, act, in.Project, in.Name); err == nil {
-			d, err = dc.St.Q.FindDocument(ctx, docs.Ref{Scope: s, Name: in.Name}.Find())
+			d, err = docs.Find(ctx, dc.St.Q, docs.Ref{Scope: s, Name: in.Name})
 			if errors.Is(err, sql.ErrNoRows) {
 				err = registry.NotFound("deck: no document %q", in.Name)
 			}
@@ -343,7 +343,7 @@ func (dc *Service) documentRestore(ctx context.Context, act registry.Actor, in d
 	}
 	var n int64
 	err = dc.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		if _, err := q.FindDocument(ctx, docs.RefOf(d).Find()); err == nil {
+		if _, err := docs.Find(ctx, q, docs.RefOf(d)); err == nil {
 			return nil
 		}
 		var err error
@@ -532,7 +532,7 @@ func (dc *Service) seedSkills(ctx context.Context, workspace int64) error {
 		}
 		return dc.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 			ref := docs.Ref{Scope: docs.Scope{Workspace: workspace}, Name: docs.SkillsDir + path}
-			d, err := q.FindAnyDocument(ctx, db.FindAnyDocumentParams(ref.Find()))
+			d, err := q.FindDocument(ctx, ref.Find())
 			if err == nil {
 				if d.DeletedAt.Valid {
 					return nil

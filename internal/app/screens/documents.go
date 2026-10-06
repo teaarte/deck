@@ -40,7 +40,7 @@ func (s Sources) DocumentView(ctx context.Context, p db.Project, record, id int6
 		if record != 0 {
 			ref.OwnerKind, ref.OwnerID = docs.OwnerRecord, record
 		}
-		d, err = s.Store.Q.FindDocument(ctx, ref.Find())
+		d, err = docs.Find(ctx, s.Store.Q, ref)
 		if errors.Is(err, sql.ErrNoRows) {
 			v := map[string]any{"id": 0, "project": p.Name, "name": name, "kind": docs.KindDoc, "text": "", "revision": 0,
 				"editable": editable(docs.KindDoc, name), "revisions": []map[string]any{}}

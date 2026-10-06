@@ -117,7 +117,7 @@ func (pj *Service) deletable(ctx context.Context, q *db.Queries, act registry.Ac
 		if cur.Status != store.ProjectDraft {
 			return registry.Refuse("deck: %s is not a draft; only the owner deletes an enabled project", p.Name)
 		}
-		d, err := q.FindDocument(ctx, docs.Ref{Scope: docs.ProjectScope(p), Name: docs.ManifestName}.Find())
+		d, err := docs.Find(ctx, q, docs.Ref{Scope: docs.ProjectScope(p), Name: docs.ManifestName})
 		if err != nil {
 			return err
 		}

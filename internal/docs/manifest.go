@@ -34,7 +34,7 @@ func ManifestAt(ctx context.Context, q *db.Queries, projectID, revision int64) (
 	if revision == 0 {
 		return Manifest(ctx, q, p)
 	}
-	d, err := q.FindDocument(ctx, Ref{Scope: ProjectScope(p), Name: ManifestName}.Find())
+	d, err := Find(ctx, q, Ref{Scope: ProjectScope(p), Name: ManifestName})
 	if err != nil {
 		return nil, err
 	}

@@ -50,6 +50,15 @@ type Ref struct {
 	Name      string
 }
 
+// Find is the document a ref names, sql.ErrNoRows when it is deleted.
+func Find(ctx context.Context, q *db.Queries, r Ref) (db.Document, error) {
+	d, err := q.FindDocument(ctx, r.Find())
+	if err == nil && d.DeletedAt.Valid {
+		return db.Document{}, sql.ErrNoRows
+	}
+	return d, err
+}
+
 func (r Ref) Find() db.FindDocumentParams {
 	f := db.FindDocumentParams{WorkspaceID: r.Workspace, ProjectID: store.ID(r.Project), Name: r.Name}
 	if r.OwnerKind == OwnerRecord {
@@ -105,7 +114,7 @@ func Save(ctx context.Context, q *db.Queries, ref Ref, kind, text, author, reaso
 	if err := checkMemoryText(kind, ref.Name, text); err != nil {
 		return db.Document{}, 0, false, err
 	}
-	d, err = q.FindAnyDocument(ctx, db.FindAnyDocumentParams(ref.Find()))
+	d, err = q.FindDocument(ctx, ref.Find())
 	if err == nil && d.DeletedAt.Valid && author != registry.Owner && !ownMemory(ctx, q, ref, kind, author) {
 		return d, 0, false, registry.Conflict("deck: %s was deleted; the owner can bring it back, or save it under another name", ref.Name)
 	}

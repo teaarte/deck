@@ -133,43 +133,9 @@ func (q *Queries) DeleteDocument(ctx context.Context, arg DeleteDocumentParams) 
 	return result.RowsAffected()
 }
 
-const findAnyDocument = `-- name: FindAnyDocument :one
-SELECT id, workspace_id, project_id, record_id, kind, name, "current", deleted_at, created_at FROM document
-WHERE workspace_id = ?1 AND project_id IS ?2 AND record_id IS ?3 AND name = ?4
-`
-
-type FindAnyDocumentParams struct {
-	WorkspaceID int64
-	ProjectID   sql.NullInt64
-	RecordID    sql.NullInt64
-	Name        string
-}
-
-func (q *Queries) FindAnyDocument(ctx context.Context, arg FindAnyDocumentParams) (Document, error) {
-	row := q.db.QueryRowContext(ctx, findAnyDocument,
-		arg.WorkspaceID,
-		arg.ProjectID,
-		arg.RecordID,
-		arg.Name,
-	)
-	var i Document
-	err := row.Scan(
-		&i.ID,
-		&i.WorkspaceID,
-		&i.ProjectID,
-		&i.RecordID,
-		&i.Kind,
-		&i.Name,
-		&i.Current,
-		&i.DeletedAt,
-		&i.CreatedAt,
-	)
-	return i, err
-}
-
 const findDocument = `-- name: FindDocument :one
 SELECT id, workspace_id, project_id, record_id, kind, name, "current", deleted_at, created_at FROM document
-WHERE workspace_id = ?1 AND project_id IS ?2 AND record_id IS ?3 AND name = ?4 AND deleted_at IS NULL
+WHERE workspace_id = ?1 AND project_id IS ?2 AND record_id IS ?3 AND name = ?4
 `
 
 type FindDocumentParams struct {

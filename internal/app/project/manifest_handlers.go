@@ -29,7 +29,7 @@ func (sv *Saver) manifestGet(ctx context.Context, act registry.Actor, in manifes
 		return manifestView{}, err
 	}
 	ref := docs.Ref{Scope: docs.ProjectScope(p), Name: docs.ManifestName}
-	d, err := sv.St.Q.FindDocument(ctx, ref.Find())
+	d, err := docs.Find(ctx, sv.St.Q, ref)
 	if err != nil {
 		return manifestView{}, err
 	}
@@ -61,7 +61,7 @@ func (sv *Saver) manifestSave(ctx context.Context, act registry.Actor, in manife
 		if in.Manifest != "" {
 			return nil, registry.Invalid("deck: give the whole manifest or a patch, not both")
 		}
-		d, err := sv.St.Q.FindDocument(ctx, docs.Ref{Scope: docs.ProjectScope(p), Name: docs.ManifestName}.Find())
+		d, err := docs.Find(ctx, sv.St.Q, docs.Ref{Scope: docs.ProjectScope(p), Name: docs.ManifestName})
 		if err != nil {
 			return nil, err
 		}

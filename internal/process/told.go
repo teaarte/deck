@@ -20,7 +20,7 @@ type told struct {
 
 func (t told) mark(ctx context.Context, q *db.Queries) error {
 	for _, id := range t.Asks {
-		if err := q.MarkAskDelivered(ctx, id); err != nil {
+		if _, err := q.DeliverAsk(ctx, id); err != nil {
 			return err
 		}
 	}

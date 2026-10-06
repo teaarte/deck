@@ -656,15 +656,6 @@ func (q *Queries) ListWorkspaceOpenAsks(ctx context.Context, workspaceID int64) 
 	return items, nil
 }
 
-const markAskDelivered = `-- name: MarkAskDelivered :exec
-UPDATE ask SET delivered_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ? AND delivered_at IS NULL
-`
-
-func (q *Queries) MarkAskDelivered(ctx context.Context, id int64) error {
-	_, err := q.db.ExecContext(ctx, markAskDelivered, id)
-	return err
-}
-
 const markRemarkDelivered = `-- name: MarkRemarkDelivered :exec
 UPDATE process_remark SET delivered_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ? AND delivered_at IS NULL
 `

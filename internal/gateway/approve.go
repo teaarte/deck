@@ -179,5 +179,8 @@ func (g *Gateway) ceiling(ctx context.Context, processID int64, run bool) {
 }
 
 func (g *Gateway) delivered(ctx context.Context, ask int64) {
-	_ = g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error { return q.MarkAskDelivered(ctx, ask) })
+	_ = g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		_, err := q.DeliverAsk(ctx, ask)
+		return err
+	})
 }

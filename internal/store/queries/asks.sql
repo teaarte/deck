@@ -41,10 +41,6 @@ WHERE a.process_id = CAST(sqlc.arg(process_id) AS INTEGER) AND a.state IN ('answ
 ORDER BY a.id;
 
 
--- name: MarkAskDelivered :exec
-UPDATE ask SET delivered_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ? AND delivered_at IS NULL;
-
-
 -- name: CloseOpenAsksOfProcess :many
 UPDATE ask SET state = 'expired', delivered_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
 WHERE process_id = CAST(sqlc.arg(process_id) AS INTEGER) AND state = 'open' AND kind NOT IN ('warning', 'unknown')

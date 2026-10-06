@@ -239,3 +239,44 @@ func TestAModelThatBrokeOffAfterTheRequestHasNoFallback(t *testing.T) {
 		t.Fatalf("a cut answer is an error and the fallback is not asked: %+v", got)
 	}
 }
+
+// TestAModelInUseAndAConnectionWithModelsStay: a model an agent still runs on and a connection with models are not
+// removed; a removed model leaves its assignment to the next one, and the connection goes once its models have.
+func TestAModelInUseAndAConnectionWithModelsStay(t *testing.T) {
+	api := newModels(t, map[string]func(int, map[string]any) (int, string, string){
+		"/v1/chat/completions": func(int, map[string]any) (int, string, string) {
+			return 200, "application/json", chatText(`{"verdict": "true", "confidence": 0.5}`)
+		},
+	})
+	release := make(chan struct{}, 1)
+	e := newEnv(t, held(release))
+	p := e.createProject("jobs", testManifest([]string{agentCommand("job", "")}, nil))
+	id := e.run(p, "job")
+	e.waitFor("the agent at its model", func() bool { return len(e.Fake.Calls()) == 1 })
+	e.refused("deck.model_remove", map[string]any{"name": "fake"}, 422, "still run on fake")
+	release <- struct{}{}
+	e.waitState(id, "done")
+
+	e.must("deck.connection_set", map[string]any{"name": "groq", "api": "openai", "url": api.URL + "/v1", "key": "gsk-1"}, nil)
+	for _, m := range []string{"fact-model", "spare-model"} {
+		e.must("deck.model_set", map[string]any{"connection": "groq", "model": m, "kind": "text", "input_usd": 0.5, "output_usd": 1}, nil)
+	}
+	e.must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"groq/fact-model", "groq/spare-model"}}, nil)
+	e.refused("deck.connection_remove", map[string]any{"name": "groq"}, 422, "remove the models first")
+	e.must("deck.model_remove", map[string]any{"name": "groq/fact-model"}, nil)
+	e.createProject("shorts", modelManifest)
+	got := e.waitState(e.start("shorts", "factcheck", map[string]any{"claim": "Owls are birds"}), "done", "error")
+	if c := api.calls(); got.State != "done" || len(c) != 1 || c[0].Model != "spare-model" {
+		t.Fatalf("the assignment goes on with the next model: %+v %+v", got, c)
+	}
+	e.refused("deck.connection_remove", map[string]any{"name": "groq"}, 422, "model groq/spare-model")
+	e.must("deck.model_remove", map[string]any{"name": "groq/spare-model"}, nil)
+	e.must("deck.connection_remove", map[string]any{"name": "groq"}, nil)
+	var ms struct{ Connections []struct{ Name string } }
+	e.must("deck.models_list", nil, &ms)
+	for _, c := range ms.Connections {
+		if c.Name == "groq" {
+			t.Fatalf("the connection without models goes: %+v", ms.Connections)
+		}
+	}
+}

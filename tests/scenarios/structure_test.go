@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"deck2/internal/store"
 	"deck2/internal/store/db"
@@ -148,5 +149,56 @@ func TestADeckOfAnOlderLayoutDoesNotStart(t *testing.T) {
 	}
 	if _, err := app.New(app.Config{Home: home}, &Fake{}); err == nil || !strings.Contains(err.Error(), "older layout (deck.db)") {
 		t.Fatalf("deck does not start on a folder of the older layout: %v", err)
+	}
+}
+
+// TestAReadWhileATransactionIsOpenDoesNotWait: reads go past the one writer, so a long transaction (a snapshot,
+// a manifest saved) holds no screen, and a read of another context inside a transaction does not freeze deck.
+func TestAReadWhileATransactionIsOpenDoesNotWait(t *testing.T) {
+	e := newEnv(t, nil)
+	e.createProject("mine", ideasManifest)
+	hold, held := make(chan struct{}), make(chan struct{})
+	go func() {
+		_ = e.App.Store.Tx(context.Background(), func(ctx context.Context, q *db.Queries) error {
+			close(held)
+			<-hold
+			return nil
+		})
+	}()
+	<-held
+	defer close(hold)
+	done := make(chan int, 1)
+	go func() {
+		code, _ := e.call("deck.projects_list", nil)
+		done <- code
+	}()
+	select {
+	case code := <-done:
+		if code != 200 {
+			t.Fatalf("projects_list: %d", code)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("a read waits for an open transaction")
+	}
+}
+
+// TestATransactionOfAnotherContextInsideATransactionFailsInsteadOfFreezing: a write that waits for the base past
+// its deadline is an error with the stack in the log, not deck frozen without a line.
+func TestATransactionOfAnotherContextInsideATransactionFailsInsteadOfFreezing(t *testing.T) {
+	e := newEnv(t, nil)
+	e.App.Store.Wait = time.Second
+	done := make(chan error, 1)
+	go func() {
+		done <- e.App.Store.Tx(context.Background(), func(ctx context.Context, q *db.Queries) error {
+			return e.App.Store.Tx(context.Background(), func(context.Context, *db.Queries) error { return nil })
+		})
+	}()
+	select {
+	case err := <-done:
+		if err == nil || !strings.Contains(err.Error(), "waited") {
+			t.Fatalf("a nested transaction fails with why: %v", err)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("a transaction inside a transaction freezes deck")
 	}
 }

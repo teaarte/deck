@@ -228,7 +228,7 @@ func (s *Store) resolve(ctx context.Context, ws []rowWrite) []Change {
 				if project != 0 {
 					var name string
 					var ws int64
-					if s.DB.QueryRowContext(ctx, `SELECT name, workspace_id FROM project WHERE id = ?`, project).Scan(&name, &ws) == nil {
+					if s.reads.QueryRowContext(ctx, `SELECT name, workspace_id FROM project WHERE id = ?`, project).Scan(&name, &ws) == nil {
 						c.Project, c.Workspace = name, ws
 					}
 				}
@@ -241,6 +241,6 @@ func (s *Store) resolve(ctx context.Context, ws []rowWrite) []Change {
 
 func (s *Store) one(ctx context.Context, q string, id int64) int64 {
 	var v int64
-	_ = s.DB.QueryRowContext(ctx, q, id).Scan(&v)
+	_ = s.reads.QueryRowContext(ctx, q, id).Scan(&v)
 	return v
 }

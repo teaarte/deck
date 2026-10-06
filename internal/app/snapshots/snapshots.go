@@ -77,7 +77,7 @@ func (s *Service) take(ctx context.Context, kind string) (string, error) {
 	var once sync.Once
 	filesDone := func() { once.Do(s.UnlockFiles) }
 	defer filesDone()
-	if _, err := s.St.DB.ExecContext(ctx, "VACUUM INTO ?", copyDB); err != nil {
+	if err := s.St.Backup(ctx, copyDB); err != nil {
 		return "", err
 	}
 	part := path + ".part"

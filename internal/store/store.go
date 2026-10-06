@@ -1,10 +1,13 @@
 package store
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"embed"
 	"fmt"
+	"log/slog"
+	"runtime/debug"
 	"strings"
 	"time"
 
@@ -17,12 +20,17 @@ import (
 //go:embed migrations/*.sql
 var migrations embed.FS
 
-// Store holds one SQLite connection, so transactions run one at a time and never interleave.
+// Store holds one SQLite connection for writes, so transactions run one at a time and never interleave, and
+// connections that only read beside it; Q reads through those.
 type Store struct {
-	DB *sql.DB
-	Q  *db.Queries
+	DB    *sql.DB
+	Q     *db.Queries
+	reads *sql.DB
+	uri   string
 	// Changed hears what each committed transaction changed, once it committed.
 	Changed func(Change)
+	// Wait is how long a transaction waits for the base before it fails.
+	Wait time.Duration
 	changes *changes
 }
 
@@ -96,8 +104,8 @@ func (g guard) QueryRowContext(ctx context.Context, q string, a ...any) *sql.Row
 }
 
 func Open(path string) (*Store, error) {
-	uri := strings.NewReplacer("%", "%25", "?", "%3f", "#", "%23").Replace(path)
-	base, err := sqlite.NewConnector("file:" + uri + "?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)")
+	uri := "file:" + strings.NewReplacer("%", "%25", "?", "%3f", "#", "%23").Replace(path)
+	base, err := sqlite.NewConnector(uri + "?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)")
 	if err != nil {
 		return nil, err
 	}
@@ -115,10 +123,40 @@ func Open(path string) (*Store, error) {
 	if err := ch.readColumns(conn); err != nil {
 		return nil, err
 	}
-	return &Store{DB: conn, Q: db.New(guard{conn}), changes: ch}, nil
+	reads, err := sql.Open("sqlite", uri+"?_pragma=query_only(1)&_pragma=busy_timeout(5000)")
+	if err != nil {
+		return nil, err
+	}
+	reads.SetMaxOpenConns(4)
+	return &Store{DB: conn, Q: db.New(guard{reads}), reads: reads, uri: uri, changes: ch}, nil
 }
 
-func (s *Store) Close() error { return s.DB.Close() }
+func (s *Store) Close() error { return cmp.Or(s.reads.Close(), s.DB.Close()) }
+
+// Backup writes a copy of the base to path from a connection of its own, so writes go on meanwhile.
+func (s *Store) Backup(ctx context.Context, path string) error {
+	conn, err := sql.Open("sqlite", s.uri+"?_pragma=busy_timeout(5000)")
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	_, err = conn.ExecContext(ctx, "VACUUM INTO ?", path)
+	return err
+}
+
+// writer takes the connection that writes, waiting at most Wait: a transaction that waits longer is held by
+// another, often one that called this through a context not of its own, and fails with its stack in the log.
+func (s *Store) writer(ctx context.Context) (*sql.Conn, error) {
+	wait := cmp.Or(s.Wait, 30*time.Second)
+	wctx, cancel := context.WithTimeout(ctx, wait)
+	defer cancel()
+	conn, err := s.DB.Conn(wctx)
+	if err != nil && ctx.Err() == nil {
+		slog.Error("store: a transaction waited too long for the base", "wait", wait, "stack", string(debug.Stack()))
+		return nil, fmt.Errorf("store: a transaction waited %s for the base: another holds it, perhaps the one that called this with a context not of its own", wait)
+	}
+	return conn, err
+}
 
 // TxGet runs f in a transaction and returns what it gives.
 func TxGet[T any](s *Store, ctx context.Context, f func(ctx context.Context, q *db.Queries) (T, error)) (T, error) {
@@ -134,7 +172,12 @@ func TxGet[T any](s *Store, ctx context.Context, f func(ctx context.Context, q *
 // Tx runs f in one transaction and commits when it returns nil. Inside f, use only q and the ctx it gets.
 func (s *Store) Tx(ctx context.Context, f func(ctx context.Context, q *db.Queries) error) error {
 	check(ctx)
-	tx, err := s.DB.BeginTx(ctx, nil)
+	conn, err := s.writer(ctx)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	tx, err := conn.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}

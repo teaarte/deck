@@ -363,7 +363,15 @@ type documentRevisionsIn struct {
 	Document int64 `type:"document" desc:"Document id"`
 }
 
-func (dc *Service) documentRevisions(ctx context.Context, act registry.Actor, in documentRevisionsIn) (any, error) {
+type revisionView struct {
+	Revision  int64  `json:"revision"`
+	Author    string `json:"author"`
+	Reason    string `json:"reason"`
+	CreatedAt string `json:"created_at"`
+	Current   bool   `json:"current"`
+}
+
+func (dc *Service) documentRevisions(ctx context.Context, act registry.Actor, in documentRevisionsIn) ([]revisionView, error) {
 	d, err := dc.readableDocument(ctx, dc.St.Q, act, in.Document)
 	if err != nil {
 		return nil, err
@@ -372,9 +380,9 @@ func (dc *Service) documentRevisions(ctx context.Context, act registry.Actor, in
 	if err != nil {
 		return nil, err
 	}
-	out := make([]map[string]any, 0, len(rs))
+	out := make([]revisionView, 0, len(rs))
 	for _, r := range rs {
-		out = append(out, map[string]any{"revision": r.N, "author": r.Author, "reason": r.Reason, "created_at": r.CreatedAt, "current": r.N == d.Current})
+		out = append(out, revisionView{Revision: r.N, Author: r.Author, Reason: r.Reason, CreatedAt: r.CreatedAt, Current: r.N == d.Current})
 	}
 	return out, nil
 }
@@ -455,9 +463,9 @@ func (dc *Service) Commands() []*registry.Command {
 		registry.Def("document_restore", "Bring document back",
 			"Brings a deleted document back as it was.",
 			registry.OwnerOnly, dc.documentRestore),
-		registry.Def("document_revisions", "Document history",
+		registry.Read("document_revisions", "Document history",
 			"Lists revisions of a document: who, when and why.",
-			registry.Everyone, dc.documentRevisions),
+			registry.Everyone, dc.documentRevisions).On("documents"),
 		registry.Def("document_revert", "Revert document",
 			"Makes an earlier revision current again as a new revision.",
 			registry.OwnerSide, dc.documentRevert),

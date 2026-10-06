@@ -5,9 +5,13 @@ import (
 	"fmt"
 	"maps"
 	"math"
+	"net/http"
 	"slices"
+	"strings"
 
+	"deck2/internal/docs"
 	"deck2/internal/manifest"
+	"deck2/internal/registry"
 )
 
 // file is a line of a media block: the file it names, or why there is none.
@@ -184,7 +188,7 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 		default:
 			record = r.req.Record
 		}
-		v, err := r.src.DocumentView(r.ctx, r.req.Project, record, id, b.Document)
+		v, err := r.document(record, id, b.Document)
 		if err != nil {
 			return nil, err
 		}
@@ -354,3 +358,55 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 
 // pictures are the types a line of a list shows as a picture: raster only, as the media block draws them.
 var pictures = []any{"image/png", "image/jpeg", "image/gif", "image/webp", "image/avif", "image/bmp"}
+
+// document is what a document block shows, read as the viewer: the document id, or the one named, of the record
+// when record is set, with its revisions; a document not written yet comes back empty.
+func (r *renderer) document(record, id int64, name string) (map[string]any, error) {
+	p := r.req.Project
+	in := map[string]any{"document": id}
+	if id == 0 {
+		in = map[string]any{"project": p.Name, "name": name}
+		if record != 0 {
+			in["record"] = record
+		}
+	}
+	got, err := r.src.Read(r.ctx, "deck.document_get", in, r.scope)
+	d, _ := got.(map[string]any)
+	switch {
+	case id == 0 && registry.Status(err) == http.StatusNotFound:
+		v := map[string]any{"id": 0, "project": p.Name, "name": name, "kind": docs.KindDoc, "text": "", "revision": 0,
+			"editable": editable(docs.KindDoc, name), "revisions": []map[string]any{}}
+		if record != 0 {
+			v["record"] = record
+		}
+		return v, nil
+	case err != nil:
+		return nil, err
+	case d == nil || d["project"] != p.Name:
+		return nil, fmt.Errorf("no document %d in %s", id, p.Name)
+	}
+	got, err = r.src.Read(r.ctx, "deck.document_revisions", map[string]any{"document": d["id"]}, r.scope)
+	if err != nil {
+		return nil, err
+	}
+	all, _ := got.([]any)
+	revs := make([]map[string]any, 0, len(all))
+	for _, rv := range all {
+		if m, ok := rv.(map[string]any); ok {
+			revs = append(revs, map[string]any{"revision": m["revision"], "author": m["author"], "reason": m["reason"], "created_at": m["created_at"]})
+		}
+	}
+	kind, _ := d["kind"].(string)
+	dname, _ := d["name"].(string)
+	v := map[string]any{"id": d["id"], "project": p.Name, "name": dname, "kind": kind, "text": cmp.Or(d["text"], any("")), "revision": d["revision"],
+		"editable": editable(kind, dname), "revisions": revs}
+	if owner, _ := d["owner_kind"].(string); owner != "" {
+		v[owner] = d["owner_id"]
+	}
+	return v, nil
+}
+
+// editable says a document is edited as text on screen: md, but not the manifest, scripts or custom blocks.
+func editable(kind, name string) bool {
+	return !slices.Contains([]string{docs.KindManifest, docs.KindScript, docs.KindCustom}, kind) && strings.HasSuffix(name, ".md")
+}

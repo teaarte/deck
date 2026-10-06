@@ -26,9 +26,6 @@ type Sources interface {
 	// Command is what a form needs of a command: name, title, project, input and result schemas.
 	Command(ctx context.Context, workspace int64, name string) (map[string]any, error)
 	Document(ctx context.Context, project db.Project, name string) (string, error)
-	// DocumentView is what a document block shows: the document id, or the one named, of the record when
-	// record is set; a document not written yet comes back empty.
-	DocumentView(ctx context.Context, project db.Project, record, id int64, name string) (map[string]any, error)
 	// File is a file a media block shows: a stored file of the project by id or a path in its data folder, as
 	// name, type, size and the url the client reads it at.
 	File(ctx context.Context, project db.Project, ref any) (map[string]any, error)

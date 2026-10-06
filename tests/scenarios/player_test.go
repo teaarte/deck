@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"deck2/internal/provider"
 )
@@ -126,6 +127,14 @@ func TestRealBrowserPlayer(t *testing.T) {
 	b.eval(`(document.querySelector('[data-mark-at="2.5"]').click(), '')`)
 	b.until("the player at the mark", `Math.abs(document.querySelector('[data-player="video"]').currentTime - 2.5) < 0.05 && document.querySelector('[data-timecode]').innerText.startsWith('0:02.50')`)
 	b.until("the second it stopped at in the address", `location.hash.includes('t=2.5')`)
+	b.eval(`(document.querySelector('[data-player="video"]').dataset.same = 'yes', document.querySelector('[data-player="video"]').muted = true, document.querySelector('[data-player="video"]').loop = true, document.querySelector('[data-player="video"]').play(), '')`)
+	b.until("the video playing", `!document.querySelector('[data-player="video"]').paused`)
+	b.eval(`(document.querySelector('[data-mark]').click(), '')`)
+	time.Sleep(time.Second)
+	b.until("a mark pressed while it plays keeps its input and the player stays the same", `document.querySelector('[data-player="video"]')?.dataset.same === 'yes' && !!document.querySelector('[data-media="video"] input') && /t=\d/.test(location.hash)`)
+	b.eval(`([...document.querySelectorAll('[data-media="video"] button')].find((x) => x.innerText === 'Cancel').click(), '')`)
+	b.eval(`(document.querySelector('[data-player="video"]').loop = false, document.querySelector('[data-mark-at="2.5"]').click(), '')`)
+	b.until("the player back at the mark", `(() => { const v = document.querySelector('[data-player="video"]'); return v.paused && Math.abs(v.currentTime - 2.5) < 0.05 })()`)
 	b.until("the marks beside the player with a scroll of their own", `(() => { const v = document.querySelector('[data-player="video"]').getBoundingClientRect(), m = document.querySelector('[data-marks]').getBoundingClientRect(); return m.left >= v.right - 1 && getComputedStyle(document.querySelector('[data-marks]')).overflowY === 'auto' })()`)
 	b.shot("player")
 	b.eval(`(document.querySelector('[data-mark]').click(), '')`)

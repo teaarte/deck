@@ -10,6 +10,9 @@ export interface Route {
 
 // LOCAL are the parameters only the client reads: the tab picked and the dialog open.
 const LOCAL = ['tab', 'dialog'];
+// LIVE are the parameters the server draws with that change in place, such as the second of a player: a change
+// reads the data of the screen again without drawing it anew.
+const LIVE = ['t'];
 
 export function parse(hash: string): Route {
   const [path, query = ''] = hash.replace(/^#\/?/, '').split('?');
@@ -33,17 +36,25 @@ export function serverParams(r: Route): Record<string, string> | undefined {
   return Object.keys(out).length ? out : undefined;
 }
 
-// screenKey names the screen as the server draws it: a change of a tab or a dialog does not draw it again.
-export const screenKey = (r: Route) => href({ ...r, params: serverParams(r) });
+// screenKey names the screen as the server draws it: a change of a tab, a dialog or a live parameter does not draw
+// it again.
+export const screenKey = (r: Route) => href({ ...r, params: Object.fromEntries(Object.entries(serverParams(r) ?? {}).filter(([k]) => !LIVE.includes(k))) });
+
+// liveKey is the live parameters of the address, whose change reads the data of the screen again.
+export const liveKey = (r: Route) => LIVE.map((k) => r.params?.[k] ?? '').join('&');
 
 // The trail holds the addresses visited in this tab, so the back button shows only where there is a way back.
 let trail: string[] = [location.hash || '#/'];
 const subs = new Set<() => void>();
 let route = parse(location.hash);
+// replaced is the address replaceParam put in place of the current one, which takes no step of the trail.
+let replaced = '';
 window.addEventListener('hashchange', () => {
   const now = location.hash || '#/';
-  if (trail.length > 1 && trail[trail.length - 2] === now) trail = trail.slice(0, -1);
+  if (now === replaced) trail = [...trail.slice(0, -1), now];
+  else if (trail.length > 1 && trail[trail.length - 2] === now) trail = trail.slice(0, -1);
   else if (trail[trail.length - 1] !== now) trail = [...trail, now];
+  replaced = '';
   route = parse(now);
   subs.forEach((f) => f());
 });
@@ -77,7 +88,7 @@ export function setParam(name: string, value: string | null) {
 export function replaceParam(name: string, value: string | null) {
   const to = href(withParam(name, value));
   if (to === (location.hash || '#/')) return;
-  trail = [...trail.slice(0, -1), to];
+  replaced = to;
   location.replace(to);
 }
 

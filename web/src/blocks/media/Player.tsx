@@ -34,7 +34,7 @@ export function Player({ it, first }: { it: Item; first: boolean }) {
   }, [src]);
   useEffect(() => {
     const m = media.current;
-    if (!m || !first || !Number.isFinite(start) || start <= 0) return;
+    if (!m || !first || !Number.isFinite(start) || start <= 0 || Math.abs(m.currentTime - start) < 0.02) return;
     const seek = () => { m.currentTime = start; };
     if (m.readyState >= 1) seek();
     else m.addEventListener('loadedmetadata', seek, { once: true });

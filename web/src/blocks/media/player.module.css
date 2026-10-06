@@ -58,6 +58,7 @@ audio.media {
   .marks {
     flex-direction: column;
     flex-wrap: nowrap;
+    align-items: flex-start;
     max-height: 70vh;
     overflow-y: auto;
   }

@@ -7,7 +7,7 @@ import i18n from '../lib/i18n';
 import { notifyError } from '../lib/notify';
 import catalogSchema from '../lib/catalogSchema';
 import type { Action } from '../lib/catalog.gen';
-import { screenKey, serverParams, type Route } from '../app/router';
+import { liveKey, screenKey, serverParams, type Route } from '../app/router';
 import { act } from './act';
 import { catalog } from './catalog';
 import { Feed, type Message } from './feed';
@@ -24,14 +24,20 @@ export function useScreen(route: Route, onProjects: () => void) {
   const [error, setError] = useState('');
   const proc = useRef<Processor>(undefined);
   const filterRef = useRef<ScreenActions['filter']>(() => undefined);
+  const liveRef = useRef<() => void>(() => undefined);
+  const routeRef = useRef(route);
+  routeRef.current = route;
   const key = screenKey(route);
+  const live = liveKey(route);
 
   useEffect(() => {
     let gone = false;
     const picked: Record<string, Record<string, string>> = {};
-    const params = serverParams(route);
-    const base = { project: route.project, screen: route.screen, record: route.record, lang: i18n.language, ...(params ? { params: JSON.stringify(params) } : {}) };
-    const input = () => (Object.keys(picked).length ? { ...base, filter: JSON.stringify(picked) } : base);
+    const input = () => {
+      const params = serverParams(routeRef.current);
+      const base = { project: route.project, screen: route.screen, record: route.record, lang: i18n.language, ...(params ? { params: JSON.stringify(params) } : {}) };
+      return Object.keys(picked).length ? { ...base, filter: JSON.stringify(picked) } : base;
+    };
     const feed = new Feed((m) => {
       try {
         proc.current!.processMessages([m as any]);
@@ -89,6 +95,18 @@ export function useScreen(route: Route, onProjects: () => void) {
       }
     };
     filterRef.current = (block, field, value) => void filter(block, field, value);
+    // A live parameter changed in place: the data of the screen is read again, the screen stays drawn.
+    liveRef.current = async () => {
+      if (!proc.current) return;
+      const mine = generation;
+      const ticket = feed.ticket();
+      try {
+        const msgs = await call<Message[]>('deck.screen', input());
+        if (!gone && mine === generation) feed.feed(msgs.filter((m) => m.updateDataModel), ticket);
+      } catch (e) {
+        if (!gone) notifyError(e);
+      }
+    };
     const pending = new Map<string, LiveEvent>();
     let timer: ReturnType<typeof setTimeout> | undefined;
     const reread = async (e: LiveEvent) => {
@@ -124,6 +142,8 @@ export function useScreen(route: Route, onProjects: () => void) {
       stop();
     };
   }, [key]);
+
+  useEffect(() => { liveRef.current(); }, [live]);
 
   const actions = useMemo<ScreenActions>(() => ({ run: act, filter: (block, field, value) => filterRef.current(block, field, value) }), []);
   // A surface of the screen before is not drawn again under the key of the next one.

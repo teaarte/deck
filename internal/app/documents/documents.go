@@ -515,7 +515,8 @@ func (dc *Service) Skills(ctx context.Context, projectID int64, names []string) 
 	return out, nil
 }
 
-// SeedSkills stores the skills built into deck as skills of every workspace; a skill someone else edited stays theirs.
+// SeedSkills stores the skills built into deck as skills of every workspace; a skill the owner edited stays theirs, one
+// an agent edited takes the next text deck ships.
 func (dc *Service) SeedSkills(ctx context.Context) error {
 	ws, err := dc.St.Q.ListWorkspaces(ctx)
 	if err != nil {
@@ -549,6 +550,9 @@ func (dc *Service) seedSkills(ctx context.Context, workspace int64) error {
 				cur, err := docs.Revision(ctx, q, d, 0)
 				if err != nil || cur.Text == string(b) {
 					return err
+				}
+				if cur.Author == "owner" {
+					return nil
 				}
 				if cur.Author != "deck" {
 					if shipped, err := lastOfDeck(ctx, q, d); err != nil || shipped == string(b) {

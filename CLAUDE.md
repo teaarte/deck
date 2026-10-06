@@ -34,8 +34,10 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
   `00011_whisper` — the whisper.cpp of the machine as the model of speech to text, `00012_no_project_limit`,
   `00013_google_openai` — a Google connection on its OpenAI-compatible address, `00014_pause` — a pause without an end
   of its own, `00015_no_opencode`, `00016_orphan_health`, `00017_no_run_later`, `00018_no_suggest`,
-  `00019_no_board` — cards, lane triggers and the card column of documents and topics go), sqlc queries
-  (`db/` is generated); `mark` keeps only cursors and throttles
+  `00019_no_board` — cards, lane triggers and the card column of documents and topics go, `00020_no_limit` — no daily
+  limit of a connection), sqlc queries (`db/` is generated; a parameter compared with 0 or '' is CAST, the linter
+  refuses `interface{}` there); `Store.Q` reads on connections of its own beside the one writer, `Tx` waits for the
+  writer at most `Store.Wait`, `Backup` copies the base; `mark` keeps only cursors and throttles
 - `internal/registry` — command registry: every input (API, MCP, triggers) calls commands through it;
   input schemas limited to App Intents types; `registry.Def` takes the schema from the tagged input struct;
   `registry.Read` declares a command that only reads, with its result schema from the Go type and `On` its event
@@ -71,7 +73,7 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
   a document and Settings of the project: its commands and providers, folders, tools, secrets, tokens, health) deck adds
   to every project
 - `internal/manifest` — project manifest (format 9: `upgrade.go` raises older ones): `types.go`, `parse.go`,
-  `lookup.go`, `collection.go`, rights (`rights.go`: `Widens`, `Clip`, the hosts of agent shells), checks of screens by
+  `lookup.go`, `collection.go`, rights (`rights.go`: `Widens` and `Clip` over the same rights — what is in force widens nothing beyond the grant —, the hosts of agent shells), checks of screens by
   part (`check_*.go`), expressions; one `Resolve` of a value (fixed or `=<expression>` with
   `param` of the screen) and `FieldTypes`; the texts of a manifest and their translation `words.go`
 - `internal/gateway` — deck MCP server per process: permission prompts, questions, confirmations, registry
@@ -86,7 +88,8 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
   agent turns take a slot of the workspace (`slots.go`), the rest wait in `waiting_slot`; a tool or model command is
   one gateway call (`tool.go`); what it takes from deck is
   `Deps` (functions), the deadlines of processes are `Due` (ceilings, pauses, silent, empty results)
-- `internal/home` — the layout of `DECK_HOME`: `state/` only deck reads, `work/` the folders of runs and projects
+- `internal/home` — the layout of `DECK_HOME`: `state/` only deck reads (deck's key of pushes in `state/push`, apart
+  from the secrets), `work/` the folders of runs and projects
 - `internal/sandbox` — sandbox of scripts, MCP servers and ACP agents behind one interface: `sandbox-exec` on macOS,
   bubblewrap on Linux; `Close` — deck's folder and the owner's home closed but for the runtimes on PATH (`Runtimes`)
   and the project folders; `Agent` — what an agent CLI may not touch in deck's folder; `OpenHint` — where the owner
@@ -121,7 +124,8 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
   and `on_error` tell the owner with a note of the feed;
   the chat and memory around it are `app/chat`, the handing of errors to the master is
   `app/failures`, voice and push in `app/devices`; deck's own texts for its agents are `master/templates` (`master.Text`); the client's chat is `web/src/chat/`
-- `internal/lint` — code rules checked by `tests/lint` (comments, requirement refs, vertical names)
+- `internal/lint` — code rules checked by `tests/lint` (comments, requirement refs, vertical names, untyped sqlc
+  parameters)
 - `schemas` — contracts embedded in the binary: manifest JSON Schema, screen block catalog (`catalog.json`, read by
   the server and the client), App Intents parameter rules
 - `tests/scenarios` — scenario tests through the real gateway with a fake provider; helpers in `*_harness_test.go`,

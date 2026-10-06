@@ -115,8 +115,8 @@ func New(cfg Config, st *store.Store, asks *ask.Broker, bus *events.Bus, reg *re
 	return g
 }
 
-// renew gives every live session the commands it may call now, after a project changed: a new command is a tool
-// at once, one taken out is gone.
+// renew gives every live session with an MCP server the commands it may call now, after a project changed: a new
+// command is a tool at once, one taken out is gone; a session of a script has no server.
 func (g *Gateway) renew(ctx context.Context) {
 	g.renewing.Lock()
 	defer g.renewing.Unlock()
@@ -124,6 +124,9 @@ func (g *Gateway) renew(ctx context.Context) {
 	es := slices.Collect(maps.Values(g.sessions))
 	g.mu.Unlock()
 	for _, e := range es {
+		if e.server == nil {
+			continue
+		}
 		cmds, err := g.reg.List(ctx, e.session.actor())
 		if err != nil || commandsOf(cmds) == e.commands {
 			continue

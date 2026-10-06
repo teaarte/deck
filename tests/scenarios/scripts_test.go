@@ -783,3 +783,17 @@ func TestTheProcessesOfARecordAreTheOnesItsIdWentInto(t *testing.T) {
 		t.Fatalf("the processes of a record are the ones its id went into: %+v", ps)
 	}
 }
+
+// TestAProjectChangedWhileAScriptRunsLeavesDeckUp: a script has a session of the gateway but no MCP server, so the
+// renew of tools after a change of projects passes it by.
+func TestAProjectChangedWhileAScriptRunsLeavesDeckUp(t *testing.T) {
+	e := newEnv(t, nil)
+	e.createProject("tools", scriptManifest("slow", "", ""))
+	e.saveScript("tools", "scripts/main.py", "import json, time\ntime.sleep(2)\nprint(json.dumps({}))\n")
+	id := e.start("tools", "slow", nil)
+	time.Sleep(500 * time.Millisecond)
+	e.createProject("other", plainManifest)
+	if p := e.waitScript(id, "done", "error"); p.State != "done" {
+		t.Fatalf("the script ends as it would: %+v", p)
+	}
+}

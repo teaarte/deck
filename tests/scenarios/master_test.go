@@ -290,3 +290,33 @@ func TestADocumentDeckNoLongerShipsLeavesTheMaster(t *testing.T) {
 		}
 	}
 }
+
+// TestOnErrorCallsOnlyWhatItsCommandLists: the agent that reads the output of failed processes reads and tells the
+// owner; deleting a project is not among its tools, and a call by name is refused with the project left in place.
+func TestOnErrorCallsOnlyWhatItsCommandLists(t *testing.T) {
+	var tools []string
+	var listed, deleted string
+	var listedBad, deletedBad bool
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		tools = c.Req.AllowedTools
+		listed, listedBad = c.Tool(ctx, "projects_list", map[string]any{})
+		deleted, deletedBad = c.Tool(ctx, "project_delete", map[string]any{"project": "work"})
+		return provider.Result{Text: "looked"}
+	})
+	e.masterAwake()
+	e.createProject("work", plainManifest)
+	var r struct{ Process int64 }
+	e.must("master.on_error", map[string]any{"project": "work", "screen": "main", "error": "b0: broken"}, &r)
+	e.waitState(r.Process, "done")
+	if listedBad || !strings.Contains(listed, `"work"`) || !slices.Contains(tools, "mcp__deck__projects_list") {
+		t.Fatalf("on_error calls what its command lists: %v %s %v", listedBad, listed, tools)
+	}
+	if !deletedBad || slices.Contains(tools, "mcp__deck__project_delete") {
+		t.Fatalf("on_error may not delete a project: %v %s %v", deletedBad, deleted, tools)
+	}
+	var ps []struct{ Name string }
+	e.must("deck.projects_list", nil, &ps)
+	if !slices.ContainsFunc(ps, func(p struct{ Name string }) bool { return p.Name == "work" }) {
+		t.Fatalf("the project stays: %+v", ps)
+	}
+}

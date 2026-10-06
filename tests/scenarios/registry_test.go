@@ -5,11 +5,13 @@ import (
 	"encoding/json"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"deck2/internal/provider"
+	"deck2/internal/store/db"
 )
 
 type commandView struct {
@@ -428,4 +430,67 @@ func TestAToolNameOfACommandIsAnsweredWithItsName(t *testing.T) {
 	e.refused("deck.command_try", map[string]any{"command": "notes__work"}, 404, `as "notes.work"`)
 	e.refused("deck.command_describe", map[string]any{"command": "command_try"}, 404, `as "deck.command_try"`)
 	e.refused("deck.command_try", map[string]any{"command": "nothing"}, 404, `unknown command "nothing"`)
+}
+
+// TestAnAgentCallsOnlyWhatItsCommandLists: an agent whose command lists its calls reads by them and is refused the
+// rest, which leaves the collection as it was.
+func TestAnAgentCallsOnlyWhatItsCommandLists(t *testing.T) {
+	var listedBad, written bool
+	var wrote string
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		_, listedBad = c.Tool(ctx, "records_list", map[string]any{"collection": "ideas"})
+		wrote, written = c.Tool(ctx, "records_upsert", map[string]any{"collection": "ideas", "records": jsonl(map[string]any{"title": "x", "score": 1})})
+		written = !written
+		return provider.Result{Structured: json.RawMessage(`{"written": 0}`)}
+	})
+	p := e.createProject("ideas", strings.Replace(ideasManifest, `"prompt": "Write three ideas into the ideas collection."`,
+		`"prompt": "Read the ideas.", "calls": ["deck.records_list"]`, 1))
+	e.waitState(e.run(p, "collect"), "done")
+	recs, _ := e.App.Store.Q.ListRecords(context.Background(), db.ListRecordsParams{ProjectID: p, Collection: "ideas"})
+	if listedBad || written || len(recs) != 0 {
+		t.Fatalf("the agent reads by its calls and writes nothing else: %v %v %s %d", listedBad, written, wrote, len(recs))
+	}
+}
+
+// TestAnAgentCannotTouchARowOfAnotherProjectByItsID: an agent that names a record or a process of another project
+// by id is refused, and the record stays as it was.
+func TestAnAgentCannotTouchARowOfAnotherProjectByItsID(t *testing.T) {
+	var mu sync.Mutex
+	var record, process int64
+	var updated, got string
+	var updBad, getBad bool
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		mu.Lock()
+		r, p := record, process
+		mu.Unlock()
+		if r != 0 {
+			u, ub := c.Tool(ctx, "record_update", map[string]any{"record": r, "data": `{"title": "theirs", "score": 99}`})
+			g, gb := c.Tool(ctx, "process_get", map[string]any{"process": p})
+			mu.Lock()
+			updated, updBad, got, getBad = u, ub, g, gb
+			mu.Unlock()
+		}
+		return provider.Result{Structured: json.RawMessage(`{"written": 0}`)}
+	})
+	p := e.createProject("ideas", ideasManifest)
+	other := e.createProject("other", ideasManifest)
+	e.must("deck.records_upsert", map[string]any{"project": "other", "collection": "ideas", "records": jsonl(map[string]any{"title": "theirs", "score": 1})}, nil)
+	theirs := e.waitState(e.run(other, "collect"), "done").ID
+	recs, _ := e.App.Store.Q.ListRecords(context.Background(), db.ListRecordsParams{ProjectID: other, Collection: "ideas"})
+	if len(recs) != 1 {
+		t.Fatalf("the record of the other project: %+v", recs)
+	}
+	mu.Lock()
+	record, process = recs[0].ID, theirs
+	mu.Unlock()
+	e.waitState(e.run(p, "collect"), "done")
+	mu.Lock()
+	defer mu.Unlock()
+	if !updBad || !getBad || !strings.Contains(updated, "another project") || strings.Contains(got, `"command"`) {
+		t.Fatalf("a row of another project is refused by id: %s / %s", updated, got)
+	}
+	after, _ := e.App.Store.Q.GetRecord(context.Background(), recs[0].ID)
+	if after.Data != recs[0].Data {
+		t.Fatalf("the record of the other project stays as it was: %s", after.Data)
+	}
 }

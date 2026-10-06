@@ -189,8 +189,16 @@ func (c *screenCheck) block(where string, b Block) {
 			return
 		}
 		var ok bool
-		if fields, ok = c.source(where, b.Type, *b.Source); !ok {
+		switch {
+		case b.Type == "media" && b.Source == nil && c.screen.Record != "":
+			fields = c.recordFields()
+		case b.Source == nil:
+			c.fail("%s: needs a source", where)
 			return
+		default:
+			if fields, ok = c.source(where, b.Type, *b.Source); !ok {
+				return
+			}
 		}
 		for _, col := range b.Columns {
 			if _, err := compileField(col.Bind, fields); err != nil {

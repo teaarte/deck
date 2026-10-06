@@ -134,3 +134,22 @@ func TestRealBrowserPlayer(t *testing.T) {
 		return false
 	})
 }
+
+// TestAMediaBlockOnARecordPageShowsAFileOfTheRecord: on a record page a media block without a source shows the
+// file a field of the record names.
+func TestAMediaBlockOnARecordPageShowsAFileOfTheRecord(t *testing.T) {
+	e := newEnv(t, nil)
+	m := strings.Replace(playerManifest, `"screens": [`, `"screens": [{"name": "video", "title": "Video", "record": "videos", "blocks": [
+    {"type": "media", "title": "The video", "item": {"file": "file", "title": "slug"}}]}, `, 1)
+	p := e.createProject("shorts", m)
+	if err := errors.Join(os.MkdirAll(e.App.Home.Data(p), 0o700), os.WriteFile(filepath.Join(e.App.Home.Data(p), "eu-solar.webm"), []byte("webm"), 0o600)); err != nil {
+		t.Fatal(err)
+	}
+	var w struct{ IDs []int64 }
+	e.must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "videos", "records": jsonl(map[string]any{"slug": "eu-solar", "file": "eu-solar.webm"})}, &w)
+	var files []struct{ Type, File, Title string }
+	_ = json.Unmarshal(e.screenData("shorts", "video", map[string]any{"record": w.IDs[0]})["b0"]["files"], &files)
+	if len(files) != 1 || files[0].File != "eu-solar.webm" || files[0].Type != "video/webm" || files[0].Title != "eu-solar" {
+		t.Fatalf("the record page plays the file of its record: %+v", files)
+	}
+}

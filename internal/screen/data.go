@@ -194,6 +194,9 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 		}
 		return map[string]any{"state": "ready", "value": v}, nil
 	}
+	if b.Type == "media" && b.Source == nil {
+		return map[string]any{"state": "ready", "files": []map[string]any{r.file(b, r.record)}}, nil
+	}
 	if b.Type == "card" {
 		fields := make([]map[string]any, 0, len(b.Fields))
 		for _, f := range b.Fields {

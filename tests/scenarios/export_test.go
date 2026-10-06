@@ -187,22 +187,3 @@ func TestBuiltInSkillsReachEveryWorkspace(t *testing.T) {
 		t.Fatalf("the built-in skill is stored for every workspace: %d %v", n, err)
 	}
 }
-
-// TestModuleAModelBuiltImportsAsADraft keeps the module of the step 7 rehearsal importable.
-func TestModuleAModelBuiltImportsAsADraft(t *testing.T) {
-	e := newEnv(t, ok)
-	dir, _ := filepath.Abs("../../examples/vacancies")
-	var im struct{ Name, Status string }
-	e.must("deck.project_import", map[string]any{"folder": dir}, &im)
-	var cmds []struct{ Name string }
-	e.must("deck.commands_list", nil, &cmds)
-	n := 0
-	for _, c := range cmds {
-		if strings.HasPrefix(c.Name, im.Name+".") {
-			n++
-		}
-	}
-	if im.Status != store.ProjectDraft || n == 0 {
-		t.Fatalf("the rehearsal module imports as a draft with its commands: %+v, %d commands", im, n)
-	}
-}

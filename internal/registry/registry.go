@@ -216,7 +216,7 @@ func (r *Registry) Lookup(ctx context.Context, workspace int64, name string) (*C
 	return nil, NotFound("deck: unknown command %q", name)
 }
 
-// commandName is the command name a tool name stands for, as an agent sees it: card_create, code__run.
+// commandName is the command name a tool name stands for, as an agent sees it: records_list, code__run.
 func commandName(tool string) string {
 	switch {
 	case strings.Contains(tool, "."):

@@ -263,7 +263,7 @@
       "name": "settings",
       "icon": "settings",
       "title": "Settings",
-      "params": {"name": "string", "command": "string", "agent": "string", "url": "string", "model": "string", "key_secret": "string", "connection": "string", "kind": "string", "role": "string", "project": "string", "models": "string", "api": "string", "local": "boolean"},
+      "params": {"name": "string", "command": "string", "agent": "string", "url": "string", "model": "string", "key_secret": "string", "connection": "string", "kind": "string", "role": "string", "project": "string", "models": "string", "api": "string", "local": "boolean", "free": "boolean"},
       "blocks": [
         {"type": "tabs", "tabs": [
           {"title": "Projects", "icon": "folders", "blocks": [
@@ -289,7 +289,7 @@
           {"title": "Models", "icon": "cpu", "blocks": [
             {"type": "dialog", "name": "model", "title": "Add a model", "icon": "plus", "primary": true, "blocks": [
               {"type": "form", "command": "deck.model_set", "description": "A model of a connection: its kind comes from the catalog of the connection when left out. With an agent it runs agent commands, after a self-check.",
-                "values": {"connection": "=param.connection", "model": "=param.model", "name": "=param.name", "kind": "=param.kind", "agent": "=param.agent"},
+                "values": {"connection": "=param.connection", "model": "=param.model", "name": "=param.name", "kind": "=param.kind", "agent": "=param.agent", "free": "=param.free"},
                 "choices": {"connection": {"source": {"from": "deck.models_list", "rows": "connections"}, "value": "name"},
                   "agent": {"source": {"from": "deck.models_list", "rows": "agents", "where": "status != 'missing' && name != 'claude-code' && name != 'codex'"}, "value": "name"}}}]},
             {"type": "dialog", "name": "assign", "title": "Assign models", "icon": "list-numbers", "blocks": [
@@ -323,7 +323,7 @@
               ],
               "actions": [
                 {"verb": "check", "command": "deck.provider_check", "params": {"provider": "=name"}, "when": "(agent ?? '') != ''"},
-                {"verb": "edit", "screen": "settings", "params": {"tab": "Models", "dialog": "model", "name": "=name", "connection": "=connection", "model": "=model", "kind": "=kind", "agent": "=agent ?? ''"}, "when": "!builtin"},
+                {"verb": "edit", "screen": "settings", "params": {"tab": "Models", "dialog": "model", "name": "=name", "connection": "=connection", "model": "=model", "kind": "=kind", "agent": "=agent ?? ''", "free": "=free"}, "when": "!builtin"},
                 {"verb": "remove", "confirm": true, "command": "deck.model_remove", "params": {"name": "=name"}, "when": "!builtin"}
               ]},
             {"type": "table", "title": "Agents", "source": {"from": "deck.models_list", "rows": "agents"},

@@ -154,6 +154,8 @@ func goType(t reflect.Type) string {
 		return "number"
 	case reflect.Slice:
 		return goType(t.Elem()) + "[]"
+	case reflect.Pointer:
+		return goType(t.Elem())
 	}
 	panic("registry: no parameter type for " + t.String())
 }

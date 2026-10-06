@@ -308,7 +308,7 @@ type modelSetIn struct {
 	Model      string `desc:"The model's name in the API, such as google/gemini-3.1-flash-lite-image"`
 	Name       string `opt:"" desc:"How deck names the model in assignments and calls; connection/model when left out"`
 	Kind       string `enum:"text|image|tts|stt" opt:"" desc:"What the model makes; a model changed without it keeps its own, a new one takes it from the catalog of the connection, else text"`
-	Free       bool   `opt:"" desc:"The model costs nothing, so a trial or a draft calls it without the owner's yes; a new model added without a kind takes it from the catalog of the connection"`
+	Free       *bool  `opt:"" desc:"The model costs nothing, so a trial or a draft calls it without the owner's yes; a model changed without it keeps its own, a new one added without a kind takes it from the catalog of the connection"`
 	Options    string `type:"json" opt:"" desc:"Fields deck adds to every call of the model of a kind, such as {\"language\": \"ru\"} of speech to text; a model changed without them keeps its own"`
 	Agent      string `opt:"" desc:"The ACP agent that runs a text model inside the sandbox of deck with a shell and files, for agent commands; the name is then the name of a provider. A model changed without it keeps its own"`
 	// CheckMinutes give a slow model more time for its self-check.
@@ -334,14 +334,16 @@ func (s *Service) modelSet(ctx context.Context, act registry.Actor, in modelSetI
 		in.Kind = RoleText
 	}
 	m := db.AddModelParams{WorkspaceID: act.Workspace, ConnectionID: c.ID, Name: in.Name, Model: in.Model, Kind: in.Kind, Options: "{}",
-		Free: b2i(in.Free), Agent: in.Agent, CheckMinutes: in.CheckMinutes}
+		Agent: in.Agent, CheckMinutes: in.CheckMinutes}
 	if old, err := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: act.Workspace, Name: in.Name}); err == nil {
-		m.Kind, m.CheckMinutes, m.Free = cmp.Or(m.Kind, old.Model.Kind), cmp.Or(m.CheckMinutes, old.Model.CheckMinutes), max(m.Free, old.Model.Free)
-	}
-	if m.Kind == "" {
+		m.Kind, m.CheckMinutes, m.Free = cmp.Or(m.Kind, old.Model.Kind), cmp.Or(m.CheckMinutes, old.Model.CheckMinutes), old.Model.Free
+	} else if m.Kind == "" {
 		if got, ok := s.catalog(ctx, act.Workspace, c, in.Model); ok {
-			m.Kind, m.Free = got.Kind, max(m.Free, got.Free)
+			m.Kind, m.Free = got.Kind, got.Free
 		}
+	}
+	if in.Free != nil {
+		m.Free = b2i(*in.Free)
 	}
 	m.Kind = cmp.Or(m.Kind, RoleText)
 	if in.Options != "" {

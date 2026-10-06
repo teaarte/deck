@@ -413,6 +413,15 @@ func TestAModelTakesItsKindFromTheCatalogOfItsConnection(t *testing.T) {
 		t.Fatalf("the key is a secret named after the connection: %+v", secrets)
 	}
 	e.refused("deck.model_set", map[string]any{"connection": "openrouter", "model": "qwen/qwen3.8-27b:free", "input_usd": 1}, 422, "input_usd")
+	e.must("deck.model_set", map[string]any{"connection": "openrouter", "model": "qwen/qwen3.8-27b:free", "name": "qwen", "kind": "text"}, &m)
+	if m["free"] != true {
+		t.Fatalf("a model changed without free keeps it: %+v", m)
+	}
+	e.must("deck.model_set", map[string]any{"connection": "openrouter", "model": "qwen/qwen3.8-27b:free", "name": "qwen", "free": false}, &m)
+	if m["free"] != false {
+		t.Fatalf("free false makes a model paid again: %+v", m)
+	}
+	e.must("deck.model_set", map[string]any{"connection": "openrouter", "model": "qwen/qwen3.8-27b:free", "name": "qwen", "free": true}, &m)
 
 	e.olderBase(20)
 	if _, err := e.App.Store.DB.Exec(`UPDATE model SET input_usd = 0.3, output_usd = 2.5, call_usd = 0.01`); err != nil {

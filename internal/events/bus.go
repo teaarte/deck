@@ -79,13 +79,6 @@ func (b *Bus) Watch(f func(topic string)) {
 	b.mu.Unlock()
 }
 
-// Clients is how many clients follow the live channel now.
-func (b *Bus) Clients() int {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	return len(b.subs)
-}
-
 // Subscribe follows the events of a workspace.
 func (b *Bus) Subscribe(workspace int64) (*Sub, func()) {
 	s := &Sub{workspace: workspace, ready: make(chan struct{}, 1)}

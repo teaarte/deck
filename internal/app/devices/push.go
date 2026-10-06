@@ -282,9 +282,6 @@ func (dv *Service) pushSources() []pushSource {
 					if private {
 						msg.Body = "The master replied"
 					}
-					if dv.Bus.Clients() > 0 {
-						msg = pushMessage{}
-					}
 					items = append(items, pushItem{msg, fmt.Sprint(m.ID)})
 				}
 				return items
@@ -293,7 +290,7 @@ func (dv *Service) pushSources() []pushSource {
 }
 
 // PushNew pushes to each device what came since the last push it took of each source; a cursor moves only past
-// what the device took or refused for good, and past a reply of the master that came while a client was open.
+// what the device took or refused for good.
 func (dv *Service) PushNew(ctx context.Context, workspace int64) {
 	dv.pushMu.Lock()
 	defer dv.pushMu.Unlock()
@@ -324,10 +321,6 @@ func (dv *Service) PushNew(ctx context.Context, workspace int64) {
 				items = items[:pushBatch]
 			}
 			for _, it := range items {
-				if it.msg == (pushMessage{}) {
-					set(name, it.cursor)
-					continue
-				}
 				if k.Public == "" {
 					if k, err = dv.vapidKeys(workspace); err != nil {
 						slog.Error("push keys", "err", err)

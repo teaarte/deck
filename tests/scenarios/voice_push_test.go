@@ -227,20 +227,19 @@ func TestPushGoesToSubscribedDevices(t *testing.T) {
 	_ = e.sse(ctx)
 	e.say(topic, "and bread")
 	e.masterSaid(topic, 2)
-	time.Sleep(time.Second)
-	if n := len(d.wait(e, 4)); n != 4 {
-		t.Fatalf("with a client open the reply is not pushed: %d pushes", n)
+	if got = d.wait(e, 5); got[4]["title"] != "Master" {
+		t.Fatalf("a tab open on another device does not swallow the reply on the phone: %+v", got[4])
 	}
 	cancel()
 	long := strings.Repeat("word ", 60)
 	e.must("deck.notify", map[string]any{"project": "work", "text": long}, nil)
-	got = d.wait(e, 5)
-	if len(got[4]["body"]) > 104 {
-		t.Fatalf("a push is short: %d bytes", len(got[4]["body"]))
+	got = d.wait(e, 6)
+	if len(got[5]["body"]) > 104 {
+		t.Fatalf("a push is short: %d bytes", len(got[5]["body"]))
 	}
 	e.must("deck.notify", map[string]any{"project": "master", "text": "The blood test of private is in"}, nil)
-	if got = d.wait(e, 6); got[5]["body"] != "Something in deck waits for you" {
-		t.Fatalf("a line of the master, which may quote a project without network, is generic too: %+v", got[5])
+	if got = d.wait(e, 7); got[6]["body"] != "Something in deck waits for you" {
+		t.Fatalf("a line of the master, which may quote a project without network, is generic too: %+v", got[6])
 	}
 	d.mu.Lock()
 	d.gone = true

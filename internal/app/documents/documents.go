@@ -63,6 +63,7 @@ type documentsListIn struct {
 	Kind        string `opt:"" desc:"Only this kind"`
 	Deleted     bool   `opt:"" desc:"The deleted documents instead, which the owner can bring back"`
 	WithDeleted bool   `json:"with_deleted" opt:"" desc:"The deleted documents after the others, for the owner"`
+	Record      int64  `type:"record" opt:"" desc:"Only the documents of this record"`
 }
 
 func (dc *Service) documentsList(ctx context.Context, act registry.Actor, in documentsListIn) ([]documentView, error) {
@@ -94,6 +95,9 @@ func (dc *Service) documentsList(ctx context.Context, act registry.Actor, in doc
 	}
 	out := make([]documentView, 0, len(ds))
 	for _, d := range ds {
+		if in.Record != 0 && d.RecordID.Int64 != in.Record {
+			continue
+		}
 		p := db.Project{ID: d.ProjectID.Int64, Name: in.Project}
 		if d.ProjectID.Valid && access.MayRead(ctx, dc.St.Q, act, p, "", d.Name) != nil {
 			continue
@@ -137,6 +141,7 @@ type documentGetIn struct {
 	Project  string `type:"project" opt:"" desc:"Project name; without it an agent of a project works in its own, the owner and the master in the workspace documents (memory/ names: the owner's memory, in project master)"`
 	Name     string `opt:"" desc:"Document name (path)"`
 	Revision int64  `opt:"" desc:"Revision number"`
+	Record   int64  `type:"record" opt:"" desc:"Record the named document belongs to"`
 }
 
 func (dc *Service) documentGet(ctx context.Context, act registry.Actor, in documentGetIn) (documentView, error) {
@@ -152,8 +157,12 @@ func (dc *Service) documentGet(ctx context.Context, act registry.Actor, in docum
 		} else {
 			s, err = dc.readDocScope(ctx, act, in.Project, in.Name)
 		}
+		ref := docs.Ref{Scope: s, Name: in.Name}
+		if in.Record != 0 {
+			ref.OwnerKind, ref.OwnerID = docs.OwnerRecord, in.Record
+		}
 		if err == nil {
-			d, err = dc.St.Q.FindDocument(ctx, docs.Ref{Scope: s, Name: in.Name}.Find())
+			d, err = dc.St.Q.FindDocument(ctx, ref.Find())
 			if errors.Is(err, sql.ErrNoRows) {
 				err = registry.NotFound("deck: no document %q", in.Name)
 			}

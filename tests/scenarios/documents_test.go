@@ -177,6 +177,19 @@ func TestADocumentBlockOfAManifestShowsTheDocumentItNamesAndMarkdownIsOptIn(t *t
 	if d := blockData[documentV](t, e.screenData("web", "note", map[string]any{"record": rec})["b2"]["value"]); d.Text != "report" || d.Record != rec {
 		t.Fatalf("the record page shows the document of its record: %+v", d)
 	}
+	var got struct{ Text string }
+	e.must("deck.document_get", map[string]any{"project": "web", "name": "report.md", "record": rec}, &got)
+	if got.Text != "report" {
+		t.Fatalf("document_get reads the document of a record by its name: %+v", got)
+	}
+	var listed []struct {
+		Name    string
+		OwnerID int64 `json:"owner_id"`
+	}
+	e.must("deck.documents_list", map[string]any{"project": "web", "record": rec}, &listed)
+	if len(listed) != 1 || listed[0].Name != "report.md" || listed[0].OwnerID != rec {
+		t.Fatalf("documents_list gives the documents of a record: %+v", listed)
+	}
 	cockpit := e.cockpitItems()
 	for _, it := range cockpit {
 		if strings.Contains(it.Text, "**") {

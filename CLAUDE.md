@@ -33,7 +33,8 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
   assignments from the providers of settings, `00010_spend` — the connection of a model call,
   `00011_whisper` — the whisper.cpp of the machine as the model of speech to text, `00012_no_project_limit`,
   `00013_google_openai` — a Google connection on its OpenAI-compatible address, `00014_pause` — a pause without an end
-  of its own, `00015_no_opencode`, `00016_orphan_health`), sqlc queries
+  of its own, `00015_no_opencode`, `00016_orphan_health`, `00017_no_run_later`, `00018_no_suggest`,
+  `00019_no_board` — cards, lane triggers and the card column of documents and topics go), sqlc queries
   (`db/` is generated); `mark` keeps only cursors and throttles
 - `internal/registry` — command registry: every input (API, MCP, triggers) calls commands through it;
   input schemas limited to App Intents types; `registry.Def` takes the schema from the tagged input struct;
@@ -54,17 +55,17 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
   the master), `health` (the list of health), `signins`
   (sign-ins of the browser and oauth2 tools, MCP servers), `documents` (documents, shipped skills, health of
   scripts), `snapshots` (snapshots, cleanup, disk), `journal`, `files`, `folders`, `settings` (one table
-  `settingDefs` gives the row, the names `settings_set` takes and the edit button), `secrets`, `tokens`, `board`,
+  `settingDefs` gives the row, the names `settings_set` takes and the edit button), `secrets`, `tokens`,
   `providers` (connections, models with prices and options, assignments with fallbacks, the providers of agent
   turns — built-in or a model in an ACP agent, the agents found with their version, self-checks at start, by button
   and on a broken turn — the routes, limits and rights of direct calls `deck.model_call`/`deck.model_request` and of
   the model of an ACP turn), `devices` (feed with notes of deck and `feed_read`, push, speech to text through
-  `deck.model_call`), `chat`, `suggest`, `records`
+  `deck.model_call`), `chat`, `records`
   (records with `where` expressions), `triggers` (also the firing of triggers and `After`), `screens`; who may touch
   what is `app/access`;
   a screen block reads a `registry.Read` command (`"from": "deck.asks_list"`), called as the viewer in
   `app/screen_get.go` (`deck.screen`; the menu `menu.go`, `commands_list.go`, translations `i18n.go`); `app/screens` —
-  the sources of screens: records, boards, forms, documents;
+  the sources of screens: records, forms, documents;
   deck's screens are data in `screens.json`: menu Cockpit, Schedule, Settings (tabs Projects, Models, Connections,
   Tokens, General, Interface, Health), Journal (Calls, Spend, Files, Snapshots); `project` screens (Documents, the page of
   a document and Settings of the project: its commands and providers, folders, tools, secrets, tokens, health) deck adds
@@ -109,16 +110,16 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
   the notifications `Bell.tsx`, the icon pattern `Backdrop.tsx`, the address and back button `router.ts`: tab and
   dialog only the client reads, `t` a live parameter that reads the data again without drawing the screen anew); `screen/`
   a screen (`ScreenView.tsx`, `useScreen.ts`, buttons through the `ScreenActions` context, the catalog `catalog.ts`);
-  `blocks/` a file or folder per block registered through `blockImpl.tsx` (frame `Block.tsx`; `table/`, `board/`
-  with `@dnd-kit/react`, `form/`, `media/` (pictures, PDF, the player `Player.tsx` with marks), `chart/`,
+  `blocks/` a file or folder per block registered through `blockImpl.tsx` (frame `Block.tsx`; `table/`, `form/`, `media/` (pictures, PDF, the player `Player.tsx` with marks), `chart/`,
   `custom/` the MCP Apps host — `@modelcontextprotocol/ext-apps` 1.7.5, 2.x needs zod 4); `chat/` the chat with the master around `chatStore.ts`; `ui/` buttons, confirmation, icons by
   name, markdown (`@a2ui/markdown-it`), values; `hooks/`; `lib/` the API and live events (`events.ts`, `useLive`, one
   `onResume`), `notify.ts`, `format.ts`, `i18n.ts`, the catalog schema; `settings/` look and pushes; `theme/` the look of
   the device (`look.ts`: scheme, accent, density, font, corners — passed to `custom` blocks as host context), accents
   `palette.ts`, themes and surfaces `themes.css`; `locales/`; PWA and Share Target — `public/manifest.webmanifest`,
   `public/sw.js`; `web/dist` is the embedded build — rebuild and commit it with the sources
-- `master` — the built-in project `master`, embedded: manifest, prompts, skills (dispatch, topic-summary, interview);
-  the chat and memory around it are `app/chat`, suggestions `app/suggest`, the handing of errors to the master is
+- `master` — the built-in project `master`, embedded: manifest, prompts, skills (dispatch, topic-summary); the daily `review`
+  and `on_error` tell the owner with a note of the feed;
+  the chat and memory around it are `app/chat`, the handing of errors to the master is
   `app/failures`, voice and push in `app/devices`; deck's own texts for its agents are `master/templates` (`master.Text`); the client's chat is `web/src/chat/`
 - `internal/lint` — code rules checked by `tests/lint` (comments, requirement refs, vertical names)
 - `schemas` — contracts embedded in the binary: manifest JSON Schema, screen block catalog (`catalog.json`, read by

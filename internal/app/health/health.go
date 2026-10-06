@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"deck2/internal/docs"
+	"deck2/internal/health"
 	"deck2/internal/process"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
@@ -54,12 +55,11 @@ func (s *Service) list(ctx context.Context, act registry.Actor, in healthListIn)
 	}
 	worst := map[string]*healthRow{}
 	for _, p := range ps {
-		worst[p.Name] = &healthRow{Subject: "project:" + p.Name, Status: "ok"}
+		worst[p.Name] = &healthRow{Subject: "project:" + p.Name, Status: health.OK}
 		if _, err := docs.Manifest(ctx, s.St.Q, p); err != nil {
-			worst[p.Name].Status, worst[p.Name].Error = "error", "manifest: "+err.Error()
+			worst[p.Name].Status, worst[p.Name].Error = health.Error, "manifest: "+err.Error()
 		}
 	}
-	rank := map[string]int{"ok": 0, "checking": 1, "paused": 1, "needs_login": 1, "warning": 1, "error": 2}
 	out := make([]healthRow, 0, len(hs)+len(ps))
 	shown := func(project string) bool {
 		return (in.Project == "" || project == in.Project) && (!in.Machine || project == "")
@@ -67,14 +67,14 @@ func (s *Service) list(ctx context.Context, act registry.Actor, in healthListIn)
 	for _, hr := range hs {
 		h := hr.Health
 		if strings.HasPrefix(h.Subject, "provider:") && !mine[h.Subject] || !shown(hr.Project) {
-			if w := worst[hr.Project]; h.ProjectID.Valid && w != nil && rank[h.Status] > rank[w.Status] {
+			if w := worst[hr.Project]; h.ProjectID.Valid && w != nil && health.Worse(h.Status, w.Status) {
 				w.Status, w.Error, w.UpdatedAt = h.Status, h.Subject+": "+h.Error, h.UpdatedAt
 			}
 			continue
 		}
 		out = append(out, healthRow{Subject: h.Subject, Status: h.Status, Error: h.Error, Version: h.Version, Verdict: h.Verdict,
 			Speed: h.Speed, UpdatedAt: h.UpdatedAt, SelfCheck: checked[h.Subject]})
-		if w := worst[hr.Project]; h.ProjectID.Valid && w != nil && rank[h.Status] > rank[w.Status] {
+		if w := worst[hr.Project]; h.ProjectID.Valid && w != nil && health.Worse(h.Status, w.Status) {
 			w.Status, w.Error, w.UpdatedAt = h.Status, h.Subject+": "+h.Error, h.UpdatedAt
 		}
 	}
@@ -83,8 +83,15 @@ func (s *Service) list(ctx context.Context, act registry.Actor, in healthListIn)
 			out = append(out, *worst[p.Name])
 		}
 	}
-	order := map[string]int{"error": 0, "needs_login": 1, "paused": 1, "warning": 1, "checking": 2, "ok": 3}
-	slices.SortStableFunc(out, func(x, y healthRow) int { return order[x.Status] - order[y.Status] })
+	slices.SortStableFunc(out, func(x, y healthRow) int {
+		switch {
+		case health.Worse(x.Status, y.Status):
+			return -1
+		case health.Worse(y.Status, x.Status):
+			return 1
+		}
+		return 0
+	})
 	return out, nil
 }
 

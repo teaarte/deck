@@ -12,6 +12,22 @@ import (
 // limit is the longest text a health row keeps.
 const limit = 2000
 
+// The statuses of a health row.
+const (
+	OK         = "ok"
+	Checking   = "checking"
+	Paused     = "paused"
+	NeedsLogin = "needs_login"
+	Warning    = "warning"
+	Error      = "error"
+)
+
+// severity orders the statuses from the best; an unknown status counts as ok.
+var severity = map[string]int{OK: 0, Checking: 1, Paused: 2, NeedsLogin: 2, Warning: 2, Error: 3}
+
+// Worse says status a is worse than b.
+func Worse(a, b string) bool { return severity[a] > severity[b] }
+
 // Of is whose a row is: the machine when empty, a workspace, or a project of it, which takes its rows along.
 type Of struct{ Workspace, Project int64 }
 

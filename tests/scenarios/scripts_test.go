@@ -106,7 +106,7 @@ func TestScriptCommandRunsInTheSandbox(t *testing.T) {
 		Files  []struct{ Record int64 }
 	}
 	_ = json.Unmarshal(p.Result, &res)
-	for _, c := range []string{"internal_call", "no_command_list", "external_waits", "allowed_domain", "other_domain_refused", "direct_network_blocked",
+	for _, c := range []string{"internal_call", "no_command_list", "external_waits", "allowed_domain", "other_domain_refused", "direct_network_blocked", "proxy_needs_token",
 		"outside_write_blocked", "secret_hidden", "owner_key_hidden", "late_key_hidden", "host_socket_blocked"} {
 		if !res.Checks[c] {
 			t.Errorf("check %s failed: %s", c, p.Result)

@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -199,4 +200,59 @@ func TestSnapshotsBeforeDeletesKeepTheirOwnTurn(t *testing.T) {
 	if len(list) != 8 || list[0].TakenAt == "" {
 		t.Fatalf("the journal lists both kinds with their time: %+v", list)
 	}
+}
+
+// TestADailySnapshotSkipsAFileItCannotReadAndSaysSo: a file of a data folder the snapshot cannot read is left out
+// with a warning in health, the rest is kept; a snapshot that fails is an error in health, not only in the log.
+func TestADailySnapshotSkipsAFileItCannotReadAndSaysSo(t *testing.T) {
+	e := newClockEnv(t, nil)
+	e.createProject("notes", ideasManifest)
+	h := deckhome.Layout(e.App.Cfg.Home)
+	data, _ := filepath.Glob(filepath.Join(h.Projects(), "*", "data"))
+	if len(data) == 0 {
+		data = []string{filepath.Join(h.Projects(), "1", "data")}
+	}
+	if err := os.MkdirAll(data[0], 0o700); err != nil {
+		t.Fatal(err)
+	}
+	locked := filepath.Join(data[0], "locked.bin")
+	if err := os.WriteFile(locked, []byte("x"), 0o000); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(data[0], "kept.txt"), []byte("kept"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	e.sweep()
+	snaps, _ := filepath.Glob(filepath.Join(h.Backups(), "deck-*.tar.gz"))
+	if len(snaps) != 1 {
+		t.Fatalf("one unreadable file does not stop the daily snapshot: %v", snaps)
+	}
+	_, stored := snapshotFiles(t, snaps[0])
+	kept := false
+	for name := range stored {
+		kept = kept || filepath.Base(name) == "kept.txt"
+	}
+	if !kept {
+		t.Fatalf("the rest of the data folder is in the snapshot: %v", stored)
+	}
+	if row := e.waitHealth("snapshot", "warning"); !strings.Contains(row.Error, "locked.bin") {
+		t.Fatalf("the health of snapshots names the file left out: %+v", row)
+	}
+	_ = os.Chmod(locked, 0o600)
+
+	if err := os.RemoveAll(h.Backups()); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(h.Backups(), nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	e.Clock.Add(25 * time.Hour)
+	e.sweep()
+	if row := e.waitHealth("snapshot", "error"); row.Error == "" {
+		t.Fatalf("a snapshot that fails says why in health: %+v", row)
+	}
+	_ = os.Remove(h.Backups())
+	e.Clock.Add(time.Hour)
+	e.sweep()
+	e.waitHealth("snapshot", "ok")
 }

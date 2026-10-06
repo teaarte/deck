@@ -4,6 +4,7 @@ package snapshots
 
 import (
 	"archive/tar"
+	"cmp"
 	"compress/gzip"
 	"context"
 	"database/sql"
@@ -12,12 +13,12 @@ import (
 	"io"
 	"io/fs"
 	"log/slog"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
-	"sync"
 	"syscall"
 	"time"
 
@@ -65,28 +66,43 @@ func (s *Service) BeforeDelete(ctx context.Context) (string, error) {
 	return s.take(ctx, home.SnapshotDelete)
 }
 
+// take writes a snapshot and says how it went in the health row snapshot: an error, the files it left out, or ok.
 func (s *Service) take(ctx context.Context, kind string) (string, error) {
+	path, left, err := s.write(ctx, kind)
+	switch {
+	case err != nil:
+		health.Write(ctx, s.St, health.Of{}, "snapshot", "error", "the snapshot failed: "+err.Error())
+	case len(left) > 0:
+		health.Write(ctx, s.St, health.Of{}, "snapshot", "warning", fmt.Sprintf("the snapshot left out %d files it could not read whole: %s",
+			len(left), strings.Join(left[:min(len(left), 5)], "; ")))
+	default:
+		health.Write(ctx, s.St, health.Of{}, "snapshot", "ok", filepath.Base(path))
+	}
+	return path, err
+}
+
+func (s *Service) write(ctx context.Context, kind string) (string, []string, error) {
 	dir := s.Home.Backups()
 	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return "", err
+		return "", nil, err
 	}
+	id := uuid.NewString()
 	path := filepath.Join(dir, kind+"-"+s.Now().UTC().Format(home.SnapshotLayout)+".tar.gz")
-	copyDB := filepath.Join(dir, ".deck-"+uuid.NewString()+".db")
+	copyDB := filepath.Join(dir, ".deck-"+id+".db")
+	files := filepath.Join(dir, ".files-"+id)
 	defer os.Remove(copyDB)
-	s.LockFiles()
-	var once sync.Once
-	filesDone := func() { once.Do(s.UnlockFiles) }
-	defer filesDone()
-	if err := s.St.Backup(ctx, copyDB); err != nil {
-		return "", err
+	defer os.RemoveAll(files)
+	if err := s.hold(ctx, copyDB, files); err != nil {
+		return "", nil, err
 	}
-	part := path + ".part"
-	if err := writeSnapshot(part, s.Home, copyDB, filesDone); err != nil {
+	part := path + "." + id + ".part"
+	left, err := writeSnapshot(part, s.Home, copyDB, files)
+	if err != nil {
 		_ = os.Remove(part)
-		return "", err
+		return "", nil, err
 	}
 	if err := os.Rename(part, path); err != nil {
-		return "", err
+		return "", nil, err
 	}
 	old, _ := filepath.Glob(filepath.Join(dir, kind+"-*.tar.gz"))
 	slices.Sort(old)
@@ -95,73 +111,117 @@ func (s *Service) take(ctx context.Context, kind string) (string, error) {
 		old = old[1:]
 	}
 	s.Bus.Publish("snapshots")
-	return path, nil
+	return path, left, nil
 }
 
-// writeSnapshot writes the archive; filesDone runs once files/ is in it.
-func writeSnapshot(path string, h home.Layout, copyDB string, filesDone func()) error {
+// hold copies the base and links the stored files into files while no file comes or goes, so the copy names
+// only files the snapshot holds; the stored files never change, so the links are their copy.
+func (s *Service) hold(ctx context.Context, copyDB, files string) error {
+	s.LockFiles()
+	defer s.UnlockFiles()
+	if err := s.St.Backup(ctx, copyDB); err != nil {
+		return err
+	}
+	if err := os.Mkdir(files, 0o700); err != nil {
+		return err
+	}
+	stored, err := os.ReadDir(s.Home.Files())
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	for _, e := range stored {
+		if e.Type().IsRegular() {
+			if err := os.Link(filepath.Join(s.Home.Files(), e.Name()), filepath.Join(files, e.Name())); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// writeSnapshot writes the archive: the copy of the base, the stored files linked in files and the data folders
+// of projects; a file it cannot read whole is left out, and named in what it returns.
+func writeSnapshot(path string, h home.Layout, copyDB, files string) ([]string, error) {
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer f.Close()
 	gz := gzip.NewWriter(f)
 	tw := tar.NewWriter(gz)
 	db, _ := filepath.Rel(string(h), h.DB())
-	if err := addFile(tw, copyDB, filepath.ToSlash(db)); err != nil {
-		return err
+	if _, err := addFile(tw, copyDB, filepath.ToSlash(db)); err != nil {
+		return nil, err
 	}
-	dirs := []string{h.Files()}
+	stored, _ := filepath.Rel(string(h), h.Files())
+	dirs := map[string]string{files: stored}
 	data, _ := filepath.Glob(filepath.Join(h.Projects(), "*", "data"))
-	dirs = append(dirs, data...)
-	for _, dir := range dirs {
+	for _, d := range data {
+		dirs[d], _ = filepath.Rel(string(h), d)
+	}
+	var left []string
+	for _, dir := range slices.Sorted(maps.Keys(dirs)) {
 		err := filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
 			if err != nil {
-				if os.IsNotExist(err) {
-					return nil
+				if !os.IsNotExist(err) {
+					left = append(left, fmt.Sprintf("%s: %v", p, err))
 				}
-				return err
+				return nil
 			}
 			if !d.Type().IsRegular() {
 				return nil
 			}
-			name, _ := filepath.Rel(string(h), p)
-			if err := addFile(tw, p, filepath.ToSlash(name)); !os.IsNotExist(err) {
-				return err
+			rel, _ := filepath.Rel(dir, p)
+			name := filepath.ToSlash(filepath.Join(dirs[dir], rel))
+			skip, err := addFile(tw, p, name)
+			if skip != nil && !os.IsNotExist(skip) {
+				left = append(left, fmt.Sprintf("%s: %v", name, skip))
 			}
-			return nil
+			return err
 		})
 		if err != nil {
-			return err
-		}
-		if dir == h.Files() {
-			filesDone()
+			return nil, err
 		}
 	}
 	if err := tw.Close(); err != nil {
-		return err
+		return nil, err
 	}
 	if err := gz.Close(); err != nil {
-		return err
+		return nil, err
 	}
-	return f.Close()
+	return left, f.Close()
 }
 
-func addFile(tw *tar.Writer, path, name string) error {
+// addFile puts a file in the archive. A file it cannot open is skipped; one that shrinks while it is copied is
+// padded with zeros, so the archive stays whole, and named too. err is a failure of the archive itself.
+func addFile(tw *tar.Writer, path, name string) (skip, err error) {
 	src, err := os.Open(path)
 	if err != nil {
-		return err
+		return err, nil
 	}
 	defer src.Close()
 	fi, err := src.Stat()
 	if err != nil {
-		return err
+		return err, nil
 	}
 	if err := tw.WriteHeader(&tar.Header{Name: name, Mode: 0o600, Size: fi.Size(), ModTime: fi.ModTime(), Typeflag: tar.TypeReg}); err != nil {
-		return err
+		return nil, err
 	}
-	_, err = io.CopyN(tw, src, fi.Size())
-	return err
+	n, rerr := io.Copy(tw, io.LimitReader(src, fi.Size()))
+	if n < fi.Size() {
+		if _, err := io.CopyN(tw, zeros{}, fi.Size()-n); err != nil {
+			return nil, err
+		}
+		return cmp.Or(rerr, errors.New("it changed while it was copied")), nil
+	}
+	return nil, nil
+}
+
+type zeros struct{}
+
+func (zeros) Read(p []byte) (int, error) {
+	clear(p)
+	return len(p), nil
 }
 
 // expire deletes the records and files of each collection older than its retention, and the documents of

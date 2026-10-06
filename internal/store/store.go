@@ -30,7 +30,7 @@ type Store struct {
 	// Changed hears what each committed transaction changed, once it committed.
 	Changed func(Change)
 	// Wait is how long a transaction waits for the base before it fails.
-	Wait time.Duration
+	Wait    time.Duration
 	changes *changes
 }
 

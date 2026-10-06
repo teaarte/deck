@@ -90,7 +90,8 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
   bubblewrap on Linux; `Close` — deck's folder and the owner's home closed but for the runtimes on PATH (`Runtimes`)
   and the project folders; `Agent` — what an agent CLI may not touch in deck's folder; `OpenHint` — where the owner
   opens a folder, at the end of the error of a failed script
-- `internal/script` — runs project scripts in the sandbox (a script installs its own packages through the proxy)
+- `internal/script` — runs project scripts in the sandbox (a script installs its own packages through the proxy);
+  `environ` is the whole environment of a script, `Check` the programs its manifest names
 - `internal/trigger` — cron scheduler with catch-up after sleep
 - `internal/health` — health rows: `Set` inside a transaction, `Write` on its own and published; health is the
   state of what deck runs or reaches, events go to the feed

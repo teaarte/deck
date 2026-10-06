@@ -165,7 +165,7 @@
     "placeholder": "Message to the master",
     "send_failed": "The message was not sent",
     "replying": "The master is replying ({{provider}})",
-    "waits": "The reply waits for {{what}}",
+    "waits": {"waiting_answer": "The reply waits for you", "waiting_slot": "The reply waits for a free slot", "waiting_provider": "The reply waits for its model", "rate_limited": "The reply waits for the usage limit to reset", "needs_login": "The reply waits for a login", "waiting_folder": "The reply waits for a folder"},
     "reply_error": "reply failed",
     "reply_stopped": "reply stopped",
     "reply_interrupted": "reply interrupted",

@@ -12,7 +12,7 @@ export function Turn({ turn }: { turn: NonNullable<ChatValue['turn']> }) {
       <Group justify="space-between" wrap="nowrap">
         <Group gap="xs" wrap="nowrap" miw={0}>
           {turn.state === 'running' && <Loader size="xs" type="dots" />}
-          <Text size="xs" c="dimmed" truncate>{turn.waits ? t('chat.waits', { what: turn.waits }) : t('chat.replying', { provider: turn.provider ?? '' })}</Text>
+          <Text size="xs" c="dimmed" truncate>{turn.state === 'running' ? t('chat.replying', { provider: turn.provider ?? '' }) : t('chat.waits.' + turn.state, { defaultValue: turn.state })}</Text>
         </Group>
         <Actions actions={[turn.stop!, turn.open!].filter(Boolean)} />
       </Group>

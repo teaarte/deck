@@ -351,7 +351,7 @@
             "options": {"type": "array", "items": {"type": "object", "properties": {"label": {"type": "string"}, "description": {"type": "string"}}}}}}},
           "answer": {"$ref": "#/$defs/action"}}}},
         "turn": {"type": "object", "additionalProperties": false, "required": ["process", "state", "lines"], "properties": {
-          "process": {"type": "integer"}, "state": {"type": "string"}, "provider": {"type": "string"}, "waits": {"type": "string", "description": "what the reply waits for: the owner, a slot, a provider"},
+          "process": {"type": "integer"}, "state": {"type": "string"}, "provider": {"type": "string"},
           "lines": {"type": "array", "items": {"type": "object", "required": ["at", "kind"], "properties": {"at": {"type": "string"}, "kind": {"type": "string"},
             "id": {"type": "string"}, "title": {"type": "string"}, "status": {"type": "string"}, "text": {"type": "string"}}}},
           "stop": {"$ref": "#/$defs/action"}, "open": {"$ref": "#/$defs/action"}}},

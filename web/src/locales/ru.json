@@ -167,7 +167,7 @@
     "placeholder": "Сообщение мастеру",
     "send_failed": "Сообщение не отправлено",
     "replying": "Мастер отвечает ({{provider}})",
-    "waits": "Ответ ждёт: {{what}}",
+    "waits": {"waiting_answer": "Ответ ждёт вас", "waiting_slot": "Ответ ждёт свободного места", "waiting_provider": "Ответ ждёт свою модель", "rate_limited": "Ответ ждёт сброса лимита", "needs_login": "Ответ ждёт входа", "waiting_folder": "Ответ ждёт папку"},
     "reply_error": "ответ не удался",
     "reply_stopped": "ответ остановлен",
     "reply_interrupted": "ответ прерван",

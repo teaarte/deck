@@ -15,12 +15,6 @@ import (
 // chatLines is how many lines of the log of a running reply the chat shows.
 const chatLines = 30
 
-// waitsFor says what a reply waits for, by its state.
-var waitsFor = map[string]string{
-	process.StateWaitingAnswer: "the owner", process.StateWaitingSlot: "a free slot", process.StateWaitingProvider: "its model",
-	process.StateRateLimited: "the usage limit to reset", process.StateNeedsLogin: "a login", process.StateWaitingFolder: "a folder",
-}
-
 // action is a button of the chat: a verb and the command it calls, or a screen it opens.
 type action map[string]any
 
@@ -81,7 +75,6 @@ type turnView struct {
 	Process  int64            `json:"process"`
 	State    string           `json:"state"`
 	Provider string           `json:"provider"`
-	Waits    string           `json:"waits,omitempty"`
 	Lines    []map[string]any `json:"lines"`
 	Stop     action           `json:"stop"`
 	Open     action           `json:"open"`
@@ -217,7 +210,7 @@ func (ch *Service) chat(ctx context.Context, act registry.Actor, in chatIn) (cha
 		return v, nil
 	}
 	open := t.Reply
-	v.Turn = &turnView{Process: open.Process, State: open.State, Provider: open.Provider, Waits: waitsFor[open.State],
+	v.Turn = &turnView{Process: open.Process, State: open.State, Provider: open.Provider,
 		Lines: ch.turnLines(open.Process), Stop: chatAction("stop", registry.Builtin+".process_stop", map[string]any{"process": open.Process}),
 		Open: openProcess(open.Process)}
 	asks, err := ch.St.Q.ListOpenAsksOfProcess(ctx, open.Process)

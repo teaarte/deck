@@ -411,10 +411,6 @@ export interface ChatValue {
     process: number;
     state: string;
     provider?: string;
-    /**
-     * what the reply waits for: the owner, a slot, a provider
-     */
-    waits?: string;
     lines: {
       at: string;
       kind: string;

@@ -261,12 +261,14 @@ func TestWideningChangeWaitsForTheOwnersButton(t *testing.T) {
 	}
 	stale := e.waitAsk()
 	e.must("deck.manifest_save", map[string]any{"project": "notes", "manifest": strings.Replace(plainManifest, `"Does work"`, `"Does the work"`, 1), "reason": "owner"}, nil)
-	if code, out := e.call("deck.ask_answer", map[string]any{"ask": stale.ID, "answer": "allow"}); code != 409 || !strings.Contains(string(out), "changed after") {
-		t.Fatalf("a frozen change older than the manifest is not applied: %d %s", code, out)
+	if n := e.waitNote("outdated"); !strings.Contains(n.Text, "notes") || !strings.Contains(n.Text, "revision 4") {
+		t.Fatalf("the owner hears that a request for rights older than the manifest is outdated: %+v", n)
 	}
-	e.answer(stale.ID, "deny")
+	if code, out := e.call("deck.ask_answer", map[string]any{"ask": stale.ID, "answer": "allow"}); code == 200 {
+		t.Fatalf("an outdated request for rights is closed: %d %s", code, out)
+	}
 	if rev := e.manifestRevision("notes"); rev != 4 {
-		t.Fatalf("deny changes nothing: revision %d", rev)
+		t.Fatalf("the outdated change is not applied: revision %d", rev)
 	}
 }
 

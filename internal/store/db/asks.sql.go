@@ -271,6 +271,47 @@ func (q *Queries) DismissExpiredAsk(ctx context.Context, id int64) (int64, error
 	return result.RowsAffected()
 }
 
+const expireGrantAsks = `-- name: ExpireGrantAsks :many
+UPDATE ask SET state = 'expired' WHERE project_id = ?1 AND kind = 'grant' AND state = 'open' RETURNING id, workspace_id, project_id, process_id, kind, text, payload, answer, state, created_at, answered_at, expires_at, delivered_at
+`
+
+func (q *Queries) ExpireGrantAsks(ctx context.Context, projectID sql.NullInt64) ([]Ask, error) {
+	rows, err := q.db.QueryContext(ctx, expireGrantAsks, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Ask
+	for rows.Next() {
+		var i Ask
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.ProjectID,
+			&i.ProcessID,
+			&i.Kind,
+			&i.Text,
+			&i.Payload,
+			&i.Answer,
+			&i.State,
+			&i.CreatedAt,
+			&i.AnsweredAt,
+			&i.ExpiresAt,
+			&i.DeliveredAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const expireStaleConfirms = `-- name: ExpireStaleConfirms :many
 UPDATE ask SET state = 'expired' WHERE kind IN ('confirm', 'call') AND state = 'open' AND expires_at <= CAST(?1 AS TEXT) RETURNING id, workspace_id, project_id, process_id, kind, text, payload, answer, state, created_at, answered_at, expires_at, delivered_at
 `

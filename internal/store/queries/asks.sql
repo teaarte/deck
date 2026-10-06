@@ -134,3 +134,7 @@ SELECT * FROM ask WHERE process_id = ? ORDER BY id DESC LIMIT 1;
 
 -- name: DeliverAsk :execrows
 UPDATE ask SET delivered_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ? AND delivered_at IS NULL;
+
+
+-- name: ExpireGrantAsks :many
+UPDATE ask SET state = 'expired' WHERE project_id = sqlc.arg(project_id) AND kind = 'grant' AND state = 'open' RETURNING *;

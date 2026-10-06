@@ -188,6 +188,9 @@ func (sv *Saver) SaveManifest(ctx context.Context, act registry.Actor, p db.Proj
 		if err := grant(ctx, q, p, n, pm.m); err != nil {
 			return err
 		}
+		if err := outdate(ctx, q, p, n); err != nil {
+			return err
+		}
 		if err := q.DeleteScreenHealth(ctx, store.ID(p.ID)); err != nil {
 			return err
 		}

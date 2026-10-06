@@ -10,9 +10,8 @@ import (
 // owner's settings, and keys never pass.
 var kept = []string{"PATH", "USER", "LOGNAME", "SHELL", "LANG", "TZ"}
 
-// Env is the environment of a program deck confines: the variables of deck it keeps and its own home and temp
-// folder; with proxy, the address of deck's door at self with its password, every client goes through it, Node's
-// fetch too, and only deck's own address is reached past it.
+// Env is the environment of a program deck confines: the kept variables, its home and temp folder, and with proxy,
+// deck's door at self with its password, the proxy of every client, Node's fetch too, with only self past it.
 func Env(home, tmp, proxy, self string) []string {
 	env := slices.DeleteFunc(os.Environ(), func(kv string) bool {
 		name, _, _ := strings.Cut(kv, "=")

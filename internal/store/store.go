@@ -151,7 +151,7 @@ func (s *Store) writer(ctx context.Context) (*sql.Conn, error) {
 	wctx, cancel := context.WithTimeout(ctx, wait)
 	defer cancel()
 	conn, err := s.DB.Conn(wctx)
-	if err != nil && ctx.Err() == nil {
+	if err != nil && ctx.Err() == nil && wctx.Err() != nil {
 		slog.Error("store: a transaction waited too long for the base", "wait", wait, "stack", string(debug.Stack()))
 		return nil, fmt.Errorf("store: a transaction waited %s for the base: another holds it, perhaps the one that called this with a context not of its own", wait)
 	}

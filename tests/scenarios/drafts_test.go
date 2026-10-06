@@ -643,3 +643,30 @@ func TestAWideningWaitsForTheOwnerInEveryRight(t *testing.T) {
 		t.Fatalf("a new server with a secret is not in force, one without asks every call: %+v", inForce.Tools.MCP.Servers)
 	}
 }
+
+// TestARevisionNarrowedSinceAProcessStartedLeavesItTheGrantedCalls: a process resumed on its older revision gets the
+// calls the owner granted since, not none; a pattern in the grant covers the names under it.
+func TestARevisionNarrowedSinceAProcessStartedLeavesItTheGrantedCalls(t *testing.T) {
+	var outs []string
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		out, _ := c.Tool(ctx, "records_list", map[string]any{"collection": "items"})
+		outs = append(outs, out)
+		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
+	})
+	m := testManifest([]string{agentCommand("work", "")}, nil)
+	m = strings.Replace(m, `"version": 9,`, `"version": 9, "collections": [{"name": "items", "description": "An item.", "key": "name",
+    "schema": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}}],`, 1)
+	p := e.createProject("calls", m)
+	id := e.run(p, "work")
+	e.waitState(id, "done")
+	narrowed := strings.Replace(m, `"prompt": "Do work."}`, `"prompt": "Do work.", "calls": ["deck.*"]}`, 1)
+	if narrowed == m {
+		t.Fatal("fixture replacement did not apply")
+	}
+	e.must("deck.manifest_save", map[string]any{"project": "calls", "manifest": narrowed}, nil)
+	e.must("deck.process_rework", map[string]any{"process": id, "remark": "once more"}, nil)
+	e.waitState(id, "done", "error")
+	if len(outs) != 2 || outs[1] != outs[0] {
+		t.Fatalf("the resumed process may call what the grant lists: %v", outs)
+	}
+}

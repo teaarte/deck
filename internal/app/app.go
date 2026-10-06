@@ -184,6 +184,9 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	if err := a.Projects.SeedMaster(a.ctx); err != nil {
 		return nil, err
 	}
+	if err := a.Devices.MoveKeys(a.ctx); err != nil {
+		return nil, err
+	}
 	return a, nil
 }
 

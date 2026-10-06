@@ -252,7 +252,15 @@ func TestADailySnapshotSkipsAFileItCannotReadAndSaysSo(t *testing.T) {
 		t.Fatalf("a snapshot that fails says why in health: %+v", row)
 	}
 	_ = os.Remove(h.Backups())
+	left := filepath.Join(h.Backups(), ".files-crashed")
+	if err := os.MkdirAll(left, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	_ = os.WriteFile(filepath.Join(left, "7"), []byte("a file the owner deleted"), 0o600)
 	e.Clock.Add(time.Hour)
 	e.sweep()
 	e.waitHealth("snapshot", "ok")
+	if _, err := os.Stat(left); err == nil {
+		t.Fatal("the links a snapshot cut short by a crash left go with the next snapshot")
+	}
 }

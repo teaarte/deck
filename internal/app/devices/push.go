@@ -72,19 +72,39 @@ type vapid struct {
 	Private string `json:"private"`
 }
 
-// vapidKeys are the keys of the workspace, made on first use; a key of a base from before, kept among the secrets
-// of the workspace, moves out of them first.
+// MoveKeys moves the key of pushes of a base from before out of the secrets of each workspace, unchanged.
+func (dv *Service) MoveKeys(ctx context.Context) error {
+	spaces, err := dv.St.Q.ListWorkspaces(ctx)
+	if err != nil {
+		return err
+	}
+	for _, ws := range spaces {
+		old, path := filepath.Join(dv.Home.Secrets(ws), "push.vapid"), dv.Home.PushKey(ws)
+		if _, err := os.Stat(old); err != nil {
+			continue
+		}
+		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+			return err
+		}
+		if _, err := os.Stat(path); err == nil {
+			err = os.Remove(old)
+		} else {
+			err = os.Rename(old, path)
+		}
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// vapidKeys are the keys of the workspace, made on first use.
 func (dv *Service) vapidKeys(workspace int64) (vapid, error) {
 	dv.keyMu.Lock()
 	defer dv.keyMu.Unlock()
 	path := dv.Home.PushKey(workspace)
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return vapid{}, err
-	}
-	if old := filepath.Join(dv.Home.Secrets(workspace), "push.vapid"); fileExists(old) && !fileExists(path) {
-		if err := os.Rename(old, path); err != nil {
-			return vapid{}, err
-		}
 	}
 	var k vapid
 	raw, err := os.ReadFile(path)
@@ -445,9 +465,4 @@ func (dv *Service) PushCommands() []*registry.Command {
 			"Lists the devices that get pushes.",
 			registry.OwnerOnly, dv.pushDevices),
 	}
-}
-
-func fileExists(path string) bool {
-	_, err := os.Stat(path)
-	return err == nil
 }

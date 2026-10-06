@@ -399,7 +399,9 @@ func TestAnInputThatGivesNothingIsAnErrorOfItsBlock(t *testing.T) {
 	runs := strings.Replace(webNotes, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "params": {"project": "string"}, "blocks": [
       {"type": "table", "title": "Runs", "source": {"from": "deck.processes_list", "input": {"project": "=param.project"}}, "columns": [{"label": "Command", "bind": "command"}]},
       {"type": "table", "title": "Bad", "source": {"from": "deck.processes_list", "input": {"project": "=upper(param.project) + 1"}}, "columns": [{"label": "Command", "bind": "command"}]},
-      {"type": "actions", "title": "Do", "actions": [{"label": "Tell", "command": "tell", "when": "param.project + 1 > 0"}]},`, 1)
+      {"type": "actions", "title": "Do", "actions": [{"label": "Tell", "command": "tell", "when": "param.project + 1 > 0"}]},
+      {"type": "table", "title": "Each", "source": {"from": "deck.processes_list", "input": {"project": "web"}}, "columns": [{"label": "Command", "bind": "command"}],
+        "actions": [{"label": "Again", "command": "tell", "when": "ask > 5"}]},`, 1)
 	if runs == webNotes {
 		t.Fatal("fixture replacement did not apply")
 	}
@@ -418,5 +420,10 @@ func TestAnInputThatGivesNothingIsAnErrorOfItsBlock(t *testing.T) {
 	}
 	if string(data["b2"]["state"]) != `"error"` {
 		t.Fatalf("a button whose when fails is an error of its block, not a button that is quietly gone: %s", data["b2"])
+	}
+	e.waitState(e.start("web", "tell", nil), "done", "error")
+	data = e.screenData("web", "main", map[string]any{"params": `{"project": "web"}`})
+	if string(data["b3"]["state"]) != `"ready"` || strings.Contains(string(data["b3"]["rows"]), "Again") {
+		t.Fatalf("a row without the field a button reads hides that button, not the whole table: %s", data["b3"])
 	}
 }

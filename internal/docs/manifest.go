@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"errors"
+	"log/slog"
 	"sync"
 
 	"deck2/internal/manifest"
@@ -79,8 +80,8 @@ func parse(doc, revision int64, text string) (*manifest.Manifest, error) {
 	return m, nil
 }
 
-// InForce is m, a manifest of project p, with only the rights the owner gave: those of the granted revision;
-// the built-in project has every right.
+// InForce is m, a manifest of project p, with only the rights the owner gave: those of the granted revision, none
+// when it no longer reads; the built-in project has every right.
 func InForce(ctx context.Context, q *db.Queries, p db.Project, m *manifest.Manifest) (*manifest.Manifest, error) {
 	if p.Builtin == 1 || p.GrantedRevision.Valid && p.GrantedRevision.Int64 == m.Revision && m.Revision != 0 {
 		return m, nil
@@ -89,7 +90,8 @@ func InForce(ctx context.Context, q *db.Queries, p db.Project, m *manifest.Manif
 	if p.GrantedRevision.Valid {
 		g, err := ManifestAt(ctx, q, p.ID, p.GrantedRevision.Int64)
 		if err != nil {
-			return nil, err
+			slog.Error("the granted manifest no longer reads, so the project runs with no rights granted", "project", p.Name, "err", err)
+			g = granted
 		}
 		granted = g
 	}

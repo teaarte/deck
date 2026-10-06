@@ -62,8 +62,10 @@ func Widens(prev, next *Manifest) []string {
 		case old.Executor.Calls != nil && c.Executor.Calls == nil:
 			add("command %s: its agent may call every command", c.Name)
 		case old.Executor.Calls != nil:
-			for _, n := range added(old.Executor.Calls, c.Executor.Calls) {
-				add("command %s: its agent may call %s", c.Name, n)
+			for _, n := range c.Executor.Calls {
+				if !registry.Permits(old.Executor.Calls, n) {
+					add("command %s: its agent may call %s", c.Name, n)
+				}
 			}
 		}
 		for _, who := range added(old.Callable(), c.Callable()) {
@@ -223,8 +225,17 @@ func clipCommand(cmd, old *Command) {
 	}
 	cmd.Requires = append(slices.Clone(cmd.Requires), added(cmd.Requires, old.Requires)...)
 	cmd.Provider = old.Provider
-	if old.Executor.Calls != nil {
-		cmd.Executor.Calls = append([]string{}, kept(cmd.Executor.Calls, old.Executor.Calls)...)
+	switch {
+	case old.Executor.Calls != nil && cmd.Executor.Calls == nil:
+		cmd.Executor.Calls = old.Executor.Calls
+	case old.Executor.Calls != nil:
+		calls := []string{}
+		for _, n := range cmd.Executor.Calls {
+			if registry.Permits(old.Executor.Calls, n) {
+				calls = append(calls, n)
+			}
+		}
+		cmd.Executor.Calls = calls
 	}
 	if len(added(old.Callable(), cmd.Callable())) > 0 {
 		if cmd.Callers = kept(cmd.Callable(), old.Callable()); len(cmd.Callers) == 0 {
@@ -244,9 +255,10 @@ func clipServer(granted map[string]MCPServer, name string, s MCPServer) (MCPServ
 		s.Classes = nil
 		return s, true
 	}
-	if len(old.ToolFilter) > 0 {
-		s.ToolFilter = kept(s.ToolFilter, old.ToolFilter)
-		if len(s.ToolFilter) == 0 {
+	if len(old.ToolFilter) > 0 && len(s.ToolFilter) == 0 {
+		s.ToolFilter = old.ToolFilter
+	} else if len(old.ToolFilter) > 0 {
+		if s.ToolFilter = kept(s.ToolFilter, old.ToolFilter); len(s.ToolFilter) == 0 {
 			return s, false
 		}
 	}

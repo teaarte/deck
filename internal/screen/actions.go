@@ -9,10 +9,18 @@ import (
 	"deck2/internal/manifest"
 )
 
-// rowActions are the buttons of a block that hold for a row.
-func (r *renderer) rowActions(b manifest.Block, it map[string]any) ([]map[string]any, error) {
+// rowActions are the buttons of a block that hold for a row; one whose expression fails on the data of the row,
+// such as a field the row lacks, is not on that row.
+func (r *renderer) rowActions(b manifest.Block, it map[string]any) []map[string]any {
 	id, _ := it["_id"].(int64)
-	return r.actions(b.Actions, id, it)
+	out := make([]map[string]any, 0, len(b.Actions))
+	env := r.withParam(it)
+	for _, a := range b.Actions {
+		if act, err := r.action(a, id, env); err == nil && act != nil {
+			out = append(out, act)
+		}
+	}
+	return out
 }
 
 // actions are the buttons that hold for an item, with what they take from it; an expression of a button that

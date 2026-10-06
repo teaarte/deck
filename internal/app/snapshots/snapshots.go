@@ -19,6 +19,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -46,6 +47,8 @@ type Service struct {
 	// cleaned and snapTried are when the daily cleanup ran and a daily snapshot was last tried; disk, when the
 	// disk was last looked at.
 	cleaned, snapTried, disk time.Time
+	// mu takes one snapshot at a time.
+	mu sync.Mutex
 }
 
 const (
@@ -82,9 +85,16 @@ func (s *Service) take(ctx context.Context, kind string) (string, error) {
 }
 
 func (s *Service) write(ctx context.Context, kind string) (string, []string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	dir := s.Home.Backups()
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return "", nil, err
+	}
+	stale, _ := filepath.Glob(filepath.Join(dir, ".*"))
+	parts, _ := filepath.Glob(filepath.Join(dir, "*.part"))
+	for _, p := range append(stale, parts...) {
+		_ = os.RemoveAll(p)
 	}
 	id := uuid.NewString()
 	path := filepath.Join(dir, kind+"-"+s.Now().UTC().Format(home.SnapshotLayout)+".tar.gz")

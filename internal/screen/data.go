@@ -281,11 +281,7 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 					details[j], detailed = fmt.Sprint(d), true
 				}
 			}
-			acts, err := r.rowActions(b, it)
-			if err != nil {
-				return nil, err
-			}
-			row := map[string]any{"id": it["_id"], "cells": cells, "actions": acts}
+			row := map[string]any{"id": it["_id"], "cells": cells, "actions": r.rowActions(b, it)}
 			if toned {
 				row["tones"] = tones
 			}
@@ -298,11 +294,7 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 	case "list":
 		lines := make([]map[string]any, 0, len(items))
 		for _, it := range items {
-			acts, err := r.rowActions(b, it)
-			if err != nil {
-				return nil, err
-			}
-			line := map[string]any{"id": it["_id"], "actions": acts}
+			line := map[string]any{"id": it["_id"], "actions": r.rowActions(b, it)}
 			if b.Item.Markdown {
 				line["markdown"] = true
 			}

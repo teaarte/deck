@@ -226,7 +226,7 @@ func (c *screenCheck) block(where string, b Block) {
 			}
 		}
 		if b.Item != nil {
-			for _, e := range []string{b.Item.Title, b.Item.Text, b.Item.Meta, b.Item.Icon, b.Item.Details, b.Item.Questions, b.Item.Tone, b.Item.File, b.Item.Marks} {
+			for _, e := range []string{b.Item.Title, b.Item.Text, b.Item.Meta, b.Item.Icon, b.Item.Image, b.Item.Details, b.Item.Questions, b.Item.Tone, b.Item.File, b.Item.Marks} {
 				if _, err := compileField(e, fields); e != "" && err != nil {
 					c.fail("%s item: %v", where, err)
 				}

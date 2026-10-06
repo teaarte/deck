@@ -23,7 +23,7 @@ const playerManifest = `{"version": 8,
       "required": ["video", "file", "at"]},
     "executor": {"type": "agent", "prompt": "Rework the scene."}, "result": {"type": "object", "properties": {"n": {"type": "integer"}}}}],
   "screens": [{"name": "watch", "title": "Watch", "params": {"t": "number"}, "blocks": [
-    {"type": "media", "title": "Videos", "source": {"collection": "videos", "sort": "slug"},
+    {"type": "media", "title": "Videos", "span": "full", "source": {"collection": "videos", "sort": "slug"},
       "item": {"file": "file", "title": "slug", "marks": "marks"},
       "mark": {"verb": "mark", "command": "note", "params": {"video": "=slug"}, "input": "note"}}]}],
   "menu": ["watch"]}`
@@ -100,11 +100,16 @@ func TestRealBrowserPlayer(t *testing.T) {
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
 	})
-	p := e.createProject("shorts", playerManifest)
+	p := e.createProject("shorts", strings.Replace(playerManifest, `"screens": [`, `"screens": [{"name": "scenes", "title": "Scenes", "blocks": [
+    {"type": "list", "title": "Scenes", "source": {"collection": "videos", "sort": "slug"}, "item": {"title": "slug", "image": "'frame.png'"}}]}, `, 1))
 	data := e.App.Home.Data(p)
 	_ = os.MkdirAll(data, 0o700)
 	if out, err := exec.Command("ffmpeg", "-v", "error", "-f", "lavfi", "-i", "testsrc=duration=3:size=160x120:rate=30", "-c:v", "libvpx",
 		filepath.Join(data, "eu-solar.webm")).CombinedOutput(); err != nil {
+		t.Fatalf("ffmpeg: %v %s", err, out)
+	}
+	if out, err := exec.Command("ffmpeg", "-v", "error", "-f", "lavfi", "-i", "testsrc=size=64x48", "-frames:v", "1",
+		filepath.Join(data, "frame.png")).CombinedOutput(); err != nil {
 		t.Fatalf("ffmpeg: %v %s", err, out)
 	}
 	e.must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "videos", "records": jsonl(
@@ -120,6 +125,8 @@ func TestRealBrowserPlayer(t *testing.T) {
 	b.until("a frame forward", `(() => { const v = document.querySelector('[data-player="video"]'); return Math.abs(v.currentTime - (1 + 1 / 30)) < 0.01 })()`)
 	b.eval(`(document.querySelector('[data-mark-at="2.5"]').click(), '')`)
 	b.until("the player at the mark", `Math.abs(document.querySelector('[data-player="video"]').currentTime - 2.5) < 0.05 && document.querySelector('[data-timecode]').innerText.startsWith('0:02.50')`)
+	b.until("the second it stopped at in the address", `location.hash.includes('t=2.5')`)
+	b.until("the marks beside the player with a scroll of their own", `(() => { const v = document.querySelector('[data-player="video"]').getBoundingClientRect(), m = document.querySelector('[data-marks]').getBoundingClientRect(); return m.left >= v.right - 1 && getComputedStyle(document.querySelector('[data-marks]')).overflowY === 'auto' })()`)
 	b.shot("player")
 	b.eval(`(document.querySelector('[data-mark]').click(), '')`)
 	b.type_(`document.querySelector('[data-media="video"] input')`, "the map comes late")
@@ -133,6 +140,8 @@ func TestRealBrowserPlayer(t *testing.T) {
 		}
 		return false
 	})
+	b.open(e.URL + "/?token=" + token + "#/p/shorts/scenes")
+	b.until("the picture of a line of a list", `document.querySelector('[data-line-image]')?.naturalWidth === 64`)
 }
 
 // TestAMediaBlockOnARecordPageShowsAFileOfTheRecord: on a record page a media block without a source shows the
@@ -151,5 +160,24 @@ func TestAMediaBlockOnARecordPageShowsAFileOfTheRecord(t *testing.T) {
 	_ = json.Unmarshal(e.screenData("shorts", "video", map[string]any{"record": w.IDs[0]})["b0"]["files"], &files)
 	if len(files) != 1 || files[0].File != "eu-solar.webm" || files[0].Type != "video/webm" || files[0].Title != "eu-solar" {
 		t.Fatalf("the record page plays the file of its record: %+v", files)
+	}
+}
+
+// TestALineOfAListShowsAPicture: item.image of a list names a picture of a line; a file that is no picture is left
+// out of the line.
+func TestALineOfAListShowsAPicture(t *testing.T) {
+	e := newEnv(t, nil)
+	m := strings.Replace(playerManifest, `"screens": [`, `"screens": [{"name": "scenes", "title": "Scenes", "blocks": [
+    {"type": "list", "title": "Scenes", "source": {"collection": "videos", "sort": "slug"}, "item": {"title": "slug", "image": "file"}}]}, `, 1)
+	p := e.createProject("shorts", m)
+	_ = os.MkdirAll(e.App.Home.Data(p), 0o700)
+	_ = os.WriteFile(filepath.Join(e.App.Home.Data(p), "a.png"), []byte("\x89PNG\r\n\x1a\n"), 0o600)
+	_ = os.WriteFile(filepath.Join(e.App.Home.Data(p), "b.webm"), []byte("webm"), 0o600)
+	e.must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "videos", "records": jsonl(
+		map[string]any{"slug": "a", "file": "a.png"}, map[string]any{"slug": "b", "file": "b.webm"})}, nil)
+	var items []struct{ Title, Image string }
+	_ = json.Unmarshal(e.screenData("shorts", "scenes", nil)["b0"]["items"], &items)
+	if len(items) != 2 || !strings.Contains(items[0].Image, "a.png") || items[1].Image != "" {
+		t.Fatalf("a line shows its picture and nothing for a file that is none: %+v", items)
 	}
 }

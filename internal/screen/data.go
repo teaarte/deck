@@ -315,6 +315,13 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 			if _, ok := line["title"]; !ok {
 				line["title"] = ""
 			}
+			if b.Item.Image != "" {
+				if ref, err := r.eval(b.Item.Image, it); err == nil && ref != nil && ref != "" {
+					if f, err := r.src.File(r.ctx, r.req.Project, ref); err == nil && slices.Contains(pictures, f["type"]) {
+						line["image"] = f["url"]
+					}
+				}
+			}
 			for key, e := range map[string]string{"details": b.Item.Details, "questions": b.Item.Questions} {
 				if e == "" {
 					continue
@@ -345,3 +352,6 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 	}
 	return out, nil
 }
+
+// pictures are the types a line of a list shows as a picture: raster only, as the media block draws them.
+var pictures = []any{"image/png", "image/jpeg", "image/gif", "image/webp", "image/avif", "image/bmp"}

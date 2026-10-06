@@ -362,8 +362,9 @@ type Item struct {
 	Title string `json:"title"`
 	Text  string `json:"text,omitempty"`
 	Meta  string `json:"meta,omitempty"`
-	// Icon is an expression giving the icon of a line.
-	Icon string `json:"icon,omitempty"`
+	// Icon is an expression giving the icon of a line; Image one giving a picture of it, as File does.
+	Icon  string `json:"icon,omitempty"`
+	Image string `json:"image,omitempty"`
 	// Details is text shown in full on demand; Questions are questions the owner answers in a picker.
 	Details   string `json:"details,omitempty"`
 	Questions string `json:"questions,omitempty"`

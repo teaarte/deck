@@ -25,3 +25,40 @@ audio.media {
   border-radius: 50%;
   background: var(--mantine-primary-color-filled);
 }
+
+/* The marks go under the player, and beside it with their own scroll where the block is wide. */
+.player {
+  container-type: inline-size;
+}
+
+.stage {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.marks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.mark {
+  cursor: pointer;
+  text-transform: none;
+}
+
+@container (min-width: 560px) {
+  .stage {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 240px;
+    align-items: start;
+  }
+
+  .marks {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    max-height: 70vh;
+    overflow-y: auto;
+  }
+}

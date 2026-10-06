@@ -21,11 +21,12 @@ const isPlayed = (it: Item) => !it.error && /^(video|audio)\//.test(it.type ?? '
 // Media shows the files of a source: a picture as a thumbnail that opens in full, a PDF in place, a video or a sound
 // in a player, the rest by name and size with a download.
 export function Media({ items }: { items: Item[] }) {
+  const one = items.filter(isPicture).length === 1;
   return (
     <Stack gap="sm">
-      <SimpleGrid cols={{ base: 2, sm: 3, md: 4 }} spacing="sm">
+      <SimpleGrid cols={one ? 1 : { base: 2, sm: 3, md: 4 }} spacing="sm">
         {items.filter(isPicture).map((it) => (
-          <Stack key={String(it.id)} gap={4} data-item><Picture it={it} /><Text size="xs" truncate>{it.title || it.name}</Text></Stack>
+          <Stack key={String(it.id)} gap={4} data-item><Picture it={it} wide={one} /><Text size="xs" truncate>{it.title || it.name}</Text></Stack>
         ))}
       </SimpleGrid>
       {items.filter(isPlayed).map((it, i) => <Player key={String(it.id)} it={it} first={i === 0} />)}

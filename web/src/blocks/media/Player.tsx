@@ -4,7 +4,7 @@ import { IconChevronLeft, IconChevronRight, IconFlag } from '@tabler/icons-react
 import { useTranslation } from 'react-i18next';
 import { token } from '../../lib/api';
 import { timecode } from '../../lib/format';
-import { useRoute } from '../../app/router';
+import { replaceParam, useRoute } from '../../app/router';
 import { ActionInput } from '../../ui/ActionInput';
 import { useActionRun } from '../../ui/useActionRun';
 import { Download } from './Download';
@@ -40,6 +40,11 @@ export function Player({ it, first }: { it: Item; first: boolean }) {
     else m.addEventListener('loadedmetadata', seek, { once: true });
     return () => m.removeEventListener('loadedmetadata', seek);
   }, [first, start]);
+  // The first player keeps the second it stopped at in t of the address, so blocks of the screen that read it follow.
+  const keep = () => {
+    const m = media.current;
+    if (first && m && m.paused) replaceParam('t', String(Math.round(m.currentTime * 100) / 100));
+  };
   const go = (at: number) => {
     const m = media.current;
     if (!m) return;
@@ -54,15 +59,18 @@ export function Player({ it, first }: { it: Item; first: boolean }) {
   };
   const props = {
     ref: media, src, controls: true, preload: 'metadata', className: s.media, 'data-player': video ? 'video' : 'audio',
-    onTimeUpdate: () => setNow(media.current?.currentTime ?? 0), onSeeked: () => setNow(media.current?.currentTime ?? 0),
+    onTimeUpdate: () => setNow(media.current?.currentTime ?? 0), onSeeked: () => { setNow(media.current?.currentTime ?? 0); keep(); },
+    onPause: keep,
     onLoadedMetadata: () => setLength(finite(media.current?.duration)), onDurationChange: () => setLength(finite(media.current?.duration)),
   };
   return (
-    <Stack gap={6} data-item data-media={video ? 'video' : 'audio'}>
+    <Stack gap={6} className={s.player} data-item data-media={video ? 'video' : 'audio'}>
       <Group justify="space-between" wrap="nowrap">
         <Text size="sm" fw={500} truncate>{it.title || it.name}</Text>
         <Download it={it} />
       </Group>
+      <div className={s.stage}>
+      <Stack gap={6} miw={0}>
       {video ? <video {...props} playsInline /> : <audio {...props} />}
       {length > 0 && !!it.marks?.length && (
         <div className={s.timeline} data-timeline>
@@ -85,15 +93,17 @@ export function Player({ it, first }: { it: Item; first: boolean }) {
       </Group>
       {marking && mark && (mark.input ? <ActionInput act={mark} busy={busy} onSend={send} onCancel={() => setMarking(false)} />
         : <Group gap="xs"><Button size="xs" loading={busy} onClick={() => send('')}>{t('verb.send')}</Button><Button size="xs" variant="subtle" onClick={() => setMarking(false)}>{t('verb.cancel')}</Button></Group>)}
+      </Stack>
       {!!it.marks?.length && (
-        <Group gap={4} data-marks>
+        <div className={s.marks} data-marks>
           {it.marks.map((m, i) => (
-            <Badge key={i} variant="light" radius="sm" style={{ cursor: 'pointer', textTransform: 'none' }} onClick={() => go(m.at)} data-mark-at={m.at}>
+            <Badge key={i} variant="light" radius="sm" className={s.mark} onClick={() => go(m.at)} data-mark-at={m.at}>
               {timecode(m.at)}{m.text ? ' · ' + m.text : ''}
             </Badge>
           ))}
-        </Group>
+        </div>
       )}
+      </div>
     </Stack>
   );
 }

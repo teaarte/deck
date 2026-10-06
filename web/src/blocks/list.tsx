@@ -10,6 +10,7 @@ import { rowOpen } from '../ui/rowOpen';
 import type { Data } from '../lib/catalog.gen';
 import { useScreenActions } from '../screen/ScreenActions';
 import { blockImpl } from './blockImpl';
+import { useBlob } from './media/useBlob';
 
 // list draws items: a title with its icon, text, meta, details, the questions of an agent and buttons.
 export const list = blockImpl('list', (_, d) => <Items items={d.items ?? []} />);
@@ -27,7 +28,8 @@ function Items({ items }: { items: NonNullable<Data['items']> }) {
             style={{ ...opens.style, ...(it.tone && it.tone !== 'muted' ? { borderLeft: `3px solid var(--mantine-color-${toneColor(it.tone)}-6)`, paddingLeft: 'var(--mantine-spacing-xs)' } : {}) }}
             opacity={it.tone === 'muted' ? 0.6 : undefined}>
             <Group gap={10} wrap="nowrap" align="flex-start">
-              {it.icon && <span className={s.itemIcon}><NamedIcon name={it.icon} fallback={it.title} size={18} /></span>}
+              {it.image ? <Thumb url={it.image} alt={it.title} />
+                : it.icon && <span className={s.itemIcon}><NamedIcon name={it.icon} fallback={it.title} size={18} /></span>}
               <Stack gap={2} miw={0} style={{ flex: 1 }}>
                 <Text fw={600} size="md" lh={1.35} className={s.itemTitle}>{it.title}</Text>
                 {it.text && (it.markdown ? <Markdown text={it.text} /> : <Text size="sm" c="var(--deck-text-2)" lh={1.5}>{it.text}</Text>)}
@@ -42,4 +44,10 @@ function Items({ items }: { items: NonNullable<Data['items']> }) {
       })}
     </Stack>
   );
+}
+
+// Thumb is the picture of a line, read with the token like any file of deck.
+function Thumb({ url, alt }: { url: string; alt: string }) {
+  const { src } = useBlob(url);
+  return src ? <img src={src} alt={alt} className={s.thumb} data-line-image /> : <span className={s.thumb} />;
 }

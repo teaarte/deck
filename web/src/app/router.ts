@@ -73,6 +73,14 @@ export function setParam(name: string, value: string | null) {
   go(withParam(name, value));
 }
 
+// replaceParam changes one parameter of the current address in place, without a step of the history.
+export function replaceParam(name: string, value: string | null) {
+  const to = href(withParam(name, value));
+  if (to === (location.hash || '#/')) return;
+  trail = [...trail.slice(0, -1), to];
+  location.replace(to);
+}
+
 // dropParam removes a parameter: back in the history when the step before is the address without it.
 export function dropParam(name: string) {
   const to = href(withParam(name, null));

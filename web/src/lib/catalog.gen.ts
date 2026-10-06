@@ -203,6 +203,10 @@ export interface Data {
     text?: string;
     meta?: string;
     icon?: string;
+    /**
+     * address of the picture of the line
+     */
+    image?: string;
     details?: string;
     /**
      * text is markdown

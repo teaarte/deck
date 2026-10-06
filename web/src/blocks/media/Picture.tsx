@@ -4,8 +4,8 @@ import { Download } from './Download';
 import type { Item } from './Media';
 import { useBlob } from './useBlob';
 
-// Picture is a thumbnail that opens the picture in full.
-export function Picture({ it }: { it: Item }) {
+// Picture is a thumbnail that opens the picture in full; a wide one takes the width of its column.
+export function Picture({ it, wide }: { it: Item; wide?: boolean }) {
   const [open, setOpen] = useState(false);
   const { src, error } = useBlob(it.url, it.type);
   if (error) return <Alert color="red" p="xs">{error}</Alert>;
@@ -13,7 +13,7 @@ export function Picture({ it }: { it: Item }) {
   return (
     <>
       <UnstyledButton onClick={() => setOpen(true)} data-media="image">
-        <Image src={src} alt={it.title || it.name} h={160} fit="cover" radius="sm" />
+        <Image src={src} alt={it.title || it.name} h={wide ? 'auto' : 160} mah={wide ? '70vh' : undefined} fit={wide ? 'contain' : 'cover'} radius="sm" />
       </UnstyledButton>
       <Modal opened={open} onClose={() => setOpen(false)} size="auto" title={it.title || it.name} centered>
         <Stack gap="xs">

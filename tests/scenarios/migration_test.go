@@ -193,3 +193,106 @@ func TestABoardOfABaseFromBeforeGoes(t *testing.T) {
 	nine := strings.NewReplacer(`"version": 8`, `"version": 9`, `{"command": "work", "lane": "doing"}, `, "", `, "format": "card"`, "").Replace(eight)
 	e.refused("deck.manifest_save", map[string]any{"project": "old", "manifest": nine}, 422, "board")
 }
+
+// reopen runs queries on a base moved back to version, then starts deck on it again.
+func (e *Env) reopen(home string, version int, queries ...string) *Env {
+	e.T.Helper()
+	e.olderBase(version)
+	for _, q := range queries {
+		if _, err := e.App.Store.DB.Exec(q); err != nil {
+			e.T.Fatalf("%s: %v", q, err)
+		}
+	}
+	_ = e.App.Close()
+	return newEnvWith(e.T, home, &Fake{})
+}
+
+// TestTheSandboxRowsOfProjectsOfABaseFromBeforeGo: what the sandbox kept closed was a health row of the project;
+// such rows go, and a sandbox row of the machine stays.
+func TestTheSandboxRowsOfProjectsOfABaseFromBeforeGo(t *testing.T) {
+	home := t.TempDir()
+	e := newEnvWith(t, home, &Fake{})
+	e.createProject("work", plainManifest)
+	e = e.reopen(home, 6,
+		`INSERT INTO health (subject, workspace_id, project_id, status, error) SELECT 'sandbox:work', 1, id, 'warning', 'kept ~/.ssh closed' FROM project WHERE name = 'work'`,
+		`INSERT INTO health (subject, workspace_id, status) VALUES ('sandbox', 1, 'ok')`)
+	var subjects []string
+	rows, err := e.App.Store.DB.Query(`SELECT subject FROM health WHERE subject LIKE 'sandbox%' AND workspace_id = 1`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for rows.Next() {
+		var s string
+		if err := rows.Scan(&s); err != nil {
+			t.Fatal(err)
+		}
+		subjects = append(subjects, s)
+	}
+	_ = rows.Close()
+	if !slices.Equal(subjects, []string{"sandbox"}) {
+		t.Fatalf("the rows of projects go, the row of the machine stays: %v", subjects)
+	}
+}
+
+// TestAModelCallOfABaseFromBeforeTakesTheConnectionOfItsModel: a model call journaled before calls kept their
+// connection takes that of the model by its name; a call of a model deck no longer has keeps none.
+func TestAModelCallOfABaseFromBeforeTakesTheConnectionOfItsModel(t *testing.T) {
+	home := t.TempDir()
+	e := newEnvWith(t, home, &Fake{})
+	e = e.reopen(home, 9,
+		`INSERT INTO connection (workspace_id, name, api, url) VALUES (1, 'router', 'openai', 'https://openrouter.ai/api/v1')`,
+		`INSERT INTO model (workspace_id, connection_id, name, model, kind) SELECT 1, id, 'router/x', 'x', 'text' FROM connection WHERE name = 'router'`,
+		`INSERT INTO llm_call (workspace_id, gen_ai_provider_name, created_at) VALUES (1, 'router/x', '2026-10-01T10:00:00Z'), (1, 'gone', '2026-10-01T11:00:00Z')`)
+	got := map[string]string{}
+	rows, err := e.App.Store.DB.Query(`SELECT l.gen_ai_provider_name, coalesce(c.name, '') FROM llm_call l LEFT JOIN connection c ON c.id = l.connection_id`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for rows.Next() {
+		var m, c string
+		if err := rows.Scan(&m, &c); err != nil {
+			t.Fatal(err)
+		}
+		got[m] = c
+	}
+	_ = rows.Close()
+	if len(got) != 2 || got["router/x"] != "router" || got["gone"] != "" {
+		t.Fatalf("the call takes the connection of its model: %v", got)
+	}
+}
+
+// TestAQuestionOfAUsageLimitOfABaseFromBeforeExpires: a pause on a usage limit asks nothing now; its open question
+// of a base from before expires as delivered, and one the owner answered stays answered.
+func TestAQuestionOfAUsageLimitOfABaseFromBeforeExpires(t *testing.T) {
+	home := t.TempDir()
+	e := newEnvWith(t, home, &Fake{})
+	e.createProject("work", plainManifest)
+	e = e.reopen(home, 13,
+		`INSERT INTO ask (workspace_id, project_id, kind, text, state) SELECT 1, id, 'limit', 'Wait for the limit?', 'open' FROM project WHERE name = 'work'`,
+		`INSERT INTO ask (workspace_id, project_id, kind, text, state, answer, answered_at, delivered_at) SELECT 1, id, 'limit', 'Wait?', 'answered', 'yes', '2026-10-01T10:00:00Z', '2026-10-01T10:00:01Z' FROM project WHERE name = 'work'`)
+	type row struct {
+		state     string
+		delivered bool
+	}
+	var got []row
+	rows, err := e.App.Store.DB.Query(`SELECT state, delivered_at IS NOT NULL FROM ask WHERE kind = 'limit' ORDER BY id`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for rows.Next() {
+		var r row
+		if err := rows.Scan(&r.state, &r.delivered); err != nil {
+			t.Fatal(err)
+		}
+		got = append(got, r)
+	}
+	_ = rows.Close()
+	if len(got) != 2 || got[0] != (row{"expired", true}) || got[1] != (row{"answered", true}) {
+		t.Fatalf("the open question expires, the answered one stays: %+v", got)
+	}
+	var open []askView
+	e.must("deck.asks_list", nil, &open)
+	if len(open) != 0 {
+		t.Fatalf("nothing waits for the owner: %+v", open)
+	}
+}

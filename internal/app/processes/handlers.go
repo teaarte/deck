@@ -248,5 +248,5 @@ func (s *Service) processCommands() []*registry.Command {
 
 // holds is an open ask its process cannot go on without: a question or a confirmation; a frozen call lets it work on.
 func holds(a db.Ask) bool {
-	return a.State == "open" && (a.Kind == ask.KindQuestion || a.Kind == ask.KindConfirm)
+	return a.State == ask.StateOpen && (a.Kind == ask.KindQuestion || a.Kind == ask.KindConfirm)
 }

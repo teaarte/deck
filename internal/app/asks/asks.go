@@ -93,7 +93,7 @@ func (s *Service) asksList(ctx context.Context, act registry.Actor, in asksListI
 
 func (s *Service) askRow(ctx context.Context, q db.Ask, names map[int64]string) askRow {
 	r := askRow{ID: q.ID, Kind: q.Kind, Project: names[q.ProjectID.Int64], Process: q.ProcessID.Int64, Text: q.Text, What: firstLine(q.Text),
-		Payload: json.RawMessage(cmp.Or(q.Payload, "null")), CreatedAt: q.CreatedAt, ExpiresAt: q.ExpiresAt.String, Expired: q.State == "expired"}
+		Payload: json.RawMessage(cmp.Or(q.Payload, "null")), CreatedAt: q.CreatedAt, ExpiresAt: q.ExpiresAt.String, Expired: q.State == ask.StateExpired}
 	if q.ProcessID.Valid {
 		r.Who = s.processName(ctx, q.ProcessID.Int64)
 	}
@@ -204,28 +204,25 @@ func (s *Service) askAnswer(ctx context.Context, act registry.Actor, in askAnswe
 	if err != nil {
 		return nil, err
 	}
-	if q.State == "open" && q.ExpiresAt.Valid && q.ExpiresAt.String <= store.Time(s.Now()) {
+	if q.State == ask.StateOpen && q.ExpiresAt.Valid && q.ExpiresAt.String <= store.Time(s.Now()) {
 		s.ExpireConfirms(ctx, s.Now())
 		if q, err = s.St.Q.GetAsk(ctx, in.Ask); err != nil {
 			return nil, err
 		}
 	}
-	if q.State == "expired" && (q.Kind == ask.KindCall || q.Kind == ask.KindConfirm) {
+	if q.State == ask.StateExpired && (q.Kind == ask.KindCall || q.Kind == ask.KindConfirm) {
 		return s.dismissExpired(ctx, q, in.Answer)
 	}
 	if err := ask.Check(q.Kind, in.Answer); err != nil {
 		return nil, err
 	}
-	if q.Kind == ask.KindGrant && q.State == "open" {
+	if q.Kind == ask.KindGrant && q.State == ask.StateOpen {
 		return s.AnswerGrant(ctx, act, q, in.Answer)
 	}
 	if q.Kind == ask.KindCall || q.Kind == ask.KindUnknown {
 		return s.decide(ctx, act, q, in.Answer)
 	}
 	if err := s.Broker.Answer(ctx, in.Ask, in.Answer); err != nil {
-		if errors.Is(err, ask.ErrNotOpen) {
-			return nil, ask.NotOpen
-		}
 		return nil, err
 	}
 	return map[string]any{"ok": true}, nil
@@ -267,8 +264,8 @@ func (s *Service) decide(ctx context.Context, act registry.Actor, q db.Ask, answ
 	run := answer == "allow" || answer == "allow_always" || answer == ask.UnknownRetry
 	switch {
 	case run:
-		if q.State != "open" {
-			return nil, ask.NotOpen
+		if q.State != ask.StateOpen {
+			return nil, ask.ErrNotOpen
 		}
 		var then func() error
 		if answer == "allow_always" {
@@ -276,7 +273,7 @@ func (s *Service) decide(ctx context.Context, act registry.Actor, q db.Ask, answ
 		}
 		out, err := s.Gateway.Decide(ctx, act, q, answer, then)
 		if errors.Is(err, ask.ErrNotOpen) {
-			return nil, ask.NotOpen
+			return nil, err
 		}
 		s.LateAnswer(ctx, q)
 		if err != nil {
@@ -285,9 +282,6 @@ func (s *Service) decide(ctx context.Context, act registry.Actor, q db.Ask, answ
 		return map[string]any{"ok": true, "result": out}, nil
 	default:
 		if err := s.Broker.Answer(ctx, q.ID, answer); err != nil {
-			if errors.Is(err, ask.ErrNotOpen) {
-				return nil, ask.NotOpen
-			}
 			return nil, err
 		}
 		if q.Kind == ask.KindCall {
@@ -387,7 +381,7 @@ func (s *Service) LateAnswer(ctx context.Context, q db.Ask) {
 	}
 	p, err := s.St.Q.GetProcess(ctx, q.ProcessID.Int64)
 	a, aerr := s.St.Q.GetAsk(ctx, q.ID)
-	if err == nil && aerr == nil && p.FinishedAt.Valid && a.Kind == ask.KindQuestion && a.State == "answered" && !a.DeliveredAt.Valid {
+	if err == nil && aerr == nil && p.FinishedAt.Valid && a.Kind == ask.KindQuestion && a.State == ask.StateAnswered && !a.DeliveredAt.Valid {
 		s.unheard(ctx, p, a, "it had finished before the answer came")
 	}
 }

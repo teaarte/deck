@@ -56,16 +56,13 @@ func (sv *Saver) AnswerGrant(ctx context.Context, act registry.Actor, q db.Ask, 
 		out, err := sv.Gateway.Decide(ctx, act, q, answer, nil)
 		switch {
 		case errors.Is(err, ask.ErrNotOpen):
-			return nil, ask.NotOpen
+			return nil, err
 		case registry.Status(err) == 409:
 			return nil, registry.Conflict("deck: the manifest changed after this request; deny it and ask again")
 		}
 		return out, err
 	case answer == "deny" || strings.HasPrefix(answer, "deny:"):
 		if err := sv.Broker.Answer(ctx, q.ID, answer); err != nil {
-			if errors.Is(err, ask.ErrNotOpen) {
-				return nil, ask.NotOpen
-			}
 			return nil, err
 		}
 		sv.Gateway.Record(ctx, q, "rejected", "the owner said no")

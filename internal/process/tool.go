@@ -165,7 +165,7 @@ func (r *Runner) deliverTool(ctx context.Context, p db.Process, pending untold) 
 		var o gateway.Outcome
 		_ = json.Unmarshal([]byte(row.Result), &o)
 		switch {
-		case a.State == "expired" || a.State == "dismissed":
+		case a.State == ask.StateExpired || a.State == ask.StateDismissed:
 			r.finish(ctx, p.ID, StateError, "", false, "deck: the owner did not confirm the call in time; it was not made")
 		case row.Result == "":
 			r.finish(ctx, p.ID, StateError, "", false, gateway.RejectMessage(a.Answer))

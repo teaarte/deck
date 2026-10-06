@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"errors"
 	"slices"
 	"strings"
 	"sync"
@@ -29,6 +28,14 @@ const (
 	KindUnknown = "unknown"
 	// KindSignIn asks the owner to sign in to a site or service; its payload names the site or the tool.
 	KindSignIn = "sign_in"
+)
+
+// The states of an ask: open until answered, expired or dismissed.
+const (
+	StateOpen      = "open"
+	StateAnswered  = "answered"
+	StateExpired   = "expired"
+	StateDismissed = "dismissed"
 )
 
 const (
@@ -81,10 +88,8 @@ func Remark(ctx context.Context, q *db.Queries, processID int64, text, at string
 	return q.CreateRemark(ctx, db.CreateRemarkParams{ProcessID: processID, Text: text, CreatedAt: at})
 }
 
-var ErrNotOpen = errors.New("ask is not open")
-
-// NotOpen is what a caller gets for an answer to an ask that is answered or expired already.
-var NotOpen = registry.Conflict("deck: this ask is already answered or expired")
+// ErrNotOpen is what an answer to an ask that is answered or expired already gets.
+var ErrNotOpen = registry.Conflict("deck: this ask is already answered or expired")
 
 // Broker stores owner-facing asks and lets a live caller block until the owner answers. Waits end by the
 // deck clock, checked at least every Poll, so a sleep of the machine does not stretch them.
@@ -137,7 +142,7 @@ func (b *Broker) Wait(ctx context.Context, id int64, until time.Time) (answer st
 	if ch == nil {
 		return "", false
 	}
-	if a, err := b.st.Q.GetAsk(ctx, id); err == nil && a.State == "answered" {
+	if a, err := b.st.Q.GetAsk(ctx, id); err == nil && a.State == StateAnswered {
 		b.drop(id)
 		return a.Answer, true
 	}

@@ -100,7 +100,7 @@ func (r *Runner) blocked(ctx context.Context, processID int64) bool {
 // answer instead of failing, and the answer resumes the session.
 func (r *Runner) questioned(ctx context.Context, processID int64) bool {
 	open, _ := r.st.Q.ListOpenAsksOfProcess(ctx, processID)
-	return slices.ContainsFunc(open, func(a db.Ask) bool { return a.Kind == ask.KindQuestion && a.State == "open" })
+	return slices.ContainsFunc(open, func(a db.Ask) bool { return a.Kind == ask.KindQuestion && a.State == ask.StateOpen })
 }
 
 // park moves the process to waiting_answer, where its ceiling does not tick, and immediately delivers

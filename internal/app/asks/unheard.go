@@ -28,7 +28,7 @@ func (h Unheard) Closed(ctx context.Context, p db.Process) {
 		return
 	}
 	last, err := h.S.St.Q.LastAskOfProcess(ctx, store.ID(p.ID))
-	if err != nil || last.Kind != ask.KindQuestion || last.State != "answered" {
+	if err != nil || last.Kind != ask.KindQuestion || last.State != ask.StateAnswered {
 		return
 	}
 	h.S.unheard(ctx, p, last, "it ended without doing anything after it")

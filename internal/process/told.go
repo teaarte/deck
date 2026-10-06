@@ -103,23 +103,23 @@ func (u untold) message() string {
 		what := untrusted.Line(a.Text, 600)
 		switch {
 		case a.Kind == ask.KindLogin:
-		case a.Kind == ask.KindQuestion && a.State == "answered":
+		case a.Kind == ask.KindQuestion && a.State == ask.StateAnswered:
 			b.WriteString("- Question: " + untrusted.Line(a.Text, 1000) + "\n" + untrusted.Value("Answer", a.Answer, 500) + "\n")
-		case a.Kind == ask.KindCall && a.State == "answered" && row.Result != "":
+		case a.Kind == ask.KindCall && a.State == ask.StateAnswered && row.Result != "":
 			b.WriteString("- Allowed: " + what + ". deck made this call for you; do not make it again yourself. " + outcomeText(row.Result) + "\n")
-		case a.Kind == ask.KindCall && a.State == "answered":
+		case a.Kind == ask.KindCall && a.State == ask.StateAnswered:
 			b.WriteString("- Rejected: " + what + ". " + gateway.RejectMessage(a.Answer) + "\n")
 		case a.Kind == ask.KindCall:
 			b.WriteString("- Expired: " + what + ". The owner did not answer in time; the call was not made.\n")
 		case a.Kind == ask.KindUnknown && a.Answer == ask.UnknownRetry:
 			b.WriteString("- The owner had deck retry a call of unknown outcome. " + outcomeText(row.Result) + "\n")
-		case a.Kind == ask.KindSignIn && a.State == "answered":
+		case a.Kind == ask.KindSignIn && a.State == ask.StateAnswered:
 			b.WriteString("- The owner signed in: " + what + " Go on with the site.\n")
 		case a.Kind == ask.KindUnknown:
 			b.WriteString("- " + what + " The owner counts it as done; do not make it again.\n")
-		case a.Kind == ask.KindConfirm && a.State == "answered" && a.Answer == "allow":
+		case a.Kind == ask.KindConfirm && a.State == ask.StateAnswered && a.Answer == "allow":
 			b.WriteString("- Allowed: " + what + ". Make exactly the same call again; it will go through.\n")
-		case a.Kind == ask.KindConfirm && a.State == "answered":
+		case a.Kind == ask.KindConfirm && a.State == ask.StateAnswered:
 			b.WriteString("- Rejected: " + what + ". " + gateway.RejectMessage(a.Answer) + "\n")
 		case a.Kind == ask.KindConfirm:
 			b.WriteString("- Expired: " + what + ". The call was not made.\n")

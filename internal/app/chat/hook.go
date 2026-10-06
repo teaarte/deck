@@ -70,7 +70,7 @@ func (ch *Service) openQuestion(ctx context.Context, processID int64) int64 {
 		return 0
 	}
 	for _, q := range asks {
-		if q.Kind == ask.KindQuestion && q.State == "open" {
+		if q.Kind == ask.KindQuestion && q.State == ask.StateOpen {
 			return q.ID
 		}
 	}

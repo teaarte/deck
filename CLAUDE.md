@@ -79,7 +79,8 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
   scripts, commands and the model of ACP turns, with deck's key and the usage of OpenAI, Google and Anthropic answers)
 - `internal/provider` — model providers; `claudecode` runs the CLI isolated from user settings; `codex` runs
   `codex app-server` on the owner's shared login (`protocol.go` is generated); `acp` runs ACP agents (Goose, `dsh`)
-  on an OpenAI-compatible model inside deck's sandbox, the model through deck's proxy — deck has no tool loop of its own
+  on an OpenAI-compatible model inside deck's sandbox, the model through deck's proxy — deck has no tool loop of its own;
+  `Stateful` keeps clients of deck's MCP servers on the handshake (no `server/discover`, go-sdk #1111)
 - `internal/process` — process runner: agent and script executors, start, resume, result schema check, result files;
   agent turns take a slot of the workspace (`slots.go`), the rest wait in `waiting_slot`; a tool or model command is
   one gateway call (`tool.go`); what it takes from deck is

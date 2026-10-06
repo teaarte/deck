@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"deck2/internal/docs"
 	"deck2/internal/manifest"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
@@ -67,6 +68,9 @@ func (r *Runner) ceilingOf(m *manifest.Manifest, cmd *manifest.Command) time.Dur
 func (r *Runner) Start(ctx context.Context, projectID int64, m *manifest.Manifest, command string, input map[string]any, o Origin) (int64, error) {
 	proj, err := r.st.Q.GetProject(ctx, projectID)
 	if err != nil {
+		return 0, err
+	}
+	if m, err = docs.InForce(ctx, r.st.Q, proj, m); err != nil {
 		return 0, err
 	}
 	cmd := m.Command(command)

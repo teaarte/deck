@@ -42,8 +42,13 @@ func (sv *Saver) ProjectCommands(ctx context.Context, workspace int64, name stri
 			slog.Error("project manifest", "project", p.Name, "err", failed[p.ID])
 			continue
 		}
-		out = append(out, sv.prepared(ctx, p, m)...)
-		mcpCmds, err := sv.MCP.Commands(ctx, sv.St.Q, p, m)
+		granted, err := docs.InForce(ctx, sv.St.Q, p, m)
+		if err != nil {
+			slog.Error("project rights", "project", p.Name, "err", err)
+			continue
+		}
+		out = append(out, sv.prepared(ctx, p, m, granted)...)
+		mcpCmds, err := sv.MCP.Commands(ctx, sv.St.Q, p, granted)
 		if err != nil {
 			return nil, err
 		}
@@ -59,8 +64,8 @@ func (sv *Saver) ProjectCommands(ctx context.Context, workspace int64, name stri
 }
 
 // prepared are the commands and HTTP tools of a manifest as registry commands, compiled once per revision and
-// grant; a tool has the rights the owner gave.
-func (sv *Saver) prepared(ctx context.Context, p db.Project, m *manifest.Manifest) []*registry.Command {
+// grant, with the rights the owner gave: those of granted, m in force.
+func (sv *Saver) prepared(ctx context.Context, p db.Project, m, granted *manifest.Manifest) []*registry.Command {
 	key := preparedKey{p.ID, m, p.GrantedRevision.Int64}
 	sv.preparedMu.Lock()
 	cmds, ok := sv.preparedCmds[key]
@@ -68,7 +73,7 @@ func (sv *Saver) prepared(ctx context.Context, p db.Project, m *manifest.Manifes
 	if ok {
 		return cmds
 	}
-	for _, c := range m.Commands {
+	for _, c := range granted.Commands {
 		cmd := &registry.Command{
 			Name: p.Name + "." + c.Name, Title: c.Title, Description: c.Description, Class: c.Class,
 			Input: withRetryKey(c.InputSchema()), Result: c.Result, ProjectID: p.ID, Callers: c.Callable(),
@@ -79,11 +84,6 @@ func (sv *Saver) prepared(ctx context.Context, p db.Project, m *manifest.Manifes
 			continue
 		}
 		cmds = append(cmds, cmd)
-	}
-	granted, err := docs.InForce(ctx, sv.St.Q, p, m)
-	if err != nil {
-		slog.Error("project rights", "project", p.Name, "err", err)
-		granted = manifest.Clip(&manifest.Manifest{}, m)
 	}
 	for _, t := range granted.Tools.HTTP {
 		cmd := sv.Tools.Command(p, t)

@@ -267,6 +267,11 @@ func (r *Runner) turnOf(ctx context.Context, p db.Process) (turn, error) {
 	if err != nil {
 		return turn{}, err
 	}
+	if proj, err := r.st.Q.GetProject(ctx, p.ProjectID); err != nil {
+		return turn{}, err
+	} else if m, err = docs.InForce(ctx, r.st.Q, proj, m); err != nil {
+		return turn{}, err
+	}
 	cmd := m.Command(p.Command)
 	if cmd == nil {
 		return turn{}, fmt.Errorf("command %q no longer exists", p.Command)

@@ -262,6 +262,9 @@ func (c *Service) Servers(ctx context.Context, projectID int64) {
 	if err != nil {
 		return
 	}
+	if m, err = docs.InForce(ctx, c.St.Q, p, m); err != nil {
+		return
+	}
 	c.MCP.Start(ctx, p, m)
 	if len(m.Domains.Read) > 0 || len(m.Domains.Act) > 0 {
 		c.Browser.Ensure(ctx)

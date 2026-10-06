@@ -76,7 +76,7 @@ func Widens(prev, next *Manifest) []string {
 	for _, name := range slices.Sorted(maps.Keys(next.Tools.MCP.Servers)) {
 		s := next.Tools.MCP.Servers[name]
 		old, ok := prev.Tools.MCP.Servers[name]
-		if !ok || old.Command != s.Command || !slices.Equal(old.Args, s.Args) || old.URL != s.URL || !reflect.DeepEqual(old.Env, s.Env) {
+		if !ok || !sameServer(old, s) {
 			add("MCP server %s: new or changed", name)
 		} else if len(old.ToolFilter) > 0 && len(s.ToolFilter) == 0 {
 			add("MCP server %s: every tool instead of the tool filter", name)
@@ -165,10 +165,33 @@ func ShellHosts(m *Manifest) []string {
 	return out
 }
 
-// Clip is m with only the rights granted gives: network, allowed external actions, domains other than
-// registries, models and reads it lacks are dropped; an HTTP tool that would widen them asks on every call.
+// Clip is m with only the rights granted gives, everything Widens sees: network, allowed external actions,
+// domains other than registries, models and reads it lacks are dropped; a command keeps the class, requirements,
+// provider, calls and callers it had; an MCP server keeps its granted filter and classes, a new or changed one
+// runs only without secrets and asks on every call, as an HTTP tool that would widen them does.
 func Clip(granted, m *Manifest) *Manifest {
 	c := *m
+	c.Commands = slices.Clone(m.Commands)
+	c.commands = make(map[string]*Command, len(c.Commands))
+	var required []string
+	for _, g := range granted.Commands {
+		required = append(required, g.Requires...)
+	}
+	for i := range c.Commands {
+		cmd := &c.Commands[i]
+		if old := granted.Command(cmd.Name); old != nil {
+			clipCommand(cmd, old)
+		} else {
+			cmd.Requires = append(slices.Clone(cmd.Requires), added(cmd.Requires, required)...)
+		}
+		c.commands[cmd.Name] = cmd
+	}
+	c.Tools.MCP.Servers = map[string]MCPServer{}
+	for name, s := range m.Tools.MCP.Servers {
+		if s, ok := clipServer(granted.Tools.MCP.Servers, name, s); ok {
+			c.Tools.MCP.Servers[name] = s
+		}
+	}
 	c.NoNetwork = m.NoNetwork || granted.NoNetwork
 	c.Domains = Domains{Read: kept(m.Domains.Read, append(slices.Clone(Registries), granted.Domains.Read...)), Act: kept(m.Domains.Act, granted.Domains.Act)}
 	c.AllowedExternal = kept(m.AllowedExternal, granted.AllowedExternal)
@@ -192,6 +215,60 @@ func Clip(granted, m *Manifest) *Manifest {
 		c.Reads = append(c.Reads, r)
 	}
 	return &c
+}
+
+// clipCommand gives cmd back what old had where cmd is wider: a milder class, fewer requirements, another
+// provider, more calls or callers.
+func clipCommand(cmd, old *Command) {
+	if registry.ClassRank(cmd.Class) < registry.ClassRank(old.Class) {
+		cmd.Class = old.Class
+	}
+	cmd.Requires = append(slices.Clone(cmd.Requires), added(cmd.Requires, old.Requires)...)
+	cmd.Provider = old.Provider
+	if old.Executor.Calls != nil {
+		cmd.Executor.Calls = append([]string{}, kept(cmd.Executor.Calls, old.Executor.Calls)...)
+	}
+	if len(added(old.Callable(), cmd.Callable())) > 0 {
+		if cmd.Callers = kept(cmd.Callable(), old.Callable()); len(cmd.Callers) == 0 {
+			cmd.Callers = old.Callable()
+		}
+	}
+}
+
+// clipServer is MCP server s of m as granted: a new or changed server only without secrets and with every tool
+// asking; a granted one with no tools past its filter and no milder classes. False drops it.
+func clipServer(granted map[string]MCPServer, name string, s MCPServer) (MCPServer, bool) {
+	old, ok := granted[name]
+	if !ok || !sameServer(old, s) {
+		if len(secretRef.FindAllString(fmt.Sprint(s.Env, s.Args, s.URL, s.Command), -1)) > 0 {
+			return s, false
+		}
+		s.Classes = nil
+		return s, true
+	}
+	if len(old.ToolFilter) > 0 {
+		s.ToolFilter = kept(s.ToolFilter, old.ToolFilter)
+		if len(s.ToolFilter) == 0 {
+			return s, false
+		}
+	}
+	classes := map[string]string{}
+	for tool, class := range s.Classes {
+		was, known := old.Classes[tool]
+		if !known {
+			was = registry.External
+		}
+		if registry.ClassRank(class) < registry.ClassRank(was) {
+			class = was
+		}
+		classes[tool] = class
+	}
+	s.Classes = classes
+	return s, true
+}
+
+func sameServer(a, b MCPServer) bool {
+	return a.Command == b.Command && slices.Equal(a.Args, b.Args) && a.URL == b.URL && reflect.DeepEqual(a.Env, b.Env)
 }
 
 // kept are the values of next that granted has too.

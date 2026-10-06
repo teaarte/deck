@@ -11,11 +11,14 @@ import (
 	"testing"
 	"time"
 
+	"deck2/internal/docs"
 	"deck2/internal/gateway"
+	"deck2/internal/manifest"
 	"deck2/internal/process"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
 	"deck2/internal/store"
+	"deck2/internal/store/db"
 )
 
 const draftManifest = `{
@@ -568,5 +571,75 @@ func TestADraftSaysWhichToolsWillAskEachTime(t *testing.T) {
 	_ = json.Unmarshal(e.settingsBlock("Projects", nil)["items"], &items)
 	if !slices.ContainsFunc(items, func(it listItem) bool { return strings.Contains(it.Meta, "asks you each time: post") }) {
 		t.Fatalf("the Projects tab says it before enabling: %+v", items)
+	}
+}
+
+// TestAWideningWaitsForTheOwnerInEveryRight: a revision that widens rights is in force only with what the owner
+// granted: a milder class waits for the owner's button, and a draft keeps the class of its granted revision.
+func TestAWideningWaitsForTheOwnerInEveryRight(t *testing.T) {
+	e := newEnv(t, nil)
+	e.createProject("pub", scriptManifest("media", "", ""))
+	_, tok := e.token("terminal", "deck.*", "pub.*")
+	milder := strings.Replace(scriptManifest("media", "", ""), `"class": "external",
+     "executor": {"type": "agent", "prompt": "Publish."}`, `"class": "reversible",
+     "executor": {"type": "agent", "prompt": "Publish."}`, 1)
+	var w struct {
+		Waiting int64
+		Widens  []string
+	}
+	code, raw := e.callWith(tok, "deck.manifest_save", map[string]any{"project": "pub", "manifest": milder})
+	if code != 200 || json.Unmarshal(raw, &w) != nil || w.Waiting == 0 || len(w.Widens) != 1 || !strings.Contains(w.Widens[0], "class reversible") {
+		t.Fatalf("a milder class waits for the owner: %d %s", code, raw)
+	}
+	before := len(e.processes())
+	code, raw = e.callWith(tok, "pub.publish", map[string]any{})
+	var held struct{ Waiting int64 }
+	if code != 200 || json.Unmarshal(raw, &held) != nil || held.Waiting == 0 || len(e.processes()) != before {
+		t.Fatalf("until the owner grants it the command keeps its class and waits: %d %s", code, raw)
+	}
+	e.answer(w.Waiting, "allow")
+	e.answer(held.Waiting, "deny")
+	if code, raw = e.callWith(tok, "pub.publish", map[string]any{}); code != 200 || strings.Contains(string(raw), "waiting") {
+		t.Fatalf("once granted the milder class runs at once: %d %s", code, raw)
+	}
+
+	if code, raw = e.callWith(tok, "deck.project_create", map[string]any{"name": "draft", "manifest": scriptManifest("media", "", "")}); code != 200 {
+		t.Fatalf("create: %d %s", code, raw)
+	}
+	internal := strings.Replace(scriptManifest("media", "", ""), `"class": "external",
+     "executor": {"type": "agent", "prompt": "Publish."}`, `"class": "internal",
+     "executor": {"type": "agent", "prompt": "Publish."}`, 1)
+	if code, raw = e.callWith(tok, "deck.manifest_save", map[string]any{"project": "draft", "manifest": internal}); code != 200 {
+		t.Fatalf("a draft saves what it widens, to be granted when enabled: %d %s", code, raw)
+	}
+	for _, c := range e.commands() {
+		if c.Name == "draft.publish" && c.Class != "external" {
+			t.Fatalf("a draft's command keeps the class the owner granted until the owner enables it: %+v", c)
+		}
+	}
+	wide := strings.Replace(internal, `"Publish."}`, `"Publish."}, "callers": ["owner", "agent"], "provider": "codex"`, 1)
+	wide = strings.Replace(wide, `"runtime": "python"}]`, `"runtime": "python"}], "domains": {"read": ["example.com"]}, "models": ["openrouter"], "no_network": false,
+  "tools": {"mcp": {"servers": {"svc": {"command": "/bin/cat", "env": {"KEY": "$secret.svc"}}, "open": {"command": "/bin/cat", "classes": {"x": "internal"}}}}}`, 1)
+	if code, raw = e.callWith(tok, "deck.manifest_save", map[string]any{"project": "draft", "manifest": wide}); code != 200 {
+		t.Fatalf("save: %d %s", code, raw)
+	}
+	ctx := context.Background()
+	p, _ := e.App.Store.Q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: 1, Name: "draft"})
+	cur, err := docs.Manifest(ctx, e.App.Store.Q, p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	granted, _ := docs.ManifestAt(ctx, e.App.Store.Q, p.ID, p.GrantedRevision.Int64)
+	inForce, _ := docs.InForce(ctx, e.App.Store.Q, p, cur)
+	if w := manifest.Widens(granted, cur); len(w) < 6 {
+		t.Fatalf("the saved revision widens class, callers, provider, domains, models and servers: %v", w)
+	}
+	for _, w := range manifest.Widens(granted, inForce) {
+		if w != "MCP server open: new or changed" {
+			t.Errorf("what is in force widens nothing the owner did not grant, but for a server that asks every call: %s", w)
+		}
+	}
+	if _, ok := inForce.Tools.MCP.Servers["svc"]; ok || len(inForce.Tools.MCP.Servers["open"].Classes) != 0 {
+		t.Fatalf("a new server with a secret is not in force, one without asks every call: %+v", inForce.Tools.MCP.Servers)
 	}
 }

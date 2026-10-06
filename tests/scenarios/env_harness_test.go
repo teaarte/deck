@@ -122,6 +122,15 @@ func newEnvBuiltin(t *testing.T, home string, ps []provider.Provider, cfg ...fun
 	ts.Config.Handler = srv.Handler()
 	ts.Start()
 	t.Cleanup(func() {
+		for _, p := range ps {
+			if f, ok := p.(*Fake); ok {
+				f.mu.Lock()
+				if len(f.broken) > 0 {
+					t.Errorf("a call of the harness failed in a turn: %v", f.broken)
+				}
+				f.mu.Unlock()
+			}
+		}
 		_ = a.Close()
 		ts.CloseClientConnections()
 		ts.Close()

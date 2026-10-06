@@ -37,10 +37,13 @@ func (e *Env) screenData(project, screen string, extra map[string]any) map[strin
 			var dm struct {
 				Value map[string]map[string]json.RawMessage `json:"value"`
 			}
-			_ = json.Unmarshal(raw, &dm)
+			if err := json.Unmarshal(raw, &dm); err != nil {
+				e.T.Fatalf("the data of screen %s: %v", screen, err)
+			}
 			return dm.Value
 		}
 	}
+	e.T.Fatalf("screen %s has no data", screen)
 	return nil
 }
 
@@ -48,7 +51,9 @@ func (e *Env) screenData(project, screen string, extra map[string]any) map[strin
 func (e *Env) screenRows(project int64, screen string) []screenRow {
 	e.T.Helper()
 	var rows []screenRow
-	_ = json.Unmarshal(e.screenData(e.names[project], screen, nil)["b0"]["rows"], &rows)
+	if err := json.Unmarshal(e.screenData(e.names[project], screen, nil)["b0"]["rows"], &rows); err != nil {
+		e.T.Fatalf("the rows of screen %s: %v", screen, err)
+	}
 	return rows
 }
 

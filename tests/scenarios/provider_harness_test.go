@@ -3,6 +3,7 @@ package scenarios
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"sync"
 
@@ -18,6 +19,7 @@ type Call struct {
 	Req     provider.Request
 	Session *mcp.ClientSession
 	N       int
+	fake    *Fake
 }
 
 func (c *Call) Tool(ctx context.Context, name string, args any) (string, bool) {
@@ -34,11 +36,14 @@ func (c *Call) Tool(ctx context.Context, name string, args any) (string, bool) {
 	return b.String(), res.IsError
 }
 
-// Approve calls the permission tool the way Claude Code does and returns the decoded decision.
+// Approve calls the permission tool the way Claude Code does and returns the decoded decision; a call that fails
+// or gives no decision fails the test.
 func (c *Call) Approve(ctx context.Context, tool string, input map[string]any) map[string]any {
-	text, _ := c.Tool(ctx, "approve", map[string]any{"tool_name": tool, "input": input, "tool_use_id": "t1"})
+	text, bad := c.Tool(ctx, "approve", map[string]any{"tool_name": tool, "input": input, "tool_use_id": "t1"})
 	var d map[string]any
-	_ = json.Unmarshal([]byte(text), &d)
+	if err := json.Unmarshal([]byte(text), &d); bad || err != nil || d["behavior"] == nil {
+		c.fake.broke(fmt.Sprintf("approve %s: %s", tool, text))
+	}
 	return d
 }
 
@@ -53,6 +58,14 @@ type Fake struct {
 	name string
 	// live is a provider that takes the owner's messages into a running turn on Req.Live.
 	live bool
+	// broken are the calls of the harness that failed inside a turn, where the test cannot fail at once.
+	broken []string
+}
+
+func (f *Fake) broke(what string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.broken = append(f.broken, what)
 }
 
 // Terminal is how the owner would go on with a session of the fake.
@@ -99,7 +112,7 @@ func (f *Fake) Run(ctx context.Context, req provider.Request) (provider.Result, 
 	if script == nil {
 		return provider.Result{Text: "ok"}, nil
 	}
-	return script(ctx, &Call{Req: req, Session: sess, N: n}), nil
+	return script(ctx, &Call{Req: req, Session: sess, N: n, fake: f}), nil
 }
 
 func (f *Fake) Calls() []provider.Request {

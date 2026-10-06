@@ -491,8 +491,8 @@ print(json.dumps({"status": fetch(json.load(sys.stdin)["allowed"])}))
 		t.Fatalf("project_create: %d %s", code, out)
 	}
 	e.names[peek.ID] = "peek"
-	if rows := e.screenRows(peek.ID, "main"); len(rows) != 0 {
-		t.Fatalf("a draft reads no other project: %v", rows)
+	if b0 := e.screenData("peek", "main", nil)["b0"]; b0["rows"] != nil || !strings.Contains(string(b0["error"]), "not in reads") {
+		t.Fatalf("a draft reads no other project: %s", b0)
 	}
 
 	e.must("deck.project_enable", map[string]any{"project": "leak", "revision": e.project("leak").Revision}, nil)

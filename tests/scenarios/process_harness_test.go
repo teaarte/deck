@@ -14,9 +14,9 @@ type proc struct {
 }
 
 func (e *Env) process(id int64) proc {
+	e.T.Helper()
 	var p proc
-	_, out := e.call("deck.process_get", map[string]any{"process": id})
-	_ = json.Unmarshal(out, &p)
+	e.must("deck.process_get", map[string]any{"process": id}, &p)
 	return p
 }
 
@@ -90,9 +90,9 @@ func (e *Env) processes() []procFull {
 }
 
 func (e *Env) full(id int64) procFull {
+	e.T.Helper()
 	var p procFull
-	_, out := e.call("deck.process_get", map[string]any{"process": id})
-	_ = json.Unmarshal(out, &p)
+	e.must("deck.process_get", map[string]any{"process": id}, &p)
 	return p
 }
 

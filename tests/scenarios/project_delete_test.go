@@ -145,6 +145,16 @@ func TestProjectsTabDeletesAfterAYes(t *testing.T) {
 	if d.Class != "external" {
 		t.Fatalf("deleting a project is external: %q", d.Class)
 	}
+	if code, out := e.press(del); code != 200 {
+		t.Fatalf("the button deletes the project: %d %s", code, out)
+	}
+	var ps []struct{ Name string }
+	e.must("deck.projects_list", nil, &ps)
+	for _, p := range ps {
+		if p.Name == "web" {
+			t.Fatalf("the project is gone: %+v", ps)
+		}
+	}
 }
 
 // TestProjectDeleteStopsTheMCPServersOfTheProject: a server of a deleted project does not run on.

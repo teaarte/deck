@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strings"
 
@@ -35,62 +34,11 @@ func apiVariable(name string) bool {
 	return slices.Contains(apiVariables, name) || strings.HasPrefix(name, "ANTHROPIC_") || strings.HasPrefix(name, "CLAUDE_CODE_")
 }
 
-// cliState hides the owner's Claude Code folder but the folder of this session, where the CLI keeps the tool
-// output it asks the agent to read: what is there now, and the folders of every other run of deck.
-func cliState(dir, runs string, req provider.Request) []string {
-	own := map[string]bool{}
-	for _, c := range provider.Paths(req.Cwd) {
-		own[nonWord.ReplaceAllString(c, "-")] = true
-	}
-	var out []string
-	hide := func(p string, dir bool) {
-		if dir {
-			p += "/**"
-		}
-		out = append(out, p)
-	}
-	run := ""
-	for _, r := range provider.Paths(runs) {
-		if rel, err := filepath.Rel(r, req.Cwd); err == nil && filepath.Dir(rel) != "." && !strings.HasPrefix(rel, "..") {
-			run = strings.Split(rel, string(filepath.Separator))[0]
-		}
-	}
-	for _, r := range provider.Paths(runs) {
-		prefix := nonWord.ReplaceAllString(r, "-") + "-"
-		names := []string{prefix + "?*-work"}
-		if run != "" {
-			names = sandbox.Others(prefix, run, "-work")
-		}
-		for _, n := range names {
-			hide(filepath.Join(dir, "projects", n), true)
-		}
-	}
-	top, _ := os.ReadDir(dir)
-	for _, e := range top {
-		if e.Name() != "projects" {
-			hide(filepath.Join(dir, e.Name()), e.IsDir())
-		}
-	}
-	projects, _ := os.ReadDir(filepath.Join(dir, "projects"))
-	for _, e := range projects {
-		if !own[e.Name()] {
-			hide(filepath.Join(dir, "projects", e.Name()), e.IsDir())
-			continue
-		}
-		sessions, _ := os.ReadDir(filepath.Join(dir, "projects", e.Name()))
-		for _, f := range sessions {
-			if n := f.Name(); n != req.SessionID && n != req.SessionID+".jsonl" {
-				hide(filepath.Join(dir, "projects", e.Name(), n), f.IsDir())
-			}
-		}
-	}
-	return out
-}
-
-var nonWord = regexp.MustCompile(`[^A-Za-z0-9]`)
+// cliKeys are the files of the owner's Claude Code folder that hold a login or API keys.
+var cliKeys = []string{".credentials.json", "settings.json", "settings.local.json"}
 
 // settings are passed by flag, so they win over the settings of the repo.
-func settings(req provider.Request, runs string) map[string]any {
+func settings(req provider.Request) map[string]any {
 	env := map[string]string{}
 	for _, name := range apiVariables {
 		env[name] = ""
@@ -100,7 +48,10 @@ func settings(req provider.Request, runs string) map[string]any {
 	hidden := slices.Clone(req.Hidden)
 	for _, p := range sandbox.Private() {
 		if filepath.Base(p) == ".claude" {
-			hidden = append(hidden, cliState(p, runs, req)...)
+			// The CLI keeps the long tool output it asks the agent to read in its own folder, so only its keys close.
+			for _, f := range cliKeys {
+				hidden = append(hidden, filepath.Join(p, f))
+			}
 			continue
 		}
 		hidden = append(hidden, p, p+"/**")

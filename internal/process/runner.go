@@ -66,8 +66,8 @@ type Config struct {
 	FilesDir string
 	// FilesMu keeps a snapshot from copying the base between the row of a kept file and its blob.
 	FilesMu *sync.RWMutex
-	// Hidden gives the path patterns an agent of a project and process may not read or write.
-	Hidden func(project, process int64) []string
+	// Hidden are the path patterns an agent may not read or write.
+	Hidden []string
 	// AgentSlots is how many agent turns a workspace runs at once; scripts and tools do not count.
 	AgentSlots func(ctx context.Context, workspace int64) int
 }

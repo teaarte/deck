@@ -46,7 +46,7 @@ func TestCommandAgentRunsInAutoModeWithItsOwnWeb(t *testing.T) {
 	c := newCLI(t)
 	c.stream(0, "ok.jsonl")
 	e, home := cliEnv(t, c)
-	other := e.createProject("other", plainManifest)
+	e.createProject("other", plainManifest)
 	p := e.createProject("notes", postManifest("http://127.0.0.1:1", ""))
 	var id int64
 	for id < 10 {
@@ -95,12 +95,9 @@ func TestCommandAgentRunsInAutoModeWithItsOwnWeb(t *testing.T) {
 		}
 		theirs := []string{filepath.Join(deckhome.Layout(h).State(), "token"), filepath.Join(deckhome.Layout(h).State(), "mcp", "mcp-1.json"), filepath.Join(deckhome.Layout(h).State(), "files", "3", "cv.pdf"),
 			filepath.Join(deckhome.Layout(h).State(), "secrets", "svc"), filepath.Join(deckhome.Layout(h).State(), "deck.db-wal"), filepath.Join(deckhome.Layout(h).State(), "backups", "x"),
-			filepath.Join(deckhome.Layout(h).Work(), "projects", fmt.Sprint(other), "data", "index"), filepath.Join(deckhome.Layout(h).State(), "mcp", "mcp-1.tmp"),
-			filepath.Join(deckhome.Layout(h).Work(), "projects", fmt.Sprint(p), "mcp", "srv", ".npmrc")}
-		for _, n := range []int64{id + 1, id * 10, id + 100, 7, id / 10} {
-			if n != id {
-				theirs = append(theirs, filepath.Join(deckhome.Layout(h).Work(), "runs", fmt.Sprint(n), "work", "a.txt"))
-			}
+			filepath.Join(deckhome.Layout(h).State(), "mcp", "mcp-1.tmp")}
+		if slices.ContainsFunc(set.Permissions.Deny, func(r string) bool { return strings.Contains(r, deckhome.Layout(h).Work()) }) {
+			t.Fatalf("the rules keep only deck's state from the agent, not masks of other runs and projects its shell passes anyway: %v", set.Permissions.Deny)
 		}
 		for _, path := range theirs {
 			for _, tool := range []string{"Read", "Edit"} {

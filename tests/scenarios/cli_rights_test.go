@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -39,19 +38,15 @@ func TestCommandAgentCannotReadSecretsAndGetsEveryDeckTool(t *testing.T) {
 		}
 	}
 	for _, rule := range []string{"Read(/" + filepath.Join(user, ".ssh") + "/**)",
-		"Read(/" + filepath.Join(user, ".claude", "projects", "-elsewhere") + "/**)", "Read(/" + filepath.Join(user, ".claude", "settings.json") + ")",
+		"Read(/" + filepath.Join(user, ".claude", ".credentials.json") + ")", "Read(/" + filepath.Join(user, ".claude", "settings.json") + ")",
 		"Edit(/" + filepath.Join(user, ".codex") + "/**)", "Read(/" + filepath.Join(user, ".local", "share", "opencode") + "/**)",
 		"Read(/" + filepath.Join(user, ".config", "goose") + "/**)"} {
 		if !slices.Contains(set.Permissions.Deny, rule) {
 			t.Fatalf("the agent may not read the owner's %s: %v", rule, set.Permissions.Deny)
 		}
 	}
-	runs := regexp.MustCompile(`[^A-Za-z0-9]`).ReplaceAllString(filepath.Join(deckhome.Layout(home).Work(), "runs"), "-")
-	if longer := "Read(/" + filepath.Join(user, ".claude", "projects", runs+"-??*-work") + "/**)"; !slices.Contains(set.Permissions.Deny, longer) {
-		t.Fatalf("the sessions of other runs of deck, made later too, stay hidden: want %s in %v", longer, set.Permissions.Deny)
-	}
-	if slices.ContainsFunc(set.Permissions.Deny, func(d string) bool { return strings.HasSuffix(d, "/.claude/projects/**)") }) {
-		t.Fatalf("the folder of its own session, where the CLI keeps long tool output, stays readable: %v", set.Permissions.Deny)
+	if slices.ContainsFunc(set.Permissions.Deny, func(d string) bool { return strings.Contains(d, "/.claude/projects") }) {
+		t.Fatalf("the sessions of the CLI, where it keeps long tool output, stay readable: %v", set.Permissions.Deny)
 	}
 	allowed, _ := flag(call.args, "--allowedTools")
 	if !strings.Contains(allowed, "mcp__deck__notes__post") {

@@ -51,7 +51,7 @@ func (c *fakeCLI) skipStdin() {
 }
 
 func (c *fakeCLI) adapter(home string) *claudecode.Adapter {
-	return &claudecode.Adapter{Binary: filepath.Join(c.dir, "claude"), ConfigDir: deckhome.Layout(home).Sessions(), RunsDir: deckhome.Layout(home).Runs(), Linger: 300 * time.Millisecond, TaskLinger: 10 * time.Second}
+	return &claudecode.Adapter{Binary: filepath.Join(c.dir, "claude"), ConfigDir: deckhome.Layout(home).Sessions(), Linger: 300 * time.Millisecond, TaskLinger: 10 * time.Second}
 }
 
 type cliCall struct {

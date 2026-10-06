@@ -14,7 +14,7 @@ import (
 	"deck2/internal/provider"
 )
 
-func TestNewVectorWithoutCode(t *testing.T) {
+func TestANewModuleWithoutCode(t *testing.T) {
 	e := newClockEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		switch c.command() {
 		case "collect":

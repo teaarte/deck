@@ -158,9 +158,9 @@ func TestProviderURLCarriesNoKey(t *testing.T) {
 	}
 }
 
-// TestTheProviderColumnFollowsProviderSet: a provider picked for a command is heard live and redraws the
+// TestTheModelColumnFollowsAssignmentSet: a model assigned to a command is heard live and redraws the
 // commands of the project's settings.
-func TestTheProviderColumnFollowsProviderSet(t *testing.T) {
+func TestTheModelColumnFollowsAssignmentSet(t *testing.T) {
 	e, api, _ := acpPair(t, nil)
 	e.addACP(api, 1, "api", "goose", acpLLM(t), false)
 	e.createProject("plain", plainManifest)

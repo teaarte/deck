@@ -74,7 +74,7 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
   part (`check_*.go`), expressions; one `Resolve` of a value (fixed or `=<expression>` with
   `param` of the screen) and `FieldTypes`; the texts of a manifest and their translation `words.go`
 - `internal/gateway` — deck MCP server per process: permission prompts, questions, confirmations, registry
-  commands as tools; HTTP entry and domain proxy for scripts (`egress.go`: a name resolves once, the proxy dials its
+  commands as tools (`renew` gives live sessions the commands of a changed project); HTTP entry and domain proxy for scripts (`egress.go`: a name resolves once, the proxy dials its
   addresses, a name reaches only public ones); the proxy of models (`models.go`: `DECK_MODELS` of scripts; `SendHops` — the one loop of fallbacks of
   scripts, commands and the model of ACP turns, with deck's key and the usage of OpenAI, Google and Anthropic answers)
 - `internal/provider` — model providers; `claudecode` runs the CLI isolated from user settings; `codex` runs
@@ -106,7 +106,8 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
 - `internal/tsnet` — deck on the owner's tailnet from inside the binary: HTTPS on 443, the second origin on 8443
 - `web` — client: Vite + React + Mantine v9 + `@a2ui/react` (protocol v0.9, `/v0_9` imports), folders by owner in
   `src/`: `app/` the frame of islands (menu `Nav.tsx`, screen, chat panel `ChatPanel.tsx`, `Toolbar.tsx`, `PhoneBar.tsx`,
-  the notifications `Bell.tsx`, the icon pattern `Backdrop.tsx`, the address and back button `router.ts`); `screen/`
+  the notifications `Bell.tsx`, the icon pattern `Backdrop.tsx`, the address and back button `router.ts`: tab and
+  dialog only the client reads, `t` a live parameter that reads the data again without drawing the screen anew); `screen/`
   a screen (`ScreenView.tsx`, `useScreen.ts`, buttons through the `ScreenActions` context, the catalog `catalog.ts`);
   `blocks/` a file or folder per block registered through `blockImpl.tsx` (frame `Block.tsx`; `table/`, `board/`
   with `@dnd-kit/react`, `form/`, `media/` (pictures, PDF, the player `Player.tsx` with marks), `chart/`,

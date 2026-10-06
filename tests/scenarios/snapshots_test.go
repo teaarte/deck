@@ -219,6 +219,9 @@ func TestADailySnapshotSkipsAFileItCannotReadAndSaysSo(t *testing.T) {
 	if err := os.WriteFile(locked, []byte("x"), 0o000); err != nil {
 		t.Fatal(err)
 	}
+	if os.Geteuid() == 0 {
+		t.Skip("root reads a file of mode 000")
+	}
 	if err := os.WriteFile(filepath.Join(data[0], "kept.txt"), []byte("kept"), 0o600); err != nil {
 		t.Fatal(err)
 	}

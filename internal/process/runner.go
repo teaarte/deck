@@ -12,7 +12,6 @@ import (
 	"deck2/internal/gateway"
 	"deck2/internal/manifest"
 	"deck2/internal/provider"
-	"deck2/internal/sandbox"
 	"deck2/internal/script"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
@@ -71,8 +70,6 @@ type Config struct {
 	Hidden func(project, process int64) []string
 	// AgentSlots is how many agent turns a workspace runs at once; scripts and tools do not count.
 	AgentSlots func(ctx context.Context, workspace int64) int
-	// Rules say who hears what the sandbox kept closed.
-	Rules sandbox.Rules
 }
 
 // Runner owns process lifecycles. A process stops in waiting_answer when the agent is blocked on the

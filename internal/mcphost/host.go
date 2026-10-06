@@ -56,8 +56,6 @@ type Host struct {
 	// Sandbox confines programs of specs that ask for it; they never read Home, deck's folder, but for their own.
 	Sandbox sandbox.Sandbox
 	Home    string
-	// Closed hears of a path the sandbox kept closed from the server with key.
-	Closed func(key, path string)
 
 	mu      sync.Mutex
 	servers map[string]*server
@@ -73,7 +71,6 @@ type server struct {
 	spec    string
 	sess    *mcp.ClientSession
 	cmd     *exec.Cmd
-	unwatch func()
 	stderr  *tail
 	secrets []string
 	started time.Time

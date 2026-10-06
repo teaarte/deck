@@ -15,7 +15,6 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
-	"sync"
 	"syscall"
 	"time"
 
@@ -175,24 +174,9 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 	env = append(environ(os.Environ()), append([]string{"HOME=" + home, "TMPDIR=" + filepath.Join(home, "tmp"),
 		"HTTP_PROXY=" + proxy, "HTTPS_PROXY=" + proxy, "http_proxy=" + proxy, "https_proxy=" + proxy,
 		"NO_PROXY=127.0.0.1,localhost", "no_proxy=127.0.0.1,localhost"}, env...)...)
-	tag, kept := "a"+nonce.Hex(8), map[string]bool{}
-	var keptMu sync.Mutex
-	unwatch, _ := a.cfg.Sandbox.Watch(tag, func(path string) {
-		keptMu.Lock()
-		seen := kept[path]
-		kept[path] = true
-		keptMu.Unlock()
-		if !seen && req.OnEvent != nil {
-			req.OnEvent(provider.Event{Kind: provider.EventStderr, Text: "deck: the sandbox kept " + path + " closed"})
-		}
-		if !seen && req.Kept != nil {
-			req.Kept(path)
-		}
-	})
-	defer unwatch()
 	cmd, err := a.cfg.Sandbox.Command(life, a.closed(sandbox.Policy{
 		Argv: append([]string{"/bin/sh", "-c", `"$@"; exit $?`, marker(req.SessionID)}, argv...),
-		Dir:  req.Cwd, Env: env, Write: append([]string{req.Cwd, home}, req.Dirs...), Read: req.Read, Out: ln, Tag: tag}, bin))
+		Dir:  req.Cwd, Env: env, Write: append([]string{req.Cwd, home}, req.Dirs...), Read: req.Read, Out: ln}, bin))
 	if err != nil {
 		return provider.Result{}, err
 	}

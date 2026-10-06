@@ -4,7 +4,6 @@ import (
 	"archive/tar"
 	"compress/gzip"
 	"context"
-	"database/sql"
 	deckhome "deck2/internal/home"
 	"encoding/json"
 	"fmt"
@@ -16,15 +15,12 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
-	"slices"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"deck2/internal/registry"
-	"deck2/internal/store/db"
 )
 
 func served(t *testing.T) *httptest.Server {
@@ -648,47 +644,23 @@ func TestAScriptSeesNoOtherProcess(t *testing.T) {
 	}
 }
 
-// TestTheSandboxSaysWhatItKeptClosed: a path the sandbox kept closed is a line in the log of the script, in its
-// error and in the health of the project, with where the owner opens a folder.
-func TestTheSandboxSaysWhatItKeptClosed(t *testing.T) {
-	if runtime.GOOS != "darwin" {
-		t.Skip("bubblewrap shows a closed path as missing and reports nothing")
-	}
+// TestAScriptThatFailsSaysHowToOpenAFolder: a script that fails has the end of its stderr, where its program names
+// the path it was refused, and where the owner opens a folder; deck does not watch the refusals of the system.
+func TestAScriptThatFailsSaysHowToOpenAFolder(t *testing.T) {
 	owner := ownerHome(t)
-	for _, path := range []string{".zshrc", "Documents/notes.txt"} {
-		_ = os.MkdirAll(filepath.Dir(filepath.Join(owner, path)), 0o700)
-		_ = os.WriteFile(filepath.Join(owner, path), []byte("private"), 0o600)
-	}
+	_ = os.WriteFile(filepath.Join(owner, ".zshrc"), []byte("private"), 0o600)
 	t.Setenv("HOME", owner)
 	e := newEnv(t, nil)
-	self, _ := os.Executable()
-	e.createProject("tools", scriptManifest("collect", "", fmt.Sprintf(`, "tools": {"mcp": {"servers": {"fake": {"command": %q,
-    "env": {"DECK_FAKE_MCP": "project"}, "toolFilter": ["peek"], "classes": {"peek": "internal"}}}}}`, self)))
-	e.saveScript("tools", "scripts/main.py", "import json, os, sys\ntry:\n    os.listdir(os.path.dirname(os.environ[\"DECK_DATA\"]))\nexcept OSError:\n    pass\nprint(open(json.load(sys.stdin)[\"key\"]).read())\n")
+	e.createProject("tools", scriptManifest("collect", "", ""))
+	e.saveScript("tools", "scripts/main.py", "import json, sys\nprint(open(json.load(sys.stdin)[\"key\"]).read())\n")
 	id := e.start("tools", "collect", map[string]any{"key": filepath.Join(owner, ".zshrc")})
 	p := e.waitScript(id, "done", "error")
 	if p.State != "error" || !strings.Contains(p.Error, filepath.Join(owner, ".zshrc")) || !strings.Contains(p.Error, "Settings → Projects") {
-		t.Fatalf("the error of the script names the path the sandbox kept closed and how to open a folder: %+v", p)
+		t.Fatalf("the error of the script names the path from its stderr and how to open a folder: %+v", p)
 	}
-	if b, _ := json.Marshal(e.log(id)); !strings.Contains(string(b), "deck: the sandbox kept "+filepath.Join(owner, ".zshrc")+" closed") {
-		t.Fatalf("the log of the script has the path the sandbox kept closed: %s", b)
-	}
-	if strings.Count(p.Error, "kept closed") != 1 || strings.Contains(p.Error, deckhome.Layout(e.App.Cfg.Home).Projects()) {
-		t.Fatalf("a look into a folder above its own is not what the script was kept from: %s", p.Error)
-	}
-	_, _ = e.App.Gateway.CallAs(context.Background(), registry.Actor{Kind: registry.Agent, Workspace: 1, ProjectID: e.projectID("tools")},
-		"tools.fake.peek", json.RawMessage(fmt.Sprintf(`{"path": %q}`, filepath.Join(owner, "Documents", "notes.txt"))))
-	for _, kept := range []string{".zshrc closed from collect", "notes.txt closed from MCP server fake"} {
-		if n := e.waitNote(kept); !strings.Contains(n.Text, "Settings → Projects") {
-			t.Fatalf("the note says how to open a folder: %+v", n)
-		}
-	}
-	if n := e.warnings("The sandbox kept closed"); n != 1 {
-		t.Fatalf("the paths join one unread note of the project: %d", n)
-	}
-	rows, _ := e.App.Store.Q.ListHealth(t.Context(), sql.NullInt64{Int64: 1, Valid: true})
-	if slices.ContainsFunc(rows, func(r db.ListHealthRow) bool { return strings.HasPrefix(r.Health.Subject, "sandbox:") }) {
-		t.Fatalf("what the sandbox kept closed is an event of the feed, not a state of health: %+v", rows)
+	time.Sleep(time.Second)
+	if n := e.warnings("kept closed"); n != 0 {
+		t.Fatalf("a refusal of the sandbox is in the error of the script, not a note of the feed: %d", n)
 	}
 }
 

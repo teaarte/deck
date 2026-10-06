@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"deck2/internal/home"
-	"deck2/internal/sandbox"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -39,8 +38,6 @@ type MCP struct {
 	Secrets func(workspace int64, name string) (string, error)
 	Dirs    files.Dirs
 	Home    string
-	// Rules say who hears what the sandbox kept closed from a server.
-	Rules sandbox.Rules
 }
 
 // ServerKey names a server of a project in the host.
@@ -283,11 +280,4 @@ func redactErr(err error, secrets []string) error {
 		return errors.New(clean)
 	}
 	return err
-}
-
-// Kept passes on a path the sandbox kept closed from the server with key.
-func (x *MCP) Kept(key, path string) {
-	if project, server, ok := ParseKey(key); ok {
-		x.Rules.Report(context.Background(), project, "MCP server "+server, path)
-	}
 }

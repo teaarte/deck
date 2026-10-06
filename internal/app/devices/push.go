@@ -75,9 +75,6 @@ type Service struct {
 	Invoke func(ctx context.Context, act registry.Actor, name string, input json.RawMessage) (any, error)
 
 	pushMu sync.Mutex
-	// kept are the last paths the sandbox kept closed from the programs of each project, told once.
-	keptMu sync.Mutex
-	kept   map[int64][]string
 }
 
 type vapid struct {

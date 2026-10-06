@@ -46,9 +46,7 @@ type Job struct {
 	Out net.Listener
 	Env []string
 	// Read are files and folders the script may read, such as files of its input and the folders of its project.
-	Read []string
-	// Tag names the run in what the sandbox reports it kept closed.
-	Tag     string
+	Read    []string
 	OnLine  func(line string)
 	OnStart func(pgid int)
 }
@@ -91,7 +89,7 @@ func (x *Exec) Run(ctx context.Context, j Job) ([]byte, error) {
 	c := sandbox.Close(x.Home, os.Getenv("PATH")+string(os.PathListSeparator)+filepath.Dir(argv[0]))
 	cmd, err := x.Sandbox.Command(ctx, sandbox.Policy{Argv: argv, Dir: j.Work(), Env: append(env, j.Env...),
 		Write: []string{j.Work(), j.Results(), data}, Read: append(append([]string{src}, j.Read...), c.Read...),
-		Hide: c.Hide, Private: c.Private, Out: j.Out, Tag: j.Tag})
+		Hide: c.Hide, Private: c.Private, Out: j.Out})
 	if err != nil {
 		return nil, err
 	}
@@ -120,7 +118,7 @@ func (x *Exec) Run(ctx context.Context, j Job) ([]byte, error) {
 	}
 	var exit *exec.ExitError
 	if errors.As(err, &exit) {
-		return nil, fmt.Errorf("script %s exited with code %d: %s", j.Script.Name, exit.ExitCode(), strings.Join(stderr.last, "\n"))
+		return nil, fmt.Errorf("script %s exited with code %d: %s\ndeck: %s", j.Script.Name, exit.ExitCode(), strings.Join(stderr.last, "\n"), sandbox.OpenHint)
 	}
 	if err != nil {
 		return nil, err

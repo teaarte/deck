@@ -12,7 +12,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -712,12 +711,8 @@ func TestAProviderTakesItsOwnSelfCheckCeiling(t *testing.T) {
 	}
 }
 
-// TestACPRefusalsReachTheFeed: a path the sandbox kept closed from an ACP agent is in the log of the process and
-// in the owner's feed, as for scripts and MCP servers.
-func TestACPRefusalsReachTheFeed(t *testing.T) {
-	if runtime.GOOS != "darwin" {
-		t.Skip("bubblewrap shows a closed path as missing and reports nothing")
-	}
+// TestACPAgentDoesNotReadTheOwnersHome: the sandbox keeps the owner's home closed from an ACP agent, as from scripts.
+func TestACPAgentDoesNotReadTheOwnersHome(t *testing.T) {
 	owner := ownerHome(t)
 	_ = os.WriteFile(filepath.Join(owner, ".zshrc"), []byte("private"), 0o600)
 	f := newACP(t)
@@ -731,5 +726,4 @@ func TestACPRefusalsReachTheFeed(t *testing.T) {
 	if strings.Contains(f.call(4).shell[0]["out"], "private") {
 		t.Fatalf("the agent does not read the owner's home: %v", f.call(4).shell)
 	}
-	e.waitNote(".zshrc closed from work")
 }

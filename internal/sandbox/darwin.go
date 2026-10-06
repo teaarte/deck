@@ -3,30 +3,16 @@
 package sandbox
 
 import (
-	"bufio"
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"net"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strings"
-	"sync"
-	"sync/atomic"
-	"time"
 )
 
-// seatbelt keeps the tags it watches and the log stream that reports them.
-type seatbelt struct {
-	mu    sync.Mutex
-	subs  map[string]func(string)
-	end   func()
-	ready chan struct{}
-	idle  *time.Timer
-}
+type seatbelt struct{}
 
 func platform() Sandbox { return &seatbelt{} }
 
@@ -70,18 +56,14 @@ func profile(p Policy) string {
 	b.WriteString("(allow process-exec process-fork file-read-metadata ipc-posix-shm iokit-open pseudo-tty)\n")
 	b.WriteString(sysctls)
 	b.WriteString("(allow signal (target same-sandbox))\n(allow file-read*)\n")
-	report := ""
-	if p.Tag != "" {
-		report = fmt.Sprintf(" (with message %s)", quote(mark+" "+p.Tag))
-	}
 	for _, h := range p.Hide {
-		fmt.Fprintf(&b, "(deny file-read* (subpath %s)%s)\n", quote(real(h)), report)
+		fmt.Fprintf(&b, "(deny file-read* (subpath %s))\n", quote(real(h)))
 	}
 	for _, r := range p.Read {
 		fmt.Fprintf(&b, "(allow file-read* (subpath %s))\n", quote(real(r)))
 	}
 	for _, h := range p.Private {
-		fmt.Fprintf(&b, "(deny file-read* (subpath %s)%s)\n", quote(real(h)), report)
+		fmt.Fprintf(&b, "(deny file-read* (subpath %s))\n", quote(real(h)))
 	}
 	for _, w := range p.Write {
 		fmt.Fprintf(&b, "(allow file-read* file-write* (subpath %s))\n", quote(real(w)))
@@ -114,112 +96,6 @@ func profile(p Policy) string {
 		}
 	}
 	return b.String()
-}
-
-// mark starts the message a refusal of a tagged program carries into the log of the system.
-const mark = "deck-sandbox:"
-
-// refused is a read of the contents of a path; a look at whether it exists is not reported.
-var refused = regexp.MustCompile(`(?s)deny\(\d+\) file-read-data (.+?)\n` + mark + ` (\S+)`)
-
-func (s *seatbelt) Watch(tag string, f func(string)) (func(), <-chan struct{}) {
-	var stopped atomic.Bool
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.subs == nil {
-		s.subs = map[string]func(string){}
-	}
-	s.subs[tag] = func(path string) {
-		if !stopped.Load() {
-			f(path)
-		}
-	}
-	if s.idle != nil {
-		s.idle.Stop()
-		s.idle = nil
-	}
-	if s.end == nil {
-		s.start()
-	}
-	return func() {
-		stopped.Store(true)
-		s.mu.Lock()
-		defer s.mu.Unlock()
-		delete(s.subs, tag)
-		if len(s.subs) == 0 && s.end != nil && s.idle == nil {
-			s.idle = time.AfterFunc(time.Minute, s.quiet)
-		}
-	}, s.ready
-}
-
-// quiet ends the log stream once no program has been watched for a minute.
-func (s *seatbelt) quiet() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.idle = nil
-	if len(s.subs) == 0 && s.end != nil {
-		s.end()
-		s.end = nil
-	}
-}
-
-// start runs the log stream that reports the refusals of tagged programs; one that ends while programs are
-// watched starts again. It runs under s.mu.
-func (s *seatbelt) start() {
-	ctx, cancel := context.WithCancel(context.Background())
-	ready := make(chan struct{})
-	s.end, s.ready = cancel, ready
-	// The shell ends the stream once deck's end of its stdin closes, so a stream never outlives deck.
-	cmd := group(exec.CommandContext(ctx, "/bin/sh", "-c", `/usr/bin/log stream --style ndjson --predicate "$0" & read _; kill $!`,
-		`sender == "Sandbox" AND eventMessage CONTAINS "`+mark+`"`))
-	in, err := cmd.StdinPipe()
-	var out io.ReadCloser
-	if err == nil {
-		out, err = cmd.StdoutPipe()
-	}
-	if err == nil {
-		err = cmd.Start()
-	}
-	if err != nil {
-		close(ready)
-		return
-	}
-	s.end = func() { cancel(); _ = in.Close() }
-	go func() {
-		started := sync.OnceFunc(func() { close(ready) })
-		defer started()
-		sc := bufio.NewScanner(out)
-		sc.Buffer(make([]byte, 64<<10), 1<<20)
-		for sc.Scan() {
-			started()
-			var e struct {
-				EventMessage string `json:"eventMessage"`
-			}
-			if json.Unmarshal(sc.Bytes(), &e) != nil {
-				continue
-			}
-			m := refused.FindStringSubmatch(e.EventMessage)
-			if m == nil {
-				continue
-			}
-			s.mu.Lock()
-			f := s.subs[m[2]]
-			s.mu.Unlock()
-			if f != nil {
-				f(m[1])
-			}
-		}
-		_ = cmd.Wait()
-		if ctx.Err() != nil {
-			return
-		}
-		time.Sleep(time.Second)
-		s.mu.Lock()
-		defer s.mu.Unlock()
-		if s.ready == ready && len(s.subs) > 0 {
-			s.start()
-		}
-	}()
 }
 
 // ancestors are the folders above paths: a program resolves the path of a folder it may read, and a look into a

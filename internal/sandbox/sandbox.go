@@ -27,8 +27,6 @@ type Policy struct {
 	Out net.Listener
 	// Net opens the whole network; only MCP servers of a project get it.
 	Net bool
-	// Tag names the program in what Watch reports.
-	Tag string
 }
 
 type Sandbox interface {
@@ -41,9 +39,6 @@ type Sandbox interface {
 	Addr(ln net.Listener) string
 	// Command builds the confined command; it runs in its own process group, killed as a whole on cancel.
 	Command(ctx context.Context, p Policy) (*exec.Cmd, error)
-	// Watch passes f each path the sandbox kept closed from a program with tag, until stop; ready closes once
-	// refusals are heard.
-	Watch(tag string, f func(path string)) (stop func(), ready <-chan struct{})
 }
 
 // New returns the sandbox of this operating system.

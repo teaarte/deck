@@ -296,3 +296,30 @@ func TestAQuestionOfAUsageLimitOfABaseFromBeforeExpires(t *testing.T) {
 		t.Fatalf("nothing waits for the owner: %+v", open)
 	}
 }
+
+// TestWhyAScheduleOfADraftDidNotStartGoesFromAnEnabledProjectOfABaseFromBefore: a project enabled before enabling
+// cleared such rows keeps none of them; another reason a schedule did not start stays.
+func TestWhyAScheduleOfADraftDidNotStartGoesFromAnEnabledProjectOfABaseFromBefore(t *testing.T) {
+	home := t.TempDir()
+	e := newEnvWith(t, home, &Fake{})
+	e.createProject("work", plainManifest)
+	e = e.reopen(home, 20,
+		`INSERT INTO health (subject, workspace_id, project_id, status, error) SELECT 'trigger:work.ideas', 1, id, 'error', 'deck: ideas was not started: project work is a draft; only a trial run starts its triggers' FROM project WHERE name = 'work'`,
+		`INSERT INTO health (subject, workspace_id, project_id, status, error) SELECT 'trigger:work.remind', 1, id, 'error', 'prompt file "prompts/remind.md" of remind is missing' FROM project WHERE name = 'work'`)
+	var left []string
+	rows, err := e.App.Store.DB.Query(`SELECT subject FROM health WHERE subject GLOB 'trigger:*'`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for rows.Next() {
+		var s string
+		if err := rows.Scan(&s); err != nil {
+			t.Fatal(err)
+		}
+		left = append(left, s)
+	}
+	_ = rows.Close()
+	if !slices.Equal(left, []string{"trigger:work.remind"}) {
+		t.Fatalf("only the draft reason goes: %v", left)
+	}
+}

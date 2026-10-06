@@ -531,3 +531,27 @@ func TestAScheduledRunThatFailsToStartSaysWhy(t *testing.T) {
 		}
 	}
 }
+
+// TestEnablingADraftClearsWhyItsTriggersDidNotStart: a schedule of a draft does not start and says why in health;
+// once the owner enables the project the reason is gone, and so is the red row.
+func TestEnablingADraftClearsWhyItsTriggersDidNotStart(t *testing.T) {
+	e := newClockEnv(t, ok)
+	_, tok := e.token("terminal", "deck.*")
+	m := testManifest([]string{agentCommand("remind", "")}, []string{`{"command": "remind", "cron": "0 * * * *"}`})
+	if code, out := e.callWith(tok, "deck.project_create", map[string]any{"name": "later", "manifest": m}); code != 200 {
+		t.Fatalf("project_create: %d %s", code, out)
+	}
+	e.Clock.Add(time.Hour)
+	e.tick()
+	if h := e.waitHealth("trigger:later.remind", "error"); !strings.Contains(h.Error, "draft") {
+		t.Fatalf("a schedule of a draft says why it did not start: %+v", h)
+	}
+	e.must("deck.project_enable", map[string]any{"project": "later", "revision": e.project("later").Revision}, nil)
+	var hs []healthRow
+	e.must("deck.health_list", nil, &hs)
+	for _, h := range hs {
+		if h.Subject == "trigger:later.remind" || h.Subject == "project:later" && h.Status != "ok" {
+			t.Fatalf("enabling the project clears why its schedule did not start: %+v", h)
+		}
+	}
+}

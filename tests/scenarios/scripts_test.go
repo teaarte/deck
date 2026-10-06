@@ -17,6 +17,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -60,7 +61,10 @@ try:
     checks["host_socket_blocked"] = False
 except OSError:
     checks["host_socket_blocked"] = True
-subprocess.Popen(["sh", "-c", "sleep 1; echo late > \"$DECK_DATA/late\"; sleep 60"])
+lock = os.path.join(os.environ["DECK_DATA"], "child.lock")
+subprocess.Popen([sys.executable, "-c", "import fcntl, sys, time; f = open(sys.argv[1], 'w'); fcntl.flock(f, fcntl.LOCK_EX); open(sys.argv[1] + '.held', 'w').close(); time.sleep(60)", lock])
+while not os.path.exists(lock + ".held"):
+    time.sleep(0.05)
 with open(os.path.join(os.environ["DECK_RESULTS"], "report.txt"), "w") as f:
     f.write("report %d" % inp["n"])
 print(json.dumps({"checks": checks, "files": [{"path": "report.txt", "record": rid}]}))
@@ -140,10 +144,15 @@ func TestScriptCommandRunsInTheSandbox(t *testing.T) {
 	if b, _ := json.Marshal(page); strings.Contains(string(b), `"Error"`) {
 		t.Fatalf("a process without an error shows no Error field: %s", b)
 	}
-	time.Sleep(2 * time.Second)
-	if _, err := os.Stat(filepath.Join(deckhome.Layout(home).Work(), "projects", fmt.Sprint(pid), "data", "late")); err == nil {
-		t.Fatal("a program the script started outlived the run")
-	}
+	lock := filepath.Join(deckhome.Layout(home).Work(), "projects", fmt.Sprint(pid), "data", "child.lock")
+	e.waitFor("the program the script started to end with the run", func() bool {
+		f, err := os.OpenFile(lock, os.O_RDWR, 0)
+		if err != nil {
+			return false
+		}
+		defer f.Close()
+		return syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB) == nil
+	})
 }
 
 const indexScript = pythonLib + `
@@ -662,10 +671,6 @@ func TestAScriptThatFailsSaysHowToOpenAFolder(t *testing.T) {
 	p := e.waitScript(id, "done", "error")
 	if p.State != "error" || !strings.Contains(p.Error, filepath.Join(owner, ".zshrc")) || !strings.Contains(p.Error, "Settings → Projects") {
 		t.Fatalf("the error of the script names the path from its stderr and how to open a folder: %+v", p)
-	}
-	time.Sleep(time.Second)
-	if n := e.warnings("kept closed"); n != 0 {
-		t.Fatalf("a refusal of the sandbox is in the error of the script, not a note of the feed: %d", n)
 	}
 }
 

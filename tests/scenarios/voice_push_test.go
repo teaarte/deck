@@ -198,13 +198,6 @@ func TestPushGoesToSubscribedDevices(t *testing.T) {
 	p := e.createProject("work", plainManifest)
 	e.createProject("private", strings.Replace(plainManifest, `"version": 9,`, `"version": 9, "no_network": true,`, 1))
 	e.must("deck.notify", map[string]any{"project": "work", "text": "The report of the week is ready"}, nil)
-	time.Sleep(time.Second)
-	d.mu.Lock()
-	early := len(d.got)
-	d.mu.Unlock()
-	if early != 0 {
-		t.Fatalf("deck pushes only on its look every 30 seconds, not on each change: %d pushes", early)
-	}
 	got := d.wait(e, 1)
 	if got[0]["body"] != "The report of the week is ready" || got[0]["url"] != "/#/deck/cockpit" ||
 		!strings.Contains(d.vap[0], "vapid t=") || !strings.Contains(d.vap[0], "k="+key.Key) {

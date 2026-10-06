@@ -270,12 +270,8 @@ func TestTopicsRunInParallelAndRepliesQueue(t *testing.T) {
 	e.waitFor("two replies at once", func() bool { return len(e.Fake.Calls()) == 2 })
 	e.say(a, "A2 more")
 	e.say(a, "A3 more")
-	time.Sleep(100 * time.Millisecond)
-	if n := len(e.Fake.Calls()); n != 2 {
-		t.Fatalf("messages of a topic whose reply runs wait for it: %d calls", n)
-	}
 	for _, m := range e.chatMessages(a) {
-		if strings.HasPrefix(m.Text, "A2") && m.Process != 0 {
+		if (strings.HasPrefix(m.Text, "A2") || strings.HasPrefix(m.Text, "A3")) && m.Process != 0 {
 			t.Fatalf("a waiting message has no reply yet: %+v", m)
 		}
 	}

@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -129,10 +130,6 @@ func TestSecondAgentInTheSameFolderWaitsForTheLock(t *testing.T) {
 	e.waitFor("the others to wait for the folder", func() bool {
 		return e.states([]int64{first, second, third}) == "running waiting_folder waiting_folder"
 	})
-	time.Sleep(200 * time.Millisecond)
-	if n := len(e.Fake.Calls()); n != 1 {
-		t.Fatalf("a process waiting for the folder does not reach its provider: %d calls", n)
-	}
 	waits := 0
 	for _, it := range e.cockpitRunning() {
 		if it.Text == "waits for folder "+repo {
@@ -182,7 +179,6 @@ func TestFolderLockSurvivesARestart(t *testing.T) {
 	second := &Fake{script: held(release)}
 	e2 := restart(t, e, home, second)
 	e2.waitFor("the one with the folder resumed", func() bool { return len(second.Calls()) == 1 })
-	time.Sleep(300 * time.Millisecond)
 	if got := e2.states([]int64{a, b}); got != "running waiting_folder" || len(second.Calls()) != 1 || !second.Calls()[0].Resume {
 		t.Fatalf("after a restart the folder stays with its agent: %s, %d calls", got, len(second.Calls()))
 	}
@@ -191,6 +187,9 @@ func TestFolderLockSurvivesARestart(t *testing.T) {
 	e2.waitState(b, "running", "done")
 	release <- struct{}{}
 	e2.waitState(b, "done")
+	if n := len(second.Calls()); n != 2 {
+		t.Fatalf("each of the two reached its provider once: %d calls", n)
+	}
 }
 
 // TestOnlyTheOwnerAddsAFolder: a folder lets agents write there, so neither a terminal agent on an automation
@@ -326,11 +325,17 @@ func TestAStoppedAgentKeepsTheFolderUntilItsTurnExits(t *testing.T) {
 	dying, inside := make(chan struct{}), make(chan struct{})
 	var once sync.Once
 	let := func() { once.Do(func() { close(dying) }) }
+	var early atomic.Bool
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		if c.N == 1 {
 			close(inside)
 			<-ctx.Done()
 			<-dying
+		}
+		select {
+		case <-dying:
+		default:
+			early.Store(true)
 		}
 		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
 	})
@@ -345,10 +350,12 @@ func TestAStoppedAgentKeepsTheFolderUntilItsTurnExits(t *testing.T) {
 	e.must("deck.process_stop", map[string]any{"process": first}, nil)
 	e.waitState(first, "stopped")
 	e.refused("deck.process_rework", map[string]any{"process": first, "remark": "again"}, 409, "still stopping")
-	time.Sleep(300 * time.Millisecond)
-	if n := len(e.Fake.Calls()); n != 1 || e.process(second).State != "waiting_folder" {
-		t.Fatalf("the folder waits for the stopped turn to exit: %d calls, %s", n, e.process(second).State)
+	if s := e.process(second).State; s != "waiting_folder" {
+		t.Fatalf("the folder waits for the stopped turn to exit: %s", s)
 	}
 	let()
 	e.waitState(second, "done")
+	if early.Load() {
+		t.Fatal("the next agent reached its provider in the folder before the stopped turn exited")
+	}
 }

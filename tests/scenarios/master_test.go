@@ -89,7 +89,7 @@ func TestAnErrorReachesTheMasterOncePerDay(t *testing.T) {
 		t.Fatalf("the master gets the failed process: %s", got.Input)
 	}
 	e.waitState(e.run(p, "work"), "error")
-	time.Sleep(100 * time.Millisecond)
+	e.App.Runner.Wait()
 	if n := len(e.runsOf("master", "on_error")); n != 1 {
 		t.Fatalf("once a day per command: %d", n)
 	}
@@ -103,7 +103,7 @@ func TestErrorsStayWithAProjectThatTurnedThemOff(t *testing.T) {
 	e.masterAwake()
 	p := e.createProject("work", strings.Replace(plainManifest, `"version": 9,`, `"version": 9, "master_errors": false,`, 1))
 	e.waitState(e.run(p, "work"), "error")
-	time.Sleep(200 * time.Millisecond)
+	e.App.Runner.Wait()
 	if n := len(e.runsOf("master", "on_error")); n != 0 {
 		t.Fatalf("a project that turned it off keeps its errors: %d", n)
 	}
@@ -117,7 +117,7 @@ func TestMasterOwnErrorsDoNotReachItself(t *testing.T) {
 	var r struct{ Process int64 }
 	e.must("master.review", map[string]any{}, &r)
 	e.waitState(r.Process, "error")
-	time.Sleep(200 * time.Millisecond)
+	e.App.Runner.Wait()
 	if n := len(e.runsOf("master", "on_error")); n != 0 {
 		t.Fatalf("the master's own failure does not go to itself: %d", n)
 	}
@@ -190,7 +190,6 @@ func TestABlockThatFailsOnAScreenReachesTheMaster(t *testing.T) {
 		t.Fatalf("the health of the module names the screen: %+v", hs)
 	}
 	e.screenMessages("web", "main", nil)
-	time.Sleep(100 * time.Millisecond)
 	if n := len(e.runsOf("master", "on_error")); n != 2 {
 		t.Fatalf("once per block and revision of each module: %d", n)
 	}

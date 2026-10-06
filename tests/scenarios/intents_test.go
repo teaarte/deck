@@ -295,7 +295,7 @@ func TestAnAllowedCallLostWithDeckIsOneUnknownOutcome(t *testing.T) {
 		_ = json.Unmarshal(out, &as)
 		return len(as) > 0
 	})
-	time.Sleep(300 * time.Millisecond)
+	e2.App.Runner.Wait()
 	_, out := e2.call("deck.asks_list", nil)
 	var as []askView
 	_ = json.Unmarshal(out, &as)

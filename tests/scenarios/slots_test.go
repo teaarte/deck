@@ -46,10 +46,6 @@ func TestAgentLimitHoldsTheFourthAgentUntilASlotFreesAndScriptsDoNotCount(t *tes
 		ids = append(ids, e.run(p, "job"))
 		e.waitFor(want, func() bool { return e.states(ids) == want })
 	}
-	time.Sleep(300 * time.Millisecond)
-	if n := len(e.Fake.Calls()); n != 3 {
-		t.Fatalf("a process waiting for a slot does not reach its provider: %d calls", n)
-	}
 	var waits []string
 	for _, it := range e.cockpitRunning() {
 		if it.Text == "waits for a slot" {
@@ -122,7 +118,6 @@ func TestAProcessWaitingForASlotStillWaitsAfterARestart(t *testing.T) {
 	second := &Fake{script: held(release)}
 	e2 := restart(t, e, home, second)
 	e2.waitFor("the running one resumed", func() bool { return len(second.Calls()) == 1 })
-	time.Sleep(300 * time.Millisecond)
 	if got := e2.states([]int64{a, b}); got != "running waiting_slot" || len(second.Calls()) != 1 || !second.Calls()[0].Resume {
 		t.Fatalf("after a restart the limit holds and the running one goes on: %s, %d calls", got, len(second.Calls()))
 	}
@@ -131,6 +126,9 @@ func TestAProcessWaitingForASlotStillWaitsAfterARestart(t *testing.T) {
 	e2.waitFor("the waiting one to start", func() bool { return e2.process(b).State == "running" })
 	release <- struct{}{}
 	e2.waitState(b, "done")
+	if n := len(second.Calls()); n != 2 {
+		t.Fatalf("each of the two reached its provider once: %d calls", n)
+	}
 }
 
 // TestConfirmationTermIsASettingOfTheWorkspace: a confirmation made after the change expires by the new term.

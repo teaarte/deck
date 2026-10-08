@@ -129,7 +129,7 @@ func MayRead(ctx context.Context, q *db.Queries, act registry.Actor, p db.Projec
 		return err
 	}
 	if listed && trial {
-		m, err := docs.Manifest(ctx, q, p)
+		m, err := docs.CurrentInForce(ctx, q, p.ID)
 		if err != nil {
 			return err
 		}

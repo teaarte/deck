@@ -210,7 +210,7 @@
           {"type": "columns", "blocks": [
             {"type": "list", "title": "Running now", "icon": "activity", "when": "len(rows) > 0",
               "source": {"from": "deck.processes_list", "input": {"open": true}},
-              "item": {"title": "project + ' · ' + command", "text": "(question ?? '') != '' ? 'waits for your answer: ' + question : silent ? 'silent' : state == 'waiting_slot' ? 'waits for a slot' : state == 'waiting_folder' ? 'waits for folder ' + folder : state == 'rate_limited' ? 'paused on a usage limit' : kind == 'script' ? 'a script runs' : 'runs on ' + ((provider ?? '') != '' ? provider : kind)",
+              "item": {"title": "project + ' · ' + ((topic ?? '') != '' ? topic : command)", "text": "(question ?? '') != '' ? 'waits for your answer: ' + question : silent ? 'silent' : state == 'waiting_slot' ? 'waits for a slot' : state == 'waiting_folder' ? 'waits for folder ' + folder : state == 'rate_limited' ? 'paused on a usage limit' : kind == 'script' ? 'a script runs' : 'runs on ' + ((provider ?? '') != '' ? provider : kind)",
                 "icon": "kind == 'script' ? 'code' : kind == 'tool' ? 'tool' : kind == 'model' ? 'sparkles' : 'robot'",
                 "meta": "(trigger ?? 0) != 0 ? 'by schedule · #' + string(id) : (parent ?? 0) != 0 ? 'of #' + string(parent) + ' · #' + string(id) : '#' + string(id)"},
               "actions": [

@@ -51,6 +51,12 @@ SELECT DISTINCT m.topic_id FROM chat_message m JOIN chat_topic t ON t.id = m.top
 WHERE m.role = 'owner' AND m.process_id = 0 AND t.deleted_at IS NULL;
 
 
+-- name: TopicOfProcess :one
+SELECT t.id, t.title FROM chat_topic t JOIN chat_message m ON m.topic_id = t.id
+WHERE m.process_id = ? AND t.deleted_at IS NULL
+LIMIT 1;
+
+
 -- name: OpenTopicProcess :one
 SELECT p.* FROM process p
 WHERE p.id IN (SELECT process_id FROM chat_message WHERE topic_id = ? AND process_id != 0)

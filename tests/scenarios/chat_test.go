@@ -408,6 +408,11 @@ func TestTheChatBlockShowsTheTopicItsQuestionsAndTheTurn(t *testing.T) {
 		c.Turn.Stop.Command != "deck.process_stop" || c.Turn.Lines[0].Title != "records_upsert" || c.Turn.State != "running" {
 		t.Fatalf("the question has options and an answer, the turn shows its calls and a stop: %+v", c)
 	}
+	var open []struct{ Topic string }
+	e.must("deck.processes_list", map[string]any{"open": true}, &open)
+	if len(open) != 1 || open[0].Topic != c.Topic.Title || open[0].Topic == "" {
+		t.Fatalf("an open reply names the topic it answers: %+v", open)
+	}
 	e.must(q.Answer.Command, map[string]any{"ask": q.Answer.Params["ask"], "answer": `{"Which list?": "market"}`}, nil)
 	if said := e.masterSaid(topic, 2); said[1].Text != "Picked market" {
 		t.Fatalf("the answer from the feed reaches the turn: %+v", said)

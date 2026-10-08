@@ -613,6 +613,24 @@ func (q *Queries) TakeMessages(ctx context.Context, arg TakeMessagesParams) erro
 	return err
 }
 
+const topicOfProcess = `-- name: TopicOfProcess :one
+SELECT t.id, t.title FROM chat_topic t JOIN chat_message m ON m.topic_id = t.id
+WHERE m.process_id = ? AND t.deleted_at IS NULL
+LIMIT 1
+`
+
+type TopicOfProcessRow struct {
+	ID    int64
+	Title string
+}
+
+func (q *Queries) TopicOfProcess(ctx context.Context, processID int64) (TopicOfProcessRow, error) {
+	row := q.db.QueryRowContext(ctx, topicOfProcess, processID)
+	var i TopicOfProcessRow
+	err := row.Scan(&i.ID, &i.Title)
+	return i, err
+}
+
 const touchTopic = `-- name: TouchTopic :exec
 UPDATE chat_topic SET updated_at = ?1, archived = 0 WHERE id = ?2
 `

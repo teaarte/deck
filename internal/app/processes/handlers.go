@@ -50,6 +50,8 @@ type processView struct {
 	// Ask and Question are what an open process waits for the owner to answer.
 	Ask      int64  `json:"ask,omitempty"`
 	Question string `json:"question,omitempty"`
+	// Topic is the chat topic an open reply of the master answers.
+	Topic string `json:"topic,omitempty"`
 }
 
 func msTime(v sql.NullInt64) string {
@@ -119,6 +121,9 @@ func (s *Service) processesList(ctx context.Context, act registry.Actor, in proc
 			asks, _ := s.St.Q.ListOpenAsksOfProcess(ctx, p.ID)
 			if i := slices.IndexFunc(asks, holds); i >= 0 {
 				v.Ask, v.Question = asks[i].ID, asks[i].Text
+			}
+			if t, err := s.St.Q.TopicOfProcess(ctx, p.ID); err == nil {
+				v.Topic = t.Title
 			}
 		}
 		out = append(out, v)

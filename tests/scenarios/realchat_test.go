@@ -74,6 +74,19 @@ func TestRealBrowserMasterChat(t *testing.T) {
 	say("think long about it")
 	b.until("the running turn with stop", `document.querySelector('[data-turn="running"] [data-verb="stop"]')`)
 	b.shot("chat-turn")
+	b.until("the tail of the log in a window of its own", `document.querySelector('[data-turn-log] [data-turn-line]')?.innerText.includes('records_list') && document.querySelector('[data-turn-log] [data-verb="open"]')`)
+	b.eval(`(document.querySelector('[data-turn-fold]').click(), '')`)
+	b.until("the folded turn, its buttons kept", `!document.querySelector('[data-turn-log]') && document.querySelector('[data-turn][data-folded] [data-verb="stop"]')`)
+	b.shot("chat-turn-folded")
+	b.eval(`(document.querySelector('[data-turn-fold]').click(), '')`)
+	b.until("the log back", `document.querySelector('[data-turn-log]')`)
+	for _, w := range []int{1000, 800, 360, 300} {
+		b.call("browser_resize", map[string]any{"width": w, "height": 800})
+		b.until(fmt.Sprintf("the chat within its panel at %d", w), `(() => { const box = document.querySelector('[data-chat-panel]') ?? document.querySelector('[data-chat-phone] .mantine-Drawer-content'); if (!box) return false;
+			const r = box.getBoundingClientRect(); return document.querySelector('[data-chat-send]') && ![...box.querySelectorAll('*')].some((x) => { const q = x.getBoundingClientRect(); return q.width > 0 && (q.right > r.right + 1 || q.left < r.left - 1) }) })()`)
+		b.shot(fmt.Sprintf("chat-width-%d", w))
+	}
+	b.call("browser_resize", map[string]any{"width": 1400, "height": 900})
 	b.eval(`(document.querySelector('[data-turn] [data-verb="stop"]').click(), '')`)
 	b.until("the stopped reply", `document.querySelector('[data-reply-state="stopped"]') && !document.querySelector('[data-turn]')`)
 

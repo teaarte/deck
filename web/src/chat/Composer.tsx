@@ -27,11 +27,11 @@ export function Composer({ text, setText, files, busy, onSend, onNewTopic, onEdi
       {(route.project || route.screen) && (
         <Group gap={6} px={6} pt={2}>
           {detached ? (
-            <Badge size="sm" radius="sm" variant="outline" color="gray" tt="none" style={{ cursor: "pointer" }} onClick={() => setDetached(false)} data-context-off>
+            <Badge size="sm" radius="sm" variant="outline" color="gray" tt="none" maw="100%" style={{ cursor: "pointer" }} onClick={() => setDetached(false)} data-context-off>
               {t('chat.no_context')}
             </Badge>
           ) : (
-            <Badge size="sm" radius="sm" variant="light" tt="none" leftSection={<IconMapPin size={11} />} data-context
+            <Badge size="sm" radius="sm" variant="light" tt="none" maw="100%" leftSection={<IconMapPin size={11} />} data-context
               rightSection={<CloseButton size="xs" onClick={() => setDetached(true)} aria-label={t('chat.drop_context')} />}>
               {[route.project, route.screen].filter(Boolean).join(' · ')}
             </Badge>
@@ -41,7 +41,7 @@ export function Composer({ text, setText, files, busy, onSend, onNewTopic, onEdi
       {files.files.length > 0 && (
         <Group gap={6} px={6} pt={4} data-attached>
           {files.files.map((f, i) => (
-            <Badge key={i} size="lg" radius="md" variant="light" leftSection={<IconPaperclip size={12} />}
+            <Badge key={i} size="lg" radius="md" variant="light" maw="100%" leftSection={<IconPaperclip size={12} />}
               rightSection={<CloseButton size="xs" onClick={() => files.remove(i)} aria-label={t('chat.unattach')} />}>{f.name}</Badge>
           ))}
         </Group>

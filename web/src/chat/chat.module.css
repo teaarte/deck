@@ -44,9 +44,75 @@
 }
 
 .turn {
-  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.turnHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 3px 4px 3px 12px;
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mantine-primary-color-filled) 14%, transparent);
+}
+
+.turnMark {
+  display: inline-flex;
+  flex: none;
+  color: var(--mantine-primary-color-filled);
+}
+
+.log {
+  position: relative;
+  min-width: 0;
   border-radius: 14px;
   background: var(--mantine-color-default-hover);
+}
+
+.logLines {
+  padding: 8px 12px;
+  padding-bottom: 40px;
+  font-family: var(--mantine-font-family-monospace);
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: var(--mantine-color-dimmed);
+  cursor: pointer;
+  border-radius: inherit;
+
+  &:not([role]) {
+    cursor: default;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--mantine-primary-color-filled);
+    outline-offset: -2px;
+  }
+}
+
+.logLine {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  &:last-child {
+    color: var(--mantine-color-text);
+  }
+
+  &[data-failed] {
+    color: var(--mantine-color-red-text);
+  }
+}
+
+.logButtons {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  display: flex;
+  gap: 4px;
 }
 
 .composer {

@@ -8,18 +8,11 @@
     content: '';
     position: absolute;
     inset: 0;
-    background: linear-gradient(100deg, transparent 20%, rgb(255 255 255 / 0.35) 50%, transparent 80%);
-    transform: translateX(-100%);
+    background: linear-gradient(110deg, transparent, rgb(255 255 255 / 0.2), color-mix(in srgb, var(--mantine-color-violet-3) 45%, transparent),
+      color-mix(in srgb, var(--mantine-color-cyan-3) 40%, transparent), rgb(255 255 255 / 0.2), transparent);
+    background-size: 300% 100%;
     pointer-events: none;
   }
-}
-
-.glyph {
-  display: inline-block;
-  width: 14px;
-  text-align: center;
-  font-size: 14px;
-  line-height: 1;
 }
 
 .masterAsks {
@@ -38,12 +31,16 @@
 
 @media (prefers-reduced-motion: no-preference) {
   .master[data-busy]::after {
-    animation: sweep 1.6s ease-in-out infinite;
+    animation: drift 4s ease-in-out infinite alternate;
   }
 }
 
-@keyframes sweep {
+@keyframes drift {
+  from {
+    background-position: 0% 50%;
+  }
+
   to {
-    transform: translateX(100%);
+    background-position: 100% 50%;
   }
 }

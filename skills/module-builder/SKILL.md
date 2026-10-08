@@ -432,7 +432,8 @@ Name each of these rights in the hand-over: the owner grants them with "enable".
    or MCP tool waits for the owner's yes on that one call; the commands that run `after` it are tried too,
    unless `only` asks for this command alone. Try in a draft. Until the owner enables a draft it
    has none of the rights its manifest asks for: its tools ask the owner on every call, its scripts reach only
-   package registries, its `reads` and `domains` do nothing. To try a change of an enabled module (a new command, one that waits for the owner's
+   package registries, its `domains` do nothing; its `reads` work for reading only (a project with
+   `no_network` stays closed to a trial). To try a change of an enabled module (a new command, one that waits for the owner's
    button), import its folder as a draft copy under another name, try there, then save the change to the
    module and tell the owner the copy can be deleted: a trial in the enabled module itself writes real
    records beside its own runs, so it takes `live` and is refused while a real run of the command

@@ -12,6 +12,7 @@ import (
 
 	"deck2/internal/docs"
 	"deck2/internal/registry"
+	"deck2/internal/store"
 	"deck2/internal/store/db"
 	"deck2/master"
 )
@@ -123,9 +124,18 @@ func MayRead(ctx context.Context, q *db.Queries, act registry.Actor, p db.Projec
 	if p.Builtin == 1 || strings.HasPrefix(document, docs.MemoryDir) {
 		return registry.Refuse("deck: the memory of a project and project %s are for its own agents and the master only", master.Name)
 	}
-	collections, documents, listed, err := reads(ctx, q, act, p.Name)
+	collections, documents, listed, trial, err := reads(ctx, q, act, p.Name)
 	if err != nil {
 		return err
+	}
+	if listed && trial {
+		m, err := docs.Manifest(ctx, q, p)
+		if err != nil {
+			return err
+		}
+		if m.NoNetwork {
+			return registry.Refuse("deck: a trial of a draft does not read project %s: it has no_network; enable the draft to read it", p.Name)
+		}
 	}
 	switch {
 	case !listed:
@@ -143,25 +153,29 @@ func MayRead(ctx context.Context, q *db.Queries, act registry.Actor, p db.Projec
 	return registry.Refuse("deck: this project does not read %s; reads in its manifest lists what it may read, and it never writes to another project", what)
 }
 
-// reads is the reads entry of the actor's project manifest for another project; listed is false without one.
-func reads(ctx context.Context, q *db.Queries, act registry.Actor, other string) (collections, documents []string, listed bool, err error) {
+// reads is the reads entry of the actor's project manifest for another project; listed is false without one. A
+// trial of a draft reads by its current manifest, and trial says so.
+func reads(ctx context.Context, q *db.Queries, act registry.Actor, other string) (collections, documents []string, listed, trial bool, err error) {
 	own, err := q.GetProject(ctx, act.ProjectID)
 	if err != nil {
-		return nil, nil, false, err
+		return nil, nil, false, false, err
 	}
 	m, err := docs.Manifest(ctx, q, own)
 	if err != nil {
-		return nil, nil, false, err
+		return nil, nil, false, false, err
 	}
-	if m, err = docs.InForce(ctx, q, own, m); err != nil {
-		return nil, nil, false, err
+	trial = act.Trial && own.Status == store.ProjectDraft
+	if !trial {
+		if m, err = docs.InForce(ctx, q, own, m); err != nil {
+			return nil, nil, false, false, err
+		}
 	}
 	for _, r := range m.Reads {
 		if r.Project == other {
-			return r.Collections, r.Documents, true, nil
+			return r.Collections, r.Documents, true, trial, nil
 		}
 	}
-	return nil, nil, false, nil
+	return nil, nil, false, false, nil
 }
 
 // Master is the built-in project master of a workspace.

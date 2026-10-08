@@ -83,3 +83,53 @@ func TestReadsLetAProjectReadAnotherButNeverWriteIt(t *testing.T) {
 		t.Fatalf("a screen source outside reads is refused: %d %s", code, out)
 	}
 }
+
+// TestATrialOfADraftReadsWhatItsReadsList: a trial of a draft reads the documents and collections its reads list,
+// never a project without network and never by writing.
+func TestATrialOfADraftReadsWhatItsReadsList(t *testing.T) {
+	e := newEnv(t, nil)
+	e.createProject("source", sourceManifest)
+	e.createProject("vault", strings.Replace(sourceManifest, `{"version": 9,`, `{"version": 9, "no_network": true,`, 1))
+	for _, p := range []string{"source", "vault"} {
+		e.must("deck.records_upsert", map[string]any{"project": p, "collection": "items", "records": `{"name": "a"}`}, nil)
+	}
+	e.must("deck.document_save", map[string]any{"project": "source", "name": "notes/shared.md", "kind": "doc", "text": "shared"}, nil)
+	_, tok := e.token("terminal", "deck.*", "draft.*")
+	reads := `, "reads": [{"project": "source", "collections": ["items"], "documents": ["notes/shared.md"]},
+    {"project": "vault", "collections": ["items"]}]`
+	if code, out := e.callWith(tok, "deck.project_create", map[string]any{"name": "draft", "manifest": scriptManifest("collect", "", reads)}); code != 200 {
+		t.Fatalf("project_create: %d %s", code, out)
+	}
+	e.saveScript("draft", "scripts/main.py", pythonLib+`
+out = {}
+for key, cmd, body in [("doc", "deck.document_get", {"project": "source", "name": "notes/shared.md"}),
+                       ("list", "deck.records_list", {"project": "source", "collection": "items"}),
+                       ("vault", "deck.records_list", {"project": "vault", "collection": "items"}),
+                       ("write", "deck.records_upsert", {"project": "source", "collection": "items", "records": '{"name": "evil"}'})]:
+    st, res = deck(cmd, body)
+    out[key] = [st, res if st != 200 else ""]
+print(json.dumps(out))
+`)
+	type seen struct{ Doc, List, Vault, Write []any }
+	var started struct{ Process int64 }
+	e.must("deck.command_try", map[string]any{"command": "draft.collect"}, &started)
+	p := e.waitScript(started.Process, "done", "error")
+	var tried seen
+	if err := json.Unmarshal(p.Result, &tried); err != nil {
+		t.Fatalf("the script hands in what it saw: %+v", p)
+	}
+	code := func(v []any) float64 { f, _ := v[0].(float64); return f }
+	if code(tried.Doc) != 200 || code(tried.List) != 200 {
+		t.Fatalf("a trial of a draft reads what its reads list: %+v", tried)
+	}
+	if code(tried.Vault) != 403 || !strings.Contains(tried.Vault[1].(string), "no_network") {
+		t.Fatalf("a trial of a draft does not read a project without network: %+v", tried.Vault)
+	}
+	if code(tried.Write) != 403 {
+		t.Fatalf("a trial of a draft never writes to another project: %+v", tried.Write)
+	}
+	var rows []map[string]any
+	if e.must("deck.records_list", map[string]any{"project": "source", "collection": "items"}, &rows); len(rows) != 1 {
+		t.Fatalf("the other project keeps its records: %+v", rows)
+	}
+}

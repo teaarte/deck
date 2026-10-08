@@ -2,6 +2,7 @@ package scenarios
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -335,6 +336,20 @@ func TestSettingsHealthShowsWhatIsRedFirstWithWhy(t *testing.T) {
 	}
 	if !strings.Contains(string(block["filters"]), `"error"`) {
 		t.Fatalf("health narrows by state: %s", block["filters"])
+	}
+	web := sql.NullInt64{Int64: e.projectID("web"), Valid: true}
+	if err := e.App.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		return q.SetHealth(ctx, db.SetHealthParams{ProjectID: web, Subject: "command:web.digest", Status: "error", Error: "no python3"})
+	}); err != nil {
+		t.Fatal(err)
+	}
+	failing := blockData[[]screenRow](t, e.settingsBlock("Failing checks", nil)["rows"])
+	var subjects []any
+	for _, r := range failing {
+		subjects = append(subjects, r.Cells[0])
+	}
+	if len(failing) != 2 || !slices.Contains(subjects, "tool:web.fetch") || !slices.Contains(subjects, "command:web.digest") {
+		t.Fatalf("the failing checks come apart with why, each once, the rest not: %+v", failing)
 	}
 	id := ""
 	for k, v := range e.screenData("", "settings", nil) {

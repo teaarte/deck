@@ -87,7 +87,7 @@ func TestJournalShowsTheCallsOfTheGatewayTheSpendFilesAndSnapshots(t *testing.T)
 		}
 	}
 
-	spend := blockData[[]screenRow](t, data["b0-2-7"]["rows"])
+	spend := blockData[[]screenRow](t, data["b0-2-4-3-0"]["rows"])
 	if len(spend) != 1 || spend[0].Cells[1] != "tell" || spend[0].Cells[3] != "big" || spend[0].Cells[4] != float64(2) ||
 		spend[0].Cells[5] != float64(2000) || spend[0].Cells[6] != float64(400) {
 		t.Fatalf("spend sums the tokens of a command on a provider and model: %+v", spend)

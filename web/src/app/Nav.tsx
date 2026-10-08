@@ -39,7 +39,7 @@ function System({ menu, current, onPick }: { menu: MenuEntry[]; current: string;
         <UnstyledButton className={s.system} data-active={here ? true : undefined} data-system>
           <span className={s.groupIcon}><NamedIcon name={here?.x.icon ?? 'layout-grid'} fallback={here?.title ?? t('nav.control')} size={16} /></span>
           <span className={s.groupTitle}>{here ? here.title : t('nav.control')}</span>
-          {master && <NavStatus m={master} />}
+          {master && <NavStatus m={{ ...master, running: 0 }} />}
           <IconSelector size={14} className={s.chevron} />
         </UnstyledButton>
       </Menu.Target>

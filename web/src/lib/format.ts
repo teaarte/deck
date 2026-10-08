@@ -126,3 +126,13 @@ export function formatted(v: unknown, s: Shown, now = Date.now()): string {
 // TONES are the colors of the tones a value takes.
 const TONES: Record<string, string> = { ok: 'green', warn: 'orange', error: 'red', muted: 'dimmed' };
 export const toneColor = (tone?: string | null) => (tone ? TONES[tone] : undefined);
+
+// HUES are the colors a tag without a tone takes, none of them a tone's.
+const HUES = ['blue', 'indigo', 'violet', 'grape', 'pink', 'lime', 'teal', 'cyan'];
+
+// tagColor is the color of a tag by its text, the same on every screen.
+export function tagColor(v: unknown): string {
+  let h = 0;
+  for (const c of show(v)) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return HUES[h % HUES.length];
+}

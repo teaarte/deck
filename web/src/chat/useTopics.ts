@@ -3,17 +3,21 @@ import { useLocalStorage } from '@mantine/hooks';
 import type { ComponentContext } from '@a2ui/web_core/v0_9';
 import { useTranslation } from 'react-i18next';
 import type { ChatValue } from '../lib/catalog.gen';
+import { useMenuEntries } from '../hooks/useMenu';
 import { useScreenActions } from '../screen/ScreenActions';
 import { onTopicOpen } from './chatStore';
 
 const ALL = '*';
 const NONE = '-';
+// GOING are the states of a reply at work, not waiting on the owner or a limit.
+const GOING = ['running', 'waiting_slot', 'waiting_folder'];
 
 // useTopics picks the topic the chat shows: the one the owner or another screen picked, else the one the server
 // offers; the topics on offer narrow to a module, which opens its last topic. The modules opened last come first.
 export function useTopics(value: ChatValue, context: ComponentContext) {
   const { t } = useTranslation();
   const { filter } = useScreenActions();
+  const menu = useMenuEntries();
   const pinned = useRef(false);
   const [scope, setScope] = useState<string | null>(null);
   const [recent, setRecent] = useLocalStorage<string[]>({ key: 'deck-chat-modules', defaultValue: [] });
@@ -30,6 +34,10 @@ export function useTopics(value: ChatValue, context: ComponentContext) {
     ...value.topics.filter(inProject).map((x) => ({ value: String(x.id), label: x.title })),
     ...value.archived.filter(inProject).map((x) => ({ value: String(x.id), label: t('chat.archived', { title: x.title }) })),
   ];
+  const going = value.topics.filter((x) => GOING.includes(x.reply?.state ?? ''));
+  const busy = new Set(going.map((x) => String(x.id)));
+  const working = new Set(going.map((x) => x.project || NONE));
+  menu.forEach((m) => { if (m.project && m.running && projects.includes(m.project)) working.add(m.project); });
   const rank = (v: string) => (recent.includes(v) ? recent.indexOf(v) : recent.length);
   const modules = [{ value: NONE, label: t('chat.no_module') }, ...projects.map((p) => ({ value: p, label: p }))]
     .sort((a, b) => rank(a.value) - rank(b.value));
@@ -45,6 +53,8 @@ export function useTopics(value: ChatValue, context: ComponentContext) {
   return {
     pick,
     options,
+    busy,
+    working,
     scopes: projects.length ? scopes : [],
     scope: scope ?? ALL,
     setScope: (v: string | null) => open(v ?? ALL),

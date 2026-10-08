@@ -421,7 +421,7 @@ func TestScreenTopicReadsOnlyTheBlocksItChanges(t *testing.T) {
 			t.Fatalf("%s draws the cockpit whole: its lists are there only while they have lines: %v", topic, msgs)
 		}
 	}
-	if got := paths("", "settings", "health"); !slices.Equal(got, []string{"/b0-1-2", "/b0-1-3", "/b0-1-4", "/b0-2-2", "/b0-6-0"}) {
+	if got := paths("", "settings", "health"); !slices.Equal(got, []string{"/b0-1-2", "/b0-1-3", "/b0-1-4", "/b0-2-2", "/b0-6-0", "/b0-6-1"}) {
 		t.Fatalf("health reads the models, the agents, the connections and the health: %v", got)
 	}
 	if got := paths("", "settings", "models"); !slices.Equal(got, []string{"/b0-1-2", "/b0-1-3", "/b0-1-4", "/b0-2-2"}) {

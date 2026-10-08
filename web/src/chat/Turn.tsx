@@ -42,7 +42,7 @@ export function Turn({ turn }: { turn: TurnValue }) {
   return (
     <div className={s.turn} data-turn={turn.state} data-folded={folded || undefined}>
       <div className={`${s.turnHead} ${a.aura}`} data-live={running || undefined}>
-        <span className={s.turnMark}>{mascot ? <Deki mood={running ? 'dots' : 'wait'} size={26} /> : <Glyph busy={running} />}</span>
+        <span className={s.turnMark}>{mascot ? <Deki mood={running ? 'dots' : 'wait'} size={26} still={!running} /> : <Glyph busy={running} />}</span>
         <Text size="xs" fw={500} truncate style={{ flex: 1 }}>
           {running ? t(mascot ? 'chat.replying_deki' : 'chat.replying', { provider: turn.provider ?? '' }) : t('chat.waits.' + turn.state, { defaultValue: turn.state })}
         </Text>

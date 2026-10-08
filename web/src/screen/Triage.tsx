@@ -65,7 +65,7 @@ export function Triage({ opened, onClose }: { opened: boolean; onClose: () => vo
           </>
         ) : (
           <div className={s.done} data-triage-done>
-            <Deki mood="chill" size={190} float />
+            <Deki mood="chill" size={190} />
             <Text fz={30} fw={750} lh={1.15}>{t('triage.done')}</Text>
             <Text c="dimmed" ta="center" maw={420}>{t('triage.done_text')}</Text>
             <Button size="md" radius="md" color="dark" onClick={onClose}>{t('triage.back')}</Button>

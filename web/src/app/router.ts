@@ -8,8 +8,8 @@ export interface Route {
   params?: Record<string, string>;
 }
 
-// LOCAL are the parameters only the client reads: the tab picked and the dialog open.
-const LOCAL = ['tab', 'dialog'];
+// LOCAL are the parameters only the client reads: the tab picked, the tab picked inside it and the dialog open.
+const LOCAL = ['tab', 'sub', 'dialog'];
 // LIVE are the parameters the server draws with that change in place, such as the second of a player: a change
 // reads the data of the screen again without drawing it anew.
 const LIVE = ['t'];

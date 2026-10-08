@@ -40,7 +40,7 @@ func TestRealBrowserShell(t *testing.T) {
 	b := newPlaywright(t)
 	b.call("browser_resize", map[string]any{"width": 1440, "height": 900})
 	b.open(e.URL + "/?token=" + token + "#/deck/cockpit")
-	b.until("the cockpit in its islands", `document.querySelector('[data-nav] [data-group-head]') && document.querySelector('[data-block]')`)
+	b.until("the cockpit in its islands", `document.querySelector('[data-nav] [data-system]') && document.querySelector('[data-block]')`)
 	if got := b.eval(`String(!!document.querySelector('header'))`); got != "false" {
 		t.Fatalf("the desktop has no header bar: %s", got)
 	}
@@ -48,7 +48,17 @@ func TestRealBrowserShell(t *testing.T) {
 		return [parseFloat(s.borderTopLeftRadius) > 0, s.boxShadow !== 'none', r.left > 0, r.top > 0].join(' ') })()`); got != "true true true true" {
 		t.Fatalf("the menu is an island: rounded, with a shadow, apart from the edges: %s", got)
 	}
-	b.until("the icons of the menu", `document.querySelector('[data-nav] [data-icon="layout-dashboard"]') && document.querySelector('[data-group="web"] [data-icon="rocket"]')`)
+	b.until("the icons of the menu", `document.querySelector('[data-nav] [data-system] [data-icon="layout-dashboard"]') && document.querySelector('[data-group="web"] [data-icon="rocket"]')`)
+	if got := b.eval(`[...document.querySelectorAll('[data-nav] [data-group]')].map((x) => x.dataset.group).join(' ')`); got != "web" {
+		t.Fatalf("the projects of the menu without deck and the master: %s", got)
+	}
+	b.eval(`(document.querySelector('[data-system]').click(), '')`)
+	b.until("deck's screens and the master's behind the system button", `document.querySelector('[data-system-menu] [data-group=""] a[href="#/deck/schedule"]') && document.querySelector('[data-system-menu] [data-group="master"] a')`)
+	b.shot("shell-system-menu")
+	b.eval(`(document.querySelector('[data-system-menu] a[href="#/deck/schedule"]').click(), '')`)
+	b.until("the schedule from the system menu", `location.hash === '#/deck/schedule' && !document.querySelector('[data-system-menu]')`)
+	b.open(e.URL + "/#/deck/cockpit")
+	b.until("the cockpit again", `document.querySelector('[data-nav] [data-system] [data-icon="layout-dashboard"]')`)
 	if got := b.eval(`document.querySelector('[data-columns]') ? (() => { const hs = [...document.querySelectorAll('[data-columns] > * > [data-block]')].map((x) => Math.round(x.getBoundingClientRect().height)); return String(hs.length > 1 && new Set(hs).size === 1) })() : 'none'`); got != "true" {
 		t.Fatalf("the blocks of a row take one height: %s", got)
 	}
@@ -198,7 +208,7 @@ func TestRealBrowserShell(t *testing.T) {
 	}
 	b.shot("shell-phone")
 	b.eval(`(document.querySelector('[data-nav-open]').click(), '')`)
-	b.until("the menu on a phone", `document.querySelector('[data-nav-phone] [data-group-head]')?.offsetParent`)
+	b.until("the menu on a phone", `document.querySelector('[data-nav-phone] [data-system]')?.offsetParent`)
 	b.shot("shell-phone-menu")
 
 	b.call("browser_resize", map[string]any{"width": 1440, "height": 900})
@@ -230,7 +240,7 @@ func TestRealBrowserShell(t *testing.T) {
 	b.eval(`(document.querySelector('[data-look="theme"] input[value="neon"]').click(), '')`)
 	b.until("no scheme in neon, only its note", `!document.querySelector('[data-look="scheme"]') && document.querySelector('[data-look-note="scheme"]') && document.querySelector('[data-look="radius"]')`)
 	e.must("deck.settings_set", map[string]any{"name": "language", "value": "ru"}, nil)
-	b.until("the interface in the language the owner picked", `document.querySelector('[data-nav]')?.innerText.includes('Кокпит') && document.querySelector('[data-chat-toggle]')?.innerText.includes('Мастер')`)
+	b.until("the interface in the language the owner picked", `document.querySelector('[data-nav] [data-system]')?.innerText.includes('Настройки') && document.querySelector('[data-chat-toggle]')?.innerText.includes('Мастер')`)
 	b.shot("shell-ru")
 	b.open(e.URL + "/#/deck/journal?tab=Spend")
 	b.until("a link to a tab opens it in any language", `document.querySelector('[role="tab"][aria-selected="true"]')?.innerText.includes('Расходы')`)

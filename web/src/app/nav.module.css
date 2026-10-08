@@ -4,6 +4,40 @@
   padding: 4px 8px 12px;
 }
 
+.foot {
+  flex: none;
+  padding: 8px;
+  border-top: 1px solid var(--mantine-color-default-border);
+}
+
+.system {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: calc(var(--deck-island-radius) - 8px);
+  color: var(--mantine-color-text);
+  font-size: var(--mantine-font-size-sm);
+  font-weight: 650;
+  transition: background-color 150ms ease;
+
+  &:hover,
+  &[data-expanded] {
+    background: var(--mantine-color-default-hover);
+  }
+
+  &[data-active] .groupIcon {
+    color: var(--mantine-primary-color-contrast);
+    background: var(--mantine-primary-color-filled);
+  }
+}
+
+:global([data-system-menu]) a[data-active] {
+  color: var(--mantine-primary-color-filled);
+  font-weight: 600;
+}
+
 .group + .group {
   margin-top: 4px;
 }

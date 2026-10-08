@@ -22,7 +22,7 @@ const worstContrast = `(() => {
   const stroke = document.querySelector('[data-backdrop] > div');
   const spots = [[canvas], stroke ? [canvas, getComputedStyle(stroke).backgroundColor] : [canvas]];
   let worst = 99;
-  for (const [sel, text] of [['[data-nav]', '[data-nav] [data-group-head]'], ['[data-nav]', '[data-nav] a'], ['[data-nav]', '[data-nav] a[data-active]'],
+  for (const [sel, text] of [['[data-nav]', '[data-nav] [data-system]'], ['[data-nav]', '[data-nav] a'], ['[data-nav]', '[data-nav] a[data-active]'],
     ['.mantine-Tabs-list', '[role=tab]'], ['.mantine-Tabs-list', '[role=tab][data-active]']]) {
     const surface = document.querySelector(sel), el = document.querySelector(text);
     if (!surface || !el) continue;
@@ -142,7 +142,7 @@ func TestRealBrowserGlass(t *testing.T) {
 		t.Fatalf("the bar of a phone is glass: %s", got)
 	}
 	b.eval(`(document.querySelector('[data-nav-open]').click(), '')`)
-	b.until("the menu on a phone", `document.querySelector('[data-nav-phone] [data-group-head]')?.getBoundingClientRect().left >= 0`)
+	b.until("the menu on a phone", `document.querySelector('[data-nav-phone] [data-system]')?.getBoundingClientRect().left >= 0`)
 	b.shot("glass-phone-menu")
 
 	media := func(name, value string) {

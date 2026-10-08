@@ -9,22 +9,29 @@ export interface Look {
   density: 'compact' | 'default' | 'comfortable';
   font: 'small' | 'default' | 'large';
   radius: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
-  theme: 'default' | 'glass' | 'pixel' | 'neon' | 'paper';
+  theme: 'juce' | 'default' | 'glass' | 'pixel' | 'neon' | 'paper';
   // surface is how much of the accent the islands and blocks take.
   surface: 'neutral' | 'tinted' | 'vivid';
   // pattern draws the icons behind the screen; tint goes from clear (0) to opaque (1) glass.
   pattern: boolean;
   tint: number;
+  // mascot shows Deki in the chat and on the cockpit; motion keeps the animations; sky draws the clouds of juce;
+  // slim folds the top block of the cockpit.
+  mascot: boolean;
+  motion: boolean;
+  sky: boolean;
+  slim: boolean;
 }
 
 const KEY = 'deck-look';
-export const ACCENTS = ['blue', 'indigo', 'violet', 'grape', 'pink', 'red', 'orange', 'yellow', 'lime', 'green', 'teal', 'cyan', 'gray'];
+export const ACCENTS = ['coral', 'blue', 'indigo', 'violet', 'grape', 'pink', 'red', 'orange', 'yellow', 'lime', 'green', 'teal', 'cyan', 'gray'];
 export const DENSITIES: Look['density'][] = ['compact', 'default', 'comfortable'];
 export const FONTS: Look['font'][] = ['small', 'default', 'large'];
 export const RADII: Look['radius'][] = ['xs', 'sm', 'md', 'lg', 'xl'];
-export const THEMES: Look['theme'][] = ['default', 'glass', 'pixel', 'neon', 'paper'];
+export const THEMES: Look['theme'][] = ['juce', 'default', 'glass', 'pixel', 'neon', 'paper'];
 export const SURFACES: Look['surface'][] = ['neutral', 'tinted', 'vivid'];
-const DEFAULT: Look = { accent: 'blue', density: 'default', font: 'default', radius: 'md', theme: 'default', surface: 'neutral', pattern: true, tint: 0.35 };
+const DEFAULT: Look = { accent: 'coral', density: 'default', font: 'default', radius: 'md', theme: 'juce', surface: 'neutral', pattern: true, tint: 0.35,
+  mascot: true, motion: true, sky: true, slim: false };
 
 function read(): Look {
   try {
@@ -38,6 +45,10 @@ function read(): Look {
       surface: SURFACES.includes(got.surface!) ? got.surface! : DEFAULT.surface,
       pattern: typeof got.pattern === 'boolean' ? got.pattern : DEFAULT.pattern,
       tint: typeof got.tint === 'number' && got.tint >= 0 && got.tint <= 1 ? got.tint : DEFAULT.tint,
+      mascot: typeof got.mascot === 'boolean' ? got.mascot : DEFAULT.mascot,
+      motion: typeof got.motion === 'boolean' ? got.motion : DEFAULT.motion,
+      sky: typeof got.sky === 'boolean' ? got.sky : DEFAULT.sky,
+      slim: typeof got.slim === 'boolean' ? got.slim : DEFAULT.slim,
     };
   } catch {
     return DEFAULT;
@@ -48,6 +59,7 @@ function read(): Look {
 const mark = () => {
   document.documentElement.dataset.deckTheme = look.theme;
   document.documentElement.dataset.deckSurface = look.surface;
+  document.documentElement.dataset.deckMotion = look.motion ? 'on' : 'off';
   document.documentElement.style.setProperty('--glass-tint-user', String(look.tint));
 };
 let look = read();
@@ -70,8 +82,9 @@ export const useLook = () => useSyncExternalStore((f) => (subs.add(f), () => sub
 const scaled = (sizes: Record<string, string>, by: number) =>
   Object.fromEntries(Object.entries(sizes).map(([k, v]) => [k, by === 1 ? v : `calc(${v} * ${by})`]));
 
-// fonts are the faces of the themes that have their own: pixel monospace, paper with serifs.
+// fonts are the faces of the themes that have their own: juce Helvetica, pixel monospace, paper with serifs.
 const fonts: Partial<Record<Look['theme'], string>> = {
+  juce: '"Helvetica Neue", Helvetica, Arial, system-ui, -apple-system, sans-serif',
   pixel: 'ui-monospace, "SF Mono", Menlo, Consolas, monospace',
   paper: 'ui-serif, "New York", Charter, Georgia, serif',
 };

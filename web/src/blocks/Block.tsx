@@ -1,11 +1,12 @@
 import type { ReactNode } from 'react';
 import type { ComponentContext } from '@a2ui/web_core/v0_9';
-import { Alert, Badge, Card, Group, Loader, Stack, Text } from '@mantine/core';
+import { Alert, Badge, Card, Group, Stack, Text } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
 import { IconAlertTriangle, IconInbox } from '@tabler/icons-react';
 import type { Data } from '../lib/catalog.gen';
 import s from './blocks.module.css';
 import { IconTitle } from '../ui/IconTitle';
+import { Pending } from '../ui/Pending';
 import { useLive } from '../lib/events';
 import { Filters } from './Filters';
 
@@ -16,7 +17,7 @@ export function Block({ title, icon, span, description, data, context, children 
   const { t } = useTranslation();
   const old = !useLive();
   let body: ReactNode;
-  if (!data) body = <Group gap="xs"><Loader size="xs" /><Text size="sm" c="dimmed">{t('state.loading')}</Text></Group>;
+  if (!data) body = <Pending text={t('state.loading')} />;
   else if (data.state === 'error') body = <Alert color="red" radius="md" icon={<IconAlertTriangle size={18} />} title={t('state.error')}>{data.error}</Alert>;
   else if (data.state === 'empty') {
     body = (

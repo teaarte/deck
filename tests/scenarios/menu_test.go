@@ -67,7 +67,7 @@ func TestMenuShowsIconsAndWhatEachProjectIsBusyWith(t *testing.T) {
 
 	var menu []menuView
 	e.must("deck.menu", nil, &menu)
-	if menu[0].Screens[0].Icon != "layout-dashboard" {
+	if menu[0].Screens[0].Icon != "calendar-time" {
 		t.Fatalf("deck's own screens carry their icons: %+v", menu[0].Screens)
 	}
 	if m := e.menuEntry("web"); m.Icon != "rocket" || m.Screens[0].Icon != "chart-line" || m.Running+m.Asks+m.Errors != 0 {

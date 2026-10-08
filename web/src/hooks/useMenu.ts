@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { call } from '../lib/api';
 import { events } from '../lib/events';
 import i18n from '../lib/i18n';
@@ -13,6 +13,10 @@ export interface MenuEntry {
   asks?: number;
   errors?: number;
 }
+
+// MenuContext is the menu the shell read, for the parts of a screen that count what it shows.
+export const MenuContext = createContext<MenuEntry[]>([]);
+export const useMenuEntries = () => useContext(MenuContext);
 
 const PULSE = ['processes', 'asks', 'health', 'projects'];
 

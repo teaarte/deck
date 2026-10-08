@@ -70,11 +70,11 @@ func TestJournalShowsTheCallsOfTheGatewayTheSpendFilesAndSnapshots(t *testing.T)
 	msgs := e.screenMessages("", "schedule", nil)
 	check.messages(t, msgs)
 	data := e.screenData("", "schedule", nil)
-	rows := blockData[[]screenRow](t, data["b0-3-0"]["rows"])
-	if len(rows) == 0 || !strings.Contains(string(data["b0-3-0"]["filters"]), `"waiting"`) {
-		t.Fatalf("the calls tab lists the calls with their outcomes to narrow by: %+v %s", rows, data["b0-3-0"]["filters"])
+	rows := blockData[[]screenRow](t, data["b0-1-1"]["rows"])
+	if len(rows) == 0 || !strings.Contains(string(data["b0-1-1"]["filters"]), `"waiting"`) {
+		t.Fatalf("the calls tab lists the calls with their outcomes to narrow by: %+v %s", rows, data["b0-1-1"]["filters"])
 	}
-	picked := e.screenData("", "schedule", map[string]any{"filter": `{"b0-3-0": {"outcome": "waiting"}}`})["b0-3-0"]
+	picked := e.screenData("", "schedule", map[string]any{"filter": `{"b0-1-1": {"outcome": "waiting"}}`})["b0-1-1"]
 	if len(blockData[[]screenRow](t, picked["rows"])) == 0 || len(blockData[[]screenRow](t, picked["rows"])) == len(rows) {
 		t.Fatalf("the outcome filter narrows the calls: %d of %d", len(blockData[[]screenRow](t, picked["rows"])), len(rows))
 	}
@@ -111,11 +111,12 @@ func TestJournalShowsTheCallsOfTheGatewayTheSpendFilesAndSnapshots(t *testing.T)
 	if len(days) != 7 || days[6].Age != 0 || days[0].Age != 6 {
 		t.Fatalf("spend by day has every day of the window, today last: %+v", days)
 	}
-	files := blockData[[]screenRow](t, data["b0-4-0"]["rows"])
+	kept := e.screenData("", "files", nil)
+	files := blockData[[]screenRow](t, kept["b0-0-0"]["rows"])
 	if len(files) != 1 || files[0].Cells[0] != "scan.txt" || files[0].Cells[1] != "web" || !strings.HasPrefix(files[0].Cells[4].(string), "process #") {
 		t.Fatalf("files lists the files of the workspace with what they belong to: %+v", files)
 	}
-	snaps := blockData[[]screenRow](t, data["b0-5-0"]["rows"])
+	snaps := blockData[[]screenRow](t, kept["b0-2-0"]["rows"])
 	if len(snaps) != 2 || !strings.HasPrefix(snaps[0].Cells[0].(string), "deck-2026") || snaps[1].Cells[1] != "2020-01-01T00:00:00Z" {
 		t.Fatalf("snapshots lists what backups holds: %+v", snaps)
 	}

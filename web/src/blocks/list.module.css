@@ -1,3 +1,46 @@
+.items {
+  display: flex;
+  flex-direction: column;
+}
+
+.item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 0;
+
+  & + & {
+    border-top: 1px solid var(--deck-line, var(--mantine-color-default-border));
+  }
+
+  &:first-child {
+    padding-top: 2px;
+  }
+
+  &:last-child {
+    padding-bottom: 2px;
+  }
+
+  &[data-tone='muted'] {
+    opacity: 0.6;
+  }
+}
+
+.under {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+
+  &:empty {
+    display: none;
+  }
+}
+
+.item[data-marked] > .under {
+  padding-left: 44px;
+}
+
 .itemIcon {
   display: inline-flex;
   flex: none;
@@ -5,13 +48,57 @@
   justify-content: center;
   width: 32px;
   height: 32px;
-  border-radius: 10px;
+  border-radius: 50%;
   color: var(--mantine-primary-color-light-color);
   background: var(--mantine-primary-color-light);
 }
 
+.item[data-tone='warn'] .itemIcon {
+  color: var(--mantine-color-coral-8);
+  background: var(--mantine-color-coral-1);
+}
+
+.item[data-tone='error'] .itemIcon {
+  color: var(--mantine-color-red-6);
+  background: var(--mantine-color-red-0);
+}
+
+.item[data-tone='ok'] .itemIcon {
+  color: #2e9e6b;
+  background: #e7f5ee;
+}
+
+.dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin: 8px 12px 0;
+  border-radius: 50%;
+  background: var(--mantine-color-dimmed);
+}
+
+.item[data-tone='warn'] .dot {
+  background: var(--mantine-color-coral-6);
+}
+
+.item[data-tone='error'] .dot {
+  background: var(--mantine-color-red-6);
+}
+
+.item[data-tone='ok'] .dot {
+  background: #2e9e6b;
+}
+
 .itemTitle {
+  font-size: 15px;
   letter-spacing: -0.005em;
+}
+
+.item[data-big] .itemTitle {
+  font-size: 24px;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
 }
 
 .meta {
@@ -26,4 +113,18 @@
   border-radius: 10px;
   object-fit: cover;
   background: var(--mantine-color-default-border);
+}
+
+:global(:root[data-mantine-color-scheme='dark']) .item[data-tone='ok'] .itemIcon {
+  background: rgb(46 158 107 / 0.18);
+}
+
+:global(:root[data-mantine-color-scheme='dark']) .item[data-tone='warn'] .itemIcon {
+  color: var(--mantine-color-coral-3);
+  background: rgb(216 90 48 / 0.18);
+}
+
+:global(:root[data-mantine-color-scheme='dark']) .item[data-tone='error'] .itemIcon {
+  color: var(--mantine-color-red-4);
+  background: rgb(232 28 46 / 0.16);
 }

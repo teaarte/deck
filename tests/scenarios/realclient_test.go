@@ -52,39 +52,38 @@ func TestRealBrowserWebClient(t *testing.T) {
 	front := newFront(t, e.URL)
 	b := newPlaywright(t)
 	b.open(front.URL + "/?token=" + token + "#/deck/cockpit")
-	b.until("the cockpit with three items", `W.querySelectorAll('[data-item][data-tone]').length === 3`)
+	b.until("the cockpit with three items", `document.querySelectorAll('[data-item][data-tone]').length === 3`)
 	b.shot("cockpit")
 
-	items := b.eval(`JSON.stringify([...W.querySelectorAll('[data-item][data-tone]')].map(el => [...el.querySelectorAll('button')].map(x => x.innerText.trim())))`)
+	items := b.eval(`JSON.stringify([...document.querySelectorAll('[data-item][data-tone]')].map(el => [...el.querySelectorAll('button')].map(x => x.innerText.trim())))`)
 	if items != `[["Show the whole call","Deny"],["Show the whole call","Allow","Deny","Deny because…"],["Answer"]]` {
 		t.Fatalf("an expired confirmation shows only deny, a fresh one allow first and hides a button past its end, a question its answer: %s", items)
 	}
 	if got := b.eval(`document.querySelector('[data-unknown="hologram"]')?.innerText ?? ''`); !strings.Contains(got, "Open in web") {
 		t.Fatalf("a block the client does not know is drawn as open in web: %q", got)
 	}
-	if got := b.eval(`W.querySelectorAll('[data-item][data-tone]')[1].innerText`); !strings.Contains(got, "post (notes.post)") ||
+	if got := b.eval(`document.querySelectorAll('[data-item][data-tone]')[1].innerText`); !strings.Contains(got, "post (notes.post)") ||
 		!strings.Contains(got, "POST "+svc.URL+"/items/n2") || !strings.Contains(got, "work") {
 		t.Fatalf("a confirmation says what, where and who: %q", got)
 	}
-	b.eval(`[...W.querySelectorAll('[data-item][data-tone]')[1].querySelectorAll('button')].find(x => x.innerText.includes('Show the whole call')).click(), ''`)
-	b.until("the frozen call", `W.querySelectorAll('[data-item][data-tone]')[1].querySelector('pre')?.innerText.includes('"id": "n2"')`)
+	b.eval(`[...document.querySelectorAll('[data-item][data-tone]')[1].querySelectorAll('button')].find(x => x.innerText.includes('Show the whole call')).click(), ''`)
+	b.until("the frozen call", `document.querySelectorAll('[data-item][data-tone]')[1].querySelector('pre')?.innerText.includes('"id": "n2"')`)
 
-	b.eval(`[...W.querySelectorAll('[data-item][data-tone]')[1].querySelectorAll('button')].find(x => x.innerText === 'Deny because…').click(), ''`)
-	b.until("the reason field", `W.querySelectorAll('[data-item][data-tone]')[1].querySelector('input')`)
-	b.eval(`(() => { const i = W.querySelectorAll('[data-item][data-tone]')[1].querySelector('input');
+	b.eval(`[...document.querySelectorAll('[data-item][data-tone]')[1].querySelectorAll('button')].find(x => x.innerText === 'Deny because…').click(), ''`)
+	b.until("the reason field", `document.querySelectorAll('[data-item][data-tone]')[1].querySelector('input')`)
+	b.eval(`(() => { const i = document.querySelectorAll('[data-item][data-tone]')[1].querySelector('input');
 		Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(i, 'keep me');
 		i.dispatchEvent(new Event('input', { bubbles: true })); return '' })()`)
-	b.eval(`[...W.querySelectorAll('[data-item][data-tone]')[1].querySelectorAll('button')].find(x => x.innerText === 'Send').click(), ''`)
+	b.eval(`[...document.querySelectorAll('[data-item][data-tone]')[1].querySelectorAll('button')].find(x => x.innerText === 'Send').click(), ''`)
 	b.until("the refusal of the reason", `document.body.innerText.includes('deck: refused by the test')`)
-	if got := b.eval(`W.querySelectorAll('[data-item][data-tone]')[1].querySelector('input')?.value ?? ''`); got != "keep me" {
+	if got := b.eval(`document.querySelectorAll('[data-item][data-tone]')[1].querySelector('input')?.value ?? ''`); got != "keep me" {
 		t.Fatalf("what the owner typed stays after a refusal: %q", got)
 	}
-	b.eval(`[...W.querySelectorAll('[data-item][data-tone]')[1].querySelectorAll('button')].find(x => x.innerText === 'Cancel').click(), ''`)
+	b.eval(`[...document.querySelectorAll('[data-item][data-tone]')[1].querySelectorAll('button')].find(x => x.innerText === 'Cancel').click(), ''`)
 
 	full := front.full.Load()
-	b.eval(`(() => { const x = [...W.querySelectorAll('[data-item][data-tone]')[1].querySelectorAll('button')].find(x => x.innerText === 'Allow'); x.click(); x.click(); return '' })()`)
-	b.until("the result of the allowed call in a notification", `document.body.innerText.includes('"ok":true')`)
-	b.until("the allowed item to leave", `W.querySelectorAll('[data-item][data-tone]').length === 2`)
+	b.eval(`(() => { const x = [...document.querySelectorAll('[data-item][data-tone]')[1].querySelectorAll('button')].find(x => x.innerText === 'Allow'); x.click(); x.click(); return '' })()`)
+	b.until("the allowed item to leave", `document.querySelectorAll('[data-item][data-tone]').length === 2`)
 	if n, calls := front.answers.Load(), len(svc.requests()); n != 1 || calls != 1 {
 		t.Fatalf("a second press while the call runs sends nothing: %d answers, %d calls", n, calls)
 	}
@@ -92,13 +91,13 @@ func TestRealBrowserWebClient(t *testing.T) {
 		t.Fatalf("after an event only the blocks of its topic are read again: %d topic reads, %d full", front.topics.Load(), front.full.Load()-full)
 	}
 
-	b.eval(`[...W.querySelectorAll('[data-item][data-tone]')[0].querySelectorAll('button')].find(x => x.innerText === 'Deny').click(), ''`)
-	b.until("the expired item to clear", `W.querySelectorAll('[data-item][data-tone]').length === 1`)
+	b.eval(`[...document.querySelectorAll('[data-item][data-tone]')[0].querySelectorAll('button')].find(x => x.innerText === 'Deny').click(), ''`)
+	b.until("the expired item to clear", `document.querySelectorAll('[data-item][data-tone]').length === 1`)
 
-	b.eval(`[...W.querySelectorAll('[data-item] label')].find(x => x.innerText === 'go').click(), ''`)
-	b.until("answer to unlock", `!([...W.querySelectorAll('[data-item][data-tone] button')].find(x => x.innerText === 'Answer')?.disabled ?? true)`)
-	b.eval(`[...W.querySelectorAll('[data-item][data-tone] button')].find(x => x.innerText === 'Answer').click(), ''`)
-	b.until("the answered question to leave", `W.querySelectorAll('[data-item][data-tone]').length === 0`)
+	b.eval(`[...document.querySelectorAll('[data-item][data-tone] label')].find(x => x.innerText === 'go').click(), ''`)
+	b.until("answer to unlock", `!([...document.querySelectorAll('[data-item][data-tone] button')].find(x => x.innerText === 'Answer')?.disabled ?? true)`)
+	b.eval(`[...document.querySelectorAll('[data-item][data-tone] button')].find(x => x.innerText === 'Answer').click(), ''`)
+	b.until("the answered question to leave", `document.querySelectorAll('[data-item][data-tone]').length === 0`)
 	e.waitState(asking, "done")
 
 	front.slow.Store(true)
@@ -109,7 +108,7 @@ func TestRealBrowserWebClient(t *testing.T) {
 	}
 	e.waitState(late, "done", "error")
 	time.Sleep(3 * time.Second)
-	if n := b.eval(`String(W.querySelectorAll('[data-item][data-tone]').length)`); n != "0" {
+	if n := b.eval(`String(document.querySelectorAll('[data-item][data-tone]').length)`); n != "0" {
 		t.Fatalf("a late read does not bring back what a newer one cleared: %s items", n)
 	}
 

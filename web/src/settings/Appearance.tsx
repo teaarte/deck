@@ -29,7 +29,7 @@ export function Appearance({ part }: { part?: string }) {
     <Stack gap="lg" data-appearance>
       <Text size="sm" c="dimmed">{t('look.device')}</Text>
       <Language />
-      <Choice label={t('look.theme')} name="theme" value={look.theme} options={THEMES} onChange={(v: Look['theme']) => setLook({ theme: v })} />
+      <Choice label={t('look.theme')} name="theme" value={look.theme} options={THEMES} onChange={(v: Look['theme']) => setLook(v === 'juce' ? { theme: v, accent: 'coral' } : { theme: v })} />
       <SimpleGrid cols={{ base: 1, md: 2 }} spacing="lg" verticalSpacing="lg">
         {look.theme === 'neon' ? (
           <Text size="sm" c="dimmed" data-look-note="scheme">{t('look.dark_only')}</Text>
@@ -50,7 +50,14 @@ export function Appearance({ part }: { part?: string }) {
           </Group>
         </Stack>
         <Stack gap={10}>
-          <Switch label={t('look.pattern')} checked={look.pattern} onChange={(e) => setLook({ pattern: e.currentTarget.checked })} data-look="pattern" />
+          {look.theme === 'juce' ? (
+            <Switch label={t('look.sky')} checked={look.sky} onChange={(e) => setLook({ sky: e.currentTarget.checked })} data-look="sky" />
+          ) : (
+            <Switch label={t('look.pattern')} checked={look.pattern} onChange={(e) => setLook({ pattern: e.currentTarget.checked })} data-look="pattern" />
+          )}
+          <Switch label={t('look.mascot')} checked={look.mascot} onChange={(e) => setLook({ mascot: e.currentTarget.checked })} data-look="mascot" />
+          <Switch label={t('look.motion')} checked={look.motion} onChange={(e) => setLook({ motion: e.currentTarget.checked })} data-look="motion" />
+          <Switch label={t('look.slim')} checked={look.slim} onChange={(e) => setLook({ slim: e.currentTarget.checked })} data-look="slim" />
           {look.theme === 'glass' && (
             <Stack gap={4}>
               <Text size="sm" fw={600}>{t('look.tint')}</Text>

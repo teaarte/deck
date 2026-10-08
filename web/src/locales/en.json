@@ -2,7 +2,7 @@
   "actions": { "more": "More" },
   "bell": { "title": "Notifications", "empty": "No notifications yet" },
   "table": { "search": "Search", "nothing": "Nothing matches", "range": "{{from}}–{{to}} of {{of}}", "size": "Rows on a page" },
-  "nav": { "deck": "deck", "menu": "Menu", "back": "Back", "hide": "Hide the menu", "show": "Show the menu", "running": "Running: {{n}}", "asks": "Waiting for you: {{n}}", "errors": "Failing checks: {{n}}" },
+  "nav": { "control": "Control", "work": "Work", "master_settings": "Master settings", "deki_settings": "Deki settings", "cockpit": "Cockpit", "deck": "deck", "menu": "Menu", "back": "Back", "hide": "Hide the menu", "show": "Show the menu", "running": "Running: {{n}}", "asks": "Waiting for you: {{n}}", "errors": "Failing checks: {{n}}" },
   "state": {
     "loading": "Loading…",
     "empty": "Nothing here",
@@ -84,6 +84,11 @@
     "saved": "Kept in {{collection}}"
   },
   "look": {
+    "juce": "Juce",
+    "sky": "Sky and clouds behind the screen",
+    "mascot": "Mascot Deki in the chat and on the cockpit",
+    "motion": "Animations",
+    "slim": "Fold the top block of the cockpit",
     "tint": "Glass: clear to tinted",
     "tint_clear": "Clear",
     "tint_full": "Tinted",
@@ -123,21 +128,20 @@
     "edit": "Edit",
     "save": "Save",
     "why": "Why it changed (optional)",
-    "saved": "Saved {{name}}",
     "none": "Not written yet",
     "revision": "revision {{n}}",
     "history_one": "{{count}} revision",
     "history_other": "History: {{count}} revisions",
-    "revert": "Back to this",
-    "reverted": "Back to revision {{n}}"
+    "revert": "Back to this"
   },
+  "deadline": { "minutes": "{{m}} min", "hours": "{{h}} h {{m}} min" },
   "details": { "call": { "show": "Show the whole call", "hide": "Hide the call" }, "text": { "show": "Show in full", "hide": "Hide" } },
-  "common": { "done": "Done", "started": "Started process #{{id}}" },
-  "log": { "message": "Agent", "thought": "Thinking", "tool": "Tool", "rate_limit": "Limit", "stderr": "stderr" },
+    "log": { "message": "Agent", "thought": "Thinking", "tool": "Tool", "rate_limit": "Limit", "stderr": "stderr" },
   "player": { "back": "A frame back", "forward": "A frame forward" },
   "chat": {
     "delete": "Delete, the master has not taken it",
     "master": "Master",
+    "deki": "Deki",
     "new_topic": "New topic",
     "no_topics": "No topics",
     "archived": "{{title}} (archived)",
@@ -145,6 +149,7 @@
     "placeholder": "Message to the master",
     "send_failed": "The message was not sent",
     "replying": "The master is replying ({{provider}})",
+    "replying_deki": "Deki is replying ({{provider}})",
     "waits": {"waiting_answer": "The reply waits for you", "waiting_slot": "The reply waits for a free slot", "waiting_provider": "The reply waits for its model", "rate_limited": "The reply waits for the usage limit to reset", "needs_login": "The reply waits for a login", "waiting_folder": "The reply waits for a folder"},
     "reply_error": "reply failed",
     "reply_stopped": "reply stopped",
@@ -177,5 +182,7 @@
     "on": "Get pushes here",
     "off": "Stop pushes here",
     "unsupported": "This browser takes no pushes; on an iPhone, add deck to the home screen first"
-  }
+  },
+  "hero": {"on_shift_one": "On shift · {{count}} running", "on_shift_other": "On shift · {{count}} running", "calm_eyebrow": "Everything runs by itself", "asks_one": "One decision waits for your yes", "asks_other": "{{count}} decisions wait for your yes", "asks_text": "Decide right here or go through them one by one; the rest is done without you, and much of it can be undone.", "errors_one": "{{count}} check is failing", "errors_other": "{{count}} checks are failing", "errors_text": "Settings → Health shows why; the master can look into it.", "calm": "All is calm", "calm_text": "Nothing waits for you. If something goes wrong, the master will write.", "triage": "Go through one by one", "talk": "Tell the master", "talk_deki": "Tell Deki", "fold": "Fold", "unfold": "Unfold"},
+  "triage": {"title": "Triage", "count": "{{n}} of {{of}}", "close": "Close", "skip": "Skip", "done": "All done", "done_text": "The answers are on their way. If something goes wrong, the master will write in the chat.", "back": "Back to the cockpit"}
 }

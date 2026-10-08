@@ -1,5 +1,5 @@
 import { ActionIcon, Group, Indicator, Menu, Select, Tooltip } from '@mantine/core';
-import { IconCheck, IconFilter, IconPlus } from '@tabler/icons-react';
+import { IconCheck, IconPlus, IconStack2 } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { ChatValue } from '../lib/catalog.gen';
 import { ActionsMenu } from '../ui/ActionsMenu';
@@ -22,7 +22,7 @@ export function TopicBar({ value, topics }: { value: ChatValue; topics: ReturnTy
               <Menu.Target>
                 <ActionIcon variant={narrowed ? 'light' : 'subtle'} color={narrowed ? undefined : 'gray'} radius="xl" size={28}
                   aria-label={t('chat.module')} data-topic-project={topics.scope}>
-                  <IconFilter size={15} />
+                  <IconStack2 size={15} />
                 </ActionIcon>
               </Menu.Target>
             </Tooltip>

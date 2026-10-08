@@ -14,12 +14,13 @@ export const palette: Record<string, MantineColorsTuple> = {
   green: ['#e5ffe9', '#c8ffd2', '#95ffad', '#53fd89', '#43f17e', '#30e572', '#0dd766', '#01a84d', '#00823a', '#016129'],
   teal: ['#e0fff8', '#bdfef0', '#86fce6', '#38f7db', '#1debd0', '#0bdfc4', '#10d0b8', '#01a38f', '#017e6e', '#005d51'],
   cyan: ['#e9fbfe', '#d0f7ff', '#acf0fe', '#80eaff', '#3fe3ff', '#0dd8f5', '#02cae6', '#0b9db3', '#02798b', '#035a67'],
+  coral: ['#fdf5f2', '#faece7', '#f5d3c6', '#efb39d', '#e88e71', '#d85a30', '#c4471f', '#a83d1b', '#993c1d', '#7a2a12'],
   gray: ['#f5f7fa', '#e8ebf1', '#d2d8e2', '#bac1ce', '#a4abb8', '#9199a5', '#6f7682', '#626975', '#4f5661', '#3c434d'],
   dark: ['#e6e6ec', '#c6c6cf', '#9d9daa', '#70707d', '#474752', '#35353e', '#27272e', '#1b1b21', '#121216', '#0a0a0d'],
 };
 
 // textShade is the shade of a bright color that its text and outlines take on white: 4.5:1 or more.
-const textShade: Record<string, number> = { orange: 8, yellow: 8, lime: 8, green: 8, teal: 8, cyan: 8 };
+const textShade: Record<string, number> = { coral: 8, orange: 8, yellow: 8, lime: 8, green: 8, teal: 8, cyan: 8 };
 
 export const resolver: CSSVariablesResolver = () => ({
   variables: {},

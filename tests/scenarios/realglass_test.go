@@ -52,12 +52,12 @@ func TestRealBrowserGlass(t *testing.T) {
 	b := newPlaywright(t)
 	b.call("browser_resize", map[string]any{"width": 1280, "height": 900})
 	b.open(e.URL + "/?token=" + token + "#/deck/settings")
-	b.until("the appearance tab", `document.querySelector('[data-look="theme"] input[value="default"]')?.checked`)
+	b.until("the appearance tab with juce for a new device", `document.querySelector('[data-look="theme"] input[value="juce"]')?.checked`)
 	style := func(sel, prop string) string {
 		return b.eval(`getComputedStyle(document.querySelector('` + sel + `')).` + prop)
 	}
 	if got := style("[data-nav]", "backdropFilter"); got != "none" {
-		t.Fatalf("the default theme has no glass: %s", got)
+		t.Fatalf("juce has no glass: %s", got)
 	}
 	b.eval(`(document.querySelector('[data-look="theme"] input[value="glass"]').click(), '')`)
 	b.eval(`(document.querySelector('[data-look="scheme"] input[value="light"]').click(), '')`)

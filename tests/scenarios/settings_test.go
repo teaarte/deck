@@ -31,8 +31,8 @@ func TestSettingsIsInTheMenuAndItsInterfaceTabIsTheLookOfTheDevice(t *testing.T)
 	for _, s := range menu[0].Screens {
 		names = append(names, s.Name)
 	}
-	if !strings.Contains(strings.Join(names, " "), "cockpit schedule settings") {
-		t.Fatalf("the deck menu is the cockpit, the schedule and settings: %v", names)
+	if !strings.Contains(strings.Join(names, " "), "schedule files settings") {
+		t.Fatalf("the deck menu is the schedule, files and settings; the cockpit is the link at its head: %v", names)
 	}
 	check := newCatalogCheck(t)
 	msgs := e.screenMessages("", "settings", nil)

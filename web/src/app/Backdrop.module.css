@@ -27,3 +27,25 @@
     display: none;
   }
 }
+
+.cloud {
+  position: absolute;
+  width: min(46vw, 560px);
+  opacity: 0.95;
+  user-select: none;
+}
+
+.cloudLeft {
+  left: -6vw;
+  bottom: -8vh;
+}
+
+.cloudRight {
+  right: -4vw;
+  top: -6vh;
+  width: min(36vw, 440px);
+}
+
+:global(:root[data-mantine-color-scheme='dark']) .cloud {
+  opacity: 0.14;
+}

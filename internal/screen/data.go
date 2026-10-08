@@ -246,6 +246,13 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 		}
 		out["value"] = v
 		r.setTone(out, b.Tone, map[string]any{"rows": items})
+		acts, err := r.actions(b.Actions, r.req.Record, r.record)
+		if err != nil {
+			return nil, err
+		}
+		if len(acts) > 0 {
+			out["actions"] = acts
+		}
 	case "media":
 		files := make([]map[string]any, 0, len(items))
 		for _, it := range items {

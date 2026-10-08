@@ -48,7 +48,7 @@ func TestRealBrowserShell(t *testing.T) {
 		return [parseFloat(s.borderTopLeftRadius) > 0, s.boxShadow !== 'none', r.left > 0, r.top > 0].join(' ') })()`); got != "true true true true" {
 		t.Fatalf("the menu is an island: rounded, with a shadow, apart from the edges: %s", got)
 	}
-	b.until("the icons of the menu", `document.querySelector('[data-nav] [data-system] [data-icon="layout-dashboard"]') && document.querySelector('[data-group="web"] [data-icon="rocket"]')`)
+	b.until("the icons of the menu", `document.querySelector('[data-nav] [data-system] [data-icon="layout-grid"]') && document.querySelector('[data-group="web"] [data-icon="rocket"]')`)
 	if got := b.eval(`[...document.querySelectorAll('[data-nav] [data-group]')].map((x) => x.dataset.group).join(' ')`); got != "web" {
 		t.Fatalf("the projects of the menu without deck and the master: %s", got)
 	}
@@ -58,7 +58,7 @@ func TestRealBrowserShell(t *testing.T) {
 	b.eval(`(document.querySelector('[data-system-menu] a[href="#/deck/schedule"]').click(), '')`)
 	b.until("the schedule from the system menu", `location.hash === '#/deck/schedule' && !document.querySelector('[data-system-menu]')`)
 	b.eval(`(document.querySelector('[data-nav] [data-logo]').click(), '')`)
-	b.until("the logo opens the cockpit", `location.hash === '#/deck/cockpit' && document.querySelector('[data-nav] [data-system] [data-icon="layout-dashboard"]')`)
+	b.until("the logo opens the cockpit", `location.hash === '#/deck/cockpit' && document.querySelector('[data-nav] [data-system] [data-icon="layout-grid"]')`)
 	b.until("the counters of the cockpit", `document.querySelectorAll('[data-stat]').length === 4`)
 	if got := b.eval(`(() => { const bs = [...document.querySelectorAll('[data-stat]')].map((x) => x.closest('[data-block]').getBoundingClientRect());
 		return String(new Set(bs.map((r) => Math.round(r.top))).size === 1 && new Set(bs.map((r) => Math.round(r.height))).size === 1) })()`); got != "true" {
@@ -67,7 +67,8 @@ func TestRealBrowserShell(t *testing.T) {
 	if got := b.eval(`String([...document.querySelectorAll('[data-block]')].some((x) => x.innerText.includes('Nothing')))`); got != "false" {
 		t.Fatalf("the cockpit hides its empty lists: %s", got)
 	}
-	b.until("the pattern of icons behind the shell", `getComputedStyle(document.querySelector('[data-backdrop] > div')).maskImage.startsWith('url(')`)
+	b.until("the sky of juce behind the shell", `document.documentElement.dataset.deckTheme === 'juce' && document.querySelectorAll('[data-backdrop] [data-cloud]').length === 2`)
+	b.until("Deki on top of the cockpit", `document.querySelector('[data-hero="full"] [data-deki]')`)
 	b.shot("shell-cockpit")
 	b.until("a new notification on the bell", `document.querySelector('[data-bell-count="1"]')`)
 	b.eval(`(document.querySelector('[data-bell]').click(), '')`)
@@ -193,6 +194,9 @@ func TestRealBrowserShell(t *testing.T) {
 	b.until("no pattern when the owner turns it off", `!document.querySelector('[data-backdrop] > div')`)
 	b.eval(`(document.querySelector('[data-look="pattern"]').click(), '')`)
 	b.until("the pattern back", `document.querySelectorAll('[data-backdrop] > div').length === 2`)
+	b.eval(`(document.querySelector('[data-look="mascot"]').click(), '')`)
+	b.until("no Deki anywhere once the mascot is off", `!document.querySelector('[data-deki]')`)
+	b.eval(`(document.querySelector('[data-look="mascot"]').click(), '')`)
 	b.open(e.URL + "/#/p/web/main")
 	b.until("the dark project screen", `document.querySelector('[data-block] table')`)
 	if got := b.eval(`getComputedStyle(document.querySelector('[data-nav]')).backdropFilter`); got == "none" {
@@ -250,13 +254,12 @@ func TestRealBrowserShell(t *testing.T) {
 	b.eval(`(document.querySelector('[data-look="theme"] input[value="neon"]').click(), '')`)
 	b.until("no scheme in neon, only its note", `!document.querySelector('[data-look="scheme"]') && document.querySelector('[data-look-note="scheme"]') && document.querySelector('[data-look="radius"]')`)
 	e.must("deck.settings_set", map[string]any{"name": "language", "value": "ru"}, nil)
-	b.until("the interface in the language the owner picked", `document.querySelector('[data-nav] [data-system]')?.innerText.includes('Настройки') && document.querySelector('[data-chat-toggle]')?.innerText.includes('Мастер')`)
+	b.until("the interface in the language the owner picked", `document.querySelector('[data-nav] [data-system]')?.innerText.includes('Настройки') && document.querySelector('[data-chat-toggle]')?.innerText.includes('Деки')`)
 	b.shot("shell-ru")
 	b.open(e.URL + "/#/deck/schedule?tab=Spend")
 	b.until("a link to a tab opens it in any language", `document.querySelector('[role="tab"][aria-selected="true"]')?.innerText.includes('Расходы')`)
-	b.eval(`([...document.querySelectorAll('[role="tab"]')].find((x) => x.innerText.includes('Вызовы')).click(), '')`)
-	b.eval(`([...document.querySelectorAll('[role="tab"]')].find((x) => x.innerText.includes('Файлы')).click(), '')`)
-	b.until("the address names the tab as written", `location.hash.endsWith('tab=Files')`)
+	b.eval(`([...document.querySelectorAll('[role="tab"]')].find((x) => x.innerText.includes('Запуски')).click(), '')`)
+	b.until("the address names the tab as written", `location.hash.endsWith('tab=Runs')`)
 	b.open(e.URL + "/#/deck/settings?tab=General")
 	b.until("the settings named in the language of the owner", `document.body.innerText.includes('Язык интерфейса')`)
 }

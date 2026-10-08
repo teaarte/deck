@@ -4,6 +4,7 @@ import { useLocalStorage } from '@mantine/hooks';
 import { IconChevronRight, IconSelector } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { MenuEntry } from '../hooks/useMenu';
+import { useMascot, useMasterName } from '../ui/Deki';
 import { NamedIcon } from '../ui/NamedIcon';
 import s from './nav.module.css';
 import { NavStatus } from './NavStatus';
@@ -13,33 +14,46 @@ const SYSTEM = 'master';
 
 const links = (m: MenuEntry) => [...m.screens, ...(m.extra ?? [])];
 
-// System is deck's screens and the master's behind one button at the foot of the menu, apart from the projects.
+type Link = { m: MenuEntry; x: MenuEntry['screens'][number]; title: string };
+
+// System is deck's screens and the master's behind one button at the foot of the menu, apart from the projects: the
+// work of deck, the settings of the master and deck's settings. The documents of the master are a tab of Files.
 function System({ menu, current, onPick }: { menu: MenuEntry[]; current: string; onPick?: () => void }) {
   const { t } = useTranslation();
+  const mascot = useMascot();
+  const name = useMasterName();
   const path = current.split('?')[0];
-  const here = menu.flatMap((m) => links(m).map((x) => ({ m, x }))).find(({ m, x }) => href({ project: m.project, screen: x.name }) === path);
+  const deck = menu.find((m) => !m.project);
   const master = menu.find((m) => m.project === SYSTEM);
+  const of = (m: MenuEntry | undefined, x: MenuEntry['screens'][number]): Link =>
+    ({ m: m!, x, title: m?.project === SYSTEM && x.name === 'settings' ? t(mascot ? 'nav.deki_settings' : 'nav.master_settings') : x.title });
+  const work = (deck?.screens ?? []).filter((x) => x.name !== 'settings').map((x) => of(deck, x));
+  const own = master ? links(master).filter((x) => x.name !== 'documents').map((x) => of(master, x)) : [];
+  const settings = (deck?.screens ?? []).filter((x) => x.name === 'settings').map((x) => of(deck, x));
+  const groups = [{ key: 'work', label: t('nav.work'), links: work }, { key: SYSTEM, label: name, links: own }, { key: 'settings', label: '', links: settings }]
+    .filter((g) => g.links.length);
+  const here = groups.flatMap((g) => g.links).find((l) => href({ project: l.m.project, screen: l.x.name }) === path);
   return (
     <Menu position="top-start" width="target" withinPortal shadow="md">
       <Menu.Target>
         <UnstyledButton className={s.system} data-active={here ? true : undefined} data-system>
-          <span className={s.groupIcon}><NamedIcon name={here?.x.icon ?? 'layout-grid'} fallback={here?.x.title ?? 'deck'} size={16} /></span>
-          <span className={s.groupTitle}>{here ? `${here.m.project ? here.m.title : t('nav.deck')} · ${here.x.title}` : t('nav.deck')}</span>
+          <span className={s.groupIcon}><NamedIcon name={here?.x.icon ?? 'layout-grid'} fallback={here?.title ?? t('nav.control')} size={16} /></span>
+          <span className={s.groupTitle}>{here ? here.title : t('nav.control')}</span>
           {master && <NavStatus m={master} />}
           <IconSelector size={14} className={s.chevron} />
         </UnstyledButton>
       </Menu.Target>
       <Menu.Dropdown data-system-menu>
-        {menu.map((m, i) => (
-          <div key={m.project ?? ''} data-group={m.project ?? ''}>
+        {groups.map((g, i) => (
+          <div key={g.key} data-group={g.key === 'work' ? '' : g.key}>
             {i > 0 && <Menu.Divider />}
-            <Menu.Label>{m.project ? m.title : t('nav.deck')}</Menu.Label>
-            {links(m).map((x) => {
-              const to = href({ project: m.project, screen: x.name });
+            {g.label && <Menu.Label>{g.label}</Menu.Label>}
+            {g.links.map((l) => {
+              const to = href({ project: l.m.project, screen: l.x.name });
               return (
-                <Menu.Item key={x.name} component="a" href={to} onClick={onPick} data-active={to === path || undefined}
-                  leftSection={<NamedIcon name={x.icon ?? 'point'} fallback={x.title} size={16} />}>
-                  {x.title}
+                <Menu.Item key={l.x.name} component="a" href={to} onClick={onPick} data-active={to === path || undefined}
+                  leftSection={<NamedIcon name={l.x.icon ?? 'point'} fallback={l.title} size={16} />}>
+                  {l.title}
                 </Menu.Item>
               );
             })}
@@ -105,7 +119,7 @@ export const Nav = memo(function Nav({ menu: all, current, onPick }: { menu: Men
           );
         })}
       </ScrollArea>
-      {system.length > 0 && <div className={s.foot}><System menu={system} current={current} onPick={onPick} /></div>}
+      {system.length > 0 && <div className={s.foot} data-nav-foot><System menu={system} current={current} onPick={onPick} /></div>}
     </>
   );
 });

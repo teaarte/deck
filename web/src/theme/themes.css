@@ -147,3 +147,43 @@
     background: var(--mantine-primary-color-9);
   }
 }
+
+/* Juce: a sky behind white islands, coral accent, Helvetica. */
+:root[data-deck-theme='juce'] {
+  --deck-canvas: linear-gradient(180deg, #cfe6fa 0%, #e3f0fb 45%, #f4f5f7 100%);
+  --deck-island-radius: 24px;
+  --deck-block-radius: 20px;
+  --deck-ring: 0 0 0 1px rgb(20 40 70 / 0.05);
+  --deck-shadow: 0 10px 40px -20px rgb(20 40 70 / 0.4);
+  --deck-fill: #f4f5f7;
+  --deck-fill-hover: #eceef2;
+  --deck-line: #f0f1f4;
+}
+
+:root[data-deck-theme='juce'][data-mantine-color-scheme='light'] {
+  --deck-island-bg: #fff;
+  --deck-block-bg: #fff;
+  --deck-text-2: #374151;
+  --mantine-color-text: #0e1116;
+  --mantine-color-dimmed: #5b6470;
+  --mantine-color-default-hover: #f4f5f7;
+  --mantine-color-default-border: #e7e9ee;
+}
+
+:root[data-deck-theme='juce'][data-mantine-color-scheme='dark'] {
+  --deck-canvas: linear-gradient(180deg, #14243a 0%, #10192a 45%, #0b0e13 100%);
+  --deck-shadow: 0 10px 40px -20px rgb(0 0 0 / 0.8);
+  --deck-ring: 0 0 0 1px rgb(255 255 255 / 0.06);
+  --deck-fill: rgb(255 255 255 / 0.06);
+  --deck-fill-hover: rgb(255 255 255 / 0.1);
+  --deck-line: rgb(255 255 255 / 0.07);
+}
+
+:root[data-deck-theme='juce'] [data-nav] [data-asks] {
+  color: var(--mantine-color-coral-8);
+  background: var(--mantine-color-coral-1);
+}
+
+:root[data-deck-theme='juce'] [data-nav] [data-running] {
+  background: #2e9e6b;
+}

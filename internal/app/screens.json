@@ -145,7 +145,13 @@
       "Failing checks": "Проверки с ошибкой",
       "Runs today": "Запусков сегодня",
       "Runs": "Запуски",
+      "Needs your decision": "Нужно ваше решение",
+      "Nothing moves on without your answer; the time a confirmation has left is beside it.": "Без вашего ответа дальше не пойдёт; у подтверждения видно, сколько времени осталось.",
       "Notes": "Заметки",
+      "On schedule": "По расписанию",
+      "What the project's commands do by themselves, and when.": "Что команды проекта делают сами и когда.",
+      "Documents of the master": "Документы мастера",
+      "The memory, prompts and skills of the master.": "Память, промпты и навыки мастера.",
       "What": "Что",
       "What it does": "Что делает",
       "What the project can do and where its agent commands run; a model picked here replaces the one the manifest suggests.": "Что умеет проект и где работают его агентские команды; выбранная здесь модель заменяет предложенную манифестом.",
@@ -154,56 +160,63 @@
       "Why": "Почему"
     }
   },
-  "menu": ["cockpit", "schedule", "settings"],
+  "menu": ["schedule", "files", "settings"],
   "screens": [
     {
       "name": "cockpit",
       "icon": "layout-dashboard",
       "title": "Cockpit",
       "blocks": [
-        {"type": "stat", "title": "Waiting for you", "icon": "hand-stop", "source": {"from": "deck.asks_list"}, "tone": "len(rows) > 0 ? 'warn' : 'muted'"},
-        {"type": "stat", "title": "Running", "icon": "player-play", "source": {"from": "deck.processes_list", "input": {"open": true}}, "tone": "len(rows) > 0 ? 'ok' : 'muted'"},
-        {"type": "stat", "title": "Failing checks", "icon": "heartbeat", "source": {"from": "deck.health_list"}, "value": "count(rows, .status == 'error')", "tone": "count(rows, .status == 'error') > 0 ? 'error' : 'muted'"},
-        {"type": "stat", "title": "Runs today", "icon": "repeat", "source": {"from": "deck.runs_daily", "input": {"days": 1}}, "value": "sum(map(rows, .runs))", "tone": "'muted'"},
-        {"type": "list", "title": "Waiting for you", "icon": "hand-stop", "when": "len(rows) > 0", "source": {"from": "deck.asks_list"},
-          "item": {"title": "what", "text": "where", "meta": "project + (who != '' ? ' · ' + who : '')", "tone": "expired ? 'muted' : 'warn'",
-            "details": "kind in ['call', 'unknown', 'confirm', 'grant'] ? toJSON(payload) : ''",
-            "questions": "kind == 'question' && len(payload?.questions ?? []) > 0 ? payload.questions : nil"},
-          "actions": [
-            {"verb": "answer", "primary": true, "command": "deck.ask_answer", "params": {"ask": "=id"}, "input": "answer", "when": "kind == 'question' && !expired"},
-            {"verb": "retry", "primary": true, "command": "deck.ask_answer", "params": {"ask": "=id", "answer": "retry"}, "when": "kind == 'unknown' && !expired"},
-            {"verb": "mark_done", "command": "deck.ask_answer", "params": {"ask": "=id", "answer": "done"}, "when": "kind == 'unknown' && !expired"},
-            {"verb": "allow", "primary": true, "command": "deck.ask_answer", "params": {"ask": "=id", "answer": "allow"}, "until": "=expires_at", "when": "kind in ['call', 'confirm', 'grant'] && !expired"},
-            {"verb": "allow_always", "command": "deck.ask_answer", "params": {"ask": "=id", "answer": "allow_always"}, "until": "=expires_at", "when": "kind == 'call' && !expired"},
-            {"verb": "deny", "command": "deck.ask_answer", "params": {"ask": "=id", "answer": "deny"}, "when": "kind in ['call', 'confirm', 'grant'] && !expired"},
-            {"verb": "deny_because", "command": "deck.ask_answer", "params": {"ask": "=id", "answer": "deny"}, "input": "reason", "when": "kind in ['call', 'confirm', 'grant'] && !expired"},
-            {"verb": "retry", "primary": true, "command": "deck.ask_answer", "params": {"ask": "=id", "answer": "retry"}, "when": "kind == 'login' && !expired"},
-            {"verb": "new_session", "command": "deck.ask_answer", "params": {"ask": "=id", "answer": "new_session"}, "when": "kind == 'login' && !expired"},
-            {"verb": "sign_in", "primary": true, "command": "deck.browser_login", "params": {"url": "='https://' + payload.site"}, "when": "kind == 'sign_in' && (payload?.site ?? '') != '' && !expired"},
-            {"verb": "signed_in", "command": "deck.browser_login_done", "params": {"url": "='https://' + payload.site"}, "when": "kind == 'sign_in' && (payload?.site ?? '') != '' && !expired"},
-            {"verb": "sign_in", "primary": true, "command": "deck.oauth_start", "params": {"tool": "=payload?.tool ?? ''"}, "when": "kind == 'sign_in' && (payload?.site ?? '') == '' && !expired"},
-            {"verb": "deny", "primary": true, "command": "deck.ask_answer", "params": {"ask": "=id", "answer": "deny"}, "when": "expired"}
-          ]},
-        {"type": "list", "title": "Notes", "icon": "bell", "when": "len(rows) > 0",
-          "source": {"from": "deck.feed_list", "input": {"kind": "note", "unread": true}, "limit": 10},
-          "item": {"title": "text", "meta": "project + ' · ' + author"},
-          "actions": [
-            {"verb": "open", "screen": "=screen", "project": "=deck_screen ? '' : project", "record": "=record", "when": "screen != ''"},
-            {"verb": "mark_read", "primary": true, "command": "deck.feed_read", "params": {"entry": "=id"}}
-          ]},
+        {"type": "stat", "title": "Waiting for you", "icon": "hand-finger", "source": {"from": "deck.asks_list"}, "tone": "len(rows) > 0 ? 'warn' : 'muted'"},
+        {"type": "stat", "title": "Running", "icon": "activity", "source": {"from": "deck.processes_list", "input": {"open": true}}, "tone": "len(rows) > 0 ? 'ok' : 'muted'",
+          "actions": [{"verb": "open", "screen": "schedule", "params": {"tab": "Runs"}}]},
+        {"type": "stat", "title": "Failing checks", "icon": "alert-triangle", "source": {"from": "deck.health_list"}, "value": "count(rows, .status == 'error')", "tone": "count(rows, .status == 'error') > 0 ? 'error' : 'muted'",
+          "actions": [{"verb": "open", "screen": "settings", "params": {"tab": "Health"}}]},
+        {"type": "stat", "title": "Runs today", "icon": "repeat", "source": {"from": "deck.runs_daily", "input": {"days": 1}}, "value": "sum(map(rows, .runs))", "tone": "'muted'",
+          "actions": [{"verb": "open", "screen": "schedule", "params": {"tab": "Runs"}}]},
         {"type": "columns", "blocks": [
-          {"type": "list", "title": "Running now", "icon": "player-play", "when": "len(rows) > 0",
-            "source": {"from": "deck.processes_list", "input": {"open": true}},
-            "item": {"title": "project + ' · ' + command", "text": "(question ?? '') != '' ? 'waits for your answer: ' + question : silent ? 'silent' : state == 'waiting_slot' ? 'waits for a slot' : state == 'waiting_folder' ? 'waits for folder ' + folder : ''", "meta": "'#' + string(id)"},
+          {"type": "list", "title": "Needs your decision", "icon": "hand-finger", "span": 2, "when": "len(rows) > 0", "source": {"from": "deck.asks_list"},
+              "description": "Nothing moves on without your answer; the time a confirmation has left is beside it.",
+            "item": {"title": "what", "text": "where",
+              "icon": "kind == 'question' ? 'message-question' : kind in ['sign_in', 'login'] ? 'key' : kind == 'unknown' ? 'help-triangle' : kind == 'grant' ? 'shield-check' : 'send'", "meta": "project + (who != '' ? ' · ' + who : '')", "tone": "expired ? 'muted' : 'warn'",
+              "details": "kind in ['call', 'unknown', 'confirm', 'grant'] ? toJSON(payload) : ''",
+              "questions": "kind == 'question' && len(payload?.questions ?? []) > 0 ? payload.questions : nil"},
             "actions": [
-              {"verb": "open", "screen": "process", "record": "=id"},
-              {"verb": "stop", "command": "deck.process_stop", "params": {"process": "=id"}, "when": "(finished_at ?? '') == ''"}
+              {"verb": "answer", "primary": true, "command": "deck.ask_answer", "params": {"ask": "=id"}, "input": "answer", "when": "kind == 'question' && !expired"},
+              {"verb": "retry", "primary": true, "command": "deck.ask_answer", "params": {"ask": "=id", "answer": "retry"}, "when": "kind == 'unknown' && !expired"},
+              {"verb": "mark_done", "command": "deck.ask_answer", "params": {"ask": "=id", "answer": "done"}, "when": "kind == 'unknown' && !expired"},
+              {"verb": "allow", "primary": true, "command": "deck.ask_answer", "params": {"ask": "=id", "answer": "allow"}, "until": "=expires_at", "when": "kind in ['call', 'confirm', 'grant'] && !expired"},
+              {"verb": "allow_always", "command": "deck.ask_answer", "params": {"ask": "=id", "answer": "allow_always"}, "until": "=expires_at", "when": "kind == 'call' && !expired"},
+              {"verb": "deny", "command": "deck.ask_answer", "params": {"ask": "=id", "answer": "deny"}, "when": "kind in ['call', 'confirm', 'grant'] && !expired"},
+              {"verb": "deny_because", "command": "deck.ask_answer", "params": {"ask": "=id", "answer": "deny"}, "input": "reason", "when": "kind in ['call', 'confirm', 'grant'] && !expired"},
+              {"verb": "retry", "primary": true, "command": "deck.ask_answer", "params": {"ask": "=id", "answer": "retry"}, "when": "kind == 'login' && !expired"},
+              {"verb": "new_session", "command": "deck.ask_answer", "params": {"ask": "=id", "answer": "new_session"}, "when": "kind == 'login' && !expired"},
+              {"verb": "sign_in", "primary": true, "command": "deck.browser_login", "params": {"url": "='https://' + payload.site"}, "when": "kind == 'sign_in' && (payload?.site ?? '') != '' && !expired"},
+              {"verb": "signed_in", "command": "deck.browser_login_done", "params": {"url": "='https://' + payload.site"}, "when": "kind == 'sign_in' && (payload?.site ?? '') != '' && !expired"},
+              {"verb": "sign_in", "primary": true, "command": "deck.oauth_start", "params": {"tool": "=payload?.tool ?? ''"}, "when": "kind == 'sign_in' && (payload?.site ?? '') == '' && !expired"},
+              {"verb": "deny", "primary": true, "command": "deck.ask_answer", "params": {"ask": "=id", "answer": "deny"}, "when": "expired"}
             ]},
-          {"type": "list", "title": "Done without you", "icon": "history", "when": "len(rows) > 0", "source": {"from": "deck.feed_list", "input": {"kind": "change"}, "limit": 3},
-            "item": {"title": "text", "meta": "project + ' · ' + author"},
-            "actions": [
-              {"verb": "undo", "command": "deck.feed_undo", "params": {"entry": "=id"}, "when": "can_undo"}
-            ]}
+          {"type": "columns", "blocks": [
+            {"type": "list", "title": "Running now", "icon": "activity", "when": "len(rows) > 0",
+              "source": {"from": "deck.processes_list", "input": {"open": true}},
+              "item": {"title": "project + ' · ' + command", "text": "(question ?? '') != '' ? 'waits for your answer: ' + question : silent ? 'silent' : state == 'waiting_slot' ? 'waits for a slot' : state == 'waiting_folder' ? 'waits for folder ' + folder : ''", "meta": "'#' + string(id)"},
+              "actions": [
+                {"verb": "open", "screen": "process", "record": "=id"},
+                {"verb": "stop", "command": "deck.process_stop", "params": {"process": "=id"}, "when": "(finished_at ?? '') == ''"}
+              ]},
+            {"type": "list", "title": "Notes", "icon": "bell", "when": "len(rows) > 0",
+              "source": {"from": "deck.feed_list", "input": {"kind": "note", "unread": true}, "limit": 10},
+              "item": {"title": "text", "icon": "'news'", "meta": "project + ' · ' + author"},
+              "actions": [
+                {"verb": "open", "screen": "=screen", "project": "=deck_screen ? '' : project", "record": "=record", "when": "screen != ''"},
+                {"verb": "mark_read", "primary": true, "command": "deck.feed_read", "params": {"entry": "=id"}}
+              ]},
+            {"type": "list", "title": "Done without you", "icon": "checks", "when": "len(rows) > 0", "source": {"from": "deck.feed_list", "input": {"kind": "change"}, "limit": 3},
+              "item": {"title": "text", "meta": "project + ' · ' + author"},
+              "actions": [
+                {"verb": "undo", "command": "deck.feed_undo", "params": {"entry": "=id"}, "when": "can_undo"}
+              ]}
+          ]}
         ]},
         {"type": "dialog", "name": "changes", "title": "All changes", "icon": "history", "blocks": [
           {"type": "table", "title": "Done without you", "source": {"from": "deck.feed_list", "input": {"kind": "change", "limit": 500}},
@@ -226,10 +239,10 @@
       "blocks": [
         {"type": "tabs", "tabs": [
           {"title": "Schedule", "icon": "calendar-time", "blocks": [
-            {"type": "stat", "title": "Runs, 30 days", "icon": "repeat", "source": {"from": "deck.runs_daily", "input": {"days": 30}}, "value": "sum(map(rows, .runs))"},
-            {"type": "stat", "title": "By schedule, 30 days", "icon": "calendar-time", "source": {"from": "deck.runs_daily", "input": {"days": 30}}, "value": "sum(map(rows, .scheduled))"},
-            {"type": "stat", "title": "Runs today", "icon": "clock", "source": {"from": "deck.runs_daily", "input": {"days": 1}}, "value": "sum(map(rows, .runs))"},
-            {"type": "stat", "title": "Failed, 30 days", "icon": "alert-triangle", "source": {"from": "deck.runs_daily", "input": {"days": 30}}, "value": "sum(map(rows, .failed))",
+            {"type": "stat", "title": "Runs, 30 days", "icon": "repeat", "source": {"from": "deck.runs_daily", "input": {"days": 30}}, "value": "sum(map(rows, .runs))", "actions": [{"verb": "open", "screen": "schedule", "params": {"tab": "Runs"}}]},
+            {"type": "stat", "title": "By schedule, 30 days", "icon": "calendar-time", "source": {"from": "deck.runs_daily", "input": {"days": 30}}, "value": "sum(map(rows, .scheduled))", "actions": [{"verb": "open", "screen": "schedule", "params": {"tab": "Runs"}}]},
+            {"type": "stat", "title": "Runs today", "icon": "clock", "source": {"from": "deck.runs_daily", "input": {"days": 1}}, "value": "sum(map(rows, .runs))", "actions": [{"verb": "open", "screen": "schedule", "params": {"tab": "Runs"}}]},
+            {"type": "stat", "title": "Failed, 30 days", "icon": "alert-triangle", "source": {"from": "deck.runs_daily", "input": {"days": 30}}, "value": "sum(map(rows, .failed))", "actions": [{"verb": "open", "screen": "schedule", "params": {"tab": "Runs"}}],
               "tone": "sum(map(rows, .failed)) > 0 ? 'error' : 'muted'"},
             {"type": "chart", "title": "Runs by day", "kind": "bar", "span": "full", "source": {"from": "deck.runs_daily", "input": {"days": 30}}, "x": "day",
               "series": [{"label": "By schedule", "y": "scheduled"}, {"label": "Other", "y": "runs - scheduled"}, {"label": "Failed", "y": "failed"}]},
@@ -264,6 +277,20 @@
               "actions": [
                 {"verb": "open", "screen": "process", "record": "=id"},
                 {"verb": "stop", "command": "deck.process_stop", "params": {"process": "=id"}, "when": "(finished_at ?? '') == ''"}
+              ]},
+            {"type": "table", "title": "Calls of the gateway", "source": {"from": "deck.calls_list"}, "filter": ["project", "outcome"],
+              "columns": [
+                {"label": "When", "bind": "created_at"},
+                {"label": "Tool", "bind": "tool"},
+                {"label": "Who", "bind": "actor"},
+                {"label": "Project", "bind": "project"},
+                {"label": "Class", "bind": "class"},
+                {"label": "Outcome", "bind": "outcome"},
+                {"label": "External id", "bind": "external_id"},
+                {"label": "Error", "bind": "error"}
+              ],
+              "actions": [
+                {"verb": "open", "screen": "process", "record": "=process", "when": "process != 0"}
               ]}
           ]},
           {"title": "Spend", "icon": "chart-bar", "blocks": [
@@ -304,24 +331,21 @@
                 {"label": "Cost, $", "bind": "cost_usd > 0 ? string(cost_usd) : ''"},
                 {"label": "Last", "bind": "last_at"}
               ]}
-          ]},
-          {"title": "Calls", "blocks": [
-            {"type": "table", "title": "Calls of the gateway", "source": {"from": "deck.calls_list"}, "filter": ["project", "outcome"],
-              "columns": [
-                {"label": "When", "bind": "created_at"},
-                {"label": "Tool", "bind": "tool"},
-                {"label": "Who", "bind": "actor"},
-                {"label": "Project", "bind": "project"},
-                {"label": "Class", "bind": "class"},
-                {"label": "Outcome", "bind": "outcome"},
-                {"label": "External id", "bind": "external_id"},
-                {"label": "Error", "bind": "error"}
-              ],
-              "actions": [
-                {"verb": "open", "screen": "process", "record": "=process", "when": "process != 0"}
-              ]}
-          ]},
-          {"title": "Files", "blocks": [
+          ]}
+        ]},
+        {"type": "dialog", "name": "assign", "title": "Choose the models of a command", "icon": "cpu", "blocks": [
+          {"type": "form", "command": "deck.assignment_set", "description": "The first model runs the command; the next ones take it while the first is down.",
+            "values": {"role": "agent", "project": "=param.project", "command": "=param.command", "models": "=(param.models ?? '') != '' ? split(param.models, ',') : nil"},
+            "choices": {"models": {"source": {"from": "deck.models_list", "rows": "models", "where": "(agent ?? '') != ''"}, "value": "name"}}}]}
+      ]
+    },
+    {
+      "name": "files",
+      "icon": "files",
+      "title": "Files",
+      "blocks": [
+        {"type": "tabs", "tabs": [
+          {"title": "Files", "icon": "files", "blocks": [
             {"type": "table", "title": "Files", "source": {"from": "deck.files_list"}, "filter": ["project"],
               "columns": [
                 {"label": "Name", "bind": "name"},
@@ -335,7 +359,22 @@
                 {"verb": "download", "file": "=id"}
               ]}
           ]},
-          {"title": "Snapshots", "blocks": [
+          {"title": "Documents", "icon": "file-text", "blocks": [
+            {"type": "table", "title": "Documents of the master", "source": {"from": "deck.documents_list", "input": {"project": "master", "with_deleted": true}, "sort": "name"}, "filter": ["kind"],
+              "description": "The memory, prompts and skills of the master.",
+              "columns": [
+                {"label": "Name", "bind": "name"},
+                {"label": "Kind", "bind": "kind"},
+                {"label": "Revision", "bind": "revision"},
+                {"label": "Deleted", "bind": "deleted ? 'deleted' : ''"}
+              ],
+              "actions": [
+                {"verb": "restore", "command": "deck.document_restore", "params": {"document": "=id"}, "when": "deleted"},
+                {"verb": "open", "screen": "document", "project": "master", "record": "=id", "when": "!deleted"},
+                {"verb": "delete", "confirm": true, "command": "deck.document_delete", "params": {"document": "=id"}, "when": "!deleted && kind != 'manifest' && !(kind == 'prompt' && owner_kind == '')"}
+              ]}
+          ]},
+          {"title": "Snapshots", "icon": "camera", "blocks": [
             {"type": "table", "title": "Snapshots", "source": {"from": "deck.snapshots_list"},
               "columns": [
                 {"label": "Snapshot", "bind": "name"},
@@ -344,11 +383,7 @@
               ]},
             {"type": "form", "title": "Take a snapshot now", "command": "deck.snapshot_create"}
           ]}
-        ]},
-        {"type": "dialog", "name": "assign", "title": "Choose the models of a command", "icon": "cpu", "blocks": [
-          {"type": "form", "command": "deck.assignment_set", "description": "The first model runs the command; the next ones take it while the first is down.",
-            "values": {"role": "agent", "project": "=param.project", "command": "=param.command", "models": "=(param.models ?? '') != '' ? split(param.models, ',') : nil"},
-            "choices": {"models": {"source": {"from": "deck.models_list", "rows": "models", "where": "(agent ?? '') != ''"}, "value": "name"}}}]}
+        ]}
       ]
     },
     {
@@ -606,6 +641,22 @@
             {"verb": "models", "screen": "settings", "params": {"dialog": "assign", "command": "=trimPrefix(name, project + '.')", "models": "=provider"}, "when": "executor == 'agent'"},
             {"verb": "try", "screen": "settings", "params": {"dialog": "try-command", "command": "=name"}}
           ]},
+        {"type": "table", "title": "On schedule", "when": "len(rows) > 0", "source": {"from": "deck.triggers_list", "sort": "command"},
+          "description": "What the project's commands do by themselves, and when.",
+          "columns": [
+            {"label": "Command", "bind": "command"},
+            {"label": "When", "bind": "kind == 'cron' ? spec : kind + ' ' + spec", "format": "cron"},
+            {"label": "Model", "bind": "model"},
+            {"label": "Next run", "bind": "next_run_at", "format": "relative"},
+            {"label": "Last result", "bind": "last_state", "format": "tag", "tone": "last_state == 'done' ? 'ok' : last_state in ['error', 'interrupted'] ? 'error' : ''"},
+            {"label": "State", "bind": "project_paused ? 'project paused' : paused ? 'paused' : 'on'", "tone": "paused ? 'muted' : ''"}
+          ],
+          "actions": [
+            {"verb": "run_now", "command": "deck.trigger_run", "params": {"trigger": "=id"}, "when": "kind == 'cron'"},
+            {"verb": "resume", "command": "deck.trigger_pause", "params": {"trigger": "=id", "paused": "false"}, "when": "own_paused"},
+            {"verb": "pause", "command": "deck.trigger_pause", "params": {"trigger": "=id", "paused": "true"}, "when": "!own_paused"},
+            {"verb": "open", "screen": "process", "project": "", "record": "=last_process", "when": "last_process != 0"}
+          ]},
         {"type": "table", "title": "Folders", "source": {"from": "deck.folders_list"},
           "description": "Folders on disk the agent commands of the project with a folder work in.",
           "empty": "No folders; add one for commands that work on files of a repository",
@@ -616,13 +667,13 @@
           "actions": [
             {"verb": "remove", "confirm": true, "command": "deck.folder_remove", "params": {"name": "=name"}}
           ]},
-        {"type": "table", "title": "Tools", "source": {"from": "deck.commands_list", "where": "tool != ''", "sort": "name"},
+        {"type": "table", "title": "Tools", "when": "len(rows) > 0", "source": {"from": "deck.commands_list", "where": "tool != ''", "sort": "name"},
           "columns": [
             {"label": "Tool", "bind": "name"},
             {"label": "Kind", "bind": "tool"},
             {"label": "What it does", "bind": "description"}
           ]},
-        {"type": "table", "title": "Secrets", "source": {"from": "deck.secrets_list"},
+        {"type": "table", "title": "Secrets", "when": "len(rows) > 0", "source": {"from": "deck.secrets_list"},
           "description": "The secrets the manifest of the project names; the values stay with deck.",
           "columns": [
             {"label": "Secret", "bind": "name"},
@@ -632,7 +683,7 @@
             {"verb": "replace", "screen": "settings", "params": {"dialog": "secret", "name": "=name"}, "when": "set"},
             {"verb": "set", "primary": true, "screen": "settings", "params": {"dialog": "secret", "name": "=name"}, "when": "!set"}
           ]},
-        {"type": "table", "title": "Tokens with access", "source": {"from": "deck.tokens_list", "sort": "-id"},
+        {"type": "table", "title": "Tokens with access", "when": "len(rows) > 0", "source": {"from": "deck.tokens_list", "sort": "-id"},
           "columns": [
             {"label": "Name", "bind": "name"},
             {"label": "Commands", "bind": "join(commands, ', ')"},

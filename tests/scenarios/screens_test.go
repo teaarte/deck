@@ -255,11 +255,11 @@ func TestScreenBlocksFollowTheCatalog(t *testing.T) {
 		Extra   []struct{ Name string }
 	}
 	e.menuOf(&menu)
-	if len(menu) != 2 || menu[0].Project != "" || menu[0].Screens[0].Name != "cockpit" || menu[1].Project != "notes" ||
+	if len(menu) != 2 || menu[0].Project != "" || menu[0].Screens[0].Name != "schedule" || menu[1].Project != "notes" ||
 		len(menu[1].Screens) != 1 || menu[1].Screens[0].Name != "main" || len(menu[1].Extra) != 2 || menu[1].Extra[0].Name != "documents" || menu[1].Extra[1].Name != "settings" {
 		t.Fatalf("the menu has deck's screens, then the project menu with its documents and settings apart: %+v", menu)
 	}
-	for _, name := range []string{"cockpit", "schedule", "settings"} {
+	for _, name := range []string{"cockpit", "schedule", "files", "settings"} {
 		check.messages(t, e.screenMessages("", name, nil))
 	}
 }
@@ -325,6 +325,9 @@ func TestCockpitShowsWhatWaitsWithItsVerbs(t *testing.T) {
 	e.waitFor("the question", func() bool { return len(e.cockpitItems()) == 3 })
 
 	check.messages(t, e.screenMessages("", "cockpit", nil))
+	if got := string(e.screenData("", "cockpit", nil)["b2"]["actions"]); !strings.Contains(got, `"screen":"settings"`) || !strings.Contains(got, `"tab":"Health"`) {
+		t.Fatalf("the counter of failing checks opens the health of settings: %s", got)
+	}
 	items := e.cockpitItems()
 	old, fresh, q := items[0], items[1], items[2]
 	verbs := func(it listItem) []string {
@@ -387,7 +390,7 @@ func merge(a, b map[string]any) map[string]any {
 func (e *Env) cockpitItems() []listItem {
 	e.T.Helper()
 	var items []listItem
-	_ = json.Unmarshal(e.screenData("", "cockpit", nil)["b4"]["items"], &items)
+	_ = json.Unmarshal(e.screenData("", "cockpit", nil)["b4-0"]["items"], &items)
 	return items
 }
 
@@ -486,7 +489,7 @@ func TestProcessPageShowsItsLogInTheWordsOfACP(t *testing.T) {
 func (e *Env) cockpitRunning() []listItem {
 	e.T.Helper()
 	var items []listItem
-	_ = json.Unmarshal(e.screenData("", "cockpit", nil)["b6-0"]["items"], &items)
+	_ = json.Unmarshal(e.screenData("", "cockpit", nil)["b4-1-0"]["items"], &items)
 	return items
 }
 
@@ -994,4 +997,40 @@ func TestUndoOfAModuleButtonIsACallOfItsOwn(t *testing.T) {
 	if !found {
 		t.Fatal("the undo of a module's button calls the project's command with params from the row")
 	}
+}
+
+// TestTheMasterSettingsShowWhatItDoesOnSchedule: the settings of a project list what its commands do by themselves
+// and leave out the empty tools, secrets and tokens; the documents of the master are a tab of files.
+func TestTheMasterSettingsShowWhatItDoesOnSchedule(t *testing.T) {
+	e := newEnv(t, nil)
+	check := newCatalogCheck(t)
+	check.messages(t, e.screenMessages("master", "settings", nil))
+	data := e.screenData("master", "settings", nil)
+	var sched []screenRow
+	for id, d := range data {
+		if strings.Contains(string(d["rows"]), `"review"`) && strings.Contains(string(d["rows"]), "30 10 * * *") {
+			sched = blockData[[]screenRow](t, data[id]["rows"])
+		}
+	}
+	if len(sched) == 0 {
+		t.Fatalf("the settings of the master list its runs on schedule: %v", keys(data))
+	}
+	comps := string(e.screenMessages("master", "settings", nil)[1]["updateComponents"])
+	for _, gone := range []string{`"title":"Tools"`, `"title":"Secrets"`, `"title":"Tokens with access"`} {
+		if strings.Contains(comps, gone) {
+			t.Fatalf("an empty block is left out of the settings of the master: %s", gone)
+		}
+	}
+	docs := blockData[[]screenRow](t, e.screenData("", "files", nil)["b0-1-0"]["rows"])
+	if len(docs) == 0 {
+		t.Fatalf("the documents of the master are a tab of files")
+	}
+}
+
+func keys(m map[string]map[string]json.RawMessage) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	return out
 }

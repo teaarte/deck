@@ -6,6 +6,7 @@ import { call } from '../lib/api';
 import catalogSchema from '../lib/catalogSchema';
 import { notifyError } from '../lib/notify';
 import type { ChatValue } from '../lib/catalog.gen';
+import { DekiHead, useMascot } from '../ui/Deki';
 import { Markdown } from '../ui/Markdown';
 import s from './chat.module.css';
 
@@ -24,9 +25,11 @@ function ReplyState({ reply }: { reply: NonNullable<ChatMessage['reply']> }) {
   );
 }
 
-// Message is a message of the owner as a bubble with its files, or a line of the master in markdown with its tools.
+// Message is a message of the owner as a bubble with its files, or a line of the master in markdown with its tools and
+// the face of Deki.
 export const Message = memo(function Message({ m }: { m: ChatMessage }) {
   const { t } = useTranslation();
+  const mascot = useMascot();
   if (m.role === 'owner') {
     const files = (m.files ?? []).map((f) => f.name);
     return (
@@ -48,7 +51,8 @@ export const Message = memo(function Message({ m }: { m: ChatMessage }) {
     );
   }
   return (
-    <div className={s.masterLine} data-message="master">
+    <div className={s.masterLine} data-message="master" data-avatar={mascot || undefined}>
+      {mascot && <span className={s.avatar}><DekiHead size={28} /></span>}
       <Markdown text={m.text} />
       <Group gap={4} className={s.lineTools}>
         <CopyButton value={m.text}>{({ copied, copy }) => (

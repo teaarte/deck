@@ -3,6 +3,7 @@ import { IconArrowsMaximize, IconArrowsMinimize, IconSparkles, IconX } from '@ta
 import { useTranslation } from 'react-i18next';
 import { useResizable } from '../hooks/useResizable';
 import { ScreenView } from '../screen/ScreenView';
+import { DekiHead, useMascot, useMasterName } from '../ui/Deki';
 import s from './shell.module.css';
 import type { useChatLayout } from './useChatLayout';
 import type { Route } from './router';
@@ -18,8 +19,11 @@ export function ChatPanel({ phone, layout, onProjects, onClose, onDragging }: {
 }) {
   const { t } = useTranslation();
   const grip = useResizable({ min: 280, maxRatio: 0.7, value: layout.width, onCommit: layout.setWidth, onDragging });
+  const mascot = useMascot();
+  const name = useMasterName();
   const panel = <ScreenView route={CHAT} onProjects={onProjects} />;
-  const title = <Group gap={8} wrap="nowrap" miw={0} fw={700}><span className={s.logoMark}><IconSparkles size={15} stroke={2} /></span><span className={s.asideTitle}>{t('chat.master')}</span></Group>;
+  const mark = mascot ? <DekiHead size={30} square /> : <span className={s.logoMark}><IconSparkles size={15} stroke={2} /></span>;
+  const title = <Group gap={8} wrap="nowrap" miw={0} fw={700}>{mark}<span className={s.asideTitle}>{name}</span></Group>;
   if (phone) {
     return (
       <Drawer opened={layout.chat} onClose={() => layout.setChat(false)} size="100%" position="right" withCloseButton={false} padding="xs" data-chat-phone

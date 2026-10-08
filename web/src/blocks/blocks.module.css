@@ -34,12 +34,46 @@
   flex: 1 1 var(--deck-cell);
 }
 
+.grid > .cell:has(> [data-stat-block]) {
+  flex: 1 1 170px;
+}
+
 .grid > .cell:has(> [data-span='2']) {
   flex: 2 1 calc(var(--deck-cell) * 2);
 }
 
 .grid > .cell:has(> [data-span='full']) {
   flex: 1 1 100%;
+}
+
+.cols {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--mantine-spacing-lg);
+}
+
+.cols:has(> .cell > * > [data-column]) {
+  align-items: flex-start;
+}
+
+.cols > .cell {
+  flex: 1 1 300px;
+  min-width: 0;
+}
+
+.cols > .cell:has(> [data-span='2']) {
+  flex: 1.4 1 380px;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mantine-spacing-lg);
+}
+
+.stack > .cell {
+  height: auto;
+  min-width: 0;
 }
 
 .dialog :global([data-block]) {

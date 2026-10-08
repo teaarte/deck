@@ -18,7 +18,7 @@ func TestScreensAndTheMenuSpeakTheLanguageOfTheOwner(t *testing.T) {
 
 	var menu []menuView
 	e.must("deck.menu", map[string]any{"lang": "ru"}, &menu)
-	if menu[0].Screens[0].Title != "Кокпит" {
+	if menu[0].Screens[0].Title != "Расписание" {
 		t.Fatalf("deck's screens are in the language asked for: %+v", menu[0].Screens)
 	}
 	var all []map[string]any
@@ -56,7 +56,7 @@ func TestScreensAndTheMenuSpeakTheLanguageOfTheOwner(t *testing.T) {
 func TestATabKeepsItsKeyInEveryLanguage(t *testing.T) {
 	e := newEnv(t, nil)
 	drawn, _ := json.Marshal(e.screenMessages("", "schedule", map[string]any{"lang": "ru"}))
-	if !strings.Contains(string(drawn), `"Расходы"`) || !strings.Contains(string(drawn), `"keys":["Schedule","Runs","Spend","Calls",`) {
+	if !strings.Contains(string(drawn), `"Расходы"`) || !strings.Contains(string(drawn), `"keys":["Schedule","Runs","Spend"]`) {
 		t.Fatalf("a tab shows its title translated and keeps its key: %s", drawn)
 	}
 	twice := strings.Replace(webNotes, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "blocks": [

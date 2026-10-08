@@ -69,8 +69,9 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
   a screen block reads a `registry.Read` command (`"from": "deck.asks_list"`), called as the viewer in
   `app/screen_get.go` (`deck.screen`; the menu `menu.go`, `commands_list.go`, translations `i18n.go`); `app/screens` —
   the sources of screens: records, forms, documents;
-  deck's screens are data in `screens.json`: menu Cockpit, Schedule (tabs Schedule, Runs, Spend, Calls, Files,
-  Snapshots), Settings (tabs Projects, Models, Connections, Tokens, General, Interface, Health); `project` screens (Documents, the page of
+  deck's screens are data in `screens.json`: Cockpit (the link at the head of the menu), and in the menu Schedule
+  (tabs Schedule, Runs with the calls of the gateway, Spend), Files (tabs Files, Documents of the master, Snapshots), Settings (tabs
+  Projects, Models, Connections, Tokens, General, Interface, Health); `project` screens (Documents, the page of
   a document and Settings of the project: its commands and providers, folders, tools, secrets, tokens, health) deck adds
   to every project
 - `internal/manifest` — project manifest (format 9: `upgrade.go` raises older ones): `types.go`, `parse.go`,
@@ -116,9 +117,11 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
   `src/`: `app/` the frame of islands (menu `Nav.tsx`, screen, chat panel `ChatPanel.tsx`, `Toolbar.tsx`, `PhoneBar.tsx`,
   the notifications `Bell.tsx`, the icon pattern `Backdrop.tsx`, the address and back button `router.ts`: tab and
   dialog only the client reads, `t` a live parameter that reads the data again without drawing the screen anew); `screen/`
-  a screen (`ScreenView.tsx`, `useScreen.ts`, buttons through the `ScreenActions` context, the catalog `catalog.ts`);
+  a screen (`ScreenView.tsx`, `useScreen.ts`, buttons through the `ScreenActions` context, the catalog `catalog.ts`; the
+  top of the cockpit `Hero.tsx` and its one-by-one `Triage.tsx` over the first list of decisions, `decisions.ts`);
   `blocks/` a file or folder per block registered through `blockImpl.tsx` (frame `Block.tsx`; `table/`, `form/`, `media/` (pictures, PDF, the player `Player.tsx` with marks), `chart/`,
-  `custom/` the MCP Apps host — `@modelcontextprotocol/ext-apps` 1.7.5, 2.x needs zod 4); `chat/` the chat with the master around `chatStore.ts`; `ui/` buttons, confirmation, icons by
+  `custom/` the MCP Apps host — `@modelcontextprotocol/ext-apps` 1.7.5, 2.x needs zod 4); `chat/` the chat with the master around `chatStore.ts`; `ui/` the mascot `Deki.tsx` (poses in `public/deki`, a switch of Interface), buttons (a failed press shows its error
+  at the button, `Failed.tsx`; the undo toast `undo.tsx`), confirmation, icons by
   name, markdown (`@a2ui/markdown-it`), values; `hooks/`; `lib/` the API and live events (`events.ts`, `useLive`, one
   `onResume`), `notify.ts`, `format.ts`, `i18n.ts`, the catalog schema; `settings/` look and pushes; `theme/` the look of
   the device (`look.ts`: scheme, accent, density, font, corners — passed to `custom` blocks as host context), accents

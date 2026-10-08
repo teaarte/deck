@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import type { ChatValue } from '../lib/catalog.gen';
 import { ActionIconButton } from '../ui/ActionIconButton';
 import a from '../ui/aura.module.css';
+import { Deki, useMascot } from '../ui/Deki';
 import { Glyph } from '../ui/Glyph';
 import { useActionRun } from '../ui/useActionRun';
 import s from './chat.module.css';
@@ -30,6 +31,7 @@ export function Turn({ turn }: { turn: TurnValue }) {
   const [folded, setFolded] = useLocalStorage({ key: 'deck-chat-turn-folded', defaultValue: false });
   const open = useActionRun(turn.open ?? {});
   const running = turn.state === 'running';
+  const mascot = useMascot();
   const lines = logLines(turn.lines);
   const buttons = (
     <>
@@ -40,9 +42,9 @@ export function Turn({ turn }: { turn: TurnValue }) {
   return (
     <div className={s.turn} data-turn={turn.state} data-folded={folded || undefined}>
       <div className={`${s.turnHead} ${a.aura}`} data-live={running || undefined}>
-        <span className={s.turnMark}><Glyph busy={running} /></span>
+        <span className={s.turnMark}>{mascot ? <Deki mood={running ? 'dots' : 'wait'} size={26} /> : <Glyph busy={running} />}</span>
         <Text size="xs" fw={500} truncate style={{ flex: 1 }}>
-          {running ? t('chat.replying', { provider: turn.provider ?? '' }) : t('chat.waits.' + turn.state, { defaultValue: turn.state })}
+          {running ? t(mascot ? 'chat.replying_deki' : 'chat.replying', { provider: turn.provider ?? '' }) : t('chat.waits.' + turn.state, { defaultValue: turn.state })}
         </Text>
         {folded && buttons}
         <Tooltip label={folded ? t('chat.unfold') : t('chat.fold')}>

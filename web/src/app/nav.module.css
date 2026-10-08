@@ -7,7 +7,6 @@
 .foot {
   flex: none;
   padding: 8px;
-  border-top: 1px solid var(--mantine-color-default-border);
 }
 
 .system {
@@ -16,15 +15,16 @@
   gap: 10px;
   width: 100%;
   padding: 8px 10px;
-  border-radius: calc(var(--deck-island-radius) - 8px);
+  border-radius: 16px;
   color: var(--mantine-color-text);
+  background: var(--deck-fill, var(--mantine-color-default-hover));
   font-size: var(--mantine-font-size-sm);
   font-weight: 650;
   transition: background-color 150ms ease;
 
   &:hover,
   &[data-expanded] {
-    background: var(--mantine-color-default-hover);
+    background: var(--deck-fill-hover, var(--mantine-color-default-hover));
   }
 
   &[data-active] .groupIcon {

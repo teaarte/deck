@@ -35,9 +35,12 @@ function patterns(all: Nodes, seed: number): [string, string] {
   return [tile(body[0]), tile(body[1])];
 }
 
-// Backdrop is the canvas behind the shell: a quiet color and a grid of icons in the accent of the device.
+// Backdrop is the canvas behind the shell: a quiet color and a grid of icons in the accent of the device, or in juce
+// a sky with clouds.
 export function Backdrop() {
-  const { pattern } = useLook();
+  const look = useLook();
+  const pattern = look.pattern && look.theme !== 'juce';
+  const sky = look.sky && look.theme === 'juce';
   const [tiles, setTiles] = useState<[string, string]>();
   useEffect(() => {
     if (!pattern || tiles || matchMedia('(prefers-contrast: more)').matches) return;
@@ -45,6 +48,8 @@ export function Backdrop() {
   }, [pattern]);
   return (
     <div className={s.backdrop} data-backdrop aria-hidden>
+      {sky && <img className={`${s.cloud} ${s.cloudLeft}`} src="/deki/clouds-left.webp" alt="" data-cloud />}
+      {sky && <img className={`${s.cloud} ${s.cloudRight}`} src="/deki/clouds-right.webp" alt="" data-cloud />}
       {pattern && tiles && <div className={s.pattern} style={{ maskImage: tiles[0], WebkitMaskImage: tiles[0] }} />}
       {pattern && tiles && <div className={`${s.pattern} ${s.patternAlt}`} style={{ maskImage: tiles[1], WebkitMaskImage: tiles[1] }} />}
     </div>

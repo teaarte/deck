@@ -4,7 +4,8 @@ import { useTranslation } from 'react-i18next';
 import { DialogClose } from '../../screen/dialogContext';
 import { call } from '../../lib/api';
 import { sharedSent } from '../../lib/share';
-import { notifyDone, notifyError } from '../../lib/notify';
+import { errorText } from '../../lib/notify';
+import { Failed } from '../../ui/Failed';
 import type { FormValue as Generated } from '../../lib/catalog.gen';
 import { useMountedRef } from '../../hooks/useMountedRef';
 import { Field } from './Field';
@@ -32,6 +33,9 @@ export function Form({ value }: { value: FormValue }) {
   const watch = useProcessWatch(alive);
   const [busy, setBusy] = useState(false);
   const [out, setOut] = useState<Outcome>();
+  const [kept, setKept] = useState<Outcome>();
+  // failed is why the press of run or keep did not go through.
+  const [failed, setFailed] = useState({ at: '', error: '' });
   const running = useRef(false);
   const props = cmd?.input?.properties ?? {};
   const fields = [...(cmd?.order ?? []).filter((k) => k in props), ...Object.keys(props).filter((k) => !cmd?.order?.includes(k))];
@@ -43,6 +47,7 @@ export function Form({ value }: { value: FormValue }) {
   const submit = async () => {
     if (!cmd || running.current) return;
     running.current = true;
+    setFailed({ at: '', error: '' });
     setBusy(true);
     setOut(undefined);
     try {
@@ -59,15 +64,14 @@ export function Form({ value }: { value: FormValue }) {
         close?.();
         return;
       }
-      // In a dialog a started process is told about and the dialog closes; the process page follows it.
+      // In a dialog the dialog closes on a started process; the cockpit and the process page follow it.
       if (close) {
-        notifyDone(t('common.started', { id: started }));
         close();
         return;
       }
       await watch(started, (p) => setOut({ ...p, process: started }));
     } catch (e) {
-      notifyError(e, cmd.title);
+      setFailed({ at: 'run', error: errorText(e) });
     } finally {
       running.current = false;
       if (alive.current) setBusy(false);
@@ -79,9 +83,9 @@ export function Form({ value }: { value: FormValue }) {
     const rows = Array.isArray(out.result) ? out.result : [out.result];
     try {
       await call('deck.records_upsert', { project, collection: value.save, records: rows.map((r) => JSON.stringify(r)).join('\n') });
-      notifyDone(t('form.saved', { collection: value.save }));
+      setKept(out);
     } catch (e) {
-      notifyError(e);
+      setFailed({ at: 'keep', error: errorText(e) });
     }
   };
 
@@ -99,7 +103,9 @@ export function Form({ value }: { value: FormValue }) {
       ))}
       {cmd && (
         <Group>
-          <Button onClick={submit} loading={busy} data-submit>{edit ? t('form.save_record') : t('form.run')}</Button>
+          <Failed error={failed.at === 'run' ? failed.error : ''} onClose={() => setFailed({ at: '', error: '' })}>
+            <Button onClick={submit} loading={busy} data-submit>{edit ? t('form.save_record') : t('form.run')}</Button>
+          </Failed>
         </Group>
       )}
       {out && (
@@ -108,7 +114,11 @@ export function Form({ value }: { value: FormValue }) {
           {out.state === 'done' && <Result value={out.result} schema={edit ? undefined : cmd?.result} />}
           {out.state !== 'done' && FINAL.includes(out.state) && <Alert color="red" title={out.state}>{out.error}</Alert>}
           {out.state === 'done' && value.save && out.result !== null && out.result !== undefined && (
-            <Group><Button variant="default" size="xs" onClick={save} data-save>{t('form.keep', { collection: value.save })}</Button></Group>
+            <Group>
+              <Failed error={failed.at === 'keep' ? failed.error : ''} onClose={() => setFailed({ at: '', error: '' })}>
+                <Button variant="default" size="xs" onClick={save} disabled={kept === out} data-save>{kept === out ? t('form.saved', { collection: value.save }) : t('form.keep', { collection: value.save })}</Button>
+              </Failed>
+            </Group>
           )}
         </Stack>
       )}

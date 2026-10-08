@@ -39,8 +39,11 @@ func TestRealBrowserChatTopicsFollowTheModuleFilter(t *testing.T) {
 		b.eval(`([...document.querySelectorAll('[data-topic-projects] [role=menuitem]')].find((x) => x.innerText.trim() === '` + label + `').click(), '')`)
 	}
 	scope("web")
+	b.until("the last topic of web open", `document.querySelector('[data-topics]').value === 'about web'`)
 	b.until("only the topics of web", topics()+` === 'about web'`)
 	b.eval(`(document.body.click(), '')`)
 	scope("Without a module")
 	b.until("only the topics without a module", topics()+` === 'about nothing'`)
+	b.eval(`(document.querySelector('[data-topic-project]').click(), '')`)
+	b.until("the modules opened last on top", `[...document.querySelectorAll('[data-topic-projects] [role=menuitem]')].map((x) => x.innerText.trim()).slice(1, 3).join('|') === 'Without a module|web'`)
 }

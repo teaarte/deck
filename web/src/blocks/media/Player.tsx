@@ -52,7 +52,7 @@ export function Player({ it, first }: { it: Item; first: boolean }) {
     m.currentTime = Math.min(Math.max(at, 0), m.duration || at);
   };
   const mark = it.mark;
-  const { busy, send: run } = useActionRun(mark ?? {}, { onDone: () => setMarking(false) });
+  const { busy, send: run, error } = useActionRun(mark ?? {}, { onDone: () => setMarking(false) });
   const send = (text: string) => {
     if (!mark?.command) return;
     void run({ file: it.file, at: Math.round(now * 100) / 100, ...(mark.input ? { [mark.input]: text } : {}) });
@@ -93,6 +93,7 @@ export function Player({ it, first }: { it: Item; first: boolean }) {
       </Group>
       {marking && mark && (mark.input ? <ActionInput act={mark} busy={busy} onSend={send} onCancel={() => setMarking(false)} />
         : <Group gap="xs"><Button size="xs" loading={busy} onClick={() => send('')}>{t('verb.send')}</Button><Button size="xs" variant="subtle" onClick={() => setMarking(false)}>{t('verb.cancel')}</Button></Group>)}
+      {marking && error && <Text size="xs" c="red" data-failed-press>{error}</Text>}
       </Stack>
       {!!it.marks?.length && (
         <div className={s.marks} data-marks>

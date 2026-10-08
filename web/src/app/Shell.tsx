@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { setChatScreen } from '../chat/chatStore';
 import { useFocusHandoff } from '../hooks/useFocusHandoff';
 import { useLanguageSetting } from '../hooks/useLanguageSetting';
-import { useMenu } from '../hooks/useMenu';
+import { MenuContext, useMenu } from '../hooks/useMenu';
 import { usePhone } from '../hooks/usePhone';
 import { ScreenView } from '../screen/ScreenView';
 import s from './shell.module.css';
@@ -43,7 +43,7 @@ export function Shell() {
   const desk = !phone;
   const side = desk && chat;
   return (
-    <>
+    <MenuContext.Provider value={menu}>
       <Backdrop />
       <div className={s.shell} data-full={(side && full) || undefined} data-dragging={dragging || undefined}
         style={desk ? { gridTemplateColumns: [navOpen && 'auto', !(side && full) && 'minmax(0, 1fr)', side && (full ? 'minmax(0, 1fr)' : 'auto')].filter(Boolean).join(' ') } : undefined}>
@@ -82,6 +82,6 @@ export function Shell() {
           <Nav menu={menu} current={current} onPick={() => setPhoneNav(false)} />
         </nav>
       </Drawer>
-    </>
+    </MenuContext.Provider>
   );
 }

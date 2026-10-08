@@ -61,7 +61,7 @@ export function useScreen(route: Route, onProjects: () => void) {
               filter(c.block, c.field, c.value);
               return;
             }
-            return act(a.context as Action).then(() => undefined);
+            return act(a.context as Action).then(() => undefined, (e) => notifyError(e));
           });
           p.onSurfaceCreated((s) => {
             shown = true;

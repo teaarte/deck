@@ -1,10 +1,13 @@
 import { createComponentImplementation } from '@a2ui/react/v0_9';
 import { Group, Stack } from '@mantine/core';
 import s from './blocks.module.css';
+import { Hero } from '../screen/Hero';
+import { useScreenRoute } from '../screen/ScreenActions';
 import { IconTitle } from '../ui/IconTitle';
 import { api, kids } from './blockImpl';
 
-// screen is the root of a screen: its title with the buttons of its dialogs, and a grid of its blocks.
+// screen is the root of a screen: its title with the buttons of its dialogs, the top of the cockpit, and a grid of its
+// blocks.
 export const screen = createComponentImplementation(api('screen'), ({ props, buildChild }) => {
   const p = props as { title?: string; icon?: string; children: unknown; dialogs?: unknown };
   const dialogs = Array.isArray(p.dialogs) && p.dialogs.length > 0;
@@ -16,7 +19,14 @@ export const screen = createComponentImplementation(api('screen'), ({ props, bui
           {dialogs && <Group gap="xs">{kids(p.dialogs, buildChild)}</Group>}
         </Group>
       )}
+      {!!p.title && <CockpitTop />}
       <div className={s.grid} data-grid>{kids(p.children, buildChild, s.cell)}</div>
     </Stack>
   );
 });
+
+// CockpitTop is the top of the cockpit on deck's cockpit alone.
+function CockpitTop() {
+  const route = useScreenRoute();
+  return route && !route.project && route.screen === 'cockpit' ? <Hero /> : null;
+}

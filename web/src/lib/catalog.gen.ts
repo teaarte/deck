@@ -222,6 +222,10 @@ export interface Data {
     actions?: Action[];
   }[];
   value?: unknown;
+  /**
+   * The buttons of a stat; a click on it runs the first that opens a screen.
+   */
+  actions?: Action[];
   files?: {
     id: unknown;
     title?: string;

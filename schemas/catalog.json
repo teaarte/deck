@@ -110,7 +110,7 @@
     },
     "stat": {
       "description": "One value over the items of a source.",
-      "block": {"description": "Needs source; value is an expression over rows, len(rows) by default. With empty, a source without items shows that text instead of the value, so value can be rows[0].price with no len(rows) > 0 ? ... : '—'; a value that is null is empty too.", "required": ["source"], "properties": {"source": {"$ref": "#/$defs/source"}, "value": {"type": "string", "description": "Expression over rows, the items of the source, such as len(rows) or sum(rows, .amount); len(rows) by default."}, "format": {"$ref": "#/$defs/format"}, "currency": {"$ref": "#/$defs/currency"}, "tone": {"type": "string", "description": "Expression over rows that gives ok, warn, error or muted; any other value is no tone."}, "empty": {"$ref": "#/$defs/empty"}}},
+      "block": {"description": "Needs source; value is an expression over rows, len(rows) by default. With empty, a source without items shows that text instead of the value, so value can be rows[0].price with no len(rows) > 0 ? ... : '—'; a value that is null is empty too.", "required": ["source"], "properties": {"source": {"$ref": "#/$defs/source"}, "value": {"type": "string", "description": "Expression over rows, the items of the source, such as len(rows) or sum(rows, .amount); len(rows) by default."}, "format": {"$ref": "#/$defs/format"}, "currency": {"$ref": "#/$defs/currency"}, "tone": {"type": "string", "description": "Expression over rows that gives ok, warn, error or muted; any other value is no tone."}, "empty": {"$ref": "#/$defs/empty"}, "actions": {"$ref": "#/$defs/actions", "description": "A click on the stat opens the screen of its first button that opens one, such as the list of what it counts."}}},
       "type": "object",
       "additionalProperties": false,
       "required": ["data"],
@@ -373,6 +373,7 @@
           }
         }},
         "value": {},
+        "actions": {"type": "array", "description": "The buttons of a stat; a click on it runs the first that opens a screen.", "items": {"$ref": "#/$defs/action"}},
         "files": {"type": "array", "items": {
           "type": "object", "required": ["id"], "additionalProperties": false,
           "properties": {"id": {}, "title": {"type": "string"}, "name": {"type": "string"}, "type": {"type": "string"}, "size": {"type": "integer"},

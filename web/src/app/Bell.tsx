@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ActionIcon, Button, Group, Indicator, Popover, ScrollArea, Stack, Text, UnstyledButton } from '@mantine/core';
-import { IconBell, IconBellOff } from '@tabler/icons-react';
+import { IconArrowUpRight, IconBell, IconBellOff } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { call } from '../lib/api';
 import { events } from '../lib/events';
@@ -16,6 +16,7 @@ interface Note {
   text: string;
   screen: string;
   record: number;
+  deck_screen?: boolean;
   buttons?: Action[];
   read: boolean;
   can_read: boolean;
@@ -36,6 +37,7 @@ export function Bell() {
     return events((e) => { if (e.topic === 'feed') load(); }, load);
   }, []);
   const fresh = notes.filter((n) => n.id > seen && !n.read).length;
+  const openNote = (n: Note) => { setOpen(false); go({ project: n.deck_screen ? undefined : n.project || undefined, screen: n.screen, record: n.record || undefined }); };
   const markRead = (id: number) => { call('deck.feed_read', { entry: id }).then(load, () => undefined); };
   const toggle = () => {
     if (!open && notes.length) {
@@ -63,13 +65,13 @@ export function Bell() {
             <Stack gap={0} pb={6}>
               {notes.map((n) => (
                 <div key={n.id} className={s.note} data-note={n.id} data-fresh={(n.id > seen && !n.read) || undefined} data-read={n.read || undefined}>
-                  <UnstyledButton disabled={!n.screen} onClick={() => { setOpen(false); go({ project: n.project || undefined, screen: n.screen, record: n.record || undefined }); }}
-                    className={s.noteBody}>
+                  <UnstyledButton disabled={!n.screen} onClick={() => openNote(n)} className={s.noteBody}>
                     <Text size="sm" lh={1.4}>{n.text}</Text>
                     <Text size="xs" c="dimmed" mt={2}>{n.project} · {formatted(n.created_at, { format: 'relative' })}</Text>
                   </UnstyledButton>
-                  {(!!n.buttons?.length || n.can_read) && (
+                  {(!!n.buttons?.length || n.can_read || !!n.screen) && (
                     <Group gap={6} className={s.noteActions}>
+                      {n.screen && <Button size="compact-xs" variant="light" leftSection={<IconArrowUpRight size={13} />} onClick={() => openNote(n)} data-note-open>{t('verb.open')}</Button>}
                       {!!n.buttons?.length && <Actions actions={n.buttons} />}
                       {n.can_read && <Button size="compact-xs" variant="subtle" onClick={() => markRead(n.id)} data-note-read>{t('verb.mark_read')}</Button>}
                     </Group>

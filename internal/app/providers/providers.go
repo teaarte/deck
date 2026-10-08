@@ -138,6 +138,28 @@ func (s *Service) All(ctx context.Context, workspace int64) ([]provider.Provider
 	return out, nil
 }
 
+// CommandModel is the model an agent command of a project starts on and the models assigned to it; empty for a
+// command that is no agent.
+func (s *Service) CommandModel(ctx context.Context, projectID int64, command string) (string, []string) {
+	p, err := s.St.Q.GetProject(ctx, projectID)
+	if err != nil {
+		return "", nil
+	}
+	m, err := docs.Manifest(ctx, s.St.Q, p)
+	if err != nil {
+		return "", nil
+	}
+	cmd := m.Command(command)
+	if cmd == nil || cmd.Executor.Type != "agent" {
+		return "", nil
+	}
+	assigned, _ := Assigned(ctx, s.St.Q, p.WorkspaceID, p.ID, command, RoleAgent)
+	if pv, err := s.For(ctx, projectID, cmd); err == nil {
+		return pv.Name(), assigned
+	}
+	return "", assigned
+}
+
 // For picks the provider a command starts on: the first of its assignment that fits and is up, else the suggestion of
 // the manifest, else the main provider, else any that fits; an assignment none of which fits refuses the start.
 func (s *Service) For(ctx context.Context, projectID int64, cmd *manifest.Command) (provider.Provider, error) {

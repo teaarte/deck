@@ -22,6 +22,8 @@ type Service struct {
 	Scheduler *trigger.Scheduler
 	Gateway   *gateway.Gateway
 	Registry  *registry.Registry
+	// Model is the model an agent command starts on and the models assigned to it, empty for other commands.
+	Model func(ctx context.Context, projectID int64, command string) (string, []string)
 }
 
 // ownTrigger loads a trigger of the actor's workspace; agents reach only their own project.
@@ -50,6 +52,9 @@ type triggerView struct {
 	SkipMissed    bool   `json:"skip_missed"`
 	LastProcess   int64  `json:"last_process"`
 	LastState     string `json:"last_state"`
+	// Model is the model the agent command starts on, Models those assigned to it; empty for other commands.
+	Model  string   `json:"model"`
+	Models []string `json:"models"`
 }
 
 func (s *Service) triggersList(ctx context.Context, act registry.Actor, in triggersListIn) ([]triggerView, error) {
@@ -62,6 +67,10 @@ func (s *Service) triggersList(ctx context.Context, act registry.Actor, in trigg
 		return nil, err
 	}
 	names := map[int64]db.Project{}
+	models := map[string]struct {
+		model  string
+		models []string
+	}{}
 	out := make([]triggerView, 0, len(ts))
 	for _, t := range ts {
 		p, ok := names[t.ProjectID]
@@ -74,6 +83,13 @@ func (s *Service) triggersList(ctx context.Context, act registry.Actor, in trigg
 		v := triggerView{ID: t.ID, Project: p.Name, Command: t.Command, Kind: t.Kind, Spec: t.Spec, Params: json.RawMessage(cmp.Or(t.Params, "null")),
 			NextRunAt: t.NextRunAt.String, Paused: t.Paused == 1 || p.Paused == 1, ProjectPaused: p.Paused == 1, OwnPaused: t.Paused == 1,
 			SkipMissed: t.SkipMissed == 1}
+		key := fmt.Sprint(t.ProjectID, ".", t.Command)
+		m, ok := models[key]
+		if !ok {
+			m.model, m.models = s.Model(ctx, t.ProjectID, t.Command)
+			models[key] = m
+		}
+		v.Model, v.Models = m.model, append([]string{}, m.models...)
 		if t.LastProcessID.Valid {
 			v.LastProcess = t.LastProcessID.Int64
 			if lp, err := s.St.Q.GetProcess(ctx, v.LastProcess); err == nil {
@@ -184,8 +200,8 @@ func flag(b bool) int64 {
 func (s *Service) Commands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("triggers_list", "Schedule",
-			"Lists triggers with their next run, pause and the state of their last run.",
-			registry.Everyone, s.triggersList).On("triggers", "processes"),
+			"Lists triggers with their next run, pause, the state of their last run and the model an agent command starts on.",
+			registry.Everyone, s.triggersList).On("triggers", "processes", "models", "projects", "documents", "health"),
 		registry.Def("trigger_pause", "Pause trigger",
 			"Pauses or resumes one trigger; a resumed schedule does not catch up its pause.",
 			registry.OwnerSide, s.triggerPause),

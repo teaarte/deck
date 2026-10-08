@@ -1,3 +1,5 @@
+import cronstrue from 'cronstrue/i18n';
+import i18n from './i18n';
 
 // Shown is how the catalog says to show a value: its format and the currency of money.
 export interface Shown {
@@ -109,6 +111,11 @@ export function formatted(v: unknown, s: Shown, now = Date.now()): string {
         if (d) return relative(d, now);
         break;
       }
+      case 'cron':
+        if (typeof v === 'string' && v.trim().split(/\s+/).length === 5) {
+          return cronstrue.toString(v, { use24HourTimeFormat: true, locale: i18n.language.startsWith('ru') ? 'ru' : 'en', throwExceptionOnParseError: true });
+        }
+        break;
     }
   } catch {
     // A currency the device does not know shows the value as it is.

@@ -21,7 +21,7 @@ type shippedScreens struct {
 	Project []manifest.Screen
 }
 
-// shipped are the screens deck ships: the cockpit, settings, the journal and the page of a process; they are
+// shipped are the screens deck ships: the cockpit, the schedule, settings and the page of a process; they are
 // checked once the commands they read are known.
 var shipped = sync.OnceValue(func() (d shippedScreens) {
 	var err error

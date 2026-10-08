@@ -148,7 +148,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	*a.Files = appfiles.Service{St: st, Home: h, Now: cfg.Now}
 	*a.Journal = journal.Service{St: st, Now: cfg.Now, Backups: h.Backups()}
 	*a.Settings = settings.Service{St: st, DefaultTTL: cfg.ConfirmTTL, Wake: a.Runner.Wake}
-	*a.Triggers = triggers.Service{St: st, Scheduler: a.Scheduler, Gateway: a.Gateway, Registry: a.Registry}
+	*a.Triggers = triggers.Service{St: st, Scheduler: a.Scheduler, Gateway: a.Gateway, Registry: a.Registry, Model: a.Providers.CommandModel}
 	*a.Documents = documents.Service{St: st, Now: cfg.Now, Sandbox: cfg.Sandbox, Ctx: a.ctx, BG: &a.bg,
 		SaveManifest: a.Saver.SaveCall, Changed: a.Devices.Changed}
 	*a.Snapshots = snapshots.Service{St: st, Bus: a.Bus, Home: h, Now: cfg.Now, LockFiles: a.Files.Mu.Lock, UnlockFiles: a.Files.Mu.Unlock,
@@ -162,7 +162,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	*a.Signins = signins.Service{St: st, Ctx: a.ctx, Broker: a.Asks, OAuth: oauth, Browser: a.Browser, MCP: a.MCP}
 	*a.Chats = chat.Service{St: st, Bus: a.Bus, Now: cfg.Now, Asks: a.Asks, Runner: a.Runner, For: a.Providers.For, RemoveFiles: a.Files.Remove}
 	*a.Devices = devices.Service{St: st, Bus: a.Bus, Now: cfg.Now, RemoveFiles: a.Files.Remove,
-		Home: h, Invoke: a.Registry.Invoke}
+		Home: h, Invoke: a.Registry.Invoke, DeckScreen: deckScreen}
 	*a.Failures = failures.Service{St: st, Now: cfg.Now, Runner: a.Runner}
 	*a.Processes = processes.Service{St: st, Runner: a.Runner, Named: a.Providers.Named}
 	*a.Health = apphealth.Service{St: st, Providers: a.Providers.All}

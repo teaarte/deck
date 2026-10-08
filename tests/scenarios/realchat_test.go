@@ -87,6 +87,7 @@ func TestRealBrowserMasterChat(t *testing.T) {
 		b.shot(fmt.Sprintf("chat-width-%d", w))
 	}
 	b.call("browser_resize", map[string]any{"width": 1400, "height": 900})
+	b.until("the turn back in the side panel", `document.querySelector('[data-chat-panel] [data-turn] [data-verb="stop"]')`)
 	b.eval(`(document.querySelector('[data-turn] [data-verb="stop"]').click(), '')`)
 	b.until("the stopped reply", `document.querySelector('[data-reply-state="stopped"]') && !document.querySelector('[data-turn]')`)
 

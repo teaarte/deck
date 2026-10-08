@@ -364,8 +364,8 @@ func TestScheduleShowsEveryTriggerRunsOneNowAndPausesAProject(t *testing.T) {
 	check.messages(t, e.screenMessages("", "schedule", nil))
 	rows := func() []screenRow {
 		var out []screenRow
-		for _, r := range blockData[[]screenRow](t, e.screenData("", "schedule", nil)["b2"]["rows"]) {
-			if r.Cells[0] != "master" {
+		for _, r := range blockData[[]screenRow](t, e.screenData("", "schedule", nil)["b0-0-5"]["rows"]) {
+			if !strings.HasPrefix(fmt.Sprint(r.Cells[0]), "master · ") {
 				out = append(out, r)
 			}
 		}
@@ -373,7 +373,7 @@ func TestScheduleShowsEveryTriggerRunsOneNowAndPausesAProject(t *testing.T) {
 	}
 	find := func(rs []screenRow, project, when string) screenRow {
 		for _, r := range rs {
-			if r.Cells[0] == project && r.Cells[2] == when {
+			if strings.HasPrefix(fmt.Sprint(r.Cells[0]), project+" · ") && r.Cells[1] == when {
 				return r
 			}
 		}
@@ -395,8 +395,11 @@ func TestScheduleShowsEveryTriggerRunsOneNowAndPausesAProject(t *testing.T) {
 	}
 	rs := rows()
 	job := find(rs, "alpha", "0 9 * * *")
-	if len(rs) != 2 || job.Cells[1] != "job" || job.Cells[3] == "" || job.Cells[5] != "on" {
-		t.Fatalf("every trigger of every project with its command, schedule and next run: %+v", rs)
+	if len(rs) != 2 || job.Cells[0] != "alpha · job" || job.Cells[2] == "" || job.Cells[3] == "" || job.Cells[5] != "on" {
+		t.Fatalf("every trigger of every project with its command, schedule, model and next run: %+v", rs)
+	}
+	if m := button(job, "models"); m["screen"] != "schedule" || m["params"].(map[string]any)["command"] != "job" || m["params"].(map[string]any)["project"] != "alpha" {
+		t.Fatalf("the model of a trigger is changed from the schedule: %+v", m)
 	}
 	next := job.Cells[3]
 
@@ -409,8 +412,7 @@ func TestScheduleShowsEveryTriggerRunsOneNowAndPausesAProject(t *testing.T) {
 	}
 	button(job, "open")
 
-	projects := blockData[[]screenRow](t, e.screenData("", "schedule", nil)["b3"]["rows"])
-	press(button(projects[0], "pause"), nil)
+	e.must("deck.project_pause", map[string]any{"project": "alpha", "paused": true}, nil)
 	if job = find(rows(), "alpha", "0 9 * * *"); job.Cells[5] != "project paused" {
 		t.Fatalf("a paused project shows on its triggers: %+v", job.Cells)
 	}
@@ -421,20 +423,19 @@ func TestScheduleShowsEveryTriggerRunsOneNowAndPausesAProject(t *testing.T) {
 	if n := e.countOf("job"); n != 1 {
 		t.Fatalf("a paused project runs nothing on schedule, only what the owner ran: %d", n)
 	}
-	projects = blockData[[]screenRow](t, e.screenData("", "schedule", nil)["b3"]["rows"])
-	press(button(projects[0], "resume"), nil)
+	e.must("deck.project_pause", map[string]any{"project": "alpha", "paused": false}, nil)
 	press(button(find(rows(), "alpha", "0 9 * * *"), "pause"), nil)
 	if job = find(rows(), "alpha", "0 9 * * *"); job.Cells[5] != "paused" {
 		t.Fatalf("a trigger pauses alone: %+v", job.Cells)
 	}
 	press(button(job, "resume"), nil)
 
-	history := e.screenData("", "schedule", map[string]any{"filter": `{"b4": {"project": "alpha"}}`})["b4"]
+	history := e.screenData("", "schedule", map[string]any{"filter": `{"b0-1-0": {"project": "alpha"}}`})["b0-1-0"]
 	hrows := blockData[[]screenRow](t, history["rows"])
 	if len(hrows) != 1 || hrows[0].Cells[1] != "alpha" || !strings.Contains(string(history["filters"]), `"value":"alpha"`) {
 		t.Fatalf("the history filters by project: %+v %s", hrows, history["filters"])
 	}
-	if states := blockData[[]screenRow](t, e.screenData("", "schedule", map[string]any{"filter": `{"b4": {"state": "error"}}`})["b4"]["rows"]); len(states) != 0 {
+	if states := blockData[[]screenRow](t, e.screenData("", "schedule", map[string]any{"filter": `{"b0-1-0": {"state": "error"}}`})["b0-1-0"]["rows"]); len(states) != 0 {
 		t.Fatalf("the history filters by state: %+v", states)
 	}
 	e.refused("deck.trigger_run", map[string]any{"trigger": 999}, 404, "no trigger")

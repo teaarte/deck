@@ -262,7 +262,7 @@ func TestAFileDownloadsAsAnAttachmentForWhoMaySeeItsProject(t *testing.T) {
 			t.Fatalf("%s with a token of other rights: want %d, got %d %q", c.path, c.code, resp.StatusCode, body)
 		}
 	}
-	rows := blockData[[]screenRow](t, e.screenData("", "journal", nil)["b0-2-0"]["rows"])
+	rows := blockData[[]screenRow](t, e.screenData("", "schedule", nil)["b0-4-0"]["rows"])
 	if len(rows) != 1 || len(rows[0].Actions) != 1 || rows[0].Actions[0]["verb"] != "download" || rows[0].Actions[0]["file"] != float64(id) {
 		t.Fatalf("a file of the journal has a download button: %+v", rows)
 	}

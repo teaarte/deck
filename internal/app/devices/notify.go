@@ -13,6 +13,9 @@ import (
 	"deck2/internal/store/db"
 )
 
+// DeckPrefix starts the screen of a note which opens a screen of deck rather than of its project.
+const DeckPrefix = "deck/"
+
 // Button is a button a notification carries: a command of its project with params.
 type Button struct {
 	Label   string         `json:"label"`
@@ -27,7 +30,7 @@ type Button struct {
 type notifyIn struct {
 	Project string `type:"project" opt:"" desc:"Project name; defaults to the caller's own project"`
 	Text    string `type:"text" desc:"What happened, in a sentence"`
-	Screen  string `opt:"" desc:"Screen of the project the line opens"`
+	Screen  string `opt:"" desc:"Screen of the project the line opens, or deck/<screen> for a screen of deck such as deck/schedule"`
 	Record  int64  `type:"record" opt:"" desc:"Record the screen shows"`
 	Actions string `type:"json" opt:"" desc:"Buttons: a JSON list [{label, command, params, icon?, confirm?, input?}] with commands of the project; confirm asks the owner first, input names a param the owner types"`
 }
@@ -45,7 +48,15 @@ func (dv *Service) notify(ctx context.Context, act registry.Actor, in notifyIn) 
 	if err != nil {
 		return nil, err
 	}
-	if in.Screen != "" {
+	if name, ok := strings.CutPrefix(in.Screen, DeckPrefix); ok {
+		s := dv.DeckScreen(name)
+		switch {
+		case s == nil:
+			return nil, registry.Invalid("deck: deck has no screen %q", name)
+		case s.Record != "" && in.Record == 0:
+			return nil, registry.Invalid("deck: screen %q of deck shows a %s; give record", name, s.Record)
+		}
+	} else if in.Screen != "" {
 		s := m.Screen(in.Screen)
 		switch {
 		case s == nil:

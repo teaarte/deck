@@ -51,7 +51,7 @@
       "Command": "Команда",
       "Commands": "Команды",
       "Cost": "Стоимость",
-      "The cost is what the provider said, such as OpenRouter or Claude Code, else by the price of the model.": "Стоимость — та, что сообщил поставщик, например OpenRouter или Claude Code, иначе по цене модели.",
+      "How much each model works: its runs, its tokens and their cost. The cost is what the provider said, such as OpenRouter or Claude Code, else by the price of the model.": "Сколько работает каждая модель: её запуски, токены и их стоимость. Стоимость — та, что сообщил поставщик, например OpenRouter или Claude Code, иначе по цене модели.",
       "Cost, $": "Стоимость, $",
       "Cost, 30 days": "Стоимость, 30 дней",
       "Create a token": "Создать токен",
@@ -75,7 +75,6 @@
       "Import project": "Импорт проекта",
       "Input": "Вход",
       "Interface": "Интерфейс",
-      "Journal": "Журнал",
       "Key": "Ключ",
       "Kind": "Вид",
       "Last": "Последний",
@@ -86,11 +85,9 @@
       "Model calls today": "Вызовов модели сегодня",
       "Name": "Имя",
       "Next run": "Следующий запуск",
-      "Next up": "Скоро",
       "No folders; add one for commands that work on files of a repository": "Папок нет; добавьте папку для команд, которые работают с файлами репозитория",
       "No secrets yet": "Секретов пока нет",
       "No tokens yet": "Токенов пока нет",
-      "Nothing changed without you": "Без вас ничего не менялось",
       "Nothing is scheduled": "Ничего не запланировано",
       "Open in a terminal": "Открыть в терминале",
       "Other": "Прочие",
@@ -139,9 +136,16 @@
       "Type": "Тип",
       "Value": "Значение",
       "Version": "Версия",
+      "By schedule, 30 days": "По расписанию, 30 дней",
+      "Runs, 30 days": "Запусков, 30 дней",
+      "Failed, 30 days": "С ошибкой, 30 дней",
+      "What runs by itself, when, and on which model; a model picked here replaces the one the manifest suggests.": "Что запускается само, когда и на какой модели; модель, выбранная здесь, заменяет ту, что предлагает манифест.",
       "Waiting for you": "Ждёт вас",
+      "Running": "Работает",
+      "Failing checks": "Проверки с ошибкой",
+      "Runs today": "Запусков сегодня",
+      "Runs": "Запуски",
       "Notes": "Заметки",
-      "Nothing to read": "Читать нечего",
       "What": "Что",
       "What it does": "Что делает",
       "What the project can do and where its agent commands run; a model picked here replaces the one the manifest suggests.": "Что умеет проект и где работают его агентские команды; выбранная здесь модель заменяет предложенную манифестом.",
@@ -150,15 +154,19 @@
       "Why": "Почему"
     }
   },
-  "menu": ["cockpit", "schedule", "settings", "journal"],
+  "menu": ["cockpit", "schedule", "settings"],
   "screens": [
     {
       "name": "cockpit",
       "icon": "layout-dashboard",
       "title": "Cockpit",
       "blocks": [
-        {"type": "list", "title": "Waiting for you", "source": {"from": "deck.asks_list"},
-          "item": {"title": "what", "text": "where", "meta": "project + (who != '' ? ' · ' + who : '')",
+        {"type": "stat", "title": "Waiting for you", "icon": "hand-stop", "source": {"from": "deck.asks_list"}, "tone": "len(rows) > 0 ? 'warn' : 'muted'"},
+        {"type": "stat", "title": "Running", "icon": "player-play", "source": {"from": "deck.processes_list", "input": {"open": true}}, "tone": "len(rows) > 0 ? 'ok' : 'muted'"},
+        {"type": "stat", "title": "Failing checks", "icon": "heartbeat", "source": {"from": "deck.health_list"}, "value": "count(rows, .status == 'error')", "tone": "count(rows, .status == 'error') > 0 ? 'error' : 'muted'"},
+        {"type": "stat", "title": "Runs today", "icon": "repeat", "source": {"from": "deck.runs_daily", "input": {"days": 1}}, "value": "sum(map(rows, .runs))", "tone": "'muted'"},
+        {"type": "list", "title": "Waiting for you", "icon": "hand-stop", "when": "len(rows) > 0", "source": {"from": "deck.asks_list"},
+          "item": {"title": "what", "text": "where", "meta": "project + (who != '' ? ' · ' + who : '')", "tone": "expired ? 'muted' : 'warn'",
             "details": "kind in ['call', 'unknown', 'confirm', 'grant'] ? toJSON(payload) : ''",
             "questions": "kind == 'question' && len(payload?.questions ?? []) > 0 ? payload.questions : nil"},
           "actions": [
@@ -176,20 +184,22 @@
             {"verb": "sign_in", "primary": true, "command": "deck.oauth_start", "params": {"tool": "=payload?.tool ?? ''"}, "when": "kind == 'sign_in' && (payload?.site ?? '') == '' && !expired"},
             {"verb": "deny", "primary": true, "command": "deck.ask_answer", "params": {"ask": "=id", "answer": "deny"}, "when": "expired"}
           ]},
-        {"type": "list", "title": "Notes", "icon": "bell", "empty": "Nothing to read",
+        {"type": "list", "title": "Notes", "icon": "bell", "when": "len(rows) > 0",
           "source": {"from": "deck.feed_list", "input": {"kind": "note", "unread": true}, "limit": 10},
           "item": {"title": "text", "meta": "project + ' · ' + author"},
-          "actions": [{"verb": "mark_read", "primary": true, "command": "deck.feed_read", "params": {"entry": "=id"}}]},
+          "actions": [
+            {"verb": "open", "screen": "=screen", "project": "=deck_screen ? '' : project", "record": "=record", "when": "screen != ''"},
+            {"verb": "mark_read", "primary": true, "command": "deck.feed_read", "params": {"entry": "=id"}}
+          ]},
         {"type": "columns", "blocks": [
-          {"type": "list", "title": "Running now", "when": "len(rows) > 0",
+          {"type": "list", "title": "Running now", "icon": "player-play", "when": "len(rows) > 0",
             "source": {"from": "deck.processes_list", "input": {"open": true}},
-            "item": {"title": "project + '.' + command", "text": "(question ?? '') != '' ? 'waits for your answer: ' + question : silent ? 'silent' : state == 'waiting_slot' ? 'waits for a slot' : state == 'waiting_folder' ? 'waits for folder ' + folder : state", "meta": "'#' + string(id)"},
+            "item": {"title": "project + ' · ' + command", "text": "(question ?? '') != '' ? 'waits for your answer: ' + question : silent ? 'silent' : state == 'waiting_slot' ? 'waits for a slot' : state == 'waiting_folder' ? 'waits for folder ' + folder : ''", "meta": "'#' + string(id)"},
             "actions": [
               {"verb": "open", "screen": "process", "record": "=id"},
               {"verb": "stop", "command": "deck.process_stop", "params": {"process": "=id"}, "when": "(finished_at ?? '') == ''"}
             ]},
-          {"type": "list", "title": "Done without you", "icon": "history", "source": {"from": "deck.feed_list", "input": {"kind": "change"}, "limit": 5},
-            "empty": "Nothing changed without you",
+          {"type": "list", "title": "Done without you", "icon": "history", "when": "len(rows) > 0", "source": {"from": "deck.feed_list", "input": {"kind": "change"}, "limit": 3},
             "item": {"title": "text", "meta": "project + ' · ' + author"},
             "actions": [
               {"verb": "undo", "command": "deck.feed_undo", "params": {"entry": "=id"}, "when": "can_undo"}
@@ -212,52 +222,133 @@
       "name": "schedule",
       "icon": "calendar-time",
       "title": "Schedule",
+      "params": {"project": "string", "command": "string", "models": "string"},
       "blocks": [
-        {"type": "list", "title": "Next up", "icon": "clock", "span": 1, "source": {"from": "deck.triggers_list", "where": "next_run_at != '' && !paused && !project_paused", "sort": "next_run_at", "limit": 8},
-          "empty": "Nothing is scheduled",
-          "item": {"title": "project + '.' + command", "meta": "kind == 'cron' ? spec : kind", "icon": "kind == 'cron' ? 'repeat' : 'link'"},
-          "actions": [{"verb": "run_now", "command": "deck.trigger_run", "params": {"trigger": "=id"}, "when": "kind == 'cron'"}]},
-        {"type": "chart", "title": "Runs by day", "kind": "bar", "span": 2, "source": {"from": "deck.runs_daily"}, "x": "day",
-          "series": [{"label": "By schedule", "y": "scheduled"}, {"label": "Other", "y": "runs - scheduled"}, {"label": "Failed", "y": "failed"}]},
-        {"type": "table", "title": "Triggers", "source": {"from": "deck.triggers_list", "sort": "project"},
-          "columns": [
-            {"label": "Project", "bind": "project"},
-            {"label": "Command", "bind": "command"},
-            {"label": "When", "bind": "kind == 'cron' ? spec : kind + ' ' + spec"},
-            {"label": "Next run", "bind": "next_run_at", "format": "relative"},
-            {"label": "Last result", "bind": "last_state", "format": "tag", "tone": "last_state == 'done' ? 'ok' : last_state in ['error', 'interrupted'] ? 'error' : ''"},
-            {"label": "State", "bind": "project_paused ? 'project paused' : paused ? 'paused' : 'on'"}
-          ],
-          "actions": [
-            {"verb": "run_now", "command": "deck.trigger_run", "params": {"trigger": "=id"}, "when": "kind == 'cron'"},
-            {"verb": "resume", "command": "deck.trigger_pause", "params": {"trigger": "=id", "paused": "false"}, "when": "own_paused"},
-            {"verb": "pause", "command": "deck.trigger_pause", "params": {"trigger": "=id", "paused": "true"}, "when": "!own_paused"},
-            {"verb": "open", "screen": "process", "record": "=last_process", "when": "last_process != 0"}
+        {"type": "tabs", "tabs": [
+          {"title": "Schedule", "icon": "calendar-time", "blocks": [
+            {"type": "stat", "title": "Runs, 30 days", "icon": "repeat", "source": {"from": "deck.runs_daily", "input": {"days": 30}}, "value": "sum(map(rows, .runs))"},
+            {"type": "stat", "title": "By schedule, 30 days", "icon": "calendar-time", "source": {"from": "deck.runs_daily", "input": {"days": 30}}, "value": "sum(map(rows, .scheduled))"},
+            {"type": "stat", "title": "Runs today", "icon": "clock", "source": {"from": "deck.runs_daily", "input": {"days": 1}}, "value": "sum(map(rows, .runs))"},
+            {"type": "stat", "title": "Failed, 30 days", "icon": "alert-triangle", "source": {"from": "deck.runs_daily", "input": {"days": 30}}, "value": "sum(map(rows, .failed))",
+              "tone": "sum(map(rows, .failed)) > 0 ? 'error' : 'muted'"},
+            {"type": "chart", "title": "Runs by day", "kind": "bar", "span": "full", "source": {"from": "deck.runs_daily", "input": {"days": 30}}, "x": "day",
+              "series": [{"label": "By schedule", "y": "scheduled"}, {"label": "Other", "y": "runs - scheduled"}, {"label": "Failed", "y": "failed"}]},
+            {"type": "table", "title": "Triggers", "source": {"from": "deck.triggers_list", "sort": "project"},
+              "description": "What runs by itself, when, and on which model; a model picked here replaces the one the manifest suggests.",
+              "empty": "Nothing is scheduled",
+              "columns": [
+                {"label": "Command", "bind": "project + ' · ' + command"},
+                {"label": "When", "bind": "kind == 'cron' ? spec : kind + ' ' + spec", "format": "cron"},
+                {"label": "Model", "bind": "model"},
+                {"label": "Next run", "bind": "next_run_at", "format": "relative"},
+                {"label": "Last result", "bind": "last_state", "format": "tag", "tone": "last_state == 'done' ? 'ok' : last_state in ['error', 'interrupted'] ? 'error' : ''"},
+                {"label": "State", "bind": "project_paused ? 'project paused' : paused ? 'paused' : 'on'", "tone": "paused ? 'muted' : ''"}
+              ],
+              "actions": [
+                {"verb": "run_now", "command": "deck.trigger_run", "params": {"trigger": "=id"}, "when": "kind == 'cron'"},
+                {"verb": "models", "screen": "schedule", "params": {"dialog": "assign", "project": "=project", "command": "=command", "models": "=join(models, ',')"}, "when": "model != '' || len(models) > 0"},
+                {"verb": "resume", "command": "deck.trigger_pause", "params": {"trigger": "=id", "paused": "false"}, "when": "own_paused"},
+                {"verb": "pause", "command": "deck.trigger_pause", "params": {"trigger": "=id", "paused": "true"}, "when": "!own_paused"},
+                {"verb": "open", "screen": "process", "record": "=last_process", "when": "last_process != 0"}
+              ]}
           ]},
-        {"type": "table", "title": "Projects", "source": {"from": "deck.projects_list"},
-          "columns": [
-            {"label": "Project", "bind": "name"},
-            {"label": "Status", "bind": "status"},
-            {"label": "Triggers", "bind": "paused ? 'paused' : 'on'"}
-          ],
-          "actions": [
-            {"verb": "enable", "primary": true, "command": "deck.project_enable", "params": {"project": "=name", "revision": "=revision"}, "when": "manifest_error == '' && status == 'draft'"},
-            {"verb": "pause", "command": "deck.project_pause", "params": {"project": "=name", "paused": "true"}, "when": "!paused"},
-            {"verb": "resume", "command": "deck.project_pause", "params": {"project": "=name", "paused": "false"}, "when": "paused"},
-            {"verb": "delete", "confirm": true, "command": "deck.project_delete", "params": {"project": "=name"}, "when": "!builtin"}
+          {"title": "Runs", "icon": "list", "blocks": [
+            {"type": "table", "title": "History", "source": {"from": "deck.processes_list", "input": {"limit": 100}, "sort": "-id"}, "filter": ["project", "state"],
+              "columns": [
+                {"label": "#", "bind": "id"},
+                {"label": "Project", "bind": "project"},
+                {"label": "Command", "bind": "command"},
+                {"label": "State", "bind": "state"},
+                {"label": "Started", "bind": "started_at"}
+              ],
+              "actions": [
+                {"verb": "open", "screen": "process", "record": "=id"},
+                {"verb": "stop", "command": "deck.process_stop", "params": {"process": "=id"}, "when": "(finished_at ?? '') == ''"}
+              ]}
           ]},
-        {"type": "table", "title": "History", "source": {"from": "deck.processes_list", "input": {"limit": 100}, "sort": "-id"}, "filter": ["project", "state"],
-          "columns": [
-            {"label": "#", "bind": "id"},
-            {"label": "Project", "bind": "project"},
-            {"label": "Command", "bind": "command"},
-            {"label": "State", "bind": "state"},
-            {"label": "Started", "bind": "started_at"}
-          ],
-          "actions": [
-            {"verb": "open", "screen": "process", "record": "=id"},
-            {"verb": "stop", "command": "deck.process_stop", "params": {"process": "=id"}, "when": "(finished_at ?? '') == ''"}
+          {"title": "Spend", "icon": "chart-bar", "blocks": [
+            {"type": "stat", "title": "Tokens today", "icon": "bolt", "source": {"from": "deck.spend_daily", "input": {"days": 1}}, "value": "sum(map(rows, .tokens))", "format": "compact"},
+            {"type": "stat", "title": "Tokens, 7 days", "icon": "calendar-week", "source": {"from": "deck.spend_daily", "input": {"days": 7}}, "value": "sum(map(rows, .tokens))", "format": "compact"},
+            {"type": "stat", "title": "Cost, 30 days", "icon": "coin", "source": {"from": "deck.spend_daily"}, "value": "sum(map(rows, .cost_usd))", "format": "money", "currency": "USD"},
+            {"type": "stat", "title": "Model calls today", "icon": "message-chatbot", "source": {"from": "deck.spend_daily", "input": {"days": 1}}, "value": "sum(map(rows, .calls))"},
+            {"type": "chart", "title": "Tokens by day", "kind": "bar", "span": "full", "source": {"from": "deck.spend_daily"}, "x": "day",
+              "series": [{"label": "Input", "y": "input_tokens"}, {"label": "Output", "y": "output_tokens"}]},
+            {"type": "table", "title": "By model, 30 days", "span": "full", "source": {"from": "deck.spend_daily", "input": {"by": "provider"}},
+              "description": "How much each model works: its runs, its tokens and their cost. The cost is what the provider said, such as OpenRouter or Claude Code, else by the price of the model.",
+              "columns": [
+                {"label": "Model", "bind": "provider"},
+                {"label": "Runs", "bind": "runs"},
+                {"label": "By schedule", "bind": "scheduled"},
+                {"label": "Tokens", "bind": "tokens", "format": "compact"},
+                {"label": "Share", "bind": "share", "format": "percent"},
+                {"label": "Calls", "bind": "calls"},
+                {"label": "Cost", "bind": "cost_usd", "format": "money", "currency": "USD"}
+              ]},
+            {"type": "table", "title": "By project, 30 days", "span": "full", "source": {"from": "deck.spend_daily", "input": {"by": "project"}},
+              "columns": [
+                {"label": "Project", "bind": "project"},
+                {"label": "Tokens", "bind": "tokens", "format": "compact"},
+                {"label": "Share", "bind": "share", "format": "percent"},
+                {"label": "Cost", "bind": "cost_usd", "format": "money", "currency": "USD"}
+              ]},
+            {"type": "table", "title": "Tokens by command and model", "source": {"from": "deck.spend_list"}, "filter": ["provider"],
+              "columns": [
+                {"label": "Project", "bind": "project"},
+                {"label": "Command", "bind": "command"},
+                {"label": "Model", "bind": "provider"},
+                {"label": "Model in the API", "bind": "model"},
+                {"label": "Calls", "bind": "calls"},
+                {"label": "Input", "bind": "input_tokens"},
+                {"label": "Output", "bind": "output_tokens"},
+                {"label": "Cache read", "bind": "cache_read_tokens"},
+                {"label": "Cost, $", "bind": "cost_usd > 0 ? string(cost_usd) : ''"},
+                {"label": "Last", "bind": "last_at"}
+              ]}
+          ]},
+          {"title": "Calls", "blocks": [
+            {"type": "table", "title": "Calls of the gateway", "source": {"from": "deck.calls_list"}, "filter": ["project", "outcome"],
+              "columns": [
+                {"label": "When", "bind": "created_at"},
+                {"label": "Tool", "bind": "tool"},
+                {"label": "Who", "bind": "actor"},
+                {"label": "Project", "bind": "project"},
+                {"label": "Class", "bind": "class"},
+                {"label": "Outcome", "bind": "outcome"},
+                {"label": "External id", "bind": "external_id"},
+                {"label": "Error", "bind": "error"}
+              ],
+              "actions": [
+                {"verb": "open", "screen": "process", "record": "=process", "when": "process != 0"}
+              ]}
+          ]},
+          {"title": "Files", "blocks": [
+            {"type": "table", "title": "Files", "source": {"from": "deck.files_list"}, "filter": ["project"],
+              "columns": [
+                {"label": "Name", "bind": "name"},
+                {"label": "Project", "bind": "project"},
+                {"label": "Type", "bind": "type"},
+                {"label": "Size", "bind": "size"},
+                {"label": "Belongs to", "bind": "owner_kind + ' #' + string(owner_id)"},
+                {"label": "Added", "bind": "created_at"}
+              ],
+              "actions": [
+                {"verb": "download", "file": "=id"}
+              ]}
+          ]},
+          {"title": "Snapshots", "blocks": [
+            {"type": "table", "title": "Snapshots", "source": {"from": "deck.snapshots_list"},
+              "columns": [
+                {"label": "Snapshot", "bind": "name"},
+                {"label": "Taken", "bind": "taken_at"},
+                {"label": "Size", "bind": "size"}
+              ]},
+            {"type": "form", "title": "Take a snapshot now", "command": "deck.snapshot_create"}
           ]}
+        ]},
+        {"type": "dialog", "name": "assign", "title": "Choose the models of a command", "icon": "cpu", "blocks": [
+          {"type": "form", "command": "deck.assignment_set", "description": "The first model runs the command; the next ones take it while the first is down.",
+            "values": {"role": "agent", "project": "=param.project", "command": "=param.command", "models": "=(param.models ?? '') != '' ? split(param.models, ',') : nil"},
+            "choices": {"models": {"source": {"from": "deck.models_list", "rows": "models", "where": "(agent ?? '') != ''"}, "value": "name"}}}]}
       ]
     },
     {
@@ -413,91 +504,6 @@
                 {"verb": "check", "command": "deck.provider_check", "params": {"provider": "=trimPrefix(subject, 'provider:')"}, "when": "self_check"},
                 {"verb": "open", "screen": "settings", "params": {"tab": "Interface"}, "when": "subject == 'push' && status != 'ok'"}
               ]}
-          ]}
-        ]}
-      ]
-    },
-    {
-      "name": "journal",
-      "icon": "history",
-      "title": "Journal",
-      "blocks": [
-        {"type": "tabs", "tabs": [
-          {"title": "Calls", "blocks": [
-            {"type": "table", "title": "Calls of the gateway", "source": {"from": "deck.calls_list"}, "filter": ["project", "outcome"],
-              "columns": [
-                {"label": "When", "bind": "created_at"},
-                {"label": "Tool", "bind": "tool"},
-                {"label": "Who", "bind": "actor"},
-                {"label": "Project", "bind": "project"},
-                {"label": "Class", "bind": "class"},
-                {"label": "Outcome", "bind": "outcome"},
-                {"label": "External id", "bind": "external_id"},
-                {"label": "Error", "bind": "error"}
-              ],
-              "actions": [
-                {"verb": "open", "screen": "process", "record": "=process", "when": "process != 0"}
-              ]}
-          ]},
-          {"title": "Spend", "icon": "chart-bar", "blocks": [
-            {"type": "stat", "title": "Tokens today", "icon": "bolt", "source": {"from": "deck.spend_daily", "input": {"days": 1}}, "value": "sum(map(rows, .tokens))", "format": "compact"},
-            {"type": "stat", "title": "Tokens, 7 days", "icon": "calendar-week", "source": {"from": "deck.spend_daily", "input": {"days": 7}}, "value": "sum(map(rows, .tokens))", "format": "compact"},
-            {"type": "stat", "title": "Cost, 30 days", "icon": "coin", "source": {"from": "deck.spend_daily"}, "value": "sum(map(rows, .cost_usd))", "format": "money", "currency": "USD"},
-            {"type": "stat", "title": "Model calls today", "icon": "message-chatbot", "source": {"from": "deck.spend_daily", "input": {"days": 1}}, "value": "sum(map(rows, .calls))"},
-            {"type": "chart", "title": "Tokens by day", "kind": "bar", "span": "full", "source": {"from": "deck.spend_daily"}, "x": "day",
-              "series": [{"label": "Input", "y": "input_tokens"}, {"label": "Output", "y": "output_tokens"}]},
-            {"type": "table", "title": "By model, 30 days", "span": 2, "source": {"from": "deck.spend_daily", "input": {"by": "provider"}},
-              "description": "The cost is what the provider said, such as OpenRouter or Claude Code, else by the price of the model.",
-              "columns": [
-                {"label": "Model", "bind": "provider"},
-                {"label": "Tokens", "bind": "tokens", "format": "compact"},
-                {"label": "Share", "bind": "share", "format": "percent"},
-                {"label": "Calls", "bind": "calls"},
-                {"label": "Cost", "bind": "cost_usd", "format": "money", "currency": "USD"}
-              ]},
-            {"type": "table", "title": "By project, 30 days", "span": 2, "source": {"from": "deck.spend_daily", "input": {"by": "project"}},
-              "columns": [
-                {"label": "Project", "bind": "project"},
-                {"label": "Tokens", "bind": "tokens", "format": "compact"},
-                {"label": "Share", "bind": "share", "format": "percent"},
-                {"label": "Cost", "bind": "cost_usd", "format": "money", "currency": "USD"}
-              ]},
-            {"type": "table", "title": "Tokens by command and model", "source": {"from": "deck.spend_list"}, "filter": ["provider"],
-              "columns": [
-                {"label": "Project", "bind": "project"},
-                {"label": "Command", "bind": "command"},
-                {"label": "Model", "bind": "provider"},
-                {"label": "Model in the API", "bind": "model"},
-                {"label": "Calls", "bind": "calls"},
-                {"label": "Input", "bind": "input_tokens"},
-                {"label": "Output", "bind": "output_tokens"},
-                {"label": "Cache read", "bind": "cache_read_tokens"},
-                {"label": "Cost, $", "bind": "cost_usd > 0 ? string(cost_usd) : ''"},
-                {"label": "Last", "bind": "last_at"}
-              ]}
-          ]},
-          {"title": "Files", "blocks": [
-            {"type": "table", "title": "Files", "source": {"from": "deck.files_list"}, "filter": ["project"],
-              "columns": [
-                {"label": "Name", "bind": "name"},
-                {"label": "Project", "bind": "project"},
-                {"label": "Type", "bind": "type"},
-                {"label": "Size", "bind": "size"},
-                {"label": "Belongs to", "bind": "owner_kind + ' #' + string(owner_id)"},
-                {"label": "Added", "bind": "created_at"}
-              ],
-              "actions": [
-                {"verb": "download", "file": "=id"}
-              ]}
-          ]},
-          {"title": "Snapshots", "blocks": [
-            {"type": "table", "title": "Snapshots", "source": {"from": "deck.snapshots_list"},
-              "columns": [
-                {"label": "Snapshot", "bind": "name"},
-                {"label": "Taken", "bind": "taken_at"},
-                {"label": "Size", "bind": "size"}
-              ]},
-            {"type": "form", "title": "Take a snapshot now", "command": "deck.snapshot_create"}
           ]}
         ]}
       ]

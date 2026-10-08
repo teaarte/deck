@@ -118,6 +118,9 @@ type spendDailyRow struct {
 	OutputTokens int64   `json:"output_tokens"`
 	Tokens       int64   `json:"tokens"`
 	CostUSD      float64 `json:"cost_usd"`
+	// Runs and Scheduled are the processes a model ran over the days, those of a schedule apart; by provider only.
+	Runs      int64 `json:"runs"`
+	Scheduled int64 `json:"scheduled"`
 	// Share is the part of all tokens of the days, from 0 to 1.
 	Share float64 `json:"share"`
 }
@@ -187,6 +190,24 @@ func (s *Service) spendDaily(ctx context.Context, act registry.Actor, in spendDa
 			}
 		}
 	}
+	if in.By == "provider" {
+		runs, err := s.St.Q.RunsSince(ctx, db.RunsSinceParams{WorkspaceID: act.Workspace, Since: since})
+		if err != nil {
+			return nil, err
+		}
+		for _, r := range runs {
+			if r.Provider == "" {
+				continue
+			}
+			row, ok := by[r.Provider]
+			if !ok {
+				row = &spendDailyRow{Provider: r.Provider}
+				by[r.Provider] = row
+				order = append(order, r.Provider)
+			}
+			row.Runs, row.Scheduled = row.Runs+r.Runs, row.Scheduled+r.Scheduled
+		}
+	}
 	out := make([]spendDailyRow, 0, len(order))
 	for _, k := range order {
 		row := *by[k]
@@ -196,7 +217,7 @@ func (s *Service) spendDaily(ctx context.Context, act registry.Actor, in spendDa
 		out = append(out, row)
 	}
 	if in.By == "provider" || in.By == "project" {
-		slices.SortFunc(out, func(x, y spendDailyRow) int { return cmp.Compare(y.Tokens, x.Tokens) })
+		slices.SortFunc(out, func(x, y spendDailyRow) int { return cmp.Or(cmp.Compare(y.Tokens, x.Tokens), cmp.Compare(y.Runs, x.Runs)) })
 	}
 	return out, nil
 }
@@ -280,8 +301,8 @@ func (s *Service) Commands() []*registry.Command {
 			"Lists the tokens and cost of model calls by project, command, provider and model, the largest first.",
 			registry.OwnerOnly, s.spendList).On("usage"),
 		registry.Read("spend_daily", "Spend by day",
-			"Gives the tokens, calls and cost of model calls of the last days: a row for every day, or the totals of each provider or project with their share.",
-			registry.OwnerOnly, s.spendDaily).On("usage"),
+			"Gives the tokens, calls and cost of model calls of the last days: a row for every day, or the totals of each provider or project with their share; by provider also the runs each model did.",
+			registry.OwnerOnly, s.spendDaily).On("usage", "processes"),
 		registry.Read("runs_daily", "Runs by day",
 			"Gives the processes started on each of the last days: all, failed and started by a schedule.",
 			registry.OwnerOnly, s.runsDaily).On("processes"),

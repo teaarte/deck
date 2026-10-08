@@ -4,6 +4,7 @@ import (
 	"context"
 	"deck2/internal/app/access"
 	"encoding/json"
+	"strings"
 
 	"deck2/internal/docs"
 	"deck2/internal/registry"
@@ -44,16 +45,18 @@ type feedListIn struct {
 // feedRow is a line of the owner's feed: a note with the screen it opens and its buttons, whose commands carry
 // the name of the project, or a change made without the owner, which can be undone once when it has an undo.
 type feedRow struct {
-	ID      int64    `json:"id"`
-	Kind    string   `json:"kind"`
-	Project string   `json:"project"`
-	Author  string   `json:"author"`
-	Text    string   `json:"text"`
-	Screen  string   `json:"screen"`
-	Record  int64    `json:"record"`
-	Buttons []Button `json:"buttons"`
-	CanUndo bool     `json:"can_undo"`
-	Undone  bool     `json:"undone"`
+	ID      int64  `json:"id"`
+	Kind    string `json:"kind"`
+	Project string `json:"project"`
+	Author  string `json:"author"`
+	Text    string `json:"text"`
+	Screen  string `json:"screen"`
+	Record  int64  `json:"record"`
+	// DeckScreen is a Screen of deck rather than of the project.
+	DeckScreen bool     `json:"deck_screen"`
+	Buttons    []Button `json:"buttons"`
+	CanUndo    bool     `json:"can_undo"`
+	Undone     bool     `json:"undone"`
 	// Read is a note the owner marked read; CanRead one they still may.
 	Read      bool   `json:"read"`
 	CanRead   bool   `json:"can_read"`
@@ -83,6 +86,7 @@ func (dv *Service) feedList(ctx context.Context, act registry.Actor, in feedList
 		r := feedRow{ID: f.ID, Kind: f.Kind, Project: names[f.ProjectID], Author: f.Author, Text: f.Text, Screen: f.Screen,
 			Record: f.RecordID.Int64, Buttons: []Button{}, CanUndo: f.Command != "" && !f.UndoneAt.Valid, Undone: f.UndoneAt.Valid,
 			Read: f.ReadAt.Valid, CanRead: f.Kind == FeedNote && !f.ReadAt.Valid, CreatedAt: f.CreatedAt}
+		r.Screen, r.DeckScreen = strings.CutPrefix(r.Screen, DeckPrefix)
 		_ = json.Unmarshal([]byte(f.Actions), &r.Buttons)
 		for i := range r.Buttons {
 			r.Buttons[i].Command = r.Project + "." + r.Buttons[i].Command

@@ -57,16 +57,22 @@ func TestRealBrowserShell(t *testing.T) {
 	b.shot("shell-system-menu")
 	b.eval(`(document.querySelector('[data-system-menu] a[href="#/deck/schedule"]').click(), '')`)
 	b.until("the schedule from the system menu", `location.hash === '#/deck/schedule' && !document.querySelector('[data-system-menu]')`)
-	b.open(e.URL + "/#/deck/cockpit")
-	b.until("the cockpit again", `document.querySelector('[data-nav] [data-system] [data-icon="layout-dashboard"]')`)
-	if got := b.eval(`document.querySelector('[data-columns]') ? (() => { const hs = [...document.querySelectorAll('[data-columns] > * > [data-block]')].map((x) => Math.round(x.getBoundingClientRect().height)); return String(hs.length > 1 && new Set(hs).size === 1) })() : 'none'`); got != "true" {
-		t.Fatalf("the blocks of a row take one height: %s", got)
+	b.eval(`(document.querySelector('[data-nav] [data-logo]').click(), '')`)
+	b.until("the logo opens the cockpit", `location.hash === '#/deck/cockpit' && document.querySelector('[data-nav] [data-system] [data-icon="layout-dashboard"]')`)
+	b.until("the counters of the cockpit", `document.querySelectorAll('[data-stat]').length === 4`)
+	if got := b.eval(`(() => { const bs = [...document.querySelectorAll('[data-stat]')].map((x) => x.closest('[data-block]').getBoundingClientRect());
+		return String(new Set(bs.map((r) => Math.round(r.top))).size === 1 && new Set(bs.map((r) => Math.round(r.height))).size === 1) })()`); got != "true" {
+		t.Fatalf("the four counters of the cockpit stand in one row of one height: %s", got)
+	}
+	if got := b.eval(`String([...document.querySelectorAll('[data-block]')].some((x) => x.innerText.includes('Nothing')))`); got != "false" {
+		t.Fatalf("the cockpit hides its empty lists: %s", got)
 	}
 	b.until("the pattern of icons behind the shell", `getComputedStyle(document.querySelector('[data-backdrop] > div')).maskImage.startsWith('url(')`)
 	b.shot("shell-cockpit")
 	b.until("a new notification on the bell", `document.querySelector('[data-bell-count="1"]')`)
 	b.eval(`(document.querySelector('[data-bell]').click(), '')`)
 	b.until("the notification in the list of the bell", `document.querySelector('[data-bell-list] [data-note]')?.innerText.includes('alpha scored high')`)
+	b.until("an Open button on a note with a screen", `document.querySelector('[data-bell-list] [data-note] [data-note-open]')`)
 	b.shot("shell-bell")
 	b.until("the bell has nothing new once seen", `!document.querySelector('[data-bell-count]')`)
 	b.until("a button of a notification with its icon", `document.querySelector('[data-bell-list] [data-note] [data-icon="hand-finger"]')`)
@@ -110,9 +116,9 @@ func TestRealBrowserShell(t *testing.T) {
 	b.until("the icons of a block and its button", `document.querySelector('[data-block-icon] [data-icon="notes"]') && document.querySelector('button [data-icon="arrow-right"]')`)
 	b.shot("shell-light")
 
-	b.open(e.URL + "/#/deck/journal?tab=Spend")
-	b.until("the stats and the chart of the spend", `document.querySelectorAll('[data-stat]').length === 4 && document.querySelector('[data-chart-block] svg')`)
-	if got := b.eval(`String(new Set([...document.querySelectorAll('[data-stat]')].map((x) => Math.round(x.closest('[data-block]').getBoundingClientRect().top))).size)`); got != "1" {
+	b.open(e.URL + "/#/deck/schedule?tab=Spend")
+	b.until("the stats and the chart of the spend", `[...document.querySelectorAll('[data-stat]')].filter((x) => x.offsetParent).length === 4 && [...document.querySelectorAll('[data-chart-block] svg')].some((x) => x.getBoundingClientRect().width > 0)`)
+	if got := b.eval(`String(new Set([...document.querySelectorAll('[data-stat]')].filter((x) => x.offsetParent).map((x) => Math.round(x.closest('[data-block]').getBoundingClientRect().top))).size)`); got != "1" {
 		t.Fatalf("the four numbers of the spend stand in one row: %s", got)
 	}
 	b.shot("shell-spend")
@@ -121,6 +127,10 @@ func TestRealBrowserShell(t *testing.T) {
 	if got := b.eval(`(() => { const g = document.querySelector('[data-grid]').getBoundingClientRect(); const cells = [...document.querySelector('[data-grid]').children].map((c) => c.getBoundingClientRect());
 		const top = cells.filter((c) => Math.abs(c.top - cells[0].top) < 2); return String(Math.abs(top[top.length - 1].right - g.right) < 2) })()`); got != "true" {
 		t.Fatalf("the blocks of a row fill the width of the screen: %s", got)
+	}
+	b.until("the schedule of a trigger in words", `[...document.querySelectorAll('tr')].some((r) => r.offsetParent && r.innerText.includes('master · review'))`)
+	if got := b.eval(`[...document.querySelectorAll('td')].filter((x) => x.offsetParent && /^[0-9*\/,-]+( [0-9*\/,-]+){4}$/.test(x.innerText.trim())).map((x) => x.innerText).join('|')`); got != "" {
+		t.Fatalf("no schedule shows as cron: %s", got)
 	}
 	b.shot("shell-schedule")
 	b.open(e.URL + "/#/deck/settings")
@@ -242,7 +252,7 @@ func TestRealBrowserShell(t *testing.T) {
 	e.must("deck.settings_set", map[string]any{"name": "language", "value": "ru"}, nil)
 	b.until("the interface in the language the owner picked", `document.querySelector('[data-nav] [data-system]')?.innerText.includes('Настройки') && document.querySelector('[data-chat-toggle]')?.innerText.includes('Мастер')`)
 	b.shot("shell-ru")
-	b.open(e.URL + "/#/deck/journal?tab=Spend")
+	b.open(e.URL + "/#/deck/schedule?tab=Spend")
 	b.until("a link to a tab opens it in any language", `document.querySelector('[role="tab"][aria-selected="true"]')?.innerText.includes('Расходы')`)
 	b.eval(`([...document.querySelectorAll('[role="tab"]')].find((x) => x.innerText.includes('Вызовы')).click(), '')`)
 	b.eval(`([...document.querySelectorAll('[role="tab"]')].find((x) => x.innerText.includes('Файлы')).click(), '')`)

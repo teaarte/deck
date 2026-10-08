@@ -38,7 +38,7 @@ func TestRealBrowserRouter(t *testing.T) {
 	b.until("the tabs of settings", `[...document.querySelectorAll('[role=tab]')].some((x) => x.innerText.trim() === 'Tokens')`)
 	b.eval(`([...document.querySelectorAll('[role=tab]')].find((x) => x.innerText.trim() === 'Tokens').click(), '')`)
 	b.until("the tab in the address", `decodeURIComponent(location.hash).includes('tab=Tokens')`)
-	b.open(e.URL + "/#/deck/journal")
+	b.open(e.URL + "/#/deck/schedule")
 	b.until("the journal", `[...document.querySelectorAll('[role=tab]')].some((x) => x.innerText.trim() === 'Spend')`)
 	b.eval(`(document.querySelector('[data-back]').click(), '')`)
 	b.until("back on the tab picked before", `[...document.querySelectorAll('[role=tab][data-active]')].some((x) => x.innerText.trim() === 'Tokens')`)

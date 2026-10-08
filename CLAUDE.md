@@ -69,8 +69,8 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
   a screen block reads a `registry.Read` command (`"from": "deck.asks_list"`), called as the viewer in
   `app/screen_get.go` (`deck.screen`; the menu `menu.go`, `commands_list.go`, translations `i18n.go`); `app/screens` —
   the sources of screens: records, forms, documents;
-  deck's screens are data in `screens.json`: menu Cockpit, Schedule, Settings (tabs Projects, Models, Connections,
-  Tokens, General, Interface, Health), Journal (Calls, Spend, Files, Snapshots); `project` screens (Documents, the page of
+  deck's screens are data in `screens.json`: menu Cockpit, Schedule (tabs Schedule, Runs, Spend, Calls, Files,
+  Snapshots), Settings (tabs Projects, Models, Connections, Tokens, General, Interface, Health); `project` screens (Documents, the page of
   a document and Settings of the project: its commands and providers, folders, tools, secrets, tokens, health) deck adds
   to every project
 - `internal/manifest` — project manifest (format 9: `upgrade.go` raises older ones): `types.go`, `parse.go`,

@@ -387,7 +387,7 @@ func merge(a, b map[string]any) map[string]any {
 func (e *Env) cockpitItems() []listItem {
 	e.T.Helper()
 	var items []listItem
-	_ = json.Unmarshal(e.screenData("", "cockpit", nil)["b0"]["items"], &items)
+	_ = json.Unmarshal(e.screenData("", "cockpit", nil)["b4"]["items"], &items)
 	return items
 }
 
@@ -413,11 +413,10 @@ func TestScreenTopicReadsOnlyTheBlocksItChanges(t *testing.T) {
 	if got := paths("notes", "main", "asks"); !slices.Equal(got, []string{"/b2"}) {
 		t.Fatalf("asks reads the asks block: %v", got)
 	}
-	if got := paths("", "cockpit", "feed"); !slices.Equal(got, []string{"/b1", "/b2-1", "/b3-0"}) {
-		t.Fatalf("feed reads the blocks of the feed: %v", got)
-	}
-	if msgs := e.screenMessages("", "cockpit", map[string]any{"topic": "processes"}); len(msgs) != 3 {
-		t.Fatalf("processes draws the cockpit whole: Running now is there only while something runs: %v", msgs)
+	for _, topic := range []string{"feed", "asks", "processes"} {
+		if msgs := e.screenMessages("", "cockpit", map[string]any{"topic": topic}); len(msgs) != 3 {
+			t.Fatalf("%s draws the cockpit whole: its lists are there only while they have lines: %v", topic, msgs)
+		}
 	}
 	if got := paths("", "settings", "health"); !slices.Equal(got, []string{"/b0-1-2", "/b0-1-3", "/b0-1-4", "/b0-2-2", "/b0-6-0"}) {
 		t.Fatalf("health reads the models, the agents, the connections and the health: %v", got)
@@ -474,7 +473,7 @@ func TestProcessPageShowsItsLogInTheWordsOfACP(t *testing.T) {
 		t.Fatalf("the page of a running process offers stop and a message to it: %+v", card)
 	}
 	running := e.cockpitRunning()
-	if len(running) != 1 || running[0].Title != "quiet.job" || running[0].Actions[0]["screen"] != "process" {
+	if len(running) != 1 || running[0].Title != "quiet · job" || running[0].Actions[0]["screen"] != "process" {
 		t.Fatalf("the cockpit lists the running process with a move to its page: %+v", running)
 	}
 	e.must("deck.process_stop", map[string]any{"process": id}, nil)
@@ -487,7 +486,7 @@ func TestProcessPageShowsItsLogInTheWordsOfACP(t *testing.T) {
 func (e *Env) cockpitRunning() []listItem {
 	e.T.Helper()
 	var items []listItem
-	_ = json.Unmarshal(e.screenData("", "cockpit", nil)["b2-0"]["items"], &items)
+	_ = json.Unmarshal(e.screenData("", "cockpit", nil)["b6-0"]["items"], &items)
 	return items
 }
 
@@ -766,8 +765,33 @@ func TestNotifyWritesALineToTheCockpitFeed(t *testing.T) {
 		{map[string]any{"project": "web", "text": "x", "actions": []any{map[string]any{"label": "Go", "command": "launch"}}}, `unknown command "launch"`},
 		{map[string]any{"project": "web", "text": "x", "actions": `[{"label": "Go", "command": "touch", "params": {"page": 1}}]`}, `no input field "page"`},
 		{map[string]any{"project": "web", "text": " "}, "needs text"},
+		{map[string]any{"project": "web", "text": "x", "screen": "deck/nowhere"}, `deck has no screen "nowhere"`},
+		{map[string]any{"project": "web", "text": "x", "screen": "deck/process"}, "give record"},
 	} {
 		e.refused("deck.notify", tc.in, 422, tc.want)
+	}
+}
+
+// TestANoteOpensItsScreenOfTheProjectOrOfDeck: a note names a screen of its project or of deck, and the cockpit
+// gives it a button that opens it.
+func TestANoteOpensItsScreenOfTheProjectOrOfDeck(t *testing.T) {
+	e := newEnv(t, nil)
+	e.createProject("web", webNotes)
+	e.must("deck.notify", map[string]any{"project": "web", "text": "the runs of today", "screen": "deck/schedule"}, nil)
+	e.must("deck.notify", map[string]any{"project": "web", "text": "a new note", "screen": "main"}, nil)
+	var feed []struct {
+		Text, Screen string
+		DeckScreen   bool `json:"deck_screen"`
+	}
+	e.must("deck.feed_list", map[string]any{"kind": "note"}, &feed)
+	if len(feed) != 2 || feed[1].Screen != "schedule" || !feed[1].DeckScreen || feed[0].Screen != "main" || feed[0].DeckScreen {
+		t.Fatalf("a note says whether its screen is of deck: %+v", feed)
+	}
+	data, _ := json.Marshal(e.screenData("", "cockpit", nil))
+	for _, want := range []string{`{"project":"","record":0,"screen":"schedule","verb":"open"}`, `{"project":"web","record":0,"screen":"main","verb":"open"}`} {
+		if !strings.Contains(string(data), want) {
+			t.Fatalf("the cockpit opens the screen of a note %s: %s", want, data)
+		}
 	}
 }
 

@@ -67,14 +67,14 @@ func TestJournalShowsTheCallsOfTheGatewayTheSpendFilesAndSnapshots(t *testing.T)
 		t.Fatalf("the journal of a project has only its calls: %+v", none)
 	}
 
-	msgs := e.screenMessages("", "journal", nil)
+	msgs := e.screenMessages("", "schedule", nil)
 	check.messages(t, msgs)
-	data := e.screenData("", "journal", nil)
-	rows := blockData[[]screenRow](t, data["b0-0-0"]["rows"])
-	if len(rows) == 0 || !strings.Contains(string(data["b0-0-0"]["filters"]), `"waiting"`) {
-		t.Fatalf("the calls tab lists the calls with their outcomes to narrow by: %+v %s", rows, data["b0-0-0"]["filters"])
+	data := e.screenData("", "schedule", nil)
+	rows := blockData[[]screenRow](t, data["b0-3-0"]["rows"])
+	if len(rows) == 0 || !strings.Contains(string(data["b0-3-0"]["filters"]), `"waiting"`) {
+		t.Fatalf("the calls tab lists the calls with their outcomes to narrow by: %+v %s", rows, data["b0-3-0"]["filters"])
 	}
-	picked := e.screenData("", "journal", map[string]any{"filter": `{"b0-0-0": {"outcome": "waiting"}}`})["b0-0-0"]
+	picked := e.screenData("", "schedule", map[string]any{"filter": `{"b0-3-0": {"outcome": "waiting"}}`})["b0-3-0"]
 	if len(blockData[[]screenRow](t, picked["rows"])) == 0 || len(blockData[[]screenRow](t, picked["rows"])) == len(rows) {
 		t.Fatalf("the outcome filter narrows the calls: %d of %d", len(blockData[[]screenRow](t, picked["rows"])), len(rows))
 	}
@@ -87,7 +87,7 @@ func TestJournalShowsTheCallsOfTheGatewayTheSpendFilesAndSnapshots(t *testing.T)
 		}
 	}
 
-	spend := blockData[[]screenRow](t, data["b0-1-7"]["rows"])
+	spend := blockData[[]screenRow](t, data["b0-2-7"]["rows"])
 	if len(spend) != 1 || spend[0].Cells[1] != "tell" || spend[0].Cells[3] != "big" || spend[0].Cells[4] != float64(2) ||
 		spend[0].Cells[5] != float64(2000) || spend[0].Cells[6] != float64(400) {
 		t.Fatalf("spend sums the tokens of a command on a provider and model: %+v", spend)
@@ -96,10 +96,11 @@ func TestJournalShowsTheCallsOfTheGatewayTheSpendFilesAndSnapshots(t *testing.T)
 		Provider string
 		Tokens   int64
 		Share    float64
+		Runs     int64
 	}
 	e.must("deck.spend_daily", map[string]any{"by": "provider"}, &by)
-	if len(by) != 1 || by[0].Tokens != 2400 || by[0].Share != 1 {
-		t.Fatalf("spend by provider sums the tokens of the days with their share: %+v", by)
+	if len(by) != 1 || by[0].Tokens != 2400 || by[0].Share != 1 || by[0].Runs != 2 {
+		t.Fatalf("spend by provider sums the tokens of the days with their share and the runs of the model: %+v", by)
 	}
 	var days []struct {
 		Day    string
@@ -110,11 +111,11 @@ func TestJournalShowsTheCallsOfTheGatewayTheSpendFilesAndSnapshots(t *testing.T)
 	if len(days) != 7 || days[6].Age != 0 || days[0].Age != 6 {
 		t.Fatalf("spend by day has every day of the window, today last: %+v", days)
 	}
-	files := blockData[[]screenRow](t, data["b0-2-0"]["rows"])
+	files := blockData[[]screenRow](t, data["b0-4-0"]["rows"])
 	if len(files) != 1 || files[0].Cells[0] != "scan.txt" || files[0].Cells[1] != "web" || !strings.HasPrefix(files[0].Cells[4].(string), "process #") {
 		t.Fatalf("files lists the files of the workspace with what they belong to: %+v", files)
 	}
-	snaps := blockData[[]screenRow](t, data["b0-3-0"]["rows"])
+	snaps := blockData[[]screenRow](t, data["b0-5-0"]["rows"])
 	if len(snaps) != 2 || !strings.HasPrefix(snaps[0].Cells[0].(string), "deck-2026") || snaps[1].Cells[1] != "2020-01-01T00:00:00Z" {
 		t.Fatalf("snapshots lists what backups holds: %+v", snaps)
 	}
@@ -180,7 +181,7 @@ func TestTheJournalFollowsCallsAndSpendLive(t *testing.T) {
 	waitTopic(t, phone, "calls")
 	waitTopic(t, phone, "usage")
 	for _, topic := range []string{"calls", "usage"} {
-		msgs := e.screenMessages("", "journal", map[string]any{"topic": topic})
+		msgs := e.screenMessages("", "schedule", map[string]any{"topic": topic})
 		if len(msgs) == 0 || msgs[0]["createSurface"] != nil {
 			t.Fatalf("%s redraws only its blocks: %d messages", topic, len(msgs))
 		}

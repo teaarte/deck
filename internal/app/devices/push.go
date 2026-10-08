@@ -26,6 +26,7 @@ import (
 	"deck2/internal/events"
 	"deck2/internal/health"
 	"deck2/internal/home"
+	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
@@ -61,6 +62,8 @@ type Service struct {
 	Home        home.Layout
 	// Invoke calls a command, as the undo of a change does.
 	Invoke func(ctx context.Context, act registry.Actor, name string, input json.RawMessage) (any, error)
+	// DeckScreen is a screen of deck by name, nil for none.
+	DeckScreen func(name string) *manifest.Screen
 
 	pushMu, keyMu sync.Mutex
 }
@@ -285,11 +288,13 @@ func (dv *Service) pushSources() []pushSource {
 				for _, row := range ns {
 					n := row.Feed
 					url := "/#/deck/cockpit"
-					if n.Screen != "" {
+					if name, ok := strings.CutPrefix(n.Screen, DeckPrefix); ok {
+						url = "/#/deck/" + name
+					} else if n.Screen != "" {
 						url = "/#/p/" + row.ProjectName + "/" + n.Screen
-						if n.RecordID.Valid {
-							url += fmt.Sprintf("/%d", n.RecordID.Int64)
-						}
+					}
+					if n.Screen != "" && n.RecordID.Valid {
+						url += fmt.Sprintf("/%d", n.RecordID.Int64)
 					}
 					items = append(items, pushItem{dv.pushText(ctx, n.ProjectID, row.ProjectName, n.Text, url), fmt.Sprint(n.ID)})
 				}

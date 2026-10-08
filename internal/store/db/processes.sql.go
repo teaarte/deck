@@ -1121,13 +1121,13 @@ func (q *Queries) ReopenProcess(ctx context.Context, arg ReopenProcessParams) (i
 }
 
 const runsSince = `-- name: RunsSince :many
-SELECT CAST(substr(p.started_at, 1, 16) AS TEXT) AS minute,
+SELECT CAST(substr(p.started_at, 1, 16) AS TEXT) AS minute, p.provider,
     CAST(count(*) AS INTEGER) AS runs,
     CAST(sum(CASE WHEN p.state IN ('error', 'interrupted') THEN 1 ELSE 0 END) AS INTEGER) AS failed,
     CAST(sum(CASE WHEN p.trigger_id IS NOT NULL THEN 1 ELSE 0 END) AS INTEGER) AS scheduled
 FROM process p JOIN project j ON j.id = p.project_id
 WHERE j.workspace_id = ?1 AND p.started_at >= ?2
-GROUP BY minute
+GROUP BY minute, p.provider
 `
 
 type RunsSinceParams struct {
@@ -1137,6 +1137,7 @@ type RunsSinceParams struct {
 
 type RunsSinceRow struct {
 	Minute    string
+	Provider  string
 	Runs      int64
 	Failed    int64
 	Scheduled int64
@@ -1153,6 +1154,7 @@ func (q *Queries) RunsSince(ctx context.Context, arg RunsSinceParams) ([]RunsSin
 		var i RunsSinceRow
 		if err := rows.Scan(
 			&i.Minute,
+			&i.Provider,
 			&i.Runs,
 			&i.Failed,
 			&i.Scheduled,

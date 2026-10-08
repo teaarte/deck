@@ -55,8 +55,8 @@ func TestScreensAndTheMenuSpeakTheLanguageOfTheOwner(t *testing.T) {
 // opens the same tab whatever language the screen is drawn in; the tabs of a screen have their own titles.
 func TestATabKeepsItsKeyInEveryLanguage(t *testing.T) {
 	e := newEnv(t, nil)
-	drawn, _ := json.Marshal(e.screenMessages("", "journal", map[string]any{"lang": "ru"}))
-	if !strings.Contains(string(drawn), `"Расходы"`) || !strings.Contains(string(drawn), `"keys":["Calls","Spend",`) {
+	drawn, _ := json.Marshal(e.screenMessages("", "schedule", map[string]any{"lang": "ru"}))
+	if !strings.Contains(string(drawn), `"Расходы"`) || !strings.Contains(string(drawn), `"keys":["Schedule","Runs","Spend","Calls",`) {
 		t.Fatalf("a tab shows its title translated and keeps its key: %s", drawn)
 	}
 	twice := strings.Replace(webNotes, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "blocks": [

@@ -74,7 +74,7 @@ export function Shell() {
       <Drawer opened={phone && phoneNav} onClose={() => setPhoneNav(false)} size={300} padding={0} withCloseButton={false} keepMounted data-nav-phone>
         <nav className={`${s.island} ${s.safe}`} style={{ height: '100dvh', borderRadius: 0, boxShadow: 'none', background: 'transparent' }}>
           <div className={s.navTop}>
-            <Logo />
+            <Logo onClick={() => setPhoneNav(false)} />
             <ActionIcon variant="subtle" color="gray" radius="xl" onClick={() => setPhoneNav(false)} aria-label={t('nav.hide')} data-autofocus>
               <IconX size={18} />
             </ActionIcon>

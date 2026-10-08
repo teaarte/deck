@@ -68,7 +68,7 @@ func TestRealBrowserShell(t *testing.T) {
 		t.Fatalf("the cockpit hides its empty lists: %s", got)
 	}
 	b.until("the sky of juce behind the shell", `document.documentElement.dataset.deckTheme === 'juce' && document.querySelectorAll('[data-backdrop] [data-cloud]').length === 2`)
-	b.until("Deki on top of the cockpit", `document.querySelector('[data-hero="full"] [data-deki]')`)
+	b.until("Deki at work while a process runs", `document.querySelector('[data-hero="full"] [data-deki="work"]')`)
 	b.shot("shell-cockpit")
 	b.until("a new notification on the bell", `document.querySelector('[data-bell-count="1"]')`)
 	b.eval(`(document.querySelector('[data-bell]').click(), '')`)

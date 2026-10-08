@@ -23,10 +23,10 @@ export function Hero() {
   const running = sum(menu.map((m) => m.running));
   const errors = sum(menu.map((m) => m.errors));
   const thinking = !!menu.find((m) => m.project === 'master')?.running;
-  const mood: Mood = asks ? 'wait' : thinking ? 'think' : running && sky ? 'chill' : 'sleepy';
+  const mood: Mood = asks ? 'wait' : thinking ? 'dots' : running ? 'work' : errors ? 'think' : sky ? 'chill' : 'sleepy';
   const eyebrow = asks || running ? t('hero.on_shift', { count: running }) : t('hero.calm_eyebrow');
-  const title = asks ? t('hero.asks', { count: asks }) : errors ? t('hero.errors', { count: errors }) : t('hero.calm');
-  const text = asks ? t('hero.asks_text') : errors ? t('hero.errors_text') : t('hero.calm_text');
+  const title = asks ? t('hero.asks', { count: asks }) : errors ? t('hero.errors', { count: errors }) : running ? t('hero.running', { count: running }) : t('hero.calm');
+  const text = asks ? t('hero.asks_text') : errors ? t('hero.errors_text') : running ? t('hero.running_text') : t('hero.calm_text');
   const talk = () => {
     setChatOpen(true);
     setTimeout(() => document.querySelector<HTMLTextAreaElement>('[data-composer] textarea')?.focus(), 150);

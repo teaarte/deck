@@ -2,9 +2,9 @@ import { useTranslation } from 'react-i18next';
 import { useLook } from '../theme/look';
 import s from './deki.module.css';
 
-// Mood is the pose of Deki: dots or think while the master answers, wait while something waits for the owner,
-// chill when all is calm, sleepy when there is nothing.
-export type Mood = 'dots' | 'think' | 'wait' | 'chill' | 'sleepy';
+// Mood is the pose of Deki: dots while the master answers, wait while something waits for the owner, work while
+// processes run, think over failing checks, chill when all is calm, sleepy when calm without the sky.
+export type Mood = 'dots' | 'think' | 'wait' | 'work' | 'chill' | 'sleepy';
 
 // useMascot says whether this device shows Deki.
 export const useMascot = () => useLook().mascot;

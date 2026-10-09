@@ -7,7 +7,9 @@ the project yourself.
    For a screen: the screen in the manifest, the records the block reads (`records_list`), and which of them
    breaks the block (a field some records lack, a wrong type); a fix of the manifest keeps every record shown.
 2. Tell apart: a fault of the module (the script, the prompt, the schema, a wrong tool) — the fix; a fault
-   outside it (a site is down, a login ran out, a limit) — say so, no fix; a one-off — nothing.
+   outside it (a site is down, a login ran out, a limit) — say so, no fix; a one-off — nothing. A call refused
+   because its model is not in deck's settings: propose that model with `deck.model_set` (it waits for the owner's
+   button; `models_list` shows the connections) or name a model deck has that does the same work.
 3. Write one `notify` with the failed project: what failed, the exact error, and the fix — the file and the
    change, or the command of the project that would repair it; the owner says in the chat whether to make it.
    What the owner's memory says they turned down, you do not offer again. A one-off writes nothing.

@@ -10,8 +10,8 @@ import (
 // command closed to it, and a call that misses a field says which one in plain words.
 func TestTheMasterReadsTheFieldsOfAFormOnlyTheOwnerFillsIn(t *testing.T) {
 	e := newEnv(t, nil)
-	_, tok := e.token("helper", "deck.command_describe", "deck.model_set")
-	code, out := e.callWith(tok, "deck.command_describe", map[string]any{"command": "deck.model_set"})
+	_, tok := e.token("helper", "deck.command_describe", "deck.connection_set")
+	code, out := e.callWith(tok, "deck.command_describe", map[string]any{"command": "deck.connection_set"})
 	var spec struct {
 		Name    string
 		Callers []string
@@ -23,11 +23,11 @@ func TestTheMasterReadsTheFieldsOfAFormOnlyTheOwnerFillsIn(t *testing.T) {
 	if code != 200 || json.Unmarshal(out, &spec) != nil {
 		t.Fatalf("command_describe: %d %s", code, out)
 	}
-	if spec.Name != "deck.model_set" || len(spec.Callers) != 1 || spec.Callers[0] != "owner" ||
-		strings.Join(spec.Input.Properties["agent"].Enum, ",") != "dsh,goose" {
-		t.Fatalf("the master sees the fields of the model form and the agents to pick: %s", out)
+	if spec.Name != "deck.connection_set" || len(spec.Callers) != 1 || spec.Callers[0] != "owner" ||
+		strings.Join(spec.Input.Properties["api"].Enum, ",") != "openai,google,anthropic,raw" {
+		t.Fatalf("the master sees the fields of the connection form and the APIs to pick: %s", out)
 	}
-	if code, out := e.callWith(tok, "deck.model_set", map[string]any{"connection": "x", "model": "m", "agent": "dsh"}); code != 403 {
+	if code, out := e.callWith(tok, "deck.connection_set", map[string]any{"name": "x", "api": "openai", "url": "https://x.example/v1"}); code != 403 {
 		t.Fatalf("describing a command does not open it: %d %s", code, out)
 	}
 	e.refused("deck.model_set", map[string]any{"connection": "x"}, 422,

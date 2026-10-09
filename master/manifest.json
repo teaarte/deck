@@ -144,6 +144,8 @@
           "deck.documents_list",
           "deck.document_get",
           "deck.manifest_get",
+          "deck.models_list",
+          "deck.model_set",
           "deck.asks_list",
           "deck.records_list",
           "deck.record_get",

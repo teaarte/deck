@@ -684,3 +684,27 @@ func TestARevisionNarrowedSinceAProcessStartedLeavesItTheGrantedCalls(t *testing
 		t.Fatalf("the resumed process may call what the grant lists: %v", outs)
 	}
 }
+
+// TestAnotherFolderOfACommandWidensRights: a command whose agent moves to another folder of the project, or into one,
+// writes where the owner did not grant; dropping its folder narrows.
+func TestAnotherFolderOfACommandWidensRights(t *testing.T) {
+	t.Parallel()
+	m := func(folder string) string {
+		return `{"version": 9, "commands": [{"name": "run", "title": "Run", "description": "Runs.", "class": "external",
+    "executor": {"type": "agent", ` + folder + `"prompt": "Run."}}]}`
+	}
+	e := newEnv(t, ok)
+	e.createProject("code", m(`"folder": "main", `))
+	_, tok := e.token("terminal", "deck.*")
+	for _, c := range []struct{ to, want string }{
+		{m(`"folder": "docs", `), "command run: works in folder docs"},
+		{m(`"folder": true, `), "command run: works in the one folder of the project"},
+	} {
+		if _, out := e.callWith(tok, "deck.manifest_save", map[string]any{"project": "code", "manifest": c.to}); !strings.Contains(string(out), c.want) {
+			t.Fatalf("want %q, got %s", c.want, out)
+		}
+	}
+	if _, out := e.callWith(tok, "deck.manifest_save", map[string]any{"project": "code", "manifest": m("")}); strings.Contains(string(out), "folder") {
+		t.Fatalf("a command that leaves its folder widens nothing: %s", out)
+	}
+}

@@ -36,9 +36,12 @@ func mcpManifest(extra string) string {
      "executor": {"type": "tool", "tool": "fake.lookup"}},
     {"name": "tell", "title": "Tell", "description": "Sends a message.", "class": "internal",
      "input": {"type": "object", "properties": {"to": {"type": "string"}}, "required": ["to"]},
-     "executor": {"type": "tool", "tool": "fake.send"}}],
+     "executor": {"type": "tool", "tool": "fake.send"}},
+    {"name": "reach", "title": "Reach", "description": "Reaches an address.", "class": "internal",
+     "input": {"type": "object", "properties": {"url": {"type": "string"}}, "required": ["url"]},
+     "executor": {"type": "tool", "tool": "fake.reach"}}],
   "tools": {"mcp": {"servers": {"fake": {"command": %q, "env": {"DECK_FAKE_MCP": "project"},
-    "toolFilter": ["lookup", "send", "picture", "vanish", "peek"], "classes": {"lookup": "internal", "picture": "internal", "peek": "internal"}}}}}%s}`, self, extra)
+    "toolFilter": ["lookup", "send", "picture", "vanish", "peek", "reach"], "classes": {"lookup": "internal", "picture": "internal", "peek": "internal", "reach": "internal"}}}}}%s}`, self, extra)
 }
 
 // toolCall is what one call of the fake agent got back.
@@ -445,4 +448,23 @@ func TestTheToolsAServerListsReachTheCommandsOfItsProject(t *testing.T) {
 	ev := e.live(t.Context())
 	e.waitState(e.start("srv", "work", map[string]any{}), "done")
 	waitEvent(t, ev, events.Event{Topic: "projects", Project: "srv"})
+}
+
+// TestAnMCPServerReachesOnlyTheDomainsOfItsProject: a server of a module goes out only through deck's proxy, to
+// the domains of its manifest; a service of the owner's machine it does not name stays closed to it.
+func TestAnMCPServerReachesOnlyTheDomainsOfItsProject(t *testing.T) {
+	t.Parallel()
+	local := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { _, _ = w.Write([]byte("hello")) })
+	addr := strings.TrimPrefix(local.URL, "http://")
+	e := newEnv(t, nil)
+	e.createProject("closed", mcpManifest(""))
+	got := e.waitState(e.start("closed", "reach", map[string]any{"url": local.URL}), "done", "error")
+	if strings.Contains(string(got.Result), "status 200") || len(local.requests()) != 0 {
+		t.Fatalf("a service the project does not name stays closed to its server: %s", got.Result)
+	}
+	e.createProject("named", mcpManifest(fmt.Sprintf(`, "domains": {"read": [%q]}`, addr)))
+	got = e.waitState(e.start("named", "reach", map[string]any{"url": local.URL}), "done", "error")
+	if !strings.Contains(string(got.Result), "status 200") || len(local.requests()) != 1 {
+		t.Fatalf("a service the project names is reached through deck's proxy: %s", got.Result)
+	}
 }

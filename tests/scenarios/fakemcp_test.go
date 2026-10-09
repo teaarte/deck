@@ -5,12 +5,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -131,6 +134,23 @@ func projectTools(dir string) []fakeTool {
 	}
 	str := map[string]any{"type": "string"}
 	return []fakeTool{
+		{name: "reach", desc: "Reaches an address through the proxy it is given.", input: map[string]any{"type": "object", "properties": map[string]any{"url": str}},
+			run: func(a map[string]any) *mcp.CallToolResult {
+				tr := &http.Transport{}
+				if p := os.Getenv("HTTP_PROXY"); p != "" {
+					if !strings.Contains(p, "://") {
+						p = "http://" + p
+					}
+					u, _ := url.Parse(p)
+					tr.Proxy = http.ProxyURL(u)
+				}
+				r, err := (&http.Client{Transport: tr, Timeout: 5 * time.Second}).Get(fmt.Sprint(a["url"]))
+				if err != nil {
+					return text("unreached: " + err.Error())
+				}
+				r.Body.Close()
+				return text(fmt.Sprint("status ", r.StatusCode))
+			}},
 		{name: "lookup", desc: "Looks a word up.", input: map[string]any{"type": "object", "properties": map[string]any{"word": str}},
 			run: func(a map[string]any) *mcp.CallToolResult {
 				note(dir, "lookup:"+fmt.Sprint(a["word"]))

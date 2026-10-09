@@ -589,12 +589,22 @@ func TestRealBrowserCustomBlockSendsNothingByWebRTC(t *testing.T) {
 	e := newEnv(t, webNotesAgent())
 	e.createProject("web", webNotes)
 	e.must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": `<!doctype html><html><body><p id="out">rtc</p><script>
-try {
-  const pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:` + stun.LocalAddr().String() + `" }] });
-  pc.createDataChannel("leak");
-  pc.createOffer().then((o) => pc.setLocalDescription(o));
-  document.getElementById("out").textContent = "tried";
-} catch (e) { document.getElementById("out").textContent = "no rtc: " + e; }
+const leak = (w) => {
+  try {
+    const pc = new w.RTCPeerConnection({ iceServers: [{ urls: "stun:` + stun.LocalAddr().String() + `" }] });
+    pc.createDataChannel("leak");
+    pc.createOffer().then((o) => pc.setLocalDescription(o));
+  } catch (e) {}
+};
+leak(window);
+leak(parent);
+const f = document.createElement("iframe");
+document.body.appendChild(f);
+leak(frames[0]);
+const d = document.createElement("div");
+d.innerHTML = "<iframe></iframe>";
+document.body.appendChild(d);
+leak(frames[1]);
 </script></body></html>`}, nil)
 	b := newPlaywright(t)
 	b.open(e.URL + "/?token=" + token + "#/p/web/main")

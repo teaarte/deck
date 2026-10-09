@@ -35,29 +35,29 @@ type modelCallIn struct {
 }
 
 // modelRef is where a call of a model goes: an @role on any connection, or a named model on its own.
-func (s *Service) modelRef(ctx context.Context, workspace int64, model, kind string) (string, string, error) {
+func (s *Service) modelRef(ctx context.Context, workspace int64, model, kind string) (gateway.ModelAsk, error) {
 	if model == "" {
-		return "@", "@" + kind, nil
+		return gateway.ModelAsk{Connection: "@", Model: "@" + kind}, nil
 	}
 	if strings.HasPrefix(model, "@") {
-		return "@", model, nil
+		return gateway.ModelAsk{Connection: "@", Model: model}, nil
 	}
 	row, err := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: workspace, Name: model})
 	if err != nil {
-		return "", "", registry.NotFound("deck: no model %q; deck.models_list names the models", model)
+		return gateway.ModelAsk{}, registry.NotFound("deck: no model %q; deck.models_list names the models", model)
 	}
-	return row.Connection.Name, row.Model.Model, nil
+	return gateway.ModelAsk{Connection: row.Connection.Name, Model: row.Model.Model, Name: row.Model.Name}, nil
 }
 
 func (s *Service) modelCall(ctx context.Context, act registry.Actor, in modelCallIn) (any, error) {
-	connection, asked, err := s.modelRef(ctx, act.Workspace, in.Model, in.Kind)
+	ask, err := s.modelRef(ctx, act.Workspace, in.Model, in.Kind)
 	if err != nil {
 		return nil, err
 	}
-	if role, ok := strings.CutPrefix(asked, "@"); ok && role != in.Kind {
-		return nil, registry.Invalid("deck: a call of kind %s takes @%s, not %s", in.Kind, in.Kind, asked)
+	if role, ok := strings.CutPrefix(ask.Model, "@"); ok && role != in.Kind {
+		return nil, registry.Invalid("deck: a call of kind %s takes @%s, not %s", in.Kind, in.Kind, ask.Model)
 	}
-	hops, err := s.Route(ctx, act, gateway.ModelAsk{Connection: connection, Model: asked})
+	hops, err := s.Route(ctx, act, ask)
 	if err != nil {
 		return nil, err
 	}

@@ -101,6 +101,11 @@ func (s *Service) Route(ctx context.Context, act registry.Actor, ask gateway.Mod
 			return nil, notModel()
 		}
 		row, err := s.St.Q.GetModelOf(ctx, db.GetModelOfParams{ConnectionID: c.ID, Model: asked})
+		if ask.Name != "" {
+			var named db.GetModelRow
+			named, err = s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: act.Workspace, Name: ask.Name})
+			row.Model = named.Model
+		}
 		switch {
 		case ask.ByHeader && c.Api != "raw":
 			return nil, registry.Refuse("deck: connection %s speaks the %s API, so the request names its model itself; the header %s is for a raw service whose API has no model field",
@@ -373,8 +378,7 @@ func (s *Service) requested(ctx context.Context, workspace int64, input json.Raw
 		return gateway.ModelAsk{}, err
 	}
 	if in.Kind != "" {
-		connection, asked, err := s.modelRef(ctx, workspace, in.Model, in.Kind)
-		return gateway.ModelAsk{Connection: connection, Model: asked}, err
+		return s.modelRef(ctx, workspace, in.Model, in.Kind)
 	}
 	return frozen(in)
 }

@@ -256,10 +256,11 @@ func flush(w http.ResponseWriter, body io.Reader) {
 // DeckModel is the header that names the model of a request whose API has no field for it, as the API knows it.
 const DeckModel = "X-Deck-Model"
 
-// ModelAsk is a call of a model as deck routes it: the connection, the model the request names, InBody when a JSON
-// body names it, ByHeader when only the header DeckModel does, and the method and path of a request a module made.
+// ModelAsk is a call of a model as deck routes it: the connection, the model the request names (Name, the model of
+// deck's settings, when the caller named that), InBody when a JSON body names it, ByHeader when only the header
+// DeckModel does, and the method and path of a request a module made.
 type ModelAsk struct {
-	Connection, Model string
+	Connection, Model, Name string
 	InBody, ByHeader  bool
 	Method, Path      string
 }

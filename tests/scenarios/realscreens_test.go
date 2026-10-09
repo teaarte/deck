@@ -1,6 +1,7 @@
 package scenarios
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -13,6 +14,8 @@ import (
 
 	"deck2/internal/app"
 	"deck2/internal/sandbox"
+
+	"deck2/internal/provider"
 )
 
 // themeProbe is the HTML of a custom block that reports the theme of its host, first and after each change.
@@ -438,4 +441,33 @@ func TestRealBrowserScreenKeepsItsStateOnReturn(t *testing.T) {
 	if got := b.eval(`document.querySelector('[data-field="title"]')?.value ?? ''`); got != "half typed" {
 		t.Fatalf("what the owner typed stays after the screen is read again: %q", got)
 	}
+}
+
+// TestRealBrowserLogReadsEasily: the log of a process shows JSON of tools laid out, a long line wrapped, and the
+// agent's message as markdown, all within the width of a phone.
+func TestRealBrowserLogReadsEasily(t *testing.T) {
+	if os.Getenv("DECK_REAL_BROWSER") == "" {
+		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
+	}
+	checkBuiltClient(t)
+	long := `{"id":1327,"project":"btc-forecast","command":"collect","state":"done","result":"` + strings.Repeat("a-long-value-without-spaces-", 20) + `"}`
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		c.Req.OnEvent(provider.Event{Kind: provider.EventTool, ID: "t1", Title: "mcp__deck__process_get", Text: `{"process":1327,"fields":["state","result"]}`})
+		c.Req.OnEvent(provider.Event{Kind: provider.EventToolUpdate, ID: "t1", Status: "completed", Text: long})
+		c.Req.OnEvent(provider.Event{Kind: provider.EventMessage, Text: "The run is **done**:\n\n- one\n- two"})
+		return provider.Result{Text: "{}"}
+	})
+	p := e.createProject("jobs", testManifest([]string{agentCommand("job", "")}, nil))
+	job := e.run(p, "job")
+	e.waitState(job, "done")
+	b := newPlaywright(t)
+	b.call("browser_resize", map[string]any{"width": 390, "height": 844})
+	b.open(e.URL + "/?token=" + token + "#/deck/process/" + fmt.Sprint(job))
+	b.until("the input of the tool laid out as JSON", `document.querySelector('[data-line="tool"] [data-json]')?.innerText.includes('"process": 1327,\n')`)
+	b.until("the answer of the tool laid out and wrapped", `(() => { const x = document.querySelector('[data-line="tool"] [data-tool-result]'); return x && x.innerText.includes('"state": "done"') && x.scrollWidth <= x.clientWidth + 1 })()`)
+	b.until("the message of the agent in markdown", `document.querySelector('[data-line="message"] strong')?.innerText === 'done' && document.querySelectorAll('[data-line="message"] li').length === 2`)
+	if got := b.eval(`String(document.documentElement.scrollWidth <= innerWidth + 1)`); got != "true" {
+		t.Fatalf("the log fits the width of a phone: %s", got)
+	}
+	b.shot("log-phone")
 }

@@ -1,6 +1,8 @@
 package scenarios
 
 import (
+	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -39,5 +41,60 @@ func TestTheOwnerDeletesARecordFromAButtonOfItsModule(t *testing.T) {
 	e.must("deck.record_delete", params, nil)
 	if rows := blockData[[]screenRow](t, e.screenBlock("web", "main", "Notes", nil)["rows"]); len(rows) != 1 {
 		t.Fatalf("the owner's press deletes the record: %+v", rows)
+	}
+}
+
+// boardManifest is a module whose tasks move across the lanes of their status.
+const boardManifest = `{"version": 9, "i18n": {"ru": {"doing": "в работе"}},
+  "collections": [{"name": "tasks", "description": "Tasks.", "key": "title", "schema": {"type": "object",
+    "properties": {"title": {"type": "string"}, "status": {"type": "string", "enum": ["todo", "doing", "done"]}}}}],
+  "commands": [{"name": "move", "title": "Move", "description": "Moves a task.", "class": "internal",
+    "input": {"type": "object", "properties": {"id": {"type": "integer"}, "status": {"type": "string", "enum": ["todo", "doing", "done"]}}},
+    "executor": {"type": "agent", "prompt": "Move it."}}],
+  "screens": [{"name": "board", "title": "Board", "blocks": [
+    {"type": "list", "title": "Tasks", "board": "status", "source": {"collection": "tasks"}, "item": {"title": "title"},
+     "actions": [{"label": "Move", "command": "move", "params": {"id": "=_id"}, "input": "status"}]}]}],
+  "menu": ["board"]}`
+
+// TestABoardLaysTheItemsOfAListInTheLanesOfAnEnum: a list with board names an enum field of its collection; its lanes
+// are the values of the enum in order, in the owner's language, and each item says its lane.
+func TestABoardLaysTheItemsOfAListInTheLanesOfAnEnum(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, nil)
+	for _, bad := range []struct{ from, to, want string }{
+		{`"board": "status"`, `"board": "title"`, "board: status of the lane is an enum field"},
+		{`"source": {"collection": "tasks"}`, `"source": {"from": "deck.projects_list"}`, "board: lays out a collection of the module"},
+	} {
+		code, out := e.call("deck.project_create", map[string]any{"name": "bad", "manifest": strings.Replace(boardManifest, bad.from, bad.to, 1)})
+		if code != 422 || !strings.Contains(string(out), bad.want) {
+			t.Fatalf("%s is refused: %d %s", bad.to, code, out)
+		}
+	}
+	e.createProject("work", boardManifest)
+	e.must("deck.records_upsert", map[string]any{"project": "work", "collection": "tasks", "records": `{"title": "a", "status": "doing"}` + "\n" + `{"title": "b", "status": "todo"}`}, nil)
+	block := e.screenData("work", "board", map[string]any{"lang": "ru"})
+	var data struct {
+		Board struct {
+			Field string `json:"field"`
+			Lanes []struct{ Value, Label string }
+		} `json:"board"`
+		Items []struct {
+			Title, Lane string
+		} `json:"items"`
+	}
+	for _, b := range block {
+		if raw, ok := b["value"]; ok && json.Unmarshal(raw, &data) == nil && data.Board.Field != "" {
+			break
+		}
+	}
+	if data.Board.Field != "status" || fmt.Sprint(data.Board.Lanes) != "[{todo todo} {doing в работе} {done done}]" {
+		t.Fatalf("the lanes are the enum in order and in the owner's language: %+v", data.Board)
+	}
+	lanes := map[string]string{}
+	for _, it := range data.Items {
+		lanes[it.Title] = it.Lane
+	}
+	if lanes["a"] != "doing" || lanes["b"] != "todo" {
+		t.Fatalf("each item says its lane: %+v", data.Items)
 	}
 }

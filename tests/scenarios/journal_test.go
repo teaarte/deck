@@ -284,3 +284,21 @@ func TestTheJournalCountsTheDaysOfTheOwner(t *testing.T) {
 		t.Fatalf("a run just past the owner's midnight counts on that day: %+v", runs)
 	}
 }
+
+// TestTheJournalKeepsTimeByTheClockOfDeck: a note and a call are written at the time of deck's clock, the one their
+// cleanup compares with, so a clock of a test or a sleep of the machine ages them alike.
+func TestTheJournalKeepsTimeByTheClockOfDeck(t *testing.T) {
+	t.Parallel()
+	e := newClockEnv(t, nil)
+	e.createProject("notes", plainManifest)
+	e.must("deck.notify", map[string]any{"project": "notes", "text": "done"}, nil)
+	var at string
+	_ = e.App.Store.DB.QueryRow(`SELECT created_at FROM feed WHERE kind = 'note' ORDER BY id DESC LIMIT 1`).Scan(&at)
+	if !strings.HasPrefix(at, t0.UTC().Format("2006-01-02")) {
+		t.Fatalf("a note is written at the time of deck's clock: %s", at)
+	}
+	_ = e.App.Store.DB.QueryRow(`SELECT created_at FROM tool_call ORDER BY id DESC LIMIT 1`).Scan(&at)
+	if !strings.HasPrefix(at, t0.UTC().Format("2006-01-02")) {
+		t.Fatalf("a call is journaled at the time of deck's clock: %s", at)
+	}
+}

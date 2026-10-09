@@ -166,3 +166,33 @@ func TestAScreenThatDrawsAgainIsHealthy(t *testing.T) {
 		}
 	}
 }
+
+// TestValuesOfAnEnumSpeakTheLanguageOfTheOwnerAndListsFilterByEachValue: a cell, a line or a filter that shows a field
+// of an enum shows its value in the owner's language; a filter of a list field offers and keeps each of its values.
+func TestValuesOfAnEnumSpeakTheLanguageOfTheOwnerAndListsFilterByEachValue(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, nil)
+	m := strings.Replace(boardManifest, `"properties": {"title": {"type": "string"}, "status"`, `"properties": {"title": {"type": "string"}, "tags": {"type": "array", "items": {"type": "string"}}, "status"`, 1)
+	m = strings.Replace(m, `"menu": ["board"]`, `"menu": ["board", "table"]`, 1)
+	m = strings.Replace(m, `"screens": [`, `"screens": [{"name": "table", "title": "Table", "blocks": [{"type": "table", "title": "All", "source": {"collection": "tasks"},
+	  "filter": ["status", "tags"], "columns": [{"label": "Title", "bind": "title"}, {"label": "Status", "bind": "status"}]}]}, `, 1)
+	e.createProject("work", m)
+	e.must("deck.records_upsert", map[string]any{"project": "work", "collection": "tasks", "records": `{"title": "a", "status": "doing", "tags": ["x", "y"]}` + "\n" + `{"title": "b", "status": "todo", "tags": ["y"]}`}, nil)
+	raw, _ := json.Marshal(e.screenData("work", "table", map[string]any{"lang": "ru"}))
+	if !strings.Contains(string(raw), `"в работе"`) || strings.Contains(string(raw), `"cells":["a","doing"]`) {
+		t.Fatalf("a cell of an enum field speaks the owner's language: %s", raw)
+	}
+	if !strings.Contains(string(raw), `"labels":["в работе","todo"]`) || !strings.Contains(string(raw), `"options":["x","y"]`) {
+		t.Fatalf("a filter offers the values in the owner's language, and each value of a list field: %s", raw)
+	}
+	var id string
+	for k, b := range e.screenData("work", "table", nil) {
+		if _, ok := b["rows"]; ok {
+			id = k
+		}
+	}
+	picked, _ := json.Marshal(e.screenData("work", "table", map[string]any{"filter": fmt.Sprintf(`{%q: {"tags": "x"}}`, id)}))
+	if !strings.Contains(string(picked), `"a"`) || strings.Contains(string(picked), `"cells":["b"`) {
+		t.Fatalf("a filter of a list field keeps the items that have the value: %s", picked)
+	}
+}

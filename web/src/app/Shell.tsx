@@ -17,7 +17,7 @@ import { MasterButton } from './MasterButton';
 import { Nav } from './Nav';
 import { PhoneBar } from './PhoneBar';
 import { Toolbar } from './Toolbar';
-import { href, useRoute } from './router';
+import { href, onMove, useRoute } from './router';
 import { useChatLayout } from './useChatLayout';
 
 // Shell is the frame of deck: the menu, the screen, and the chat with the master, each its own island.
@@ -34,6 +34,11 @@ export function Shell() {
   const moveFocus = useFocusHandoff([navOpen, chat]);
   useEffect(() => setChatScreen(route), [route.project, route.screen, route.record]);
   useEffect(() => setPhoneNav(false), [route]);
+  // A screen the owner picks shows: the chat over it, the phone's sheet or the full width, steps aside.
+  useEffect(() => onMove(() => {
+    if (chat && phone) setChat(false);
+    else if (chat && full) layout.setFull(false);
+  }), [chat, phone, full]);
   const current = href({ ...route, record: undefined });
   const entry = menu.find((m) => (m.project ?? '') === (route.project ?? ''));
   const master = (

@@ -503,8 +503,7 @@ func TestAModuleCallsOnlyTheModelsTheOwnerGranted(t *testing.T) {
 }
 
 // TestAModuleCallsOnlyTheModelsOfDecksSettings: a call names a model the owner added (body, form, Google's path or
-// X-Deck-Model); any other model, an account path naming none, or a path of an API that is not a call of a model, is
-// refused with what to do.
+// X-Deck-Model) on a path of a model call; any other model or path is refused with what to do.
 func TestAModuleCallsOnlyTheModelsOfDecksSettings(t *testing.T) {
 	ok := func(int, map[string]any) (int, string, string) { return 200, "application/json", chatText("hi") }
 	api := newModels(t, map[string]func(int, map[string]any) (int, string, string){

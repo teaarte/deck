@@ -64,8 +64,15 @@ export const useRoute = () => useSyncExternalStore(subscribe, () => route);
 const depth = () => trail.length;
 export const useCanGoBack = () => useSyncExternalStore(subscribe, depth) > 1;
 
+// movers hear the owner pick a screen by a button or a link, the screen shown too, so what covers it steps aside.
+const movers = new Set<() => void>();
+export const onMove = (f: () => void) => (movers.add(f), () => { movers.delete(f); });
+const moved = () => movers.forEach((f) => f());
+document.addEventListener('click', (e) => { if ((e.target as Element | null)?.closest?.('a[href^="#/"]')) moved(); });
+
 export function go(r: Route) {
   location.hash = href(r);
+  moved();
 }
 
 export function back() {
@@ -81,7 +88,7 @@ const withParam = (name: string, value: string | null): Route => {
 
 // setParam changes one parameter of the current address in a new step of the history; null removes it.
 export function setParam(name: string, value: string | null) {
-  go(withParam(name, value));
+  location.hash = href(withParam(name, value));
 }
 
 // replaceParam changes one parameter of the current address in place, without a step of the history.

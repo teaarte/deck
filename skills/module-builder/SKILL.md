@@ -148,9 +148,10 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   that field as `integer`; a later step that needs an earlier result
   reads it with `process_get`, so keep what the chain needs in records rather than passing it along. Cycles are refused. A chain runs at most five steps deep, counted from the call that started it (a button, a schedule or a trial): a sixth `after` step does not start, and a note of the feed says so. Keep chains short — two `after` triggers on the same step run side by side, so a step that only prepares something can run beside the next one instead of before it. After the Mac slept, each missed schedule runs once; `"skip_missed":
   true` drops the missed run instead (a morning digest that is stale by noon).
-- **Stages** the owner acts on are a `status` field of the record (an `enum`), shown and filtered on a table;
-  the owner changes it on the record page (a `form` of `deck.record_update`), and a command takes the records
-  of its status with `records_list` and `where`.
+- **Stages** the owner acts on are a `status` field of the record (an `enum`), shown as a board (`"board":
+  "status"` on a `list`), where the owner drags an item to its next stage; the other fields of a record the owner
+  edits on its page (a `form` of `deck.record_update`), and a command takes the records of its status with
+  `records_list` and `where`.
 - **Documents** agents and scripts write are artifacts only: each belongs to one record. A daily digest or report is an artifact of a record made for it (one record a day); `prompt.md`,
   `prompts/*.md` and other module documents are written by you, not by the module at run time.
 - **Screens** are lists of blocks from the catalog (`schemas/catalog.json`; in `manifest_format` each block type
@@ -172,7 +173,7 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   `link`, `tag` — so a bind is never `string(round(change * 100)) + '%'`. A column, a card field, a `list` line
   (`item.tone`) and a `stat` (over `rows`) take `tone`, an expression giving `ok`, `warn`, `error` or `muted`:
   `"tone": "change < 0 ? 'error' : 'ok'"`; any other value is no tone. A block with a source takes `empty`, plain
-  text it shows when there are no items (`"empty": "No forecasts yet"`); a `stat` with `empty` shows it instead
+  text it shows when there are no items (`"empty": "No items yet"`); a `stat` with `empty` shows it instead
   of its value, so the last price is `{"type": "stat", "source": {"collection": "prices", "sort": "-at",
   "limit": 1}, "value": "rows[0].price", "format": "money", "currency": "USD", "empty": "No prices yet"}` with no
   `len(rows) > 0 ? … : '—'`. Any block takes `when`, an expression over the fields of the page's record and
@@ -180,7 +181,7 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   for a list of misses, `"when": "status == 'open'"` on a record page). A row of a `table` or `list` whose
   `"primary": true` button opens a screen opens it on a click anywhere in the row. A history is a `chart`, one point
   per item in the order of `sort`: `{"type": "chart", "title": "Price", "kind": "line", "source": {"collection":
-  "prices", "sort": "at"}, "x": "at", "series": [{"label": "BTC", "y": "price"}, {"label": "Forecast", "y":
+  "prices", "sort": "at"}, "x": "at", "series": [{"label": "Value", "y": "price"}, {"label": "Expected", "y":
   "forecast"}], "format": "money", "currency": "USD", "empty": "No prices yet"}` — `kind` is `line`, `bar` or
   `area`, a missing y is a gap, an ISO time x makes a time axis, and only the last 500 points by the sort are
   drawn — `limit` keeps the first items, so do not cut a history with it. Files are a `media` block: `{"type":
@@ -201,12 +202,14 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   makes in a row is one action per option. A button whose call the owner may want back names the call that takes
   it back, `"undo": {"command": "unrate", "params": {"id": "=_id"}}`, offered for a moment after it went
   through. A row of the module's own collection or its record page may carry the one deck command a button calls,
-  `{"label": "Delete", "command": "deck.record_delete"}`: the owner deletes that record, always asked first (not on
-  a `custom` block). `{"label": "New task", "chat": true}` alone opens the master's chat beside the screen in a new
+  `{"label": "Delete", "command": "deck.record_delete"}`, with no other params and no undo: the owner deletes that
+  record, always asked first (not on a `custom` block). `{"label": "New task", "chat": true}` alone opens the master's chat beside the screen in a new
   topic, ready for the owner's voice; a link with `?chat=new` does the same. A list of stages is a board:
   `"board": "status"` on a `list` of the module's collection lays its items in a lane for each value of that enum
-  field, and dragging a card to a lane presses its button whose `input` is `status` (on a phone that button picks
-  the lane), so the board needs no custom block. A command the owner fills in by hand is a `form`:
+  field, and dragging a card to a lane presses its button whose `input` is `status` — a command of the module that
+  takes the record id and `status` (a small script setting the field), `{"label": "Move", "command": "move",
+  "params": {"id": "=_id"}, "input": "status"}`, its `options` the lanes when not every value is one (on a phone that
+  button picks the lane), so the board needs no custom block. A command the owner fills in by hand is a `form`:
   `{"type": "form", "command": "score"}` asks for the command's input by its schema and shows the result by the
   result schema; a command that keeps its result writes the records itself; a field picked from a source takes
   `"choices": {"note": {"source": {"collection": "notes"}, "value": "_id", "label": "title"}}`, and a field with
@@ -231,8 +234,8 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   accent, `--font-sans`, `--font-text-sm-size`, `--border-radius-md`); apply them with `applyDocumentTheme` and
   `applyHostStyleVariables` from `/ext-apps.js`, again on each change, and write CSS only with `var(--…)` of
   them — a fixed color breaks in the owner's dark scheme. List screens in `menu`. A record page is a screen with
-  `"record": "<collection>"`; a row's button `{"label", "screen": "<that page>"}` opens it with the row's record
-  and takes no params. How the pipeline of a record goes is a table on its page over
+  `"record": "<collection>"`; a row's button `{"label", "screen": "<that page>"}` opens it with the row's record;
+  it takes no `record` or `project`. How the pipeline of a record goes is a table on its page over
   `{"from": "deck.processes_list", "input": {"record": "=_id"}}` — the processes whose input named the record by
   its id (columns `command`, `state`, `question` when one waits for the owner; `after` triggers start the next).
 - **Look of a module**: `title` is the name the owner sees in the menu (the project name is for code), `icon` of
@@ -291,7 +294,9 @@ A script reads its input JSON from stdin and prints its result JSON to stdout. I
   takes it as its base URL with the token as its key): deck puts in the key and keeps the call. The request names
   one model of deck's settings as the API knows it — `model` of a JSON body or a form, the path of Google's API,
   or, for a `raw` service whose API has no such field, the header `X-Deck-Model` — and anything else is refused:
-  another model, an account path, OpenRouter's `models` or `route`; a poll `GET videos/<id>` of a job needs none. A
+  another model, OpenRouter's `models` or `route`, and on an `openai`, `google` or `anthropic` connection any path
+  that is not a call of a model (files, batches, the account); a poll `GET videos/<id>` of a job names no model,
+  but on a `raw` connection every request, the poll too, sends `X-Deck-Model`. A
   body with `"model": "@tts"` and the connection `@` takes the model the owner assigned, a fallback when it
   refuses. A 202 with `{"waiting": <ask>}` means the call waits for the owner (a draft or a trial of a paid
   model): stop and say so, do not retry in a loop;
@@ -350,7 +355,8 @@ other. A connection of another API, such as Google's own, is reached only from a
 Anything else — video, editing a picture by a sample (`images/edits`, a form), a service with its own API (fal,
 Replicate, ElevenLabs, Google Veo) — is a script that calls the API through `$DECK_MODELS`, so the key stays with
 deck and the call is in its journal. The owner adds the service as a connection (Settings → Connections: `raw` for a
-service that takes a bearer key, `google` for Google's own API) and a model with its price per call; the manifest
+service with its own paths, such as Veo's long jobs, fal or Replicate; `google` only for `models/<m>:generateContent`)
+and a model with its price per call; the manifest
 names the connection in `models`, and the request names the model. One call, the answer a file:
 
 ```python
@@ -471,7 +477,7 @@ Name each of these rights in the hand-over: the owner grants them with "enable".
    its first command. A trial is not a sandbox: internal writes (records, documents) are real and stay
    in the draft, and so is what scripts write to `$DECK_DATA`, which you cannot reach: keep what a module
    remembers (seen items, cursors) in records when trials must be undone. Before the hand-over, delete what
-   the trials left that the owner should not start with: `record_delete` (in a draft only);
+   the trials left that the owner should not start with: `record_delete` (you, in a draft; in an enabled project only the owner, by a button);
    say in the hand-over what you kept; lines a trial sent with `notify` stay in the feed. `process_get` gives
    the state and result; `process_log` shows the events of a process, also after it ended,
    and a local model may think for many minutes before its first one: wait with

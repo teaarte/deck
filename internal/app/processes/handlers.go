@@ -254,7 +254,7 @@ func (s *Service) processCommands() []*registry.Command {
 			"Lists recent processes, newest first, or only the open ones.",
 			registry.Everyone, s.processesList).On("processes", "asks"),
 		registry.Read("process_get", "Process status",
-			"Returns the state and result of a process; with wait, once it finishes or waits for the owner.",
+			"Returns the state and result of a process, the models it called and their cost_usd; with wait, once it finishes or waits for the owner.",
 			registry.Everyone, s.processGet).On("processes", "usage"),
 		registry.Def("process_stop", "Stop process",
 			"Stops a process; a running agent is killed and what it did so far stays.",

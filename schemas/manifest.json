@@ -272,7 +272,7 @@
     "action": {
       "type": "object",
       "additionalProperties": false,
-      "description": "A button: command calls a command of the project, screen opens a screen of the project. Params and record take a fixed value or =<expression> over the item; _id is the id of a record.",
+      "description": "A button: command calls a command of the project (or deck.record_delete on a row or record page of its own collection), screen opens a screen of the project, chat alone opens the chat of the master. Params and record take a fixed value or =<expression> over the item; _id is the id of a record.",
       "properties": {
         "label": {"type": "string", "minLength": 1},
         "verb": {"type": "string", "description": "A built-in label the client translates, instead of label."},
@@ -285,7 +285,7 @@
         "file": {"type": "string", "description": "A stored file the button downloads instead."},
         "when": {"type": "string", "description": "Expression over the item: the button shows only where it holds."},
         "until": {"type": "string", "description": "Time after which the button is gone."},
-        "input": {"type": "string", "description": "The param the owner types before the call."},
+        "input": {"type": "string", "description": "The param the owner types before the call; on a board, the button whose input is the board field moves an item to a lane."},
         "options": {"type": "string", "description": "The values the owner picks the input from: a list."},
         "chat": {"type": "boolean", "description": "With a command, the result names a chat topic, which opens; alone, without command, screen or file, the button opens the chat of the master beside the screen in a new topic, ready for the owner's voice; the address param chat=new does the same from a link."},
         "confirm": {"type": "boolean", "description": "The owner says yes before the call."},

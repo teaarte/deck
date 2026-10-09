@@ -203,7 +203,7 @@
         "icon": {"type": "string"},
         "span": {"enum": [1, 2, "full"], "default": "full"},
         "description": {"type": "string"},
-        "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "value: {commands: [{name, title, project, input, result}], values, readonly, record, save}"}
+        "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "value: {commands: [{name, title, project, input, result}], values, readonly, record}"}
       }
     },
     "appearance": {
@@ -237,7 +237,7 @@
     },
     "custom": {
       "description": "An MCP App: HTML of a custom/ document, fed by its source, pressing only its buttons.",
-      "block": {"description": "Needs document, a custom/ document with its HTML; its buttons call commands and never move to a screen.", "required": ["document"], "properties": {"document": {"type": "string", "pattern": "^custom/"}, "source": {"$ref": "#/$defs/source"}, "actions": {"type": "array", "items": {"allOf": [{"$ref": "#/$defs/action"}, {"required": ["command"], "not": {"required": ["screen"]}}]}}}},
+      "block": {"description": "Needs document, a custom/ document with its HTML; its buttons call commands, app.openLink opens a screen or dialog of deck (never a page outside), app.requestDisplayMode fullscreen gives it the whole screen.", "required": ["document"], "properties": {"document": {"type": "string", "pattern": "^custom/"}, "source": {"$ref": "#/$defs/source"}, "actions": {"type": "array", "items": {"allOf": [{"$ref": "#/$defs/action"}, {"required": ["command"], "not": {"required": ["screen"]}}]}}}},
       "type": "object",
       "additionalProperties": false,
       "required": ["data"],

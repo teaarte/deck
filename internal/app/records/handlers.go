@@ -252,8 +252,8 @@ type recordDeleteIn struct {
 	Record int64 `type:"record" desc:"Record id"`
 }
 
-// recordDelete deletes a record with its documents and files for good; the master may do it only in a draft,
-// where trial runs leave their
+// recordDelete deletes a record with its documents and files for good; outside a draft only the owner does, by a
+// button or by hand.
 func (s *Service) recordDelete(ctx context.Context, act registry.Actor, in recordDeleteIn) (any, error) {
 	rec, p, err := s.recordOf(ctx, act, in.Record)
 	if err != nil {

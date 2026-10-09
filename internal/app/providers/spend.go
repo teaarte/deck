@@ -247,7 +247,7 @@ func (s *Service) record(ctx context.Context, act registry.Actor, m db.Model, c 
 // modelRequestIn is one request of a model API through deck: what the proxy freezes when a call waits for the owner.
 type modelRequestIn struct {
 	Connection string `desc:"Connection the request goes through; @ with an @role in the body takes the models assigned to it"`
-	Path       string `desc:"Path of the request under the API of the connection, such as chat/completions"`
+	Path       string `desc:"Path of the request under the API of the connection, such as chat/completions; only a call of a model, unless the connection is raw"`
 	Method     string `opt:"" desc:"HTTP method; POST when left out"`
 	Body       string `type:"json" opt:"" desc:"JSON body of the request; its model may be an @role such as @text"`
 	Model      string `opt:"" desc:"Model of the request as the API knows it, when the body has no field for it"`

@@ -74,12 +74,12 @@ func (s *Service) take(ctx context.Context, kind string) (string, error) {
 	path, left, err := s.write(ctx, kind)
 	switch {
 	case err != nil:
-		health.Write(ctx, s.St, health.Of{}, "snapshot", "error", "the snapshot failed: "+err.Error())
+		health.Write(ctx, s.St, health.Of{}, "snapshot", health.Error, "the snapshot failed: "+err.Error())
 	case len(left) > 0:
-		health.Write(ctx, s.St, health.Of{}, "snapshot", "warning", fmt.Sprintf("the snapshot left out %d files it could not read whole: %s",
+		health.Write(ctx, s.St, health.Of{}, "snapshot", health.Warning, fmt.Sprintf("the snapshot left out %d files it could not read whole: %s",
 			len(left), strings.Join(left[:min(len(left), 5)], "; ")))
 	default:
-		health.Write(ctx, s.St, health.Of{}, "snapshot", "ok", filepath.Base(path))
+		health.Write(ctx, s.St, health.Of{}, "snapshot", health.OK, filepath.Base(path))
 	}
 	return path, err
 }

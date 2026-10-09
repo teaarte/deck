@@ -53,13 +53,13 @@ func (r *Runner) providerHealth(ctx context.Context, pv provider.Provider, res p
 	_ = r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		switch {
 		case err != nil && !checked:
-			return health.Set(ctx, q, health.Of{}, subject, "error", err.Error())
+			return health.Set(ctx, q, health.Of{}, subject, health.Error, err.Error())
 		case err != nil || res.NeedsLogin || res.RateLimited:
 			return nil
 		case checked:
 			return q.MarkHealthy(ctx, subject)
 		}
-		return health.Set(ctx, q, health.Of{}, subject, "ok", "")
+		return health.Set(ctx, q, health.Of{}, subject, health.OK, "")
 	})
 }
 

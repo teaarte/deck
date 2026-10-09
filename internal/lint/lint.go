@@ -15,7 +15,7 @@ var (
 	skipDirs     = []string{".git", "node_modules", "dist", "testdata"}
 	requirement  = regexp.MustCompile(`\b(FR|NFR)-\d+|\bR\d{1,3}\b`)
 	reasoning    = regexp.MustCompile(`(?i)\b(we|let's|i think|note that|basically|actually|obviously|for now|hack|in order to|probably|seems|i guess|turns out)\b`)
-	verticals    = regexp.MustCompile(`(?i)vacanc|forecast|mailbox|brier|recruit`)
+	verticals    = regexp.MustCompile(`(?i)vacanc|forecast|mailbox|brier|recruit|\bshorts\b|\bbtc\b`)
 	verticalFree = []string{"tests/", "internal/tools/"}
 	untyped      = regexp.MustCompile(`^\t\w+\s+interface\{\}`)
 )

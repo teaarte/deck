@@ -77,7 +77,7 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
   deck's screens are data in `screens.json`: Cockpit (the link at the head of the menu), and in the menu Schedule
   (tabs Schedule, Runs with the calls of the gateway, Spend), Files (tabs Files, Documents of the master, Snapshots), Settings (tabs
   Projects, Models, Connections, Tokens, General, Interface, Health); `project` screens (Documents, the page of
-  a document and Settings of the project: its commands and providers, folders, tools, secrets, tokens, health) deck adds
+  a document and Settings of the project in tabs Project (commands, schedule), Models (of its work, called), Access (folders, tools, secrets, tokens), Health) deck adds
   to every project
 - `internal/manifest` — project manifest (format 10: `upgrade.go` raises older ones): `types.go`, `parse.go`,
   `lookup.go`, `collection.go`, rights (`rights.go`: `Widens` and `Clip` over the same rights — what is in force widens nothing beyond the grant —, the hosts of agent shells), checks of screens by
@@ -138,6 +138,14 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
   and `on_error` tell the owner with a note of the feed;
   the chat and memory around it are `app/chat`, the handing of errors to the master is
   `app/failures`, voice and push in `app/devices`; deck's own texts for its agents are `master/templates` (`master.Text`); the client's chat is `web/src/chat/`
+- `internal/ask` — the broker of what waits for the owner (asks: questions, confirmations, sign-ins, frozen calls) and
+  their answers; `app/asks` is its service of commands
+- `internal/files` — the files a command input points to and the files tools answer with (not the files service,
+  which is `app/files`)
+- `internal/tools` — the built-in tools: HTTP tools of manifests, OAuth 2, the browser, MCP servers as commands;
+  `internal/mcphost` starts those servers on demand and again after a crash
+- `internal/untrusted` — text deck did not write, shaped before a prompt, an ask or a journal (`Cut`, `Line`,
+  `Block`); `internal/nonce` — random tokens
 - `internal/lint` — code rules checked by `tests/lint` (comments, requirement refs, vertical names, untyped sqlc
   parameters)
 - `schemas` — contracts embedded in the binary: manifest JSON Schema, screen block catalog (`catalog.json`, read by

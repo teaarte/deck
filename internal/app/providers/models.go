@@ -403,7 +403,7 @@ func (s *Service) modelSet(ctx context.Context, act registry.Actor, in modelSetI
 			}
 		}
 		if in.Agent != "" {
-			if err := health.Set(ctx, q, health.Of{}, process.HealthSubject(in.Name), "checking", "the self-check of the model in its agent is about to run"); err != nil {
+			if err := health.Set(ctx, q, health.Of{}, process.HealthSubject(in.Name), health.Checking, "the self-check of the model in its agent is about to run"); err != nil {
 				return err
 			}
 		}

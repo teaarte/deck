@@ -215,7 +215,7 @@ func (s *Scheduler) fire(ctx context.Context, t db.Trigger, now time.Time) {
 	text := fmt.Sprintf("the %s trigger did not start %s: %v", t.Kind, t.Command, err)
 	s.after(ctx, t, now)
 	if perr == nil {
-		health.Write(ctx, s.st, health.Project(p), subject, "error", text)
+		health.Write(ctx, s.st, health.Project(p), subject, health.Error, text)
 	}
 }
 

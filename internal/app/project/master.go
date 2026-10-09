@@ -61,7 +61,7 @@ func (pj *Service) seedMaster(ctx context.Context, workspace int64, m *manifest.
 			return err
 		case p.Builtin == 0:
 			slog.Error("a project of the owner is named master, so the built-in master is missing", "workspace", workspace)
-			return health.Set(ctx, q, health.Of{Workspace: workspace}, "project:"+master.Name, "error",
+			return health.Set(ctx, q, health.Of{Workspace: workspace}, "project:"+master.Name, health.Error,
 				"a project of the owner is named master, so the built-in master is missing: export that project, delete it and import it under another name")
 		}
 		changed := false

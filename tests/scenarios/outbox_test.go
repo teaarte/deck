@@ -150,3 +150,17 @@ func TestADailyCronAcrossTheClockShifts(t *testing.T) {
 		}
 	}
 }
+
+// TestAReworkedProcessStartsItsAfterTriggersAgain: a process sent back for rework and done again starts its after
+// triggers on the new result, as a finish heard twice after a crash does not.
+func TestAReworkedProcessStartsItsAfterTriggersAgain(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, ok)
+	p := e.createProject("chain", testManifest([]string{agentCommand("job", ""), agentCommand("next", processField)},
+		[]string{`{"command": "next", "after": "job"}`}))
+	id := e.run(p, "job")
+	e.waitState(id, "done")
+	e.waitFor("the first after run", func() bool { return e.countOf("next") == 1 })
+	e.must("deck.process_rework", map[string]any{"process": id, "remark": "once more"}, nil)
+	e.waitFor("the reworked job done", func() bool { return e.countOf("next") == 2 })
+}

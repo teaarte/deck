@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -436,5 +437,64 @@ func TestAMusicModelMakesATrackOfItsOwnPathOrOfChatAudio(t *testing.T) {
 	}
 	if cost != 0.08 {
 		t.Fatalf("the cloud track is counted with its cost: %+v", spend)
+	}
+}
+
+// TestAModelPricedPerCharOrSecondCostsWhatItTook: a model priced per character or second of its unit costs the
+// characters deck sent or the seconds the API reported; a module reads the models and cost of its process.
+func TestAModelPricedPerCharOrSecondCostsWhatItTook(t *testing.T) {
+	t.Parallel()
+	heard := 0
+	api := newModels(t, map[string]func(int, map[string]any) (int, string, string){
+		"/api/v1/audio/speech": func(int, map[string]any) (int, string, string) { return 200, "audio/mpeg", "ID3-voice" },
+		"/api/v1/audio/transcriptions": func(int, map[string]any) (int, string, string) {
+			heard++
+			return 200, "application/json", []string{`{"text": "hi", "usage": {"type": "duration", "seconds": 4.8}}`,
+				`{"text": "hi", "duration": 3}`, `{"text": "hi"}`}[min(heard-1, 2)]
+		},
+	})
+	e := newEnv(t, nil)
+	e.must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": api.URL + "/api/v1", "key": "sk-or"}, nil)
+	e.refused("deck.model_set", map[string]any{"connection": "openrouter", "model": "fish", "kind": "tts", "unit": "char", "input_usd": 15, "output_usd": 1}, 422, "char")
+	var m struct{ Unit string }
+	e.must("deck.model_set", map[string]any{"connection": "openrouter", "model": "fish", "name": "fish", "kind": "tts", "unit": "char", "input_usd": 15}, &m)
+	e.must("deck.model_set", map[string]any{"connection": "openrouter", "model": "whisper", "name": "whisper", "kind": "stt", "unit": "second", "input_usd": 100}, nil)
+	if m.Unit != "char" {
+		t.Fatalf("the model says its unit: %+v", m)
+	}
+	e.must("deck.model_set", map[string]any{"connection": "openrouter", "model": "fish", "name": "fish", "kind": "tts"}, &m)
+	if m.Unit != "char" {
+		t.Fatalf("a model changed without a unit keeps its own: %+v", m)
+	}
+	e.must("deck.assignment_set", map[string]any{"role": "tts", "models": []string{"fish"}}, nil)
+	e.must("deck.assignment_set", map[string]any{"role": "stt", "models": []string{"whisper"}}, nil)
+	var voice struct {
+		Cost *float64 `json:"cost_usd"`
+	}
+	e.must("deck.model_call", map[string]any{"kind": "tts", "text": "Hello wörld"}, &voice)
+	if voice.Cost == nil || math.Abs(*voice.Cost-11*15/1e6) > 1e-12 {
+		t.Fatalf("speech costs the characters deck sent: %+v", voice.Cost)
+	}
+	e.createProject("shorts", modelManifest)
+	var f struct{ ID int64 }
+	e.must("deck.file_upload", map[string]any{"project": "shorts", "name": "voice.mp3", "content": base64.StdEncoding.EncodeToString([]byte("ID3-recorded"))}, &f)
+	var costs []*float64
+	for range 3 {
+		id := e.start("shorts", "words", map[string]any{"voice": fmt.Sprint(f.ID)})
+		if got := e.waitState(id, "done", "error"); got.State != "done" || strings.Contains(string(got.Result), "cost") {
+			t.Fatalf("the words are the result as the API gave them: %+v", got)
+		}
+		var p struct {
+			Models []string `json:"models"`
+			Cost   *float64 `json:"cost_usd"`
+		}
+		e.must("deck.process_get", map[string]any{"process": id}, &p)
+		if !slices.Equal(p.Models, []string{"whisper"}) {
+			t.Fatalf("the process names the model it called: %+v", p)
+		}
+		costs = append(costs, p.Cost)
+	}
+	if costs[0] == nil || math.Abs(*costs[0]-4.8*100/1e6) > 1e-12 || costs[1] == nil || math.Abs(*costs[1]-3*100/1e6) > 1e-12 || costs[2] != nil {
+		t.Fatalf("a recording costs the seconds the API reported, and nothing it did not: %v %v %v", costs[0], costs[1], costs[2])
 	}
 }

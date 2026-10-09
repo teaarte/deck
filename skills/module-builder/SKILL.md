@@ -191,7 +191,7 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   data folder (`"charts/today.png"`); a picture is a thumbnail, a PDF shows in place, a video or a sound plays in
   a player with frame steps and a timecode, anything else is a name with a download. The player shows
   `item.marks` (a list of `{at, text}` or of seconds) on its timeline, and its `mark` button — an action such
-  as `{"verb": "mark", "command": "note", "params": {"video": "=slug"}, "input": "note"}` — calls the
+  as `{"label": "Note", "command": "note", "params": {"video": "=slug"}, "input": "note"}` — calls the
   command with `file` (as `item.file` gives it) and `at` (the second it is paused at) beside its params, so a
   note such as "scene 4, 0:12" reaches a rework; the command's input takes `file` and `at`. A screen opened
   with `t` in seconds (declare it in `params`) starts its first player there; `timecode` formats seconds.

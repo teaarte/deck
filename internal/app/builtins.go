@@ -21,7 +21,7 @@ func (a *App) addBuiltins() {
 	}
 	a.Registry.Add(registry.Def("manifest_format", "Manifest format", "Returns the JSON Schema of project manifests.", registry.Everyone,
 		func(context.Context, registry.Actor, struct{}) (any, error) {
-			return json.RawMessage(manifest.Format), nil
+			return json.RawMessage(manifest.Taught), nil
 		}))
 	shipped()
 }

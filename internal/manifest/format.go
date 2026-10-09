@@ -38,6 +38,40 @@ var Blocks = func() []string {
 // with blocks open to properties the catalog lacks, for manifests stored before it dropped one.
 var Format, loose = format(true), format(false)
 
+// Taught is Format as a model reads it to write a module: without the blocks and fields only deck's screens use.
+var Taught = taught(Format)
+
+func taught(format []byte) []byte {
+	var m map[string]any
+	if err := json.Unmarshal(format, &m); err != nil {
+		panic(err)
+	}
+	defs := m["$defs"].(map[string]any)
+	for _, f := range []string{"verb", "until", "record", "project"} {
+		delete(defs["action"].(map[string]any)["properties"].(map[string]any), f)
+	}
+	deckOnly := []string{"appearance", "chat", "log"}
+	block := defs["block"].(map[string]any)
+	block["properties"] = map[string]any{"type": map[string]any{"enum": slices.DeleteFunc(slices.Clone(Blocks), func(b string) bool { return slices.Contains(deckOnly, b) })}}
+	var kept []any
+	for _, br := range block["allOf"].([]any) {
+		name := br.(map[string]any)["if"].(map[string]any)["properties"].(map[string]any)["type"].(map[string]any)["const"]
+		if slices.Contains(deckOnly, name.(string)) {
+			continue
+		}
+		if name == "form" {
+			delete(br.(map[string]any)["then"].(map[string]any)["properties"].(map[string]any), "keep_open")
+		}
+		kept = append(kept, br)
+	}
+	block["allOf"] = kept
+	out, err := json.Marshal(m)
+	if err != nil {
+		panic(err)
+	}
+	return out
+}
+
 func format(strict bool) []byte {
 	var m map[string]any
 	if err := json.Unmarshal(schemas.Manifest, &m); err != nil {

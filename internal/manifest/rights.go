@@ -67,6 +67,12 @@ func Widens(prev, next *Manifest) []string {
 		if c.Provider != old.Provider {
 			add("command %s: provider %q instead of %q", c.Name, c.Provider, old.Provider)
 		}
+		switch e, was := c.Executor, old.Executor; {
+		case e.Type != was.Type:
+			add("command %s: runs %s instead of %s", c.Name, executors[e.Type], executors[was.Type])
+		case e.Tool != was.Tool:
+			add("command %s: runs tool %s instead of %s", c.Name, e.Tool, was.Tool)
+		}
 		switch {
 		case old.Executor.Calls != nil && c.Executor.Calls == nil:
 			add("command %s: its agent may call every command", c.Name)
@@ -227,8 +233,11 @@ func Clip(granted, m *Manifest) *Manifest {
 	return &c
 }
 
+// executors name the kinds of executor in what widens rights.
+var executors = map[string]string{"agent": "an agent", "script": "a script", "tool": "a tool", "model": "a model"}
+
 // clipCommand gives cmd back what old had where cmd is wider: a milder class, fewer requirements, another
-// provider or folder, more calls or callers.
+// provider, folder or executor, more calls or callers.
 func clipCommand(cmd, old *Command) {
 	if registry.ClassRank(cmd.Class) < registry.ClassRank(old.Class) {
 		cmd.Class = old.Class
@@ -237,6 +246,9 @@ func clipCommand(cmd, old *Command) {
 	cmd.Provider = old.Provider
 	if !cmd.Executor.Folder.IsZero() {
 		cmd.Executor.Folder = old.Executor.Folder
+	}
+	if cmd.Executor.Type != old.Executor.Type || cmd.Executor.Tool != old.Executor.Tool {
+		cmd.Executor = old.Executor
 	}
 	switch {
 	case old.Executor.Calls != nil && cmd.Executor.Calls == nil:

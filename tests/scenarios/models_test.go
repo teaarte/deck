@@ -7,6 +7,7 @@ import (
 	"math"
 	"net/http"
 	"net/http/httptest"
+	"fmt"
 	"slices"
 	"strings"
 	"sync"
@@ -571,6 +572,18 @@ func TestAModuleCallsOnlyTheModelsOfDecksSettings(t *testing.T) {
 	}
 	if len(spend) != 4 || got["openrouter/qwen"] != 0.01 || got["openrouter/painter"] != 0.02 || got["gemini/gemma"] != 0.03 || got["svc-track"] != 0.05 {
 		t.Fatalf("each call is counted on its model of deck's settings: %+v", spend)
+	}
+	e.createProject("plain", plainManifest)
+	var models []string
+	for _, r := range blockData[[]screenRow](t, e.screenBlock("shorts", "settings", "Models it called", nil)["rows"]) {
+		models = append(models, fmt.Sprint(r.Cells[0]))
+	}
+	slices.Sort(models)
+	if !slices.Equal(models, []string{"gemini/gemma", "openrouter/painter", "openrouter/qwen", "svc-track"}) {
+		t.Fatalf("the settings of a module show the models its scripts called: %v", models)
+	}
+	if rows := blockData[[]screenRow](t, e.screenBlock("plain", "settings", "Models it called", nil)["rows"]); len(rows) != 0 {
+		t.Fatalf("only the module's own calls: %+v", rows)
 	}
 }
 

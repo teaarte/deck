@@ -12,6 +12,9 @@
       "Tokens by project, 30 days": "Токены по проектам, 30 дней",
       "Project and model": "Проект и модель",
       "Tokens by project, command and model": "Токены по проектам, командам и моделям",
+      "Models it called": "Модели, которые он вызывал",
+      "The models of deck's settings the commands and scripts of this project called, how much and what it cost; a model it needs and deck lacks it proposes, and you add it with one button.": "Модели из настроек deck, которые вызывали команды и скрипты этого проекта, сколько и во что это обошлось; нужную модель, которой в deck нет, он предлагает, а вы добавляете её одной кнопкой.",
+      "It has called no model yet": "Он ещё не вызывал моделей",
       "Which model each project and command used, how much, and what it cost; all time.": "Какую модель использовал каждый проект и команда, сколько и во что это обошлось; за всё время.",
       "Every check of deck that fails now, of the machine and of the projects, with why. One marked read stops counting on the cockpit until it changes.": "Все проверки deck, которые сейчас с ошибкой, машины и проектов, с причиной. Прочитанная перестаёт считаться в кокпите, пока не изменится.",
       "Nothing is assigned; agent commands run on the model their manifest suggests": "Ничего не назначено; команды-агенты идут на модели, которую предлагает их манифест",
@@ -711,6 +714,16 @@
           ],
           "actions": [
             {"verb": "remove", "confirm": true, "command": "deck.folder_remove", "params": {"name": "=name"}}
+          ]},
+        {"type": "table", "title": "Models it called", "source": {"from": "deck.spend_list"},
+          "description": "The models of deck's settings the commands and scripts of this project called, how much and what it cost; a model it needs and deck lacks it proposes, and you add it with one button.",
+          "empty": "It has called no model yet",
+          "columns": [
+            {"label": "Model", "bind": "provider", "format": "tag"},
+            {"label": "Command", "bind": "command"},
+            {"label": "Calls", "bind": "calls"},
+            {"label": "Cost", "bind": "cost_usd", "format": "money", "currency": "USD"},
+            {"label": "Last", "bind": "last_at", "format": "relative"}
           ]},
         {"type": "table", "title": "Tools", "when": "len(rows) > 0", "source": {"from": "deck.commands_list", "where": "tool != ''", "sort": "name"},
           "columns": [

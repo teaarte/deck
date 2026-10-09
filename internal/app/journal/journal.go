@@ -84,8 +84,12 @@ type spendRow struct {
 	LastAt          string  `json:"last_at"`
 }
 
+type spendListIn struct {
+	Project string `type:"project" opt:"" desc:"Only the model calls of this project"`
+}
+
 // spendList is the tokens and cost of model calls by project, command, provider and model, the largest first.
-func (s *Service) spendList(ctx context.Context, act registry.Actor, _ struct{}) ([]spendRow, error) {
+func (s *Service) spendList(ctx context.Context, act registry.Actor, in spendListIn) ([]spendRow, error) {
 	rows, err := s.St.Q.SpendByCommand(ctx, act.Workspace)
 	if err != nil {
 		return nil, err
@@ -96,6 +100,9 @@ func (s *Service) spendList(ctx context.Context, act registry.Actor, _ struct{})
 	}
 	out := make([]spendRow, 0, len(rows))
 	for _, r := range rows {
+		if in.Project != "" && names[r.ProjectID] != in.Project {
+			continue
+		}
 		out = append(out, spendRow{Project: names[r.ProjectID], Command: r.Command, Provider: r.Provider, Model: r.Model, Calls: r.Calls,
 			InputTokens: r.InputTokens, OutputTokens: r.OutputTokens, CacheReadTokens: r.CacheReadTokens, CostUSD: r.CostUsd, LastAt: r.LastAt})
 	}

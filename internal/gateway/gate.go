@@ -95,12 +95,12 @@ func (f Frozen) String() string {
 }
 
 // Hold keeps a frozen call of a project in an ask of kind until the owner decides, with its row in the journal.
-func Hold(ctx context.Context, q *db.Queries, act registry.Actor, project, process int64, kind, class, text string, f Frozen, expires time.Time) (db.Ask, error) {
+func Hold(ctx context.Context, q *db.Queries, act registry.Actor, project, process int64, kind, class, text string, f Frozen, expires, now time.Time) (db.Ask, error) {
 	a, err := ask.ForProject(ctx, q, act.Workspace, project, process, kind, text, f.String(), expires)
 	if err != nil {
 		return a, err
 	}
-	_, err = q.LogToolCall(ctx, db.LogToolCallParams{WorkspaceID: act.Workspace, ProcessID: store.ID(act.ProcessID), ProjectID: store.ID(project),
+	_, err = q.LogToolCall(ctx, db.LogToolCallParams{CreatedAt: store.Time(now), WorkspaceID: act.Workspace, ProcessID: store.ID(act.ProcessID), ProjectID: store.ID(project),
 		Actor: act.Author(), Caller: frozenCaller(act), Tool: f.Call.Command, Class: class, Outcome: "waiting", Params: Canonical(f.Call.Input),
 		AskID: sql.NullInt64{Int64: a.ID, Valid: true}})
 	return a, err
@@ -212,7 +212,7 @@ func (g *Gateway) hold(ctx context.Context, act registry.Actor, c *registry.Comm
 		if err == nil || !errors.Is(err, sql.ErrNoRows) {
 			return err
 		}
-		a, err = Hold(ctx, q, act, project, process, ask.KindCall, c.Class, text, f, expires)
+		a, err = Hold(ctx, q, act, project, process, ask.KindCall, c.Class, text, f, expires, g.cfg.Now())
 		return err
 	})
 	if err != nil {

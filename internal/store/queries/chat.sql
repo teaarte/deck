@@ -19,7 +19,7 @@ UPDATE chat_topic SET deleted_at = ? WHERE id = ? AND deleted_at IS NULL;
 
 
 -- name: AddMessage :one
-INSERT INTO chat_message (topic_id, role, text, context, process_id, retry_key) VALUES (?, ?, ?, ?, ?, ?) RETURNING *;
+INSERT INTO chat_message (topic_id, role, text, context, process_id, retry_key, created_at) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING *;
 
 
 -- name: FindMessageByKey :one

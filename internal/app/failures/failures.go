@@ -65,7 +65,7 @@ func (s *Service) toMaster(ctx context.Context, p db.Process) {
 	key := fmt.Sprintf("%s%d.%s", masterErrorPrefix, proj.ID, p.Command)
 	// The master's own failure goes to the owner's feed instead.
 	s.handOver(ctx, proj, key, 24*time.Hour, map[string]any{"process": p.ID}, func(ctx context.Context, q *db.Queries) error {
-		return q.AddDeckNote(ctx, db.AddDeckNoteParams{ProjectID: p.ProjectID,
+		return q.AddDeckNote(ctx, db.AddDeckNoteParams{CreatedAt: store.Time(s.Now()), ProjectID: p.ProjectID,
 			Text: master.Text("master_failed", struct{ Command, Error string }{p.Command, untrusted.Cut(p.Error, 500)})})
 	})
 }

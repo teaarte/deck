@@ -16,6 +16,7 @@ import (
 	"deck2/internal/gateway"
 	"deck2/internal/provider"
 	"deck2/internal/script"
+	"deck2/internal/store"
 	"deck2/internal/store/db"
 )
 
@@ -137,7 +138,7 @@ func (r *Runner) warn(ctx context.Context, processID int64, text string) {
 		if err != nil {
 			return err
 		}
-		return q.AddDeckNote(ctx, db.AddDeckNoteParams{ProjectID: p.ProjectID, Text: text})
+		return q.AddDeckNote(ctx, db.AddDeckNoteParams{CreatedAt: store.Time(r.now()), ProjectID: p.ProjectID, Text: text})
 	})
 }
 

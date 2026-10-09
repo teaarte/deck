@@ -36,7 +36,7 @@ func (g *Gateway) Intent(ctx context.Context, act registry.Actor, project int64,
 			}
 			return err
 		}
-		id, err = q.LogToolCall(ctx, db.LogToolCallParams{WorkspaceID: act.Workspace, ProcessID: store.ID(act.ProcessID), ProjectID: store.ID(project), Actor: act.Author(), Caller: frozenCaller(act), Tool: tool,
+		id, err = q.LogToolCall(ctx, db.LogToolCallParams{CreatedAt: store.Time(g.cfg.Now()), WorkspaceID: act.Workspace, ProcessID: store.ID(act.ProcessID), ProjectID: store.ID(project), Actor: act.Author(), Caller: frozenCaller(act), Tool: tool,
 			Class: registry.External, Outcome: "started", Params: p})
 		return err
 	})
@@ -149,7 +149,7 @@ func (g *Gateway) Recover(ctx context.Context) error {
 			if f.As == AsOwner {
 				act = registry.Actor{Kind: registry.Owner, Workspace: a.WorkspaceID, ProjectID: a.ProjectID.Int64}
 			}
-			if _, err := q.LogToolCall(ctx, db.LogToolCallParams{WorkspaceID: a.WorkspaceID, ProcessID: store.ID(act.ProcessID), ProjectID: a.ProjectID,
+			if _, err := q.LogToolCall(ctx, db.LogToolCallParams{CreatedAt: store.Time(g.cfg.Now()), WorkspaceID: a.WorkspaceID, ProcessID: store.ID(act.ProcessID), ProjectID: a.ProjectID,
 				Actor: act.Author(), Caller: frozenCaller(act), Tool: f.Call.Command, Class: classes[f.Call.Command], Outcome: "unknown",
 				Params: Canonical(f.Call.Input), AskID: sql.NullInt64{Int64: u.ID, Valid: true}}); err != nil {
 				return err

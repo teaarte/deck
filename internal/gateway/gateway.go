@@ -358,7 +358,7 @@ func (g *Gateway) Journal(ctx context.Context, act registry.Actor, project int64
 
 func (g *Gateway) journal(ctx context.Context, act registry.Actor, project int64, tool, class, outcome, params, errText string) {
 	err := g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		_, err := q.LogToolCall(ctx, db.LogToolCallParams{WorkspaceID: act.Workspace, ProcessID: store.ID(act.ProcessID), ProjectID: store.ID(project), Actor: act.Author(),
+		_, err := q.LogToolCall(ctx, db.LogToolCallParams{CreatedAt: store.Time(g.cfg.Now()), WorkspaceID: act.Workspace, ProcessID: store.ID(act.ProcessID), ProjectID: store.ID(project), Actor: act.Author(),
 			Caller: frozenCaller(act), Tool: tool, Class: class, Outcome: outcome, Params: params, Error: errText})
 		return err
 	})

@@ -1,7 +1,7 @@
 -- name: AddFeed :one
-INSERT INTO feed (workspace_id, project_id, kind, author, text, screen, record_id, actions, command, params, document_id, revision)
+INSERT INTO feed (workspace_id, project_id, kind, author, text, screen, record_id, actions, command, params, document_id, revision, created_at)
 VALUES (sqlc.arg(workspace_id), sqlc.arg(project_id), sqlc.arg(kind), sqlc.arg(author), sqlc.arg(text), sqlc.arg(screen),
-    sqlc.narg(record_id), sqlc.arg(actions), sqlc.arg(command), sqlc.arg(params), sqlc.narg(document_id), sqlc.arg(revision))
+    sqlc.narg(record_id), sqlc.arg(actions), sqlc.arg(command), sqlc.arg(params), sqlc.narg(document_id), sqlc.arg(revision), sqlc.arg(created_at))
 RETURNING *;
 
 -- name: ListFeed :many
@@ -20,7 +20,7 @@ DELETE FROM feed WHERE kind = 'note' AND for_master = 0 AND (read_at IS NOT NULL
   AND created_at < CAST(sqlc.arg(before) AS TEXT);
 
 -- name: AddMasterNote :exec
-INSERT INTO feed (workspace_id, project_id, kind, author, text, for_master) VALUES (?, ?, 'note', 'deck', ?, 1);
+INSERT INTO feed (workspace_id, project_id, kind, author, text, for_master, created_at) VALUES (?, ?, 'note', 'deck', ?, 1, ?);
 
 -- name: ListMasterNotes :many
 SELECT * FROM feed WHERE workspace_id = ? AND for_master = 1 ORDER BY id;
@@ -29,8 +29,8 @@ SELECT * FROM feed WHERE workspace_id = ? AND for_master = 1 ORDER BY id;
 DELETE FROM feed WHERE workspace_id = sqlc.arg(workspace_id) AND for_master = 1 AND id <= sqlc.arg(through);
 
 -- name: AddDeckNote :exec
-INSERT INTO feed (workspace_id, project_id, kind, author, text)
-SELECT j.workspace_id, j.id, 'note', 'deck', sqlc.arg(text) FROM project j WHERE j.id = sqlc.arg(project_id);
+INSERT INTO feed (workspace_id, project_id, kind, author, text, created_at)
+SELECT j.workspace_id, j.id, 'note', 'deck', sqlc.arg(text), sqlc.arg(created_at) FROM project j WHERE j.id = sqlc.arg(project_id);
 
 -- name: MarkFeedRead :execrows
 UPDATE feed SET read_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')

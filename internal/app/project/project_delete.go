@@ -101,7 +101,7 @@ func (pj *Service) leftInMaster(ctx context.Context, q *db.Queries, act registry
 		return dir, nil
 	}
 	line := fmt.Sprintf("draft %s, imported from %s, was deleted; deck left its folder", p.Name, dir)
-	return dir, q.AddMasterNote(ctx, db.AddMasterNoteParams{WorkspaceID: p.WorkspaceID, ProjectID: mp.ID, Text: line})
+	return dir, q.AddMasterNote(ctx, db.AddMasterNoteParams{CreatedAt: store.Time(pj.Save.Now()), WorkspaceID: p.WorkspaceID, ProjectID: mp.ID, Text: line})
 }
 
 // deletable refuses to delete a project that still has open processes or that another project reads; the master

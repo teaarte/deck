@@ -91,7 +91,7 @@ func (dv *Service) notify(ctx context.Context, act registry.Actor, in notifyIn) 
 	raw, _ := json.Marshal(buttons)
 	var n db.Feed
 	err = dv.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		n, err = q.AddFeed(ctx, db.AddFeedParams{WorkspaceID: p.WorkspaceID, ProjectID: p.ID, Kind: FeedNote, Author: act.Author(),
+		n, err = q.AddFeed(ctx, db.AddFeedParams{CreatedAt: store.Time(dv.Now()), WorkspaceID: p.WorkspaceID, ProjectID: p.ID, Kind: FeedNote, Author: act.Author(),
 			Text: in.Text, Screen: in.Screen, RecordID: store.ID(in.Record), Actions: string(raw), Params: "{}"})
 		return err
 	})

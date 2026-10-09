@@ -102,7 +102,7 @@ func (ch *Service) chatSend(ctx context.Context, act registry.Actor, in chatSend
 		} else if t, err = q.CreateTopic(ctx, db.CreateTopicParams{WorkspaceID: act.Workspace, Title: topicTitle(text)}); err != nil {
 			return err
 		}
-		if msg, err = q.AddMessage(ctx, db.AddMessageParams{TopicID: t.ID, Role: roleOwner, Text: text, Context: screen, RetryKey: in.RetryKey}); err != nil {
+		if msg, err = q.AddMessage(ctx, db.AddMessageParams{CreatedAt: store.Time(ch.Now()), TopicID: t.ID, Role: roleOwner, Text: text, Context: screen, RetryKey: in.RetryKey}); err != nil {
 			return err
 		}
 		for _, id := range s.Files {

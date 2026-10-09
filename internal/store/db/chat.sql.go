@@ -11,7 +11,7 @@ import (
 )
 
 const addMessage = `-- name: AddMessage :one
-INSERT INTO chat_message (topic_id, role, text, context, process_id, retry_key) VALUES (?, ?, ?, ?, ?, ?) RETURNING id, topic_id, role, text, context, process_id, retry_key, created_at
+INSERT INTO chat_message (topic_id, role, text, context, process_id, retry_key, created_at) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id, topic_id, role, text, context, process_id, retry_key, created_at
 `
 
 type AddMessageParams struct {
@@ -21,6 +21,7 @@ type AddMessageParams struct {
 	Context   string
 	ProcessID int64
 	RetryKey  string
+	CreatedAt string
 }
 
 func (q *Queries) AddMessage(ctx context.Context, arg AddMessageParams) (ChatMessage, error) {
@@ -31,6 +32,7 @@ func (q *Queries) AddMessage(ctx context.Context, arg AddMessageParams) (ChatMes
 		arg.Context,
 		arg.ProcessID,
 		arg.RetryKey,
+		arg.CreatedAt,
 	)
 	var i ChatMessage
 	err := row.Scan(

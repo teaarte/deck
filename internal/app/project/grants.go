@@ -45,7 +45,7 @@ func (sv *Saver) ask(ctx context.Context, q *db.Queries, act registry.Actor, p d
 	f.As, f.Reason, f.Widens = gateway.AsOwner, reason, widens
 	text := fmt.Sprintf("%s wants to change the manifest of %s (%s); it widens: %s", act.Author(), p.Name,
 		orText(reason, "no reason given"), strings.Join(widens, "; "))
-	row, err := gateway.Hold(ctx, q, act, p.ID, 0, ask.KindGrant, registry.Internal, text, f, time.Time{})
+	row, err := gateway.Hold(ctx, q, act, p.ID, 0, ask.KindGrant, registry.Internal, text, f, time.Time{}, sv.Now())
 	return Saved{Waiting: row.ID, Widens: widens}, err
 }
 
@@ -73,7 +73,7 @@ func (sv *Saver) AnswerGrant(ctx context.Context, act registry.Actor, q db.Ask, 
 
 // outdate closes the requests for rights frozen on an older manifest, which no longer apply, and tells the owner;
 // it gives them for the journal after the commit.
-func outdate(ctx context.Context, q *db.Queries, p db.Project, revision int64) ([]db.Ask, error) {
+func outdate(ctx context.Context, q *db.Queries, p db.Project, revision int64, now time.Time) ([]db.Ask, error) {
 	old, err := q.ExpireGrantAsks(ctx, store.ID(p.ID))
 	if err != nil {
 		return nil, err
@@ -81,7 +81,7 @@ func outdate(ctx context.Context, q *db.Queries, p db.Project, revision int64) (
 	for _, a := range old {
 		text := fmt.Sprintf("A request for rights of %s is outdated: the manifest changed to revision %d; whoever asked asks again if it still needs them. It was: %s",
 			p.Name, revision, a.Text)
-		if err := q.AddDeckNote(ctx, db.AddDeckNoteParams{ProjectID: p.ID, Text: text}); err != nil {
+		if err := q.AddDeckNote(ctx, db.AddDeckNoteParams{CreatedAt: store.Time(now), ProjectID: p.ID, Text: text}); err != nil {
 			return nil, err
 		}
 	}

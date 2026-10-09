@@ -55,13 +55,13 @@ func (s *Service) unheard(ctx context.Context, p db.Process, a db.Ask, why strin
 		if n, err := q.DeliverAsk(ctx, a.ID); err != nil || n == 0 && !a.DeliveredAt.Valid {
 			return err
 		}
-		err := q.AddMasterNote(ctx, db.AddMasterNoteParams{WorkspaceID: proj.WorkspaceID, ProjectID: mp.ID,
+		err := q.AddMasterNote(ctx, db.AddMasterNoteParams{CreatedAt: store.Time(s.Now()), WorkspaceID: proj.WorkspaceID, ProjectID: mp.ID,
 			Text: fmt.Sprintf("the owner answered a question of %s and %s; question: %s; answer: %s",
 				who, why, untrusted.Cut(a.Text, 500), untrusted.Cut(answer, 500))})
 		if err != nil {
 			return err
 		}
-		return q.AddDeckNote(ctx, db.AddDeckNoteParams{ProjectID: proj.ID,
+		return q.AddDeckNote(ctx, db.AddDeckNoteParams{CreatedAt: store.Time(s.Now()), ProjectID: proj.ID,
 			Text: fmt.Sprintf("%s ended with nothing after your answer %q; the master has it on its next turn.", who, untrusted.Cut(answer, 200))})
 	})
 }

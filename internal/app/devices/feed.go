@@ -24,7 +24,7 @@ func (dv *Service) Changed(ctx context.Context, q *db.Queries, act registry.Acto
 	if reason != "" {
 		text += ": " + reason
 	}
-	row := db.AddFeedParams{WorkspaceID: p.WorkspaceID, ProjectID: p.ID, Kind: FeedChange, Author: act.Author(), Text: text, Actions: "[]",
+	row := db.AddFeedParams{CreatedAt: store.Time(dv.Now()), WorkspaceID: p.WorkspaceID, ProjectID: p.ID, Kind: FeedChange, Author: act.Author(), Text: text, Actions: "[]",
 		Params: "{}", DocumentID: store.ID(prev.ID), Revision: n}
 	if prev.Current != 0 {
 		params, _ := json.Marshal(map[string]any{"document": prev.ID, "revision": prev.Current, "if_revision": n,

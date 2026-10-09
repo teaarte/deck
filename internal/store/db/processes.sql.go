@@ -957,9 +957,9 @@ func (q *Queries) ListWorkspaceToolCalls(ctx context.Context, arg ListWorkspaceT
 }
 
 const logToolCall = `-- name: LogToolCall :one
-INSERT INTO tool_call (workspace_id, process_id, project_id, actor, caller, tool, class, outcome, params, error, ask_id)
+INSERT INTO tool_call (workspace_id, process_id, project_id, actor, caller, tool, class, outcome, params, error, ask_id, created_at)
 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7,
-    ?8, ?9, ?10, ?11) RETURNING id
+    ?8, ?9, ?10, ?11, ?12) RETURNING id
 `
 
 type LogToolCallParams struct {
@@ -974,6 +974,7 @@ type LogToolCallParams struct {
 	Params      string
 	Error       string
 	AskID       sql.NullInt64
+	CreatedAt   string
 }
 
 func (q *Queries) LogToolCall(ctx context.Context, arg LogToolCallParams) (int64, error) {
@@ -989,6 +990,7 @@ func (q *Queries) LogToolCall(ctx context.Context, arg LogToolCallParams) (int64
 		arg.Params,
 		arg.Error,
 		arg.AskID,
+		arg.CreatedAt,
 	)
 	var id int64
 	err := row.Scan(&id)

@@ -572,7 +572,7 @@ func (dc *Service) seedSkills(ctx context.Context, workspace int64) error {
 			if err != nil {
 				return err
 			}
-			return q.AddMasterNote(ctx, db.AddMasterNoteParams{WorkspaceID: workspace, ProjectID: mp.ID,
+			return q.AddMasterNote(ctx, db.AddMasterNoteParams{CreatedAt: store.Time(dc.Now()), WorkspaceID: workspace, ProjectID: mp.ID,
 				Text: fmt.Sprintf("deck shipped a new %s and it replaced the edit of revision %d, which stays in its history; bring back what of it still holds", ref.Name, edited)})
 		})
 	})

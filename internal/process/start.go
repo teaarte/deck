@@ -180,7 +180,7 @@ func (r *Runner) Start(ctx context.Context, projectID int64, m *manifest.Manifes
 				text := fmt.Sprintf("deck stopped a chain of %d processes: %s.%s was not started after process %d (%s).",
 					MaxDepth, proj.Name, command, parent.ID, parent.Command)
 				refused = registry.Refuse("deck: %s was not started: a chain of processes may be at most %d long", command, MaxDepth)
-				return q.AddDeckNote(ctx, db.AddDeckNoteParams{ProjectID: proj.ID, Text: text})
+				return q.AddDeckNote(ctx, db.AddDeckNoteParams{CreatedAt: store.Time(r.now()), ProjectID: proj.ID, Text: text})
 			}
 		}
 		// A call the owner allowed later may come from a trigger its manifest dropped by then.

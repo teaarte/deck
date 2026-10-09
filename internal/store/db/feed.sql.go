@@ -11,24 +11,25 @@ import (
 )
 
 const addDeckNote = `-- name: AddDeckNote :exec
-INSERT INTO feed (workspace_id, project_id, kind, author, text)
-SELECT j.workspace_id, j.id, 'note', 'deck', ?1 FROM project j WHERE j.id = ?2
+INSERT INTO feed (workspace_id, project_id, kind, author, text, created_at)
+SELECT j.workspace_id, j.id, 'note', 'deck', ?1, ?2 FROM project j WHERE j.id = ?3
 `
 
 type AddDeckNoteParams struct {
 	Text      string
+	CreatedAt string
 	ProjectID int64
 }
 
 func (q *Queries) AddDeckNote(ctx context.Context, arg AddDeckNoteParams) error {
-	_, err := q.db.ExecContext(ctx, addDeckNote, arg.Text, arg.ProjectID)
+	_, err := q.db.ExecContext(ctx, addDeckNote, arg.Text, arg.CreatedAt, arg.ProjectID)
 	return err
 }
 
 const addFeed = `-- name: AddFeed :one
-INSERT INTO feed (workspace_id, project_id, kind, author, text, screen, record_id, actions, command, params, document_id, revision)
+INSERT INTO feed (workspace_id, project_id, kind, author, text, screen, record_id, actions, command, params, document_id, revision, created_at)
 VALUES (?1, ?2, ?3, ?4, ?5, ?6,
-    ?7, ?8, ?9, ?10, ?11, ?12)
+    ?7, ?8, ?9, ?10, ?11, ?12, ?13)
 RETURNING id, workspace_id, project_id, kind, author, text, screen, record_id, actions, command, params, document_id, revision, undone_at, created_at, for_master, read_at
 `
 
@@ -45,6 +46,7 @@ type AddFeedParams struct {
 	Params      string
 	DocumentID  sql.NullInt64
 	Revision    int64
+	CreatedAt   string
 }
 
 func (q *Queries) AddFeed(ctx context.Context, arg AddFeedParams) (Feed, error) {
@@ -61,6 +63,7 @@ func (q *Queries) AddFeed(ctx context.Context, arg AddFeedParams) (Feed, error) 
 		arg.Params,
 		arg.DocumentID,
 		arg.Revision,
+		arg.CreatedAt,
 	)
 	var i Feed
 	err := row.Scan(
@@ -86,17 +89,23 @@ func (q *Queries) AddFeed(ctx context.Context, arg AddFeedParams) (Feed, error) 
 }
 
 const addMasterNote = `-- name: AddMasterNote :exec
-INSERT INTO feed (workspace_id, project_id, kind, author, text, for_master) VALUES (?, ?, 'note', 'deck', ?, 1)
+INSERT INTO feed (workspace_id, project_id, kind, author, text, for_master, created_at) VALUES (?, ?, 'note', 'deck', ?, 1, ?)
 `
 
 type AddMasterNoteParams struct {
 	WorkspaceID int64
 	ProjectID   int64
 	Text        string
+	CreatedAt   string
 }
 
 func (q *Queries) AddMasterNote(ctx context.Context, arg AddMasterNoteParams) error {
-	_, err := q.db.ExecContext(ctx, addMasterNote, arg.WorkspaceID, arg.ProjectID, arg.Text)
+	_, err := q.db.ExecContext(ctx, addMasterNote,
+		arg.WorkspaceID,
+		arg.ProjectID,
+		arg.Text,
+		arg.CreatedAt,
+	)
 	return err
 }
 

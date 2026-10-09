@@ -35,7 +35,7 @@ func (h Hook) Turn(ctx context.Context, p db.Process, text string) {
 		return
 	}
 	err := ch.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		m, err := q.AddMessage(ctx, db.AddMessageParams{TopicID: topic, Role: roleMaster, Text: strings.TrimSpace(text), ProcessID: p.ID})
+		m, err := q.AddMessage(ctx, db.AddMessageParams{CreatedAt: store.Time(ch.Now()), TopicID: topic, Role: roleMaster, Text: strings.TrimSpace(text), ProcessID: p.ID})
 		if err != nil {
 			return err
 		}

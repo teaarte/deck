@@ -248,6 +248,8 @@ func (c *screenCheck) block(where string, b Block) {
 			c.fail("%s board: lays out a collection of the module", where)
 		case len(Lanes(col.Schema, b.Board)) == 0:
 			c.fail("%s board: %s is not an enum field of %s", where, b.Board, col.Name)
+		case !slices.ContainsFunc(b.Actions, func(a Action) bool { return a.Command != "" && a.Input == b.Board }):
+			c.fail(`%s board: a board moves an item by its button with input %q; add {"label": "Move", "command": "<command>", "params": {"id": "=_id"}, "input": %q}`, where, b.Board, b.Board)
 		}
 	}
 	for _, f := range b.Filter {

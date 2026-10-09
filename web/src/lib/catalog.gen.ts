@@ -73,7 +73,7 @@ export interface Action {
    */
   options?: string[];
   /**
-   * The result names a chat topic, which the client opens.
+   * With a command, the result names a chat topic, which the client opens; alone, the button opens the chat of the master in a new topic.
    */
   chat?: boolean;
   /**
@@ -119,7 +119,7 @@ export interface Action1 {
    */
   options?: string[];
   /**
-   * The result names a chat topic, which the client opens.
+   * With a command, the result names a chat topic, which the client opens; alone, the button opens the chat of the master in a new topic.
    */
   chat?: boolean;
   /**

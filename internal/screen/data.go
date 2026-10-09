@@ -228,7 +228,7 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 	if len(filters) > 0 {
 		out["filters"] = filters
 	}
-	if len(items) == 0 && (b.Type != "stat" || b.Empty != "") {
+	if len(items) == 0 && (b.Type != "stat" || b.Empty != "") && b.Board == "" {
 		return empty(out, b), nil
 	}
 	switch b.Type {
@@ -306,10 +306,8 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 		lines := make([]map[string]any, 0, len(items))
 		if b.Board != "" {
 			lanes := []map[string]string{}
-			if col := r.req.Manifest.Collection(b.Source.Collection); col != nil {
-				for _, v := range manifest.Lanes(col.Schema, b.Board) {
-					lanes = append(lanes, map[string]string{"value": v, "label": r.tr(v)})
-				}
+			for _, v := range r.lanes(b) {
+				lanes = append(lanes, map[string]string{"value": v, "label": r.tr(v)})
 			}
 			out["board"] = map[string]any{"field": b.Board, "lanes": lanes}
 		}
@@ -428,4 +426,26 @@ func (r *renderer) document(record, id int64, name string) (map[string]any, erro
 // editable says a document is edited as text on screen: md, but not the manifest, scripts or custom blocks.
 func editable(kind, name string) bool {
 	return !slices.Contains([]string{docs.KindManifest, docs.KindScript, docs.KindCustom}, kind) && strings.HasSuffix(name, ".md")
+}
+
+// lanes are the values a board offers: the options of its move button when it names them, else the enum of its field.
+func (r *renderer) lanes(b manifest.Block) []string {
+	for _, a := range b.Actions {
+		if a.Input != b.Board || a.Options == "" {
+			continue
+		}
+		if v, err := manifest.Resolve(a.Options, "", r.withParam(nil)); err == nil {
+			if list, ok := v.([]any); ok {
+				out := make([]string, 0, len(list))
+				for _, x := range list {
+					out = append(out, fmt.Sprint(x))
+				}
+				return out
+			}
+		}
+	}
+	if col := r.req.Manifest.Collection(b.Source.Collection); col != nil {
+		return manifest.Lanes(col.Schema, b.Board)
+	}
+	return nil
 }

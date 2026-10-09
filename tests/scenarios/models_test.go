@@ -551,13 +551,15 @@ func TestAModuleCallsOnlyTheModelsOfDecksSettings(t *testing.T) {
 		{map[string]any{"key": "gemini/models/other:generateContent", "other": `{"contents": []}`}, "not in deck's settings"},
 		{map[string]any{"key": "svc/v1/generate", "other": `{"prompt": "calm piano"}`}, "not in deck's settings"},
 		{map[string]any{"key": "svc/v1/generate", "other": `{"prompt": "calm piano"}`, "use": "qwen"}, "not in deck's settings"},
-		{map[string]any{"key": "openrouter/chat/completions", "other": `{"model": "anthropic/claude-opus", "MODEL": "qwen", "messages": []}`}, "not in deck's settings"},
+		{map[string]any{"key": "openrouter/chat/completions", "other": `{"model": "anthropic/claude-opus", "MODEL": "qwen", "messages": []}`}, "not MODEL"},
 		{map[string]any{"key": "openrouter/chat/completions", "other": `{"model": ["qwen"], "messages": []}`}, "a string"},
 		{map[string]any{"key": "gemini/models/other:generateContent", "other": `{"model": "gemma", "contents": []}`}, "two models"},
 		{map[string]any{"key": "openrouter/key", "method": "GET", "use": "qwen"}, "raw service"},
 		{map[string]any{"key": "openrouter/files", "other": `{"purpose": "batch"}`, "use": "qwen"}, "raw service"},
 		{map[string]any{"key": "openrouter/chat/completions", "other": `{"model": "qwen", "models": ["anthropic/claude-opus"], "messages": []}`}, "models"},
 		{map[string]any{"key": "openrouter/images/edits", "form": twice, "type": "multipart/form-data; boundary=b"}, "once"},
+		{map[string]any{"key": "openrouter/chat/completions", "other": `{"model": "qwen", "Model": "anthropic/claude-opus", "messages": []}`}, "not Model"},
+		{map[string]any{"key": "gemini/models/gemma:x/%2E%2E/%2E%2E/models/other:generateContent", "other": `{"contents": []}`}, ". or .."},
 	} {
 		if out := call(c.in); out["status"] != 403.0 || !strings.Contains(out["answer"].(string), c.says) {
 			t.Fatalf("a request past the models of deck's settings is refused with what to do: %v %v", c.in, out)
@@ -574,6 +576,8 @@ func TestAModuleCallsOnlyTheModelsOfDecksSettings(t *testing.T) {
 	}
 	e.refused("deck.model_request", map[string]any{"connection": "openrouter", "path": "chat/completions",
 		"body": `{"model": "anthropic/claude-opus", "messages": []}`}, 403, "not in deck's settings")
+	e.refused("deck.model_request", map[string]any{"connection": "openrouter", "path": "chat/completions", "model": "qwen",
+		"body": `{"model": "anthropic/claude-opus", "temperature": NaN}`}, 422, "is JSON")
 	var spend []spendRow
 	e.modelCalls("shorts", 0, &spend)
 	got := map[string]float64{}

@@ -164,17 +164,22 @@ func (s *Service) turnModel(workspace int64, m db.Model, c db.Connection) func(o
 // answered keeps in the health of a model whether it answered its last call: one that did not is red with the model
 // that takes its work, its next good answer green; a model in an agent has the health of its self-check.
 func (s *Service) answered(ctx context.Context, m db.Model, next string, status int) {
-	failed := status == 0 || gateway.Fallible(status)
+	failed := status <= 0 || gateway.Fallible(status)
 	if m.ID == 0 || m.Agent != "" || !failed && status >= 400 {
 		return
 	}
 	text := "did not answer"
-	if status != 0 {
+	switch {
+	case status < 0:
+		text = "broke off after the request; a call that may have reached it goes to no other model"
+	case status > 0:
 		text = fmt.Sprintf("answered HTTP %d", status)
 	}
-	if next != "" {
+	switch {
+	case status < 0:
+	case next != "":
 		text += "; " + next + " takes its work"
-	} else {
+	default:
 		text += "; no model of its assignment is after it"
 	}
 	subject := process.HealthSubject(m.Name)
@@ -194,7 +199,7 @@ func (s *Service) answered(ctx context.Context, m db.Model, next string, status 
 // API did not say.
 func (s *Service) record(ctx context.Context, act registry.Actor, m db.Model, c db.Connection, status int, u *provider.Usage) {
 	if u == nil {
-		if status == 0 || status >= 400 {
+		if status <= 0 || status >= 400 {
 			return
 		}
 		u = &provider.Usage{}
@@ -388,6 +393,9 @@ func (s *Service) modelRequest(ctx context.Context, act registry.Actor, in model
 		in.Connection = "@"
 	}
 	method := cmp.Or(strings.ToUpper(in.Method), http.MethodPost)
+	if in.Body != "" && !json.Valid([]byte(in.Body)) {
+		return nil, registry.Invalid("deck: the body of deck.model_request is JSON; a form goes through $DECK_MODELS")
+	}
 	ask, err := frozen(call{Connection: in.Connection, Method: method, Path: in.Path, Body: in.Body, Model: in.Model})
 	if err != nil {
 		return nil, err
@@ -406,7 +414,7 @@ func (s *Service) modelRequest(ctx context.Context, act registry.Actor, in model
 	}
 	resp, h, err := gateway.SendHops(ctx, hops, func(h gateway.ModelHop) (gateway.ModelCall, error) {
 		body := []byte(in.Body)
-		if strings.HasPrefix(asked, "@") {
+		if ask.InBody {
 			body = gateway.WithModel(body, h.Model)
 		}
 		return gateway.ModelCall{Method: method, Path: in.Path, Header: header, Body: body}, nil

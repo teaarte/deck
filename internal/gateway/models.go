@@ -39,7 +39,8 @@ type ModelHop struct {
 	Local, Free bool
 	// Options are the fields a call of a kind adds to the request of this model, such as language.
 	Options map[string]any
-	// Done keeps the call: the status the API answered and what it used, nil when it did not say.
+	// Done keeps the call: the status the API answered (0 when the request never reached it, -1 when it broke off
+	// after) and what it used, nil when it did not say.
 	Done func(ctx context.Context, status int, u *provider.Usage)
 }
 
@@ -126,11 +127,12 @@ func SendHops(ctx context.Context, hops []ModelHop, build func(ModelHop) (ModelC
 			resp, err = SendModel(ctx, h.Target, *c.Retry)
 		}
 		if err != nil {
-			h.Done(ctx, 0, nil)
 			last = &registry.Error{Status: http.StatusBadGateway, Text: fmt.Sprintf("deck: %s: %v", h.Connection, err)}
 			if Unsent(err) {
+				h.Done(ctx, 0, nil)
 				continue
 			}
+			h.Done(ctx, -1, nil)
 			return nil, h, last
 		}
 		if Fallible(resp.StatusCode) && i < len(hops)-1 {
@@ -234,11 +236,11 @@ func flush(w http.ResponseWriter, body io.Reader) {
 // DeckModel is the header that names the model of a request whose API has no field for it, as the API knows it.
 const DeckModel = "X-Deck-Model"
 
-// ModelAsk is a call of a model as deck routes it: the connection, the model the request names, ByHeader when only
-// the header DeckModel names it, and the method and path of a request through a connection.
+// ModelAsk is a call of a model as deck routes it: the connection, the model the request names, InBody when a JSON
+// body names it, ByHeader when only the header DeckModel does, and the method and path of the request.
 type ModelAsk struct {
 	Connection, Model string
-	ByHeader          bool
+	InBody, ByHeader  bool
 	Method, Path      string
 }
 
@@ -246,11 +248,19 @@ type ModelAsk struct {
 // that disagree, and OpenRouter's models and route that reach models past the one named, are refused.
 func AskModel(connection, method, path string, header http.Header, body []byte) (ModelAsk, error) {
 	ask := ModelAsk{Connection: connection, Method: cmp.Or(method, http.MethodPost), Path: strings.TrimPrefix(path, "/")}
+	for i, seg := range strings.Split(ask.Path, "/") {
+		if seg == "." || seg == ".." || seg == "" && i > 0 {
+			return ask, registry.Refuse("deck: the path %s of a call of a model has an empty, . or .. part", path)
+		}
+	}
 	var named []string
 	var m map[string]json.RawMessage
 	if json.Unmarshal(body, &m) == nil {
-		for _, k := range []string{"models", "route"} {
-			if _, ok := m[k]; ok {
+		for k := range m {
+			switch {
+			case strings.EqualFold(k, "model") && k != "model":
+				return ask, registry.Refuse("deck: a call of a model names its model in model, not %s", k)
+			case strings.EqualFold(k, "models") || strings.EqualFold(k, "route"):
 				return ask, registry.Refuse("deck: a call of a model names its one model in model; %s reaches models deck's settings do not hold", k)
 			}
 		}
@@ -259,7 +269,7 @@ func AskModel(connection, method, path string, header http.Header, body []byte) 
 			if json.Unmarshal(raw, &v) != nil || v == "" {
 				return ask, registry.Refuse("deck: model of the body is the name of a model, a string")
 			}
-			named = append(named, v)
+			named, ask.InBody = append(named, v), true
 		}
 	}
 	if ct, params, err := mime.ParseMediaType(header.Get("Content-Type")); err == nil && ct == "multipart/form-data" {
@@ -267,8 +277,11 @@ func AskModel(connection, method, path string, header http.Header, body []byte) 
 		var form []string
 		for {
 			p, err := r.NextPart()
-			if err != nil {
+			if err == io.EOF {
 				break
+			}
+			if err != nil {
+				return ask, registry.Refuse("deck: the form of a call of a model does not read: %v", err)
 			}
 			if p.FormName() == "model" {
 				b, _ := io.ReadAll(io.LimitReader(p, 1<<10))
@@ -310,11 +323,17 @@ func Polls(method, path string) bool {
 	return ok && method == http.MethodGet && id != "" && (tail == "" || tail == "content")
 }
 
-// WithModel is a JSON body with its model replaced, the rest as it came.
+// WithModel is a JSON body that names model and only it, the rest as it came: other spellings of model and
+// OpenRouter's models and route go.
 func WithModel(body []byte, model string) []byte {
 	var m map[string]json.RawMessage
 	if json.Unmarshal(body, &m) != nil {
 		return body
+	}
+	for k := range m {
+		if strings.EqualFold(k, "model") || strings.EqualFold(k, "models") || strings.EqualFold(k, "route") {
+			delete(m, k)
+		}
 	}
 	m["model"], _ = json.Marshal(model)
 	out, err := json.Marshal(m)
@@ -505,5 +524,5 @@ func (g *Gateway) proxyModel(w http.ResponseWriter, r *http.Request, act registr
 		_ = json.NewEncoder(w).Encode(out)
 		return
 	}
-	ServeHops(w, r, path, body, strings.HasPrefix(asked, "@"), hops)
+	ServeHops(w, r, path, body, ask.InBody, hops)
 }

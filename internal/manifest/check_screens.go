@@ -238,6 +238,18 @@ func (c *screenCheck) block(where string, b Block) {
 			}
 		}
 	}
+	if b.Board != "" {
+		var col *Collection
+		if b.Source != nil && b.Source.From == "" && b.Source.Project == "" {
+			col = c.m.Collection(b.Source.Collection)
+		}
+		switch {
+		case col == nil:
+			c.fail("%s board: lays out a collection of the module", where)
+		case len(Lanes(col.Schema, b.Board)) == 0:
+			c.fail("%s board: %s is not an enum field of %s", where, b.Board, col.Name)
+		}
+	}
 	for _, f := range b.Filter {
 		if fields != nil && !slices.Contains(fields, f) {
 			c.fail("%s filter: unknown field %q", where, f)

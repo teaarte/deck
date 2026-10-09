@@ -62,7 +62,7 @@ func TestABoardLaysTheItemsOfAListInTheLanesOfAnEnum(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, nil)
 	for _, bad := range []struct{ from, to, want string }{
-		{`"board": "status"`, `"board": "title"`, "board: status of the lane is an enum field"},
+		{`"board": "status"`, `"board": "title"`, "board: title is not an enum field"},
 		{`"source": {"collection": "tasks"}`, `"source": {"from": "deck.projects_list"}`, "board: lays out a collection of the module"},
 	} {
 		code, out := e.call("deck.project_create", map[string]any{"name": "bad", "manifest": strings.Replace(boardManifest, bad.from, bad.to, 1)})
@@ -83,8 +83,9 @@ func TestABoardLaysTheItemsOfAListInTheLanesOfAnEnum(t *testing.T) {
 		} `json:"items"`
 	}
 	for _, b := range block {
-		if raw, ok := b["value"]; ok && json.Unmarshal(raw, &data) == nil && data.Board.Field != "" {
-			break
+		if _, ok := b["board"]; ok {
+			raw, _ := json.Marshal(b)
+			_ = json.Unmarshal(raw, &data)
 		}
 	}
 	if data.Board.Field != "status" || fmt.Sprint(data.Board.Lanes) != "[{todo todo} {doing в работе} {done done}]" {

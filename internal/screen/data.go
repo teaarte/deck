@@ -304,8 +304,20 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 		out["rows"] = rows
 	case "list":
 		lines := make([]map[string]any, 0, len(items))
+		if b.Board != "" {
+			lanes := []map[string]string{}
+			if col := r.req.Manifest.Collection(b.Source.Collection); col != nil {
+				for _, v := range manifest.Lanes(col.Schema, b.Board) {
+					lanes = append(lanes, map[string]string{"value": v, "label": r.tr(v)})
+				}
+			}
+			out["board"] = map[string]any{"field": b.Board, "lanes": lanes}
+		}
 		for _, it := range items {
 			line := map[string]any{"id": it["_id"], "actions": r.rowActions(b, it)}
+			if v, ok := it[b.Board]; b.Board != "" && ok && v != nil {
+				line["lane"] = fmt.Sprint(v)
+			}
 			if b.Item.Markdown {
 				line["markdown"] = true
 			}

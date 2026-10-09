@@ -169,6 +169,23 @@ func schemaFields(raw json.RawMessage) []string {
 	return out
 }
 
+// Lanes are the values of an enum field of a schema in order, none when the field is not an enum.
+func Lanes(raw json.RawMessage, field string) []string {
+	var s struct {
+		Properties map[string]struct {
+			Enum []any `json:"enum"`
+		} `json:"properties"`
+	}
+	if json.Unmarshal(raw, &s) != nil {
+		return nil
+	}
+	var out []string
+	for _, v := range s.Properties[field].Enum {
+		out = append(out, fmt.Sprint(v))
+	}
+	return out
+}
+
 // DecodeObject parses one JSON object, keeping integers exact as int64.
 func DecodeObject(b []byte) (map[string]any, error) {
 	dec := json.NewDecoder(bytes.NewReader(b))

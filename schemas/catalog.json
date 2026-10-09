@@ -82,7 +82,7 @@
     },
     "list": {
       "description": "Lines of a source.",
-      "block": {"description": "Needs source and item, whose title, text and meta are expressions over each item; filter and actions are optional.", "required": ["source", "item"], "properties": {"source": {"$ref": "#/$defs/source"}, "item": {"type": "object", "additionalProperties": false, "required": ["title"], "description": "Expressions of each line; details is text shown in full on demand, questions what the owner answers in a picker; markdown says the text is markdown.", "properties": {"title": {"type": "string"}, "text": {"type": "string"}, "meta": {"type": "string"}, "icon": {"type": "string", "description": "Expression giving the name of a Tabler icon of the line."}, "image": {"type": "string", "description": "Expression giving a picture of the line, as item.file of media gives a file: a stored file id or a path in the data folder; a file that is no picture is left out."}, "details": {"type": "string"}, "questions": {"type": "string"}, "markdown": {"type": "boolean"}, "tone": {"$ref": "#/$defs/tone"}}}, "filter": {"$ref": "#/$defs/filter"}, "actions": {"$ref": "#/$defs/actions"}, "empty": {"$ref": "#/$defs/empty"}}},
+      "block": {"description": "Needs source and item, whose title, text and meta are expressions over each item; filter and actions are optional.", "required": ["source", "item"], "properties": {"source": {"$ref": "#/$defs/source"}, "item": {"type": "object", "additionalProperties": false, "required": ["title"], "description": "Expressions of each line; details is text shown in full on demand, questions what the owner answers in a picker; markdown says the text is markdown.", "properties": {"title": {"type": "string"}, "text": {"type": "string"}, "meta": {"type": "string"}, "icon": {"type": "string", "description": "Expression giving the name of a Tabler icon of the line."}, "image": {"type": "string", "description": "Expression giving a picture of the line, as item.file of media gives a file: a stored file id or a path in the data folder; a file that is no picture is left out."}, "details": {"type": "string"}, "questions": {"type": "string"}, "markdown": {"type": "boolean"}, "tone": {"$ref": "#/$defs/tone"}}}, "board": {"type": "string", "description": "An enum field of the module's collection the list reads: the list is a board with a lane for each value of the enum, in order and in the owner's language; dragging an item to a lane presses its button whose input is that field with the value of the lane, and on a phone that button picks the lane."}, "filter": {"$ref": "#/$defs/filter"}, "actions": {"$ref": "#/$defs/actions"}, "empty": {"$ref": "#/$defs/empty"}}},
       "type": "object",
       "additionalProperties": false,
       "required": ["data"],
@@ -91,7 +91,7 @@
         "icon": {"type": "string"},
         "span": {"enum": [1, 2, "full"], "default": "full"},
         "description": {"type": "string"},
-        "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "items: [{id, title, text, meta, image, details, questions, actions}]"}
+        "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "items: [{id, title, text, meta, image, details, questions, lane, actions}], board: {field, lanes}"}
       }
     },
     "card": {
@@ -358,10 +358,14 @@
           "type": "object", "required": ["id", "cells"], "additionalProperties": false,
           "properties": {"id": {}, "cells": {"type": "array"}, "tones": {"type": "array", "description": "the tone of each cell, null for none", "items": {"oneOf": [{"$ref": "#/$defs/tone"}, {"type": "null"}]}}, "details": {"type": "array", "description": "the text of each cell shown in full on demand, null for none; such a cell shows its value in one line", "items": {"type": ["string", "null"]}}, "actions": {"type": "array", "items": {"$ref": "#/$defs/action"}}}
         }},
+        "board": {"type": "object", "required": ["field", "lanes"], "additionalProperties": false,
+          "description": "the lanes of a board: the field of its items and the values of its enum with their labels",
+          "properties": {"field": {"type": "string"}, "lanes": {"type": "array", "items": {"type": "object", "required": ["value", "label"],
+            "additionalProperties": false, "properties": {"value": {"type": "string"}, "label": {"type": "string"}}}}}},
         "items": {"type": "array", "items": {
           "type": "object", "required": ["id", "title"], "additionalProperties": false,
           "properties": {
-            "id": {}, "title": {"type": "string"}, "text": {"type": "string"}, "meta": {"type": "string"}, "icon": {"type": "string"},
+            "id": {}, "title": {"type": "string"}, "lane": {"type": "string", "description": "the value of the board field of the item"}, "text": {"type": "string"}, "meta": {"type": "string"}, "icon": {"type": "string"},
             "image": {"type": "string", "description": "address of the picture of the line"},
             "details": {"type": "string"}, "markdown": {"type": "boolean", "description": "text is markdown"}, "tone": {"$ref": "#/$defs/tone"},
             "questions": {"type": "array", "items": {

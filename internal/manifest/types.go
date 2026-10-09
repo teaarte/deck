@@ -282,6 +282,8 @@ type Block struct {
 	Primary bool   `json:"primary,omitempty"`
 	// Filter names the fields of a table or list the owner narrows it by.
 	Filter []string `json:"filter,omitempty"`
+	// Board is the enum field of a list whose values are the lanes its items stand in.
+	Board string `json:"board,omitempty"`
 	// Command is the command of a form; Save a collection its result can be kept in.
 	Command string `json:"command,omitempty"`
 	Save    string `json:"save,omitempty"`

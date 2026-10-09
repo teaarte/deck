@@ -498,3 +498,25 @@ func TestAModelPricedPerCharOrSecondCostsWhatItTook(t *testing.T) {
 		t.Fatalf("a recording costs the seconds the API reported, and nothing it did not: %v %v %v", costs[0], costs[1], costs[2])
 	}
 }
+
+// TestTwoModelsOfOneAPIModelKeepTheirOwnNames: two models of deck on the same model of an API, with their own price,
+// are each called and counted by their own name.
+func TestTwoModelsOfOneAPIModelKeepTheirOwnNames(t *testing.T) {
+	t.Parallel()
+	api := newModels(t, map[string]func(int, map[string]any) (int, string, string){
+		"/api/v1/chat/completions": func(int, map[string]any) (int, string, string) { return 200, "application/json", chatText("hi") },
+	})
+	e := newEnv(t, nil)
+	e.must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": api.URL + "/api/v1", "key": "sk-or"}, nil)
+	e.must("deck.model_set", map[string]any{"connection": "openrouter", "model": "qwen", "name": "first", "kind": "text", "call_usd": 0.01}, nil)
+	e.must("deck.model_set", map[string]any{"connection": "openrouter", "model": "qwen", "name": "second", "kind": "text", "call_usd": 0.02}, nil)
+	e.must("deck.model_call", map[string]any{"kind": "text", "model": "second", "prompt": "hi"}, nil)
+	var name string
+	var cost float64
+	if err := e.App.Store.DB.QueryRow(`SELECT gen_ai_provider_name, cost_usd FROM llm_call ORDER BY id DESC LIMIT 1`).Scan(&name, &cost); err != nil {
+		t.Fatal(err)
+	}
+	if name != "second" || cost != 0.02 {
+		t.Fatalf("the call is the model it named: %s %v", name, cost)
+	}
+}

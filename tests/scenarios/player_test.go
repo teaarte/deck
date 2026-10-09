@@ -80,7 +80,7 @@ func TestAPlayerShowsMarksAndMarksASecond(t *testing.T) {
 	for _, tc := range []struct{ from, to, want string }{
 		{`"at": {"type": "number"}, `, ``, `has no input field "at"`},
 		{`"mark": {"verb": "mark", "command": "note"`, `"mark": {"verb": "mark", "command": "gone"`, `unknown command "gone"`},
-		{`"marks": "marks"}`, `"marks": "marks +"}`, `item:`},
+		{`"marks": "marks"}`, `"marks": "marks +"}`, `item marks:`},
 	} {
 		bad := strings.Replace(playerManifest, tc.from, tc.to, 1)
 		if code, out := e.call("deck.manifest_save", map[string]any{"project": "shorts", "manifest": bad}); code != 422 || !strings.Contains(string(out), tc.want) {

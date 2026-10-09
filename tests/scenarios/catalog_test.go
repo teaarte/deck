@@ -170,7 +170,7 @@ func TestBlocksTakeTheToneOfTheirValues(t *testing.T) {
           {"label": "Status"`, `"tone": "chnage < 0 ? 'error' : 'ok'"},
           {"label": "Status"`, `column "Change" tone: unknown field "chnage"`},
 		{`"tone": "rows[0].price >= 60000 ? 'ok' : 'warn'"`, `"tone": "price >= 60000 ? 'ok' : 'warn'"`, `tone: unknown field "price"`},
-		{`"tone": "status == 'missed' ? 'muted' : ''"`, `"tone": "state == 'missed' ? 'muted' : ''"`, `item: unknown field "state"`},
+		{`"tone": "status == 'missed' ? 'muted' : ''"`, `"tone": "state == 'missed' ? 'muted' : ''"`, `item tone: unknown field "state"`},
 	} {
 		if strings.Count(forecastManifest, tc.from) != 1 {
 			t.Fatalf("fixture has %s once", tc.from)

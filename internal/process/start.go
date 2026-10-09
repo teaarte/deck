@@ -191,7 +191,7 @@ func (r *Runner) Start(ctx context.Context, projectID int64, m *manifest.Manifes
 		p, err = q.CreateProcess(ctx, db.CreateProcessParams{Trial: b2i(trial), ProjectID: projectID, Command: command, Kind: kind, State: StateRunning,
 			Provider: providerName, Input: string(in), SessionID: session, ParentID: ref(o.Parent), Depth: depth,
 			TriggerID: ref(t.ID), RetryKey: o.Key, CeilingMs: r.ceilingOf(m, cmd).Milliseconds(), ManifestRevision: m.Revision, Folder: folder,
-			StartNote: o.Note, Alone: b2i(o.Alone && trial)})
+			StartNote: o.Note, Alone: b2i(o.Alone && trial), StartedAt: store.Time(r.now())})
 		if err != nil {
 			return err
 		}

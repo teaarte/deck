@@ -1,7 +1,7 @@
 -- name: CreateProcess :one
 INSERT INTO process (project_id, command, kind, state, provider, input, session_id, parent_id, depth, trigger_id, retry_key, ceiling_ms,
-    manifest_revision, trial, folder, start_note, alone)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *;
+    manifest_revision, trial, folder, start_note, alone, started_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *;
 
 
 -- name: GetProcess :one
@@ -227,4 +227,5 @@ UPDATE process SET start_note = ? WHERE id = ?;
 
 
 -- name: FindTriggeredChild :one
-SELECT * FROM process WHERE parent_id = ? AND trigger_id = ? ORDER BY id LIMIT 1;
+SELECT c.* FROM process c JOIN process p ON p.id = c.parent_id
+WHERE c.parent_id = ? AND c.trigger_id = ? AND c.started_at >= p.finished_at ORDER BY c.id LIMIT 1;

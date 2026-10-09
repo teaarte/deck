@@ -4,6 +4,7 @@ import (
 	"context"
 	"deck2/internal/app"
 	"deck2/internal/provider"
+	"deck2/internal/store"
 	"deck2/internal/store/db"
 	"encoding/json"
 	"fmt"
@@ -317,7 +318,7 @@ func TestLeftoverCLIGroupIsKilledBeforeResume(t *testing.T) {
 	t.Cleanup(func() { _ = syscall.Kill(-orphan.Process.Pid, syscall.SIGKILL) })
 	var id int64
 	err := e1.App.Store.Tx(context.Background(), func(ctx context.Context, q *db.Queries) error {
-		pr, err := q.CreateProcess(ctx, db.CreateProcessParams{ProjectID: p, Command: "work", State: "running", Provider: "claude-code",
+		pr, err := q.CreateProcess(ctx, db.CreateProcessParams{StartedAt: store.Time(time.Now()), ProjectID: p, Command: "work", State: "running", Provider: "claude-code",
 			Input: "{}", SessionID: "11111111-1111-1111-1111-111111111111", Depth: 1, CeilingMs: time.Hour.Milliseconds()})
 		if err != nil {
 			return err
@@ -326,7 +327,7 @@ func TestLeftoverCLIGroupIsKilledBeforeResume(t *testing.T) {
 		if err := q.SetProcessGroup(ctx, db.SetProcessGroupParams{Pgid: int64(pgids[0]), ID: pr.ID}); err != nil {
 			return err
 		}
-		done, err := q.CreateProcess(ctx, db.CreateProcessParams{ProjectID: p, Command: "work", State: "done", Input: "{}",
+		done, err := q.CreateProcess(ctx, db.CreateProcessParams{StartedAt: store.Time(time.Now()), ProjectID: p, Command: "work", State: "done", Input: "{}",
 			SessionID: "22222222-2222-2222-2222-222222222222", Depth: 1})
 		if err != nil {
 			return err
@@ -334,7 +335,7 @@ func TestLeftoverCLIGroupIsKilledBeforeResume(t *testing.T) {
 		if err := q.SetProcessGroup(ctx, db.SetProcessGroupParams{Pgid: int64(pgids[1]), ID: done.ID}); err != nil {
 			return err
 		}
-		other, err := q.CreateProcess(ctx, db.CreateProcessParams{ProjectID: p, Command: "work", State: "done", Input: "{}",
+		other, err := q.CreateProcess(ctx, db.CreateProcessParams{StartedAt: store.Time(time.Now()), ProjectID: p, Command: "work", State: "done", Input: "{}",
 			SessionID: "33333333-3333-3333-3333-333333333333", Depth: 1})
 		if err != nil {
 			return err
@@ -342,7 +343,7 @@ func TestLeftoverCLIGroupIsKilledBeforeResume(t *testing.T) {
 		if err := q.SetProcessGroup(ctx, db.SetProcessGroupParams{Pgid: int64(pgids[3]), ID: other.ID}); err != nil {
 			return err
 		}
-		gone, err := q.CreateProcess(ctx, db.CreateProcessParams{ProjectID: p, Command: "work", State: "done", Input: "{}", Provider: "removed",
+		gone, err := q.CreateProcess(ctx, db.CreateProcessParams{StartedAt: store.Time(time.Now()), ProjectID: p, Command: "work", State: "done", Input: "{}", Provider: "removed",
 			SessionID: "44444444-4444-4444-4444-444444444444", Depth: 1})
 		if err != nil {
 			return err

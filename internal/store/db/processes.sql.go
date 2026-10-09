@@ -91,8 +91,8 @@ func (q *Queries) CountUnknownCalls(ctx context.Context, arg CountUnknownCallsPa
 
 const createProcess = `-- name: CreateProcess :one
 INSERT INTO process (project_id, command, kind, state, provider, input, session_id, parent_id, depth, trigger_id, retry_key, ceiling_ms,
-    manifest_revision, trial, folder, start_note, alone)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id, project_id, command, kind, state, provider, session_id, input, result, not_by_schema, error, start_note, parent_id, depth, trigger_id, retry_key, manifest_revision, trial, folder, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, pause_until_ms, wait_message, wait_fresh, started_at, finished_at, alone
+    manifest_revision, trial, folder, start_note, alone, started_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id, project_id, command, kind, state, provider, session_id, input, result, not_by_schema, error, start_note, parent_id, depth, trigger_id, retry_key, manifest_revision, trial, folder, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, pause_until_ms, wait_message, wait_fresh, started_at, finished_at, alone
 `
 
 type CreateProcessParams struct {
@@ -113,6 +113,7 @@ type CreateProcessParams struct {
 	Folder           string
 	StartNote        string
 	Alone            int64
+	StartedAt        string
 }
 
 func (q *Queries) CreateProcess(ctx context.Context, arg CreateProcessParams) (Process, error) {
@@ -134,6 +135,7 @@ func (q *Queries) CreateProcess(ctx context.Context, arg CreateProcessParams) (P
 		arg.Folder,
 		arg.StartNote,
 		arg.Alone,
+		arg.StartedAt,
 	)
 	var i Process
 	err := row.Scan(
@@ -229,7 +231,8 @@ func (q *Queries) FindActiveProcess(ctx context.Context, arg FindActiveProcessPa
 }
 
 const findTriggeredChild = `-- name: FindTriggeredChild :one
-SELECT id, project_id, command, kind, state, provider, session_id, input, result, not_by_schema, error, start_note, parent_id, depth, trigger_id, retry_key, manifest_revision, trial, folder, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, pause_until_ms, wait_message, wait_fresh, started_at, finished_at, alone FROM process WHERE parent_id = ? AND trigger_id = ? ORDER BY id LIMIT 1
+SELECT c.id, c.project_id, c.command, c.kind, c.state, c.provider, c.session_id, c.input, c.result, c.not_by_schema, c.error, c.start_note, c.parent_id, c.depth, c.trigger_id, c.retry_key, c.manifest_revision, c.trial, c.folder, c.pgid, c.ceiling_ms, c.deadline_ms, c.output_ms, c.silent_since_ms, c.pause_until_ms, c.wait_message, c.wait_fresh, c.started_at, c.finished_at, c.alone FROM process c JOIN process p ON p.id = c.parent_id
+WHERE c.parent_id = ? AND c.trigger_id = ? AND c.started_at >= p.finished_at ORDER BY c.id LIMIT 1
 `
 
 type FindTriggeredChildParams struct {

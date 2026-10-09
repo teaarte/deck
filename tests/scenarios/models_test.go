@@ -388,7 +388,7 @@ func TestAScriptCallsARoleAndAFallbackTakesARefusal(t *testing.T) {
 	}
 
 	got = e.waitScript(e.start("shorts", "voice", map[string]any{"key": "@/files", "other": `{"model": "@tts"}`}), "done", "error")
-	if json.Unmarshal(got.Result, &out) != nil || out["status"] != 403.0 || !strings.Contains(out["answer"].(string), "POST of a model call") {
+	if json.Unmarshal(got.Result, &out) != nil || out["status"] != 403.0 || !strings.Contains(out["answer"].(string), "not a call of a model") {
 		t.Fatalf("a role reaches only the paths of model calls, not the rest of the connection behind it: %+v", got)
 	}
 	got = e.waitScript(e.start("shorts", "voice", map[string]any{"key": "spare/images/generations", "other": `{"model": "@image"}`}), "done", "error")
@@ -503,7 +503,8 @@ func TestAModuleCallsOnlyTheModelsTheOwnerGranted(t *testing.T) {
 }
 
 // TestAModuleCallsOnlyTheModelsOfDecksSettings: a call names a model the owner added (body, form, Google's path or
-// X-Deck-Model); any other model, or an account path naming none, is refused with what to do.
+// X-Deck-Model); any other model, an account path naming none, or a path of an API that is not a call of a model, is
+// refused with what to do.
 func TestAModuleCallsOnlyTheModelsOfDecksSettings(t *testing.T) {
 	ok := func(int, map[string]any) (int, string, string) { return 200, "application/json", chatText("hi") }
 	api := newModels(t, map[string]func(int, map[string]any) (int, string, string){
@@ -547,19 +548,22 @@ func TestAModuleCallsOnlyTheModelsOfDecksSettings(t *testing.T) {
 		says string
 	}{
 		{map[string]any{"key": "openrouter/chat/completions", "other": `{"model": "anthropic/claude-opus", "messages": []}`}, "not in deck's settings"},
-		{map[string]any{"key": "openrouter/key", "method": "GET"}, "not in deck's settings"},
+		{map[string]any{"key": "openrouter/key", "method": "GET"}, "not a call of a model"},
 		{map[string]any{"key": "gemini/models/other:generateContent", "other": `{"contents": []}`}, "not in deck's settings"},
 		{map[string]any{"key": "svc/v1/generate", "other": `{"prompt": "calm piano"}`}, "not in deck's settings"},
 		{map[string]any{"key": "svc/v1/generate", "other": `{"prompt": "calm piano"}`, "use": "qwen"}, "not in deck's settings"},
 		{map[string]any{"key": "openrouter/chat/completions", "other": `{"model": "anthropic/claude-opus", "MODEL": "qwen", "messages": []}`}, "not MODEL"},
 		{map[string]any{"key": "openrouter/chat/completions", "other": `{"model": ["qwen"], "messages": []}`}, "a string"},
 		{map[string]any{"key": "gemini/models/other:generateContent", "other": `{"model": "gemma", "contents": []}`}, "two models"},
-		{map[string]any{"key": "openrouter/key", "method": "GET", "use": "qwen"}, "raw service"},
-		{map[string]any{"key": "openrouter/files", "other": `{"purpose": "batch"}`, "use": "qwen"}, "raw service"},
+		{map[string]any{"key": "openrouter/key", "method": "GET", "use": "qwen"}, "not a call of a model"},
+		{map[string]any{"key": "openrouter/chat/completions", "other": `{"messages": []}`, "use": "qwen"}, "raw service"},
 		{map[string]any{"key": "openrouter/chat/completions", "other": `{"model": "qwen", "models": ["anthropic/claude-opus"], "messages": []}`}, "models"},
 		{map[string]any{"key": "openrouter/images/edits", "form": twice, "type": "multipart/form-data; boundary=b"}, "once"},
 		{map[string]any{"key": "openrouter/chat/completions", "other": `{"model": "qwen", "Model": "anthropic/claude-opus", "messages": []}`}, "not Model"},
 		{map[string]any{"key": "gemini/models/gemma:x/%2E%2E/%2E%2E/models/other:generateContent", "other": `{"contents": []}`}, ". or .."},
+		{map[string]any{"key": "openrouter/files", "other": `{"model": "qwen", "purpose": "batch"}`}, "not a call of a model"},
+		{map[string]any{"key": "openrouter/chat/completions", "method": "DELETE", "other": `{"model": "qwen"}`}, "not a call of a model"},
+		{map[string]any{"key": "openrouter/videos/job-1", "method": "DELETE", "other": `{}`}, "not a call of a model"},
 	} {
 		if out := call(c.in); out["status"] != 403.0 || !strings.Contains(out["answer"].(string), c.says) {
 			t.Fatalf("a request past the models of deck's settings is refused with what to do: %v %v", c.in, out)
@@ -576,6 +580,8 @@ func TestAModuleCallsOnlyTheModelsOfDecksSettings(t *testing.T) {
 	}
 	e.refused("deck.model_request", map[string]any{"connection": "openrouter", "path": "chat/completions",
 		"body": `{"model": "anthropic/claude-opus", "messages": []}`}, 403, "not in deck's settings")
+	e.refused("deck.model_request", map[string]any{"connection": "openrouter", "path": "fine_tuning/jobs",
+		"body": `{"model": "qwen", "training_file": "f"}`}, 403, "not a call of a model")
 	e.refused("deck.model_request", map[string]any{"connection": "openrouter", "path": "chat/completions", "model": "qwen",
 		"body": `{"model": "anthropic/claude-opus", "temperature": NaN}`}, 422, "is JSON")
 	var spend []spendRow

@@ -354,7 +354,9 @@ func audioStream(pieces ...string) string {
 // of chat completions with audio out when the API has no such path; either way the track is a file of the result.
 func TestAMusicModelMakesATrackOfItsOwnPathOrOfChatAudio(t *testing.T) {
 	local := newModels(t, map[string]func(int, map[string]any) (int, string, string){
-		"/v1/audio/music": func(int, map[string]any) (int, string, string) { return 200, "audio/wav", "RIFF\x24\x00\x00\x00WAVEfmt " },
+		"/v1/audio/music": func(int, map[string]any) (int, string, string) {
+			return 200, "audio/wav", "RIFF\x24\x00\x00\x00WAVEfmt "
+		},
 	})
 	cloud := newModels(t, map[string]func(int, map[string]any) (int, string, string){
 		"/api/v1/chat/completions": func(int, map[string]any) (int, string, string) {

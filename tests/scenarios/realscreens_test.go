@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -564,4 +565,43 @@ func TestRealBrowserAButtonOpensTheChatInANewTopic(t *testing.T) {
 	b.until("the chat closed", `!document.querySelector('[data-chat-panel]')`)
 	b.open(e.URL + "/#/p/work/board?chat=new")
 	b.until("the chat from the address", `document.querySelector('[data-chat-panel] [data-chat-input]') && !location.hash.includes('chat=')`)
+}
+
+// TestRealBrowserCustomBlockSendsNothingByWebRTC: a custom block cannot carry data out past its CSP through the ICE
+// of a WebRTC connection to a STUN server of its own.
+func TestRealBrowserCustomBlockSendsNothingByWebRTC(t *testing.T) {
+	if os.Getenv("DECK_REAL_BROWSER") == "" {
+		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
+	}
+	checkBuiltClient(t)
+	stun, err := net.ListenPacket("udp4", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stun.Close()
+	got := make(chan int, 1)
+	go func() {
+		buf := make([]byte, 2048)
+		if n, _, err := stun.ReadFrom(buf); err == nil {
+			got <- n
+		}
+	}()
+	e := newEnv(t, webNotesAgent())
+	e.createProject("web", webNotes)
+	e.must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": `<!doctype html><html><body><p id="out">rtc</p><script>
+try {
+  const pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:` + stun.LocalAddr().String() + `" }] });
+  pc.createDataChannel("leak");
+  pc.createOffer().then((o) => pc.setLocalDescription(o));
+  document.getElementById("out").textContent = "tried";
+} catch (e) { document.getElementById("out").textContent = "no rtc: " + e; }
+</script></body></html>`}, nil)
+	b := newPlaywright(t)
+	b.open(e.URL + "/?token=" + token + "#/p/web/main")
+	b.until("the custom block", `document.querySelector('iframe[data-custom]')`)
+	select {
+	case n := <-got:
+		t.Fatalf("a custom block reached a STUN server of its own with %d bytes", n)
+	case <-time.After(8 * time.Second):
+	}
 }

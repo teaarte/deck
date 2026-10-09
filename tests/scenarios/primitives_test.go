@@ -99,3 +99,20 @@ func TestABoardLaysTheItemsOfAListInTheLanesOfAnEnum(t *testing.T) {
 		t.Fatalf("each item says its lane: %+v", data.Items)
 	}
 }
+
+// TestAButtonOpensTheChatOfTheMaster: a button with chat and nothing else opens the chat panel in a new topic; it calls
+// no command.
+func TestAButtonOpensTheChatOfTheMaster(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, nil)
+	m := strings.Replace(boardManifest, `"actions": [{"label": "Move"`, `"actions": [{"label": "New task", "chat": true}, {"label": "Move"`, 1)
+	e.createProject("work", m)
+	e.must("deck.records_upsert", map[string]any{"project": "work", "collection": "tasks", "records": `{"title": "a", "status": "doing"}`}, nil)
+	raw, _ := json.Marshal(e.screenData("work", "board", nil))
+	if !strings.Contains(string(raw), `{"chat":true,"label":"New task"}`) {
+		t.Fatalf("the chat button is drawn with chat alone: %s", raw)
+	}
+	if code, out := e.call("deck.manifest_save", map[string]any{"project": "work", "manifest": strings.Replace(m, `"chat": true}`, `"chat": true, "screen": "board"}`, 1)}); code != 422 || !strings.Contains(string(out), "chat") {
+		t.Fatalf("a chat button opens the chat and nothing else: %d %s", code, out)
+	}
+}

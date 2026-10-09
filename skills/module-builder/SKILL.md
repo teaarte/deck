@@ -276,9 +276,10 @@ A script reads its input JSON from stdin and prints its result JSON to stdout. I
   host (`hf.co` takes its subdomains too) or `host:port`, never a URL or a public suffix such as `co.uk`; a name
   reaches only public addresses, so a service on the owner's machine or network is named by its IP or IP:port;
 - models through `$DECK_MODELS/<connection>/<API path>` with `Authorization: Bearer $DECK_TOKEN` (an OpenAI SDK
-  takes it as its base URL with the token as its key): deck puts in the key and keeps the call. The request names a
-  model of deck's settings as the API knows it — `model` of a JSON body or a form, the path of Google's API, or the
-  header `X-Deck-Model` when the API has no such field — and anything else, an account path too, is refused; a
+  takes it as its base URL with the token as its key): deck puts in the key and keeps the call. The request names
+  one model of deck's settings as the API knows it — `model` of a JSON body or a form, the path of Google's API,
+  or, for a `raw` service whose API has no such field, the header `X-Deck-Model` — and anything else is refused:
+  another model, an account path, OpenRouter's `models` or `route`; a poll `GET videos/<id>` of a job needs none. A
   body with `"model": "@tts"` and the connection `@` takes the model the owner assigned, a fallback when it
   refuses. A 202 with `{"waiting": <ask>}` means the call waits for the owner (a draft or a trial of a paid
   model): stop and say so, do not retry in a loop;
@@ -327,8 +328,9 @@ A script reads its input JSON from stdin and prints its result JSON to stdout. I
 
 `model` commands and `deck.model_call` know text, image, tts, stt and music, asked in the OpenAI-compatible
 protocol: a picture of `images/generations`, music of `audio/music` (`input`, `seconds`, like speech), each of chat
-completions with image or audio out when the API has no such path; a picture or a track comes back as a file. The
-models of a kind and their fallbacks are the owner's assignment; one that does not answer turns red in health while
+completions with image or audio out when the API has no such path; a picture or a track comes back as a file with
+`model` (the model of deck's settings that made it, a fallback too) and `cost_usd`, for the module's own accounting
+and credits. The models of a kind and their fallbacks are the owner's assignment; one that does not answer turns red in health while
 the next takes the work. A model on the owner's machine (a local server, as whisper.cpp) is a connection like any
 other. A connection of another API, such as Google's own, is reached only from a script.
 

@@ -75,8 +75,12 @@ func (c *screenCheck) action(b Block, a Action, fields []string) error {
 		}
 	}
 	switch n := btoi(a.Command != "") + btoi(a.Screen != "") + btoi(a.File != ""); {
+	case a.Chat && (a.Screen != "" || a.File != "" || n == 0 && len(a.Params) > 0):
+		return errors.New("chat opens the chat of the master in a new topic, alone, or in the topic its command made")
+	case n == 0 && a.Chat:
+		return nil
 	case n != 1:
-		return errors.New("a button has a command, a screen or a file")
+		return errors.New("a button has a command, a screen or a file, or chat alone")
 	case a.Command != "" && c.deck:
 		if !strings.HasPrefix(a.Command, "deck.") {
 			return errors.New("a button of a deck screen calls a deck command")
@@ -98,9 +102,9 @@ func (c *screenCheck) action(b Block, a Action, fields []string) error {
 		return fmt.Errorf("unknown screen %q: a button opens a screen of its module; %s", a.Screen, deckLink)
 	}
 	for k := range a.Params {
-		if _, ok := target.Params[k]; !ok && k != "tab" && k != "dialog" && c.warn != nil {
+		if _, ok := target.Params[k]; !ok && k != "tab" && k != "dialog" && k != "chat" && c.warn != nil {
 			c.warn("screen %q: a button to %q gives param %q; it takes %s", c.screen.Name, a.Screen, k,
-				strings.Join(append(slices.Sorted(maps.Keys(target.Params)), "tab", "dialog"), ", "))
+				strings.Join(append(slices.Sorted(maps.Keys(target.Params)), "tab", "dialog", "chat"), ", "))
 		}
 	}
 	if target.Record == "" {

@@ -543,3 +543,25 @@ func TestRealBrowserCustomBlockOpensWindowsOfDeck(t *testing.T) {
 		return false
 	})
 }
+
+// TestRealBrowserAButtonOpensTheChatInANewTopic: a chat button, or the address with chat=new, opens the chat of the
+// master beside the screen in a new topic with the microphone at hand.
+func TestRealBrowserAButtonOpensTheChatInANewTopic(t *testing.T) {
+	if os.Getenv("DECK_REAL_BROWSER") == "" {
+		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
+	}
+	checkBuiltClient(t)
+	e := newEnv(t, ok)
+	e.createProject("work", strings.Replace(boardManifest, `"actions": [{"label": "Move"`, `"actions": [{"label": "New task", "chat": true}, {"label": "Move"`, 1))
+	e.must("deck.records_upsert", map[string]any{"project": "work", "collection": "tasks", "records": `{"title": "a", "status": "doing"}`}, nil)
+	b := newPlaywright(t)
+	b.call("browser_resize", map[string]any{"width": 1400, "height": 900})
+	b.open(e.URL + "/?token=" + token + "#/p/work/board")
+	b.until("the board", `document.querySelector('[data-board] [data-card]')`)
+	b.eval(`([...document.querySelectorAll('[data-card] button')].find((x) => x.innerText.includes('New task')).click(), '')`)
+	b.until("the chat beside the board in a new topic, the microphone at hand", `document.querySelector('[data-chat-panel] [data-chat-input]') && document.querySelector('[data-board]') && !document.querySelector('[data-chat-panel] [data-message]') && document.activeElement?.matches('[data-mic]')`)
+	b.eval(`(document.querySelector('[data-chat-close]').click(), '')`)
+	b.until("the chat closed", `!document.querySelector('[data-chat-panel]')`)
+	b.open(e.URL + "/#/p/work/board?chat=new")
+	b.until("the chat from the address", `document.querySelector('[data-chat-panel] [data-chat-input]') && !location.hash.includes('chat=')`)
+}

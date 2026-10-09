@@ -19,12 +19,21 @@ export function chatScreen(): string {
 }
 
 // A topic another screen opened waits here until the chat shows it.
-let wanted: number | undefined;
-const opens = new Set<(topic: number) => void>();
+let wanted: number | 'new' | undefined;
+const opens = new Set<(topic: number | 'new') => void>();
+// A new topic opened to dictate into waits here until a composer puts the microphone in reach.
+let voice = false;
+const voices = new Set<() => void>();
+const hear = () => { if (voice && voices.size) { voice = false; voices.forEach((f) => f()); } };
+export function onVoiceWanted(f: () => void): () => void {
+  voices.add(f);
+  setTimeout(hear, 0);
+  return () => { voices.delete(f); };
+}
 
 // onTopicOpen follows the topics asked for, starting with the one waiting.
-export function onTopicOpen(show: (topic: number) => void): () => void {
-  const take = (topic: number) => { wanted = undefined; show(topic); };
+export function onTopicOpen(show: (topic: number | 'new') => void): () => void {
+  const take = (topic: number | 'new') => { wanted = undefined; show(topic); };
   opens.add(take);
   if (wanted) take(wanted);
   return () => { opens.delete(take); };
@@ -54,11 +63,13 @@ export function setChatOpen(v: boolean) {
   publish();
 }
 
-// openTopic shows a topic in the chat panel and opens the panel.
-export function openTopic(topic: number) {
+// openTopic shows a topic in the chat panel and opens the panel; a new one waits for the owner's voice.
+export function openTopic(topic: number | 'new') {
   wanted = topic;
   opens.forEach((f) => f(topic));
   setChatOpen(true);
+  voice = topic === 'new';
+  setTimeout(hear, 0);
 }
 
 // useChatPanel is whether the chat panel is open, and its switch.

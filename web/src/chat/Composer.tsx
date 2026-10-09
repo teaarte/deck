@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { onVoiceWanted } from './chatStore';
 import { ActionIcon, Badge, Button, CloseButton, Group, Menu, Textarea, Tooltip } from '@mantine/core';
 import { IconArrowUp, IconMapPin, IconMessagePlus, IconMicrophone, IconPaperclip, IconPlayerStopFilled, IconPlus } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
@@ -18,6 +19,8 @@ export function Composer({ text, setText, files, busy, onSend, onNewTopic, onEdi
   const [detached, setDetached] = useState(false);
   useEffect(() => setDetached(false), [route.project, route.screen, route.record]);
   const picker = useRef<HTMLInputElement>(null);
+  const mic = useRef<HTMLButtonElement>(null);
+  useEffect(() => onVoiceWanted(() => mic.current?.focus()), []);
   const voice = useVoice((heard) => setText((prev) => (prev.trim() ? prev.trimEnd() + ' ' : '') + heard));
   const send = () => onSend(detached);
   return (
@@ -65,7 +68,7 @@ export function Composer({ text, setText, files, busy, onSend, onNewTopic, onEdi
             <Button size="xs" color="red" radius="xl" leftSection={<IconPlayerStopFilled size={12} />} onClick={() => void voice.hear()} data-mic-stop>{t('chat.stop_recording', { s: voice.recording - 1 })}</Button>
           ) : (
             <Tooltip label={t('chat.mic')}>
-              <ActionIcon variant="subtle" color="gray" radius="xl" size="lg" loading={voice.hearing} onClick={() => void voice.listen()} aria-label={t('chat.mic')} data-mic><IconMicrophone size={19} /></ActionIcon>
+              <ActionIcon variant="subtle" color="gray" radius="xl" size="lg" loading={voice.hearing} onClick={() => void voice.listen()} aria-label={t('chat.mic')} data-mic ref={mic}><IconMicrophone size={19} /></ActionIcon>
             </Tooltip>
           )}
           <ActionIcon radius="xl" size="lg" variant="filled" loading={busy} disabled={!text.trim()} onClick={send} aria-label={t('verb.send')} data-chat-send>

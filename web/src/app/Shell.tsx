@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { ActionIcon, Drawer, Group, Tooltip } from '@mantine/core';
 import { IconLayoutSidebarLeftCollapse, IconX } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import { setChatScreen } from '../chat/chatStore';
+import { openTopic, setChatScreen } from '../chat/chatStore';
 import { useFocusHandoff } from '../hooks/useFocusHandoff';
 import { useLanguageSetting } from '../hooks/useLanguageSetting';
 import { MenuContext, useMenu } from '../hooks/useMenu';
@@ -17,7 +17,7 @@ import { MasterButton } from './MasterButton';
 import { Nav } from './Nav';
 import { PhoneBar } from './PhoneBar';
 import { Toolbar } from './Toolbar';
-import { href, onMove, useRoute } from './router';
+import { dropParam, href, onMove, useRoute } from './router';
 import { titlePlace } from './title';
 import { useChatLayout } from './useChatLayout';
 
@@ -35,6 +35,11 @@ export function Shell() {
   const moveFocus = useFocusHandoff([navOpen, chat]);
   useEffect(() => setChatScreen(route), [route.project, route.screen, route.record]);
   useEffect(() => setPhoneNav(false), [route]);
+  useEffect(() => {
+    if (route.params?.chat !== 'new') return;
+    dropParam('chat');
+    openTopic('new');
+  }, [route.params?.chat]);
   // A screen the owner picks shows: the chat over it, the phone's sheet or the full width, steps aside.
   useEffect(() => onMove(() => {
     if (chat && phone) setChat(false);

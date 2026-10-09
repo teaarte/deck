@@ -150,6 +150,15 @@ func (sv *Saver) SaveManifest(ctx context.Context, act registry.Actor, p db.Proj
 	if err != nil {
 		return Saved{}, err
 	}
+	// The records are checked against the new schemas outside the writer; the writer checks again only when they
+	// changed meanwhile.
+	seen, err := sv.St.Q.RecordsMark(ctx, p.ID)
+	if err != nil {
+		return Saved{}, err
+	}
+	if err := checkRecords(ctx, sv.St.Q, p, pm.m, plan); err != nil {
+		return Saved{}, err
+	}
 	var saved Saved
 	var outdated []db.Ask
 	err = sv.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
@@ -162,8 +171,13 @@ func (sv *Saver) SaveManifest(ctx context.Context, act registry.Actor, p db.Proj
 		if err := sv.checkToolFit(ctx, q, p.WorkspaceID, p.ID, pm.m); err != nil {
 			return err
 		}
-		if err := checkRecords(ctx, q, p, pm.m, plan); err != nil {
-			return err
+		if now, err := q.RecordsMark(ctx, p.ID); err != nil || now != seen {
+			if err == nil {
+				err = checkRecords(ctx, q, p, pm.m, plan)
+			}
+			if err != nil {
+				return err
+			}
 		}
 		ref := docs.Ref{Scope: docs.ProjectScope(p), Name: docs.ManifestName}
 		cur, err := docs.Find(ctx, q, ref)

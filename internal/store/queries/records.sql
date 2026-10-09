@@ -79,3 +79,8 @@ DELETE FROM record WHERE project_id = sqlc.arg(project_id) AND collection = sqlc
 AND created_at < CAST(sqlc.arg(before) AS TEXT);
 
 
+
+
+-- name: RecordsMark :one
+SELECT count(*) AS n, CAST(coalesce(max(id), 0) AS INTEGER) AS newest, CAST(coalesce(max(updated_at), '') AS TEXT) AS changed
+FROM record WHERE project_id = ?;

@@ -7,7 +7,7 @@
   "additionalProperties": false,
   "required": ["version"],
   "properties": {
-    "version": {"const": 10, "description": "Manifest format version."},
+    "version": {"const": 11, "description": "Manifest format version."},
     "collections": {"type": "array", "items": {"$ref": "#/$defs/collection"}},
     "commands": {"type": "array", "items": {"$ref": "#/$defs/command"}},
     "scripts": {"type": "array", "items": {"$ref": "#/$defs/script"}},

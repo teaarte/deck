@@ -136,7 +136,7 @@ func TestRealReferenceScripts(t *testing.T) {
 		})
 	}
 	t.Run("npx", func(t *testing.T) {
-		e.createProject("everything", `{"version": 10,
+		e.createProject("everything", `{"version": 11,
   "commands": [{"name": "echo", "title": "Echo", "description": "Echoes a message.", "class": "internal",
     "input": {"type": "object", "properties": {"message": {"type": "string"}}, "required": ["message"]},
     "executor": {"type": "tool", "tool": "everything.echo"}}],

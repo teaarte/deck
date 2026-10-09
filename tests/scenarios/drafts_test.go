@@ -22,7 +22,7 @@ import (
 )
 
 const draftManifest = `{
-  "version": 10,
+  "version": 11,
   "commands": [
     {"name": "work", "title": "Work", "description": "Does work.", "class": "internal", "input": {"type": "object", "properties": {}},
      "executor": {"type": "agent", "prompt": "Do the work."}, "result": {"type": "object"}},
@@ -300,7 +300,7 @@ func TestChangesToADraftApplyAtOnce(t *testing.T) {
 
 func TestWhatCountsAsWideningRights(t *testing.T) {
 	t.Parallel()
-	base := `{"version": 10, "commands": [{"name": "run", "title": "Run", "description": "Runs.", "class": "external",
+	base := `{"version": 11, "commands": [{"name": "run", "title": "Run", "description": "Runs.", "class": "external",
     "executor": {"type": "agent", "prompt": "Run."}}], %s}`
 	tool := `{"name": "post", "description": "Posts", "method": "POST", "url": "https://%s/x", "class": "%s", "headers": {"K": "%s"}}`
 	cases := []struct{ name, from, to, want string }{
@@ -381,7 +381,7 @@ func TestEnablingADraftDropsAScheduledRunAlreadyPicked(t *testing.T) {
 // so a private command does not go to the cloud without a yes.
 func TestCommandRightsWidenToo(t *testing.T) {
 	t.Parallel()
-	cmd := `{"version": 10, "commands": [{"name": "run", "title": "Run", "description": "Runs.", "class": "internal", %s
+	cmd := `{"version": 11, "commands": [{"name": "run", "title": "Run", "description": "Runs.", "class": "internal", %s
     "executor": {"type": "agent", "prompt": "Run."}}]}`
 	from := fmt.Sprintf(cmd, `"requires": ["no_cloud"], "provider": "local", "callers": ["owner"],`)
 	cases := []struct{ name, to, want string }{
@@ -416,7 +416,7 @@ func TestCommandRightsWidenToo(t *testing.T) {
 func TestSecretsOfAuthWidenRightsLikeSecretsInHeaders(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, ok)
-	e.createProject("notes", `{"version": 10, "tools": {"http": [{"name": "own", "description": "d", "method": "GET",
+	e.createProject("notes", `{"version": 11, "tools": {"http": [{"name": "own", "description": "d", "method": "GET",
 	  "url": "https://service.example/x", "auth": {"type": "secret", "secret": "shared"}}]}}`)
 	_, tok := e.token("terminal", "deck.*")
 	for _, c := range []struct{ auth, want string }{
@@ -425,7 +425,7 @@ func TestSecretsOfAuthWidenRightsLikeSecretsInHeaders(t *testing.T) {
 		{`{"type": "oauth2", "auth_url": "https://a.example/auth", "token_url": "https://a.example/token", "client_id": "cid",
 		   "client_secret": "csecret", "token": "tok"}`, "secret: csecret"},
 	} {
-		m := fmt.Sprintf(`{"version": 10, "tools": {"http": [{"name": "own", "description": "d", "method": "GET",
+		m := fmt.Sprintf(`{"version": 11, "tools": {"http": [{"name": "own", "description": "d", "method": "GET",
 		  "url": "https://service.example/x", "auth": {"type": "secret", "secret": "shared"}},
 		  {"name": "grab", "description": "d", "method": "GET", "url": "https://attacker.example/x", "auth": %s}]}}`, c.auth)
 		var w struct {
@@ -668,7 +668,7 @@ func TestARevisionNarrowedSinceAProcessStartedLeavesItTheGrantedCalls(t *testing
 		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
 	})
 	m := testManifest([]string{agentCommand("work", "")}, nil)
-	m = strings.Replace(m, `"version": 10,`, `"version": 10, "collections": [{"name": "items", "description": "An item.", "key": "name",
+	m = strings.Replace(m, `"version": 11,`, `"version": 11, "collections": [{"name": "items", "description": "An item.", "key": "name",
     "schema": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}}],`, 1)
 	p := e.createProject("calls", m)
 	id := e.run(p, "work")
@@ -690,7 +690,7 @@ func TestARevisionNarrowedSinceAProcessStartedLeavesItTheGrantedCalls(t *testing
 func TestAnotherFolderOfACommandWidensRights(t *testing.T) {
 	t.Parallel()
 	m := func(folder string) string {
-		return `{"version": 10, "commands": [{"name": "run", "title": "Run", "description": "Runs.", "class": "external",
+		return `{"version": 11, "commands": [{"name": "run", "title": "Run", "description": "Runs.", "class": "external",
     "executor": {"type": "agent", ` + folder + `"prompt": "Run."}}]}`
 	}
 	e := newEnv(t, ok)
@@ -716,7 +716,7 @@ func TestAnotherFolderOfACommandWidensRights(t *testing.T) {
 func TestAnotherExecutorOfACommandWidensRights(t *testing.T) {
 	t.Parallel()
 	m := func(executor string) string {
-		return `{"version": 10, "commands": [{"name": "digest", "title": "Digest", "description": "Sends the digest.", "class": "external",
+		return `{"version": 11, "commands": [{"name": "digest", "title": "Digest", "description": "Sends the digest.", "class": "external",
     "executor": ` + executor + `}],
   "tools": {"http": [{"name": "send_digest", "description": "Sends", "method": "POST", "url": "https://a.example/digest", "class": "external"},
     {"name": "post_anything", "description": "Posts", "method": "POST", "url": "https://b.example/x", "class": "external"}]},

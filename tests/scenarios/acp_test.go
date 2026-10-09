@@ -27,7 +27,7 @@ const gooseInit = `{"reply": "initialize", "result": {"protocolVersion": 1, "age
 
 const acpInit = `{"reply": "initialize", "result": {"protocolVersion": 1, "agentCapabilities": {"mcpCapabilities": {"http": true}, "sessionCapabilities": {"resume": {}, "list": {}}}, "authMethods": []}}`
 
-const writtenManifest = `{"version": 10,
+const writtenManifest = `{"version": 11,
   "commands": [{"name": "work", "title": "Work", "description": "Writes a file", "class": "internal",
     "result": {"type": "object", "required": ["written"], "properties": {"written": {"type": "integer"}}},
     "executor": {"type": "agent", "prompt": "Write the file."}}]}`
@@ -759,7 +759,7 @@ func TestACPAgentReachesALocalServiceItsProjectNames(t *testing.T) {
 		`{"shell": "curl -s -m 5 -o /dev/null -w '%{http_code}' http://`+addr+`/"}`,
 		`{"mcp": {"tool": "result_submit", "arguments": {"result": {"written": 0}}}}`, `{"end": "end_turn"}`))
 	e := acpEnv(t, f, "goose", acpLLM(t))
-	m := strings.Replace(writtenManifest, `{"version": 10,`, fmt.Sprintf(`{"version": 10, "domains": {"read": [%q]},`, addr), 1)
+	m := strings.Replace(writtenManifest, `{"version": 11,`, fmt.Sprintf(`{"version": 11, "domains": {"read": [%q]},`, addr), 1)
 	e.waitState(e.run(e.acpProject("paint", m), "work"), "done")
 	if got := f.call(4).shell[0]["out"]; got != "200" || len(local.requests()) != 1 {
 		t.Fatalf("the shell reaches the service its project names: %q, %d requests", got, len(local.requests()))

@@ -6,6 +6,7 @@ import (
 	apphealth "deck2/internal/app/health"
 	"deck2/internal/app/processes"
 	"fmt"
+	"net/http"
 	"os"
 	"strings"
 	"sync"
@@ -132,6 +133,13 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	}
 	a.Host = mcphost.New(a.Signins.ServerStatus)
 	a.Host.Now, a.Host.Sandbox, a.Host.Home = cfg.Now, cfg.Sandbox, h
+	a.Host.Egress = func(key string, domains []string) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if gateway.ProxyAuthorized(w, r, key) {
+				gateway.Egress(r.Context(), w, r, domains)
+			}
+		})
+	}
 	a.MCP = &tools.MCP{GW: a.Gateway, Host: a.Host, Store: st, Secrets: a.Secrets.Read, Home: h}
 	a.Browser = &tools.Browser{GW: a.Gateway, Host: a.Host, Store: st, Home: h, Argv: cfg.Browser, Ctx: a.ctx}
 	a.Runner = process.NewRunner(st, a.Gateway, a.Bus, a.Scripts,

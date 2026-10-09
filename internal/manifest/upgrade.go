@@ -49,6 +49,30 @@ var upgrades = map[int]func(m map[string]any){
 		dropBoard(m)
 	},
 	9: func(m map[string]any) { dropSave(m["screens"]) },
+	// Format 11 sends the web of an MCP server through deck's proxy to the domains; one of before keeps the
+	// public internet it had.
+	10: func(m map[string]any) {
+		tools, _ := m["tools"].(map[string]any)
+		mcp, _ := tools["mcp"].(map[string]any)
+		servers, _ := mcp["servers"].(map[string]any)
+		local := false
+		for _, s := range servers {
+			sm, _ := s.(map[string]any)
+			local = local || sm["command"] != nil
+		}
+		if !local {
+			return
+		}
+		domains, _ := m["domains"].(map[string]any)
+		if domains == nil {
+			domains = map[string]any{}
+			m["domains"] = domains
+		}
+		read, _ := domains["read"].([]any)
+		if !slices.Contains(read, any("*")) {
+			domains["read"] = append(read, "*")
+		}
+	},
 	6: func(m map[string]any) {
 		for _, c := range items(m["commands"]) {
 			r, ok := c["result"].(map[string]any)

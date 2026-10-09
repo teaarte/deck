@@ -21,6 +21,11 @@ func Env(home, tmp, proxy, self string) []string {
 	if proxy == "" {
 		return env
 	}
-	return append(env, "HTTP_PROXY="+proxy, "HTTPS_PROXY="+proxy, "http_proxy="+proxy, "https_proxy="+proxy,
-		"NO_PROXY="+self, "no_proxy="+self, "NODE_USE_ENV_PROXY=1")
+	return append(env, Proxy(proxy, self)...)
+}
+
+// Proxy is the environment that sends the web of a confined program through deck's proxy, self reached directly.
+func Proxy(proxy, self string) []string {
+	return []string{"HTTP_PROXY=" + proxy, "HTTPS_PROXY=" + proxy, "http_proxy=" + proxy, "https_proxy=" + proxy,
+		"NO_PROXY=" + self, "no_proxy=" + self, "NODE_USE_ENV_PROXY=1"}
 }

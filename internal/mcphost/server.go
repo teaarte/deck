@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -13,6 +14,7 @@ import (
 	"syscall"
 	"time"
 
+	"deck2/internal/nonce"
 	"deck2/internal/untrusted"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -20,25 +22,38 @@ import (
 	"deck2/internal/sandbox"
 )
 
-// command is the program of a stdio server; a confined one runs in the sandbox with the network, writing
-// only its own folder and reading of the owner's home only the runtimes on PATH and the folders of its project.
-func (h *Host) command(spec Spec) (*exec.Cmd, error) {
+// command is the program of a stdio server; a confined one runs in the sandbox, its web through deck's proxy to its
+// domains, writing only its own folder and reading of the owner's home only the runtimes on PATH and its folders.
+func (h *Host) command(spec Spec) (*exec.Cmd, *http.Server, error) {
 	if !spec.Confine || h.Sandbox == nil {
 		cmd := exec.Command(spec.Command, spec.Args...)
 		cmd.Env, cmd.Dir = spec.Env, spec.Dir
 		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-		return cmd, nil
+		return cmd, nil, nil
 	}
 	if err := h.Sandbox.Check(); err != nil {
-		return nil, fmt.Errorf("sandbox %s: %w", h.Sandbox.Name(), err)
+		return nil, nil, fmt.Errorf("sandbox %s: %w", h.Sandbox.Name(), err)
 	}
 	path, err := exec.LookPath(spec.Command)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
+	ln, err := h.Sandbox.Listen(spec.Dir)
+	if err != nil {
+		return nil, nil, err
+	}
+	key, self := nonce.Hex(16), h.Sandbox.Addr(ln)
+	out := &http.Server{Handler: h.Egress(key, spec.Domains)}
+	go func() { _ = out.Serve(ln) }()
 	c := sandbox.Close(h.Home, env(spec.Env, "PATH")+string(os.PathListSeparator)+filepath.Dir(path))
-	return h.Sandbox.Command(context.Background(), sandbox.Policy{Argv: append([]string{path}, spec.Args...), Dir: spec.Dir,
-		Env: spec.Env, Write: []string{spec.Dir}, Read: append(slices.Clone(spec.Read), c.Read...), Hide: c.Hide, Private: c.Private, Net: true})
+	cmd, err := h.Sandbox.Command(context.Background(), sandbox.Policy{Argv: append([]string{path}, spec.Args...), Dir: spec.Dir,
+		Env: append(slices.Clone(spec.Env), sandbox.Proxy("http://deck:"+key+"@"+self, self)...), Write: []string{spec.Dir},
+		Read: append(slices.Clone(spec.Read), c.Read...), Hide: c.Hide, Private: c.Private, Out: ln})
+	if err != nil {
+		_ = out.Close()
+		return nil, nil, err
+	}
+	return cmd, out, nil
 }
 
 // env is the value of the variable name in kv.
@@ -64,7 +79,8 @@ func (s *server) start(ctx context.Context, h *Host, key string, spec Spec) erro
 				return err
 			}
 		}
-		cmd, err := h.command(spec)
+		cmd, out, err := h.command(spec)
+		s.out = out
 		if err != nil {
 			return fmt.Errorf("MCP server %s did not start: %v", key, err)
 		}
@@ -153,7 +169,10 @@ func (s *server) kill() {
 	if s.cmd != nil && s.cmd.Process != nil {
 		_ = syscall.Kill(-s.cmd.Process.Pid, syscall.SIGKILL)
 	}
-	s.cmd = nil
+	if s.out != nil {
+		_ = s.out.Close()
+	}
+	s.cmd, s.out = nil, nil
 }
 
 // tail keeps the last 2 KB a server wrote to stderr.

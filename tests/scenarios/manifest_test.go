@@ -11,7 +11,7 @@ import (
 )
 
 const fullManifest = `{
-  "version": 10,
+  "version": 11,
   "collections": [
     {"name": "sources", "description": "A page to watch", "key": "url", "display": "url",
      "schema": {"type": "object", "properties": {"url": {"type": "string"}, "status": {"type": "string"}}, "required": ["url"]}},
@@ -268,7 +268,7 @@ func TestImmutableFieldsCannotChange(t *testing.T) {
 func TestKeyFieldsStayAndEmptyTriggersAreRefused(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, nil)
-	contacts := `{"version": 10,
+	contacts := `{"version": 11,
 	  "collections": [{"name": "contacts", "description": "People", "key": "lower(email)",
 	    "schema": {"type": "object", "properties": {"email": {"type": "string"}, "big": {"type": "integer"}}, "required": ["email"]}}],
 	  "commands": [{"name": "fetch-all", "title": "Fetch", "description": "Fetches <all> & more", "class": "internal",
@@ -298,15 +298,15 @@ func TestKeyFieldsStayAndEmptyTriggersAreRefused(t *testing.T) {
 func TestAManifestOlderThanFormat4IsRefused(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, nil)
-	v4 := strings.Replace(ideasManifest, `"version": 10,`, `"version": 4,`, 1)
+	v4 := strings.Replace(ideasManifest, `"version": 11,`, `"version": 4,`, 1)
 	e.createProject("ideas", v4)
 	var cur struct{ Manifest string }
 	e.must("deck.manifest_get", map[string]any{"project": "ideas"}, &cur)
-	if !strings.Contains(cur.Manifest, `"version": 10`) {
+	if !strings.Contains(cur.Manifest, `"version": 11`) {
 		t.Fatalf("a format 4 manifest is stored in the current format:\n%s", cur.Manifest)
 	}
-	v3 := strings.Replace(ideasManifest, `"version": 10,`, `"version": 3,`, 1)
-	e.refused("deck.project_create", map[string]any{"name": "old", "manifest": v3}, 422, "version must be the number 10")
+	v3 := strings.Replace(ideasManifest, `"version": 11,`, `"version": 3,`, 1)
+	e.refused("deck.project_create", map[string]any{"name": "old", "manifest": v3}, 422, "version must be the number 11")
 }
 
 // TestOnlyTheBuiltInProjectAnswersEventsOfDeck: a trigger on a message or a failure belongs to project master.
@@ -332,11 +332,11 @@ func TestFormatFiveDropsWhatNothingDoes(t *testing.T) {
 	e.createProject("old", old)
 	var got struct{ Manifest string }
 	e.must("deck.manifest_get", map[string]any{"project": "old"}, &got)
-	if !strings.Contains(got.Manifest, `"version": 10`) || strings.Contains(got.Manifest, "master_events") ||
+	if !strings.Contains(got.Manifest, `"version": 11`) || strings.Contains(got.Manifest, "master_events") ||
 		strings.Contains(got.Manifest, "live_input") || strings.Contains(got.Manifest, "browser_click") || strings.Contains(got.Manifest, "structured_output") || !strings.Contains(got.Manifest, `"no_cloud"`) {
 		t.Fatalf("format 4 comes up to 5 without the fields nothing reads:\n%s", got.Manifest)
 	}
-	code, out := e.call("deck.manifest_save", map[string]any{"project": "old", "manifest": strings.Replace(old, `"version": 4`, `"version": 10`, 1)})
+	code, out := e.call("deck.manifest_save", map[string]any{"project": "old", "manifest": strings.Replace(old, `"version": 4`, `"version": 11`, 1)})
 	if code == 200 || !strings.Contains(string(out), "master_events") {
 		t.Fatalf("format 5 has no master_events: %d %s", code, out)
 	}
@@ -378,7 +378,7 @@ func TestVariablesNeedKnownFields(t *testing.T) {
 func TestAFormatFiveManifestKeepsItsParamsAndMenus(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, nil)
-	old := strings.Replace(strings.Replace(webNotes, `"version": 10,`, `"version": 5,`, 1), `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "blocks": [
+	old := strings.Replace(strings.Replace(webNotes, `"version": 11,`, `"version": 5,`, 1), `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "blocks": [
       {"type": "form", "title": "Again", "command": "score", "values": {"title": "$param.title"}},
       {"type": "actions", "title": "More", "menu": true, "actions": [{"label": "Tell", "command": "tell"}]},`, 1)
 	e.createProject("web", old)
@@ -398,9 +398,9 @@ func TestAVersionThatIsNoNumberSaysSo(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, nil)
 	for i, c := range []struct{ version, want string }{{`"6"`, `the text "6"`}, {`6.0`, `6.0`}} {
-		m := strings.Replace(webNotes, `"version": 10`, `"version": `+c.version, 1)
+		m := strings.Replace(webNotes, `"version": 11`, `"version": `+c.version, 1)
 		code, out := e.call("deck.project_create", map[string]any{"name": fmt.Sprintf("v%d", i), "manifest": m})
-		if code != 422 || !strings.Contains(string(out), c.want) || !strings.Contains(string(out), "the number 10") {
+		if code != 422 || !strings.Contains(string(out), c.want) || !strings.Contains(string(out), "the number 11") {
 			t.Errorf("%s: want 422 naming %s, got %d %s", c.version, c.want, code, out)
 		}
 	}
@@ -450,15 +450,15 @@ func TestAnInputThatGivesNothingIsAnErrorOfItsBlock(t *testing.T) {
 func TestFormatTenDropsTheSaveOfAForm(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, nil)
-	old := strings.Replace(webNotes, `{"version": 10,`, `{"version": 9,`, 1)
+	old := strings.Replace(webNotes, `{"version": 11,`, `{"version": 9,`, 1)
 	old = strings.Replace(old, `"command": "score"}`, `"command": "score", "save": "notes"}`, 1)
 	e.createProject("web", old)
 	var got struct{ Manifest string }
 	e.must("deck.manifest_get", map[string]any{"project": "web"}, &got)
-	if !strings.Contains(got.Manifest, `"version": 10`) || strings.Contains(got.Manifest, `"save"`) {
+	if !strings.Contains(got.Manifest, `"version": 11`) || strings.Contains(got.Manifest, `"save"`) {
 		t.Fatalf("format 9 comes up to 10 without save:\n%s", got.Manifest)
 	}
-	code, out := e.call("deck.manifest_save", map[string]any{"project": "web", "manifest": strings.Replace(old, `"version": 9`, `"version": 10`, 1)})
+	code, out := e.call("deck.manifest_save", map[string]any{"project": "web", "manifest": strings.Replace(old, `"version": 9`, `"version": 11`, 1)})
 	if code == 200 || !strings.Contains(string(out), "save") {
 		t.Fatalf("format 10 has no save: %d %s", code, out)
 	}

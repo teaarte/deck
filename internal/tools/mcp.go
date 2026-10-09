@@ -55,7 +55,10 @@ func SpecID(s manifest.MCPServer) string {
 	return hex.EncodeToString(sum[:8])
 }
 
-func (x *MCP) spec(ctx context.Context, p db.Project, name string, s manifest.MCPServer) (mcphost.Spec, error) {
+// reached are the domains a server of a manifest reaches through deck's proxy: those it reads and acts on.
+func reached(m *manifest.Manifest) []string { return append(slices.Clone(m.Domains.Read), m.Domains.Act...) }
+
+func (x *MCP) spec(ctx context.Context, p db.Project, name string, s manifest.MCPServer, domains []string) (mcphost.Spec, error) {
 	if s.URL != "" {
 		return mcphost.Spec{URL: s.URL}, nil
 	}
@@ -77,7 +80,7 @@ func (x *MCP) spec(ctx context.Context, p db.Project, name string, s manifest.MC
 	for _, f := range folders {
 		read = append(read, f.Path)
 	}
-	return mcphost.Spec{Command: s.Command, Args: s.Args, Env: env, Dir: dir, Read: read, Confine: true, Secrets: secrets}, nil
+	return mcphost.Spec{Command: s.Command, Args: s.Args, Env: env, Dir: dir, Read: read, Confine: true, Domains: domains, Secrets: secrets}, nil
 }
 
 var envSecret = regexp.MustCompile(`\$secret\.[A-Za-z0-9_.-]+`)
@@ -110,7 +113,7 @@ func (x *MCP) Start(ctx context.Context, p db.Project, m *manifest.Manifest) {
 		if slices.ContainsFunc(rows, func(r db.McpTool) bool { return r.Server == name && r.Spec == SpecID(s) }) {
 			continue
 		}
-		if spec, err := x.spec(ctx, p, name, s); err == nil {
+		if spec, err := x.spec(ctx, p, name, s, reached(m)); err == nil {
 			_, _ = x.Host.Tools(ctx, ServerKey(p.ID, name), spec)
 		}
 	}
@@ -184,7 +187,7 @@ func (x *MCP) Commands(ctx context.Context, q *db.Queries, p db.Project, m *mani
 		print := r.Spec + "/" + r.Fingerprint
 		out = append(out, &registry.Command{Name: p.Name + "." + r.Server + "." + r.Name, Title: title, Description: desc,
 			Class: class, Input: json.RawMessage(r.Input), Callers: registry.Everyone, ProjectID: p.ID,
-			Loose: true, Journals: class == registry.External, Handler: x.handler(p, r.Server, s, r.Name, class, r.Fingerprint),
+			Loose: true, Journals: class == registry.External, Handler: x.handler(p, r.Server, s, reached(m), r.Name, class, r.Fingerprint),
 			Fingerprint: func(context.Context, int64) string { return print },
 			Target:      func(string, json.RawMessage) string { return "server " + r.Server + ", tool " + r.Name },
 			Allowed: func(_ context.Context, _ registry.Actor, _ json.RawMessage, listed bool) (bool, error) {
@@ -194,7 +197,7 @@ func (x *MCP) Commands(ctx context.Context, q *db.Queries, p db.Project, m *mani
 	return out, nil
 }
 
-func (x *MCP) handler(p db.Project, server string, s manifest.MCPServer, tool, class, print string) registry.Handler {
+func (x *MCP) handler(p db.Project, server string, s manifest.MCPServer, domains []string, tool, class, print string) registry.Handler {
 	name := p.Name + "." + server + "." + tool
 	frozen := SpecID(s) + "/" + print
 	same := func(list []*mcp.Tool) error {
@@ -210,7 +213,7 @@ func (x *MCP) handler(p db.Project, server string, s manifest.MCPServer, tool, c
 	}
 	return func(ctx context.Context, act registry.Actor, raw json.RawMessage) (any, error) {
 		external := class == registry.External
-		spec, err := x.spec(ctx, p, server, s)
+		spec, err := x.spec(ctx, p, server, s, domains)
 		if err == nil && external {
 			var intent int64
 			if intent, err = x.GW.Intent(ctx, act, p.ID, name, raw); err == nil {

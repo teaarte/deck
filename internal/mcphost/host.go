@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"os/exec"
 	"sync"
 	"sync/atomic"
@@ -30,8 +31,9 @@ type Spec struct {
 	URL     string
 	// Read are folders of the owner a confined program reads.
 	Read []string
-	// Confine runs a program in the sandbox.
+	// Confine runs a program in the sandbox; Domains are what it reaches through deck's proxy, its only network.
 	Confine bool
+	Domains []string
 	// Secrets are the secret values in Env; what the server writes to stderr shows without them.
 	Secrets []string `json:"-"`
 }
@@ -57,6 +59,8 @@ type Host struct {
 	// Sandbox confines programs of specs that ask for it; they never read Home, deck's folder, but for their own.
 	Sandbox sandbox.Sandbox
 	Home    home.Layout
+	// Egress is deck's proxy of a confined server to its domains, taking requests that carry key.
+	Egress func(key string, domains []string) http.Handler
 
 	mu      sync.Mutex
 	servers map[string]*server
@@ -72,6 +76,7 @@ type server struct {
 	spec    string
 	sess    *mcp.ClientSession
 	cmd     *exec.Cmd
+	out     *http.Server
 	stderr  *tail
 	secrets []string
 	started time.Time

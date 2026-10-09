@@ -15,7 +15,7 @@ func scriptManifest(command, result, extra string) string {
 	if result == "" {
 		result = `{"type": "object"}`
 	}
-	return fmt.Sprintf(`{"version": 10,
+	return fmt.Sprintf(`{"version": 11,
   "collections": [{"name": "items", "description": "An item.", "key": "name",
     "schema": {"type": "object", "properties": {"name": {"type": "string"}, "size": {"type": "integer"}}, "required": ["name"]}}],
   "commands": [

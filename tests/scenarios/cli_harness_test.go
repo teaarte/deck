@@ -11,7 +11,7 @@ import (
 )
 
 const plainManifest = `{
-  "version": 10,
+  "version": 11,
   "collections": [],
   "commands": [{
     "name": "work", "title": "Work", "description": "Does work", "class": "internal",

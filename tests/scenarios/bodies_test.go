@@ -12,7 +12,7 @@ import (
 )
 
 func bodiesManifest(url string) string {
-	return fmt.Sprintf(`{"version": 10,
+	return fmt.Sprintf(`{"version": 11,
   "commands": [
     {"name": "put", "title": "Put", "description": "Sends a file as it is.", "class": "internal",
      "input": {"type": "object", "properties": {"doc": {"type": "string", "format": "file"}}, "required": ["doc"]},
@@ -121,7 +121,7 @@ func TestATextAnswerOverTheLimitIsNotPassedOnCut(t *testing.T) {
 		_, _ = w.Write([]byte(strings.Repeat("x", 11<<20)))
 	})
 	e := newEnv(t, nil)
-	e.createProject("big", fmt.Sprintf(`{"version": 10, "tools": {"http": [{"name": "page", "description": "Reads a page.", "method": "GET",
+	e.createProject("big", fmt.Sprintf(`{"version": 11, "tools": {"http": [{"name": "page", "description": "Reads a page.", "method": "GET",
   "url": %q, "class": "internal", "input": {"type": "object", "properties": {}}}]}}`, svc.URL+"/page"))
 	if code, out := e.call("big.page", map[string]any{}); code == 200 || !strings.Contains(string(out), "cut answer") {
 		t.Fatalf("an answer over 10 MB is an error, not its first 10 MB: %d %.200s", code, out)

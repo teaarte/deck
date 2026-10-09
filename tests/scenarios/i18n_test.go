@@ -14,7 +14,7 @@ import (
 func TestScreensAndTheMenuSpeakTheLanguageOfTheOwner(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, webNotesAgent())
-	manifest := strings.Replace(webNotes, `{"version": 10,`, `{"version": 10, "title": "Web notes", "i18n": {"ru": {"Web notes": "Веб-заметки", "Web": "Веб", "Notes": "Заметки", "Title": "Заголовок"}},`, 1)
+	manifest := strings.Replace(webNotes, `{"version": 11,`, `{"version": 11, "title": "Web notes", "i18n": {"ru": {"Web notes": "Веб-заметки", "Web": "Веб", "Notes": "Заметки", "Title": "Заголовок"}},`, 1)
 	e.createProject("web", manifest)
 
 	var menu []menuView
@@ -101,8 +101,8 @@ func TestASavedManifestNamesTranslationsOfNoText(t *testing.T) {
 	var saved struct {
 		Unused []string `json:"unused_i18n"`
 	}
-	e.must("deck.manifest_save", map[string]any{"project": "web", "manifest": strings.Replace(webNotes, `{"version": 10,`,
-		`{"version": 10, "i18n": {"ru": {"Notes": "Заметки", "Old title": "Старое"}},`, 1)}, &saved)
+	e.must("deck.manifest_save", map[string]any{"project": "web", "manifest": strings.Replace(webNotes, `{"version": 11,`,
+		`{"version": 11, "i18n": {"ru": {"Notes": "Заметки", "Old title": "Старое"}},`, 1)}, &saved)
 	if !slices.Equal(saved.Unused, []string{"ru: Old title"}) {
 		t.Fatalf("the translation of no text is named: %v", saved.Unused)
 	}
@@ -113,7 +113,7 @@ func TestASavedManifestNamesTranslationsOfNoText(t *testing.T) {
 func TestFormsAndFiltersSpeakTheLanguageOfTheOwner(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, webNotesAgent())
-	e.createProject("web", strings.Replace(webNotes, `{"version": 10,`, `{"version": 10, "i18n": {"ru": {"Score": "Оценить",
+	e.createProject("web", strings.Replace(webNotes, `{"version": 11,`, `{"version": 11, "i18n": {"ru": {"Score": "Оценить",
       "Scores a title.": "Оценивает заголовок.", "title": "Заголовок", "source": "Источник"}},`, 1))
 	drawn, _ := json.Marshal(e.screenMessages("web", "main", map[string]any{"lang": "ru"}))
 	for _, want := range []string{`"title":"Оценить"`, `"description":"Оценивает заголовок."`, `"title":"Заголовок"`, `"label":"Источник"`} {

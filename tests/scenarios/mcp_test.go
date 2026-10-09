@@ -26,7 +26,7 @@ import (
 // mcpManifest declares the fake MCP server; extra goes into the manifest object.
 func mcpManifest(extra string) string {
 	self, _ := os.Executable()
-	return fmt.Sprintf(`{"version": 10,
+	return fmt.Sprintf(`{"version": 11,
   "commands": [
     {"name": "work", "title": "Work", "description": "Works with the server.", "class": "internal",
      "input": {"type": "object", "properties": {"step": {"type": "string"}}},
@@ -205,7 +205,7 @@ func TestMCPServerByURLAndTheEnvironmentOfAProgram(t *testing.T) {
 	got := map[string]toolCall{}
 	e := newEnv(t, stepAgent(got, nil))
 	self, _ := os.Executable()
-	e.createProject("srv", fmt.Sprintf(`{"version": 10,
+	e.createProject("srv", fmt.Sprintf(`{"version": 11,
   "commands": [{"name": "work", "title": "Work", "description": "Works.", "class": "internal",
     "input": {"type": "object", "properties": {"step": {"type": "string"}}}, "result": {"type": "object"},
     "executor": {"type": "agent", "prompt": "Work."}}],
@@ -268,7 +268,7 @@ func TestMCPToolWithASchemaThatIsNotAnObjectIsLeftOut(t *testing.T) {
 	got := map[string]toolCall{}
 	e := newEnv(t, stepAgent(got, nil))
 	script, _ := json.Marshal(oddServer)
-	e.createProject("odd", fmt.Sprintf(`{"version": 10,
+	e.createProject("odd", fmt.Sprintf(`{"version": 11,
   "commands": [{"name": "work", "title": "Work", "description": "Works.", "class": "internal",
     "input": {"type": "object", "properties": {"step": {"type": "string"}}}, "result": {"type": "object"},
     "executor": {"type": "agent", "prompt": "Work."}}],
@@ -321,7 +321,7 @@ func TestMCPServersOfADraftDoNotStart(t *testing.T) {
 func TestNewMCPServerWaitsForTheOwnersButton(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, ok)
-	e.createProject("srv", `{"version": 10}`)
+	e.createProject("srv", `{"version": 11}`)
 	_, tok := e.token("terminal", "deck.*")
 	var w struct {
 		Waiting int64
@@ -336,7 +336,7 @@ func TestNewMCPServerWaitsForTheOwnersButton(t *testing.T) {
 func TestWiderToolFilterAndAToolThatComesBackWaitForTheOwner(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, ok)
-	narrow := strings.Replace(mcpManifest(`, "allowed_external": ["fake.send"]`), `"toolFilter": ["lookup", "send", "picture", "vanish", "peek"]`, `"toolFilter": ["lookup"]`, 1)
+	narrow := strings.Replace(mcpManifest(`, "allowed_external": ["fake.send"]`), `"toolFilter": ["lookup", "send", "picture", "vanish", "peek", "reach"]`, `"toolFilter": ["lookup"]`, 1)
 	e.createProject("srv", narrow)
 	_, tok := e.token("terminal", "deck.*")
 	for _, c := range []struct{ from, to, want string }{
@@ -398,7 +398,7 @@ func TestSecretAServerPrintsStaysOutOfHealth(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`{}`)}
 	})
 	e.must("deck.secret_set", map[string]any{"name": "noisy_key", "value": key}, nil)
-	e.createProject("srv", `{"version": 10,
+	e.createProject("srv", `{"version": 11,
   "commands": [{"name": "work", "title": "Work", "description": "Works.", "class": "internal",
     "result": {"type": "object"}, "executor": {"type": "agent", "prompt": "Work."}}],
   "tools": {"mcp": {"servers": {"noisy": {"command": "/bin/sh", "args": ["-c", "echo key=$NOISY_KEY >&2; exit 1"],

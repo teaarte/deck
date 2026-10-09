@@ -463,3 +463,17 @@ func TestFormatTenDropsTheSaveOfAForm(t *testing.T) {
 		t.Fatalf("format 10 has no save: %d %s", code, out)
 	}
 }
+
+// TestFormatElevenWidensNothing: a manifest of format 10 with a local MCP server comes up to 11 with its domains as
+// they were, so no script or agent of the module reaches more.
+func TestFormatElevenWidensNothing(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, nil)
+	old := strings.Replace(mcpManifest(`, "domains": {"read": ["a.example"]}`), `{"version": 11,`, `{"version": 10,`, 1)
+	e.createProject("srv", old)
+	var got struct{ Manifest string }
+	e.must("deck.manifest_get", map[string]any{"project": "srv"}, &got)
+	if !strings.Contains(got.Manifest, `"version": 11`) || strings.Contains(got.Manifest, `"*"`) {
+		t.Fatalf("format 10 comes up to 11 with its domains as they were:\n%s", got.Manifest)
+	}
+}

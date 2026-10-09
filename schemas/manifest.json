@@ -7,7 +7,7 @@
   "additionalProperties": false,
   "required": ["version"],
   "properties": {
-    "version": {"const": 9, "description": "Manifest format version."},
+    "version": {"const": 10, "description": "Manifest format version."},
     "collections": {"type": "array", "items": {"$ref": "#/$defs/collection"}},
     "commands": {"type": "array", "items": {"$ref": "#/$defs/command"}},
     "scripts": {"type": "array", "items": {"$ref": "#/$defs/script"}},
@@ -287,7 +287,7 @@
         "until": {"type": "string", "description": "Time after which the button is gone."},
         "input": {"type": "string", "description": "The param the owner types before the call."},
         "options": {"type": "string", "description": "The values the owner picks the input from: a list."},
-        "chat": {"type": "boolean", "description": "The result names a chat topic, which opens."},
+        "chat": {"type": "boolean", "description": "With a command, the result names a chat topic, which opens; alone, without command, screen or file, the button opens the chat of the master beside the screen in a new topic, ready for the owner's voice; the address param chat=new does the same from a link."},
         "confirm": {"type": "boolean", "description": "The owner says yes before the call."},
         "primary": {"type": "boolean"},
         "undo": {"$ref": "#/$defs/action", "description": "The command call that takes this button's call back: command and params only. The owner gets it for a moment after the call went through, instead of a yes before it."}

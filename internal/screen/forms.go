@@ -77,9 +77,6 @@ func (r *renderer) form(b manifest.Block) (map[string]any, error) {
 			v["choices"] = choices
 		}
 	}
-	if b.Save != "" {
-		v["save"] = b.Save
-	}
 	if b.KeepOpen {
 		v["keep_open"] = true
 	}

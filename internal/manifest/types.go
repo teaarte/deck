@@ -9,7 +9,7 @@ import (
 	"github.com/santhosh-tekuri/jsonschema/v6"
 )
 
-const FormatVersion = 9
+const FormatVersion = 10
 
 type Manifest struct {
 	Version         int          `json:"version"`
@@ -284,9 +284,8 @@ type Block struct {
 	Filter []string `json:"filter,omitempty"`
 	// Board is the enum field of a list whose values are the lanes its items stand in.
 	Board string `json:"board,omitempty"`
-	// Command is the command of a form; Save a collection its result can be kept in.
+	// Command is the command of a form.
 	Command string `json:"command,omitempty"`
-	Save    string `json:"save,omitempty"`
 	// Choices offer the values of fields of a form from a source.
 	Choices map[string]Choice `json:"choices,omitempty"`
 	// Values fill fields of a form before the owner types: fixed text or =<expression> over the record of the page.

@@ -33,7 +33,6 @@ export function Form({ value }: { value: FormValue }) {
   const watch = useProcessWatch(alive);
   const [busy, setBusy] = useState(false);
   const [out, setOut] = useState<Outcome>();
-  const [kept, setKept] = useState<Outcome>();
   // failed is why the press of run or keep did not go through.
   const [failed, setFailed] = useState({ at: '', error: '' });
   const running = useRef(false);
@@ -78,17 +77,6 @@ export function Form({ value }: { value: FormValue }) {
     }
   };
 
-  const save = async () => {
-    if (!value.save || !out) return;
-    const rows = Array.isArray(out.result) ? out.result : [out.result];
-    try {
-      await call('deck.records_upsert', { project, collection: value.save, records: rows.map((r) => JSON.stringify(r)).join('\n') });
-      setKept(out);
-    } catch (e) {
-      setFailed({ at: 'keep', error: errorText(e) });
-    }
-  };
-
   return (
     <Stack gap="sm" data-form={cmd?.name ?? ''}>
       {value.commands.length > 1 && (
@@ -113,13 +101,6 @@ export function Form({ value }: { value: FormValue }) {
           {!FINAL.includes(out.state) && <Group gap="xs"><Loader size="xs" /><Text size="sm" c="dimmed">{t('form.state', { id: out.process, state: out.state })}</Text></Group>}
           {out.state === 'done' && <Result value={out.result} schema={edit ? undefined : cmd?.result} />}
           {out.state !== 'done' && FINAL.includes(out.state) && <Alert color="red" title={out.state}>{out.error}</Alert>}
-          {out.state === 'done' && value.save && out.result !== null && out.result !== undefined && (
-            <Group>
-              <Failed error={failed.at === 'keep' ? failed.error : ''} onClose={() => setFailed({ at: '', error: '' })}>
-                <Button variant="default" size="xs" onClick={save} disabled={kept === out} data-save>{kept === out ? t('form.saved', { collection: value.save }) : t('form.keep', { collection: value.save })}</Button>
-              </Failed>
-            </Group>
-          )}
         </Stack>
       )}
     </Stack>

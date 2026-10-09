@@ -48,6 +48,7 @@ var upgrades = map[int]func(m map[string]any){
 		}
 		dropBoard(m)
 	},
+	9: func(m map[string]any) { dropSave(m["screens"]) },
 	6: func(m map[string]any) {
 		for _, c := range items(m["commands"]) {
 			r, ok := c["result"].(map[string]any)
@@ -60,6 +61,23 @@ var upgrades = map[int]func(m map[string]any){
 			}
 		}
 	},
+}
+
+// dropSave drops the save of a form, which format 10 has no more: a command keeps its own records.
+func dropSave(v any) {
+	switch v := v.(type) {
+	case map[string]any:
+		if v["type"] == "form" {
+			delete(v, "save")
+		}
+		for _, x := range v {
+			dropSave(x)
+		}
+	case []any:
+		for _, x := range v {
+			dropSave(x)
+		}
+	}
 }
 
 // dropBoard drops what format 9 has no more: the board block, a container or tab it leaves empty, the cell

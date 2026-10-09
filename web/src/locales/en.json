@@ -79,9 +79,7 @@
     "save_record": "Save",
     "state": "#{{id}}: {{state}}",
     "nothing": "Nothing to show",
-    "json": "{{field}} is not valid JSON",
-    "keep": "Keep in {{collection}}",
-    "saved": "Kept in {{collection}}"
+    "json": "{{field}} is not valid JSON"
   },
   "look": {
     "juce": "Juce",

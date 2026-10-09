@@ -899,7 +899,6 @@ func TestNewBlocksAreRefusedWithTheirReason(t *testing.T) {
 		{`"command": "score"}`, `"command": "launch"}`, `unknown command "launch"`},
 		{`"command": "score"}`, `"command": "deck.record_update"}`, "edits the record of its page"},
 		{`"command": "score"}`, `"command": "score", "save": "papers"}`, "additional properties 'save' not allowed"},
-		{`"items": {"type": "object", "properties": {"title": {"type": "string"}, "score": {"type": "integer"}}}}`, `"items": {"type": "string"}}`, "cannot be kept as records"},
 		{`"command": "score"}`, `"command": "score", "actions": [{"label": "x", "command": "touch"}]}`, "additional properties 'actions' not allowed"},
 		{`"command": "score"}`, `"source": {"collection": "notes"}}`, "missing property 'from'"},
 		{`"document": "custom/chart.html", `, ``, "missing property 'document'"},

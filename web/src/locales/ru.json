@@ -79,9 +79,7 @@
     "save_record": "Сохранить",
     "state": "№{{id}}: {{state}}",
     "nothing": "Показать нечего",
-    "json": "{{field}} — не JSON",
-    "keep": "Сохранить в {{collection}}",
-    "saved": "Сохранено в {{collection}}"
+    "json": "{{field}} — не JSON"
   },
   "look": {
     "juce": "Juce",

@@ -200,9 +200,15 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   every required parameter of its command; deck asks for nothing that is missing, so a choice the owner
   makes in a row is one action per option. A button whose call the owner may want back names the call that takes
   it back, `"undo": {"command": "unrate", "params": {"id": "=_id"}}`, offered for a moment after it went
-  through. A command the owner fills in by hand is a `form`:
-  `{"type": "form", "command": "score", "save": "items"}` asks for the command's input by its schema, shows the
-  result by the result schema and, with `save`, keeps it as records; a field picked from a source takes
+  through. A row of the module's own collection or its record page may carry the one deck command a button calls,
+  `{"label": "Delete", "command": "deck.record_delete"}`: the owner deletes that record, always asked first (not on
+  a `custom` block). `{"label": "New task", "chat": true}` alone opens the master's chat beside the screen in a new
+  topic, ready for the owner's voice; a link with `?chat=new` does the same. A list of stages is a board:
+  `"board": "status"` on a `list` of the module's collection lays its items in a lane for each value of that enum
+  field, and dragging a card to a lane presses its button whose `input` is `status` (on a phone that button picks
+  the lane), so the board needs no custom block. A command the owner fills in by hand is a `form`:
+  `{"type": "form", "command": "score"}` asks for the command's input by its schema and shows the result by the
+  result schema; a command that keeps its result writes the records itself; a field picked from a source takes
   `"choices": {"note": {"source": {"collection": "notes"}, "value": "_id", "label": "title"}}`, and a field with
   `"format": "project"` offers the projects by itself; on a record page
   `{"type": "form", "command": "deck.record_update"}` edits the record, `immutable` fields read only.
@@ -215,7 +221,10 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   "source": …, "actions": […]}`. It runs without network: `import { App } from "/ext-apps.js"`, the items of its
   source and the page's record arrive in `app.ontoolresult` (`structuredContent.items`, `.record`), and
   `app.callServerTool({name: "<project>.<command>", arguments})` calls only the commands of its `actions` (the
-  button whose fixed `params` the arguments do not contradict; an external command waits for the owner's yes).
+  button whose fixed `params` the arguments do not contradict; any but an internal command waits for the owner's yes,
+  one at a time). A window opens on the host, not inside the frame: `app.openLink({url: "#/p/<project>/<screen>?dialog=<name>"})`
+  opens a dialog or page of deck (a page outside deck is refused), and `app.requestDisplayMode({mode: "fullscreen"})`
+  gives the frame the whole screen before its own `<dialog>`.
   Its colors, fonts and corners are the host's: `app.getHostContext()` and `app.onhostcontextchanged` give
   `theme` (`light`/`dark`) and `styles.variables` by MCP Apps names (`--color-background-primary`,
   `--color-text-primary`, `--color-text-secondary`, `--color-border-primary`, `--color-ring-primary` for the

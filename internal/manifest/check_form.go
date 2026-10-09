@@ -34,12 +34,6 @@ func (c *screenCheck) form(where string, b Block) {
 	}
 	c.choices(where, b)
 	c.values(where, b)
-	if b.Save != "" && (c.deck || c.m.collections[b.Save] == nil) {
-		c.fail("%s save: unknown collection %q", where, b.Save)
-	}
-	if cmd := c.m.commands[b.Command]; b.Save != "" && cmd != nil && !recordShaped(cmd.Result) {
-		c.fail("%s save: the result of %q is not an object or a list of objects, so it cannot be kept as records", where, b.Command)
-	}
 }
 
 // values checks the values of a form: fields of its input, filled from fields of the record of the page.
@@ -110,32 +104,4 @@ func (c *screenCheck) choices(where string, b Block) {
 			}
 		}
 	}
-}
-
-// recordShaped says a result schema gives objects: one, or a list of them.
-func recordShaped(schema json.RawMessage) bool {
-	var r struct {
-		Type  any `json:"type"`
-		Items struct {
-			Type any `json:"type"`
-		} `json:"items"`
-	}
-	_ = json.Unmarshal(schema, &r)
-	t := valueType(r.Type)
-	return t == "object" || (t == "array" && valueType(r.Items.Type) == "object")
-}
-
-// valueType is the type of a schema other than null: "object" for ["object", "null"].
-func valueType(t any) string {
-	switch t := t.(type) {
-	case string:
-		return t
-	case []any:
-		for _, x := range t {
-			if s, _ := x.(string); s != "null" {
-				return s
-			}
-		}
-	}
-	return ""
 }

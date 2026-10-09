@@ -400,7 +400,7 @@ func TestAVersionThatIsNoNumberSaysSo(t *testing.T) {
 	for i, c := range []struct{ version, want string }{{`"6"`, `the text "6"`}, {`6.0`, `6.0`}} {
 		m := strings.Replace(webNotes, `"version": 10`, `"version": `+c.version, 1)
 		code, out := e.call("deck.project_create", map[string]any{"name": fmt.Sprintf("v%d", i), "manifest": m})
-		if code != 422 || !strings.Contains(string(out), c.want) || !strings.Contains(string(out), "the number 9") {
+		if code != 422 || !strings.Contains(string(out), c.want) || !strings.Contains(string(out), "the number 10") {
 			t.Errorf("%s: want 422 naming %s, got %d %s", c.version, c.want, code, out)
 		}
 	}

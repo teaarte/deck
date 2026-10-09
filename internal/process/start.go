@@ -155,7 +155,7 @@ func (r *Runner) Start(ctx context.Context, projectID int64, m *manifest.Manifes
 		}
 		// A finish heard again after a crash starts each of its after triggers once.
 		if o.Parent != 0 && o.Trigger != 0 {
-			old, err := q.FindTriggeredChild(ctx, db.FindTriggeredChildParams{ParentID: ref(o.Parent), TriggerID: ref(o.Trigger)})
+			old, err := q.FindTriggeredChild(ctx, db.FindTriggeredChildParams{ParentID: store.ID(o.Parent), TriggerID: store.ID(o.Trigger)})
 			if err == nil {
 				p, reused = old, true
 				return nil
@@ -165,7 +165,7 @@ func (r *Runner) Start(ctx context.Context, projectID int64, m *manifest.Manifes
 			}
 		}
 		if o.Key != "" {
-			old, err := q.FindActiveProcess(ctx, db.FindActiveProcessParams{ProjectID: projectID, Command: command, RetryKey: o.Key, Trial: b2i(trial)})
+			old, err := q.FindActiveProcess(ctx, db.FindActiveProcessParams{ProjectID: projectID, Command: command, RetryKey: o.Key, Trial: store.Bool(trial)})
 			if err == nil {
 				p, reused = old, true
 				return nil
@@ -188,10 +188,10 @@ func (r *Runner) Start(ctx context.Context, projectID int64, m *manifest.Manifes
 		if errors.Is(err, sql.ErrNoRows) {
 			t = db.Trigger{}
 		}
-		p, err = q.CreateProcess(ctx, db.CreateProcessParams{Trial: b2i(trial), ProjectID: projectID, Command: command, Kind: kind, State: StateRunning,
-			Provider: providerName, Input: string(in), SessionID: session, ParentID: ref(o.Parent), Depth: depth,
-			TriggerID: ref(t.ID), RetryKey: o.Key, CeilingMs: r.ceilingOf(m, cmd).Milliseconds(), ManifestRevision: m.Revision, Folder: folder,
-			StartNote: o.Note, Alone: b2i(o.Alone && trial), StartedAt: store.Time(r.now())})
+		p, err = q.CreateProcess(ctx, db.CreateProcessParams{Trial: store.Bool(trial), ProjectID: projectID, Command: command, Kind: kind, State: StateRunning,
+			Provider: providerName, Input: string(in), SessionID: session, ParentID: store.ID(o.Parent), Depth: depth,
+			TriggerID: store.ID(t.ID), RetryKey: o.Key, CeilingMs: r.ceilingOf(m, cmd).Milliseconds(), ManifestRevision: m.Revision, Folder: folder,
+			StartNote: o.Note, Alone: store.Bool(o.Alone && trial), StartedAt: store.Time(r.now())})
 		if err != nil {
 			return err
 		}
@@ -251,15 +251,6 @@ func (r *Runner) scriptSource(ctx context.Context, projectID int64, m *manifest.
 	}
 	return src, nil
 }
-
-func b2i(b bool) int64 {
-	if b {
-		return 1
-	}
-	return 0
-}
-
-func ref(id int64) sql.NullInt64 { return sql.NullInt64{Int64: id, Valid: id != 0} }
 
 func (r *Runner) commandBody(ctx context.Context, projectID int64, cmd *manifest.Command) (string, error) {
 	if cmd.Executor.PromptFile == "" {

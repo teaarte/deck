@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"strings"
 
+	"deck2/internal/store"
 	"deck2/internal/store/db"
 )
 
@@ -25,7 +26,7 @@ func (r *Runner) leaveRunning(ctx context.Context, q *db.Queries, processID int6
 		b, _ := json.Marshal(w)
 		raw = string(b)
 	}
-	return q.LeaveRunning(ctx, db.LeaveRunningParams{State: state, Message: raw, Fresh: b2i(fresh), Until: until, Now: r.now().UnixMilli(), ID: processID})
+	return q.LeaveRunning(ctx, db.LeaveRunningParams{State: state, Message: raw, Fresh: store.Bool(fresh), Until: until, Now: r.now().UnixMilli(), ID: processID})
 }
 
 // holdIn keeps a turn that cannot start yet in a waiting state, with what its resume carries. It reports false

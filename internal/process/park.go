@@ -81,7 +81,7 @@ func (r *Runner) usage(ctx context.Context, workspace, processID int64, name str
 		return q.LogModelCall(ctx, db.LogModelCallParams{WorkspaceID: workspace, ProcessID: store.ID(processID), Provider: name,
 			RequestModel: u.RequestModel, ResponseModel: u.Model,
 			InputTokens: u.Input, OutputTokens: u.Output, CacheReadTokens: u.CacheRead, CacheCreationTokens: u.CacheCreation,
-			DurationMs: u.Duration.Milliseconds(), CostUsd: nullFloat(u.CostUSD), CreatedAt: store.Time(r.now())})
+			DurationMs: u.Duration.Milliseconds(), CostUsd: store.Cost(u.CostUSD), CreatedAt: store.Time(r.now())})
 	})
 	if err != nil {
 		slog.Error("model call journal", "process", processID, "err", err)
@@ -119,13 +119,6 @@ func (r *Runner) park(ctx context.Context, processID int64) {
 		r.finish(ctx, processID, StateError, "", false, "resume after answer: "+err.Error())
 	}
 	r.hear(ctx, processID, func(h Hook, p db.Process) { h.Parked(ctx, p) })
-}
-
-func nullFloat(f *float64) sql.NullFloat64 {
-	if f == nil {
-		return sql.NullFloat64{}
-	}
-	return sql.NullFloat64{Float64: *f, Valid: true}
 }
 
 // parkIn moves a running process to waiting_answer in a transaction; its ceiling stops.

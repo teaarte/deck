@@ -257,13 +257,6 @@ func (s *Service) assignmentSet(ctx context.Context, act registry.Actor, in assi
 	return map[string]any{"role": in.Role, "project": in.Project, "command": in.Command, "models": in.Models}, nil
 }
 
-func b2i(b bool) int64 {
-	if b {
-		return 1
-	}
-	return 0
-}
-
 type connectionSetIn struct {
 	Name      string `desc:"Connection name: lowercase letters, digits and '-'"`
 	API       string `json:"api" enum:"openai|google|anthropic|raw" desc:"What the API speaks: openai for OpenAI-compatible ones (OpenRouter, Ollama, Groq, NVIDIA), google and anthropic for their own, raw for a service deck passes the key to as a bearer token"`
@@ -295,7 +288,7 @@ func (s *Service) connectionSet(ctx context.Context, act registry.Actor, in conn
 			in.KeySecret = old.KeySecret
 		}
 		_, err := q.AddConnection(ctx, db.AddConnectionParams{WorkspaceID: act.Workspace, Name: in.Name, Api: in.API, Url: in.URL,
-			KeySecret: in.KeySecret, Local: b2i(in.Local)})
+			KeySecret: in.KeySecret, Local: store.Bool(in.Local)})
 		return err
 	})
 	if err != nil {
@@ -389,7 +382,7 @@ func (s *Service) modelSet(ctx context.Context, act registry.Actor, in modelSetI
 		}
 	}
 	if in.Free != nil {
-		m.Free = b2i(*in.Free)
+		m.Free = store.Bool(*in.Free)
 	}
 	m.Kind = cmp.Or(m.Kind, RoleText)
 	if in.Options != "" {
@@ -500,7 +493,7 @@ func (s *Service) catalog(ctx context.Context, workspace int64, c db.Connection,
 				free = false
 			}
 		}
-		out.Free = b2i(free)
+		out.Free = store.Bool(free)
 		switch {
 		case slices.Contains(d.Architecture.Output, "image"):
 			out.Kind = RoleImage

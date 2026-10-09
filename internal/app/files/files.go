@@ -363,7 +363,9 @@ func (s *Service) Drain(ctx context.Context) {
 		}
 	}
 	if was && !stuck {
-		_ = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error { return q.DeleteHealth(ctx, db.DeleteHealthParams{Subject: "outbox"}) })
+		_ = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+			return q.DeleteHealth(ctx, db.DeleteHealthParams{Subject: "outbox"})
+		})
 	}
 }
 

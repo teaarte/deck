@@ -43,6 +43,22 @@ func Time(t time.Time) string { return t.UTC().Format(TimeLayout) }
 // ID is a row id for a column that may point nowhere: 0 is NULL.
 func ID(id int64) sql.NullInt64 { return sql.NullInt64{Int64: id, Valid: id != 0} }
 
+// Bool is a flag as the base keeps it: 1 or 0.
+func Bool(b bool) int64 {
+	if b {
+		return 1
+	}
+	return 0
+}
+
+// Cost is a price for a column that may be unknown: nil is NULL.
+func Cost(f *float64) sql.NullFloat64 {
+	if f == nil {
+		return sql.NullFloat64{}
+	}
+	return sql.NullFloat64{Float64: *f, Valid: true}
+}
+
 // Project statuses: a draft runs only trial runs and no triggers until the owner enables it.
 const (
 	ProjectDraft   = "draft"

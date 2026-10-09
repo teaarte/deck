@@ -3,7 +3,6 @@ package providers
 import (
 	"cmp"
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -238,18 +237,11 @@ func (s *Service) record(ctx context.Context, act registry.Actor, m db.Model, c 
 		return q.LogModelCall(ctx, db.LogModelCallParams{WorkspaceID: act.Workspace, ProjectID: store.ID(act.ProjectID), ProcessID: store.ID(act.ProcessID),
 			ConnectionID: store.ID(c.ID), Provider: m.Name, RequestModel: m.Model, ResponseModel: u.Model,
 			InputTokens: u.Input, OutputTokens: u.Output, CacheReadTokens: u.CacheRead, CacheCreationTokens: u.CacheCreation,
-			DurationMs: u.Duration.Milliseconds(), CostUsd: nullFloat(cost), CreatedAt: store.Time(s.Now())})
+			DurationMs: u.Duration.Milliseconds(), CostUsd: store.Cost(cost), CreatedAt: store.Time(s.Now())})
 	})
 	if err != nil {
 		slog.Error("model call journal", "connection", c.Name, "err", err)
 	}
-}
-
-func nullFloat(f *float64) sql.NullFloat64 {
-	if f == nil {
-		return sql.NullFloat64{}
-	}
-	return sql.NullFloat64{Float64: *f, Valid: true}
 }
 
 // modelRequestIn is one request of a model API through deck: what the proxy freezes when a call waits for the owner.

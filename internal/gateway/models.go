@@ -261,8 +261,8 @@ const DeckModel = "X-Deck-Model"
 // DeckModel does, and the method and path of a request a module made.
 type ModelAsk struct {
 	Connection, Model, Name string
-	InBody, ByHeader  bool
-	Method, Path      string
+	InBody, ByHeader        bool
+	Method, Path            string
 }
 
 // AskModel is the model a request names: of a JSON body, a form, Google's path, else the header DeckModel; names

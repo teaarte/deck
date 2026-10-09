@@ -142,7 +142,7 @@ func (ch *Service) chatTopicArchive(ctx context.Context, act registry.Actor, in 
 		if _, err := ch.ownTopic(ctx, q, act, in.Topic); err != nil {
 			return err
 		}
-		_, err := q.ArchiveTopic(ctx, db.ArchiveTopicParams{Archived: b2i(in.Archived), ID: in.Topic})
+		_, err := q.ArchiveTopic(ctx, db.ArchiveTopicParams{Archived: store.Bool(in.Archived), ID: in.Topic})
 		return err
 	})
 	if err != nil {
@@ -173,13 +173,6 @@ func (ch *Service) chatTopicDelete(ctx context.Context, act registry.Actor, in c
 		_ = ch.Runner.Stop(ctx, p.ID, "deck: the owner deleted the chat topic")
 	}
 	return map[string]any{"topic": in.Topic, "deleted": true}, nil
-}
-
-func b2i(b bool) int64 {
-	if b {
-		return 1
-	}
-	return 0
 }
 
 type chatMessageDeleteIn struct {

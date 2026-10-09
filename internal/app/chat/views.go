@@ -8,6 +8,7 @@ import (
 	"deck2/internal/ask"
 	"deck2/internal/process"
 	"deck2/internal/registry"
+	"deck2/internal/store"
 	"deck2/internal/store/db"
 	"deck2/internal/untrusted"
 )
@@ -116,7 +117,7 @@ func viewTopic(t db.ListTopicSummariesRow) topicView {
 
 // topics are the summaries of the topics of a workspace, newest first; with topic, that one alone.
 func (ch *Service) topics(ctx context.Context, workspace int64, archived bool, topic, lim int64) ([]topicView, error) {
-	rows, err := ch.St.Q.ListTopicSummaries(ctx, db.ListTopicSummariesParams{WorkspaceID: workspace, Archived: b2i(archived), Topic: topic, Lim: lim})
+	rows, err := ch.St.Q.ListTopicSummaries(ctx, db.ListTopicSummariesParams{WorkspaceID: workspace, Archived: store.Bool(archived), Topic: topic, Lim: lim})
 	if err != nil {
 		return nil, err
 	}

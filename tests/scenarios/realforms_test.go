@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -29,7 +30,10 @@ const report = { direct, self, top, items: got.items.map((i) => i.title), otherR
 const res = await app.callServerTool({ name: "web.mark", arguments: { text: JSON.stringify(report) } });
 document.getElementById("out").textContent = JSON.stringify(res.structuredContent);
 await app.callServerTool({ name: "web.tag", arguments: { tag: "b" } });
-await app.callServerTool({ name: "web.publish", arguments: {} });
+const first = app.callServerTool({ name: "web.publish", arguments: {} });
+const second = await app.callServerTool({ name: "web.publish", arguments: {} });
+await app.callServerTool({ name: "web.tag", arguments: { tag: second.isError ? "a" : "b" } });
+await first;
 try { const a = parent.document.createElement("a"); a.href = %q + "/parent"; parent.document.body.appendChild(a); a.click(); } catch {}
 setTimeout(() => { location.href = %q + "/self"; }, 300);
 </script></body></html>`
@@ -87,13 +91,16 @@ func TestRealBrowserWebClientII(t *testing.T) {
 	if e.countOf("score") != 0 {
 		t.Fatal("a command outside the buttons of the block does not run")
 	}
-	e.waitFor("the tag the block picked by its params", func() bool { return e.countOf("tag") == 1 })
+	e.waitFor("the tags the block picked by their params", func() bool { return e.countOf("tag") == 2 })
+	var seen []string
 	for _, x := range e.processes() {
 		if x.Command == "tag" {
-			if got := e.waitState(x.ID, "done"); !strings.Contains(string(got.Result), `"seen":"b"`) {
-				t.Fatalf("a call picks the button whose fixed params it names: %s", got.Result)
-			}
+			seen = append(seen, string(e.waitState(x.ID, "done").Result))
 		}
+	}
+	if !slices.ContainsFunc(seen, func(r string) bool { return strings.Contains(r, `"seen":"b"`) }) ||
+		!slices.ContainsFunc(seen, func(r string) bool { return strings.Contains(r, `"seen":"a"`) }) {
+		t.Fatalf("a call picks the button whose fixed params it names, and a second call while one waits for the owner is refused: %v", seen)
 	}
 	b.until("the owner asked before an external command of the block", `document.querySelector('[data-custom-ask]')?.innerText.includes('web.publish')`)
 	if e.countOf("publish") != 0 {

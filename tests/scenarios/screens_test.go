@@ -886,6 +886,7 @@ func TestNewBlocksAreRefusedWithTheirReason(t *testing.T) {
 		{`"document": "custom/chart.html", `, ``, "missing property 'document'"},
 		{`"filter": ["source"]`, `"filter": ["origin"]`, `filter: unknown field "origin"`},
 		{`{"label": "Mark", "command": "mark"}`, `{"label": "Go", "screen": "main"}`, "/actions/0': missing property 'command'"},
+		{`{"label": "Mark", "command": "mark"}`, `{"label": "Draw", "command": "deck.model_call"}`, "a button calls a command of its module"},
 		{`{"type": "form", "title": "Score a title", "command": "score", "save": "notes"}`, `{"type": "stat", "source": {"collection": "notes"}, "filter": ["title"]}`, "additional properties 'filter' not allowed"},
 		{`{"type": "form", "title": "Score a title", "command": "score", "save": "notes"}`, `{"type": "list", "source": {"from": "deck.projects_list"}, "item": {"title": "names"}}`, `unknown field "names"`},
 		{`{"type": "form", "title": "Score a title", "command": "score", "save": "notes"}`, `{"type": "list", "source": {"from": "nowhere"}, "item": {"title": "name"}}`, "nowhere is not a deck command that only reads"},

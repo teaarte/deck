@@ -284,3 +284,53 @@ func TestAModelInUseAndAConnectionWithModelsStay(t *testing.T) {
 		}
 	}
 }
+
+// TestAModelThatDoesNotAnswerIsRedWhileItsFallbackWorks: a model of the owner's machine that does not answer turns
+// its health red and the assignment shows the fallback that took the work; its first answer turns it green.
+func TestAModelThatDoesNotAnswerIsRedWhileItsFallbackWorks(t *testing.T) {
+	cloud := newModels(t, map[string]func(int, map[string]any) (int, string, string){
+		"/api/v1/chat/completions": func(int, map[string]any) (int, string, string) { return 200, "application/json", pictureAnswer(0.04) },
+	})
+	local := newModels(t, map[string]func(int, map[string]any) (int, string, string){
+		"/v1/images/generations": func(int, map[string]any) (int, string, string) {
+			return 200, "application/json", `{"data": [{"b64_json": "iVBORw0KGgo="}]}`
+		},
+	})
+	down := httptest.NewServer(http.NotFoundHandler())
+	down.Close()
+	e := newEnv(t, nil)
+	e.must("deck.connection_set", map[string]any{"name": "media", "api": "openai", "url": down.URL + "/v1", "local": true}, nil)
+	e.must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": cloud.URL + "/api/v1"}, nil)
+	e.must("deck.model_set", map[string]any{"connection": "media", "model": "z-image", "name": "local-image", "kind": "image", "free": true}, nil)
+	e.must("deck.model_set", map[string]any{"connection": "openrouter", "model": "painter", "kind": "image", "call_usd": 0.04}, nil)
+	e.must("deck.assignment_set", map[string]any{"role": "image", "models": []string{"local-image", "openrouter/painter"}}, nil)
+	e.createProject("shorts", modelManifest)
+	health := func() (string, string) {
+		var status, text string
+		_ = e.App.Store.DB.QueryRow(`SELECT status, error FROM health WHERE subject = 'provider:local-image'`).Scan(&status, &text)
+		return status, text
+	}
+	using := func() string {
+		var m modelsOut
+		e.must("deck.models_list", nil, &m)
+		for _, a := range m.Assignments {
+			if a.Role == "image" {
+				return a.Using
+			}
+		}
+		return ""
+	}
+	if got := e.waitState(e.start("shorts", "picture", map[string]any{"scene": "a knight"}), "done", "error"); got.State != "done" {
+		t.Fatalf("the fallback draws the picture: %+v", got)
+	}
+	if status, text := health(); status != "error" || !strings.Contains(text, "did not answer") || using() != "openrouter/painter" {
+		t.Fatalf("the model that did not answer is red and the assignment shows the fallback at work: %s %q %s", status, text, using())
+	}
+	e.must("deck.connection_set", map[string]any{"name": "media", "api": "openai", "url": local.URL + "/v1", "local": true}, nil)
+	if got := e.waitState(e.start("shorts", "picture", map[string]any{"scene": "a knight"}), "done", "error"); got.State != "done" || len(local.calls()) != 1 {
+		t.Fatalf("the first model draws again once it is up: %+v", got)
+	}
+	if status, _ := health(); status != "ok" || using() != "local-image" {
+		t.Fatalf("its first answer turns it green: %s %s", status, using())
+	}
+}

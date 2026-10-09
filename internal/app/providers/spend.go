@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"mime"
@@ -15,7 +16,9 @@ import (
 
 	"deck2/internal/docs"
 	"deck2/internal/gateway"
+	"deck2/internal/health"
 	"deck2/internal/manifest"
+	"deck2/internal/process"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
 	"deck2/internal/store"
@@ -93,7 +96,10 @@ func (s *Service) Route(ctx context.Context, act registry.Actor, connection, ask
 			return nil, err
 		}
 		m, c := p.m, p.c
-		h.Done = func(ctx context.Context, status int, u *provider.Usage) { s.record(ctx, act, m, c, status, u) }
+		h.Done = func(ctx context.Context, status int, u *provider.Usage) {
+			s.answered(ctx, m, status)
+			s.record(ctx, act, m, c, status, u)
+		}
 		hops = append(hops, h)
 	}
 	return hops, nil
@@ -141,6 +147,28 @@ func (s *Service) turnModel(workspace int64, m db.Model, c db.Connection) func(o
 			}
 			gateway.ServeHops(w, r, r.URL.Path, body, true, []gateway.ModelHop{h})
 		})
+	}
+}
+
+// answered keeps in the health of a model whether it answered its last call: one that did not is red, and the
+// assignments that name it show the fallback taking the work; a model in an agent has the health of its self-check.
+func (s *Service) answered(ctx context.Context, m db.Model, status int) {
+	if m.Agent != "" {
+		return
+	}
+	subject := process.HealthSubject(m.Name)
+	h, err := s.St.Q.GetHealth(ctx, subject)
+	switch {
+	case status == 0 || gateway.Fallible(status):
+		text := "did not answer; the next model of its assignment takes the work"
+		if status != 0 {
+			text = fmt.Sprintf("answered HTTP %d; the next model of its assignment takes the work", status)
+		}
+		if err != nil || h.Status != "error" || h.Error != text {
+			health.Write(ctx, s.St, health.Of{}, subject, "error", text)
+		}
+	case err == nil && h.Status == "error":
+		health.Write(ctx, s.St, health.Of{}, subject, "ok", "")
 	}
 }
 

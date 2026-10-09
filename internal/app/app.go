@@ -133,10 +133,10 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	}
 	a.Host = mcphost.New(a.Signins.ServerStatus)
 	a.Host.Now, a.Host.Sandbox, a.Host.Home = cfg.Now, cfg.Sandbox, h
-	a.Host.Egress = func(key string, domains []string) http.Handler {
+	a.Host.Egress = func(life context.Context, key string, domains []string) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if gateway.ProxyAuthorized(w, r, key) {
-				gateway.Egress(r.Context(), w, r, domains)
+				gateway.Egress(life, w, r, domains)
 			}
 		})
 	}

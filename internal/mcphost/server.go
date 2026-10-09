@@ -24,36 +24,38 @@ import (
 
 // command is the program of a stdio server; a confined one runs in the sandbox, its web through deck's proxy to its
 // domains, writing only its own folder and reading of the owner's home only the runtimes on PATH and its folders.
-func (h *Host) command(spec Spec) (*exec.Cmd, *http.Server, error) {
+func (h *Host) command(spec Spec, s *server) (*exec.Cmd, error) {
 	if !spec.Confine || h.Sandbox == nil {
 		cmd := exec.Command(spec.Command, spec.Args...)
 		cmd.Env, cmd.Dir = spec.Env, spec.Dir
 		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-		return cmd, nil, nil
+		return cmd, nil
 	}
 	if err := h.Sandbox.Check(); err != nil {
-		return nil, nil, fmt.Errorf("sandbox %s: %w", h.Sandbox.Name(), err)
+		return nil, fmt.Errorf("sandbox %s: %w", h.Sandbox.Name(), err)
 	}
 	path, err := exec.LookPath(spec.Command)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	ln, err := h.Sandbox.Listen(spec.Dir)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	key, self := nonce.Hex(16), h.Sandbox.Addr(ln)
-	out := &http.Server{Handler: h.Egress(key, spec.Domains)}
+	life, cut := context.WithCancel(context.Background())
+	out := &http.Server{Handler: h.Egress(life, key, spec.Domains)}
+	s.out, s.cut = out, cut
 	go func() { _ = out.Serve(ln) }()
 	c := sandbox.Close(h.Home, env(spec.Env, "PATH")+string(os.PathListSeparator)+filepath.Dir(path))
 	cmd, err := h.Sandbox.Command(context.Background(), sandbox.Policy{Argv: append([]string{path}, spec.Args...), Dir: spec.Dir,
 		Env: append(slices.Clone(spec.Env), sandbox.Proxy("http://deck:"+key+"@"+self, self)...), Write: []string{spec.Dir},
 		Read: append(slices.Clone(spec.Read), c.Read...), Hide: c.Hide, Private: c.Private, Out: ln})
 	if err != nil {
-		_ = out.Close()
-		return nil, nil, err
+		s.close()
+		return nil, err
 	}
-	return cmd, out, nil
+	return cmd, nil
 }
 
 // env is the value of the variable name in kv.
@@ -79,8 +81,7 @@ func (s *server) start(ctx context.Context, h *Host, key string, spec Spec) erro
 				return err
 			}
 		}
-		cmd, out, err := h.command(spec)
-		s.out = out
+		cmd, err := h.command(spec, s)
 		if err != nil {
 			return fmt.Errorf("MCP server %s did not start: %v", key, err)
 		}
@@ -169,10 +170,19 @@ func (s *server) kill() {
 	if s.cmd != nil && s.cmd.Process != nil {
 		_ = syscall.Kill(-s.cmd.Process.Pid, syscall.SIGKILL)
 	}
+	s.cmd = nil
+	s.close()
+}
+
+// close ends the way out of a confined server: its proxy and the tunnels it holds.
+func (s *server) close() {
+	if s.cut != nil {
+		s.cut()
+	}
 	if s.out != nil {
 		_ = s.out.Close()
 	}
-	s.cmd, s.out = nil, nil
+	s.out, s.cut = nil, nil
 }
 
 // tail keeps the last 2 KB a server wrote to stderr.

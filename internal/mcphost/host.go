@@ -59,8 +59,9 @@ type Host struct {
 	// Sandbox confines programs of specs that ask for it; they never read Home, deck's folder, but for their own.
 	Sandbox sandbox.Sandbox
 	Home    home.Layout
-	// Egress is deck's proxy of a confined server to its domains, taking requests that carry key.
-	Egress func(key string, domains []string) http.Handler
+	// Egress is deck's proxy of a confined server to its domains, taking requests that carry key; its tunnels end
+	// with ctx.
+	Egress func(ctx context.Context, key string, domains []string) http.Handler
 
 	mu      sync.Mutex
 	servers map[string]*server
@@ -77,6 +78,7 @@ type server struct {
 	sess    *mcp.ClientSession
 	cmd     *exec.Cmd
 	out     *http.Server
+	cut     context.CancelFunc
 	stderr  *tail
 	secrets []string
 	started time.Time

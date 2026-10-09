@@ -26,7 +26,8 @@ import (
 	"deck2/internal/untrusted"
 )
 
-// price is what a call cost by the price of its model when the API did not say; nil when the model has no price.
+// price is what a call cost by the price of its model per million of its unit when the API did not say; nil when the
+// model has no price.
 func price(m db.Model, u provider.Usage) *float64 {
 	if m.Free != 0 {
 		zero := 0.0
@@ -35,7 +36,17 @@ func price(m db.Model, u provider.Usage) *float64 {
 	if !m.InputUsd.Valid && !m.OutputUsd.Valid && !m.CallUsd.Valid {
 		return nil
 	}
-	cost := float64(u.Input)*m.InputUsd.Float64/1e6 + float64(u.Output)*m.OutputUsd.Float64/1e6 + m.CallUsd.Float64
+	in, out := float64(u.Input), float64(u.Output)
+	switch m.Unit {
+	case UnitChar:
+		in, out = float64(u.Chars), 0
+	case UnitSecond:
+		if u.Seconds == 0 {
+			return nil
+		}
+		in, out = u.Seconds, 0
+	}
+	cost := in*m.InputUsd.Float64/1e6 + out*m.OutputUsd.Float64/1e6 + m.CallUsd.Float64
 	return &cost
 }
 

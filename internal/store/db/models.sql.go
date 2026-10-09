@@ -51,13 +51,13 @@ func (q *Queries) AddConnection(ctx context.Context, arg AddConnectionParams) (C
 }
 
 const addModel = `-- name: AddModel :one
-INSERT INTO model (workspace_id, connection_id, name, model, kind, agent, input_usd, output_usd, call_usd, free, options, check_minutes)
+INSERT INTO model (workspace_id, connection_id, name, model, kind, agent, input_usd, output_usd, call_usd, unit, free, options, check_minutes)
 VALUES (?1, ?2, ?3, ?4, ?5, ?6,
-    ?7, ?8, ?9, ?10, ?11, ?12)
+    ?7, ?8, ?9, ?10, ?11, ?12, ?13)
 ON CONFLICT (workspace_id, name) DO UPDATE SET connection_id = excluded.connection_id, model = excluded.model,
     kind = excluded.kind, agent = excluded.agent, input_usd = excluded.input_usd, output_usd = excluded.output_usd,
-    call_usd = excluded.call_usd, free = excluded.free, options = excluded.options, check_minutes = excluded.check_minutes
-RETURNING id, workspace_id, connection_id, name, model, kind, agent, input_usd, output_usd, call_usd, free, options, check_minutes, created_at
+    call_usd = excluded.call_usd, unit = excluded.unit, free = excluded.free, options = excluded.options, check_minutes = excluded.check_minutes
+RETURNING id, workspace_id, connection_id, name, model, kind, agent, input_usd, output_usd, call_usd, free, options, check_minutes, created_at, unit
 `
 
 type AddModelParams struct {
@@ -70,6 +70,7 @@ type AddModelParams struct {
 	InputUsd     sql.NullFloat64
 	OutputUsd    sql.NullFloat64
 	CallUsd      sql.NullFloat64
+	Unit         string
 	Free         int64
 	Options      string
 	CheckMinutes int64
@@ -86,6 +87,7 @@ func (q *Queries) AddModel(ctx context.Context, arg AddModelParams) (Model, erro
 		arg.InputUsd,
 		arg.OutputUsd,
 		arg.CallUsd,
+		arg.Unit,
 		arg.Free,
 		arg.Options,
 		arg.CheckMinutes,
@@ -106,6 +108,7 @@ func (q *Queries) AddModel(ctx context.Context, arg AddModelParams) (Model, erro
 		&i.Options,
 		&i.CheckMinutes,
 		&i.CreatedAt,
+		&i.Unit,
 	)
 	return i, err
 }
@@ -216,7 +219,7 @@ func (q *Queries) GetConnection(ctx context.Context, arg GetConnectionParams) (C
 }
 
 const getModel = `-- name: GetModel :one
-SELECT m.id, m.workspace_id, m.connection_id, m.name, m.model, m.kind, m.agent, m.input_usd, m.output_usd, m.call_usd, m.free, m.options, m.check_minutes, m.created_at, k.id, k.workspace_id, k.name, k.api, k.url, k.key_secret, k.local, k.created_at FROM model m JOIN connection k ON k.id = m.connection_id
+SELECT m.id, m.workspace_id, m.connection_id, m.name, m.model, m.kind, m.agent, m.input_usd, m.output_usd, m.call_usd, m.free, m.options, m.check_minutes, m.created_at, m.unit, k.id, k.workspace_id, k.name, k.api, k.url, k.key_secret, k.local, k.created_at FROM model m JOIN connection k ON k.id = m.connection_id
 WHERE m.workspace_id = ? AND m.name = ?
 `
 
@@ -248,6 +251,7 @@ func (q *Queries) GetModel(ctx context.Context, arg GetModelParams) (GetModelRow
 		&i.Model.Options,
 		&i.Model.CheckMinutes,
 		&i.Model.CreatedAt,
+		&i.Model.Unit,
 		&i.Connection.ID,
 		&i.Connection.WorkspaceID,
 		&i.Connection.Name,
@@ -261,7 +265,7 @@ func (q *Queries) GetModel(ctx context.Context, arg GetModelParams) (GetModelRow
 }
 
 const getModelOf = `-- name: GetModelOf :one
-SELECT m.id, m.workspace_id, m.connection_id, m.name, m.model, m.kind, m.agent, m.input_usd, m.output_usd, m.call_usd, m.free, m.options, m.check_minutes, m.created_at, k.id, k.workspace_id, k.name, k.api, k.url, k.key_secret, k.local, k.created_at FROM model m JOIN connection k ON k.id = m.connection_id
+SELECT m.id, m.workspace_id, m.connection_id, m.name, m.model, m.kind, m.agent, m.input_usd, m.output_usd, m.call_usd, m.free, m.options, m.check_minutes, m.created_at, m.unit, k.id, k.workspace_id, k.name, k.api, k.url, k.key_secret, k.local, k.created_at FROM model m JOIN connection k ON k.id = m.connection_id
 WHERE m.connection_id = ? AND m.model = ? ORDER BY m.id LIMIT 1
 `
 
@@ -293,6 +297,7 @@ func (q *Queries) GetModelOf(ctx context.Context, arg GetModelOfParams) (GetMode
 		&i.Model.Options,
 		&i.Model.CheckMinutes,
 		&i.Model.CreatedAt,
+		&i.Model.Unit,
 		&i.Connection.ID,
 		&i.Connection.WorkspaceID,
 		&i.Connection.Name,
@@ -387,7 +392,7 @@ func (q *Queries) ListConnections(ctx context.Context, workspaceID int64) ([]Con
 }
 
 const listModels = `-- name: ListModels :many
-SELECT m.id, m.workspace_id, m.connection_id, m.name, m.model, m.kind, m.agent, m.input_usd, m.output_usd, m.call_usd, m.free, m.options, m.check_minutes, m.created_at, k.id, k.workspace_id, k.name, k.api, k.url, k.key_secret, k.local, k.created_at FROM model m JOIN connection k ON k.id = m.connection_id
+SELECT m.id, m.workspace_id, m.connection_id, m.name, m.model, m.kind, m.agent, m.input_usd, m.output_usd, m.call_usd, m.free, m.options, m.check_minutes, m.created_at, m.unit, k.id, k.workspace_id, k.name, k.api, k.url, k.key_secret, k.local, k.created_at FROM model m JOIN connection k ON k.id = m.connection_id
 WHERE m.workspace_id = ? ORDER BY m.name
 `
 
@@ -420,6 +425,7 @@ func (q *Queries) ListModels(ctx context.Context, workspaceID int64) ([]ListMode
 			&i.Model.Options,
 			&i.Model.CheckMinutes,
 			&i.Model.CreatedAt,
+			&i.Model.Unit,
 			&i.Connection.ID,
 			&i.Connection.WorkspaceID,
 			&i.Connection.Name,

@@ -468,14 +468,14 @@ func TestAModelPricedPerCharOrSecondCostsWhatItTook(t *testing.T) {
 	}
 	e.must("deck.assignment_set", map[string]any{"role": "tts", "models": []string{"fish"}}, nil)
 	e.must("deck.assignment_set", map[string]any{"role": "stt", "models": []string{"whisper"}}, nil)
+	e.createProject("shorts", modelManifest)
 	var voice struct {
 		Cost *float64 `json:"cost_usd"`
 	}
-	e.must("deck.model_call", map[string]any{"kind": "tts", "text": "Hello wörld"}, &voice)
-	if voice.Cost == nil || math.Abs(*voice.Cost-11*15/1e6) > 1e-12 {
-		t.Fatalf("speech costs the characters deck sent: %+v", voice.Cost)
+	if got := e.waitState(e.start("shorts", "voice", map[string]any{"text": "Hello wörld"}), "done", "error"); json.Unmarshal(got.Result, &voice) != nil ||
+		voice.Cost == nil || math.Abs(*voice.Cost-11*15/1e6) > 1e-12 {
+		t.Fatalf("speech costs the characters deck sent: %+v", got)
 	}
-	e.createProject("shorts", modelManifest)
 	var f struct{ ID int64 }
 	e.must("deck.file_upload", map[string]any{"project": "shorts", "name": "voice.mp3", "content": base64.StdEncoding.EncodeToString([]byte("ID3-recorded"))}, &f)
 	var costs []*float64

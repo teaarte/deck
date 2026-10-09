@@ -36,6 +36,14 @@ const (
 
 var roles = []string{RoleAgent, RoleText, RoleImage, RoleTTS, RoleSTT, RoleMusic}
 
+// Units are what a price per million of a model counts: tokens in and out, characters deck sent, or seconds of a
+// recording the API reported.
+const (
+	UnitToken  = "token"
+	UnitChar   = "char"
+	UnitSecond = "second"
+)
+
 // Assigned are the models of a role for a command, in order: its own assignment, else its project's, else the
 // workspace's; none when nothing is assigned.
 func Assigned(ctx context.Context, q *db.Queries, workspace, project int64, command, role string) ([]string, error) {
@@ -85,6 +93,7 @@ type modelView struct {
 	InputUSD   *float64 `json:"input_usd,omitempty"`
 	OutputUSD  *float64 `json:"output_usd,omitempty"`
 	CallUSD    *float64 `json:"call_usd,omitempty"`
+	Unit       string   `json:"unit"`
 	Free       bool     `json:"free"`
 	// Builtin is a provider deck was started with; Status, Error, Verdict, Speed and Version are of its last self-check.
 	Builtin bool    `json:"builtin"`
@@ -162,7 +171,7 @@ func (s *Service) modelsList(ctx context.Context, act registry.Actor, in modelsL
 	for _, r := range models {
 		m := r.Model
 		v := modelView{Name: m.Name, Connection: r.Connection.Name, Model: m.Model, Kind: m.Kind, Agent: m.Agent,
-			InputUSD: nullable(m.InputUsd), OutputUSD: nullable(m.OutputUsd), CallUSD: nullable(m.CallUsd), Free: m.Free != 0}
+			InputUSD: nullable(m.InputUsd), OutputUSD: nullable(m.OutputUsd), CallUSD: nullable(m.CallUsd), Unit: m.Unit, Free: m.Free != 0}
 		s.lastCheck(ctx, &v)
 		out.Models = append(out.Models, v)
 	}
@@ -328,8 +337,9 @@ type modelSetIn struct {
 	Model      string  `desc:"The model's name in the API, such as google/gemini-3.1-flash-lite-image"`
 	Name       string  `opt:"" desc:"How deck names the model in assignments and calls; connection/model when left out"`
 	Kind       string  `enum:"text|image|tts|stt|music" opt:"" desc:"What the model makes; a model changed without it keeps its own, a new one takes it from the catalog of the connection, else text"`
-	InputUSD   float64 `json:"input_usd" opt:"" desc:"USD per million input tokens; a model changed without a price keeps its own, a new one takes it from the catalog of the connection"`
-	OutputUSD  float64 `json:"output_usd" opt:"" desc:"USD per million output tokens"`
+	InputUSD   float64 `json:"input_usd" opt:"" desc:"USD per million input tokens, or of the unit; a model changed without a price keeps its own, a new one takes it from the catalog of the connection"`
+	OutputUSD  float64 `json:"output_usd" opt:"" desc:"USD per million output tokens; a model priced per character or second has none"`
+	Unit       string  `enum:"token|char|second" opt:"" desc:"What the price per million counts: tokens, characters of the text deck sends, or seconds of a recording the API reports; a model changed without it keeps its own, a new one counts tokens"`
 	CallUSD    float64 `json:"call_usd" opt:"" desc:"USD per call, for a model priced per picture, clip or request"`
 	Free       *bool   `opt:"" desc:"The model costs nothing, so a trial or a draft calls it without the owner's yes; a model changed without it or a price keeps its own, a new one takes it from the catalog of the connection"`
 	Options    string  `type:"json" opt:"" desc:"Fields deck adds to every call of the model of a kind, such as {\"language\": \"ru\"} of speech to text; a model changed without them keeps its own"`
@@ -357,14 +367,18 @@ func (s *Service) modelSet(ctx context.Context, act registry.Actor, in modelSetI
 		in.Kind = RoleText
 	}
 	m := db.AddModelParams{WorkspaceID: act.Workspace, ConnectionID: c.ID, Name: in.Name, Model: in.Model, Kind: in.Kind, Options: "{}",
-		InputUsd: positive(in.InputUSD), OutputUsd: positive(in.OutputUSD), CallUsd: positive(in.CallUSD),
+		InputUsd: positive(in.InputUSD), OutputUsd: positive(in.OutputUSD), CallUsd: positive(in.CallUSD), Unit: in.Unit,
 		Agent: in.Agent, CheckMinutes: in.CheckMinutes}
 	unpriced := in.Free == nil && !m.InputUsd.Valid && !m.OutputUsd.Valid && !m.CallUsd.Valid
 	if old, err := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: act.Workspace, Name: in.Name}); err == nil {
 		if unpriced {
 			m.InputUsd, m.OutputUsd, m.CallUsd, m.Free, unpriced = old.Model.InputUsd, old.Model.OutputUsd, old.Model.CallUsd, old.Model.Free, false
 		}
-		m.Kind, m.CheckMinutes = cmp.Or(m.Kind, old.Model.Kind), cmp.Or(m.CheckMinutes, old.Model.CheckMinutes)
+		m.Kind, m.CheckMinutes, m.Unit = cmp.Or(m.Kind, old.Model.Kind), cmp.Or(m.CheckMinutes, old.Model.CheckMinutes), cmp.Or(m.Unit, old.Model.Unit)
+	}
+	m.Unit = cmp.Or(m.Unit, UnitToken)
+	if m.Unit != UnitToken && m.OutputUsd.Valid {
+		return nil, registry.Invalid("deck: a model priced per %s has one price, input_usd per million; output_usd is for tokens", m.Unit)
 	}
 	if unpriced || m.Kind == "" {
 		if got, ok := s.catalog(ctx, act.Workspace, c, in.Model); ok {
@@ -410,7 +424,7 @@ func (s *Service) modelSet(ctx context.Context, act registry.Actor, in modelSetI
 		s.startCheck(in.Name, true)
 	}
 	return modelView{Name: out.Name, Connection: c.Name, Model: out.Model, Kind: out.Kind, Agent: out.Agent, InputUSD: nullable(out.InputUsd),
-		OutputUSD: nullable(out.OutputUsd), CallUSD: nullable(out.CallUsd), Free: out.Free != 0}, nil
+		OutputUSD: nullable(out.OutputUsd), CallUSD: nullable(out.CallUsd), Unit: out.Unit, Free: out.Free != 0}, nil
 }
 
 // checkAgent refuses a model in an agent deck cannot run: an agent it does not know or that is not installed, a

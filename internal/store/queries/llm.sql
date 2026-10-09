@@ -34,3 +34,7 @@ SELECT CAST(substr(c.created_at, 1, 16) AS TEXT) AS minute, c.gen_ai_provider_na
 FROM llm_call c LEFT JOIN project j ON j.id = c.project_id
 WHERE c.workspace_id = sqlc.arg(workspace_id) AND c.created_at >= sqlc.arg(since)
 GROUP BY minute, provider, project;
+
+
+-- name: ListProcessModelCalls :many
+SELECT gen_ai_provider_name, cost_usd FROM llm_call WHERE process_id = ? ORDER BY id;

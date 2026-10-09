@@ -10,6 +10,38 @@ import (
 	"database/sql"
 )
 
+const listProcessModelCalls = `-- name: ListProcessModelCalls :many
+SELECT gen_ai_provider_name, cost_usd FROM llm_call WHERE process_id = ? ORDER BY id
+`
+
+type ListProcessModelCallsRow struct {
+	GenAiProviderName string
+	CostUsd           sql.NullFloat64
+}
+
+func (q *Queries) ListProcessModelCalls(ctx context.Context, processID sql.NullInt64) ([]ListProcessModelCallsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listProcessModelCalls, processID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListProcessModelCallsRow
+	for rows.Next() {
+		var i ListProcessModelCallsRow
+		if err := rows.Scan(&i.GenAiProviderName, &i.CostUsd); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const logModelCall = `-- name: LogModelCall :exec
 INSERT INTO llm_call (workspace_id, project_id, process_id, command, connection_id, gen_ai_provider_name, gen_ai_request_model,
     gen_ai_response_model, gen_ai_usage_input_tokens, gen_ai_usage_output_tokens, gen_ai_usage_cache_read_input_tokens,

@@ -52,6 +52,9 @@ type processView struct {
 	Question string `json:"question,omitempty"`
 	// Topic is the chat topic an open reply of the master answers.
 	Topic string `json:"topic,omitempty"`
+	// Models are the models of deck's settings the process called, and CostUSD what they cost, nil when one has no price.
+	Models  []string `json:"models,omitempty"`
+	CostUSD *float64 `json:"cost_usd,omitempty"`
 }
 
 func msTime(v sql.NullInt64) string {
@@ -164,6 +167,20 @@ func (s *Service) processGet(ctx context.Context, act registry.Actor, in process
 	project, _ := s.St.Q.GetProject(ctx, p.ProjectID)
 	v := procView(p, project.Name)
 	v.Terminal = s.terminal(ctx, p)
+	calls, err := s.St.Q.ListProcessModelCalls(ctx, store.ID(p.ID))
+	if err != nil {
+		return processView{}, err
+	}
+	sum, priced := 0.0, true
+	for _, c := range calls {
+		if !slices.Contains(v.Models, c.GenAiProviderName) {
+			v.Models = append(v.Models, c.GenAiProviderName)
+		}
+		sum, priced = sum+c.CostUsd.Float64, priced && c.CostUsd.Valid
+	}
+	if len(calls) > 0 && priced {
+		v.CostUSD = &sum
+	}
 	return v, nil
 }
 
@@ -238,7 +255,7 @@ func (s *Service) processCommands() []*registry.Command {
 			registry.Everyone, s.processesList).On("processes", "asks"),
 		registry.Read("process_get", "Process status",
 			"Returns the state and result of a process; with wait, once it finishes or waits for the owner.",
-			registry.Everyone, s.processGet).On("processes"),
+			registry.Everyone, s.processGet).On("processes", "usage"),
 		registry.Def("process_stop", "Stop process",
 			"Stops a process; a running agent is killed and what it did so far stays.",
 			registry.OwnerSide, s.processStop),

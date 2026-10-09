@@ -38,12 +38,12 @@ SELECT count(*) FROM model WHERE name = ? AND workspace_id != ?;
 
 
 -- name: AddModel :one
-INSERT INTO model (workspace_id, connection_id, name, model, kind, agent, input_usd, output_usd, call_usd, free, options, check_minutes)
+INSERT INTO model (workspace_id, connection_id, name, model, kind, agent, input_usd, output_usd, call_usd, unit, free, options, check_minutes)
 VALUES (sqlc.arg(workspace_id), sqlc.arg(connection_id), sqlc.arg(name), sqlc.arg(model), sqlc.arg(kind), sqlc.arg(agent),
-    sqlc.narg(input_usd), sqlc.narg(output_usd), sqlc.narg(call_usd), sqlc.arg(free), sqlc.arg(options), sqlc.arg(check_minutes))
+    sqlc.narg(input_usd), sqlc.narg(output_usd), sqlc.narg(call_usd), sqlc.arg(unit), sqlc.arg(free), sqlc.arg(options), sqlc.arg(check_minutes))
 ON CONFLICT (workspace_id, name) DO UPDATE SET connection_id = excluded.connection_id, model = excluded.model,
     kind = excluded.kind, agent = excluded.agent, input_usd = excluded.input_usd, output_usd = excluded.output_usd,
-    call_usd = excluded.call_usd, free = excluded.free, options = excluded.options, check_minutes = excluded.check_minutes
+    call_usd = excluded.call_usd, unit = excluded.unit, free = excluded.free, options = excluded.options, check_minutes = excluded.check_minutes
 RETURNING *;
 
 

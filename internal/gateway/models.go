@@ -15,6 +15,7 @@ import (
 	"net/url"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"deck2/internal/provider"
 	"deck2/internal/registry"
@@ -144,7 +145,7 @@ func SendHops(ctx context.Context, hops []ModelHop, build func(ModelHop) (ModelC
 			continue
 		}
 		done, status := context.WithoutCancel(ctx), resp.StatusCode
-		resp.Body = metered(resp.Body, start, func(u *provider.Usage) { h.Done(done, status, u) })
+		resp.Body = metered(resp.Body, start, chars(c.Body), func(u *provider.Usage) { h.Done(done, status, u) })
 		return resp, h, nil
 	}
 	return nil, ModelHop{}, last
@@ -181,15 +182,31 @@ func ModelPath(method, path string) bool {
 func Fallible(status int) bool { return status == http.StatusTooManyRequests || status >= 500 }
 
 // metered passes an answer of a model API through and calls done with the usage it reports once it is read.
-func metered(body io.ReadCloser, start time.Time, done func(*provider.Usage)) io.ReadCloser {
+func metered(body io.ReadCloser, start time.Time, sent int64, done func(*provider.Usage)) io.ReadCloser {
 	return &meter{body: body, done: func(model string, u *apiUsage) {
-		if u == nil {
+		if u == nil && sent == 0 {
 			done(nil)
 			return
 		}
+		if u == nil {
+			u = &apiUsage{}
+		}
 		pu := u.usage(model, time.Since(start))
+		pu.Chars = sent
 		done(&pu)
 	}}
+}
+
+// chars are the characters of the input of a request, such as the text of speech, in OpenAI's input field.
+func chars(body []byte) int64 {
+	var v struct {
+		Input any `json:"input"`
+	}
+	if json.Unmarshal(body, &v) != nil {
+		return 0
+	}
+	s, _ := v.Input.(string)
+	return int64(utf8.RuneCountInString(s))
 }
 
 // ServeHops serves one call of a model through the hops and passes the answer on as it comes; replace puts the
@@ -352,6 +369,7 @@ type apiUsage struct {
 	Prompt     int64    `json:"prompt_tokens"`
 	Completion int64    `json:"completion_tokens"`
 	Cost       *float64 `json:"cost"`
+	Seconds    float64  `json:"seconds"`
 	Details    struct {
 		Cached  int64 `json:"cached_tokens"`
 		Written int64 `json:"cache_write_tokens"`
@@ -376,10 +394,11 @@ func (u *apiUsage) merge(o *apiUsage) {
 	if o.Cost != nil {
 		u.Cost = o.Cost
 	}
+	u.Seconds = max(u.Seconds, o.Seconds)
 }
 
 func (u *apiUsage) usage(model string, d time.Duration) provider.Usage {
-	out := provider.Usage{Model: model, Duration: d, CostUSD: u.Cost}
+	out := provider.Usage{Model: model, Duration: d, CostUSD: u.Cost, Seconds: u.Seconds}
 	switch {
 	case u.Prompt+u.Completion > 0:
 		out.Input, out.Output, out.CacheRead, out.CacheCreation = u.Prompt, u.Completion, u.Details.Cached, u.Details.Written
@@ -425,6 +444,7 @@ func (m *meter) scan(line []byte) {
 		Version  string    `json:"modelVersion"`
 		Usage    *apiUsage `json:"usage"`
 		Metadata *apiUsage `json:"usageMetadata"`
+		Duration float64   `json:"duration"`
 		Message  *struct {
 			Model string    `json:"model"`
 			Usage *apiUsage `json:"usage"`
@@ -439,6 +459,9 @@ func (m *meter) scan(line []byte) {
 		}
 	}
 	found := []*apiUsage{v.Usage, v.Metadata}
+	if v.Duration > 0 {
+		found = append(found, &apiUsage{Seconds: v.Duration})
+	}
 	if v.Message != nil {
 		if v.Message.Model != "" {
 			m.model = v.Message.Model

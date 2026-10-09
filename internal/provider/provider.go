@@ -106,6 +106,9 @@ type Usage struct {
 	Duration      time.Duration
 	// CostUSD is what the provider reports, or nil; on a subscription it is notional.
 	CostUSD *float64
+	// Chars are the characters of the input deck sent, Seconds the length of a recording the API reported.
+	Chars   int64
+	Seconds float64
 }
 
 // Capabilities a manifest command may require of its provider.

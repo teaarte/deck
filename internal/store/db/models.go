@@ -208,6 +208,7 @@ type Model struct {
 	Options      string
 	CheckMinutes int64
 	CreatedAt    string
+	Unit         string
 }
 
 type Process struct {

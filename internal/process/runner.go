@@ -225,7 +225,6 @@ func (r *Runner) finish(ctx context.Context, processID int64, state, result stri
 	if !r.own(processID) {
 		return
 	}
-	defer r.disown(processID)
 	err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		// A message of the owner that came as the turn ended goes on in the same session instead.
 		if state == StateDone {
@@ -248,12 +247,14 @@ func (r *Runner) finish(ctx context.Context, processID int64, state, result stri
 		}
 		return q.ReleaseFolderLocks(ctx, processID)
 	})
+	if err != nil || parked || n == 0 {
+		r.disown(processID)
+	}
 	if err != nil {
 		slog.Error("finish process", "process", processID, "err", err)
 		return
 	}
 	if parked {
-		r.disown(processID)
 		if err := r.Deliver(ctx, processID); err != nil {
 			r.finish(ctx, processID, StateError, "", false, "resume with a message: "+err.Error())
 		}
@@ -267,6 +268,7 @@ func (r *Runner) finish(ctx context.Context, processID int64, state, result stri
 	delete(r.marked, processID)
 	r.mu.Unlock()
 	r.closed(ctx, processID)
+	r.disown(processID)
 }
 
 // closed announces a process that reached a final state, then takes it off the outbox; its log stays until deck

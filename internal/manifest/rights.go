@@ -188,7 +188,7 @@ func Clip(granted, m *Manifest) *Manifest {
 	c := *m
 	c.Commands = slices.Clone(m.Commands)
 	c.commands = make(map[string]*Command, len(c.Commands))
-	var required []string
+	var required, asks []string
 	for _, g := range granted.Commands {
 		required = append(required, g.Requires...)
 	}
@@ -196,6 +196,9 @@ func Clip(granted, m *Manifest) *Manifest {
 		cmd := &c.Commands[i]
 		if old := granted.Command(cmd.Name); old != nil {
 			clipCommand(cmd, old)
+			if cmd.Executor.Type != old.Executor.Type || cmd.Executor.Tool != old.Executor.Tool {
+				cmd.Class, asks = registry.External, append(asks, cmd.Name)
+			}
 		} else {
 			cmd.Requires = append(slices.Clone(cmd.Requires), added(cmd.Requires, required)...)
 			cmd.Executor.Folder = Folder{}
@@ -210,7 +213,7 @@ func Clip(granted, m *Manifest) *Manifest {
 	}
 	c.NoNetwork = m.NoNetwork || granted.NoNetwork
 	c.Domains = Domains{Read: kept(m.Domains.Read, append(slices.Clone(Registries), granted.Domains.Read...)), Act: kept(m.Domains.Act, granted.Domains.Act)}
-	c.AllowedExternal = kept(m.AllowedExternal, granted.AllowedExternal)
+	c.AllowedExternal = slices.DeleteFunc(kept(m.AllowedExternal, granted.AllowedExternal), func(n string) bool { return slices.Contains(asks, n) })
 	uses := kept(m.Uses(), granted.Uses())
 	c.granted = &uses
 	c.Tools.HTTP = slices.Clone(m.Tools.HTTP)
@@ -237,7 +240,7 @@ func Clip(granted, m *Manifest) *Manifest {
 var executors = map[string]string{"agent": "an agent", "script": "a script", "tool": "a tool", "model": "a model"}
 
 // clipCommand gives cmd back what old had where cmd is wider: a milder class, fewer requirements, another
-// provider, folder or executor, more calls or callers.
+// provider or folder, more calls or callers; another executor asks the owner on each call, as a changed tool does.
 func clipCommand(cmd, old *Command) {
 	if registry.ClassRank(cmd.Class) < registry.ClassRank(old.Class) {
 		cmd.Class = old.Class
@@ -246,9 +249,6 @@ func clipCommand(cmd, old *Command) {
 	cmd.Provider = old.Provider
 	if !cmd.Executor.Folder.IsZero() {
 		cmd.Executor.Folder = old.Executor.Folder
-	}
-	if cmd.Executor.Type != old.Executor.Type || cmd.Executor.Tool != old.Executor.Tool {
-		cmd.Executor = old.Executor
 	}
 	switch {
 	case old.Executor.Calls != nil && cmd.Executor.Calls == nil:

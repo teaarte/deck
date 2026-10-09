@@ -60,7 +60,9 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
   (sign-ins of the browser and oauth2 tools, MCP servers), `documents` (documents, shipped skills, health of
   scripts), `snapshots` (snapshots, cleanup, disk), `journal`, `files`, `folders`, `settings` (one table
   `settingDefs` gives the row, the names `settings_set` takes and the edit button), `secrets`, `tokens`,
-  `providers` (connections, models with prices and options, assignments with fallbacks, the providers of agent
+  `providers` (connections, models with prices and options, assignments with fallbacks — kinds text, image, tts,
+  stt, music —, a module calls only models of deck's settings (`Route`) and proposes one by `model_set`, held for the
+  owner; a model that did not answer is red in health with the model that took its work; the providers of agent
   turns — built-in or a model in an ACP agent, the agents found with their version, self-checks at start, by button
   and on a broken turn — the routes, limits and rights of direct calls `deck.model_call`/`deck.model_request` and of
   the model of an ACP turn), `devices` (feed with notes of deck and `feed_read`, push, speech to text through
@@ -81,7 +83,9 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
   `param` of the screen) and `FieldTypes`; the texts of a manifest and their translation `words.go`
 - `internal/gateway` — deck MCP server per process: permission prompts, questions, confirmations, registry
   commands as tools (`renew` gives live sessions the commands of a changed project); HTTP entry and domain proxy for scripts (`egress.go`: a name resolves once, the proxy dials its
-  addresses, a name reaches only public ones); the proxy of models (`models.go`: `DECK_MODELS` of scripts; `SendHops` — the one loop of fallbacks of
+  addresses, a name reaches only public ones); the proxy of models (`models.go`: `DECK_MODELS` of scripts; `AskModel` —
+  the one model of deck's settings a request names, `X-Deck-Model` only for a raw service; `WithModel` — the body
+  goes with the model deck checked; `SendHops` — the one loop of fallbacks of
   scripts, commands and the model of ACP turns, with deck's key and the usage of OpenAI, Google and Anthropic answers)
 - `internal/provider` — model providers; `claudecode` runs the CLI isolated from user settings; `codex` runs
   `codex app-server` on the owner's shared login (`protocol.go` is generated); `acp` runs ACP agents (Goose, `dsh`)

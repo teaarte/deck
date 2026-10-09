@@ -590,3 +590,46 @@ func TestAModuleDoesNotHoldTheKeyOfAConnection(t *testing.T) {
 	e.refused("deck.manifest_save", map[string]any{"project": "shorts", "manifest": scriptManifest("media", "", tool)}, 422, "key of connection openrouter")
 	e.must("deck.manifest_save", map[string]any{"project": "shorts", "manifest": scriptManifest("media", "", "")}, nil)
 }
+
+// TestAModuleProposesAModelAndTheOwnerAddsItWithOneButton: an agent of a module that needs a model deck lacks calls
+// deck.model_set; its turn waits for the owner, and the owner's yes adds the model.
+func TestAModuleProposesAModelAndTheOwnerAddsItWithOneButton(t *testing.T) {
+	var said string
+	var bad bool
+	turns := 0
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		if turns++; turns == 1 {
+			said, bad = c.Tool(ctx, "model_set", map[string]any{"connection": "openrouter", "model": "google/lyria-3-pro-preview", "name": "lyria", "kind": "music", "call_usd": 0.08})
+		}
+		return provider.Result{Text: "proposed"}
+	})
+	e.must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": "https://openrouter.ai/api/v1"}, nil)
+	p := e.createProject("shorts", plainManifest)
+	id := e.run(p, "work")
+	e.waitState(id, "waiting_answer")
+	var m modelsOut
+	e.must("deck.models_list", nil, &m)
+	lyria := func() bool {
+		for _, x := range m.Models {
+			if x.Name == "lyria" {
+				return true
+			}
+		}
+		return false
+	}
+	if lyria() {
+		t.Fatalf("no model before the owner's yes: %+v", m.Models)
+	}
+	var ask int64
+	if err := e.App.Store.DB.QueryRow(`SELECT id FROM ask WHERE kind = 'call' AND state = 'open' AND payload LIKE '%model_set%'`).Scan(&ask); err != nil {
+		t.Fatalf("the owner has the proposal to answer: %v", err)
+	}
+	e.answer(ask, "allow")
+	if got := e.waitState(id, "done"); got.State != "done" || bad {
+		t.Fatalf("the agent goes on once the owner answered: %v %s", bad, said)
+	}
+	e.must("deck.models_list", nil, &m)
+	if !lyria() {
+		t.Fatalf("the owner's yes adds the model: %+v", m.Models)
+	}
+}

@@ -277,7 +277,11 @@ func (r *Runner) closed(ctx context.Context, processID int64) {
 	r.mu.Lock()
 	delete(r.of, processID)
 	r.mu.Unlock()
-	r.hear(ctx, processID, func(h Hook, p db.Process) { h.Closed(ctx, p) })
+	// A process deck could not read stays in the outbox, heard on the next drain.
+	if err := r.hear(ctx, processID, func(h Hook, p db.Process) { h.Closed(ctx, p) }); err != nil {
+		slog.Error("hear a closed process", "process", processID, "err", err)
+		return
+	}
 	if err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error { return q.DeleteClosedOutbox(ctx, processID) }); err != nil {
 		slog.Error("outbox", "process", processID, "err", err)
 	}

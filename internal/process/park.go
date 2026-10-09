@@ -118,7 +118,7 @@ func (r *Runner) park(ctx context.Context, processID int64) {
 	if err := r.Deliver(ctx, processID); err != nil {
 		r.finish(ctx, processID, StateError, "", false, "resume after answer: "+err.Error())
 	}
-	r.hear(ctx, processID, func(h Hook, p db.Process) { h.Parked(ctx, p) })
+	_ = r.hear(ctx, processID, func(h Hook, p db.Process) { h.Parked(ctx, p) })
 }
 
 // parkIn moves a running process to waiting_answer in a transaction; its ceiling stops.

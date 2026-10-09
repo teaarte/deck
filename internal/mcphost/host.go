@@ -197,6 +197,22 @@ func (h *Host) ensure(ctx context.Context, key string, s *server, spec Spec) err
 	return err
 }
 
+// Retire stops a running server whose spec is no longer spec, such as one with fewer domains now; the next call
+// starts it as spec.
+func (h *Host) Retire(key string, spec Spec) {
+	h.mu.Lock()
+	s := h.servers[key]
+	h.mu.Unlock()
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	if s.sess != nil && s.spec != spec.hash() {
+		s.stop()
+	}
+	s.mu.Unlock()
+}
+
 // Stop stops a server; the next call starts it again.
 func (h *Host) Stop(key string) {
 	h.mu.Lock()

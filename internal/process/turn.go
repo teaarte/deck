@@ -312,7 +312,7 @@ func (r *Runner) converse(ctx context.Context, t *turn, a *agentTurn, fail func(
 }
 
 func (r *Runner) turnText(ctx context.Context, processID int64, text string) {
-	r.hear(ctx, processID, func(h Hook, p db.Process) { h.Turn(ctx, p, text) })
+	_ = r.hear(ctx, processID, func(h Hook, p db.Process) { h.Turn(ctx, p, text) })
 }
 
 // logLine is a line of the process log: an event in the words of ACP session/update.

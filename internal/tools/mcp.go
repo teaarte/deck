@@ -99,7 +99,8 @@ func (x *MCP) expand(workspace int64, v string) (string, []string, error) {
 	return out, used, serr
 }
 
-// Start starts the servers of an enabled project whose tools deck has not listed under their spec yet.
+// Start starts the servers of an enabled project whose tools deck has not listed under their spec yet, and stops a
+// running one whose spec changed, such as its domains.
 func (x *MCP) Start(ctx context.Context, p db.Project, m *manifest.Manifest) {
 	if p.Status != store.ProjectEnabled || len(m.Tools.MCP.Servers) == 0 {
 		return
@@ -110,12 +111,15 @@ func (x *MCP) Start(ctx context.Context, p db.Project, m *manifest.Manifest) {
 	}
 	for _, name := range slices.Sorted(maps.Keys(m.Tools.MCP.Servers)) {
 		s := m.Tools.MCP.Servers[name]
-		if slices.ContainsFunc(rows, func(r db.McpTool) bool { return r.Server == name && r.Spec == SpecID(s) }) {
+		spec, err := x.spec(ctx, p, name, s, reached(m))
+		if err != nil {
 			continue
 		}
-		if spec, err := x.spec(ctx, p, name, s, reached(m)); err == nil {
-			_, _ = x.Host.Tools(ctx, ServerKey(p.ID, name), spec)
+		if slices.ContainsFunc(rows, func(r db.McpTool) bool { return r.Server == name && r.Spec == SpecID(s) }) {
+			x.Host.Retire(ServerKey(p.ID, name), spec)
+			continue
 		}
+		_, _ = x.Host.Tools(ctx, ServerKey(p.ID, name), spec)
 	}
 }
 

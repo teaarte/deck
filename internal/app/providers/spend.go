@@ -55,7 +55,7 @@ func (s *Service) Route(ctx context.Context, act registry.Actor, connection, ask
 	var picks []pick
 	if role, ok := strings.CutPrefix(asked, "@"); ok {
 		if !slices.Contains(roles, role) || role == RoleAgent {
-			return nil, registry.Invalid("deck: no role %q to call; a role is @text, @image, @tts or @stt", asked)
+			return nil, registry.Invalid("deck: no role %q to call; a role is @text, @image, @tts, @stt or @music", asked)
 		}
 		names, err := Assigned(ctx, s.St.Q, act.Workspace, act.ProjectID, command, role)
 		if err != nil {

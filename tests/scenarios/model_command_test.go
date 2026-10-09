@@ -27,7 +27,10 @@ const modelManifest = `{"version": 9,
      "executor": {"type": "model", "kind": "tts", "prompt": "Calm, like a documentary.", "options": {"voice": "onyx", "model": "an-ungranted-model"}}},
     {"name": "words", "title": "Words", "description": "Writes down a recording.", "class": "internal",
      "input": {"type": "object", "properties": {"voice": {"type": "string", "format": "file"}}, "required": ["voice"]},
-     "executor": {"type": "model", "kind": "stt", "options": {"timestamp_granularities[]": "word"}}}
+     "executor": {"type": "model", "kind": "stt", "options": {"timestamp_granularities[]": "word"}}},
+    {"name": "track", "title": "Track", "description": "Makes background music.", "class": "internal",
+     "input": {"type": "object", "properties": {"mood": {"type": "string"}}},
+     "executor": {"type": "model", "kind": "music", "prompt": "Instrumental background music, no vocals.", "options": {"seconds": 40}}}
   ]}`
 
 func chatText(content string) string {
@@ -332,5 +335,72 @@ func TestAModelThatDoesNotAnswerIsRedWhileItsFallbackWorks(t *testing.T) {
 	}
 	if status, _ := health(); status != "ok" || using() != "local-image" {
 		t.Fatalf("its first answer turns it green: %s %s", status, using())
+	}
+}
+
+// audioStream is how a chat model streams the audio it makes in the OpenAI protocol: base64 pieces in delta.audio,
+// the usage with its cost at the end.
+func audioStream(pieces ...string) string {
+	var b strings.Builder
+	for _, p := range pieces {
+		c, _ := json.Marshal(map[string]any{"choices": []any{map[string]any{"delta": map[string]any{"audio": map[string]any{"data": base64.StdEncoding.EncodeToString([]byte(p))}}}}})
+		fmt.Fprintf(&b, "data: %s\n\n", c)
+	}
+	b.WriteString(`data: {"choices": [], "usage": {"prompt_tokens": 12, "completion_tokens": 0, "cost": 0.08}}` + "\n\ndata: [DONE]\n\n")
+	return b.String()
+}
+
+// TestAMusicModelMakesATrackOfItsOwnPathOrOfChatAudio: music is asked of the audio/music path the way speech is, and
+// of chat completions with audio out when the API has no such path; either way the track is a file of the result.
+func TestAMusicModelMakesATrackOfItsOwnPathOrOfChatAudio(t *testing.T) {
+	local := newModels(t, map[string]func(int, map[string]any) (int, string, string){
+		"/v1/audio/music": func(int, map[string]any) (int, string, string) { return 200, "audio/wav", "RIFF\x24\x00\x00\x00WAVEfmt " },
+	})
+	cloud := newModels(t, map[string]func(int, map[string]any) (int, string, string){
+		"/api/v1/chat/completions": func(int, map[string]any) (int, string, string) {
+			return 200, "text/event-stream", audioStream("ID3\x04\x00", "-track")
+		},
+	})
+	e := newEnv(t, nil)
+	e.must("deck.connection_set", map[string]any{"name": "media", "api": "openai", "url": local.URL + "/v1", "local": true}, nil)
+	e.must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": cloud.URL + "/api/v1"}, nil)
+	e.must("deck.model_set", map[string]any{"connection": "media", "model": "medium", "name": "local-music", "kind": "music", "free": true}, nil)
+	e.must("deck.model_set", map[string]any{"connection": "openrouter", "model": "google/lyria-3-pro-preview", "name": "lyria", "kind": "music", "call_usd": 0.08}, nil)
+	e.createProject("shorts", modelManifest)
+	track := func(model, want string) {
+		t.Helper()
+		e.must("deck.assignment_set", map[string]any{"role": "music", "models": []string{model}}, nil)
+		got := e.waitState(e.start("shorts", "track", map[string]any{"mood": "calm"}), "done", "error")
+		var res struct {
+			Type  string `json:"type"`
+			Files []struct {
+				Path string `json:"path"`
+			} `json:"files"`
+		}
+		if got.State != "done" || json.Unmarshal(got.Result, &res) != nil || res.Type != want || len(res.Files) != 1 {
+			t.Fatalf("%s: the track is a file of the result: %+v", model, got)
+		}
+	}
+	track("local-music", "audio/wav")
+	if c := local.calls(); len(c) != 1 || c[0].Model != "medium" || c[0].Body["seconds"] != 40.0 ||
+		!strings.Contains(fmt.Sprint(c[0].Body["input"]), "no vocals") || !strings.Contains(fmt.Sprint(c[0].Body["input"]), "calm") {
+		t.Fatalf("music is asked of audio/music with the prompt and input as input and the options: %+v", c)
+	}
+	track("lyria", "audio/mpeg")
+	c := cloud.calls()
+	if len(c) != 2 || c[0].Path != "/api/v1/audio/music" || c[1].Path != "/api/v1/chat/completions" ||
+		fmt.Sprint(c[1].Body["modalities"]) != "[audio text]" || c[1].Body["stream"] != true {
+		t.Fatalf("without an audio/music path music is asked of chat completions with audio out, streamed: %+v", c)
+	}
+	var spend []spendRow
+	e.modelCalls("shorts", 0, &spend)
+	var cost float64
+	for _, s := range spend {
+		if s.Provider == "lyria" && s.Cost != nil {
+			cost += *s.Cost
+		}
+	}
+	if cost != 0.08 {
+		t.Fatalf("the cloud track is counted with its cost: %+v", spend)
 	}
 }

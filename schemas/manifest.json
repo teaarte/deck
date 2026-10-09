@@ -110,10 +110,10 @@
           "type": "object",
           "additionalProperties": false,
           "required": ["type", "kind"],
-          "description": "One call of a model through deck, without an agent: text gets the prompt with the command input and answers by the result schema; image makes a picture of the prompt with the input; tts speaks the input field text (the prompt says how); stt writes the text of the input file field. A picture or speech is a file of the result.",
+          "description": "One call of a model through deck, without an agent: text gets the prompt with the command input and answers by the result schema; image makes a picture of the prompt with the input, music a track of it; tts speaks the input field text (the prompt says how); stt writes the text of the input file field. A picture, a track or speech is a file of the result.",
           "properties": {
             "type": {"const": "model"},
-            "kind": {"enum": ["text", "image", "tts", "stt"]},
+            "kind": {"enum": ["text", "image", "tts", "stt", "music"]},
             "model": {"type": "string", "minLength": 1, "description": "@<kind> or the name of a model the owner added; the models the owner assigned to the kind, with their fallbacks, when left out."},
             "prompt": {"type": "string", "minLength": 1},
             "prompt_file": {"type": "string", "minLength": 1, "description": "Project document with the prompt."},

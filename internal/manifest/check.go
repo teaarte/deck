@@ -298,7 +298,7 @@ func checkModel(c *Command, fail func(string, ...any)) {
 		fail("command %q: a model of kind %s is @%s or a model by name, not %s", c.Name, e.Kind, e.Kind, e.Model)
 	}
 	switch e.Kind {
-	case "text", "image":
+	case "text", "image", "music":
 		if e.Prompt == "" && e.PromptFile == "" {
 			fail("command %q: a %s model needs prompt or prompt_file", c.Name, e.Kind)
 		}

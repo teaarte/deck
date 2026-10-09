@@ -23,7 +23,7 @@ import (
 
 // modelCallIn is one call of a model of a kind: what a command of type model asks, or a script or agent directly.
 type modelCallIn struct {
-	Kind    string `enum:"text|image|tts|stt" desc:"What the model makes: text (by a JSON schema when given), image, tts (speech of text) or stt (text of a recording)"`
+	Kind    string `enum:"text|image|tts|stt|music" desc:"What the model makes: text (by a JSON schema when given), image, tts (speech of text), stt (text of a recording) or music"`
 	Model   string `opt:"" desc:"An @role or the name of a model; the models assigned to the kind when left out"`
 	Prompt  string `type:"text" opt:"" desc:"What to do; for tts how to speak"`
 	Input   string `type:"json" opt:"" desc:"Data for the prompt, as JSON"`
@@ -138,6 +138,12 @@ func build(in modelCallIn, h gateway.ModelHop, options map[string]any, audio *fi
 		r := jsonReq("images/generations", merged(map[string]any{"model": h.Model, "prompt": ask(in), "n": 1, "response_format": "b64_json"}, options))
 		r.Retry = &chat
 		return r, nil
+	case RoleMusic:
+		chat := jsonReq("chat/completions", merged(map[string]any{"model": h.Model, "modalities": []string{"audio", "text"}, "stream": true,
+			"messages": []any{map[string]any{"role": "user", "content": ask(in)}}}, options))
+		r := jsonReq("audio/music", merged(map[string]any{"model": h.Model, "input": ask(in)}, options))
+		r.Retry = &chat
+		return r, nil
 	case RoleTTS:
 		if strings.TrimSpace(in.Text) == "" {
 			return gateway.ModelCall{}, registry.Invalid("deck: tts needs the words in text")
@@ -190,6 +196,9 @@ func (s *Service) read(act registry.Actor, in modelCallIn, h gateway.ModelHop, r
 	file, raw, err := s.answer(act, in.Kind, resp, h)
 	if file != nil || err != nil {
 		return file, err
+	}
+	if audio, ok := chatAudio(raw); ok {
+		return s.keep(act, in.Kind, http.DetectContentType(audio), bytes.NewReader(audio))
 	}
 	var v struct {
 		Choices []struct {
@@ -249,6 +258,37 @@ func (s *Service) read(act registry.Actor, in modelCallIn, h gateway.ModelHop, r
 		return nil, fmt.Errorf("deck: the model answered what is not JSON: %s", untrusted.Cut(text.String(), 1000))
 	}
 	return out, nil
+}
+
+// chatAudio is the audio a chat model made in the OpenAI protocol: message.audio of an answer, or the pieces of
+// delta.audio of a stream.
+func chatAudio(raw []byte) ([]byte, bool) {
+	var audio []byte
+	for _, line := range bytes.Split(raw, []byte("\n")) {
+		line = bytes.TrimSpace(bytes.TrimPrefix(bytes.TrimSpace(line), []byte("data:")))
+		var v struct {
+			Choices []struct {
+				Message, Delta struct {
+					Audio struct {
+						Data string `json:"data"`
+					} `json:"audio"`
+				}
+			} `json:"choices"`
+		}
+		if len(line) == 0 || line[0] != '{' || json.Unmarshal(line, &v) != nil {
+			continue
+		}
+		for _, c := range v.Choices {
+			for _, piece := range []string{c.Message.Audio.Data, c.Delta.Audio.Data} {
+				b, err := base64.StdEncoding.DecodeString(piece)
+				if err != nil {
+					return nil, false
+				}
+				audio = append(audio, b...)
+			}
+		}
+	}
+	return audio, len(audio) > 0
 }
 
 // unfence is the JSON of an answer without the code fence some models put around it.

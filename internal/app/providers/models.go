@@ -31,9 +31,10 @@ const (
 	RoleImage = "image"
 	RoleTTS   = "tts"
 	RoleSTT   = "stt"
+	RoleMusic = "music"
 )
 
-var roles = []string{RoleAgent, RoleText, RoleImage, RoleTTS, RoleSTT}
+var roles = []string{RoleAgent, RoleText, RoleImage, RoleTTS, RoleSTT, RoleMusic}
 
 // Assigned are the models of a role for a command, in order: its own assignment, else its project's, else the
 // workspace's; none when nothing is assigned.
@@ -180,7 +181,7 @@ func (s *Service) modelsList(ctx context.Context, act registry.Actor, _ struct{}
 }
 
 type assignmentSetIn struct {
-	Role    string   `enum:"agent|text|image|tts|stt" desc:"The work: agent turns, or direct calls of text, image, tts (speech) or stt (speech to text)"`
+	Role    string   `enum:"agent|text|image|tts|stt|music" desc:"The work: agent turns, or direct calls of text, image, tts (speech), stt (speech to text) or music"`
 	Project string   `type:"project" opt:"" desc:"Project the assignment is for; the whole workspace without it"`
 	Command string   `opt:"" desc:"Command of the project the assignment is for; the whole project without it"`
 	Models  []string `opt:"" desc:"Names of models or built-in providers in order: the first, then the fallbacks; empty removes the assignment"`
@@ -319,7 +320,7 @@ type modelSetIn struct {
 	Connection string  `desc:"Connection the model is reached through"`
 	Model      string  `desc:"The model's name in the API, such as google/gemini-3.1-flash-lite-image"`
 	Name       string  `opt:"" desc:"How deck names the model in assignments and calls; connection/model when left out"`
-	Kind       string  `enum:"text|image|tts|stt" opt:"" desc:"What the model makes; a model changed without it keeps its own, a new one takes it from the catalog of the connection, else text"`
+	Kind       string  `enum:"text|image|tts|stt|music" opt:"" desc:"What the model makes; a model changed without it keeps its own, a new one takes it from the catalog of the connection, else text"`
 	InputUSD   float64 `json:"input_usd" opt:"" desc:"USD per million input tokens; a model changed without a price keeps its own, a new one takes it from the catalog of the connection"`
 	OutputUSD  float64 `json:"output_usd" opt:"" desc:"USD per million output tokens"`
 	CallUSD    float64 `json:"call_usd" opt:"" desc:"USD per call, for a model priced per picture, clip or request"`

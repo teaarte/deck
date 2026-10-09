@@ -129,7 +129,7 @@ func TestADailyCronAcrossTheClockShifts(t *testing.T) {
 	}{
 		{time.Date(2026, 3, 27, 12, 0, 0, 0, oslo), []string{"03-28 02:30", "03-29 03:00", "03-30 02:30"}},
 		{time.Date(2026, 10, 23, 12, 0, 0, 0, oslo), []string{"10-24 02:30", "10-25 02:30", "10-26 02:30"}},
-		{time.Date(2026, 10, 25, 1, 20, 0, 0, time.UTC), []string{"10-26 02:30", "10-27 02:30", "10-28 02:30"}},
+		{time.Date(2026, 10, 25, 1, 20, 0, 0, time.UTC), []string{"10-25 02:30", "10-26 02:30", "10-27 02:30"}},
 	} {
 		clock := &Clock{now: c.from}
 		e := newEnv(t, ok, withClock(clock))

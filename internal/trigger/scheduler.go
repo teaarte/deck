@@ -121,16 +121,22 @@ func Next(cron string, after time.Time) (string, error) {
 		return "", err
 	}
 	a := after.In(time.Local)
-	w := sched.Next(time.Date(a.Year(), a.Month(), a.Day(), a.Hour(), a.Minute(), a.Second(), a.Nanosecond(), time.UTC))
-	t := time.Date(w.Year(), w.Month(), w.Day(), w.Hour(), w.Minute(), w.Second(), 0, time.Local)
-	if t.Hour() != w.Hour() || t.Minute() != w.Minute() {
-		_, off := t.Zone()
-		t = t.Truncate(time.Minute)
-		for _, o := t.Add(-time.Minute).Zone(); o == off; _, o = t.Add(-time.Minute).Zone() {
-			t = t.Add(-time.Minute)
+	w := time.Date(a.Year(), a.Month(), a.Day(), a.Hour(), a.Minute(), a.Second(), a.Nanosecond(), time.UTC)
+	for {
+		w = sched.Next(w)
+		t := time.Date(w.Year(), w.Month(), w.Day(), w.Hour(), w.Minute(), w.Second(), 0, time.Local)
+		if t.Hour() != w.Hour() || t.Minute() != w.Minute() {
+			_, off := t.Zone()
+			t = t.Truncate(time.Minute)
+			for _, o := t.Add(-time.Minute).Zone(); o == off; _, o = t.Add(-time.Minute).Zone() {
+				t = t.Add(-time.Minute)
+			}
+		}
+		// The second pass of a repeated hour has had its slot already.
+		if t.After(after) {
+			return store.Time(t), nil
 		}
 	}
-	return store.Time(t), nil
 }
 
 // Rewind moves a cron trigger whose next run has passed to its next slot after now, so a paused period is

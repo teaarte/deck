@@ -5,6 +5,7 @@ import (
 	"deck2/internal/app"
 	deckhome "deck2/internal/home"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -224,5 +225,28 @@ func TestATableWithoutATopicKeepsDeckFromStarting(t *testing.T) {
 	_ = e.App.Close()
 	if _, err := app.New(app.Config{Home: home}, &Fake{}); err == nil || !strings.Contains(err.Error(), "table stray publishes no topic") {
 		t.Fatalf("deck does not start with a table it does not know: %v", err)
+	}
+}
+
+// TestATokenInTheAddressOpensOnlyReads: the token in an address, which links and logs may carry, opens the page, its
+// events and its files, but no command; a command takes the token in its header.
+func TestATokenInTheAddressOpensOnlyReads(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, nil)
+	r, err := http.Post(e.URL+"/api/commands/deck.projects_list?token="+token, "application/json", strings.NewReader("{}"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.Body.Close()
+	if r.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("a command with the token only in its address is refused: %d", r.StatusCode)
+	}
+	g, err := http.Get(e.URL + "/api/events?token=" + token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	g.Body.Close()
+	if g.StatusCode != http.StatusOK {
+		t.Fatalf("the events of the page open with the token in the address: %d", g.StatusCode)
 	}
 }

@@ -39,7 +39,7 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
   limit of a connection, `00021_draft_triggers` — why a schedule of a draft did not start goes once it is enabled, `00022_health_seen` — a
   failing check the owner read stops counting until it changes, `00023_unit` — what a price of a model counts, `00024_outbox` —
   what deck does after a commit: SQL triggers on a deleted file and a closed process write it, the files service and
-  the runner drain it after the commit, on every tick and at start), sqlc queries (`db/` is generated; a parameter compared with 0 or '' is CAST, the linter
+  the runner drain it after the commit, on every tick and at start, `00025_document_lookup`), sqlc queries (`db/` is generated; a parameter compared with 0 or '' is CAST, the linter
   refuses `interface{}` there); `Store.Q` reads on connections of its own beside the one writer, `Tx` waits for the
   writer at most `Store.Wait`, `Backup` copies the base; `mark` keeps only cursors and throttles
 - `internal/registry` — command registry: every input (API, MCP, triggers) calls commands through it;
@@ -79,7 +79,7 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
   Projects, Models, Connections, Tokens, General, Interface, Health); `project` screens (Documents, the page of
   a document and Settings of the project in tabs Project (commands, schedule), Models (of its work, called), Access (folders, tools, secrets, tokens), Health) deck adds
   to every project
-- `internal/manifest` — project manifest (format 10: `upgrade.go` raises older ones): `types.go`, `parse.go`,
+- `internal/manifest` — project manifest (format 11: `upgrade.go` raises older ones): `types.go`, `parse.go`,
   `lookup.go`, `collection.go`, rights (`rights.go`: `Widens` and `Clip` over the same rights — what is in force widens nothing beyond the grant —, the hosts of agent shells), checks of screens by
   part (`check_*.go`), expressions; one `Resolve` of a value (fixed or `=<expression>` with
   `param` of the screen) and `FieldTypes`; the texts of a manifest and their translation `words.go`

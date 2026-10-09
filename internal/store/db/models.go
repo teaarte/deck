@@ -22,6 +22,7 @@ type Ask struct {
 	AnsweredAt  sql.NullString
 	ExpiresAt   sql.NullString
 	DeliveredAt sql.NullString
+	UnheardAt   sql.NullString
 }
 
 type Assignment struct {

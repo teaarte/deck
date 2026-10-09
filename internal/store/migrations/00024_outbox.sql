@@ -1,6 +1,9 @@
 -- +goose Up
 -- What deck does once a write committed: remove the file of a deleted row, hear a process that closed. The intent
 -- commits with the write, a row goes when its work is done, and deck does what is left after a restart.
+-- When the master was told an answer of the owner the process that asked did not act on; it is told once.
+ALTER TABLE ask ADD COLUMN unheard_at TEXT;
+
 CREATE TABLE outbox (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     kind        TEXT NOT NULL,

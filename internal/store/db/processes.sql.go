@@ -807,7 +807,7 @@ func (q *Queries) ListProjectProcessIDs(ctx context.Context, projectID int64) ([
 }
 
 const listRunningDecisions = `-- name: ListRunningDecisions :many
-SELECT a.id, a.workspace_id, a.project_id, a.process_id, a.kind, a.text, a.payload, a.answer, a.state, a.created_at, a.answered_at, a.expires_at, a.delivered_at FROM tool_call t JOIN ask a ON a.id = t.ask_id WHERE t.run = 'running' ORDER BY t.id
+SELECT a.id, a.workspace_id, a.project_id, a.process_id, a.kind, a.text, a.payload, a.answer, a.state, a.created_at, a.answered_at, a.expires_at, a.delivered_at, a.unheard_at FROM tool_call t JOIN ask a ON a.id = t.ask_id WHERE t.run = 'running' ORDER BY t.id
 `
 
 type ListRunningDecisionsRow struct {
@@ -837,6 +837,7 @@ func (q *Queries) ListRunningDecisions(ctx context.Context) ([]ListRunningDecisi
 			&i.Ask.AnsweredAt,
 			&i.Ask.ExpiresAt,
 			&i.Ask.DeliveredAt,
+			&i.Ask.UnheardAt,
 		); err != nil {
 			return nil, err
 		}

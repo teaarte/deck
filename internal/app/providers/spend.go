@@ -54,7 +54,14 @@ func (s *Service) Route(ctx context.Context, act registry.Actor, ask gateway.Mod
 		c db.Connection
 	}
 	var picks []pick
+	notModel := func() error {
+		return registry.Refuse("deck: %s %s is not a call of a model, such as POST chat/completions; another API of a service goes through an HTTP tool of the manifest with its own secret",
+			ask.Method, ask.Path)
+	}
 	if role, ok := strings.CutPrefix(asked, "@"); ok {
+		if ask.Path != "" && !gateway.ModelPath(ask.Method, ask.Path) {
+			return nil, notModel()
+		}
 		if !slices.Contains(roles, role) || role == RoleAgent {
 			return nil, registry.Invalid("deck: no role %q to call; a role is @text, @image, @tts, @stt or @music", asked)
 		}
@@ -78,6 +85,9 @@ func (s *Service) Route(ctx context.Context, act registry.Actor, ask gateway.Mod
 		c, err := s.St.Q.GetConnection(ctx, db.GetConnectionParams{WorkspaceID: act.Workspace, Name: connection})
 		if err != nil {
 			return nil, registry.NotFound("deck: no connection %q; deck.models_list names the connections", connection)
+		}
+		if ask.Path != "" && c.Api != "raw" && !gateway.ModelPath(ask.Method, ask.Path) {
+			return nil, notModel()
 		}
 		row, err := s.St.Q.GetModelOf(ctx, db.GetModelOfParams{ConnectionID: c.ID, Model: asked})
 		switch {
@@ -399,10 +409,6 @@ func (s *Service) modelRequest(ctx context.Context, act registry.Actor, in model
 	ask, err := frozen(call{Connection: in.Connection, Method: method, Path: in.Path, Body: in.Body, Model: in.Model})
 	if err != nil {
 		return nil, err
-	}
-	asked := ask.Model
-	if strings.HasPrefix(asked, "@") && !gateway.RolePath(method, in.Path) {
-		return nil, registry.Refuse("deck: %s makes a POST of a model call, such as chat/completions; %s %s goes through a connection the manifest names", asked, method, in.Path)
 	}
 	hops, err := s.Route(ctx, act, ask)
 	if err != nil {

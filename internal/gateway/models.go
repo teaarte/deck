@@ -157,15 +157,18 @@ func Unsent(err error) bool {
 	return errors.As(err, &op) && op.Op == "dial"
 }
 
-// RolePath reports whether a request is one an @role may make: a POST of a model call, not the account, files or
-// other paths of the connection behind the role.
-func RolePath(method, path string) bool {
+// ModelPath reports whether a request is a call of a model: a POST of one, or a poll of a job a model started; not
+// the account, files or other paths of the service behind a connection.
+func ModelPath(method, path string) bool {
 	path = strings.TrimPrefix(path, "/")
+	if Polls(method, path) {
+		return true
+	}
 	if method != http.MethodPost {
 		return false
 	}
 	for _, p := range []string{"chat/completions", "completions", "responses", "embeddings", "messages", "images/generations",
-		"images/edits", "audio/speech", "audio/transcriptions", "audio/translations"} {
+		"images/edits", "audio/speech", "audio/transcriptions", "audio/translations", "audio/music", "videos"} {
 		if path == p {
 			return true
 		}
@@ -237,7 +240,7 @@ func flush(w http.ResponseWriter, body io.Reader) {
 const DeckModel = "X-Deck-Model"
 
 // ModelAsk is a call of a model as deck routes it: the connection, the model the request names, InBody when a JSON
-// body names it, ByHeader when only the header DeckModel does, and the method and path of the request.
+// body names it, ByHeader when only the header DeckModel does, and the method and path of a request a module made.
 type ModelAsk struct {
 	Connection, Model string
 	InBody, ByHeader  bool
@@ -478,10 +481,6 @@ func (g *Gateway) proxyModel(w http.ResponseWriter, r *http.Request, act registr
 		return
 	}
 	asked := ask.Model
-	if strings.HasPrefix(asked, "@") && !RolePath(r.Method, path) {
-		http.Error(w, "deck: "+asked+" makes a POST of a model call, such as chat/completions or audio/speech; "+r.Method+" "+path+" goes through a connection the manifest names", http.StatusForbidden)
-		return
-	}
 	hops, err := g.cfg.Models(r.Context(), act, ask)
 	if err != nil {
 		http.Error(w, err.Error(), registry.Status(err))

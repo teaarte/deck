@@ -42,7 +42,7 @@ export function Chat({ value, context }: { value: ChatValue; context: ComponentC
       {value.turn && <Turn turn={value.turn} />}
       <Composer text={text} setText={setText} files={files} busy={chat.busy} onNewTopic={() => topics.pick('new')}
         onSend={(detached) => void chat.send(text, detached)}
-        onEdit={(v) => { setText(v); if (!v.trim()) chat.forgetKey(); }} />
+        onEdit={(v) => { setText(v); chat.forgetKey(); }} />
     </Stack>
   );
 }

@@ -3,11 +3,11 @@ package scenarios
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"math"
 	"net/http"
 	"net/http/httptest"
-	"fmt"
 	"slices"
 	"strings"
 	"sync"

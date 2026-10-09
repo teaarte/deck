@@ -13,7 +13,7 @@
       "Project and model": "Проект и модель",
       "Tokens by project, command and model": "Токены по проектам, командам и моделям",
       "Which model each project and command used, how much, and what it cost; all time.": "Какую модель использовал каждый проект и команда, сколько и во что это обошлось; за всё время.",
-      "Every check of deck that fails now, of the machine and of the projects, with why.": "Все проверки deck, которые сейчас с ошибкой, машины и проектов, с причиной.",
+      "Every check of deck that fails now, of the machine and of the projects, with why. One marked read stops counting on the cockpit until it changes.": "Все проверки deck, которые сейчас с ошибкой, машины и проектов, с причиной. Прочитанная перестаёт считаться в кокпите, пока не изменится.",
       "Nothing is assigned; agent commands run on the model their manifest suggests": "Ничего не назначено; команды-агенты идут на модели, которую предлагает их манифест",
       "Connection": "Подключение",
       "The programs agent commands run in, found on this machine with their version.": "Программы, в которых работают команды-агенты, найденные на этой машине, с их версией.",
@@ -181,7 +181,7 @@
         {"type": "stat", "title": "Waiting for you", "icon": "hand-finger", "source": {"from": "deck.asks_list"}, "tone": "len(rows) > 0 ? 'warn' : 'muted'"},
         {"type": "stat", "title": "Running", "icon": "activity", "source": {"from": "deck.processes_list", "input": {"open": true}}, "tone": "len(rows) > 0 ? 'ok' : 'muted'",
           "actions": [{"verb": "open", "screen": "schedule", "params": {"tab": "Runs"}}]},
-        {"type": "stat", "title": "Failing checks", "icon": "alert-triangle", "source": {"from": "deck.health_list"}, "value": "count(rows, .status == 'error')", "tone": "count(rows, .status == 'error') > 0 ? 'error' : 'muted'",
+        {"type": "stat", "title": "Failing checks", "icon": "alert-triangle", "source": {"from": "deck.health_list"}, "value": "count(rows, .status == 'error' && !.seen)", "tone": "count(rows, .status == 'error' && !.seen) > 0 ? 'error' : 'muted'",
           "actions": [{"verb": "open", "screen": "settings", "params": {"tab": "Health"}}]},
         {"type": "stat", "title": "Runs today", "icon": "repeat", "source": {"from": "deck.runs_daily", "input": {"days": 1}}, "value": "sum(map(rows, .runs))", "tone": "'muted'",
           "actions": [{"verb": "open", "screen": "schedule", "params": {"tab": "Runs"}}]},
@@ -562,13 +562,14 @@
               "actions": [{"verb": "reset_push", "confirm": true, "command": "deck.push_reset"}]}]},
           {"title": "Health", "icon": "heartbeat", "blocks": [
             {"type": "table", "title": "Failing checks", "empty": "No check fails", "source": {"from": "deck.health_list", "where": "status == 'error' && (!hasPrefix(subject, 'project:') || hasPrefix(error, 'manifest: '))"},
-              "description": "Every check of deck that fails now, of the machine and of the projects, with why.",
+              "description": "Every check of deck that fails now, of the machine and of the projects, with why. One marked read stops counting on the cockpit until it changes.",
               "columns": [
-                {"label": "What", "bind": "subject", "format": "tag", "tone": "'error'"},
+                {"label": "What", "bind": "subject", "format": "tag", "tone": "seen ? 'muted' : 'error'"},
                 {"label": "Why", "bind": "error", "details": "error"},
                 {"label": "Since", "bind": "updated_at", "format": "relative"}
               ],
               "actions": [
+                {"verb": "mark_read", "primary": true, "command": "deck.health_seen", "params": {"subject": "=subject"}, "when": "!seen && !hasPrefix(subject, 'project:')"},
                 {"verb": "check", "command": "deck.provider_check", "params": {"provider": "=trimPrefix(subject, 'provider:')"}, "when": "self_check"}
               ]},
             {"type": "table", "title": "Health of the machine", "source": {"from": "deck.health_list", "input": {"machine": true}}, "filter": ["status"],

@@ -2,7 +2,6 @@ package scenarios
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -16,6 +15,7 @@ import (
 	deckhome "deck2/internal/home"
 	"deck2/internal/registry"
 	"deck2/internal/sandbox"
+	"deck2/internal/store"
 	"deck2/internal/store/db"
 )
 
@@ -337,9 +337,9 @@ func TestSettingsHealthShowsWhatIsRedFirstWithWhy(t *testing.T) {
 	if !strings.Contains(string(block["filters"]), `"error"`) {
 		t.Fatalf("health narrows by state: %s", block["filters"])
 	}
-	web := sql.NullInt64{Int64: e.projectID("web"), Valid: true}
+	web := store.ID(e.projectID("web"))
 	if err := e.App.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		return q.SetHealth(ctx, db.SetHealthParams{ProjectID: web, Subject: "command:web.digest", Status: "error", Error: "no python3"})
+		return q.SetHealth(ctx, db.SetHealthParams{WorkspaceID: store.ID(1), ProjectID: web, Subject: "command:web.digest", Status: "error", Error: "no python3"})
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -350,6 +350,50 @@ func TestSettingsHealthShowsWhatIsRedFirstWithWhy(t *testing.T) {
 	}
 	if len(failing) != 2 || !slices.Contains(subjects, "tool:web.fetch") || !slices.Contains(subjects, "command:web.digest") {
 		t.Fatalf("the failing checks come apart with why, each once, the rest not: %+v", failing)
+	}
+	webErrors := func() int64 {
+		var menu []struct {
+			Project string
+			Errors  int64
+		}
+		e.must("deck.menu", map[string]any{}, &menu)
+		for _, m := range menu {
+			if m.Project == "web" {
+				return m.Errors
+			}
+		}
+		return -1
+	}
+	unread := func() (n int) {
+		var rows []struct {
+			Status string
+			Seen   bool
+		}
+		e.must("deck.health_list", map[string]any{}, &rows)
+		for _, r := range rows {
+			if r.Status == "error" && !r.Seen {
+				n++
+			}
+		}
+		return n
+	}
+	if webErrors() != 1 || unread() != 3 {
+		t.Fatalf("a failing check counts until it is read: menu %d, unread %d", webErrors(), unread())
+	}
+	e.must("deck.health_seen", map[string]any{"subject": "command:web.digest"}, nil)
+	if webErrors() != 0 || unread() != 1 {
+		t.Fatalf("a read check stops counting, and its project with it: menu %d, unread %d", webErrors(), unread())
+	}
+	if code, _ := e.call("deck.health_seen", map[string]any{"subject": "mcp:web.search"}); code == 200 {
+		t.Fatal("only a failing check is marked read")
+	}
+	if err := e.App.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		return q.SetHealth(ctx, db.SetHealthParams{WorkspaceID: store.ID(1), ProjectID: web, Subject: "command:web.digest", Status: "error", Error: "no python3.12"})
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if webErrors() != 1 || unread() != 3 {
+		t.Fatalf("a read check counts again once its error changes: menu %d, unread %d", webErrors(), unread())
 	}
 	id := ""
 	for k, v := range e.screenData("", "settings", nil) {

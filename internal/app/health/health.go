@@ -12,6 +12,7 @@ import (
 	"deck2/internal/provider"
 	"deck2/internal/registry"
 	"deck2/internal/store"
+	"deck2/internal/store/db"
 )
 
 // healthRow is the health of something deck runs or reaches: a provider, a command, a tool, a server or a project.
@@ -26,6 +27,8 @@ type healthRow struct {
 	UpdatedAt string  `json:"updated_at"`
 	// SelfCheck marks a provider deck can check again.
 	SelfCheck bool `json:"self_check"`
+	// Seen marks a failing check the owner read since it last changed; a project is seen when all its are.
+	Seen bool `json:"seen"`
 }
 
 // healthList shows what the machine runs, the providers, commands, tools and MCP servers of the actor's
@@ -64,8 +67,13 @@ func (s *Service) list(ctx context.Context, act registry.Actor, in healthListIn)
 	shown := func(project string) bool {
 		return (in.Project == "" || project == in.Project) && (!in.Machine || project == "")
 	}
+	unseen := map[string]bool{}
 	for _, hr := range hs {
 		h := hr.Health
+		seen := h.SeenAt.Valid && h.SeenAt.String >= h.UpdatedAt
+		if h.Status == health.Error && !seen && h.ProjectID.Valid {
+			unseen[hr.Project] = true
+		}
 		if strings.HasPrefix(h.Subject, "provider:") && !mine[h.Subject] || !shown(hr.Project) {
 			if w := worst[hr.Project]; h.ProjectID.Valid && w != nil && health.Worse(h.Status, w.Status) {
 				w.Status, w.Error, w.UpdatedAt = h.Status, h.Subject+": "+h.Error, h.UpdatedAt
@@ -73,14 +81,16 @@ func (s *Service) list(ctx context.Context, act registry.Actor, in healthListIn)
 			continue
 		}
 		out = append(out, healthRow{Subject: h.Subject, Status: h.Status, Error: h.Error, Version: h.Version, Verdict: h.Verdict,
-			Speed: h.Speed, UpdatedAt: h.UpdatedAt, SelfCheck: checked[h.Subject]})
+			Speed: h.Speed, UpdatedAt: h.UpdatedAt, SelfCheck: checked[h.Subject], Seen: seen})
 		if w := worst[hr.Project]; h.ProjectID.Valid && w != nil && health.Worse(h.Status, w.Status) {
 			w.Status, w.Error, w.UpdatedAt = h.Status, h.Subject+": "+h.Error, h.UpdatedAt
 		}
 	}
 	for _, p := range ps {
 		if shown(p.Name) && !in.Machine {
-			out = append(out, *worst[p.Name])
+			w := *worst[p.Name]
+			w.Seen = w.Status == health.Error && !unseen[p.Name] && !strings.HasPrefix(w.Error, "manifest: ")
+			out = append(out, w)
 		}
 	}
 	slices.SortStableFunc(out, func(x, y healthRow) int {
@@ -108,5 +118,26 @@ func (s *Service) Commands() []*registry.Command {
 		registry.Read("health_list", "Health",
 			"Lists the health of providers and other dependencies with the last error, worst first.",
 			registry.OwnerSide, s.list).On("health"),
+		registry.Def("health_seen", "Mark a failing check read",
+			"Marks a failing check read: it stops counting among the failing until its status or error changes.",
+			registry.OwnerOnly, s.seen),
 	}
+}
+
+type seenIn struct {
+	Subject string `desc:"Subject of a failing health row, such as tool:web.fetch"`
+}
+
+// seen marks a failing check read.
+func (s *Service) seen(ctx context.Context, act registry.Actor, in seenIn) (any, error) {
+	n, err := store.TxGet(s.St, ctx, func(ctx context.Context, q *db.Queries) (int64, error) {
+		return q.SeeHealth(ctx, db.SeeHealthParams{Subject: in.Subject, WorkspaceID: store.ID(act.Workspace)})
+	})
+	if err != nil {
+		return nil, err
+	}
+	if n == 0 {
+		return nil, registry.NotFound("deck: no failing check %s", in.Subject)
+	}
+	return map[string]any{"ok": true}, nil
 }

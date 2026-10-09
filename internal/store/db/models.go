@@ -151,6 +151,7 @@ type Health struct {
 	Verdict     string
 	Speed       float64
 	UpdatedAt   string
+	SeenAt      sql.NullString
 }
 
 type LlmCall struct {

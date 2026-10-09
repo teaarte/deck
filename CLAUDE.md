@@ -36,7 +36,8 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
   `00013_google_openai` — a Google connection on its OpenAI-compatible address, `00014_pause` — a pause without an end
   of its own, `00015_no_opencode`, `00016_orphan_health`, `00017_no_run_later`, `00018_no_suggest`,
   `00019_no_board` — cards, lane triggers and the card column of documents and topics go, `00020_no_limit` — no daily
-  limit of a connection, `00021_draft_triggers` — why a schedule of a draft did not start goes once it is enabled), sqlc queries (`db/` is generated; a parameter compared with 0 or '' is CAST, the linter
+  limit of a connection, `00021_draft_triggers` — why a schedule of a draft did not start goes once it is enabled, `00022_health_seen` — a
+  failing check the owner read stops counting until it changes), sqlc queries (`db/` is generated; a parameter compared with 0 or '' is CAST, the linter
   refuses `interface{}` there); `Store.Q` reads on connections of its own beside the one writer, `Tx` waits for the
   writer at most `Store.Wait`, `Backup` copies the base; `mark` keeps only cursors and throttles
 - `internal/registry` — command registry: every input (API, MCP, triggers) calls commands through it;

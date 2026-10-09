@@ -6,6 +6,11 @@ ON CONFLICT (coalesce(workspace_id, 0), subject) DO UPDATE SET status = excluded
 WHERE health.status != excluded.status OR health.error != excluded.error;
 
 
+-- name: SeeHealth :execrows
+UPDATE health SET seen_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+WHERE subject = sqlc.arg(subject) AND (workspace_id IS NULL OR workspace_id = sqlc.arg(workspace_id)) AND status = 'error';
+
+
 -- name: ListHealth :many
 SELECT sqlc.embed(h), CAST(coalesce(p.name, '') AS TEXT) AS project FROM health h LEFT JOIN project p ON p.id = h.project_id
 WHERE h.workspace_id IS NULL OR h.workspace_id = ?

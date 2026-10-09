@@ -43,7 +43,7 @@ func (q *Queries) DeleteScreenHealth(ctx context.Context, projectID sql.NullInt6
 }
 
 const getHealth = `-- name: GetHealth :one
-SELECT subject, workspace_id, project_id, status, error, version, verdict, speed, updated_at FROM health WHERE workspace_id IS NULL AND subject = ?1
+SELECT subject, workspace_id, project_id, status, error, version, verdict, speed, updated_at, seen_at FROM health WHERE workspace_id IS NULL AND subject = ?1
 `
 
 func (q *Queries) GetHealth(ctx context.Context, subject string) (Health, error) {
@@ -59,12 +59,13 @@ func (q *Queries) GetHealth(ctx context.Context, subject string) (Health, error)
 		&i.Verdict,
 		&i.Speed,
 		&i.UpdatedAt,
+		&i.SeenAt,
 	)
 	return i, err
 }
 
 const listHealth = `-- name: ListHealth :many
-SELECT h.subject, h.workspace_id, h.project_id, h.status, h.error, h.version, h.verdict, h.speed, h.updated_at, CAST(coalesce(p.name, '') AS TEXT) AS project FROM health h LEFT JOIN project p ON p.id = h.project_id
+SELECT h.subject, h.workspace_id, h.project_id, h.status, h.error, h.version, h.verdict, h.speed, h.updated_at, h.seen_at, CAST(coalesce(p.name, '') AS TEXT) AS project FROM health h LEFT JOIN project p ON p.id = h.project_id
 WHERE h.workspace_id IS NULL OR h.workspace_id = ?
 ORDER BY h.subject
 `
@@ -93,6 +94,7 @@ func (q *Queries) ListHealth(ctx context.Context, workspaceID sql.NullInt64) ([]
 			&i.Health.Verdict,
 			&i.Health.Speed,
 			&i.Health.UpdatedAt,
+			&i.Health.SeenAt,
 			&i.Project,
 		); err != nil {
 			return nil, err
@@ -117,6 +119,24 @@ WHERE health.status IN ('needs_login', 'paused')
 func (q *Queries) MarkHealthy(ctx context.Context, subject string) error {
 	_, err := q.db.ExecContext(ctx, markHealthy, subject)
 	return err
+}
+
+const seeHealth = `-- name: SeeHealth :execrows
+UPDATE health SET seen_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+WHERE subject = ?1 AND (workspace_id IS NULL OR workspace_id = ?2) AND status = 'error'
+`
+
+type SeeHealthParams struct {
+	Subject     string
+	WorkspaceID sql.NullInt64
+}
+
+func (q *Queries) SeeHealth(ctx context.Context, arg SeeHealthParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, seeHealth, arg.Subject, arg.WorkspaceID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const setHealth = `-- name: SetHealth :exec

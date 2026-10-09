@@ -122,7 +122,7 @@ func (sv *Saver) migrate(ctx context.Context, p db.Project, next *manifest.Manif
 // runMigration runs a migration script on a copy of the records, without network and deck tools.
 func (sv *Saver) runMigration(ctx context.Context, p db.Project, m *manifest.Manifest, c *manifest.Collection, input string) ([]byte, error) {
 	s := m.Script(c.Migration)
-	src, err := docs.CurrentText(ctx, sv.St.Q, docs.ProjectScope(p), "", s.File)
+	src, err := docs.CurrentText(ctx, sv.St.Q, docs.ProjectScope(p), docs.KindScript, s.File)
 	if err != nil {
 		return nil, err
 	}

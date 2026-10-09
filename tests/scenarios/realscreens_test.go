@@ -465,7 +465,7 @@ func TestRealBrowserLogReadsEasily(t *testing.T) {
 	b.open(e.URL + "/?token=" + token + "#/deck/process/" + fmt.Sprint(job))
 	b.until("the input of the tool laid out as JSON", `document.querySelector('[data-line="tool"] [data-json]')?.innerText.includes('"process": 1327,\n')`)
 	b.until("the answer of the tool laid out and wrapped", `(() => { const x = document.querySelector('[data-line="tool"] [data-tool-result]'); return x && x.innerText.includes('"state": "done"') && x.scrollWidth <= x.clientWidth + 1 })()`)
-	b.until("the message of the agent in markdown", `document.querySelector('[data-line="message"] strong')?.innerText === 'done' && document.querySelectorAll('[data-line="message"] li').length === 2`)
+	b.until("the message of the agent in markdown", `document.querySelector('[data-line="message"] strong')?.innerText === 'done' && document.querySelector('[data-line="message"] li')?.innerText === 'one'`)
 	if got := b.eval(`String(document.documentElement.scrollWidth <= innerWidth + 1)`); got != "true" {
 		t.Fatalf("the log fits the width of a phone: %s", got)
 	}

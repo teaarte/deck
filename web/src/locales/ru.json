@@ -138,7 +138,7 @@
   },
   "deadline": { "minutes": "{{m}} мин", "hours": "{{h}} ч {{m}} мин" },
   "details": { "call": { "show": "Показать вызов целиком", "hide": "Скрыть вызов" }, "text": { "show": "Показать целиком", "hide": "Скрыть" } },
-  "log": { "message": "Агент", "thought": "Мысли", "tool": "Инструмент", "rate_limit": "Лимит", "stderr": "stderr" },
+  "log": { "message": "Агент", "thought": "Мысли", "tool": "Инструмент", "rate_limit": "Лимит", "stderr": "stderr", "more": "Показать ещё", "less": "Свернуть" },
   "player": { "back": "Кадр назад", "forward": "Кадр вперёд" },
   "chat": {
     "delete": "Удалить, мастер его ещё не взял",

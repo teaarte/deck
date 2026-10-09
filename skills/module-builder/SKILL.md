@@ -110,7 +110,8 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   waits for the owner's button. deck has no limits of money: the owner sets them at the provider, so a module never
   loops on paid calls.
 - **MCP servers** (`tools.mcp.servers`, the usual `mcp.servers` shape): `command`/`args`/`env` (values may use
-  `$secret.<name>`) or `url`; `toolFilter` lists the tools the module uses, `classes` their classes — every
+  `$secret.<name>`) or `url`; a `command` server reaches the web only through deck's proxy, to the hosts of
+  `domains.read` and `domains.act`, never the owner's machine or network unless a domain names it; `toolFilter` lists the tools the module uses, `classes` their classes — every
   other tool is `external`. Tools are `<server>.<tool>` in `executor.tool` and `allowed_external`. deck starts
   servers itself, only in an enabled project; a new or changed server waits for the owner's button, and a tool
   whose description or input changes loses its rights until the owner allows it again — so pin the server's

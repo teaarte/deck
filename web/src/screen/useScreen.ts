@@ -72,6 +72,8 @@ export function useScreen(route: Route, onProjects: () => void) {
         }
         setError('');
         feed.whole(msgs, ticket);
+        // A change heard while the screen was first read is read again now that it is drawn.
+        missed.splice(0).forEach((x) => void reread(x));
       } catch (e) {
         if (gone) return;
         if (shown) notifyError(e);
@@ -107,10 +109,14 @@ export function useScreen(route: Route, onProjects: () => void) {
         if (!gone) notifyError(e);
       }
     };
+    const missed: LiveEvent[] = [];
     const pending = new Map<string, LiveEvent>();
     let timer: ReturnType<typeof setTimeout> | undefined;
     const reread = async (e: LiveEvent) => {
-      if (!proc.current) return;
+      if (!proc.current) {
+        missed.push(e);
+        return;
+      }
       const mine = generation;
       const ticket = feed.ticket();
       try {

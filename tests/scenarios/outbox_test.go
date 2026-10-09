@@ -164,3 +164,34 @@ func TestAReworkedProcessStartsItsAfterTriggersAgain(t *testing.T) {
 	e.must("deck.process_rework", map[string]any{"process": id, "remark": "once more"}, nil)
 	e.waitFor("the reworked job done", func() bool { return e.countOf("next") == 2 })
 }
+
+// TestAFileThatWillNotGoIsInHealthUntilItGoes: a stored file deck cannot remove is red in health from its third try,
+// and the row goes once the file does.
+func TestAFileThatWillNotGoIsInHealthUntilItGoes(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	e := newEnvWith(t, dir, &Fake{})
+	e.createProject("notes", plainManifest)
+	id := e.upload("notes", "stuck.txt", "text/plain", "stays")
+	files := home.Layout(dir).Files()
+	if err := os.Chmod(files, 0o500); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(files, 0o700) })
+	if err := e.App.Store.Tx(context.Background(), func(ctx context.Context, q *db.Queries) error { return q.DeleteFile(ctx, id) }); err != nil {
+		t.Fatal(err)
+	}
+	for range 3 {
+		e.App.Sweep(context.Background(), time.Now())
+	}
+	e.waitHealth("outbox", "error")
+	_ = os.Chmod(files, 0o700)
+	e.App.Sweep(context.Background(), time.Now())
+	var hs []healthRow
+	e.must("deck.health_list", nil, &hs)
+	for _, h := range hs {
+		if h.Subject == "outbox" {
+			t.Fatalf("the red row goes once the file does: %+v", h)
+		}
+	}
+}

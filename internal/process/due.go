@@ -33,10 +33,17 @@ func (r *Runner) stopAtCeiling(ctx context.Context, now time.Time) {
 		return
 	}
 	for _, id := range ids {
-		if err := r.Stop(ctx, id, "deck: the process reached its time ceiling"); err != nil {
+		if err := r.end(ctx, id, StateError, "deck: the process reached its time ceiling"); err != nil {
 			slog.Error("stop at ceiling", "process", id, "err", err)
 		}
 	}
+}
+
+// startCeiling starts the clock of the ceiling of a process from now.
+func (r *Runner) startCeiling(ctx context.Context, id int64) error {
+	return r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		return q.StartCeiling(ctx, db.StartCeilingParams{Now: r.now().UnixMilli(), ID: id})
+	})
 }
 
 func (r *Runner) markSilent(ctx context.Context, now time.Time) {

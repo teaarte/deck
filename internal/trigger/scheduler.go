@@ -166,18 +166,27 @@ func (s *Scheduler) Tick(ctx context.Context) int {
 	return len(due)
 }
 
-// fire starts the command of a trigger and moves it on; why it did not start is in the health of its project
-// until a run of it does.
+// fire starts the command of a trigger and moves it on; why it did not start, or the run still going that took its
+// slot, is in the health of its project until a run of it starts.
 func (s *Scheduler) fire(ctx context.Context, t db.Trigger, now time.Time) {
 	params, err := manifest.DecodeObject([]byte(t.Params))
+	var id int64
 	if err == nil {
-		_, err = s.start.Fire(ctx, t, params)
+		id, err = s.start.Fire(ctx, t, params)
 	}
 	if ctx.Err() != nil {
 		return
 	}
 	p, perr := s.st.Q.GetProject(ctx, t.ProjectID)
 	subject := "trigger:" + p.Name + "." + t.Command
+	if err == nil && t.LastProcessID.Valid && id == t.LastProcessID.Int64 {
+		s.after(ctx, t, now)
+		if perr == nil {
+			health.Write(ctx, s.st, health.Project(p), subject, health.Warning,
+				fmt.Sprintf("the %s trigger did not start %s at %s: its run #%d still goes", t.Kind, t.Command, t.NextRunAt.String, id))
+		}
+		return
+	}
 	if err == nil {
 		if perr == nil {
 			s.tx(ctx, func(ctx context.Context, q *db.Queries) error {

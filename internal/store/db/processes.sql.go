@@ -1312,18 +1312,24 @@ func (q *Queries) StartedToolCalls(ctx context.Context) ([]ToolCall, error) {
 }
 
 const stopParkedProcess = `-- name: StopParkedProcess :execrows
-UPDATE process SET state = 'stopped', error = ?, finished_at = ?, deadline_ms = NULL, silent_since_ms = NULL
+UPDATE process SET state = ?, error = ?, finished_at = ?, deadline_ms = NULL, silent_since_ms = NULL
 WHERE id = ? AND finished_at IS NULL
 `
 
 type StopParkedProcessParams struct {
+	State      string
 	Error      string
 	FinishedAt sql.NullString
 	ID         int64
 }
 
 func (q *Queries) StopParkedProcess(ctx context.Context, arg StopParkedProcessParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, stopParkedProcess, arg.Error, arg.FinishedAt, arg.ID)
+	result, err := q.db.ExecContext(ctx, stopParkedProcess,
+		arg.State,
+		arg.Error,
+		arg.FinishedAt,
+		arg.ID,
+	)
 	if err != nil {
 		return 0, err
 	}

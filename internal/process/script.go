@@ -69,9 +69,7 @@ func (r *Runner) runScript(ctx context.Context, t turn, trial bool) {
 	srv := &http.Server{Handler: r.gw.ScriptHandler(runCtx, tok, self, granted.Domains.Read)}
 	go func() { _ = srv.Serve(ln) }()
 	defer srv.Close()
-	_ = r.st.Tx(bg, func(ctx context.Context, q *db.Queries) error {
-		return q.StartCeiling(ctx, db.StartCeilingParams{Now: r.now().UnixMilli(), ID: id})
-	})
+	_ = r.startCeiling(bg, id)
 	input, inDir, err := r.inputFiles(bg, t.cmd, t.project, id, t.input, false)
 	if err != nil {
 		fail(err)

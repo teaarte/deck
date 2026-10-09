@@ -98,6 +98,10 @@ func (r *Runner) runCall(ctx context.Context, t turn, trial, tool bool, call fun
 		fail(err)
 		return
 	}
+	if err := r.startCeiling(bg, id); err != nil {
+		fail(err)
+		return
+	}
 	act := registry.Actor{Kind: registry.Agent, Workspace: proj.WorkspaceID, ProjectID: t.project, ProcessID: id, Trial: trial}
 	var out any
 	if tool {

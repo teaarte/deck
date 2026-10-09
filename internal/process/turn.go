@@ -154,9 +154,7 @@ func (r *Runner) prepare(ctx context.Context, t *turn, p db.Process, trial bool,
 		return nil, false
 	}
 	a.cleanup = func() { stream.Close(); r.gw.Unregister(tok) }
-	if err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		return q.StartCeiling(ctx, db.StartCeilingParams{Now: r.now().UnixMilli(), ID: t.process})
-	}); err != nil {
+	if err := r.startCeiling(ctx, t.process); err != nil {
 		a.cleanup()
 		fail("start the ceiling: " + err.Error())
 		return nil, false

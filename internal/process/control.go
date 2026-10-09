@@ -27,11 +27,16 @@ const stopGrace = 5 * time.Second
 // Stop ends a process as stopped in the base, then cancels the turn that lives by then, whose outcome finds it no
 // longer running; the folder, the hooks and a rework wait until that turn has exited.
 func (r *Runner) Stop(ctx context.Context, processID int64, reason string) error {
+	return r.end(ctx, processID, StateStopped, reason)
+}
+
+// end closes a process that has not finished in state with reason, as Stop does.
+func (r *Runner) end(ctx context.Context, processID int64, state, reason string) error {
 	var n int64
 	var closedCalls []db.Ask
 	err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		var err error
-		if n, err = q.StopParkedProcess(ctx, db.StopParkedProcessParams{Error: reason, FinishedAt: r.stamp(), ID: processID}); err != nil || n == 0 {
+		if n, err = q.StopParkedProcess(ctx, db.StopParkedProcessParams{State: state, Error: reason, FinishedAt: r.stamp(), ID: processID}); err != nil || n == 0 {
 			return err
 		}
 		closedCalls, err = q.CloseOpenAsksOfProcess(ctx, db.CloseOpenAsksOfProcessParams{ProcessID: processID, CallsToo: 1})

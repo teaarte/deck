@@ -41,7 +41,7 @@ WHERE id = ? AND state = 'running';
 
 
 -- name: StopParkedProcess :execrows
-UPDATE process SET state = 'stopped', error = ?, finished_at = ?, deadline_ms = NULL, silent_since_ms = NULL
+UPDATE process SET state = ?, error = ?, finished_at = ?, deadline_ms = NULL, silent_since_ms = NULL
 WHERE id = ? AND finished_at IS NULL;
 
 

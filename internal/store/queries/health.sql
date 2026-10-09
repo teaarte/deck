@@ -45,3 +45,7 @@ DELETE FROM health WHERE project_id = ? AND subject GLOB 'screen:*';
 
 -- name: DeleteModelHealth :exec
 DELETE FROM health WHERE subject = 'provider:' || CAST(sqlc.arg(name) AS TEXT) AND NOT EXISTS (SELECT 1 FROM model WHERE name = CAST(sqlc.arg(name) AS TEXT));
+
+
+-- name: HasProjectHealth :one
+SELECT count(*) FROM health WHERE project_id = ? AND subject = ?;

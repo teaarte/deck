@@ -86,12 +86,23 @@ func (s *Service) Screen(ctx context.Context, p db.Project, revision int64, name
 	for _, e := range errs {
 		block, _, _ := strings.Cut(e, ": ")
 		key := fmt.Sprintf("%d.screen:%s:%s@%d", p.ID, name, block, revision)
+		health.Write(ctx, s.St, health.Project(p), "screen:"+p.Name+"."+name, health.Error, e)
 		if !s.firstTime(ctx, p, screenErrorPrefix+key) {
 			continue
 		}
-		health.Write(ctx, s.St, health.Project(p), "screen:"+p.Name+"."+name, "error", e)
 		s.handOver(ctx, p, masterErrorPrefix+key, 0, map[string]any{"project": p.Name, "screen": name, "error": e}, nil)
 	}
+}
+
+// ScreenDrawn clears the health of a screen of a project that drew without errors.
+func (s *Service) ScreenDrawn(ctx context.Context, p db.Project, name string) {
+	subject := "screen:" + p.Name + "." + name
+	if n, err := s.St.Q.HasProjectHealth(ctx, db.HasProjectHealthParams{ProjectID: store.ID(p.ID), Subject: subject}); err != nil || n == 0 {
+		return
+	}
+	_ = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		return q.DeleteHealth(ctx, db.DeleteHealthParams{ProjectID: store.ID(p.ID), Subject: subject})
+	})
 }
 
 // firstTime marks key of a project and says whether it was not marked yet.

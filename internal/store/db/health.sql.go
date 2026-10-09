@@ -64,6 +64,22 @@ func (q *Queries) GetHealth(ctx context.Context, subject string) (Health, error)
 	return i, err
 }
 
+const hasProjectHealth = `-- name: HasProjectHealth :one
+SELECT count(*) FROM health WHERE project_id = ? AND subject = ?
+`
+
+type HasProjectHealthParams struct {
+	ProjectID sql.NullInt64
+	Subject   string
+}
+
+func (q *Queries) HasProjectHealth(ctx context.Context, arg HasProjectHealthParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, hasProjectHealth, arg.ProjectID, arg.Subject)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const listHealth = `-- name: ListHealth :many
 SELECT h.subject, h.workspace_id, h.project_id, h.status, h.error, h.version, h.verdict, h.speed, h.updated_at, h.seen_at, CAST(coalesce(p.name, '') AS TEXT) AS project FROM health h LEFT JOIN project p ON p.id = h.project_id
 WHERE h.workspace_id IS NULL OR h.workspace_id = ?

@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"embed"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"runtime/debug"
 	"strings"
@@ -112,12 +113,12 @@ func Open(path string) (*Store, error) {
 	ch := &changes{}
 	conn := sql.OpenDB(hooked{base, ch})
 	conn.SetMaxOpenConns(1)
-	goose.SetBaseFS(migrations)
-	goose.SetLogger(goose.NopLogger())
-	if err := goose.SetDialect("sqlite3"); err != nil {
+	dir, _ := fs.Sub(migrations, "migrations")
+	up, err := goose.NewProvider(goose.DialectSQLite3, conn, dir, goose.WithDisableGlobalRegistry(true))
+	if err != nil {
 		return nil, err
 	}
-	if err := goose.Up(conn, "migrations"); err != nil {
+	if _, err := up.Up(context.Background()); err != nil {
 		return nil, fmt.Errorf("migrate: %w", err)
 	}
 	if err := ch.readColumns(conn); err != nil {

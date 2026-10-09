@@ -461,8 +461,22 @@ func (r *renderer) word(collection, expr string, v any) any {
 		return v
 	}
 	col := r.req.Manifest.Collection(collection)
-	if s, ok := v.(string); ok && col != nil && slices.Contains(manifest.Lanes(col.Schema, expr), s) {
-		return r.tr(s)
+	if col == nil {
+		return v
 	}
-	return v
+	values := manifest.Enum(col.Schema, expr)
+	one := func(x any) any {
+		if s, ok := x.(string); ok && slices.Contains(values, s) {
+			return r.tr(s)
+		}
+		return x
+	}
+	if list, ok := v.([]any); ok {
+		out := make([]any, len(list))
+		for i, x := range list {
+			out[i] = one(x)
+		}
+		return out
+	}
+	return one(v)
 }

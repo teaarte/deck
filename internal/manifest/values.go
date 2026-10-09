@@ -186,6 +186,28 @@ func Lanes(raw json.RawMessage, field string) []string {
 	return out
 }
 
+// Enum are the values of an enum field of a schema, or of the items of a list field, in order.
+func Enum(raw json.RawMessage, field string) []string {
+	if out := Lanes(raw, field); len(out) > 0 {
+		return out
+	}
+	var s struct {
+		Properties map[string]struct {
+			Items struct {
+				Enum []any `json:"enum"`
+			} `json:"items"`
+		} `json:"properties"`
+	}
+	if json.Unmarshal(raw, &s) != nil {
+		return nil
+	}
+	var out []string
+	for _, v := range s.Properties[field].Items.Enum {
+		out = append(out, fmt.Sprint(v))
+	}
+	return out
+}
+
 // DecodeObject parses one JSON object, keeping integers exact as int64.
 func DecodeObject(b []byte) (map[string]any, error) {
 	dec := json.NewDecoder(bytes.NewReader(b))

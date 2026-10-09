@@ -172,8 +172,9 @@ func TestAScreenThatDrawsAgainIsHealthy(t *testing.T) {
 func TestValuesOfAnEnumSpeakTheLanguageOfTheOwnerAndListsFilterByEachValue(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, nil)
-	m := strings.Replace(boardManifest, `"properties": {"title": {"type": "string"}, "status"`, `"properties": {"title": {"type": "string"}, "tags": {"type": "array", "items": {"type": "string"}}, "status"`, 1)
+	m := strings.Replace(boardManifest, `"properties": {"title": {"type": "string"}, "status"`, `"properties": {"title": {"type": "string"}, "tags": {"type": "array", "items": {"type": "string", "enum": ["x", "y"]}}, "status"`, 1)
 	m = strings.Replace(m, `"menu": ["board"]`, `"menu": ["board", "table"]`, 1)
+	m = strings.Replace(m, `{"ru": {"doing": "в работе"}}`, `{"ru": {"doing": "в работе", "x": "икс"}}`, 1)
 	m = strings.Replace(m, `"screens": [`, `"screens": [{"name": "table", "title": "Table", "blocks": [{"type": "table", "title": "All", "source": {"collection": "tasks"},
 	  "filter": ["status", "tags"], "columns": [{"label": "Title", "bind": "title"}, {"label": "Status", "bind": "status"}]}]}, `, 1)
 	e.createProject("work", m)
@@ -182,7 +183,7 @@ func TestValuesOfAnEnumSpeakTheLanguageOfTheOwnerAndListsFilterByEachValue(t *te
 	if !strings.Contains(string(raw), `"в работе"`) || strings.Contains(string(raw), `"cells":["a","doing"]`) {
 		t.Fatalf("a cell of an enum field speaks the owner's language: %s", raw)
 	}
-	if !strings.Contains(string(raw), `"labels":["в работе","todo"]`) || !strings.Contains(string(raw), `"options":["x","y"]`) {
+	if !strings.Contains(string(raw), `"labels":["в работе","todo"]`) || !strings.Contains(string(raw), `"options":["x","y"]`) || !strings.Contains(string(raw), `"labels":["икс","y"]`) {
 		t.Fatalf("a filter offers the values in the owner's language, and each value of a list field: %s", raw)
 	}
 	var id string

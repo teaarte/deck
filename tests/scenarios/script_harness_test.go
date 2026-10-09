@@ -22,7 +22,7 @@ func scriptManifest(command, result, extra string) string {
     {"name": %q, "title": "Run", "description": "Runs the script.", "class": "internal",
      "input": {"type": "object", "properties": {"n": {"type": "integer"}, "project": {"type": "string"}, "allowed": {"type": "string"},
        "other": {"type": "string"}, "outside": {"type": "string"}, "secret": {"type": "string"}, "key": {"type": "string"},
-       "socket": {"type": "string"}}},
+       "socket": {"type": "string"}, "method": {"type": "string"}, "form": {"type": "string"}, "type": {"type": "string"}, "use": {"type": "string"}}},
      "result": %s, "executor": {"type": "script", "script": "main"}},
     {"name": "publish", "title": "Publish", "description": "Publishes outside.", "class": "external",
      "executor": {"type": "agent", "prompt": "Publish."}}],

@@ -8,6 +8,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime"
+	"mime/multipart"
 	"net"
 	"net/http"
 	"net/url"
@@ -54,7 +56,7 @@ var modelClient = &http.Client{
 }
 
 // dropped are headers of the caller deck does not pass on: its own keys, cookies and how the body is packed.
-var dropped = []string{"Authorization", "X-Api-Key", "X-Goog-Api-Key", "Cookie", "Proxy-Authorization", "Accept-Encoding",
+var dropped = []string{DeckModel, "Authorization", "X-Api-Key", "X-Goog-Api-Key", "Cookie", "Proxy-Authorization", "Accept-Encoding",
 	"Connection", "Keep-Alive", "Te", "Trailer", "Transfer-Encoding", "Upgrade", "Content-Length", "Host"}
 
 // ModelCall is one request of a model API; Retry is the other way to ask the same when the API has no such path.
@@ -228,13 +230,37 @@ func flush(w http.ResponseWriter, body io.Reader) {
 	}
 }
 
-// AskedModel is the model a JSON body asks for, empty when the body is not JSON or names none.
-func AskedModel(body []byte) string {
+// DeckModel is the header that names the model of a request whose API has no field for it, as the API knows it.
+const DeckModel = "X-Deck-Model"
+
+// AskedModel is the model a request asks for: the model of a JSON body or of a form, the one in a path of Google's
+// API, or the header DeckModel; empty when it names none.
+func AskedModel(header http.Header, path string, body []byte) string {
 	var v struct {
 		Model string `json:"model"`
 	}
-	_ = json.Unmarshal(body, &v)
-	return v.Model
+	if json.Unmarshal(body, &v) == nil && v.Model != "" {
+		return v.Model
+	}
+	if ct, params, err := mime.ParseMediaType(header.Get("Content-Type")); err == nil && ct == "multipart/form-data" {
+		r := multipart.NewReader(bytes.NewReader(body), params["boundary"])
+		for {
+			p, err := r.NextPart()
+			if err != nil {
+				break
+			}
+			if p.FormName() == "model" {
+				b, _ := io.ReadAll(io.LimitReader(p, 1<<10))
+				return strings.TrimSpace(string(b))
+			}
+		}
+	}
+	if rest, ok := strings.CutPrefix(strings.TrimPrefix(path, "/"), "models/"); ok {
+		if model, _, ok := strings.Cut(rest, ":"); ok {
+			return model
+		}
+	}
+	return header.Get(DeckModel)
 }
 
 // WithModel is a JSON body with its model replaced, the rest as it came.
@@ -380,7 +406,7 @@ func (g *Gateway) proxyModel(w http.ResponseWriter, r *http.Request, act registr
 		http.Error(w, "deck: no models", http.StatusNotFound)
 		return
 	}
-	asked := AskedModel(body)
+	asked := AskedModel(r.Header, path, body)
 	if strings.HasPrefix(asked, "@") && !RolePath(r.Method, path) {
 		http.Error(w, "deck: "+asked+" makes a POST of a model call, such as chat/completions or audio/speech; "+r.Method+" "+path+" goes through a connection the manifest names", http.StatusForbidden)
 		return
@@ -396,6 +422,9 @@ func (g *Gateway) proxyModel(w http.ResponseWriter, r *http.Request, act registr
 		return
 	}
 	in := map[string]string{"connection": connection, "path": path}
+	if asked != "" && AskedModel(nil, path, body) != asked {
+		in["model"] = asked
+	}
 	if r.Method != http.MethodPost {
 		in["method"] = r.Method
 	}

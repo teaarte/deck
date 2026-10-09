@@ -10,6 +10,7 @@ import (
 	"mime"
 	"net/http"
 	"slices"
+	"strconv"
 	"strings"
 
 	"deck2/internal/docs"
@@ -74,11 +75,16 @@ func (s *Service) Route(ctx context.Context, act registry.Actor, connection, ask
 		if err != nil {
 			return nil, registry.NotFound("deck: no connection %q; deck.models_list names the connections", connection)
 		}
-		m := db.Model{ConnectionID: c.ID, Name: connection, Model: asked}
-		if row, err := s.St.Q.GetModelOf(ctx, db.GetModelOfParams{ConnectionID: c.ID, Model: asked}); err == nil {
-			m = row.Model
+		row, err := s.St.Q.GetModelOf(ctx, db.GetModelOfParams{ConnectionID: c.ID, Model: asked})
+		if asked == "" || err != nil {
+			what := "a request naming no model"
+			if asked != "" {
+				what = strconv.Quote(asked)
+			}
+			return nil, registry.Refuse("deck: %s is not in deck's settings as a model of connection %s: a module calls only the models the owner added; name one in model (in the header %s when the API has no such field), or propose it with deck.model_set, which waits for the owner's button",
+				what, connection, gateway.DeckModel)
 		}
-		picks = append(picks, pick{m, c})
+		picks = append(picks, pick{row.Model, c})
 	}
 	hops := make([]gateway.ModelHop, 0, len(picks))
 	for _, p := range picks {
@@ -175,6 +181,7 @@ type modelRequestIn struct {
 	Path       string `desc:"Path of the request under the API of the connection, such as chat/completions"`
 	Method     string `opt:"" desc:"HTTP method; POST when left out"`
 	Body       string `type:"json" opt:"" desc:"JSON body of the request; its model may be an @role such as @text"`
+	Model      string `opt:"" desc:"Model of the request as the API knows it, when the body has no field for it"`
 }
 
 // allowed decides whether a call of a model runs without the owner: the granted models of the project name it, and
@@ -202,7 +209,7 @@ func (s *Service) use(input json.RawMessage) (string, string) {
 	case in.Kind != "":
 		return in.Model, ""
 	}
-	if asked := gateway.AskedModel([]byte(in.Body)); strings.HasPrefix(asked, "@") {
+	if asked := gateway.AskedModel(nil, in.Path, []byte(in.Body)); strings.HasPrefix(asked, "@") {
 		return asked, ""
 	}
 	return in.Connection, in.Connection
@@ -272,6 +279,7 @@ func (s *Service) free(ctx context.Context, act registry.Actor, input json.RawMe
 // call is what a call of a model names: a request through a connection with its body, or a model or kind.
 type call struct {
 	Connection string `json:"connection"`
+	Path       string `json:"path"`
 	Body       string `json:"body"`
 	Model      string `json:"model"`
 	Kind       string `json:"kind"`
@@ -294,7 +302,7 @@ func (s *Service) requested(ctx context.Context, workspace int64, input json.Raw
 	if in.Kind != "" {
 		return s.modelRef(ctx, workspace, in.Model, in.Kind)
 	}
-	return cmp.Or(in.Connection, "@"), gateway.AskedModel([]byte(in.Body)), nil
+	return cmp.Or(in.Connection, "@"), gateway.AskedModel(http.Header{gateway.DeckModel: {in.Model}}, in.Path, []byte(in.Body)), nil
 }
 
 // answer reads what a model API answered: a binary body is kept as a file in the results folder of the calling
@@ -321,7 +329,7 @@ func (s *Service) modelRequest(ctx context.Context, act registry.Actor, in model
 	if in.Connection == "" {
 		in.Connection = "@"
 	}
-	asked := gateway.AskedModel([]byte(in.Body))
+	asked := gateway.AskedModel(http.Header{gateway.DeckModel: {in.Model}}, in.Path, []byte(in.Body))
 	method := cmp.Or(strings.ToUpper(in.Method), http.MethodPost)
 	if strings.HasPrefix(asked, "@") && !gateway.RolePath(method, in.Path) {
 		return nil, registry.Refuse("deck: %s makes a POST of a model call, such as chat/completions; %s %s goes through a connection the manifest names", asked, method, in.Path)

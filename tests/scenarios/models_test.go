@@ -199,7 +199,9 @@ type fakeModels struct {
 
 type modelCall struct {
 	Path, Auth, Model string
-	Body              map[string]any
+	// Header is the X-Deck-Model the API got, which deck keeps to itself.
+	Header string
+	Body   map[string]any
 }
 
 func newModels(t *testing.T, path map[string]func(n int, body map[string]any) (int, string, string)) *fakeModels {
@@ -210,7 +212,7 @@ func newModels(t *testing.T, path map[string]func(n int, body map[string]any) (i
 		_ = json.Unmarshal(b, &body)
 		model, _ := body["model"].(string)
 		f.mu.Lock()
-		f.got = append(f.got, modelCall{Path: r.URL.Path, Auth: r.Header.Get("Authorization"), Model: model, Body: body})
+		f.got = append(f.got, modelCall{Path: r.URL.Path, Auth: r.Header.Get("Authorization"), Model: model, Header: r.Header.Get("X-Deck-Model"), Body: body})
 		n := len(f.got)
 		f.mu.Unlock()
 		answer := f.path[r.URL.Path]
@@ -247,9 +249,12 @@ func pictureAnswer(cost float64) string {
 // what came back.
 const modelScript = `import json, os, sys, urllib.request, urllib.error
 inp = json.load(sys.stdin)
-body = json.dumps(json.loads(inp["other"])).encode()
-req = urllib.request.Request(os.environ["DECK_MODELS"] + "/" + inp["key"], data=body,
-    headers={"Authorization": "Bearer " + os.environ["DECK_TOKEN"], "Content-Type": "application/json"})
+method = inp.get("method") or "POST"
+body = None if method == "GET" else inp["form"].encode() if inp.get("form") else json.dumps(json.loads(inp["other"])).encode()
+req = urllib.request.Request(os.environ["DECK_MODELS"] + "/" + inp["key"], data=body, method=method,
+    headers={"Authorization": "Bearer " + os.environ["DECK_TOKEN"], "Content-Type": inp.get("type") or "application/json"})
+if inp.get("use"):
+    req.add_header("X-Deck-Model", inp["use"])
 try:
     with urllib.request.urlopen(req, timeout=60) as r:
         status, text = r.status, r.read().decode()
@@ -293,6 +298,7 @@ func TestAScriptCallsAModelThroughDeckAndNoLimitOfABaseFromBeforeHoldsIt(t *test
 	if err := e.App.Store.DB.QueryRow(`SELECT count(*) FROM pragma_table_info('connection') WHERE name = 'daily_usd'`).Scan(&n); err != nil || n != 0 {
 		t.Fatalf("the daily limit of a connection goes with the migration: %d %v", n, err)
 	}
+	e.must("deck.model_set", map[string]any{"connection": "openrouter", "model": "google/gemini-3.1-flash-lite-image", "kind": "image", "name": "painter", "call_usd": 0.04}, nil)
 	e.createProject("shorts", scriptManifest("media", "", `, "models": ["openrouter"]`))
 	e.saveScript("shorts", "scripts/main.py", modelScript)
 	for i := range 3 {
@@ -312,7 +318,7 @@ func TestAScriptCallsAModelThroughDeckAndNoLimitOfABaseFromBeforeHoldsIt(t *test
 	}
 	var spend []spendRow
 	e.modelCalls("shorts", 0, &spend)
-	if len(spend) != 3 || spend[0].Provider != "openrouter" || spend[0].Model != "google/gemini-3.1-flash-lite-image" || spend[0].Command != "media" ||
+	if len(spend) != 3 || spend[0].Provider != "painter" || spend[0].Model != "google/gemini-3.1-flash-lite-image" || spend[0].Command != "media" ||
 		spend[0].Process == 0 || spend[0].Cost == nil || *spend[0].Cost != 0.033631 {
 		t.Fatalf("each call is in the journal of model calls with what OpenRouter said it cost: %+v", spend)
 	}
@@ -446,6 +452,7 @@ func TestAModuleCallsOnlyTheModelsTheOwnerGranted(t *testing.T) {
 	e.must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": api.URL + "/v1"}, nil)
 	e.must("deck.connection_set", map[string]any{"name": "ollama", "api": "openai", "url": api.URL + "/v1", "local": true}, nil)
 	e.must("deck.model_set", map[string]any{"connection": "ollama", "model": "qwen", "kind": "text", "free": true}, nil)
+	e.must("deck.model_set", map[string]any{"connection": "openrouter", "model": "qwen", "kind": "text", "call_usd": 0.01}, nil)
 	call := func(project, path string) map[string]any {
 		got := e.waitScript(e.start(project, "media", map[string]any{"key": path, "other": `{"model": "qwen", "messages": []}`}), "done", "error")
 		var out map[string]any
@@ -491,5 +498,78 @@ func TestAModuleCallsOnlyTheModelsTheOwnerGranted(t *testing.T) {
 	var out map[string]any
 	if json.Unmarshal(got.Result, &out) != nil || out["status"] != 202.0 || len(api.calls()) != before+1 {
 		t.Fatalf("a draft's call that may fall back to a paid model waits for the owner: %+v", got)
+	}
+}
+
+// TestAModuleCallsOnlyTheModelsOfDecksSettings: a call through a connection names a model the owner added to deck,
+// in a JSON body, a form, a path of Google's API or the header X-Deck-Model for a service whose API has no model;
+// any other model, or a path of the account with none, is refused with what to do.
+func TestAModuleCallsOnlyTheModelsOfDecksSettings(t *testing.T) {
+	ok := func(int, map[string]any) (int, string, string) { return 200, "application/json", chatText("hi") }
+	api := newModels(t, map[string]func(int, map[string]any) (int, string, string){
+		"/v1/chat/completions": ok, "/v1/images/edits": ok, "/v1/key": ok, "/v1/models/gemma:generateContent": ok, "/svc/v1/generate": ok,
+	})
+	e := newEnv(t, nil)
+	e.must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": api.URL + "/v1"}, nil)
+	e.must("deck.connection_set", map[string]any{"name": "gemini", "api": "google", "url": api.URL + "/v1"}, nil)
+	e.must("deck.connection_set", map[string]any{"name": "svc", "api": "raw", "url": api.URL + "/svc"}, nil)
+	e.must("deck.model_set", map[string]any{"connection": "openrouter", "model": "qwen", "kind": "text", "call_usd": 0.01}, nil)
+	e.must("deck.model_set", map[string]any{"connection": "openrouter", "model": "painter", "kind": "image", "call_usd": 0.02}, nil)
+	e.must("deck.model_set", map[string]any{"connection": "gemini", "model": "gemma", "kind": "text", "call_usd": 0.03}, nil)
+	e.must("deck.model_set", map[string]any{"connection": "svc", "model": "track", "kind": "text", "name": "svc-track", "call_usd": 0.05}, nil)
+	e.createProject("shorts", scriptManifest("media", "", `, "models": ["openrouter", "gemini", "svc"]`))
+	e.saveScript("shorts", "scripts/main.py", modelScript)
+	call := func(in map[string]any) map[string]any {
+		got := e.waitScript(e.start("shorts", "media", in), "done", "error")
+		var out map[string]any
+		if json.Unmarshal(got.Result, &out) != nil {
+			t.Fatalf("the script ran: %+v", got)
+		}
+		return out
+	}
+	form := "--b\r\nContent-Disposition: form-data; name=\"model\"\r\n\r\npainter\r\n--b\r\nContent-Disposition: form-data; name=\"prompt\"\r\n\r\nthe same knight\r\n--b--\r\n"
+	for _, in := range []map[string]any{
+		{"key": "openrouter/chat/completions", "other": `{"model": "qwen", "messages": []}`},
+		{"key": "openrouter/images/edits", "form": form, "type": "multipart/form-data; boundary=b"},
+		{"key": "gemini/models/gemma:generateContent", "other": `{"contents": []}`},
+		{"key": "svc/v1/generate", "other": `{"prompt": "calm piano"}`, "use": "track"},
+	} {
+		if out := call(in); out["status"] != 200.0 {
+			t.Fatalf("a model of deck's settings is called: %v %v", in, out)
+		}
+	}
+	before := len(api.calls())
+	for _, in := range []map[string]any{
+		{"key": "openrouter/chat/completions", "other": `{"model": "anthropic/claude-opus", "messages": []}`},
+		{"key": "openrouter/key", "method": "GET"},
+		{"key": "gemini/models/other:generateContent", "other": `{"contents": []}`},
+		{"key": "svc/v1/generate", "other": `{"prompt": "calm piano"}`},
+		{"key": "svc/v1/generate", "other": `{"prompt": "calm piano"}`, "use": "qwen"},
+	} {
+		if out := call(in); out["status"] != 403.0 || !strings.Contains(out["answer"].(string), "not in deck's settings") {
+			t.Fatalf("a model deck does not know is refused with what to do: %v %v", in, out)
+		}
+	}
+	calls := api.calls()
+	if len(calls) != before {
+		t.Fatalf("a refused call reaches no API: %+v", calls[before:])
+	}
+	for _, c := range calls {
+		if c.Header != "" {
+			t.Fatalf("X-Deck-Model stays with deck: %+v", c)
+		}
+	}
+	e.refused("deck.model_request", map[string]any{"connection": "openrouter", "path": "chat/completions",
+		"body": `{"model": "anthropic/claude-opus", "messages": []}`}, 403, "not in deck's settings")
+	var spend []spendRow
+	e.modelCalls("shorts", 0, &spend)
+	got := map[string]float64{}
+	for _, s := range spend {
+		if s.Cost != nil {
+			got[s.Provider] += *s.Cost
+		}
+	}
+	if len(spend) != 4 || got["openrouter/qwen"] != 0.01 || got["openrouter/painter"] != 0.02 || got["gemini/gemma"] != 0.03 || got["svc-track"] != 0.05 {
+		t.Fatalf("each call is counted on its model of deck's settings: %+v", spend)
 	}
 }

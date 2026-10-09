@@ -503,3 +503,43 @@ func TestRealBrowserBoardMovesACardToALane(t *testing.T) {
 	b.eval(`([...document.querySelectorAll('[data-lane="doing"] button')].find((x) => x.innerText.includes('Move')).click(), '')`)
 	b.until("the lanes to pick on a phone", `document.querySelector('[data-options]')`)
 }
+
+// customWindows is a custom block that opens a window of deck, is refused a page outside deck, and goes full screen.
+const customWindows = `<!doctype html><html><body><p id="out">waiting</p><script type="module">
+import { App } from "/ext-apps.js";
+const app = new App({ name: "windows", version: "1" });
+await app.connect();
+const outside = await app.openLink({ url: "https://example.com/?leak=1" });
+window.addEventListener("message", () => {});
+document.body.dataset.outside = String(outside.isError === true);
+const full = await app.requestDisplayMode({ mode: "fullscreen" });
+await app.openLink({ url: "#/p/web/main?dialog=note-help" });
+await app.callServerTool({ name: "web.mark", arguments: { text: JSON.stringify({ outside: outside.isError === true, mode: full.mode }) } });
+</script></body></html>`
+
+// TestRealBrowserCustomBlockOpensWindowsOfDeck: a custom block opens a window of deck by the MCP Apps open-link, not a
+// page outside it, and covers the screen when it asks for full screen.
+func TestRealBrowserCustomBlockOpensWindowsOfDeck(t *testing.T) {
+	if os.Getenv("DECK_REAL_BROWSER") == "" {
+		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
+	}
+	checkBuiltClient(t)
+	e := newEnv(t, webNotesAgent())
+	m := strings.Replace(webNotes, `{"type": "form", "title": "Score a title", "command": "score", "save": "notes"},`,
+		`{"type": "form", "title": "Score a title", "command": "score", "save": "notes"}, {"type": "dialog", "name": "note-help", "title": "Help", "blocks": [{"type": "stat", "title": "Notes", "source": {"collection": "notes"}}]},`, 1)
+	e.createProject("web", m)
+	e.must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": customWindows}, nil)
+	b := newPlaywright(t)
+	b.call("browser_resize", map[string]any{"width": 1200, "height": 800})
+	b.open(e.URL + "/?token=" + token + "#/p/web/main")
+	b.until("the window of deck the block opened", `location.hash.includes('dialog=note-help') && document.querySelector('[data-dialog="note-help"]')`)
+	b.until("the frame over the whole screen", `(() => { const r = document.querySelector('iframe[data-custom]').getBoundingClientRect(); return r.width >= innerWidth - 1 && r.height >= innerHeight - 1 })()`)
+	e.waitFor("the report of the block", func() bool {
+		for _, c := range e.Fake.Calls() {
+			if strings.Contains(c.Prompt, `\"outside\":true`) && strings.Contains(c.Prompt, `\"mode\":\"fullscreen\"`) {
+				return true
+			}
+		}
+		return false
+	})
+}

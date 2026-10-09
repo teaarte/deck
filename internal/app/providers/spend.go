@@ -40,8 +40,7 @@ func price(m db.Model, u provider.Usage) *float64 {
 }
 
 // Route finds where an actor's call of a model goes: the model of deck's settings the request names on its
-// connection, or for an @role the models assigned to it for the caller's command in order, on any connection when
-// the connection is @.
+// connection, or the models assigned to an @role for the caller's command in order, on any connection for @.
 func (s *Service) Route(ctx context.Context, act registry.Actor, ask gateway.ModelAsk) ([]gateway.ModelHop, error) {
 	connection, asked := ask.Connection, ask.Model
 	command := ""

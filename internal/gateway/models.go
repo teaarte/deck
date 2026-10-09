@@ -242,9 +242,8 @@ type ModelAsk struct {
 	Method, Path      string
 }
 
-// AskModel is what a request through a connection asks: the model of a JSON body or of a form, the one in a path
-// of Google's API, else the header DeckModel. Names that disagree, or OpenRouter's models and route that reach
-// models past the one named, are refused.
+// AskModel is the model a request names: of a JSON body, a form, Google's path, else the header DeckModel; names
+// that disagree, and OpenRouter's models and route that reach models past the one named, are refused.
 func AskModel(connection, method, path string, header http.Header, body []byte) (ModelAsk, error) {
 	ask := ModelAsk{Connection: connection, Method: cmp.Or(method, http.MethodPost), Path: strings.TrimPrefix(path, "/")}
 	var named []string

@@ -40,6 +40,11 @@ func (sv *Saver) manifestGet(ctx context.Context, act registry.Actor, in manifes
 	v := manifestView{Project: p.Name, Document: d.ID, Revision: d.Current, Manifest: r.Text}
 	if m, err := docs.ManifestAt(ctx, sv.St.Q, p.ID, d.Current); err == nil {
 		v.Warnings = m.Warnings()
+		held, err := heldKeys(ctx, sv.St.Q, p.WorkspaceID, m)
+		if err != nil {
+			return manifestView{}, err
+		}
+		v.Warnings = append(v.Warnings, held...)
 	}
 	return v, nil
 }

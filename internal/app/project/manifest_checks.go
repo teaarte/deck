@@ -49,6 +49,31 @@ func checkReads(ctx context.Context, q *db.Queries, workspace int64, name string
 	return nil
 }
 
+// heldKeys are the problems of a manifest whose tools or MCP servers get the key of a connection: a module reaches
+// models only through deck, by a model of its settings.
+func heldKeys(ctx context.Context, q *db.Queries, workspace int64, m *manifest.Manifest) ([]string, error) {
+	conns, err := q.ListConnections(ctx, workspace)
+	if err != nil {
+		return nil, err
+	}
+	var out []string
+	for _, c := range conns {
+		if c.KeySecret != "" && slices.Contains(m.Secrets(), c.KeySecret) {
+			out = append(out, fmt.Sprintf("secret %s is the key of connection %s: a module calls models through deck, with deck.model_call by kind or $DECK_MODELS and a model of deck's settings, not with the key", c.KeySecret, c.Name))
+		}
+	}
+	return out, nil
+}
+
+// checkKeys refuses a manifest whose tools or MCP servers get the key of a connection.
+func checkKeys(ctx context.Context, q *db.Queries, workspace int64, m *manifest.Manifest) error {
+	held, err := heldKeys(ctx, q, workspace, m)
+	if err != nil || len(held) == 0 {
+		return err
+	}
+	return registry.Invalid("deck: %s", strings.Join(held, "\n"))
+}
+
 // checkToolFit checks tool commands whose tool is a builtin or an MCP tool deck has listed: the command
 // input must go to the tool as it is. An MCP tool deck has not seen yet is checked when the command runs.
 func (sv *Saver) checkToolFit(ctx context.Context, q *db.Queries, workspace, projectID int64, m *manifest.Manifest) error {

@@ -471,3 +471,35 @@ func TestRealBrowserLogReadsEasily(t *testing.T) {
 	}
 	b.shot("log-phone")
 }
+
+// TestRealBrowserBoardMovesACardToALane: a dropped card presses its move button with the value of the lane; on a
+// phone the same button picks the lane.
+func TestRealBrowserBoardMovesACardToALane(t *testing.T) {
+	if os.Getenv("DECK_REAL_BROWSER") == "" {
+		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
+	}
+	checkBuiltClient(t)
+	e := newEnv(t, ok)
+	e.createProject("work", boardManifest)
+	e.must("deck.records_upsert", map[string]any{"project": "work", "collection": "tasks", "records": `{"title": "a", "status": "doing"}` + "\n" + `{"title": "b", "status": "todo"}`}, nil)
+	b := newPlaywright(t)
+	b.call("browser_resize", map[string]any{"width": 1400, "height": 900})
+	b.open(e.URL + "/?token=" + token + "#/p/work/board")
+	b.until("three lanes with their cards", `document.querySelectorAll('[data-board] [data-lane]').length === 3 && document.querySelector('[data-lane="todo"] [data-card]')`)
+	b.eval(`(() => { const dt = new DataTransfer(); const card = document.querySelector('[data-lane="todo"] [data-card]');
+		card.dispatchEvent(new DragEvent('dragstart', {dataTransfer: dt, bubbles: true}));
+		document.querySelector('[data-lane="done"]').dispatchEvent(new DragEvent('drop', {dataTransfer: dt, bubbles: true})); return '' })()`)
+	b.until("the card in its new lane at once", `document.querySelector('[data-lane="done"] [data-card]')`)
+	e.waitFor("the move pressed with the lane", func() bool {
+		for _, c := range e.Fake.Calls() {
+			if strings.Contains(c.Prompt, `"status":"done"`) {
+				return true
+			}
+		}
+		return false
+	})
+	b.shot("board")
+	b.call("browser_resize", map[string]any{"width": 390, "height": 844})
+	b.eval(`([...document.querySelectorAll('[data-lane="doing"] button')].find((x) => x.innerText.includes('Move')).click(), '')`)
+	b.until("the lanes to pick on a phone", `document.querySelector('[data-options]')`)
+}

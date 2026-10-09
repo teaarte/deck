@@ -128,3 +128,31 @@
   color: var(--mantine-color-red-4);
   background: rgb(232 28 46 / 0.16);
 }
+
+.board {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  align-items: flex-start;
+  padding-bottom: 4px;
+}
+
+.lane {
+  flex: 1 0 240px;
+  min-width: 240px;
+  min-height: 80px;
+  padding: 10px;
+  border-radius: var(--mantine-radius-md);
+  background: var(--deck-line, var(--mantine-color-default-border));
+}
+
+.card {
+  padding: 0 10px;
+  margin-bottom: 8px;
+  border-radius: var(--mantine-radius-md);
+  background: var(--mantine-color-body);
+
+  &[draggable='true'] {
+    cursor: grab;
+  }
+}

@@ -195,9 +195,23 @@ export interface Data {
     details?: (string | null)[];
     actions?: Action[];
   }[];
+  /**
+   * the lanes of a board: the field of its items and the values of its enum with their labels
+   */
+  board?: {
+    field: string;
+    lanes: {
+      value: string;
+      label: string;
+    }[];
+  };
   items?: {
     id: unknown;
     title: string;
+    /**
+     * the value of the board field of the item
+     */
+    lane?: string;
     text?: string;
     meta?: string;
     icon?: string;

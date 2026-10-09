@@ -1,6 +1,7 @@
 package process
 
 import (
+	"cmp"
 	"context"
 	"strings"
 	"time"
@@ -34,6 +35,9 @@ func (r *Runner) Stop(ctx context.Context, processID int64, reason string) error
 func (r *Runner) end(ctx context.Context, processID int64, state, reason string) error {
 	var n int64
 	var closedCalls []db.Ask
+	if !r.own(processID) {
+		return registry.Conflict("deck: process %d is closing", processID)
+	}
 	err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		var err error
 		if n, err = q.StopParkedProcess(ctx, db.StopParkedProcessParams{State: state, Error: reason, FinishedAt: r.stamp(), ID: processID}); err != nil || n == 0 {
@@ -42,11 +46,9 @@ func (r *Runner) end(ctx context.Context, processID int64, state, reason string)
 		closedCalls, err = q.CloseOpenAsksOfProcess(ctx, db.CloseOpenAsksOfProcessParams{ProcessID: processID, CallsToo: 1})
 		return err
 	})
-	if err != nil {
-		return err
-	}
-	if n == 0 {
-		return registry.Invalid("deck: process %d has already finished", processID)
+	if err != nil || n == 0 {
+		r.disown(processID)
+		return cmp.Or(err, registry.Invalid("deck: process %d has already finished", processID))
 	}
 	r.mu.Lock()
 	lt := r.live[processID]
@@ -55,6 +57,7 @@ func (r *Runner) end(ctx context.Context, processID int64, state, reason string)
 	after := func(ctx context.Context) {
 		r.dropped(ctx, closedCalls)
 		r.closed(ctx, processID)
+		r.disown(processID)
 	}
 	if lt == nil {
 		r.leave(ctx, processID)

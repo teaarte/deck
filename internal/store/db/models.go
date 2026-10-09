@@ -211,6 +211,15 @@ type Model struct {
 	Unit         string
 }
 
+type Outbox struct {
+	ID        int64
+	Kind      string
+	Ref       int64
+	Tries     int64
+	Error     string
+	CreatedAt string
+}
+
 type Process struct {
 	ID               int64
 	ProjectID        int64

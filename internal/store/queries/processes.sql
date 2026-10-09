@@ -224,3 +224,7 @@ GROUP BY minute, p.provider;
 
 -- name: SetStartNote :exec
 UPDATE process SET start_note = ? WHERE id = ?;
+
+
+-- name: FindTriggeredChild :one
+SELECT * FROM process WHERE parent_id = ? AND trigger_id = ? ORDER BY id LIMIT 1;

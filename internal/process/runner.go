@@ -98,6 +98,8 @@ type Runner struct {
 	slots map[int64]int
 	// of is the workspace and project of each process an event was published for.
 	of map[int64]events.Event
+	// hearing are the processes this deck closes and hears itself, which a drain of the outbox leaves alone.
+	hearing map[int64]bool
 }
 
 // logged publishes that the log of a process grew, in its project: the log is a file, which no write of the base
@@ -151,13 +153,15 @@ type Deps struct {
 	Memory func(ctx context.Context, p db.Process) (string, error)
 	// Programs looks for the programs of the scripts of a project again and writes the health of its commands.
 	Programs func(ctx context.Context, projectID int64) error
+	// DrainFiles removes the stored files whose rows are gone.
+	DrainFiles func(ctx context.Context)
 }
 
 func NewRunner(st *store.Store, gw *gateway.Gateway, bus *events.Bus, scripts *script.Exec, cfg Config, deps Deps) *Runner {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Runner{st: st, gw: gw, bus: bus, scripts: scripts, cfg: cfg, deps: deps, ctx: ctx, cancel: cancel,
 		live: map[int64]*liveTurn{}, marked: map[int64]time.Time{},
-		slots: map[int64]int{}, of: map[int64]events.Event{}}
+		slots: map[int64]int{}, of: map[int64]events.Event{}, hearing: map[int64]bool{}}
 }
 
 // Shutdown interrupts running providers and waits; interrupted processes stay running and resume on next start.
@@ -218,6 +222,10 @@ func (r *Runner) finish(ctx context.Context, processID int64, state, result stri
 	}
 	var n int64
 	parked := false
+	if !r.own(processID) {
+		return
+	}
+	defer r.disown(processID)
 	err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		// A message of the owner that came as the turn ended goes on in the same session instead.
 		if state == StateDone {
@@ -245,6 +253,7 @@ func (r *Runner) finish(ctx context.Context, processID int64, state, result stri
 		return
 	}
 	if parked {
+		r.disown(processID)
 		if err := r.Deliver(ctx, processID); err != nil {
 			r.finish(ctx, processID, StateError, "", false, "resume with a message: "+err.Error())
 		}
@@ -260,12 +269,48 @@ func (r *Runner) finish(ctx context.Context, processID int64, state, result stri
 	r.closed(ctx, processID)
 }
 
-// closed announces a process that reached a final state; its log stays until deck clears old runs.
+// closed announces a process that reached a final state, then takes it off the outbox; its log stays until deck
+// clears old runs.
 func (r *Runner) closed(ctx context.Context, processID int64) {
 	r.mu.Lock()
 	delete(r.of, processID)
 	r.mu.Unlock()
 	r.hear(ctx, processID, func(h Hook, p db.Process) { h.Closed(ctx, p) })
+	if err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error { return q.DeleteClosedOutbox(ctx, processID) }); err != nil {
+		slog.Error("outbox", "process", processID, "err", err)
+	}
+}
+
+// own marks a process this deck is about to close and hear, false while another hears it.
+func (r *Runner) own(processID int64) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.hearing[processID] {
+		return false
+	}
+	r.hearing[processID] = true
+	return true
+}
+
+func (r *Runner) disown(processID int64) {
+	r.mu.Lock()
+	delete(r.hearing, processID)
+	r.mu.Unlock()
+}
+
+// DrainClosed hears the processes that closed and were not heard, such as those of a deck that died right after.
+// Hooks hear a process at least once, so each acts once however often it hears it.
+func (r *Runner) DrainClosed(ctx context.Context) {
+	rows, err := r.st.Q.ListOutbox(ctx, "closed")
+	if err != nil {
+		return
+	}
+	for _, o := range rows {
+		if r.own(o.Ref) {
+			r.closed(ctx, o.Ref)
+			r.disown(o.Ref)
+		}
+	}
 }
 
 // dropped journals the frozen calls a closed process took with it.

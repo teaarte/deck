@@ -127,26 +127,27 @@ func (s *Service) handOver(ctx context.Context, proj db.Project, key string, eve
 		}
 	}
 	now := s.Now()
-	due := true
-	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		if last, err := q.GetMark(ctx, db.GetMarkParams{WorkspaceID: proj.WorkspaceID, Name: key}); err == nil {
-			if t, err := time.Parse(store.TimeLayout, last); err == nil && (every == 0 || now.Sub(t) < every) {
-				due = false
-				return nil
+	if last, err := s.St.Q.GetMark(ctx, db.GetMarkParams{WorkspaceID: proj.WorkspaceID, Name: key}); err == nil {
+		if t, err := time.Parse(store.TimeLayout, last); err == nil && (every == 0 || now.Sub(t) < every) {
+			return
+		}
+	}
+	mark := func(ctx context.Context, q *db.Queries) error {
+		return q.SetMark(ctx, db.SetMarkParams{WorkspaceID: proj.WorkspaceID, ProjectID: store.ID(proj.ID), Name: key, Value: store.Time(now)})
+	}
+	if isOwn {
+		_ = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+			if err := mark(ctx, q); err != nil || own == nil {
+				return err
 			}
-		}
-		if err := q.SetMark(ctx, db.SetMarkParams{WorkspaceID: proj.WorkspaceID, ProjectID: store.ID(proj.ID), Name: key, Value: store.Time(now)}); err != nil || !isOwn || own == nil {
-			return err
-		}
-		return own(ctx, q)
-	})
-	if err != nil || !due || isOwn {
+			return own(ctx, q)
+		})
 		return
 	}
+	// The mark follows the start, so a crash between them may hand the error over twice but never loses it.
 	if _, err := s.Runner.Start(context.WithoutCancel(ctx), mp.ID, mm, mm.EventCommand(manifest.OnFailure), input, process.Origin{}); err != nil {
 		slog.Error("hand an error to the master", "project", proj.Name, "input", input, "err", err)
-		_ = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-			return q.DeleteMark(ctx, db.DeleteMarkParams{WorkspaceID: proj.WorkspaceID, Name: key})
-		})
+		return
 	}
+	_ = s.St.Tx(context.WithoutCancel(ctx), mark)
 }

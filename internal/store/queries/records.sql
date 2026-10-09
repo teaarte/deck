@@ -79,5 +79,5 @@ DELETE FROM record WHERE project_id = sqlc.arg(project_id) AND collection = sqlc
 AND created_at < CAST(sqlc.arg(before) AS TEXT);
 
 
--- name: DeleteRecordFiles :many
-DELETE FROM file WHERE owner_kind = 'record' AND owner_id = ? RETURNING id;
+-- name: DeleteRecordFiles :exec
+DELETE FROM file WHERE owner_kind = 'record' AND owner_id = ?;

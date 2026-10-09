@@ -16,10 +16,6 @@ INSERT INTO mark (workspace_id, project_id, name, value) VALUES (sqlc.arg(worksp
 ON CONFLICT (workspace_id, name) DO UPDATE SET value = excluded.value;
 
 
--- name: DeleteMark :exec
-DELETE FROM mark WHERE workspace_id = ? AND name = ?;
-
-
 -- name: DeleteMarksWithPrefix :exec
 DELETE FROM mark WHERE workspace_id = sqlc.arg(workspace_id) AND substr(name, 1, length(CAST(sqlc.arg(prefix) AS TEXT))) = CAST(sqlc.arg(prefix) AS TEXT);
 

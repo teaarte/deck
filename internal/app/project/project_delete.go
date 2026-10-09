@@ -38,7 +38,7 @@ func (pj *Service) projectDelete(ctx context.Context, act registry.Actor, in pro
 	if err != nil {
 		return nil, fmt.Errorf("deck: the snapshot before deleting %s failed, nothing was deleted: %w", p.Name, err)
 	}
-	var gone, runs []int64
+	var runs []int64
 	left := ""
 	err = pj.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		if err := pj.deletable(ctx, q, act, p); err != nil {
@@ -48,7 +48,7 @@ func (pj *Service) projectDelete(ctx context.Context, act registry.Actor, in pro
 		if left, err = pj.leftInMaster(ctx, q, act, p); err != nil {
 			return err
 		}
-		if gone, err = q.DeleteProjectFiles(ctx, p.ID); err != nil {
+		if err = q.DeleteProjectFiles(ctx, p.ID); err != nil {
 			return err
 		}
 		if runs, err = q.ListProjectProcessIDs(ctx, p.ID); err != nil {
@@ -63,7 +63,7 @@ func (pj *Service) projectDelete(ctx context.Context, act registry.Actor, in pro
 	if err != nil {
 		return nil, err
 	}
-	pj.RemoveFiles(gone)
+	pj.DrainFiles(ctx)
 	// deck's own folders of the project and of its runs go with it.
 	for _, id := range runs {
 		_ = os.RemoveAll(filepath.Dir(pj.Runner.LogPath(id)))

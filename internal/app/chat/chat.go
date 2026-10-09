@@ -35,8 +35,8 @@ type Service struct {
 	Asks   *ask.Broker
 	Runner *process.Runner
 	For    func(ctx context.Context, projectID int64, cmd *manifest.Command) (provider.Provider, error)
-	// RemoveFiles deletes the files whose rows are gone.
-	RemoveFiles func(ids []int64)
+	// DrainFiles removes the files whose rows are gone.
+	DrainFiles func(ctx context.Context)
 
 	mu    sync.Mutex
 	queue chatQueue

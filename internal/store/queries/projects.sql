@@ -31,8 +31,8 @@ UPDATE project SET status = sqlc.arg(status) WHERE id = sqlc.arg(id) AND status 
 SELECT id FROM workspace ORDER BY id;
 
 
--- name: DeleteProjectFiles :many
-DELETE FROM file WHERE project_id = ? RETURNING id;
+-- name: DeleteProjectFiles :exec
+DELETE FROM file WHERE project_id = ?;
 
 
 -- name: DeleteProject :execrows

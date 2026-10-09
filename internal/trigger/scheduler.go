@@ -93,7 +93,7 @@ func (s *Scheduler) Sync(ctx context.Context, q *db.Queries, projectID int64, m 
 		kind, spec := Identity(t)
 		var next sql.NullString
 		if kind == KindCron {
-			n, err := s.next(spec, s.Now())
+			n, err := Next(spec, s.Now())
 			if err != nil {
 				return err
 			}
@@ -113,12 +113,24 @@ func (s *Scheduler) Sync(ctx context.Context, q *db.Queries, projectID int64, m 
 	return nil
 }
 
-func (s *Scheduler) next(cron string, after time.Time) (string, error) {
+// Next is the slot of a cron spec after a time by the owner's wall clock: one in an hour the clocks skip runs at the
+// first minute after it, and an hour they repeat holds each slot once.
+func Next(cron string, after time.Time) (string, error) {
 	sched, err := manifest.CronParser.Parse(cron)
 	if err != nil {
 		return "", err
 	}
-	return store.Time(sched.Next(after.In(time.Local))), nil
+	a := after.In(time.Local)
+	w := sched.Next(time.Date(a.Year(), a.Month(), a.Day(), a.Hour(), a.Minute(), a.Second(), a.Nanosecond(), time.UTC))
+	t := time.Date(w.Year(), w.Month(), w.Day(), w.Hour(), w.Minute(), w.Second(), 0, time.Local)
+	if t.Hour() != w.Hour() || t.Minute() != w.Minute() {
+		_, off := t.Zone()
+		t = t.Truncate(time.Minute)
+		for _, o := t.Add(-time.Minute).Zone(); o == off; _, o = t.Add(-time.Minute).Zone() {
+			t = t.Add(-time.Minute)
+		}
+	}
+	return store.Time(t), nil
 }
 
 // Rewind moves a cron trigger whose next run has passed to its next slot after now, so a paused period is
@@ -127,7 +139,7 @@ func (s *Scheduler) Rewind(ctx context.Context, q *db.Queries, t db.Trigger) err
 	if t.Kind != KindCron || t.NextRunAt.String > store.Time(s.Now()) {
 		return nil
 	}
-	next, err := s.next(t.Spec, s.Now())
+	next, err := Next(t.Spec, s.Now())
 	if err != nil {
 		return err
 	}
@@ -207,7 +219,7 @@ func (s *Scheduler) fire(ctx context.Context, t db.Trigger, now time.Time) {
 // after moves a fired or skipped cron trigger to its next slot.
 func (s *Scheduler) after(ctx context.Context, t db.Trigger, now time.Time) {
 	s.tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		next, err := s.next(t.Spec, now)
+		next, err := Next(t.Spec, now)
 		if err != nil {
 			return err
 		}

@@ -149,31 +149,13 @@ func (q *Queries) DeleteRecordDocuments(ctx context.Context, arg DeleteRecordDoc
 	return err
 }
 
-const deleteRecordFiles = `-- name: DeleteRecordFiles :many
-DELETE FROM file WHERE owner_kind = 'record' AND owner_id = ? RETURNING id
+const deleteRecordFiles = `-- name: DeleteRecordFiles :exec
+DELETE FROM file WHERE owner_kind = 'record' AND owner_id = ?
 `
 
-func (q *Queries) DeleteRecordFiles(ctx context.Context, ownerID int64) ([]int64, error) {
-	rows, err := q.db.QueryContext(ctx, deleteRecordFiles, ownerID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []int64
-	for rows.Next() {
-		var id int64
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		items = append(items, id)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
+func (q *Queries) DeleteRecordFiles(ctx context.Context, ownerID int64) error {
+	_, err := q.db.ExecContext(ctx, deleteRecordFiles, ownerID)
+	return err
 }
 
 const findRecordSnapshot = `-- name: FindRecordSnapshot :one

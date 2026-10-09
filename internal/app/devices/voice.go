@@ -38,7 +38,7 @@ func (dv *Service) transcribe(ctx context.Context, act registry.Actor, in transc
 	// The recording goes whatever the model says.
 	defer func() {
 		_ = dv.St.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error { return q.DeleteFile(ctx, f.ID) })
-		dv.RemoveFiles([]int64{f.ID})
+		dv.DrainFiles(context.WithoutCancel(ctx))
 	}()
 	info, err := os.Stat(filepath.Join(dv.Home.Files(), strconv.FormatInt(f.ID, 10)))
 	if err != nil {

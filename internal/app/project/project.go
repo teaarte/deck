@@ -35,9 +35,9 @@ type Service struct {
 	Host      *mcphost.Host
 	Save      *Saver
 	Folders   func(ctx context.Context, projectID int64) ([]folders.Row, error)
-	// Snapshot writes a snapshot before a delete; RemoveFiles deletes the files whose rows are gone.
-	Snapshot    func(ctx context.Context) (string, error)
-	RemoveFiles func(ids []int64)
+	// Snapshot writes a snapshot before a delete; DrainFiles removes the files whose rows are gone.
+	Snapshot   func(ctx context.Context) (string, error)
+	DrainFiles func(ctx context.Context)
 }
 
 // Saver saves the manifests of projects with their checks, migrations and grants, and gives the registry the

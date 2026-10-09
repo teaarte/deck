@@ -145,6 +145,6 @@ func ViewOf(r db.Record, c *manifest.Collection) View {
 type Service struct {
 	St  *store.Store
 	Now func() time.Time
-	// RemoveFiles deletes the files whose rows are gone.
-	RemoveFiles func(ids []int64)
+	// DrainFiles removes the files whose rows are gone.
+	DrainFiles func(ctx context.Context)
 }

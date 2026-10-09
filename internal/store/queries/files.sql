@@ -20,25 +20,23 @@ SELECT CAST(COALESCE(SUM(size), 0) AS INTEGER) FROM file;
 DELETE FROM file WHERE id = ?;
 
 
--- name: PurgeOrphanFiles :many
+-- name: PurgeOrphanFiles :exec
 DELETE FROM file
 WHERE (owner_kind = 'record' AND owner_id NOT IN (SELECT id FROM record))
    OR (owner_kind = 'process' AND owner_id NOT IN (SELECT id FROM process))
-   OR (owner_kind = 'chat_message' AND owner_id NOT IN (SELECT id FROM chat_message))
-RETURNING id;
+   OR (owner_kind = 'chat_message' AND owner_id NOT IN (SELECT id FROM chat_message));
 
 
--- name: PurgeStaleUploads :many
-DELETE FROM file WHERE owner_kind IN ('upload', 'keeping') AND created_at < CAST(sqlc.arg(before) AS TEXT) RETURNING id;
+-- name: PurgeStaleUploads :exec
+DELETE FROM file WHERE owner_kind IN ('upload', 'keeping') AND created_at < CAST(sqlc.arg(before) AS TEXT);
 
 
 -- name: BindFile :execrows
 UPDATE file SET owner_kind = sqlc.arg(owner_kind), owner_id = sqlc.arg(owner_id)
 WHERE id = sqlc.arg(id) AND project_id = sqlc.arg(project_id) AND owner_kind = sqlc.arg(from_kind) AND owner_id = sqlc.arg(from_id);
--- name: DeleteExpiredRecordFiles :many
+-- name: DeleteExpiredRecordFiles :exec
 DELETE FROM file WHERE owner_kind = 'record' AND created_at < CAST(sqlc.arg(before) AS TEXT)
-AND owner_id IN (SELECT r.id FROM record r WHERE r.project_id = sqlc.arg(project_id) AND r.collection = sqlc.arg(collection))
-RETURNING id;
+AND owner_id IN (SELECT r.id FROM record r WHERE r.project_id = sqlc.arg(project_id) AND r.collection = sqlc.arg(collection));
 
 
 
@@ -54,5 +52,5 @@ SELECT f.* FROM file f JOIN chat_message m ON m.id = f.owner_id
 WHERE f.owner_kind = 'chat_message' AND m.topic_id = ? ORDER BY f.id;
 
 
--- name: DeleteFilesOf :many
-DELETE FROM file WHERE owner_kind = ? AND owner_id = ? RETURNING id;
+-- name: DeleteFilesOf :exec
+DELETE FROM file WHERE owner_kind = ? AND owner_id = ?;

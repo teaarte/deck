@@ -139,7 +139,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 			Hidden: func() []string { return sandbox.Agent(h) }, AgentSlots: a.Settings.AgentSlots},
 		process.Deps{For: a.Providers.For, Named: a.Providers.Named, Ready: a.Providers.Ready, Broke: a.Providers.Broke, Prompt: a.Saver.Prompt,
 			Text: a.Saver.Text, Skills: a.Documents.Skills, Servers: a.Signins.Servers, Folder: a.Folders.Folder,
-			Memory: a.Chats.Memory, Programs: a.Documents.Programs})
+			Memory: a.Chats.Memory, Programs: a.Documents.Programs, DrainFiles: a.Files.Drain})
 	a.Runner.Hooks = []process.Hook{a.Chats.NewHook(), failures.Hook{S: a.Failures}, triggers.After{S: a.Triggers}, asks.Unheard{S: a.Answers}}
 	a.Scheduler = trigger.New(st, a.Triggers, cfg.Now)
 
@@ -152,7 +152,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	*a.Documents = documents.Service{St: st, Now: cfg.Now, Sandbox: cfg.Sandbox, Ctx: a.ctx, BG: &a.bg,
 		SaveManifest: a.Saver.SaveCall, Changed: a.Devices.Changed}
 	*a.Snapshots = snapshots.Service{St: st, Bus: a.Bus, Home: h, Now: cfg.Now, LockFiles: a.Files.Mu.Lock, UnlockFiles: a.Files.Mu.Unlock,
-		RemoveFiles: a.Files.Remove}
+		DrainFiles: a.Files.Drain}
 	*a.Providers = providers.Service{St: st, Now: cfg.Now, Home: h, Sandbox: cfg.Sandbox, ACPBinaries: cfg.ACPBinaries,
 		ACPCallLimit: cfg.ACPCallLimit, SelfCheckCeiling: cfg.SelfCheckCeiling, Secret: a.Secrets.Read, WriteSecret: a.Secrets.Write,
 		Wake: a.Runner.Wake, Resolve: a.Tools.Resolve,
@@ -160,20 +160,20 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	*a.Answers = asks.Service{St: st, Now: cfg.Now, Broker: a.Asks, Registry: a.Registry, Gateway: a.Gateway, Deliver: a.Runner.Deliver,
 		AnswerGrant: a.Saver.AnswerGrant, SaveManifest: a.Saver.SaveCall}
 	*a.Signins = signins.Service{St: st, Ctx: a.ctx, Broker: a.Asks, OAuth: oauth, Browser: a.Browser, MCP: a.MCP}
-	*a.Chats = chat.Service{St: st, Bus: a.Bus, Now: cfg.Now, Asks: a.Asks, Runner: a.Runner, For: a.Providers.For, RemoveFiles: a.Files.Remove}
-	*a.Devices = devices.Service{St: st, Bus: a.Bus, Now: cfg.Now, RemoveFiles: a.Files.Remove,
+	*a.Chats = chat.Service{St: st, Bus: a.Bus, Now: cfg.Now, Asks: a.Asks, Runner: a.Runner, For: a.Providers.For, DrainFiles: a.Files.Drain}
+	*a.Devices = devices.Service{St: st, Bus: a.Bus, Now: cfg.Now, DrainFiles: a.Files.Drain,
 		Home: h, Invoke: a.Registry.Invoke, DeckScreen: deckScreen}
 	*a.Failures = failures.Service{St: st, Now: cfg.Now, Runner: a.Runner}
 	*a.Processes = processes.Service{St: st, Runner: a.Runner, Named: a.Providers.Named}
 	*a.Health = apphealth.Service{St: st, Providers: a.Providers.All}
-	*a.Records = records.Service{St: st, Now: cfg.Now, RemoveFiles: a.Files.Remove}
+	*a.Records = records.Service{St: st, Now: cfg.Now, DrainFiles: a.Files.Drain}
 	*a.Tokens = tokens.Service{St: st, MCPBase: cfg.MCPBase, Journal: a.Gateway.Journal}
 	*a.Saver = project.Saver{St: st, Bus: a.Bus, Now: cfg.Now, Home: h, Registry: a.Registry,
 		Gateway: a.Gateway, Runner: a.Runner, Scheduler: a.Scheduler, Broker: a.Asks, Scripts: a.Scripts, Tools: a.Tools,
 		MCP: a.MCP, PrepareLater: a.Documents.PrepareLater, Changed: a.Devices.Changed, CheckScreens: a.checkScreens}
 	*a.Projects = project.Service{St: st, Home: h, Registry: a.Registry, Gateway: a.Gateway,
 		Runner: a.Runner, Scheduler: a.Scheduler, Host: a.Host, Save: a.Saver, Folders: a.Folders.List,
-		Snapshot: a.Snapshots.BeforeDelete, RemoveFiles: a.Files.Remove}
+		Snapshot: a.Snapshots.BeforeDelete, DrainFiles: a.Files.Drain}
 	a.addBuiltins()
 	a.Browser.Load()
 	a.Registry.SetExtra(a.Browser.Commands)
@@ -223,10 +223,11 @@ func (a *App) Sweep(ctx context.Context, now time.Time) {
 }
 
 // deadlines are what is due by now: expired confirmations, ceilings, pauses on a usage limit,
-// silent processes, empty results kept long enough, the disk.
+// silent processes, empty results kept long enough, files whose rows are gone, the disk.
 func (a *App) deadlines(ctx context.Context, now time.Time) {
 	a.Answers.ExpireConfirms(ctx, now)
 	a.Runner.Due(ctx, now)
+	a.Files.Drain(ctx)
 	a.Snapshots.CheckDisk(ctx, now)
 }
 

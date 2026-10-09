@@ -78,10 +78,9 @@ func (q *Queries) CreateFile(ctx context.Context, arg CreateFileParams) (File, e
 	return i, err
 }
 
-const deleteExpiredRecordFiles = `-- name: DeleteExpiredRecordFiles :many
+const deleteExpiredRecordFiles = `-- name: DeleteExpiredRecordFiles :exec
 DELETE FROM file WHERE owner_kind = 'record' AND created_at < CAST(?1 AS TEXT)
 AND owner_id IN (SELECT r.id FROM record r WHERE r.project_id = ?2 AND r.collection = ?3)
-RETURNING id
 `
 
 type DeleteExpiredRecordFilesParams struct {
@@ -90,27 +89,9 @@ type DeleteExpiredRecordFilesParams struct {
 	Collection string
 }
 
-func (q *Queries) DeleteExpiredRecordFiles(ctx context.Context, arg DeleteExpiredRecordFilesParams) ([]int64, error) {
-	rows, err := q.db.QueryContext(ctx, deleteExpiredRecordFiles, arg.Before, arg.ProjectID, arg.Collection)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []int64
-	for rows.Next() {
-		var id int64
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		items = append(items, id)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
+func (q *Queries) DeleteExpiredRecordFiles(ctx context.Context, arg DeleteExpiredRecordFilesParams) error {
+	_, err := q.db.ExecContext(ctx, deleteExpiredRecordFiles, arg.Before, arg.ProjectID, arg.Collection)
+	return err
 }
 
 const deleteFile = `-- name: DeleteFile :exec
@@ -122,8 +103,8 @@ func (q *Queries) DeleteFile(ctx context.Context, id int64) error {
 	return err
 }
 
-const deleteFilesOf = `-- name: DeleteFilesOf :many
-DELETE FROM file WHERE owner_kind = ? AND owner_id = ? RETURNING id
+const deleteFilesOf = `-- name: DeleteFilesOf :exec
+DELETE FROM file WHERE owner_kind = ? AND owner_id = ?
 `
 
 type DeleteFilesOfParams struct {
@@ -131,27 +112,9 @@ type DeleteFilesOfParams struct {
 	OwnerID   int64
 }
 
-func (q *Queries) DeleteFilesOf(ctx context.Context, arg DeleteFilesOfParams) ([]int64, error) {
-	rows, err := q.db.QueryContext(ctx, deleteFilesOf, arg.OwnerKind, arg.OwnerID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []int64
-	for rows.Next() {
-		var id int64
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		items = append(items, id)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
+func (q *Queries) DeleteFilesOf(ctx context.Context, arg DeleteFilesOfParams) error {
+	_, err := q.db.ExecContext(ctx, deleteFilesOf, arg.OwnerKind, arg.OwnerID)
+	return err
 }
 
 const getFile = `-- name: GetFile :one
@@ -297,62 +260,25 @@ func (q *Queries) ListWorkspaceFiles(ctx context.Context, arg ListWorkspaceFiles
 	return items, nil
 }
 
-const purgeOrphanFiles = `-- name: PurgeOrphanFiles :many
+const purgeOrphanFiles = `-- name: PurgeOrphanFiles :exec
 DELETE FROM file
 WHERE (owner_kind = 'record' AND owner_id NOT IN (SELECT id FROM record))
    OR (owner_kind = 'process' AND owner_id NOT IN (SELECT id FROM process))
    OR (owner_kind = 'chat_message' AND owner_id NOT IN (SELECT id FROM chat_message))
-RETURNING id
 `
 
-func (q *Queries) PurgeOrphanFiles(ctx context.Context) ([]int64, error) {
-	rows, err := q.db.QueryContext(ctx, purgeOrphanFiles)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []int64
-	for rows.Next() {
-		var id int64
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		items = append(items, id)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
+func (q *Queries) PurgeOrphanFiles(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, purgeOrphanFiles)
+	return err
 }
 
-const purgeStaleUploads = `-- name: PurgeStaleUploads :many
-DELETE FROM file WHERE owner_kind IN ('upload', 'keeping') AND created_at < CAST(?1 AS TEXT) RETURNING id
+const purgeStaleUploads = `-- name: PurgeStaleUploads :exec
+DELETE FROM file WHERE owner_kind IN ('upload', 'keeping') AND created_at < CAST(?1 AS TEXT)
 `
 
-func (q *Queries) PurgeStaleUploads(ctx context.Context, before string) ([]int64, error) {
-	rows, err := q.db.QueryContext(ctx, purgeStaleUploads, before)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []int64
-	for rows.Next() {
-		var id int64
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		items = append(items, id)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
+func (q *Queries) PurgeStaleUploads(ctx context.Context, before string) error {
+	_, err := q.db.ExecContext(ctx, purgeStaleUploads, before)
+	return err
 }
 
 const totalFileSize = `-- name: TotalFileSize :one

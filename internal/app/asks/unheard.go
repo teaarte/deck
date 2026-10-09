@@ -47,8 +47,16 @@ func (s *Service) unheard(ctx context.Context, p db.Process, a db.Ask, why strin
 	}
 	who := fmt.Sprintf("process #%d (%s.%s)", p.ID, proj.Name, p.Command)
 	answer := answered(a.Answer)
+	key := fmt.Sprintf("unheard:%d", a.ID)
 	_ = s.St.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error {
+		// A close heard again after a crash tells the master once.
+		if _, err := q.GetMark(ctx, db.GetMarkParams{WorkspaceID: proj.WorkspaceID, Name: key}); err == nil {
+			return nil
+		}
 		if n, err := q.DeliverAsk(ctx, a.ID); err != nil || n == 0 && !a.DeliveredAt.Valid {
+			return err
+		}
+		if err := q.SetMark(ctx, db.SetMarkParams{WorkspaceID: proj.WorkspaceID, ProjectID: store.ID(proj.ID), Name: key, Value: "told"}); err != nil {
 			return err
 		}
 		err := q.AddMasterNote(ctx, db.AddMasterNoteParams{WorkspaceID: proj.WorkspaceID, ProjectID: mp.ID,

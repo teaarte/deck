@@ -139,6 +139,7 @@ func (r *Runner) ResumeInterrupted(ctx context.Context) error {
 	if err := r.gw.Recover(ctx); err != nil {
 		return err
 	}
+	r.DrainClosed(ctx)
 	ps, err := r.st.Q.ListProcessesByState(ctx, StateRunning)
 	if err != nil {
 		return err

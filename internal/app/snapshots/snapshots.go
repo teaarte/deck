@@ -35,7 +35,7 @@ import (
 )
 
 // Service takes the snapshots and runs the cleanup; LockFiles and UnlockFiles hold the stored files while a
-// snapshot copies them, RemoveFiles deletes the files whose rows are gone.
+// snapshot copies them, DrainFiles removes the files whose rows are gone.
 type Service struct {
 	St          *store.Store
 	Bus         *events.Bus
@@ -43,7 +43,7 @@ type Service struct {
 	Now         func() time.Time
 	LockFiles   func()
 	UnlockFiles func()
-	RemoveFiles func(ids []int64)
+	DrainFiles  func(ctx context.Context)
 	// cleaned and snapTried are when the daily cleanup ran and a daily snapshot was last tried; disk, when the
 	// disk was last looked at.
 	cleaned, snapTried, disk time.Time
@@ -236,12 +236,11 @@ func (zeros) Read(p []byte) (int, error) {
 
 // expire deletes the records and files of each collection older than its retention, and the documents of
 // those records; the files it returns are removed from the disk after the transaction.
-func (s *Service) expire(ctx context.Context, q *db.Queries, now time.Time) ([]int64, error) {
+func (s *Service) expire(ctx context.Context, q *db.Queries, now time.Time) error {
 	projects, err := q.ListProjects(ctx)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	var gone []int64
 	days := func(n int) string { return store.Time(now.Add(-time.Duration(n) * 24 * time.Hour)) }
 	for _, p := range projects {
 		m, err := docs.Manifest(ctx, q, p)
@@ -250,24 +249,22 @@ func (s *Service) expire(ctx context.Context, q *db.Queries, now time.Time) ([]i
 		}
 		for _, c := range m.Collections {
 			if c.FileRetentionDays > 0 {
-				ids, err := q.DeleteExpiredRecordFiles(ctx, db.DeleteExpiredRecordFilesParams{Before: days(c.FileRetentionDays), ProjectID: p.ID, Collection: c.Name})
-				if err != nil {
-					return nil, err
+				if err := q.DeleteExpiredRecordFiles(ctx, db.DeleteExpiredRecordFilesParams{Before: days(c.FileRetentionDays), ProjectID: p.ID, Collection: c.Name}); err != nil {
+					return err
 				}
-				gone = append(gone, ids...)
 			}
 			if c.RetentionDays > 0 {
 				expired := db.DeleteExpiredRecordDocumentsParams{ProjectID: p.ID, Collection: c.Name, Before: days(c.RetentionDays)}
 				if err := q.DeleteExpiredRecordDocuments(ctx, expired); err != nil {
-					return nil, err
+					return err
 				}
 				if _, err := q.DeleteExpiredRecords(ctx, db.DeleteExpiredRecordsParams(expired)); err != nil {
-					return nil, err
+					return err
 				}
 			}
 		}
 	}
-	return gone, nil
+	return nil
 }
 
 // Daily takes a snapshot when the newest is a day old, trying at most once an hour, and runs the cleanup
@@ -304,10 +301,8 @@ const (
 // cleanup removes expired records, files left without an owner, stale uploads, old journal rows and notify
 // lines, and old agent work folders.
 func (s *Service) cleanup(ctx context.Context, now time.Time) {
-	var gone []int64
 	err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		var err error
-		if gone, err = s.expire(ctx, q, now); err != nil {
+		if err := s.expire(ctx, q, now); err != nil {
 			return err
 		}
 		deleted := sql.NullString{String: store.Time(now.Add(-topicsKept)), Valid: true}
@@ -317,12 +312,10 @@ func (s *Service) cleanup(ctx context.Context, now time.Time) {
 		if err := q.PurgeDeletedTopics(ctx, deleted); err != nil {
 			return err
 		}
-		orphans, err := q.PurgeOrphanFiles(ctx)
-		if gone = append(gone, orphans...); err != nil {
+		if err := q.PurgeOrphanFiles(ctx); err != nil {
 			return err
 		}
-		stale, err := q.PurgeStaleUploads(ctx, store.Time(now.Add(-24*time.Hour)))
-		if gone = append(gone, stale...); err != nil {
+		if err := q.PurgeStaleUploads(ctx, store.Time(now.Add(-24*time.Hour))); err != nil {
 			return err
 		}
 		return errors.Join(q.PurgeOldToolCalls(ctx, store.Time(now.Add(-journalKept))),
@@ -332,7 +325,7 @@ func (s *Service) cleanup(ctx context.Context, now time.Time) {
 	if err != nil {
 		slog.Error("purge files", "err", err)
 	}
-	s.RemoveFiles(gone)
+	s.DrainFiles(ctx)
 	left, _ := filepath.Glob(filepath.Join(s.Home.Files(), ".upload-*"))
 	for _, f := range left {
 		if fi, err := os.Stat(f); err == nil && now.Sub(fi.ModTime()) > 24*time.Hour {

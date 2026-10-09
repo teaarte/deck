@@ -153,6 +153,17 @@ func (r *Runner) Start(ctx context.Context, projectID int64, m *manifest.Manifes
 				return registry.Invalid("deck: %s was not started: project %s is a draft; only a trial run starts its triggers", command, pr.Name)
 			}
 		}
+		// A finish heard again after a crash starts each of its after triggers once.
+		if o.Parent != 0 && o.Trigger != 0 {
+			old, err := q.FindTriggeredChild(ctx, db.FindTriggeredChildParams{ParentID: ref(o.Parent), TriggerID: ref(o.Trigger)})
+			if err == nil {
+				p, reused = old, true
+				return nil
+			}
+			if !errors.Is(err, sql.ErrNoRows) {
+				return err
+			}
+		}
 		if o.Key != "" {
 			old, err := q.FindActiveProcess(ctx, db.FindActiveProcessParams{ProjectID: projectID, Command: command, RetryKey: o.Key, Trial: b2i(trial)})
 			if err == nil {
@@ -173,19 +184,29 @@ func (r *Runner) Start(ctx context.Context, projectID int64, m *manifest.Manifes
 			}
 		}
 		// A call the owner allowed later may come from a trigger its manifest dropped by then.
-		trigger := o.Trigger
-		if _, err := q.GetTrigger(ctx, trigger); errors.Is(err, sql.ErrNoRows) {
-			trigger = 0
+		t, err := q.GetTrigger(ctx, o.Trigger)
+		if errors.Is(err, sql.ErrNoRows) {
+			t = db.Trigger{}
 		}
 		p, err = q.CreateProcess(ctx, db.CreateProcessParams{Trial: b2i(trial), ProjectID: projectID, Command: command, Kind: kind, State: StateRunning,
 			Provider: providerName, Input: string(in), SessionID: session, ParentID: ref(o.Parent), Depth: depth,
-			TriggerID: ref(trigger), RetryKey: o.Key, CeilingMs: r.ceilingOf(m, cmd).Milliseconds(), ManifestRevision: m.Revision, Folder: folder,
+			TriggerID: ref(t.ID), RetryKey: o.Key, CeilingMs: r.ceilingOf(m, cmd).Milliseconds(), ManifestRevision: m.Revision, Folder: folder,
 			StartNote: o.Note, Alone: b2i(o.Alone && trial)})
 		if err != nil {
 			return err
 		}
-		if trigger != 0 {
-			if err := q.SetTriggerLast(ctx, db.SetTriggerLastParams{LastProcessID: sql.NullInt64{Int64: p.ID, Valid: true}, ID: trigger}); err != nil {
+		if t.ID != 0 {
+			if err := q.SetTriggerLast(ctx, db.SetTriggerLastParams{LastProcessID: sql.NullInt64{Int64: p.ID, Valid: true}, ID: t.ID}); err != nil {
+				return err
+			}
+		}
+		// A cron slot moves with its run, so a crash between them cannot start it twice.
+		if t.Kind == trigger.KindCron && !o.Confirmed {
+			next, err := trigger.Next(t.Spec, r.now())
+			if err != nil {
+				return err
+			}
+			if err := q.SetTriggerNext(ctx, db.SetTriggerNextParams{NextRunAt: sql.NullString{String: next, Valid: true}, ID: t.ID}); err != nil {
 				return err
 			}
 		}

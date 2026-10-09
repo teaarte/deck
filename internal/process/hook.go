@@ -8,7 +8,8 @@ import (
 
 // Hook hears what happens to processes; app lists its hooks in one place. Each gets the row as it was written.
 type Hook interface {
-	// Closed runs after a process reached a final state, whatever it is.
+	// Closed runs after a process reached a final state, whatever it is; after a crash it may run again, so it acts
+	// once however often it runs.
 	Closed(ctx context.Context, p db.Process)
 	// Parked runs after a process parked to wait for the owner.
 	Parked(ctx context.Context, p db.Process)

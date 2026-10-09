@@ -190,7 +190,6 @@ type chatMessageDeleteIn struct {
 func (ch *Service) chatMessageDelete(ctx context.Context, act registry.Actor, in chatMessageDeleteIn) (any, error) {
 	ch.start.Lock()
 	defer ch.start.Unlock()
-	var gone []int64
 	err := ch.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		m, err := q.GetMessage(ctx, in.Message)
 		if errors.Is(err, sql.ErrNoRows) {
@@ -211,13 +210,12 @@ func (ch *Service) chatMessageDelete(ctx context.Context, act registry.Actor, in
 		if n, err := q.DeleteWaitingMessage(ctx, m.ID); err != nil || n == 0 {
 			return cmp.Or(err, registry.Conflict("deck: the master has taken this message; it stays"))
 		}
-		gone, err = q.DeleteFilesOf(ctx, db.DeleteFilesOfParams{OwnerKind: FileOwner, OwnerID: m.ID})
-		return err
+		return q.DeleteFilesOf(ctx, db.DeleteFilesOfParams{OwnerKind: FileOwner, OwnerID: m.ID})
 	})
 	if err != nil {
 		return nil, err
 	}
-	ch.RemoveFiles(gone)
+	ch.DrainFiles(ctx)
 	return map[string]any{"ok": true}, nil
 }
 

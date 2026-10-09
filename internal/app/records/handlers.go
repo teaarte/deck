@@ -262,13 +262,11 @@ func (s *Service) recordDelete(ctx context.Context, act registry.Actor, in recor
 	if act.Kind != registry.Owner && p.Status != store.ProjectDraft {
 		return nil, registry.Refuse("deck: only the owner deletes records of an enabled project")
 	}
-	var gone []int64
 	err = s.writeRecords(ctx, p, func(ctx context.Context, q *db.Queries, _ *manifest.Manifest) error {
 		if err := q.DeleteOneRecordDocuments(ctx, store.ID(rec.ID)); err != nil {
 			return err
 		}
-		var err error
-		if gone, err = q.DeleteRecordFiles(ctx, rec.ID); err != nil {
+		if err := q.DeleteRecordFiles(ctx, rec.ID); err != nil {
 			return err
 		}
 		return q.DeleteRecord(ctx, rec.ID)
@@ -276,7 +274,7 @@ func (s *Service) recordDelete(ctx context.Context, act registry.Actor, in recor
 	if err != nil {
 		return nil, err
 	}
-	s.RemoveFiles(gone)
+	s.DrainFiles(ctx)
 	return map[string]any{"ok": true}, nil
 }
 

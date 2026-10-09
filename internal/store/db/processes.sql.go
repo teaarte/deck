@@ -228,6 +228,53 @@ func (q *Queries) FindActiveProcess(ctx context.Context, arg FindActiveProcessPa
 	return i, err
 }
 
+const findTriggeredChild = `-- name: FindTriggeredChild :one
+SELECT id, project_id, command, kind, state, provider, session_id, input, result, not_by_schema, error, start_note, parent_id, depth, trigger_id, retry_key, manifest_revision, trial, folder, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, pause_until_ms, wait_message, wait_fresh, started_at, finished_at, alone FROM process WHERE parent_id = ? AND trigger_id = ? ORDER BY id LIMIT 1
+`
+
+type FindTriggeredChildParams struct {
+	ParentID  sql.NullInt64
+	TriggerID sql.NullInt64
+}
+
+func (q *Queries) FindTriggeredChild(ctx context.Context, arg FindTriggeredChildParams) (Process, error) {
+	row := q.db.QueryRowContext(ctx, findTriggeredChild, arg.ParentID, arg.TriggerID)
+	var i Process
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.Command,
+		&i.Kind,
+		&i.State,
+		&i.Provider,
+		&i.SessionID,
+		&i.Input,
+		&i.Result,
+		&i.NotBySchema,
+		&i.Error,
+		&i.StartNote,
+		&i.ParentID,
+		&i.Depth,
+		&i.TriggerID,
+		&i.RetryKey,
+		&i.ManifestRevision,
+		&i.Trial,
+		&i.Folder,
+		&i.Pgid,
+		&i.CeilingMs,
+		&i.DeadlineMs,
+		&i.OutputMs,
+		&i.SilentSinceMs,
+		&i.PauseUntilMs,
+		&i.WaitMessage,
+		&i.WaitFresh,
+		&i.StartedAt,
+		&i.FinishedAt,
+		&i.Alone,
+	)
+	return i, err
+}
+
 const finishProcess = `-- name: FinishProcess :execrows
 UPDATE process
 SET state = ?, result = ?, not_by_schema = ?, error = ?, finished_at = ?, deadline_ms = NULL, silent_since_ms = NULL

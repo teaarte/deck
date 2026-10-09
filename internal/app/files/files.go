@@ -25,6 +25,7 @@ import (
 	"unicode/utf8"
 
 	"deck2/internal/app/access"
+	"deck2/internal/health"
 	"deck2/internal/home"
 	"deck2/internal/registry"
 	"deck2/internal/store"
@@ -38,6 +39,8 @@ type Service struct {
 	Home home.Layout
 	Now  func() time.Time
 	Mu   sync.RWMutex
+	// draining keeps one drain of the outbox at a time.
+	draining sync.Mutex
 }
 
 // View is a stored file as a list or an upload gives it.
@@ -332,12 +335,29 @@ func (s *Service) OpenDataFile(ctx context.Context, act registry.Actor, project,
 	return View{Project: p.Name, Name: fi.Name(), Type: fileType(fi.Name()), Size: fi.Size()}, file, nil
 }
 
-// Remove deletes stored files whose rows are gone; it waits while a snapshot copies the base and files/.
-func (s *Service) Remove(ids []int64) {
+// Drain removes the stored files whose rows a committed write deleted, as the outbox lists them; it waits while a
+// snapshot copies the base and files/. A file that will not go is in health from its third try.
+func (s *Service) Drain(ctx context.Context) {
+	s.draining.Lock()
+	defer s.draining.Unlock()
+	rows, err := s.St.Q.ListOutbox(ctx, "file")
+	if err != nil {
+		return
+	}
 	s.Mu.RLock()
 	defer s.Mu.RUnlock()
-	for _, id := range ids {
-		_ = os.Remove(filepath.Join(s.Home.Files(), fmt.Sprint(id)))
+	for _, r := range rows {
+		err := os.Remove(filepath.Join(s.Home.Files(), fmt.Sprint(r.Ref)))
+		if err == nil || errors.Is(err, os.ErrNotExist) {
+			_ = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error { return q.DeleteOutbox(ctx, r.ID) })
+			continue
+		}
+		tries, _ := store.TxGet(s.St, ctx, func(ctx context.Context, q *db.Queries) (int64, error) {
+			return q.FailOutbox(ctx, db.FailOutboxParams{Error: err.Error(), ID: r.ID})
+		})
+		if tries >= 3 {
+			health.Write(ctx, s.St, health.Of{}, "outbox", health.Error, fmt.Sprintf("deck could not remove stored file %d: %v", r.Ref, err))
+		}
 	}
 }
 

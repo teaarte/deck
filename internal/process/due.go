@@ -17,10 +17,11 @@ const (
 	emptyKept = 24 * time.Hour
 )
 
-// Due stops the processes at their ceiling, wakes the held ones (the paused whose next try came too), marks the
-// silent ones and purges the empty results kept long enough.
+// Due stops the processes at their ceiling, hears the closed ones not heard, wakes the held ones (the paused whose
+// next try came too), marks the silent ones and purges the empty results kept long enough.
 func (r *Runner) Due(ctx context.Context, now time.Time) {
 	r.stopAtCeiling(ctx, now)
+	r.DrainClosed(ctx)
 	r.Wake(ctx)
 	r.markSilent(ctx, now)
 	r.purgeEmpty(ctx, now)

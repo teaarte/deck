@@ -49,31 +49,13 @@ func (q *Queries) DeleteProject(ctx context.Context, id int64) (int64, error) {
 	return result.RowsAffected()
 }
 
-const deleteProjectFiles = `-- name: DeleteProjectFiles :many
-DELETE FROM file WHERE project_id = ? RETURNING id
+const deleteProjectFiles = `-- name: DeleteProjectFiles :exec
+DELETE FROM file WHERE project_id = ?
 `
 
-func (q *Queries) DeleteProjectFiles(ctx context.Context, projectID int64) ([]int64, error) {
-	rows, err := q.db.QueryContext(ctx, deleteProjectFiles, projectID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []int64
-	for rows.Next() {
-		var id int64
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		items = append(items, id)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
+func (q *Queries) DeleteProjectFiles(ctx context.Context, projectID int64) error {
+	_, err := q.db.ExecContext(ctx, deleteProjectFiles, projectID)
+	return err
 }
 
 const getProject = `-- name: GetProject :one

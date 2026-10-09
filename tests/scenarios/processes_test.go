@@ -118,13 +118,13 @@ func TestCeilingStopsTheAgentAndManifestOverridesIt(t *testing.T) {
 	}
 	e.Clock.Add(2 * time.Minute)
 	e.sweep()
-	got := e.waitState(a, "stopped")
+	got := e.waitState(a, "error")
 	if !strings.Contains(got.Error, "ceiling") || e.full(b).State != "running" {
 		t.Fatalf("the ceiling stops the agent; a manifest ceiling of 2 h holds: %+v %+v", got, e.full(b))
 	}
 	e.Clock.Add(time.Hour)
 	e.sweep()
-	e.waitState(b, "stopped")
+	e.waitState(b, "error")
 }
 
 func TestCeilingAndSilenceWaitForABlockingQuestion(t *testing.T) {

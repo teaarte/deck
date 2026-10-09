@@ -5,6 +5,7 @@ import (
 	deckhome "deck2/internal/home"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -553,6 +554,44 @@ func TestEnablingADraftClearsWhyItsTriggersDidNotStart(t *testing.T) {
 	for _, h := range hs {
 		if h.Subject == "trigger:later.remind" || h.Subject == "project:later" && h.Status != "ok" {
 			t.Fatalf("enabling the project clears why its schedule did not start: %+v", h)
+		}
+	}
+}
+
+// TestAHungToolIsSeenAndStopsAtItsCeiling: a tool call that does not answer holds a ceiling like a script; a cron slot
+// it swallows is a warning in health until a run starts, and the stop at the ceiling is an error.
+func TestAHungToolIsSeenAndStopsAtItsCeiling(t *testing.T) {
+	slow := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { <-r.Context().Done() })
+	e := newClockEnv(t, nil)
+	e.createProject("feed", fmt.Sprintf(`{"version": 9, "commands": [{"name": "fetch", "title": "Fetch", "description": "Fetches the feed.",
+	  "class": "internal", "executor": {"type": "tool", "tool": "pull"}}],
+	  "tools": {"http": [{"name": "pull", "description": "Pulls the feed", "method": "GET", "url": "%s/feed", "class": "internal"}]},
+	  "triggers": [{"command": "fetch", "cron": "0 9 * * *"}]}`, slow.URL))
+	e.Clock.Add(time.Hour)
+	e.tick()
+	e.waitFor("the first run", func() bool { return e.countOf("fetch") == 1 })
+	id := e.processes()[0].ID
+	e.waitFor("the call at the service", func() bool { return len(slow.requests()) == 1 })
+	if e.full(id).Deadline == "" {
+		t.Fatalf("a tool call holds a ceiling: %+v", e.full(id))
+	}
+	e.Clock.Add(24 * time.Hour)
+	e.tick()
+	if h := e.waitHealth("trigger:feed.fetch", "warning"); !strings.Contains(h.Error, fmt.Sprint(id)) || e.countOf("fetch") != 1 {
+		t.Fatalf("a slot the run still going swallowed is a warning naming that run: %+v", h)
+	}
+	e.sweep()
+	if got := e.waitState(id, "error"); !strings.Contains(got.Error, "ceiling") {
+		t.Fatalf("a stop at the ceiling is an error, not a stop of the owner: %+v", got)
+	}
+	e.Clock.Add(24 * time.Hour)
+	e.tick()
+	e.waitFor("the next run", func() bool { return e.countOf("fetch") == 2 })
+	var hs []healthRow
+	e.must("deck.health_list", nil, &hs)
+	for _, h := range hs {
+		if h.Subject == "trigger:feed.fetch" {
+			t.Fatalf("the warning goes once a run starts: %+v", h)
 		}
 	}
 }

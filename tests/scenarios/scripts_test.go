@@ -326,7 +326,7 @@ func TestScriptCeilingAndThreeFailuresInARow(t *testing.T) {
 	}
 	e.Clock.Add(2 * time.Minute)
 	e.sweep()
-	if p := e.waitScript(id, "stopped", "done", "error"); p.State != "stopped" || !strings.Contains(p.Error, "ceiling") {
+	if p := e.waitScript(id, "stopped", "done", "error"); p.State != "error" || !strings.Contains(p.Error, "ceiling") {
 		t.Fatalf("the ceiling stops the script: %+v", p)
 	}
 
@@ -766,7 +766,7 @@ func TestAScriptMayRunForHours(t *testing.T) {
 	}
 	e.Clock.Add(11 * time.Minute)
 	e.sweep()
-	if p := e.waitScript(id, "stopped", "done", "error"); p.State != "stopped" || !strings.Contains(p.Error, "ceiling") {
+	if p := e.waitScript(id, "stopped", "done", "error"); p.State != "error" || !strings.Contains(p.Error, "ceiling") {
 		t.Fatalf("the ceiling stops the script: %+v", p)
 	}
 }

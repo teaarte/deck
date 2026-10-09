@@ -7,6 +7,32 @@
 <body>
 <script>
 const host = "{{HOST}}";
+// guard keeps WebRTC, which no CSP of every browser stops, out of a window and of every frame put into it.
+const guard = (w) => {
+  for (const k of Object.getOwnPropertyNames(w)) {
+    if (/^(webkit)?RTC/.test(k)) try { Object.defineProperty(w, k, { value: undefined, configurable: false }); } catch {}
+  }
+  const bar = (n) => {
+    if (n && n.querySelectorAll) for (const f of [n, ...n.querySelectorAll("iframe, frame, object, embed")]) if (f.contentWindow) guard(f.contentWindow);
+    return n;
+  };
+  const E = w.Element.prototype, N = w.Node.prototype;
+  for (const m of ["appendChild", "insertBefore", "replaceChild"]) {
+    const was = N[m];
+    N[m] = function (n, ...rest) { const out = was.call(this, n, ...rest); bar(n); return out; };
+  }
+  for (const m of ["append", "prepend", "after", "before", "replaceWith", "insertAdjacentElement"]) {
+    const was = E[m];
+    if (was) E[m] = function (...a) { const out = was.apply(this, a); a.forEach(bar); return out; };
+  }
+  for (const p of ["innerHTML", "outerHTML"]) {
+    const d = Object.getOwnPropertyDescriptor(E, p);
+    Object.defineProperty(E, p, { ...d, set(v) { const at = this.parentNode || this; d.set.call(this, v); bar(at); } });
+  }
+  const ins = E.insertAdjacentHTML;
+  E.insertAdjacentHTML = function (...a) { ins.apply(this, a); bar(this.parentNode || this); };
+};
+guard(window);
 const inner = document.createElement("iframe");
 inner.setAttribute("sandbox", "allow-scripts allow-same-origin allow-forms");
 document.body.appendChild(inner);
@@ -16,6 +42,7 @@ addEventListener("message", (e) => {
     if (e.data && e.data.method === "ui/notifications/sandbox-resource-ready") {
       const doc = inner.contentDocument;
       doc.open();
+      guard(inner.contentWindow);
       doc.write(String(e.data.params.html));
       doc.close();
     } else if (inner.contentWindow) {

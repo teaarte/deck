@@ -311,7 +311,6 @@ func TestACPRecordedTurnsOfBothAgents(t *testing.T) {
 // TestACPSelfCheckPastItsCeilingSaysWhy: a self-check that runs out of time tells a key the model API refused
 // from a model that never finished a call and from one that answered but is slow.
 func TestACPSelfCheckPastItsCeilingSaysWhy(t *testing.T) {
-	t.Parallel()
 	start := []string{acpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`}
 	for _, tc := range []struct {
 		name          string
@@ -715,7 +714,6 @@ func TestACPProviderIsNotUsedBeforeItsFirstSelfCheck(t *testing.T) {
 
 // TestAProviderTakesItsOwnSelfCheckCeiling: a slow model gets more time for its self-check than deck's default.
 func TestAProviderTakesItsOwnSelfCheckCeiling(t *testing.T) {
-	t.Parallel()
 	f := newACP(t)
 	f.streamText(1, acpStream(acpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`, acpModel, `{"hang": true}`))
 	llm := newLLM(t, func(int, chatRequest) chatReply { return textReply("ok") })

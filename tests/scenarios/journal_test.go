@@ -250,7 +250,6 @@ func TestModelCallsOfABaseFromBeforeKeepTheirProject(t *testing.T) {
 // TestTheJournalCountsTheDaysOfTheOwner: the days of Spend and Runs are those of the owner's clock, not of UTC, half
 // an hour off included: a call and a run ten minutes past the owner's midnight count on that day.
 func TestTheJournalCountsTheDaysOfTheOwner(t *testing.T) {
-	t.Parallel()
 	local := time.Local
 	time.Local = time.FixedZone("owner", 5*3600+30*60)
 	t.Cleanup(func() { time.Local = local })

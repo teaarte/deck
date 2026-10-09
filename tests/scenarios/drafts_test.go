@@ -699,6 +699,8 @@ func TestAnotherFolderOfACommandWidensRights(t *testing.T) {
 	for _, c := range []struct{ to, want string }{
 		{m(`"folder": "docs", `), "command run: works in folder docs"},
 		{m(`"folder": true, `), "command run: works in the one folder of the project"},
+		{strings.Replace(m(`"folder": "main", `), `]}`, `, {"name": "fix", "title": "Fix", "description": "Fixes.", "class": "external",
+    "executor": {"type": "agent", "folder": "main", "prompt": "Fix."}}]}`, 1), "command fix: works in folder main"},
 	} {
 		if _, out := e.callWith(tok, "deck.manifest_save", map[string]any{"project": "code", "manifest": c.to}); !strings.Contains(string(out), c.want) {
 			t.Fatalf("want %q, got %s", c.want, out)

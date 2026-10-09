@@ -1,11 +1,13 @@
 package manifest
 
 import (
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"maps"
 	"regexp"
 	"slices"
+	"strings"
 
 	xcurrency "golang.org/x/text/currency"
 )
@@ -64,7 +66,7 @@ func (m *Manifest) checkScreenList(deck bool, fail func(string, ...any)) {
 		c.warn = func(format string, a ...any) { m.warnings = append(m.warnings, fmt.Sprintf(format, a...)) }
 		c.params()
 		for j, b := range s.Blocks {
-			c.block(fmt.Sprintf("screen %q block %d", s.Name, j), b)
+			c.block(fmt.Sprintf("screen %q /screens/%d/blocks/%d", s.Name, i, j), b)
 		}
 	}
 }
@@ -125,11 +127,11 @@ func (c *screenCheck) block(where string, b Block) {
 	switch b.Type {
 	case "columns", "tabs", "dialog":
 		for j, x := range b.Blocks {
-			c.block(fmt.Sprintf("%s block %d", where, j), x)
+			c.block(fmt.Sprintf("%s/blocks/%d", where, j), x)
 		}
 		for j, t := range b.Tabs {
 			for k, x := range t.Blocks {
-				c.block(fmt.Sprintf("%s tab %d block %d", where, j, k), x)
+				c.block(fmt.Sprintf("%s/tabs/%d/blocks/%d", where, j, k), x)
 			}
 		}
 	case "actions":
@@ -221,9 +223,11 @@ func (c *screenCheck) block(where string, b Block) {
 			}
 		}
 		if b.Item != nil {
-			for _, e := range []string{b.Item.Title, b.Item.Text, b.Item.Meta, b.Item.Icon, b.Item.Image, b.Item.Details, b.Item.Questions, b.Item.Tone, b.Item.File, b.Item.Marks} {
-				if _, err := compileField(e, fields); e != "" && err != nil {
-					c.fail("%s item: %v", where, err)
+			for _, p := range []struct{ name, e string }{{"title", b.Item.Title}, {"text", b.Item.Text}, {"meta", b.Item.Meta},
+				{"icon", b.Item.Icon}, {"image", b.Item.Image}, {"details", b.Item.Details}, {"questions", b.Item.Questions},
+				{"tone", b.Item.Tone}, {"file", b.Item.File}, {"marks", b.Item.Marks}} {
+				if _, err := compileField(p.e, fields); p.e != "" && err != nil {
+					c.fail("%s item %s: %v", where, p.name, err)
 				}
 			}
 		}
@@ -254,12 +258,12 @@ func (c *screenCheck) block(where string, b Block) {
 	}
 	for _, f := range b.Filter {
 		if fields != nil && !slices.Contains(fields, f) {
-			c.fail("%s filter: unknown field %q", where, f)
+			c.fail("%s filter: unknown field %q; the fields are %s", where, f, strings.Join(slices.Sorted(slices.Values(fields)), ", "))
 		}
 	}
-	for _, a := range b.Actions {
+	for i, a := range b.Actions {
 		if err := c.action(b, a, fields); err != nil {
-			c.fail("%s action %q: %v", where, a.Label, err)
+			c.fail("%s/actions/%d %q: %v", where, i, cmp.Or(a.Label, a.Verb), err)
 		}
 	}
 	if b.Mark != nil {

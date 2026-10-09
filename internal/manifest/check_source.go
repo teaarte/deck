@@ -73,7 +73,7 @@ func (c *screenCheck) source(where, typ string, src Source) ([]string, bool) {
 		}
 	}
 	if f := strings.TrimPrefix(src.Sort, "-"); f != "" && fields != nil && !slices.Contains(fields, f) {
-		c.fail("%s sort: unknown field %q", where, f)
+		c.fail("%s sort: unknown field %q; the fields are %s", where, f, strings.Join(slices.Sorted(slices.Values(fields)), ", "))
 	}
 	return fields, true
 }

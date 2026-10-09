@@ -144,3 +144,25 @@ func TestABoardShowsItsLanesEmptyAndOnlyThoseItsButtonOffers(t *testing.T) {
 		t.Fatalf("an empty board shows the lanes its move button offers: %v", lanes)
 	}
 }
+
+// TestAScreenThatDrawsAgainIsHealthy: a block that failed on the data is red in health until the screen draws
+// without errors.
+func TestAScreenThatDrawsAgainIsHealthy(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, nil)
+	m := strings.Replace(boardManifest, `"item": {"title": "title"}`, `"item": {"title": "title + note"}`, 1)
+	m = strings.Replace(m, `"status": {"type": "string", "enum": ["todo", "doing", "done"]}}}}]`, `"status": {"type": "string", "enum": ["todo", "doing", "done"]}, "note": {"type": "string"}}}}]`, 1)
+	e.createProject("work", m)
+	e.must("deck.records_upsert", map[string]any{"project": "work", "collection": "tasks", "records": `{"title": "a", "status": "doing"}`}, nil)
+	e.screenData("work", "board", nil)
+	e.waitHealth("screen:work.board", "error")
+	e.must("deck.records_upsert", map[string]any{"project": "work", "collection": "tasks", "records": `{"title": "a", "status": "doing", "note": "!"}`}, nil)
+	e.screenData("work", "board", nil)
+	var hs []healthRow
+	e.must("deck.health_list", nil, &hs)
+	for _, h := range hs {
+		if h.Subject == "screen:work.board" {
+			t.Fatalf("a screen that draws again is healthy: %+v", h)
+		}
+	}
+}

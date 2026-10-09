@@ -333,7 +333,8 @@ A script reads its input JSON from stdin and prints its result JSON to stdout. I
 protocol: a picture of `images/generations`, music of `audio/music` (`input`, `seconds`, like speech), each of chat
 completions with image or audio out when the API has no such path; a picture or a track comes back as a file with
 `model` (the model of deck's settings that made it, a fallback too) and `cost_usd`, for the module's own accounting
-and credits. The models of a kind and their fallbacks are the owner's assignment; one that does not answer turns red in health while
+and credits. Other results are as the API gave them; `deck.process_get` of the process names its `models` and their
+`cost_usd` (none while a model has no price), speech priced per character and recognition per second too. The models of a kind and their fallbacks are the owner's assignment; one that does not answer turns red in health while
 the next takes the work. A model on the owner's machine (a local server, as whisper.cpp) is a connection like any
 other. A connection of another API, such as Google's own, is reached only from a script.
 

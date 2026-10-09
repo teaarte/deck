@@ -67,9 +67,17 @@ func TestFormFieldsOfferValuesFromASourceAndProjectFieldsTheProjects(t *testing.
 	if k := add.Choices["key_secret"]; len(k) != 1 || k[0].Value != "or-key" {
 		t.Fatalf("the key of a connection is picked from the secrets: %+v", add.Choices)
 	}
-	assign := blockData[struct{ Choices map[string][]choiceV }](t, e.screenForm("web", "settings", "deck.assignment_set")["value"])
-	if m := assign.Choices["models"]; len(m) == 0 || m[0].Value != "fake" {
-		t.Fatalf("the models of a command are picked from the models in an agent: %+v", assign.Choices)
+	var agents, kinds bool
+	for _, d := range e.screenData("web", "settings", nil) {
+		if !strings.Contains(string(d["value"]), `"commands":[{`) || !strings.Contains(string(d["value"]), `"name":"deck.assignment_set"`) {
+			continue
+		}
+		m := blockData[struct{ Choices map[string][]choiceV }](t, d["value"]).Choices["models"]
+		agents = agents || len(m) > 0 && m[0].Value == "fake"
+		kinds = kinds || len(m) == 1 && m[0].Value == "whisper"
+	}
+	if !agents || !kinds {
+		t.Fatalf("the models of a command are picked from the models in an agent, of a kind of work from the models of connections: %v %v", agents, kinds)
 	}
 
 	for _, tc := range []struct{ from, to, want string }{

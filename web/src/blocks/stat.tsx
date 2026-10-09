@@ -1,5 +1,5 @@
 import { createComponentImplementation } from '@a2ui/react/v0_9';
-import { Card, Text, Tooltip } from '@mantine/core';
+import { Card, Text } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
 import type { Shown } from '../lib/format';
 import { useScreenActions } from '../screen/ScreenActions';
@@ -24,17 +24,19 @@ function Stat({ p }: { p: BlockProps & Shown }) {
   const open = () => { if (opens) void run(opens); };
   let value;
   if (!d) value = <Pending />;
-  else if (d.state === 'error') value = <Tooltip label={d.error} multiline maw={320}><Text span inherit c="red">{t('state.error')}</Text></Tooltip>;
+  else if (d.state === 'error') value = <Text span inherit c="red">{t('state.error')}</Text>;
   else if (d.state === 'empty') value = <Text span inherit c="dimmed" fz="sm" fw={500} data-empty>{d.empty || t('state.empty')}</Text>;
   else value = <Value v={d.value} s={p} tone={d.tone} />;
   return (
-    <Card className={`${b.block} ${s.stat}`} data-block data-stat-block data-span={String(p.span ?? 1)} data-tone={d?.tone} title={p.description}
+    <Card className={`${b.block} ${s.stat}`} data-block data-stat-block data-span={String(p.span ?? 1)} data-tone={d?.tone}
       data-opens={opens ? true : undefined} role={opens ? 'link' : undefined} tabIndex={opens ? 0 : undefined} onClick={open}
       onKeyDown={(e) => { if (opens && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); open(); } }}>
       <span className={s.icon}><NamedIcon name={p.icon} fallback={p.title ?? ''} size={18} /></span>
       <div className={s.body}>
         <Text component="div" className={s.value} data-stat>{value}</Text>
         {p.title && <Text className={s.title} truncate>{p.title}</Text>}
+        {p.description && <Text size="xs" c="dimmed" lineClamp={2} data-stat-description>{p.description}</Text>}
+        {d?.state === 'error' && <Text size="xs" c="red" lineClamp={3} data-stat-error>{d.error}</Text>}
       </div>
     </Card>
   );

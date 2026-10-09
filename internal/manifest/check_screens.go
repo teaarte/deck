@@ -261,6 +261,9 @@ func (c *screenCheck) block(where string, b Block) {
 			c.fail("%s filter: unknown field %q; the fields are %s", where, f, strings.Join(slices.Sorted(slices.Values(fields)), ", "))
 		}
 	}
+	if b.Type == "stat" && slices.ContainsFunc(b.Actions, func(a Action) bool { return a.Screen == "" }) {
+		c.warn("%s: a stat opens a screen when pressed; a button that calls a command goes on an actions block", where)
+	}
 	for i, a := range b.Actions {
 		if err := c.action(b, a, fields); err != nil {
 			c.fail("%s/actions/%d %q: %v", where, i, cmp.Or(a.Label, a.Verb), err)

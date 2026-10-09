@@ -217,3 +217,15 @@ func TestTheFormatAModelReadsHasOnlyWhatAModuleUses(t *testing.T) {
 	}
 	e.createProject("work", strings.Replace(boardManifest, `{"label": "Move"`, `{"verb": "open", "screen": "board"}, {"label": "Move"`, 1))
 }
+
+// TestARefusalOfAScreenSaysWhereByPointerAndWhatFits: a refusal names the block by the JSON Pointer a patch edits,
+// and an unknown field lists the fields there are.
+func TestARefusalOfAScreenSaysWhereByPointerAndWhatFits(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, nil)
+	bad := strings.Replace(boardManifest, `"item": {"title": "title"},`, `"item": {"title": "title"}, "filter": ["colour"],`, 1)
+	code, out := e.call("deck.project_create", map[string]any{"name": "work", "manifest": bad})
+	if code != 422 || !strings.Contains(string(out), `/screens/0/blocks/0`) || !strings.Contains(string(out), "status") || !strings.Contains(string(out), "title") {
+		t.Fatalf("a refusal says where by pointer and lists the fields: %d %s", code, out)
+	}
+}

@@ -259,6 +259,7 @@ const listDocuments = `-- name: ListDocuments :many
 SELECT id, workspace_id, project_id, record_id, kind, name, "current", deleted_at, created_at FROM document
 WHERE workspace_id = ?1 AND project_id IS ?2
   AND (CAST(?3 AS TEXT) = '' OR kind = CAST(?3 AS TEXT))
+  AND (CAST(?4 AS INTEGER) = 0 OR record_id = CAST(?4 AS INTEGER))
   AND deleted_at IS NULL
 ORDER BY name
 `
@@ -267,10 +268,16 @@ type ListDocumentsParams struct {
 	WorkspaceID int64
 	ProjectID   sql.NullInt64
 	Kind        string
+	RecordID    int64
 }
 
 func (q *Queries) ListDocuments(ctx context.Context, arg ListDocumentsParams) ([]Document, error) {
-	rows, err := q.db.QueryContext(ctx, listDocuments, arg.WorkspaceID, arg.ProjectID, arg.Kind)
+	rows, err := q.db.QueryContext(ctx, listDocuments,
+		arg.WorkspaceID,
+		arg.ProjectID,
+		arg.Kind,
+		arg.RecordID,
+	)
 	if err != nil {
 		return nil, err
 	}

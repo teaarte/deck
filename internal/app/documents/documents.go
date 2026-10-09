@@ -53,8 +53,13 @@ type documentView struct {
 }
 
 func (dc *Service) docView(ctx context.Context, d db.Document) documentView {
+	return view(d, access.Name(ctx, dc.St.Q, d.ProjectID.Int64))
+}
+
+// view is a document as the lists show it, in its project.
+func view(d db.Document, project string) documentView {
 	kind, owner := docs.Owner(d)
-	return documentView{ID: d.ID, Project: access.Name(ctx, dc.St.Q, d.ProjectID.Int64), OwnerKind: kind, OwnerID: owner, Kind: d.Kind, Name: d.Name, Revision: d.Current,
+	return documentView{ID: d.ID, Project: project, OwnerKind: kind, OwnerID: owner, Kind: d.Kind, Name: d.Name, Revision: d.Current,
 		Deleted: d.DeletedAt.Valid}
 }
 
@@ -82,7 +87,7 @@ func (dc *Service) documentsList(ctx context.Context, act registry.Actor, in doc
 	}
 	var ds []db.Document
 	if !in.Deleted {
-		if ds, err = dc.St.Q.ListDocuments(ctx, db.ListDocumentsParams{WorkspaceID: s.Workspace, ProjectID: store.ID(s.Project), Kind: in.Kind}); err != nil {
+		if ds, err = dc.St.Q.ListDocuments(ctx, db.ListDocumentsParams{WorkspaceID: s.Workspace, ProjectID: store.ID(s.Project), Kind: in.Kind, RecordID: in.Record}); err != nil {
 			return nil, err
 		}
 	}
@@ -93,7 +98,7 @@ func (dc *Service) documentsList(ctx context.Context, act registry.Actor, in doc
 		}
 		ds = append(ds, gone...)
 	}
-	out := make([]documentView, 0, len(ds))
+	out, project := make([]documentView, 0, len(ds)), access.Name(ctx, dc.St.Q, s.Project)
 	for _, d := range ds {
 		if in.Record != 0 && d.RecordID.Int64 != in.Record {
 			continue
@@ -102,7 +107,7 @@ func (dc *Service) documentsList(ctx context.Context, act registry.Actor, in doc
 		if d.ProjectID.Valid && access.MayRead(ctx, dc.St.Q, act, p, "", d.Name) != nil {
 			continue
 		}
-		out = append(out, dc.docView(ctx, d))
+		out = append(out, view(d, project))
 	}
 	return out, nil
 }

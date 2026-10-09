@@ -24,6 +24,7 @@ VALUES (sqlc.arg(workspace_id), sqlc.narg(project_id), sqlc.narg(record_id), sql
 SELECT * FROM document
 WHERE workspace_id = sqlc.arg(workspace_id) AND project_id IS sqlc.narg(project_id)
   AND (CAST(sqlc.arg(kind) AS TEXT) = '' OR kind = CAST(sqlc.arg(kind) AS TEXT))
+  AND (CAST(sqlc.arg(record_id) AS INTEGER) = 0 OR record_id = CAST(sqlc.arg(record_id) AS INTEGER))
   AND deleted_at IS NULL
 ORDER BY name;
 

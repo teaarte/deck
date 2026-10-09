@@ -36,7 +36,7 @@ func TestRealBrowserMasterChat(t *testing.T) {
 			<-ctx.Done()
 			return provider.Result{}
 		}
-		return provider.Result{Text: "Put it into **groceries** as task #1."}
+		return provider.Result{Text: "Put it into **groceries** as task #1. [Open](#/p/groceries/tasks)"}
 	}, func(c *app.Config) { c.QuestionWait = 2 * time.Minute })
 	e.must("deck.project_create", map[string]any{"name": "groceries", "prompt": "# Groceries: the shopping list.\n", "manifest": tasksManifest}, nil)
 
@@ -101,6 +101,13 @@ func TestRealBrowserMasterChat(t *testing.T) {
 	say("from the phone")
 	b.until("the reply on the phone", `[...document.querySelectorAll('[data-message="master"]')].some((m) => m.innerText.includes('groceries'))`)
 	b.shot("chat-phone")
+	link := `([...document.querySelectorAll('[data-message="master"] a')].pop().click(), '')`
+	b.eval(link)
+	b.until("the screen of the link in place of the chat over it", `location.hash === '#/p/groceries/tasks' && !document.querySelector('[data-chat-phone] [data-chat-input]') && document.querySelector('[data-block]')`)
+	b.eval(`(document.querySelector('[data-chat-toggle]').click(), '')`)
+	b.until("the chat over the screen again", `document.querySelector('[data-chat-phone] [data-message="master"] a')`)
+	b.eval(link)
+	b.until("a link to the screen under the chat shows that screen", `!document.querySelector('[data-chat-phone] [data-chat-input]')`)
 	var ts []chatTopic
 	e.chatTopics(false, &ts)
 	if len(ts) != 2 || ts[0].Title != "from the phone" {

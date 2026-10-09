@@ -106,6 +106,7 @@ func TestRealBrowserWebClientII(t *testing.T) {
 	if e.countOf("publish") != 0 {
 		t.Fatal("an external command of a custom block waits for the owner")
 	}
+	b.until("Allow ready a moment after the window opened", `!document.querySelector('[data-custom-allow]').disabled`)
 	b.eval(`(document.querySelector('[data-custom-allow]').click(), '')`)
 	e.waitFor("the published run", func() bool { return e.countOf("publish") == 1 })
 	time.Sleep(2 * time.Second)

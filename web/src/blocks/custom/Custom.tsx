@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button, Code, Group, Modal, Stack, Text } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
 import type { CustomValue } from '../../lib/catalog.gen';
@@ -12,6 +12,14 @@ export function Custom({ value }: { value: CustomValue }) {
   const ask = (q: Ask) => new Promise<boolean>((done) => setAsking({ ...q, done }));
   const answer = (ok: boolean) => { asking?.done(ok); setAsking(undefined); };
   const { frame, height } = useAppBridge(value, ask);
+  // Allow waits a moment, so a click meant for the screen under a window the frame just opened does not land on it.
+  const [armed, setArmed] = useState(false);
+  useEffect(() => {
+    setArmed(false);
+    if (!asking) return;
+    const id = setTimeout(() => setArmed(true), 500);
+    return () => clearTimeout(id);
+  }, [asking]);
   return (
     <>
       <iframe ref={frame} title="custom" data-custom sandbox="allow-scripts allow-same-origin allow-forms"
@@ -23,7 +31,7 @@ export function Custom({ value }: { value: CustomValue }) {
             <Code block>{JSON.stringify(asking.input, null, 2)}</Code>
             <Group justify="flex-end">
               <Button variant="default" onClick={() => answer(false)}>{t('verb.deny')}</Button>
-              <Button onClick={() => answer(true)} data-custom-allow>{t('verb.allow')}</Button>
+              <Button onClick={() => answer(true)} disabled={!armed} data-custom-allow>{t('verb.allow')}</Button>
             </Group>
           </Stack>
         )}

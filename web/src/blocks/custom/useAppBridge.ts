@@ -20,11 +20,12 @@ const PROXY_READY = 'ui/notifications/sandbox-proxy-ready';
 const text = (s: string): CallToolResult['content'] => [{ type: 'text', text: s }];
 
 // useAppBridge connects the frame of a custom block to deck: the theme, the data of its source, its size, and calls
-// of its buttons' commands, those outside deck asked of the owner first.
+// of its buttons' commands, all but internal ones asked of the owner first, one at a time.
 export function useAppBridge(value: CustomValue, ask: (q: Ask) => Promise<boolean>) {
   const frame = useRef<HTMLIFrameElement>(null);
   const bridge = useRef<AppBridge>(undefined);
   const latest = useRef(value);
+  const asking = useRef(false);
   latest.current = value;
   const [ready, setReady] = useState(false);
   const [height, setHeight] = useState(240);
@@ -48,8 +49,11 @@ export function useAppBridge(value: CustomValue, ask: (q: Ask) => Promise<boolea
         return { isError: true, content: text(`deck: this block may call only its buttons' commands: ${allowed}`) };
       }
       const input = { ...args, ...(act.params ?? {}) };
-      if (act.class && act.class !== 'internal' && !(await ask({ act, input }))) {
-        return { isError: true, content: text(`deck: the owner declined ${act.command}`) };
+      if (act.class !== 'internal') {
+        if (asking.current) return { isError: true, content: text('deck: another call of this block waits for the owner') };
+        asking.current = true;
+        const ok = await ask({ act, input }).finally(() => { asking.current = false; });
+        if (!ok) return { isError: true, content: text(`deck: the owner declined ${act.command}`) };
       }
       try {
         const out = await call(act.command, input);

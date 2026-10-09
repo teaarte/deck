@@ -3,6 +3,7 @@ import { useComputedColorScheme, useMantineTheme } from '@mantine/core';
 import { AppBridge, PostMessageTransport, type McpUiHostContext } from '@modelcontextprotocol/ext-apps/app-bridge';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { call } from '../../lib/api';
+import { go, parse } from '../../app/router';
 import type { CustomValue } from '../../lib/catalog.gen';
 import { hostContext } from './hostContext';
 
@@ -29,6 +30,7 @@ export function useAppBridge(value: CustomValue, ask: (q: Ask) => Promise<boolea
   latest.current = value;
   const [ready, setReady] = useState(false);
   const [height, setHeight] = useState(240);
+  const [full, setFull] = useState(false);
   const scheme = useComputedColorScheme('light');
   const mantine = useMantineTheme();
   const context = useRef<McpUiHostContext>(undefined);
@@ -40,7 +42,22 @@ export function useAppBridge(value: CustomValue, ask: (q: Ask) => Promise<boolea
 
   useEffect(() => {
     const iframe = frame.current!;
-    const b = new AppBridge(null, { name: 'deck', version: '1' }, { serverTools: {} }, { hostContext: context.current });
+    const b = new AppBridge(null, { name: 'deck', version: '1' }, { serverTools: {}, openLinks: {} }, { hostContext: context.current });
+    // A link opens a screen or window of deck; a page outside would carry the data of the frame out.
+    b.onopenlink = async ({ url }) => {
+      const at = url.startsWith('#/') ? url : URL.canParse(url) && new URL(url).origin === location.origin ? new URL(url).hash : '';
+      if (!at.startsWith('#/')) return { isError: true };
+      go(parse(at));
+      return {};
+    };
+    b.onrequestdisplaymode = async ({ mode }) => {
+      const to = mode === 'fullscreen' ? 'fullscreen' : 'inline';
+      setFull(to === 'fullscreen');
+      context.current = { ...context.current, displayMode: to,
+        containerDimensions: to === 'fullscreen' ? { width: innerWidth, height: innerHeight } : undefined };
+      b.setHostContext(context.current);
+      return { mode: to };
+    };
     b.oncalltool = async (p): Promise<CallToolResult> => {
       const args = (p.arguments ?? {}) as Record<string, unknown>;
       const act = button(latest.current.actions ?? [], p.name, args);
@@ -87,5 +104,10 @@ export function useAppBridge(value: CustomValue, ask: (q: Ask) => Promise<boolea
     void bridge.current.sendToolResult({ content: text(JSON.stringify(data)), structuredContent: data });
   }, [ready, value.items, value.record]);
 
-  return { frame, height };
+  const inline = () => {
+    setFull(false);
+    context.current = { ...context.current, displayMode: 'inline', containerDimensions: undefined };
+    bridge.current?.setHostContext(context.current);
+  };
+  return { frame, height, full, inline };
 }

@@ -50,5 +50,5 @@ export function hostContext(theme: 'light' | 'dark'): McpUiHostContext {
   const css = getComputedStyle(document.documentElement);
   const variables = Object.fromEntries(Object.entries(HOST_VARIABLES)
     .map(([k, from]) => [k, css.getPropertyValue(from!).trim()]).filter(([, v]) => v)) as McpUiStyles;
-  return { theme, styles: { variables }, displayMode: 'inline', platform: 'web' };
+  return { theme, styles: { variables }, displayMode: 'inline', availableDisplayModes: ['inline', 'fullscreen'], platform: 'web' };
 }

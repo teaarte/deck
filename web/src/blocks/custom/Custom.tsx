@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Button, Code, Group, Modal, Stack, Text } from '@mantine/core';
+import { ActionIcon, Button, Code, Group, Modal, Stack, Text } from '@mantine/core';
+import { IconX } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { CustomValue } from '../../lib/catalog.gen';
 import { useAppBridge, type Ask } from './useAppBridge';
@@ -11,7 +12,7 @@ export function Custom({ value }: { value: CustomValue }) {
   const [asking, setAsking] = useState<Ask & { done: (ok: boolean) => void }>();
   const ask = (q: Ask) => new Promise<boolean>((done) => setAsking({ ...q, done }));
   const answer = (ok: boolean) => { asking?.done(ok); setAsking(undefined); };
-  const { frame, height } = useAppBridge(value, ask);
+  const { frame, height, full, inline } = useAppBridge(value, ask);
   // Allow waits a moment, so a click meant for the screen under a window the frame just opened does not land on it.
   const [armed, setArmed] = useState(false);
   useEffect(() => {
@@ -22,8 +23,13 @@ export function Custom({ value }: { value: CustomValue }) {
   }, [asking]);
   return (
     <>
-      <iframe ref={frame} title="custom" data-custom sandbox="allow-scripts allow-same-origin allow-forms"
-        style={{ width: '100%', height, border: 0, display: 'block' }} />
+      <iframe ref={frame} title="custom" data-custom data-full={full || undefined} sandbox="allow-scripts allow-same-origin allow-forms"
+        style={full ? { position: 'fixed', inset: 0, width: '100vw', height: '100dvh', border: 0, zIndex: 190, background: 'var(--mantine-color-body)' }
+          : { width: '100%', height, border: 0, display: 'block' }} />
+      {full && (
+        <ActionIcon variant="default" radius="xl" size="lg" onClick={inline} aria-label={t('custom.inline')} data-custom-inline
+          style={{ position: 'fixed', top: 12, right: 12, zIndex: 191 }}><IconX size={18} /></ActionIcon>
+      )}
       <Modal opened={!!asking} onClose={() => answer(false)} title={t('custom.ask')}>
         {asking && (
           <Stack gap="sm" data-custom-ask>

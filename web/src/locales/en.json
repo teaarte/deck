@@ -71,7 +71,7 @@
   },
   "filter": { "any": "Any {{field}}" },
   "confirm": { "title": "{{action}}?" },
-  "custom": { "ask": "A custom block wants to run a command that goes outside deck" },
+  "custom": { "ask": "A custom block wants to run a command that goes outside deck", "inline": "Back into the screen" },
 
   "form": {
     "command": "Command",

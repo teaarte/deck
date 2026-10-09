@@ -440,8 +440,8 @@ func (s *Service) checkAgent(ctx context.Context, workspace int64, c db.Connecti
 
 func positive(f float64) sql.NullFloat64 { return sql.NullFloat64{Float64: f, Valid: f > 0} }
 
-// catalog reads the price and kind of a model from the list of models of its connection, as OpenRouter gives them:
-// USD per token as text, and the output modalities.
+// catalog reads the price and kind of a model from OpenRouter's list of its connection; a zero is free only for a model
+// of text or one named free, since a song or a picture may cost what no field of the catalog says.
 func (s *Service) catalog(ctx context.Context, workspace int64, c db.Connection, model string) (db.AddModelParams, bool) {
 	var out db.AddModelParams
 	key := ""
@@ -457,13 +457,8 @@ func (s *Service) catalog(ctx context.Context, workspace int64, c db.Connection,
 	defer resp.Body.Close()
 	var list struct {
 		Data []struct {
-			ID      string `json:"id"`
-			Pricing struct {
-				Prompt     string `json:"prompt"`
-				Completion string `json:"completion"`
-				Request    string `json:"request"`
-				Image      string `json:"image"`
-			} `json:"pricing"`
+			ID           string         `json:"id"`
+			Pricing      map[string]any `json:"pricing"`
 			Architecture struct {
 				Output []string `json:"output_modalities"`
 			} `json:"architecture"`
@@ -480,11 +475,18 @@ func (s *Service) catalog(ctx context.Context, workspace int64, c db.Connection,
 		if d.ID != model {
 			continue
 		}
-		out.InputUsd, out.OutputUsd = perMillion(d.Pricing.Prompt), perMillion(d.Pricing.Completion)
-		if f, err := strconv.ParseFloat(d.Pricing.Request, 64); err == nil && f > 0 {
+		price := func(k string) string { v, _ := d.Pricing[k].(string); return v }
+		out.InputUsd, out.OutputUsd = perMillion(price("prompt")), perMillion(price("completion"))
+		if f, err := strconv.ParseFloat(price("request"), 64); err == nil && f > 0 {
 			out.CallUsd = sql.NullFloat64{Float64: f, Valid: true}
 		}
-		out.Free = b2i(d.Pricing.Prompt == "0" && d.Pricing.Completion == "0" && !out.CallUsd.Valid)
+		free := len(d.Pricing) > 0 && (strings.HasSuffix(d.ID, ":free") || !slices.ContainsFunc(d.Architecture.Output, func(m string) bool { return m != "text" }))
+		for k := range d.Pricing {
+			if f, err := strconv.ParseFloat(price(k), 64); err == nil && f != 0 {
+				free = false
+			}
+		}
+		out.Free = b2i(free)
 		switch {
 		case slices.Contains(d.Architecture.Output, "image"):
 			out.Kind = RoleImage

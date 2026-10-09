@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"net/url"
 	"strings"
 	"sync"
@@ -159,6 +158,9 @@ func (c *Service) ToolSignIn(ctx context.Context, p db.Project, tool, why string
 		_, err := ask.ForProject(ctx, q, p.WorkspaceID, p.ID, 0, ask.KindSignIn, text, string(payload), time.Time{})
 		return err
 	})
+	if err != nil {
+		health.Write(ctx, c.St, health.Project(p), "tool:"+tool, health.NeedsLogin, text+"; deck could not ask: "+err.Error())
+	}
 }
 
 type oauthStartIn struct {
@@ -235,15 +237,15 @@ func (c *Service) ServerStatus(key string, list []*mcp.Tool, err error) {
 		subject, of = "mcp:"+p.Name+"."+server, health.Project(p)
 		if err == nil {
 			if kerr := c.MCP.Keep(ctx, project, server, list); kerr != nil {
-				slog.Error("keep MCP tools", "server", subject, "err", kerr)
+				err = fmt.Errorf("keep its tools: %w", kerr)
 			}
 		}
 	}
 	if err != nil {
-		health.Write(ctx, c.St, of, subject, "error", err.Error())
+		health.Write(ctx, c.St, of, subject, health.Error, err.Error())
 		return
 	}
-	health.Write(ctx, c.St, of, subject, "ok", "")
+	health.Write(ctx, c.St, of, subject, health.OK, "")
 }
 
 // ToolHealth is the health of a tool of a project.

@@ -502,9 +502,8 @@ func TestAModuleCallsOnlyTheModelsTheOwnerGranted(t *testing.T) {
 	}
 }
 
-// TestAModuleCallsOnlyTheModelsOfDecksSettings: a call through a connection names a model the owner added to deck,
-// in a JSON body, a form, a path of Google's API or the header X-Deck-Model for a service whose API has no model;
-// any other model, or a path of the account with none, is refused with what to do.
+// TestAModuleCallsOnlyTheModelsOfDecksSettings: a call names a model the owner added (body, form, Google's path or
+// X-Deck-Model); any other model, or an account path naming none, is refused with what to do.
 func TestAModuleCallsOnlyTheModelsOfDecksSettings(t *testing.T) {
 	ok := func(int, map[string]any) (int, string, string) { return 200, "application/json", chatText("hi") }
 	api := newModels(t, map[string]func(int, map[string]any) (int, string, string){

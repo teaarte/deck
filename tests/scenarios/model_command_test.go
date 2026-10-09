@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -326,8 +327,25 @@ func TestAModelThatDoesNotAnswerIsRedWhileItsFallbackWorks(t *testing.T) {
 	if got := e.waitState(e.start("shorts", "picture", map[string]any{"scene": "a knight"}), "done", "error"); got.State != "done" {
 		t.Fatalf("the fallback draws the picture: %+v", got)
 	}
-	if status, text := health(); status != "error" || !strings.Contains(text, "did not answer") || using() != "openrouter/painter" {
-		t.Fatalf("the model that did not answer is red and the assignment shows the fallback at work: %s %q %s", status, text, using())
+	if status, text := health(); status != "error" || text != "did not answer; openrouter/painter takes its work" || using() != "openrouter/painter" {
+		t.Fatalf("the model that did not answer is red, names the one that took its work, and the assignment shows it: %s %q %s", status, text, using())
+	}
+	var rows []struct{ Subject, Status string }
+	e.must("deck.health_list", nil, &rows)
+	if !slices.ContainsFunc(rows, func(r struct{ Subject, Status string }) bool {
+		return r.Subject == "provider:local-image" && r.Status == "error"
+	}) {
+		t.Fatalf("the red model is on the list of health: %+v", rows)
+	}
+	refusing := newModels(t, map[string]func(int, map[string]any) (int, string, string){
+		"/v1/images/generations": func(int, map[string]any) (int, string, string) {
+			return 401, "application/json", `{"error": "bad key"}`
+		},
+	})
+	e.must("deck.connection_set", map[string]any{"name": "media", "api": "openai", "url": refusing.URL + "/v1", "local": true}, nil)
+	e.waitState(e.start("shorts", "picture", map[string]any{"scene": "a knight"}), "done", "error")
+	if status, _ := health(); status != "error" {
+		t.Fatalf("a refusal is no good answer: %s", status)
 	}
 	e.must("deck.connection_set", map[string]any{"name": "media", "api": "openai", "url": local.URL + "/v1", "local": true}, nil)
 	if got := e.waitState(e.start("shorts", "picture", map[string]any{"scene": "a knight"}), "done", "error"); got.State != "done" || len(local.calls()) != 1 {
@@ -374,13 +392,18 @@ func TestAMusicModelMakesATrackOfItsOwnPathOrOfChatAudio(t *testing.T) {
 		e.must("deck.assignment_set", map[string]any{"role": "music", "models": []string{model}}, nil)
 		got := e.waitState(e.start("shorts", "track", map[string]any{"mood": "calm"}), "done", "error")
 		var res struct {
-			Type  string `json:"type"`
+			Type  string   `json:"type"`
+			Model string   `json:"model"`
+			Cost  *float64 `json:"cost_usd"`
 			Files []struct {
 				Path string `json:"path"`
 			} `json:"files"`
 		}
-		if got.State != "done" || json.Unmarshal(got.Result, &res) != nil || res.Type != want || len(res.Files) != 1 {
-			t.Fatalf("%s: the track is a file of the result: %+v", model, got)
+		if got.State != "done" || json.Unmarshal(got.Result, &res) != nil || res.Type != want || len(res.Files) != 1 || res.Model != model {
+			t.Fatalf("%s: the track is a file of the result with the model that made it: %+v", model, got)
+		}
+		if model == "lyria" && (res.Cost == nil || *res.Cost != 0.08) {
+			t.Fatalf("the result says what the track cost: %+v", got)
 		}
 	}
 	track("local-music", "audio/wav")

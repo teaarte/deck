@@ -27,7 +27,9 @@ type projectView struct {
 	// Rights are what enabling a draft at Revision of its manifest grants.
 	Rights []string `json:"rights"`
 	// Asks are the tools and commands of a draft that will wait for the owner on every call once it is enabled.
-	Asks     []string      `json:"asks"`
+	Asks []string `json:"asks"`
+	// Models are what the manifest in force lets the project call: connections, models and @kinds.
+	Models   []string      `json:"models"`
 	Revision int64         `json:"revision"`
 	Folders  []folders.Row `json:"folders"`
 	// NoNetwork is of the manifest; false when it does not load.
@@ -60,7 +62,7 @@ func (pj *Service) projectsList(ctx context.Context, act registry.Actor, in proj
 // viewProject is a project as the owner sees it, with its manifest when that loads.
 func (pj *Service) viewProject(ctx context.Context, p db.Project, m *manifest.Manifest, err error) projectView {
 	v := projectView{ID: p.ID, Name: p.Name, Title: p.Name, Status: p.Status, Paused: p.Paused == 1, Builtin: p.Builtin == 1, Screens: []ScreenLink{},
-		Rights: []string{}, Asks: []string{}}
+		Rights: []string{}, Asks: []string{}, Models: []string{}}
 	v.Folders, _ = pj.Folders(ctx, p.ID)
 	if prompt, err := docs.CurrentText(ctx, pj.St.Q, docs.ProjectScope(p), docs.KindPrompt, docs.PromptName); err == nil {
 		v.Description = docs.Description(prompt)
@@ -73,6 +75,9 @@ func (pj *Service) viewProject(ctx context.Context, p db.Project, m *manifest.Ma
 	v.Title, v.Icon, v.Screens = Nav(p, m, nil)
 	if p.Status == store.ProjectDraft {
 		v.Rights, v.Asks = append(v.Rights, rights(m)...), append(v.Asks, m.AskEachTime()...)
+	}
+	if f, err := docs.CurrentInForce(ctx, pj.St.Q, p.ID); err == nil {
+		v.Models = append(v.Models, f.Uses()...)
 	}
 	return v
 }

@@ -39,9 +39,11 @@ func price(m db.Model, u provider.Usage) *float64 {
 	return &cost
 }
 
-// Route finds where an actor's call of a model goes: the model of the body on the connection of the path, or for an
-// @role the models assigned to it for the caller's command in order, on any connection when the path is @.
-func (s *Service) Route(ctx context.Context, act registry.Actor, connection, asked string) ([]gateway.ModelHop, error) {
+// Route finds where an actor's call of a model goes: the model of deck's settings the request names on its
+// connection, or for an @role the models assigned to it for the caller's command in order, on any connection when
+// the connection is @.
+func (s *Service) Route(ctx context.Context, act registry.Actor, ask gateway.ModelAsk) ([]gateway.ModelHop, error) {
+	connection, asked := ask.Connection, ask.Model
 	command := ""
 	if act.ProcessID != 0 {
 		if p, err := s.St.Q.GetProcess(ctx, act.ProcessID); err == nil {
@@ -79,25 +81,35 @@ func (s *Service) Route(ctx context.Context, act registry.Actor, connection, ask
 			return nil, registry.NotFound("deck: no connection %q; deck.models_list names the connections", connection)
 		}
 		row, err := s.St.Q.GetModelOf(ctx, db.GetModelOfParams{ConnectionID: c.ID, Model: asked})
-		if asked == "" || err != nil {
+		switch {
+		case ask.ByHeader && c.Api != "raw":
+			return nil, registry.Refuse("deck: connection %s speaks the %s API, so the request names its model itself; the header %s is for a raw service whose API has no model field",
+				connection, c.Api, gateway.DeckModel)
+		case asked == "" && c.Api != "raw" && gateway.Polls(ask.Method, ask.Path):
+			picks = append(picks, pick{db.Model{ConnectionID: c.ID, Name: c.Name}, c})
+		case asked == "" || err != nil:
 			what := "a request naming no model"
 			if asked != "" {
 				what = strconv.Quote(asked)
 			}
-			return nil, registry.Refuse("deck: %s is not in deck's settings as a model of connection %s: a module calls only the models the owner added; name one in model (in the header %s when the API has no such field), or propose it with deck.model_set, which waits for the owner's button",
+			return nil, registry.Refuse("deck: %s is not in deck's settings as a model of connection %s: a module calls only the models the owner added; name one in model (in the header %s when a raw service has no such field), or propose it with deck.model_set, which waits for the owner's button",
 				what, connection, gateway.DeckModel)
+		default:
+			picks = append(picks, pick{row.Model, c})
 		}
-		picks = append(picks, pick{row.Model, c})
 	}
 	hops := make([]gateway.ModelHop, 0, len(picks))
-	for _, p := range picks {
+	for i, p := range picks {
 		h, err := s.hop(act.Workspace, p.m, p.c)
 		if err != nil {
 			return nil, err
 		}
-		m, c := p.m, p.c
+		m, c, next := p.m, p.c, ""
+		if i+1 < len(picks) {
+			next = picks[i+1].m.Name
+		}
 		h.Done = func(ctx context.Context, status int, u *provider.Usage) {
-			s.answered(ctx, m, status)
+			s.answered(ctx, m, next, status)
 			s.record(ctx, act, m, c, status, u)
 		}
 		hops = append(hops, h)
@@ -115,7 +127,7 @@ func (s *Service) hop(workspace int64, m db.Model, c db.Connection) (gateway.Mod
 		}
 		key = strings.TrimSpace(k)
 	}
-	h := gateway.ModelHop{Target: gateway.ModelTarget{URL: c.Url, API: c.Api, Key: key}, Connection: c.Name, Model: m.Model,
+	h := gateway.ModelHop{Target: gateway.ModelTarget{URL: c.Url, API: c.Api, Key: key}, Connection: c.Name, Name: m.Name, Model: m.Model,
 		Local: c.Local != 0, Free: m.Free != 0}
 	_ = json.Unmarshal([]byte(m.Options), &h.Options)
 	return h, nil
@@ -150,26 +162,33 @@ func (s *Service) turnModel(workspace int64, m db.Model, c db.Connection) func(o
 	}
 }
 
-// answered keeps in the health of a model whether it answered its last call: one that did not is red, and the
-// assignments that name it show the fallback taking the work; a model in an agent has the health of its self-check.
-func (s *Service) answered(ctx context.Context, m db.Model, status int) {
-	if m.Agent != "" {
+// answered keeps in the health of a model whether it answered its last call: one that did not is red with the model
+// that takes its work, its next good answer green; a model in an agent has the health of its self-check.
+func (s *Service) answered(ctx context.Context, m db.Model, next string, status int) {
+	failed := status == 0 || gateway.Fallible(status)
+	if m.ID == 0 || m.Agent != "" || !failed && status >= 400 {
 		return
 	}
-	subject := process.HealthSubject(m.Name)
-	h, err := s.St.Q.GetHealth(ctx, subject)
-	switch {
-	case status == 0 || gateway.Fallible(status):
-		text := "did not answer; the next model of its assignment takes the work"
-		if status != 0 {
-			text = fmt.Sprintf("answered HTTP %d; the next model of its assignment takes the work", status)
-		}
-		if err != nil || h.Status != "error" || h.Error != text {
-			health.Write(ctx, s.St, health.Of{}, subject, "error", text)
-		}
-	case err == nil && h.Status == "error":
-		health.Write(ctx, s.St, health.Of{}, subject, "ok", "")
+	text := "did not answer"
+	if status != 0 {
+		text = fmt.Sprintf("answered HTTP %d", status)
 	}
+	if next != "" {
+		text += "; " + next + " takes its work"
+	} else {
+		text += "; no model of its assignment is after it"
+	}
+	subject := process.HealthSubject(m.Name)
+	_ = s.St.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error {
+		h, err := q.GetHealth(ctx, subject)
+		switch {
+		case failed && (err != nil || h.Status != health.Error || h.Error != text):
+			return health.Set(ctx, q, health.Of{}, subject, health.Error, text)
+		case !failed && err == nil && h.Status == health.Error:
+			return health.Set(ctx, q, health.Of{}, subject, health.OK, "")
+		}
+		return nil
+	})
 }
 
 // record keeps a call of a model made past an agent in the journal of model calls, priced by its model when the
@@ -181,10 +200,10 @@ func (s *Service) record(ctx context.Context, act registry.Actor, m db.Model, c 
 		}
 		u = &provider.Usage{}
 	}
-	cost := u.CostUSD
-	if cost == nil {
-		cost = price(m, *u)
+	if u.CostUSD == nil {
+		u.CostUSD = price(m, *u)
 	}
+	cost := u.CostUSD
 	err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		return q.LogModelCall(ctx, db.LogModelCallParams{WorkspaceID: act.Workspace, ProjectID: store.ID(act.ProjectID), ProcessID: store.ID(act.ProcessID),
 			ConnectionID: store.ID(c.ID), Provider: m.Name, RequestModel: m.Model, ResponseModel: u.Model,
@@ -215,14 +234,14 @@ type modelRequestIn struct {
 // allowed decides whether a call of a model runs without the owner: the granted models of the project name it, and
 // it reaches a model.
 func (s *Service) allowed(ctx context.Context, act registry.Actor, input json.RawMessage, _ bool) (bool, error) {
-	connection, asked, err := s.requested(ctx, act.Workspace, input)
+	ask, err := s.requested(ctx, act.Workspace, input)
 	if err != nil {
 		return false, err
 	}
 	if err := s.granted(ctx, act, input); err != nil {
 		return false, err
 	}
-	if _, err := s.Route(ctx, act, connection, asked); err != nil {
+	if _, err := s.Route(ctx, act, ask); err != nil {
 		return false, err
 	}
 	return true, nil
@@ -237,8 +256,8 @@ func (s *Service) use(input json.RawMessage) (string, string) {
 	case in.Kind != "":
 		return in.Model, ""
 	}
-	if asked := gateway.AskedModel(nil, in.Path, []byte(in.Body)); strings.HasPrefix(asked, "@") {
-		return asked, ""
+	if ask, _ := frozen(in); strings.HasPrefix(ask.Model, "@") {
+		return ask.Model, ""
 	}
 	return in.Connection, in.Connection
 }
@@ -288,11 +307,11 @@ func (s *Service) free(ctx context.Context, act registry.Actor, input json.RawMe
 	if !slices.Contains(m.Uses(), use) && (connection == "" || !slices.Contains(m.Uses(), connection)) {
 		return false
 	}
-	connection, asked, err := s.requested(ctx, act.Workspace, input)
+	ask, err := s.requested(ctx, act.Workspace, input)
 	if err != nil {
 		return false
 	}
-	hops, err := s.Route(ctx, act, connection, asked)
+	hops, err := s.Route(ctx, act, ask)
 	if err != nil {
 		return false
 	}
@@ -307,6 +326,7 @@ func (s *Service) free(ctx context.Context, act registry.Actor, input json.RawMe
 // call is what a call of a model names: a request through a connection with its body, or a model or kind.
 type call struct {
 	Connection string `json:"connection"`
+	Method     string `json:"method"`
 	Path       string `json:"path"`
 	Body       string `json:"body"`
 	Model      string `json:"model"`
@@ -321,16 +341,27 @@ func parseCall(input json.RawMessage) (call, error) {
 	return in, nil
 }
 
-// requested is the connection and the model a call of a model names: a request with its body, or a call of a kind.
-func (s *Service) requested(ctx context.Context, workspace int64, input json.RawMessage) (string, string, error) {
+// requested is what a call of a model asks: a request with its body, or a call of a kind.
+func (s *Service) requested(ctx context.Context, workspace int64, input json.RawMessage) (gateway.ModelAsk, error) {
 	in, err := parseCall(input)
 	if err != nil {
-		return "", "", err
+		return gateway.ModelAsk{}, err
 	}
 	if in.Kind != "" {
-		return s.modelRef(ctx, workspace, in.Model, in.Kind)
+		connection, asked, err := s.modelRef(ctx, workspace, in.Model, in.Kind)
+		return gateway.ModelAsk{Connection: connection, Model: asked}, err
 	}
-	return cmp.Or(in.Connection, "@"), gateway.AskedModel(http.Header{gateway.DeckModel: {in.Model}}, in.Path, []byte(in.Body)), nil
+	return frozen(in)
+}
+
+// frozen is what a request of deck.model_request asks; its model is the one of a form the proxy read, or of the
+// header DeckModel.
+func frozen(in call) (gateway.ModelAsk, error) {
+	connection := cmp.Or(in.Connection, "@")
+	if in.Model != "" && in.Body != "" && !json.Valid([]byte(in.Body)) {
+		return gateway.ModelAsk{Connection: connection, Model: in.Model, Method: cmp.Or(in.Method, http.MethodPost), Path: in.Path}, nil
+	}
+	return gateway.AskModel(connection, in.Method, in.Path, http.Header{gateway.DeckModel: {in.Model}}, []byte(in.Body))
 }
 
 // answer reads what a model API answered: a binary body is kept as a file in the results folder of the calling
@@ -357,12 +388,16 @@ func (s *Service) modelRequest(ctx context.Context, act registry.Actor, in model
 	if in.Connection == "" {
 		in.Connection = "@"
 	}
-	asked := gateway.AskedModel(http.Header{gateway.DeckModel: {in.Model}}, in.Path, []byte(in.Body))
 	method := cmp.Or(strings.ToUpper(in.Method), http.MethodPost)
+	ask, err := frozen(call{Connection: in.Connection, Method: method, Path: in.Path, Body: in.Body, Model: in.Model})
+	if err != nil {
+		return nil, err
+	}
+	asked := ask.Model
 	if strings.HasPrefix(asked, "@") && !gateway.RolePath(method, in.Path) {
 		return nil, registry.Refuse("deck: %s makes a POST of a model call, such as chat/completions; %s %s goes through a connection the manifest names", asked, method, in.Path)
 	}
-	hops, err := s.Route(ctx, act, in.Connection, asked)
+	hops, err := s.Route(ctx, act, ask)
 	if err != nil {
 		return nil, err
 	}

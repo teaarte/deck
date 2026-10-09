@@ -16,6 +16,7 @@ import (
 	"deck2/internal/files"
 	"deck2/internal/gateway"
 	"deck2/internal/manifest"
+	"deck2/internal/provider"
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
 	"deck2/internal/untrusted"
@@ -56,9 +57,20 @@ func (s *Service) modelCall(ctx context.Context, act registry.Actor, in modelCal
 	if role, ok := strings.CutPrefix(asked, "@"); ok && role != in.Kind {
 		return nil, registry.Invalid("deck: a call of kind %s takes @%s, not %s", in.Kind, in.Kind, asked)
 	}
-	hops, err := s.Route(ctx, act, connection, asked)
+	hops, err := s.Route(ctx, act, gateway.ModelAsk{Connection: connection, Model: asked})
 	if err != nil {
 		return nil, err
+	}
+	var spent *provider.Usage
+	for i := range hops {
+		done := hops[i].Done
+		hops[i].Done = func(ctx context.Context, status int, u *provider.Usage) {
+			if u == nil && status > 0 && status < 400 {
+				u = &provider.Usage{}
+			}
+			done(ctx, status, u)
+			spent = u
+		}
 	}
 	var options map[string]any
 	if strings.TrimSpace(in.Options) != "" {
@@ -83,7 +95,14 @@ func (s *Service) modelCall(ctx context.Context, act registry.Actor, in modelCal
 	if err != nil {
 		return nil, err
 	}
-	return s.read(act, in, h, resp)
+	out, err := s.read(act, in, h, resp)
+	if file, ok := out.(map[string]any); ok && err == nil && file["file"] != nil {
+		file["model"] = h.Name
+		if spent != nil && spent.CostUSD != nil {
+			file["cost_usd"] = *spent.CostUSD
+		}
+	}
+	return out, err
 }
 
 func jsonReq(path string, v any) gateway.ModelCall {

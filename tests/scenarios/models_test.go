@@ -508,6 +508,7 @@ func TestAModuleCallsOnlyTheModelsOfDecksSettings(t *testing.T) {
 	ok := func(int, map[string]any) (int, string, string) { return 200, "application/json", chatText("hi") }
 	api := newModels(t, map[string]func(int, map[string]any) (int, string, string){
 		"/v1/chat/completions": ok, "/v1/images/edits": ok, "/v1/key": ok, "/v1/models/gemma:generateContent": ok, "/svc/v1/generate": ok,
+		"/v1/models/other:generateContent": ok, "/v1/videos/job-1": ok,
 	})
 	e := newEnv(t, nil)
 	e.must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": api.URL + "/v1"}, nil)
@@ -533,21 +534,33 @@ func TestAModuleCallsOnlyTheModelsOfDecksSettings(t *testing.T) {
 		{"key": "openrouter/images/edits", "form": form, "type": "multipart/form-data; boundary=b"},
 		{"key": "gemini/models/gemma:generateContent", "other": `{"contents": []}`},
 		{"key": "svc/v1/generate", "other": `{"prompt": "calm piano"}`, "use": "track"},
+		{"key": "openrouter/videos/job-1", "method": "GET"},
 	} {
 		if out := call(in); out["status"] != 200.0 {
 			t.Fatalf("a model of deck's settings is called: %v %v", in, out)
 		}
 	}
 	before := len(api.calls())
-	for _, in := range []map[string]any{
-		{"key": "openrouter/chat/completions", "other": `{"model": "anthropic/claude-opus", "messages": []}`},
-		{"key": "openrouter/key", "method": "GET"},
-		{"key": "gemini/models/other:generateContent", "other": `{"contents": []}`},
-		{"key": "svc/v1/generate", "other": `{"prompt": "calm piano"}`},
-		{"key": "svc/v1/generate", "other": `{"prompt": "calm piano"}`, "use": "qwen"},
+	twice := strings.Replace(form, "--b--", "--b\r\nContent-Disposition: form-data; name=\"model\"\r\n\r\nanthropic/claude-opus\r\n--b--", 1)
+	for _, c := range []struct {
+		in   map[string]any
+		says string
+	}{
+		{map[string]any{"key": "openrouter/chat/completions", "other": `{"model": "anthropic/claude-opus", "messages": []}`}, "not in deck's settings"},
+		{map[string]any{"key": "openrouter/key", "method": "GET"}, "not in deck's settings"},
+		{map[string]any{"key": "gemini/models/other:generateContent", "other": `{"contents": []}`}, "not in deck's settings"},
+		{map[string]any{"key": "svc/v1/generate", "other": `{"prompt": "calm piano"}`}, "not in deck's settings"},
+		{map[string]any{"key": "svc/v1/generate", "other": `{"prompt": "calm piano"}`, "use": "qwen"}, "not in deck's settings"},
+		{map[string]any{"key": "openrouter/chat/completions", "other": `{"model": "anthropic/claude-opus", "MODEL": "qwen", "messages": []}`}, "not in deck's settings"},
+		{map[string]any{"key": "openrouter/chat/completions", "other": `{"model": ["qwen"], "messages": []}`}, "a string"},
+		{map[string]any{"key": "gemini/models/other:generateContent", "other": `{"model": "gemma", "contents": []}`}, "two models"},
+		{map[string]any{"key": "openrouter/key", "method": "GET", "use": "qwen"}, "raw service"},
+		{map[string]any{"key": "openrouter/files", "other": `{"purpose": "batch"}`, "use": "qwen"}, "raw service"},
+		{map[string]any{"key": "openrouter/chat/completions", "other": `{"model": "qwen", "models": ["anthropic/claude-opus"], "messages": []}`}, "models"},
+		{map[string]any{"key": "openrouter/images/edits", "form": twice, "type": "multipart/form-data; boundary=b"}, "once"},
 	} {
-		if out := call(in); out["status"] != 403.0 || !strings.Contains(out["answer"].(string), "not in deck's settings") {
-			t.Fatalf("a model deck does not know is refused with what to do: %v %v", in, out)
+		if out := call(c.in); out["status"] != 403.0 || !strings.Contains(out["answer"].(string), c.says) {
+			t.Fatalf("a request past the models of deck's settings is refused with what to do: %v %v", c.in, out)
 		}
 	}
 	calls := api.calls()
@@ -569,7 +582,7 @@ func TestAModuleCallsOnlyTheModelsOfDecksSettings(t *testing.T) {
 			got[s.Provider] += *s.Cost
 		}
 	}
-	if len(spend) != 4 || got["openrouter/qwen"] != 0.01 || got["openrouter/painter"] != 0.02 || got["gemini/gemma"] != 0.03 || got["svc-track"] != 0.05 {
+	if len(spend) != 5 || got["openrouter/qwen"] != 0.01 || got["openrouter/painter"] != 0.02 || got["gemini/gemma"] != 0.03 || got["svc-track"] != 0.05 {
 		t.Fatalf("each call is counted on its model of deck's settings: %+v", spend)
 	}
 	e.createProject("plain", plainManifest)
@@ -578,8 +591,18 @@ func TestAModuleCallsOnlyTheModelsOfDecksSettings(t *testing.T) {
 		models = append(models, fmt.Sprint(r.Cells[0]))
 	}
 	slices.Sort(models)
-	if !slices.Equal(models, []string{"gemini/gemma", "openrouter/painter", "openrouter/qwen", "svc-track"}) {
-		t.Fatalf("the settings of a module show the models its scripts called: %v", models)
+	if !slices.Equal(models, []string{"gemini/gemma", "openrouter", "openrouter/painter", "openrouter/qwen", "svc-track"}) {
+		t.Fatalf("the settings of a module show the models its scripts called, a poll of a job on its connection: %v", models)
+	}
+	var ps []struct {
+		Name   string
+		Models []string
+	}
+	e.must("deck.projects_list", nil, &ps)
+	for _, p := range ps {
+		if p.Name == "shorts" && !slices.Equal(p.Models, []string{"openrouter", "gemini", "svc"}) {
+			t.Fatalf("the project says what it may call: %+v", p)
+		}
 	}
 	if rows := blockData[[]screenRow](t, e.screenBlock("plain", "settings", "Models it called", nil)["rows"]); len(rows) != 0 {
 		t.Fatalf("only the module's own calls: %+v", rows)

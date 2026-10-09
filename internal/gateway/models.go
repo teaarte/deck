@@ -31,9 +31,10 @@ type ModelTarget struct {
 // ModelHop is one place a call of a model may go, in the order deck tries them.
 type ModelHop struct {
 	Target ModelTarget
-	// Connection names the target; Model is the name the API knows, which replaces an @role the caller asked for.
-	Connection string
-	Model      string
+	// Connection names the target, Name the model in deck's settings; Model is the name the API knows, which
+	// replaces an @role the caller asked for.
+	Connection, Name string
+	Model            string
 	// Local is a connection on the owner's hardware; Free is a model that costs nothing.
 	Local, Free bool
 	// Options are the fields a call of a kind adds to the request of this model, such as language.
@@ -42,9 +43,9 @@ type ModelHop struct {
 	Done func(ctx context.Context, status int, u *provider.Usage)
 }
 
-// ModelRoute finds where a call of a model goes for an actor: the connection named, and the model of the body;
-// an @role names the models assigned to it, the fallbacks after the first.
-type ModelRoute func(ctx context.Context, act registry.Actor, connection, model string) ([]ModelHop, error)
+// ModelRoute finds where a call of a model goes for an actor: the model of deck's settings the request names on the
+// connection; an @role names the models assigned to it, the fallbacks after the first.
+type ModelRoute func(ctx context.Context, act registry.Actor, ask ModelAsk) ([]ModelHop, error)
 
 // ModelRequest is the command a call of a model through the proxy is frozen as when it waits for the owner.
 const ModelRequest = registry.Builtin + ".model_request"
@@ -233,17 +234,38 @@ func flush(w http.ResponseWriter, body io.Reader) {
 // DeckModel is the header that names the model of a request whose API has no field for it, as the API knows it.
 const DeckModel = "X-Deck-Model"
 
-// AskedModel is the model a request asks for: the model of a JSON body or of a form, the one in a path of Google's
-// API, or the header DeckModel; empty when it names none.
-func AskedModel(header http.Header, path string, body []byte) string {
-	var v struct {
-		Model string `json:"model"`
-	}
-	if json.Unmarshal(body, &v) == nil && v.Model != "" {
-		return v.Model
+// ModelAsk is a call of a model as deck routes it: the connection, the model the request names, ByHeader when only
+// the header DeckModel names it, and the method and path of a request through a connection.
+type ModelAsk struct {
+	Connection, Model string
+	ByHeader          bool
+	Method, Path      string
+}
+
+// AskModel is what a request through a connection asks: the model of a JSON body or of a form, the one in a path
+// of Google's API, else the header DeckModel. Names that disagree, or OpenRouter's models and route that reach
+// models past the one named, are refused.
+func AskModel(connection, method, path string, header http.Header, body []byte) (ModelAsk, error) {
+	ask := ModelAsk{Connection: connection, Method: cmp.Or(method, http.MethodPost), Path: strings.TrimPrefix(path, "/")}
+	var named []string
+	var m map[string]json.RawMessage
+	if json.Unmarshal(body, &m) == nil {
+		for _, k := range []string{"models", "route"} {
+			if _, ok := m[k]; ok {
+				return ask, registry.Refuse("deck: a call of a model names its one model in model; %s reaches models deck's settings do not hold", k)
+			}
+		}
+		if raw, ok := m["model"]; ok {
+			var v string
+			if json.Unmarshal(raw, &v) != nil || v == "" {
+				return ask, registry.Refuse("deck: model of the body is the name of a model, a string")
+			}
+			named = append(named, v)
+		}
 	}
 	if ct, params, err := mime.ParseMediaType(header.Get("Content-Type")); err == nil && ct == "multipart/form-data" {
 		r := multipart.NewReader(bytes.NewReader(body), params["boundary"])
+		var form []string
 		for {
 			p, err := r.NextPart()
 			if err != nil {
@@ -251,16 +273,42 @@ func AskedModel(header http.Header, path string, body []byte) string {
 			}
 			if p.FormName() == "model" {
 				b, _ := io.ReadAll(io.LimitReader(p, 1<<10))
-				return strings.TrimSpace(string(b))
+				form = append(form, strings.TrimSpace(string(b)))
 			}
 		}
+		if len(form) > 1 {
+			return ask, registry.Refuse("deck: a form names its model once")
+		}
+		named = append(named, form...)
 	}
-	if rest, ok := strings.CutPrefix(strings.TrimPrefix(path, "/"), "models/"); ok {
+	if rest, ok := strings.CutPrefix(ask.Path, "models/"); ok {
 		if model, _, ok := strings.Cut(rest, ":"); ok {
-			return model
+			named = append(named, model)
 		}
 	}
-	return header.Get(DeckModel)
+	if h := header.Get(DeckModel); h != "" {
+		if len(named) == 0 {
+			ask.Model, ask.ByHeader = h, true
+			return ask, nil
+		}
+		named = append(named, h)
+	}
+	for _, n := range named {
+		if n != named[0] {
+			return ask, registry.Refuse("deck: the request names two models, %s and %s", named[0], n)
+		}
+	}
+	if len(named) > 0 {
+		ask.Model = named[0]
+	}
+	return ask, nil
+}
+
+// Polls reports whether a request asks after a job of a model it started, such as a video: it names no model.
+func Polls(method, path string) bool {
+	rest, ok := strings.CutPrefix(strings.TrimPrefix(path, "/"), "videos/")
+	id, tail, _ := strings.Cut(rest, "/")
+	return ok && method == http.MethodGet && id != "" && (tail == "" || tail == "content")
 }
 
 // WithModel is a JSON body with its model replaced, the rest as it came.
@@ -406,12 +454,17 @@ func (g *Gateway) proxyModel(w http.ResponseWriter, r *http.Request, act registr
 		http.Error(w, "deck: no models", http.StatusNotFound)
 		return
 	}
-	asked := AskedModel(r.Header, path, body)
+	ask, err := AskModel(connection, r.Method, path, r.Header, body)
+	if err != nil {
+		http.Error(w, err.Error(), registry.Status(err))
+		return
+	}
+	asked := ask.Model
 	if strings.HasPrefix(asked, "@") && !RolePath(r.Method, path) {
 		http.Error(w, "deck: "+asked+" makes a POST of a model call, such as chat/completions or audio/speech; "+r.Method+" "+path+" goes through a connection the manifest names", http.StatusForbidden)
 		return
 	}
-	hops, err := g.cfg.Models(r.Context(), act, connection, asked)
+	hops, err := g.cfg.Models(r.Context(), act, ask)
 	if err != nil {
 		http.Error(w, err.Error(), registry.Status(err))
 		return
@@ -422,7 +475,7 @@ func (g *Gateway) proxyModel(w http.ResponseWriter, r *http.Request, act registr
 		return
 	}
 	in := map[string]string{"connection": connection, "path": path}
-	if asked != "" && AskedModel(nil, path, body) != asked {
+	if fromBody, _ := AskModel(connection, r.Method, path, nil, body); asked != "" && fromBody.Model != asked {
 		in["model"] = asked
 	}
 	if r.Method != http.MethodPost {

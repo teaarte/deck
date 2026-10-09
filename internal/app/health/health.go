@@ -56,6 +56,13 @@ func (s *Service) list(ctx context.Context, act registry.Actor, in healthListIn)
 		_, checked[process.HealthSubject(pv.Name())] = pv.(provider.SelfChecker)
 		mine[process.HealthSubject(pv.Name())] = true
 	}
+	models, err := s.St.Q.ListModels(ctx, act.Workspace)
+	if err != nil {
+		return nil, err
+	}
+	for _, m := range models {
+		mine[process.HealthSubject(m.Model.Name)] = true
+	}
 	worst := map[string]*healthRow{}
 	for _, p := range ps {
 		worst[p.Name] = &healthRow{Subject: "project:" + p.Name, Status: health.OK}

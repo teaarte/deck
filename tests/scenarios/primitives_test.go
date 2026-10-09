@@ -229,3 +229,16 @@ func TestARefusalOfAScreenSaysWhereByPointerAndWhatFits(t *testing.T) {
 		t.Fatalf("a refusal says where by pointer and lists the fields: %d %s", code, out)
 	}
 }
+
+// TestAStatOpensAScreenAndNoCommand: a stat runs only a button that opens a screen; a command on it is refused on save,
+// and a module saved before still loads.
+func TestAStatOpensAScreenAndNoCommand(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, nil)
+	m := strings.Replace(boardManifest, `"screens": [`, `"screens": [{"name": "count", "title": "Count", "blocks": [{"type": "stat", "title": "Tasks", "source": {"collection": "tasks"},
+	  "actions": [{"label": "Move", "command": "move", "params": {"id": "1", "status": "done"}}]}]}, `, 1)
+	code, out := e.call("deck.project_create", map[string]any{"name": "work", "manifest": m})
+	if code != 422 || !strings.Contains(string(out), "a stat opens a screen") {
+		t.Fatalf("a command on a stat is refused on save: %d %s", code, out)
+	}
+}

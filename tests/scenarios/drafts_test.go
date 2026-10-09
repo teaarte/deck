@@ -710,3 +710,27 @@ func TestAnotherFolderOfACommandWidensRights(t *testing.T) {
 		t.Fatalf("a command that leaves its folder widens nothing: %s", out)
 	}
 }
+
+// TestAnotherExecutorOfACommandWidensRights: a command that runs another tool or another kind of executor reaches
+// what the owner did not grant for it, as a new tool would.
+func TestAnotherExecutorOfACommandWidensRights(t *testing.T) {
+	t.Parallel()
+	m := func(executor string) string {
+		return `{"version": 10, "commands": [{"name": "digest", "title": "Digest", "description": "Sends the digest.", "class": "external",
+    "executor": ` + executor + `}],
+  "tools": {"http": [{"name": "send_digest", "description": "Sends", "method": "POST", "url": "https://a.example/digest", "class": "external"},
+    {"name": "post_anything", "description": "Posts", "method": "POST", "url": "https://b.example/x", "class": "external"}]},
+  "allowed_external": ["digest"], "domains": {"act": ["a.example", "b.example"]}}`
+	}
+	e := newEnv(t, ok)
+	e.createProject("mail", m(`{"type": "tool", "tool": "send_digest"}`))
+	_, tok := e.token("terminal", "deck.*")
+	for _, c := range []struct{ to, want string }{
+		{m(`{"type": "tool", "tool": "post_anything"}`), "command digest: runs tool post_anything instead of send_digest"},
+		{m(`{"type": "agent", "prompt": "Send it."}`), "command digest: runs an agent instead of a tool"},
+	} {
+		if _, out := e.callWith(tok, "deck.manifest_save", map[string]any{"project": "mail", "manifest": c.to}); !strings.Contains(string(out), c.want) {
+			t.Fatalf("want %q, got %s", c.want, out)
+		}
+	}
+}

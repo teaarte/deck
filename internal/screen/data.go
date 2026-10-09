@@ -6,6 +6,7 @@ import (
 	"maps"
 	"math"
 	"net/http"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -204,6 +205,7 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 			if err != nil {
 				return nil, fmt.Errorf("field %q: %w", f.Label, err)
 			}
+			v = r.word(r.req.Screen.Record, f.Bind, v)
 			if v == nil || v == "" {
 				continue
 			}
@@ -275,7 +277,7 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 				if err != nil {
 					return nil, fmt.Errorf("column %q: %w", c.Label, err)
 				}
-				cells = append(cells, v)
+				cells = append(cells, r.word(b.Source.Collection, c.Bind, v))
 				cell := map[string]any{}
 				r.setTone(cell, c.Tone, it)
 				if t, ok := cell["tone"]; ok {
@@ -329,7 +331,7 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 					return nil, fmt.Errorf("item %s: %w", key, err)
 				}
 				if v != nil && v != "" {
-					line[key] = fmt.Sprint(v)
+					line[key] = fmt.Sprint(r.word(b.Source.Collection, e, v))
 				}
 			}
 			if _, ok := line["title"]; !ok {
@@ -448,4 +450,19 @@ func (r *renderer) lanes(b manifest.Block) []string {
 		return manifest.Lanes(col.Schema, b.Board)
 	}
 	return nil
+}
+
+// bare is an expression that is a field alone.
+var bare = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+
+// word is v in the owner's language when expr is a field of an enum of the module's collection, else v as it is.
+func (r *renderer) word(collection, expr string, v any) any {
+	if r.req.Manifest == nil || !bare.MatchString(expr) {
+		return v
+	}
+	col := r.req.Manifest.Collection(collection)
+	if s, ok := v.(string); ok && col != nil && slices.Contains(manifest.Lanes(col.Schema, expr), s) {
+		return r.tr(s)
+	}
+	return v
 }

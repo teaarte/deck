@@ -181,6 +181,10 @@ export interface Data {
     label?: string;
     value?: string;
     options: string[];
+    /**
+     * each option in the owner's language, when one differs
+     */
+    labels?: string[];
   }[];
   rows?: {
     id: unknown;

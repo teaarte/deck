@@ -140,7 +140,7 @@ func (r *renderer) filtered(src manifest.Source, fields []string, picked map[str
 	for _, f := range fields {
 		seen := map[string]bool{}
 		for _, it := range items {
-			if v := text(it[f]); v != "" {
+			for _, v := range values(it[f]) {
 				seen[v] = true
 			}
 		}
@@ -151,7 +151,16 @@ func (r *renderer) filtered(src manifest.Source, fields []string, picked map[str
 		if v := picked[f]; v != "" {
 			fl["value"], seen[v], chosen[f] = v, true, v
 		}
-		fl["options"] = append([]string{}, slices.Sorted(maps.Keys(seen))...)
+		options := slices.Sorted(maps.Keys(seen))
+		fl["options"] = append([]string{}, options...)
+		labels, named := make([]string, len(options)), false
+		for i, o := range options {
+			labels[i] = fmt.Sprint(r.word(src.Collection, f, o))
+			named = named || labels[i] != o
+		}
+		if named {
+			fl["labels"] = labels
+		}
 		filters = append(filters, fl)
 	}
 	if len(chosen) > 0 && src.From != "" && src.From != "collection" {
@@ -162,13 +171,30 @@ func (r *renderer) filtered(src manifest.Source, fields []string, picked map[str
 	for f, v := range chosen {
 		kept := items[:0:0]
 		for _, it := range items {
-			if text(it[f]) == v {
+			if slices.Contains(values(it[f]), v) {
 				kept = append(kept, it)
 			}
 		}
 		items = kept
 	}
 	return sortAndCut(items, src), filters, nil
+}
+
+// values are what a filter of a field offers of an item: each value of a list, else the value itself.
+func values(v any) []string {
+	if list, ok := v.([]any); ok {
+		out := make([]string, 0, len(list))
+		for _, x := range list {
+			if t := text(x); t != "" {
+				out = append(out, t)
+			}
+		}
+		return out
+	}
+	if t := text(v); t != "" {
+		return []string{t}
+	}
+	return nil
 }
 
 func text(v any) string {

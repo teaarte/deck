@@ -15,7 +15,7 @@ export function Filters({ filters, context }: { filters?: Filter[]; context?: Co
   return (
     <Group gap="xs">
       {filters.map((f) => (
-        <Select key={f.field} size="xs" w={180} clearable placeholder={t('filter.any', { field: f.label ?? f.field })} data={f.options}
+        <Select key={f.field} size="xs" w={180} clearable placeholder={t('filter.any', { field: f.label ?? f.field })} data={f.options.map((o, i) => ({ value: o, label: f.labels?.[i] ?? o }))}
           value={f.value || null} onChange={(v) => pick(f.field, v)} data-filter={f.field} />
       ))}
     </Group>

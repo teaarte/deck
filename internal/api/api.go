@@ -69,11 +69,12 @@ func loopbackOnly(next http.Handler) http.Handler {
 
 type actorKey struct{}
 
-// auth takes the owner's token, or an automation token for the command endpoints.
+// auth takes the owner's token, or an automation token for the command endpoints; the token of an address, which
+// links and logs carry, opens only what a page reads.
 func (s *Server) auth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		got := r.Header.Get("Authorization")
-		if got == "" {
+		if got == "" && r.Method == http.MethodGet {
 			got = "Bearer " + r.URL.Query().Get("token")
 		}
 		act := owner

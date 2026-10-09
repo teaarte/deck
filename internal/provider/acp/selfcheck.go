@@ -6,10 +6,10 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
-	"strings"
 
 	"deck2/internal/provider"
 	"deck2/internal/sandbox"
+	"deck2/internal/untrusted"
 )
 
 var semver = regexp.MustCompile(`\d+\.\d+\.\d+[0-9A-Za-z.+-]*`)
@@ -39,17 +39,9 @@ func (a *Adapter) Version(ctx context.Context) (string, error) {
 	}
 	v := semver.FindString(string(out))
 	if v == "" {
-		return "", fmt.Errorf("%s --version printed no version: %q", a.cfg.Agent, untrustedLine(out))
+		return "", fmt.Errorf("%s --version printed no version: %s", a.cfg.Agent, untrusted.Line(string(out), 200))
 	}
 	return a.cfg.Agent + " " + v, nil
-}
-
-func untrustedLine(b []byte) string {
-	s, _, _ := strings.Cut(strings.TrimSpace(string(b)), "\n")
-	if len(s) > 200 {
-		s = s[:200]
-	}
-	return s
 }
 
 // SelfCheck runs the shell check of deck on the agent in deck's sandbox; what the model fails to do is told apart.

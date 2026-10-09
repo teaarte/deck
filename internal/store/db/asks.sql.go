@@ -49,7 +49,7 @@ func (q *Queries) ClaimDecision(ctx context.Context, arg ClaimDecisionParams) (i
 
 const closeOpenAsksOfProcess = `-- name: CloseOpenAsksOfProcess :many
 UPDATE ask SET state = 'expired', delivered_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-WHERE process_id = CAST(?1 AS INTEGER) AND state = 'open' AND kind NOT IN ('warning', 'unknown')
+WHERE process_id = CAST(?1 AS INTEGER) AND state = 'open' AND kind != 'unknown'
   AND (CAST(?2 AS INTEGER) = 1 OR kind != 'call')
 RETURNING id, workspace_id, project_id, process_id, kind, text, payload, answer, state, created_at, answered_at, expires_at, delivered_at, unheard_at
 `
@@ -448,7 +448,7 @@ func (q *Queries) LastAskOfProcess(ctx context.Context, processID sql.NullInt64)
 
 const listOpenAsksOfProcess = `-- name: ListOpenAsksOfProcess :many
 SELECT id, workspace_id, project_id, process_id, kind, text, payload, answer, state, created_at, answered_at, expires_at, delivered_at, unheard_at FROM ask a
-WHERE a.process_id = CAST(?1 AS INTEGER) AND a.kind NOT IN ('warning', 'limit')
+WHERE a.process_id = CAST(?1 AS INTEGER)
   AND (a.state = 'open' OR EXISTS (SELECT 1 FROM tool_call t WHERE t.ask_id = a.id AND t.run = 'running'))
 ORDER BY a.id
 `
@@ -496,7 +496,7 @@ SELECT a.id, a.workspace_id, a.project_id, a.process_id, a.kind, a.text, a.paylo
     CAST(coalesce((SELECT t.result FROM tool_call t WHERE t.ask_id = a.id AND t.run = 'settled' ORDER BY t.id DESC LIMIT 1), '') AS TEXT) AS result
 FROM ask a
 WHERE a.process_id = CAST(?1 AS INTEGER) AND a.state IN ('answered', 'expired', 'dismissed') AND a.delivered_at IS NULL
-  AND a.kind != 'warning' AND NOT EXISTS (SELECT 1 FROM tool_call t WHERE t.ask_id = a.id AND t.run = 'running')
+  AND NOT EXISTS (SELECT 1 FROM tool_call t WHERE t.ask_id = a.id AND t.run = 'running')
 ORDER BY a.id
 `
 

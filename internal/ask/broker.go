@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"deck2/internal/events"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
@@ -95,7 +94,6 @@ var ErrNotOpen = registry.Conflict("deck: this ask is already answered or expire
 // deck clock, checked at least every Poll, so a sleep of the machine does not stretch them.
 type Broker struct {
 	st   *store.Store
-	bus  *events.Bus
 	now  func() time.Time
 	Poll time.Duration
 
@@ -104,8 +102,8 @@ type Broker struct {
 	late    func(ctx context.Context, a db.Ask)
 }
 
-func NewBroker(st *store.Store, bus *events.Bus, now func() time.Time) *Broker {
-	return &Broker{st: st, bus: bus, now: now, Poll: time.Second, waiters: map[int64]chan string{}}
+func NewBroker(st *store.Store, now func() time.Time) *Broker {
+	return &Broker{st: st, now: now, Poll: time.Second, waiters: map[int64]chan string{}}
 }
 
 // OnLateAnswer is called when an answer arrives and nobody is waiting live (the process has already stopped).

@@ -27,7 +27,7 @@ WHERE id = ? AND state = 'open';
 
 -- name: ListOpenAsksOfProcess :many
 SELECT * FROM ask a
-WHERE a.process_id = CAST(sqlc.arg(process_id) AS INTEGER) AND a.kind NOT IN ('warning', 'limit')
+WHERE a.process_id = CAST(sqlc.arg(process_id) AS INTEGER)
   AND (a.state = 'open' OR EXISTS (SELECT 1 FROM tool_call t WHERE t.ask_id = a.id AND t.run = 'running'))
 ORDER BY a.id;
 
@@ -37,13 +37,13 @@ SELECT sqlc.embed(a),
     CAST(coalesce((SELECT t.result FROM tool_call t WHERE t.ask_id = a.id AND t.run = 'settled' ORDER BY t.id DESC LIMIT 1), '') AS TEXT) AS result
 FROM ask a
 WHERE a.process_id = CAST(sqlc.arg(process_id) AS INTEGER) AND a.state IN ('answered', 'expired', 'dismissed') AND a.delivered_at IS NULL
-  AND a.kind != 'warning' AND NOT EXISTS (SELECT 1 FROM tool_call t WHERE t.ask_id = a.id AND t.run = 'running')
+  AND NOT EXISTS (SELECT 1 FROM tool_call t WHERE t.ask_id = a.id AND t.run = 'running')
 ORDER BY a.id;
 
 
 -- name: CloseOpenAsksOfProcess :many
 UPDATE ask SET state = 'expired', delivered_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-WHERE process_id = CAST(sqlc.arg(process_id) AS INTEGER) AND state = 'open' AND kind NOT IN ('warning', 'unknown')
+WHERE process_id = CAST(sqlc.arg(process_id) AS INTEGER) AND state = 'open' AND kind != 'unknown'
   AND (CAST(sqlc.arg(calls_too) AS INTEGER) = 1 OR kind != 'call')
 RETURNING *;
 

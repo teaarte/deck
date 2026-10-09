@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -134,8 +135,8 @@ func (r *Runner) wake(ctx context.Context) {
 }
 
 func (r *Runner) folderFree(ctx context.Context, folder string) bool {
-	n, err := r.st.Q.FolderBusy(ctx, folder)
-	return err == nil && n == 0
+	_, err := r.st.Q.FolderLockHolder(ctx, folder)
+	return errors.Is(err, sql.ErrNoRows)
 }
 
 // heldTurn is the turn a held process runs now, with the answers that reached it meanwhile; the caller has

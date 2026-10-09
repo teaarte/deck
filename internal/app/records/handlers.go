@@ -266,7 +266,7 @@ func (s *Service) recordDelete(ctx context.Context, act registry.Actor, in recor
 		if err := q.DeleteOneRecordDocuments(ctx, store.ID(rec.ID)); err != nil {
 			return err
 		}
-		if err := q.DeleteRecordFiles(ctx, rec.ID); err != nil {
+		if err := q.DeleteFilesOf(ctx, db.DeleteFilesOfParams{OwnerKind: "record", OwnerID: rec.ID}); err != nil {
 			return err
 		}
 		return q.DeleteRecord(ctx, rec.ID)

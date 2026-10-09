@@ -41,17 +41,6 @@ func (q *Queries) DropStaleFolderLocks(ctx context.Context) error {
 	return err
 }
 
-const folderBusy = `-- name: FolderBusy :one
-SELECT count(*) FROM folder_lock WHERE path = ?
-`
-
-func (q *Queries) FolderBusy(ctx context.Context, path string) (int64, error) {
-	row := q.db.QueryRowContext(ctx, folderBusy, path)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
 const folderLockHolder = `-- name: FolderLockHolder :one
 SELECT process_id FROM folder_lock WHERE path = ?
 `

@@ -149,15 +149,6 @@ func (q *Queries) DeleteRecordDocuments(ctx context.Context, arg DeleteRecordDoc
 	return err
 }
 
-const deleteRecordFiles = `-- name: DeleteRecordFiles :exec
-DELETE FROM file WHERE owner_kind = 'record' AND owner_id = ?
-`
-
-func (q *Queries) DeleteRecordFiles(ctx context.Context, ownerID int64) error {
-	_, err := q.db.ExecContext(ctx, deleteRecordFiles, ownerID)
-	return err
-}
-
 const findRecordSnapshot = `-- name: FindRecordSnapshot :one
 SELECT id, project_id, collection, from_revision, revision, records, created_at FROM record_snapshot
 WHERE project_id = ?1 AND collection = ?2

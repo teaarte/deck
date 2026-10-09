@@ -469,24 +469,7 @@ func TestThePushKeyLivesApartFromTheSecretsOfTheWorkspace(t *testing.T) {
 	if len(keys) != 1 {
 		t.Fatalf("the key of pushes lives in state/push: %v", keys)
 	}
-	_ = e.App.Close()
-	if err := os.MkdirAll(h.Secrets(1), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Rename(keys[0], old); err != nil {
-		t.Fatal(err)
-	}
-	e = newEnvWith(t, home, &Fake{})
-	var names []struct{ Name string }
-	e.must("deck.secrets_list", nil, &names)
-	if _, err := os.Stat(old); err == nil || len(names) != 0 {
-		t.Fatalf("the key of a base from before leaves the folder of secrets on start: %+v", names)
-	}
 	var again struct{ Key string }
-	e.must("deck.push_key", nil, &again)
-	if again.Key != first.Key {
-		t.Fatal("the key of a base from before stays the same, so subscribed devices keep working")
-	}
 	e.must("deck.secret_set", map[string]any{"name": "push.vapid", "value": "the owner's"}, nil)
 	e.must("deck.push_key", nil, &again)
 	if again.Key != first.Key {

@@ -118,7 +118,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	st.Changed = func(c store.Change) {
 		a.Bus.Emit(events.Event{Workspace: c.Workspace, Topic: c.Topic, Project: c.Project})
 	}
-	a.Asks = ask.NewBroker(st, a.Bus, cfg.Now)
+	a.Asks = ask.NewBroker(st, cfg.Now)
 	a.Registry = registry.New(a.Saver.ProjectCommands)
 	a.Registry.SetPublish(a.Bus.Publish)
 	a.Gateway = gateway.New(gateway.Config{Now: cfg.Now, QuestionWait: cfg.QuestionWait, ConfirmWait: cfg.ConfirmWait, ConfirmTTL: a.Settings.ConfirmTTL,
@@ -182,9 +182,6 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 		return nil, err
 	}
 	if err := a.Projects.SeedMaster(a.ctx); err != nil {
-		return nil, err
-	}
-	if err := a.Devices.MoveKeys(a.ctx); err != nil {
 		return nil, err
 	}
 	return a, nil

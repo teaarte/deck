@@ -28,9 +28,3 @@ DELETE FROM folder_lock WHERE process_id = ? AND process_id IN (SELECT id FROM p
 
 -- name: ReleaseFolderLocks :exec
 DELETE FROM folder_lock WHERE process_id = ?;
-
-
-
-
--- name: FolderBusy :one
-SELECT count(*) FROM folder_lock WHERE path = ?;

@@ -12,6 +12,7 @@ import (
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
+	"deck2/internal/untrusted"
 )
 
 const (
@@ -179,9 +180,9 @@ func Edit(text string, old, new []string) (string, error) {
 		case o == "":
 			return "", registry.Invalid("deck: old text %d is empty", i+1)
 		case n == 0:
-			return "", registry.Invalid("deck: old text %d is not in the current text: %q", i+1, clip(o))
+			return "", registry.Invalid("deck: old text %d is not in the current text: %q", i+1, untrusted.Cut(o, 80))
 		case n > 1:
-			return "", registry.Invalid("deck: old text %d occurs %d times; take more of its surroundings so it occurs once: %q", i+1, n, clip(o))
+			return "", registry.Invalid("deck: old text %d occurs %d times; take more of its surroundings so it occurs once: %q", i+1, n, untrusted.Cut(o, 80))
 		}
 		parts = append(parts, part{strings.Index(text, o), i})
 	}
@@ -191,7 +192,7 @@ func Edit(text string, old, new []string) (string, error) {
 	for _, p := range parts {
 		if p.at < last {
 			a, b := min(p.i, prev), max(p.i, prev)
-			return "", registry.Invalid("deck: old text %d overlaps old text %d (%q); give the two as one old text", b+1, a+1, clip(old[a]))
+			return "", registry.Invalid("deck: old text %d overlaps old text %d (%q); give the two as one old text", b+1, a+1, untrusted.Cut(old[a], 80))
 		}
 		prev = p.i
 		b.WriteString(text[last:p.at])
@@ -200,13 +201,6 @@ func Edit(text string, old, new []string) (string, error) {
 	}
 	b.WriteString(text[last:])
 	return b.String(), nil
-}
-
-func clip(s string) string {
-	if r := []rune(s); len(r) > 80 {
-		return string(r[:80]) + "…"
-	}
-	return s
 }
 
 // CurrentText returns the current text of a document of the given kind ("" for any); empty when missing.

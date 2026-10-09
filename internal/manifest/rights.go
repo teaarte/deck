@@ -43,6 +43,15 @@ func Widens(prev, next *Manifest) []string {
 	}
 	for _, c := range next.Commands {
 		old := prev.Command(c.Name)
+		was := Folder{}
+		if old != nil {
+			was = old.Executor.Folder
+		}
+		if f := c.Executor.Folder; f != was && f.Only {
+			add("command %s: works in the one folder of the project", c.Name)
+		} else if f != was && f.Name != "" {
+			add("command %s: works in folder %s", c.Name, f.Name)
+		}
 		if old == nil {
 			for _, r := range added(c.Requires, required) {
 				add("command %s: new without %s", c.Name, r)
@@ -183,6 +192,7 @@ func Clip(granted, m *Manifest) *Manifest {
 			clipCommand(cmd, old)
 		} else {
 			cmd.Requires = append(slices.Clone(cmd.Requires), added(cmd.Requires, required)...)
+			cmd.Executor.Folder = Folder{}
 		}
 		c.commands[cmd.Name] = cmd
 	}
@@ -218,13 +228,16 @@ func Clip(granted, m *Manifest) *Manifest {
 }
 
 // clipCommand gives cmd back what old had where cmd is wider: a milder class, fewer requirements, another
-// provider, more calls or callers.
+// provider or folder, more calls or callers.
 func clipCommand(cmd, old *Command) {
 	if registry.ClassRank(cmd.Class) < registry.ClassRank(old.Class) {
 		cmd.Class = old.Class
 	}
 	cmd.Requires = append(slices.Clone(cmd.Requires), added(cmd.Requires, old.Requires)...)
 	cmd.Provider = old.Provider
+	if !cmd.Executor.Folder.IsZero() {
+		cmd.Executor.Folder = old.Executor.Folder
+	}
 	switch {
 	case old.Executor.Calls != nil && cmd.Executor.Calls == nil:
 		cmd.Executor.Calls = old.Executor.Calls

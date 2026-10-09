@@ -346,7 +346,9 @@ func (s *Service) Drain(ctx context.Context) {
 	}
 	s.Mu.RLock()
 	defer s.Mu.RUnlock()
+	stuck, was := false, false
 	for _, r := range rows {
+		was = was || r.Tries >= 3
 		err := os.Remove(filepath.Join(s.Home.Files(), fmt.Sprint(r.Ref)))
 		if err == nil || errors.Is(err, os.ErrNotExist) {
 			_ = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error { return q.DeleteOutbox(ctx, r.ID) })
@@ -356,8 +358,12 @@ func (s *Service) Drain(ctx context.Context) {
 			return q.FailOutbox(ctx, db.FailOutboxParams{Error: err.Error(), ID: r.ID})
 		})
 		if tries >= 3 {
+			stuck = true
 			health.Write(ctx, s.St, health.Of{}, "outbox", health.Error, fmt.Sprintf("deck could not remove stored file %d: %v", r.Ref, err))
 		}
+	}
+	if was && !stuck {
+		_ = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error { return q.DeleteHealth(ctx, db.DeleteHealthParams{Subject: "outbox"}) })
 	}
 }
 

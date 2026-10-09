@@ -196,3 +196,24 @@ func TestValuesOfAnEnumSpeakTheLanguageOfTheOwnerAndListsFilterByEachValue(t *te
 		t.Fatalf("a filter of a list field keeps the items that have the value: %s", picked)
 	}
 }
+
+// TestTheFormatAModelReadsHasOnlyWhatAModuleUses: manifest_format leaves out the blocks and button fields only deck's
+// screens use, so a model learns one way to do each thing; a manifest that has them still loads.
+func TestTheFormatAModelReadsHasOnlyWhatAModuleUses(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, nil)
+	var format map[string]any
+	e.must("deck.manifest_format", nil, &format)
+	raw, _ := json.Marshal(format)
+	for _, gone := range []string{`"appearance"`, `"verb"`, `"until"`, `"keep_open"`} {
+		if strings.Contains(string(raw), gone) {
+			t.Fatalf("the format a model reads has no %s", gone)
+		}
+	}
+	for _, kept := range []string{`"board"`, `"custom"`, `"chat"`, `"options"`} {
+		if !strings.Contains(string(raw), kept) {
+			t.Fatalf("the format a model reads keeps %s", kept)
+		}
+	}
+	e.createProject("work", strings.Replace(boardManifest, `{"label": "Move"`, `{"verb": "open", "screen": "board"}, {"label": "Move"`, 1))
+}

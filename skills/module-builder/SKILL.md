@@ -98,12 +98,17 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   one HTTP tool per step from its API docs.
   An input field of `"format": "json"` is text with JSON for the caller; `"{field}"` alone in a JSON body puts
   the value it holds (a list, an object), so one tool serves every shape of body.
-- **Models** the owner added (connections such as OpenRouter or Ollama, their models with prices, and which model
-  does text, image, tts, stt) are called through deck, never with a key of the module: a command of type
-  `model`, `deck.model_call` from a script or agent, or any API path through `$DECK_MODELS` (below). The manifest
-  names what it calls in `models`: a connection, a model by name or `@text`/`@image`/`@tts`/`@stt` for the
-  assigned ones; deck keeps each call with its cost in its journal. deck has no limits of money: the owner sets
-  them at the provider, so a module never loops on paid calls.
+- **Models** are deck's, declared once in its settings (connections such as OpenRouter or Ollama, their models with
+  prices, and which models do text, image, tts, stt, music, with fallbacks); the module holds only its business
+  logic and calls them through deck, never with a key: a command of type `model`, `deck.model_call` from a script or
+  agent, or an API path through `$DECK_MODELS` (below). Every call names a model of deck's settings or an
+  `@<kind>`; another model is refused. A tool or MCP server of the manifest never gets the key of a connection
+  (the save refuses it). The manifest names what it calls in `models`: a connection, a model by name or
+  `@text`/`@image`/`@tts`/`@stt`/`@music` for the assigned ones; deck keeps each call with its cost in its journal,
+  and the settings of the module list the models it called. A model the module needs and deck lacks: propose it
+  with `deck.model_set` (connection, model, kind; the price comes from the catalog of the connection) — the call
+  waits for the owner's button. deck has no limits of money: the owner sets them at the provider, so a module never
+  loops on paid calls.
 - **MCP servers** (`tools.mcp.servers`, the usual `mcp.servers` shape): `command`/`args`/`env` (values may use
   `$secret.<name>`) or `url`; `toolFilter` lists the tools the module uses, `classes` their classes — every
   other tool is `external`. Tools are `<server>.<tool>` in `executor.tool` and `allowed_external`. deck starts
@@ -271,10 +276,12 @@ A script reads its input JSON from stdin and prints its result JSON to stdout. I
   host (`hf.co` takes its subdomains too) or `host:port`, never a URL or a public suffix such as `co.uk`; a name
   reaches only public addresses, so a service on the owner's machine or network is named by its IP or IP:port;
 - models through `$DECK_MODELS/<connection>/<API path>` with `Authorization: Bearer $DECK_TOKEN` (an OpenAI SDK
-  takes it as its base URL with the token as its key): deck puts in the key and keeps the call; a body with
-  `"model": "@tts"` and the connection `@` takes the model the owner assigned, a fallback when it refuses. A
-  202 with `{"waiting": <ask>}` means the call waits for the owner (a draft or a trial of a paid model): stop and
-  say so, do not retry in a loop;
+  takes it as its base URL with the token as its key): deck puts in the key and keeps the call. The request names a
+  model of deck's settings as the API knows it — `model` of a JSON body or a form, the path of Google's API, or the
+  header `X-Deck-Model` when the API has no such field — and anything else, an account path too, is refused; a
+  body with `"model": "@tts"` and the connection `@` takes the model the owner assigned, a fallback when it
+  refuses. A 202 with `{"waiting": <ask>}` means the call waits for the owner (a draft or a trial of a paid
+  model): stop and say so, do not retry in a loop;
 - no secrets and no keys of the owner; ask for an HTTP tool of the manifest instead. Never ask the owner to
   `export` a key for a module: on macOS a confined program reads the environment of the owner's processes, so
   keys live only in deck secrets;
@@ -316,21 +323,28 @@ A script reads its input JSON from stdin and prints its result JSON to stdout. I
   const leftPad = require("node:module").createRequire(dir + "/")("left-pad");
   ```
 
-### Models a kind does not cover: video, music, special APIs
+### Kinds of models, and APIs a kind does not cover
 
-`model` commands and `deck.model_call` know text, image, tts and stt, asked in the OpenAI-compatible protocol (a
-connection of another API, such as Google's own, is reached only from a script). Anything else — video, music, a service
-with its own API (fal, Replicate, ElevenLabs, Google Veo) — is a script that calls the API through
-`$DECK_MODELS`, so the key stays with deck and the call is in its journal. The owner adds the service as a
-connection (Settings → Connections: `raw` for a service that takes a bearer key, `google` for Google's own API)
-and a model with its price per call; the manifest names the connection in `models`. One call, the answer a file:
+`model` commands and `deck.model_call` know text, image, tts, stt and music, asked in the OpenAI-compatible
+protocol: a picture of `images/generations`, music of `audio/music` (`input`, `seconds`, like speech), each of chat
+completions with image or audio out when the API has no such path; a picture or a track comes back as a file. The
+models of a kind and their fallbacks are the owner's assignment; one that does not answer turns red in health while
+the next takes the work. A model on the owner's machine (a local server, as whisper.cpp) is a connection like any
+other. A connection of another API, such as Google's own, is reached only from a script.
+
+Anything else — video, editing a picture by a sample (`images/edits`, a form), a service with its own API (fal,
+Replicate, ElevenLabs, Google Veo) — is a script that calls the API through `$DECK_MODELS`, so the key stays with
+deck and the call is in its journal. The owner adds the service as a connection (Settings → Connections: `raw` for a
+service that takes a bearer key, `google` for Google's own API) and a model with its price per call; the manifest
+names the connection in `models`, and the request names the model. One call, the answer a file:
 
 ```python
 import json, os, sys, urllib.request
 inp = json.load(sys.stdin)
-req = urllib.request.Request(os.environ["DECK_MODELS"] + "/music/v1/generate",  # <connection>/<API path>
+req = urllib.request.Request(os.environ["DECK_MODELS"] + "/fal/v1/generate",  # <connection>/<API path>
     data=json.dumps({"prompt": inp["prompt"], "seconds": 30}).encode(),
-    headers={"Authorization": "Bearer " + os.environ["DECK_TOKEN"], "Content-Type": "application/json"})
+    headers={"Authorization": "Bearer " + os.environ["DECK_TOKEN"], "Content-Type": "application/json",
+             "X-Deck-Model": "stable-audio"})  # the model of deck's settings; its API body has no model field
 with urllib.request.urlopen(req, timeout=600) as r:
     if r.status == 202:  # a draft or a trial: the call waits for the owner
         print(json.dumps({"waiting": json.load(r)})); sys.exit(0)

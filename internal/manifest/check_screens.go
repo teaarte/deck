@@ -13,6 +13,9 @@ import (
 // RecordUpdate is the command a form on a record page edits its record with.
 const RecordUpdate = "deck.record_update"
 
+// RecordDelete is the command a button of the owner deletes the record of its row or page with.
+const RecordDelete = "deck.record_delete"
+
 // DeckRecord is the record of a page among the screens deck ships: a process; DocumentRecord is a document
 // of the project a screen deck ships for every project shows.
 const (

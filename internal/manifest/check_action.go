@@ -23,6 +23,21 @@ func gone(f string) error {
 // deckLink tells where a screen of deck opens from.
 const deckLink = "a screen of deck opens from a link [text](#/deck/<screen>?<param>=<value>) in a text shown with markdown"
 
+// recordDelete checks a button that deletes a record: on a row of the module's own collection or on its record page,
+// with no params but the record of its row, and not on a custom block, whose frame could name any record.
+func (c *screenCheck) recordDelete(b Block, a Action) error {
+	own := b.Source != nil && b.Source.From == "" && b.Source.Project == "" || b.Source == nil && c.screen.Record != ""
+	switch {
+	case b.Type == "custom":
+		return fmt.Errorf("%s is not on a custom block: its frame could name any record", RecordDelete)
+	case len(a.Params) > 1 || len(a.Params) == 1 && a.Params["record"] != "=_id" || a.Undo != nil:
+		return fmt.Errorf("%s takes the record of its row, with no other params or undo", RecordDelete)
+	case !own:
+		return fmt.Errorf("%s deletes a record of the module's own collection: on a row of it or on its record page", RecordDelete)
+	}
+	return nil
+}
+
 // action checks a button: a command the owner may call, a screen to open with the record it needs, or a file;
 // its condition and the values it takes from the item read fields the item has.
 func (c *screenCheck) action(b Block, a Action, fields []string) error {
@@ -67,6 +82,8 @@ func (c *screenCheck) action(b Block, a Action, fields []string) error {
 			return errors.New("a button of a deck screen calls a deck command")
 		}
 		return nil
+	case a.Command == RecordDelete && !c.deck:
+		return c.recordDelete(b, a)
 	case a.Command != "" && strings.HasPrefix(a.Command, schemas.Builtin+".") && c.m.commands[a.Command] == nil:
 		return fmt.Errorf("unknown command %q: a button calls a command of its module; %s", a.Command, deckLink)
 	case a.Command != "":

@@ -160,19 +160,24 @@ func (r *Runner) place(f db.File, dir string, copies bool) (string, error) {
 	return dst, nil
 }
 
+// copyFile copies src to dst whole or not at all: a copy cut short never stands as the file.
 func copyFile(src, dst string) error {
 	in, err := os.Open(src)
 	if err != nil {
 		return err
 	}
 	defer in.Close()
-	out, err := os.OpenFile(dst, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o400)
+	out, err := os.CreateTemp(filepath.Dir(dst), ".copy-*")
 	if err != nil {
 		return err
 	}
+	defer os.Remove(out.Name())
 	if _, err := io.Copy(out, in); err != nil {
 		out.Close()
 		return err
 	}
-	return out.Close()
+	if err := errors.Join(out.Chmod(0o400), out.Close()); err != nil {
+		return err
+	}
+	return os.Rename(out.Name(), dst)
 }

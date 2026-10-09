@@ -144,6 +144,7 @@ func (r *Runner) ResumeInterrupted(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	var failed []error
 	for _, p := range ps {
 		if p.Kind == KindTool || p.Kind == KindModel {
 			r.finish(ctx, p.ID, StateInterrupted, "", false, "deck restarted while the "+p.Kind+" call ran")
@@ -162,13 +163,12 @@ func (r *Runner) ResumeInterrupted(ctx context.Context) error {
 		}
 		// The ceiling stood still while deck was down: it counts up to the last output seen.
 		err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error { return q.PauseCeilingAtLastOutput(ctx, p.ID) })
-		if err != nil {
-			return err
-		}
 		msg := "deck restarted, continue where you stopped."
-		pending, err := r.untold(ctx, p.ID)
-		if err != nil {
-			return err
+		pending, uerr := r.untold(ctx, p.ID)
+		// One process that will not resume leaves the others to resume.
+		if err = errors.Join(err, uerr); err != nil {
+			failed = append(failed, fmt.Errorf("process %d: %w", p.ID, err))
+			continue
 		}
 		if !pending.empty() {
 			msg = "deck restarted. " + pending.message()
@@ -190,7 +190,7 @@ func (r *Runner) ResumeInterrupted(ctx context.Context) error {
 		}
 	}
 	r.Wake(ctx)
-	return nil
+	return errors.Join(failed...)
 }
 
 func (r *Runner) reap(ctx context.Context) error {

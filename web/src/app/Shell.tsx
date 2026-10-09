@@ -18,6 +18,7 @@ import { Nav } from './Nav';
 import { PhoneBar } from './PhoneBar';
 import { Toolbar } from './Toolbar';
 import { href, onMove, useRoute } from './router';
+import { titlePlace } from './title';
 import { useChatLayout } from './useChatLayout';
 
 // Shell is the frame of deck: the menu, the screen, and the chat with the master, each its own island.
@@ -41,6 +42,8 @@ export function Shell() {
   }), [chat, phone, full]);
   const current = href({ ...route, record: undefined });
   const entry = menu.find((m) => (m.project ?? '') === (route.project ?? ''));
+  const screen = route.screen === 'cockpit' && !route.project ? t('nav.cockpit') : [...(entry?.screens ?? []), ...(entry?.extra ?? [])].find((x) => x.name === route.screen)?.title;
+  useEffect(() => titlePlace([screen, route.project && entry?.title].filter(Boolean).join(' · ')), [screen, route.project, entry?.title]);
   const master = (
     <MasterButton m={menu.find((x) => x.project === 'master')} open={chat}
       onClick={() => { moveFocus(chat ? '[data-chat-toggle]' : '[data-chat-close]'); setChat(!chat); }} />

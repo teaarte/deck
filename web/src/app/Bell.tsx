@@ -6,6 +6,7 @@ import { call } from '../lib/api';
 import { events } from '../lib/events';
 import { formatted } from '../lib/format';
 import { go } from './router';
+import { titleCount } from './title';
 import s from './bell.module.css';
 import type { Action } from '../lib/catalog.gen';
 import { Actions } from '../ui/Actions';
@@ -37,6 +38,7 @@ export function Bell() {
     return events((e) => { if (e.topic === 'feed') load(); }, load);
   }, []);
   const fresh = notes.filter((n) => n.id > seen && !n.read).length;
+  useEffect(() => titleCount(fresh), [fresh]);
   const openNote = (n: Note) => { setOpen(false); go({ project: n.deck_screen ? undefined : n.project || undefined, screen: n.screen, record: n.record || undefined }); };
   const markRead = (id: number) => { call('deck.feed_read', { entry: id }).then(load, () => undefined); };
   const toggle = () => {

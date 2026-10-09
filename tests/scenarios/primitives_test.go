@@ -116,3 +116,31 @@ func TestAButtonOpensTheChatOfTheMaster(t *testing.T) {
 		t.Fatalf("a chat button opens the chat and nothing else: %d %s", code, out)
 	}
 }
+
+// TestABoardShowsItsLanesEmptyAndOnlyThoseItsButtonOffers: a board with no items still shows its lanes, its move
+// button names the lanes it offers by options, and a board with no move button is refused.
+func TestABoardShowsItsLanesEmptyAndOnlyThoseItsButtonOffers(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, nil)
+	if code, out := e.call("deck.project_create", map[string]any{"name": "still", "manifest": strings.Replace(boardManifest,
+		`, "input": "status"}`, `}`, 1)}); code != 422 || !strings.Contains(string(out), `input "status"`) {
+		t.Fatalf("a board without a button that moves an item is refused with what to add: %d %s", code, out)
+	}
+	e.createProject("work", strings.Replace(boardManifest, `"input": "status"}`, `"input": "status", "options": "=['todo', 'doing']"}`, 1))
+	var lanes []string
+	for _, b := range e.screenData("work", "board", nil) {
+		var d struct {
+			State string
+			Board struct{ Lanes []struct{ Value string } }
+		}
+		raw, _ := json.Marshal(b)
+		if json.Unmarshal(raw, &d) == nil && d.State == "ready" {
+			for _, l := range d.Board.Lanes {
+				lanes = append(lanes, l.Value)
+			}
+		}
+	}
+	if fmt.Sprint(lanes) != "[todo doing]" {
+		t.Fatalf("an empty board shows the lanes its move button offers: %v", lanes)
+	}
+}

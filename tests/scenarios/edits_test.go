@@ -153,7 +153,7 @@ func TestAPatchKeepsTheTypesOfItsValues(t *testing.T) {
 				"class": "internal", "result": {"type": "object"}, "timeout_minutes": 20, "executor": {"type": "agent", "prompt": "Tell."}}}]`}, &saved)
 	var m struct{ Manifest string }
 	e.must("deck.manifest_get", map[string]any{"project": "web"}, &m)
-	if !strings.Contains(m.Manifest, `"version": 9`) || !strings.Contains(m.Manifest, `"timeout_minutes":20`) {
+	if !strings.Contains(m.Manifest, `"version": 10`) || !strings.Contains(m.Manifest, `"timeout_minutes":20`) {
 		t.Fatalf("numbers of a patch stay numbers: %d\n%s", saved.Revision, m.Manifest)
 	}
 	e.must("deck.manifest_save", map[string]any{"project": "web",

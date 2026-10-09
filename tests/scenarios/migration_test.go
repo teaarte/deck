@@ -9,12 +9,12 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-const peopleV1 = `{"version": 9,
+const peopleV1 = `{"version": 10,
   "collections": [{"name": "people", "description": "A person.", "key": "name",
     "schema": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}}]}`
 
 func peopleV2(migration string) string {
-	m := `{"version": 9,
+	m := `{"version": 10,
   "collections": [{"name": "people", "description": "A person.", "key": "full_name", MIGRATION
     "schema": {"type": "object", "properties": {"full_name": {"type": "string"}}, "required": ["full_name"], "additionalProperties": false}}],
   "scripts": [{"name": "rename", "file": "scripts/rename.py", "runtime": "python"}]}`
@@ -193,7 +193,7 @@ func TestABoardOfABaseFromBeforeGoes(t *testing.T) {
 	if code, out := e.call("deck.screen", map[string]any{"project": "old", "screen": "main"}); code != 200 || strings.Contains(string(out), "board") {
 		t.Fatalf("its screen shows without the board: %d %s", code, out)
 	}
-	nine := strings.NewReplacer(`"version": 8`, `"version": 9`, `{"command": "work", "lane": "doing"}, `, "", `, "format": "card"`, "").Replace(eight)
+	nine := strings.NewReplacer(`"version": 8`, `"version": 10`, `{"command": "work", "lane": "doing"}, `, "", `, "format": "card"`, "").Replace(eight)
 	e.refused("deck.manifest_save", map[string]any{"project": "old", "manifest": nine}, 422, "board")
 }
 

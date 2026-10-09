@@ -604,13 +604,13 @@ func TestNullIsAResultOnlyWhereTheSchemaAllowsIt(t *testing.T) {
 	if got := e.full(e.waitState(e.run(p, "check"), "done", "error").ID); !got.NotBySchema || got.Empty {
 		t.Fatalf("null against a schema of an object is not by the schema: %+v", got)
 	}
-	old := e.createProject("old", strings.Replace(testManifest([]string{agentCommand("check", "")}, nil), `"version": 9`, `"version": 6`, 1))
+	old := e.createProject("old", strings.Replace(testManifest([]string{agentCommand("check", "")}, nil), `"version": 10`, `"version": 6`, 1))
 	if got := e.full(e.waitState(e.run(old, "check"), "done", "error").ID); got.NotBySchema || !got.Empty {
 		t.Fatalf("a module of format 6 still takes null as nothing to do: %+v", got)
 	}
 	var m struct{ Manifest string }
 	e.must("deck.manifest_get", map[string]any{"project": "old"}, &m)
-	if !strings.Contains(m.Manifest, `"version": 9`) || !strings.Contains(m.Manifest, `"null"`) {
+	if !strings.Contains(m.Manifest, `"version": 10`) || !strings.Contains(m.Manifest, `"null"`) {
 		t.Fatalf("format 6 is raised to 7 with null in its result schemas:\n%s", m.Manifest)
 	}
 }
@@ -623,7 +623,7 @@ func TestAResultSchemaOfFormatSixWithoutATypeStillLoads(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`null`)}
 	})
 	for i, result := range []string{`{"enum": [1, 2]}`, `{"properties": {"n": {"type": "integer"}}}`} {
-		m := strings.Replace(testManifest([]string{agentCommand("check", "")}, nil), `"version": 9`, `"version": 6`, 1)
+		m := strings.Replace(testManifest([]string{agentCommand("check", "")}, nil), `"version": 10`, `"version": 6`, 1)
 		m = strings.Replace(m, `"result": {"type": "object", "properties": {"n": {"type": "integer"}}}`, `"result": `+result, 1)
 		p := e.createProject(fmt.Sprintf("old%d", i), m)
 		if got := e.full(e.waitState(e.run(p, "check"), "done", "error").ID); got.NotBySchema || !got.Empty {

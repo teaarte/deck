@@ -28,7 +28,7 @@ func TestRealBrowserShell(t *testing.T) {
 		}
 		return webNotesAgent()(ctx, c)
 	})
-	manifest := strings.Replace(webNotes, `{"version": 9,`, `{"version": 9, "icon": "rocket",`, 1)
+	manifest := strings.Replace(webNotes, `{"version": 10,`, `{"version": 10, "icon": "rocket",`, 1)
 	manifest = strings.Replace(manifest, `{"type": "table", "title": "Notes",`, `{"type": "table", "title": "Notes", "icon": "notes",`, 1)
 	manifest = strings.Replace(manifest, `"columns": [{"label": "Title", "bind": "title"}]`, `"columns": [{"label": "Title", "bind": "title"}, {"label": "Status", "bind": "source"}, {"label": "Note", "bind": "note"}]`, 1)
 	e.createProject("web", strings.Replace(manifest, `{"label": "Open", "screen": "note"}`, `{"label": "Open", "icon": "arrow-right", "screen": "note"}`, 1))

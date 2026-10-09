@@ -52,7 +52,7 @@ func TestMenuShowsIconsAndWhatEachProjectIsBusyWith(t *testing.T) {
 		}
 	})
 	defer close(release)
-	manifest := strings.Replace(webNotes, `{"version": 9,`, `{"version": 9, "icon": "rocket",`, 1)
+	manifest := strings.Replace(webNotes, `{"version": 10,`, `{"version": 10, "icon": "rocket",`, 1)
 	manifest = strings.Replace(manifest, `{"name": "main", "title": "Web",`, `{"name": "main", "title": "Web", "icon": "chart-line",`, 1)
 	manifest = strings.Replace(manifest, `{"type": "table", "title": "Notes",`, `{"type": "table", "title": "Notes", "icon": "notes",`, 1)
 	manifest = strings.Replace(manifest, `{"label": "Open", "screen": "note"}`, `{"label": "Open", "icon": "arrow-right", "screen": "note"}`, 1)

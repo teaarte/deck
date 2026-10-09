@@ -111,7 +111,7 @@ func TestCommandAgentRunsInAutoModeWithItsOwnWeb(t *testing.T) {
 	}
 }
 
-const noNetworkManifest = `{"version": 9, "no_network": true,
+const noNetworkManifest = `{"version": 10, "no_network": true,
   "commands": [{"name": "work", "title": "Work", "description": "Does work", "class": "internal",
     "executor": {"type": "agent", "prompt": "Do the work."}}]}`
 

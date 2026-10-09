@@ -59,7 +59,7 @@ func (e *Env) screenRows(project int64, screen string) []screenRow {
 
 // webNotes is a project with a list, a form that can keep its result, a custom block and a record
 // page whose form edits the record.
-const webNotes = `{"version": 9,
+const webNotes = `{"version": 10,
   "collections": [{"name": "notes", "description": "Notes", "key": "title", "display": "title", "immutable": ["source"],
     "schema": {"type": "object", "properties": {"title": {"type": "string"}, "score": {"type": "integer"}, "source": {"type": "string"},
       "note": {"type": "string"}}, "required": ["title"]}}],
@@ -87,7 +87,7 @@ const webNotes = `{"version": 9,
   "screens": [
     {"name": "main", "title": "Web", "blocks": [
       {"type": "list", "title": "Work", "source": {"collection": "notes"}, "item": {"title": "title"}},
-      {"type": "form", "title": "Score a title", "command": "score", "save": "notes"},
+      {"type": "form", "title": "Score a title", "command": "score"},
       {"type": "custom", "title": "Chart", "document": "custom/chart.html", "source": {"collection": "notes", "sort": "title"},
         "actions": [{"label": "Mark", "command": "mark"}, {"label": "Tag a", "command": "tag", "params": {"tag": "a"}},
           {"label": "Tag b", "command": "tag", "params": {"tag": "b"}}, {"label": "Publish", "command": "publish"}]},
@@ -138,7 +138,6 @@ type formV struct {
 	Values   map[string]any `json:"values"`
 	Readonly []string       `json:"readonly"`
 	Record   int64          `json:"record"`
-	Save     string         `json:"save"`
 }
 
 // rowAction is the first button of a screen that calls command, any for "", with params holding match.

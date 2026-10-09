@@ -15,8 +15,8 @@ type choiceV struct {
 // choicesManifest is the web project whose touch form picks the note from the notes, with a command that names a
 // project.
 var choicesManifest = strings.NewReplacer(
-	`{"type": "form", "title": "Score a title", "command": "score", "save": "notes"},`,
-	`{"type": "form", "title": "Score a title", "command": "score", "save": "notes"},
+	`{"type": "form", "title": "Score a title", "command": "score"},`,
+	`{"type": "form", "title": "Score a title", "command": "score"},
       {"type": "form", "title": "Touch", "command": "touch", "choices": {"note": {"source": {"collection": "notes", "sort": "title"}, "value": "_id", "label": "title"}}},
       {"type": "form", "title": "Hand over", "command": "hand"},`,
 	`{"name": "tell", "title": "Tell"`,
@@ -108,7 +108,7 @@ func TestFormAsksForTheInputAndShowsTheResultBySchema(t *testing.T) {
 	check.messages(t, e.screenMessages("web", "main", nil))
 
 	f := blockData[formV](t, e.screenData("web", "main", nil)["b1"]["value"])
-	if len(f.Commands) != 1 || f.Commands[0].Name != "web.score" || f.Save != "notes" || f.Project != "web" {
+	if len(f.Commands) != 1 || f.Commands[0].Name != "web.score" || f.Project != "web" {
 		t.Fatalf("a form names its command and where its result can be kept: %+v", f)
 	}
 	in := f.Commands[0].Input

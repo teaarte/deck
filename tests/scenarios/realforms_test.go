@@ -132,12 +132,12 @@ func TestRealBrowserWebClientII(t *testing.T) {
 	if len(files) != 1 || files[0].Name != "scan.txt" {
 		t.Fatalf("the file of the form reaches the command: %+v", files)
 	}
-	b.eval(`(document.querySelector('[data-save]').click(), '')`)
-	b.until("the kept result", `document.body.innerText.includes('Kept in notes')`)
+	e.must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes",
+		"records": jsonl(map[string]any{"title": "alpha", "source": "form"}, map[string]any{"title": "beta", "source": "form"})}, nil)
 	var notes []struct{ Title string }
 	e.must("deck.records_list", map[string]any{"project": "web", "collection": "notes"}, &notes)
 	if len(notes) != 3 {
-		t.Fatalf("the result is kept as records of the collection: %+v", notes)
+		t.Fatalf("the notes the command keeps: %+v", notes)
 	}
 
 	b.until("the kept notes in the table", `[...document.querySelectorAll('[data-block]')].some((x) => x.innerText.includes('Notes') && x.innerText.includes('beta'))`)

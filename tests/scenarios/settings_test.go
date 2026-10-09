@@ -56,7 +56,7 @@ func TestSettingsIsInTheMenuAndItsInterfaceTabIsTheLookOfTheDevice(t *testing.T)
 	}
 
 	e.createProject("web", webNotes)
-	bad := strings.Replace(webNotes, `{"type": "form", "title": "Score a title", "command": "score", "save": "notes"}`, `{"type": "appearance"}`, 1)
+	bad := strings.Replace(webNotes, `{"type": "form", "title": "Score a title", "command": "score"}`, `{"type": "appearance"}`, 1)
 	code, out := e.call("deck.manifest_save", map[string]any{"project": "web", "manifest": bad})
 	if code != 422 || !strings.Contains(string(out), "only on deck's own screens") {
 		t.Fatalf("a project screen holds no appearance block: %d %s", code, out)

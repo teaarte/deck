@@ -21,7 +21,7 @@ import (
 
 // forecastManifest is a module that tracks a price and forecasts its change: a stat of the last price, a table
 // of forecasts and a forecast page, each value shown by its format.
-const forecastManifest = `{"version": 9,
+const forecastManifest = `{"version": 10,
   "collections": [
     {"name": "prices", "description": "Prices", "key": "at", "display": "at",
       "schema": {"type": "object", "properties": {"at": {"type": "string"}, "price": {"type": "number"}, "forecast": {"type": "number"}}, "required": ["at"]}},

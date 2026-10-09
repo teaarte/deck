@@ -18,7 +18,7 @@ import (
 	"deck2/internal/provider"
 )
 
-const colorManifest = `{"version": 9,
+const colorManifest = `{"version": 10,
   "commands": [{"name": "work", "title": "Work", "description": "Asks the owner", "class": "internal",
     "result": {"type": "object", "required": ["color"], "properties": {"color": {"type": "string"}}},
     "executor": {"type": "agent", "prompt": "Ask the owner which color the report should use."}}]}`
@@ -121,7 +121,7 @@ func TestCodexProjectWithoutNetworkHasNoWebAndNoNetwork(t *testing.T) {
 	c := newCodex(t)
 	c.stream(0, "ok.jsonl")
 	e, _ := codexEnv(t, c)
-	p := e.createProject("paint", strings.Replace(colorManifest, `"version": 9,`, `"version": 9, "no_network": true,`, 1))
+	p := e.createProject("paint", strings.Replace(colorManifest, `"version": 10,`, `"version": 10, "no_network": true,`, 1))
 	id := e.run(p, "work")
 	got := e.waitState(id, "done", "error")
 	cc := c.call(1)
@@ -132,7 +132,7 @@ func TestCodexProjectWithoutNetworkHasNoWebAndNoNetwork(t *testing.T) {
 	}
 }
 
-const outsideManifest = `{"version": 9,
+const outsideManifest = `{"version": 10,
   "commands": [{"name": "work", "title": "Work", "description": "Writes outside", "class": "internal",
     "result": {"type": "object", "required": ["written"], "properties": {"written": {"type": "boolean"}}},
     "executor": {"type": "agent", "prompt": "Write the word hi into a file outside your folder."}}]}`
@@ -440,7 +440,7 @@ func TestCodexNetworkEscalationInAProjectWithoutNetworkIsDeclined(t *testing.T) 
 	c := newCodex(t)
 	c.stream(1, "escalation_network.jsonl")
 	e, _ := codexEnv(t, c)
-	p := e.createProject("outside", strings.Replace(outsideManifest, `"version": 9,`, `"version": 9, "no_network": true,`, 1))
+	p := e.createProject("outside", strings.Replace(outsideManifest, `"version": 10,`, `"version": 10, "no_network": true,`, 1))
 	id := e.run(p, "work")
 	got := e.waitState(id, "done", "error")
 	cc := c.call(1)
@@ -559,7 +559,7 @@ func TestCodexShellHasTheNetworkOrNone(t *testing.T) {
 	c.stream(0, "ok.jsonl")
 	c.stream(1, "ok.jsonl")
 	e, _ := codexEnv(t, c)
-	listed := e.createProject("paint", strings.Replace(colorManifest, `"version": 9,`, `"version": 9, "domains": {"read": ["data.example.org"]},`, 1))
+	listed := e.createProject("paint", strings.Replace(colorManifest, `"version": 10,`, `"version": 10, "domains": {"read": ["data.example.org"]},`, 1))
 	e.waitState(e.run(listed, "work"), "done", "error")
 	cc := c.call(1)
 	mode, _ := cc.config("permissions.deck.network.mode")
@@ -568,7 +568,7 @@ func TestCodexShellHasTheNetworkOrNone(t *testing.T) {
 	if mode != "" || proxy != "" || net != "true" {
 		t.Fatalf("the shell has the whole network without the proxy of Codex: %s %s %s", mode, proxy, net)
 	}
-	closed := e.createProject("closed", strings.Replace(colorManifest, `"version": 9,`, `"version": 9, "no_network": true,`, 1))
+	closed := e.createProject("closed", strings.Replace(colorManifest, `"version": 10,`, `"version": 10, "no_network": true,`, 1))
 	e.waitState(e.run(closed, "work"), "done", "error")
 	if net, _ := c.call(2).config("permissions.deck.network.enabled"); net != "false" {
 		t.Fatalf("a project without network gives the shell none: %s", net)

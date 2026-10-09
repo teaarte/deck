@@ -21,7 +21,7 @@ import (
 
 // webManifest is a project with every block of the catalog, a record page and an external tool.
 func webManifest(url string) string {
-	return fmt.Sprintf(`{"version": 9,
+	return fmt.Sprintf(`{"version": 10,
   "collections": [{"name": "notes", "description": "Notes", "key": "title", "display": "title",
     "schema": {"type": "object", "properties": {"title": {"type": "string"}, "score": {"type": "integer"}}, "required": ["title"]}}],
   "commands": [
@@ -617,7 +617,7 @@ func TestButtonsOfARecordPageFollowTheRecordAfterAnEvent(t *testing.T) {
 func TestAModuleButtonShowsWhereItHoldsAndTakesValuesFromTheRow(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, nil)
-	e.createProject("notes", `{"version": 9,
+	e.createProject("notes", `{"version": 10,
   "collections": [{"name": "notes", "description": "Notes", "key": "title", "display": "title",
     "schema": {"type": "object", "properties": {"title": {"type": "string"}, "score": {"type": "integer"}}, "required": ["title"]}}],
   "commands": [{"name": "touch", "title": "Touch", "description": "Touches a note.", "class": "internal", "result": {"type": "object"},
@@ -679,7 +679,7 @@ func TestAValueIsFixedTextOrAnExpression(t *testing.T) {
 	if !strings.Contains(cur.Manifest, `"note": "=_id"`) || strings.Index(cur.Manifest, `"score": {`) > strings.Index(cur.Manifest, `"note": {`) {
 		t.Fatalf("the raised manifest keeps the order it was written in: %s", cur.Manifest)
 	}
-	code, out := e.call("deck.project_create", map[string]any{"name": "new", "manifest": strings.Replace(old, `"version": 7`, `"version": 9`, 1)})
+	code, out := e.call("deck.project_create", map[string]any{"name": "new", "manifest": strings.Replace(old, `"version": 7`, `"version": 10`, 1)})
 	if code != 422 || !strings.Contains(string(out), "=_id") {
 		t.Fatalf("format 8 writes a value from the item as =<expression>: %d %s", code, out)
 	}
@@ -719,7 +719,7 @@ func TestAModuleOfFormatSevenOnAReadOfDeckStillLoads(t *testing.T) {
 func TestATextThatMentionsAnOldParamIsNoParam(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, nil)
-	m := `{"version": 9, "commands": [{"name": "touch", "title": "Touch", "description": "Touches.", "class": "internal",
+	m := `{"version": 10, "commands": [{"name": "touch", "title": "Touch", "description": "Touches.", "class": "internal",
     "result": {"type": "object"}, "input": {"type": "object", "properties": {"n": {"type": "string"}}}, "executor": {"type": "agent", "prompt": "Touch."}}],
   "screens": [{"name": "main", "title": "Main", "blocks": [{"type": "actions", "title": "Runs",
     "description": "Old screens wrote $param.n", "actions": [{"label": "Touch", "command": "touch", "params": {"n": "%s"}}]}]}]}`
@@ -894,22 +894,22 @@ func TestNewBlocksAreRefusedWithTheirReason(t *testing.T) {
 	e := newEnv(t, nil)
 	e.createProject("web", webNotes)
 	for _, tc := range []struct{ from, to, want string }{
-		{`{"type": "form", "title": "Score a title", "command": "score", "save": "notes"}`, `{"type": "board", "title": "Work"}`, "/screens/0/blocks/1/type"},
-		{`"command": "score", "save": "notes"}`, `"save": "notes"}`, "missing property 'command'"},
-		{`"command": "score", "save": "notes"}`, `"command": "launch"}`, `unknown command "launch"`},
-		{`"command": "score", "save": "notes"}`, `"command": "deck.record_update"}`, "edits the record of its page"},
-		{`"command": "score", "save": "notes"}`, `"command": "score", "save": "papers"}`, `save: unknown collection "papers"`},
+		{`{"type": "form", "title": "Score a title", "command": "score"}`, `{"type": "board", "title": "Work"}`, "/screens/0/blocks/1/type"},
+		{`"command": "score"}`, `"keep_open": true}`, "missing property 'command'"},
+		{`"command": "score"}`, `"command": "launch"}`, `unknown command "launch"`},
+		{`"command": "score"}`, `"command": "deck.record_update"}`, "edits the record of its page"},
+		{`"command": "score"}`, `"command": "score", "save": "papers"}`, "additional properties 'save' not allowed"},
 		{`"items": {"type": "object", "properties": {"title": {"type": "string"}, "score": {"type": "integer"}}}}`, `"items": {"type": "string"}}`, "cannot be kept as records"},
-		{`"command": "score", "save": "notes"}`, `"command": "score", "actions": [{"label": "x", "command": "touch"}]}`, "additional properties 'actions' not allowed"},
-		{`"command": "score", "save": "notes"}`, `"source": {"collection": "notes"}}`, "missing property 'from'"},
+		{`"command": "score"}`, `"command": "score", "actions": [{"label": "x", "command": "touch"}]}`, "additional properties 'actions' not allowed"},
+		{`"command": "score"}`, `"source": {"collection": "notes"}}`, "missing property 'from'"},
 		{`"document": "custom/chart.html", `, ``, "missing property 'document'"},
 		{`"filter": ["source"]`, `"filter": ["origin"]`, `filter: unknown field "origin"`},
 		{`{"label": "Mark", "command": "mark"}`, `{"label": "Go", "screen": "main"}`, "/actions/0': missing property 'command'"},
 		{`{"label": "Mark", "command": "mark"}`, `{"label": "Draw", "command": "deck.model_call"}`, "a button calls a command of its module"},
-		{`{"type": "form", "title": "Score a title", "command": "score", "save": "notes"}`, `{"type": "stat", "source": {"collection": "notes"}, "filter": ["title"]}`, "additional properties 'filter' not allowed"},
-		{`{"type": "form", "title": "Score a title", "command": "score", "save": "notes"}`, `{"type": "list", "source": {"from": "deck.projects_list"}, "item": {"title": "names"}}`, `unknown field "names"`},
-		{`{"type": "form", "title": "Score a title", "command": "score", "save": "notes"}`, `{"type": "list", "source": {"from": "nowhere"}, "item": {"title": "name"}}`, "nowhere is not a deck command that only reads"},
-		{`{"type": "form", "title": "Score a title", "command": "score", "save": "notes"}`, `{"type": "stat", "source": {"collection": "notes"}, "item": {"title": "title"}}`, "additional properties 'item' not allowed"},
+		{`{"type": "form", "title": "Score a title", "command": "score"}`, `{"type": "stat", "source": {"collection": "notes"}, "filter": ["title"]}`, "additional properties 'filter' not allowed"},
+		{`{"type": "form", "title": "Score a title", "command": "score"}`, `{"type": "list", "source": {"from": "deck.projects_list"}, "item": {"title": "names"}}`, `unknown field "names"`},
+		{`{"type": "form", "title": "Score a title", "command": "score"}`, `{"type": "list", "source": {"from": "nowhere"}, "item": {"title": "name"}}`, "nowhere is not a deck command that only reads"},
+		{`{"type": "form", "title": "Score a title", "command": "score"}`, `{"type": "stat", "source": {"collection": "notes"}, "item": {"title": "title"}}`, "additional properties 'item' not allowed"},
 	} {
 		if !strings.Contains(webNotes, tc.from) {
 			t.Fatalf("fixture lacks %s", tc.from)
@@ -961,7 +961,7 @@ func TestAHiddenButtonOfACustomBlockLeavesTheClassOfTheOthers(t *testing.T) {
 func TestABlockOfACommandDeckNoLongerHasTurnsOffOnlyThatBlock(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, nil)
-	m := `{"version": 9, "screens": [{"name": "main", "title": "Main", "blocks": [
+	m := `{"version": 10, "screens": [{"name": "main", "title": "Main", "blocks": [
     {"type": "list", "source": {"from": "deck.projects_list"}, "item": {"title": "name"}},
     {"type": "list", "source": {"from": "deck.models_list", "rows": "models"}, "item": {"title": "name"}}]}]}`
 	e.createProject("old", m)

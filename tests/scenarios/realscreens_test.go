@@ -418,9 +418,9 @@ func TestRealBrowserScreenKeepsItsStateOnReturn(t *testing.T) {
 	}
 	checkBuiltClient(t)
 	e := newEnv(t, nil)
-	e.createProject("web", strings.Replace(webNotes, `{"type": "form", "title": "Score a title", "command": "score", "save": "notes"},`,
+	e.createProject("web", strings.Replace(webNotes, `{"type": "form", "title": "Score a title", "command": "score"},`,
 		`{"type": "tabs", "tabs": [{"title": "Board", "blocks": [{"type": "stat", "title": "Notes", "source": {"collection": "notes"}}]},
-			{"title": "Score", "blocks": [{"type": "form", "title": "Score a title", "command": "score", "save": "notes"}]}]},`, 1))
+			{"title": "Score", "blocks": [{"type": "form", "title": "Score a title", "command": "score"}]}]},`, 1))
 	b := newPlaywright(t)
 	b.open(e.URL + "/?token=" + token + "#/p/web/main")
 	b.until("the tabs", `[...document.querySelectorAll('[role="tab"]')].some(x => x.innerText === 'Score')`)
@@ -525,8 +525,8 @@ func TestRealBrowserCustomBlockOpensWindowsOfDeck(t *testing.T) {
 	}
 	checkBuiltClient(t)
 	e := newEnv(t, webNotesAgent())
-	m := strings.Replace(webNotes, `{"type": "form", "title": "Score a title", "command": "score", "save": "notes"},`,
-		`{"type": "form", "title": "Score a title", "command": "score", "save": "notes"}, {"type": "dialog", "name": "note-help", "title": "Help", "blocks": [{"type": "stat", "title": "Notes", "source": {"collection": "notes"}}]},`, 1)
+	m := strings.Replace(webNotes, `{"type": "form", "title": "Score a title", "command": "score"},`,
+		`{"type": "form", "title": "Score a title", "command": "score"}, {"type": "dialog", "name": "note-help", "title": "Help", "blocks": [{"type": "stat", "title": "Notes", "source": {"collection": "notes"}}]},`, 1)
 	e.createProject("web", m)
 	e.must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": customWindows}, nil)
 	b := newPlaywright(t)

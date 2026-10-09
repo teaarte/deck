@@ -205,7 +205,10 @@ func (s *Scheduler) fire(ctx context.Context, t db.Trigger, now time.Time) {
 				return q.DeleteHealth(ctx, db.DeleteHealthParams{ProjectID: store.ID(p.ID), Subject: subject})
 			})
 		}
-		s.after(ctx, t, now)
+		// The run moved its slot with it; a call held for the owner started none.
+		if id == 0 {
+			s.after(ctx, t, now)
+		}
 		return
 	}
 	slog.Error("trigger start", "trigger", t.ID, "command", t.Command, "err", err)

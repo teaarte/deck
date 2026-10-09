@@ -144,8 +144,9 @@ func (s *Service) handOver(ctx context.Context, proj db.Project, key string, eve
 		})
 		return
 	}
-	// The mark follows the start, so a crash between them may hand the error over twice but never loses it.
-	if _, err := s.Runner.Start(context.WithoutCancel(ctx), mp.ID, mm, mm.EventCommand(manifest.OnFailure), input, process.Origin{}); err != nil {
+	// The mark follows the start, so a crash between them may hand the error over twice but never loses it; the key
+	// keeps two failures at once to one run.
+	if _, err := s.Runner.Start(context.WithoutCancel(ctx), mp.ID, mm, mm.EventCommand(manifest.OnFailure), input, process.Origin{Key: key}); err != nil {
 		slog.Error("hand an error to the master", "project", proj.Name, "input", input, "err", err)
 		return
 	}

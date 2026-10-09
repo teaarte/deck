@@ -151,7 +151,7 @@ func TestCeilingAndSilenceWaitForABlockingQuestion(t *testing.T) {
 	}
 	e.Clock.Add(20 * time.Minute)
 	e.sweep()
-	e.waitState(id, "stopped")
+	e.waitState(id, "error")
 }
 
 func TestSilentProcessShowsSinceItsLastOutput(t *testing.T) {
@@ -449,7 +449,7 @@ func TestCeilingDoesNotCountTheTimeDeckWasDown(t *testing.T) {
 	}
 	clock.Add(2 * time.Minute)
 	e2.sweep()
-	e2.waitState(id, "stopped")
+	e2.waitState(id, "error")
 }
 
 func TestCeilingRunsAgainWhenAQuestionGoesUnanswered(t *testing.T) {
@@ -466,7 +466,7 @@ func TestCeilingRunsAgainWhenAQuestionGoesUnanswered(t *testing.T) {
 	e.waitFor("the ceiling to run again once the wait ends", func() bool { return e.full(id).Deadline != "" })
 	e.Clock.Add(61 * time.Minute)
 	e.sweep()
-	e.waitState(id, "stopped")
+	e.waitState(id, "error")
 }
 
 func TestReworkKeepsTheRetryKeyUnique(t *testing.T) {

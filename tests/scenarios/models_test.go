@@ -672,3 +672,20 @@ func TestAModuleProposesAModelAndTheOwnerAddsItWithOneButton(t *testing.T) {
 		t.Fatalf("the owner's yes adds the model: %+v", m.Models)
 	}
 }
+
+// TestTheSettingsOfAModuleShowTheModelsOfItsWork: the settings of a project list the models assigned to its kinds of
+// work and commands, the one at work now first in mind, and only its own.
+func TestTheSettingsOfAModuleShowTheModelsOfItsWork(t *testing.T) {
+	e := newEnv(t, nil)
+	e.must("deck.connection_set", map[string]any{"name": "media", "api": "openai", "url": "http://127.0.0.1:9/v1", "local": true}, nil)
+	e.must("deck.model_set", map[string]any{"connection": "media", "model": "klein", "name": "local-image", "kind": "image", "free": true}, nil)
+	e.must("deck.model_set", map[string]any{"connection": "media", "model": "cloud", "name": "cloud-image", "kind": "image", "call_usd": 0.03}, nil)
+	e.createProject("shorts", scriptManifest("media", "", `, "models": ["@image"]`))
+	e.createProject("plain", plainManifest)
+	e.must("deck.assignment_set", map[string]any{"role": "image", "project": "shorts", "models": []string{"local-image", "cloud-image"}}, nil)
+	e.must("deck.assignment_set", map[string]any{"role": "image", "project": "plain", "models": []string{"cloud-image"}}, nil)
+	rows := blockData[[]screenRow](t, e.screenBlock("shorts", "settings", "Models of its work", nil)["rows"])
+	if len(rows) != 1 || fmt.Sprint(rows[0].Cells...) != "imageevery commandlocal-image → cloud-imagelocal-image" {
+		t.Fatalf("the settings of a module show the models of its work and only its own: %+v", rows)
+	}
+}

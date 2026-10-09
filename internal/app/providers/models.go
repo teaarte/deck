@@ -125,7 +125,11 @@ func nullable(f sql.NullFloat64) *float64 {
 	return &f.Float64
 }
 
-func (s *Service) modelsList(ctx context.Context, act registry.Actor, _ struct{}) (modelsOut, error) {
+type modelsListIn struct {
+	Project string `type:"project" opt:"" desc:"Only the assignments of this project and its commands"`
+}
+
+func (s *Service) modelsList(ctx context.Context, act registry.Actor, in modelsListIn) (modelsOut, error) {
 	out := modelsOut{Agents: s.agents(ctx), Connections: []connectionView{}, Models: []modelView{}, Assignments: []assignmentView{}}
 	conns, err := s.St.Q.ListConnections(ctx, act.Workspace)
 	if err != nil {
@@ -167,6 +171,9 @@ func (s *Service) modelsList(ctx context.Context, act registry.Actor, _ struct{}
 		return out, err
 	}
 	for _, r := range rows {
+		if in.Project != "" && r.Project != in.Project {
+			continue
+		}
 		v := assignmentView{Project: r.Project, Command: r.Command, Role: r.Role}
 		_ = json.Unmarshal([]byte(r.Models), &v.Models)
 		for _, name := range v.Models {

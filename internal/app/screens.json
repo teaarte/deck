@@ -13,6 +13,12 @@
       "Project and model": "Проект и модель",
       "Tokens by project, command and model": "Токены по проектам, командам и моделям",
       "Models it called": "Модели, которые он вызывал",
+      "Models of its work": "Модели его работы",
+      "Access": "Доступ",
+      "Which models of deck's settings do each kind of work of this project; the first that is up takes it.": "Какие модели из настроек deck делают каждый вид работы этого проекта; работу берёт первая исправная.",
+      "Nothing is assigned here: its work goes to the models of the whole workspace": "Здесь ничего не назначено: его работа идёт на модели всего пространства",
+      "Choose the models of its work": "Выбрать модели его работы",
+      "The models of deck's settings that make pictures, music, speech, text or the words of a recording for this project, or for one command of it: the first does the work, the next ones take it while the first is down.": "Модели из настроек deck, которые делают картинки, музыку, речь, текст или слова записи для этого проекта или одной его команды: работу делает первая, следующие берут её, пока первая не работает.",
       "The models of deck's settings the commands and scripts of this project called, how much and what it cost; a model it needs and deck lacks it proposes, and you add it with one button.": "Модели из настроек deck, которые вызывали команды и скрипты этого проекта, сколько и во что это обошлось; нужную модель, которой в deck нет, он предлагает, а вы добавляете её одной кнопкой.",
       "It has called no model yet": "Он ещё не вызывал моделей",
       "Which model each project and command used, how much, and what it cost; all time.": "Какую модель использовал каждый проект и команда, сколько и во что это обошлось; за всё время.",
@@ -663,99 +669,126 @@
           {"type": "form", "command": "deck.assignment_set", "description": "The first model runs the command; the next ones take it while the first is down.",
             "values": {"role": "agent", "command": "=param.command", "models": "=(param.models ?? '') != '' ? split(param.models, ',') : nil"},
             "choices": {"models": {"source": {"from": "deck.models_list", "rows": "models", "where": "(agent ?? '') != ''"}, "value": "name"}}}]},
+        {"type": "dialog", "name": "assign-kind", "title": "Choose the models of its work", "icon": "list-numbers", "blocks": [
+          {"type": "form", "command": "deck.assignment_set", "description": "The models of deck's settings that make pictures, music, speech, text or the words of a recording for this project, or for one command of it: the first does the work, the next ones take it while the first is down.",
+            "values": {"role": "=param.role", "command": "=param.command", "models": "=(param.models ?? '') != '' ? split(param.models, ',') : nil"},
+            "choices": {"models": {"source": {"from": "deck.models_list", "rows": "models", "where": "(agent ?? '') == '' && !builtin"}, "value": "name"}}}]},
         {"type": "dialog", "name": "folder", "title": "Add a folder", "icon": "folder-plus", "blocks": [
           {"type": "form", "command": "deck.folder_add"}]},
         {"type": "dialog", "name": "secret", "title": "Set a secret", "icon": "key", "blocks": [
           {"type": "form", "command": "deck.secret_set", "values": {"name": "=param.name"}}]},
-        {"type": "list", "title": "Project", "source": {"from": "deck.projects_list"},
-          "item": {"title": "title", "icon": "icon != '' ? icon : 'box'", "text": "manifest_error != '' ? 'manifest: ' + manifest_error : description",
-            "meta": "(title != name ? name + ' · ' : '') + status + (paused ? ', paused' : '') + (no_network ? ' · no network' : '') + (len(models) > 0 ? ' · may call models: ' + join(models, ', ') : '') + (len(rights) > 0 ? ' · enabling grants: ' + join(rights, '; ') : '') + (len(asks) > 0 ? ' · asks you each time: ' + join(asks, ', ') : '')",
-            "tone": "manifest_error != '' ? 'error' : paused ? 'muted' : status == 'draft' ? 'warn' : ''"},
-          "actions": [
-            {"verb": "enable", "primary": true, "command": "deck.project_enable", "params": {"project": "=name", "revision": "=revision"}, "when": "manifest_error == '' && status == 'draft'"},
-            {"verb": "pause", "command": "deck.project_pause", "params": {"project": "=name", "paused": "true"}, "when": "!paused"},
-            {"verb": "resume", "command": "deck.project_pause", "params": {"project": "=name", "paused": "false"}, "when": "paused"},
-            {"verb": "delete", "confirm": true, "command": "deck.project_delete", "params": {"project": "=name"}, "when": "!builtin"}
+        {"type": "tabs", "tabs": [
+          {"title": "Project", "icon": "box", "blocks": [
+              {"type": "list", "title": "Project", "source": {"from": "deck.projects_list"},
+                "item": {"title": "title", "icon": "icon != '' ? icon : 'box'", "text": "manifest_error != '' ? 'manifest: ' + manifest_error : description",
+                  "meta": "(title != name ? name + ' · ' : '') + status + (paused ? ', paused' : '') + (no_network ? ' · no network' : '') + (len(models) > 0 ? ' · may call models: ' + join(models, ', ') : '') + (len(rights) > 0 ? ' · enabling grants: ' + join(rights, '; ') : '') + (len(asks) > 0 ? ' · asks you each time: ' + join(asks, ', ') : '')",
+                  "tone": "manifest_error != '' ? 'error' : paused ? 'muted' : status == 'draft' ? 'warn' : ''"},
+                "actions": [
+                  {"verb": "enable", "primary": true, "command": "deck.project_enable", "params": {"project": "=name", "revision": "=revision"}, "when": "manifest_error == '' && status == 'draft'"},
+                  {"verb": "pause", "command": "deck.project_pause", "params": {"project": "=name", "paused": "true"}, "when": "!paused"},
+                  {"verb": "resume", "command": "deck.project_pause", "params": {"project": "=name", "paused": "false"}, "when": "paused"},
+                  {"verb": "delete", "confirm": true, "command": "deck.project_delete", "params": {"project": "=name"}, "when": "!builtin"}
+                ]},
+              {"type": "table", "title": "Commands", "source": {"from": "deck.commands_list", "where": "tool == ''", "sort": "name"},
+                "description": "What the project can do and where its agent commands run; a model picked here replaces the one the manifest suggests.",
+                "columns": [
+                  {"label": "Command", "bind": "title"},
+                  {"label": "Name", "bind": "name"},
+                  {"label": "Runs as", "bind": "executor", "format": "tag"},
+                  {"label": "Model", "bind": "provider", "format": "tag"}
+                ],
+                "actions": [
+                  {"verb": "models", "screen": "settings", "params": {"dialog": "assign", "command": "=trimPrefix(name, project + '.')", "models": "=provider"}, "when": "executor == 'agent'"},
+                  {"verb": "try", "screen": "settings", "params": {"dialog": "try-command", "command": "=name"}}
+                ]},
+              {"type": "table", "title": "On schedule", "when": "len(rows) > 0", "source": {"from": "deck.triggers_list", "sort": "command"},
+                "description": "What the project's commands do by themselves, and when.",
+                "columns": [
+                  {"label": "Command", "bind": "command"},
+                  {"label": "When", "bind": "kind == 'cron' ? spec : kind + ' ' + spec", "format": "cron"},
+                  {"label": "Model", "bind": "model", "format": "tag"},
+                  {"label": "Next run", "bind": "next_run_at", "format": "relative"},
+                  {"label": "Last result", "bind": "last_state", "format": "tag", "tone": "last_state == 'done' ? 'ok' : last_state in ['error', 'interrupted'] ? 'error' : 'muted'"},
+                  {"label": "State", "bind": "project_paused ? 'project paused' : paused ? 'paused' : 'on'", "tone": "paused ? 'muted' : ''"}
+                ],
+                "actions": [
+                  {"verb": "run_now", "command": "deck.trigger_run", "params": {"trigger": "=id"}, "when": "kind == 'cron'"},
+                  {"verb": "resume", "command": "deck.trigger_pause", "params": {"trigger": "=id", "paused": "false"}, "when": "own_paused"},
+                  {"verb": "pause", "command": "deck.trigger_pause", "params": {"trigger": "=id", "paused": "true"}, "when": "!own_paused"},
+                  {"verb": "open", "screen": "process", "project": "", "record": "=last_process", "when": "last_process != 0"}
+                ]}
           ]},
-        {"type": "table", "title": "Commands", "source": {"from": "deck.commands_list", "where": "tool == ''", "sort": "name"},
-          "description": "What the project can do and where its agent commands run; a model picked here replaces the one the manifest suggests.",
-          "columns": [
-            {"label": "Command", "bind": "title"},
-            {"label": "Name", "bind": "name"},
-            {"label": "Runs as", "bind": "executor", "format": "tag"},
-            {"label": "Model", "bind": "provider", "format": "tag"}
-          ],
-          "actions": [
-            {"verb": "models", "screen": "settings", "params": {"dialog": "assign", "command": "=trimPrefix(name, project + '.')", "models": "=provider"}, "when": "executor == 'agent'"},
-            {"verb": "try", "screen": "settings", "params": {"dialog": "try-command", "command": "=name"}}
+          {"title": "Models", "icon": "cpu", "blocks": [
+              {"type": "table", "title": "Models of its work", "source": {"from": "deck.models_list", "rows": "assignments", "sort": "role"},
+                "description": "Which models of deck's settings do each kind of work of this project; the first that is up takes it.",
+                "empty": "Nothing is assigned here: its work goes to the models of the whole workspace",
+                "columns": [
+                  {"label": "Kind of work", "bind": "role", "format": "tag"},
+                  {"label": "Command", "bind": "(command ?? '') != '' ? command : 'every command'"},
+                  {"label": "Models", "bind": "join(models, ' → ')"},
+                  {"label": "Now", "bind": "using ?? 'none is up'", "tone": "using == nil ? 'error' : using != models[0] ? 'warn' : 'ok'"}
+                ],
+                "actions": [
+                  {"verb": "edit", "screen": "settings", "params": {"dialog": "=role == 'agent' ? 'assign' : 'assign-kind'", "role": "=role", "command": "=command ?? ''", "models": "=join(models, ',')"}},
+                  {"verb": "remove", "confirm": true, "command": "deck.assignment_set", "params": {"role": "=role", "project": "=project", "command": "=command ?? ''"}}
+                ]},
+              {"type": "table", "title": "Models it called", "source": {"from": "deck.spend_list"},
+                "description": "The models of deck's settings the commands and scripts of this project called, how much and what it cost; a model it needs and deck lacks it proposes, and you add it with one button.",
+                "empty": "It has called no model yet",
+                "columns": [
+                  {"label": "Model", "bind": "provider", "format": "tag"},
+                  {"label": "Command", "bind": "command"},
+                  {"label": "Calls", "bind": "calls"},
+                  {"label": "Cost", "bind": "cost_usd", "format": "money", "currency": "USD"},
+                  {"label": "Last", "bind": "last_at", "format": "relative"}
+                ]}
           ]},
-        {"type": "table", "title": "On schedule", "when": "len(rows) > 0", "source": {"from": "deck.triggers_list", "sort": "command"},
-          "description": "What the project's commands do by themselves, and when.",
-          "columns": [
-            {"label": "Command", "bind": "command"},
-            {"label": "When", "bind": "kind == 'cron' ? spec : kind + ' ' + spec", "format": "cron"},
-            {"label": "Model", "bind": "model", "format": "tag"},
-            {"label": "Next run", "bind": "next_run_at", "format": "relative"},
-            {"label": "Last result", "bind": "last_state", "format": "tag", "tone": "last_state == 'done' ? 'ok' : last_state in ['error', 'interrupted'] ? 'error' : 'muted'"},
-            {"label": "State", "bind": "project_paused ? 'project paused' : paused ? 'paused' : 'on'", "tone": "paused ? 'muted' : ''"}
-          ],
-          "actions": [
-            {"verb": "run_now", "command": "deck.trigger_run", "params": {"trigger": "=id"}, "when": "kind == 'cron'"},
-            {"verb": "resume", "command": "deck.trigger_pause", "params": {"trigger": "=id", "paused": "false"}, "when": "own_paused"},
-            {"verb": "pause", "command": "deck.trigger_pause", "params": {"trigger": "=id", "paused": "true"}, "when": "!own_paused"},
-            {"verb": "open", "screen": "process", "project": "", "record": "=last_process", "when": "last_process != 0"}
+          {"title": "Access", "icon": "key", "blocks": [
+              {"type": "table", "title": "Folders", "source": {"from": "deck.folders_list"},
+                "description": "Folders on disk the agent commands of the project with a folder work in.",
+                "empty": "No folders; add one for commands that work on files of a repository",
+                "columns": [
+                  {"label": "Name", "bind": "name"},
+                  {"label": "Path", "bind": "path"}
+                ],
+                "actions": [
+                  {"verb": "remove", "confirm": true, "command": "deck.folder_remove", "params": {"name": "=name"}}
+                ]},
+              {"type": "table", "title": "Tools", "when": "len(rows) > 0", "source": {"from": "deck.commands_list", "where": "tool != ''", "sort": "name"},
+                "columns": [
+                  {"label": "Tool", "bind": "name"},
+                  {"label": "Kind", "bind": "tool", "format": "tag"},
+                  {"label": "What it does", "bind": "description"}
+                ]},
+              {"type": "table", "title": "Secrets", "when": "len(rows) > 0", "source": {"from": "deck.secrets_list"},
+                "description": "The secrets the manifest of the project names; the values stay with deck.",
+                "columns": [
+                  {"label": "Secret", "bind": "name"},
+                  {"label": "State", "bind": "set ? 'set' : 'not set'", "format": "tag", "tone": "set ? 'ok' : 'warn'"}
+                ],
+                "actions": [
+                  {"verb": "replace", "screen": "settings", "params": {"dialog": "secret", "name": "=name"}, "when": "set"},
+                  {"verb": "set", "primary": true, "screen": "settings", "params": {"dialog": "secret", "name": "=name"}, "when": "!set"}
+                ]},
+              {"type": "table", "title": "Tokens with access", "when": "len(rows) > 0", "source": {"from": "deck.tokens_list", "sort": "-id"},
+                "columns": [
+                  {"label": "Name", "bind": "name"},
+                  {"label": "Commands", "bind": "join(commands, ', ')"},
+                  {"label": "State", "bind": "revoked ? 'revoked' : 'live'", "format": "tag", "tone": "revoked ? 'muted' : 'ok'"}
+                ],
+                "actions": [{"verb": "revoke", "confirm": true, "command": "deck.token_revoke", "params": {"token": "=id"}, "when": "!revoked"}]}
           ]},
-        {"type": "table", "title": "Folders", "source": {"from": "deck.folders_list"},
-          "description": "Folders on disk the agent commands of the project with a folder work in.",
-          "empty": "No folders; add one for commands that work on files of a repository",
-          "columns": [
-            {"label": "Name", "bind": "name"},
-            {"label": "Path", "bind": "path"}
-          ],
-          "actions": [
-            {"verb": "remove", "confirm": true, "command": "deck.folder_remove", "params": {"name": "=name"}}
-          ]},
-        {"type": "table", "title": "Models it called", "source": {"from": "deck.spend_list"},
-          "description": "The models of deck's settings the commands and scripts of this project called, how much and what it cost; a model it needs and deck lacks it proposes, and you add it with one button.",
-          "empty": "It has called no model yet",
-          "columns": [
-            {"label": "Model", "bind": "provider", "format": "tag"},
-            {"label": "Command", "bind": "command"},
-            {"label": "Calls", "bind": "calls"},
-            {"label": "Cost", "bind": "cost_usd", "format": "money", "currency": "USD"},
-            {"label": "Last", "bind": "last_at", "format": "relative"}
-          ]},
-        {"type": "table", "title": "Tools", "when": "len(rows) > 0", "source": {"from": "deck.commands_list", "where": "tool != ''", "sort": "name"},
-          "columns": [
-            {"label": "Tool", "bind": "name"},
-            {"label": "Kind", "bind": "tool", "format": "tag"},
-            {"label": "What it does", "bind": "description"}
-          ]},
-        {"type": "table", "title": "Secrets", "when": "len(rows) > 0", "source": {"from": "deck.secrets_list"},
-          "description": "The secrets the manifest of the project names; the values stay with deck.",
-          "columns": [
-            {"label": "Secret", "bind": "name"},
-            {"label": "State", "bind": "set ? 'set' : 'not set'", "format": "tag", "tone": "set ? 'ok' : 'warn'"}
-          ],
-          "actions": [
-            {"verb": "replace", "screen": "settings", "params": {"dialog": "secret", "name": "=name"}, "when": "set"},
-            {"verb": "set", "primary": true, "screen": "settings", "params": {"dialog": "secret", "name": "=name"}, "when": "!set"}
-          ]},
-        {"type": "table", "title": "Tokens with access", "when": "len(rows) > 0", "source": {"from": "deck.tokens_list", "sort": "-id"},
-          "columns": [
-            {"label": "Name", "bind": "name"},
-            {"label": "Commands", "bind": "join(commands, ', ')"},
-            {"label": "State", "bind": "revoked ? 'revoked' : 'live'", "format": "tag", "tone": "revoked ? 'muted' : 'ok'"}
-          ],
-          "actions": [{"verb": "revoke", "confirm": true, "command": "deck.token_revoke", "params": {"token": "=id"}, "when": "!revoked"}]},
-        {"type": "table", "title": "Health", "source": {"from": "deck.health_list"}, "filter": ["status"],
-          "columns": [
-            {"label": "What", "bind": "subject"},
-            {"label": "Status", "bind": "status", "format": "tag", "tone": "status == 'ok' ? 'ok' : status == 'error' ? 'error' : 'warn'"},
-            {"label": "Why", "bind": "error"},
-            {"label": "Since", "bind": "updated_at"}
-          ],
-          "actions": [{"verb": "check", "command": "deck.programs_check", "when": "hasPrefix(subject, 'command:') && status != 'ok'"}]}
+          {"title": "Health", "icon": "heartbeat", "blocks": [
+              {"type": "table", "title": "Health", "source": {"from": "deck.health_list"}, "filter": ["status"],
+                "columns": [
+                  {"label": "What", "bind": "subject"},
+                  {"label": "Status", "bind": "status", "format": "tag", "tone": "status == 'ok' ? 'ok' : status == 'error' ? 'error' : 'warn'"},
+                  {"label": "Why", "bind": "error"},
+                  {"label": "Since", "bind": "updated_at"}
+                ],
+                "actions": [{"verb": "check", "command": "deck.programs_check", "when": "hasPrefix(subject, 'command:') && status != 'ok'"}]}
+          ]}
+        ]}
       ]
     },
     {

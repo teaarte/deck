@@ -157,7 +157,10 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   has its exact fields and its rules in words in `description`, and a refusal names the JSON path and the
   schema rule, such as `missing property 'item'` or `additional properties 'source' not allowed`):
   `table`, `list`, `card` (the record of a record page), `stat`, `chart`, `media`, `actions`, `form`, `custom`,
-  `dialog` (a button that opens blocks in a window) and `columns`/`tabs` to lay them out. A table:
+  `dialog` (a button that opens blocks in a window) and `columns`/`tabs` to lay them out. A screen that grows
+  long — more than a screenful of blocks the owner scrolls through — is split into `tabs` by meaning (what the owner
+  looks at together: the work, its models, its access, its health), never one long sheet; dialogs stay on the screen,
+  their buttons beside its title. A table:
   `{"type": "table", "title": "Best", "source": {"collection": "items", "where": "score >= 7", "sort": "-score",
   "limit": 20}, "columns": [{"label": "Title", "bind": "title"}], "filter": ["status"], "actions": [{"label": "Rate", "command":
   "rate", "params": {"id": "=_id"}}]}` — `where` and `bind` are expressions over record fields (`_id` is the id

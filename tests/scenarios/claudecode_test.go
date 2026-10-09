@@ -80,6 +80,7 @@ func TestCLIGetsOnlyAllowlistedEnvironment(t *testing.T) {
 }
 
 func TestLargeValuesAreNotArguments(t *testing.T) {
+	t.Parallel()
 	c := newCLI(t)
 	c.stream(0, "ok.jsonl")
 	e, _ := cliEnv(t, c)
@@ -100,6 +101,7 @@ func TestLargeValuesAreNotArguments(t *testing.T) {
 }
 
 func TestFakeCLIRejectsUnknownFlags(t *testing.T) {
+	t.Parallel()
 	c := newCLI(t)
 	out, err := exec.Command(filepath.Join(c.dir, "claude"), "-p", "--json-schema", "{}").CombinedOutput()
 	if err == nil || !strings.Contains(string(out), "unknown option '--json-schema'") {
@@ -108,6 +110,7 @@ func TestFakeCLIRejectsUnknownFlags(t *testing.T) {
 }
 
 func TestCLIThatDoesNotExitAfterItsResultIsKilled(t *testing.T) {
+	t.Parallel()
 	for name, after := range map[string]string{
 		"hangs":        `sleep 300 & echo $! > "$c/child"; wait`,
 		"leaves child": `sleep 300 >/dev/null 2>&1 & echo $! > "$c/child"`,
@@ -143,6 +146,7 @@ func TestCLIThatDoesNotExitAfterItsResultIsKilled(t *testing.T) {
 }
 
 func TestTurnSucceedsOnlyStrictly(t *testing.T) {
+	t.Parallel()
 	big := strings.Repeat("x", 512*1024)
 	for _, tc := range []struct {
 		name, fixture, after string
@@ -194,6 +198,7 @@ func (e *Env) health(subject string) map[string]any {
 }
 
 func TestPromptMentionsOnlyConnectedTools(t *testing.T) {
+	t.Parallel()
 	for _, noQuestions := range []bool{false, true} {
 		fake := &Fake{noQuestions: noQuestions, script: func(context.Context, *Call) provider.Result {
 			return provider.Result{Structured: json.RawMessage(`{"written": 0}`)}
@@ -210,6 +215,7 @@ func TestPromptMentionsOnlyConnectedTools(t *testing.T) {
 }
 
 func TestSkillsReachTheCLIAsAPluginOutsideTheAgentFolder(t *testing.T) {
+	t.Parallel()
 	c := newCLI(t)
 	c.stream(0, "ok.jsonl")
 	e, home := cliEnv(t, c)
@@ -244,6 +250,7 @@ func TestSkillsReachTheCLIAsAPluginOutsideTheAgentFolder(t *testing.T) {
 }
 
 func TestModelCallsCountTokensFromTheTurnResult(t *testing.T) {
+	t.Parallel()
 	c := newCLI(t)
 	c.stream(0, "ok.jsonl")
 	e, _ := cliEnv(t, c)
@@ -266,6 +273,7 @@ func TestModelCallsCountTokensFromTheTurnResult(t *testing.T) {
 }
 
 func TestClaudeCodeLimitPausesUntilItsReset(t *testing.T) {
+	t.Parallel()
 	c := newCLI(t)
 	c.stream(1, "ratelimit_rejected.jsonl")
 	c.stream(0, "ok.jsonl")
@@ -288,6 +296,7 @@ func TestClaudeCodeLimitPausesUntilItsReset(t *testing.T) {
 // TestClaudeCodeShellRunsInItsSandboxOnlyWithoutNetwork: the sandbox of the CLI closes the shell of a project
 // without network; elsewhere the shell renders, binds its ports, uses the GPU and writes its caches.
 func TestClaudeCodeShellRunsInItsSandboxOnlyWithoutNetwork(t *testing.T) {
+	t.Parallel()
 	c := newCLI(t)
 	c.stream(0, "ok.jsonl")
 	e, _ := cliEnv(t, c)

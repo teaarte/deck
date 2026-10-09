@@ -54,6 +54,7 @@ func clockCLIEnv(t *testing.T, c *fakeCLI) *Env {
 }
 
 func TestFailedSelfCheckHoldsClaudeCodeProcesses(t *testing.T) {
+	t.Parallel()
 	c := newCLI(t)
 	c.stream(0, "ok.jsonl")
 	e := clockCLIEnv(t, c)
@@ -111,6 +112,7 @@ func TestFailedSelfCheckHoldsClaudeCodeProcesses(t *testing.T) {
 }
 
 func TestSelfCheckHittingTheLimitIsAPauseNotABrokenAdapter(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct{ fixture, status string }{{"ratelimit_rejected.jsonl", "paused"}, {"nologin.jsonl", "needs_login"}} {
 		t.Run(c.status, func(t *testing.T) {
 			cli := newCLI(t)
@@ -147,6 +149,7 @@ func (c *checkedFake) set(err error) {
 }
 
 func TestAnswerWhileTheProviderIsRedWaitsAndThenResumes(t *testing.T) {
+	t.Parallel()
 	fake := &Fake{}
 	cf := &checkedFake{Fake: fake}
 	fake.script = func(ctx context.Context, c *Call) provider.Result {
@@ -176,6 +179,7 @@ func TestAnswerWhileTheProviderIsRedWaitsAndThenResumes(t *testing.T) {
 }
 
 func TestSelfCheckCutShortIsRunAgain(t *testing.T) {
+	t.Parallel()
 	c := newCLI(t)
 	c.stream(1, "ratelimit_rejected.jsonl")
 	c.stream(2, "selfcheck.jsonl")
@@ -193,6 +197,7 @@ func TestSelfCheckCutShortIsRunAgain(t *testing.T) {
 }
 
 func TestSelfCheckAllowsOnlyItsOwnCommand(t *testing.T) {
+	t.Parallel()
 	c := newCLI(t)
 	c.stream(1, "selfcheck.jsonl")
 	c.stream(2, "selfcheck_resume.jsonl")
@@ -209,6 +214,7 @@ func TestSelfCheckAllowsOnlyItsOwnCommand(t *testing.T) {
 }
 
 func TestSelfCheckIsRedWhenTheCLIStopsCountingTokens(t *testing.T) {
+	t.Parallel()
 	c := newCLI(t)
 	c.stream(1, "selfcheck_nousage.jsonl")
 	c.approving()
@@ -220,6 +226,7 @@ func TestSelfCheckIsRedWhenTheCLIStopsCountingTokens(t *testing.T) {
 }
 
 func TestSelfCheckIsRedWhenAResumeStopsCountingTokens(t *testing.T) {
+	t.Parallel()
 	c := newCLI(t)
 	c.stream(1, "selfcheck.jsonl")
 	c.stream(2, "selfcheck_resume_nousage.jsonl")
@@ -256,6 +263,7 @@ func (h *hungCheck) SelfCheck(ctx context.Context) provider.Check {
 // TestAHungSelfCheckDoesNotStopTheSchedule: the loop of deck only finds what is due; a provider whose self-check
 // hangs does not hold the schedule.
 func TestAHungSelfCheckDoesNotStopTheSchedule(t *testing.T) {
+	t.Parallel()
 	hv := &hungCheck{Fake: &Fake{}, release: make(chan struct{})}
 	clock := &Clock{now: t0}
 	e := newEnvWith(t, t.TempDir(), hv, withClock(clock))
@@ -282,6 +290,7 @@ func (s *slowCheck) SelfCheck(context.Context) provider.Check {
 // TestASlowModelIsAWarningThatHoldsNoTurn: a self-check that finds the model slow warns in the health of the
 // provider, and its commands run on.
 func TestASlowModelIsAWarningThatHoldsNoTurn(t *testing.T) {
+	t.Parallel()
 	clock := &Clock{now: t0}
 	slow := &slowCheck{Fake: &Fake{}}
 	e := newEnvWith(t, t.TempDir(), slow, withClock(clock))
@@ -303,6 +312,7 @@ func TestASlowModelIsAWarningThatHoldsNoTurn(t *testing.T) {
 
 // TestATurnTheProviderReportsAsAnErrorChecksIt: a turn the CLI ends with an error result starts a self-check too.
 func TestATurnTheProviderReportsAsAnErrorChecksIt(t *testing.T) {
+	t.Parallel()
 	c := newCLI(t)
 	c.stream(1, "selfcheck.jsonl")
 	c.stream(2, "selfcheck_resume.jsonl")

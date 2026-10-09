@@ -19,6 +19,7 @@ print(json.dumps({"internal": internal, "external": [st, out]}))
 `
 
 func TestTrialScriptWritesInsideDeckAndIsRefusedOutside(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	e.createProject("tried", scriptManifest("run", "", ""))
 	e.saveScript("tried", "scripts/main.py", trialScript)
@@ -47,6 +48,7 @@ func TestTrialScriptWritesInsideDeckAndIsRefusedOutside(t *testing.T) {
 // TestATrialInAnEnabledProjectIsAskedForAndNeverRunsBesideItsRealRun: a trial writes for real, so in an
 // enabled project it takes live, and it waits until a real run of the command is over.
 func TestATrialInAnEnabledProjectIsAskedForAndNeverRunsBesideItsRealRun(t *testing.T) {
+	t.Parallel()
 	release := make(chan struct{})
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		select {
@@ -75,6 +77,7 @@ func TestATrialInAnEnabledProjectIsAskedForAndNeverRunsBesideItsRealRun(t *testi
 }
 
 func TestScriptRunsOnlyFromAScriptDocument(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	e.createProject("kinds", scriptManifest("run", "", ""))
 	e.must("deck.document_save", map[string]any{"project": "kinds", "name": "scripts/main.py", "kind": "doc", "text": "print('{}')\n"}, nil)
@@ -86,6 +89,7 @@ func TestScriptRunsOnlyFromAScriptDocument(t *testing.T) {
 // TestTrialOfAToolIsRefusedAndNothingLeavesDeck: a tool is the call itself, so it has no trial run; a token
 // that may try runs any command of a project as a trial, whose agent calls a tool only on the owner's yes.
 func TestTrialOfAToolIsRefusedAndNothingLeavesDeck(t *testing.T) {
+	t.Parallel()
 	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { jsonReply(w, `{"ok": true}`) })
 	var posted string
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
@@ -134,6 +138,7 @@ func TestTrialOfAToolIsRefusedAndNothingLeavesDeck(t *testing.T) {
 // TestATrialOfOneCommandStartsNoChain: a trial of only this command does not start the commands that run after
 // it; a trial of the chain, as before, does.
 func TestATrialOfOneCommandStartsNoChain(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, ok)
 	e.createProject("chain", testManifest([]string{agentCommand("c1", ""), agentCommand("c2", processField)},
 		[]string{`{"command": "c2", "after": "c1"}`}))

@@ -43,6 +43,7 @@ type cliSettings struct {
 }
 
 func TestCommandAgentRunsInAutoModeWithItsOwnWeb(t *testing.T) {
+	t.Parallel()
 	c := newCLI(t)
 	c.stream(0, "ok.jsonl")
 	e, home := cliEnv(t, c)
@@ -115,6 +116,7 @@ const noNetworkManifest = `{"version": 9, "no_network": true,
     "executor": {"type": "agent", "prompt": "Do the work."}}]}`
 
 func TestNoNetworkProjectAgentsHaveNoWebOfTheirOwn(t *testing.T) {
+	t.Parallel()
 	c := newCLI(t)
 	c.stream(0, "ok.jsonl")
 	e, _ := cliEnv(t, c)
@@ -162,6 +164,7 @@ func TestNoNetworkProjectAgentsHaveNoWebOfTheirOwn(t *testing.T) {
 }
 
 func TestShellAndWebCommandsTakeOnlyAProviderInAutoModeWithItsWeb(t *testing.T) {
+	t.Parallel()
 	c := newCLI(t)
 	e, _ := cliEnv(t, c)
 	for _, req := range []string{`["sandbox"]`, `["web"]`} {
@@ -204,6 +207,7 @@ func selfCheckWith(t *testing.T, fixture, before, offline, status string) string
 }
 
 func TestSelfCheckIsRedWhenAutoModeStopsWorking(t *testing.T) {
+	t.Parallel()
 	self, _ := os.Executable()
 	for _, tc := range []struct{ name, fixture, before, want, offline string }{
 		{"green", "selfcheck.jsonl", "", "", ""},
@@ -228,6 +232,7 @@ func TestSelfCheckIsRedWhenAutoModeStopsWorking(t *testing.T) {
 }
 
 func TestNoNetworkReachesAProcessStartedBeforeIt(t *testing.T) {
+	t.Parallel()
 	c := newCLI(t)
 	c.stream(0, "ok.jsonl")
 	e, _ := cliEnv(t, c)

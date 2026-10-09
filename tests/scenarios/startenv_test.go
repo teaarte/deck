@@ -90,6 +90,7 @@ func (d *deckBinary) call(name string, in any) (int, string, error) {
 }
 
 func TestDeckRestartsItselfWithACleanEnvironment(t *testing.T) {
+	t.Parallel()
 	home := t.TempDir()
 	d := startDeck(t, home, "DECK_TEST_KEY=sk-marker-7f3a", "NODE_OPTIONS=--require=/tmp/x.js", "LC_ALL=C")
 	env := startEnv(t, d.cmd.Process.Pid)
@@ -104,6 +105,7 @@ func TestDeckRestartsItselfWithACleanEnvironment(t *testing.T) {
 }
 
 func TestAStopOfDeckLetsACallInFlightFinish(t *testing.T) {
+	t.Parallel()
 	slow := newService(t, func(w http.ResponseWriter, r *http.Request, n int) {
 		time.Sleep(2 * time.Second)
 		jsonReply(w, `{"ok": true}`)
@@ -142,6 +144,7 @@ func TestAStopOfDeckLetsACallInFlightFinish(t *testing.T) {
 }
 
 func TestTheHomeAndTheTokenOfDeckAreOnlyTheOwners(t *testing.T) {
+	t.Parallel()
 	home := filepath.Join(t.TempDir(), "home")
 	if err := os.MkdirAll(deckhome.Layout(home).State(), 0o755); err != nil {
 		t.Fatal(err)

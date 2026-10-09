@@ -16,6 +16,7 @@ import (
 )
 
 func TestANewModuleWithoutCode(t *testing.T) {
+	t.Parallel()
 	e := newClockEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		switch c.command() {
 		case "collect":
@@ -58,6 +59,7 @@ func TestANewModuleWithoutCode(t *testing.T) {
 }
 
 func TestTriggerChainStopsAtSixthStep(t *testing.T) {
+	t.Parallel()
 	var cmds, trigs []string
 	for i := 1; i <= 6; i++ {
 		in := processField
@@ -97,6 +99,7 @@ func TestTriggerChainStopsAtSixthStep(t *testing.T) {
 
 // TestAWarningOfABaseFromBeforeIsANote: an open warning an older base kept among the asks is a note of the feed.
 func TestAWarningOfABaseFromBeforeIsANote(t *testing.T) {
+	t.Parallel()
 	home := t.TempDir()
 	e := newEnvWith(t, home, &Fake{})
 	p := e.createProject("chain", testManifest([]string{agentCommand("c1", "")}, nil))
@@ -114,6 +117,7 @@ func TestAWarningOfABaseFromBeforeIsANote(t *testing.T) {
 }
 
 func TestScheduledRunDoesNotOverlapItsPrevious(t *testing.T) {
+	t.Parallel()
 	release := make(chan struct{})
 	e := newClockEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		<-release
@@ -136,6 +140,7 @@ func TestScheduledRunDoesNotOverlapItsPrevious(t *testing.T) {
 }
 
 func TestEmptyResultStartsNothingAndIsPurgedAfterADay(t *testing.T) {
+	t.Parallel()
 	e := newClockEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		return provider.Result{Structured: json.RawMessage(`null`)}
 	})
@@ -171,6 +176,7 @@ func TestEmptyResultStartsNothingAndIsPurgedAfterADay(t *testing.T) {
 // TestARunLaterOfABaseFromBeforeGoes: deck runs nothing once at a time any more; a run later an older base kept
 // leaves the schedule, and its commands are gone.
 func TestARunLaterOfABaseFromBeforeGoes(t *testing.T) {
+	t.Parallel()
 	home := t.TempDir()
 	e := newEnvWith(t, home, &Fake{})
 	e.createProject("later", testManifest([]string{agentCommand("remind", "")}, []string{`{"command": "remind", "cron": "0 9 * * *"}`}))
@@ -190,6 +196,7 @@ func TestARunLaterOfABaseFromBeforeGoes(t *testing.T) {
 }
 
 func TestMissedRunsAreSpreadAfterSleep(t *testing.T) {
+	t.Parallel()
 	e := newClockEnv(t, ok)
 	e.createProject("many", testManifest([]string{agentCommand("a", ""), agentCommand("b", ""), agentCommand("c", ""), agentCommand("d", "")},
 		[]string{`{"command": "a", "cron": "0 9 * * *"}`, `{"command": "b", "cron": "0 9 * * *"}`, `{"command": "c", "cron": "0 9 * * *"}`,
@@ -223,6 +230,7 @@ func TestMissedRunsAreSpreadAfterSleep(t *testing.T) {
 }
 
 func TestPausedTriggersAndProjectsDoNotRun(t *testing.T) {
+	t.Parallel()
 	e := newClockEnv(t, ok)
 	m := testManifest([]string{agentCommand("job", ""), agentCommand("other", "")}, []string{`{"command": "job", "cron": "0 9 * * *"}`})
 	e.createProject("paused", m)
@@ -253,6 +261,7 @@ func TestPausedTriggersAndProjectsDoNotRun(t *testing.T) {
 }
 
 func TestPausedTriggersStartNoAfterTriggers(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, ok)
 	p := e.createProject("chain", testManifest([]string{agentCommand("a", ""), agentCommand("b", processField)}, []string{`{"command": "b", "after": "a"}`}))
 	for _, tr := range e.triggers() {
@@ -268,6 +277,7 @@ func TestPausedTriggersStartNoAfterTriggers(t *testing.T) {
 }
 
 func TestTriggerIdentityAndReservedRetryKey(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	code, out := e.call("deck.project_create", map[string]any{"name": "twice", "manifest": testManifest(
 		[]string{agentCommand("pack", `{"type": "object", "properties": {"tone": {"type": "string"}}}`)},
@@ -289,6 +299,7 @@ func TestTriggerIdentityAndReservedRetryKey(t *testing.T) {
 }
 
 func TestPauseBetweenReadingAndFiringATriggerHolds(t *testing.T) {
+	t.Parallel()
 	e := newClockEnv(t, ok)
 	pid := e.createProject("race", testManifest([]string{agentCommand("job", "")}, []string{`{"command": "job", "cron": "0 9 * * *"}`}))
 	rows, err := e.App.Store.Q.ListProjectTriggers(context.Background(), pid)
@@ -310,6 +321,7 @@ func TestPauseBetweenReadingAndFiringATriggerHolds(t *testing.T) {
 }
 
 func TestAScheduledCallTheOwnerAllowedIsTheLastRunOfItsTrigger(t *testing.T) {
+	t.Parallel()
 	release := make(chan struct{})
 	e := newClockEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		select {
@@ -340,6 +352,7 @@ func TestAScheduledCallTheOwnerAllowedIsTheLastRunOfItsTrigger(t *testing.T) {
 }
 
 func TestAnAfterTriggerCallTheOwnerAllowedKeepsItsParent(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, ok)
 	pub := strings.Replace(agentCommand("publish", `{"type": "object", "properties": {"process": {"type": "integer"}}}`), `"class": "internal"`, `"class": "external"`, 1)
 	e.createProject("chain", testManifest([]string{agentCommand("first", ""), pub}, []string{`{"command": "publish", "after": "first"}`}))
@@ -358,6 +371,7 @@ func TestAnAfterTriggerCallTheOwnerAllowedKeepsItsParent(t *testing.T) {
 // TestScheduleShowsEveryTriggerRunsOneNowAndPausesAProject: the schedule lists the triggers of all projects;
 // run now starts one and keeps its slot; a paused project runs nothing on schedule; the history filters.
 func TestScheduleShowsEveryTriggerRunsOneNowAndPausesAProject(t *testing.T) {
+	t.Parallel()
 	e := newClockEnv(t, ok)
 	check := newCatalogCheck(t)
 	e.createProject("alpha", testManifest([]string{agentCommand("job", "")}, []string{`{"command": "job", "cron": "0 9 * * *"}`}))
@@ -444,6 +458,7 @@ func TestScheduleShowsEveryTriggerRunsOneNowAndPausesAProject(t *testing.T) {
 
 // TestRunNowReturnsTheRunStillGoing: a second run now while the first goes gives that run.
 func TestRunNowReturnsTheRunStillGoing(t *testing.T) {
+	t.Parallel()
 	gate := make(chan struct{})
 	e := newClockEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		if c.command() == "job" {
@@ -474,6 +489,7 @@ func TestRunNowReturnsTheRunStillGoing(t *testing.T) {
 // TestRunNowTakesACommandOnlyTriggersCallAndTheScheduleHearsAboutRuns: run now has the trigger's rights, and
 // a run of a trigger tells the schedule to read its next run and last result again.
 func TestRunNowTakesACommandOnlyTriggersCallAndTheScheduleHearsAboutRuns(t *testing.T) {
+	t.Parallel()
 	e := newClockEnv(t, ok)
 	own := strings.Replace(agentCommand("digest", ""), `"class": "internal"`, `"class": "internal", "callers": ["trigger"]`, 1)
 	e.createProject("alpha", testManifest([]string{own}, []string{`{"command": "digest", "cron": "0 9 * * *"}`}))
@@ -492,6 +508,7 @@ func TestRunNowTakesACommandOnlyTriggersCallAndTheScheduleHearsAboutRuns(t *test
 }
 
 func TestTriggerParamsKeepLargeIntegers(t *testing.T) {
+	t.Parallel()
 	e := newClockEnv(t, idle)
 	m := strings.Replace(calcManifest, `"executor": {"type": "agent", "prompt": "OLD PROMPT"}}]`,
 		`"executor": {"type": "agent", "prompt": "OLD PROMPT"}}],
@@ -512,6 +529,7 @@ func TestTriggerParamsKeepLargeIntegers(t *testing.T) {
 // TestAScheduledRunThatFailsToStartSaysWhy: a cron trigger whose start fails shows the reason in the health of its
 // project until a run of it starts.
 func TestAScheduledRunThatFailsToStartSaysWhy(t *testing.T) {
+	t.Parallel()
 	e := newClockEnv(t, ok)
 	text := strings.Replace(testManifest([]string{agentCommand("remind", "")}, []string{`{"command": "remind", "cron": "0 * * * *"}`}),
 		`"prompt": "Do remind."`, `"prompt_file": "prompts/remind.md"`, 1)
@@ -537,6 +555,7 @@ func TestAScheduledRunThatFailsToStartSaysWhy(t *testing.T) {
 // TestEnablingADraftClearsWhyItsTriggersDidNotStart: a schedule of a draft does not start and says why in health;
 // once the owner enables the project the reason is gone, and so is the red row.
 func TestEnablingADraftClearsWhyItsTriggersDidNotStart(t *testing.T) {
+	t.Parallel()
 	e := newClockEnv(t, ok)
 	_, tok := e.token("terminal", "deck.*")
 	m := testManifest([]string{agentCommand("remind", "")}, []string{`{"command": "remind", "cron": "0 * * * *"}`})
@@ -561,6 +580,7 @@ func TestEnablingADraftClearsWhyItsTriggersDidNotStart(t *testing.T) {
 // TestAHungToolIsSeenAndStopsAtItsCeiling: a tool call that does not answer holds a ceiling like a script; a cron slot
 // it swallows is a warning in health until a run starts, and the stop at the ceiling is an error.
 func TestAHungToolIsSeenAndStopsAtItsCeiling(t *testing.T) {
+	t.Parallel()
 	slow := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { <-r.Context().Done() })
 	e := newClockEnv(t, nil)
 	e.createProject("feed", fmt.Sprintf(`{"version": 9, "commands": [{"name": "fetch", "title": "Fetch", "description": "Fetches the feed.",

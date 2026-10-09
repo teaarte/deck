@@ -70,6 +70,7 @@ func (e *Env) seedForecasts() {
 // TestBlocksShowValuesByTheirFormat: a column, a card field and a stat carry their format to the client and keep
 // the value raw; a format the catalog lacks, money without its currency and a currency without money are refused.
 func TestBlocksShowValuesByTheirFormat(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	check := newCatalogCheck(t)
 	e.createProject("btc", forecastManifest)
@@ -131,6 +132,7 @@ func TestBlocksShowValuesByTheirFormat(t *testing.T) {
 // TestBlocksTakeTheToneOfTheirValues: a column, a list line, a card field and a stat take a tone by an expression
 // over what they show; a value that is not a tone is none, and a tone over an unknown field is refused.
 func TestBlocksTakeTheToneOfTheirValues(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	check := newCatalogCheck(t)
 	e.createProject("btc", forecastManifest)
@@ -183,6 +185,7 @@ func TestBlocksTakeTheToneOfTheirValues(t *testing.T) {
 // TestABlockWithoutItemsSaysSoInItsOwnWords: a block with empty shows its text when its source has none, and a
 // stat with it does not evaluate its value over no rows; a block without it is empty in the client's words.
 func TestABlockWithoutItemsSaysSoInItsOwnWords(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	check := newCatalogCheck(t)
 	e.createProject("btc", forecastManifest)
@@ -214,6 +217,7 @@ func TestABlockWithoutItemsSaysSoInItsOwnWords(t *testing.T) {
 // TestABlockIsOnTheScreenOnlyWhereItsWhenHolds: a block whose when does not hold over its rows or the record of
 // the page is not in the screen at all; an event its when reads resolves the screen whole.
 func TestABlockIsOnTheScreenOnlyWhereItsWhenHolds(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	check := newCatalogCheck(t)
 	e.createProject("btc", forecastManifest)
@@ -268,6 +272,7 @@ func TestABlockIsOnTheScreenOnlyWhereItsWhenHolds(t *testing.T) {
 // TestAChartDrawsTheItemsOfItsSourceAsSeries: a chart of a collection gives x and the values of each series in the
 // order of the sort, a gap where a value is missing, at most the last 500 points; a chart of a deck command too.
 func TestAChartDrawsTheItemsOfItsSourceAsSeries(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	check := newCatalogCheck(t)
 	e.createProject("btc", forecastManifest)
@@ -327,6 +332,7 @@ func TestAChartDrawsTheItemsOfItsSourceAsSeries(t *testing.T) {
 // TestMediaShowsTheFilesOfItsProjectOnly: a media line names a stored file of the project or a file of its data
 // folder, given at its url; a file of another project or out of the data folder is an error of its line.
 func TestMediaShowsTheFilesOfItsProjectOnly(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	check := newCatalogCheck(t)
 	id := e.createProject("btc", forecastManifest)
@@ -408,6 +414,7 @@ func TestMediaShowsTheFilesOfItsProjectOnly(t *testing.T) {
 
 // TestAPipeInTheDataFolderDoesNotHangMedia: a named pipe in the data folder is no file of a media line.
 func TestAPipeInTheDataFolderDoesNotHangMedia(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	id := e.createProject("btc", forecastManifest)
 	data := e.App.Home.Data(id)
@@ -435,6 +442,7 @@ func TestAPipeInTheDataFolderDoesNotHangMedia(t *testing.T) {
 // TestTheCockpitHidesRunningNowWhenNothingRuns: the list of running processes is on the cockpit only while one
 // runs.
 func TestTheCockpitHidesRunningNowWhenNothingRuns(t *testing.T) {
+	t.Parallel()
 	hold := make(chan struct{})
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		select {
@@ -457,6 +465,7 @@ func TestTheCockpitHidesRunningNowWhenNothingRuns(t *testing.T) {
 
 // TestTheCatalogKnowsTheStatesAProcessEndsIn: the client reads the final states from the catalog.
 func TestTheCatalogKnowsTheStatesAProcessEndsIn(t *testing.T) {
+	t.Parallel()
 	var c struct {
 		Final []string `json:"final_states"`
 	}

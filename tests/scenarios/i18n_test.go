@@ -12,6 +12,7 @@ import (
 // TestScreensAndTheMenuSpeakTheLanguageOfTheOwner: the texts of deck's screens and of a manifest come in the
 // language asked for, by the i18n of each; a text without a translation stays as written.
 func TestScreensAndTheMenuSpeakTheLanguageOfTheOwner(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, webNotesAgent())
 	manifest := strings.Replace(webNotes, `{"version": 9,`, `{"version": 9, "title": "Web notes", "i18n": {"ru": {"Web notes": "Веб-заметки", "Web": "Веб", "Notes": "Заметки", "Title": "Заголовок"}},`, 1)
 	e.createProject("web", manifest)
@@ -54,6 +55,7 @@ func TestScreensAndTheMenuSpeakTheLanguageOfTheOwner(t *testing.T) {
 // TestATabKeepsItsKeyInEveryLanguage: a tab is named in the address by its title as written, so a link to it
 // opens the same tab whatever language the screen is drawn in; the tabs of a screen have their own titles.
 func TestATabKeepsItsKeyInEveryLanguage(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	drawn, _ := json.Marshal(e.screenMessages("", "schedule", map[string]any{"lang": "ru"}))
 	if !strings.Contains(string(drawn), `"Расходы"`) || !strings.Contains(string(drawn), `"keys":["Schedule","Runs","Spend"]`) {
@@ -68,6 +70,7 @@ func TestATabKeepsItsKeyInEveryLanguage(t *testing.T) {
 // TestEveryTextOfDeckScreensHasItsTranslation: each text of deck's screens is translated, and each translation
 // is of a text there is.
 func TestEveryTextOfDeckScreensHasItsTranslation(t *testing.T) {
+	t.Parallel()
 	raw, err := os.ReadFile("../../internal/app/screens.json")
 	if err != nil {
 		t.Fatal(err)
@@ -92,6 +95,7 @@ func TestEveryTextOfDeckScreensHasItsTranslation(t *testing.T) {
 // TestASavedManifestNamesTranslationsOfNoText: a key of i18n that is no text of the manifest is named when it is
 // saved, so a renamed text does not lose its translation unseen.
 func TestASavedManifestNamesTranslationsOfNoText(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	e.createProject("web", webNotes)
 	var saved struct {
@@ -107,6 +111,7 @@ func TestASavedManifestNamesTranslationsOfNoText(t *testing.T) {
 // TestFormsAndFiltersSpeakTheLanguageOfTheOwner: the title and description of the command of a form, its fields
 // and the fields of filters are translated too.
 func TestFormsAndFiltersSpeakTheLanguageOfTheOwner(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, webNotesAgent())
 	e.createProject("web", strings.Replace(webNotes, `{"version": 9,`, `{"version": 9, "i18n": {"ru": {"Score": "Оценить",
       "Scores a title.": "Оценивает заголовок.", "title": "Заголовок", "source": "Источник"}},`, 1))

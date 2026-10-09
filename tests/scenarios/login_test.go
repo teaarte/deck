@@ -10,6 +10,7 @@ import (
 )
 
 func TestResumeAfterEarlyCrashStartsTheSessionAgain(t *testing.T) {
+	t.Parallel()
 	c := newCLI(t)
 	c.after(`[ "$n" = 1 ] && sleep 300`)
 	c.stream(2, "noconversation.jsonl")
@@ -42,6 +43,7 @@ func TestResumeAfterEarlyCrashStartsTheSessionAgain(t *testing.T) {
 }
 
 func TestLostLoginWaitsForOwnerAndRetries(t *testing.T) {
+	t.Parallel()
 	c := newCLI(t)
 	c.stream(1, "nologin.jsonl")
 	c.stream(2, "ok.jsonl")
@@ -73,6 +75,7 @@ func TestLostLoginWaitsForOwnerAndRetries(t *testing.T) {
 }
 
 func TestLostLoginNewSessionGetsReportOfWhatWasDone(t *testing.T) {
+	t.Parallel()
 	c := newCLI(t)
 	c.stream(1, "nologin.jsonl")
 	c.stream(2, "ok.jsonl")
@@ -103,6 +106,7 @@ func TestLostLoginNewSessionGetsReportOfWhatWasDone(t *testing.T) {
 }
 
 func TestRetryAfterLostLoginFinishesWhenTheSessionWasNeverSaved(t *testing.T) {
+	t.Parallel()
 	c := newCLI(t)
 	c.stream(1, "nologin.jsonl")
 	c.stream(2, "noconversation.jsonl")
@@ -118,6 +122,7 @@ func TestRetryAfterLostLoginFinishesWhenTheSessionWasNeverSaved(t *testing.T) {
 }
 
 func TestNewSessionReportSurvivesRestart(t *testing.T) {
+	t.Parallel()
 	c := newCLI(t)
 	c.stream(1, "nologin.jsonl")
 	c.after(`[ "$n" = 2 ] && sleep 300`)
@@ -153,6 +158,7 @@ func TestNewSessionReportSurvivesRestart(t *testing.T) {
 }
 
 func TestResultSeenWhileDeckStopsIsNotTheOutcome(t *testing.T) {
+	t.Parallel()
 	c := newCLI(t)
 	c.stream(1, "ok.jsonl")
 	c.after(`[ "$n" = 1 ] && sleep 300`)

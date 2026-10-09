@@ -43,6 +43,7 @@ func chatText(content string) string {
 // TestAModelCommandAnswersByItsSchema: a command of type model sends its prompt and input to the model assigned to
 // text with its result schema, and the JSON the model answers is its result.
 func TestAModelCommandAnswersByItsSchema(t *testing.T) {
+	t.Parallel()
 	api := newModels(t, map[string]func(int, map[string]any) (int, string, string){
 		"/v1/chat/completions": func(int, map[string]any) (int, string, string) {
 			return 200, "application/json", chatText("```json\n{\"verdict\": \"false\", \"confidence\": 0.9}\n```")
@@ -76,6 +77,7 @@ func TestAModelCommandAnswersByItsSchema(t *testing.T) {
 // TestModelCommandsMakeFilesOfPicturesAndSpeechAndTextOfRecordings: a picture (from chat completions when the API has
 // no images path) and speech are files of the result; stt sends the recording of the input field.
 func TestModelCommandsMakeFilesOfPicturesAndSpeechAndTextOfRecordings(t *testing.T) {
+	t.Parallel()
 	api := newModels(t, map[string]func(int, map[string]any) (int, string, string){
 		"/api/v1/chat/completions": func(int, map[string]any) (int, string, string) { return 200, "application/json", pictureAnswer(0.04) },
 		"/api/v1/audio/speech":     func(int, map[string]any) (int, string, string) { return 200, "audio/mpeg", "ID3-voice" },
@@ -130,6 +132,7 @@ func TestModelCommandsMakeFilesOfPicturesAndSpeechAndTextOfRecordings(t *testing
 // TestAModelCommandOfATrialWaitsForTheOwner: a trial calls a paid model only on the owner's yes; meanwhile its
 // process parks, and the yes makes the call and ends the process with the answer.
 func TestAModelCommandOfATrialWaitsForTheOwner(t *testing.T) {
+	t.Parallel()
 	api := newModels(t, map[string]func(int, map[string]any) (int, string, string){
 		"/v1/chat/completions": func(int, map[string]any) (int, string, string) {
 			return 200, "application/json", chatText(`{"verdict": "true", "confidence": 0.6}`)
@@ -156,6 +159,7 @@ func TestAModelCommandOfATrialWaitsForTheOwner(t *testing.T) {
 // TestAModelCallSpeaksTheOpenAICompatibleProtocol: a connection of the Google API says how to reach it, and a base
 // from before moves a Google connection to the OpenAI-compatible address of Google.
 func TestAModelCallSpeaksTheOpenAICompatibleProtocol(t *testing.T) {
+	t.Parallel()
 	api := newModels(t, map[string]func(int, map[string]any) (int, string, string){
 		"/v1beta/openai/chat/completions": func(int, map[string]any) (int, string, string) {
 			return 200, "application/json", chatText(`{"verdict": "unclear", "confidence": 0.4}`)
@@ -204,6 +208,7 @@ func (f *fakeModels) made() []modelCall {
 // TestAModelCommandGetsWhatItsKindNeeds: a manifest whose model command lacks what its kind needs is refused with
 // what to give it.
 func TestAModelCommandGetsWhatItsKindNeeds(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	for _, c := range []struct{ from, to, want string }{
 		{`"kind": "text", "prompt": "Check the claim against what is known."`, `"kind": "text"`, "needs prompt or prompt_file"},
@@ -222,6 +227,7 @@ func TestAModelCommandGetsWhatItsKindNeeds(t *testing.T) {
 // TestAModelThatBrokeOffAfterTheRequestHasNoFallback: an answer cut after the request reached the model may have
 // been billed, so the call fails rather than ask the fallback.
 func TestAModelThatBrokeOffAfterTheRequestHasNoFallback(t *testing.T) {
+	t.Parallel()
 	cut := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		conn, _, _ := w.(http.Hijacker).Hijack()
 		_ = conn.Close()
@@ -247,6 +253,7 @@ func TestAModelThatBrokeOffAfterTheRequestHasNoFallback(t *testing.T) {
 // TestAModelInUseAndAConnectionWithModelsStay: a model an agent still runs on and a connection with models are not
 // removed; a removed model leaves its assignment to the next one, and the connection goes once its models have.
 func TestAModelInUseAndAConnectionWithModelsStay(t *testing.T) {
+	t.Parallel()
 	api := newModels(t, map[string]func(int, map[string]any) (int, string, string){
 		"/v1/chat/completions": func(int, map[string]any) (int, string, string) {
 			return 200, "application/json", chatText(`{"verdict": "true", "confidence": 0.5}`)
@@ -292,6 +299,7 @@ func TestAModelInUseAndAConnectionWithModelsStay(t *testing.T) {
 // TestAModelThatDoesNotAnswerIsRedWhileItsFallbackWorks: a model of the owner's machine that does not answer turns
 // its health red and the assignment shows the fallback that took the work; its first answer turns it green.
 func TestAModelThatDoesNotAnswerIsRedWhileItsFallbackWorks(t *testing.T) {
+	t.Parallel()
 	cloud := newModels(t, map[string]func(int, map[string]any) (int, string, string){
 		"/api/v1/chat/completions": func(int, map[string]any) (int, string, string) { return 200, "application/json", pictureAnswer(0.04) },
 	})
@@ -371,6 +379,7 @@ func audioStream(pieces ...string) string {
 // TestAMusicModelMakesATrackOfItsOwnPathOrOfChatAudio: music is asked of the audio/music path the way speech is, and
 // of chat completions with audio out when the API has no such path; either way the track is a file of the result.
 func TestAMusicModelMakesATrackOfItsOwnPathOrOfChatAudio(t *testing.T) {
+	t.Parallel()
 	local := newModels(t, map[string]func(int, map[string]any) (int, string, string){
 		"/v1/audio/music": func(int, map[string]any) (int, string, string) {
 			return 200, "audio/wav", "RIFF\x24\x00\x00\x00WAVEfmt "

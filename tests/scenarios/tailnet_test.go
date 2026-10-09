@@ -28,6 +28,7 @@ import (
 // TestPhoneReachesDeckOverTheTailnet: deck joins the tailnet from inside its binary; until the owner signs in,
 // its health holds the sign-in link; then a phone on the tailnet calls commands and gets the second origin.
 func TestPhoneReachesDeckOverTheTailnet(t *testing.T) {
+	t.Parallel()
 	netns.SetEnabled(false)
 	t.Cleanup(func() { netns.SetEnabled(true) })
 	derp := integration.RunDERPAndSTUN(t, logger.Discard, "127.0.0.1")

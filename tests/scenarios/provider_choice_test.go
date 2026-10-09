@@ -23,6 +23,7 @@ const notesManifest = `{"version": 9,
     "result": {"type": "object", "properties": {"written": {"type": "integer"}}, "required": ["written"]}}]}`
 
 func TestNoCloudCommandDoesNotTakeACloudProvider(t *testing.T) {
+	t.Parallel()
 	e, cloud, local := acpPair(t, ok)
 	e.addACP(cloud, 1, "cloud", "goose", acpLLM(t), false)
 	p := e.createProject("notes", notesManifest)
@@ -57,6 +58,7 @@ func TestNoCloudCommandDoesNotTakeACloudProvider(t *testing.T) {
 }
 
 func TestProviderThatLeftTheOwnersHardwareStopsTheNextTurn(t *testing.T) {
+	t.Parallel()
 	e, _, local := acpPair(t, nil)
 	e.addACP(local, 1, "acp", "dsh", acpLLM(t), true)
 	local.streamText(4, acpTurn(`{"written": 1}`))
@@ -71,6 +73,7 @@ func TestProviderThatLeftTheOwnersHardwareStopsTheNextTurn(t *testing.T) {
 }
 
 func TestProviderIsSwitchedWithoutARestart(t *testing.T) {
+	t.Parallel()
 	e, api, _ := acpPair(t, func(context.Context, *Call) provider.Result { return provider.Result{Text: "from the main provider"} })
 	api.streamText(0, acpTurn(`"from the API"`))
 	e.addACP(api, 1, "api", "goose", acpLLM(t), false)
@@ -118,6 +121,7 @@ func TestProviderWithoutAKeySendsNone(t *testing.T) {
 }
 
 func TestResultSubmitGetsOneRebuild(t *testing.T) {
+	t.Parallel()
 	e, local, _ := acpPair(t, nil)
 	e.addACP(local, 1, "acp", "goose", acpLLM(t), true)
 	local.streamText(4, acpStream(acpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,
@@ -131,6 +135,7 @@ func TestResultSubmitGetsOneRebuild(t *testing.T) {
 }
 
 func TestProviderURLCarriesNoKey(t *testing.T) {
+	t.Parallel()
 	f := newACP(t)
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		return provider.Result{Structured: json.RawMessage(`{}`)}
@@ -161,6 +166,7 @@ func TestProviderURLCarriesNoKey(t *testing.T) {
 // TestTheModelColumnFollowsAssignmentSet: a model assigned to a command is heard live and redraws the
 // commands of the project's settings.
 func TestTheModelColumnFollowsAssignmentSet(t *testing.T) {
+	t.Parallel()
 	e, api, _ := acpPair(t, nil)
 	e.addACP(api, 1, "api", "goose", acpLLM(t), false)
 	e.createProject("plain", plainManifest)
@@ -178,6 +184,7 @@ func TestTheModelColumnFollowsAssignmentSet(t *testing.T) {
 // TestTheCommandsOfAProjectOfferOnlyProvidersThatFit: the commands of a project list only the providers an
 // assignment of the command would take.
 func TestTheCommandsOfAProjectOfferOnlyProvidersThatFit(t *testing.T) {
+	t.Parallel()
 	e, cloud, local := acpPair(t, ok)
 	e.addACP(cloud, 1, "cloud", "goose", acpLLM(t), false)
 	e.addACP(local, 1, "local", "dsh", acpLLM(t), true)

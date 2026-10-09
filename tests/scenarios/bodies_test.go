@@ -41,6 +41,7 @@ print(json.dumps({"status": st, "escape": escape}))
 `
 
 func TestHTTPToolSendsFilesAsItsBody(t *testing.T) {
+	t.Parallel()
 	var mu sync.Mutex
 	got := map[string][]string{}
 	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) {
@@ -97,6 +98,7 @@ func TestHTTPToolSendsFilesAsItsBody(t *testing.T) {
 }
 
 func TestACommandCallLargerThan32MBIsRefusedWhole(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	big := map[string]any{"text": strings.Repeat("x", 33<<20)}
 	if code, out := e.call("deck.projects_list", big); code != http.StatusRequestEntityTooLarge {
@@ -113,6 +115,7 @@ print(json.dumps({"status": st}))
 }
 
 func TestATextAnswerOverTheLimitIsNotPassedOnCut(t *testing.T) {
+	t.Parallel()
 	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) {
 		w.Header().Set("Content-Type", "text/plain")
 		_, _ = w.Write([]byte(strings.Repeat("x", 11<<20)))

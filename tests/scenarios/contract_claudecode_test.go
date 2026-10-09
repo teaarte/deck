@@ -15,6 +15,7 @@ import (
 )
 
 func TestRateLimitWarningDoesNotPause(t *testing.T) {
+	t.Parallel()
 	c := newCLI(t)
 	c.stream(0, "ratelimit_warning.jsonl")
 	e, _ := cliEnv(t, c)
@@ -29,6 +30,7 @@ func TestRateLimitWarningDoesNotPause(t *testing.T) {
 }
 
 func TestRateLimitIsOnlyAnExplicitRefusal(t *testing.T) {
+	t.Parallel()
 	c := newCLI(t)
 	c.stream(1, "ratelimit_rejected.jsonl")
 	b, _ := os.ReadFile("testdata/claude/ratelimit_rejected.jsonl")
@@ -48,6 +50,7 @@ func TestRateLimitIsOnlyAnExplicitRefusal(t *testing.T) {
 }
 
 func TestSubAgentEventsAreNotProcessEvents(t *testing.T) {
+	t.Parallel()
 	c := newCLI(t)
 	c.stream(0, "subagent.jsonl")
 	var events []provider.Event
@@ -77,6 +80,7 @@ func TestSubAgentEventsAreNotProcessEvents(t *testing.T) {
 }
 
 func TestCodeRunSeesRepoInstructionsOnly(t *testing.T) {
+	t.Parallel()
 	c := newCLI(t)
 	c.stream(0, "ok.jsonl")
 	outer := t.TempDir()
@@ -132,6 +136,7 @@ func TestCodeRunSeesRepoInstructionsOnly(t *testing.T) {
 }
 
 func TestResumedClaudeCodeTurnCountsOnlyItsOwnTokens(t *testing.T) {
+	t.Parallel()
 	c := newCLI(t)
 	c.stream(1, "selfcheck.jsonl")
 	c.stream(2, "selfcheck_resume.jsonl")

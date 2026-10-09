@@ -17,6 +17,7 @@ import (
 // TestJournalShowsTheCallsOfTheGatewayTheSpendFilesAndSnapshots: the journal screen reads the gateway journal
 // with its outcomes, the tokens by command and provider, the files and the snapshots; it only shows them.
 func TestJournalShowsTheCallsOfTheGatewayTheSpendFilesAndSnapshots(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		if c.command() == "tell" {
 			c.Tool(ctx, "web__publish", map[string]any{})
@@ -132,6 +133,7 @@ func TestJournalShowsTheCallsOfTheGatewayTheSpendFilesAndSnapshots(t *testing.T)
 
 // TestTheJournalKeepsHalfAYear: the daily cleanup drops calls older than 180 days and notes of the feed older than 90.
 func TestTheJournalKeepsHalfAYear(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	e.createProject("notes", plainManifest)
 	e.must("deck.notify", map[string]any{"project": "notes", "text": "done"}, nil)
@@ -156,6 +158,7 @@ func TestTheJournalKeepsHalfAYear(t *testing.T) {
 }
 
 func TestStoppingAProcessJournalsTheCallsItDropped(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	e.createProject("pics", toolManifest("http://127.0.0.1:1", ""))
 	id := e.start("pics", "send", map[string]any{"text": "hi"})
@@ -169,6 +172,7 @@ func TestStoppingAProcessJournalsTheCallsItDropped(t *testing.T) {
 // TestTheJournalFollowsCallsAndSpendLive: a call of the gateway and a model call are heard live, and each
 // redraws only the blocks that read them.
 func TestTheJournalFollowsCallsAndSpendLive(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		c.Tool(ctx, "document_save", map[string]any{"name": "report.md", "kind": "artifact", "text": "done"})
 		c.Req.OnUsage(provider.Usage{RequestModel: "big", Model: "big", Input: 1200, Output: 300})
@@ -192,6 +196,7 @@ func TestTheJournalFollowsCallsAndSpendLive(t *testing.T) {
 // TestTheSpendOfAPurgedProcessStays: a process with nothing to do goes after a day, and what its model cost
 // stays in the spend of its project and command.
 func TestTheSpendOfAPurgedProcessStays(t *testing.T) {
+	t.Parallel()
 	e := newClockEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		cost := 0.5
 		c.Req.OnUsage(provider.Usage{RequestModel: "big", Model: "big", Input: 1200, Output: 300, CostUSD: &cost})
@@ -224,6 +229,7 @@ func TestTheSpendOfAPurgedProcessStays(t *testing.T) {
 // TestModelCallsOfABaseFromBeforeKeepTheirProject: the model calls of an older base keep their project and
 // command when it learns to keep them without the process.
 func TestModelCallsOfABaseFromBeforeKeepTheirProject(t *testing.T) {
+	t.Parallel()
 	home := t.TempDir()
 	e := newEnvWith(t, home, &Fake{script: func(ctx context.Context, c *Call) provider.Result {
 		c.Req.OnUsage(provider.Usage{Model: "big", Input: 10, Output: 5})
@@ -244,6 +250,7 @@ func TestModelCallsOfABaseFromBeforeKeepTheirProject(t *testing.T) {
 // TestTheJournalCountsTheDaysOfTheOwner: the days of Spend and Runs are those of the owner's clock, not of UTC, half
 // an hour off included: a call and a run ten minutes past the owner's midnight count on that day.
 func TestTheJournalCountsTheDaysOfTheOwner(t *testing.T) {
+	t.Parallel()
 	local := time.Local
 	time.Local = time.FixedZone("owner", 5*3600+30*60)
 	t.Cleanup(func() { time.Local = local })

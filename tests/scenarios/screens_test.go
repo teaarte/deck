@@ -190,6 +190,7 @@ type listItem struct {
 // TestScreenBlocksFollowTheCatalog: a screen resolves into components of the catalog with data by its schema:
 // containers, an aggregate, tabs, a record page and moves to it.
 func TestScreenBlocksFollowTheCatalog(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, webAgent())
 	check := newCatalogCheck(t)
 	e.createProject("notes", webManifest("http://127.0.0.1:1"))
@@ -266,6 +267,7 @@ func TestScreenBlocksFollowTheCatalog(t *testing.T) {
 
 // TestInvalidScreenIsRefusedWithItsReason: a screen outside the catalog or with broken references is refused on save.
 func TestInvalidScreenIsRefusedWithItsReason(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	good := webManifest("http://127.0.0.1:1")
 	e.createProject("notes", good)
@@ -309,6 +311,7 @@ func TestInvalidScreenIsRefusedWithItsReason(t *testing.T) {
 // TestCockpitShowsWhatWaitsWithItsVerbs: each item says who, what and where, holds the whole frozen call and
 // offers the buttons of its kind; an expired confirmation keeps only deny, which clears it.
 func TestCockpitShowsWhatWaitsWithItsVerbs(t *testing.T) {
+	t.Parallel()
 	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { jsonReply(w, `{"ok": true}`) })
 	clock := &Clock{now: time.Now()}
 	e := newEnv(t, webAgent(), withClock(clock), withTTL)
@@ -396,6 +399,7 @@ func (e *Env) cockpitItems() []listItem {
 
 // TestScreenTopicReadsOnlyTheBlocksItChanges: after an event the client reads only the blocks of its topic.
 func TestScreenTopicReadsOnlyTheBlocksItChanges(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, webAgent())
 	e.createProject("notes", webManifest("http://127.0.0.1:1"))
 	paths := func(project, screen, topic string) []string {
@@ -437,6 +441,7 @@ func TestScreenTopicReadsOnlyTheBlocksItChanges(t *testing.T) {
 // TestProcessPageShowsItsLogInTheWordsOfACP: the log of an open process is on its page, each tool call tied to its
 // update, and a new line sends the log topic.
 func TestProcessPageShowsItsLogInTheWordsOfACP(t *testing.T) {
+	t.Parallel()
 	more := make(chan struct{})
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		c.Req.OnEvent(provider.Event{Kind: provider.EventThought, Text: "plan"})
@@ -496,6 +501,7 @@ func (e *Env) cockpitRunning() []listItem {
 // TestAllowAfterTheTermIsRefusedBeforeTheSweep: a confirmation past its term cannot be allowed even before the
 // sweep marks it expired.
 func TestAllowAfterTheTermIsRefusedBeforeTheSweep(t *testing.T) {
+	t.Parallel()
 	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { jsonReply(w, `{"ok": true}`) })
 	clock := &Clock{now: time.Now()}
 	e := newEnv(t, webAgent(), withClock(clock), withTTL)
@@ -517,6 +523,7 @@ func TestAllowAfterTheTermIsRefusedBeforeTheSweep(t *testing.T) {
 // TestConfirmationShowsWhereTheFrozenCallGoes: where a waiting call goes is frozen with it, so a changed tool does
 // not change what the owner allows.
 func TestConfirmationShowsWhereTheFrozenCallGoes(t *testing.T) {
+	t.Parallel()
 	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { jsonReply(w, `{"ok": true}`) })
 	e := newEnv(t, webAgent(), withTTL)
 	p := e.createProject("notes", webManifest(svc.URL))
@@ -534,6 +541,7 @@ func TestConfirmationShowsWhereTheFrozenCallGoes(t *testing.T) {
 // TestRunningNowKeepsALongProcessBehindManyShortOnes: an open process stays in the cockpit however many finished
 // after it started.
 func TestRunningNowKeepsALongProcessBehindManyShortOnes(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		if c.command() == "long" {
 			<-ctx.Done()
@@ -555,6 +563,7 @@ func TestRunningNowKeepsALongProcessBehindManyShortOnes(t *testing.T) {
 
 // TestProviderConfirmationSaysWhatAndWhere: a provider tool waiting for the owner names the tool and where it goes.
 func TestProviderConfirmationSaysWhatAndWhere(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		c.Approve(ctx, "WebFetch", map[string]any{"url": "https://example.com/page", "prompt": "read it"})
 		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
@@ -569,6 +578,7 @@ func TestProviderConfirmationSaysWhatAndWhere(t *testing.T) {
 }
 
 func TestButtonsOfARecordPageFollowTheRecordAfterAnEvent(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, webAgent())
 	e.createProject("notes", webManifest("http://127.0.0.1:1"))
 	var up struct{ IDs []int64 }
@@ -605,6 +615,7 @@ func TestButtonsOfARecordPageFollowTheRecordAfterAnEvent(t *testing.T) {
 // TestAModuleButtonShowsWhereItHoldsAndTakesValuesFromTheRow: a button of a module screen shows only on the rows
 // its when holds for, takes a param from an expression over the row, asks first or asks for a typed value.
 func TestAModuleButtonShowsWhereItHoldsAndTakesValuesFromTheRow(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	e.createProject("notes", `{"version": 9,
   "collections": [{"name": "notes", "description": "Notes", "key": "title", "display": "title",
@@ -638,6 +649,7 @@ func TestAModuleButtonShowsWhereItHoldsAndTakesValuesFromTheRow(t *testing.T) {
 // TestAValueIsFixedTextOrAnExpression: a module of format 7 reads as format 8, where $record.<field> is the
 // expression =<field> and $record.id =_id with the same values; a manifest of format 8 with $record is refused.
 func TestAValueIsFixedTextOrAnExpression(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	old := `{"version": 7,
   "collections": [{"name": "notes", "description": "Notes", "key": "title", "display": "title",
@@ -676,6 +688,7 @@ func TestAValueIsFixedTextOrAnExpression(t *testing.T) {
 // TestAModuleOfFormatSevenOnAReadOfDeckStillLoads: $record.id on a block that reads a deck command, and a field
 // whose name is no name of an expression, rise to expressions that load and give the same values.
 func TestAModuleOfFormatSevenOnAReadOfDeckStillLoads(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	pid := e.createProject("notes", `{"version": 7,
   "collections": [{"name": "notes", "description": "Notes", "key": "title",
@@ -704,6 +717,7 @@ func TestAModuleOfFormatSevenOnAReadOfDeckStillLoads(t *testing.T) {
 // TestATextThatMentionsAnOldParamIsNoParam: only a value written as $param.<name> is the old form; a label or a
 // description that mentions it is text.
 func TestATextThatMentionsAnOldParamIsNoParam(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	m := `{"version": 9, "commands": [{"name": "touch", "title": "Touch", "description": "Touches.", "class": "internal",
     "result": {"type": "object"}, "input": {"type": "object", "properties": {"n": {"type": "string"}}}, "executor": {"type": "agent", "prompt": "Touch."}}],
@@ -716,6 +730,7 @@ func TestATextThatMentionsAnOldParamIsNoParam(t *testing.T) {
 }
 
 func TestScreenSortsNumbersAndResolvesRowParams(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	p := e.createProject("items", numbersManifest)
 	e.must("deck.records_upsert", map[string]any{"project": "items", "collection": "items",
@@ -734,6 +749,7 @@ func TestScreenSortsNumbersAndResolvesRowParams(t *testing.T) {
 // TestNotifyWritesALineToTheCockpitFeed: an agent tells the owner; the line of the bell names the page it opens and
 // has the buttons it gave; a screen or a command the project lacks is refused.
 func TestNotifyWritesALineToTheCockpitFeed(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, webNotesAgent())
 	p := e.createProject("web", webNotes)
 	e.must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": `{"title": "alpha"}`}, nil)
@@ -778,6 +794,7 @@ func TestNotifyWritesALineToTheCockpitFeed(t *testing.T) {
 // TestANoteOpensItsScreenOfTheProjectOrOfDeck: a note names a screen of its project or of deck, and the cockpit
 // gives it a button that opens it.
 func TestANoteOpensItsScreenOfTheProjectOrOfDeck(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	e.createProject("web", webNotes)
 	e.must("deck.notify", map[string]any{"project": "web", "text": "the runs of today", "screen": "deck/schedule"}, nil)
@@ -801,6 +818,7 @@ func TestANoteOpensItsScreenOfTheProjectOrOfDeck(t *testing.T) {
 // TestCustomBlockGetsItsDataAndButtonsAndItsFrameLivesOnTheSecondOrigin: HTML, items and buttons come with the
 // block; the second origin serves only the proxy page with a CSP without network.
 func TestCustomBlockGetsItsDataAndButtonsAndItsFrameLivesOnTheSecondOrigin(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, webNotesAgent())
 	e.createProject("web", webNotes)
 	if b := e.screenData("web", "main", nil)["b2"]; blockData[string](t, b["error"]) != `no custom document "custom/chart.html"` {
@@ -872,6 +890,7 @@ func TestCustomBlockGetsItsDataAndButtonsAndItsFrameLivesOnTheSecondOrigin(t *te
 
 // TestNewBlocksAreRefusedWithTheirReason: a form, custom block or filter that cannot work is refused on save.
 func TestNewBlocksAreRefusedWithTheirReason(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	e.createProject("web", webNotes)
 	for _, tc := range []struct{ from, to, want string }{
@@ -906,6 +925,7 @@ func TestNewBlocksAreRefusedWithTheirReason(t *testing.T) {
 // TestCustomButtonsOnARecordPageTakeTheFieldsOfTheRecord: an expression of a custom block's button reads the
 // record of the page, whatever the block reads.
 func TestCustomButtonsOnARecordPageTakeTheFieldsOfTheRecord(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	e.createProject("web", webNotes)
 	page := `{"type": "form", "title": "Edit", "command": "deck.record_update"}`
@@ -920,6 +940,7 @@ func TestCustomButtonsOnARecordPageTakeTheFieldsOfTheRecord(t *testing.T) {
 // TestAHiddenButtonOfACustomBlockLeavesTheClassOfTheOthers: a button whose when does not hold is not there, and
 // each of the others keeps the class of its own command, so an external call still waits for the owner.
 func TestAHiddenButtonOfACustomBlockLeavesTheClassOfTheOthers(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, webNotesAgent())
 	m := strings.Replace(webNotes, `"actions": [{"label": "Mark", "command": "mark"},`, `"actions": [{"label": "Mark", "command": "mark", "when": "false"},`, 1)
 	if m == webNotes {
@@ -938,6 +959,7 @@ func TestAHiddenButtonOfACustomBlockLeavesTheClassOfTheOthers(t *testing.T) {
 // TestABlockOfACommandDeckNoLongerHasTurnsOffOnlyThatBlock: a saved screen that reads a deck command deck no longer
 // has still loads, as a module of before; only that block is an error, and a save with it is refused.
 func TestABlockOfACommandDeckNoLongerHasTurnsOffOnlyThatBlock(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	m := `{"version": 9, "screens": [{"name": "main", "title": "Main", "blocks": [
     {"type": "list", "source": {"from": "deck.projects_list"}, "item": {"title": "name"}},
@@ -973,6 +995,7 @@ func TestABlockOfACommandDeckNoLongerHasTurnsOffOnlyThatBlock(t *testing.T) {
 // TestUndoOfAModuleButtonIsACallOfItsOwn: a module's button takes back its call by a command of the project; undo
 // stands in for a yes and takes nothing the owner types.
 func TestUndoOfAModuleButtonIsACallOfItsOwn(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, idle)
 	with := func(undo string) string {
 		return strings.Replace(webNotes, `"actions": [{"label": "Open", "screen": "note"}]`,
@@ -1003,6 +1026,7 @@ func TestUndoOfAModuleButtonIsACallOfItsOwn(t *testing.T) {
 // TestTheMasterSettingsShowWhatItDoesOnSchedule: the settings of a project list what its commands do by themselves
 // and leave out the empty tools, secrets and tokens; the documents of the master are a tab of files.
 func TestTheMasterSettingsShowWhatItDoesOnSchedule(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	check := newCatalogCheck(t)
 	check.messages(t, e.screenMessages("master", "settings", nil))

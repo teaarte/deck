@@ -57,6 +57,7 @@ const fullManifest = `{
 }`
 
 func TestFullManifestIsAccepted(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	e.createProject("links", fullManifest)
 	var schema map[string]any
@@ -82,6 +83,7 @@ func TestFullManifestIsAccepted(t *testing.T) {
 // TestAFixedParamOfAButtonTakesTheTypeOfItsField: params of a button are text in the manifest; a fixed one
 // reaches the command as the integer its input field is, so the owner's press is not refused.
 func TestAFixedParamOfAButtonTakesTheTypeOfItsField(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	e.createProject("links", strings.Replace(fullManifest, `{"label": "Share", "command": "share", "params": {"url": "=url"}}`,
 		`{"label": "Share", "command": "share", "params": {"url": "=url"}}, {"label": "Parse", "command": "parse", "params": {"source": "7"}}`, 1))
@@ -100,6 +102,7 @@ func TestAFixedParamOfAButtonTakesTheTypeOfItsField(t *testing.T) {
 }
 
 func TestManifestReferencesAreChecked(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	e.createProject("other", ideasManifest)
 	cases := []struct{ name, old, new, want string }{
@@ -146,6 +149,7 @@ func TestManifestReferencesAreChecked(t *testing.T) {
 }
 
 func TestScriptCommandNeedsItsFileAndInput(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	e.createProject("links", fullManifest)
 	if code, out := e.call("links.parse", map[string]any{"source": 1}); code != 422 || !strings.Contains(string(out), "scripts/parse.py") {
@@ -157,6 +161,7 @@ func TestScriptCommandNeedsItsFileAndInput(t *testing.T) {
 }
 
 func TestPromptFileAndSkillsFeedTheAgent(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		return provider.Result{Structured: json.RawMessage(`null`)}
 	})
@@ -182,6 +187,7 @@ func TestPromptFileAndSkillsFeedTheAgent(t *testing.T) {
 }
 
 func TestSchemaChangesAreCheckedAgainstRecords(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	e.createProject("links", fullManifest)
 	var lines []map[string]any
@@ -233,6 +239,7 @@ func TestSchemaChangesAreCheckedAgainstRecords(t *testing.T) {
 }
 
 func TestImmutableFieldsCannotChange(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	e.createProject("links", fullManifest)
 	rec := map[string]any{"url": "https://x.example/1", "title": "one", "found_at": "2026-09-25"}
@@ -259,6 +266,7 @@ func TestImmutableFieldsCannotChange(t *testing.T) {
 }
 
 func TestKeyFieldsStayAndEmptyTriggersAreRefused(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	contacts := `{"version": 9,
 	  "collections": [{"name": "contacts", "description": "People", "key": "lower(email)",
@@ -288,6 +296,7 @@ func TestKeyFieldsStayAndEmptyTriggersAreRefused(t *testing.T) {
 
 // TestAManifestOlderThanFormat4IsRefused: format 4 is still raised to the current one; older ones are refused.
 func TestAManifestOlderThanFormat4IsRefused(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	v4 := strings.Replace(ideasManifest, `"version": 9,`, `"version": 4,`, 1)
 	e.createProject("ideas", v4)
@@ -302,6 +311,7 @@ func TestAManifestOlderThanFormat4IsRefused(t *testing.T) {
 
 // TestOnlyTheBuiltInProjectAnswersEventsOfDeck: a trigger on a message or a failure belongs to project master.
 func TestOnlyTheBuiltInProjectAnswersEventsOfDeck(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	m := strings.Replace(plainManifest, `"triggers": [],`, `"triggers": [{"command": "work", "on": "failure"}],`, 1)
 	m = strings.Replace(m, `"executor": {"type": "agent", "prompt": "Do the work."}`,
@@ -310,6 +320,7 @@ func TestOnlyTheBuiltInProjectAnswersEventsOfDeck(t *testing.T) {
 }
 
 func TestFormatFiveDropsWhatNothingDoes(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		return provider.Result{Structured: json.RawMessage(`{}`)}
 	})
@@ -332,6 +343,7 @@ func TestFormatFiveDropsWhatNothingDoes(t *testing.T) {
 }
 
 func TestProjectPromptReachesTheAgent(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		return provider.Result{Structured: json.RawMessage(`{"written": 0}`)}
 	})
@@ -345,6 +357,7 @@ func TestProjectPromptReachesTheAgent(t *testing.T) {
 }
 
 func TestExpressionVariablesCannotHideFields(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, idle)
 	key := strings.Replace(calcManifest, `"key": "n"`, `"key": "string(n) + (let n = 1; string(n))"`, 1)
 	e.refused("deck.project_create", map[string]any{"name": "a", "manifest": key}, 422, "not allowed in a key")
@@ -353,6 +366,7 @@ func TestExpressionVariablesCannotHideFields(t *testing.T) {
 }
 
 func TestVariablesNeedKnownFields(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, idle)
 	m := strings.NewReplacer(`"schema": {"type": "object", "properties": {"n": {"type": "integer"}}, "required": ["n"]}`, `"schema": {"type": "object"}`,
 		`"key": "n"`, `"key": "n", "display": "let n = 'x'; n"`).Replace(calcManifest)
@@ -362,6 +376,7 @@ func TestVariablesNeedKnownFields(t *testing.T) {
 // TestAFormatFiveManifestKeepsItsParamsAndMenus: a manifest of format 5 still loads; its $param values are read
 // as declared params, and the menu of a group of buttons is dropped.
 func TestAFormatFiveManifestKeepsItsParamsAndMenus(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	old := strings.Replace(strings.Replace(webNotes, `"version": 9,`, `"version": 5,`, 1), `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "blocks": [
       {"type": "form", "title": "Again", "command": "score", "values": {"title": "$param.title"}},
@@ -380,6 +395,7 @@ func TestAFormatFiveManifestKeepsItsParamsAndMenus(t *testing.T) {
 
 // TestAVersionThatIsNoNumberSaysSo: a version written as text or a fraction is refused with what it is.
 func TestAVersionThatIsNoNumberSaysSo(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	for i, c := range []struct{ version, want string }{{`"6"`, `the text "6"`}, {`6.0`, `6.0`}} {
 		m := strings.Replace(webNotes, `"version": 9`, `"version": `+c.version, 1)
@@ -393,6 +409,7 @@ func TestAVersionThatIsNoNumberSaysSo(t *testing.T) {
 // TestAnInputThatGivesNothingIsAnErrorOfItsBlock: a source whose input resolves to nothing or fails shows an error
 // on its block, not a read without that filter; a button whose when fails says so too.
 func TestAnInputThatGivesNothingIsAnErrorOfItsBlock(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	e.createProject("ideas", ideasManifest)
 	e.waitState(e.start("ideas", "collect", nil), "done", "error")

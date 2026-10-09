@@ -105,6 +105,7 @@ type gitlabIssue struct {
 // TestGitLabIssuesBecomeCardsOnce: a tracker intake by the code-project skill follows GitLab through an HTTP tool with
 // the token as a deck secret; each open issue becomes one task in backlog, and polls again take only new ones.
 func TestGitLabIssuesBecomeTasksOnce(t *testing.T) {
+	t.Parallel()
 	var mu sync.Mutex
 	issues := []gitlabIssue{
 		{IID: 1, Title: "Login button is off", Description: "It sits too low.", CreatedAt: "2026-09-28T10:00:00.000Z", Labels: []string{"ui"}},
@@ -228,6 +229,7 @@ func TestGitLabIssuesBecomeTasksOnce(t *testing.T) {
 // TestTheCodeExampleImportsWithItsTasksAndRunButton: the example imports as it is, its Tasks screen has the Run
 // button and the table of tasks, and its run command waits for the owner's folder.
 func TestTheCodeExampleImportsWithItsTasksAndRunButton(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, ok)
 	check := newCatalogCheck(t)
 	p := e.importEnabled(codeModule(t, ""), "code")

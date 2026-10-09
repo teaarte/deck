@@ -17,6 +17,7 @@ import (
 )
 
 func TestAgentCallsReturnAtOnceAndRetryKeyReusesTheProcess(t *testing.T) {
+	t.Parallel()
 	release := make(chan struct{})
 	ids := make(chan []string, 1)
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
@@ -71,6 +72,7 @@ func TestAgentCallsReturnAtOnceAndRetryKeyReusesTheProcess(t *testing.T) {
 }
 
 func TestReworkContinuesTheSessionAndRevisesTheArtifact(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		text := "report v1"
 		if c.Req.Resume {
@@ -103,6 +105,7 @@ func TestReworkContinuesTheSessionAndRevisesTheArtifact(t *testing.T) {
 }
 
 func TestCeilingStopsTheAgentAndManifestOverridesIt(t *testing.T) {
+	t.Parallel()
 	e := newClockEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		<-ctx.Done()
 		return provider.Result{}
@@ -128,6 +131,7 @@ func TestCeilingStopsTheAgentAndManifestOverridesIt(t *testing.T) {
 }
 
 func TestCeilingAndSilenceWaitForABlockingQuestion(t *testing.T) {
+	t.Parallel()
 	e := newClockEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		askQuestion(ctx, c, "Which one?")
 		<-ctx.Done()
@@ -155,6 +159,7 @@ func TestCeilingAndSilenceWaitForABlockingQuestion(t *testing.T) {
 }
 
 func TestSilentProcessShowsSinceItsLastOutput(t *testing.T) {
+	t.Parallel()
 	more := make(chan struct{})
 	e := newClockEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		c.Req.OnEvent(provider.Event{Kind: "text", Text: "working"})
@@ -187,6 +192,7 @@ func (e *Env) log(id int64) []map[string]any {
 }
 
 func TestQuestionWaitEndsByTheClock(t *testing.T) {
+	t.Parallel()
 	e := newClockEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		if c.Req.Resume {
 			return provider.Result{Structured: json.RawMessage(`{"n": 2}`)}
@@ -216,6 +222,7 @@ func TestQuestionWaitEndsByTheClock(t *testing.T) {
 }
 
 func TestStopEndsRunningAndParkedProcesses(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		if strings.Contains(c.Req.Prompt, "Do ask.") {
 			askQuestion(ctx, c, "Which?")
@@ -242,6 +249,7 @@ func TestStopEndsRunningAndParkedProcesses(t *testing.T) {
 }
 
 func TestLogSurvivesARestartAndTheClose(t *testing.T) {
+	t.Parallel()
 	home := t.TempDir()
 	started := make(chan struct{})
 	fake := &Fake{script: func(ctx context.Context, c *Call) provider.Result {
@@ -278,6 +286,7 @@ func TestLogSurvivesARestartAndTheClose(t *testing.T) {
 }
 
 func TestLeftoverCLIGroupIsKilledBeforeResume(t *testing.T) {
+	t.Parallel()
 	c := newCLI(t)
 	c.stream(0, "ok.jsonl")
 	home := t.TempDir()
@@ -377,6 +386,7 @@ func TestLeftoverCLIGroupIsKilledBeforeResume(t *testing.T) {
 }
 
 func TestClaudeCodeEmptyResultIsNull(t *testing.T) {
+	t.Parallel()
 	c := newCLI(t)
 	c.stream(0, "empty_result.jsonl")
 	e, _ := cliEnv(t, c)
@@ -395,6 +405,7 @@ func TestClaudeCodeEmptyResultIsNull(t *testing.T) {
 }
 
 func TestCeilingDoesNotTickWhileParked(t *testing.T) {
+	t.Parallel()
 	e := newClockEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		if !c.Req.Resume {
 			c.Approve(ctx, "Bash", map[string]any{"command": "make"})
@@ -418,6 +429,7 @@ func TestCeilingDoesNotTickWhileParked(t *testing.T) {
 }
 
 func TestCeilingDoesNotCountTheTimeDeckWasDown(t *testing.T) {
+	t.Parallel()
 	home := t.TempDir()
 	clock := &Clock{now: t0}
 	blocked := func(ctx context.Context, c *Call) provider.Result {
@@ -453,6 +465,7 @@ func TestCeilingDoesNotCountTheTimeDeckWasDown(t *testing.T) {
 }
 
 func TestCeilingRunsAgainWhenAQuestionGoesUnanswered(t *testing.T) {
+	t.Parallel()
 	e := newClockEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		askQuestion(ctx, c, "Which?")
 		<-ctx.Done()
@@ -470,6 +483,7 @@ func TestCeilingRunsAgainWhenAQuestionGoesUnanswered(t *testing.T) {
 }
 
 func TestReworkKeepsTheRetryKeyUnique(t *testing.T) {
+	t.Parallel()
 	release := make(chan struct{})
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		if c.N == 2 {
@@ -488,6 +502,7 @@ func TestReworkKeepsTheRetryKeyUnique(t *testing.T) {
 
 // TestProcessGetWaitsForTheEnd: with wait the status comes once the process finishes, so a caller does not poll.
 func TestProcessGetWaitsForTheEnd(t *testing.T) {
+	t.Parallel()
 	release := make(chan struct{})
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		<-release
@@ -506,6 +521,7 @@ func TestProcessGetWaitsForTheEnd(t *testing.T) {
 // TestHistoryFindsAnOldRunOfAQuietProject: the filter of the history narrows the query, so an old run behind
 // hundreds of newer ones of another project is still found.
 func TestHistoryFindsAnOldRunOfAQuietProject(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, ok)
 	quiet := e.createProject("quiet", testManifest([]string{agentCommand("job", "")}, nil))
 	busy := e.createProject("busy", testManifest([]string{agentCommand("job", "")}, nil))
@@ -530,6 +546,7 @@ func TestHistoryFindsAnOldRunOfAQuietProject(t *testing.T) {
 }
 
 func TestFinishedProcessSessionIsClosed(t *testing.T) {
+	t.Parallel()
 	var url, sid string
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		url, sid = c.Req.MCPURL, c.Session.ID()
@@ -556,6 +573,7 @@ func TestFinishedProcessSessionIsClosed(t *testing.T) {
 // TestCeilingWaitsForAConfirmationToo: while the owner decides on a call the agent waits for, its ceiling does
 // not tick, as for a question.
 func TestCeilingWaitsForAConfirmationToo(t *testing.T) {
+	t.Parallel()
 	e := newClockEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		c.Approve(ctx, "Bash", map[string]any{"command": "curl https://example.com"})
 		<-ctx.Done()
@@ -577,6 +595,7 @@ func TestCeilingWaitsForAConfirmationToo(t *testing.T) {
 // TestNullIsAResultOnlyWhereTheSchemaAllowsIt: in format 7 an agent's null is nothing to do only when the result
 // schema takes null; a module of format 6 is raised so that it still does.
 func TestNullIsAResultOnlyWhereTheSchemaAllowsIt(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		return provider.Result{Structured: json.RawMessage(`null`)}
 	})
@@ -598,6 +617,7 @@ func TestNullIsAResultOnlyWhereTheSchemaAllowsIt(t *testing.T) {
 // TestAResultSchemaOfFormatSixWithoutATypeStillLoads: a result schema of format 6 with no type of its own, such as
 // one of enum or properties only, is raised to take null too and the module still loads.
 func TestAResultSchemaOfFormatSixWithoutATypeStillLoads(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		return provider.Result{Structured: json.RawMessage(`null`)}
 	})

@@ -80,6 +80,7 @@ func nav(url string) step   { return step{"browser_navigate", map[string]any{"ur
 func click(ref string) step { return step{"browser_click", map[string]any{"target": ref}} }
 
 func TestBrowserReadsAnywhereListedAndActsOnlyOnActDomains(t *testing.T) {
+	t.Parallel()
 	ag := &seqAgent{}
 	e := newEnv(t, ag.script)
 	e.createProject("web", browserManifest(`{"read": ["news.example"], "act": ["shop.example"]}`))
@@ -129,6 +130,7 @@ func TestBrowserReadsAnywhereListedAndActsOnlyOnActDomains(t *testing.T) {
 }
 
 func TestBrowserReadsAnySiteWithAStarAndSendsOnlyOwnFiles(t *testing.T) {
+	t.Parallel()
 	ag := &seqAgent{files: []string{"cv.pdf"}}
 	e := newEnv(t, ag.script)
 	e.createProject("web", browserManifest(`{"read": ["*"], "act": ["jobs.example"]}`))
@@ -145,6 +147,7 @@ func TestBrowserReadsAnySiteWithAStarAndSendsOnlyOwnFiles(t *testing.T) {
 }
 
 func TestExpiredSiteSessionWaitsForTheOwnersSignIn(t *testing.T) {
+	t.Parallel()
 	ag := &seqAgent{}
 	e := newEnv(t, ag.script)
 	e.createProject("web", browserManifest(`{"read": ["mail.example"]}`))
@@ -169,6 +172,7 @@ func TestExpiredSiteSessionWaitsForTheOwnersSignIn(t *testing.T) {
 }
 
 func TestAHungBrowserToolFreesTheBrowserForOtherProjects(t *testing.T) {
+	t.Parallel()
 	ag := &seqAgent{}
 	e := newEnv(t, ag.script)
 	e.App.Host.CallTimeout = 500 * time.Millisecond
@@ -189,6 +193,7 @@ func TestAHungBrowserToolFreesTheBrowserForOtherProjects(t *testing.T) {
 
 // TestStarInReadIsOnlyThePublicInternet: "*" does not open the owner's machine or network in the browser.
 func TestStarInReadIsOnlyThePublicInternet(t *testing.T) {
+	t.Parallel()
 	ag := &seqAgent{}
 	e := newEnv(t, ag.script)
 	e.createProject("web", browserManifest(`{"read": ["*", "127.0.0.1:8080"]}`))
@@ -200,6 +205,7 @@ func TestStarInReadIsOnlyThePublicInternet(t *testing.T) {
 }
 
 func TestBrowserWithholdsPagesOffTheDomainsAndSurvivesALostAction(t *testing.T) {
+	t.Parallel()
 	ag := &seqAgent{}
 	e := newEnv(t, ag.script)
 	e.createProject("web", browserManifest(`{"read": ["news.example"], "act": ["shop.example"]}`))
@@ -231,6 +237,7 @@ func TestBrowserWithholdsPagesOffTheDomainsAndSurvivesALostAction(t *testing.T) 
 }
 
 func TestBrowserTabsListShowsOnlyThisProjectsSites(t *testing.T) {
+	t.Parallel()
 	ag := &seqAgent{}
 	e := newEnv(t, ag.script)
 	e.createProject("mail", browserManifest(`{"read": ["mail.example"]}`))
@@ -243,6 +250,7 @@ func TestBrowserTabsListShowsOnlyThisProjectsSites(t *testing.T) {
 }
 
 func TestBrowserActionOnAnUnknownPageIsNotMade(t *testing.T) {
+	t.Parallel()
 	ag := &seqAgent{}
 	e := newEnv(t, ag.script)
 	e.createProject("web", browserManifest(`{"read": ["news.example"], "act": ["shop.example"]}`))
@@ -263,6 +271,7 @@ func TestBrowserActionOnAnUnknownPageIsNotMade(t *testing.T) {
 }
 
 func TestAProjectThatReadsAnySiteGetsABrowserWithoutSignIns(t *testing.T) {
+	t.Parallel()
 	ag := &seqAgent{}
 	e := newEnv(t, ag.script)
 	e.createProject("mail", browserManifest(`{"read": ["mail.example"]}`))
@@ -281,6 +290,7 @@ func TestAProjectThatReadsAnySiteGetsABrowserWithoutSignIns(t *testing.T) {
 }
 
 func TestAllowingABrowserActionAlwaysAllowsItsSite(t *testing.T) {
+	t.Parallel()
 	ag := &seqAgent{}
 	e := newEnv(t, ag.script)
 	e.createProject("web", browserManifest(`{"read": ["news.example", "other.example"], "act": ["shop.example"]}`))
@@ -309,6 +319,7 @@ func TestAllowingABrowserActionAlwaysAllowsItsSite(t *testing.T) {
 }
 
 func TestTheAgentsOwnWordsComeBackOnOneLine(t *testing.T) {
+	t.Parallel()
 	ag := &seqAgent{}
 	e := newEnv(t, ag.script)
 	e.createProject("web", browserManifest(`{"read": ["mail.example"]}`))
@@ -328,6 +339,7 @@ func TestTheAgentsOwnWordsComeBackOnOneLine(t *testing.T) {
 // TestTheBrowserWithoutSignInsReachesNoLocalAddress: the browser of a project reading any site goes through
 // deck's proxy, which turns down a local address, even one the project names: its tabs serve other projects too.
 func TestTheBrowserWithoutSignInsReachesNoLocalAddress(t *testing.T) {
+	t.Parallel()
 	var hits atomic.Int32
 	local := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		hits.Add(1)

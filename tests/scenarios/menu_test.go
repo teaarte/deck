@@ -35,6 +35,7 @@ func (e *Env) menuEntry(project string) menuView {
 // TestMenuShowsIconsAndWhatEachProjectIsBusyWith: icons come from manifests and deck's screens, down to blocks and
 // buttons, and each project carries its running processes, open questions and failing health rows.
 func TestMenuShowsIconsAndWhatEachProjectIsBusyWith(t *testing.T) {
+	t.Parallel()
 	release := make(chan struct{})
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		switch c.command() {

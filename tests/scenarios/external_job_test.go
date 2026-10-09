@@ -62,6 +62,7 @@ print(json.dumps({"files": files}))
 `
 
 func TestExternalJobSurvivesARestartAndDownloadsTheFile(t *testing.T) {
+	t.Parallel()
 	var creates, polls atomic.Int32
 	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) {
 		if r.Header.Get("Authorization") != "Bearer tok-123" {

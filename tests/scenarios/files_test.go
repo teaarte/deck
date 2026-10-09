@@ -83,6 +83,7 @@ print(json.dumps({"checks": checks, "files": files}))
 `
 
 func TestUploadedAndRecordFilesReachTheScriptReadOnly(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	e.createProject("docs", filesManifest())
 	e.saveScript("docs", "scripts/seed.py", seedScript)
@@ -125,6 +126,7 @@ func TestUploadedAndRecordFilesReachTheScriptReadOnly(t *testing.T) {
 }
 
 func TestUploadsNeedTheProjectAndGoWhenNoCommandTookThem(t *testing.T) {
+	t.Parallel()
 	e := newClockEnv(t, nil)
 	e.createProject("docs", filesManifest())
 	e.saveScript("docs", "scripts/read.py", "import sys; print('{}')")
@@ -164,6 +166,7 @@ func TestUploadsNeedTheProjectAndGoWhenNoCommandTookThem(t *testing.T) {
 }
 
 func TestResultFilesACrashLeftMidMoveAreNeverShownAndGoAfterADay(t *testing.T) {
+	t.Parallel()
 	e := newClockEnv(t, nil)
 	e.createProject("keep", scriptManifest("take", "", ""))
 	e.saveScript("keep", "scripts/main.py", `import json, os
@@ -199,6 +202,7 @@ print(json.dumps({"files": [{"path": "a.txt"}]}))
 }
 
 func TestAResultWithAMissingFileHandsOverNoInputFileEither(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	e.createProject("docs", filesManifest())
 	e.saveScript("docs", "scripts/seed.py", seedScript)
@@ -225,6 +229,7 @@ print(json.dumps({"files": [{"file": given, "record": inp["rec"]}, {"path": "mis
 // TestAFileDownloadsAsAnAttachmentForWhoMaySeeItsProject: a file of the journal downloads as an attachment
 // that never renders as a page of deck; a token that may not call every command of its project gets nothing.
 func TestAFileDownloadsAsAnAttachmentForWhoMaySeeItsProject(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	e.createProject("docs", filesManifest())
 	e.createProject("other", filesManifest())
@@ -269,6 +274,7 @@ func TestAFileDownloadsAsAnAttachmentForWhoMaySeeItsProject(t *testing.T) {
 }
 
 func TestAgentGetsACopyOfItsInputFile(t *testing.T) {
+	t.Parallel()
 	var same, read bool
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		if m := inputOf.FindStringSubmatch(c.Req.Prompt); m != nil {
@@ -295,6 +301,7 @@ func TestAgentGetsACopyOfItsInputFile(t *testing.T) {
 // TestTheMasterReadsTheDataFolderOfAProject: a file or a folder of the data folder of a project is read by a command,
 // as data, and nothing outside the folder is reached.
 func TestTheMasterReadsTheDataFolderOfAProject(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	p := e.createProject("notes", plainManifest)
 	data := deckhome.Layout(e.App.Cfg.Home).Data(p)

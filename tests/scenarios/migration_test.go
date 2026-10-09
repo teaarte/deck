@@ -44,6 +44,7 @@ func (e *Env) people() []recordRow {
 }
 
 func TestSchemaMigrationAppliesRecordsWithTheManifestAndRevertsBoth(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	e.createProject("people", peopleV1)
 	e.must("deck.records_upsert", map[string]any{"project": "people", "collection": "people",
@@ -93,6 +94,7 @@ for line in sys.stdin:
 }
 
 func TestRevertBringsBackRecordsAMigrationDropped(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	e.createProject("people", peopleV1)
 	e.must("deck.records_upsert", map[string]any{"project": "people", "collection": "people", "records": `{"name": "ada"}`}, nil)
@@ -129,6 +131,7 @@ func TestRevertBringsBackRecordsAMigrationDropped(t *testing.T) {
 // TestABoardOfABaseFromBeforeGoes: deck keeps no boards; the cards of an older base go with their lane triggers,
 // documents and files, a topic of a card stays a topic, and a manifest of format 8 with a board still loads.
 func TestABoardOfABaseFromBeforeGoes(t *testing.T) {
+	t.Parallel()
 	home := t.TempDir()
 	e := newEnvWith(t, home, &Fake{})
 	e.createProject("work", plainManifest)
@@ -210,6 +213,7 @@ func (e *Env) reopen(home string, version int, queries ...string) *Env {
 // TestTheSandboxRowsOfProjectsOfABaseFromBeforeGo: what the sandbox kept closed was a health row of the project;
 // such rows go, and a sandbox row of the machine stays.
 func TestTheSandboxRowsOfProjectsOfABaseFromBeforeGo(t *testing.T) {
+	t.Parallel()
 	home := t.TempDir()
 	e := newEnvWith(t, home, &Fake{})
 	e.createProject("work", plainManifest)
@@ -237,6 +241,7 @@ func TestTheSandboxRowsOfProjectsOfABaseFromBeforeGo(t *testing.T) {
 // TestAModelCallOfABaseFromBeforeTakesTheConnectionOfItsModel: a model call journaled before calls kept their
 // connection takes that of the model by its name; a call of a model deck no longer has keeps none.
 func TestAModelCallOfABaseFromBeforeTakesTheConnectionOfItsModel(t *testing.T) {
+	t.Parallel()
 	home := t.TempDir()
 	e := newEnvWith(t, home, &Fake{})
 	e = e.reopen(home, 9,
@@ -264,6 +269,7 @@ func TestAModelCallOfABaseFromBeforeTakesTheConnectionOfItsModel(t *testing.T) {
 // TestAQuestionOfAUsageLimitOfABaseFromBeforeExpires: a pause on a usage limit asks nothing now; its open question
 // of a base from before expires as delivered, and one the owner answered stays answered.
 func TestAQuestionOfAUsageLimitOfABaseFromBeforeExpires(t *testing.T) {
+	t.Parallel()
 	home := t.TempDir()
 	e := newEnvWith(t, home, &Fake{})
 	e.createProject("work", plainManifest)
@@ -300,6 +306,7 @@ func TestAQuestionOfAUsageLimitOfABaseFromBeforeExpires(t *testing.T) {
 // TestWhyAScheduleOfADraftDidNotStartGoesFromAnEnabledProjectOfABaseFromBefore: a project enabled before enabling
 // cleared such rows keeps none of them; another reason a schedule did not start stays.
 func TestWhyAScheduleOfADraftDidNotStartGoesFromAnEnabledProjectOfABaseFromBefore(t *testing.T) {
+	t.Parallel()
 	home := t.TempDir()
 	e := newEnvWith(t, home, &Fake{})
 	e.createProject("work", plainManifest)

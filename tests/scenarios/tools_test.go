@@ -34,6 +34,7 @@ func toolManifest(url, extra string) string {
 }
 
 func TestToolCommandMakesOneToolCall(t *testing.T) {
+	t.Parallel()
 	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) {
 		if strings.HasPrefix(r.URL.Path, "/pics/") {
 			w.Header().Set("Content-Type", "image/png")
@@ -73,6 +74,7 @@ func TestToolCommandMakesOneToolCall(t *testing.T) {
 }
 
 func TestAllowAlwaysAddsTheToolToTheProjectList(t *testing.T) {
+	t.Parallel()
 	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { jsonReply(w, fmt.Sprintf(`{"id": "n%d"}`, n)) })
 	e := newEnv(t, nil)
 	e.createProject("pics", toolManifest(svc.URL, ""))
@@ -93,6 +95,7 @@ func TestAllowAlwaysAddsTheToolToTheProjectList(t *testing.T) {
 // TestAReversibleCommandRunsAtOnceAndFormatNineHasNoAutonomy: a reversible command runs at once in an enabled
 // project; format 8 with autonomy or the cell format label still loads, and format 9 has neither.
 func TestAReversibleCommandRunsAtOnceAndFormatNineHasNoAutonomy(t *testing.T) {
+	t.Parallel()
 	var out string
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		if c.command() == "work" {
@@ -125,6 +128,7 @@ func TestAReversibleCommandRunsAtOnceAndFormatNineHasNoAutonomy(t *testing.T) {
 }
 
 func TestHTTPToolTemplatesStayOnTheirHost(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	for _, c := range []struct{ tool, want string }{
 		{`{"name": "t", "description": "d", "method": "GET", "url": "https://{host}/x", "input": {"type": "object", "properties": {"host": {"type": "string"}}}}`, "host"},
@@ -154,6 +158,7 @@ func TestHTTPToolTemplatesStayOnTheirHost(t *testing.T) {
 }
 
 func TestHTTPToolKeepsSecretsInItsOwnHeaders(t *testing.T) {
+	t.Parallel()
 	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) {
 		if r.URL.Path == "/moved" {
 			http.Redirect(w, r, "https://"+r.Host+"/tls", http.StatusFound)
@@ -189,6 +194,7 @@ func TestHTTPToolKeepsSecretsInItsOwnHeaders(t *testing.T) {
 }
 
 func TestTextFromOutsideReachesTheAgentAsData(t *testing.T) {
+	t.Parallel()
 	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) {
 		if n == 1 {
 			w.WriteHeader(http.StatusBadRequest)
@@ -231,6 +237,7 @@ func TestTextFromOutsideReachesTheAgentAsData(t *testing.T) {
 }
 
 func TestSecretEchoedByAServiceNeverReachesTheAgent(t *testing.T) {
+	t.Parallel()
 	const key = `sk-live-"0123456789"`
 	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) {
 		if n == 1 {

@@ -20,6 +20,7 @@ func limited(resetsAt time.Time) provider.Result {
 }
 
 func TestProviderLimitPausesAndContinuesTheSameSession(t *testing.T) {
+	t.Parallel()
 	var mu sync.Mutex
 	var prompts []string
 	e := newClockEnv(t, func(ctx context.Context, c *Call) provider.Result {
@@ -60,6 +61,7 @@ func TestProviderLimitPausesAndContinuesTheSameSession(t *testing.T) {
 // TestAPauseWithoutAResetTimeProbesHourlyUntilTheOwnerStopsIt: no end of its own; the owner stops it, and a
 // rework goes on in the same session.
 func TestAPauseWithoutAResetTimeProbesHourlyUntilTheOwnerStopsIt(t *testing.T) {
+	t.Parallel()
 	var mu sync.Mutex
 	ok := false
 	e := newClockEnv(t, func(ctx context.Context, c *Call) provider.Result {
@@ -111,6 +113,7 @@ func TestAPauseWithoutAResetTimeProbesHourlyUntilTheOwnerStopsIt(t *testing.T) {
 
 // TestAnAnswerDuringAPauseReachesTheNextTry: the owner's answer waits with the process and goes with its next try.
 func TestAnAnswerDuringAPauseReachesTheNextTry(t *testing.T) {
+	t.Parallel()
 	var mu sync.Mutex
 	var prompts []string
 	e := newClockEnv(t, func(ctx context.Context, c *Call) provider.Result {
@@ -144,6 +147,7 @@ func TestAnAnswerDuringAPauseReachesTheNextTry(t *testing.T) {
 // TestAPauseOfABaseFromBeforeGoesOnInItsSession: a process paused by the deck of before, with what an older hold left,
 // resumes its own session once its try is due.
 func TestAPauseOfABaseFromBeforeGoesOnInItsSession(t *testing.T) {
+	t.Parallel()
 	home := t.TempDir()
 	e := newEnvWith(t, home, &Fake{})
 	p := e.createProject("plain", testManifest([]string{agentCommand("work", "")}, nil))

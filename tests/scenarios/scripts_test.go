@@ -168,6 +168,7 @@ print(json.dumps({"seen": runs, "folder_write_blocked": not can_write(os.path.jo
 `
 
 func TestScriptKeepsAnIndexInTheProjectDataFolder(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	pid := e.createProject("index", scriptManifest("build", "", ""))
 	e.saveScript("index", "scripts/main.py", indexScript)
@@ -234,6 +235,7 @@ print(json.dumps({"value": deckfixture.VALUE}))
 `
 
 func TestScriptInstallsItsPackagesThroughTheProxyAndMissingProgramShowsInHealth(t *testing.T) {
+	t.Parallel()
 	if _, err := exec.LookPath("uv"); err != nil {
 		t.Skip("uv is not installed")
 	}
@@ -305,6 +307,7 @@ func TestScriptInstallsItsPackagesThroughTheProxyAndMissingProgramShowsInHealth(
 }
 
 func TestManifestWithScriptPackagesIsRefusedWithAHint(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	m := strings.Replace(scriptManifest("use", "", ""), `"runtime": "python"`, `"runtime": "python", "packages": ["requests"]`, 1)
 	code, out := e.call("deck.project_create", map[string]any{"name": "old", "manifest": m})
@@ -314,6 +317,7 @@ func TestManifestWithScriptPackagesIsRefusedWithAHint(t *testing.T) {
 }
 
 func TestScriptCeilingAndThreeFailuresInARow(t *testing.T) {
+	t.Parallel()
 	e := newClockEnv(t, nil)
 	e.createProject("slow", scriptManifest("wait", "", ""))
 	e.saveScript("slow", "scripts/main.py", "import sys, time\nprint('started', file=sys.stderr, flush=True)\ntime.sleep(120)\n")
@@ -349,6 +353,7 @@ func TestScriptCeilingAndThreeFailuresInARow(t *testing.T) {
 }
 
 func TestScriptInterruptedByARestartIsNotResumed(t *testing.T) {
+	t.Parallel()
 	home := t.TempDir()
 	e1 := newEnvWith(t, home, &Fake{})
 	e1.createProject("restart", scriptManifest("wait", "", ""))
@@ -369,6 +374,7 @@ func TestScriptInterruptedByARestartIsNotResumed(t *testing.T) {
 }
 
 func TestResultFilesStayInsideTheResultsFolder(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	e.createProject("escape", scriptManifest("take", "", ""))
 	outside := t.TempDir()
@@ -392,6 +398,7 @@ print(json.dumps({"files": [{"path": %q}]}))
 }
 
 func TestResultFilesAreKeptWholeOrNotAtAll(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	e.createProject("twice", scriptManifest("take", "", ""))
 	e.saveScript("twice", "scripts/main.py", `import json, os
@@ -410,6 +417,7 @@ print(json.dumps({"files": [{"path": "a.txt"}, {"path": "./a.txt"}]}))
 }
 
 func TestAChattyScriptDoesNotWriteTheDatabaseForEachLine(t *testing.T) {
+	t.Parallel()
 	e := newClockEnv(t, nil)
 	e.createProject("chatty", scriptManifest("talk", "", ""))
 	e.saveScript("chatty", "scripts/main.py", "import sys\nfor i in range(3000):\n    print('line', i, file=sys.stderr, flush=True)\nprint('null')\n")
@@ -430,6 +438,7 @@ func TestAChattyScriptDoesNotWriteTheDatabaseForEachLine(t *testing.T) {
 }
 
 func TestTheProxyOfAScriptDropsHeadersThatAreOnlyForTheHop(t *testing.T) {
+	t.Parallel()
 	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) {
 		w.Header().Set("Connection", "X-Down")
 		w.Header().Set("X-Down", "hop")
@@ -462,6 +471,7 @@ print(json.dumps({"down": "x-down" in got.decode().lower(), "ok": got.endswith(b
 // TestScriptWildcardDomainIsOnlyThePublicInternet: "*" does not open loopback, the local network or a tailnet
 // to a script; a local service is reached by naming its host:port.
 func TestScriptWildcardDomainIsOnlyThePublicInternet(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	named, local := served(t), served(t)
 	host := strings.TrimPrefix(named.URL, "http://")
@@ -481,6 +491,7 @@ print(json.dumps({"named": fetch(inp["allowed"]), "local": fetch(inp["other"]), 
 // TestAScriptReadsNoFolderOfAnotherProject: the data of another project, its runs and deck's own files stay closed
 // to a script, which reads and writes only its own.
 func TestAScriptReadsNoFolderOfAnotherProject(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	e.createProject("other", scriptManifest("collect", "", ""))
 	b := e.createProject("tools", scriptManifest("collect", "", ""))
@@ -522,6 +533,7 @@ func ownerHome(t *testing.T) string {
 // TestADomainIsAHostThatResolvesOnceToWhereItMayGo: a domain is a bare host; "*.x" is x, a public suffix or a URL
 // is refused on save; a name that resolves to the owner's machine or does not resolve is not reached.
 func TestADomainIsAHostThatResolvesOnceToWhereItMayGo(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	for domain, says := range map[string]string{"https://hf.co/models": "a host", "co.uk": "public suffix", "com": "public suffix"} {
 		code, out := e.call("deck.project_create", map[string]any{"name": "bad", "manifest": scriptManifest("collect", "", fmt.Sprintf(`, "domains": {"read": [%q]}`, domain))})
@@ -643,6 +655,7 @@ print(json.dumps({"listed": listed, "deck": os.path.exists("/proc/%d/environ" % 
 // TestAScriptSeesNoOtherProcess: a script lists no processes of the machine but reads what the machine and its
 // system are.
 func TestAScriptSeesNoOtherProcess(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	e.createProject("tools", scriptManifest("collect", "", ""))
 	e.saveScript("tools", "scripts/main.py", processesScript)
@@ -677,6 +690,7 @@ func TestAScriptThatFailsSaysHowToOpenAFolder(t *testing.T) {
 // TestAScriptEndsWhenItExitsThoughAChildHoldsItsOutput: a program the script left running with its stdout and
 // stderr does not hold the run; output past 32 MB is an error.
 func TestAScriptEndsWhenItExitsThoughAChildHoldsItsOutput(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	e.createProject("tools", scriptManifest("collect", "", ""))
 	e.saveScript("tools", "scripts/main.py", `import json, subprocess, sys
@@ -700,6 +714,7 @@ print(json.dumps({"ok": True}))
 // TestANodeScriptFetchesThroughTheProxyOfDeck: fetch of Node goes through deck's proxy as Python's urllib does, so a
 // host outside the domains of the project is deck's refusal, not a failed connection, and deck itself answers.
 func TestANodeScriptFetchesThroughTheProxyOfDeck(t *testing.T) {
+	t.Parallel()
 	if _, err := exec.LookPath("node"); err != nil {
 		t.Skip("node is not installed")
 	}
@@ -754,6 +769,7 @@ func TestAMissingProgramSaysHowToInstallItAndIsCheckedAgain(t *testing.T) {
 
 // TestAScriptMayRunForHours: a script, such as a render or a long download, takes a ceiling of up to four hours.
 func TestAScriptMayRunForHours(t *testing.T) {
+	t.Parallel()
 	e := newClockEnv(t, nil)
 	e.createProject("slow", strings.Replace(scriptManifest("wait", "", ""), `"runtime": "python"`, `"runtime": "python", "timeout_minutes": 180`, 1))
 	e.saveScript("slow", "scripts/main.py", "import sys, time\nprint('started', file=sys.stderr, flush=True)\ntime.sleep(120)\n")
@@ -774,6 +790,7 @@ func TestAScriptMayRunForHours(t *testing.T) {
 // TestTheProcessesOfARecordAreTheOnesItsIdWentInto: processes_list with a record gives the processes whose input
 // names the record by its id, as modules pass it, so a record page shows how its pipeline goes.
 func TestTheProcessesOfARecordAreTheOnesItsIdWentInto(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	e.createProject("tools", scriptManifest("collect", "", ""))
 	e.saveScript("tools", "scripts/main.py", "print('{}')\n")
@@ -792,6 +809,7 @@ func TestTheProcessesOfARecordAreTheOnesItsIdWentInto(t *testing.T) {
 // TestAProjectChangedWhileAScriptRunsLeavesDeckUp: a script has a session of the gateway but no MCP server, so the
 // renew of tools after a change of projects passes it by.
 func TestAProjectChangedWhileAScriptRunsLeavesDeckUp(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	e.createProject("tools", scriptManifest("slow", "", ""))
 	e.saveScript("tools", "scripts/main.py", "import json, time\ntime.sleep(2)\nprint(json.dumps({}))\n")
@@ -806,6 +824,7 @@ func TestAProjectChangedWhileAScriptRunsLeavesDeckUp(t *testing.T) {
 // TestAScriptCannotCallACommandOfAnotherProject: a script that names a command of another project through deck is
 // refused, and that project starts nothing.
 func TestAScriptCannotCallACommandOfAnotherProject(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	e.createProject("a", scriptManifest("collect", "", ""))
 	e.createProject("b", scriptManifest("collect", "", ""))
@@ -831,6 +850,7 @@ print(json.dumps({"status": st, "out": out}))
 // TestAScriptThatFailsForItsOwnReasonGetsNoHintOfFolders: a script that fails for a reason of its own, such as a 422
 // of deck, has the end of its stderr, without a hint about folders the sandbox keeps closed.
 func TestAScriptThatFailsForItsOwnReasonGetsNoHintOfFolders(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	e.createProject("tools", scriptManifest("collect", "", ""))
 	e.saveScript("tools", "scripts/main.py", pythonLib+`

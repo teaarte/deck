@@ -15,6 +15,7 @@ import (
 )
 
 func TestAModuleExportedByTheSkillImportsAsADraft(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, ok)
 	e.createProject("links", fullManifest)
 	docs := []map[string]any{
@@ -105,6 +106,7 @@ func TestAModuleExportedByTheSkillImportsAsADraft(t *testing.T) {
 }
 
 func TestAgentImportsClaudeSkillsWithDocumentSave(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, ok)
 	_, tok := e.token("terminal", "deck.*")
 	s, err := e.terminal(tok)
@@ -140,6 +142,7 @@ func TestAgentImportsClaudeSkillsWithDocumentSave(t *testing.T) {
 }
 
 func TestImportTakesNoLinks(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, ok)
 	_, tok := e.token("terminal", "deck.*")
 	dir := t.TempDir()
@@ -174,6 +177,7 @@ func exportLikeTheSkill(t *testing.T, s *mcp.ClientSession, project, dir string)
 }
 
 func TestBuiltInSkillsReachEveryWorkspace(t *testing.T) {
+	t.Parallel()
 	home := t.TempDir()
 	first := newEnvWith(t, home, &Fake{script: ok})
 	if _, err := first.App.Store.DB.Exec(`INSERT INTO workspace (id, name) VALUES (2, 'other')`); err != nil {

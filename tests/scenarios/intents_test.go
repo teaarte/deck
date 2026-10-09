@@ -74,6 +74,7 @@ func restart(t *testing.T, e *Env, home string, fake *Fake) *Env {
 }
 
 func TestUnknownOutcomeIsNotRepeatedAfterARestartNorByACatchUpRun(t *testing.T) {
+	t.Parallel()
 	svc, release := hangingService(t, 1, 2)
 	defer release(0)
 	home := t.TempDir()
@@ -145,6 +146,7 @@ func TestUnknownOutcomeIsNotRepeatedAfterARestartNorByACatchUpRun(t *testing.T) 
 }
 
 func TestUnknownOutcomeIsNotRepeatedOnResume(t *testing.T) {
+	t.Parallel()
 	svc, release := hangingService(t, 1)
 	defer release(0)
 	home := t.TempDir()
@@ -187,6 +189,7 @@ func TestUnknownOutcomeIsNotRepeatedOnResume(t *testing.T) {
 }
 
 func TestAnAllowedCallCutOffByARestartBecomesAnUnknownOutcome(t *testing.T) {
+	t.Parallel()
 	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { jsonReply(w, `{}`) })
 	home := t.TempDir()
 	first := &Fake{script: func(ctx context.Context, c *Call) provider.Result {
@@ -228,6 +231,7 @@ UPDATE tool_call SET run = 'running' WHERE ask_id = ?`, a.ID, a.ID); err != nil 
 // TestUnknownOutcomeKeepsItsCaller: a lost call of an automation token comes back as the token's, so a retry
 // is journaled under it and its command list still applies.
 func TestUnknownOutcomeKeepsItsCaller(t *testing.T) {
+	t.Parallel()
 	svc, release := hangingService(t, 1)
 	defer release(0)
 	home := t.TempDir()
@@ -262,6 +266,7 @@ func TestUnknownOutcomeKeepsItsCaller(t *testing.T) {
 // TestAnAllowedCallLostWithDeckIsOneUnknownOutcome: deck stops while making a call the owner allowed; after the
 // restart the owner has one unknown outcome to decide, and the agent hears that the call did not succeed.
 func TestAnAllowedCallLostWithDeckIsOneUnknownOutcome(t *testing.T) {
+	t.Parallel()
 	svc, release := hangingService(t, 1)
 	defer release(0)
 	home := t.TempDir()

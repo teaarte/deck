@@ -62,6 +62,7 @@ func intentType(p paramSchema, list bool) bool {
 }
 
 func TestEveryCommandFitsAppIntents(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	e.createProject("ideas", ideasManifest)
 	if code, _ := e.do("GET", "/api/commands", nil); code != 404 && code != 405 {
@@ -96,6 +97,7 @@ func TestEveryCommandFitsAppIntents(t *testing.T) {
 }
 
 func TestUnknownCommandAndBadInput(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	if code, _ := e.call("deck.nope", nil); code != 404 {
 		t.Fatalf("unknown command: want 404, got %d", code)
@@ -120,6 +122,7 @@ type docView struct {
 }
 
 func TestManifestRevisionsAndRevert(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	var created struct{ ID int64 }
 	e.must("deck.project_create", map[string]any{"name": "ideas", "manifest": ideasManifest, "prompt": "# Ideas of the day\nShort ideas for a solo developer."}, &created)
@@ -177,6 +180,7 @@ func TestManifestRevisionsAndRevert(t *testing.T) {
 }
 
 func TestDocumentsWithRevisions(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	var d docView
 	e.must("deck.document_save", map[string]any{"name": "notes/rules.md", "kind": "doc", "text": "v1"}, &d)
@@ -228,6 +232,7 @@ func TestDocumentsWithRevisions(t *testing.T) {
 }
 
 func TestRecordCommands(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	e.createProject("ideas", ideasManifest)
 	var up struct {
@@ -268,6 +273,7 @@ func TestRecordCommands(t *testing.T) {
 }
 
 func TestProcessCommands(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		return provider.Result{Structured: json.RawMessage(`{"written": 0}`)}
 	})
@@ -290,6 +296,7 @@ func TestProcessCommands(t *testing.T) {
 }
 
 func TestAgentStaysInsideItsProject(t *testing.T) {
+	t.Parallel()
 	type seen struct {
 		tools           []string
 		foreign, skill  string
@@ -353,6 +360,7 @@ func TestAgentStaysInsideItsProject(t *testing.T) {
 }
 
 func TestOutOfRangeIntegersAreRefused(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, idle)
 	e.createProject("nums", calcManifest)
 	var res struct {
@@ -367,6 +375,7 @@ func TestOutOfRangeIntegersAreRefused(t *testing.T) {
 }
 
 func TestCommandInputKeepsLargeIntegers(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, idle)
 	e.createProject("nums", calcManifest)
 	code, body := e.do("POST", "/api/commands/nums.calc", map[string]any{"n": int64(9007199254740993)})
@@ -383,6 +392,7 @@ func TestCommandInputKeepsLargeIntegers(t *testing.T) {
 }
 
 func TestComposedInputSchemasAreRefused(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, idle)
 	m := strings.Replace(calcManifest, `"input": {"type": "object", "properties": {"n": {"type": "integer"}}}`,
 		`"input": {"type": "object", "allOf": [{"properties": {"config": {"type": "object"}}, "required": ["config"]}]}`, 1)
@@ -392,6 +402,7 @@ func TestComposedInputSchemasAreRefused(t *testing.T) {
 }
 
 func TestWholeNumbersWrittenAsFloatsAreRefused(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, idle)
 	e.createProject("nums", calcManifest)
 	var res struct {
@@ -408,6 +419,7 @@ func TestWholeNumbersWrittenAsFloatsAreRefused(t *testing.T) {
 // TestAJSONParamTakesAnObjectAsWellAsItsText: a model passes a manifest or an input as an object, as the
 // description says; deck takes it as its JSON text.
 func TestAJSONParamTakesAnObjectAsWellAsItsText(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	var m map[string]any
 	if err := json.Unmarshal([]byte(plainManifest), &m); err != nil {
@@ -425,6 +437,7 @@ func TestAJSONParamTakesAnObjectAsWellAsItsText(t *testing.T) {
 // TestAToolNameOfACommandIsAnsweredWithItsName: an agent that passes the name of the tool it sees is told the
 // name of the command.
 func TestAToolNameOfACommandIsAnsweredWithItsName(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	e.createProject("notes", plainManifest)
 	e.refused("deck.command_try", map[string]any{"command": "notes__work"}, 404, `as "notes.work"`)
@@ -435,6 +448,7 @@ func TestAToolNameOfACommandIsAnsweredWithItsName(t *testing.T) {
 // TestAnAgentCallsOnlyWhatItsCommandLists: an agent whose command lists its calls reads by them and is refused the
 // rest, which leaves the collection as it was.
 func TestAnAgentCallsOnlyWhatItsCommandLists(t *testing.T) {
+	t.Parallel()
 	var listedBad, written bool
 	var wrote string
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
@@ -455,6 +469,7 @@ func TestAnAgentCallsOnlyWhatItsCommandLists(t *testing.T) {
 // TestAnAgentCannotTouchARowOfAnotherProjectByItsID: an agent that names a record or a process of another project
 // by id is refused, and the record stays as it was.
 func TestAnAgentCannotTouchARowOfAnotherProjectByItsID(t *testing.T) {
+	t.Parallel()
 	var mu sync.Mutex
 	var record, process int64
 	var updated, got string

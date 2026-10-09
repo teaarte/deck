@@ -22,6 +22,7 @@ func readerManifest(reads string) string {
 }
 
 func TestReadsLetAProjectReadAnotherButNeverWriteIt(t *testing.T) {
+	t.Parallel()
 	got := map[string]string{}
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		try := func(key, tool string, args map[string]any) {
@@ -87,6 +88,7 @@ func TestReadsLetAProjectReadAnotherButNeverWriteIt(t *testing.T) {
 // TestATrialOfADraftReadsWhatItsReadsList: a trial of a draft reads the documents and collections its reads list,
 // never a project without network and never by writing.
 func TestATrialOfADraftReadsWhatItsReadsList(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	e.createProject("source", sourceManifest)
 	e.createProject("vault", strings.Replace(sourceManifest, `{"version": 9,`, `{"version": 9, "no_network": true,`, 1))

@@ -43,6 +43,7 @@ var docsManifest = strings.NewReplacer(
 // TestDocumentsOfAProjectAreListedOnItsDocumentsScreenAndEditedOnTheirPage: every project gets a documents
 // screen; a document page shows the text and revisions, and only md documents are edited on screen.
 func TestDocumentsOfAProjectAreListedOnItsDocumentsScreenAndEditedOnTheirPage(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	check := newCatalogCheck(t)
 	e.createProject("web", docsManifest)
@@ -145,6 +146,7 @@ func TestDocumentsOfAProjectAreListedOnItsDocumentsScreenAndEditedOnTheirPage(t 
 // TestADocumentBlockOfAManifestShowsTheDocumentItNamesAndMarkdownIsOptIn: a document block names a document of
 // the project, or on a record page one of the record; text is markdown only where a list or card says so.
 func TestADocumentBlockOfAManifestShowsTheDocumentItNamesAndMarkdownIsOptIn(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	check := newCatalogCheck(t)
 	e.createProject("web", docsManifest)
@@ -217,6 +219,7 @@ func TestADocumentBlockOfAManifestShowsTheDocumentItNamesAndMarkdownIsOptIn(t *t
 }
 
 func TestDocumentIDsAreNotReused(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, idle)
 	e.createProject("nums", calcManifest)
 	e.must("deck.records_upsert", map[string]any{"project": "nums", "collection": "nums", "records": jsonl(map[string]any{"n": 1})}, nil)
@@ -235,6 +238,7 @@ func TestDocumentIDsAreNotReused(t *testing.T) {
 // TestAShippedSkillEditedByTheMasterTakesTheNextVersionOfDeck: the master's edit of a built-in skill stays until a new
 // deck ships another text, then goes to the history with a note to the master; an edit of the owner stays.
 func TestAShippedSkillEditedByTheMasterTakesTheNextVersionOfDeck(t *testing.T) {
+	t.Parallel()
 	home := t.TempDir()
 	e := newEnvWith(t, home, &Fake{})
 	const name = "skills/module-builder/SKILL.md"
@@ -288,6 +292,7 @@ var commandWord = regexp.MustCompile("deck\\.([a-z]+(?:_[a-z]+)+)|`([a-z]+_(?:li
 // TestSkillsAndPromptsNameOnlyCommandsDeckHas: an agent trusts its skills and prompts; a command they name that deck
 // no longer has makes it report work it never did.
 func TestSkillsAndPromptsNameOnlyCommandsDeckHas(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	var cmds []struct{ Name string }
 	e.must("deck.commands_list", nil, &cmds)

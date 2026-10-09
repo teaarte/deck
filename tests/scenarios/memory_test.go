@@ -16,6 +16,7 @@ func fact(name, typ, body string) string {
 }
 
 func TestMemoryIndexReachesTheMasterAsData(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result { return provider.Result{Text: "ok"} })
 	e.must("deck.document_save", map[string]any{"name": "memory/replies-short.md", "kind": "memory",
 		"text": fact("replies-short", "feedback", "The owner wants short replies")}, nil)
@@ -42,6 +43,7 @@ func TestMemoryIndexReachesTheMasterAsData(t *testing.T) {
 }
 
 func TestProjectMemoryReachesItsOwnAgentsOnly(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		if strings.Contains(c.Req.Prompt, `deck project "alpha"`) && strings.Contains(c.Req.Prompt, "Do the work.") {
 			if out, bad := c.Tool(ctx, "document_save", map[string]any{"name": "memory/tone.md", "kind": "memory",
@@ -89,6 +91,7 @@ func TestProjectMemoryReachesItsOwnAgentsOnly(t *testing.T) {
 }
 
 func TestMemoryIndexIsCutAtItsLimit(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result { return provider.Result{Text: "ok"} })
 	var b strings.Builder
 	for i := 1; i <= 200; i++ {
@@ -114,6 +117,7 @@ func TestMemoryIndexIsCutAtItsLimit(t *testing.T) {
 }
 
 func TestADeletedDocumentComesBack(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		if out, bad := c.Tool(ctx, "document_delete", map[string]any{"name": "notes.md"}); !bad {
 			return provider.Result{Text: "deleted a doc: " + out}
@@ -165,6 +169,7 @@ func TestADeletedDocumentComesBack(t *testing.T) {
 }
 
 func TestOwnerEditsTheMemory(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, idle)
 	save := func(name, text string) (int, string) {
 		code, out := e.call("deck.document_save", map[string]any{"name": name, "kind": "memory", "text": text})
@@ -212,6 +217,7 @@ func TestOwnerEditsTheMemory(t *testing.T) {
 }
 
 func TestMemoryStaysWithItsOwnersAndDeletesHold(t *testing.T) {
+	t.Parallel()
 	home := t.TempDir()
 	script := func(ctx context.Context, c *Call) provider.Result {
 		if out, bad := c.Tool(ctx, "document_save", map[string]any{"name": "memory/gone.md", "kind": "memory",
@@ -266,6 +272,7 @@ func TestMemoryStaysWithItsOwnersAndDeletesHold(t *testing.T) {
 // TestTheMasterWritesItsDeletedMemoryIndexAgain: a memory document of its own project that was deleted the master
 // writes again as a new revision; any other deleted document stays the owner's to bring back.
 func TestTheMasterWritesItsDeletedMemoryIndexAgain(t *testing.T) {
+	t.Parallel()
 	var said sync.Map
 	var turn atomic.Int32
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {

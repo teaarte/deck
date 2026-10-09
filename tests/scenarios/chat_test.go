@@ -15,6 +15,7 @@ import (
 )
 
 func TestOwnerMessageGetsAMasterReplyInTheTopic(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		return provider.Result{Text: "Put it into the inbox."}
 	})
@@ -60,6 +61,7 @@ func TestOwnerMessageGetsAMasterReplyInTheTopic(t *testing.T) {
 }
 
 func TestATopicContinuesTheSameSession(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		return provider.Result{Text: fmt.Sprintf("reply %d", c.N)}
 	})
@@ -82,6 +84,7 @@ func TestATopicContinuesTheSameSession(t *testing.T) {
 }
 
 func TestAnotherProviderGetsTheRetelling(t *testing.T) {
+	t.Parallel()
 	summarize, topic := false, int64(0)
 	var mu sync.Mutex
 	script := func(name string) Script {
@@ -154,6 +157,7 @@ func TestAnotherProviderGetsTheRetelling(t *testing.T) {
 }
 
 func TestALostSessionStartsAgainWithTheRetelling(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		if c.N == 2 {
 			return provider.Result{SessionMissing: true}
@@ -174,6 +178,7 @@ func TestALostSessionStartsAgainWithTheRetelling(t *testing.T) {
 }
 
 func TestMasterActsAsMasterAcrossProjects(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		out, bad := c.Tool(ctx, "records_upsert", map[string]any{"project": "work", "collection": "tasks", "records": `{"title": "Buy milk"}`})
 		if bad {
@@ -222,6 +227,7 @@ func TestMasterActsAsMasterAcrossProjects(t *testing.T) {
 }
 
 func TestTheOwnersEditOfTheMasterStaysAcrossARestart(t *testing.T) {
+	t.Parallel()
 	home := t.TempDir()
 	e := newEnvWith(t, home, &Fake{script: func(context.Context, *Call) provider.Result { return provider.Result{Text: "ok"} }})
 	e.must("deck.document_save", map[string]any{"project": "master", "name": "prompt.md", "kind": "prompt", "text": "# My own master\n"}, nil)
@@ -246,6 +252,7 @@ func TestTheOwnersEditOfTheMasterStaysAcrossARestart(t *testing.T) {
 }
 
 func TestTopicsRunInParallelAndRepliesQueue(t *testing.T) {
+	t.Parallel()
 	var mu sync.Mutex
 	release := map[string]chan struct{}{}
 	gate := func(key string) chan struct{} {
@@ -308,6 +315,7 @@ func TestTopicsRunInParallelAndRepliesQueue(t *testing.T) {
 }
 
 func TestAMessageReachesAReplyThatParkedForTheOwner(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		switch c.N {
 		case 1:
@@ -347,6 +355,7 @@ func TestAMessageReachesAReplyThatParkedForTheOwner(t *testing.T) {
 }
 
 func TestMessagesOfAFailedReplyReachTheNextTurn(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		if c.N == 2 {
 			return provider.Result{IsError: true, Text: "the model is overloaded"}
@@ -369,6 +378,7 @@ func TestMessagesOfAFailedReplyReachTheNextTurn(t *testing.T) {
 }
 
 func TestTheChatBlockShowsTheTopicItsQuestionsAndTheTurn(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		if c.N == 1 {
 			return provider.Result{Text: "Hello **there**"}
@@ -464,6 +474,7 @@ type chatActionV struct {
 }
 
 func TestAMessageAnswersTheQuestionOfTheReply(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		d := c.Approve(ctx, "AskUserQuestion", map[string]any{"questions": []any{map[string]any{"question": "Which list?"}}})
 		answers, _ := d["updatedInput"].(map[string]any)["answers"].(map[string]any)
@@ -488,6 +499,7 @@ func TestAMessageAnswersTheQuestionOfTheReply(t *testing.T) {
 // TestAReplyThatDoesNotStartIsSeenInTheTopic: when the master's reply cannot start, the owner's message shows why
 // in its topic instead of waiting silently.
 func TestAReplyThatDoesNotStartIsSeenInTheTopic(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result { return provider.Result{Text: "Hi."} })
 	if _, err := e.App.Store.DB.Exec(`INSERT INTO assignment (workspace_id, project_id, command, role, models)
 		SELECT 1, id, 'reply', 'agent', '["gone"]' FROM project WHERE name = 'master'`); err != nil {
@@ -510,6 +522,7 @@ func TestAReplyThatDoesNotStartIsSeenInTheTopic(t *testing.T) {
 // TestMasterPutsATaskIntoTheRightProject: by the dispatch skill the master picks the project by the first line of
 // its md and writes the task into its tasks; a move writes it into the other project, and the owner deletes the first.
 func TestMasterPutsATaskIntoTheRightProject(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		list, _ := c.Tool(ctx, "projects_list", map[string]any{})
 		var ps []struct{ Name, Description string }

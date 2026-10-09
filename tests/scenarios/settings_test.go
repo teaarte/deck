@@ -22,6 +22,7 @@ import (
 // TestSettingsIsInTheMenuAndItsInterfaceTabIsTheLookOfTheDevice: the look is the client's, so the block
 // carries no data, and a project screen cannot hold it.
 func TestSettingsIsInTheMenuAndItsInterfaceTabIsTheLookOfTheDevice(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	var menu []struct {
 		Project string
@@ -156,6 +157,7 @@ func hasVerb(acts []map[string]any, v string) bool {
 // TestSettingsProjectsEnableADraftAtTheRevisionItShows: a draft shows the rights enabling grants; the enable
 // button carries the revision the row shows, so a change after it is refused.
 func TestSettingsProjectsEnableADraftAtTheRevisionItShows(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, ok)
 	_, tok := e.token("terminal", "deck.*")
 	if code, out := e.callWith(tok, "deck.project_create", map[string]any{"name": "notes", "manifest": draftManifest}); code != 200 {
@@ -193,6 +195,7 @@ func TestSettingsProjectsEnableADraftAtTheRevisionItShows(t *testing.T) {
 // TestSettingsSecretsAndTokensShowOnlyNames: a secret's value is a hidden field and never comes back; a new
 // token is shown once, by its form, and the list has only its name and commands.
 func TestSettingsSecretsAndTokensShowOnlyNames(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	events := e.sse(t.Context())
 	form := blockData[formV](t, e.screenForm("", "settings", "deck.secret_set")["value"])
@@ -259,6 +262,7 @@ func TestSettingsSecretsAndTokensShowOnlyNames(t *testing.T) {
 // TestSettingsModelsAddAndRemoveOnTheScreen: the models tab adds a model with a form and removes an added one after
 // the owner says yes; built-in providers have no remove.
 func TestSettingsModelsAddAndRemoveOnTheScreen(t *testing.T) {
+	t.Parallel()
 	f := newACP(t)
 	e := newEnv(t, nil, func(c *app.Config) {
 		c.ACPBinaries = map[string]string{"goose": filepath.Join(f.dir, "goose")}
@@ -315,6 +319,7 @@ func TestSettingsModelsAddAndRemoveOnTheScreen(t *testing.T) {
 // TestSettingsHealthShowsWhatIsRedFirstWithWhy: health is a table of subjects with their state and error,
 // the worst first, narrowed by state.
 func TestSettingsHealthShowsWhatIsRedFirstWithWhy(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	e.createProject("web", webNotes)
 	ctx := t.Context()
@@ -411,6 +416,7 @@ func TestSettingsHealthShowsWhatIsRedFirstWithWhy(t *testing.T) {
 
 // TestTheDiskHealthReachesTheOpenScreens: a new disk reading tells the clients, so the Health tab is current.
 func TestTheDiskHealthReachesTheOpenScreens(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	events := e.sse(t.Context())
 	e.App.Sweep(context.Background(), time.Now().Add(time.Hour))
@@ -420,6 +426,7 @@ func TestTheDiskHealthReachesTheOpenScreens(t *testing.T) {
 // TestAProjectHasItsOwnSettings: deck adds a settings screen to every project: the project with its buttons, its
 // commands with their providers, its tools, the secrets they use, the tokens that reach it and its health.
 func TestAProjectHasItsOwnSettings(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	e.createProject("notes", strings.Replace(notesManifest, `"url": "https://example.invalid/post",`, `"url": "https://example.invalid/post", "headers": {"Authorization": "Bearer $secret.notes_key"},`, 1))
 	e.createProject("other", plainManifest)
@@ -452,6 +459,7 @@ func TestAProjectHasItsOwnSettings(t *testing.T) {
 
 // TestTheMasterSeesTheNamesOfSecrets: the master lists the names of the secrets, never their values.
 func TestTheMasterSeesTheNamesOfSecrets(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	e.must("deck.secret_set", map[string]any{"name": "mail-key", "value": "s3cret-value"}, nil)
 	out, err := e.App.Registry.Invoke(context.Background(), registry.Actor{Kind: registry.Master, Workspace: 1}, "deck.secrets_list", []byte(`{}`))
@@ -464,6 +472,7 @@ func TestTheMasterSeesTheNamesOfSecrets(t *testing.T) {
 // TestTheMasterReadsTheSettingsAndTheNamesOfTokens: the master reads the settings and the tokens by name and
 // commands, so the settings screen it opens has no error in them; a token itself never shows.
 func TestTheMasterReadsTheSettingsAndTheNamesOfTokens(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	var made struct{ Token string }
 	e.must("deck.token_create", map[string]any{"name": "shortcuts", "commands": []string{"deck.notify"}}, &made)
@@ -484,6 +493,7 @@ func TestTheMasterReadsTheSettingsAndTheNamesOfTokens(t *testing.T) {
 // TestEverySettingIsEditedFromItsOneDefinition: settings_set names each setting of the list, and each has the one
 // edit button of the General tab, which sets it by its name.
 func TestEverySettingIsEditedFromItsOneDefinition(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	var list []struct {
 		Name    string
@@ -550,6 +560,7 @@ func TestEverySettingIsEditedFromItsOneDefinition(t *testing.T) {
 // TestTheNamesOfSettingsFollowTheLanguageOfTheWorkspace: the General tab names each setting in the language the
 // owner picked for the interface; auto keeps them in English.
 func TestTheNamesOfSettingsFollowTheLanguageOfTheWorkspace(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	title := func() string {
 		var rows []struct{ Name, Title string }
@@ -573,6 +584,7 @@ func TestTheNamesOfSettingsFollowTheLanguageOfTheWorkspace(t *testing.T) {
 // TestASecretDeleteStaysInTheFolderOfSecrets: a name that would leave the folder of the secrets of the workspace is
 // refused, and the files there and above stay.
 func TestASecretDeleteStaysInTheFolderOfSecrets(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	e.must("deck.secret_set", map[string]any{"name": "svc", "value": "k"}, nil)
 	dir := deckhome.Layout(e.App.Cfg.Home).Secrets(1)

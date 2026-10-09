@@ -17,6 +17,7 @@ import (
 // TestProcessPageSendsAFinishedAgentBackForReworkWithARemark: a finished agent process has a rework button that
 // asks for the remark; it resumes the same session with it. Open processes and scripts have none.
 func TestProcessPageSendsAFinishedAgentBackForReworkWithARemark(t *testing.T) {
+	t.Parallel()
 	release := make(chan struct{}, 1)
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		if c.command() == "hold" {
@@ -67,6 +68,7 @@ func TestProcessPageSendsAFinishedAgentBackForReworkWithARemark(t *testing.T) {
 }
 
 func TestWorkFolderOfAFinishedAgentGoesAfterAWeek(t *testing.T) {
+	t.Parallel()
 	e := newClockEnv(t, ok)
 	p := e.createProject("plain", testManifest([]string{agentCommand("work", "")}, nil))
 	id := e.run(p, "work")

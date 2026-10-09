@@ -32,6 +32,7 @@ const playerManifest = `{"version": 9,
 // TestAPlayerShowsMarksAndMarksASecond: a video of the data folder plays with its marks in order of time; the mark
 // of the player names its command with the video, which takes the file, the second and the note.
 func TestAPlayerShowsMarksAndMarksASecond(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
 	})
@@ -91,6 +92,7 @@ func TestAPlayerShowsMarksAndMarksASecond(t *testing.T) {
 // TestRealBrowserPlayer plays a video of a module in the real browser: it opens at t, steps by a frame, seeks to
 // a mark and marks a second with a note.
 func TestRealBrowserPlayer(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("DECK_REAL_BROWSER") == "" {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
@@ -156,6 +158,7 @@ func TestRealBrowserPlayer(t *testing.T) {
 // TestAMediaBlockOnARecordPageShowsAFileOfTheRecord: on a record page a media block without a source shows the
 // file a field of the record names.
 func TestAMediaBlockOnARecordPageShowsAFileOfTheRecord(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	m := strings.Replace(playerManifest, `"screens": [`, `"screens": [{"name": "video", "title": "Video", "record": "videos", "blocks": [
     {"type": "media", "title": "The video", "item": {"file": "file", "title": "slug"}}]}, `, 1)
@@ -175,6 +178,7 @@ func TestAMediaBlockOnARecordPageShowsAFileOfTheRecord(t *testing.T) {
 // TestALineOfAListShowsAPicture: item.image of a list names a picture of a line; a file that is no picture is left
 // out of the line.
 func TestALineOfAListShowsAPicture(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	m := strings.Replace(playerManifest, `"screens": [`, `"screens": [{"name": "scenes", "title": "Scenes", "blocks": [
     {"type": "list", "title": "Scenes", "source": {"collection": "videos", "sort": "slug"}, "item": {"title": "slug", "image": "file"}}]}, `, 1)

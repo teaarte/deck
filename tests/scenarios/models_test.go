@@ -56,6 +56,7 @@ type modelsOut struct {
 // TestTheProvidersOfABaseFromBeforeAreConnectionsModelsAndAssignments: the providers stored as on the owner's machine,
 // a command's provider and speech to text become a connection per address and key, a model each and assignments.
 func TestTheProvidersOfABaseFromBeforeAreConnectionsModelsAndAssignments(t *testing.T) {
+	t.Parallel()
 	home := t.TempDir()
 	e := newEnvWith(t, home, &Fake{})
 	p := e.createProject("plain", plainManifest)
@@ -160,6 +161,7 @@ func TestTheProvidersOfABaseFromBeforeAreConnectionsModelsAndAssignments(t *test
 // TestAnAssignmentTakesItsFallbackWhileTheFirstIsDown: a new turn of a project starts on the first provider of
 // its assignment, and on the next one while the first is red, waiting for a login or paused by a limit.
 func TestAnAssignmentTakesItsFallbackWhileTheFirstIsDown(t *testing.T) {
+	t.Parallel()
 	main := &Fake{script: func(context.Context, *Call) provider.Result { return provider.Result{Text: "main"} }}
 	other := &Fake{name: "other", script: func(context.Context, *Call) provider.Result { return provider.Result{Text: "other"} }}
 	e := newEnvBuiltin(t, t.TempDir(), []provider.Provider{main, other})
@@ -280,6 +282,7 @@ type spendRow struct {
 // TestAScriptCallsAModelThroughDeckAndNoLimitOfABaseFromBeforeHoldsIt: a script calls a model through DECK_MODELS
 // without its key, deck keeps what OpenRouter says it cost; the daily limit of an older base goes.
 func TestAScriptCallsAModelThroughDeckAndNoLimitOfABaseFromBeforeHoldsIt(t *testing.T) {
+	t.Parallel()
 	api := newModels(t, map[string]func(int, map[string]any) (int, string, string){
 		"/api/v1/chat/completions": func(int, map[string]any) (int, string, string) {
 			return 200, "application/json", pictureAnswer(0.033631)
@@ -329,6 +332,7 @@ func TestAScriptCallsAModelThroughDeckAndNoLimitOfABaseFromBeforeHoldsIt(t *test
 // TestAnAgentTurnReachesOnlyTheModelOfItsTurn: a turn of an ACP agent calls its model through deck's proxy, which
 // sends every call to the model the turn started on, whatever model the agent names, priced by that model.
 func TestAnAgentTurnReachesOnlyTheModelOfItsTurn(t *testing.T) {
+	t.Parallel()
 	f := newACP(t)
 	llm := newLLM(t, func(int, chatRequest) chatReply { return textReply("ok") })
 	f.streamText(4, acpStream(acpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,
@@ -356,6 +360,7 @@ func TestAnAgentTurnReachesOnlyTheModelOfItsTurn(t *testing.T) {
 // TestAScriptCallsARoleAndAFallbackTakesARefusal: @tts goes to the first model assigned, past a 429 to the next, priced
 // per call; a role reaches only the paths of model calls.
 func TestAScriptCallsARoleAndAFallbackTakesARefusal(t *testing.T) {
+	t.Parallel()
 	busy := newModels(t, map[string]func(int, map[string]any) (int, string, string){
 		"/v1/audio/speech": func(int, map[string]any) (int, string, string) {
 			return 429, "application/json", `{"error": "rate limited"}`
@@ -400,6 +405,7 @@ func TestAScriptCallsARoleAndAFallbackTakesARefusal(t *testing.T) {
 // TestAModelTakesItsPriceAndKindFromTheCatalogOfItsConnection: a model added without a price takes the one OpenRouter
 // lists and its kind; free is kept when left out, false clears it, a zero of a model making more than text is no proof.
 func TestAModelTakesItsPriceAndKindFromTheCatalogOfItsConnection(t *testing.T) {
+	t.Parallel()
 	catalog := `{"data": [{"id": "google/gemini-3.1-flash-lite-image", "pricing": {"prompt": "0.0000003", "completion": "0.0000025", "request": "0", "image": "0.00003"},
 	  "architecture": {"input_modalities": ["text", "image"], "output_modalities": ["image", "text"]}},
 	  {"id": "qwen/qwen3.8-27b:free", "pricing": {"prompt": "0", "completion": "0"}, "architecture": {"output_modalities": ["text"]}},
@@ -451,6 +457,7 @@ func TestAModelTakesItsPriceAndKindFromTheCatalogOfItsConnection(t *testing.T) {
 // TestAModuleCallsOnlyTheModelsTheOwnerGranted: a project calls models only through what its manifest names; a new
 // name waits for the owner's button, and a draft's call waits for a yes unless its model is free on this machine.
 func TestAModuleCallsOnlyTheModelsTheOwnerGranted(t *testing.T) {
+	t.Parallel()
 	api := newModels(t, map[string]func(int, map[string]any) (int, string, string){
 		"/v1/chat/completions": func(int, map[string]any) (int, string, string) { return 200, "application/json", chatText("hi") },
 	})
@@ -510,6 +517,7 @@ func TestAModuleCallsOnlyTheModelsTheOwnerGranted(t *testing.T) {
 // TestAModuleCallsOnlyTheModelsOfDecksSettings: a call names a model the owner added (body, form, Google's path or
 // X-Deck-Model) on a path of a model call; any other model or path is refused with what to do.
 func TestAModuleCallsOnlyTheModelsOfDecksSettings(t *testing.T) {
+	t.Parallel()
 	ok := func(int, map[string]any) (int, string, string) { return 200, "application/json", chatText("hi") }
 	api := newModels(t, map[string]func(int, map[string]any) (int, string, string){
 		"/v1/chat/completions": ok, "/v1/images/edits": ok, "/v1/key": ok, "/v1/models/gemma:generateContent": ok, "/svc/v1/generate": ok,
@@ -626,6 +634,7 @@ func TestAModuleCallsOnlyTheModelsOfDecksSettings(t *testing.T) {
 // TestAModuleDoesNotHoldTheKeyOfAConnection: a tool of a manifest that sends the key of a connection reaches models
 // past deck; a manifest that has one is read with a warning and saved only without it.
 func TestAModuleDoesNotHoldTheKeyOfAConnection(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	tool := `, "tools": {"http": [{"name": "image", "description": "A picture.", "class": "internal", "method": "POST",
 	  "url": "https://openrouter.ai/api/v1/chat/completions", "auth": {"type": "secret", "secret": "openrouter"}, "input": {"type": "object"}}]}`
@@ -643,6 +652,7 @@ func TestAModuleDoesNotHoldTheKeyOfAConnection(t *testing.T) {
 // TestAModuleProposesAModelAndTheOwnerAddsItWithOneButton: an agent of a module that needs a model deck lacks calls
 // deck.model_set; its turn waits for the owner, and the owner's yes adds the model.
 func TestAModuleProposesAModelAndTheOwnerAddsItWithOneButton(t *testing.T) {
+	t.Parallel()
 	var said string
 	var bad bool
 	turns := 0
@@ -686,6 +696,7 @@ func TestAModuleProposesAModelAndTheOwnerAddsItWithOneButton(t *testing.T) {
 // TestTheSettingsOfAModuleShowTheModelsOfItsWork: the settings of a project list the models assigned to its kinds of
 // work and commands, the one at work now first in mind, and only its own.
 func TestTheSettingsOfAModuleShowTheModelsOfItsWork(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	e.must("deck.connection_set", map[string]any{"name": "media", "api": "openai", "url": "http://127.0.0.1:9/v1", "local": true}, nil)
 	e.must("deck.model_set", map[string]any{"connection": "media", "model": "klein", "name": "local-image", "kind": "image", "free": true}, nil)

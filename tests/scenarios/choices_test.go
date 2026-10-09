@@ -28,6 +28,7 @@ var choicesManifest = strings.NewReplacer(
 // TestFormFieldsOfferValuesFromASourceAndProjectFieldsTheProjects: a field offers the values of the source its
 // block names, a project field the projects; deck's forms pick providers and agent commands.
 func TestFormFieldsOfferValuesFromASourceAndProjectFieldsTheProjects(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	check := newCatalogCheck(t)
 	e.createProject("web", choicesManifest)
@@ -99,6 +100,7 @@ func TestFormFieldsOfferValuesFromASourceAndProjectFieldsTheProjects(t *testing.
 // TestFormAsksForTheInputAndShowsTheResultBySchema: a form carries the input and result schemas of its
 // command; the result can be kept as records; on a record page the form edits the record with its schema.
 func TestFormAsksForTheInputAndShowsTheResultBySchema(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, webNotesAgent())
 	check := newCatalogCheck(t)
 	e.createProject("web", webNotes)

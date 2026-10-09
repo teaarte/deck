@@ -17,6 +17,7 @@ import (
 )
 
 func TestAutomationTokenCallsOnlyAllowedCommands(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, ok)
 	e.createProject("notes", plainManifest)
 	id, tok := e.token("terminal", "deck.projects_list", "deck.manifest_get", "deck.token_create", "deck.project_enable", "notes.*")
@@ -99,6 +100,7 @@ func TestAutomationTokenCallsOnlyAllowedCommands(t *testing.T) {
 }
 
 func TestMasterManifestEditIsUndoneFromTheFeed(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, ok)
 	e.createProject("notes", plainManifest)
 	_, tok := e.token("terminal", "deck.*")
@@ -158,6 +160,7 @@ func TestMasterManifestEditIsUndoneFromTheFeed(t *testing.T) {
 }
 
 func TestMasterScriptEditIsUndoneFromTheFeed(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, ok)
 	e.createProject("tools", scriptManifest("run", "", ""))
 	e.saveScript("tools", "scripts/main.py", "print('{}')\n")
@@ -203,6 +206,7 @@ func TestMasterScriptEditIsUndoneFromTheFeed(t *testing.T) {
 }
 
 func TestEmptyTokenDoesNotOpenTheAPI(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	ts := httptest.NewServer(api.New(e.App, "", web.FS()).Handler())
 	defer ts.Close()
@@ -220,6 +224,7 @@ func TestEmptyTokenDoesNotOpenTheAPI(t *testing.T) {
 
 // TestAChangeWithoutTheOwnerReachesTheBell: a line of the feed written by a change of an agent is heard live.
 func TestAChangeWithoutTheOwnerReachesTheBell(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, ok)
 	e.createProject("tools", scriptManifest("run", "", ""))
 	e.saveScript("tools", "scripts/main.py", "print('{}')\n")
@@ -248,6 +253,7 @@ func TestAChangeWithoutTheOwnerReachesTheBell(t *testing.T) {
 // TestASaveOfTheSameTextChangesNothing: saving the text a document has keeps its revision, and a manifest or a
 // script saved again without the owner puts no line in the feed.
 func TestASaveOfTheSameTextChangesNothing(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, ok)
 	e.createProject("tools", scriptManifest("run", "", ""))
 	e.saveScript("tools", "scripts/main.py", "print('{}')\n")
@@ -278,6 +284,7 @@ func TestASaveOfTheSameTextChangesNothing(t *testing.T) {
 // TestACallOfATokenThatWaitsForTheOwnerIsKept: an external builtin a token calls waits for the owner like any
 // other call, though no project made it, and the owner's yes makes it.
 func TestACallOfATokenThatWaitsForTheOwnerIsKept(t *testing.T) {
+	t.Parallel()
 	var sent atomic.Int64
 	out := registry.Def("send_out", "Send out", "Sends something outside deck.", registry.OwnerSide,
 		func(context.Context, registry.Actor, struct{}) (any, error) {
@@ -300,6 +307,7 @@ func TestACallOfATokenThatWaitsForTheOwnerIsKept(t *testing.T) {
 // TestAClearedCallDoesNotClearTheCallsItMakes: the owner's yes clears one call; a command that calls another
 // with its own caller does not pass the class rules of the other on that yes.
 func TestAClearedCallDoesNotClearTheCallsItMakes(t *testing.T) {
+	t.Parallel()
 	var inner atomic.Int64
 	var nested error
 	var e *Env

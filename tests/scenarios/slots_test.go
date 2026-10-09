@@ -34,6 +34,7 @@ func (e *Env) states(ids []int64) string {
 // TestAgentLimitHoldsTheFourthAgentUntilASlotFreesAndScriptsDoNotCount: three agent turns run at once by
 // default; the rest wait for a slot, oldest first, without reaching the provider; scripts run beside them.
 func TestAgentLimitHoldsTheFourthAgentUntilASlotFreesAndScriptsDoNotCount(t *testing.T) {
+	t.Parallel()
 	release := make(chan struct{}, 10)
 	e := newEnv(t, held(release))
 	p := e.createProject("jobs", testManifest([]string{agentCommand("job", "")}, nil))
@@ -97,6 +98,7 @@ func TestAgentLimitHoldsTheFourthAgentUntilASlotFreesAndScriptsDoNotCount(t *tes
 // TestAProcessWaitingForASlotStillWaitsAfterARestart: the wait is in the base, so a restarted deck runs no more
 // agents than the limit and the waiting one starts when a slot frees.
 func TestAProcessWaitingForASlotStillWaitsAfterARestart(t *testing.T) {
+	t.Parallel()
 	home := t.TempDir()
 	hang := make(chan struct{})
 	first := &Fake{script: held(hang)}
@@ -133,6 +135,7 @@ func TestAProcessWaitingForASlotStillWaitsAfterARestart(t *testing.T) {
 
 // TestConfirmationTermIsASettingOfTheWorkspace: a confirmation made after the change expires by the new term.
 func TestConfirmationTermIsASettingOfTheWorkspace(t *testing.T) {
+	t.Parallel()
 	e := newClockEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		c.Approve(ctx, "WebFetch", map[string]any{"url": "https://example.com/page", "prompt": "read it"})
 		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
@@ -161,6 +164,7 @@ func TestConfirmationTermIsASettingOfTheWorkspace(t *testing.T) {
 // TestAProcessLeftWaitingForAFreeSlotStartsWhenDeckStarts: deck stopped after a slot freed and before it was
 // handed over; the next start hands it over.
 func TestAProcessLeftWaitingForAFreeSlotStartsWhenDeckStarts(t *testing.T) {
+	t.Parallel()
 	home := t.TempDir()
 	clock := &Clock{now: t0}
 	first := &Fake{script: held(make(chan struct{}))}
@@ -184,6 +188,7 @@ func TestAProcessLeftWaitingForAFreeSlotStartsWhenDeckStarts(t *testing.T) {
 // TestASlotFreedWhileDeckStopsLeavesTheWaitingProcessWaiting: a slot handed over after deck began to stop starts
 // no turn, so the process stays waiting for a slot instead of passing for one that runs.
 func TestASlotFreedWhileDeckStopsLeavesTheWaitingProcessWaiting(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, held(make(chan struct{})))
 	e.must("deck.settings_set", map[string]any{"name": "agent_limit", "value": "1"}, nil)
 	p := e.createProject("jobs", testManifest([]string{agentCommand("job", "")}, nil))

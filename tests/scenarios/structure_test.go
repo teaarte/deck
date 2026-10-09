@@ -16,6 +16,7 @@ import (
 )
 
 func TestQueryOutsideTheTransactionFailsLoudly(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	var recovered any
 	_ = e.App.Store.Tx(context.Background(), func(ctx context.Context, q *db.Queries) error {
@@ -29,6 +30,7 @@ func TestQueryOutsideTheTransactionFailsLoudly(t *testing.T) {
 }
 
 func TestOtherWorkspacesAreInvisible(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	e.createProject("mine", ideasManifest)
 	ctx := context.Background()
@@ -74,6 +76,7 @@ func TestOtherWorkspacesAreInvisible(t *testing.T) {
 }
 
 func TestCoreDocumentNamesKeepTheirKind(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	e.createProject("ideas", ideasManifest)
 	for _, name := range []string{"prompt.md", "manifest.json"} {
@@ -85,6 +88,7 @@ func TestCoreDocumentNamesKeepTheirKind(t *testing.T) {
 }
 
 func TestAHomeWithAQuestionMarkOrAHashKeepsTheDatabaseInside(t *testing.T) {
+	t.Parallel()
 	home := filepath.Join(t.TempDir(), "a?b#c%d")
 	if err := os.MkdirAll(home, 0o700); err != nil {
 		t.Fatal(err)
@@ -98,6 +102,7 @@ func TestAHomeWithAQuestionMarkOrAHashKeepsTheDatabaseInside(t *testing.T) {
 
 // TestAWriteOutsideATransactionFailsLoudly: every write runs in Store.Tx; one through the shared queries panics.
 func TestAWriteOutsideATransactionFailsLoudly(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	defer func() {
 		if p := recover(); p == nil || !strings.Contains(fmt.Sprint(p), "outside a transaction") {
@@ -110,6 +115,7 @@ func TestAWriteOutsideATransactionFailsLoudly(t *testing.T) {
 // TestDeletingAProjectKeepsTheHealthOfItsNamesakeElsewhere: health rows are keyed by workspace and project, so a
 // project of the same name in another workspace keeps its own.
 func TestDeletingAProjectKeepsTheHealthOfItsNamesakeElsewhere(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	ctx := context.Background()
 	mine := e.createProject("x", plainManifest)
@@ -143,6 +149,7 @@ func TestDeletingAProjectKeepsTheHealthOfItsNamesakeElsewhere(t *testing.T) {
 // TestADeckOfAnOlderLayoutDoesNotStart: a folder with deck's files outside state/ and work/ is refused, so nothing of
 // it lies open next to the folders agents work in.
 func TestADeckOfAnOlderLayoutDoesNotStart(t *testing.T) {
+	t.Parallel()
 	home := t.TempDir()
 	if err := os.WriteFile(filepath.Join(home, "deck.db"), []byte("old"), 0o600); err != nil {
 		t.Fatal(err)
@@ -155,6 +162,7 @@ func TestADeckOfAnOlderLayoutDoesNotStart(t *testing.T) {
 // TestAReadWhileATransactionIsOpenDoesNotWait: reads go past the one writer, so a long transaction (a snapshot,
 // a manifest saved) holds no screen, and a read of another context inside a transaction does not freeze deck.
 func TestAReadWhileATransactionIsOpenDoesNotWait(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	e.createProject("mine", ideasManifest)
 	hold, held := make(chan struct{}), make(chan struct{})
@@ -185,6 +193,7 @@ func TestAReadWhileATransactionIsOpenDoesNotWait(t *testing.T) {
 // TestATransactionOfAnotherContextInsideATransactionFailsInsteadOfFreezing: a write that waits for the base past
 // its deadline is an error with the stack in the log, not deck frozen without a line.
 func TestATransactionOfAnotherContextInsideATransactionFailsInsteadOfFreezing(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	e.App.Store.Wait = time.Second
 	done := make(chan error, 1)
@@ -206,6 +215,7 @@ func TestATransactionOfAnotherContextInsideATransactionFailsInsteadOfFreezing(t 
 // TestATableWithoutATopicKeepsDeckFromStarting: a table of the base whose writes would publish nothing and that is
 // not marked silent keeps deck from starting, so no new table goes unseen by the screens that follow it.
 func TestATableWithoutATopicKeepsDeckFromStarting(t *testing.T) {
+	t.Parallel()
 	home := t.TempDir()
 	e := newEnvWith(t, home, &Fake{})
 	if _, err := e.App.Store.DB.Exec(`CREATE TABLE stray (id INTEGER PRIMARY KEY, project_id INTEGER)`); err != nil {

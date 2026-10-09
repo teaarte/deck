@@ -88,6 +88,7 @@ func oauthManifest(url string) string {
 }
 
 func TestOAuth2SignsInRefreshesAndAsksForSignInWhenRevoked(t *testing.T) {
+	t.Parallel()
 	f := &fakeOAuth{}
 	svc := newService(t, f.handler)
 	e := newEnv(t, nil)
@@ -159,6 +160,7 @@ func TestOAuth2SignsInRefreshesAndAsksForSignInWhenRevoked(t *testing.T) {
 }
 
 func TestOAuth2AddressesMustBeHTTPS(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	code, out := e.call("deck.project_create", map[string]any{"name": "svc", "manifest": oauthManifest("http://auth.example")})
 	if code == 200 || !strings.Contains(string(out), "must be https") {
@@ -167,6 +169,7 @@ func TestOAuth2AddressesMustBeHTTPS(t *testing.T) {
 }
 
 func TestAFailedRefreshAfterARefusalIsNotAnUnknownOutcome(t *testing.T) {
+	t.Parallel()
 	f := &fakeOAuth{access: "valid", refresh: "r0", broken: true}
 	svc := newService(t, f.handler)
 	e := newEnv(t, nil)

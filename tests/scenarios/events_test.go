@@ -15,6 +15,7 @@ import (
 // TestASlowDeviceHearsEveryChange: a device that reads its live channel slower than deck publishes still hears
 // each topic of each project once; nothing is dropped.
 func TestASlowDeviceHearsEveryChange(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -37,6 +38,7 @@ func TestASlowDeviceHearsEveryChange(t *testing.T) {
 // TestAChangeOfAnotherProjectDoesNotRereadAScreen: a screen reads its blocks again only for a change in a project
 // they read, its own or one its manifest reads.
 func TestAChangeOfAnotherProjectDoesNotRereadAScreen(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, webNotesAgent())
 	e.createProject("a", webNotes)
 	e.createProject("b", webNotes)
@@ -68,6 +70,7 @@ func TestAChangeOfAnotherProjectDoesNotRereadAScreen(t *testing.T) {
 // TestABlockThatReadsEveryProjectFollowsThemAll: a block whose read names no project follows the changes of every
 // project, and a when of another screen does not draw that screen whole for them.
 func TestABlockThatReadsEveryProjectFollowsThemAll(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, webNotesAgent())
 	e.createProject("a", webNotes)
 	e.createProject("b", strings.Replace(webNotes, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "blocks": [
@@ -86,6 +89,7 @@ func TestABlockThatReadsEveryProjectFollowsThemAll(t *testing.T) {
 // TestAWriteTellsTheReadersOfItsTable: a write of a table is an event of the topic its readers follow, in the
 // project of the row, whichever command wrote it.
 func TestAWriteTellsTheReadersOfItsTable(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	e.createProject("web", webNotes)
 	ev := e.live(t.Context())
@@ -112,6 +116,7 @@ func waitEvent(t *testing.T, ch <-chan events.Event, want events.Event) {
 // TestADeckReadWithoutAProjectFollowsEveryProject: a block of a module screen that reads a deck command taking no
 // project reads every project, so a change in any project reads it again.
 func TestADeckReadWithoutAProjectFollowsEveryProject(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, webNotesAgent())
 	e.createProject("a", webNotes)
 	e.createProject("c", strings.Replace(webNotes, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "blocks": [

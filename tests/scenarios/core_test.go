@@ -54,6 +54,7 @@ func writeIdeas(ctx context.Context, c *Call, topic string) {
 }
 
 func TestManifestIsValidatedOnSave(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, func(context.Context, *Call) provider.Result { return provider.Result{} })
 	bad := strings.NewReplacer(`"collection": "ideas", "where"`, `"collection": "nope", "where"`, `"0 9 * * *"`, `"every day"`).Replace(ideasManifest)
 	code, out := e.call("deck.project_create", map[string]any{"name": "bad", "manifest": bad})
@@ -63,6 +64,7 @@ func TestManifestIsValidatedOnSave(t *testing.T) {
 }
 
 func TestCommandWritesRecordsAndScreenShowsThem(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		writeIdeas(ctx, c, "x")
 		return provider.Result{Structured: json.RawMessage(`{"written": 3}`)}
@@ -87,6 +89,7 @@ func TestCommandWritesRecordsAndScreenShowsThem(t *testing.T) {
 }
 
 func TestQuestionAnsweredLive(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		d := c.Approve(ctx, "AskUserQuestion", map[string]any{"questions": []map[string]any{
 			{"question": "Which topic?", "header": "Topic", "options": []map[string]any{{"label": "go"}, {"label": "rust"}}}}})
@@ -121,6 +124,7 @@ func TestQuestionAnsweredLive(t *testing.T) {
 // TestAnAnswerTheProcessDidNotActOnGoesToTheMaster: an agent asks the owner, gets the answer live and ends with
 // nothing; the answer reaches the master on its next turn, and the owner's feed says so.
 func TestAnAnswerTheProcessDidNotActOnGoesToTheMaster(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		if c.command() != "collect" {
 			return provider.Result{Text: "On it."}
@@ -155,6 +159,7 @@ func TestAnAnswerTheProcessDidNotActOnGoesToTheMaster(t *testing.T) {
 // TestAnAnswerAfterTheProcessFinishedGoesToTheMaster: the owner answers a question whose process finished in the
 // meantime; no process takes the answer, so the master does.
 func TestAnAnswerAfterTheProcessFinishedGoesToTheMaster(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		return provider.Result{Structured: json.RawMessage(`null`)}
 	})
@@ -181,6 +186,7 @@ func TestAnAnswerAfterTheProcessFinishedGoesToTheMaster(t *testing.T) {
 // TestAQuestionWhoseCallDroppedStaysOpenWhenTheTurnBreaks: the transport drops while the owner is asked and the
 // turn ends with an error; the question stays for the owner and the answer resumes the session.
 func TestAQuestionWhoseCallDroppedStaysOpenWhenTheTurnBreaks(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		if !c.Req.Resume {
 			dropped, cancel := context.WithTimeout(ctx, 200*time.Millisecond)
@@ -210,6 +216,7 @@ func TestAQuestionWhoseCallDroppedStaysOpenWhenTheTurnBreaks(t *testing.T) {
 }
 
 func TestQuestionAnsweredLateResumesSession(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		if !c.Req.Resume {
 			d := c.Approve(ctx, "AskUserQuestion", map[string]any{"questions": []map[string]any{{"question": "Which topic?"}}})
@@ -242,6 +249,7 @@ func TestQuestionAnsweredLateResumesSession(t *testing.T) {
 }
 
 func TestConfirmationRejectedWithReason(t *testing.T) {
+	t.Parallel()
 	var msg string
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		d := c.Approve(ctx, "Bash", map[string]any{"command": "git push"})
@@ -266,6 +274,7 @@ func TestConfirmationRejectedWithReason(t *testing.T) {
 }
 
 func TestResultNotBySchemaAfterOneRetry(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		return provider.Result{Structured: json.RawMessage(`{"count": 1}`)}
 	})
@@ -293,6 +302,7 @@ const calcManifest = `{
 // TestAToolAddedToTheProjectReachesARunningTurn: a command added to the manifest while an agent works is a tool of
 // its session at once, and a command taken out is gone, so the master tries what it just built in the same turn.
 func TestAToolAddedToTheProjectReachesARunningTurn(t *testing.T) {
+	t.Parallel()
 	saved, listed := make(chan struct{}), make(chan []string, 2)
 	names := func(ctx context.Context, c *Call) []string {
 		var out []string

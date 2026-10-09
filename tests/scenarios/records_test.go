@@ -34,6 +34,7 @@ func seeded(e *Env) (record, photo int64) {
 }
 
 func TestRecordIsReadByIDAndDeletedWithItsDocumentsAndFiles(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	e.createProject("docs", filesManifest())
 	rec, photo := seeded(e)
@@ -66,6 +67,7 @@ func TestRecordIsReadByIDAndDeletedWithItsDocumentsAndFiles(t *testing.T) {
 }
 
 func TestBuilderCleansTrialRecordsOfADraftAndUploadsAFile(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	_, tok := e.token("terminal", "deck.*")
 	if code, out := e.callWith(tok, "deck.project_create", map[string]any{"name": "docs", "manifest": filesManifest()}); code != 200 {
@@ -92,6 +94,7 @@ func TestBuilderCleansTrialRecordsOfADraftAndUploadsAFile(t *testing.T) {
 }
 
 func TestAgentReadsARecordByIDOnlyInItsProjectOrItsReads(t *testing.T) {
+	t.Parallel()
 	var rec int64
 	var got []string
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
@@ -111,6 +114,7 @@ func TestAgentReadsARecordByIDOnlyInItsProjectOrItsReads(t *testing.T) {
 }
 
 func TestRecordsAndFilesGoAfterTheirRetention(t *testing.T) {
+	t.Parallel()
 	e := newClockEnv(t, nil)
 	e.createProject("files", strings.Replace(scriptManifest("make", "", ""), `"key": "name",`,
 		`"key": "name", "retention_days": 30, "file_retention_days": 10,`, 1))
@@ -147,6 +151,7 @@ print(json.dumps({"files": [{"path": "f.txt", "record": out["ids"][0]}]}))
 }
 
 func TestLargeIntegerKeysStayDistinct(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	p := e.createProject("items", numbersManifest)
 	var up struct{ Written int }
@@ -159,6 +164,7 @@ func TestLargeIntegerKeysStayDistinct(t *testing.T) {
 }
 
 func TestRecordIDsAreNotReusedAndArtifactsGoWithRecords(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	e.createProject("links", fullManifest)
 	e.must("deck.records_upsert", map[string]any{"project": "links", "collection": "links", "records": `{"url": "https://a.example", "title": "a"}`}, nil)
@@ -180,6 +186,7 @@ func TestRecordIDsAreNotReusedAndArtifactsGoWithRecords(t *testing.T) {
 }
 
 func TestConcurrentCreatesKeepTheFirstImmutableValue(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	e.createProject("links", fullManifest)
 	var wg sync.WaitGroup
@@ -202,6 +209,7 @@ func TestConcurrentCreatesKeepTheFirstImmutableValue(t *testing.T) {
 }
 
 func TestKeyFieldsStayImmutableWithReferencedSchemas(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	m := `{"version": 9, "collections": [{"name": "people", "description": "A person", "key": "lower(email)",
 	  "schema": {"$ref": "#/$defs/p", "$defs": {"p": {"type": "object", "properties": {"email": {"type": "string"}}, "required": ["email"]}}}}]}`

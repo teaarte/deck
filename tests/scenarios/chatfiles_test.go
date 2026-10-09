@@ -20,6 +20,7 @@ import (
 // TestOwnerAttachesFilesAndTopicsKnowTheirModule: an attached file belongs to the message, the turn that takes
 // it gets a copy in its input folder; a topic knows the module it was opened on.
 func TestOwnerAttachesFilesAndTopicsKnowTheirModule(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		return provider.Result{Text: "Read it."}
 	})
@@ -67,6 +68,7 @@ func TestOwnerAttachesFilesAndTopicsKnowTheirModule(t *testing.T) {
 // TestARetriedMessageDoesNotAttachItsFilesAgain: a message sent again with its retry key is the one already
 // sent, even when its upload is gone by now.
 func TestARetriedMessageDoesNotAttachItsFilesAgain(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result { return provider.Result{Text: "Read it."} })
 	id := e.upload("master", "plan.txt", "text/plain", "the plan")
 	in := map[string]any{"files": []string{fmt.Sprint(id)}, "retry_key": "k1"}
@@ -82,6 +84,7 @@ func TestARetriedMessageDoesNotAttachItsFilesAgain(t *testing.T) {
 // TestTheFilesOfADeletedTopicGoWithTheTopic: a deleted topic keeps its attachments while it can be brought
 // back, and they go when the topic itself goes a month later.
 func TestTheFilesOfADeletedTopicGoWithTheTopic(t *testing.T) {
+	t.Parallel()
 	e := newClockEnv(t, func(ctx context.Context, c *Call) provider.Result { return provider.Result{Text: "Read it."} })
 	e.sweep()
 	id := e.upload("master", "plan.txt", "text/plain", "the plan")
@@ -106,6 +109,7 @@ func TestTheFilesOfADeletedTopicGoWithTheTopic(t *testing.T) {
 // TestADeletedTopicIsGoneAfterAMonth: the daily cleanup removes a topic deleted more than 30 days ago with its
 // messages and summary; an archived topic stays.
 func TestADeletedTopicIsGoneAfterAMonth(t *testing.T) {
+	t.Parallel()
 	e := newClockEnv(t, func(ctx context.Context, c *Call) provider.Result { return provider.Result{Text: "Noted."} })
 	e.sweep()
 	gone := e.say(0, "drop me")
@@ -136,6 +140,7 @@ func TestADeletedTopicIsGoneAfterAMonth(t *testing.T) {
 // TestAnOldMessageWithFilePathsKeepsItsScreen: a message written when files were paths still tells the master
 // the screen it was written on; its paths are skipped.
 func TestAnOldMessageWithFilePathsKeepsItsScreen(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result { return provider.Result{Text: "Read it."} })
 	e.createProject("web", webNotes)
 	topic := e.say(0, "hello")
@@ -155,6 +160,7 @@ func TestAnOldMessageWithFilePathsKeepsItsScreen(t *testing.T) {
 // TestTheOwnerDeletesAMessageTheMasterHasNotTaken: while the master's reply waits for a slot, the owner's next
 // message waits too; the owner deletes it with its file, and a message a turn took stays.
 func TestTheOwnerDeletesAMessageTheMasterHasNotTaken(t *testing.T) {
+	t.Parallel()
 	release := make(chan struct{})
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		if c.command() == "work" {

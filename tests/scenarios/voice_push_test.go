@@ -30,6 +30,7 @@ import (
 )
 
 func TestVoiceBecomesTextOfTheMessage(t *testing.T) {
+	t.Parallel()
 	var mu sync.Mutex
 	var got struct {
 		file, format, language string
@@ -180,6 +181,7 @@ func (d *pushDevice) wait(e *Env, n int) []map[string]string {
 }
 
 func TestPushGoesToSubscribedDevices(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		if strings.Contains(c.Req.Prompt, "chat topic") {
 			return provider.Result{Text: "Put it into groceries, as card 1."}
@@ -254,6 +256,7 @@ func TestPushGoesToSubscribedDevices(t *testing.T) {
 }
 
 func TestAPushThatFailsForNowIsSentAgain(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		return provider.Result{Text: "The list is updated."}
 	})
@@ -291,6 +294,7 @@ func TestAPushThatFailsForNowIsSentAgain(t *testing.T) {
 // TestTheLanguageOfSpeechIsDetectedByDefault: the whisper.cpp deck sets up asks for auto, also before the
 // owner set up speech at all; an OpenAI-style API, which detects it when the field is left out, gets none.
 func TestTheLanguageOfSpeechIsDetectedByDefault(t *testing.T) {
+	t.Parallel()
 	var mu sync.Mutex
 	langs := map[string]string{}
 	whisper := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -332,6 +336,7 @@ func TestTheLanguageOfSpeechIsDetectedByDefault(t *testing.T) {
 // TestThePushKeyIsDecksOwnAndResetsWithItsButton: the key of pushes is not among the owner's secrets; its reset
 // makes a new key and drops the devices subscribed with the old one.
 func TestThePushKeyIsDecksOwnAndResetsWithItsButton(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	var before struct{ Key string }
 	e.must("deck.push_key", nil, &before)
@@ -354,6 +359,7 @@ func TestThePushKeyIsDecksOwnAndResetsWithItsButton(t *testing.T) {
 
 // TestNoToolGetsThePushKey: a tool that names deck's own key in its request does not get it.
 func TestNoToolGetsThePushKey(t *testing.T) {
+	t.Parallel()
 	seen := make(chan string, 1)
 	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) {
 		seen <- r.Header.Get("Authorization")
@@ -378,6 +384,7 @@ func TestNoToolGetsThePushKey(t *testing.T) {
 // TestADeviceThatFailsHoldsBackOnlyItself: each device keeps its own place in what was pushed, so a device whose
 // service fails gets it later and the others get each push once; the health of pushes names the failing one.
 func TestADeviceThatFailsHoldsBackOnlyItself(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	good, srv := newPushDevice(t)
 	good.subscribe(e, srv, "iPhone")
@@ -401,6 +408,7 @@ func TestADeviceThatFailsHoldsBackOnlyItself(t *testing.T) {
 // TestABaseWithAConnectionNamedWhisperGetsTheWhisperOfDeckToo: a base from before whose owner has a connection named
 // whisper still gets the whisper.cpp of deck as speech to text, under a name of its own.
 func TestABaseWithAConnectionNamedWhisperGetsTheWhisperOfDeckToo(t *testing.T) {
+	t.Parallel()
 	home := t.TempDir()
 	e := newEnvWith(t, home, &Fake{})
 	e.olderBase(10)
@@ -426,6 +434,7 @@ func TestABaseWithAConnectionNamedWhisperGetsTheWhisperOfDeckToo(t *testing.T) {
 // TestADeviceThePushServiceRefusesIsTurnedOnAgainFromItsHealthRow: a refusal for good, such as 400, says how to turn
 // the pushes of that device on again, and the row of the health opens where that is done.
 func TestADeviceThePushServiceRefusesIsTurnedOnAgainFromItsHealthRow(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	dev, _ := newPushDevice(t)
 	refusing := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusBadRequest) }))
@@ -446,6 +455,7 @@ func TestADeviceThePushServiceRefusesIsTurnedOnAgainFromItsHealthRow(t *testing.
 // TestThePushKeyLivesApartFromTheSecretsOfTheWorkspace: deck's key of pushes is outside the folder of secrets; the
 // key of a base from before moves out unchanged, and a secret named like it is the owner's own.
 func TestThePushKeyLivesApartFromTheSecretsOfTheWorkspace(t *testing.T) {
+	t.Parallel()
 	home := t.TempDir()
 	e := newEnvWith(t, home, &Fake{})
 	var first struct{ Key string }

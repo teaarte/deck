@@ -25,6 +25,7 @@ func jsonToolManifest(url string) string {
 // TestAJSONFieldGoesIntoTheBodyOfAToolAsItsValue: a field of format json is text for the caller (an App Intents
 // string) and the value it holds in the body of the request, whether the caller sent the text or the value.
 func TestAJSONFieldGoesIntoTheBodyOfAToolAsItsValue(t *testing.T) {
+	t.Parallel()
 	api := newModels(t, map[string]func(int, map[string]any) (int, string, string){
 		"/v1/chat/completions": func(int, map[string]any) (int, string, string) { return 200, "application/json", chatText("hi") },
 		"/v1/plain":            func(int, map[string]any) (int, string, string) { return 200, "application/json", `{"ok": true}` },

@@ -47,6 +47,7 @@ func (e *Env) masterAwake() {
 }
 
 func TestReviewRunsOnItsSchedule(t *testing.T) {
+	t.Parallel()
 	e := newClockEnv(t, masterScript)
 	e.masterAwake()
 	e.createProject("work", plainManifest)
@@ -78,6 +79,7 @@ func TestReviewRunsOnItsSchedule(t *testing.T) {
 }
 
 func TestAnErrorReachesTheMasterOncePerDay(t *testing.T) {
+	t.Parallel()
 	e := newClockEnv(t, masterScript)
 	e.masterAwake()
 	p := e.createProject("work", plainManifest)
@@ -99,6 +101,7 @@ func TestAnErrorReachesTheMasterOncePerDay(t *testing.T) {
 }
 
 func TestErrorsStayWithAProjectThatTurnedThemOff(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, masterScript)
 	e.masterAwake()
 	p := e.createProject("work", strings.Replace(plainManifest, `"version": 9,`, `"version": 9, "master_errors": false,`, 1))
@@ -110,6 +113,7 @@ func TestErrorsStayWithAProjectThatTurnedThemOff(t *testing.T) {
 }
 
 func TestMasterOwnErrorsDoNotReachItself(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		return provider.Result{IsError: true, Text: "the model is overloaded"}
 	})
@@ -129,6 +133,7 @@ func TestMasterOwnErrorsDoNotReachItself(t *testing.T) {
 // TestReviewCallsOnlyWhatItsCommandLists: the daily review reads and tells the owner; changing a project is not among
 // its tools, and a call by name is refused.
 func TestReviewCallsOnlyWhatItsCommandLists(t *testing.T) {
+	t.Parallel()
 	var tools []string
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		tools = c.Req.AllowedTools
@@ -149,6 +154,7 @@ func TestReviewCallsOnlyWhatItsCommandLists(t *testing.T) {
 // TestADeletedProjectTakesItsErrorDayWithIt: a new project under the name of a deleted one does not inherit its
 // day of silence towards the master.
 func TestADeletedProjectTakesItsErrorDayWithIt(t *testing.T) {
+	t.Parallel()
 	e := newClockEnv(t, masterScript)
 	e.masterAwake()
 	e.waitState(e.run(e.createProject("work", plainManifest), "work"), "error")
@@ -161,6 +167,7 @@ func TestADeletedProjectTakesItsErrorDayWithIt(t *testing.T) {
 // TestABlockThatFailsOnAScreenReachesTheMaster: a block of a module screen that fails on the records there are
 // is in the health of the module and goes to the master once per block and revision of the manifest.
 func TestABlockThatFailsOnAScreenReachesTheMaster(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, masterScript)
 	e.masterAwake()
 	broken := strings.Replace(webNotes, `"columns": [{"label": "Title", "bind": "title"}`, `"columns": [{"label": "Title", "bind": "title"}, {"label": "Score", "bind": "score > 0 ? score : nil"}`, 1)
@@ -205,6 +212,7 @@ func TestABlockThatFailsOnAScreenReachesTheMaster(t *testing.T) {
 // TestABlockThatFailsIsInTheHealthOfItsModuleWithoutTheMaster: a module that keeps its errors from the master still
 // shows a failing block in its health.
 func TestABlockThatFailsIsInTheHealthOfItsModuleWithoutTheMaster(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, masterScript)
 	e.masterAwake()
 	broken := strings.Replace(webNotes, `"columns": [{"label": "Title", "bind": "title"}`, `"columns": [{"label": "Title", "bind": "title"}, {"label": "Score", "bind": "score > 0 ? score : nil"}`, 1)
@@ -227,6 +235,7 @@ func TestABlockThatFailsIsInTheHealthOfItsModuleWithoutTheMaster(t *testing.T) {
 // TestASuggestionOfABaseFromBeforeExpires: deck makes suggestions no more; one an older base kept open expires with
 // its call in the journal, the setting of their days goes, and so do their commands.
 func TestASuggestionOfABaseFromBeforeExpires(t *testing.T) {
+	t.Parallel()
 	home := t.TempDir()
 	e := newEnvWith(t, home, &Fake{})
 	e.createProject("work", plainManifest)
@@ -268,6 +277,7 @@ func TestASuggestionOfABaseFromBeforeExpires(t *testing.T) {
 // TestADocumentDeckNoLongerShipsLeavesTheMaster: a document deck wrote into project master that it ships no more
 // goes on the next start; one the owner changed stays his.
 func TestADocumentDeckNoLongerShipsLeavesTheMaster(t *testing.T) {
+	t.Parallel()
 	home := t.TempDir()
 	e := newEnvWith(t, home, &Fake{})
 	for _, q := range []string{
@@ -294,6 +304,7 @@ func TestADocumentDeckNoLongerShipsLeavesTheMaster(t *testing.T) {
 // TestOnErrorCallsOnlyWhatItsCommandLists: the agent that reads the output of failed processes reads and tells the
 // owner; deleting a project is not among its tools, and a call by name is refused with the project left in place.
 func TestOnErrorCallsOnlyWhatItsCommandLists(t *testing.T) {
+	t.Parallel()
 	var tools []string
 	var listed, deleted string
 	var listedBad, deletedBad bool

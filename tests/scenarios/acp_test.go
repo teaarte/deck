@@ -111,6 +111,7 @@ func acpStream(lines ...string) string { return strings.Join(lines, "\n") }
 // TestACPQuestionStopsTheTurnBeforeTheAgentTimesOutAndTheAnswerResumes: an ACP agent gives a tool call 60 s, so a
 // question waits less, the turn ends and the owner's answer comes back through session/load of the same session.
 func TestACPQuestionStopsTheTurnBeforeTheAgentTimesOutAndTheAnswerResumes(t *testing.T) {
+	t.Parallel()
 	f := newACP(t)
 	f.streamText(4, acpStream(gooseInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,
 		`{"update": {"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "Hi."}}}`,
@@ -163,6 +164,7 @@ func TestACPQuestionStopsTheTurnBeforeTheAgentTimesOutAndTheAnswerResumes(t *tes
 // TestACPAgentPermissionIsAllowedOnceWithoutTheOwner: inside the sandbox of deck the agent's own questions about its
 // tools are answered with allow_once; "always" stays the owner's button.
 func TestACPAgentPermissionIsAllowedOnceWithoutTheOwner(t *testing.T) {
+	t.Parallel()
 	f := newACP(t)
 	f.streamText(4, acpStream(acpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,
 		`{"permission": {"toolCall": {"toolCallId": "c1", "title": "cat notes", "kind": "execute"}, "options": [{"optionId": "always", "name": "Always", "kind": "allow_always"}, {"optionId": "once", "name": "Once", "kind": "allow_once"}, {"optionId": "no", "name": "No", "kind": "reject_once"}]}}`,
@@ -187,6 +189,7 @@ func TestACPAgentPermissionIsAllowedOnceWithoutTheOwner(t *testing.T) {
 
 // TestACPExternalToolStillWaitsForYes: the class rules of the gateway hold for an ACP agent as for any other.
 func TestACPExternalToolStillWaitsForYes(t *testing.T) {
+	t.Parallel()
 	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { jsonReply(w, `{"id": "ext-1"}`) })
 	f := newACP(t)
 	f.streamText(4, acpStream(acpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,
@@ -210,6 +213,7 @@ func TestACPExternalToolStillWaitsForYes(t *testing.T) {
 // TestACPProjectWithoutNetworkHasNoWebThroughTheProxy: the proxy of the sandbox carries the agent only to the hosts
 // of its project, and nowhere in a project without network.
 func TestACPProjectWithoutNetworkHasNoWebThroughTheProxy(t *testing.T) {
+	t.Parallel()
 	site := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { jsonReply(w, `{}`) })
 	curl := `{"shell": "curl -s --noproxy '' --proxy \"$HTTP_PROXY\" ` + site.URL + `/page"}`
 	f := newACP(t)
@@ -244,6 +248,7 @@ func TestACPProjectWithoutNetworkHasNoWebThroughTheProxy(t *testing.T) {
 
 // TestACPSessionTheAgentLostStartsOver: a resume the agent refuses for a session it no longer lists starts anew.
 func TestACPSessionTheAgentLostStartsOver(t *testing.T) {
+	t.Parallel()
 	f := newACP(t)
 	f.streamText(4, acpStream(acpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,
 		`{"update": {"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "Hi."}}}`,
@@ -275,6 +280,7 @@ func TestACPSessionTheAgentLostStartsOver(t *testing.T) {
 
 // TestACPStopCancelsTheTurn: a stop of the process sends session/cancel and the agent ends the turn.
 func TestACPStopCancelsTheTurn(t *testing.T) {
+	t.Parallel()
 	f := newACP(t)
 	f.streamText(4, acpStream(acpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`, `{"hang": true}`))
 	e := acpEnv(t, f, "dsh", acpLLM(t))
@@ -287,6 +293,7 @@ func TestACPStopCancelsTheTurn(t *testing.T) {
 
 // TestACPRecordedTurnsOfBothAgents replays turns recorded from dsh and Goose through the same adapter.
 func TestACPRecordedTurnsOfBothAgents(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct{ agent, fixture string }{{"dsh", "dsh_turn.jsonl"}, {"goose", "goose_turn.jsonl"}} {
 		t.Run(tc.agent, func(t *testing.T) {
 			f := newACP(t)
@@ -304,6 +311,7 @@ func TestACPRecordedTurnsOfBothAgents(t *testing.T) {
 // TestACPSelfCheckPastItsCeilingSaysWhy: a self-check that runs out of time tells a key the model API refused
 // from a model that never finished a call and from one that answered but is slow.
 func TestACPSelfCheckPastItsCeilingSaysWhy(t *testing.T) {
+	t.Parallel()
 	start := []string{acpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`}
 	for _, tc := range []struct {
 		name          string
@@ -340,6 +348,7 @@ func TestACPSelfCheckPastItsCeilingSaysWhy(t *testing.T) {
 // TestACPSelfCheckIsRedWhenTheSandboxOrTheProxyFails: the probes deck reads itself turn the self-check red, told
 // apart as a broken adapter (leak, open network, no tokens) or a model that did not do the steps.
 func TestACPSelfCheckIsRedWhenTheSandboxOrTheProxyFails(t *testing.T) {
+	t.Parallel()
 	read := func(name string) string {
 		b, err := os.ReadFile(filepath.Join("testdata/acp", name))
 		if err != nil {
@@ -397,6 +406,7 @@ func TestACPSelfCheckIsRedWhenTheSandboxOrTheProxyFails(t *testing.T) {
 
 // TestFakeACPRejectsWhatTheSchemaLacks: the fake agent refuses a method or a field the ACP schema does not have.
 func TestFakeACPRejectsWhatTheSchemaLacks(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct{ line, want string }{
 		{`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":1,"bogus":true}}`, "unknown field bogus"},
 		{`{"jsonrpc":"2.0","id":1,"method":"session/fork","params":{}}`, "unknown method"},
@@ -416,6 +426,7 @@ func TestFakeACPRejectsWhatTheSchemaLacks(t *testing.T) {
 // TestACPTurnSucceedsOnlyOnEndTurn: another stop reason or a failed prompt is an error; the last answer of the model
 // API tells a refused key (a login) and a usage limit (a pause until Retry-After) apart.
 func TestACPTurnSucceedsOnlyOnEndTurn(t *testing.T) {
+	t.Parallel()
 	failed := `{"fail": {"code": -32603, "message": "Internal error: turn failed"}}`
 	for _, tc := range []struct {
 		end         string
@@ -456,6 +467,7 @@ func TestACPTurnSucceedsOnlyOnEndTurn(t *testing.T) {
 // TestACPTurnThatEndsOnARefusalOfTheModelIsTheRefusal: Goose ends its turn as end_turn with the error of the model
 // API in its text, so the last answer of the API still tells a usage limit and a refused key.
 func TestACPTurnThatEndsOnARefusalOfTheModelIsTheRefusal(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		status int
 		state  string
@@ -480,6 +492,7 @@ func TestACPTurnThatEndsOnARefusalOfTheModelIsTheRefusal(t *testing.T) {
 // TestACPTurnThatHandedInItsResultIsDoneThoughALaterCallWasRefused: a call of the model refused after the result,
 // such as the title of a session Goose asks for on the side, does not undo the turn.
 func TestACPTurnThatHandedInItsResultIsDoneThoughALaterCallWasRefused(t *testing.T) {
+	t.Parallel()
 	f := newACP(t)
 	llm := newLLM(t, func(n int, _ chatRequest) chatReply {
 		if n <= 3 {
@@ -498,6 +511,7 @@ func TestACPTurnThatHandedInItsResultIsDoneThoughALaterCallWasRefused(t *testing
 // TestACPTurnIsNotUndoneByARefusedCallOnTheSide: a call of the model without tools, such as the title of a session
 // Goose asks for, tells nothing of the turn: a turn whose answer is its text is done though that call was refused.
 func TestACPTurnIsNotUndoneByARefusedCallOnTheSide(t *testing.T) {
+	t.Parallel()
 	f := newACP(t)
 	llm := newLLM(t, func(n int, _ chatRequest) chatReply {
 		if n <= 4 {
@@ -518,6 +532,7 @@ func TestACPTurnIsNotUndoneByARefusedCallOnTheSide(t *testing.T) {
 // TestACPAgentThatDiscoversTheGatewayOpensASession: Goose asks server/discover first; told the method is not there,
 // it opens a session with initialize, which the gateway needs (told otherwise, it calls without one).
 func TestACPAgentThatDiscoversTheGatewayOpensASession(t *testing.T) {
+	t.Parallel()
 	f := newACP(t)
 	f.streamText(4, acpStream(gooseInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,
 		`{"discover": true}`, `{"mcp": {"tool": "result_submit", "arguments": {"result": {"color": "blue"}}}}`, `{"end": "end_turn"}`))
@@ -532,6 +547,7 @@ func TestACPAgentThatDiscoversTheGatewayOpensASession(t *testing.T) {
 // TestACPDeckWritesNothingThroughWhatTheAgentLeft: skills and the profile files go into folders the agent writes
 // to, so deck replaces what it finds there rather than follow a symlink the agent planted in an earlier turn.
 func TestACPDeckWritesNothingThroughWhatTheAgentLeft(t *testing.T) {
+	t.Parallel()
 	victims := t.TempDir()
 	victim := filepath.Join(victims, "owner.txt")
 	if err := os.WriteFile(victim, []byte("keep"), 0o600); err != nil {
@@ -570,6 +586,7 @@ func TestACPDeckWritesNothingThroughWhatTheAgentLeft(t *testing.T) {
 
 // TestACPStopDuringSetupEndsTheAgent: a stop while the agent has not even answered initialize ends the turn.
 func TestACPStopDuringSetupEndsTheAgent(t *testing.T) {
+	t.Parallel()
 	f := newACP(t)
 	f.streamText(4, `{"hang": true}`)
 	e := acpEnv(t, f, "dsh", acpLLM(t))
@@ -582,6 +599,7 @@ func TestACPStopDuringSetupEndsTheAgent(t *testing.T) {
 // TestACPProviderNameIsUniqueAcrossWorkspaces: health and self-checks of providers go by name, so a name another
 // workspace uses is refused.
 func TestACPProviderNameIsUniqueAcrossWorkspaces(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	ctx := t.Context()
 	if _, err := e.App.Store.DB.ExecContext(ctx, `INSERT INTO workspace (id, name) VALUES (2, 'other')`); err != nil {
@@ -602,6 +620,7 @@ func TestACPProviderNameIsUniqueAcrossWorkspaces(t *testing.T) {
 // TestACPProviderChangedDuringItsSelfCheckIsCheckedAgain: the first check ran on the old definition, so a change
 // while it runs starts another one before the provider counts as green.
 func TestACPProviderChangedDuringItsSelfCheckIsCheckedAgain(t *testing.T) {
+	t.Parallel()
 	f := newACP(t)
 	f.selfCheck()
 	for i := 4; i <= 6; i++ {
@@ -629,6 +648,7 @@ func TestACPProviderChangedDuringItsSelfCheckIsCheckedAgain(t *testing.T) {
 
 // TestACPCountsTokensOfCompressedReplies: a model API that compresses its answers still has its tokens counted.
 func TestACPCountsTokensOfCompressedReplies(t *testing.T) {
+	t.Parallel()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body := []byte(textReply("ok").body)
 		w.Header().Set("Content-Type", "application/json")
@@ -659,6 +679,7 @@ func TestACPCountsTokensOfCompressedReplies(t *testing.T) {
 // TestACPProviderIsNotUsedBeforeItsFirstSelfCheck: a command started right after the provider is added waits for the
 // self-check instead of running on an agent nobody checked.
 func TestACPProviderIsNotUsedBeforeItsFirstSelfCheck(t *testing.T) {
+	t.Parallel()
 	f := newACP(t)
 	f.selfCheck()
 	f.streamText(4, acpStream(acpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,
@@ -694,6 +715,7 @@ func TestACPProviderIsNotUsedBeforeItsFirstSelfCheck(t *testing.T) {
 
 // TestAProviderTakesItsOwnSelfCheckCeiling: a slow model gets more time for its self-check than deck's default.
 func TestAProviderTakesItsOwnSelfCheckCeiling(t *testing.T) {
+	t.Parallel()
 	f := newACP(t)
 	f.streamText(1, acpStream(acpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`, acpModel, `{"hang": true}`))
 	llm := newLLM(t, func(int, chatRequest) chatReply { return textReply("ok") })
@@ -731,6 +753,7 @@ func TestACPAgentDoesNotReadTheOwnersHome(t *testing.T) {
 // TestACPAgentReachesALocalServiceItsProjectNames: a service of the owner's machine that the project names by IP and
 // port in domains.read is reached by the shell of an ACP agent through deck's proxy, as by a script.
 func TestACPAgentReachesALocalServiceItsProjectNames(t *testing.T) {
+	t.Parallel()
 	local := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { _, _ = w.Write([]byte("hello")) })
 	addr := strings.TrimPrefix(local.URL, "http://")
 	f := newACP(t)

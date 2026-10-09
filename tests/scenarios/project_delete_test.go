@@ -22,6 +22,7 @@ import (
 // TestProjectDeleteTakesASnapshotAndLeavesNothingOfTheProject: only the owner, with no open process and no reader;
 // a snapshot first, then every row, file and folder of deck goes, the name is free again and the journal says so.
 func TestProjectDeleteTakesASnapshotAndLeavesNothingOfTheProject(t *testing.T) {
+	t.Parallel()
 	hold := make(chan struct{})
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		if c.command() == "tell" {
@@ -134,6 +135,7 @@ func TestProjectDeleteTakesASnapshotAndLeavesNothingOfTheProject(t *testing.T) {
 
 // TestProjectsTabDeletesAfterAYes: the delete button of a project asks the owner first.
 func TestProjectsTabDeletesAfterAYes(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	e.createProject("web", webNotes)
 	del := verb(t, findItem(t, blockData[[]listItem](t, e.settingsBlock("Projects", nil)["items"]), "web").Actions, "delete")
@@ -159,6 +161,7 @@ func TestProjectsTabDeletesAfterAYes(t *testing.T) {
 
 // TestProjectDeleteStopsTheMCPServersOfTheProject: a server of a deleted project does not run on.
 func TestProjectDeleteStopsTheMCPServersOfTheProject(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	e.createProject("srv", mcpManifest(""))
 	dir := e.mcpDir("srv", "fake")
@@ -179,6 +182,7 @@ func TestProjectDeleteStopsTheMCPServersOfTheProject(t *testing.T) {
 // TestTheMasterDeletesOnlyDrafts: the master deletes a draft it wrote at once, after a snapshot like the owner;
 // another's draft or an enabled project it does not.
 func TestTheMasterDeletesOnlyDrafts(t *testing.T) {
+	t.Parallel()
 	var said sync.Map
 	var turn atomic.Int32
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
@@ -220,6 +224,7 @@ func TestTheMasterDeletesOnlyDrafts(t *testing.T) {
 
 // TestATopicOfADeletedModuleHasNoModule: a topic begun on a screen of a module keeps no module once it is deleted.
 func TestATopicOfADeletedModuleHasNoModule(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result { return provider.Result{Text: "Noted."} })
 	e.createProject("web", webNotes)
 	topic := e.say(0, "look", map[string]any{"screen": `{"project":"web","screen":"main"}`})
@@ -244,6 +249,7 @@ func TestATopicOfADeletedModuleHasNoModule(t *testing.T) {
 // TestDeletingAModuleArchivesItsTopics: the topics of a deleted module, by the screen of their first message, go
 // to the archive; others stay.
 func TestDeletingAModuleArchivesItsTopics(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result { return provider.Result{Text: "Noted."} })
 	e.createProject("web", webNotes)
 	e.createProject("other", webNotes)
@@ -275,6 +281,7 @@ func TestDeletingAModuleArchivesItsTopics(t *testing.T) {
 // TestTheMasterHearsOfADeletedDraftFromItsData: a draft imported from a folder in the data of the master, once
 // deleted, names its folder in the answer and in the master's next turn; deck leaves the folder.
 func TestTheMasterHearsOfADeletedDraftFromItsData(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result { return provider.Result{Text: "Noted."} })
 	mp, err := e.App.Store.Q.GetProjectByName(context.Background(), db.GetProjectByNameParams{WorkspaceID: 1, Name: "master"})
 	if err != nil {
@@ -314,6 +321,7 @@ func TestTheMasterHearsOfADeletedDraftFromItsData(t *testing.T) {
 // TestTheImportsAndNotesOfABaseFromBeforeStay: the folder a draft came from and the notes for the master that an
 // older base kept as marks are still there.
 func TestTheImportsAndNotesOfABaseFromBeforeStay(t *testing.T) {
+	t.Parallel()
 	home := t.TempDir()
 	e := newEnvWith(t, home, &Fake{})
 	mp, _ := e.App.Store.Q.GetProjectByName(context.Background(), db.GetProjectByNameParams{WorkspaceID: 1, Name: "master"})
@@ -348,6 +356,7 @@ func TestTheImportsAndNotesOfABaseFromBeforeStay(t *testing.T) {
 // TestTheMasterImportsOnlyFromTheOwnersFoldersAndItsData: a folder of the owner and the data of the master can
 // become a draft; the data of another project cannot.
 func TestTheMasterImportsOnlyFromTheOwnersFoldersAndItsData(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	other := e.createProject("other", webNotes)
 	theirs := filepath.Join(e.App.Home.Data(other), "mod")

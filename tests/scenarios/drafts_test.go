@@ -76,6 +76,7 @@ func (e *Env) project(name string) projectV {
 }
 
 func TestDraftRunsOnlyTrialsAndNoTriggersUntilEnabled(t *testing.T) {
+	t.Parallel()
 	var quiet atomic.Bool
 	e := newClockEnv(t, trialAgent(&quiet))
 	_, tok := e.token("terminal", "deck.*", "notes.*")
@@ -206,6 +207,7 @@ func (e *Env) trial(id int64) bool {
 }
 
 func TestWideningChangeWaitsForTheOwnersButton(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, ok)
 	e.createProject("notes", plainManifest)
 	_, tok := e.token("terminal", "deck.*")
@@ -275,6 +277,7 @@ func TestWideningChangeWaitsForTheOwnersButton(t *testing.T) {
 }
 
 func TestChangesToADraftApplyAtOnce(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, ok)
 	_, tok := e.token("terminal", "deck.*")
 	if code, out := e.callWith(tok, "deck.project_create", map[string]any{"name": "notes", "manifest": plainManifest}); code != 200 {
@@ -296,6 +299,7 @@ func TestChangesToADraftApplyAtOnce(t *testing.T) {
 }
 
 func TestWhatCountsAsWideningRights(t *testing.T) {
+	t.Parallel()
 	base := `{"version": 9, "commands": [{"name": "run", "title": "Run", "description": "Runs.", "class": "external",
     "executor": {"type": "agent", "prompt": "Run."}}], %s}`
 	tool := `{"name": "post", "description": "Posts", "method": "POST", "url": "https://%s/x", "class": "%s", "headers": {"K": "%s"}}`
@@ -352,6 +356,7 @@ func (e *Env) manifestDocument(project string) int64 {
 }
 
 func TestEnablingADraftDropsAScheduledRunAlreadyPicked(t *testing.T) {
+	t.Parallel()
 	e := newClockEnv(t, ok)
 	_, tok := e.token("terminal", "deck.*")
 	m := testManifest([]string{agentCommand("work", "")}, []string{`{"command": "work", "cron": "0 9 * * *"}`})
@@ -375,6 +380,7 @@ func TestEnablingADraftDropsAScheduledRunAlreadyPicked(t *testing.T) {
 // TestCommandRightsWidenToo: dropping no_cloud, another provider and more callers of a command wait for the owner,
 // so a private command does not go to the cloud without a yes.
 func TestCommandRightsWidenToo(t *testing.T) {
+	t.Parallel()
 	cmd := `{"version": 9, "commands": [{"name": "run", "title": "Run", "description": "Runs.", "class": "internal", %s
     "executor": {"type": "agent", "prompt": "Run."}}]}`
 	from := fmt.Sprintf(cmd, `"requires": ["no_cloud"], "provider": "local", "callers": ["owner"],`)
@@ -408,6 +414,7 @@ func TestCommandRightsWidenToo(t *testing.T) {
 }
 
 func TestSecretsOfAuthWidenRightsLikeSecretsInHeaders(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, ok)
 	e.createProject("notes", `{"version": 9, "tools": {"http": [{"name": "own", "description": "d", "method": "GET",
 	  "url": "https://service.example/x", "auth": {"type": "secret", "secret": "shared"}}]}}`)
@@ -433,6 +440,7 @@ func TestSecretsOfAuthWidenRightsLikeSecretsInHeaders(t *testing.T) {
 }
 
 func TestCommandRunsTheRevisionItWasAuthorizedAgainst(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, idle)
 	e.createProject("nums", calcManifest)
 	cmd, err := e.App.Registry.Lookup(context.Background(), 1, "nums.calc")
@@ -454,6 +462,7 @@ func TestCommandRunsTheRevisionItWasAuthorizedAgainst(t *testing.T) {
 // TestADraftHasOnlyTheRightsTheOwnerGave: a draft the master writes sends no secret, reaches no domain of its
 // scripts and reads no other project until the owner enables it at the revision he saw.
 func TestADraftHasOnlyTheRightsTheOwnerGave(t *testing.T) {
+	t.Parallel()
 	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { jsonReply(w, `{"ok": true}`) })
 	e := newEnv(t, nil)
 	e.must("deck.secret_set", map[string]any{"name": "svc", "value": "s3cret"}, nil)
@@ -505,6 +514,7 @@ print(json.dumps({"status": fetch(json.load(sys.stdin)["allowed"])}))
 // TestABaseFromBeforeGrantsKeepsTheRightsOfEnabledProjects: an enabled project of an older base has the rights
 // of its current manifest; a draft there has none.
 func TestABaseFromBeforeGrantsKeepsTheRightsOfEnabledProjects(t *testing.T) {
+	t.Parallel()
 	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { jsonReply(w, `{"ok": true}`) })
 	home := t.TempDir()
 	e := newEnvWith(t, home, &Fake{})
@@ -526,6 +536,7 @@ func TestABaseFromBeforeGrantsKeepsTheRightsOfEnabledProjects(t *testing.T) {
 // TestAScriptOfADraftInstallsItsPackages: before the owner enables a draft, its scripts reach the package
 // registries its domains name and nothing else there.
 func TestAScriptOfADraftInstallsItsPackages(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	_, tok := e.token("terminal", "deck.*", "pkgs.*")
 	if code, out := e.callWith(tok, "deck.project_create", map[string]any{"name": "pkgs",
@@ -558,6 +569,7 @@ print(json.dumps({"registry": why("http://pypi.org/simple/"), "site": why("http:
 // TestADraftSaysWhichToolsWillAskEachTime: before the owner enables a draft, its row names the tools and commands
 // that will still wait for the owner on every call.
 func TestADraftSaysWhichToolsWillAskEachTime(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, ok)
 	_, tok := e.token("terminal", "deck.*")
 	m := strings.Replace(postManifest("http://127.0.0.1:1", ""), `"class": "internal"`, `"class": "reversible"`, 1)
@@ -577,6 +589,7 @@ func TestADraftSaysWhichToolsWillAskEachTime(t *testing.T) {
 // TestAWideningWaitsForTheOwnerInEveryRight: a revision that widens rights is in force only with what the owner
 // granted: a milder class waits for the owner's button, and a draft keeps the class of its granted revision.
 func TestAWideningWaitsForTheOwnerInEveryRight(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	e.createProject("pub", scriptManifest("media", "", ""))
 	_, tok := e.token("terminal", "deck.*", "pub.*")
@@ -647,6 +660,7 @@ func TestAWideningWaitsForTheOwnerInEveryRight(t *testing.T) {
 // TestARevisionNarrowedSinceAProcessStartedLeavesItTheGrantedCalls: a process resumed on its older revision gets the
 // calls the owner granted since, not none; a pattern in the grant covers the names under it.
 func TestARevisionNarrowedSinceAProcessStartedLeavesItTheGrantedCalls(t *testing.T) {
+	t.Parallel()
 	var outs []string
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		out, _ := c.Tool(ctx, "records_list", map[string]any{"collection": "items"})

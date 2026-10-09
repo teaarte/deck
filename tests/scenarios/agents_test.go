@@ -15,6 +15,7 @@ import (
 
 // TestAgentsAreFoundWithTheirVersion: deck finds the ACP agents installed with their version, one health row each.
 func TestAgentsAreFoundWithTheirVersion(t *testing.T) {
+	t.Parallel()
 	f := newACP(t)
 	if err := os.WriteFile(filepath.Join(f.dir, "version"), []byte(" 1.53.0"), 0o644); err != nil {
 		t.Fatal(err)
@@ -44,6 +45,7 @@ func TestAgentsAreFoundWithTheirVersion(t *testing.T) {
 // TestTheModelsAndConnectionsTabsShowWhatRunsTheModels: Models lists the assignments, the models with an error in a
 // line and in full on demand, and the agents; Connections the connections and the other secrets.
 func TestTheModelsAndConnectionsTabsShowWhatRunsTheModels(t *testing.T) {
+	t.Parallel()
 	f := newACP(t)
 	if err := os.WriteFile(filepath.Join(f.dir, "versionfails"), nil, 0o644); err != nil {
 		t.Fatal(err)
@@ -110,6 +112,7 @@ func TestTheModelsAndConnectionsTabsShowWhatRunsTheModels(t *testing.T) {
 
 // TestAnAgentWhoseVersionFailsSaysSo: an agent whose --version fails is red with that error and no version.
 func TestAnAgentWhoseVersionFailsSaysSo(t *testing.T) {
+	t.Parallel()
 	f := newACP(t)
 	if err := os.WriteFile(filepath.Join(f.dir, "versionfails"), nil, 0o644); err != nil {
 		t.Fatal(err)
@@ -129,6 +132,7 @@ func TestAnAgentWhoseVersionFailsSaysSo(t *testing.T) {
 // TestAModelOfOpenCodeSaysToSetItAgain: deck runs OpenCode no more; a base from before keeps such a model, red with
 // what to do, and a command assigned to it refuses with that reason.
 func TestAModelOfOpenCodeSaysToSetItAgain(t *testing.T) {
+	t.Parallel()
 	home := t.TempDir()
 	e := newEnvWith(t, home, &Fake{})
 	e.olderBase(14)

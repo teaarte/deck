@@ -28,6 +28,7 @@ func postManifest(url, extra string) string {
 func withTTL(c *app.Config) { c.ConfirmTTL = 24 * time.Hour }
 
 func TestExternalCallWaitsForYesThenDeckMakesItFrozen(t *testing.T) {
+	t.Parallel()
 	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { jsonReply(w, fmt.Sprintf(`{"id": "ext-%d"}`, n)) })
 	var first, again, second string
 	e := newClockEnv(t, func(ctx context.Context, c *Call) provider.Result {
@@ -95,6 +96,7 @@ func TestExternalCallWaitsForYesThenDeckMakesItFrozen(t *testing.T) {
 }
 
 func TestNoBecauseReachesTheAgentAndTheToolKeepsItsOwnTerm(t *testing.T) {
+	t.Parallel()
 	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { jsonReply(w, `{}`) })
 	var mu sync.Mutex
 	var calls []string
@@ -154,6 +156,7 @@ func (e *Env) calls(process int64) string {
 }
 
 func TestTriggeredExternalCallWaitsWithoutTheAgentAndRunsAfterYes(t *testing.T) {
+	t.Parallel()
 	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { jsonReply(w, `{"id": "n"}`) })
 	e := newClockEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		return provider.Result{Structured: json.RawMessage(`{}`)}
@@ -190,6 +193,7 @@ func TestTriggeredExternalCallWaitsWithoutTheAgentAndRunsAfterYes(t *testing.T) 
 }
 
 func TestAWaitingCallSurvivesTheEmptyProcessCleanup(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	e.createProject("jobs", scriptManifest("run", "", ""))
 	e.saveScript("jobs", "scripts/main.py", pythonLib+`
@@ -210,6 +214,7 @@ print("null" if st == 202 else json.dumps({"status": st}))
 }
 
 func TestAYesDoesNotMakeAChangedToolOrAnExpiredCall(t *testing.T) {
+	t.Parallel()
 	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { jsonReply(w, `{}`) })
 	e := newClockEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		if c.N == 1 {
@@ -242,6 +247,7 @@ func TestAYesDoesNotMakeAChangedToolOrAnExpiredCall(t *testing.T) {
 }
 
 func TestIdenticalExternalCallIsNotMadeWhileTheFirstIsOut(t *testing.T) {
+	t.Parallel()
 	release := make(chan struct{})
 	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) {
 		if n == 1 {
@@ -262,6 +268,7 @@ func TestIdenticalExternalCallIsNotMadeWhileTheFirstIsOut(t *testing.T) {
 }
 
 func TestConfirmationNamesTheMethodAndHost(t *testing.T) {
+	t.Parallel()
 	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { jsonReply(w, `{}`) })
 	e := newClockEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		_, _ = c.Tool(ctx, "notes__post", map[string]any{"id": "x", "text": "hi"})
@@ -276,6 +283,7 @@ func TestConfirmationNamesTheMethodAndHost(t *testing.T) {
 }
 
 func TestAllowOnceAllowsExactlyOneCall(t *testing.T) {
+	t.Parallel()
 	var mu sync.Mutex
 	var behaviors []string
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
@@ -325,6 +333,7 @@ func TestAllowOnceAllowsExactlyOneCall(t *testing.T) {
 // TestACallWaitingInABaseFromBeforeStillWaits: a call that waits for the owner in an older base waits on, and
 // the owner's yes makes it.
 func TestACallWaitingInABaseFromBeforeStillWaits(t *testing.T) {
+	t.Parallel()
 	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { jsonReply(w, `{"id": "x"}`) })
 	home := t.TempDir()
 	e := newEnvWith(t, home, &Fake{})

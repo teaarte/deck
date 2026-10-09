@@ -9,6 +9,7 @@ import (
 // TestTheMasterReadsTheFieldsOfAFormOnlyTheOwnerFillsIn: command_describe gives the master the schema of a
 // command closed to it, and a call that misses a field says which one in plain words.
 func TestTheMasterReadsTheFieldsOfAFormOnlyTheOwnerFillsIn(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	_, tok := e.token("helper", "deck.command_describe", "deck.connection_set")
 	code, out := e.callWith(tok, "deck.command_describe", map[string]any{"command": "deck.connection_set"})
@@ -39,6 +40,7 @@ func TestTheMasterReadsTheFieldsOfAFormOnlyTheOwnerFillsIn(t *testing.T) {
 // TestReadsGiveTheirResultSchema: commands that only read are reads, with the schema of their result, so a
 // screen can show them.
 func TestReadsGiveTheirResultSchema(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	for _, name := range []string{"records_list", "record_get", "manifest_get", "chat"} {
 		var d struct {

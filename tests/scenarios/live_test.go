@@ -29,6 +29,7 @@ func heard(ctx context.Context, c *Call) string {
 }
 
 func TestOwnerMessageReachesTheLiveTurn(t *testing.T) {
+	t.Parallel()
 	started := make(chan struct{}, 4)
 	fake := &Fake{live: true, script: func(ctx context.Context, c *Call) provider.Result {
 		started <- struct{}{}
@@ -66,6 +67,7 @@ func TestOwnerMessageReachesTheLiveTurn(t *testing.T) {
 }
 
 func TestMessageWaitsForAProviderWithoutLiveInput(t *testing.T) {
+	t.Parallel()
 	release := make(chan struct{})
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		if c.N == 1 {
@@ -100,6 +102,7 @@ func TestMessageWaitsForAProviderWithoutLiveInput(t *testing.T) {
 }
 
 func TestTerminalCommandOfAProcess(t *testing.T) {
+	t.Parallel()
 	release := make(chan struct{})
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		<-release
@@ -140,6 +143,7 @@ func TestTerminalCommandOfAProcess(t *testing.T) {
 }
 
 func TestClaudeCodeTakesTheOwnersMessageIntoItsTurn(t *testing.T) {
+	t.Parallel()
 	c := newCLI(t)
 	c.stream(0, "ok.jsonl")
 	before := `sed -n 1p "$d/stream" | sed "s/{{session}}/$session/g"; : > "$c/ready"; i=0; while [ "$(grep -c '"type":"user"' "$c/stdin")" -lt 2 ] && [ $i -lt 100 ]; do sleep 0.1; i=$((i+1)); done` + "\n"
@@ -166,6 +170,7 @@ func TestClaudeCodeTakesTheOwnersMessageIntoItsTurn(t *testing.T) {
 }
 
 func TestABackgroundTaskOfClaudeCodeEndsTheTurnWithItsLastResult(t *testing.T) {
+	t.Parallel()
 	c := newCLI(t)
 	c.stream(0, "background.jsonl")
 	e, _ := cliEnv(t, c)
@@ -178,6 +183,7 @@ func TestABackgroundTaskOfClaudeCodeEndsTheTurnWithItsLastResult(t *testing.T) {
 // TestAnEmptyResultWhileBackgroundAgentsRunIsNotTheEndOfTheTurn: Claude Code hands in a result at once after it
 // sends helpers to the background; deck keeps the CLI until they report and takes the result that follows.
 func TestAnEmptyResultWhileBackgroundAgentsRunIsNotTheEndOfTheTurn(t *testing.T) {
+	t.Parallel()
 	c := newCLI(t)
 	c.stream(0, "background_agent.jsonl")
 	rest := `{"type": "system", "subtype": "task_notification", "task_id": "bg1", "status": "completed", "session_id": "{{session}}"}

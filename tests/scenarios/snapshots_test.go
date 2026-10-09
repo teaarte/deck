@@ -16,6 +16,7 @@ import (
 )
 
 func TestDailySnapshotKeepsTheNewestSeven(t *testing.T) {
+	t.Parallel()
 	e := newClockEnv(t, nil)
 	backups := func() int {
 		m, _ := filepath.Glob(filepath.Join(deckhome.Layout(e.App.Cfg.Home).State(), "backups", "deck-*.tar.gz"))
@@ -43,6 +44,7 @@ func TestDailySnapshotKeepsTheNewestSeven(t *testing.T) {
 }
 
 func TestFilesOfDeletedRecordsGoInTheDailyCleanup(t *testing.T) {
+	t.Parallel()
 	e := newClockEnv(t, nil)
 	e.createProject("files", scriptManifest("make", "", ""))
 	e.saveScript("files", "scripts/main.py", pythonLib+`
@@ -65,6 +67,7 @@ print(json.dumps({"files": [{"path": "f.txt", "record": out["ids"][0]}]}))
 }
 
 func TestAHandSnapshotDoesNotPutOffTheDailyCleanup(t *testing.T) {
+	t.Parallel()
 	e := newClockEnv(t, nil)
 	e.createProject("docs", filesManifest())
 	e.sweep()
@@ -91,6 +94,7 @@ print(json.dumps({"files": files}))
 `
 
 func TestASnapshotHoldsEveryFileItsBaseNames(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	e.createProject("many", scriptManifest("make", "", ""))
 	e.saveScript("many", "scripts/main.py", manyFilesScript)
@@ -174,6 +178,7 @@ func snapshotFiles(t *testing.T, path string) ([]string, map[string]bool) {
 // TestSnapshotsBeforeDeletesKeepTheirOwnTurn: snapshots taken before deleting projects rotate among themselves
 // and never push out the daily ones.
 func TestSnapshotsBeforeDeletesKeepTheirOwnTurn(t *testing.T) {
+	t.Parallel()
 	e := newClockEnv(t, nil)
 	backups := func(pattern string) int {
 		m, _ := filepath.Glob(filepath.Join(deckhome.Layout(e.App.Cfg.Home).State(), "backups", pattern))
@@ -205,6 +210,7 @@ func TestSnapshotsBeforeDeletesKeepTheirOwnTurn(t *testing.T) {
 // TestADailySnapshotSkipsAFileItCannotReadAndSaysSo: a file of a data folder the snapshot cannot read is left out
 // with a warning in health, the rest is kept; a snapshot that fails is an error in health, not only in the log.
 func TestADailySnapshotSkipsAFileItCannotReadAndSaysSo(t *testing.T) {
+	t.Parallel()
 	e := newClockEnv(t, nil)
 	e.createProject("notes", ideasManifest)
 	h := deckhome.Layout(e.App.Cfg.Home)

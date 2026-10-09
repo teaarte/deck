@@ -63,6 +63,7 @@ func stepAgent(got map[string]toolCall, args map[string]map[string]any) Script {
 }
 
 func TestMCPServerToolsFollowClassesAndFilter(t *testing.T) {
+	t.Parallel()
 	got := map[string]toolCall{}
 	var tools []string
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
@@ -113,6 +114,7 @@ func TestMCPServerToolsFollowClassesAndFilter(t *testing.T) {
 }
 
 func TestMCPCallLostWithItsServerIsAnUnknownOutcome(t *testing.T) {
+	t.Parallel()
 	got := map[string]toolCall{}
 	args := map[string]map[string]any{"srv__fake__vanish": {"to": "ann"}, "srv__fake__lookup": {"word": "moon"}}
 	e := newEnv(t, stepAgent(got, args))
@@ -152,6 +154,7 @@ func TestMCPCallLostWithItsServerIsAnUnknownOutcome(t *testing.T) {
 }
 
 func TestChangedMCPToolLosesItsRightsUntilTheOwnerAllowsItAgain(t *testing.T) {
+	t.Parallel()
 	got := map[string]toolCall{}
 	args := map[string]map[string]any{"srv__fake__send": {"to": "ann"}}
 	e := newEnv(t, stepAgent(got, args))
@@ -258,6 +261,7 @@ for line in sys.stdin:
 // TestMCPToolWithASchemaThatIsNotAnObjectIsLeftOut: a server may list any schema; deck keeps running and the
 // agent gets the other tools.
 func TestMCPToolWithASchemaThatIsNotAnObjectIsLeftOut(t *testing.T) {
+	t.Parallel()
 	got := map[string]toolCall{}
 	e := newEnv(t, stepAgent(got, nil))
 	script, _ := json.Marshal(oddServer)
@@ -275,6 +279,7 @@ func TestMCPToolWithASchemaThatIsNotAnObjectIsLeftOut(t *testing.T) {
 // TestTheOwnerCallsAnMCPToolDirectly: a tool of a server that listed its tools is a registry command the owner
 // calls as an HTTP tool, and an external one goes through the journal of intents.
 func TestTheOwnerCallsAnMCPToolDirectly(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	e.createProject("srv", mcpManifest(""))
 	dir := e.mcpDir("srv", "fake")
@@ -291,6 +296,7 @@ func TestTheOwnerCallsAnMCPToolDirectly(t *testing.T) {
 }
 
 func TestMCPServersOfADraftDoNotStart(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, ok)
 	_, tok := e.token("terminal", "deck.*")
 	if code, out := e.callWith(tok, "deck.project_create", map[string]any{"name": "srv", "manifest": mcpManifest("")}); code != 200 {
@@ -310,6 +316,7 @@ func TestMCPServersOfADraftDoNotStart(t *testing.T) {
 }
 
 func TestNewMCPServerWaitsForTheOwnersButton(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, ok)
 	e.createProject("srv", `{"version": 9}`)
 	_, tok := e.token("terminal", "deck.*")
@@ -324,6 +331,7 @@ func TestNewMCPServerWaitsForTheOwnersButton(t *testing.T) {
 }
 
 func TestWiderToolFilterAndAToolThatComesBackWaitForTheOwner(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, ok)
 	narrow := strings.Replace(mcpManifest(`, "allowed_external": ["fake.send"]`), `"toolFilter": ["lookup", "send", "picture", "vanish", "peek"]`, `"toolFilter": ["lookup"]`, 1)
 	e.createProject("srv", narrow)
@@ -363,6 +371,7 @@ func TestWiderToolFilterAndAToolThatComesBackWaitForTheOwner(t *testing.T) {
 }
 
 func TestCollidingToolNamesNeverReachTheWrongTool(t *testing.T) {
+	t.Parallel()
 	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { jsonReply(w, `{"from": "http"}`) })
 	got := map[string]toolCall{}
 	e := newEnv(t, stepAgent(got, map[string]map[string]any{"srv__fake__lookup": {"word": "x"}}))
@@ -380,6 +389,7 @@ func TestCollidingToolNamesNeverReachTheWrongTool(t *testing.T) {
 }
 
 func TestSecretAServerPrintsStaysOutOfHealth(t *testing.T) {
+	t.Parallel()
 	const key = "sk-server-0123456789"
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		return provider.Result{Structured: json.RawMessage(`{}`)}
@@ -404,6 +414,7 @@ func TestSecretAServerPrintsStaysOutOfHealth(t *testing.T) {
 }
 
 func TestMCPSessionNeedsItsOwnToken(t *testing.T) {
+	t.Parallel()
 	var status int
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		body := `{"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"records_upsert","arguments":{"collection":"nums","records":"{\"n\": 5}"}}}`
@@ -428,6 +439,7 @@ func TestMCPSessionNeedsItsOwnToken(t *testing.T) {
 // TestTheToolsAServerListsReachTheCommandsOfItsProject: the tools an MCP server lists are commands of its
 // project, so the list of commands, which follows projects, reads them again.
 func TestTheToolsAServerListsReachTheCommandsOfItsProject(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, stepAgent(map[string]toolCall{}, nil))
 	e.createProject("srv", mcpManifest(""))
 	ev := e.live(t.Context())

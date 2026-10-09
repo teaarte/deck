@@ -10,6 +10,7 @@ import (
 // TestPartsOfADocumentAndOfAManifestChangeWithoutSendingTheWholeText: old parts of the current text are replaced
 // with new ones, each old part must occur once, and if_revision guards against a change made meanwhile.
 func TestPartsOfADocumentAndOfAManifestChangeWithoutSendingTheWholeText(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	e.createProject("web", webNotes)
 	save := func(in map[string]any) (int, string) {
@@ -78,6 +79,7 @@ func TestPartsOfADocumentAndOfAManifestChangeWithoutSendingTheWholeText(t *testi
 // TestASavedManifestNamesTheBlocksThatFailOnTheRecordsThereAre: a column whose expression breaks on a real
 // record is named in the answer of the save, so the one who saved sees it before the owner does.
 func TestASavedManifestNamesTheBlocksThatFailOnTheRecordsThereAre(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	e.createProject("web", webNotes)
 	e.must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": "<p>x</p>"}, nil)
@@ -105,6 +107,7 @@ func TestASavedManifestNamesTheBlocksThatFailOnTheRecordsThereAre(t *testing.T) 
 // TestRefusalsSayWhereAndWhatToDo: a broken JSON gives its line, column and text; a button to a screen the
 // module lacks says how to open a screen of deck; overlapping old texts name each other.
 func TestRefusalsSayWhereAndWhatToDo(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, webNotesAgent())
 	broken := strings.Replace(webNotes, `"title": "Web"`, `"title": "Web",,`, 1)
 	if broken == webNotes {
@@ -140,6 +143,7 @@ func TestRefusalsSayWhereAndWhatToDo(t *testing.T) {
 // TestAPatchKeepsTheTypesOfItsValues: a number in a patch stays a number in the saved manifest, and a patch
 // that only tests changes nothing.
 func TestAPatchKeepsTheTypesOfItsValues(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	e.createProject("web", webNotes)
 	var saved struct{ Revision int64 }

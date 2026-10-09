@@ -24,6 +24,7 @@ func askQuestion(ctx context.Context, c *Call, q string) map[string]any {
 }
 
 func TestAnswerBetweenTimeoutAndStopIsNotLost(t *testing.T) {
+	t.Parallel()
 	answered := make(chan struct{})
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		if !c.Req.Resume {
@@ -47,6 +48,7 @@ func TestAnswerBetweenTimeoutAndStopIsNotLost(t *testing.T) {
 }
 
 func TestTwoLateAnswersResumeOnce(t *testing.T) {
+	t.Parallel()
 	var running, maxRunning int32
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		if c.Req.Resume {
@@ -87,6 +89,7 @@ func TestTwoLateAnswersResumeOnce(t *testing.T) {
 }
 
 func TestProviderErrorMarksProcessError(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	e.Fake.script = func(ctx context.Context, c *Call) provider.Result {
 		return provider.Result{IsError: true, Text: "boom"}
@@ -99,6 +102,7 @@ func TestProviderErrorMarksProcessError(t *testing.T) {
 }
 
 func TestLateAllowPermitsExactlyThatCallOnce(t *testing.T) {
+	t.Parallel()
 	var second, third map[string]any
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		call := map[string]any{"command": "make deploy"}
@@ -133,6 +137,7 @@ func TestLateAllowPermitsExactlyThatCallOnce(t *testing.T) {
 }
 
 func TestConfirmationExpiresAndProcessIsTold(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		if !c.Req.Resume {
 			c.Approve(ctx, "Bash", map[string]any{"command": "rm -rf build"})
@@ -156,6 +161,7 @@ func TestConfirmationExpiresAndProcessIsTold(t *testing.T) {
 }
 
 func TestShutdownKeepsProcessForResumeAfterRestart(t *testing.T) {
+	t.Parallel()
 	home := t.TempDir()
 	started := make(chan struct{})
 	fake := &Fake{script: func(ctx context.Context, c *Call) provider.Result {
@@ -192,6 +198,7 @@ func restartEnv(t *testing.T, home string, fake *Fake) *Env {
 }
 
 func TestRecordWithoutKeyIsRejected(t *testing.T) {
+	t.Parallel()
 	var out string
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		out, _ = c.Tool(ctx, "records_upsert", map[string]any{"collection": "ideas", "records": jsonl(map[string]any{"score": 5})})
@@ -206,6 +213,7 @@ func TestRecordWithoutKeyIsRejected(t *testing.T) {
 }
 
 func TestDuplicateTriggerIsRejected(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, nil)
 	m := strings.Replace(ideasManifest, `"triggers": [{"command": "collect", "cron": "0 9 * * *"}]`,
 		`"triggers": [{"command": "collect", "cron": "0 9 * * *"}, {"command": "collect", "cron": "0 9 * * *"}]`, 1)
@@ -218,6 +226,7 @@ func TestDuplicateTriggerIsRejected(t *testing.T) {
 func itoa(n int64) string { b, _ := json.Marshal(n); return string(b) }
 
 func TestResumeKeepsTheManifestRevisionTheProcessStartedBy(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		if !c.Req.Resume {
 			askQuestion(ctx, c, "Go on?")
@@ -247,6 +256,7 @@ func TestResumeKeepsTheManifestRevisionTheProcessStartedBy(t *testing.T) {
 }
 
 func TestStopThatSucceedsAlwaysEndsTheProcessStopped(t *testing.T) {
+	t.Parallel()
 	returning := make(chan struct{}, 1)
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		returning <- struct{}{}
@@ -267,6 +277,7 @@ func TestStopThatSucceedsAlwaysEndsTheProcessStopped(t *testing.T) {
 }
 
 func TestAnswerSavedBeforeRestartReachesParkedProcess(t *testing.T) {
+	t.Parallel()
 	home := t.TempDir()
 	fake := &Fake{script: func(ctx context.Context, c *Call) provider.Result {
 		askQuestion(ctx, c, "Which topic?")
@@ -299,6 +310,7 @@ func TestAnswerSavedBeforeRestartReachesParkedProcess(t *testing.T) {
 }
 
 func TestResumeAfterItsCommandWasRenamedFinishesTheSession(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		if c.Req.Resume {
 			return provider.Result{Structured: json.RawMessage(`{"written": 0}`)}
@@ -321,6 +333,7 @@ func TestResumeAfterItsCommandWasRenamedFinishesTheSession(t *testing.T) {
 // TestAStopEndsTheTurnsBeforeTheServerGoes: a stop of deck ends the turns of agents and its background work
 // first, while deck still answers, so no agent loses deck's tools in the middle of a turn.
 func TestAStopEndsTheTurnsBeforeTheServerGoes(t *testing.T) {
+	t.Parallel()
 	started, ended := make(chan struct{}), make(chan struct{})
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		close(started)

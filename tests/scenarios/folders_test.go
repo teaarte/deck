@@ -39,6 +39,7 @@ func repoFolder(t *testing.T) string {
 // TestAgentCommandWorksInTheProjectFolder: an agent command with folder runs in the project folder the owner
 // added, as a repo when it is one, and a rework goes back to the same folder; the Projects tab lists folders.
 func TestAgentCommandWorksInTheProjectFolder(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, ok)
 	p := e.createProject("code", testManifest([]string{folderCommand("run", "true"), agentCommand("plain", ""),
 		folderCommand("docs", `"notes"`)}, nil))
@@ -112,6 +113,7 @@ func TestAgentCommandWorksInTheProjectFolder(t *testing.T) {
 // TestSecondAgentInTheSameFolderWaitsForTheLock: two projects share a folder, one by a link; the second agent
 // waits for it without reaching its provider, says so in the cockpit and runs when the first finishes.
 func TestSecondAgentInTheSameFolderWaitsForTheLock(t *testing.T) {
+	t.Parallel()
 	release := make(chan struct{}, 10)
 	e := newEnv(t, held(release))
 	repo := repoFolder(t)
@@ -162,6 +164,7 @@ func TestSecondAgentInTheSameFolderWaitsForTheLock(t *testing.T) {
 // TestFolderLockSurvivesARestart: the lock is in the base, so after a restart the agent that had the folder
 // goes on in it and the one that waited still waits until it finishes.
 func TestFolderLockSurvivesARestart(t *testing.T) {
+	t.Parallel()
 	home := t.TempDir()
 	hang := make(chan struct{})
 	first := &Fake{script: held(hang)}
@@ -195,6 +198,7 @@ func TestFolderLockSurvivesARestart(t *testing.T) {
 // TestOnlyTheOwnerAddsAFolder: a folder lets agents write there, so neither a terminal agent on an automation
 // token nor an agent of the project may add one; deck's own folder and a missing one are refused.
 func TestOnlyTheOwnerAddsAFolder(t *testing.T) {
+	t.Parallel()
 	var tools []string
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		tools = toolNames(c.Session)
@@ -231,6 +235,7 @@ func TestOnlyTheOwnerAddsAFolder(t *testing.T) {
 // TestCodexAgentInTheProjectFolderMayWriteItsGit: the profile of a Codex turn in a repo folder writes the folder
 // and its .git; a .git file or link names a folder elsewhere the agent may have written, so it gets nothing.
 func TestCodexAgentInTheProjectFolderMayWriteItsGit(t *testing.T) {
+	t.Parallel()
 	c := newCodex(t)
 	c.stream(0, "ok.jsonl")
 	e, home := codexEnv(t, c)
@@ -268,6 +273,7 @@ func TestCodexAgentInTheProjectFolderMayWriteItsGit(t *testing.T) {
 // TestAFolderCommandNeedsAProviderThatWorksInFolders: a provider that cannot work in the owner's folder yet
 // does not start a command with folder.
 func TestAFolderCommandNeedsAProviderThatWorksInFolders(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, ok)
 	e.Fake.noFolder = true
 	e.createProject("code", testManifest([]string{folderCommand("run", "true")}, nil))
@@ -278,6 +284,7 @@ func TestAFolderCommandNeedsAProviderThatWorksInFolders(t *testing.T) {
 // TestTheProjectsTabCreatesAProjectAndGivesItAFolder: the owner creates a project from its name and md prompt
 // alone, and the folder forms offer the projects.
 func TestTheProjectsTabCreatesAProjectAndGivesItAFolder(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, ok)
 	for _, title := range []string{"Create project", "Import project"} {
 		e.settingsBlock(title, nil)
@@ -300,6 +307,7 @@ func TestTheProjectsTabCreatesAProjectAndGivesItAFolder(t *testing.T) {
 // TestAPauseTheOwnerStopsFreesTheFolder: a process the owner stops on its pause on a usage limit leaves the
 // folder, and the one that waited for it runs.
 func TestAPauseTheOwnerStopsFreesTheFolder(t *testing.T) {
+	t.Parallel()
 	var first string
 	e := newClockEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		if first == "" || first == c.Req.SessionID {
@@ -322,6 +330,7 @@ func TestAPauseTheOwnerStopsFreesTheFolder(t *testing.T) {
 // TestAStoppedAgentKeepsTheFolderUntilItsTurnExits: a stopped agent whose turn takes a while to die keeps the
 // folder, so the next one does not reach its provider in it until then, and it is not sent back meanwhile.
 func TestAStoppedAgentKeepsTheFolderUntilItsTurnExits(t *testing.T) {
+	t.Parallel()
 	dying, inside := make(chan struct{}), make(chan struct{})
 	var once sync.Once
 	let := func() { once.Do(func() { close(dying) }) }

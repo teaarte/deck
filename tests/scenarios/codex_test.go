@@ -117,6 +117,7 @@ func quoteTOML(s string) string {
 }
 
 func TestCodexProjectWithoutNetworkHasNoWebAndNoNetwork(t *testing.T) {
+	t.Parallel()
 	c := newCodex(t)
 	c.stream(0, "ok.jsonl")
 	e, _ := codexEnv(t, c)
@@ -139,6 +140,7 @@ const outsideManifest = `{"version": 9,
 // TestCodexEscalationWaitsForTheOwner hands what Codex would ask a person to deck as a confirmation of exactly
 // that call: yes accepts it, no with a reason declines it and steers the reason into the turn.
 func TestCodexEscalationWaitsForTheOwner(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct{ fixture, answer, decision string }{
 		{"escalation.jsonl", "deny:not outside your folder", `"decline"`},
 		{"escalation_allow.jsonl", "allow", `"accept"`},
@@ -180,6 +182,7 @@ func mustJSON(v any) []byte {
 }
 
 func TestCodexRetryResumesTheThreadOfTheSession(t *testing.T) {
+	t.Parallel()
 	c := newCodex(t)
 	c.stream(1, "nosubmit.jsonl")
 	c.stream(2, "resume.jsonl")
@@ -203,6 +206,7 @@ func TestCodexRetryResumesTheThreadOfTheSession(t *testing.T) {
 }
 
 func TestCodexLostThreadStartsTheSessionOver(t *testing.T) {
+	t.Parallel()
 	c := newCodex(t)
 	c.stream(1, "nosubmit.jsonl")
 	c.stream(2, "norollout.jsonl")
@@ -217,6 +221,7 @@ func TestCodexLostThreadStartsTheSessionOver(t *testing.T) {
 }
 
 func TestCodexLostLoginAndLimit(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct{ fixture, state string }{
 		{"nologin.jsonl", "needs_login"}, {"unauthorized.jsonl", "needs_login"}, {"ratelimit.jsonl", "rate_limited"},
 	} {
@@ -236,6 +241,7 @@ func TestCodexLostLoginAndLimit(t *testing.T) {
 }
 
 func TestCodexTurnSucceedsOnlyStrictly(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct{ fixture, want string }{
 		{"two_completions.jsonl", "completions of one turn"}, {"nocompletion.jsonl", "without finishing the turn"},
 	} {
@@ -251,6 +257,7 @@ func TestCodexTurnSucceedsOnlyStrictly(t *testing.T) {
 }
 
 func TestCodexSubAgentEventsAreNotProcessEvents(t *testing.T) {
+	t.Parallel()
 	c := newCodex(t)
 	c.stream(1, "subagent.jsonl")
 	e, _ := codexEnv(t, c)
@@ -272,6 +279,7 @@ func TestCodexSubAgentEventsAreNotProcessEvents(t *testing.T) {
 }
 
 func TestCodexThatDoesNotExitAfterItsTurnIsKilled(t *testing.T) {
+	t.Parallel()
 	c := newCodex(t)
 	c.stream(1, "hang.jsonl")
 	e, _ := codexEnv(t, c)
@@ -284,6 +292,7 @@ func TestCodexThatDoesNotExitAfterItsTurnIsKilled(t *testing.T) {
 }
 
 func TestFakeCodexRejectsWhatTheSchemaLacks(t *testing.T) {
+	t.Parallel()
 	c := newCodex(t)
 	c.stream(0, "ok.jsonl")
 	for _, tc := range []struct {
@@ -310,6 +319,7 @@ func TestFakeCodexRejectsWhatTheSchemaLacks(t *testing.T) {
 // TestFailedCodexSelfCheckHoldsCodexProcesses keeps processes on Codex waiting while its self-check is red; the
 // main provider goes on, and the retried check on its timer lets them run.
 func TestFailedCodexSelfCheckHoldsCodexProcesses(t *testing.T) {
+	t.Parallel()
 	c := newCodex(t)
 	c.stream(0, "ok.jsonl")
 	home := t.TempDir()
@@ -352,6 +362,7 @@ func TestFailedCodexSelfCheckHoldsCodexProcesses(t *testing.T) {
 }
 
 func TestCodexSelfCheckIsRedWhenAutoModeStopsWorking(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		streams []string
 		want    string
@@ -382,6 +393,7 @@ func TestCodexSelfCheckIsRedWhenAutoModeStopsWorking(t *testing.T) {
 // TestCodexResumeAfterALateAnswerAsksForTheResultAgain parks a process whose question was not answered in time;
 // the resume with the owner's answer asks for the whole result again, since each turn hands in its own.
 func TestCodexResumeAfterALateAnswerAsksForTheResultAgain(t *testing.T) {
+	t.Parallel()
 	c := newCodex(t)
 	c.stream(1, "ask.jsonl")
 	c.stream(2, "resume.jsonl")
@@ -404,6 +416,7 @@ func TestCodexResumeAfterALateAnswerAsksForTheResultAgain(t *testing.T) {
 }
 
 func TestCodexSessionWithoutItsThreadStartsOver(t *testing.T) {
+	t.Parallel()
 	c := newCodex(t)
 	c.stream(1, "ask.jsonl")
 	c.stream(2, "ok.jsonl")
@@ -423,6 +436,7 @@ func TestCodexSessionWithoutItsThreadStartsOver(t *testing.T) {
 }
 
 func TestCodexNetworkEscalationInAProjectWithoutNetworkIsDeclined(t *testing.T) {
+	t.Parallel()
 	c := newCodex(t)
 	c.stream(1, "escalation_network.jsonl")
 	e, _ := codexEnv(t, c)
@@ -440,6 +454,7 @@ func TestCodexNetworkEscalationInAProjectWithoutNetworkIsDeclined(t *testing.T) 
 }
 
 func TestCodexFileChangeConfirmationShowsTheChange(t *testing.T) {
+	t.Parallel()
 	c := newCodex(t)
 	raw, _ := os.ReadFile("testdata/codex/filechange.jsonl")
 	lines := strings.SplitAfter(string(raw), "\n")
@@ -474,6 +489,7 @@ func TestCodexFileChangeConfirmationShowsTheChange(t *testing.T) {
 }
 
 func TestCodexApprovalOfAnotherTurnIsDeclinedWithoutAsking(t *testing.T) {
+	t.Parallel()
 	c := newCodex(t)
 	c.stream(1, "escalation_staleturn.jsonl")
 	e, _ := codexEnv(t, c)
@@ -489,6 +505,7 @@ func TestCodexApprovalOfAnotherTurnIsDeclinedWithoutAsking(t *testing.T) {
 }
 
 func TestCodexOwnerServerNamedDeckIsAnError(t *testing.T) {
+	t.Parallel()
 	c := newCodex(t)
 	c.stream(1, "deckserver.jsonl")
 	e, _ := codexEnv(t, c)
@@ -500,6 +517,7 @@ func TestCodexOwnerServerNamedDeckIsAnError(t *testing.T) {
 }
 
 func TestCodexTurnGoesOnWhenTheAppServerStopsReadingWhileItWrites(t *testing.T) {
+	t.Parallel()
 	c := newCodex(t)
 	b, _ := os.ReadFile("testdata/codex/ok.jsonl")
 	lines := strings.Split(strings.TrimSpace(string(b)), "\n")
@@ -523,6 +541,7 @@ func TestCodexTurnGoesOnWhenTheAppServerStopsReadingWhileItWrites(t *testing.T) 
 }
 
 func TestTheFinalAnswerOfCodexIsTheTextOfItsTurn(t *testing.T) {
+	t.Parallel()
 	c := newCodex(t)
 	c.stream(0, "reply.jsonl")
 	e, _ := codexEnv(t, c)
@@ -535,6 +554,7 @@ func TestTheFinalAnswerOfCodexIsTheTextOfItsTurn(t *testing.T) {
 // TestCodexShellHasTheNetworkOrNone: the shell of Codex has the whole network, as the owner's, so its local ports
 // work; a list of hosts went through the proxy of Codex, which closed them. A project without network has none.
 func TestCodexShellHasTheNetworkOrNone(t *testing.T) {
+	t.Parallel()
 	c := newCodex(t)
 	c.stream(0, "ok.jsonl")
 	c.stream(1, "ok.jsonl")

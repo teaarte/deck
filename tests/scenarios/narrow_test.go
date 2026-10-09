@@ -11,6 +11,7 @@ import (
 // TestListsOfRecordsAndProcessesNarrowToWhatTheCallerAsks: records by the values of their fields with only the
 // fields asked for, processes of one command without their results.
 func TestListsOfRecordsAndProcessesNarrowToWhatTheCallerAsks(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		return provider.Result{Structured: json.RawMessage(`{"big": "result"}`)}
 	})

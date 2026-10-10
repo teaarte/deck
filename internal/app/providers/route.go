@@ -239,6 +239,10 @@ func (s *Service) turnModel(workspace int64, m db.Model, c db.Connection) func(o
 				http.Error(w, err.Error(), registry.Status(err))
 				return
 			}
+			if !gateway.ModelPath(r.Method, r.URL.Path) {
+				http.Error(w, "deck: "+r.Method+" "+r.URL.Path+" is not a call of a model; an agent calls only its model through deck", http.StatusForbidden)
+				return
+			}
 			h, err := s.hop(workspace, m, c)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusBadGateway)

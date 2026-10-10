@@ -170,29 +170,47 @@ func (s *Service) hold(ctx context.Context, copyDB, files string, project int64)
 	return nil
 }
 
+// snapshot is a snapshot of the base and files in backups.
+type snapshot struct {
+	Name    string `json:"name"`
+	Size    int64  `json:"size"`
+	TakenAt string `json:"taken_at"`
+	Path    string `json:"path"`
+}
+
+// list is the snapshots in dir, newest first by the time in their names.
+func list(dir string) []snapshot {
+	paths, _ := filepath.Glob(filepath.Join(dir, "*-*.tar.gz"))
+	stamp := func(p string) string { _, t, _ := strings.Cut(filepath.Base(p), "-"); return t }
+	slices.SortFunc(paths, func(a, b string) int { return strings.Compare(stamp(b), stamp(a)) })
+	out := make([]snapshot, 0, len(paths))
+	for _, p := range paths {
+		st, err := os.Stat(p)
+		if err != nil {
+			continue
+		}
+		at := ""
+		if t, err := time.Parse(home.SnapshotLayout, strings.TrimSuffix(stamp(p), ".tar.gz")); err == nil {
+			at = t.UTC().Format(time.RFC3339)
+		}
+		out = append(out, snapshot{Name: filepath.Base(p), Size: st.Size(), TakenAt: at, Path: p})
+	}
+	return out
+}
+
 // fit removes the oldest snapshots until all of them take at most the budget; kept, the one just taken, stays.
 func (s *Service) fit(dir, kept string) {
-	all, _ := filepath.Glob(filepath.Join(dir, "*-*.tar.gz"))
-	type snap struct {
-		path string
-		size int64
-		at   time.Time
-	}
-	var snaps []snap
+	snaps := list(dir)
 	total := int64(0)
-	for _, p := range all {
-		if fi, err := os.Stat(p); err == nil {
-			snaps = append(snaps, snap{p, fi.Size(), fi.ModTime()})
-			total += fi.Size()
-		}
-	}
-	slices.SortFunc(snaps, func(a, b snap) int { return a.at.Compare(b.at) })
 	for _, sn := range snaps {
+		total += sn.Size
+	}
+	for _, sn := range slices.Backward(snaps) {
 		if total <= s.Budget {
 			return
 		}
-		if sn.path != kept && os.Remove(sn.path) == nil {
-			total -= sn.size
+		if sn.Path != kept && os.Remove(sn.Path) == nil {
+			total -= sn.Size
 		}
 	}
 }
@@ -428,5 +446,10 @@ func (s *Service) Commands() []*registry.Command {
 		registry.Def("snapshot_create", "Take snapshot",
 			"Writes a snapshot of the base, files and project data folders to backups; the newest seven stay.",
 			registry.OwnerOnly, s.snapshotCreate),
+		registry.Read("snapshots_list", "Snapshots",
+			"Lists the snapshots of the base and files deck keeps, newest first.",
+			registry.OwnerOnly, func(context.Context, registry.Actor, struct{}) ([]snapshot, error) {
+				return list(s.Home.Backups()), nil
+			}).On("snapshots"),
 	}
 }

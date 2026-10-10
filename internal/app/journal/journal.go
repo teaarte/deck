@@ -1,5 +1,4 @@
-// Package journal reads what deck did: the calls of the gateway, the spend of model calls, the runs by day and
-// the snapshots it keeps.
+// Package journal reads what deck did: the calls of the gateway, the spend of model calls and the runs by day.
 package journal
 
 import (
@@ -7,23 +6,18 @@ import (
 	"context"
 	"deck2/internal/app/access"
 	"math"
-	"os"
-	"path/filepath"
 	"slices"
-	"strings"
 	"time"
 
-	"deck2/internal/home"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
 )
 
-// Service reads the journal; Backups is the folder of the snapshots.
+// Service reads the journal.
 type Service struct {
-	St      *store.Store
-	Now     func() time.Time
-	Backups string
+	St  *store.Store
+	Now func() time.Time
 }
 
 type callsListIn struct {
@@ -278,38 +272,6 @@ func (s *Service) runsDaily(ctx context.Context, act registry.Actor, in runsDail
 	return out, nil
 }
 
-// snapshotRow is a snapshot of the base and files in backups.
-type snapshotRow struct {
-	Name    string `json:"name"`
-	Size    int64  `json:"size"`
-	TakenAt string `json:"taken_at"`
-	Path    string `json:"path"`
-}
-
-// snapshotsList is the snapshots in backups, newest first; deck keeps the newest few.
-func (s *Service) snapshotsList(context.Context, registry.Actor, struct{}) ([]snapshotRow, error) {
-	paths, err := filepath.Glob(filepath.Join(s.Backups, "*-*.tar.gz"))
-	if err != nil {
-		return nil, err
-	}
-	stamp := func(p string) string { _, t, _ := strings.Cut(filepath.Base(p), "-"); return t }
-	slices.SortFunc(paths, func(a, b string) int { return strings.Compare(stamp(b), stamp(a)) })
-	out := make([]snapshotRow, 0, len(paths))
-	for _, p := range paths {
-		st, err := os.Stat(p)
-		if err != nil {
-			continue
-		}
-		name := filepath.Base(p)
-		at := ""
-		if t, err := time.Parse(home.SnapshotLayout, strings.TrimSuffix(stamp(name), ".tar.gz")); err == nil {
-			at = t.UTC().Format(time.RFC3339)
-		}
-		out = append(out, snapshotRow{Name: name, Size: st.Size(), TakenAt: at, Path: p})
-	}
-	return out, nil
-}
-
 // Commands are the commands of the journal.
 func (s *Service) Commands() []*registry.Command {
 	return []*registry.Command{
@@ -325,8 +287,5 @@ func (s *Service) Commands() []*registry.Command {
 		registry.Read("runs_daily", "Runs by day",
 			"Gives the processes started on each of the last days: all, failed and started by a schedule.",
 			registry.OwnerSide, s.runsDaily).On("processes"),
-		registry.Read("snapshots_list", "Snapshots",
-			"Lists the snapshots of the base and files deck keeps, newest first.",
-			registry.OwnerOnly, s.snapshotsList).On("snapshots"),
 	}
 }

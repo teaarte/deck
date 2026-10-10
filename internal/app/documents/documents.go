@@ -18,7 +18,7 @@ import (
 	"deck2/internal/store/db"
 )
 
-// Service keeps the documents; Ctx and BG are the life of deck, for the checks of scripts in the background.
+// Service keeps the documents; Ctx and Go are the life of deck, for the checks of scripts in the background.
 type Service struct {
 	St      *store.Store
 	Now     func() time.Time

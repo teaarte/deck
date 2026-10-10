@@ -24,7 +24,7 @@ import (
 	"time"
 )
 
-// Service keeps the providers. Wake lets turns that wait for a provider go on once it is ready; Ctx and BG are
+// Service keeps the providers. Wake lets turns that wait for a provider go on once it is ready; Ctx and Go are
 // the life of deck, for the self-checks it runs in the background.
 type Service struct {
 	St               *store.Store

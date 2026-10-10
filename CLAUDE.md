@@ -111,7 +111,7 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
   from the secrets), `work/` the folders of runs and projects
 - `internal/sandbox` — sandbox of scripts, MCP servers and ACP agents behind one interface: `sandbox-exec` on macOS,
   bubblewrap on Linux; `Door` (`door.go`) — the one way out of a confined program: a listener in a short folder of
-  its own, a proxy with a key of its own to the program's domains (`Web`, deck's `gateway.Egress`), deck's handler at
+  its own (Linux; TCP on loopback on macOS), a proxy with a key of its own to the program's domains (`Web`, deck's `gateway.Egress`), deck's handler at
   its address, `Env` put last, `Close` ending its tunnels; no door, no network; `Env` — the one environment of scripts,
   ACP agents and MCP servers (kept variables, own home); `Close` — deck's folder and the owner's home closed but for the runtimes on PATH (`Runtimes`)
   and the project folders; `Agent` — what an agent CLI may not touch in deck's folder; `OpenHint` — where the owner
@@ -120,7 +120,7 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
   `environ` is `sandbox.Env` with the folders of a script and its door, `Check` the programs its manifest names
 - `internal/trigger` — cron scheduler with catch-up after sleep
 - `internal/health` — health rows: `Set` inside a transaction, `Write` on its own and published, the statuses and
-  their order (`Worse`); a row is of the machine (`provider:`, written by `process.ProviderHealth` only), of a
+  their order (`Worse`); a row is of the machine (`provider:`, written through `process.ProviderHealth` and lifted by `MarkHealthy`), of a
   workspace (`model:`, `push`) or of a project; health is the state of what deck runs or reaches, events go to the feed
 - `internal/screen` — stored screens resolved into A2UI messages without a store of its own (`render.go`, `blocks.go`,
   `data.go`, `items.go` with the reads of a screen kept by source, `actions.go`, `forms.go`, the topics a block follows
@@ -130,8 +130,9 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
   MCP tools have topics of their own); a subscriber keeps the events
   waiting for it merged, so none is dropped
 - `internal/api` — HTTP API (`POST /api/commands/{name}`, files) and SSE; screens are the
-  `deck.screen` command; `Sandbox` is the second origin of `custom` blocks (proxy page with a CSP without network
-  and no frames, which would bring WebRTC back, `/ext-apps.js`), paired with the client's port (`Pair`)
+  `deck.screen` command; `Sandbox` is the second origin of `custom` blocks (proxy page with a CSP without network;
+  the block runs in its frame of an opaque origin with the guard of `sandbox.html` as its first script — no WebRTC,
+  no frames, which would bring it back —, `/ext-apps.js`), paired with the client's port (`Pair`)
 - `internal/tsnet` — deck on the owner's tailnet from inside the binary: HTTPS on 443, the second origin on 8443
 - `web` — client: Vite + React + Mantine v9 + `@a2ui/react` (protocol v0.9, `/v0_9` imports), folders by owner in
   `src/`: `app/` the frame of islands (menu `Nav.tsx`, screen, chat panel `ChatPanel.tsx`, `Toolbar.tsx`, `PhoneBar.tsx`,

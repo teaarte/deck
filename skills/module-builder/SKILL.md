@@ -222,7 +222,9 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   Documents screen from deck. Long text in a `list` is markdown with `"item": {…, "markdown": true}`, a `card`
   field with `"markdown": true`; everywhere else text stays plain. What the catalog cannot show is a `custom` block: an MCP App — one HTML
   file under `custom/` (`document_save` with kind `custom`), `{"type": "custom", "document": "custom/chart.html",
-  "source": …, "actions": […]}`. It runs without network: `import { App } from "/ext-apps.js"`, the items of its
+  "source": …, "actions": […]}`. It runs without network, in a frame of an origin of its own (no storage, no
+  cookies, no reach into deck's page) and without frames: HTML that names `iframe`, `frame`, `object` or `embed`
+  anywhere, even in a string, shows only a refusal, and making one at run time throws. `import { App } from "/ext-apps.js"`, the items of its
   source and the page's record arrive in `app.ontoolresult` (`structuredContent.items`, `.record`), and
   `app.callServerTool({name: "<project>.<command>", arguments})` calls only the commands of its `actions` (the
   button whose fixed `params` the arguments do not contradict; any but an internal command waits for the owner's yes,

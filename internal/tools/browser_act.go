@@ -23,7 +23,7 @@ import (
 func (b *Browser) actor(tool string) registry.Handler {
 	name := registry.Builtin + "." + tool
 	return func(ctx context.Context, act registry.Actor, raw json.RawMessage) (any, error) {
-		m, err := docs.CurrentInForce(ctx, b.Store.Q, act.ProjectID)
+		m, err := docs.For(ctx, b.Store.Q, act, act.ProjectID)
 		if err != nil {
 			return nil, err
 		}

@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"deck2/internal/manifest"
+	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
 )
@@ -98,8 +99,9 @@ func InForce(ctx context.Context, q *db.Queries, p db.Project, m *manifest.Manif
 	return manifest.Clip(granted, m), nil
 }
 
-// CurrentInForce is the current manifest of a project with the rights the owner gave.
-func CurrentInForce(ctx context.Context, q *db.Queries, projectID int64) (*manifest.Manifest, error) {
+// For is the current manifest of a project with the rights act has there: what the owner granted; a trial of a
+// draft also reads what its reads list and calls the models it names.
+func For(ctx context.Context, q *db.Queries, act registry.Actor, projectID int64) (*manifest.Manifest, error) {
 	p, err := q.GetProject(ctx, projectID)
 	if err != nil {
 		return nil, err
@@ -108,5 +110,9 @@ func CurrentInForce(ctx context.Context, q *db.Queries, projectID int64) (*manif
 	if err != nil {
 		return nil, err
 	}
-	return InForce(ctx, q, p, m)
+	in, err := InForce(ctx, q, p, m)
+	if err != nil || !act.Trial || p.Status != store.ProjectDraft {
+		return in, err
+	}
+	return manifest.Trial(in, m), nil
 }

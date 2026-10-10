@@ -260,11 +260,8 @@ func (c *Service) Servers(ctx context.Context, projectID int64) {
 	if err != nil {
 		return
 	}
-	m, err := docs.Manifest(ctx, c.St.Q, p)
+	m, err := docs.For(ctx, c.St.Q, registry.Actor{}, p.ID)
 	if err != nil {
-		return
-	}
-	if m, err = docs.InForce(ctx, c.St.Q, p, m); err != nil {
 		return
 	}
 	c.MCP.Start(ctx, p, m)

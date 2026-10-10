@@ -72,11 +72,8 @@ func (a *App) screenGet(ctx context.Context, act registry.Actor, in screenGetIn)
 		if err != nil {
 			return nil, err
 		}
-		m, err := docs.Manifest(ctx, a.Store.Q, p)
+		m, err := docs.For(ctx, a.Store.Q, act, p.ID)
 		if err != nil {
-			return nil, err
-		}
-		if m, err = docs.InForce(ctx, a.Store.Q, p, m); err != nil {
 			return nil, err
 		}
 		req.Project, req.Manifest, req.Screen = p, m, m.Screen(in.Screen)

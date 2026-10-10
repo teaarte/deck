@@ -137,7 +137,7 @@ func (g *Gateway) gate(ctx context.Context, act registry.Actor, c *registry.Comm
 	if p.Status == store.ProjectDraft {
 		return false, registry.Refuse("deck: %s is a draft: %s is %s, so it was declined until the owner enables the project", p.Name, c.Name, c.Class)
 	}
-	m, err := docs.CurrentInForce(ctx, g.st.Q, project)
+	m, err := docs.For(ctx, g.st.Q, act, project)
 	if err != nil {
 		return false, err
 	}

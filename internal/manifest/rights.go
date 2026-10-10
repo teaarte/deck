@@ -236,6 +236,16 @@ func Clip(granted, m *Manifest) *Manifest {
 	return &c
 }
 
+// Trial is the manifest in force of a trial of a draft: in, what the owner granted, with the reads and the models
+// of its current manifest m; each call of a model that is not free waits for the owner.
+func Trial(in, m *Manifest) *Manifest {
+	c := *in
+	c.Reads = slices.Clone(m.Reads)
+	uses := m.Uses()
+	c.granted = &uses
+	return &c
+}
+
 // executors name the kinds of executor in what widens rights.
 var executors = map[string]string{"agent": "an agent", "script": "a script", "tool": "a tool", "model": "a model"}
 

@@ -16,6 +16,7 @@ import (
 	"deck2/internal/gateway"
 	"deck2/internal/manifest"
 	"deck2/internal/provider"
+	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
 	"deck2/internal/untrusted"
@@ -161,7 +162,7 @@ func (r *Runner) prepare(ctx context.Context, t *turn, p db.Process, trial bool,
 	}
 	noNetwork := t.m.NoNetwork
 	var hosts []string
-	if now, err := docs.CurrentInForce(ctx, r.st.Q, t.project); err == nil {
+	if now, err := docs.For(ctx, r.st.Q, registry.Actor{}, t.project); err == nil {
 		noNetwork = noNetwork || now.NoNetwork
 		hosts = manifest.ShellHosts(now)
 	}

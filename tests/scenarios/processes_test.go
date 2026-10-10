@@ -531,7 +531,7 @@ func TestHistoryFindsAnOldRunOfAQuietProject(t *testing.T) {
 	for i := 0; i < 205; i++ {
 		e.run(busy, "job")
 	}
-	e.waitFor("the busy runs", func() bool {
+	e.waitWithin("the busy runs", time.Minute, func() bool {
 		for _, p := range e.processes() {
 			if p.State != "done" {
 				return false

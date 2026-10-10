@@ -126,11 +126,7 @@ func (x *MCP) Start(ctx context.Context, p db.Project, m *manifest.Manifest) {
 // Keep stores the tools a server listed after it started; a tool whose name, description or input changed
 // since the owner's rights were given loses them until the owner allows it again.
 func (x *MCP) Keep(ctx context.Context, project int64, server string, tools []*mcp.Tool) error {
-	p, err := x.Store.Q.GetProject(ctx, project)
-	if err != nil {
-		return err
-	}
-	m, err := docs.Manifest(ctx, x.Store.Q, p)
+	m, err := docs.For(ctx, x.Store.Q, registry.Actor{}, project)
 	if err != nil {
 		return err
 	}

@@ -129,7 +129,7 @@ func MayRead(ctx context.Context, q *db.Queries, act registry.Actor, p db.Projec
 		return err
 	}
 	if listed && trial {
-		m, err := docs.CurrentInForce(ctx, q, p.ID)
+		m, err := docs.For(ctx, q, registry.Actor{}, p.ID)
 		if err != nil {
 			return err
 		}
@@ -160,16 +160,11 @@ func reads(ctx context.Context, q *db.Queries, act registry.Actor, other string)
 	if err != nil {
 		return nil, nil, false, false, err
 	}
-	m, err := docs.Manifest(ctx, q, own)
+	m, err := docs.For(ctx, q, act, own.ID)
 	if err != nil {
 		return nil, nil, false, false, err
 	}
 	trial = act.Trial && own.Status == store.ProjectDraft
-	if !trial {
-		if m, err = docs.InForce(ctx, q, own, m); err != nil {
-			return nil, nil, false, false, err
-		}
-	}
 	for _, r := range m.Reads {
 		if r.Project == other {
 			return r.Collections, r.Documents, true, trial, nil

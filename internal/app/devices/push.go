@@ -361,7 +361,7 @@ func (dv *Service) anyPrivate(ctx context.Context, workspace int64) bool {
 		return true
 	}
 	for _, p := range ps {
-		if m, err := docs.Manifest(ctx, dv.St.Q, p); err != nil || m.NoNetwork {
+		if m, err := docs.For(ctx, dv.St.Q, registry.Actor{}, p.ID); err != nil || m.NoNetwork {
 			return true
 		}
 	}
@@ -375,7 +375,7 @@ func (dv *Service) pushText(ctx context.Context, projectID int64, title, text, u
 	if err != nil || p.Builtin == 1 && dv.anyPrivate(ctx, p.WorkspaceID) {
 		return pushMessage{Title: "deck", Body: generic, URL: url}
 	}
-	if m, err := docs.Manifest(ctx, dv.St.Q, p); err != nil || m.NoNetwork {
+	if m, err := docs.For(ctx, dv.St.Q, registry.Actor{}, p.ID); err != nil || m.NoNetwork {
 		return pushMessage{Title: "deck", Body: generic, URL: url}
 	}
 	return pushMessage{Title: untrusted.Cut(title, 60), Body: untrusted.Cut(oneLine(text), pushLength), URL: url}

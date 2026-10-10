@@ -293,7 +293,7 @@ func (s *Service) granted(ctx context.Context, act registry.Actor, input json.Ra
 	if act.Kind != registry.Agent || act.ProjectID == 0 {
 		return nil
 	}
-	m, err := docs.CurrentInForce(ctx, s.St.Q, act.ProjectID)
+	m, err := docs.For(ctx, s.St.Q, act, act.ProjectID)
 	if err != nil {
 		return err
 	}
@@ -320,11 +320,7 @@ func (s *Service) free(ctx context.Context, act registry.Actor, input json.RawMe
 	if act.ProjectID == 0 {
 		return false
 	}
-	p, err := s.St.Q.GetProject(ctx, act.ProjectID)
-	if err != nil {
-		return false
-	}
-	m, err := docs.Manifest(ctx, s.St.Q, p)
+	m, err := docs.For(ctx, s.St.Q, act, act.ProjectID)
 	if err != nil {
 		return false
 	}

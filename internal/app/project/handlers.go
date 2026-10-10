@@ -76,7 +76,7 @@ func (pj *Service) viewProject(ctx context.Context, p db.Project, m *manifest.Ma
 	if p.Status == store.ProjectDraft {
 		v.Rights, v.Asks = append(v.Rights, rights(m)...), append(v.Asks, m.AskEachTime()...)
 	}
-	if f, err := docs.CurrentInForce(ctx, pj.St.Q, p.ID); err == nil {
+	if f, err := docs.For(ctx, pj.St.Q, registry.Actor{}, p.ID); err == nil {
 		v.Models = append(v.Models, f.Uses()...)
 	}
 	return v

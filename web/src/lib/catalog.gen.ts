@@ -467,7 +467,7 @@ export interface DocumentValue {
   editable: boolean;
   record?: number;
   /**
-   * Bytes of the text, left out for a viewer other than the owner
+   * Bytes of the text, given in its place to a viewer other than the owner
    */
   size?: number;
   revisions: {
@@ -487,7 +487,7 @@ export interface CustomValue {
   record?: {};
   name?: string;
   /**
-   * Bytes of the HTML, left out for a viewer other than the owner
+   * Bytes of the HTML, given in its place to a viewer other than the owner
    */
   size?: number;
   actions: Action[];

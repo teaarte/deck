@@ -211,6 +211,7 @@ func (s *Store) Tx(ctx context.Context, f func(ctx context.Context, q *db.Querie
 	if err := tx.Commit(); err != nil {
 		return err
 	}
+	conn.Close()
 	if ws := s.changes.take(); len(ws) > 0 && s.Changed != nil {
 		for _, c := range s.resolve(ctx, ws) {
 			s.Changed(c)

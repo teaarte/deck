@@ -95,11 +95,12 @@ type rowWrite struct {
 	ids   []int64
 }
 
-// changes keeps the writes of the open transaction until it commits, then until they are published.
+// changes keeps the writes of the open transaction, each once, until it commits, then until they are published.
 type changes struct {
 	mu        sync.Mutex
 	columns   map[string][]string
 	pending   []rowWrite
+	seen      map[string]bool
 	committed []rowWrite
 }
 
@@ -137,8 +138,15 @@ func (c *changes) preUpdate(d sqlite.SQLitePreUpdateData) {
 	if len(w.ids) == 0 {
 		w.ids = []int64{0}
 	}
+	key := fmt.Sprint(w.table, w.ids)
 	c.mu.Lock()
-	c.pending = append(c.pending, w)
+	if !c.seen[key] {
+		if c.seen == nil {
+			c.seen = map[string]bool{}
+		}
+		c.seen[key] = true
+		c.pending = append(c.pending, w)
+	}
 	c.mu.Unlock()
 }
 
@@ -171,14 +179,14 @@ func scopeID(row []any, at int) (int64, bool) {
 
 func (c *changes) commit() int32 {
 	c.mu.Lock()
-	c.committed, c.pending = append(c.committed, c.pending...), nil
+	c.committed, c.pending, c.seen = append(c.committed, c.pending...), nil, nil
 	c.mu.Unlock()
 	return 0
 }
 
 func (c *changes) rollback() {
 	c.mu.Lock()
-	c.pending = nil
+	c.pending, c.seen = nil, nil
 	c.mu.Unlock()
 }
 

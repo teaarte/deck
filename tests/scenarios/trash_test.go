@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -117,7 +118,7 @@ func TestAFileOfADataFolderGoesToTheTrashForADay(t *testing.T) {
 		t.Fatalf("the undo brings the file back: %v", err)
 	}
 	e.must("deck.data_delete", map[string]any{"project": "shorts", "path": "cache"}, &del)
-	trash := deckhome.Layout(e.App.Cfg.Home).Trash(del.Trash)
+	trash := filepath.Join(deckhome.Layout(e.App.Cfg.Home).Project(pid), "trash", fmt.Sprint(del.Trash))
 	e.App.Records.PurgeTrash(context.Background())
 	if _, err := os.Stat(trash); err != nil {
 		t.Fatalf("a deletion waits a day: %v", err)

@@ -301,8 +301,7 @@ func (r *Runner) converse(ctx context.Context, t *turn, a *agentTurn, fail func(
 				}
 				result = kept
 			} else if err := r.keepLeft(bg, t.project, processID, results); err != nil {
-				r.finish(bg, processID, StateError, result, false, err.Error())
-				return
+				r.warn(bg, processID, "deck kept none of the files the turn left: "+err.Error())
 			}
 			r.finish(bg, processID, StateDone, result, false, "")
 		case retried:

@@ -83,6 +83,8 @@ type Runner struct {
 	deps    Deps
 	// Hooks hear of processes that close, park or end a turn, in this order.
 	Hooks []Hook
+	// lost counts the turns of a process that started without deck's tools; past lostTries it fails.
+	lost map[int64]int
 
 	ctx     context.Context
 	cancel  context.CancelFunc

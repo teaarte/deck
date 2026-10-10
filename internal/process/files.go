@@ -125,8 +125,8 @@ func (r *Runner) keepFiles(ctx context.Context, projectID, processID int64, resu
 	return named(result, ids), nil
 }
 
-// named puts the ids the files of a result were kept under into it: into each entry of files, and in place of a
-// file field that names one of them.
+// named puts the ids the files of a result were kept under into it: into each entry of files, and as digits in place
+// of a file field that names one of them, so a string field stays a string.
 func named(result string, ids map[string]int64) string {
 	var v map[string]any
 	if json.Unmarshal([]byte(result), &v) != nil {
@@ -141,7 +141,7 @@ func named(result string, ids map[string]int64) string {
 		}
 	}
 	if p, ok := v["file"].(string); ok && ids[p] != 0 {
-		v["file"] = ids[p]
+		v["file"] = fmt.Sprint(ids[p])
 	}
 	b, err := json.Marshal(v)
 	if err != nil {
@@ -150,15 +150,33 @@ func named(result string, ids map[string]int64) string {
 	return string(b)
 }
 
-// keepLeft keeps every file a turn without a result schema left in its results folder, its own and those the
-// models it called made, as files of the process.
+// leftFiles and leftBytes bound what keepLeft keeps of one turn.
+const (
+	leftFiles = 50
+	leftBytes = 500 << 20
+)
+
+// keepLeft keeps the files a turn without a result schema left in its results folder, its own and those the models
+// it called made, as files of the process: hidden ones not, and at most leftFiles of leftBytes together.
 func (r *Runner) keepLeft(ctx context.Context, projectID, processID int64, results string) error {
 	var left []FileRef
+	var total int64
 	_ = filepath.WalkDir(results, func(path string, d fs.DirEntry, err error) error {
-		if err == nil && d.Type().IsRegular() {
-			rel, _ := filepath.Rel(results, path)
-			left = append(left, FileRef{Path: rel})
+		if err != nil {
+			return nil
 		}
+		if strings.HasPrefix(d.Name(), ".") && path != results {
+			if d.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		fi, ierr := d.Info()
+		if !d.Type().IsRegular() || ierr != nil || len(left) >= leftFiles || total+fi.Size() > leftBytes {
+			return nil
+		}
+		rel, _ := filepath.Rel(results, path)
+		left, total = append(left, FileRef{Path: rel}), total+fi.Size()
 		return nil
 	})
 	if len(left) == 0 {

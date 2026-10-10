@@ -2,6 +2,7 @@ package records
 
 import (
 	"bufio"
+	"cmp"
 	"context"
 	"database/sql"
 	"deck2/internal/app/access"
@@ -402,12 +403,18 @@ func (s *Service) recordDelete(ctx context.Context, act registry.Actor, in recor
 		return nil, err
 	}
 	if act.Kind != registry.Owner && p.Status != store.ProjectDraft {
-		own, err := s.ofMaster(ctx, rec)
+		m, err := docs.Manifest(ctx, s.St.Q, p)
 		if err != nil {
 			return nil, err
 		}
-		if !own {
-			return nil, registry.Refuse("deck: only the owner deletes records of an enabled project; the master only those its own processes wrote")
+		pl, err := s.plan(ctx, s.St.Q, p, m, rec)
+		if err != nil {
+			return nil, err
+		}
+		for _, r := range pl.records {
+			if own, err := s.ofMaster(ctx, r); err != nil || !own {
+				return nil, cmp.Or(err, registry.Refuse("deck: only the owner deletes records of an enabled project; the master only those its own processes wrote, with all that belongs to them"))
+			}
 		}
 	}
 	t, err := s.trashRecords(ctx, act, p, rec)
@@ -461,7 +468,7 @@ func (s *Service) Commands() []*registry.Command {
 			registry.OwnerSide, s.recordParts).On("collection", "files"),
 		registry.Def("data_delete", "Delete from a data folder",
 			"Moves a file or folder of the data folder of a project to the trash for a day; trash_restore brings it back.",
-			registry.OwnerSide, s.dataDelete),
+			registry.OwnerOnly, s.dataDelete),
 		registry.Def("trash_restore", "Bring back from the trash",
 			"Brings back what a deletion of the last day took, by the trash entry, the record or the path of the data folder.",
 			registry.OwnerSide, s.trashRestore),

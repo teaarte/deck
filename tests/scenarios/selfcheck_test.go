@@ -415,3 +415,38 @@ func TestASelfCheckIsRedWhenAgentsDoNotReachDecksMCP(t *testing.T) {
 		t.Fatalf("turns wait while agents would get no tools: %+v", got)
 	}
 }
+
+// TestAnAgentThatNeverGetsDecksToolsFails: a process whose turns keep starting without deck's tools, though the
+// self-check passes, fails after a few tries instead of waiting for good.
+func TestAnAgentThatNeverGetsDecksToolsFails(t *testing.T) {
+	t.Parallel()
+	c := newCLI(t)
+	for _, n := range []int{1, 5, 9} {
+		c.stream(n, "selfcheck.jsonl")
+		c.stream(n+1, "selfcheck_resume.jsonl")
+	}
+	c.approving()
+	c.before(readFile(t, filepath.Join(c.dir, "before")) + `
+if [ -f "$d/nomcp" ] && ! grep -q 'deck-check-' "$c/stdin" && ! grep -q -- --resume "$c/args" && ! grep -q -- --tools "$c/args"; then
+  echo "Error: MCP tool mcp__deck__approve (passed via --permission-prompt-tool) not found. Available MCP tools: none" >&2
+  exit 1
+fi`)
+	e := clockCLIEnv(t, c)
+	ctx := context.Background()
+	e.App.Providers.Checks(ctx, e.Clock.Now())
+	e.waitHealth("provider:claude-code", "ok")
+	if err := os.WriteFile(filepath.Join(c.dir, "nomcp"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	id := e.run(e.createProject("plain", plainManifest), "work")
+	for i := range 2 {
+		e.waitState(id, "waiting_provider")
+		e.App.Providers.Checks(ctx, e.Clock.Add(31*time.Minute))
+		if i == 0 {
+			e.waitFor("the second try", func() bool { return c.calls() >= 8 })
+		}
+	}
+	if got := e.waitState(id, "done", "error"); got.State != "error" || !strings.Contains(got.Error, "without deck's tools 3 times") {
+		t.Fatalf("the process fails after its tries: %+v", got)
+	}
+}

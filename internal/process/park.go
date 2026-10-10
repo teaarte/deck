@@ -44,9 +44,27 @@ func (r *Runner) needLogin(ctx context.Context, pv provider.Provider, processID 
 	}
 }
 
+// lostTries is how many turns of a process may start without deck's tools before it fails.
+const lostTries = 3
+
 // lostTools holds a turn whose agent did not get deck's tools until the self-check of its provider is green again;
-// the provider is red meanwhile, so its other turns wait too.
+// the provider is red meanwhile, so its other turns wait too. A process held lostTries times fails.
 func (r *Runner) lostTools(ctx context.Context, t turn, pv provider.Provider, err error) {
+	r.mu.Lock()
+	if r.lost == nil {
+		r.lost = map[int64]int{}
+	}
+	r.lost[t.process]++
+	tries := r.lost[t.process]
+	if tries >= lostTries {
+		delete(r.lost, t.process)
+	}
+	r.mu.Unlock()
+	if tries >= lostTries {
+		r.finish(ctx, t.process, StateError, "", false, fmt.Sprintf("the agent started without deck's tools %d times: %v", tries, err))
+		r.deps.Broke(ctx, pv.Name())
+		return
+	}
 	text := "the agent started without deck's tools, so deck holds the turns of " + pv.Name() + " until its self-check passes: " + err.Error()
 	txErr := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		if err := ProviderHealth(ctx, q, pv.Name(), health.Error, untrusted.Cut(text, 1000)); err != nil {

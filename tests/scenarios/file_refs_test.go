@@ -44,7 +44,7 @@ func TestAFileOfAResultIsNamedByTheIdMediaTakes(t *testing.T) {
 			File int64  `json:"file"`
 		} `json:"files"`
 	}
-	if got.State != "done" || json.Unmarshal(got.Result, &res) != nil || len(res.Files) != 1 || res.Files[0].File == 0 || res.File != float64(res.Files[0].File) {
+	if got.State != "done" || json.Unmarshal(got.Result, &res) != nil || len(res.Files) != 1 || res.Files[0].File == 0 || res.File != fmt.Sprint(res.Files[0].File) {
 		t.Fatalf("the result names its file by the id it was kept under: %s", got.Result)
 	}
 	id := res.Files[0].File

@@ -246,7 +246,9 @@ func (s *Service) Commands() []*registry.Command {
 func (s *Service) File(ctx context.Context, p db.Project, ref any) (map[string]any, error) {
 	if path, ok := ref.(string); ok {
 		if n, err := strconv.ParseInt(path, 10, 64); err == nil && n > 0 {
-			return s.File(ctx, p, n)
+			if f, err := s.File(ctx, p, n); err == nil || p.ID == 0 {
+				return f, err
+			}
 		}
 		if p.ID == 0 {
 			name, rest, _ := strings.Cut(path, "/")
@@ -407,7 +409,7 @@ type dataEntry struct {
 
 type dataRead struct {
 	Path    string      `json:"path"`
-	Entries []dataEntry `json:"entries,omitempty"`
+	Entries []dataEntry `json:"entries"`
 	Text    string      `json:"text,omitempty"`
 	Size    int64       `json:"size,omitempty"`
 	// Cut says the list or the text goes on past what data_read gives.
@@ -423,6 +425,9 @@ func (s *Service) dataRead(ctx context.Context, act registry.Actor, in dataReadI
 		return dataRead{}, err
 	}
 	root, err := os.OpenRoot(s.Home.Data(p.ID))
+	if err != nil && strings.Trim(in.Path, "/.") == "" {
+		return dataRead{Entries: []dataEntry{}}, nil
+	}
 	if err != nil {
 		return dataRead{}, registry.NotFound("deck: %s has no data folder yet", p.Name)
 	}
@@ -438,7 +443,7 @@ func (s *Service) dataRead(ctx context.Context, act registry.Actor, in dataReadI
 	if err != nil {
 		return dataRead{}, missing
 	}
-	out := dataRead{Path: path}
+	out := dataRead{Path: path, Entries: []dataEntry{}}
 	switch {
 	case fi.IsDir():
 		es, err := f.ReadDir(1001)

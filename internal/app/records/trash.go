@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"deck2/internal/app/access"
+	"deck2/internal/docs"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store"
@@ -30,7 +31,7 @@ type part struct {
 }
 
 // plan is what deleting a record takes: the record and the records that belong to it, their files and those of the
-// processes started for them, and their folders.
+// processes whose input field record names them, and their folders.
 type plan struct {
 	records []db.Record
 	files   []db.File
@@ -71,6 +72,12 @@ func (s *Service) plan(ctx context.Context, q *db.Queries, p db.Project, m *mani
 			return err
 		}
 		for _, pr := range procs {
+			var in struct {
+				Record any `json:"record"`
+			}
+			if json.Unmarshal([]byte(pr.Input), &in) != nil || fmt.Sprint(in.Record) != fmt.Sprint(r.ID) {
+				continue
+			}
 			if err := files("process", pr.ID); err != nil {
 				return err
 			}
@@ -126,13 +133,12 @@ func (s *Service) recordParts(ctx context.Context, act registry.Actor, in record
 	if err != nil {
 		return nil, err
 	}
-	var out []part
-	err = s.writeRecords(ctx, p, func(ctx context.Context, q *db.Queries, m *manifest.Manifest) error {
-		pl, err := s.plan(ctx, q, p, m, rec)
-		out = pl.parts(m)
-		return err
-	})
-	return out, err
+	m, err := docs.Manifest(ctx, s.St.Q, p)
+	if err != nil {
+		return nil, err
+	}
+	pl, err := s.plan(ctx, s.St.Q, p, m, rec)
+	return pl.parts(m), err
 }
 
 // trashedFile is a file moved to the trash and the owner it goes back to.
@@ -199,24 +205,47 @@ func (s *Service) undoNote(ctx context.Context, q *db.Queries, act registry.Acto
 	return err
 }
 
-// movePaths moves paths of the data folder of a project under the folder of a trash entry and records those that
-// moved; one that is gone or inside one moved already is skipped.
-func (s *Service) movePaths(ctx context.Context, p db.Project, t db.Trash, paths []string) {
-	data := s.Home.Data(p.ID)
+// The folder of a project holds its data folder and its trash; every move goes through it as a root, so no link
+// takes a path of either outside.
+const (
+	dataDir  = "data"
+	trashDir = "trash"
+)
+
+func trashOf(t int64, path string) string { return filepath.Join(trashDir, fmt.Sprint(t), path) }
+
+func (s *Service) projectRoot(project int64) (*os.Root, error) {
+	if err := os.MkdirAll(s.Home.Project(project), 0o700); err != nil {
+		return nil, err
+	}
+	return os.OpenRoot(s.Home.Project(project))
+}
+
+// clean is a path inside a data folder, or empty for one that names the folder itself.
+func clean(path string) string {
+	return strings.TrimPrefix(filepath.Clean("/"+path), "/")
+}
+
+// movePaths moves paths of the data folder of a project under its trash entry and records those that moved; one
+// that is gone or inside one moved already is skipped.
+func (s *Service) movePaths(ctx context.Context, p db.Project, t db.Trash, paths []string) []string {
+	root, err := s.projectRoot(p.ID)
+	if err != nil {
+		slog.Error("trash", "project", p.Name, "err", err)
+		return nil
+	}
+	defer root.Close()
 	var moved []string
 	for _, path := range paths {
-		src, dst := filepath.Join(data, path), filepath.Join(s.Home.Trash(t.ID), path)
-		if path == "" || path == "." || strings.HasPrefix(path, "..") {
+		path = clean(path)
+		src, dst := filepath.Join(dataDir, path), trashOf(t.ID, path)
+		if path == "" {
 			continue
 		}
-		if _, err := os.Lstat(src); err != nil {
+		if _, err := root.Lstat(src); err != nil {
 			continue
 		}
-		if err := os.MkdirAll(filepath.Dir(dst), 0o700); err != nil {
-			slog.Error("trash", "path", src, "err", err)
-			continue
-		}
-		if err := os.Rename(src, dst); err != nil {
+		if err := errors.Join(root.MkdirAll(filepath.Dir(dst), 0o700), root.Rename(src, dst)); err != nil {
 			slog.Error("trash", "path", src, "err", err)
 			continue
 		}
@@ -228,6 +257,7 @@ func (s *Service) movePaths(ctx context.Context, p db.Project, t db.Trash, paths
 	}); err != nil {
 		slog.Error("trash paths", "trash", t.ID, "err", err)
 	}
+	return moved
 }
 
 type dataDeleteIn struct {
@@ -241,26 +271,27 @@ func (s *Service) dataDelete(ctx context.Context, act registry.Actor, in dataDel
 	if err != nil {
 		return nil, err
 	}
-	path := strings.TrimPrefix(filepath.Clean("/"+in.Path), "/")
+	path := clean(in.Path)
 	if path == "" {
 		return nil, registry.Invalid("deck: name a file or folder inside the data folder, not the folder itself")
-	}
-	if _, err := os.Lstat(filepath.Join(s.Home.Data(p.ID), path)); err != nil {
-		return nil, registry.NotFound("deck: no %q in the data folder of %s", in.Path, p.Name)
 	}
 	var t db.Trash
 	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		var err error
-		if t, err = q.AddTrash(ctx, db.AddTrashParams{WorkspaceID: p.WorkspaceID, ProjectID: p.ID, Path: path, Records: "[]", Documents: "[]", Files: "[]",
-			What: fmt.Sprintf("deleted %s of the data folder of %s; an undo within a day brings it back", path, p.Name), CreatedAt: store.Time(s.Now())}); err != nil {
-			return err
-		}
-		return s.undoNote(ctx, q, act, p, t)
+		t, err = q.AddTrash(ctx, db.AddTrashParams{WorkspaceID: p.WorkspaceID, ProjectID: p.ID, Path: path, Records: "[]", Documents: "[]", Files: "[]",
+			What: fmt.Sprintf("deleted %s of the data folder of %s; an undo within a day brings it back", path, p.Name), CreatedAt: store.Time(s.Now())})
+		return err
 	})
 	if err != nil {
 		return nil, err
 	}
-	s.movePaths(ctx, p, t, []string{path})
+	if len(s.movePaths(ctx, p, t, []string{path})) == 0 {
+		_ = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error { return q.DeleteTrash(ctx, t.ID) })
+		return nil, registry.NotFound("deck: no %q in the data folder of %s to delete", in.Path, p.Name)
+	}
+	if err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error { return s.undoNote(ctx, q, act, p, t) }); err != nil {
+		return nil, err
+	}
 	return map[string]any{"trash": t.ID}, nil
 }
 
@@ -271,36 +302,54 @@ type trashRestoreIn struct {
 	Path    string `opt:"" desc:"Or the path of the data folder whose last deletion to bring back"`
 }
 
-// trashRestore brings back what a deletion took: its paths, then its records, their documents and files.
+// trashRestore brings back what a deletion took: it checks that nothing of it exists again, moves its paths back,
+// then brings its records, their documents and files back in one transaction, moving the paths again if that fails.
 func (s *Service) trashRestore(ctx context.Context, act registry.Actor, in trashRestoreIn) (any, error) {
 	t, err := s.findTrash(ctx, act, in)
 	if err != nil {
 		return nil, err
 	}
 	var paths []string
+	var recs []db.Record
+	var files []trashedFile
 	_ = json.Unmarshal([]byte(t.Paths), &paths)
-	data := s.Home.Data(t.ProjectID)
+	_ = json.Unmarshal([]byte(t.Records), &recs)
+	_ = json.Unmarshal([]byte(t.Files), &files)
+	for _, r := range recs {
+		if _, err := s.St.Q.GetRecordByKey(ctx, db.GetRecordByKeyParams{ProjectID: r.ProjectID, Collection: r.Collection, Key: r.Key}); err == nil {
+			return nil, registry.Conflict("deck: a record %s of %s exists again; delete it first", r.Key, r.Collection)
+		}
+	}
+	root, err := s.projectRoot(t.ProjectID)
+	if err != nil {
+		return nil, err
+	}
+	defer root.Close()
 	for _, path := range paths {
-		if _, err := os.Lstat(filepath.Join(data, path)); err == nil {
+		if _, err := root.Lstat(filepath.Join(dataDir, path)); err == nil {
 			return nil, registry.Conflict("deck: %s of the data folder exists again; move it away first", path)
 		}
 	}
-	for _, path := range paths {
-		dst := filepath.Join(data, path)
-		if err := errors.Join(os.MkdirAll(filepath.Dir(dst), 0o700), os.Rename(filepath.Join(s.Home.Trash(t.ID), path), dst)); err != nil {
-			return nil, err
+	var back []string
+	undo := func() {
+		for _, path := range back {
+			_ = root.Rename(filepath.Join(dataDir, path), trashOf(t.ID, path))
 		}
 	}
-	var recs []db.Record
-	var files []trashedFile
-	_ = json.Unmarshal([]byte(t.Records), &recs)
-	_ = json.Unmarshal([]byte(t.Files), &files)
+	for _, path := range paths {
+		dst := filepath.Join(dataDir, path)
+		if err := errors.Join(root.MkdirAll(filepath.Dir(dst), 0o700), root.Rename(trashOf(t.ID, path), dst)); err != nil {
+			undo()
+			return nil, err
+		}
+		back = append(back, path)
+	}
 	at, _ := time.Parse(time.RFC3339Nano, t.CreatedAt)
 	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		for _, r := range recs {
 			if err := q.RestoreRecord(ctx, db.RestoreRecordParams{ID: r.ID, ProjectID: r.ProjectID, Collection: r.Collection, Key: r.Key, Data: r.Data,
 				CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt, ProcessID: r.ProcessID}); err != nil {
-				return registry.Conflict("deck: record %s of %s cannot come back, one with its key exists: %v", r.Key, r.Collection, err)
+				return err
 			}
 			if err := q.RestoreRecordDocuments(ctx, db.RestoreRecordDocumentsParams{RecordID: store.ID(r.ID), At: sql.NullString{String: t.CreatedAt, Valid: true}}); err != nil {
 				return err
@@ -315,9 +364,10 @@ func (s *Service) trashRestore(ctx context.Context, act registry.Actor, in trash
 		return q.DeleteTrash(ctx, t.ID)
 	})
 	if err != nil {
+		undo()
 		return nil, err
 	}
-	_ = os.RemoveAll(s.Home.Trash(t.ID))
+	_ = root.RemoveAll(trashOf(t.ID, ""))
 	return map[string]any{"records": len(recs), "files": len(files), "paths": paths}, nil
 }
 
@@ -340,7 +390,7 @@ func (s *Service) findTrash(ctx context.Context, act registry.Actor, in trashRes
 	case in.Path != "":
 		var p db.Project
 		if p, err = access.Project(ctx, s.St.Q, act, in.Project); err == nil {
-			t, err = s.St.Q.LastTrashOf(ctx, db.LastTrashOfParams{ProjectID: p.ID, Path: strings.TrimPrefix(filepath.Clean("/"+in.Path), "/")})
+			t, err = s.St.Q.LastTrashOf(ctx, db.LastTrashOfParams{ProjectID: p.ID, Path: clean(in.Path)})
 		}
 	default:
 		return t, registry.Invalid("deck: name the trash, the record or the path to bring back")
@@ -373,6 +423,9 @@ func (s *Service) PurgeTrash(ctx context.Context) {
 			slog.Error("purge trash", "trash", t.ID, "err", err)
 			continue
 		}
-		_ = os.RemoveAll(s.Home.Trash(t.ID))
+		if root, err := s.projectRoot(t.ProjectID); err == nil {
+			_ = root.RemoveAll(trashOf(t.ID, ""))
+			_ = root.Close()
+		}
 	}
 }

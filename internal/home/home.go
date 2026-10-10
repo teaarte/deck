@@ -30,9 +30,6 @@ func (l Layout) Token() string   { return l.state("token") }
 func (l Layout) Files() string   { return l.state("files") }
 func (l Layout) Backups() string { return l.state("backups") }
 
-// Trash holds the paths of data folders the owner deleted, a folder per trash entry, until the entry goes.
-func (l Layout) Trash(id int64) string { return l.state("trash", fmt.Sprint(id)) }
-
 // SnapshotLayout is the time in the name of a snapshot in backups/, <kind>-<time>.tar.gz: SnapshotDaily for the
 // daily and hand ones, SnapshotDelete for those before a project is deleted.
 const (

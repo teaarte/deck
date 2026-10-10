@@ -425,8 +425,8 @@ func (dv *Service) deliver(ctx context.Context, workspace int64, k vapid, s db.P
 	case code == http.StatusGone || code == http.StatusNotFound:
 		gone()
 		return pushGone, ""
-	case code == http.StatusBadRequest || code == http.StatusForbidden:
-		// The subscription is of another key or broken: it goes, and the device subscribes again.
+	case (code == http.StatusBadRequest || code == http.StatusForbidden) && otherKey(string(body)):
+		// The device subscribed with another key of deck: the subscription goes, and the device subscribes again.
 		slog.Error("push refused", "device", s.Device, "status", status)
 		gone()
 		return pushGone, "the push service refused the subscription: " + status + "; deck forgot it, turn pushes on again on this device in Settings → Interface"
@@ -439,6 +439,12 @@ func (dv *Service) deliver(ctx context.Context, workspace int64, k vapid, s db.P
 }
 
 func oneLine(s string) string { return strings.Join(strings.Fields(s), " ") }
+
+// otherKey says a push service refused a subscription made with another key: Apple's VapidPkHashMismatch, or
+// FCM's credentials of a different sender; a fault of deck's own signature is not.
+func otherKey(body string) bool {
+	return strings.Contains(body, "VapidPkHashMismatch") || strings.Contains(body, "different sender")
+}
 
 // PushCommands are the commands of pushes.
 func (dv *Service) PushCommands() []*registry.Command {

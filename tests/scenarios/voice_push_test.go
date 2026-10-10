@@ -441,7 +441,10 @@ func TestADeviceThePushServiceRefusesIsTurnedOnAgainFromItsHealthRow(t *testing.
 	t.Parallel()
 	e := newEnv(t, nil)
 	dev, _ := newPushDevice(t)
-	refusing := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusBadRequest) }))
+	refusing := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"reason":"VapidPkHashMismatch"}`))
+	}))
 	t.Cleanup(refusing.Close)
 	dev.subscribe(e, refusing, "MacIntel")
 	e.createProject("work", plainManifest)
@@ -489,5 +492,30 @@ func TestThePushKeyLivesApartFromTheSecretsOfTheWorkspace(t *testing.T) {
 	e.must("deck.push_key", nil, &again)
 	if again.Key != first.Key {
 		t.Fatal("a secret of the owner named like it does not change the key of pushes")
+	}
+}
+
+// TestAPushRefusedForDecksOwnSignatureKeepsTheDevice: a refusal that is not of the subscription, such as a fault of
+// deck's own signature, is red in health and forgets no device.
+func TestAPushRefusedForDecksOwnSignatureKeepsTheDevice(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, nil)
+	dev, _ := newPushDevice(t)
+	refusing := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = w.Write([]byte(`{"reason":"BadJwtToken"}`))
+	}))
+	t.Cleanup(refusing.Close)
+	dev.subscribe(e, refusing, "MacIntel")
+	e.createProject("work", plainManifest)
+	e.must("deck.notify", map[string]any{"project": "work", "text": "The report is ready"}, nil)
+	e.App.Sweep(context.Background(), time.Now())
+	if h := e.waitHealth("push", "error"); !strings.Contains(h.Error, "BadJwtToken") {
+		t.Fatalf("the health says why the service refused: %+v", h)
+	}
+	var subs int
+	_ = e.App.Store.DB.QueryRow(`SELECT count(*) FROM push_subscription`).Scan(&subs)
+	if subs != 1 {
+		t.Fatalf("the device stays subscribed: %d", subs)
 	}
 }

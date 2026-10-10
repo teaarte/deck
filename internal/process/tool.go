@@ -150,11 +150,12 @@ func (r *Runner) toolResult(ctx context.Context, projectID int64, cmd *manifest.
 		r.warn(ctx, id, fmt.Sprintf("The result of tool command %s does not match its schema, so nothing acts on it: %v", cmd.Name, verr))
 		return
 	}
-	if err := r.keepFiles(ctx, projectID, id, filepath.Join(dir, "results"), string(res)); err != nil {
+	kept, err := r.keepFiles(ctx, projectID, id, filepath.Join(dir, "results"), string(res))
+	if err != nil {
 		r.finish(ctx, id, StateError, "", false, err.Error())
 		return
 	}
-	r.finish(ctx, id, StateDone, string(res), false, "")
+	r.finish(ctx, id, StateDone, kept, false, "")
 }
 
 // deliverTool closes a tool process that waited for the owner with what the frozen call gave.

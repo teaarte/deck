@@ -137,6 +137,32 @@ func (q *Queries) GetFile(ctx context.Context, id int64) (File, error) {
 	return i, err
 }
 
+const getFileByName = `-- name: GetFileByName :one
+SELECT id, project_id, owner_kind, owner_id, name, type, size, created_at FROM file WHERE project_id = ? AND name = ? AND owner_kind NOT IN ('trash', 'keeping') ORDER BY id DESC LIMIT 1
+`
+
+type GetFileByNameParams struct {
+	ProjectID int64
+	Name      string
+}
+
+// The newest stored file of a project by its name, such as one a result named before it was kept.
+func (q *Queries) GetFileByName(ctx context.Context, arg GetFileByNameParams) (File, error) {
+	row := q.db.QueryRowContext(ctx, getFileByName, arg.ProjectID, arg.Name)
+	var i File
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.OwnerKind,
+		&i.OwnerID,
+		&i.Name,
+		&i.Type,
+		&i.Size,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const listFilesOf = `-- name: ListFilesOf :many
 SELECT id, project_id, owner_kind, owner_id, name, type, size, created_at FROM file WHERE project_id = ? AND owner_kind = ? AND owner_id = ? ORDER BY id
 `
@@ -149,6 +175,45 @@ type ListFilesOfParams struct {
 
 func (q *Queries) ListFilesOf(ctx context.Context, arg ListFilesOfParams) ([]File, error) {
 	rows, err := q.db.QueryContext(ctx, listFilesOf, arg.ProjectID, arg.OwnerKind, arg.OwnerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []File
+	for rows.Next() {
+		var i File
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProjectID,
+			&i.OwnerKind,
+			&i.OwnerID,
+			&i.Name,
+			&i.Type,
+			&i.Size,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listMadeFiles = `-- name: ListMadeFiles :many
+SELECT f.id, f.project_id, f.owner_kind, f.owner_id, f.name, f.type, f.size, f.created_at FROM file f WHERE f.owner_kind = 'process'
+    AND (f.owner_id = ?1 OR f.owner_id IN (SELECT p.id FROM process p WHERE p.parent_id = ?1))
+ORDER BY f.id
+`
+
+// The files a process kept and those of the processes it started.
+func (q *Queries) ListMadeFiles(ctx context.Context, processID int64) ([]File, error) {
+	rows, err := q.db.QueryContext(ctx, listMadeFiles, processID)
 	if err != nil {
 		return nil, err
 	}

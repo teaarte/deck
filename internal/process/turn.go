@@ -292,13 +292,17 @@ func (r *Runner) converse(ctx context.Context, t *turn, a *agentTurn, fail func(
 			r.park(bg, processID)
 		case verr == nil:
 			r.turnText(bg, processID, res.Text)
-			result := res.Text
+			result, results := res.Text, filepath.Join(a.dir, "results")
 			if len(t.cmd.Result) > 0 {
-				result = string(res.Structured)
-				if err := r.keepFiles(bg, t.project, processID, filepath.Join(a.dir, "results"), result); err != nil {
-					r.finish(bg, processID, StateError, result, false, err.Error())
+				kept, err := r.keepFiles(bg, t.project, processID, results, string(res.Structured))
+				if err != nil {
+					r.finish(bg, processID, StateError, string(res.Structured), false, err.Error())
 					return
 				}
+				result = kept
+			} else if err := r.keepLeft(bg, t.project, processID, results); err != nil {
+				r.finish(bg, processID, StateError, result, false, err.Error())
+				return
 			}
 			r.finish(bg, processID, StateDone, result, false, "")
 		case retried:

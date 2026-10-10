@@ -496,9 +496,15 @@ export interface ChatValue {
     role: "owner" | "master";
     text: string;
     process?: number;
+    /**
+     * the files the owner attached, or that the reply and the processes it started made
+     */
     files?: {
       id: number;
       name: string;
+      type?: string;
+      size?: number;
+      url?: string;
     }[];
     /**
      * the screen the owner wrote it on: project, screen, record, process

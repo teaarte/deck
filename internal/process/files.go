@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"mime"
 	"os"
 	"path/filepath"
@@ -26,14 +27,14 @@ type FileRef struct {
 	Record int64  `json:"record,omitempty"`
 }
 
-// keepFiles moves the files a result names into files/ and binds them to their record, or to the process when
-// the result names none; files it does not name go away with the run folder.
-func (r *Runner) keepFiles(ctx context.Context, projectID, processID int64, results, result string) error {
+// keepFiles moves the files a result names into files/ and binds them to their record, or else to the process, and
+// gives the result with the ids they were kept under; files it does not name go away with the run folder.
+func (r *Runner) keepFiles(ctx context.Context, projectID, processID int64, results, result string) (string, error) {
 	var res struct {
 		Files []FileRef `json:"files"`
 	}
 	if json.Unmarshal([]byte(result), &res) != nil || len(res.Files) == 0 {
-		return nil
+		return result, nil
 	}
 	if r.cfg.FilesMu != nil {
 		r.cfg.FilesMu.RLock()
@@ -48,11 +49,11 @@ func (r *Runner) keepFiles(ctx context.Context, projectID, processID int64, resu
 	})
 	if len(res.Files) == 0 {
 		err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error { return rebind(ctx, q, projectID, processID, given) })
-		return err
+		return result, err
 	}
 	root, err := filepath.EvalSymlinks(results)
 	if err != nil {
-		return err
+		return "", err
 	}
 	srcs := make([]string, len(res.Files))
 	infos := make([]os.FileInfo, len(res.Files))
@@ -62,10 +63,10 @@ func (r *Runner) keepFiles(ctx context.Context, projectID, processID int64, resu
 		inside := err == nil && strings.HasPrefix(src, root+string(filepath.Separator))
 		fi, lerr := os.Lstat(filepath.Join(root, filepath.Clean("/"+f.Path)))
 		if f.Path == "" || !inside || lerr != nil || !fi.Mode().IsRegular() {
-			return fmt.Errorf("result file %q is not a file in the results folder", f.Path)
+			return "", fmt.Errorf("result file %q is not a file in the results folder", f.Path)
 		}
 		if seen[src] {
-			return fmt.Errorf("result file %q is named twice", f.Path)
+			return "", fmt.Errorf("result file %q is named twice", f.Path)
 		}
 		seen[src], srcs[i], infos[i] = true, src, fi
 	}
@@ -89,15 +90,15 @@ func (r *Runner) keepFiles(ctx context.Context, projectID, processID int64, resu
 		return nil
 	})
 	if err != nil {
-		return err
+		return "", err
 	}
 	if err := os.MkdirAll(r.cfg.Home.Files(), 0o700); err != nil {
-		return err
+		return "", err
 	}
 	for i, row := range rows {
 		if err := move(srcs[i], filepath.Join(r.cfg.Home.Files(), fmt.Sprint(row.ID))); err != nil {
 			r.dropFiles(ctx, rows)
-			return err
+			return "", err
 		}
 	}
 	err = r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
@@ -115,9 +116,57 @@ func (r *Runner) keepFiles(ctx context.Context, projectID, processID int64, resu
 	})
 	if err != nil {
 		r.dropFiles(ctx, rows)
-		return err
+		return "", err
 	}
-	return nil
+	ids := map[string]int64{}
+	for i, f := range res.Files {
+		ids[f.Path] = rows[i].ID
+	}
+	return named(result, ids), nil
+}
+
+// named puts the ids the files of a result were kept under into it: into each entry of files, and in place of a
+// file field that names one of them.
+func named(result string, ids map[string]int64) string {
+	var v map[string]any
+	if json.Unmarshal([]byte(result), &v) != nil {
+		return result
+	}
+	fs, _ := v["files"].([]any)
+	for _, f := range fs {
+		if m, ok := f.(map[string]any); ok {
+			if id, ok := ids[fmt.Sprint(m["path"])]; ok {
+				m["file"] = id
+			}
+		}
+	}
+	if p, ok := v["file"].(string); ok && ids[p] != 0 {
+		v["file"] = ids[p]
+	}
+	b, err := json.Marshal(v)
+	if err != nil {
+		return result
+	}
+	return string(b)
+}
+
+// keepLeft keeps every file a turn without a result schema left in its results folder, its own and those the
+// models it called made, as files of the process.
+func (r *Runner) keepLeft(ctx context.Context, projectID, processID int64, results string) error {
+	var left []FileRef
+	_ = filepath.WalkDir(results, func(path string, d fs.DirEntry, err error) error {
+		if err == nil && d.Type().IsRegular() {
+			rel, _ := filepath.Rel(results, path)
+			left = append(left, FileRef{Path: rel})
+		}
+		return nil
+	})
+	if len(left) == 0 {
+		return nil
+	}
+	raw, _ := json.Marshal(map[string]any{"files": left})
+	_, err := r.keepFiles(ctx, projectID, processID, results, string(raw))
+	return err
 }
 
 // keeping owns the rows of result files while they move into files/; the daily sweep drops those a crash left.

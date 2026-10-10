@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { lazy, memo, Suspense } from 'react';
 import { ActionIcon, Badge, Button, CopyButton, Group, Stack, Text, Tooltip } from '@mantine/core';
 import { IconCheck, IconCopy, IconPaperclip, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
@@ -12,6 +12,8 @@ import { DekiHead, useMascot } from '../ui/deki/Deki';
 import { Markdown } from '../ui/Markdown';
 import s from './chat.module.css';
 import { Processes } from './Turn';
+
+const Media = lazy(() => import('../blocks/media/Media').then((m) => ({ default: m.Media })));
 
 type ChatMessage = ChatValue['messages'][number];
 type WorkValue = NonNullable<ChatMessage['work']>;
@@ -114,6 +116,7 @@ export const Message = memo(function Message({ m }: { m: ChatMessage }) {
     <div className={s.masterLine} data-message="master" data-avatar={mascot || undefined} tabIndex={-1}>
       {mascot && <span className={s.avatar}><DekiHead size={28} /></span>}
       <Markdown text={m.text} />
+      {!!m.files?.length && <div className={s.made} data-message-files><Suspense><Media items={m.files} /></Suspense></div>}
       {m.work && <Work w={m.work} />}
       <Group gap={4} className={s.lineTools}>
         <CopyButton value={m.text}>{({ copied, copy }) => (

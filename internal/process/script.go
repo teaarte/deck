@@ -118,7 +118,7 @@ func (r *Runner) runScript(ctx context.Context, t turn, trial bool) {
 		fail(err)
 		return
 	}
-	if err := r.keepFiles(bg, t.project, id, kept, result); err != nil {
+	if result, err = r.keepFiles(bg, t.project, id, kept, result); err != nil {
 		fail(err)
 		return
 	}

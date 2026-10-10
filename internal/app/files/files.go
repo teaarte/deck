@@ -241,13 +241,19 @@ func (s *Service) Commands() []*registry.Command {
 	)
 }
 
-// File is a file a media block of the project shows: a stored file of the project by id, or a file of its data
-// folder by path; on a screen of deck, with no project but its workspace, a stored file of any of its projects.
+// File is a file a media block of the project shows: a stored file by id or its digits, a data folder file by path,
+// or a stored file by the name a result gave it; on a screen of deck, a stored file of any project of the workspace.
 func (s *Service) File(ctx context.Context, p db.Project, ref any) (map[string]any, error) {
 	if path, ok := ref.(string); ok {
+		if n, err := strconv.ParseInt(path, 10, 64); err == nil && n > 0 {
+			return s.File(ctx, p, n)
+		}
 		f, err := s.dataFile(p.ID, path)
 		if err != nil {
-			return nil, fmt.Errorf("no file %q in the data folder of %s", path, p.Name)
+			if kept, kerr := s.St.Q.GetFileByName(ctx, db.GetFileByNameParams{ProjectID: p.ID, Name: path}); kerr == nil {
+				return s.File(ctx, p, kept.ID)
+			}
+			return nil, fmt.Errorf("no file %q in the data folder of %s or among its stored files", path, p.Name)
 		}
 		fi, _ := f.Stat()
 		_ = f.Close()

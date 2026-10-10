@@ -17,6 +17,7 @@ import (
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
+	"deck2/internal/untrusted"
 )
 
 // FileRef is an entry of the files field of a result: a file of the results folder, or File, a file the
@@ -157,28 +158,44 @@ const (
 )
 
 // keepLeft keeps the files a turn without a result schema left in its results folder, its own and those the models
-// it called made, as files of the process: hidden ones not, and at most leftFiles of leftBytes together.
+// it called made, as files of the process: hidden ones not, and at most leftFiles of leftBytes together; it tells
+// the owner of those it did not keep.
 func (r *Runner) keepLeft(ctx context.Context, projectID, processID int64, results string) error {
 	var left []FileRef
 	var total int64
+	var seen int
+	var unread []error
 	_ = filepath.WalkDir(results, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
+			unread = append(unread, err)
 			return nil
 		}
-		if strings.HasPrefix(d.Name(), ".") && path != results {
-			if d.IsDir() {
-				return filepath.SkipDir
-			}
+		if !d.Type().IsRegular() {
 			return nil
 		}
-		fi, ierr := d.Info()
-		if !d.Type().IsRegular() || ierr != nil || len(left) >= leftFiles || total+fi.Size() > leftBytes {
-			return nil
-		}
+		seen++
 		rel, _ := filepath.Rel(results, path)
-		left, total = append(left, FileRef{Path: rel}), total+fi.Size()
+		if slices.ContainsFunc(strings.Split(rel, string(filepath.Separator)), func(s string) bool { return strings.HasPrefix(s, ".") }) {
+			return nil
+		}
+		fi, err := d.Info()
+		if err != nil {
+			unread = append(unread, err)
+			return nil
+		}
+		if len(left) < leftFiles && total+fi.Size() <= leftBytes {
+			left, total = append(left, FileRef{Path: rel}), total+fi.Size()
+		}
 		return nil
 	})
+	if len(left) < seen || len(unread) > 0 {
+		text := fmt.Sprintf("deck kept %d of %d files the turn left in its results folder; hidden files and those past %d files or %d MB went with the run folder",
+			len(left), seen, leftFiles, leftBytes>>20)
+		if len(unread) > 0 {
+			text += "; could not read: " + errors.Join(unread...).Error()
+		}
+		r.warn(ctx, processID, untrusted.Cut(text, 1000))
+	}
 	if len(left) == 0 {
 		return nil
 	}

@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"syscall"
@@ -694,5 +695,25 @@ func TestTheQuestionToolIsTheProvidersOwn(t *testing.T) {
 	e.answer(a.ID, "blue")
 	if d := <-got; d["behavior"] != "allow" || !strings.Contains(fmt.Sprint(d["updatedInput"]), "blue") {
 		t.Fatalf("the answer goes back to the question tool: %v", d)
+	}
+}
+
+// TestFilesATurnLeftPastTheLimitsAreToldOf: of the files a turn leaves, deck keeps visible ones up to its limits and
+// tells the owner how many of how many it kept.
+func TestFilesATurnLeftPastTheLimitsAreToldOf(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		results := filepath.Join(c.Req.Cwd, "..", "results")
+		for i := range 52 {
+			_ = os.WriteFile(filepath.Join(results, fmt.Sprintf("f%02d.txt", i)), []byte("file"), 0o600)
+		}
+		_ = os.WriteFile(filepath.Join(results, ".secret"), []byte("x"), 0o600)
+		_ = os.MkdirAll(filepath.Join(results, ".cache"), 0o700)
+		_ = os.WriteFile(filepath.Join(results, ".cache", "x"), []byte("x"), 0o600)
+		return provider.Result{Text: "done"}
+	})
+	e.waitState(e.run(e.createProject("plain", plainManifest), "work"), "done")
+	if n := e.waitNote("deck kept 50 of 54 files"); !strings.Contains(n.Text, "hidden") {
+		t.Fatalf("the note says why: %+v", n)
 	}
 }

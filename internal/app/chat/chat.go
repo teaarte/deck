@@ -53,6 +53,8 @@ type Service struct {
 	File func(ctx context.Context, p db.Project, ref any) (map[string]any, error)
 	// Go runs work beside the calls unless deck stops; the replies it leaves go at the next start.
 	Go func(func()) bool
+	// Words are deck's phrases in a language.
+	Words func(lang string) map[string]string
 
 	mu    sync.Mutex
 	queue chatQueue

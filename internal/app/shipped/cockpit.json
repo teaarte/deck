@@ -37,7 +37,7 @@
           "source": {"from": "deck.processes_list", "input": {"failed": true, "brief": true}, "limit": 20},
           "description": "Runs that failed and no later run made good; close one you will not repeat.",
           "item": {"title": "project + ' · ' + command + ((record_title ?? '') != '' ? ' · ' + record_title : '')", "tone": "'error'", "icon": "'alert-circle'",
-            "text": "(error ?? '') != '' ? error : 'the result did not match its schema'", "meta": "'#' + string(id)"},
+            "text": "(error ?? '') != '' ? error : word", "meta": "'#' + string(id)"},
           "actions": [
             {"verb": "retry", "primary": true, "command": "deck.process_retry", "params": {"process": "=id"}, "when": "retry ?? false"},
             {"verb": "open", "screen": "process", "record": "=id"},
@@ -46,10 +46,9 @@
         {"type": "list", "title": "Running now", "icon": "activity", "when": "len(rows) > 0",
           "source": {"from": "deck.processes_list", "input": {"open": true}},
           "item": {"title": "project + ' · ' + ((topic ?? '') != '' ? topic : command) + ((record_title ?? '') != '' ? ' · ' + record_title : '')",
-            "tone": "(long ?? false) ? 'warn' : ''",
-            "text": "((long ?? false) ? 'longer than usual · ' : '') + ((question ?? '') != '' ? 'waits for your answer: ' + question : silent ? 'silent' : state == 'waiting_slot' ? 'waits for a slot' : state == 'waiting_folder' ? 'waits for folder ' + folder : state == 'rate_limited' ? 'paused on a usage limit' : kind == 'script' ? 'a script runs' : 'runs on ' + ((provider ?? '') != '' ? provider : kind))",
+            "tone": "tone ?? ''", "text": "word", "since": "since ?? ''",
             "icon": "kind == 'script' ? 'code' : kind == 'tool' ? 'tool' : kind == 'model' ? 'sparkles' : 'robot'",
-            "meta": "((seconds ?? 0) < 60 ? string(seconds ?? 0) + ' s' : (seconds ?? 0) < 3600 ? string(int((seconds ?? 0) / 60)) + ' min' : string(int((seconds ?? 0) / 3600)) + ' h') + ' · ' + ((trigger ?? 0) != 0 ? 'by schedule · #' + string(id) : (parent ?? 0) != 0 ? 'of #' + string(parent) + ' · #' + string(id) : '#' + string(id))"},
+            "meta": "(trigger ?? 0) != 0 ? 'by schedule · #' + string(id) : (parent ?? 0) != 0 ? 'of #' + string(parent) + ' · #' + string(id) : '#' + string(id)"},
           "actions": [
             {"verb": "open", "screen": "process", "record": "=id"},
             {"verb": "stop", "command": "deck.process_stop", "params": {"process": "=id"}, "when": "(finished_at ?? '') == ''"}

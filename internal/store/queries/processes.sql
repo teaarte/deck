@@ -266,7 +266,7 @@ SELECT r.id, r.collection, r.key, j.name AS project FROM record r JOIN project j
 WHERE r.process_id IN (SELECT id FROM tree) ORDER BY r.id;
 
 -- name: ListChildProcesses :many
-SELECT p.id, p.command, p.state, j.name AS project FROM process p JOIN project j ON j.id = p.project_id
+SELECT sqlc.embed(p), j.name AS project FROM process p JOIN project j ON j.id = p.project_id
 WHERE p.parent_id = sqlc.arg(parent_id) ORDER BY p.id;
 
 

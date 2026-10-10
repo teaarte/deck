@@ -355,7 +355,8 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 				line["markdown"] = true
 			}
 			r.setTone(line, b.Item.Tone, it)
-			for key, e := range map[string]string{"title": b.Item.Title, "text": b.Item.Text, "meta": b.Item.Meta, "icon": b.Item.Icon} {
+			for key, e := range map[string]string{"title": b.Item.Title, "text": b.Item.Text, "meta": b.Item.Meta, "since": b.Item.Since,
+				"icon": b.Item.Icon, "details": b.Item.Details, "questions": b.Item.Questions} {
 				if e == "" {
 					continue
 				}
@@ -363,7 +364,11 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 				if err != nil {
 					return nil, fmt.Errorf("item %s: %w", key, err)
 				}
-				if v != nil && v != "" {
+				switch {
+				case v == nil || v == "":
+				case key == "details", key == "questions":
+					line[key] = v
+				default:
 					line[key] = fmt.Sprint(r.word(b.Source.Collection, e, v))
 				}
 			}
@@ -375,18 +380,6 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 					if f, err := r.src.File(r.ctx, r.req.Project, ref); err == nil && slices.Contains(pictures, f["type"]) {
 						line["image"] = f["url"]
 					}
-				}
-			}
-			for key, e := range map[string]string{"details": b.Item.Details, "questions": b.Item.Questions} {
-				if e == "" {
-					continue
-				}
-				v, err := r.eval(e, it)
-				if err != nil {
-					return nil, fmt.Errorf("item %s: %w", key, err)
-				}
-				if v != nil && v != "" {
-					line[key] = v
 				}
 			}
 			lines = append(lines, line)

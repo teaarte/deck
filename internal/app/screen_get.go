@@ -84,7 +84,7 @@ func (a *App) screenGet(ctx context.Context, act registry.Actor, in screenGetIn)
 	if req.Screen == nil {
 		return nil, registry.NotFound("deck: no screen %q", in.Screen)
 	}
-	req.Words = words(in.Lang, req.Manifest)
+	req.Words, req.Lang = words(in.Lang, req.Manifest), in.Lang
 	out, errs, err := screen.Render(ctx, a.sources(act), req)
 	if err != nil {
 		return nil, registry.NotFound("deck: %v", err)
@@ -146,8 +146,8 @@ func (s screenSources) File(ctx context.Context, p db.Project, ref any) (map[str
 	return s.a.Files.File(ctx, p, ref)
 }
 
-// Read calls a command that only reads with the project of a project screen and the values picked in filters
-// that it takes, as the viewer or, for another project, with the rights of the project of the screen.
+// Read calls a command that only reads with the project of a project screen, the language and the values picked in
+// filters that it takes, as the viewer or, for another project, with the rights of the project of the screen.
 func (s screenSources) Read(ctx context.Context, command string, input map[string]any, sc screen.Scope) (any, error) {
 	c, err := s.a.Registry.Lookup(ctx, sc.Workspace, command)
 	if err != nil {
@@ -166,6 +166,9 @@ func (s screenSources) Read(ctx context.Context, command string, input map[strin
 	}
 	if _, ok := types["project"]; ok && sc.Project != "" && in["project"] == nil {
 		in["project"] = sc.Project
+	}
+	if _, ok := types["lang"]; ok && sc.Lang != "" && in["lang"] == nil {
+		in["lang"] = sc.Lang
 	}
 	for k, v := range sc.Filter {
 		if types[k] != "" {

@@ -145,7 +145,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	*a.Files = appfiles.Service{St: st, Home: h, Now: cfg.Now, Held: a.Records.Held}
 	*a.Journal = journal.Service{St: st, Now: cfg.Now}
 	*a.Settings = settings.Service{St: st, DefaultTTL: cfg.ConfirmTTL, Wake: a.Runner.Wake}
-	*a.Triggers = triggers.Service{St: st, Scheduler: a.Scheduler, Gateway: a.Gateway, Registry: a.Registry, Model: a.Providers.CommandModel}
+	*a.Triggers = triggers.Service{St: st, Scheduler: a.Scheduler, Gateway: a.Gateway, Registry: a.Registry, Model: a.Providers.CommandModel, Words: phrases}
 	*a.Documents = documents.Service{St: st, Now: cfg.Now, Sandbox: cfg.Sandbox, Ctx: a.ctx, Go: a.bg.Go,
 		SaveManifest: a.Saver.SaveCall, Changed: a.Devices.Changed}
 	*a.Snapshots = snapshots.Service{St: st, Bus: a.Bus, Home: h, Now: cfg.Now, Budget: cfg.SnapshotBudget, LockFiles: a.Files.Mu.Lock, UnlockFiles: a.Files.Mu.Unlock,
@@ -160,11 +160,12 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 		AnswerGrant: a.Saver.AnswerGrant, SaveManifest: a.Saver.SaveCall}
 	*a.Signins = signins.Service{St: st, Ctx: a.ctx, Broker: a.Asks, OAuth: oauth, Browser: a.Browser, MCP: a.MCP}
 	*a.Chats = chat.Service{St: st, Bus: a.Bus, Now: cfg.Now, Asks: a.Asks, Runner: a.Runner, For: a.Providers.For,
-		Named: a.Providers.Named, Fits: a.Providers.Fits, DrainFiles: a.Files.Drain, File: a.Files.File, Go: a.bg.Go}
+		Named: a.Providers.Named, Fits: a.Providers.Fits, DrainFiles: a.Files.Drain, File: a.Files.File, Go: a.bg.Go, Words: phrases}
 	*a.Devices = devices.Service{St: st, Bus: a.Bus, Now: cfg.Now, DrainFiles: a.Files.Drain,
 		Home: h, Invoke: a.Registry.Invoke, DeckScreen: deckScreen}
 	*a.Failures = failures.Service{St: st, Now: cfg.Now, Runner: a.Runner}
-	*a.Processes = processes.Service{St: st, Runner: a.Runner, Named: a.Providers.Named, Now: cfg.Now, Invoke: a.Registry.Invoke, Lookup: a.Registry.Lookup}
+	*a.Processes = processes.Service{St: st, Runner: a.Runner, Named: a.Providers.Named, Now: cfg.Now, Invoke: a.Registry.Invoke, Lookup: a.Registry.Lookup,
+		Words: phrases}
 	*a.Health = apphealth.Service{St: st, Providers: a.Providers.All, Secret: a.Secrets.Has, Unassigned: a.Providers.Unassigned}
 	*a.Records = records.Service{St: st, Now: cfg.Now, DrainFiles: a.Files.Drain, Stop: func(ctx context.Context, id int64, why string) error {
 		return a.Runner.Stop(ctx, id, why, true)

@@ -13,14 +13,16 @@ import (
 	"deck2/internal/registry"
 )
 
-// shippedFiles are deck's screens, a file each (project-<name> for those of every project), the menu and the words.
+// shippedFiles are deck's screens, a file each (project-<name> for those of every project), the menu, the words of
+// the screens (i18n.<lang>) and of the read commands (words.<lang>).
 //
 //go:embed shipped/*.json
 var shippedFiles embed.FS
 
 type shippedScreens struct {
-	// I18n translates deck's own screens, by language and then by text.
+	// I18n translates deck's own screens, by language and then by text; Words the phrases of its read commands.
 	I18n    map[string]map[string]string
+	Words   map[string]map[string]string
 	Menu    []string
 	Screens []manifest.Screen
 	// Project are the screens deck adds to every project, after the project's own.
@@ -35,7 +37,7 @@ var shipped = sync.OnceValue(func() (d shippedScreens) {
 		Screens []json.RawMessage `json:"screens"`
 		Project []json.RawMessage `json:"project"`
 	}
-	d.I18n = map[string]map[string]string{}
+	d.I18n, d.Words = map[string]map[string]string{}, map[string]map[string]string{}
 	files, err := fs.Glob(shippedFiles, "shipped/*.json")
 	if err != nil {
 		panic(err)
@@ -46,15 +48,21 @@ var shipped = sync.OnceValue(func() (d shippedScreens) {
 			panic(err)
 		}
 		name := strings.TrimSuffix(path.Base(f), ".json")
-		switch lang, isWords := strings.CutPrefix(name, "i18n."); {
+		lang, isScreens := strings.CutPrefix(name, "i18n.")
+		said, isPhrases := strings.CutPrefix(name, "words.")
+		switch {
 		case name == "menu":
 			all.Menu = raw
-		case isWords:
+		case isScreens || isPhrases:
 			var words map[string]string
 			if err := json.Unmarshal(raw, &words); err != nil {
 				panic(fmt.Sprintf("%s: %v", f, err))
 			}
-			d.I18n[lang] = words
+			if isScreens {
+				d.I18n[lang] = words
+			} else {
+				d.Words[said] = words
+			}
 		default:
 			var sc struct{ Name string }
 			if json.Unmarshal(raw, &sc) != nil || sc.Name != strings.TrimPrefix(name, "project-") {

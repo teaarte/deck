@@ -98,7 +98,7 @@ func TestEveryTextOfDeckScreensHasItsTranslation(t *testing.T) {
 			if err := json.Unmarshal(raw, &ru); err != nil {
 				t.Fatal(err)
 			}
-		case "menu.json":
+		case "menu.json", "words.ru.json":
 		default:
 			maps.Copy(texts, manifest.Texts(raw))
 		}

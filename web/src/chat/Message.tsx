@@ -3,7 +3,6 @@ import { ActionIcon, Badge, Button, CopyButton, Group, Stack, Text, Tooltip } fr
 import { IconCheck, IconCopy, IconPaperclip, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { call } from '../lib/api';
-import catalogSchema from '../lib/catalogSchema';
 import { formatted } from '../lib/format';
 import { notifyError } from '../lib/notify';
 import type { ChatValue } from '../lib/catalog.gen';
@@ -36,8 +35,6 @@ function Meta({ w }: { w: WorkValue }) {
     t('chat.worked', { time: formatted(w.seconds, { format: 'duration' }) }), w.steps > 0 ? t('chat.steps', { count: w.steps }) : ''].filter(Boolean);
   return <Text size="xs" c="dimmed" data-work-meta>{parts.join(' · ')}</Text>;
 }
-
-const failed = catalogSchema.final_states.filter((x) => x !== 'done');
 
 type Cut = NonNullable<NonNullable<ChatMessage['reply']>['cut']>;
 
@@ -75,11 +72,10 @@ function Broken({ cut, provider }: { cut: Cut; provider?: string }) {
 
 // ReplyState tells that the reply to a message of the owner failed, and why, with what a broken one left.
 function ReplyState({ reply }: { reply: NonNullable<ChatMessage['reply']> }) {
-  const { t } = useTranslation();
   return (
     <Stack gap={4} align="flex-end">
       <Group gap={4} justify="flex-end">
-        <Badge size="xs" color="red" variant="light" data-reply-state={reply.state}>{t('chat.reply_' + reply.state, { defaultValue: reply.state })}</Badge>
+        <Badge size="xs" color={reply.tone === 'error' ? 'red' : 'gray'} variant="light" data-reply-state={reply.state}>{reply.word}</Badge>
         {reply.error && <Text size="xs" c="dimmed" lineClamp={2}>{reply.error}</Text>}
       </Group>
       {reply.cut && <Broken cut={reply.cut} provider={reply.provider} />}
@@ -100,7 +96,7 @@ export const Message = memo(function Message({ m }: { m: ChatMessage }) {
           {files.length > 0 && <Group gap={4} mb={6}>{files.map((f) => <Badge key={f} size="sm" variant="white" radius="sm" leftSection={<IconPaperclip size={11} />}>{f}</Badge>)}</Group>}
           <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>{m.text}</Text>
         </div>
-        {m.reply && failed.includes(m.reply.state) && <ReplyState reply={m.reply} />}
+        {(m.reply?.tone === 'error' || m.reply?.tone === 'muted') && <ReplyState reply={m.reply} />}
         {!m.process && (
           <Tooltip label={t('chat.delete')}>
             <ActionIcon variant="subtle" color="gray" size="sm" aria-label={t('chat.delete')} data-message-delete={m.id}

@@ -223,7 +223,7 @@ func (c *screenCheck) block(where string, b Block) {
 		}
 		if b.Item != nil {
 			for _, p := range []struct{ name, e string }{{"title", b.Item.Title}, {"text", b.Item.Text}, {"meta", b.Item.Meta},
-				{"icon", b.Item.Icon}, {"image", b.Item.Image}, {"details", b.Item.Details}, {"questions", b.Item.Questions},
+				{"since", b.Item.Since}, {"icon", b.Item.Icon}, {"image", b.Item.Image}, {"details", b.Item.Details}, {"questions", b.Item.Questions},
 				{"tone", b.Item.Tone}, {"file", b.Item.File}, {"marks", b.Item.Marks}} {
 				if _, err := compileField(p.e, fields); p.e != "" && err != nil {
 					c.fail("%s item %s: %v", where, p.name, err)

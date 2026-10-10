@@ -2,7 +2,8 @@ import { useEffect, useRef, useState, type DragEvent } from 'react';
 import type { ComponentContext } from '@a2ui/web_core/v0_9';
 import { Group, Stack, Text } from '@mantine/core';
 import s from './list.module.css';
-import { show } from '../lib/format';
+import { relative, show, when } from '../lib/format';
+import { useTicking } from '../hooks/useTicking';
 import { Actions } from '../ui/actions/Actions';
 import { Deadline } from '../ui/Deadline';
 import { Details } from '../ui/Details';
@@ -18,8 +19,8 @@ import { useBlob } from './media/useBlob';
 
 export type Item = NonNullable<Data['items']>[number];
 
-// list draws items: a title with its icon in the color of its tone, text, meta with the time its buttons have left,
-// details, the questions of an agent and buttons.
+// list draws items: a title with its icon in the color of its tone, text, meta with the time its buttons have left
+// and how long ago it started, details, the questions of an agent and buttons.
 export const list = blockImpl('list', (_, d, context) => d.board
   ? <Board board={d.board} items={d.items ?? []} /> : <Items items={d.items ?? []} context={context} />);
 
@@ -93,9 +94,10 @@ export function Line({ it, big }: { it: Item; big?: boolean }) {
         <Stack gap={2} miw={0} style={{ flex: 1 }}>
           <Text fw={600} lh={1.35} className={s.itemTitle}>{it.title}</Text>
           {it.text && (it.markdown ? <Markdown text={it.text} /> : <Text size="sm" c="var(--deck-text-2)" lh={1.45}>{it.text}</Text>)}
-          {(it.meta || until) && (
+          {(it.meta || it.since || until) && (
             <Group gap={8} wrap="wrap" mt={2}>
               {until && <Deadline until={until} />}
+              {it.since && <Since at={it.since} />}
               {it.meta && <Text size="xs" c="dimmed" className={s.meta}>{it.meta}</Text>}
             </Group>
           )}
@@ -108,6 +110,13 @@ export function Line({ it, big }: { it: Item; big?: boolean }) {
       </div>
     </div>
   );
+}
+
+// Since is how long ago the time a line counts from was, kept fresh.
+function Since({ at }: { at: string }) {
+  const now = useTicking(true);
+  const d = when(at);
+  return d ? <Text size="xs" c="dimmed" className={s.meta} data-since>{relative(d, now)}</Text> : null;
 }
 
 // Thumb is the picture of a line, read with the token like any file of deck.

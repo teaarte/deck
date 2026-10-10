@@ -10,6 +10,7 @@ import (
 
 	"deck2/internal/gateway"
 	"deck2/internal/manifest"
+	"deck2/internal/process"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
@@ -24,6 +25,8 @@ type Service struct {
 	Registry  *registry.Registry
 	// Model is the model an agent command starts on and the models assigned to it, empty for other commands.
 	Model func(ctx context.Context, projectID int64, command string) (string, []string)
+	// Words are deck's phrases in a language.
+	Words func(lang string) map[string]string
 }
 
 // ownTrigger loads a trigger of the actor's workspace; agents reach only their own project.
@@ -34,6 +37,7 @@ func (s *Service) ownTrigger(ctx context.Context, act registry.Actor, id int64) 
 
 type triggersListIn struct {
 	Project string `type:"project" opt:"" desc:"Project name; without it an agent of a project gets its own, the owner and the master every project"`
+	Lang    string `opt:"" desc:"Language of the words of the states, such as ru; English without one"`
 }
 
 // triggerView is a trigger with its next run, whose pause holds it, and how its last run ended.
@@ -54,6 +58,11 @@ type triggerView struct {
 	Draft       bool   `json:"draft"`
 	LastProcess int64  `json:"last_process"`
 	LastState   string `json:"last_state"`
+	// Word and Tone say whether it runs; LastWord and LastTone how its last run ended.
+	Word     string `json:"word"`
+	Tone     string `json:"tone,omitempty"`
+	LastWord string `json:"last_word,omitempty"`
+	LastTone string `json:"last_tone,omitempty"`
 	// Model is the model the agent command starts on, Models those assigned to it; empty for other commands.
 	Model  string   `json:"model"`
 	Models []string `json:"models"`
@@ -73,6 +82,8 @@ func (s *Service) triggersList(ctx context.Context, act registry.Actor, in trigg
 		model  string
 		models []string
 	}{}
+	ws := s.Words(in.Lang)
+	tr := func(phrase string) string { return manifest.Tr(ws, phrase) }
 	out := make([]triggerView, 0, len(ts))
 	for _, t := range ts {
 		p, ok := names[t.ProjectID]
@@ -99,7 +110,19 @@ func (s *Service) triggersList(ctx context.Context, act registry.Actor, in trigg
 			v.LastProcess = t.LastProcessID.Int64
 			if lp, err := s.St.Q.GetProcess(ctx, v.LastProcess); err == nil {
 				v.LastState = lp.State
+				shown := process.Show(lp, "", false, tr)
+				v.LastWord, v.LastTone = shown.Word, shown.Tone
 			}
+		}
+		switch {
+		case v.Draft:
+			v.Word, v.Tone = tr("draft: does not run"), "muted"
+		case v.ProjectPaused:
+			v.Word, v.Tone = tr("project paused"), "muted"
+		case v.Paused:
+			v.Word, v.Tone = tr("paused"), "muted"
+		default:
+			v.Word = tr("on")
 		}
 		out = append(out, v)
 	}

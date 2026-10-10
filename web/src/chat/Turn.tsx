@@ -3,9 +3,8 @@ import { useLocalStorage } from '@mantine/hooks';
 import { IconArrowUpRight, IconChevronDown, IconChevronUp, IconPlayerStopFilled } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { ChatValue } from '../lib/catalog.gen';
-import catalogSchema from '../lib/catalogSchema';
 import { useTicking } from '../hooks/useTicking';
-import { formatted } from '../lib/format';
+import { formatted, toneColor } from '../lib/format';
 import { ActionIconButton } from '../ui/actions/ActionIconButton';
 import a from '../ui/aura.module.css';
 import { Deki, useMascot } from '../ui/deki/Deki';
@@ -29,21 +28,16 @@ export function logLines(lines: TurnValue['lines'], shown = SHOWN): { key: strin
   }).filter((l) => l.text.trim()).slice(-shown);
 }
 
-// waits are the states of a process that waits for the owner or its provider.
-const waits = ['waiting_answer', 'needs_login', 'rate_limited', 'waiting_provider'];
-const broke = catalogSchema.final_states.filter((x) => x !== 'done' && x !== 'stopped');
-
-// Processes are the processes a reply started, each with its state, red when it failed and yellow when it waits,
-// and the button that opens its log.
+// Processes are the processes a reply started, each with its state in the color of its tone, and the button that
+// opens its log.
 export function Processes({ list }: { list: Proc[] }) {
-  const { t } = useTranslation();
   if (!list.length) return null;
   return (
     <div className={s.procs} data-turn-processes>
       {list.map((p) => (
         <Group key={p.id} gap={6} wrap="nowrap" className={s.proc} data-process={p.id}>
           <Text size="xs" ff="monospace" truncate style={{ flex: 1 }}>{p.project}.{p.command}</Text>
-          <Text size="xs" c={broke.includes(p.state) ? 'red' : waits.includes(p.state) ? 'yellow' : 'dimmed'}>{t('chat.pstate.' + p.state, { defaultValue: p.state })}</Text>
+          <Text size="xs" c={toneColor(p.tone) ?? 'dimmed'} data-process-tone={p.tone}>{p.word}</Text>
           <ActionIconButton act={p.open} variant="subtle" icon={<IconArrowUpRight size={13} />} />
         </Group>
       ))}
@@ -74,7 +68,7 @@ export function Turn({ turn }: { turn: TurnValue }) {
       <div className={`${s.turnHead} ${a.aura}`} data-live={running || undefined}>
         <span className={s.turnMark}>{mascot ? <Deki mood={running ? 'dots' : 'wait'} size={26} still={!running} /> : <Glyph busy={running} />}</span>
         <Text size="xs" fw={500} truncate style={{ flex: 1 }}>
-          {running ? t(mascot ? 'chat.replying_deki' : 'chat.replying', { provider: turn.provider ?? '' }) : t('chat.waits.' + turn.state, { defaultValue: turn.state })}
+          {running ? t(mascot ? 'chat.replying_deki' : 'chat.replying', { provider: turn.provider ?? '' }) : turn.word}
         </Text>
         {running && <Dots />}
         {!Number.isNaN(started) && (

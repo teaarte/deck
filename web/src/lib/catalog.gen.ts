@@ -164,6 +164,15 @@ export interface Reply {
   state: string;
   provider?: string;
   error?: string;
+  /**
+   * the state in the owner's words
+   */
+  word?: string;
+  tone?: Tone;
+  /**
+   * it waits for the owner or its provider rather than works
+   */
+  waits?: boolean;
   open?: Action;
   /**
    * what a reply that broke off left
@@ -244,6 +253,10 @@ export interface Data {
     text?: string;
     meta?: string;
     icon?: string;
+    /**
+     * the time the line counts from, shown as how long ago
+     */
+    since?: string;
     /**
      * address of the picture of the line
      */
@@ -564,6 +577,15 @@ export interface ChatValue {
         command: string;
         state: string;
         open: Action;
+        /**
+         * the state in the owner's words
+         */
+        word?: string;
+        tone?: Tone;
+        /**
+         * it waits for the owner or its provider rather than works
+         */
+        waits?: boolean;
       }[];
     };
   }[];
@@ -584,13 +606,34 @@ export interface ChatValue {
     process: number;
     state: string;
     provider?: string;
+    /**
+     * when the reply last started work
+     */
     started_at?: string;
+    /**
+     * the state in the owner's words
+     */
+    word?: string;
+    tone?: Tone;
+    /**
+     * it waits for the owner or its provider rather than works
+     */
+    waits?: boolean;
     processes?: {
       id: number;
       project: string;
       command: string;
       state: string;
       open: Action;
+      /**
+       * the state in the owner's words
+       */
+      word?: string;
+      tone?: Tone;
+      /**
+       * it waits for the owner or its provider rather than works
+       */
+      waits?: boolean;
     }[];
     lines: {
       at: string;

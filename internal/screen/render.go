@@ -21,7 +21,7 @@ const (
 // HTML of custom blocks; the screen itself touches no store.
 type Sources interface {
 	// Read calls a command that only reads, as the one who looks at the screen, decoded with integers as int64;
-	// the scope adds the project and the values picked in filters that the command takes.
+	// the scope adds the project, the language and the values picked in filters that the command takes.
 	Read(ctx context.Context, command string, input map[string]any, scope Scope) (any, error)
 	// Command is what a form needs of a command: name, title, project, input and result schemas.
 	Command(ctx context.Context, workspace int64, name string) (map[string]any, error)
@@ -39,6 +39,8 @@ type Scope struct {
 	Filter map[string]string
 	// By is the project whose rights read another project, for a block of its screen.
 	By int64
+	// Lang is the owner's language, for a command that says things in it.
+	Lang string
 }
 
 // Request is a screen to resolve. Project is zero for a screen deck ships.
@@ -55,8 +57,9 @@ type Request struct {
 	Filter map[string]map[string]string
 	// Params are the parameters of the screen from its address, read as param.<name> when the screen declares them.
 	Params map[string]string
-	// Words translate the texts of the screen into the owner's language.
+	// Words translate the texts of the screen into Lang, the owner's language.
 	Words map[string]string
+	Lang  string
 	// Brief gives the HTML of custom blocks and the text of documents by name and size, not whole.
 	Brief bool
 }
@@ -118,7 +121,7 @@ func Check(ctx context.Context, src Sources, req Request) ([]string, error) {
 
 func resolve(ctx context.Context, src Sources, req Request) (*renderer, error) {
 	r := &renderer{ctx: ctx, src: src, req: req, data: map[string]any{}, read: map[string]readOf{}, fetched: map[string]fetchOf{}}
-	r.scope = Scope{Workspace: req.Project.WorkspaceID, Project: req.Project.Name}
+	r.scope = Scope{Workspace: req.Project.WorkspaceID, Project: req.Project.Name, Lang: req.Lang}
 	r.params = map[string]any{}
 	for name, typ := range req.Screen.Params {
 		if v := req.Params[name]; v != "" {
@@ -189,7 +192,7 @@ func (r *renderer) loadRecord() error {
 		return fmt.Errorf("screen %q shows one record; open it with the record id", r.req.Screen.Name)
 	}
 	if r.deck() {
-		got, err := r.src.Read(r.ctx, "deck.process_get", map[string]any{"process": r.req.Record}, Scope{Workspace: r.scope.Workspace})
+		got, err := r.src.Read(r.ctx, "deck.process_get", map[string]any{"process": r.req.Record}, Scope{Workspace: r.scope.Workspace, Lang: r.req.Lang})
 		rec, _ := got.(map[string]any)
 		if err != nil || rec == nil {
 			return fmt.Errorf("no process %d", r.req.Record)

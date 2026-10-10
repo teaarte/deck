@@ -495,14 +495,12 @@ func (q *Queries) ListCeilingReached(ctx context.Context, now int64) ([]int64, e
 }
 
 const listChildProcesses = `-- name: ListChildProcesses :many
-SELECT p.id, p.command, p.state, j.name AS project FROM process p JOIN project j ON j.id = p.project_id
+SELECT p.id, p.project_id, p.command, p.kind, p.state, p.provider, p.session_id, p.input, p.result, p.not_by_schema, p.error, p.start_note, p.parent_id, p.depth, p.trigger_id, p.retry_key, p.manifest_revision, p.trial, p.folder, p.pgid, p.ceiling_ms, p.deadline_ms, p.output_ms, p.silent_since_ms, p.pause_until_ms, p.wait_message, p.wait_fresh, p.started_at, p.finished_at, p.alone, p.dismissed, p.reopened_at, j.name AS project FROM process p JOIN project j ON j.id = p.project_id
 WHERE p.parent_id = ?1 ORDER BY p.id
 `
 
 type ListChildProcessesRow struct {
-	ID      int64
-	Command string
-	State   string
+	Process Process
 	Project string
 }
 
@@ -516,9 +514,38 @@ func (q *Queries) ListChildProcesses(ctx context.Context, parentID sql.NullInt64
 	for rows.Next() {
 		var i ListChildProcessesRow
 		if err := rows.Scan(
-			&i.ID,
-			&i.Command,
-			&i.State,
+			&i.Process.ID,
+			&i.Process.ProjectID,
+			&i.Process.Command,
+			&i.Process.Kind,
+			&i.Process.State,
+			&i.Process.Provider,
+			&i.Process.SessionID,
+			&i.Process.Input,
+			&i.Process.Result,
+			&i.Process.NotBySchema,
+			&i.Process.Error,
+			&i.Process.StartNote,
+			&i.Process.ParentID,
+			&i.Process.Depth,
+			&i.Process.TriggerID,
+			&i.Process.RetryKey,
+			&i.Process.ManifestRevision,
+			&i.Process.Trial,
+			&i.Process.Folder,
+			&i.Process.Pgid,
+			&i.Process.CeilingMs,
+			&i.Process.DeadlineMs,
+			&i.Process.OutputMs,
+			&i.Process.SilentSinceMs,
+			&i.Process.PauseUntilMs,
+			&i.Process.WaitMessage,
+			&i.Process.WaitFresh,
+			&i.Process.StartedAt,
+			&i.Process.FinishedAt,
+			&i.Process.Alone,
+			&i.Process.Dismissed,
+			&i.Process.ReopenedAt,
 			&i.Project,
 		); err != nil {
 			return nil, err

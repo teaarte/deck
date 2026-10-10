@@ -1,0 +1,22 @@
+{
+  "the result did not match its schema": "результат не по схеме",
+  "done": "готово",
+  "failed": "не получилось",
+  "cut by a restart of deck": "прервано перезапуском deck",
+  "stopped": "остановлено",
+  "waits for your answer: %s": "ждёт вашего ответа: %s",
+  "waits for you": "ждёт вас",
+  "waits for a login": "ждёт входа",
+  "paused on a usage limit": "пауза по лимиту",
+  "waits for %s to work again": "ждёт, когда %s заработает",
+  "waits for a slot": "ждёт свободного места",
+  "waits for folder %s": "ждёт папку %s",
+  "silent": "молчит",
+  "a script runs": "работает скрипт",
+  "runs on %s": "работает на %s",
+  "longer than usual: %s": "дольше обычного: %s",
+  "draft: does not run": "черновик: не запускается",
+  "project paused": "проект на паузе",
+  "paused": "на паузе",
+  "on": "включён"
+}

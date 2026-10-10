@@ -1,6 +1,7 @@
 package chat
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 	"strconv"
 
 	"deck2/internal/ask"
+	"deck2/internal/manifest"
 	"deck2/internal/process"
 	"deck2/internal/registry"
 	"deck2/internal/store"
@@ -48,6 +50,7 @@ type replyView struct {
 	Provider string `json:"provider"`
 	Error    string `json:"error,omitempty"`
 	Open     action `json:"open"`
+	process.Shown
 	// Cut is what a reply that broke off left, with its undo and the providers it can go again on.
 	Cut *cutView `json:"cut,omitempty"`
 }
@@ -146,6 +149,7 @@ type turnView struct {
 	Processes []procView       `json:"processes"`
 	Stop      action           `json:"stop"`
 	Open      action           `json:"open"`
+	process.Shown
 }
 
 // chatView is what a chat block shows: the topics, and of the topic picked its messages, the questions of its
@@ -162,8 +166,9 @@ type chatView struct {
 	Delete    action         `json:"delete,omitempty"`
 }
 
-func viewReply(p db.Process) *replyView {
-	return &replyView{Process: p.ID, State: p.State, Provider: p.Provider, Error: untrusted.Cut(p.Error, 500), Open: openProcess(p.ID)}
+func viewReply(p db.Process, tr func(string) string) *replyView {
+	return &replyView{Process: p.ID, State: p.State, Provider: p.Provider, Error: untrusted.Cut(p.Error, 500), Open: openProcess(p.ID),
+		Shown: process.Show(p, "", false, tr)}
 }
 
 func viewMessage(m db.ChatMessage) messageView {
@@ -174,30 +179,30 @@ func viewMessage(m db.ChatMessage) messageView {
 	return v
 }
 
-func viewTopic(t db.ListTopicSummariesRow) topicView {
+func viewTopic(t db.ListTopicSummariesRow, tr func(string) string) topicView {
 	v := topicView{ID: t.ID, Title: t.Title, Project: t.Project, Archived: t.Archived == 1,
 		UpdatedAt: t.UpdatedAt, Last: untrusted.Cut(t.LastText, 200)}
 	if t.OpenID != 0 {
-		v.Reply = viewReply(db.Process{ID: t.OpenID, State: t.OpenState, Provider: t.OpenProvider, Error: t.OpenError})
+		v.Reply = viewReply(db.Process{ID: t.OpenID, State: t.OpenState, Provider: t.OpenProvider, Error: t.OpenError}, tr)
 	}
 	return v
 }
 
 // topics are the summaries of the topics of a workspace, newest first; with topic, that one alone.
-func (ch *Service) topics(ctx context.Context, workspace int64, archived bool, topic, lim int64) ([]topicView, error) {
+func (ch *Service) topics(ctx context.Context, workspace int64, archived bool, topic, lim int64, tr func(string) string) ([]topicView, error) {
 	rows, err := ch.St.Q.ListTopicSummaries(ctx, db.ListTopicSummariesParams{WorkspaceID: workspace, Archived: store.Bool(archived), Topic: topic, Lim: lim})
 	if err != nil {
 		return nil, err
 	}
 	out := make([]topicView, 0, len(rows))
 	for _, t := range rows {
-		out = append(out, viewTopic(t))
+		out = append(out, viewTopic(t, tr))
 	}
 	return out, nil
 }
 
 // messages are messages of a topic with the reply each message of the owner got and the files it has.
-func (ch *Service) messages(ctx context.Context, ws, topic int64, rows []db.ChatMessage) []messageView {
+func (ch *Service) messages(ctx context.Context, ws, topic int64, rows []db.ChatMessage, tr func(string) string) []messageView {
 	replies := map[int64]*replyView{}
 	files := map[int64][]fileView{}
 	if fs, err := ch.St.Q.ListMessageFiles(ctx, topic); err == nil {
@@ -214,7 +219,7 @@ func (ch *Service) messages(ctx context.Context, ws, topic int64, rows []db.Chat
 		m := viewMessage(r)
 		if last[r.ProcessID] == r.ID && r.Role == roleMaster {
 			if p, err := ch.St.Q.GetProcess(ctx, r.ProcessID); err == nil {
-				m.Work = ch.work(ctx, p)
+				m.Work = ch.work(ctx, p, tr)
 				files[r.ID] = append(files[r.ID], ch.made(ctx, p)...)
 			}
 		}
@@ -227,13 +232,14 @@ func (ch *Service) messages(ctx context.Context, ws, topic int64, rows []db.Chat
 		}
 		m.Files = files[r.ID]
 		if r.Role == roleOwner && r.ProcessID == 0 && unstarted != "" {
-			m.Reply = &replyView{State: process.StateError, Error: untrusted.Cut("the reply did not start: "+unstarted, 500)}
+			m.Reply = &replyView{State: process.StateError, Error: untrusted.Cut("the reply did not start: "+unstarted, 500),
+				Shown: process.Show(db.Process{State: process.StateError}, "", false, tr)}
 		}
 		if r.Role == roleOwner && r.ProcessID != 0 {
 			if _, seen := replies[r.ProcessID]; !seen {
 				replies[r.ProcessID] = nil
 				if p, err := ch.St.Q.GetProcess(ctx, r.ProcessID); err == nil {
-					replies[r.ProcessID] = viewReply(p)
+					replies[r.ProcessID] = viewReply(p, tr)
 					replies[r.ProcessID].Cut = ch.cut(ctx, p, r.ID)
 				}
 			}
@@ -246,16 +252,19 @@ func (ch *Service) messages(ctx context.Context, ws, topic int64, rows []db.Chat
 
 type chatIn struct {
 	Topic string `opt:"" desc:"Topic id; new for none, the newest without one"`
+	Lang  string `opt:"" desc:"Language of the words of the states of replies, such as ru; English without one"`
 }
 
 // chat is the chat with the master as a chat block shows it.
 func (ch *Service) chat(ctx context.Context, act registry.Actor, in chatIn) (chatView, error) {
 	v := chatView{Messages: []messageView{}, Questions: []questionView{}, Send: chatAction("send", registry.Builtin+".chat_send", map[string]any{})}
 	var err error
-	if v.Topics, err = ch.topics(ctx, act.Workspace, false, 0, 50); err != nil {
+	ws := ch.Words(in.Lang)
+	tr := func(phrase string) string { return manifest.Tr(ws, phrase) }
+	if v.Topics, err = ch.topics(ctx, act.Workspace, false, 0, 50, tr); err != nil {
 		return v, err
 	}
-	if v.Archived, err = ch.topics(ctx, act.Workspace, true, 0, 20); err != nil {
+	if v.Archived, err = ch.topics(ctx, act.Workspace, true, 0, 20, tr); err != nil {
 		return v, err
 	}
 	var id int64
@@ -271,7 +280,7 @@ func (ch *Service) chat(ctx context.Context, act registry.Actor, in chatIn) (cha
 	default:
 		return v, nil
 	}
-	picked, err := ch.topics(ctx, act.Workspace, false, id, 1)
+	picked, err := ch.topics(ctx, act.Workspace, false, id, 1, tr)
 	if err != nil || len(picked) == 0 {
 		return v, err
 	}
@@ -288,16 +297,16 @@ func (ch *Service) chat(ctx context.Context, act registry.Actor, in chatIn) (cha
 	if err != nil {
 		return v, err
 	}
-	v.Messages = ch.messages(ctx, act.Workspace, t.ID, rows)
+	v.Messages = ch.messages(ctx, act.Workspace, t.ID, rows, tr)
 	if t.Reply == nil {
 		return v, nil
 	}
 	open := t.Reply
-	v.Turn = &turnView{Process: open.Process, State: open.State, Provider: open.Provider, Processes: ch.children(ctx, open.Process, false),
+	v.Turn = &turnView{Process: open.Process, State: open.State, Provider: open.Provider, Processes: ch.children(ctx, open.Process, false, tr),
 		Lines: ch.turnLines(open.Process), Stop: chatAction("stop", registry.Builtin+".process_stop", map[string]any{"process": open.Process}),
-		Open: openProcess(open.Process)}
+		Open: openProcess(open.Process), Shown: open.Shown}
 	if p, err := ch.St.Q.GetProcess(ctx, open.Process); err == nil {
-		v.Turn.StartedAt = p.StartedAt
+		v.Turn.StartedAt = cmp.Or(p.ReopenedAt.String, p.StartedAt)
 	}
 	asks, err := ch.St.Q.ListOpenAsksOfProcess(ctx, open.Process)
 	if err != nil {

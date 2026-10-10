@@ -9,8 +9,6 @@ import { onTopicOpen } from './chatStore';
 
 const ALL = '*';
 const NONE = '-';
-// GOING are the states of a reply at work, not waiting on the owner or a limit.
-const GOING = ['running', 'waiting_slot', 'waiting_folder'];
 
 // useTopics picks the topic the chat shows: the one the owner or another screen picked, else the one the server
 // offers; the topics on offer narrow to a module, which opens its last topic. The modules opened last come first.
@@ -34,7 +32,7 @@ export function useTopics(value: ChatValue, context: ComponentContext) {
     ...value.topics.filter(inProject).map((x) => ({ value: String(x.id), label: x.title })),
     ...value.archived.filter(inProject).map((x) => ({ value: String(x.id), label: t('chat.archived', { title: x.title }) })),
   ];
-  const going = value.topics.filter((x) => GOING.includes(x.reply?.state ?? ''));
+  const going = value.topics.filter((x) => x.reply && !x.reply.waits);
   const busy = new Set(going.map((x) => String(x.id)));
   const working = new Set(going.map((x) => x.project || NONE));
   menu.forEach((m) => { if (m.project && m.running && projects.includes(m.project)) working.add(m.project); });

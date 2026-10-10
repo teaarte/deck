@@ -246,6 +246,7 @@ type listItem struct {
 	Title     string           `json:"title"`
 	Text      string           `json:"text"`
 	Meta      string           `json:"meta"`
+	Since     string           `json:"since"`
 	Details   string           `json:"details"`
 	Questions []map[string]any `json:"questions"`
 	Actions   []map[string]any `json:"actions"`

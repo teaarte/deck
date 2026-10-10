@@ -15,6 +15,7 @@ import (
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
+	"deck2/internal/untrusted"
 )
 
 // ofRecord names the record the input field record of a process gives, with its title.
@@ -42,25 +43,41 @@ func (s *Service) ofRecord(ctx context.Context, p db.Process, v *processView) {
 // usualRuns is how many finished runs of a command it takes to know how long it usually works.
 const usualRuns = 5
 
-// howLong is how long an open process works since it was last opened, and whether a running one works more than
-// twice as long as its command's usual run, the median of its last runs, and over a minute.
-func (s *Service) howLong(ctx context.Context, p db.Process, v *processView) {
-	started, err := time.Parse(time.RFC3339Nano, cmp.Or(p.ReopenedAt.String, p.StartedAt))
-	if err != nil {
-		return
+// shown says the state of a process in the words of lang; an open one with what it waits for, since when it works
+// and the topic its reply answers.
+func (s *Service) shown(ctx context.Context, p db.Process, v *processView, lang string) {
+	var question string
+	if !p.FinishedAt.Valid {
+		v.Since = cmp.Or(p.ReopenedAt.String, p.StartedAt)
+		v.Long = s.long(ctx, p, v.Since)
+		asks, _ := s.St.Q.ListOpenAsksOfProcess(ctx, p.ID)
+		if i := slices.IndexFunc(asks, holds); i >= 0 {
+			v.Ask, v.Question = asks[i].ID, asks[i].Text
+			question = untrusted.Cut(asks[i].Text, 200)
+		}
+		if t, err := s.St.Q.TopicOfProcess(ctx, p.ID); err == nil {
+			v.Topic = t.Title
+		}
+	}
+	ws := s.Words(lang)
+	v.Shown = process.Show(p, question, v.Long, func(phrase string) string { return manifest.Tr(ws, phrase) })
+}
+
+// long reports whether a running process works, since it was last opened, more than twice as long as its
+// command's usual run, the median of its last runs, and over a minute.
+func (s *Service) long(ctx context.Context, p db.Process, since string) bool {
+	started, err := time.Parse(time.RFC3339Nano, since)
+	if err != nil || p.State != process.StateRunning {
+		return false
 	}
 	took := s.Now().Sub(started)
-	v.Seconds = int64(took / time.Second)
-	if p.State != process.StateRunning {
-		return
-	}
 	ms, err := s.St.Q.RecentDurations(ctx, db.RecentDurationsParams{ProjectID: p.ProjectID, Command: p.Command})
 	if err != nil || len(ms) < usualRuns {
-		return
+		return false
 	}
 	slices.Sort(ms)
 	usual := time.Duration(ms[len(ms)/2]) * time.Millisecond
-	v.Long = took > time.Minute && took > 2*usual
+	return took > time.Minute && took > 2*usual
 }
 
 type processRetryIn struct {

@@ -374,6 +374,8 @@ type Item struct {
 	Title string `json:"title"`
 	Text  string `json:"text,omitempty"`
 	Meta  string `json:"meta,omitempty"`
+	// Since is an expression giving the time a line counts from, shown as how long ago.
+	Since string `json:"since,omitempty"`
 	// Icon is an expression giving the icon of a line; Image one giving a picture of it, as File does.
 	Icon  string `json:"icon,omitempty"`
 	Image string `json:"image,omitempty"`

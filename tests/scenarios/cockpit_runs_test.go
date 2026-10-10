@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"deck2/internal/provider"
+	"deck2/internal/store"
 )
 
 // jobsModule renders an item of its collection by an agent command whose input names the record.
@@ -25,9 +27,12 @@ type cockpitRun struct {
 	Error       string
 	Record      int64
 	RecordTitle string `json:"record_title"`
-	Seconds     int64
+	Since       string
 	Long        bool
 	Retry       bool
+	Word        string
+	Tone        string
+	Waits       bool
 }
 
 // TestTheCockpitShowsWhatDidNotWorkUntilARunMakesItGood: a failed run, with the record its input names, stays in the
@@ -97,8 +102,9 @@ func TestARunThatTakesLongerThanUsualIsMarked(t *testing.T) {
 	clock.Add(3 * time.Minute)
 	var open []cockpitRun
 	e.must("deck.processes_list", map[string]any{"open": true}, &open)
-	if len(open) != 1 || open[0].ID != id || open[0].Seconds < 180 || !open[0].Long {
-		t.Fatalf("the run says how long it works and that it is longer than usual: %+v", open)
+	if len(open) != 1 || open[0].ID != id || open[0].Since == "" || !open[0].Long || open[0].Tone != "warn" ||
+		!strings.HasPrefix(open[0].Word, "longer than usual: runs on") {
+		t.Fatalf("the run says since when it works and that it is longer than usual: %+v", open)
 	}
 }
 
@@ -128,7 +134,7 @@ func TestARunSentBackCountsFromThenAndFailsAnew(t *testing.T) {
 		Result any
 	}
 	e.must("deck.processes_list", map[string]any{"open": true}, &open)
-	if len(open) != 1 || open[0].Seconds != 60 || open[0].Result != nil {
+	if len(open) != 1 || open[0].Since != store.Time(clock.Now().Add(-time.Minute)) || open[0].Result != nil {
 		t.Fatalf("the run works since it was sent back and has no result yet: %+v", open)
 	}
 	close(release)
@@ -160,8 +166,8 @@ func TestARunThatWaitsIsNotLongerThanUsual(t *testing.T) {
 	clock.Add(3 * time.Minute)
 	var open []cockpitRun
 	e.must("deck.processes_list", map[string]any{"open": true}, &open)
-	if len(open) != 1 || open[0].ID != id || open[0].Long {
-		t.Fatalf("a run that waits is not marked longer than usual: %+v", open)
+	if len(open) != 1 || open[0].ID != id || open[0].Long || !open[0].Waits || open[0].Tone != "warn" || open[0].Word != "paused on a usage limit" {
+		t.Fatalf("a run that waits is not marked longer than usual, and says it waits: %+v", open)
 	}
 }
 
@@ -250,7 +256,9 @@ func TestARunCutByARestartIsInTheCockpit(t *testing.T) {
 // TestTheCockpitSaysHowManyFailuresItLeftOut: past its limit the list of what did not work says how many more there are.
 func TestTheCockpitSaysHowManyFailuresItLeftOut(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result { return provider.Result{IsError: true, Text: "down"} })
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		return provider.Result{IsError: true, Text: "down"}
+	})
 	e.createProject("clips", cutModule)
 	for i := range 22 {
 		e.waitState(e.start("clips", "cut", map[string]any{"clip": fmt.Sprint(i)}), "error")
@@ -259,5 +267,37 @@ func TestTheCockpitSaysHowManyFailuresItLeftOut(t *testing.T) {
 	_ = json.Unmarshal(e.screenData("", "cockpit", nil)["b4-1-0"]["more"], &more)
 	if more != 2 {
 		t.Fatalf("the cockpit shows 20 and says 2 more: %d", more)
+	}
+}
+
+// TestTheStateOfARunIsSaidInTheLanguageOfTheOwner: the cockpit, the page of a process and the schedule say the
+// state of a run in words deck gives, translated, with its tone and since when an open one works.
+func TestTheStateOfARunIsSaidInTheLanguageOfTheOwner(t *testing.T) {
+	t.Parallel()
+	release := make(chan struct{})
+	t.Cleanup(func() { close(release) })
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		if c.N == 1 {
+			return provider.Result{IsError: true, Text: "down"}
+		}
+		select {
+		case <-release:
+		case <-ctx.Done():
+		}
+		return provider.Result{Text: "cut"}
+	})
+	e.createProject("clips", cutModule)
+	failed := e.start("clips", "cut", map[string]any{"clip": "a"})
+	e.waitState(failed, "error")
+	id := e.start("clips", "cut", map[string]any{"clip": "b"})
+	e.waitState(id, "running")
+	var running []listItem
+	_ = json.Unmarshal(e.screenData("", "cockpit", map[string]any{"lang": "ru"})["b4-1-1"]["items"], &running)
+	if len(running) != 1 || !strings.HasPrefix(running[0].Text, "работает на") || running[0].Since == "" {
+		t.Fatalf("a running run says what it does in the owner's words and since when: %+v", running)
+	}
+	page, _ := json.Marshal(e.screenData("", "process", map[string]any{"record": failed, "lang": "ru"}))
+	if !strings.Contains(string(page), `"value":"не получилось"`) || !strings.Contains(string(page), `"tone":"error"`) {
+		t.Fatalf("the page of a failed run says so in red: %s", page)
 	}
 }

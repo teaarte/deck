@@ -30,6 +30,8 @@ type Service struct {
 	Invoke func(ctx context.Context, act registry.Actor, name string, input json.RawMessage) (any, error)
 	// Lookup is a command of the registry by its full name.
 	Lookup func(ctx context.Context, workspace int64, name string) (*registry.Command, error)
+	// Words are deck's phrases in a language.
+	Words func(lang string) map[string]string
 }
 
 // Commands are the commands of processes.
@@ -79,12 +81,13 @@ type processView struct {
 	Models          []string `json:"models,omitempty"`
 	CostUSD         *float64 `json:"cost_usd,omitempty"`
 	SubscriptionUSD *float64 `json:"subscription_usd,omitempty"`
-	// Record is the record the input field record names, with its title; Seconds how long an open process works and
-	// Long that it works more than twice as long as its command usually takes.
+	// Record is the record the input field record names, with its title; Since when an open process last started
+	// work and Long that it works more than twice as long as its command usually takes.
 	Record      int64  `json:"record,omitempty"`
 	RecordTitle string `json:"record_title,omitempty"`
-	Seconds     int64  `json:"seconds,omitempty"`
+	Since       string `json:"since,omitempty"`
 	Long        bool   `json:"long,omitempty"`
+	process.Shown
 	// Retry marks a failed process the owner may run again: the owner is among the callers of its command.
 	Retry bool `json:"retry,omitempty"`
 	// SlotAhead is how many processes wait for an agent slot before one that waits for it.
@@ -124,6 +127,7 @@ type processesListIn struct {
 	Limit   int64  `opt:"" desc:"At most this many"`
 	Brief   bool   `opt:"" desc:"Leave the results out; process_get gives the result of one"`
 	Record  int64  `type:"record" opt:"" desc:"Only the processes whose input field record is the id of this record: how its pipeline goes"`
+	Lang    string `opt:"" desc:"Language of the words of the states, such as ru; English without one"`
 	Failed  bool   `opt:"" desc:"Only the processes of the last week that failed or were cut by a restart, not trials, that the owner has not closed and no later run made good: one for the same record, or with the same input for a command without one; newest first, each with retry when the owner may run its command again"`
 }
 
@@ -163,16 +167,7 @@ func (s *Service) processesList(ctx context.Context, act registry.Actor, in proc
 			c, err := s.Lookup(ctx, act.Workspace, v.Project+"."+p.Command)
 			v.Retry = err == nil && slices.Contains(c.Callers, registry.Owner)
 		}
-		if !p.FinishedAt.Valid {
-			s.howLong(ctx, p, &v)
-			asks, _ := s.St.Q.ListOpenAsksOfProcess(ctx, p.ID)
-			if i := slices.IndexFunc(asks, holds); i >= 0 {
-				v.Ask, v.Question = asks[i].ID, asks[i].Text
-			}
-			if t, err := s.St.Q.TopicOfProcess(ctx, p.ID); err == nil {
-				v.Topic = t.Title
-			}
-		}
+		s.shown(ctx, p, &v, in.Lang)
 		out = append(out, v)
 	}
 	return out, nil
@@ -182,8 +177,9 @@ func (s *Service) processesList(ctx context.Context, act registry.Actor, in proc
 const maxWait = 30 * time.Minute
 
 type processGetIn struct {
-	Process int64 `type:"process" desc:"Process id"`
-	Wait    int64 `opt:"" desc:"Seconds to wait, at most 1800 and less for agents whose tool calls time out sooner, for the process to finish or to wait for the owner"`
+	Process int64  `type:"process" desc:"Process id"`
+	Lang    string `opt:"" desc:"Language of the word of its state, such as ru; English without one"`
+	Wait    int64  `opt:"" desc:"Seconds to wait, at most 1800 and less for agents whose tool calls time out sooner, for the process to finish or to wait for the owner"`
 }
 
 func (s *Service) processGet(ctx context.Context, act registry.Actor, in processGetIn) (processView, error) {
@@ -214,6 +210,7 @@ func (s *Service) processGet(ctx context.Context, act registry.Actor, in process
 		v.Input = json.RawMessage(p.Input)
 	}
 	v.Terminal = s.terminal(ctx, p)
+	s.shown(ctx, p, &v, in.Lang)
 	if p.State == process.StateWaitingSlot {
 		ahead, err := s.St.Q.CountSlotAhead(ctx, db.CountSlotAheadParams{WorkspaceID: project.WorkspaceID, ID: p.ID})
 		if err != nil {

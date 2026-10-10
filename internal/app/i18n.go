@@ -21,3 +21,6 @@ func words(lang string, m *manifest.Manifest) map[string]string {
 	}
 	return out
 }
+
+// phrases are deck's own words in a language, for what read commands say.
+func phrases(lang string) map[string]string { return shipped().Words[lang] }

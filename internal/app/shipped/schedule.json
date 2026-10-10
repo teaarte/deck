@@ -21,8 +21,8 @@
             {"label": "When", "bind": "kind == 'cron' ? spec : kind + ' ' + spec", "format": "cron"},
             {"label": "Model", "bind": "model", "format": "tag"},
             {"label": "Next run", "bind": "next_run_at", "format": "relative"},
-            {"label": "Last result", "bind": "last_state", "format": "tag", "tone": "last_state == 'done' ? 'ok' : last_state in ['error', 'interrupted'] ? 'error' : 'muted'"},
-            {"label": "State", "bind": "draft ? 'draft: does not run' : project_paused ? 'project paused' : paused ? 'paused' : 'on'", "tone": "paused || draft ? 'muted' : ''"}
+            {"label": "Last result", "bind": "last_word ?? ''", "format": "tag", "tone": "last_tone ?? ''"},
+            {"label": "State", "bind": "word", "tone": "tone ?? ''"}
           ],
           "actions": [
             {"verb": "run_now", "command": "deck.trigger_run", "params": {"trigger": "=id"}, "when": "kind == 'cron'"},
@@ -39,7 +39,7 @@
             {"label": "Project", "bind": "project", "format": "tag"},
             {"label": "Command", "bind": "command"},
             {"label": "By", "bind": "kind == 'script' ? 'script' : (provider ?? '') != '' ? provider : kind", "format": "tag"},
-            {"label": "State", "bind": "state", "format": "tag", "tone": "state == 'done' ? 'ok' : state in ['error', 'interrupted'] ? 'error' : state == 'stopped' ? 'muted' : state in ['waiting_answer', 'needs_login', 'rate_limited', 'waiting_provider'] ? 'warn' : ''"},
+            {"label": "State", "bind": "word", "format": "tag", "tone": "tone ?? ''"},
             {"label": "Started", "bind": "started_at", "format": "relative"}
           ],
           "actions": [

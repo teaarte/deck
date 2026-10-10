@@ -223,7 +223,7 @@ func (ch *Service) chat(ctx context.Context, act registry.Actor, in chatIn) (cha
 		return v, nil
 	}
 	open := t.Reply
-	v.Turn = &turnView{Process: open.Process, State: open.State, Provider: open.Provider, Processes: ch.children(ctx, open.Process),
+	v.Turn = &turnView{Process: open.Process, State: open.State, Provider: open.Provider, Processes: ch.children(ctx, open.Process, false),
 		Lines: ch.turnLines(open.Process), Stop: chatAction("stop", registry.Builtin+".process_stop", map[string]any{"process": open.Process}),
 		Open: openProcess(open.Process)}
 	if p, err := ch.St.Q.GetProcess(ctx, open.Process); err == nil {

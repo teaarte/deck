@@ -628,12 +628,15 @@ func TestAReplyTheProviderBrokeOffListsWhatItLeftAndGoesAgainElsewhere(t *testin
 }
 
 // TestAReplyOfTheMasterSaysHowItWent: each reply names its model and exact cost, a resumed one what its session grew
-// by, how long it worked in how many steps and the processes it started.
+// by, how long it worked in how many steps, and of the processes it started those that failed or wait.
 func TestAReplyOfTheMasterSaysHowItWent(t *testing.T) {
 	t.Parallel()
-	var turns atomic.Int32
+	var turns, jobs atomic.Int32
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		if c.command() == "job" {
+			if jobs.Add(1) == 2 {
+				return provider.Result{IsError: true, Text: "the job broke"}
+			}
 			return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
 		}
 		n := turns.Add(1)
@@ -663,7 +666,7 @@ func TestAReplyOfTheMasterSaysHowItWent(t *testing.T) {
 				Model     string
 				CostUSD   *float64 `json:"cost_usd"`
 				Steps     int64
-				Processes []struct{ Project, Command string }
+				Processes []struct{ Project, Command, State string }
 			}
 		}
 	}
@@ -678,13 +681,23 @@ func TestAReplyOfTheMasterSaysHowItWent(t *testing.T) {
 		return n == 2
 	})
 	var works []string
+	var shown []int
 	for _, m := range view.Messages {
 		if w := m.Work; w != nil {
-			if w.CostUSD == nil || len(w.Processes) != 1 || w.Processes[0].Command != "job" {
-				t.Fatalf("a reply names the processes it started: %+v", *w)
+			if w.CostUSD == nil {
+				t.Fatalf("a reply names its cost: %+v", *w)
 			}
+			shown = append(shown, len(w.Processes))
 			works = append(works, fmt.Sprintf("%s %s %.2f %d", w.Provider, w.Model, *w.CostUSD, w.Steps))
 		}
+	}
+	e.waitFor("the second job to fail", func() bool {
+		e.must("deck.chat", map[string]any{"topic": fmt.Sprint(topic)}, &view)
+		last := view.Messages[len(view.Messages)-1].Work
+		return last != nil && len(last.Processes) == 1 && last.Processes[0].State == "error"
+	})
+	if first := view.Messages[1].Work; first == nil || len(first.Processes) != 0 {
+		t.Fatalf("a job that went well needs nothing of the owner and is not shown: %+v %v", first, shown)
 	}
 	if strings.Join(works, " | ") != "fake opus-x 0.25 1 | fake opus-x 0.25 1" {
 		t.Fatalf("each reply names its model and exact cost, the resumed one too, and its steps: %v", works)

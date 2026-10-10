@@ -62,3 +62,21 @@ func TestALineOfMediaSaysWhyItHasNoFileInWords(t *testing.T) {
 		t.Fatalf("the line says in words why it has no file: %s", s)
 	}
 }
+
+// TestTheScreenOfAScriptShowsItsInputAndResult: a script has no log of its own, so its screen shows what it got and
+// gave, and says why the log is empty.
+func TestTheScreenOfAScriptShowsItsInputAndResult(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, nil)
+	e.createProject("tools", scriptManifest("run", "", ""))
+	e.saveScript("tools", "scripts/main.py", `import json, sys
+print(json.dumps({"added": 7}))
+`)
+	id := e.start("tools", "run", map[string]any{"n": 3})
+	e.waitScript(id, "done")
+	raw, _ := json.Marshal(e.screenMessages("", "process", map[string]any{"record": id}))
+	s := string(raw)
+	if !strings.Contains(s, `\"n\": 3`) || !strings.Contains(s, `\"added\": 7`) || !strings.Contains(s, "Nothing in the log") {
+		t.Fatalf("the screen shows the input, the result and why the log is empty: %s", s)
+	}
+}

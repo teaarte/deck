@@ -3,6 +3,7 @@ import { useLocalStorage } from '@mantine/hooks';
 import { IconArrowUpRight, IconChevronDown, IconChevronUp, IconPlayerStopFilled } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { ChatValue } from '../lib/catalog.gen';
+import catalogSchema from '../lib/catalogSchema';
 import { useTicking } from '../hooks/useTicking';
 import { formatted } from '../lib/format';
 import { ActionIconButton } from '../ui/actions/ActionIconButton';
@@ -28,7 +29,12 @@ export function logLines(lines: TurnValue['lines'], shown = SHOWN): { key: strin
   }).filter((l) => l.text.trim()).slice(-shown);
 }
 
-// Processes are the processes a reply started, each with its state and the button that opens its log.
+// waits are the states of a process that waits for the owner or its provider.
+const waits = ['waiting_answer', 'needs_login', 'rate_limited', 'waiting_provider'];
+const broke = catalogSchema.final_states.filter((x) => x !== 'done' && x !== 'stopped');
+
+// Processes are the processes a reply started, each with its state, red when it failed and yellow when it waits,
+// and the button that opens its log.
 export function Processes({ list }: { list: Proc[] }) {
   const { t } = useTranslation();
   if (!list.length) return null;
@@ -37,7 +43,7 @@ export function Processes({ list }: { list: Proc[] }) {
       {list.map((p) => (
         <Group key={p.id} gap={6} wrap="nowrap" className={s.proc} data-process={p.id}>
           <Text size="xs" ff="monospace" truncate style={{ flex: 1 }}>{p.project}.{p.command}</Text>
-          <Text size="xs" c="dimmed">{t('chat.pstate.' + p.state, { defaultValue: p.state })}</Text>
+          <Text size="xs" c={broke.includes(p.state) ? 'red' : waits.includes(p.state) ? 'yellow' : 'dimmed'}>{t('chat.pstate.' + p.state, { defaultValue: p.state })}</Text>
           <ActionIconButton act={p.open} variant="subtle" icon={<IconArrowUpRight size={13} />} />
         </Group>
       ))}

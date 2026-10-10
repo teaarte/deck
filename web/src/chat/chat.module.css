@@ -178,20 +178,3 @@
   margin-top: 4px;
 }
 
-.workHead {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--mantine-color-dimmed);
-  font-size: var(--mantine-font-size-xs);
-  cursor: pointer;
-}
-
-.workBody {
-  margin-top: 4px;
-  padding-left: 8px;
-  border-left: 2px solid var(--mantine-color-default-border);
-}

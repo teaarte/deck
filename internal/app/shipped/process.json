@@ -9,12 +9,15 @@
       {"label": "State", "bind": "silent ? state + ', silent' : state", "format": "tag", "tone": "state == 'done' ? 'ok' : state in ['error', 'interrupted'] ? 'error' : state == 'stopped' ? 'muted' : state in ['waiting_answer', 'needs_login', 'rate_limited', 'waiting_provider'] ? 'warn' : ''"},
       {"label": "Model", "bind": "provider", "format": "tag"},
       {"label": "Started", "bind": "started_at", "format": "relative"},
-      {"label": "Error", "bind": "error"}
+      {"label": "Error", "bind": "error"},
+      {"label": "Input", "bind": "input == nil ? nil : toJSON(input)"},
+      {"label": "Result", "bind": "result == nil ? nil : toJSON(result)"}
     ],
     "actions": [
       {"verb": "stop", "command": "deck.process_stop", "params": {"process": "=id"}, "when": "(finished_at ?? '') == ''"},
       {"verb": "rework", "primary": true, "command": "deck.process_rework", "params": {"process": "=id"}, "input": "remark", "when": "kind == 'agent' && (session_id ?? '') != '' && (finished_at ?? '') != ''"}
     ]},
-    {"type": "log", "title": "Log", "source": {"from": "deck.process_chat", "input": {"process": "=id"}}}
+    {"type": "log", "title": "Log", "source": {"from": "deck.process_chat", "input": {"process": "=id"}},
+      "empty": "Nothing in the log: a script logs only what it writes to stderr, a tool or a model call nothing; its input and result are above"}
   ]
 }

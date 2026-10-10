@@ -174,5 +174,7 @@
   "Who": "Кто",
   "Why": "Почему",
   "Edit record": "Изменить запись",
-  "Subscription, estimate": "По подписке, оценка"
+  "Subscription, estimate": "По подписке, оценка",
+  "Result": "Результат",
+  "Nothing in the log: a script logs only what it writes to stderr, a tool or a model call nothing; its input and result are above": "В логе ничего: скрипт пишет в лог только свой stderr, инструмент и вызов модели — ничего; вход и результат — выше"
 }

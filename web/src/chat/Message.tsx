@@ -1,6 +1,6 @@
-import { memo, useState } from 'react';
+import { memo } from 'react';
 import { ActionIcon, Badge, Button, CopyButton, Group, Stack, Text, Tooltip } from '@mantine/core';
-import { IconCheck, IconChevronDown, IconChevronRight, IconCopy, IconPaperclip, IconTrash } from '@tabler/icons-react';
+import { IconCheck, IconCopy, IconPaperclip, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { call } from '../lib/api';
 import catalogSchema from '../lib/catalogSchema';
@@ -20,27 +20,19 @@ type WorkValue = NonNullable<ChatMessage['work']>;
 const cost = (usd: number) => new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD',
   ...(usd > 0 && usd < 0.01 ? { maximumSignificantDigits: 2 } : { maximumFractionDigits: 2 }) }).format(usd);
 
-// Work is how a reply went in one line, the model, cost, time and steps, which unfolds into the processes it started.
+// Work is what of a reply needs the owner: the processes it started that failed or still wait, each with its log.
 function Work({ w }: { w: WorkValue }) {
+  if (!w.processes.length) return null;
+  return <div className={s.work} data-work><Processes list={w.processes} /></div>;
+}
+
+// Meta is how a reply went in one line, the model, cost, time and steps; it shows with the tools of the line.
+function Meta({ w }: { w: WorkValue }) {
   const { t } = useTranslation();
-  const [open, setOpen] = useState(false);
   const parts = [w.model || w.provider, w.cost_usd !== undefined ? cost(w.cost_usd) : '',
     w.subscription_usd !== undefined ? t('chat.subscription', { cost: cost(w.subscription_usd) }) : '',
     t('chat.worked', { time: formatted(w.seconds, { format: 'duration' }) }), w.steps > 0 ? t('chat.steps', { count: w.steps }) : ''].filter(Boolean);
-  const more = w.processes.length > 0;
-  return (
-    <div className={s.work} data-work>
-      <button type="button" className={s.workHead} onClick={() => more && setOpen(!open)} aria-expanded={more ? open : undefined} data-work-head>
-        {more && (open ? <IconChevronDown size={12} /> : <IconChevronRight size={12} />)}
-        {parts.join(' · ')}
-      </button>
-      {open && (
-        <div className={s.workBody} data-work-body>
-          <Processes list={w.processes} />
-        </div>
-      )}
-    </div>
-  );
+  return <Text size="xs" c="dimmed" data-work-meta>{parts.join(' · ')}</Text>;
 }
 
 const failed = catalogSchema.final_states.filter((x) => x !== 'done');
@@ -129,6 +121,7 @@ export const Message = memo(function Message({ m }: { m: ChatMessage }) {
             <ActionIcon variant="subtle" color="gray" size="sm" onClick={copy} aria-label={t('chat.copy')}>{copied ? <IconCheck size={14} /> : <IconCopy size={14} />}</ActionIcon>
           </Tooltip>
         )}</CopyButton>
+        {m.work && <Meta w={m.work} />}
       </Group>
     </div>
   );

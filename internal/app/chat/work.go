@@ -5,13 +5,14 @@ import (
 	"database/sql"
 	"time"
 
+	"deck2/internal/process"
 	"deck2/internal/provider"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
 )
 
 // workView is how a reply of the master went: who answered, what it cost, how long it worked and in how many
-// steps, and the processes it started; what it said on the way is in the log of its process.
+// steps, and the processes it started that failed or wait; what it said on the way is in the log of its process.
 type workView struct {
 	Provider string   `json:"provider"`
 	Model    string   `json:"model,omitempty"`
@@ -35,14 +36,18 @@ type procView struct {
 // workLines is how many lines of the log of a finished reply count its steps.
 const workLines = 1000
 
-// children are the processes a reply started, in order.
-func (ch *Service) children(ctx context.Context, processID int64) []procView {
+// children are the processes a reply started, in order; with owed only those that failed or still wait, since one
+// done or stopped by the owner needs nothing of the owner.
+func (ch *Service) children(ctx context.Context, processID int64, owed bool) []procView {
 	out := []procView{}
 	rows, err := ch.St.Q.ListChildProcesses(ctx, store.ID(processID))
 	if err != nil {
 		return out
 	}
 	for _, r := range rows {
+		if owed && (r.State == process.StateDone || r.State == process.StateStopped) {
+			continue
+		}
 		out = append(out, procView{ID: r.ID, Project: r.Project, Command: r.Command, State: r.State, Open: openProcess(r.ID)})
 	}
 	return out
@@ -53,7 +58,7 @@ func (ch *Service) work(ctx context.Context, p db.Process) *workView {
 	if !p.FinishedAt.Valid {
 		return nil
 	}
-	v := &workView{Provider: p.Provider, Processes: ch.children(ctx, p.ID)}
+	v := &workView{Provider: p.Provider, Processes: ch.children(ctx, p.ID, true)}
 	if calls, err := ch.St.Q.ListTurnCalls(ctx, store.ID(p.ID)); err == nil && len(calls) > 0 {
 		for _, c := range calls {
 			if c.GenAiResponseModel != "" {

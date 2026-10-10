@@ -34,12 +34,14 @@ func (s *Service) Commands() []*registry.Command {
 }
 
 type processView struct {
-	ID          int64           `json:"id"`
-	Project     string          `json:"project"`
-	Command     string          `json:"command"`
-	Kind        string          `json:"kind"`
-	State       string          `json:"state"`
-	Result      json.RawMessage `json:"result,omitempty"`
+	ID      int64           `json:"id"`
+	Project string          `json:"project"`
+	Command string          `json:"command"`
+	Kind    string          `json:"kind"`
+	State   string          `json:"state"`
+	Result  json.RawMessage `json:"result,omitempty"`
+	// Input is what the process was started with; only process_get gives it.
+	Input       json.RawMessage `json:"input,omitempty"`
 	NotBySchema bool            `json:"not_by_schema"`
 	Trial       bool            `json:"trial,omitempty"`
 	Error       string          `json:"error,omitempty"`
@@ -186,6 +188,9 @@ func (s *Service) processGet(ctx context.Context, act registry.Actor, in process
 	}
 	project, _ := s.St.Q.GetProject(ctx, p.ProjectID)
 	v := procView(p, project.Name)
+	if p.Input != "" && json.Valid([]byte(p.Input)) {
+		v.Input = json.RawMessage(p.Input)
+	}
 	v.Terminal = s.terminal(ctx, p)
 	if p.State == process.StateWaitingSlot {
 		ahead, err := s.St.Q.CountSlotAhead(ctx, db.CountSlotAheadParams{WorkspaceID: project.WorkspaceID, ID: p.ID})

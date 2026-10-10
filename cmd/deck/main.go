@@ -71,7 +71,7 @@ func run() error {
 	}
 	port := ln.Addr().(*net.TCPAddr).Port
 	a, err := app.New(app.Config{
-		Home: home, MCPBase: "http://" + ln.Addr().String(),
+		Home: home, MCPBase: mcpBase(ln.Addr().(*net.TCPAddr)),
 		QuestionWait: 30 * time.Minute, ConfirmWait: 30 * time.Minute, ConfirmTTL: 24 * time.Hour,
 	}, claudecode.New(home), codex.New(home))
 	if err != nil {
@@ -156,6 +156,15 @@ func loadToken(path string) (string, error) {
 		return "", err
 	}
 	return tok, os.Chmod(path, 0o600)
+}
+
+// mcpBase is where agents of this machine reach deck's MCP servers: loopback when deck listens on every address, as
+// the MCP handler refuses a Host such as 0.0.0.0.
+func mcpBase(a *net.TCPAddr) string {
+	if a.IP.IsUnspecified() {
+		return "http://" + net.JoinHostPort("127.0.0.1", strconv.Itoa(a.Port))
+	}
+	return "http://" + a.String()
 }
 
 // listenPair listens on addr and on the next port, the second origin of custom blocks; with any port it tries pairs

@@ -36,6 +36,9 @@ func (r *Runner) end(ctx context.Context, processID int64, state, reason string)
 	var n int64
 	var closedCalls []db.Ask
 	if !r.own(processID) {
+		if p, err := r.st.Q.GetProcess(ctx, processID); err == nil && p.FinishedAt.Valid {
+			return registry.Invalid("deck: process %d has already finished", processID)
+		}
 		return registry.Conflict("deck: process %d is closing", processID)
 	}
 	err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {

@@ -8,6 +8,7 @@ import (
 	"mime"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"unicode/utf8"
 
@@ -72,6 +73,12 @@ func (s *Service) webSearch(ctx context.Context, act registry.Actor, in webSearc
 	hops, err := s.Route(ctx, act, gateway.ModelAsk{Connection: "@", Model: "@" + RoleSearch})
 	if err != nil {
 		return nil, err
+	}
+	if act.Trial {
+		hops = slices.DeleteFunc(hops, func(h gateway.ModelHop) bool { return !h.Local && !h.Free })
+		if len(hops) == 0 {
+			return nil, registry.Refuse("deck: trial run: no search of deck's settings is local or free, so a trial does not search")
+		}
 	}
 	for i := range hops {
 		done := hops[i].Done

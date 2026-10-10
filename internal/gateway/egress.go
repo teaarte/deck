@@ -15,7 +15,8 @@ import (
 	"time"
 )
 
-var outbound = &http.Transport{Proxy: nil, DialContext: dialPinned, ResponseHeaderTimeout: 5 * time.Minute}
+// outbound keeps no idle connection: one is pinned to the addresses of its own request, not of the next.
+var outbound = &http.Transport{Proxy: nil, DialContext: dialPinned, ResponseHeaderTimeout: 5 * time.Minute, DisableKeepAlives: true}
 
 type pinnedKey struct{}
 

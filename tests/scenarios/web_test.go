@@ -148,4 +148,34 @@ func TestAModelInAnAgentTakesWorkThatNeedsTheWeb(t *testing.T) {
 	if w := warned(); w != "" {
 		t.Fatalf("with a search the command is healthy: %q", w)
 	}
+	listed := strings.Replace(scout, `"prompt": "Do scout."`, `"prompt": "Do scout.", "calls": ["deck.records_list"]`, 1)
+	e.must("deck.manifest_save", map[string]any{"project": "scout", "manifest": `{"version": 11, "commands": [` + listed + `]}`}, nil)
+	if w := warned(); !strings.Contains(w, "neither deck.web_search nor deck.web_fetch") {
+		t.Fatalf("a command whose calls leave the web of deck out says so: %q", w)
+	}
+}
+
+// TestATrialSearchesOnlyThroughALocalOrFreeService: a trial does not spend on a paid search, and @search is no model
+// a request calls.
+func TestATrialSearchesOnlyThroughALocalOrFreeService(t *testing.T) {
+	t.Parallel()
+	var failing atomic.Int32
+	search := searxng(t, &failing)
+	var said string
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		said, _ = c.Tool(ctx, "web_search", map[string]any{"query": "deck"})
+		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
+	})
+	e.must("deck.connection_set", map[string]any{"name": "paid", "api": "raw", "url": search.URL}, nil)
+	e.must("deck.model_set", map[string]any{"connection": "paid", "model": "paid", "name": "paid", "kind": "search", "call_usd": 0.01}, nil)
+	e.must("deck.assignment_set", map[string]any{"role": "search", "models": []string{"paid"}}, nil)
+	e.createProject("sketch", `{"version": 11, "commands": [`+agentCommand("look", "")+`]}`)
+	var try struct{ Process int64 }
+	e.must("deck.command_try", map[string]any{"live": true, "command": "sketch.look"}, &try)
+	e.waitState(try.Process, "done")
+	if !strings.Contains(said, "trial run") || len(search.requests()) != 0 {
+		t.Fatalf("a trial does not search through a paid service: %q, %d requests", said, len(search.requests()))
+	}
+	e.refused("deck.model_request", map[string]any{"connection": "@", "path": "chat/completions", "model": "@search",
+		"body": `{"model": "@search", "messages": []}`}, 422, "web search of agents")
 }

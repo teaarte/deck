@@ -38,6 +38,9 @@ func (s *Service) Route(ctx context.Context, act registry.Actor, ask gateway.Mod
 		if ask.Path != "" && !gateway.ModelPath(ask.Method, ask.Path) {
 			return nil, notModel()
 		}
+		if role == RoleSearch && ask.Method != "" {
+			return nil, registry.Invalid("deck: @search is the web search of agents, deck.web_search, not a model to call")
+		}
 		if !slices.Contains(roles, role) || role == RoleAgent {
 			return nil, registry.Invalid("deck: no role %q to call; a role is @text, @image, @tts, @stt or @music", asked)
 		}

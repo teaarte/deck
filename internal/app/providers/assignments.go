@@ -131,9 +131,8 @@ func (s *Service) assignmentSet(ctx context.Context, act registry.Actor, in assi
 	return map[string]any{"role": in.Role, "project": in.Project, "command": in.Command, "models": in.Models}, nil
 }
 
-// Unassigned are the commands of a manifest that miss a model, by name, each with what the owner does: an agent
-// command no provider fits or that needs the web on an ACP agent with no search, or a model command whose role has
-// nothing assigned.
+// Unassigned are the commands of a manifest that miss a model, by name, with what the owner does: an agent command no
+// provider fits or that lacks deck's web on an ACP agent, or a model command whose role has nothing assigned.
 func (s *Service) Unassigned(ctx context.Context, workspace, project int64, m *manifest.Manifest) map[string]string {
 	out := map[string]string{}
 	for _, c := range m.Commands {
@@ -143,7 +142,13 @@ func (s *Service) Unassigned(ctx context.Context, workspace, project int64, m *m
 				out[c.Name] = refused.Text
 			} else if !m.NoNetwork && slices.Contains(c.Requires, provider.Web) {
 				search, _ := Assigned(ctx, s.St.Q, workspace, project, c.Name, RoleSearch)
-				if pv, err := s.For(ctx, project, &c); len(search) == 0 && err == nil && s.inAgent(ctx, workspace, pv.Name()) {
+				pv, err := s.For(ctx, project, &c)
+				switch {
+				case err != nil || !s.inAgent(ctx, workspace, pv.Name()):
+				case c.Executor.Calls != nil && !registry.Permits(c.Executor.Calls, registry.Builtin+".web_search") &&
+					!registry.Permits(c.Executor.Calls, registry.Builtin+".web_fetch"):
+					out[c.Name] = "it needs the web and runs on " + pv.Name() + ", whose web is deck's, but its calls list neither deck.web_search nor deck.web_fetch"
+				case len(search) == 0:
 					out[c.Name] = "it needs the web and runs on " + pv.Name() + ", whose web is deck's: " + noSearch
 				}
 			}

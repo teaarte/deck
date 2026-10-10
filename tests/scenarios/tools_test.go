@@ -194,7 +194,7 @@ func TestHTTPToolKeepsSecretsInItsOwnHeaders(t *testing.T) {
 }
 
 // TestASecretThatIsNotSetIsRedInHealth: a secret a tool of an enabled module sends and the owner has not set is a red
-// row of the module's health; the token of a sign-in is not one.
+// row of the module's health, which the owner may mark read; the token of a sign-in is not one.
 func TestASecretThatIsNotSetIsRedInHealth(t *testing.T) {
 	t.Parallel()
 	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { jsonReply(w, `{}`) })
@@ -220,6 +220,23 @@ func TestASecretThatIsNotSetIsRedInHealth(t *testing.T) {
 	}
 	if code, _ := e.call("stock.photos", map[string]any{}); code == 200 {
 		t.Fatal("a tool with a secret that is not set is refused")
+	}
+	seen := func(subject string) bool {
+		var hs []struct {
+			Subject string
+			Seen    bool
+		}
+		e.must("deck.health_list", nil, &hs)
+		for _, h := range hs {
+			if h.Subject == subject {
+				return h.Seen
+			}
+		}
+		return false
+	}
+	e.must("deck.health_seen", map[string]any{"subject": "secret:pexels"}, nil)
+	if !seen("secret:pexels") || !seen("project:stock") {
+		t.Fatal("the owner marks an unset secret read like any failing check, and its project with it")
 	}
 	e.must("deck.secret_set", map[string]any{"name": "pexels", "value": "k"}, nil)
 	if got := rows(); got["secret:pexels"] != "" || got["project:stock"] != "ok " {

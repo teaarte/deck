@@ -202,7 +202,7 @@ func (s *Service) fitting(ctx context.Context, projectID int64, cmd *manifest.Co
 	if err != nil {
 		return 0, nil, false, err
 	}
-	place := p.Name + "." + cmd.Name
+	place, requires := p.Name+"."+cmd.Name, cmd.Needs()
 	names, err := Assigned(ctx, s.St.Q, p.WorkspaceID, p.ID, cmd.Name, RoleAgent)
 	if err != nil {
 		return 0, nil, false, err
@@ -216,8 +216,8 @@ func (s *Service) fitting(ctx context.Context, projectID int64, cmd *manifest.Co
 				why = append(why, fmt.Sprintf("deck: %s is set to model %q, which does not run: %v; assign another with deck.assignment_set", place, name, err))
 				continue
 			}
-			if missing := pv.Caps().Missing(cmd.Requires); len(missing) > 0 {
-				why = append(why, fmt.Sprintf("deck: provider %s set for %s lacks %s; assign another with deck.assignment_set", name, place, strings.Join(missing, ", ")))
+			if missing := pv.Caps().Missing(requires); len(missing) > 0 {
+				why = append(why, fmt.Sprintf("deck: model %s set for %s lacks %s; pick Claude Code or Codex in the Models tab of the project's settings", name, place, strings.Join(missing, ", ")))
 				continue
 			}
 			fits = append(fits, pv)
@@ -236,12 +236,12 @@ func (s *Service) fitting(ctx context.Context, projectID int64, cmd *manifest.Co
 		all = append([]provider.Provider{suggested}, slices.Delete(all, i, i+1)...)
 	}
 	for _, pv := range all {
-		if len(pv.Caps().Missing(cmd.Requires)) == 0 {
+		if len(pv.Caps().Missing(requires)) == 0 {
 			fits = append(fits, pv)
 		}
 	}
 	if len(fits) == 0 {
-		return 0, nil, false, registry.Invalid("deck: no provider fits %s, which requires %s; add a model with an agent with deck.model_set", place, strings.Join(cmd.Requires, ", "))
+		return 0, nil, false, registry.Invalid("deck: no provider fits %s, which requires %s; add a model with an agent with deck.model_set", place, strings.Join(requires, ", "))
 	}
 	return p.WorkspaceID, fits, false, nil
 }

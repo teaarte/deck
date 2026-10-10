@@ -270,15 +270,24 @@ func TestCodexAgentInTheProjectFolderMayWriteItsGit(t *testing.T) {
 	}
 }
 
-// TestAFolderCommandNeedsAProviderThatWorksInFolders: a provider that cannot work in the owner's folder yet
-// does not start a command with folder.
+// TestAFolderCommandNeedsAProviderThatWorksInFolders: a command with folder starts on a provider that works in
+// folders, past the one the manifest suggests; an assignment to one that cannot is refused with where to change it.
 func TestAFolderCommandNeedsAProviderThatWorksInFolders(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, ok)
 	e.Fake.noFolder = true
 	e.createProject("code", testManifest([]string{folderCommand("run", "true")}, nil))
 	e.must("deck.folder_add", map[string]any{"project": "code", "path": repoFolder(t)}, nil)
-	e.refused("code.run", map[string]any{}, 422, "cannot yet")
+	id := e.run(e.projectID("code"), "run")
+	e.waitState(id, "done", "error")
+	var p struct{ Provider string }
+	e.must("deck.process_get", map[string]any{"process": id}, &p)
+	if p.Provider != "quiet" {
+		t.Fatalf("the command runs on the provider that works in folders: %+v", p)
+	}
+	e.refused("deck.assignment_set", map[string]any{"role": "agent", "project": "code", "command": "run", "models": []string{"fake"}}, 422, "lacks folder")
+	e.must("deck.assignment_set", map[string]any{"role": "agent", "project": "code", "models": []string{"fake"}}, nil)
+	e.refused("code.run", map[string]any{}, 422, "Models tab of the project's settings")
 }
 
 // TestTheProjectsTabCreatesAProjectAndGivesItAFolder: the owner creates a project from its name and md prompt

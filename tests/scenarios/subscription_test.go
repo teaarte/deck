@@ -62,3 +62,22 @@ func TestAModelOfTheSettingsMayBeOnASubscription(t *testing.T) {
 		t.Fatalf("a change without the mark keeps it: %+v", m)
 	}
 }
+
+// TestAModelNeverCalledSaysSo: a model of a connection no call reached yet says so in the table of models instead of
+// an empty status.
+func TestAModelNeverCalledSaysSo(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, nil)
+	e.must("deck.connection_set", map[string]any{"name": "zai", "api": "openai", "url": "http://127.0.0.1:1/v1", "key": "k"}, nil)
+	e.must("deck.model_set", map[string]any{"connection": "zai", "model": "glm-5", "kind": "text"}, nil)
+	rows := blockData[[]screenRow](t, e.settingsBlock("Models", nil)["rows"])
+	for _, r := range rows {
+		if r.Cells[0] == "zai/glm-5" {
+			if r.Cells[5] != "not called yet" {
+				t.Fatalf("a model never called says so: %+v", r.Cells)
+			}
+			return
+		}
+	}
+	t.Fatalf("no row of the model: %+v", rows)
+}

@@ -106,7 +106,7 @@ func (a *App) commandsList(ctx context.Context, act registry.Actor, in commandsL
 				}
 				r.Providers = []string{}
 				for _, pv := range all {
-					if len(pv.Caps().Missing(mc.Requires)) == 0 {
+					if len(pv.Caps().Missing(mc.Needs())) == 0 {
 						r.Providers = append(r.Providers, pv.Name())
 					}
 				}

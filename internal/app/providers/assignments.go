@@ -102,7 +102,7 @@ func (s *Service) assignmentSet(ctx context.Context, act registry.Actor, in assi
 			if cmd == nil {
 				continue
 			}
-			if missing := pv.Caps().Missing(cmd.Requires); len(missing) > 0 {
+			if missing := pv.Caps().Missing(cmd.Needs()); len(missing) > 0 {
 				return nil, registry.Invalid("deck: provider %s does not fit %s.%s: it lacks %s", name, in.Project, in.Command, strings.Join(missing, ", "))
 			}
 			continue

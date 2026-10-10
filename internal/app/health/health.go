@@ -64,7 +64,7 @@ func (s *Service) list(ctx context.Context, act registry.Actor, in healthListIn)
 	for _, m := range models {
 		mine[process.HealthSubject(m.Model.Name)] = true
 	}
-	worst := map[string]*healthRow{}
+	worst, unseen := map[string]*healthRow{}, map[string]bool{}
 	out := make([]healthRow, 0, len(hs)+len(ps))
 	shown := func(project string) bool {
 		return (in.Project == "" || project == in.Project) && (!in.Machine || project == "")
@@ -94,6 +94,8 @@ func (s *Service) list(ctx context.Context, act registry.Actor, in healthListIn)
 			}
 			row := healthRow{Subject: "secret:" + name, Status: health.Error,
 				Error: "not set, so the tools that send it fail; set it in Settings → Connections → Other secrets"}
+			row.Seen = s.read(ctx, act.Workspace, row)
+			unseen[p.Name] = unseen[p.Name] || !row.Seen
 			if health.Worse(row.Status, worst[p.Name].Status) {
 				worst[p.Name].Status, worst[p.Name].Error = row.Status, row.Subject+": "+row.Error
 			}
@@ -102,7 +104,6 @@ func (s *Service) list(ctx context.Context, act registry.Actor, in healthListIn)
 			}
 		}
 	}
-	unseen := map[string]bool{}
 	for _, hr := range hs {
 		h := hr.Health
 		seen := h.SeenAt.Valid && h.SeenAt.String >= h.UpdatedAt
@@ -167,7 +168,8 @@ type seenIn struct {
 	Subject string `desc:"Subject of a failing health row, such as tool:web.fetch"`
 }
 
-// seen marks a failing check read.
+// seen marks a failing check read: a stored row by its time, one deck works out on each read, such as a secret not
+// set, by a mark of its text.
 func (s *Service) seen(ctx context.Context, act registry.Actor, in seenIn) (any, error) {
 	n, err := store.TxGet(s.St, ctx, func(ctx context.Context, q *db.Queries) (int64, error) {
 		return q.SeeHealth(ctx, db.SeeHealthParams{Subject: in.Subject, WorkspaceID: store.ID(act.Workspace)})
@@ -175,8 +177,31 @@ func (s *Service) seen(ctx context.Context, act registry.Actor, in seenIn) (any,
 	if err != nil {
 		return nil, err
 	}
-	if n == 0 {
+	if n > 0 {
+		return map[string]any{"ok": true}, nil
+	}
+	rows, err := s.list(ctx, act, healthListIn{})
+	if err != nil {
+		return nil, err
+	}
+	i := slices.IndexFunc(rows, func(r healthRow) bool { return r.Subject == in.Subject && r.Status == health.Error && r.UpdatedAt == "" })
+	if i < 0 {
 		return nil, registry.NotFound("deck: no failing check %s", in.Subject)
 	}
+	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		return q.SetMark(ctx, db.SetMarkParams{WorkspaceID: act.Workspace, Name: seenMark + in.Subject, Value: rows[i].Error})
+	})
+	if err != nil {
+		return nil, err
+	}
 	return map[string]any{"ok": true}, nil
+}
+
+// seenMark starts the name of the mark of a worked-out check the owner read; its value is the text read.
+const seenMark = "health-seen:"
+
+// read reports whether the owner read a worked-out check as it is now.
+func (s *Service) read(ctx context.Context, workspace int64, row healthRow) bool {
+	v, err := s.St.Q.GetMark(ctx, db.GetMarkParams{WorkspaceID: workspace, Name: seenMark + row.Subject})
+	return err == nil && v == row.Error
 }

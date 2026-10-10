@@ -57,7 +57,7 @@
             {"label": "Connection", "bind": "builtin ? 'built in' : connection", "format": "tag"},
             {"label": "Agent", "bind": "agent ?? ''", "format": "tag"},
             {"label": "Price", "bind": "subscription ? 'subscription' : free ? 'free' : call_usd != nil ? '$' + string(call_usd) + ' a call' : input_usd == nil ? '' : unit == 'char' ? '$' + string(input_usd) + ' per 1M chars' : unit == 'second' ? '$' + string(input_usd * 60 / 1000000) + ' a minute' : '$' + string(input_usd) + ' / $' + string(output_usd ?? 0) + ' per 1M'"},
-            {"label": "Status", "bind": "status ?? ''", "format": "tag", "tone": "status == 'ok' ? 'ok' : status == 'error' ? 'error' : status == nil ? 'muted' : 'warn'"},
+            {"label": "Status", "bind": "status ?? 'not called yet'", "format": "tag", "tone": "status == 'ok' ? 'ok' : status == 'error' ? 'error' : status == nil ? 'muted' : 'warn'"},
             {"label": "Tokens/s", "bind": "(speed ?? 0) > 0 ? int(speed) : nil"},
             {"label": "Why", "bind": "error ?? ''", "details": "error"}
           ],

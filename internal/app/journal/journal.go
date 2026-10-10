@@ -81,6 +81,10 @@ type spendRow struct {
 	OutputTokens    int64   `json:"output_tokens"`
 	CacheReadTokens int64   `json:"cache_read_tokens"`
 	CostUSD         float64 `json:"cost_usd"`
+	// SubscriptionUSD is what the calls on a subscription would cost, an estimate out of CostUSD; Subscription says
+	// some calls were on one.
+	SubscriptionUSD float64 `json:"subscription_usd"`
+	Subscription    bool    `json:"subscription"`
 	LastAt          string  `json:"last_at"`
 }
 
@@ -104,7 +108,8 @@ func (s *Service) spendList(ctx context.Context, act registry.Actor, in spendLis
 			continue
 		}
 		out = append(out, spendRow{Project: names[r.ProjectID], Command: r.Command, Provider: r.Provider, Model: r.Model, Calls: r.Calls,
-			InputTokens: r.InputTokens, OutputTokens: r.OutputTokens, CacheReadTokens: r.CacheReadTokens, CostUSD: r.CostUsd, LastAt: r.LastAt})
+			InputTokens: r.InputTokens, OutputTokens: r.OutputTokens, CacheReadTokens: r.CacheReadTokens, CostUSD: r.CostUsd,
+			SubscriptionUSD: r.SubscriptionUsd, Subscription: r.Subscription != 0, LastAt: r.LastAt})
 	}
 	return out, nil
 }
@@ -125,6 +130,9 @@ type spendDailyRow struct {
 	OutputTokens int64   `json:"output_tokens"`
 	Tokens       int64   `json:"tokens"`
 	CostUSD      float64 `json:"cost_usd"`
+	// SubscriptionUSD is what the calls on a subscription would cost, an estimate out of CostUSD.
+	SubscriptionUSD float64 `json:"subscription_usd"`
+	Subscription    bool    `json:"subscription"`
 	// Runs and Scheduled are the processes a model ran over the days, those of a schedule apart; by provider only.
 	Runs      int64 `json:"runs"`
 	Scheduled int64 `json:"scheduled"`
@@ -176,6 +184,8 @@ func (s *Service) spendDaily(ctx context.Context, act registry.Actor, in spendDa
 		row.OutputTokens += r.OutputTokens
 		row.Tokens += r.InputTokens + r.OutputTokens
 		row.CostUSD += r.CostUsd
+		row.SubscriptionUSD += r.SubscriptionUsd
+		row.Subscription = row.Subscription || r.Subscription != 0
 	}
 	if in.By == "" || in.By == "day" {
 		for i, d := range days {
@@ -224,7 +234,9 @@ func (s *Service) spendDaily(ctx context.Context, act registry.Actor, in spendDa
 		out = append(out, row)
 	}
 	if in.By == "provider" || in.By == "project" {
-		slices.SortFunc(out, func(x, y spendDailyRow) int { return cmp.Or(cmp.Compare(y.Tokens, x.Tokens), cmp.Compare(y.Runs, x.Runs)) })
+		slices.SortFunc(out, func(x, y spendDailyRow) int {
+			return cmp.Or(cmp.Compare(y.Tokens, x.Tokens), cmp.Compare(y.Runs, x.Runs))
+		})
 	}
 	return out, nil
 }

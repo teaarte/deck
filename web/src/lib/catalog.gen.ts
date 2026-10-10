@@ -513,6 +513,10 @@ export interface ChatValue {
       provider: string;
       model?: string;
       cost_usd?: number;
+      /**
+       * what its calls on a subscription would cost, an estimate
+       */
+      subscription_usd?: number;
       seconds: number;
       steps: number;
       processes: {

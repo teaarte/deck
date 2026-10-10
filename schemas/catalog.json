@@ -327,7 +327,7 @@
           "screen": {"type": "object", "description": "the screen the owner wrote it on: project, screen, record, process"},
           "reply": {"$ref": "#/$defs/reply"}, "created_at": {"type": "string"},
           "work": {"type": "object", "additionalProperties": false, "required": ["provider", "seconds", "steps", "processes"], "description": "how a reply of the master went",
-            "properties": {"provider": {"type": "string"}, "model": {"type": "string"}, "cost_usd": {"type": "number"}, "seconds": {"type": "integer"}, "steps": {"type": "integer"},
+            "properties": {"provider": {"type": "string"}, "model": {"type": "string"}, "cost_usd": {"type": "number"}, "subscription_usd": {"type": "number", "description": "what its calls on a subscription would cost, an estimate"}, "seconds": {"type": "integer"}, "steps": {"type": "integer"},
               "processes": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["id", "project", "command", "state", "open"], "properties": {"id": {"type": "integer"}, "project": {"type": "string"}, "command": {"type": "string"}, "state": {"type": "string"}, "open": {"$ref": "#/$defs/action"}}}}}}}}},
         "questions": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["ask", "text", "questions", "answer"], "properties": {
           "ask": {"type": "integer"}, "text": {"type": "string"},

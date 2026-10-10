@@ -35,6 +35,9 @@ func New(root string) *Adapter {
 
 func (a *Adapter) Name() string { return "claude-code" }
 
+// OnSubscription: the CLI runs on the owner's login, never on a key.
+func (a *Adapter) OnSubscription() {}
+
 func (a *Adapter) QuestionTool() string { return "AskUserQuestion" }
 
 // Terminal goes on with a session of deck in the owner's own Claude Code, in the folder of the turn.

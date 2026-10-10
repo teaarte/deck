@@ -162,6 +162,7 @@
     "retry_on": "Answer on {{provider}}",
     "steps_one": "{{count}} step", "steps_other": "{{count}} steps",
     "worked": "worked {{time}}",
+    "subscription": "subscription ≈ {{cost}}",
     "pstate": {"queued": "queued", "running": "running", "done": "done", "error": "failed", "stopped": "stopped", "interrupted": "interrupted", "waiting_answer": "waits for you", "waiting_slot": "waits for a slot", "waiting_provider": "waits for its model", "waiting_folder": "waits for a folder", "rate_limited": "paused by a limit", "needs_login": "needs a login"},
     "close": "Close the chat",
     "no_module": "Without a module",

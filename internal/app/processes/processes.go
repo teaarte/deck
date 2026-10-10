@@ -68,9 +68,11 @@ type processView struct {
 	Question string `json:"question,omitempty"`
 	// Topic is the chat topic an open reply of the master answers.
 	Topic string `json:"topic,omitempty"`
-	// Models are the models of deck's settings the process called, and CostUSD what they cost, nil when one has no price.
-	Models  []string `json:"models,omitempty"`
-	CostUSD *float64 `json:"cost_usd,omitempty"`
+	// Models are the models of deck's settings the process called, and CostUSD what they cost, nil when one has no
+	// price; SubscriptionUSD is what the calls on a subscription would cost, an estimate out of the money spent.
+	Models          []string `json:"models,omitempty"`
+	CostUSD         *float64 `json:"cost_usd,omitempty"`
+	SubscriptionUSD *float64 `json:"subscription_usd,omitempty"`
 	// SlotAhead is how many processes wait for an agent slot before one that waits for it.
 	SlotAhead *int64 `json:"slot_ahead,omitempty"`
 }
@@ -196,16 +198,12 @@ func (s *Service) processGet(ctx context.Context, act registry.Actor, in process
 	if err != nil {
 		return processView{}, err
 	}
-	sum, priced := 0.0, true
 	for _, c := range calls {
 		if !slices.Contains(v.Models, c.GenAiProviderName) {
 			v.Models = append(v.Models, c.GenAiProviderName)
 		}
-		sum, priced = sum+c.CostUsd.Float64, priced && c.CostUsd.Valid
 	}
-	if len(calls) > 0 && priced {
-		v.CostUSD = &sum
-	}
+	v.CostUSD, v.SubscriptionUSD = provider.Spent(calls, func(c db.ListProcessModelCallsRow) (sql.NullFloat64, bool) { return c.CostUsd, c.Subscription != 0 })
 	return v, nil
 }
 

@@ -70,7 +70,7 @@
   "Command": "Команда",
   "Commands": "Команды",
   "Cost": "Стоимость",
-  "How much each model works: its runs, its tokens and their cost. The cost is what the provider said, such as OpenRouter or Claude Code, else by the price of the model.": "Сколько работает каждая модель: её запуски, токены и их стоимость. Стоимость — та, что сообщил поставщик, например OpenRouter или Claude Code, иначе по цене модели.",
+  "How much each model works: its runs, its tokens and their cost. The cost is what the provider said, such as OpenRouter, else by the price of the model; a model on a subscription costs nothing apart from it, and shows what its calls would cost as an estimate.": "Сколько работает каждая модель: её запуски, токены и их стоимость. Стоимость — та, что сообщил поставщик, например OpenRouter, иначе по цене модели; модель по подписке сверх неё ничего не стоит, и для неё показана оценка того, сколько стоили бы её вызовы.",
   "Cost, 30 days": "Стоимость, 30 дней",
   "Create a token": "Создать токен",
   "Create project": "Создать проект",
@@ -173,5 +173,6 @@
   "When": "Когда",
   "Who": "Кто",
   "Why": "Почему",
-  "Edit record": "Изменить запись"
+  "Edit record": "Изменить запись",
+  "Subscription, estimate": "По подписке, оценка"
 }

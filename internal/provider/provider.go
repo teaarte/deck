@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"net/http"
 	"slices"
@@ -210,6 +211,11 @@ type Check struct {
 	Speed float64
 }
 
+// Subscribed is a provider that runs on the owner's subscription: what its calls would cost is only an estimate.
+type Subscribed interface {
+	OnSubscription()
+}
+
 // SelfChecker is a provider whose adapter deck checks at start, on a button and on a broken turn.
 type SelfChecker interface {
 	SelfCheck(ctx context.Context) Check
@@ -224,4 +230,26 @@ type CallLimiter interface {
 // Terminal is a provider whose session the owner can go on with in a terminal: the command, in the folder of the turn.
 type Terminal interface {
 	Terminal(session string) (string, error)
+}
+
+// Spent adds up what calls cost: the paid ones, nil when one has no price or there is none, and apart what those
+// on a subscription would cost, nil when there is none with a price.
+func Spent[T any](calls []T, of func(T) (cost sql.NullFloat64, subscription bool)) (paid, subscribed *float64) {
+	sum, sub, priced, n, m := 0.0, 0.0, true, 0, 0
+	for _, c := range calls {
+		cost, s := of(c)
+		switch {
+		case s && cost.Valid:
+			sub, m = sub+cost.Float64, m+1
+		case !s:
+			sum, priced, n = sum+cost.Float64, priced && cost.Valid, n+1
+		}
+	}
+	if n > 0 && priced {
+		paid = &sum
+	}
+	if m > 0 {
+		subscribed = &sub
+	}
+	return paid, subscribed
 }

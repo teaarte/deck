@@ -25,6 +25,7 @@ function Work({ w }: { w: WorkValue }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const parts = [w.model || w.provider, w.cost_usd !== undefined ? cost(w.cost_usd) : '',
+    w.subscription_usd !== undefined ? t('chat.subscription', { cost: cost(w.subscription_usd) }) : '',
     t('chat.worked', { time: formatted(w.seconds, { format: 'duration' }) }), w.steps > 0 ? t('chat.steps', { count: w.steps }) : ''].filter(Boolean);
   const more = w.processes.length > 0;
   return (

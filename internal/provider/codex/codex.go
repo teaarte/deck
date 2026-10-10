@@ -41,6 +41,9 @@ func (a *Adapter) Name() string { return "codex" }
 func (a *Adapter) QuestionTool() string { return provider.AskTool }
 
 // Caps has no output by schema: Codex takes only strict schemas, so the result goes in with result_submit.
+// OnSubscription: codex runs on the owner's shared login.
+func (a *Adapter) OnSubscription() {}
+
 func (a *Adapter) Caps() provider.Caps {
 	return provider.Caps{provider.Tools, provider.Sandbox, provider.Resume, provider.Intercept, provider.Web, provider.Folder, provider.LiveInput}
 }

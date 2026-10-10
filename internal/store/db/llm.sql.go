@@ -23,12 +23,13 @@ func (q *Queries) LastSessionCost(ctx context.Context, sessionID string) (float6
 }
 
 const listProcessModelCalls = `-- name: ListProcessModelCalls :many
-SELECT gen_ai_provider_name, cost_usd FROM llm_call WHERE process_id = ? ORDER BY id
+SELECT gen_ai_provider_name, cost_usd, subscription FROM llm_call WHERE process_id = ? ORDER BY id
 `
 
 type ListProcessModelCallsRow struct {
 	GenAiProviderName string
 	CostUsd           sql.NullFloat64
+	Subscription      int64
 }
 
 func (q *Queries) ListProcessModelCalls(ctx context.Context, processID sql.NullInt64) ([]ListProcessModelCallsRow, error) {
@@ -40,7 +41,7 @@ func (q *Queries) ListProcessModelCalls(ctx context.Context, processID sql.NullI
 	var items []ListProcessModelCallsRow
 	for rows.Next() {
 		var i ListProcessModelCallsRow
-		if err := rows.Scan(&i.GenAiProviderName, &i.CostUsd); err != nil {
+		if err := rows.Scan(&i.GenAiProviderName, &i.CostUsd, &i.Subscription); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -55,7 +56,7 @@ func (q *Queries) ListProcessModelCalls(ctx context.Context, processID sql.NullI
 }
 
 const listTurnCalls = `-- name: ListTurnCalls :many
-SELECT gen_ai_provider_name, gen_ai_request_model, gen_ai_response_model, cost_usd FROM llm_call WHERE process_id = ? ORDER BY id
+SELECT gen_ai_provider_name, gen_ai_request_model, gen_ai_response_model, cost_usd, subscription FROM llm_call WHERE process_id = ? ORDER BY id
 `
 
 type ListTurnCallsRow struct {
@@ -63,6 +64,7 @@ type ListTurnCallsRow struct {
 	GenAiRequestModel  string
 	GenAiResponseModel string
 	CostUsd            sql.NullFloat64
+	Subscription       int64
 }
 
 func (q *Queries) ListTurnCalls(ctx context.Context, processID sql.NullInt64) ([]ListTurnCallsRow, error) {
@@ -79,6 +81,7 @@ func (q *Queries) ListTurnCalls(ctx context.Context, processID sql.NullInt64) ([
 			&i.GenAiRequestModel,
 			&i.GenAiResponseModel,
 			&i.CostUsd,
+			&i.Subscription,
 		); err != nil {
 			return nil, err
 		}
@@ -96,14 +99,14 @@ func (q *Queries) ListTurnCalls(ctx context.Context, processID sql.NullInt64) ([
 const logModelCall = `-- name: LogModelCall :exec
 INSERT INTO llm_call (workspace_id, project_id, process_id, command, connection_id, gen_ai_provider_name, gen_ai_request_model,
     gen_ai_response_model, gen_ai_usage_input_tokens, gen_ai_usage_output_tokens, gen_ai_usage_cache_read_input_tokens,
-    gen_ai_usage_cache_creation_input_tokens, duration_ms, cost_usd, created_at, session_cost_usd)
+    gen_ai_usage_cache_creation_input_tokens, duration_ms, cost_usd, created_at, session_cost_usd, subscription)
 VALUES (?1,
     COALESCE((SELECT p.project_id FROM process p WHERE p.id = ?2), CAST(?3 AS INTEGER)), ?2,
     COALESCE((SELECT p.command FROM process p WHERE p.id = ?2), ''),
     ?4,
     ?5, ?6, ?7, ?8, ?9,
     ?10, ?11, ?12, ?13, ?14,
-    ?15)
+    ?15, ?16)
 `
 
 type LogModelCallParams struct {
@@ -122,6 +125,7 @@ type LogModelCallParams struct {
 	CostUsd             sql.NullFloat64
 	CreatedAt           string
 	SessionCostUsd      sql.NullFloat64
+	Subscription        int64
 }
 
 // A call of a process takes the project and command of the process.
@@ -142,6 +146,7 @@ func (q *Queries) LogModelCall(ctx context.Context, arg LogModelCallParams) erro
 		arg.CostUsd,
 		arg.CreatedAt,
 		arg.SessionCostUsd,
+		arg.Subscription,
 	)
 	return err
 }
@@ -152,7 +157,9 @@ SELECT CAST(COALESCE(c.project_id, 0) AS INTEGER) AS project_id, c.command, c.ge
     CAST(sum(c.gen_ai_usage_input_tokens) AS INTEGER) AS input_tokens,
     CAST(sum(c.gen_ai_usage_output_tokens) AS INTEGER) AS output_tokens,
     CAST(sum(c.gen_ai_usage_cache_read_input_tokens) AS INTEGER) AS cache_read_tokens,
-    CAST(COALESCE(sum(c.cost_usd), 0) AS REAL) AS cost_usd,
+    CAST(COALESCE(sum(CASE WHEN c.subscription = 0 THEN c.cost_usd END), 0) AS REAL) AS cost_usd,
+    CAST(COALESCE(sum(CASE WHEN c.subscription = 1 THEN c.cost_usd END), 0) AS REAL) AS subscription_usd,
+    CAST(max(c.subscription) AS INTEGER) AS subscription,
     CAST(max(c.created_at) AS TEXT) AS last_at
 FROM llm_call c
 WHERE c.workspace_id = ?1
@@ -170,6 +177,8 @@ type SpendByCommandRow struct {
 	OutputTokens    int64
 	CacheReadTokens int64
 	CostUsd         float64
+	SubscriptionUsd float64
+	Subscription    int64
 	LastAt          string
 }
 
@@ -192,6 +201,8 @@ func (q *Queries) SpendByCommand(ctx context.Context, workspaceID int64) ([]Spen
 			&i.OutputTokens,
 			&i.CacheReadTokens,
 			&i.CostUsd,
+			&i.SubscriptionUsd,
+			&i.Subscription,
 			&i.LastAt,
 		); err != nil {
 			return nil, err
@@ -212,7 +223,9 @@ SELECT CAST(substr(c.created_at, 1, 16) AS TEXT) AS minute, c.gen_ai_provider_na
     CAST(count(*) AS INTEGER) AS calls,
     CAST(sum(c.gen_ai_usage_input_tokens) AS INTEGER) AS input_tokens,
     CAST(sum(c.gen_ai_usage_output_tokens) AS INTEGER) AS output_tokens,
-    CAST(COALESCE(sum(c.cost_usd), 0) AS REAL) AS cost_usd
+    CAST(COALESCE(sum(CASE WHEN c.subscription = 0 THEN c.cost_usd END), 0) AS REAL) AS cost_usd,
+    CAST(COALESCE(sum(CASE WHEN c.subscription = 1 THEN c.cost_usd END), 0) AS REAL) AS subscription_usd,
+    CAST(max(c.subscription) AS INTEGER) AS subscription
 FROM llm_call c LEFT JOIN project j ON j.id = c.project_id
 WHERE c.workspace_id = ?1 AND c.created_at >= ?2
 GROUP BY minute, provider, project
@@ -224,13 +237,15 @@ type SpendSinceParams struct {
 }
 
 type SpendSinceRow struct {
-	Minute       string
-	Provider     string
-	Project      string
-	Calls        int64
-	InputTokens  int64
-	OutputTokens int64
-	CostUsd      float64
+	Minute          string
+	Provider        string
+	Project         string
+	Calls           int64
+	InputTokens     int64
+	OutputTokens    int64
+	CostUsd         float64
+	SubscriptionUsd float64
+	Subscription    int64
 }
 
 func (q *Queries) SpendSince(ctx context.Context, arg SpendSinceParams) ([]SpendSinceRow, error) {
@@ -250,6 +265,8 @@ func (q *Queries) SpendSince(ctx context.Context, arg SpendSinceParams) ([]Spend
 			&i.InputTokens,
 			&i.OutputTokens,
 			&i.CostUsd,
+			&i.SubscriptionUsd,
+			&i.Subscription,
 		); err != nil {
 			return nil, err
 		}

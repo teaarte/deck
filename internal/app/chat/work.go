@@ -2,8 +2,10 @@ package chat
 
 import (
 	"context"
+	"database/sql"
 	"time"
 
+	"deck2/internal/provider"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
 )
@@ -11,12 +13,14 @@ import (
 // workView is how a reply of the master went: who answered, what it cost, how long it worked and in how many
 // steps, and the processes it started; what it said on the way is in the log of its process.
 type workView struct {
-	Provider  string     `json:"provider"`
-	Model     string     `json:"model,omitempty"`
-	CostUSD   *float64   `json:"cost_usd,omitempty"`
-	Seconds   int64      `json:"seconds"`
-	Steps     int64      `json:"steps"`
-	Processes []procView `json:"processes"`
+	Provider string   `json:"provider"`
+	Model    string   `json:"model,omitempty"`
+	CostUSD  *float64 `json:"cost_usd,omitempty"`
+	// SubscriptionUSD is what the calls on a subscription would cost, an estimate out of the money spent.
+	SubscriptionUSD *float64   `json:"subscription_usd,omitempty"`
+	Seconds         int64      `json:"seconds"`
+	Steps           int64      `json:"steps"`
+	Processes       []procView `json:"processes"`
 }
 
 // procView is a process a reply started, with the button that opens its log.
@@ -51,18 +55,14 @@ func (ch *Service) work(ctx context.Context, p db.Process) *workView {
 	}
 	v := &workView{Provider: p.Provider, Processes: ch.children(ctx, p.ID)}
 	if calls, err := ch.St.Q.ListTurnCalls(ctx, store.ID(p.ID)); err == nil && len(calls) > 0 {
-		sum, priced := 0.0, true
 		for _, c := range calls {
 			if c.GenAiResponseModel != "" {
 				v.Model = c.GenAiResponseModel
 			} else if c.GenAiRequestModel != "" {
 				v.Model = c.GenAiRequestModel
 			}
-			sum, priced = sum+c.CostUsd.Float64, priced && c.CostUsd.Valid
 		}
-		if priced {
-			v.CostUSD = &sum
-		}
+		v.CostUSD, v.SubscriptionUSD = provider.Spent(calls, func(c db.ListTurnCallsRow) (sql.NullFloat64, bool) { return c.CostUsd, c.Subscription != 0 })
 	}
 	if from, err := time.Parse(time.RFC3339Nano, p.StartedAt); err == nil {
 		if to, err := time.Parse(time.RFC3339Nano, p.FinishedAt.String); err == nil {

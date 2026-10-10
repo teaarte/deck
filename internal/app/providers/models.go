@@ -16,6 +16,7 @@ import (
 	"deck2/internal/gateway"
 	"deck2/internal/health"
 	"deck2/internal/process"
+	"deck2/internal/provider"
 	"deck2/internal/provider/acp"
 	"deck2/internal/registry"
 	"deck2/internal/store"
@@ -41,6 +42,8 @@ type modelView struct {
 	CallUSD    *float64 `json:"call_usd,omitempty"`
 	Unit       string   `json:"unit"`
 	Free       bool     `json:"free"`
+	// Subscription is a model paid by the owner's subscription: what a call would cost is an estimate, out of the money spent.
+	Subscription bool `json:"subscription"`
 	// Builtin is a provider deck was started with; Status, Error, Verdict, Speed and Version are of its last self-check.
 	Builtin bool    `json:"builtin"`
 	Status  string  `json:"status,omitempty"`
@@ -104,14 +107,16 @@ func (s *Service) modelsList(ctx context.Context, act registry.Actor, in modelsL
 		out.Connections = append(out.Connections, v)
 	}
 	for _, pv := range s.Builtin {
-		v := modelView{Name: pv.Name(), Kind: RoleText, Agent: pv.Name(), Builtin: true}
+		_, sub := pv.(provider.Subscribed)
+		v := modelView{Name: pv.Name(), Kind: RoleText, Agent: pv.Name(), Builtin: true, Subscription: sub}
 		s.lastCheck(ctx, act.Workspace, &v)
 		out.Models = append(out.Models, v)
 	}
 	for _, r := range models {
 		m := r.Model
 		v := modelView{Name: m.Name, Connection: r.Connection.Name, Model: m.Model, Kind: m.Kind, Agent: m.Agent,
-			InputUSD: nullable(m.InputUsd), OutputUSD: nullable(m.OutputUsd), CallUSD: nullable(m.CallUsd), Unit: m.Unit, Free: m.Free != 0}
+			InputUSD: nullable(m.InputUsd), OutputUSD: nullable(m.OutputUsd), CallUSD: nullable(m.CallUsd), Unit: m.Unit, Free: m.Free != 0,
+			Subscription: m.Subscription != 0}
 		s.lastCheck(ctx, act.Workspace, &v)
 		out.Models = append(out.Models, v)
 	}
@@ -137,17 +142,18 @@ func (s *Service) modelsList(ctx context.Context, act registry.Actor, in modelsL
 }
 
 type modelSetIn struct {
-	Connection string  `desc:"Connection the model is reached through"`
-	Model      string  `desc:"The model's name in the API, such as google/gemini-3.1-flash-lite-image"`
-	Name       string  `opt:"" desc:"How deck names the model in assignments and calls; connection/model when left out"`
-	Kind       string  `enum:"text|image|tts|stt|music|video" opt:"" desc:"What the model makes; a model changed without it keeps its own, a new one takes it from the catalog of the connection, else text"`
-	InputUSD   float64 `json:"input_usd" opt:"" desc:"USD per million input tokens, or of the unit; a model changed without a price keeps its own, a new one takes it from the catalog of the connection"`
-	OutputUSD  float64 `json:"output_usd" opt:"" desc:"USD per million output tokens; a model priced per character or second has none"`
-	Unit       string  `enum:"token|char|second" opt:"" desc:"What the price per million counts: tokens, characters of the text deck sends, or seconds of a recording the API reports; a model changed without it keeps its own, a new one counts tokens"`
-	CallUSD    float64 `json:"call_usd" opt:"" desc:"USD per call, for a model priced per picture, clip or request"`
-	Free       *bool   `opt:"" desc:"The model costs nothing, so a trial or a draft calls it without the owner's yes; a model changed without it or a price keeps its own, a new one takes it from the catalog of the connection"`
-	Options    string  `type:"json" opt:"" desc:"Fields deck adds to every call of the model of a kind, such as {\"language\": \"ru\"} of speech to text; a model changed without them keeps its own"`
-	Agent      string  `opt:"" desc:"The ACP agent that runs a text model inside the sandbox of deck with a shell and files, for agent commands; the name is then the name of a provider. A model changed without it keeps its own"`
+	Connection   string  `desc:"Connection the model is reached through"`
+	Model        string  `desc:"The model's name in the API, such as google/gemini-3.1-flash-lite-image"`
+	Name         string  `opt:"" desc:"How deck names the model in assignments and calls; connection/model when left out"`
+	Kind         string  `enum:"text|image|tts|stt|music|video" opt:"" desc:"What the model makes; a model changed without it keeps its own, a new one takes it from the catalog of the connection, else text"`
+	InputUSD     float64 `json:"input_usd" opt:"" desc:"USD per million input tokens, or of the unit; a model changed without a price keeps its own, a new one takes it from the catalog of the connection"`
+	OutputUSD    float64 `json:"output_usd" opt:"" desc:"USD per million output tokens; a model priced per character or second has none"`
+	Unit         string  `enum:"token|char|second" opt:"" desc:"What the price per million counts: tokens, characters of the text deck sends, or seconds of a recording the API reports; a model changed without it keeps its own, a new one counts tokens"`
+	CallUSD      float64 `json:"call_usd" opt:"" desc:"USD per call, for a model priced per picture, clip or request"`
+	Subscription *bool   `opt:"" desc:"The owner pays the model by a subscription: deck shows what a call would cost as an estimate and leaves it out of the money spent; a model changed without it keeps its own"`
+	Free         *bool   `opt:"" desc:"The model costs nothing, so a trial or a draft calls it without the owner's yes; a model changed without it or a price keeps its own, a new one takes it from the catalog of the connection"`
+	Options      string  `type:"json" opt:"" desc:"Fields deck adds to every call of the model of a kind, such as {\"language\": \"ru\"} of speech to text; a model changed without them keeps its own"`
+	Agent        string  `opt:"" desc:"The ACP agent that runs a text model inside the sandbox of deck with a shell and files, for agent commands; the name is then the name of a provider. A model changed without it keeps its own"`
 	// CheckMinutes give a slow model more time for its self-check.
 	CheckMinutes int64 `json:"check_minutes" opt:"" desc:"Minutes the self-check of a model in an agent may take, for a slow one; deck's own ceiling when left out"`
 }
@@ -179,6 +185,7 @@ func (s *Service) modelSet(ctx context.Context, act registry.Actor, in modelSetI
 			m.InputUsd, m.OutputUsd, m.CallUsd, m.Free, unpriced = old.Model.InputUsd, old.Model.OutputUsd, old.Model.CallUsd, old.Model.Free, false
 		}
 		m.Kind, m.CheckMinutes, m.Unit = cmp.Or(m.Kind, old.Model.Kind), cmp.Or(m.CheckMinutes, old.Model.CheckMinutes), cmp.Or(m.Unit, old.Model.Unit)
+		m.Subscription = old.Model.Subscription
 	}
 	m.Unit = cmp.Or(m.Unit, UnitToken)
 	if m.Unit != UnitToken && m.OutputUsd.Valid {
@@ -194,6 +201,9 @@ func (s *Service) modelSet(ctx context.Context, act registry.Actor, in modelSetI
 	}
 	if in.Free != nil {
 		m.Free = store.Bool(*in.Free)
+	}
+	if in.Subscription != nil {
+		m.Subscription = store.Bool(*in.Subscription)
 	}
 	m.Kind = cmp.Or(m.Kind, RoleText)
 	if in.Options != "" {
@@ -231,7 +241,8 @@ func (s *Service) modelSet(ctx context.Context, act registry.Actor, in modelSetI
 		s.startCheck(in.Name, true)
 	}
 	return modelView{Name: out.Name, Connection: c.Name, Model: out.Model, Kind: out.Kind, Agent: out.Agent, InputUSD: nullable(out.InputUsd),
-		OutputUSD: nullable(out.OutputUsd), CallUSD: nullable(out.CallUsd), Unit: out.Unit, Free: out.Free != 0}, nil
+		OutputUSD: nullable(out.OutputUsd), CallUSD: nullable(out.CallUsd), Unit: out.Unit, Free: out.Free != 0,
+		Subscription: out.Subscription != 0}, nil
 }
 
 // checkAgent refuses a model in an agent deck cannot run: an agent it does not know or that is not installed, a

@@ -185,7 +185,7 @@ func (r *Runner) prepare(ctx context.Context, t *turn, p db.Process, trial bool,
 		SessionID: t.session, Resume: t.resume, Hidden: r.cfg.Hidden(), Dirs: []string{a.data, filepath.Join(a.dir, "results")}, Read: read, NoNetwork: noNetwork, Hosts: hosts,
 		OnStart: func(pid int) { r.setGroup(ctx, processID, pid) },
 		OnEvent: func(e provider.Event) { r.event(ctx, processID, stream, e) },
-		OnUsage: func(u provider.Usage) { r.usage(ctx, proj.WorkspaceID, processID, pv.Name(), u) },
+		OnUsage: func(u provider.Usage) { r.usage(ctx, proj.WorkspaceID, processID, pv, u) },
 	}
 	var in chan provider.Message
 	if slices.Contains(pv.Caps(), provider.LiveInput) && t.live != nil {

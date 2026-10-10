@@ -174,6 +174,7 @@ type LlmCall struct {
 	CreatedAt                          string
 	ConnectionID                       sql.NullInt64
 	SessionCostUsd                     sql.NullFloat64
+	Subscription                       int64
 }
 
 type Mark struct {
@@ -212,6 +213,7 @@ type Model struct {
 	CheckMinutes int64
 	CreatedAt    string
 	Unit         string
+	Subscription int64
 }
 
 type Outbox struct {

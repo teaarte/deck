@@ -81,7 +81,8 @@
               {"label": "Model", "bind": "provider", "format": "tag"},
               {"label": "Command", "bind": "command"},
               {"label": "Calls", "bind": "calls"},
-              {"label": "Cost", "bind": "cost_usd", "format": "money", "currency": "USD"},
+              {"label": "Cost", "bind": "subscription && cost_usd == 0 ? nil : cost_usd", "format": "money", "currency": "USD"},
+                {"label": "Subscription, estimate", "bind": "subscription ? subscription_usd : nil", "format": "money", "currency": "USD"},
               {"label": "Last", "bind": "last_at", "format": "relative"}
             ]}
       ]},

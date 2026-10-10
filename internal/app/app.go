@@ -108,12 +108,9 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 		return nil, err
 	}
 	// Every service is allocated first, so each is then built whole with the functions of the others.
-	a := &App{Cfg: cfg, Home: h, Store: st, Bus: events.NewBus(), Scripts: script.New(cfg.Sandbox, h),
-		Projects: &project.Service{}, Saver: &project.Saver{}, Secrets: &secrets.Service{}, Folders: &folders.Service{}, Files: &appfiles.Service{},
-		Journal: &journal.Service{}, Triggers: &triggers.Service{}, Documents: &documents.Service{}, Snapshots: &snapshots.Service{},
-		Settings: &settings.Service{}, Providers: &providers.Service{}, Answers: &asks.Service{},
-		Signins: &signins.Service{}, Chats: &chat.Service{}, Devices: &devices.Service{},
-		Tokens: &tokens.Service{}, Records: &records.Service{}, Health: &apphealth.Service{}, Processes: &processes.Service{}, Failures: &failures.Service{}}
+	a := allocated()
+	a.Cfg, a.Home, a.Store, a.Bus, a.Scripts = cfg, h, st, events.NewBus(), script.New(cfg.Sandbox, h)
+	registry.Declare(cfg.Commands)
 	a.ctx, a.cancel = context.WithCancel(context.Background())
 	st.Changed = func(c store.Change) {
 		a.Bus.Emit(events.Event{Workspace: c.Workspace, Topic: c.Topic, Project: c.Project})
@@ -185,6 +182,15 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 		return nil, err
 	}
 	return a, nil
+}
+
+// allocated is an App with every service allocated and none built.
+func allocated() *App {
+	return &App{Projects: &project.Service{}, Saver: &project.Saver{}, Secrets: &secrets.Service{}, Folders: &folders.Service{},
+		Files: &appfiles.Service{}, Journal: &journal.Service{}, Triggers: &triggers.Service{}, Documents: &documents.Service{},
+		Snapshots: &snapshots.Service{}, Settings: &settings.Service{}, Providers: &providers.Service{}, Answers: &asks.Service{},
+		Signins: &signins.Service{}, Chats: &chat.Service{}, Devices: &devices.Service{}, Tokens: &tokens.Service{},
+		Records: &records.Service{}, Health: &apphealth.Service{}, Processes: &processes.Service{}, Failures: &failures.Service{}}
 }
 
 // Close interrupts running providers; their processes stay running and resume on the next start.

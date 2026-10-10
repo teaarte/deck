@@ -8,20 +8,29 @@ import (
 	"deck2/internal/registry"
 )
 
+// init declares deck's reads before anything parses a manifest: they are the same commands in every deck.
+func init() { registry.Declare(allocated().builtins()) }
+
 func (a *App) addBuiltins() {
+	for _, c := range a.builtins() {
+		a.Registry.Add(c)
+	}
+	shipped()
+}
+
+// builtins are deck's own commands.
+func (a *App) builtins() []*registry.Command {
+	var out []*registry.Command
 	for _, cs := range [][]*registry.Command{a.Answers.Commands(), a.Health.Commands(), a.Signins.Commands(), a.Chats.Commands(),
 		a.Documents.Commands(), a.Devices.FeedCommands(), a.Folders.Commands(), a.Projects.Commands(), a.Saver.Commands(),
 		a.Journal.Commands(), a.Devices.NotifyCommands(),
 		a.Processes.Commands(), a.Providers.Commands(), a.Devices.PushCommands(), a.Records.Commands(),
 		a.screensCommands(), a.Secrets.Commands(), a.Settings.Commands(), a.Snapshots.Commands(),
 		a.Tokens.Commands(), a.Triggers.Commands(), a.Files.Commands(), a.Devices.VoiceCommands(), a.Cfg.Commands} {
-		for _, c := range cs {
-			a.Registry.Add(c)
-		}
+		out = append(out, cs...)
 	}
-	a.Registry.Add(registry.Def("manifest_format", "Manifest format", "Returns the JSON Schema of project manifests.", registry.Everyone,
+	return append(out, registry.Def("manifest_format", "Manifest format", "Returns the JSON Schema of project manifests.", registry.Everyone,
 		func(context.Context, registry.Actor, struct{}) (any, error) {
 			return json.RawMessage(manifest.Taught), nil
 		}))
-	shipped()
 }

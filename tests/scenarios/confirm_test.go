@@ -374,9 +374,7 @@ func TestAFrozenCallOutlivesAProcessAtItsCeiling(t *testing.T) {
 	e.waitAsk()
 	e.must("deck.process_stop", map[string]any{"process": stopped}, nil)
 	e.waitState(stopped, "stopped")
-	if j := e.calls(stopped); !strings.Contains(j, "notes.post rejected") {
-		t.Fatalf("a stop of the owner drops the frozen call:\n%s", j)
-	}
+	e.waitFor("a stop of the owner to drop the frozen call", func() bool { return strings.Contains(e.calls(stopped), "notes.post rejected") })
 	id := e.run(e.projectID("notes"), "work")
 	var a askView
 	e.waitFor("the frozen call", func() bool {

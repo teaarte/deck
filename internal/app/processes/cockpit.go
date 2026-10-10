@@ -1,6 +1,7 @@
 package processes
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -46,15 +47,18 @@ func (s *Service) ofRecord(ctx context.Context, p db.Process, v *processView) {
 // usualRuns is how many finished runs of a command it takes to know how long it usually works.
 const usualRuns = 5
 
-// howLong is how long an open process works, and whether that is more than twice as long as its command's usual
-// run, the median of its last runs, and over a minute.
+// howLong is how long an open process works since it was last opened, and whether a running one works more than
+// twice as long as its command's usual run, the median of its last runs, and over a minute.
 func (s *Service) howLong(ctx context.Context, p db.Process, v *processView) {
-	started, err := time.Parse(time.RFC3339Nano, p.StartedAt)
+	started, err := time.Parse(time.RFC3339Nano, cmp.Or(p.ReopenedAt.String, p.StartedAt))
 	if err != nil {
 		return
 	}
 	took := s.Now().Sub(started)
 	v.Seconds = int64(took / time.Second)
+	if p.State != process.StateRunning {
+		return
+	}
 	ms, err := s.St.Q.RecentDurations(ctx, db.RecentDurationsParams{ProjectID: p.ProjectID, Command: p.Command})
 	if err != nil || len(ms) < usualRuns {
 		return

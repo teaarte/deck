@@ -51,8 +51,8 @@ WHERE id = ? AND finished_at IS NULL;
 
 -- name: ReopenProcess :execrows
 UPDATE process
-SET state = 'running', error = '', finished_at = NULL, ceiling_ms = ?, deadline_ms = NULL, silent_since_ms = NULL,
-    start_note = ?, pause_until_ms = NULL
+SET state = 'running', error = '', result = '', not_by_schema = 0, dismissed = 0, finished_at = NULL, ceiling_ms = ?,
+    deadline_ms = NULL, silent_since_ms = NULL, start_note = ?, pause_until_ms = NULL, reopened_at = ?
 WHERE id = ? AND finished_at IS NOT NULL AND session_id != '';
 
 
@@ -277,7 +277,7 @@ SELECT p.* FROM process p
 WHERE p.project_id IN (SELECT id FROM project WHERE workspace_id = sqlc.arg(workspace_id))
   AND (CAST(sqlc.arg(project_id) AS INTEGER) = 0 OR p.project_id = CAST(sqlc.arg(project_id) AS INTEGER))
   AND (p.state = 'error' OR (p.state = 'done' AND p.not_by_schema = 1)) AND p.trial = 0 AND p.dismissed = 0
-  AND p.started_at >= sqlc.arg(since)
+  AND coalesce(p.reopened_at, p.started_at) >= CAST(sqlc.arg(since) AS TEXT)
   AND NOT EXISTS (SELECT 1 FROM process q WHERE q.project_id = p.project_id AND q.command = p.command AND q.id > p.id
     AND q.state = 'done' AND q.not_by_schema = 0
     AND coalesce(json_extract(q.input, '$.record'), 0) = coalesce(json_extract(p.input, '$.record'), 0))
@@ -290,5 +290,5 @@ UPDATE process SET dismissed = 1 WHERE id = ? AND (state = 'error' OR (state = '
 
 -- name: RecentDurations :many
 -- How long the last finished runs of a command took, in milliseconds.
-SELECT CAST((julianday(finished_at) - julianday(started_at)) * 86400000 AS INTEGER) AS ms FROM process
+SELECT CAST((julianday(finished_at) - julianday(coalesce(reopened_at, started_at))) * 86400000 AS INTEGER) AS ms FROM process
 WHERE project_id = ? AND command = ? AND state = 'done' AND finished_at IS NOT NULL ORDER BY id DESC LIMIT 20;

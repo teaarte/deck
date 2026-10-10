@@ -100,3 +100,64 @@ func TestARunThatTakesLongerThanUsualIsMarked(t *testing.T) {
 }
 
 const usualRunsForTest = 5
+
+// TestARunSentBackCountsFromThenAndFailsAnew: a closed failed run sent back for rework is a fresh try: it works since
+// then, carries no old result, and failing again brings it back to the cockpit though it first started long ago.
+func TestARunSentBackCountsFromThenAndFailsAnew(t *testing.T) {
+	t.Parallel()
+	release := make(chan struct{})
+	clock := &Clock{now: t0}
+	e := newEnvWith(t, t.TempDir(), &Fake{script: func(ctx context.Context, c *Call) provider.Result {
+		if c.N > 1 {
+			<-release
+		}
+		return provider.Result{IsError: true, Text: "the voice server is down"}
+	}}, withClock(clock))
+	e.createProject("shorts", jobsModule)
+	id := e.start("shorts", "voice", nil)
+	e.waitState(id, "error")
+	e.must("deck.process_dismiss", map[string]any{"process": id}, nil)
+	clock.Add(8 * 24 * time.Hour)
+	e.must("deck.process_rework", map[string]any{"process": id, "remark": "once more"}, nil)
+	clock.Add(time.Minute)
+	var open []struct {
+		cockpitRun
+		Result any
+	}
+	e.must("deck.processes_list", map[string]any{"open": true}, &open)
+	if len(open) != 1 || open[0].Seconds != 60 || open[0].Result != nil {
+		t.Fatalf("the run works since it was sent back and has no result yet: %+v", open)
+	}
+	close(release)
+	e.waitState(id, "error")
+	var failed []cockpitRun
+	e.must("deck.processes_list", map[string]any{"failed": true}, &failed)
+	if len(failed) != 1 || failed[0].ID != id {
+		t.Fatalf("the run failed again, so it is back in the cockpit: %+v", failed)
+	}
+}
+
+// TestARunThatWaitsIsNotLongerThanUsual: a run that waits, here on a usage limit, is not slow work.
+func TestARunThatWaitsIsNotLongerThanUsual(t *testing.T) {
+	t.Parallel()
+	clock := &Clock{now: t0}
+	e := newEnvWith(t, t.TempDir(), &Fake{script: func(ctx context.Context, c *Call) provider.Result {
+		if c.N > usualRunsForTest {
+			return provider.Result{RateLimited: true, ResetsAt: t0.Add(time.Hour).Unix()}
+		}
+		clock.Add(time.Second)
+		return provider.Result{Text: "voiced"}
+	}}, withClock(clock))
+	e.createProject("shorts", jobsModule)
+	for range usualRunsForTest {
+		e.waitState(e.start("shorts", "voice", nil), "done", "error")
+	}
+	id := e.start("shorts", "voice", nil)
+	e.waitState(id, "rate_limited")
+	clock.Add(3 * time.Minute)
+	var open []cockpitRun
+	e.must("deck.processes_list", map[string]any{"open": true}, &open)
+	if len(open) != 1 || open[0].ID != id || open[0].Long {
+		t.Fatalf("a run that waits is not marked longer than usual: %+v", open)
+	}
+}

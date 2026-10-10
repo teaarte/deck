@@ -258,6 +258,7 @@ type Process struct {
 	FinishedAt       sql.NullString
 	Alone            int64
 	Dismissed        int64
+	ReopenedAt       sql.NullString
 }
 
 type ProcessRemark struct {

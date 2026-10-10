@@ -71,9 +71,3 @@ type Saver struct {
 func (pj *Service) Commands() []*registry.Command {
 	return slices.Concat(pj.projectsCommands(), pj.importCommands(), pj.draftsCommands(), pj.projectDeleteCommands())
 }
-
-// SaveCall is SaveManifest for a service that names the call the owner allows by command and input.
-func (sv *Saver) SaveCall(ctx context.Context, act registry.Actor, p db.Project, raw []byte, reason string, revertTo, ifRevision int64,
-	command string, input map[string]any) (any, error) {
-	return sv.SaveManifest(ctx, act, p, raw, reason, revertTo, ifRevision, Call{Command: command, Input: input})
-}

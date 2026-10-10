@@ -3,17 +3,16 @@ package providers
 import (
 	"cmp"
 	"context"
-	"encoding/json"
-	"net/http"
-	"slices"
-	"strconv"
-	"strings"
-
 	"deck2/internal/docs"
 	"deck2/internal/gateway"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
+	"encoding/json"
+	"net/http"
+	"slices"
+	"strconv"
+	"strings"
 )
 
 // Route finds where an actor's call of a model goes: the model of deck's settings the request names on its
@@ -225,4 +224,33 @@ func frozen(in call) (gateway.ModelAsk, error) {
 		return gateway.ModelAsk{Connection: connection, Model: in.Model, Method: cmp.Or(in.Method, http.MethodPost), Path: in.Path}, nil
 	}
 	return gateway.AskModel(connection, in.Method, in.Path, http.Header{gateway.DeckModel: {in.Model}}, []byte(in.Body))
+}
+
+// turnModel is deck's proxy of model m of an agent turn: every call goes to that model with deck's key, and its
+// usage, priced, goes to onUsage.
+func (s *Service) turnModel(workspace int64, m db.Model, c db.Connection) func(onUsage func(provider.Usage)) http.Handler {
+	return func(onUsage func(provider.Usage)) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			body, err := gateway.ReadBody(w, r)
+			if err != nil {
+				return
+			}
+			h, err := s.hop(workspace, m, c)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadGateway)
+				return
+			}
+			h.Done = func(_ context.Context, _ int, u *provider.Usage) {
+				if u == nil || onUsage == nil {
+					return
+				}
+				u.RequestModel, u.Connection = m.Model, c.ID
+				if u.CostUSD == nil {
+					u.CostUSD = price(m, *u)
+				}
+				onUsage(*u)
+			}
+			gateway.ServeHops(w, r, r.URL.Path, body, true, []gateway.ModelHop{h})
+		})
+	}
 }

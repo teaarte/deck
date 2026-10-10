@@ -1,0 +1,30 @@
+package devices
+
+import (
+	"context"
+	"encoding/json"
+	"sync"
+	"time"
+
+	"deck2/internal/events"
+	"deck2/internal/home"
+	"deck2/internal/manifest"
+	"deck2/internal/registry"
+	"deck2/internal/store"
+)
+
+// Service reaches the owner. The secrets it keeps are the key of pushes and the one of speech to text; Files are
+// where recordings come in.
+type Service struct {
+	St         *store.Store
+	Bus        *events.Bus
+	Now        func() time.Time
+	DrainFiles func(ctx context.Context)
+	Home       home.Layout
+	// Invoke calls a command, as the undo of a change does.
+	Invoke func(ctx context.Context, act registry.Actor, name string, input json.RawMessage) (any, error)
+	// DeckScreen is a screen of deck by name, nil for none.
+	DeckScreen func(name string) *manifest.Screen
+
+	pushMu, keyMu sync.Mutex
+}

@@ -11,40 +11,9 @@ import (
 
 	"deck2/internal/gateway"
 	"deck2/internal/manifest"
-	"deck2/internal/provider"
 	"deck2/internal/registry"
-	"deck2/internal/store/db"
 	"deck2/internal/untrusted"
 )
-
-// turnModel is deck's proxy of model m of an agent turn: every call goes to that model with deck's key, and its
-// usage, priced, goes to onUsage.
-func (s *Service) turnModel(workspace int64, m db.Model, c db.Connection) func(onUsage func(provider.Usage)) http.Handler {
-	return func(onUsage func(provider.Usage)) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			body, err := gateway.ReadBody(w, r)
-			if err != nil {
-				return
-			}
-			h, err := s.hop(workspace, m, c)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusBadGateway)
-				return
-			}
-			h.Done = func(_ context.Context, _ int, u *provider.Usage) {
-				if u == nil || onUsage == nil {
-					return
-				}
-				u.RequestModel, u.Connection = m.Model, c.ID
-				if u.CostUSD == nil {
-					u.CostUSD = price(m, *u)
-				}
-				onUsage(*u)
-			}
-			gateway.ServeHops(w, r, r.URL.Path, body, true, []gateway.ModelHop{h})
-		})
-	}
-}
 
 // modelRequestIn is one request of a model API through deck: what the proxy freezes when a call waits for the owner.
 type modelRequestIn struct {

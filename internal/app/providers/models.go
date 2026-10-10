@@ -22,18 +22,6 @@ import (
 	"deck2/internal/store/db"
 )
 
-// Roles are the kinds of work an assignment names models for: agent turns, and direct calls by kind.
-const (
-	RoleAgent = "agent"
-	RoleText  = "text"
-	RoleImage = "image"
-	RoleTTS   = "tts"
-	RoleSTT   = "stt"
-	RoleMusic = "music"
-)
-
-var roles = []string{RoleAgent, RoleText, RoleImage, RoleTTS, RoleSTT, RoleMusic}
-
 // Units are what a price per million of a model counts: tokens in and out, characters deck sent, or seconds of a
 // recording the API reported.
 const (

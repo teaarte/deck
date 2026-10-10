@@ -14,6 +14,18 @@ import (
 	"deck2/internal/store/db"
 )
 
+// Roles are the kinds of work an assignment names models for: agent turns, and direct calls by kind.
+const (
+	RoleAgent = "agent"
+	RoleText  = "text"
+	RoleImage = "image"
+	RoleTTS   = "tts"
+	RoleSTT   = "stt"
+	RoleMusic = "music"
+)
+
+var roles = []string{RoleAgent, RoleText, RoleImage, RoleTTS, RoleSTT, RoleMusic}
+
 // Assigned are the models of a role for a command, in order: its own assignment, else its project's, else the
 // workspace's; none when nothing is assigned.
 func Assigned(ctx context.Context, q *db.Queries, workspace, project int64, command, role string) ([]string, error) {

@@ -173,7 +173,7 @@ func (s *Service) For(ctx context.Context, projectID int64, cmd *manifest.Comman
 		return nil, err
 	}
 	for _, pv := range fits {
-		if !assigned || s.up(ctx, ws, pv.Name()) {
+		if !assigned || s.Up(ctx, ws, pv.Name(), true) {
 			return pv, nil
 		}
 	}
@@ -188,7 +188,7 @@ func (s *Service) Fits(ctx context.Context, projectID int64, cmd *manifest.Comma
 	}
 	var out []string
 	for _, pv := range fits {
-		if s.up(ctx, ws, pv.Name()) {
+		if s.Up(ctx, ws, pv.Name(), true) {
 			out = append(out, pv.Name())
 		}
 	}
@@ -246,11 +246,23 @@ func (s *Service) fitting(ctx context.Context, projectID int64, cmd *manifest.Co
 	return p.WorkspaceID, fits, false, nil
 }
 
-// up reports whether a provider's health lets a new turn start on it rather than on a fallback: not red, not
-// waiting for a login, not paused by a limit.
-func (s *Service) up(ctx context.Context, workspace int64, name string) bool {
+// Up reports whether a turn may start on a provider now, or, to pick, whether a new start takes it over the next
+// model. Nothing starts while its self-check runs or finds the adapter broken, nor on a usage limit; a lost login
+// or a weak model holds no turn, the turn asks or tries, but a new start takes the next model that is up.
+func (s *Service) Up(ctx context.Context, workspace int64, name string, pick bool) bool {
 	h, err := s.healthOf(ctx, workspace, name)
-	return err != nil || h.Status != health.Error && h.Status != health.NeedsLogin && h.Status != health.Paused
+	if err != nil {
+		return true
+	}
+	switch h.Status {
+	case health.Checking, health.Paused:
+		return false
+	case health.Error:
+		return !pick && h.Verdict != "adapter"
+	case health.NeedsLogin:
+		return !pick
+	}
+	return true
 }
 
 // healthOf is the health row of a model by name: of its self-check when it is built in or runs in an agent, else of
@@ -269,16 +281,6 @@ func (s *Service) builtinNamed(name string) provider.Provider {
 		}
 	}
 	return nil
-}
-
-// Ready holds turns on a built-in provider while its self-check runs or finds the adapter broken (a lost login
-// waits by its own ask); a model that fails or is slow holds none.
-func (s *Service) Ready(ctx context.Context, name string) bool {
-	if _, ok := s.named(ctx, name).(provider.SelfChecker); !ok {
-		return true
-	}
-	h, err := s.St.Q.GetHealth(ctx, process.HealthSubject(name))
-	return err != nil || h.Status != health.Checking && (h.Status != health.Error || h.Verdict == "model")
 }
 
 // agentCommand finds an agent command of the workspace by its place, project.command.

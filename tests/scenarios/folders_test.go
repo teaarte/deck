@@ -314,18 +314,18 @@ func TestTheProjectsTabCreatesAProjectAndGivesItAFolder(t *testing.T) {
 }
 
 // TestAPauseTheOwnerStopsFreesTheFolder: a process the owner stops on its pause on a usage limit leaves the
-// folder, and the one that waited for it runs.
+// folder, and the one that waited for it, started on the next model, runs.
 func TestAPauseTheOwnerStopsFreesTheFolder(t *testing.T) {
 	t.Parallel()
-	var first string
-	e := newClockEnv(t, func(ctx context.Context, c *Call) provider.Result {
-		if first == "" || first == c.Req.SessionID {
-			first = c.Req.SessionID
-			return limited(time.Time{})
-		}
+	main := &Fake{script: func(context.Context, *Call) provider.Result { return limited(time.Time{}) }}
+	other := &Fake{name: "other", script: func(context.Context, *Call) provider.Result {
 		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
-	})
+	}}
+	clock := &Clock{now: t0}
+	e := newEnvBuiltin(t, t.TempDir(), []provider.Provider{main, other}, withClock(clock))
+	e.Clock = clock
 	p := e.createProject("code", testManifest([]string{folderCommand("run", "true")}, nil))
+	e.useModels("code.run", "fake", "other")
 	e.must("deck.folder_add", map[string]any{"project": "code", "path": repoFolder(t)}, nil)
 	a := e.run(p, "run")
 	e.waitState(a, "rate_limited")

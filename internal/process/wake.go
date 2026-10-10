@@ -94,7 +94,7 @@ func (r *Runner) wake(ctx context.Context) {
 		var s *slot
 		switch p.State {
 		case StateWaitingProvider:
-			if busy["provider:"+p.Provider] || !r.deps.Ready(ctx, p.Provider) {
+			if busy["provider:"+p.Provider] || !r.deps.Up(ctx, h.WorkspaceID, p.Provider, false) {
 				busy["provider:"+p.Provider] = true
 				continue
 			}
@@ -117,6 +117,9 @@ func (r *Runner) wake(ctx context.Context) {
 		if ok, err := r.claim(ctx, p.ID, p.State); err != nil || !ok {
 			s.release(ctx)
 			continue
+		}
+		if p.State == StateRateLimited {
+			_ = r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error { return unpause(ctx, q, p.Provider) })
 		}
 		t, err := r.heldTurn(ctx, p)
 		if err != nil {

@@ -88,6 +88,14 @@ func (r *Runner) toolsFound(processID int64) {
 	r.mu.Unlock()
 }
 
+// unpause clears the pause of a provider once the reset a paused turn waited for has come; the turn tells again.
+func unpause(ctx context.Context, q *db.Queries, name string) error {
+	if h, err := q.GetHealth(ctx, HealthSubject(name)); err != nil || h.Status != health.Paused {
+		return nil
+	}
+	return ProviderHealth(ctx, q, name, health.OK, "")
+}
+
 // HealthSubject is the health row of a provider.
 func HealthSubject(name string) string { return "provider:" + name }
 

@@ -98,13 +98,13 @@ func (r *Runner) prepare(ctx context.Context, t *turn, p db.Process, trial bool,
 		return nil, false
 	}
 	t.pv = pv
-	if !r.deps.Ready(ctx, pv.Name()) {
-		r.hold(ctx, *t, StateWaitingProvider)
-		return nil, false
-	}
 	proj, err := r.st.Q.GetProject(ctx, t.project)
 	if err != nil {
 		fail(err.Error())
+		return nil, false
+	}
+	if !r.deps.Up(ctx, proj.WorkspaceID, pv.Name(), false) {
+		r.hold(ctx, *t, StateWaitingProvider)
 		return nil, false
 	}
 	t.folder = p.Folder

@@ -124,8 +124,9 @@ func TestSelfCheckHittingTheLimitIsAPauseNotABrokenAdapter(t *testing.T) {
 			e.App.Providers.Checks(context.Background(), e.Clock.Now())
 			e.waitHealth("provider:claude-code", c.status)
 			p := e.createProject("plain", plainManifest)
-			if got := e.waitState(e.run(p, "work"), "done", "error", "waiting_provider"); got.State != "done" {
-				t.Fatalf("a limit or a login is not a broken adapter, so processes do not wait for it: %+v", got)
+			want := map[string]string{"paused": "waiting_provider", "needs_login": "done"}[c.status]
+			if got := e.waitState(e.run(p, "work"), "done", "error", "waiting_provider"); got.State != want {
+				t.Fatalf("a limit holds turns until it resets, a lost login holds none, the turn asks: %+v", got)
 			}
 		})
 	}
@@ -585,5 +586,49 @@ func TestAPausedOrLoggedOutProviderIsCheckedAgainWithoutItsProcess(t *testing.T)
 				t.Fatalf("the self-check lifts the row: %+v", h)
 			}
 		})
+	}
+}
+
+// TestASessionWaitsForItsPausedProviderWhileANewStartTakesTheNext: a limit on the provider of a session holds the
+// session until the provider is up again, instead of running it into the limit; a new start goes to the next model.
+func TestASessionWaitsForItsPausedProviderWhileANewStartTakesTheNext(t *testing.T) {
+	t.Parallel()
+	var limited atomic.Bool
+	main := &checkedFake{Fake: &Fake{script: func(context.Context, *Call) provider.Result {
+		if limited.Load() {
+			return provider.Result{RateLimited: true, ResetsAt: t0.Add(2 * time.Hour).Unix(), Text: "limit"}
+		}
+		return provider.Result{Text: "ok"}
+	}}}
+	other := &checkedFake{Fake: &Fake{name: "other"}}
+	clock := &Clock{now: t0}
+	e := newEnvBuiltin(t, t.TempDir(), []provider.Provider{main, other}, withClock(clock))
+	e.Clock = clock
+	ctx := context.Background()
+	e.App.Providers.Checks(ctx, clock.Now())
+	e.waitHealth("provider:fake", "ok")
+	e.waitHealth("provider:other", "ok")
+	p := e.createProject("plain", plainManifest)
+	e.useModels("plain.work", "fake", "other")
+	done := e.run(p, "work")
+	e.waitState(done, "done")
+	limited.Store(true)
+	e.waitState(e.run(p, "work"), "rate_limited")
+	e.waitHealth("provider:fake", "paused")
+	var v struct{ Provider string }
+	fresh := e.run(p, "work")
+	e.waitState(fresh, "done")
+	if e.must("deck.process_get", map[string]any{"process": fresh}, &v); v.Provider != "other" {
+		t.Fatalf("a new start goes to the next model: %+v", v)
+	}
+	calls := len(main.Calls())
+	e.must("deck.process_rework", map[string]any{"process": done, "remark": "once more"}, nil)
+	if got := e.waitState(done, "waiting_provider", "rate_limited", "done"); got.State != "waiting_provider" || len(main.Calls()) != calls {
+		t.Fatalf("the session waits for its paused provider and does not run into the limit: %+v, %d calls", got, len(main.Calls())-calls)
+	}
+	limited.Store(false)
+	e.App.Providers.Checks(ctx, clock.Add(2*time.Hour+time.Minute))
+	if got := e.waitState(done, "done", "error"); got.State != "done" {
+		t.Fatalf("the session goes on once its provider is up: %+v", got)
 	}
 }

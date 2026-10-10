@@ -64,14 +64,17 @@ func TestAPauseWithoutAResetTimeProbesHourlyUntilTheOwnerStopsIt(t *testing.T) {
 	t.Parallel()
 	var mu sync.Mutex
 	ok := false
-	e := newClockEnv(t, func(ctx context.Context, c *Call) provider.Result {
+	cf := &checkedFake{Fake: &Fake{script: func(ctx context.Context, c *Call) provider.Result {
 		mu.Lock()
 		defer mu.Unlock()
 		if !ok {
 			return limited(time.Time{})
 		}
 		return provider.Result{Structured: json.RawMessage(`{"n": 2}`)}
-	})
+	}}}
+	clock := &Clock{now: t0}
+	e := newEnvWith(t, t.TempDir(), cf, withClock(clock))
+	e.Clock, e.Fake = clock, cf.Fake
 	p := e.createProject("plain", testManifest([]string{agentCommand("work", "")}, nil))
 	id := e.run(p, "work")
 	e.waitState(id, "rate_limited")
@@ -103,6 +106,8 @@ func TestAPauseWithoutAResetTimeProbesHourlyUntilTheOwnerStopsIt(t *testing.T) {
 	mu.Lock()
 	ok = true
 	mu.Unlock()
+	e.App.Providers.Checks(context.Background(), e.Clock.Now())
+	e.waitHealth("provider:fake", "ok")
 	e.must("deck.process_rework", map[string]any{"process": id, "remark": "go on"}, nil)
 	got := e.waitState(id, "done", "waiting_answer", "error")
 	calls := e.Fake.Calls()

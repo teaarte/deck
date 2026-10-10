@@ -1,6 +1,7 @@
 package scenarios
 
 import (
+	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -518,5 +519,32 @@ func TestTwoModelsOfOneAPIModelKeepTheirOwnNames(t *testing.T) {
 	}
 	if name != "second" || cost != 0.02 {
 		t.Fatalf("the call is the model it named: %s %v", name, cost)
+	}
+}
+
+// TestTheHealthOfAModelFromBeforeMovesToItsWorkspace: a base from before keeps the health of a model of a connection
+// as a provider of the machine; it moves to the model's workspace, and the machine's row of pushes goes.
+func TestTheHealthOfAModelFromBeforeMovesToItsWorkspace(t *testing.T) {
+	t.Parallel()
+	home := t.TempDir()
+	e := newEnvWith(t, home, &Fake{})
+	e.must("deck.connection_set", map[string]any{"name": "media", "api": "openai", "url": "http://127.0.0.1:9/v1", "local": true}, nil)
+	e.must("deck.model_set", map[string]any{"connection": "media", "model": "z-image", "name": "local-image", "kind": "image", "free": true}, nil)
+	e.olderBase(26)
+	if _, err := e.App.Store.DB.Exec(`INSERT INTO health (subject, status, error) VALUES ('provider:local-image', 'error', 'did not answer'), ('push', 'error', 'mac: gone')`); err != nil {
+		t.Fatal(err)
+	}
+	_ = e.App.Close()
+	e = newEnvWith(t, home, &Fake{})
+	var subject, status string
+	var workspace sql.NullInt64
+	if err := e.App.Store.DB.QueryRow(`SELECT subject, status, workspace_id FROM health WHERE subject GLOB '*local-image'`).Scan(&subject, &status, &workspace); err != nil ||
+		subject != "model:local-image" || status != "error" || workspace.Int64 != 1 {
+		t.Fatalf("the health of the model moves to its workspace: %v %s %s %v", err, subject, status, workspace)
+	}
+	var push int
+	_ = e.App.Store.DB.QueryRow(`SELECT count(*) FROM health WHERE subject = 'push'`).Scan(&push)
+	if push != 0 {
+		t.Fatal("the row of pushes of the machine goes; the workspace writes its own on the next push")
 	}
 }

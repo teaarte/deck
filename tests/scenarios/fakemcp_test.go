@@ -1,7 +1,9 @@
 package scenarios
 
 import (
+	"bufio"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -127,6 +129,9 @@ func fakeLog(dir string) []string {
 	return strings.Fields(string(b))
 }
 
+// tunnels are the tunnels the hold tool keeps open.
+var tunnels []net.Conn
+
 func projectTools(dir string) []fakeTool {
 	desc, _ := os.ReadFile(filepath.Join(dir, "send-description"))
 	if len(desc) == 0 {
@@ -150,6 +155,27 @@ func projectTools(dir string) []fakeTool {
 				}
 				r.Body.Close()
 				return text(fmt.Sprint("status ", r.StatusCode))
+			}},
+		{name: "hold", desc: "Opens a tunnel through the proxy it is given and keeps it.", input: map[string]any{"type": "object", "properties": map[string]any{"addr": str}},
+			run: func(a map[string]any) *mcp.CallToolResult {
+				u, err := url.Parse(os.Getenv("HTTP_PROXY"))
+				if err != nil {
+					return text("unreached: " + err.Error())
+				}
+				c, err := net.DialTimeout("tcp", u.Host, 5*time.Second)
+				if err != nil {
+					return text("unreached: " + err.Error())
+				}
+				pass, _ := u.User.Password()
+				auth := base64.StdEncoding.EncodeToString([]byte(u.User.Username() + ":" + pass))
+				addr := fmt.Sprint(a["addr"])
+				fmt.Fprintf(c, "CONNECT %s HTTP/1.1\r\nHost: %s\r\nProxy-Authorization: Basic %s\r\n\r\n", addr, addr, auth)
+				r, err := http.ReadResponse(bufio.NewReader(c), nil)
+				if err != nil || r.StatusCode != http.StatusOK {
+					return text(fmt.Sprint("unreached: ", err, r))
+				}
+				tunnels = append(tunnels, c)
+				return text("held")
 			}},
 		{name: "lookup", desc: "Looks a word up.", input: map[string]any{"type": "object", "properties": map[string]any{"word": str}},
 			run: func(a map[string]any) *mcp.CallToolResult {

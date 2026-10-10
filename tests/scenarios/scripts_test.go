@@ -47,7 +47,9 @@ checks["external_waits"] = st == 202 and out["waiting"] > 0
 checks["allowed_domain"] = fetch(inp["allowed"]) == 200
 checks["other_domain_refused"] = fetch(inp["other"]) == 403
 checks["direct_network_blocked"] = fetch(inp["allowed"], proxy=False) != 200
-checks["proxy_needs_token"] = fetch(inp["allowed"], proxy=os.environ["HTTP_PROXY"].replace("deck:" + TOKEN + "@", "")) == 407
+import re
+checks["proxy_needs_token"] = fetch(inp["allowed"], proxy=re.sub("//[^@]*@", "//", os.environ["HTTP_PROXY"])) == 407
+checks["proxy_key_is_not_the_token"] = fetch(inp["allowed"], proxy=re.sub("//[^@]*@", "//deck:" + TOKEN + "@", os.environ["HTTP_PROXY"])) == 407
 checks["outside_write_blocked"] = not can_write(os.path.join(inp["outside"], "x"))
 checks["secret_hidden"] = not can_read(inp["secret"])
 checks["owner_key_hidden"] = not can_read(inp["key"])
@@ -110,7 +112,7 @@ func TestScriptCommandRunsInTheSandbox(t *testing.T) {
 		Files  []struct{ Record int64 }
 	}
 	_ = json.Unmarshal(p.Result, &res)
-	for _, c := range []string{"internal_call", "no_command_list", "external_waits", "allowed_domain", "other_domain_refused", "direct_network_blocked", "proxy_needs_token",
+	for _, c := range []string{"internal_call", "no_command_list", "external_waits", "allowed_domain", "other_domain_refused", "direct_network_blocked", "proxy_needs_token", "proxy_key_is_not_the_token",
 		"outside_write_blocked", "secret_hidden", "owner_key_hidden", "late_key_hidden", "host_socket_blocked"} {
 		if !res.Checks[c] {
 			t.Errorf("check %s failed: %s", c, p.Result)

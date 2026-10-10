@@ -4,6 +4,7 @@ import (
 	"context"
 	deckhome "deck2/internal/home"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -14,6 +15,7 @@ import (
 	"strings"
 	"syscall"
 	"testing"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -466,5 +468,43 @@ func TestAnMCPServerReachesOnlyTheDomainsOfItsProject(t *testing.T) {
 	got = e.waitState(e.start("named", "reach", map[string]any{"url": local.URL}), "done", "error")
 	if !strings.Contains(string(got.Result), "status 200") || len(local.requests()) != 1 {
 		t.Fatalf("a service the project names is reached through deck's proxy: %s", got.Result)
+	}
+}
+
+func TestTheTunnelOfAStoppedMCPServerCloses(t *testing.T) {
+	t.Parallel()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = ln.Close() })
+	conns := make(chan net.Conn, 1)
+	go func() {
+		if c, err := ln.Accept(); err == nil {
+			conns <- c
+		}
+	}()
+	m := strings.Replace(mcpManifest(fmt.Sprintf(`, "domains": {"read": [%q]}`, ln.Addr().String())), `"tool": "fake.reach"}}]`,
+		`"tool": "fake.reach"}}, {"name": "hold", "title": "Hold", "description": "Holds a tunnel.", "class": "internal",
+     "input": {"type": "object", "properties": {"addr": {"type": "string"}}, "required": ["addr"]},
+     "executor": {"type": "tool", "tool": "fake.hold"}}]`, 1)
+	m = strings.Replace(m, `"peek", "reach"], "classes": {`, `"peek", "reach", "hold"], "classes": {"hold": "internal", `, 1)
+	e := newEnv(t, nil)
+	e.createProject("held", m)
+	got := e.waitState(e.start("held", "hold", map[string]any{"addr": ln.Addr().String()}), "done", "error")
+	if !strings.Contains(string(got.Result), "held") {
+		t.Fatalf("the server opens a tunnel through deck's proxy: %s", got.Result)
+	}
+	var c net.Conn
+	select {
+	case c = <-conns:
+	case <-time.After(10 * time.Second):
+		t.Fatal("the tunnel reaches the service")
+	}
+	defer c.Close()
+	e.App.Host.Stop(fmt.Sprintf("%d/fake", e.projectID("held")))
+	_ = c.SetReadDeadline(time.Now().Add(10 * time.Second))
+	if _, err := c.Read(make([]byte, 1)); err == nil || errors.Is(err, os.ErrDeadlineExceeded) {
+		t.Fatalf("the tunnel of a stopped server closes: %v", err)
 	}
 }

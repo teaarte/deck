@@ -286,6 +286,7 @@
         "record": {"type": "integer"},
         "class": {"type": "string", "description": "Class of the command of a custom block's button; the host asks the owner before one that is not internal."},
         "confirm": {"type": "boolean", "description": "The client asks the owner before the call: a button of deck that deletes or revokes."},
+        "parts": {"type": "string", "description": "With confirm, a read command the client calls with params and lists before the yes: what the call deletes for good, as kind and name; the yes waits until the list came."},
         "options": {"type": "array", "items": {"type": "string"}, "description": "Values the owner picks the input from."},
         "chat": {"type": "boolean", "description": "With a command, the result names a chat topic, which the client opens; alone, the button opens the chat of the master in a new topic."},
         "file": {"type": "integer", "description": "Stored file the button downloads instead of a call."},

@@ -71,7 +71,7 @@
   },
   "filter": { "any": "Any {{field}}" },
   "confirm": { "title": "{{action}}?", "parts": "This is deleted for good:",
-    "part": { "record": "Record", "file": "File", "folder": "Folder" } },
+    "part": { "record": "Record", "file": "File", "folder": "Folder", "process": "Process it stops" } },
   "custom": { "ask": "A custom block wants to run a command that goes outside deck", "inline": "Back into the screen" },
 
   "form": {

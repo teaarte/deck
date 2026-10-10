@@ -129,7 +129,7 @@ func (r *renderer) action(a manifest.Action, id int64, env map[string]any) (map[
 			ps["project"] = r.req.Project.Name
 		}
 		if name == manifest.RecordDelete {
-			ps["record"], act["confirm"] = id, true
+			ps["record"], act["confirm"], act["parts"] = id, true, manifest.RecordParts
 		}
 		act["command"], act["params"] = name, ps
 		if a.Undo != nil {

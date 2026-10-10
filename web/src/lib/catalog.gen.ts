@@ -69,6 +69,10 @@ export interface Action {
    */
   confirm?: boolean;
   /**
+   * With confirm, a read command the client calls with params and lists before the yes: what the call deletes for good, as kind and name; the yes waits until the list came.
+   */
+  parts?: string;
+  /**
    * Values the owner picks the input from.
    */
   options?: string[];
@@ -114,6 +118,10 @@ export interface Action1 {
    * The client asks the owner before the call: a button of deck that deletes or revokes.
    */
   confirm?: boolean;
+  /**
+   * With confirm, a read command the client calls with params and lists before the yes: what the call deletes for good, as kind and name; the yes waits until the list came.
+   */
+  parts?: string;
   /**
    * Values the owner picks the input from.
    */
@@ -336,6 +344,10 @@ export interface Action2 {
    */
   confirm?: boolean;
   /**
+   * With confirm, a read command the client calls with params and lists before the yes: what the call deletes for good, as kind and name; the yes waits until the list came.
+   */
+  parts?: string;
+  /**
    * Values the owner picks the input from.
    */
   options?: string[];
@@ -381,6 +393,10 @@ export interface Action3 {
    * The client asks the owner before the call: a button of deck that deletes or revokes.
    */
   confirm?: boolean;
+  /**
+   * With confirm, a read command the client calls with params and lists before the yes: what the call deletes for good, as kind and name; the yes waits until the list came.
+   */
+  parts?: string;
   /**
    * Values the owner picks the input from.
    */

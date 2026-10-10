@@ -18,6 +18,9 @@ const RecordUpdate = "deck.record_update"
 // RecordDelete is the command a button of the owner deletes the record of its row or page with.
 const RecordDelete = "deck.record_delete"
 
+// RecordParts lists what RecordDelete takes, before the owner says yes.
+const RecordParts = "deck.record_parts"
+
 // DeckRecord is the record of a page among the screens deck ships: a process; DocumentRecord is a document
 // of the project a screen deck ships for every project shows.
 const (

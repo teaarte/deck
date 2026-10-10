@@ -70,7 +70,7 @@ func (ch *Service) cut(ctx context.Context, p db.Process, message int64) *cutVie
 	if recs, err := ch.St.Q.ListTreeRecords(ctx, p.ID); err == nil {
 		for _, r := range recs {
 			a := chatAction("delete", registry.Builtin+".record_delete", map[string]any{"record": r.ID})
-			a["confirm"] = true
+			a["confirm"], a["parts"] = true, manifest.RecordParts
 			v.Undo = append(v.Undo, undoView{Text: fmt.Sprintf("record %s of %s.%s", untrusted.Line(r.Key, 80), r.Project, r.Collection), Action: a})
 		}
 	}

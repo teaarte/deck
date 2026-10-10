@@ -35,7 +35,7 @@ func TestTheOwnerDeletesARecordFromAButtonOfItsModule(t *testing.T) {
 		}
 	}
 	params, _ := act["params"].(map[string]any)
-	if act == nil || act["confirm"] != true || params["record"] == nil {
+	if act == nil || act["confirm"] != true || act["parts"] != "deck.record_parts" || params["record"] == nil {
 		t.Fatalf("the button deletes the record of its row and asks first: %+v", rows[0].Actions)
 	}
 	e.must("deck.record_delete", params, nil)

@@ -567,9 +567,8 @@ func TestRealBrowserAButtonOpensTheChatInANewTopic(t *testing.T) {
 	b.until("the chat from the address", `document.querySelector('[data-chat-panel] [data-chat-input]') && !location.hash.includes('chat=')`)
 }
 
-// TestRealBrowserCustomBlockSendsNothingByWebRTC: a custom block cannot carry data out past its CSP through the ICE
-// of a WebRTC connection to a STUN server of its own: not from its window, and no frame, where WebRTC would come back,
-// is made by any way the guard of the proxy page names; each way calls a STUN server of its own.
+// TestRealBrowserCustomBlockSendsNothingByWebRTC: a custom block sends nothing by WebRTC past its CSP, from its window
+// or a frame made any way the guard names; each way calls a STUN server of its own.
 func TestRealBrowserCustomBlockSendsNothingByWebRTC(t *testing.T) {
 	if os.Getenv("DECK_REAL_BROWSER") == "" {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")

@@ -16,7 +16,7 @@
     "unknown": "This client cannot show a {{type}} block.",
     "open_in_web": "Open in web"
   },
-  "verb": {
+  "verb": { "close": "Close",
     "edit": "Edit",
     "replace": "Replace",
     "models": "Models",

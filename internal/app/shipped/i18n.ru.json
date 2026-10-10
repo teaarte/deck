@@ -185,5 +185,7 @@
   "Changed": "Изменён",
   "The folder is empty": "Папка пуста",
   "The data folder of the project as it is on disk: what its scripts and agents keep, caches too.": "Папка данных проекта как она есть на диске: всё, что хранят его скрипты и агенты, и кэши тоже.",
-  "The data folder of each project, by its real folders.": "Папка данных каждого проекта по её настоящим папкам."
+  "The data folder of each project, by its real folders.": "Папка данных каждого проекта по её настоящим папкам.",
+  "Did not work": "Не получилось",
+  "Runs that failed and no later run made good; close one you will not repeat.": "Запуски, которые упали, и ни один следующий их не исправил; закройте тот, что не будете повторять."
 }

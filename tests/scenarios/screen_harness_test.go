@@ -272,7 +272,7 @@ func (e *Env) cockpitItems() []listItem {
 func (e *Env) cockpitRunning() []listItem {
 	e.T.Helper()
 	var items []listItem
-	_ = json.Unmarshal(e.screenData("", "cockpit", nil)["b4-1-0"]["items"], &items)
+	_ = json.Unmarshal(e.screenData("", "cockpit", nil)["b4-1-1"]["items"], &items)
 	return items
 }
 

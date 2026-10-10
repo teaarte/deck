@@ -33,11 +33,23 @@
           {"verb": "deny", "primary": true, "command": "deck.ask_answer", "params": {"ask": "=id", "answer": "deny"}, "when": "expired"}
         ]},
       {"type": "columns", "blocks": [
+        {"type": "list", "title": "Did not work", "icon": "alert-circle", "when": "len(rows) > 0",
+          "source": {"from": "deck.processes_list", "input": {"failed": true, "brief": true}},
+          "description": "Runs that failed and no later run made good; close one you will not repeat.",
+          "item": {"title": "project + ' · ' + command + ((record_title ?? '') != '' ? ' · ' + record_title : '')", "tone": "'error'", "icon": "'alert-circle'",
+            "text": "(error ?? '') != '' ? error : 'the result did not match its schema'", "meta": "'#' + string(id)"},
+          "actions": [
+            {"verb": "retry", "primary": true, "command": "deck.process_retry", "params": {"process": "=id"}},
+            {"verb": "open", "screen": "process", "record": "=id"},
+            {"verb": "close", "command": "deck.process_dismiss", "params": {"process": "=id"}}
+          ]},
         {"type": "list", "title": "Running now", "icon": "activity", "when": "len(rows) > 0",
           "source": {"from": "deck.processes_list", "input": {"open": true}},
-          "item": {"title": "project + ' · ' + ((topic ?? '') != '' ? topic : command)", "text": "(question ?? '') != '' ? 'waits for your answer: ' + question : silent ? 'silent' : state == 'waiting_slot' ? 'waits for a slot' : state == 'waiting_folder' ? 'waits for folder ' + folder : state == 'rate_limited' ? 'paused on a usage limit' : kind == 'script' ? 'a script runs' : 'runs on ' + ((provider ?? '') != '' ? provider : kind)",
+          "item": {"title": "project + ' · ' + ((topic ?? '') != '' ? topic : command) + ((record_title ?? '') != '' ? ' · ' + record_title : '')",
+            "tone": "(long ?? false) ? 'warn' : ''",
+            "text": "((long ?? false) ? 'longer than usual · ' : '') + ((question ?? '') != '' ? 'waits for your answer: ' + question : silent ? 'silent' : state == 'waiting_slot' ? 'waits for a slot' : state == 'waiting_folder' ? 'waits for folder ' + folder : state == 'rate_limited' ? 'paused on a usage limit' : kind == 'script' ? 'a script runs' : 'runs on ' + ((provider ?? '') != '' ? provider : kind))",
             "icon": "kind == 'script' ? 'code' : kind == 'tool' ? 'tool' : kind == 'model' ? 'sparkles' : 'robot'",
-            "meta": "(trigger ?? 0) != 0 ? 'by schedule · #' + string(id) : (parent ?? 0) != 0 ? 'of #' + string(parent) + ' · #' + string(id) : '#' + string(id)"},
+            "meta": "((seconds ?? 0) < 60 ? string(seconds ?? 0) + ' s' : (seconds ?? 0) < 3600 ? string(int((seconds ?? 0) / 60)) + ' min' : string(int((seconds ?? 0) / 3600)) + ' h') + ' · ' + ((trigger ?? 0) != 0 ? 'by schedule · #' + string(id) : (parent ?? 0) != 0 ? 'of #' + string(parent) + ' · #' + string(id) : '#' + string(id))"},
           "actions": [
             {"verb": "open", "screen": "process", "record": "=id"},
             {"verb": "stop", "command": "deck.process_stop", "params": {"process": "=id"}, "when": "(finished_at ?? '') == ''"}

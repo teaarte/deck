@@ -256,6 +256,7 @@ type Process struct {
 	StartedAt        string
 	FinishedAt       sql.NullString
 	Alone            int64
+	Dismissed        int64
 }
 
 type ProcessRemark struct {

@@ -265,3 +265,28 @@ WHERE r.process_id IN (SELECT id FROM tree) ORDER BY r.id;
 -- name: ListChildProcesses :many
 SELECT p.id, p.command, p.state, j.name AS project FROM process p JOIN project j ON j.id = p.project_id
 WHERE p.parent_id = sqlc.arg(parent_id) ORDER BY p.id;
+
+
+-- name: ListFailedProcesses :many
+-- Failed processes of the last week the owner has not closed and no later run of the same command for the same
+-- record made good, newest first.
+SELECT p.* FROM process p
+WHERE p.project_id IN (SELECT id FROM project WHERE workspace_id = sqlc.arg(workspace_id))
+  AND (CAST(sqlc.arg(project_id) AS INTEGER) = 0 OR p.project_id = CAST(sqlc.arg(project_id) AS INTEGER))
+  AND (p.state = 'error' OR (p.state = 'done' AND p.not_by_schema = 1)) AND p.trial = 0 AND p.dismissed = 0
+  AND p.started_at >= sqlc.arg(since)
+  AND NOT EXISTS (SELECT 1 FROM process q WHERE q.project_id = p.project_id AND q.command = p.command AND q.id > p.id
+    AND q.state = 'done' AND q.not_by_schema = 0
+    AND coalesce(json_extract(CASE WHEN json_valid(q.input) THEN q.input ELSE '{}' END, '$.record'), 0) =
+        coalesce(json_extract(CASE WHEN json_valid(p.input) THEN p.input ELSE '{}' END, '$.record'), 0))
+ORDER BY p.id DESC LIMIT 20;
+
+
+-- name: DismissProcess :execrows
+UPDATE process SET dismissed = 1 WHERE id = ? AND (state = 'error' OR (state = 'done' AND not_by_schema = 1));
+
+
+-- name: RecentDurations :many
+-- How long the last finished runs of a command took, in milliseconds.
+SELECT CAST((julianday(finished_at) - julianday(started_at)) * 86400000 AS INTEGER) AS ms FROM process
+WHERE project_id = ? AND command = ? AND state = 'done' AND finished_at IS NOT NULL ORDER BY id DESC LIMIT 20;

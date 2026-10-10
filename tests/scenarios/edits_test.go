@@ -60,19 +60,29 @@ func TestPartsOfADocumentAndOfAManifestChangeWithoutSendingTheWholeText(t *testi
 
 	var saved struct{ Revision int64 }
 	e.must("deck.manifest_save", map[string]any{"project": "web", "reason": "rename",
-		"patch": `[{"op": "replace", "path": "/screens/0/blocks/3/title", "value": "All notes"}]`}, &saved)
+		"old": []string{`"title": "Notes"`}, "new": []string{`"title": "All notes"`}}, &saved)
 	var m struct{ Manifest string }
 	e.must("deck.manifest_get", map[string]any{"project": "web"}, &m)
 	if want := strings.Replace(webNotes, `"title": "Notes"`, `"title": "All notes"`, 1); saved.Revision != 2 || m.Manifest != want {
-		t.Fatalf("a replace changes its place and keeps the text around it as written: %d\n%s", saved.Revision, m.Manifest)
-	}
-	if code, body := e.call("deck.manifest_save", map[string]any{"project": "web",
-		"patch": `[{"op": "replace", "path": "/menu/0", "value": "none"}]`}); code != 422 {
-		t.Fatalf("a patched manifest is checked like a whole one: %d %s", code, body)
+		t.Fatalf("an old part changes and the text around it stays as written: %d\n%s", saved.Revision, m.Manifest)
 	}
 	if code, body := e.call("deck.manifest_save", map[string]any{"project": "web",
 		"old": []string{`"menu": ["main"]`}, "new": []string{`"menu": ["none"]`}}); code != 422 {
-		t.Fatalf("a manifest changes by a patch or whole, not by old and new parts: %d %s", code, body)
+		t.Fatalf("a manifest changed by parts is checked like a whole one: %d %s", code, body)
+	}
+	for _, c := range []struct {
+		in   map[string]any
+		code int
+		says string
+	}{
+		{map[string]any{"old": []string{`"title": "All notes"`}, "new": []string{`"title": "Notes"`}, "if_revision": 1}, 409, "revision 2 now"},
+		{map[string]any{"old": []string{`"title": "All notes"`}, "new": []string{`"title": "Notes"`}, "manifest": webNotes}, 422, "not both"},
+		{map[string]any{"patch": `[{"op": "replace", "path": "/menu/0", "value": "main"}]`}, 422, "patch"},
+	} {
+		c.in["project"] = "web"
+		if code, body := e.call("deck.manifest_save", c.in); code != c.code || !strings.Contains(string(body), c.says) {
+			t.Fatalf("%v: want %d %q, got %d %s", c.in, c.code, c.says, code, body)
+		}
 	}
 }
 
@@ -87,10 +97,11 @@ func TestASavedManifestNamesTheBlocksThatFailOnTheRecordsThereAre(t *testing.T) 
 		"records": jsonl(map[string]any{"title": "a", "score": 3}, map[string]any{"title": "b"})}, nil)
 	column := func(bind string) []string {
 		var saved struct{ Screens []string }
-		patch, _ := json.Marshal([]map[string]any{
-			{"op": "add", "path": "/screens/0/blocks/3/columns/-", "value": map[string]any{"label": "Score", "bind": bind}},
-			{"op": "add", "path": "/screens/1/blocks/-", "value": map[string]any{"type": "card", "fields": []any{map[string]any{"label": "Score", "bind": bind}}}}})
-		e.must("deck.manifest_save", map[string]any{"project": "web", "patch": string(patch)}, &saved)
+		b, _ := json.Marshal(bind)
+		column, edit := `"columns": [{"label": "Title", "bind": "title"}]`, `{"type": "form", "title": "Edit", "command": "deck.record_update"}`
+		e.must("deck.manifest_save", map[string]any{"project": "web", "old": []string{column, edit}, "new": []string{
+			`"columns": [{"label": "Title", "bind": "title"}, {"label": "Score", "bind": ` + string(b) + `}]`,
+			edit + `, {"type": "card", "fields": [{"label": "Score", "bind": ` + string(b) + `}]}`}}, &saved)
 		e.must("deck.manifest_save", map[string]any{"project": "web", "manifest": webNotes}, nil)
 		return saved.Screens
 	}
@@ -137,30 +148,5 @@ func TestRefusalsSayWhereAndWhatToDo(t *testing.T) {
 		"old": []string{"two three", "one two"}, "new": []string{"2 3", "1 2"}})
 	if code != 422 || !strings.Contains(string(out), `old text 2 overlaps old text 1 ("two three")`) {
 		t.Fatalf("the overlap quotes old text 1: %d %s", code, out)
-	}
-}
-
-// TestAPatchKeepsTheTypesOfItsValues: a number in a patch stays a number in the saved manifest, and a patch
-// that only tests changes nothing.
-func TestAPatchKeepsTheTypesOfItsValues(t *testing.T) {
-	t.Parallel()
-	e := newEnv(t, nil)
-	e.createProject("web", webNotes)
-	var saved struct{ Revision int64 }
-	e.must("deck.manifest_save", map[string]any{"project": "web",
-		"patch": `[{"op": "replace", "path": "/version", "value": 11},
-			{"op": "replace", "path": "/commands/2", "value": {"name": "tell", "title": "Tell", "description": "Tells the owner.",
-				"class": "internal", "result": {"type": "object"}, "timeout_minutes": 20, "executor": {"type": "agent", "prompt": "Tell."}}}]`}, &saved)
-	var m struct{ Manifest string }
-	e.must("deck.manifest_get", map[string]any{"project": "web"}, &m)
-	if !strings.Contains(m.Manifest, `"version": 11`) || !strings.Contains(m.Manifest, `"timeout_minutes":20`) {
-		t.Fatalf("numbers of a patch stay numbers: %d\n%s", saved.Revision, m.Manifest)
-	}
-	e.must("deck.manifest_save", map[string]any{"project": "web",
-		"patch": `[{"op": "test", "path": "/version", "value": 11}]`}, &saved)
-	var again struct{ Manifest string }
-	e.must("deck.manifest_get", map[string]any{"project": "web"}, &again)
-	if again.Manifest != m.Manifest || saved.Revision != 2 {
-		t.Fatalf("a patch that only tests changes nothing: %d\n%s", saved.Revision, again.Manifest)
 	}
 }

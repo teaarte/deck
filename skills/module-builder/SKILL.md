@@ -173,7 +173,7 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   'done' || date(_updated) > now() - duration('168h')"`, and the whole history is a separate table of that
   status; `limit` cuts every lane at once.
 - **Expressions are JSON text**: a line break is the escape `\n` inside the quotes of the expression, written
-  `\\n` in the manifest and in a JSON Patch (`"text": "=title + '\\n' + note"`); a JSON `\n` alone puts a raw
+  `\\n` in the manifest and in its `old` and `new` parts (`"text": "=title + '\\n' + note"`); a JSON `\n` alone puts a raw
   line break into the quotes, and the expression is refused. `text[:80]` and `len(text)` count characters.
 - **`folder` may be one file** a record has (`"folder": "'tracks/' + slug + '.mp3'"`): deleting the record
   deletes that file.
@@ -285,8 +285,8 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   as `param.<name>`: `"values": {"title": "=param.title"}` fills a form, `"input": {"days": "=param.n ?? 7"}` a
   source, `"when": "param.n > 1"` a block. An input that gives nothing or fails is an error on its block, not a read
   without it, so give an optional param a default with `??`.
-- **Changing a manifest**: send `manifest_save` a JSON Patch in `patch` (`[{"op": "replace", "path":
-  "/screens/0/blocks/2/title", "value": "…"}]`): a path names one place, so equal texts elsewhere never mix.
+- **Changing a manifest**: send `manifest_save` `old` (parts of the text `manifest_get` gives, each found exactly
+  once; take enough around a part to make it unique) and `new` (what replaces each).
 - **Telling the owner**: a script or agent that finds something worth a look calls `notify` with `text`, and
   optionally the `screen` (and `record`) it opens and `actions` (`[{label, command, params}]`); it becomes a line
   in the cockpit feed. The caller decides it is worth it; a run with nothing new says nothing.
@@ -506,9 +506,8 @@ Name each of these rights in the hand-over: the owner grants them with "enable".
    Settings → Projects. A refused import comes back with the
    reason and leaves nothing behind; fix the folder and import again. Once imported, change the draft with
    `manifest_save` and `document_save` (a second import of the same name is refused), and keep the folder
-   in step. Send only what changes: a JSON Patch in `patch` for the manifest; for a document `old` (parts of the
-   current text, each found exactly once) and `new` (what replaces each); the whole text only for a new one or a
-   rewrite. The answer of `manifest_save`
+   in step. Send only what changes: for the manifest and for a document `old` (parts of the current text, each
+   found exactly once) and `new` (what replaces each); the whole text only for a new one or a rewrite. The answer of `manifest_save`
    lists in `screens` each block that fails on the records there are now (a column that breaks on a record
    without a field, a missing custom document): fix them before the owner opens the screen.
 3. `command_try` runs a command as a trial: everything that is not internal is declined, and a call of an HTTP

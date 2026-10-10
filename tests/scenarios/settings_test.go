@@ -175,7 +175,7 @@ func TestSettingsProjectsEnableADraftAtTheRevisionItShows(t *testing.T) {
 		t.Fatalf("enable carries the revision the row shows: %+v", stale)
 	}
 
-	e.must("deck.manifest_save", map[string]any{"project": "notes", "patch": `[{"op": "replace", "path": "/commands/0/title", "value": "Work again"}]`}, nil)
+	e.must("deck.manifest_save", map[string]any{"project": "notes", "old": []string{`"title": "Work"`}, "new": []string{`"title": "Work again"`}}, nil)
 	notes = findItem(t, items(), "notes")
 	e.refused(stale["command"].(string), stale["params"], 409, "look at its rights again")
 	press(verb(t, notes.Actions, "enable"))

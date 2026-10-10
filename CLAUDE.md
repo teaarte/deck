@@ -56,7 +56,7 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
 - `internal/docs` — documents with revisions, skill files, the manifest reader with its one parse cache (`All` the
   current manifests of projects), `For` (the one current manifest in force for whoever reads rights: what the owner
   granted, `project.granted_revision`; a trial of a draft also its reads and models, `manifest.Trial`), `InForce` (a
-  given revision with only the granted rights), `Editable`, `Patch` (JSON Patch keeping the text around a replace)
+  given revision with only the granted rights), `Editable`, `Edit` (old parts of a text replaced with new ones)
 - `internal/app` — wiring and the screens: `New` allocates every service first and builds each whole with the
   functions of the others (a test checks none is left unset), registers their commands and runs `Loop`/`Sweep`;
   background work goes through `background.Go`, which refuses once `Stop` began. Each

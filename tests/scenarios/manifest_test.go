@@ -493,7 +493,7 @@ func TestASliceOfTextCutsCharacters(t *testing.T) {
 }
 
 // TestAManifestOfAnOlderFormatIsReadRaised: manifest_get gives a manifest stored in an older format raised to the
-// current one, says so, and a patch of what it gave applies to that text.
+// current one, says so, and old and new parts of what it gave apply to that text.
 func TestAManifestOfAnOlderFormatIsReadRaised(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, nil)
@@ -513,13 +513,14 @@ func TestAManifestOfAnOlderFormatIsReadRaised(t *testing.T) {
 		!strings.Contains(strings.Join(got.Warnings, "\n"), "format 7") {
 		t.Fatalf("a manifest of format 7 is read raised to the current format, with a word on it: %v\n%s", got.Warnings, got.Manifest)
 	}
-	e.must("deck.manifest_save", map[string]any{"project": "web", "patch": `[{"op": "replace", "path": "/triggers/0/cron", "value": "0 9 * * *"}]`}, nil)
+	e.must("deck.manifest_save", map[string]any{"project": "web",
+		"old": []string{`"version": 11`, `"cron": "0 8 * * *"`}, "new": []string{`"version": 11`, `"cron": "0 9 * * *"`}}, nil)
 	var now struct {
 		Manifest string
 		Warnings []string
 	}
 	e.must("deck.manifest_get", map[string]any{"project": "web"}, &now)
 	if !strings.Contains(now.Manifest, `"0 9 * * *"`) || len(now.Warnings) != 0 {
-		t.Fatalf("a patch applies to the raised text it was written on: %v\n%s", now.Warnings, now.Manifest)
+		t.Fatalf("old and new parts apply to the raised text they were written on: %v\n%s", now.Warnings, now.Manifest)
 	}
 }

@@ -256,6 +256,7 @@ func (r *Runner) converse(ctx context.Context, t *turn, a *agentTurn, fail func(
 			r.lostTools(bg, *t, pv, err)
 			return
 		}
+		r.toolsFound(processID)
 		if a.sub != nil && err == nil && !res.IsError && submitted(a.sub) {
 			// A turn that ended on its own with its result in is done, whatever a later call of the model got.
 			res.RateLimited, res.NeedsLogin = false, false

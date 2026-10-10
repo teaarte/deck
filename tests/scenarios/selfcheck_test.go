@@ -450,3 +450,47 @@ fi`)
 		t.Fatalf("the process fails after its tries: %+v", got)
 	}
 }
+
+// lossyFake is the checked fake whose next turns start without deck's tools.
+type lossyFake struct {
+	*checkedFake
+	lose atomic.Int64
+}
+
+func (l *lossyFake) Run(ctx context.Context, req provider.Request) (provider.Result, error) {
+	if l.lose.Add(-1) >= 0 {
+		return provider.Result{NoTools: true}, errors.New("the MCP tool of deck was not found")
+	}
+	l.lose.Store(0)
+	return l.checkedFake.Run(ctx, req)
+}
+
+// TestToolsLostInEarlierTurnsDoNotCountAgainstALaterOne: the tries without deck's tools are of one stretch of a
+// process; a turn that got its tools, or a process that closed, starts the count over.
+func TestToolsLostInEarlierTurnsDoNotCountAgainstALaterOne(t *testing.T) {
+	t.Parallel()
+	lf := &lossyFake{checkedFake: &checkedFake{Fake: &Fake{}}}
+	clock := &Clock{now: t0}
+	e := newEnvWith(t, t.TempDir(), lf, withClock(clock))
+	e.Clock = clock
+	ctx := context.Background()
+	e.App.Providers.Checks(ctx, clock.Now())
+	e.waitHealth("provider:fake", "ok")
+	id := e.run(e.createProject("plain", plainManifest), "work")
+	for i := range 3 {
+		if i > 0 {
+			e.waitState(id, "done")
+			lf.lose.Store(1)
+			e.must("deck.process_rework", map[string]any{"process": id, "remark": "once more"}, nil)
+		} else {
+			lf.lose.Store(1)
+		}
+		if got := e.waitState(id, "waiting_provider", "error"); got.State != "waiting_provider" {
+			t.Fatalf("round %d: a turn that lost its tools once waits for the self-check: %+v", i, got)
+		}
+		e.App.Providers.Checks(ctx, clock.Add(31*time.Minute))
+		if got := e.waitState(id, "done", "error"); got.State != "done" {
+			t.Fatalf("round %d: the held turn runs once the self-check is green: %+v", i, got)
+		}
+	}
+}

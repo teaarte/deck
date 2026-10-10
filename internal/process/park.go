@@ -56,9 +56,6 @@ func (r *Runner) lostTools(ctx context.Context, t turn, pv provider.Provider, er
 	}
 	r.lost[t.process]++
 	tries := r.lost[t.process]
-	if tries >= lostTries {
-		delete(r.lost, t.process)
-	}
 	r.mu.Unlock()
 	if tries >= lostTries {
 		r.finish(ctx, t.process, StateError, "", false, fmt.Sprintf("the agent started without deck's tools %d times: %v", tries, err))
@@ -81,6 +78,13 @@ func (r *Runner) lostTools(ctx context.Context, t turn, pv provider.Provider, er
 		return
 	}
 	r.deps.Broke(ctx, pv.Name())
+}
+
+// toolsFound starts the count of turns without deck's tools over.
+func (r *Runner) toolsFound(processID int64) {
+	r.mu.Lock()
+	delete(r.lost, processID)
+	r.mu.Unlock()
 }
 
 // HealthSubject is the health row of a provider.

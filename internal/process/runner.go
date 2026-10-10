@@ -270,6 +270,7 @@ func (r *Runner) finish(ctx context.Context, processID int64, state, result stri
 	r.Wake(ctx)
 	r.mu.Lock()
 	delete(r.marked, processID)
+	delete(r.lost, processID)
 	r.mu.Unlock()
 	r.closed(ctx, processID)
 	r.disown(processID)

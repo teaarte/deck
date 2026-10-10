@@ -293,11 +293,10 @@ func TestTheMasterAsksTheOwnerBeforeDeletingWhatAModuleMade(t *testing.T) {
 	}
 
 	e.say(topic, "write rats")
-	e.masterSaid(topic, 5)
-	rats := e.videos()["rats"]
+	var rats int64
+	e.waitFor("the master's record", func() bool { rats = e.videos()["rats"]; return rats != 0 })
 	e.say(topic, fmt.Sprintf("delete %d", rats))
-	e.masterSaid(topic, 6)
-	a = e.waitAsk()
+	e.waitFor("the ask of the deletion", func() bool { a = e.waitAsk(); return strings.Contains(a.Text, "rats") })
 	e.must("deck.record_delete", map[string]any{"record": rats}, nil)
 	e.answer(a.ID, "allow")
 	var left []askView

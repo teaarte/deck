@@ -12,6 +12,7 @@ import (
 
 	"deck2/internal/provider"
 	"deck2/internal/registry"
+	"deck2/internal/store"
 )
 
 // Automation resolves an automation token to the actor it acts as, or fails for an unknown or revoked one.
@@ -97,13 +98,18 @@ func (g *Gateway) CallAs(ctx context.Context, act registry.Actor, name string, a
 }
 
 // CallTool makes the one call of the tool command command: a tool no stricter than the command was cleared when
-// the command was called, a stricter one passes the class rules.
+// the command was called, a stricter one, or any in a trial or a draft, passes the class rules.
 func (g *Gateway) CallTool(ctx context.Context, act registry.Actor, command, tool string, args []byte) (any, error) {
 	c, err := g.reg.Lookup(ctx, act.Workspace, command)
 	if err != nil {
 		return nil, err
 	}
-	if t, err := g.reg.Lookup(ctx, act.Workspace, tool); err == nil && registry.ClassRank(t.Class) <= registry.ClassRank(c.Class) {
+	p, err := g.st.Q.GetProject(ctx, act.ProjectID)
+	if err != nil {
+		return nil, err
+	}
+	if t, err := g.reg.Lookup(ctx, act.Workspace, tool); err == nil && !act.Trial && p.Status != store.ProjectDraft &&
+		registry.ClassRank(t.Class) <= registry.ClassRank(c.Class) {
 		act = g.clear.Clear(act, t.Name)
 	}
 	return g.call(ctx, act, tool, args)

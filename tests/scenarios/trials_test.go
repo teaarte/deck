@@ -153,3 +153,37 @@ func TestATrialOfOneCommandStartsNoChain(t *testing.T) {
 	e.waitState(try.Process, "done")
 	e.waitFor("the trial of the chain", func() bool { return e.countOf("c2") == 1 })
 }
+
+// TestATrialOfAToolCommandWaitsForTheOwner: in a trial or a draft the tool of a tool command is not cleared with
+// the command, so its call waits for the owner's yes before anything leaves deck.
+func TestATrialOfAToolCommandWaitsForTheOwner(t *testing.T) {
+	t.Parallel()
+	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { jsonReply(w, `{"ok": true}`) })
+	e := newEnv(t, nil)
+	e.must("deck.secret_set", map[string]any{"name": "svc", "value": "s3cret"}, nil)
+	send := strings.Replace(postManifest(svc.URL, ""), `"commands": [`, `"commands": [{"name": "send", "title": "Send",
+    "description": "Sends the note.", "class": "external", "executor": {"type": "tool", "tool": "post"},
+    "input": {"type": "object", "properties": {"id": {"type": "string"}, "text": {"type": "string"}}, "required": ["id", "text"]}},`, 1)
+	e.createProject("notes", send)
+	_, tok := e.token("terminal", "deck.project_create", "deck.command_try")
+	if code, out := e.callWith(tok, "deck.project_create", map[string]any{"name": "drafted", "manifest": send}); code != 200 {
+		t.Fatalf("create: %d %s", code, out)
+	}
+	for _, call := range []func() (int, []byte){
+		func() (int, []byte) {
+			return e.call("deck.command_try", map[string]any{"live": true, "command": "notes.send", "input": `{"id": "a", "text": "hi"}`})
+		},
+		func() (int, []byte) {
+			return e.callWith(tok, "deck.command_try", map[string]any{"command": "drafted.send", "input": `{"id": "a", "text": "hi"}`})
+		},
+	} {
+		var try struct{ Process int64 }
+		code, out := call()
+		if code != 200 || json.Unmarshal(out, &try) != nil || try.Process == 0 {
+			t.Fatalf("try: %d %s", code, out)
+		}
+		if p := e.waitState(try.Process, "waiting_answer", "done", "error"); p.State != "waiting_answer" || len(svc.requests()) != 0 {
+			t.Fatalf("the tool call of a trial waits for the owner: %s, %d calls", p.State, len(svc.requests()))
+		}
+	}
+}

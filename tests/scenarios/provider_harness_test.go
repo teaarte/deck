@@ -70,6 +70,8 @@ type Fake struct {
 	script      Script
 	calls       []provider.Request
 	noQuestions bool
+	// question is the name of the question tool of the provider; AskUserQuestion when empty.
+	question string
 	// noFolder is a provider that cannot work in a folder of the owner.
 	noFolder bool
 	// name is the provider name; "fake" when empty.
@@ -112,6 +114,9 @@ func (f *Fake) Caps() provider.Caps {
 func (f *Fake) QuestionTool() string {
 	if f.noQuestions {
 		return ""
+	}
+	if f.question != "" {
+		return f.question
 	}
 	return "AskUserQuestion"
 }

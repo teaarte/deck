@@ -674,3 +674,25 @@ func TestACallThatOutlivesItsTurnLeavesAParkedProcessWithoutACeiling(t *testing.
 		t.Fatalf("a parked process has no ceiling running: %+v", got)
 	}
 }
+
+// TestTheQuestionToolIsTheProvidersOwn: the permission prompt of a call of the provider's own question tool, by
+// whatever name, is a question to the owner, not a call to confirm.
+func TestTheQuestionToolIsTheProvidersOwn(t *testing.T) {
+	t.Parallel()
+	got := make(chan map[string]any, 1)
+	fake := &Fake{question: "AskOwner", script: func(ctx context.Context, c *Call) provider.Result {
+		got <- c.Approve(ctx, "AskOwner", map[string]any{"questions": []any{map[string]any{"question": "Which color?"}}})
+		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
+	}}
+	e := newEnvWith(t, t.TempDir(), fake)
+	e.Fake = fake
+	e.run(e.createProject("ask", testManifest([]string{agentCommand("job", "")}, nil)), "job")
+	a := e.waitAsk()
+	if a.Kind != "question" || a.Text != "Which color?" {
+		t.Fatalf("the question tool of the provider asks the owner: %+v", a)
+	}
+	e.answer(a.ID, "blue")
+	if d := <-got; d["behavior"] != "allow" || !strings.Contains(fmt.Sprint(d["updatedInput"]), "blue") {
+		t.Fatalf("the answer goes back to the question tool: %v", d)
+	}
+}

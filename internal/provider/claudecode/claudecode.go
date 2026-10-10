@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"slices"
 	"strings"
 	"syscall"
 	"time"
@@ -70,9 +71,7 @@ func (a *Adapter) args(req provider.Request, mcp, settings, plugin string) []str
 	if req.PermissionMCP != "" {
 		args = append(args, "--permission-prompt-tool", req.PermissionMCP)
 	}
-	if len(req.AllowedTools) > 0 {
-		args = append(args, "--allowedTools", strings.Join(req.AllowedTools, ","))
-	}
+	args = append(args, "--allowedTools", strings.Join(append(slices.Clone(freeTools), req.AllowedTools...), ","))
 	if req.Resume {
 		return append(args, "--resume", req.SessionID)
 	}

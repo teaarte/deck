@@ -33,7 +33,7 @@ func (g *Gateway) approve(ctx context.Context, s *Session, raw json.RawMessage) 
 		return nil, err
 	}
 	var d decision
-	if in.ToolName == QuestionTool {
+	if in.ToolName == s.Question {
 		d = g.question(ctx, s, in)
 	} else {
 		d = g.confirm(ctx, s, in)

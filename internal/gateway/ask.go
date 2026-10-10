@@ -33,7 +33,7 @@ func (g *Gateway) ask(ctx context.Context, s *Session, raw json.RawMessage) *mcp
 	if q, _ := in["question"].(string); strings.TrimSpace(q) == "" {
 		return refusal("deck: ask takes the question in the question field")
 	}
-	d := g.question(ctx, s, approveInput{ToolName: QuestionTool, Input: map[string]any{"questions": []any{in}}})
+	d := g.question(ctx, s, approveInput{ToolName: AskTool, Input: map[string]any{"questions": []any{in}}})
 	if d.Behavior != "allow" {
 		return refusal(d.Message)
 	}

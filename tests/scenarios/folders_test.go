@@ -287,7 +287,7 @@ func TestAFolderCommandNeedsAProviderThatWorksInFolders(t *testing.T) {
 	}
 	e.refused("deck.assignment_set", map[string]any{"role": "agent", "project": "code", "command": "run", "models": []string{"fake"}}, 422, "lacks folder")
 	e.must("deck.assignment_set", map[string]any{"role": "agent", "project": "code", "models": []string{"fake"}}, nil)
-	e.refused("code.run", map[string]any{}, 422, "Models tab of the project's settings")
+	e.refused("code.run", map[string]any{}, 422, "Models tab of the project's settings: quiet")
 }
 
 // TestTheProjectsTabCreatesAProjectAndGivesItAFolder: the owner creates a project from its name and md prompt

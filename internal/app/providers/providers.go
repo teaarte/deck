@@ -217,7 +217,8 @@ func (s *Service) fitting(ctx context.Context, projectID int64, cmd *manifest.Co
 				continue
 			}
 			if missing := pv.Caps().Missing(requires); len(missing) > 0 {
-				why = append(why, fmt.Sprintf("deck: model %s set for %s lacks %s; pick Claude Code or Codex in the Models tab of the project's settings", name, place, strings.Join(missing, ", ")))
+				why = append(why, fmt.Sprintf("deck: model %s set for %s lacks %s; pick one that has it in the Models tab of the project's settings%s",
+					name, place, strings.Join(missing, ", "), s.having(ctx, p.WorkspaceID, requires)))
 				continue
 			}
 			fits = append(fits, pv)
@@ -244,6 +245,21 @@ func (s *Service) fitting(ctx context.Context, projectID int64, cmd *manifest.Co
 		return 0, nil, false, registry.Invalid("deck: no provider fits %s, which requires %s; add a model with an agent with deck.model_set", place, strings.Join(requires, ", "))
 	}
 	return p.WorkspaceID, fits, false, nil
+}
+
+// having lists the models of the workspace that have what a command requires, after a colon; empty when none has.
+func (s *Service) having(ctx context.Context, workspace int64, requires []string) string {
+	all, _ := s.All(ctx, workspace)
+	var names []string
+	for _, pv := range all {
+		if len(pv.Caps().Missing(requires)) == 0 {
+			names = append(names, pv.Name())
+		}
+	}
+	if len(names) == 0 {
+		return ""
+	}
+	return ": " + strings.Join(names, ", ")
 }
 
 // Up reports whether a turn may start on a provider now, or, to pick, whether a new start takes it over the next

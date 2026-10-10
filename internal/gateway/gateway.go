@@ -24,13 +24,9 @@ import (
 )
 
 const (
-	ServerName   = provider.Server
-	ApproveTool  = "approve"
-	QuestionTool = "AskUserQuestion"
+	ServerName  = provider.Server
+	ApproveTool = "approve"
 )
-
-// FreeBuiltins are provider tools that run without asking: read-only and planning tools.
-var FreeBuiltins = []string{"Read", "Glob", "Grep", "TodoWrite", "StructuredOutput", "Skill"}
 
 // Session is what the gateway knows about the process behind an MCP token, or about an automation token.
 type Session struct {
@@ -46,8 +42,8 @@ type Session struct {
 	Commands []string
 	// Submit is set when the process hands in its result with result_submit.
 	Submit *Submit
-	// Ask adds the ask tool, for a provider without a question tool of its own.
-	Ask bool
+	// Question is the question tool of the provider; the ask tool of the gateway is added for provider.AskTool.
+	Question string
 	// Wait caps how long a call of the session waits for the owner, for a provider whose tool calls time out.
 	Wait time.Duration
 	// Master is an agent of the built-in project master: it acts as the master, across projects.
@@ -175,16 +171,15 @@ func (g *Gateway) Unregister(tok string) {
 	g.mu.Unlock()
 }
 
-// AllowedTools lists tools the provider may call without the approve round-trip: free builtins and every
-// gateway tool, since the gateway applies the class rules itself.
+// AllowedTools lists the gateway tools the provider may call without the approve round-trip, every one, since the
+// gateway applies the class rules itself.
 func (g *Gateway) AllowedTools(tok string) []string {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	out := append([]string{}, FreeBuiltins...)
 	if e := g.sessions[tok]; e != nil {
-		out = append(out, e.allowed...)
+		return append([]string{}, e.allowed...)
 	}
-	return out
+	return nil
 }
 
 // Tools lists the names of the registry tools the session behind the token exposes.
@@ -260,7 +255,7 @@ func (g *Gateway) newServer(ctx context.Context, tok string, s *Session) (*mcp.S
 		return g.approve(ctx, s, req.Params.Arguments)
 	})
 	allowed, tools, err := g.addCommands(ctx, srv, s)
-	if s.Ask {
+	if s.Question == provider.AskTool {
 		srv.AddTool(askTool(), func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return g.ask(ctx, s, req.Params.Arguments), nil
 		})

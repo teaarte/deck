@@ -15,6 +15,9 @@ import (
 // webTools are the CLI's own network tools; a project without network does not get them.
 var webTools = []string{"WebFetch", "WebSearch"}
 
+// freeTools run without asking: read-only and planning tools.
+var freeTools = []string{"Read", "Glob", "Grep", "TodoWrite", "StructuredOutput", "Skill"}
+
 // offlineTools are the only built-in tools of a project without network, so a network tool of a later CLI is off too.
 var offlineTools = []string{"Bash", "Read", "Glob", "Grep", "Edit", "Write", "NotebookEdit", "TodoWrite", "Skill", "Task", "AskUserQuestion"}
 

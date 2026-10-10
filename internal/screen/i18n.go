@@ -7,12 +7,7 @@ import (
 )
 
 // tr is a text of the screen in the owner's language, or itself without a translation.
-func (r *renderer) tr(s string) string {
-	if t, ok := r.req.Words[s]; ok && t != "" {
-		return t
-	}
-	return s
-}
+func (r *renderer) tr(s string) string { return manifest.Tr(r.req.Words, s) }
 
 // translated is a block with its texts in the owner's language.
 func (r *renderer) translated(b manifest.Block) manifest.Block {

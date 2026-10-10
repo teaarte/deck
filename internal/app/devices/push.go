@@ -21,6 +21,7 @@ import (
 
 	"github.com/SherClockHolmes/webpush-go"
 
+	"deck2/internal/app/access"
 	"deck2/internal/docs"
 	"deck2/internal/health"
 	"deck2/internal/registry"
@@ -293,7 +294,7 @@ func (dv *Service) PushNew(ctx context.Context, workspace int64) {
 	}
 	var k vapid
 	var failed []string
-	tried := false
+	tried, lasting := false, false
 	badge := int64(0)
 	if pulses, err := dv.St.Q.ProjectPulses(ctx, workspace); err == nil {
 		for _, p := range pulses {
@@ -325,6 +326,7 @@ func (dv *Service) PushNew(ctx context.Context, workspace int64) {
 				res, why := dv.deliver(ctx, workspace, k, s, it.msg)
 				if why != "" {
 					failed = append(failed, s.Device+": "+why)
+					lasting = lasting || res != pushRetry
 				}
 				if res != pushDone {
 					break sources
@@ -334,11 +336,24 @@ func (dv *Service) PushNew(ctx context.Context, workspace int64) {
 		}
 	}
 	if tried {
-		status := "ok"
+		status, text := "ok", strings.Join(failed, "; ")
 		if len(failed) > 0 {
 			status = "error"
 		}
-		health.Write(ctx, dv.St, health.Of{Workspace: workspace}, "push", status, strings.Join(failed, "; "))
+		_ = dv.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+			prev, err := q.GetWorkspaceHealth(ctx, db.GetWorkspaceHealthParams{WorkspaceID: store.ID(workspace), Subject: "push"})
+			if err := health.Set(ctx, q, health.Of{Workspace: workspace}, "push", status, text); err != nil {
+				return err
+			}
+			if !lasting || err == nil && prev.Status == "error" {
+				return nil
+			}
+			mp, err := access.Master(ctx, q, workspace)
+			if err != nil {
+				return err
+			}
+			return q.AddDeckNote(ctx, db.AddDeckNoteParams{CreatedAt: store.Time(dv.Now()), ProjectID: mp.ID, Text: "Pushes stopped: " + untrusted.Cut(text, 300)})
+		})
 	}
 }
 
@@ -391,22 +406,35 @@ func (dv *Service) deliver(ctx context.Context, workspace int64, k vapid, s db.P
 		slog.Error("push", "device", s.Device, "err", err)
 		return pushRetry, err.Error()
 	}
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
 	_, _ = io.Copy(io.Discard, resp.Body)
 	resp.Body.Close()
-	switch code := resp.StatusCode; {
-	case code >= 200 && code < 300:
-		return pushDone, ""
-	case code == http.StatusGone || code == http.StatusNotFound:
+	status := resp.Status
+	if why := oneLine(string(body)); why != "" {
+		status += " (" + untrusted.Cut(why, 200) + ")"
+	}
+	gone := func() {
 		_ = dv.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 			_, err := q.DeletePushSubscription(ctx, db.DeletePushSubscriptionParams{WorkspaceID: workspace, Endpoint: s.Endpoint})
 			return err
 		})
+	}
+	switch code := resp.StatusCode; {
+	case code >= 200 && code < 300:
+		return pushDone, ""
+	case code == http.StatusGone || code == http.StatusNotFound:
+		gone()
 		return pushGone, ""
+	case code == http.StatusBadRequest || code == http.StatusForbidden:
+		// The subscription is of another key or broken: it goes, and the device subscribes again.
+		slog.Error("push refused", "device", s.Device, "status", status)
+		gone()
+		return pushGone, "the push service refused the subscription: " + status + "; deck forgot it, turn pushes on again on this device in Settings → Interface"
 	case code == http.StatusTooManyRequests || code >= 500:
-		return pushRetry, resp.Status
+		return pushRetry, status
 	default:
-		slog.Error("push refused", "device", s.Device, "status", resp.Status)
-		return pushDone, "the push service refused it: " + resp.Status + "; turn pushes off and on again on this device in Settings → Interface"
+		slog.Error("push refused", "device", s.Device, "status", status)
+		return pushDone, "the push service refused it: " + status + "; turn pushes off and on again on this device in Settings → Interface"
 	}
 }
 

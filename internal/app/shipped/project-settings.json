@@ -51,7 +51,7 @@
               {"label": "Model", "bind": "model", "format": "tag"},
               {"label": "Next run", "bind": "next_run_at", "format": "relative"},
               {"label": "Last result", "bind": "last_state", "format": "tag", "tone": "last_state == 'done' ? 'ok' : last_state in ['error', 'interrupted'] ? 'error' : 'muted'"},
-              {"label": "State", "bind": "project_paused ? 'project paused' : paused ? 'paused' : 'on'", "tone": "paused ? 'muted' : ''"}
+              {"label": "State", "bind": "draft ? 'draft: does not run' : project_paused ? 'project paused' : paused ? 'paused' : 'on'", "tone": "paused || draft ? 'muted' : ''"}
             ],
             "actions": [
               {"verb": "run_now", "command": "deck.trigger_run", "params": {"trigger": "=id"}, "when": "kind == 'cron'"},

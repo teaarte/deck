@@ -38,6 +38,8 @@ type Session struct {
 	ProjectID int64
 	Workspace int64
 	Trial     bool
+	// Run is the executor of a process that is not an agent turn, such as script.
+	Run string
 	// Token is set for an automation token: the caller calls what the master may, limited to Commands.
 	Token int64
 	// Commands, when not nil, are all an automation token or an agent may call.
@@ -61,7 +63,7 @@ func (s *Session) actor() registry.Actor {
 			Commands: s.Commands, CallLimit: s.Wait}
 	}
 	return registry.Actor{Kind: registry.Agent, Workspace: s.Workspace, ProjectID: s.ProjectID, ProcessID: s.ProcessID, Trial: s.Trial,
-		Commands: s.Commands, CallLimit: s.Wait}
+		Commands: s.Commands, CallLimit: s.Wait, Run: s.Run}
 }
 
 type Config struct {

@@ -12,6 +12,7 @@ import (
 	"github.com/expr-lang/expr"
 	"github.com/expr-lang/expr/ast"
 	"github.com/expr-lang/expr/builtin"
+	"github.com/expr-lang/expr/file"
 	"github.com/expr-lang/expr/parser"
 	"github.com/expr-lang/expr/vm"
 	"github.com/santhosh-tekuri/jsonschema/v6"
@@ -130,12 +131,17 @@ func Filter(src string) (func(env map[string]any) (bool, error), error) {
 	}, nil
 }
 
+// Eval runs an expression over env; a failure names the expression and what went wrong, without the caret drawing.
 func Eval(src string, env map[string]any) (any, error) {
 	p, err := compileExpr(src, nil)
 	if err != nil {
 		return nil, err
 	}
-	return expr.Run(p, env)
+	out, err := expr.Run(p, env)
+	if fe := (*file.Error)(nil); errors.As(err, &fe) {
+		return nil, fmt.Errorf("%s: %s", src, fe.Message)
+	}
+	return out, err
 }
 
 func compileSchema(name string, raw json.RawMessage) (*jsonschema.Schema, error) {

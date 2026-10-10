@@ -1,6 +1,7 @@
 package registry
 
 import (
+	"cmp"
 	"fmt"
 	"time"
 )
@@ -21,6 +22,8 @@ type Actor struct {
 	ProjectID int64
 	// ProcessID is the calling agent's process, or for a trigger the process whose finish fired it.
 	ProcessID int64
+	// Run is the executor of a calling process that is not an agent turn: script, tool or model.
+	Run string
 	TriggerID int64
 	// Confirmed marks a call of a trigger the owner asked for or said yes to: its schedule checks do not apply.
 	Confirmed bool
@@ -86,7 +89,7 @@ func (a Actor) Author() string {
 		return fmt.Sprintf("token:%d", a.Token)
 	}
 	if a.Kind == Agent && a.ProcessID != 0 {
-		return fmt.Sprintf("agent:%d", a.ProcessID)
+		return fmt.Sprintf("%s:%d", cmp.Or(a.Run, Agent), a.ProcessID)
 	}
 	return a.Kind
 }

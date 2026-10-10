@@ -46,12 +46,14 @@ type triggerView struct {
 	Params    json.RawMessage `json:"params"`
 	NextRunAt string          `json:"next_run_at"`
 	// Paused is the trigger's own pause or its project's; ProjectPaused and OwnPaused say which.
-	Paused        bool   `json:"paused"`
-	ProjectPaused bool   `json:"project_paused"`
-	OwnPaused     bool   `json:"own_paused"`
-	SkipMissed    bool   `json:"skip_missed"`
-	LastProcess   int64  `json:"last_process"`
-	LastState     string `json:"last_state"`
+	Paused        bool `json:"paused"`
+	ProjectPaused bool `json:"project_paused"`
+	OwnPaused     bool `json:"own_paused"`
+	SkipMissed    bool `json:"skip_missed"`
+	// Draft is a trigger of a draft, which no schedule or event starts; it has no next run then.
+	Draft       bool   `json:"draft"`
+	LastProcess int64  `json:"last_process"`
+	LastState   string `json:"last_state"`
 	// Model is the model the agent command starts on, Models those assigned to it; empty for other commands.
 	Model  string   `json:"model"`
 	Models []string `json:"models"`
@@ -82,7 +84,10 @@ func (s *Service) triggersList(ctx context.Context, act registry.Actor, in trigg
 		}
 		v := triggerView{ID: t.ID, Project: p.Name, Command: t.Command, Kind: t.Kind, Spec: t.Spec, Params: json.RawMessage(cmp.Or(t.Params, "null")),
 			NextRunAt: t.NextRunAt.String, Paused: t.Paused == 1 || p.Paused == 1, ProjectPaused: p.Paused == 1, OwnPaused: t.Paused == 1,
-			SkipMissed: t.SkipMissed == 1}
+			SkipMissed: t.SkipMissed == 1, Draft: p.Status != store.ProjectEnabled}
+		if v.Draft {
+			v.NextRunAt = ""
+		}
 		key := fmt.Sprint(t.ProjectID, ".", t.Command)
 		m, ok := models[key]
 		if !ok {

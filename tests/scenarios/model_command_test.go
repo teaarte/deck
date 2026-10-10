@@ -553,9 +553,8 @@ func TestTheHealthOfAModelFromBeforeMovesToItsWorkspace(t *testing.T) {
 	}
 }
 
-// TestAModelCommandNoModelTakesIsWarnedOfAndFailsAtOnce: a model command whose role has no model is a warning of the
-// import, of a save and of the manifest, a yellow row of the project's health, and a trial of it fails at once
-// with where the owner assigns one, without waiting for an answer nobody asked.
+// TestAModelCommandNoModelTakesIsWarnedOfAndFailsAtOnce: a model command whose role has no model is warned of and
+// yellow in health; its trial fails at once with where to assign one, waiting for no answer.
 func TestAModelCommandNoModelTakesIsWarnedOfAndFailsAtOnce(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, nil)

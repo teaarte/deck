@@ -109,7 +109,7 @@ func (r *Runner) runCall(ctx context.Context, t turn, trial, tool bool, call fun
 		fail(err)
 		return
 	}
-	act := registry.Actor{Kind: registry.Agent, Workspace: proj.WorkspaceID, ProjectID: t.project, ProcessID: id, Trial: trial}
+	act := registry.Actor{Kind: registry.Agent, Workspace: proj.WorkspaceID, ProjectID: t.project, ProcessID: id, Trial: trial, Run: t.cmd.Executor.Type}
 	var out any
 	if tool {
 		out, err = r.gw.CallTool(ctx, act, proj.Name+"."+t.cmd.Name, name, input)

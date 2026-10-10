@@ -448,8 +448,14 @@ func TestADeviceThePushServiceRefusesIsTurnedOnAgainFromItsHealthRow(t *testing.
 	e.must("deck.notify", map[string]any{"project": "work", "text": "The report is ready"}, nil)
 	e.App.Sweep(context.Background(), time.Now())
 	h := e.waitHealth("push", "error")
-	if !strings.Contains(h.Error, "MacIntel") || !strings.Contains(h.Error, "off and on again") {
+	if !strings.Contains(h.Error, "MacIntel") || !strings.Contains(h.Error, "on again on this device") {
 		t.Fatalf("the health says how to turn the pushes of the device on again: %+v", h)
+	}
+	var subs, notes int
+	_ = e.App.Store.DB.QueryRow(`SELECT count(*) FROM push_subscription`).Scan(&subs)
+	_ = e.App.Store.DB.QueryRow(`SELECT count(*) FROM feed WHERE text LIKE 'Pushes stopped%'`).Scan(&notes)
+	if subs != 0 || notes != 1 {
+		t.Fatalf("a refused subscription is forgotten, and the owner gets one note: %d subscriptions, %d notes", subs, notes)
 	}
 	var machine int
 	_ = e.App.Store.DB.QueryRow(`SELECT count(*) FROM health WHERE subject = 'push' AND workspace_id IS NULL`).Scan(&machine)

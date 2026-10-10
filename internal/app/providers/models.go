@@ -301,7 +301,7 @@ func (s *Service) catalog(ctx context.Context, workspace int64, c db.Connection,
 		if f, err := strconv.ParseFloat(price("request"), 64); err == nil && f > 0 {
 			out.CallUsd = sql.NullFloat64{Float64: f, Valid: true}
 		}
-		free := len(d.Pricing) > 0 && (strings.HasSuffix(d.ID, ":free") || !slices.ContainsFunc(d.Architecture.Output, func(m string) bool { return m != "text" }))
+		free := strings.HasSuffix(d.ID, ":free") || len(d.Pricing) > 0 && !slices.ContainsFunc(d.Architecture.Output, func(m string) bool { return m != "text" })
 		for k := range d.Pricing {
 			if f, err := strconv.ParseFloat(price(k), 64); err == nil && f != 0 {
 				free = false

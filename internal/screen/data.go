@@ -25,7 +25,7 @@ func (r *renderer) file(b manifest.Block, it map[string]any) map[string]any {
 	}
 	ref, err := r.eval(b.Item.File, it)
 	if err != nil {
-		line["error"] = "file: " + err.Error()
+		line["error"] = "the file of this line: " + err.Error()
 		return line
 	}
 	f, err := r.src.File(r.ctx, r.req.Project, ref)

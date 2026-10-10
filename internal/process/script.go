@@ -57,7 +57,7 @@ func (r *Runner) runScript(ctx context.Context, t turn, trial bool) {
 	defer stream.Close()
 	r.deps.Servers(bg, t.project)
 	_ = r.deps.Programs(bg, t.project)
-	tok := r.gw.Grant(&gateway.Session{ProcessID: id, ProjectID: t.project, Workspace: proj.WorkspaceID, Trial: trial})
+	tok := r.gw.Grant(&gateway.Session{ProcessID: id, ProjectID: t.project, Workspace: proj.WorkspaceID, Trial: trial, Run: KindScript})
 	defer r.gw.Unregister(tok)
 	door, err := sandbox.Open(r.scripts.Sandbox, gateway.Egress, granted.Domains.Read, r.gw.ScriptHandler(tok))
 	if err != nil {

@@ -172,5 +172,6 @@
   "What the project can do and where its agent commands run; a model picked here replaces the one the manifest suggests.": "Что умеет проект и где работают его агентские команды; выбранная здесь модель заменяет предложенную манифестом.",
   "When": "Когда",
   "Who": "Кто",
-  "Why": "Почему"
+  "Why": "Почему",
+  "Edit record": "Изменить запись"
 }

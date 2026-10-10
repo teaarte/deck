@@ -70,9 +70,18 @@ func TestATabKeepsItsKeyInEveryLanguage(t *testing.T) {
 }
 
 // TestEveryTextOfDeckScreensHasItsTranslation: each text of deck's screens is translated, and each translation
-// is of a text there is.
+// is of a text there is, or of the title of a command of deck a form shows.
 func TestEveryTextOfDeckScreensHasItsTranslation(t *testing.T) {
 	t.Parallel()
+	e := newEnv(t, nil)
+	var cmds []struct{ Name, Title string }
+	e.must("deck.commands_list", nil, &cmds)
+	titles := map[string]bool{}
+	for _, c := range cmds {
+		if strings.HasPrefix(c.Name, "deck.") {
+			titles[c.Title] = true
+		}
+	}
 	files, err := filepath.Glob("../../internal/app/shipped/*.json")
 	if err != nil || len(files) == 0 {
 		t.Fatalf("no screens of deck: %v", err)
@@ -99,7 +108,7 @@ func TestEveryTextOfDeckScreensHasItsTranslation(t *testing.T) {
 		}
 	}
 	for k := range ru {
-		if !texts[k] {
+		if !texts[k] && !titles[k] {
 			t.Errorf("ru translates %q, which is no text", k)
 		}
 	}

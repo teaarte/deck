@@ -27,9 +27,8 @@ const shortsModule = `{"version": 11,
      "result": {"type": "object"}, "executor": {"type": "script", "script": "render"}}],
   "scripts": [{"name": "render", "file": "scripts/render.py", "runtime": "python"}]}`
 
-// TestDeletingARecordTakesWhatBelongsToItIntoTheTrash: a record goes with the records whose parent it is, their files,
-// the files of the processes started for it and its folder; the owner sees the list first, and an undo within a day
-// brings it all back.
+// TestDeletingARecordTakesWhatBelongsToItIntoTheTrash: a record goes with its child records, files, folder and the
+// files of its processes; the owner sees the list first, and an undo within a day brings it all back.
 func TestDeletingARecordTakesWhatBelongsToItIntoTheTrash(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, nil)

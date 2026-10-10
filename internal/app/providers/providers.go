@@ -166,17 +166,47 @@ func (s *Service) CommandModel(ctx context.Context, projectID int64, command str
 // For picks the provider a command starts on: the first of its assignment that fits and is up, else the suggestion of
 // the manifest, else the main provider, else any that fits; an assignment none of which fits refuses the start.
 func (s *Service) For(ctx context.Context, projectID int64, cmd *manifest.Command) (provider.Provider, error) {
-	p, err := s.St.Q.GetProject(ctx, projectID)
+	ws, fits, assigned, err := s.fitting(ctx, projectID, cmd)
 	if err != nil {
 		return nil, err
+	}
+	for _, pv := range fits {
+		if !assigned || s.up(ctx, ws, pv.Name()) {
+			return pv, nil
+		}
+	}
+	return fits[0], nil
+}
+
+// Fits are the providers a command may start on that are up: those of its assignment in order, else all that fit.
+func (s *Service) Fits(ctx context.Context, projectID int64, cmd *manifest.Command) []string {
+	ws, fits, _, err := s.fitting(ctx, projectID, cmd)
+	if err != nil {
+		return nil
+	}
+	var out []string
+	for _, pv := range fits {
+		if s.up(ctx, ws, pv.Name()) {
+			out = append(out, pv.Name())
+		}
+	}
+	return out
+}
+
+// fitting are the providers that run and have what a command requires, at least one: those of its assignment in
+// order, else all with the suggestion of the manifest first; assigned says they come from an assignment.
+func (s *Service) fitting(ctx context.Context, projectID int64, cmd *manifest.Command) (int64, []provider.Provider, bool, error) {
+	p, err := s.St.Q.GetProject(ctx, projectID)
+	if err != nil {
+		return 0, nil, false, err
 	}
 	place := p.Name + "." + cmd.Name
 	names, err := Assigned(ctx, s.St.Q, p.WorkspaceID, p.ID, cmd.Name, RoleAgent)
 	if err != nil {
-		return nil, err
+		return 0, nil, false, err
 	}
+	var fits []provider.Provider
 	if len(names) > 0 {
-		var fits []provider.Provider
 		var why []string
 		for _, name := range names {
 			pv, err := s.Provider(ctx, p.WorkspaceID, name)
@@ -191,18 +221,13 @@ func (s *Service) For(ctx context.Context, projectID int64, cmd *manifest.Comman
 			fits = append(fits, pv)
 		}
 		if len(fits) == 0 {
-			return nil, registry.Invalid("%s", strings.Join(why, "; "))
+			return 0, nil, false, registry.Invalid("%s", strings.Join(why, "; "))
 		}
-		for _, pv := range fits {
-			if s.up(ctx, p.WorkspaceID, pv.Name()) {
-				return pv, nil
-			}
-		}
-		return fits[0], nil
+		return p.WorkspaceID, fits, true, nil
 	}
 	all, err := s.All(ctx, p.WorkspaceID)
 	if err != nil {
-		return nil, err
+		return 0, nil, false, err
 	}
 	if i := slices.IndexFunc(all, func(pv provider.Provider) bool { return pv.Name() == cmd.Provider }); i > 0 {
 		suggested := all[i]
@@ -210,39 +235,13 @@ func (s *Service) For(ctx context.Context, projectID int64, cmd *manifest.Comman
 	}
 	for _, pv := range all {
 		if len(pv.Caps().Missing(cmd.Requires)) == 0 {
-			return pv, nil
+			fits = append(fits, pv)
 		}
 	}
-	return nil, registry.Invalid("deck: no provider fits %s, which requires %s; add a model with an agent with deck.model_set", place, strings.Join(cmd.Requires, ", "))
-}
-
-// Fits are the providers a command may start on that are up: those of its assignment in order, else all that fit.
-func (s *Service) Fits(ctx context.Context, projectID int64, cmd *manifest.Command) []string {
-	p, err := s.St.Q.GetProject(ctx, projectID)
-	if err != nil {
-		return nil
+	if len(fits) == 0 {
+		return 0, nil, false, registry.Invalid("deck: no provider fits %s, which requires %s; add a model with an agent with deck.model_set", place, strings.Join(cmd.Requires, ", "))
 	}
-	names, err := Assigned(ctx, s.St.Q, p.WorkspaceID, p.ID, cmd.Name, RoleAgent)
-	if err != nil {
-		return nil
-	}
-	var pvs []provider.Provider
-	if len(names) > 0 {
-		for _, n := range names {
-			if pv, err := s.Provider(ctx, p.WorkspaceID, n); err == nil {
-				pvs = append(pvs, pv)
-			}
-		}
-	} else if pvs, err = s.All(ctx, p.WorkspaceID); err != nil {
-		return nil
-	}
-	var out []string
-	for _, pv := range pvs {
-		if len(pv.Caps().Missing(cmd.Requires)) == 0 && s.up(ctx, p.WorkspaceID, pv.Name()) {
-			out = append(out, pv.Name())
-		}
-	}
-	return out
+	return p.WorkspaceID, fits, false, nil
 }
 
 // up reports whether a provider's health lets a new turn start on it rather than on a fallback: not red, not

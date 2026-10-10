@@ -494,3 +494,63 @@ func TestToolsLostInEarlierTurnsDoNotCountAgainstALaterOne(t *testing.T) {
 		}
 	}
 }
+
+// gatedFake is the lossy fake whose self-checks, once held, each wait for the test to let them through.
+type gatedFake struct {
+	*lossyFake
+	hold    atomic.Bool
+	entered chan struct{}
+	gate    chan struct{}
+}
+
+func (g *gatedFake) SelfCheck(ctx context.Context) provider.Check {
+	if g.hold.Load() {
+		g.entered <- struct{}{}
+		<-g.gate
+	}
+	return g.checkedFake.SelfCheck(ctx)
+}
+
+// TestASelfCheckATurnBrokeDuringIsRunAgain: a turn that loses deck's tools while a self-check runs makes that check
+// stale; it neither turns the provider green nor wakes the held turn, and a fresh check decides.
+func TestASelfCheckATurnBrokeDuringIsRunAgain(t *testing.T) {
+	t.Parallel()
+	g := &gatedFake{lossyFake: &lossyFake{checkedFake: &checkedFake{Fake: &Fake{}}}, entered: make(chan struct{}), gate: make(chan struct{})}
+	g.script = func(ctx context.Context, c *Call) provider.Result {
+		if c.N == 1 {
+			return provider.Result{IsError: true, Text: "boom"}
+		}
+		return provider.Result{Text: "ok"}
+	}
+	clock := &Clock{now: t0}
+	e := newEnvWith(t, t.TempDir(), g, withClock(clock))
+	e.Clock = clock
+	e.App.Providers.Checks(context.Background(), clock.Now())
+	e.waitHealth("provider:fake", "ok")
+	g.hold.Store(true)
+	clock.Add(31 * time.Minute)
+	p := e.createProject("plain", plainManifest)
+	e.waitState(e.run(p, "work"), "error")
+	<-g.entered
+	g.lose.Store(1)
+	id := e.run(p, "work")
+	e.waitState(id, "waiting_provider")
+	e.waitHealth("provider:fake", "error")
+	g.gate <- struct{}{}
+	select {
+	case <-g.entered:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the stale self-check must run again")
+	}
+	if got := e.waitState(id, "waiting_provider", "done", "error"); got.State != "waiting_provider" {
+		t.Fatalf("a stale self-check wakes no held turn: %+v", got)
+	}
+	if h := e.health("provider:fake"); h["status"] == "ok" {
+		t.Fatalf("a stale self-check does not turn the provider green: %v", h)
+	}
+	g.hold.Store(false)
+	g.gate <- struct{}{}
+	if got := e.waitState(id, "done", "error"); got.State != "done" {
+		t.Fatalf("the fresh self-check wakes the held turn: %+v", got)
+	}
+}

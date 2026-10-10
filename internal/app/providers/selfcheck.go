@@ -27,7 +27,7 @@ type checks struct {
 	// again is set when the provider changed during a running check, which then checks it once more.
 	again   bool
 	started bool
-	// broke is set when a turn turned the provider red during a running check, which then leaves a retry.
+	// broke is set when a turn turned the provider red during a running check, whose green is then stale.
 	broke bool
 	last  time.Time
 	retry time.Time
@@ -151,11 +151,12 @@ func (s *Service) startCheck(name string, force bool) bool {
 		}
 		s.mu.Lock()
 		again := c.again && ctx.Err() == nil
+		stale := c.broke && ctx.Err() == nil && (status == health.OK || status == health.Warning)
 		c.again = false
-		if again {
+		if again || stale {
 			c.running = false
 			s.mu.Unlock()
-			s.startCheck(name, true)
+			s.startCheck(name, again)
 			return
 		}
 		s.mu.Unlock()
@@ -165,10 +166,9 @@ func (s *Service) startCheck(name string, force bool) bool {
 		}
 		s.mu.Lock()
 		c.running = false
-		if status != health.OK && status != health.Warning || c.broke {
+		if status != health.OK && status != health.Warning {
 			c.retry = s.Now().Add(selfCheckRetry)
 		}
-		c.broke = false
 		s.mu.Unlock()
 		if status != health.Error && status != health.Checking {
 			s.Wake(context.WithoutCancel(ctx))

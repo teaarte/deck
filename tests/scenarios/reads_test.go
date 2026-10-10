@@ -135,3 +135,22 @@ print(json.dumps(out))
 		t.Fatalf("the other project keeps its records: %+v", rows)
 	}
 }
+
+// TestAScreenReadsAnotherProjectOnlyByItsReads: a block of a module that names another project in the input of a
+// deck read reads it with the rights of its module, so only what reads lists.
+func TestAScreenReadsAnotherProjectOnlyByItsReads(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, nil)
+	e.createProject("source", sourceManifest)
+	e.must("deck.records_upsert", map[string]any{"project": "source", "collection": "items", "records": `{"name": "a"}`}, nil)
+	screen := `, "screens": [{"name": "main", "title": "Items", "blocks": [{"type": "table",
+    "source": {"from": "deck.records_list", "input": {"project": "source", "collection": "items"}}, "columns": [{"label": "Data", "bind": "data"}]}]}]`
+	e.createProject("peek", readerManifest(screen))
+	if b0 := e.screenData("peek", "main", nil)["b0"]; b0["rows"] != nil || !strings.Contains(string(b0["error"]), "does not read source") {
+		t.Fatalf("a module reads another project only by its reads: %s", b0)
+	}
+	e.createProject("reader", readerManifest(screen+`, "reads": [{"project": "source", "collections": ["items"]}]`))
+	if b0 := e.screenData("reader", "main", nil)["b0"]; b0["error"] != nil || !strings.Contains(string(b0["rows"]), `\"name\":\"a\"`) {
+		t.Fatalf("a module that reads it sees it: %s", b0)
+	}
+}

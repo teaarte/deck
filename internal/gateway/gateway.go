@@ -73,6 +73,8 @@ type Config struct {
 	ConfirmTTL func(ctx context.Context, workspace int64) time.Duration
 	// Models finds where a script's call of a model through the proxy of deck goes.
 	Models ModelRoute
+	// Progress is how often a long call of a tool tells a client that asked for it that it still runs.
+	Progress time.Duration
 }
 
 type Gateway struct {
@@ -294,11 +296,37 @@ func (g *Gateway) addCommands(ctx context.Context, srv *mcp.Server, s *Session) 
 		tools = append(tools, tool)
 		srv.AddTool(&mcp.Tool{Name: tool, Title: c.Title, Description: c.Description, InputSchema: c.Input},
 			func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+				defer g.progress(ctx, req)()
 				return g.invoke(ctx, s, name, req.Params.Arguments), nil
 			})
 		allowed = append(allowed, provider.Qualify(tool))
 	}
 	return allowed, tools, nil
+}
+
+// progress tells a client that asked for it, every Progress until the call ends, that its call still runs, so a
+// client that cuts idle calls waits for a long one; the func it returns stops it.
+func (g *Gateway) progress(ctx context.Context, req *mcp.CallToolRequest) func() {
+	tok := req.Params.GetProgressToken()
+	if tok == nil || g.cfg.Progress <= 0 || req.Session == nil {
+		return func() {}
+	}
+	done := make(chan struct{})
+	go func() {
+		t := time.NewTicker(g.cfg.Progress)
+		defer t.Stop()
+		for n := 1; ; n++ {
+			select {
+			case <-done:
+				return
+			case <-ctx.Done():
+				return
+			case <-t.C:
+				_ = req.Session.NotifyProgress(ctx, &mcp.ProgressNotificationParams{ProgressToken: tok, Progress: float64(n), Message: "still running"})
+			}
+		}
+	}()
+	return func() { close(done) }
 }
 
 func (g *Gateway) invoke(ctx context.Context, s *Session, name string, args json.RawMessage) *mcp.CallToolResult {

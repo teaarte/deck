@@ -28,6 +28,8 @@ type Config struct {
 	SelfCheckCeiling time.Duration
 	// VideoPoll is how often deck asks after a job of a video model, VideoCeiling how long it waits for one.
 	VideoPoll, VideoCeiling time.Duration
+	// Progress is how often a long call of a tool tells an agent that asked for it that it still runs.
+	Progress time.Duration
 	// Commands are more builtin commands, such as the probes of tests.
 	Commands []*registry.Command
 }
@@ -47,6 +49,9 @@ func (c *Config) defaults() {
 	}
 	if c.VideoCeiling <= 0 {
 		c.VideoCeiling = 30 * time.Minute
+	}
+	if c.Progress <= 0 {
+		c.Progress = 30 * time.Second
 	}
 	if c.Browser == nil {
 		c.Browser = DefaultBrowser

@@ -118,7 +118,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	a.Asks = ask.NewBroker(st, cfg.Now)
 	a.Registry = registry.New(a.Saver.ProjectCommands)
 	a.Gateway = gateway.New(gateway.Config{Now: cfg.Now, QuestionWait: cfg.QuestionWait, ConfirmWait: cfg.ConfirmWait, ConfirmTTL: a.Settings.ConfirmTTL,
-		Models: a.Providers.Route}, st, a.Asks, a.Bus, a.Registry)
+		Models: a.Providers.Route, Progress: cfg.Progress}, st, a.Asks, a.Bus, a.Registry)
 	a.Gateway.SetAutomation(a.Tokens.Automation)
 	oauth := &tools.OAuth{Secrets: a.Secrets.Read, Swap: a.Secrets.Swap}
 	a.Tools = tools.NewHTTP(a.Gateway, a.Secrets.Read, h)

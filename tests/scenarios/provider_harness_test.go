@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -24,6 +25,23 @@ type Call struct {
 
 func (c *Call) Tool(ctx context.Context, name string, args any) (string, bool) {
 	res, err := c.Session.CallTool(ctx, &mcp.CallToolParams{Name: name, Arguments: args})
+	if err != nil {
+		return err.Error(), true
+	}
+	var b strings.Builder
+	for _, ct := range res.Content {
+		if t, ok := ct.(*mcp.TextContent); ok {
+			b.WriteString(t.Text)
+		}
+	}
+	return b.String(), res.IsError
+}
+
+// Slow calls a tool asking for progress, as Claude Code does, so a long call tells it that it still runs.
+func (c *Call) Slow(ctx context.Context, name string, args any) (string, bool) {
+	p := &mcp.CallToolParams{Name: name, Arguments: args}
+	p.SetProgressToken("slow-1")
+	res, err := c.Session.CallTool(ctx, p)
 	if err != nil {
 		return err.Error(), true
 	}
@@ -58,6 +76,8 @@ type Fake struct {
 	name string
 	// live is a provider that takes the owner's messages into a running turn on Req.Live.
 	live bool
+	// progress counts the progress notifications deck sent its calls.
+	progress atomic.Int64
 	// broken are the calls of the harness that failed inside a turn, where the test cannot fail at once.
 	broken []string
 }
@@ -103,7 +123,8 @@ func (f *Fake) Run(ctx context.Context, req provider.Request) (provider.Result, 
 	script := f.script
 	f.mu.Unlock()
 
-	client := mcp.NewClient(&mcp.Implementation{Name: "fake", Version: "0"}, nil)
+	client := mcp.NewClient(&mcp.Implementation{Name: "fake", Version: "0"}, &mcp.ClientOptions{
+		ProgressNotificationHandler: func(context.Context, *mcp.ProgressNotificationClientRequest) { f.progress.Add(1) }})
 	sess, err := client.Connect(ctx, &mcp.StreamableClientTransport{Endpoint: req.MCPURL}, nil)
 	if err != nil {
 		return provider.Result{}, err

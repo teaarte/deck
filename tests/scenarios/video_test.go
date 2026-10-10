@@ -1,6 +1,7 @@
 package scenarios
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	"deck2/internal/app"
+	"deck2/internal/provider"
 )
 
 const videoManifest = `{"version": 11,
@@ -152,4 +154,29 @@ func TestAVideoCommandOfAManifestTakesAPromptAndItsFrames(t *testing.T) {
 	otherFile := strings.Replace(videoManifest, `"last_frame": {"type": "string", "format": "file"}`, `"sound": {"type": "string", "format": "file"}`, 1)
 	e.refused("deck.project_create", map[string]any{"name": "shorts", "manifest": otherFile}, 422, "first_frame and last_frame")
 	e.createProject("shorts", videoManifest)
+}
+
+// TestALongCallOfAnAgentTellsItThatItStillRuns: an agent that asks for progress hears that its long call still runs,
+// so a client that cuts idle calls keeps waiting for the clip.
+func TestALongCallOfAnAgentTellsItThatItStillRuns(t *testing.T) {
+	t.Parallel()
+	api := videoJob(t, `{"id": "job-1", "status": "in_progress"}`, `{"id": "job-1", "status": "in_progress"}`,
+		`{"id": "job-1", "status": "in_progress"}`, `{"id": "job-1", "status": "completed", "usage": {"cost": 0.1}}`)
+	var out string
+	var bad bool
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		out, bad = c.Slow(ctx, "model_call", map[string]any{"kind": "video", "prompt": "a knight rides"})
+		return provider.Result{Text: "done"}
+	}, quickVideo, func(c *app.Config) { c.Progress = 10 * time.Millisecond })
+	e.must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": api.URL + "/api/v1"}, nil)
+	e.must("deck.model_set", map[string]any{"connection": "openrouter", "model": "alibaba/wan-2.6", "name": "wan", "kind": "video", "call_usd": 0.1}, nil)
+	e.must("deck.assignment_set", map[string]any{"role": "video", "models": []string{"wan"}}, nil)
+	e.createProject("studio", `{"version": 11, "models": ["@video"], "commands": [{"name": "animate", "title": "Animate",
+	  "description": "Brings a scene to life.", "class": "internal", "executor": {"type": "agent", "prompt": "Make the clip."}}]}`)
+	if got := e.waitState(e.start("studio", "animate", map[string]any{}), "done", "error"); got.State != "done" || bad || !strings.Contains(out, `"type":"video/mp4"`) {
+		t.Fatalf("the agent gets the clip: %+v %s", got, out)
+	}
+	if n := e.Fake.progress.Load(); n == 0 {
+		t.Fatalf("a call that waits for a job tells the agent it still runs")
+	}
 }

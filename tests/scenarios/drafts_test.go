@@ -734,3 +734,27 @@ func TestAnotherExecutorOfACommandWidensRights(t *testing.T) {
 		}
 	}
 }
+
+// TestADomainTheGrantCoversIsNoNewRight: a read domain under a granted "*" or a package registry is no new right,
+// so the master saves it without the owner and a draft keeps its grant.
+func TestADomainTheGrantCoversIsNoNewRight(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, nil)
+	base := `{"version": 11, "domains": {"read": [%s]}, "commands": [` + agentCommand("work", "") + `]}`
+	e.createProject("wide", fmt.Sprintf(base, `"*"`))
+	e.createProject("plain", fmt.Sprintf(base, ``))
+	_, tok := e.token("terminal", "deck.*")
+	if code, raw := e.callWith(tok, "deck.project_create", map[string]any{"name": "sketch", "manifest": fmt.Sprintf(base, ``)}); code != 200 {
+		t.Fatalf("create: %d %s", code, raw)
+	}
+	for _, s := range []struct{ project, read string }{{"wide", `"*", "example.com"`}, {"plain", `"pypi.org"`}, {"sketch", `"pypi.org"`}} {
+		if code, raw := e.callWith(tok, "deck.manifest_save", map[string]any{"project": s.project, "manifest": fmt.Sprintf(base, s.read)}); code != 200 || strings.Contains(string(raw), "waiting") {
+			t.Fatalf("%s: a domain the grant covers is saved without the owner: %d %s", s.project, code, raw)
+		}
+	}
+	ctx := context.Background()
+	p, _ := e.App.Store.Q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: 1, Name: "sketch"})
+	if m, err := docs.Manifest(ctx, e.App.Store.Q, p); err != nil || p.GrantedRevision.Int64 != m.Revision {
+		t.Fatalf("a draft that widens nothing keeps its grant on the new revision: %d, %v", p.GrantedRevision.Int64, err)
+	}
+}

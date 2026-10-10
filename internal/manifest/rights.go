@@ -7,9 +7,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
+	"net"
+	"net/netip"
 	"reflect"
 	"regexp"
 	"slices"
+	"strings"
 )
 
 var secretRef = regexp.MustCompile(`\$secret\.([A-Za-z0-9_.-]+)`)
@@ -25,10 +28,10 @@ func Widens(prev, next *Manifest) []string {
 	for _, n := range added(prev.AllowedExternal, next.AllowedExternal) {
 		add("allowed external: %s", n)
 	}
-	for _, d := range added(prev.Domains.Read, next.Domains.Read) {
+	for _, d := range uncovered(readGrant(prev), next.Domains.Read) {
 		add("read domain: %s", d)
 	}
-	for _, d := range added(prev.Domains.Act, next.Domains.Act) {
+	for _, d := range uncovered(prev.Domains.Act, next.Domains.Act) {
 		add("act domain: %s", d)
 	}
 	for _, s := range added(serverSecrets(prev), serverSecrets(next)) {
@@ -212,7 +215,7 @@ func Clip(granted, m *Manifest) *Manifest {
 		}
 	}
 	c.NoNetwork = m.NoNetwork || granted.NoNetwork
-	c.Domains = Domains{Read: kept(m.Domains.Read, append(slices.Clone(Registries), granted.Domains.Read...)), Act: kept(m.Domains.Act, granted.Domains.Act)}
+	c.Domains = Domains{Read: covered(readGrant(granted), m.Domains.Read), Act: covered(granted.Domains.Act, m.Domains.Act)}
 	c.AllowedExternal = slices.DeleteFunc(kept(m.AllowedExternal, granted.AllowedExternal), func(n string) bool { return slices.Contains(asks, n) })
 	uses := kept(m.Uses(), granted.Uses())
 	c.granted = &uses
@@ -314,6 +317,40 @@ func clipServer(granted map[string]MCPServer, name string, s MCPServer) (MCPServ
 
 func sameServer(a, b MCPServer) bool {
 	return a.Command == b.Command && slices.Equal(a.Args, b.Args) && a.URL == b.URL && reflect.DeepEqual(a.Env, b.Env)
+}
+
+// covers says whether granted domains reach domain d: d itself, or "*" for a name; an address or a network is
+// reached only when named.
+func covers(granted []string, d string) bool {
+	if slices.Contains(granted, d) {
+		return true
+	}
+	host := d
+	if h, _, err := net.SplitHostPort(d); err == nil {
+		host = strings.Trim(h, "[]")
+	}
+	_, prefixErr := netip.ParsePrefix(d)
+	_, ipErr := netip.ParseAddr(host)
+	return prefixErr != nil && ipErr != nil && slices.Contains(granted, "*")
+}
+
+// readGrant are the read domains m reaches without a grant of their own: the registries and its read domains.
+func readGrant(m *Manifest) []string { return append(slices.Clone(Registries), m.Domains.Read...) }
+
+// covered are the domains of next the granted ones cover.
+func covered(granted, next []string) []string {
+	return slices.DeleteFunc(slices.Clone(next), func(d string) bool { return !covers(granted, d) })
+}
+
+// uncovered are the domains of next the granted ones do not cover, each once.
+func uncovered(granted, next []string) []string {
+	var out []string
+	for _, d := range next {
+		if !covers(granted, d) && !slices.Contains(out, d) {
+			out = append(out, d)
+		}
+	}
+	return out
 }
 
 // kept are the values of next that granted has too.

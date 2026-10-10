@@ -109,6 +109,8 @@ type Usage struct {
 	// Chars are the characters of the input deck sent, Seconds the length of a recording the API reported.
 	Chars   int64
 	Seconds float64
+	// Connection is the connection of deck's settings the call went through; zero for a provider's own.
+	Connection int64
 }
 
 // Capabilities a manifest command may require of its provider.

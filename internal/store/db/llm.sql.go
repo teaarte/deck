@@ -49,7 +49,7 @@ INSERT INTO llm_call (workspace_id, project_id, process_id, command, connection_
 VALUES (?1,
     COALESCE((SELECT p.project_id FROM process p WHERE p.id = ?2), CAST(?3 AS INTEGER)), ?2,
     COALESCE((SELECT p.command FROM process p WHERE p.id = ?2), ''),
-    COALESCE(CAST(?4 AS INTEGER), (SELECT m.connection_id FROM model m WHERE m.workspace_id = ?1 AND m.name = ?5)),
+    ?4,
     ?5, ?6, ?7, ?8, ?9,
     ?10, ?11, ?12, ?13, ?14)
 `
@@ -71,8 +71,7 @@ type LogModelCallParams struct {
 	CreatedAt           string
 }
 
-// A call of a process takes the project and command of the process; one without a connection takes the connection
-// of the model named as its provider.
+// A call of a process takes the project and command of the process.
 func (q *Queries) LogModelCall(ctx context.Context, arg LogModelCallParams) error {
 	_, err := q.db.ExecContext(ctx, logModelCall,
 		arg.WorkspaceID,

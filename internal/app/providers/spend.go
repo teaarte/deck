@@ -177,7 +177,7 @@ func (s *Service) turnModel(workspace int64, m db.Model, c db.Connection) func(o
 				if u == nil || onUsage == nil {
 					return
 				}
-				u.RequestModel = m.Model
+				u.RequestModel, u.Connection = m.Model, c.ID
 				if u.CostUSD == nil {
 					u.CostUSD = price(m, *u)
 				}

@@ -491,3 +491,35 @@ func TestASliceOfTextCutsCharacters(t *testing.T) {
 		t.Fatalf("a slice of a text is of its characters: %+v", recs)
 	}
 }
+
+// TestAManifestOfAnOlderFormatIsReadRaised: manifest_get gives a manifest stored in an older format raised to the
+// current one, says so, and a patch of what it gave applies to that text.
+func TestAManifestOfAnOlderFormatIsReadRaised(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, nil)
+	e.createProject("web", webNotes)
+	old := strings.NewReplacer(`{"version": 11,`, `{"version": 7,`, `"menu": ["main"]}`,
+		`"menu": ["main"], "triggers": [{"command": "tell", "lane": "done"}, {"command": "tell", "cron": "0 8 * * *"}]}`).Replace(webNotes)
+	if _, err := e.App.Store.DB.Exec(`UPDATE document_revision SET text = ?
+		WHERE document_id IN (SELECT id FROM document WHERE kind = 'manifest' AND project_id = (SELECT id FROM project WHERE name = 'web'))`, old); err != nil {
+		t.Fatal(err)
+	}
+	var got struct {
+		Manifest string
+		Warnings []string
+	}
+	e.must("deck.manifest_get", map[string]any{"project": "web"}, &got)
+	if !strings.Contains(got.Manifest, `"version": 11`) || strings.Contains(got.Manifest, `"lane"`) ||
+		!strings.Contains(strings.Join(got.Warnings, "\n"), "format 7") {
+		t.Fatalf("a manifest of format 7 is read raised to the current format, with a word on it: %v\n%s", got.Warnings, got.Manifest)
+	}
+	e.must("deck.manifest_save", map[string]any{"project": "web", "patch": `[{"op": "replace", "path": "/triggers/0/cron", "value": "0 9 * * *"}]`}, nil)
+	var now struct {
+		Manifest string
+		Warnings []string
+	}
+	e.must("deck.manifest_get", map[string]any{"project": "web"}, &now)
+	if !strings.Contains(now.Manifest, `"0 9 * * *"`) || len(now.Warnings) != 0 {
+		t.Fatalf("a patch applies to the raised text it was written on: %v\n%s", now.Warnings, now.Manifest)
+	}
+}

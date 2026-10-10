@@ -101,6 +101,13 @@ func TestARecordFolderGoesOnlyWhenNoOtherRecordHoldsIt(t *testing.T) {
 		!exists(filepath.Join(data, "videos", "nest", "inner", "f.txt")) {
 		t.Fatal("no folder another record holds, nor the folder of the collection or the data folder, goes")
 	}
+	if _, err := e.App.Store.DB.Exec(`INSERT INTO outbox (kind, ref, path) VALUES ('folder', ?, 'videos/shared')`, pid); err != nil {
+		t.Fatal(err)
+	}
+	e.App.Sweep(context.Background(), time.Now())
+	if !exists(filepath.Join(data, "videos", "shared", "f.txt")) {
+		t.Fatal("the outbox leaves a folder a record holds by the time it gets to it")
+	}
 	if got := e.partNames(ids["d"]); !strings.Contains(got, "folder videos/shared/") {
 		t.Fatalf("the last record that holds a folder takes it: %s", got)
 	}
@@ -215,7 +222,10 @@ func TestTheMasterAsksTheOwnerBeforeDeletingWhatAModuleMade(t *testing.T) {
 	var mu sync.Mutex
 	said := map[string]string{}
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
-		_, text, _ := strings.Cut(c.Req.Prompt, "new message in chat topic")
+		_, text, found := strings.Cut(c.Req.Prompt, "new message in chat topic")
+		if !found {
+			return provider.Result{Text: "Noted."}
+		}
 		text = strings.Split(text, "\n")[1]
 		slug, _ := strings.CutPrefix(text, "write ")
 		if slug != text {
@@ -280,6 +290,20 @@ func TestTheMasterAsksTheOwnerBeforeDeletingWhatAModuleMade(t *testing.T) {
 	_ = e.App.Store.DB.QueryRow(`SELECT count(*) FROM file WHERE project_id = ?`, pid).Scan(&n)
 	if n != 0 {
 		t.Fatalf("with its files: %d", n)
+	}
+
+	e.say(topic, "write rats")
+	e.masterSaid(topic, 5)
+	rats := e.videos()["rats"]
+	e.say(topic, fmt.Sprintf("delete %d", rats))
+	e.masterSaid(topic, 6)
+	a = e.waitAsk()
+	e.must("deck.record_delete", map[string]any{"record": rats}, nil)
+	e.answer(a.ID, "allow")
+	var left []askView
+	e.must("deck.asks_list", nil, &left)
+	if len(left) != 0 {
+		t.Fatalf("a yes to a record already gone closes the ask: %+v", left)
 	}
 }
 
@@ -366,5 +390,30 @@ func TestTheFolderOfADeletedProjectGoesEvenAfterACrash(t *testing.T) {
 	e.App.Sweep(context.Background(), time.Now())
 	if exists(dir) {
 		t.Fatal("the folder of a deleted project goes")
+	}
+}
+
+// TestARecordDeckCannotPlanKeepsRetentionRedInHealth: a folder deck cannot work out stops retention of the project,
+// which is red in its health once, and the files past their retention still go.
+func TestARecordDeckCannotPlanKeepsRetentionRedInHealth(t *testing.T) {
+	t.Parallel()
+	e := newClockEnv(t, nil)
+	e.createProject("shorts", strings.Replace(cascadeModule, `"folder": "'videos/' + dir",`, `"folder": "'videos/' + dir", "retention_days": 30, "file_retention_days": 10,`, 1))
+	ids := e.videos(map[string]any{"slug": "old", "dir": "old"}, map[string]any{"slug": "nodir"})
+	e.must("deck.file_upload", map[string]any{"project": "shorts", "name": "a.txt", "content": "YQ=="}, nil)
+	if _, err := e.App.Store.DB.Exec(`UPDATE file SET owner_kind = 'record', owner_id = ?`, ids["old"]); err != nil {
+		t.Fatal(err)
+	}
+	e.Clock.Add(31 * 24 * time.Hour)
+	e.sweep()
+	var n int
+	_ = e.App.Store.DB.QueryRow(`SELECT count(*) FROM health WHERE subject = 'retention' AND status = 'error'`).Scan(&n)
+	var files int
+	_ = e.App.Store.DB.QueryRow(`SELECT count(*) FROM file`).Scan(&files)
+	if n != 1 || files != 0 {
+		t.Fatalf("retention is red in health and the files past theirs go: %d rows, %d files", n, files)
+	}
+	if code, _ := e.call("deck.record_get", map[string]any{"record": ids["old"]}); code != 200 {
+		t.Fatal("the expired record stays until deck can plan it")
 	}
 }

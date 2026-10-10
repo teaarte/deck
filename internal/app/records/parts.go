@@ -246,9 +246,12 @@ func remove(ctx context.Context, q *db.Queries, p db.Project, pl plan) error {
 	return nil
 }
 
-// settle stops the open processes of a committed deletion, then removes its files and folders.
-func (s *Service) settle(ctx context.Context, open []db.Process) {
+// settle stops the open processes of a committed deletion but the caller's own, then removes its files and folders.
+func (s *Service) settle(ctx context.Context, open []db.Process, caller int64) {
 	for _, pr := range open {
+		if pr.ID == caller {
+			continue
+		}
 		if err := s.Stop(ctx, pr.ID, "stopped: its record was deleted"); err != nil && registry.Status(err) >= 500 {
 			slog.Error("stop a process of a deleted record", "process", pr.ID, "err", err)
 		}
@@ -307,7 +310,7 @@ func (s *Service) deleteRecord(ctx context.Context, act registry.Actor, p db.Pro
 	if waiting != nil {
 		return *waiting, nil
 	}
-	s.settle(ctx, pl.open)
+	s.settle(ctx, pl.open, act.ProcessID)
 	return map[string]any{"ok": true}, nil
 }
 

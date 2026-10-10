@@ -39,6 +39,8 @@ type Service struct {
 	Home home.Layout
 	Now  func() time.Time
 	Mu   sync.RWMutex
+	// Held reports whether a record of a project holds a folder of its data folder now.
+	Held func(ctx context.Context, project int64, folder string) bool
 	// draining keeps one drain of the outbox at a time.
 	draining sync.Mutex
 }
@@ -372,7 +374,7 @@ func (s *Service) Drain(ctx context.Context) {
 		}
 		for _, r := range rows {
 			was = was || kind != "folder" && r.Tries >= 3
-			err := s.remove(r)
+			err := s.remove(ctx, r)
 			if err == nil {
 				_ = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error { return q.DeleteOutbox(ctx, r.ID) })
 				continue
@@ -402,9 +404,9 @@ func (s *Service) Drain(ctx context.Context) {
 	}
 }
 
-// remove removes what a row of the outbox names; a record's folder through the data folder as a root, so no link
-// leads outside. What is gone already is removed.
-func (s *Service) remove(r db.Outbox) error {
+// remove removes what a row of the outbox names; a record's folder that no record holds now, through the data folder
+// as a root, so no link leads outside. What is gone already, or held again, is done.
+func (s *Service) remove(ctx context.Context, r db.Outbox) error {
 	switch r.Kind {
 	case "file":
 		if err := os.Remove(filepath.Join(s.Home.Files(), fmt.Sprint(r.Ref))); !errors.Is(err, os.ErrNotExist) {
@@ -413,6 +415,9 @@ func (s *Service) remove(r db.Outbox) error {
 	case "project":
 		return os.RemoveAll(s.Home.Project(r.Ref))
 	case "folder":
+		if s.Held(ctx, r.Ref, r.Path) {
+			return nil
+		}
 		root, err := os.OpenRoot(s.Home.Data(r.Ref))
 		if errors.Is(err, os.ErrNotExist) {
 			return nil

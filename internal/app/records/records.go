@@ -6,6 +6,8 @@ import (
 	"database/sql"
 	"deck2/internal/app/access"
 	"deck2/internal/docs"
+	"deck2/internal/gateway"
+	"deck2/internal/health"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store"
@@ -15,6 +17,7 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
+	"net/http"
 	"slices"
 	"strconv"
 	"strings"
@@ -354,12 +357,12 @@ func (s *Service) collectionDelete(ctx context.Context, act registry.Actor, in c
 	if err != nil {
 		return nil, err
 	}
-	s.settle(ctx, pl.open)
+	s.settle(ctx, pl.open, 0)
 	return map[string]any{"deleted": len(pl.records)}, nil
 }
 
-// Expire deletes the records past their retention with what belongs to them, and record files past theirs; a project
-// whose records deck cannot plan hears of it in its feed, one whose manifest does not read is skipped.
+// Expire deletes the records past their retention with what belongs to them, and record files past theirs; a
+// project whose records deck cannot plan is red in its health until it can. One whose manifest does not read is skipped.
 func (s *Service) Expire(ctx context.Context, now time.Time) {
 	projects, err := s.St.Q.ListProjects(ctx)
 	if err != nil {
@@ -369,18 +372,26 @@ func (s *Service) Expire(ctx context.Context, now time.Time) {
 	days := func(n int) string { return store.Time(now.Add(-time.Duration(n) * 24 * time.Hour)) }
 	var open []db.Process
 	for _, p := range projects {
-		err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-			m, err := docs.Manifest(ctx, q, p)
-			if err != nil {
-				return nil
-			}
-			var expired []db.Record
+		m, err := docs.Manifest(ctx, s.St.Q, p)
+		if err != nil {
+			continue
+		}
+		err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 			for _, c := range m.Collections {
 				if c.FileRetentionDays > 0 {
 					if err := q.DeleteExpiredRecordFiles(ctx, db.DeleteExpiredRecordFilesParams{Before: days(c.FileRetentionDays), ProjectID: p.ID, Collection: c.Name}); err != nil {
 						return err
 					}
 				}
+			}
+			return nil
+		})
+		if err != nil {
+			slog.Error("expire record files", "project", p.Name, "err", err)
+		}
+		err = s.writeRecords(ctx, p, func(ctx context.Context, q *db.Queries, m *manifest.Manifest) error {
+			var expired []db.Record
+			for _, c := range m.Collections {
 				if c.RetentionDays > 0 {
 					recs, err := q.ListExpiredRecords(ctx, db.ListExpiredRecordsParams{ProjectID: p.ID, Collection: c.Name, Before: days(c.RetentionDays)})
 					if err != nil {
@@ -390,30 +401,38 @@ func (s *Service) Expire(ctx context.Context, now time.Time) {
 				}
 			}
 			if len(expired) == 0 {
-				return nil
+				return q.DeleteHealth(ctx, db.DeleteHealthParams{ProjectID: store.ID(p.ID), Subject: "retention"})
 			}
 			pl, err := s.plan(ctx, q, p, m, expired...)
 			if err != nil {
 				return err
 			}
 			open = append(open, pl.open...)
-			return remove(ctx, q, p, pl)
+			if err := remove(ctx, q, p, pl); err != nil {
+				return err
+			}
+			return q.DeleteHealth(ctx, db.DeleteHealthParams{ProjectID: store.ID(p.ID), Subject: "retention"})
 		})
 		if err != nil {
-			s.tell(ctx, p, fmt.Sprintf("deck could not delete the records of %s past their retention: %v", p.Name, err))
+			health.Write(ctx, s.St, health.Project(p), "retention", health.Error, fmt.Sprintf("deck could not delete the records of %s past their retention: %v", p.Name, err))
 		}
 	}
-	s.settle(ctx, open)
+	s.settle(ctx, open, 0)
 }
 
-// tell leaves a note of deck in the feed of a project.
-func (s *Service) tell(ctx context.Context, p db.Project, text string) {
-	err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		return q.AddDeckNote(ctx, db.AddDeckNoteParams{CreatedAt: store.Time(s.Now()), ProjectID: p.ID, Text: text})
-	})
+// Held reports whether a record of a project gives a folder, or one inside or around it, as the outbox removes it;
+// a folder deck cannot check is held.
+func (s *Service) Held(ctx context.Context, projectID int64, folder string) bool {
+	p, err := s.St.Q.GetProject(ctx, projectID)
 	if err != nil {
-		slog.Error("note of deck", "project", p.Name, "err", err)
+		return !errors.Is(err, sql.ErrNoRows)
 	}
+	m, err := docs.Manifest(ctx, s.St.Q, p)
+	if err != nil {
+		return true
+	}
+	left, err := unheld(ctx, s.St.Q, p, m, nil, []string{folder})
+	return err != nil || len(left) == 0
 }
 
 // recordOf finds a record of the actor's workspace; the caller checks whether the actor may read or change it.
@@ -461,10 +480,14 @@ type recordDeleteIn struct {
 // draft only the owner does, by a button or by hand, and the master what its own processes wrote.
 func (s *Service) recordDelete(ctx context.Context, act registry.Actor, in recordDeleteIn) (any, error) {
 	_, p, err := s.recordOf(ctx, act, in.Record)
-	if err != nil {
-		return nil, err
+	var out any
+	if err == nil {
+		out, err = s.deleteRecord(ctx, act, p, in.Record)
 	}
-	return s.deleteRecord(ctx, act, p, in.Record)
+	if _, replay := gateway.Approved(ctx); replay && registry.Status(err) == http.StatusNotFound {
+		return map[string]any{"ok": true, "gone": "the record was deleted before the owner's yes"}, nil
+	}
+	return out, err
 }
 
 // Commands are the commands of records.

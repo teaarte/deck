@@ -150,8 +150,8 @@ func TestResumedClaudeCodeTurnCountsOnlyItsOwnTokens(t *testing.T) {
 	if _, err := a.Run(context.Background(), req); err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 2 || got[0].Output != 399 || got[0].CostUSD == nil || got[1].Input != 2 || got[1].Output != 243 ||
-		got[1].CacheRead != 18216 || got[1].CostUSD != nil || got[1].Model != "claude-opus-5-5[1m]" {
+	if len(got) != 2 || got[0].Output != 399 || got[0].SessionCostUSD == nil || got[1].Input != 2 || got[1].Output != 243 ||
+		got[1].CacheRead != 18216 || got[1].SessionCostUSD == nil || got[1].CostUSD != nil || got[1].Model != "claude-opus-5-5[1m]" {
 		t.Fatalf("the model usage of a result adds up the session, so a resumed turn counts its own usage: %+v", got)
 	}
 }

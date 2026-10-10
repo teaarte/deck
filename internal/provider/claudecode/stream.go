@@ -65,8 +65,6 @@ type turn struct {
 	idle bool
 	// started is set once the CLI reported its session; a message before that could meet a session that is gone.
 	started bool
-	// cost is the cost of the session the results so far reported.
-	cost float64
 }
 
 func (t *turn) line(raw []byte) {
@@ -163,8 +161,8 @@ func (t *turn) line(raw []byte) {
 	}
 }
 
-// usage reports the token counts of the turn from its result. modelUsage and the cost there add up the whole
-// session, so the counts come from usage, the cost from a turn that started the session, and the session's cost too.
+// usage reports the token counts of the turn from its result and the cost of the whole session so far; modelUsage
+// adds up the session, so the counts come from usage.
 func (t *turn) usage(l line) {
 	if t.req.OnUsage == nil || l.Usage == nil {
 		return
@@ -174,11 +172,6 @@ func (t *turn) usage(l line) {
 	if l.TotalCostUSD != nil {
 		total := *l.TotalCostUSD
 		u.SessionCostUSD = &total
-	}
-	if !t.req.Resume && l.TotalCostUSD != nil {
-		cost := *l.TotalCostUSD - t.cost
-		t.cost = *l.TotalCostUSD
-		u.CostUSD = &cost
 	}
 	t.req.OnUsage(u)
 }

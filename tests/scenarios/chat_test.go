@@ -646,11 +646,7 @@ func TestAReplyOfTheMasterSaysHowItWent(t *testing.T) {
 		c.Tool(ctx, "jobs__job", map[string]any{})
 		c.Req.OnEvent(provider.Event{Kind: provider.EventToolUpdate, ID: "t1", Status: "completed"})
 		c.Req.OnEvent(provider.Event{Kind: provider.EventMessage, Text: "Started it."})
-		u := provider.Usage{Model: "opus-x", Input: 10, Output: 5, SessionCostUSD: &total}
-		if n == 1 {
-			u.CostUSD = &total
-		}
-		c.Req.OnUsage(u)
+		c.Req.OnUsage(provider.Usage{Model: "opus-x", Input: 10, Output: 5, SessionCostUSD: &total})
 		return provider.Result{Text: "Started it."}
 	})
 	e.createProject("jobs", testManifest([]string{agentCommand("job", "")}, nil))

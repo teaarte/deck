@@ -152,15 +152,15 @@ func (r *Runner) usage(ctx context.Context, workspace, processID int64, pv provi
 			if err != nil {
 				return err
 			}
-			if last, err := q.LastSessionCost(ctx, p.SessionID); err == nil {
-				cost := *u.SessionCostUSD - last
-				if cost < 0 {
-					cost = *u.SessionCostUSD
-				}
-				u.CostUSD = &cost
-			} else if !errors.Is(err, sql.ErrNoRows) {
+			last, err := q.LastSessionCost(ctx, p.SessionID)
+			if err != nil && !errors.Is(err, sql.ErrNoRows) {
 				return err
 			}
+			cost := *u.SessionCostUSD - last
+			if cost < 0 {
+				cost = *u.SessionCostUSD
+			}
+			u.CostUSD = &cost
 		}
 		return q.LogModelCall(ctx, db.LogModelCallParams{WorkspaceID: workspace, ProcessID: store.ID(processID), ConnectionID: store.ID(u.Connection), Provider: pv.Name(),
 			RequestModel: u.RequestModel, ResponseModel: u.Model,

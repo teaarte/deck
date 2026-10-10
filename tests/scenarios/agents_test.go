@@ -171,3 +171,26 @@ func TestAModelOfOpenCodeSaysToSetItAgain(t *testing.T) {
 		t.Fatalf("a command on it refuses with the reason: %d %s", code, out)
 	}
 }
+
+// TestAModelThatGetsAnAgentLosesTheHealthOfItsCalls: the health of a model in an agent is its self-check's; a red row
+// of its calls from before does not keep it out of its assignment.
+func TestAModelThatGetsAnAgentLosesTheHealthOfItsCalls(t *testing.T) {
+	t.Parallel()
+	f := newACP(t)
+	llm := acpLLM(t)
+	e := newEnv(t, nil, func(c *app.Config) {
+		c.ACPBinaries = map[string]string{"goose": filepath.Join(f.dir, "goose"), "dsh": filepath.Join(f.dir, "no-dsh")}
+		c.Sandbox = fakeDirSandbox{sandbox.New(), f.dir, nil}
+	})
+	e.must("deck.connection_set", map[string]any{"name": "router", "api": "openai", "url": llm.URL, "key": "sk-router"}, nil)
+	e.must("deck.model_set", map[string]any{"connection": "router", "model": "m", "name": "qwen", "kind": "text"}, nil)
+	if _, err := e.App.Store.DB.Exec(`INSERT INTO health (subject, workspace_id, status, error) VALUES ('model:qwen', 1, 'error', 'did not answer')`); err != nil {
+		t.Fatal(err)
+	}
+	e.must("deck.model_set", map[string]any{"connection": "router", "model": "m", "name": "qwen", "agent": "goose"}, nil)
+	var n int
+	_ = e.App.Store.DB.QueryRow(`SELECT count(*) FROM health WHERE subject = 'model:qwen'`).Scan(&n)
+	if n != 0 {
+		t.Fatal("the red row of the calls of the model goes once it runs in an agent")
+	}
+}

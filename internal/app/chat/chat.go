@@ -49,8 +49,6 @@ type Service struct {
 	Fits  func(ctx context.Context, projectID int64, cmd *manifest.Command) []string
 	// DrainFiles removes the files whose rows are gone.
 	DrainFiles func(ctx context.Context)
-	// File is a file of a project by a stored id or a path in its data folder, as a media block shows it.
-	File func(ctx context.Context, p db.Project, ref any) (map[string]any, error)
 	// Go runs work beside the calls unless deck stops; the replies it leaves go at the next start.
 	Go func(func()) bool
 	// Words are deck's phrases in a language.

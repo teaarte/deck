@@ -221,8 +221,8 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   Files are a `media` block: `{"type":
   "media", "source": {"collection": "scans"}, "item": {"file": "file", "title": "name"}}`, where `file` is the
   id of a stored file of the project (a result file of its run, an attachment of its record; a result names the
-  files it kept by that id, in `files[].file` and in place of a `file` field), its digits, the name a result gave
-  it, or a path in its data folder (`"charts/today.png"`); a picture is a thumbnail, a PDF shows in place, a video or a sound plays in
+  files it kept by that id, in `files[].file` and in place of a `file` field), its digits, or a path in its data
+  folder (`"charts/today.png"`); a name is not a file; a picture is a thumbnail, a PDF shows in place, a video or a sound plays in
   a player with frame steps and a timecode, anything else is a name with a download. The player shows
   `item.marks` (a list of `{at, text}` or of seconds) on its timeline, and its `mark` button — an action such
   as `{"label": "Note", "command": "note", "params": {"video": "=slug"}, "input": "note"}` — calls the

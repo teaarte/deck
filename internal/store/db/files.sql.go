@@ -137,32 +137,6 @@ func (q *Queries) GetFile(ctx context.Context, id int64) (File, error) {
 	return i, err
 }
 
-const getFileByName = `-- name: GetFileByName :one
-SELECT id, project_id, owner_kind, owner_id, name, type, size, created_at FROM file WHERE project_id = ? AND name = ? AND owner_kind NOT IN ('trash', 'keeping') ORDER BY id DESC LIMIT 1
-`
-
-type GetFileByNameParams struct {
-	ProjectID int64
-	Name      string
-}
-
-// The newest stored file of a project by its name, such as one a result named before it was kept.
-func (q *Queries) GetFileByName(ctx context.Context, arg GetFileByNameParams) (File, error) {
-	row := q.db.QueryRowContext(ctx, getFileByName, arg.ProjectID, arg.Name)
-	var i File
-	err := row.Scan(
-		&i.ID,
-		&i.ProjectID,
-		&i.OwnerKind,
-		&i.OwnerID,
-		&i.Name,
-		&i.Type,
-		&i.Size,
-		&i.CreatedAt,
-	)
-	return i, err
-}
-
 const listFilesOf = `-- name: ListFilesOf :many
 SELECT id, project_id, owner_kind, owner_id, name, type, size, created_at FROM file WHERE project_id = ? AND owner_kind = ? AND owner_id = ? ORDER BY id
 `

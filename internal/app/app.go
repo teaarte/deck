@@ -160,7 +160,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 		AnswerGrant: a.Saver.AnswerGrant, SaveManifest: a.Saver.SaveCall}
 	*a.Signins = signins.Service{St: st, Ctx: a.ctx, Broker: a.Asks, OAuth: oauth, Browser: a.Browser, MCP: a.MCP}
 	*a.Chats = chat.Service{St: st, Bus: a.Bus, Now: cfg.Now, Asks: a.Asks, Runner: a.Runner, For: a.Providers.For,
-		Named: a.Providers.Named, Fits: a.Providers.Fits, DrainFiles: a.Files.Drain, File: a.Files.File, Go: a.bg.Go, Words: phrases}
+		Named: a.Providers.Named, Fits: a.Providers.Fits, DrainFiles: a.Files.Drain, Go: a.bg.Go, Words: phrases}
 	*a.Devices = devices.Service{St: st, Bus: a.Bus, Now: cfg.Now, DrainFiles: a.Files.Drain,
 		Home: h, Invoke: a.Registry.Invoke, DeckScreen: deckScreen}
 	*a.Failures = failures.Service{St: st, Now: cfg.Now, Runner: a.Runner}

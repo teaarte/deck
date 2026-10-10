@@ -65,11 +65,6 @@ DELETE FROM file WHERE owner_kind = ? AND owner_id = ?;
 SELECT id FROM file WHERE project_id = ? ORDER BY id;
 
 
--- name: GetFileByName :one
--- The newest stored file of a project by its name, such as one a result named before it was kept.
-SELECT * FROM file WHERE project_id = ? AND name = ? AND owner_kind NOT IN ('trash', 'keeping') ORDER BY id DESC LIMIT 1;
-
-
 -- name: ListMadeFiles :many
 -- The files a process kept and those of the processes it started.
 SELECT f.* FROM file f WHERE f.owner_kind = 'process'

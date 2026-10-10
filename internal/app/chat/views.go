@@ -5,8 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"regexp"
-	"slices"
 	"strconv"
 
 	"deck2/internal/ask"
@@ -79,48 +77,6 @@ type fileView struct {
 
 func viewFile(f db.File) fileView {
 	return fileView{ID: f.ID, Name: f.Name, Type: f.Type, Size: f.Size, URL: fmt.Sprintf("/api/files/%d", f.ID)}
-}
-
-// linkTo finds the links of a text to a stored file, #/file/<id>, and to a file of a data folder,
-// #/data/<project>/<path>.
-var linkTo = regexp.MustCompile(`\(#/(file/(\d+)|data/([a-z0-9-]+)/([^)\s]+))\)`)
-
-// linked are the files the links of a text of the master name, in the workspace of the topic.
-func (ch *Service) linked(ctx context.Context, workspace int64, text string) []fileView {
-	var out []fileView
-	for _, m := range linkTo.FindAllStringSubmatch(text, 20) {
-		var p db.Project
-		var ref any
-		if m[2] != "" {
-			id, _ := strconv.ParseInt(m[2], 10, 64)
-			f, err := ch.St.Q.GetFile(ctx, id)
-			if err != nil {
-				continue
-			}
-			if p, err = ch.St.Q.GetProject(ctx, f.ProjectID); err != nil {
-				continue
-			}
-			ref = id
-		} else {
-			var err error
-			if p, err = ch.St.Q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: workspace, Name: m[3]}); err != nil {
-				continue
-			}
-			ref = m[4]
-		}
-		if p.WorkspaceID != workspace {
-			continue
-		}
-		v, err := ch.File(ctx, p, ref)
-		if err != nil {
-			continue
-		}
-		f := fileView{Name: fmt.Sprint(v["name"]), Type: fmt.Sprint(v["type"]), URL: fmt.Sprint(v["url"])}
-		f.ID, _ = ref.(int64)
-		f.Size, _ = v["size"].(int64)
-		out = append(out, f)
-	}
-	return out
 }
 
 // made are the files a reply and the processes it started kept, in order.
@@ -202,7 +158,7 @@ func (ch *Service) topics(ctx context.Context, workspace int64, archived bool, t
 }
 
 // messages are messages of a topic with the reply each message of the owner got and the files it has.
-func (ch *Service) messages(ctx context.Context, ws, topic int64, rows []db.ChatMessage, tr func(string) string) []messageView {
+func (ch *Service) messages(ctx context.Context, topic int64, rows []db.ChatMessage, tr func(string) string) []messageView {
 	replies := map[int64]*replyView{}
 	files := map[int64][]fileView{}
 	if fs, err := ch.St.Q.ListMessageFiles(ctx, topic); err == nil {
@@ -221,13 +177,6 @@ func (ch *Service) messages(ctx context.Context, ws, topic int64, rows []db.Chat
 			if p, err := ch.St.Q.GetProcess(ctx, r.ProcessID); err == nil {
 				m.Work = ch.work(ctx, p, tr)
 				files[r.ID] = append(files[r.ID], ch.made(ctx, p)...)
-			}
-		}
-		if r.Role == roleMaster {
-			for _, f := range ch.linked(ctx, ws, r.Text) {
-				if !slices.ContainsFunc(files[r.ID], func(g fileView) bool { return g.URL == f.URL }) {
-					files[r.ID] = append(files[r.ID], f)
-				}
 			}
 		}
 		m.Files = files[r.ID]
@@ -297,7 +246,7 @@ func (ch *Service) chat(ctx context.Context, act registry.Actor, in chatIn) (cha
 	if err != nil {
 		return v, err
 	}
-	v.Messages = ch.messages(ctx, act.Workspace, t.ID, rows, tr)
+	v.Messages = ch.messages(ctx, t.ID, rows, tr)
 	if t.Reply == nil {
 		return v, nil
 	}

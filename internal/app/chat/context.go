@@ -15,25 +15,7 @@ type screenContext struct {
 	Record  int64  `json:"record,omitempty"`
 	Process int64  `json:"process,omitempty"`
 	// Files are the stored files the owner attached to the message.
-	Files fileIDs `json:"files,omitempty"`
-}
-
-// fileIDs are the ids of attached files; a path, as older messages kept them, is skipped.
-type fileIDs []int64
-
-func (f *fileIDs) UnmarshalJSON(b []byte) error {
-	var all []json.RawMessage
-	if err := json.Unmarshal(b, &all); err != nil {
-		return err
-	}
-	*f = nil
-	for _, x := range all {
-		var id int64
-		if json.Unmarshal(x, &id) == nil {
-			*f = append(*f, id)
-		}
-	}
-	return nil
+	Files []int64 `json:"files,omitempty"`
 }
 
 func screenText(raw string) string {

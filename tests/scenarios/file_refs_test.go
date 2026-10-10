@@ -25,7 +25,7 @@ const pictureModule = `{"version": 11,
   "menu": ["main"]}`
 
 // TestAFileOfAResultIsNamedByTheIdMediaTakes: a result names the file it made by the id it was kept under, and a
-// media block takes that id as a number, as digits, or the name the file had.
+// media block takes that id as a number or as digits; the name the file had is no file.
 func TestAFileOfAResultIsNamedByTheIdMediaTakes(t *testing.T) {
 	t.Parallel()
 	api := newModels(t, map[string]func(int, map[string]any) (int, string, string){
@@ -54,13 +54,13 @@ func TestAFileOfAResultIsNamedByTheIdMediaTakes(t *testing.T) {
 		map[string]any{"title": "a number", "file": id}, map[string]any{"title": "b digits", "file": fmt.Sprint(id)},
 		map[string]any{"title": "c name", "file": name})}, nil)
 	raw, _ := json.Marshal(e.screenMessages("art", "main", nil))
-	if s := string(raw); strings.Count(s, fmt.Sprintf(`"url":"/api/files/%d"`, id)) != 3 || strings.Contains(s, `"error"`) {
-		t.Fatalf("media shows the file by its id, its digits and its name: %s", s)
+	if s := string(raw); strings.Count(s, fmt.Sprintf(`"url":"/api/files/%d"`, id)) != 2 || !strings.Contains(s, "a stored file is named by its id") {
+		t.Fatalf("media shows the file by its id and its digits, not by its name: %s", s)
 	}
 }
 
-// TestFilesOfAReplyShowInTheChat: what a reply of the master leaves in its results folder, and a file its text links
-// to, show under its message.
+// TestFilesOfAReplyShowInTheChat: what a reply of the master leaves in its results folder shows under its message; a
+// link of its text is no file of it.
 func TestFilesOfAReplyShowInTheChat(t *testing.T) {
 	t.Parallel()
 	var linked int64
@@ -87,7 +87,7 @@ func TestFilesOfAReplyShowInTheChat(t *testing.T) {
 	}
 	e.must("deck.chat", map[string]any{"topic": fmt.Sprint(topic)}, &view)
 	m := view.Messages[len(view.Messages)-1]
-	if m.Role != "master" || len(m.Files) != 2 || m.Files[0].Name != "voice-1.wav" || m.Files[1].ID != linked {
-		t.Fatalf("the reply shows the file it made and the one it links to: %+v", m)
+	if m.Role != "master" || len(m.Files) != 1 || m.Files[0].Name != "voice-1.wav" {
+		t.Fatalf("the reply shows the file it made, not the one it links to: %+v", m)
 	}
 }

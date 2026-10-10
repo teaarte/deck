@@ -8,6 +8,7 @@ import (
 
 	"deck2/internal/docs"
 	"deck2/internal/registry"
+	"deck2/internal/store"
 	"deck2/internal/store/db"
 	"deck2/internal/untrusted"
 )
@@ -46,7 +47,8 @@ func (r *Runner) end(ctx context.Context, processID int64, state, reason string)
 		if n, err = q.StopParkedProcess(ctx, db.StopParkedProcessParams{State: state, Error: reason, FinishedAt: r.stamp(), ID: processID}); err != nil || n == 0 {
 			return err
 		}
-		closedCalls, err = q.CloseOpenAsksOfProcess(ctx, db.CloseOpenAsksOfProcessParams{ProcessID: processID, CallsToo: 1})
+		// A frozen call outlives its process unless the owner stops it.
+		closedCalls, err = q.CloseOpenAsksOfProcess(ctx, db.CloseOpenAsksOfProcessParams{ProcessID: processID, CallsToo: store.Bool(state == StateStopped)})
 		return err
 	})
 	if err != nil || n == 0 {

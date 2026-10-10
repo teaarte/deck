@@ -358,3 +358,44 @@ func TestACallWaitingInABaseFromBeforeStillWaits(t *testing.T) {
 		t.Fatalf("the owner's yes makes the call and the journal keeps its ask: %d requests, %d waiting rows", len(svc.requests()), waited)
 	}
 }
+
+// TestAFrozenCallOutlivesAProcessAtItsCeiling: a frozen call stays the owner's to allow however its process ends,
+// unless the owner stops the process.
+func TestAFrozenCallOutlivesAProcessAtItsCeiling(t *testing.T) {
+	t.Parallel()
+	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { jsonReply(w, `{"id": "ext-1"}`) })
+	e := newClockEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		c.Tool(ctx, "notes__post", map[string]any{"id": "a", "text": "hi"})
+		<-ctx.Done()
+		return provider.Result{}
+	}, withTTL, func(c *app.Config) { c.ConfirmWait = 50 * time.Millisecond })
+	e.must("deck.secret_set", map[string]any{"name": "svc", "value": "k"}, nil)
+	stopped := e.run(e.createProject("notes", postManifest(svc.URL, "")), "work")
+	e.waitAsk()
+	e.must("deck.process_stop", map[string]any{"process": stopped}, nil)
+	e.waitState(stopped, "stopped")
+	if j := e.calls(stopped); !strings.Contains(j, "notes.post rejected") {
+		t.Fatalf("a stop of the owner drops the frozen call:\n%s", j)
+	}
+	id := e.run(e.projectID("notes"), "work")
+	var a askView
+	e.waitFor("the frozen call", func() bool {
+		var as []askView
+		e.must("deck.asks_list", nil, &as)
+		for _, x := range as {
+			if x.Kind == "call" {
+				a = x
+			}
+		}
+		return a.ID != 0
+	})
+	e.waitFor("the ceiling to run", func() bool { return e.full(id).Deadline != "" })
+	e.Clock.Add(2 * time.Hour)
+	e.sweep()
+	if got := e.waitState(id, "error"); !strings.Contains(got.Error, "ceiling") {
+		t.Fatalf("the process ends at its ceiling: %+v", got)
+	}
+	if code, out := e.call("deck.ask_answer", map[string]any{"ask": a.ID, "answer": "allow"}); code != 200 || len(svc.requests()) != 1 {
+		t.Fatalf("the owner may still allow the frozen call of a process that ended: %d %s", code, out)
+	}
+}

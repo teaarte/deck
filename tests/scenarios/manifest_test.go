@@ -477,3 +477,17 @@ func TestFormatElevenWidensNothing(t *testing.T) {
 		t.Fatalf("format 10 comes up to 11 with its domains as they were:\n%s", got.Manifest)
 	}
 }
+
+// TestASliceOfTextCutsCharacters: a slice of a text in an expression counts characters, as len does, so a title in
+// Cyrillic or with an emoji is not cut inside a letter.
+func TestASliceOfTextCutsCharacters(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, idle)
+	e.createProject("ru", strings.Replace(webNotes, `"display": "title"`, `"display": "title[:3] + '|' + title[-2:] + '|' + string(len(title))"`, 1))
+	e.must("deck.records_upsert", map[string]any{"project": "ru", "collection": "notes", "records": jsonl(map[string]any{"title": "Привет мир 😀"})}, nil)
+	var recs []struct{ Title string }
+	e.must("deck.records_list", map[string]any{"project": "ru", "collection": "notes"}, &recs)
+	if len(recs) != 1 || recs[0].Title != "При| 😀|12" {
+		t.Fatalf("a slice of a text is of its characters: %+v", recs)
+	}
+}

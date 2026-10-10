@@ -15,6 +15,7 @@ import (
 	"github.com/expr-lang/expr/file"
 	"github.com/expr-lang/expr/parser"
 	"github.com/expr-lang/expr/vm"
+	"github.com/expr-lang/expr/vm/runtime"
 	"github.com/santhosh-tekuri/jsonschema/v6"
 )
 
@@ -52,7 +53,46 @@ func compileExpr(src string, fields []string) (*vm.Program, error) {
 			return nil, fmt.Errorf("unknown function %q", id.Value)
 		}
 	}
-	return expr.Compile(src, expr.AllowUndefinedVariables())
+	return expr.Compile(src, expr.AllowUndefinedVariables(), expr.Function(sliceFn, slice), expr.Patch(chars{}))
+}
+
+// sliceFn slices in place of [a:b]; a name no expression can call.
+const sliceFn = "$slice"
+
+// chars makes [a:b] slice a text by characters, as len counts them.
+type chars struct{}
+
+func (chars) Visit(n *ast.Node) {
+	s, ok := (*n).(*ast.SliceNode)
+	if !ok {
+		return
+	}
+	args := []ast.Node{s.Node, s.From, s.To}
+	for i, a := range args {
+		if a == nil {
+			args[i] = &ast.NilNode{}
+		}
+	}
+	ast.Patch(n, &ast.CallNode{Callee: &ast.IdentifierNode{Value: sliceFn}, Arguments: args})
+}
+
+func slice(p ...any) (any, error) {
+	v := p[0]
+	if s, ok := v.(string); ok {
+		v = []rune(s)
+	}
+	from, to := p[1], p[2]
+	if from == nil {
+		from = 0
+	}
+	if to == nil {
+		to = runtime.Len(v)
+	}
+	out := runtime.Slice(v, from, to)
+	if r, ok := out.([]rune); ok {
+		return string(r), nil
+	}
+	return out, nil
 }
 
 // compileField compiles an expression over record fields; variables need known fields so they cannot hide one.

@@ -27,8 +27,10 @@ type checks struct {
 	// again is set when the provider changed during a running check, which then checks it once more.
 	again   bool
 	started bool
-	last    time.Time
-	retry   time.Time
+	// broke is set when a turn turned the provider red during a running check, which then leaves a retry.
+	broke bool
+	last  time.Time
+	retry time.Time
 }
 
 func (s *Service) checksOf(name string) *checks {
@@ -68,11 +70,20 @@ func (s *Service) Checks(ctx context.Context, now time.Time) {
 	}
 }
 
-// Broke checks a provider whose turn failed, unless it was checked within selfCheckRetry.
+// Broke checks a provider whose turn failed, unless it was checked within selfCheckRetry; a red one is then checked
+// once that time is over.
 func (s *Service) Broke(ctx context.Context, name string) {
+	h, err := s.St.Q.GetHealth(ctx, process.HealthSubject(name))
+	red := err == nil && h.Status == health.Error
 	s.mu.Lock()
 	c := s.checksOf(name)
 	recent := !c.last.IsZero() && s.Now().Before(c.last.Add(selfCheckRetry))
+	switch {
+	case red && c.running:
+		c.broke = true
+	case recent && red && c.retry.IsZero():
+		c.retry = c.last.Add(selfCheckRetry)
+	}
 	s.mu.Unlock()
 	if !recent {
 		s.startCheck(name, false)
@@ -93,7 +104,7 @@ func (s *Service) startCheck(name string, force bool) bool {
 		s.mu.Unlock()
 		return false
 	}
-	c.running, c.started, c.last, c.retry = true, true, s.Now(), time.Time{}
+	c.running, c.started, c.last, c.retry, c.broke = true, true, s.Now(), time.Time{}, false
 	s.mu.Unlock()
 	ctx := s.Ctx
 	subject := process.HealthSubject(name)
@@ -107,13 +118,19 @@ func (s *Service) startCheck(name string, force bool) bool {
 			ceiling = c.CheckCeiling()
 		}
 		cctx, cancel := context.WithTimeout(ctx, ceiling)
-		res := sc.SelfCheck(cctx)
+		var res provider.Check
+		unreached := s.Reach(cctx)
+		if unreached == nil {
+			res = sc.SelfCheck(cctx)
+		}
 		cancel()
 		of := cmp.Or(res.Version, "an unknown version")
 		status, text, verdict := health.OK, "", ""
 		switch {
 		case ctx.Err() != nil:
 			status, text = health.Checking, "deck stopped during the self-check"
+		case unreached != nil:
+			status, text, verdict = health.Error, "agents do not reach deck's MCP server, so they would start without deck's tools: "+unreached.Error(), "adapter"
 		case res.RateLimited:
 			status, text = health.Paused, "the self-check hit the usage limit; "+errText(res.Err)
 		case res.NeedsLogin:
@@ -148,9 +165,10 @@ func (s *Service) startCheck(name string, force bool) bool {
 		}
 		s.mu.Lock()
 		c.running = false
-		if status != health.OK && status != health.Warning {
+		if status != health.OK && status != health.Warning || c.broke {
 			c.retry = s.Now().Add(selfCheckRetry)
 		}
+		c.broke = false
 		s.mu.Unlock()
 		if status != health.Error && status != health.Checking {
 			s.Wake(context.WithoutCancel(ctx))

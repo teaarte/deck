@@ -248,6 +248,14 @@ func (r *Runner) converse(ctx context.Context, t *turn, a *agentTurn, fail func(
 			req.Prompt += r.remarksText(bg, processID, asks.Remarks)
 			continue
 		}
+		if err != nil && res.NoTools {
+			t.asks, t.resume = asks, req.Resume
+			if req.Resume {
+				t.message = req.Prompt
+			}
+			r.lostTools(bg, *t, pv, err)
+			return
+		}
 		if a.sub != nil && err == nil && !res.IsError && submitted(a.sub) {
 			// A turn that ended on its own with its result in is done, whatever a later call of the model got.
 			res.RateLimited, res.NeedsLogin = false, false

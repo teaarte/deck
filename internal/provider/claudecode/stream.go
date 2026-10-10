@@ -196,6 +196,7 @@ func (t *turn) finish(waitErr error, stderr string, promptErr error) (provider.R
 	case res.SessionMissing:
 		return res, nil
 	case t.results == 0:
+		res.NoTools = !t.started && strings.Contains(stderr, "(passed via --permission-prompt-tool) not found")
 		return res, fmt.Errorf("claude exited without a result: %v: %s", waitErr, stderr)
 	case t.results > t.allowed():
 		return res, fmt.Errorf("claude reported %d results in one turn", t.results)

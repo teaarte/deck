@@ -154,6 +154,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 		ACPCallLimit: cfg.ACPCallLimit, SelfCheckCeiling: cfg.SelfCheckCeiling, VideoPoll: cfg.VideoPoll,
 		VideoCeiling: cfg.VideoCeiling, Secret: a.Secrets.Read, WriteSecret: a.Secrets.Write,
 		Wake: a.Runner.Wake, Resolve: a.Tools.Resolve,
+		Reach:   func(ctx context.Context) error { return a.Gateway.Reach(ctx, cfg.MCPBase) },
 		Builtin: append([]provider.Provider{p}, more...), Ctx: a.ctx, Go: a.bg.Go}
 	*a.Answers = asks.Service{St: st, Now: cfg.Now, Broker: a.Asks, Registry: a.Registry, Gateway: a.Gateway, Deliver: a.Runner.Deliver,
 		AnswerGrant: a.Saver.AnswerGrant, SaveManifest: a.Saver.SaveCall}

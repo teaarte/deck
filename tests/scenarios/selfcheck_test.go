@@ -8,7 +8,9 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"deck2/internal/app"
 	"deck2/internal/provider"
+	"net"
 	"os"
 	"path/filepath"
 	"slices"
@@ -343,5 +345,73 @@ func TestACommandDuringTheStopStartsNoBackgroundWork(t *testing.T) {
 	cf.mu.Unlock()
 	if code == 200 || n != 0 || !strings.Contains(string(out), "stopping") {
 		t.Fatalf("a self-check asked for while deck stops does not start: %d %s, %d checks", code, out, n)
+	}
+}
+
+// TestAnAgentStartedBeforeDecksMCPWaitsAndRunsOnceItIsUp: a turn whose CLI did not get deck's tools does not fail
+// the process: the provider is red, the process waits for it, and its self-check later runs the process again.
+func TestAnAgentStartedBeforeDecksMCPWaitsAndRunsOnceItIsUp(t *testing.T) {
+	t.Parallel()
+	c := newCLI(t)
+	c.stream(0, "ok.jsonl")
+	c.stream(1, "selfcheck.jsonl")
+	c.stream(2, "selfcheck_resume.jsonl")
+	c.approving()
+	c.before(readFile(t, filepath.Join(c.dir, "before")) + `
+if [ -f "$d/nomcp" ]; then
+  echo "Error: MCP tool mcp__deck__approve (passed via --permission-prompt-tool) not found. Available MCP tools: none" >&2
+  exit 1
+fi`)
+	e := clockCLIEnv(t, c)
+	ctx := context.Background()
+	e.App.Providers.Checks(ctx, e.Clock.Now())
+	e.waitHealth("provider:claude-code", "ok")
+	nomcp := filepath.Join(c.dir, "nomcp")
+	if err := os.WriteFile(nomcp, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	id := e.run(e.createProject("plain", plainManifest), "work")
+	e.waitState(id, "waiting_provider")
+	if h := e.waitHealth("provider:claude-code", "error"); !strings.Contains(h.Error, "without deck's tools") || !strings.Contains(h.Error, "mcp__deck__approve") {
+		t.Fatalf("the provider is red with why: %+v", h)
+	}
+	if runs := e.runsOf("master", "on_error"); len(runs) != 0 {
+		t.Fatalf("a turn deck holds to run again is no failure for the master: %+v", runs)
+	}
+	if err := os.Remove(nomcp); err != nil {
+		t.Fatal(err)
+	}
+	c.stream(5, "selfcheck.jsonl")
+	c.stream(6, "selfcheck_resume.jsonl")
+	e.App.Providers.Checks(ctx, e.Clock.Add(10*time.Minute))
+	e.settle()
+	if n := c.calls(); n != 4 {
+		t.Fatalf("the provider checked a moment ago is checked again after its time: %d CLI calls", n)
+	}
+	e.App.Providers.Checks(ctx, e.Clock.Add(21*time.Minute))
+	e.waitHealth("provider:claude-code", "ok")
+	if got := e.waitState(id, "done", "error"); got.State != "done" || c.calls() != 8 {
+		t.Fatalf("the held process runs again once the self-check is green: %+v, %d calls", got, c.calls())
+	}
+}
+
+// TestASelfCheckIsRedWhenAgentsDoNotReachDecksMCP: the self-check reaches deck's MCP server as a turn would, so a
+// gateway agents cannot reach holds the turns instead of leaving the provider green.
+func TestASelfCheckIsRedWhenAgentsDoNotReachDecksMCP(t *testing.T) {
+	t.Parallel()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	closed := "http://" + ln.Addr().String()
+	ln.Close()
+	cf := &checkedFake{Fake: &Fake{}}
+	e := newEnvWith(t, t.TempDir(), cf, func(c *app.Config) { c.MCPBase = closed })
+	e.App.Providers.Checks(context.Background(), time.Now())
+	if h := e.waitHealth("provider:fake", "error"); !strings.Contains(h.Error, "do not reach deck's MCP server") {
+		t.Fatalf("an unreachable gateway turns the provider red: %+v", h)
+	}
+	if got := e.waitState(e.run(e.createProject("plain", plainManifest), "work"), "done", "error", "waiting_provider"); got.State != "waiting_provider" {
+		t.Fatalf("turns wait while agents would get no tools: %+v", got)
 	}
 }

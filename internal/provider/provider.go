@@ -90,6 +90,8 @@ type Result struct {
 	// RateLimited is set when the provider refused on a subscription limit; ResetsAt is unix seconds.
 	RateLimited bool
 	ResetsAt    int64
+	// NoTools is set when the agent stopped before its first model call because deck's MCP tools did not reach it.
+	NoTools bool
 	// Denied are the tools the provider refused by its own rules or auto mode, one entry per refused call.
 	Denied []string
 }

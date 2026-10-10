@@ -16,6 +16,7 @@ import (
 	"deck2/internal/provider"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
+	"deck2/internal/untrusted"
 )
 
 // needLogin parks the process until the owner logs the provider in again and picks how to continue.
@@ -41,6 +42,27 @@ func (r *Runner) needLogin(ctx context.Context, pv provider.Provider, processID 
 	if n == 0 {
 		return
 	}
+}
+
+// lostTools holds a turn whose agent did not get deck's tools until the self-check of its provider is green again;
+// the provider is red meanwhile, so its other turns wait too.
+func (r *Runner) lostTools(ctx context.Context, t turn, pv provider.Provider, err error) {
+	text := "the agent started without deck's tools, so deck holds the turns of " + pv.Name() + " until its self-check passes: " + err.Error()
+	txErr := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		if err := ProviderHealth(ctx, q, pv.Name(), health.Error, untrusted.Cut(text, 1000)); err != nil {
+			return err
+		}
+		if err := q.SetHealthCheck(ctx, db.SetHealthCheckParams{Verdict: "adapter", Subject: HealthSubject(pv.Name())}); err != nil {
+			return err
+		}
+		_, err := r.holdIn(ctx, q, t, StateWaitingProvider)
+		return err
+	})
+	if txErr != nil {
+		r.finish(ctx, t.process, StateError, "", false, err.Error())
+		return
+	}
+	r.deps.Broke(ctx, pv.Name())
 }
 
 // HealthSubject is the health row of a provider.

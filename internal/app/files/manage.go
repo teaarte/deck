@@ -54,7 +54,7 @@ func (s *Service) fileDelete(ctx context.Context, act registry.Actor, in fileIn)
 
 type fileRestoreIn struct {
 	File      int64  `desc:"Stored file id"`
-	OwnerKind string `json:"owner_kind" desc:"What it belonged to before it was deleted: owner, record, process, chat_message or upload"`
+	OwnerKind string `json:"owner_kind" desc:"What it belonged to before it was deleted: record, process, chat_message or upload"`
 	OwnerID   int64  `json:"owner_id" opt:"" desc:"The id of what it belonged to"`
 }
 

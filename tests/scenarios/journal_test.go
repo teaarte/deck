@@ -302,3 +302,25 @@ func TestTheJournalKeepsTimeByTheClockOfDeck(t *testing.T) {
 		t.Fatalf("a call is journaled at the time of deck's clock: %s", at)
 	}
 }
+
+// TestAnEmptyProcessThatWroteRecordsStays: a process with nothing to show that wrote records stays past the day of
+// empty ones, so the master still knows which records its own processes wrote.
+func TestAnEmptyProcessThatWroteRecordsStays(t *testing.T) {
+	t.Parallel()
+	e := newClockEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		if c.command() == "write" {
+			c.Tool(ctx, "records_upsert", map[string]any{"collection": "ideas", "records": `{"title": "kept", "score": 1}`})
+		}
+		return provider.Result{Structured: json.RawMessage(`null`)}
+	})
+	m := strings.Replace(ideasManifest, `"commands": [{`, `"commands": [`+agentCommand("write", "")+`, `+agentCommand("idle", "")+`, {`, 1)
+	p := e.createProject("notes", nullable(m))
+	wrote, idle := e.run(p, "write"), e.run(p, "idle")
+	e.waitState(wrote, "done")
+	e.waitState(idle, "done")
+	e.settle()
+	e.Clock.Add(25 * time.Hour)
+	e.sweep()
+	e.refused("deck.process_get", map[string]any{"process": idle}, 404, "no process")
+	e.must("deck.process_get", map[string]any{"process": wrote}, nil)
+}

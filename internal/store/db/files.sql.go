@@ -245,7 +245,7 @@ func (q *Queries) ListProjectFileIDs(ctx context.Context, projectID int64) ([]in
 
 const listWorkspaceFiles = `-- name: ListWorkspaceFiles :many
 SELECT id, project_id, owner_kind, owner_id, name, type, size, created_at FROM file WHERE project_id IN (SELECT id FROM project WHERE workspace_id = ?1)
-  AND (CAST(?2 AS INTEGER) = 0 OR project_id = CAST(?2 AS INTEGER)) AND owner_kind != 'trash'
+  AND (CAST(?2 AS INTEGER) = 0 OR project_id = CAST(?2 AS INTEGER)) AND owner_kind NOT IN ('trash', 'keeping')
 ORDER BY id DESC LIMIT ?3
 `
 

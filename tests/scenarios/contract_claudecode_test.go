@@ -155,3 +155,15 @@ func TestResumedClaudeCodeTurnCountsOnlyItsOwnTokens(t *testing.T) {
 		t.Fatalf("the model usage of a result adds up the session, so a resumed turn counts its own usage: %+v", got)
 	}
 }
+
+func TestTheAnswerOfAClaudeCodeTurnIsTheLastResultOfItsSession(t *testing.T) {
+	t.Parallel()
+	for fixture, want := range map[string]string{"background_agents.jsonl": "gamma", "two_results.jsonl": "ok"} {
+		c := newCLI(t)
+		c.stream(0, fixture)
+		res, err := c.adapter(t.TempDir()).Run(context.Background(), provider.Request{Cwd: t.TempDir(), Prompt: "x", SessionID: "s"})
+		if err != nil || res.IsError || res.Text != want {
+			t.Fatalf("%s: background agents wake the session for more results, and the last one is the answer: %+v %v", fixture, res, err)
+		}
+	}
+}

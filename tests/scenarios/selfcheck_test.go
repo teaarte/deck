@@ -96,7 +96,7 @@ func TestFailedSelfCheckHoldsClaudeCodeProcesses(t *testing.T) {
 	if n := c.calls(); n != 5 {
 		t.Fatalf("a new version of the CLI alone runs no self-check: %d CLI calls", n)
 	}
-	c.stream(6, "two_results.jsonl")
+	c.stream(6, "foreign_session.jsonl")
 	c.stream(7, "ok.jsonl")
 	if got := e.waitState(e.run(p, "work"), "done", "error"); got.State != "error" {
 		t.Fatalf("the broken turn fails: %+v", got)

@@ -59,12 +59,10 @@ type turn struct {
 	foreign    string
 	authFailed bool
 	model      string
-	// live counts the owner's messages written into the turn; one written as the turn ended starts another.
-	live int
-	// background counts background tasks that finished; each wakes the session for one more result.
-	background int
 	// tasks are the tasks of the session that started and have not reported yet.
 	tasks map[string]bool
+	// idle is set from a result until the session wakes again.
+	idle bool
 	// started is set once the CLI reported its session; a message before that could meet a session that is gone.
 	started bool
 	// cost is the cost of the session the results so far reported.
@@ -80,7 +78,6 @@ func (t *turn) line(raw []byte) {
 		t.foreign = l.SessionID
 	}
 	if l.Type == "system" && l.Subtype == "task_notification" && l.ParentToolUseID == "" {
-		t.background++
 		delete(t.tasks, l.TaskID)
 	}
 	if l.Type == "system" && l.Subtype == "task_started" && l.ParentToolUseID == "" && l.TaskID != "" {
@@ -96,7 +93,7 @@ func (t *turn) line(raw []byte) {
 	switch l.Type {
 	case "system":
 		if l.Subtype == "init" {
-			t.model, t.started = l.Model, true
+			t.model, t.started, t.idle = l.Model, true, false
 		}
 	case "assistant":
 		if l.Error == "authentication_failed" {
@@ -138,9 +135,7 @@ func (t *turn) line(raw []byte) {
 		emit(provider.Event{Kind: provider.EventRateLimit, Text: l.RateLimitInfo.Status})
 	case "result":
 		t.results++
-		if t.results > t.allowed() {
-			return
-		}
+		t.idle = true
 		if l.SessionID == "" && t.foreign == "" {
 			t.foreign = "without an id"
 		}
@@ -188,8 +183,8 @@ func (t *turn) usage(l line) {
 	t.req.OnUsage(u)
 }
 
-// finish accepts the turn only if it produced exactly one result for the session deck assigned and the
-// CLI read the whole prompt.
+// finish accepts the turn if its last result is of the session deck assigned and the CLI read the whole prompt;
+// background tasks and messages written into the turn wake the session for more results.
 func (t *turn) finish(waitErr error, stderr string, promptErr error) (provider.Result, error) {
 	res := t.res
 	switch {
@@ -198,8 +193,6 @@ func (t *turn) finish(waitErr error, stderr string, promptErr error) (provider.R
 	case t.results == 0:
 		res.NoTools = !t.started && strings.Contains(stderr, "(passed via --permission-prompt-tool) not found")
 		return res, fmt.Errorf("claude exited without a result: %v: %s", waitErr, stderr)
-	case t.results > t.allowed():
-		return res, fmt.Errorf("claude reported %d results in one turn", t.results)
 	case t.foreign != "":
 		return res, fmt.Errorf("claude ran session %s instead of %s assigned by deck", t.foreign, t.req.SessionID)
 	case promptErr != nil:
@@ -228,7 +221,3 @@ func resultText(raw json.RawMessage) string {
 	}
 	return strings.Join(out, "\n")
 }
-
-// allowed is how many results the turn may report: one, and one more per message written into it and per
-// background task that woke it.
-func (t *turn) allowed() int { return 1 + t.live + t.background }

@@ -6,6 +6,7 @@
   "ratelimit_warning.jsonl": {"cli": "2.1.281", "date": "2026-09-25", "kind": "synthetic", "note": "ok.jsonl with status allowed_warning"},
   "ratelimit_rejected.jsonl": {"cli": "2.1.281", "date": "2026-09-25", "kind": "synthetic"},
   "two_results.jsonl": {"cli": "2.1.281", "date": "2026-09-25", "kind": "synthetic", "note": "ok.jsonl with its result repeated"},
+  "background_agents.jsonl": {"cli": "2.1.281", "date": "2026-10-10", "kind": "real", "note": "--model haiku, three Agent calls with run_in_background, stdin closed on the first result: each finished agent wakes the session for one more result, the last is gamma; skills and paths of the init lines dropped"},
   "foreign_session.jsonl": {"cli": "2.1.281", "date": "2026-09-25", "kind": "synthetic", "note": "ok.jsonl with another session id"},
   "error.jsonl": {"cli": "2.1.281", "date": "2026-09-25", "kind": "synthetic", "note": "ok.jsonl ending in an error result"},
   "empty_result.jsonl": {"cli": "2.1.281", "date": "2026-09-25", "kind": "real", "note": "--json-schema wrapped as {result: schema | null}; the model had nothing to do"},

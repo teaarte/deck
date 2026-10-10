@@ -154,7 +154,6 @@ func TestTurnSucceedsOnlyStrictly(t *testing.T) {
 		prompt               string
 		want                 string
 	}{
-		{name: "second result", fixture: "two_results.jsonl", want: "2 results"},
 		{name: "foreign session", fixture: "foreign_session.jsonl", want: "instead of"},
 		{name: "result without session", fixture: "no_session.jsonl", want: "without an id"},
 		{name: "error result", fixture: "error.jsonl", want: "API Error: 500"},

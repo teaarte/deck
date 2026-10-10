@@ -204,7 +204,6 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 				m.Taken <- false
 				continue
 			}
-			t.live++
 			done := enqueue(userLine(m.Text))
 			go func() { m.Taken <- <-done == nil }()
 		case l, ok := <-lines:
@@ -218,15 +217,12 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 				if linger != nil {
 					linger.Stop()
 				}
-				lingerC = nil
-				if t.results >= t.allowed() {
-					wait := a.Linger
-					if len(t.tasks) > 0 {
-						wait = max(wait, a.TaskLinger)
-					}
-					linger = time.NewTimer(wait)
-					lingerC = linger.C
+				wait := a.Linger
+				if len(t.tasks) > 0 {
+					wait = max(wait, a.TaskLinger)
 				}
+				linger = time.NewTimer(wait)
+				lingerC = linger.C
 			}
 		case waitErr = <-exited:
 			done, exited = true, nil

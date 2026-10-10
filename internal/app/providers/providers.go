@@ -262,9 +262,8 @@ func (s *Service) having(ctx context.Context, workspace int64, requires []string
 	return ": " + strings.Join(names, ", ")
 }
 
-// Up reports whether a turn may start on a provider now, or, to pick, whether a new start takes it over the next
-// model. Nothing starts while its self-check runs or finds the adapter broken, nor on a usage limit; a lost login
-// or a weak model holds no turn, the turn asks or tries, but a new start takes the next model that is up.
+// Up reports whether a turn may start on a provider: not in a self-check, a broken adapter or a limit; a lost login or a
+// weak model holds no turn, but a new start, to pick, takes the next model that is up.
 func (s *Service) Up(ctx context.Context, workspace int64, name string, pick bool) bool {
 	h, err := s.healthOf(ctx, workspace, name)
 	if err != nil {

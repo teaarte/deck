@@ -20,8 +20,7 @@ import (
 )
 
 // needLogin parks the process until the owner logs the provider in again, or gives its connection a new key, and
-// picks how to continue; the self-check
-// of the provider sees when the login is back.
+// picks how to continue; the self-check of the provider sees when the login is back.
 func (r *Runner) needLogin(ctx context.Context, pv provider.Provider, processID int64, text string) {
 	payload, _ := json.Marshal(map[string]any{"answers": ask.LoginAnswers})
 	what, fix := "the model API refused the key of its connection", "Set a new key of the connection in Settings → Connections"

@@ -13,9 +13,8 @@ import (
 	"deck2/internal/untrusted"
 )
 
-// pause holds a process its provider refused on a usage limit until the limit resets, or for a probe an hour on
-// when no reset time came, until the owner stops it; Wake then goes on in the same session, and the self-check of
-// the provider runs again then.
+// pause holds a process on a usage limit until it resets, or an hour when no reset time came, until the owner stops
+// it; Wake then goes on in the same session, and the self-check of the provider runs again then.
 func (r *Runner) pause(ctx context.Context, pv provider.Provider, processID int64, resetsAt int64, text string) {
 	now := r.now()
 	next := now.Add(pauseProbe).UnixMilli()

@@ -157,9 +157,8 @@ const (
 	leftBytes = 500 << 20
 )
 
-// keepLeft keeps the files a turn without a result schema left in its results folder, its own and those the models
-// it called made, as files of the process: hidden ones not, and at most leftFiles of leftBytes together; it tells
-// the owner of those it did not keep.
+// keepLeft keeps the files a turn without a result schema left in its results folder as files of the process: not
+// hidden ones, at most leftFiles of leftBytes together, telling the owner of the rest.
 func (r *Runner) keepLeft(ctx context.Context, projectID, processID int64, results string) error {
 	var left []FileRef
 	var total int64

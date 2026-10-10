@@ -207,6 +207,51 @@ func TestSnapshotsBeforeDeletesKeepTheirOwnTurn(t *testing.T) {
 	}
 }
 
+// TestASnapshotBeforeADeleteHoldsOnlyThatProject: the snapshot before a delete keeps the base, the stored files and
+// the data folder of the deleted project, and nothing of the other projects.
+func TestASnapshotBeforeADeleteHoldsOnlyThatProject(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, nil)
+	h := deckhome.Layout(e.App.Cfg.Home)
+	stored := map[string]string{}
+	for _, name := range []string{"keep", "gone"} {
+		e.createProject(name, plainManifest)
+		var id int64
+		if err := e.App.Store.DB.QueryRow(`SELECT id FROM project WHERE name = ?`, name).Scan(&id); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.MkdirAll(h.Data(id), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(h.Data(id), name+".txt"), []byte(name), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		var file int64
+		if err := e.App.Store.DB.QueryRow(`INSERT INTO file (project_id, owner_kind, owner_id, name) VALUES (?, 'project', ?, ?) RETURNING id`,
+			id, id, name+".bin").Scan(&file); err != nil {
+			t.Fatal(err)
+		}
+		_ = os.MkdirAll(h.Files(), 0o700)
+		if err := os.WriteFile(filepath.Join(h.Files(), fmt.Sprint(file)), []byte(name), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		stored[name] = fmt.Sprint(file)
+	}
+	var out struct{ Snapshot string }
+	e.must("deck.project_delete", map[string]any{"project": "gone"}, &out)
+	_, entries := snapshotFiles(t, out.Snapshot)
+	var data []string
+	for name := range entries {
+		if strings.HasSuffix(name, ".txt") {
+			data = append(data, filepath.Base(name))
+		}
+	}
+	if !entries["state/deck.db"] || !entries["state/files/"+stored["gone"]] || entries["state/files/"+stored["keep"]] ||
+		len(data) != 1 || data[0] != "gone.txt" {
+		t.Fatalf("the snapshot holds the base and the files of the deleted project only: %v", entries)
+	}
+}
+
 // TestADailySnapshotSkipsAFileItCannotReadAndSaysSo: a file of a data folder the snapshot cannot read is left out
 // with a warning in health, the rest is kept; a snapshot that fails is an error in health, not only in the log.
 func TestADailySnapshotSkipsAFileItCannotReadAndSaysSo(t *testing.T) {

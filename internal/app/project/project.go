@@ -36,7 +36,7 @@ type Service struct {
 	Save      *Saver
 	Folders   func(ctx context.Context, projectID int64) ([]folders.Row, error)
 	// Snapshot writes a snapshot before a delete; DrainFiles removes the files whose rows are gone.
-	Snapshot   func(ctx context.Context) (string, error)
+	Snapshot   func(ctx context.Context, project int64) (string, error)
 	DrainFiles func(ctx context.Context)
 }
 

@@ -34,7 +34,7 @@ func (pj *Service) projectDelete(ctx context.Context, act registry.Actor, in pro
 		return nil, err
 	}
 	m, _ := docs.Manifest(ctx, pj.St.Q, p)
-	snapshot, err := pj.Snapshot(ctx)
+	snapshot, err := pj.Snapshot(ctx, p.ID)
 	if err != nil {
 		return nil, fmt.Errorf("deck: the snapshot before deleting %s failed, nothing was deleted: %w", p.Name, err)
 	}
@@ -159,7 +159,7 @@ func (pj *Service) deletable(ctx context.Context, q *db.Queries, act registry.Ac
 
 func (pj *Service) projectDeleteCommands() []*registry.Command {
 	del := registry.Def("project_delete", "Delete project",
-		"Deletes a project after a snapshot of deck (the master deletes only drafts): its records, documents, files, triggers, processes and settings; folders on disk stay.",
+		"Deletes a project after a snapshot of it (the master deletes only drafts): its records, documents, files, triggers, processes and settings; folders on disk stay.",
 		registry.OwnerSide, pj.projectDelete).As(registry.External)
 	del.Allowed = pj.draftOfMaster
 	return []*registry.Command{del}

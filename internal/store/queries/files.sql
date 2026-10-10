@@ -54,3 +54,7 @@ WHERE f.owner_kind = 'chat_message' AND m.topic_id = ? ORDER BY f.id;
 
 -- name: DeleteFilesOf :exec
 DELETE FROM file WHERE owner_kind = ? AND owner_id = ?;
+
+
+-- name: ListProjectFileIDs :many
+SELECT id FROM file WHERE project_id = ? ORDER BY id;

@@ -61,17 +61,18 @@ const (
 // Snapshot writes backups/deck-<time>.tar.gz with a copy of the base, files/, the model sessions deck keeps
 // and the data folders of projects, then keeps only the newest ones; secrets and the token stay out.
 func (s *Service) Snapshot(ctx context.Context) (string, error) {
-	return s.take(ctx, home.SnapshotDaily)
+	return s.take(ctx, home.SnapshotDaily, 0)
 }
 
-// BeforeDelete is a snapshot before a project is deleted, kept in a turn of its own beside the daily ones.
-func (s *Service) BeforeDelete(ctx context.Context) (string, error) {
-	return s.take(ctx, home.SnapshotDelete)
+// BeforeDelete is a snapshot before a project is deleted, kept in a turn of its own beside the daily ones: the base
+// with the rows of the project, and only its stored files and data folder.
+func (s *Service) BeforeDelete(ctx context.Context, project int64) (string, error) {
+	return s.take(ctx, home.SnapshotDelete, project)
 }
 
 // take writes a snapshot and says how it went in the health row snapshot: an error, the files it left out, or ok.
-func (s *Service) take(ctx context.Context, kind string) (string, error) {
-	path, left, err := s.write(ctx, kind)
+func (s *Service) take(ctx context.Context, kind string, project int64) (string, error) {
+	path, left, err := s.write(ctx, kind, project)
 	switch {
 	case err != nil:
 		health.Write(ctx, s.St, health.Of{}, "snapshot", health.Error, "the snapshot failed: "+err.Error())
@@ -84,7 +85,8 @@ func (s *Service) take(ctx context.Context, kind string) (string, error) {
 	return path, err
 }
 
-func (s *Service) write(ctx context.Context, kind string) (string, []string, error) {
+// write takes a snapshot of every project, or of one when project is not 0.
+func (s *Service) write(ctx context.Context, kind string, project int64) (string, []string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	dir := s.Home.Backups()
@@ -102,11 +104,11 @@ func (s *Service) write(ctx context.Context, kind string) (string, []string, err
 	files := filepath.Join(dir, ".files-"+id)
 	defer os.Remove(copyDB)
 	defer os.RemoveAll(files)
-	if err := s.hold(ctx, copyDB, files); err != nil {
+	if err := s.hold(ctx, copyDB, files, project); err != nil {
 		return "", nil, err
 	}
 	part := path + "." + id + ".part"
-	left, err := writeSnapshot(part, s.Home, copyDB, files)
+	left, err := writeSnapshot(part, s.Home, copyDB, files, project)
 	if err != nil {
 		_ = os.Remove(part)
 		return "", nil, err
@@ -126,7 +128,7 @@ func (s *Service) write(ctx context.Context, kind string) (string, []string, err
 
 // hold copies the base and links the stored files into files while no file comes or goes, so the copy names
 // only files the snapshot holds; the stored files never change, so the links are their copy.
-func (s *Service) hold(ctx context.Context, copyDB, files string) error {
+func (s *Service) hold(ctx context.Context, copyDB, files string, project int64) error {
 	s.LockFiles()
 	defer s.UnlockFiles()
 	if err := s.St.Backup(ctx, copyDB); err != nil {
@@ -139,8 +141,19 @@ func (s *Service) hold(ctx context.Context, copyDB, files string) error {
 	if err != nil && !os.IsNotExist(err) {
 		return err
 	}
+	var of map[string]bool
+	if project != 0 {
+		ids, err := s.St.Q.ListProjectFileIDs(ctx, project)
+		if err != nil {
+			return err
+		}
+		of = map[string]bool{}
+		for _, id := range ids {
+			of[fmt.Sprint(id)] = true
+		}
+	}
 	for _, e := range stored {
-		if e.Type().IsRegular() {
+		if e.Type().IsRegular() && (of == nil || of[e.Name()]) {
 			if err := os.Link(filepath.Join(s.Home.Files(), e.Name()), filepath.Join(files, e.Name())); err != nil {
 				return err
 			}
@@ -150,8 +163,8 @@ func (s *Service) hold(ctx context.Context, copyDB, files string) error {
 }
 
 // writeSnapshot writes the archive: the copy of the base, the stored files linked in files and the data folders
-// of projects; a file it cannot read whole is left out, and named in what it returns.
-func writeSnapshot(path string, h home.Layout, copyDB, files string) ([]string, error) {
+// of projects, or of one when project is not 0; a file it cannot read whole is left out, and named in what it returns.
+func writeSnapshot(path string, h home.Layout, copyDB, files string, project int64) ([]string, error) {
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
 	if err != nil {
 		return nil, err
@@ -166,6 +179,9 @@ func writeSnapshot(path string, h home.Layout, copyDB, files string) ([]string, 
 	stored, _ := filepath.Rel(string(h), h.Files())
 	dirs := map[string]string{files: stored}
 	data, _ := filepath.Glob(filepath.Join(h.Projects(), "*", "data"))
+	if project != 0 {
+		data = []string{h.Data(project)}
+	}
 	for _, d := range data {
 		dirs[d], _ = filepath.Rel(string(h), d)
 	}

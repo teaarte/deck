@@ -24,13 +24,15 @@ import (
 
 // modelCallIn is one call of a model of a kind: what a command of type model asks, or a script or agent directly.
 type modelCallIn struct {
-	Kind    string `enum:"text|image|tts|stt|music" desc:"What the model makes: text (by a JSON schema when given), image, tts (speech of text), stt (text of a recording) or music"`
+	Kind    string `enum:"text|image|tts|stt|music|video" desc:"What the model makes: text (by a JSON schema when given), image, tts (speech of text), stt (text of a recording), music or video"`
 	Model   string `opt:"" desc:"An @role or the name of a model; the models assigned to the kind when left out"`
 	Prompt  string `type:"text" opt:"" desc:"What to do; for tts how to speak"`
 	Input   string `type:"json" opt:"" desc:"Data for the prompt, as JSON"`
 	Schema  string `type:"json" opt:"" desc:"JSON schema of the text result"`
 	Text    string `type:"text" opt:"" desc:"The words tts speaks"`
 	File    string `type:"file" opt:"" desc:"The recording stt turns into text"`
+	First   string `json:"first_frame" type:"file" opt:"" desc:"The picture a video starts from"`
+	Last    string `json:"last_frame" type:"file" opt:"" desc:"The picture a video ends on"`
 	Options string `type:"json" opt:"" desc:"Fields deck adds to the request as they are, such as voice or image_config"`
 }
 
@@ -62,11 +64,16 @@ func (s *Service) modelCall(ctx context.Context, act registry.Actor, in modelCal
 		return nil, err
 	}
 	var spent *provider.Usage
+	var finish func(*provider.Usage)
 	for i := range hops {
 		done := hops[i].Done
 		hops[i].Done = func(ctx context.Context, status int, u *provider.Usage) {
 			if u == nil && status > 0 && status < 400 {
 				u = &provider.Usage{}
+			}
+			if in.Kind == RoleVideo && status > 0 && status < 400 {
+				finish = func(u *provider.Usage) { done(ctx, status, u); spent = u }
+				return
 			}
 			done(ctx, status, u)
 			spent = u
@@ -78,7 +85,7 @@ func (s *Service) modelCall(ctx context.Context, act registry.Actor, in modelCal
 			return nil, registry.Invalid("deck: options are a JSON object: %v", err)
 		}
 	}
-	var audio *files.Ref
+	var att attached
 	if in.Kind == RoleSTT {
 		if in.File == "" {
 			return nil, registry.Invalid("deck: stt needs the recording in file")
@@ -87,15 +94,29 @@ func (s *Service) modelCall(ctx context.Context, act registry.Actor, in modelCal
 		if err != nil {
 			return nil, err
 		}
-		audio = &f
+		att.audio = &f
+	}
+	if in.Kind == RoleVideo {
+		if att.frames, err = s.frames(ctx, act, in); err != nil {
+			return nil, err
+		}
 	}
 	resp, h, err := gateway.SendHops(ctx, hops, func(h gateway.ModelHop) (gateway.ModelCall, error) {
-		return build(in, h, merged(maps.Clone(h.Options), options), audio)
+		return build(in, h, merged(maps.Clone(h.Options), options), att)
 	})
 	if err != nil {
 		return nil, err
 	}
-	out, err := s.read(act, in, h, resp)
+	var out any
+	if in.Kind == RoleVideo {
+		out, err = s.video(ctx, act, h, resp, func(u *provider.Usage) {
+			if finish != nil {
+				finish(u)
+			}
+		})
+	} else {
+		out, err = s.read(act, in, h, resp)
+	}
 	if file, ok := out.(map[string]any); ok && err == nil && file["file"] != nil {
 		file["model"] = h.Name
 		if spent != nil && spent.CostUSD != nil {
@@ -135,8 +156,14 @@ func merged(body map[string]any, options map[string]any) map[string]any {
 	return body
 }
 
+// attached are the files a call sends: the recording of stt, the frames of a video as pictures of a message.
+type attached struct {
+	audio  *files.Ref
+	frames []any
+}
+
 // build is the request of a call in the OpenAI-compatible protocol, the one deck asks models in.
-func build(in modelCallIn, h gateway.ModelHop, options map[string]any, audio *files.Ref) (gateway.ModelCall, error) {
+func build(in modelCallIn, h gateway.ModelHop, options map[string]any, att attached) (gateway.ModelCall, error) {
 	if api := h.Target.API; api == "google" || api == "anthropic" {
 		return gateway.ModelCall{}, registry.Invalid("deck: connection %s speaks the %s API; deck asks models in the OpenAI-compatible protocol, so give the connection the OpenAI-compatible address of %s, or call its own API from a script through $DECK_MODELS", h.Connection, api, api)
 	}
@@ -173,7 +200,13 @@ func build(in modelCallIn, h gateway.ModelHop, options map[string]any, audio *fi
 		}
 		return jsonReq("audio/speech", merged(body, options)), nil
 	case RoleSTT:
-		return transcription(h, options, audio)
+		return transcription(h, options, att.audio)
+	case RoleVideo:
+		body := map[string]any{"model": h.Model, "prompt": ask(in)}
+		if len(att.frames) > 0 {
+			body["frame_images"] = att.frames
+		}
+		return jsonReq("videos", merged(body, options)), nil
 	}
 	return gateway.ModelCall{}, registry.Invalid("deck: no kind %q", in.Kind)
 }
@@ -352,7 +385,7 @@ func (s *Service) keep(act registry.Actor, kind, ct string, body io.Reader) (any
 // modelCallCommand is a call of a model of a kind through deck, on the rules of deck.model_request.
 func (s *Service) modelCallCommand() *registry.Command {
 	c := registry.Def("model_call", "Ask a model",
-		"Asks the model assigned to a kind of work, or one named: text by a JSON schema, a picture, speech of text or text of a recording; pictures and speech come back as files.",
+		"Asks the model assigned to a kind of work, or one named: text by a JSON schema, a picture, speech of text, text of a recording, music or a video from its first and last frames; pictures, sound and video come back as files.",
 		registry.Everyone, s.modelCall)
 	c.Class, c.Allowed, c.Free = registry.External, s.allowed, s.free
 	c.Fingerprint = func(context.Context, int64) string { return gateway.ModelRequest }

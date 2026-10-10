@@ -298,9 +298,14 @@ func checkModel(c *Command, fail func(string, ...any)) {
 		fail("command %q: a model of kind %s is @%s or a model by name, not %s", c.Name, e.Kind, e.Kind, e.Model)
 	}
 	switch e.Kind {
-	case "text", "image", "music":
+	case "text", "image", "music", "video":
 		if e.Prompt == "" && e.PromptFile == "" {
 			fail("command %q: a %s model needs prompt or prompt_file", c.Name, e.Kind)
+		}
+		for _, f := range FileFields(c.Input) {
+			if e.Kind == "video" && f != "first_frame" && f != "last_frame" {
+				fail("command %q: the file fields of a video model are first_frame and last_frame, not %s", c.Name, f)
+			}
 		}
 	case "tts":
 		if in.Properties["text"].Type != "string" || !slices.Contains(in.Required, "text") {

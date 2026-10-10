@@ -22,9 +22,10 @@ const (
 	RoleTTS   = "tts"
 	RoleSTT   = "stt"
 	RoleMusic = "music"
+	RoleVideo = "video"
 )
 
-var roles = []string{RoleAgent, RoleText, RoleImage, RoleTTS, RoleSTT, RoleMusic}
+var roles = []string{RoleAgent, RoleText, RoleImage, RoleTTS, RoleSTT, RoleMusic, RoleVideo}
 
 // Assigned are the models of a role for a command, in order: its own assignment, else its project's, else the
 // workspace's; none when nothing is assigned.
@@ -66,7 +67,7 @@ type assignmentView struct {
 }
 
 type assignmentSetIn struct {
-	Role    string   `enum:"agent|text|image|tts|stt|music" desc:"The work: agent turns, or direct calls of text, image, tts (speech), stt (speech to text) or music"`
+	Role    string   `enum:"agent|text|image|tts|stt|music|video" desc:"The work: agent turns, or direct calls of text, image, tts (speech), stt (speech to text), music or video"`
 	Project string   `type:"project" opt:"" desc:"Project the assignment is for; the whole workspace without it"`
 	Command string   `opt:"" desc:"Command of the project the assignment is for; the whole project without it"`
 	Models  []string `opt:"" desc:"Names of models or built-in providers in order: the first, then the fallbacks; empty removes the assignment"`

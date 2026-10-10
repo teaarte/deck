@@ -151,7 +151,8 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	*a.Snapshots = snapshots.Service{St: st, Bus: a.Bus, Home: h, Now: cfg.Now, LockFiles: a.Files.Mu.Lock, UnlockFiles: a.Files.Mu.Unlock,
 		DrainFiles: a.Files.Drain}
 	*a.Providers = providers.Service{St: st, Now: cfg.Now, Home: h, Sandbox: cfg.Sandbox, ACPBinaries: cfg.ACPBinaries,
-		ACPCallLimit: cfg.ACPCallLimit, SelfCheckCeiling: cfg.SelfCheckCeiling, Secret: a.Secrets.Read, WriteSecret: a.Secrets.Write,
+		ACPCallLimit: cfg.ACPCallLimit, SelfCheckCeiling: cfg.SelfCheckCeiling, VideoPoll: cfg.VideoPoll,
+		VideoCeiling: cfg.VideoCeiling, Secret: a.Secrets.Read, WriteSecret: a.Secrets.Write,
 		Wake: a.Runner.Wake, Resolve: a.Tools.Resolve,
 		Builtin: append([]provider.Provider{p}, more...), Ctx: a.ctx, Go: a.bg.Go}
 	*a.Answers = asks.Service{St: st, Now: cfg.Now, Broker: a.Asks, Registry: a.Registry, Gateway: a.Gateway, Deliver: a.Runner.Deliver,

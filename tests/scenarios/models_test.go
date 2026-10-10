@@ -403,13 +403,14 @@ func TestAScriptCallsARoleAndAFallbackTakesARefusal(t *testing.T) {
 }
 
 // TestAModelTakesItsPriceAndKindFromTheCatalogOfItsConnection: a model added without a price takes the one OpenRouter
-// lists and its kind; free is kept when left out, false clears it, a zero of a model making more than text is no proof.
+// lists and its kind, video too; free is kept when left out, false clears it, a zero of a model making more than text is no proof.
 func TestAModelTakesItsPriceAndKindFromTheCatalogOfItsConnection(t *testing.T) {
 	t.Parallel()
 	catalog := `{"data": [{"id": "google/gemini-3.1-flash-lite-image", "pricing": {"prompt": "0.0000003", "completion": "0.0000025", "request": "0", "image": "0.00003"},
 	  "architecture": {"input_modalities": ["text", "image"], "output_modalities": ["image", "text"]}},
 	  {"id": "qwen/qwen3.8-27b:free", "pricing": {"prompt": "0", "completion": "0"}, "architecture": {"output_modalities": ["text"]}},
-	  {"id": "google/lyria-3-pro-preview", "pricing": {"prompt": "0", "completion": "0"}, "architecture": {"output_modalities": ["text", "audio"]}}]}`
+	  {"id": "google/lyria-3-pro-preview", "pricing": {"prompt": "0", "completion": "0"}, "architecture": {"output_modalities": ["text", "audio"]}},
+	  {"id": "alibaba/wan-2.6", "pricing": {"prompt": "0", "completion": "0"}, "architecture": {"input_modalities": ["text", "image"], "output_modalities": ["video"]}}]}`
 	api := newModels(t, map[string]func(int, map[string]any) (int, string, string){
 		"/api/v1/models": func(int, map[string]any) (int, string, string) { return 200, "application/json", catalog },
 	})
@@ -434,7 +435,11 @@ func TestAModelTakesItsPriceAndKindFromTheCatalogOfItsConnection(t *testing.T) {
 	if m.Free {
 		t.Fatalf("a zero in tokens is no price of a song: a model making more than text is free only when the catalog says so: %+v", m)
 	}
-	if c := api.calls(); len(c) != 3 || c[0].Auth != "Bearer sk-or-new" {
+	e.must("deck.model_set", map[string]any{"connection": "openrouter", "model": "alibaba/wan-2.6", "name": "wan"}, &m)
+	if m.Kind != "video" || m.Free {
+		t.Fatalf("a model of the catalog making video makes video and is not free on a zero: %+v", m)
+	}
+	if c := api.calls(); len(c) != 4 || c[0].Auth != "Bearer sk-or-new" {
 		t.Fatalf("the key given with the connection is kept in a secret and used: %+v", c)
 	}
 	var secrets []struct{ Name string }

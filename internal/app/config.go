@@ -26,6 +26,8 @@ type Config struct {
 	Browser []string
 	// SelfCheckCeiling bounds a self-check of a built-in provider.
 	SelfCheckCeiling time.Duration
+	// VideoPoll is how often deck asks after a job of a video model, VideoCeiling how long it waits for one.
+	VideoPoll, VideoCeiling time.Duration
 	// Commands are more builtin commands, such as the probes of tests.
 	Commands []*registry.Command
 }
@@ -39,6 +41,12 @@ func (c *Config) defaults() {
 	}
 	if c.SelfCheckCeiling <= 0 {
 		c.SelfCheckCeiling = 2 * time.Minute
+	}
+	if c.VideoPoll <= 0 {
+		c.VideoPoll = 10 * time.Second
+	}
+	if c.VideoCeiling <= 0 {
+		c.VideoCeiling = 30 * time.Minute
 	}
 	if c.Browser == nil {
 		c.Browser = DefaultBrowser

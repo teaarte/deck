@@ -140,7 +140,7 @@ type modelSetIn struct {
 	Connection string  `desc:"Connection the model is reached through"`
 	Model      string  `desc:"The model's name in the API, such as google/gemini-3.1-flash-lite-image"`
 	Name       string  `opt:"" desc:"How deck names the model in assignments and calls; connection/model when left out"`
-	Kind       string  `enum:"text|image|tts|stt|music" opt:"" desc:"What the model makes; a model changed without it keeps its own, a new one takes it from the catalog of the connection, else text"`
+	Kind       string  `enum:"text|image|tts|stt|music|video" opt:"" desc:"What the model makes; a model changed without it keeps its own, a new one takes it from the catalog of the connection, else text"`
 	InputUSD   float64 `json:"input_usd" opt:"" desc:"USD per million input tokens, or of the unit; a model changed without a price keeps its own, a new one takes it from the catalog of the connection"`
 	OutputUSD  float64 `json:"output_usd" opt:"" desc:"USD per million output tokens; a model priced per character or second has none"`
 	Unit       string  `enum:"token|char|second" opt:"" desc:"What the price per million counts: tokens, characters of the text deck sends, or seconds of a recording the API reports; a model changed without it keeps its own, a new one counts tokens"`
@@ -309,6 +309,8 @@ func (s *Service) catalog(ctx context.Context, workspace int64, c db.Connection,
 		}
 		out.Free = store.Bool(free)
 		switch {
+		case slices.Contains(d.Architecture.Output, "video"):
+			out.Kind = RoleVideo
 		case slices.Contains(d.Architecture.Output, "image"):
 			out.Kind = RoleImage
 		case slices.Contains(d.Architecture.Output, "audio"):

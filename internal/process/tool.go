@@ -33,7 +33,7 @@ func (r *Runner) runTool(ctx context.Context, t turn, trial bool) {
 }
 
 // runModel makes the one call of a model of a model command: its prompt, the command input, and the result
-// schema for text; the words of tts and the recording of stt are input fields.
+// schema for text; the words of tts, the recording of stt and the frames of a video are input fields.
 func (r *Runner) runModel(ctx context.Context, t turn, trial bool) {
 	r.runCall(ctx, t, trial, false, func(db.Project) (string, json.RawMessage, error) {
 		prompt, err := r.commandBody(context.WithoutCancel(ctx), t.project, t.cmd)
@@ -58,6 +58,13 @@ func (r *Runner) runModel(ctx context.Context, t turn, trial bool) {
 		case "stt":
 			for _, f := range manifest.FileFields(t.cmd.Input) {
 				call["file"] = input[f]
+				delete(input, f)
+			}
+		case "video":
+			for _, f := range manifest.FileFields(t.cmd.Input) {
+				if v, ok := input[f]; ok {
+					call[f] = v
+				}
 				delete(input, f)
 			}
 		case "text":

@@ -217,7 +217,7 @@ func TestAModelCommandGetsWhatItsKindNeeds(t *testing.T) {
 		{`"kind": "text",`, `"kind": "text", "model": "@image",`, "is @text or a model by name"},
 		{`"properties": {"text": {"type": "string"}}, "required": ["text"]`, `"properties": {"line": {"type": "string"}}`, "speaks the input field text"},
 		{`"properties": {"voice": {"type": "string", "format": "file"}}`, `"properties": {"voice": {"type": "string"}}`, "one input field of format file"},
-		{`"kind": "stt"`, `"kind": "video"`, "manifest does not match the format"},
+		{`"kind": "stt"`, `"kind": "hologram"`, "manifest does not match the format"},
 	} {
 		code, out := e.call("deck.project_create", map[string]any{"name": "shorts", "manifest": strings.Replace(modelManifest, c.from, c.to, 1)})
 		if code == 200 || !strings.Contains(string(out), c.want) {

@@ -26,6 +26,15 @@ func metered(body io.ReadCloser, start time.Time, sent int64, done func(*provide
 	}}
 }
 
+// UsageOf is the usage an answer of a model API reports, such as the last poll of a job; nil when it says none.
+func UsageOf(raw []byte) *provider.Usage {
+	var got *provider.Usage
+	m := metered(io.NopCloser(bytes.NewReader(raw)), time.Now(), 0, func(u *provider.Usage) { got = u })
+	_, _ = io.Copy(io.Discard, m)
+	_ = m.Close()
+	return got
+}
+
 // chars are the characters of the input of a request, such as the text of speech, in OpenAI's input field.
 func chars(body []byte) int64 {
 	var v struct {

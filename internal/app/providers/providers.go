@@ -35,9 +35,11 @@ type Service struct {
 	ACPBinaries      map[string]string
 	ACPCallLimit     time.Duration
 	SelfCheckCeiling time.Duration
-	Secret           func(workspace int64, name string) (string, error)
-	WriteSecret      func(workspace int64, name, value string) error
-	Wake             func(ctx context.Context)
+	// VideoPoll is how often a job of a video model is asked after, VideoCeiling how long deck waits for it.
+	VideoPoll, VideoCeiling time.Duration
+	Secret                  func(workspace int64, name string) (string, error)
+	WriteSecret             func(workspace int64, name, value string) error
+	Wake                    func(ctx context.Context)
 	// Builtin are the providers deck was started with, the main one first; the owner adds ACP ones per workspace.
 	Builtin []provider.Provider
 	Ctx     context.Context

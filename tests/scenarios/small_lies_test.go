@@ -1,11 +1,14 @@
 package scenarios
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"deck2/internal/provider"
 )
 
 // TestADraftsScheduleSaysItDoesNotRun: a trigger of a draft has no next run and says why.
@@ -78,5 +81,29 @@ print(json.dumps({"added": 7}))
 	s := string(raw)
 	if !strings.Contains(s, `\"n\": 3`) || !strings.Contains(s, `\"added\": 7`) || !strings.Contains(s, "Nothing in the log") {
 		t.Fatalf("the screen shows the input, the result and why the log is empty: %s", s)
+	}
+}
+
+// TestAThoughtWithoutTextIsNoLineOfTheLog: a thinking block a model keeps to itself reaches the log as nothing,
+// not as an empty line.
+func TestAThoughtWithoutTextIsNoLineOfTheLog(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		c.Req.OnEvent(provider.Event{Kind: provider.EventThought, Text: ""})
+		c.Req.OnEvent(provider.Event{Kind: provider.EventThought, Text: "Checking the dates."})
+		c.Req.OnEvent(provider.Event{Kind: provider.EventMessage, Text: "  "})
+		return provider.Result{Text: "ok"}
+	})
+	id := e.run(e.createProject("plain", plainManifest), "work")
+	e.waitState(id, "done", "error")
+	var lines []struct{ Kind, Text string }
+	e.must("deck.process_log", map[string]any{"process": id}, &lines)
+	for _, l := range lines {
+		if strings.TrimSpace(l.Text) == "" && (l.Kind == "thought" || l.Kind == "message") {
+			t.Fatalf("an empty thought or message is no line: %+v", lines)
+		}
+	}
+	if len(lines) == 0 {
+		t.Fatal("the thought with text is a line")
 	}
 }

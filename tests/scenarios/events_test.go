@@ -132,3 +132,38 @@ func TestADeckReadWithoutAProjectFollowsEveryProject(t *testing.T) {
 		t.Fatalf("a run in a reads the runs of every project again: %v", paths)
 	}
 }
+
+// TestAFolderAndAnAssignmentTellOnlyTheirReaders: a folder or an assignment of a project is an event of its own
+// topic, not a change of the project that draws its screens anew; a write that changes nothing tells no one.
+func TestAFolderAndAnAssignmentTellOnlyTheirReaders(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, nil)
+	e.createProject("web", webNotes)
+	e.must("deck.settings_set", map[string]any{"name": "agent_limit", "value": "2"}, nil)
+	seen := func(write func()) []string {
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		ev := e.live(ctx)
+		write()
+		var topics []string
+		for end := time.After(time.Second); ; {
+			select {
+			case got := <-ev:
+				topics = append(topics, got.Topic)
+			case <-end:
+				return topics
+			}
+		}
+	}
+	if got := seen(func() { e.must("deck.folder_add", map[string]any{"project": "web", "path": t.TempDir()}, nil) }); !slices.Contains(got, "folders") || slices.Contains(got, "projects") {
+		t.Fatalf("a folder tells the readers of folders, not of projects: %v", got)
+	}
+	if got := seen(func() {
+		e.must("deck.assignment_set", map[string]any{"role": "agent", "project": "web", "models": []string{"fake"}}, nil)
+	}); !slices.Contains(got, "assignments") || slices.Contains(got, "projects") {
+		t.Fatalf("an assignment tells the readers of assignments, not of projects: %v", got)
+	}
+	if got := seen(func() { e.must("deck.settings_set", map[string]any{"name": "agent_limit", "value": "2"}, nil) }); len(got) != 0 {
+		t.Fatalf("a write that changes nothing tells no one: %v", got)
+	}
+}

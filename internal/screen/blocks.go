@@ -26,8 +26,9 @@ func (r *renderer) blocks(prefix string, bs []manifest.Block) []string {
 }
 
 // holds reports whether the block is on the screen by its when; a when that fails shows the block with its error.
+// A read of some blocks after an event keeps every block: one whose when it may change draws the screen whole.
 func (r *renderer) holds(id string, b manifest.Block) (bool, error) {
-	if b.When == "" {
+	if b.When == "" || r.req.Topic != "" {
 		return true, nil
 	}
 	env := map[string]any{}

@@ -15,10 +15,14 @@ import type { ScreenActions } from './ScreenActions';
 
 const TOPICS: string[] = catalogSchema.topics;
 
+// rootTopics are the topics the root of a whole screen names, after which it is read again.
+const rootTopics = (msgs: Message[]): string[] | undefined =>
+  msgs.flatMap((m) => (m.updateComponents?.components ?? []) as Message[]).find((c) => c.id === 'root')?.topics;
+
 type Processor = MessageProcessor<ReactComponentImplementation>;
 
-// useScreen reads a screen and keeps it fresh: events read it again at most every 200 ms, merged by topic and project,
-// a return to the page reads it whole; a drawn screen updates in place, keeping the tab and what was typed, or a read error.
+// useScreen reads a screen and keeps it fresh: events of the topics it names read it again at most every 200 ms,
+// merged by topic and project, a return to the page reads it whole; a drawn screen updates in place, keeping the tab and what was typed, or a read error.
 export function useScreen(route: Route) {
   const [drawn, setDrawn] = useState<{ surface: SurfaceModel<ReactComponentImplementation>; key: string }>();
   const [error, setError] = useState('');
@@ -46,6 +50,8 @@ export function useScreen(route: Route) {
       }
     });
     let generation = 0;
+    // topics are those the screen named once read; until then any topic of the catalog.
+    let topics: string[] | undefined;
     // shown is set once the screen is drawn; a failed read then leaves it drawn.
     let shown = false;
     const load = async () => {
@@ -71,6 +77,7 @@ export function useScreen(route: Route) {
           feed.reset();
         }
         setError('');
+        topics = rootTopics(msgs) ?? topics;
         feed.whole(msgs, ticket);
         // A change heard while the screen was first read is read again now that it is drawn.
         missed.splice(0).forEach((x) => void reread(x));
@@ -121,13 +128,15 @@ export function useScreen(route: Route) {
       const ticket = feed.ticket();
       try {
         const msgs = await call<Message[]>('deck.screen', { ...input(), topic: e.topic, ...(e.project ? { changed: e.project } : {}) });
-        if (!gone && mine === generation) feed.feed(msgs, ticket);
+        if (gone || mine !== generation) return;
+        topics = rootTopics(msgs) ?? topics;
+        feed.feed(msgs, ticket);
       } catch (e) {
         if (!gone) notifyError(e);
       }
     };
     const onEvent = (e: LiveEvent) => {
-      if (!TOPICS.includes(e.topic)) return;
+      if (!(topics ?? TOPICS).includes(e.topic)) return;
       pending.set(e.topic + ' ' + (e.project ?? ''), e);
       if (timer) return;
       timer = setTimeout(() => {

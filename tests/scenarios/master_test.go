@@ -210,7 +210,7 @@ func TestABlockThatFailsOnAScreenReachesTheMaster(t *testing.T) {
 }
 
 // TestABlockThatFailsIsInTheHealthOfItsModuleWithoutTheMaster: a module that keeps its errors from the master still
-// shows a failing block in its health.
+// shows a failing block in its health, which a read of other blocks after an event does not clear.
 func TestABlockThatFailsIsInTheHealthOfItsModuleWithoutTheMaster(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, masterScript)
@@ -220,12 +220,13 @@ func TestABlockThatFailsIsInTheHealthOfItsModuleWithoutTheMaster(t *testing.T) {
 	e.must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": "<p>x</p>"}, nil)
 	e.must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": jsonl(map[string]any{"title": "b"})}, nil)
 	e.screenMessages("web", "main", nil)
+	e.screenMessages("web", "main", map[string]any{"topic": "asks"})
 	var hs []struct{ Subject, Status string }
 	e.must("deck.health_list", map[string]any{"project": "web"}, &hs)
 	if !slices.ContainsFunc(hs, func(h struct{ Subject, Status string }) bool {
 		return h.Subject == "screen:web.main" && h.Status == "error"
 	}) {
-		t.Fatalf("the health of the module names the screen: %+v", hs)
+		t.Fatalf("the health of the module names the screen, and a read of some of its blocks keeps it: %+v", hs)
 	}
 	if n := len(e.runsOf("master", "on_error")); n != 0 {
 		t.Fatalf("the master does not get it: %d", n)

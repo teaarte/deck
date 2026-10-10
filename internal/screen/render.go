@@ -133,7 +133,8 @@ func resolve(ctx context.Context, src Sources, req Request) (*renderer, error) {
 			return nil, err
 		}
 	}
-	root := map[string]any{"id": "root", "component": "screen", "title": r.tr(req.Screen.Title)}
+	root := map[string]any{"id": "root", "component": "screen", "title": r.tr(req.Screen.Title),
+		"topics": screenTopics(req.Screen.Blocks, req.Screen.Record, r.deck())}
 	if req.Screen.Icon != "" {
 		root["icon"] = req.Screen.Icon
 	}

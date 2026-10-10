@@ -2,6 +2,7 @@ package scenarios
 
 import (
 	"encoding/json"
+	"slices"
 
 	"strings"
 	"testing"
@@ -77,6 +78,20 @@ func TestEachSourceOfAScreenIsReadOnce(t *testing.T) {
 	}
 }
 
+// TestAnEventReadsNoBlockItDoesNotChange: after an event the when of a block that does not follow its topic is
+// not read again.
+func TestAnEventReadsNoBlockItDoesNotChange(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, webNotesAgent())
+	e.createProject("web", strings.Replace(webNotes, `{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "blocks": [
+      {"type": "stat", "title": "Some", "when": "len(rows) > 0", "source": {"from": "deck.probe"}},`, 1))
+	e.Probes.Store(0)
+	e.screenMessages("web", "main", map[string]any{"topic": "asks"})
+	if n := e.Probes.Load(); n != 0 {
+		t.Fatalf("an event of asks reads no probe: %d", n)
+	}
+}
+
 // TestAParamReachesEveryExpressionOfAScreen: the series of a chart and the tone of a stat read the parameters
 // of the screen like any other expression.
 func TestAParamReachesEveryExpressionOfAScreen(t *testing.T) {
@@ -89,5 +104,33 @@ func TestAParamReachesEveryExpressionOfAScreen(t *testing.T) {
 	chart, _ := json.Marshal(data["b0"])
 	if !strings.Contains(string(chart), `"values":[3,6]`) || string(data["b1"]["tone"]) != `"warn"` {
 		t.Fatalf("the chart and the tone read param: %s %s", chart, data["b1"]["tone"])
+	}
+}
+
+// TestAScreenNamesTheTopicsItFollows: a whole screen names the topics after which its client reads it again, and
+// no other.
+func TestAScreenNamesTheTopicsItFollows(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, webNotesAgent())
+	e.createProject("web", webNotes)
+	topics := func(project, screen string) []string {
+		for _, m := range e.screenMessages(project, screen, nil) {
+			var u struct {
+				Components []struct {
+					ID     string
+					Topics []string
+				}
+			}
+			if json.Unmarshal(m["updateComponents"], &u) == nil && len(u.Components) > 0 && u.Components[0].ID == "root" {
+				return u.Components[0].Topics
+			}
+		}
+		return nil
+	}
+	if got := topics("", "cockpit"); !slices.Contains(got, "asks") || !slices.Contains(got, "health") || slices.Contains(got, "chat") {
+		t.Fatalf("the cockpit follows what it shows: %v", got)
+	}
+	if got := topics("web", "main"); !slices.Contains(got, "collection") || !slices.Contains(got, "projects") || slices.Contains(got, "asks") {
+		t.Fatalf("a project screen follows its collections and its project: %v", got)
 	}
 }

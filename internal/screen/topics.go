@@ -86,3 +86,40 @@ func changesWhen(bs []manifest.Block, record string, deck bool, own, changed, to
 	}
 	return false
 }
+
+// screenTopics are the topics after which a client reads a screen again: those its blocks follow, the topic of the
+// record of its page, and for a project screen projects, which draws it whole.
+func screenTopics(bs []manifest.Block, record string, deck bool) []string {
+	var out []string
+	add := func(ts ...string) {
+		for _, t := range ts {
+			if !slices.Contains(out, t) {
+				out = append(out, t)
+			}
+		}
+	}
+	var walk func([]manifest.Block)
+	walk = func(bs []manifest.Block) {
+		for _, b := range bs {
+			add(topicsOf(b, deck)...)
+			walk(b.Blocks)
+			for _, t := range b.Tabs {
+				walk(t.Blocks)
+			}
+		}
+	}
+	walk(bs)
+	switch {
+	case deck && record != "":
+		add("processes")
+	case record == manifest.DocumentRecord:
+		add("documents")
+	case record != "":
+		add("collection")
+	}
+	if !deck {
+		add("projects")
+	}
+	slices.Sort(out)
+	return out
+}

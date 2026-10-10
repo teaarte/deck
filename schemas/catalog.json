@@ -15,7 +15,8 @@
         "span": {"enum": [1, 2, "full"], "default": "full"},
         "description": {"type": "string"},
         "children": {"$ref": "common_types.json#/$defs/ChildList"},
-        "dialogs": {"$ref": "common_types.json#/$defs/ChildList", "description": "The dialogs of the screen, their buttons beside its title."}
+        "dialogs": {"$ref": "common_types.json#/$defs/ChildList", "description": "The dialogs of the screen, their buttons beside its title."},
+        "topics": {"type": "array", "items": {"type": "string"}, "description": "Of the root screen: the event topics after which the client reads it again; it ignores the others."}
       }
     },
     "columns": {

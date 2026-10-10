@@ -109,6 +109,23 @@ func (q *Queries) AddMasterNote(ctx context.Context, arg AddMasterNoteParams) er
 	return err
 }
 
+const countUnreadDeckNotes = `-- name: CountUnreadDeckNotes :one
+SELECT count(*) FROM feed WHERE project_id = ?1 AND kind = 'note' AND author = 'deck' AND for_master = 0
+  AND read_at IS NULL AND text = ?2
+`
+
+type CountUnreadDeckNotesParams struct {
+	ProjectID int64
+	Text      string
+}
+
+func (q *Queries) CountUnreadDeckNotes(ctx context.Context, arg CountUnreadDeckNotesParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countUnreadDeckNotes, arg.ProjectID, arg.Text)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const deleteMasterNotes = `-- name: DeleteMasterNotes :exec
 DELETE FROM feed WHERE workspace_id = ?1 AND for_master = 1 AND id <= ?2
 `

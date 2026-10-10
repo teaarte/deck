@@ -64,15 +64,33 @@ func (s *Service) list(ctx context.Context, act registry.Actor, in healthListIn)
 		mine[process.HealthSubject(m.Model.Name)] = true
 	}
 	worst := map[string]*healthRow{}
-	for _, p := range ps {
-		worst[p.Name] = &healthRow{Subject: "project:" + p.Name, Status: health.OK}
-		if _, err := docs.Manifest(ctx, s.St.Q, p); err != nil {
-			worst[p.Name].Status, worst[p.Name].Error = health.Error, "manifest: "+err.Error()
-		}
-	}
 	out := make([]healthRow, 0, len(hs)+len(ps))
 	shown := func(project string) bool {
 		return (in.Project == "" || project == in.Project) && (!in.Machine || project == "")
+	}
+	for _, p := range ps {
+		worst[p.Name] = &healthRow{Subject: "project:" + p.Name, Status: health.OK}
+		m, err := docs.Manifest(ctx, s.St.Q, p)
+		if err != nil {
+			worst[p.Name].Status, worst[p.Name].Error = health.Error, "manifest: "+err.Error()
+			continue
+		}
+		if p.Status != store.ProjectEnabled {
+			continue
+		}
+		for _, name := range m.Keys() {
+			if s.Secret(p.WorkspaceID, name) {
+				continue
+			}
+			row := healthRow{Subject: "secret:" + name, Status: health.Error,
+				Error: "not set, so the tools that send it fail; set it in Settings → Connections → Other secrets"}
+			if worst[p.Name].Status == health.OK {
+				worst[p.Name].Status, worst[p.Name].Error = row.Status, row.Subject+": "+row.Error
+			}
+			if shown(p.Name) {
+				out = append(out, row)
+			}
+		}
 	}
 	unseen := map[string]bool{}
 	for _, hr := range hs {
@@ -117,6 +135,8 @@ type Service struct {
 	St *store.Store
 	// Providers are the providers of a workspace.
 	Providers func(ctx context.Context, workspace int64) ([]provider.Provider, error)
+	// Secret reports whether a secret of a workspace is set.
+	Secret func(workspace int64, name string) bool
 }
 
 // Commands are the commands of health.
@@ -124,7 +144,7 @@ func (s *Service) Commands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("health_list", "Health",
 			"Lists the health of providers and other dependencies with the last error, worst first.",
-			registry.OwnerSide, s.list).On("health"),
+			registry.OwnerSide, s.list).On("health", "secrets", "projects"),
 		registry.Def("health_seen", "Mark a failing check read",
 			"Marks a failing check read: it stops counting among the failing until its status or error changes.",
 			registry.OwnerOnly, s.seen),

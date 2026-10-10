@@ -6,17 +6,21 @@ import (
 	"context"
 	"deck2/internal/app/access"
 	"errors"
+	"fmt"
 	"io/fs"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"deck2/internal/docs"
 	"deck2/internal/events"
 	"deck2/internal/registry"
 	"deck2/internal/store"
+	"deck2/internal/store/db"
 )
 
 // Service keeps the secrets; Dir is the folder of the secrets of a workspace.
@@ -24,6 +28,7 @@ type Service struct {
 	St  *store.Store
 	Bus *events.Bus
 	Dir func(workspace int64) string
+	Now func() time.Time
 	mu  sync.Mutex
 }
 
@@ -37,6 +42,31 @@ func (s *Service) Read(workspace int64, name string) (string, error) {
 		return "", registry.Invalid("deck: secret %q is not set; the owner sets it with deck.secret_set", name)
 	}
 	return strings.TrimRight(string(b), "\r\n"), err
+}
+
+// For is Read for a tool or server of a project; a secret that is not set tells the owner in the feed, once while
+// the note stays unread.
+func (s *Service) For(ctx context.Context, p db.Project, name string) (string, error) {
+	v, err := s.Read(p.WorkspaceID, name)
+	if err == nil || !access.ValidSecret(name) || s.Has(p.WorkspaceID, name) {
+		return v, err
+	}
+	text := fmt.Sprintf("secret %s is not set, so the tools of %s that send it fail; set it in Settings → Connections → Other secrets", name, p.Name)
+	if nerr := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		if n, err := q.CountUnreadDeckNotes(ctx, db.CountUnreadDeckNotesParams{ProjectID: p.ID, Text: text}); err != nil || n > 0 {
+			return err
+		}
+		return q.AddDeckNote(ctx, db.AddDeckNoteParams{CreatedAt: store.Time(s.Now()), ProjectID: p.ID, Text: text})
+	}); nerr != nil {
+		slog.Error("note of an unset secret", "project", p.Name, "secret", name, "err", nerr)
+	}
+	return v, err
+}
+
+// Has reports whether a secret is set.
+func (s *Service) Has(workspace int64, name string) bool {
+	_, err := os.Stat(filepath.Join(s.Dir(workspace), name))
+	return err == nil
 }
 
 type secretSetIn struct {
@@ -168,8 +198,7 @@ func (s *Service) projectSecrets(ctx context.Context, act registry.Actor, projec
 	}
 	out := []secretRow{}
 	for _, n := range m.Secrets() {
-		_, err := os.Stat(filepath.Join(s.Dir(act.Workspace), n))
-		out = append(out, secretRow{Name: n, Set: err == nil})
+		out = append(out, secretRow{Name: n, Set: s.Has(act.Workspace, n)})
 	}
 	return out, nil
 }

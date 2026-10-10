@@ -347,6 +347,18 @@ func (m *Manifest) Secrets() []string {
 	return slices.Compact(all)
 }
 
+// Keys are the secrets of Secrets the owner sets: all but the tokens an oauth2 sign-in keeps.
+func (m *Manifest) Keys() []string {
+	var signed []string
+	for _, t := range m.Tools.HTTP {
+		var a struct{ Type, Token string }
+		if json.Unmarshal(t.Auth, &a) == nil && a.Type == "oauth2" {
+			signed = append(signed, a.Token)
+		}
+	}
+	return slices.DeleteFunc(m.Secrets(), func(n string) bool { return slices.Contains(signed, n) })
+}
+
 // serverSecrets are the secrets MCP servers of a manifest get in their environment.
 func serverSecrets(m *Manifest) []string {
 	b, _ := json.Marshal(m.Tools.MCP)

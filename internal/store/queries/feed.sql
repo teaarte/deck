@@ -35,3 +35,7 @@ SELECT j.workspace_id, j.id, 'note', 'deck', sqlc.arg(text), sqlc.arg(created_at
 -- name: MarkFeedRead :execrows
 UPDATE feed SET read_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
 WHERE id = sqlc.arg(id) AND workspace_id = sqlc.arg(workspace_id) AND kind = 'note' AND for_master = 0 AND read_at IS NULL;
+
+-- name: CountUnreadDeckNotes :one
+SELECT count(*) FROM feed WHERE project_id = sqlc.arg(project_id) AND kind = 'note' AND author = 'deck' AND for_master = 0
+  AND read_at IS NULL AND text = sqlc.arg(text);

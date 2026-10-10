@@ -58,7 +58,7 @@ func (h *HTTP) request(ctx context.Context, act registry.Actor, p db.Project, t 
 	header := func(s string) string {
 		return headerRef.ReplaceAllStringFunc(s, func(m string) string {
 			if name, ok := strings.CutPrefix(m, "$secret."); ok {
-				v, err := h.Secrets(p.WorkspaceID, name)
+				v, err := h.Secrets(ctx, p, name)
 				if err != nil && serr == nil {
 					serr = err
 				}
@@ -82,7 +82,7 @@ func (h *HTTP) request(ctx context.Context, act registry.Actor, p db.Project, t 
 		case "oauth2":
 			out.oauth = &a
 		default:
-			v, err := h.Secrets(p.WorkspaceID, a.Secret)
+			v, err := h.Secrets(ctx, p, a.Secret)
 			if err != nil && serr == nil {
 				serr = err
 			}

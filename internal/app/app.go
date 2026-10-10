@@ -121,7 +121,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 		Models: a.Providers.Route, Progress: cfg.Progress}, st, a.Asks, a.Bus, a.Registry)
 	a.Gateway.SetAutomation(a.Tokens.Automation)
 	oauth := &tools.OAuth{Secrets: a.Secrets.Read, Swap: a.Secrets.Swap}
-	a.Tools = tools.NewHTTP(a.Gateway, a.Secrets.Read, h)
+	a.Tools = tools.NewHTTP(a.Gateway, a.Secrets.For, h)
 	a.Tools.OAuth, a.Tools.Health, a.Tools.SignIn = oauth, a.Signins.ToolHealth, a.Signins.ToolSignIn
 	a.Tools.Resolve = func(ctx context.Context, project, process int64, ref string) (files.Ref, error) {
 		return files.Resolve(ctx, h, a.Store.Q, project, process, ref)
@@ -129,7 +129,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	a.Host = mcphost.New(a.Signins.ServerStatus)
 	a.Host.Now, a.Host.Sandbox, a.Host.Home = cfg.Now, cfg.Sandbox, h
 	a.Host.Web = gateway.Egress
-	a.MCP = &tools.MCP{GW: a.Gateway, Host: a.Host, Store: st, Secrets: a.Secrets.Read, Home: h}
+	a.MCP = &tools.MCP{GW: a.Gateway, Host: a.Host, Store: st, Secrets: a.Secrets.For, Home: h}
 	a.Browser = &tools.Browser{GW: a.Gateway, Host: a.Host, Store: st, Home: h, Argv: cfg.Browser, Ctx: a.ctx}
 	a.Runner = process.NewRunner(st, a.Gateway, a.Bus, a.Scripts,
 		process.Config{Home: h, MCPBase: cfg.MCPBase, Now: cfg.Now, FilesMu: &a.Files.Mu,
@@ -140,7 +140,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	a.Runner.Hooks = []process.Hook{a.Chats.NewHook(), failures.Hook{S: a.Failures}, triggers.After{S: a.Triggers}, asks.Unheard{S: a.Answers}}
 	a.Scheduler = trigger.New(st, a.Triggers, cfg.Now)
 
-	*a.Secrets = secrets.Service{St: st, Bus: a.Bus, Dir: h.Secrets}
+	*a.Secrets = secrets.Service{St: st, Bus: a.Bus, Dir: h.Secrets, Now: cfg.Now}
 	*a.Folders = folders.Service{St: st, Home: h}
 	*a.Files = appfiles.Service{St: st, Home: h, Now: cfg.Now}
 	*a.Journal = journal.Service{St: st, Now: cfg.Now, Backups: h.Backups()}
@@ -163,7 +163,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 		Home: h, Invoke: a.Registry.Invoke, DeckScreen: deckScreen}
 	*a.Failures = failures.Service{St: st, Now: cfg.Now, Runner: a.Runner}
 	*a.Processes = processes.Service{St: st, Runner: a.Runner, Named: a.Providers.Named}
-	*a.Health = apphealth.Service{St: st, Providers: a.Providers.All}
+	*a.Health = apphealth.Service{St: st, Providers: a.Providers.All, Secret: a.Secrets.Has}
 	*a.Records = records.Service{St: st, Now: cfg.Now, DrainFiles: a.Files.Drain}
 	*a.Tokens = tokens.Service{St: st, MCPBase: cfg.MCPBase, Journal: a.Gateway.Journal}
 	*a.Saver = project.Saver{St: st, Bus: a.Bus, Now: cfg.Now, Home: h, Registry: a.Registry,

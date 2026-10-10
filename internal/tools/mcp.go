@@ -34,7 +34,7 @@ type MCP struct {
 	GW      *gateway.Gateway
 	Host    *mcphost.Host
 	Store   *store.Store
-	Secrets func(workspace int64, name string) (string, error)
+	Secrets func(ctx context.Context, p db.Project, name string) (string, error)
 	Home    home.Layout
 }
 
@@ -66,7 +66,7 @@ func (x *MCP) spec(ctx context.Context, p db.Project, name string, s manifest.MC
 	env := sandbox.Env(dir, dir)
 	var secrets []string
 	for _, k := range slices.Sorted(maps.Keys(s.Env)) {
-		v, used, err := x.expand(p.WorkspaceID, s.Env[k])
+		v, used, err := x.expand(ctx, p, s.Env[k])
 		if err != nil {
 			return mcphost.Spec{}, err
 		}
@@ -85,11 +85,11 @@ func (x *MCP) spec(ctx context.Context, p db.Project, name string, s manifest.MC
 
 var envSecret = regexp.MustCompile(`\$secret\.[A-Za-z0-9_.-]+`)
 
-func (x *MCP) expand(workspace int64, v string) (string, []string, error) {
+func (x *MCP) expand(ctx context.Context, p db.Project, v string) (string, []string, error) {
 	var serr error
 	var used []string
 	out := envSecret.ReplaceAllStringFunc(v, func(m string) string {
-		s, err := x.Secrets(workspace, strings.TrimPrefix(m, "$secret."))
+		s, err := x.Secrets(ctx, p, strings.TrimPrefix(m, "$secret."))
 		if err != nil && serr == nil {
 			serr = err
 		}

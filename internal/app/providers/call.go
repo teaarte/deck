@@ -97,6 +97,9 @@ func (s *Service) modelCall(ctx context.Context, act registry.Actor, in modelCal
 		att.audio = &f
 	}
 	if in.Kind == RoleVideo {
+		if strings.TrimSpace(in.Prompt) == "" {
+			return nil, registry.Invalid("deck: a video needs a prompt")
+		}
 		if att.frames, err = s.frames(ctx, act, in); err != nil {
 			return nil, err
 		}

@@ -51,6 +51,9 @@ func (r *Runner) ceilingOf(m *manifest.Manifest, cmd *manifest.Command) time.Dur
 	if cmd.TimeoutMinutes > 0 {
 		return time.Duration(cmd.TimeoutMinutes) * time.Minute
 	}
+	if cmd.Executor.Type == KindModel && cmd.Executor.Kind == "video" {
+		return Ceiling
+	}
 	if cmd.Executor.Type == KindTool || cmd.Executor.Type == KindModel {
 		return ScriptCeiling
 	}

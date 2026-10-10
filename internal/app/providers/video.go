@@ -31,7 +31,11 @@ func (s *Service) frames(ctx context.Context, act registry.Actor, in modelCallIn
 		if err != nil {
 			return nil, err
 		}
-		b, err := io.ReadAll(io.LimitReader(r, min(n, 32<<20)))
+		if n > 32<<20 {
+			_ = r.Close()
+			return nil, registry.Invalid("deck: the %s of a video is %d MB; a frame is at most 32 MB", f.kind, n>>20)
+		}
+		b, err := io.ReadAll(io.LimitReader(r, n))
 		_ = r.Close()
 		if err != nil {
 			return nil, err
@@ -66,19 +70,19 @@ func (s *Service) video(ctx context.Context, act registry.Actor, h gateway.Model
 	defer func() { done(spent) }()
 	end := time.Now().Add(s.VideoCeiling)
 	for job.Status != "completed" {
-		if job.Status == "failed" {
-			if spent = gateway.UsageOf(raw); spent == nil {
+		if job.Status == "failed" || job.Status == "cancelled" || job.Status == "canceled" || job.Status == "expired" {
+			if spent = gateway.UsageOf(raw); spent == nil || spent.CostUSD == nil {
 				zero := 0.0
 				spent = &provider.Usage{CostUSD: &zero}
 			}
-			return nil, fmt.Errorf("deck: %s failed the video job %s: %s", h.Connection, job.ID, untrusted.Cut(failure(job.Error), 1000))
+			return nil, fmt.Errorf("deck: the video job %s of %s ended %s: %s", job.ID, h.Connection, job.Status, untrusted.Cut(failure(job.Error), 1000))
 		}
 		if !time.Now().Before(end) {
 			return nil, fmt.Errorf("deck: the video job %s of %s was not ready in %s", job.ID, h.Connection, s.VideoCeiling)
 		}
 		select {
 		case <-ctx.Done():
-			return nil, ctx.Err()
+			return nil, fmt.Errorf("deck: the call stopped while the video job %s of %s ran; the service may still finish it: %w", job.ID, h.Connection, ctx.Err())
 		case <-time.After(s.VideoPoll):
 		}
 		r, err := gateway.SendModel(ctx, h.Target, gateway.ModelCall{Method: http.MethodGet, Path: "videos/" + job.ID})

@@ -18,7 +18,7 @@ import (
 
 const videoManifest = `{"version": 11,
   "commands": [
-    {"name": "clip", "title": "Clip", "description": "Brings a scene to life.", "class": "internal", "timeout_minutes": 30,
+    {"name": "clip", "title": "Clip", "description": "Brings a scene to life.", "class": "internal",
      "input": {"type": "object", "properties": {"scene": {"type": "string"}, "first_frame": {"type": "string", "format": "file"},
        "last_frame": {"type": "string", "format": "file"}}},
      "executor": {"type": "model", "kind": "video", "prompt": "Slow camera push, no text.", "options": {"duration": 4, "aspect_ratio": "9:16"}}}
@@ -70,7 +70,13 @@ func TestAVideoModelMakesAClipOfTheJobItStarted(t *testing.T) {
 		return fmt.Sprint(f.ID)
 	}
 	first, last := frame("first.png", "\x89PNG\r\n\x1a\nfirst"), frame("last.png", "\x89PNG\r\n\x1a\nlast")
-	got := e.waitState(e.start("shorts", "clip", map[string]any{"scene": "a knight meets a snail", "first_frame": first, "last_frame": last}), "done", "error")
+	id := e.start("shorts", "clip", map[string]any{"scene": "a knight meets a snail", "first_frame": first, "last_frame": last})
+	var ceiling int64
+	_ = e.App.Store.DB.QueryRow(`SELECT ceiling_ms FROM process WHERE id = ?`, id).Scan(&ceiling)
+	if ceiling != time.Hour.Milliseconds() {
+		t.Fatalf("a video command waits for its clip as long as an agent may work, not as a script: %d ms", ceiling)
+	}
+	got := e.waitState(id, "done", "error")
 	var res struct {
 		Type  string   `json:"type"`
 		Model string   `json:"model"`
@@ -112,7 +118,7 @@ func TestAVideoModelMakesAClipOfTheJobItStarted(t *testing.T) {
 // past its ceiling is an error with its id; neither goes to another model once a service took it.
 func TestAVideoJobThatFailsOrNeverEndsIsAnError(t *testing.T) {
 	t.Parallel()
-	failed := videoJob(t, `{"id": "job-1", "status": "failed", "error": {"code": "moderation", "message": "the prompt was refused"}}`)
+	failed := videoJob(t, `{"id": "job-1", "status": "failed", "error": {"code": "moderation", "message": "the prompt was refused"}, "usage": {"is_byok": false}}`)
 	stuck := videoJob(t, `{"id": "job-1", "status": "in_progress"}`)
 	spare := videoJob(t, `{"id": "job-1", "status": "completed"}`)
 	e := newEnv(t, nil, quickVideo)

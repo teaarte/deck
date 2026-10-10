@@ -77,7 +77,7 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
     `text` answers the prompt with the input by the result schema, `image` draws the prompt with the input, `tts`
     speaks the input field `text` (the prompt says how), `stt` writes down the one input field of format file,
     `music` makes a track of the prompt, `video` a clip of it from the input file fields `first_frame` and
-    `last_frame` when given (both optional; give it `timeout_minutes` of 30, a clip takes minutes);
+    `last_frame` when given (both optional; a clip takes minutes, and the command waits for it as an agent works);
     a picture, a track, speech or a clip is a file of the result. The model is the one the owner assigned to the kind (with
     fallbacks); `"model"` names another, `"options"` adds fields to the request (`voice`, `image_config`).
   A script that cannot do something reliably becomes an agent, not a bigger script. `timeout_minutes` raises

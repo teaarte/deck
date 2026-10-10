@@ -5,6 +5,7 @@ package sandbox
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"os"
@@ -56,16 +57,17 @@ func (*bwrap) Listen(dir string) (net.Listener, error) {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, err
 	}
-	return net.Listen("unix", filepath.Join(dir, "s"))
+	sock := filepath.Join(dir, "s")
+	if len(sock) > 107 {
+		return nil, fmt.Errorf("sandbox: the socket %s is longer than the 107 bytes Linux takes; set TMPDIR to a shorter folder", sock)
+	}
+	return net.Listen("unix", sock)
 }
 
 func (*bwrap) Addr(net.Listener) string { return bridgeAddr }
 
 func (*bwrap) Command(ctx context.Context, p Policy) (*exec.Cmd, error) {
 	args := []string{"--die-with-parent", "--new-session", "--unshare-all"}
-	if p.Net {
-		args = append(args, "--share-net")
-	}
 	args = append(args, "--ro-bind", "/", "/", "--dev", "/dev", "--proc", "/proc")
 	for _, d := range shared {
 		if fi, err := os.Lstat(d); err == nil && fi.IsDir() {
@@ -106,12 +108,12 @@ func (*bwrap) Command(ctx context.Context, p Policy) (*exec.Cmd, error) {
 		args = append(args, "--ro-bind-try", real(p.Argv[0]), real(p.Argv[0]))
 	}
 	argv := p.Argv
-	if p.Out != nil {
+	if p.Door != nil {
 		self, err := os.Executable()
 		if err != nil {
 			return nil, err
 		}
-		sock := real(p.Out.Addr().String())
+		sock := real(p.Door.ln.Addr().String())
 		args = append(args, "--bind", filepath.Dir(sock), filepath.Dir(sock), "--ro-bind", real(self), real(self))
 		argv = append([]string{real(self), bridgeArg, sock, bridgeAddr, "--"}, argv...)
 	}

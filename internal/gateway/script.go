@@ -1,7 +1,6 @@
 package gateway
 
 import (
-	"context"
 	"crypto/subtle"
 	"encoding/json"
 	"errors"
@@ -21,9 +20,8 @@ func (g *Gateway) Grant(s *Session) string {
 	return tok
 }
 
-// ScriptHandler serves one script run at self: registry commands under the token of its process, and a
-// proxy with the token as its password to the given domains whose tunnels close when ctx ends.
-func (g *Gateway) ScriptHandler(ctx context.Context, tok, self string, domains []string) http.Handler {
+// ScriptHandler serves one script run: registry commands and models under the token of its process.
+func (g *Gateway) ScriptHandler(tok string) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /commands/{name}", func(w http.ResponseWriter, r *http.Request) {
 		body, err := ReadBody(w, r)
@@ -59,12 +57,6 @@ func (g *Gateway) ScriptHandler(ctx context.Context, tok, self string, domains [
 		g.proxyModel(w, r, s.actor(), r.PathValue("connection"), r.PathValue("path"), body)
 	})
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodConnect || r.URL.IsAbs() && r.URL.Host != self {
-			if ProxyAuthorized(w, r, tok) && g.session(tok) != nil {
-				Egress(ctx, w, r, domains)
-			}
-			return
-		}
 		got := r.Header.Get("Authorization")
 		if subtle.ConstantTimeCompare([]byte(got), []byte("Bearer "+tok)) != 1 || g.session(tok) == nil {
 			http.Error(w, "deck: unknown or finished process token", http.StatusUnauthorized)
@@ -85,17 +77,6 @@ func ReadBody(w http.ResponseWriter, r *http.Request) ([]byte, error) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 	}
 	return body, err
-}
-
-// ProxyAuthorized reports whether a proxy request carries tok as its password, and answers 407 when not.
-func ProxyAuthorized(w http.ResponseWriter, r *http.Request, tok string) bool {
-	_, pass, _ := (&http.Request{Header: http.Header{"Authorization": r.Header.Values("Proxy-Authorization")}}).BasicAuth()
-	if subtle.ConstantTimeCompare([]byte(pass), []byte(tok)) == 1 {
-		return true
-	}
-	w.Header().Set("Proxy-Authenticate", `Basic realm="deck"`)
-	http.Error(w, "deck: the proxy needs the token of a running process", http.StatusProxyAuthRequired)
-	return false
 }
 
 func (g *Gateway) session(tok string) *Session {

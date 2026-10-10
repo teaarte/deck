@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -14,7 +13,6 @@ import (
 	"syscall"
 	"time"
 
-	"deck2/internal/nonce"
 	"deck2/internal/untrusted"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -38,19 +36,15 @@ func (h *Host) command(spec Spec, s *server) (*exec.Cmd, error) {
 	if err != nil {
 		return nil, err
 	}
-	ln, err := h.Sandbox.Listen(spec.Dir)
+	door, err := sandbox.Open(h.Sandbox, h.Web, spec.Domains, nil)
 	if err != nil {
 		return nil, err
 	}
-	key, self := nonce.Hex(16), h.Sandbox.Addr(ln)
-	life, cut := context.WithCancel(context.Background())
-	out := &http.Server{Handler: h.Egress(life, key, spec.Domains)}
-	s.out, s.cut = out, cut
-	go func() { _ = out.Serve(ln) }()
+	s.door = door
 	c := sandbox.Close(h.Home, env(spec.Env, "PATH")+string(os.PathListSeparator)+filepath.Dir(path))
 	cmd, err := h.Sandbox.Command(context.Background(), sandbox.Policy{Argv: append([]string{path}, spec.Args...), Dir: spec.Dir,
-		Env: append(slices.Clone(spec.Env), sandbox.Proxy("http://deck:"+key+"@"+self, self)...), Write: []string{spec.Dir},
-		Read: append(slices.Clone(spec.Read), c.Read...), Hide: c.Hide, Private: c.Private, Out: ln})
+		Env: append(slices.Clone(spec.Env), door.Env()...), Write: []string{spec.Dir},
+		Read: append(slices.Clone(spec.Read), c.Read...), Hide: c.Hide, Private: c.Private, Door: door})
 	if err != nil {
 		s.close()
 		return nil, err
@@ -174,15 +168,12 @@ func (s *server) kill() {
 	s.close()
 }
 
-// close ends the way out of a confined server: its proxy and the tunnels it holds.
+// close ends the door of a confined server with the tunnels it holds.
 func (s *server) close() {
-	if s.cut != nil {
-		s.cut()
+	if s.door != nil {
+		s.door.Close()
 	}
-	if s.out != nil {
-		_ = s.out.Close()
-	}
-	s.out, s.cut = nil, nil
+	s.door = nil
 }
 
 // tail keeps the last 2 KB a server wrote to stderr.

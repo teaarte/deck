@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,6 +14,7 @@ import (
 	"deck2/internal/docs"
 	"deck2/internal/gateway"
 	"deck2/internal/provider"
+	"deck2/internal/sandbox"
 	"deck2/internal/script"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
@@ -59,17 +59,12 @@ func (r *Runner) runScript(ctx context.Context, t turn, trial bool) {
 	_ = r.deps.Programs(bg, t.project)
 	tok := r.gw.Grant(&gateway.Session{ProcessID: id, ProjectID: t.project, Workspace: proj.WorkspaceID, Trial: trial})
 	defer r.gw.Unregister(tok)
-	ln, err := r.scripts.Sandbox.Listen(dir)
+	door, err := sandbox.Open(r.scripts.Sandbox, gateway.Egress, granted.Domains.Read, r.gw.ScriptHandler(tok))
 	if err != nil {
 		fail(err)
 		return
 	}
-	self := r.scripts.Sandbox.Addr(ln)
-	runCtx, endRun := context.WithCancel(bg)
-	defer endRun()
-	srv := &http.Server{Handler: r.gw.ScriptHandler(runCtx, tok, self, granted.Domains.Read)}
-	go func() { _ = srv.Serve(ln) }()
-	defer srv.Close()
+	defer door.Close()
 	_ = r.startCeiling(bg, id)
 	input, inDir, err := r.inputFiles(bg, t.cmd, t.project, id, t.input, false)
 	if err != nil {
@@ -86,7 +81,7 @@ func (r *Runner) runScript(ctx context.Context, t turn, trial bool) {
 		read = append(read, f.Path)
 	}
 	job := script.Job{Project: t.project, Script: t.m.Script(t.cmd.Executor.Script), Source: src, Dir: dir,
-		Stdin: []byte(input), Out: ln, Gateway: self, Token: tok, Read: read,
+		Stdin: []byte(input), Door: door, Token: tok, Read: read,
 		OnLine:  func(line string) { r.event(bg, id, stream, provider.Event{Kind: provider.EventStderr, Text: line}) },
 		OnStart: func(pgid int) { r.setGroup(bg, id, pgid) },
 	}
@@ -117,7 +112,7 @@ func (r *Runner) runScript(ctx context.Context, t turn, trial bool) {
 		r.warn(bg, id, fmt.Sprintf("The result of %s.%s does not match its schema, so nothing acts on it: %v", proj.Name, t.cmd.Name, verr))
 		return
 	}
-	endRun()
+	door.Close()
 	kept := filepath.Join(dir, "kept")
 	if err := os.Rename(job.Results(), kept); err != nil {
 		fail(err)

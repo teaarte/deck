@@ -39,10 +39,6 @@ var services = []string{"com.apple.system.opendirectoryd.libinfo", "com.apple.sy
 	"com.apple.SecurityServer", "com.apple.system.DirectoryService.libinfo_v1", "com.apple.bsd.dirhelper",
 	"com.apple.coreservices.launchservicesd", "com.apple.lsd.mapdb", "com.apple.cfprefsd.daemon", "com.apple.cfprefsd.agent"}
 
-// netServices resolve names and read the network configuration, for programs with the whole network.
-var netServices = []string{"com.apple.dnssd.service", "com.apple.SystemConfiguration.configd",
-	"com.apple.SystemConfiguration.DNSConfiguration", "com.apple.networkd"}
-
 // sysctls are what the machine and its system are; the processes on it are not.
 const sysctls = `(allow sysctl-read (sysctl-name-prefix "hw.") (sysctl-name-prefix "machdep.") (sysctl-name-prefix "kern.")
   (sysctl-name-prefix "vm.") (sysctl-name-prefix "sysctl.") (sysctl-name-prefix "user.") (sysctl-name-prefix "net.routetable")
@@ -78,22 +74,13 @@ func profile(p Policy) string {
 	}
 	b.WriteString(`(allow file-write* file-ioctl (literal "/dev/null") (literal "/dev/zero") (literal "/dev/tty") (literal "/dev/dtracehelper"))` + "\n")
 	b.WriteString("(allow mach-lookup")
-	names := services
-	if p.Net {
-		names = append(slices.Clone(services), netServices...)
-	}
-	for _, s := range names {
+	for _, s := range services {
 		fmt.Fprintf(&b, " (global-name %s)", quote(s))
 	}
 	b.WriteString(")\n")
-	switch {
-	case p.Net:
-		b.WriteString("(allow network* system-socket)\n(deny network-outbound (remote unix-socket))\n(allow network-outbound (remote unix-socket (path-literal \"/private/var/run/mDNSResponder\")))\n")
-	default:
-		if p.Out != nil {
-			_, port, _ := net.SplitHostPort(p.Out.Addr().String())
-			fmt.Fprintf(&b, "(allow system-socket)\n(allow network-outbound (remote ip \"localhost:%s\"))\n", port)
-		}
+	if p.Door != nil {
+		_, port, _ := net.SplitHostPort(p.Door.ln.Addr().String())
+		fmt.Fprintf(&b, "(allow system-socket)\n(allow network-outbound (remote ip \"localhost:%s\"))\n", port)
 	}
 	return b.String()
 }

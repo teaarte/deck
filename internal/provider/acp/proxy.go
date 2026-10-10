@@ -2,7 +2,6 @@ package acp
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -12,22 +11,15 @@ import (
 	"sync"
 	"time"
 
-	"deck2/internal/gateway"
 	"deck2/internal/provider"
 )
 
-// entry is all the network the agent has: the deck MCP server of the turn, deck's proxy of the model API, and a
-// proxy to the web that is closed in a project without network.
+// entry is deck at the door of the agent: the deck MCP server of the turn and deck's proxy of the model API.
 type entry struct {
-	ctx     context.Context
-	self    string
 	mcp     *url.URL
 	api     http.Handler
 	modelAt string
-	// proxyKey is the password of the web proxy, given to the agent in its proxy address.
-	proxyKey string
-	domains  []string
-	now      func() time.Time
+	now     func() time.Time
 
 	mu sync.Mutex
 	// last is the status and Retry-After of the last answer of the model API.
@@ -37,10 +29,6 @@ type entry struct {
 
 func (e *entry) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch {
-	case r.Method == http.MethodConnect || r.URL.IsAbs() && r.URL.Host != e.self:
-		if gateway.ProxyAuthorized(w, r, e.proxyKey) {
-			e.egress(w, r)
-		}
 	case r.URL.Path == e.mcp.Path:
 		(&httputil.ReverseProxy{FlushInterval: -1, Rewrite: func(pr *httputil.ProxyRequest) {
 			pr.SetURL(&url.URL{Scheme: e.mcp.Scheme, Host: e.mcp.Host})
@@ -98,14 +86,4 @@ func (e *entry) refused(res provider.Result) provider.Result {
 	e.mu.Unlock()
 	provider.Refused(&res, status, after, e.now())
 	return res
-}
-
-// egress carries the agent to a public address only: its web is the internet, not deck, other sessions on this
-// machine or the owner's network.
-func (e *entry) egress(w http.ResponseWriter, r *http.Request) {
-	if len(e.domains) == 0 {
-		http.Error(w, "deck: "+r.Host+" is not reachable from this agent", http.StatusForbidden)
-		return
-	}
-	gateway.Egress(e.ctx, w, r, e.domains)
 }

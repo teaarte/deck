@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -42,11 +41,9 @@ type Job struct {
 	Source  string
 	Dir     string
 	Stdin   []byte
-	// Out is the gateway listener of the run at Gateway, its host:port for the script, opened by Token; without it
-	// the script has no network.
-	Out     net.Listener
-	Gateway string
-	Token   string
+	// Door is the script's way to deck, opened by Token, and to the web; without it the script has no network.
+	Door  *sandbox.Door
+	Token string
 	// Read are files and folders the script may read, such as files of its input and the folders of its project.
 	Read    []string
 	OnLine  func(line string)
@@ -83,7 +80,7 @@ func (x *Exec) Run(ctx context.Context, j Job) ([]byte, error) {
 	c := sandbox.Close(x.Home, os.Getenv("PATH")+string(os.PathListSeparator)+filepath.Dir(argv[0]))
 	cmd, err := x.Sandbox.Command(ctx, sandbox.Policy{Argv: argv, Dir: j.Work(), Env: environ(j, data, tmp),
 		Write: []string{j.Work(), j.Results(), data}, Read: append(append([]string{src}, j.Read...), c.Read...),
-		Hide: c.Hide, Private: c.Private, Out: j.Out})
+		Hide: c.Hide, Private: c.Private, Door: j.Door})
 	if err != nil {
 		return nil, err
 	}
@@ -124,21 +121,17 @@ func (x *Exec) Run(ctx context.Context, j Job) ([]byte, error) {
 	return out.Bytes(), nil
 }
 
-// environ is the whole environment of a script: the confined one with deck's proxy, its folders, caches in the data
-// of its project, and deck.
+// environ is the whole environment of a script: the confined one, its folders, caches in the data of its project,
+// and deck with its door last.
 func environ(j Job, data, tmp string) []string {
-	proxy := ""
-	if j.Gateway != "" {
-		proxy = "http://deck:" + j.Token + "@" + j.Gateway
-	}
-	env := append(sandbox.Env(j.Work(), tmp, proxy, j.Gateway), "TERM=dumb",
+	env := append(sandbox.Env(j.Work(), tmp), "TERM=dumb",
 		"DECK_RESULTS="+j.Results(), "DECK_DATA="+data, "XDG_CACHE_HOME="+filepath.Join(data, ".cache"),
 		"npm_config_cache="+filepath.Join(data, ".cache", "npm"), "PYTHONDONTWRITEBYTECODE=1", "PYTHONUNBUFFERED=1")
-	if j.Gateway == "" {
+	if j.Door == nil {
 		return env
 	}
-	url := "http://" + j.Gateway
-	return append(env, "DECK_URL="+url, "DECK_TOKEN="+j.Token, "DECK_MODELS="+url+"/models")
+	url := j.Door.URL()
+	return append(append(env, "DECK_URL="+url, "DECK_TOKEN="+j.Token, "DECK_MODELS="+url+"/models"), j.Door.Env()...)
 }
 
 func argvOf(s *manifest.Script, file string) ([]string, error) {

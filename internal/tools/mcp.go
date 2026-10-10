@@ -63,7 +63,7 @@ func (x *MCP) spec(ctx context.Context, p db.Project, name string, s manifest.MC
 		return mcphost.Spec{URL: s.URL}, nil
 	}
 	dir := filepath.Join(x.Home.Project(p.ID), "mcp", name)
-	env := sandbox.Env(dir, dir, "", "")
+	env := sandbox.Env(dir, dir)
 	var secrets []string
 	for _, k := range slices.Sorted(maps.Keys(s.Env)) {
 		v, used, err := x.expand(p.WorkspaceID, s.Env[k])

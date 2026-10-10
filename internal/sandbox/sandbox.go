@@ -24,17 +24,15 @@ type Policy struct {
 	Read    []string
 	Hide    []string
 	Private []string
-	// Out is the listener of deck the program reaches; without it the program has no network.
-	Out net.Listener
-	// Net opens the whole network; only MCP servers of a project get it.
-	Net bool
+	// Door is the way out of the program; without it the program has no network.
+	Door *Door
 }
 
 type Sandbox interface {
 	Name() string
 	// Check reports whether the mechanism works on this machine.
 	Check() error
-	// Listen opens in dir the listener a confined program reaches deck through.
+	// Listen opens in dir the listener of a door.
 	Listen(dir string) (net.Listener, error)
 	// Addr is the host:port the confined program dials to reach ln.
 	Addr(ln net.Listener) string

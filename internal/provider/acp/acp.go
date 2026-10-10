@@ -20,6 +20,7 @@ import (
 
 	sdk "github.com/coder/acp-go-sdk"
 
+	"deck2/internal/gateway"
 	"deck2/internal/nonce"
 	"deck2/internal/provider"
 	"deck2/internal/sandbox"
@@ -131,50 +132,34 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 	if err != nil {
 		return provider.Result{}, err
 	}
-	sock, err := os.MkdirTemp("", "deck-acp-")
-	if err != nil {
-		return provider.Result{}, err
-	}
-	ln, err := a.cfg.Sandbox.Listen(sock)
-	if err != nil {
-		return provider.Result{}, err
-	}
-	defer os.RemoveAll(sock)
-	defer ln.Close()
 	life, stop := context.WithCancel(context.WithoutCancel(ctx))
 	defer stop()
-	self := a.cfg.Sandbox.Addr(ln)
-	e := &entry{ctx: life, self: self, mcp: mcp, api: a.cfg.API(req.OnUsage), modelAt: "/model/" + nonce.Hex(16),
-		proxyKey: nonce.Hex(16), now: a.now}
+	e := &entry{mcp: mcp, api: a.cfg.API(req.OnUsage), modelAt: "/model/" + nonce.Hex(16), now: a.now}
+	var domains []string
 	if !req.NoNetwork {
-		e.domains = req.Hosts
+		domains = req.Hosts
 	}
-	srv := &http.Server{Handler: e}
-	go func() { _ = srv.Serve(ln) }()
-	defer func() {
-		sctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		defer cancel()
-		if srv.Shutdown(sctx) != nil {
-			_ = srv.Close()
-		}
-	}()
+	door, err := sandbox.Open(a.cfg.Sandbox, gateway.Egress, domains, e)
+	if err != nil {
+		return provider.Result{}, err
+	}
+	defer door.Close()
 
 	bin, err := exec.LookPath(a.cfg.Binary)
 	if err != nil {
 		return provider.Result{}, fmt.Errorf("acp: %s is not installed: %w", a.cfg.Agent, err)
 	}
-	proxy := "http://deck:" + e.proxyKey + "@" + self
-	argv, env, files := a.agent.Start(Launch{Binary: bin, Home: home, ModelURL: "http://" + self + e.modelAt, Model: a.cfg.Model,
+	argv, env, files := a.agent.Start(Launch{Binary: bin, Home: home, ModelURL: door.URL() + e.modelAt, Model: a.cfg.Model,
 		Key: "deck"})
 	for path, text := range files {
 		if err := writeNew(path, text); err != nil {
 			return provider.Result{}, err
 		}
 	}
-	env = append(sandbox.Env(home, filepath.Join(home, "tmp"), proxy, self), env...)
+	env = append(append(sandbox.Env(home, filepath.Join(home, "tmp")), env...), door.Env()...)
 	cmd, err := a.cfg.Sandbox.Command(life, a.closed(sandbox.Policy{
 		Argv: append([]string{"/bin/sh", "-c", `"$@"; exit $?`, marker(req.SessionID)}, argv...),
-		Dir:  req.Cwd, Env: env, Write: append([]string{req.Cwd, home}, req.Dirs...), Read: req.Read, Out: ln}, bin))
+		Dir:  req.Cwd, Env: env, Write: append([]string{req.Cwd, home}, req.Dirs...), Read: req.Read, Door: door}, bin))
 	if err != nil {
 		return provider.Result{}, err
 	}
@@ -194,7 +179,7 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 	c := &client{onEvent: req.OnEvent}
 	conn := sdk.NewClientSideConnection(c, in, out)
 	conn.SetLogger(slog.New(slog.DiscardHandler))
-	t := &turn{a: a, req: req, c: c, conn: conn, dir: dir, session: agentSession, mcp: proxy + mcp.Path, e: e}
+	t := &turn{a: a, req: req, c: c, conn: conn, dir: dir, session: agentSession, mcp: door.URL() + mcp.Path, e: e}
 	res, runErr := t.run(ctx)
 	_ = in.Close()
 	// Wait closes stdout, so it runs only once the connection has read all of it.

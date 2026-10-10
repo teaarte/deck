@@ -47,7 +47,7 @@ const (
 )
 
 // MaxDepth is the longest chain of processes that start one another.
-const MaxDepth = 5
+const MaxDepth = 8
 
 // Empty is the result of a process that had nothing to do.
 const Empty = "null"

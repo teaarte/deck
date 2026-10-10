@@ -173,7 +173,7 @@ func (ch *Service) reply(ctx context.Context, topicID int64) error {
 	if err != nil {
 		return err
 	}
-	o := process.Origin{Session: uuid.NewString(), Files: files}
+	o := process.Origin{Session: uuid.NewString(), Files: files, Owners: true}
 	sign := ""
 	s, err := ch.St.Q.GetChatSession(ctx, db.GetChatSessionParams{TopicID: topicID, Provider: pv.Name()})
 	switch {

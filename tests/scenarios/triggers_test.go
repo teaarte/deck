@@ -58,10 +58,10 @@ func TestANewModuleWithoutCode(t *testing.T) {
 	e.waitFor("the second digest after the button", func() bool { return e.countOf("digest") == 2 })
 }
 
-func TestTriggerChainStopsAtSixthStep(t *testing.T) {
+func TestTriggerChainStopsAtNinthStep(t *testing.T) {
 	t.Parallel()
 	var cmds, trigs []string
-	for i := 1; i <= 6; i++ {
+	for i := 1; i <= 9; i++ {
 		in := processField
 		if i == 1 {
 			in = ""
@@ -73,18 +73,18 @@ func TestTriggerChainStopsAtSixthStep(t *testing.T) {
 	e := newEnv(t, ok)
 	p := e.createProject("chain", testManifest(cmds, trigs))
 	e.run(p, "c1")
-	n := e.waitNote("chain.c6")
+	n := e.waitNote("chain.c9")
 	e.settle()
-	if !n.CanRead {
-		t.Fatalf("the sixth step is refused with a note the owner marks read: %+v", n)
+	if !n.CanRead || !strings.Contains(n.Text, "c1 → c2 → c3 → c4 → c5 → c6 → c7 → c8") {
+		t.Fatalf("the ninth step is refused with a note naming the chain, which the owner marks read: %+v", n)
 	}
 	var as []askView
 	if e.must("deck.asks_list", nil, &as); len(as) != 0 {
 		t.Fatalf("a warning waits for no answer, so it is not among the asks: %+v", as)
 	}
 	ps := e.processes()
-	if len(ps) != 5 || e.countOf("c6") != 0 {
-		t.Fatalf("five steps run, the sixth does not: %+v", ps)
+	if len(ps) != 8 || e.countOf("c9") != 0 {
+		t.Fatalf("eight steps run, the ninth does not: %+v", ps)
 	}
 	for _, pr := range ps {
 		if want := int64(pr.Command[1] - '0'); pr.Depth != want || pr.State != "done" {
@@ -92,7 +92,7 @@ func TestTriggerChainStopsAtSixthStep(t *testing.T) {
 		}
 	}
 	e.must("deck.feed_read", map[string]any{"entry": n.ID}, nil)
-	if e.warnings("chain.c6") != 0 {
+	if e.warnings("chain.c9") != 0 {
 		t.Fatalf("a note marked read stays read: %+v", e.notes())
 	}
 }

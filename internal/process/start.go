@@ -29,6 +29,9 @@ type Started struct {
 // Origin is who started a process: the process that called or triggered it, the trigger, the retry key;
 // Trial asks for a trial run, which processes of a draft and children of a trial run always are.
 type Origin struct {
+	// Owners is a process that answers the owner's own word, such as a reply of the master: what it starts
+	// counts as started by the owner.
+	Owners  bool
 	Parent  int64
 	Trigger int64
 	// Confirmed is a call of the trigger the owner said yes to; its schedule checks do not apply.
@@ -45,6 +48,20 @@ type Origin struct {
 	Note string
 	// Files are stored files of the project given to the agent with its first message, as with Give.
 	Files []int64
+}
+
+// chainOf is the commands of the chain that ends in p, from its first: "a → b → c".
+func chainOf(ctx context.Context, q *db.Queries, p db.Process) (string, error) {
+	names := []string{p.Command}
+	for p.ParentID.Valid && len(names) <= 3*MaxDepth {
+		var err error
+		if p, err = q.GetProcess(ctx, p.ParentID.Int64); err != nil {
+			return "", err
+		}
+		names = append(names, p.Command)
+	}
+	slices.Reverse(names)
+	return strings.Join(names, " → "), nil
 }
 
 func (r *Runner) ceilingOf(m *manifest.Manifest, cmd *manifest.Command) time.Duration {
@@ -178,11 +195,20 @@ func (r *Runner) Start(ctx context.Context, projectID int64, m *manifest.Manifes
 			}
 		}
 		depth := int64(1)
-		if o.Parent != 0 {
+		switch {
+		case o.Owners:
+			depth = 0
+		case o.Parent != 0 && o.Trigger == 0 && kind != KindAgent && parent.Kind == KindAgent && parent.ProjectID == projectID:
+			depth = max(parent.Depth, 1)
+		case o.Parent != 0:
 			if depth = parent.Depth + 1; depth > MaxDepth {
-				text := fmt.Sprintf("deck stopped a chain of %d processes: %s.%s was not started after process %d (%s).",
-					MaxDepth, proj.Name, command, parent.ID, parent.Command)
-				refused = registry.Refuse("deck: %s was not started: a chain of processes may be at most %d long", command, MaxDepth)
+				chain, err := chainOf(ctx, q, parent)
+				if err != nil {
+					return err
+				}
+				text := fmt.Sprintf("deck stopped a chain of %d processes: %s.%s was not started after %s (process %d).",
+					MaxDepth, proj.Name, command, chain, parent.ID)
+				refused = registry.Refuse("deck: %s was not started: a chain of processes may be at most %d long: %s", command, MaxDepth, chain)
 				return q.AddDeckNote(ctx, db.AddDeckNoteParams{CreatedAt: store.Time(r.now()), ProjectID: proj.ID, Text: text})
 			}
 		}

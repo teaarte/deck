@@ -161,6 +161,22 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   "status"` on a `list`), where the owner drags an item to its next stage; the other fields of a record the owner
   edits on its page (a `form` of `deck.record_update`), and a command takes the records of its status with
   `records_list` and `where`.
+- **Work in progress** on a record is a value of its `status` (`applying`) the command sets first and its script
+  clears at the end: the row shows it by `tone` or a `tag` cell, and the button hides by `"when": "status !=
+  'applying'"`. A button whose second press must not start the work twice passes `"retry_key": "='apply:' +
+  string(_id)"` in `params`: a call with the key of a running process of that command returns that process.
+- **A last lane that keeps growing** (`done` of a board) is cut by the source of the board, `"where": "status !=
+  'done' || date(_updated) > now() - duration('168h')"`, and the whole history is a separate table of that
+  status; `limit` cuts every lane at once.
+- **Expressions are JSON text**: a line break is the escape `\n` inside the quotes of the expression, written
+  `\\n` in the manifest and in a JSON Patch (`"text": "=title + '\\n' + note"`); a JSON `\n` alone puts a raw
+  line break into the quotes, and the expression is refused. `text[:80]` and `len(text)` count characters.
+- **`folder` may be one file** a record has (`"folder": "'tracks/' + slug + '.mp3'"`): deleting the record
+  deletes that file.
+- **Derived state** beside the records (an index, a `tasks.json`, totals) hears nothing when the owner deletes a
+  record with `deck.record_delete`: rebuild it from the records each time it is made, so a deleted record drops
+  out at the next run, or delete through a command of the module (a status `deleted` its scripts honour) and
+  give its screens that button instead.
 - **Documents** agents and scripts write are artifacts only: each belongs to one record. A daily digest or report is an artifact of a record made for it (one record a day); `prompt.md`,
   `prompts/*.md` and other module documents are written by you, not by the module at run time.
 - **Screens** are lists of blocks from the catalog (`schemas/catalog.json`; in `manifest_format` each block type

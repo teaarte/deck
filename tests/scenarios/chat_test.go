@@ -30,7 +30,11 @@ func TestOwnerMessageGetsAMasterReplyInTheTopic(t *testing.T) {
 	if len(ts) != 1 || ts[0].ID != topic || ts[0].Title != "Remember to buy milk" || ts[0].Last != "Put it into the inbox." {
 		t.Fatalf("the topic is named by the first line of its first message: %+v", ts)
 	}
-	ms := e.chatMessages(topic)
+	var ms []chatMessage
+	e.waitFor("the reply done", func() bool {
+		ms = e.chatMessages(topic)
+		return len(ms) == 2 && ms[0].Reply != nil && ms[0].Reply.State == "done"
+	})
 	if len(ms) != 2 || ms[0].Role != "owner" || ms[0].Reply == nil || ms[0].Reply.State != "done" ||
 		!strings.Contains(string(ms[0].Screen), `"screen":"documents"`) {
 		t.Fatalf("the owner's message keeps its screen and the state of its reply: %+v", ms)

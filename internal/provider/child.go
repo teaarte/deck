@@ -9,6 +9,7 @@ import (
 	"sync"
 	"syscall"
 
+	"deck2/internal/sandbox"
 	"deck2/internal/untrusted"
 )
 
@@ -41,7 +42,7 @@ func Start(cmd *exec.Cmd, dir string, onStart func(pid int)) (*Child, error) {
 }
 
 // Signal sends sig to the whole group of the program.
-func (c *Child) Signal(sig syscall.Signal) { _ = syscall.Kill(-c.Cmd.Process.Pid, sig) }
+func (c *Child) Signal(sig syscall.Signal) { _ = sandbox.Kill(c.Cmd, sig) }
 
 // Stderr is what the program wrote to stderr, cut short.
 func (c *Child) Stderr() string {

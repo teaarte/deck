@@ -43,16 +43,19 @@ type Sandbox interface {
 // New returns the sandbox of this operating system.
 func New() Sandbox { return platform() }
 
-// End kills what is left of the process group of a finished command.
+// End kills what is left of the process group of a command.
 func End(cmd *exec.Cmd) {
-	if cmd.Process != nil {
-		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+	if cmd != nil && cmd.Process != nil {
+		_ = Kill(cmd, syscall.SIGKILL)
 	}
 }
 
+// Kill sends sig to the process group of a started command.
+func Kill(cmd *exec.Cmd, sig syscall.Signal) error { return syscall.Kill(-cmd.Process.Pid, sig) }
+
 func group(cmd *exec.Cmd) *exec.Cmd {
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	cmd.Cancel = func() error { return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL) }
+	cmd.Cancel = func() error { return Kill(cmd, syscall.SIGKILL) }
 	cmd.WaitDelay = 5 * time.Second
 	return cmd
 }

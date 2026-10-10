@@ -161,9 +161,7 @@ func (s *server) stop() {
 
 // kill ends the process group of a stdio server, with the programs it started.
 func (s *server) kill() {
-	if s.cmd != nil && s.cmd.Process != nil {
-		_ = syscall.Kill(-s.cmd.Process.Pid, syscall.SIGKILL)
-	}
+	sandbox.End(s.cmd)
 	s.cmd = nil
 	s.close()
 }

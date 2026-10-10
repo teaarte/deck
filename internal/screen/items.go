@@ -84,6 +84,9 @@ func (r *renderer) load(src manifest.Source, input map[string]any, picked map[st
 	default:
 		scope := r.scope
 		scope.Filter = picked
+		if other, _ := input["project"].(string); !r.deck() && other != "" && other != r.req.Project.Name {
+			scope.By = r.req.Project.ID
+		}
 		got, err := r.src.Read(r.ctx, src.From, input, scope)
 		if err != nil {
 			return nil, err

@@ -150,7 +150,7 @@ func TestAScreenReadsAnotherProjectOnlyByItsReads(t *testing.T) {
 		t.Fatalf("a module reads another project only by its reads: %s", b0)
 	}
 	e.createProject("reader", readerManifest(screen+`, "reads": [{"project": "source", "collections": ["items"]}]`))
-	if b0 := e.screenData("reader", "main", nil)["b0"]; b0["error"] != nil || !strings.Contains(string(b0["rows"]), `\"name\":\"a\"`) {
+	if b0 := e.screenData("reader", "main", nil)["b0"]; b0["error"] != nil || !strings.Contains(string(b0["rows"]), `"name":"a"`) {
 		t.Fatalf("a module that reads it sees it: %s", b0)
 	}
 }

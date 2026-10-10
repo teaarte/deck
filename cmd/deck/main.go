@@ -65,15 +65,11 @@ func run() error {
 		return err
 	}
 
-	ln, err := net.Listen("tcp", *addr)
+	ln, sideLn, err := listenPair(*addr)
 	if err != nil {
 		return err
 	}
 	port := ln.Addr().(*net.TCPAddr).Port
-	sideLn, err := net.Listen("tcp", net.JoinHostPort(ln.Addr().(*net.TCPAddr).IP.String(), strconv.Itoa(port+1)))
-	if err != nil {
-		return fmt.Errorf("second origin for custom blocks: %w", err)
-	}
 	a, err := app.New(app.Config{
 		Home: home, MCPBase: "http://" + ln.Addr().String(),
 		QuestionWait: 30 * time.Minute, ConfirmWait: 30 * time.Minute, ConfirmTTL: 24 * time.Hour,
@@ -160,4 +156,24 @@ func loadToken(path string) (string, error) {
 		return "", err
 	}
 	return tok, os.Chmod(path, 0o600)
+}
+
+// listenPair listens on addr and on the next port, the second origin of custom blocks; with any port it tries pairs
+// until both are free.
+func listenPair(addr string) (net.Listener, net.Listener, error) {
+	for try := 0; ; try++ {
+		ln, err := net.Listen("tcp", addr)
+		if err != nil {
+			return nil, nil, err
+		}
+		a := ln.Addr().(*net.TCPAddr)
+		side, err := net.Listen("tcp", net.JoinHostPort(a.IP.String(), strconv.Itoa(a.Port+1)))
+		if err == nil {
+			return ln, side, nil
+		}
+		_ = ln.Close()
+		if _, p, _ := net.SplitHostPort(addr); p != "0" || try == 20 {
+			return nil, nil, fmt.Errorf("second origin for custom blocks: %w", err)
+		}
+	}
 }

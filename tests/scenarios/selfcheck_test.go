@@ -132,13 +132,15 @@ func TestSelfCheckHittingTheLimitIsAPauseNotABrokenAdapter(t *testing.T) {
 // checkedFake is the fake provider with a self-check the test turns red or green.
 type checkedFake struct {
 	*Fake
-	mu  sync.Mutex
-	err error
+	mu     sync.Mutex
+	err    error
+	checks int
 }
 
 func (c *checkedFake) SelfCheck(context.Context) provider.Check {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	c.checks++
 	return provider.Check{Version: "1.0", Err: c.err}
 }
 
@@ -327,4 +329,19 @@ func TestATurnTheProviderReportsAsAnErrorChecksIt(t *testing.T) {
 		t.Fatalf("the turn fails: %+v", got)
 	}
 	e.waitHealth("provider:claude-code", "error")
+}
+
+func TestACommandDuringTheStopStartsNoBackgroundWork(t *testing.T) {
+	t.Parallel()
+	cf := &checkedFake{Fake: &Fake{}}
+	e := newEnvWith(t, t.TempDir(), cf)
+	e.App.Stop()
+	code, out := e.call("deck.provider_check", map[string]any{"provider": "fake"})
+	time.Sleep(300 * time.Millisecond)
+	cf.mu.Lock()
+	n := cf.checks
+	cf.mu.Unlock()
+	if code == 200 || n != 0 || !strings.Contains(string(out), "stopping") {
+		t.Fatalf("a self-check asked for while deck stops does not start: %d %s, %d checks", code, out, n)
+	}
 }

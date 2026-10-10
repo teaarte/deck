@@ -4,6 +4,7 @@ import { useLocalStorage } from '@mantine/hooks';
 import { IconLayoutGrid, IconList } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { formatted } from '../../lib/format';
+import { Download } from './Download';
 import { Actions } from '../../ui/actions/Actions';
 import type { Item } from './kinds';
 import { Lightbox } from './Lightbox';
@@ -37,6 +38,7 @@ export function Browser({ items }: { items: Item[] }) {
             <UnstyledButton key={String(it.id) + i} className={s.tile} onClick={() => setAt(i)} data-item data-tile>
               <Thumb it={it} size={tile} />
               <Text size="xs" lineClamp={2} ta="center" style={{ overflowWrap: 'anywhere' }}>{it.title || it.name}</Text>
+              {it.error && <Text size="xs" c="red" lineClamp={2} ta="center" data-media="error">{it.error}</Text>}
             </UnstyledButton>
           ))}
         </div>
@@ -47,9 +49,10 @@ export function Browser({ items }: { items: Item[] }) {
               <UnstyledButton className={s.row} style={{ flex: 1, minWidth: 0 }} onClick={() => setAt(i)}>
                 <Thumb it={it} size={32} />
                 <Text size="sm" truncate style={{ flex: 1 }}>{it.title || it.name}</Text>
-                {it.error ? <Text size="xs" c="red" truncate maw="40%">{it.error}</Text>
+                {it.error ? <Text size="xs" c="red" truncate maw="40%" data-media="error">{it.error}</Text>
                   : <Text size="xs" c="dimmed">{formatted(it.size, { format: 'bytes' })}</Text>}
               </UnstyledButton>
+              {!it.error && <Download it={it} />}
               {!!it.actions?.length && <Actions actions={it.actions} max={2} />}
             </Group>
           ))}

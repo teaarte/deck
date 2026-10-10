@@ -377,8 +377,10 @@ func TestRealBrowserJournal(t *testing.T) {
 	b.until("the new snapshot in the list", `[...document.querySelectorAll('tr')].some((r) => r.offsetParent && r.innerText.includes('deck-'))`)
 	b.eval(`(window.saved = [], HTMLAnchorElement.prototype.click = function () { fetch(this.href).then((r) => r.blob()).then(async (b) => { window.saved.push(b.type + ' ' + this.download + '=' + await b.text()); }); }, '')`)
 	b.eval(`([...document.querySelectorAll('[role=tab]')].find((x) => x.innerText.trim() === 'Files').click(), '')`)
-	b.until("the download buttons of the files", `[...document.querySelectorAll('[data-verb=download]')].filter((x) => x.offsetParent).length === 3`)
-	b.eval(`([...document.querySelectorAll('[data-verb=download]')].filter((x) => x.offsetParent).forEach((x) => x.click()), '')`)
+	b.until("the switch of the view of files", `[...document.querySelectorAll('[data-files-mode] input')].some((x) => x.value === 'list')`)
+	b.eval(`([...document.querySelectorAll('[data-files-mode] input')].find((x) => x.value === 'list').click(), '')`)
+	b.until("the download buttons of the files", `[...document.querySelectorAll('[data-row] [data-download]')].filter((x) => x.offsetParent).length === 3`)
+	b.eval(`([...document.querySelectorAll('[data-row] [data-download]')].filter((x) => x.offsetParent).forEach((x) => x.click()), '')`)
 	b.until("the downloaded files under their names, never as a page", `window.saved.length === 3 && window.saved.sort().join('|') === `+
 		`'application/octet-stream 100% a;b".txt=body of 100% a;b".txt|application/octet-stream 100%.txt=body of 100%.txt|application/octet-stream notes ü.txt=body of notes ü.txt'`)
 	if got := b.eval(`String(document.documentElement.scrollWidth <= innerWidth + 1)`); got != "true" {

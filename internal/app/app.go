@@ -85,7 +85,7 @@ type App struct {
 
 	ctx      context.Context
 	cancel   context.CancelFunc
-	bg       sync.WaitGroup
+	bg       background
 	stopOnce sync.Once
 	// slowRunning is set while the loop pushes and takes the daily snapshot.
 	slowRunning atomic.Bool
@@ -150,14 +150,14 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	*a.Journal = journal.Service{St: st, Now: cfg.Now, Backups: h.Backups()}
 	*a.Settings = settings.Service{St: st, DefaultTTL: cfg.ConfirmTTL, Wake: a.Runner.Wake}
 	*a.Triggers = triggers.Service{St: st, Scheduler: a.Scheduler, Gateway: a.Gateway, Registry: a.Registry, Model: a.Providers.CommandModel}
-	*a.Documents = documents.Service{St: st, Now: cfg.Now, Sandbox: cfg.Sandbox, Ctx: a.ctx, BG: &a.bg,
+	*a.Documents = documents.Service{St: st, Now: cfg.Now, Sandbox: cfg.Sandbox, Ctx: a.ctx, Go: a.bg.Go,
 		SaveManifest: a.Saver.SaveCall, Changed: a.Devices.Changed}
 	*a.Snapshots = snapshots.Service{St: st, Bus: a.Bus, Home: h, Now: cfg.Now, LockFiles: a.Files.Mu.Lock, UnlockFiles: a.Files.Mu.Unlock,
 		DrainFiles: a.Files.Drain}
 	*a.Providers = providers.Service{St: st, Now: cfg.Now, Home: h, Sandbox: cfg.Sandbox, ACPBinaries: cfg.ACPBinaries,
 		ACPCallLimit: cfg.ACPCallLimit, SelfCheckCeiling: cfg.SelfCheckCeiling, Secret: a.Secrets.Read, WriteSecret: a.Secrets.Write,
 		Wake: a.Runner.Wake, Resolve: a.Tools.Resolve,
-		Builtin: append([]provider.Provider{p}, more...), Ctx: a.ctx, BG: &a.bg}
+		Builtin: append([]provider.Provider{p}, more...), Ctx: a.ctx, Go: a.bg.Go}
 	*a.Answers = asks.Service{St: st, Now: cfg.Now, Broker: a.Asks, Registry: a.Registry, Gateway: a.Gateway, Deliver: a.Runner.Deliver,
 		AnswerGrant: a.Saver.AnswerGrant, SaveManifest: a.Saver.SaveCall}
 	*a.Signins = signins.Service{St: st, Ctx: a.ctx, Broker: a.Asks, OAuth: oauth, Browser: a.Browser, MCP: a.MCP}
@@ -201,17 +201,38 @@ func (a *App) Stop() {
 	a.stopOnce.Do(func() {
 		a.Runner.Shutdown()
 		a.cancel()
-		a.bg.Wait()
+		a.bg.stop()
 	})
+}
+
+// background is the work deck runs beside the calls; once deck stops, none starts.
+type background struct {
+	mu      sync.Mutex
+	wg      sync.WaitGroup
+	stopped bool
+}
+
+// Go runs f beside the calls unless deck stops, and reports whether it runs.
+func (b *background) Go(f func()) bool {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.stopped {
+		return false
+	}
+	b.wg.Go(f)
+	return true
+}
+
+func (b *background) stop() {
+	b.mu.Lock()
+	b.stopped = true
+	b.mu.Unlock()
+	b.wg.Wait()
 }
 
 // Start runs the loop of deck every interval until Stop.
 func (a *App) Start(every time.Duration) {
-	a.bg.Add(1)
-	go func() {
-		defer a.bg.Done()
-		a.Loop(a.ctx, every)
-	}()
+	a.bg.Go(func() { a.Loop(a.ctx, every) })
 }
 
 // Sweep checks every deadline against now, then pushes and runs the daily cleanup and snapshot.
@@ -254,12 +275,10 @@ func (a *App) Loop(ctx context.Context, every time.Duration) {
 		now := a.Cfg.Now()
 		a.deadlines(ctx, now)
 		if a.slowRunning.CompareAndSwap(false, true) {
-			a.bg.Add(1)
-			go func() {
-				defer a.bg.Done()
+			a.bg.Go(func() {
 				defer a.slowRunning.Store(false)
 				a.slow(ctx, now)
-			}()
+			})
 		}
 		a.Providers.Checks(ctx, now)
 		select {

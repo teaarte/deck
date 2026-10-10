@@ -10,7 +10,6 @@ import (
 	"io/fs"
 	"log/slog"
 	"strings"
-	"sync"
 	"time"
 
 	"deck2/internal/app/access"
@@ -35,7 +34,8 @@ type Service struct {
 	// SaveManifest saves a manifest through its checks, with the call the owner allows when it widens rights.
 	SaveManifest func(ctx context.Context, act registry.Actor, p db.Project, raw []byte, reason string, revertTo, ifRevision int64, command string, input map[string]any) (any, error)
 	Ctx          context.Context
-	BG           *sync.WaitGroup
+	// Go runs work beside the calls; false once deck stops.
+	Go func(func()) bool
 }
 
 type documentView struct {
@@ -604,13 +604,11 @@ func commandHealth(project, command string) string { return "command:" + project
 
 // PrepareLater records the health of the script commands of a project in the background.
 func (dc *Service) PrepareLater(projectID int64) {
-	dc.BG.Add(1)
-	go func() {
-		defer dc.BG.Done()
+	dc.Go(func() {
 		if err := dc.Programs(dc.Ctx, projectID); err != nil && dc.Ctx.Err() == nil {
 			slog.Error("prepare scripts", "project", projectID, "err", err)
 		}
-	}()
+	})
 }
 
 type programsCheckIn struct {

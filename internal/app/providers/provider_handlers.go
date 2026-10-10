@@ -22,6 +22,9 @@ func (s *Service) providerCheck(ctx context.Context, act registry.Actor, in prov
 		return nil, registry.Invalid("deck: provider %q has no self-check", in.Provider)
 	}
 	if !s.startCheck(in.Provider, true) {
+		if s.Ctx.Err() != nil {
+			return nil, errors.New("deck: deck is stopping")
+		}
 		return nil, errors.New("deck: a self-check is already running")
 	}
 	return map[string]any{"checking": in.Provider}, nil

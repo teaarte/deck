@@ -51,13 +51,11 @@ func (s *Service) Checks(ctx context.Context, now time.Time) {
 	s.found = true
 	s.mu.Unlock()
 	if !found {
-		s.BG.Add(1)
-		go func() {
-			defer s.BG.Done()
+		s.Go(func() {
 			for _, name := range acp.Names() {
 				s.discover(s.Ctx, name)
 			}
-		}()
+		})
 	}
 	for _, pv := range s.checked(ctx) {
 		s.mu.Lock()
@@ -99,9 +97,7 @@ func (s *Service) startCheck(name string, force bool) bool {
 	s.mu.Unlock()
 	ctx := s.Ctx
 	subject := process.HealthSubject(name)
-	s.BG.Add(1)
-	go func() {
-		defer s.BG.Done()
+	started := s.Go(func() {
 		h, _ := s.St.Q.GetHealth(ctx, subject)
 		if force || h.Status == "error" || h.Status == "checking" {
 			s.writeCheck(ctx, subject, "checking", "the self-check is running", "", "", 0)
@@ -159,8 +155,13 @@ func (s *Service) startCheck(name string, force bool) bool {
 		if status != "error" && status != "checking" {
 			s.Wake(context.WithoutCancel(ctx))
 		}
-	}()
-	return true
+	})
+	if !started {
+		s.mu.Lock()
+		c.running = false
+		s.mu.Unlock()
+	}
+	return started
 }
 
 func (s *Service) writeCheck(ctx context.Context, subject, status, text, version, verdict string, speed float64) {

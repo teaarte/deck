@@ -41,7 +41,8 @@ type Service struct {
 	// Builtin are the providers deck was started with, the main one first; the owner adds ACP ones per workspace.
 	Builtin []provider.Provider
 	Ctx     context.Context
-	BG      *sync.WaitGroup
+	// Go runs work beside the calls; false once deck stops.
+	Go func(func()) bool
 	// Resolve finds a file an input points to for a process of a project.
 	Resolve func(ctx context.Context, project, process int64, ref string) (files.Ref, error)
 

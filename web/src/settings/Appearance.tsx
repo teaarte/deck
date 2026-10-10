@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { CheckIcon, ColorSwatch, Group, SegmentedControl, SimpleGrid, Slider, Stack, Switch, Text, useMantineColorScheme, type MantineColorScheme } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
-import { ACCENTS, DENSITIES, FONTS, RADII, SURFACES, THEMES, setLook, useLook, type Look } from '../theme/look';
+import { ACCENTS, DENSITIES, FACES, FONTS, RADII, SURFACES, THEMES, setLook, useLook, type Look } from '../theme/look';
 import { call } from '../lib/api';
 import { Pushes } from './Pushes';
 import { notifyError } from '../lib/notify';
@@ -68,7 +68,8 @@ export function Appearance({ part }: { part?: string }) {
           )}
         </Stack>
       </SimpleGrid>
-      <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="lg">
+      <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="lg">
+        <Choice label={t('look.face')} name="face" value={look.face} options={FACES} onChange={(v: Look['face']) => setLook({ face: v })} />
         <Choice label={t('look.density')} name="density" value={look.density} options={DENSITIES} onChange={(v: Look['density']) => setLook({ density: v })} />
         <Choice label={t('look.font')} name="font" value={look.font} options={FONTS} onChange={(v: Look['font']) => setLook({ font: v })} />
         {look.theme !== 'pixel' && (

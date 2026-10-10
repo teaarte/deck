@@ -8,6 +8,8 @@ export interface Look {
   accent: string;
   density: 'compact' | 'default' | 'comfortable';
   font: 'small' | 'default' | 'large';
+  // face is the font of the text and headings; code is always monospace.
+  face: 'themed' | 'system' | 'rounded' | 'serif';
   radius: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
   theme: 'juce' | 'default' | 'glass' | 'pixel' | 'neon' | 'paper';
   // surface is how much of the accent the islands and blocks take.
@@ -27,10 +29,11 @@ const KEY = 'deck-look';
 export const ACCENTS = ['coral', 'blue', 'indigo', 'violet', 'grape', 'pink', 'red', 'orange', 'yellow', 'lime', 'green', 'teal', 'cyan', 'gray'];
 export const DENSITIES: Look['density'][] = ['compact', 'default', 'comfortable'];
 export const FONTS: Look['font'][] = ['small', 'default', 'large'];
+export const FACES: Look['face'][] = ['themed', 'system', 'rounded', 'serif'];
 export const RADII: Look['radius'][] = ['xs', 'sm', 'md', 'lg', 'xl'];
 export const THEMES: Look['theme'][] = ['juce', 'default', 'glass', 'pixel', 'neon', 'paper'];
 export const SURFACES: Look['surface'][] = ['neutral', 'tinted', 'vivid'];
-const DEFAULT: Look = { accent: 'coral', density: 'default', font: 'default', radius: 'md', theme: 'juce', surface: 'neutral', pattern: true, tint: 0.35,
+const DEFAULT: Look = { accent: 'coral', density: 'default', font: 'default', face: 'themed', radius: 'md', theme: 'juce', surface: 'neutral', pattern: true, tint: 0.35,
   mascot: true, motion: true, sky: true, slim: false };
 
 function read(): Look {
@@ -40,6 +43,7 @@ function read(): Look {
       accent: ACCENTS.includes(got.accent ?? '') ? got.accent! : DEFAULT.accent,
       density: DENSITIES.includes(got.density!) ? got.density! : DEFAULT.density,
       font: FONTS.includes(got.font!) ? got.font! : DEFAULT.font,
+      face: FACES.includes(got.face!) ? got.face! : DEFAULT.face,
       radius: RADII.includes(got.radius!) ? got.radius! : DEFAULT.radius,
       theme: THEMES.includes(got.theme!) ? got.theme! : DEFAULT.theme,
       surface: SURFACES.includes(got.surface!) ? got.surface! : DEFAULT.surface,
@@ -82,18 +86,28 @@ export const useLook = () => useSyncExternalStore((f) => (subs.add(f), () => sub
 const scaled = (sizes: Record<string, string>, by: number) =>
   Object.fromEntries(Object.entries(sizes).map(([k, v]) => [k, by === 1 ? v : `calc(${v} * ${by})`]));
 
+// The faces are of the system, none in the build: text, rounded, serif and code.
+const SYSTEM = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
+const MONO = 'ui-monospace, "SF Mono", Menlo, Consolas, monospace';
+const faces: Record<Exclude<Look['face'], 'themed'>, string> = {
+  system: SYSTEM,
+  rounded: 'ui-rounded, "SF Pro Rounded", system-ui, -apple-system, sans-serif',
+  serif: 'ui-serif, "New York", Charter, Georgia, serif',
+};
+
 // fonts are the faces of the themes that have their own: juce Helvetica, pixel monospace, paper with serifs.
 const fonts: Partial<Record<Look['theme'], string>> = {
   juce: '"Helvetica Neue", Helvetica, Arial, system-ui, -apple-system, sans-serif',
-  pixel: 'ui-monospace, "SF Mono", Menlo, Consolas, monospace',
-  paper: 'ui-serif, "New York", Charter, Georgia, serif',
+  pixel: MONO,
+  paper: faces.serif,
 };
 
-// theme is the Mantine theme of a look: the accent is the primary color, density scales spacing, font the text,
-// and the glass theme puts glass on the shell, overlays and controls.
+// theme is the Mantine theme of a look: the accent is the primary color, density scales spacing, font the text, face
+// its font or the theme's, and the glass theme puts glass on the shell, overlays and controls.
 export function theme(l: Look): MantineThemeOverride {
   const space = { compact: 0.75, default: 1, comfortable: 1.25 }[l.density];
   const text = { small: 0.9, default: 1, large: 1.15 }[l.font];
+  const face = l.face === 'themed' ? fonts[l.theme] ?? SYSTEM : faces[l.face];
   const headings = Object.fromEntries(Object.entries(DEFAULT_THEME.headings.sizes).map(([k, h]) =>
     [k, { ...h, fontSize: text === 1 ? h.fontSize : `calc(${h.fontSize} * ${text})` }]));
   return createTheme({
@@ -105,7 +119,9 @@ export function theme(l: Look): MantineThemeOverride {
     defaultRadius: l.theme === 'pixel' ? 0 : l.radius,
     spacing: scaled(DEFAULT_THEME.spacing, space),
     fontSizes: scaled(DEFAULT_THEME.fontSizes, text),
-    ...(fonts[l.theme] ? { fontFamily: fonts[l.theme], headings: { sizes: headings, fontFamily: fonts[l.theme] } } : { headings: { sizes: headings } }),
+    fontFamily: face,
+    fontFamilyMonospace: MONO,
+    headings: { sizes: headings, fontFamily: face },
     components: l.theme === 'glass' ? glass : {},
   });
 }

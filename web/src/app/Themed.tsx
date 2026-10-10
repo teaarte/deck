@@ -12,7 +12,7 @@ import { TokenPrompt } from './TokenPrompt';
 // Themed follows the system color scheme unless this device picked one, and the look this device keeps.
 export function Themed() {
   const look = useLook();
-  const themed = useMemo(() => theme(look), [look.accent, look.density, look.font, look.radius, look.theme]);
+  const themed = useMemo(() => theme(look), [look.accent, look.density, look.font, look.face, look.radius, look.theme]);
   return (
     <MantineProvider theme={themed} defaultColorScheme="auto" cssVariablesResolver={resolver} forceColorScheme={look.theme === 'neon' ? 'dark' : undefined}>
       <Notifications position="top-center" />

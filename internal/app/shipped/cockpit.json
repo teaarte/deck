@@ -34,12 +34,12 @@
         ]},
       {"type": "columns", "blocks": [
         {"type": "list", "title": "Did not work", "icon": "alert-circle", "when": "len(rows) > 0",
-          "source": {"from": "deck.processes_list", "input": {"failed": true, "brief": true}},
+          "source": {"from": "deck.processes_list", "input": {"failed": true, "brief": true}, "limit": 20},
           "description": "Runs that failed and no later run made good; close one you will not repeat.",
           "item": {"title": "project + ' · ' + command + ((record_title ?? '') != '' ? ' · ' + record_title : '')", "tone": "'error'", "icon": "'alert-circle'",
             "text": "(error ?? '') != '' ? error : 'the result did not match its schema'", "meta": "'#' + string(id)"},
           "actions": [
-            {"verb": "retry", "primary": true, "command": "deck.process_retry", "params": {"process": "=id"}},
+            {"verb": "retry", "primary": true, "command": "deck.process_retry", "params": {"process": "=id"}, "when": "retry ?? false"},
             {"verb": "open", "screen": "process", "record": "=id"},
             {"verb": "close", "command": "deck.process_dismiss", "params": {"process": "=id"}}
           ]},

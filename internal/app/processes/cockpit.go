@@ -69,12 +69,9 @@ type processRetryIn struct {
 
 // processRetry starts the command of a failed process again with its input.
 func (s *Service) processRetry(ctx context.Context, act registry.Actor, in processRetryIn) (any, error) {
-	p, err := s.ownProcess(ctx, act, in.Process)
+	p, err := s.failed(ctx, act, in.Process)
 	if err != nil {
 		return nil, err
-	}
-	if p.State != process.StateError && !(p.State == process.StateDone && p.NotBySchema == 1) {
-		return nil, registry.Invalid("deck: process %d did not fail", p.ID)
 	}
 	proj, err := s.St.Q.GetProject(ctx, p.ProjectID)
 	if err != nil {
@@ -87,21 +84,38 @@ func (s *Service) processRetry(ctx context.Context, act registry.Actor, in proce
 	return s.Invoke(ctx, act, fmt.Sprintf("%s.%s", proj.Name, p.Command), input)
 }
 
+// failed is a process of the actor's workspace among those that did not work, as the cockpit lists them.
+func (s *Service) failed(ctx context.Context, act registry.Actor, id int64) (db.Process, error) {
+	p, err := s.ownProcess(ctx, act, id)
+	if err != nil {
+		return p, err
+	}
+	ps, err := s.St.Q.ListFailedProcesses(ctx, s.failedParams(act, p.ProjectID, p.ID, 1))
+	if err != nil {
+		return p, err
+	}
+	if len(ps) == 0 {
+		return p, registry.Invalid("deck: process %d is not among those that did not work", id)
+	}
+	return p, nil
+}
+
+// failedParams read the processes that did not work in the last week; a project or id of zero is any.
+func (s *Service) failedParams(act registry.Actor, project, id, lim int64) db.ListFailedProcessesParams {
+	return db.ListFailedProcessesParams{WorkspaceID: act.Workspace, ProjectID: project, ID: id, Since: store.Time(s.Now().Add(-7 * 24 * time.Hour)), Lim: lim}
+}
+
 type processDismissIn struct {
 	Process int64 `type:"process" desc:"Process id"`
 }
 
 // processDismiss takes a failed process off the cockpit.
 func (s *Service) processDismiss(ctx context.Context, act registry.Actor, in processDismissIn) (any, error) {
-	if _, err := s.ownProcess(ctx, act, in.Process); err != nil {
+	if _, err := s.failed(ctx, act, in.Process); err != nil {
 		return nil, err
 	}
-	n, err := store.TxGet(s.St, ctx, func(ctx context.Context, q *db.Queries) (int64, error) { return q.DismissProcess(ctx, in.Process) })
-	if err != nil {
+	if err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error { return q.DismissProcess(ctx, in.Process) }); err != nil {
 		return nil, err
-	}
-	if n == 0 {
-		return nil, registry.Invalid("deck: process %d did not fail", in.Process)
 	}
 	return map[string]any{"ok": true}, nil
 }

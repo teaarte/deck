@@ -264,6 +264,10 @@ export interface Data {
     }[];
     actions?: Action[];
   }[];
+  /**
+   * how many items the limit of the source left out of a list or a table
+   */
+  more?: number;
   value?: unknown;
   /**
    * The buttons of a stat; a click on it runs the first that opens a screen.

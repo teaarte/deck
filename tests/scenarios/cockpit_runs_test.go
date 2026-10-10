@@ -2,6 +2,8 @@ package scenarios
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -25,6 +27,7 @@ type cockpitRun struct {
 	RecordTitle string `json:"record_title"`
 	Seconds     int64
 	Long        bool
+	Retry       bool
 }
 
 // TestTheCockpitShowsWhatDidNotWorkUntilARunMakesItGood: a failed run, with the record its input names, stays in the
@@ -159,5 +162,102 @@ func TestARunThatWaitsIsNotLongerThanUsual(t *testing.T) {
 	e.must("deck.processes_list", map[string]any{"open": true}, &open)
 	if len(open) != 1 || open[0].ID != id || open[0].Long {
 		t.Fatalf("a run that waits is not marked longer than usual: %+v", open)
+	}
+}
+
+// cutModule cuts a clip by name; trim is a step the master calls, not the owner.
+const cutModule = `{"version": 11,
+  "commands": [
+    {"name": "cut", "title": "Cut", "description": "Cuts a clip.", "class": "internal",
+      "input": {"type": "object", "properties": {"clip": {"type": "string"}}},
+      "executor": {"type": "agent", "prompt": "Cut the clip."}},
+    {"name": "trim", "title": "Trim", "description": "Trims a clip.", "class": "internal", "callers": ["master"],
+      "input": {"type": "object", "properties": {"clip": {"type": "string"}}},
+      "executor": {"type": "agent", "prompt": "Trim the clip."}}]}`
+
+// TestAFailureWithoutARecordLeavesOnlyWhenTheSameInputWorks: a failed run of a command without a record stays in
+// the cockpit through a good run with another input and a good trial, and leaves once a real run with its input
+// goes well; one the owner may not call has no retry.
+func TestAFailureWithoutARecordLeavesOnlyWhenTheSameInputWorks(t *testing.T) {
+	t.Parallel()
+	var fail atomic.Bool
+	fail.Store(true)
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		if fail.Load() {
+			return provider.Result{IsError: true, Text: "the cutter is down"}
+		}
+		return provider.Result{Text: "cut"}
+	})
+	e.createProject("clips", cutModule)
+	failed := func() []cockpitRun {
+		var out []cockpitRun
+		e.must("deck.processes_list", map[string]any{"failed": true}, &out)
+		return out
+	}
+	id := e.start("clips", "cut", map[string]any{"clip": "a"})
+	e.waitState(id, "error")
+	fail.Store(false)
+	e.waitState(e.start("clips", "cut", map[string]any{"clip": "b"}), "done")
+	var tried struct{ Process int64 }
+	e.must("deck.command_try", map[string]any{"live": true, "command": "clips.cut", "input": map[string]any{"clip": "a"}}, &tried)
+	e.waitState(tried.Process, "done")
+	if got := failed(); len(got) != 1 || got[0].ID != id || !got[0].Retry {
+		t.Fatalf("another input and a trial make nothing good; the owner may retry it: %+v", got)
+	}
+	e.waitState(e.start("clips", "cut", map[string]any{"clip": "a"}), "done")
+	if got := failed(); len(got) != 0 {
+		t.Fatalf("a good run with the same input takes it off: %+v", got)
+	}
+	fail.Store(true)
+	var started struct{ Process int64 }
+	e.must("deck.command_try", map[string]any{"live": true, "command": "clips.cut", "input": map[string]any{"clip": "c"}}, &started)
+	e.waitState(started.Process, "error")
+	if got := failed(); len(got) != 0 {
+		t.Fatalf("a failed trial is not in the cockpit: %+v", got)
+	}
+	_, tok := e.token("terminal", "clips.*")
+	code, out := e.callWith(tok, "clips.trim", map[string]any{"clip": "a"})
+	if code != 200 || json.Unmarshal(out, &started) != nil {
+		t.Fatalf("the master starts trim: %d %s", code, out)
+	}
+	e.waitState(started.Process, "error")
+	if got := failed(); len(got) != 1 || got[0].ID != started.Process || got[0].Retry {
+		t.Fatalf("a failed run the owner may not call has no retry: %+v", got)
+	}
+	e.refused("deck.process_retry", map[string]any{"process": started.Process}, 403, "cannot be called by owner")
+}
+
+// TestARunCutByARestartIsInTheCockpit: a call deck lost to a restart did not work, so it waits in the cockpit.
+func TestARunCutByARestartIsInTheCockpit(t *testing.T) {
+	t.Parallel()
+	svc, release := hangingService(t, 1)
+	defer release(0)
+	home := t.TempDir()
+	clock := &Clock{now: t0}
+	e := newEnvWith(t, home, &Fake{}, withClock(clock))
+	e.Clock = clock
+	e.createProject("clips", generateManifest(svc.URL))
+	id := e.start("clips", "make", map[string]any{"topic": "cats"})
+	e.waitFor("the call reaches the service", func() bool { return len(svc.requests()) == 1 })
+	e2 := restart(t, e, home, &Fake{})
+	var failed []cockpitRun
+	e2.must("deck.processes_list", map[string]any{"failed": true}, &failed)
+	if len(failed) != 1 || failed[0].ID != id {
+		t.Fatalf("the interrupted run is among those that did not work: %+v", failed)
+	}
+}
+
+// TestTheCockpitSaysHowManyFailuresItLeftOut: past its limit the list of what did not work says how many more there are.
+func TestTheCockpitSaysHowManyFailuresItLeftOut(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result { return provider.Result{IsError: true, Text: "down"} })
+	e.createProject("clips", cutModule)
+	for i := range 22 {
+		e.waitState(e.start("clips", "cut", map[string]any{"clip": fmt.Sprint(i)}), "error")
+	}
+	var more int
+	_ = json.Unmarshal(e.screenData("", "cockpit", nil)["b4-1-0"]["more"], &more)
+	if more != 2 {
+		t.Fatalf("the cockpit shows 20 and says 2 more: %d", more)
 	}
 }

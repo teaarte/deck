@@ -390,6 +390,7 @@
             "actions": {"type": "array", "items": {"$ref": "#/$defs/action"}}
           }
         }},
+        "more": {"type": "integer", "description": "how many items the limit of the source left out of a list or a table"},
         "value": {},
         "actions": {"type": "array", "description": "The buttons of a stat; a click on it runs the first that opens a screen.", "items": {"$ref": "#/$defs/action"}},
         "files": {"type": "array", "items": {

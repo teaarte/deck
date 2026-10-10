@@ -12,7 +12,8 @@ import { Filters } from './Filters';
 
 export type Span = 1 | 2 | 'full';
 
-// Block is the frame of a block: its title, icon, description, filters, and the state of its data.
+// Block is the frame of a block: its title, icon, description, filters, the state of its data and how many items
+// its limit left out.
 export function Block({ title, icon, span, description, data, context, children }: { title?: string; icon?: string; span?: Span; description?: string; data?: Data; context?: ComponentContext; children: (d: Data) => ReactNode }) {
   const { t } = useTranslation();
   const old = !useLive();
@@ -42,6 +43,7 @@ export function Block({ title, icon, span, description, data, context, children 
         {description && <Text size="sm" c="dimmed" mt={title ? -6 : 0} lh={1.5} data-description>{description}</Text>}
         <Filters filters={data?.filters} context={context} />
         {body}
+        {!!data?.more && data.state === 'ready' && <Text size="xs" c="dimmed" data-more={data.more}>{t('state.more', { count: data.more })}</Text>}
       </Stack>
     </Card>
   );

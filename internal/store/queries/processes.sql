@@ -271,21 +271,23 @@ WHERE p.parent_id = sqlc.arg(parent_id) ORDER BY p.id;
 
 
 -- name: ListFailedProcesses :many
--- Failed processes of the last week the owner has not closed and no later run of the same command for the same
--- record made good, newest first.
+-- Failed processes of the last week the owner has not closed and no later run made good, newest first: a later run
+-- for the same record, or of a command without one with the same input; trials are none of them.
 SELECT p.* FROM process p
 WHERE p.project_id IN (SELECT id FROM project WHERE workspace_id = sqlc.arg(workspace_id))
   AND (CAST(sqlc.arg(project_id) AS INTEGER) = 0 OR p.project_id = CAST(sqlc.arg(project_id) AS INTEGER))
-  AND (p.state = 'error' OR (p.state = 'done' AND p.not_by_schema = 1)) AND p.trial = 0 AND p.dismissed = 0
+  AND (CAST(sqlc.arg(id) AS INTEGER) = 0 OR p.id = CAST(sqlc.arg(id) AS INTEGER))
+  AND (p.state IN ('error', 'interrupted') OR (p.state = 'done' AND p.not_by_schema = 1)) AND p.trial = 0 AND p.dismissed = 0
   AND coalesce(p.reopened_at, p.started_at) >= CAST(sqlc.arg(since) AS TEXT)
   AND NOT EXISTS (SELECT 1 FROM process q WHERE q.project_id = p.project_id AND q.command = p.command AND q.id > p.id
-    AND q.state = 'done' AND q.not_by_schema = 0
-    AND coalesce(json_extract(q.input, '$.record'), 0) = coalesce(json_extract(p.input, '$.record'), 0))
-ORDER BY p.id DESC LIMIT 20;
+    AND q.state = 'done' AND q.not_by_schema = 0 AND q.trial = 0
+    AND CASE WHEN json_extract(p.input, '$.record') IS NULL THEN q.input = p.input
+      ELSE json_extract(q.input, '$.record') = json_extract(p.input, '$.record') END)
+ORDER BY p.id DESC LIMIT sqlc.arg(lim);
 
 
--- name: DismissProcess :execrows
-UPDATE process SET dismissed = 1 WHERE id = ? AND (state = 'error' OR (state = 'done' AND not_by_schema = 1));
+-- name: DismissProcess :exec
+UPDATE process SET dismissed = 1 WHERE id = ?;
 
 
 -- name: RecentDurations :many

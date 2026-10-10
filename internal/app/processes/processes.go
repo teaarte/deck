@@ -28,6 +28,8 @@ type Service struct {
 	Now   func() time.Time
 	// Invoke calls a registry command as the owner calls it.
 	Invoke func(ctx context.Context, act registry.Actor, name string, input json.RawMessage) (any, error)
+	// Lookup is a command of the registry by its full name.
+	Lookup func(ctx context.Context, workspace int64, name string) (*registry.Command, error)
 }
 
 // Commands are the commands of processes.
@@ -83,6 +85,8 @@ type processView struct {
 	RecordTitle string `json:"record_title,omitempty"`
 	Seconds     int64  `json:"seconds,omitempty"`
 	Long        bool   `json:"long,omitempty"`
+	// Retry marks a failed process the owner may run again: the owner is among the callers of its command.
+	Retry bool `json:"retry,omitempty"`
 	// SlotAhead is how many processes wait for an agent slot before one that waits for it.
 	SlotAhead *int64 `json:"slot_ahead,omitempty"`
 }
@@ -120,7 +124,7 @@ type processesListIn struct {
 	Limit   int64  `opt:"" desc:"At most this many"`
 	Brief   bool   `opt:"" desc:"Leave the results out; process_get gives the result of one"`
 	Record  int64  `type:"record" opt:"" desc:"Only the processes whose input field record is the id of this record: how its pipeline goes"`
-	Failed  bool   `opt:"" desc:"Only the failed processes of the last week the owner has not closed and no later run of the same command for the same record made good, newest first"`
+	Failed  bool   `opt:"" desc:"Only the processes of the last week that failed or were cut by a restart, not trials, that the owner has not closed and no later run made good: one for the same record, or with the same input for a command without one; newest first, each with retry when the owner may run its command again"`
 }
 
 func (s *Service) processesList(ctx context.Context, act registry.Actor, in processesListIn) ([]processView, error) {
@@ -131,7 +135,7 @@ func (s *Service) processesList(ctx context.Context, act registry.Actor, in proc
 	var ps []db.Process
 	switch {
 	case in.Failed:
-		ps, err = s.St.Q.ListFailedProcesses(ctx, db.ListFailedProcessesParams{WorkspaceID: act.Workspace, ProjectID: pid, Since: store.Time(s.Now().Add(-7 * 24 * time.Hour))})
+		ps, err = s.St.Q.ListFailedProcesses(ctx, s.failedParams(act, pid, 0, registry.Limit(in.Limit, 50, 500)))
 	case in.Open:
 		ps, err = s.St.Q.ListOpenProcesses(ctx, db.ListOpenProcessesParams{WorkspaceID: act.Workspace, ProjectID: pid, Record: in.Record})
 	default:
@@ -155,6 +159,10 @@ func (s *Service) processesList(ctx context.Context, act registry.Actor, in proc
 			v.Result = nil
 		}
 		s.ofRecord(ctx, p, &v)
+		if in.Failed {
+			c, err := s.Lookup(ctx, act.Workspace, v.Project+"."+p.Command)
+			v.Retry = err == nil && slices.Contains(c.Callers, registry.Owner)
+		}
 		if !p.FinishedAt.Valid {
 			s.howLong(ctx, p, &v)
 			asks, _ := s.St.Q.ListOpenAsksOfProcess(ctx, p.ID)

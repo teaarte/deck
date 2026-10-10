@@ -252,13 +252,16 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 		}
 		return map[string]any{"state": "ready", "value": map[string]any{"fields": fields, "actions": acts}}, nil
 	}
-	items, filters, err := r.rows(id, b, r.req.Filter[id])
+	items, filters, more, err := r.rows(id, b, r.req.Filter[id])
 	if err != nil {
 		return nil, err
 	}
 	out := map[string]any{"state": "ready"}
 	if len(filters) > 0 {
 		out["filters"] = filters
+	}
+	if more > 0 && (b.Type == "list" || b.Type == "table") {
+		out["more"] = more
 	}
 	if len(items) == 0 && (b.Type != "stat" || b.Empty != "") && b.Board == "" {
 		return empty(out, b), nil

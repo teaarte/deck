@@ -33,7 +33,7 @@ func (r *renderer) holds(id string, b manifest.Block) (bool, error) {
 	env := map[string]any{}
 	maps.Copy(env, r.record)
 	if b.Source != nil && b.Source.From != manifest.LogSource {
-		items, _, err := r.rows(id, b, nil)
+		items, _, _, err := r.rows(id, b, nil)
 		if err != nil {
 			return true, err
 		}
@@ -49,21 +49,23 @@ func (r *renderer) holds(id string, b manifest.Block) (bool, error) {
 	return false, nil
 }
 
-// rows are the items of a block's source with the filters the owner picked, read once per screen without picks.
-func (r *renderer) rows(id string, b manifest.Block, picked map[string]string) ([]map[string]any, []map[string]any, error) {
+// rows are the items of a block's source with the filters the owner picked, read once per screen without picks,
+// and how many its limit left out.
+func (r *renderer) rows(id string, b manifest.Block, picked map[string]string) ([]map[string]any, []map[string]any, int, error) {
 	if len(picked) > 0 {
 		return r.filtered(*b.Source, b.Filter, picked)
 	}
 	if got, ok := r.read[id]; ok {
-		return got.items, got.filters, got.err
+		return got.items, got.filters, got.more, got.err
 	}
-	items, filters, err := r.filtered(*b.Source, b.Filter, nil)
-	r.read[id] = readOf{items, filters, err}
-	return items, filters, err
+	items, filters, more, err := r.filtered(*b.Source, b.Filter, nil)
+	r.read[id] = readOf{items, filters, more, err}
+	return items, filters, more, err
 }
 
 type readOf struct {
 	items, filters []map[string]any
+	more           int
 	err            error
 }
 

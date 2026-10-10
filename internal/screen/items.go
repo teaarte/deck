@@ -133,12 +133,12 @@ func (r *renderer) input(in map[string]any) (map[string]any, error) {
 	return out, nil
 }
 
-// filtered are the items of a source narrowed by the values the owner picked, then sorted and cut; each
-// filter offers the values its field has among the items the where keeps.
-func (r *renderer) filtered(src manifest.Source, fields []string, picked map[string]string) ([]map[string]any, []map[string]any, error) {
+// filtered are the items of a source narrowed by the values the owner picked, then sorted and cut, with how many
+// the cut left out; each filter offers the values its field has among the items the where keeps.
+func (r *renderer) filtered(src manifest.Source, fields []string, picked map[string]string) ([]map[string]any, []map[string]any, int, error) {
 	items, err := r.items(src, nil)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, 0, err
 	}
 	filters := make([]map[string]any, 0, len(fields))
 	chosen := map[string]string{}
@@ -170,7 +170,7 @@ func (r *renderer) filtered(src manifest.Source, fields []string, picked map[str
 	}
 	if len(chosen) > 0 && src.From != "" && src.From != "collection" {
 		if items, err = r.items(src, chosen); err != nil {
-			return nil, nil, err
+			return nil, nil, 0, err
 		}
 	}
 	for f, v := range chosen {
@@ -182,7 +182,8 @@ func (r *renderer) filtered(src manifest.Source, fields []string, picked map[str
 		}
 		items = kept
 	}
-	return sortAndCut(items, src), filters, nil
+	items, more := sortAndCut(items, src)
+	return items, filters, more, nil
 }
 
 // values are what a filter of a field offers of an item: each value of a list, else the value itself.
@@ -209,7 +210,7 @@ func text(v any) string {
 	return fmt.Sprint(v)
 }
 
-func sortAndCut(items []map[string]any, src manifest.Source) []map[string]any {
+func sortAndCut(items []map[string]any, src manifest.Source) ([]map[string]any, int) {
 	if s := src.Sort; s != "" {
 		field, desc := strings.TrimPrefix(s, "-"), strings.HasPrefix(s, "-")
 		sort.SliceStable(items, func(i, j int) bool {
@@ -220,9 +221,9 @@ func sortAndCut(items []map[string]any, src manifest.Source) []map[string]any {
 		})
 	}
 	if src.Limit > 0 && len(items) > src.Limit {
-		items = items[:src.Limit]
+		return items[:src.Limit], len(items) - src.Limit
 	}
-	return items
+	return items, 0
 }
 
 func withRecord(env, record map[string]any) map[string]any {

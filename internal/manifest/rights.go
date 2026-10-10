@@ -339,7 +339,7 @@ func covers(granted []string, d string) bool {
 		host = strings.Trim(h, "[]")
 	}
 	_, prefixErr := netip.ParsePrefix(d)
-	_, ipErr := netip.ParseAddr(host)
+	_, ipErr := netip.ParseAddr(strings.Trim(host, "[]"))
 	return prefixErr != nil && ipErr != nil && slices.Contains(granted, "*")
 }
 

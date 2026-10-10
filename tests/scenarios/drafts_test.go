@@ -752,6 +752,11 @@ func TestADomainTheGrantCoversIsNoNewRight(t *testing.T) {
 			t.Fatalf("%s: a domain the grant covers is saved without the owner: %d %s", s.project, code, raw)
 		}
 	}
+	for _, addr := range []string{`"*", "[10.0.0.1]"`, `"*", "10.0.0.0/8"`} {
+		if code, raw := e.callWith(tok, "deck.manifest_save", map[string]any{"project": "wide", "manifest": fmt.Sprintf(base, addr)}); code != 200 || !strings.Contains(string(raw), "waiting") {
+			t.Fatalf("an address is not under \"*\": %s: %d %s", addr, code, raw)
+		}
+	}
 	ctx := context.Background()
 	p, _ := e.App.Store.Q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: 1, Name: "sketch"})
 	if m, err := docs.Manifest(ctx, e.App.Store.Q, p); err != nil || p.GrantedRevision.Int64 != m.Revision {

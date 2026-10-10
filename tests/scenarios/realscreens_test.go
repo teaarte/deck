@@ -481,8 +481,8 @@ func TestRealBrowserLogReadsEasily(t *testing.T) {
 	b.shot("log-phone")
 }
 
-// TestRealBrowserBoardMovesACardToALane: a dropped card presses its move button with the value of the lane; on a
-// phone the same button picks the lane.
+// TestRealBrowserBoardMovesACardToALane: a dropped card presses its move button with the value of the lane, a long
+// lane scrolls within the screen; on a phone the same button picks the lane.
 func TestRealBrowserBoardMovesACardToALane(t *testing.T) {
 	if os.Getenv("DECK_REAL_BROWSER") == "" {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
@@ -507,6 +507,13 @@ func TestRealBrowserBoardMovesACardToALane(t *testing.T) {
 		}
 		return false
 	})
+	many := ""
+	for i := range 40 {
+		many += fmt.Sprintf(`{"title": "t%d", "status": "todo"}`+"\n", i)
+	}
+	e.must("deck.records_upsert", map[string]any{"project": "work", "collection": "tasks", "records": many}, nil)
+	b.until("a long lane no higher than the screen, with a scroll of its own", `(() => { const l = document.querySelector('[data-lane="todo"]');
+		return l.querySelectorAll('[data-card]').length >= 40 && l.getBoundingClientRect().height <= innerHeight && l.scrollHeight > l.clientHeight })()`)
 	b.shot("board")
 	b.call("browser_resize", map[string]any{"width": 390, "height": 844})
 	b.eval(`([...document.querySelectorAll('[data-lane="doing"] button')].find((x) => x.innerText.includes('Move')).click(), '')`)

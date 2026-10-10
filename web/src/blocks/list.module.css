@@ -141,9 +141,16 @@
   flex: 1 0 240px;
   min-width: 240px;
   min-height: 80px;
-  padding: 10px;
+  max-height: calc(100dvh - 140px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 10px 10px;
   border-radius: var(--mantine-radius-md);
   background: var(--deck-line, var(--mantine-color-default-border));
+}
+
+.laneHead {
+  padding: 10px 0 6px;
 }
 
 .card {

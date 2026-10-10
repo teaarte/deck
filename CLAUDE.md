@@ -27,7 +27,7 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
 - `cmd/deck` — entry point
 - `internal/store` — SQLite: a committed write publishes the topic of its table in the project of the row
   (`changes.go`, the SQLite pre-update hook; the scope of a table is a closed set, a table no screen reads is in
-  `silent`, and a table in neither keeps deck from starting); the base schema `migrations/00001_base.sql` and goose migrations after it
+  `silent`, and a table in neither keeps deck from starting; an update that changes no value publishes nothing); the base schema `migrations/00001_base.sql` and goose migrations after it
   (`00002_granted`, `00003_llm_call`, `00004_ask_workspace`: a table rebuilt with foreign keys off is a NO TRANSACTION
   migration; `00005_marks` — `project.imported_from` and the notes for the master as feed rows, `00006_feed_read` —
   warnings as notes of the feed, `00007_sandbox_health`, `00008_alone` — a trial of one command, `00009_models` — connections, models and
@@ -40,20 +40,24 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
   failing check the owner read stops counting until it changes, `00023_unit` — what a price of a model counts, `00024_outbox` —
   what deck does after a commit: SQL triggers on a deleted file and a closed process write it, the files service and
   the runner drain it after the commit, on every tick and at start, `00025_document_lookup`, `00026_record_mark` — a
-  count of the writes of the records of a project, by SQL triggers), sqlc queries (`db/` is generated; a parameter compared with 0 or '' is CAST, the linter
+  count of the writes of the records of a project, by SQL triggers, `00027_workspace_health` — the health of a model of
+  a connection (`model:`) and of pushes is of its workspace), sqlc queries (`db/` is generated; a parameter compared with 0 or '' is CAST, the linter
   refuses `interface{}` there); `Store.Q` reads on connections of its own beside the one writer, `Tx` waits for the
   writer at most `Store.Wait`, `Backup` copies the base; `mark` keeps only cursors and throttles
 - `internal/registry` — command registry: every input (API, MCP, triggers) calls commands through it;
   input schemas limited to App Intents types; `registry.Def` takes the schema from the tagged input struct;
   `registry.Read` declares a command that only reads, with its result schema from the Go type and `On` its event
-  topics (a read without them panics; `registry.Static` for none), kept by name for the screens (`registry.Reads`);
+  topics (a read without them panics; `registry.Static` for none), kept by name for the screens (`registry.Reads`,
+  declared at start by `registry.Declare` from `app`'s `init`, before any manifest parses);
   `actor.go` (an automation token is its own kind `Token`, counted as the master in the callers of a command by
   `Actor.As`), `errors.go`
 - `internal/docs` — documents with revisions, skill files, the manifest reader with its one parse cache (`All` the
-  current manifests of projects), `InForce` (a manifest with only the rights of the
-  revision the owner granted, `project.granted_revision`), `Patch` (JSON Patch keeping the text around a replace)
+  current manifests of projects), `For` (the one current manifest in force for whoever reads rights: what the owner
+  granted, `project.granted_revision`; a trial of a draft also its reads and models, `manifest.Trial`), `InForce` (a
+  given revision with only the granted rights), `Editable`, `Patch` (JSON Patch keeping the text around a replace)
 - `internal/app` — wiring and the screens: `New` allocates every service first and builds each whole with the
-  functions of the others (a test checks none is left unset), registers their commands and runs `Loop`/`Sweep`. Each
+  functions of the others (a test checks none is left unset), registers their commands and runs `Loop`/`Sweep`;
+  background work goes through `background.Go`, which refuses once `Stop` began. Each
   domain is a package `app/<area>` with a `Service` (narrow dependencies as fields, functions of other services as
   fields) and `Commands()`; no domain package imports `internal/app`: `project` (`Service` the lifecycle — create,
   enable, trials, import, delete; `Saver` the manifests — save with checks, migrations and grants, the commands a
@@ -73,23 +77,27 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
   (records with `where` expressions), `triggers` (also the firing of triggers and `After`), `screens`; who may touch
   what is `app/access`;
   a screen block reads a `registry.Read` command (`"from": "deck.asks_list"`), called as the viewer in
-  `app/screen_get.go` (`deck.screen`; the menu `menu.go`, `commands_list.go`, translations `i18n.go`); `app/screens` —
-  the sources of screens: records, forms, documents;
-  deck's screens are data in `screens.json`: Cockpit (the link at the head of the menu), and in the menu Schedule
+  `app/screen_get.go` (`deck.screen`; the menu `menu.go`, `commands_list.go`, translations `i18n.go`), a collection
+  through `deck.records_list`, of another project with the rights of the project of the screen (`Scope.By`);
+  `app/screens` — the sources of screens: forms, documents; files of a domain are named by what they hold;
+  deck's screens are data, a file each in `app/shipped/` (`project-<name>.json` for those of every project, `menu.json`,
+  `i18n.ru.json`): Cockpit (the link at the head of the menu), and in the menu Schedule
   (tabs Schedule, Runs with the calls of the gateway, Spend), Files (tabs Files, Documents of the master, Snapshots), Settings (tabs
   Projects, Models, Connections, Tokens, General, Interface, Health); `project` screens (Documents, the page of
   a document and Settings of the project in tabs Project (commands, schedule), Models (of its work, called), Access (folders, tools, secrets, tokens), Health) deck adds
   to every project
 - `internal/manifest` — project manifest (format 11: `upgrade.go` raises older ones): `types.go`, `parse.go`,
-  `lookup.go`, `collection.go`, rights (`rights.go`: `Widens` and `Clip` over the same rights — what is in force widens nothing beyond the grant —, the hosts of agent shells), checks of screens by
+  `lookup.go`, `collection.go`, `nav.go` (`Nav` — a project in the menu, `Tr`), rights (`rights.go`: `Widens` and `Clip` over the same rights — what is in force widens nothing beyond the grant —, the hosts of agent shells), checks of screens by
   part (`check_*.go`), expressions; one `Resolve` of a value (fixed or `=<expression>` with
   `param` of the screen) and `FieldTypes`; the texts of a manifest and their translation `words.go`
 - `internal/gateway` — deck MCP server per process: permission prompts, questions, confirmations, registry
-  commands as tools (`renew` gives live sessions the commands of a changed project); HTTP entry and domain proxy for scripts (`egress.go`: a name resolves once, the proxy dials its
-  addresses, a name reaches only public ones); the proxy of models (`models.go`: `DECK_MODELS` of scripts; `AskModel` —
-  the one model of deck's settings a request names, `X-Deck-Model` only for a raw service; `WithModel` — the body
-  goes with the model deck checked; `SendHops` — the one loop of fallbacks of
-  scripts, commands and the model of ACP turns, with deck's key and the usage of OpenAI, Google and Anthropic answers)
+  commands as tools (`renew` gives live sessions the commands of a changed project); HTTP entry of scripts (`ScriptHandler`, deck's API
+  only) and `Egress` — the web of a door (`egress.go`: a name resolves once, the proxy dials its addresses, a name
+  reaches only public ones); the proxy of models (`model_proxy.go`: `DECK_MODELS` of scripts, routed once and the hops
+  passed to the rules, `WithRoute`; `model_ask.go`: `AskModel` — the one model of deck's settings a request names,
+  `X-Deck-Model` only for a raw service, `WithModel` — the body goes with the model deck checked; `model_hops.go`:
+  `SendHops` — the one loop of fallbacks of scripts, commands and the model of ACP turns, with deck's key;
+  `model_meter.go`: the usage of OpenAI, Google and Anthropic answers)
 - `internal/provider` — model providers; `claudecode` runs the CLI isolated from user settings; `codex` runs
   `codex app-server` on the owner's shared login (`protocol.go` is generated); `acp` runs ACP agents (Goose, `dsh`)
   on an OpenAI-compatible model inside deck's sandbox, the model through deck's proxy — deck has no tool loop of its own;
@@ -102,24 +110,28 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
 - `internal/home` — the layout of `DECK_HOME`: `state/` only deck reads (deck's key of pushes in `state/push`, apart
   from the secrets), `work/` the folders of runs and projects
 - `internal/sandbox` — sandbox of scripts, MCP servers and ACP agents behind one interface: `sandbox-exec` on macOS,
-  bubblewrap on Linux; `Env` — the one environment of scripts, ACP agents and MCP servers (kept variables, own home,
-  deck's proxy with only its own address past it); `Close` — deck's folder and the owner's home closed but for the runtimes on PATH (`Runtimes`)
+  bubblewrap on Linux; `Door` (`door.go`) — the one way out of a confined program: a listener in a short folder of
+  its own, a proxy with a key of its own to the program's domains (`Web`, deck's `gateway.Egress`), deck's handler at
+  its address, `Env` put last, `Close` ending its tunnels; no door, no network; `Env` — the one environment of scripts,
+  ACP agents and MCP servers (kept variables, own home); `Close` — deck's folder and the owner's home closed but for the runtimes on PATH (`Runtimes`)
   and the project folders; `Agent` — what an agent CLI may not touch in deck's folder; `OpenHint` — where the owner
   opens a folder, at the end of the error of a failed script
 - `internal/script` — runs project scripts in the sandbox (a script installs its own packages through the proxy);
-  `environ` is `sandbox.Env` with the folders and deck of a script, `Check` the programs its manifest names
+  `environ` is `sandbox.Env` with the folders of a script and its door, `Check` the programs its manifest names
 - `internal/trigger` — cron scheduler with catch-up after sleep
 - `internal/health` — health rows: `Set` inside a transaction, `Write` on its own and published, the statuses and
-  their order (`Worse`); health is the state of what deck runs or reaches, events go to the feed
+  their order (`Worse`); a row is of the machine (`provider:`, written by `process.ProviderHealth` only), of a
+  workspace (`model:`, `push`) or of a project; health is the state of what deck runs or reaches, events go to the feed
 - `internal/screen` — stored screens resolved into A2UI messages without a store of its own (`render.go`, `blocks.go`,
   `data.go`, `items.go` with the reads of a screen kept by source, `actions.go`, `forms.go`, the topics a block follows
   `topics.go`, components and spans from the catalog `catalog.go`, `i18n.go`); a document block reads
-  `deck.document_get` and `deck.document_revisions` as the viewer
-- `internal/events` — the bus: an event is a topic and the project it changed in; a subscriber keeps the events
+  `deck.document_get` with its history as the viewer, once
+- `internal/events` — the bus: an event is a topic and the project it changed in (`Emit`; folders, assignments and
+  MCP tools have topics of their own); a subscriber keeps the events
   waiting for it merged, so none is dropped
 - `internal/api` — HTTP API (`POST /api/commands/{name}`, files) and SSE; screens are the
-  `deck.screen` command; `Sandbox` is the second origin of `custom` blocks (proxy page with a CSP without network,
-  `/ext-apps.js`), paired with the client's port (`Pair`)
+  `deck.screen` command; `Sandbox` is the second origin of `custom` blocks (proxy page with a CSP without network
+  and no frames, which would bring WebRTC back, `/ext-apps.js`), paired with the client's port (`Pair`)
 - `internal/tsnet` — deck on the owner's tailnet from inside the binary: HTTPS on 443, the second origin on 8443
 - `web` — client: Vite + React + Mantine v9 + `@a2ui/react` (protocol v0.9, `/v0_9` imports), folders by owner in
   `src/`: `app/` the frame of islands (menu `Nav.tsx`, screen, chat panel `ChatPanel.tsx`, `Toolbar.tsx`, `PhoneBar.tsx`,
@@ -128,8 +140,8 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
   a screen (`ScreenView.tsx`, `useScreen.ts`, buttons through the `ScreenActions` context, the catalog `catalog.ts`; the
   top of the cockpit `Hero.tsx` and its one-by-one `Triage.tsx` over the first list of decisions, `decisions.ts`);
   `blocks/` a file or folder per block registered through `blockImpl.tsx` (frame `Block.tsx`; `table/`, `form/`, `media/` (pictures, PDF, the player `Player.tsx` with marks), `chart/`,
-  `custom/` the MCP Apps host — `@modelcontextprotocol/ext-apps` 1.7.5, 2.x needs zod 4); `chat/` the chat with the master around `chatStore.ts`; `ui/` the mascot `Deki.tsx` (poses in `public/deki`, a switch of Interface), buttons (a failed press shows its error
-  at the button, `Failed.tsx`; the undo toast `undo.tsx`), confirmation, icons by
+  `custom/` the MCP Apps host — `@modelcontextprotocol/ext-apps` 1.7.5, 2.x needs zod 4); `chat/` the chat with the master around `chatStore.ts`; `ui/` the mascot `deki/Deki.tsx` (poses in `public/deki`, a switch of Interface), buttons in `actions/` (a failed press shows its error
+  at the button, `Failed.tsx`; the undo toast `undo.tsx`; confirmation), icons by
   name, markdown (`@a2ui/markdown-it`), values; `hooks/`; `lib/` the API and live events (`events.ts`, `useLive`, one
   `onResume`), `notify.ts`, `format.ts`, `i18n.ts`, the catalog schema; `settings/` look and pushes; `theme/` the look of
   the device (`look.ts`: scheme, accent, density, font, corners — passed to `custom` blocks as host context), accents

@@ -19,6 +19,7 @@ func (e *Env) olderBase(version int) {
 		   gen_ai_usage_input_tokens, gen_ai_usage_output_tokens, gen_ai_usage_cache_read_input_tokens,
 		   gen_ai_usage_cache_creation_input_tokens, duration_ms, cost_usd, created_at FROM llm_call`,
 			`DROP TABLE llm_call`, `ALTER TABLE llm_old RENAME TO llm_call`},
+		28: {`ALTER TABLE record DROP COLUMN process_id`, `ALTER TABLE feed DROP COLUMN process_id`},
 		27: {},
 		26: {`DROP TRIGGER record_added`, `DROP TRIGGER record_changed`, `DROP TRIGGER record_gone`, `DROP TABLE record_mark`},
 		25: {`DROP INDEX document_lookup`},

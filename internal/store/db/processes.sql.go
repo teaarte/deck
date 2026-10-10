@@ -913,6 +913,102 @@ func (q *Queries) ListToolCalls(ctx context.Context, processID sql.NullInt64) ([
 	return items, nil
 }
 
+const listTreeChanges = `-- name: ListTreeChanges :many
+WITH RECURSIVE tree(id) AS (
+    SELECT CAST(?1 AS INTEGER)
+    UNION ALL
+    SELECT p.id FROM process p JOIN tree ON p.parent_id = tree.id
+)
+SELECT id, workspace_id, project_id, kind, author, text, screen, record_id, actions, command, params, document_id, revision, undone_at, created_at, for_master, read_at, process_id FROM feed WHERE kind = 'change' AND process_id IN (SELECT id FROM tree) ORDER BY id
+`
+
+func (q *Queries) ListTreeChanges(ctx context.Context, id int64) ([]Feed, error) {
+	rows, err := q.db.QueryContext(ctx, listTreeChanges, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Feed
+	for rows.Next() {
+		var i Feed
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.ProjectID,
+			&i.Kind,
+			&i.Author,
+			&i.Text,
+			&i.Screen,
+			&i.RecordID,
+			&i.Actions,
+			&i.Command,
+			&i.Params,
+			&i.DocumentID,
+			&i.Revision,
+			&i.UndoneAt,
+			&i.CreatedAt,
+			&i.ForMaster,
+			&i.ReadAt,
+			&i.ProcessID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTreeRecords = `-- name: ListTreeRecords :many
+WITH RECURSIVE tree(id) AS (
+    SELECT CAST(?1 AS INTEGER)
+    UNION ALL
+    SELECT p.id FROM process p JOIN tree ON p.parent_id = tree.id
+)
+SELECT r.id, r.collection, r.key, j.name AS project FROM record r JOIN project j ON j.id = r.project_id
+WHERE r.process_id IN (SELECT id FROM tree) ORDER BY r.id
+`
+
+type ListTreeRecordsRow struct {
+	ID         int64
+	Collection string
+	Key        string
+	Project    string
+}
+
+func (q *Queries) ListTreeRecords(ctx context.Context, id int64) ([]ListTreeRecordsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listTreeRecords, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListTreeRecordsRow
+	for rows.Next() {
+		var i ListTreeRecordsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Collection,
+			&i.Key,
+			&i.Project,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listWorkspaceToolCalls = `-- name: ListWorkspaceToolCalls :many
 SELECT id, workspace_id, project_id, process_id, actor, caller, tool, class, outcome, params, external_id, error, ask_id, run, result, created_at FROM tool_call
 WHERE workspace_id = ?1

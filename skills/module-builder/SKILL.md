@@ -488,7 +488,8 @@ Name each of these rights in the hand-over: the owner grants them with "enable".
    its first command. A trial is not a sandbox: internal writes (records, documents) are real and stay
    in the draft, and so is what scripts write to `$DECK_DATA`, which you cannot reach: keep what a module
    remembers (seen items, cursors) in records when trials must be undone. Before the hand-over, delete what
-   the trials left that the owner should not start with: `record_delete` (you, in a draft; in an enabled project only the owner, by a button);
+   the trials left that the owner should not start with: `record_delete` (you, in a draft; in an enabled project what your own runs wrote, with an undo for the owner in
+   the feed, the rest only the owner, by a button);
    say in the hand-over what you kept; lines a trial sent with `notify` stay in the feed. `process_get` gives
    the state and result; `process_log` shows the events of a process, also after it ended,
    and a local model may think for many minutes before its first one: wait with

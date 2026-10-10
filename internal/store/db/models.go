@@ -124,6 +124,7 @@ type Feed struct {
 	CreatedAt   string
 	ForMaster   int64
 	ReadAt      sql.NullString
+	ProcessID   sql.NullInt64
 }
 
 type File struct {

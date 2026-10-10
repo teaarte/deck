@@ -27,10 +27,11 @@ func (q *Queries) AddDeckNote(ctx context.Context, arg AddDeckNoteParams) error 
 }
 
 const addFeed = `-- name: AddFeed :one
-INSERT INTO feed (workspace_id, project_id, kind, author, text, screen, record_id, actions, command, params, document_id, revision, created_at)
+INSERT INTO feed (workspace_id, project_id, kind, author, text, screen, record_id, actions, command, params, document_id, revision, created_at, process_id)
 VALUES (?1, ?2, ?3, ?4, ?5, ?6,
-    ?7, ?8, ?9, ?10, ?11, ?12, ?13)
-RETURNING id, workspace_id, project_id, kind, author, text, screen, record_id, actions, command, params, document_id, revision, undone_at, created_at, for_master, read_at
+    ?7, ?8, ?9, ?10, ?11, ?12, ?13,
+    ?14)
+RETURNING id, workspace_id, project_id, kind, author, text, screen, record_id, actions, command, params, document_id, revision, undone_at, created_at, for_master, read_at, process_id
 `
 
 type AddFeedParams struct {
@@ -47,6 +48,7 @@ type AddFeedParams struct {
 	DocumentID  sql.NullInt64
 	Revision    int64
 	CreatedAt   string
+	ProcessID   sql.NullInt64
 }
 
 func (q *Queries) AddFeed(ctx context.Context, arg AddFeedParams) (Feed, error) {
@@ -64,6 +66,7 @@ func (q *Queries) AddFeed(ctx context.Context, arg AddFeedParams) (Feed, error) 
 		arg.DocumentID,
 		arg.Revision,
 		arg.CreatedAt,
+		arg.ProcessID,
 	)
 	var i Feed
 	err := row.Scan(
@@ -84,6 +87,7 @@ func (q *Queries) AddFeed(ctx context.Context, arg AddFeedParams) (Feed, error) 
 		&i.CreatedAt,
 		&i.ForMaster,
 		&i.ReadAt,
+		&i.ProcessID,
 	)
 	return i, err
 }
@@ -141,7 +145,7 @@ func (q *Queries) DeleteMasterNotes(ctx context.Context, arg DeleteMasterNotesPa
 }
 
 const getFeed = `-- name: GetFeed :one
-SELECT id, workspace_id, project_id, kind, author, text, screen, record_id, actions, command, params, document_id, revision, undone_at, created_at, for_master, read_at FROM feed WHERE id = ?
+SELECT id, workspace_id, project_id, kind, author, text, screen, record_id, actions, command, params, document_id, revision, undone_at, created_at, for_master, read_at, process_id FROM feed WHERE id = ?
 `
 
 func (q *Queries) GetFeed(ctx context.Context, id int64) (Feed, error) {
@@ -165,12 +169,13 @@ func (q *Queries) GetFeed(ctx context.Context, id int64) (Feed, error) {
 		&i.CreatedAt,
 		&i.ForMaster,
 		&i.ReadAt,
+		&i.ProcessID,
 	)
 	return i, err
 }
 
 const listFeed = `-- name: ListFeed :many
-SELECT id, workspace_id, project_id, kind, author, text, screen, record_id, actions, command, params, document_id, revision, undone_at, created_at, for_master, read_at FROM feed WHERE workspace_id = ?1 AND (CAST(?2 AS INTEGER) = 0 OR project_id = CAST(?2 AS INTEGER))
+SELECT id, workspace_id, project_id, kind, author, text, screen, record_id, actions, command, params, document_id, revision, undone_at, created_at, for_master, read_at, process_id FROM feed WHERE workspace_id = ?1 AND (CAST(?2 AS INTEGER) = 0 OR project_id = CAST(?2 AS INTEGER))
   AND (CAST(?3 AS TEXT) = '' OR kind = CAST(?3 AS TEXT)) AND for_master = 0 AND (CAST(?4 AS INTEGER) = 0 OR kind = 'note' AND read_at IS NULL)
 ORDER BY id DESC LIMIT ?5
 `
@@ -216,6 +221,7 @@ func (q *Queries) ListFeed(ctx context.Context, arg ListFeedParams) ([]Feed, err
 			&i.CreatedAt,
 			&i.ForMaster,
 			&i.ReadAt,
+			&i.ProcessID,
 		); err != nil {
 			return nil, err
 		}
@@ -231,7 +237,7 @@ func (q *Queries) ListFeed(ctx context.Context, arg ListFeedParams) ([]Feed, err
 }
 
 const listMasterNotes = `-- name: ListMasterNotes :many
-SELECT id, workspace_id, project_id, kind, author, text, screen, record_id, actions, command, params, document_id, revision, undone_at, created_at, for_master, read_at FROM feed WHERE workspace_id = ? AND for_master = 1 ORDER BY id
+SELECT id, workspace_id, project_id, kind, author, text, screen, record_id, actions, command, params, document_id, revision, undone_at, created_at, for_master, read_at, process_id FROM feed WHERE workspace_id = ? AND for_master = 1 ORDER BY id
 `
 
 func (q *Queries) ListMasterNotes(ctx context.Context, workspaceID int64) ([]Feed, error) {
@@ -261,6 +267,7 @@ func (q *Queries) ListMasterNotes(ctx context.Context, workspaceID int64) ([]Fee
 			&i.CreatedAt,
 			&i.ForMaster,
 			&i.ReadAt,
+			&i.ProcessID,
 		); err != nil {
 			return nil, err
 		}

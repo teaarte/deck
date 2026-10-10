@@ -525,7 +525,8 @@ func TestAReplyThatDoesNotStartIsSeenInTheTopic(t *testing.T) {
 }
 
 // TestMasterPutsATaskIntoTheRightProject: by the dispatch skill the master picks the project by the first line of
-// its md and writes the task into its tasks; a move writes it into the other project, and the owner deletes the first.
+// its md and writes the task into its tasks; a move writes it into the other project and deletes the first, which the
+// master's own turn wrote.
 func TestMasterPutsATaskIntoTheRightProject(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
@@ -562,7 +563,7 @@ func TestMasterPutsATaskIntoTheRightProject(t *testing.T) {
 		t.Fatalf("the master gets the dispatch skill: %v", e.Fake.Calls()[0].Skills)
 	}
 	e.say(topic, "no, move it to garden")
-	if said := e.masterSaid(topic, 2); !strings.HasPrefix(said[1].Text, "Put it into garden") || tasks("garden") != 1 || tasks("groceries") != 1 {
-		t.Fatalf("move puts the task into the other project and leaves the old one to the owner: %+v", said)
+	if said := e.masterSaid(topic, 2); !strings.HasPrefix(said[1].Text, "deleted: ") || tasks("garden") != 1 || tasks("groceries") != 0 {
+		t.Fatalf("move puts the task into the other project and deletes the old one the master wrote: %+v", said)
 	}
 }

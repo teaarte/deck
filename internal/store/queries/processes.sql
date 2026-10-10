@@ -241,3 +241,21 @@ WITH RECURSIVE up(id, parent_id, project_id) AS (
     SELECT p.id, p.parent_id, p.project_id FROM process p JOIN up ON p.id = up.parent_id
 )
 SELECT project_id FROM up WHERE parent_id IS NULL LIMIT 1;
+
+
+-- name: ListTreeChanges :many
+WITH RECURSIVE tree(id) AS (
+    SELECT CAST(sqlc.arg(id) AS INTEGER)
+    UNION ALL
+    SELECT p.id FROM process p JOIN tree ON p.parent_id = tree.id
+)
+SELECT * FROM feed WHERE kind = 'change' AND process_id IN (SELECT id FROM tree) ORDER BY id;
+
+-- name: ListTreeRecords :many
+WITH RECURSIVE tree(id) AS (
+    SELECT CAST(sqlc.arg(id) AS INTEGER)
+    UNION ALL
+    SELECT p.id FROM process p JOIN tree ON p.parent_id = tree.id
+)
+SELECT r.id, r.collection, r.key, j.name AS project FROM record r JOIN project j ON j.id = r.project_id
+WHERE r.process_id IN (SELECT id FROM tree) ORDER BY r.id;

@@ -50,7 +50,13 @@ func TestRealBrowserCodeProject(t *testing.T) {
 	b.until("the folder form", form("deck.folder_add", "path"))
 	b.type_(form("deck.folder_add", "path"), repo)
 	submit("deck.folder_add")
+	tab := func(name string) {
+		b.until("the tab "+name, `[...document.querySelectorAll('[role="tab"]')].some((x) => x.innerText.trim() === '`+name+`')`)
+		b.eval(`([...document.querySelectorAll('[role="tab"]')].find((x) => x.innerText.trim() === '` + name + `').click(), '')`)
+	}
+	tab("Access")
 	b.until("the folder in the folders of the project", `[...document.querySelectorAll('tr')].some((r) => r.innerText.includes('my-repo') && r.innerText.includes('`+repo+`'))`)
+	tab("Project")
 	b.until("the commands of the project", `[...document.querySelectorAll('tr')].some((r) => r.innerText.includes('code.run'))`)
 	b.shot("code-settings")
 

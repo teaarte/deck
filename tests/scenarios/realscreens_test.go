@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -568,18 +569,19 @@ func TestRealBrowserAButtonOpensTheChatInANewTopic(t *testing.T) {
 }
 
 // TestRealBrowserCustomBlockSendsNothingByWebRTC: a custom block sends nothing by WebRTC past its CSP, from its window
-// or a frame made any way the guard names; each way calls a STUN server of its own.
+// or a frame of its own; it makes no frame by any way the guard names, each of which calls a STUN server of its own.
 func TestRealBrowserCustomBlockSendsNothingByWebRTC(t *testing.T) {
 	if os.Getenv("DECK_REAL_BROWSER") == "" {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	ways := []string{"window", "parent", "createElement", "createElementObject", "createElementNS", "innerHTML", "innerHTMLObject",
+	ways := []string{"createElement", "createElementObject", "createElementNS", "createDocument", "innerHTML", "innerHTMLObject",
 		"outerHTML", "shadowInnerHTML", "insertAdjacentHTML", "setHTMLUnsafe", "shadowSetHTMLUnsafe", "write", "writeln",
-		"execCommand", "parseFromString", "createContextualFragment", "parseHTMLUnsafe", "xslt", "customElement", "html", "root"}
-	got := make(chan string, len(ways))
+		"execCommand", "parseFromString", "createContextualFragment", "parseHTMLUnsafe", "xslt", "customElement",
+		"cloneFrameOfBlock", "importFrameOfBlock", "moveFrameOfBlock"}
+	got := make(chan string, len(ways)+3)
 	ports := map[string]string{}
-	for _, w := range ways {
+	for _, w := range append([]string{"window", "html", "root"}, ways...) {
 		stun, err := net.ListenPacket("udp4", "127.0.0.1:0")
 		if err != nil {
 			t.Fatal(err)
@@ -593,63 +595,81 @@ func TestRealBrowserCustomBlockSendsNothingByWebRTC(t *testing.T) {
 		}(w)
 	}
 	at, _ := json.Marshal(ports)
+	// A frame of the block leaks by a script of its own: the block cannot reach a frame of an origin of its own.
 	lib := `const at = ` + string(at) + `;
-const leak = (w, way) => {
-  try {
-    const pc = new w.RTCPeerConnection({ iceServers: [{ urls: "stun:" + at[way] }] });
-    pc.createDataChannel("leak");
-    pc.createOffer().then((o) => pc.setLocalDescription(o));
-  } catch (e) {}
-};
-const F = "ifr" + "ame", T = "<" + F + "></" + F + ">";
+const leaks = (way) => '<script>try { const pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:' + at[way] + '" }] }); pc.createDataChannel("l"); pc.createOffer().then((o) => pc.setLocalDescription(o)); } catch (e) {}</' + 'script>';
+const F = "ifr" + "ame";
+const T = (way) => "<" + F + " srcdoc='" + leaks(way).replace(/&/g, "&amp;").replace(/'/g, "&#39;") + "'></" + F + ">";
+const frame = (way, f) => { f.srcdoc = leaks(way); return f; };
 `
 	e := newEnv(t, webNotesAgent())
 	e.createProject("web", webNotes)
-	e.must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": `<!doctype html><html><body><p id="out">rtc</p><script>
+	e.must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": `<!doctype html><html><body><script>
 ` + lib + `
-const twice = () => { let n = 0; return { toString() { return n++ ? T : "div"; } }; };
+try { const pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:" + at.window }] }); pc.createDataChannel("l"); pc.createOffer().then((o) => pc.setLocalDescription(o)); } catch (e) {}
+const twice = (v) => { let n = 0; return { toString() { return n++ ? v : "div"; } }; };
 const box = () => { const d = document.createElement("div"); document.body.appendChild(d); return d; };
 const ways = {
-  createElement: (d) => d.appendChild(document.createElement(F)),
-  createElementObject: (d) => d.appendChild(document.createElement({ n: 0, toString() { return this.n++ ? F : "div"; } })),
-  createElementNS: (d) => d.appendChild(document.createElementNS("http://www.w3.org/1999/xhtml", F)),
-  innerHTML: (d) => { d.innerHTML = T; },
-  innerHTMLObject: (d) => { d.innerHTML = twice(); },
-  outerHTML: (d) => { const c = d.appendChild(document.createElement("p")); c.outerHTML = T; },
-  shadowInnerHTML: (d) => { d.attachShadow({ mode: "open" }).innerHTML = T; },
-  insertAdjacentHTML: (d) => d.insertAdjacentHTML("beforeend", T),
-  setHTMLUnsafe: (d) => d.setHTMLUnsafe(T),
-  shadowSetHTMLUnsafe: (d) => d.attachShadow({ mode: "open" }).setHTMLUnsafe(T),
-  write: () => document.write(T),
-  writeln: () => document.writeln(T),
-  execCommand: (d) => { d.contentEditable = "true"; d.focus(); document.execCommand("insertHTML", false, T); },
-  parseFromString: (d) => d.appendChild(document.adoptNode(new DOMParser().parseFromString(T, "text/html").body.firstChild)),
-  createContextualFragment: (d) => { const r = document.createRange(); r.selectNodeContents(d); d.appendChild(r.createContextualFragment(T)); },
-  parseHTMLUnsafe: (d) => d.appendChild(document.adoptNode(Document.parseHTMLUnsafe(T).body.firstChild)),
-  xslt: (d) => {
+  createElement: (d, w) => d.appendChild(frame(w, document.createElement(F))),
+  createElementObject: (d, w) => d.appendChild(frame(w, document.createElement(twice(F)))),
+  createElementNS: (d, w) => d.appendChild(frame(w, document.createElementNS("http://www.w3.org/1999/xhtml", F))),
+  createDocument: (d, w) => d.appendChild(frame(w, document.adoptNode(document.implementation.createDocument("http://www.w3.org/1999/xhtml", F).documentElement))),
+  innerHTML: (d, w) => { d.innerHTML = T(w); },
+  innerHTMLObject: (d, w) => { d.innerHTML = twice(T(w)); },
+  outerHTML: (d, w) => { d.appendChild(document.createElement("p")).outerHTML = T(w); },
+  shadowInnerHTML: (d, w) => { d.attachShadow({ mode: "open" }).innerHTML = T(w); },
+  insertAdjacentHTML: (d, w) => d.insertAdjacentHTML("beforeend", T(w)),
+  setHTMLUnsafe: (d, w) => d.setHTMLUnsafe(T(w)),
+  shadowSetHTMLUnsafe: (d, w) => d.attachShadow({ mode: "open" }).setHTMLUnsafe(T(w)),
+  write: (d, w) => document.write(T(w)),
+  writeln: (d, w) => document.writeln(T(w)),
+  execCommand: (d, w) => { d.contentEditable = "true"; d.focus(); if (!document.execCommand("insertHTML", false, T(w))) throw new Error("not run"); },
+  parseFromString: (d, w) => d.appendChild(document.adoptNode(new DOMParser().parseFromString(T(w), "text/html").body.firstChild)),
+  createContextualFragment: (d, w) => { const r = document.createRange(); r.selectNodeContents(d); d.appendChild(r.createContextualFragment(T(w))); },
+  parseHTMLUnsafe: (d, w) => d.appendChild(document.adoptNode(Document.parseHTMLUnsafe(T(w)).body.firstChild)),
+  xslt: (d, w) => {
     const xsl = new DOMParser().parseFromString('<xsl:stylesheet version="1.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform"><xsl:template match="/"><xsl:element name="{concat(&quot;ifr&quot;, &quot;ame&quot;)}" namespace="http://www.w3.org/1999/xhtml"/></xsl:template></xsl:stylesheet>', "application/xml");
     const x = new XSLTProcessor();
     x.importStylesheet(xsl);
-    d.appendChild(x.transformToFragment(new DOMParser().parseFromString("<a/>", "application/xml"), document));
+    const f = x.transformToFragment(new DOMParser().parseFromString("<a/>", "application/xml"), document);
+    frame(w, f.firstChild);
+    d.appendChild(f);
   },
-  customElement: (d) => {
+  customElement: (d, w) => {
     customElements.define("x-frame", class extends HTMLIFrameElement {}, { extends: F });
-    d.appendChild(new (customElements.get("x-frame"))());
+    d.appendChild(frame(w, new (customElements.get("x-frame"))()));
   },
+  cloneFrameOfBlock: (d, w) => d.appendChild(frame(w, frameElement.cloneNode())),
+  importFrameOfBlock: (d, w) => d.appendChild(frame(w, document.importNode(frameElement))),
+  moveFrameOfBlock: (d, w) => parent.document.body.appendChild(frameElement),
 };
-leak(window, "window");
-leak(parent, "parent");
-const seen = new Set(document.querySelectorAll(F));
+window.made = [];
 for (const [way, make] of Object.entries(ways)) {
-  const d = box();
-  try { make(d); } catch (e) {}
-  const all = [...document.querySelectorAll(F), ...(d.shadowRoot ? d.shadowRoot.querySelectorAll(F) : [])];
-  for (const f of all) if (!seen.has(f)) { seen.add(f); leak(f.contentWindow, way); }
+  const d = box(), count = () => document.querySelectorAll(F).length + (d.shadowRoot ? d.shadowRoot.querySelectorAll(F).length : 0);
+  const before = count();
+  try { make(d, way); } catch (e) {}
+  if (count() > before) made.push(way);
 }
+</script><script type="module">
+import { App } from "/ext-apps.js";
+const app = new App({ name: "rtc", version: "1" });
+await app.connect();
+await app.callServerTool({ name: "web.mark", arguments: { text: "made [" + window.made.join(",") + "]" } });
 </script></body></html>`}, nil)
 	b := newPlaywright(t)
 	b.open(e.URL + "/?token=" + token + "#/p/web/main")
 	b.until("the custom block", `document.querySelector('iframe[data-custom]')`)
+	e.waitFor("the block to tell the frames it made", func() bool {
+		for _, c := range e.Fake.Calls() {
+			if m := regexp.MustCompile(`made \[([\w,]*)\]`).FindStringSubmatch(c.Prompt); m != nil {
+				if m[1] != "" {
+					t.Errorf("a custom block makes a frame by %s", m[1])
+				}
+				return true
+			}
+		}
+		return false
+	})
 	wait := func(what string) {
 		select {
 		case w := <-got:
@@ -659,9 +679,9 @@ for (const [way, make] of Object.entries(ways)) {
 	}
 	wait("a custom block")
 	for i, c := range []struct{ name, html string }{
-		{"a frame in the HTML of the block", `<!doctype html><html><body><iframe></iframe><script>` + lib + `leak(frames[0], "html");</script></body></html>`},
+		{"a frame in the HTML of the block", `<!doctype html><html><body><iframe srcdoc="x"></iframe><script>` + lib + `document.querySelector(F).srcdoc = leaks("html");</script></body></html>`},
 		{"a frame as the root of the document", `<!doctype html><html><body><script>` + lib + `
-try { const f = document.createElement(F); document.removeChild(document.documentElement); document.append(f); leak(f.contentWindow, "root"); } catch (e) {}
+try { const f = frame("root", document.createElement(F)); document.removeChild(document.documentElement); document.append(f); } catch (e) {}
 </script></body></html>`},
 	} {
 		e.must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": c.html}, nil)

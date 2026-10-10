@@ -3,7 +3,7 @@ import { useLocalStorage } from '@mantine/hooks';
 import type { ComponentContext } from '@a2ui/web_core/v0_9';
 import { useTranslation } from 'react-i18next';
 import type { ChatValue } from '../lib/catalog.gen';
-import { useMenuEntries } from '../hooks/useMenu';
+import { useMenuData } from '../hooks/useMenu';
 import { useScreenActions } from '../screen/ScreenActions';
 import { onTopicOpen } from './chatStore';
 
@@ -15,7 +15,7 @@ const NONE = '-';
 export function useTopics(value: ChatValue, context: ComponentContext) {
   const { t } = useTranslation();
   const { filter } = useScreenActions();
-  const menu = useMenuEntries();
+  const menu = useMenuData();
   const pinned = useRef(false);
   const [scope, setScope] = useState<string | null>(null);
   const [recent, setRecent] = useLocalStorage<string[]>({ key: 'deck-chat-modules', defaultValue: [] });
@@ -35,7 +35,7 @@ export function useTopics(value: ChatValue, context: ComponentContext) {
   const going = value.topics.filter((x) => x.reply && !x.reply.waits);
   const busy = new Set(going.map((x) => String(x.id)));
   const working = new Set(going.map((x) => x.project || NONE));
-  menu.forEach((m) => { if (m.project && m.running && projects.includes(m.project)) working.add(m.project); });
+  [...menu.projects, ...(menu.master ? [menu.master] : [])].forEach((m) => { if (m.project && m.running && projects.includes(m.project)) working.add(m.project); });
   const rank = (v: string) => (recent.includes(v) ? recent.indexOf(v) : recent.length);
   const modules = [{ value: NONE, label: t('chat.no_module') }, ...projects.map((p) => ({ value: p, label: p }))]
     .sort((a, b) => rank(a.value) - rank(b.value));

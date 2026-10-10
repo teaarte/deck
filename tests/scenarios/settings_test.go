@@ -28,7 +28,7 @@ func TestSettingsIsInTheMenuAndItsInterfaceTabIsTheLookOfTheDevice(t *testing.T)
 		Project string
 		Screens []struct{ Name, Title string }
 	}
-	e.must("deck.menu", nil, &menu)
+	e.menuOf(&menu)
 	var names []string
 	for _, s := range menu[0].Screens {
 		names = append(names, s.Name)
@@ -361,7 +361,7 @@ func TestSettingsHealthShowsWhatIsRedFirstWithWhy(t *testing.T) {
 			Project string
 			Errors  int64
 		}
-		e.must("deck.menu", map[string]any{}, &menu)
+		e.menuOf(&menu)
 		for _, m := range menu {
 			if m.Project == "web" {
 				return m.Errors
@@ -382,7 +382,7 @@ func TestSettingsHealthShowsWhatIsRedFirstWithWhy(t *testing.T) {
 		}
 		return n
 	}
-	if webErrors() != 1 || unread() != 3 {
+	if webErrors() != 1 || unread() != 2 {
 		t.Fatalf("a failing check counts until it is read: menu %d, unread %d", webErrors(), unread())
 	}
 	e.must("deck.health_seen", map[string]any{"subject": "command:web.digest"}, nil)
@@ -397,7 +397,7 @@ func TestSettingsHealthShowsWhatIsRedFirstWithWhy(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if webErrors() != 1 || unread() != 3 {
+	if webErrors() != 1 || unread() != 2 {
 		t.Fatalf("a read check counts again once its error changes: menu %d, unread %d", webErrors(), unread())
 	}
 	id := ""

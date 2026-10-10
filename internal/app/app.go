@@ -140,7 +140,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	a.Runner.Hooks = []process.Hook{a.Chats.NewHook(), failures.Hook{S: a.Failures}, triggers.After{S: a.Triggers}, asks.Unheard{S: a.Answers}}
 	a.Scheduler = trigger.New(st, a.Triggers.Fire, cfg.Now)
 
-	*a.Secrets = secrets.Service{St: st, Bus: a.Bus, Dir: h.Secrets}
+	*a.Secrets = secrets.Service{St: st, Bus: a.Bus, Dir: h.Secrets, Set: a.Health.SecretSet}
 	*a.Folders = folders.Service{St: st, Home: h}
 	*a.Files = appfiles.Service{St: st, Home: h, Now: cfg.Now, Held: a.Records.Held}
 	*a.Journal = journal.Service{St: st, Now: cfg.Now}
@@ -166,7 +166,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	*a.Failures = failures.Service{St: st, Now: cfg.Now, Runner: a.Runner}
 	*a.Processes = processes.Service{St: st, Runner: a.Runner, Named: a.Providers.Named, Now: cfg.Now, Invoke: a.Registry.Invoke, Lookup: a.Registry.Lookup,
 		Words: phrases}
-	*a.Health = apphealth.Service{St: st, Providers: a.Providers.All, Secret: a.Secrets.Has, Unassigned: a.Providers.Unassigned}
+	*a.Health = apphealth.Service{St: st, Providers: a.Providers.All, Secret: a.Secrets.Has, Unassigned: a.Providers.Unassigned, Bus: a.Bus}
 	*a.Records = records.Service{St: st, Now: cfg.Now, DrainFiles: a.Files.Drain, Stop: func(ctx context.Context, id int64, why string) error {
 		return a.Runner.Stop(ctx, id, why, true)
 	}}

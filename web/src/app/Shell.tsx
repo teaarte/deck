@@ -5,14 +5,14 @@ import { useTranslation } from 'react-i18next';
 import { openTopic, setChatScreen } from '../chat/chatStore';
 import { useFocusHandoff } from '../hooks/useFocusHandoff';
 import { useLanguageSetting } from '../hooks/useLanguageSetting';
-import { MenuContext, useMenu } from '../hooks/useMenu';
+import { entryOf, MenuContext, useMenu } from '../hooks/useMenu';
 import { usePhone } from '../hooks/usePhone';
 import { ScreenView } from '../screen/ScreenView';
 import s from './shell.module.css';
 import { Backdrop } from './Backdrop';
 import { Bell } from './Bell';
 import { ChatPanel } from './ChatPanel';
-import { Logo, waiting } from './Logo';
+import { Logo } from './Logo';
 import { MasterButton } from './MasterButton';
 import { Nav } from './Nav';
 import { PhoneBar } from './PhoneBar';
@@ -25,8 +25,8 @@ import { useChatLayout } from './useChatLayout';
 export function Shell() {
   const { t } = useTranslation();
   const route = useRoute();
-  const { menu, reload } = useMenu();
-  const asks = waiting(menu);
+  const menu = useMenu();
+  const asks = menu.pulse.asks;
   useEffect(() => {
     if (!('setAppBadge' in navigator)) return;
     (asks > 0 ? navigator.setAppBadge(asks) : navigator.clearAppBadge()).catch(() => undefined);
@@ -51,11 +51,11 @@ export function Shell() {
     else if (chat && full) layout.setFull(false);
   }), [chat, phone, full]);
   const current = href({ ...route, record: undefined });
-  const entry = menu.find((m) => (m.project ?? '') === (route.project ?? ''));
+  const entry = entryOf(menu, route.project);
   const screen = route.screen === 'cockpit' && !route.project ? t('nav.cockpit') : [...(entry?.screens ?? []), ...(entry?.extra ?? [])].find((x) => x.name === route.screen)?.title;
   useEffect(() => titlePlace([screen, route.project && entry?.title].filter(Boolean).join(' · ')), [screen, route.project, entry?.title]);
   const master = (
-    <MasterButton m={menu.find((x) => x.project === 'master')} open={chat}
+    <MasterButton m={menu.master} open={chat}
       onClick={() => { moveFocus(chat ? '[data-chat-toggle]' : '[data-chat-close]'); setChat(!chat); }} />
   );
   const desk = !phone;
@@ -84,9 +84,9 @@ export function Shell() {
         <main className={s.main} data-main>
           {phone ? <PhoneBar entry={entry} onMenu={() => setPhoneNav(true)} master={master} />
             : <Toolbar entry={entry} navOpen={navOpen} onShowNav={() => { moveFocus('[data-nav-hide]'); setNavOpen(true); }} master={!chat && master} />}
-          <ScreenView route={route} onProjects={reload} />
+          <ScreenView route={route} />
         </main>
-        <ChatPanel phone={phone} layout={layout} onProjects={reload} onDragging={setDragging}
+        <ChatPanel phone={phone} layout={layout} onDragging={setDragging}
           onClose={() => { moveFocus('[data-chat-toggle]'); setChat(false); }} />
       </div>
       <Drawer opened={phone && phoneNav} onClose={() => setPhoneNav(false)} size={300} padding={0} withCloseButton={false} keepMounted data-nav-phone>

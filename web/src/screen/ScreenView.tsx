@@ -10,9 +10,9 @@ type Shown = { surface: NonNullable<ReturnType<typeof useScreen>['surface']>; ke
 
 // ScreenView draws a screen of deck as the server describes it, and gives its blocks what they do. While the next
 // screen loads the one before stays, so a move does not blink; a first screen that is slow shows a loader.
-export const ScreenView = memo(function ScreenView({ route, onProjects }: { route: Route; onProjects: () => void }) {
+export const ScreenView = memo(function ScreenView({ route }: { route: Route }) {
   const { t } = useTranslation();
-  const { surface, error, key, actions } = useScreen(route, onProjects);
+  const { surface, error, key, actions } = useScreen(route);
   const last = useRef<Shown>(undefined);
   const [slow, setSlow] = useState(false);
   useEffect(() => {

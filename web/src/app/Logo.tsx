@@ -1,16 +1,13 @@
 import { IconLayoutDashboard } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import { useMenuEntries } from '../hooks/useMenu';
+import { useMenuData } from '../hooks/useMenu';
 import s from './shell.module.css';
 import { href } from './router';
-
-// waiting is how many decisions wait for the owner across the menu.
-export const waiting = (menu: { asks?: number }[]) => menu.reduce((n, m) => n + (m.asks ?? 0), 0);
 
 // Logo is the way to the cockpit at the head of the menu: its icon with what waits for the owner, and its name.
 export function Logo({ onClick }: { onClick?: () => void }) {
   const { t } = useTranslation();
-  const asks = waiting(useMenuEntries());
+  const asks = useMenuData().pulse.asks;
   return (
     <a className={s.logo} href={href({ screen: 'cockpit' })} onClick={onClick} data-logo>
       <span className={s.logoMark}>

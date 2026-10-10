@@ -109,8 +109,8 @@ func TestPhoneReachesDeckOverTheTailnet(t *testing.T) {
 	}
 	body, _ := io.ReadAll(r.Body)
 	r.Body.Close()
-	var menu []struct{ Title string }
-	if r.StatusCode != 200 || json.Unmarshal(body, &menu) != nil || len(menu) == 0 {
+	var menu struct{ Deck struct{ Title string } }
+	if r.StatusCode != 200 || json.Unmarshal(body, &menu) != nil || menu.Deck.Title == "" {
 		t.Fatalf("the phone calls commands over the tailnet: %d %s", r.StatusCode, body)
 	}
 	r, err = client.Get("http://" + addr + "/custom")

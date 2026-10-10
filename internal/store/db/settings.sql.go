@@ -10,6 +10,20 @@ import (
 	"database/sql"
 )
 
+const deleteMark = `-- name: DeleteMark :exec
+DELETE FROM mark WHERE workspace_id = ? AND name = ?
+`
+
+type DeleteMarkParams struct {
+	WorkspaceID int64
+	Name        string
+}
+
+func (q *Queries) DeleteMark(ctx context.Context, arg DeleteMarkParams) error {
+	_, err := q.db.ExecContext(ctx, deleteMark, arg.WorkspaceID, arg.Name)
+	return err
+}
+
 const deleteMarksOfOtherRevisions = `-- name: DeleteMarksOfOtherRevisions :exec
 DELETE FROM mark WHERE workspace_id = ?1
   AND substr(name, 1, length(CAST(?2 AS TEXT))) = CAST(?2 AS TEXT)

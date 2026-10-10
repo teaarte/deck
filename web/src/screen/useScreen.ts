@@ -19,7 +19,7 @@ type Processor = MessageProcessor<ReactComponentImplementation>;
 
 // useScreen reads a screen and keeps it fresh: events read it again at most every 200 ms, merged by topic and project,
 // a return to the page reads it whole; a drawn screen updates in place, keeping the tab and what was typed, or a read error.
-export function useScreen(route: Route, onProjects: () => void) {
+export function useScreen(route: Route) {
   const [drawn, setDrawn] = useState<{ surface: SurfaceModel<ReactComponentImplementation>; key: string }>();
   const [error, setError] = useState('');
   const proc = useRef<Processor>(undefined);
@@ -127,7 +127,6 @@ export function useScreen(route: Route, onProjects: () => void) {
       }
     };
     const onEvent = (e: LiveEvent) => {
-      if (e.topic === 'projects') onProjects();
       if (!TOPICS.includes(e.topic)) return;
       pending.set(e.topic + ' ' + (e.project ?? ''), e);
       if (timer) return;

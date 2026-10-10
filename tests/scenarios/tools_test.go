@@ -215,8 +215,8 @@ func TestASecretThatIsNotSetIsRedInHealth(t *testing.T) {
 		return out
 	}
 	if got := rows(); !strings.HasPrefix(got["secret:pexels"], "error ") || !strings.Contains(got["secret:pexels"], "Other secrets") ||
-		got["secret:tok"] != "" || !strings.HasPrefix(got["project:stock"], "error secret:pexels") {
-		t.Fatalf("an unset secret is red in the health of the module, the token of a sign-in is not: %v", got)
+		got["secret:tok"] != "" || got["project:stock"] != "" {
+		t.Fatalf("an unset secret is red in the health of the module, the token of a sign-in is not, and no row sums the project up: %v", got)
 	}
 	if code, _ := e.call("stock.photos", map[string]any{}); code == 200 {
 		t.Fatal("a tool with a secret that is not set is refused")
@@ -234,13 +234,21 @@ func TestASecretThatIsNotSetIsRedInHealth(t *testing.T) {
 		}
 		return false
 	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	topics := e.sse(ctx)
 	e.must("deck.health_seen", map[string]any{"subject": "secret:pexels"}, nil)
-	if !seen("secret:pexels") || !seen("project:stock") {
-		t.Fatal("the owner marks an unset secret read like any failing check, and its project with it")
+	if !seen("secret:pexels") {
+		t.Fatal("the owner marks an unset secret read like any failing check")
 	}
+	waitTopic(t, topics, "health")
 	e.must("deck.secret_set", map[string]any{"name": "pexels", "value": "k"}, nil)
-	if got := rows(); got["secret:pexels"] != "" || got["project:stock"] != "ok " {
+	if got := rows(); got["secret:pexels"] != "" {
 		t.Fatalf("a secret once set is no row of health: %v", got)
+	}
+	e.must("deck.secret_delete", map[string]any{"name": "pexels"}, nil)
+	if got := rows(); !strings.HasPrefix(got["secret:pexels"], "error ") || seen("secret:pexels") {
+		t.Fatalf("a secret that goes again is a failing check not read yet: %v", got)
 	}
 }
 

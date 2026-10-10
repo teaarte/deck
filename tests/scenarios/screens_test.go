@@ -353,6 +353,9 @@ func TestScreenTopicReadsOnlyTheBlocksItChanges(t *testing.T) {
 	if got := paths("", "settings", "models"); !slices.Equal(got, []string{"/b0-1-2", "/b0-1-3", "/b0-1-4", "/b0-2-2", "/b0-6-0", "/b0-6-1"}) {
 		t.Fatalf("models reads the blocks of models and connections and the health, where a command no model fits is red: %v", got)
 	}
+	if got := paths("", "settings", "documents"); !slices.Contains(got, "/b0-0-3") {
+		t.Fatalf("documents reads the projects, whose descriptions are their prompts: %v", got)
+	}
 	for _, topic := range []string{"projects", "spaceship"} {
 		if n := len(e.screenMessages("notes", "main", map[string]any{"topic": topic})); n != 3 || len(e.screenData("notes", "main", map[string]any{"topic": topic})) != 6 {
 			t.Fatalf("a topic no block reads gives the whole screen with its data: %s, %d messages", topic, n)

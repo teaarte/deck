@@ -31,7 +31,11 @@ func TestRealBrowserShell(t *testing.T) {
 	manifest := strings.Replace(webNotes, `{"version": 11,`, `{"version": 11, "icon": "rocket",`, 1)
 	manifest = strings.Replace(manifest, `{"type": "table", "title": "Notes",`, `{"type": "table", "title": "Notes", "icon": "notes",`, 1)
 	manifest = strings.Replace(manifest, `"columns": [{"label": "Title", "bind": "title"}]`, `"columns": [{"label": "Title", "bind": "title"}, {"label": "Status", "bind": "source"}, {"label": "Note", "bind": "note"}]`, 1)
+	manifest = strings.Replace(manifest, `{"name": "note", "title": "Note", "record": "notes",`, `{"name": "more", "title": "More", "blocks": [{"type": "appearance"}]},
+    {"name": "note", "title": "Note", "record": "notes",`, 1)
+	manifest = strings.Replace(manifest, `"menu": ["main"]`, `"menu": ["main", "more"]`, 1)
 	e.createProject("web", strings.Replace(manifest, `{"label": "Open", "screen": "note"}`, `{"label": "Open", "icon": "arrow-right", "screen": "note"}`, 1))
+	e.createProject("solo", webNotes)
 	e.must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes",
 		"records": jsonl(map[string]any{"title": "alpha", "source": "mail", "note": strings.Repeat("the model did not finish the self-check within the ceiling ", 6)}, map[string]any{"title": "a-very-long-title-without-any-spaces-that-would-push-the-table-out-of-its-block-" + strings.Repeat("x", 120), "source": "web"})}, nil)
 	e.waitState(e.start("web", "tell", nil), "done")
@@ -49,7 +53,7 @@ func TestRealBrowserShell(t *testing.T) {
 		t.Fatalf("the menu is an island: rounded, with a shadow, apart from the edges: %s", got)
 	}
 	b.until("the icons of the menu", `document.querySelector('[data-nav] [data-system] [data-icon="layout-grid"]') && document.querySelector('[data-group="web"] [data-icon="rocket"]')`)
-	if got := b.eval(`[...document.querySelectorAll('[data-nav] [data-group]')].map((x) => x.dataset.group).join(' ')`); got != "web" {
+	if got := b.eval(`[...document.querySelectorAll('[data-nav] [data-group]')].map((x) => x.dataset.group).sort().join(' ')`); got != "solo web" {
 		t.Fatalf("the projects of the menu without deck and the master: %s", got)
 	}
 	b.eval(`(document.querySelector('[data-system]').click(), '')`)
@@ -104,6 +108,11 @@ func TestRealBrowserShell(t *testing.T) {
 	b.until("the group of web folded", `!document.querySelector('[data-group="web"] a:not([data-extra])')?.offsetParent && document.querySelector('[data-group="web"] [data-group-head]').getAttribute('aria-expanded') === 'false'`)
 	b.eval(`(document.querySelector('[data-group="web"] [data-group-head]').click(), '')`)
 	b.until("the group of web open again", `document.querySelector('[data-group="web"] a:not([data-extra])')?.offsetParent`)
+
+	b.eval(`(document.querySelector('[data-group="solo"] a[data-group-head]').click(), '')`)
+	b.until("a project with one screen opens it from its header, which shows it open", `location.hash === '#/p/solo/main' &&
+		document.querySelector('[data-group="solo"] a[data-group-head][data-active]') && !document.querySelector('[data-group="solo"] [aria-expanded]')`)
+	b.shot("shell-one-screen")
 
 	b.open(e.URL + "/#/p/web/main")
 	b.until("the project screen", `document.querySelector('[data-block] table')`)

@@ -173,6 +173,20 @@ func (s *Service) processesList(ctx context.Context, act registry.Actor, in proc
 	return out, nil
 }
 
+// Open are how many processes have not finished, as processes_list with open gives them, by project.
+func (s *Service) Open(ctx context.Context, act registry.Actor) (map[string]int64, error) {
+	ps, err := s.St.Q.ListOpenProcesses(ctx, db.ListOpenProcessesParams{WorkspaceID: act.Workspace})
+	if err != nil {
+		return nil, err
+	}
+	names, err := access.Names(ctx, s.St.Q, act.Workspace)
+	out := map[string]int64{}
+	for _, p := range ps {
+		out[names[p.ProjectID]]++
+	}
+	return out, err
+}
+
 // maxWait is the longest process_get waits; an agent whose tool calls time out sooner waits a little less than that.
 const maxWait = 30 * time.Minute
 

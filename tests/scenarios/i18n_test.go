@@ -21,12 +21,12 @@ func TestScreensAndTheMenuSpeakTheLanguageOfTheOwner(t *testing.T) {
 	e.createProject("web", manifest)
 
 	var menu []menuView
-	e.must("deck.menu", map[string]any{"lang": "ru"}, &menu)
+	e.menuList(map[string]any{"lang": "ru"}, true, &menu)
 	if menu[0].Screens[0].Title != "Расписание" {
 		t.Fatalf("deck's screens are in the language asked for: %+v", menu[0].Screens)
 	}
 	var all []map[string]any
-	e.must("deck.menu", map[string]any{"lang": "ru"}, &all)
+	e.menuList(map[string]any{"lang": "ru"}, false, &all)
 	raw, _ := json.Marshal(all[len(all)-1])
 	if !strings.Contains(string(raw), `"title":"Веб-заметки"`) || !strings.Contains(string(raw), `"title":"Веб"`) || !strings.Contains(string(raw), "Документы") {
 		t.Fatalf("a project's screens take its translations, deck's screens of a project deck's: %s", raw)

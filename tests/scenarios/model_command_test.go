@@ -571,9 +571,6 @@ func TestAModelCommandNoModelTakesIsWarnedOfAndFailsAtOnce(t *testing.T) {
 	if h := e.waitHealth("command:factcheck", "warning"); !strings.Contains(h.Error, "Assign models") {
 		t.Fatalf("the draft's health shows it in yellow: %+v", h)
 	}
-	if h := e.waitHealth("project:shorts", ""); h.Status != "warning" {
-		t.Fatalf("the project is yellow: %+v", h)
-	}
 	var m struct {
 		Warnings []string
 		Manifest string

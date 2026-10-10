@@ -63,6 +63,26 @@
   position: relative;
 }
 
+a.groupHead {
+  text-decoration: none;
+}
+
+.groupHead[data-active] {
+  background: var(--mantine-primary-color-filled);
+  color: var(--mantine-primary-color-contrast);
+  box-shadow: 0 6px 16px -6px color-mix(in srgb, var(--mantine-primary-color-filled) 75%, transparent),
+    inset 0 1px 0 rgb(255 255 255 / 0.2);
+
+  & .groupIcon {
+    color: currentColor;
+    background: transparent;
+  }
+}
+
+.group[data-single] .extras {
+  right: 8px;
+}
+
 .extras {
   position: absolute;
   top: 6px;

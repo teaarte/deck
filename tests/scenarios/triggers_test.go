@@ -572,7 +572,7 @@ func TestEnablingADraftClearsWhyItsTriggersDidNotStart(t *testing.T) {
 	var hs []healthRow
 	e.must("deck.health_list", nil, &hs)
 	for _, h := range hs {
-		if h.Subject == "trigger:later.remind" || h.Subject == "project:later" && h.Status != "ok" {
+		if h.Subject == "trigger:later.remind" {
 			t.Fatalf("enabling the project clears why its schedule did not start: %+v", h)
 		}
 	}

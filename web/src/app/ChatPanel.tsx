@@ -14,14 +14,14 @@ type Layout = ReturnType<typeof useChatLayout>;
 
 // ChatPanel is the chat with the master: an island beside the screen that its left edge resizes, or on a phone a sheet
 // over it.
-export function ChatPanel({ phone, layout, onProjects, onClose, onDragging }: {
-  phone: boolean; layout: Layout; onProjects: () => void; onClose: () => void; onDragging: (on: boolean) => void;
+export function ChatPanel({ phone, layout, onClose, onDragging }: {
+  phone: boolean; layout: Layout; onClose: () => void; onDragging: (on: boolean) => void;
 }) {
   const { t } = useTranslation();
   const grip = useResizable({ min: 280, maxRatio: 0.7, value: layout.width, onCommit: layout.setWidth, onDragging });
   const mascot = useMascot();
   const name = useMasterName();
-  const panel = <ScreenView route={CHAT} onProjects={onProjects} />;
+  const panel = <ScreenView route={CHAT} />;
   const mark = mascot ? <DekiHead size={30} square /> : <span className={s.logoMark}><IconSparkles size={15} stroke={2} /></span>;
   const title = <Group gap={8} wrap="nowrap" miw={0} fw={700}>{mark}<span className={s.asideTitle}>{name}</span></Group>;
   if (phone) {

@@ -91,6 +91,16 @@ func (s *Service) asksList(ctx context.Context, act registry.Actor, in asksListI
 	return out, nil
 }
 
+// Waiting are how many things wait for the owner, as asks_list gives them, by project, deck's own under "".
+func (s *Service) Waiting(ctx context.Context, act registry.Actor) (map[string]int64, error) {
+	rows, err := s.asksList(ctx, act, asksListIn{})
+	out := map[string]int64{}
+	for _, r := range rows {
+		out[r.Project]++
+	}
+	return out, err
+}
+
 func (s *Service) askRow(ctx context.Context, q db.Ask, names map[int64]string) askRow {
 	r := askRow{ID: q.ID, Kind: q.Kind, Project: names[q.ProjectID.Int64], Process: q.ProcessID.Int64, Text: q.Text, What: firstLine(q.Text),
 		Payload: json.RawMessage(cmp.Or(q.Payload, "null")), CreatedAt: q.CreatedAt, ExpiresAt: q.ExpiresAt.String, Expired: q.State == ask.StateExpired}

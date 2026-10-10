@@ -142,10 +142,29 @@ func (e *Env) projectsOf(out any) {
 	}
 }
 
-// menuOf is the menu without the documents screen of the built-in master.
+// menuOf is the menu as one list without the built-in master: deck's screens, then the projects.
 func (e *Env) menuOf(out any) {
 	e.T.Helper()
-	e.dropMaster("deck.menu", "project", out)
+	e.menuList(nil, false, out)
+}
+
+// menuList is the menu as one list: deck's screens, the projects and, with master, the master.
+func (e *Env) menuList(in map[string]any, master bool, out any) {
+	e.T.Helper()
+	var m struct {
+		Deck     json.RawMessage
+		Projects []json.RawMessage
+		Master   json.RawMessage
+	}
+	e.must("deck.menu", in, &m)
+	all := append([]json.RawMessage{m.Deck}, m.Projects...)
+	if master && m.Master != nil {
+		all = append(all, m.Master)
+	}
+	b, _ := json.Marshal(all)
+	if err := json.Unmarshal(b, out); err != nil {
+		e.T.Fatal(err)
+	}
 }
 
 func (e *Env) dropMaster(command, field string, out any) {

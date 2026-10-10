@@ -134,9 +134,6 @@ func TestMCPCallLostWithItsServerIsAnUnknownOutcome(t *testing.T) {
 	if h := e.waitHealth("mcp:srv.fake", "error"); !strings.Contains(h.Error, "stopped") {
 		t.Fatalf("a server that stopped shows in health with the error: %+v", h)
 	}
-	if h := e.waitHealth("project:srv", "error"); !strings.Contains(h.Error, "mcp:srv.fake") {
-		t.Fatalf("the project shows the worst health of what it has: %+v", h)
-	}
 	delete(got, "srv__fake__vanish")
 	e.waitState(e.start("srv", "work", map[string]any{"step": "srv__fake__vanish"}), "done", "waiting_answer")
 	if c := got["srv__fake__vanish"]; !c.isErr || !strings.Contains(c.out, "unknown outcome") || len(fakeLog(dir)) != 1 {

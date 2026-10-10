@@ -139,7 +139,7 @@
         {"type": "actions", "title": "Push key", "icon": "key", "description": "A new key stops the pushes of every device until each turns them on again.",
           "actions": [{"verb": "reset_push", "confirm": true, "command": "deck.push_reset"}]}]},
       {"title": "Health", "icon": "heartbeat", "blocks": [
-        {"type": "table", "title": "Failing checks", "empty": "No check fails", "source": {"from": "deck.health_list", "where": "status == 'error' && (!hasPrefix(subject, 'project:') || hasPrefix(error, 'manifest: '))"},
+        {"type": "table", "title": "Failing checks", "empty": "No check fails", "source": {"from": "deck.health_list", "where": "status == 'error'"},
           "description": "Every check of deck that fails now, of the machine and of the projects, with why. One marked read stops counting on the cockpit until it changes.",
           "columns": [
             {"label": "What", "bind": "subject", "format": "tag", "tone": "seen ? 'muted' : 'error'"},

@@ -25,6 +25,8 @@ type Service struct {
 	St  *store.Store
 	Bus *events.Bus
 	Dir func(workspace int64) string
+	// Set tells that a secret now has a value.
+	Set func(workspace int64, name string)
 	mu  sync.Mutex
 }
 
@@ -111,6 +113,7 @@ func (s *Service) Write(workspace int64, name, value string) error {
 	}
 	err := provider.WriteFile(filepath.Join(s.Dir(workspace), name), []byte(value))
 	if err == nil {
+		s.Set(workspace, name)
 		s.Bus.Emit(events.Event{Workspace: workspace, Topic: "secrets"})
 	}
 	return err

@@ -11,6 +11,7 @@ import (
 	"syscall"
 
 	"deck2/internal/docs"
+	"deck2/internal/files"
 	"deck2/internal/provider"
 	"deck2/internal/untrusted"
 
@@ -92,11 +93,13 @@ func (b *Browser) ownPaths(process int64, raw json.RawMessage) (json.RawMessage,
 	out := make([]any, 0, len(list))
 	for _, p := range list {
 		s, _ := p.(string)
-		if !filepath.IsAbs(s) {
-			s = filepath.Join(base, s)
+		for _, dir := range provider.Paths(runs) {
+			if filepath.IsAbs(s) && provider.Within(dir, s) {
+				s, _ = filepath.Rel(dir, s)
+			}
 		}
-		real, err := filepath.EvalSymlinks(s)
-		if err != nil || !provider.Within(base, real) {
+		real, err := files.Inside(base, s)
+		if err != nil || filepath.IsAbs(s) {
 			_ = os.RemoveAll(dest)
 			return nil, "", registry.Refuse("deck: %q is not a file in the folder of this process", p)
 		}

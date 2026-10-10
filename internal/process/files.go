@@ -14,6 +14,7 @@ import (
 	"slices"
 	"strings"
 
+	"deck2/internal/files"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
@@ -52,18 +53,13 @@ func (r *Runner) keepFiles(ctx context.Context, projectID, processID int64, resu
 		err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error { return rebind(ctx, q, projectID, processID, given) })
 		return result, err
 	}
-	root, err := filepath.EvalSymlinks(results)
-	if err != nil {
-		return "", err
-	}
 	srcs := make([]string, len(res.Files))
 	infos := make([]os.FileInfo, len(res.Files))
 	seen := map[string]bool{}
 	for i, f := range res.Files {
-		src, err := filepath.EvalSymlinks(filepath.Join(root, filepath.Clean("/"+f.Path)))
-		inside := err == nil && strings.HasPrefix(src, root+string(filepath.Separator))
-		fi, lerr := os.Lstat(filepath.Join(root, filepath.Clean("/"+f.Path)))
-		if f.Path == "" || !inside || lerr != nil || !fi.Mode().IsRegular() {
+		src, err := files.Inside(results, f.Path)
+		fi, lerr := os.Lstat(src)
+		if f.Path == "" || err != nil || lerr != nil {
 			return "", fmt.Errorf("result file %q is not a file in the results folder", f.Path)
 		}
 		if seen[src] {
@@ -72,7 +68,7 @@ func (r *Runner) keepFiles(ctx context.Context, projectID, processID int64, resu
 		seen[src], srcs[i], infos[i] = true, src, fi
 	}
 	var rows []db.File
-	err = r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+	err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		for i, f := range res.Files {
 			if _, _, err := fileOwner(ctx, q, projectID, processID, f); err != nil {
 				return err

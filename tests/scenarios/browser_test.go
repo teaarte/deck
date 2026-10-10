@@ -44,6 +44,7 @@ type seqAgent struct {
 	got   []toolCall
 	tools []string
 	files []string
+	links map[string]string
 }
 
 func (s *seqAgent) script(ctx context.Context, c *Call) provider.Result {
@@ -57,6 +58,9 @@ func (s *seqAgent) script(ctx context.Context, c *Call) provider.Result {
 	_ = json.Unmarshal([]byte(in.Steps), &list)
 	for _, f := range s.files {
 		_ = os.WriteFile(filepath.Join(c.Req.Cwd, "..", "results", f), []byte("file"), 0o600)
+	}
+	for name, target := range s.links {
+		_ = os.Symlink(target, filepath.Join(c.Req.Cwd, "..", "results", name))
 	}
 	s.mu.Lock()
 	s.tools = c.Req.AllowedTools
@@ -143,6 +147,28 @@ func TestBrowserReadsAnySiteWithAStarAndSendsOnlyOwnFiles(t *testing.T) {
 	}
 	if !got[2].isErr || !strings.Contains(got[2].out, "not a file in the folder") || !slices.Contains(fakeLog(e.Browser), "upload:1") || got[3].isErr {
 		t.Fatalf("an upload sends only files of the process's own folder: %+v %v", got, fakeLog(e.Browser))
+	}
+}
+
+func TestBrowserSendsNoFileALinkPointsOutOfTheFolder(t *testing.T) {
+	t.Parallel()
+	outside := t.TempDir()
+	_ = os.WriteFile(filepath.Join(outside, "secret.pdf"), []byte("secret"), 0o600)
+	ag := &seqAgent{files: []string{"cv.pdf"}, links: map[string]string{"cv-link.pdf": filepath.Join(outside, "secret.pdf"), "out": outside}}
+	e := newEnv(t, ag.script)
+	e.createProject("web", browserManifest(`{"read": ["jobs.example"], "act": ["jobs.example"]}`))
+	e.waitState(e.start("web", "browse", steps(nav("https://jobs.example/apply"),
+		step{"browser_file_upload", map[string]any{"paths": []string{"results/cv-link.pdf"}}},
+		step{"browser_file_upload", map[string]any{"paths": []string{"results/out/secret.pdf"}}},
+		step{"browser_file_upload", map[string]any{"paths": []string{"results/cv.pdf"}}})), "done")
+	got := ag.last(3)
+	for _, c := range got[:2] {
+		if !c.isErr || !strings.Contains(c.out, "not a file in the folder") {
+			t.Fatalf("a link out of the folder of the process is refused: %+v", got)
+		}
+	}
+	if got[2].isErr || !slices.Contains(fakeLog(e.Browser), "upload:1") {
+		t.Fatalf("a file of the folder goes: %+v %v", got, fakeLog(e.Browser))
 	}
 }
 

@@ -66,7 +66,7 @@ func Resolve(ctx context.Context, h home.Layout, q *db.Queries, project, process
 			return Ref{}, registry.Invalid("deck: %q is a results file, which only a process has", ref)
 		}
 		root := filepath.Join(h.Run(process), "results")
-		path, err := inside(root, rest)
+		path, err := Inside(root, rest)
 		if err != nil {
 			return Ref{}, registry.Invalid("deck: %q is not a file in the results folder of this process", ref)
 		}
@@ -86,8 +86,8 @@ func Resolve(ctx context.Context, h home.Layout, q *db.Queries, project, process
 	return Ref{ID: f.ID, Path: filepath.Join(h.Files(), strconv.FormatInt(f.ID, 10)), Name: f.Name, Type: f.Type}, nil
 }
 
-// inside resolves name under root without following links out of it; the result is a regular file.
-func inside(root, name string) (string, error) {
+// Inside resolves name under root to the real path of a regular file there; a link or a way out is refused.
+func Inside(root, name string) (string, error) {
 	r, err := os.OpenRoot(root)
 	if err != nil {
 		return "", err

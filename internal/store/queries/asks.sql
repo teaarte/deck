@@ -123,3 +123,14 @@ UPDATE ask SET state = 'expired' WHERE project_id = sqlc.arg(project_id) AND kin
 
 -- name: TellUnheard :execrows
 UPDATE ask SET unheard_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ? AND unheard_at IS NULL;
+
+-- name: CreateTakenRemark :exec
+INSERT INTO process_remark (process_id, text, created_at, delivered_at) VALUES (?, ?, ?, ?);
+
+
+-- name: ListRemarks :many
+SELECT * FROM process_remark WHERE process_id = ? ORDER BY id;
+
+
+-- name: DeleteWaitingRemark :execrows
+DELETE FROM process_remark WHERE id = ? AND process_id = ? AND delivered_at IS NULL;

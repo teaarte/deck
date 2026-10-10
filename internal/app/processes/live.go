@@ -2,6 +2,7 @@ package processes
 
 import (
 	"context"
+	"database/sql"
 	"os"
 	"path/filepath"
 	"strings"
@@ -9,6 +10,7 @@ import (
 	"deck2/internal/process"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
+	"deck2/internal/store"
 	"deck2/internal/store/db"
 )
 
@@ -61,11 +63,19 @@ func (s *Service) processTell(ctx context.Context, act registry.Actor, in proces
 	case p.FinishedAt.Valid:
 		return nil, registry.Invalid("deck: process %d has finished; send it back with a remark instead", p.ID)
 	}
+	delivered := ""
 	switch s.Runner.Say(ctx, p.ID, "deck: the owner wrote while you work:\n"+text) {
 	case process.Taken:
-		return map[string]any{"process": p.ID, "delivered": "now"}, nil
+		delivered = "now"
 	case process.Unsure:
-		return map[string]any{"process": p.ID, "delivered": "sent; the provider did not confirm it"}, nil
+		delivered = "sent; the provider did not confirm it"
+	}
+	if delivered != "" {
+		now := store.Time(s.Now())
+		err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+			return q.CreateTakenRemark(ctx, db.CreateTakenRemarkParams{ProcessID: p.ID, Text: text, CreatedAt: now, DeliveredAt: sql.NullString{String: now, Valid: true}})
+		})
+		return map[string]any{"process": p.ID, "delivered": delivered}, err
 	}
 	if err := s.Runner.Remark(ctx, p.ID, text); err != nil {
 		return nil, err

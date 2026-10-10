@@ -2,6 +2,7 @@ package screen
 
 import (
 	"cmp"
+	"encoding/json"
 	"fmt"
 	"maps"
 	"math"
@@ -179,6 +180,30 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 			return nil, err
 		}
 		return map[string]any{"state": "ready", "value": v}, nil
+	case "log":
+		input, err := r.input(b.Source.Input)
+		if err != nil {
+			return nil, err
+		}
+		v, err := r.src.Read(r.ctx, b.Source.From, input, r.scope)
+		if err != nil {
+			return nil, err
+		}
+		var page map[string]any
+		raw, _ := json.Marshal(v)
+		if err := json.Unmarshal(raw, &page); err != nil {
+			return nil, err
+		}
+		out := map[string]any{"state": "ready", "lines": page["lines"]}
+		for _, k := range []string{"since", "say"} {
+			if page[k] != nil {
+				out[k] = page[k]
+			}
+		}
+		if lines, _ := page["lines"].([]any); len(lines) == 0 && page["since"] == nil {
+			return empty(out, b), nil
+		}
+		return out, nil
 	case "document":
 		var record, id int64
 		switch r.req.Screen.Record {
@@ -358,18 +383,6 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 			lines = append(lines, line)
 		}
 		out["items"] = lines
-	case "log":
-		lines := make([]map[string]any, 0, len(items))
-		for _, it := range items {
-			line := map[string]any{}
-			for _, k := range []string{"at", "kind", "id", "title", "status", "text"} {
-				if v, ok := it[k]; ok && v != "" {
-					line[k] = v
-				}
-			}
-			lines = append(lines, line)
-		}
-		out["lines"] = lines
 	}
 	return out, nil
 }

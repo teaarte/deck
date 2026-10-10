@@ -122,19 +122,6 @@ func TestTerminalCommandOfAProcess(t *testing.T) {
 	}
 	close(release)
 	e.waitState(id, "done")
-	card := blockData[struct {
-		Fields []struct {
-			Label string
-			Value any
-		}
-	}](t, e.screenData("", "process", map[string]any{"record": id})["b0"]["value"])
-	found := false
-	for _, f := range card.Fields {
-		found = found || f.Label == "Open in a terminal" && f.Value == v.Terminal
-	}
-	if !found {
-		t.Fatalf("the page of the process shows it: %+v", card)
-	}
 	_ = os.RemoveAll(work)
 	e.must("deck.process_get", map[string]any{"process": id}, &v)
 	if v.Terminal != "fake --resume "+session {

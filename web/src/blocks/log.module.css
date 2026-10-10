@@ -1,0 +1,10 @@
+.live {
+  color: var(--mantine-primary-color-filled);
+}
+
+.owner {
+  max-width: min(100%, 560px);
+  padding: 6px 10px;
+  border-radius: var(--mantine-radius-md);
+  background: color-mix(in srgb, var(--mantine-primary-color-filled) 12%, transparent);
+}

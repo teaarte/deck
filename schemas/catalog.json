@@ -180,7 +180,7 @@
     },
     "log": {
       "description": "The log of the process of a record page.",
-      "block": {"description": "Needs source, deck.process_log of the process; takes nothing else.", "required": ["source"], "properties": {"source": {"$ref": "#/$defs/source"}, "empty": {"$ref": "#/$defs/empty"}}},
+      "block": {"description": "Needs source, deck.process_chat of the process; takes nothing else.", "required": ["source"], "properties": {"source": {"$ref": "#/$defs/source"}, "empty": {"$ref": "#/$defs/empty"}}},
       "type": "object",
       "additionalProperties": false,
       "required": ["data"],
@@ -189,7 +189,7 @@
         "icon": {"type": "string"},
         "span": {"enum": [1, 2, "full"], "default": "full"},
         "description": {"type": "string"},
-        "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "lines: [{at, kind, id, title, status, text}]"}
+        "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "lines: [{at, kind, id, title, status, text, delete}], newest first; since and say while it runs"}
       }
     },
     "form": {
@@ -395,11 +395,14 @@
             "marks": {"type": "array", "items": {"type": "object", "required": ["at"], "additionalProperties": false, "properties": {"at": {"type": "number"}, "text": {"type": "string"}}}},
             "mark": {"$ref": "#/$defs/action"}}
         }},
-        "lines": {"type": "array", "items": {
+        "lines": {"type": "array", "description": "the log of a process, newest first", "items": {
           "type": "object", "required": ["at", "kind"],
           "properties": {"at": {"type": "string"}, "kind": {"type": "string"}, "id": {"type": "string"}, "title": {"type": "string"},
-            "status": {"type": "string"}, "text": {"type": "string"}}
-        }}
+            "status": {"type": "string"}, "text": {"type": "string"},
+            "delete": {"$ref": "#/$defs/action", "description": "deletes a message of the owner the agent has not taken"}}
+        }},
+        "since": {"type": "string", "description": "when a process still going started"},
+        "say": {"$ref": "#/$defs/action", "description": "writes to the agent of a process still going"}
       }
     }
   }

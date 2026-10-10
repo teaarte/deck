@@ -218,7 +218,7 @@ func TestInvalidScreenIsRefusedWithItsReason(t *testing.T) {
 		{`{"type": "list", "title": "Waiting here", "source": {"from": "deck.asks_list"}, "item": {"title": "what"}}`,
 			`{"type": "list", "source": {"from": "deck.asks_list"}, "item": {"title": "whom"}}`, `unknown field "whom"`},
 		{`{"type": "list", "title": "Waiting here", "source": {"from": "deck.asks_list"}, "item": {"title": "what"}}`,
-			`{"type": "log", "source": {"from": "deck.process_log", "input": {"process": "=_id"}}}`, `source: the log is read on a page of a process`},
+			`{"type": "log", "source": {"from": "deck.process_chat", "input": {"process": "=_id"}}}`, `source: the log is read on a page of a process`},
 		{`{"type": "list", "title": "Waiting here", "source": {"from": "deck.asks_list"}, "item": {"title": "what"}}`,
 			`{"type": "table", "source": {"from": "deck.project_delete"}, "columns": [{"label": "N", "bind": "name"}]}`, `source: deck.project_delete is not a deck command that only reads`},
 		{`{"type": "list", "title": "Waiting here", "source": {"from": "deck.asks_list"}, "item": {"title": "what"}}`,
@@ -387,9 +387,9 @@ func TestProcessPageShowsItsLogInTheWordsOfACP(t *testing.T) {
 	newCatalogCheck(t).messages(t, e.screenMessages("", "process", map[string]any{"record": id}))
 	data := e.screenData("", "process", map[string]any{"record": id})
 	lines := blockData[[]map[string]string](t, data["b1"]["lines"])
-	if len(lines) != 4 || lines[0]["kind"] != "thought" || lines[1]["kind"] != "tool" || lines[1]["id"] != "t1" || lines[1]["title"] != "Read" ||
-		lines[2]["kind"] != "tool_update" || lines[2]["id"] != "t1" || lines[2]["status"] != "failed" || len(lines[3]["text"]) > 4100 {
-		t.Fatalf("the log keeps the words of ACP and cuts long text: %v", lines)
+	if len(lines) != 4 || lines[3]["kind"] != "thought" || lines[2]["kind"] != "tool" || lines[2]["id"] != "t1" || lines[2]["title"] != "Read" ||
+		lines[1]["kind"] != "tool_update" || lines[1]["id"] != "t1" || lines[1]["status"] != "failed" || len(lines[0]["text"]) > 4100 {
+		t.Fatalf("the log keeps the words of ACP, newest first, and cuts long text: %v", lines)
 	}
 	card := blockData[struct {
 		Fields []struct {
@@ -398,9 +398,21 @@ func TestProcessPageShowsItsLogInTheWordsOfACP(t *testing.T) {
 		}
 		Actions []map[string]any
 	}](t, data["b0"]["value"])
-	if card.Fields[1].Value != "job" || len(card.Actions) != 2 || card.Actions[0]["verb"] != "stop" || card.Actions[1]["verb"] != "tell" ||
-		card.Actions[1]["input"] != "text" {
-		t.Fatalf("the page of a running process offers stop and a message to it: %+v", card)
+	say := blockData[map[string]any](t, data["b1"]["say"])
+	if len(card.Actions) != 1 || card.Actions[0]["verb"] != "stop" || say["command"] != "deck.process_tell" || say["input"] != "text" ||
+		blockData[string](t, data["b1"]["since"]) == "" {
+		t.Fatalf("the page of a running process offers stop, and its log a message to it and how long it runs: %+v %v", card, say)
+	}
+	e.must("deck.process_tell", map[string]any{"process": id, "text": "look at b too"}, nil)
+	data = e.screenData("", "process", map[string]any{"record": id})
+	owner := blockData[[]map[string]any](t, data["b1"]["lines"])[0]
+	del, _ := owner["delete"].(map[string]any)
+	if owner["kind"] != "owner" || owner["text"] != "look at b too" || owner["status"] != "waiting" || del == nil {
+		t.Fatalf("the owner's message is the newest line, waiting with its delete: %v", owner)
+	}
+	e.must(del["command"].(string), del["params"].(map[string]any), nil)
+	if first := blockData[[]map[string]any](t, e.screenData("", "process", map[string]any{"record": id})["b1"]["lines"])[0]; first["kind"] == "owner" {
+		t.Fatalf("a message the agent did not take is deleted: %v", first)
 	}
 	running := e.cockpitRunning()
 	if len(running) != 1 || running[0].Title != "quiet · job" || running[0].Actions[0]["screen"] != "process" {

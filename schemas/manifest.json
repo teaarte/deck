@@ -266,8 +266,8 @@
     "when": {"type": "string", "description": "Expression; where it does not hold the block is not on the screen. It reads the fields of the record of a record page and rows, the items of the block's source, such as len(rows) > 0 or status == 'open'."},
     "empty": {"type": "string", "minLength": 1, "description": "Plain text the block shows when its source has no items, instead of the client's own; not an expression."},
     "tone": {"type": "string", "description": "Expression over the item that gives ok, warn, error or muted, such as change < 0 ? 'error' : 'ok'; any other value is no tone."},
-    "format": {"enum": ["number", "compact", "percent", "money", "date", "datetime", "relative", "duration", "timecode", "bytes", "link", "tag", "cron"],
-      "description": "How the client shows a value, in the locale and time zone of the device: number; compact (1.2K, 3.4M); percent of a fraction (0.42 is 42 %); money, which needs currency; date, datetime or relative (5 min ago) of an ISO 8601 time; duration of seconds; bytes; link of a URL; tag; cron, a five-field cron schedule in words. The value stays raw, so it is not string(round(...)); a value of another type shows as it is."},
+    "format": {"enum": ["number", "compact", "percent", "money", "date", "datetime", "relative", "duration", "timecode", "bytes", "link", "tag", "cron", "copy"],
+      "description": "How the client shows a value, in the locale and time zone of the device: number; compact (1.2K, 3.4M); percent of a fraction (0.42 is 42 %); money, which needs currency; date, datetime or relative (5 min ago) of an ISO 8601 time; duration of seconds; bytes; link of a URL; tag; cron, a five-field cron schedule in words; copy, a text with a button that copies it. The value stays raw, so it is not string(round(...)); a value of another type shows as it is."},
     "currency": {"type": "string", "pattern": "^[A-Z]{3}$", "description": "ISO 4217 code of money, such as USD; only with format money."},
     "action": {
       "type": "object",

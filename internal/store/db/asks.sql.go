@@ -251,6 +251,44 @@ func (q *Queries) CreateRemark(ctx context.Context, arg CreateRemarkParams) (Pro
 	return i, err
 }
 
+const createTakenRemark = `-- name: CreateTakenRemark :exec
+INSERT INTO process_remark (process_id, text, created_at, delivered_at) VALUES (?, ?, ?, ?)
+`
+
+type CreateTakenRemarkParams struct {
+	ProcessID   int64
+	Text        string
+	CreatedAt   string
+	DeliveredAt sql.NullString
+}
+
+func (q *Queries) CreateTakenRemark(ctx context.Context, arg CreateTakenRemarkParams) error {
+	_, err := q.db.ExecContext(ctx, createTakenRemark,
+		arg.ProcessID,
+		arg.Text,
+		arg.CreatedAt,
+		arg.DeliveredAt,
+	)
+	return err
+}
+
+const deleteWaitingRemark = `-- name: DeleteWaitingRemark :execrows
+DELETE FROM process_remark WHERE id = ? AND process_id = ? AND delivered_at IS NULL
+`
+
+type DeleteWaitingRemarkParams struct {
+	ID        int64
+	ProcessID int64
+}
+
+func (q *Queries) DeleteWaitingRemark(ctx context.Context, arg DeleteWaitingRemarkParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteWaitingRemark, arg.ID, arg.ProcessID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const deliverAsk = `-- name: DeliverAsk :execrows
 UPDATE ask SET delivered_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ? AND delivered_at IS NULL
 `
@@ -477,6 +515,39 @@ func (q *Queries) ListOpenAsksOfProcess(ctx context.Context, processID int64) ([
 			&i.ExpiresAt,
 			&i.DeliveredAt,
 			&i.UnheardAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listRemarks = `-- name: ListRemarks :many
+SELECT id, process_id, text, created_at, delivered_at FROM process_remark WHERE process_id = ? ORDER BY id
+`
+
+func (q *Queries) ListRemarks(ctx context.Context, processID int64) ([]ProcessRemark, error) {
+	rows, err := q.db.QueryContext(ctx, listRemarks, processID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ProcessRemark
+	for rows.Next() {
+		var i ProcessRemark
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProcessID,
+			&i.Text,
+			&i.CreatedAt,
+			&i.DeliveredAt,
 		); err != nil {
 			return nil, err
 		}

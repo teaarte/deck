@@ -163,7 +163,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	*a.Devices = devices.Service{St: st, Bus: a.Bus, Now: cfg.Now, DrainFiles: a.Files.Drain,
 		Home: h, Invoke: a.Registry.Invoke, DeckScreen: deckScreen}
 	*a.Failures = failures.Service{St: st, Now: cfg.Now, Runner: a.Runner}
-	*a.Processes = processes.Service{St: st, Runner: a.Runner, Named: a.Providers.Named}
+	*a.Processes = processes.Service{St: st, Runner: a.Runner, Named: a.Providers.Named, Now: cfg.Now}
 	*a.Health = apphealth.Service{St: st, Providers: a.Providers.All, Secret: a.Secrets.Has}
 	*a.Records = records.Service{St: st, Now: cfg.Now, DrainFiles: a.Files.Drain}
 	*a.Tokens = tokens.Service{St: st, MCPBase: cfg.MCPBase, Journal: a.Gateway.Journal}

@@ -52,7 +52,7 @@
         {"type": "table", "title": "Models", "source": {"from": "deck.models_list", "rows": "models"}, "filter": ["kind", "connection", "status"],
           "description": "Every model deck reaches: the built-in agents, and the models of connections, which agent commands run on in an agent or which commands and scripts call. A model in an agent runs nothing until its self-check passes.",
           "columns": [
-            {"label": "Name", "bind": "name"},
+            {"label": "Name", "bind": "name", "format": "copy"},
             {"label": "Kind", "bind": "kind", "format": "tag"},
             {"label": "Connection", "bind": "builtin ? 'subscription' : connection", "format": "tag"},
             {"label": "Agent", "bind": "agent ?? ''", "format": "tag"},
@@ -88,7 +88,7 @@
           "columns": [
             {"label": "Name", "bind": "name"},
             {"label": "API", "bind": "api", "format": "tag"},
-            {"label": "Address", "bind": "url"},
+            {"label": "Address", "bind": "url", "format": "copy"},
             {"label": "Key", "bind": "key"},
             {"label": "Models", "bind": "models"}
           ],
@@ -99,7 +99,7 @@
         {"type": "table", "title": "Other secrets", "source": {"from": "deck.secrets_list"},
           "description": "API keys and passwords that tools of modules name; deck keeps them as files only it reads, agents and scripts never see them.",
           "empty": "No secrets yet",
-          "columns": [{"label": "Name", "bind": "name"}],
+          "columns": [{"label": "Name", "bind": "name", "format": "copy"}],
           "actions": [
             {"verb": "replace", "screen": "settings", "params": {"tab": "Connections", "dialog": "secret", "name": "=name"}},
             {"verb": "delete", "confirm": true, "command": "deck.secret_delete", "params": {"name": "=name"}}
@@ -143,7 +143,7 @@
           "description": "Every check of deck that fails now, of the machine and of the projects, with why. One marked read stops counting on the cockpit until it changes.",
           "columns": [
             {"label": "What", "bind": "subject", "format": "tag", "tone": "seen ? 'muted' : 'error'"},
-            {"label": "Why", "bind": "error", "details": "error"},
+            {"label": "Why", "bind": "error", "details": "error", "format": "copy"},
             {"label": "Since", "bind": "updated_at", "format": "relative"}
           ],
           "actions": [
@@ -154,7 +154,7 @@
           "columns": [
             {"label": "What", "bind": "subject"},
             {"label": "Status", "bind": "status", "format": "tag", "tone": "status == 'ok' ? 'ok' : status == 'error' ? 'error' : 'warn'"},
-            {"label": "Why", "bind": "error"},
+            {"label": "Why", "bind": "error", "format": "copy"},
             {"label": "Version", "bind": "version"},
             {"label": "Since", "bind": "updated_at"}
           ],

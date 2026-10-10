@@ -35,7 +35,7 @@
             "description": "What the project can do and where its agent commands run; a model picked here replaces the one the manifest suggests.",
             "columns": [
               {"label": "Command", "bind": "title"},
-              {"label": "Name", "bind": "name"},
+              {"label": "Name", "bind": "name", "format": "copy"},
               {"label": "Runs as", "bind": "executor", "format": "tag"},
               {"label": "Model", "bind": "provider", "format": "tag"}
             ],
@@ -91,21 +91,21 @@
             "empty": "No folders; add one for commands that work on files of a repository",
             "columns": [
               {"label": "Name", "bind": "name"},
-              {"label": "Path", "bind": "path"}
+              {"label": "Path", "bind": "path", "format": "copy"}
             ],
             "actions": [
               {"verb": "remove", "confirm": true, "command": "deck.folder_remove", "params": {"name": "=name"}}
             ]},
           {"type": "table", "title": "Tools", "when": "len(rows) > 0", "source": {"from": "deck.commands_list", "where": "tool != ''", "sort": "name"},
             "columns": [
-              {"label": "Tool", "bind": "name"},
+              {"label": "Tool", "bind": "name", "format": "copy"},
               {"label": "Kind", "bind": "tool", "format": "tag"},
               {"label": "What it does", "bind": "description"}
             ]},
           {"type": "table", "title": "Secrets", "when": "len(rows) > 0", "source": {"from": "deck.secrets_list"},
             "description": "The secrets the manifest of the project names; the values stay with deck.",
             "columns": [
-              {"label": "Secret", "bind": "name"},
+              {"label": "Secret", "bind": "name", "format": "copy"},
               {"label": "State", "bind": "set ? 'set' : 'not set'", "format": "tag", "tone": "set ? 'ok' : 'warn'"}
             ],
             "actions": [
@@ -125,7 +125,7 @@
             "columns": [
               {"label": "What", "bind": "subject"},
               {"label": "Status", "bind": "status", "format": "tag", "tone": "status == 'ok' ? 'ok' : status == 'error' ? 'error' : 'warn'"},
-              {"label": "Why", "bind": "error"},
+              {"label": "Why", "bind": "error", "format": "copy"},
               {"label": "Since", "bind": "updated_at"}
             ],
             "actions": [{"verb": "check", "command": "deck.programs_check", "when": "hasPrefix(subject, 'command:') && status != 'ok'"}]}

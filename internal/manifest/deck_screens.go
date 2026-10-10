@@ -21,7 +21,7 @@ type ReadCommand struct {
 
 // LogSource is the command a log block reads; CommandsSource is the one a form picks its command from.
 const (
-	LogSource      = "deck.process_log"
+	LogSource      = "deck.process_chat"
 	CommandsSource = "deck.commands_list"
 	ChatSource     = "deck.chat"
 )

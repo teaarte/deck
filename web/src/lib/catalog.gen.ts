@@ -284,6 +284,9 @@ export interface Data {
     }[];
     mark?: Action;
   }[];
+  /**
+   * the log of a process, newest first
+   */
   lines?: {
     at: string;
     kind: string;
@@ -291,7 +294,105 @@ export interface Data {
     title?: string;
     status?: string;
     text?: string;
+    delete?: Action2;
   }[];
+  /**
+   * when a process still going started
+   */
+  since?: string;
+  say?: Action3;
+}
+/**
+ * A button: a command call or a move to a screen. verb names a built-in label the client translates.
+ */
+export interface Action2 {
+  label?: string;
+  verb?: string;
+  /**
+   * Name of a Tabler icon on the button.
+   */
+  icon?: string;
+  primary?: boolean;
+  command?: string;
+  params?: {};
+  /**
+   * Param the owner types before the call.
+   */
+  input?: string;
+  /**
+   * Time after which the button is hidden.
+   */
+  until?: string;
+  project?: string;
+  screen?: string;
+  record?: number;
+  /**
+   * Class of the command of a custom block's button; the host asks the owner before one that is not internal.
+   */
+  class?: string;
+  /**
+   * The client asks the owner before the call: a button of deck that deletes or revokes.
+   */
+  confirm?: boolean;
+  /**
+   * Values the owner picks the input from.
+   */
+  options?: string[];
+  /**
+   * With a command, the result names a chat topic, which the client opens; alone, the button opens the chat of the master in a new topic.
+   */
+  chat?: boolean;
+  /**
+   * Stored file the button downloads instead of a call.
+   */
+  file?: number;
+  undo?: Action1;
+}
+/**
+ * A button: a command call or a move to a screen. verb names a built-in label the client translates.
+ */
+export interface Action3 {
+  label?: string;
+  verb?: string;
+  /**
+   * Name of a Tabler icon on the button.
+   */
+  icon?: string;
+  primary?: boolean;
+  command?: string;
+  params?: {};
+  /**
+   * Param the owner types before the call.
+   */
+  input?: string;
+  /**
+   * Time after which the button is hidden.
+   */
+  until?: string;
+  project?: string;
+  screen?: string;
+  record?: number;
+  /**
+   * Class of the command of a custom block's button; the host asks the owner before one that is not internal.
+   */
+  class?: string;
+  /**
+   * The client asks the owner before the call: a button of deck that deletes or revokes.
+   */
+  confirm?: boolean;
+  /**
+   * Values the owner picks the input from.
+   */
+  options?: string[];
+  /**
+   * With a command, the result names a chat topic, which the client opens; alone, the button opens the chat of the master in a new topic.
+   */
+  chat?: boolean;
+  /**
+   * Stored file the button downloads instead of a call.
+   */
+  file?: number;
+  undo?: Action1;
 }
 /**
  * This interface was referenced by `Catalog`'s JSON-Schema

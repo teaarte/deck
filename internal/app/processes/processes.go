@@ -25,11 +25,12 @@ type Service struct {
 	Runner *process.Runner
 	// Named is the provider a process started on.
 	Named func(ctx context.Context, projectID int64, name string) (provider.Provider, error)
+	Now   func() time.Time
 }
 
 // Commands are the commands of processes.
 func (s *Service) Commands() []*registry.Command {
-	return slices.Concat(s.processCommands(), s.liveCommands())
+	return slices.Concat(s.processCommands(), s.liveCommands(), s.chatCommands())
 }
 
 type processView struct {

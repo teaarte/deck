@@ -1,0 +1,17 @@
+.copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  outline: none;
+}
+
+.copyButton {
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+
+.copy:hover .copyButton,
+.copy:focus-within .copyButton,
+.copy:focus .copyButton {
+  opacity: 1;
+}

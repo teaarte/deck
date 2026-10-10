@@ -1,6 +1,7 @@
 package scenarios
 
 import (
+	"slices"
 	"testing"
 )
 
@@ -39,10 +40,47 @@ func TestACallOnASubscriptionShowsAnEstimateOutOfTheMoneySpent(t *testing.T) {
 		}
 	}
 	e.must("deck.models_list", nil, &models)
-	for _, m := range models.Models {
-		if m.Name == "claude-code" && !m.Subscription {
-			t.Fatalf("Claude Code is a model on a subscription: %+v", m)
-		}
+	if i := slices.IndexFunc(models.Models, func(m struct {
+		Name         string
+		Subscription bool
+	}) bool {
+		return m.Name == "claude-code"
+	}); i < 0 || !models.Models[i].Subscription {
+		t.Fatalf("Claude Code is a model on a subscription: %+v", models.Models)
+	}
+}
+
+// TestATurnOnAModelOfAConnectionOnASubscriptionCostsNoMoney: a model of a connection the owner marked as paid by a
+// subscription keeps what the turns of its agent would cost out of the money, as Claude Code does.
+func TestATurnOnAModelOfAConnectionOnASubscriptionCostsNoMoney(t *testing.T) {
+	t.Parallel()
+	f := newACP(t)
+	e := acpEnv(t, f, "dsh", acpLLM(t))
+	if _, err := e.App.Store.DB.Exec(`UPDATE model SET subscription = 1, input_usd = 1000, output_usd = 1000 WHERE name = 'acp'`); err != nil {
+		t.Fatal(err)
+	}
+	f.streamText(4, acpStream(acpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`, acpModel,
+		`{"mcp": {"tool": "result_submit", "arguments": {"result": {"color": "blue"}}}}`, `{"end": "end_turn"}`))
+	id := e.run(e.acpProject("paint", colorManifest), "work")
+	if got := e.waitState(id, "done", "error"); got.State != "done" {
+		t.Fatalf("the turn runs: %+v", got)
+	}
+	var p struct {
+		CostUSD         *float64 `json:"cost_usd"`
+		SubscriptionUSD *float64 `json:"subscription_usd"`
+	}
+	e.must("deck.process_get", map[string]any{"process": id}, &p)
+	if p.CostUSD != nil || p.SubscriptionUSD == nil || *p.SubscriptionUSD <= 0 {
+		t.Fatalf("the turn cost nothing apart from the subscription, and shows the estimate: %+v", p)
+	}
+	var days []struct {
+		Key             string
+		CostUSD         float64 `json:"cost_usd"`
+		SubscriptionUSD float64 `json:"subscription_usd"`
+	}
+	e.must("deck.spend_daily", map[string]any{"by": "provider"}, &days)
+	if len(days) != 1 || days[0].CostUSD != 0 || days[0].SubscriptionUSD <= 0 {
+		t.Fatalf("the spend keeps the estimate out of the money: %+v", days)
 	}
 }
 

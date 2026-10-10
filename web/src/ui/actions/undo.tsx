@@ -1,10 +1,10 @@
 import { useEffect, useSyncExternalStore } from 'react';
 import { Portal, UnstyledButton } from '@mantine/core';
 import { IconArrowBackUp, IconCheck } from '@tabler/icons-react';
-import i18n from '../lib/i18n';
-import { notifyError } from '../lib/notify';
-import type { Action } from '../lib/catalog.gen';
-import type { ScreenActions } from '../screen/ScreenActions';
+import i18n from '../../lib/i18n';
+import { notifyError } from '../../lib/notify';
+import type { Action } from '../../lib/catalog.gen';
+import type { ScreenActions } from '../../screen/ScreenActions';
 import s from './undo.module.css';
 
 const SHOWN = 5000;

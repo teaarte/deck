@@ -3,7 +3,7 @@ import { IconCheck, IconPlus, IconStack2 } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { ChatValue } from '../lib/catalog.gen';
 import n from '../app/nav.module.css';
-import { ActionsMenu } from '../ui/ActionsMenu';
+import { ActionsMenu } from '../ui/actions/ActionsMenu';
 import type { useTopics } from './useTopics';
 
 // TopicBar picks the topic of the chat, narrows the topics to a module, starts a new one, and holds its buttons; it

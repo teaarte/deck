@@ -6,7 +6,7 @@ import { call } from '../lib/api';
 import catalogSchema from '../lib/catalogSchema';
 import { notifyError } from '../lib/notify';
 import type { ChatValue } from '../lib/catalog.gen';
-import { DekiHead, useMascot } from '../ui/Deki';
+import { DekiHead, useMascot } from '../ui/deki/Deki';
 import { Markdown } from '../ui/Markdown';
 import s from './chat.module.css';
 

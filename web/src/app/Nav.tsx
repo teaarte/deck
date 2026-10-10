@@ -4,7 +4,7 @@ import { useLocalStorage } from '@mantine/hooks';
 import { IconChevronRight, IconSelector } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { MenuEntry } from '../hooks/useMenu';
-import { useMascot, useMasterName } from '../ui/Deki';
+import { useMascot, useMasterName } from '../ui/deki/Deki';
 import { NamedIcon } from '../ui/NamedIcon';
 import s from './nav.module.css';
 import { NavStatus } from './NavStatus';

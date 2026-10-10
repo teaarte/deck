@@ -3,11 +3,11 @@ import { useLocalStorage } from '@mantine/hooks';
 import { IconArrowUpRight, IconChevronDown, IconChevronUp, IconPlayerStopFilled } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { ChatValue } from '../lib/catalog.gen';
-import { ActionIconButton } from '../ui/ActionIconButton';
+import { ActionIconButton } from '../ui/actions/ActionIconButton';
 import a from '../ui/aura.module.css';
-import { Deki, useMascot } from '../ui/Deki';
+import { Deki, useMascot } from '../ui/deki/Deki';
 import { Glyph } from '../ui/Glyph';
-import { useActionRun } from '../ui/useActionRun';
+import { useActionRun } from '../ui/actions/useActionRun';
 import s from './chat.module.css';
 
 type TurnValue = NonNullable<ChatValue['turn']>;

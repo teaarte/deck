@@ -1,5 +1,5 @@
 import type { ActionsValue } from '../lib/catalog.gen';
-import { Actions } from '../ui/Actions';
+import { Actions } from '../ui/actions/Actions';
 import { blockImpl } from './blockImpl';
 
 // actions is a group of buttons on its own.

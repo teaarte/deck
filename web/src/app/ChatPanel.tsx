@@ -3,7 +3,7 @@ import { IconArrowsMaximize, IconArrowsMinimize, IconSparkles, IconX } from '@ta
 import { useTranslation } from 'react-i18next';
 import { useResizable } from '../hooks/useResizable';
 import { ScreenView } from '../screen/ScreenView';
-import { DekiHead, useMascot, useMasterName } from '../ui/Deki';
+import { DekiHead, useMascot, useMasterName } from '../ui/deki/Deki';
 import s from './shell.module.css';
 import type { useChatLayout } from './useChatLayout';
 import type { Route } from './router';

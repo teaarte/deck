@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { setChatOpen } from '../chat/chatStore';
 import { useMenuEntries } from '../hooks/useMenu';
 import { setLook, useLook } from '../theme/look';
-import { Deki, DekiHead, useMascot, type Mood } from '../ui/Deki';
+import { Deki, DekiHead, useMascot, type Mood } from '../ui/deki/Deki';
 import s from './hero.module.css';
 import { Triage } from './Triage';
 

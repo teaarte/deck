@@ -6,7 +6,7 @@ import type { DocumentValue } from '../lib/catalog.gen';
 import { Markdown } from '../ui/Markdown';
 import { blockImpl } from './blockImpl';
 import { errorText } from '../lib/notify';
-import { Failed } from '../ui/Failed';
+import { Failed } from '../ui/actions/Failed';
 
 // Document shows a document with its revisions; an md one is edited as text and saved as a new revision.
 function Document({ value }: { value: DocumentValue }) {

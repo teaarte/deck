@@ -1,7 +1,7 @@
 import { Button, Tooltip } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
 import type { MenuEntry } from '../hooks/useMenu';
-import { useMasterName } from '../ui/Deki';
+import { useMasterName } from '../ui/deki/Deki';
 import { Glyph } from '../ui/Glyph';
 import n from './nav.module.css';
 import s from './master.module.css';

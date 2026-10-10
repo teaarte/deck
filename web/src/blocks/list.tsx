@@ -3,7 +3,7 @@ import type { ComponentContext } from '@a2ui/web_core/v0_9';
 import { Group, Stack, Text } from '@mantine/core';
 import s from './list.module.css';
 import { show } from '../lib/format';
-import { Actions } from '../ui/Actions';
+import { Actions } from '../ui/actions/Actions';
 import { Deadline } from '../ui/Deadline';
 import { Details } from '../ui/Details';
 import { Markdown } from '../ui/Markdown';

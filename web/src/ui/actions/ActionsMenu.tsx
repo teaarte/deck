@@ -2,7 +2,7 @@ import { useId, type ReactNode } from 'react';
 import { ActionIcon, Button, Menu, Stack } from '@mantine/core';
 import { IconChevronDown, IconDots } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import type { Action } from '../lib/catalog.gen';
+import type { Action } from '../../lib/catalog.gen';
 import { ActionButton } from './ActionButton';
 import { actionKeys, useVisibleActions } from './useVisibleActions';
 

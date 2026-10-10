@@ -1,6 +1,6 @@
 import { Group, Stack, Text } from '@mantine/core';
 import type { CardValue } from '../lib/catalog.gen';
-import { Actions } from '../ui/Actions';
+import { Actions } from '../ui/actions/Actions';
 import { Markdown } from '../ui/Markdown';
 import { Value } from '../ui/Value';
 import { blockImpl } from './blockImpl';

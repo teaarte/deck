@@ -4,7 +4,7 @@ import { IconArrowRight } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { Line, type Item } from '../blocks/list';
 import { show } from '../lib/format';
-import { Deki } from '../ui/Deki';
+import { Deki } from '../ui/deki/Deki';
 import s from './triage.module.css';
 import { useDecisionLists } from './decisions';
 

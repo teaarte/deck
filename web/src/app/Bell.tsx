@@ -9,7 +9,7 @@ import { go } from './router';
 import { titleCount } from './title';
 import s from './bell.module.css';
 import type { Action } from '../lib/catalog.gen';
-import { Actions } from '../ui/Actions';
+import { Actions } from '../ui/actions/Actions';
 
 interface Note {
   id: number;

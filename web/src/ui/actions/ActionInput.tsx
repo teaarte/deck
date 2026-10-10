@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Button, Group, Select, TextInput } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
-import type { Action } from '../lib/catalog.gen';
+import type { Action } from '../../lib/catalog.gen';
 
 // ActionInput takes the one value a button asks for, typed or picked from its options.
 export function ActionInput({ act, busy, onSend, onCancel }: { act: Action; busy: boolean; onSend: (text: string) => void; onCancel: () => void }) {

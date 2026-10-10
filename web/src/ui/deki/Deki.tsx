@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useLook } from '../theme/look';
+import { useLook } from '../../theme/look';
 import s from './deki.module.css';
 
 // Mood is the pose of Deki: wait while something waits for the owner, work at the phone while anything runs, dots

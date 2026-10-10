@@ -5,7 +5,7 @@ import { DialogClose } from '../../screen/dialogContext';
 import { call } from '../../lib/api';
 import { sharedSent } from '../../lib/share';
 import { errorText } from '../../lib/notify';
-import { Failed } from '../../ui/Failed';
+import { Failed } from '../../ui/actions/Failed';
 import type { FormValue as Generated } from '../../lib/catalog.gen';
 import { useMountedRef } from '../../hooks/useMountedRef';
 import { Field } from './Field';

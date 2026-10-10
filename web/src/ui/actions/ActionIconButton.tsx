@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { ActionIcon, Tooltip, type MantineColor } from '@mantine/core';
-import type { Action } from '../lib/catalog.gen';
+import type { Action } from '../../lib/catalog.gen';
 import { ConfirmModal } from './ConfirmModal';
 import { Failed } from './Failed';
 import { useActionRun } from './useActionRun';

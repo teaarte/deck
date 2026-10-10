@@ -1,5 +1,5 @@
-import type { Action } from '../lib/catalog.gen';
-import { useNow } from '../hooks/useNow';
+import type { Action } from '../../lib/catalog.gen';
+import { useNow } from '../../hooks/useNow';
 
 // useVisibleActions drops the buttons whose time ran out; only a group with such a time follows the clock.
 export function useVisibleActions(actions?: Action[]): Action[] {

@@ -1,7 +1,7 @@
 import { IconArchive, IconArrowBackUp, IconArrowUpRight, IconCheck, IconCpu, IconDownload, IconFlask, IconKey, IconLogin, IconMessage,
   IconPencil, IconPlayerPause, IconPlayerPlay, IconPlayerStop, IconRefresh, IconReplace, IconSend, IconSettings, IconTrash, IconX, type Icon } from '@tabler/icons-react';
-import type { Action } from '../lib/catalog.gen';
-import { NamedIcon } from './NamedIcon';
+import type { Action } from '../../lib/catalog.gen';
+import { NamedIcon } from '../NamedIcon';
 
 // verbIcons are the icons of deck's own verbs; a button with a label and no icon of its own has none.
 const verbIcons: Record<string, Icon> = {

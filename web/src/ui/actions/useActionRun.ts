@@ -1,9 +1,9 @@
 import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { download } from '../lib/api';
-import { errorText } from '../lib/notify';
-import type { Action } from '../lib/catalog.gen';
-import { useScreenActions } from '../screen/ScreenActions';
+import { download } from '../../lib/api';
+import { errorText } from '../../lib/notify';
+import type { Action } from '../../lib/catalog.gen';
+import { useScreenActions } from '../../screen/ScreenActions';
 import { offerUndo } from './undo';
 
 export type Before = () => Promise<void>;

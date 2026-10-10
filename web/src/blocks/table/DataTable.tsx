@@ -3,7 +3,7 @@ import { IconArrowDown, IconArrowUp, IconSearch, IconSelector } from '@tabler/ic
 import { useTranslation } from 'react-i18next';
 import s from './table.module.css';
 import { show, type Shown } from '../../lib/format';
-import { Actions } from '../../ui/Actions';
+import { Actions } from '../../ui/actions/Actions';
 import { rowOpen } from '../../ui/rowOpen';
 import { Value } from '../../ui/Value';
 import { useScreenActions } from '../../screen/ScreenActions';

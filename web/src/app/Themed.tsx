@@ -5,7 +5,7 @@ import { token } from '../lib/api';
 import { theme, useLook } from '../theme/look';
 import '../theme/base.css';
 import { resolver } from '../theme/palette';
-import { UndoToast } from '../ui/undo';
+import { UndoToast } from '../ui/actions/undo';
 import { Shell } from './Shell';
 import { TokenPrompt } from './TokenPrompt';
 

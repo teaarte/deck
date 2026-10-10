@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Button } from '@mantine/core';
-import type { Action } from '../lib/catalog.gen';
+import type { Action } from '../../lib/catalog.gen';
 import { ActionInput } from './ActionInput';
 import { ConfirmModal } from './ConfirmModal';
 import { Failed } from './Failed';

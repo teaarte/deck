@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Button, Chip, Group, Stack, Text, TextInput } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
 import type { Action, Data } from '../lib/catalog.gen';
-import { ActionButton } from './ActionButton';
+import { ActionButton } from './actions/ActionButton';
 
 type Question = NonNullable<NonNullable<Data['items']>[number]['questions']>[number];
 

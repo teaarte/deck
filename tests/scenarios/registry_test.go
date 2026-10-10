@@ -3,6 +3,7 @@ package scenarios
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"slices"
 	"strings"
 	"sync"
@@ -11,6 +12,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"deck2/internal/provider"
+	"deck2/internal/registry"
 	"deck2/internal/store/db"
 )
 
@@ -511,5 +513,64 @@ func TestAnAgentCannotTouchARowOfAnotherProjectByItsID(t *testing.T) {
 	after, _ := e.App.Store.Q.GetRecord(context.Background(), recs[0].ID)
 	if after.Data != recs[0].Data {
 		t.Fatalf("the record of the other project stays as it was: %s", after.Data)
+	}
+}
+
+// TestTheMasterSeesTheCommandsOfTheOwnerWithTheirForms: commands_list gives the master the commands only the owner
+// calls, each with the address of its form taken from the stored screens, and rows without their descriptions.
+func TestTheMasterSeesTheCommandsOfTheOwnerWithTheirForms(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, ok)
+	cmd := strings.Replace(agentCommand("tune", `{"type": "object", "properties": {"level": {"type": "string"}}}`), `"executor":`, `"callers": ["owner"], "executor":`, 1)
+	e.createProject("radio", fmt.Sprintf(`{"version": 11, "commands": [%s, %s],
+  "screens": [{"name": "main", "title": "Main", "params": {"level": "string"}, "blocks": [
+    {"type": "dialog", "name": "tune", "title": "Tune", "blocks": [{"type": "form", "command": "tune", "values": {"level": "=param.level"}}]}]}]}`,
+		cmd, agentCommand("play", "")))
+	master := registry.Actor{Kind: registry.Master, Workspace: 1}
+	out, err := e.App.Registry.Invoke(t.Context(), master, "deck.commands_list", json.RawMessage(`{}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := json.Marshal(out)
+	var rows []struct {
+		Name, Description, Form string
+		OwnerOnly               bool     `json:"owner_only"`
+		FormParams              []string `json:"form_params"`
+	}
+	_ = json.Unmarshal(raw, &rows)
+	got := map[string]string{}
+	for _, r := range rows {
+		if r.Description != "" {
+			t.Fatalf("a row of the master leaves the description to command_describe: %+v", r)
+		}
+		if r.OwnerOnly {
+			got[r.Name] = r.Form + " " + strings.Join(r.FormParams, ",")
+		}
+	}
+	for name, want := range map[string]string{
+		"deck.assignment_set": "#/deck/settings?dialog=assign&tab=Models command,models,project,role",
+		"deck.secret_set":     "#/deck/settings?dialog=secret&tab=Connections name",
+		"deck.folder_add":     "#/p/<project>/settings?dialog=folder ",
+		"radio.tune":          "#/p/radio/main?dialog=tune level",
+	} {
+		if got[name] != want {
+			t.Fatalf("%s is the owner's with its form %q: %q", name, want, got[name])
+		}
+	}
+	if _, ok := got["radio.play"]; ok || got["deck.health_list"] != "" {
+		t.Fatalf("what the master calls itself is no command of the owner: %v", got)
+	}
+	if _, err := e.App.Registry.Invoke(t.Context(), master, "deck.assignment_set", json.RawMessage(`{"role": "agent", "models": ["fake"]}`)); err == nil {
+		t.Fatal("the master still cannot call a command of the owner")
+	}
+	var owner []struct {
+		Name, Description string
+		OwnerOnly         bool `json:"owner_only"`
+	}
+	e.must("deck.commands_list", nil, &owner)
+	for _, r := range owner {
+		if r.OwnerOnly || r.Description == "" {
+			t.Fatalf("the owner's rows keep their descriptions and mark nothing: %+v", r)
+		}
 	}
 }

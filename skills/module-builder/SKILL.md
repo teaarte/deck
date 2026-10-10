@@ -21,7 +21,8 @@ each command, folders, the secrets its tools take. deck's Settings tabs: Project
 Models (assignments, a model and its agent), Connections (where models are reached, and the other secrets: a
 name and a hidden value), Tokens, Health; sign-ins wait in the cockpit. So name
 the place and the value ("Settings → Connections → Other secrets: `mail-key`, the API key of …"), never a `curl`; the fields of
-these forms are the input of their command, which `command_describe` gives.
+these forms are the input of their command, which `command_describe` gives; `commands_list` marks these commands
+`owner_only` with `form`, the address of the form to link to, and `form_params` that fill it.
 
 When the module needs something only the owner gives — an API key or token, an account or sign-in, a right of
 the manifest, a program installed on the machine, a paid call in a trial — stop and ask the owner in the chat:

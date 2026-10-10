@@ -6,6 +6,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -141,6 +142,31 @@ func TestFormsAndFiltersSpeakTheLanguageOfTheOwner(t *testing.T) {
 	for _, want := range []string{`"title":"Оценить"`, `"description":"Оценивает заголовок."`, `"title":"Заголовок"`, `"label":"Источник"`} {
 		if !strings.Contains(string(drawn), want) {
 			t.Errorf("no %s in %s", want, drawn)
+		}
+	}
+}
+
+// TestEveryParamADeckScreenReadsIsDeclared: a param a screen of deck reads is in its params, or the button that
+// passes it hands the screen nothing.
+func TestEveryParamADeckScreenReadsIsDeclared(t *testing.T) {
+	t.Parallel()
+	files, _ := filepath.Glob("../../internal/app/shipped/*.json")
+	used := regexp.MustCompile(`param\.([a-z_]+)`)
+	for _, f := range files {
+		raw, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var s struct {
+			Params map[string]string `json:"params"`
+		}
+		if json.Unmarshal(raw, &s) != nil {
+			continue
+		}
+		for _, m := range used.FindAllStringSubmatch(string(raw), -1) {
+			if _, ok := s.Params[m[1]]; !ok && m[1] != "tab" && m[1] != "dialog" {
+				t.Errorf("%s reads param.%s, which its params do not declare", filepath.Base(f), m[1])
+			}
 		}
 	}
 }

@@ -2,7 +2,7 @@
   "name": "settings",
   "icon": "adjustments",
   "title": "Settings",
-  "params": {"name": "string", "command": "string", "models": "string"},
+  "params": {"name": "string", "command": "string", "models": "string", "role": "string"},
   "blocks": [
     {"type": "dialog", "name": "try-command", "title": "Try a command", "icon": "flask", "blocks": [
       {"type": "form", "command": "deck.command_try", "keep_open": true, "values": {"command": "=param.command"},

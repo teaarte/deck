@@ -185,6 +185,11 @@
     "full_log": "Open the whole log",
     "mic": "Speak",
     "stop_recording": "Stop · {{s}} s",
+    "voice_file": "Voice from a file",
+    "no_mic_title": "No microphone",
+    "no_mic": "A browser gives a microphone only to a page on https or on the same machine, and deck is open on http over the network.",
+    "no_mic_open": "Open deck on https: {{url}}",
+    "no_mic_tailnet": "Start deck with -tailscale and open its https address, or upload a recording as a file.",
     "mic_failed": "The microphone did not start",
     "voice_failed": "The recording was not turned into text"
   },

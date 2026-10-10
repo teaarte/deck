@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { onVoiceWanted } from './chatStore';
-import { ActionIcon, Badge, Button, CloseButton, Group, Menu, Textarea, Tooltip } from '@mantine/core';
-import { IconArrowUp, IconMapPin, IconMessagePlus, IconMicrophone, IconPaperclip, IconPlayerStopFilled, IconPlus } from '@tabler/icons-react';
+import { ActionIcon, Anchor, Badge, Button, CloseButton, Group, Menu, Modal, Stack, Text, Textarea, Tooltip } from '@mantine/core';
+import { IconArrowUp, IconFileMusic, IconMapPin, IconMessagePlus, IconMicrophone, IconPaperclip, IconPlayerStopFilled, IconPlus } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { useRoute } from '../app/router';
 import s from './chat.module.css';
@@ -22,6 +22,7 @@ export function Composer({ text, setText, files, busy, onSend, onNewTopic, onEdi
   const mic = useRef<HTMLButtonElement>(null);
   useEffect(() => onVoiceWanted(() => mic.current?.focus()), []);
   const voice = useVoice((heard) => setText((prev) => (prev.trim() ? prev.trimEnd() + ' ' : '') + heard));
+  const recording = useRef<HTMLInputElement>(null);
   const send = () => onSend(detached);
   return (
     <div className={s.composer} data-composer data-drop={files.dropping || undefined}
@@ -59,10 +60,25 @@ export function Composer({ text, setText, files, busy, onSend, onNewTopic, onEdi
           </Menu.Target>
           <Menu.Dropdown>
             <Menu.Item leftSection={<IconPaperclip size={16} />} onClick={() => picker.current?.click()} data-attach>{t('chat.attach')}</Menu.Item>
+            <Menu.Item leftSection={<IconFileMusic size={16} />} onClick={() => recording.current?.click()} data-voice-file>{t('chat.voice_file')}</Menu.Item>
             <Menu.Item leftSection={<IconMessagePlus size={16} />} onClick={onNewTopic}>{t('chat.new_topic')}</Menu.Item>
           </Menu.Dropdown>
         </Menu>
         <input ref={picker} type="file" multiple hidden onChange={(e) => { files.attach(e.currentTarget.files); e.currentTarget.value = ''; }} data-attach-input />
+        <input ref={recording} type="file" accept="audio/*" hidden data-voice-input
+          onChange={(e) => { const f = e.currentTarget.files?.[0]; e.currentTarget.value = ''; if (f) void voice.take(f); }} />
+        <Modal opened={!!voice.noMic} onClose={voice.closeNoMic} title={t('chat.no_mic_title')} data-no-mic>
+          <Stack gap="sm">
+            <Text size="sm">{t('chat.no_mic')}</Text>
+            {voice.noMic?.https
+              ? <Anchor href={voice.noMic.https} size="sm" data-no-mic-https>{t('chat.no_mic_open', { url: voice.noMic.https })}</Anchor>
+              : <Text size="sm" c="dimmed">{t('chat.no_mic_tailnet')}</Text>}
+            <Group justify="flex-end">
+              <Button variant="default" onClick={voice.closeNoMic}>{t('verb.cancel')}</Button>
+              <Button leftSection={<IconFileMusic size={16} />} onClick={() => recording.current?.click()}>{t('chat.voice_file')}</Button>
+            </Group>
+          </Stack>
+        </Modal>
         <Group gap={6}>
           {voice.recording ? (
             <Button size="xs" color="red" radius="xl" leftSection={<IconPlayerStopFilled size={12} />} onClick={() => void voice.hear()} data-mic-stop>{t('chat.stop_recording', { s: voice.recording - 1 })}</Button>

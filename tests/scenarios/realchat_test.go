@@ -167,6 +167,63 @@ func TestRealBrowserVoice(t *testing.T) {
 	b.shot("chat-voice")
 }
 
+// TestRealBrowserVoiceWithoutAMicrophone: a page the browser gives no microphone, such as deck on http over the
+// network, says why and takes a recording as a file, which reaches whisper as 16 kHz WAV.
+func TestRealBrowserVoiceWithoutAMicrophone(t *testing.T) {
+	if os.Getenv("DECK_REAL_BROWSER") == "" {
+		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
+	}
+	checkBuiltClient(t)
+	heard := make(chan []byte, 1)
+	whisper := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		f, _, err := r.FormFile("file")
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		b, _ := io.ReadAll(f)
+		select {
+		case heard <- b:
+		default:
+		}
+		_, _ = w.Write([]byte(`{"text": "call the plumber"}`))
+	}))
+	t.Cleanup(whisper.Close)
+	e := newEnv(t, nil)
+	e.must("deck.connection_set", map[string]any{"name": "whisper", "api": "raw", "url": whisper.URL + "/inference", "local": true}, nil)
+	b := newPlaywright(t)
+	b.call("browser_resize", map[string]any{"width": 1400, "height": 900})
+	b.open(e.URL + "/?token=" + token + "#/deck/cockpit")
+	b.until("the cockpit", `document.querySelector('[data-chat-toggle]')`)
+	b.eval(`(Object.defineProperty(navigator, 'mediaDevices', { value: undefined, configurable: true }), '')`)
+	b.eval(`(document.querySelector('[data-chat-toggle]').click(), '')`)
+	b.until("the mic", `document.querySelector('[data-mic]')`)
+	b.eval(`(document.querySelector('[data-mic]').click(), '')`)
+	b.until("why there is no microphone", `document.querySelector('[data-no-mic]') && document.body.innerText.includes('https')`)
+	b.eval(`(() => {
+		const rate = 44100, n = rate, buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf);
+		const text = (at, s) => [...s].forEach((c, i) => v.setUint8(at + i, c.charCodeAt(0)));
+		text(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); text(8, 'WAVE'); text(12, 'fmt '); v.setUint32(16, 16, true);
+		v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, rate, true); v.setUint32(28, rate * 2, true);
+		v.setUint16(32, 2, true); v.setUint16(34, 16, true); text(36, 'data'); v.setUint32(40, n * 2, true);
+		for (let i = 0; i < n; i++) v.setInt16(44 + i * 2, Math.sin(i / 20) * 8000, true);
+		const input = document.querySelector('[data-voice-input]'), dt = new DataTransfer();
+		dt.items.add(new File([buf], 'memo.wav', { type: 'audio/wav' }));
+		input.files = dt.files;
+		input.dispatchEvent(new Event('change', { bubbles: true }));
+		return '';
+	})()`)
+	b.until("the text in the input", `document.querySelector('[data-chat-input]').value === 'call the plumber'`)
+	select {
+	case wav := <-heard:
+		if len(wav) < 44 || string(wav[:4]) != "RIFF" || binary.LittleEndian.Uint32(wav[24:28]) != 16000 {
+			t.Fatalf("the file reaches whisper as 16 kHz WAV: %d bytes", len(wav))
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the recording did not reach whisper")
+	}
+}
+
 // TestRealBrowserChatDeletesAWaitingMessage: a message the master has not taken has a delete button, which takes
 // it away; the message its waiting reply took has none.
 func TestRealBrowserChatDeletesAWaitingMessage(t *testing.T) {

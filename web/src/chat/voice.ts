@@ -7,9 +7,13 @@ export interface Recording {
 const RATE = 16000;
 export const MAX_SECONDS = 120;
 
+// MicMissing is a page the browser gives no microphone: it does only on https or on the machine itself.
+export class MicMissing extends Error {}
+
 // record starts the microphone; the recording stops by itself after MAX_SECONDS and calls onLimit. Call it right
 // in the tap: Safari starts audio only from a gesture.
 export async function record(onLimit: () => void): Promise<Recording> {
+  if (!navigator.mediaDevices?.getUserMedia) throw new MicMissing('the browser gives a microphone only on https');
   const ctx = new AudioContext();
   const resumed = ctx.resume();
   let stream: MediaStream;
@@ -50,6 +54,22 @@ export async function record(onLimit: () => void): Promise<Recording> {
     },
     cancel: close,
   };
+}
+
+// fromFile is a recording of any format the browser plays, as the same 16 kHz mono WAV.
+export async function fromFile(file: File): Promise<Blob> {
+  const ctx = new AudioContext();
+  try {
+    const audio = await ctx.decodeAudioData(await file.arrayBuffer());
+    const mono = new Float32Array(audio.length);
+    for (let c = 0; c < audio.numberOfChannels; c++) {
+      const data = audio.getChannelData(c);
+      for (let i = 0; i < data.length; i++) mono[i] += data[i] / audio.numberOfChannels;
+    }
+    return wav(resample(mono, audio.sampleRate, RATE), RATE);
+  } finally {
+    void ctx.close();
+  }
 }
 
 function resample(data: Float32Array, from: number, to: number): Float32Array {

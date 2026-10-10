@@ -324,7 +324,7 @@ func (s *Service) Commands() []*registry.Command {
 			registry.OwnerOnly, s.spendDaily).On("usage", "processes"),
 		registry.Read("runs_daily", "Runs by day",
 			"Gives the processes started on each of the last days: all, failed and started by a schedule.",
-			registry.OwnerOnly, s.runsDaily).On("processes"),
+			registry.OwnerSide, s.runsDaily).On("processes"),
 		registry.Read("snapshots_list", "Snapshots",
 			"Lists the snapshots of the base and files deck keeps, newest first.",
 			registry.OwnerOnly, s.snapshotsList).On("snapshots"),

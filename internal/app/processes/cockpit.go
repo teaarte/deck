@@ -30,13 +30,11 @@ func (s *Service) ofRecord(ctx context.Context, p db.Process, v *processView) {
 	if err != nil || rec.ProjectID != p.ProjectID {
 		return
 	}
-	proj, err := s.St.Q.GetProject(ctx, p.ProjectID)
-	if err != nil {
-		return
-	}
 	var c *manifest.Collection
-	if m, err := docs.Manifest(ctx, s.St.Q, proj); err == nil {
-		c = m.Collection(rec.Collection)
+	if proj, err := s.St.Q.GetProject(ctx, p.ProjectID); err == nil {
+		if m, err := docs.Manifest(ctx, s.St.Q, proj); err == nil {
+			c = m.Collection(rec.Collection)
+		}
 	}
 	v.RecordTitle = records.ViewOf(rec, c).Name()
 }

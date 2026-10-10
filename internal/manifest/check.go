@@ -159,7 +159,7 @@ func (m *Manifest) compileCommands(fail func(string, ...any)) {
 				fail("command %q: unknown script %q", c.Name, e.Script)
 			}
 		case "model":
-			checkModel(c, fail)
+			checkModel(c, fail, func(format string, a ...any) { m.warnings = append(m.warnings, fmt.Sprintf(format, a...)) })
 		case "tool":
 			if !m.knownTool(e.Tool) {
 				fail("command %q: unknown tool %q", c.Name, e.Tool)
@@ -298,8 +298,9 @@ func PropertyOrder(schema json.RawMessage) []string {
 	return out
 }
 
-// checkModel checks that a model command gives its model what its kind needs.
-func checkModel(c *Command, fail func(string, ...any)) {
+// checkModel checks that a model command gives its model what its kind needs; a list of files it warns of, so a
+// saved module keeps loading.
+func checkModel(c *Command, fail, warn func(string, ...any)) {
 	e := c.Executor
 	var in struct {
 		Properties map[string]struct {
@@ -312,9 +313,10 @@ func checkModel(c *Command, fail func(string, ...any)) {
 	if role, ok := strings.CutPrefix(e.Model, "@"); ok && role != e.Kind {
 		fail("command %q: a model of kind %s is @%s or a model by name, not %s", c.Name, e.Kind, e.Kind, e.Model)
 	}
+	files := FieldsOf(c.Input, "file")
 	for _, f := range FileFields(c.Input) {
-		if (e.Kind == "video" || e.Kind == "stt") && !slices.Contains(FieldsOf(c.Input, "file"), f) {
-			fail("command %q: a %s model takes one file a field; input field %s is a list of files", c.Name, e.Kind, f)
+		if (e.Kind == "video" || e.Kind == "stt") && !slices.Contains(files, f) {
+			warn("command %q: a %s model takes one file a field; input field %s is a list of files", c.Name, e.Kind, f)
 		}
 	}
 	switch e.Kind {
@@ -322,7 +324,7 @@ func checkModel(c *Command, fail func(string, ...any)) {
 		if e.Prompt == "" && e.PromptFile == "" {
 			fail("command %q: a %s model needs prompt or prompt_file", c.Name, e.Kind)
 		}
-		for _, f := range FileFields(c.Input) {
+		for _, f := range files {
 			if e.Kind == "video" && f != "first_frame" && f != "last_frame" {
 				fail("command %q: the file fields of a video model are first_frame and last_frame, not %s", c.Name, f)
 			}
@@ -332,7 +334,7 @@ func checkModel(c *Command, fail func(string, ...any)) {
 			fail("command %q: a tts model speaks the input field text, a required string", c.Name)
 		}
 	case "stt":
-		if n := len(FileFields(c.Input)); n != 1 {
+		if n := len(files); n != 1 {
 			fail("command %q: an stt model takes one input field of format file, the recording; it has %d", c.Name, n)
 		}
 	}

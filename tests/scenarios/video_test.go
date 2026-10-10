@@ -163,6 +163,15 @@ func TestAVideoCommandOfAManifestTakesAPromptAndItsFrames(t *testing.T) {
 		`"last_frame": {"type": "array", "items": {"type": "string", "format": "file"}}`, 1)
 	e.refused("deck.project_create", map[string]any{"name": "shorts", "manifest": frames}, 422, "input field last_frame is a list of files")
 	e.createProject("shorts", videoManifest)
+	if _, err := e.App.Store.DB.Exec(`UPDATE document_revision SET text = ?
+		WHERE document_id IN (SELECT id FROM document WHERE kind = 'manifest' AND project_id = (SELECT id FROM project WHERE name = 'shorts'))`, frames); err != nil {
+		t.Fatal(err)
+	}
+	var got struct{ Warnings []string }
+	e.must("deck.manifest_get", map[string]any{"project": "shorts"}, &got)
+	if !strings.Contains(strings.Join(got.Warnings, "\n"), "last_frame is a list of files") {
+		t.Fatalf("a saved module with a list of files still loads, with a warning: %v", got.Warnings)
+	}
 }
 
 // TestALongCallOfAnAgentTellsItThatItStillRuns: an agent that asks for progress hears that its long call still runs,

@@ -56,12 +56,12 @@ func (r *Runner) runModel(ctx context.Context, t turn, trial bool) {
 			call["text"] = input["text"]
 			delete(input, "text")
 		case "stt":
-			for _, f := range manifest.FileFields(t.cmd.Input) {
+			for _, f := range manifest.FieldsOf(t.cmd.Input, "file") {
 				call["file"] = input[f]
 				delete(input, f)
 			}
 		case "video":
-			for _, f := range manifest.FileFields(t.cmd.Input) {
+			for _, f := range manifest.FieldsOf(t.cmd.Input, "file") {
 				if v, ok := input[f]; ok {
 					call[f] = v
 				}

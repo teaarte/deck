@@ -245,7 +245,9 @@ func (s *Service) recordGet(ctx context.Context, act registry.Actor, in recordGe
 	if err != nil {
 		return View{}, err
 	}
-	return ViewOf(rec, m.Collection(rec.Collection)), nil
+	v := ViewOf(rec, m.Collection(rec.Collection))
+	v.Project = p.Name
+	return v, nil
 }
 
 type recordDeleteIn struct {

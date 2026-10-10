@@ -123,7 +123,9 @@ func Update(ctx context.Context, q *db.Queries, now time.Time, rec db.Record, m 
 }
 
 type View struct {
-	ID         int64           `json:"id"`
+	ID int64 `json:"id"`
+	// Project is the project of a record read by its id.
+	Project    string          `json:"project,omitempty"`
 	Collection string          `json:"collection"`
 	Key        string          `json:"key"`
 	Title      string          `json:"title,omitempty"`

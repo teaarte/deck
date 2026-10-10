@@ -500,7 +500,7 @@ print(json.dumps({"status": fetch(json.load(sys.stdin)["allowed"])}))
 		t.Fatalf("project_create: %d %s", code, out)
 	}
 	e.names[peek.ID] = "peek"
-	if b0 := e.screenData("peek", "main", nil)["b0"]; b0["rows"] != nil || !strings.Contains(string(b0["error"]), "not in reads") {
+	if b0 := e.screenData("peek", "main", nil)["b0"]; b0["rows"] != nil || !strings.Contains(string(b0["error"]), "does not read source items") {
 		t.Fatalf("a draft reads no other project: %s", b0)
 	}
 

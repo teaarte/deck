@@ -147,7 +147,7 @@ func (s screenSources) File(ctx context.Context, p db.Project, ref any) (map[str
 }
 
 // Read calls a command that only reads with the project of a project screen and the values picked in filters
-// that it takes.
+// that it takes, as the viewer or, for another project, with the rights of the project of the screen.
 func (s screenSources) Read(ctx context.Context, command string, input map[string]any, sc screen.Scope) (any, error) {
 	c, err := s.a.Registry.Lookup(ctx, sc.Workspace, command)
 	if err != nil {
@@ -172,8 +172,12 @@ func (s screenSources) Read(ctx context.Context, command string, input map[strin
 			in[k] = manifest.Typed(v, types[k])
 		}
 	}
+	act := s.act
+	if sc.By != 0 {
+		act = registry.Actor{Kind: registry.Agent, Workspace: act.Workspace, ProjectID: sc.By}
+	}
 	raw, _ := json.Marshal(in)
-	out, err := s.a.Registry.Invoke(ctx, s.act, command, raw)
+	out, err := s.a.Registry.Invoke(ctx, act, command, raw)
 	if err != nil {
 		return nil, err
 	}

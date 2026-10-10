@@ -29,9 +29,6 @@ type Sources interface {
 	// File is a file a media block shows: a stored file of the project by id or a path in its data folder, as
 	// name, type, size and the url the client reads it at.
 	File(ctx context.Context, project db.Project, ref any) (map[string]any, error)
-	Records(ctx context.Context, project int64, collection string) ([]db.Record, error)
-	Record(ctx context.Context, id int64) (db.Record, error)
-	ProjectByName(ctx context.Context, workspace int64, name string) (db.Project, error)
 }
 
 // Scope is whose items a command gives: a project, or with none every project of the workspace.
@@ -40,6 +37,8 @@ type Scope struct {
 	Project   string
 	// Filter holds the values the owner picked, for a command that narrows by them.
 	Filter map[string]string
+	// By is the project whose rights read another project, for a block of its screen.
+	By int64
 }
 
 // Request is a screen to resolve. Project is zero for a screen deck ships.
@@ -207,17 +206,15 @@ func (r *renderer) loadRecord() error {
 		r.record, r.recordTitle = rec, fmt.Sprint(rec["name"])
 		return nil
 	}
-	rec, err := r.src.Record(r.ctx, r.req.Record)
-	if err != nil || rec.ProjectID != r.req.Project.ID || rec.Collection != r.req.Screen.Record {
+	got, err := r.src.Read(r.ctx, "deck.record_get", map[string]any{"record": r.req.Record}, r.scope)
+	rec, _ := got.(map[string]any)
+	env, _ := rec["data"].(map[string]any)
+	if err != nil || env == nil || rec["project"] != r.req.Project.Name || rec["collection"] != r.req.Screen.Record {
 		return fmt.Errorf("no %s record %d", r.req.Screen.Record, r.req.Record)
 	}
-	env, err := manifest.DecodeObject([]byte(rec.Data))
-	if err != nil {
-		return err
-	}
-	env["_id"], env["_updated"] = rec.ID, rec.UpdatedAt
+	env["_id"], env["_updated"] = rec["id"], rec["updated_at"]
 	r.record = env
-	if c := r.req.Manifest.Collection(rec.Collection); c != nil {
+	if c := r.req.Manifest.Collection(r.req.Screen.Record); c != nil {
 		r.recordTitle = c.RecordTitle(env)
 	}
 	return nil

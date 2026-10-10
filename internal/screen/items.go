@@ -63,20 +63,22 @@ func (r *renderer) load(src manifest.Source, input map[string]any, picked map[st
 	var items []map[string]any
 	switch src.From {
 	case "", "collection":
-		project, err := r.sourceProject(src)
+		scope, project := r.scope, r.req.Project.Name
+		if src.Project != "" {
+			scope.By, project = r.req.Project.ID, src.Project
+		}
+		got, err := r.src.Read(r.ctx, "deck.records_list", map[string]any{"project": project, "collection": src.Collection}, scope)
 		if err != nil {
 			return nil, err
 		}
-		recs, err := r.src.Records(r.ctx, project, src.Collection)
-		if err != nil {
-			return nil, err
-		}
-		for _, rec := range recs {
-			env, err := manifest.DecodeObject([]byte(rec.Data))
-			if err != nil {
+		list, _ := got.([]any)
+		for _, v := range list {
+			rec, _ := v.(map[string]any)
+			env, _ := rec["data"].(map[string]any)
+			if env == nil {
 				continue
 			}
-			env["_id"], env["_updated"] = rec.ID, rec.UpdatedAt
+			env["_id"], env["_updated"] = rec["id"], rec["updated_at"]
 			items = append(items, env)
 		}
 	default:
@@ -227,23 +229,6 @@ func withRecord(env, record map[string]any) map[string]any {
 	}
 	out["record"] = record
 	return out
-}
-
-// sourceProject is the project a block reads: its own, or another one its manifest reads.
-func (r *renderer) sourceProject(src manifest.Source) (int64, error) {
-	if src.Project == "" {
-		return r.req.Project.ID, nil
-	}
-	other, err := r.src.ProjectByName(r.ctx, r.req.Project.WorkspaceID, src.Project)
-	if err != nil {
-		return 0, fmt.Errorf("no project %q", src.Project)
-	}
-	for _, rd := range r.req.Manifest.Reads {
-		if rd.Project == src.Project && slices.Contains(rd.Collections, src.Collection) {
-			return other.ID, nil
-		}
-	}
-	return 0, fmt.Errorf("%s.%s is not in reads", src.Project, src.Collection)
 }
 
 func less(a, b any) bool {

@@ -75,8 +75,10 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
     command input as it is (declare the same input), and the process result is what the tool answered;
   - `model` for one call of a model without an agent: `{"type": "model", "kind": "text", "prompt_file": …}` —
     `text` answers the prompt with the input by the result schema, `image` draws the prompt with the input, `tts`
-    speaks the input field `text` (the prompt says how), `stt` writes down the one input field of format file;
-    a picture or speech is a file of the result. The model is the one the owner assigned to the kind (with
+    speaks the input field `text` (the prompt says how), `stt` writes down the one input field of format file,
+    `music` makes a track of the prompt, `video` a clip of it from the input file fields `first_frame` and
+    `last_frame` when given (both optional; give it `timeout_minutes` of 30, a clip takes minutes);
+    a picture, a track, speech or a clip is a file of the result. The model is the one the owner assigned to the kind (with
     fallbacks); `"model"` names another, `"options"` adds fields to the request (`voice`, `image_config`).
   A script that cannot do something reliably becomes an agent, not a bigger script. `timeout_minutes` raises
   the ceiling of a slow command (agents 60, scripts 10 by default).
@@ -99,12 +101,12 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   An input field of `"format": "json"` is text with JSON for the caller; `"{field}"` alone in a JSON body puts
   the value it holds (a list, an object), so one tool serves every shape of body.
 - **Models** are deck's, declared once in its settings (connections such as OpenRouter or Ollama, their models with
-  prices, and which models do text, image, tts, stt, music, with fallbacks); the module holds only its business
+  prices, and which models do text, image, tts, stt, music, video, with fallbacks); the module holds only its business
   logic and calls them through deck, never with a key: a command of type `model`, `deck.model_call` from a script or
   agent, or an API path through `$DECK_MODELS` (below). Every call names a model of deck's settings or an
   `@<kind>`; another model is refused. A tool or MCP server of the manifest never gets the key of a connection
   (the save refuses it). The manifest names what it calls in `models`: a connection, a model by name or
-  `@text`/`@image`/`@tts`/`@stt`/`@music` for the assigned ones; deck keeps each call with its cost in its journal,
+  `@text`/`@image`/`@tts`/`@stt`/`@music`/`@video` for the assigned ones; deck keeps each call with its cost in its journal,
   and the settings of the module list the models it called. A model the module needs and deck lacks: propose it
   with `deck.model_set` (connection, model, kind; the price comes from the catalog of the connection) — the call
   waits for the owner's button. deck has no limits of money: the owner sets them at the provider, so a module never
@@ -287,6 +289,9 @@ A script reads its input JSON from stdin and prints its result JSON to stdout. I
 - of the owner's home folder it reads only the runtimes deck finds on `PATH` (an nvm node, a pyenv python) and
   the project folders; the system folders read as usual. A file of the owner elsewhere is opened by the owner
   adding its folder to the project (Settings → Projects): ask for that, never copy the file around the sandbox.
+  deck does not tell a script where a project folder is (no variable, and `deck.projects_list` and
+  `folders_list` are closed to scripts), so a script that walks the folder reads its path from a record of the
+  module (a `settings` collection) that you write once the owner has added the folder; a command input works too.
   A program names the path it was refused in its stderr (`Operation not permitted`), and the error of a failed
   script ends with where the owner opens a folder; MCP servers and ACP agents of the project read the same;
 - network only to the manifest's `domains.read`, through the proxy deck sets in `HTTP(S)_PROXY` (Node's `fetch`
@@ -346,17 +351,20 @@ A script reads its input JSON from stdin and prints its result JSON to stdout. I
 
 ### Kinds of models, and APIs a kind does not cover
 
-`model` commands and `deck.model_call` know text, image, tts, stt and music, asked in the OpenAI-compatible
+`model` commands and `deck.model_call` know text, image, tts, stt, music and video, asked in the OpenAI-compatible
 protocol: a picture of `images/generations`, music of `audio/music` (`input`, `seconds`, like speech), each of chat
-completions with image or audio out when the API has no such path; a picture or a track comes back as a file with
+completions with image or audio out when the API has no such path; a video is a job of `videos` (OpenRouter's
+shape: `first_frame`/`last_frame` go as `frame_images`, `options` such as `duration`, `resolution`, `aspect_ratio`,
+`generate_audio`) that deck polls until the clip is ready, at most 30 minutes, and a job a service took goes to no
+other model; an agent that calls it hears progress meanwhile. A picture, a track or a clip comes back as a file with
 `model` (the model of deck's settings that made it, a fallback too) and `cost_usd`, for the module's own accounting
 and credits. Other results are as the API gave them; `deck.process_get` of the process names its `models` and their
 `cost_usd` (none while a model has no price), speech priced per character and recognition per second too. The models of a kind and their fallbacks are the owner's assignment; one that does not answer turns red in health while
 the next takes the work. A model on the owner's machine (a local server, as whisper.cpp) is a connection like any
 other. A connection of another API, such as Google's own, is reached only from a script.
 
-Anything else — video, editing a picture by a sample (`images/edits`, a form), a service with its own API (fal,
-Replicate, ElevenLabs, Google Veo) — is a script that calls the API through `$DECK_MODELS`, so the key stays with
+Anything else — editing a picture by a sample (`images/edits`, a form), a service with its own API (fal,
+Replicate, ElevenLabs, Google Veo's own API) — is a script that calls the API through `$DECK_MODELS`, so the key stays with
 deck and the call is in its journal. The owner adds the service as a connection (Settings → Connections: `raw` for a
 service with its own paths, such as Veo's long jobs, fal or Replicate; `google` only for `models/<m>:generateContent`)
 and a model with its price per call; the manifest
@@ -377,7 +385,7 @@ with urllib.request.urlopen(req, timeout=600) as r:
 print(json.dumps({"files": [{"path": "track.mp3", "record": inp.get("record")}]}))
 ```
 
-A long job (video takes minutes) is two commands, never a script that waits for an hour: `start` posts the job
+A long job of a service with its own API (minutes) is two commands, never a script that waits for an hour: `start` posts the job
 through `$DECK_MODELS`, keeps the job id in the record with status `waiting` and ends; `fetch`, on a schedule
 (`every 5m`), reads the waiting records, asks the status path of the API through `$DECK_MODELS`, and when the
 job is done downloads the file into `$DECK_RESULTS` and sets the record `done`. A file the service gives as a URL

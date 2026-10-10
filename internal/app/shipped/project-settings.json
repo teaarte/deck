@@ -12,7 +12,7 @@
         "values": {"role": "agent", "command": "=param.command", "models": "=(param.models ?? '') != '' ? split(param.models, ',') : nil"},
         "choices": {"models": {"source": {"from": "deck.models_list", "rows": "models", "where": "(agent ?? '') != ''"}, "value": "name"}}}]},
     {"type": "dialog", "name": "assign-kind", "title": "Choose the models of its work", "icon": "list-numbers", "blocks": [
-      {"type": "form", "command": "deck.assignment_set", "description": "The models of deck's settings that make pictures, music, speech, text or the words of a recording for this project, or for one command of it: the first does the work, the next ones take it while the first is down.",
+      {"type": "form", "command": "deck.assignment_set", "description": "The models of deck's settings that make pictures, music, video, speech, text or the words of a recording for this project, or for one command of it: the first does the work, the next ones take it while the first is down.",
         "values": {"role": "=param.role", "command": "=param.command", "models": "=(param.models ?? '') != '' ? split(param.models, ',') : nil"},
         "choices": {"models": {"source": {"from": "deck.models_list", "rows": "models", "where": "(agent ?? '') == '' && !builtin"}, "value": "name"}}}]},
     {"type": "dialog", "name": "folder", "title": "Add a folder", "icon": "folder-plus", "blocks": [

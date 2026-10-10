@@ -523,7 +523,7 @@ func TestTwoModelsOfOneAPIModelKeepTheirOwnNames(t *testing.T) {
 }
 
 // TestTheHealthOfAModelFromBeforeMovesToItsWorkspace: a base from before keeps the health of a model of a connection
-// as a provider of the machine; it moves to the model's workspace, and the machine's row of pushes goes.
+// as a provider of the machine; it moves to the model's workspace, the failing pushes to the workspace of the devices.
 func TestTheHealthOfAModelFromBeforeMovesToItsWorkspace(t *testing.T) {
 	t.Parallel()
 	home := t.TempDir()
@@ -531,7 +531,8 @@ func TestTheHealthOfAModelFromBeforeMovesToItsWorkspace(t *testing.T) {
 	e.must("deck.connection_set", map[string]any{"name": "media", "api": "openai", "url": "http://127.0.0.1:9/v1", "local": true}, nil)
 	e.must("deck.model_set", map[string]any{"connection": "media", "model": "z-image", "name": "local-image", "kind": "image", "free": true}, nil)
 	e.olderBase(26)
-	if _, err := e.App.Store.DB.Exec(`INSERT INTO health (subject, status, error) VALUES ('provider:local-image', 'error', 'did not answer'), ('push', 'error', 'mac: gone')`); err != nil {
+	if _, err := e.App.Store.DB.Exec(`INSERT INTO health (subject, status, error) VALUES ('provider:local-image', 'error', 'did not answer'), ('push', 'error', 'mac: gone'), ('provider:codex', 'ok', '');
+		INSERT INTO push_subscription (workspace_id, device, endpoint, p256dh, auth) VALUES (1, 'mac', 'https://push.example/1', 'k', 'a')`); err != nil {
 		t.Fatal(err)
 	}
 	_ = e.App.Close()
@@ -542,9 +543,10 @@ func TestTheHealthOfAModelFromBeforeMovesToItsWorkspace(t *testing.T) {
 		subject != "model:local-image" || status != "error" || workspace.Int64 != 1 {
 		t.Fatalf("the health of the model moves to its workspace: %v %s %s %v", err, subject, status, workspace)
 	}
-	var push int
-	_ = e.App.Store.DB.QueryRow(`SELECT count(*) FROM health WHERE subject = 'push'`).Scan(&push)
-	if push != 0 {
-		t.Fatal("the row of pushes of the machine goes; the workspace writes its own on the next push")
+	var push, codex int
+	_ = e.App.Store.DB.QueryRow(`SELECT count(*) FROM health WHERE subject = 'push' AND workspace_id = 1 AND error = 'mac: gone'`).Scan(&push)
+	_ = e.App.Store.DB.QueryRow(`SELECT count(*) FROM health WHERE subject = 'provider:codex' AND workspace_id IS NULL`).Scan(&codex)
+	if push != 1 || codex != 1 {
+		t.Fatalf("the failing pushes move to the workspace of the devices, %d, and a built-in provider keeps its row, %d", push, codex)
 	}
 }

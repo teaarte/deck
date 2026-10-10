@@ -765,3 +765,19 @@ func TestACPAgentReachesALocalServiceItsProjectNames(t *testing.T) {
 		t.Fatalf("the shell reaches the service its project names: %q, %d requests", got, len(local.requests()))
 	}
 }
+
+// TestAnACPAgentCallsOnlyItsModelThroughDeck: deck's key goes with the calls of the model of a turn, not with any
+// other request to the API of the connection, as for a script.
+func TestAnACPAgentCallsOnlyItsModelThroughDeck(t *testing.T) {
+	t.Parallel()
+	f := newACP(t)
+	llm := acpLLM(t)
+	f.streamText(4, acpStream(gooseInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,
+		`{"get": "files"}`, acpModel, `{"end": "end_turn"}`))
+	e := acpEnv(t, f, "goose", llm)
+	e.waitState(e.run(e.acpProject("paint", colorManifest), "work"), "done", "error")
+	got := jsonLines[map[string]any](f.files(4)("get.jsonl"))
+	if len(got) != 1 || got[0]["status"] != 403.0 {
+		t.Fatalf("a request other than a call of the model is refused: %v", got)
+	}
+}

@@ -49,6 +49,19 @@ type ModelHop struct {
 // connection; an @role names the models assigned to it, the fallbacks after the first.
 type ModelRoute func(ctx context.Context, act registry.Actor, ask ModelAsk) ([]ModelHop, error)
 
+type routeKey struct{}
+
+// WithRoute is ctx with the hops a call of a model goes through, so the rules of its command route it no second time.
+func WithRoute(ctx context.Context, hops []ModelHop) context.Context {
+	return context.WithValue(ctx, routeKey{}, hops)
+}
+
+// RouteOf is the hops WithRoute gave ctx.
+func RouteOf(ctx context.Context) ([]ModelHop, bool) {
+	hops, ok := ctx.Value(routeKey{}).([]ModelHop)
+	return hops, ok
+}
+
 // ModelRequest is the command a call of a model through the proxy is frozen as when it waits for the owner.
 const ModelRequest = registry.Builtin + ".model_request"
 
@@ -257,11 +270,11 @@ func flush(w http.ResponseWriter, body io.Reader) {
 const DeckModel = "X-Deck-Model"
 
 // ModelAsk is a call of a model as deck routes it: the connection, the model the request names and Name of deck's when
-// given, InBody or ByHeader for where the request names it, and the method and path of a request a module made.
+// given, InBody, InForm or ByHeader for where the request names it, and the method and path of a request a module made.
 type ModelAsk struct {
-	Connection, Model, Name string
-	InBody, ByHeader        bool
-	Method, Path            string
+	Connection, Model, Name  string
+	InBody, InForm, ByHeader bool
+	Method, Path             string
 }
 
 // AskModel is the model a request names: of a JSON body, a form, Google's path, else the header DeckModel; names
@@ -311,7 +324,7 @@ func AskModel(connection, method, path string, header http.Header, body []byte) 
 		if len(form) > 1 {
 			return ask, registry.Refuse("deck: a form names its model once")
 		}
-		named = append(named, form...)
+		named, ask.InForm = append(named, form...), len(form) > 0
 	}
 	if rest, ok := strings.CutPrefix(ask.Path, "models/"); ok {
 		if model, _, ok := strings.Cut(rest, ":"); ok {
@@ -503,7 +516,6 @@ func (g *Gateway) proxyModel(w http.ResponseWriter, r *http.Request, act registr
 		http.Error(w, err.Error(), registry.Status(err))
 		return
 	}
-	asked := ask.Model
 	hops, err := g.cfg.Models(r.Context(), act, ask)
 	if err != nil {
 		http.Error(w, err.Error(), registry.Status(err))
@@ -515,8 +527,8 @@ func (g *Gateway) proxyModel(w http.ResponseWriter, r *http.Request, act registr
 		return
 	}
 	in := map[string]string{"connection": connection, "path": path}
-	if fromBody, _ := AskModel(connection, r.Method, path, nil, body); asked != "" && fromBody.Model != asked {
-		in["model"] = asked
+	if ask.ByHeader || ask.InForm {
+		in["model"] = ask.Model
 	}
 	if r.Method != http.MethodPost {
 		in["method"] = r.Method
@@ -525,7 +537,7 @@ func (g *Gateway) proxyModel(w http.ResponseWriter, r *http.Request, act registr
 		in["body"] = string(body)
 	}
 	input, _ := json.Marshal(in)
-	now, err := g.gate(r.Context(), act, c, act.ProjectID, input)
+	now, err := g.gate(WithRoute(r.Context(), hops), act, c, act.ProjectID, input)
 	if err != nil {
 		g.journal(r.Context(), act, act.ProjectID, ModelRequest, c.Class, "rejected", Canonical(input), err.Error())
 		http.Error(w, err.Error(), registry.Status(err))

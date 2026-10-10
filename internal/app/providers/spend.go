@@ -259,17 +259,25 @@ type modelRequestIn struct {
 // allowed decides whether a call of a model runs without the owner: the granted models of the project name it, and
 // it reaches a model.
 func (s *Service) allowed(ctx context.Context, act registry.Actor, input json.RawMessage, _ bool) (bool, error) {
-	ask, err := s.requested(ctx, act.Workspace, input)
-	if err != nil {
-		return false, err
-	}
 	if err := s.granted(ctx, act, input); err != nil {
 		return false, err
 	}
-	if _, err := s.Route(ctx, act, ask); err != nil {
+	if _, err := s.route(ctx, act, input); err != nil {
 		return false, err
 	}
 	return true, nil
+}
+
+// route is where a call of a model goes: the hops the proxy found already, else those of what it asks.
+func (s *Service) route(ctx context.Context, act registry.Actor, input json.RawMessage) ([]gateway.ModelHop, error) {
+	if hops, ok := gateway.RouteOf(ctx); ok {
+		return hops, nil
+	}
+	ask, err := s.requested(ctx, act.Workspace, input)
+	if err != nil {
+		return nil, err
+	}
+	return s.Route(ctx, act, ask)
 }
 
 // use is what a call of a model goes through, as a manifest names it: an @role, a model by name, or a connection.
@@ -328,11 +336,7 @@ func (s *Service) free(ctx context.Context, act registry.Actor, input json.RawMe
 	if !slices.Contains(m.Uses(), use) && (connection == "" || !slices.Contains(m.Uses(), connection)) {
 		return false
 	}
-	ask, err := s.requested(ctx, act.Workspace, input)
-	if err != nil {
-		return false
-	}
-	hops, err := s.Route(ctx, act, ask)
+	hops, err := s.route(ctx, act, input)
 	if err != nil {
 		return false
 	}

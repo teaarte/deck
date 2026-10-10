@@ -154,8 +154,10 @@ func TestOAuth2SignsInRefreshesAndAsksForSignInWhenRevoked(t *testing.T) {
 		t.Fatalf("a revoked access is an error that asks for a sign-in: %d %s", code, out)
 	}
 	e.waitHealth("tool:svc.me", "needs_login")
-	if a := e.waitAsk(); a.Kind != "sign_in" || !strings.Contains(a.Text, "svc.me") {
-		t.Fatalf("the owner is asked to sign in again: %+v", a)
+	host := strings.TrimPrefix(svc.URL, "https://")
+	host = strings.TrimPrefix(host, "http://")
+	if a := e.waitAsk(); a.Kind != "sign_in" || !strings.Contains(a.Text, "svc.me") || !strings.Contains(a.Text, "at "+host+", its token from "+host) {
+		t.Fatalf("the owner is asked to sign in again, told where the sign-in and its token go: %+v", a)
 	}
 }
 

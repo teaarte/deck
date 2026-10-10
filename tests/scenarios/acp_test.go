@@ -485,6 +485,12 @@ func TestACPTurnThatEndsOnARefusalOfTheModelIsTheRefusal(t *testing.T) {
 		if got := e.waitState(e.run(e.acpProject("paint", colorManifest), "work"), "done", "error", "needs_login", "rate_limited"); got.State != tc.state {
 			t.Fatalf("%d: want %s, got %+v", tc.status, tc.state, got)
 		}
+		if tc.state != "needs_login" {
+			continue
+		}
+		if a := e.waitAsk(); !strings.Contains(a.Text, "key of its connection") || strings.Contains(a.Text, "terminal") {
+			t.Fatalf("a refused key of a model is about the key of its connection, not a login in a terminal: %+v", a)
+		}
 	}
 }
 

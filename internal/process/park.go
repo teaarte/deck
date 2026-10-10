@@ -19,12 +19,17 @@ import (
 	"deck2/internal/untrusted"
 )
 
-// needLogin parks the process until the owner logs the provider in again and picks how to continue; the self-check
+// needLogin parks the process until the owner logs the provider in again, or gives its connection a new key, and
+// picks how to continue; the self-check
 // of the provider sees when the login is back.
 func (r *Runner) needLogin(ctx context.Context, pv provider.Provider, processID int64, text string) {
 	payload, _ := json.Marshal(map[string]any{"answers": ask.LoginAnswers})
-	msg := fmt.Sprintf("%s needs a login: %s. Log in again in a terminal, then retry this session or start a new one with a report of what was done.",
-		pv.Name(), strings.TrimSpace(text))
+	what, fix := "the model API refused the key of its connection", "Set a new key of the connection in Settings → Connections"
+	if _, ok := pv.(provider.Subscribed); ok {
+		what, fix = "needs a login", "Log in again in a terminal"
+	}
+	msg := fmt.Sprintf("%s %s: %s. %s, then retry this session or start a new one with a report of what was done.",
+		pv.Name(), what, strings.TrimSpace(text), fix)
 	var n int64
 	err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		var err error

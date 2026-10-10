@@ -167,3 +167,23 @@ func TestTheAnswerOfAClaudeCodeTurnIsTheLastResultOfItsSession(t *testing.T) {
 		}
 	}
 }
+
+// TestAWokenClaudeCodeSessionMayWorkInSilence: once a background task wakes the session, it works as long as it
+// needs; the CLI is stopped only for silence after a result.
+func TestAWokenClaudeCodeSessionMayWorkInSilence(t *testing.T) {
+	t.Parallel()
+	c := newCLI(t)
+	b, _ := os.ReadFile("testdata/claude/background_agents.jsonl")
+	ls := strings.Split(strings.TrimSpace(string(b)), "\n")
+	last := slices.IndexFunc(ls, func(l string) bool { return strings.Contains(l, `"result": "beta"`) })
+	c.streamText(1, strings.Join(ls[:last+2], "\n")+"\n")
+	rest := filepath.Join(c.dir, "rest")
+	if err := os.WriteFile(rest, []byte(strings.Join(ls[last+2:], "\n")+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	c.after(`sleep 1; sed "s/{{session}}/$session/g" '` + rest + `'` + "\n")
+	res, err := c.adapter(t.TempDir()).Run(context.Background(), provider.Request{Cwd: t.TempDir(), Prompt: "x", SessionID: "s"})
+	if err != nil || res.Text != "gamma" {
+		t.Fatalf("the woken session is not cut off while it works: %+v %v", res, err)
+	}
+}

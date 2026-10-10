@@ -216,12 +216,15 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 				if linger != nil {
 					linger.Stop()
 				}
-				wait := a.Linger
-				if len(t.tasks) > 0 {
-					wait = max(wait, a.TaskLinger)
+				lingerC = nil
+				if t.idle {
+					wait := a.Linger
+					if len(t.tasks) > 0 {
+						wait = max(wait, a.TaskLinger)
+					}
+					linger = time.NewTimer(wait)
+					lingerC = linger.C
 				}
-				linger = time.NewTimer(wait)
-				lingerC = linger.C
 			}
 		case waitErr = <-exited:
 			done, exited = true, nil

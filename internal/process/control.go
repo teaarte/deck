@@ -47,7 +47,7 @@ func (r *Runner) end(ctx context.Context, processID int64, state, reason string)
 		if n, err = q.StopParkedProcess(ctx, db.StopParkedProcessParams{State: state, Error: reason, FinishedAt: r.stamp(), ID: processID}); err != nil || n == 0 {
 			return err
 		}
-		// A frozen call outlives its process unless the owner stops it.
+		// A frozen call outlives its process unless a stop ends it.
 		closedCalls, err = q.CloseOpenAsksOfProcess(ctx, db.CloseOpenAsksOfProcessParams{ProcessID: processID, CallsToo: store.Bool(state == StateStopped)})
 		return err
 	})

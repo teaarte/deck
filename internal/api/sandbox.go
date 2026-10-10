@@ -55,6 +55,7 @@ func (s *Server) Sandbox() http.Handler {
 			return
 		}
 		w.Header().Set("Content-Type", "text/javascript")
+		w.Header().Set("Access-Control-Allow-Origin", "*")
 		_, _ = w.Write(b)
 	})
 	return mux

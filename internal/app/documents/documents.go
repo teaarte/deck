@@ -144,7 +144,7 @@ type documentGetIn struct {
 	Name     string `opt:"" desc:"Document name (path)"`
 	Revision int64  `opt:"" desc:"Revision number"`
 	Record   int64  `type:"record" opt:"" desc:"Record the named document belongs to"`
-	History  bool   `opt:"" desc:"Also its revisions, oldest first, with who wrote each and why"`
+	History  bool   `opt:"" desc:"Also its revisions, newest first, with who wrote each and why"`
 }
 
 func (dc *Service) documentGet(ctx context.Context, act registry.Actor, in documentGetIn) (documentView, error) {
@@ -383,9 +383,6 @@ func (dc *Service) Commands() []*registry.Command {
 		registry.Def("document_restore", "Bring document back",
 			"Brings a deleted document back as it was.",
 			registry.OwnerOnly, dc.documentRestore),
-		registry.Read("document_revisions", "Document history",
-			"Lists revisions of a document: who, when and why.",
-			registry.Everyone, dc.documentRevisions).On("documents"),
 		registry.Def("document_revert", "Revert document",
 			"Makes an earlier revision current again as a new revision.",
 			registry.OwnerSide, dc.documentRevert),

@@ -154,8 +154,9 @@ func TestADeletedDocumentComesBack(t *testing.T) {
 		Revision int64
 	}
 	e.must("deck.document_get", map[string]any{"project": "notes", "name": "notes.md"}, &back)
-	var revs []map[string]any
-	e.must("deck.document_revisions", map[string]any{"document": d.ID}, &revs)
+	var h struct{ Revisions []map[string]any }
+	e.must("deck.document_get", map[string]any{"document": d.ID, "history": true}, &h)
+	revs := h.Revisions
 	if back.Text != "two" || back.Revision != 2 || len(revs) != 2 {
 		t.Fatalf("a document comes back as it was, with its revisions: %+v %d", back, len(revs))
 	}

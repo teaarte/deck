@@ -159,13 +159,16 @@ func TestManifestRevisionsAndRevert(t *testing.T) {
 		t.Fatalf("rejected manifest must leave revision 2, got %d", cur.Revision)
 	}
 
-	var revs []struct {
-		Revision int64
-		Author   string
-		Reason   string
-		Current  bool
+	var h struct {
+		Revisions []struct {
+			Revision int64
+			Author   string
+			Reason   string
+			Current  bool
+		}
 	}
-	e.must("deck.document_revisions", map[string]any{"document": cur.Document}, &revs)
+	e.must("deck.document_get", map[string]any{"document": cur.Document, "history": true}, &h)
+	revs := h.Revisions
 	if len(revs) != 2 || revs[0].Reason != "no schedule" || revs[0].Author != "owner" || !revs[0].Current {
 		t.Fatalf("revisions: %+v", revs)
 	}
@@ -352,8 +355,9 @@ func TestAgentStaysInsideItsProject(t *testing.T) {
 	if len(list) != 1 || list[0].OwnerKind != "record" {
 		t.Fatalf("artifact listing: %+v", list)
 	}
-	var revs []struct{ Author string }
-	e.must("deck.document_revisions", map[string]any{"document": d.ID}, &revs)
+	var h struct{ Revisions []struct{ Author string } }
+	e.must("deck.document_get", map[string]any{"document": d.ID, "history": true}, &h)
+	revs := h.Revisions
 	if len(revs) != 1 || !strings.HasPrefix(revs[0].Author, "agent:") {
 		t.Fatalf("artifact author: %+v", revs)
 	}

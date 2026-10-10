@@ -8,24 +8,12 @@ import (
 	"deck2/internal/store/db"
 )
 
-type documentRevisionsIn struct {
-	Document int64 `type:"document" desc:"Document id"`
-}
-
 type revisionView struct {
 	Revision  int64  `json:"revision"`
 	Author    string `json:"author"`
 	Reason    string `json:"reason"`
 	CreatedAt string `json:"created_at"`
 	Current   bool   `json:"current"`
-}
-
-func (dc *Service) documentRevisions(ctx context.Context, act registry.Actor, in documentRevisionsIn) ([]revisionView, error) {
-	d, err := dc.readableDocument(ctx, dc.St.Q, act, in.Document)
-	if err != nil {
-		return nil, err
-	}
-	return dc.revisions(ctx, d)
 }
 
 func (dc *Service) revisions(ctx context.Context, d db.Document) ([]revisionView, error) {

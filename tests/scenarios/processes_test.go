@@ -97,9 +97,9 @@ func TestReworkContinuesTheSessionAndRevisesTheArtifact(t *testing.T) {
 	}
 	var d struct{ ID int64 }
 	e.must("deck.document_get", map[string]any{"project": "docs", "name": "report.md"}, &d)
-	var revs []struct{ Author string }
-	e.must("deck.document_revisions", map[string]any{"document": d.ID}, &revs)
-	if len(revs) != 2 {
+	var h struct{ Revisions []struct{ Author string } }
+	e.must("deck.document_get", map[string]any{"document": d.ID, "history": true}, &h)
+	if revs := h.Revisions; len(revs) != 2 {
 		t.Fatalf("the rework makes a new revision of the artifact, got %v", revs)
 	}
 	e.refused("deck.process_rework", map[string]any{"process": id, "remark": " "}, 422, "remark")

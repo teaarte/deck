@@ -11,7 +11,7 @@ import { ActionButton } from '../ui/actions/ActionButton';
 import { DekiHead, useMascot } from '../ui/deki/Deki';
 import { Markdown } from '../ui/Markdown';
 import s from './chat.module.css';
-import { logLines, Processes } from './Turn';
+import { Processes } from './Turn';
 
 type ChatMessage = ChatValue['messages'][number];
 type WorkValue = NonNullable<ChatMessage['work']>;
@@ -20,14 +20,13 @@ type WorkValue = NonNullable<ChatMessage['work']>;
 const cost = (usd: number) => new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD',
   ...(usd > 0 && usd < 0.01 ? { maximumSignificantDigits: 2 } : { maximumFractionDigits: 2 }) }).format(usd);
 
-// Work is how a reply went in one line, the model, cost, time and steps, which unfolds into what the master said on
-// the way and the processes it started.
+// Work is how a reply went in one line, the model, cost, time and steps, which unfolds into the processes it started.
 function Work({ w }: { w: WorkValue }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const parts = [w.model || w.provider, w.cost_usd !== undefined ? cost(w.cost_usd) : '',
     t('chat.worked', { time: formatted(w.seconds, { format: 'duration' }) }), w.steps > 0 ? t('chat.steps', { count: w.steps }) : ''].filter(Boolean);
-  const more = w.lines.length > 0 || w.processes.length > 0;
+  const more = w.processes.length > 0;
   return (
     <div className={s.work} data-work>
       <button type="button" className={s.workHead} onClick={() => more && setOpen(!open)} aria-expanded={more ? open : undefined} data-work-head>
@@ -36,9 +35,6 @@ function Work({ w }: { w: WorkValue }) {
       </button>
       {open && (
         <div className={s.workBody} data-work-body>
-          {logLines(w.lines, w.lines.length).map((l) => (
-            <div key={l.key} className={s.logLine} data-failed={l.failed || undefined}>{l.text}</div>
-          ))}
           <Processes list={w.processes} />
         </div>
       )}
@@ -53,17 +49,6 @@ type Cut = NonNullable<NonNullable<ChatMessage['reply']>['cut']>;
 // Broken is what a reply that broke off did and left, each change with its undo, and the providers it can go again on.
 function Broken({ cut, provider }: { cut: Cut; provider?: string }) {
   const { t } = useTranslation();
-  const [undoing, setUndoing] = useState(false);
-  const undoAll = async () => {
-    setUndoing(true);
-    try {
-      for (const u of cut.undo) await call(u.action.command!, u.action.params ?? {});
-    } catch (e) {
-      notifyError(e);
-    } finally {
-      setUndoing(false);
-    }
-  };
   return (
     <Stack gap={6} className={s.cut} data-reply-cut>
       <Text size="xs" fw={600}>{t('chat.cut_by', { provider: provider || '?' })}</Text>
@@ -82,7 +67,6 @@ function Broken({ cut, provider }: { cut: Cut; provider?: string }) {
               <ActionButton act={u.action} />
             </Group>
           ))}
-          {cut.undo.length > 1 && <Button size="xs" variant="light" color="red" loading={undoing} onClick={() => void undoAll()} data-undo-all>{t('chat.undo_all')}</Button>}
         </Stack>
       )}
       {cut.retry.length > 0 && (

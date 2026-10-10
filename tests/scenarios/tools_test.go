@@ -193,9 +193,9 @@ func TestHTTPToolKeepsSecretsInItsOwnHeaders(t *testing.T) {
 	}
 }
 
-// TestASecretThatIsNotSetIsRedInHealthAndOneNote: a secret a tool of an enabled module sends and the owner has not set
-// is a red row of the module's health, and its first refusal a note of the feed; the token of a sign-in is not one.
-func TestASecretThatIsNotSetIsRedInHealthAndOneNote(t *testing.T) {
+// TestASecretThatIsNotSetIsRedInHealth: a secret a tool of an enabled module sends and the owner has not set is a red
+// row of the module's health; the token of a sign-in is not one.
+func TestASecretThatIsNotSetIsRedInHealth(t *testing.T) {
 	t.Parallel()
 	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { jsonReply(w, `{}`) })
 	e := newEnv(t, nil)
@@ -218,14 +218,8 @@ func TestASecretThatIsNotSetIsRedInHealthAndOneNote(t *testing.T) {
 		got["secret:tok"] != "" || !strings.HasPrefix(got["project:stock"], "error secret:pexels") {
 		t.Fatalf("an unset secret is red in the health of the module, the token of a sign-in is not: %v", got)
 	}
-	for range 2 {
-		if code, _ := e.call("stock.photos", map[string]any{}); code == 200 {
-			t.Fatal("a tool with a secret that is not set is refused")
-		}
-	}
-	var notes int
-	if err := e.App.Store.DB.QueryRow(`SELECT count(*) FROM feed WHERE kind = 'note' AND for_master = 0 AND text LIKE '%secret pexels is not set%'`).Scan(&notes); err != nil || notes != 1 {
-		t.Fatalf("the first refusal is one note of the feed: %d %v", notes, err)
+	if code, _ := e.call("stock.photos", map[string]any{}); code == 200 {
+		t.Fatal("a tool with a secret that is not set is refused")
 	}
 	e.must("deck.secret_set", map[string]any{"name": "pexels", "value": "k"}, nil)
 	if got := rows(); got["secret:pexels"] != "" || got["project:stock"] != "ok " {

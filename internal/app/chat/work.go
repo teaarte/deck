@@ -2,24 +2,21 @@ package chat
 
 import (
 	"context"
-	"encoding/json"
 	"time"
 
 	"deck2/internal/store"
 	"deck2/internal/store/db"
-	"deck2/internal/untrusted"
 )
 
 // workView is how a reply of the master went: who answered, what it cost, how long it worked and in how many
-// steps, what it said on the way and the processes it started.
+// steps, and the processes it started; what it said on the way is in the log of its process.
 type workView struct {
-	Provider  string           `json:"provider"`
-	Model     string           `json:"model,omitempty"`
-	CostUSD   *float64         `json:"cost_usd,omitempty"`
-	Seconds   int64            `json:"seconds"`
-	Steps     int64            `json:"steps"`
-	Lines     []map[string]any `json:"lines"`
-	Processes []procView       `json:"processes"`
+	Provider  string     `json:"provider"`
+	Model     string     `json:"model,omitempty"`
+	CostUSD   *float64   `json:"cost_usd,omitempty"`
+	Seconds   int64      `json:"seconds"`
+	Steps     int64      `json:"steps"`
+	Processes []procView `json:"processes"`
 }
 
 // procView is a process a reply started, with the button that opens its log.
@@ -31,8 +28,8 @@ type procView struct {
 	Open    action `json:"open"`
 }
 
-// workLines is how many lines of the log of a finished reply its work keeps.
-const workLines = 200
+// workLines is how many lines of the log of a finished reply count its steps.
+const workLines = 1000
 
 // children are the processes a reply started, in order.
 func (ch *Service) children(ctx context.Context, processID int64) []procView {
@@ -47,12 +44,12 @@ func (ch *Service) children(ctx context.Context, processID int64) []procView {
 	return out
 }
 
-// work is how a finished reply went; its last line, the answer itself, is left out of the lines.
+// work is how a finished reply went.
 func (ch *Service) work(ctx context.Context, p db.Process) *workView {
 	if !p.FinishedAt.Valid {
 		return nil
 	}
-	v := &workView{Provider: p.Provider, Lines: []map[string]any{}, Processes: ch.children(ctx, p.ID)}
+	v := &workView{Provider: p.Provider, Processes: ch.children(ctx, p.ID)}
 	if calls, err := ch.St.Q.ListTurnCalls(ctx, store.ID(p.ID)); err == nil && len(calls) > 0 {
 		sum, priced := 0.0, true
 		for _, c := range calls {
@@ -72,23 +69,8 @@ func (ch *Service) work(ctx context.Context, p db.Process) *workView {
 			v.Seconds = int64(to.Sub(from).Round(time.Second) / time.Second)
 		}
 	}
-	lines, _ := ch.Runner.Tail(p.ID, workLines, "tool", "tool_update", "message")
-	for _, raw := range lines {
-		var l map[string]any
-		if json.Unmarshal(raw, &l) != nil {
-			continue
-		}
-		if l["kind"] == "tool" {
-			v.Steps++
-		}
-		if text, ok := l["text"].(string); ok {
-			l["text"] = untrusted.Cut(text, 300)
-		}
-		v.Lines = append(v.Lines, l)
-	}
-	if n := len(v.Lines); n > 0 && v.Lines[n-1]["kind"] == "message" {
-		v.Lines = v.Lines[:n-1]
-	}
+	tools, _ := ch.Runner.Tail(p.ID, workLines, "tool")
+	v.Steps = int64(len(tools))
 	return v
 }
 

@@ -9,7 +9,7 @@ export interface Look {
   density: 'compact' | 'default' | 'comfortable';
   font: 'small' | 'default' | 'large';
   // face is the font of the text and headings; code is always monospace.
-  face: 'themed' | 'system' | 'rounded' | 'serif';
+  face: 'themed' | 'system';
   radius: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
   theme: 'juce' | 'default' | 'glass' | 'pixel' | 'neon' | 'paper';
   // surface is how much of the accent the islands and blocks take.
@@ -29,7 +29,7 @@ const KEY = 'deck-look';
 export const ACCENTS = ['coral', 'blue', 'indigo', 'violet', 'grape', 'pink', 'red', 'orange', 'yellow', 'lime', 'green', 'teal', 'cyan', 'gray'];
 export const DENSITIES: Look['density'][] = ['compact', 'default', 'comfortable'];
 export const FONTS: Look['font'][] = ['small', 'default', 'large'];
-export const FACES: Look['face'][] = ['themed', 'system', 'rounded', 'serif'];
+export const FACES: Look['face'][] = ['themed', 'system'];
 export const RADII: Look['radius'][] = ['xs', 'sm', 'md', 'lg', 'xl'];
 export const THEMES: Look['theme'][] = ['juce', 'default', 'glass', 'pixel', 'neon', 'paper'];
 export const SURFACES: Look['surface'][] = ['neutral', 'tinted', 'vivid'];
@@ -86,20 +86,15 @@ export const useLook = () => useSyncExternalStore((f) => (subs.add(f), () => sub
 const scaled = (sizes: Record<string, string>, by: number) =>
   Object.fromEntries(Object.entries(sizes).map(([k, v]) => [k, by === 1 ? v : `calc(${v} * ${by})`]));
 
-// The faces are of the system, none in the build: text, rounded, serif and code.
+// The faces are of the system, none in the build: text and code.
 const SYSTEM = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
 const MONO = 'ui-monospace, "SF Mono", Menlo, Consolas, monospace';
-const faces: Record<Exclude<Look['face'], 'themed'>, string> = {
-  system: SYSTEM,
-  rounded: 'ui-rounded, "SF Pro Rounded", system-ui, -apple-system, sans-serif',
-  serif: 'ui-serif, "New York", Charter, Georgia, serif',
-};
 
 // fonts are the faces of the themes that have their own: juce Helvetica, pixel monospace, paper with serifs.
 const fonts: Partial<Record<Look['theme'], string>> = {
   juce: '"Helvetica Neue", Helvetica, Arial, system-ui, -apple-system, sans-serif',
   pixel: MONO,
-  paper: faces.serif,
+  paper: 'ui-serif, "New York", Charter, Georgia, serif',
 };
 
 // theme is the Mantine theme of a look: the accent is the primary color, density scales spacing, font the text, face
@@ -107,7 +102,7 @@ const fonts: Partial<Record<Look['theme'], string>> = {
 export function theme(l: Look): MantineThemeOverride {
   const space = { compact: 0.75, default: 1, comfortable: 1.25 }[l.density];
   const text = { small: 0.9, default: 1, large: 1.15 }[l.font];
-  const face = l.face === 'themed' ? fonts[l.theme] ?? SYSTEM : faces[l.face];
+  const face = l.face === 'system' ? SYSTEM : fonts[l.theme] ?? SYSTEM;
   const headings = Object.fromEntries(Object.entries(DEFAULT_THEME.headings.sizes).map(([k, h]) =>
     [k, { ...h, fontSize: text === 1 ? h.fontSize : `calc(${h.fontSize} * ${text})` }]));
   return createTheme({

@@ -515,14 +515,6 @@ export interface ChatValue {
       cost_usd?: number;
       seconds: number;
       steps: number;
-      lines: {
-        at: string;
-        kind: string;
-        id?: string;
-        title?: string;
-        status?: string;
-        text?: string;
-      }[];
       processes: {
         id: number;
         project: string;

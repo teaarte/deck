@@ -32,7 +32,7 @@ const (
 // the journal keeps the call's input, the caller gets the response.
 type HTTP struct {
 	GW      *gateway.Gateway
-	Secrets func(ctx context.Context, p db.Project, name string) (string, error)
+	Secrets func(workspace int64, name string) (string, error)
 	Home    home.Layout
 	Client  *http.Client
 	OAuth   *OAuth
@@ -43,7 +43,7 @@ type HTTP struct {
 	SignIn func(ctx context.Context, p db.Project, tool, why string)
 }
 
-func NewHTTP(gw *gateway.Gateway, secrets func(context.Context, db.Project, string) (string, error), h home.Layout) *HTTP {
+func NewHTTP(gw *gateway.Gateway, secrets func(int64, string) (string, error), h home.Layout) *HTTP {
 	c := &http.Client{Timeout: 5 * time.Minute, Transport: &http.Transport{Proxy: nil,
 		DialContext: (&net.Dialer{Timeout: 10 * time.Second}).DialContext, ResponseHeaderTimeout: 5 * time.Minute},
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {

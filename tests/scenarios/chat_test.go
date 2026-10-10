@@ -628,7 +628,7 @@ func TestAReplyTheProviderBrokeOffListsWhatItLeftAndGoesAgainElsewhere(t *testin
 }
 
 // TestAReplyOfTheMasterSaysHowItWent: each reply names its model and exact cost, a resumed one what its session grew
-// by, how long it worked in how many steps, what it said on the way and the processes it started.
+// by, how long it worked in how many steps and the processes it started.
 func TestAReplyOfTheMasterSaysHowItWent(t *testing.T) {
 	t.Parallel()
 	var turns atomic.Int32
@@ -663,7 +663,6 @@ func TestAReplyOfTheMasterSaysHowItWent(t *testing.T) {
 				Model     string
 				CostUSD   *float64 `json:"cost_usd"`
 				Steps     int64
-				Lines     []struct{ Kind, Text string }
 				Processes []struct{ Project, Command string }
 			}
 		}
@@ -681,13 +680,13 @@ func TestAReplyOfTheMasterSaysHowItWent(t *testing.T) {
 	var works []string
 	for _, m := range view.Messages {
 		if w := m.Work; w != nil {
-			if w.CostUSD == nil || len(w.Lines) == 0 || w.Lines[0].Text != "Looking at the jobs first." || len(w.Processes) != 1 || w.Processes[0].Command != "job" {
-				t.Fatalf("a reply says what it said on the way and the processes it started: %+v", *w)
+			if w.CostUSD == nil || len(w.Processes) != 1 || w.Processes[0].Command != "job" {
+				t.Fatalf("a reply names the processes it started: %+v", *w)
 			}
-			works = append(works, fmt.Sprintf("%s %s %.2f %d %d", w.Provider, w.Model, *w.CostUSD, w.Steps, len(w.Lines)))
+			works = append(works, fmt.Sprintf("%s %s %.2f %d", w.Provider, w.Model, *w.CostUSD, w.Steps))
 		}
 	}
-	if strings.Join(works, " | ") != "fake opus-x 0.25 1 3 | fake opus-x 0.25 1 3" {
-		t.Fatalf("each reply names its model and exact cost, the resumed one too, and leaves its answer out of the lines: %v", works)
+	if strings.Join(works, " | ") != "fake opus-x 0.25 1 | fake opus-x 0.25 1" {
+		t.Fatalf("each reply names its model and exact cost, the resumed one too, and its steps: %v", works)
 	}
 }

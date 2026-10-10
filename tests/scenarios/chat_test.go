@@ -525,9 +525,8 @@ func TestAReplyThatDoesNotStartIsSeenInTheTopic(t *testing.T) {
 	})
 }
 
-// TestMasterPutsATaskIntoTheRightProject: by the dispatch skill the master picks the project by the first line of
-// its md and writes the task into its tasks; a move writes it into the other project and deletes the first, which the
-// master's own turn wrote.
+// TestMasterPutsATaskIntoTheRightProject: the master picks the project by the first line of its md and writes the
+// task there; a move writes it into the other project and deletes the first, which its own turn wrote.
 func TestMasterPutsATaskIntoTheRightProject(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
@@ -569,9 +568,8 @@ func TestMasterPutsATaskIntoTheRightProject(t *testing.T) {
 	}
 }
 
-// TestAReplyTheProviderBrokeOffListsWhatItLeftAndGoesAgainElsewhere: a reply that broke off shows the calls it made,
-// the records it left with their undo and the other providers of the master; one of them answers that reply only,
-// told what the broken one did.
+// TestAReplyTheProviderBrokeOffListsWhatItLeftAndGoesAgainElsewhere: a broken reply shows its calls, the records it
+// left with their undo and the other providers; one answers that reply only, told what the broken one did.
 func TestAReplyTheProviderBrokeOffListsWhatItLeftAndGoesAgainElsewhere(t *testing.T) {
 	t.Parallel()
 	var mu sync.Mutex

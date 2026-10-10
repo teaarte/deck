@@ -235,9 +235,8 @@ func TestDocumentIDsAreNotReused(t *testing.T) {
 	e.refused("deck.document_get", map[string]any{"document": old.ID}, 404, "no document")
 }
 
-// TestAShippedSkillEditedByTheMasterTakesTheNextVersionOfDeck: the master's edit of a built-in skill stays until a new
-// deck ships another text, then merges into it, or on a conflict goes to the history with a note to the master; an
-// edit of the owner stays.
+// TestAShippedSkillEditedByTheMasterTakesTheNextVersionOfDeck: the master's edit of a built-in skill merges into the
+// next text deck ships, or on a conflict goes to the history with a note to the master; the owner's edit stays.
 func TestAShippedSkillEditedByTheMasterTakesTheNextVersionOfDeck(t *testing.T) {
 	t.Parallel()
 	home := t.TempDir()

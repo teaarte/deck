@@ -115,8 +115,8 @@ func (r *Registry) Add(c *Command) {
 	if err := Prepare(c); err != nil {
 		panic(err)
 	}
-	if c.Reads && len(c.Topics) == 0 {
-		panic("registry: read " + c.Name + " names no topic it follows")
+	if c.Reads && Reads(c.Name) == nil {
+		panic("registry: read " + c.Name + " is not declared")
 	}
 	r.builtins[c.Name] = c
 }
@@ -133,6 +133,9 @@ func Declare(cs []*Command) {
 		}
 		if err := Prepare(c); err != nil {
 			panic(err)
+		}
+		if len(c.Topics) == 0 {
+			panic("registry: read " + c.Name + " names no topic it follows")
 		}
 		reads.Store(c.Name, c)
 	}

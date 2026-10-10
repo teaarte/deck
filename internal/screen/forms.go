@@ -138,13 +138,19 @@ func (r *renderer) formValues(v map[string]any, values map[string]string, cmd ma
 	return nil
 }
 
-// choices are the values a form offers by field: those its block reads from a source, and the projects of the
-// workspace for a field that names a project.
+// choices are the values a form offers by field: those its block reads from a source, the projects of the
+// workspace for a field that names a project, and the values of an enum the owner's language translates.
 func (r *renderer) choices(b manifest.Block, cmd map[string]any) (map[string]any, error) {
 	out := map[string]any{}
 	in, _ := cmd["input"].(map[string]any)
+	if raw, ok := cmd["input"].(json.RawMessage); ok {
+		_ = json.Unmarshal(raw, &in)
+	}
 	props, _ := in["properties"].(map[string]any)
 	for field, p := range props {
+		if opts := r.enum(p); opts != nil {
+			out[field] = opts
+		}
 		if s, _ := p.(map[string]any); s["format"] == "project" {
 			if _, set := b.Choices[field]; !set {
 				b.Choices = maps.Clone(b.Choices)
@@ -179,6 +185,27 @@ func (r *renderer) choices(b manifest.Block, cmd map[string]any) (map[string]any
 		out[field] = opts
 	}
 	return out, nil
+}
+
+// enum are the values of an enum field, or of the items of a list field, with their translations; none when no
+// value has one.
+func (r *renderer) enum(p any) []map[string]any {
+	s, _ := p.(map[string]any)
+	values, _ := s["enum"].([]any)
+	if items, _ := s["items"].(map[string]any); values == nil && items != nil {
+		values, _ = items["enum"].([]any)
+	}
+	var out []map[string]any
+	said := false
+	for _, v := range values {
+		label := r.tr(fmt.Sprint(v))
+		said = said || label != fmt.Sprint(v)
+		out = append(out, map[string]any{"value": v, "label": label})
+	}
+	if !said {
+		return nil
+	}
+	return out
 }
 
 // custom gives a custom block its HTML, the items of its source, the record of the page and the buttons it

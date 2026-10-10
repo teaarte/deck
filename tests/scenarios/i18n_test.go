@@ -170,3 +170,29 @@ func TestEveryParamADeckScreenReadsIsDeclared(t *testing.T) {
 		}
 	}
 }
+
+// TestAFormOffersTheValuesOfAnEnumInTheLanguageOfTheOwner: a field of a form that is an enum or a list of one, of a
+// command or of the record of the page, offers its values with their translations.
+func TestAFormOffersTheValuesOfAnEnumInTheLanguageOfTheOwner(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, webNotesAgent())
+	e.createProject("web", strings.NewReplacer(`{"version": 11,`, `{"version": 11, "i18n": {"ru": {"open": "открыта", "closed": "закрыта"}},`,
+		`"n": {"type": "integer"}`, `"n": {"type": "integer"}, "state": {"type": "string", "enum": ["open", "closed"]},
+      "tags": {"type": "array", "items": {"type": "string", "enum": ["open", "closed"]}}`,
+		`"note": {"type": "string"}}`, `"note": {"type": "string"}, "state": {"type": "string", "enum": ["open", "closed"]}}`).Replace(webNotes))
+	var recs struct{ IDs []int64 }
+	e.must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": jsonl(map[string]any{"title": "alpha"})}, &recs)
+	want := `"state":[{"label":"открыта","value":"open"},{"label":"закрыта","value":"closed"}]`
+	for _, s := range []struct {
+		screen string
+		extra  map[string]any
+	}{{"main", nil}, {"note", map[string]any{"record": recs.IDs[0]}}} {
+		drawn, _ := json.Marshal(e.screenData("web", s.screen, merge(map[string]any{"lang": "ru"}, s.extra)))
+		if !strings.Contains(string(drawn), want) {
+			t.Errorf("the form of %s offers the values of the enum translated: %s", s.screen, drawn)
+		}
+		if s.screen == "main" && !strings.Contains(string(drawn), strings.Replace(want, `"state"`, `"tags"`, 1)) {
+			t.Errorf("a list of an enum offers its values translated too: %s", drawn)
+		}
+	}
+}

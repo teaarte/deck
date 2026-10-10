@@ -341,7 +341,12 @@
       "last": {"type": "string", "description": "the last message, cut short"}, "reply": {"$ref": "#/$defs/reply"}}},
     "reply": {"type": "object", "additionalProperties": false, "required": ["process", "state"], "properties": {
       "process": {"type": "integer"}, "state": {"type": "string"}, "provider": {"type": "string"}, "error": {"type": "string"},
-      "open": {"$ref": "#/$defs/action"}}},
+      "open": {"$ref": "#/$defs/action"},
+      "cut": {"type": "object", "additionalProperties": false, "required": ["did", "undo", "retry"], "description": "what a reply that broke off left",
+        "properties": {"did": {"type": "array", "items": {"type": "string"}, "description": "the calls it made, in order"},
+          "undo": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["text", "action"], "properties": {
+            "text": {"type": "string"}, "action": {"$ref": "#/$defs/action"}}}},
+          "retry": {"type": "array", "items": {"$ref": "#/$defs/action"}, "description": "a button per provider it can go again on"}}}}},
     "data": {
       "type": "object",
       "required": ["state"],

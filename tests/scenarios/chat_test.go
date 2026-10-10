@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -565,5 +566,65 @@ func TestMasterPutsATaskIntoTheRightProject(t *testing.T) {
 	e.say(topic, "no, move it to garden")
 	if said := e.masterSaid(topic, 2); !strings.HasPrefix(said[1].Text, "deleted: ") || tasks("garden") != 1 || tasks("groceries") != 0 {
 		t.Fatalf("move puts the task into the other project and deletes the old one the master wrote: %+v", said)
+	}
+}
+
+// TestAReplyTheProviderBrokeOffListsWhatItLeftAndGoesAgainElsewhere: a reply that broke off shows the calls it made,
+// the records it left with their undo and the other providers of the master; one of them answers that reply only,
+// told what the broken one did.
+func TestAReplyTheProviderBrokeOffListsWhatItLeftAndGoesAgainElsewhere(t *testing.T) {
+	t.Parallel()
+	var mu sync.Mutex
+	var told string
+	var turns atomic.Int32
+	main := &Fake{script: func(ctx context.Context, c *Call) provider.Result {
+		if turns.Add(1) == 1 {
+			c.Tool(ctx, "records_upsert", map[string]any{"project": "notes", "collection": "ideas", "records": `{"title": "half a ta", "score": 1}`})
+			return provider.Result{IsError: true, Text: "the turn was stopped mid-way"}
+		}
+		return provider.Result{Text: "main again"}
+	}}
+	other := &Fake{name: "other", script: func(ctx context.Context, c *Call) provider.Result {
+		mu.Lock()
+		told = c.Req.Prompt
+		mu.Unlock()
+		return provider.Result{Text: "Done on other."}
+	}}
+	e := newEnvBuiltin(t, t.TempDir(), []provider.Provider{main, other})
+	e.createProject("notes", ideasManifest)
+	e.must("deck.assignment_set", map[string]any{"role": "agent", "project": "master", "command": "reply", "models": []string{"fake", "other"}}, nil)
+	topic := e.say(0, "write half a task")
+	var m chatMessage
+	e.waitFor("the reply to break off", func() bool {
+		ms := e.chatMessages(topic)
+		m = ms[0]
+		return m.Reply != nil && m.Reply.Cut != nil
+	})
+	cut := m.Reply.Cut
+	if len(cut.Did) != 1 || !strings.Contains(cut.Did[0], "records_upsert") || len(cut.Undo) != 1 || cut.Undo[0].Action.Command != "deck.record_delete" ||
+		len(cut.Retry) != 1 || cut.Retry[0].Label != "other" {
+		t.Fatalf("a broken reply lists its calls, the record it left and the other provider: %+v", cut)
+	}
+	e.must(cut.Undo[0].Action.Command, cut.Undo[0].Action.Params, nil)
+	var recs []recordRow
+	if e.must("deck.records_list", map[string]any{"project": "notes", "collection": "ideas"}, &recs); len(recs) != 0 {
+		t.Fatalf("the undo deletes the half-written record: %+v", recs)
+	}
+	e.must(cut.Retry[0].Command, cut.Retry[0].Params, nil)
+	if said := e.masterSaid(topic, 1); said[0].Text != "Done on other." {
+		t.Fatalf("the other provider answers the messages again: %+v", said)
+	}
+	mu.Lock()
+	if !strings.Contains(told, "broke off") || !strings.Contains(told, "records_upsert") || !strings.Contains(told, "write half a task") {
+		t.Fatalf("the other provider is told what the broken reply did: %s", told)
+	}
+	mu.Unlock()
+	e.say(topic, "and one more")
+	said := e.masterSaid(topic, 2)
+	if said[1].Text != "main again" {
+		t.Fatalf("the next reply goes back to the assignment: %+v", said)
+	}
+	if code, _ := e.call("deck.chat_retry", map[string]any{"message": m.ID, "provider": "other"}); code == 200 {
+		t.Fatal("a reply answered again is no broken reply to retry")
 	}
 }

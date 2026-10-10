@@ -535,6 +535,23 @@ func (q *Queries) PurgeTopicSummaries(ctx context.Context, before sql.NullString
 	return err
 }
 
+const releaseMessages = `-- name: ReleaseMessages :execrows
+UPDATE chat_message SET process_id = 0 WHERE topic_id = ?1 AND process_id = ?2 AND role = 'owner'
+`
+
+type ReleaseMessagesParams struct {
+	TopicID   int64
+	ProcessID int64
+}
+
+func (q *Queries) ReleaseMessages(ctx context.Context, arg ReleaseMessagesParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, releaseMessages, arg.TopicID, arg.ProcessID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const seeChat = `-- name: SeeChat :exec
 UPDATE chat_session SET seen = MAX(seen, CAST(?1 AS INTEGER)) WHERE topic_id = ?2 AND session_id = ?3
 `

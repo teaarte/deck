@@ -45,6 +45,8 @@ type replyView struct {
 	Provider string `json:"provider"`
 	Error    string `json:"error,omitempty"`
 	Open     action `json:"open"`
+	// Cut is what a reply that broke off left, with its undo and the providers it can go again on.
+	Cut *cutView `json:"cut,omitempty"`
 }
 
 type messageView struct {
@@ -152,6 +154,7 @@ func (ch *Service) messages(ctx context.Context, topic int64, rows []db.ChatMess
 				replies[r.ProcessID] = nil
 				if p, err := ch.St.Q.GetProcess(ctx, r.ProcessID); err == nil {
 					replies[r.ProcessID] = viewReply(p)
+					replies[r.ProcessID].Cut = ch.cut(ctx, p, r.ID)
 				}
 			}
 			m.Reply = replies[r.ProcessID]

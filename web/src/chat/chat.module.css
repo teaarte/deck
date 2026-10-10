@@ -154,3 +154,11 @@
     transform: translateY(8px);
   }
 }
+
+.cut {
+  max-width: min(100%, 520px);
+  padding: 8px 10px;
+  border-radius: var(--mantine-radius-md);
+  border: 1px solid color-mix(in srgb, var(--mantine-color-red-6) 30%, transparent);
+  background: color-mix(in srgb, var(--mantine-color-red-6) 6%, transparent);
+}

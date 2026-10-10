@@ -413,7 +413,7 @@ func (s *Service) recordDelete(ctx context.Context, act registry.Actor, in recor
 			params, _ := json.Marshal(map[string]any{"project": p.Name, "collection": rec.Collection, "records": rec.Data})
 			if _, err := q.AddFeed(ctx, db.AddFeedParams{CreatedAt: store.Time(s.Now()), WorkspaceID: p.WorkspaceID, ProjectID: p.ID,
 				Kind: "change", Author: act.Author(), Text: fmt.Sprintf("deleted record %s of %s; an undo writes its data back, not its files and documents", rec.Key, rec.Collection),
-				Actions: "[]", Command: registry.Builtin + ".records_upsert", Params: string(params)}); err != nil {
+				Actions: "[]", Command: registry.Builtin + ".records_upsert", Params: string(params), ProcessID: store.ID(act.ProcessID)}); err != nil {
 				return err
 			}
 		}

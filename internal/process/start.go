@@ -48,6 +48,8 @@ type Origin struct {
 	Note string
 	// Files are stored files of the project given to the agent with its first message, as with Give.
 	Files []int64
+	// Provider starts an agent on this provider rather than the one its assignment picks.
+	Provider string
 }
 
 // chainOf is the commands of the chain that ends in p, from its first: "a → b → c".
@@ -101,6 +103,13 @@ func (r *Runner) Start(ctx context.Context, projectID int64, m *manifest.Manifes
 	switch kind {
 	case KindAgent:
 		pv, err := r.deps.For(ctx, projectID, cmd)
+		if o.Provider != "" {
+			if pv, err = r.deps.Named(ctx, projectID, o.Provider); err == nil {
+				if missing := pv.Caps().Missing(cmd.Requires); len(missing) > 0 {
+					err = registry.Invalid("deck: provider %s lacks %s for %s", o.Provider, strings.Join(missing, ", "), cmd.Name)
+				}
+			}
+		}
 		if err != nil {
 			return 0, err
 		}

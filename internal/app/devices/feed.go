@@ -25,7 +25,7 @@ func (dv *Service) Changed(ctx context.Context, q *db.Queries, act registry.Acto
 		text += ": " + reason
 	}
 	row := db.AddFeedParams{CreatedAt: store.Time(dv.Now()), WorkspaceID: p.WorkspaceID, ProjectID: p.ID, Kind: FeedChange, Author: act.Author(), Text: text, Actions: "[]",
-		Params: "{}", DocumentID: store.ID(prev.ID), Revision: n}
+		Params: "{}", DocumentID: store.ID(prev.ID), Revision: n, ProcessID: store.ID(act.ProcessID)}
 	if prev.Current != 0 {
 		params, _ := json.Marshal(map[string]any{"document": prev.ID, "revision": prev.Current, "if_revision": n,
 			"reason": "undo a change made without the owner"})

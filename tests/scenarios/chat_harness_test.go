@@ -19,6 +19,21 @@ type topicReply struct {
 	State    string `json:"state"`
 	Provider string `json:"provider"`
 	Error    string `json:"error"`
+	Cut      *struct {
+		Did  []string `json:"did"`
+		Undo []struct {
+			Text   string `json:"text"`
+			Action struct {
+				Command string         `json:"command"`
+				Params  map[string]any `json:"params"`
+			} `json:"action"`
+		} `json:"undo"`
+		Retry []struct {
+			Label   string         `json:"label"`
+			Command string         `json:"command"`
+			Params  map[string]any `json:"params"`
+		} `json:"retry"`
+	} `json:"cut"`
 }
 
 type chatMessage struct {

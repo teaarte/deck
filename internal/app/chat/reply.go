@@ -169,11 +169,15 @@ func (ch *Service) reply(ctx context.Context, topicID int64) error {
 	if cmd == nil {
 		return registry.Invalid("deck: project master has no trigger on %s", manifest.OnMessage)
 	}
+	next := ch.againOf(topicID)
 	pv, err := ch.For(ctx, p.ID, cmd)
+	if next.provider != "" {
+		pv, err = ch.Named(ctx, p.ID, next.provider)
+	}
 	if err != nil {
 		return err
 	}
-	o := process.Origin{Session: uuid.NewString(), Files: files, Owners: true}
+	o := process.Origin{Session: uuid.NewString(), Files: files, Owners: true, Provider: next.provider}
 	sign := ""
 	s, err := ch.St.Q.GetChatSession(ctx, db.GetChatSessionParams{TopicID: topicID, Provider: pv.Name()})
 	switch {
@@ -182,6 +186,7 @@ func (ch *Service) reply(ctx context.Context, topicID int64) error {
 		if o.Message, sign, err = ch.chatPrompt(ctx, t, pending, s.SessionID, pv.Name(), notes, true); err != nil {
 			return err
 		}
+		o.Message = strings.TrimSpace(next.note + "\n\n" + o.Message)
 	case errors.Is(err, sql.ErrNoRows):
 		// A new session is told everything before the first waiting message, and the memory of now.
 		if _, sign, err = ch.masterMemory(ctx, p, topicID); err != nil {
@@ -205,7 +210,7 @@ func (ch *Service) reply(ctx context.Context, topicID int64) error {
 	if err != nil {
 		return err
 	}
-	o.Note = strings.TrimSpace(retell + "\n\n" + news)
+	o.Note = strings.TrimSpace(retell + "\n\n" + next.note + "\n\n" + news)
 	id, err := ch.Runner.Start(ctx, p.ID, m, reply, map[string]any{"topic": topicID}, o)
 	if err != nil {
 		return err

@@ -44,13 +44,18 @@ type Service struct {
 	Asks   *ask.Broker
 	Runner *process.Runner
 	For    func(ctx context.Context, projectID int64, cmd *manifest.Command) (provider.Provider, error)
+	// Named is a provider by name; Fits the providers a command may start on now.
+	Named func(ctx context.Context, projectID int64, name string) (provider.Provider, error)
+	Fits  func(ctx context.Context, projectID int64, cmd *manifest.Command) []string
 	// DrainFiles removes the files whose rows are gone.
 	DrainFiles func(ctx context.Context)
 
 	mu    sync.Mutex
 	queue chatQueue
-	// unstarted is why the reply of a topic did not start, until one does.
+	// unstarted is why the reply of a topic did not start, until one does; again, the provider and note its next
+	// reply goes with after one broke off.
 	unstarted map[int64]string
+	again     map[int64]again
 	// start keeps a reply starting apart from a topic being deleted.
 	start sync.Mutex
 }
@@ -265,13 +270,16 @@ func (ch *Service) Commands() []*registry.Command {
 			registry.OwnerOnly, ch.chatSend),
 		registry.Read("chat", "Chat",
 			"Gives the chat with the master as a chat block shows it: the topics, and of the topic picked its messages, the questions of its reply and the lines of the turn going on.",
-			registry.OwnerOnly, ch.chat).On("chat", "asks", "log", "processes"),
+			registry.OwnerOnly, ch.chat).On("chat", "asks", "log", "processes", "feed", "collection", "health"),
 		registry.Def("chat_topic_archive", "Archive topic",
 			"Archives a chat topic or brings it back; a new message brings it back too.",
 			registry.OwnerOnly, ch.chatTopicArchive),
 		registry.Def("chat_message_delete", "Delete message",
 			"Deletes a message of the owner with its files while the master has not taken it; a message a turn took stays.",
 			registry.OwnerOnly, ch.chatMessageDelete),
+		registry.Def("chat_retry", "Answer again on another provider",
+			"Answers the messages of a reply that broke off once more, on another provider the master may use, for this reply only.",
+			registry.OwnerOnly, ch.chatRetry),
 		registry.Def("chat_topic_delete", "Delete topic",
 			"Deletes a chat topic with its messages and stops its reply if one is going.",
 			registry.OwnerOnly, ch.chatTopicDelete),

@@ -216,6 +216,35 @@ func (s *Service) For(ctx context.Context, projectID int64, cmd *manifest.Comman
 	return nil, registry.Invalid("deck: no provider fits %s, which requires %s; add a model with an agent with deck.model_set", place, strings.Join(cmd.Requires, ", "))
 }
 
+// Fits are the providers a command may start on that are up: those of its assignment in order, else all that fit.
+func (s *Service) Fits(ctx context.Context, projectID int64, cmd *manifest.Command) []string {
+	p, err := s.St.Q.GetProject(ctx, projectID)
+	if err != nil {
+		return nil
+	}
+	names, err := Assigned(ctx, s.St.Q, p.WorkspaceID, p.ID, cmd.Name, RoleAgent)
+	if err != nil {
+		return nil
+	}
+	var pvs []provider.Provider
+	if len(names) > 0 {
+		for _, n := range names {
+			if pv, err := s.Provider(ctx, p.WorkspaceID, n); err == nil {
+				pvs = append(pvs, pv)
+			}
+		}
+	} else if pvs, err = s.All(ctx, p.WorkspaceID); err != nil {
+		return nil
+	}
+	var out []string
+	for _, pv := range pvs {
+		if len(pv.Caps().Missing(cmd.Requires)) == 0 && s.up(ctx, p.WorkspaceID, pv.Name()) {
+			out = append(out, pv.Name())
+		}
+	}
+	return out
+}
+
 // up reports whether a provider's health lets a new turn start on it rather than on a fallback: not red, not
 // waiting for a login, not paused by a limit.
 func (s *Service) up(ctx context.Context, workspace int64, name string) bool {

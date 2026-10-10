@@ -157,6 +157,23 @@ export interface Reply {
   provider?: string;
   error?: string;
   open?: Action;
+  /**
+   * what a reply that broke off left
+   */
+  cut?: {
+    /**
+     * the calls it made, in order
+     */
+    did: string[];
+    undo: {
+      text: string;
+      action: Action;
+    }[];
+    /**
+     * a button per provider it can go again on
+     */
+    retry: Action[];
+  };
 }
 /**
  * This interface was referenced by `Catalog`'s JSON-Schema

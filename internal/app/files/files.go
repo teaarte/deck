@@ -357,31 +357,42 @@ func (s *Service) OpenDataFile(ctx context.Context, act registry.Actor, project,
 	return View{Project: p.Name, Name: fi.Name(), Type: fileType(fi.Name()), Size: fi.Size()}, file, nil
 }
 
-// Drain removes the stored files whose rows a committed write deleted, as the outbox lists them; it waits while a
-// snapshot copies the base and files/. A file that will not go is in health from its third try.
+// Drain removes the stored files and folders committed writes deleted, as the outbox lists them, waiting while a
+// snapshot copies; a file or project folder stuck three tries is health, a record's folder a note at its first.
 func (s *Service) Drain(ctx context.Context) {
 	s.draining.Lock()
 	defer s.draining.Unlock()
-	rows, err := s.St.Q.ListOutbox(ctx, "file")
-	if err != nil {
-		return
-	}
 	s.Mu.RLock()
 	defer s.Mu.RUnlock()
 	stuck, was := false, false
-	for _, r := range rows {
-		was = was || r.Tries >= 3
-		err := os.Remove(filepath.Join(s.Home.Files(), fmt.Sprint(r.Ref)))
-		if err == nil || errors.Is(err, os.ErrNotExist) {
-			_ = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error { return q.DeleteOutbox(ctx, r.ID) })
-			continue
+	for _, kind := range []string{"file", "project", "folder"} {
+		rows, err := s.St.Q.ListOutbox(ctx, kind)
+		if err != nil {
+			return
 		}
-		tries, _ := store.TxGet(s.St, ctx, func(ctx context.Context, q *db.Queries) (int64, error) {
-			return q.FailOutbox(ctx, db.FailOutboxParams{Error: err.Error(), ID: r.ID})
-		})
-		if tries >= 3 {
-			stuck = true
-			health.Write(ctx, s.St, health.Of{}, "outbox", health.Error, fmt.Sprintf("deck could not remove stored file %d: %v", r.Ref, err))
+		for _, r := range rows {
+			was = was || kind != "folder" && r.Tries >= 3
+			err := s.remove(r)
+			if err == nil {
+				_ = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error { return q.DeleteOutbox(ctx, r.ID) })
+				continue
+			}
+			tries, _ := store.TxGet(s.St, ctx, func(ctx context.Context, q *db.Queries) (int64, error) {
+				return q.FailOutbox(ctx, db.FailOutboxParams{Error: err.Error(), ID: r.ID})
+			})
+			switch {
+			case kind == "folder" && tries == 1:
+				text := fmt.Sprintf("deck could not delete the folder %s of a deleted record from the data folder; it tries again on each round: %v", r.Path, err)
+				_ = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+					return q.AddDeckNote(ctx, db.AddDeckNoteParams{CreatedAt: store.Time(s.Now()), ProjectID: r.Ref, Text: text})
+				})
+			case kind == "file" && tries >= 3:
+				stuck = true
+				health.Write(ctx, s.St, health.Of{}, "outbox", health.Error, fmt.Sprintf("deck could not remove stored file %d: %v", r.Ref, err))
+			case kind == "project" && tries >= 3:
+				stuck = true
+				health.Write(ctx, s.St, health.Of{}, "outbox", health.Error, fmt.Sprintf("deck could not remove the folder of deleted project %d: %v", r.Ref, err))
+			}
 		}
 	}
 	if was && !stuck {
@@ -389,6 +400,30 @@ func (s *Service) Drain(ctx context.Context) {
 			return q.DeleteHealth(ctx, db.DeleteHealthParams{Subject: "outbox"})
 		})
 	}
+}
+
+// remove removes what a row of the outbox names; a record's folder through the data folder as a root, so no link
+// leads outside. What is gone already is removed.
+func (s *Service) remove(r db.Outbox) error {
+	switch r.Kind {
+	case "file":
+		if err := os.Remove(filepath.Join(s.Home.Files(), fmt.Sprint(r.Ref))); !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+	case "project":
+		return os.RemoveAll(s.Home.Project(r.Ref))
+	case "folder":
+		root, err := os.OpenRoot(s.Home.Data(r.Ref))
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		defer root.Close()
+		return root.RemoveAll(r.Path)
+	}
+	return nil
 }
 
 type dataReadIn struct {

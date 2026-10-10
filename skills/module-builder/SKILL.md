@@ -56,12 +56,15 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   fields that must never change into `immutable`. A later change of the schema or the key that old records do
   not fit needs a `migration` script in the same revision (JSONL of records in, JSONL out); deck runs it on a
   copy and refuses the change with the first problem records otherwise. `retention_days` deletes records (with
-  their documents and files) that many days after they were created, `file_retention_days` deletes files of
+  what belongs to them, as below) that many days after they were created, `file_retention_days` deletes files of
   records that many days after the file was added. What belongs to a record goes with it: `"folder": "'videos/' +
   slug"` is its folder in the data folder, and a collection whose records are of a record of another names it,
   `"parent": {"collection": "videos", "key": "video"}` (the expression of the parent's key). Deleting the record
-  takes those records, their files, their folders and the files of the processes whose input names its id, all
-  listed to the owner first, for good. So lay out the data folder by record:
+  takes those records, their files, the files of the processes whose input field `record` is its id, and their
+  folders, and stops those processes still open, all listed to the owner first, for good. A folder another record
+  also gives, or one inside or around another's, stays; an empty segment, `.` or `..` in the path is no folder
+  (so a record without its `slug` takes none), and a path deck cannot work out stops the deletion. So give each
+  record a folder of its own by its key, and lay out the data folder by record:
   `<collection>/<key>/` for what a record has, `cache/` for what can be made again, scripts as documents of the
   module, nothing loose at its root. `key`, `display`, `where` and `bind` are expr-lang
   expressions: a field named like one of its functions (`date`, `now`, `count`, `len`, `sum`, `max`, …) reads as
@@ -269,8 +272,8 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   them — a fixed color breaks in the owner's dark scheme. List screens in `menu`. A record page is a screen with
   `"record": "<collection>"`; a row's button `{"label", "screen": "<that page>"}` opens it with the row's record;
   it takes no `record` or `project`. How the pipeline of a record goes is a table on its page over
-  `{"from": "deck.processes_list", "input": {"record": "=_id"}}` — the processes whose input named the record by
-  its id (columns `command`, `state`, `question` when one waits for the owner; `after` triggers start the next).
+  `{"from": "deck.processes_list", "input": {"record": "=_id"}}` — the processes whose input field `record` is its
+  id (columns `command`, `state`, `question` when one waits for the owner; `after` triggers start the next).
 - **Look of a module**: `title` is the name the owner sees in the menu (the project name is for code), `icon` of
   the project, a screen, a block or a button is a Tabler icon name; blocks flow in a grid, `span` (1, 2 or "full")
   widens one, `description` says under a title what a block is for. Write the texts in English and add `i18n`
@@ -517,7 +520,7 @@ Name each of these rights in the hand-over: the owner grants them with "enable".
    in the draft, and so is what scripts write to `$DECK_DATA`, which you cannot reach: keep what a module
    remembers (seen items, cursors) in records when trials must be undone. Before the hand-over, delete what
    the trials left that the owner should not start with: `record_delete` (you, in a draft; in an enabled project what your own runs wrote, with an undo of its data for the owner in
-   the feed; the rest only the owner, by a button);
+   the feed, and when it takes a file, folder or process you did not make it waits for the owner's yes; the rest only the owner, by a button);
    say in the hand-over what you kept; lines a trial sent with `notify` stay in the feed. `process_get` gives
    the state and result; `process_log` shows the events of a process, also after it ended,
    and a local model may think for many minutes before its first one: wait with

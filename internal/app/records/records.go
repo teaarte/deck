@@ -2,12 +2,10 @@ package records
 
 import (
 	"bufio"
-	"cmp"
 	"context"
 	"database/sql"
 	"deck2/internal/app/access"
 	"deck2/internal/docs"
-	"deck2/internal/home"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store"
@@ -15,6 +13,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"maps"
 	"slices"
 	"strconv"
@@ -155,9 +154,10 @@ func ViewOf(r db.Record, c *manifest.Collection) View {
 type Service struct {
 	St   *store.Store
 	Now  func() time.Time
-	Home home.Layout
-	// DrainFiles removes the files whose rows are gone.
+	// DrainFiles removes the files and folders whose rows are gone.
 	DrainFiles func(ctx context.Context)
+	// Stop ends an open process with a reason.
+	Stop func(ctx context.Context, processID int64, reason string) error
 }
 
 type recordsListIn struct {
@@ -340,18 +340,80 @@ func (s *Service) collectionDelete(ctx context.Context, act registry.Actor, in c
 	if err != nil {
 		return nil, err
 	}
-	var n int64
-	err = s.writeRecords(ctx, p, func(ctx context.Context, q *db.Queries, _ *manifest.Manifest) error {
-		if err := q.DeleteRecordDocuments(ctx, db.DeleteRecordDocumentsParams{ProjectID: p.ID, Collection: in.Collection}); err != nil {
+	var pl plan
+	err = s.writeRecords(ctx, p, func(ctx context.Context, q *db.Queries, m *manifest.Manifest) error {
+		recs, err := q.ListRecords(ctx, db.ListRecordsParams{ProjectID: p.ID, Collection: in.Collection})
+		if err != nil {
 			return err
 		}
-		n, err = q.DeleteCollection(ctx, db.DeleteCollectionParams{ProjectID: p.ID, Collection: in.Collection})
-		return err
+		if pl, err = s.plan(ctx, q, p, m, recs...); err != nil {
+			return err
+		}
+		return remove(ctx, q, p, pl)
 	})
 	if err != nil {
 		return nil, err
 	}
-	return map[string]any{"deleted": n}, nil
+	s.settle(ctx, pl.open)
+	return map[string]any{"deleted": len(pl.records)}, nil
+}
+
+// Expire deletes the records past their retention with what belongs to them, and record files past theirs; a project
+// whose records deck cannot plan hears of it in its feed, one whose manifest does not read is skipped.
+func (s *Service) Expire(ctx context.Context, now time.Time) {
+	projects, err := s.St.Q.ListProjects(ctx)
+	if err != nil {
+		slog.Error("expire records", "err", err)
+		return
+	}
+	days := func(n int) string { return store.Time(now.Add(-time.Duration(n) * 24 * time.Hour)) }
+	var open []db.Process
+	for _, p := range projects {
+		err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+			m, err := docs.Manifest(ctx, q, p)
+			if err != nil {
+				return nil
+			}
+			var expired []db.Record
+			for _, c := range m.Collections {
+				if c.FileRetentionDays > 0 {
+					if err := q.DeleteExpiredRecordFiles(ctx, db.DeleteExpiredRecordFilesParams{Before: days(c.FileRetentionDays), ProjectID: p.ID, Collection: c.Name}); err != nil {
+						return err
+					}
+				}
+				if c.RetentionDays > 0 {
+					recs, err := q.ListExpiredRecords(ctx, db.ListExpiredRecordsParams{ProjectID: p.ID, Collection: c.Name, Before: days(c.RetentionDays)})
+					if err != nil {
+						return err
+					}
+					expired = append(expired, recs...)
+				}
+			}
+			if len(expired) == 0 {
+				return nil
+			}
+			pl, err := s.plan(ctx, q, p, m, expired...)
+			if err != nil {
+				return err
+			}
+			open = append(open, pl.open...)
+			return remove(ctx, q, p, pl)
+		})
+		if err != nil {
+			s.tell(ctx, p, fmt.Sprintf("deck could not delete the records of %s past their retention: %v", p.Name, err))
+		}
+	}
+	s.settle(ctx, open)
+}
+
+// tell leaves a note of deck in the feed of a project.
+func (s *Service) tell(ctx context.Context, p db.Project, text string) {
+	err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		return q.AddDeckNote(ctx, db.AddDeckNoteParams{CreatedAt: store.Time(s.Now()), ProjectID: p.ID, Text: text})
+	})
+	if err != nil {
+		slog.Error("note of deck", "project", p.Name, "err", err)
+	}
 }
 
 // recordOf finds a record of the actor's workspace; the caller checks whether the actor may read or change it.
@@ -398,52 +460,11 @@ type recordDeleteIn struct {
 // recordDelete deletes a record with what belongs to it for good, the owner seeing record_parts first; outside a
 // draft only the owner does, by a button or by hand, and the master what its own processes wrote.
 func (s *Service) recordDelete(ctx context.Context, act registry.Actor, in recordDeleteIn) (any, error) {
-	rec, p, err := s.recordOf(ctx, act, in.Record)
+	_, p, err := s.recordOf(ctx, act, in.Record)
 	if err != nil {
 		return nil, err
 	}
-	own := false
-	if act.Kind != registry.Owner && p.Status != store.ProjectDraft {
-		m, err := docs.Manifest(ctx, s.St.Q, p)
-		if err != nil {
-			return nil, err
-		}
-		pl, err := s.plan(ctx, s.St.Q, p, m, rec)
-		if err != nil {
-			return nil, err
-		}
-		for _, r := range pl.records {
-			if mine, err := s.ofMaster(ctx, r); err != nil || !mine {
-				return nil, cmp.Or(err, registry.Refuse("deck: only the owner deletes records of an enabled project; the master only those its own processes wrote, with all that belongs to them"))
-			}
-		}
-		own = true
-	}
-	if err := s.deleteRecords(ctx, act, p, rec, own); err != nil {
-		return nil, err
-	}
-	return map[string]any{"ok": true}, nil
-}
-
-// ofMaster reports whether a process of the master wrote a record: the first of the chain of the process that
-// created it is of the master's project.
-func (s *Service) ofMaster(ctx context.Context, rec db.Record) (bool, error) {
-	if !rec.ProcessID.Valid {
-		return false, nil
-	}
-	root, err := s.St.Q.RootProjectOf(ctx, rec.ProcessID.Int64)
-	if errors.Is(err, sql.ErrNoRows) {
-		return false, nil
-	}
-	if err != nil {
-		return false, err
-	}
-	p, err := s.St.Q.GetProject(ctx, root)
-	if err != nil {
-		return false, err
-	}
-	m, err := access.Master(ctx, s.St.Q, p.WorkspaceID)
-	return err == nil && m.ID == root, err
+	return s.deleteRecord(ctx, act, p, in.Record)
 }
 
 // Commands are the commands of records.
@@ -462,13 +483,13 @@ func (s *Service) Commands() []*registry.Command {
 			"Returns one record by its id.",
 			registry.Everyone, s.recordGet).On("collection"),
 		registry.Def("record_delete", "Delete record",
-			"Deletes a record with what belongs to it, as record_parts lists, for good; outside a draft only the owner may, and the master the records its own processes wrote with all that belongs to them.",
+			"Deletes a record with what belongs to it, as record_parts lists, for good, and stops its open processes; outside a draft only the owner may, and the master the records its own processes wrote: what else the master did not make waits for the owner's yes.",
 			registry.OwnerSide, s.recordDelete),
 		registry.Read("record_parts", "What a record takes along",
-			"Lists what deleting a record takes with it: the record, the records of collections whose parent it is, their files, the files of the processes started for them and their folders of the data folder.",
-			registry.OwnerSide, s.recordParts).On("collection", "files"),
+			"Lists what deleting a record takes with it: the record, the records of collections whose parent it is, their files, the files of the processes whose input field record names them, their folders of the data folder no other record holds, and the processes it stops.",
+			registry.OwnerSide, s.recordParts).On("collection", "files", "processes"),
 		registry.Def("collection_delete", "Delete collection records",
-			"Deletes every record of a collection, so the collection can be removed from the manifest.",
+			"Deletes every record of a collection with what belongs to each, as record_parts lists, so the collection can be removed from the manifest.",
 			registry.OwnerOnly, s.collectionDelete).As(registry.External),
 	}
 }

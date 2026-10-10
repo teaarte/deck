@@ -541,8 +541,7 @@ WHERE p.project_id IN (SELECT id FROM project WHERE workspace_id = ?1)
   AND p.started_at >= ?3
   AND NOT EXISTS (SELECT 1 FROM process q WHERE q.project_id = p.project_id AND q.command = p.command AND q.id > p.id
     AND q.state = 'done' AND q.not_by_schema = 0
-    AND coalesce(json_extract(CASE WHEN json_valid(q.input) THEN q.input ELSE '{}' END, '$.record'), 0) =
-        coalesce(json_extract(CASE WHEN json_valid(p.input) THEN p.input ELSE '{}' END, '$.record'), 0))
+    AND coalesce(json_extract(q.input, '$.record'), 0) = coalesce(json_extract(p.input, '$.record'), 0))
 ORDER BY p.id DESC LIMIT 20
 `
 
@@ -682,8 +681,7 @@ SELECT id, project_id, command, kind, state, provider, session_id, input, result
 WHERE project_id IN (SELECT id FROM project WHERE workspace_id = ?1)
   AND (CAST(?2 AS INTEGER) = 0 OR project_id = CAST(?2 AS INTEGER))
   AND finished_at IS NULL
-  AND (CAST(?3 AS INTEGER) = 0 OR EXISTS (SELECT 1 FROM json_each(CASE WHEN json_valid(input) THEN input ELSE '{}' END) j
-    WHERE j.type = 'integer' AND j.value = CAST(?3 AS INTEGER)))
+  AND (CAST(?3 AS INTEGER) = 0 OR json_extract(input, '$.record') = CAST(?3 AS INTEGER))
 ORDER BY id DESC
 `
 
@@ -856,8 +854,7 @@ WHERE project_id IN (SELECT id FROM project WHERE workspace_id = ?1)
   AND (CAST(?2 AS INTEGER) = 0 OR project_id = CAST(?2 AS INTEGER))
   AND (CAST(?3 AS TEXT) = '' OR state = CAST(?3 AS TEXT))
   AND (CAST(?4 AS TEXT) = '' OR command = CAST(?4 AS TEXT))
-  AND (CAST(?5 AS INTEGER) = 0 OR EXISTS (SELECT 1 FROM json_each(CASE WHEN json_valid(input) THEN input ELSE '{}' END) j
-    WHERE j.type = 'integer' AND j.value = CAST(?5 AS INTEGER)))
+  AND (CAST(?5 AS INTEGER) = 0 OR json_extract(input, '$.record') = CAST(?5 AS INTEGER))
 ORDER BY id DESC LIMIT ?6
 `
 
@@ -949,6 +946,71 @@ func (q *Queries) ListProjectProcessIDs(ctx context.Context, projectID int64) ([
 			return nil, err
 		}
 		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listRecordProcesses = `-- name: ListRecordProcesses :many
+SELECT id, project_id, command, kind, state, provider, session_id, input, result, not_by_schema, error, start_note, parent_id, depth, trigger_id, retry_key, manifest_revision, trial, folder, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, pause_until_ms, wait_message, wait_fresh, started_at, finished_at, alone, dismissed FROM process WHERE project_id = ? AND json_extract(input, '$.record') = CAST(?2 AS INTEGER) ORDER BY id
+`
+
+type ListRecordProcessesParams struct {
+	ProjectID int64
+	Record    int64
+}
+
+// The processes of a record: those whose input field record names it.
+func (q *Queries) ListRecordProcesses(ctx context.Context, arg ListRecordProcessesParams) ([]Process, error) {
+	rows, err := q.db.QueryContext(ctx, listRecordProcesses, arg.ProjectID, arg.Record)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Process
+	for rows.Next() {
+		var i Process
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProjectID,
+			&i.Command,
+			&i.Kind,
+			&i.State,
+			&i.Provider,
+			&i.SessionID,
+			&i.Input,
+			&i.Result,
+			&i.NotBySchema,
+			&i.Error,
+			&i.StartNote,
+			&i.ParentID,
+			&i.Depth,
+			&i.TriggerID,
+			&i.RetryKey,
+			&i.ManifestRevision,
+			&i.Trial,
+			&i.Folder,
+			&i.Pgid,
+			&i.CeilingMs,
+			&i.DeadlineMs,
+			&i.OutputMs,
+			&i.SilentSinceMs,
+			&i.PauseUntilMs,
+			&i.WaitMessage,
+			&i.WaitFresh,
+			&i.StartedAt,
+			&i.FinishedAt,
+			&i.Alone,
+			&i.Dismissed,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err

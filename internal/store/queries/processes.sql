@@ -14,9 +14,13 @@ WHERE project_id IN (SELECT id FROM project WHERE workspace_id = sqlc.arg(worksp
   AND (CAST(sqlc.arg(project_id) AS INTEGER) = 0 OR project_id = CAST(sqlc.arg(project_id) AS INTEGER))
   AND (CAST(sqlc.arg(state) AS TEXT) = '' OR state = CAST(sqlc.arg(state) AS TEXT))
   AND (CAST(sqlc.arg(command) AS TEXT) = '' OR command = CAST(sqlc.arg(command) AS TEXT))
-  AND (CAST(sqlc.arg(record) AS INTEGER) = 0 OR EXISTS (SELECT 1 FROM json_each(CASE WHEN json_valid(input) THEN input ELSE '{}' END) j
-    WHERE j.type = 'integer' AND j.value = CAST(sqlc.arg(record) AS INTEGER)))
+  AND (CAST(sqlc.arg(record) AS INTEGER) = 0 OR json_extract(input, '$.record') = CAST(sqlc.arg(record) AS INTEGER))
 ORDER BY id DESC LIMIT sqlc.arg(lim);
+
+
+-- name: ListRecordProcesses :many
+-- The processes of a record: those whose input field record names it.
+SELECT * FROM process WHERE project_id = ? AND json_extract(input, '$.record') = CAST(sqlc.arg(record) AS INTEGER) ORDER BY id;
 
 
 -- name: ListProcessesByState :many
@@ -157,8 +161,7 @@ SELECT * FROM process
 WHERE project_id IN (SELECT id FROM project WHERE workspace_id = sqlc.arg(workspace_id))
   AND (CAST(sqlc.arg(project_id) AS INTEGER) = 0 OR project_id = CAST(sqlc.arg(project_id) AS INTEGER))
   AND finished_at IS NULL
-  AND (CAST(sqlc.arg(record) AS INTEGER) = 0 OR EXISTS (SELECT 1 FROM json_each(CASE WHEN json_valid(input) THEN input ELSE '{}' END) j
-    WHERE j.type = 'integer' AND j.value = CAST(sqlc.arg(record) AS INTEGER)))
+  AND (CAST(sqlc.arg(record) AS INTEGER) = 0 OR json_extract(input, '$.record') = CAST(sqlc.arg(record) AS INTEGER))
 ORDER BY id DESC;
 
 
@@ -277,8 +280,7 @@ WHERE p.project_id IN (SELECT id FROM project WHERE workspace_id = sqlc.arg(work
   AND p.started_at >= sqlc.arg(since)
   AND NOT EXISTS (SELECT 1 FROM process q WHERE q.project_id = p.project_id AND q.command = p.command AND q.id > p.id
     AND q.state = 'done' AND q.not_by_schema = 0
-    AND coalesce(json_extract(CASE WHEN json_valid(q.input) THEN q.input ELSE '{}' END, '$.record'), 0) =
-        coalesce(json_extract(CASE WHEN json_valid(p.input) THEN p.input ELSE '{}' END, '$.record'), 0))
+    AND coalesce(json_extract(q.input, '$.record'), 0) = coalesce(json_extract(p.input, '$.record'), 0))
 ORDER BY p.id DESC LIMIT 20;
 
 

@@ -63,12 +63,11 @@ func (pj *Service) projectDelete(ctx context.Context, act registry.Actor, in pro
 	if err != nil {
 		return nil, err
 	}
+	// The outbox takes deck's folder of the project; the folders of its runs go here, else in the daily cleanup.
 	pj.DrainFiles(ctx)
-	// deck's own folders of the project and of its runs go with it.
 	for _, id := range runs {
 		_ = os.RemoveAll(filepath.Dir(pj.Runner.LogPath(id)))
 	}
-	_ = os.RemoveAll(pj.Home.Project(p.ID))
 	if m != nil {
 		for name := range m.Tools.MCP.Servers {
 			pj.Host.Stop(tools.ServerKey(p.ID, name))

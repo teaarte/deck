@@ -65,58 +65,6 @@ func (q *Queries) CreateRecordSnapshot(ctx context.Context, arg CreateRecordSnap
 	return err
 }
 
-const deleteCollection = `-- name: DeleteCollection :execrows
-DELETE FROM record WHERE project_id = ? AND collection = ?
-`
-
-type DeleteCollectionParams struct {
-	ProjectID  int64
-	Collection string
-}
-
-func (q *Queries) DeleteCollection(ctx context.Context, arg DeleteCollectionParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, deleteCollection, arg.ProjectID, arg.Collection)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
-}
-
-const deleteExpiredRecordDocuments = `-- name: DeleteExpiredRecordDocuments :exec
-DELETE FROM document WHERE record_id IN (SELECT r.id FROM record r WHERE r.project_id = ?1 AND r.collection = ?2
-  AND r.created_at < CAST(?3 AS TEXT))
-`
-
-type DeleteExpiredRecordDocumentsParams struct {
-	ProjectID  int64
-	Collection string
-	Before     string
-}
-
-func (q *Queries) DeleteExpiredRecordDocuments(ctx context.Context, arg DeleteExpiredRecordDocumentsParams) error {
-	_, err := q.db.ExecContext(ctx, deleteExpiredRecordDocuments, arg.ProjectID, arg.Collection, arg.Before)
-	return err
-}
-
-const deleteExpiredRecords = `-- name: DeleteExpiredRecords :execrows
-DELETE FROM record WHERE project_id = ?1 AND collection = ?2
-AND created_at < CAST(?3 AS TEXT)
-`
-
-type DeleteExpiredRecordsParams struct {
-	ProjectID  int64
-	Collection string
-	Before     string
-}
-
-func (q *Queries) DeleteExpiredRecords(ctx context.Context, arg DeleteExpiredRecordsParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, deleteExpiredRecords, arg.ProjectID, arg.Collection, arg.Before)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
-}
-
 const deleteOneRecordDocuments = `-- name: DeleteOneRecordDocuments :exec
 DELETE FROM document WHERE record_id = ?
 `
@@ -132,20 +80,6 @@ DELETE FROM record WHERE id = ?
 
 func (q *Queries) DeleteRecord(ctx context.Context, id int64) error {
 	_, err := q.db.ExecContext(ctx, deleteRecord, id)
-	return err
-}
-
-const deleteRecordDocuments = `-- name: DeleteRecordDocuments :exec
-DELETE FROM document WHERE record_id IN (SELECT r.id FROM record r WHERE r.project_id = ?1 AND r.collection = ?2)
-`
-
-type DeleteRecordDocumentsParams struct {
-	ProjectID  int64
-	Collection string
-}
-
-func (q *Queries) DeleteRecordDocuments(ctx context.Context, arg DeleteRecordDocumentsParams) error {
-	_, err := q.db.ExecContext(ctx, deleteRecordDocuments, arg.ProjectID, arg.Collection)
 	return err
 }
 
@@ -249,6 +183,49 @@ func (q *Queries) InsertRecord(ctx context.Context, arg InsertRecordParams) (int
 	var id int64
 	err := row.Scan(&id)
 	return id, err
+}
+
+const listExpiredRecords = `-- name: ListExpiredRecords :many
+SELECT id, project_id, collection, "key", data, created_at, updated_at, process_id FROM record WHERE project_id = ?1 AND collection = ?2
+AND created_at < CAST(?3 AS TEXT) ORDER BY id
+`
+
+type ListExpiredRecordsParams struct {
+	ProjectID  int64
+	Collection string
+	Before     string
+}
+
+func (q *Queries) ListExpiredRecords(ctx context.Context, arg ListExpiredRecordsParams) ([]Record, error) {
+	rows, err := q.db.QueryContext(ctx, listExpiredRecords, arg.ProjectID, arg.Collection, arg.Before)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Record
+	for rows.Next() {
+		var i Record
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProjectID,
+			&i.Collection,
+			&i.Key,
+			&i.Data,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ProcessID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listRecords = `-- name: ListRecords :many

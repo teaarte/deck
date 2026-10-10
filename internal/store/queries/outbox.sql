@@ -12,3 +12,7 @@ DELETE FROM outbox WHERE kind = 'closed' AND ref = ?;
 
 -- name: FailOutbox :one
 UPDATE outbox SET tries = tries + 1, error = ? WHERE id = ? RETURNING tries;
+
+
+-- name: AddFolderOutbox :exec
+INSERT INTO outbox (kind, ref, path) VALUES ('folder', ?, ?);

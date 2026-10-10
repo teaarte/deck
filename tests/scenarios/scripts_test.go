@@ -612,7 +612,7 @@ func TestAScriptMayRunForHours(t *testing.T) {
 }
 
 // TestTheProcessesOfARecordAreTheOnesItsIdWentInto: processes_list with a record gives the processes whose input
-// names the record by its id, as modules pass it, so a record page shows how its pipeline goes.
+// field record names it, so a record page shows how its pipeline goes; its id in another field is not.
 func TestTheProcessesOfARecordAreTheOnesItsIdWentInto(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, nil)
@@ -620,8 +620,8 @@ func TestTheProcessesOfARecordAreTheOnesItsIdWentInto(t *testing.T) {
 	e.saveScript("tools", "scripts/main.py", "print('{}')\n")
 	var w struct{ IDs []int64 }
 	e.must("deck.records_upsert", map[string]any{"project": "tools", "collection": "items", "records": jsonl(map[string]any{"name": "a"}, map[string]any{"name": "b"})}, &w)
-	mine := e.waitScript(e.start("tools", "collect", map[string]any{"n": w.IDs[0]}), "done")
-	e.waitScript(e.start("tools", "collect", map[string]any{"n": w.IDs[1]}), "done")
+	mine := e.waitScript(e.start("tools", "collect", map[string]any{"record": w.IDs[0]}), "done")
+	e.waitScript(e.start("tools", "collect", map[string]any{"record": w.IDs[1], "n": w.IDs[0]}), "done")
 	e.waitScript(e.start("tools", "collect", nil), "done")
 	var ps []struct{ ID int64 }
 	e.must("deck.processes_list", map[string]any{"project": "tools", "record": w.IDs[0]}, &ps)

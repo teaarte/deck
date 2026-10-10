@@ -223,6 +223,7 @@ type Outbox struct {
 	Tries     int64
 	Error     string
 	CreatedAt string
+	Path      string
 }
 
 type Process struct {

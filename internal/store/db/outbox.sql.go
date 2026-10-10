@@ -9,6 +9,20 @@ import (
 	"context"
 )
 
+const addFolderOutbox = `-- name: AddFolderOutbox :exec
+INSERT INTO outbox (kind, ref, path) VALUES ('folder', ?, ?)
+`
+
+type AddFolderOutboxParams struct {
+	Ref  int64
+	Path string
+}
+
+func (q *Queries) AddFolderOutbox(ctx context.Context, arg AddFolderOutboxParams) error {
+	_, err := q.db.ExecContext(ctx, addFolderOutbox, arg.Ref, arg.Path)
+	return err
+}
+
 const deleteClosedOutbox = `-- name: DeleteClosedOutbox :exec
 DELETE FROM outbox WHERE kind = 'closed' AND ref = ?
 `
@@ -44,7 +58,7 @@ func (q *Queries) FailOutbox(ctx context.Context, arg FailOutboxParams) (int64, 
 }
 
 const listOutbox = `-- name: ListOutbox :many
-SELECT id, kind, ref, tries, error, created_at FROM outbox WHERE kind = ? ORDER BY id
+SELECT id, kind, ref, tries, error, created_at, path FROM outbox WHERE kind = ? ORDER BY id
 `
 
 func (q *Queries) ListOutbox(ctx context.Context, kind string) ([]Outbox, error) {
@@ -63,6 +77,7 @@ func (q *Queries) ListOutbox(ctx context.Context, kind string) ([]Outbox, error)
 			&i.Tries,
 			&i.Error,
 			&i.CreatedAt,
+			&i.Path,
 		); err != nil {
 			return nil, err
 		}

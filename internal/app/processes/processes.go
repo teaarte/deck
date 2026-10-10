@@ -119,7 +119,7 @@ type processesListIn struct {
 	Open    bool   `opt:"" desc:"Only the processes that have not finished, oldest first"`
 	Limit   int64  `opt:"" desc:"At most this many"`
 	Brief   bool   `opt:"" desc:"Leave the results out; process_get gives the result of one"`
-	Record  int64  `type:"record" opt:"" desc:"Only the processes whose input holds the id of this record as a top-level number: how its pipeline goes"`
+	Record  int64  `type:"record" opt:"" desc:"Only the processes whose input field record is the id of this record: how its pipeline goes"`
 	Failed  bool   `opt:"" desc:"Only the failed processes of the last week the owner has not closed and no later run of the same command for the same record made good, newest first"`
 }
 

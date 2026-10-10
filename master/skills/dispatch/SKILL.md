@@ -33,4 +33,5 @@ description: Puts the owner's tasks into the right deck project as records of it
 Answer with what you did: "Put it into deck2 as task #41." When you chose the project yourself, add "move it?"
 so the owner can say where else. When the owner says "move it to X": write the same task into the tasks of X and
 delete the old one with `record_delete`, which you may for what your own turns wrote; the owner can undo it from
-the feed. A record you did not write stays: say both numbers with a link to the old one.
+the feed. A record you did not write stays: say both numbers with a link to the old one. When it has files, a folder
+or running work a module made, deck asks the owner first and says so: tell the owner it waits for their yes.

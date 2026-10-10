@@ -2,7 +2,6 @@ package manifest
 
 import (
 	"fmt"
-	"path/filepath"
 	"reflect"
 	"slices"
 	"strconv"
@@ -63,28 +62,40 @@ func (c *Collection) RecordTitle(data map[string]any) string {
 }
 
 // FolderOf is the folder of a record in the data folder, relative and inside it; empty when the collection names
-// none or the record gives no path.
-func (c *Collection) FolderOf(data map[string]any) string {
+// none or the record gives no path: nothing, an empty segment, . or ..
+func (c *Collection) FolderOf(data map[string]any) (string, error) {
 	if c.folderProg == nil {
-		return ""
+		return "", nil
 	}
 	out, err := expr.Run(c.folderProg, data)
-	if err != nil || out == nil {
-		return ""
+	if err != nil {
+		return "", fmt.Errorf("folder of %q: %w", c.Name, err)
 	}
-	return strings.TrimPrefix(filepath.Clean("/"+fmt.Sprint(out)), "/")
+	if out == nil {
+		return "", nil
+	}
+	path := fmt.Sprint(out)
+	for _, seg := range strings.Split(path, "/") {
+		if seg == "" || seg == "." || seg == ".." {
+			return "", nil
+		}
+	}
+	return path, nil
 }
 
 // ParentKey is the key of the record of the parent collection a record belongs to; false when it names none.
-func (c *Collection) ParentKey(data map[string]any) (string, bool) {
+func (c *Collection) ParentKey(data map[string]any) (string, bool, error) {
 	if c.parentProg == nil {
-		return "", false
+		return "", false, nil
 	}
 	out, err := expr.Run(c.parentProg, data)
-	if err != nil || out == nil || fmt.Sprint(out) == "" {
-		return "", false
+	if err != nil {
+		return "", false, fmt.Errorf("parent key of %q: %w", c.Name, err)
 	}
-	return fmt.Sprint(out), true
+	if out == nil || fmt.Sprint(out) == "" {
+		return "", false, nil
+	}
+	return fmt.Sprint(out), true, nil
 }
 
 // Children are the collections whose records belong to a record of the collection.

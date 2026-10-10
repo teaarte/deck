@@ -1,38 +1,61 @@
 package records
 
 import (
+	"cmp"
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
-	"os"
-	"path/filepath"
+	"slices"
 	"strings"
+	"time"
 
+	"deck2/internal/app/access"
+	"deck2/internal/ask"
 	"deck2/internal/docs"
+	"deck2/internal/gateway"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
+	"deck2/internal/untrusted"
 )
 
-// part is a thing deleting a record takes with it: a record, a file or a folder of the data folder.
+// part is a thing deleting a record takes with it: a record, a file, a folder of the data folder or an open process
+// it stops.
 type part struct {
 	Kind string `json:"kind"`
 	Name string `json:"name"`
 	ID   int64  `json:"id,omitempty"`
 }
 
-// plan is what deleting a record takes: the record and the records that belong to it, their files and those of the
-// processes whose input field record names them, and their folders.
+// plan is what deleting records takes: they and their child records, their files and those of their processes, the
+// folders no other record holds, and the processes still open.
 type plan struct {
 	records []db.Record
 	files   []db.File
 	folders []string
+	open    []db.Process
 }
 
-func (s *Service) plan(ctx context.Context, q *db.Queries, p db.Project, m *manifest.Manifest, rec db.Record) (plan, error) {
+// folderOf is the folder of a record; an expression that fails stops the plan.
+func folderOf(c *manifest.Collection, r db.Record) (string, error) {
+	data, err := manifest.DecodeObject([]byte(r.Data))
+	if err == nil {
+		var f string
+		if f, err = c.FolderOf(data); err == nil {
+			return f, nil
+		}
+	}
+	return "", registry.Invalid("deck: record %d of %s: %v", r.ID, r.Collection, err)
+}
+
+// plan is the one cascade of every deletion of records.
+func (s *Service) plan(ctx context.Context, q *db.Queries, p db.Project, m *manifest.Manifest, roots ...db.Record) (plan, error) {
 	var out plan
+	var folders []string
 	seen, kept := map[int64]bool{}, map[int64]bool{}
 	files := func(kind string, owner int64) error {
 		fs, err := q.ListOwnedFiles(ctx, db.ListOwnedFilesParams{OwnerKind: kind, OwnerID: owner})
@@ -43,6 +66,33 @@ func (s *Service) plan(ctx context.Context, q *db.Queries, p db.Project, m *mani
 		}
 		return err
 	}
+	children := map[string]map[string][]db.Record{}
+	kids := func(child *manifest.Collection, key string) ([]db.Record, error) {
+		byKey, ok := children[child.Name]
+		if !ok {
+			rows, err := q.ListRecords(ctx, db.ListRecordsParams{ProjectID: p.ID, Collection: child.Name})
+			if err != nil {
+				return nil, err
+			}
+			byKey = map[string][]db.Record{}
+			for _, k := range rows {
+				var parent string
+				var has bool
+				data, err := manifest.DecodeObject([]byte(k.Data))
+				if err == nil {
+					parent, has, err = child.ParentKey(data)
+				}
+				if err != nil {
+					return nil, registry.Invalid("deck: record %d of %s: %v", k.ID, k.Collection, err)
+				}
+				if has {
+					byKey[parent] = append(byKey[parent], k)
+				}
+			}
+			children[child.Name] = byKey
+		}
+		return byKey[key], nil
+	}
 	var walk func(r db.Record) error
 	walk = func(r db.Record) error {
 		if seen[r.ID] {
@@ -50,60 +100,93 @@ func (s *Service) plan(ctx context.Context, q *db.Queries, p db.Project, m *mani
 		}
 		seen[r.ID] = true
 		out.records = append(out.records, r)
-		var data map[string]any
-		_ = json.Unmarshal([]byte(r.Data), &data)
 		if c := m.Collection(r.Collection); c != nil {
-			if f := c.FolderOf(data); f != "" {
-				out.folders = append(out.folders, f)
+			f, err := folderOf(c, r)
+			if err != nil {
+				return err
+			}
+			if f != "" && !slices.Contains(folders, f) {
+				folders = append(folders, f)
 			}
 		}
 		if err := files("record", r.ID); err != nil {
 			return err
 		}
-		procs, err := q.ListProcessesFiltered(ctx, db.ListProcessesFilteredParams{WorkspaceID: p.WorkspaceID, ProjectID: p.ID, Record: r.ID, Lim: 1000})
+		procs, err := q.ListRecordProcesses(ctx, db.ListRecordProcessesParams{ProjectID: p.ID, Record: r.ID})
 		if err != nil {
 			return err
 		}
 		for _, pr := range procs {
-			var in struct {
-				Record any `json:"record"`
-			}
-			if json.Unmarshal([]byte(pr.Input), &in) != nil || fmt.Sprint(in.Record) != fmt.Sprint(r.ID) {
-				continue
-			}
 			if err := files("process", pr.ID); err != nil {
 				return err
 			}
+			if !pr.FinishedAt.Valid {
+				out.open = append(out.open, pr)
+			}
 		}
 		for _, child := range m.Children(r.Collection) {
-			rows, err := q.ListRecords(ctx, db.ListRecordsParams{ProjectID: p.ID, Collection: child.Name})
+			ks, err := kids(child, r.Key)
 			if err != nil {
 				return err
 			}
-			for _, k := range rows {
-				var kd map[string]any
-				_ = json.Unmarshal([]byte(k.Data), &kd)
-				if key, ok := child.ParentKey(kd); ok && key == r.Key {
-					if err := walk(k); err != nil {
-						return err
-					}
+			for _, k := range ks {
+				if err := walk(k); err != nil {
+					return err
 				}
 			}
 		}
 		return nil
 	}
-	return out, walk(rec)
+	for _, r := range roots {
+		if err := walk(r); err != nil {
+			return plan{}, err
+		}
+	}
+	var err error
+	out.folders, err = unheld(ctx, q, p, m, seen, folders)
+	return out, err
+}
+
+// unheld are the folders no record outside the plan gives, nor a folder inside or around one of them.
+func unheld(ctx context.Context, q *db.Queries, p db.Project, m *manifest.Manifest, planned map[int64]bool, folders []string) ([]string, error) {
+	if len(folders) == 0 {
+		return nil, nil
+	}
+	var held []string
+	for i := range m.Collections {
+		c := &m.Collections[i]
+		if c.Folder == "" {
+			continue
+		}
+		rows, err := q.ListRecords(ctx, db.ListRecordsParams{ProjectID: p.ID, Collection: c.Name})
+		if err != nil {
+			return nil, err
+		}
+		for _, r := range rows {
+			if planned[r.ID] {
+				continue
+			}
+			f, err := folderOf(c, r)
+			if err != nil {
+				return nil, err
+			}
+			if f != "" {
+				held = append(held, f)
+			}
+		}
+	}
+	return slices.DeleteFunc(folders, func(f string) bool {
+		return slices.ContainsFunc(held, func(h string) bool { return f == h || strings.HasPrefix(f, h+"/") || strings.HasPrefix(h, f+"/") })
+	}), nil
 }
 
 // parts are the plan as the owner reads it before saying yes.
 func (pl plan) parts(m *manifest.Manifest) []part {
 	out := []part{}
 	for _, r := range pl.records {
-		var data map[string]any
-		_ = json.Unmarshal([]byte(r.Data), &data)
 		name := r.Key
-		if c := m.Collection(r.Collection); c != nil && c.RecordTitle(data) != "" {
-			name = c.RecordTitle(data)
+		if t := ViewOf(r, m.Collection(r.Collection)).Title; t != "" {
+			name = t
 		}
 		out = append(out, part{Kind: "record", Name: r.Collection + ": " + name, ID: r.ID})
 	}
@@ -112,6 +195,9 @@ func (pl plan) parts(m *manifest.Manifest) []part {
 	}
 	for _, f := range pl.folders {
 		out = append(out, part{Kind: "folder", Name: f + "/"})
+	}
+	for _, pr := range pl.open {
+		out = append(out, part{Kind: "process", Name: pr.Command + ", " + pr.State, ID: pr.ID})
 	}
 	return out
 }
@@ -131,33 +217,81 @@ func (s *Service) recordParts(ctx context.Context, act registry.Actor, in record
 		return nil, err
 	}
 	pl, err := s.plan(ctx, s.St.Q, p, m, rec)
-	return pl.parts(m), err
+	if err != nil {
+		return nil, err
+	}
+	return pl.parts(m), nil
 }
 
-// deleteRecords deletes a record with what belongs to it for good, its folders after the commit; the master's
-// deletion leaves a line in the feed whose undo writes back the data of the record.
-func (s *Service) deleteRecords(ctx context.Context, act registry.Actor, p db.Project, rec db.Record, own bool) error {
-	var folders []string
+// remove deletes the rows of a plan and puts its folders in the outbox, in the transaction that planned it.
+func remove(ctx context.Context, q *db.Queries, p db.Project, pl plan) error {
+	for _, f := range pl.files {
+		if err := q.DeleteFile(ctx, f.ID); err != nil {
+			return err
+		}
+	}
+	for _, r := range pl.records {
+		if err := q.DeleteOneRecordDocuments(ctx, store.ID(r.ID)); err != nil {
+			return err
+		}
+		if err := q.DeleteRecord(ctx, r.ID); err != nil {
+			return err
+		}
+	}
+	for _, f := range pl.folders {
+		if err := q.AddFolderOutbox(ctx, db.AddFolderOutboxParams{Ref: p.ID, Path: f}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// settle stops the open processes of a committed deletion, then removes its files and folders.
+func (s *Service) settle(ctx context.Context, open []db.Process) {
+	for _, pr := range open {
+		if err := s.Stop(ctx, pr.ID, "stopped: its record was deleted"); err != nil && registry.Status(err) >= 500 {
+			slog.Error("stop a process of a deleted record", "process", pr.ID, "err", err)
+		}
+	}
+	s.DrainFiles(ctx)
+}
+
+// deleteRecord deletes a record with what belongs to it for good; outside a draft a non-owner deletes only what the
+// master made, else is refused or waits for the owner, and leaves a line in the feed whose undo writes the data back.
+func (s *Service) deleteRecord(ctx context.Context, act registry.Actor, p db.Project, id int64) (any, error) {
+	var pl plan
+	var waiting *gateway.Waiting
 	err := s.writeRecords(ctx, p, func(ctx context.Context, q *db.Queries, m *manifest.Manifest) error {
-		pl, err := s.plan(ctx, q, p, m, rec)
+		rec, err := q.GetRecord(ctx, id)
+		if errors.Is(err, sql.ErrNoRows) || err == nil && rec.ProjectID != p.ID {
+			return registry.NotFound("deck: record %d no longer exists", id)
+		}
 		if err != nil {
 			return err
 		}
-		folders = pl.folders
-		for _, f := range pl.files {
-			if err := q.DeleteFile(ctx, f.ID); err != nil {
+		cur, err := q.GetProject(ctx, p.ID)
+		if err != nil {
+			return err
+		}
+		if pl, err = s.plan(ctx, q, p, m, rec); err != nil {
+			return err
+		}
+		master := act.Kind != registry.Owner && cur.Status != store.ProjectDraft
+		if master {
+			others, err := mastersOnly(ctx, q, p, pl)
+			if err != nil {
+				return err
+			}
+			if others {
+				w, err := s.hold(ctx, q, act, p, m, pl)
+				waiting = &w
 				return err
 			}
 		}
-		for _, r := range pl.records {
-			if err := q.DeleteOneRecordDocuments(ctx, store.ID(r.ID)); err != nil {
-				return err
-			}
-			if err := q.DeleteRecord(ctx, r.ID); err != nil {
-				return err
-			}
+		if err := remove(ctx, q, p, pl); err != nil {
+			return err
 		}
-		if !own {
+		if !master {
 			return nil
 		}
 		params, _ := json.Marshal(map[string]any{"project": p.Name, "collection": rec.Collection, "records": rec.Data})
@@ -168,30 +302,73 @@ func (s *Service) deleteRecords(ctx context.Context, act registry.Actor, p db.Pr
 		return err
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
-	s.removeFolders(p, folders)
-	s.DrainFiles(ctx)
-	return nil
+	if waiting != nil {
+		return *waiting, nil
+	}
+	s.settle(ctx, pl.open)
+	return map[string]any{"ok": true}, nil
 }
 
-// removeFolders deletes folders of the data folder of a project through it as a root, so no link leads outside.
-func (s *Service) removeFolders(p db.Project, folders []string) {
-	if len(folders) == 0 {
-		return
-	}
-	root, err := os.OpenRoot(s.Home.Data(p.ID))
+// mastersOnly refuses a plan with a record no process of the master wrote, and reports whether it holds anything
+// else the master did not make: a file of a record or of another's process, a folder, another's open process.
+func mastersOnly(ctx context.Context, q *db.Queries, p db.Project, pl plan) (others bool, err error) {
+	mp, err := access.Master(ctx, q, p.WorkspaceID)
 	if err != nil {
-		return
+		return false, err
 	}
-	defer root.Close()
-	for _, f := range folders {
-		f = strings.TrimPrefix(filepath.Clean("/"+f), "/")
-		if f == "" {
-			continue
+	mine := func(process sql.NullInt64) (bool, error) {
+		if !process.Valid {
+			return false, nil
 		}
-		if err := root.RemoveAll(f); err != nil {
-			slog.Error("delete record folder", "project", p.Name, "folder", f, "err", err)
+		root, err := q.RootProjectOf(ctx, process.Int64)
+		if errors.Is(err, sql.ErrNoRows) {
+			return false, nil
+		}
+		return err == nil && root == mp.ID, err
+	}
+	for _, r := range pl.records {
+		if ok, err := mine(r.ProcessID); err != nil || !ok {
+			return false, cmp.Or(err, registry.Refuse("deck: only the owner deletes records of an enabled project; the master only those its own processes wrote, with all that belongs to them"))
 		}
 	}
+	if len(pl.folders) > 0 {
+		return true, nil
+	}
+	for _, f := range pl.files {
+		if f.OwnerKind != "process" {
+			return true, nil
+		}
+		if ok, err := mine(store.ID(f.OwnerID)); err != nil || !ok {
+			return true, err
+		}
+	}
+	for _, pr := range pl.open {
+		if ok, err := mine(store.ID(pr.ID)); err != nil || !ok {
+			return true, err
+		}
+	}
+	return false, nil
+}
+
+// hold freezes the deletion until the owner, who reads what it takes, says yes; deck then makes it as the owner.
+// The same deletion already waiting is the same ask.
+func (s *Service) hold(ctx context.Context, q *db.Queries, act registry.Actor, p db.Project, m *manifest.Manifest, pl plan) (gateway.Waiting, error) {
+	rec := pl.records[0]
+	input, _ := json.Marshal(map[string]any{"record": rec.ID})
+	f := gateway.Freeze(act, registry.Builtin+".record_delete", input)
+	f.As = gateway.AsOwner
+	a, err := q.FindOpenCallAsk(ctx, db.FindOpenCallAskParams{ProjectID: p.ID, Payload: f.String(), ProcessID: act.ProcessID})
+	if errors.Is(err, sql.ErrNoRows) {
+		var b strings.Builder
+		parts := pl.parts(m)
+		fmt.Fprintf(&b, "%s wants to delete %s of %s for good, with what it did not make:\n", act.Author(), untrusted.Line(parts[0].Name, 200), p.Name)
+		for _, pt := range parts {
+			fmt.Fprintf(&b, "- %s %s\n", pt.Kind, untrusted.Line(pt.Name, 200))
+		}
+		a, err = gateway.Hold(ctx, q, act, p.ID, act.ProcessID, ask.KindCall, registry.Internal, untrusted.Cut(b.String(), 4000), f, time.Time{}, s.Now())
+	}
+	return gateway.Waiting{Ask: a.ID, Text: fmt.Sprintf("deck: deleting record %d takes what the master did not make, so it waits for the owner's confirmation (ask %d); "+
+		"nothing was deleted yet. Go on with other work: once the owner allows it, deck deletes it and tells you.", rec.ID, a.ID)}, err
 }

@@ -41,7 +41,8 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
   what deck does after a commit: SQL triggers on a deleted file and a closed process write it, the files service and
   the runner drain it after the commit, on every tick and at start, `00025_document_lookup`, `00026_record_mark` — a
   count of the writes of the records of a project, by SQL triggers, `00027_workspace_health` — the health of a model of
-  a connection (`model:`) and of pushes is of its workspace), sqlc queries (`db/` is generated; a parameter compared with 0 or '' is CAST, the linter
+  a connection (`model:`) and of pushes is of its workspace, `00033_folder_outbox` — the folder of a deleted record
+  and, by an SQL trigger, of a deleted project go through the outbox), sqlc queries (`db/` is generated; a parameter compared with 0 or '' is CAST, the linter
   refuses `interface{}` there); `Store.Q` reads on connections of its own beside the one writer, `Tx` waits for the
   writer at most `Store.Wait`, `Backup` copies the base; `mark` keeps only cursors and throttles
 - `internal/registry` — command registry: every input (API, MCP, triggers) calls commands through it;

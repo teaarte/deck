@@ -25,7 +25,6 @@ import (
 
 	"github.com/google/uuid"
 
-	"deck2/internal/docs"
 	"deck2/internal/events"
 	"deck2/internal/health"
 	"deck2/internal/home"
@@ -44,6 +43,8 @@ type Service struct {
 	LockFiles   func()
 	UnlockFiles func()
 	DrainFiles  func(ctx context.Context)
+	// Expire deletes the records past their retention with what belongs to them.
+	Expire func(ctx context.Context, now time.Time)
 	// cleaned and snapTried are when the daily cleanup ran and a daily snapshot was last tried; disk, when the
 	// disk was last looked at.
 	cleaned, snapTried, disk time.Time
@@ -309,39 +310,6 @@ func (zeros) Read(p []byte) (int, error) {
 	return len(p), nil
 }
 
-// expire deletes the records and files of each collection older than its retention, and the documents of
-// those records; the files it returns are removed from the disk after the transaction.
-func (s *Service) expire(ctx context.Context, q *db.Queries, now time.Time) error {
-	projects, err := q.ListProjects(ctx)
-	if err != nil {
-		return err
-	}
-	days := func(n int) string { return store.Time(now.Add(-time.Duration(n) * 24 * time.Hour)) }
-	for _, p := range projects {
-		m, err := docs.Manifest(ctx, q, p)
-		if err != nil {
-			continue
-		}
-		for _, c := range m.Collections {
-			if c.FileRetentionDays > 0 {
-				if err := q.DeleteExpiredRecordFiles(ctx, db.DeleteExpiredRecordFilesParams{Before: days(c.FileRetentionDays), ProjectID: p.ID, Collection: c.Name}); err != nil {
-					return err
-				}
-			}
-			if c.RetentionDays > 0 {
-				expired := db.DeleteExpiredRecordDocumentsParams{ProjectID: p.ID, Collection: c.Name, Before: days(c.RetentionDays)}
-				if err := q.DeleteExpiredRecordDocuments(ctx, expired); err != nil {
-					return err
-				}
-				if _, err := q.DeleteExpiredRecords(ctx, db.DeleteExpiredRecordsParams(expired)); err != nil {
-					return err
-				}
-			}
-		}
-	}
-	return nil
-}
-
 // Daily takes a snapshot when the newest is a day old, trying at most once an hour, and runs the cleanup
 // once a day by the deck clock, each on its own.
 func (s *Service) Daily(ctx context.Context, now time.Time) {
@@ -376,10 +344,8 @@ const (
 // cleanup removes expired records, files left without an owner, stale uploads, old journal rows and notify
 // lines, and old agent work folders.
 func (s *Service) cleanup(ctx context.Context, now time.Time) {
+	s.Expire(ctx, now)
 	err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		if err := s.expire(ctx, q, now); err != nil {
-			return err
-		}
 		deleted := sql.NullString{String: store.Time(now.Add(-topicsKept)), Valid: true}
 		if err := q.PurgeTopicSummaries(ctx, deleted); err != nil {
 			return err

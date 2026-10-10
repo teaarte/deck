@@ -349,7 +349,7 @@ func (dv *Service) PushNew(ctx context.Context, workspace int64) {
 		if len(failed) > 0 {
 			status = "error"
 		}
-		health.Write(ctx, dv.St, health.Of{}, "push", status, strings.Join(failed, "; "))
+		health.Write(ctx, dv.St, health.Of{Workspace: workspace}, "push", status, strings.Join(failed, "; "))
 	}
 }
 

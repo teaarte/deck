@@ -192,7 +192,7 @@ func (s *Service) For(ctx context.Context, projectID int64, cmd *manifest.Comman
 			return nil, registry.Invalid("%s", strings.Join(why, "; "))
 		}
 		for _, pv := range fits {
-			if s.up(ctx, pv.Name()) {
+			if s.up(ctx, p.WorkspaceID, pv.Name()) {
 				return pv, nil
 			}
 		}
@@ -216,9 +216,18 @@ func (s *Service) For(ctx context.Context, projectID int64, cmd *manifest.Comman
 
 // up reports whether a provider's health lets a new turn start on it rather than on a fallback: not red, not
 // waiting for a login, not paused by a limit.
-func (s *Service) up(ctx context.Context, name string) bool {
-	h, err := s.St.Q.GetHealth(ctx, process.HealthSubject(name))
-	return err != nil || h.Status != "error" && h.Status != "needs_login" && h.Status != "paused"
+func (s *Service) up(ctx context.Context, workspace int64, name string) bool {
+	for _, h := range []func() (db.Health, error){
+		func() (db.Health, error) { return s.St.Q.GetHealth(ctx, process.HealthSubject(name)) },
+		func() (db.Health, error) {
+			return s.St.Q.GetWorkspaceHealth(ctx, db.GetWorkspaceHealthParams{WorkspaceID: store.ID(workspace), Subject: ModelSubject(name)})
+		},
+	} {
+		if h, err := h(); err == nil && (h.Status == "error" || h.Status == "needs_login" || h.Status == "paused") {
+			return false
+		}
+	}
+	return true
 }
 
 func (s *Service) builtinNamed(name string) provider.Provider {

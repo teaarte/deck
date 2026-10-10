@@ -45,6 +45,11 @@ func (r *Runner) needLogin(ctx context.Context, pv provider.Provider, processID 
 // HealthSubject is the health row of a provider.
 func HealthSubject(name string) string { return "provider:" + name }
 
+// ProviderHealth writes the health row of a provider, a row of the machine; the one writer of such rows.
+func ProviderHealth(ctx context.Context, q *db.Queries, name, status, text string) error {
+	return health.Set(ctx, q, health.Of{}, HealthSubject(name), status, text)
+}
+
 // providerHealth records what a turn showed about its provider. The health of a provider with a self-check is
 // the self-check's: a turn only lifts a lost login or a limit there.
 func (r *Runner) providerHealth(ctx context.Context, pv provider.Provider, res provider.Result, err error) {
@@ -53,13 +58,13 @@ func (r *Runner) providerHealth(ctx context.Context, pv provider.Provider, res p
 	_ = r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		switch {
 		case err != nil && !checked:
-			return health.Set(ctx, q, health.Of{}, subject, health.Error, err.Error())
+			return ProviderHealth(ctx, q, pv.Name(), health.Error, err.Error())
 		case err != nil || res.NeedsLogin || res.RateLimited:
 			return nil
 		case checked:
 			return q.MarkHealthy(ctx, subject)
 		}
-		return health.Set(ctx, q, health.Of{}, subject, health.OK, "")
+		return ProviderHealth(ctx, q, pv.Name(), health.OK, "")
 	})
 }
 
@@ -72,7 +77,7 @@ func setHealth(ctx context.Context, q *db.Queries, pv provider.Provider, status,
 			return nil
 		}
 	}
-	return health.Set(ctx, q, health.Of{}, subject, status, text)
+	return ProviderHealth(ctx, q, pv.Name(), status, text)
 }
 
 // usage writes one model call of a process to the journal of model calls.

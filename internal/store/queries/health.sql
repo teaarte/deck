@@ -31,6 +31,10 @@ WHERE health.status IN ('needs_login', 'paused');
 SELECT * FROM health WHERE workspace_id IS NULL AND subject = sqlc.arg(subject);
 
 
+-- name: GetWorkspaceHealth :one
+SELECT * FROM health WHERE workspace_id = sqlc.arg(workspace_id) AND subject = sqlc.arg(subject);
+
+
 -- name: SetHealthVersion :exec
 UPDATE health SET version = sqlc.arg(version) WHERE workspace_id IS NULL AND subject = sqlc.arg(subject);
 
@@ -44,7 +48,9 @@ DELETE FROM health WHERE project_id = ? AND subject GLOB 'screen:*';
 
 
 -- name: DeleteModelHealth :exec
-DELETE FROM health WHERE subject = 'provider:' || CAST(sqlc.arg(name) AS TEXT) AND NOT EXISTS (SELECT 1 FROM model WHERE name = CAST(sqlc.arg(name) AS TEXT));
+DELETE FROM health WHERE health.workspace_id = sqlc.arg(workspace_id) AND health.subject = 'model:' || CAST(sqlc.arg(name) AS TEXT)
+    OR health.workspace_id IS NULL AND health.subject = 'provider:' || CAST(sqlc.arg(name) AS TEXT)
+    AND NOT EXISTS (SELECT 1 FROM model m WHERE m.name = CAST(sqlc.arg(name) AS TEXT));
 
 
 -- name: HasProjectHealth :one

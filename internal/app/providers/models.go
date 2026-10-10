@@ -104,12 +104,19 @@ type modelView struct {
 	Version string  `json:"version,omitempty"`
 }
 
-// lastCheck fills in the state of a model's last self-check.
-func (s *Service) lastCheck(ctx context.Context, v *modelView) {
-	if h, err := s.St.Q.GetHealth(ctx, process.HealthSubject(v.Name)); err == nil {
+// lastCheck fills in the state of a model: of its last self-check in an agent, else of its last call.
+func (s *Service) lastCheck(ctx context.Context, workspace int64, v *modelView) {
+	h, err := s.St.Q.GetHealth(ctx, process.HealthSubject(v.Name))
+	if v.Agent == "" {
+		h, err = s.St.Q.GetWorkspaceHealth(ctx, db.GetWorkspaceHealthParams{WorkspaceID: store.ID(workspace), Subject: ModelSubject(v.Name)})
+	}
+	if err == nil {
 		v.Status, v.Error, v.Verdict, v.Speed, v.Version = h.Status, h.Error, h.Verdict, h.Speed, h.Version
 	}
 }
+
+// ModelSubject is the health row of a model of a connection, in its workspace.
+func ModelSubject(name string) string { return "model:" + name }
 
 type assignmentView struct {
 	Project string   `json:"project,omitempty"`
@@ -165,14 +172,14 @@ func (s *Service) modelsList(ctx context.Context, act registry.Actor, in modelsL
 	}
 	for _, pv := range s.Builtin {
 		v := modelView{Name: pv.Name(), Kind: RoleText, Agent: pv.Name(), Builtin: true}
-		s.lastCheck(ctx, &v)
+		s.lastCheck(ctx, act.Workspace, &v)
 		out.Models = append(out.Models, v)
 	}
 	for _, r := range models {
 		m := r.Model
 		v := modelView{Name: m.Name, Connection: r.Connection.Name, Model: m.Model, Kind: m.Kind, Agent: m.Agent,
 			InputUSD: nullable(m.InputUsd), OutputUSD: nullable(m.OutputUsd), CallUSD: nullable(m.CallUsd), Unit: m.Unit, Free: m.Free != 0}
-		s.lastCheck(ctx, &v)
+		s.lastCheck(ctx, act.Workspace, &v)
 		out.Models = append(out.Models, v)
 	}
 	rows, err := s.St.Q.ListAssignments(ctx, act.Workspace)
@@ -186,7 +193,7 @@ func (s *Service) modelsList(ctx context.Context, act registry.Actor, in modelsL
 		v := assignmentView{Project: r.Project, Command: r.Command, Role: r.Role}
 		_ = json.Unmarshal([]byte(r.Models), &v.Models)
 		for _, name := range v.Models {
-			if s.up(ctx, name) {
+			if s.up(ctx, act.Workspace, name) {
 				v.Using = name
 				break
 			}
@@ -403,7 +410,7 @@ func (s *Service) modelSet(ctx context.Context, act registry.Actor, in modelSetI
 			}
 		}
 		if in.Agent != "" {
-			if err := health.Set(ctx, q, health.Of{}, process.HealthSubject(in.Name), health.Checking, "the self-check of the model in its agent is about to run"); err != nil {
+			if err := process.ProviderHealth(ctx, q, in.Name, health.Checking, "the self-check of the model in its agent is about to run"); err != nil {
 				return err
 			}
 		}
@@ -524,7 +531,7 @@ func (s *Service) modelRemove(ctx context.Context, act registry.Actor, in modelR
 		if n, err = q.DeleteModel(ctx, db.DeleteModelParams{WorkspaceID: act.Workspace, Name: in.Name}); err != nil || n == 0 {
 			return err
 		}
-		return q.DeleteModelHealth(ctx, in.Name)
+		return q.DeleteModelHealth(ctx, db.DeleteModelHealthParams{WorkspaceID: store.ID(act.Workspace), Name: in.Name})
 	})
 	if err != nil {
 		return nil, err

@@ -17,7 +17,6 @@ import (
 	"deck2/internal/gateway"
 	"deck2/internal/health"
 	"deck2/internal/manifest"
-	"deck2/internal/process"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
 	"deck2/internal/store"
@@ -210,14 +209,14 @@ func (s *Service) answered(ctx context.Context, m db.Model, next string, status 
 	default:
 		text += "; no model of its assignment is after it"
 	}
-	subject := process.HealthSubject(m.Name)
+	subject, of := ModelSubject(m.Name), health.Of{Workspace: m.WorkspaceID}
 	_ = s.St.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error {
-		h, err := q.GetHealth(ctx, subject)
+		h, err := q.GetWorkspaceHealth(ctx, db.GetWorkspaceHealthParams{WorkspaceID: store.ID(m.WorkspaceID), Subject: subject})
 		switch {
 		case failed && (err != nil || h.Status != health.Error || h.Error != text):
-			return health.Set(ctx, q, health.Of{}, subject, health.Error, text)
+			return health.Set(ctx, q, of, subject, health.Error, text)
 		case !failed && err == nil && h.Status == health.Error:
-			return health.Set(ctx, q, health.Of{}, subject, health.OK, "")
+			return health.Set(ctx, q, of, subject, health.OK, "")
 		}
 		return nil
 	})

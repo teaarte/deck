@@ -25,11 +25,18 @@ func (q *Queries) DeleteHealth(ctx context.Context, arg DeleteHealthParams) erro
 }
 
 const deleteModelHealth = `-- name: DeleteModelHealth :exec
-DELETE FROM health WHERE subject = 'provider:' || CAST(?1 AS TEXT) AND NOT EXISTS (SELECT 1 FROM model WHERE name = CAST(?1 AS TEXT))
+DELETE FROM health WHERE health.workspace_id = ?1 AND health.subject = 'model:' || CAST(?2 AS TEXT)
+    OR health.workspace_id IS NULL AND health.subject = 'provider:' || CAST(?2 AS TEXT)
+    AND NOT EXISTS (SELECT 1 FROM model m WHERE m.name = CAST(?2 AS TEXT))
 `
 
-func (q *Queries) DeleteModelHealth(ctx context.Context, name string) error {
-	_, err := q.db.ExecContext(ctx, deleteModelHealth, name)
+type DeleteModelHealthParams struct {
+	WorkspaceID sql.NullInt64
+	Name        string
+}
+
+func (q *Queries) DeleteModelHealth(ctx context.Context, arg DeleteModelHealthParams) error {
+	_, err := q.db.ExecContext(ctx, deleteModelHealth, arg.WorkspaceID, arg.Name)
 	return err
 }
 
@@ -48,6 +55,33 @@ SELECT subject, workspace_id, project_id, status, error, version, verdict, speed
 
 func (q *Queries) GetHealth(ctx context.Context, subject string) (Health, error) {
 	row := q.db.QueryRowContext(ctx, getHealth, subject)
+	var i Health
+	err := row.Scan(
+		&i.Subject,
+		&i.WorkspaceID,
+		&i.ProjectID,
+		&i.Status,
+		&i.Error,
+		&i.Version,
+		&i.Verdict,
+		&i.Speed,
+		&i.UpdatedAt,
+		&i.SeenAt,
+	)
+	return i, err
+}
+
+const getWorkspaceHealth = `-- name: GetWorkspaceHealth :one
+SELECT subject, workspace_id, project_id, status, error, version, verdict, speed, updated_at, seen_at FROM health WHERE workspace_id = ?1 AND subject = ?2
+`
+
+type GetWorkspaceHealthParams struct {
+	WorkspaceID sql.NullInt64
+	Subject     string
+}
+
+func (q *Queries) GetWorkspaceHealth(ctx context.Context, arg GetWorkspaceHealthParams) (Health, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceHealth, arg.WorkspaceID, arg.Subject)
 	var i Health
 	err := row.Scan(
 		&i.Subject,

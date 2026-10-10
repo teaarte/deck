@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"deck2/internal/health"
 	"deck2/internal/process"
 	"deck2/internal/provider"
 	"deck2/internal/provider/acp"
@@ -100,7 +99,7 @@ func (s *Service) startCheck(name string, force bool) bool {
 	started := s.Go(func() {
 		h, _ := s.St.Q.GetHealth(ctx, subject)
 		if force || h.Status == "error" || h.Status == "checking" {
-			s.writeCheck(ctx, subject, "checking", "the self-check is running", "", "", 0)
+			s.writeCheck(ctx, name, "checking", "the self-check is running", "", "", 0)
 		}
 		ceiling := s.SelfCheckCeiling
 		if c, ok := sc.(interface{ CheckCeiling() time.Duration }); ok && c.CheckCeiling() > 0 {
@@ -142,7 +141,7 @@ func (s *Service) startCheck(name string, force bool) bool {
 			return
 		}
 		s.mu.Unlock()
-		s.writeCheck(context.WithoutCancel(ctx), subject, status, text, version, verdict, res.Speed)
+		s.writeCheck(context.WithoutCancel(ctx), name, status, text, version, verdict, res.Speed)
 		if a, ok := sc.(interface{ AgentName() string }); ok && ctx.Err() == nil {
 			s.agentRow(ctx, a.AgentName(), res.Version, versionErr(res))
 		}
@@ -164,9 +163,10 @@ func (s *Service) startCheck(name string, force bool) bool {
 	return started
 }
 
-func (s *Service) writeCheck(ctx context.Context, subject, status, text, version, verdict string, speed float64) {
+func (s *Service) writeCheck(ctx context.Context, name, status, text, version, verdict string, speed float64) {
+	subject := process.HealthSubject(name)
 	err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		if err := health.Set(ctx, q, health.Of{}, subject, status, text); err != nil {
+		if err := process.ProviderHealth(ctx, q, name, status, text); err != nil {
 			return err
 		}
 		if status == "checking" {

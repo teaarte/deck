@@ -1,5 +1,5 @@
 {
-  "actions": { "more": "More" },
+  "actions": { "more": "More", "copy": "Copy", "copied": "Copied" },
   "bell": { "title": "Notifications", "empty": "No notifications yet" },
   "table": { "search": "Search", "nothing": "Nothing matches", "range": "{{from}}–{{to}} of {{of}}", "size": "Rows on a page" },
   "nav": { "control": "Control", "work": "Work", "master_settings": "Master settings", "deki_settings": "Deki settings", "cockpit": "Cockpit", "deck": "deck", "menu": "Menu", "back": "Back", "hide": "Hide the menu", "show": "Show the menu", "running": "Running: {{n}}", "asks": "Waiting for you: {{n}}", "errors": "Failing checks: {{n}}" },

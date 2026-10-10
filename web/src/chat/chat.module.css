@@ -47,10 +47,8 @@
   opacity: 1;
 }
 
-@media (hover: none) {
-  .lineTools {
-    opacity: 1;
-  }
+.masterLine:focus {
+  outline: none;
 }
 
 .turn {

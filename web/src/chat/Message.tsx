@@ -51,7 +51,7 @@ export const Message = memo(function Message({ m }: { m: ChatMessage }) {
     );
   }
   return (
-    <div className={s.masterLine} data-message="master" data-avatar={mascot || undefined}>
+    <div className={s.masterLine} data-message="master" data-avatar={mascot || undefined} tabIndex={-1}>
       {mascot && <span className={s.avatar}><DekiHead size={28} /></span>}
       <Markdown text={m.text} />
       <Group gap={4} className={s.lineTools}>

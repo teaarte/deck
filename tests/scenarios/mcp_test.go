@@ -13,7 +13,6 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
-	"syscall"
 	"testing"
 	"time"
 
@@ -149,13 +148,13 @@ func TestMCPCallLostWithItsServerIsAnUnknownOutcome(t *testing.T) {
 	}
 	e.waitHealth("mcp:srv.fake", "ok")
 
-	pid, _ := os.ReadFile(dir + "/pid")
-	_ = e.App.Close()
-	var n int
-	fmt.Sscan(string(pid), &n)
-	if syscall.Kill(n, 0) == nil {
-		t.Fatalf("the servers stop together with deck: %d still runs", n)
+	f, err := os.Open(dir + "/alive")
+	if err != nil {
+		t.Fatal(err)
 	}
+	defer f.Close()
+	_ = e.App.Close()
+	e.waitFor("the servers to stop together with deck", func() bool { return stopped(f) })
 }
 
 func TestChangedMCPToolLosesItsRightsUntilTheOwnerAllowsItAgain(t *testing.T) {

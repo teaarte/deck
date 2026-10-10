@@ -14,11 +14,21 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
+
+// alive is the file a fake server of a project holds locked while it runs; a pid would not do, since a sandbox with
+// a pid namespace of its own gives the server a pid of that namespace.
+var alive *os.File
+
+// stopped reports whether no fake server holds the lock of the file f, opened before the server could go.
+func stopped(f *os.File) bool {
+	return syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB) == nil
+}
 
 // TestMain lets the test binary serve as a fake MCP server (DECK_FAKE_MCP picks which), app-server of Codex or ACP agent.
 func TestMain(m *testing.M) {
@@ -30,10 +40,14 @@ func TestMain(m *testing.M) {
 		serveCodex(dir)
 		return
 	}
+	var err error
 	switch os.Getenv("DECK_FAKE_MCP") {
 	case "project":
 		dir, _ := os.Getwd()
 		_ = os.WriteFile(filepath.Join(dir, "pid"), []byte(fmt.Sprint(os.Getpid())), 0o600)
+		if alive, err = os.OpenFile(filepath.Join(dir, "alive"), os.O_CREATE|os.O_RDWR, 0o600); err == nil {
+			_ = syscall.Flock(int(alive.Fd()), syscall.LOCK_EX)
+		}
 		serveFake(projectTools(dir))
 	case "browser":
 		serveFake(browserTools(os.Getenv("DECK_FAKE_DIR")))

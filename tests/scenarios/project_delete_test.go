@@ -11,7 +11,6 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
-	"syscall"
 	"testing"
 
 	"deck2/internal/provider"
@@ -166,17 +165,16 @@ func TestProjectDeleteStopsTheMCPServersOfTheProject(t *testing.T) {
 	e.createProject("srv", mcpManifest(""))
 	dir := e.mcpDir("srv", "fake")
 	e.waitState(e.start("srv", "look", map[string]any{"word": "moon"}), "done")
-	pid, _ := os.ReadFile(filepath.Join(dir, "pid"))
-	var n int
-	fmt.Sscan(string(pid), &n)
-	if n == 0 {
-		t.Fatalf("the server writes its pid: %q", pid)
+	f, err := os.Open(filepath.Join(dir, "alive"))
+	if err != nil {
+		t.Fatal(err)
 	}
-	if syscall.Kill(n, 0) != nil {
-		t.Skip("the server runs in a pid namespace of its sandbox here; its pid is not one of this system")
+	defer f.Close()
+	if stopped(f) {
+		t.Fatal("the server holds its lock while it runs")
 	}
 	e.must("deck.project_delete", map[string]any{"project": "srv"}, nil)
-	e.waitFor("the server to stop", func() bool { return syscall.Kill(n, 0) != nil })
+	e.waitFor("the server to stop", func() bool { return stopped(f) })
 }
 
 // TestTheMasterDeletesOnlyDrafts: the master deletes a draft it wrote at once, after a snapshot like the owner;

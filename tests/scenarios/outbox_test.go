@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
@@ -174,11 +175,20 @@ func TestAFileThatWillNotGoIsInHealthUntilItGoes(t *testing.T) {
 	e := newEnvWith(t, dir, &Fake{})
 	e.createProject("notes", plainManifest)
 	id := e.upload("notes", "stuck.txt", "text/plain", "stays")
-	files := home.Layout(dir).Files()
-	if err := os.Chmod(files, 0o500); err != nil {
+	var stored string
+	_ = filepath.WalkDir(home.Layout(dir).Files(), func(path string, d fs.DirEntry, err error) error {
+		if err == nil && !d.IsDir() {
+			stored = path
+		}
+		return nil
+	})
+	// A folder that is not empty in place of the file will not go, for root too, which a closed folder lets through.
+	if err := os.Remove(stored); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = os.Chmod(files, 0o700) })
+	if err := os.MkdirAll(filepath.Join(stored, "in"), 0o700); err != nil {
+		t.Fatal(err)
+	}
 	if err := e.App.Store.Tx(context.Background(), func(ctx context.Context, q *db.Queries) error { return q.DeleteFile(ctx, id) }); err != nil {
 		t.Fatal(err)
 	}
@@ -186,7 +196,7 @@ func TestAFileThatWillNotGoIsInHealthUntilItGoes(t *testing.T) {
 		e.App.Sweep(context.Background(), time.Now())
 	}
 	e.waitHealth("outbox", "error")
-	_ = os.Chmod(files, 0o700)
+	_ = os.Remove(filepath.Join(stored, "in"))
 	e.App.Sweep(context.Background(), time.Now())
 	var hs []healthRow
 	e.must("deck.health_list", nil, &hs)

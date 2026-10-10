@@ -72,7 +72,7 @@ func FormOf(s *Screen, command string) (FormPlace, bool) {
 				}
 			case b.Type == "tabs":
 				for _, t := range b.Tabs {
-					if f, ok := find(t.Blocks, FormPlace{Tabs: append(slices.Clip(at.Tabs), t.Title)}); ok {
+					if f, ok := find(t.Blocks, FormPlace{Tabs: append(slices.Clip(at.Tabs), t.Title), Dialog: at.Dialog}); ok {
 						return f, true
 					}
 				}

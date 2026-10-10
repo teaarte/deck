@@ -78,7 +78,7 @@ func (s *Service) list(ctx context.Context, act registry.Actor, in healthListIn)
 		}
 		for name, text := range s.Unassigned(ctx, p.WorkspaceID, p.ID, m) {
 			row := healthRow{Subject: "command:" + name, Status: health.Warning, Error: text}
-			if c := m.Command(name); c != nil && c.Executor.Type == "agent" {
+			if c := m.Command(name); c != nil && c.Executor.Type == "agent" && p.Status == store.ProjectEnabled {
 				row.Status, row.Seen = health.Error, s.read(ctx, act.Workspace, row)
 				unseen[p.Name] = unseen[p.Name] || !row.Seen
 			}

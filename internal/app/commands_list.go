@@ -153,8 +153,8 @@ func (a *App) commandsList(ctx context.Context, act registry.Actor, in commandsL
 	return out, nil
 }
 
-// formOf is the address of the first form that calls a command, with the parameters that fill it: in the screens of
-// its project, then in deck's, Settings first, then in those deck adds to every project; empty when none has one.
+// formOf is the address of the first form off a record page that calls a command, with the parameters that fill it:
+// in the screens of its project, then deck's, Settings first, then those of every project; empty when none has one.
 func formOf(command, project string, m *manifest.Manifest) (string, []string) {
 	type screen struct {
 		at, command string
@@ -181,6 +181,9 @@ func formOf(command, project string, m *manifest.Manifest) (string, []string) {
 		all = append(all, screen{"#/p/" + cmp.Or(project, "<project>") + "/", command, &shipped().Project[i]})
 	}
 	for _, s := range all {
+		if s.s.Record != "" {
+			continue
+		}
 		f, ok := manifest.FormOf(s.s, s.command)
 		if !ok {
 			continue

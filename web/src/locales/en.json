@@ -70,7 +70,7 @@
     "save": "Open deck"
   },
   "filter": { "any": "Any {{field}}" },
-  "confirm": { "title": "{{action}}?", "parts": "This goes to the trash for a day, then for good:",
+  "confirm": { "title": "{{action}}?", "parts": "This is deleted for good:",
     "part": { "record": "Record", "file": "File", "folder": "Folder" } },
   "custom": { "ask": "A custom block wants to run a command that goes outside deck", "inline": "Back into the screen" },
 

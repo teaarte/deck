@@ -1,16 +1,13 @@
 package scenarios
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
-	"time"
 
 	deckhome "deck2/internal/home"
 )
@@ -28,9 +25,9 @@ const shortsModule = `{"version": 11,
      "result": {"type": "object"}, "executor": {"type": "script", "script": "render"}}],
   "scripts": [{"name": "render", "file": "scripts/render.py", "runtime": "python"}]}`
 
-// TestDeletingARecordTakesWhatBelongsToItIntoTheTrash: a record goes with its child records, files, folder and the
-// files of its processes; the owner sees the list first, and an undo within a day brings it all back.
-func TestDeletingARecordTakesWhatBelongsToItIntoTheTrash(t *testing.T) {
+// TestDeletingARecordTakesWhatBelongsToIt: a record goes with its child records, files, folder and the files of its
+// processes, which the owner sees listed first.
+func TestDeletingARecordTakesWhatBelongsToIt(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, nil)
 	pid := e.createProject("shorts", shortsModule)
@@ -83,25 +80,16 @@ print(json.dumps({"files": [{"path": "frame.png", "record": inp["record"]}, {"pa
 		return n
 	}
 	if _, err := os.Stat(filepath.Join(data, "videos", "knights")); !os.IsNotExist(err) || count(`SELECT count(*) FROM record WHERE project_id = ?`, pid) != 2 ||
-		count(`SELECT count(*) FROM file WHERE owner_kind = 'trash'`) != 2 || count(`SELECT count(*) FROM feed WHERE command = 'deck.trash_restore'`) != 1 {
-		t.Fatal("the record, its scene, files and folder went to the trash, and the feed has the undo")
-	}
-	e.must("deck.trash_restore", map[string]any{"record": video}, nil)
-	if _, err := os.Stat(filepath.Join(data, "videos", "knights", "out.mp4")); err != nil || count(`SELECT count(*) FROM record WHERE project_id = ?`, pid) != 4 ||
-		count(`SELECT count(*) FROM file WHERE owner_kind = 'record' AND owner_id = ?`, video) != 1 || count(`SELECT count(*) FROM file WHERE owner_kind = 'process'`) != 1 {
-		t.Fatal("the undo brings back the records with their ids, the files to their owners and the folder")
-	}
-	if code, _ := e.call("deck.trash_restore", map[string]any{"record": video}); code == 200 {
-		t.Fatal("what came back is no longer in the trash")
+		count(`SELECT count(*) FROM file WHERE project_id = ?`, pid) != 0 {
+		t.Fatal("the record, its scene, its files, the files of its process and its folder are gone")
 	}
 }
 
-// TestAFileOfADataFolderGoesToTheTrashForADay: the owner deletes a file of a data folder from its screen with an
-// undo; after a day it is gone for good.
-func TestAFileOfADataFolderGoesToTheTrashForADay(t *testing.T) {
+// TestTheDataFolderOfAProjectShowsByItsFolders: the screen of a data folder lists a folder of it, with the way up,
+// and shows its files.
+func TestTheDataFolderOfAProjectShowsByItsFolders(t *testing.T) {
 	t.Parallel()
-	clock := &Clock{now: t0}
-	e := newEnvWith(t, t.TempDir(), &Fake{}, withClock(clock))
+	e := newEnv(t, nil)
 	pid := e.createProject("shorts", shortsModule)
 	data := deckhome.Layout(e.App.Cfg.Home).Data(pid)
 	if err := errors.Join(os.MkdirAll(filepath.Join(data, "cache"), 0o700), os.WriteFile(filepath.Join(data, "cache", "tiles.bin"), []byte("x"), 0o600)); err != nil {
@@ -110,25 +98,5 @@ func TestAFileOfADataFolderGoesToTheTrashForADay(t *testing.T) {
 	raw, _ := json.Marshal(e.screenMessages("", "data", map[string]any{"params": `{"project": "shorts", "path": "cache"}`}))
 	if s := string(raw); !strings.Contains(s, `"tiles.bin"`) || !strings.Contains(s, `"..`) || !strings.Contains(s, `/api/files/data/shorts/cache/tiles.bin`) {
 		t.Fatalf("the screen of a data folder lists its files and shows them: %s", s)
-	}
-	var del struct{ Trash int64 }
-	e.must("deck.data_delete", map[string]any{"project": "shorts", "path": "cache/tiles.bin"}, &del)
-	e.must("deck.trash_restore", map[string]any{"project": "shorts", "path": "cache/tiles.bin"}, nil)
-	if _, err := os.Stat(filepath.Join(data, "cache", "tiles.bin")); err != nil {
-		t.Fatalf("the undo brings the file back: %v", err)
-	}
-	e.must("deck.data_delete", map[string]any{"project": "shorts", "path": "cache"}, &del)
-	trash := filepath.Join(deckhome.Layout(e.App.Cfg.Home).Project(pid), "trash", fmt.Sprint(del.Trash))
-	e.App.Records.PurgeTrash(context.Background())
-	if _, err := os.Stat(trash); err != nil {
-		t.Fatalf("a deletion waits a day: %v", err)
-	}
-	clock.Add(25 * time.Hour)
-	e.App.Records.PurgeTrash(context.Background())
-	if _, err := os.Stat(trash); !os.IsNotExist(err) {
-		t.Fatal("after a day it is gone for good")
-	}
-	if code, out := e.call("deck.trash_restore", map[string]any{"trash": del.Trash}); code == 200 {
-		t.Fatalf("nothing is left to bring back: %s", out)
 	}
 }

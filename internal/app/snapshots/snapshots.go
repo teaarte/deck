@@ -44,8 +44,6 @@ type Service struct {
 	LockFiles   func()
 	UnlockFiles func()
 	DrainFiles  func(ctx context.Context)
-	// PurgeTrash deletes for good what was deleted more than a day ago.
-	PurgeTrash func(ctx context.Context)
 	// cleaned and snapTried are when the daily cleanup ran and a daily snapshot was last tried; disk, when the
 	// disk was last looked at.
 	cleaned, snapTried, disk time.Time
@@ -405,7 +403,6 @@ func (s *Service) cleanup(ctx context.Context, now time.Time) {
 	if err != nil {
 		slog.Error("purge files", "err", err)
 	}
-	s.PurgeTrash(ctx)
 	s.DrainFiles(ctx)
 	left, _ := filepath.Glob(filepath.Join(s.Home.Files(), ".upload-*"))
 	for _, f := range left {

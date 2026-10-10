@@ -358,64 +358,6 @@ func (q *Queries) RecordsMark(ctx context.Context, projectID int64) (int64, erro
 	return column_1, err
 }
 
-const restoreRecord = `-- name: RestoreRecord :exec
-INSERT INTO record (id, project_id, collection, key, data, created_at, updated_at, process_id)
-VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
-`
-
-type RestoreRecordParams struct {
-	ID         int64
-	ProjectID  int64
-	Collection string
-	Key        string
-	Data       string
-	CreatedAt  string
-	UpdatedAt  string
-	ProcessID  sql.NullInt64
-}
-
-func (q *Queries) RestoreRecord(ctx context.Context, arg RestoreRecordParams) error {
-	_, err := q.db.ExecContext(ctx, restoreRecord,
-		arg.ID,
-		arg.ProjectID,
-		arg.Collection,
-		arg.Key,
-		arg.Data,
-		arg.CreatedAt,
-		arg.UpdatedAt,
-		arg.ProcessID,
-	)
-	return err
-}
-
-const restoreRecordDocuments = `-- name: RestoreRecordDocuments :exec
-UPDATE document SET deleted_at = NULL WHERE record_id = ?1 AND deleted_at = ?2
-`
-
-type RestoreRecordDocumentsParams struct {
-	RecordID sql.NullInt64
-	At       sql.NullString
-}
-
-func (q *Queries) RestoreRecordDocuments(ctx context.Context, arg RestoreRecordDocumentsParams) error {
-	_, err := q.db.ExecContext(ctx, restoreRecordDocuments, arg.RecordID, arg.At)
-	return err
-}
-
-const trashRecordDocuments = `-- name: TrashRecordDocuments :exec
-UPDATE document SET deleted_at = ?1 WHERE record_id = ?2 AND deleted_at IS NULL
-`
-
-type TrashRecordDocumentsParams struct {
-	At       sql.NullString
-	RecordID sql.NullInt64
-}
-
-func (q *Queries) TrashRecordDocuments(ctx context.Context, arg TrashRecordDocumentsParams) error {
-	_, err := q.db.ExecContext(ctx, trashRecordDocuments, arg.At, arg.RecordID)
-	return err
-}
-
 const updateRecordData = `-- name: UpdateRecordData :execrows
 UPDATE record SET data = ?1, updated_at = ?2
 WHERE id = ?3 AND project_id = ?4 AND collection = ?5 AND key = ?6

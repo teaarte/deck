@@ -61,7 +61,7 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   slug"` is its folder in the data folder, and a collection whose records are of a record of another names it,
   `"parent": {"collection": "videos", "key": "video"}` (the expression of the parent's key). Deleting the record
   takes those records, their files, their folders and the files of the processes whose input names its id, all
-  listed to the owner first and kept a day for an undo. So lay out the data folder by record:
+  listed to the owner first, for good. So lay out the data folder by record:
   `<collection>/<key>/` for what a record has, `cache/` for what can be made again, scripts as documents of the
   module, nothing loose at its root. `key`, `display`, `where` and `bind` are expr-lang
   expressions: a field named like one of its functions (`date`, `now`, `count`, `len`, `sum`, `max`, …) reads as
@@ -218,7 +218,7 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   it back, `"undo": {"command": "unrate", "params": {"id": "=_id"}}`, offered for a moment after it went
   through. A row of the module's own collection or its record page may carry the one deck command a button calls,
   `{"label": "Delete", "command": "deck.record_delete"}`, with no other params and no undo: the owner deletes that
-  record with what belongs to it, always seeing the list first, with an undo for a day (not on a `custom` block). `{"label": "New task", "chat": true}` alone opens the master's chat beside the screen in a new
+  record with what belongs to it, always seeing the list first (not on a `custom` block). `{"label": "New task", "chat": true}` alone opens the master's chat beside the screen in a new
   topic, ready for the owner's voice; a link with `?chat=new` does the same. A list of stages is a board:
   `"board": "status"` on a `list` of the module's collection lays its items in a lane for each value of that enum
   field, and dragging a card to a lane presses its button whose `input` is `status` — a command of the module that
@@ -500,8 +500,8 @@ Name each of these rights in the hand-over: the owner grants them with "enable".
    its first command. A trial is not a sandbox: internal writes (records, documents) are real and stay
    in the draft, and so is what scripts write to `$DECK_DATA`, which you cannot reach: keep what a module
    remembers (seen items, cursors) in records when trials must be undone. Before the hand-over, delete what
-   the trials left that the owner should not start with: `record_delete` (you, in a draft; in an enabled project what your own runs wrote; an undo
-   stays in the feed for a day; the rest only the owner, by a button);
+   the trials left that the owner should not start with: `record_delete` (you, in a draft; in an enabled project what your own runs wrote, with an undo of its data for the owner in
+   the feed; the rest only the owner, by a button);
    say in the hand-over what you kept; lines a trial sent with `notify` stay in the feed. `process_get` gives
    the state and result; `process_log` shows the events of a process, also after it ended,
    and a local model may think for many minutes before its first one: wait with

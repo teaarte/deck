@@ -61,10 +61,8 @@ func TestRecordIsReadByIDAndDeletedWithItsDocumentsAndFiles(t *testing.T) {
 			t.Fatalf("the documents of a deleted record go with it: %+v", docs)
 		}
 	}
-	var kind string
-	_ = e.App.Store.DB.QueryRow(`SELECT owner_kind FROM file WHERE id = ?`, photo).Scan(&kind)
-	if kind != "trash" {
-		t.Fatalf("the files of a deleted record go with it into the trash for a day: %q", kind)
+	if _, err := os.Stat(filepath.Join(deckhome.Layout(e.App.Cfg.Home).State(), "files", fmt.Sprint(photo))); !os.IsNotExist(err) {
+		t.Fatalf("the files of a deleted record go with it: %v", err)
 	}
 }
 

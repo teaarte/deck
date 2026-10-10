@@ -84,15 +84,3 @@ AND created_at < CAST(sqlc.arg(before) AS TEXT);
 -- name: RecordsMark :one
 SELECT CAST(coalesce((SELECT n FROM record_mark WHERE project_id = ?), 0) AS INTEGER);
 
-
--- name: TrashRecordDocuments :exec
-UPDATE document SET deleted_at = sqlc.arg(at) WHERE record_id = sqlc.arg(record_id) AND deleted_at IS NULL;
-
-
--- name: RestoreRecordDocuments :exec
-UPDATE document SET deleted_at = NULL WHERE record_id = sqlc.arg(record_id) AND deleted_at = sqlc.arg(at);
-
-
--- name: RestoreRecord :exec
-INSERT INTO record (id, project_id, collection, key, data, created_at, updated_at, process_id)
-VALUES (sqlc.arg(id), sqlc.arg(project_id), sqlc.arg(collection), sqlc.arg(key), sqlc.arg(data), sqlc.arg(created_at), sqlc.arg(updated_at), sqlc.narg(process_id));

@@ -76,7 +76,7 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 	}
 	cmd := exec.Command(a.Binary, args...)
 	cmd.Dir = req.Cwd
-	cmd.Env = environ(os.Environ())
+	cmd.Env = environ()
 	in, err := cmd.StdinPipe()
 	if err != nil {
 		return provider.Result{}, err

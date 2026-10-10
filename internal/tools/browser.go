@@ -4,7 +4,7 @@ import (
 	"cmp"
 	"context"
 	"deck2/internal/home"
-	"deck2/internal/provider"
+	"deck2/internal/sandbox"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -78,7 +78,7 @@ func (b *Browser) spec(open bool) mcphost.Spec {
 	if !b.headed || open {
 		args = append(args, "--headless")
 	}
-	env := provider.Environ(os.Environ(), []string{"PATH", "HOME", "USER", "LOGNAME", "SHELL", "LANG", "TZ", "TMPDIR"}, "LC_", "XDG_")
+	env := sandbox.Kept("HOME", "TMPDIR", "XDG_")
 	return mcphost.Spec{Command: b.Argv[0], Args: args, Env: env, Dir: b.dir("work")}
 }
 

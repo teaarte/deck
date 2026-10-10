@@ -3,7 +3,6 @@ package codex
 import (
 	"context"
 	"fmt"
-	"os"
 	"os/exec"
 	"strings"
 
@@ -13,7 +12,7 @@ import (
 // Version is the version the CLI reports, such as 0.155.1.
 func (a *Adapter) Version(ctx context.Context) (string, error) {
 	cmd := exec.CommandContext(ctx, a.Binary, "--version")
-	cmd.Env = environ(os.Environ())
+	cmd.Env = environ()
 	out, err := cmd.Output()
 	if err != nil {
 		return "", fmt.Errorf("%s --version: %w", a.Binary, err)

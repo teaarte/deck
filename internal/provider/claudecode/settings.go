@@ -21,11 +21,9 @@ var freeTools = []string{"Read", "Glob", "Grep", "TodoWrite", "StructuredOutput"
 // offlineTools are the only built-in tools of a project without network, so a network tool of a later CLI is off too.
 var offlineTools = []string{"Bash", "Read", "Glob", "Grep", "Edit", "Write", "NotebookEdit", "TodoWrite", "Skill", "Task", "AskUserQuestion"}
 
-var envNames = []string{"PATH", "HOME", "USER", "LOGNAME", "SHELL", "LANG", "TZ", "TMPDIR"}
-
 // environ keeps only the allowlisted variables, so login and API selection variables never reach the CLI.
-func environ(parent []string) []string {
-	return append(provider.Environ(parent, envNames, "LC_", "XDG_", "NODE_"), "MCP_TOOL_TIMEOUT=2400000")
+func environ() []string {
+	return append(sandbox.Kept("HOME", "TMPDIR", "XDG_", "NODE_"), "MCP_TOOL_TIMEOUT=2400000")
 }
 
 // apiVariables are login and API selection variables the settings of deck blank out over those of the repo.

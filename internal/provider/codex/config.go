@@ -12,11 +12,9 @@ import (
 	"deck2/internal/sandbox"
 )
 
-var envNames = []string{"PATH", "HOME", "USER", "LOGNAME", "SHELL", "LANG", "TZ", "TMPDIR", "CODEX_HOME"}
-
 // environ keeps only the allowlisted variables, so API keys and provider selection never reach Codex;
 // CODEX_HOME stays, since it is where the owner's shared login lives.
-func environ(parent []string) []string { return provider.Environ(parent, envNames, "LC_", "XDG_") }
+func environ() []string { return sandbox.Kept("HOME", "TMPDIR", "CODEX_HOME", "XDG_") }
 
 // codexHome is the owner's Codex folder: the agent's shell may not read it, the login and history live there.
 func codexHome() string {

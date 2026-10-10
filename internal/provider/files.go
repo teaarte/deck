@@ -8,18 +8,6 @@ import (
 	"strings"
 )
 
-// Environ keeps the variables of parent that names lists or that start with one of prefixes.
-func Environ(parent, names []string, prefixes ...string) []string {
-	var out []string
-	for _, kv := range parent {
-		name, _, _ := strings.Cut(kv, "=")
-		if slices.Contains(names, name) || slices.ContainsFunc(prefixes, func(p string) bool { return strings.HasPrefix(name, p) }) {
-			out = append(out, kv)
-		}
-	}
-	return out
-}
-
 // Paths gives a folder by its absolute and its real path.
 func Paths(dir string) []string {
 	var out []string

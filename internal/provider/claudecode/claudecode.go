@@ -139,7 +139,7 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 
 	cmd := exec.Command(a.Binary, a.args(req, cfg, setFile, plugin)...)
 	cmd.Dir = req.Cwd
-	cmd.Env = environ(os.Environ())
+	cmd.Env = environ()
 	cmd.Stdin, cmd.Stdout = inR, outW
 	child, err := provider.Start(cmd, a.ConfigDir, req.OnStart)
 	inR.Close()

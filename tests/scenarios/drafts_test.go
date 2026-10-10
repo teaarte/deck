@@ -778,3 +778,28 @@ func TestTheProjectShowsAgentsReachTheWholeNetwork(t *testing.T) {
 		t.Fatalf("the settings of the project show it: %v", meta)
 	}
 }
+
+// TestTheScheduleShowsTheModelARunStartsOn: the provider a draft suggests before the owner grants it is not what its
+// run starts on, so the schedule does not show it either.
+func TestTheScheduleShowsTheModelARunStartsOn(t *testing.T) {
+	t.Parallel()
+	main, other := &Fake{script: ok}, &Fake{script: ok, name: "other"}
+	e := newEnvBuiltin(t, t.TempDir(), []provider.Provider{main, other})
+	m := testManifest([]string{agentCommand("work", "")}, []string{`{"command": "work", "cron": "0 9 * * *"}`})
+	_, tok := e.token("terminal", "deck.*")
+	if code, raw := e.callWith(tok, "deck.project_create", map[string]any{"name": "sketch", "manifest": m}); code != 200 {
+		t.Fatalf("create: %d %s", code, raw)
+	}
+	suggests := strings.Replace(m, `"executor": {"type": "agent"`, `"provider": "other", "executor": {"type": "agent"`, 1)
+	if code, raw := e.callWith(tok, "deck.manifest_save", map[string]any{"project": "sketch", "manifest": suggests}); code != 200 {
+		t.Fatalf("save: %d %s", code, raw)
+	}
+	var ts []struct{ Project, Model string }
+	e.must("deck.triggers_list", map[string]any{"project": "sketch"}, &ts)
+	var try struct{ Process int64 }
+	e.must("deck.command_try", map[string]any{"command": "sketch.work"}, &try)
+	e.waitState(try.Process, "done")
+	if len(ts) != 1 || ts[0].Model != "fake" || len(main.Calls()) != 1 || len(other.Calls()) != 0 {
+		t.Fatalf("the schedule shows the model the run starts on: %+v, %d on fake, %d on other", ts, len(main.Calls()), len(other.Calls()))
+	}
+}

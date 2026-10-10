@@ -143,14 +143,14 @@ func (s *Service) All(ctx context.Context, workspace int64) ([]provider.Provider
 	return out, nil
 }
 
-// CommandModel is the model an agent command of a project starts on and the models assigned to it; empty for a
-// command that is no agent.
+// CommandModel is the model an agent command of a project starts on, by the manifest in force, and the models
+// assigned to it; empty for a command that is no agent.
 func (s *Service) CommandModel(ctx context.Context, projectID int64, command string) (string, []string) {
 	p, err := s.St.Q.GetProject(ctx, projectID)
 	if err != nil {
 		return "", nil
 	}
-	m, err := docs.Manifest(ctx, s.St.Q, p)
+	m, err := docs.For(ctx, s.St.Q, registry.Actor{}, projectID)
 	if err != nil {
 		return "", nil
 	}

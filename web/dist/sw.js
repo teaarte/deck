@@ -17,11 +17,13 @@ self.addEventListener('fetch', (e) => {
   })());
 });
 
-// A push shows a notification; a tap opens deck where the push points.
+// A push shows a notification and puts on the icon how many decisions wait; a tap opens deck where the push points.
 self.addEventListener('push', (e) => {
   let m = { title: 'deck', body: '', url: '/' };
   try { m = { ...m, ...e.data.json() }; } catch { /* a push without JSON shows as deck */ }
-  e.waitUntil(self.registration.showNotification(m.title, { body: m.body, data: { url: m.url }, icon: '/icon-192.png' }));
+  const badge = typeof m.badge === 'number' && 'setAppBadge' in self.navigator
+    ? (m.badge > 0 ? self.navigator.setAppBadge(m.badge) : self.navigator.clearAppBadge()).catch(() => undefined) : undefined;
+  e.waitUntil(Promise.all([badge, self.registration.showNotification(m.title, { body: m.body, data: { url: m.url }, icon: '/icon-192.png' })]));
 });
 self.addEventListener('notificationclick', (e) => {
   e.notification.close();

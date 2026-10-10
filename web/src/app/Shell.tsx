@@ -12,7 +12,7 @@ import s from './shell.module.css';
 import { Backdrop } from './Backdrop';
 import { Bell } from './Bell';
 import { ChatPanel } from './ChatPanel';
-import { Logo } from './Logo';
+import { Logo, waiting } from './Logo';
 import { MasterButton } from './MasterButton';
 import { Nav } from './Nav';
 import { PhoneBar } from './PhoneBar';
@@ -26,6 +26,11 @@ export function Shell() {
   const { t } = useTranslation();
   const route = useRoute();
   const { menu, reload } = useMenu();
+  const asks = waiting(menu);
+  useEffect(() => {
+    if (!('setAppBadge' in navigator)) return;
+    (asks > 0 ? navigator.setAppBadge(asks) : navigator.clearAppBadge()).catch(() => undefined);
+  }, [asks]);
   useLanguageSetting();
   const layout = useChatLayout();
   const { chat, setChat, full, navOpen, setNavOpen } = layout;

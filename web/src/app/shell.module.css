@@ -49,6 +49,7 @@
 }
 
 .logoMark {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -252,4 +253,22 @@
   .island {
     box-shadow: 0 0 0 1px var(--mantine-color-text);
   }
+}
+
+.logoCount {
+  position: absolute;
+  top: -6px;
+  right: -8px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: 9px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 17px;
+  text-align: center;
+  letter-spacing: 0;
+  color: #fff;
+  background: var(--mantine-color-red-6);
+  box-shadow: 0 0 0 2px var(--mantine-color-body);
 }

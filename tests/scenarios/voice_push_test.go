@@ -118,8 +118,12 @@ func newPushDevice(t *testing.T) (*pushDevice, *httptest.Server) {
 			return
 		}
 		d.vap = append(d.vap, r.Header.Get("Authorization"))
-		var m map[string]string
-		_ = json.Unmarshal(d.decrypt(t, body), &m)
+		var raw map[string]any
+		_ = json.Unmarshal(d.decrypt(t, body), &raw)
+		m := map[string]string{}
+		for k, v := range raw {
+			m[k] = fmt.Sprint(v)
+		}
 		d.got = append(d.got, m)
 		w.WriteHeader(http.StatusCreated)
 	}))
@@ -201,7 +205,7 @@ func TestPushGoesToSubscribedDevices(t *testing.T) {
 	e.createProject("private", strings.Replace(plainManifest, `"version": 11,`, `"version": 11, "no_network": true,`, 1))
 	e.must("deck.notify", map[string]any{"project": "work", "text": "The report of the week is ready"}, nil)
 	got := d.wait(e, 1)
-	if got[0]["body"] != "The report of the week is ready" || got[0]["url"] != "/#/deck/cockpit" ||
+	if got[0]["body"] != "The report of the week is ready" || got[0]["url"] != "/#/deck/cockpit" || got[0]["badge"] != "0" ||
 		!strings.Contains(d.vap[0], "vapid t=") || !strings.Contains(d.vap[0], "k="+key.Key) {
 		t.Fatalf("a notify line is pushed, signed with the key of deck: %+v %v", got, d.vap)
 	}

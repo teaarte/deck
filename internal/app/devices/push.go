@@ -40,6 +40,8 @@ type pushMessage struct {
 	Title string `json:"title"`
 	Body  string `json:"body"`
 	URL   string `json:"url"`
+	// Badge is how many decisions wait for the owner, for the icon of the app.
+	Badge int64 `json:"badge"`
 }
 
 // Kinds of lines of the owner's feed: a note someone wrote with notify, a change deck made without the owner.
@@ -292,6 +294,12 @@ func (dv *Service) PushNew(ctx context.Context, workspace int64) {
 	var k vapid
 	var failed []string
 	tried := false
+	badge := int64(0)
+	if pulses, err := dv.St.Q.ProjectPulses(ctx, workspace); err == nil {
+		for _, p := range pulses {
+			badge += p.Asks
+		}
+	}
 	for _, s := range subs {
 	sources:
 		for _, src := range dv.pushSources() {
@@ -313,6 +321,7 @@ func (dv *Service) PushNew(ctx context.Context, workspace int64) {
 					}
 				}
 				tried = true
+				it.msg.Badge = badge
 				res, why := dv.deliver(ctx, workspace, k, s, it.msg)
 				if why != "" {
 					failed = append(failed, s.Device+": "+why)

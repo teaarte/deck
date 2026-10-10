@@ -1,9 +1,13 @@
 package scenarios
 
 import (
+	"crypto/rand"
+	"slices"
+
 	"archive/tar"
 	"compress/gzip"
 	"database/sql"
+	"deck2/internal/app"
 	deckhome "deck2/internal/home"
 	"encoding/json"
 	"fmt"
@@ -316,5 +320,58 @@ func TestADailySnapshotSkipsAFileItCannotReadAndSaysSo(t *testing.T) {
 	e.waitHealth("snapshot", "ok")
 	if _, err := os.Stat(left); err == nil {
 		t.Fatal("the links a snapshot cut short by a crash left go with the next snapshot")
+	}
+}
+
+// TestSnapshotsKeepToTheirBudget: a snapshot leaves out the folders a data folder fills again and big data files past
+// half the budget, saying how much in health, and the oldest snapshots go until all of them fit the budget.
+func TestSnapshotsKeepToTheirBudget(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, nil, func(c *app.Config) { c.SnapshotBudget = 4 << 20 })
+	h := deckhome.Layout(e.App.Cfg.Home)
+	e.createProject("notes", plainManifest)
+	var id int64
+	if err := e.App.Store.DB.QueryRow(`SELECT id FROM project WHERE name = 'notes'`).Scan(&id); err != nil {
+		t.Fatal(err)
+	}
+	data := h.Data(id)
+	random := make([]byte, 3<<20)
+	_, _ = rand.Read(random)
+	for name, body := range map[string][]byte{"keep.txt": []byte("kept"), ".cache/x.bin": random, "uv-cache/y": []byte("y"), "big.bin": random} {
+		_ = os.MkdirAll(filepath.Dir(filepath.Join(data, name)), 0o700)
+		if err := os.WriteFile(filepath.Join(data, name), body, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	_ = os.MkdirAll(h.Backups(), 0o700)
+	old := filepath.Join(h.Backups(), "deck-20200101T000000.tar.gz")
+	if err := os.WriteFile(old, make([]byte, 4<<20), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_ = os.Chtimes(old, time.Now().Add(-time.Hour), time.Now().Add(-time.Hour))
+	var out struct{ Path string }
+	e.must("deck.snapshot_create", nil, &out)
+	paths := []string{out.Path}
+	_, entries := snapshotFiles(t, paths[0])
+	var kept []string
+	for name := range entries {
+		if strings.Contains(name, "/data/") {
+			kept = append(kept, filepath.Base(name))
+		}
+	}
+	if len(kept) != 1 || kept[0] != "keep.txt" {
+		t.Fatalf("the snapshot keeps the data but caches and big files: %v", kept)
+	}
+	if row := e.waitHealth("snapshot", "ok"); !strings.Contains(row.Error, "without 3 MB") {
+		t.Fatalf("health says how much was left out: %+v", row)
+	}
+	left, _ := filepath.Glob(filepath.Join(h.Backups(), "*.tar.gz"))
+	total := int64(0)
+	for _, p := range left {
+		fi, _ := os.Stat(p)
+		total += fi.Size()
+	}
+	if total > 4<<20 || !slices.Contains(left, paths[0]) || slices.Contains(left, old) {
+		t.Fatalf("the snapshots fit the budget and the newest stays: %v %d", left, total)
 	}
 }

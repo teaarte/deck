@@ -30,6 +30,8 @@ type Config struct {
 	VideoPoll, VideoCeiling time.Duration
 	// Progress is how often a long call of a tool tells an agent that asked for it that it still runs.
 	Progress time.Duration
+	// SnapshotBudget is how much the snapshots take together; 2 GB when zero.
+	SnapshotBudget int64
 	// Commands are more builtin commands, such as the probes of tests.
 	Commands []*registry.Command
 }
@@ -52,6 +54,9 @@ func (c *Config) defaults() {
 	}
 	if c.Progress <= 0 {
 		c.Progress = 30 * time.Second
+	}
+	if c.SnapshotBudget <= 0 {
+		c.SnapshotBudget = 2 << 30
 	}
 	if c.Browser == nil {
 		c.Browser = DefaultBrowser

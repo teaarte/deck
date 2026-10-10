@@ -32,7 +32,7 @@
           "columns": [
             {"label": "Snapshot", "bind": "name"},
             {"label": "Taken", "bind": "taken_at"},
-            {"label": "Size", "bind": "size"}
+            {"label": "Size", "bind": "size", "format": "bytes"}
           ]},
         {"type": "form", "title": "Take a snapshot now", "command": "deck.snapshot_create"}
       ]}

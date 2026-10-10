@@ -47,6 +47,9 @@ type Service struct {
 	// cleaned and snapTried are when the daily cleanup ran and a daily snapshot was last tried; disk, when the
 	// disk was last looked at.
 	cleaned, snapTried, disk time.Time
+	// Budget is how much the snapshots of backups/ take together, the newest always kept; half of it is the most of
+	// the data folders one takes.
+	Budget int64
 	// mu takes one snapshot at a time.
 	mu sync.Mutex
 }
@@ -76,9 +79,12 @@ func (s *Service) take(ctx context.Context, kind string, project int64) (string,
 	switch {
 	case err != nil:
 		health.Write(ctx, s.St, health.Of{}, "snapshot", health.Error, "the snapshot failed: "+err.Error())
-	case len(left) > 0:
+	case len(left.unread) > 0:
 		health.Write(ctx, s.St, health.Of{}, "snapshot", health.Warning, fmt.Sprintf("the snapshot left out %d files it could not read whole: %s",
-			len(left), strings.Join(left[:min(len(left), 5)], "; ")))
+			len(left.unread), strings.Join(left.unread[:min(len(left.unread), 5)], "; ")))
+	case left.over > 0:
+		health.Write(ctx, s.St, health.Of{}, "snapshot", health.OK, fmt.Sprintf("%s, without %d MB of big files of data folders past %d MB",
+			filepath.Base(path), left.over>>20, s.Budget/2>>20))
 	default:
 		health.Write(ctx, s.St, health.Of{}, "snapshot", health.OK, filepath.Base(path))
 	}
@@ -86,12 +92,12 @@ func (s *Service) take(ctx context.Context, kind string, project int64) (string,
 }
 
 // write takes a snapshot of every project, or of one when project is not 0.
-func (s *Service) write(ctx context.Context, kind string, project int64) (string, []string, error) {
+func (s *Service) write(ctx context.Context, kind string, project int64) (string, leftOut, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	dir := s.Home.Backups()
 	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return "", nil, err
+		return "", leftOut{}, err
 	}
 	stale, _ := filepath.Glob(filepath.Join(dir, ".*"))
 	parts, _ := filepath.Glob(filepath.Join(dir, "*.part"))
@@ -105,16 +111,16 @@ func (s *Service) write(ctx context.Context, kind string, project int64) (string
 	defer os.Remove(copyDB)
 	defer os.RemoveAll(files)
 	if err := s.hold(ctx, copyDB, files, project); err != nil {
-		return "", nil, err
+		return "", leftOut{}, err
 	}
 	part := path + "." + id + ".part"
-	left, err := writeSnapshot(part, s.Home, copyDB, files, project)
+	left, err := writeSnapshot(part, s.Home, copyDB, files, project, s.Budget/2)
 	if err != nil {
 		_ = os.Remove(part)
-		return "", nil, err
+		return "", leftOut{}, err
 	}
 	if err := os.Rename(part, path); err != nil {
-		return "", nil, err
+		return "", leftOut{}, err
 	}
 	old, _ := filepath.Glob(filepath.Join(dir, kind+"-*.tar.gz"))
 	slices.Sort(old)
@@ -122,6 +128,7 @@ func (s *Service) write(ctx context.Context, kind string, project int64) (string
 		_ = os.Remove(old[0])
 		old = old[1:]
 	}
+	s.fit(dir, path)
 	s.Bus.Emit(events.Event{Topic: "snapshots"})
 	return path, left, nil
 }
@@ -162,19 +169,58 @@ func (s *Service) hold(ctx context.Context, copyDB, files string, project int64)
 	return nil
 }
 
-// writeSnapshot writes the archive: the copy of the base, the stored files linked in files and the data folders
-// of projects, or of one when project is not 0; a file it cannot read whole is left out, and named in what it returns.
-func writeSnapshot(path string, h home.Layout, copyDB, files string, project int64) ([]string, error) {
+// fit removes the oldest snapshots until all of them take at most the budget; kept, the one just taken, stays.
+func (s *Service) fit(dir, kept string) {
+	all, _ := filepath.Glob(filepath.Join(dir, "*-*.tar.gz"))
+	type snap struct {
+		path string
+		size int64
+		at   time.Time
+	}
+	var snaps []snap
+	total := int64(0)
+	for _, p := range all {
+		if fi, err := os.Stat(p); err == nil {
+			snaps = append(snaps, snap{p, fi.Size(), fi.ModTime()})
+			total += fi.Size()
+		}
+	}
+	slices.SortFunc(snaps, func(a, b snap) int { return a.at.Compare(b.at) })
+	for _, sn := range snaps {
+		if total <= s.Budget {
+			return
+		}
+		if sn.path != kept && os.Remove(sn.path) == nil {
+			total -= sn.size
+		}
+	}
+}
+
+// leftOut is what a snapshot left out: files it could not read whole, and the bytes of data files past its budget.
+type leftOut struct {
+	unread []string
+	over   int64
+}
+
+// rebuilt are folders of data folders their programs fill again: caches, environments and downloaded models.
+func rebuilt(name string) bool {
+	return strings.HasPrefix(name, ".") || strings.Contains(strings.ToLower(name), "cache") ||
+		slices.Contains([]string{"node_modules", "hf", "venv", "site-packages"}, name)
+}
+
+// writeSnapshot archives the base, the stored files and the data folders, or one project's, but for rebuilt folders
+// and data past budget bytes; a file it cannot read whole is left out and named.
+func writeSnapshot(path string, h home.Layout, copyDB, files string, project, budget int64) (leftOut, error) {
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
 	if err != nil {
-		return nil, err
+		return leftOut{}, err
 	}
 	defer f.Close()
 	gz := gzip.NewWriter(f)
 	tw := tar.NewWriter(gz)
 	db, _ := filepath.Rel(string(h), h.DB())
 	if _, err := addFile(tw, copyDB, filepath.ToSlash(db)); err != nil {
-		return nil, err
+		return leftOut{}, err
 	}
 	stored, _ := filepath.Rel(string(h), h.Files())
 	dirs := map[string]string{files: stored}
@@ -185,35 +231,48 @@ func writeSnapshot(path string, h home.Layout, copyDB, files string, project int
 	for _, d := range data {
 		dirs[d], _ = filepath.Rel(string(h), d)
 	}
-	var left []string
+	var left leftOut
 	for _, dir := range slices.Sorted(maps.Keys(dirs)) {
 		err := filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
 			if err != nil {
 				if !os.IsNotExist(err) {
-					left = append(left, fmt.Sprintf("%s: %v", p, err))
+					left.unread = append(left.unread, fmt.Sprintf("%s: %v", p, err))
 				}
 				return nil
 			}
+			if d.IsDir() && p != dir && dir != files && rebuilt(d.Name()) {
+				return filepath.SkipDir
+			}
 			if !d.Type().IsRegular() {
 				return nil
+			}
+			if dir != files {
+				fi, err := d.Info()
+				if err == nil && fi.Size() > budget {
+					left.over += fi.Size()
+					return nil
+				}
+				if err == nil {
+					budget -= fi.Size()
+				}
 			}
 			rel, _ := filepath.Rel(dir, p)
 			name := filepath.ToSlash(filepath.Join(dirs[dir], rel))
 			skip, err := addFile(tw, p, name)
 			if skip != nil && !os.IsNotExist(skip) {
-				left = append(left, fmt.Sprintf("%s: %v", name, skip))
+				left.unread = append(left.unread, fmt.Sprintf("%s: %v", name, skip))
 			}
 			return err
 		})
 		if err != nil {
-			return nil, err
+			return leftOut{}, err
 		}
 	}
 	if err := tw.Close(); err != nil {
-		return nil, err
+		return leftOut{}, err
 	}
 	if err := gz.Close(); err != nil {
-		return nil, err
+		return leftOut{}, err
 	}
 	return left, f.Close()
 }

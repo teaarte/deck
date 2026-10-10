@@ -4,7 +4,6 @@ package devices
 
 import (
 	"context"
-	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -17,6 +16,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/SherClockHolmes/webpush-go"
@@ -209,8 +209,9 @@ type pushSource struct {
 	after func(ctx context.Context, workspace int64, cursor string) []pushItem
 }
 
-// pushSources are what waits for the owner, failures, notify lines and the master's replies while no client is open.
-func (dv *Service) pushSources() []pushSource {
+// pushSources are what waits for the owner and the notes of the feed, pushed while no client is open; private
+// says whether a project of the workspace keeps its data off the network.
+func (dv *Service) pushSources(private func() bool) []pushSource {
 	id := func(s string) int64 { n, _ := strconv.ParseInt(s, 10, 64); return n }
 	return []pushSource{
 		{"ask", func(ctx context.Context, ws int64) string { n, _ := dv.St.Q.MaxAskID(ctx, ws); return fmt.Sprint(n) },
@@ -218,20 +219,8 @@ func (dv *Service) pushSources() []pushSource {
 				asks, _ := dv.St.Q.ListAsksAfter(ctx, db.ListAsksAfterParams{WorkspaceID: ws, ID: id(cursor)})
 				var items []pushItem
 				for _, q := range asks {
-					items = append(items, pushItem{dv.pushText(ctx, q.ProjectID.Int64, "Waiting for you", strings.SplitN(q.Text, "\n", 2)[0], "/#/deck/cockpit"),
+					items = append(items, pushItem{dv.pushText(ctx, private, q.ProjectID.Int64, "Waiting for you", strings.SplitN(q.Text, "\n", 2)[0], "/#/deck/cockpit"),
 						fmt.Sprint(q.ID)})
-				}
-				return items
-			}},
-		{"failed", func(context.Context, int64) string { return store.Time(dv.Now()) + "|0" },
-			func(ctx context.Context, ws int64, cursor string) []pushItem {
-				at, last, _ := strings.Cut(cursor, "|")
-				failed, _ := dv.St.Q.ListFailedAfter(ctx, db.ListFailedAfterParams{WorkspaceID: ws, FinishedAt: sql.NullString{String: at, Valid: true}, ID: id(last)})
-				var items []pushItem
-				for _, f := range failed {
-					p := f.Process
-					items = append(items, pushItem{dv.pushText(ctx, p.ProjectID, f.ProjectName+"."+p.Command+" failed", p.Error, fmt.Sprintf("/#/deck/process/%d", p.ID)),
-						p.FinishedAt.String + "|" + fmt.Sprint(p.ID)})
 				}
 				return items
 			}},
@@ -253,24 +242,7 @@ func (dv *Service) pushSources() []pushSource {
 					if n.Screen != "" && n.RecordID.Valid {
 						url += fmt.Sprintf("/%d", n.RecordID.Int64)
 					}
-					items = append(items, pushItem{dv.pushText(ctx, n.ProjectID, row.ProjectName, n.Text, url), fmt.Sprint(n.ID)})
-				}
-				return items
-			}},
-		{"chat", func(ctx context.Context, ws int64) string {
-			n, _ := dv.St.Q.MaxMasterMessageID(ctx, ws)
-			return fmt.Sprint(n)
-		},
-			func(ctx context.Context, ws int64, cursor string) []pushItem {
-				ms, _ := dv.St.Q.ListMasterMessagesAfter(ctx, db.ListMasterMessagesAfterParams{WorkspaceID: ws, ID: id(cursor)})
-				private := dv.anyPrivate(ctx, ws)
-				var items []pushItem
-				for _, m := range ms {
-					msg := pushMessage{Title: "Master", Body: untrusted.Cut(oneLine(m.Text), pushLength), URL: "/#/deck/chat"}
-					if private {
-						msg.Body = "The master replied"
-					}
-					items = append(items, pushItem{msg, fmt.Sprint(m.ID)})
+					items = append(items, pushItem{dv.pushText(ctx, private, n.ProjectID, row.ProjectName, n.Text, url), fmt.Sprint(n.ID)})
 				}
 				return items
 			}},
@@ -301,9 +273,10 @@ func (dv *Service) PushNew(ctx context.Context, workspace int64) {
 			badge += p.Asks
 		}
 	}
+	private := sync.OnceValue(func() bool { return dv.anyPrivate(ctx, workspace) })
 	for _, s := range subs {
 	sources:
-		for _, src := range dv.pushSources() {
+		for _, src := range dv.pushSources(private) {
 			name := fmt.Sprintf("push:%d:%s", s.ID, src.key)
 			cursor, err := dv.St.Q.GetMark(ctx, db.GetMarkParams{WorkspaceID: workspace, Name: name})
 			if err != nil {
@@ -358,8 +331,8 @@ func (dv *Service) PushNew(ctx context.Context, workspace int64) {
 	}
 }
 
-// anyPrivate reports whether a project of the workspace keeps its data off the network; then the master's
-// replies, which may speak of it, push only that the master replied.
+// anyPrivate reports whether a project of the workspace keeps its data off the network; then what the master
+// writes, which may speak of it, pushes only a generic line.
 func (dv *Service) anyPrivate(ctx context.Context, workspace int64) bool {
 	ps, err := dv.St.Q.ListWorkspaceProjects(ctx, workspace)
 	if err != nil {
@@ -375,9 +348,9 @@ func (dv *Service) anyPrivate(ctx context.Context, workspace int64) bool {
 
 // pushText is a push about something of a project: its text cut short, or only a generic line for a project
 // whose data stays off the network, the master while any project's does, or a project deck cannot read.
-func (dv *Service) pushText(ctx context.Context, projectID int64, title, text, url string) pushMessage {
+func (dv *Service) pushText(ctx context.Context, private func() bool, projectID int64, title, text, url string) pushMessage {
 	p, err := dv.St.Q.GetProject(ctx, projectID)
-	if err != nil || p.Builtin == 1 && dv.anyPrivate(ctx, p.WorkspaceID) {
+	if err != nil || p.Builtin == 1 && private() {
 		return pushMessage{Title: "deck", Body: generic, URL: url}
 	}
 	if m, err := docs.For(ctx, dv.St.Q, registry.Actor{}, p.ID); err != nil || m.NoNetwork {
@@ -454,7 +427,7 @@ func (dv *Service) PushCommands() []*registry.Command {
 			"Returns the public key a device subscribes to the pushes of deck with.",
 			registry.OwnerOnly, dv.pushKey),
 		registry.Def("push_subscribe", "Get pushes",
-			"Subscribes a device to pushes: what waits for the owner, failures, notify lines and the master's replies when no client is open.",
+			"Subscribes a device to pushes: what waits for the owner and the notes of the feed when no client is open.",
 			registry.OwnerOnly, dv.pushSubscribe),
 		registry.Def("push_unsubscribe", "Stop pushes",
 			"Stops pushes to a device.",

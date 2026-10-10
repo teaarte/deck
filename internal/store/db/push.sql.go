@@ -7,7 +7,6 @@ package db
 
 import (
 	"context"
-	"database/sql"
 )
 
 const addPushSubscription = `-- name: AddPushSubscription :one
@@ -64,8 +63,9 @@ func (q *Queries) DeletePushSubscription(ctx context.Context, arg DeletePushSubs
 }
 
 const deleteStalePushMarks = `-- name: DeleteStalePushMarks :exec
-DELETE FROM mark WHERE mark.workspace_id = ?1 AND mark.name LIKE 'push:%' AND NOT EXISTS (
+DELETE FROM mark WHERE mark.workspace_id = ?1 AND mark.name LIKE 'push:%' AND (NOT EXISTS (
     SELECT 1 FROM push_subscription s WHERE s.workspace_id = mark.workspace_id AND mark.name LIKE 'push:' || s.id || ':%')
+  OR mark.name NOT LIKE 'push:%:ask' AND mark.name NOT LIKE 'push:%:notify')
 `
 
 func (q *Queries) DeleteStalePushMarks(ctx context.Context, workspaceID int64) error {
@@ -115,123 +115,6 @@ func (q *Queries) ListAsksAfter(ctx context.Context, arg ListAsksAfterParams) ([
 			&i.ExpiresAt,
 			&i.DeliveredAt,
 			&i.UnheardAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listFailedAfter = `-- name: ListFailedAfter :many
-SELECT p.id, p.project_id, p.command, p.kind, p.state, p.provider, p.session_id, p.input, p.result, p.not_by_schema, p.error, p.start_note, p.parent_id, p.depth, p.trigger_id, p.retry_key, p.manifest_revision, p.trial, p.folder, p.pgid, p.ceiling_ms, p.deadline_ms, p.output_ms, p.silent_since_ms, p.pause_until_ms, p.wait_message, p.wait_fresh, p.started_at, p.finished_at, p.alone, p.dismissed, p.reopened_at, j.name AS project_name FROM process p JOIN project j ON j.id = p.project_id
-WHERE j.workspace_id = ?1 AND p.state = 'error' AND p.trial = 0 AND j.builtin = 0
-  AND (p.finished_at > ?2 OR p.finished_at = ?2 AND p.id > ?3)
-ORDER BY p.finished_at, p.id
-`
-
-type ListFailedAfterParams struct {
-	WorkspaceID int64
-	FinishedAt  sql.NullString
-	ID          int64
-}
-
-type ListFailedAfterRow struct {
-	Process     Process
-	ProjectName string
-}
-
-func (q *Queries) ListFailedAfter(ctx context.Context, arg ListFailedAfterParams) ([]ListFailedAfterRow, error) {
-	rows, err := q.db.QueryContext(ctx, listFailedAfter, arg.WorkspaceID, arg.FinishedAt, arg.ID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ListFailedAfterRow
-	for rows.Next() {
-		var i ListFailedAfterRow
-		if err := rows.Scan(
-			&i.Process.ID,
-			&i.Process.ProjectID,
-			&i.Process.Command,
-			&i.Process.Kind,
-			&i.Process.State,
-			&i.Process.Provider,
-			&i.Process.SessionID,
-			&i.Process.Input,
-			&i.Process.Result,
-			&i.Process.NotBySchema,
-			&i.Process.Error,
-			&i.Process.StartNote,
-			&i.Process.ParentID,
-			&i.Process.Depth,
-			&i.Process.TriggerID,
-			&i.Process.RetryKey,
-			&i.Process.ManifestRevision,
-			&i.Process.Trial,
-			&i.Process.Folder,
-			&i.Process.Pgid,
-			&i.Process.CeilingMs,
-			&i.Process.DeadlineMs,
-			&i.Process.OutputMs,
-			&i.Process.SilentSinceMs,
-			&i.Process.PauseUntilMs,
-			&i.Process.WaitMessage,
-			&i.Process.WaitFresh,
-			&i.Process.StartedAt,
-			&i.Process.FinishedAt,
-			&i.Process.Alone,
-			&i.Process.Dismissed,
-			&i.Process.ReopenedAt,
-			&i.ProjectName,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listMasterMessagesAfter = `-- name: ListMasterMessagesAfter :many
-SELECT m.id, m.topic_id, m.role, m.text, m.context, m.process_id, m.retry_key, m.created_at FROM chat_message m JOIN chat_topic t ON t.id = m.topic_id
-WHERE t.workspace_id = ? AND m.id > ? AND m.role = 'master' AND t.deleted_at IS NULL ORDER BY m.id
-`
-
-type ListMasterMessagesAfterParams struct {
-	WorkspaceID int64
-	ID          int64
-}
-
-func (q *Queries) ListMasterMessagesAfter(ctx context.Context, arg ListMasterMessagesAfterParams) ([]ChatMessage, error) {
-	rows, err := q.db.QueryContext(ctx, listMasterMessagesAfter, arg.WorkspaceID, arg.ID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ChatMessage
-	for rows.Next() {
-		var i ChatMessage
-		if err := rows.Scan(
-			&i.ID,
-			&i.TopicID,
-			&i.Role,
-			&i.Text,
-			&i.Context,
-			&i.ProcessID,
-			&i.RetryKey,
-			&i.CreatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -345,17 +228,6 @@ SELECT CAST(COALESCE(MAX(id), 0) AS INTEGER) FROM ask WHERE workspace_id = ?
 
 func (q *Queries) MaxAskID(ctx context.Context, workspaceID int64) (int64, error) {
 	row := q.db.QueryRowContext(ctx, maxAskID, workspaceID)
-	var column_1 int64
-	err := row.Scan(&column_1)
-	return column_1, err
-}
-
-const maxMasterMessageID = `-- name: MaxMasterMessageID :one
-SELECT CAST(COALESCE(MAX(m.id), 0) AS INTEGER) FROM chat_message m JOIN chat_topic t ON t.id = m.topic_id WHERE t.workspace_id = ?
-`
-
-func (q *Queries) MaxMasterMessageID(ctx context.Context, workspaceID int64) (int64, error) {
-	row := q.db.QueryRowContext(ctx, maxMasterMessageID, workspaceID)
 	var column_1 int64
 	err := row.Scan(&column_1)
 	return column_1, err

@@ -184,12 +184,15 @@ func (d *pushDevice) wait(e *Env, n int) []map[string]string {
 	return append([]map[string]string{}, d.got...)
 }
 
+// TestPushGoesToSubscribedDevices: a device gets what waits for the owner and the notes of the feed; a failure
+// or a reply of the master pushes nothing of its own.
 func TestPushGoesToSubscribedDevices(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		if strings.Contains(c.Req.Prompt, "chat topic") {
 			return provider.Result{Text: "Put it into groceries, as card 1."}
 		}
+		c.Approve(ctx, "AskUserQuestion", map[string]any{"questions": []map[string]any{{"question": "Which site?\nThe first one is down."}}})
 		return provider.Result{IsError: true, Text: "the site is down"}
 	})
 	var key struct{ Key string }
@@ -209,43 +212,33 @@ func TestPushGoesToSubscribedDevices(t *testing.T) {
 		!strings.Contains(d.vap[0], "vapid t=") || !strings.Contains(d.vap[0], "k="+key.Key) {
 		t.Fatalf("a notify line is pushed, signed with the key of deck: %+v %v", got, d.vap)
 	}
-	e.waitState(e.run(p, "work"), "error")
+	id := e.run(p, "work")
 	got = d.wait(e, 2)
-	if got[1]["title"] != "work.work failed" || !strings.Contains(got[1]["body"], "the site is down") || !strings.HasPrefix(got[1]["url"], "/#/deck/process/") {
-		t.Fatalf("a failure is pushed with the page of its process: %+v", got[1])
+	if got[1]["title"] != "Waiting for you" || got[1]["body"] != "Which site?" || got[1]["url"] != "/#/deck/cockpit" || got[1]["badge"] != "1" {
+		t.Fatalf("a question is pushed by its first line: %+v", got[1])
 	}
-	e.must("deck.notify", map[string]any{"project": "private", "text": "Your blood test is in"}, nil)
-	got = d.wait(e, 3)
-	if strings.Contains(got[2]["body"], "blood") || got[2]["body"] != "Something in deck waits for you" {
-		t.Fatalf("a project without network pushes only a generic line: %+v", got[2])
-	}
+	e.answer(e.waitAsk().ID, "the second")
+	e.waitState(id, "error")
 	topic := e.say(0, "buy milk")
 	e.masterSaid(topic, 1)
-	got = d.wait(e, 4)
-	if got[3]["title"] != "Master" || got[3]["body"] != "The master replied" || got[3]["url"] != "/#/deck/chat" {
-		t.Fatalf("the master's reply is pushed while no client is open, as a bare line while a project keeps off the network: %+v", got[3])
+	e.must("deck.notify", map[string]any{"project": "private", "text": "Your blood test is in"}, nil)
+	got = d.wait(e, 3)
+	if len(got) != 3 || strings.Contains(got[2]["body"], "blood") || got[2]["body"] != "Something in deck waits for you" {
+		t.Fatalf("a failure and a reply push nothing; a project without network pushes only a generic line: %+v", got)
 	}
-	ctx, cancel := context.WithCancel(context.Background())
-	_ = e.sse(ctx)
-	e.say(topic, "and bread")
-	e.masterSaid(topic, 2)
-	if got = d.wait(e, 5); got[4]["title"] != "Master" {
-		t.Fatalf("a tab open on another device does not swallow the reply on the phone: %+v", got[4])
-	}
-	cancel()
 	long := strings.Repeat("word ", 60)
 	e.must("deck.notify", map[string]any{"project": "work", "text": long}, nil)
-	got = d.wait(e, 6)
-	if len(got[5]["body"]) > 104 {
-		t.Fatalf("a push is short: %d bytes", len(got[5]["body"]))
+	got = d.wait(e, 4)
+	if len(got[3]["body"]) > 104 {
+		t.Fatalf("a push is short: %d bytes", len(got[3]["body"]))
 	}
 	e.must("deck.notify", map[string]any{"project": "work", "text": "The runs of today", "screen": "deck/schedule"}, nil)
-	if got = d.wait(e, 7); got[6]["url"] != "/#/deck/schedule" {
-		t.Fatalf("a note of a screen of deck pushes that screen: %+v", got[6])
+	if got = d.wait(e, 5); got[4]["url"] != "/#/deck/schedule" {
+		t.Fatalf("a note of a screen of deck pushes that screen: %+v", got[4])
 	}
 	e.must("deck.notify", map[string]any{"project": "master", "text": "The blood test of private is in"}, nil)
-	if got = d.wait(e, 8); got[7]["body"] != "Something in deck waits for you" {
-		t.Fatalf("a line of the master, which may quote a project without network, is generic too: %+v", got[7])
+	if got = d.wait(e, 6); got[5]["body"] != "Something in deck waits for you" {
+		t.Fatalf("a line of the master, which may quote a project without network, is generic too: %+v", got[5])
 	}
 	d.mu.Lock()
 	d.gone = true
@@ -280,8 +273,7 @@ func TestAPushThatFailsForNowIsSentAgain(t *testing.T) {
 	t.Cleanup(flaky.Close)
 	d.subscribe(e, flaky, "mac")
 	e.createProject("work", plainManifest)
-	topic := e.say(0, "update the list")
-	e.masterSaid(topic, 1)
+	e.must("deck.notify", map[string]any{"project": "work", "text": "The list is updated."}, nil)
 	e.App.Sweep(context.Background(), time.Now())
 	if n := len(d.got); n != 0 {
 		t.Fatalf("nothing arrives while the service fails: %d", n)

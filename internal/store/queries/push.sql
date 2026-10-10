@@ -20,13 +20,6 @@ SELECT CAST(COALESCE(MAX(id), 0) AS INTEGER) FROM ask WHERE workspace_id = ?;
 SELECT * FROM ask WHERE workspace_id = ? AND id > ? AND state = 'open' ORDER BY id;
 
 
--- name: ListFailedAfter :many
-SELECT sqlc.embed(p), j.name AS project_name FROM process p JOIN project j ON j.id = p.project_id
-WHERE j.workspace_id = sqlc.arg(workspace_id) AND p.state = 'error' AND p.trial = 0 AND j.builtin = 0
-  AND (p.finished_at > sqlc.arg(finished_at) OR p.finished_at = sqlc.arg(finished_at) AND p.id > sqlc.arg(id))
-ORDER BY p.finished_at, p.id;
-
-
 -- name: MaxNoteID :one
 SELECT CAST(COALESCE(MAX(id), 0) AS INTEGER) FROM feed WHERE workspace_id = ? AND kind = 'note' AND for_master = 0;
 
@@ -36,19 +29,11 @@ SELECT sqlc.embed(n), j.name AS project_name FROM feed n JOIN project j ON j.id 
 WHERE n.workspace_id = ? AND n.kind = 'note' AND n.for_master = 0 AND n.id > ? ORDER BY n.id;
 
 
--- name: MaxMasterMessageID :one
-SELECT CAST(COALESCE(MAX(m.id), 0) AS INTEGER) FROM chat_message m JOIN chat_topic t ON t.id = m.topic_id WHERE t.workspace_id = ?;
-
-
--- name: ListMasterMessagesAfter :many
-SELECT m.* FROM chat_message m JOIN chat_topic t ON t.id = m.topic_id
-WHERE t.workspace_id = ? AND m.id > ? AND m.role = 'master' AND t.deleted_at IS NULL ORDER BY m.id;
-
-
 -- name: DeleteWorkspacePushSubscriptions :exec
 DELETE FROM push_subscription WHERE workspace_id = ?;
 
 
 -- name: DeleteStalePushMarks :exec
-DELETE FROM mark WHERE mark.workspace_id = sqlc.arg(workspace_id) AND mark.name LIKE 'push:%' AND NOT EXISTS (
-    SELECT 1 FROM push_subscription s WHERE s.workspace_id = mark.workspace_id AND mark.name LIKE 'push:' || s.id || ':%');
+DELETE FROM mark WHERE mark.workspace_id = sqlc.arg(workspace_id) AND mark.name LIKE 'push:%' AND (NOT EXISTS (
+    SELECT 1 FROM push_subscription s WHERE s.workspace_id = mark.workspace_id AND mark.name LIKE 'push:' || s.id || ':%')
+  OR mark.name NOT LIKE 'push:%:ask' AND mark.name NOT LIKE 'push:%:notify');

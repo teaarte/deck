@@ -50,8 +50,9 @@ export function Form({ value }: { value: FormValue }) {
     setBusy(true);
     setOut(undefined);
     try {
-      const data = await buildInput(props, form.values, form.files,
-        { project: project ?? '', record: edit ? (value.values as Record<string, unknown> | undefined) ?? {} : undefined });
+      // The fixed fields are not drawn; their values go as the server gave them.
+      const data = { ...await buildInput(props, form.values, form.files,
+        { project: project ?? '', record: edit ? (value.values as Record<string, unknown> | undefined) ?? {} : undefined }), ...value.fixed };
       const res = await call<unknown>(cmd.name, edit ? { record: value.record, data: JSON.stringify(data) } : data);
       const hidden = Object.keys(props).filter((k) => props[k].writeOnly);
       if (hidden.length && alive.current) form.forget(hidden);

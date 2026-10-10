@@ -249,7 +249,8 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   result schema; a command that keeps its result writes the records itself; a field picked from a source takes
   `"choices": {"note": {"source": {"collection": "notes"}, "value": "_id", "label": "title"}}`, and a field with
   `"format": "project"` offers the projects by itself; on a record page
-  `{"type": "form", "command": "deck.record_update"}` edits the record, `immutable` fields read only.
+  `{"type": "form", "command": "deck.record_update"}` edits the record, `immutable` fields read only. An id the owner
+  need not see goes in `fixed`: `"values": {"slug": "=slug"}, "fixed": ["slug"]` sends it unshown and unchanged.
   `{"type": "document", "document": "prompts/criteria.md"}` shows a
   document of the project, on a record page one of the record (an artifact): markdown drawn, an md document
   edited by the owner as a new revision, its revisions and going back to one; every project also gets a

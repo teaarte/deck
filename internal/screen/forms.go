@@ -67,6 +67,7 @@ func (r *renderer) form(b manifest.Block) (map[string]any, error) {
 		if err := r.formValues(v, b.Values, cmds[0]); err != nil {
 			return nil, err
 		}
+		fix(v, b.Fixed, cmds[0])
 	}
 	if len(cmds) == 1 && b.Source == nil {
 		choices, err := r.choices(b, cmds[0])
@@ -136,6 +137,42 @@ func (r *renderer) formValues(v map[string]any, values map[string]string, cmd ma
 		v["values"] = got
 	}
 	return nil
+}
+
+// fix moves the values of the fixed fields of a form apart and drops those fields from the input it shows, so the
+// owner neither sees nor changes them; the form sends them with what the owner fills in.
+func fix(v map[string]any, fixed []string, cmd map[string]any) {
+	got, _ := v["values"].(map[string]any)
+	if len(fixed) == 0 || got == nil {
+		return
+	}
+	in, _ := cmd["input"].(map[string]any)
+	if raw, ok := cmd["input"].(json.RawMessage); ok {
+		_ = json.Unmarshal(raw, &in)
+	}
+	props, _ := in["properties"].(map[string]any)
+	out := map[string]any{}
+	for _, name := range fixed {
+		val, ok := got[name]
+		if !ok {
+			continue
+		}
+		out[name] = val
+		delete(got, name)
+		delete(props, name)
+		if req, ok := in["required"].([]any); ok {
+			in["required"] = slices.DeleteFunc(req, func(x any) bool { return x == name })
+		}
+	}
+	if order, ok := cmd["order"].([]string); ok {
+		cmd["order"] = slices.DeleteFunc(order, func(k string) bool { _, ok := out[k]; return ok })
+	}
+	if in != nil {
+		cmd["input"] = in
+	}
+	if len(out) > 0 {
+		v["fixed"] = out
+	}
 }
 
 // choices are the values a form offers by field: those its block reads from a source, the projects of the

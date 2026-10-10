@@ -977,3 +977,43 @@ func TestTheMasterSettingsShowWhatItDoesOnSchedule(t *testing.T) {
 		t.Fatalf("the documents of the master are a tab of files")
 	}
 }
+
+const fixedClips = `{"version": 11,
+  "collections": [{"name": "clips", "description": "Clips", "key": "slug", "display": "title",
+    "schema": {"type": "object", "properties": {"slug": {"type": "string"}, "title": {"type": "string"}}, "required": ["slug"]}}],
+  "commands": [{"name": "retitle", "title": "Retitle", "description": "Retitles a clip.", "class": "internal", "result": {"type": "object"},
+    "input": {"type": "object", "properties": {"slug": {"type": "string"}, "title": {"type": "string"}}, "required": ["slug", "title"]},
+    "executor": {"type": "agent", "prompt": "Retitle."}}],
+  "screens": [{"name": "clip", "title": "Clip", "record": "clips", "blocks": [
+    {"type": "form", "command": "retitle", "values": {"slug": "=slug", "title": "=title"}, "fixed": [%s]}]}]}`
+
+// TestAFormKeepsItsFixedFieldsFromTheOwner: a fixed field of a form is not in the input the form shows; its value,
+// resolved by the server, goes apart for the call; a fixed field without a value is refused on save.
+func TestAFormKeepsItsFixedFieldsFromTheOwner(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, ok)
+	check := newCatalogCheck(t)
+	e.createProject("clips", fmt.Sprintf(fixedClips, `"slug"`))
+	e.must("deck.records_upsert", map[string]any{"project": "clips", "collection": "clips",
+		"records": jsonl(map[string]any{"slug": "a-1", "title": "First"})}, nil)
+	var recs []struct{ ID int64 }
+	e.must("deck.records_list", map[string]any{"project": "clips", "collection": "clips"}, &recs)
+	check.messages(t, e.screenMessages("clips", "clip", map[string]any{"record": recs[0].ID}))
+	form := blockData[struct {
+		Values, Fixed map[string]any
+		Commands      []struct {
+			Input struct {
+				Properties map[string]any
+				Required   []string
+			}
+			Order []string
+		}
+	}](t, e.screenData("clips", "clip", map[string]any{"record": recs[0].ID})["b0"]["value"])
+	in := form.Commands[0]
+	if form.Fixed["slug"] != "a-1" || form.Values["slug"] != nil || form.Values["title"] != "First" || in.Input.Properties["slug"] != nil ||
+		slices.Contains(in.Input.Required, "slug") || slices.Contains(in.Order, "slug") {
+		t.Fatalf("the fixed slug goes apart and is no field the owner sees: %+v", form)
+	}
+	e.refused("deck.manifest_save", map[string]any{"project": "clips", "manifest": fmt.Sprintf(fixedClips, `"slug", "sid"`)}, 422,
+		`fixed "sid": a fixed field takes its value from values`)
+}

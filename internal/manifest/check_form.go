@@ -68,6 +68,11 @@ func (c *screenCheck) values(where string, b Block) {
 			c.fail("%s: %v", at, gone(f))
 		}
 	}
+	for _, field := range b.Fixed {
+		if _, ok := b.Values[field]; !ok {
+			c.warn("%s fixed %q: a fixed field takes its value from values", where, field)
+		}
+	}
 }
 
 // choices checks the choices of a form: fields of its input, read from a source, with expressions over its items.

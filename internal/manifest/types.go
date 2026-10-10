@@ -312,6 +312,8 @@ type Block struct {
 	Choices map[string]Choice `json:"choices,omitempty"`
 	// Values fill fields of a form before the owner types: fixed text or =<expression> over the record of the page.
 	Values map[string]string `json:"values,omitempty"`
+	// Fixed are the fields of a form whose values are not shown and go with the call as they are.
+	Fixed []string `json:"fixed,omitempty"`
 	// KeepOpen keeps the dialog of a form open after its call, to show the result.
 	KeepOpen bool `json:"keep_open,omitempty"`
 	// Document is the custom/ document with the HTML of a custom block, or the document a document block shows.

@@ -453,6 +453,10 @@ export interface FormValue {
     result?: unknown;
   }[];
   values?: {};
+  /**
+   * Values of fields the form does not show and sends as they are
+   */
+  fixed?: {};
   readonly?: string[];
   record?: number;
   keep_open?: boolean;

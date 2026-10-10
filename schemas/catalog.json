@@ -196,7 +196,7 @@
     },
     "form": {
       "description": "Asks for the input of a command and shows its result: one command, or a pick from deck.commands_list.",
-      "block": {"description": "Has either command or source from deck.commands_list to pick one, never both; it is its own button and takes no actions.", "oneOf": [{"required": ["command"]}, {"required": ["source"]}], "properties": {"command": {"type": "string", "description": "deck.record_update on a record page edits the record."}, "source": {"allOf": [{"$ref": "#/$defs/source"}, {"required": ["from"], "properties": {"from": {"const": "deck.commands_list"}}}]}, "keep_open": {"type": "boolean", "description": "In a dialog the form stays open after its call to show the result, such as a token shown once; otherwise the dialog closes."}, "values": {"type": "object", "additionalProperties": {"type": "string"}, "description": "Fields filled before the owner types, by field: fixed text, or =<expression> over the record of the page such as =title or =param.<name>, a parameter the screen declares."}, "choices": {"type": "object", "description": "Values offered for fields of the input, by field: a source and expressions over its items for the value and its label.", "additionalProperties": {"type": "object", "additionalProperties": false, "required": ["source", "value"], "properties": {"source": {"$ref": "#/$defs/source"}, "value": {"type": "string"}, "label": {"type": "string"}}}}}},
+      "block": {"description": "Has either command or source from deck.commands_list to pick one, never both; it is its own button and takes no actions.", "oneOf": [{"required": ["command"]}, {"required": ["source"]}], "properties": {"command": {"type": "string", "description": "deck.record_update on a record page edits the record."}, "source": {"allOf": [{"$ref": "#/$defs/source"}, {"required": ["from"], "properties": {"from": {"const": "deck.commands_list"}}}]}, "keep_open": {"type": "boolean", "description": "In a dialog the form stays open after its call to show the result, such as a token shown once; otherwise the dialog closes."}, "fixed": {"type": "array", "items": {"type": "string"}, "description": "Fields of values the form does not show and sends as they are, such as the id of the record of the page."}, "values": {"type": "object", "additionalProperties": {"type": "string"}, "description": "Fields filled before the owner types, by field: fixed text, or =<expression> over the record of the page such as =title or =param.<name>, a parameter the screen declares."}, "choices": {"type": "object", "description": "Values offered for fields of the input, by field: a source and expressions over its items for the value and its label.", "additionalProperties": {"type": "object", "additionalProperties": false, "required": ["source", "value"], "properties": {"source": {"$ref": "#/$defs/source"}, "value": {"type": "string"}, "label": {"type": "string"}}}}}},
       "type": "object",
       "additionalProperties": false,
       "required": ["data"],
@@ -205,7 +205,7 @@
         "icon": {"type": "string"},
         "span": {"enum": [1, 2, "full"], "default": "full"},
         "description": {"type": "string"},
-        "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "value: {commands: [{name, title, project, input, result}], values, readonly, record}"}
+        "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "value: {commands: [{name, title, project, input, result}], values, fixed, readonly, record}"}
       }
     },
     "appearance": {
@@ -309,7 +309,7 @@
         "commands": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["name", "title", "input", "order"], "properties": {
           "name": {"type": "string"}, "title": {"type": "string"}, "description": {"type": "string"}, "project": {"type": "string"},
           "input": {"type": "object"}, "order": {"type": ["array", "null"], "items": {"type": "string"}}, "result": {}}}},
-        "values": {"type": "object"}, "readonly": {"type": "array", "items": {"type": "string"}}, "record": {"type": "integer"}, "keep_open": {"type": "boolean"},
+        "values": {"type": "object"}, "fixed": {"type": "object", "description": "Values of fields the form does not show and sends as they are"}, "readonly": {"type": "array", "items": {"type": "string"}}, "record": {"type": "integer"}, "keep_open": {"type": "boolean"},
         "choices": {"type": "object", "description": "Values offered by field", "additionalProperties": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["value", "label"], "properties": {"value": {}, "label": {"type": "string"}}}}}}},
       "document": {"type": "object", "additionalProperties": false, "required": ["id", "project", "name", "kind", "text", "revision", "editable", "revisions"], "properties": {
         "id": {"type": "integer", "description": "0 while the document is not written yet"}, "project": {"type": "string"}, "name": {"type": "string"}, "kind": {"type": "string"},

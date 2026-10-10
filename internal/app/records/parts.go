@@ -184,11 +184,7 @@ func unheld(ctx context.Context, q *db.Queries, p db.Project, m *manifest.Manife
 func (pl plan) parts(m *manifest.Manifest) []part {
 	out := []part{}
 	for _, r := range pl.records {
-		name := r.Key
-		if t := ViewOf(r, m.Collection(r.Collection)).Title; t != "" {
-			name = t
-		}
-		out = append(out, part{Kind: "record", Name: r.Collection + ": " + name, ID: r.ID})
+		out = append(out, part{Kind: "record", Name: r.Collection + ": " + ViewOf(r, m.Collection(r.Collection)).Name(), ID: r.ID})
 	}
 	for _, f := range pl.files {
 		out = append(out, part{Kind: "file", Name: f.Name, ID: f.ID})

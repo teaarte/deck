@@ -2,6 +2,7 @@ package records
 
 import (
 	"bufio"
+	"cmp"
 	"context"
 	"database/sql"
 	"deck2/internal/app/access"
@@ -143,6 +144,9 @@ type View struct {
 	UpdatedAt  string          `json:"updated_at"`
 }
 
+// Name is the title of the record, or its key when its collection names none.
+func (v View) Name() string { return cmp.Or(v.Title, v.Key) }
+
 func ViewOf(r db.Record, c *manifest.Collection) View {
 	v := View{ID: r.ID, Collection: r.Collection, Key: r.Key, Data: json.RawMessage(r.Data), UpdatedAt: r.UpdatedAt}
 	if c != nil {
@@ -155,8 +159,8 @@ func ViewOf(r db.Record, c *manifest.Collection) View {
 
 // Service keeps the records of projects.
 type Service struct {
-	St   *store.Store
-	Now  func() time.Time
+	St  *store.Store
+	Now func() time.Time
 	// DrainFiles removes the files and folders whose rows are gone.
 	DrainFiles func(ctx context.Context)
 	// Stop ends an open process with a reason.

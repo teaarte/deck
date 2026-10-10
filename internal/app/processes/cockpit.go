@@ -8,7 +8,9 @@ import (
 	"slices"
 	"time"
 
+	"deck2/internal/app/records"
 	"deck2/internal/docs"
+	"deck2/internal/manifest"
 	"deck2/internal/process"
 	"deck2/internal/registry"
 	"deck2/internal/store"
@@ -28,20 +30,15 @@ func (s *Service) ofRecord(ctx context.Context, p db.Process, v *processView) {
 	if err != nil || rec.ProjectID != p.ProjectID {
 		return
 	}
-	v.RecordTitle = rec.Key
 	proj, err := s.St.Q.GetProject(ctx, p.ProjectID)
 	if err != nil {
 		return
 	}
+	var c *manifest.Collection
 	if m, err := docs.Manifest(ctx, s.St.Q, proj); err == nil {
-		if c := m.Collection(rec.Collection); c != nil {
-			var data map[string]any
-			_ = json.Unmarshal([]byte(rec.Data), &data)
-			if t := c.RecordTitle(data); t != "" {
-				v.RecordTitle = t
-			}
-		}
+		c = m.Collection(rec.Collection)
 	}
+	v.RecordTitle = records.ViewOf(rec, c).Name()
 }
 
 // usualRuns is how many finished runs of a command it takes to know how long it usually works.

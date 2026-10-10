@@ -1365,7 +1365,7 @@ func (q *Queries) MarkToolCallUnknown(ctx context.Context, arg MarkToolCallUnkno
 
 const pauseCeiling = `-- name: PauseCeiling :exec
 UPDATE process SET ceiling_ms = MAX(0, deadline_ms - CAST(?1 AS INTEGER)), deadline_ms = NULL, silent_since_ms = NULL
-WHERE id = ?2 AND deadline_ms IS NOT NULL
+WHERE id = ?2 AND state = 'running' AND deadline_ms IS NOT NULL
 `
 
 type PauseCeilingParams struct {
@@ -1661,7 +1661,7 @@ func (q *Queries) SettleDecision(ctx context.Context, arg SettleDecisionParams) 
 
 const startCeiling = `-- name: StartCeiling :exec
 UPDATE process SET deadline_ms = ?1 + ceiling_ms, output_ms = ?1, silent_since_ms = NULL
-WHERE id = ?2 AND deadline_ms IS NULL
+WHERE id = ?2 AND state = 'running' AND deadline_ms IS NULL
 `
 
 type StartCeilingParams struct {

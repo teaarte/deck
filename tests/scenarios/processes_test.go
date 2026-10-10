@@ -12,9 +12,12 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
+
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 func TestAgentCallsReturnAtOnceAndRetryKeyReusesTheProcess(t *testing.T) {
@@ -629,5 +632,45 @@ func TestAResultSchemaOfFormatSixWithoutATypeStillLoads(t *testing.T) {
 		if got := e.full(e.waitState(e.run(p, "check"), "done", "error").ID); got.NotBySchema || !got.Empty {
 			t.Fatalf("%s: a module of format 6 takes null as nothing to do: %+v", result, got)
 		}
+	}
+}
+
+// TestACallThatOutlivesItsTurnLeavesAParkedProcessWithoutACeiling: an approval that is decided after the turn
+// ended and the process parked does not start the ceiling of the parked process, which would count its wait.
+func TestACallThatOutlivesItsTurnLeavesAParkedProcessWithoutACeiling(t *testing.T) {
+	t.Parallel()
+	returned := make(chan struct{})
+	var asked atomic.Bool
+	e := newClockEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		if c.N > 1 {
+			return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
+		}
+		client := mcp.NewClient(&mcp.Implementation{Name: "late", Version: "0"}, nil)
+		sess, err := client.Connect(context.Background(), &mcp.StreamableClientTransport{Endpoint: c.Req.MCPURL}, nil)
+		if err != nil {
+			c.fake.broke(err.Error())
+			return provider.Result{}
+		}
+		go func() {
+			defer close(returned)
+			defer sess.Close()
+			_, _ = sess.CallTool(context.Background(), &mcp.CallToolParams{Name: "approve",
+				Arguments: map[string]any{"tool_name": "Bash", "input": map[string]any{"command": "curl https://example.com"}, "tool_use_id": "t1"}})
+		}()
+		for deadline := time.Now().Add(5 * time.Second); !asked.Load() && time.Now().Before(deadline); {
+			time.Sleep(10 * time.Millisecond)
+		}
+		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
+	}, func(c *app.Config) { c.ConfirmWait = time.Hour })
+	p := e.createProject("ask", testManifest([]string{agentCommand("job", "")}, nil))
+	id := e.run(p, "job")
+	a := e.waitAsk()
+	asked.Store(true)
+	e.waitState(id, "waiting_answer")
+	e.answer(a.ID, "deny")
+	<-returned
+	e.settle()
+	if got := e.full(id); got.State == "waiting_answer" && got.Deadline != "" {
+		t.Fatalf("a parked process has no ceiling running: %+v", got)
 	}
 }

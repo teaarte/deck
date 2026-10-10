@@ -58,12 +58,12 @@ WHERE id = ? AND finished_at IS NOT NULL AND session_id != '';
 
 -- name: StartCeiling :exec
 UPDATE process SET deadline_ms = sqlc.arg(now) + ceiling_ms, output_ms = sqlc.arg(now), silent_since_ms = NULL
-WHERE id = sqlc.arg(id) AND deadline_ms IS NULL;
+WHERE id = sqlc.arg(id) AND state = 'running' AND deadline_ms IS NULL;
 
 
 -- name: PauseCeiling :exec
 UPDATE process SET ceiling_ms = MAX(0, deadline_ms - CAST(sqlc.arg(now) AS INTEGER)), deadline_ms = NULL, silent_since_ms = NULL
-WHERE id = sqlc.arg(id) AND deadline_ms IS NOT NULL;
+WHERE id = sqlc.arg(id) AND state = 'running' AND deadline_ms IS NOT NULL;
 
 
 -- name: PauseCeilingAtLastOutput :exec

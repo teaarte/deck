@@ -64,7 +64,7 @@ func checkTemplate(t HTTPTool) []error {
 		var file string
 		if err := json.Unmarshal(kinds["file"], &file); err != nil || len(kinds) > 1 {
 			fail("a file body is {\"file\": \"{field}\"}")
-		} else if m := placeholder.FindStringSubmatch(file); m == nil || m[0] != file || !slices.Contains(FileFields(t.Input), m[1]) {
+		} else if m := placeholder.FindStringSubmatch(file); m == nil || m[0] != file || !slices.Contains(FieldsOf(t.Input, "file"), m[1]) {
 			fail("a file body takes exactly one input field of format file")
 		}
 	}
@@ -107,8 +107,25 @@ func FitsTool(c Command, name string, input json.RawMessage) error {
 	return errors.Join(errs...)
 }
 
-// FileFields are the input fields of a schema whose values point to files.
-func FileFields(input json.RawMessage) []string { return FieldsOf(input, "file") }
+// FileFields are the input fields of a schema whose values point to files, one or a list, sorted.
+func FileFields(input json.RawMessage) []string {
+	var s struct {
+		Properties map[string]struct {
+			Items struct {
+				Format string `json:"format"`
+			} `json:"items"`
+		} `json:"properties"`
+	}
+	_ = json.Unmarshal(input, &s)
+	out := FieldsOf(input, "file")
+	for name, p := range s.Properties {
+		if p.Items.Format == "file" && !slices.Contains(out, name) {
+			out = append(out, name)
+		}
+	}
+	slices.Sort(out)
+	return out
+}
 
 // FieldsOf are the input fields of a format, such as json: text with JSON a tool sends on as the value itself.
 func FieldsOf(input json.RawMessage, format string) []string {

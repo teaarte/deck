@@ -37,7 +37,7 @@ type part struct {
 func makeBody(t manifest.HTTPTool, in, values map[string]any, resolve func(string) (files.Ref, error)) (*body, error) {
 	fileOf := func(tmpl string) (*files.Ref, bool, error) {
 		m := field.FindStringSubmatch(tmpl)
-		if m == nil || m[0] != tmpl || !slices.Contains(manifest.FileFields(t.Input), m[1]) {
+		if m == nil || m[0] != tmpl || !slices.Contains(manifest.FieldsOf(t.Input, "file"), m[1]) {
 			return nil, false, nil
 		}
 		ref, _ := in[m[1]].(string)

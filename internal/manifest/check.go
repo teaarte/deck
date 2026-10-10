@@ -312,6 +312,11 @@ func checkModel(c *Command, fail func(string, ...any)) {
 	if role, ok := strings.CutPrefix(e.Model, "@"); ok && role != e.Kind {
 		fail("command %q: a model of kind %s is @%s or a model by name, not %s", c.Name, e.Kind, e.Kind, e.Model)
 	}
+	for _, f := range FileFields(c.Input) {
+		if (e.Kind == "video" || e.Kind == "stt") && !slices.Contains(FieldsOf(c.Input, "file"), f) {
+			fail("command %q: a %s model takes one file a field; input field %s is a list of files", c.Name, e.Kind, f)
+		}
+	}
 	switch e.Kind {
 	case "text", "image", "music", "video":
 		if e.Prompt == "" && e.PromptFile == "" {

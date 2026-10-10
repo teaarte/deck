@@ -13,7 +13,6 @@ import (
 	"strings"
 
 	"deck2/internal/manifest"
-	"deck2/internal/process"
 	"deck2/internal/registry"
 )
 
@@ -102,7 +101,7 @@ func (a *App) commandsList(ctx context.Context, act registry.Actor, in commandsL
 		if pid != 0 && c.ProjectID != pid {
 			continue
 		}
-		r := commandRow{Name: c.Name, Title: c.Title, Project: names[c.ProjectID], Files: append([]string{}, process.FileFields(c.Input)...)}
+		r := commandRow{Name: c.Name, Title: c.Title, Project: names[c.ProjectID], Files: append([]string{}, manifest.FileFields(c.Input)...)}
 		if !master {
 			r.Description = c.Description
 		}

@@ -151,7 +151,7 @@ func TestAVideoJobThatFailsOrNeverEndsIsAnError(t *testing.T) {
 }
 
 // TestAVideoCommandOfAManifestTakesAPromptAndItsFrames: a video command needs a prompt, and its file fields are its
-// first and last frames.
+// first and last frames, a file each.
 func TestAVideoCommandOfAManifestTakesAPromptAndItsFrames(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, nil)
@@ -159,6 +159,9 @@ func TestAVideoCommandOfAManifestTakesAPromptAndItsFrames(t *testing.T) {
 	e.refused("deck.project_create", map[string]any{"name": "shorts", "manifest": noPrompt}, 422, "a video model needs prompt or prompt_file")
 	otherFile := strings.Replace(videoManifest, `"last_frame": {"type": "string", "format": "file"}`, `"sound": {"type": "string", "format": "file"}`, 1)
 	e.refused("deck.project_create", map[string]any{"name": "shorts", "manifest": otherFile}, 422, "first_frame and last_frame")
+	frames := strings.Replace(videoManifest, `"last_frame": {"type": "string", "format": "file"}`,
+		`"last_frame": {"type": "array", "items": {"type": "string", "format": "file"}}`, 1)
+	e.refused("deck.project_create", map[string]any{"name": "shorts", "manifest": frames}, 422, "input field last_frame is a list of files")
 	e.createProject("shorts", videoManifest)
 }
 

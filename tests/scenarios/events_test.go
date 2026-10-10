@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -165,5 +166,18 @@ func TestAFolderAndAnAssignmentTellOnlyTheirReaders(t *testing.T) {
 	}
 	if got := seen(func() { e.must("deck.settings_set", map[string]any{"name": "agent_limit", "value": "2"}, nil) }); len(got) != 0 {
 		t.Fatalf("a write that changes nothing tells no one: %v", got)
+	}
+}
+
+// TestTheListOfProjectsFollowsTheirFolders: a project of the list shows its folders, so a new folder reads it again.
+func TestTheListOfProjectsFollowsTheirFolders(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, nil)
+	e.createProject("web", webNotes)
+	dir := t.TempDir()
+	e.must("deck.folder_add", map[string]any{"project": "web", "path": dir}, nil)
+	drawn, _ := json.Marshal(e.screenMessages("", "settings", map[string]any{"topic": "folders", "changed": "web"}))
+	if !strings.Contains(string(drawn), filepath.Base(dir)) {
+		t.Fatalf("the list of projects is read again with the new folder: %s", drawn)
 	}
 }

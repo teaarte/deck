@@ -38,7 +38,9 @@ func TestAModuleExportedByTheSkillImportsAsADraft(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	dir := filepath.Join(t.TempDir(), "links-copy")
+	modules := t.TempDir()
+	e.must("deck.folder_add", map[string]any{"project": "links", "name": "modules", "path": modules}, nil)
+	dir := filepath.Join(modules, "links-copy")
 	exportLikeTheSkill(t, s, "links", dir)
 	var files []string
 	_ = filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
@@ -144,13 +146,12 @@ func TestAgentImportsClaudeSkillsWithDocumentSave(t *testing.T) {
 func TestImportTakesNoLinks(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, ok)
-	_, tok := e.token("terminal", "deck.*")
 	dir := t.TempDir()
 	_ = os.WriteFile(filepath.Join(dir, deckdocs.ManifestName), []byte(`{"version": 11}`), 0o644)
 	secret := filepath.Join(t.TempDir(), "secret.txt")
 	_ = os.WriteFile(secret, []byte("owner's secret"), 0o600)
 	_ = os.Symlink(secret, filepath.Join(dir, "notes.md"))
-	if code, out := e.callWith(tok, "deck.project_import", map[string]any{"folder": dir, "name": "linked"}); code != 422 || !strings.Contains(string(out), "notes.md: a symbolic link") {
+	if code, out := e.call("deck.project_import", map[string]any{"folder": dir, "name": "linked"}); code != 422 || !strings.Contains(string(out), "notes.md: a symbolic link") {
 		t.Fatalf("an import does not follow links out of its folder: %d %s", code, out)
 	}
 }

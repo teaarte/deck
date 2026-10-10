@@ -85,6 +85,33 @@ func (q *Queries) ListProjectFolders(ctx context.Context, projectID int64) ([]Pr
 	return items, nil
 }
 
+const listWorkspaceFolderPaths = `-- name: ListWorkspaceFolderPaths :many
+SELECT f.path FROM project_folder f JOIN project p ON p.id = f.project_id WHERE p.workspace_id = ? ORDER BY f.path
+`
+
+func (q *Queries) ListWorkspaceFolderPaths(ctx context.Context, workspaceID int64) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, listWorkspaceFolderPaths, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var path string
+		if err := rows.Scan(&path); err != nil {
+			return nil, err
+		}
+		items = append(items, path)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const releaseClosedFolderLocks = `-- name: ReleaseClosedFolderLocks :many
 DELETE FROM folder_lock WHERE process_id = ? AND process_id IN (SELECT id FROM process WHERE finished_at IS NOT NULL) RETURNING path
 `

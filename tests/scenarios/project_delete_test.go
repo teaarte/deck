@@ -351,29 +351,35 @@ func TestTheImportsAndNotesOfABaseFromBeforeStay(t *testing.T) {
 	}
 }
 
-// TestTheMasterImportsOnlyFromTheOwnersFoldersAndItsData: a folder of the owner and the data of the master can
-// become a draft; the data of another project cannot.
-func TestTheMasterImportsOnlyFromTheOwnersFoldersAndItsData(t *testing.T) {
+// TestTheMasterImportsOnlyFromItsDataAndGrantedFolders: the data of the master and a folder the owner gave a
+// project can become a draft; the data of another project and any other folder of the owner cannot, unread.
+func TestTheMasterImportsOnlyFromItsDataAndGrantedFolders(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, nil)
 	other := e.createProject("other", webNotes)
 	theirs := filepath.Join(e.App.Home.Data(other), "mod")
 	mp, _ := e.App.Store.Q.GetProjectByName(context.Background(), db.GetProjectByNameParams{WorkspaceID: 1, Name: "master"})
 	own := filepath.Join(e.App.Home.Data(mp.ID), "drafts", "mod")
-	repo := t.TempDir()
-	for _, dir := range []string{theirs, own, filepath.Join(repo, "mod")} {
+	repo, loose := t.TempDir(), t.TempDir()
+	for _, dir := range []string{theirs, own, filepath.Join(repo, "mod"), loose} {
 		if err := errors.Join(os.MkdirAll(dir, 0o700), os.WriteFile(filepath.Join(dir, "manifest.json"), []byte(webNotes), 0o600)); err != nil {
 			t.Fatal(err)
 		}
 	}
+	_ = os.WriteFile(filepath.Join(loose, "tax-return.png"), []byte{0xff, 0xfe}, 0o600)
 	e.must("deck.folder_add", map[string]any{"project": "other", "name": "repo", "path": repo}, nil)
 	_, tok := e.token("terminal", "deck.*")
-	if code, out := e.callWith(tok, "deck.project_import", map[string]any{"folder": theirs, "name": "a"}); code < 400 || !strings.Contains(string(out), "own folders") {
-		t.Fatalf("the data of another project is not imported: %d %s", code, out)
+	for _, dir := range []string{theirs, loose} {
+		if code, out := e.callWith(tok, "deck.project_import", map[string]any{"folder": dir, "name": "a"}); code != 403 || strings.Contains(string(out), "tax-return") {
+			t.Fatalf("%s is not imported, nor its files listed: %d %s", dir, code, out)
+		}
 	}
 	for i, dir := range []string{own, filepath.Join(repo, "mod")} {
 		if code, out := e.callWith(tok, "deck.project_import", map[string]any{"folder": dir, "name": fmt.Sprintf("b%d", i)}); code != 200 {
 			t.Fatalf("%s is imported: %d %s", dir, code, out)
 		}
+	}
+	if code, out := e.call("deck.project_import", map[string]any{"folder": loose, "name": "c"}); code != 422 || !strings.Contains(string(out), "tax-return") {
+		t.Fatalf("the owner imports from any folder: %d %s", code, out)
 	}
 }

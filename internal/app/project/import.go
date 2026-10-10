@@ -47,23 +47,28 @@ type projectImportIn struct {
 	Name   string `opt:"" desc:"Project name; the folder name when omitted"`
 }
 
-// importable lets someone other than the owner import from the owner's own folders and from the data of the
-// master, never from the rest of deck's home, such as the data of another project.
+// importable lets someone other than the owner import only from the data of the master and from the folders the
+// owner gave a project of the workspace, before anything in the folder is read.
 func (pj *Service) importable(ctx context.Context, act registry.Actor, dir string) error {
+	refused := registry.Refuse("deck: %s is not a folder %s imports from: a draft comes from the data of the master or "+
+		"from a folder the owner gave a project in Settings", dir, act.As())
 	real, err := filepath.EvalSymlinks(dir)
 	if err != nil {
-		return registry.Invalid("deck: folder %s does not exist", dir)
+		return refused
 	}
-	home, err := filepath.EvalSymlinks(string(pj.Home))
-	if err != nil || !provider.Within(home, real) {
-		return nil
+	roots, err := pj.St.Q.ListWorkspaceFolderPaths(ctx, act.Workspace)
+	if err != nil {
+		return err
 	}
 	if mp, err := access.Master(ctx, pj.St.Q, act.Workspace); err == nil {
-		if data, err := filepath.EvalSymlinks(pj.Home.Data(mp.ID)); err == nil && provider.Within(data, real) {
+		roots = append(roots, pj.Home.Data(mp.ID))
+	}
+	for _, r := range roots {
+		if r, err := filepath.EvalSymlinks(r); err == nil && provider.Within(r, real) {
 			return nil
 		}
 	}
-	return registry.Refuse("deck: %s is inside deck's own folders; a draft comes from a folder of the owner or from the data of the master", dir)
+	return refused
 }
 
 // projectImport creates a draft from a module folder in one transaction; hidden files are left out.

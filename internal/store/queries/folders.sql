@@ -28,3 +28,7 @@ DELETE FROM folder_lock WHERE process_id = ? AND process_id IN (SELECT id FROM p
 
 -- name: ReleaseFolderLocks :exec
 DELETE FROM folder_lock WHERE process_id = ?;
+
+
+-- name: ListWorkspaceFolderPaths :many
+SELECT f.path FROM project_folder f JOIN project p ON p.id = f.project_id WHERE p.workspace_id = ? ORDER BY f.path;

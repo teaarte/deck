@@ -45,9 +45,9 @@ func TestResumeAfterEarlyCrashStartsTheSessionAgain(t *testing.T) {
 func TestLostLoginWaitsForOwnerAndRetries(t *testing.T) {
 	t.Parallel()
 	c := newCLI(t)
-	c.stream(1, "nologin.jsonl")
-	c.stream(2, "ok.jsonl")
-	e, _ := cliEnv(t, c)
+	c.stream(4, "nologin.jsonl")
+	c.stream(5, "ok.jsonl")
+	e := checkedCLIEnv(t, c, t.TempDir())
 	p := e.createProject("plain", plainManifest)
 	id := e.run(p, "work")
 	e.waitState(id, "needs_login")
@@ -65,7 +65,7 @@ func TestLostLoginWaitsForOwnerAndRetries(t *testing.T) {
 	if got := e.waitState(id, "done", "error"); got.State != "done" {
 		t.Fatalf("want done, got %+v", got)
 	}
-	second := c.call(2)
+	second := c.call(5)
 	if v, ok := flag(second.args, "--resume"); !ok || v != e.session(id) || !strings.Contains(second.stdin, "logged in again") {
 		t.Fatalf("retry must resume the same session: %v %q", second.args, second.stdin)
 	}
@@ -77,9 +77,9 @@ func TestLostLoginWaitsForOwnerAndRetries(t *testing.T) {
 func TestLostLoginNewSessionGetsReportOfWhatWasDone(t *testing.T) {
 	t.Parallel()
 	c := newCLI(t)
-	c.stream(1, "nologin.jsonl")
-	c.stream(2, "ok.jsonl")
-	e, _ := cliEnv(t, c)
+	c.stream(4, "nologin.jsonl")
+	c.stream(5, "ok.jsonl")
+	e := checkedCLIEnv(t, c, t.TempDir())
 	p := e.createProject("plain", plainManifest)
 	id := e.run(p, "work")
 	e.waitState(id, "needs_login")
@@ -95,7 +95,7 @@ func TestLostLoginNewSessionGetsReportOfWhatWasDone(t *testing.T) {
 	if got := e.waitState(id, "done", "error"); got.State != "done" {
 		t.Fatalf("want done, got %+v", got)
 	}
-	second := c.call(2)
+	second := c.call(5)
 	sid, ok := flag(second.args, "--session-id")
 	if !ok || sid == first || sid != e.session(id) {
 		t.Fatalf("new_session must start a new session deck assigns: %v, first %s", second.args, first)
@@ -108,10 +108,10 @@ func TestLostLoginNewSessionGetsReportOfWhatWasDone(t *testing.T) {
 func TestRetryAfterLostLoginFinishesWhenTheSessionWasNeverSaved(t *testing.T) {
 	t.Parallel()
 	c := newCLI(t)
-	c.stream(1, "nologin.jsonl")
-	c.stream(2, "noconversation.jsonl")
-	c.stream(3, "ok.jsonl")
-	e, _ := cliEnv(t, c)
+	c.stream(4, "nologin.jsonl")
+	c.stream(5, "noconversation.jsonl")
+	c.stream(6, "ok.jsonl")
+	e := checkedCLIEnv(t, c, t.TempDir())
 	p := e.createProject("plain", plainManifest)
 	id := e.run(p, "work")
 	e.waitState(id, "needs_login")
@@ -124,12 +124,12 @@ func TestRetryAfterLostLoginFinishesWhenTheSessionWasNeverSaved(t *testing.T) {
 func TestNewSessionReportSurvivesRestart(t *testing.T) {
 	t.Parallel()
 	c := newCLI(t)
-	c.stream(1, "nologin.jsonl")
-	c.after(`[ "$n" = 2 ] && sleep 300`)
-	c.stream(3, "noconversation.jsonl")
-	c.stream(4, "ok.jsonl")
+	c.stream(4, "nologin.jsonl")
+	c.after(`[ "$n" = 5 ] && sleep 300`)
+	c.stream(6, "noconversation.jsonl")
+	c.stream(7, "ok.jsonl")
 	home := t.TempDir()
-	e1 := newEnvWith(t, home, c.adapter(home))
+	e1 := checkedCLIEnv(t, c, home)
 	p := e1.createProject("plain", plainManifest)
 	id := e1.run(p, "work")
 	e1.waitState(id, "needs_login")
@@ -141,7 +141,7 @@ func TestNewSessionReportSurvivesRestart(t *testing.T) {
 		t.Fatal(err)
 	}
 	e1.answer(e1.waitAsk().ID, "new_session")
-	waitCalls(t, c, 2)
+	waitCalls(t, c, 5)
 	_ = e1.App.Close()
 
 	e2 := newEnvWith(t, home, c.adapter(home))
@@ -151,7 +151,7 @@ func TestNewSessionReportSurvivesRestart(t *testing.T) {
 	if got := e2.waitState(id, "done", "error"); got.State != "done" {
 		t.Fatalf("want done, got %+v", got)
 	}
-	fourth := c.call(4)
+	fourth := c.call(7)
 	if sid, _ := flag(fourth.args, "--session-id"); sid != e2.session(id) || !strings.Contains(fourth.stdin, "- records_upsert: done") {
 		t.Fatalf("the restarted new session must still get the report: %v %q", fourth.args, fourth.stdin)
 	}
@@ -184,4 +184,18 @@ func TestResultSeenWhileDeckStopsIsNotTheOutcome(t *testing.T) {
 	if _, ok := flag(c.call(2).args, "--resume"); !ok {
 		t.Fatalf("the process must continue its session after the start: %v", c.call(2).args)
 	}
+}
+
+// checkedCLIEnv is deck on the fake CLI after its first self-check, calls 1 to 3, passed, as the loop of deck runs it
+// at start.
+func checkedCLIEnv(t *testing.T, c *fakeCLI, home string) *Env {
+	t.Helper()
+	c.stream(1, "selfcheck.jsonl")
+	c.stream(2, "selfcheck_resume.jsonl")
+	c.approving()
+	e := newEnvWith(t, home, c.adapter(home))
+	e.App.Providers.Checks(context.Background(), time.Now())
+	e.waitHealth("provider:claude-code", "ok")
+	waitCalls(t, c, 3)
+	return e
 }

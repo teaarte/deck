@@ -19,7 +19,8 @@ import (
 	"deck2/internal/untrusted"
 )
 
-// needLogin parks the process until the owner logs the provider in again and picks how to continue.
+// needLogin parks the process until the owner logs the provider in again and picks how to continue; the self-check
+// of the provider sees when the login is back.
 func (r *Runner) needLogin(ctx context.Context, pv provider.Provider, processID int64, text string) {
 	payload, _ := json.Marshal(map[string]any{"answers": ask.LoginAnswers})
 	msg := fmt.Sprintf("%s needs a login: %s. Log in again in a terminal, then retry this session or start a new one with a report of what was done.",
@@ -39,8 +40,8 @@ func (r *Runner) needLogin(ctx context.Context, pv provider.Provider, processID 
 		r.finish(ctx, processID, StateError, "", false, "needs login: "+text)
 		return
 	}
-	if n == 0 {
-		return
+	if n > 0 {
+		r.deps.Broke(ctx, pv.Name())
 	}
 }
 

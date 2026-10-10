@@ -554,3 +554,36 @@ func TestASelfCheckATurnBrokeDuringIsRunAgain(t *testing.T) {
 		t.Fatalf("the fresh self-check wakes the held turn: %+v", got)
 	}
 }
+
+// TestAPausedOrLoggedOutProviderIsCheckedAgainWithoutItsProcess: a limit or a lost login a turn met is checked by
+// the self-check, at the reset or at once, so the row lifts though the owner stopped the process.
+func TestAPausedOrLoggedOutProviderIsCheckedAgainWithoutItsProcess(t *testing.T) {
+	t.Parallel()
+	for _, c := range []struct {
+		status string
+		res    provider.Result
+		after  time.Duration
+	}{
+		{"paused", provider.Result{RateLimited: true, ResetsAt: t0.Add(2 * time.Hour).Unix(), Text: "limit"}, 2*time.Hour + time.Minute},
+		{"needs_login", provider.Result{NeedsLogin: true, IsError: true, Text: "Not logged in"}, 0},
+	} {
+		t.Run(c.status, func(t *testing.T) {
+			cf := &checkedFake{Fake: &Fake{}}
+			cf.script = func(context.Context, *Call) provider.Result { return c.res }
+			clock := &Clock{now: t0}
+			e := newEnvWith(t, t.TempDir(), cf, withClock(clock))
+			e.Clock = clock
+			ctx := context.Background()
+			e.App.Providers.Checks(ctx, clock.Now())
+			e.waitHealth("provider:fake", "ok")
+			clock.Add(31 * time.Minute)
+			id := e.run(e.createProject("plain", plainManifest), "work")
+			e.waitState(id, "rate_limited", "needs_login")
+			e.must("deck.process_stop", map[string]any{"process": id}, nil)
+			e.App.Providers.Checks(ctx, clock.Add(c.after))
+			if h := e.waitHealth("provider:fake", "ok"); h.Status != "ok" {
+				t.Fatalf("the self-check lifts the row: %+v", h)
+			}
+		})
+	}
+}

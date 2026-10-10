@@ -142,9 +142,11 @@ type Deps struct {
 	Named func(ctx context.Context, projectID int64, name string) (provider.Provider, error)
 	// Ready reports whether a turn may start on the provider; not while a self-check the owner asked for runs or is red.
 	Ready func(ctx context.Context, name string) bool
-	// Broke hears that a turn on the provider failed.
-	Broke  func(ctx context.Context, name string)
-	Prompt func(ctx context.Context, projectID int64) (string, error)
+	// Broke hears that a turn on the provider failed or lost its login.
+	Broke func(ctx context.Context, name string)
+	// Recheck runs the self-check of the provider at the time a limit it met resets.
+	Recheck func(name string, at time.Time)
+	Prompt  func(ctx context.Context, projectID int64) (string, error)
 	// Text is the current text of a project document of the kind, of any kind for ""; empty when missing.
 	Text func(ctx context.Context, projectID int64, kind, name string) (string, error)
 	// Skills are the files of the named skills: the project's own, else the workspace's.

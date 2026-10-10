@@ -70,11 +70,11 @@ func (s *Service) Checks(ctx context.Context, now time.Time) {
 	}
 }
 
-// Broke checks a provider whose turn failed, unless it was checked within selfCheckRetry; a red one is then checked
-// once that time is over.
+// Broke checks a provider whose turn failed or lost its login, unless it was checked within selfCheckRetry; a red
+// one or one without a login is then checked once that time is over.
 func (s *Service) Broke(ctx context.Context, name string) {
 	h, err := s.St.Q.GetHealth(ctx, process.HealthSubject(name))
-	red := err == nil && h.Status == health.Error
+	red := err == nil && (h.Status == health.Error || h.Status == health.NeedsLogin)
 	s.mu.Lock()
 	c := s.checksOf(name)
 	recent := !c.last.IsZero() && s.Now().Before(c.last.Add(selfCheckRetry))
@@ -87,6 +87,15 @@ func (s *Service) Broke(ctx context.Context, name string) {
 	s.mu.Unlock()
 	if !recent {
 		s.startCheck(name, false)
+	}
+}
+
+// Recheck runs the self-check of a provider at a time, unless one is due sooner.
+func (s *Service) Recheck(name string, at time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if c := s.checksOf(name); c.retry.IsZero() || at.Before(c.retry) {
+		c.retry = at
 	}
 }
 

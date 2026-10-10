@@ -137,13 +137,6 @@ func (h *HTTP) signIn(ctx context.Context, p db.Project, tool, why string) {
 	}
 }
 
-// sent reports whether a failed request may have reached the other side; only a failed dial proves it did not.
-func sent(err error) bool {
-	var op *net.OpError
-	var dns *net.DNSError
-	return !(errors.As(err, &op) && op.Op == "dial") && !errors.As(err, &dns)
-}
-
 // segment escapes a value for one path segment, so it cannot climb up the path either.
 func segment(v string) string {
 	if v == "." || v == ".." {

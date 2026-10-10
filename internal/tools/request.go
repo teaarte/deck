@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"deck2/internal/files"
+	"deck2/internal/gateway"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
@@ -121,7 +122,7 @@ func (h *HTTP) send(ctx context.Context, p db.Project, o *outgoing) (*http.Respo
 		}
 		resp, err := h.Client.Do(r)
 		if err != nil {
-			return nil, sent(err), err
+			return nil, !gateway.Unsent(err), err
 		}
 		if resp.StatusCode != http.StatusUnauthorized || o.oauth == nil {
 			return resp, true, nil

@@ -157,11 +157,12 @@ func SendHops(ctx context.Context, hops []ModelHop, build func(ModelHop) (ModelC
 	return nil, ModelHop{}, last
 }
 
-// Unsent reports whether a failed request never reached the API, so a fallback may take it: only a failed dial
-// proves that; a timeout or a cut answer may have been billed.
+// Unsent reports whether a failed request never reached the other side: only a failed dial or name lookup proves
+// that; a timeout or a cut answer may have been billed.
 func Unsent(err error) bool {
 	var op *net.OpError
-	return errors.As(err, &op) && op.Op == "dial"
+	var dns *net.DNSError
+	return errors.As(err, &op) && op.Op == "dial" || errors.As(err, &dns)
 }
 
 // Fallible reports whether a hop's answer is an explicit refusal a fallback may take over: a limit or a fault of

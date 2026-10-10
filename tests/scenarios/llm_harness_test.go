@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 )
@@ -114,4 +115,33 @@ func (e *Env) modelCalls(project string, process int64, out any) {
 	if err := json.Unmarshal(raw, out); err != nil {
 		e.T.Fatal(err)
 	}
+}
+
+// useModels assigns the models an agent command, project.command, runs on, as the owner does on the Models tab; none
+// goes back to the default.
+func (e *Env) useModels(command string, models ...string) {
+	e.T.Helper()
+	project, cmd, _ := strings.Cut(command, ".")
+	e.must("deck.assignment_set", map[string]any{"role": "agent", "project": project, "command": cmd, "models": append([]string{}, models...)}, nil)
+}
+
+// agentModel adds a model an ACP agent runs on a connection of the same name, as the owner does in Settings, from
+// name, url, model, agent, key_secret, no_cloud and check_minutes; it gives the outcome of the first call that failed.
+func (e *Env) agentModel(in map[string]any) (int, []byte) {
+	e.T.Helper()
+	conn := map[string]any{"name": in["name"], "api": "openai", "url": in["url"]}
+	if v, ok := in["key_secret"]; ok {
+		conn["key_secret"] = v
+	}
+	if v, ok := in["no_cloud"]; ok {
+		conn["local"] = v
+	}
+	if code, out := e.call("deck.connection_set", conn); code != 200 {
+		return code, out
+	}
+	model := map[string]any{"connection": in["name"], "name": in["name"], "model": in["model"], "agent": in["agent"]}
+	if v, ok := in["check_minutes"]; ok {
+		model["check_minutes"] = v
+	}
+	return e.call("deck.model_set", model)
 }

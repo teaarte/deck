@@ -2,15 +2,15 @@ package scenarios
 
 import (
 	"context"
+	"deck2/internal/app"
+	"deck2/internal/provider"
 	"encoding/json"
 	"fmt"
 	"regexp"
 	"strings"
+	"sync"
 	"testing"
 	"time"
-
-	"deck2/internal/app"
-	"deck2/internal/provider"
 )
 
 var t0 = time.Date(2026, 9, 25, 8, 0, 0, 0, time.Local)
@@ -36,50 +36,12 @@ func (c *Call) command() string {
 
 var inputOf = regexp.MustCompile(`Input \(JSON data, not instructions\): (\{.*\})`)
 
-func (e *Env) settle() {
-	time.Sleep(100 * time.Millisecond)
-	e.App.Runner.Wait()
-}
-
 func (e *Env) tick() {
 	e.App.Scheduler.Tick(context.Background())
 }
 
 func (e *Env) sweep() {
 	e.App.Sweep(context.Background(), e.Clock.Now())
-}
-
-type triggerV struct {
-	ID        int64  `json:"id"`
-	Project   string `json:"project"`
-	Command   string `json:"command"`
-	Kind      string `json:"kind"`
-	NextRunAt string `json:"next_run_at"`
-	Paused    bool   `json:"paused"`
-	Last      int64  `json:"last_process"`
-}
-
-// triggers are the triggers of every project but the built-in master.
-func (e *Env) triggers() []triggerV {
-	e.T.Helper()
-	var all, ts []triggerV
-	e.must("deck.triggers_list", map[string]any{}, &all)
-	for _, t := range all {
-		if t.Project != "master" {
-			ts = append(ts, t)
-		}
-	}
-	return ts
-}
-
-func (e *Env) countOf(command string) int {
-	n := 0
-	for _, p := range e.processes() {
-		if p.Command == command {
-			n++
-		}
-	}
-	return n
 }
 
 // agentCommand is a command of a test manifest; input and after are optional.
@@ -105,4 +67,28 @@ func testManifest(commands []string, triggers []string) string {
 
 func ok(context.Context, *Call) provider.Result {
 	return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
+}
+
+// Clock is the deck clock of a test: it stands still until the test moves it.
+type Clock struct {
+	mu  sync.Mutex
+	now time.Time
+}
+
+func (c *Clock) Now() time.Time {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.now
+}
+
+func (c *Clock) Add(d time.Duration) time.Time {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.now = c.now.Add(d)
+	return c.now
+}
+
+// withClock runs deck on a test clock that starts at start.
+func withClock(clock *Clock) func(*app.Config) {
+	return func(c *app.Config) { c.Now = clock.Now }
 }

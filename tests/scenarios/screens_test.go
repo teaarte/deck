@@ -1,20 +1,16 @@
 package scenarios
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
-
-	"github.com/santhosh-tekuri/jsonschema/v6"
 
 	"deck2/internal/provider"
 )
@@ -74,36 +70,6 @@ func webAgent() Script {
 	}
 }
 
-// catalogCheck validates resolved components and block data against schemas/catalog.json.
-type catalogCheck struct {
-	c     *jsonschema.Compiler
-	data  *jsonschema.Schema
-	comps map[string]string
-}
-
-func newCatalogCheck(t *testing.T) *catalogCheck {
-	t.Helper()
-	raw, err := os.ReadFile("../../schemas/catalog.json")
-	if err != nil {
-		t.Fatal(err)
-	}
-	doc, _ := jsonschema.UnmarshalJSON(bytes.NewReader(raw))
-	common, _ := jsonschema.UnmarshalJSON(strings.NewReader(`{"$defs": {"ChildList": {"type": "array", "items": {"type": "string"}},
-		"ComponentId": {"type": "string"}, "DynamicValue": {}, "DynamicString": {}, "Action": {"type": "object"}}}`))
-	c := jsonschema.NewCompiler()
-	if err := c.AddResource("https://deck2.test/catalog.json", doc); err != nil {
-		t.Fatal(err)
-	}
-	if err := c.AddResource("https://deck2.test/common_types.json", common); err != nil {
-		t.Fatal(err)
-	}
-	data, err := c.Compile("https://deck2.test/catalog.json#/$defs/data")
-	if err != nil {
-		t.Fatal(err)
-	}
-	return &catalogCheck{c: c, data: data, comps: map[string]string{}}
-}
-
 func (k *catalogCheck) messages(t *testing.T, msgs []map[string]json.RawMessage) {
 	t.Helper()
 	for _, m := range msgs {
@@ -159,32 +125,6 @@ func (k *catalogCheck) messages(t *testing.T, msgs []map[string]json.RawMessage)
 			}
 		}
 	}
-}
-
-func roundTrip(v any) any {
-	b, _ := json.Marshal(v)
-	var out any
-	_ = json.Unmarshal(b, &out)
-	return out
-}
-
-func blockData[T any](t *testing.T, raw json.RawMessage) T {
-	t.Helper()
-	var v T
-	if err := json.Unmarshal(raw, &v); err != nil {
-		t.Fatalf("%s: %v", raw, err)
-	}
-	return v
-}
-
-type listItem struct {
-	ID        any              `json:"id"`
-	Title     string           `json:"title"`
-	Text      string           `json:"text"`
-	Meta      string           `json:"meta"`
-	Details   string           `json:"details"`
-	Questions []map[string]any `json:"questions"`
-	Actions   []map[string]any `json:"actions"`
 }
 
 // TestScreenBlocksFollowTheCatalog: a screen resolves into components of the catalog with data by its schema:
@@ -379,24 +319,6 @@ func TestCockpitShowsWhatWaitsWithItsVerbs(t *testing.T) {
 	}
 }
 
-func merge(a, b map[string]any) map[string]any {
-	out := map[string]any{}
-	for k, v := range a {
-		out[k] = v
-	}
-	for k, v := range b {
-		out[k] = v
-	}
-	return out
-}
-
-func (e *Env) cockpitItems() []listItem {
-	e.T.Helper()
-	var items []listItem
-	_ = json.Unmarshal(e.screenData("", "cockpit", nil)["b4-0"]["items"], &items)
-	return items
-}
-
 // TestScreenTopicReadsOnlyTheBlocksItChanges: after an event the client reads only the blocks of its topic.
 func TestScreenTopicReadsOnlyTheBlocksItChanges(t *testing.T) {
 	t.Parallel()
@@ -489,13 +411,6 @@ func TestProcessPageShowsItsLogInTheWordsOfACP(t *testing.T) {
 	if running := e.cockpitRunning(); len(running) != 0 {
 		t.Fatalf("a stopped process is not running: %+v", running)
 	}
-}
-
-func (e *Env) cockpitRunning() []listItem {
-	e.T.Helper()
-	var items []listItem
-	_ = json.Unmarshal(e.screenData("", "cockpit", nil)["b4-1-0"]["items"], &items)
-	return items
 }
 
 // TestAllowAfterTheTermIsRefusedBeforeTheSweep: a confirmation past its term cannot be allowed even before the
@@ -1049,12 +964,4 @@ func TestTheMasterSettingsShowWhatItDoesOnSchedule(t *testing.T) {
 	if len(docs) == 0 {
 		t.Fatalf("the documents of the master are a tab of files")
 	}
-}
-
-func keys(m map[string]map[string]json.RawMessage) []string {
-	out := make([]string, 0, len(m))
-	for k := range m {
-		out = append(out, k)
-	}
-	return out
 }

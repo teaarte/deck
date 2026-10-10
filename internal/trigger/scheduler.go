@@ -20,10 +20,8 @@ const (
 	KindAfter = "after"
 )
 
-// Starter starts the command of a trigger row with the given input.
-type Starter interface {
-	Fire(ctx context.Context, t db.Trigger, input map[string]any) (int64, error)
-}
+// Fire starts the command of a trigger row with the given input.
+type Fire func(ctx context.Context, t db.Trigger, input map[string]any) (int64, error)
 
 // spread spaces missed runs apart; grace is how late a run may be before it counts as missed.
 const (
@@ -35,12 +33,12 @@ const (
 // (deck down or the machine asleep): it fires once, and several missed runs are spaced spread apart.
 type Scheduler struct {
 	st    *store.Store
-	start Starter
+	start Fire
 	Now   func() time.Time
 }
 
-func New(st *store.Store, s Starter, now func() time.Time) *Scheduler {
-	return &Scheduler{st: st, start: s, Now: now}
+func New(st *store.Store, fire Fire, now func() time.Time) *Scheduler {
+	return &Scheduler{st: st, start: fire, Now: now}
 }
 
 // Identity is what a manifest trigger is known by across manifest revisions.
@@ -190,7 +188,7 @@ func (s *Scheduler) fire(ctx context.Context, t db.Trigger, now time.Time) {
 	params, err := manifest.DecodeObject([]byte(t.Params))
 	var id int64
 	if err == nil {
-		id, err = s.start.Fire(ctx, t, params)
+		id, err = s.start(ctx, t, params)
 	}
 	if ctx.Err() != nil {
 		return

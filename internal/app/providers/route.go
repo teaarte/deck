@@ -124,16 +124,13 @@ func (s *Service) hop(workspace int64, m db.Model, c db.Connection) (gateway.Mod
 	return h, nil
 }
 
-// allowed decides whether a call of a model runs without the owner: the granted models of the project name it, and
-// it reaches a model.
+// allowed decides whether a call of a model runs without the owner: the granted models of the project name it; where
+// it goes the call finds once, in its handler.
 func (s *Service) allowed(ctx context.Context, act registry.Actor, input json.RawMessage, _ bool) (bool, error) {
-	if err := s.granted(ctx, act, input); err != nil {
-		return false, err
+	if act.Kind != registry.Agent {
+		return true, nil
 	}
-	if _, err := s.route(ctx, act, input); err != nil {
-		return false, err
-	}
-	return true, nil
+	return true, s.manifestNames(ctx, act, input)
 }
 
 // route is where a call of a model goes: the hops the proxy found already, else those of what it asks.
@@ -163,10 +160,10 @@ func (s *Service) use(input json.RawMessage) (string, string) {
 	return in.Connection, in.Connection
 }
 
-// granted refuses a call of a project's process through what the manifest in force does not name; a call by name
-// of a model goes through its connection too.
-func (s *Service) granted(ctx context.Context, act registry.Actor, input json.RawMessage) error {
-	if act.Kind != registry.Agent || act.ProjectID == 0 {
+// manifestNames refuses a call of a project through what the manifest in force does not name; a call by name of a model
+// goes through its connection too.
+func (s *Service) manifestNames(ctx context.Context, act registry.Actor, input json.RawMessage) error {
+	if act.ProjectID == 0 {
 		return nil
 	}
 	m, err := docs.For(ctx, s.St.Q, act, act.ProjectID)
@@ -193,15 +190,7 @@ func (s *Service) granted(ctx context.Context, act registry.Actor, input json.Ra
 // free says a call of a model costs nothing: every model it may reach is free or on the owner's own hardware, and
 // the manifest names it.
 func (s *Service) free(ctx context.Context, act registry.Actor, input json.RawMessage) bool {
-	if act.ProjectID == 0 {
-		return false
-	}
-	m, err := docs.For(ctx, s.St.Q, act, act.ProjectID)
-	if err != nil {
-		return false
-	}
-	use, connection := s.use(input)
-	if !slices.Contains(m.Uses(), use) && (connection == "" || !slices.Contains(m.Uses(), connection)) {
+	if act.ProjectID == 0 || s.manifestNames(ctx, act, input) != nil {
 		return false
 	}
 	hops, err := s.route(ctx, act, input)

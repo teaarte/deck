@@ -41,6 +41,9 @@ func New(st *store.Store, fire Fire, now func() time.Time) *Scheduler {
 	return &Scheduler{st: st, start: fire, Now: now}
 }
 
+// HealthSubject is the health row of the triggers of a command.
+func HealthSubject(project, command string) string { return "trigger:" + project + "." + command }
+
 // Identity is what a manifest trigger is known by across manifest revisions.
 func Identity(t manifest.Trigger) (kind, spec string) {
 	switch {
@@ -194,7 +197,7 @@ func (s *Scheduler) fire(ctx context.Context, t db.Trigger, now time.Time) {
 		return
 	}
 	p, perr := s.st.Q.GetProject(ctx, t.ProjectID)
-	subject := "trigger:" + p.Name + "." + t.Command
+	subject := HealthSubject(p.Name, t.Command)
 	if err == nil && t.LastProcessID.Valid && id == t.LastProcessID.Int64 {
 		s.after(ctx, t, now)
 		if perr == nil {

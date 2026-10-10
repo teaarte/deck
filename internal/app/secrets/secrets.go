@@ -15,6 +15,7 @@ import (
 
 	"deck2/internal/docs"
 	"deck2/internal/events"
+	"deck2/internal/provider"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 )
@@ -108,22 +109,7 @@ func (s *Service) Write(workspace int64, name, value string) error {
 	if !access.ValidSecret(name) {
 		return registry.Invalid("deck: bad secret name %q", name)
 	}
-	dir := s.Dir(workspace)
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return err
-	}
-	f, err := os.CreateTemp(dir, ".new-*")
-	if err != nil {
-		return err
-	}
-	defer os.Remove(f.Name())
-	_, err = f.WriteString(value)
-	if cerr := f.Close(); err == nil {
-		err = cerr
-	}
-	if err == nil {
-		err = os.Rename(f.Name(), filepath.Join(dir, name))
-	}
+	err := provider.WriteFile(filepath.Join(s.Dir(workspace), name), []byte(value))
 	if err == nil {
 		s.Bus.Emit(events.Event{Workspace: workspace, Topic: "secrets"})
 	}

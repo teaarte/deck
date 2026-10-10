@@ -236,7 +236,8 @@ func TestDocumentIDsAreNotReused(t *testing.T) {
 }
 
 // TestAShippedSkillEditedByTheMasterTakesTheNextVersionOfDeck: the master's edit of a built-in skill stays until a new
-// deck ships another text, then goes to the history with a note to the master; an edit of the owner stays.
+// deck ships another text, then merges into it, or on a conflict goes to the history with a note to the master; an
+// edit of the owner stays.
 func TestAShippedSkillEditedByTheMasterTakesTheNextVersionOfDeck(t *testing.T) {
 	t.Parallel()
 	home := t.TempDir()
@@ -261,6 +262,22 @@ func TestAShippedSkillEditedByTheMasterTakesTheNextVersionOfDeck(t *testing.T) {
 	e.must("deck.document_get", map[string]any{"name": name}, &d)
 	if !strings.Contains(d.Text, "The master's own line.") {
 		t.Fatal("an edit stays while deck ships the same skill")
+	}
+	first, _, _ := strings.Cut(shipped, "\n")
+	older := strings.Replace(shipped, first, "# An older title", 1)
+	if _, err := e.App.Store.DB.Exec(`UPDATE document_revision SET text = CASE author WHEN 'deck' THEN ? ELSE ? END WHERE document_id = ?`,
+		older, older+"\nThe master's own line.\n", d.ID); err != nil {
+		t.Fatal(err)
+	}
+	_ = e.App.Close()
+	e = newEnvWith(t, home, &Fake{})
+	e.must("deck.document_get", map[string]any{"name": name}, &d)
+	if d.Text != shipped+"\nThe master's own line.\n" {
+		t.Fatalf("a new version of deck keeps an edit of other lines: %.80q", d.Text)
+	}
+	var notes int
+	if err := e.App.Store.DB.QueryRow(`SELECT count(*) FROM feed WHERE for_master = 1`).Scan(&notes); err != nil || notes != 0 {
+		t.Fatalf("an edit carried over is no note to the master: %d %v", notes, err)
 	}
 	if _, err := e.App.Store.DB.Exec(`UPDATE document_revision SET text = 'an older skill' WHERE document_id = ? AND author = 'deck'`, d.ID); err != nil {
 		t.Fatal(err)

@@ -6,6 +6,8 @@ import (
 	"io/fs"
 	"strings"
 
+	"github.com/epiclabs-io/diff3"
+
 	"deck2/internal/app/access"
 	"deck2/internal/docs"
 	"deck2/internal/registry"
@@ -55,7 +57,7 @@ func (dc *Service) Skills(ctx context.Context, projectID int64, names []string) 
 }
 
 // SeedSkills stores the skills built into deck as skills of every workspace; a skill the owner edited stays theirs, one
-// an agent edited takes the next text deck ships.
+// an agent edited takes the next text deck ships with the edit merged into it, or without it and a note to the master.
 func (dc *Service) SeedSkills(ctx context.Context) error {
 	ws, err := dc.St.Q.ListWorkspaces(ctx)
 	if err != nil {
@@ -81,7 +83,7 @@ func (dc *Service) seedSkills(ctx context.Context, workspace int64) error {
 		return dc.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 			ref := docs.Ref{Scope: docs.Scope{Workspace: workspace}, Name: docs.SkillsDir + path}
 			d, err := q.FindDocument(ctx, ref.Find())
-			edited := int64(0)
+			edited, editor, merged := int64(0), "", ""
 			if err == nil {
 				if d.DeletedAt.Valid {
 					return nil
@@ -94,10 +96,12 @@ func (dc *Service) seedSkills(ctx context.Context, workspace int64) error {
 					return nil
 				}
 				if cur.Author != "deck" {
-					if shipped, err := lastOfDeck(ctx, q, d); err != nil || shipped == string(b) {
+					shipped, err := lastOfDeck(ctx, q, d)
+					if err != nil || shipped == string(b) {
 						return err
 					}
-					edited = cur.N
+					edited, editor = cur.N, cur.Author
+					merged, _ = merge3(cur.Text, shipped, string(b))
 				}
 			}
 			reason := "built-in skill"
@@ -105,6 +109,10 @@ func (dc *Service) seedSkills(ctx context.Context, workspace int64) error {
 				reason = fmt.Sprintf("built-in skill of a new deck; the edit of revision %d stays in the history", edited)
 			}
 			if _, _, _, err = docs.Save(ctx, q, ref, docs.KindSkill, string(b), "deck", reason); err != nil || edited == 0 {
+				return err
+			}
+			if merged != "" {
+				_, _, _, err = docs.Save(ctx, q, ref, docs.KindSkill, merged, editor, fmt.Sprintf("the edit of revision %d carried over to the built-in skill of a new deck", edited))
 				return err
 			}
 			mp, err := access.Master(ctx, q, workspace)
@@ -130,4 +138,16 @@ func lastOfDeck(ctx context.Context, q *db.Queries, d db.Document) (string, erro
 		}
 	}
 	return "", nil
+}
+
+// merge3 puts the change from base to edit into next, line by line; false when they change the same lines.
+func merge3(edit, base, next string) (string, bool) {
+	var out []string
+	for _, r := range diff3.Diff3Merge(strings.Split(edit, "\n"), strings.Split(base, "\n"), strings.Split(next, "\n"), true) {
+		if r.Conflict != nil {
+			return "", false
+		}
+		out = append(out, r.Ok...)
+	}
+	return strings.Join(out, "\n"), true
 }

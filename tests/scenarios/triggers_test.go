@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"deck2/internal/provider"
+	"deck2/internal/registry"
 )
 
 func TestANewModuleWithoutCode(t *testing.T) {
@@ -613,5 +614,34 @@ func TestAHungToolIsSeenAndStopsAtItsCeiling(t *testing.T) {
 		if h.Subject == "trigger:feed.fetch" {
 			t.Fatalf("the warning goes once a run starts: %+v", h)
 		}
+	}
+}
+
+// TestRunNowKeepsTheRightsOfItsCaller: a token runs now only a command it may call itself, and only the owner
+// runs a command of a paused project now.
+func TestRunNowKeepsTheRightsOfItsCaller(t *testing.T) {
+	t.Parallel()
+	e := newClockEnv(t, ok)
+	e.createProject("alpha", testManifest([]string{agentCommand("c1", "")}, []string{`{"command": "c1", "cron": "0 9 * * *"}`}))
+	job := e.triggers()[0].ID
+	_, narrow := e.token("narrow", "deck.trigger_run")
+	if code, out := e.callWith(narrow, "deck.trigger_run", map[string]any{"trigger": job}); code != 403 || e.countOf("c1") != 0 {
+		t.Fatalf("a token that may not call the command does not run it now: %d %s, %d runs", code, out, e.countOf("c1"))
+	}
+	_, wide := e.token("wide", "deck.trigger_run", "alpha.*")
+	if code, out := e.callWith(wide, "deck.trigger_run", map[string]any{"trigger": job}); code != 200 || e.countOf("c1") != 1 {
+		t.Fatalf("a token that may call the command runs it now: %d %s", code, out)
+	}
+	e.must("deck.project_pause", map[string]any{"project": "alpha", "paused": true}, nil)
+	master := registry.Actor{Kind: registry.Master, Workspace: 1}
+	if _, err := e.App.Gateway.CallAs(context.Background(), master, "deck.trigger_run", []byte(fmt.Sprintf(`{"trigger": %d}`, job))); err == nil ||
+		!strings.Contains(err.Error(), "paused") || e.countOf("c1") != 1 {
+		t.Fatalf("the master does not run a command of a paused project now: %v, %d runs", err, e.countOf("c1"))
+	}
+	e.settle()
+	var started struct{ Process int64 }
+	e.must("deck.trigger_run", map[string]any{"trigger": job}, &started)
+	if e.waitState(started.Process, "done"); e.countOf("c1") != 2 {
+		t.Fatalf("the owner runs it now in a pause: %d runs", e.countOf("c1"))
 	}
 }

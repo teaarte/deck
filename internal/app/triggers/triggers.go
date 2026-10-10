@@ -111,7 +111,7 @@ type triggerRunIn struct {
 }
 
 // triggerRun starts the command of a schedule trigger now with its params, with the trigger's rights but not
-// as its slot: a pause does not hold it, its schedule stays, and a run of it still going is returned.
+// as its slot: its schedule stays, a run of it still going is returned, and only the owner's run passes a pause.
 func (s *Service) triggerRun(ctx context.Context, act registry.Actor, in triggerRunIn) (any, error) {
 	t, p, err := s.ownTrigger(ctx, act, in.Trigger)
 	if err != nil {
@@ -119,6 +119,13 @@ func (s *Service) triggerRun(ctx context.Context, act registry.Actor, in trigger
 	}
 	if t.Kind != trigger.KindCron {
 		return nil, registry.Invalid("deck: trigger %d starts on a %s; only schedule triggers run now", t.ID, t.Kind)
+	}
+	name := p.Name + "." + t.Command
+	if (act.Kind == registry.Token || act.Commands != nil) && !registry.Permits(act.Commands, name) {
+		return nil, registry.Refuse("deck: this caller may not call %s, so it does not run it now", name)
+	}
+	if act.Kind != registry.Owner && (t.Paused == 1 || p.Paused == 1) {
+		return nil, registry.Invalid("deck: %s was not started: its trigger or project is paused; only the owner runs it now", name)
 	}
 	params, err := manifest.DecodeObject([]byte(t.Params))
 	if err != nil {
@@ -130,7 +137,7 @@ func (s *Service) triggerRun(ctx context.Context, act registry.Actor, in trigger
 	params[manifest.RetryKey] = fmt.Sprintf("trigger:%d", t.ID)
 	raw, _ := json.Marshal(params)
 	as := registry.Actor{Kind: registry.Trigger, Workspace: p.WorkspaceID, ProjectID: p.ID, TriggerID: t.ID, Confirmed: true}
-	return s.Gateway.CallAs(ctx, as, p.Name+"."+t.Command, raw)
+	return s.Gateway.CallAs(ctx, as, name, raw)
 }
 
 type triggerPauseIn struct {
@@ -211,7 +218,7 @@ func (s *Service) Commands() []*registry.Command {
 			"Pauses or resumes one trigger; a resumed schedule does not catch up its pause.",
 			registry.OwnerSide, s.triggerPause),
 		registry.Def("trigger_run", "Run now",
-			"Starts the command of a schedule trigger now with its params; its schedule stays, and a run still going is returned.",
+			"Starts the command of a schedule trigger now with its params; its schedule stays, a run still going is returned, and only the owner starts one of a paused trigger or project.",
 			registry.OwnerSide, s.triggerRun),
 		registry.Def("project_pause", "Pause project",
 			"Pauses or resumes every trigger of a project, including triggers added later.",

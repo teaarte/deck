@@ -15,10 +15,11 @@ type connectionView struct {
 	Name string `json:"name"`
 	API  string `json:"api"`
 	URL  string `json:"url"`
-	// Key is the secret the API key is kept in, or none.
-	Key    string `json:"key"`
-	Local  bool   `json:"local"`
-	Models int64  `json:"models"`
+	// Key says where the API key is kept: in a secret, or none; KeySecret is the name of that secret.
+	Key       string `json:"key"`
+	KeySecret string `json:"key_secret,omitempty"`
+	Local     bool   `json:"local"`
+	Models    int64  `json:"models"`
 }
 
 type connectionSetIn struct {

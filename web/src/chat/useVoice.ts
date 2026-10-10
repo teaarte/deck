@@ -31,9 +31,8 @@ export function useVoice(heard: (text: string) => void) {
         return;
       }
       setNoMic({});
-      const rows = await call<{ subject: string; status: string; error?: string }[]>('deck.health_list', { machine: true }).catch(() => []);
-      const net = rows.find((r) => r.subject === 'tailscale' && r.status === 'ok' && r.error?.startsWith('https://'));
-      setNoMic({ https: net?.error });
+      const at = await call<{ https?: string }>('deck.secure_address', {}).catch(() => ({ https: undefined }));
+      setNoMic({ https: at.https });
     }
   };
   const transcribe = async (wav: () => Promise<Blob>) => {

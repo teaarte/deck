@@ -93,7 +93,7 @@
             {"label": "Models", "bind": "models"}
           ],
           "actions": [
-            {"verb": "edit", "screen": "settings", "params": {"tab": "Connections", "dialog": "connection", "name": "=name", "api": "=api", "url": "=url", "key_secret": "=key startsWith 'secret ' ? trimPrefix(key, 'secret ') : ''", "local": "=local"}},
+            {"verb": "edit", "screen": "settings", "params": {"tab": "Connections", "dialog": "connection", "name": "=name", "api": "=api", "url": "=url", "key_secret": "=key_secret ?? ''", "local": "=local"}},
             {"verb": "remove", "confirm": true, "command": "deck.connection_remove", "params": {"name": "=name"}, "when": "models == 0"}
           ]},
         {"type": "table", "title": "Other secrets", "source": {"from": "deck.secrets_list"},

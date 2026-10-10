@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { call } from '../lib/api';
 import { events } from '../lib/events';
 import { formatted } from '../lib/format';
-import { go } from './router';
+import { act } from '../screen/act';
 import { titleCount } from './title';
 import s from './bell.module.css';
 import type { Action } from '../lib/catalog.gen';
@@ -15,13 +15,12 @@ interface Note {
   id: number;
   project: string;
   text: string;
-  screen: string;
-  record: number;
-  deck_screen?: boolean;
   buttons?: Action[];
   read: boolean;
-  can_read: boolean;
   created_at: string;
+  // open opens the screen of the note, mark_read marks it read; deck gives each when it has one.
+  open?: Action;
+  mark_read?: Action;
 }
 
 const SEEN = 'deck-notes-seen';
@@ -39,8 +38,8 @@ export function Bell() {
   }, []);
   const fresh = notes.filter((n) => n.id > seen && !n.read).length;
   useEffect(() => titleCount(fresh), [fresh]);
-  const openNote = (n: Note) => { setOpen(false); go({ project: n.deck_screen ? undefined : n.project || undefined, screen: n.screen, record: n.record || undefined }); };
-  const markRead = (id: number) => { call('deck.feed_read', { entry: id }).then(load, () => undefined); };
+  const openNote = (n: Note) => { setOpen(false); if (n.open) void act(n.open); };
+  const markRead = (n: Note) => { if (n.mark_read) act(n.mark_read).then(load, () => undefined); };
   const toggle = () => {
     if (!open && notes.length) {
       const top = Math.max(...notes.map((n) => n.id));
@@ -67,15 +66,15 @@ export function Bell() {
             <Stack gap={0} pb={6}>
               {notes.map((n) => (
                 <div key={n.id} className={s.note} data-note={n.id} data-fresh={(n.id > seen && !n.read) || undefined} data-read={n.read || undefined}>
-                  <UnstyledButton disabled={!n.screen} onClick={() => openNote(n)} className={s.noteBody}>
+                  <UnstyledButton disabled={!n.open} onClick={() => openNote(n)} className={s.noteBody}>
                     <Text size="sm" lh={1.4}>{n.text}</Text>
                     <Text size="xs" c="dimmed" mt={2}>{n.project} · {formatted(n.created_at, { format: 'relative' })}</Text>
                   </UnstyledButton>
-                  {(!!n.buttons?.length || n.can_read || !!n.screen) && (
+                  {(!!n.buttons?.length || n.mark_read || n.open) && (
                     <Group gap={6} className={s.noteActions}>
-                      {n.screen && <Button size="compact-xs" variant="light" leftSection={<IconArrowUpRight size={13} />} onClick={() => openNote(n)} data-note-open>{t('verb.open')}</Button>}
+                      {n.open && <Button size="compact-xs" variant="light" leftSection={<IconArrowUpRight size={13} />} onClick={() => openNote(n)} data-note-open>{t('verb.open')}</Button>}
                       {!!n.buttons?.length && <Actions actions={n.buttons} />}
-                      {n.can_read && <Button size="compact-xs" variant="subtle" onClick={() => markRead(n.id)} data-note-read>{t('verb.mark_read')}</Button>}
+                      {n.mark_read && <Button size="compact-xs" variant="subtle" onClick={() => markRead(n)} data-note-read>{t('verb.mark_read')}</Button>}
                     </Group>
                   )}
                 </div>

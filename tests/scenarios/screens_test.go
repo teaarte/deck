@@ -721,8 +721,8 @@ func TestNotifyWritesALineToTheCockpitFeed(t *testing.T) {
 	}
 }
 
-// TestANoteOpensItsScreenOfTheProjectOrOfDeck: a note names a screen of its project or of deck, and the cockpit
-// gives it a button that opens it.
+// TestANoteOpensItsScreenOfTheProjectOrOfDeck: a note names a screen of its project or of deck, and the cockpit and
+// the bell give it a button that opens it.
 func TestANoteOpensItsScreenOfTheProjectOrOfDeck(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, nil)
@@ -732,10 +732,16 @@ func TestANoteOpensItsScreenOfTheProjectOrOfDeck(t *testing.T) {
 	var feed []struct {
 		Text, Screen string
 		DeckScreen   bool `json:"deck_screen"`
+		Open         map[string]any
+		MarkRead     map[string]any `json:"mark_read"`
 	}
 	e.must("deck.feed_list", map[string]any{"kind": "note"}, &feed)
 	if len(feed) != 2 || feed[1].Screen != "schedule" || !feed[1].DeckScreen || feed[0].Screen != "main" || feed[0].DeckScreen {
 		t.Fatalf("a note says whether its screen is of deck: %+v", feed)
+	}
+	if fmt.Sprint(feed[1].Open) != "map[screen:schedule verb:open]" || fmt.Sprint(feed[0].Open) != "map[project:web screen:main verb:open]" ||
+		feed[0].MarkRead["command"] != "deck.feed_read" {
+		t.Fatalf("a note gives the buttons the bell draws, opening its screen and marking it read: %+v", feed)
 	}
 	data, _ := json.Marshal(e.screenData("", "cockpit", nil))
 	for _, want := range []string{`{"project":"","record":0,"screen":"schedule","verb":"open"}`, `{"project":"web","record":0,"screen":"main","verb":"open"}`} {

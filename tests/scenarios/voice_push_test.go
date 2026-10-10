@@ -554,3 +554,25 @@ func TestPushesThatStopTellTheOwnerOnceAndTheHealthStandsAlone(t *testing.T) {
 		t.Fatalf("the health of pushes is written apart from the note: %+v", h)
 	}
 }
+
+// TestAPageWithoutAMicrophoneLearnsWhereToRecord: a browser that gives no microphone on plain http is sent to the https
+// address of deck on the tailnet once deck is on it, and to none before.
+func TestAPageWithoutAMicrophoneLearnsWhereToRecord(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, nil)
+	var at struct{ HTTPS string }
+	e.must("deck.secure_address", nil, &at)
+	if at.HTTPS != "" {
+		t.Fatalf("off the tailnet there is no secure address: %+v", at)
+	}
+	e.App.TailnetHealth("warning", "sign in at https://login.tailscale.com/a/1")
+	e.must("deck.secure_address", nil, &at)
+	if at.HTTPS != "" {
+		t.Fatalf("a sign-in link is no address of deck: %+v", at)
+	}
+	e.App.TailnetHealth("ok", "https://deck.tail1234.ts.net")
+	e.must("deck.secure_address", nil, &at)
+	if at.HTTPS != "https://deck.tail1234.ts.net" {
+		t.Fatalf("on the tailnet the page is sent to its https address: %+v", at)
+	}
+}

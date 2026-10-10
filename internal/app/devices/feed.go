@@ -61,6 +61,9 @@ type feedRow struct {
 	Read      bool   `json:"read"`
 	CanRead   bool   `json:"can_read"`
 	CreatedAt string `json:"created_at"`
+	// Open is the button that opens the screen of a note, MarkRead the one that marks it read.
+	Open     map[string]any `json:"open,omitempty"`
+	MarkRead map[string]any `json:"mark_read,omitempty"`
 }
 
 func (dv *Service) feedList(ctx context.Context, act registry.Actor, in feedListIn) ([]feedRow, error) {
@@ -87,6 +90,18 @@ func (dv *Service) feedList(ctx context.Context, act registry.Actor, in feedList
 			Record: f.RecordID.Int64, Buttons: []Button{}, CanUndo: f.Command != "" && !f.UndoneAt.Valid, Undone: f.UndoneAt.Valid,
 			Read: f.ReadAt.Valid, CanRead: f.Kind == FeedNote && !f.ReadAt.Valid, CreatedAt: f.CreatedAt}
 		r.Screen, r.DeckScreen = strings.CutPrefix(r.Screen, DeckPrefix)
+		if r.Screen != "" {
+			r.Open = map[string]any{"verb": "open", "screen": r.Screen}
+			if !r.DeckScreen {
+				r.Open["project"] = r.Project
+			}
+			if r.Record != 0 {
+				r.Open["record"] = r.Record
+			}
+		}
+		if r.CanRead {
+			r.MarkRead = map[string]any{"verb": "mark_read", "command": registry.Builtin + ".feed_read", "params": map[string]any{"entry": r.ID}}
+		}
 		_ = json.Unmarshal([]byte(f.Actions), &r.Buttons)
 		for i := range r.Buttons {
 			r.Buttons[i].Command = r.Project + "." + r.Buttons[i].Command

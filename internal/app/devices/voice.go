@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"deck2/internal/health"
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
 )
@@ -63,11 +64,28 @@ func (dv *Service) transcribe(ctx context.Context, act registry.Actor, in transc
 	return map[string]any{"text": strings.TrimSpace(heard.Text)}, nil
 }
 
+type secureAddress struct {
+	HTTPS string `json:"https,omitempty"`
+}
+
+// secureAddress is the https address of deck on the owner's tailnet, which the state of the tailnet holds once
+// deck is on it.
+func (dv *Service) secureAddress(ctx context.Context, act registry.Actor, _ struct{}) (secureAddress, error) {
+	h, err := dv.St.Q.GetHealth(ctx, "tailscale")
+	if err != nil || h.Status != health.OK || !strings.HasPrefix(h.Error, "https://") {
+		return secureAddress{}, nil
+	}
+	return secureAddress{HTTPS: h.Error}, nil
+}
+
 // VoiceCommands are the commands of speech to text.
 func (dv *Service) VoiceCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("transcribe", "Speech to text",
 			"Turns a recording the owner uploaded into text with the model assigned to speech to text; the recording is not kept.",
 			registry.OwnerOnly, dv.transcribe),
+		registry.Read("secure_address", "Secure address",
+			"Gives the https address of deck on the owner's tailnet, where a browser lets a page record from the microphone; none while deck is not on one.",
+			registry.OwnerOnly, dv.secureAddress).On("health"),
 	}
 }

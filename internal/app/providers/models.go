@@ -97,7 +97,7 @@ func (s *Service) modelsList(ctx context.Context, act registry.Actor, in modelsL
 			v.URL = "(an address with a key in it; set it again without)"
 		}
 		if c.KeySecret != "" {
-			v.Key = "secret " + c.KeySecret
+			v.Key, v.KeySecret = "secret "+c.KeySecret, c.KeySecret
 		}
 		for _, m := range models {
 			if m.Model.ConnectionID == c.ID {

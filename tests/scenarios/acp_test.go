@@ -560,10 +560,10 @@ func TestACPDeckWritesNothingThroughWhatTheAgentLeft(t *testing.T) {
 	}
 	f := newACP(t)
 	f.streamText(4, acpStream(acpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,
-		`{"shell": "cat .agents/skills/reader/SKILL.md > seen.txt; rm -rf .agents; ln -s `+victims+` .agents; ln -sf `+victim+` \"$HOME/deck.patch.yml\""}`,
+		`{"shell": "cat \"$DSH_HOME/skills/reader/SKILL.md\" > seen.txt; rm -rf \"$DSH_HOME\"; ln -s `+victims+` \"$DSH_HOME\"; ln -sf `+victim+` \"$HOME/deck.patch.yml\""}`,
 		`{"mcp": {"tool": "ask", "arguments": {"question": "Which color should the report use?"}}}`, `{"end": "end_turn"}`))
 	f.streamText(5, acpStream(acpInit, `{"reply": "session/resume", "result": {}}`, `{"reply": "session/prompt"}`,
-		`{"shell": "cat .agents/skills/reader/SKILL.md > seen.txt"}`,
+		`{"shell": "cat \"$DSH_HOME/skills/reader/SKILL.md\" > seen.txt"}`,
 		`{"mcp": {"tool": "result_submit", "arguments": {"result": {"color": "blue"}}}}`, `{"end": "end_turn"}`))
 	e := acpEnv(t, f, "dsh", acpLLM(t))
 	skilled := strings.Replace(colorManifest, `"prompt": "Ask the owner which color the report should use."}`,
@@ -785,5 +785,62 @@ func TestAnACPAgentCallsOnlyItsModelThroughDeck(t *testing.T) {
 	got := jsonLines[map[string]any](f.files(4)("get.jsonl"))
 	if len(got) != 1 || got[0]["status"] != 403.0 {
 		t.Fatalf("a request other than a call of the model is refused: %v", got)
+	}
+}
+
+// TestACPCommandWithAFolderRunsOnALocalModel: a folder command that requires no_cloud is red in health while no model
+// fits it; on a local ACP model it works in the owner's folder, its skills in the session home, the owner's kept.
+func TestACPCommandWithAFolderRunsOnALocalModel(t *testing.T) {
+	t.Parallel()
+	f := newACP(t)
+	e := newEnv(t, ok, func(c *app.Config) {
+		c.ACPBinaries = map[string]string{"goose": filepath.Join(f.dir, "goose")}
+		c.Sandbox = fakeDirSandbox{sandbox.New(), f.dir, nil}
+		c.ACPCallLimit = 2 * time.Second
+	})
+	cmd := strings.Replace(folderCommand("files", "true"), `"executor":`, `"requires": ["no_cloud"], "executor":`, 1)
+	cmd = strings.Replace(cmd, `"prompt": "Do files."`, `"prompt": "Do files.", "skills": ["reader"]`, 1)
+	p := e.createProject("music", testManifest([]string{cmd}, nil))
+	e.must("deck.document_save", map[string]any{"project": "music", "name": "skills/reader/SKILL.md", "kind": "skill",
+		"text": "---\nname: reader\ndescription: Reads.\n---\nRead.\n"}, nil)
+	folder := repoFolder(t)
+	own := filepath.Join(folder, ".agents", "skills", "own", "SKILL.md")
+	if err := errors.Join(os.MkdirAll(filepath.Dir(own), 0o700), os.WriteFile(own, []byte("the owner's"), 0o600)); err != nil {
+		t.Fatal(err)
+	}
+	e.must("deck.folder_add", map[string]any{"project": "music", "path": folder}, nil)
+	unfit := func() *struct{ Subject, Status, Error string } {
+		var rows []struct{ Subject, Status, Error string }
+		e.must("deck.health_list", map[string]any{"project": "music"}, &rows)
+		for _, r := range rows {
+			if r.Subject == "command:files" {
+				return &r
+			}
+		}
+		return nil
+	}
+	if r := unfit(); r == nil || r.Status != "error" || !strings.Contains(r.Error, "no provider fits music.files") {
+		t.Fatalf("a command no provider fits is a red row of health: %+v", r)
+	}
+	e.addACP(f, 1, "local", "goose", acpLLM(t), true)
+	if r := unfit(); r != nil {
+		t.Fatalf("the row goes once a model fits: %+v", r)
+	}
+	f.streamText(4, acpStream(acpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,
+		`{"shell": "cat \"$HOME/.agents/skills/reader/SKILL.md\" > seen.txt; ls .agents/skills > listed.txt"}`,
+		`{"mcp": {"tool": "result_submit", "arguments": {"result": {"n": 1}}}}`, `{"end": "end_turn"}`))
+	id := e.run(p, "files")
+	if got := e.waitState(id, "done", "error"); got.State != "done" {
+		t.Fatalf("the command runs on the local model: %+v", got)
+	}
+	if c := f.call(4); c.cwd != folder {
+		t.Fatalf("the agent works in the owner's folder: %s", c.cwd)
+	}
+	if b, _ := os.ReadFile(filepath.Join(folder, "seen.txt")); !strings.Contains(string(b), "name: reader") {
+		t.Fatalf("the skill is in the home of the session, where the agent looks for it: %q", b)
+	}
+	listed, _ := os.ReadFile(filepath.Join(folder, "listed.txt"))
+	if b, _ := os.ReadFile(own); string(b) != "the owner's" || string(listed) != "own\n" {
+		t.Fatalf("deck writes no skill into the owner's folder and keeps the owner's: %q %q", b, listed)
 	}
 }

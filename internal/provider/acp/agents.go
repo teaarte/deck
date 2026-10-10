@@ -17,10 +17,12 @@ type Launch struct {
 // Agent is how one ACP agent starts on a model of deck, alone in its home.
 type Agent struct {
 	Start func(l Launch) (argv, env []string, files map[string]string)
+	// Skills is the folder in the home where the agent finds skills, so none is written in the folder it works in.
+	Skills string
 }
 
 // Agents are the ACP agents deck starts; docs/spikes/acp.md has what each one does.
-var Agents = map[string]Agent{"goose": {Start: goose}, "dsh": {Start: dsh}}
+var Agents = map[string]Agent{"goose": {Start: goose, Skills: ".agents/skills"}, "dsh": {Start: dsh, Skills: ".dsh/skills"}}
 
 // gooseTools are the built-in extensions of a session of deck: files and shell, and skills; the rest (sub-agents,
 // schedules, apps) outlive or leave the turn.
@@ -57,7 +59,7 @@ func dsh(l Launch) ([]string, []string, map[string]string) {
 
 // caps are what every ACP agent does inside the sandbox of deck.
 func caps(noCloud bool) provider.Caps {
-	c := provider.Caps{provider.Tools, provider.Sandbox, provider.Resume, provider.Intercept}
+	c := provider.Caps{provider.Tools, provider.Sandbox, provider.Resume, provider.Intercept, provider.Folder}
 	if noCloud {
 		c = append(c, provider.NoCloud)
 	}

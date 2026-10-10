@@ -78,6 +78,10 @@ func (s *Service) list(ctx context.Context, act registry.Actor, in healthListIn)
 		}
 		for name, text := range s.Unassigned(ctx, p.WorkspaceID, p.ID, m) {
 			row := healthRow{Subject: "command:" + name, Status: health.Warning, Error: text}
+			if c := m.Command(name); c != nil && c.Executor.Type == "agent" {
+				row.Status, row.Seen = health.Error, s.read(ctx, act.Workspace, row)
+				unseen[p.Name] = unseen[p.Name] || !row.Seen
+			}
 			if health.Worse(row.Status, worst[p.Name].Status) {
 				worst[p.Name].Status, worst[p.Name].Error = row.Status, row.Subject+": "+row.Error
 			}
@@ -148,7 +152,7 @@ type Service struct {
 	Providers func(ctx context.Context, workspace int64) ([]provider.Provider, error)
 	// Secret reports whether a secret of a workspace is set.
 	Secret func(workspace int64, name string) bool
-	// Unassigned are the model commands of a manifest no model takes, with what the owner does.
+	// Unassigned are the commands of a manifest no model takes, with what the owner does.
 	Unassigned func(ctx context.Context, workspace, project int64, m *manifest.Manifest) map[string]string
 }
 
@@ -157,7 +161,7 @@ func (s *Service) Commands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("health_list", "Health",
 			"Lists the health of providers and other dependencies with the last error, worst first.",
-			registry.OwnerSide, s.list).On("health", "secrets", "projects"),
+			registry.OwnerSide, s.list).On("health", "secrets", "projects", "models", "assignments"),
 		registry.Def("health_seen", "Mark a failing check read",
 			"Marks a failing check read: it stops counting among the failing until its status or error changes.",
 			registry.OwnerOnly, s.seen),

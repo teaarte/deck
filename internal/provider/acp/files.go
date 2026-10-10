@@ -6,21 +6,25 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"syscall"
 
 	"deck2/internal/provider"
 )
 
-// writeSkills puts the skills of the turn where ACP agents look for them, in a fresh folder of the turn: deck writes
-// there itself, so nothing the agent left, such as a symlink, may lead the writes elsewhere.
-func writeSkills(cwd string, files map[string]string) error {
-	agents := filepath.Join(cwd, ".agents")
-	if fi, err := os.Lstat(agents); err == nil && !fi.IsDir() {
-		if err := os.Remove(agents); err != nil {
-			return err
+// writeSkills puts the skills of the turn in a fresh folder at rel in the home of the session, never in the folder the
+// agent works in; deck writes there itself, so nothing the agent left, such as a symlink, may lead the writes elsewhere.
+func writeSkills(home, rel string, files map[string]string) error {
+	dir := home
+	for _, part := range strings.Split(filepath.Dir(rel), string(filepath.Separator)) {
+		dir = filepath.Join(dir, part)
+		if fi, err := os.Lstat(dir); err == nil && !fi.IsDir() {
+			if err := os.Remove(dir); err != nil {
+				return err
+			}
 		}
 	}
-	dir := filepath.Join(agents, "skills")
+	dir = filepath.Join(home, rel)
 	if err := os.RemoveAll(dir); err != nil {
 		return err
 	}

@@ -128,11 +128,18 @@ func (s *Service) assignmentSet(ctx context.Context, act registry.Actor, in assi
 	return map[string]any{"role": in.Role, "project": in.Project, "command": in.Command, "models": in.Models}, nil
 }
 
-// Unassigned are the model commands of a manifest that no model takes, by name, each with what the owner does:
-// a command that calls an @role, its kind's role when it names no model, and nothing is assigned to the role.
+// Unassigned are the commands of a manifest that no model takes, by name, each with what the owner does: an agent
+// command no provider fits, or a model command that calls a role, its kind's when it names no model, with none assigned.
 func (s *Service) Unassigned(ctx context.Context, workspace, project int64, m *manifest.Manifest) map[string]string {
 	out := map[string]string{}
 	for _, c := range m.Commands {
+		if c.Executor.Type == "agent" {
+			var refused *registry.Error
+			if _, _, _, err := s.fitting(ctx, project, &c); errors.As(err, &refused) {
+				out[c.Name] = refused.Text
+			}
+			continue
+		}
 		if c.Executor.Type != "model" {
 			continue
 		}

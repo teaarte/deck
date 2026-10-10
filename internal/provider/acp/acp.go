@@ -125,7 +125,7 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 	if err := os.MkdirAll(filepath.Join(home, "tmp"), 0o700); err != nil {
 		return provider.Result{}, err
 	}
-	if err := writeSkills(req.Cwd, req.Skills); err != nil {
+	if err := writeSkills(home, a.agent.Skills, req.Skills); err != nil {
 		return provider.Result{}, err
 	}
 	mcp, err := url.Parse(req.MCPURL)

@@ -154,6 +154,9 @@ func (c *Service) ToolSignIn(ctx context.Context, p db.Project, tool, why string
 	}
 	payload, _ := json.Marshal(map[string]string{"tool": tool})
 	text := fmt.Sprintf("%s needs you to sign in to its service again (deck.oauth_start): %s", tool, untrusted.Cut(why, 300))
+	if a, err := c.auth(ctx, p, strings.TrimPrefix(tool, p.Name+".")); err == nil && a.Type == "oauth2" {
+		text += fmt.Sprintf("; the sign-in is at %s, its token from %s", host(a.AuthURL), host(a.TokenURL))
+	}
 	err = c.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		_, err := ask.ForProject(ctx, q, p.WorkspaceID, p.ID, 0, ask.KindSignIn, text, string(payload), time.Time{})
 		return err
@@ -161,6 +164,29 @@ func (c *Service) ToolSignIn(ctx context.Context, p db.Project, tool, why string
 	if err != nil {
 		health.Write(ctx, c.St, health.Project(p), "tool:"+tool, health.NeedsLogin, text+"; deck could not ask: "+err.Error())
 	}
+}
+
+// auth is the sign-in of a tool of the project's manifest in force.
+func (c *Service) auth(ctx context.Context, p db.Project, tool string) (tools.Auth, error) {
+	var auth tools.Auth
+	m, err := docs.For(ctx, c.St.Q, registry.Actor{}, p.ID)
+	if err != nil {
+		return auth, err
+	}
+	for _, t := range m.Tools.HTTP {
+		if t.Name == tool {
+			_ = json.Unmarshal(t.Auth, &auth)
+		}
+	}
+	return auth, nil
+}
+
+// host is the host of an address, or the address when it has none.
+func host(address string) string {
+	if u, err := url.Parse(address); err == nil && u.Host != "" {
+		return u.Host
+	}
+	return address
 }
 
 type oauthStartIn struct {
@@ -178,15 +204,9 @@ func (c *Service) oauthStart(ctx context.Context, act registry.Actor, in oauthSt
 	if err != nil {
 		return nil, err
 	}
-	m, err := docs.Manifest(ctx, c.St.Q, p)
+	auth, err := c.auth(ctx, p, local)
 	if err != nil {
 		return nil, err
-	}
-	var auth tools.Auth
-	for _, t := range m.Tools.HTTP {
-		if t.Name == local {
-			_ = json.Unmarshal(t.Auth, &auth)
-		}
 	}
 	if auth.Type != "oauth2" {
 		return nil, registry.Invalid("deck: %s is not an oauth2 tool of %s", local, p.Name)

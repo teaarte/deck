@@ -758,3 +758,23 @@ func TestADomainTheGrantCoversIsNoNewRight(t *testing.T) {
 		t.Fatalf("a draft that widens nothing keeps its grant on the new revision: %d, %v", p.GrantedRevision.Int64, err)
 	}
 }
+
+// TestTheProjectShowsAgentsReachTheWholeNetwork: the read domains do not hold an agent on Claude Code or Codex, so
+// the project says its agents reach the whole network, unless it has no_network or no agent.
+func TestTheProjectShowsAgentsReachTheWholeNetwork(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, nil)
+	e.createProject("open", `{"version": 11, "domains": {"read": ["example.com"]}, "commands": [`+agentCommand("work", "")+`]}`)
+	e.createProject("closed", `{"version": 11, "no_network": true, "commands": [`+agentCommand("work", "")+`]}`)
+	e.createProject("empty", `{"version": 11}`)
+	var ps []struct{ Name, Network string }
+	e.must("deck.projects_list", map[string]any{}, &ps)
+	for _, p := range ps {
+		if open := p.Name == "open"; p.Name != "master" && open != strings.Contains(p.Network, "whole network") {
+			t.Fatalf("%s: its agents reach the whole network only with network: %q", p.Name, p.Network)
+		}
+	}
+	if meta := e.screenData("open", "settings", nil); !strings.Contains(fmt.Sprint(meta), "whole network") {
+		t.Fatalf("the settings of the project show it: %v", meta)
+	}
+}

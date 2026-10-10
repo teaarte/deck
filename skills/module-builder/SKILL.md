@@ -435,9 +435,10 @@ deck MCP server. A provider with a shell (Claude Code, Codex, an ACP agent) runs
 folder and in the project's data folder (the prompt names it; indexes, caches and state live there between
 runs), runs shell commands, and searches and fetches the web without asking; the provider itself refuses
 what looks risky and asks the owner only about that. The shell of Claude Code renders, binds local ports, uses the
-GPU and keeps its caches like the owner's own shell; the shells of Codex and ACP agents reach only package registries
-(PyPI, npm, the go proxy), GitHub, Hugging Face and the project's `domains.read` (`"*"` opens the whole network, a
-right the owner gives); a project with `no_network` closes every shell. Secrets and deck's own state stay closed to it; on
+GPU and keeps its caches like the owner's own shell; the shells of Claude Code and Codex reach the whole network,
+whatever `domains.read` names, and the project's settings say so to the owner; the shells of ACP agents reach only
+package registries (PyPI, npm, the go proxy), GitHub, Hugging Face and the project's `domains.read` (`"*"` opens the
+whole network, a right the owner gives); a project with `no_network` closes every shell. Secrets and deck's own state stay closed to it; on
 Claude Code with network its shell is the owner's, so another project's data is not a wall. A deck tool of class `external` outside `allowed_external` still waits for the owner. Set
 `"no_network": true` for a project with personal data (finance, health, mail): its agents get no web and no
 network of their own and reach outside only through deck tools, and its pushes carry no text of its data; its

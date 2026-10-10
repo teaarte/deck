@@ -23,7 +23,7 @@
       {"title": "Project", "icon": "box", "blocks": [
           {"type": "list", "title": "Project", "source": {"from": "deck.projects_list"},
             "item": {"title": "title", "icon": "icon != '' ? icon : 'box'", "text": "manifest_error != '' ? 'manifest: ' + manifest_error : description",
-              "meta": "(title != name ? name + ' · ' : '') + status + (paused ? ', paused' : '') + (no_network ? ' · no network' : '') + (len(models) > 0 ? ' · may call models: ' + join(models, ', ') : '') + (len(rights) > 0 ? ' · enabling grants: ' + join(rights, '; ') : '') + (len(asks) > 0 ? ' · asks you each time: ' + join(asks, ', ') : '')",
+              "meta": "(title != name ? name + ' · ' : '') + status + (paused ? ', paused' : '') + (no_network ? ' · no network' : '') + (network != '' ? ' · ' + network : '') + (len(models) > 0 ? ' · may call models: ' + join(models, ', ') : '') + (len(rights) > 0 ? ' · enabling grants: ' + join(rights, '; ') : '') + (len(asks) > 0 ? ' · asks you each time: ' + join(asks, ', ') : '')",
               "tone": "manifest_error != '' ? 'error' : paused ? 'muted' : status == 'draft' ? 'warn' : ''"},
             "actions": [
               {"verb": "enable", "primary": true, "command": "deck.project_enable", "params": {"project": "=name", "revision": "=revision"}, "when": "manifest_error == '' && status == 'draft'"},

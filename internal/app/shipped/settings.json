@@ -15,7 +15,7 @@
             "choices": {"command": {"source": {"from": "deck.commands_list", "where": "project != '' && executor != 'tool'", "sort": "name"}, "value": "name", "label": "title + ' (' + name + ')'"}}}]},
         {"type": "list", "title": "Projects", "source": {"from": "deck.projects_list", "sort": "name"}, "filter": ["status"],
           "item": {"title": "title", "icon": "icon != '' ? icon : 'box'", "text": "manifest_error != '' ? 'manifest: ' + manifest_error : description",
-            "meta": "(title != name ? name + ' · ' : '') + status + (paused ? ', paused' : '') + (no_network ? ' · no network' : '') + (len(folders) > 0 ? ' · folders: ' + join(map(folders, .name + ': ' + .path), '; ') : '') + (len(rights) > 0 ? ' · enabling grants: ' + join(rights, '; ') : '') + (len(asks) > 0 ? ' · asks you each time: ' + join(asks, ', ') : '')",
+            "meta": "(title != name ? name + ' · ' : '') + status + (paused ? ', paused' : '') + (no_network ? ' · no network' : '') + (network != '' ? ' · ' + network : '') + (len(folders) > 0 ? ' · folders: ' + join(map(folders, .name + ': ' + .path), '; ') : '') + (len(rights) > 0 ? ' · enabling grants: ' + join(rights, '; ') : '') + (len(asks) > 0 ? ' · asks you each time: ' + join(asks, ', ') : '')",
             "tone": "manifest_error != '' ? 'error' : paused ? 'muted' : status == 'draft' ? 'warn' : ''"},
           "actions": [
             {"verb": "settings", "primary": true, "screen": "settings", "project": "=name", "when": "status != 'draft' || manifest_error != ''"},

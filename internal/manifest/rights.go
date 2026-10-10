@@ -160,6 +160,15 @@ func toolWidens(prev, next *Manifest, t HTTPTool) []string {
 	return out
 }
 
+// AgentNetwork is what the agents of m reach on Claude Code or Codex, whose shells take no list of hosts: the whole
+// network unless m has no_network; empty without agent commands.
+func AgentNetwork(m *Manifest) string {
+	if m.NoNetwork || !slices.ContainsFunc(m.Commands, func(c Command) bool { return c.Executor.Type == "agent" }) {
+		return ""
+	}
+	return "agents on Claude Code or Codex: the whole network, whatever domains.read names"
+}
+
 // Registries are the package registries a manifest reaches by naming them, before any grant.
 var Registries = []string{"pypi.org", "files.pythonhosted.org", "registry.npmjs.org", "proxy.golang.org", "sum.golang.org"}
 

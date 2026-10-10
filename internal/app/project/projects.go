@@ -32,6 +32,8 @@ type projectView struct {
 	Folders  []folders.Row `json:"folders"`
 	// NoNetwork is of the manifest; false when it does not load.
 	NoNetwork bool `json:"no_network"`
+	// Network is what its agents reach beyond its domains, in words; empty when nothing.
+	Network string `json:"network"`
 	// Icon and Title are the icon and the name the owner sees that its manifest gives; Title is the name without one.
 	Icon  string `json:"icon,omitempty"`
 	Title string `json:"title"`
@@ -69,7 +71,7 @@ func (pj *Service) viewProject(ctx context.Context, p db.Project, m *manifest.Ma
 		v.ManifestError = err.Error()
 		return v
 	}
-	v.Revision, v.NoNetwork = m.Revision, m.NoNetwork
+	v.Revision, v.NoNetwork, v.Network = m.Revision, m.NoNetwork, manifest.AgentNetwork(m)
 	v.Title, v.Icon, v.Screens = manifest.Nav(p.Name, m, nil)
 	if p.Status == store.ProjectDraft {
 		v.Rights, v.Asks = append(v.Rights, rights(m)...), append(v.Asks, m.AskEachTime()...)

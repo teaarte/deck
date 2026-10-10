@@ -26,14 +26,14 @@ func (r *Runner) cut(ctx, turnCtx context.Context, processID int64) bool {
 // stopGrace is how long a rework waits for the turn of a stopped process to exit.
 const stopGrace = 5 * time.Second
 
-// Stop ends a process as stopped in the base, then cancels the turn that lives by then, whose outcome finds it no
-// longer running; the folder, the hooks and a rework wait until that turn has exited.
-func (r *Runner) Stop(ctx context.Context, processID int64, reason string) error {
-	return r.end(ctx, processID, StateStopped, reason)
+// Stop ends a process as stopped, then cancels its turn; the folder, the hooks and a rework wait until that turn has
+// exited. A stop of the owner drops its frozen calls.
+func (r *Runner) Stop(ctx context.Context, processID int64, reason string, owner bool) error {
+	return r.end(ctx, processID, StateStopped, reason, owner)
 }
 
-// end closes a process that has not finished in state with reason, as Stop does.
-func (r *Runner) end(ctx context.Context, processID int64, state, reason string) error {
+// end closes a process that has not finished in state with reason, as Stop does; drop closes its frozen calls too.
+func (r *Runner) end(ctx context.Context, processID int64, state, reason string, drop bool) error {
 	var n int64
 	var closedCalls []db.Ask
 	if !r.own(processID) {
@@ -47,8 +47,7 @@ func (r *Runner) end(ctx context.Context, processID int64, state, reason string)
 		if n, err = q.StopParkedProcess(ctx, db.StopParkedProcessParams{State: state, Error: reason, FinishedAt: r.stamp(), ID: processID}); err != nil || n == 0 {
 			return err
 		}
-		// A frozen call outlives its process unless a stop ends it.
-		closedCalls, err = q.CloseOpenAsksOfProcess(ctx, db.CloseOpenAsksOfProcessParams{ProcessID: processID, CallsToo: store.Bool(state == StateStopped)})
+		closedCalls, err = q.CloseOpenAsksOfProcess(ctx, db.CloseOpenAsksOfProcessParams{ProcessID: processID, CallsToo: store.Bool(drop)})
 		return err
 	})
 	if err != nil || n == 0 {

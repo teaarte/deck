@@ -249,7 +249,7 @@ func (s *Service) processStop(ctx context.Context, act registry.Actor, in proces
 	if _, err := s.ownProcess(ctx, act, in.Process); err != nil {
 		return nil, err
 	}
-	if err := s.Runner.Stop(ctx, in.Process, "stopped by "+act.Kind); err != nil {
+	if err := s.Runner.Stop(ctx, in.Process, "stopped by "+act.Kind, act.Kind == registry.Owner); err != nil {
 		return nil, err
 	}
 	return map[string]any{"ok": true}, nil

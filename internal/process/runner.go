@@ -247,7 +247,7 @@ func (r *Runner) finish(ctx context.Context, processID int64, state, result stri
 		if err != nil || n == 0 {
 			return err
 		}
-		// A frozen call outlives its process unless a stop ends it.
+		// A frozen call outlives its process unless the owner stops it.
 		if _, err = q.CloseOpenAsksOfProcess(ctx, db.CloseOpenAsksOfProcessParams{ProcessID: processID}); err != nil {
 			return err
 		}

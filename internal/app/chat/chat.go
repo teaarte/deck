@@ -224,7 +224,7 @@ func (ch *Service) chatTopicDelete(ctx context.Context, act registry.Actor, in c
 	p, err := ch.St.Q.OpenTopicProcess(ctx, in.Topic)
 	ch.start.Unlock()
 	if err == nil {
-		_ = ch.Runner.Stop(ctx, p.ID, "deck: the owner deleted the chat topic")
+		_ = ch.Runner.Stop(ctx, p.ID, "deck: the owner deleted the chat topic", act.Kind == registry.Owner)
 	}
 	return map[string]any{"topic": in.Topic, "deleted": true}, nil
 }

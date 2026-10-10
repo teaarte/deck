@@ -396,4 +396,25 @@ func TestAFrozenCallOutlivesAProcessAtItsCeiling(t *testing.T) {
 	if code, out := e.call("deck.ask_answer", map[string]any{"ask": a.ID, "answer": "allow"}); code != 200 || len(svc.requests()) != 1 {
 		t.Fatalf("the owner may still allow the frozen call of a process that ended: %d %s", code, out)
 	}
+	byToken := e.run(e.projectID("notes"), "work")
+	var b askView
+	e.waitFor("the frozen call of the next process", func() bool {
+		var as []askView
+		e.must("deck.asks_list", nil, &as)
+		for _, x := range as {
+			if x.Kind == "call" {
+				b = x
+			}
+		}
+		return b.ID != 0
+	})
+	_, tok := e.token("ops", "deck.process_stop")
+	if code, out := e.callWith(tok, "deck.process_stop", map[string]any{"process": byToken}); code != 200 {
+		t.Fatalf("the token stops the process: %d %s", code, out)
+	}
+	e.waitState(byToken, "stopped")
+	e.settle()
+	if code, out := e.call("deck.ask_answer", map[string]any{"ask": b.ID, "answer": "allow"}); code != 200 || len(svc.requests()) != 2 {
+		t.Fatalf("a stop by another than the owner leaves the frozen call to the owner: %d %s", code, out)
+	}
 }

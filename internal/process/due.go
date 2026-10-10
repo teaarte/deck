@@ -34,7 +34,7 @@ func (r *Runner) stopAtCeiling(ctx context.Context, now time.Time) {
 		return
 	}
 	for _, id := range ids {
-		if err := r.end(ctx, id, StateError, "deck: the process reached its time ceiling"); err != nil {
+		if err := r.end(ctx, id, StateError, "deck: the process reached its time ceiling", false); err != nil {
 			slog.Error("stop at ceiling", "process", id, "err", err)
 		}
 	}

@@ -31,6 +31,10 @@ WHERE health.status IN ('needs_login', 'paused');
 SELECT * FROM health WHERE workspace_id IS NULL AND subject = sqlc.arg(subject);
 
 
+-- name: DeleteWorkspaceHealth :exec
+DELETE FROM health WHERE workspace_id = sqlc.arg(workspace_id) AND subject = sqlc.arg(subject);
+
+
 -- name: GetWorkspaceHealth :one
 SELECT * FROM health WHERE workspace_id = sqlc.arg(workspace_id) AND subject = sqlc.arg(subject);
 

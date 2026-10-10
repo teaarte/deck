@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"deck2/internal/docs"
 	"deck2/internal/files"
+	"deck2/internal/health"
 	"deck2/internal/home"
 	"deck2/internal/manifest"
 	"deck2/internal/process"
@@ -216,17 +217,17 @@ func (s *Service) For(ctx context.Context, projectID int64, cmd *manifest.Comman
 // up reports whether a provider's health lets a new turn start on it rather than on a fallback: not red, not
 // waiting for a login, not paused by a limit.
 func (s *Service) up(ctx context.Context, workspace int64, name string) bool {
-	for _, h := range []func() (db.Health, error){
-		func() (db.Health, error) { return s.St.Q.GetHealth(ctx, process.HealthSubject(name)) },
-		func() (db.Health, error) {
-			return s.St.Q.GetWorkspaceHealth(ctx, db.GetWorkspaceHealthParams{WorkspaceID: store.ID(workspace), Subject: ModelSubject(name)})
-		},
-	} {
-		if h, err := h(); err == nil && (h.Status == "error" || h.Status == "needs_login" || h.Status == "paused") {
-			return false
-		}
+	h, err := s.healthOf(ctx, workspace, name)
+	return err != nil || h.Status != health.Error && h.Status != health.NeedsLogin && h.Status != health.Paused
+}
+
+// healthOf is the health row of a model by name: of its self-check when it is built in or runs in an agent, else of
+// its last call in the workspace.
+func (s *Service) healthOf(ctx context.Context, workspace int64, name string) (db.Health, error) {
+	if row, err := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: workspace, Name: name}); err == nil && row.Model.Agent == "" {
+		return s.St.Q.GetWorkspaceHealth(ctx, db.GetWorkspaceHealthParams{WorkspaceID: store.ID(workspace), Subject: ModelSubject(name)})
 	}
-	return true
+	return s.St.Q.GetHealth(ctx, process.HealthSubject(name))
 }
 
 func (s *Service) builtinNamed(name string) provider.Provider {
@@ -245,7 +246,7 @@ func (s *Service) Ready(ctx context.Context, name string) bool {
 		return true
 	}
 	h, err := s.St.Q.GetHealth(ctx, process.HealthSubject(name))
-	return err != nil || h.Status != "checking" && (h.Status != "error" || h.Verdict == "model")
+	return err != nil || h.Status != health.Checking && (h.Status != health.Error || h.Verdict == "model")
 }
 
 // agentCommand finds an agent command of the workspace by its place, project.command.

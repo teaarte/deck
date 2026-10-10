@@ -49,6 +49,20 @@ func (q *Queries) DeleteScreenHealth(ctx context.Context, projectID sql.NullInt6
 	return err
 }
 
+const deleteWorkspaceHealth = `-- name: DeleteWorkspaceHealth :exec
+DELETE FROM health WHERE workspace_id = ?1 AND subject = ?2
+`
+
+type DeleteWorkspaceHealthParams struct {
+	WorkspaceID sql.NullInt64
+	Subject     string
+}
+
+func (q *Queries) DeleteWorkspaceHealth(ctx context.Context, arg DeleteWorkspaceHealthParams) error {
+	_, err := q.db.ExecContext(ctx, deleteWorkspaceHealth, arg.WorkspaceID, arg.Subject)
+	return err
+}
+
 const getHealth = `-- name: GetHealth :one
 SELECT subject, workspace_id, project_id, status, error, version, verdict, speed, updated_at, seen_at FROM health WHERE workspace_id IS NULL AND subject = ?1
 `

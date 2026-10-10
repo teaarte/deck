@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"deck2/internal/health"
 	"deck2/internal/process"
 	"deck2/internal/provider"
 	"deck2/internal/provider/acp"
@@ -98,8 +99,8 @@ func (s *Service) startCheck(name string, force bool) bool {
 	subject := process.HealthSubject(name)
 	started := s.Go(func() {
 		h, _ := s.St.Q.GetHealth(ctx, subject)
-		if force || h.Status == "error" || h.Status == "checking" {
-			s.writeCheck(ctx, name, "checking", "the self-check is running", "", "", 0)
+		if force || h.Status == health.Error || h.Status == health.Checking {
+			s.writeCheck(ctx, name, health.Checking, "the self-check is running", "", "", 0)
 		}
 		ceiling := s.SelfCheckCeiling
 		if c, ok := sc.(interface{ CheckCeiling() time.Duration }); ok && c.CheckCeiling() > 0 {
@@ -109,26 +110,26 @@ func (s *Service) startCheck(name string, force bool) bool {
 		res := sc.SelfCheck(cctx)
 		cancel()
 		of := cmp.Or(res.Version, "an unknown version")
-		status, text, verdict := "ok", "", ""
+		status, text, verdict := health.OK, "", ""
 		switch {
 		case ctx.Err() != nil:
-			status, text = "checking", "deck stopped during the self-check"
+			status, text = health.Checking, "deck stopped during the self-check"
 		case res.RateLimited:
-			status, text = "paused", "the self-check hit the usage limit; "+errText(res.Err)
+			status, text = health.Paused, "the self-check hit the usage limit; "+errText(res.Err)
 		case res.NeedsLogin:
-			status, text = "needs_login", "the self-check found no valid login; "+errText(res.Err)
+			status, text = health.NeedsLogin, "the self-check found no valid login; "+errText(res.Err)
 		case res.Err != nil && res.Slow:
-			status, text, verdict = "warning", fmt.Sprintf("the model did not finish the self-check of %s within %s: %s", of, ceiling, res.Err), "model"
+			status, text, verdict = health.Warning, fmt.Sprintf("the model did not finish the self-check of %s within %s: %s", of, ceiling, res.Err), "model"
 		case res.Err != nil && res.ModelFailed:
-			status, text, verdict = "error", fmt.Sprintf("the model does not manage the self-check of %s: %s; pick a stronger model", of, res.Err), "model"
+			status, text, verdict = health.Error, fmt.Sprintf("the model does not manage the self-check of %s: %s; pick a stronger model", of, res.Err), "model"
 		case res.Err != nil:
-			status, text, verdict = "error", fmt.Sprintf("self-check of %s failed: %s", of, res.Err), "adapter"
+			status, text, verdict = health.Error, fmt.Sprintf("self-check of %s failed: %s", of, res.Err), "adapter"
 		}
 		if res.Speed > 0 {
 			text = strings.TrimPrefix(text+fmt.Sprintf("; the model answered at %.0f tokens/s", res.Speed), "; ")
 		}
 		version := res.Version
-		if status != "ok" && status != "error" && status != "warning" {
+		if status != health.OK && status != health.Error && status != health.Warning {
 			version = ""
 		}
 		s.mu.Lock()
@@ -147,11 +148,11 @@ func (s *Service) startCheck(name string, force bool) bool {
 		}
 		s.mu.Lock()
 		c.running = false
-		if status != "ok" && status != "warning" {
+		if status != health.OK && status != health.Warning {
 			c.retry = s.Now().Add(selfCheckRetry)
 		}
 		s.mu.Unlock()
-		if status != "error" && status != "checking" {
+		if status != health.Error && status != health.Checking {
 			s.Wake(context.WithoutCancel(ctx))
 		}
 	})
@@ -169,7 +170,7 @@ func (s *Service) writeCheck(ctx context.Context, name, status, text, version, v
 		if err := process.ProviderHealth(ctx, q, name, status, text); err != nil {
 			return err
 		}
-		if status == "checking" {
+		if status == health.Checking {
 			return nil
 		}
 		if err := q.SetHealthCheck(ctx, db.SetHealthCheckParams{Verdict: verdict, Speed: speed, Subject: subject}); err != nil {

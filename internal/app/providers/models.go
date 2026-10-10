@@ -64,11 +64,7 @@ type modelView struct {
 
 // lastCheck fills in the state of a model: of its last self-check in an agent, else of its last call.
 func (s *Service) lastCheck(ctx context.Context, workspace int64, v *modelView) {
-	h, err := s.St.Q.GetHealth(ctx, process.HealthSubject(v.Name))
-	if v.Agent == "" {
-		h, err = s.St.Q.GetWorkspaceHealth(ctx, db.GetWorkspaceHealthParams{WorkspaceID: store.ID(workspace), Subject: ModelSubject(v.Name)})
-	}
-	if err == nil {
+	if h, err := s.healthOf(ctx, workspace, v.Name); err == nil {
 		v.Status, v.Error, v.Verdict, v.Speed, v.Version = h.Status, h.Error, h.Verdict, h.Speed, h.Version
 	}
 }
@@ -230,6 +226,9 @@ func (s *Service) modelSet(ctx context.Context, act registry.Actor, in modelSetI
 			}
 		}
 		if in.Agent != "" {
+			if err := q.DeleteWorkspaceHealth(ctx, db.DeleteWorkspaceHealthParams{WorkspaceID: store.ID(act.Workspace), Subject: ModelSubject(in.Name)}); err != nil {
+				return err
+			}
 			if err := process.ProviderHealth(ctx, q, in.Name, health.Checking, "the self-check of the model in its agent is about to run"); err != nil {
 				return err
 			}

@@ -31,7 +31,7 @@ func (r *Runner) needLogin(ctx context.Context, pv provider.Provider, processID 
 		if _, err := ask.New(ctx, q, processID, ask.KindLogin, msg, string(payload), time.Time{}); err != nil {
 			return err
 		}
-		return setHealth(ctx, q, pv, "needs_login", text)
+		return setHealth(ctx, q, pv, health.NeedsLogin, text)
 	})
 	if err != nil {
 		r.finish(ctx, processID, StateError, "", false, "needs login: "+text)
@@ -73,7 +73,7 @@ func (r *Runner) providerHealth(ctx context.Context, pv provider.Provider, res p
 func setHealth(ctx context.Context, q *db.Queries, pv provider.Provider, status, text string) error {
 	subject := HealthSubject(pv.Name())
 	if _, checked := pv.(provider.SelfChecker); checked {
-		if h, err := q.GetHealth(ctx, subject); err == nil && (h.Status == "checking" || h.Status == "error") {
+		if h, err := q.GetHealth(ctx, subject); err == nil && (h.Status == health.Checking || h.Status == health.Error) {
 			return nil
 		}
 	}

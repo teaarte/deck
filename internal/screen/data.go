@@ -434,6 +434,9 @@ func (r *renderer) document(record, id int64, name string) (map[string]any, erro
 	if owner, _ := d["owner_kind"].(string); owner != "" {
 		v[owner] = d["owner_id"]
 	}
+	if text, _ := v["text"].(string); r.req.Brief {
+		v["text"], v["size"] = "", len(text)
+	}
 	return v, nil
 }
 

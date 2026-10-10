@@ -57,6 +57,8 @@ type Request struct {
 	Params map[string]string
 	// Words translate the texts of the screen into the owner's language.
 	Words map[string]string
+	// Brief gives the HTML of custom blocks and the text of documents by name and size, not whole.
+	Brief bool
 }
 
 // Topics are the event topics after which a client reads blocks again; any other topic means the whole screen.

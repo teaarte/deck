@@ -199,6 +199,9 @@ func (r *renderer) custom(b manifest.Block) (map[string]any, error) {
 		}
 	}
 	v := map[string]any{"html": html, "actions": acts}
+	if r.req.Brief {
+		v["html"], v["name"], v["size"] = "", b.Document, len(html)
+	}
 	if b.Source != nil {
 		items, _, err := r.filtered(*b.Source, nil, nil)
 		if err != nil {

@@ -466,6 +466,10 @@ export interface DocumentValue {
   revision: number;
   editable: boolean;
   record?: number;
+  /**
+   * Bytes of the text, left out for a viewer other than the owner
+   */
+  size?: number;
   revisions: {
     revision: number;
     author: string;
@@ -481,6 +485,11 @@ export interface CustomValue {
   html: string;
   items?: {}[];
   record?: {};
+  name?: string;
+  /**
+   * Bytes of the HTML, left out for a viewer other than the owner
+   */
+  size?: number;
   actions: Action[];
 }
 /**

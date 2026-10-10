@@ -320,7 +320,7 @@ func TestAModelThatDoesNotAnswerIsRedWhileItsFallbackWorks(t *testing.T) {
 	e.createProject("shorts", modelManifest)
 	health := func() (string, string) {
 		var status, text string
-		_ = e.App.Store.DB.QueryRow(`SELECT status, error FROM health WHERE subject = 'provider:local-image'`).Scan(&status, &text)
+		_ = e.App.Store.DB.QueryRow(`SELECT status, error FROM health WHERE subject = 'model:local-image' AND workspace_id IS NOT NULL`).Scan(&status, &text)
 		return status, text
 	}
 	using := func() string {
@@ -342,7 +342,7 @@ func TestAModelThatDoesNotAnswerIsRedWhileItsFallbackWorks(t *testing.T) {
 	var rows []struct{ Subject, Status string }
 	e.must("deck.health_list", nil, &rows)
 	if !slices.ContainsFunc(rows, func(r struct{ Subject, Status string }) bool {
-		return r.Subject == "provider:local-image" && r.Status == "error"
+		return r.Subject == "model:local-image" && r.Status == "error"
 	}) {
 		t.Fatalf("the red model is on the list of health: %+v", rows)
 	}

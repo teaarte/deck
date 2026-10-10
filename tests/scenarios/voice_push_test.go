@@ -447,6 +447,11 @@ func TestADeviceThePushServiceRefusesIsTurnedOnAgainFromItsHealthRow(t *testing.
 	if !strings.Contains(h.Error, "MacIntel") || !strings.Contains(h.Error, "off and on again") {
 		t.Fatalf("the health says how to turn the pushes of the device on again: %+v", h)
 	}
+	var machine int
+	_ = e.App.Store.DB.QueryRow(`SELECT count(*) FROM health WHERE subject = 'push' AND workspace_id IS NULL`).Scan(&machine)
+	if machine != 0 {
+		t.Fatal("the devices are of a workspace, and so is the health of their pushes")
+	}
 	if a := e.rowAction("", "settings", "", map[string]any{"tab": "Interface"}); a["screen"] != "settings" {
 		t.Fatalf("the row of the health opens the tab with the pushes: %+v", a)
 	}

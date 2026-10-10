@@ -193,9 +193,10 @@ func TestASlotFreedWhileDeckStopsLeavesTheWaitingProcessWaiting(t *testing.T) {
 	e.must("deck.settings_set", map[string]any{"name": "agent_limit", "value": "1"}, nil)
 	p := e.createProject("jobs", testManifest([]string{agentCommand("job", "")}, nil))
 	a, b := e.run(p, "job"), e.run(p, "job")
-	e.waitFor("one running, one waiting", func() bool { return e.states([]int64{a, b}) == "running waiting_slot" })
+	either := func(got string) bool { return got == "running waiting_slot" || got == "waiting_slot running" }
+	e.waitFor("one running, one waiting", func() bool { return either(e.states([]int64{a, b})) })
 	e.App.Runner.Shutdown()
-	if got := e.states([]int64{a, b}); got != "running waiting_slot" {
+	if got := e.states([]int64{a, b}); !either(got) {
 		t.Fatalf("the running one stays to resume and the waiting one still waits: %s", got)
 	}
 }

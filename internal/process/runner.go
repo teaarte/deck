@@ -128,6 +128,8 @@ type liveTurn struct {
 	done chan struct{}
 	// input carries the owner's messages into the turn; nil while the provider has none.
 	input chan provider.Message
+	// slot is the agent slot the turn holds, under r.mu.
+	slot *slot
 }
 
 // Deps are what the runner takes from the rest of deck.
@@ -193,7 +195,7 @@ func (r *Runner) spawn(t turn) bool {
 		return false
 	}
 	ctx, cancel := context.WithCancelCause(r.ctx)
-	lt := &liveTurn{cancel: cancel, done: make(chan struct{})}
+	lt := &liveTurn{cancel: cancel, done: make(chan struct{}), slot: t.slot}
 	r.live[t.process] = lt
 	t.live = lt
 	r.wg.Add(1)

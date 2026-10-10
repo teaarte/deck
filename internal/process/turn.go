@@ -122,6 +122,9 @@ func (r *Runner) prepare(ctx context.Context, t *turn, p db.Process, trial bool,
 			r.hold(ctx, *t, StateWaitingSlot)
 			return nil, false
 		}
+		r.mu.Lock()
+		t.live.slot = t.slot
+		r.mu.Unlock()
 	}
 	a := &agentTurn{proj: proj, dir: r.runDir(t.process), data: r.scripts.DataDir(t.project)}
 	work, repo := filepath.Join(a.dir, "work"), false

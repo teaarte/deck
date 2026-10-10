@@ -70,6 +70,8 @@ type processView struct {
 	// Models are the models of deck's settings the process called, and CostUSD what they cost, nil when one has no price.
 	Models  []string `json:"models,omitempty"`
 	CostUSD *float64 `json:"cost_usd,omitempty"`
+	// SlotAhead is how many processes wait for an agent slot before one that waits for it.
+	SlotAhead *int64 `json:"slot_ahead,omitempty"`
 }
 
 func msTime(v sql.NullInt64) string {
@@ -162,11 +164,11 @@ func (s *Service) processGet(ctx context.Context, act registry.Actor, in process
 	if err != nil {
 		return processView{}, err
 	}
-	begin := time.Now()
-	until := begin.Add(min(time.Duration(max(in.Wait, 0))*time.Second, waitLimit(act)))
-	for !p.FinishedAt.Valid && p.State != process.StateWaitingAnswer && p.State != process.StateNeedsLogin && time.Now().Before(until) {
-		if p.State == process.StateWaitingSlot && time.Since(begin) > slotWait {
-			break
+	until := time.Now().Add(min(time.Duration(max(in.Wait, 0))*time.Second, waitLimit(act)))
+	for lent := false; !p.FinishedAt.Valid && p.State != process.StateWaitingAnswer && p.State != process.StateNeedsLogin && time.Now().Before(until); {
+		if !lent && act.ProcessID != 0 && act.ProcessID != p.ID {
+			lent = true
+			defer s.Runner.Lend(ctx, act.ProcessID)()
 		}
 		select {
 		case <-ctx.Done():
@@ -182,6 +184,13 @@ func (s *Service) processGet(ctx context.Context, act registry.Actor, in process
 	project, _ := s.St.Q.GetProject(ctx, p.ProjectID)
 	v := procView(p, project.Name)
 	v.Terminal = s.terminal(ctx, p)
+	if p.State == process.StateWaitingSlot {
+		ahead, err := s.St.Q.CountSlotAhead(ctx, db.CountSlotAheadParams{WorkspaceID: project.WorkspaceID, ID: p.ID})
+		if err != nil {
+			return processView{}, err
+		}
+		v.SlotAhead = &ahead
+	}
 	calls, err := s.St.Q.ListProcessModelCalls(ctx, store.ID(p.ID))
 	if err != nil {
 		return processView{}, err
@@ -198,9 +207,6 @@ func (s *Service) processGet(ctx context.Context, act registry.Actor, in process
 	}
 	return v, nil
 }
-
-// slotWait is the longest process_get waits on a process that waits for a slot, which the caller may hold.
-const slotWait = 40 * time.Second
 
 // waitLimit is how long process_get may wait for the caller: short of the limit of its tool calls, if it has one.
 func waitLimit(act registry.Actor) time.Duration {
@@ -269,7 +275,7 @@ func (s *Service) processCommands() []*registry.Command {
 			"Lists recent processes, newest first, or only the open ones.",
 			registry.Everyone, s.processesList).On("processes", "asks"),
 		registry.Read("process_get", "Process status",
-			"Returns the state and result of a process, the models it called and their cost_usd; with wait, once it finishes or waits for the owner.",
+			"Returns the state and result of a process, the models it called and their cost_usd; with wait, once it finishes or waits for the owner, and an agent's slot is free for others meanwhile; a process waiting for an agent slot names in slot_ahead how many wait before it.",
 			registry.Everyone, s.processGet).On("processes", "usage"),
 		registry.Def("process_stop", "Stop process",
 			"Stops a process; a running agent is killed and what it did so far stays.",

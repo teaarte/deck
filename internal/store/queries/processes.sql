@@ -229,3 +229,7 @@ UPDATE process SET start_note = ? WHERE id = ?;
 -- name: FindTriggeredChild :one
 SELECT c.* FROM process c JOIN process p ON p.id = c.parent_id
 WHERE c.parent_id = ? AND c.trigger_id = ? AND c.started_at >= p.finished_at ORDER BY c.id LIMIT 1;
+
+-- name: CountSlotAhead :one
+SELECT count(*) FROM process p JOIN project j ON j.id = p.project_id
+WHERE p.state = 'waiting_slot' AND j.workspace_id = sqlc.arg(workspace_id) AND p.id < sqlc.arg(id);

@@ -46,6 +46,23 @@ func (q *Queries) CountActiveOnProvider(ctx context.Context, arg CountActiveOnPr
 	return count, err
 }
 
+const countSlotAhead = `-- name: CountSlotAhead :one
+SELECT count(*) FROM process p JOIN project j ON j.id = p.project_id
+WHERE p.state = 'waiting_slot' AND j.workspace_id = ?1 AND p.id < ?2
+`
+
+type CountSlotAheadParams struct {
+	WorkspaceID int64
+	ID          int64
+}
+
+func (q *Queries) CountSlotAhead(ctx context.Context, arg CountSlotAheadParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countSlotAhead, arg.WorkspaceID, arg.ID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countStartedCalls = `-- name: CountStartedCalls :one
 SELECT count(*) FROM tool_call
 WHERE outcome = 'started' AND project_id IS ?1 AND tool = ?2 AND params = ?3

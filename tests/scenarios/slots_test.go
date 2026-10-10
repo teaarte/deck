@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -198,5 +199,47 @@ func TestASlotFreedWhileDeckStopsLeavesTheWaitingProcessWaiting(t *testing.T) {
 	e.App.Runner.Shutdown()
 	if got := e.states([]int64{a, b}); !either(got) {
 		t.Fatalf("the running one stays to resume and the waiting one still waits: %s", got)
+	}
+}
+
+// TestAnAgentWaitingForAProcessLendsItsSlot: with one agent slot, an agent that waits in process_get for another agent
+// lends its slot, so the other runs and the wait ends with it; a process waiting for a slot names how many are ahead.
+func TestAnAgentWaitingForAProcessLendsItsSlot(t *testing.T) {
+	t.Parallel()
+	var job atomic.Int64
+	start, got := make(chan struct{}), make(chan string, 1)
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		if c.command() == "boss" {
+			<-start
+			out, _ := c.Tool(ctx, "process_get", map[string]any{"process": job.Load(), "wait": 600})
+			got <- out
+		}
+		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
+	})
+	e.must("deck.settings_set", map[string]any{"name": "agent_limit", "value": "1"}, nil)
+	p := e.createProject("jobs", testManifest([]string{agentCommand("boss", ""), agentCommand("job", "")}, nil))
+	boss := e.run(p, "boss")
+	e.waitState(boss, "running")
+	ids := []int64{e.run(p, "job"), e.run(p, "job")}
+	job.Store(ids[0])
+	e.waitFor("both jobs to wait for the slot", func() bool { return e.states(ids) == "waiting_slot waiting_slot" })
+	var v struct {
+		State     string
+		SlotAhead *int64 `json:"slot_ahead"`
+	}
+	if e.must("deck.process_get", map[string]any{"process": ids[1]}, &v); v.SlotAhead == nil || *v.SlotAhead != 1 {
+		t.Fatalf("a process waiting for a slot names how many wait before it: %+v", v)
+	}
+	close(start)
+	select {
+	case out := <-got:
+		if !strings.Contains(out, `"state":"done"`) {
+			t.Fatalf("the wait ends with the process it waited for: %s", out)
+		}
+	case <-time.After(20 * time.Second):
+		t.Fatal("the job waited for never took the slot the waiting agent holds")
+	}
+	for _, id := range append(ids, boss) {
+		e.waitState(id, "done")
 	}
 }

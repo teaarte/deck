@@ -8,35 +8,50 @@
 <script>
 const host = "{{HOST}}";
 // guard keeps WebRTC, which no CSP of every browser stops, out of a window, and frames, where it would come back,
-// out of its documents: no API of the window makes, parses or inserts one.
-const tags = "iframe, frame, object, embed";
+// out of its documents: none is made by name, by parsing text, by a custom element or by XSLT.
 const tagged = /<\s*([\w-]+:)?(iframe|frame|object|embed)\b/i;
 const refuse = () => { throw new Error("deck: a custom block holds no frames"); };
 const guard = (w) => {
   for (const k of Object.getOwnPropertyNames(w)) {
     if (/^(webkit)?RTC/.test(k)) try { Object.defineProperty(w, k, { value: undefined, configurable: false }); } catch {}
   }
-  const nodes = (a) => { for (const n of a) if (n && (n.matches?.(tags) || n.querySelector?.(tags))) refuse(); };
-  const texts = (a) => { for (const v of a) if (tagged.test(String(v))) refuse(); };
-  const wrap = (proto, names, check) => {
-    for (const m of names) {
-      const was = proto && Object.hasOwn(proto, m) && proto[m];
-      if (typeof was === "function") proto[m] = function (...a) { check(a); return was.apply(this, a); };
-    }
+  try { Object.defineProperty(w, "XSLTProcessor", { value: undefined, configurable: false }); } catch {}
+  const html = (s) => { if (tagged.test(s)) refuse(); };
+  const name = (s) => { if (/^(iframe|frame|object|embed)$/i.test(s.split(":").pop())) refuse(); };
+  // text turns the arguments at the places given into strings once, so what is checked is what the browser reads.
+  const text = (proto, m, at, check) => {
+    const was = proto && Object.hasOwn(proto, m) && proto[m];
+    if (typeof was !== "function") return;
+    proto[m] = function (...a) {
+      for (const i of at ?? a.keys()) if (i < a.length) check(a[i] = String(a[i]));
+      return was.apply(this, a);
+    };
   };
-  const inserts = ["appendChild", "insertBefore", "replaceChild", "append", "prepend", "after", "before", "replaceWith",
-    "insertAdjacentElement", "replaceChildren", "moveBefore", "insertNode", "surroundContents"];
-  for (const p of [w.Node, w.Element, w.CharacterData, w.DocumentType, w.Document, w.DocumentFragment, w.Range]) wrap(p?.prototype, inserts, nodes);
-  const parses = ["insertAdjacentHTML", "setHTMLUnsafe", "setHTML", "write", "writeln", "execCommand", "parseFromString", "createContextualFragment"];
-  for (const p of [w.Element, w.ShadowRoot, w.Document, w.DOMParser, w.Range]) wrap(p?.prototype, parses, texts);
-  wrap(w.Document, ["parseHTMLUnsafe"], texts);
-  const named = (n) => { if (/^(iframe|frame|object|embed)$/i.test(String(n).split(":").pop())) refuse(); };
-  wrap(w.Document.prototype, ["createElement"], (a) => named(a[0]));
-  wrap(w.Document.prototype, ["createElementNS"], (a) => named(a[1]));
-  for (const [p, name] of [[w.Element, "innerHTML"], [w.Element, "outerHTML"], [w.ShadowRoot, "innerHTML"]]) {
-    const d = p && Object.getOwnPropertyDescriptor(p.prototype, name);
-    if (d) Object.defineProperty(p.prototype, name, { ...d, set(v) { texts([v]); d.set.call(this, v); } });
+  const D = w.Document.prototype, E = w.Element.prototype, S = w.ShadowRoot?.prototype;
+  text(D, "createElement", [0], name);
+  text(D, "createElementNS", [1], name);
+  text(E, "insertAdjacentHTML", [1], html);
+  text(E, "setHTMLUnsafe", [0], html);
+  text(S, "setHTMLUnsafe", [0], html);
+  text(D, "write", null, html);
+  text(D, "writeln", null, html);
+  text(D, "execCommand", [2], html);
+  text(w.DOMParser?.prototype, "parseFromString", [0], html);
+  text(w.Range?.prototype, "createContextualFragment", [0], html);
+  text(w.Document, "parseHTMLUnsafe", [0], html);
+  for (const [p, n] of [[E, "innerHTML"], [E, "outerHTML"], [S, "innerHTML"]]) {
+    const d = p && Object.getOwnPropertyDescriptor(p, n);
+    if (d) Object.defineProperty(p, n, { ...d, set(v) { v = String(v); html(v); d.set.call(this, v); } });
   }
+  const define = w.CustomElementRegistry?.prototype.define;
+  if (define) w.CustomElementRegistry.prototype.define = function (n, c, o) {
+    const ext = o?.extends;
+    if (ext !== undefined) {
+      o = { ...o, extends: String(ext) };
+      name(o.extends);
+    }
+    return define.call(this, n, c, o);
+  };
 };
 const inner = document.createElement("iframe");
 inner.setAttribute("sandbox", "allow-scripts allow-same-origin allow-forms");

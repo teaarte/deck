@@ -1,0 +1,239 @@
+package providers
+
+import (
+	"cmp"
+	"context"
+	"encoding/json"
+	"net/http"
+	"slices"
+	"strconv"
+	"strings"
+
+	"deck2/internal/docs"
+	"deck2/internal/gateway"
+	"deck2/internal/provider"
+	"deck2/internal/registry"
+	"deck2/internal/store/db"
+)
+
+// Route finds where an actor's call of a model goes: the model of deck's settings the request names on its
+// connection, or the models assigned to an @role for the caller's command in order, on any connection for @.
+func (s *Service) Route(ctx context.Context, act registry.Actor, ask gateway.ModelAsk) ([]gateway.ModelHop, error) {
+	connection, asked := ask.Connection, ask.Model
+	command := ""
+	if act.ProcessID != 0 {
+		if p, err := s.St.Q.GetProcess(ctx, act.ProcessID); err == nil {
+			command = p.Command
+		}
+	}
+	type pick struct {
+		m db.Model
+		c db.Connection
+	}
+	var picks []pick
+	notModel := func() error {
+		return registry.Refuse("deck: %s %s is not a call of a model, such as POST chat/completions; another API of a service goes through an HTTP tool of the manifest with its own secret",
+			ask.Method, ask.Path)
+	}
+	if role, ok := strings.CutPrefix(asked, "@"); ok {
+		if ask.Path != "" && !gateway.ModelPath(ask.Method, ask.Path) {
+			return nil, notModel()
+		}
+		if !slices.Contains(roles, role) || role == RoleAgent {
+			return nil, registry.Invalid("deck: no role %q to call; a role is @text, @image, @tts, @stt or @music", asked)
+		}
+		names, err := Assigned(ctx, s.St.Q, act.Workspace, act.ProjectID, command, role)
+		if err != nil {
+			return nil, err
+		}
+		for _, name := range names {
+			row, err := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: act.Workspace, Name: name})
+			if err == nil && (connection == "@" || connection == row.Connection.Name) {
+				picks = append(picks, pick{row.Model, row.Connection})
+			}
+		}
+		if len(picks) == 0 {
+			if len(names) > 0 {
+				return nil, registry.Invalid("deck: no model of %s is on connection %s; call %s through the path @ instead", asked, connection, asked)
+			}
+			return nil, registry.Invalid("deck: no model is assigned to %s; the owner assigns one with deck.assignment_set", role)
+		}
+	} else {
+		c, err := s.St.Q.GetConnection(ctx, db.GetConnectionParams{WorkspaceID: act.Workspace, Name: connection})
+		if err != nil {
+			return nil, registry.NotFound("deck: no connection %q; deck.models_list names the connections", connection)
+		}
+		if ask.Path != "" && c.Api != "raw" && !gateway.ModelPath(ask.Method, ask.Path) {
+			return nil, notModel()
+		}
+		row, err := s.St.Q.GetModelOf(ctx, db.GetModelOfParams{ConnectionID: c.ID, Model: asked})
+		if ask.Name != "" {
+			var named db.GetModelRow
+			named, err = s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: act.Workspace, Name: ask.Name})
+			row.Model = named.Model
+		}
+		switch {
+		case ask.ByHeader && c.Api != "raw":
+			return nil, registry.Refuse("deck: connection %s speaks the %s API, so the request names its model itself; the header %s is for a raw service whose API has no model field",
+				connection, c.Api, gateway.DeckModel)
+		case asked == "" && c.Api != "raw" && gateway.Polls(ask.Method, ask.Path):
+			picks = append(picks, pick{db.Model{ConnectionID: c.ID, Name: c.Name}, c})
+		case asked == "" || err != nil:
+			what := "a request naming no model"
+			if asked != "" {
+				what = strconv.Quote(asked)
+			}
+			return nil, registry.Refuse("deck: %s is not in deck's settings as a model of connection %s: a module calls only the models the owner added; name one in model (in the header %s when a raw service has no such field), or propose it with deck.model_set, which waits for the owner's button",
+				what, connection, gateway.DeckModel)
+		default:
+			picks = append(picks, pick{row.Model, c})
+		}
+	}
+	hops := make([]gateway.ModelHop, 0, len(picks))
+	for i, p := range picks {
+		h, err := s.hop(act.Workspace, p.m, p.c)
+		if err != nil {
+			return nil, err
+		}
+		m, c, next := p.m, p.c, ""
+		if i+1 < len(picks) {
+			next = picks[i+1].m.Name
+		}
+		h.Done = func(ctx context.Context, status int, u *provider.Usage) {
+			s.answered(ctx, m, next, status)
+			s.record(ctx, act, m, c, status, u)
+		}
+		hops = append(hops, h)
+	}
+	return hops, nil
+}
+
+// hop is where a call of model m goes, with deck's key.
+func (s *Service) hop(workspace int64, m db.Model, c db.Connection) (gateway.ModelHop, error) {
+	key := ""
+	if c.KeySecret != "" {
+		k, err := s.Secret(workspace, c.KeySecret)
+		if err != nil {
+			return gateway.ModelHop{}, err
+		}
+		key = strings.TrimSpace(k)
+	}
+	h := gateway.ModelHop{Target: gateway.ModelTarget{URL: c.Url, API: c.Api, Key: key}, Connection: c.Name, Name: m.Name, Model: m.Model,
+		Local: c.Local != 0, Free: m.Free != 0}
+	_ = json.Unmarshal([]byte(m.Options), &h.Options)
+	return h, nil
+}
+
+// allowed decides whether a call of a model runs without the owner: the granted models of the project name it, and
+// it reaches a model.
+func (s *Service) allowed(ctx context.Context, act registry.Actor, input json.RawMessage, _ bool) (bool, error) {
+	if err := s.granted(ctx, act, input); err != nil {
+		return false, err
+	}
+	if _, err := s.route(ctx, act, input); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// route is where a call of a model goes: the hops the proxy found already, else those of what it asks.
+func (s *Service) route(ctx context.Context, act registry.Actor, input json.RawMessage) ([]gateway.ModelHop, error) {
+	if hops, ok := gateway.RouteOf(ctx); ok {
+		return hops, nil
+	}
+	ask, err := s.requested(ctx, act.Workspace, input)
+	if err != nil {
+		return nil, err
+	}
+	return s.Route(ctx, act, ask)
+}
+
+// use is what a call of a model goes through, as a manifest names it: an @role, a model by name, or a connection.
+func (s *Service) use(input json.RawMessage) (string, string) {
+	in, _ := parseCall(input)
+	switch {
+	case in.Kind != "" && in.Model == "":
+		return "@" + in.Kind, ""
+	case in.Kind != "":
+		return in.Model, ""
+	}
+	if ask, _ := frozen(in); strings.HasPrefix(ask.Model, "@") {
+		return ask.Model, ""
+	}
+	return in.Connection, in.Connection
+}
+
+// granted refuses a call of a project's process through what the manifest in force does not name; a call by name
+// of a model goes through its connection too.
+func (s *Service) granted(ctx context.Context, act registry.Actor, input json.RawMessage) error {
+	if act.Kind != registry.Agent || act.ProjectID == 0 {
+		return nil
+	}
+	m, err := docs.For(ctx, s.St.Q, act, act.ProjectID)
+	if err != nil {
+		return err
+	}
+	use, connection := s.use(input)
+	uses := m.Uses()
+	if slices.Contains(uses, use) {
+		return nil
+	}
+	if connection == "" && !strings.HasPrefix(use, "@") {
+		if row, err := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: act.Workspace, Name: use}); err == nil {
+			connection = row.Connection.Name
+		}
+	}
+	if connection != "" && slices.Contains(uses, connection) {
+		return nil
+	}
+	p, _ := s.St.Q.GetProject(ctx, act.ProjectID)
+	return registry.Refuse("deck: project %s does not name %s in the models of its manifest; add %q to models, and the owner grants it", p.Name, use, use)
+}
+
+// free says a call of a model costs nothing: every model it may reach is free or on the owner's own hardware, and
+// the manifest names it.
+func (s *Service) free(ctx context.Context, act registry.Actor, input json.RawMessage) bool {
+	if act.ProjectID == 0 {
+		return false
+	}
+	m, err := docs.For(ctx, s.St.Q, act, act.ProjectID)
+	if err != nil {
+		return false
+	}
+	use, connection := s.use(input)
+	if !slices.Contains(m.Uses(), use) && (connection == "" || !slices.Contains(m.Uses(), connection)) {
+		return false
+	}
+	hops, err := s.route(ctx, act, input)
+	if err != nil {
+		return false
+	}
+	for _, h := range hops {
+		if !h.Local && !h.Free {
+			return false
+		}
+	}
+	return len(hops) > 0
+}
+
+// requested is what a call of a model asks: a request with its body, or a call of a kind.
+func (s *Service) requested(ctx context.Context, workspace int64, input json.RawMessage) (gateway.ModelAsk, error) {
+	in, err := parseCall(input)
+	if err != nil {
+		return gateway.ModelAsk{}, err
+	}
+	if in.Kind != "" {
+		return s.modelRef(ctx, workspace, in.Model, in.Kind)
+	}
+	return frozen(in)
+}
+
+// frozen is what a request of deck.model_request asks; its model is the one of a form the proxy read, or of the
+// header DeckModel.
+func frozen(in call) (gateway.ModelAsk, error) {
+	connection := cmp.Or(in.Connection, "@")
+	if in.Model != "" && in.Body != "" && !json.Valid([]byte(in.Body)) {
+		return gateway.ModelAsk{Connection: connection, Model: in.Model, Method: cmp.Or(in.Method, http.MethodPost), Path: in.Path}, nil
+	}
+	return gateway.AskModel(connection, in.Method, in.Path, http.Header{gateway.DeckModel: {in.Model}}, []byte(in.Body))
+}

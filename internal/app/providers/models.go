@@ -5,7 +5,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"errors"
 	"io"
 	"net/http"
 	"slices"
@@ -16,7 +15,6 @@ import (
 	"deck2/internal/app/access"
 	"deck2/internal/gateway"
 	"deck2/internal/health"
-	"deck2/internal/manifest"
 	"deck2/internal/process"
 	"deck2/internal/provider/acp"
 	"deck2/internal/registry"
@@ -43,46 +41,6 @@ const (
 	UnitChar   = "char"
 	UnitSecond = "second"
 )
-
-// Assigned are the models of a role for a command, in order: its own assignment, else its project's, else the
-// workspace's; none when nothing is assigned.
-func Assigned(ctx context.Context, q *db.Queries, workspace, project int64, command, role string) ([]string, error) {
-	type place struct {
-		project int64
-		command string
-	}
-	places := []place{{0, ""}}
-	if project != 0 {
-		places = append([]place{{project, ""}}, places...)
-		if command != "" {
-			places = append([]place{{project, command}}, places...)
-		}
-	}
-	for _, at := range places {
-		raw, err := q.GetAssignment(ctx, db.GetAssignmentParams{WorkspaceID: workspace, ProjectID: at.project, Command: at.command, Role: role})
-		if errors.Is(err, sql.ErrNoRows) {
-			continue
-		}
-		if err != nil {
-			return nil, err
-		}
-		var names []string
-		if json.Unmarshal([]byte(raw), &names) == nil && len(names) > 0 {
-			return names, nil
-		}
-	}
-	return nil, nil
-}
-
-type connectionView struct {
-	Name string `json:"name"`
-	API  string `json:"api"`
-	URL  string `json:"url"`
-	// Key is the secret the API key is kept in, or none.
-	Key    string `json:"key"`
-	Local  bool   `json:"local"`
-	Models int64  `json:"models"`
-}
 
 type modelView struct {
 	Name       string   `json:"name"`
@@ -117,15 +75,6 @@ func (s *Service) lastCheck(ctx context.Context, workspace int64, v *modelView) 
 
 // ModelSubject is the health row of a model of a connection, in its workspace.
 func ModelSubject(name string) string { return "model:" + name }
-
-type assignmentView struct {
-	Project string   `json:"project,omitempty"`
-	Command string   `json:"command,omitempty"`
-	Role    string   `json:"role"`
-	Models  []string `json:"models"`
-	// Using is the model that takes the work now: the first that is up, a fallback when the first is down.
-	Using string `json:"using,omitempty"`
-}
 
 type modelsOut struct {
 	Agents      []agentView      `json:"agents"`
@@ -201,135 +150,6 @@ func (s *Service) modelsList(ctx context.Context, act registry.Actor, in modelsL
 		out.Assignments = append(out.Assignments, v)
 	}
 	return out, nil
-}
-
-type assignmentSetIn struct {
-	Role    string   `enum:"agent|text|image|tts|stt|music" desc:"The work: agent turns, or direct calls of text, image, tts (speech), stt (speech to text) or music"`
-	Project string   `type:"project" opt:"" desc:"Project the assignment is for; the whole workspace without it"`
-	Command string   `opt:"" desc:"Command of the project the assignment is for; the whole project without it"`
-	Models  []string `opt:"" desc:"Names of models or built-in providers in order: the first, then the fallbacks; empty removes the assignment"`
-}
-
-func (s *Service) assignmentSet(ctx context.Context, act registry.Actor, in assignmentSetIn) (any, error) {
-	if in.Command != "" && in.Project == "" {
-		return nil, registry.Invalid("deck: an assignment of a command names its project too")
-	}
-	var project int64
-	if in.Project != "" {
-		p, err := s.St.Q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: act.Workspace, Name: in.Project})
-		if err != nil {
-			return nil, registry.NotFound("deck: no project %q", in.Project)
-		}
-		project = p.ID
-	}
-	var cmd *manifest.Command
-	if in.Role == RoleAgent && in.Command != "" {
-		var err error
-		if _, cmd, err = s.agentCommand(ctx, act.Workspace, in.Project+"."+in.Command); err != nil {
-			return nil, err
-		}
-	}
-	for _, name := range in.Models {
-		if in.Role == RoleAgent {
-			pv, err := s.Provider(ctx, act.Workspace, name)
-			if err != nil {
-				return nil, err
-			}
-			if cmd == nil {
-				continue
-			}
-			if missing := pv.Caps().Missing(cmd.Requires); len(missing) > 0 {
-				return nil, registry.Invalid("deck: provider %s does not fit %s.%s: it lacks %s", name, in.Project, in.Command, strings.Join(missing, ", "))
-			}
-			continue
-		}
-		row, err := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: act.Workspace, Name: name})
-		if err != nil {
-			return nil, registry.NotFound("deck: no model %q", name)
-		}
-		if row.Model.Kind != in.Role {
-			return nil, registry.Invalid("deck: model %s is of kind %s, not %s", name, row.Model.Kind, in.Role)
-		}
-	}
-	err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		if len(in.Models) == 0 {
-			return q.DeleteAssignment(ctx, db.DeleteAssignmentParams{WorkspaceID: act.Workspace, ProjectID: project, Command: in.Command, Role: in.Role})
-		}
-		models, _ := json.Marshal(slices.Compact(in.Models))
-		return q.SetAssignment(ctx, db.SetAssignmentParams{WorkspaceID: act.Workspace, ProjectID: store.ID(project), Command: in.Command, Role: in.Role, Models: string(models)})
-	})
-	if err != nil {
-		return nil, err
-	}
-	return map[string]any{"role": in.Role, "project": in.Project, "command": in.Command, "models": in.Models}, nil
-}
-
-type connectionSetIn struct {
-	Name      string `desc:"Connection name: lowercase letters, digits and '-'"`
-	API       string `json:"api" enum:"openai|google|anthropic|raw" desc:"What the API speaks: openai for OpenAI-compatible ones (OpenRouter, Ollama, Groq, NVIDIA), google and anthropic for their own, raw for a service deck passes the key to as a bearer token"`
-	URL       string `desc:"Base URL of the API, such as https://openrouter.ai/api/v1"`
-	KeySecret string `json:"key_secret" opt:"" desc:"Name of the secret with the API key; a connection changed without it keeps its own"`
-	Key       string `type:"secret" opt:"" desc:"The API key; deck keeps it in the secret key_secret names, or one named after the connection"`
-	Local     bool   `opt:"" desc:"The models run on the owner's own hardware"`
-}
-
-func (s *Service) connectionSet(ctx context.Context, act registry.Actor, in connectionSetIn) (any, error) {
-	switch {
-	case !access.ProjectName.MatchString(in.Name):
-		return nil, registry.Invalid("deck: connection name %q: lowercase letters, digits and '-'", in.Name)
-	case !strings.HasPrefix(in.URL, "http://") && !strings.HasPrefix(in.URL, "https://"):
-		return nil, registry.Invalid("deck: the url of a connection is http or https, got %q", in.URL)
-	case strings.ContainsAny(in.URL, "@?#"):
-		return nil, registry.Invalid("deck: the url takes no user, query or key; give the key in key, deck keeps it in a secret")
-	case in.KeySecret != "" && !access.ValidSecret(in.KeySecret):
-		return nil, registry.Invalid("deck: bad secret name %q", in.KeySecret)
-	}
-	if in.Key != "" {
-		in.KeySecret = cmp.Or(in.KeySecret, in.Name)
-		if err := s.WriteSecret(act.Workspace, in.KeySecret, strings.TrimSpace(in.Key)); err != nil {
-			return nil, err
-		}
-	}
-	err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		if old, err := q.GetConnection(ctx, db.GetConnectionParams{WorkspaceID: act.Workspace, Name: in.Name}); err == nil && in.KeySecret == "" {
-			in.KeySecret = old.KeySecret
-		}
-		_, err := q.AddConnection(ctx, db.AddConnectionParams{WorkspaceID: act.Workspace, Name: in.Name, Api: in.API, Url: in.URL,
-			KeySecret: in.KeySecret, Local: store.Bool(in.Local)})
-		return err
-	})
-	if err != nil {
-		return nil, err
-	}
-	return map[string]any{"connection": in.Name, "key_secret": in.KeySecret}, nil
-}
-
-type connectionRemoveIn struct {
-	Name string `desc:"Connection name"`
-}
-
-func (s *Service) connectionRemove(ctx context.Context, act registry.Actor, in connectionRemoveIn) (any, error) {
-	var n int64
-	err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		models, err := q.ListModels(ctx, act.Workspace)
-		if err != nil {
-			return err
-		}
-		for _, m := range models {
-			if m.Connection.Name == in.Name {
-				return registry.Invalid("deck: model %s is on connection %s; remove the models first", m.Model.Name, in.Name)
-			}
-		}
-		n, err = q.DeleteConnection(ctx, db.DeleteConnectionParams{WorkspaceID: act.Workspace, Name: in.Name})
-		return err
-	})
-	if err != nil {
-		return nil, err
-	}
-	if n == 0 {
-		return nil, registry.NotFound("deck: no connection %q", in.Name)
-	}
-	return map[string]any{"removed": in.Name}, nil
 }
 
 type modelSetIn struct {

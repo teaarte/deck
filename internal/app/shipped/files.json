@@ -1,0 +1,47 @@
+{
+  "name": "files",
+  "icon": "files",
+  "title": "Files",
+  "blocks": [
+    {"type": "tabs", "tabs": [
+      {"title": "Files", "icon": "files", "blocks": [
+        {"type": "table", "title": "Files", "source": {"from": "deck.files_list"}, "filter": ["project"],
+          "columns": [
+            {"label": "Name", "bind": "name"},
+            {"label": "Project", "bind": "project", "format": "tag"},
+            {"label": "Type", "bind": "type"},
+            {"label": "Size", "bind": "size"},
+            {"label": "Belongs to", "bind": "owner_kind + ' #' + string(owner_id)"},
+            {"label": "Added", "bind": "created_at"}
+          ],
+          "actions": [
+            {"verb": "download", "file": "=id"}
+          ]}
+      ]},
+      {"title": "Documents", "icon": "file-text", "blocks": [
+        {"type": "table", "title": "Documents of the master", "source": {"from": "deck.documents_list", "input": {"project": "master", "with_deleted": true}, "sort": "name"}, "filter": ["kind"],
+          "description": "The memory, prompts and skills of the master.",
+          "columns": [
+            {"label": "Name", "bind": "name"},
+            {"label": "Kind", "bind": "kind", "format": "tag"},
+            {"label": "Revision", "bind": "revision"},
+            {"label": "Deleted", "bind": "deleted ? 'deleted' : ''"}
+          ],
+          "actions": [
+            {"verb": "restore", "command": "deck.document_restore", "params": {"document": "=id"}, "when": "deleted"},
+            {"verb": "open", "screen": "document", "project": "master", "record": "=id", "when": "!deleted"},
+            {"verb": "delete", "confirm": true, "command": "deck.document_delete", "params": {"document": "=id"}, "when": "!deleted && kind != 'manifest' && !(kind == 'prompt' && owner_kind == '')"}
+          ]}
+      ]},
+      {"title": "Snapshots", "icon": "camera", "blocks": [
+        {"type": "table", "title": "Snapshots", "source": {"from": "deck.snapshots_list"},
+          "columns": [
+            {"label": "Snapshot", "bind": "name"},
+            {"label": "Taken", "bind": "taken_at"},
+            {"label": "Size", "bind": "size"}
+          ]},
+        {"type": "form", "title": "Take a snapshot now", "command": "deck.snapshot_create"}
+      ]}
+    ]}
+  ]
+}

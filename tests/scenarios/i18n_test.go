@@ -3,7 +3,9 @@ package scenarios
 import (
 	"deck2/internal/manifest"
 	"encoding/json"
+	"maps"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -71,21 +73,32 @@ func TestATabKeepsItsKeyInEveryLanguage(t *testing.T) {
 // is of a text there is.
 func TestEveryTextOfDeckScreensHasItsTranslation(t *testing.T) {
 	t.Parallel()
-	raw, err := os.ReadFile("../../internal/app/screens.json")
-	if err != nil {
-		t.Fatal(err)
+	files, err := filepath.Glob("../../internal/app/shipped/*.json")
+	if err != nil || len(files) == 0 {
+		t.Fatalf("no screens of deck: %v", err)
 	}
-	var s struct {
-		I18n map[string]map[string]string `json:"i18n"`
+	texts, ru := map[string]bool{}, map[string]string{}
+	for _, f := range files {
+		raw, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		switch filepath.Base(f) {
+		case "i18n.ru.json":
+			if err := json.Unmarshal(raw, &ru); err != nil {
+				t.Fatal(err)
+			}
+		case "menu.json":
+		default:
+			maps.Copy(texts, manifest.Texts(raw))
+		}
 	}
-	_ = json.Unmarshal(raw, &s)
-	texts := manifest.Texts(raw)
 	for text := range texts {
-		if s.I18n["ru"][text] == "" {
+		if ru[text] == "" {
 			t.Errorf("no ru for %q", text)
 		}
 	}
-	for k := range s.I18n["ru"] {
+	for k := range ru {
 		if !texts[k] {
 			t.Errorf("ru translates %q, which is no text", k)
 		}

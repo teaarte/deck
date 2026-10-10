@@ -1,0 +1,7 @@
+{
+  "name": "document",
+  "icon": "file-text",
+  "title": "Document",
+  "record": "document",
+  "blocks": [{"type": "document"}]
+}

@@ -1,0 +1,8 @@
+{
+  "name": "share",
+  "icon": "share",
+  "title": "Share",
+  "blocks": [
+    {"type": "form", "title": "Send the shared files to", "source": {"from": "deck.commands_list", "where": "len(files) > 0"}}
+  ]
+}

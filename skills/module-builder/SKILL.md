@@ -440,7 +440,9 @@ GPU and keeps its caches like the owner's own shell; the shells of Codex and ACP
 right the owner gives); a project with `no_network` closes every shell. Secrets and deck's own state stay closed to it; on
 Claude Code with network its shell is the owner's, so another project's data is not a wall. A deck tool of class `external` outside `allowed_external` still waits for the owner. Set
 `"no_network": true` for a project with personal data (finance, health, mail): its agents get no web and no
-network of their own and reach outside only through deck tools; removing the flag later is a right. An agent
+network of their own and reach outside only through deck tools, and its pushes carry no text of its data; its
+scripts still reach the manifest's `domains.read` and the package registries, so keep such a script's domains to
+what it must reach. Removing the flag later is a right. An agent
 that must work in a folder of the owner (a code repo, notes) gets `"folder": true` in `executor` (or the folder's
 name when the project has several): it works there instead of its own folder, with the repo's CLAUDE.md or
 AGENTS.md, and a second agent in the same folder waits. Only the owner adds folders (the Settings of the

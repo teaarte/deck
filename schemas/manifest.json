@@ -27,7 +27,7 @@
     "models": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true,
       "description": "What scripts and agents of the project call models through (DECK_MODELS, deck.model_call, deck.model_request): connections the owner added, models by name, or @text, @image, @tts, @stt for the models the owner assigned; commands of type model add theirs. A new one is granted by the owner."},
     "no_network": {"type": "boolean", "default": false,
-      "description": "The agents of this project have no web and no network of their own; they reach outside only through deck tools. For personal data. Only the owner removes it."},
+      "description": "The agents of this project have no web and no network of their own; they reach outside only through deck tools, and its pushes carry no text of its data. Its scripts still reach the domains of the manifest and the package registries. For personal data. Only the owner removes it."},
     "master_errors": {"type": "boolean", "default": true,
       "description": "A failed process of this project (an error, a result not by its schema, a script failing three times in a row) goes to the master to look into, at most once a day per command."}
   },

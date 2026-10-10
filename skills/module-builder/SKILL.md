@@ -193,7 +193,12 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   "prices", "sort": "at"}, "x": "at", "series": [{"label": "Value", "y": "price"}, {"label": "Expected", "y":
   "forecast"}], "format": "money", "currency": "USD", "empty": "No prices yet"}` — `kind` is `line`, `bar` or
   `area`, a missing y is a gap, an ISO time x makes a time axis, and only the last 500 points by the sort are
-  drawn — `limit` keeps the first items, so do not cut a history with it. Files are a `media` block: `{"type":
+  drawn — `limit` keeps the first items, so do not cut a history with it. Blocks draw items as they are and do
+  not group them: a total over all items is a `stat` (`"value": "sum(rows, .amount)"`), and a sum by day or by
+  category is a collection of totals a script writes after the records change (an `after` trigger), which a chart
+  or table then shows. `currency` is one code for a column or block: amounts in several currencies are a total per
+  currency (a field `currency` in that collection, a row each), or a `custom` block; never one sum of them all.
+  Files are a `media` block: `{"type":
   "media", "source": {"collection": "scans"}, "item": {"file": "file", "title": "name"}}`, where `file` is the
   id of a stored file of the project (a result file of its run, an attachment of its record; a result names the
   files it kept by that id, in `files[].file` and in place of a `file` field), its digits, the name a result gave

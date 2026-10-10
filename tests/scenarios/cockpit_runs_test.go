@@ -76,35 +76,53 @@ func TestTheCockpitShowsWhatDidNotWorkUntilARunMakesItGood(t *testing.T) {
 	}
 }
 
-// TestARunThatTakesLongerThanUsualIsMarked: an open run says how long it works and, past twice the usual time of
-// its command, that it takes longer than usual.
+// TestARunThatTakesLongerThanUsualIsMarked: an open run says since when it works and, past twice the usual time of
+// its command over its last five runs at least, that it takes longer than usual; within twice, or with fewer runs
+// to know the usual by, it is not marked.
 func TestARunThatTakesLongerThanUsualIsMarked(t *testing.T) {
 	t.Parallel()
-	release := make(chan struct{})
-	t.Cleanup(func() { close(release) })
-	var n atomic.Int32
-	clock := &Clock{now: t0}
-	e := newEnvWith(t, t.TempDir(), &Fake{script: func(ctx context.Context, c *Call) provider.Result {
-		if n.Add(1) > usualRunsForTest {
-			select {
-			case <-release:
-			case <-ctx.Done():
+	for _, tc := range []struct {
+		name string
+		runs int
+		at   time.Duration
+		long bool
+	}{
+		{"past twice the usual", usualRunsForTest, 3 * time.Minute, true},
+		{"within twice the usual", usualRunsForTest, 90 * time.Second, false},
+		{"too few runs to know the usual", usualRunsForTest - 1, 3 * time.Minute, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			release := make(chan struct{})
+			t.Cleanup(func() { close(release) })
+			var n atomic.Int32
+			clock := &Clock{now: t0}
+			e := newEnvWith(t, t.TempDir(), &Fake{script: func(ctx context.Context, c *Call) provider.Result {
+				if int(n.Add(1)) > tc.runs {
+					select {
+					case <-release:
+					case <-ctx.Done():
+					}
+				} else {
+					clock.Add(time.Minute)
+				}
+				return provider.Result{Text: "voiced"}
+			}}, withClock(clock))
+			e.createProject("shorts", jobsModule)
+			for range tc.runs {
+				e.waitState(e.start("shorts", "voice", nil), "done", "error")
 			}
-		}
-		return provider.Result{Text: "voiced"}
-	}}, withClock(clock))
-	e.createProject("shorts", jobsModule)
-	for range usualRunsForTest {
-		e.waitState(e.start("shorts", "voice", nil), "done", "error")
-	}
-	id := e.start("shorts", "voice", nil)
-	e.waitState(id, "running")
-	clock.Add(3 * time.Minute)
-	var open []cockpitRun
-	e.must("deck.processes_list", map[string]any{"open": true}, &open)
-	if len(open) != 1 || open[0].ID != id || open[0].Since == "" || !open[0].Long || open[0].Tone != "warn" ||
-		!strings.HasPrefix(open[0].Word, "longer than usual: runs on") {
-		t.Fatalf("the run says since when it works and that it is longer than usual: %+v", open)
+			id := e.start("shorts", "voice", nil)
+			e.waitState(id, "running")
+			clock.Add(tc.at)
+			var open []cockpitRun
+			e.must("deck.processes_list", map[string]any{"open": true}, &open)
+			if len(open) != 1 || open[0].ID != id || open[0].Since == "" || open[0].Long != tc.long ||
+				tc.long && (open[0].Tone != "warn" || !strings.HasPrefix(open[0].Word, "longer than usual: runs on")) ||
+				!tc.long && (open[0].Tone != "" || !strings.HasPrefix(open[0].Word, "runs on")) {
+				t.Fatalf("long %v: %+v", tc.long, open)
+			}
+		})
 	}
 }
 

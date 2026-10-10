@@ -340,20 +340,21 @@ func (dv *Service) PushNew(ctx context.Context, workspace int64) {
 		if len(failed) > 0 {
 			status = "error"
 		}
-		_ = dv.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-			prev, err := q.GetWorkspaceHealth(ctx, db.GetWorkspaceHealthParams{WorkspaceID: store.ID(workspace), Subject: "push"})
-			if err := health.Set(ctx, q, health.Of{Workspace: workspace}, "push", status, text); err != nil {
-				return err
-			}
-			if !lasting || err == nil && prev.Status == "error" {
-				return nil
-			}
+		prev, err := dv.St.Q.GetWorkspaceHealth(ctx, db.GetWorkspaceHealthParams{WorkspaceID: store.ID(workspace), Subject: "push"})
+		health.Write(ctx, dv.St, health.Of{Workspace: workspace}, "push", status, text)
+		if !lasting || err == nil && prev.Status == "error" {
+			return
+		}
+		err = dv.St.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error {
 			mp, err := access.Master(ctx, q, workspace)
 			if err != nil {
 				return err
 			}
 			return q.AddDeckNote(ctx, db.AddDeckNoteParams{CreatedAt: store.Time(dv.Now()), ProjectID: mp.ID, Text: "Pushes stopped: " + untrusted.Cut(text, 300)})
 		})
+		if err != nil {
+			slog.Error("note of stopped pushes", "err", err)
+		}
 	}
 }
 

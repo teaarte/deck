@@ -519,3 +519,46 @@ func TestAPushRefusedForDecksOwnSignatureKeepsTheDevice(t *testing.T) {
 		t.Fatalf("the device stays subscribed: %d", subs)
 	}
 }
+
+// TestPushesThatStopTellTheOwnerOnceAndTheHealthStandsAlone: a refusal for good notes the owner once while the
+// health of pushes stays red, and the health turns red even when the note cannot be written.
+func TestPushesThatStopTellTheOwnerOnceAndTheHealthStandsAlone(t *testing.T) {
+	t.Parallel()
+	refusing := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"reason":"VapidPkHashMismatch"}`))
+	}))
+	t.Cleanup(refusing.Close)
+	notes := func(e *Env) int {
+		var n int
+		_ = e.App.Store.DB.QueryRow(`SELECT count(*) FROM feed WHERE text LIKE 'Pushes stopped%'`).Scan(&n)
+		return n
+	}
+	e := newEnv(t, nil)
+	e.createProject("work", plainManifest)
+	for i, name := range []string{"MacIntel", "iPad"} {
+		dev, _ := newPushDevice(t)
+		dev.subscribe(e, refusing, name)
+		e.must("deck.notify", map[string]any{"project": "work", "text": fmt.Sprintf("Report %d is ready", i)}, nil)
+		e.App.Sweep(context.Background(), time.Now())
+		if h := e.waitHealth("push", "error"); !strings.Contains(h.Error, name) {
+			t.Fatalf("the health names the device: %+v", h)
+		}
+	}
+	if n := notes(e); n != 1 {
+		t.Fatalf("the owner gets one note while the pushes stay stopped: %d", n)
+	}
+
+	e = newEnv(t, nil)
+	e.createProject("work", plainManifest)
+	dev, _ := newPushDevice(t)
+	dev.subscribe(e, refusing, "MacIntel")
+	e.must("deck.notify", map[string]any{"project": "work", "text": "The report is ready"}, nil)
+	if _, err := e.App.Store.DB.Exec(`CREATE TRIGGER no_notes BEFORE INSERT ON feed WHEN NEW.text LIKE 'Pushes stopped%' BEGIN SELECT RAISE(FAIL, 'no notes'); END`); err != nil {
+		t.Fatal(err)
+	}
+	e.App.Sweep(context.Background(), time.Now())
+	if h := e.waitHealth("push", "error"); !strings.Contains(h.Error, "MacIntel") || notes(e) != 0 {
+		t.Fatalf("the health of pushes is written apart from the note: %+v", h)
+	}
+}

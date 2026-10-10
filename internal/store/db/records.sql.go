@@ -178,7 +178,7 @@ func (q *Queries) FindRecordSnapshot(ctx context.Context, arg FindRecordSnapshot
 }
 
 const getRecord = `-- name: GetRecord :one
-SELECT id, project_id, collection, "key", data, created_at, updated_at FROM record WHERE id = ?
+SELECT id, project_id, collection, "key", data, created_at, updated_at, process_id FROM record WHERE id = ?
 `
 
 func (q *Queries) GetRecord(ctx context.Context, id int64) (Record, error) {
@@ -192,12 +192,13 @@ func (q *Queries) GetRecord(ctx context.Context, id int64) (Record, error) {
 		&i.Data,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ProcessID,
 	)
 	return i, err
 }
 
 const getRecordByKey = `-- name: GetRecordByKey :one
-SELECT id, project_id, collection, "key", data, created_at, updated_at FROM record WHERE project_id = ? AND collection = ? AND key = ?
+SELECT id, project_id, collection, "key", data, created_at, updated_at, process_id FROM record WHERE project_id = ? AND collection = ? AND key = ?
 `
 
 type GetRecordByKeyParams struct {
@@ -217,6 +218,7 @@ func (q *Queries) GetRecordByKey(ctx context.Context, arg GetRecordByKeyParams) 
 		&i.Data,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ProcessID,
 	)
 	return i, err
 }
@@ -250,7 +252,7 @@ func (q *Queries) InsertRecord(ctx context.Context, arg InsertRecordParams) (int
 }
 
 const listRecords = `-- name: ListRecords :many
-SELECT id, project_id, collection, "key", data, created_at, updated_at FROM record WHERE project_id = ? AND collection = ? ORDER BY id
+SELECT id, project_id, collection, "key", data, created_at, updated_at, process_id FROM record WHERE project_id = ? AND collection = ? ORDER BY id
 `
 
 type ListRecordsParams struct {
@@ -275,6 +277,7 @@ func (q *Queries) ListRecords(ctx context.Context, arg ListRecordsParams) ([]Rec
 			&i.Data,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.ProcessID,
 		); err != nil {
 			return nil, err
 		}
@@ -290,7 +293,7 @@ func (q *Queries) ListRecords(ctx context.Context, arg ListRecordsParams) ([]Rec
 }
 
 const newestRecord = `-- name: NewestRecord :one
-SELECT id, project_id, collection, "key", data, created_at, updated_at FROM record WHERE project_id = ? AND collection = ? ORDER BY id DESC LIMIT 1
+SELECT id, project_id, collection, "key", data, created_at, updated_at, process_id FROM record WHERE project_id = ? AND collection = ? ORDER BY id DESC LIMIT 1
 `
 
 type NewestRecordParams struct {
@@ -309,6 +312,7 @@ func (q *Queries) NewestRecord(ctx context.Context, arg NewestRecordParams) (Rec
 		&i.Data,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ProcessID,
 	)
 	return i, err
 }
@@ -384,11 +388,11 @@ func (q *Queries) UpdateRecordData(ctx context.Context, arg UpdateRecordDataPara
 }
 
 const upsertRecord = `-- name: UpsertRecord :one
-INSERT INTO record (project_id, collection, key, data, created_at, updated_at)
-VALUES (?1, ?2, ?3, ?4, ?5, ?5)
+INSERT INTO record (project_id, collection, key, data, created_at, updated_at, process_id)
+VALUES (?1, ?2, ?3, ?4, ?5, ?5, ?6)
 ON CONFLICT (project_id, collection, key)
 DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at
-RETURNING id, project_id, collection, "key", data, created_at, updated_at
+RETURNING id, project_id, collection, "key", data, created_at, updated_at, process_id
 `
 
 type UpsertRecordParams struct {
@@ -397,6 +401,7 @@ type UpsertRecordParams struct {
 	Key        string
 	Data       string
 	Now        string
+	ProcessID  sql.NullInt64
 }
 
 func (q *Queries) UpsertRecord(ctx context.Context, arg UpsertRecordParams) (Record, error) {
@@ -406,6 +411,7 @@ func (q *Queries) UpsertRecord(ctx context.Context, arg UpsertRecordParams) (Rec
 		arg.Key,
 		arg.Data,
 		arg.Now,
+		arg.ProcessID,
 	)
 	var i Record
 	err := row.Scan(
@@ -416,6 +422,7 @@ func (q *Queries) UpsertRecord(ctx context.Context, arg UpsertRecordParams) (Rec
 		&i.Data,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ProcessID,
 	)
 	return i, err
 }

@@ -27,8 +27,9 @@ type UpsertResult struct {
 	Errors []string `json:"errors,omitempty"`
 }
 
-// UpsertJSONL writes one record per line; records with an existing key are updated.
-func UpsertJSONL(ctx context.Context, q *db.Queries, now time.Time, projectID int64, m *manifest.Manifest, collection, jsonl string) (UpsertResult, error) {
+// UpsertJSONL writes one record per line; records with an existing key are updated. A new record keeps the process
+// that wrote it, when one did.
+func UpsertJSONL(ctx context.Context, q *db.Queries, now time.Time, projectID, process int64, m *manifest.Manifest, collection, jsonl string) (UpsertResult, error) {
 	var recs []map[string]any
 	var out UpsertResult
 	sc := bufio.NewScanner(strings.NewReader(jsonl))
@@ -48,14 +49,14 @@ func UpsertJSONL(ctx context.Context, q *db.Queries, now time.Time, projectID in
 	if err := sc.Err(); err != nil {
 		return out, registry.Invalid("deck: records: %v", err)
 	}
-	res, err := upsert(ctx, q, now, projectID, m, collection, recs)
+	res, err := upsert(ctx, q, now, projectID, process, m, collection, recs)
 	res.Errors = append(out.Errors, res.Errors...)
 	return res, err
 }
 
 // upsert validates each record against the collection schema and writes it by its key; run it in
 // a transaction so the immutable-field check and the write see the same record.
-func upsert(ctx context.Context, q *db.Queries, now time.Time, projectID int64, m *manifest.Manifest, collection string, recs []map[string]any) (UpsertResult, error) {
+func upsert(ctx context.Context, q *db.Queries, now time.Time, projectID, process int64, m *manifest.Manifest, collection string, recs []map[string]any) (UpsertResult, error) {
 	c := m.Collection(collection)
 	if c == nil {
 		return UpsertResult{}, registry.Invalid("deck: unknown collection %q", collection)
@@ -82,7 +83,8 @@ func upsert(ctx context.Context, q *db.Queries, now time.Time, projectID int64, 
 				return err
 			}
 			data, _ := json.Marshal(r)
-			rec, err := q.UpsertRecord(ctx, db.UpsertRecordParams{ProjectID: projectID, Collection: collection, Key: key, Data: string(data), Now: store.Time(now)})
+			rec, err := q.UpsertRecord(ctx, db.UpsertRecordParams{ProjectID: projectID, Collection: collection, Key: key, Data: string(data), Now: store.Time(now),
+				ProcessID: store.ID(process)})
 			if err != nil {
 				return err
 			}
@@ -288,7 +290,7 @@ func (s *Service) recordsUpsert(ctx context.Context, act registry.Actor, in reco
 	}
 	var out UpsertResult
 	err = s.writeRecords(ctx, p, func(ctx context.Context, q *db.Queries, m *manifest.Manifest) error {
-		out, err = UpsertJSONL(ctx, q, s.Now(), p.ID, m, in.Collection, in.Records)
+		out, err = UpsertJSONL(ctx, q, s.Now(), p.ID, act.ProcessID, m, in.Collection, in.Records)
 		return err
 	})
 	return out, err
@@ -391,16 +393,30 @@ type recordDeleteIn struct {
 }
 
 // recordDelete deletes a record with its documents and files for good; outside a draft only the owner does, by a
-// button or by hand.
+// button or by hand, and the master what its own processes wrote, with an undo of its data in the feed.
 func (s *Service) recordDelete(ctx context.Context, act registry.Actor, in recordDeleteIn) (any, error) {
 	rec, p, err := s.recordOf(ctx, act, in.Record)
 	if err != nil {
 		return nil, err
 	}
+	own := false
 	if act.Kind != registry.Owner && p.Status != store.ProjectDraft {
-		return nil, registry.Refuse("deck: only the owner deletes records of an enabled project")
+		if own, err = s.ofMaster(ctx, rec); err != nil {
+			return nil, err
+		}
+		if !own {
+			return nil, registry.Refuse("deck: only the owner deletes records of an enabled project; the master only those its own processes wrote")
+		}
 	}
 	err = s.writeRecords(ctx, p, func(ctx context.Context, q *db.Queries, _ *manifest.Manifest) error {
+		if own {
+			params, _ := json.Marshal(map[string]any{"project": p.Name, "collection": rec.Collection, "records": rec.Data})
+			if _, err := q.AddFeed(ctx, db.AddFeedParams{CreatedAt: store.Time(s.Now()), WorkspaceID: p.WorkspaceID, ProjectID: p.ID,
+				Kind: "change", Author: act.Author(), Text: fmt.Sprintf("deleted record %s of %s; an undo writes its data back, not its files and documents", rec.Key, rec.Collection),
+				Actions: "[]", Command: registry.Builtin + ".records_upsert", Params: string(params)}); err != nil {
+				return err
+			}
+		}
 		if err := q.DeleteOneRecordDocuments(ctx, store.ID(rec.ID)); err != nil {
 			return err
 		}
@@ -414,6 +430,27 @@ func (s *Service) recordDelete(ctx context.Context, act registry.Actor, in recor
 	}
 	s.DrainFiles(ctx)
 	return map[string]any{"ok": true}, nil
+}
+
+// ofMaster reports whether a process of the master wrote a record: the first of the chain of the process that
+// created it is of the master's project.
+func (s *Service) ofMaster(ctx context.Context, rec db.Record) (bool, error) {
+	if !rec.ProcessID.Valid {
+		return false, nil
+	}
+	root, err := s.St.Q.RootProjectOf(ctx, rec.ProcessID.Int64)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	p, err := s.St.Q.GetProject(ctx, root)
+	if err != nil {
+		return false, err
+	}
+	m, err := access.Master(ctx, s.St.Q, p.WorkspaceID)
+	return err == nil && m.ID == root, err
 }
 
 // Commands are the commands of records.
@@ -432,7 +469,7 @@ func (s *Service) Commands() []*registry.Command {
 			"Returns one record by its id.",
 			registry.Everyone, s.recordGet).On("collection"),
 		registry.Def("record_delete", "Delete record",
-			"Deletes a record with its documents and files for good; outside a draft only the owner may.",
+			"Deletes a record with its documents and files for good; outside a draft only the owner may, and the master the records its own processes wrote.",
 			registry.OwnerSide, s.recordDelete),
 		registry.Def("collection_delete", "Delete collection records",
 			"Deletes every record of a collection, so the collection can be removed from the manifest.",

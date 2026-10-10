@@ -233,3 +233,11 @@ WHERE c.parent_id = ? AND c.trigger_id = ? AND c.started_at >= p.finished_at ORD
 -- name: CountSlotAhead :one
 SELECT count(*) FROM process p JOIN project j ON j.id = p.project_id
 WHERE p.state = 'waiting_slot' AND j.workspace_id = sqlc.arg(workspace_id) AND p.id < sqlc.arg(id);
+
+-- name: RootProjectOf :one
+WITH RECURSIVE up(id, parent_id, project_id) AS (
+    SELECT p.id, p.parent_id, p.project_id FROM process p WHERE p.id = sqlc.arg(id)
+    UNION ALL
+    SELECT p.id, p.parent_id, p.project_id FROM process p JOIN up ON p.id = up.parent_id
+)
+SELECT project_id FROM up WHERE parent_id IS NULL LIMIT 1;

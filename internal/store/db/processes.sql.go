@@ -1190,6 +1190,22 @@ func (q *Queries) ReopenProcess(ctx context.Context, arg ReopenProcessParams) (i
 	return result.RowsAffected()
 }
 
+const rootProjectOf = `-- name: RootProjectOf :one
+WITH RECURSIVE up(id, parent_id, project_id) AS (
+    SELECT p.id, p.parent_id, p.project_id FROM process p WHERE p.id = ?1
+    UNION ALL
+    SELECT p.id, p.parent_id, p.project_id FROM process p JOIN up ON p.id = up.parent_id
+)
+SELECT project_id FROM up WHERE parent_id IS NULL LIMIT 1
+`
+
+func (q *Queries) RootProjectOf(ctx context.Context, id int64) (int64, error) {
+	row := q.db.QueryRowContext(ctx, rootProjectOf, id)
+	var project_id int64
+	err := row.Scan(&project_id)
+	return project_id, err
+}
+
 const runsSince = `-- name: RunsSince :many
 SELECT CAST(substr(p.started_at, 1, 16) AS TEXT) AS minute, p.provider,
     CAST(count(*) AS INTEGER) AS runs,

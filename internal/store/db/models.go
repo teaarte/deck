@@ -300,6 +300,7 @@ type Record struct {
 	Data       string
 	CreatedAt  string
 	UpdatedAt  string
+	ProcessID  sql.NullInt64
 }
 
 type RecordMark struct {

@@ -234,3 +234,48 @@ const numbersManifest = `{
     "columns": [{"label": "Name", "bind": "name"}],
     "actions": [{"label": "Pick", "command": "pick", "params": {"item": "=_id", "name": "=name", "why": "best"}}]}]}]
 }`
+
+// TestTheMasterDeletesWhatItsOwnProcessesWrote: in an enabled module the master deletes a record a process of its
+// own wrote, never one of the owner, and the owner can undo it from the feed.
+func TestTheMasterDeletesWhatItsOwnProcessesWrote(t *testing.T) {
+	t.Parallel()
+	var mu sync.Mutex
+	said := map[string]string{}
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		out, _ := c.Tool(ctx, "records_upsert", map[string]any{"project": "notes", "collection": "ideas", "records": `{"title": "trial", "score": 1}`})
+		var w struct{ IDs []int64 }
+		_ = json.Unmarshal([]byte(out), &w)
+		mine, _ := c.Tool(ctx, "record_delete", map[string]any{"record": w.IDs[0]})
+		var owners []struct{ ID int64 }
+		list, _ := c.Tool(ctx, "records_list", map[string]any{"project": "notes", "collection": "ideas"})
+		_ = json.Unmarshal([]byte(list), &owners)
+		theirs, _ := c.Tool(ctx, "record_delete", map[string]any{"record": owners[0].ID})
+		mu.Lock()
+		said["mine"], said["theirs"] = mine, theirs
+		mu.Unlock()
+		return provider.Result{Text: "Cleaned up."}
+	})
+	e.createProject("notes", ideasManifest)
+	e.must("deck.records_upsert", map[string]any{"project": "notes", "collection": "ideas", "records": `{"title": "the owner's", "score": 2}`}, nil)
+	e.masterSaid(e.say(0, "Clean up after the trial"), 1)
+	mu.Lock()
+	defer mu.Unlock()
+	if !strings.Contains(said["mine"], `"ok":true`) || !strings.Contains(said["theirs"], "only those its own processes wrote") {
+		t.Fatalf("the master deletes only what its own processes wrote: %v", said)
+	}
+	var feed []struct {
+		ID      int64
+		Text    string
+		CanUndo bool `json:"can_undo"`
+	}
+	e.must("deck.feed_list", map[string]any{"kind": "change"}, &feed)
+	if len(feed) != 1 || !feed[0].CanUndo || !strings.Contains(feed[0].Text, "trial") {
+		t.Fatalf("the delete is in the feed with its undo: %+v", feed)
+	}
+	e.must("deck.feed_undo", map[string]any{"entry": feed[0].ID}, nil)
+	var recs []struct{ Data struct{ Title string } }
+	e.must("deck.records_list", map[string]any{"project": "notes", "collection": "ideas"}, &recs)
+	if len(recs) != 2 {
+		t.Fatalf("the undo writes the record back: %+v", recs)
+	}
+}

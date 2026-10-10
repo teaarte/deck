@@ -1,6 +1,6 @@
 -- name: UpsertRecord :one
-INSERT INTO record (project_id, collection, key, data, created_at, updated_at)
-VALUES (sqlc.arg(project_id), sqlc.arg(collection), sqlc.arg(key), sqlc.arg(data), sqlc.arg(now), sqlc.arg(now))
+INSERT INTO record (project_id, collection, key, data, created_at, updated_at, process_id)
+VALUES (sqlc.arg(project_id), sqlc.arg(collection), sqlc.arg(key), sqlc.arg(data), sqlc.arg(now), sqlc.arg(now), sqlc.narg(process_id))
 ON CONFLICT (project_id, collection, key)
 DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at
 RETURNING *;

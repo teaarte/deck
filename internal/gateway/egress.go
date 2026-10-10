@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/netip"
+	"net/url"
 	"slices"
 	"strings"
 	"time"
@@ -143,6 +144,45 @@ func Egress(ctx context.Context, w http.ResponseWriter, r *http.Request, domains
 		return
 	}
 	forward.ServeHTTP(w, r)
+}
+
+// pageClient gets one page at the addresses its request was pinned to; Fetch checks each redirect itself.
+var pageClient = &http.Client{Transport: outbound, Timeout: time.Minute,
+	CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+
+// Fetch gets a page in the domains the way Egress carries one, at the addresses its name resolved to once; the
+// place a redirect names is checked the same way.
+func Fetch(ctx context.Context, domains []string, page string) (*http.Response, error) {
+	for range 6 {
+		u, err := url.Parse(page)
+		if err != nil || u.Scheme != "http" && u.Scheme != "https" || u.Hostname() == "" {
+			return nil, fmt.Errorf("%q is not an http or https address", page)
+		}
+		port := u.Port()
+		if port == "" {
+			port = map[string]string{"http": "80", "https": "443"}[u.Scheme]
+		}
+		pinned, err := destination(ctx, domains, net.JoinHostPort(u.Hostname(), port))
+		if err != nil {
+			return nil, err
+		}
+		req, err := http.NewRequestWithContext(context.WithValue(ctx, pinnedKey{}, pinned), http.MethodGet, u.String(), nil)
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("Accept", "text/html,text/plain,application/json;q=0.9,*/*;q=0.5")
+		resp, err := pageClient.Do(req)
+		if err != nil {
+			return nil, err
+		}
+		next, err := resp.Location()
+		if resp.StatusCode < 300 || resp.StatusCode > 399 || err != nil {
+			return resp, nil
+		}
+		_ = resp.Body.Close()
+		page = next.String()
+	}
+	return nil, errors.New("too many redirects")
 }
 
 // forward carries a plain HTTP proxy request as it is, without hop-by-hop headers either way.

@@ -37,7 +37,7 @@
             "values": {"role": "=param.role", "project": "=param.project", "command": "=param.command", "models": "=(param.models ?? '') != '' ? split(param.models, ',') : nil"},
             "choices": {"models": {"source": {"from": "deck.models_list", "rows": "models"}, "value": "name"}}}]},
         {"type": "table", "title": "Assignments", "source": {"from": "deck.models_list", "rows": "assignments"},
-          "description": "Which models do which work: in the workspace, a project or a command. The first that is up takes the work.",
+          "description": "Which models do which work: in the workspace, a project or a command. The first that is up takes the work. search is the web search of agents in ACP agents, a SearXNG of this machine; without it they only read pages.",
           "empty": "Nothing is assigned; agent commands run on the model their manifest suggests",
           "columns": [
             {"label": "Kind of work", "bind": "role", "format": "tag"},

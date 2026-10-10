@@ -339,7 +339,7 @@ func (s *Service) providerCheck(ctx context.Context, act registry.Actor, in prov
 
 // Commands are the commands of providers.
 func (s *Service) Commands() []*registry.Command {
-	return []*registry.Command{
+	return append([]*registry.Command{
 		registry.Def("provider_check", "Check provider",
 			"Runs the self-check of a provider's adapter again; its health shows the outcome.",
 			registry.OwnerOnly, s.providerCheck),
@@ -360,5 +360,5 @@ func (s *Service) Commands() []*registry.Command {
 		registry.Def("model_remove", "Remove model", "Removes a model; assignments that name it skip it.",
 			registry.OwnerOnly, s.modelRemove),
 		s.modelRequestCommand(), s.modelCallCommand(),
-	}
+	}, s.webCommands()...)
 }

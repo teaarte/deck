@@ -127,7 +127,7 @@ const (
 	Intercept = "intercept"
 	Images    = "images"
 	NoCloud   = "no_cloud"
-	// Web is the provider's own web search and fetch.
+	// Web is web search and fetch: the provider's own, or deck's for an ACP agent.
 	Web = "web"
 	// Folder is working in a folder of the owner, a repo with its own instructions, rather than a folder of deck.
 	Folder = "folder"

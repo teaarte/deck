@@ -57,9 +57,9 @@ func dsh(l Launch) ([]string, []string, map[string]string) {
 	return []string{l.Binary, "--profile", "acp", "--patch", file}, env, map[string]string{file: string(b)}
 }
 
-// caps are what every ACP agent does inside the sandbox of deck.
+// caps are what every ACP agent does inside the sandbox of deck; its web is deck's web_search and web_fetch.
 func caps(noCloud bool) provider.Caps {
-	c := provider.Caps{provider.Tools, provider.Sandbox, provider.Resume, provider.Intercept, provider.Folder}
+	c := provider.Caps{provider.Tools, provider.Sandbox, provider.Resume, provider.Intercept, provider.Folder, provider.Web}
 	if noCloud {
 		c = append(c, provider.NoCloud)
 	}

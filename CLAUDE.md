@@ -70,7 +70,7 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
   scripts), `snapshots` (snapshots, cleanup, disk), `journal`, `files`, `folders`, `settings` (one table
   `settingDefs` gives the row, the names `settings_set` takes and the edit button), `secrets`, `tokens`,
   `providers` (connections, models with prices and options, assignments with fallbacks — kinds text, image, tts,
-  stt, music, video (deck polls the job, `video.go`) —, a module calls only models of deck's settings (`Route`) and proposes one by `model_set`, held for the
+  stt, music, video (deck polls the job, `video.go`), search (a SearXNG the agents in ACP agents search through, `web.go` with `web_search` and `web_fetch`) —, a module calls only models of deck's settings (`Route`) and proposes one by `model_set`, held for the
   owner; a model that did not answer is red in health with the model that took its work; the providers of agent
   turns — built-in or a model in an ACP agent, the agents found with their version, self-checks at start, by button
   and on a broken turn — the routes, limits and rights of direct calls `deck.model_call`/`deck.model_request` and of
@@ -95,7 +95,7 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
 - `internal/gateway` — deck MCP server per process: permission prompts, questions, confirmations, registry
   commands as tools (a long call sends MCP progress to a client that asked) (`renew` gives live sessions the commands of a changed project); HTTP entry of scripts (`ScriptHandler`, deck's API
   only) and `Egress` — the web of a door (`egress.go`: a name resolves once, the proxy dials its addresses, a name
-  reaches only public ones); the proxy of models (`model_proxy.go`: `DECK_MODELS` of scripts, routed once and the hops
+  reaches only public ones; `Fetch` a page the same way); the proxy of models (`model_proxy.go`: `DECK_MODELS` of scripts, routed once and the hops
   passed to the rules, `WithRoute`; `model_ask.go`: `AskModel` — the one model of deck's settings a request names,
   `X-Deck-Model` only for a raw service, `WithModel` — the body goes with the model deck checked; `model_hops.go`:
   `SendHops` — the one loop of fallbacks of scripts, commands and the model of ACP turns, with deck's key;

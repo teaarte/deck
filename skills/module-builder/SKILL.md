@@ -458,11 +458,13 @@ what the command needs and suggests one. `requires` lists capabilities, and usua
 `no_cloud` for personal data (finance, health) that must stay on the owner's hardware, and `sandbox` when the
 agent must run shell commands or write files (a provider in auto mode, or a model the owner runs in an ACP agent
 inside deck's sandbox). The two go together:
-a local model in an ACP agent has a shell and stays on the owner's hardware. `web` decides only which provider may run the command: an agent on Claude Code has the web
-whether or not it is required. Require it when the agent's result is wrong without its own research (reading
-changelogs or news it cannot know in advance), so the owner cannot move it to a local model that has none;
-leave it out when a script brings the pages the agent judges, which is cheaper and keeps local models
-possible. Fetching known pages belongs in a script with `domains.read`. Repeatable mechanics still belong in a script: it is cheaper,
+a local model in an ACP agent has a shell and stays on the owner's hardware. `web` decides only which provider may run the command: an agent on Claude Code or Codex
+searches with its own web whether or not it is required; a model in an ACP agent (a free or local one) has deck's
+`web_search` (the search service of deck's settings, SearXNG) and `web_fetch` (pages of `domains.read` as text, any
+with `"*"`). Require it when the agent's result is wrong without its own research (reading
+changelogs or news it cannot know in advance); the prompt of such a command names `web_search` and `web_fetch`, so
+a model in an ACP agent knows to use them. Leave it out when a script brings the pages the agent judges, which is
+cheaper. Fetching known pages belongs in a script with `domains.read`. Repeatable mechanics still belong in a script: it is cheaper,
 runs the same way every time and works with any provider. Do not require `tools` or `structured_output`: every provider has deck's tools and hands in the result, and a
 requirement a local model lacks keeps routine work off it. `commands_list` gives each agent command the
 providers that fit it. `provider` suggests a provider by

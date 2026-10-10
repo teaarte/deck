@@ -55,6 +55,9 @@ func (s *Service) Route(ctx context.Context, act registry.Actor, ask gateway.Mod
 			if len(names) > 0 {
 				return nil, registry.Invalid("deck: no model of %s is on connection %s; call %s through the path @ instead", asked, connection, asked)
 			}
+			if role == RoleSearch {
+				return nil, registry.Invalid("deck: %s", noSearch)
+			}
 			return nil, registry.Invalid("deck: no model is assigned to %s; the owner assigns one in Settings → Models → Assign models, or in the Models tab of the project's settings", role)
 		}
 	} else {

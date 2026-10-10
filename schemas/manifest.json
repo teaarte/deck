@@ -71,7 +71,7 @@
         "result": {"$ref": "#/$defs/schema", "description": "Schema of the result; null means nothing to do, and the agent may give it only where the schema takes null (type [\"object\", \"null\"])."},
         "callers": {"type": "array", "items": {"enum": ["owner", "master", "agent", "trigger"]}, "uniqueItems": true, "minItems": 1},
         "requires": {"type": "array", "uniqueItems": true, "items": {"enum": ["tools", "sandbox", "resume", "intercept", "images", "no_cloud", "web"]},
-          "description": "Provider capabilities: sandbox is a shell and file writes in the provider's auto mode; web is the provider's own web search and fetch; no_cloud is a model on the owner's hardware."},
+          "description": "Provider capabilities: sandbox is a shell and file writes in the provider's auto mode; web is web search and fetch, the provider's own or deck's web_search and web_fetch for an ACP agent; no_cloud is a model on the owner's hardware."},
         "provider": {"type": "string", "description": "Suggested provider; the owner picks the real one in settings."},
         "timeout_minutes": {"type": "integer", "minimum": 1, "maximum": 240},
         "executor": {"$ref": "#/$defs/executor"}

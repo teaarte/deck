@@ -176,13 +176,16 @@ func TestTriggeredExternalCallWaitsWithoutTheAgentAndRunsAfterYes(t *testing.T) 
 	}
 	e.Clock.Add(time.Hour + time.Minute)
 	e.App.Scheduler.Tick(context.Background())
-	_, out := e.call("deck.asks_list", nil)
 	var asks []struct {
 		ID      int64
 		Kind    string
 		Process int64
 	}
-	_ = json.Unmarshal(out, &asks)
+	e.waitFor("both calls to wait", func() bool {
+		_, out := e.call("deck.asks_list", nil)
+		asks = nil
+		return json.Unmarshal(out, &asks) == nil && len(asks) == 2
+	})
 	if len(asks) != 2 || asks[0].Process != 0 || asks[1].Process != 0 || len(svc.requests()) != 0 {
 		t.Fatalf("a triggered external call waits for the owner on its own: %+v", asks)
 	}

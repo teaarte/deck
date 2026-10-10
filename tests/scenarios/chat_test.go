@@ -431,6 +431,7 @@ func TestTheChatBlockShowsTheTopicItsQuestionsAndTheTurn(t *testing.T) {
 	if said := e.masterSaid(topic, 2); said[1].Text != "Picked market" {
 		t.Fatalf("the answer from the feed reaches the turn: %+v", said)
 	}
+	e.waitFor("the turn to leave the block", func() bool { return chat(fmt.Sprint(topic)).Turn == nil })
 	if c := chat(fmt.Sprint(topic)); c.Turn != nil || len(c.Questions) != 0 {
 		t.Fatalf("a finished turn leaves the block: %+v", c)
 	}

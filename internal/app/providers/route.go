@@ -235,6 +235,10 @@ func (s *Service) turnModel(workspace int64, m db.Model, c db.Connection) func(o
 			if err != nil {
 				return
 			}
+			if _, err := gateway.AskModel(c.Name, r.Method, r.URL.Path, r.Header, body); err != nil {
+				http.Error(w, err.Error(), registry.Status(err))
+				return
+			}
 			h, err := s.hop(workspace, m, c)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusBadGateway)

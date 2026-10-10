@@ -2,9 +2,11 @@ package manifest
 
 import (
 	"fmt"
+	"path/filepath"
 	"reflect"
 	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/expr-lang/expr"
 )
@@ -58,6 +60,42 @@ func (c *Collection) RecordTitle(data map[string]any) string {
 		return ""
 	}
 	return fmt.Sprint(out)
+}
+
+// FolderOf is the folder of a record in the data folder, relative and inside it; empty when the collection names
+// none or the record gives no path.
+func (c *Collection) FolderOf(data map[string]any) string {
+	if c.folderProg == nil {
+		return ""
+	}
+	out, err := expr.Run(c.folderProg, data)
+	if err != nil || out == nil {
+		return ""
+	}
+	return strings.TrimPrefix(filepath.Clean("/"+fmt.Sprint(out)), "/")
+}
+
+// ParentKey is the key of the record of the parent collection a record belongs to; false when it names none.
+func (c *Collection) ParentKey(data map[string]any) (string, bool) {
+	if c.parentProg == nil {
+		return "", false
+	}
+	out, err := expr.Run(c.parentProg, data)
+	if err != nil || out == nil || fmt.Sprint(out) == "" {
+		return "", false
+	}
+	return fmt.Sprint(out), true
+}
+
+// Children are the collections whose records belong to a record of the collection.
+func (m *Manifest) Children(collection string) []*Collection {
+	var out []*Collection
+	for i := range m.Collections {
+		if p := m.Collections[i].Parent; p != nil && p.Collection == collection {
+			out = append(out, &m.Collections[i])
+		}
+	}
+	return out
 }
 
 // CheckImmutable refuses changes of immutable and key fields between the stored and the new record.

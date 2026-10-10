@@ -281,6 +281,47 @@ func (q *Queries) ListMessageFiles(ctx context.Context, topicID int64) ([]File, 
 	return items, nil
 }
 
+const listOwnedFiles = `-- name: ListOwnedFiles :many
+SELECT id, project_id, owner_kind, owner_id, name, type, size, created_at FROM file WHERE owner_kind = ? AND owner_id = ? ORDER BY id
+`
+
+type ListOwnedFilesParams struct {
+	OwnerKind string
+	OwnerID   int64
+}
+
+func (q *Queries) ListOwnedFiles(ctx context.Context, arg ListOwnedFilesParams) ([]File, error) {
+	rows, err := q.db.QueryContext(ctx, listOwnedFiles, arg.OwnerKind, arg.OwnerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []File
+	for rows.Next() {
+		var i File
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProjectID,
+			&i.OwnerKind,
+			&i.OwnerID,
+			&i.Name,
+			&i.Type,
+			&i.Size,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listProjectFileIDs = `-- name: ListProjectFileIDs :many
 SELECT id FROM file WHERE project_id = ? ORDER BY id
 `

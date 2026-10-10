@@ -35,7 +35,7 @@ export function ActionButton({ act, params, onDone, before, inMenu }: { act: Act
   return (
     <>
       {button}
-      <ConfirmModal opened={asking} label={label} params={act.params} onCancel={() => setAsking(false)} onConfirm={() => { setAsking(false); void send(); }} />
+      <ConfirmModal opened={asking} label={label} command={act.command} params={act.params} onCancel={() => setAsking(false)} onConfirm={() => { setAsking(false); void send(); }} />
     </>
   );
 }

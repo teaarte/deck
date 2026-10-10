@@ -149,7 +149,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	*a.Documents = documents.Service{St: st, Now: cfg.Now, Sandbox: cfg.Sandbox, Ctx: a.ctx, Go: a.bg.Go,
 		SaveManifest: a.Saver.SaveCall, Changed: a.Devices.Changed}
 	*a.Snapshots = snapshots.Service{St: st, Bus: a.Bus, Home: h, Now: cfg.Now, Budget: cfg.SnapshotBudget, LockFiles: a.Files.Mu.Lock, UnlockFiles: a.Files.Mu.Unlock,
-		DrainFiles: a.Files.Drain}
+		DrainFiles: a.Files.Drain, PurgeTrash: a.Records.PurgeTrash}
 	*a.Providers = providers.Service{St: st, Now: cfg.Now, Home: h, Sandbox: cfg.Sandbox, ACPBinaries: cfg.ACPBinaries,
 		ACPCallLimit: cfg.ACPCallLimit, SelfCheckCeiling: cfg.SelfCheckCeiling, VideoPoll: cfg.VideoPoll,
 		VideoCeiling: cfg.VideoCeiling, Secret: a.Secrets.Read, WriteSecret: a.Secrets.Write,
@@ -166,7 +166,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	*a.Failures = failures.Service{St: st, Now: cfg.Now, Runner: a.Runner}
 	*a.Processes = processes.Service{St: st, Runner: a.Runner, Named: a.Providers.Named, Now: cfg.Now}
 	*a.Health = apphealth.Service{St: st, Providers: a.Providers.All, Secret: a.Secrets.Has, Unassigned: a.Providers.Unassigned}
-	*a.Records = records.Service{St: st, Now: cfg.Now, DrainFiles: a.Files.Drain}
+	*a.Records = records.Service{St: st, Now: cfg.Now, Home: h, DrainFiles: a.Files.Drain}
 	*a.Tokens = tokens.Service{St: st, MCPBase: cfg.MCPBase, Journal: a.Gateway.Journal}
 	*a.Saver = project.Saver{St: st, Bus: a.Bus, Now: cfg.Now, Home: h, Registry: a.Registry,
 		Gateway: a.Gateway, Runner: a.Runner, Scheduler: a.Scheduler, Broker: a.Asks, Scripts: a.Scripts, Tools: a.Tools,

@@ -5,12 +5,18 @@
   "blocks": [
     {"type": "tabs", "tabs": [
       {"title": "Files", "icon": "files", "blocks": [
-        {"type": "media", "title": "Files", "source": {"from": "deck.files_list"}, "filter": ["project"],
+        {"type": "media", "title": "Files", "source": {"from": "deck.files_list", "sort": "-created_at"}, "filter": ["project"],
           "item": {"file": "id", "title": "name"},
           "actions": [
             {"verb": "delete", "command": "deck.file_delete", "params": {"file": "=id"},
              "undo": {"command": "deck.file_restore", "params": {"file": "=id", "owner_kind": "=owner_kind", "owner_id": "=owner_id"}}}
           ]}
+      ]},
+      {"title": "Data folders", "icon": "folders", "blocks": [
+        {"type": "table", "title": "Data folders", "span": "full", "source": {"from": "deck.projects_list"},
+          "description": "The data folder of each project, by its real folders.",
+          "columns": [{"label": "Project", "bind": "name", "format": "tag"}],
+          "actions": [{"verb": "open", "primary": true, "screen": "data", "params": {"project": "=name"}}]}
       ]},
       {"title": "Documents", "icon": "file-text", "blocks": [
         {"type": "table", "title": "Documents of the master", "source": {"from": "deck.documents_list", "input": {"project": "master", "with_deleted": true}, "sort": "name"}, "filter": ["kind"],

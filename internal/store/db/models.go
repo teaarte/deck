@@ -347,6 +347,20 @@ type ToolCall struct {
 	CreatedAt   string
 }
 
+type Trash struct {
+	ID          int64
+	WorkspaceID int64
+	ProjectID   int64
+	What        string
+	RecordID    sql.NullInt64
+	Path        string
+	Records     string
+	Documents   string
+	Files       string
+	Paths       string
+	CreatedAt   string
+}
+
 type Trigger struct {
 	ID            int64
 	ProjectID     int64

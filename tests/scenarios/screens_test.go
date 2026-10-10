@@ -972,7 +972,7 @@ func TestTheMasterSettingsShowWhatItDoesOnSchedule(t *testing.T) {
 			t.Fatalf("an empty block is left out of the settings of the master: %s", gone)
 		}
 	}
-	docs := blockData[[]screenRow](t, e.screenData("", "files", nil)["b0-1-0"]["rows"])
+	docs := blockData[[]screenRow](t, e.screenData("", "files", nil)["b0-2-0"]["rows"])
 	if len(docs) == 0 {
 		t.Fatalf("the documents of the master are a tab of files")
 	}

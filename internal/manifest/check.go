@@ -108,6 +108,21 @@ func (m *Manifest) compileCollections(fail func(string, ...any)) {
 		if c.Migration != "" && m.scripts[c.Migration] == nil {
 			fail("collection %q migration: unknown script %q", c.Name, c.Migration)
 		}
+		if c.Folder != "" {
+			if c.folderProg, err = compileField(c.Folder, c.fields); err != nil {
+				fail("collection %q folder: %v", c.Name, err)
+			}
+		}
+		if c.Parent != nil {
+			if c.parentProg, err = compileField(c.Parent.Key, c.fields); err != nil {
+				fail("collection %q parent key: %v", c.Name, err)
+			}
+		}
+	}
+	for _, c := range m.Collections {
+		if c.Parent != nil && (m.collections[c.Parent.Collection] == nil || c.Parent.Collection == c.Name) {
+			fail("collection %q parent: no other collection %q", c.Name, c.Parent.Collection)
+		}
 	}
 }
 

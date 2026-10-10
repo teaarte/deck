@@ -20,7 +20,7 @@ export function ActionIconButton({ act, icon, color = 'gray', variant = 'subtle'
           </ActionIcon>
         </Tooltip>
       </Failed>
-      {act.confirm && <ConfirmModal opened={asking} label={label} params={act.params} onCancel={() => setAsking(false)} onConfirm={() => { setAsking(false); void send(); }} />}
+      {act.confirm && <ConfirmModal opened={asking} label={label} command={act.command} params={act.params} onCancel={() => setAsking(false)} onConfirm={() => { setAsking(false); void send(); }} />}
     </>
   );
 }

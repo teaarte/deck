@@ -51,7 +51,11 @@
           "description": "Fields that cannot change after the record is created."},
         "retention_days": {"type": "integer", "minimum": 1, "description": "Records older than this are deleted."},
         "file_retention_days": {"type": "integer", "minimum": 1, "description": "Files of records older than this are deleted."},
-        "migration": {"$ref": "#/$defs/name", "description": "Script that converts records (JSONL in, JSONL out) when this revision changes the schema or key incompatibly."}
+        "migration": {"$ref": "#/$defs/name", "description": "Script that converts records (JSONL in, JSONL out) when this revision changes the schema or key incompatibly."},
+        "folder": {"$ref": "#/$defs/expr", "description": "The folder of a record in the data folder, e.g. 'videos/' + slug; deleting the record deletes it."},
+        "parent": {"type": "object", "additionalProperties": false, "required": ["collection", "key"],
+          "description": "The collection a record belongs to, and the key of its record there, e.g. {\"collection\": \"videos\", \"key\": \"video\"}; deleting that record deletes this one.",
+          "properties": {"collection": {"$ref": "#/$defs/name"}, "key": {"$ref": "#/$defs/expr"}}}
       }
     },
     "command": {

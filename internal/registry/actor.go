@@ -23,7 +23,7 @@ type Actor struct {
 	// ProcessID is the calling agent's process, or for a trigger the process whose finish fired it.
 	ProcessID int64
 	// Run is the executor of a calling process that is not an agent turn: script, tool or model.
-	Run string
+	Run       string
 	TriggerID int64
 	// Confirmed marks a call of a trigger the owner asked for or said yes to: its schedule checks do not apply.
 	Confirmed bool

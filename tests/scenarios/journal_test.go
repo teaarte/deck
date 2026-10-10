@@ -117,7 +117,7 @@ func TestJournalShowsTheCallsOfTheGatewayTheSpendFilesAndSnapshots(t *testing.T)
 	if len(files) != 1 || files[0]["name"] != "scan.txt" || files[0]["title"] != "scan.txt" {
 		t.Fatalf("files lists the files of the workspace: %+v", files)
 	}
-	snaps := blockData[[]screenRow](t, kept["b0-2-0"]["rows"])
+	snaps := blockData[[]screenRow](t, kept["b0-3-0"]["rows"])
 	if len(snaps) != 2 || !strings.HasPrefix(snaps[0].Cells[0].(string), "deck-2026") || snaps[1].Cells[1] != "2020-01-01T00:00:00Z" {
 		t.Fatalf("snapshots lists what backups holds: %+v", snaps)
 	}

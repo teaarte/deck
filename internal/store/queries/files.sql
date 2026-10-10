@@ -75,3 +75,7 @@ SELECT * FROM file WHERE project_id = ? AND name = ? AND owner_kind NOT IN ('tra
 SELECT f.* FROM file f WHERE f.owner_kind = 'process'
     AND (f.owner_id = sqlc.arg(process_id) OR f.owner_id IN (SELECT p.id FROM process p WHERE p.parent_id = sqlc.arg(process_id)))
 ORDER BY f.id;
+
+
+-- name: ListOwnedFiles :many
+SELECT * FROM file WHERE owner_kind = ? AND owner_id = ? ORDER BY id;

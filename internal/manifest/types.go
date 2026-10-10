@@ -80,12 +80,25 @@ type Collection struct {
 	RetentionDays     int             `json:"retention_days,omitempty"`
 	FileRetentionDays int             `json:"file_retention_days,omitempty"`
 	Migration         string          `json:"migration,omitempty"`
+	// Folder is the folder of a record in the data folder, an expression such as 'videos/' + slug; it goes with
+	// the record. Parent names the collection a record belongs to and the key of its record there.
+	Folder string  `json:"folder,omitempty"`
+	Parent *Parent `json:"parent,omitempty"`
 
 	fields      []string
 	keyFields   []string
 	keyProg     *vm.Program
 	displayProg *vm.Program
+	folderProg  *vm.Program
+	parentProg  *vm.Program
 	schema      *jsonschema.Schema
+}
+
+// Parent is the collection the records of a collection belong to, and the expression of the key of the record
+// of each there; a record goes with its parent.
+type Parent struct {
+	Collection string `json:"collection"`
+	Key        string `json:"key"`
 }
 
 type Command struct {

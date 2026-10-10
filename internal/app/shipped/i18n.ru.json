@@ -176,5 +176,14 @@
   "Edit record": "Изменить запись",
   "Subscription, estimate": "По подписке, оценка",
   "Result": "Результат",
-  "Nothing in the log: a script logs only what it writes to stderr, a tool or a model call nothing; its input and result are above": "В логе ничего: скрипт пишет в лог только свой stderr, инструмент и вызов модели — ничего; вход и результат — выше"
+  "Nothing in the log: a script logs only what it writes to stderr, a tool or a model call nothing; its input and result are above": "В логе ничего: скрипт пишет в лог только свой stderr, инструмент и вызов модели — ничего; вход и результат — выше",
+  "Files here": "Файлы здесь",
+  "Data folder": "Папка данных",
+  "Folder": "Папка",
+  "No files in this folder": "В этой папке нет файлов",
+  "Data folders": "Папки данных",
+  "Changed": "Изменён",
+  "The folder is empty": "Папка пуста",
+  "The data folder of the project as it is on disk: what its scripts and agents keep, caches too.": "Папка данных проекта как она есть на диске: всё, что хранят его скрипты и агенты, и кэши тоже.",
+  "The data folder of each project, by its real folders.": "Папка данных каждого проекта по её настоящим папкам."
 }

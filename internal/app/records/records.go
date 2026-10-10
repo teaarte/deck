@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"deck2/internal/app/access"
 	"deck2/internal/docs"
+	"deck2/internal/home"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store"
@@ -151,8 +152,9 @@ func ViewOf(r db.Record, c *manifest.Collection) View {
 
 // Service keeps the records of projects.
 type Service struct {
-	St  *store.Store
-	Now func() time.Time
+	St   *store.Store
+	Now  func() time.Time
+	Home home.Layout
 	// DrainFiles removes the files whose rows are gone.
 	DrainFiles func(ctx context.Context)
 }
@@ -392,44 +394,27 @@ type recordDeleteIn struct {
 	Record int64 `type:"record" desc:"Record id"`
 }
 
-// recordDelete deletes a record with its documents and files for good; outside a draft only the owner does, by a
-// button or by hand, and the master what its own processes wrote, with an undo of its data in the feed.
+// recordDelete moves a record with what belongs to it to the trash for a day; outside a draft only the owner does,
+// by a button or by hand, and the master what its own processes wrote.
 func (s *Service) recordDelete(ctx context.Context, act registry.Actor, in recordDeleteIn) (any, error) {
 	rec, p, err := s.recordOf(ctx, act, in.Record)
 	if err != nil {
 		return nil, err
 	}
-	own := false
 	if act.Kind != registry.Owner && p.Status != store.ProjectDraft {
-		if own, err = s.ofMaster(ctx, rec); err != nil {
+		own, err := s.ofMaster(ctx, rec)
+		if err != nil {
 			return nil, err
 		}
 		if !own {
 			return nil, registry.Refuse("deck: only the owner deletes records of an enabled project; the master only those its own processes wrote")
 		}
 	}
-	err = s.writeRecords(ctx, p, func(ctx context.Context, q *db.Queries, _ *manifest.Manifest) error {
-		if own {
-			params, _ := json.Marshal(map[string]any{"project": p.Name, "collection": rec.Collection, "records": rec.Data})
-			if _, err := q.AddFeed(ctx, db.AddFeedParams{CreatedAt: store.Time(s.Now()), WorkspaceID: p.WorkspaceID, ProjectID: p.ID,
-				Kind: "change", Author: act.Author(), Text: fmt.Sprintf("deleted record %s of %s; an undo writes its data back, not its files and documents", rec.Key, rec.Collection),
-				Actions: "[]", Command: registry.Builtin + ".records_upsert", Params: string(params), ProcessID: store.ID(act.ProcessID)}); err != nil {
-				return err
-			}
-		}
-		if err := q.DeleteOneRecordDocuments(ctx, store.ID(rec.ID)); err != nil {
-			return err
-		}
-		if err := q.DeleteFilesOf(ctx, db.DeleteFilesOfParams{OwnerKind: "record", OwnerID: rec.ID}); err != nil {
-			return err
-		}
-		return q.DeleteRecord(ctx, rec.ID)
-	})
+	t, err := s.trashRecords(ctx, act, p, rec)
 	if err != nil {
 		return nil, err
 	}
-	s.DrainFiles(ctx)
-	return map[string]any{"ok": true}, nil
+	return map[string]any{"ok": true, "trash": t.ID}, nil
 }
 
 // ofMaster reports whether a process of the master wrote a record: the first of the chain of the process that
@@ -469,8 +454,17 @@ func (s *Service) Commands() []*registry.Command {
 			"Returns one record by its id.",
 			registry.Everyone, s.recordGet).On("collection"),
 		registry.Def("record_delete", "Delete record",
-			"Deletes a record with its documents and files for good; outside a draft only the owner may, and the master the records its own processes wrote.",
+			"Deletes a record with what belongs to it, as record_parts lists, into the trash for a day: trash_restore brings it back; outside a draft only the owner may, and the master the records its own processes wrote.",
 			registry.OwnerSide, s.recordDelete),
+		registry.Read("record_parts", "What a record takes along",
+			"Lists what deleting a record takes with it: the record, the records of collections whose parent it is, their files, the files of the processes started for them and their folders of the data folder.",
+			registry.OwnerSide, s.recordParts).On("collection", "files"),
+		registry.Def("data_delete", "Delete from a data folder",
+			"Moves a file or folder of the data folder of a project to the trash for a day; trash_restore brings it back.",
+			registry.OwnerSide, s.dataDelete),
+		registry.Def("trash_restore", "Bring back from the trash",
+			"Brings back what a deletion of the last day took, by the trash entry, the record or the path of the data folder.",
+			registry.OwnerSide, s.trashRestore),
 		registry.Def("collection_delete", "Delete collection records",
 			"Deletes every record of a collection, so the collection can be removed from the manifest.",
 			registry.OwnerOnly, s.collectionDelete).As(registry.External),

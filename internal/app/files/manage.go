@@ -4,6 +4,7 @@ import (
 	"context"
 	"slices"
 
+	"deck2/internal/app/access"
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
 )
@@ -18,14 +19,7 @@ type fileIn struct {
 // own is a stored file of a project of the actor's workspace.
 func (s *Service) own(ctx context.Context, act registry.Actor, id int64) (db.File, db.Project, error) {
 	f, err := s.St.Q.GetFile(ctx, id)
-	if err != nil {
-		return f, db.Project{}, registry.NotFound("deck: no file %d", id)
-	}
-	p, err := s.St.Q.GetProject(ctx, f.ProjectID)
-	if err != nil || p.WorkspaceID != act.Workspace || !act.Within(p.ID) {
-		return f, p, registry.NotFound("deck: no file %d", id)
-	}
-	return f, p, nil
+	return access.Owned(ctx, s.St.Q, act, f, err, f.ProjectID, registry.NotFound("deck: no file %d", id))
 }
 
 // rebind moves a file from one owner to another, refused when it no longer has the first.

@@ -206,9 +206,9 @@ func (r *Runner) Start(ctx context.Context, projectID int64, m *manifest.Manifes
 				if err != nil {
 					return err
 				}
-				text := fmt.Sprintf("deck stopped a chain of %d processes: %s.%s was not started after %s (process %d).",
+				text := fmt.Sprintf("deck stopped a chain of %d steps: %s.%s was not started after %s (process %d).",
 					MaxDepth, proj.Name, command, chain, parent.ID)
-				refused = registry.Refuse("deck: %s was not started: a chain of processes may be at most %d long: %s", command, MaxDepth, chain)
+				refused = registry.Refuse("deck: %s was not started: a chain may be at most %d steps long: %s", command, MaxDepth, chain)
 				return q.AddDeckNote(ctx, db.AddDeckNoteParams{CreatedAt: store.Time(r.now()), ProjectID: proj.ID, Text: text})
 			}
 		}

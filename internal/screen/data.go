@@ -174,7 +174,7 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 		return map[string]any{"state": "ready", "value": acts}, nil
 	case "appearance":
 		return map[string]any{"state": "ready"}, nil
-	case "chat":
+	case "chat", "log":
 		scope := r.scope
 		scope.Filter = r.req.Filter[id]
 		input, err := r.input(b.Source.Input)
@@ -185,15 +185,8 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 		if err != nil {
 			return nil, err
 		}
-		return map[string]any{"state": "ready", "value": v}, nil
-	case "log":
-		input, err := r.input(b.Source.Input)
-		if err != nil {
-			return nil, err
-		}
-		v, err := r.src.Read(r.ctx, b.Source.From, input, r.scope)
-		if err != nil {
-			return nil, err
+		if b.Type == "chat" {
+			return map[string]any{"state": "ready", "value": v}, nil
 		}
 		var page map[string]any
 		raw, _ := json.Marshal(v)

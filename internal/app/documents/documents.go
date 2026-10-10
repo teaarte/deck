@@ -48,8 +48,11 @@ type documentView struct {
 	Revision  int64  `json:"revision"`
 	Text      string `json:"text,omitempty"`
 	Deleted   bool   `json:"deleted"`
+	// Editable is a document a screen edits as text.
+	Editable bool `json:"editable"`
 	// Warning says what a save did that its author should know of, such as an index past its limit.
-	Warning string `json:"warning,omitempty"`
+	Warning   string         `json:"warning,omitempty"`
+	Revisions []revisionView `json:"revisions,omitempty"`
 }
 
 func (dc *Service) docView(ctx context.Context, d db.Document) documentView {
@@ -60,7 +63,7 @@ func (dc *Service) docView(ctx context.Context, d db.Document) documentView {
 func view(d db.Document, project string) documentView {
 	kind, owner := docs.Owner(d)
 	return documentView{ID: d.ID, Project: project, OwnerKind: kind, OwnerID: owner, Kind: d.Kind, Name: d.Name, Revision: d.Current,
-		Deleted: d.DeletedAt.Valid}
+		Deleted: d.DeletedAt.Valid, Editable: docs.Editable(d.Kind, d.Name)}
 }
 
 type documentsListIn struct {
@@ -147,6 +150,7 @@ type documentGetIn struct {
 	Name     string `opt:"" desc:"Document name (path)"`
 	Revision int64  `opt:"" desc:"Revision number"`
 	Record   int64  `type:"record" opt:"" desc:"Record the named document belongs to"`
+	History  bool   `opt:"" desc:"Also its revisions, oldest first, with who wrote each and why"`
 }
 
 func (dc *Service) documentGet(ctx context.Context, act registry.Actor, in documentGetIn) (documentView, error) {
@@ -184,7 +188,10 @@ func (dc *Service) documentGet(ctx context.Context, act registry.Actor, in docum
 	}
 	v := dc.docView(ctx, d)
 	v.Revision, v.Text = r.N, r.Text
-	return v, nil
+	if in.History {
+		v.Revisions, err = dc.revisions(ctx, d)
+	}
+	return v, err
 }
 
 type documentSaveIn struct {
@@ -381,6 +388,10 @@ func (dc *Service) documentRevisions(ctx context.Context, act registry.Actor, in
 	if err != nil {
 		return nil, err
 	}
+	return dc.revisions(ctx, d)
+}
+
+func (dc *Service) revisions(ctx context.Context, d db.Document) ([]revisionView, error) {
 	rs, err := dc.St.Q.ListRevisions(ctx, d.ID)
 	if err != nil {
 		return nil, err

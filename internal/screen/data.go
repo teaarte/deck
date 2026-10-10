@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"regexp"
 	"slices"
-	"strings"
 
 	"deck2/internal/docs"
 	"deck2/internal/manifest"
@@ -382,9 +381,9 @@ var pictures = []any{"image/png", "image/jpeg", "image/gif", "image/webp", "imag
 // when record is set, with its revisions; a document not written yet comes back empty.
 func (r *renderer) document(record, id int64, name string) (map[string]any, error) {
 	p := r.req.Project
-	in := map[string]any{"document": id}
+	in := map[string]any{"document": id, "history": true}
 	if id == 0 {
-		in = map[string]any{"project": p.Name, "name": name}
+		in = map[string]any{"project": p.Name, "name": name, "history": true}
 		if record != 0 {
 			in["record"] = record
 		}
@@ -394,7 +393,7 @@ func (r *renderer) document(record, id int64, name string) (map[string]any, erro
 	switch {
 	case id == 0 && registry.Status(err) == http.StatusNotFound:
 		v := map[string]any{"id": 0, "project": p.Name, "name": name, "kind": docs.KindDoc, "text": "", "revision": 0,
-			"editable": editable(docs.KindDoc, name), "revisions": []map[string]any{}}
+			"editable": docs.Editable(docs.KindDoc, name), "revisions": []map[string]any{}}
 		if record != 0 {
 			v["record"] = record
 		}
@@ -404,30 +403,19 @@ func (r *renderer) document(record, id int64, name string) (map[string]any, erro
 	case d == nil || d["project"] != p.Name:
 		return nil, fmt.Errorf("no document %d in %s", id, p.Name)
 	}
-	got, err = r.src.Read(r.ctx, "deck.document_revisions", map[string]any{"document": d["id"]}, r.scope)
-	if err != nil {
-		return nil, err
-	}
-	all, _ := got.([]any)
+	all, _ := d["revisions"].([]any)
 	revs := make([]map[string]any, 0, len(all))
 	for _, rv := range all {
 		if m, ok := rv.(map[string]any); ok {
 			revs = append(revs, map[string]any{"revision": m["revision"], "author": m["author"], "reason": m["reason"], "created_at": m["created_at"]})
 		}
 	}
-	kind, _ := d["kind"].(string)
-	dname, _ := d["name"].(string)
-	v := map[string]any{"id": d["id"], "project": p.Name, "name": dname, "kind": kind, "text": cmp.Or(d["text"], any("")), "revision": d["revision"],
-		"editable": editable(kind, dname), "revisions": revs}
+	v := map[string]any{"id": d["id"], "project": p.Name, "name": d["name"], "kind": d["kind"], "text": cmp.Or(d["text"], any("")), "revision": d["revision"],
+		"editable": d["editable"], "revisions": revs}
 	if owner, _ := d["owner_kind"].(string); owner != "" {
 		v[owner] = d["owner_id"]
 	}
 	return v, nil
-}
-
-// editable says a document is edited as text on screen: md, but not the manifest, scripts or custom blocks.
-func editable(kind, name string) bool {
-	return !slices.Contains([]string{docs.KindManifest, docs.KindScript, docs.KindCustom}, kind) && strings.HasSuffix(name, ".md")
 }
 
 // lanes are the values a board offers: the options of its move button when it names them, else the enum of its field.

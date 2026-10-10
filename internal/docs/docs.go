@@ -28,6 +28,11 @@ const (
 
 var Kinds = []string{KindPrompt, KindManifest, KindScript, KindSkill, KindCustom, KindArtifact, KindMemory, KindDoc}
 
+// Editable says a document is edited as text on a screen: md, but not the manifest, scripts or custom blocks.
+func Editable(kind, name string) bool {
+	return !slices.Contains([]string{KindManifest, KindScript, KindCustom}, kind) && strings.HasSuffix(name, ".md")
+}
+
 const (
 	ManifestName = "manifest.json"
 	PromptName   = "prompt.md"

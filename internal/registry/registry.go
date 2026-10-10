@@ -63,8 +63,6 @@ type Command struct {
 	// the events after which its result may differ.
 	Reads  bool     `json:"-"`
 	Topics []string `json:"-"`
-	// changes are the event topics a call that went through changes; the registry publishes them.
-	changes []string
 	// Loose marks a tool whose input schema comes from elsewhere and is not held to App Intents types.
 	Loose bool `json:"-"`
 	// Fingerprint is what the tool would do apart from its input, so an old yes does not make a changed tool.
@@ -93,11 +91,7 @@ type Registry struct {
 	projects Projects
 	extra    func(ctx context.Context) []*Command
 	issued   bool
-	publish  func(topic string)
 }
-
-// SetPublish is how the registry tells clients that a call changed what they show.
-func (r *Registry) SetPublish(f func(topic string)) { r.publish = f }
 
 // SetExtra adds builtin tools whose descriptions come from a running server rather than from Go.
 func (r *Registry) SetExtra(f func(ctx context.Context) []*Command) { r.extra = f }
@@ -231,13 +225,7 @@ func (r *Registry) Invoke(ctx context.Context, a Actor, name string, input json.
 	if err != nil {
 		return nil, err
 	}
-	out, err := c.Handler(ctx, a, input)
-	if err == nil && r.publish != nil {
-		for _, t := range c.changes {
-			r.publish(t)
-		}
-	}
-	return out, err
+	return c.Handler(ctx, a, input)
 }
 
 // Check does everything Invoke does except running the command.

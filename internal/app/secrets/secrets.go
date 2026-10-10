@@ -14,6 +14,7 @@ import (
 	"sync"
 
 	"deck2/internal/docs"
+	"deck2/internal/events"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 )
@@ -21,6 +22,7 @@ import (
 // Service keeps the secrets; Dir is the folder of the secrets of a workspace.
 type Service struct {
 	St  *store.Store
+	Bus *events.Bus
 	Dir func(workspace int64) string
 	mu  sync.Mutex
 }
@@ -73,6 +75,7 @@ func (s *Service) secretDelete(ctx context.Context, act registry.Actor, in secre
 	if err != nil {
 		return nil, err
 	}
+	s.Bus.Emit(events.Event{Workspace: act.Workspace, Topic: "secrets"})
 	return map[string]any{"deleted": in.Name}, nil
 }
 
@@ -114,6 +117,9 @@ func (s *Service) Write(workspace int64, name, value string) error {
 	}
 	if err == nil {
 		err = os.Rename(f.Name(), filepath.Join(dir, name))
+	}
+	if err == nil {
+		s.Bus.Emit(events.Event{Workspace: workspace, Topic: "secrets"})
 	}
 	return err
 }
@@ -173,10 +179,10 @@ func (s *Service) Commands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("secret_set", "Set secret",
 			"Stores a secret for tool headers as a file only deck reads; agents and scripts never see it.",
-			registry.OwnerOnly, s.secretSet).Changes("secrets"),
+			registry.OwnerOnly, s.secretSet),
 		registry.Def("secret_delete", "Delete secret",
 			"Deletes a stored secret; the tools and providers that name it fail until it is set again.",
-			registry.OwnerOnly, s.secretDelete).Changes("secrets"),
+			registry.OwnerOnly, s.secretDelete),
 		registry.Read("secrets_list", "Secrets",
 			"Lists the names of stored secrets, never their values.",
 			registry.OwnerSide, s.secretsList).On("secrets"),

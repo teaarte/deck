@@ -62,11 +62,11 @@ func (s scope) column() string {
 
 var tables = map[string]table{
 	"project":           {"projects", ofSelf, nil},
-	"project_folder":    {"projects", ofProject, nil},
-	"assignment":        {"projects", ofProject, nil},
+	"project_folder":    {"folders", ofProject, nil},
+	"assignment":        {"assignments", ofProject, nil},
 	"connection":        {"models", ofWorkspace, nil},
 	"model":             {"models", ofWorkspace, nil},
-	"mcp_tool":          {"projects", ofProject, nil},
+	"mcp_tool":          {"tools", ofProject, nil},
 	"trigger":           {"triggers", ofProject, nil},
 	"process":           {"processes", ofProject, []string{"output_ms"}},
 	"process_remark":    {"processes", ofProcess, nil},
@@ -142,11 +142,8 @@ func (c *changes) preUpdate(d sqlite.SQLitePreUpdateData) {
 	c.mu.Unlock()
 }
 
-// quiet reports whether an update changed only columns no reader shows.
+// quiet reports whether an update changed only columns no reader shows, or nothing.
 func quiet(cols, skip []string, old, new []any) bool {
-	if len(skip) == 0 {
-		return false
-	}
 	for i, col := range cols {
 		if !slices.Contains(skip, col) && !equal(old[i], new[i]) {
 			return false

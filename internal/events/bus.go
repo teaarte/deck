@@ -55,9 +55,6 @@ func (s *Sub) add(e Event) {
 	}
 }
 
-// Publish says a topic changed for everyone.
-func (b *Bus) Publish(topic string) { b.Emit(Event{Topic: topic}) }
-
 func (b *Bus) Emit(e Event) {
 	b.mu.Lock()
 	for s := range b.subs {

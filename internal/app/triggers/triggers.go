@@ -201,7 +201,7 @@ func (s *Service) Commands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("triggers_list", "Schedule",
 			"Lists triggers with their next run, pause, the state of their last run and the model an agent command starts on.",
-			registry.Everyone, s.triggersList).On("triggers", "processes", "models", "projects", "documents", "health"),
+			registry.Everyone, s.triggersList).On("triggers", "processes", "models", "assignments", "projects", "documents", "health"),
 		registry.Def("trigger_pause", "Pause trigger",
 			"Pauses or resumes one trigger; a resumed schedule does not catch up its pause.",
 			registry.OwnerSide, s.triggerPause),
@@ -210,6 +210,6 @@ func (s *Service) Commands() []*registry.Command {
 			registry.OwnerSide, s.triggerRun),
 		registry.Def("project_pause", "Pause project",
 			"Pauses or resumes every trigger of a project, including triggers added later.",
-			registry.OwnerSide, s.projectPause).Changes("triggers"),
+			registry.OwnerSide, s.projectPause),
 	}
 }

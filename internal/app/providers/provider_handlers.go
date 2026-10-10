@@ -38,7 +38,7 @@ func (s *Service) Commands() []*registry.Command {
 			registry.OwnerOnly, s.providerCheck),
 		registry.Read("models_list", "Models",
 			"Lists the connections models are reached through, the models with their kind and price, and which models do which work.",
-			registry.OwnerSide, s.modelsList).On("models", "projects", "health"),
+			registry.OwnerSide, s.modelsList).On("models", "assignments", "projects", "health"),
 		registry.Def("assignment_set", "Assign models",
 			"Sets the models that do a kind of work in the workspace, a project or a command: the first, then the fallbacks a new turn or call takes when it is down.",
 			registry.OwnerOnly, s.assignmentSet),

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "catalogId": "https://deck2.local/catalog/v1",
   "final_states": ["done", "error", "interrupted", "stopped"],
-  "topics": ["collection", "asks", "processes", "feed", "health", "log", "triggers", "secrets", "tokens", "settings", "documents", "files", "snapshots", "chat", "calls", "usage", "projects", "models"],
+  "topics": ["collection", "asks", "processes", "feed", "health", "log", "triggers", "secrets", "tokens", "settings", "documents", "files", "snapshots", "chat", "calls", "usage", "projects", "models", "folders", "assignments", "tools"],
   "description": "Blocks of deck screens as A2UI components. A block's data is at the path of its data property: {state, error?, filters?, rows | items | value | lines}. block is the form a manifest stores the block in; its refs are the $defs of the manifest schema.",
   "components": {
     "screen": {

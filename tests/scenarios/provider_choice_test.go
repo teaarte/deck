@@ -174,8 +174,8 @@ func TestTheModelColumnFollowsAssignmentSet(t *testing.T) {
 	defer cancel()
 	phone := e.sse(ctx)
 	e.useModels("plain.work", "api")
-	waitTopic(t, phone, "projects")
-	drawn, _ := json.Marshal(e.screenMessages("plain", "settings", map[string]any{"topic": "projects", "changed": "plain"}))
+	waitTopic(t, phone, "assignments")
+	drawn, _ := json.Marshal(e.screenMessages("plain", "settings", map[string]any{"topic": "assignments", "changed": "plain"}))
 	if !strings.Contains(string(drawn), `"cells":["Work","plain.work","agent","api"]`) {
 		t.Fatalf("the commands of the project are read again with the provider picked: %s", drawn)
 	}

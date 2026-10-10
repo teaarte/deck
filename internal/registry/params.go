@@ -91,12 +91,6 @@ func (c *Command) On(topics ...string) *Command {
 	return c
 }
 
-// Changes names the event topics a call of the command changes, published once it went through.
-func (c *Command) Changes(topics ...string) *Command {
-	c.changes = append(c.changes, topics...)
-	return c
-}
-
 // As gives a declared command another class.
 func (c *Command) As(class string) *Command {
 	c.Class = class

@@ -120,7 +120,7 @@ func (s *Service) write(ctx context.Context, kind string) (string, []string, err
 		_ = os.Remove(old[0])
 		old = old[1:]
 	}
-	s.Bus.Publish("snapshots")
+	s.Bus.Emit(events.Event{Topic: "snapshots"})
 	return path, left, nil
 }
 

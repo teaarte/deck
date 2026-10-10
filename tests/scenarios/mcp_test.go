@@ -442,14 +442,14 @@ func TestMCPSessionNeedsItsOwnToken(t *testing.T) {
 }
 
 // TestTheToolsAServerListsReachTheCommandsOfItsProject: the tools an MCP server lists are commands of its
-// project, so the list of commands, which follows projects, reads them again.
+// project, so the list of commands, which follows tools, reads them again.
 func TestTheToolsAServerListsReachTheCommandsOfItsProject(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, stepAgent(map[string]toolCall{}, nil))
 	e.createProject("srv", mcpManifest(""))
 	ev := e.live(t.Context())
 	e.waitState(e.start("srv", "work", map[string]any{}), "done")
-	waitEvent(t, ev, events.Event{Topic: "projects", Project: "srv"})
+	waitEvent(t, ev, events.Event{Topic: "tools", Project: "srv"})
 }
 
 // TestAnMCPServerReachesOnlyTheDomainsOfItsProject: a server of a module goes out only through deck's proxy, to

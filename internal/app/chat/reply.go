@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 
 	"deck2/internal/docs"
+	"deck2/internal/events"
 	"deck2/internal/manifest"
 	"deck2/internal/process"
 	"deck2/internal/registry"
@@ -78,7 +79,7 @@ func (ch *Service) unstart(topic int64, err error, live bool) {
 	now := ch.unstarted[topic]
 	ch.mu.Unlock()
 	if was != now {
-		ch.Bus.Publish("chat")
+		ch.Bus.Emit(events.Event{Topic: "chat"})
 	}
 }
 

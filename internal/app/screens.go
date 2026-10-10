@@ -48,7 +48,7 @@ func (a *App) screensCommands() []*registry.Command {
 			registry.OwnerSide, a.screenGet),
 		registry.Read("commands_list", "Commands",
 			"Lists the commands the caller may call, deck's and those of projects, with their file fields and what runs them.",
-			registry.OwnerSide, a.commandsList).On("projects"),
+			registry.OwnerSide, a.commandsList).On("projects", "tools", "assignments"),
 		registry.Read("command_describe", "Describe command",
 			"Gives the parameters of any command of the workspace, also of one only the owner calls, such as the forms of Settings: its input and result schemas, class and callers.",
 			registry.OwnerSide, a.commandDescribe).On(registry.Static),

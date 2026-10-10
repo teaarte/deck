@@ -107,7 +107,7 @@ func New(cfg Config, st *store.Store, asks *ask.Broker, bus *events.Bus, reg *re
 	g.handler = provider.Stateful(mcp.NewStreamableHTTPHandler(g.serverFor, &mcp.StreamableHTTPOptions{SessionTimeout: time.Hour}))
 	if bus != nil {
 		bus.Watch(func(topic string) {
-			if topic == "projects" {
+			if topic == "projects" || topic == "tools" {
 				go g.renew(context.Background())
 			}
 		})

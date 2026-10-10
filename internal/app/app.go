@@ -120,7 +120,6 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	}
 	a.Asks = ask.NewBroker(st, cfg.Now)
 	a.Registry = registry.New(a.Saver.ProjectCommands)
-	a.Registry.SetPublish(a.Bus.Publish)
 	a.Gateway = gateway.New(gateway.Config{Now: cfg.Now, QuestionWait: cfg.QuestionWait, ConfirmWait: cfg.ConfirmWait, ConfirmTTL: a.Settings.ConfirmTTL,
 		Models: a.Providers.Route}, st, a.Asks, a.Bus, a.Registry)
 	a.Gateway.SetAutomation(a.Tokens.Automation)
@@ -144,7 +143,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	a.Runner.Hooks = []process.Hook{a.Chats.NewHook(), failures.Hook{S: a.Failures}, triggers.After{S: a.Triggers}, asks.Unheard{S: a.Answers}}
 	a.Scheduler = trigger.New(st, a.Triggers, cfg.Now)
 
-	*a.Secrets = secrets.Service{St: st, Dir: h.Secrets}
+	*a.Secrets = secrets.Service{St: st, Bus: a.Bus, Dir: h.Secrets}
 	*a.Folders = folders.Service{St: st, Home: h}
 	*a.Files = appfiles.Service{St: st, Home: h, Now: cfg.Now}
 	*a.Journal = journal.Service{St: st, Now: cfg.Now, Backups: h.Backups()}

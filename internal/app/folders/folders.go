@@ -200,7 +200,7 @@ func (s *Service) Commands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("folders_list", "Folders",
 			"Lists the folders on disk a project's agent commands work in.",
-			registry.OwnerOnly, s.foldersList).On("projects"),
+			registry.OwnerOnly, s.foldersList).On("folders"),
 		registry.Def("folder_add", "Add folder",
 			"Gives a project a folder on disk: its agent commands with folder work in it, its scripts and MCP servers read it; only the owner, since it lets agents write there.",
 			registry.OwnerOnly, s.folderAdd),

@@ -344,21 +344,14 @@ func (q *Queries) PutRecord(ctx context.Context, arg PutRecordParams) error {
 }
 
 const recordsMark = `-- name: RecordsMark :one
-SELECT count(*) AS n, CAST(coalesce(max(id), 0) AS INTEGER) AS newest, CAST(coalesce(max(updated_at), '') AS TEXT) AS changed
-FROM record WHERE project_id = ?
+SELECT CAST(coalesce((SELECT n FROM record_mark WHERE project_id = ?), 0) AS INTEGER)
 `
 
-type RecordsMarkRow struct {
-	N       int64
-	Newest  int64
-	Changed string
-}
-
-func (q *Queries) RecordsMark(ctx context.Context, projectID int64) (RecordsMarkRow, error) {
+func (q *Queries) RecordsMark(ctx context.Context, projectID int64) (int64, error) {
 	row := q.db.QueryRowContext(ctx, recordsMark, projectID)
-	var i RecordsMarkRow
-	err := row.Scan(&i.N, &i.Newest, &i.Changed)
-	return i, err
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
 }
 
 const updateRecordData = `-- name: UpdateRecordData :execrows

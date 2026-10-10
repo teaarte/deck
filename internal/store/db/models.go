@@ -302,6 +302,11 @@ type Record struct {
 	UpdatedAt  string
 }
 
+type RecordMark struct {
+	ProjectID int64
+	N         int64
+}
+
 type RecordSnapshot struct {
 	ID           int64
 	ProjectID    int64

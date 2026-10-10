@@ -87,7 +87,7 @@ var tables = map[string]table{
 }
 
 // silent are the tables no screen shows, so their writes publish nothing; every other table is in tables.
-var silent = []string{"workspace", "goose_db_version", "mark", "folder_lock", "chat_session", "record_snapshot", "outbox"}
+var silent = []string{"workspace", "goose_db_version", "mark", "folder_lock", "chat_session", "record_snapshot", "outbox", "record_mark"}
 
 // rowWrite is a row a transaction changed: the table and the scope ids of the old and the new row.
 type rowWrite struct {

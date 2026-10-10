@@ -8,6 +8,8 @@ import (
 	"math"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -548,5 +550,51 @@ func TestTheHealthOfAModelFromBeforeMovesToItsWorkspace(t *testing.T) {
 	_ = e.App.Store.DB.QueryRow(`SELECT count(*) FROM health WHERE subject = 'provider:codex' AND workspace_id IS NULL`).Scan(&codex)
 	if push != 1 || codex != 1 {
 		t.Fatalf("the failing pushes move to the workspace of the devices, %d, and a built-in provider keeps its row, %d", push, codex)
+	}
+}
+
+// TestAModelCommandNoModelTakesIsWarnedOfAndFailsAtOnce: a model command whose role has no model is a warning of the
+// import, of a save and of the manifest, a yellow row of the project's health, and a trial of it fails at once
+// with where the owner assigns one, without waiting for an answer nobody asked.
+func TestAModelCommandNoModelTakesIsWarnedOfAndFailsAtOnce(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, nil)
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "manifest.json"), []byte(modelManifest), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var imported struct{ Warnings []string }
+	e.must("deck.project_import", map[string]any{"folder": dir, "name": "shorts"}, &imported)
+	if len(imported.Warnings) != 4 || !strings.Contains(imported.Warnings[0], "command factcheck: it calls @text, but no model is assigned to text") ||
+		!strings.Contains(imported.Warnings[0], "Settings → Models") {
+		t.Fatalf("the import names each model command no model takes: %v", imported.Warnings)
+	}
+	if h := e.waitHealth("command:factcheck", "warning"); !strings.Contains(h.Error, "Assign models") {
+		t.Fatalf("the draft's health shows it in yellow: %+v", h)
+	}
+	if h := e.waitHealth("project:shorts", ""); h.Status != "warning" {
+		t.Fatalf("the project is yellow: %+v", h)
+	}
+	var m struct {
+		Warnings []string
+		Manifest string
+	}
+	e.must("deck.manifest_get", map[string]any{"project": "shorts"}, &m)
+	if len(m.Warnings) != 4 {
+		t.Fatalf("the manifest is read with the warnings: %v", m.Warnings)
+	}
+	var tried struct{ Process int64 }
+	e.must("deck.command_try", map[string]any{"command": "shorts.factcheck", "input": map[string]any{"claim": "x"}}, &tried)
+	got := e.waitState(tried.Process, "done", "error", "waiting_answer")
+	if got.State != "error" || !strings.Contains(got.Error, "no model is assigned to text") || !strings.Contains(got.Error, "Settings → Models") {
+		t.Fatalf("the trial fails at once with where to assign a model: %+v", got)
+	}
+	e.must("deck.connection_set", map[string]any{"name": "groq", "api": "openai", "url": "http://127.0.0.1:1/v1", "key": "gsk-1"}, nil)
+	e.must("deck.model_set", map[string]any{"connection": "groq", "model": "fact-model", "kind": "text"}, nil)
+	e.must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"groq/fact-model"}}, nil)
+	var saved struct{ Warnings []string }
+	e.must("deck.manifest_save", map[string]any{"project": "shorts", "manifest": m.Manifest}, &saved)
+	if len(saved.Warnings) != 3 || slices.ContainsFunc(saved.Warnings, func(w string) bool { return strings.Contains(w, "factcheck") }) {
+		t.Fatalf("a save warns of the commands still without a model: %v", saved.Warnings)
 	}
 }

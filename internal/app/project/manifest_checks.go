@@ -49,6 +49,16 @@ func checkReads(ctx context.Context, q *db.Queries, workspace int64, name string
 	return nil
 }
 
+// unassigned are the warnings of the model commands of a manifest that no model of the settings takes.
+func (sv *Saver) unassigned(ctx context.Context, p db.Project, m *manifest.Manifest) []string {
+	var out []string
+	for name, text := range sv.Unassigned(ctx, p.WorkspaceID, p.ID, m) {
+		out = append(out, "command "+name+": "+text)
+	}
+	slices.Sort(out)
+	return out
+}
+
 // heldKeys are the problems of a manifest whose tools or MCP servers get the key of a connection: a module reaches
 // models only through deck, by a model of its settings.
 func heldKeys(ctx context.Context, q *db.Queries, workspace int64, m *manifest.Manifest) ([]string, error) {

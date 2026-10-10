@@ -128,7 +128,11 @@ func (pj *Service) projectImport(ctx context.Context, act registry.Actor, in pro
 	if err != nil {
 		return nil, err
 	}
-	return map[string]any{"id": p.ID, "name": p.Name, "status": p.Status, "files": len(files), "rights": rights(pm.m)}, nil
+	out := map[string]any{"id": p.ID, "name": p.Name, "status": p.Status, "files": len(files), "rights": rights(pm.m)}
+	if w := pj.Save.unassigned(ctx, p, pm.m); len(w) > 0 {
+		out["warnings"] = w
+	}
+	return out, nil
 }
 
 // folderFile is a text file read from a folder on disk, by its path relative to the folder.

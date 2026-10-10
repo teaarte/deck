@@ -132,7 +132,10 @@ func (g *Gateway) gate(ctx context.Context, act registry.Actor, c *registry.Comm
 		return false, err
 	}
 	if c.Fingerprint != nil && (act.Trial || p.Status == store.ProjectDraft) {
-		return c.Free != nil && c.Free(ctx, act, input), nil
+		if c.Free == nil {
+			return false, nil
+		}
+		return c.Free(ctx, act, input)
 	}
 	if p.Status == store.ProjectDraft {
 		return false, registry.Refuse("deck: %s is a draft: %s is %s, so it was declined until the owner enables the project", p.Name, c.Name, c.Class)

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 
@@ -125,4 +126,26 @@ func (s *Service) assignmentSet(ctx context.Context, act registry.Actor, in assi
 		return nil, err
 	}
 	return map[string]any{"role": in.Role, "project": in.Project, "command": in.Command, "models": in.Models}, nil
+}
+
+// Unassigned are the model commands of a manifest that no model takes, by name, each with what the owner does:
+// a command that calls an @role, its kind's role when it names no model, and nothing is assigned to the role.
+func (s *Service) Unassigned(ctx context.Context, workspace, project int64, m *manifest.Manifest) map[string]string {
+	out := map[string]string{}
+	for _, c := range m.Commands {
+		if c.Executor.Type != "model" {
+			continue
+		}
+		role, ok := strings.CutPrefix(c.Executor.Model, "@")
+		if c.Executor.Model == "" {
+			role, ok = c.Executor.Kind, true
+		}
+		if !ok || role == "" {
+			continue
+		}
+		if names, err := Assigned(ctx, s.St.Q, workspace, project, c.Name, role); err == nil && len(names) == 0 {
+			out[c.Name] = fmt.Sprintf("it calls @%s, but no model is assigned to %s; assign one in Settings → Models → Assign models", role, role)
+		}
+	}
+	return out
 }

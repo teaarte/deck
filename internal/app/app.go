@@ -165,12 +165,13 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 		Home: h, Invoke: a.Registry.Invoke, DeckScreen: deckScreen}
 	*a.Failures = failures.Service{St: st, Now: cfg.Now, Runner: a.Runner}
 	*a.Processes = processes.Service{St: st, Runner: a.Runner, Named: a.Providers.Named, Now: cfg.Now}
-	*a.Health = apphealth.Service{St: st, Providers: a.Providers.All, Secret: a.Secrets.Has}
+	*a.Health = apphealth.Service{St: st, Providers: a.Providers.All, Secret: a.Secrets.Has, Unassigned: a.Providers.Unassigned}
 	*a.Records = records.Service{St: st, Now: cfg.Now, DrainFiles: a.Files.Drain}
 	*a.Tokens = tokens.Service{St: st, MCPBase: cfg.MCPBase, Journal: a.Gateway.Journal}
 	*a.Saver = project.Saver{St: st, Bus: a.Bus, Now: cfg.Now, Home: h, Registry: a.Registry,
 		Gateway: a.Gateway, Runner: a.Runner, Scheduler: a.Scheduler, Broker: a.Asks, Scripts: a.Scripts, Tools: a.Tools,
-		MCP: a.MCP, PrepareLater: a.Documents.PrepareLater, Changed: a.Devices.Changed, CheckScreens: a.checkScreens}
+		MCP: a.MCP, PrepareLater: a.Documents.PrepareLater, Changed: a.Devices.Changed, CheckScreens: a.checkScreens,
+		Unassigned: a.Providers.Unassigned}
 	*a.Projects = project.Service{St: st, Home: h, Registry: a.Registry, Gateway: a.Gateway,
 		Runner: a.Runner, Scheduler: a.Scheduler, Host: a.Host, Save: a.Saver, Folders: a.Folders.List,
 		Snapshot: a.Snapshots.BeforeDelete, DrainFiles: a.Files.Drain}

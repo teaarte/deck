@@ -50,7 +50,7 @@ func (sv *Saver) manifestGet(ctx context.Context, act registry.Actor, in manifes
 		if err != nil {
 			return manifestView{}, err
 		}
-		v.Warnings = append(v.Warnings, held...)
+		v.Warnings = append(append(v.Warnings, held...), sv.unassigned(ctx, p, m)...)
 	}
 	return v, nil
 }
@@ -228,6 +228,8 @@ type Saved struct {
 	Screens []string `json:"screens,omitempty"`
 	// Unused are the keys of its i18n that are no text of the manifest.
 	Unused []string `json:"unused_i18n,omitempty"`
+	// Warnings are what keeps the saved manifest from working, such as a model command no model takes.
+	Warnings []string `json:"warnings,omitempty"`
 }
 
 // SaveManifest checks a manifest and saves it with its triggers and migrated records in one transaction; a
@@ -322,6 +324,7 @@ func (sv *Saver) SaveManifest(ctx context.Context, act registry.Actor, p db.Proj
 	sv.PrepareLater(p.ID)
 	saved.Screens = sv.CheckScreens(ctx, act, p, pm.m)
 	saved.Unused = pm.m.UnusedWords()
+	saved.Warnings = sv.unassigned(ctx, p, pm.m)
 	return saved, nil
 }
 

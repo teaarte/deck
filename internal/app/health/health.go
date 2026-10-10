@@ -8,6 +8,7 @@ import (
 
 	"deck2/internal/docs"
 	"deck2/internal/health"
+	"deck2/internal/manifest"
 	"deck2/internal/process"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
@@ -75,6 +76,15 @@ func (s *Service) list(ctx context.Context, act registry.Actor, in healthListIn)
 			worst[p.Name].Status, worst[p.Name].Error = health.Error, "manifest: "+err.Error()
 			continue
 		}
+		for name, text := range s.Unassigned(ctx, p.WorkspaceID, p.ID, m) {
+			row := healthRow{Subject: "command:" + name, Status: health.Warning, Error: text}
+			if health.Worse(row.Status, worst[p.Name].Status) {
+				worst[p.Name].Status, worst[p.Name].Error = row.Status, row.Subject+": "+row.Error
+			}
+			if shown(p.Name) {
+				out = append(out, row)
+			}
+		}
 		if p.Status != store.ProjectEnabled {
 			continue
 		}
@@ -84,7 +94,7 @@ func (s *Service) list(ctx context.Context, act registry.Actor, in healthListIn)
 			}
 			row := healthRow{Subject: "secret:" + name, Status: health.Error,
 				Error: "not set, so the tools that send it fail; set it in Settings → Connections → Other secrets"}
-			if worst[p.Name].Status == health.OK {
+			if health.Worse(row.Status, worst[p.Name].Status) {
 				worst[p.Name].Status, worst[p.Name].Error = row.Status, row.Subject+": "+row.Error
 			}
 			if shown(p.Name) {
@@ -137,6 +147,8 @@ type Service struct {
 	Providers func(ctx context.Context, workspace int64) ([]provider.Provider, error)
 	// Secret reports whether a secret of a workspace is set.
 	Secret func(workspace int64, name string) bool
+	// Unassigned are the model commands of a manifest no model takes, with what the owner does.
+	Unassigned func(ctx context.Context, workspace, project int64, m *manifest.Manifest) map[string]string
 }
 
 // Commands are the commands of health.

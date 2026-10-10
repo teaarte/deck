@@ -55,7 +55,7 @@ func (s *Service) Route(ctx context.Context, act registry.Actor, ask gateway.Mod
 			if len(names) > 0 {
 				return nil, registry.Invalid("deck: no model of %s is on connection %s; call %s through the path @ instead", asked, connection, asked)
 			}
-			return nil, registry.Invalid("deck: no model is assigned to %s; the owner assigns one with deck.assignment_set", role)
+			return nil, registry.Invalid("deck: no model is assigned to %s; the owner assigns one in Settings → Models → Assign models, or in the Models tab of the project's settings", role)
 		}
 	} else {
 		c, err := s.St.Q.GetConnection(ctx, db.GetConnectionParams{WorkspaceID: act.Workspace, Name: connection})
@@ -187,21 +187,21 @@ func (s *Service) manifestNames(ctx context.Context, act registry.Actor, input j
 }
 
 // free says a call of a model costs nothing: every model it may reach is free or on the owner's own hardware, and
-// the manifest names it.
-func (s *Service) free(ctx context.Context, act registry.Actor, input json.RawMessage) bool {
+// the manifest names it. A call no model takes is an error, since no answer of the owner would route it.
+func (s *Service) free(ctx context.Context, act registry.Actor, input json.RawMessage) (bool, error) {
 	if act.ProjectID == 0 || s.manifestNames(ctx, act, input) != nil {
-		return false
+		return false, nil
 	}
 	hops, err := s.route(ctx, act, input)
 	if err != nil {
-		return false
+		return false, err
 	}
 	for _, h := range hops {
 		if !h.Local && !h.Free {
-			return false
+			return false, nil
 		}
 	}
-	return len(hops) > 0
+	return len(hops) > 0, nil
 }
 
 // requested is what a call of a model asks: a request with its body, or a call of a kind.

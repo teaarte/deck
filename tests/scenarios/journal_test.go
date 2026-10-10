@@ -113,9 +113,9 @@ func TestJournalShowsTheCallsOfTheGatewayTheSpendFilesAndSnapshots(t *testing.T)
 		t.Fatalf("spend by day has every day of the window, today last: %+v", days)
 	}
 	kept := e.screenData("", "files", nil)
-	files := blockData[[]screenRow](t, kept["b0-0-0"]["rows"])
-	if len(files) != 1 || files[0].Cells[0] != "scan.txt" || files[0].Cells[1] != "web" || !strings.HasPrefix(files[0].Cells[4].(string), "process #") {
-		t.Fatalf("files lists the files of the workspace with what they belong to: %+v", files)
+	files := blockData[[]map[string]any](t, kept["b0-0-0"]["files"])
+	if len(files) != 1 || files[0]["name"] != "scan.txt" || files[0]["title"] != "scan.txt" {
+		t.Fatalf("files lists the files of the workspace: %+v", files)
 	}
 	snaps := blockData[[]screenRow](t, kept["b0-2-0"]["rows"])
 	if len(snaps) != 2 || !strings.HasPrefix(snaps[0].Cells[0].(string), "deck-2026") || snaps[1].Cells[1] != "2020-01-01T00:00:00Z" {

@@ -5,17 +5,11 @@
   "blocks": [
     {"type": "tabs", "tabs": [
       {"title": "Files", "icon": "files", "blocks": [
-        {"type": "table", "title": "Files", "source": {"from": "deck.files_list"}, "filter": ["project"],
-          "columns": [
-            {"label": "Name", "bind": "name"},
-            {"label": "Project", "bind": "project", "format": "tag"},
-            {"label": "Type", "bind": "type"},
-            {"label": "Size", "bind": "size"},
-            {"label": "Belongs to", "bind": "owner_kind + ' #' + string(owner_id)"},
-            {"label": "Added", "bind": "created_at"}
-          ],
+        {"type": "media", "title": "Files", "source": {"from": "deck.files_list"}, "filter": ["project"],
+          "item": {"file": "id", "title": "name"},
           "actions": [
-            {"verb": "download", "file": "=id"}
+            {"verb": "delete", "command": "deck.file_delete", "params": {"file": "=id"},
+             "undo": {"command": "deck.file_restore", "params": {"file": "=id", "owner_kind": "=owner_kind", "owner_id": "=owner_id"}}}
           ]}
       ]},
       {"title": "Documents", "icon": "file-text", "blocks": [

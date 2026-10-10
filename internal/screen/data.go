@@ -40,6 +40,12 @@ func (r *renderer) file(b manifest.Block, it map[string]any) map[string]any {
 			line["marks"] = marks(v)
 		}
 	}
+	if len(b.Actions) > 0 {
+		id, _ := it["_id"].(int64)
+		if acts, err := r.actions(b.Actions, id, it); err == nil {
+			line["actions"] = acts
+		}
+	}
 	if b.Mark != nil {
 		id, _ := it["_id"].(int64)
 		acts, err := r.actions([]manifest.Action{*b.Mark}, id, it)

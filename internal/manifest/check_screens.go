@@ -181,10 +181,6 @@ func (c *screenCheck) block(where string, b Block) {
 		}
 		fields = c.recordFields()
 	case "table", "list", "stat", "log", "chart", "media":
-		if b.Type == "media" && c.deck {
-			c.fail("%s: media shows the files of a project", where)
-			return
-		}
 		var ok bool
 		switch {
 		case b.Type == "media" && b.Source == nil && c.screen.Record != "":

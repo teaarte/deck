@@ -331,6 +331,9 @@ func (s *Service) cleanup(ctx context.Context, now time.Time) {
 		if err := q.PurgeOrphanFiles(ctx); err != nil {
 			return err
 		}
+		if err := q.PurgeTrash(ctx, now.Add(-24*time.Hour).Unix()); err != nil {
+			return err
+		}
 		if err := q.PurgeStaleUploads(ctx, store.Time(now.Add(-24*time.Hour))); err != nil {
 			return err
 		}

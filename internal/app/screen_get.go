@@ -140,6 +140,9 @@ func (a *App) sources(act registry.Actor) screenSources {
 
 // File is a file a media block of the project shows.
 func (s screenSources) File(ctx context.Context, p db.Project, ref any) (map[string]any, error) {
+	if p.ID == 0 {
+		p.WorkspaceID = s.act.Workspace
+	}
 	return s.a.Files.File(ctx, p, ref)
 }
 

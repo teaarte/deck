@@ -3,7 +3,7 @@ import { Button } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
 import { fetchFile, saveBlob } from '../../lib/api';
 import { notifyError } from '../../lib/notify';
-import type { Item } from './Media';
+import type { Item } from './kinds';
 
 // Download saves the file of an item through the browser.
 export function Download({ it }: { it: Item }) {

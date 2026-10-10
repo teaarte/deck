@@ -1,0 +1,45 @@
+.grid {
+  display: grid;
+  gap: 10px;
+}
+
+.tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 6px;
+  border-radius: var(--mantine-radius-md);
+
+  &:hover {
+    background: var(--mantine-color-default-hover);
+  }
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 6px;
+  border-radius: var(--mantine-radius-sm);
+
+  &:hover {
+    background: var(--mantine-color-default-hover);
+  }
+}
+
+.thumb {
+  object-fit: cover;
+  border-radius: var(--mantine-radius-sm);
+  border: 1px solid var(--mantine-color-default-border);
+  background: var(--mantine-color-default);
+}
+
+.icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: var(--mantine-radius-sm);
+  border: 1px solid var(--mantine-color-default-border);
+}

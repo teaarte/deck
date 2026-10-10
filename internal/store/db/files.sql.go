@@ -245,7 +245,7 @@ func (q *Queries) ListProjectFileIDs(ctx context.Context, projectID int64) ([]in
 
 const listWorkspaceFiles = `-- name: ListWorkspaceFiles :many
 SELECT id, project_id, owner_kind, owner_id, name, type, size, created_at FROM file WHERE project_id IN (SELECT id FROM project WHERE workspace_id = ?1)
-  AND (CAST(?2 AS INTEGER) = 0 OR project_id = CAST(?2 AS INTEGER))
+  AND (CAST(?2 AS INTEGER) = 0 OR project_id = CAST(?2 AS INTEGER)) AND owner_kind != 'trash'
 ORDER BY id DESC LIMIT ?3
 `
 
@@ -305,6 +305,16 @@ DELETE FROM file WHERE owner_kind IN ('upload', 'keeping') AND created_at < CAST
 
 func (q *Queries) PurgeStaleUploads(ctx context.Context, before string) error {
 	_, err := q.db.ExecContext(ctx, purgeStaleUploads, before)
+	return err
+}
+
+const purgeTrash = `-- name: PurgeTrash :exec
+DELETE FROM file WHERE owner_kind = 'trash' AND owner_id < ?1
+`
+
+// A deleted file waits in the trash with the second it went there as its owner.
+func (q *Queries) PurgeTrash(ctx context.Context, before int64) error {
+	_, err := q.db.ExecContext(ctx, purgeTrash, before)
 	return err
 }
 

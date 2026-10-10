@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Alert, Loader, Stack } from '@mantine/core';
-import type { Item } from './Media';
+import type { Item } from './kinds';
 import { useBlob } from './useBlob';
 
 // PAGES is how many pages of a PDF are drawn in place; the rest is in the download.

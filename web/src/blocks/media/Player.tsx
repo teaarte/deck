@@ -8,7 +8,7 @@ import { replaceParam, useRoute } from '../../app/router';
 import { ActionInput } from '../../ui/actions/ActionInput';
 import { useActionRun } from '../../ui/actions/useActionRun';
 import { Download } from './Download';
-import type { Item } from './Media';
+import type { Item } from './kinds';
 import s from './player.module.css';
 
 // FRAME is the step of the frame buttons: one frame at 30 frames a second.

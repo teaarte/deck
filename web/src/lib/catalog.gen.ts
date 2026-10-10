@@ -278,6 +278,7 @@ export interface Data {
     file?: {
       [k: string]: unknown;
     };
+    actions?: Action[];
     marks?: {
       at: number;
       text?: string;

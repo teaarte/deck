@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Alert, Group, Image, Loader, Modal, Stack, UnstyledButton } from '@mantine/core';
 import { Download } from './Download';
-import type { Item } from './Media';
+import type { Item } from './kinds';
 import { useBlob } from './useBlob';
 
 // Picture is a thumbnail that opens the picture in full; a wide one takes the width of its column.

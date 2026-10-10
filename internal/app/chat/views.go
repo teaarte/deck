@@ -50,14 +50,16 @@ type replyView struct {
 }
 
 type messageView struct {
-	ID        int64           `json:"id"`
-	Role      string          `json:"role"`
-	Text      string          `json:"text"`
-	Screen    json.RawMessage `json:"screen,omitempty"`
-	Process   int64           `json:"process,omitempty"`
-	Reply     *replyView      `json:"reply,omitempty"`
-	Files     []fileView      `json:"files,omitempty"`
-	CreatedAt string          `json:"created_at"`
+	ID      int64           `json:"id"`
+	Role    string          `json:"role"`
+	Text    string          `json:"text"`
+	Screen  json.RawMessage `json:"screen,omitempty"`
+	Process int64           `json:"process,omitempty"`
+	Reply   *replyView      `json:"reply,omitempty"`
+	Files   []fileView      `json:"files,omitempty"`
+	// Work is how the reply went, on the last message of the master of each reply.
+	Work      *workView `json:"work,omitempty"`
+	CreatedAt string    `json:"created_at"`
 }
 
 // fileView is a file the owner attached to a message.
@@ -74,12 +76,14 @@ type questionView struct {
 }
 
 type turnView struct {
-	Process  int64            `json:"process"`
-	State    string           `json:"state"`
-	Provider string           `json:"provider"`
-	Lines    []map[string]any `json:"lines"`
-	Stop     action           `json:"stop"`
-	Open     action           `json:"open"`
+	Process   int64            `json:"process"`
+	State     string           `json:"state"`
+	Provider  string           `json:"provider"`
+	StartedAt string           `json:"started_at,omitempty"`
+	Lines     []map[string]any `json:"lines"`
+	Processes []procView       `json:"processes"`
+	Stop      action           `json:"stop"`
+	Open      action           `json:"open"`
 }
 
 // chatView is what a chat block shows: the topics, and of the topic picked its messages, the questions of its
@@ -142,9 +146,15 @@ func (ch *Service) messages(ctx context.Context, topic int64, rows []db.ChatMess
 	ch.mu.Lock()
 	unstarted := ch.unstarted[topic]
 	ch.mu.Unlock()
+	last := lastOf(rows)
 	out := make([]messageView, 0, len(rows))
 	for _, r := range rows {
 		m := viewMessage(r)
+		if last[r.ProcessID] == r.ID && r.Role == roleMaster {
+			if p, err := ch.St.Q.GetProcess(ctx, r.ProcessID); err == nil {
+				m.Work = ch.work(ctx, p)
+			}
+		}
 		m.Files = files[r.ID]
 		if r.Role == roleOwner && r.ProcessID == 0 && unstarted != "" {
 			m.Reply = &replyView{State: process.StateError, Error: untrusted.Cut("the reply did not start: "+unstarted, 500)}
@@ -213,9 +223,12 @@ func (ch *Service) chat(ctx context.Context, act registry.Actor, in chatIn) (cha
 		return v, nil
 	}
 	open := t.Reply
-	v.Turn = &turnView{Process: open.Process, State: open.State, Provider: open.Provider,
+	v.Turn = &turnView{Process: open.Process, State: open.State, Provider: open.Provider, Processes: ch.children(ctx, open.Process),
 		Lines: ch.turnLines(open.Process), Stop: chatAction("stop", registry.Builtin+".process_stop", map[string]any{"process": open.Process}),
 		Open: openProcess(open.Process)}
+	if p, err := ch.St.Q.GetProcess(ctx, open.Process); err == nil {
+		v.Turn.StartedAt = p.StartedAt
+	}
 	asks, err := ch.St.Q.ListOpenAsksOfProcess(ctx, open.Process)
 	if err != nil {
 		return v, err

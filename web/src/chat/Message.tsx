@@ -1,17 +1,50 @@
 import { memo, useState } from 'react';
 import { ActionIcon, Badge, Button, CopyButton, Group, Stack, Text, Tooltip } from '@mantine/core';
-import { IconCheck, IconCopy, IconPaperclip, IconTrash } from '@tabler/icons-react';
+import { IconCheck, IconChevronDown, IconChevronRight, IconCopy, IconPaperclip, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { call } from '../lib/api';
 import catalogSchema from '../lib/catalogSchema';
+import { formatted } from '../lib/format';
 import { notifyError } from '../lib/notify';
 import type { ChatValue } from '../lib/catalog.gen';
 import { ActionButton } from '../ui/actions/ActionButton';
 import { DekiHead, useMascot } from '../ui/deki/Deki';
 import { Markdown } from '../ui/Markdown';
 import s from './chat.module.css';
+import { logLines, Processes } from './Turn';
 
 type ChatMessage = ChatValue['messages'][number];
+type WorkValue = NonNullable<ChatMessage['work']>;
+
+// cost is a price in dollars, exact to its cents or, below a cent, to two digits.
+const cost = (usd: number) => new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD',
+  ...(usd > 0 && usd < 0.01 ? { maximumSignificantDigits: 2 } : { maximumFractionDigits: 2 }) }).format(usd);
+
+// Work is how a reply went in one line, the model, cost, time and steps, which unfolds into what the master said on
+// the way and the processes it started.
+function Work({ w }: { w: WorkValue }) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const parts = [w.model || w.provider, w.cost_usd !== undefined ? cost(w.cost_usd) : '',
+    t('chat.worked', { time: formatted(w.seconds, { format: 'duration' }) }), w.steps > 0 ? t('chat.steps', { count: w.steps }) : ''].filter(Boolean);
+  const more = w.lines.length > 0 || w.processes.length > 0;
+  return (
+    <div className={s.work} data-work>
+      <button type="button" className={s.workHead} onClick={() => more && setOpen(!open)} aria-expanded={more ? open : undefined} data-work-head>
+        {more && (open ? <IconChevronDown size={12} /> : <IconChevronRight size={12} />)}
+        {parts.join(' · ')}
+      </button>
+      {open && (
+        <div className={s.workBody} data-work-body>
+          {logLines(w.lines, w.lines.length).map((l) => (
+            <div key={l.key} className={s.logLine} data-failed={l.failed || undefined}>{l.text}</div>
+          ))}
+          <Processes list={w.processes} />
+        </div>
+      )}
+    </div>
+  );
+}
 
 const failed = catalogSchema.final_states.filter((x) => x !== 'done');
 
@@ -104,6 +137,7 @@ export const Message = memo(function Message({ m }: { m: ChatMessage }) {
     <div className={s.masterLine} data-message="master" data-avatar={mascot || undefined} tabIndex={-1}>
       {mascot && <span className={s.avatar}><DekiHead size={28} /></span>}
       <Markdown text={m.text} />
+      {m.work && <Work w={m.work} />}
       <Group gap={4} className={s.lineTools}>
         <CopyButton value={m.text}>{({ copied, copy }) => (
           <Tooltip label={copied ? t('chat.copied') : t('chat.copy')}>

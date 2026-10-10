@@ -169,13 +169,17 @@ func (t *turn) line(raw []byte) {
 }
 
 // usage reports the token counts of the turn from its result. modelUsage and the cost there add up the whole
-// session, so the counts come from usage and the cost only from a turn that started the session.
+// session, so the counts come from usage, the cost from a turn that started the session, and the session's cost too.
 func (t *turn) usage(l line) {
 	if t.req.OnUsage == nil || l.Usage == nil {
 		return
 	}
 	u := provider.Usage{Model: t.model, Input: l.Usage.Input, Output: l.Usage.Output, CacheRead: l.Usage.CacheRead,
 		CacheCreation: l.Usage.CacheCreation, Duration: time.Duration(l.DurationMs) * time.Millisecond}
+	if l.TotalCostUSD != nil {
+		total := *l.TotalCostUSD
+		u.SessionCostUSD = &total
+	}
 	if !t.req.Resume && l.TotalCostUSD != nil {
 		cost := *l.TotalCostUSD - t.cost
 		t.cost = *l.TotalCostUSD

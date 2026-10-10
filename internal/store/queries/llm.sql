@@ -2,13 +2,23 @@
 -- A call of a process takes the project and command of the process.
 INSERT INTO llm_call (workspace_id, project_id, process_id, command, connection_id, gen_ai_provider_name, gen_ai_request_model,
     gen_ai_response_model, gen_ai_usage_input_tokens, gen_ai_usage_output_tokens, gen_ai_usage_cache_read_input_tokens,
-    gen_ai_usage_cache_creation_input_tokens, duration_ms, cost_usd, created_at)
+    gen_ai_usage_cache_creation_input_tokens, duration_ms, cost_usd, created_at, session_cost_usd)
 VALUES (sqlc.arg(workspace_id),
     COALESCE((SELECT p.project_id FROM process p WHERE p.id = sqlc.narg(process_id)), CAST(sqlc.narg(project_id) AS INTEGER)), sqlc.narg(process_id),
     COALESCE((SELECT p.command FROM process p WHERE p.id = sqlc.narg(process_id)), ''),
     sqlc.narg(connection_id),
     sqlc.arg(provider), sqlc.arg(request_model), sqlc.arg(response_model), sqlc.arg(input_tokens), sqlc.arg(output_tokens),
-    sqlc.arg(cache_read_tokens), sqlc.arg(cache_creation_tokens), sqlc.arg(duration_ms), sqlc.narg(cost_usd), sqlc.arg(created_at));
+    sqlc.arg(cache_read_tokens), sqlc.arg(cache_creation_tokens), sqlc.arg(duration_ms), sqlc.narg(cost_usd), sqlc.arg(created_at),
+    sqlc.narg(session_cost_usd));
+
+
+-- name: LastSessionCost :one
+SELECT CAST(l.session_cost_usd AS REAL) FROM llm_call l JOIN process p ON p.id = l.process_id
+WHERE p.session_id = sqlc.arg(session_id) AND l.session_cost_usd IS NOT NULL ORDER BY l.id DESC LIMIT 1;
+
+
+-- name: ListTurnCalls :many
+SELECT gen_ai_provider_name, gen_ai_request_model, gen_ai_response_model, cost_usd FROM llm_call WHERE process_id = ? ORDER BY id;
 
 
 -- name: SpendByCommand :many

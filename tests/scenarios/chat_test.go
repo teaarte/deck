@@ -626,3 +626,68 @@ func TestAReplyTheProviderBrokeOffListsWhatItLeftAndGoesAgainElsewhere(t *testin
 		t.Fatal("a reply answered again is no broken reply to retry")
 	}
 }
+
+// TestAReplyOfTheMasterSaysHowItWent: each reply names its model and exact cost, a resumed one what its session grew
+// by, how long it worked in how many steps, what it said on the way and the processes it started.
+func TestAReplyOfTheMasterSaysHowItWent(t *testing.T) {
+	t.Parallel()
+	var turns atomic.Int32
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		if c.command() == "job" {
+			return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
+		}
+		n := turns.Add(1)
+		total := 0.25 * float64(n)
+		c.Req.OnEvent(provider.Event{Kind: provider.EventMessage, Text: "Looking at the jobs first."})
+		c.Req.OnEvent(provider.Event{Kind: provider.EventTool, ID: "t1", Title: "jobs__job", Text: "{}"})
+		c.Tool(ctx, "jobs__job", map[string]any{})
+		c.Req.OnEvent(provider.Event{Kind: provider.EventToolUpdate, ID: "t1", Status: "completed"})
+		c.Req.OnEvent(provider.Event{Kind: provider.EventMessage, Text: "Started it."})
+		u := provider.Usage{Model: "opus-x", Input: 10, Output: 5, SessionCostUSD: &total}
+		if n == 1 {
+			u.CostUSD = &total
+		}
+		c.Req.OnUsage(u)
+		return provider.Result{Text: "Started it."}
+	})
+	e.createProject("jobs", testManifest([]string{agentCommand("job", "")}, nil))
+	topic := e.say(0, "start a job")
+	e.masterSaid(topic, 1)
+	e.say(topic, "and another")
+	e.masterSaid(topic, 2)
+	var view struct {
+		Messages []struct {
+			Role string
+			Work *struct {
+				Provider  string
+				Model     string
+				CostUSD   *float64 `json:"cost_usd"`
+				Steps     int64
+				Lines     []struct{ Kind, Text string }
+				Processes []struct{ Project, Command string }
+			}
+		}
+	}
+	e.waitFor("the work of both replies", func() bool {
+		e.must("deck.chat", map[string]any{"topic": fmt.Sprint(topic)}, &view)
+		n := 0
+		for _, m := range view.Messages {
+			if m.Work != nil {
+				n++
+			}
+		}
+		return n == 2
+	})
+	var works []string
+	for _, m := range view.Messages {
+		if w := m.Work; w != nil {
+			if w.CostUSD == nil || len(w.Lines) == 0 || w.Lines[0].Text != "Looking at the jobs first." || len(w.Processes) != 1 || w.Processes[0].Command != "job" {
+				t.Fatalf("a reply says what it said on the way and the processes it started: %+v", *w)
+			}
+			works = append(works, fmt.Sprintf("%s %s %.2f %d %d", w.Provider, w.Model, *w.CostUSD, w.Steps, len(w.Lines)))
+		}
+	}
+	if strings.Join(works, " | ") != "fake opus-x 0.25 1 3 | fake opus-x 0.25 1 3" {
+		t.Fatalf("each reply names its model and exact cost, the resumed one too, and leaves its answer out of the lines: %v", works)
+	}
+}

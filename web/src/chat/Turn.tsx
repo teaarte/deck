@@ -1,27 +1,48 @@
-import { ActionIcon, Text, Tooltip } from '@mantine/core';
+import { ActionIcon, Group, Text, Tooltip } from '@mantine/core';
 import { useLocalStorage } from '@mantine/hooks';
 import { IconArrowUpRight, IconChevronDown, IconChevronUp, IconPlayerStopFilled } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { ChatValue } from '../lib/catalog.gen';
+import { useTicking } from '../hooks/useTicking';
+import { formatted } from '../lib/format';
 import { ActionIconButton } from '../ui/actions/ActionIconButton';
 import a from '../ui/aura.module.css';
 import { Deki, useMascot } from '../ui/deki/Deki';
+import { Dots } from '../ui/Dots';
 import { Glyph } from '../ui/Glyph';
 import { useActionRun } from '../ui/actions/useActionRun';
 import s from './chat.module.css';
 
 type TurnValue = NonNullable<ChatValue['turn']>;
+type Proc = NonNullable<TurnValue['processes']>[number];
 
 const SHOWN = 6;
 
 // logLines are the calls and messages of the log as lines, a call marked by how it ended.
-function logLines(lines: TurnValue['lines']): { key: string; text: string; failed?: boolean }[] {
+export function logLines(lines: TurnValue['lines'], shown = SHOWN): { key: string; text: string; failed?: boolean }[] {
   const ended = new Map(lines.filter((l) => l.kind === 'tool_update' && l.id).map((l) => [l.id!, l.status]));
   return lines.filter((l) => l.kind !== 'tool_update').map((l, i) => {
     if (l.kind !== 'tool') return { key: String(i), text: (l.text ?? '').split('\n').find((x) => x.trim()) ?? '' };
     const status = l.id ? ended.get(l.id) : undefined;
     return { key: String(i), text: `${status === 'failed' ? '✗' : status ? '✓' : '›'} ${l.title ?? ''}`, failed: status === 'failed' };
-  }).filter((l) => l.text.trim()).slice(-SHOWN);
+  }).filter((l) => l.text.trim()).slice(-shown);
+}
+
+// Processes are the processes a reply started, each with its state and the button that opens its log.
+export function Processes({ list }: { list: Proc[] }) {
+  const { t } = useTranslation();
+  if (!list.length) return null;
+  return (
+    <div className={s.procs} data-turn-processes>
+      {list.map((p) => (
+        <Group key={p.id} gap={6} wrap="nowrap" className={s.proc} data-process={p.id}>
+          <Text size="xs" ff="monospace" truncate style={{ flex: 1 }}>{p.project}.{p.command}</Text>
+          <Text size="xs" c="dimmed">{t('chat.pstate.' + p.state, { defaultValue: p.state })}</Text>
+          <ActionIconButton act={p.open} variant="subtle" icon={<IconArrowUpRight size={13} />} />
+        </Group>
+      ))}
+    </div>
+  );
 }
 
 // Turn is the reply going on: what it does or waits for over a soft drift, the tail of its log that opens the whole,
@@ -33,6 +54,9 @@ export function Turn({ turn }: { turn: TurnValue }) {
   const running = turn.state === 'running';
   const mascot = useMascot();
   const lines = logLines(turn.lines);
+  const now = useTicking(running);
+  const started = turn.started_at ? Date.parse(turn.started_at) : NaN;
+  const steps = turn.lines.filter((l) => l.kind === 'tool').length;
   const buttons = (
     <>
       {turn.stop && <ActionIconButton act={turn.stop} color="red" variant="light" icon={<IconPlayerStopFilled size={13} />} />}
@@ -46,6 +70,12 @@ export function Turn({ turn }: { turn: TurnValue }) {
         <Text size="xs" fw={500} truncate style={{ flex: 1 }}>
           {running ? t(mascot ? 'chat.replying_deki' : 'chat.replying', { provider: turn.provider ?? '' }) : t('chat.waits.' + turn.state, { defaultValue: turn.state })}
         </Text>
+        {running && <Dots />}
+        {!Number.isNaN(started) && (
+          <Text size="xs" c="dimmed" data-turn-timer>
+            {formatted(Math.max(0, (now - started) / 1000), { format: 'duration' })}{steps > 0 ? ' · ' + t('chat.steps', { count: steps }) : ''}
+          </Text>
+        )}
         {folded && buttons}
         <Tooltip label={folded ? t('chat.unfold') : t('chat.fold')}>
           <ActionIcon size={28} radius="xl" variant="subtle" color="gray" onClick={() => setFolded(!folded)}
@@ -66,6 +96,7 @@ export function Turn({ turn }: { turn: TurnValue }) {
           <div className={s.logButtons}>{buttons}</div>
         </div>
       )}
+      {!folded && <Processes list={turn.processes ?? []} />}
     </div>
   );
 }

@@ -104,8 +104,10 @@ type Usage struct {
 	CacheRead     int64
 	CacheCreation int64
 	Duration      time.Duration
-	// CostUSD is what the provider reports, or nil; on a subscription it is notional.
-	CostUSD *float64
+	// CostUSD is what the provider reports, or nil; on a subscription it is notional. SessionCostUSD is what the whole
+	// session cost so far, for a provider that counts the session and not the turn.
+	CostUSD        *float64
+	SessionCostUSD *float64
 	// Chars are the characters of the input deck sent, Seconds the length of a recording the API reported.
 	Chars   int64
 	Seconds float64

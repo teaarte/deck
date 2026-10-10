@@ -173,6 +173,7 @@ type LlmCall struct {
 	CostUsd                            sql.NullFloat64
 	CreatedAt                          string
 	ConnectionID                       sql.NullInt64
+	SessionCostUsd                     sql.NullFloat64
 }
 
 type Mark struct {

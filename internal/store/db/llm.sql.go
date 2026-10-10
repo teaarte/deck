@@ -10,6 +10,18 @@ import (
 	"database/sql"
 )
 
+const lastSessionCost = `-- name: LastSessionCost :one
+SELECT CAST(l.session_cost_usd AS REAL) FROM llm_call l JOIN process p ON p.id = l.process_id
+WHERE p.session_id = ?1 AND l.session_cost_usd IS NOT NULL ORDER BY l.id DESC LIMIT 1
+`
+
+func (q *Queries) LastSessionCost(ctx context.Context, sessionID string) (float64, error) {
+	row := q.db.QueryRowContext(ctx, lastSessionCost, sessionID)
+	var l_session_cost_usd float64
+	err := row.Scan(&l_session_cost_usd)
+	return l_session_cost_usd, err
+}
+
 const listProcessModelCalls = `-- name: ListProcessModelCalls :many
 SELECT gen_ai_provider_name, cost_usd FROM llm_call WHERE process_id = ? ORDER BY id
 `
@@ -42,16 +54,56 @@ func (q *Queries) ListProcessModelCalls(ctx context.Context, processID sql.NullI
 	return items, nil
 }
 
+const listTurnCalls = `-- name: ListTurnCalls :many
+SELECT gen_ai_provider_name, gen_ai_request_model, gen_ai_response_model, cost_usd FROM llm_call WHERE process_id = ? ORDER BY id
+`
+
+type ListTurnCallsRow struct {
+	GenAiProviderName  string
+	GenAiRequestModel  string
+	GenAiResponseModel string
+	CostUsd            sql.NullFloat64
+}
+
+func (q *Queries) ListTurnCalls(ctx context.Context, processID sql.NullInt64) ([]ListTurnCallsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listTurnCalls, processID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListTurnCallsRow
+	for rows.Next() {
+		var i ListTurnCallsRow
+		if err := rows.Scan(
+			&i.GenAiProviderName,
+			&i.GenAiRequestModel,
+			&i.GenAiResponseModel,
+			&i.CostUsd,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const logModelCall = `-- name: LogModelCall :exec
 INSERT INTO llm_call (workspace_id, project_id, process_id, command, connection_id, gen_ai_provider_name, gen_ai_request_model,
     gen_ai_response_model, gen_ai_usage_input_tokens, gen_ai_usage_output_tokens, gen_ai_usage_cache_read_input_tokens,
-    gen_ai_usage_cache_creation_input_tokens, duration_ms, cost_usd, created_at)
+    gen_ai_usage_cache_creation_input_tokens, duration_ms, cost_usd, created_at, session_cost_usd)
 VALUES (?1,
     COALESCE((SELECT p.project_id FROM process p WHERE p.id = ?2), CAST(?3 AS INTEGER)), ?2,
     COALESCE((SELECT p.command FROM process p WHERE p.id = ?2), ''),
     ?4,
     ?5, ?6, ?7, ?8, ?9,
-    ?10, ?11, ?12, ?13, ?14)
+    ?10, ?11, ?12, ?13, ?14,
+    ?15)
 `
 
 type LogModelCallParams struct {
@@ -69,6 +121,7 @@ type LogModelCallParams struct {
 	DurationMs          int64
 	CostUsd             sql.NullFloat64
 	CreatedAt           string
+	SessionCostUsd      sql.NullFloat64
 }
 
 // A call of a process takes the project and command of the process.
@@ -88,6 +141,7 @@ func (q *Queries) LogModelCall(ctx context.Context, arg LogModelCallParams) erro
 		arg.DurationMs,
 		arg.CostUsd,
 		arg.CreatedAt,
+		arg.SessionCostUsd,
 	)
 	return err
 }

@@ -477,6 +477,46 @@ func (q *Queries) ListCeilingReached(ctx context.Context, now int64) ([]int64, e
 	return items, nil
 }
 
+const listChildProcesses = `-- name: ListChildProcesses :many
+SELECT p.id, p.command, p.state, j.name AS project FROM process p JOIN project j ON j.id = p.project_id
+WHERE p.parent_id = ?1 ORDER BY p.id
+`
+
+type ListChildProcessesRow struct {
+	ID      int64
+	Command string
+	State   string
+	Project string
+}
+
+func (q *Queries) ListChildProcesses(ctx context.Context, parentID sql.NullInt64) ([]ListChildProcessesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listChildProcesses, parentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListChildProcessesRow
+	for rows.Next() {
+		var i ListChildProcessesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Command,
+			&i.State,
+			&i.Project,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listHeld = `-- name: ListHeld :many
 SELECT p.id, p.project_id, p.command, p.kind, p.state, p.provider, p.session_id, p.input, p.result, p.not_by_schema, p.error, p.start_note, p.parent_id, p.depth, p.trigger_id, p.retry_key, p.manifest_revision, p.trial, p.folder, p.pgid, p.ceiling_ms, p.deadline_ms, p.output_ms, p.silent_since_ms, p.pause_until_ms, p.wait_message, p.wait_fresh, p.started_at, p.finished_at, p.alone, j.workspace_id FROM process p JOIN project j ON j.id = p.project_id
 WHERE p.state IN ('waiting_provider', 'waiting_slot', 'waiting_folder')

@@ -259,3 +259,7 @@ WITH RECURSIVE tree(id) AS (
 )
 SELECT r.id, r.collection, r.key, j.name AS project FROM record r JOIN project j ON j.id = r.project_id
 WHERE r.process_id IN (SELECT id FROM tree) ORDER BY r.id;
+
+-- name: ListChildProcesses :many
+SELECT p.id, p.command, p.state, j.name AS project FROM process p JOIN project j ON j.id = p.project_id
+WHERE p.parent_id = sqlc.arg(parent_id) ORDER BY p.id;

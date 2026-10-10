@@ -404,6 +404,31 @@ export interface ChatValue {
     screen?: {};
     reply?: Reply;
     created_at: string;
+    /**
+     * how a reply of the master went
+     */
+    work?: {
+      provider: string;
+      model?: string;
+      cost_usd?: number;
+      seconds: number;
+      steps: number;
+      lines: {
+        at: string;
+        kind: string;
+        id?: string;
+        title?: string;
+        status?: string;
+        text?: string;
+      }[];
+      processes: {
+        id: number;
+        project: string;
+        command: string;
+        state: string;
+        open: Action;
+      }[];
+    };
   }[];
   questions: {
     ask: number;
@@ -422,6 +447,14 @@ export interface ChatValue {
     process: number;
     state: string;
     provider?: string;
+    started_at?: string;
+    processes?: {
+      id: number;
+      project: string;
+      command: string;
+      state: string;
+      open: Action;
+    }[];
     lines: {
       at: string;
       kind: string;

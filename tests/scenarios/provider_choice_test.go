@@ -27,8 +27,9 @@ func TestNoCloudCommandDoesNotTakeACloudProvider(t *testing.T) {
 	e, cloud, local := acpPair(t, ok)
 	e.addACP(cloud, 1, "cloud", "goose", acpLLM(t), false)
 	p := e.createProject("notes", notesManifest)
-	if code, body := e.call("notes.collect", map[string]any{}); code == 200 || !strings.Contains(string(body), "no provider fits") {
-		t.Fatalf("with no provider on own hardware the command does not start: %d %s", code, body)
+	if code, body := e.call("notes.collect", map[string]any{}); code == 200 || !strings.Contains(string(body), "no provider fits") ||
+		!strings.Contains(string(body), "add a model that has it in Settings → Models") {
+		t.Fatalf("with no provider on own hardware the command does not start, and the owner reads where to add one: %d %s", code, body)
 	}
 	if code, body := e.call("deck.assignment_set", map[string]any{"role": "agent", "project": "notes", "command": "collect", "models": []string{"cloud"}}); code == 200 ||
 		!strings.Contains(string(body), "no_cloud") {

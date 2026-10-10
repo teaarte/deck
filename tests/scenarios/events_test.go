@@ -1,9 +1,11 @@
 package scenarios
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -180,4 +182,26 @@ func TestTheListOfProjectsFollowsTheirFolders(t *testing.T) {
 	if !strings.Contains(string(drawn), filepath.Base(dir)) {
 		t.Fatalf("the list of projects is read again with the new folder: %s", drawn)
 	}
+}
+
+// TestTheLiveChannelSaysItIsThere: a channel with nothing to tell pings, so a client finds one that went dead.
+func TestTheLiveChannelSaysItIsThere(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, nil)
+	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
+	defer cancel()
+	req, _ := http.NewRequestWithContext(ctx, "GET", e.URL+"/api/events", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	sc := bufio.NewScanner(resp.Body)
+	for sc.Scan() {
+		if sc.Text() == "event: ping" {
+			return
+		}
+	}
+	t.Fatal("no ping within 25 s")
 }

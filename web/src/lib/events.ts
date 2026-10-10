@@ -25,20 +25,36 @@ function resume() {
 }
 document.addEventListener('visibilitychange', () => { if (!document.hidden && listeners.size) resume(); });
 
-// openSource keeps one live channel for every screen of the page and opens it again when the browser gives up;
-// a channel it replaced says nothing more.
+// SILENT is how long a live channel may say nothing, not even its ping every 15 s, before it is taken for dead.
+const SILENT = 40_000;
+let watchdog: ReturnType<typeof setTimeout> | undefined;
+
+// openSource keeps one live channel for every screen of the page and opens it again when the browser gives up or
+// it falls silent; a channel it replaced says nothing more.
 function openSource() {
   clearTimeout(retry);
   source?.close();
   const es = new EventSource('/api/events?token=' + encodeURIComponent(token()));
   source = es;
+  const heard = () => {
+    clearTimeout(watchdog);
+    watchdog = setTimeout(() => {
+      if (es !== source) return;
+      setLost(true);
+      openSource();
+    }, SILENT);
+  };
+  heard();
   es.onopen = () => {
     if (es !== source) return;
+    heard();
     if (lost) resume();
     setLost(false);
   };
+  es.addEventListener('ping', () => { if (es === source) heard(); });
   es.onmessage = (m) => {
     if (es !== source) return;
+    heard();
     const e = JSON.parse(String(m.data)) as LiveEvent;
     listeners.forEach((l) => l.event(e));
   };
@@ -58,6 +74,7 @@ export function events(onEvent: (e: LiveEvent) => void, onResume?: () => void): 
     listeners.delete(l);
     if (listeners.size) return;
     clearTimeout(retry);
+    clearTimeout(watchdog);
     source?.close();
     source = undefined;
     setLost(false);

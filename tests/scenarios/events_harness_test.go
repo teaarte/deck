@@ -40,9 +40,16 @@ func (e *Env) live(ctx context.Context) <-chan events.Event {
 		defer close(ch)
 		defer resp.Body.Close()
 		sc := bufio.NewScanner(resp.Body)
+		ping := false
 		for sc.Scan() {
 			once.Do(func() { close(ready) })
-			if raw, ok := strings.CutPrefix(sc.Text(), "data: "); ok {
+			if sc.Text() == "event: ping" {
+				ping = true
+				continue
+			}
+			if raw, ok := strings.CutPrefix(sc.Text(), "data: "); ok && ping {
+				ping = false
+			} else if ok {
 				var ev events.Event
 				if err := json.Unmarshal([]byte(raw), &ev); err != nil {
 					e.T.Errorf("an event is a JSON object: %q", raw)

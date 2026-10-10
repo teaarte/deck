@@ -185,6 +185,9 @@ func serveFile(w http.ResponseWriter, r *http.Request, name, typ string, file *o
 	http.ServeContent(w, r, "", time.Time{}, file)
 }
 
+// pingEvery is how often the live channel says it is there, so a client finds a channel that went dead.
+const pingEvery = 15 * time.Second
+
 func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
@@ -197,10 +200,15 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	fmt.Fprint(w, ": ok\n\n")
 	flusher.Flush()
+	ping := time.NewTicker(pingEvery)
+	defer ping.Stop()
 	for {
 		select {
 		case <-r.Context().Done():
 			return
+		case <-ping.C:
+			fmt.Fprint(w, "event: ping\ndata: {}\n\n")
+			flusher.Flush()
 		case <-sub.Ready():
 			for _, e := range sub.Take() {
 				b, _ := json.Marshal(e)

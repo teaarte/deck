@@ -213,12 +213,11 @@ func (s *Service) fitting(ctx context.Context, projectID int64, cmd *manifest.Co
 		for _, name := range names {
 			pv, err := s.Provider(ctx, p.WorkspaceID, name)
 			if err != nil {
-				why = append(why, fmt.Sprintf("deck: %s is set to model %q, which does not run: %v; assign another with deck.assignment_set", place, name, err))
+				why = append(why, fmt.Sprintf("deck: %s is set to model %q, which does not run: %v; %s", place, name, err, s.change(ctx, p.WorkspaceID, requires)))
 				continue
 			}
 			if missing := pv.Caps().Missing(requires); len(missing) > 0 {
-				why = append(why, fmt.Sprintf("deck: model %s set for %s lacks %s; pick one that has it in the Models tab of the project's settings%s",
-					name, place, strings.Join(missing, ", "), s.having(ctx, p.WorkspaceID, requires)))
+				why = append(why, fmt.Sprintf("deck: model %s set for %s lacks %s; %s", name, place, strings.Join(missing, ", "), s.change(ctx, p.WorkspaceID, requires)))
 				continue
 			}
 			fits = append(fits, pv)
@@ -242,13 +241,14 @@ func (s *Service) fitting(ctx context.Context, projectID int64, cmd *manifest.Co
 		}
 	}
 	if len(fits) == 0 {
-		return 0, nil, false, registry.Invalid("deck: no provider fits %s, which requires %s; add a model with an agent with deck.model_set", place, strings.Join(requires, ", "))
+		return 0, nil, false, registry.Invalid("deck: no provider fits %s, which requires %s; %s", place, strings.Join(requires, ", "), s.change(ctx, p.WorkspaceID, requires))
 	}
 	return p.WorkspaceID, fits, false, nil
 }
 
-// having lists the models of the workspace that have what a command requires, after a colon; empty when none has.
-func (s *Service) having(ctx context.Context, workspace int64, requires []string) string {
+// change says where the owner changes the model of a command: the models of the workspace that have what it
+// requires, or with none of them, that one is added.
+func (s *Service) change(ctx context.Context, workspace int64, requires []string) string {
 	all, _ := s.All(ctx, workspace)
 	var names []string
 	for _, pv := range all {
@@ -257,9 +257,9 @@ func (s *Service) having(ctx context.Context, workspace int64, requires []string
 		}
 	}
 	if len(names) == 0 {
-		return ""
+		return "add a model that has it in Settings → Models"
 	}
-	return ": " + strings.Join(names, ", ")
+	return "pick one that has it in the Models tab of the project's settings: " + strings.Join(names, ", ")
 }
 
 // Up reports whether a turn may start on a provider: not in a self-check, a broken adapter or a limit; a lost login or a

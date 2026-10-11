@@ -258,3 +258,32 @@ func TestATranslationOfAnEnumValueIsUsed(t *testing.T) {
 		t.Fatalf("the translation of an enum value is used: %v", saved.Unused)
 	}
 }
+
+// TestACellPicksTheInputOfAButtonOfItsRow: a table column with pick names a button of the row with an input and
+// options; the row says which button the cell is, and a pick presses it with the value.
+func TestACellPicksTheInputOfAButtonOfItsRow(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, nil)
+	table := strings.Replace(boardManifest, `{"type": "list", "title": "Tasks", "board": "status", "source": {"collection": "tasks"}, "item": {"title": "title"},
+     "actions": [{"label": "Move", "command": "move", "params": {"id": "=_id"}, "input": "status"}]}`,
+		`{"type": "table", "title": "Tasks", "source": {"collection": "tasks"},
+     "columns": [{"label": "Task", "bind": "title"}, {"label": "Status", "bind": "status", "pick": "Move"}],
+     "actions": [{"label": "Move", "command": "move", "params": {"id": "=_id"}, "input": "status", "options": "=['todo', 'doing', 'done']"}]}`, 1)
+	if table == boardManifest {
+		t.Fatal("fixture lacks the board list")
+	}
+	code, out := e.call("deck.project_create", map[string]any{"name": "bad", "manifest": strings.Replace(table, `"pick": "Move"`, `"pick": "Drop"`, 1)})
+	if code != 422 || !strings.Contains(string(out), `pick "Drop" needs a button of the row`) {
+		t.Fatalf("a pick of no button of the row is refused: %d %s", code, out)
+	}
+	e.createProject("work", table)
+	e.must("deck.records_upsert", map[string]any{"project": "work", "collection": "tasks", "records": `{"title": "a", "status": "todo"}`}, nil)
+	drawn, _ := json.Marshal(e.screenMessages("work", "board", nil))
+	if !strings.Contains(string(drawn), `{"label":"Status","pick":"Move"}`) {
+		t.Fatalf("the column says what it picks: %s", drawn)
+	}
+	rows := blockData[[]screenRow](t, e.screenBlock("work", "board", "Tasks", nil)["rows"])
+	if len(rows) != 1 || len(rows[0].Actions) != 1 || rows[0].Actions[0]["pick"] != "Move" || fmt.Sprint(rows[0].Actions[0]["options"]) != "[todo doing done]" {
+		t.Fatalf("the button of the row is the one the cell picks with: %+v", rows)
+	}
+}

@@ -171,17 +171,17 @@ func TestShellAndWebCommandsTakeOnlyAProviderInAutoModeWithItsWeb(t *testing.T) 
 		m := strings.Replace(plainManifest, `"class": "internal",`, `"class": "internal", "requires": `+req+`,`, 1)
 		e.createProject("p"+fmt.Sprint(len(req)), m)
 		var list []struct {
-			Name      string
-			Providers []string
+			Name    string
+			Choices []string
 		}
 		e.must("deck.commands_list", map[string]any{"project": "p" + fmt.Sprint(len(req))}, &list)
 		i := slices.IndexFunc(list, func(c struct {
-			Name      string
-			Providers []string
+			Name    string
+			Choices []string
 		}) bool {
 			return strings.HasSuffix(c.Name, ".work")
 		})
-		if i < 0 || !slices.Contains(list[i].Providers, "claude-code") {
+		if i < 0 || !slices.Contains(list[i].Choices, "claude-code") {
 			t.Fatalf("requires %s: only a provider with a shell in auto mode and its own web fits: %+v", req, list)
 		}
 	}

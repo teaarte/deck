@@ -17,6 +17,11 @@ func (r *renderer) rowActions(b manifest.Block, it map[string]any) []map[string]
 	env := r.withParam(it)
 	for _, a := range b.Actions {
 		if act, err := r.action(a, id, env); err == nil && act != nil {
+			for _, c := range b.Columns {
+				if c.Pick != "" && (c.Pick == a.Verb || c.Pick == a.Label) && act["input"] != nil && act["options"] != nil {
+					act["pick"] = c.Pick
+				}
+			}
 			out = append(out, act)
 		}
 	}

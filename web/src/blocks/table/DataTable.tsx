@@ -8,9 +8,10 @@ import { rowOpen } from '../../ui/rowOpen';
 import { Value } from '../../ui/Value';
 import { useScreenActions } from '../../screen/ScreenActions';
 import { Cell } from './Cell';
+import { Pick } from './Pick';
 import { useTableView, type Row } from './useTableView';
 
-type Column = Shown & { label: string };
+type Column = Shown & { label: string; pick?: string };
 
 const SIZES = ['10', '25', '50', '100'];
 
@@ -19,7 +20,8 @@ export function DataTable({ columns, rows }: { columns: Column[]; rows: Row[] })
   const { t } = useTranslation();
   const v = useTableView(rows);
   const { run } = useScreenActions();
-  const acts = rows.some((r) => r.actions?.length);
+  const own = (r: Row) => r.actions?.filter((a) => !a.pick || !columns.some((c) => c.pick === a.pick));
+  const acts = rows.some((r) => own(r)?.length);
   return (
     <div data-table>
       {rows.length > 10 && (
@@ -44,8 +46,11 @@ export function DataTable({ columns, rows }: { columns: Column[]; rows: Row[] })
           <Table.Tbody>
             {v.slice.map((r, i) => (
               <Table.Tr key={show(r.id) || i} {...rowOpen(r.actions, run)}>
-                {r.cells.map((v, j) => <Table.Td key={j}><Cell details={r.details?.[j]}><Value v={v} s={columns[j] ?? {}} tone={r.tones?.[j]} /></Cell></Table.Td>)}
-                {acts && <Table.Td className={s.rowActions}><Actions actions={r.actions} max={2} /></Table.Td>}
+                {r.cells.map((v, j) => {
+                  const pick = columns[j]?.pick && r.actions?.find((a) => a.pick === columns[j].pick);
+                  return <Table.Td key={j}>{pick ? <Pick act={pick} value={v} /> : <Cell details={r.details?.[j]}><Value v={v} s={columns[j] ?? {}} tone={r.tones?.[j]} /></Cell>}</Table.Td>;
+                })}
+                {acts && <Table.Td className={s.rowActions}><Actions actions={own(r)} max={2} /></Table.Td>}
               </Table.Tr>
             ))}
           </Table.Tbody>

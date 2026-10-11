@@ -86,7 +86,8 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
   `i18n.ru.json`, the phrases of read commands `words.ru.json`): Cockpit (the link at the head of the menu), and in the menu Schedule
   (tabs Schedule, Runs with the calls of the gateway, Spend), Files (tabs Files, Data folders, Documents of the master — tiles of one file manager, the media block — and Snapshots), Settings (tabs
   Projects, Models, Connections, Tokens, General, Interface, Health); `project` screens (Documents, the page of
-  a document and Settings of the project in tabs Project (commands, schedule), Models (of its work, called), Access (folders, tools, secrets, tokens), Health, Files) deck adds
+  a document and Settings of the project in tabs Project (its commands with their schedule and a picker of their model, the models
+  of its scripts, its model calls), Access (folders, secrets, tools, tokens), Health, Files) deck adds
   to every project
 - `internal/manifest` — project manifest (format 12: `upgrade.go` raises older ones): `types.go`, `parse.go`,
   `lookup.go`, `collection.go`, `nav.go` (`Nav` — a project in the menu, `Tr`), rights (`rights.go`: `Widens` and `Clip` over the same rights — what is in force widens nothing beyond the grant —, the hosts of agent shells), checks of screens by

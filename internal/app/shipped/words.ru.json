@@ -19,5 +19,11 @@
   "project paused": "проект на паузе",
   "paused": "на паузе",
   "on": "включён",
-  "Work": "Работа"
+  "Work": "Работа",
+  "subscription": "подписка",
+  "free": "бесплатно",
+  "%s a call": "%s за вызов",
+  "%s per 1M chars": "%s за 1M символов",
+  "%s a minute": "%s в минуту",
+  "%s / %s per 1M": "%s / %s за 1M"
 }

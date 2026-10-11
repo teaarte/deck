@@ -415,6 +415,8 @@ type Column struct {
 	Tone string `json:"tone,omitempty"`
 	// Details is an expression over the item giving text the cell shows in full on demand, its value in one line.
 	Details string `json:"details,omitempty"`
+	// Pick is the verb of the button of a table row whose input the cell picks from the button's options.
+	Pick string `json:"pick,omitempty"`
 }
 
 // Action is a button. Params, Screen, Record, Project and Until take a fixed value or "=<expression>" over

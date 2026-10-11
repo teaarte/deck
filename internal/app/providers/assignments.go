@@ -75,6 +75,7 @@ type assignmentSetIn struct {
 	Project string   `type:"project" opt:"" desc:"Project the assignment is for; the whole workspace without it"`
 	Command string   `opt:"" desc:"Command of the project the assignment is for; the whole project without it"`
 	Models  []string `opt:"" desc:"Names of models or built-in providers in order: the first, then the fallbacks; empty removes the assignment"`
+	Model   string   `opt:"" desc:"One model to go first instead of models: the ones in force here before stay after it as fallbacks"`
 }
 
 func (s *Service) assignmentSet(ctx context.Context, act registry.Actor, in assignmentSetIn) (any, error) {
@@ -88,6 +89,13 @@ func (s *Service) assignmentSet(ctx context.Context, act registry.Actor, in assi
 			return nil, registry.NotFound("deck: no project %q", in.Project)
 		}
 		project = p.ID
+	}
+	if in.Model != "" {
+		before, err := Assigned(ctx, s.St.Q, act.Workspace, project, in.Command, in.Role)
+		if err != nil {
+			return nil, err
+		}
+		in.Models = append([]string{in.Model}, slices.DeleteFunc(before, func(n string) bool { return n == in.Model })...)
 	}
 	var cmd *manifest.Command
 	if in.Role == RoleAgent && in.Command != "" {

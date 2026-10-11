@@ -37,11 +37,11 @@ func TestNoCloudCommandDoesNotTakeACloudProvider(t *testing.T) {
 	}
 	e.addACP(local, 1, "local", "goose", acpLLM(t), true)
 	var list []struct {
-		Name, Provider string
-		Providers      []string
+		Name, Model string
+		Choices     []string
 	}
 	e.must("deck.commands_list", map[string]any{"project": "notes"}, &list)
-	if list[0].Name != "notes.collect" || list[0].Provider != "local" || !slices.Equal(list[0].Providers, []string{"local"}) {
+	if list[0].Name != "notes.collect" || list[0].Model != "local" || !slices.Equal(list[0].Choices, []string{"local"}) {
 		t.Fatalf("only the provider on own hardware fits: %+v", list)
 	}
 	e.useModels("notes.collect", "local")
@@ -86,10 +86,10 @@ func TestProviderIsSwitchedWithoutARestart(t *testing.T) {
 	if got := e.waitState(e.run(p, "work"), "done"); string(got.Result) != `"from the API"` {
 		t.Fatalf("the setting takes effect at the next start: %+v", got)
 	}
-	var list []struct{ Name, Provider string }
+	var list []struct{ Name, Model string }
 	e.must("deck.commands_list", map[string]any{"project": "plain"}, &list)
 	e.useModels("plain.work")
-	if got := e.waitState(e.run(p, "work"), "done"); list[0].Provider != "api" || string(got.Result) != `"from the main provider"` {
+	if got := e.waitState(e.run(p, "work"), "done"); list[0].Model != "api" || string(got.Result) != `"from the main provider"` {
 		t.Fatalf("an empty setting goes back to the default: %+v %+v", list, got)
 	}
 	if code, _ := e.call("deck.assignment_set", map[string]any{"role": "agent", "project": "plain", "command": "nothing", "models": []string{"api"}}); code == 200 {
@@ -177,7 +177,7 @@ func TestTheModelColumnFollowsAssignmentSet(t *testing.T) {
 	e.useModels("plain.work", "api")
 	waitTopic(t, phone, "assignments")
 	drawn, _ := json.Marshal(e.screenMessages("plain", "settings", map[string]any{"topic": "assignments", "changed": "plain"}))
-	if !strings.Contains(string(drawn), `"cells":["Work","plain.work","agent","api"]`) {
+	if !strings.Contains(string(drawn), `"cells":["Work","","api",""]`) {
 		t.Fatalf("the commands of the project are read again with the provider picked: %s", drawn)
 	}
 }
@@ -191,14 +191,14 @@ func TestTheCommandsOfAProjectOfferOnlyProvidersThatFit(t *testing.T) {
 	e.addACP(local, 1, "local", "goose", acpLLM(t), true)
 	e.createProject("notes", notesManifest)
 	var rows []struct {
-		Name      string   `json:"name"`
-		Provider  string   `json:"provider"`
-		Providers []string `json:"providers"`
+		Name    string   `json:"name"`
+		Model   string   `json:"model"`
+		Choices []string `json:"choices"`
 	}
 	e.must("deck.commands_list", map[string]any{"project": "notes"}, &rows)
 	for _, r := range rows {
 		if r.Name == "notes.collect" {
-			if r.Provider != "local" || !slices.Equal(r.Providers, []string{"local"}) {
+			if r.Model != "local" || !slices.Equal(r.Choices, []string{"local"}) {
 				t.Fatalf("only the provider on own hardware is offered: %+v", r)
 			}
 			return

@@ -224,6 +224,15 @@ func (c *screenCheck) block(where string, b Block) {
 					c.fail("%s column %q details: %v", where, col.Label, err)
 				}
 			}
+			if col.Pick != "" {
+				i := slices.IndexFunc(b.Actions, func(a Action) bool { return a.Verb == col.Pick || a.Label == col.Pick })
+				switch {
+				case b.Type != "table":
+					c.fail("%s column %q: pick is a property of a table column", where, col.Label)
+				case i < 0 || b.Actions[i].Input == "" || b.Actions[i].Options == "":
+					c.fail("%s column %q: pick %q needs a button of the row with that verb or label, an input and options", where, col.Label, col.Pick)
+				}
+			}
 		}
 		c.format(where, b.Format, b.Currency)
 		if b.X != "" {

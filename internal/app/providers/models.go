@@ -13,8 +13,10 @@ import (
 	"time"
 
 	"deck2/internal/app/access"
+	"deck2/internal/docs"
 	"deck2/internal/gateway"
 	"deck2/internal/health"
+	"deck2/internal/manifest"
 	"deck2/internal/process"
 	"deck2/internal/provider"
 	"deck2/internal/provider/acp"
@@ -51,6 +53,9 @@ type modelView struct {
 	Verdict string  `json:"verdict,omitempty"`
 	Speed   float64 `json:"speed,omitempty"`
 	Version string  `json:"version,omitempty"`
+	// Price is how its price reads; Used says some work of a project goes to it now or is assigned to it.
+	Price string `json:"price"`
+	Used  bool   `json:"used"`
 }
 
 // lastCheck fills in the state of a model: of its last self-check in an agent, else of its last call.
@@ -68,6 +73,14 @@ type modelsOut struct {
 	Connections []connectionView `json:"connections"`
 	Models      []modelView      `json:"models"`
 	Assignments []assignmentView `json:"assignments"`
+	// Uses are the kinds of work the projects call models for apart from their commands, such as the pictures of
+	// their scripts, with the model each goes to.
+	Uses []useView `json:"uses"`
+}
+
+type useView struct {
+	Project string `json:"project"`
+	provider.Work
 }
 
 func nullable(f sql.NullFloat64) *float64 {
@@ -78,11 +91,12 @@ func nullable(f sql.NullFloat64) *float64 {
 }
 
 type modelsListIn struct {
-	Project string `type:"project" opt:"" desc:"Only the assignments of this project and its commands"`
+	Project string `type:"project" opt:"" desc:"Only the assignments and uses of this project and its commands"`
+	Lang    string `opt:"" desc:"Language of the prices, such as ru; English without one"`
 }
 
 func (s *Service) modelsList(ctx context.Context, act registry.Actor, in modelsListIn) (modelsOut, error) {
-	out := modelsOut{Agents: s.agents(ctx), Connections: []connectionView{}, Models: []modelView{}, Assignments: []assignmentView{}}
+	out := modelsOut{Agents: s.agents(ctx), Connections: []connectionView{}, Models: []modelView{}, Assignments: []assignmentView{}, Uses: []useView{}}
 	conns, err := s.St.Q.ListConnections(ctx, act.Workspace)
 	if err != nil {
 		return out, err
@@ -148,7 +162,57 @@ func (s *Service) modelsList(ctx context.Context, act registry.Actor, in modelsL
 		}
 		out.Assignments = append(out.Assignments, v)
 	}
+	used, err := s.uses(ctx, act, in, &out)
+	if err != nil {
+		return out, err
+	}
+	ws := s.Words(in.Lang)
+	for i := range out.Models {
+		out.Models[i].Price, out.Models[i].Used = Price(out.Models[i], func(p string) string { return manifest.Tr(ws, p) }), used[out.Models[i].Name]
+	}
 	return out, nil
+}
+
+// uses fills in the uses of the projects the caller reaches, and says which models some work goes to or is assigned to.
+func (s *Service) uses(ctx context.Context, act registry.Actor, in modelsListIn, out *modelsOut) (map[string]bool, error) {
+	used := map[string]bool{}
+	for _, a := range out.Assignments {
+		for _, name := range a.Models {
+			used[name] = true
+		}
+	}
+	pid, err := access.Filter(ctx, s.St.Q, act, in.Project)
+	if err != nil {
+		return nil, err
+	}
+	projects, err := s.St.Q.ListWorkspaceProjects(ctx, act.Workspace)
+	if err != nil {
+		return nil, err
+	}
+	ws := s.Words(in.Lang)
+	b := s.book(ctx, act.Workspace, func(p string) string { return manifest.Tr(ws, p) })
+	for _, p := range projects {
+		if pid != 0 && p.ID != pid {
+			continue
+		}
+		if act.Confined() && p.ID != act.ProjectID {
+			continue
+		}
+		for _, w := range s.rolesWork(ctx, b, p.ID) {
+			used[w.Model] = true
+			out.Uses = append(out.Uses, useView{Project: p.Name, Work: w})
+		}
+		m, err := docs.For(ctx, s.St.Q, registry.Actor{}, p.ID)
+		if err != nil {
+			continue
+		}
+		for _, c := range m.Commands {
+			if c.Executor.Type == "agent" || c.Executor.Type == "model" {
+				used[s.commandWork(ctx, b, p.ID, c.Name).Model] = true
+			}
+		}
+	}
+	return used, nil
 }
 
 type modelSetIn struct {

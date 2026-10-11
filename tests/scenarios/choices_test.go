@@ -51,17 +51,17 @@ func TestFormFieldsOfferValuesFromASourceAndProjectFieldsTheProjects(t *testing.
 
 	var cmds []string
 	for _, r := range blockData[[]screenRow](t, e.screenBlock("web", "settings", "Commands", nil)["rows"]) {
-		if !hasVerb(r.Actions, "models") {
+		if !hasVerb(r.Actions, "model") {
 			continue
 		}
-		pick := verb(t, r.Actions, "models")
-		if params, _ := pick["params"].(map[string]any); pick["screen"] != "settings" || params["dialog"] != "assign" || params["command"] != strings.TrimPrefix(r.Cells[1].(string), "web.") {
-			t.Fatalf("the provider of an agent command is picked in the dialog of its models: %+v", pick)
+		pick := verb(t, r.Actions, "model")
+		if params, _ := pick["params"].(map[string]any); pick["command"] != "deck.assignment_set" || pick["pick"] != "model" || params["command"] != strings.TrimPrefix(r.ID.(string), "web.") {
+			t.Fatalf("the model of an agent command is picked in its row: %+v", pick)
 		}
-		cmds = append(cmds, r.Cells[1].(string))
+		cmds = append(cmds, r.ID.(string))
 	}
 	if strings.Join(cmds, " ") != "web.hand web.mark web.publish web.score web.tag web.tell web.touch" {
-		t.Fatalf("every agent command of the project has its provider button: %v", cmds)
+		t.Fatalf("every agent command of the project has its model picker: %v", cmds)
 	}
 	e.must("deck.secret_set", map[string]any{"name": "or-key", "value": "x"}, nil)
 	add := blockData[struct{ Choices map[string][]choiceV }](t, e.screenForm("", "settings", "deck.connection_set")["value"])
@@ -72,17 +72,9 @@ func TestFormFieldsOfferValuesFromASourceAndProjectFieldsTheProjects(t *testing.
 	if a := e.rowAction("", "settings", "", map[string]any{"dialog": "connection", "name": "router"}); a["params"].(map[string]any)["key_secret"] != "or-key" {
 		t.Fatalf("the edit of a connection starts from the secret of its key: %+v", a)
 	}
-	var agents, kinds bool
-	for _, d := range e.screenData("web", "settings", nil) {
-		if !strings.Contains(string(d["value"]), `"commands":[{`) || !strings.Contains(string(d["value"]), `"name":"deck.assignment_set"`) {
-			continue
-		}
-		m := blockData[struct{ Choices map[string][]choiceV }](t, d["value"]).Choices["models"]
-		agents = agents || len(m) > 0 && m[0].Value == "fake"
-		kinds = kinds || len(m) == 1 && m[0].Value == "whisper"
-	}
-	if !agents || !kinds {
-		t.Fatalf("the models of a command are picked from the models in an agent, of a kind of work from the models of connections: %v %v", agents, kinds)
+	rows := blockData[[]screenRow](t, e.screenBlock("web", "settings", "Commands", nil)["rows"])
+	if opts, _ := json.Marshal(verb(t, rows[0].Actions, "model")["options"]); !strings.Contains(string(opts), "fake") || strings.Contains(string(opts), "whisper") {
+		t.Fatalf("the model of an agent command is picked from the models that run agents, not those of another kind: %s", opts)
 	}
 
 	for _, tc := range []struct{ from, to, want string }{

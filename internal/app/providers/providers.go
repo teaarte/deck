@@ -49,6 +49,8 @@ type Service struct {
 	Resolve func(ctx context.Context, project, process int64, ref string) (files.Ref, error)
 	// Reach connects to deck's MCP server as an agent turn does; a self-check fails when it does not answer.
 	Reach func(ctx context.Context) error
+	// Words are deck's phrases in a language, for the prices of models.
+	Words func(lang string) map[string]string
 
 	mu    sync.Mutex
 	check map[string]*checks
@@ -141,28 +143,6 @@ func (s *Service) All(ctx context.Context, workspace int64) ([]provider.Provider
 		}
 	}
 	return out, nil
-}
-
-// CommandModel is the model an agent command of a project starts on, by the manifest in force, and the models
-// assigned to it; empty for a command that is no agent.
-func (s *Service) CommandModel(ctx context.Context, projectID int64, command string) (string, []string) {
-	p, err := s.St.Q.GetProject(ctx, projectID)
-	if err != nil {
-		return "", nil
-	}
-	m, err := docs.For(ctx, s.St.Q, registry.Actor{}, projectID)
-	if err != nil {
-		return "", nil
-	}
-	cmd := m.Command(command)
-	if cmd == nil || cmd.Executor.Type != "agent" {
-		return "", nil
-	}
-	assigned, _ := Assigned(ctx, s.St.Q, p.WorkspaceID, p.ID, command, RoleAgent)
-	if pv, err := s.For(ctx, projectID, cmd); err == nil {
-		return pv.Name(), assigned
-	}
-	return "", assigned
 }
 
 // For picks the provider a command starts on: the first of its assignment that fits and is up, else the suggestion of

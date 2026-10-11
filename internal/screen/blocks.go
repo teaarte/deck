@@ -100,7 +100,11 @@ func (r *renderer) block(id string, b manifest.Block) {
 	case "table":
 		cols := make([]map[string]any, 0, len(b.Columns))
 		for _, c := range b.Columns {
-			cols = append(cols, shown(map[string]any{"label": c.Label}, c.Format, c.Currency))
+			col := shown(map[string]any{"label": c.Label}, c.Format, c.Currency)
+			if c.Pick != "" {
+				col["pick"] = c.Pick
+			}
+			cols = append(cols, col)
 		}
 		comp["columns"] = cols
 	case "stat":

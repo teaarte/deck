@@ -132,14 +132,14 @@ func TestTheProvidersOfABaseFromBeforeAreConnectionsModelsAndAssignments(t *test
 		t.Fatalf("the provider of a command and speech to text are assignments: %v", got)
 	}
 
-	var cmds []struct{ Name, Provider string }
+	var cmds []struct{ Name, Model string }
 	e.must("deck.commands_list", map[string]any{"project": "plain"}, &cmds)
 	conn := map[string]string{}
 	for _, x := range m.Models {
 		conn[x.Name] = x.Connection
 	}
-	if i := slices.IndexFunc(cmds, func(c struct{ Name, Provider string }) bool { return c.Name == "plain.work" }); i < 0 ||
-		cmds[i].Provider != "openrouter-thinkingmachines-free" || conn["openrouter-qwen-free"] != "openrouter" || conn["local-qwen"] != "local" {
+	if i := slices.IndexFunc(cmds, func(c struct{ Name, Model string }) bool { return c.Name == "plain.work" }); i < 0 ||
+		cmds[i].Model != "openrouter-thinkingmachines-free" || conn["openrouter-qwen-free"] != "openrouter" || conn["local-qwen"] != "local" {
 		t.Fatalf("the providers are the models with an agent, the command keeps its own: %+v %v", cmds, conn)
 	}
 	var left int
@@ -621,8 +621,8 @@ func TestAModuleCallsOnlyTheModelsOfDecksSettings(t *testing.T) {
 	}
 	e.createProject("plain", plainManifest)
 	var models []string
-	for _, r := range blockData[[]screenRow](t, e.screenBlock("shorts", "settings", "Models it called", nil)["rows"]) {
-		models = append(models, fmt.Sprint(r.Cells[0]))
+	for _, r := range blockData[[]screenRow](t, e.screenBlock("shorts", "settings", "Model calls", nil)["rows"]) {
+		models = append(models, fmt.Sprint(r.Cells[1]))
 	}
 	slices.Sort(models)
 	if !slices.Equal(models, []string{"gemini/gemma", "openrouter", "openrouter/painter", "openrouter/qwen", "svc-track"}) {
@@ -638,8 +638,8 @@ func TestAModuleCallsOnlyTheModelsOfDecksSettings(t *testing.T) {
 			t.Fatalf("the project says what it may call: %+v", p)
 		}
 	}
-	if rows := blockData[[]screenRow](t, e.screenBlock("plain", "settings", "Models it called", nil)["rows"]); len(rows) != 0 {
-		t.Fatalf("only the module's own calls: %+v", rows)
+	if drawn, _ := json.Marshal(e.screenMessages("plain", "settings", nil)); strings.Contains(string(drawn), `"Model calls"`) {
+		t.Fatalf("only the module's own calls, none of another: %s", drawn)
 	}
 }
 
@@ -717,9 +717,22 @@ func TestTheSettingsOfAModuleShowTheModelsOfItsWork(t *testing.T) {
 	e.createProject("plain", plainManifest)
 	e.must("deck.assignment_set", map[string]any{"role": "image", "project": "shorts", "models": []string{"local-image", "cloud-image"}}, nil)
 	e.must("deck.assignment_set", map[string]any{"role": "image", "project": "plain", "models": []string{"cloud-image"}}, nil)
-	rows := blockData[[]screenRow](t, e.screenBlock("shorts", "settings", "Models of its work", nil)["rows"])
-	if len(rows) != 1 || fmt.Sprint(rows[0].Cells...) != "imageevery commandlocal-image → cloud-imagelocal-image" {
-		t.Fatalf("the settings of a module show the models of its work and only its own: %+v", rows)
+	rows := blockData[[]screenRow](t, e.screenBlock("shorts", "settings", "Models of its scripts", nil)["rows"])
+	if len(rows) != 1 || fmt.Sprint(rows[0].Cells...) != "imagelocal-imagefree" {
+		t.Fatalf("the settings of a module show the models of its scripts and only its own: %+v", rows)
+	}
+	pick := rows[0].Actions[slices.IndexFunc(rows[0].Actions, func(a map[string]any) bool { return a["verb"] == "model" })]
+	if fmt.Sprint(pick["options"]) != "[cloud-image local-image]" {
+		t.Fatalf("the model is picked from the models of its kind: %v", pick)
+	}
+	params := pick["params"].(map[string]any)
+	params["model"] = "cloud-image"
+	e.must(pick["command"].(string), params, nil)
+	rows = blockData[[]screenRow](t, e.screenBlock("shorts", "settings", "Models of its scripts", nil)["rows"])
+	var list modelsOut
+	e.must("deck.models_list", map[string]any{"project": "shorts"}, &list)
+	if fmt.Sprint(rows[0].Cells...) != "imagecloud-image$0.03 a call" || fmt.Sprint(list.Assignments[0].Models) != "[cloud-image local-image]" {
+		t.Fatalf("a picked model goes first and the one before stays its fallback: %v %+v", rows[0].Cells, list.Assignments)
 	}
 }
 

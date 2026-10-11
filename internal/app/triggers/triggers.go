@@ -11,6 +11,7 @@ import (
 	"deck2/internal/gateway"
 	"deck2/internal/manifest"
 	"deck2/internal/process"
+	"deck2/internal/provider"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
@@ -23,8 +24,8 @@ type Service struct {
 	Scheduler *trigger.Scheduler
 	Gateway   *gateway.Gateway
 	Registry  *registry.Registry
-	// Model is the model an agent command starts on and the models assigned to it, empty for other commands.
-	Model func(ctx context.Context, projectID int64, command string) (string, []string)
+	// Works looks up the model that does the work of a command, on the models of a workspace, prices in a language.
+	Works func(ctx context.Context, workspace int64, lang string) func(projectID int64, command string) provider.Work
 	// Words are deck's phrases in a language.
 	Words func(lang string) map[string]string
 }
@@ -63,9 +64,8 @@ type triggerView struct {
 	Tone     string `json:"tone,omitempty"`
 	LastWord string `json:"last_word,omitempty"`
 	LastTone string `json:"last_tone,omitempty"`
-	// Model is the model the agent command starts on, Models those assigned to it; empty for other commands.
-	Model  string   `json:"model"`
-	Models []string `json:"models"`
+	// Work is the model that does the work of an agent or a model command, with the models that could.
+	provider.Work
 }
 
 func (s *Service) triggersList(ctx context.Context, act registry.Actor, in triggersListIn) ([]triggerView, error) {
@@ -78,10 +78,8 @@ func (s *Service) triggersList(ctx context.Context, act registry.Actor, in trigg
 		return nil, err
 	}
 	names := map[int64]db.Project{}
-	models := map[string]struct {
-		model  string
-		models []string
-	}{}
+	works := map[string]provider.Work{}
+	work := s.Works(ctx, act.Workspace, in.Lang)
 	ws := s.Words(in.Lang)
 	tr := func(phrase string) string { return manifest.Tr(ws, phrase) }
 	out := make([]triggerView, 0, len(ts))
@@ -100,12 +98,12 @@ func (s *Service) triggersList(ctx context.Context, act registry.Actor, in trigg
 			v.NextRunAt = ""
 		}
 		key := fmt.Sprint(t.ProjectID, ".", t.Command)
-		m, ok := models[key]
+		w, ok := works[key]
 		if !ok {
-			m.model, m.models = s.Model(ctx, t.ProjectID, t.Command)
-			models[key] = m
+			w = work(t.ProjectID, t.Command)
+			works[key] = w
 		}
-		v.Model, v.Models = m.model, append([]string{}, m.models...)
+		v.Work = w
 		if t.LastProcessID.Valid {
 			v.LastProcess = t.LastProcessID.Int64
 			if lp, err := s.St.Q.GetProcess(ctx, v.LastProcess); err == nil {

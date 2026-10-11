@@ -26,7 +26,7 @@
           ],
           "actions": [
             {"verb": "run_now", "command": "deck.trigger_run", "params": {"trigger": "=id"}, "when": "kind == 'cron'"},
-            {"verb": "models", "screen": "schedule", "params": {"dialog": "assign", "project": "=project", "command": "=command", "models": "=join(models, ',')"}, "when": "model != '' || len(models) > 0"},
+            {"verb": "models", "screen": "schedule", "params": {"dialog": "assign", "project": "=project", "command": "=command", "models": "=join(models ?? [], ',')"}, "when": "(model ?? '') != '' || len(models ?? []) > 0"},
             {"verb": "resume", "command": "deck.trigger_pause", "params": {"trigger": "=id", "paused": "false"}, "when": "own_paused"},
             {"verb": "pause", "command": "deck.trigger_pause", "params": {"trigger": "=id", "paused": "true"}, "when": "!own_paused"},
             {"verb": "open", "screen": "process", "record": "=last_process", "when": "last_process != 0"}

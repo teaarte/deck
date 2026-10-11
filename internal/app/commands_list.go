@@ -5,7 +5,6 @@ import (
 	"context"
 	"deck2/internal/app/access"
 	"deck2/internal/docs"
-	"deck2/internal/provider"
 	_ "embed"
 	"encoding/json"
 	"net/url"
@@ -13,11 +12,13 @@ import (
 	"strings"
 
 	"deck2/internal/manifest"
+	"deck2/internal/provider"
 	"deck2/internal/registry"
+	"deck2/internal/store/db"
 )
 
 // commandRow is a command the caller may call, with its project, its file fields and what runs it: an executor
-// of a command of the manifest, the provider an agent command runs on, or the kind of a tool, http or mcp.
+// of a command of the manifest with the model of its work, or the kind of a tool, http or mcp.
 type commandRow struct {
 	Name        string   `json:"name"`
 	Title       string   `json:"title"`
@@ -25,15 +26,18 @@ type commandRow struct {
 	Project     string   `json:"project"`
 	Files       []string `json:"files"`
 	Executor    string   `json:"executor"`
-	Provider    string   `json:"provider"`
 	Tool        string   `json:"tool"`
-	// Providers are the providers of the workspace an agent command may be set to run on.
-	Providers []string `json:"providers,omitempty"`
 	// OwnerOnly marks a command the master sees but only the owner calls, by its form at Form: a screen address,
 	// <project> standing for the project, that FormParams after ? fill in.
 	OwnerOnly  bool     `json:"owner_only,omitempty"`
 	Form       string   `json:"form,omitempty"`
 	FormParams []string `json:"form_params,omitempty"`
+	// Work is the model that does the work of an agent or a model command, with the models that could.
+	provider.Work
+	// Cron is the schedule of its first cron trigger, Trigger that trigger's id.
+	Cron      string `json:"cron,omitempty"`
+	Trigger   int64  `json:"trigger,omitempty"`
+	OwnPaused bool   `json:"own_paused,omitempty"`
 }
 
 type commandDescribeIn struct {
@@ -62,6 +66,7 @@ func (a *App) commandDescribe(ctx context.Context, act registry.Actor, in comman
 
 type commandsListIn struct {
 	Project string `type:"project" opt:"" desc:"Only the commands of this project"`
+	Lang    string `opt:"" desc:"Language of the prices of their models, such as ru; English without one"`
 }
 
 // commandsList is what the caller may call: deck's commands and those of the projects it reaches.
@@ -94,8 +99,12 @@ func (a *App) commandsList(ctx context.Context, act registry.Actor, in commandsL
 	if err != nil {
 		return nil, err
 	}
+	ts, err := a.Store.Q.ListWorkspaceTriggers(ctx, db.ListWorkspaceTriggersParams{WorkspaceID: act.Workspace, ProjectID: pid})
+	if err != nil {
+		return nil, err
+	}
+	work := a.Providers.Works(ctx, act.Workspace, in.Lang)
 	manifests := map[int64]*manifest.Manifest{}
-	var all []provider.Provider
 	out := []commandRow{}
 	for _, c := range cmds {
 		if pid != 0 && c.ProjectID != pid {
@@ -126,20 +135,11 @@ func (a *App) commandsList(ctx context.Context, act registry.Actor, in commandsL
 			case m.Command(short) != nil:
 				mc := m.Command(short)
 				r.Executor = mc.Executor.Type
-				if r.Executor != "agent" {
-					break
+				if i := slices.IndexFunc(ts, func(t db.Trigger) bool { return t.ProjectID == c.ProjectID && t.Command == short && t.Kind == "cron" }); i >= 0 {
+					r.Cron, r.Trigger, r.OwnPaused = ts[i].Spec, ts[i].ID, ts[i].Paused == 1
 				}
-				if pv, err := a.Providers.For(ctx, c.ProjectID, mc); err == nil {
-					r.Provider = pv.Name()
-				}
-				if all == nil {
-					all, _ = a.Providers.All(ctx, act.Workspace)
-				}
-				r.Providers = []string{}
-				for _, pv := range all {
-					if len(pv.Caps().Missing(mc.Needs())) == 0 {
-						r.Providers = append(r.Providers, pv.Name())
-					}
+				if r.Executor == "agent" || r.Executor == "model" {
+					r.Work = work(c.ProjectID, short)
 				}
 			case slices.ContainsFunc(m.Tools.HTTP, func(t manifest.HTTPTool) bool { return t.Name == short }):
 				r.Tool = "http"

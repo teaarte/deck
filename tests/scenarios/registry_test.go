@@ -550,7 +550,7 @@ func TestTheMasterSeesTheCommandsOfTheOwnerWithTheirForms(t *testing.T) {
 	for name, want := range map[string]string{
 		"deck.assignment_set": "#/deck/settings?dialog=assign&tab=Models command,models,project,role",
 		"deck.secret_set":     "#/deck/settings?dialog=secret&tab=Connections name",
-		"deck.folder_add":     "#/p/<project>/settings?dialog=folder ",
+		"deck.folder_add":     "#/p/<project>/settings?dialog=folder&tab=Access ",
 		"radio.tune":          "#/p/radio/main?dialog=tune level",
 	} {
 		if got[name] != want {

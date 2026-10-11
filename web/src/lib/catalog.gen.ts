@@ -77,6 +77,10 @@ export interface Action {
    */
   options?: string[];
   /**
+   * The table column with the same pick draws the button as a picker of its options in the cell.
+   */
+  pick?: string;
+  /**
    * With a command, the result names a chat topic, which the client opens; alone, the button opens the chat of the master in a new topic.
    */
   chat?: boolean;
@@ -122,6 +126,10 @@ export interface Action1 {
    * Values the owner picks the input from.
    */
   options?: string[];
+  /**
+   * The table column with the same pick draws the button as a picker of its options in the cell.
+   */
+  pick?: string;
   /**
    * With a command, the result names a chat topic, which the client opens; alone, the button opens the chat of the master in a new topic.
    */
@@ -346,6 +354,10 @@ export interface Action2 {
    */
   options?: string[];
   /**
+   * The table column with the same pick draws the button as a picker of its options in the cell.
+   */
+  pick?: string;
+  /**
    * With a command, the result names a chat topic, which the client opens; alone, the button opens the chat of the master in a new topic.
    */
   chat?: boolean;
@@ -391,6 +403,10 @@ export interface Action3 {
    * Values the owner picks the input from.
    */
   options?: string[];
+  /**
+   * The table column with the same pick draws the button as a picker of its options in the cell.
+   */
+  pick?: string;
   /**
    * With a command, the result names a chat topic, which the client opens; alone, the button opens the chat of the master in a new topic.
    */

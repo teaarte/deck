@@ -77,7 +77,8 @@
         "icon": {"type": "string"},
         "span": {"enum": [1, 2, "full"], "default": "full"},
         "description": {"type": "string"},
-        "columns": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["label"], "properties": {"label": {"type": "string"}, "format": {"type": "string"}, "currency": {"type": "string"}}}},
+        "columns": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["label"], "properties": {"label": {"type": "string"}, "format": {"type": "string"}, "currency": {"type": "string"},
+          "pick": {"type": "string", "description": "The button of each row whose pick is the same is the one the cell picks the input of."}}}},
         "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "rows: [{id, cells, actions}]"}
       }
     },
@@ -288,6 +289,7 @@
         "confirm": {"type": "boolean", "description": "The client asks the owner before the call: a button of deck that deletes or revokes."},
         "parts": {"type": "string", "description": "With confirm, a read command the client calls with params and lists before the yes: what the call deletes for good, as kind and name; the yes waits until the list came."},
         "options": {"type": "array", "items": {"type": "string"}, "description": "Values the owner picks the input from."},
+        "pick": {"type": "string", "description": "The table column with the same pick draws the button as a picker of its options in the cell."},
         "chat": {"type": "boolean", "description": "With a command, the result names a chat topic, which the client opens; alone, the button opens the chat of the master in a new topic."},
         "undo": {"$ref": "#/$defs/action", "description": "The call that takes this one back; the client offers it for a moment after the call went through."}
       }

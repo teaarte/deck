@@ -424,7 +424,7 @@ func TestTheDiskHealthReachesTheOpenScreens(t *testing.T) {
 }
 
 // TestAProjectHasItsOwnSettings: deck adds a settings screen to every project: the project with its buttons, its
-// commands with their providers, its tools, the secrets they use, the tokens that reach it and its health.
+// commands with their models, its tools, the secrets they use, the tokens that reach it and its health.
 func TestAProjectHasItsOwnSettings(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, nil)
@@ -443,8 +443,8 @@ func TestAProjectHasItsOwnSettings(t *testing.T) {
 	if len(project) != 1 || project[0].Title != "notes" || !strings.HasPrefix(project[0].Meta, "enabled") || !hasVerb(project[0].Actions, "pause") || !hasVerb(project[0].Actions, "delete") {
 		t.Fatalf("the settings show the project with its buttons: %+v", project)
 	}
-	if c := cells("Commands"); len(c) != 1 || c[0][1] != "notes.collect" || c[0][2] != "agent" {
-		t.Fatalf("the commands of the project with what runs them: %v", c)
+	if c := cells("Commands"); len(c) != 1 || c[0][0] != "Collect" {
+		t.Fatalf("the commands of the project with the model that does their work: %v", c)
 	}
 	if c := cells("Tools"); len(c) != 1 || c[0][0] != "notes.post" || c[0][1] != "http" {
 		t.Fatalf("the tools of the project: %v", c)

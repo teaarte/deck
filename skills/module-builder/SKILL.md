@@ -242,7 +242,9 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   field, and dragging a card to a lane presses its button whose `input` is `status` — a command of the module that
   takes the record id and `status` (a small script setting the field), `{"label": "Move", "command": "move",
   "params": {"id": "=_id"}, "input": "status"}`, its `options` the lanes when not every value is one (on a phone that
-  button picks the lane), so the board needs no custom block. A command the owner fills in by hand is a `form`:
+  button picks the lane), so the board needs no custom block. The same button in a `table` is a picker in its
+  cell: `"pick": "Move"` on the column of `status` shows the value as a dropdown of the button's `options`, and a
+  pick presses it. A command the owner fills in by hand is a `form`:
   `{"type": "form", "command": "score"}` asks for the command's input by its schema and shows the result by the
   result schema; a command that keeps its result writes the records itself; a field picked from a source takes
   `"choices": {"note": {"source": {"collection": "notes"}, "value": "_id", "label": "title"}}`, and a field with

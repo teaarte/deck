@@ -210,7 +210,7 @@ func (s *Service) Forget(ctx context.Context) {
 		}
 		failing := map[string]bool{}
 		for _, r := range rows {
-			failing[seenMark+r.Subject] = r.Status == health.Error && r.UpdatedAt == ""
+			failing[seenMark+r.Subject] = failing[seenMark+r.Subject] || r.Status == health.Error && r.UpdatedAt == ""
 		}
 		for _, m := range marks {
 			if failing[m] {

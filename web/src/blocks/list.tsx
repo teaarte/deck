@@ -88,7 +88,8 @@ export function Line({ it, big }: { it: Item; big?: boolean }) {
     : it.icon ? <span className={s.itemIcon}><NamedIcon name={it.icon} fallback={it.title} size={17} /></span>
       : it.tone && it.tone !== 'muted' ? <span className={s.dot} /> : null;
   return (
-    <div className={s.item} data-item data-tone={it.tone} data-big={big || undefined} data-marked={mark ? true : undefined} {...opens}>
+    <div className={s.item} data-item data-tone={it.tone} data-big={big || undefined} data-marked={mark ? true : undefined}
+      title={it.since ? when(it.since)?.toLocaleString() : undefined} {...opens}>
       <Group gap={12} wrap="nowrap" align="flex-start">
         {mark}
         <Stack gap={2} miw={0} style={{ flex: 1 }}>

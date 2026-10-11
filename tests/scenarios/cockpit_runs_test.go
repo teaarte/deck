@@ -317,3 +317,19 @@ func TestTheStateOfARunIsSaidInTheLanguageOfTheOwner(t *testing.T) {
 		t.Fatalf("the page of a failed run says so in red: %s", page)
 	}
 }
+
+// TestALineOfTheCockpitSaysWhenItHappened: a failure, a note of the feed and what waits for the owner each carry the
+// time they happened, which the line shows and gives in full on hover.
+func TestALineOfTheCockpitSaysWhenItHappened(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		return provider.Result{IsError: true, Text: "down"}
+	})
+	e.createProject("clips", cutModule)
+	e.waitState(e.start("clips", "cut", map[string]any{"clip": "a"}), "error")
+	var failed []listItem
+	_ = json.Unmarshal(e.screenData("", "cockpit", nil)["b4-1-0"]["items"], &failed)
+	if len(failed) != 1 || failed[0].Since == "" {
+		t.Fatalf("a failure says when it happened: %+v", failed)
+	}
+}

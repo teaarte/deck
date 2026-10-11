@@ -182,6 +182,39 @@ func TestAModelOfOpenCodeSaysToSetItAgain(t *testing.T) {
 	}
 }
 
+// TestAModelOfDshSaysToSetItAgain: deck runs dsh no more; its agent row goes, a model on it is red with what to do,
+// and an open call of a model frozen before keeps the owner's yes.
+func TestAModelOfDshSaysToSetItAgain(t *testing.T) {
+	t.Parallel()
+	home := t.TempDir()
+	e := newEnvWith(t, home, &Fake{})
+	e.createProject("plain", plainManifest)
+	e.olderBase(37)
+	for _, q := range []string{
+		`INSERT INTO connection (workspace_id, name, api, url) VALUES (1, 'router', 'openai', 'https://openrouter.ai/api/v1')`,
+		`INSERT INTO model (workspace_id, connection_id, name, model, kind, agent) SELECT 1, id, 'free', 'x/free', 'text', 'dsh' FROM connection WHERE name = 'router'`,
+		`INSERT INTO health (subject, status, error) VALUES ('provider:free', 'ok', ''), ('agent:dsh', 'ok', '')`,
+		`INSERT INTO ask (workspace_id, project_id, kind, text, payload, state) SELECT 1, id, 'call', 'A picture?',
+		   '{"call":{"command":"deck.model_call","input":{"kind":"image"}},"tool":"deck.model_request"}', 'open' FROM project WHERE name = 'plain'`,
+	} {
+		if _, err := e.App.Store.DB.Exec(q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	_ = e.App.Close()
+	e = newEnvWith(t, home, &Fake{})
+	if _, err := e.App.Store.Q.GetHealth(t.Context(), "agent:dsh"); err == nil {
+		t.Fatal("the health row of dsh is gone with it")
+	}
+	if h, err := e.App.Store.Q.GetHealth(t.Context(), "provider:free"); err != nil || h.Status != "error" || !strings.Contains(h.Error, "agent goose") {
+		t.Fatalf("a model of dsh is red with what to do: %+v %v", h, err)
+	}
+	var tool string
+	if err := e.App.Store.DB.QueryRow(`SELECT json_extract(payload, '$.tool') FROM ask WHERE kind = 'call'`).Scan(&tool); err != nil || tool != "deck.model_call" {
+		t.Fatalf("an open call of a model keeps the fingerprint deck checks on the yes: %q %v", tool, err)
+	}
+}
+
 // TestAModelThatGetsAnAgentLosesTheHealthOfItsCalls: the health of a model in an agent is its self-check's; a red row
 // of its calls from before does not keep it out of its assignment.
 func TestAModelThatGetsAnAgentLosesTheHealthOfItsCalls(t *testing.T) {

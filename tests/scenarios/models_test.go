@@ -510,7 +510,7 @@ func TestAModuleCallsOnlyTheModelsTheOwnerGranted(t *testing.T) {
 	}
 	e.saveScript("draft", "scripts/main.py", modelScript)
 	before := len(api.calls())
-	if out := call("draft", "openrouter/chat/completions"); out["status"] != 403.0 || !strings.Contains(out["answer"].(string), "only free models") || len(api.calls()) != before {
+	if out := call("draft", "openrouter/chat/completions"); out["status"] != 403.0 || !strings.Contains(out["answer"].(string), "only the free models") || len(api.calls()) != before {
 		t.Fatalf("a draft's call of a paid model is refused with what to do: %v", out)
 	}
 	if out := call("draft", "ollama/chat/completions"); out["status"] != 200.0 || len(api.calls()) != before+1 {

@@ -15,8 +15,7 @@ import (
 	"time"
 )
 
-// outbound keeps no idle connection: one is pinned to the addresses of its own request, not of the next.
-var outbound = &http.Transport{Proxy: nil, DialContext: dialPinned, ResponseHeaderTimeout: 5 * time.Minute, DisableKeepAlives: true}
+var outbound = &http.Transport{Proxy: nil, DialContext: dialPinned, ResponseHeaderTimeout: 5 * time.Minute}
 
 type pinnedKey struct{}
 
@@ -147,8 +146,9 @@ func Egress(ctx context.Context, w http.ResponseWriter, r *http.Request, domains
 	forward.ServeHTTP(w, r)
 }
 
-// pageClient gets one page at the addresses its request was pinned to; Fetch checks each redirect itself.
-var pageClient = &http.Client{Transport: outbound, Timeout: time.Minute,
+// pageClient gets one page at the addresses its request was pinned to, on a connection of its own, since a kept one
+// would serve the next request whatever it was pinned to; Fetch checks each redirect itself.
+var pageClient = &http.Client{Transport: &http.Transport{Proxy: nil, DialContext: dialPinned, DisableKeepAlives: true}, Timeout: time.Minute,
 	CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 
 // Fetch gets a page in the domains the way Egress carries one, at the addresses its name resolved to once; the

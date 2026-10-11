@@ -52,15 +52,15 @@ func TestRealBrowserGlass(t *testing.T) {
 	b := newPlaywright(t)
 	b.call("browser_resize", map[string]any{"width": 1280, "height": 900})
 	b.open(e.URL + "/?token=" + token + "#/deck/settings")
-	b.until("the appearance tab with juce for a new device", `document.querySelector('[data-look="theme"] input[value="juce"]')?.checked`)
+	b.until("the appearance tab with juce for a new device", `document.querySelector('[data-look="theme"][data-value="juce"]')`)
 	style := func(sel, prop string) string {
 		return b.eval(`getComputedStyle(document.querySelector('` + sel + `')).` + prop)
 	}
 	if got := style("[data-nav]", "backdropFilter"); got != "none" {
 		t.Fatalf("juce has no glass: %s", got)
 	}
-	b.eval(`(document.querySelector('[data-look="theme"] input[value="glass"]').click(), '')`)
-	b.eval(`(document.querySelector('[data-look="scheme"] input[value="light"]').click(), '')`)
+	b.look("theme", "glass")
+	b.look("scheme", "light")
 	b.until("the light glass theme", `document.documentElement.dataset.deckTheme === 'glass' && document.documentElement.dataset.mantineColorScheme === 'light'`)
 	b.eval(`([...document.querySelectorAll('[role=tab]')].find((x) => x.innerText.trim() === 'Interface').click(), '')`)
 	b.until("the interface tab", `document.querySelector('[data-appearance]').offsetParent`)
@@ -103,7 +103,7 @@ func TestRealBrowserGlass(t *testing.T) {
 
 	b.open(e.URL + "/#/deck/settings")
 	b.until("the appearance tab", `document.querySelector('[data-look="scheme"]')`)
-	b.eval(`(document.querySelector('[data-look="scheme"] input[value="dark"]').click(), '')`)
+	b.look("scheme", "dark")
 	b.until("the dark scheme", `document.documentElement.dataset.mantineColorScheme === 'dark'`)
 	b.open(e.URL + "/#/p/web/main")
 	b.until("the table", `document.querySelector('[data-block] table')`)
@@ -167,6 +167,6 @@ func TestRealBrowserGlass(t *testing.T) {
 
 	b.open(e.URL + "/#/deck/settings")
 	b.until("the appearance tab", `document.querySelector('[data-look="theme"]')`)
-	b.eval(`(document.querySelector('[data-look="theme"] input[value="default"]').click(), '')`)
+	b.look("theme", "default")
 	b.until("the default theme back", `document.documentElement.dataset.deckTheme === 'default' && getComputedStyle(document.querySelector('[data-nav]')).backdropFilter === 'none'`)
 }

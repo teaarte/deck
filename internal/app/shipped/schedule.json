@@ -6,27 +6,19 @@
   "blocks": [
     {"type": "tabs", "tabs": [
       {"title": "Schedule", "icon": "calendar-time", "blocks": [
-        {"type": "stat", "title": "Runs, 30 days", "icon": "repeat", "source": {"from": "deck.runs_daily", "input": {"days": 30}}, "value": "sum(map(rows, .runs))", "actions": [{"verb": "open", "screen": "schedule", "params": {"tab": "Runs"}}]},
-        {"type": "stat", "title": "By schedule, 30 days", "icon": "calendar-time", "source": {"from": "deck.runs_daily", "input": {"days": 30}}, "value": "sum(map(rows, .scheduled))", "actions": [{"verb": "open", "screen": "schedule", "params": {"tab": "Runs"}}]},
-        {"type": "stat", "title": "Runs today", "icon": "clock", "source": {"from": "deck.runs_daily", "input": {"days": 1}}, "value": "sum(map(rows, .runs))", "actions": [{"verb": "open", "screen": "schedule", "params": {"tab": "Runs"}}]},
-        {"type": "stat", "title": "Failed, 30 days", "icon": "alert-triangle", "source": {"from": "deck.runs_daily", "input": {"days": 30}}, "value": "sum(map(rows, .failed))", "actions": [{"verb": "open", "screen": "schedule", "params": {"tab": "Runs"}}],
-          "tone": "sum(map(rows, .failed)) > 0 ? 'error' : 'muted'"},
-        {"type": "chart", "title": "Runs by day", "kind": "bar", "span": "full", "source": {"from": "deck.runs_daily", "input": {"days": 30}}, "x": "day",
-          "series": [{"label": "By schedule", "y": "scheduled"}, {"label": "Other", "y": "runs - scheduled"}, {"label": "Failed", "y": "failed"}]},
-        {"type": "table", "title": "Triggers", "source": {"from": "deck.triggers_list", "sort": "project"},
-          "description": "What runs by itself, when, and on which model; a model picked here replaces the one the manifest suggests.",
+        {"type": "table", "title": "What runs by itself", "source": {"from": "deck.triggers_list", "sort": "project"}, "filter": ["project"],
+          "description": "Each command that runs on its own, how often, and the model it runs on; a model picked here replaces the one the manifest suggests.",
           "empty": "Nothing is scheduled",
           "columns": [
-            {"label": "Command", "bind": "project + ' · ' + command"},
-            {"label": "When", "bind": "kind == 'cron' ? spec : kind + ' ' + spec", "format": "cron"},
-            {"label": "Model", "bind": "model", "format": "tag"},
-            {"label": "Next run", "bind": "next_run_at", "format": "relative"},
-            {"label": "Last result", "bind": "last_word ?? ''", "format": "tag", "tone": "last_tone ?? ''"},
-            {"label": "State", "bind": "word", "tone": "tone ?? ''"}
+            {"label": "Project", "bind": "project", "format": "tag", "tone": "paused || draft ? 'muted' : ''"},
+            {"label": "Command", "bind": "command", "tone": "paused || draft ? 'muted' : ''"},
+            {"label": "How often", "bind": "kind == 'cron' ? spec : kind + ' ' + spec", "format": "cron"},
+            {"label": "Model", "bind": "model ?? ''", "pick": "model"},
+            {"label": "Price", "bind": "price ?? ''"}
           ],
           "actions": [
+            {"verb": "model", "command": "deck.assignment_set", "params": {"role": "=role", "project": "=project", "command": "=command"}, "input": "model", "options": "=choices", "when": "len(choices ?? []) > 0"},
             {"verb": "run_now", "command": "deck.trigger_run", "params": {"trigger": "=id"}, "when": "kind == 'cron'"},
-            {"verb": "models", "screen": "schedule", "params": {"dialog": "assign", "project": "=project", "command": "=command", "models": "=join(models ?? [], ',')"}, "when": "(model ?? '') != '' || len(models ?? []) > 0"},
             {"verb": "resume", "command": "deck.trigger_pause", "params": {"trigger": "=id", "paused": "false"}, "when": "own_paused"},
             {"verb": "pause", "command": "deck.trigger_pause", "params": {"trigger": "=id", "paused": "true"}, "when": "!own_paused"},
             {"verb": "open", "screen": "process", "record": "=last_process", "when": "last_process != 0"}
@@ -34,6 +26,7 @@
       ]},
       {"title": "Runs", "icon": "list", "blocks": [
         {"type": "table", "title": "History", "source": {"from": "deck.processes_list", "input": {"limit": 100}, "sort": "-id"}, "filter": ["project", "state"],
+          "description": "Every run, by schedule, by a button or by the master; a run shows its log and the calls it made.",
           "columns": [
             {"label": "#", "bind": "id"},
             {"label": "Project", "bind": "project", "format": "tag"},
@@ -45,88 +38,8 @@
           "actions": [
             {"verb": "open", "screen": "process", "record": "=id"},
             {"verb": "stop", "command": "deck.process_stop", "params": {"process": "=id"}, "when": "(finished_at ?? '') == ''"}
-          ]},
-        {"type": "table", "title": "Calls of the gateway", "source": {"from": "deck.calls_list"}, "filter": ["project", "outcome"],
-          "columns": [
-            {"label": "When", "bind": "created_at"},
-            {"label": "Tool", "bind": "tool"},
-            {"label": "Who", "bind": "actor", "format": "tag"},
-            {"label": "Project", "bind": "project", "format": "tag"},
-            {"label": "Class", "bind": "class", "format": "tag"},
-            {"label": "Outcome", "bind": "outcome", "format": "tag"},
-            {"label": "External id", "bind": "external_id"},
-            {"label": "Error", "bind": "error"}
-          ],
-          "actions": [
-            {"verb": "open", "screen": "process", "record": "=process", "when": "process != 0"}
           ]}
-      ]},
-      {"title": "Spend", "icon": "chart-bar", "blocks": [
-        {"type": "stat", "title": "Tokens today", "icon": "bolt", "source": {"from": "deck.spend_daily", "input": {"days": 1}}, "value": "sum(map(rows, .tokens))", "format": "compact"},
-        {"type": "stat", "title": "Tokens, 7 days", "icon": "calendar-week", "source": {"from": "deck.spend_daily", "input": {"days": 7}}, "value": "sum(map(rows, .tokens))", "format": "compact"},
-        {"type": "stat", "title": "Cost, 30 days", "icon": "coin", "source": {"from": "deck.spend_daily"}, "value": "sum(map(rows, .cost_usd))", "format": "money", "currency": "USD"},
-        {"type": "stat", "title": "Model calls today", "icon": "message-chatbot", "source": {"from": "deck.spend_daily", "input": {"days": 1}}, "value": "sum(map(rows, .calls))"},
-        {"type": "tabs", "tabs": [
-          {"title": "By day", "icon": "calendar", "blocks": [
-            {"type": "chart", "title": "Tokens by day", "kind": "bar", "span": "full", "source": {"from": "deck.spend_daily"}, "x": "day",
-              "series": [{"label": "Input", "y": "input_tokens"}, {"label": "Output", "y": "output_tokens"}]},
-            {"type": "chart", "title": "Cost by day", "kind": "bar", "span": "full", "source": {"from": "deck.spend_daily"}, "x": "day", "format": "money", "currency": "USD",
-              "series": [{"label": "Cost", "y": "cost_usd"}]},
-            {"type": "chart", "title": "Model calls by day", "kind": "line", "span": "full", "source": {"from": "deck.spend_daily"}, "x": "day",
-              "series": [{"label": "Calls", "y": "calls"}]}
-          ]},
-          {"title": "By model", "icon": "cpu", "blocks": [
-            {"type": "chart", "title": "Tokens by model, 30 days", "kind": "bar", "span": "full", "source": {"from": "deck.spend_daily", "input": {"by": "provider"}, "sort": "-tokens"}, "x": "provider",
-              "series": [{"label": "Input", "y": "input_tokens"}, {"label": "Output", "y": "output_tokens"}]},
-            {"type": "table", "title": "By model, 30 days", "span": "full", "source": {"from": "deck.spend_daily", "input": {"by": "provider"}},
-              "description": "How much each model works: its runs, its tokens and their cost. The cost is what the provider said, such as OpenRouter, else by the price of the model; a model on a subscription costs nothing apart from it, and shows what its calls would cost as an estimate.",
-              "columns": [
-                {"label": "Model", "bind": "provider", "format": "tag"},
-                {"label": "Runs", "bind": "runs"},
-                {"label": "By schedule", "bind": "scheduled"},
-                {"label": "Tokens", "bind": "tokens", "format": "compact"},
-                {"label": "Share", "bind": "share", "format": "percent"},
-                {"label": "Calls", "bind": "calls"},
-                {"label": "Cost", "bind": "subscription && cost_usd == 0 ? nil : cost_usd", "format": "money", "currency": "USD"},
-                {"label": "Subscription, estimate", "bind": "subscription ? subscription_usd : nil", "format": "money", "currency": "USD"}
-              ]}
-          ]},
-          {"title": "By project", "icon": "stack-2", "blocks": [
-            {"type": "chart", "title": "Tokens by project, 30 days", "kind": "bar", "span": "full", "source": {"from": "deck.spend_daily", "input": {"by": "project"}, "sort": "-tokens"}, "x": "project",
-              "series": [{"label": "Input", "y": "input_tokens"}, {"label": "Output", "y": "output_tokens"}]},
-            {"type": "table", "title": "By project, 30 days", "span": "full", "source": {"from": "deck.spend_daily", "input": {"by": "project"}},
-              "columns": [
-                {"label": "Project", "bind": "project", "format": "tag"},
-                {"label": "Tokens", "bind": "tokens", "format": "compact"},
-                {"label": "Share", "bind": "share", "format": "percent"},
-                {"label": "Calls", "bind": "calls"},
-                {"label": "Cost", "bind": "subscription && cost_usd == 0 ? nil : cost_usd", "format": "money", "currency": "USD"},
-                {"label": "Subscription, estimate", "bind": "subscription ? subscription_usd : nil", "format": "money", "currency": "USD"}
-              ]}
-          ]},
-          {"title": "Project and model", "icon": "table", "blocks": [
-            {"type": "table", "title": "Tokens by project, command and model", "span": "full", "source": {"from": "deck.spend_list"}, "filter": ["project", "provider"],
-              "description": "Which model each project and command used, how much, and what it cost; all time.",
-              "columns": [
-                {"label": "Project", "bind": "project", "format": "tag"},
-                {"label": "Command", "bind": "command"},
-                {"label": "Model", "bind": "provider", "format": "tag"},
-                {"label": "Model in the API", "bind": "model", "format": "tag"},
-                {"label": "Calls", "bind": "calls"},
-                {"label": "Input", "bind": "input_tokens", "format": "compact"},
-                {"label": "Output", "bind": "output_tokens", "format": "compact"},
-                {"label": "Cache read", "bind": "cache_read_tokens", "format": "compact"},
-                {"label": "Cost", "bind": "subscription && cost_usd == 0 ? nil : cost_usd", "format": "money", "currency": "USD"},
-                {"label": "Subscription, estimate", "bind": "subscription ? subscription_usd : nil", "format": "money", "currency": "USD"},
-                {"label": "Last", "bind": "last_at", "format": "relative"}
-              ]}
-          ]}
-        ]}
       ]}
-    ]},
-    {"type": "dialog", "name": "assign", "title": "Choose the models of a command", "icon": "cpu", "blocks": [
-      {"type": "form", "command": "deck.assignment_set", "description": "The first model runs the command; the next ones take it while the first is down.",
-        "values": {"role": "agent", "project": "=param.project", "command": "=param.command", "models": "=(param.models ?? '') != '' ? split(param.models, ',') : nil"},
-        "choices": {"models": {"source": {"from": "deck.models_list", "rows": "models", "where": "(agent ?? '') != ''"}, "value": "name"}}}]}
+    ]}
   ]
 }

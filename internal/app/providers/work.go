@@ -94,6 +94,17 @@ func (s *Service) Works(ctx context.Context, workspace int64, lang string) func(
 	return func(projectID int64, command string) provider.Work { return s.commandWork(ctx, b, projectID, command) }
 }
 
+// Agents are the models of the book that run agent turns: the built-in providers and the models in an agent.
+func (b *Book) Agents() []string {
+	var out []string
+	for _, name := range b.order {
+		if b.models[name].Agent != "" {
+			out = append(out, name)
+		}
+	}
+	return out
+}
+
 // commandWork is who does the work of a command of a project by the manifest in force: an agent command's model,
 // a model command's model of its kind; nothing for the other commands.
 func (s *Service) commandWork(ctx context.Context, b *Book, projectID int64, command string) provider.Work {
@@ -135,6 +146,31 @@ func (s *Service) commandWork(ctx context.Context, b *Book, projectID int64, com
 		return s.roleWork(ctx, b, p, command, role)
 	}
 	return provider.Work{}
+}
+
+// Places are the parts of the work of the projects of a workspace each model does now, by model: project.command for a
+// command, the project for the kinds of work of its scripts.
+func (s *Service) Places(ctx context.Context, workspace int64) map[string][]string {
+	out := map[string][]string{}
+	projects, _ := s.St.Q.ListWorkspaceProjects(ctx, workspace)
+	b := s.book(ctx, workspace, func(p string) string { return p })
+	for _, p := range projects {
+		for _, w := range s.rolesWork(ctx, b, p.ID) {
+			out[w.Model] = append(out[w.Model], p.Name)
+		}
+		m, err := docs.For(ctx, s.St.Q, registry.Actor{}, p.ID)
+		if err != nil {
+			continue
+		}
+		for _, c := range m.Commands {
+			if c.Executor.Type == "agent" || c.Executor.Type == "model" {
+				if w := s.commandWork(ctx, b, p.ID, c.Name); w.Model != "" {
+					out[w.Model] = append(out[w.Model], p.Name+"."+c.Name)
+				}
+			}
+		}
+	}
+	return out
 }
 
 // rolesWork is who does each kind of work a project calls models for apart from its commands, such as the pictures

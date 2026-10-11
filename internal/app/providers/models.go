@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"deck2/internal/app/access"
-	"deck2/internal/docs"
 	"deck2/internal/gateway"
 	"deck2/internal/health"
 	"deck2/internal/manifest"
@@ -167,6 +166,16 @@ func (s *Service) modelsList(ctx context.Context, act registry.Actor, in modelsL
 		return out, err
 	}
 	ws := s.Words(in.Lang)
+	b := s.book(ctx, act.Workspace, func(p string) string { return manifest.Tr(ws, p) })
+	for i, a := range out.Assignments {
+		out.Assignments[i].Choices = b.Of(a.Role)
+		if a.Role == RoleAgent {
+			out.Assignments[i].Choices = b.Agents()
+		}
+		if len(a.Models) > 0 {
+			out.Assignments[i].Price = b.Price(a.Models[0])
+		}
+	}
 	for i := range out.Models {
 		out.Models[i].Price, out.Models[i].Used = Price(out.Models[i], func(p string) string { return manifest.Tr(ws, p) }), used[out.Models[i].Name]
 	}
@@ -192,25 +201,15 @@ func (s *Service) uses(ctx context.Context, act registry.Actor, in modelsListIn,
 	ws := s.Words(in.Lang)
 	b := s.book(ctx, act.Workspace, func(p string) string { return manifest.Tr(ws, p) })
 	for _, p := range projects {
-		if pid != 0 && p.ID != pid {
-			continue
-		}
-		if act.Confined() && p.ID != act.ProjectID {
+		if pid != 0 && p.ID != pid || act.Confined() && p.ID != act.ProjectID {
 			continue
 		}
 		for _, w := range s.rolesWork(ctx, b, p.ID) {
-			used[w.Model] = true
 			out.Uses = append(out.Uses, useView{Project: p.Name, Work: w})
 		}
-		m, err := docs.For(ctx, s.St.Q, registry.Actor{}, p.ID)
-		if err != nil {
-			continue
-		}
-		for _, c := range m.Commands {
-			if c.Executor.Type == "agent" || c.Executor.Type == "model" {
-				used[s.commandWork(ctx, b, p.ID, c.Name).Model] = true
-			}
-		}
+	}
+	for name := range s.Places(ctx, act.Workspace) {
+		used[name] = true
 	}
 	return used, nil
 }

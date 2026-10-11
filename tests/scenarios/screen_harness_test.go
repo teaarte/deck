@@ -17,6 +17,7 @@ type screenRow struct {
 	ID      any              `json:"id"`
 	Cells   []any            `json:"cells"`
 	Details []any            `json:"details"`
+	Tones   []any            `json:"tones"`
 	Actions []map[string]any `json:"actions"`
 }
 

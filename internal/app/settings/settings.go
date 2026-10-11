@@ -25,22 +25,24 @@ type Service struct {
 // agentLimit is how many agent turns a workspace runs at once unless the owner set it.
 const agentLimit = 3
 
-// settingDef is a setting the owner changes on the General tab; every other value of Config stays in code. A
-// number lies from min to max; a text is one of options; ru is the title in Russian.
+// settingDef is a setting the owner changes in Settings; every other value of Config stays in code. A number lies from
+// min to max, steps the values offered to pick; a text is one of options; ru is the title in Russian.
 type settingDef struct {
 	name, title, ru string
 	min, max        int64
-	options         []string
+	steps, options  []string
 	def             func(s *Service) any
 }
 
 var settingDefs = []settingDef{
 	{name: "confirm_hours", title: "How long a confirmation waits for the owner, hours", min: 1, max: 720,
-		ru:  "Сколько подтверждение ждёт владельца, часов",
-		def: func(s *Service) any { return int64(s.DefaultTTL / time.Hour) }},
+		steps: []string{"1", "2", "6", "12", "24", "48", "72", "168", "336", "720"},
+		ru:    "Сколько подтверждение ждёт владельца, часов",
+		def:   func(s *Service) any { return int64(s.DefaultTTL / time.Hour) }},
 	{name: "agent_limit", title: "Agent processes that run at once; scripts and tools do not count", min: 1, max: 20,
-		ru:  "Сколько агентских процессов идёт одновременно; скрипты и инструменты не считаются",
-		def: func(*Service) any { return int64(agentLimit) }},
+		steps: []string{"1", "2", "3", "4", "5", "6", "8", "10", "15", "20"},
+		ru:    "Сколько агентских процессов идёт одновременно; скрипты и инструменты не считаются",
+		def:   func(*Service) any { return int64(agentLimit) }},
 	{name: "language", title: "Language of the interface; auto follows the device", options: []string{"auto", "en", "ru"},
 		ru:  "Язык интерфейса; auto — как на устройстве",
 		def: func(*Service) any { return "auto" }},
@@ -126,7 +128,7 @@ type settingRow struct {
 	Title   string `json:"title"`
 	Value   any    `json:"value"`
 	Default any    `json:"default"`
-	// Options are the values a setting takes from a list.
+	// Options are the values a setting takes from a list, or those offered for a number.
 	Options []string `json:"options,omitempty"`
 }
 
@@ -138,7 +140,7 @@ func (s *Service) settingsList(ctx context.Context, act registry.Actor, _ struct
 		if ru {
 			title = d.ru
 		}
-		out = append(out, settingRow{Name: d.name, Title: title, Value: s.setting(ctx, act.Workspace, d.name), Default: d.def(s), Options: d.options})
+		out = append(out, settingRow{Name: d.name, Title: title, Value: s.setting(ctx, act.Workspace, d.name), Default: d.def(s), Options: append(d.options, d.steps...)})
 	}
 	return out, nil
 }

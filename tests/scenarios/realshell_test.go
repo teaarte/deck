@@ -134,19 +134,18 @@ func TestRealBrowserShell(t *testing.T) {
 	b.until("the icons of a block and its button", `document.querySelector('[data-block-icon] [data-icon="notes"]') && document.querySelector('button [data-icon="arrow-right"]')`)
 	b.shot("shell-light")
 
-	b.open(e.URL + "/#/deck/schedule?tab=Spend")
+	b.open(e.URL + "/#/deck/spend?tab=30 days")
 	b.until("the stats and the chart of the spend", `[...document.querySelectorAll('[data-stat]')].filter((x) => x.offsetParent).length === 4 && [...document.querySelectorAll('[data-chart-block] svg')].some((x) => x.getBoundingClientRect().width > 0)`)
 	if got := b.eval(`String(new Set([...document.querySelectorAll('[data-stat]')].filter((x) => x.offsetParent).map((x) => Math.round(x.closest('[data-block]').getBoundingClientRect().top))).size)`); got != "1" {
 		t.Fatalf("the four numbers of the spend stand in one row: %s", got)
 	}
 	b.shot("shell-spend")
-	b.open(e.URL + "/#/deck/schedule")
-	b.until("the runs chart of the schedule", `document.querySelector('[data-chart-block] svg')`)
-	if got := b.eval(`(() => { const g = document.querySelector('[data-grid]').getBoundingClientRect(); const cells = [...document.querySelector('[data-grid]').children].map((c) => c.getBoundingClientRect());
+	if got := b.eval(`(() => { const g = [...document.querySelectorAll('[data-grid]')].find((x) => x.offsetParent).getBoundingClientRect(); const cells = [...[...document.querySelectorAll('[data-grid]')].find((x) => x.offsetParent).children].map((c) => c.getBoundingClientRect());
 		const top = cells.filter((c) => Math.abs(c.top - cells[0].top) < 2); return String(Math.abs(top[top.length - 1].right - g.right) < 2) })()`); got != "true" {
 		t.Fatalf("the blocks of a row fill the width of the screen: %s", got)
 	}
-	b.until("the schedule of a trigger in words", `[...document.querySelectorAll('tr')].some((r) => r.offsetParent && r.innerText.includes('master · review'))`)
+	b.open(e.URL + "/#/deck/schedule")
+	b.until("the schedule of a trigger in words", `[...document.querySelectorAll('tr')].some((r) => r.offsetParent && r.innerText.toLowerCase().includes('master') && r.innerText.includes('review'))`)
 	if got := b.eval(`[...document.querySelectorAll('td')].filter((x) => x.offsetParent && /^[0-9*\/,-]+( [0-9*\/,-]+){4}$/.test(x.innerText.trim())).map((x) => x.innerText).join('|')`); got != "" {
 		t.Fatalf("no schedule shows as cron: %s", got)
 	}
@@ -198,12 +197,12 @@ func TestRealBrowserShell(t *testing.T) {
 
 	b.open(e.URL + "/#/deck/settings")
 	b.until("the appearance tab", `document.querySelector('[data-look="theme"]')`)
-	b.eval(`(document.querySelector('[data-look="theme"] input[value="glass"]').click(), '')`)
-	b.eval(`(document.querySelector('[data-look="scheme"] input[value="dark"]').click(), '')`)
+	b.look("theme", "glass")
+	b.look("scheme", "dark")
 	b.until("the dark glass", `document.documentElement.dataset.deckTheme === 'glass' && document.documentElement.dataset.mantineColorScheme === 'dark'`)
 	b.eval(`([...document.querySelectorAll('[role=tab]')].find((x) => x.innerText.trim() === 'Interface').click(), '')`)
 	b.until("the tint slider of the glass", `document.querySelector('[data-look="tint"]')?.offsetParent`)
-	b.until("the language of the interface on the interface tab", `document.querySelector('[data-look="language"] input[value="ru"]')`)
+	b.until("the language of the interface on the interface tab", `document.querySelector('[data-look="language"]')`)
 	b.call("browser_run_code_unsafe", map[string]any{"code": `async (page) => { const t = await page.locator('[data-look="tint"] [role=slider]'); await t.focus(); await page.keyboard.press('End'); }`})
 	b.until("opaque glass at the end of the slider", `getComputedStyle(document.documentElement).getPropertyValue('--glass-tint-user').trim() === '1' && /rgb\(\d+, \d+, \d+\)$/.test(getComputedStyle(document.querySelector('[data-nav]')).backgroundColor)`)
 	b.call("browser_run_code_unsafe", map[string]any{"code": `async (page) => { const t = await page.locator('[data-look="tint"] [role=slider]'); await t.focus(); await page.keyboard.press('Home'); }`})
@@ -226,7 +225,8 @@ func TestRealBrowserShell(t *testing.T) {
 	b.shot("shell-glass-dark-cockpit")
 	b.open(e.URL + "/#/deck/settings")
 	b.until("the appearance tab", `document.querySelector('[data-look="scheme"]')`)
-	b.eval(`(document.querySelector('[data-look="scheme"] input[value="light"]').click(), document.querySelector('[data-accent="grape"]').click(), '')`)
+	b.look("scheme", "light")
+	b.eval(`(document.querySelector('[data-accent="grape"]').click(), '')`)
 	b.open(e.URL + "/#/p/web/main")
 	b.until("the light glass", `document.querySelector('[data-block] table') && document.documentElement.dataset.mantineColorScheme === 'light'`)
 	b.shot("shell-glass-light")
@@ -268,15 +268,15 @@ func TestRealBrowserShell(t *testing.T) {
 	b.shot("theme-pixel-settings")
 	b.eval(`([...document.querySelectorAll('[role=tab]')].find((x) => x.innerText.trim() === 'Interface').click(), '')`)
 	b.until("no corners in pixels", `document.querySelector('[data-look="theme"]')?.offsetParent && !document.querySelector('[data-look="radius"]')`)
-	b.eval(`(document.querySelector('[data-look="theme"] input[value="neon"]').click(), '')`)
+	b.look("theme", "neon")
 	b.until("no scheme in neon, only its note", `!document.querySelector('[data-look="scheme"]') && document.querySelector('[data-look-note="scheme"]') && document.querySelector('[data-look="radius"]')`)
 	e.must("deck.settings_set", map[string]any{"name": "language", "value": "ru"}, nil)
 	b.until("the interface in the language the owner picked", `document.querySelector('[data-nav] [data-system]')?.innerText.includes('Настройки') && document.querySelector('[data-chat-toggle]')?.innerText.includes('Деки')`)
 	b.shot("shell-ru")
-	b.open(e.URL + "/#/deck/schedule?tab=Spend")
-	b.until("a link to a tab opens it in any language", `document.querySelector('[role="tab"][aria-selected="true"]')?.innerText.includes('Расходы')`)
-	b.eval(`([...document.querySelectorAll('[role="tab"]')].find((x) => x.innerText.includes('Запуски')).click(), '')`)
-	b.until("the address names the tab as written", `location.hash.endsWith('tab=Runs')`)
-	b.open(e.URL + "/#/deck/settings?tab=General")
-	b.until("the settings named in the language of the owner", `document.body.innerText.includes('Язык интерфейса')`)
+	b.open(e.URL + "/#/deck/spend?tab=7 days")
+	b.until("a link to a tab opens it in any language", `document.querySelector('[role="tab"][aria-selected="true"]')?.innerText.includes('7 дней')`)
+	b.eval(`([...document.querySelectorAll('[role="tab"]')].find((x) => x.innerText.includes('30 дней')).click(), '')`)
+	b.until("the address names the tab as written", `/tab=30(\+|%20| )days$/.test(location.hash)`)
+	b.open(e.URL + "/#/deck/settings?tab=Health")
+	b.until("the settings named in the language of the owner", `document.body.innerText.includes('Сколько агентских процессов')`)
 }

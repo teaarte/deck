@@ -84,18 +84,18 @@ func TestRealBrowserSettings(t *testing.T) {
 	root := func(v string) string {
 		return `getComputedStyle(document.documentElement).getPropertyValue('` + v + `').trim()`
 	}
-	if got := b.eval(`document.documentElement.dataset.mantineColorScheme + ' ' + document.querySelector('[data-look="scheme"] input[value="auto"]').checked`); got != "light true" {
+	if got := b.eval(`document.documentElement.dataset.mantineColorScheme + ' ' + !!document.querySelector('[data-look="scheme"][data-value="auto"]')`); got != "light true" {
 		t.Fatalf("the scheme follows the system, light in the headless browser: %s", got)
 	}
-	b.eval(`(document.querySelector('[data-look="scheme"] input[value="dark"]').click(), '')`)
+	b.look("scheme", "dark")
 	b.until("the dark scheme", `document.documentElement.dataset.mantineColorScheme === 'dark'`)
 	b.eval(`(document.querySelector('[data-accent="grape"]').click(), '')`)
 	b.until("the accent", root("--mantine-primary-color-filled")+` === `+root("--mantine-color-grape-filled"))
-	b.eval(`(document.querySelector('[data-look="density"] input[value="compact"]').click(), '')`)
+	b.look("density", "compact")
 	b.until("the compact spacing", root("--mantine-spacing-md")+`.includes('0.75')`)
-	b.eval(`(document.querySelector('[data-look="font"] input[value="large"]').click(), '')`)
+	b.look("font", "large")
 	b.until("the large text", root("--mantine-font-size-md")+`.includes('1.15')`)
-	b.eval(`(document.querySelector('[data-look="radius"] input[value="xl"]').click(), '')`)
+	b.look("radius", "xl")
 	b.until("the round corners", root("--mantine-radius-default")+` === `+root("--mantine-radius-xl"))
 	b.shot("settings-interface")
 
@@ -115,7 +115,7 @@ func TestRealBrowserSettings(t *testing.T) {
 	b.call("browser_tabs", map[string]any{"action": "new"})
 	b.open(e.URL + "/#/deck/settings")
 	b.until("the appearance tab in the second tab", `document.querySelector('[data-appearance]')`)
-	b.eval(`(document.querySelector('[data-look="scheme"] input[value="light"]').click(), '')`)
+	b.look("scheme", "light")
 	b.until("the light scheme", `document.documentElement.dataset.mantineColorScheme === 'light'`)
 	light := b.eval(root("--mantine-color-body"))
 	b.call("browser_tabs", map[string]any{"action": "select", "index": 0})
@@ -145,7 +145,7 @@ func TestRealBrowserSettings(t *testing.T) {
 	}
 	b.shot("settings-projects")
 
-	tab("Models")
+	tab("Health")
 	agent := `[...document.querySelectorAll('tr')].find((r) => r.innerText.includes('goose --version'))`
 	b.until("the agents with why one gives no version", agent)
 	if got := b.eval(`String(!!` + agent + `.querySelector('[data-one]'))`); got != "true" {
@@ -153,7 +153,7 @@ func TestRealBrowserSettings(t *testing.T) {
 	}
 	b.eval(`(` + agent + `.querySelector('[data-cell-details] button').click(), '')`)
 	b.until("the whole error on demand", agent+`.querySelector('[data-cell-details] pre')?.innerText.includes('exit status 1')`)
-	b.shot("settings-models")
+	b.shot("settings-health")
 
 	tab("Connections")
 	b.until("the add secret button", `document.querySelector('[data-dialog-open="secret"]')`)
@@ -171,8 +171,7 @@ func TestRealBrowserSettings(t *testing.T) {
 		t.Fatal("the value of a secret is not on the page after it is set")
 	}
 
-	tab("Tokens")
-	b.until("the create token button", `document.querySelector('[data-dialog-open="token"]')`)
+	b.until("the create token button beside the connections", `document.querySelector('[data-dialog-open="token"]')`)
 	b.eval(`(document.querySelector('[data-dialog-open="token"]').click(), '')`)
 	b.until("the token form", `document.querySelector('[data-form="deck.token_create"]')`)
 	b.type_(`document.querySelector('[data-form="deck.token_create"] input[data-field="name"]')`, "shortcuts")
@@ -203,15 +202,10 @@ func TestRealBrowserSettings(t *testing.T) {
 	b.shot("settings-tokens")
 
 	b.open(e.URL + "/#/p/web/settings")
-	row := `[...document.querySelectorAll('tr')].find((r) => r.innerText.includes('web.score'))`
-	b.until("the commands of the project", row)
-	b.eval(pressIn(row, "models"))
-	models := `[data-form="deck.assignment_set"] input[data-field="models"]`
-	b.until("the dialog of the models of the command", `document.querySelector('`+models+`')`)
-	b.eval(`(() => { const i = document.querySelector('` + models + `'); i.focus();
-		Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(i, 'fake');
-		i.dispatchEvent(new Event('input', { bubbles: true })); i.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); return '' })()`)
-	b.eval(`(document.querySelector('[data-form="deck.assignment_set"] [data-submit]').click(), '')`)
+	row := `[...document.querySelectorAll('tr')].find((r) => r.innerText.includes('Score') && r.querySelector('input[data-pick="model"]'))`
+	b.until("the commands of the project with their model", row)
+	b.call("browser_run_code_unsafe", map[string]any{"code": `async (page) => { await page.locator('tr', {hasText: 'Score'}).locator('input[data-pick="model"]').click();
+		await page.locator('[role=option][value="quiet"]:visible').click(); }`})
 	assigned := func() string {
 		var m struct {
 			Assignments []struct {
@@ -227,7 +221,7 @@ func TestRealBrowserSettings(t *testing.T) {
 		}
 		return ""
 	}
-	e.waitFor("the models of the command", func() bool { return assigned() == "fake" })
+	e.waitFor("the model picked in the row of the command", func() bool { return assigned() == "quiet" })
 
 	b.call("browser_resize", map[string]any{"width": 390, "height": 844})
 	b.open(e.URL + "/#/deck/settings")

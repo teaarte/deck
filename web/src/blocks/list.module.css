@@ -3,6 +3,30 @@
   flex-direction: column;
 }
 
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+
+  & > .item,
+  & > .item:first-child,
+  & > .item:last-child {
+    justify-content: space-between;
+    padding: 14px;
+    border: 1px solid var(--deck-line, var(--mantine-color-default-border));
+    border-radius: var(--deck-block-radius);
+    background: var(--deck-fill, var(--mantine-color-default-hover));
+  }
+
+  & > .item + .item {
+    border-top: 1px solid var(--deck-line, var(--mantine-color-default-border));
+  }
+
+  & > .item[data-marked] > .under {
+    padding-left: 0;
+  }
+}
+
 .item {
   display: flex;
   flex-direction: column;

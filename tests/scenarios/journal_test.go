@@ -5,6 +5,7 @@ import (
 	deckhome "deck2/internal/home"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"strings"
@@ -29,7 +30,8 @@ func TestJournalShowsTheCallsOfTheGatewayTheSpendFilesAndSnapshots(t *testing.T)
 	check := newCatalogCheck(t)
 	e.createProject("web", webNotes)
 	e.createProject("quiet", webNotes)
-	e.waitState(e.start("web", "tell", nil), "waiting_answer")
+	tell := e.start("web", "tell", nil)
+	e.waitState(tell, "waiting_answer")
 	scan := e.upload("web", "scan.txt", "text/plain", "a page")
 	e.waitState(e.start("web", "score", map[string]any{"title": "x", "scan": fmt.Sprint(scan)}), "done")
 	e.must("deck.snapshot_create", nil, nil)
@@ -68,30 +70,17 @@ func TestJournalShowsTheCallsOfTheGatewayTheSpendFilesAndSnapshots(t *testing.T)
 		t.Fatalf("the journal of a project has only its calls: %+v", none)
 	}
 
-	msgs := e.screenMessages("", "schedule", nil)
-	check.messages(t, msgs)
-	data := e.screenData("", "schedule", nil)
-	rows := blockData[[]screenRow](t, data["b0-1-1"]["rows"])
-	if len(rows) == 0 || !strings.Contains(string(data["b0-1-1"]["filters"]), `"waiting"`) {
-		t.Fatalf("the calls tab lists the calls with their outcomes to narrow by: %+v %s", rows, data["b0-1-1"]["filters"])
-	}
-	picked := e.screenData("", "schedule", map[string]any{"filter": `{"b0-1-1": {"outcome": "waiting"}}`})["b0-1-1"]
-	if len(blockData[[]screenRow](t, picked["rows"])) == 0 || len(blockData[[]screenRow](t, picked["rows"])) == len(rows) {
-		t.Fatalf("the outcome filter narrows the calls: %d of %d", len(blockData[[]screenRow](t, picked["rows"])), len(rows))
-	}
-	for _, r := range blockData[[]screenRow](t, picked["rows"]) {
-		if r.Cells[5] != "waiting" {
-			t.Fatalf("the outcome filter keeps one outcome: %+v", r)
-		}
-		if verb(t, r.Actions, "open")["screen"] != "process" {
-			t.Fatalf("a call opens its process: %+v", r.Actions)
-		}
+	check.messages(t, e.screenMessages("", "process", map[string]any{"record": tell}))
+	page := e.screenData("", "process", map[string]any{"record": tell})
+	if rows := blockData[[]screenRow](t, page["b2"]["rows"]); len(rows) != 2 || rows[1].Cells[1] != "web.publish" || rows[1].Cells[3] != "waiting" || rows[0].Cells[3] != "rejected" {
+		t.Fatalf("the page of a run lists the calls it made with their outcomes: %+v", rows)
 	}
 
-	spend := blockData[[]screenRow](t, data["b0-2-4-3-0"]["rows"])
-	if len(spend) != 1 || spend[0].Cells[1] != "tell" || spend[0].Cells[3] != "big" || spend[0].Cells[4] != float64(2) ||
-		spend[0].Cells[5] != float64(2000) || spend[0].Cells[6] != float64(400) {
-		t.Fatalf("spend sums the tokens of a command on a provider and model: %+v", spend)
+	check.messages(t, e.screenMessages("", "spend", nil))
+	data := e.screenData("", "spend", nil)
+	spend := blockData[[]screenRow](t, data["b4-2-0"]["rows"])
+	if len(spend) != 1 || spend[0].Cells[0] != "web" || spend[0].Cells[2] != float64(2) || spend[0].Cells[3] != float64(2400) {
+		t.Fatalf("spend sums the calls and tokens of each model of each project: %+v", spend)
 	}
 	var by []struct {
 		Provider string
@@ -182,13 +171,19 @@ func TestTheJournalFollowsCallsAndSpendLive(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	phone := e.sse(ctx)
-	e.waitState(e.start("web", "score", map[string]any{"title": "x"}), "done")
+	score := e.start("web", "score", map[string]any{"title": "x"})
+	e.waitState(score, "done")
 	waitTopic(t, phone, "calls")
 	waitTopic(t, phone, "usage")
-	for _, topic := range []string{"calls", "usage"} {
-		msgs := e.screenMessages("", "schedule", map[string]any{"topic": topic})
+	for _, at := range []struct {
+		topic, screen string
+		params        map[string]any
+	}{{"calls", "process", map[string]any{"record": score}}, {"usage", "spend", nil}} {
+		params := map[string]any{"topic": at.topic}
+		maps.Copy(params, at.params)
+		msgs := e.screenMessages("", at.screen, params)
 		if len(msgs) == 0 || msgs[0]["createSurface"] != nil {
-			t.Fatalf("%s redraws only its blocks: %d messages", topic, len(msgs))
+			t.Fatalf("%s redraws only its blocks of %s: %d messages", at.topic, at.screen, len(msgs))
 		}
 	}
 }

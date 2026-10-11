@@ -18,9 +18,9 @@ import { blockImpl } from './blockImpl';
 export type Item = NonNullable<Data['items']>[number];
 
 // list draws items: a title with its icon in the color of its tone, text, meta with the time its buttons have left
-// and how long ago it started, details, the questions of an agent and buttons.
-export const list = blockImpl('list', (_, d, context) => d.board
-  ? <Board board={d.board} items={d.items ?? []} /> : <Items items={d.items ?? []} context={context} />);
+// and how long ago it started, details, the questions of an agent and buttons; with cards side by side.
+export const list = blockImpl<{ cards?: boolean }>('list', (p, d, context) => d.board
+  ? <Board board={d.board} items={d.items ?? []} /> : <Items items={d.items ?? []} context={context} cards={p.cards} />);
 
 type BoardData = NonNullable<Data['board']>;
 
@@ -67,12 +67,12 @@ function Board({ board, items }: { board: BoardData; items: Item[] }) {
   );
 }
 
-function Items({ items, context }: { items: Item[]; context: ComponentContext }) {
+function Items({ items, context, cards }: { items: Item[]; context: ComponentContext; cards?: boolean }) {
   const id = context.componentModel.id;
   const at = useRef<HTMLDivElement>(null);
   useEffect(() => keepList(id, items, at.current!), [id, items]);
   useEffect(() => () => dropList(id), [id]);
-  return <div ref={at} className={s.items}>{items.map((it, i) => <Line key={show(it.id) || i} it={it} />)}</div>;
+  return <div ref={at} className={cards ? s.cards : s.items} data-cards={cards || undefined}>{items.map((it, i) => <Line key={show(it.id) || i} it={it} />)}</div>;
 }
 
 // Line is one item of a list.

@@ -35,6 +35,18 @@ type healthRow struct {
 	SelfCheck bool `json:"self_check"`
 	// Seen marks a failing check the owner read since it last changed.
 	Seen bool `json:"seen"`
+	// Kind is what the row is of, the start of its subject: provider, model, command, trigger, secret, ….
+	Kind string `json:"kind"`
+}
+
+// shownRow is a row of health with the work it stands for: the model of the command of a row of a command or of its
+// schedule, with Trigger its cron trigger; Places the work of the projects the model of a row does.
+type shownRow struct {
+	healthRow
+	Command string `json:"command,omitempty"`
+	provider.Work
+	Trigger int64    `json:"trigger,omitempty"`
+	Places  []string `json:"places,omitempty"`
 }
 
 // healthList shows what the machine runs, the providers, commands, tools and MCP servers of the actor's
@@ -42,6 +54,47 @@ type healthRow struct {
 type healthListIn struct {
 	Project string `type:"project" opt:"" desc:"Only the commands, tools and servers of this project"`
 	Machine bool   `opt:"" desc:"Only what the machine runs: providers, the disk, the sandbox, the tailnet"`
+	Lang    string `opt:"" desc:"Language of the prices of models, such as ru; English without one"`
+}
+
+// shown is the health of the workspace with the model of each command and schedule and the work of each model.
+func (s *Service) shown(ctx context.Context, act registry.Actor, in healthListIn) ([]shownRow, error) {
+	rows, err := s.list(ctx, act, in)
+	if err != nil {
+		return nil, err
+	}
+	ps, err := s.St.Q.ListWorkspaceProjects(ctx, act.Workspace)
+	if err != nil {
+		return nil, err
+	}
+	ids := map[string]int64{}
+	for _, p := range ps {
+		ids[p.Name] = p.ID
+	}
+	ts, err := s.St.Q.ListWorkspaceTriggers(ctx, db.ListWorkspaceTriggersParams{WorkspaceID: act.Workspace})
+	if err != nil {
+		return nil, err
+	}
+	works, places := s.Works(ctx, act.Workspace, in.Lang), s.Places(ctx, act.Workspace)
+	out := make([]shownRow, 0, len(rows))
+	for _, r := range rows {
+		v := shownRow{healthRow: r}
+		name := strings.TrimPrefix(r.Subject, r.Kind+":")
+		switch r.Kind {
+		case "command", "trigger":
+			if id, ok := ids[r.Project]; ok {
+				v.Command = strings.TrimPrefix(name, r.Project+".")
+				v.Work = works(id, v.Command)
+				if i := slices.IndexFunc(ts, func(t db.Trigger) bool { return t.ProjectID == id && t.Command == v.Command && t.Kind == "cron" }); i >= 0 {
+					v.Trigger = ts[i].ID
+				}
+			}
+		case "provider", "model":
+			v.Places = places[name]
+		}
+		out = append(out, v)
+	}
+	return out, nil
 }
 
 func (s *Service) list(ctx context.Context, act registry.Actor, in healthListIn) ([]healthRow, error) {
@@ -102,7 +155,7 @@ func (s *Service) list(ctx context.Context, act registry.Actor, in healthListIn)
 				continue
 			}
 			row := healthRow{Subject: "secret:" + name, Project: p.Name, Status: health.Error,
-				Error: "not set, so the tools that send it fail; set it in Settings → Connections → Other secrets"}
+				Error: "not set, so the tools that send it fail; set it in Settings → Connections → Secrets"}
 			row.Seen = s.read(ctx, act.Workspace, row)
 			out = append(out, row)
 		}
@@ -114,6 +167,12 @@ func (s *Service) list(ctx context.Context, act registry.Actor, in healthListIn)
 		}
 		out = append(out, healthRow{Subject: h.Subject, Project: hr.Project, Status: h.Status, Error: h.Error, Version: h.Version,
 			Verdict: h.Verdict, Speed: h.Speed, UpdatedAt: h.UpdatedAt, SelfCheck: checked[h.Subject], Seen: h.SeenAt.Valid && h.SeenAt.String >= h.UpdatedAt})
+	}
+	for i := range out {
+		out[i].Kind, _, _ = strings.Cut(out[i].Subject, ":")
+		if !strings.Contains(out[i].Subject, ":") {
+			out[i].Kind = out[i].Subject
+		}
 	}
 	slices.SortStableFunc(out, func(x, y healthRow) int {
 		switch {
@@ -153,7 +212,10 @@ type Service struct {
 	Unassigned func(ctx context.Context, workspace, project int64, m *manifest.Manifest) map[string]string
 	// NoSearch is what the owner does while no search is assigned, or "".
 	NoSearch func(ctx context.Context, workspace int64) string
-	Bus      *events.Bus
+	// Works looks up the model that does the work of a command; Places the work each model does.
+	Works  func(ctx context.Context, workspace int64, lang string) func(projectID int64, command string) provider.Work
+	Places func(ctx context.Context, workspace int64) map[string][]string
+	Bus    *events.Bus
 }
 
 // Commands are the commands of health.
@@ -161,7 +223,7 @@ func (s *Service) Commands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("health_list", "Health",
 			"Lists the health of providers and other dependencies with the last error, worst first.",
-			registry.OwnerSide, s.list).On("health", "secrets", "projects", "models", "assignments"),
+			registry.OwnerSide, s.shown).On("health", "secrets", "projects", "models", "assignments", "triggers", "documents"),
 		registry.Def("health_seen", "Mark a failing check read",
 			"Marks a failing check read: it stops counting among the failing until its status or error changes.",
 			registry.OwnerOnly, s.seen),

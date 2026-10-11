@@ -268,6 +268,9 @@ func (c *screenCheck) block(where string, b Block) {
 			}
 		}
 	}
+	if b.Cards && (b.Type != "list" || b.Board != "") {
+		c.fail("%s cards: lays out the items of a list that is no board", where)
+	}
 	if b.Board != "" {
 		var col *Collection
 		if b.Source != nil && b.Source.From == "" {

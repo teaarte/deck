@@ -303,6 +303,8 @@ type Block struct {
 	Filter []string `json:"filter,omitempty"`
 	// Board is the enum field of a list whose values are the lanes its items stand in.
 	Board string `json:"board,omitempty"`
+	// Cards lays the items of a list side by side as cards.
+	Cards bool `json:"cards,omitempty"`
 	// Command is the command of a form.
 	Command string `json:"command,omitempty"`
 	// Choices offer the values of fields of a form from a source.

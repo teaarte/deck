@@ -380,21 +380,30 @@ func TestScheduleShowsEveryTriggerRunsOneNowAndPausesAProject(t *testing.T) {
 	check.messages(t, e.screenMessages("", "schedule", nil))
 	rows := func() []screenRow {
 		var out []screenRow
-		for _, r := range blockData[[]screenRow](t, e.screenData("", "schedule", nil)["b0-0-5"]["rows"]) {
-			if !strings.HasPrefix(fmt.Sprint(r.Cells[0]), "master · ") {
+		for _, r := range blockData[[]screenRow](t, e.screenData("", "schedule", nil)["b0-0-0"]["rows"]) {
+			if r.Cells[0] != "master" {
 				out = append(out, r)
 			}
 		}
 		return out
 	}
-	find := func(rs []screenRow, project, when string) screenRow {
+	find := func(rs []screenRow, project string) screenRow {
 		for _, r := range rs {
-			if strings.HasPrefix(fmt.Sprint(r.Cells[0]), project+" · ") && r.Cells[1] == when {
+			if r.Cells[0] == project {
 				return r
 			}
 		}
-		t.Fatalf("no trigger %s %s in %+v", project, when, rs)
+		t.Fatalf("no trigger of %s in %+v", project, rs)
 		return screenRow{}
+	}
+	state := func(project string) (word, last, next string) {
+		var ts []struct {
+			Word      string `json:"word"`
+			LastWord  string `json:"last_word"`
+			NextRunAt string `json:"next_run_at"`
+		}
+		e.must("deck.triggers_list", map[string]any{"project": project}, &ts)
+		return ts[0].Word, ts[0].LastWord, ts[0].NextRunAt
 	}
 	button := func(r screenRow, verb string) map[string]any {
 		for _, a := range r.Actions {
@@ -410,27 +419,26 @@ func TestScheduleShowsEveryTriggerRunsOneNowAndPausesAProject(t *testing.T) {
 		e.must(a["command"].(string), a["params"], out)
 	}
 	rs := rows()
-	job := find(rs, "alpha", "0 9 * * *")
-	if len(rs) != 2 || job.Cells[0] != "alpha · job" || job.Cells[2] == "" || job.Cells[3] == "" || job.Cells[5] != "on" {
-		t.Fatalf("every trigger of every project with its command, schedule, model and next run: %+v", rs)
+	job := find(rs, "alpha")
+	if len(rs) != 2 || fmt.Sprint(job.Cells[:4]) != "[alpha job 0 9 * * * fake]" {
+		t.Fatalf("every trigger of every project with its command, how often and its model: %+v", rs)
 	}
-	if m := button(job, "models"); m["screen"] != "schedule" || m["params"].(map[string]any)["command"] != "job" || m["params"].(map[string]any)["project"] != "alpha" {
-		t.Fatalf("the model of a trigger is changed from the schedule: %+v", m)
+	if m := button(job, "model"); m["pick"] != "model" || m["params"].(map[string]any)["command"] != "job" || m["params"].(map[string]any)["project"] != "alpha" {
+		t.Fatalf("the model of a trigger is picked in its row: %+v", m)
 	}
-	next := job.Cells[3]
+	_, _, next := state("alpha")
 
 	var started struct{ Process int64 }
 	press(button(job, "run_now"), &started)
 	e.waitState(started.Process, "done")
-	job = find(rows(), "alpha", "0 9 * * *")
-	if job.Cells[4] != "done" || job.Cells[3] != next {
-		t.Fatalf("run now starts the command and keeps its slot: %+v", job.Cells)
+	if _, last, now := state("alpha"); last != "done" || now != next {
+		t.Fatalf("run now starts the command and keeps its slot: %s %s", last, now)
 	}
-	button(job, "open")
+	button(find(rows(), "alpha"), "open")
 
 	e.must("deck.project_pause", map[string]any{"project": "alpha", "paused": true}, nil)
-	if job = find(rows(), "alpha", "0 9 * * *"); job.Cells[5] != "project paused" {
-		t.Fatalf("a paused project shows on its triggers: %+v", job.Cells)
+	if word, _, _ := state("alpha"); word != "project paused" || fmt.Sprint(find(rows(), "alpha").Tones) != "[muted muted <nil> <nil> <nil>]" {
+		t.Fatalf("a paused project shows on its triggers: %s %+v", word, find(rows(), "alpha"))
 	}
 	e.Clock.Add(26 * time.Hour)
 	e.tick()
@@ -440,11 +448,11 @@ func TestScheduleShowsEveryTriggerRunsOneNowAndPausesAProject(t *testing.T) {
 		t.Fatalf("a paused project runs nothing on schedule, only what the owner ran: %d", n)
 	}
 	e.must("deck.project_pause", map[string]any{"project": "alpha", "paused": false}, nil)
-	press(button(find(rows(), "alpha", "0 9 * * *"), "pause"), nil)
-	if job = find(rows(), "alpha", "0 9 * * *"); job.Cells[5] != "paused" {
-		t.Fatalf("a trigger pauses alone: %+v", job.Cells)
+	press(button(find(rows(), "alpha"), "pause"), nil)
+	if word, _, _ := state("alpha"); word != "paused" {
+		t.Fatalf("a trigger pauses alone: %s", word)
 	}
-	press(button(job, "resume"), nil)
+	press(button(find(rows(), "alpha"), "resume"), nil)
 
 	history := e.screenData("", "schedule", map[string]any{"filter": `{"b0-1-0": {"project": "alpha"}}`})["b0-1-0"]
 	hrows := blockData[[]screenRow](t, history["rows"])

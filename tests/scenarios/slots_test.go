@@ -156,9 +156,9 @@ func TestConfirmationTermIsASettingOfTheWorkspace(t *testing.T) {
 	if want := t0.Add(2 * time.Hour).UTC().Format("2006-01-02T15:04:05.000Z"); asks[0].ExpiresAt != want {
 		t.Fatalf("the confirmation expires by the term the owner set: %+v, want %s", asks, want)
 	}
-	rows := blockData[[]screenRow](t, e.settingsBlock("General", nil)["rows"])
-	if rows[0].Cells[1] != float64(2) || rows[0].Cells[2] != float64(24) {
-		t.Fatalf("the general tab shows the term and its default: %+v", rows)
+	rows := blockData[[]screenRow](t, e.settingsBlock("Limits", nil)["rows"])
+	if rows[0].Cells[1] != "2" || rows[0].Cells[2] != float64(24) {
+		t.Fatalf("the limits show the term and its default: %+v", rows)
 	}
 }
 

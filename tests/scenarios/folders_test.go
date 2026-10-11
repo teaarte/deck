@@ -91,7 +91,7 @@ func TestAgentCommandWorksInTheProjectFolder(t *testing.T) {
 	}
 	var items []listItem
 	_ = json.Unmarshal(e.settingsBlock("Projects", nil)["items"], &items)
-	if len(items) != 2 || !strings.Contains(items[0].Meta, "folders: my-repo: "+repo+"; notes: ") || strings.Contains(fmt.Sprint(items[1].Actions), "project_delete") {
+	if len(items) != 2 || !strings.Contains(items[0].Meta, "folders: my-repo, notes") || strings.Contains(fmt.Sprint(items[1].Actions), "project_delete") {
 		t.Fatalf("the Projects tab shows the folders: %+v", items)
 	}
 	if code, out := e.press(e.rowAction("code", "settings", "deck.folder_remove", map[string]any{"name": "notes"})); code != 200 {

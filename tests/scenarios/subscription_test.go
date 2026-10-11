@@ -6,7 +6,7 @@ import (
 )
 
 // TestACallOnASubscriptionShowsAnEstimateOutOfTheMoneySpent: what Claude Code says a turn cost is an estimate of a
-// subscription: the process, the spend by day and by model keep it apart from the money spent.
+// subscription: the process, the spend by day and by model and the spend screen keep it apart from the money spent.
 func TestACallOnASubscriptionShowsAnEstimateOutOfTheMoneySpent(t *testing.T) {
 	t.Parallel()
 	c := newCLI(t)
@@ -32,6 +32,14 @@ func TestACallOnASubscriptionShowsAnEstimateOutOfTheMoneySpent(t *testing.T) {
 	e.must("deck.spend_daily", map[string]any{"by": "provider"}, &days)
 	if len(days) != 1 || days[0].CostUSD != 0 || days[0].SubscriptionUSD < 0.04 || !days[0].Subscription {
 		t.Fatalf("the spend keeps the estimate out of the money: %+v", days)
+	}
+	page := e.screenData("", "spend", nil)
+	rows := blockData[[]screenRow](t, page["b4-0-0"]["rows"])
+	if len(rows) != 1 || rows[0].Cells[0] != "plain" || rows[0].Cells[4] != nil || rows[0].Cells[5] != "✓" {
+		t.Fatalf("the spend of a project shows a model on a subscription apart from the money paid: %+v", rows)
+	}
+	if paid := string(page["b2"]["value"]); paid != "0" {
+		t.Fatalf("what is paid leaves the subscription out: %s", page["b2"])
 	}
 	var models struct {
 		Models []struct {

@@ -68,6 +68,9 @@ type assignmentView struct {
 	Models  []string `json:"models"`
 	// Using is the model that takes the work now: the first that is up, a fallback when the first is down.
 	Using string `json:"using,omitempty"`
+	// Choices are the models of deck that could do the work, Price how the price of the first reads.
+	Choices []string `json:"choices"`
+	Price   string   `json:"price"`
 }
 
 type assignmentSetIn struct {

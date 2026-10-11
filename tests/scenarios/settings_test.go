@@ -33,8 +33,8 @@ func TestSettingsIsInTheMenuAndItsInterfaceTabIsTheLookOfTheDevice(t *testing.T)
 	for _, s := range menu[0].Screens {
 		names = append(names, s.Name)
 	}
-	if !strings.Contains(strings.Join(names, " "), "schedule files settings") {
-		t.Fatalf("the deck menu is the schedule, files and settings; the cockpit is the link at its head: %v", names)
+	if !strings.Contains(strings.Join(names, " "), "schedule spend files settings") {
+		t.Fatalf("the deck menu is the schedule, spend, files and settings; the cockpit is the link at its head: %v", names)
 	}
 	check := newCatalogCheck(t)
 	msgs := e.screenMessages("", "settings", nil)
@@ -51,8 +51,8 @@ func TestSettingsIsInTheMenuAndItsInterfaceTabIsTheLookOfTheDevice(t *testing.T)
 	if got := string(e.screenData("", "settings", nil)[look]["state"]); got != `"ready"` {
 		t.Fatalf("the appearance block is ready without a source: %s", got)
 	}
-	if n := len(e.screenMessages("", "settings", map[string]any{"topic": "processes"})); n != 0 {
-		t.Fatalf("no event reads the look again: %d messages", n)
+	if drawn, _ := json.Marshal(e.screenMessages("", "settings", map[string]any{"topic": "processes"})); strings.Contains(string(drawn), `"/`+look+`"`) {
+		t.Fatalf("no event reads the look again: %s", drawn)
 	}
 
 	e.createProject("web", webNotes)
@@ -187,8 +187,8 @@ func TestSettingsProjectsEnableADraftAtTheRevisionItShows(t *testing.T) {
 	if notes = findItem(t, items(), "notes"); !strings.HasPrefix(notes.Meta, "enabled, paused") || !hasVerb(notes.Actions, "resume") {
 		t.Fatalf("a paused project says so and resumes: %+v", notes)
 	}
-	if f := e.screenForm("", "settings", "deck.command_try"); !strings.Contains(string(f["value"]), `"deck.command_try"`) {
-		t.Fatalf("trying a command is a form on the projects tab: %s", f["value"])
+	if f := e.screenForm("notes", "settings", "deck.command_try"); !strings.Contains(string(f["value"]), `"deck.command_try"`) {
+		t.Fatalf("trying a command is a form of the settings of the project: %s", f["value"])
 	}
 }
 
@@ -204,7 +204,7 @@ func TestSettingsSecretsAndTokensShowOnlyNames(t *testing.T) {
 	}
 	e.must("deck.secret_set", map[string]any{"name": "mail-key", "value": "s3cret-value"}, nil)
 	waitTopic(t, events, "secrets")
-	secrets := e.settingsBlock("Other secrets", map[string]any{"topic": "secrets"})
+	secrets := e.settingsBlock("Secrets", map[string]any{"topic": "secrets"})
 	got := blockData[[]screenRow](t, secrets["rows"])
 	if len(got) != 1 || got[0].Cells[0] != "mail-key" || !hasVerb(got[0].Actions, "replace") || verb(t, got[0].Actions, "delete")["confirm"] != true {
 		t.Fatalf("the secrets tab lists names with replace and delete, and follows the secrets topic: %s", secrets["rows"])
@@ -212,7 +212,7 @@ func TestSettingsSecretsAndTokensShowOnlyNames(t *testing.T) {
 	del := verb(t, got[0].Actions, "delete")
 	e.must(del["command"].(string), del["params"], nil)
 	waitTopic(t, events, "secrets")
-	if left := blockData[[]screenRow](t, e.settingsBlock("Other secrets", nil)["rows"]); len(left) != 0 {
+	if left := blockData[[]screenRow](t, e.settingsBlock("Secrets", nil)["rows"]); len(left) != 0 {
 		t.Fatalf("a deleted secret is gone: %+v", left)
 	}
 
@@ -288,8 +288,8 @@ func TestSettingsModelsAddAndRemoveOnTheScreen(t *testing.T) {
 		t.Fatalf("a model in an ACP agent has a self-check and its button: %+v", added.Actions)
 	}
 	remove := verb(t, added.Actions, "remove")
-	if remove["confirm"] != true || added.Cells[2] != "ollama" || added.Cells[3] != "goose" {
-		t.Fatalf("an added model shows its connection and agent and is removed after a yes: %+v", added)
+	if remove["confirm"] != true || added.Cells[1] != "agent" {
+		t.Fatalf("an added model in an agent says so and is removed after a yes: %+v", added)
 	}
 	edit := verb(t, added.Actions, "edit")["params"].(map[string]any)
 	if edit["dialog"] != "model" || edit["model"] != "small" || edit["connection"] != "ollama" || edit["agent"] != "goose" {
@@ -329,9 +329,9 @@ func TestSettingsHealthShowsWhatIsRedFirstWithWhy(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	block := e.settingsBlock("Health of the machine", nil)
+	block := e.settingsBlock("Everything deck checks", nil)
 	rows := blockData[[]screenRow](t, block["rows"])
-	if len(rows) < 2 || rows[0].Cells[1] != "error" || rows[0].Cells[2] != "the server exited: 1" {
+	if len(rows) < 2 || rows[0].Cells[1] != "error" || rows[0].Cells[3] != "the server exited: 1" {
 		t.Fatalf("what is red comes first with why: %+v", rows)
 	}
 	for _, r := range rows {
@@ -400,6 +400,7 @@ func TestSettingsHealthShowsWhatIsRedFirstWithWhy(t *testing.T) {
 	if webErrors() != 1 || unread() != 2 {
 		t.Fatalf("a read check counts again once its error changes: menu %d, unread %d", webErrors(), unread())
 	}
+	block = e.settingsBlock("Everything deck checks", nil)
 	id := ""
 	for k, v := range e.screenData("", "settings", nil) {
 		if string(v["rows"]) == string(block["rows"]) {
@@ -513,13 +514,17 @@ func TestEverySettingIsEditedFromItsOneDefinition(t *testing.T) {
 			Params               map[string]any
 		}
 	}
-	_ = json.Unmarshal(e.settingsBlock("General", nil)["rows"], &rows)
-	if len(rows) != len(list) {
-		t.Fatalf("the General tab lists every setting: %+v", rows)
+	_ = json.Unmarshal(e.settingsBlock("Limits", nil)["rows"], &rows)
+	if len(rows) != len(list)-1 {
+		t.Fatalf("the Limits of the health tab list every setting but the language of the interface: %+v", rows)
 	}
+	e.must("deck.settings_set", map[string]any{"name": "language", "value": "ru"}, nil)
 	for _, s := range list {
 		if !slices.Contains(set.Input.Properties.Name.Enum, s.Name) {
 			t.Fatalf("settings_set names %s: %+v", s.Name, set)
+		}
+		if s.Name == "language" {
+			continue
 		}
 		r := rows[slices.IndexFunc(rows, func(r struct {
 			ID      string
@@ -533,11 +538,10 @@ func TestEverySettingIsEditedFromItsOneDefinition(t *testing.T) {
 		if len(r.Actions) != 1 || r.Actions[0].Verb != "edit" {
 			t.Fatalf("%s has the edit button: %+v", s.Name, r)
 		}
-		value := "2"
-		if len(s.Options) > 0 {
-			value = s.Options[len(s.Options)-1]
+		if !slices.Contains(s.Options, "2") {
+			t.Fatalf("%s offers its values to pick: %+v", s.Name, s.Options)
 		}
-		in := map[string]any{r.Actions[0].Input: value}
+		in := map[string]any{r.Actions[0].Input: "2"}
 		for k, v := range r.Actions[0].Params {
 			in[k] = v
 		}
@@ -598,6 +602,42 @@ func TestASecretDeleteStaysInTheFolderOfSecrets(t *testing.T) {
 	for _, f := range []string{above, filepath.Join(dir, "svc")} {
 		if _, err := os.Stat(f); err != nil {
 			t.Fatalf("the file stays: %v", err)
+		}
+	}
+}
+
+// TestHealthShowsTheModelOfAFailingScheduleAndTheWorkOfAModel: a failing check of a schedule shows the model its
+// command runs on with the models it could, and the button that runs it now; a model says what work it does.
+func TestHealthShowsTheModelOfAFailingScheduleAndTheWorkOfAModel(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, ok)
+	e.createProject("daily", testManifest([]string{agentCommand("work", "")}, []string{`{"command": "work", "cron": "0 9 * * *"}`}))
+	if err := e.App.Store.Tx(t.Context(), func(ctx context.Context, q *db.Queries) error {
+		return q.SetHealth(ctx, db.SetHealthParams{WorkspaceID: store.ID(1), ProjectID: store.ID(e.projectID("daily")), Subject: "trigger:daily.work", Status: "error", Error: "did not start"})
+	}); err != nil {
+		t.Fatal(err)
+	}
+	rows := blockData[[]screenRow](t, e.settingsBlock("Failing checks", nil)["rows"])
+	i := slices.IndexFunc(rows, func(r screenRow) bool { return r.Cells[0] == "trigger:daily.work" })
+	if i < 0 || rows[i].Cells[1] != "fake" || !hasVerb(rows[i].Actions, "run_now") || verb(t, rows[i].Actions, "model")["pick"] != "model" {
+		t.Fatalf("a failing schedule shows its model to change and runs again: %+v", rows)
+	}
+	pick := verb(t, rows[i].Actions, "model")
+	params := pick["params"].(map[string]any)
+	params["model"] = "quiet"
+	e.must("deck.assignment_set", params, nil)
+	var hs []struct {
+		Subject, Model string
+		Places         []string
+		Kind           string
+	}
+	e.must("deck.health_list", nil, &hs)
+	for _, h := range hs {
+		if h.Subject == "trigger:daily.work" && (h.Model != "quiet" || h.Kind != "trigger") {
+			t.Fatalf("the picked model is the one the schedule runs on next: %+v", h)
+		}
+		if h.Subject == "provider:quiet" && !slices.Contains(h.Places, "daily.work") {
+			t.Fatalf("a model says the work it does: %+v", h)
 		}
 	}
 }

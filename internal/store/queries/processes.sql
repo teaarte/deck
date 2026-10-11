@@ -170,6 +170,7 @@ SELECT * FROM tool_call
 WHERE workspace_id = sqlc.arg(workspace_id)
   AND (CAST(sqlc.arg(project_id) AS INTEGER) = 0 OR project_id = CAST(sqlc.arg(project_id) AS INTEGER))
   AND (CAST(sqlc.arg(outcome) AS TEXT) = '' OR outcome = sqlc.arg(outcome))
+  AND (CAST(sqlc.arg(process_id) AS INTEGER) = 0 OR process_id = CAST(sqlc.arg(process_id) AS INTEGER))
 ORDER BY id DESC LIMIT sqlc.arg(lim);
 
 

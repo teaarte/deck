@@ -18,6 +18,16 @@
       {"verb": "rework", "primary": true, "command": "deck.process_rework", "params": {"process": "=id"}, "input": "remark", "when": "kind == 'agent' && (session_id ?? '') != '' && (finished_at ?? '') != ''"}
     ]},
     {"type": "log", "title": "Log", "source": {"from": "deck.process_chat", "input": {"process": "=id"}},
-      "empty": "Nothing in the log: a script logs only what it writes to stderr, a tool or a model call nothing; its input and result are above"}
+      "empty": "Nothing in the log: a script logs only what it writes to stderr, a tool or a model call nothing; its input and result are above"},
+    {"type": "table", "title": "Calls of the gateway", "source": {"from": "deck.calls_list", "input": {"process": "=id"}},
+      "description": "The tools and commands this run called through deck, and how each ended.",
+      "empty": "It called nothing through deck",
+      "columns": [
+        {"label": "When", "bind": "created_at", "format": "relative"},
+        {"label": "Tool", "bind": "tool"},
+        {"label": "Class", "bind": "class", "format": "tag"},
+        {"label": "Outcome", "bind": "outcome", "format": "tag", "tone": "outcome == 'done' ? 'ok' : outcome == 'rejected' || outcome == 'expired' ? 'error' : ''"},
+        {"label": "Error", "bind": "error", "details": "error"}
+      ]}
   ]
 }

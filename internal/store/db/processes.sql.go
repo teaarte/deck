@@ -1256,13 +1256,15 @@ SELECT id, workspace_id, project_id, process_id, actor, caller, tool, class, out
 WHERE workspace_id = ?1
   AND (CAST(?2 AS INTEGER) = 0 OR project_id = CAST(?2 AS INTEGER))
   AND (CAST(?3 AS TEXT) = '' OR outcome = ?3)
-ORDER BY id DESC LIMIT ?4
+  AND (CAST(?4 AS INTEGER) = 0 OR process_id = CAST(?4 AS INTEGER))
+ORDER BY id DESC LIMIT ?5
 `
 
 type ListWorkspaceToolCallsParams struct {
 	WorkspaceID int64
 	ProjectID   int64
 	Outcome     string
+	ProcessID   int64
 	Lim         int64
 }
 
@@ -1271,6 +1273,7 @@ func (q *Queries) ListWorkspaceToolCalls(ctx context.Context, arg ListWorkspaceT
 		arg.WorkspaceID,
 		arg.ProjectID,
 		arg.Outcome,
+		arg.ProcessID,
 		arg.Lim,
 	)
 	if err != nil {

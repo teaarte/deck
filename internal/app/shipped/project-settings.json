@@ -52,7 +52,8 @@
               {"label": "Command", "bind": "command"},
               {"label": "Model", "bind": "provider", "format": "tag"},
               {"label": "Calls", "bind": "calls"},
-              {"label": "Cost", "bind": "subscription ? 'subscription' : cost_usd", "format": "money", "currency": "USD"},
+              {"label": "Paid", "bind": "subscription ? nil : cost_usd", "format": "money", "currency": "USD"},
+              {"label": "Subscription", "bind": "subscription ? '✓' : ''"},
               {"label": "Last", "bind": "last_at", "format": "relative"}
             ]}
       ]},
@@ -96,25 +97,34 @@
             "actions": [{"verb": "revoke", "confirm": true, "command": "deck.token_revoke", "params": {"token": "=id"}, "when": "!revoked"}]}
       ]},
       {"title": "Health", "icon": "heartbeat", "blocks": [
-          {"type": "table", "title": "Health", "source": {"from": "deck.health_list"}, "filter": ["status"],
+          {"type": "table", "title": "Health", "source": {"from": "deck.health_list"}, "filter": ["kind", "status"],
+            "description": "What of the project deck checks; a command or a schedule shows its model, which you change here.",
             "columns": [
               {"label": "What", "bind": "subject"},
               {"label": "Status", "bind": "status", "format": "tag", "tone": "status == 'ok' ? 'ok' : status == 'error' ? 'error' : 'warn'"},
-              {"label": "Why", "bind": "error", "format": "copy"},
-              {"label": "Since", "bind": "updated_at"}
+              {"label": "Model", "bind": "model ?? ''", "pick": "model"},
+              {"label": "Why", "bind": "error", "details": "error", "format": "copy"},
+              {"label": "Since", "bind": "updated_at", "format": "relative"}
             ],
-            "actions": [{"verb": "check", "command": "deck.programs_check", "when": "hasPrefix(subject, 'command:') && status != 'ok'"}]}
-      ]},
-      {"title": "Files", "icon": "files", "blocks": [
-          {"type": "media", "title": "Files", "span": "full", "source": {"from": "deck.files_list", "sort": "-created_at"},
-            "description": "What the project made and keeps: pictures, video, sound, documents of its runs and records.",
-            "empty": "The project has no files yet",
-            "item": {"file": "id", "title": "name"},
             "actions": [
-              {"verb": "delete", "command": "deck.file_delete", "params": {"file": "=id"},
-               "undo": {"command": "deck.file_restore", "params": {"file": "=id", "owner_kind": "=owner_kind", "owner_id": "=owner_id"}}}
+              {"verb": "model", "command": "deck.assignment_set", "params": {"role": "=role", "project": "=project", "command": "=command"}, "input": "model", "options": "=choices", "when": "len(choices ?? []) > 0"},
+              {"verb": "run_now", "command": "deck.trigger_run", "params": {"trigger": "=trigger"}, "when": "(trigger ?? 0) != 0"},
+              {"verb": "check", "command": "deck.programs_check", "when": "hasPrefix(subject, 'command:') && status != 'ok'"}
+            ]},
+          {"type": "table", "title": "Failed runs", "empty": "No schedule failed its last run", "source": {"from": "deck.triggers_list", "where": "(last_tone ?? '') == 'error'", "sort": "command"},
+            "description": "What runs by itself and failed its last run, with the model it ran on: change the model and run it again.",
+            "columns": [
+              {"label": "Command", "bind": "command"},
+              {"label": "Model", "bind": "model ?? ''", "pick": "model"},
+              {"label": "Last result", "bind": "last_word ?? ''", "format": "tag", "tone": "last_tone ?? ''"}
+            ],
+            "actions": [
+              {"verb": "model", "command": "deck.assignment_set", "params": {"role": "=role", "project": "=project", "command": "=command"}, "input": "model", "options": "=choices", "when": "len(choices ?? []) > 0"},
+              {"verb": "run_now", "primary": true, "command": "deck.trigger_run", "params": {"trigger": "=id"}, "when": "kind == 'cron'"},
+              {"verb": "open", "screen": "process", "project": "", "record": "=last_process", "when": "last_process != 0"}
             ]}
-      ]}
+      ]},
+      {"title": "Files", "icon": "files", "blocks": [{"type": "media", "title": "Files", "span": "full", "source": {"from": "deck.files_list", "sort": "-created_at"}, "description": "What the project made and keeps: pictures, video, sound, documents of its runs and records.", "empty": "The project has no files yet", "item": {"file": "id", "title": "name"}, "actions": [{"verb": "delete", "command": "deck.file_delete", "params": {"file": "=id"}, "undo": {"command": "deck.file_restore", "params": {"file": "=id", "owner_kind": "=owner_kind", "owner_id": "=owner_id"}}}]}]}
     ]}
   ]
 }

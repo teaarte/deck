@@ -411,6 +411,16 @@ func (b *playwright) eval(js string) string {
 	return s
 }
 
+// look picks a value of a dropdown of the look on the Interface tab, opening the tab when it is not open.
+func (b *playwright) look(name, value string) {
+	b.t.Helper()
+	b.call("browser_run_code_unsafe", map[string]any{"code": `async (page) => { const at = page.locator('[data-look="` + name + `"]');
+		if (!(await at.isVisible())) await page.locator('[role=tab]').filter({hasText: /^(Interface|Интерфейс)$/}).click();
+		await at.click();
+		await page.locator('[role=option][value="` + value + `"]:visible').click(); }`})
+	b.until(name+" "+value, `document.querySelector('[data-look="`+name+`"][data-value="`+value+`"]')`)
+}
+
 func (b *playwright) until(what, cond string) {
 	b.t.Helper()
 	deadline := time.Now().Add(15 * time.Second)

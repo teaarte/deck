@@ -84,9 +84,9 @@ func TestTheModelsAndConnectionsTabsShowWhatRunsTheModels(t *testing.T) {
 		t.Fatalf("a model changed without its kind and price keeps them: %+v", kept)
 	}
 
-	rows := blockData[[]screenRow](t, e.settingsBlock("Assignments", nil)["rows"])
+	rows := blockData[[]screenRow](t, e.settingsBlock("Everywhere else", nil)["rows"])
 	i := slices.IndexFunc(rows, func(r screenRow) bool { return r.Cells[0] == "image" })
-	if i < 0 || fmt.Sprint(rows[i].Cells...) != "imageeverywhererouter/x/picrouter/x/pic" {
+	if i < 0 || fmt.Sprint(rows[i].Cells...) != "imagerouter/x/pic$0.04 a callrouter/x/pic" {
 		t.Fatalf("the assignments show which models do which work and which one does it now: %+v", rows)
 	}
 	var acp *screenRow
@@ -116,7 +116,7 @@ func TestTheModelsAndConnectionsTabsShowWhatRunsTheModels(t *testing.T) {
 	if len(conns) != 2 || conns[0].Cells[0] != "router" || conns[1].Cells[0] != "whisper" || fmt.Sprint(verb(t, conns[1].Actions, "edit")["params"].(map[string]any)["local"]) != "true" {
 		t.Fatalf("the connections tab lists the connections, the whisper of deck too, and edits each as it is: %+v", conns)
 	}
-	secrets := blockData[[]screenRow](t, e.settingsBlock("Other secrets", nil)["rows"])
+	secrets := blockData[[]screenRow](t, e.settingsBlock("Secrets", nil)["rows"])
 	if !strings.Contains(fmt.Sprint(secrets), "wiki") {
 		t.Fatalf("the connections tab lists the secrets of tools too: %+v", secrets)
 	}

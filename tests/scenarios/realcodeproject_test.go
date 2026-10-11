@@ -44,20 +44,20 @@ func TestRealBrowserCodeProject(t *testing.T) {
 	b.eval(pressIn(itemOf("code", "draft"), "enable"))
 	b.until("the enabled project", itemOf("code", "enabled"))
 
+	tab := func(name string) {
+		b.until("the tab "+name, `[...document.querySelectorAll('[role="tab"]')].some((x) => x.innerText.trim() === '`+name+`')`)
+		b.eval(`([...document.querySelectorAll('[role="tab"]')].find((x) => x.innerText.trim() === '` + name + `').click(), '')`)
+	}
 	b.eval(pressIn(itemOf("code", "enabled"), "settings"))
+	tab("Access")
 	b.until("the settings of the project", `document.querySelector('[data-dialog-open="folder"]')`)
 	b.eval(`(document.querySelector('[data-dialog-open="folder"]').click(), '')`)
 	b.until("the folder form", form("deck.folder_add", "path"))
 	b.type_(form("deck.folder_add", "path"), repo)
 	submit("deck.folder_add")
-	tab := func(name string) {
-		b.until("the tab "+name, `[...document.querySelectorAll('[role="tab"]')].some((x) => x.innerText.trim() === '`+name+`')`)
-		b.eval(`([...document.querySelectorAll('[role="tab"]')].find((x) => x.innerText.trim() === '` + name + `').click(), '')`)
-	}
-	tab("Access")
 	b.until("the folder in the folders of the project", `[...document.querySelectorAll('tr')].some((r) => r.innerText.includes('my-repo') && r.innerText.includes('`+repo+`'))`)
 	tab("Project")
-	b.until("the commands of the project", `[...document.querySelectorAll('tr')].some((r) => r.innerText.includes('code.run'))`)
+	b.until("the commands of the project", `[...document.querySelectorAll('tr')].some((r) => r.innerText.includes('Run') && r.querySelector('input[data-pick="model"]'))`)
 	b.shot("code-settings")
 
 	e.must("deck.records_upsert", map[string]any{"project": "code", "collection": "tasks",

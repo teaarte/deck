@@ -347,13 +347,13 @@ func TestScreenTopicReadsOnlyTheBlocksItChanges(t *testing.T) {
 			t.Fatalf("%s draws the cockpit whole: its lists are there only while they have lines: %v", topic, msgs)
 		}
 	}
-	if got := paths("", "settings", "health"); !slices.Equal(got, []string{"/b0-1-2", "/b0-1-3", "/b0-1-4", "/b0-2-2", "/b0-6-0", "/b0-6-1"}) {
+	if got := paths("", "settings", "health"); !slices.Equal(got, []string{"/b0-1-2", "/b0-1-3", "/b0-1-4", "/b0-1-5", "/b0-2-3", "/b0-4-0", "/b0-4-1", "/b0-4-2", "/b0-4-3"}) {
 		t.Fatalf("health reads the models, the agents, the connections and the health: %v", got)
 	}
-	if got := paths("", "settings", "models"); !slices.Equal(got, []string{"/b0-1-2", "/b0-1-3", "/b0-1-4", "/b0-2-2", "/b0-6-0", "/b0-6-1"}) {
+	if got := paths("", "settings", "models"); !slices.Equal(got, []string{"/b0-1-2", "/b0-1-3", "/b0-1-4", "/b0-1-5", "/b0-2-3", "/b0-4-0", "/b0-4-1", "/b0-4-2", "/b0-4-3"}) {
 		t.Fatalf("models reads the blocks of models and connections and the health, where a command no model fits is red: %v", got)
 	}
-	if got := paths("", "settings", "documents"); !slices.Contains(got, "/b0-0-3") {
+	if got := paths("", "settings", "documents"); !slices.Contains(got, "/b0-0-2") {
 		t.Fatalf("documents reads the projects, whose descriptions are their prompts: %v", got)
 	}
 	for _, topic := range []string{"projects", "spaceship"} {

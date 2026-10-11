@@ -24,6 +24,7 @@ type callsListIn struct {
 	Project string `type:"project" opt:"" desc:"Project name; without it an agent of a project gets its own, the owner and the master every project"`
 	Outcome string `opt:"" desc:"Only this outcome: done, rejected, waiting, expired, unknown, started"`
 	Limit   int64  `opt:"" desc:"At most this many, 200 by default"`
+	Process int64  `opt:"" desc:"Only the calls of this process"`
 }
 
 // callRow is a call of the gateway: who called what, of which class, and how it ended.
@@ -48,7 +49,7 @@ func (s *Service) callsList(ctx context.Context, act registry.Actor, in callsLis
 		return nil, err
 	}
 	rows, err := s.St.Q.ListWorkspaceToolCalls(ctx, db.ListWorkspaceToolCallsParams{WorkspaceID: act.Workspace, ProjectID: project,
-		Outcome: in.Outcome, Lim: registry.Limit(in.Limit, 200, 500)})
+		Outcome: in.Outcome, ProcessID: in.Process, Lim: registry.Limit(in.Limit, 200, 500)})
 	if err != nil {
 		return nil, err
 	}
@@ -110,7 +111,7 @@ func (s *Service) spendList(ctx context.Context, act registry.Actor, in spendLis
 
 type spendDailyIn struct {
 	Days int64  `opt:"" desc:"Days back from today, 1 to 366; 30 by default"`
-	By   string `opt:"" enum:"day|provider|project" desc:"day: a row for every day, the empty ones too; provider or project: their totals over the days"`
+	By   string `opt:"" enum:"day|provider|project|project_provider" desc:"day: a row for every day, the empty ones too; provider, project or each provider of each project: their totals over the days"`
 }
 
 // spendDailyRow is the model calls of a day, a provider or a project; Age is how many days back the day is.
@@ -157,7 +158,7 @@ func day(minute string) string {
 	return t.Local().Format(time.DateOnly)
 }
 
-// spendDaily is the tokens and cost of model calls of the last days by day, provider or project.
+// spendDaily is the tokens and cost of model calls of the last days by day, provider, project or both.
 func (s *Service) spendDaily(ctx context.Context, act registry.Actor, in spendDailyIn) ([]spendDailyRow, error) {
 	since, days := s.window(in.Days)
 	rows, err := s.St.Q.SpendSince(ctx, db.SpendSinceParams{WorkspaceID: act.Workspace, Since: since})
@@ -195,6 +196,8 @@ func (s *Service) spendDaily(ctx context.Context, act registry.Actor, in spendDa
 			add(r.Provider, r, spendDailyRow{Provider: r.Provider})
 		case "project":
 			add(r.Project, r, spendDailyRow{Project: r.Project})
+		case "project_provider":
+			add(r.Project+"\x00"+r.Provider, r, spendDailyRow{Project: r.Project, Provider: r.Provider})
 		default:
 			if d := day(r.Minute); by[d] != nil {
 				add(d, r, spendDailyRow{})
@@ -227,7 +230,7 @@ func (s *Service) spendDaily(ctx context.Context, act registry.Actor, in spendDa
 		}
 		out = append(out, row)
 	}
-	if in.By == "provider" || in.By == "project" {
+	if in.By != "" && in.By != "day" {
 		slices.SortFunc(out, func(x, y spendDailyRow) int {
 			return cmp.Or(cmp.Compare(y.Tokens, x.Tokens), cmp.Compare(y.Runs, x.Runs))
 		})

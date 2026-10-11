@@ -87,6 +87,38 @@ func (q *Queries) GetSetting(ctx context.Context, arg GetSettingParams) (string,
 	return value, err
 }
 
+const listMarksWithPrefix = `-- name: ListMarksWithPrefix :many
+SELECT name FROM mark WHERE workspace_id = ?1 AND substr(name, 1, length(CAST(?2 AS TEXT))) = CAST(?2 AS TEXT)
+`
+
+type ListMarksWithPrefixParams struct {
+	WorkspaceID int64
+	Prefix      string
+}
+
+func (q *Queries) ListMarksWithPrefix(ctx context.Context, arg ListMarksWithPrefixParams) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, listMarksWithPrefix, arg.WorkspaceID, arg.Prefix)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, err
+		}
+		items = append(items, name)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const setMark = `-- name: SetMark :exec
 INSERT INTO mark (workspace_id, project_id, name, value) VALUES (?1, ?2, ?3, ?4)
 ON CONFLICT (workspace_id, name) DO UPDATE SET value = excluded.value

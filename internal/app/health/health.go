@@ -165,7 +165,7 @@ type seenIn struct {
 }
 
 // seen marks a failing check read: a stored row by its time, one deck works out on each read, such as a secret not
-// set, by a mark of its text until the secret is set.
+// set, by a mark of its text until it fails no more.
 func (s *Service) seen(ctx context.Context, act registry.Actor, in seenIn) (any, error) {
 	n, err := store.TxGet(s.St, ctx, func(ctx context.Context, q *db.Queries) (int64, error) {
 		return q.SeeHealth(ctx, db.SeeHealthParams{Subject: in.Subject, WorkspaceID: store.ID(act.Workspace)})
@@ -196,13 +196,33 @@ func (s *Service) seen(ctx context.Context, act registry.Actor, in seenIn) (any,
 	return map[string]any{"ok": true}, nil
 }
 
-// SecretSet forgets that the owner read that a secret is not set: once it has a value, its going again is news.
-func (s *Service) SecretSet(workspace int64, name string) {
-	err := s.St.Tx(context.Background(), func(ctx context.Context, q *db.Queries) error {
-		return q.DeleteMark(ctx, db.DeleteMarkParams{WorkspaceID: workspace, Name: seenMark + "secret:" + name})
-	})
+// Forget drops the read marks of the checks deck works out that fail no more, so one that fails again counts anew.
+func (s *Service) Forget(ctx context.Context) {
+	spaces, err := s.St.Q.ListWorkspaces(ctx)
 	if err != nil {
-		slog.Error("health: forget a read secret", "secret", name, "err", err)
+		return
+	}
+	for _, ws := range spaces {
+		rows, err := s.list(ctx, registry.Actor{Kind: registry.Owner, Workspace: ws}, healthListIn{})
+		marks, merr := s.St.Q.ListMarksWithPrefix(ctx, db.ListMarksWithPrefixParams{WorkspaceID: ws, Prefix: seenMark})
+		if err != nil || merr != nil {
+			continue
+		}
+		failing := map[string]bool{}
+		for _, r := range rows {
+			failing[seenMark+r.Subject] = r.Status == health.Error && r.UpdatedAt == ""
+		}
+		for _, m := range marks {
+			if failing[m] {
+				continue
+			}
+			err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+				return q.DeleteMark(ctx, db.DeleteMarkParams{WorkspaceID: ws, Name: m})
+			})
+			if err != nil {
+				slog.Error("health: forget a read check", "mark", m, "err", err)
+			}
+		}
 	}
 }
 

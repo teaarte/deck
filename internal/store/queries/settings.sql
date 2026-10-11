@@ -20,6 +20,10 @@ ON CONFLICT (workspace_id, name) DO UPDATE SET value = excluded.value;
 DELETE FROM mark WHERE workspace_id = ? AND name = ?;
 
 
+-- name: ListMarksWithPrefix :many
+SELECT name FROM mark WHERE workspace_id = sqlc.arg(workspace_id) AND substr(name, 1, length(CAST(sqlc.arg(prefix) AS TEXT))) = CAST(sqlc.arg(prefix) AS TEXT);
+
+
 -- name: DeleteMarksWithPrefix :exec
 DELETE FROM mark WHERE workspace_id = sqlc.arg(workspace_id) AND substr(name, 1, length(CAST(sqlc.arg(prefix) AS TEXT))) = CAST(sqlc.arg(prefix) AS TEXT);
 

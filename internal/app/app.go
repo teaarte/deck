@@ -140,7 +140,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	a.Runner.Hooks = []process.Hook{a.Chats.NewHook(), failures.Hook{S: a.Failures}, triggers.After{S: a.Triggers}, asks.Unheard{S: a.Answers}}
 	a.Scheduler = trigger.New(st, a.Triggers.Fire, cfg.Now)
 
-	*a.Secrets = secrets.Service{St: st, Bus: a.Bus, Dir: h.Secrets, Set: a.Health.SecretSet}
+	*a.Secrets = secrets.Service{St: st, Bus: a.Bus, Dir: h.Secrets}
 	*a.Folders = folders.Service{St: st, Home: h}
 	*a.Files = appfiles.Service{St: st, Home: h, Now: cfg.Now, Held: a.Records.Held}
 	*a.Journal = journal.Service{St: st, Now: cfg.Now}
@@ -262,8 +262,8 @@ func (a *App) deadlines(ctx context.Context, now time.Time) {
 	a.Snapshots.CheckDisk(ctx, now)
 }
 
-// slow is the work of the loop that waits on the network or the disk: pushes, within pushTimeout, and the daily
-// cleanup and snapshot.
+// slow is the work of the loop that waits on the network or the disk: pushes, within pushTimeout, the read marks of
+// checks that stopped failing, and the daily cleanup and snapshot.
 func (a *App) slow(ctx context.Context, now time.Time) {
 	pctx, cancel := context.WithTimeout(ctx, pushTimeout)
 	if spaces, err := a.Store.Q.ListWorkspaces(pctx); err == nil {
@@ -272,6 +272,7 @@ func (a *App) slow(ctx context.Context, now time.Time) {
 		}
 	}
 	cancel()
+	a.Health.Forget(ctx)
 	a.Snapshots.Daily(ctx, now)
 }
 

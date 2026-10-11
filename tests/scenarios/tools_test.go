@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"deck2/internal/provider"
 )
@@ -246,6 +247,7 @@ func TestASecretThatIsNotSetIsRedInHealth(t *testing.T) {
 	if got := rows(); got["secret:pexels"] != "" {
 		t.Fatalf("a secret once set is no row of health: %v", got)
 	}
+	e.App.Sweep(context.Background(), time.Now())
 	e.must("deck.secret_delete", map[string]any{"name": "pexels"}, nil)
 	if got := rows(); !strings.HasPrefix(got["secret:pexels"], "error ") || seen("secret:pexels") {
 		t.Fatalf("a secret that goes again is a failing check not read yet: %v", got)

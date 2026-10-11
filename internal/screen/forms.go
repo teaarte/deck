@@ -283,8 +283,8 @@ func (r *renderer) custom(b manifest.Block) (map[string]any, error) {
 	if len(b.Params) > 0 {
 		params := map[string]any{}
 		env := r.withParam(r.record)
-		for name, raw := range b.Params {
-			val, err := manifest.Resolve(raw, "any", env)
+		for _, name := range slices.Sorted(maps.Keys(b.Params)) {
+			val, err := manifest.Resolve(b.Params[name], "any", env)
 			if err != nil {
 				return nil, fmt.Errorf("params %s: %w", name, err)
 			}

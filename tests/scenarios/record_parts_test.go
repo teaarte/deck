@@ -86,9 +86,8 @@ print(json.dumps({"files": [{"path": "frame.png", "record": inp["record"]}, {"pa
 	}
 }
 
-// TestTheDataFolderOfAProjectShowsByItsFolders: the screen of a data folder is a file manager: the way up and its
-// folders first, as tiles that open them, then its files; the data folders of projects and the files of a project
-// are tiles too.
+// TestTheDataFolderOfAProjectShowsByItsFolders: a data folder is a file manager, the way up and folders first as
+// tiles that open them, then files; the data folders of projects and the files of a project are tiles too.
 func TestTheDataFolderOfAProjectShowsByItsFolders(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, nil)

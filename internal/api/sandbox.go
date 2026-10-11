@@ -15,8 +15,9 @@ import (
 //go:embed sandbox.html
 var sandboxPage string
 
-// sandboxCSP keeps a custom block off the network: scripts and styles inline or from the second origin itself.
-const sandboxCSP = "default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; " +
+// sandboxCSP keeps a custom block off the network: scripts and styles inline or from the second origin, named, since
+// WebKit does not take 'self' for the opaque origin of the block's frame.
+const sandboxCSP = "default-src 'none'; script-src 'self' %s 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; " +
 	"font-src data:; media-src data: blob:; connect-src 'none'; form-action 'none'; base-uri 'none'; frame-ancestors %s"
 
 // Pair makes port sandbox the second origin of the client served on port main of the same host.
@@ -42,8 +43,8 @@ func (s *Server) Sandbox() http.Handler {
 			http.NotFound(w, r)
 			return
 		}
-		origin := origin(r, name, main)
-		w.Header().Set("Content-Security-Policy", fmt.Sprintf(sandboxCSP, origin))
+		self, origin := origin(r, name, port), origin(r, name, main)
+		w.Header().Set("Content-Security-Policy", fmt.Sprintf(sandboxCSP, self, origin))
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-store")
 		fmt.Fprint(w, strings.Replace(sandboxPage, "{{HOST}}", origin, 1))

@@ -12,7 +12,7 @@ export function Custom({ value }: { value: CustomValue }) {
   const [asking, setAsking] = useState<Ask & { done: (ok: boolean) => void }>();
   const ask = (q: Ask) => new Promise<boolean>((done) => setAsking({ ...q, done }));
   const answer = (ok: boolean) => { asking?.done(ok); setAsking(undefined); };
-  const { frame, height, full, inline } = useAppBridge(value, ask);
+  const { frame, height, full, inline, failed } = useAppBridge(value, ask);
   // Allow waits a moment, so a click meant for the screen under a window the frame just opened does not land on it.
   const [armed, setArmed] = useState(false);
   useEffect(() => {
@@ -23,6 +23,7 @@ export function Custom({ value }: { value: CustomValue }) {
   }, [asking]);
   return (
     <>
+      {failed && <Text size="sm" c="red" data-custom-error>{t('custom.failed', { why: failed })}</Text>}
       <iframe ref={frame} title="custom" data-custom data-full={full || undefined} sandbox="allow-scripts allow-same-origin allow-forms"
         style={full ? { position: 'fixed', inset: 0, width: '100vw', height: '100dvh', border: 0, zIndex: 190, background: 'var(--mantine-color-body)' }
           : { width: '100%', height, border: 0, display: 'block' }} />

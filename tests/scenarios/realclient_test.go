@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -335,13 +336,16 @@ type playwright struct {
 	dir  string
 }
 
-func newPlaywright(t *testing.T) *playwright {
+func newPlaywright(t *testing.T, browser ...string) *playwright {
 	t.Helper()
 	out := os.Getenv("DECK_SCREENSHOTS")
 	if out == "" {
 		out = t.TempDir()
 	}
-	args := append(app.DefaultBrowser[1:], "--headless", "--isolated", "--caps=vision", "--output-dir", out)
+	args := append(slices.Clone(app.DefaultBrowser[1:]), "--headless", "--isolated", "--caps=vision", "--output-dir", out)
+	if len(browser) > 0 {
+		args = append(args, "--browser", browser[0])
+	}
 	cmd := exec.Command(app.DefaultBrowser[0], args...)
 	cmd.SysProcAttr, cmd.Dir = &syscall.SysProcAttr{Setpgid: true}, out
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)

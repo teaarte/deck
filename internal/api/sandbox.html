@@ -54,12 +54,16 @@ const guard = (w) => {
     return define.call(this, n, c, o);
   };
 };
+// told sends deck what the browser refused a block, as an MCP log line, so the block is not left empty without a word.
+const told = (w) => w.addEventListener("securitypolicyviolation", (e) => w.parent.postMessage({ jsonrpc: "2.0",
+  method: "notifications/message", params: { level: "error", logger: "deck", data: "the browser refused " +
+  (e.blockedURI || "inline code") + " (" + e.effectiveDirective + ")" } }, "*"));
 const tagged = /<\s*([\w-]+:)?(iframe|frame|object|embed)\b/i;
 // guarded is the HTML of a block with the guard as its first script, after a doctype that keeps standards mode.
 const guarded = (html) => {
   if (tagged.test(html)) return "<p>deck: a custom block holds no frames (iframe, frame, object, embed)</p>";
   const head = (/^\s*<!doctype[^>]*>/i.exec(html) || [""])[0];
-  return head + "<script>(" + guard + ")(window);<\/script>" + html.slice(head.length);
+  return head + "<script>(" + guard + ")(window);(" + told + ")(window);<\/script>" + html.slice(head.length);
 };
 const inner = document.createElement("iframe");
 inner.setAttribute("sandbox", "allow-scripts allow-forms");

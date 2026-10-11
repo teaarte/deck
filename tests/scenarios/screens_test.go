@@ -796,7 +796,7 @@ func TestCustomBlockGetsItsDataAndButtonsAndItsFrameLivesOnTheSecondOrigin(t *te
 	page, _ := io.ReadAll(r.Body)
 	r.Body.Close()
 	csp := r.Header.Get("Content-Security-Policy")
-	for _, want := range []string{"connect-src 'none'", "default-src 'none'", "form-action 'none'", "frame-ancestors " + e.URL} {
+	for _, want := range []string{"connect-src 'none'", "default-src 'none'", "form-action 'none'", "frame-ancestors " + e.URL, "script-src 'self' " + e.Side + " 'unsafe-inline'"} {
 		if !strings.Contains(csp, want) {
 			t.Fatalf("the proxy page keeps the block off the network: %q lacks %q", csp, want)
 		}

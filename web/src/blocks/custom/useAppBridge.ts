@@ -31,6 +31,7 @@ export function useAppBridge(value: CustomValue, ask: (q: Ask) => Promise<boolea
   const [ready, setReady] = useState(false);
   const [height, setHeight] = useState(240);
   const [full, setFull] = useState(false);
+  const [failed, setFailed] = useState('');
   const scheme = useComputedColorScheme('light');
   const mantine = useMantineTheme();
   const context = useRef<McpUiHostContext>(undefined);
@@ -82,6 +83,7 @@ export function useAppBridge(value: CustomValue, ask: (q: Ask) => Promise<boolea
     };
     b.onsizechange = ({ height: h }) => { if (h) setHeight(Math.min(Math.max(h, 40), 4000)); };
     b.oninitialized = () => setReady(true);
+    b.onloggingmessage = ({ level, logger, data }) => { if (level === 'error' && logger === 'deck') setFailed(String(data)); };
     const onReady = (e: MessageEvent) => {
       if (e.source !== iframe.contentWindow || e.data?.method !== PROXY_READY) return;
       window.removeEventListener('message', onReady);
@@ -94,6 +96,7 @@ export function useAppBridge(value: CustomValue, ask: (q: Ask) => Promise<boolea
     return () => {
       window.removeEventListener('message', onReady);
       setReady(false);
+      setFailed('');
       void b.close();
     };
   }, [value.html]);
@@ -109,5 +112,5 @@ export function useAppBridge(value: CustomValue, ask: (q: Ask) => Promise<boolea
     context.current = { ...context.current, displayMode: 'inline', containerDimensions: undefined };
     bridge.current?.setHostContext(context.current);
   };
-  return { frame, height, full, inline };
+  return { frame, height, full, inline, failed };
 }

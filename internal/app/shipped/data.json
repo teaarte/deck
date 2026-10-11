@@ -5,7 +5,7 @@
   "params": {"project": "string", "path": "string"},
   "blocks": [
     {"type": "media", "title": "Folder", "span": "full", "source": {"from": "deck.data_read", "input": {"project": "=param.project", "path": "=param.path ?? ''"}, "rows": "entries", "sort": "-dir"},
-      "description": "The data folder of the project as it is on disk: what its scripts and agents keep, caches too.",
+      "description": "The data folder of the module as it is on disk: what its scripts and agents keep, caches too.",
       "empty": "The folder is empty",
       "item": {"file": "dir ? '' : file", "title": "name", "icon": "name == '..' ? 'arrow-up' : 'folder'"},
       "actions": [

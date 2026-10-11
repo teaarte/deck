@@ -527,7 +527,7 @@ func TestAScriptThatFailsSaysHowToOpenAFolder(t *testing.T) {
 	e.saveScript("tools", "scripts/main.py", "import json, sys\nprint(open(json.load(sys.stdin)[\"key\"]).read())\n")
 	id := e.start("tools", "collect", map[string]any{"key": filepath.Join(owner, ".zshrc")})
 	p := e.waitScript(id, "done", "error")
-	if p.State != "error" || !strings.Contains(p.Error, filepath.Join(owner, ".zshrc")) || !strings.Contains(p.Error, "Settings → Projects") {
+	if p.State != "error" || !strings.Contains(p.Error, filepath.Join(owner, ".zshrc")) || !strings.Contains(p.Error, "the settings of the project, Access") {
 		t.Fatalf("the error of the script names the path from its stderr and how to open a folder: %+v", p)
 	}
 }
@@ -682,7 +682,7 @@ st, out = deck("deck.records_upsert", {"collection": "items", "records": [{"name
 sys.exit("deck answered %d: %s" % (st, out))
 `)
 	p := e.waitScript(e.start("tools", "collect", nil), "done", "error")
-	if p.State != "error" || !strings.Contains(p.Error, "deck answered 422") || strings.Contains(p.Error, "Settings → Projects") {
+	if p.State != "error" || !strings.Contains(p.Error, "deck answered 422") || strings.Contains(p.Error, "the settings of the project, Access") {
 		t.Fatalf("the error is the script's own, without a hint of folders: %+v", p)
 	}
 }

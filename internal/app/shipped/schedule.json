@@ -10,7 +10,7 @@
           "description": "Each command that runs on its own, how often, and the model it runs on; a model picked here replaces the one the manifest suggests.",
           "empty": "Nothing is scheduled",
           "columns": [
-            {"label": "Project", "bind": "project", "format": "tag", "tone": "paused || draft ? 'muted' : ''"},
+            {"label": "Module", "bind": "project", "format": "tag", "tone": "paused || draft ? 'muted' : ''"},
             {"label": "Command", "bind": "command", "tone": "paused || draft ? 'muted' : ''"},
             {"label": "How often", "bind": "kind == 'cron' ? spec : kind + ' ' + spec", "format": "cron"},
             {"label": "Model", "bind": "model ?? ''", "pick": "model"},
@@ -29,7 +29,7 @@
           "description": "Every run, by schedule, by a button or by the master; a run shows its log and the calls it made.",
           "columns": [
             {"label": "#", "bind": "id"},
-            {"label": "Project", "bind": "project", "format": "tag"},
+            {"label": "Module", "bind": "project", "format": "tag"},
             {"label": "Command", "bind": "command"},
             {"label": "By", "bind": "kind == 'script' ? 'script' : (provider ?? '') != '' ? provider : kind", "format": "tag"},
             {"label": "State", "bind": "word", "format": "tag", "tone": "tone ?? ''"},

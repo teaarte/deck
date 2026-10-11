@@ -73,9 +73,9 @@ func TestAgentLimitHoldsTheFourthAgentUntilASlotFreesAndScriptsDoNotCount(t *tes
 	e.must("deck.settings_set", map[string]any{"name": "agent_limit", "value": "5"}, nil)
 	waitTopic(t, events, "settings")
 	e.waitFor("a raised limit to run the last one", func() bool { return e.process(ids[4]).State == "running" })
-	rows := blockData[[]screenRow](t, e.settingsBlock("General", nil)["rows"])
-	if len(rows) != 3 || rows[1].Cells[1] != float64(5) || rows[1].Cells[2] != float64(3) {
-		t.Fatalf("the general tab shows the limit and its default: %+v", rows)
+	rows := blockData[[]screenRow](t, e.settingsBlock("Limits", nil)["rows"])
+	if len(rows) != 2 || rows[1].Cells[1] != "5" || rows[1].Cells[2] != float64(3) {
+		t.Fatalf("the limits show the limit and its default: %+v", rows)
 	}
 
 	e.must("deck.settings_set", map[string]any{"name": "agent_limit", "value": "1"}, nil)

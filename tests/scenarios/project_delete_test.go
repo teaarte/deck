@@ -137,7 +137,7 @@ func TestProjectsTabDeletesAfterAYes(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, nil)
 	e.createProject("web", webNotes)
-	del := verb(t, findItem(t, blockData[[]listItem](t, e.settingsBlock("Projects", nil)["items"]), "web").Actions, "delete")
+	del := verb(t, findItem(t, blockData[[]listItem](t, e.settingsBlock("Modules", nil)["items"]), "web").Actions, "delete")
 	if del["confirm"] != true || del["command"] != "deck.project_delete" {
 		t.Fatalf("delete asks the owner first: %+v", del)
 	}

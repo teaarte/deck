@@ -5,12 +5,12 @@
   "params": {"name": "string", "command": "string"},
   "blocks": [
     {"type": "tabs", "tabs": [
-      {"title": "Project", "icon": "box", "blocks": [
+      {"title": "Module", "icon": "box", "blocks": [
           {"type": "dialog", "name": "try-command", "title": "Try a command", "icon": "flask", "blocks": [
             {"type": "form", "command": "deck.command_try", "keep_open": true, "values": {"command": "=param.command"},
               "description": "Runs a command once to see what it does: its calls outside deck are declined, and a paid model waits for your yes.",
               "choices": {"command": {"source": {"from": "deck.commands_list", "where": "executor != 'tool' && executor != ''", "sort": "name"}, "value": "name", "label": "title + ' (' + name + ')'"}}}]},
-          {"type": "list", "title": "Project", "source": {"from": "deck.projects_list"},
+          {"type": "list", "title": "Module", "source": {"from": "deck.projects_list"},
             "item": {"title": "title", "icon": "icon != '' ? icon : 'box'", "text": "manifest_error != '' ? 'manifest: ' + manifest_error : description",
               "meta": "(title != name ? name + ' · ' : '') + status + (paused ? ', paused' : '') + (no_network ? ' · no network' : '') + (network != '' ? ' · ' + network : '') + (len(rights) > 0 ? ' · enabling grants: ' + join(rights, '; ') : '') + (len(asks) > 0 ? ' · asks you each time: ' + join(asks, ', ') : '')",
               "tone": "manifest_error != '' ? 'error' : paused ? 'muted' : status == 'draft' ? 'warn' : ''"},
@@ -21,7 +21,7 @@
               {"verb": "delete", "confirm": true, "command": "deck.project_delete", "params": {"project": "=name"}, "when": "!builtin"}
             ]},
           {"type": "table", "title": "Commands", "source": {"from": "deck.commands_list", "where": "tool == ''", "sort": "name"},
-            "description": "What the project can do: when it runs by itself, and the model that does its work; a model picked here replaces the one the manifest suggests.",
+            "description": "What the module can do: when it runs by itself, and the model that does its work; a model picked here replaces the one the manifest suggests.",
             "columns": [
               {"label": "Command", "bind": "title"},
               {"label": "When", "bind": "cron ?? ''", "format": "cron"},
@@ -98,7 +98,7 @@
       ]},
       {"title": "Health", "icon": "heartbeat", "blocks": [
           {"type": "table", "title": "Health", "source": {"from": "deck.health_list"}, "filter": ["kind", "status"],
-            "description": "What of the project deck checks; a command or a schedule shows its model, which you change here.",
+            "description": "What of the module deck checks; a command or a schedule shows its model, which you change here.",
             "columns": [
               {"label": "What", "bind": "subject"},
               {"label": "Status", "bind": "status", "format": "tag", "tone": "status == 'ok' ? 'ok' : status == 'error' ? 'error' : 'warn'"},
@@ -124,7 +124,7 @@
               {"verb": "open", "screen": "process", "project": "", "record": "=last_process", "when": "last_process != 0"}
             ]}
       ]},
-      {"title": "Files", "icon": "files", "blocks": [{"type": "media", "title": "Files", "span": "full", "source": {"from": "deck.files_list", "sort": "-created_at"}, "description": "What the project made and keeps: pictures, video, sound, documents of its runs and records.", "empty": "The project has no files yet", "item": {"file": "id", "title": "name"}, "actions": [{"verb": "delete", "command": "deck.file_delete", "params": {"file": "=id"}, "undo": {"command": "deck.file_restore", "params": {"file": "=id", "owner_kind": "=owner_kind", "owner_id": "=owner_id"}}}]}]}
+      {"title": "Files", "icon": "files", "blocks": [{"type": "media", "title": "Files", "span": "full", "source": {"from": "deck.files_list", "sort": "-created_at"}, "description": "What the module made and keeps: pictures, video, sound, documents of its runs and records.", "empty": "The module has no files yet", "item": {"file": "id", "title": "name"}, "actions": [{"verb": "delete", "command": "deck.file_delete", "params": {"file": "=id"}, "undo": {"command": "deck.file_restore", "params": {"file": "=id", "owner_kind": "=owner_kind", "owner_id": "=owner_id"}}}]}]}
     ]}
   ]
 }

@@ -119,7 +119,7 @@ func TestAModelNeverCalledSaysSo(t *testing.T) {
 	rows := blockData[[]screenRow](t, e.settingsBlock("Models", nil)["rows"])
 	for _, r := range rows {
 		if r.Cells[0] == "zai/glm-5" {
-			if r.Cells[5] != "not called yet" {
+			if r.Cells[4] != "not called yet" {
 				t.Fatalf("a model never called says so: %+v", r.Cells)
 			}
 			return

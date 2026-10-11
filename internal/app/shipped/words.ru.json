@@ -16,7 +16,7 @@
   "runs on %s": "работает на %s",
   "longer than usual: %s": "дольше обычного: %s",
   "draft: does not run": "черновик: не запускается",
-  "project paused": "проект на паузе",
+  "module paused": "модуль на паузе",
   "paused": "на паузе",
   "on": "включён",
   "Work": "Работа",

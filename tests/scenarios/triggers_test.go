@@ -437,7 +437,7 @@ func TestScheduleShowsEveryTriggerRunsOneNowAndPausesAProject(t *testing.T) {
 	button(find(rows(), "alpha"), "open")
 
 	e.must("deck.project_pause", map[string]any{"project": "alpha", "paused": true}, nil)
-	if word, _, _ := state("alpha"); word != "project paused" || fmt.Sprint(find(rows(), "alpha").Tones) != "[muted muted <nil> <nil> <nil>]" {
+	if word, _, _ := state("alpha"); word != "module paused" || fmt.Sprint(find(rows(), "alpha").Tones) != "[muted muted <nil> <nil> <nil>]" {
 		t.Fatalf("a paused project shows on its triggers: %s %+v", word, find(rows(), "alpha"))
 	}
 	e.Clock.Add(26 * time.Hour)

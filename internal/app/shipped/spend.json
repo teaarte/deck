@@ -101,7 +101,7 @@
           "blocks": [
             {
               "type": "table",
-              "title": "By project and model",
+              "title": "By module and model",
               "span": "full",
               "source": {
                 "from": "deck.spend_daily",
@@ -116,7 +116,7 @@
               "empty": "No model was called",
               "columns": [
                 {
-                  "label": "Project",
+                  "label": "Module",
                   "bind": "project != '' ? project : 'deck'",
                   "format": "tag"
                 },
@@ -199,7 +199,7 @@
           "blocks": [
             {
               "type": "table",
-              "title": "By project and model",
+              "title": "By module and model",
               "span": "full",
               "source": {
                 "from": "deck.spend_daily",
@@ -214,7 +214,7 @@
               "empty": "No model was called",
               "columns": [
                 {
-                  "label": "Project",
+                  "label": "Module",
                   "bind": "project != '' ? project : 'deck'",
                   "format": "tag"
                 },
@@ -297,7 +297,7 @@
           "blocks": [
             {
               "type": "table",
-              "title": "By project and model",
+              "title": "By module and model",
               "span": "full",
               "source": {
                 "from": "deck.spend_daily",
@@ -312,7 +312,7 @@
               "empty": "No model was called",
               "columns": [
                 {
-                  "label": "Project",
+                  "label": "Module",
                   "bind": "project != '' ? project : 'deck'",
                   "format": "tag"
                 },

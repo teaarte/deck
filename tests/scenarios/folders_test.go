@@ -90,7 +90,7 @@ func TestAgentCommandWorksInTheProjectFolder(t *testing.T) {
 		t.Fatalf("projects_list gives the folders: %+v", list)
 	}
 	var items []listItem
-	_ = json.Unmarshal(e.settingsBlock("Projects", nil)["items"], &items)
+	_ = json.Unmarshal(e.settingsBlock("Modules", nil)["items"], &items)
 	if len(items) != 2 || !strings.Contains(items[0].Meta, "folders: my-repo, notes") || strings.Contains(fmt.Sprint(items[1].Actions), "project_delete") {
 		t.Fatalf("the Projects tab shows the folders: %+v", items)
 	}
@@ -295,7 +295,7 @@ func TestAFolderCommandNeedsAProviderThatWorksInFolders(t *testing.T) {
 func TestTheProjectsTabCreatesAProjectAndGivesItAFolder(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, ok)
-	for _, title := range []string{"Create project", "Import project"} {
+	for _, title := range []string{"Create module", "Import module"} {
 		e.settingsBlock(title, nil)
 	}
 	e.must("deck.project_create", map[string]any{"name": "notes", "prompt": "Notes of the owner.\n"}, nil)

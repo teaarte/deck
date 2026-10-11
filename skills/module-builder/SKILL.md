@@ -21,7 +21,7 @@ Projects → "Settings" on its row): "Enable" with the rights enabling grants, p
 each command, folders, the secrets its tools take. deck's Settings tabs: Projects (create, import, a trial run),
 Models (assignments, a model and its agent), Connections (where models are reached, and the other secrets: a
 name and a hidden value), Tokens, Health; sign-ins wait in the cockpit. So name
-the place and the value ("Settings → Connections → Other secrets: `mail-key`, the API key of …"), never a `curl`; the fields of
+the place and the value ("Settings → Connections → Secrets: `mail-key`, the API key of …"), never a `curl`; the fields of
 these forms are the input of their command, which `command_describe` gives; `commands_list` marks these commands
 `owner_only` with `form`, the address of the form to link to, and `form_params` that fill it.
 
@@ -328,7 +328,7 @@ A script reads its input JSON from stdin and prints its result JSON to stdout. I
 - write access only to its run folder and `$DECK_DATA`; the project folders are read-only;
 - of the owner's home folder it reads only the runtimes deck finds on `PATH` (an nvm node, a pyenv python) and
   the project folders; the system folders read as usual. A file of the owner elsewhere is opened by the owner
-  adding its folder to the project (Settings → Projects): ask for that, never copy the file around the sandbox.
+  adding its folder to the project (its settings, Access): ask for that, never copy the file around the sandbox.
   deck does not tell a script where a project folder is (no variable, and `deck.projects_list` and
   `folders_list` are closed to scripts), so a script that walks the folder reads its path from a record of the
   module (a `settings` collection) that you write once the owner has added the folder; a command input works too.
@@ -510,8 +510,8 @@ Name each of these rights in the hand-over: the owner grants them with "enable".
    other md documents by their names. Only `prompt.md` has kind `prompt`; `prompts/*.md` and the other md
    come in as `doc`, so later `document_save` them with kind `doc`. Keep test data outside the module folder.
 2. `project_import` with the absolute folder path creates a **draft**; the folder is in your data (the master's)
-   or in a folder the owner gave a project (Settings → Projects); any other folder only the owner imports, in
-   Settings → Projects. A refused import comes back with the
+   or in a folder the owner gave a project (its settings, Access); any other folder only the owner imports, in
+   Settings → Modules. A refused import comes back with the
    reason and leaves nothing behind; fix the folder and import again. Once imported, change the draft with
    `manifest_save` and `document_save` (a second import of the same name is refused), and keep the folder
    in step. Send only what changes: for the manifest and for a document `old` (parts of the current text, each

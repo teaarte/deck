@@ -116,7 +116,7 @@ func (s *Service) triggersList(ctx context.Context, act registry.Actor, in trigg
 		case v.Draft:
 			v.Word, v.Tone = tr("draft: does not run"), "muted"
 		case v.ProjectPaused:
-			v.Word, v.Tone = tr("project paused"), "muted"
+			v.Word, v.Tone = tr("module paused"), "muted"
 		case v.Paused:
 			v.Word, v.Tone = tr("paused"), "muted"
 		default:

@@ -228,7 +228,7 @@ func TestRealBrowserSettings(t *testing.T) {
 
 	b.call("browser_resize", map[string]any{"width": 390, "height": 844})
 	b.open(e.URL + "/#/deck/settings")
-	tab("Projects")
+	tab("Modules")
 	b.until("the projects tab on a phone", `[...document.querySelectorAll('[data-item]')].some((x) => x.offsetParent && x.innerText.includes('enabled'))`)
 	if got := b.eval(`String(document.documentElement.scrollWidth <= innerWidth + 1)`); got != "true" {
 		t.Fatalf("the projects tab fits the width of a phone: %s", got)
@@ -241,7 +241,7 @@ func TestRealBrowserSettings(t *testing.T) {
 	}
 	b.shot("settings-phone")
 
-	tab("Projects")
+	tab("Modules")
 	if got := b.eval(`String(document.querySelector('nav').textContent.toLowerCase().includes('notes'))`); got != "true" {
 		t.Fatalf("the project is in the menu before the delete: %s", got)
 	}

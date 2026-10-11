@@ -1,6 +1,6 @@
 Code: an agent works on the tasks of the project in the owner's repo and hands each back for review.
 
-The project has one folder, a git repo the owner added in Settings → Projects. The command `run` works in it:
+The project has one folder, a git repo the owner added in the settings of the project, Access. The command `run` works in it:
 the owner's own checkout, with their uncommitted changes, their branches and their CLAUDE.md or AGENTS.md.
 Leave everything of the owner as it was, apart from what a task asks for.
 

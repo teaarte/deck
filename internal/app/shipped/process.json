@@ -5,7 +5,7 @@
   "record": "process",
   "blocks": [
     {"type": "card", "fields": [
-      {"label": "Project", "bind": "project", "format": "tag"},
+      {"label": "Module", "bind": "project", "format": "tag"},
       {"label": "State", "bind": "word", "format": "tag", "tone": "tone ?? ''"},
       {"label": "Model", "bind": "provider", "format": "tag"},
       {"label": "Started", "bind": "started_at", "format": "relative"},

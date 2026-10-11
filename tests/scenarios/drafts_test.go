@@ -580,7 +580,7 @@ func TestADraftSaysWhichToolsWillAskEachTime(t *testing.T) {
 		t.Fatalf("the draft names the external tool, which asks every time, and not its reversible command: %+v", p)
 	}
 	var items []listItem
-	_ = json.Unmarshal(e.settingsBlock("Projects", nil)["items"], &items)
+	_ = json.Unmarshal(e.settingsBlock("Modules", nil)["items"], &items)
 	if !slices.ContainsFunc(items, func(it listItem) bool { return strings.Contains(it.Meta, "asks you each time: post") }) {
 		t.Fatalf("the Projects tab says it before enabling: %+v", items)
 	}

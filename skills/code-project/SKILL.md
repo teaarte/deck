@@ -35,11 +35,11 @@ The folder is the root of the repo (where `.git` is), not a folder inside it and
    describes the project; name the base branch there when it is not the default one; repo facts the agent
    should know), and the line `Merge: yourself.` when the agent merges by itself.
 2. `project_import` the folder. It is a draft until the owner enables it.
-3. Tell the owner what only they do, in the Settings of the project (Settings → Projects → "Settings" on its
-   row):
-   - "Add folder": the repo path (a folder lets agents write there, so only the owner adds it);
-   - "Models" on the row of `<project>.run`: the model it runs on;
-   - "Enable".
+3. Tell the owner what only they do (Settings → Modules, the card of the project):
+   - "Review", then "Enable": what the project may do, and its yes;
+   - in its "Settings", tab Access, "Add a folder": the repo path (a folder lets agents write there, so only the owner
+     adds it);
+   - in its "Settings", the model in the row of `run`: the model it runs on.
 
 ## 3. How a run goes (what `prompts/run.md` must keep)
 
@@ -75,7 +75,7 @@ The owner asks in a phrase ("take the open issues of github.com/team/app as task
 project the way the module-builder skill builds any routine, then try it and hand it over. A routine that
 brings tasks from a tracker:
 
-- a secret for the tracker's token (the owner sets it in Settings → Connections → Other secrets; say its name and the scope it
+- a secret for the tracker's token (the owner sets it in Settings → Connections → Secrets; say its name and the scope it
   needs, read-only when it only reads);
 - an HTTP tool from the tracker's API docs that lists open issues created since a time, oldest first, signed
   in with that secret, class `internal` (it only reads);

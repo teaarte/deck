@@ -14,7 +14,7 @@
       ]},
       {"title": "Data folders", "icon": "folders", "blocks": [
         {"type": "media", "title": "Data folders", "span": "full", "source": {"from": "deck.projects_list", "sort": "name"},
-          "description": "The data folder of each project, by its real folders.",
+          "description": "The data folder of each module, by its real folders.",
           "item": {"title": "title", "icon": "'folder'"},
           "actions": [{"verb": "open", "primary": true, "screen": "data", "params": {"project": "=name"}}]}
       ]},
@@ -31,7 +31,7 @@
       ]},
       {"title": "Snapshots", "icon": "camera", "blocks": [
         {"type": "table", "title": "Snapshots", "source": {"from": "deck.snapshots_list"},
-          "description": "Copies of deck's base, files and the data folders of projects, without secrets: deck takes one a day and before a project is deleted, and keeps the newest. They lie in backups of deck's state folder.",
+          "description": "Copies of deck's base, files and the data folders of modules, without secrets: deck takes one a day and before a module is deleted, and keeps the newest. They lie in backups of deck's state folder.",
           "empty": "No snapshot yet: deck takes the first one today, or take one now below",
           "columns": [
             {"label": "Snapshot", "bind": "name"},

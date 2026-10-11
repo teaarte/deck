@@ -156,7 +156,7 @@
     "model": "Model of this topic",
     "master_model": "The master's own ({{model}})",
     "model_failed": "The model was not changed",
-    "empty": "Tell the master what to do: a task, a question, put something into a project.",
+    "empty": "Tell the master what to do: a task, a question, put something into a module.",
     "placeholder": "Message to the master",
     "send_failed": "The message was not sent",
     "replying": "The master is replying ({{provider}})",

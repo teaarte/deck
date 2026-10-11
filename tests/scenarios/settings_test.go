@@ -163,7 +163,7 @@ func TestSettingsProjectsEnableADraftAtTheRevisionItShows(t *testing.T) {
 	if code, out := e.callWith(tok, "deck.project_create", map[string]any{"name": "notes", "manifest": draftManifest}); code != 200 {
 		t.Fatalf("project_create: %d %s", code, out)
 	}
-	items := func() []listItem { return blockData[[]listItem](t, e.settingsBlock("Projects", nil)["items"]) }
+	items := func() []listItem { return blockData[[]listItem](t, e.settingsBlock("Modules", nil)["items"]) }
 	press := func(a map[string]any) { t.Helper(); e.must(a["command"].(string), a["params"], nil) }
 	notes := findItem(t, items(), "notes")
 	if notes.Title != "notes" || !strings.HasPrefix(notes.Meta, "draft") || strings.Contains(notes.Meta, "autonomy") ||
@@ -446,7 +446,7 @@ func TestAProjectHasItsOwnSettings(t *testing.T) {
 		}
 		return out
 	}
-	project := blockData[[]listItem](t, e.screenBlock("notes", "settings", "Project", nil)["items"])
+	project := blockData[[]listItem](t, e.screenBlock("notes", "settings", "Module", nil)["items"])
 	if len(project) != 1 || project[0].Title != "notes" || !strings.HasPrefix(project[0].Meta, "enabled") || !hasVerb(project[0].Actions, "pause") || !hasVerb(project[0].Actions, "delete") {
 		t.Fatalf("the settings show the project with its buttons: %+v", project)
 	}

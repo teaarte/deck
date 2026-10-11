@@ -71,7 +71,7 @@
       {"type": "table", "title": "Done without you", "source": {"from": "deck.feed_list", "input": {"kind": "change", "limit": 500}},
         "columns": [
           {"label": "What", "bind": "text"},
-          {"label": "Project", "bind": "project", "format": "tag"},
+          {"label": "Module", "bind": "project", "format": "tag"},
           {"label": "Who", "bind": "author", "format": "tag"},
           {"label": "When", "bind": "created_at", "format": "relative"}
         ],

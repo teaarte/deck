@@ -5,12 +5,12 @@
   "params": {"name": "string", "command": "string", "agent": "string", "url": "string", "model": "string", "key_secret": "string", "connection": "string", "kind": "string", "role": "string", "project": "string", "models": "string", "api": "string", "local": "boolean", "free": "boolean", "subscription": "boolean", "input_usd": "number", "output_usd": "number", "call_usd": "number", "unit": "string"},
   "blocks": [
     {"type": "tabs", "tabs": [
-      {"title": "Projects", "icon": "folders", "blocks": [
-        {"type": "dialog", "name": "create-project", "title": "Create project", "icon": "plus", "primary": true, "blocks": [
+      {"title": "Modules", "icon": "folders", "blocks": [
+        {"type": "dialog", "name": "create-project", "title": "Create module", "icon": "plus", "primary": true, "blocks": [
           {"type": "form", "command": "deck.project_create", "values": {"name": "=param.name"}}]},
-        {"type": "dialog", "name": "import-project", "title": "Import project", "icon": "file-import", "blocks": [
+        {"type": "dialog", "name": "import-project", "title": "Import module", "icon": "file-import", "blocks": [
           {"type": "form", "command": "deck.project_import", "description": "A .zip a module was exported to, or a folder on this machine. Install modules only from authors you know: it comes as a draft, and before you enable it deck shows what it may do."}]},
-        {"type": "list", "title": "Projects", "cards": true, "source": {"from": "deck.projects_list", "sort": "name"}, "filter": ["status"],
+        {"type": "list", "title": "Modules", "cards": true, "source": {"from": "deck.projects_list", "sort": "name"}, "filter": ["status"],
           "item": {"title": "title", "icon": "icon != '' ? icon : 'box'", "text": "manifest_error != '' ? 'manifest: ' + manifest_error : description",
             "meta": "status + (paused ? ', paused' : '') + (len(folders) > 0 ? ' · folders: ' + join(map(folders, .name), ', ') : '') + (status == 'draft' && len(rights) > 0 ? ' · enabling grants: ' + join(rights, '; ') : '') + (status == 'draft' && len(asks) > 0 ? ' · asks you each time: ' + join(asks, ', ') : '')",
             "tone": "manifest_error != '' ? 'error' : paused ? 'muted' : status == 'draft' ? 'warn' : ''"},
@@ -35,10 +35,10 @@
             "values": {"role": "=param.role", "project": "=param.project", "command": "=param.command", "models": "=(param.models ?? '') != '' ? split(param.models, ',') : nil"},
             "choices": {"models": {"source": {"from": "deck.models_list", "rows": "models"}, "value": "name"}}}]},
         {"type": "table", "title": "Commands", "source": {"from": "deck.commands_list", "where": "(role ?? '') != ''", "sort": "name"}, "filter": ["project"],
-          "description": "The model each command of every project runs on; a model picked here replaces the one the manifest suggests, the one before stays its fallback.",
-          "empty": "No command of a project calls a model",
+          "description": "The model each command of every module runs on; a model picked here replaces the one the manifest suggests, the one before stays its fallback.",
+          "empty": "No command of a module calls a model",
           "columns": [
-            {"label": "Project", "bind": "project", "format": "tag"},
+            {"label": "Module", "bind": "project", "format": "tag"},
             {"label": "Command", "bind": "title"},
             {"label": "When", "bind": "cron ?? ''", "format": "cron"},
             {"label": "Model", "bind": "model ?? ''", "pick": "model"},
@@ -50,10 +50,10 @@
             {"verb": "fallbacks", "screen": "settings", "params": {"tab": "Models", "dialog": "assign", "role": "=role", "project": "=project", "command": "=trimPrefix(name, project + '.')", "models": "=join(models ?? [], ',')"}, "when": "len(choices ?? []) > 0"}
           ]},
         {"type": "table", "title": "Models of scripts", "source": {"from": "deck.models_list", "rows": "uses"}, "filter": ["project"],
-          "description": "The kinds of work the scripts of each project call models for, and the model each goes to.",
-          "empty": "No script of a project calls a model",
+          "description": "The kinds of work the scripts of each module call models for, and the model each goes to.",
+          "empty": "No script of a module calls a model",
           "columns": [
-            {"label": "Project", "bind": "project", "format": "tag"},
+            {"label": "Module", "bind": "project", "format": "tag"},
             {"label": "Kind of work", "bind": "role", "format": "tag"},
             {"label": "Model", "bind": "model ?? ''", "pick": "model"},
             {"label": "Price", "bind": "price ?? ''"}
@@ -62,7 +62,7 @@
             {"verb": "model", "command": "deck.assignment_set", "params": {"role": "=role", "project": "=project"}, "input": "model", "options": "=choices", "when": "len(choices ?? []) > 0"}
           ]},
         {"type": "table", "title": "Everywhere else", "source": {"from": "deck.models_list", "rows": "assignments", "where": "(project ?? '') == ''"},
-          "description": "The model of each kind of work wherever a project or a command has none of its own. search is the web search of agents in ACP agents, a SearXNG of this machine; without it they only read pages.",
+          "description": "The model of each kind of work wherever a module or a command has none of its own. search is the web search of agents in ACP agents, a SearXNG of this machine; without it they only read pages.",
           "empty": "Nothing is assigned; agent commands run on the model their manifest suggests",
           "columns": [
             {"label": "Kind of work", "bind": "role", "format": "tag"},
@@ -145,7 +145,7 @@
           "actions": [{"verb": "reset_push", "confirm": true, "command": "deck.push_reset"}]}]},
       {"title": "Health", "icon": "heartbeat", "blocks": [
         {"type": "table", "title": "Failing checks", "empty": "No check fails", "source": {"from": "deck.health_list", "where": "status == 'error'"}, "filter": ["kind", "project"],
-          "description": "Every check of deck that fails now, of the machine and of the projects, with why; a command or a schedule shows its model, which you change here. One marked read stops counting on the cockpit until it changes.",
+          "description": "Every check of deck that fails now, of the machine and of the modules, with why; a command or a schedule shows its model, which you change here. One marked read stops counting on the cockpit until it changes.",
           "columns": [
             {"label": "What", "bind": "subject", "format": "tag", "tone": "seen ? 'muted' : 'error'"},
             {"label": "Model", "bind": "model ?? ''", "pick": "model"},
@@ -180,7 +180,7 @@
             {"label": "Why", "bind": "error", "details": "error"}
           ]},
         {"type": "table", "title": "Everything deck checks", "source": {"from": "deck.health_list"}, "filter": ["kind", "status", "project"],
-          "description": "The models and agents deck runs on with the work each does, the commands, schedules, tools and servers of the projects, and the machine.",
+          "description": "The models and agents deck runs on with the work each does, the commands, schedules, tools and servers of the modules, and the machine.",
           "columns": [
             {"label": "What", "bind": "subject"},
             {"label": "Status", "bind": "status", "format": "tag", "tone": "status == 'ok' ? 'ok' : status == 'error' ? 'error' : 'warn'"},

@@ -149,7 +149,7 @@ func TestAnOldMessageWithFilePathsKeepsItsScreen(t *testing.T) {
 	id := e.upload("master", "plan.txt", "text/plain", "the plan")
 	topic := e.say(0, "hello")
 	e.masterSaid(topic, 1)
-	e.olderBase(35)
+	e.olderBase(34)
 	if _, err := e.App.Store.DB.Exec(`INSERT INTO chat_message (topic_id, role, text, context) VALUES (?, 'owner', 'old plan', ?)`,
 		topic, fmt.Sprintf(`{"project":"web","screen":"main","files":["/x/data/attachments/12-plan.txt",%d]}`, id)); err != nil {
 		t.Fatal(err)

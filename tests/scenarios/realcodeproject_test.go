@@ -41,7 +41,9 @@ func TestRealBrowserCodeProject(t *testing.T) {
 	b.type_(form("deck.project_import", "name"), "code")
 	submit("deck.project_import")
 	b.until("the imported draft", itemOf("code", "draft"))
-	b.eval(pressIn(itemOf("code", "draft"), "enable"))
+	b.reviewAndEnable("code")
+	e.waitFor("the enabled project", func() bool { return e.project("code").Status == "enabled" })
+	b.open(e.URL + "/#/deck/settings")
 	b.until("the enabled project", itemOf("code", "enabled"))
 
 	tab := func(name string) {

@@ -1,0 +1,18 @@
+{
+  "name": "draft",
+  "icon": "shield-check",
+  "title": "Review a draft",
+  "params": {"project": "string", "revision": "number"},
+  "blocks": [
+    {"type": "table", "title": "What it may do once enabled", "span": "full", "source": {"from": "deck.project_rights", "input": {"project": "=param.project"}},
+      "description": "Install modules only from authors you know. Once enabled, a module does what is listed here without asking you again: it reaches these sites, reads these secrets, works in these folders and calls these models. deck checks nothing more.",
+      "empty": "Nothing beyond its own records: it reaches no site, reads no secret and calls no model",
+      "columns": [
+        {"label": "What", "bind": "what"},
+        {"label": "Which", "bind": "detail"}
+      ]},
+    {"type": "actions", "title": "Enable", "icon": "power",
+      "description": "Until then it is a draft: nothing runs by itself, and only its trials run.",
+      "actions": [{"verb": "enable", "primary": true, "command": "deck.project_enable", "params": {"project": "=param.project", "revision": "=param.revision"}}]}
+  ]
+}

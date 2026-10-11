@@ -4,6 +4,7 @@ package project
 
 import (
 	"context"
+	"io"
 	"slices"
 	"sync"
 	"time"
@@ -38,6 +39,8 @@ type Service struct {
 	// Snapshot writes a snapshot before a delete; DrainFiles removes the files whose rows are gone.
 	Snapshot   func(ctx context.Context, project int64) (string, error)
 	DrainFiles func(ctx context.Context)
+	// Keep stores a file a command made for the owner to download.
+	Keep func(ctx context.Context, act registry.Actor, project, name, ctype string, body io.Reader) (int64, error)
 }
 
 // Saver saves the manifests of projects with their checks, migrations and grants, and gives the registry the

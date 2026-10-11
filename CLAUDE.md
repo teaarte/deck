@@ -87,7 +87,9 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
   (tabs Schedule — what runs by itself with a picker of its model —, Runs), Spend (today, 7 and 30 days by project and
   model, a subscription apart from the money), Files (tabs Files, Data folders, Documents of the master — tiles of one file manager, the media block — and Snapshots), Settings (tabs
   Projects as cards, Models — of every command, of scripts, everywhere else, the models —, Connections with secrets and
-  tokens, Interface, Health with the agents and the limits); the page of a run shows its calls of the gateway; `project` screens (Documents, the page of
+  tokens, Interface, Health with the agents and the limits; a module is exported to a .zip and imported from one, `project_export`), the
+  page of a draft (`draft.json`: what it may do once enabled, and Enable), the page of a run shows its calls of the
+  gateway; `project` screens (Documents, the page of
   a document and Settings of the project in tabs Project (its commands with their schedule and a picker of their model, the models
   of its scripts, its model calls), Access (folders, secrets, tools, tokens), Health, Files) deck adds
   to every project

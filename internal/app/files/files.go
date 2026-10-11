@@ -130,13 +130,19 @@ func (s *Service) newestFiles(ctx context.Context, act registry.Actor, project s
 
 const maxUpload = 1 << 30
 
-// Upload keeps a file sent by a form, Share or the API for a command of a project: it waits in files/ as
-// an upload until a command takes it, and the daily cleanup drops uploads nobody took for a day.
+// Upload keeps a file sent for a command of a project, one from a screen of deck with the master, as an upload
+// until a command takes it; the daily cleanup drops uploads nobody took for a day.
 func (s *Service) Upload(ctx context.Context, act registry.Actor, project, name, ctype string, body io.Reader) (View, error) {
 	if err := access.Files(act, project, true); err != nil {
 		return View{}, err
 	}
-	p, err := access.Project(ctx, s.St.Q, act, project)
+	var p db.Project
+	var err error
+	if project == "" && act.Kind == registry.Owner {
+		p, err = access.Master(ctx, s.St.Q, act.Workspace)
+	} else {
+		p, err = access.Project(ctx, s.St.Q, act, project)
+	}
 	if err != nil {
 		return View{}, err
 	}
@@ -185,6 +191,12 @@ func (s *Service) Upload(ctx context.Context, act registry.Actor, project, name,
 		return View{}, err
 	}
 	return View{ID: f.ID, Name: f.Name, Type: f.Type, Size: f.Size, OwnerKind: f.OwnerKind, CreatedAt: f.CreatedAt}, nil
+}
+
+// Keep stores a file a command made for the owner to download, kept as an upload for a day.
+func (s *Service) Keep(ctx context.Context, act registry.Actor, project, name, ctype string, body io.Reader) (int64, error) {
+	v, err := s.Upload(ctx, act, project, name, ctype, body)
+	return v.ID, err
 }
 
 // maxTextUpload bounds a file sent inside a command, such as a sample a builder uploads for a trial run.

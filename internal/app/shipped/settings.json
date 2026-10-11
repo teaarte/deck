@@ -9,14 +9,15 @@
         {"type": "dialog", "name": "create-project", "title": "Create project", "icon": "plus", "primary": true, "blocks": [
           {"type": "form", "command": "deck.project_create", "values": {"name": "=param.name"}}]},
         {"type": "dialog", "name": "import-project", "title": "Import project", "icon": "file-import", "blocks": [
-          {"type": "form", "command": "deck.project_import"}]},
+          {"type": "form", "command": "deck.project_import", "description": "A .zip a module was exported to, or a folder on this machine. Install modules only from authors you know: it comes as a draft, and before you enable it deck shows what it may do."}]},
         {"type": "list", "title": "Projects", "cards": true, "source": {"from": "deck.projects_list", "sort": "name"}, "filter": ["status"],
           "item": {"title": "title", "icon": "icon != '' ? icon : 'box'", "text": "manifest_error != '' ? 'manifest: ' + manifest_error : description",
             "meta": "status + (paused ? ', paused' : '') + (len(folders) > 0 ? ' · folders: ' + join(map(folders, .name), ', ') : '') + (status == 'draft' && len(rights) > 0 ? ' · enabling grants: ' + join(rights, '; ') : '') + (status == 'draft' && len(asks) > 0 ? ' · asks you each time: ' + join(asks, ', ') : '')",
             "tone": "manifest_error != '' ? 'error' : paused ? 'muted' : status == 'draft' ? 'warn' : ''"},
           "actions": [
             {"verb": "settings", "primary": true, "screen": "settings", "project": "=name", "when": "status != 'draft' || manifest_error != ''"},
-            {"verb": "enable", "primary": true, "command": "deck.project_enable", "params": {"project": "=name", "revision": "=revision"}, "when": "manifest_error == '' && status == 'draft'"},
+            {"verb": "review", "primary": true, "screen": "draft", "params": {"project": "=name", "revision": "=revision"}, "when": "manifest_error == '' && status == 'draft'"},
+            {"verb": "export", "command": "deck.project_export", "params": {"project": "=name"}, "download": true, "when": "!builtin && manifest_error == ''"},
             {"verb": "pause", "command": "deck.project_pause", "params": {"project": "=name", "paused": "true"}, "when": "!paused"},
             {"verb": "resume", "command": "deck.project_pause", "params": {"project": "=name", "paused": "false"}, "when": "paused"},
             {"verb": "delete", "confirm": true, "command": "deck.project_delete", "params": {"project": "=name"}, "when": "!builtin"}

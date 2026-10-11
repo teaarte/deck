@@ -178,5 +178,13 @@
   "Paid by day": "Оплачено по дням",
   "Day": "День",
   "Copies of deck's base, files and the data folders of projects, without secrets: deck takes one a day and before a project is deleted, and keeps the newest. They lie in backups of deck's state folder.": "Копии базы deck, файлов и папок данных проектов, без секретов: deck делает одну в день и перед удалением проекта и хранит последние. Лежат в backups папки состояния deck.",
-  "No snapshot yet: deck takes the first one today, or take one now below": "Снимков пока нет: первый deck сделает сегодня, или сделайте его сейчас ниже"
+  "No snapshot yet: deck takes the first one today, or take one now below": "Снимков пока нет: первый deck сделает сегодня, или сделайте его сейчас ниже",
+  "Review a draft": "Проверка черновика",
+  "What it may do once enabled": "Что он сможет после включения",
+  "Install modules only from authors you know. Once enabled, a module does what is listed here without asking you again: it reaches these sites, reads these secrets, works in these folders and calls these models. deck checks nothing more.": "Ставьте модули только от авторов, которых знаете. После включения модуль делает то, что здесь перечислено, не спрашивая вас: ходит на эти сайты, читает эти секреты, работает в этих папках и вызывает эти модели. Больше deck ничего не проверяет.",
+  "Nothing beyond its own records: it reaches no site, reads no secret and calls no model": "Ничего, кроме своих записей: не ходит на сайты, не читает секреты и не вызывает модели",
+  "Which": "Что именно",
+  "Enable": "Включить",
+  "Until then it is a draft: nothing runs by itself, and only its trials run.": "До тех пор это черновик: сам ничего не запускает, работают только пробные запуски.",
+  "A .zip a module was exported to, or a folder on this machine. Install modules only from authors you know: it comes as a draft, and before you enable it deck shows what it may do.": "Файл .zip, в который модуль был экспортирован, или папка на этом компьютере. Ставьте модули только от авторов, которых знаете: модуль придёт черновиком, и до включения deck покажет, что он сможет делать."
 }

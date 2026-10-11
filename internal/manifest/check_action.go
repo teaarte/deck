@@ -79,6 +79,8 @@ func (c *screenCheck) action(b Block, a Action, fields []string) error {
 		return errors.New("chat opens the chat of the master in a new topic, alone, or in the topic its command made")
 	case n == 0 && a.Chat:
 		return nil
+	case a.Download && a.Command == "":
+		return errors.New("download takes the file the result of a command names; the button calls a command")
 	case n != 1:
 		return errors.New("a button has a command or a screen, or chat alone")
 	case a.Command != "" && c.deck:

@@ -292,6 +292,7 @@
         "options": {"type": "array", "items": {"type": "string"}, "description": "Values the owner picks the input from."},
         "pick": {"type": "string", "description": "The table column with the same pick draws the button as a picker of its options in the cell."},
         "chat": {"type": "boolean", "description": "With a command, the result names a chat topic, which the client opens; alone, the button opens the chat of the master in a new topic."},
+        "download": {"type": "boolean", "description": "With a command, the result names a stored file (file), which the client downloads."},
         "undo": {"$ref": "#/$defs/action", "description": "The call that takes this one back; the client offers it for a moment after the call went through."}
       }
     },

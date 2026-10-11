@@ -1,6 +1,7 @@
 package project
 
 import (
+	"cmp"
 	"context"
 	"deck2/internal/app/access"
 	"deck2/internal/app/documents"
@@ -43,8 +44,9 @@ func moduleKind(m *manifest.Manifest, name string) string {
 }
 
 type projectImportIn struct {
-	Folder string `desc:"Absolute path of the folder"`
-	Name   string `opt:"" desc:"Project name; the folder name when omitted"`
+	Folder string `opt:"" desc:"Absolute path of the folder"`
+	File   string `type:"file" opt:"" desc:"A .zip of a module folder, as deck.project_export makes it; instead of folder"`
+	Name   string `opt:"" desc:"Project name; the folder or file name when omitted"`
 }
 
 // importable lets someone other than the owner import only from the data of the master and from the folders the
@@ -71,24 +73,46 @@ func (pj *Service) importable(ctx context.Context, act registry.Actor, dir strin
 	return refused
 }
 
-// projectImport creates a draft from a module folder in one transaction; hidden files are left out.
+// projectImport creates a draft from a module folder, or from a .zip of one, in one transaction; hidden files are
+// left out.
 func (pj *Service) projectImport(ctx context.Context, act registry.Actor, in projectImportIn) (any, error) {
-	dir, err := folders.Abs(in.Folder)
-	if err != nil {
-		return nil, err
+	if (in.Folder == "") == (in.File == "") {
+		return nil, registry.Invalid("deck: give folder or file, one of them")
 	}
-	if act.Kind != registry.Owner {
-		if err := pj.importable(ctx, act, dir); err != nil {
+	var (
+		files      []folderFile
+		skipped    []string
+		from, name string
+	)
+	if in.File != "" {
+		var err error
+		if files, skipped, name, err = pj.readUpload(ctx, act, in.File); err != nil {
 			return nil, err
 		}
-	}
-	files, skipped, err := readFolder(dir)
-	if err != nil {
-		return nil, registry.Invalid("deck: cannot read %s: %v", dir, err)
+		from = "file " + name
+	} else {
+		dir, err := folders.Abs(in.Folder)
+		if err != nil {
+			return nil, err
+		}
+		if act.Kind != registry.Owner {
+			if err := pj.importable(ctx, act, dir); err != nil {
+				return nil, err
+			}
+		}
+		if files, skipped, err = readFolder(dir); err != nil {
+			return nil, registry.Invalid("deck: cannot read %s: %v", dir, err)
+		}
+		from, name = dir, filepath.Base(dir)
 	}
 	if len(skipped) > 0 {
-		return nil, registry.Invalid("deck: %s has files deck cannot take: %s", dir, strings.Join(skipped, "; "))
+		return nil, registry.Invalid("deck: %s has files deck cannot take: %s", from, strings.Join(skipped, "; "))
 	}
+	return pj.importFiles(ctx, act, cmp.Or(in.Name, name), from, files)
+}
+
+// importFiles creates a draft from the files of a module; from is the folder they came from, or the file in words.
+func (pj *Service) importFiles(ctx context.Context, act registry.Actor, name, from string, files []folderFile) (any, error) {
 	var raw, prompt string
 	total := 0
 	for _, f := range files {
@@ -101,23 +125,21 @@ func (pj *Service) projectImport(ctx context.Context, act registry.Actor, in pro
 		}
 	}
 	if total > maxFolder {
-		return nil, registry.Invalid("deck: %s holds more than 32 MB of text", dir)
+		return nil, registry.Invalid("deck: %s holds more than 32 MB of text", from)
 	}
 	if raw == "" {
-		return nil, registry.Invalid("deck: %s has no %s", dir, docs.ManifestName)
+		return nil, registry.Invalid("deck: %s has no %s", from, docs.ManifestName)
 	}
 	pm, err := parseManifest([]byte(raw), false)
 	if err != nil {
 		return nil, err
 	}
-	name := in.Name
-	if name == "" {
-		name = filepath.Base(dir)
-	}
-	reason := "imported from " + dir
+	reason := "imported from " + from
 	p, err := pj.Save.createProject(ctx, act, name, []byte(raw), prompt, store.ProjectDraft, func(ctx context.Context, q *db.Queries, p db.Project) error {
-		if err := q.SetImportedFrom(ctx, db.SetImportedFromParams{ImportedFrom: dir, ID: p.ID}); err != nil {
-			return err
+		if filepath.IsAbs(from) {
+			if err := q.SetImportedFrom(ctx, db.SetImportedFromParams{ImportedFrom: from, ID: p.ID}); err != nil {
+				return err
+			}
 		}
 		for _, f := range files {
 			if f.path == docs.ManifestName || f.path == docs.PromptName {
@@ -199,7 +221,13 @@ func readFolder(root string) (files []folderFile, skipped []string, err error) {
 func (pj *Service) importCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("project_import", "Import project",
-			"Creates a draft project from a module folder: manifest.json, prompt.md and the other files by their document names.",
+			"Creates a draft project from a module folder, or from a .zip of one: manifest.json, prompt.md and the other files by their document names.",
 			registry.OwnerSide, pj.projectImport),
+		registry.Def("project_export", "Export project",
+			"Keeps a .zip of the documents of a project to share as a module: manifest, prompts, skills, scripts and the other documents, without its memory, records, data and secrets; the result names the file.",
+			registry.OwnerOnly, pj.projectExport),
+		registry.Read("project_rights", "List what a draft may do",
+			"Lists what enabling a draft lets it do beyond its own records, such as the web, secrets, folders and models, and the calls that will wait for the owner each time.",
+			registry.OwnerSide, pj.projectRights).On("projects", "documents"),
 	}
 }

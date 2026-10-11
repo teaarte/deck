@@ -441,9 +441,11 @@ type Action struct {
 	Input   string `json:"input,omitempty"`
 	Options string `json:"options,omitempty"`
 	// Chat opens the chat topic the result of the call names.
-	Chat    bool `json:"chat,omitempty"`
-	Confirm bool `json:"confirm,omitempty"`
-	Primary bool `json:"primary,omitempty"`
+	Chat bool `json:"chat,omitempty"`
+	// Download downloads the stored file the result of the call names.
+	Download bool `json:"download,omitempty"`
+	Confirm  bool `json:"confirm,omitempty"`
+	Primary  bool `json:"primary,omitempty"`
 	// Undo is the call that takes the button's call back, offered for a moment after it went through.
 	Undo *Action `json:"undo,omitempty"`
 }

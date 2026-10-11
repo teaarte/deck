@@ -449,6 +449,14 @@ func pressIn(scope, verb string) string {
 		b.click(); return '' })()`
 }
 
+// reviewAndEnable presses Review and enable on the row of a draft in Settings, then Enable on the page of what it
+// may do.
+func (b *playwright) reviewAndEnable(name string) {
+	b.eval(pressIn(itemOf(name, "draft"), "review"))
+	b.until("the page of what "+name+" may do", `location.hash.startsWith('#/deck/draft') && document.querySelector('[data-verb="enable"]')`)
+	b.eval(`(document.querySelector('[data-verb="enable"]').click(), '')`)
+}
+
 // itemOf finds a list item by its title and a part of its text.
 func itemOf(title, part string) string {
 	return `[...document.querySelectorAll('[data-item]')].find((x) => x.innerText.split('\n')[0].trim() === '` + title + `' && x.innerText.includes('` + part + `'))`

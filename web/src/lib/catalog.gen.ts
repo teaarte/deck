@@ -84,6 +84,10 @@ export interface Action {
    * With a command, the result names a chat topic, which the client opens; alone, the button opens the chat of the master in a new topic.
    */
   chat?: boolean;
+  /**
+   * With a command, the result names a stored file (file), which the client downloads.
+   */
+  download?: boolean;
   undo?: Action1;
 }
 /**
@@ -134,6 +138,10 @@ export interface Action1 {
    * With a command, the result names a chat topic, which the client opens; alone, the button opens the chat of the master in a new topic.
    */
   chat?: boolean;
+  /**
+   * With a command, the result names a stored file (file), which the client downloads.
+   */
+  download?: boolean;
   undo?: Action1;
 }
 /**
@@ -365,6 +373,10 @@ export interface Action2 {
    * With a command, the result names a chat topic, which the client opens; alone, the button opens the chat of the master in a new topic.
    */
   chat?: boolean;
+  /**
+   * With a command, the result names a stored file (file), which the client downloads.
+   */
+  download?: boolean;
   undo?: Action1;
 }
 /**
@@ -415,6 +427,10 @@ export interface Action3 {
    * With a command, the result names a chat topic, which the client opens; alone, the button opens the chat of the master in a new topic.
    */
   chat?: boolean;
+  /**
+   * With a command, the result names a stored file (file), which the client downloads.
+   */
+  download?: boolean;
   undo?: Action1;
 }
 /**

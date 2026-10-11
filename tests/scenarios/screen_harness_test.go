@@ -150,6 +150,12 @@ type formV struct {
 // rowAction is the first button of a screen that calls command, any for "", with params holding match.
 func (e *Env) rowAction(project, screen, command string, match map[string]any) map[string]any {
 	e.T.Helper()
+	return e.button(project, screen, nil, command, match)
+}
+
+// button is rowAction on a screen opened with extra input of deck.screen, such as its params.
+func (e *Env) button(project, screen string, extra map[string]any, command string, match map[string]any) map[string]any {
+	e.T.Helper()
 	var find func(v any) map[string]any
 	find = func(v any) map[string]any {
 		switch v := v.(type) {
@@ -176,7 +182,7 @@ func (e *Env) rowAction(project, screen, command string, match map[string]any) m
 		}
 		return nil
 	}
-	b, _ := json.Marshal(e.screenData(project, screen, nil))
+	b, _ := json.Marshal(e.screenData(project, screen, extra))
 	var v any
 	_ = json.Unmarshal(b, &v)
 	a := find(v)

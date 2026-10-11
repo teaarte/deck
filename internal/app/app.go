@@ -176,7 +176,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 		Unassigned: a.Providers.Unassigned}
 	*a.Projects = project.Service{St: st, Home: h, Registry: a.Registry, Gateway: a.Gateway,
 		Runner: a.Runner, Scheduler: a.Scheduler, Host: a.Host, Save: a.Saver, Folders: a.Folders.List,
-		Snapshot: a.Snapshots.BeforeDelete, DrainFiles: a.Files.Drain}
+		Snapshot: a.Snapshots.BeforeDelete, DrainFiles: a.Files.Drain, Keep: a.Files.Keep}
 	a.addBuiltins()
 	a.Browser.Load()
 	a.Registry.SetExtra(a.Browser.Commands)

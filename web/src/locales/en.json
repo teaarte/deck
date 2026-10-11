@@ -50,6 +50,8 @@
     "send": "Send",
     "rework": "Send back for rework",
     "enable": "Enable",
+    "review": "Review and enable",
+    "export": "Export",
     "revoke": "Revoke",
     "remove": "Remove",
     "delete": "Delete",

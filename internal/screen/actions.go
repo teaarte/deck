@@ -89,6 +89,9 @@ func (r *renderer) action(a manifest.Action, id int64, env map[string]any) (map[
 	if a.Chat {
 		act["chat"] = true
 	}
+	if a.Download {
+		act["download"] = true
+	}
 	if v := value(a.Options); v != nil {
 		act["options"] = v
 	}

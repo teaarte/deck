@@ -170,17 +170,23 @@ func TestSettingsProjectsEnableADraftAtTheRevisionItShows(t *testing.T) {
 		!strings.Contains(notes.Meta, "enabling grants: "+strings.Join(e.project("notes").Rights, "; ")) {
 		t.Fatalf("a draft shows the rights enabling grants: %+v", notes)
 	}
-	stale := verb(t, notes.Actions, "enable")
+	enable := func(review map[string]any) map[string]any {
+		t.Helper()
+		p := review["params"].(map[string]any)
+		params, _ := json.Marshal(map[string]string{"project": fmt.Sprint(p["project"]), "revision": fmt.Sprint(p["revision"])})
+		return e.button("", review["screen"].(string), map[string]any{"params": string(params)}, "deck.project_enable", nil)
+	}
+	stale := enable(verb(t, notes.Actions, "review"))
 	if stale["params"].(map[string]any)["revision"] != float64(e.manifestRevision("notes")) {
-		t.Fatalf("enable carries the revision the row shows: %+v", stale)
+		t.Fatalf("enable on the page of what a draft may do carries the revision the row shows: %+v", stale)
 	}
 
 	e.must("deck.manifest_save", map[string]any{"project": "notes", "old": []string{`"title": "Work"`}, "new": []string{`"title": "Work again"`}}, nil)
 	notes = findItem(t, items(), "notes")
 	e.refused(stale["command"].(string), stale["params"], 409, "look at its rights again")
-	press(verb(t, notes.Actions, "enable"))
+	press(enable(verb(t, notes.Actions, "review")))
 	notes = findItem(t, items(), "notes")
-	if !strings.HasPrefix(notes.Meta, "enabled") || hasVerb(notes.Actions, "enable") || strings.Contains(notes.Meta, "grants") {
+	if !strings.HasPrefix(notes.Meta, "enabled") || hasVerb(notes.Actions, "review") || strings.Contains(notes.Meta, "grants") {
 		t.Fatalf("an enabled project has no enable button and asks for nothing: %+v", notes)
 	}
 	press(verb(t, findItem(t, items(), "notes").Actions, "pause"))

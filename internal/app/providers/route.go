@@ -143,7 +143,11 @@ func (s *Service) route(ctx context.Context, act registry.Actor, input json.RawM
 	if hops, ok := gateway.RouteOf(ctx); ok {
 		return hops, nil
 	}
-	ask, err := s.requested(ctx, act.Workspace, input)
+	in, err := parseCall(input)
+	if err != nil {
+		return nil, err
+	}
+	ask, err := s.modelRef(ctx, act.Workspace, in.Model, in.Kind)
 	if err != nil {
 		return nil, err
 	}
@@ -159,7 +163,7 @@ func (s *Service) use(input json.RawMessage) (string, string) {
 	case in.Kind != "":
 		return in.Model, ""
 	}
-	if ask, _ := frozen(in); strings.HasPrefix(ask.Model, "@") {
+	if ask, _ := proxied(in); strings.HasPrefix(ask.Model, "@") {
 		return ask.Model, ""
 	}
 	return in.Connection, in.Connection
@@ -210,21 +214,9 @@ func (s *Service) free(ctx context.Context, act registry.Actor, input json.RawMe
 	return len(hops) > 0, nil
 }
 
-// requested is what a call of a model asks: a request with its body, or a call of a kind.
-func (s *Service) requested(ctx context.Context, workspace int64, input json.RawMessage) (gateway.ModelAsk, error) {
-	in, err := parseCall(input)
-	if err != nil {
-		return gateway.ModelAsk{}, err
-	}
-	if in.Kind != "" {
-		return s.modelRef(ctx, workspace, in.Model, in.Kind)
-	}
-	return frozen(in)
-}
-
-// frozen is what a request of deck.model_request asks; its model is the one of a form the proxy read, or of the
-// header DeckModel.
-func frozen(in call) (gateway.ModelAsk, error) {
+// proxied is what a script's request through the proxy asks; its model is the one of a form the proxy read, or of
+// the header DeckModel.
+func proxied(in call) (gateway.ModelAsk, error) {
 	connection := cmp.Or(in.Connection, "@")
 	if in.Model != "" && in.Body != "" && !json.Valid([]byte(in.Body)) {
 		return gateway.ModelAsk{Connection: connection, Model: in.Model, Method: cmp.Or(in.Method, http.MethodPost), Path: in.Path}, nil

@@ -465,7 +465,7 @@ func TestAModelTakesItsPriceAndKindFromTheCatalogOfItsConnection(t *testing.T) {
 }
 
 // TestAModuleCallsOnlyTheModelsTheOwnerGranted: a project calls models only through what its manifest names; a new
-// name waits for the owner's button, and a draft's call waits for a yes unless its model is free on this machine.
+// name waits for the owner's button, and a draft calls only a model that is free on this machine.
 func TestAModuleCallsOnlyTheModelsTheOwnerGranted(t *testing.T) {
 	t.Parallel()
 	api := newModels(t, map[string]func(int, map[string]any) (int, string, string){
@@ -508,8 +508,8 @@ func TestAModuleCallsOnlyTheModelsTheOwnerGranted(t *testing.T) {
 	}
 	e.saveScript("draft", "scripts/main.py", modelScript)
 	before := len(api.calls())
-	if out := call("draft", "openrouter/chat/completions"); out["status"] != 202.0 || len(api.calls()) != before {
-		t.Fatalf("a draft's call of a paid model waits for the owner's yes: %v", out)
+	if out := call("draft", "openrouter/chat/completions"); out["status"] != 403.0 || !strings.Contains(out["answer"].(string), "only free models") || len(api.calls()) != before {
+		t.Fatalf("a draft's call of a paid model is refused with what to do: %v", out)
 	}
 	if out := call("draft", "ollama/chat/completions"); out["status"] != 200.0 || len(api.calls()) != before+1 {
 		t.Fatalf("a draft's call of a free model on the owner's machine goes: %v", out)
@@ -519,8 +519,8 @@ func TestAModuleCallsOnlyTheModelsTheOwnerGranted(t *testing.T) {
 	e.must("deck.manifest_save", map[string]any{"project": "draft", "manifest": scriptManifest("media", "", `, "models": ["@text"]`)}, nil)
 	got := e.waitScript(e.start("draft", "media", map[string]any{"key": "@/chat/completions", "other": `{"model": "@text", "messages": []}`}), "done", "error")
 	var out map[string]any
-	if json.Unmarshal(got.Result, &out) != nil || out["status"] != 202.0 || len(api.calls()) != before+1 {
-		t.Fatalf("a draft's call that may fall back to a paid model waits for the owner: %+v", got)
+	if json.Unmarshal(got.Result, &out) != nil || out["status"] != 403.0 || len(api.calls()) != before+1 {
+		t.Fatalf("a draft's call that may fall back to a paid model is refused: %+v", got)
 	}
 }
 
@@ -600,12 +600,12 @@ func TestAModuleCallsOnlyTheModelsOfDecksSettings(t *testing.T) {
 			t.Fatalf("X-Deck-Model stays with deck: %+v", c)
 		}
 	}
+	if out := call(map[string]any{"key": "@/chat/completions", "other": `{"model": "@search", "messages": []}`}); out["status"] != 422.0 ||
+		!strings.Contains(out["answer"].(string), "web search of agents") {
+		t.Fatalf("@search is not a model to call: %v", out)
+	}
 	e.refused("deck.model_request", map[string]any{"connection": "openrouter", "path": "chat/completions",
-		"body": `{"model": "anthropic/claude-opus", "messages": []}`}, 403, "not in deck's settings")
-	e.refused("deck.model_request", map[string]any{"connection": "openrouter", "path": "fine_tuning/jobs",
-		"body": `{"model": "qwen", "training_file": "f"}`}, 403, "not a call of a model")
-	e.refused("deck.model_request", map[string]any{"connection": "openrouter", "path": "chat/completions", "model": "qwen",
-		"body": `{"model": "anthropic/claude-opus", "temperature": NaN}`}, 422, "is JSON")
+		"body": `{"model": "qwen", "messages": []}`}, 404, "model_request")
 	var spend []spendRow
 	e.modelCalls("shorts", 0, &spend)
 	got := map[string]float64{}

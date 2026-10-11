@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	"mime"
 	"mime/multipart"
 	"net/http"
 	"path/filepath"
@@ -34,6 +35,44 @@ type modelCallIn struct {
 	First   string `json:"first_frame" type:"file" opt:"" desc:"The picture a video starts from"`
 	Last    string `json:"last_frame" type:"file" opt:"" desc:"The picture a video ends on"`
 	Options string `type:"json" opt:"" desc:"Fields deck adds to the request as they are, such as voice or image_config"`
+}
+
+// call is what a call of a model names: a kind with its model, or a request of a script through the proxy.
+type call struct {
+	Connection string `json:"connection"`
+	Method     string `json:"method"`
+	Path       string `json:"path"`
+	Body       string `json:"body"`
+	Model      string `json:"model"`
+	Kind       string `json:"kind"`
+}
+
+func parseCall(input json.RawMessage) (call, error) {
+	var in call
+	if err := json.Unmarshal(input, &in); err != nil {
+		return in, registry.Invalid("deck: %v", err)
+	}
+	return in, nil
+}
+
+// answer reads what a model API answered: a binary body is kept as a file in the results folder of the calling
+// process, the rest comes back as its bytes; an answer past 400 is an error.
+func (s *Service) answer(act registry.Actor, name string, resp *http.Response, h gateway.ModelHop) (any, []byte, error) {
+	defer resp.Body.Close()
+	ct, _, _ := mime.ParseMediaType(resp.Header.Get("Content-Type"))
+	text := ct == "" || ct == "application/json" || strings.HasSuffix(ct, "+json") || strings.HasPrefix(ct, "text/")
+	if resp.StatusCode < 400 && !text {
+		file, err := s.keep(act, name, ct, resp.Body)
+		return file, nil, err
+	}
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, 64<<20))
+	if err != nil {
+		return nil, nil, err
+	}
+	if resp.StatusCode >= 400 {
+		return nil, nil, registry.Invalid("deck: %s answered HTTP %d: %s", h.Connection, resp.StatusCode, untrusted.Cut(string(raw), 2000))
+	}
+	return nil, raw, nil
 }
 
 // modelRef is where a call of a model goes: an @role on any connection, or a named model on its own.
@@ -385,12 +424,12 @@ func (s *Service) keep(act registry.Actor, kind, ct string, body io.Reader) (any
 	return map[string]any{"file": name, "type": ct, "size": n}, nil
 }
 
-// modelCallCommand is a call of a model of a kind through deck, on the rules of deck.model_request.
+// modelCallCommand is a call of a model of a kind through deck; a script's call through the proxy goes by its rules.
 func (s *Service) modelCallCommand() *registry.Command {
 	c := registry.Def("model_call", "Ask a model",
 		"Asks the model assigned to a kind of work, or one named: text by a JSON schema, a picture, speech of text, text of a recording, music or a video from its first and last frames; pictures, sound and video come back as files.",
 		registry.Everyone, s.modelCall)
 	c.Class, c.Allowed, c.Free = registry.External, s.allowed, s.free
-	c.Fingerprint = func(context.Context, int64) string { return gateway.ModelRequest }
+	c.Fingerprint = func(context.Context, int64) string { return gateway.ModelCommand }
 	return c
 }

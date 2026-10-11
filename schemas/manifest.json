@@ -25,7 +25,7 @@
       "description": "Translations of the texts the owner sees, by language (en, ru) and then by the text as this manifest writes it: the title of the project; titles of screens, blocks, tabs and dialogs; descriptions; empty texts; labels of columns, fields, series and buttons. Write the manifest in English and give a translation into every language the owner uses; deck shows the owner's language, the text itself where it has none. Texts that expressions build are not translated."},
     "reads": {"type": "array", "items": {"$ref": "#/$defs/read"}, "description": "Data of other projects this project may read."},
     "models": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true,
-      "description": "What scripts and agents of the project call models through (DECK_MODELS, deck.model_call, deck.model_request): connections the owner added, models by name, or @text, @image, @tts, @stt for the models the owner assigned; commands of type model add theirs. A new one is granted by the owner."},
+      "description": "What scripts and agents of the project call models through (DECK_MODELS, deck.model_call): connections the owner added, models by name, or @text, @image, @tts, @stt for the models the owner assigned; commands of type model add theirs. A new one is granted by the owner."},
     "no_network": {"type": "boolean", "default": false,
       "description": "The agents of this project have no web and no network of their own; they reach outside only through deck tools, and its pushes carry no text of its data. Its scripts still reach the domains of the manifest and the package registries. For personal data. Only the owner removes it."},
     "master_errors": {"type": "boolean", "default": true,

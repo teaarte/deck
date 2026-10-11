@@ -176,8 +176,6 @@ func TestATrialSearchesOnlyThroughALocalOrFreeService(t *testing.T) {
 	if !strings.Contains(said, "trial run") || len(search.requests()) != 0 {
 		t.Fatalf("a trial does not search through a paid service: %q, %d requests", said, len(search.requests()))
 	}
-	e.refused("deck.model_request", map[string]any{"connection": "@", "path": "chat/completions", "model": "@search",
-		"body": `{"model": "@search", "messages": []}`}, 422, "web search of agents")
 }
 
 // TestHealthSaysHowToSetUpSearch: without a search of the workspace health says agents only read pages and how to

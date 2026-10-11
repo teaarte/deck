@@ -7,11 +7,11 @@ import (
 	"deck2/internal/registry"
 )
 
-// ModelRequest is the command a call of a model through the proxy is frozen as when it waits for the owner.
-const ModelRequest = registry.Builtin + ".model_request"
+// ModelCommand is the command whose rules a call of a model through the proxy goes by.
+const ModelCommand = registry.Builtin + ".model_call"
 
-// proxyModel serves a script's call of a model: the rules of deck.model_request decide whether it goes now or
-// waits for the owner, frozen as that command; one that goes is streamed through the hops.
+// proxyModel serves a script's call of a model: the rules of deck.model_call decide whether it goes; one that would
+// wait for the owner is refused, one that goes is streamed through the hops.
 func (g *Gateway) proxyModel(w http.ResponseWriter, r *http.Request, act registry.Actor, connection, path string, body []byte) {
 	if g.cfg.Models == nil {
 		http.Error(w, "deck: no models", http.StatusNotFound)
@@ -27,7 +27,7 @@ func (g *Gateway) proxyModel(w http.ResponseWriter, r *http.Request, act registr
 		http.Error(w, err.Error(), registry.Status(err))
 		return
 	}
-	c, err := g.reg.Lookup(r.Context(), act.Workspace, ModelRequest)
+	c, err := g.reg.Lookup(r.Context(), act.Workspace, ModelCommand)
 	if err != nil {
 		http.Error(w, err.Error(), registry.Status(err))
 		return
@@ -44,24 +44,12 @@ func (g *Gateway) proxyModel(w http.ResponseWriter, r *http.Request, act registr
 	}
 	input, _ := json.Marshal(in)
 	now, err := g.gate(WithRoute(r.Context(), hops), act, c, act.ProjectID, input)
-	if err != nil {
-		g.journal(r.Context(), act, act.ProjectID, ModelRequest, c.Class, "rejected", Canonical(input), err.Error())
-		http.Error(w, err.Error(), registry.Status(err))
-		return
+	if err == nil && !now {
+		err = registry.Refuse("deck: a draft or a trial calls through $DECK_MODELS only free models and those of the owner's machine; this call was not made: the owner enables the project, or an agent asks with deck.model_call, which waits for the owner's yes")
 	}
-	if !now {
-		if len(body) > 0 && !json.Valid(body) {
-			http.Error(w, "deck: this call of a model waits for the owner, and only a JSON body can wait; call it again once the owner enabled the project", http.StatusTooManyRequests)
-			return
-		}
-		out, err := g.hold(r.Context(), act, c, act.ProjectID, input)
-		if err != nil {
-			http.Error(w, err.Error(), registry.Status(err))
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusAccepted)
-		_ = json.NewEncoder(w).Encode(out)
+	if err != nil {
+		g.journal(r.Context(), act, act.ProjectID, ModelCommand, c.Class, "rejected", Canonical(input), err.Error())
+		http.Error(w, err.Error(), registry.Status(err))
 		return
 	}
 	ServeHops(w, r, path, body, ask.InBody, hops)

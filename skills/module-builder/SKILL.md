@@ -344,8 +344,8 @@ A script reads its input JSON from stdin and prints its result JSON to stdout. I
   that is not a call of a model (files, batches, the account); a poll `GET videos/<id>` of a job names no model,
   but on a `raw` connection every request, the poll too, sends `X-Deck-Model`. A
   body with `"model": "@tts"` and the connection `@` takes the model the owner assigned, a fallback when it
-  refuses. A 202 with `{"waiting": <ask>}` means the call waits for the owner (a draft or a trial of a paid
-  model): stop and say so, do not retry in a loop;
+  refuses. A draft or a trial reaches only free models and those of the owner's machine: a paid one answers 403
+  and is not made; stop and say so, do not retry in a loop;
 - no secrets and no keys of the owner; ask for an HTTP tool of the manifest instead. Never ask the owner to
   `export` a key for a module: on macOS a confined program reads the environment of the owner's processes, so
   keys live only in deck secrets;
@@ -416,8 +416,6 @@ req = urllib.request.Request(os.environ["DECK_MODELS"] + "/fal/v1/generate",  # 
     headers={"Authorization": "Bearer " + os.environ["DECK_TOKEN"], "Content-Type": "application/json",
              "X-Deck-Model": "stable-audio"})  # the model of deck's settings; its API body has no model field
 with urllib.request.urlopen(req, timeout=600) as r:
-    if r.status == 202:  # a draft or a trial: the call waits for the owner
-        print(json.dumps({"waiting": json.load(r)})); sys.exit(0)
     path = os.path.join(os.environ["DECK_RESULTS"], "track.mp3")
     open(path, "wb").write(r.read())
 print(json.dumps({"files": [{"path": "track.mp3", "record": inp.get("record")}]}))

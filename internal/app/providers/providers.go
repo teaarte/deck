@@ -359,6 +359,6 @@ func (s *Service) Commands() []*registry.Command {
 			registry.Everyone, s.modelSet).Enum("agent", acp.Names()...).As(registry.External),
 		registry.Def("model_remove", "Remove model", "Removes a model; assignments that name it skip it.",
 			registry.OwnerOnly, s.modelRemove),
-		s.modelRequestCommand(), s.modelCallCommand(),
+		s.modelCallCommand(),
 	}, s.webCommands()...)
 }

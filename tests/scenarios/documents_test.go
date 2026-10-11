@@ -4,7 +4,6 @@ import (
 	"context"
 	"deck2/internal/store/db"
 	"encoding/json"
-	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -75,19 +74,22 @@ func TestDocumentsOfAProjectAreListedOnItsDocumentsScreenAndEditedOnTheirPage(t 
 	}
 	check.messages(t, e.screenMessages("web", "documents", nil))
 	list := e.screenData("web", "documents", nil)["b0"]
-	rows := blockData[[]screenRow](t, list["rows"])
-	byName := map[string]screenRow{}
-	for _, r := range rows {
-		byName[r.Cells[0].(string)] = r
+	tiles := blockData[[]struct {
+		ID               any
+		Title, Icon, Url string
+		Actions          []map[string]any
+	}](t, list["files"])
+	byName := map[string]int{}
+	for i, f := range tiles {
+		byName[f.Title] = i
 	}
-	if len(rows) != 4 || byName["notes/criteria.md"].Cells[3] != float64(2) || byName["manifest.json"].Cells[1] != "manifest" ||
-		byName["report.md"].Cells[2] != fmt.Sprintf("record #%d", recs.IDs[0]) ||
-		!strings.Contains(string(list["filters"]), `"custom"`) {
-		t.Fatalf("the documents screen lists every document of the project with its kind and revision: %+v %s", rows, list["filters"])
+	if len(tiles) != 4 || tiles[byName["manifest.json"]].Icon != "settings" || tiles[byName["notes/criteria.md"]].Icon != "file-text" ||
+		tiles[byName["report.md"]].Url != "" || !strings.Contains(string(list["filters"]), `"custom"`) {
+		t.Fatalf("the documents screen is a file manager of every document of the project, a tile of its kind each: %+v %s", tiles, list["filters"])
 	}
-	open := verb(t, byName["notes/criteria.md"].Actions, "open")
-	if open["screen"] != "document" || open["project"] != "web" || open["record"] != float64(crit.ID) {
-		t.Fatalf("a row opens the page of its document: %+v", open)
+	open := verb(t, tiles[byName["notes/criteria.md"]].Actions, "open")
+	if open["screen"] != "document" || open["project"] != "web" || open["record"] != float64(crit.ID) || open["primary"] != true {
+		t.Fatalf("a tile opens the page of its document: %+v", open)
 	}
 
 	page := func(id int64) documentV {
@@ -111,10 +113,8 @@ func TestDocumentsOfAProjectAreListedOnItsDocumentsScreenAndEditedOnTheirPage(t 
 	}
 	for _, name := range []string{"custom/chart.html", "manifest.json"} {
 		id := int64(0)
-		for _, r := range rows {
-			if r.Cells[0] == name {
-				id = int64(r.ID.(float64))
-			}
+		if i, ok := byName[name]; ok {
+			id = int64(tiles[i].ID.(float64))
 		}
 		if page(id).Editable {
 			t.Fatalf("%s is read only on screen", name)

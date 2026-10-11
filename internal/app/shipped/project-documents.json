@@ -3,17 +3,12 @@
   "icon": "folder",
   "title": "Files",
   "blocks": [
-    {"type": "table", "title": "Documents", "source": {"from": "deck.documents_list", "input": {"with_deleted": true}, "sort": "name"}, "filter": ["kind"],
-      "columns": [
-        {"label": "Name", "bind": "name"},
-        {"label": "Kind", "bind": "kind", "format": "tag"},
-        {"label": "Belongs to", "bind": "owner_kind != '' ? owner_kind + ' #' + string(owner_id) : ''"},
-        {"label": "Revision", "bind": "revision"},
-        {"label": "Deleted", "bind": "deleted ? 'deleted' : ''"}
-      ],
+    {"type": "media", "title": "Documents", "span": "full", "source": {"from": "deck.documents_list", "input": {"with_deleted": true}, "sort": "name"}, "filter": ["kind"],
+      "item": {"title": "name",
+        "icon": "deleted ? 'trash' : kind == 'skill' ? 'sparkles' : kind == 'script' ? 'code' : kind == 'manifest' ? 'settings' : kind == 'prompt' ? 'message' : 'file-text'"},
       "actions": [
+        {"verb": "open", "primary": true, "screen": "document", "record": "=id", "when": "!deleted"},
         {"verb": "restore", "command": "deck.document_restore", "params": {"document": "=id"}, "when": "deleted"},
-        {"verb": "open", "screen": "document", "record": "=id", "when": "!deleted"},
         {"verb": "delete", "confirm": true, "command": "deck.document_delete", "params": {"document": "=id"}, "when": "!deleted && kind != 'manifest' && !(kind == 'prompt' && owner_kind == '')"}
       ]}
   ]

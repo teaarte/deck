@@ -8,9 +8,9 @@ import { Viewer } from './Viewer';
 export type { Item } from './kinds';
 
 // Media shows the files of a source: one in place, a picture as a thumbnail that opens in full; several as tiles or
-// a list that open in a lightbox.
+// a list that open in a lightbox, folders and other lines that are no file among them.
 export function Media({ items }: { items: Item[] }) {
-  if (items.length > 1) return <Browser items={items} />;
+  if (items.length > 1 || items.some((it) => it.icon)) return <Browser items={items} />;
   return (
     <Stack gap="sm">
       {items.map((it, i) => {

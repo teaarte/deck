@@ -365,7 +365,13 @@ func TestRealBrowserJournal(t *testing.T) {
 	}
 	checkBuiltClient(t)
 	e := newEnv(t, nil)
-	e.createProject("web", webNotes)
+	pid := e.createProject("web", webNotes)
+	if err := os.MkdirAll(filepath.Join(e.App.Home.Data(pid), "sub"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(e.App.Home.Data(pid), "sub", "a.txt"), []byte("a"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	for _, name := range []string{"notes ü.txt", "100%.txt", `100% a;b".txt`} {
 		e.upload("web", name, "text/html", "body of "+name)
 	}
@@ -376,9 +382,16 @@ func TestRealBrowserJournal(t *testing.T) {
 	b.open(e.URL + "/?token=" + token + "#/deck/files")
 	b.until("the tabs of files", `[...document.querySelectorAll('[role=tab]')].map((x) => x.innerText.trim()).join(' ') === 'Files Data folders Documents Snapshots'`)
 	b.eval(`([...document.querySelectorAll('[role=tab]')].find((x) => x.innerText.trim() === 'Data folders').click(), '')`)
-	b.until("the projects of the data folders", `document.body.innerText.toLowerCase().includes('web\t') || document.body.innerText.includes('WEB')`)
-	b.eval(`([...document.querySelectorAll('button')].filter((x) => x.offsetParent && x.innerText.trim() === 'Open').pop().click(), '')`)
-	b.until("the data folder of web", `location.hash.includes('/deck/data') && document.body.innerText.includes('The folder is empty')`)
+	const visible = `[...document.querySelectorAll('[data-place]')].filter((x) => x.offsetParent)`
+	b.until("the data folders of the projects as folder tiles", visible+`.some((x) => x.dataset.place === 'folder' && x.innerText.toLowerCase().includes('web'))`)
+	if got := b.eval(`String([...document.querySelectorAll('button')].some((x) => x.offsetParent && x.innerText.trim() === 'Open'))`); got != "false" {
+		t.Fatalf("a folder opens by its tile, without an Open button: %s", got)
+	}
+	b.eval(`(` + visible + `.find((x) => x.innerText.toLowerCase().includes('web')).click(), '')`)
+	b.until("the data folder of web with its folder", `location.hash.includes('/deck/data') && `+visible+`.some((x) => x.dataset.place === 'folder' && x.innerText.trim() === 'sub')`)
+	b.eval(`(` + visible + `.find((x) => x.innerText.trim() === 'sub').click(), '')`)
+	b.until("the folder with the way up and its file", visible+`.some((x) => x.dataset.place === 'arrow-up') && [...document.querySelectorAll('[data-tile]')].some((x) => x.offsetParent && x.innerText.includes('a.txt'))`)
+	b.shot("data-folder-phone")
 	b.open(e.URL + "/?token=" + token + "#/deck/files")
 	b.eval(`([...document.querySelectorAll('[role=tab]')].find((x) => x.innerText.trim() === 'Snapshots').click(), '')`)
 	b.until("the snapshot form", `document.querySelector('[data-form="deck.snapshot_create"] [data-submit]')?.offsetParent`)

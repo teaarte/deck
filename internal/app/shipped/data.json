@@ -4,18 +4,12 @@
   "title": "Data folder",
   "params": {"project": "string", "path": "string"},
   "blocks": [
-    {"type": "table", "title": "Folder", "span": "full", "source": {"from": "deck.data_read", "input": {"project": "=param.project", "path": "=param.path ?? ''"}, "rows": "entries"},
+    {"type": "media", "title": "Folder", "span": "full", "source": {"from": "deck.data_read", "input": {"project": "=param.project", "path": "=param.path ?? ''"}, "rows": "entries", "sort": "-dir"},
       "description": "The data folder of the project as it is on disk: what its scripts and agents keep, caches too.",
       "empty": "The folder is empty",
-      "columns": [
-        {"label": "Name", "bind": "dir && name != '..' ? name + '/' : name"},
-        {"label": "Size", "bind": "dir ? nil : size", "format": "bytes"},
-        {"label": "Changed", "bind": "modified ?? nil", "format": "relative"}
-      ],
+      "item": {"file": "dir ? '' : file", "title": "name", "icon": "name == '..' ? 'arrow-up' : 'folder'"},
       "actions": [
         {"verb": "open", "primary": true, "screen": "data", "params": {"project": "=param.project", "path": "=path"}, "when": "dir"}
-      ]},
-    {"type": "media", "title": "Files here", "span": "full", "source": {"from": "deck.data_read", "input": {"project": "=param.project", "path": "=param.path ?? ''"}, "rows": "entries",
-      "where": "!dir", "sort": "-modified"}, "item": {"file": "file", "title": "name"}, "empty": "No files in this folder"}
+      ]}
   ]
 }

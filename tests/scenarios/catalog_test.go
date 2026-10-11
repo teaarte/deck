@@ -400,7 +400,7 @@ func TestMediaShowsTheFilesOfItsProjectOnly(t *testing.T) {
 	}
 	for _, tc := range []struct{ from, to, want string }{
 		{`"item": {"file": "file", "title": "title"}`, `"item": {"file": "path", "title": "title"}`, `unknown field "path"`},
-		{`"item": {"file": "file", "title": "title"}`, `"item": {"title": "title"}`, `missing property 'file'`},
+		{`"item": {"file": "file", "title": "title"}`, `"item": {"title": "title"}`, `a media line needs file, or icon`},
 	} {
 		if strings.Count(forecastManifest, tc.from) != 1 {
 			t.Fatalf("fixture has %s once", tc.from)

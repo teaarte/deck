@@ -280,6 +280,10 @@ export interface Data {
      * where the client reads the file, with its token
      */
     url?: string;
+    /**
+     * the icon of a line that is no file; its tile presses the primary button
+     */
+    icon?: string;
     error?: string;
     actions?: Action[];
   }[];

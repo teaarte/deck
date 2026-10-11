@@ -149,9 +149,9 @@
     },
     "media": {
       "description": "Files of the items of a source of any format: one in place (a picture that opens in full, a PDF, a video or a sound in the browser's own player, the start of a text, an HTML or SVG page in a frame that runs nothing, any other file by its type, name and size with a download); several as tiles or a list the owner switches on the device, which open in a lightbox one after another.",
-      "block": {"description": "Needs item.file, an expression over an item of its source, or on a record page without a source over the record itself: the id of a stored file of the project (a result of its process, an attachment of its record) or a path in the data folder of the project; item.title is the caption. A file of another project or a path that is no file of the data folder is an error of its line, not of the block. A player with marks on its timeline is a custom block (MCP Apps) that reads the file through resources/read of deck://data/<path>. A single picture takes the width of the block.", "required": ["item"], "properties": {
+      "block": {"description": "Needs item.file, an expression over an item of its source, or on a record page without a source over the record itself: the id of a stored file of the project (a result of its process, an attachment of its record) or a path in the data folder of the project; item.title is the caption. A line whose item.file is empty or null is a tile of its item.icon, such as a folder or a document, that presses its primary button; with folders and files of a folder together, the block is a file manager. A file of another project or a path that is no file of the data folder is an error of its line, not of the block. A player with marks on its timeline is a custom block (MCP Apps) that reads the file through resources/read of deck://data/<path>. A single picture takes the width of the block.", "required": ["item"], "properties": {
         "source": {"$ref": "#/$defs/source"},
-        "item": {"type": "object", "additionalProperties": false, "required": ["file"], "properties": {"file": {"type": "string"}, "title": {"type": "string"}}},
+        "item": {"type": "object", "additionalProperties": false, "properties": {"file": {"type": "string"}, "title": {"type": "string"}, "icon": {"type": "string", "description": "Expression giving the Tabler icon of a line that names no file, such as a folder or a document: its tile presses the primary button of the line."}}},
         "actions": {"$ref": "#/$defs/actions", "description": "Buttons of each file, over its item, as the buttons of a row of a table."},
         "filter": {"$ref": "#/$defs/filter"},
         "empty": {"$ref": "#/$defs/empty"}}},
@@ -163,7 +163,7 @@
         "icon": {"type": "string"},
         "span": {"enum": [1, 2, "full"], "default": 1},
         "description": {"type": "string"},
-        "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "files: [{id, title, name, type, size, url, actions} or {id, title, error}]"}
+        "data": {"$ref": "common_types.json#/$defs/DynamicValue", "description": "files: [{id, title, name, type, size, url, actions}, {id, title, icon, actions} or {id, title, error}]"}
       }
     },
     "actions": {
@@ -395,7 +395,7 @@
         "files": {"type": "array", "items": {
           "type": "object", "required": ["id"], "additionalProperties": false,
           "properties": {"id": {}, "title": {"type": "string"}, "name": {"type": "string"}, "type": {"type": "string"}, "size": {"type": "integer"},
-            "url": {"type": "string", "description": "where the client reads the file, with its token"}, "error": {"type": "string"},
+            "url": {"type": "string", "description": "where the client reads the file, with its token"}, "icon": {"type": "string", "description": "the icon of a line that is no file; its tile presses the primary button"}, "error": {"type": "string"},
             "actions": {"type": "array", "items": {"$ref": "#/$defs/action"}}}
         }},
         "lines": {"type": "array", "description": "the log of a process, newest first", "items": {

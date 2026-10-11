@@ -1,6 +1,7 @@
 package scenarios
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"os"
@@ -85,18 +86,41 @@ print(json.dumps({"files": [{"path": "frame.png", "record": inp["record"]}, {"pa
 	}
 }
 
-// TestTheDataFolderOfAProjectShowsByItsFolders: the screen of a data folder lists a folder of it, with the way up,
-// and shows its files.
+// TestTheDataFolderOfAProjectShowsByItsFolders: the screen of a data folder is a file manager: the way up and its
+// folders first, as tiles that open them, then its files; the data folders of projects and the files of a project
+// are tiles too.
 func TestTheDataFolderOfAProjectShowsByItsFolders(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, nil)
 	pid := e.createProject("shorts", shortsModule)
 	data := deckhome.Layout(e.App.Cfg.Home).Data(pid)
-	if err := errors.Join(os.MkdirAll(filepath.Join(data, "cache"), 0o700), os.WriteFile(filepath.Join(data, "cache", "tiles.bin"), []byte("x"), 0o600)); err != nil {
+	if err := errors.Join(os.MkdirAll(filepath.Join(data, "cache", "zz"), 0o700), os.WriteFile(filepath.Join(data, "cache", "tiles.bin"), []byte("x"), 0o600)); err != nil {
 		t.Fatal(err)
 	}
-	raw, _ := json.Marshal(e.screenMessages("", "data", map[string]any{"params": `{"project": "shorts", "path": "cache"}`}))
-	if s := string(raw); !strings.Contains(s, `"tiles.bin"`) || !strings.Contains(s, `"..`) || !strings.Contains(s, `/api/files/data/shorts/cache/tiles.bin`) {
-		t.Fatalf("the screen of a data folder lists its files and shows them: %s", s)
+	type tile struct {
+		Title, Icon, URL, Error string
+		Actions                 []map[string]any
+	}
+	tiles := blockData[[]tile](t, e.screenData("", "data", map[string]any{"params": `{"project": "shorts", "path": "cache"}`})["b0"]["files"])
+	if len(tiles) != 3 || tiles[0].Title != ".." || tiles[0].Icon != "arrow-up" || tiles[1].Title != "zz" || tiles[1].Icon != "folder" ||
+		tiles[2].Title != "tiles.bin" || tiles[2].Icon != "" || !strings.Contains(tiles[2].URL, "/api/files/data/shorts/cache/tiles.bin") {
+		t.Fatalf("the way up and the folders come first as tiles, then the files: %+v", tiles)
+	}
+	params, _ := verb(t, tiles[1].Actions, "open")["params"].(map[string]any)
+	if open := verb(t, tiles[1].Actions, "open"); open["primary"] != true || open["screen"] != "data" || params["path"] != "cache/zz" {
+		t.Fatalf("a folder tile opens the folder: %+v", open)
+	}
+	if len(tiles[2].Actions) != 0 {
+		t.Fatalf("a file has no button to open a folder: %+v", tiles[2].Actions)
+	}
+
+	raw, _ := json.Marshal(e.screenData("", "files", nil))
+	if s := string(raw); !strings.Contains(s, `"icon":"folder"`) || !strings.Contains(s, `"title":"Shorts"`) && !strings.Contains(s, `"title":"shorts"`) {
+		t.Fatalf("the data folders of the projects are folder tiles: %s", s)
+	}
+	e.must("deck.file_upload", map[string]any{"project": "shorts", "name": "frame.png", "content": base64.StdEncoding.EncodeToString([]byte("png"))}, nil)
+	raw, _ = json.Marshal(e.screenData("shorts", "settings", nil))
+	if s := string(raw); !strings.Contains(s, `"name":"frame.png"`) {
+		t.Fatalf("the settings of a module show its files: %s", s)
 	}
 }

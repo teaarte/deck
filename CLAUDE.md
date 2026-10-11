@@ -84,9 +84,9 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
   `app/screens` — the sources of screens: forms, documents; files of a domain are named by what they hold;
   deck's screens are data, a file each in `app/shipped/` (`project-<name>.json` for those of every project, `menu.json`,
   `i18n.ru.json`, the phrases of read commands `words.ru.json`): Cockpit (the link at the head of the menu), and in the menu Schedule
-  (tabs Schedule, Runs with the calls of the gateway, Spend), Files (tabs Files, Documents of the master, Snapshots), Settings (tabs
+  (tabs Schedule, Runs with the calls of the gateway, Spend), Files (tabs Files, Data folders, Documents of the master — tiles of one file manager, the media block — and Snapshots), Settings (tabs
   Projects, Models, Connections, Tokens, General, Interface, Health); `project` screens (Documents, the page of
-  a document and Settings of the project in tabs Project (commands, schedule), Models (of its work, called), Access (folders, tools, secrets, tokens), Health) deck adds
+  a document and Settings of the project in tabs Project (commands, schedule), Models (of its work, called), Access (folders, tools, secrets, tokens), Health, Files) deck adds
   to every project
 - `internal/manifest` — project manifest (format 12: `upgrade.go` raises older ones): `types.go`, `parse.go`,
   `lookup.go`, `collection.go`, `nav.go` (`Nav` — a project in the menu, `Tr`), rights (`rights.go`: `Widens` and `Clip` over the same rights — what is in force widens nothing beyond the grant —, the hosts of agent shells), checks of screens by

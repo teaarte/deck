@@ -130,6 +130,16 @@
               {"label": "Since", "bind": "updated_at"}
             ],
             "actions": [{"verb": "check", "command": "deck.programs_check", "when": "hasPrefix(subject, 'command:') && status != 'ok'"}]}
+      ]},
+      {"title": "Files", "icon": "files", "blocks": [
+          {"type": "media", "title": "Files", "span": "full", "source": {"from": "deck.files_list", "sort": "-created_at"},
+            "description": "What the project made and keeps: pictures, video, sound, documents of its runs and records.",
+            "empty": "The project has no files yet",
+            "item": {"file": "id", "title": "name"},
+            "actions": [
+              {"verb": "delete", "command": "deck.file_delete", "params": {"file": "=id"},
+               "undo": {"command": "deck.file_restore", "params": {"file": "=id", "owner_kind": "=owner_kind", "owner_id": "=owner_id"}}}
+            ]}
       ]}
     ]}
   ]

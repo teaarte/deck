@@ -13,23 +13,19 @@
           ]}
       ]},
       {"title": "Data folders", "icon": "folders", "blocks": [
-        {"type": "table", "title": "Data folders", "span": "full", "source": {"from": "deck.projects_list"},
+        {"type": "media", "title": "Data folders", "span": "full", "source": {"from": "deck.projects_list", "sort": "name"},
           "description": "The data folder of each project, by its real folders.",
-          "columns": [{"label": "Project", "bind": "name", "format": "tag"}],
+          "item": {"title": "title", "icon": "'folder'"},
           "actions": [{"verb": "open", "primary": true, "screen": "data", "params": {"project": "=name"}}]}
       ]},
       {"title": "Documents", "icon": "file-text", "blocks": [
-        {"type": "table", "title": "Documents of the master", "source": {"from": "deck.documents_list", "input": {"project": "master", "with_deleted": true}, "sort": "name"}, "filter": ["kind"],
+        {"type": "media", "title": "Documents of the master", "span": "full", "source": {"from": "deck.documents_list", "input": {"project": "master", "with_deleted": true}, "sort": "name"}, "filter": ["kind"],
           "description": "The memory, prompts and skills of the master.",
-          "columns": [
-            {"label": "Name", "bind": "name"},
-            {"label": "Kind", "bind": "kind", "format": "tag"},
-            {"label": "Revision", "bind": "revision"},
-            {"label": "Deleted", "bind": "deleted ? 'deleted' : ''"}
-          ],
+          "item": {"title": "name",
+            "icon": "deleted ? 'trash' : kind == 'skill' ? 'sparkles' : kind == 'script' ? 'code' : kind == 'manifest' ? 'settings' : kind == 'prompt' ? 'message' : 'file-text'"},
           "actions": [
+            {"verb": "open", "primary": true, "screen": "document", "project": "master", "record": "=id", "when": "!deleted"},
             {"verb": "restore", "command": "deck.document_restore", "params": {"document": "=id"}, "when": "deleted"},
-            {"verb": "open", "screen": "document", "project": "master", "record": "=id", "when": "!deleted"},
             {"verb": "delete", "confirm": true, "command": "deck.document_delete", "params": {"document": "=id"}, "when": "!deleted && kind != 'manifest' && !(kind == 'prompt' && owner_kind == '')"}
           ]}
       ]},

@@ -244,6 +244,9 @@ func (c *screenCheck) block(where string, b Block) {
 					c.fail("%s item %s: %v", where, p.name, err)
 				}
 			}
+			if b.Type == "media" && b.Item.File == "" && b.Item.Icon == "" {
+				c.fail("%s item: a media line needs file, or icon for a line that is no file", where)
+			}
 		}
 		if b.Value != "" {
 			if _, err := compileExpr(b.Value, c.withParam([]string{"rows"})); err != nil {

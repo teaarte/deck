@@ -385,11 +385,11 @@ func TestSettingsHealthShowsWhatIsRedFirstWithWhy(t *testing.T) {
 	if webErrors() != 1 || unread() != 2 {
 		t.Fatalf("a failing check counts until it is read: menu %d, unread %d", webErrors(), unread())
 	}
-	e.must("deck.health_seen", map[string]any{"subject": "command:web.digest"}, nil)
+	e.must("deck.health_seen", map[string]any{"subject": "command:web.digest", "project": "web"}, nil)
 	if webErrors() != 0 || unread() != 1 {
 		t.Fatalf("a read check stops counting, and its project with it: menu %d, unread %d", webErrors(), unread())
 	}
-	if code, _ := e.call("deck.health_seen", map[string]any{"subject": "mcp:web.search"}); code == 200 {
+	if code, _ := e.call("deck.health_seen", map[string]any{"subject": "mcp:web.search", "project": "web"}); code == 200 {
 		t.Fatal("only a failing check is marked read")
 	}
 	if err := e.App.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {

@@ -147,7 +147,7 @@
             {"label": "Since", "bind": "updated_at", "format": "relative"}
           ],
           "actions": [
-            {"verb": "mark_read", "primary": true, "command": "deck.health_seen", "params": {"subject": "=subject"}, "when": "!seen && !hasPrefix(subject, 'project:')"},
+            {"verb": "mark_read", "primary": true, "command": "deck.health_seen", "params": {"subject": "=subject", "project": "=project"}, "when": "!seen"},
             {"verb": "check", "command": "deck.provider_check", "params": {"provider": "=trimPrefix(subject, 'provider:')"}, "when": "self_check"}
           ]},
         {"type": "table", "title": "Health of the machine", "source": {"from": "deck.health_list", "input": {"machine": true}}, "filter": ["status"],

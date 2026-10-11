@@ -8,7 +8,8 @@ WHERE health.status != excluded.status OR health.error != excluded.error;
 
 -- name: SeeHealth :execrows
 UPDATE health SET seen_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-WHERE subject = sqlc.arg(subject) AND (workspace_id IS NULL OR workspace_id = sqlc.arg(workspace_id)) AND status = 'error';
+WHERE subject = sqlc.arg(subject) AND (workspace_id IS NULL OR workspace_id = sqlc.arg(workspace_id))
+  AND project_id IS sqlc.narg(project_id) AND status = 'error';
 
 
 -- name: ListHealth :many

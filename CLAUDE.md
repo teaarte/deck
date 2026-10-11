@@ -44,7 +44,7 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
   a connection (`model:`) and of pushes is of its workspace, `00033_reopened` — when a process was last sent back to
   work, the base of its duration and of its week in the cockpit, `00034_folder_outbox` — the folder of a deleted record
   and, by an SQL trigger, of a deleted project go through the outbox, `00035_chat_file_ids` — the files of a
-  chat message are stored file ids), sqlc queries (`db/` is generated; a parameter compared with 0 or '' is CAST, the linter
+  chat message are stored file ids, `00036_retention_subject` — the health of retention is `retention:<project>`), sqlc queries (`db/` is generated; a parameter compared with 0 or '' is CAST, the linter
   refuses `interface{}` there); `Store.Q` reads on connections of its own beside the one writer, `Tx` waits for the
   writer at most `Store.Wait`, `Backup` copies the base; `mark` keeps only cursors and throttles
 - `internal/registry` — command registry: every input (API, MCP, triggers) calls commands through it;

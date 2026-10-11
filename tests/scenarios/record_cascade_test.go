@@ -3,6 +3,7 @@ package scenarios
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -128,7 +129,7 @@ func TestAnExpressionErrorStopsADeletion(t *testing.T) {
 	if code, out := e.call("deck.record_parts", map[string]any{"record": ids["nodir"]}); code != 422 || !strings.Contains(string(out), "folder") {
 		t.Fatalf("record_parts says the folder could not be worked out: %d %s", code, out)
 	}
-	if code, out := e.call("deck.record_delete", map[string]any{"record": ids["nodir"]}); code != 422 || !strings.Contains(string(out), "folder") {
+	if code, out := e.call("deck.record_delete", map[string]any{"record": ids["nodir"]}); code != 422 || !strings.Contains(string(out), "folder") || !strings.Contains(string(out), "nodir") {
 		t.Fatalf("the deletion stops: %d %s", code, out)
 	}
 	if code, _ := e.call("deck.record_get", map[string]any{"record": ids["nodir"]}); code != 200 {
@@ -406,7 +407,7 @@ func TestARecordDeckCannotPlanKeepsRetentionRedInHealth(t *testing.T) {
 	e.Clock.Add(31 * 24 * time.Hour)
 	e.sweep()
 	var n int
-	_ = e.App.Store.DB.QueryRow(`SELECT count(*) FROM health WHERE subject = 'retention' AND status = 'error'`).Scan(&n)
+	_ = e.App.Store.DB.QueryRow(`SELECT count(*) FROM health WHERE subject = 'retention:shorts' AND status = 'error'`).Scan(&n)
 	var files int
 	_ = e.App.Store.DB.QueryRow(`SELECT count(*) FROM file`).Scan(&files)
 	if n != 1 || files != 0 {
@@ -414,5 +415,73 @@ func TestARecordDeckCannotPlanKeepsRetentionRedInHealth(t *testing.T) {
 	}
 	if code, _ := e.call("deck.record_get", map[string]any{"record": ids["old"]}); code != 200 {
 		t.Fatal("the expired record stays until deck can plan it")
+	}
+}
+
+// TestRetentionOfEachProjectIsRedAndReadApart: two projects that cannot plan their expired records are each red in
+// health, naming the record and why, and the owner reads each apart.
+func TestRetentionOfEachProjectIsRedAndReadApart(t *testing.T) {
+	t.Parallel()
+	e := newClockEnv(t, nil)
+	module := strings.Replace(cascadeModule, `"folder": "'videos/' + dir",`, `"folder": "'videos/' + dir", "retention_days": 30,`, 1)
+	for _, name := range []string{"shorts", "clips"} {
+		e.createProject(name, module)
+		e.must("deck.records_upsert", map[string]any{"project": name, "collection": "videos", "records": jsonl(map[string]any{"slug": "nodir-" + name})}, nil)
+	}
+	e.Clock.Add(31 * 24 * time.Hour)
+	e.sweep()
+	why := map[string]string{}
+	rows, _ := e.App.Store.DB.Query(`SELECT p.name, h.subject, h.error FROM health h JOIN project p ON p.id = h.project_id WHERE h.status = 'error'`)
+	for rows.Next() {
+		var p, subject, text string
+		_ = rows.Scan(&p, &subject, &text)
+		why[p+" "+subject] = text
+	}
+	_ = rows.Close()
+	for _, name := range []string{"shorts", "clips"} {
+		if text := why[name+" retention:"+name]; !strings.Contains(text, "nodir-"+name) || !strings.Contains(text, "videos") || !strings.Contains(text, "folder") {
+			t.Fatalf("retention of %s is red, naming the record and why: %v", name, why)
+		}
+	}
+	e.must("deck.health_seen", map[string]any{"subject": "retention:clips", "project": "clips"}, nil)
+	if seen, _ := e.healthSeen("clips", "retention:clips"); !seen {
+		t.Fatal("the owner reads the retention of one project")
+	}
+	if seen, failing := e.healthSeen("shorts", "retention:shorts"); seen || !failing {
+		t.Fatal("the retention of another project stays unread")
+	}
+	if code, _ := e.call("deck.health_seen", map[string]any{"subject": "retention:shorts", "project": "clips"}); code == 200 {
+		t.Fatal("a check is read only in its own project")
+	}
+}
+
+// TestRetentionLeavesTheFrozenCallsOfTheProcessesItStops: a process of an expired record stops, and the call it
+// froze stays the owner's to allow.
+func TestRetentionLeavesTheFrozenCallsOfTheProcessesItStops(t *testing.T) {
+	t.Parallel()
+	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { jsonReply(w, `{"id": "ext-1"}`) })
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		c.Tool(ctx, "shorts__post", map[string]any{"id": "a", "text": "hi"})
+		<-ctx.Done()
+		return provider.Result{}
+	}, withTTL)
+	e.must("deck.secret_set", map[string]any{"name": "svc", "value": "k"}, nil)
+	module := strings.Replace(cascadeModule, `"folder": "'videos/' + dir",`, `"folder": "'videos/' + dir", "retention_days": 30,`, 1)
+	post := postManifest(svc.URL, "")
+	module = strings.Replace(module, `"scripts": [`, post[strings.Index(post, `"tools"`):len(post)-1]+`, "scripts": [`, 1)
+	pid := e.createProject("shorts", module)
+	id := e.videos(map[string]any{"slug": "old", "dir": "old"})["old"]
+	watch := e.start("shorts", "watch", map[string]any{"record": id})
+	a := e.waitAsk()
+	if _, err := e.App.Store.DB.Exec(`UPDATE record SET created_at = '2000-01-01T00:00:00.000Z' WHERE project_id = ?`, pid); err != nil {
+		t.Fatal(err)
+	}
+	e.App.Sweep(context.Background(), time.Now())
+	if got := e.waitState(watch, "stopped", "done", "error"); got.State != "stopped" {
+		t.Fatalf("the process of the expired record is stopped: %+v", got)
+	}
+	e.settle()
+	if code, out := e.call("deck.ask_answer", map[string]any{"ask": a.ID, "answer": "allow"}); code != 200 || len(svc.requests()) != 1 {
+		t.Fatalf("the owner may still allow the call the process froze: %d %s", code, out)
 	}
 }

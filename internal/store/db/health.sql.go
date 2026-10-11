@@ -187,16 +187,18 @@ func (q *Queries) MarkHealthy(ctx context.Context, subject string) error {
 
 const seeHealth = `-- name: SeeHealth :execrows
 UPDATE health SET seen_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-WHERE subject = ?1 AND (workspace_id IS NULL OR workspace_id = ?2) AND status = 'error'
+WHERE subject = ?1 AND (workspace_id IS NULL OR workspace_id = ?2)
+  AND project_id IS ?3 AND status = 'error'
 `
 
 type SeeHealthParams struct {
 	Subject     string
 	WorkspaceID sql.NullInt64
+	ProjectID   sql.NullInt64
 }
 
 func (q *Queries) SeeHealth(ctx context.Context, arg SeeHealthParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, seeHealth, arg.Subject, arg.WorkspaceID)
+	result, err := q.db.ExecContext(ctx, seeHealth, arg.Subject, arg.WorkspaceID, arg.ProjectID)
 	if err != nil {
 		return 0, err
 	}

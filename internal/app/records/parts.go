@@ -49,7 +49,13 @@ func folderOf(c *manifest.Collection, r db.Record) (string, error) {
 			return f, nil
 		}
 	}
-	return "", registry.Invalid("deck: record %d of %s: %v", r.ID, r.Collection, err)
+	return "", unplanned(r, err)
+}
+
+// unplanned names the record whose expression stops a plan and why, for the owner to fix its data or the manifest.
+func unplanned(r db.Record, err error) error {
+	return registry.Invalid("deck: record %d with key %q of %s stops the deletion: %v; fix its data or the expression of the collection",
+		r.ID, r.Key, r.Collection, err)
 }
 
 // plan is the one cascade of every deletion of records.
@@ -83,7 +89,7 @@ func (s *Service) plan(ctx context.Context, q *db.Queries, p db.Project, m *mani
 					parent, has, err = child.ParentKey(data)
 				}
 				if err != nil {
-					return nil, registry.Invalid("deck: record %d of %s: %v", k.ID, k.Collection, err)
+					return nil, unplanned(k, err)
 				}
 				if has {
 					byKey[parent] = append(byKey[parent], k)
@@ -242,13 +248,14 @@ func remove(ctx context.Context, q *db.Queries, p db.Project, pl plan) error {
 	return nil
 }
 
-// settle stops the open processes of a committed deletion but the caller's own, then removes its files and folders.
-func (s *Service) settle(ctx context.Context, open []db.Process, caller int64) {
+// settle stops the open processes of a committed deletion but the caller's own, then removes its files and folders;
+// only a deletion of the owner drops their frozen calls.
+func (s *Service) settle(ctx context.Context, open []db.Process, caller int64, owner bool) {
 	for _, pr := range open {
 		if pr.ID == caller {
 			continue
 		}
-		if err := s.Stop(ctx, pr.ID, "stopped: its record was deleted"); err != nil && registry.Status(err) >= 500 {
+		if err := s.Stop(ctx, pr.ID, "stopped: its record was deleted", owner); err != nil && registry.Status(err) >= 500 {
 			slog.Error("stop a process of a deleted record", "process", pr.ID, "err", err)
 		}
 	}
@@ -306,7 +313,7 @@ func (s *Service) deleteRecord(ctx context.Context, act registry.Actor, p db.Pro
 	if waiting != nil {
 		return *waiting, nil
 	}
-	s.settle(ctx, pl.open, act.ProcessID)
+	s.settle(ctx, pl.open, act.ProcessID, act.Kind == registry.Owner)
 	return map[string]any{"ok": true}, nil
 }
 

@@ -163,8 +163,8 @@ type Service struct {
 	Now func() time.Time
 	// DrainFiles removes the files and folders whose rows are gone.
 	DrainFiles func(ctx context.Context)
-	// Stop ends an open process with a reason.
-	Stop func(ctx context.Context, processID int64, reason string) error
+	// Stop ends an open process with a reason; one the owner stops drops its frozen calls.
+	Stop func(ctx context.Context, processID int64, reason string, owner bool) error
 }
 
 type recordsListIn struct {
@@ -361,7 +361,7 @@ func (s *Service) collectionDelete(ctx context.Context, act registry.Actor, in c
 	if err != nil {
 		return nil, err
 	}
-	s.settle(ctx, pl.open, 0)
+	s.settle(ctx, pl.open, 0, act.Kind == registry.Owner)
 	return map[string]any{"deleted": len(pl.records)}, nil
 }
 
@@ -405,7 +405,7 @@ func (s *Service) Expire(ctx context.Context, now time.Time) {
 				}
 			}
 			if len(expired) == 0 {
-				return q.DeleteHealth(ctx, db.DeleteHealthParams{ProjectID: store.ID(p.ID), Subject: "retention"})
+				return q.DeleteHealth(ctx, db.DeleteHealthParams{ProjectID: store.ID(p.ID), Subject: retentionSubject(p.Name)})
 			}
 			pl, err := s.plan(ctx, q, p, m, expired...)
 			if err != nil {
@@ -415,14 +415,17 @@ func (s *Service) Expire(ctx context.Context, now time.Time) {
 			if err := remove(ctx, q, p, pl); err != nil {
 				return err
 			}
-			return q.DeleteHealth(ctx, db.DeleteHealthParams{ProjectID: store.ID(p.ID), Subject: "retention"})
+			return q.DeleteHealth(ctx, db.DeleteHealthParams{ProjectID: store.ID(p.ID), Subject: retentionSubject(p.Name)})
 		})
 		if err != nil {
-			health.Write(ctx, s.St, health.Project(p), "retention", health.Error, fmt.Sprintf("deck could not delete the records of %s past their retention: %v", p.Name, err))
+			health.Write(ctx, s.St, health.Project(p), retentionSubject(p.Name), health.Error, fmt.Sprintf("deck could not delete the records of %s past their retention: %v", p.Name, err))
 		}
 	}
-	s.settle(ctx, open, 0)
+	s.settle(ctx, open, 0, false)
 }
+
+// retentionSubject is the health of the retention of a project.
+func retentionSubject(project string) string { return "retention:" + project }
 
 // Held reports whether a record of a project gives a folder, or one inside or around it, as the outbox removes it;
 // a folder deck cannot check is held.

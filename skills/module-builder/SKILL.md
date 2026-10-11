@@ -455,7 +455,7 @@ what it must reach. Removing the flag later is a right. An agent
 that must work in a folder of the owner (a code repo, notes) gets `"folder": true` in `executor` (or the folder's
 name when the project has several): it works there instead of its own folder, with the repo's CLAUDE.md or
 AGENTS.md, and a second agent in the same folder waits. Only the owner adds folders (the Settings of the
-project → "Add folder"); a code repo is the code-project skill. List the
+project, Access → "Add a folder"); a code repo is the code-project skill. List the
 skills it needs in `executor.skills`; a skill may not grant tools (`allowed-tools`, `hooks`) — rights come
 from deck.
 

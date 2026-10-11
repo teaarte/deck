@@ -58,7 +58,7 @@ func TestRealBrowserCodeProject(t *testing.T) {
 	b.type_(form("deck.folder_add", "path"), repo)
 	submit("deck.folder_add")
 	b.until("the folder in the folders of the project", `[...document.querySelectorAll('tr')].some((r) => r.innerText.includes('my-repo') && r.innerText.includes('`+repo+`'))`)
-	tab("Project")
+	tab("Module")
 	b.until("the commands of the project", `[...document.querySelectorAll('tr')].some((r) => r.innerText.includes('Run') && r.querySelector('input[data-pick="model"]'))`)
 	b.shot("code-settings")
 

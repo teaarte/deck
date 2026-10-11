@@ -195,8 +195,8 @@ func TestRealBrowserWebClientII(t *testing.T) {
 
 	e.createProject("timed", testManifest([]string{agentCommand("job", "")}, []string{`{"command": "job", "cron": "0 9 * * *"}`}))
 	b.open(e.URL + "/#/deck/schedule")
-	b.until("the schedule in words", `[...document.querySelectorAll('tr')].some((r) => r.innerText.includes('timed · job') && r.innerText.includes('09:00') && !r.innerText.includes('0 9 * * *'))`)
-	b.eval(`([...document.querySelectorAll('tr')].find((r) => r.innerText.includes('timed · job')).querySelector('[data-verb=run_now]').click(), '')`)
+	b.until("the schedule in words", `[...document.querySelectorAll('tr')].some((r) => r.innerText.toLowerCase().includes('timed') && r.innerText.includes('job') && r.innerText.includes('09:00') && !r.innerText.includes('0 9 * * *'))`)
+	b.eval(`([...document.querySelectorAll('tr')].find((r) => r.innerText.toLowerCase().includes('timed') && r.innerText.includes('job')).querySelector('[data-verb=run_now]').click(), '')`)
 	e.waitFor("the run of the trigger", func() bool { return e.countOf("job") == 1 })
 	b.call("browser_resize", map[string]any{"width": 390, "height": 844})
 	b.shot("web2-schedule-phone")

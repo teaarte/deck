@@ -57,8 +57,8 @@ func TestRealBrowserChatTopicsFollowTheModuleFilter(t *testing.T) {
 
 	b.until("the model of the topic, the master's own", `document.querySelector('[data-topic-model]')?.dataset.topicModel === 'fake' && document.querySelector('[data-topic-model]').dataset.variant === 'subtle'`)
 	b.eval(`(document.querySelector('[data-topic-model]').click(), '')`)
-	b.until("the models to pick", `document.querySelector('[data-topic-models] [data-model="fake"]')`)
-	b.eval(`(document.querySelector('[data-topic-models] [data-model="fake"]').click(), '')`)
+	b.until("the models to pick, the master's own once", `document.querySelector('[data-topic-models] [data-model="quiet"]') && !document.querySelector('[data-topic-models] [data-model="fake"]')`)
+	b.eval(`(document.querySelector('[data-topic-models] [data-model="quiet"]').click(), '')`)
 	b.until("the topic keeps the model picked", `document.querySelector('[data-topic-model]').dataset.variant === 'light'`)
 
 	b.type_(`document.querySelector('[data-chat-input]')`, "remember this line")

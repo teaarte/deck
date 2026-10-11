@@ -224,7 +224,7 @@ func TestRealBrowserSettings(t *testing.T) {
 		}
 		return ""
 	}
-	e.waitFor("the model picked in the row of the command", func() bool { return assigned() == "quiet" })
+	e.waitFor("the model picked in the row of the command", func() bool { return strings.HasPrefix(assigned(), "quiet,") })
 
 	b.call("browser_resize", map[string]any{"width": 390, "height": 844})
 	b.open(e.URL + "/#/deck/settings")
@@ -294,8 +294,8 @@ func TestRealBrowserDocuments(t *testing.T) {
 	}
 
 	b.eval(`(document.querySelector('[data-group="web"] [data-extra="documents"]').click(), '')`)
-	b.until("the documents screen", `[...document.querySelectorAll('tr')].some((r) => r.innerText.includes('notes/criteria.md'))`)
-	b.eval(`([...document.querySelectorAll('tr')].find((r) => r.innerText.includes('notes/criteria.md')).querySelector('button').click(), '')`)
+	b.until("the documents screen as tiles", `[...document.querySelectorAll('[data-place]')].some((x) => x.offsetParent && x.innerText.includes('criteria.md'))`)
+	b.eval(`([...document.querySelectorAll('[data-place]')].find((x) => x.offsetParent && x.innerText.includes('criteria.md')).click(), '')`)
 	b.until("the document page", `location.hash === '#/p/web/document/`+fmt.Sprint(d.ID)+`' && document.querySelector('[data-edit]')`)
 	b.eval(`(document.querySelector('[data-edit]').click(), '')`)
 	b.type_(`document.querySelector('[data-draft]')`, "# Criteria\n\n- *brief*")
@@ -375,7 +375,7 @@ func TestRealBrowserJournal(t *testing.T) {
 	b := newPlaywright(t)
 	b.call("browser_resize", map[string]any{"width": 390, "height": 844})
 	b.open(e.URL + "/?token=" + token + "#/deck/schedule")
-	b.until("the schedule tabs", `[...document.querySelectorAll('[role=tab]')].map((x) => x.innerText.trim()).join(' ') === 'Schedule Runs Spend'`)
+	b.until("the schedule tabs", `[...document.querySelectorAll('[role=tab]')].map((x) => x.innerText.trim()).join(' ') === 'Schedule Runs'`)
 	b.open(e.URL + "/?token=" + token + "#/deck/files")
 	b.until("the tabs of files", `[...document.querySelectorAll('[role=tab]')].map((x) => x.innerText.trim()).join(' ') === 'Files Data folders Documents Snapshots'`)
 	b.eval(`([...document.querySelectorAll('[role=tab]')].find((x) => x.innerText.trim() === 'Data folders').click(), '')`)

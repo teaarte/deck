@@ -25,7 +25,7 @@ func TestRealBrowserProjectSettings(t *testing.T) {
 	b.shot("project-settings")
 	b.eval(`([...document.querySelectorAll('[role=tab]')].find((x) => x.textContent.includes('Access')).click(), '')`)
 	b.until("the tools of the project with its folders and secrets", `[...document.querySelectorAll('tr')].some((r) => r.innerText.includes('notes.post')) && [...document.querySelectorAll('button')].some((x) => x.textContent.includes('Add a folder'))`)
-	b.eval(`([...document.querySelectorAll('[role=tab]')].find((x) => x.textContent.includes('Project')).click(), '')`)
+	b.eval(`([...document.querySelectorAll('[role=tab]')].find((x) => x.textContent.includes('Module')).click(), '')`)
 	b.eval(pressIn(item, "pause"))
 	e.waitFor("the paused project", func() bool {
 		var ps []struct {

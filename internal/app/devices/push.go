@@ -268,9 +268,9 @@ func (dv *Service) PushNew(ctx context.Context, workspace int64) {
 	var failed []string
 	tried, lasting := false, false
 	badge := int64(0)
-	if pulses, err := dv.St.Q.ProjectPulses(ctx, workspace); err == nil {
-		for _, p := range pulses {
-			badge += p.Asks
+	if waiting, err := dv.Waiting(ctx, registry.Actor{Kind: registry.Owner, Workspace: workspace}); err == nil {
+		for _, n := range waiting {
+			badge += n
 		}
 	}
 	private := sync.OnceValue(func() bool { return dv.anyPrivate(ctx, workspace) })

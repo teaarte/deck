@@ -310,10 +310,10 @@ func (s *Service) processCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("processes_list", "List processes",
 			"Lists recent processes, newest first, or only the open ones.",
-			registry.Everyone, s.processesList).On("processes", "asks"),
+			registry.Everyone, s.processesList).On("processes", "asks", "projects", "documents"),
 		registry.Read("process_get", "Process status",
 			"Returns the state and result of a process, the models it called and their cost_usd; with wait, once it finishes or waits for the owner, and an agent's slot is free for others meanwhile; a process waiting for an agent slot names in slot_ahead how many wait before it.",
-			registry.Everyone, s.processGet).On("processes", "usage"),
+			registry.Everyone, s.processGet).On("processes", "usage", "asks"),
 		registry.Def("process_retry", "Run a failed process again",
 			"Starts the command of a failed process again with the same input, as the owner calls it.",
 			registry.OwnerOnly, s.processRetry),

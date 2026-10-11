@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	_ "embed"
+	"log/slog"
 	"slices"
 	"sync"
 
@@ -88,18 +89,8 @@ func (a *App) menu(ctx context.Context, act registry.Actor, in menuIn) (any, err
 	if err != nil {
 		return nil, err
 	}
-	asks, err := a.Answers.Waiting(ctx, act)
-	if err != nil {
-		return nil, err
-	}
-	running, err := a.Processes.Open(ctx, act)
-	if err != nil {
-		return nil, err
-	}
-	failing, err := a.Health.Failing(ctx, act)
-	if err != nil {
-		return nil, err
-	}
+	asks, running, failing := a.count(ctx, "asks", act, a.Answers.Waiting), a.count(ctx, "running", act, a.Processes.Open),
+		a.count(ctx, "failing", act, a.Health.Failing)
 	out.Pulse = pulse{Asks: total(asks), Running: total(running), Errors: total(failing)}
 	switch {
 	case out.Pulse.Asks > 0:
@@ -167,6 +158,16 @@ func (a *App) foot(m menuOut, lang string) []menuGroup {
 		}
 	}
 	return out
+}
+
+// count is one count of the menu by project; one that fails is none, so the menu still shows the way.
+func (a *App) count(ctx context.Context, what string, act registry.Actor, f func(context.Context, registry.Actor) (map[string]int64, error)) map[string]int64 {
+	by, err := f(ctx, act)
+	if err != nil {
+		slog.Error("menu: count", "what", what, "err", err)
+		return map[string]int64{}
+	}
+	return by
 }
 
 // total is the sum of counts by project.

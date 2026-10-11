@@ -25,6 +25,8 @@ type Service struct {
 	Invoke func(ctx context.Context, act registry.Actor, name string, input json.RawMessage) (any, error)
 	// DeckScreen is a screen of deck by name, nil for none.
 	DeckScreen func(name string) *manifest.Screen
+	// Waiting are how many things wait for the owner, by project, as the menu counts them.
+	Waiting func(ctx context.Context, act registry.Actor) (map[string]int64, error)
 
 	pushMu, keyMu sync.Mutex
 }

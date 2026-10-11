@@ -10,6 +10,9 @@ SELECT * FROM chat_topic WHERE id = ? AND deleted_at IS NULL;
 UPDATE chat_topic SET updated_at = sqlc.arg(now), archived = 0 WHERE id = sqlc.arg(id);
 
 
+-- name: SetTopicModel :exec
+UPDATE chat_topic SET model = ? WHERE id = ? AND deleted_at IS NULL;
+
 -- name: ArchiveTopic :execrows
 UPDATE chat_topic SET archived = ? WHERE id = ? AND deleted_at IS NULL;
 
@@ -105,7 +108,7 @@ WHERE workspace_id = sqlc.arg(workspace_id) AND deleted_at IS NULL AND archived 
 
 
 -- name: ListTopicSummaries :many
-SELECT t.id, t.title, t.archived, t.updated_at,
+SELECT t.id, t.title, t.archived, t.updated_at, t.model,
     CAST(COALESCE((SELECT m.text FROM chat_message m WHERE m.topic_id = t.id ORDER BY m.id DESC LIMIT 1), '') AS TEXT) AS last_text,
     CAST(COALESCE(op.id, 0) AS INTEGER) AS open_id, CAST(COALESCE(op.state, '') AS TEXT) AS open_state,
     CAST(COALESCE(op.provider, '') AS TEXT) AS open_provider, CAST(COALESCE(op.error, '') AS TEXT) AS open_error,

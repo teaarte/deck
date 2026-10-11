@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -47,6 +48,8 @@ type Service struct {
 	// Named is a provider by name; Fits the providers a command may start on now.
 	Named func(ctx context.Context, projectID int64, name string) (provider.Provider, error)
 	Fits  func(ctx context.Context, projectID int64, cmd *manifest.Command) []string
+	// Able are the providers that have what a command requires, the models a topic may keep.
+	Able func(ctx context.Context, workspace int64, cmd *manifest.Command) []string
 	// DrainFiles removes the files whose rows are gone.
 	DrainFiles func(ctx context.Context)
 	// Go runs work beside the calls unless deck stops; the replies it leaves go at the next start.
@@ -98,6 +101,7 @@ type chatSendIn struct {
 	Screen   string   `type:"json" opt:"" desc:"The screen the owner is on, as JSON: project, screen, record, process"`
 	RetryKey string   `json:"retry_key" opt:"" desc:"A key of this message: sending it again with the same key returns the first one"`
 	Files    []string `type:"file[]" opt:"" desc:"Uploads of project master the owner attaches; the turn that takes the message gets copies"`
+	Model    string   `opt:"" desc:"The model the replies of the topic go on from now; the master's model when omitted on a new topic"`
 }
 
 func (ch *Service) chatSend(ctx context.Context, act registry.Actor, in chatSendIn) (any, error) {
@@ -135,6 +139,11 @@ func (ch *Service) chatSend(ctx context.Context, act registry.Actor, in chatSend
 	if err != nil {
 		return nil, err
 	}
+	if in.Model != "" {
+		if err := ch.topicModel(ctx, master, in.Model); err != nil {
+			return nil, err
+		}
+	}
 	var msg db.ChatMessage
 	err = ch.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		if in.RetryKey != "" {
@@ -155,6 +164,11 @@ func (ch *Service) chatSend(ctx context.Context, act registry.Actor, in chatSend
 			}
 		} else if t, err = q.CreateTopic(ctx, db.CreateTopicParams{WorkspaceID: act.Workspace, Title: topicTitle(text)}); err != nil {
 			return err
+		}
+		if in.Model != "" && in.Model != t.Model {
+			if err := q.SetTopicModel(ctx, db.SetTopicModelParams{Model: in.Model, ID: t.ID}); err != nil {
+				return err
+			}
 		}
 		if msg, err = q.AddMessage(ctx, db.AddMessageParams{CreatedAt: store.Time(ch.Now()), TopicID: t.ID, Role: roleOwner, Text: text, Context: screen, RetryKey: in.RetryKey}); err != nil {
 			return err
@@ -184,6 +198,46 @@ func (ch *Service) sent(ctx context.Context, msg db.ChatMessage) map[string]any 
 		out["process"] = m.ProcessID
 	}
 	return out
+}
+
+// topicModel refuses a model the master's replies cannot run on.
+func (ch *Service) topicModel(ctx context.Context, master db.Project, model string) error {
+	cmd, err := ch.replyCommand(ctx, master.ID)
+	if err != nil {
+		return err
+	}
+	if able := ch.Able(ctx, master.WorkspaceID, cmd); !slices.Contains(able, model) {
+		return registry.Invalid("deck: the master's replies do not run on %q; one of: %s", model, strings.Join(able, ", "))
+	}
+	return nil
+}
+
+type chatTopicModelIn struct {
+	Topic int64  `desc:"Chat topic"`
+	Model string `opt:"" desc:"The model its replies go on from the next one; the master's model when empty"`
+}
+
+// chatTopicModel sets the model a topic keeps; a reply going on keeps its own.
+func (ch *Service) chatTopicModel(ctx context.Context, act registry.Actor, in chatTopicModelIn) (any, error) {
+	master, err := access.Master(ctx, ch.St.Q, act.Workspace)
+	if err != nil {
+		return nil, err
+	}
+	if in.Model != "" {
+		if err := ch.topicModel(ctx, master, in.Model); err != nil {
+			return nil, err
+		}
+	}
+	err = ch.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		if _, err := ch.ownTopic(ctx, q, act, in.Topic); err != nil {
+			return err
+		}
+		return q.SetTopicModel(ctx, db.SetTopicModelParams{Model: in.Model, ID: in.Topic})
+	})
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{"topic": in.Topic, "model": in.Model}, nil
 }
 
 type chatTopicArchiveIn struct {
@@ -284,6 +338,9 @@ func (ch *Service) Commands() []*registry.Command {
 		registry.Def("chat_retry", "Answer again on another provider",
 			"Answers the messages of a reply that broke off once more, on another provider the master may use, for this reply only.",
 			registry.OwnerOnly, ch.chatRetry),
+		registry.Def("chat_topic_model", "Pick the model of a topic",
+			"Sets the model the master's replies in a chat topic go on from the next one; empty brings back the master's own model.",
+			registry.OwnerOnly, ch.chatTopicModel),
 		registry.Def("chat_topic_delete", "Delete topic",
 			"Deletes a chat topic with its messages and stops its reply if one is going.",
 			registry.OwnerOnly, ch.chatTopicDelete),

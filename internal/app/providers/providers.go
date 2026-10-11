@@ -160,6 +160,18 @@ func (s *Service) For(ctx context.Context, projectID int64, cmd *manifest.Comman
 	return fits[0], nil
 }
 
+// Able are the providers of a workspace that have what a command requires, whether it is assigned to them or not.
+func (s *Service) Able(ctx context.Context, workspace int64, cmd *manifest.Command) []string {
+	all, _ := s.All(ctx, workspace)
+	out := []string{}
+	for _, pv := range all {
+		if len(pv.Caps().Missing(cmd.Needs())) == 0 {
+			out = append(out, pv.Name())
+		}
+	}
+	return out
+}
+
 // Fits are the providers a command may start on that are up: those of its assignment in order, else all that fit.
 func (s *Service) Fits(ctx context.Context, projectID int64, cmd *manifest.Command) []string {
 	ws, fits, _, err := s.fitting(ctx, projectID, cmd)

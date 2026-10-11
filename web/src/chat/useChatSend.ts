@@ -12,7 +12,9 @@ function newKey(): string {
 
 // useChatSend sends a message once at a time with the screen of the owner unless detached; a retry of the same draft
 // keeps its key, so the server takes it once.
-export function useChatSend(value: ChatValue, { before, files, sent }: { before: () => void; files: () => Promise<string[] | undefined>; sent: (topic: number) => void }) {
+export function useChatSend(value: ChatValue, { before, files, model, sent }: {
+  before: () => void; files: () => Promise<string[] | undefined>; model: () => string; sent: (topic: number) => void;
+}) {
   const { t } = useTranslation();
   const [busy, setBusy] = useState(false);
   const key = useRef('');
@@ -25,7 +27,7 @@ export function useChatSend(value: ChatValue, { before, files, sent }: { before:
     try {
       const ids = await files();
       const out = await call<{ topic: number }>(value.send.command!, {
-        ...value.send.params, text: message, ...(detached ? {} : { screen: chatScreen() }), retry_key: key.current, ...(ids ? { files: ids } : {}),
+        ...value.send.params, text: message, ...(detached ? {} : { screen: chatScreen() }), retry_key: key.current, ...(ids ? { files: ids } : {}), ...(model() ? { model: model() } : {}),
       });
       key.current = '';
       sent(out.topic);

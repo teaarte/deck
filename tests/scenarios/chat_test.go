@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -697,5 +698,59 @@ func TestAReplyOfTheMasterSaysHowItWent(t *testing.T) {
 	}
 	if strings.Join(works, " | ") != "fake opus-x 0.25 1 | fake opus-x 0.25 1" {
 		t.Fatalf("each reply names its model and exact cost, the resumed one too, and its steps: %v", works)
+	}
+}
+
+// TestATopicKeepsTheModelTheOwnerPicked: the chat lists the models the master answers on and its own; a new topic
+// sent with a model and a topic given one later answer on it, and an empty model brings back the master's own.
+func TestATopicKeepsTheModelTheOwnerPicked(t *testing.T) {
+	t.Parallel()
+	main := &Fake{script: func(ctx context.Context, c *Call) provider.Result { return provider.Result{Text: "on fake"} }}
+	other := &Fake{name: "other", script: func(ctx context.Context, c *Call) provider.Result { return provider.Result{Text: "on other"} }}
+	e := newEnvBuiltin(t, t.TempDir(), []provider.Provider{main, other})
+	var view struct {
+		Models []string `json:"models"`
+		Model  string   `json:"model"`
+		Topic  *struct {
+			Model string `json:"model"`
+		} `json:"topic"`
+		Choose struct {
+			Command string         `json:"command"`
+			Params  map[string]any `json:"params"`
+			Input   string         `json:"input"`
+		} `json:"choose"`
+	}
+	e.must("deck.chat", map[string]any{"topic": "new"}, &view)
+	if !slices.Contains(view.Models, "fake") || !slices.Contains(view.Models, "other") || view.Model != "fake" {
+		t.Fatalf("the chat lists the models of the master's replies and its own: %+v", view)
+	}
+	if code, _ := e.call("deck.chat_send", map[string]any{"text": "hi", "model": "nobody"}); code == 200 {
+		t.Fatal("a topic takes no model the master's replies cannot run on")
+	}
+	topic := e.say(0, "on the other one", map[string]any{"model": "other"})
+	if said := e.masterSaid(topic, 1); said[0].Text != "on other" {
+		t.Fatalf("a new topic sent with a model answers on it: %+v", said)
+	}
+	e.must("deck.chat", map[string]any{"topic": fmt.Sprint(topic)}, &view)
+	if view.Topic == nil || view.Topic.Model != "other" || view.Choose.Command != "deck.chat_topic_model" || view.Choose.Input != "model" {
+		t.Fatalf("the topic shows its model and the button that changes it: %+v", view)
+	}
+	e.say(topic, "and again")
+	if said := e.masterSaid(topic, 2); said[1].Text != "on other" {
+		t.Fatalf("the topic keeps its model: %+v", said)
+	}
+	e.must(view.Choose.Command, map[string]any{"topic": topic, "model": ""}, nil)
+	e.say(topic, "back to yours")
+	if said := e.masterSaid(topic, 3); said[2].Text != "on fake" {
+		t.Fatalf("an empty model brings back the master's own: %+v", said)
+	}
+	plain := e.say(0, "a plain one")
+	if said := e.masterSaid(plain, 1); said[0].Text != "on fake" {
+		t.Fatalf("a topic without a model answers on the master's: %+v", said)
+	}
+	e.must("deck.chat_topic_model", map[string]any{"topic": plain, "model": "other"}, nil)
+	e.say(plain, "now elsewhere")
+	if said := e.masterSaid(plain, 2); said[1].Text != "on other" {
+		t.Fatalf("a model picked for a topic takes its next reply: %+v", said)
 	}
 }

@@ -9,9 +9,10 @@ import type { useAttachments } from './useAttachments';
 import { useVoice } from './useVoice';
 
 // Composer is where the owner writes: the screen the message goes with, the files, the text, voice and send.
-export function Composer({ text, setText, files, busy, onSend, onNewTopic, onEdit }: {
+export function Composer({ text, setText, files, busy, onSend, onNewTopic, onEdit, onWalk }: {
   text: string; setText: (f: (prev: string) => string) => void; files: ReturnType<typeof useAttachments>; busy: boolean;
   onSend: (detached: boolean) => void; onNewTopic: () => void; onEdit: (text: string) => void;
+  onWalk: (dir: 1 | -1, text: string) => string | undefined;
 }) {
   const { t } = useTranslation();
   const route = useRoute();
@@ -52,7 +53,13 @@ export function Composer({ text, setText, files, busy, onSend, onNewTopic, onEdi
       )}
       <Textarea variant="unstyled" autosize minRows={1} maxRows={10} placeholder={t('chat.placeholder')} value={text} data-chat-input px={8}
         onChange={(e) => onEdit(e.currentTarget.value)}
-        onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(); } }} />
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(); return; }
+          if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && !e.shiftKey && !e.altKey && !e.metaKey && !e.ctrlKey) {
+            const v = onWalk(e.key === 'ArrowUp' ? 1 : -1, text);
+            if (v !== undefined) { e.preventDefault(); onEdit(v); }
+          }
+        }} />
       <Group justify="space-between" gap={6}>
         <Menu position="top-start" shadow="md" radius="md">
           <Menu.Target>

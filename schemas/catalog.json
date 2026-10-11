@@ -345,11 +345,14 @@
           "lines": {"type": "array", "items": {"type": "object", "required": ["at", "kind"], "properties": {"at": {"type": "string"}, "kind": {"type": "string"},
             "id": {"type": "string"}, "title": {"type": "string"}, "status": {"type": "string"}, "text": {"type": "string"}}}},
           "stop": {"$ref": "#/$defs/action"}, "open": {"$ref": "#/$defs/action"}}},
-        "send": {"$ref": "#/$defs/action"}, "archive": {"$ref": "#/$defs/action"}, "delete": {"$ref": "#/$defs/action"}}}
+        "send": {"$ref": "#/$defs/action"}, "archive": {"$ref": "#/$defs/action"}, "delete": {"$ref": "#/$defs/action"},
+        "models": {"type": "array", "items": {"type": "string"}, "description": "the models the master's replies may go on"},
+        "model": {"type": "string", "description": "the master's own model, which a topic without one takes"},
+        "choose": {"$ref": "#/$defs/action"}}}
     },
     "topic": {"type": "object", "additionalProperties": false, "required": ["id", "title", "archived", "updated_at"], "properties": {
       "id": {"type": "integer"}, "title": {"type": "string"}, "project": {"type": "string", "description": "the project of the screen of its first message"}, "archived": {"type": "boolean"}, "updated_at": {"type": "string"},
-      "last": {"type": "string", "description": "the last message, cut short"}, "reply": {"$ref": "#/$defs/reply"}}},
+      "last": {"type": "string", "description": "the last message, cut short"}, "model": {"type": "string", "description": "the model its replies go on, when the owner picked one"}, "reply": {"$ref": "#/$defs/reply"}}},
     "reply": {"type": "object", "additionalProperties": false, "required": ["process", "state"], "properties": {
       "process": {"type": "integer"}, "state": {"type": "string"}, "provider": {"type": "string"}, "error": {"type": "string"}, "word": {"type": "string", "description": "the state in the owner's words"}, "tone": {"$ref": "#/$defs/tone"}, "waits": {"type": "boolean", "description": "it waits for the owner or its provider rather than works"},
       "open": {"$ref": "#/$defs/action"},

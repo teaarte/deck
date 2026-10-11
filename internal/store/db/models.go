@@ -71,6 +71,7 @@ type ChatTopic struct {
 	DeletedAt   sql.NullString
 	CreatedAt   string
 	UpdatedAt   string
+	Model       string
 }
 
 type Connection struct {

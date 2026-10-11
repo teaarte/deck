@@ -122,16 +122,10 @@ func (s *Service) commandWork(ctx context.Context, b *Book, projectID int64, com
 	}
 	switch cmd.Executor.Type {
 	case "agent":
-		w := provider.Work{Role: RoleAgent, Choices: []string{}}
+		w := provider.Work{Role: RoleAgent, Choices: s.Able(ctx, p.WorkspaceID, cmd)}
 		w.Models, _ = Assigned(ctx, s.St.Q, p.WorkspaceID, p.ID, command, RoleAgent)
 		if pv, err := s.For(ctx, projectID, cmd); err == nil {
 			w.Model = pv.Name()
-		}
-		all, _ := s.All(ctx, p.WorkspaceID)
-		for _, pv := range all {
-			if len(pv.Caps().Missing(cmd.Needs())) == 0 {
-				w.Choices = append(w.Choices, pv.Name())
-			}
 		}
 		w.Price = b.Price(w.Model)
 		return w

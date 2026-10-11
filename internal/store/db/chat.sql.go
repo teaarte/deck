@@ -100,7 +100,7 @@ func (q *Queries) CountMessagesAfter(ctx context.Context, arg CountMessagesAfter
 }
 
 const createTopic = `-- name: CreateTopic :one
-INSERT INTO chat_topic (workspace_id, title) VALUES (?, ?) RETURNING id, workspace_id, title, archived, deleted_at, created_at, updated_at
+INSERT INTO chat_topic (workspace_id, title) VALUES (?, ?) RETURNING id, workspace_id, title, archived, deleted_at, created_at, updated_at, model
 `
 
 type CreateTopicParams struct {
@@ -119,6 +119,7 @@ func (q *Queries) CreateTopic(ctx context.Context, arg CreateTopicParams) (ChatT
 		&i.DeletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Model,
 	)
 	return i, err
 }
@@ -222,7 +223,7 @@ func (q *Queries) GetMessage(ctx context.Context, id int64) (ChatMessage, error)
 }
 
 const getTopic = `-- name: GetTopic :one
-SELECT id, workspace_id, title, archived, deleted_at, created_at, updated_at FROM chat_topic WHERE id = ? AND deleted_at IS NULL
+SELECT id, workspace_id, title, archived, deleted_at, created_at, updated_at, model FROM chat_topic WHERE id = ? AND deleted_at IS NULL
 `
 
 func (q *Queries) GetTopic(ctx context.Context, id int64) (ChatTopic, error) {
@@ -236,6 +237,7 @@ func (q *Queries) GetTopic(ctx context.Context, id int64) (ChatTopic, error) {
 		&i.DeletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Model,
 	)
 	return i, err
 }
@@ -361,7 +363,7 @@ func (q *Queries) ListPendingMessages(ctx context.Context, topicID int64) ([]Cha
 }
 
 const listTopicSummaries = `-- name: ListTopicSummaries :many
-SELECT t.id, t.title, t.archived, t.updated_at,
+SELECT t.id, t.title, t.archived, t.updated_at, t.model,
     CAST(COALESCE((SELECT m.text FROM chat_message m WHERE m.topic_id = t.id ORDER BY m.id DESC LIMIT 1), '') AS TEXT) AS last_text,
     CAST(COALESCE(op.id, 0) AS INTEGER) AS open_id, CAST(COALESCE(op.state, '') AS TEXT) AS open_state,
     CAST(COALESCE(op.provider, '') AS TEXT) AS open_provider, CAST(COALESCE(op.error, '') AS TEXT) AS open_error,
@@ -393,6 +395,7 @@ type ListTopicSummariesRow struct {
 	Title        string
 	Archived     int64
 	UpdatedAt    string
+	Model        string
 	LastText     string
 	OpenID       int64
 	OpenState    string
@@ -420,6 +423,7 @@ func (q *Queries) ListTopicSummaries(ctx context.Context, arg ListTopicSummaries
 			&i.Title,
 			&i.Archived,
 			&i.UpdatedAt,
+			&i.Model,
 			&i.LastText,
 			&i.OpenID,
 			&i.OpenState,
@@ -615,6 +619,20 @@ UPDATE project SET builtin = 1 WHERE id = ?
 
 func (q *Queries) SetProjectBuiltin(ctx context.Context, id int64) error {
 	_, err := q.db.ExecContext(ctx, setProjectBuiltin, id)
+	return err
+}
+
+const setTopicModel = `-- name: SetTopicModel :exec
+UPDATE chat_topic SET model = ? WHERE id = ? AND deleted_at IS NULL
+`
+
+type SetTopicModelParams struct {
+	Model string
+	ID    int64
+}
+
+func (q *Queries) SetTopicModel(ctx context.Context, arg SetTopicModelParams) error {
+	_, err := q.db.ExecContext(ctx, setTopicModel, arg.Model, arg.ID)
 	return err
 }
 

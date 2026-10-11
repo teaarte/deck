@@ -153,6 +153,10 @@ export interface Topic {
    * the last message, cut short
    */
   last?: string;
+  /**
+   * the model its replies go on, when the owner picked one
+   */
+  model?: string;
   reply?: Reply;
 }
 /**
@@ -642,4 +646,13 @@ export interface ChatValue {
   send: Action;
   archive?: Action;
   delete?: Action;
+  /**
+   * the models the master's replies may go on
+   */
+  models?: string[];
+  /**
+   * the master's own model, which a topic without one takes
+   */
+  model?: string;
+  choose?: Action;
 }

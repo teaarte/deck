@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 
 	"github.com/google/uuid"
@@ -170,6 +171,12 @@ func (ch *Service) reply(ctx context.Context, topicID int64) error {
 		return registry.Invalid("deck: project master has no trigger on %s", manifest.OnMessage)
 	}
 	next := ch.againOf(topicID)
+	if next.provider == "" && t.Model != "" {
+		if !slices.Contains(ch.Able(ctx, p.WorkspaceID, cmd), t.Model) {
+			return fmt.Errorf("the model %s of this topic does not run the master's replies now; pick another one at the top of the chat", t.Model)
+		}
+		next.provider = t.Model
+	}
 	pv, err := ch.For(ctx, p.ID, cmd)
 	if next.provider != "" {
 		pv, err = ch.Named(ctx, p.ID, next.provider)

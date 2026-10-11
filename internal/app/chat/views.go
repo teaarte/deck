@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"deck2/internal/app/access"
 	"deck2/internal/ask"
 	"deck2/internal/manifest"
 	"deck2/internal/process"
@@ -38,6 +39,7 @@ type topicView struct {
 	Archived  bool       `json:"archived"`
 	UpdatedAt string     `json:"updated_at"`
 	Last      string     `json:"last,omitempty"`
+	Model     string     `json:"model,omitempty"`
 	Reply     *replyView `json:"reply,omitempty"`
 }
 
@@ -120,6 +122,10 @@ type chatView struct {
 	Send      action         `json:"send"`
 	Archive   action         `json:"archive,omitempty"`
 	Delete    action         `json:"delete,omitempty"`
+	// Models are those the master's replies may go on; Model is the master's own, which a topic without one takes.
+	Models []string `json:"models"`
+	Model  string   `json:"model,omitempty"`
+	Choose action   `json:"choose,omitempty"`
 }
 
 func viewReply(p db.Process, tr func(string) string) *replyView {
@@ -137,7 +143,7 @@ func viewMessage(m db.ChatMessage) messageView {
 
 func viewTopic(t db.ListTopicSummariesRow, tr func(string) string) topicView {
 	v := topicView{ID: t.ID, Title: t.Title, Project: t.Project, Archived: t.Archived == 1,
-		UpdatedAt: t.UpdatedAt, Last: untrusted.Cut(t.LastText, 200)}
+		UpdatedAt: t.UpdatedAt, Last: untrusted.Cut(t.LastText, 200), Model: t.Model}
 	if t.OpenID != 0 {
 		v.Reply = viewReply(db.Process{ID: t.OpenID, Kind: process.KindAgent, State: t.OpenState, Provider: t.OpenProvider, Error: t.OpenError}, tr)
 	}
@@ -216,6 +222,7 @@ func (ch *Service) chat(ctx context.Context, act registry.Actor, in chatIn) (cha
 	if v.Archived, err = ch.topics(ctx, act.Workspace, true, 0, 20, tr); err != nil {
 		return v, err
 	}
+	v.Models, v.Model = ch.models(ctx, act.Workspace)
 	var id int64
 	switch {
 	case in.Topic == "new":
@@ -240,6 +247,8 @@ func (ch *Service) chat(ctx context.Context, act registry.Actor, in chatIn) (cha
 	if t.Archived {
 		v.Archive["verb"] = "unarchive"
 	}
+	v.Choose = chatAction("model", registry.Builtin+".chat_topic_model", map[string]any{"topic": t.ID})
+	v.Choose["input"] = "model"
 	v.Delete = chatAction("delete", registry.Builtin+".chat_topic_delete", map[string]any{"topic": t.ID})
 	v.Delete["confirm"] = true
 	rows, err := ch.St.Q.LastMessages(ctx, db.LastMessagesParams{TopicID: t.ID, Before: 1 << 62, Lim: 100})
@@ -281,6 +290,23 @@ func (ch *Service) chat(ctx context.Context, act registry.Actor, in chatIn) (cha
 		v.Questions = append(v.Questions, questionView{Ask: q.ID, Text: q.Text, Questions: questions, Answer: answer})
 	}
 	return v, nil
+}
+
+// models are the models the master's replies may go on and the one they go on without a model of the topic.
+func (ch *Service) models(ctx context.Context, workspace int64) ([]string, string) {
+	m, err := access.Master(ctx, ch.St.Q, workspace)
+	if err != nil {
+		return []string{}, ""
+	}
+	cmd, err := ch.replyCommand(ctx, m.ID)
+	if err != nil {
+		return []string{}, ""
+	}
+	own := ""
+	if pv, err := ch.For(ctx, m.ID, cmd); err == nil {
+		own = pv.Name()
+	}
+	return ch.Able(ctx, workspace, cmd), own
 }
 
 // turnLines are the last calls and messages in the log of a process still open.

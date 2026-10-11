@@ -28,14 +28,17 @@ export function useTopics(value: ChatValue, context: ComponentContext) {
   useEffect(() => { if (topic && !pinned.current) pick(String(topic.id)); }, [topic?.id]);
   const projects = [...new Set([...value.topics, ...value.archived].map((x) => (x as { project?: string }).project).filter(Boolean) as string[])].sort();
   const inProject = (x: { project?: string }) => !scope || (scope === NONE ? !x.project : x.project === scope);
-  const options = [
-    ...value.topics.filter(inProject).map((x) => ({ value: String(x.id), label: x.title })),
-    ...value.archived.filter(inProject).map((x) => ({ value: String(x.id), label: t('chat.archived', { title: x.title }) })),
-  ];
-  const going = value.topics.filter((x) => x.reply && !x.reply.waits);
-  const busy = new Set(going.map((x) => String(x.id)));
-  const working = new Set(going.map((x) => x.project || NONE));
-  [...menu.projects, ...(menu.master ? [menu.master] : [])].forEach((m) => { if (m.project && m.running && projects.includes(m.project)) working.add(m.project); });
+  // The topic open comes first; the archived ones are a group of their own.
+  const first = <T extends { id: number }>(xs: T[]) => {
+    const i = xs.findIndex((x) => x.id === topic?.id);
+    return i > 0 ? [xs[i], ...xs.slice(0, i), ...xs.slice(i + 1)] : xs;
+  };
+  const active = first(value.topics.filter(inProject)).map((x) => ({ value: String(x.id), label: x.title }));
+  const archived = first(value.archived.filter(inProject)).map((x) => ({ value: String(x.id), label: x.title }));
+  const options = archived.length ? [...active, { group: t('chat.archived'), items: archived }] : active;
+  // A module works when processes of its own run, not when the master talks about it.
+  const working = new Set<string>();
+  menu.projects.forEach((m) => { if (m.project && m.running && projects.includes(m.project)) working.add(m.project); });
   const rank = (v: string) => (recent.includes(v) ? recent.indexOf(v) : recent.length);
   const modules = [{ value: NONE, label: t('chat.no_module') }, ...projects.map((p) => ({ value: p, label: p }))]
     .sort((a, b) => rank(a.value) - rank(b.value));
@@ -51,7 +54,6 @@ export function useTopics(value: ChatValue, context: ComponentContext) {
   return {
     pick,
     options,
-    busy,
     working,
     scopes: projects.length ? scopes : [],
     scope: scope ?? ALL,

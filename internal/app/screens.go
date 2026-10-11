@@ -13,8 +13,7 @@ import (
 	"deck2/internal/registry"
 )
 
-// shippedFiles are deck's screens, a file each (project-<name> for those of every project), the menu, the words of
-// the screens (i18n.<lang>) and of the read commands (words.<lang>).
+// shippedFiles are deck's screens (project-<name> for every project), the menu and words.<lang> and i18n.<lang>.
 //
 //go:embed shipped/*.json
 var shippedFiles embed.FS

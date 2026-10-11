@@ -26,9 +26,8 @@ export const list = blockImpl('list', (_, d, context) => d.board
 
 type BoardData = NonNullable<Data['board']>;
 
-// Board lays the items in the lanes of their field, each lane at most the height of the screen with a scroll of its
-// own; dropping one in a lane presses its button whose input is that field with the value of the lane, which on a
-// phone picks the lane itself.
+// Board lays the items in lanes of their field, each no higher than the screen; dropping one in a lane presses its
+// button whose input is that field with the value of the lane, which on a phone picks the lane itself.
 function Board({ board, items }: { board: BoardData; items: Item[] }) {
   const { run } = useScreenActions();
   const [moved, setMoved] = useState<Record<string, string>>({});

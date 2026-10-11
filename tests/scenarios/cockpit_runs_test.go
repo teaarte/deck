@@ -76,9 +76,8 @@ func TestTheCockpitShowsWhatDidNotWorkUntilARunMakesItGood(t *testing.T) {
 	}
 }
 
-// TestARunThatTakesLongerThanUsualIsMarked: an open run says since when it works and, past twice the usual time of
-// its command over its last five runs at least, that it takes longer than usual; within twice, or with fewer runs
-// to know the usual by, it is not marked.
+// TestARunThatTakesLongerThanUsualIsMarked: an open run past twice the usual of five runs of its command is marked
+// longer than usual; within twice, or with fewer runs, it is not.
 func TestARunThatTakesLongerThanUsualIsMarked(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -199,9 +198,8 @@ const cutModule = `{"version": 11,
       "input": {"type": "object", "properties": {"clip": {"type": "string"}}},
       "executor": {"type": "agent", "prompt": "Trim the clip."}}]}`
 
-// TestAFailureWithoutARecordLeavesOnlyWhenTheSameInputWorks: a failed run of a command without a record stays in
-// the cockpit through a good run with another input and a good trial, and leaves once a real run with its input
-// goes well; one the owner may not call has no retry.
+// TestAFailureWithoutARecordLeavesOnlyWhenTheSameInputWorks: a failure of a command without a record outlives other
+// inputs and trials, goes once its own input works; one the owner may not call has no retry.
 func TestAFailureWithoutARecordLeavesOnlyWhenTheSameInputWorks(t *testing.T) {
 	t.Parallel()
 	var fail atomic.Bool

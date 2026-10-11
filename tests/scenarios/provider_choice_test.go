@@ -35,7 +35,7 @@ func TestNoCloudCommandDoesNotTakeACloudProvider(t *testing.T) {
 		!strings.Contains(string(body), "no_cloud") {
 		t.Fatalf("a cloud provider is not picked for a command that stays off the cloud: %d %s", code, body)
 	}
-	e.addACP(local, 1, "local", "dsh", acpLLM(t), true)
+	e.addACP(local, 1, "local", "goose", acpLLM(t), true)
 	var list []struct {
 		Name, Provider string
 		Providers      []string
@@ -49,7 +49,7 @@ func TestNoCloudCommandDoesNotTakeACloudProvider(t *testing.T) {
 	if got := e.waitState(e.run(p, "collect"), "done", "error"); got.State != "done" || local.calls() != 4 {
 		t.Fatalf("the command runs on the chosen provider: %+v", got)
 	}
-	e.addACP(local, 5, "local", "dsh", acpLLM(t), false)
+	e.addACP(local, 5, "local", "goose", acpLLM(t), false)
 	if code, body := e.call("notes.collect", map[string]any{}); code == 200 || !strings.Contains(string(body), "no_cloud") {
 		t.Fatalf("a chosen provider that moved to the cloud is refused at the start: %d %s", code, body)
 	}
@@ -60,12 +60,12 @@ func TestNoCloudCommandDoesNotTakeACloudProvider(t *testing.T) {
 
 func TestProviderThatLeftTheOwnersHardwareStopsTheNextTurn(t *testing.T) {
 	t.Parallel()
-	e, _, local := acpPair(t, nil)
-	e.addACP(local, 1, "acp", "dsh", acpLLM(t), true)
+	e, local, _ := acpPair(t, nil)
+	e.addACP(local, 1, "acp", "goose", acpLLM(t), true)
 	local.streamText(4, acpTurn(`{"written": 1}`))
 	id := e.run(e.acpProject("notes", notesManifest), "collect")
 	e.waitState(id, "done")
-	e.addACP(local, 5, "acp", "dsh", acpLLM(t), false)
+	e.addACP(local, 5, "acp", "goose", acpLLM(t), false)
 	e.must("deck.process_rework", map[string]any{"process": id, "remark": "one more"}, nil)
 	got := e.waitState(id, "error", "done")
 	if got.State != "error" || !strings.Contains(got.Error, "no longer fits") || local.calls() != 7 {
@@ -188,7 +188,7 @@ func TestTheCommandsOfAProjectOfferOnlyProvidersThatFit(t *testing.T) {
 	t.Parallel()
 	e, cloud, local := acpPair(t, ok)
 	e.addACP(cloud, 1, "cloud", "goose", acpLLM(t), false)
-	e.addACP(local, 1, "local", "dsh", acpLLM(t), true)
+	e.addACP(local, 1, "local", "goose", acpLLM(t), true)
 	e.createProject("notes", notesManifest)
 	var rows []struct {
 		Name      string   `json:"name"`

@@ -34,7 +34,7 @@ func TestTheMasterReadsTheFieldsOfAFormOnlyTheOwnerFillsIn(t *testing.T) {
 	e.refused("deck.model_set", map[string]any{"connection": "x"}, 422,
 		"input of deck.model_set: missing property 'model'; deck.command_describe gives its parameters")
 	e.refused("deck.model_set", map[string]any{"connection": "x", "model": "m", "agent": "foo"}, 422,
-		"agent: value must be one of 'dsh', 'goose'")
+		"agent: value must be one of 'goose'")
 }
 
 // TestReadsGiveTheirResultSchema: commands that only read are reads, with the schema of their result, so a

@@ -17,20 +17,15 @@ import (
 )
 
 // realACP gives the installed ACP agents by name and the model they run on: a local Ollama, or the API of
-// DECK_ACP_URL with DECK_ACP_MODEL and the key in DECK_ACP_KEY; dsh may come from DECK_ACP_DSH.
+// DECK_ACP_URL with DECK_ACP_MODEL and the key in DECK_ACP_KEY.
 func realACP(t *testing.T) (map[string]string, string, string) {
 	t.Helper()
 	if os.Getenv("DECK_REAL_ACP") != "1" {
 		t.Skip("set DECK_REAL_ACP=1 to run the installed ACP agents on a local Ollama")
 	}
 	bins := map[string]string{}
-	for _, name := range []string{"goose", "dsh"} {
-		if p, err := exec.LookPath(name); err == nil {
-			bins[name] = p
-		}
-	}
-	if p := os.Getenv("DECK_ACP_DSH"); p != "" {
-		bins["dsh"] = p
+	if p, err := exec.LookPath("goose"); err == nil {
+		bins["goose"] = p
 	}
 	if len(bins) == 0 {
 		t.Skip("no ACP agent is installed")

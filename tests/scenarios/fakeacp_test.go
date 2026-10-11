@@ -45,28 +45,10 @@ func serveACP(dir string) {
 	f.run(f.stream())
 }
 
-// fakeModel finds the model API deck gave the agent: in the environment of Goose or in the patch of dsh.
+// fakeModel finds the model API deck gave Goose in its environment.
 func fakeModel(args []string) (url, key string) {
 	if len(args) > 0 && args[0] == "acp" {
 		return os.Getenv("OPENAI_BASE_URL"), os.Getenv("OPENAI_API_KEY")
-	}
-	for i, a := range args {
-		if a == "--patch" && i+1 < len(args) {
-			b, _ := os.ReadFile(args[i+1])
-			_ = os.WriteFile(filepath.Join(os.Getenv("DECK_FAKE_ACP"), "patch"), b, 0o644)
-			var patch []struct {
-				ID     string
-				Config struct {
-					Providers map[string]struct{ BaseURL string }
-				}
-			}
-			_ = json.Unmarshal(b, &patch)
-			for _, p := range patch {
-				if p.ID == "llm-pi-ai" {
-					return p.Config.Providers["deck"].BaseURL, os.Getenv("DECK_MODEL_KEY")
-				}
-			}
-		}
 	}
 	return "", ""
 }

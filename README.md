@@ -24,7 +24,7 @@ more capable without a release.
 ## What you get
 
 - **One binary, one folder.** Go server + SQLite + embedded web client. No queues, no cloud, no ops.
-- **Bring any agent.** Claude Code, Codex, and ACP agents (Goose, dsh) on any OpenAI-compatible model —
+- **Bring any agent.** Claude Code, Codex, and ACP agents (Goose) on any OpenAI-compatible model —
   each run isolated in its own sandbox and folder.
 - **Modules are manifests, not code.** A JSON manifest declares collections, commands, scripts, triggers,
   screens and rights. Prompts and skills are documents the master agent can edit.

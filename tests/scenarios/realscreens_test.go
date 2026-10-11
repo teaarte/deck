@@ -69,7 +69,7 @@ func TestRealBrowserSettings(t *testing.T) {
 		t.Fatal(err)
 	}
 	e := newEnv(t, webNotesAgent(), func(c *app.Config) {
-		c.ACPBinaries = map[string]string{"goose": filepath.Join(f.dir, "goose"), "dsh": filepath.Join(f.dir, "no-dsh")}
+		c.ACPBinaries = map[string]string{"goose": filepath.Join(f.dir, "goose")}
 		c.Sandbox = fakeDirSandbox{sandbox.New(), f.dir, nil}
 	})
 	e.App.Providers.Checks(t.Context(), time.Now())

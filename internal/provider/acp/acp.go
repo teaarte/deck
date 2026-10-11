@@ -149,13 +149,7 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 	if err != nil {
 		return provider.Result{}, fmt.Errorf("acp: %s is not installed: %w", a.cfg.Agent, err)
 	}
-	argv, env, files := a.agent.Start(Launch{Binary: bin, Home: home, ModelURL: door.URL() + e.modelAt, Model: a.cfg.Model,
-		Key: "deck"})
-	for path, text := range files {
-		if err := writeNew(path, text); err != nil {
-			return provider.Result{}, err
-		}
-	}
+	argv, env := a.agent.Start(Launch{Binary: bin, ModelURL: door.URL() + e.modelAt, Model: a.cfg.Model, Key: "deck"})
 	env = append(append(sandbox.Env(home, filepath.Join(home, "tmp")), env...), door.Env()...)
 	cmd, err := a.cfg.Sandbox.Command(life, a.closed(sandbox.Policy{
 		Argv: append([]string{"/bin/sh", "-c", `"$@"; exit $?`, marker(req.SessionID)}, argv...),

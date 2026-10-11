@@ -21,24 +21,36 @@ func TestAgentsAreFoundWithTheirVersion(t *testing.T) {
 		t.Fatal(err)
 	}
 	e := newEnv(t, nil, func(c *app.Config) {
-		c.ACPBinaries = map[string]string{"goose": filepath.Join(f.dir, "goose"), "dsh": filepath.Join(f.dir, "no-dsh")}
+		c.ACPBinaries = map[string]string{"goose": filepath.Join(f.dir, "goose")}
 		c.Sandbox = fakeDirSandbox{sandbox.New(), f.dir, nil}
 	})
 	e.App.Providers.Checks(t.Context(), time.Now())
 	if h := e.waitHealth("agent:goose", "ok"); h.Version != "goose 1.53.0" {
 		t.Fatalf("an agent is found with its version: %+v", h)
 	}
-	if _, err := e.App.Store.Q.GetHealth(t.Context(), "agent:dsh"); err == nil {
+	found := func(e *Env) string {
+		var m modelsOut
+		e.must("deck.models_list", nil, &m)
+		for _, a := range m.Agents {
+			if a.Name == "goose" {
+				return a.Version + "|" + a.Status
+			}
+		}
+		return ""
+	}
+	if got := found(e); got != "goose 1.53.0|ok" {
+		t.Fatalf("the models list shows the agent with its version: %s", got)
+	}
+	gone := newEnv(t, nil, func(c *app.Config) { c.ACPBinaries = map[string]string{"goose": filepath.Join(f.dir, "no-goose")} })
+	gone.App.Providers.Checks(t.Context(), time.Now())
+	if _, err := gone.App.Store.Q.GetHealth(t.Context(), "agent:goose"); err == nil {
 		t.Fatal("an agent that is not installed has no health row")
 	}
-	var m modelsOut
-	e.must("deck.models_list", nil, &m)
-	found := map[string]string{}
-	for _, a := range m.Agents {
-		found[a.Name] = a.Version + "|" + a.Status
+	if got := found(gone); got != "|missing" {
+		t.Fatalf("the models list shows an agent that is not installed: %s", got)
 	}
-	if found["goose"] != "goose 1.53.0|ok" || found["dsh"] != "|missing" {
-		t.Fatalf("the models list shows each agent with its version, and one that is not installed: %+v", m.Agents)
+	if agents := blockData[[]screenRow](t, gone.settingsBlock("Agents", nil)["rows"]); !strings.Contains(fmt.Sprint(agents), "not installed") {
+		t.Fatalf("the agents tab shows an agent that is not installed: %+v", agents)
 	}
 }
 
@@ -52,7 +64,7 @@ func TestTheModelsAndConnectionsTabsShowWhatRunsTheModels(t *testing.T) {
 	}
 	llm := acpLLM(t)
 	e := newEnv(t, nil, func(c *app.Config) {
-		c.ACPBinaries = map[string]string{"goose": filepath.Join(f.dir, "goose"), "dsh": filepath.Join(f.dir, "no-dsh")}
+		c.ACPBinaries = map[string]string{"goose": filepath.Join(f.dir, "goose")}
 		c.Sandbox = fakeDirSandbox{sandbox.New(), f.dir, nil}
 	})
 	e.App.Providers.Checks(t.Context(), time.Now())
@@ -97,8 +109,8 @@ func TestTheModelsAndConnectionsTabsShowWhatRunsTheModels(t *testing.T) {
 		t.Fatalf("the error of a model is in full on demand, and its check runs again: %+v", acp)
 	}
 	agents := blockData[[]screenRow](t, e.settingsBlock("Agents", nil)["rows"])
-	if !strings.Contains(fmt.Sprint(agents), "goose --version") || !strings.Contains(fmt.Sprint(agents), "not installed") {
-		t.Fatalf("the agents show why one gives no version, and one not installed: %+v", agents)
+	if !strings.Contains(fmt.Sprint(agents), "goose --version") {
+		t.Fatalf("the agents show why one gives no version: %+v", agents)
 	}
 	conns := blockData[[]screenRow](t, e.settingsBlock("Connections", nil)["rows"])
 	if len(conns) != 2 || conns[0].Cells[0] != "router" || conns[1].Cells[0] != "whisper" || fmt.Sprint(verb(t, conns[1].Actions, "edit")["params"].(map[string]any)["local"]) != "true" {
@@ -118,14 +130,12 @@ func TestAnAgentWhoseVersionFailsSaysSo(t *testing.T) {
 		t.Fatal(err)
 	}
 	e := newEnv(t, nil, func(c *app.Config) {
-		c.ACPBinaries = map[string]string{"goose": filepath.Join(f.dir, "goose"), "dsh": filepath.Join(f.dir, "dsh")}
+		c.ACPBinaries = map[string]string{"goose": filepath.Join(f.dir, "goose")}
 		c.Sandbox = fakeDirSandbox{sandbox.New(), f.dir, nil}
 	})
 	e.App.Providers.Checks(t.Context(), time.Now())
-	for _, agent := range []string{"goose", "dsh"} {
-		if h := e.waitHealth("agent:"+agent, "error"); h.Version != "" || !strings.Contains(h.Error, "--version") {
-			t.Fatalf("%s: a failing --version is the error it is: %+v", agent, h)
-		}
+	if h := e.waitHealth("agent:goose", "error"); h.Version != "" || !strings.Contains(h.Error, "--version") {
+		t.Fatalf("a failing --version is the error it is: %+v", h)
 	}
 }
 
@@ -179,7 +189,7 @@ func TestAModelThatGetsAnAgentLosesTheHealthOfItsCalls(t *testing.T) {
 	f := newACP(t)
 	llm := acpLLM(t)
 	e := newEnv(t, nil, func(c *app.Config) {
-		c.ACPBinaries = map[string]string{"goose": filepath.Join(f.dir, "goose"), "dsh": filepath.Join(f.dir, "no-dsh")}
+		c.ACPBinaries = map[string]string{"goose": filepath.Join(f.dir, "goose")}
 		c.Sandbox = fakeDirSandbox{sandbox.New(), f.dir, nil}
 	})
 	e.must("deck.connection_set", map[string]any{"name": "router", "api": "openai", "url": llm.URL, "key": "sk-router"}, nil)

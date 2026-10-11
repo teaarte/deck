@@ -125,7 +125,7 @@ func TestWithoutSearchAgentsOnlyReadPagesAndTheOwnerIsTold(t *testing.T) {
 // TestAModelInAnAgentTakesWorkThatNeedsTheWeb: an ACP agent has the web through deck, so a command that requires it
 // may run there; until a search is set up its health says the agent only reads pages.
 func TestAModelInAnAgentTakesWorkThatNeedsTheWeb(t *testing.T) {
-	e := acpEnv(t, newACP(t), "dsh", acpLLM(t))
+	e := acpEnv(t, newACP(t), "goose", acpLLM(t))
 	scout := strings.Replace(agentCommand("scout", ""), `"class": "internal"`, `"class": "internal", "requires": ["web"]`, 1)
 	e.createProject("scout", `{"version": 11, "commands": [`+scout+`]}`)
 	e.useModels("scout.scout", "acp")

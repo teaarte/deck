@@ -17,7 +17,7 @@ import (
 	"deck2/internal/store/db"
 )
 
-// fakeACP is a folder with the fake ACP agent, started as goose or dsh, and the streams it replays.
+// fakeACP is a folder with the fake ACP agent, started as goose, and the streams it replays.
 type fakeACP struct{ fakeBin }
 
 func newACP(t *testing.T) *fakeACP {
@@ -31,11 +31,9 @@ func newACP(t *testing.T) *fakeACP {
 	if err := os.WriteFile(filepath.Join(dir, "schema.json"), schema, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"goose", "dsh"} {
-		script := "#!/bin/sh\nexec env DECK_FAKE_ACP='" + dir + "' DECK_FAKE_ACP_SCHEMA='" + filepath.Join(dir, "schema.json") + "' '" + self + "' \"$@\"\n"
-		if err := os.WriteFile(filepath.Join(dir, name), []byte(script), 0o755); err != nil {
-			t.Fatal(err)
-		}
+	script := "#!/bin/sh\nexec env DECK_FAKE_ACP='" + dir + "' DECK_FAKE_ACP_SCHEMA='" + filepath.Join(dir, "schema.json") + "' '" + self + "' \"$@\"\n"
+	if err := os.WriteFile(filepath.Join(dir, "goose"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
 	}
 	return &fakeACP{fakeBin{t: t, dir: dir, fixtures: "testdata/acp", version: "agent", who: "the agent"}}
 }
@@ -171,16 +169,26 @@ func (e *Env) acpProject(name, manifest string) int64 {
 	return p
 }
 
-// acpPair starts deck on script with two fake ACP agents: goose and dsh, each with its own calls.
-func acpPair(t *testing.T, script Script) (e *Env, goose, dsh *fakeACP) {
+// acpPair starts deck on script with two fake Goose agents, each with its own calls: a model named local runs on the
+// second.
+func acpPair(t *testing.T, script Script) (e *Env, first, second *fakeACP) {
 	t.Helper()
-	goose, dsh = newACP(t), newACP(t)
+	first, second = newACP(t), newACP(t)
+	run := filepath.Join(first.dir, "goose")
+	b, err := os.ReadFile(run)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pick := strings.Replace(string(b), "\n", "\n[ \"$GOOSE_MODEL\" = local ] && exec '"+filepath.Join(second.dir, "goose")+"' \"$@\"\n", 1)
+	if err := os.WriteFile(run, []byte(pick), 0o755); err != nil {
+		t.Fatal(err)
+	}
 	e = newEnv(t, script, func(c *app.Config) {
-		c.ACPBinaries = map[string]string{"goose": filepath.Join(goose.dir, "goose"), "dsh": filepath.Join(dsh.dir, "dsh")}
-		c.Sandbox = fakeDirSandbox{sandbox.New(), goose.dir, []string{dsh.dir}}
+		c.ACPBinaries = map[string]string{"goose": run}
+		c.Sandbox = fakeDirSandbox{sandbox.New(), first.dir, []string{second.dir}}
 		c.ACPCallLimit = 2 * time.Second
 	})
-	return e, goose, dsh
+	return e, first, second
 }
 
 // addACP adds or changes a provider on an agent over llm with its key, its self-check replayed from call from on.
@@ -190,7 +198,7 @@ func (e *Env) addACP(f *fakeACP, from int, name, agent string, llm *fakeLLM, noC
 		f.stream(from+i-1, "selfcheck_"+strconv.Itoa(i)+".jsonl")
 	}
 	e.must("deck.secret_set", map[string]any{"name": name + "-key", "value": "sk-" + name}, nil)
-	e.mustAgentModel(map[string]any{"name": name, "url": llm.URL, "model": "asked-model", "agent": agent,
+	e.mustAgentModel(map[string]any{"name": name, "url": llm.URL, "model": name, "agent": agent,
 		"key_secret": name + "-key", "no_cloud": noCloud})
 	e.waitFor("the self-check of "+name, func() bool {
 		h, err := e.App.Store.Q.GetHealth(e.T.Context(), "provider:"+name)

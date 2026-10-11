@@ -179,3 +179,24 @@ func TestATrialSearchesOnlyThroughALocalOrFreeService(t *testing.T) {
 	e.refused("deck.model_request", map[string]any{"connection": "@", "path": "chat/completions", "model": "@search",
 		"body": `{"model": "@search", "messages": []}`}, 422, "web search of agents")
 }
+
+// TestHealthSaysHowToSetUpSearch: without a search of the workspace health says agents only read pages and how to
+// run SearXNG; the warning goes once a search is assigned.
+func TestHealthSaysHowToSetUpSearch(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, nil)
+	row := e.waitHealth("search", "warning")
+	if !strings.Contains(row.Error, "docker run") || !strings.Contains(row.Error, "only read pages") {
+		t.Fatalf("the warning says how to set up search: %s", row.Error)
+	}
+	var failing atomic.Int32
+	e.useSearch("searxng", searxng(t, &failing).URL)
+	e.must("deck.assignment_set", map[string]any{"role": "search", "models": []string{"searxng"}}, nil)
+	var hs []healthRow
+	e.must("deck.health_list", nil, &hs)
+	for _, h := range hs {
+		if h.Subject == "search" {
+			t.Fatalf("an assigned search leaves no warning: %+v", h)
+		}
+	}
+}

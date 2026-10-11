@@ -171,6 +171,14 @@ func (s *Service) Unassigned(ctx context.Context, workspace, project int64, m *m
 	return out
 }
 
+// NoSearch is what the owner does while the workspace has no search assigned, or "".
+func (s *Service) NoSearch(ctx context.Context, workspace int64) string {
+	if names, err := Assigned(ctx, s.St.Q, workspace, 0, "", RoleSearch); err != nil || len(names) > 0 {
+		return ""
+	}
+	return noSearch
+}
+
 // inAgent says a provider is a model in an ACP agent, whose web is deck's.
 func (s *Service) inAgent(ctx context.Context, workspace int64, name string) bool {
 	row, err := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: workspace, Name: name})

@@ -73,6 +73,9 @@ func (s *Service) list(ctx context.Context, act registry.Actor, in healthListIn)
 	shown := func(project string) bool {
 		return (in.Project == "" || project == in.Project) && (!in.Machine || project == "")
 	}
+	if text := s.NoSearch(ctx, act.Workspace); text != "" && shown("") {
+		out = append(out, healthRow{Subject: "search", Status: health.Warning, Error: text})
+	}
 	for _, p := range ps {
 		if !shown(p.Name) {
 			continue
@@ -148,7 +151,9 @@ type Service struct {
 	Secret func(workspace int64, name string) bool
 	// Unassigned are the commands of a manifest no model takes, with what the owner does.
 	Unassigned func(ctx context.Context, workspace, project int64, m *manifest.Manifest) map[string]string
-	Bus        *events.Bus
+	// NoSearch is what the owner does while no search is assigned, or "".
+	NoSearch func(ctx context.Context, workspace int64) string
+	Bus      *events.Bus
 }
 
 // Commands are the commands of health.

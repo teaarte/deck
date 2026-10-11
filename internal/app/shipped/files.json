@@ -31,9 +31,11 @@
       ]},
       {"title": "Snapshots", "icon": "camera", "blocks": [
         {"type": "table", "title": "Snapshots", "source": {"from": "deck.snapshots_list"},
+          "description": "Copies of deck's base, files and the data folders of projects, without secrets: deck takes one a day and before a project is deleted, and keeps the newest. They lie in backups of deck's state folder.",
+          "empty": "No snapshot yet: deck takes the first one today, or take one now below",
           "columns": [
             {"label": "Snapshot", "bind": "name"},
-            {"label": "Taken", "bind": "taken_at"},
+            {"label": "Taken", "bind": "taken_at", "format": "relative"},
             {"label": "Size", "bind": "size", "format": "bytes"}
           ]},
         {"type": "form", "title": "Take a snapshot now", "command": "deck.snapshot_create"}

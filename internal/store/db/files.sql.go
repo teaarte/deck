@@ -7,6 +7,7 @@ package db
 
 import (
 	"context"
+	"database/sql"
 )
 
 const bindFile = `-- name: BindFile :execrows
@@ -39,9 +40,10 @@ func (q *Queries) BindFile(ctx context.Context, arg BindFileParams) (int64, erro
 }
 
 const createFile = `-- name: CreateFile :one
-INSERT INTO file (project_id, owner_kind, owner_id, name, type, size, created_at)
-VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
-RETURNING id, project_id, owner_kind, owner_id, name, type, size, created_at
+INSERT INTO file (project_id, owner_kind, owner_id, name, type, size, created_at, process_id)
+VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7,
+        ?8)
+RETURNING id, project_id, owner_kind, owner_id, name, type, size, created_at, process_id
 `
 
 type CreateFileParams struct {
@@ -52,6 +54,7 @@ type CreateFileParams struct {
 	Type      string
 	Size      int64
 	CreatedAt string
+	ProcessID sql.NullInt64
 }
 
 func (q *Queries) CreateFile(ctx context.Context, arg CreateFileParams) (File, error) {
@@ -63,6 +66,7 @@ func (q *Queries) CreateFile(ctx context.Context, arg CreateFileParams) (File, e
 		arg.Type,
 		arg.Size,
 		arg.CreatedAt,
+		arg.ProcessID,
 	)
 	var i File
 	err := row.Scan(
@@ -74,6 +78,7 @@ func (q *Queries) CreateFile(ctx context.Context, arg CreateFileParams) (File, e
 		&i.Type,
 		&i.Size,
 		&i.CreatedAt,
+		&i.ProcessID,
 	)
 	return i, err
 }
@@ -118,7 +123,7 @@ func (q *Queries) DeleteFilesOf(ctx context.Context, arg DeleteFilesOfParams) er
 }
 
 const getFile = `-- name: GetFile :one
-SELECT id, project_id, owner_kind, owner_id, name, type, size, created_at FROM file WHERE id = ?
+SELECT id, project_id, owner_kind, owner_id, name, type, size, created_at, process_id FROM file WHERE id = ?
 `
 
 func (q *Queries) GetFile(ctx context.Context, id int64) (File, error) {
@@ -133,12 +138,13 @@ func (q *Queries) GetFile(ctx context.Context, id int64) (File, error) {
 		&i.Type,
 		&i.Size,
 		&i.CreatedAt,
+		&i.ProcessID,
 	)
 	return i, err
 }
 
 const listFilesOf = `-- name: ListFilesOf :many
-SELECT id, project_id, owner_kind, owner_id, name, type, size, created_at FROM file WHERE project_id = ? AND owner_kind = ? AND owner_id = ? ORDER BY id
+SELECT id, project_id, owner_kind, owner_id, name, type, size, created_at, process_id FROM file WHERE project_id = ? AND owner_kind = ? AND owner_id = ? ORDER BY id
 `
 
 type ListFilesOfParams struct {
@@ -165,6 +171,7 @@ func (q *Queries) ListFilesOf(ctx context.Context, arg ListFilesOfParams) ([]Fil
 			&i.Type,
 			&i.Size,
 			&i.CreatedAt,
+			&i.ProcessID,
 		); err != nil {
 			return nil, err
 		}
@@ -180,7 +187,7 @@ func (q *Queries) ListFilesOf(ctx context.Context, arg ListFilesOfParams) ([]Fil
 }
 
 const listMadeFiles = `-- name: ListMadeFiles :many
-SELECT f.id, f.project_id, f.owner_kind, f.owner_id, f.name, f.type, f.size, f.created_at FROM file f WHERE f.owner_kind = 'process'
+SELECT f.id, f.project_id, f.owner_kind, f.owner_id, f.name, f.type, f.size, f.created_at, f.process_id FROM file f WHERE f.owner_kind = 'process'
     AND (f.owner_id = ?1 OR f.owner_id IN (SELECT p.id FROM process p WHERE p.parent_id = ?1))
 ORDER BY f.id
 `
@@ -204,6 +211,7 @@ func (q *Queries) ListMadeFiles(ctx context.Context, processID int64) ([]File, e
 			&i.Type,
 			&i.Size,
 			&i.CreatedAt,
+			&i.ProcessID,
 		); err != nil {
 			return nil, err
 		}
@@ -219,7 +227,7 @@ func (q *Queries) ListMadeFiles(ctx context.Context, processID int64) ([]File, e
 }
 
 const listMessageFiles = `-- name: ListMessageFiles :many
-SELECT f.id, f.project_id, f.owner_kind, f.owner_id, f.name, f.type, f.size, f.created_at FROM file f JOIN chat_message m ON m.id = f.owner_id
+SELECT f.id, f.project_id, f.owner_kind, f.owner_id, f.name, f.type, f.size, f.created_at, f.process_id FROM file f JOIN chat_message m ON m.id = f.owner_id
 WHERE f.owner_kind = 'chat_message' AND m.topic_id = ? ORDER BY f.id
 `
 
@@ -241,6 +249,7 @@ func (q *Queries) ListMessageFiles(ctx context.Context, topicID int64) ([]File, 
 			&i.Type,
 			&i.Size,
 			&i.CreatedAt,
+			&i.ProcessID,
 		); err != nil {
 			return nil, err
 		}
@@ -256,7 +265,7 @@ func (q *Queries) ListMessageFiles(ctx context.Context, topicID int64) ([]File, 
 }
 
 const listOwnedFiles = `-- name: ListOwnedFiles :many
-SELECT id, project_id, owner_kind, owner_id, name, type, size, created_at FROM file WHERE owner_kind = ? AND owner_id = ? ORDER BY id
+SELECT id, project_id, owner_kind, owner_id, name, type, size, created_at, process_id FROM file WHERE owner_kind = ? AND owner_id = ? ORDER BY id
 `
 
 type ListOwnedFilesParams struct {
@@ -282,6 +291,7 @@ func (q *Queries) ListOwnedFiles(ctx context.Context, arg ListOwnedFilesParams) 
 			&i.Type,
 			&i.Size,
 			&i.CreatedAt,
+			&i.ProcessID,
 		); err != nil {
 			return nil, err
 		}
@@ -324,7 +334,7 @@ func (q *Queries) ListProjectFileIDs(ctx context.Context, projectID int64) ([]in
 }
 
 const listWorkspaceFiles = `-- name: ListWorkspaceFiles :many
-SELECT id, project_id, owner_kind, owner_id, name, type, size, created_at FROM file WHERE project_id IN (SELECT id FROM project WHERE workspace_id = ?1)
+SELECT id, project_id, owner_kind, owner_id, name, type, size, created_at, process_id FROM file WHERE project_id IN (SELECT id FROM project WHERE workspace_id = ?1)
   AND (CAST(?2 AS INTEGER) = 0 OR project_id = CAST(?2 AS INTEGER)) AND owner_kind NOT IN ('trash', 'keeping')
 ORDER BY id DESC LIMIT ?3
 `
@@ -353,6 +363,7 @@ func (q *Queries) ListWorkspaceFiles(ctx context.Context, arg ListWorkspaceFiles
 			&i.Type,
 			&i.Size,
 			&i.CreatedAt,
+			&i.ProcessID,
 		); err != nil {
 			return nil, err
 		}

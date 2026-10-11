@@ -288,8 +288,8 @@ func (s *Service) deleteRecord(ctx context.Context, act registry.Actor, p db.Pro
 			if err != nil {
 				return err
 			}
-			if others {
-				w, err := s.hold(ctx, q, act, p, m, pl)
+			if others != "" {
+				w, err := s.hold(ctx, q, act, p, m, pl, others)
 				waiting = &w
 				return err
 			}
@@ -317,12 +317,12 @@ func (s *Service) deleteRecord(ctx context.Context, act registry.Actor, p db.Pro
 	return map[string]any{"ok": true}, nil
 }
 
-// mastersOnly refuses a plan with a record no process of the master wrote, and reports whether it holds anything
-// else the master did not make: a file of a record or of another's process, a folder, another's open process.
-func mastersOnly(ctx context.Context, q *db.Queries, p db.Project, pl plan) (others bool, err error) {
+// mastersOnly refuses a plan with a record no process of the master wrote, and names the first thing else in it the
+// master did not make: a file another's process made or got, a folder, another's open process.
+func mastersOnly(ctx context.Context, q *db.Queries, p db.Project, pl plan) (others string, err error) {
 	mp, err := access.Master(ctx, q, p.WorkspaceID)
 	if err != nil {
-		return false, err
+		return "", err
 	}
 	mine := func(process sql.NullInt64) (bool, error) {
 		if !process.Valid {
@@ -336,31 +336,32 @@ func mastersOnly(ctx context.Context, q *db.Queries, p db.Project, pl plan) (oth
 	}
 	for _, r := range pl.records {
 		if ok, err := mine(r.ProcessID); err != nil || !ok {
-			return false, cmp.Or(err, registry.Refuse("deck: only the owner deletes records of an enabled project; the master only those its own processes wrote, with all that belongs to them"))
+			return "", cmp.Or(err, registry.Refuse("deck: only the owner deletes records of an enabled project; the master only those its own processes wrote, with all that belongs to them"))
 		}
 	}
 	if len(pl.folders) > 0 {
-		return true, nil
+		return fmt.Sprintf("the folder %s/ of the data folder: deck does not know who wrote in it", pl.folders[0]), nil
 	}
 	for _, f := range pl.files {
-		if f.OwnerKind != "process" {
-			return true, nil
+		maker := f.ProcessID
+		if f.OwnerKind == "process" {
+			maker = store.ID(f.OwnerID)
 		}
-		if ok, err := mine(store.ID(f.OwnerID)); err != nil || !ok {
-			return true, err
+		if ok, err := mine(maker); err != nil || !ok {
+			return fmt.Sprintf("the file %s: no process of the master made it", f.Name), err
 		}
 	}
 	for _, pr := range pl.open {
 		if ok, err := mine(store.ID(pr.ID)); err != nil || !ok {
-			return true, err
+			return fmt.Sprintf("the open process %d %s: not of the master", pr.ID, pr.Command), err
 		}
 	}
-	return false, nil
+	return "", nil
 }
 
 // hold freezes the deletion until the owner, who reads what it takes, says yes; deck then makes it as the owner.
 // The same deletion already waiting is the same ask.
-func (s *Service) hold(ctx context.Context, q *db.Queries, act registry.Actor, p db.Project, m *manifest.Manifest, pl plan) (gateway.Waiting, error) {
+func (s *Service) hold(ctx context.Context, q *db.Queries, act registry.Actor, p db.Project, m *manifest.Manifest, pl plan, others string) (gateway.Waiting, error) {
 	rec := pl.records[0]
 	input, _ := json.Marshal(map[string]any{"record": rec.ID})
 	f := gateway.Freeze(act, registry.Builtin+".record_delete", input)
@@ -375,6 +376,6 @@ func (s *Service) hold(ctx context.Context, q *db.Queries, act registry.Actor, p
 		}
 		a, err = gateway.Hold(ctx, q, act, p.ID, act.ProcessID, ask.KindCall, registry.Internal, untrusted.Cut(b.String(), 4000), f, time.Time{}, s.Now())
 	}
-	return gateway.Waiting{Ask: a.ID, Text: fmt.Sprintf("deck: deleting record %d takes what the master did not make, so it waits for the owner's confirmation (ask %d); "+
-		"nothing was deleted yet. Go on with other work: once the owner allows it, deck deletes it and tells you.", rec.ID, a.ID)}, err
+	return gateway.Waiting{Ask: a.ID, Text: fmt.Sprintf("deck: deleting record %d takes what the master did not make (%s), so it waits for the owner's confirmation (ask %d); "+
+		"nothing was deleted yet. Go on with other work: once the owner allows it, deck deletes it and tells you.", rec.ID, untrusted.Line(others, 300), a.ID)}, err
 }

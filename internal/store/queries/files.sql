@@ -1,6 +1,7 @@
 -- name: CreateFile :one
-INSERT INTO file (project_id, owner_kind, owner_id, name, type, size, created_at)
-VALUES (sqlc.arg(project_id), sqlc.arg(owner_kind), sqlc.arg(owner_id), sqlc.arg(name), sqlc.arg(type), sqlc.arg(size), sqlc.arg(created_at))
+INSERT INTO file (project_id, owner_kind, owner_id, name, type, size, created_at, process_id)
+VALUES (sqlc.arg(project_id), sqlc.arg(owner_kind), sqlc.arg(owner_id), sqlc.arg(name), sqlc.arg(type), sqlc.arg(size), sqlc.arg(created_at),
+        sqlc.narg(process_id))
 RETURNING *;
 
 

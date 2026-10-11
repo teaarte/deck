@@ -136,6 +136,7 @@ type File struct {
 	Type      string
 	Size      int64
 	CreatedAt string
+	ProcessID sql.NullInt64
 }
 
 type FolderLock struct {

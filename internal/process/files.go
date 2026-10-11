@@ -78,7 +78,7 @@ func (r *Runner) keepFiles(ctx context.Context, projectID, processID int64, resu
 				typ = "application/octet-stream"
 			}
 			row, err := q.CreateFile(ctx, db.CreateFileParams{ProjectID: projectID, OwnerKind: keeping, OwnerID: processID,
-				Name: filepath.Base(srcs[i]), Type: typ, Size: infos[i].Size(), CreatedAt: store.Time(r.now())})
+				Name: filepath.Base(srcs[i]), Type: typ, Size: infos[i].Size(), CreatedAt: store.Time(r.now()), ProcessID: store.ID(processID)})
 			if err != nil {
 				return err
 			}

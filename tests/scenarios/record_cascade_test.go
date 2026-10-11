@@ -307,6 +307,68 @@ func TestTheMasterAsksTheOwnerBeforeDeletingWhatAModuleMade(t *testing.T) {
 	}
 }
 
+// TestTheMasterDeletesARecordWithTheFilesItsOwnRunMade: a file a script the master started gave a record is the
+// master's, so it deletes the record alone; one the owner's run gave waits for the owner.
+func TestTheMasterDeletesARecordWithTheFilesItsOwnRunMade(t *testing.T) {
+	t.Parallel()
+	var mu sync.Mutex
+	said := map[string]string{}
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		_, text, found := strings.Cut(c.Req.Prompt, "new message in chat topic")
+		if !found {
+			return provider.Result{Text: "Noted."}
+		}
+		text = strings.Split(text, "\n")[1]
+		var id int64
+		var out string
+		if slug, ok := strings.CutPrefix(text, "write "); ok {
+			out, _ = c.Tool(ctx, "records_upsert", map[string]any{"project": "shorts", "collection": "videos", "records": jsonl(map[string]any{"slug": slug})})
+		} else if _, err := fmt.Sscanf(text, "render %d", &id); err == nil {
+			out, _ = c.Tool(ctx, "shorts__render", map[string]any{"record": id})
+		} else if _, err := fmt.Sscanf(text, "delete %d", &id); err == nil {
+			out, _ = c.Tool(ctx, "record_delete", map[string]any{"record": id})
+		}
+		mu.Lock()
+		said[text] = out
+		mu.Unlock()
+		return provider.Result{Text: "Done."}
+	})
+	pid := e.createProject("shorts", strings.Replace(cascadeModule, `"folder": "'videos/' + dir",`, "", 1))
+	e.saveScript("shorts", "scripts/render.py", renderScript)
+	topic := e.say(0, "write knights")
+	e.masterSaid(topic, 1)
+	e.say(topic, "write snails")
+	e.masterSaid(topic, 2)
+	ids := e.videos()
+	e.say(topic, fmt.Sprintf("render %d", ids["knights"]))
+	e.masterSaid(topic, 3)
+	if got := e.waitScript(e.start("shorts", "render", map[string]any{"record": ids["snails"]}), "done", "error"); got.State != "done" {
+		t.Fatalf("the owner's render runs: %+v", got)
+	}
+	var n int
+	e.waitFor("the frames of both", func() bool {
+		_ = e.App.Store.DB.QueryRow(`SELECT count(*) FROM file WHERE project_id = ? AND owner_kind = 'record'`, pid).Scan(&n)
+		return n == 2
+	})
+
+	e.say(topic, fmt.Sprintf("delete %d", ids["knights"]))
+	e.masterSaid(topic, 4)
+	mu.Lock()
+	mine := said[fmt.Sprintf("delete %d", ids["knights"])]
+	mu.Unlock()
+	if !strings.Contains(mine, `"ok":true`) {
+		t.Fatalf("the master deletes its record with the frame its own run made: %s", mine)
+	}
+	e.say(topic, fmt.Sprintf("delete %d", ids["snails"]))
+	e.masterSaid(topic, 5)
+	mu.Lock()
+	theirs := said[fmt.Sprintf("delete %d", ids["snails"])]
+	mu.Unlock()
+	if !strings.Contains(theirs, `"waiting"`) || !strings.Contains(theirs, "the file frame.png") {
+		t.Fatalf("a frame the owner's run made waits for the owner, and the master reads why: %s", theirs)
+	}
+}
+
 // askWhat is what the owner reads an ask is about.
 func (e *Env) askWhat(id int64) string {
 	e.T.Helper()

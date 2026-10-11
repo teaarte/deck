@@ -62,6 +62,12 @@ func TestRealBrowserShell(t *testing.T) {
 	b.eval(`(document.querySelector('[data-system-menu] a[href="#/deck/schedule"]').click(), '')`)
 	b.until("the schedule from the system menu", `location.hash === '#/deck/schedule' && !document.querySelector('[data-system-menu]')`)
 	b.until("the tab named after its screen, with Deki for its icon", `/^(\(\d+\) )?Schedule · deck$/.test(document.title) && document.querySelector('link[rel=icon]').getAttribute('href') === '/favicon.png'`)
+	if got := b.eval(`(() => { const s = getComputedStyle(document.querySelector('[data-system][data-active]')), h = getComputedStyle(document.querySelector('[data-nav] [data-group-head]'));
+		const accent = getComputedStyle(document.documentElement).getPropertyValue('--mantine-primary-color-filled').trim(), probe = document.createElement('i');
+		probe.style.color = accent; document.body.append(probe); const filled = getComputedStyle(probe).color; probe.remove();
+		return [s.borderTopLeftRadius === h.borderTopLeftRadius, s.backgroundColor === filled].join(' ') })()`); got != "true true" {
+		t.Fatalf("the system button on its screen has the corners and the accent of the menu: %s", got)
+	}
 	b.eval(`(document.querySelector('[data-nav] [data-logo]').click(), '')`)
 	b.until("the logo opens the cockpit", `location.hash === '#/deck/cockpit' && document.querySelector('[data-nav] [data-system] [data-icon="layout-grid"]')`)
 	b.until("the counters of the cockpit", `document.querySelectorAll('[data-stat]').length === 4`)

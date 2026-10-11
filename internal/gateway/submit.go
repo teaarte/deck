@@ -50,12 +50,11 @@ func (s *Submit) handle(_ context.Context, req *mcp.CallToolRequest) (*mcp.CallT
 	if s.done {
 		return refusal("deck: the result was already handed in; end your turn."), nil
 	}
-	v := req.Params.Arguments
 	var in map[string]json.RawMessage
-	if json.Unmarshal(v, &in) == nil {
-		if r, ok := in["result"]; ok {
-			v = r
-		}
+	_ = json.Unmarshal(req.Params.Arguments, &in)
+	v, ok := in["result"]
+	if !ok {
+		return refusal(`deck: the arguments have no result field; call result_submit again with {"result": <the result>}.`), nil
 	}
 	s.got = append(json.RawMessage{}, v...)
 	if err := s.Validate(v); err != nil {

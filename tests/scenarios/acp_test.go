@@ -187,6 +187,23 @@ func TestACPAgentPermissionIsAllowedOnceWithoutTheOwner(t *testing.T) {
 	}
 }
 
+// TestACPResultWithoutItsFieldIsRefused: arguments of result_submit without result are no result, even where the
+// schema takes any object; the agent hands in null again and the run had nothing to do.
+func TestACPResultWithoutItsFieldIsRefused(t *testing.T) {
+	t.Parallel()
+	f := newACP(t)
+	f.streamText(4, acpStream(acpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,
+		`{"mcp": {"tool": "result_submit", "arguments": {"null": "None"}}}`,
+		`{"mcp": {"tool": "result_submit", "arguments": {"result": null}}}`, `{"end": "end_turn"}`))
+	e := acpEnv(t, f, "goose", acpLLM(t))
+	loose := strings.Replace(colorManifest, `{"type": "object", "required": ["color"], "properties": {"color": {"type": "string"}}}`, `{"type": ["object", "null"]}`, 1)
+	got := e.waitState(e.run(e.acpProject("paint", loose), "work"), "done", "error")
+	c := f.call(4)
+	if got.State != "done" || string(got.Result) != "null" || len(c.mcp) < 2 || !strings.Contains(fmt.Sprint(c.mcp[0]), "no result field") {
+		t.Fatalf("deck refuses arguments without result and takes the null after: %+v %v", got, c.mcp)
+	}
+}
+
 // TestACPExternalToolStillWaitsForYes: the class rules of the gateway hold for an ACP agent as for any other.
 func TestACPExternalToolStillWaitsForYes(t *testing.T) {
 	t.Parallel()

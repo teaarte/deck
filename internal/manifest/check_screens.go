@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"regexp"
 	"slices"
 	"strings"
@@ -109,6 +110,14 @@ func (c *screenCheck) recordFields() []string {
 	return c.withParam(append(slices.Clone(col.fields), "_id", "_updated"))
 }
 
+// pageFields are the names an expression over the page reads: the fields of its record and param, nil when any.
+func (c *screenCheck) pageFields() []string {
+	if c.screen.Record == "" {
+		return c.withParam([]string{})
+	}
+	return c.recordFields()
+}
+
 func (c *screenCheck) block(where string, b Block) {
 	if b.When != "" {
 		c.when(where, b)
@@ -182,6 +191,13 @@ func (c *screenCheck) block(where string, b Block) {
 			}
 		}
 		fields = c.recordFields()
+		for _, name := range slices.Sorted(maps.Keys(b.Params)) {
+			if e, ok := strings.CutPrefix(b.Params[name], "="); ok {
+				if _, err := compileField(e, c.pageFields()); err != nil {
+					c.fail("%s params %q: %v", where, name, err)
+				}
+			}
+		}
 	case "table", "list", "stat", "log", "chart", "media":
 		var ok bool
 		switch {

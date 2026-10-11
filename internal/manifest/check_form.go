@@ -48,18 +48,13 @@ func (c *screenCheck) values(where string, b Block) {
 		input = cmd.InputSchema()
 	}
 	props := PropertyOrder(input)
-	record := c.recordFields()
 	for _, field := range slices.Sorted(maps.Keys(b.Values)) {
 		at := fmt.Sprintf("%s values %q", where, field)
 		if input != nil && !slices.Contains(props, field) {
 			c.fail("%s: the input has no field %q", at, field)
 		}
 		if e, ok := strings.CutPrefix(b.Values[field], "="); ok {
-			env := record
-			if env == nil && c.screen.Record == "" {
-				env = c.withParam([]string{})
-			}
-			if _, err := compileField(e, env); err != nil {
+			if _, err := compileField(e, c.pageFields()); err != nil {
 				c.fail("%s: %v", at, err)
 			}
 			continue

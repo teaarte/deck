@@ -872,6 +872,36 @@ func TestCustomButtonsOnARecordPageTakeTheFieldsOfTheRecord(t *testing.T) {
 	e.refused("deck.manifest_save", map[string]any{"project": "web", "manifest": custom("what")}, 422, `unknown field "what"`)
 }
 
+// TestCustomBlockGetsItsParamsResolved: params of a custom block are fixed text or expressions over the param of the
+// screen and the record of the page, resolved by deck and given beside its items; an unknown field fails the save.
+func TestCustomBlockGetsItsParamsResolved(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, nil)
+	chart := `"document": "custom/chart.html", "source": {"collection": "notes", "sort": "title"},`
+	page := `{"type": "form", "title": "Edit", "command": "deck.record_update"}`
+	m := strings.NewReplacer(`{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "params": {"kind": "string"}, "blocks": [`,
+		chart, chart+` "params": {"mode": "voice", "speed": "=1.5", "kind": "=param.kind", "none": ""},`,
+		page, page+`, {"type": "custom", "document": "custom/chart.html", "params": {"title": "=title + '!'", "double": "=score * 2"}}`).Replace(webNotes)
+	e.createProject("web", m)
+	e.must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": "<p>chart</p>"}, nil)
+	var put struct{ IDs []int64 }
+	e.must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": `{"title": "a", "score": 2}`}, &put)
+	type custom struct {
+		Params map[string]any   `json:"params"`
+		Items  []map[string]any `json:"items"`
+	}
+	v := blockData[custom](t, e.screenData("web", "main", map[string]any{"params": `{"kind": "video"}`})["b2"]["value"])
+	if len(v.Items) != 1 || len(v.Params) != 4 || v.Params["mode"] != "voice" || v.Params["speed"] != 1.5 || v.Params["kind"] != "video" || v.Params["none"] != nil {
+		t.Fatalf("a custom block gets its params beside its items, fixed and resolved over the param of the screen: %+v", v)
+	}
+	v = blockData[custom](t, e.screenData("web", "note", map[string]any{"record": put.IDs[0]})["b1"]["value"])
+	if len(v.Params) != 2 || v.Params["title"] != "a!" || v.Params["double"] != float64(4) {
+		t.Fatalf("params of a custom block on a record page read the record: %+v", v.Params)
+	}
+	e.refused("deck.manifest_save", map[string]any{"project": "web", "manifest": strings.Replace(m, `"=score * 2"`, `"=what"`, 1)},
+		422, `params "double": unknown field "what"`)
+}
+
 // TestAHiddenButtonOfACustomBlockLeavesTheClassOfTheOthers: a button whose when does not hold is not there, and
 // each of the others keeps the class of its own command, so an external call still waits for the owner.
 func TestAHiddenButtonOfACustomBlockLeavesTheClassOfTheOthers(t *testing.T) {

@@ -512,6 +512,10 @@ export interface CustomValue {
   items?: {}[];
   record?: {};
   /**
+   * The params of the block, resolved
+   */
+  params?: {};
+  /**
    * The module whose files the block reads; none on a screen of deck
    */
   project?: string;

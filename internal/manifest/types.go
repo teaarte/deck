@@ -318,6 +318,8 @@ type Block struct {
 	KeepOpen bool `json:"keep_open,omitempty"`
 	// Document is the custom/ document with the HTML of a custom block, or the document a document block shows.
 	Document string `json:"document,omitempty"`
+	// Params are what a custom block is given beside its items: fixed text or =<expression> over the record of the page.
+	Params map[string]string `json:"params,omitempty"`
 }
 
 // Span is the cells of the grid a block takes: N of them, or the whole width.

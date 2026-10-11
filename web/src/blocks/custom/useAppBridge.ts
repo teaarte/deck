@@ -22,8 +22,8 @@ const text = (s: string): CallToolResult['content'] => [{ type: 'text', text: s 
 
 type Resource = { uri: string; type: string; blob: string };
 
-// useAppBridge connects the frame of a custom block to deck: the theme, the data of its source, its size, the files of
-// its module, and calls of its buttons' commands, all but internal ones asked of the owner first, one at a time.
+// useAppBridge connects the frame of a custom block to deck: the theme, the data of its source and its params, its
+// size, the files of its module, and calls of its buttons' commands, all but internal ones asked of the owner one by one.
 export function useAppBridge(value: CustomValue, ask: (q: Ask) => Promise<boolean>) {
   const frame = useRef<HTMLIFrameElement>(null);
   const bridge = useRef<AppBridge>(undefined);
@@ -112,9 +112,9 @@ export function useAppBridge(value: CustomValue, ask: (q: Ask) => Promise<boolea
 
   useEffect(() => {
     if (!ready || !bridge.current) return;
-    const data = { items: value.items ?? [], record: value.record ?? null };
+    const data = { items: value.items ?? [], record: value.record ?? null, params: value.params ?? {} };
     void bridge.current.sendToolResult({ content: text(JSON.stringify(data)), structuredContent: data });
-  }, [ready, value.items, value.record]);
+  }, [ready, value.items, value.record, value.params]);
 
   const inline = () => {
     setFull(false);

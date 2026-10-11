@@ -245,8 +245,8 @@ func (r *renderer) enum(p any) []map[string]any {
 	return out
 }
 
-// custom gives a custom block its HTML, the items of its source, the record of the page, the buttons it may press
-// and the project whose files it reads; the client passes them through the MCP Apps bridge and nothing else.
+// custom gives a custom block its HTML, the items of its source, the record of the page, its params, the buttons
+// it may press and the project whose files it reads; the client passes them through the MCP Apps bridge and nothing else.
 func (r *renderer) custom(b manifest.Block) (map[string]any, error) {
 	html, err := r.src.Document(r.ctx, r.req.Project, b.Document)
 	if err != nil {
@@ -279,6 +279,18 @@ func (r *renderer) custom(b manifest.Block) (map[string]any, error) {
 	}
 	if r.record != nil {
 		v["record"] = plain(r.record)
+	}
+	if len(b.Params) > 0 {
+		params := map[string]any{}
+		env := r.withParam(r.record)
+		for name, raw := range b.Params {
+			val, err := manifest.Resolve(raw, "any", env)
+			if err != nil {
+				return nil, fmt.Errorf("params %s: %w", name, err)
+			}
+			params[name] = val
+		}
+		v["params"] = params
 	}
 	return map[string]any{"state": "ready", "value": v}, nil
 }

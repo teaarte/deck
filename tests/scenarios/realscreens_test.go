@@ -564,6 +564,38 @@ func TestRealBrowserCustomBlockOpensWindowsOfDeck(t *testing.T) {
 	})
 }
 
+// customParams is a custom block that reports the params deck gave it beside its items.
+const customParams = `<!doctype html><html><body><script type="module">
+import { App } from "/ext-apps.js";
+const app = new App({ name: "params", version: "1" });
+app.ontoolresult = (r) => app.callServerTool({ name: "web.mark", arguments: { text: JSON.stringify(r.structuredContent.params) } });
+await app.connect();
+</script></body></html>`
+
+// TestRealBrowserCustomBlockGetsItsParams: the params of a custom block, fixed and from the address of its screen,
+// reach its frame in the tool result beside its items.
+func TestRealBrowserCustomBlockGetsItsParams(t *testing.T) {
+	if os.Getenv("DECK_REAL_BROWSER") == "" {
+		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
+	}
+	checkBuiltClient(t)
+	e := newEnv(t, webNotesAgent())
+	chart := `"document": "custom/chart.html", "source": {"collection": "notes", "sort": "title"},`
+	e.createProject("web", strings.NewReplacer(`{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "params": {"kind": "string"}, "blocks": [`,
+		chart, chart+` "params": {"mode": "voice", "kind": "=param.kind"},`).Replace(webNotes))
+	e.must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": customParams}, nil)
+	b := newPlaywright(t)
+	b.open(e.URL + "/?token=" + token + "#/p/web/main?kind=video")
+	e.waitFor("the params the block got", func() bool {
+		for _, c := range e.Fake.Calls() {
+			if strings.Contains(c.Prompt, `\"mode\":\"voice\"`) && strings.Contains(c.Prompt, `\"kind\":\"video\"`) {
+				return true
+			}
+		}
+		return false
+	})
+}
+
 // customPicture is a custom block that shows a picture of the data folder of its module by MCP Apps resources/read
 // and tries a stored file of another module, then reports both.
 const customPicture = `<!doctype html><html><body><img id="pic"><script type="module">

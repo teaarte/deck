@@ -258,7 +258,9 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   "source": …, "actions": […]}`. It runs without network, in a frame of an origin of its own (no storage, no
   cookies, no reach into deck's page) and without frames: HTML that names `iframe`, `frame`, `object` or `embed`
   anywhere, even in a string, shows only a refusal, and making one at run time throws. `import { App } from "/ext-apps.js"`, the items of its
-  source and the page's record arrive in `app.ontoolresult` (`structuredContent.items`, `.record`), and
+  source, the page's record and the block's `params` arrive in `app.ontoolresult` (`structuredContent.items`,
+  `.record`, `.params`): `"params": {"mode": "voice", "title": "=title"}` takes fixed text or `=<expression>` like
+  `values` of a form, so one HTML serves two screens with their own settings instead of two near copies; and
   `app.callServerTool({name: "<project>.<command>", arguments})` calls only the commands of its `actions` (the
   button whose fixed `params` the arguments do not contradict; any but an internal command waits for the owner's yes,
   one at a time). A window opens on the host, not inside the frame: `app.openLink({url: "#/p/<project>/<screen>?dialog=<name>"})`

@@ -2,89 +2,95 @@
 
 # deck
 
-**A personal control panel for AI agents.**
-Give your models a desk, tools, data and limits — then just watch the work get done.
+### Your own team of AI agents — and one place to run it.
+
+Hand your routines to agents. They work on schedule, in the background, on your machine.
+You only step in when something needs your **yes**.
 
 ![Go](https://img.shields.io/badge/Go-1.27-00ADD8?logo=go&logoColor=white)
 ![SQLite](https://img.shields.io/badge/SQLite-one_file-003B57?logo=sqlite&logoColor=white)
-![React](https://img.shields.io/badge/client-React_+_Mantine-61DAFB?logo=react&logoColor=black)
 ![MCP](https://img.shields.io/badge/MCP-native-black)
+![PWA](https://img.shields.io/badge/phone-PWA-5A0FC8)
+
+<img src="docs/screenshots/cockpit.png" alt="The cockpit of deck: one decision waits for your yes, two agents at work, notes of what was done" width="900">
 
 </div>
 
 ---
 
-Most agent tools want you to babysit a chat. **deck** turns agents into workers: each line of your routine —
-code, mail, research, markets, video — becomes a **module** with its own data, commands, schedule and screens. Agents do the work; you review, approve and steer from one cockpit on your laptop or phone.
+## What is deck?
 
-It is a thin layer around smart models, not a framework that thinks for them. **The less of our own code, the
-better:** what a model can do with a script or an agent stays out of the core. As models get smarter, deck gets
-more capable without a release.
+Chat assistants wait for you to type. **deck makes agents work for you.**
 
-## What you get
+Every routine you have (the inbox, a market you follow, pull requests, research, videos for your channel) becomes
+a **module**: a small app with its own data, buttons, schedule and screens. Agents such as Claude Code and Codex
+do the work in their own sandbox, and deck shows you the result.
 
-- **One binary, one folder.** Go server + SQLite + embedded web client. No queues, no cloud, no ops.
-- **Bring any agent.** Claude Code, Codex, and ACP agents (Goose) on any OpenAI-compatible model —
-  each run isolated in its own sandbox and folder.
-- **Modules are manifests, not code.** A JSON manifest declares collections, commands, scripts, triggers,
-  screens and rights. Prompts and skills are documents the master agent can edit.
-- **A master agent you talk to.** Chat or voice: it routes tasks to the right module, builds new modules from an
-  interview, looks into failures and keeps a memory of what you told it.
-- **You stay in charge.** Every action is a registry command with a class; widening rights, external calls and
-  spending wait for your yes. Everything done without you lands in a feed with an undo.
-- **Screens are data.** UI is server-driven ([A2UI](https://github.com/google/A2UI)) from a block catalog —
-  tables, lists, forms, charts, media. What the catalog lacks, a model writes as an MCP App.
-- **Works where you are.** Installable PWA, push notifications, share-to-deck, and your own tailnet over
-  HTTPS with one flag.
+You open the **cockpit** in the morning and see what was done, what is running, and the one or two things that
+wait for your decision. One tap, and the agents carry on.
 
-## How it works
+## Why you'll like it
 
-```mermaid
-flowchart LR
-  you([You]) -- chat · voice · buttons --> cockpit[Cockpit<br/>PWA]
-  cockpit --> registry{{Command registry}}
-  master[Master agent] --> registry
-  triggers[Schedules & triggers] --> registry
-  registry --> runner[Runner]
-  runner --> agents[Agents<br/>Claude Code · Codex · ACP]
-  runner --> scripts[Scripts<br/>sandboxed]
-  agents & scripts -- MCP gateway --> registry
-  registry --> db[(SQLite)]
-```
+- **It works while you don't.** Modules run on schedule: the inbox sorted at 8:00, the market read at 7:30, pull
+  requests reviewed every two hours. You come back to results, not to a blank chat.
+- **Nothing important happens without you.** Sending a mail, spending money, reaching a new site: deck asks first.
+  Everything else is in the feed, and much of it can be undone.
+- **Just say what you need.** Talk to **Deki**, the master agent, in chat or by voice. It sends a task to the
+  right module, builds a new module from a short interview, looks into what failed, and remembers what you told it.
+- **Any model, your choice, right in the row.** Claude, GPT, Gemini, open models on OpenRouter or your own machine.
+  Pick the model of each command from a dropdown, see what it costs, and keep a subscription apart from the money
+  you pay.
+- **Yours, on your machine.** One program, one folder. No cloud account, no subscription to deck, no data leaving
+  unless you allow it.
+- **In your pocket.** Install it on your phone as an app. Get a push when something waits for you, share a file
+  or a link straight into a module, and reach it from anywhere over your own Tailscale network.
 
-One door for everything: buttons, the master, schedules, scripts and agents all call the same commands through
-the same gateway — so rights, limits and the journal are enforced in one place.
+## A look inside
 
-A module in a few lines:
+<table>
+<tr>
+<td width="50%"><img src="docs/screenshots/board.png" alt="An inbox module as a board"><br><sub><b>A module as a board.</b> The inbox,
+sorted by an agent; drag a card to change its lane.</sub></td>
+<td width="50%"><img src="docs/screenshots/module.png" alt="A market module with stats, a chart and a table"><br><sub><b>Your own dashboards.</b>
+Numbers, charts and tables of a module, drawn from its data.</sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/screenshots/models.png" alt="The models of every command, picked in its row"><br><sub><b>Every model in one table.</b>
+Change the model of any command right in its row.</sub></td>
+<td width="50%" align="center"><img src="docs/screenshots/phone.png" alt="The cockpit on a phone" width="260"><br><sub><b>On your phone.</b>
+The same cockpit, with pushes and sharing.</sub></td>
+</tr>
+</table>
 
-```json
-{
-  "version": 6,
-  "commands": [{
-    "name": "digest", "title": "Morning digest", "class": "internal",
-    "description": "Reads the sources and writes a short digest.",
-    "input": {"type": "object"},
-    "executor": {"type": "agent", "prompt": "Read my sources and write today's digest."}
-  }],
-  "triggers": [{"command": "digest", "cron": "0 9 * * *"}]
-}
-```
+## What people run on it
+
+| Module | What the agents do |
+|---|---|
+| **Inbox** | Sort mail every morning, draft replies, and send only what you approve. |
+| **Market watch** | Read prices and news, write calls with their confidence, and check them later. |
+| **Code review** | Review open pull requests, work on cards in your repo, and hand them back for review. |
+| **Research** | Follow sources, collect what is new, and write a short digest. |
+| **Video studio** | Write a script, voice it, and assemble a short clip with local or cloud models. |
+
+You don't write code for a module. Tell Deki what you want, answer a few questions, and it builds the module, a
+manifest with prompts and screens. You review what the module may do and enable it. Modules can be **exported to
+a file and shared**; whoever installs one sees everything it is allowed to do first.
 
 ## Quick start
 
 ```bash
 go build -o deck ./cmd/deck
-DECK_HOME=~/.deck ./deck            # prints the URL with your access token
-./deck -tailscale deck              # same, on your tailnet over HTTPS
+./deck                       # prints the address to open, with your access token (data in ~/.deck2)
+./deck -tailscale deck       # or on your own tailnet, over HTTPS, from any device
 ```
 
-You need Go 1.27 and at least one agent CLI on the machine (`claude` or `codex`). The web client is prebuilt into
-the binary; rebuild it with `cd web && npm ci && npm run build`.
+You need macOS or Linux, Go 1.27, and an agent CLI on the machine (`claude` or `codex`); add any other model
+in Settings → Models. Updating is just replacing the binary: your data and modules carry over.
 
 ## Under the hood
 
-Go · SQLite (sqlc, goose) · MCP · React + Vite + Mantine · `sandbox-exec` on macOS, bubblewrap on Linux ·
-tsnet. Tested by scenario tests through the real gateway, plus real-browser runs with Playwright.
+One Go binary with SQLite and the web client inside, MCP between agents and deck, every run in a sandbox. How it
+is built, what a module looks like, and how to build and test it: **[docs/architecture.md](docs/architecture.md)**.
 
 <div align="center">
 <sub>A personal project, built in the open. Ideas and issues are welcome.</sub>

@@ -294,8 +294,7 @@ func ordered(v any, was []byte) []byte {
 			if len(out) > 1 {
 				out = append(out, ',')
 			}
-			name, _ := json.Marshal(k)
-			out = append(append(append(out, name...), ':'), ordered(x, old[k])...)
+			out = append(append(append(out, JSON(k, "")...), ':'), ordered(x, old[k])...)
 		}
 		return append(out, '}')
 	case []any:
@@ -314,11 +313,7 @@ func ordered(v any, was []byte) []byte {
 		}
 		return append(out, ']')
 	}
-	var buf bytes.Buffer
-	enc := json.NewEncoder(&buf)
-	enc.SetEscapeHTML(false)
-	_ = enc.Encode(v)
-	return bytes.TrimRight(buf.Bytes(), "\n")
+	return JSON(v, "")
 }
 
 // keysOf are the keys of a JSON object in the order they are written.

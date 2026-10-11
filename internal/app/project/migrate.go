@@ -185,7 +185,7 @@ func applyMigration(ctx context.Context, q *db.Queries, now string, projectID in
 		if err != nil {
 			return err
 		}
-		b, _ := json.Marshal(data)
+		b := manifest.JSON(data, "")
 		if existing[r.ID] {
 			err = q.PutRecord(ctx, db.PutRecordParams{Key: key, Data: string(b), Now: now, ID: r.ID})
 		} else {

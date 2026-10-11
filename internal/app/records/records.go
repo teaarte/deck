@@ -87,7 +87,7 @@ func upsert(ctx context.Context, q *db.Queries, now time.Time, projectID, proces
 			case !errors.Is(err, sql.ErrNoRows):
 				return err
 			}
-			data, _ := json.Marshal(r)
+			data := manifest.JSON(r, "")
 			rec, err := q.UpsertRecord(ctx, db.UpsertRecordParams{ProjectID: projectID, Collection: collection, Key: key, Data: string(data), Now: store.Time(now),
 				ProcessID: store.ID(process)})
 			if err != nil {
@@ -122,7 +122,7 @@ func Update(ctx context.Context, q *db.Queries, now time.Time, rec db.Record, m 
 			return registry.Invalid("deck: %v", err)
 		}
 	}
-	b, _ := json.Marshal(data)
+	b := manifest.JSON(data, "")
 	n, err := q.UpdateRecordData(ctx, db.UpdateRecordDataParams{Data: string(b), Now: store.Time(now), ID: rec.ID, ProjectID: rec.ProjectID, Collection: rec.Collection, Key: rec.Key})
 	if err != nil {
 		return err
@@ -271,8 +271,7 @@ func only(data json.RawMessage, fields []string) json.RawMessage {
 			kept[f] = v
 		}
 	}
-	b, _ := json.Marshal(kept)
-	return b
+	return manifest.JSON(kept, "")
 }
 
 // writeRecords runs a record write in one transaction with the manifest it validates against, so a manifest

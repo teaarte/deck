@@ -150,3 +150,23 @@ func TestRefusalsSayWhereAndWhatToDo(t *testing.T) {
 		t.Fatalf("the overlap quotes old text 1: %d %s", code, out)
 	}
 }
+
+// TestAManifestStoredWithEscapedAmpersandsChangesByItsCharacters: a manifest stored with & as \u0026 changes by an
+// old part with a literal &, and is stored with & as it is.
+func TestAManifestStoredWithEscapedAmpersandsChangesByItsCharacters(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, nil)
+	e.createProject("web", webNotes)
+	escaped := strings.Replace(webNotes, `"title": "Notes"`, `"title": "Notes \u0026 links \u003cold\u003E", "description": "a \\u0026 b"`, 1)
+	if _, err := e.App.Store.DB.Exec(`UPDATE document_revision SET text = ?
+		WHERE document_id IN (SELECT id FROM document WHERE kind = 'manifest' AND project_id = (SELECT id FROM project WHERE name = 'web'))`, escaped); err != nil {
+		t.Fatal(err)
+	}
+	e.must("deck.manifest_save", map[string]any{"project": "web", "reason": "rename",
+		"old": []string{`"title": "Notes & links <old>"`}, "new": []string{`"title": "Notes & more"`}}, nil)
+	var m struct{ Manifest string }
+	e.must("deck.manifest_get", map[string]any{"project": "web"}, &m)
+	if !strings.Contains(m.Manifest, `"title": "Notes & more", "description": "a \\u0026 b"`) || strings.Contains(m.Manifest, `\u0026 more`) {
+		t.Fatalf("the old part matches the escaped text, the escaped backslash stays, and the manifest is stored with &:\n%s", m.Manifest)
+	}
+}

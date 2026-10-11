@@ -104,8 +104,13 @@ func (sv *Saver) manifestSave(ctx context.Context, act registry.Actor, in manife
 		if err != nil {
 			return nil, err
 		}
-		if in.Manifest, err = docs.Edit(raised(r.Text), in.Old, in.New); err != nil {
-			return nil, err
+		text := raised(r.Text)
+		if in.Manifest, err = docs.Edit(text, in.Old, in.New); err != nil {
+			plain, perr := docs.Edit(manifest.Unescaped(text), in.Old, in.New)
+			if perr != nil {
+				return nil, err
+			}
+			in.Manifest = plain
 		}
 		in.IfRevision = d.Current
 	}
@@ -151,8 +156,8 @@ type parsed struct {
 	text []byte
 }
 
-// parseManifest validates a manifest and returns the text to store, upgraded to the current format; only the
-// built-in project answers events of deck.
+// parseManifest validates a manifest and returns the text to store, upgraded to the current format with &, < and >
+// unescaped; only the built-in project answers events of deck.
 func parseManifest(raw []byte, builtin bool) (parsed, error) {
 	m, err := manifest.Parse(raw)
 	if err != nil {
@@ -166,7 +171,7 @@ func parseManifest(raw []byte, builtin bool) (parsed, error) {
 			return parsed{}, registry.Invalid("deck: a trigger on %s belongs to the built-in project %s", t.On, master.Name)
 		}
 	}
-	return parsed{m: m, text: m.Text()}, nil
+	return parsed{m: m, text: []byte(manifest.Unescaped(string(m.Text())))}, nil
 }
 
 // CreateProject validates the manifest, stores it and the prompt as first revisions and registers triggers.

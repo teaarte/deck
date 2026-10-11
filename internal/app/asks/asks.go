@@ -19,6 +19,7 @@ import (
 	"deck2/internal/ask"
 	"deck2/internal/docs"
 	"deck2/internal/gateway"
+	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
@@ -375,7 +376,7 @@ func (s *Service) addToList(ctx context.Context, act registry.Actor, p db.Projec
 		return nil
 	}
 	at[last] = append(list, value)
-	b, _ := json.MarshalIndent(doc, "", "  ")
+	b := manifest.JSON(doc, "  ")
 	_, err = s.SaveManifest(ctx, act, p, b, "allow "+value+" always", 0, m.Revision, "", nil)
 	return err
 }

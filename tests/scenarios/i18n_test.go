@@ -28,7 +28,7 @@ func TestScreensAndTheMenuSpeakTheLanguageOfTheOwner(t *testing.T) {
 	var all []map[string]any
 	e.menuList(map[string]any{"lang": "ru"}, false, &all)
 	raw, _ := json.Marshal(all[len(all)-1])
-	if !strings.Contains(string(raw), `"title":"Веб-заметки"`) || !strings.Contains(string(raw), `"title":"Веб"`) || !strings.Contains(string(raw), "Документы") {
+	if !strings.Contains(string(raw), `"title":"Веб-заметки"`) || !strings.Contains(string(raw), `"title":"Веб"`) || !strings.Contains(string(raw), `"title":"Файлы"`) {
 		t.Fatalf("a project's screens take its translations, deck's screens of a project deck's: %s", raw)
 	}
 	drawn, _ := json.Marshal(e.screenMessages("web", "main", map[string]any{"lang": "ru"}))

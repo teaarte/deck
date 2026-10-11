@@ -1,7 +1,7 @@
 {
   "name": "documents",
-  "icon": "files",
-  "title": "Documents",
+  "icon": "folder",
+  "title": "Files",
   "blocks": [
     {"type": "table", "title": "Documents", "source": {"from": "deck.documents_list", "input": {"with_deleted": true}, "sort": "name"}, "filter": ["kind"],
       "columns": [

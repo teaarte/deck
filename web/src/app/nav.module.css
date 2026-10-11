@@ -94,8 +94,7 @@ a.groupHead {
 }
 
 .group:hover .extras,
-.group:focus-within .extras,
-.extras:has([data-active]) {
+.group:focus-within .extras {
   opacity: 1;
 }
 

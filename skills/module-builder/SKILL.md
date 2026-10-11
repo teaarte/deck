@@ -337,7 +337,8 @@ A script reads its input JSON from stdin and prints its result JSON to stdout. I
   host (`hf.co` takes its subdomains too) or `host:port`, never a URL or a public suffix such as `co.uk`; a name
   reaches only public addresses, so a service on the owner's machine or network is named by its IP or IP:port;
 - models through `$DECK_MODELS/<connection>/<API path>` with `Authorization: Bearer $DECK_TOKEN` (an OpenAI SDK
-  takes it as its base URL with the token as its key): deck puts in the key and keeps the call. The request names
+  takes it as its base URL with the token as its key): deck puts in the key and keeps the call; `deck.models_list`
+  gives the connections and models of deck's settings and what is assigned to the workspace and this project. The request names
   one model of deck's settings as the API knows it — `model` of a JSON body or a form, the path of Google's API,
   or, for a `raw` service whose API has no such field, the header `X-Deck-Model` — and anything else is refused:
   another model, OpenRouter's `models` or `route`, and on an `openai`, `google` or `anthropic` connection any path

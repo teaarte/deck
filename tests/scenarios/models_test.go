@@ -24,15 +24,8 @@ type modelsOut struct {
 		Status  string `json:"status"`
 		Error   string `json:"error"`
 	} `json:"agents"`
-	Connections []struct {
-		Name   string `json:"name"`
-		API    string `json:"api"`
-		URL    string `json:"url"`
-		Key    string `json:"key"`
-		Local  bool   `json:"local"`
-		Models int    `json:"models"`
-	} `json:"connections"`
-	Models []struct {
+	Connections []modelsOutConnection `json:"connections"`
+	Models      []struct {
 		Builtin    bool     `json:"builtin"`
 		Name       string   `json:"name"`
 		Connection string   `json:"connection"`
@@ -51,6 +44,15 @@ type modelsOut struct {
 		Models  []string `json:"models"`
 		Using   string   `json:"using"`
 	} `json:"assignments"`
+}
+
+type modelsOutConnection struct {
+	Name   string `json:"name"`
+	API    string `json:"api"`
+	URL    string `json:"url"`
+	Key    string `json:"key"`
+	Local  bool   `json:"local"`
+	Models int    `json:"models"`
 }
 
 // TestTheProvidersOfABaseFromBeforeAreConnectionsModelsAndAssignments: the providers stored as on the owner's machine,
@@ -718,5 +720,52 @@ func TestTheSettingsOfAModuleShowTheModelsOfItsWork(t *testing.T) {
 	rows := blockData[[]screenRow](t, e.screenBlock("shorts", "settings", "Models of its work", nil)["rows"])
 	if len(rows) != 1 || fmt.Sprint(rows[0].Cells...) != "imageevery commandlocal-image → cloud-imagelocal-image" {
 		t.Fatalf("the settings of a module show the models of its work and only its own: %+v", rows)
+	}
+}
+
+// TestAModuleScriptReadsTheModelsOfDeck: a script of a module reads the models of deck and their assignments to the
+// workspace and its own project, without the secrets connections keep their keys in.
+func TestAModuleScriptReadsTheModelsOfDeck(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, nil)
+	e.must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": "https://openrouter.ai/api/v1", "key": "sk-or-hidden"}, nil)
+	e.must("deck.model_set", map[string]any{"connection": "openrouter", "model": "qwen", "kind": "text", "call_usd": 0.01}, nil)
+	e.must("deck.model_set", map[string]any{"connection": "openrouter", "model": "painter", "kind": "image", "call_usd": 0.02}, nil)
+	e.createProject("shorts", scriptManifest("media", "", ""))
+	e.createProject("plain", plainManifest)
+	e.must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"openrouter/qwen"}}, nil)
+	e.must("deck.assignment_set", map[string]any{"role": "image", "project": "shorts", "models": []string{"openrouter/painter"}}, nil)
+	e.must("deck.assignment_set", map[string]any{"role": "image", "project": "plain", "models": []string{"openrouter/painter"}}, nil)
+	e.saveScript("shorts", "scripts/main.py", pythonLib+`
+status, out = deck("deck.models_list", {})
+print(json.dumps({"status": status, "out": out}))
+`)
+	got := e.waitScript(e.start("shorts", "media", nil), "done", "error")
+	var res struct {
+		Status int
+		Out    modelsOut
+	}
+	if json.Unmarshal(got.Result, &res) != nil || res.Status != 200 {
+		t.Fatalf("a script of a module reads the models of deck: %+v %s", got, got.Result)
+	}
+	var models []string
+	for _, m := range res.Out.Models {
+		models = append(models, m.Name)
+	}
+	if !slices.Contains(models, "openrouter/qwen") || !slices.Contains(models, "openrouter/painter") {
+		t.Fatalf("the models of deck are listed: %v", models)
+	}
+	i := slices.IndexFunc(res.Out.Connections, func(c modelsOutConnection) bool { return c.Name == "openrouter" })
+	if i < 0 || res.Out.Connections[i].Key != "secret" || strings.Contains(string(got.Result), "key_secret") ||
+		strings.Contains(string(got.Result), "sk-or-hidden") {
+		t.Fatalf("a module learns that a connection has a key, not where deck keeps it: %s", got.Result)
+	}
+	var where []string
+	for _, a := range res.Out.Assignments {
+		where = append(where, a.Role+":"+a.Project)
+	}
+	slices.Sort(where)
+	if !slices.Equal(where, []string{"image:shorts", "stt:", "text:"}) {
+		t.Fatalf("a module sees the assignments of the workspace and its own, not of other projects: %v", where)
 	}
 }

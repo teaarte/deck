@@ -96,8 +96,11 @@ func (s *Service) modelsList(ctx context.Context, act registry.Actor, in modelsL
 		if strings.ContainsAny(c.Url, "@?#") {
 			v.URL = "(an address with a key in it; set it again without)"
 		}
-		if c.KeySecret != "" {
+		switch {
+		case c.KeySecret != "" && act.OwnerSide():
 			v.Key, v.KeySecret = "secret "+c.KeySecret, c.KeySecret
+		case c.KeySecret != "":
+			v.Key = "secret"
 		}
 		for _, m := range models {
 			if m.Model.ConnectionID == c.ID {
@@ -124,8 +127,15 @@ func (s *Service) modelsList(ctx context.Context, act registry.Actor, in modelsL
 	if err != nil {
 		return out, err
 	}
+	own := ""
+	if p, err := s.St.Q.GetProject(ctx, act.ProjectID); err == nil && act.Confined() {
+		own = p.Name
+	}
 	for _, r := range rows {
 		if in.Project != "" && r.Project != in.Project {
+			continue
+		}
+		if act.Confined() && r.Project != "" && r.Project != own {
 			continue
 		}
 		v := assignmentView{Project: r.Project, Command: r.Command, Role: r.Role}

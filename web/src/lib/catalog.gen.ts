@@ -522,6 +522,10 @@ export interface CustomValue {
   html: string;
   items?: {}[];
   record?: {};
+  /**
+   * The module whose files the block reads; none on a screen of deck
+   */
+  project?: string;
   name?: string;
   /**
    * Bytes of the HTML, given in its place to a viewer other than the owner

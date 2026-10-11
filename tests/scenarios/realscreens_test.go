@@ -1,9 +1,12 @@
 package scenarios
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"image"
+	"image/png"
 	"net"
 	"net/http"
 	"os"
@@ -15,6 +18,7 @@ import (
 	"time"
 
 	"deck2/internal/app"
+	deckhome "deck2/internal/home"
 	"deck2/internal/sandbox"
 
 	"deck2/internal/provider"
@@ -553,6 +557,51 @@ func TestRealBrowserCustomBlockOpensWindowsOfDeck(t *testing.T) {
 	e.waitFor("the report of the block", func() bool {
 		for _, c := range e.Fake.Calls() {
 			if strings.Contains(c.Prompt, `\"outside\":true`) && strings.Contains(c.Prompt, `\"mode\":\"fullscreen\"`) {
+				return true
+			}
+		}
+		return false
+	})
+}
+
+// customPicture is a custom block that shows a picture of the data folder of its module by MCP Apps resources/read
+// and tries a stored file of another module, then reports both.
+const customPicture = `<!doctype html><html><body><img id="pic"><script type="module">
+import { App } from "/ext-apps.js";
+const app = new App({ name: "picture", version: "1" });
+await app.connect();
+const url = async (uri) => { const c = (await app.readServerResource({ uri })).contents[0];
+  return URL.createObjectURL(new Blob([Uint8Array.from(atob(c.blob), (x) => x.charCodeAt(0))], { type: c.mimeType })); };
+const pic = document.getElementById("pic");
+pic.src = await url("deck://data/pics/dot.png");
+await pic.decode();
+const other = await url("deck://file/%d").then(() => "read", (e) => "refused: " + e.message);
+await app.callServerTool({ name: "web.mark", arguments: { text: JSON.stringify({ width: pic.naturalWidth, other }) } });
+</script></body></html>`
+
+// TestRealBrowserCustomBlockShowsAPictureOfItsModule: a custom block shows a picture from the data folder of its
+// module, and cannot open a file of another module.
+func TestRealBrowserCustomBlockShowsAPictureOfItsModule(t *testing.T) {
+	if os.Getenv("DECK_REAL_BROWSER") == "" {
+		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
+	}
+	checkBuiltClient(t)
+	e := newEnv(t, webNotesAgent())
+	p := e.createProject("web", webNotes)
+	e.createProject("other", plainManifest)
+	theirs := e.upload("other", "theirs.png", "image/png", "theirs")
+	var pic bytes.Buffer
+	_ = png.Encode(&pic, image.NewRGBA(image.Rect(0, 0, 3, 2)))
+	data := deckhome.Layout(e.App.Cfg.Home).Data(p)
+	_ = os.MkdirAll(filepath.Join(data, "pics"), 0o700)
+	_ = os.WriteFile(filepath.Join(data, "pics", "dot.png"), pic.Bytes(), 0o600)
+	e.must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": fmt.Sprintf(customPicture, theirs)}, nil)
+	b := newPlaywright(t)
+	b.open(e.URL + "/?token=" + token + "#/p/web/main")
+	b.until("the custom block", `document.querySelector('iframe[data-custom]')`)
+	e.waitFor("the report of the block", func() bool {
+		for _, c := range e.Fake.Calls() {
+			if strings.Contains(c.Prompt, `\"width\":3`) && strings.Contains(c.Prompt, `\"other\":\"refused: `) {
 				return true
 			}
 		}

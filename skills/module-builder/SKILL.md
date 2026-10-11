@@ -266,6 +266,11 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   one at a time). A window opens on the host, not inside the frame: `app.openLink({url: "#/p/<project>/<screen>?dialog=<name>"})`
   opens a dialog or page of deck (a page outside deck is refused), and `app.requestDisplayMode({mode: "fullscreen"})`
   gives the frame the whole screen before its own `<dialog>`.
+  A picture, video or audio of the module comes by `app.readServerResource({uri})`: `deck://data/<path>` a file of
+  its data folder (each part URL-escaped), `deck://file/<id>` a stored file of the module; `contents[0]` holds the
+  file whole in base64 `blob` with its `mimeType`, up to 50 MB. Show it by a `blob:` URL
+  (`URL.createObjectURL(new Blob([Uint8Array.from(atob(c.blob), (x) => x.charCodeAt(0))], {type: c.mimeType}))`);
+  an `src` of `/api/files/…` or of the web never loads, and a file of another module is refused.
   Its colors, fonts and corners are the host's: `app.getHostContext()` and `app.onhostcontextchanged` give
   `theme` (`light`/`dark`) and `styles.variables` by MCP Apps names (`--color-background-primary`,
   `--color-text-primary`, `--color-text-secondary`, `--color-border-primary`, `--color-ring-primary` for the

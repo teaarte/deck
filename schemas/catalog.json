@@ -240,7 +240,7 @@
     },
     "custom": {
       "description": "An MCP App: HTML of a custom/ document, fed by its source, pressing only its buttons.",
-      "block": {"description": "Needs document, a custom/ document with its HTML; its buttons call commands, app.openLink opens a screen or dialog of deck (never a page outside), app.requestDisplayMode fullscreen gives it the whole screen.", "required": ["document"], "properties": {"document": {"type": "string", "pattern": "^custom/"}, "source": {"$ref": "#/$defs/source"}, "actions": {"type": "array", "items": {"allOf": [{"$ref": "#/$defs/action"}, {"required": ["command"], "not": {"required": ["screen"]}}]}}}},
+      "block": {"description": "Needs document, a custom/ document with its HTML; its buttons call commands, app.openLink opens a screen or dialog of deck (never a page outside), app.requestDisplayMode fullscreen gives it the whole screen, app.readServerResource({uri}) reads a file of its module whole (up to 50 MB) as contents[0].blob in base64 with its mimeType — deck://data/<path> of its data folder or deck://file/<id> a stored file, never one of another module; it shows one as a blob: or data: URL, the network stays closed.", "required": ["document"], "properties": {"document": {"type": "string", "pattern": "^custom/"}, "source": {"$ref": "#/$defs/source"}, "actions": {"type": "array", "items": {"allOf": [{"$ref": "#/$defs/action"}, {"required": ["command"], "not": {"required": ["screen"]}}]}}}},
       "type": "object",
       "additionalProperties": false,
       "required": ["data"],
@@ -320,7 +320,7 @@
           "revision": {"type": "integer"}, "author": {"type": "string"}, "reason": {"type": "string"}, "created_at": {"type": "string"}}}}}},
       "custom": {"type": "object", "additionalProperties": false, "required": ["html", "actions"], "properties": {
         "html": {"type": "string"}, "items": {"type": "array", "items": {"type": "object"}}, "record": {"type": "object"},
-        "name": {"type": "string"}, "size": {"type": "integer", "description": "Bytes of the HTML, given in its place to a viewer other than the owner"},
+        "project": {"type": "string", "description": "The module whose files the block reads; none on a screen of deck"}, "name": {"type": "string"}, "size": {"type": "integer", "description": "Bytes of the HTML, given in its place to a viewer other than the owner"},
         "actions": {"type": "array", "items": {"$ref": "#/$defs/action"}}}},
       "chat": {"type": "object", "additionalProperties": false, "required": ["topics", "archived", "messages", "questions", "send"], "properties": {
         "topic": {"$ref": "#/$defs/topic"}, "topics": {"type": "array", "items": {"$ref": "#/$defs/topic"}},

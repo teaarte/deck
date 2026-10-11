@@ -28,8 +28,6 @@ type Manifest struct {
 	I18n      map[string]map[string]string `json:"i18n,omitempty"`
 	Reads     []Read                       `json:"reads,omitempty"`
 	NoNetwork bool                         `json:"no_network,omitempty"`
-	// MasterErrors off keeps the failed processes of the project from the master; absent is on.
-	MasterErrors *bool `json:"master_errors,omitempty"`
 	// Models are the connections, models and @roles the project calls models through, besides its commands of
 	// type model.
 	Models []string `json:"models,omitempty"`
@@ -71,15 +69,14 @@ func (m *Manifest) Uses() []string {
 }
 
 type Collection struct {
-	Name              string          `json:"name"`
-	Description       string          `json:"description"`
-	Schema            json.RawMessage `json:"schema"`
-	Key               string          `json:"key"`
-	Display           string          `json:"display,omitempty"`
-	Immutable         []string        `json:"immutable,omitempty"`
-	RetentionDays     int             `json:"retention_days,omitempty"`
-	FileRetentionDays int             `json:"file_retention_days,omitempty"`
-	Migration         string          `json:"migration,omitempty"`
+	Name          string          `json:"name"`
+	Description   string          `json:"description"`
+	Schema        json.RawMessage `json:"schema"`
+	Key           string          `json:"key"`
+	Display       string          `json:"display,omitempty"`
+	Immutable     []string        `json:"immutable,omitempty"`
+	RetentionDays int             `json:"retention_days,omitempty"`
+	Migration     string          `json:"migration,omitempty"`
 	// Folder is the folder of a record in the data folder, an expression such as 'videos/' + slug; it goes with
 	// the record. Parent names the collection a record belongs to and the key of its record there.
 	Folder string  `json:"folder,omitempty"`
@@ -376,14 +373,11 @@ type Item struct {
 	Meta  string `json:"meta,omitempty"`
 	// Since is an expression giving the time a line counts from, shown as how long ago.
 	Since string `json:"since,omitempty"`
-	// Icon is an expression giving the icon of a line; Image one giving a picture of it, as File does.
-	Icon  string `json:"icon,omitempty"`
-	Image string `json:"image,omitempty"`
+	// Icon is an expression giving the icon of a line.
+	Icon string `json:"icon,omitempty"`
 	// Details is text shown in full on demand; Questions are questions the owner answers in a picker.
 	Details   string `json:"details,omitempty"`
 	Questions string `json:"questions,omitempty"`
-	// Markdown says the text of each line is markdown.
-	Markdown bool `json:"markdown,omitempty"`
 	// Tone is an expression over the line: ok, warn, error or muted.
 	Tone string `json:"tone,omitempty"`
 	// File is the file of a line of a media block: a stored file id or a path in the data folder.
@@ -402,9 +396,7 @@ type Source struct {
 	// Input is the input of the command; a text "=<expression>" is read over the record of the page.
 	Input map[string]any `json:"input,omitempty"`
 	// Rows names the list in the result of a command that gives an object.
-	Rows string `json:"rows,omitempty"`
-	// Project is another project the manifest reads; empty is the project itself.
-	Project    string `json:"project,omitempty"`
+	Rows       string `json:"rows,omitempty"`
 	Collection string `json:"collection,omitempty"`
 	Where      string `json:"where,omitempty"`
 	Sort       string `json:"sort,omitempty"`
@@ -425,7 +417,7 @@ type Column struct {
 	Details string `json:"details,omitempty"`
 }
 
-// Action is a button. Params, Screen, Record, Project, File and Until take a fixed value or "=<expression>" over
+// Action is a button. Params, Screen, Record, Project and Until take a fixed value or "=<expression>" over
 // the item the button is on.
 type Action struct {
 	// Label is the text of the button; Verb names a built-in label the client translates.
@@ -438,8 +430,6 @@ type Action struct {
 	// Record is the record a move to a screen opens, the item by default; Project the project of that screen.
 	Record  string `json:"record,omitempty"`
 	Project string `json:"project,omitempty"`
-	// File is a stored file the button downloads instead.
-	File string `json:"file,omitempty"`
 	// When shows the button only on the items it holds for; Until is the time after which it is gone.
 	When  string `json:"when,omitempty"`
 	Until string `json:"until,omitempty"`

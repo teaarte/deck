@@ -493,14 +493,14 @@ print(json.dumps({"status": fetch(json.load(sys.stdin)["allowed"])}))
 	e.createProject("source", sourceManifest)
 	e.must("deck.records_upsert", map[string]any{"project": "source", "collection": "items", "records": `{"name": "a"}`}, nil)
 	reads := `, "reads": [{"project": "source", "collections": ["items"]}],
-  "screens": [{"name": "main", "title": "Items", "blocks": [{"type": "table", "source": {"project": "source", "collection": "items"},
-    "columns": [{"label": "Name", "bind": "name"}]}]}]`
+  "screens": [{"name": "main", "title": "Items", "blocks": [{"type": "table", "source": {"from": "deck.records_list", "input": {"project": "source", "collection": "items"}},
+    "columns": [{"label": "Name", "bind": "data.name"}]}]}]`
 	var peek struct{ ID int64 }
 	if code, out := e.callWith(tok, "deck.project_create", map[string]any{"name": "peek", "manifest": readerManifest(reads)}); code != 200 || json.Unmarshal(out, &peek) != nil {
 		t.Fatalf("project_create: %d %s", code, out)
 	}
 	e.names[peek.ID] = "peek"
-	if b0 := e.screenData("peek", "main", nil)["b0"]; b0["rows"] != nil || !strings.Contains(string(b0["error"]), "does not read source items") {
+	if b0 := e.screenData("peek", "main", nil)["b0"]; b0["rows"] != nil || !strings.Contains(string(b0["error"]), "does not read source") {
 		t.Fatalf("a draft reads no other project: %s", b0)
 	}
 

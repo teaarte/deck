@@ -50,8 +50,8 @@ func TestReadsLetAProjectReadAnotherButNeverWriteIt(t *testing.T) {
 		e.must("deck.document_save", map[string]any{"project": "source", "name": n, "kind": "doc", "text": "text of " + n}, nil)
 	}
 	reads := `, "reads": [{"project": "source", "collections": ["items"], "documents": ["notes/shared.md"]}],
-  "screens": [{"name": "main", "title": "Items", "blocks": [{"type": "table", "source": {"project": "source", "collection": "items"},
-    "columns": [{"label": "Name", "bind": "name"}]}]}]`
+  "screens": [{"name": "main", "title": "Items", "blocks": [{"type": "table", "source": {"from": "deck.records_list", "input": {"project": "source", "collection": "items"}},
+    "columns": [{"label": "Name", "bind": "data.name"}]}]}]`
 	reader := e.createProject("reader", readerManifest(reads))
 	e.waitState(e.run(reader, "look"), "done")
 	stranger := e.createProject("stranger", readerManifest(""))
@@ -77,11 +77,6 @@ func TestReadsLetAProjectReadAnotherButNeverWriteIt(t *testing.T) {
 	check("stranger:doc", false, "does not read")
 	if rows := e.screenRows(reader, "main"); len(rows) != 1 || rows[0].Cells[0] != "a" {
 		t.Fatalf("a screen shows a collection of a project it reads: %v", rows)
-	}
-	bad := `, "screens": [{"name": "main", "title": "Items", "blocks": [{"type": "table", "source": {"project": "source", "collection": "private"},
-    "columns": [{"label": "Name", "bind": "name"}]}]}], "reads": [{"project": "source", "collections": ["items"]}]`
-	if code, out := e.call("deck.manifest_save", map[string]any{"project": "stranger", "manifest": readerManifest(bad)}); code != 422 || !strings.Contains(string(out), "not in reads") {
-		t.Fatalf("a screen source outside reads is refused: %d %s", code, out)
 	}
 }
 

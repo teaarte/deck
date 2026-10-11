@@ -22,12 +22,6 @@ func (c *screenCheck) source(where, typ string, src Source) ([]string, bool) {
 	}
 	var fields []string
 	switch {
-	case from == "collection" && src.Project != "":
-		if err := c.m.checkForeignSource(src); err != nil {
-			c.fail("%s source: %v", where, err)
-			return nil, false
-		}
-		return nil, true
 	case from == "collection":
 		col := c.m.collections[src.Collection]
 		if col == nil {
@@ -37,8 +31,8 @@ func (c *screenCheck) source(where, typ string, src Source) ([]string, bool) {
 		if col.fields != nil {
 			fields = append(slices.Clone(col.fields), "_id", "_updated")
 		}
-	case src.Collection != "" || src.Project != "":
-		c.fail("%s source: %s takes no collection or project", where, from)
+	case src.Collection != "":
+		c.fail("%s source: %s takes no collection", where, from)
 		return nil, false
 	case from == LogSource && c.screen.Record != DeckRecord:
 		c.fail("%s source: the log is read on a page of a process", where)

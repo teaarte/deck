@@ -80,10 +80,6 @@ export interface Action {
    * With a command, the result names a chat topic, which the client opens; alone, the button opens the chat of the master in a new topic.
    */
   chat?: boolean;
-  /**
-   * Stored file the button downloads instead of a call.
-   */
-  file?: number;
   undo?: Action1;
 }
 /**
@@ -130,10 +126,6 @@ export interface Action1 {
    * With a command, the result names a chat topic, which the client opens; alone, the button opens the chat of the master in a new topic.
    */
   chat?: boolean;
-  /**
-   * Stored file the button downloads instead of a call.
-   */
-  file?: number;
   undo?: Action1;
 }
 /**
@@ -257,15 +249,7 @@ export interface Data {
      * the time the line counts from, shown as how long ago
      */
     since?: string;
-    /**
-     * address of the picture of the line
-     */
-    image?: string;
     details?: string;
-    /**
-     * text is markdown
-     */
-    markdown?: boolean;
     tone?: Tone;
     questions?: {
       question: string;
@@ -361,10 +345,6 @@ export interface Action2 {
    * With a command, the result names a chat topic, which the client opens; alone, the button opens the chat of the master in a new topic.
    */
   chat?: boolean;
-  /**
-   * Stored file the button downloads instead of a call.
-   */
-  file?: number;
   undo?: Action1;
 }
 /**
@@ -411,10 +391,6 @@ export interface Action3 {
    * With a command, the result names a chat topic, which the client opens; alone, the button opens the chat of the master in a new topic.
    */
   chat?: boolean;
-  /**
-   * Stored file the button downloads instead of a call.
-   */
-  file?: number;
   undo?: Action1;
 }
 /**

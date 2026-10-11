@@ -44,13 +44,6 @@ export async function upload(project: string, files: File[]): Promise<Uploaded[]
   return JSON.parse(text) as Uploaded[];
 }
 
-// download saves a stored file through the browser; the token goes in the header, not in the address.
-export async function download(id: number): Promise<void> {
-  const r = await fetch('/api/files/' + id, { headers: { Authorization: 'Bearer ' + token() } });
-  if (!r.ok) throw new CommandError((await r.text()).trim() || r.statusText);
-  saveBlob(new Blob([await r.arrayBuffer()]), fileName(r.headers.get('Content-Disposition') ?? ''));
-}
-
 // saveBlob hands a file to the browser to keep under its name.
 export function saveBlob(blob: Blob, name: string) {
   const a = document.createElement('a');
@@ -67,11 +60,3 @@ export async function fetchFile(url: string): Promise<Blob> {
   return new Blob([await r.arrayBuffer()], { type: r.headers.get('Content-Type') ?? 'application/octet-stream' });
 }
 
-// fileName reads the name of Content-Disposition: percent-encoded in filename*, quoted or bare in filename.
-function fileName(disposition: string): string {
-  const encoded = /filename\*=utf-8''([^;]+)/i.exec(disposition);
-  if (encoded) return decodeURIComponent(encoded[1]);
-  const quoted = /filename="((?:[^"\\]|\\.)*)"/i.exec(disposition);
-  if (quoted) return quoted[1].replace(/\\(.)/g, '$1');
-  return /filename=([^;]+)/i.exec(disposition)?.[1].trim() ?? 'file';
-}

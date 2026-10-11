@@ -11,32 +11,27 @@ import { Lightbox } from './Lightbox';
 import { Thumb } from './Thumb';
 import s from './files.module.css';
 
-type View = { mode: 'grid' | 'list'; size: 's' | 'm' | 'l' };
+type View = { mode: 'grid' | 'list' };
 
-// TILES is the side of the picture of a tile of each size.
-const TILES = { s: 72, m: 120, l: 180 };
+// TILE is the side of the picture of a tile.
+const TILE = 120;
 
 // Browser shows many files as tiles or as a list, kept per device, and opens each in a lightbox.
 export function Browser({ items }: { items: Item[] }) {
   const { t } = useTranslation();
-  const [view, setView] = useLocalStorage<View>({ key: 'deck-files-view', defaultValue: { mode: 'grid', size: 'm' } });
+  const [view, setView] = useLocalStorage<View>({ key: 'deck-files-view', defaultValue: { mode: 'grid' } });
   const [at, setAt] = useState<number | null>(null);
-  const tile = TILES[view.size] ?? TILES.m;
   return (
     <Stack gap="sm" data-files={view.mode}>
       <Group gap="xs" justify="flex-end">
-        {view.mode === 'grid' && (
-          <SegmentedControl size="xs" value={view.size} onChange={(v) => setView({ ...view, size: v as View['size'] })} data-files-size
-            data={['s', 'm', 'l'].map((v) => ({ value: v, label: v.toUpperCase() }))} />
-        )}
-        <SegmentedControl size="xs" value={view.mode} onChange={(v) => setView({ ...view, mode: v as View['mode'] })} data-files-mode
+        <SegmentedControl size="xs" value={view.mode} onChange={(v) => setView({ mode: v as View['mode'] })} data-files-mode
           data={[{ value: 'grid', label: <IconLayoutGrid size={14} aria-label={t('files.grid')} /> }, { value: 'list', label: <IconList size={14} aria-label={t('files.list')} /> }]} />
       </Group>
       {view.mode === 'grid' ? (
-        <div className={s.grid} style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${tile + 16}px, 1fr))` }}>
+        <div className={s.grid} style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${TILE + 16}px, 1fr))` }}>
           {items.map((it, i) => (
             <UnstyledButton key={String(it.id) + i} className={s.tile} onClick={() => setAt(i)} data-item data-tile>
-              <Thumb it={it} size={tile} />
+              <Thumb it={it} size={TILE} />
               <Text size="xs" lineClamp={2} ta="center" style={{ overflowWrap: 'anywhere' }}>{it.title || it.name}</Text>
               {it.error && <Text size="xs" c="red" lineClamp={2} ta="center" data-media="error">{it.error}</Text>}
             </UnstyledButton>

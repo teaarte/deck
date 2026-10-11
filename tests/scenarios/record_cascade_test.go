@@ -456,11 +456,11 @@ func TestTheFolderOfADeletedProjectGoesEvenAfterACrash(t *testing.T) {
 }
 
 // TestARecordDeckCannotPlanKeepsRetentionRedInHealth: a folder deck cannot work out stops retention of the project,
-// which is red in its health once, and the files past their retention still go.
+// which is red in its health once.
 func TestARecordDeckCannotPlanKeepsRetentionRedInHealth(t *testing.T) {
 	t.Parallel()
 	e := newClockEnv(t, nil)
-	e.createProject("shorts", strings.Replace(cascadeModule, `"folder": "'videos/' + dir",`, `"folder": "'videos/' + dir", "retention_days": 30, "file_retention_days": 10,`, 1))
+	e.createProject("shorts", strings.Replace(cascadeModule, `"folder": "'videos/' + dir",`, `"folder": "'videos/' + dir", "retention_days": 30,`, 1))
 	ids := e.videos(map[string]any{"slug": "old", "dir": "old"}, map[string]any{"slug": "nodir"})
 	e.must("deck.file_upload", map[string]any{"project": "shorts", "name": "a.txt", "content": "YQ=="}, nil)
 	if _, err := e.App.Store.DB.Exec(`UPDATE file SET owner_kind = 'record', owner_id = ?`, ids["old"]); err != nil {
@@ -472,8 +472,8 @@ func TestARecordDeckCannotPlanKeepsRetentionRedInHealth(t *testing.T) {
 	_ = e.App.Store.DB.QueryRow(`SELECT count(*) FROM health WHERE subject = 'retention:shorts' AND status = 'error'`).Scan(&n)
 	var files int
 	_ = e.App.Store.DB.QueryRow(`SELECT count(*) FROM file`).Scan(&files)
-	if n != 1 || files != 0 {
-		t.Fatalf("retention is red in health and the files past theirs go: %d rows, %d files", n, files)
+	if n != 1 || files != 1 {
+		t.Fatalf("retention is red in health and the record keeps its file: %d rows, %d files", n, files)
 	}
 	if code, _ := e.call("deck.record_get", map[string]any{"record": ids["old"]}); code != 200 {
 		t.Fatal("the expired record stays until deck can plan it")

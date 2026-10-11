@@ -30,11 +30,11 @@ type documentV struct {
 }
 
 // docsManifest is the web project with a document block on its main screen and one of the record on its page,
-// a list and a card in markdown.
+// a list and a card with a field in markdown.
 var docsManifest = strings.NewReplacer(
 	`{"type": "list", "title": "Work", "source": {"collection": "notes"}, "item": {"title": "title"}},`, `{"type": "list", "title": "Work", "source": {"collection": "notes"}, "item": {"title": "title"}},
       {"type": "document", "title": "Criteria", "document": "notes/criteria.md"},
-      {"type": "list", "title": "Posts", "source": {"collection": "notes"}, "item": {"title": "title", "text": "note", "markdown": true}},`,
+      {"type": "list", "title": "Posts", "source": {"collection": "notes"}, "item": {"title": "title", "text": "note"}},`,
 	`{"type": "form", "title": "Edit", "command": "deck.record_update"}]}`, `{"type": "form", "title": "Edit", "command": "deck.record_update"},
       {"type": "card", "fields": [{"label": "Note", "bind": "note", "markdown": true}, {"label": "Title", "bind": "title"}]},
       {"type": "document", "title": "Report", "document": "report.md"}]}`,
@@ -144,7 +144,7 @@ func TestDocumentsOfAProjectAreListedOnItsDocumentsScreenAndEditedOnTheirPage(t 
 }
 
 // TestADocumentBlockOfAManifestShowsTheDocumentItNamesAndMarkdownIsOptIn: a document block names a document of
-// the project, or on a record page one of the record; text is markdown only where a list or card says so.
+// the project, or on a record page one of the record; text is markdown only where a card field says so.
 func TestADocumentBlockOfAManifestShowsTheDocumentItNamesAndMarkdownIsOptIn(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, nil)
@@ -165,8 +165,8 @@ func TestADocumentBlockOfAManifestShowsTheDocumentItNamesAndMarkdownIsOptIn(t *t
 		t.Fatalf("the block shows the document of the project it names: %+v", d)
 	}
 	items := blockData[[]map[string]any](t, main["b2"]["items"])
-	if len(items) != 1 || items[0]["markdown"] != true || items[0]["text"] != "**bold** note" {
-		t.Fatalf("a list says its text is markdown when its item does: %+v", items)
+	if len(items) != 1 || items[0]["markdown"] != nil || items[0]["text"] != "**bold** note" {
+		t.Fatalf("the text of a list stays text: %+v", items)
 	}
 
 	check.messages(t, e.screenMessages("web", "note", map[string]any{"record": rec}))

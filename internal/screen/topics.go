@@ -25,8 +25,6 @@ func readsProject(b manifest.Block, deck bool, own, project string) bool {
 		return true
 	case b.Source == nil:
 		return project == own
-	case b.Source.Project != "":
-		return b.Source.Project == project
 	}
 	if v, ok := b.Source.Input["project"]; ok {
 		s, _ := v.(string)

@@ -52,7 +52,13 @@ var upgrades = map[int]func(m map[string]any){
 	// Format 11 sends the web of an MCP server through deck's proxy to the domains of its manifest; nothing in a
 	// manifest of before changes, so no right widens for its scripts or agents.
 	10: func(map[string]any) {},
-	11: func(m map[string]any) { dropPlayer(m["screens"]) },
+	11: func(m map[string]any) {
+		delete(m, "master_errors")
+		for _, c := range items(m["collections"]) {
+			delete(c, "file_retention_days")
+		}
+		dropUnused(m["screens"])
+	},
 	6: func(m map[string]any) {
 		for _, c := range items(m["commands"]) {
 			r, ok := c["result"].(map[string]any)
@@ -67,9 +73,9 @@ var upgrades = map[int]func(m map[string]any){
 	},
 }
 
-// dropPlayer drops what format 12 has no more: the marks and the mark button of the player of a media block, and the
-// format timecode, which becomes duration.
-func dropPlayer(v any) {
+// dropUnused drops what format 12 has no more: the marks and the mark button of a media block, the picture and
+// markdown of a list line, a block or choice reading another project, a button that downloads a file.
+func dropUnused(v any) {
 	switch v := v.(type) {
 	case map[string]any:
 		if v["type"] == "media" {
@@ -78,17 +84,46 @@ func dropPlayer(v any) {
 				delete(item, "marks")
 			}
 		}
-		if v["format"] == "timecode" {
+		if item, ok := v["item"].(map[string]any); ok && v["type"] == "list" {
+			delete(item, "image")
+			delete(item, "markdown")
+		}
+		switch {
+		case v["format"] == "timecode":
 			v["format"] = "duration"
+		case v["type"] == "chart" && v["kind"] == "area":
+			v["kind"] = "line"
+		}
+		if choices, ok := v["choices"].(map[string]any); ok {
+			maps.DeleteFunc(choices, func(_ string, c any) bool { return foreign(c) })
 		}
 		for _, x := range v {
-			dropPlayer(x)
+			dropUnused(x)
+		}
+		if list, ok := v["actions"].([]any); ok {
+			v["actions"] = slices.DeleteFunc(list, func(x any) bool { xm, _ := x.(map[string]any); return xm["file"] != nil })
+		}
+		if blocks, ok := v["blocks"].([]any); ok {
+			v["blocks"] = slices.DeleteFunc(blocks, func(b any) bool {
+				bm, _ := b.(map[string]any)
+				return foreign(b) || empty(bm, "blocks") || empty(bm, "tabs")
+			})
+		}
+		if tabs, ok := v["tabs"].([]any); ok {
+			v["tabs"] = slices.DeleteFunc(tabs, func(t any) bool { tm, _ := t.(map[string]any); return empty(tm, "blocks") })
 		}
 	case []any:
 		for _, x := range v {
-			dropPlayer(x)
+			dropUnused(x)
 		}
 	}
+}
+
+// foreign is a block or choice whose source reads another project.
+func foreign(x any) bool {
+	xm, _ := x.(map[string]any)
+	src, _ := xm["source"].(map[string]any)
+	return src["project"] != nil
 }
 
 // dropSave drops the save of a form, which format 10 has no more: a command keeps its own records.

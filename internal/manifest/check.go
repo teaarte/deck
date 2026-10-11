@@ -260,16 +260,6 @@ func (m *Manifest) checkAction(a Action) error {
 	return nil
 }
 
-// checkForeignSource allows a source in another project only for a collection the manifest reads.
-func (m *Manifest) checkForeignSource(src Source) error {
-	for _, r := range m.Reads {
-		if r.Project == src.Project && slices.Contains(r.Collections, src.Collection) {
-			return nil
-		}
-	}
-	return fmt.Errorf("collection %s.%s is not in reads", src.Project, src.Collection)
-}
-
 // CheckButton checks a button a caller builds at run time, as notify does: a command of the project the owner may call.
 func (m *Manifest) CheckButton(a Action) error { return m.checkAction(a) }
 

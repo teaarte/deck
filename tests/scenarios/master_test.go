@@ -100,18 +100,6 @@ func TestAnErrorReachesTheMasterOncePerDay(t *testing.T) {
 	e.waitFor("the next day", func() bool { return len(e.runsOf("master", "on_error")) == 2 })
 }
 
-func TestErrorsStayWithAProjectThatTurnedThemOff(t *testing.T) {
-	t.Parallel()
-	e := newEnv(t, masterScript)
-	e.masterAwake()
-	p := e.createProject("work", strings.Replace(plainManifest, `"version": 12,`, `"version": 12, "master_errors": false,`, 1))
-	e.waitState(e.run(p, "work"), "error")
-	e.App.Runner.Wait()
-	if n := len(e.runsOf("master", "on_error")); n != 0 {
-		t.Fatalf("a project that turned it off keeps its errors: %d", n)
-	}
-}
-
 func TestMasterOwnErrorsDoNotReachItself(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
@@ -209,14 +197,14 @@ func TestABlockThatFailsOnAScreenReachesTheMaster(t *testing.T) {
 	}
 }
 
-// TestABlockThatFailsIsInTheHealthOfItsModuleWithoutTheMaster: a module that keeps its errors from the master still
-// shows a failing block in its health, which a read of other blocks after an event does not clear.
-func TestABlockThatFailsIsInTheHealthOfItsModuleWithoutTheMaster(t *testing.T) {
+// TestABlockThatFailsIsInTheHealthOfItsModule: a failing block is in the health of its module, which a read of other
+// blocks after an event does not clear.
+func TestABlockThatFailsIsInTheHealthOfItsModule(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, masterScript)
 	e.masterAwake()
 	broken := strings.Replace(webNotes, `"columns": [{"label": "Title", "bind": "title"}`, `"columns": [{"label": "Title", "bind": "title"}, {"label": "Score", "bind": "score > 0 ? score : nil"}`, 1)
-	e.createProject("web", strings.Replace(broken, `"version": 12,`, `"version": 12, "master_errors": false,`, 1))
+	e.createProject("web", broken)
 	e.must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": "<p>x</p>"}, nil)
 	e.must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": jsonl(map[string]any{"title": "b"})}, nil)
 	e.screenMessages("web", "main", nil)
@@ -227,9 +215,6 @@ func TestABlockThatFailsIsInTheHealthOfItsModuleWithoutTheMaster(t *testing.T) {
 		return h.Subject == "screen:web.main" && h.Status == "error"
 	}) {
 		t.Fatalf("the health of the module names the screen, and a read of some of its blocks keeps it: %+v", hs)
-	}
-	if n := len(e.runsOf("master", "on_error")); n != 0 {
-		t.Fatalf("the master does not get it: %d", n)
 	}
 }
 

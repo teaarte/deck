@@ -83,7 +83,7 @@
     },
     "list": {
       "description": "Lines of a source.",
-      "block": {"description": "Needs source and item, whose title, text and meta are expressions over each item; filter and actions are optional.", "required": ["source", "item"], "properties": {"source": {"$ref": "#/$defs/source"}, "item": {"type": "object", "additionalProperties": false, "required": ["title"], "description": "Expressions of each line; details is text shown in full on demand, questions what the owner answers in a picker; markdown says the text is markdown.", "properties": {"title": {"type": "string"}, "text": {"type": "string"}, "meta": {"type": "string"}, "since": {"type": "string", "description": "Expression giving an ISO 8601 time the line counts from, such as started_at; shown beside meta as how long ago, kept fresh."}, "icon": {"type": "string", "description": "Expression giving the name of a Tabler icon of the line."}, "image": {"type": "string", "description": "Expression giving a picture of the line, as item.file of media gives a file: a stored file id or a path in the data folder; a file that is no picture is left out."}, "details": {"type": "string"}, "questions": {"type": "string"}, "markdown": {"type": "boolean"}, "tone": {"$ref": "#/$defs/tone"}}}, "board": {"type": "string", "description": "An enum field of the module's collection the list reads: the list is a board with a lane for each value of the enum, in order and in the owner's language; dragging an item to a lane presses its button whose input is that field with the value of the lane, and on a phone that button picks the lane."}, "filter": {"$ref": "#/$defs/filter"}, "actions": {"$ref": "#/$defs/actions"}, "empty": {"$ref": "#/$defs/empty"}}},
+      "block": {"description": "Needs source and item, whose title, text and meta are expressions over each item; filter and actions are optional.", "required": ["source", "item"], "properties": {"source": {"$ref": "#/$defs/source"}, "item": {"type": "object", "additionalProperties": false, "required": ["title"], "description": "Expressions of each line; details is text shown in full on demand, questions what the owner answers in a picker.", "properties": {"title": {"type": "string"}, "text": {"type": "string"}, "meta": {"type": "string"}, "since": {"type": "string", "description": "Expression giving an ISO 8601 time the line counts from, such as started_at; shown beside meta as how long ago, kept fresh."}, "icon": {"type": "string", "description": "Expression giving the name of a Tabler icon of the line."}, "details": {"type": "string"}, "questions": {"type": "string"}, "tone": {"$ref": "#/$defs/tone"}}}, "board": {"type": "string", "description": "An enum field of the module's collection the list reads: the list is a board with a lane for each value of the enum, in order and in the owner's language; dragging an item to a lane presses its button whose input is that field with the value of the lane, and on a phone that button picks the lane."}, "filter": {"$ref": "#/$defs/filter"}, "actions": {"$ref": "#/$defs/actions"}, "empty": {"$ref": "#/$defs/empty"}}},
       "type": "object",
       "additionalProperties": false,
       "required": ["data"],
@@ -129,7 +129,7 @@
       "description": "A line, bar or area chart of the items of a source: one point per item, in the order of the sort of the source.",
       "block": {"description": "Needs source, x and series; x and each y are expressions over an item, a null y is a gap in the line. At most the last 500 points by the sort of the source are drawn; limit keeps the first items of the sort, so a long history is cut by the chart, not by limit. format and currency show the y values; an x that is an ISO 8601 time makes a time axis.", "required": ["source", "x", "series"], "properties": {
         "source": {"$ref": "#/$defs/source"},
-        "kind": {"enum": ["line", "bar", "area"], "description": "line by default"},
+        "kind": {"enum": ["line", "bar"], "description": "line by default"},
         "x": {"type": "string", "description": "Expression over an item: the value on the x axis, such as at."},
         "series": {"type": "array", "minItems": 1, "maxItems": 8, "items": {"type": "object", "additionalProperties": false, "required": ["label", "y"], "properties": {"label": {"type": "string", "minLength": 1}, "y": {"type": "string", "description": "Expression over an item: the value of the series, such as price."}}}},
         "format": {"$ref": "#/$defs/format"}, "currency": {"$ref": "#/$defs/currency"}, "empty": {"$ref": "#/$defs/empty"}}},
@@ -289,7 +289,6 @@
         "parts": {"type": "string", "description": "With confirm, a read command the client calls with params and lists before the yes: what the call deletes for good, as kind and name; the yes waits until the list came."},
         "options": {"type": "array", "items": {"type": "string"}, "description": "Values the owner picks the input from."},
         "chat": {"type": "boolean", "description": "With a command, the result names a chat topic, which the client opens; alone, the button opens the chat of the master in a new topic."},
-        "file": {"type": "integer", "description": "Stored file the button downloads instead of a call."},
         "undo": {"$ref": "#/$defs/action", "description": "The call that takes this one back; the client offers it for a moment after the call went through."}
       }
     },
@@ -381,8 +380,7 @@
           "properties": {
             "id": {}, "title": {"type": "string"}, "lane": {"type": "string", "description": "the value of the board field of the item"}, "text": {"type": "string"}, "meta": {"type": "string"}, "icon": {"type": "string"},
             "since": {"type": "string", "description": "the time the line counts from, shown as how long ago"},
-            "image": {"type": "string", "description": "address of the picture of the line"},
-            "details": {"type": "string"}, "markdown": {"type": "boolean", "description": "text is markdown"}, "tone": {"$ref": "#/$defs/tone"},
+            "details": {"type": "string"}, "tone": {"$ref": "#/$defs/tone"},
             "questions": {"type": "array", "items": {
               "type": "object", "required": ["question"],
               "properties": {"question": {"type": "string"}, "multiSelect": {"type": "boolean"},

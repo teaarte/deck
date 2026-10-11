@@ -1,4 +1,4 @@
-import { AreaChart, BarChart, LineChart } from '@mantine/charts';
+import { BarChart, LineChart } from '@mantine/charts';
 import '@mantine/charts/styles.css';
 import { useLook } from '../../theme/look';
 import { formatted, show, when, type Shown } from '../../lib/format';
@@ -58,6 +58,5 @@ export function Chart({ value, kind, s }: { value: ChartValue; kind?: string; s:
       : undefined,
   };
   if (kind === 'bar') return <BarChart {...common} data-chart="bar" />;
-  if (kind === 'area') return <AreaChart {...common} data-chart="area" connectNulls={false} withDots={false} />;
   return <LineChart {...common} data-chart="line" connectNulls={false} withDots={data.length <= 60} />;
 }

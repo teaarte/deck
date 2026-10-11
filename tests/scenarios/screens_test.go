@@ -230,7 +230,7 @@ func TestInvalidScreenIsRefusedWithItsReason(t *testing.T) {
 		{`"record": "notes"`, `"record": "papers"`, `record: unknown collection "papers"`},
 		{`"where": "score > record.score"`, `"where": "score > rec.score"`, `unknown field "rec"`},
 		{`{"label": "Open", "screen": "note"}`, `{"label": "Open", "screen": "nowhere"}`, `unknown screen "nowhere"`},
-		{`{"label": "Open", "screen": "note"}`, `{"label": "Open"}`, `a button has a command, a screen or a file`},
+		{`{"label": "Open", "screen": "note"}`, `{"label": "Open"}`, `a button has a command or a screen`},
 		{`{"label": "Open", "screen": "note"}`, `{"label": "Open", "screen": "note", "when": "scor > 1"}`, `when: unknown field "scor"`},
 		{`"item": {"title": "title", "meta": "'score ' + string(score)"}`, `"title": "x"`, `missing property 'item'`},
 		{`{"type": "tabs", "title": "Views", "tabs": [`, `{"type": "tabs", "blocks": [{"type": "stat", "source": {"collection": "notes"}}], "tabs": [`, `additional properties 'blocks' not allowed`},

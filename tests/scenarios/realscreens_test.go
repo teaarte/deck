@@ -264,8 +264,8 @@ func TestRealBrowserSettings(t *testing.T) {
 	}
 }
 
-// TestRealBrowserDocuments reads, edits and reverts a document of a project on its page, and draws markdown
-// where a list says so: DECK_REAL_BROWSER=1 go test ./tests/scenarios -run TestRealBrowser -v.
+// TestRealBrowserDocuments reads, edits and reverts a document of a project on its page, and keeps the text of a
+// list as text: DECK_REAL_BROWSER=1 go test ./tests/scenarios -run TestRealBrowser -v.
 func TestRealBrowserDocuments(t *testing.T) {
 	if os.Getenv("DECK_REAL_BROWSER") == "" {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
@@ -285,7 +285,7 @@ func TestRealBrowserDocuments(t *testing.T) {
 	b := newPlaywright(t)
 	b.call("browser_resize", map[string]any{"width": 1280, "height": 900})
 	b.open(e.URL + "/?token=" + token + "#/p/web/main")
-	b.until("markdown in the list that asks for it", `[...document.querySelectorAll('[data-item] [data-markdown] strong')].some((x) => x.innerText === 'bold')`)
+	b.until("the text of a list as it is", `[...document.querySelectorAll('[data-item]')].some((x) => x.innerText.includes('a **bold** note'))`)
 	b.until("the named document on the main screen", `document.querySelector('[data-document="notes/criteria.md"] [data-markdown] h1')?.innerText === 'Criteria'`)
 	if got := b.eval(`String(!!document.querySelector('[data-markdown] img[onerror]'))`); got != "false" {
 		t.Fatal("markdown is sanitized: no handlers in the page")

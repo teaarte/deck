@@ -126,7 +126,7 @@ func (s *Service) firstTime(ctx context.Context, p db.Project, key string) bool 
 func (s *Service) handOver(ctx context.Context, proj db.Project, key string, every time.Duration, input map[string]any,
 	own func(context.Context, *db.Queries) error) {
 	isOwn := proj.Builtin == 1
-	if m, err := docs.Manifest(ctx, s.St.Q, proj); err != nil || !isOwn && m.MasterErrors != nil && !*m.MasterErrors {
+	if _, err := docs.Manifest(ctx, s.St.Q, proj); err != nil {
 		return
 	}
 	var mp db.Project

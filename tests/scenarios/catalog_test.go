@@ -315,7 +315,7 @@ func TestAChartDrawsTheItemsOfItsSourceAsSeries(t *testing.T) {
 	for _, tc := range []struct{ from, to, want string }{
 		{`"x": "at",`, `"x": "time",`, `x: unknown field "time"`},
 		{`{"label": "Forecast", "y": "forecast"}`, `{"label": "Forecast", "y": "guess"}`, `series "Forecast": unknown field "guess"`},
-		{`"kind": "bar"`, `"kind": "pie"`, `value must be one of 'line', 'bar', 'area'`},
+		{`"kind": "bar"`, `"kind": "pie"`, `value must be one of 'line', 'bar'`},
 		{`"series": [{"label": "Revision", "y": "revision"}]`, `"series": []`, `minItems`},
 		{`"x": "name", `, ``, `missing property 'x'`},
 	} {

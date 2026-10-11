@@ -364,7 +364,7 @@ func (s *Service) collectionDelete(ctx context.Context, act registry.Actor, in c
 	return map[string]any{"deleted": len(pl.records)}, nil
 }
 
-// Expire deletes the records past their retention with what belongs to them, and record files past theirs; a
+// Expire deletes the records past their retention with what belongs to them; a
 // project whose records deck cannot plan is red in its health until it can. One whose manifest does not read is skipped.
 func (s *Service) Expire(ctx context.Context, now time.Time) {
 	projects, err := s.St.Q.ListProjects(ctx)
@@ -375,22 +375,8 @@ func (s *Service) Expire(ctx context.Context, now time.Time) {
 	days := func(n int) string { return store.Time(now.Add(-time.Duration(n) * 24 * time.Hour)) }
 	var open []db.Process
 	for _, p := range projects {
-		m, err := docs.Manifest(ctx, s.St.Q, p)
-		if err != nil {
+		if _, err := docs.Manifest(ctx, s.St.Q, p); err != nil {
 			continue
-		}
-		err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-			for _, c := range m.Collections {
-				if c.FileRetentionDays > 0 {
-					if err := q.DeleteExpiredRecordFiles(ctx, db.DeleteExpiredRecordFilesParams{Before: days(c.FileRetentionDays), ProjectID: p.ID, Collection: c.Name}); err != nil {
-						return err
-					}
-				}
-			}
-			return nil
-		})
-		if err != nil {
-			slog.Error("expire record files", "project", p.Name, "err", err)
 		}
 		err = s.writeRecords(ctx, p, func(ctx context.Context, q *db.Queries, m *manifest.Manifest) error {
 			var expired []db.Record

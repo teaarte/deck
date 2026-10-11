@@ -304,9 +304,6 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 			if v, ok := it[b.Board]; b.Board != "" && ok && v != nil {
 				line["lane"] = fmt.Sprint(v)
 			}
-			if b.Item.Markdown {
-				line["markdown"] = true
-			}
 			r.setTone(line, b.Item.Tone, it)
 			for key, e := range map[string]string{"title": b.Item.Title, "text": b.Item.Text, "meta": b.Item.Meta, "since": b.Item.Since,
 				"icon": b.Item.Icon, "details": b.Item.Details, "questions": b.Item.Questions} {
@@ -328,22 +325,12 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 			if _, ok := line["title"]; !ok {
 				line["title"] = ""
 			}
-			if b.Item.Image != "" {
-				if ref, err := r.eval(b.Item.Image, it); err == nil && ref != nil && ref != "" {
-					if f, err := r.src.File(r.ctx, r.req.Project, ref); err == nil && slices.Contains(pictures, f["type"]) {
-						line["image"] = f["url"]
-					}
-				}
-			}
 			lines = append(lines, line)
 		}
 		out["items"] = lines
 	}
 	return out, nil
 }
-
-// pictures are the types a line of a list shows as a picture: raster only, as the media block draws them.
-var pictures = []any{"image/png", "image/jpeg", "image/gif", "image/webp", "image/avif", "image/bmp"}
 
 // document is what a document block shows, read as the viewer: the document id, or the one named, of the record
 // when record is set, with its revisions; a document not written yet comes back empty.

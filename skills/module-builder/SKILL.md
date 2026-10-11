@@ -58,8 +58,7 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   fields that must never change into `immutable`. A later change of the schema or the key that old records do
   not fit needs a `migration` script in the same revision (JSONL of records in, JSONL out); deck runs it on a
   copy and refuses the change with the first problem records otherwise. `retention_days` deletes records (with
-  what belongs to them, as below) that many days after they were created, `file_retention_days` deletes files of
-  records that many days after the file was added. What belongs to a record goes with it: `"folder": "'videos/' +
+  what belongs to them, as below) that many days after they were created. What belongs to a record goes with it: `"folder": "'videos/' +
   slug"` is its folder in the data folder, and a collection whose records are of a record of another names it,
   `"parent": {"collection": "videos", "key": "video"}` (the expression of the parent's key). Deleting the record
   takes those records, their files, the files of the processes whose input field `record` is its id, and their
@@ -150,7 +149,8 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   To compare two revisions of a document, read both (`document_get` with `revision`) and say what changed;
   screens have no diff block.
 - **Reads**: `reads: [{"project": "other", "collections": [...], "documents": [...]}]` lets agents and scripts
-  read those (`records_list`, `document_get` with `project`) and screens show them (`source.project`).
+  read those (`records_list`, `document_get` with `project`), and a screen shows them with `"source": {"from":
+  "deck.records_list", "input": {"project": "other", "collection": "items"}}`, its fields under `data.`.
   Nothing ever writes to another project.
 - **Results** are JSON by schema. Decisions use typed shapes: a choice with probabilities and confidence,
   a score 2–10 with confidence, yes/no with a probability. A result of `null` means "nothing to do", and an agent
@@ -252,8 +252,8 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   `{"type": "document", "document": "prompts/criteria.md"}` shows a
   document of the project, on a record page one of the record (an artifact): markdown drawn, an md document
   edited by the owner as a new revision, its revisions and going back to one; every project also gets a
-  Documents screen from deck. Long text in a `list` is markdown with `"item": {…, "markdown": true}`, a `card`
-  field with `"markdown": true`; everywhere else text stays plain. What the catalog cannot show is a `custom` block: an MCP App — one HTML
+  Documents screen from deck. Long text is markdown in a `card` field with `"markdown": true`; everywhere else
+  text stays plain. What the catalog cannot show is a `custom` block: an MCP App — one HTML
   file under `custom/` (`document_save` with kind `custom`), `{"type": "custom", "document": "custom/chart.html",
   "source": …, "actions": […]}`. It runs without network, in a frame of an origin of its own (no storage, no
   cookies, no reach into deck's page) and without frames: HTML that names `iframe`, `frame`, `object` or `embed`

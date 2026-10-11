@@ -45,7 +45,7 @@ func (r *renderer) fetch(src manifest.Source, picked map[string]string) ([]map[s
 	if err != nil {
 		return nil, err
 	}
-	k, _ := json.Marshal([]any{src.From, src.Project, src.Collection, src.Rows, input, picked})
+	k, _ := json.Marshal([]any{src.From, src.Collection, src.Rows, input, picked})
 	if got, ok := r.fetched[string(k)]; ok {
 		return slices.Clone(got.items), got.err
 	}
@@ -63,11 +63,7 @@ func (r *renderer) load(src manifest.Source, input map[string]any, picked map[st
 	var items []map[string]any
 	switch src.From {
 	case "", "collection":
-		scope, project := r.scope, r.req.Project.Name
-		if src.Project != "" {
-			scope.By, project = r.req.Project.ID, src.Project
-		}
-		got, err := r.src.Read(r.ctx, "deck.records_list", map[string]any{"project": project, "collection": src.Collection}, scope)
+		got, err := r.src.Read(r.ctx, "deck.records_list", map[string]any{"project": r.req.Project.Name, "collection": src.Collection}, r.scope)
 		if err != nil {
 			return nil, err
 		}

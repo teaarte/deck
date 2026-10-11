@@ -47,7 +47,7 @@ func TestAChangeOfAnotherProjectDoesNotRereadAScreen(t *testing.T) {
 	e.createProject("b", webNotes)
 	e.createProject("c", strings.Replace(strings.Replace(webNotes, `"menu": ["main"]}`, `"menu": ["main"], "reads": [{"project": "a", "collections": ["notes"]}]}`, 1),
 		`{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "blocks": [
-      {"type": "table", "title": "Of a", "source": {"project": "a", "collection": "notes"}, "columns": [{"label": "Title", "bind": "title"}]},`, 1))
+      {"type": "table", "title": "Of a", "source": {"from": "deck.records_list", "input": {"project": "a", "collection": "notes"}}, "columns": [{"label": "Title", "bind": "data.title"}]},`, 1))
 	data := func(project, changed string) string {
 		var out []string
 		for _, m := range e.screenMessages(project, "main", map[string]any{"topic": "collection", "changed": changed}) {

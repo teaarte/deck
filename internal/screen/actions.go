@@ -91,8 +91,6 @@ func (r *renderer) action(a manifest.Action, id int64, env map[string]any) (map[
 		act["until"] = v
 	}
 	switch {
-	case a.File != "":
-		act["file"] = value(a.File)
 	case a.Command == "" && a.Chat:
 	case a.Screen != "":
 		act["screen"] = value(a.Screen)

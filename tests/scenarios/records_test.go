@@ -113,11 +113,11 @@ func TestAgentReadsARecordByIDOnlyInItsProjectOrItsReads(t *testing.T) {
 	}
 }
 
-func TestRecordsAndFilesGoAfterTheirRetention(t *testing.T) {
+func TestRecordsGoAfterTheirRetention(t *testing.T) {
 	t.Parallel()
 	e := newClockEnv(t, nil)
 	e.createProject("files", strings.Replace(scriptManifest("make", "", ""), `"key": "name",`,
-		`"key": "name", "retention_days": 30, "file_retention_days": 10,`, 1))
+		`"key": "name", "retention_days": 30,`, 1))
 	e.saveScript("files", "scripts/main.py", pythonLib+`
 st, out = deck("deck.records_upsert", {"collection": "items", "records": json.dumps({"name": "a"})})
 deck("deck.document_save", {"name": "notes/a.md", "kind": "doc", "text": "a", "record": out["ids"][0]})
@@ -133,14 +133,14 @@ print(json.dumps({"files": [{"path": "f.txt", "record": out["ids"][0]}]}))
 		t.Fatalf("a record is dated by the deck clock: %s", created)
 	}
 	file := filepath.Join(deckhome.Layout(e.App.Cfg.Home).State(), "files", "1")
-	e.Clock.Add(11 * 24 * time.Hour)
+	e.Clock.Add(29 * 24 * time.Hour)
 	e.sweep()
 	var recs []map[string]any
 	e.must("deck.records_list", map[string]any{"project": "files", "collection": "items"}, &recs)
-	if _, err := os.Stat(file); !os.IsNotExist(err) || len(recs) != 1 {
-		t.Fatalf("a file goes after file_retention_days, its record stays: %v, %d records", err, len(recs))
+	if _, err := os.Stat(file); err != nil || len(recs) != 1 {
+		t.Fatalf("a record and its file stay before retention_days: %v, %d records", err, len(recs))
 	}
-	e.Clock.Add(20 * 24 * time.Hour)
+	e.Clock.Add(2 * 24 * time.Hour)
 	e.sweep()
 	e.must("deck.records_list", map[string]any{"project": "files", "collection": "items"}, &recs)
 	var docs []map[string]any

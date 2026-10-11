@@ -7,7 +7,6 @@ import { useTicking } from '../hooks/useTicking';
 import { Actions } from '../ui/actions/Actions';
 import { Deadline } from '../ui/Deadline';
 import { Details } from '../ui/Details';
-import { Markdown } from '../ui/Markdown';
 import { NamedIcon } from '../ui/NamedIcon';
 import { QuestionPicker } from '../ui/QuestionPicker';
 import { rowOpen } from '../ui/rowOpen';
@@ -15,7 +14,6 @@ import type { Data } from '../lib/catalog.gen';
 import { useScreenActions } from '../screen/ScreenActions';
 import { dropList, keepList } from '../screen/decisions';
 import { blockImpl } from './blockImpl';
-import { useBlob } from './media/useBlob';
 
 export type Item = NonNullable<Data['items']>[number];
 
@@ -84,8 +82,7 @@ export function Line({ it, big }: { it: Item; big?: boolean }) {
   const rest = (it.actions ?? []).filter((a) => a !== answer);
   const opens = rowOpen(it.actions, run);
   const until = (it.actions ?? []).map((a) => a.until).filter(Boolean).sort()[0];
-  const mark = it.image ? <Thumb url={it.image} alt={it.title} />
-    : it.icon ? <span className={s.itemIcon}><NamedIcon name={it.icon} fallback={it.title} size={17} /></span>
+  const mark = it.icon ? <span className={s.itemIcon}><NamedIcon name={it.icon} fallback={it.title} size={17} /></span>
       : it.tone && it.tone !== 'muted' ? <span className={s.dot} /> : null;
   return (
     <div className={s.item} data-item data-tone={it.tone} data-big={big || undefined} data-marked={mark ? true : undefined}
@@ -94,7 +91,7 @@ export function Line({ it, big }: { it: Item; big?: boolean }) {
         {mark}
         <Stack gap={2} miw={0} style={{ flex: 1 }}>
           <Text fw={600} lh={1.35} className={s.itemTitle}>{it.title}</Text>
-          {it.text && (it.markdown ? <Markdown text={it.text} /> : <Text size="sm" c="var(--deck-text-2)" lh={1.45}>{it.text}</Text>)}
+          {it.text && <Text size="sm" c="var(--deck-text-2)" lh={1.45}>{it.text}</Text>}
           {(it.meta || it.since || until) && (
             <Group gap={8} wrap="wrap" mt={2}>
               {until && <Deadline until={until} />}
@@ -118,10 +115,4 @@ function Since({ at }: { at: string }) {
   const now = useTicking(true);
   const d = when(at);
   return d ? <Text size="xs" c="dimmed" className={s.meta} data-since>{relative(d, now)}</Text> : null;
-}
-
-// Thumb is the picture of a line, read with the token like any file of deck.
-function Thumb({ url, alt }: { url: string; alt: string }) {
-  const { src } = useBlob(url);
-  return src ? <img src={src} alt={alt} className={s.thumb} data-line-image /> : <span className={s.thumb} />;
 }

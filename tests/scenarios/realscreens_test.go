@@ -586,6 +586,13 @@ func TestRealBrowserCustomBlockShowsAPictureOfItsModule(t *testing.T) {
 		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
 	}
 	checkBuiltClient(t)
+	for _, browser := range [][]string{nil, {"webkit"}} {
+		t.Run(fmt.Sprint(browser), func(t *testing.T) { customPictureIn(t, browser...) })
+	}
+}
+
+// customPictureIn shows the picture block in a browser and checks that it reads its file without a refusal shown.
+func customPictureIn(t *testing.T, browser ...string) {
 	e := newEnv(t, webNotesAgent())
 	p := e.createProject("web", webNotes)
 	e.createProject("other", plainManifest)
@@ -596,7 +603,7 @@ func TestRealBrowserCustomBlockShowsAPictureOfItsModule(t *testing.T) {
 	_ = os.MkdirAll(filepath.Join(data, "pics"), 0o700)
 	_ = os.WriteFile(filepath.Join(data, "pics", "dot.png"), pic.Bytes(), 0o600)
 	e.must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": fmt.Sprintf(customPicture, theirs)}, nil)
-	b := newPlaywright(t)
+	b := newPlaywright(t, browser...)
 	b.open(e.URL + "/?token=" + token + "#/p/web/main")
 	b.until("the custom block", `document.querySelector('iframe[data-custom]')`)
 	e.waitFor("the report of the block", func() bool {
@@ -607,6 +614,9 @@ func TestRealBrowserCustomBlockShowsAPictureOfItsModule(t *testing.T) {
 		}
 		return false
 	})
+	if got := b.eval(`document.querySelector('[data-custom-error]')?.innerText ?? ''`); strings.Trim(got, `"`) != "" {
+		t.Fatalf("a block that works shows no refusal: %s", got)
+	}
 }
 
 // TestRealBrowserAButtonOpensTheChatInANewTopic: a chat button, or the address with chat=new, opens the chat of the

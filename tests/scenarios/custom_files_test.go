@@ -25,7 +25,7 @@ func TestACustomBlockReadsOnlyTheFilesOfItsModule(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(data, "pics", "a b.png"), []byte(png), 0o600)
 	_ = os.WriteFile(filepath.Join(filepath.Dir(data), "secret.txt"), []byte("outside"), 0o600)
 	_ = os.WriteFile(filepath.Join(data, "big.mp4"), nil, 0o600)
-	_ = os.Truncate(filepath.Join(data, "big.mp4"), 51<<20)
+	_ = os.Truncate(filepath.Join(data, "big.mp4"), 201<<20)
 	own := e.upload("web", "logo.svg", "image/svg+xml", "<svg/>")
 	theirs := e.upload("other", "theirs.txt", "text/plain", "theirs")
 
@@ -52,8 +52,8 @@ func TestACustomBlockReadsOnlyTheFilesOfItsModule(t *testing.T) {
 			t.Fatalf("%s is not a file of the module: %d %s", uri, code, out)
 		}
 	}
-	if code, out := e.call("deck.file_read", map[string]any{"project": "web", "uri": "deck://data/big.mp4"}); code == 200 || !strings.Contains(string(out), "50 MB") {
-		t.Fatalf("a file over 50 MB is refused with why: %d %s", code, out)
+	if code, out := e.call("deck.file_read", map[string]any{"project": "web", "uri": "deck://data/big.mp4"}); code == 200 || !strings.Contains(string(out), "200 MB") {
+		t.Fatalf("a file over 200 MB is refused with why: %d %s", code, out)
 	}
 	if code, _ := e.call("deck.file_read", map[string]any{"project": "other", "uri": fmt.Sprintf("deck://file/%d", theirs)}); code != 200 {
 		t.Fatalf("the other module reads its own file: %d", code)

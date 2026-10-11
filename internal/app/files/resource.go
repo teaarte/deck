@@ -15,7 +15,7 @@ import (
 )
 
 // resourceLimit is the biggest file a custom block reads.
-const resourceLimit = 50 << 20
+const resourceLimit = 200 << 20
 
 // reading lets two files at most be held for custom blocks at once; the rest wait.
 var reading = make(chan struct{}, 2)
@@ -88,14 +88,14 @@ func (s *Service) fileRead(ctx context.Context, act registry.Actor, in fileReadI
 		return resource{}, err
 	}
 	if out.Size = fi.Size(); out.Size > resourceLimit {
-		return resource{}, registry.Invalid("deck: %s is %d MB; a custom block reads files up to 50 MB", out.Name, out.Size>>20)
+		return resource{}, registry.Invalid("deck: %s is %d MB; a custom block reads files up to 200 MB", out.Name, out.Size>>20)
 	}
 	b, err := io.ReadAll(io.LimitReader(f, resourceLimit+1))
 	if err != nil {
 		return resource{}, err
 	}
 	if len(b) > resourceLimit {
-		return resource{}, registry.Invalid("deck: %s grew past 50 MB; a custom block reads files up to 50 MB", out.Name)
+		return resource{}, registry.Invalid("deck: %s grew past 200 MB; a custom block reads files up to 200 MB", out.Name)
 	}
 	out.Size, out.Blob = int64(len(b)), base64.StdEncoding.EncodeToString(b)
 	return out, nil

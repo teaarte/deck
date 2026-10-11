@@ -54,10 +54,13 @@ const guard = (w) => {
     return define.call(this, n, c, o);
   };
 };
-// told sends deck what the browser refused a block, as an MCP log line, so the block is not left empty without a word.
-const told = (w) => w.addEventListener("securitypolicyviolation", (e) => w.parent.postMessage({ jsonrpc: "2.0",
-  method: "notifications/message", params: { level: "error", logger: "deck", data: "the browser refused " +
-  (e.blockedURI || "inline code") + " (" + e.effectiveDirective + ")" } }, "*"));
+// told sends deck a file or code the browser refused a block, as an MCP log line, so the block is not left empty
+// without a word; a library that tries eval and goes on without it is no failure.
+const told = (w) => w.addEventListener("securitypolicyviolation", (e) => {
+  if (e.blockedURI === "eval" || e.blockedURI === "wasm-eval") return;
+  w.parent.postMessage({ jsonrpc: "2.0", method: "notifications/message", params: { level: "error", logger: "deck",
+    data: "the browser refused " + (e.blockedURI || "inline code") + " (" + e.effectiveDirective + ")" } }, "*");
+});
 const tagged = /<\s*([\w-]+:)?(iframe|frame|object|embed)\b/i;
 // guarded is the HTML of a block with the guard as its first script, after a doctype that keeps standards mode.
 const guarded = (html) => {

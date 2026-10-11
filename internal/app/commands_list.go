@@ -3,12 +3,12 @@ package app
 import (
 	"cmp"
 	"context"
-	"net/url"
 	"deck2/internal/app/access"
 	"deck2/internal/docs"
 	"deck2/internal/provider"
 	_ "embed"
 	"encoding/json"
+	"net/url"
 	"slices"
 	"strings"
 

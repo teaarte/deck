@@ -56,7 +56,9 @@ func SpecID(s manifest.MCPServer) string {
 }
 
 // reached are the domains a server of a manifest reaches through deck's proxy: those it reads and acts on.
-func reached(m *manifest.Manifest) []string { return append(slices.Clone(m.Domains.Read), m.Domains.Act...) }
+func reached(m *manifest.Manifest) []string {
+	return append(slices.Clone(m.Domains.Read), m.Domains.Act...)
+}
 
 func (x *MCP) spec(ctx context.Context, p db.Project, name string, s manifest.MCPServer, domains []string) (mcphost.Spec, error) {
 	if s.URL != "" {

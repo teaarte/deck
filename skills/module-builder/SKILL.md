@@ -13,7 +13,8 @@ and presses "enable".
 You talk to deck through its MCP server (`deck`). The tools are deck commands: `manifest_format`,
 `project_import`, `documents_list`, `manifest_get`, `manifest_save`, `document_get`, `document_save`,
 `command_try`, `process_get`, `process_log`, `records_list`, `records_upsert`, `files_list`,
-`projects_list`, `triggers_list`, `models_list`, `health_list`, `asks_list`, `command_describe`. Some commands only the owner runs:
+`projects_list`, `triggers_list`, `models_list`, `health_list`, `asks_list`, `command_describe`. Ask a read for only
+the fields you need (`fields`; of `records_list` they are the fields of the data of each record). Some commands only the owner runs:
 `secret_set`, `oauth_start`, `browser_login`, `assignment_set`, `model_set`, `project_enable`; say which one and
 why when the module needs it. The owner does them in two places. The Settings of the project (Settings →
 Projects → "Settings" on its row): "Enable" with the rights enabling grants, pause, the models of

@@ -31,7 +31,7 @@ func TestRealBrowserShell(t *testing.T) {
 	manifest := strings.Replace(webNotes, `{"version": 11,`, `{"version": 11, "icon": "rocket",`, 1)
 	manifest = strings.Replace(manifest, `{"type": "table", "title": "Notes",`, `{"type": "table", "title": "Notes", "icon": "notes",`, 1)
 	manifest = strings.Replace(manifest, `"columns": [{"label": "Title", "bind": "title"}]`, `"columns": [{"label": "Title", "bind": "title"}, {"label": "Status", "bind": "source"}, {"label": "Note", "bind": "note"}]`, 1)
-	manifest = strings.Replace(manifest, `{"name": "note", "title": "Note", "record": "notes",`, `{"name": "more", "title": "More", "blocks": [{"type": "appearance"}]},
+	manifest = strings.Replace(manifest, `{"name": "note", "title": "Note", "record": "notes",`, `{"name": "more", "title": "More", "blocks": [{"type": "list", "title": "Same", "source": {"collection": "notes"}, "item": {"title": "title"}}]},
     {"name": "note", "title": "Note", "record": "notes",`, 1)
 	manifest = strings.Replace(manifest, `"menu": ["main"]`, `"menu": ["main", "more"]`, 1)
 	e.createProject("web", strings.Replace(manifest, `{"label": "Open", "screen": "note"}`, `{"label": "Open", "icon": "arrow-right", "screen": "note"}`, 1))

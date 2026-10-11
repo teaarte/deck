@@ -267,7 +267,7 @@ func TestRealBrowserChatDeletesAWaitingMessage(t *testing.T) {
 	if ms := e.chatMessages(topics[0].ID); len(ms) != 1 || ms[0].Text != "first" {
 		t.Fatalf("only the message the master took stays: %+v", ms)
 	}
-	b.until("what the reply waits for, in the language of the interface", `document.querySelector('[data-turn="waiting_slot"]')?.innerText.includes('a free slot')`)
+	b.until("what the reply waits for, in the language of the interface", `document.querySelector('[data-turn="waiting_slot"]')?.innerText.includes('waits for a slot')`)
 	e.must("deck.settings_set", map[string]any{"name": "language", "value": "ru"}, nil)
 	b.until("what the reply waits for, in Russian", `(() => { const x = document.querySelector('[data-turn="waiting_slot"]')?.innerText ?? ''; return x.includes('свободного места') && !x.includes('slot') })()`)
 }

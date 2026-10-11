@@ -43,7 +43,7 @@ export function TopicBar({ value, topics, model, setModel }: {
           <Menu.Dropdown data-topic-models>
             <Menu.Label>{t('chat.model')}</Menu.Label>
             <Menu.Item leftSection={check(!own)} onClick={() => choose('')} data-model="">{t('chat.master_model', { model: value.model ?? '' })}</Menu.Item>
-            {value.models!.map((m) => (
+            {value.models!.filter((m) => m !== value.model || own === m).map((m) => (
               <Menu.Item key={m} leftSection={check(own === m)} onClick={() => choose(m)} data-model={m}>{m}</Menu.Item>
             ))}
           </Menu.Dropdown>

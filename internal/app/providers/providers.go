@@ -251,7 +251,7 @@ func (s *Service) change(ctx context.Context, workspace int64, requires []string
 	if len(names) == 0 {
 		return "add a model that has it in Settings → Models"
 	}
-	return "pick one that has it in the Models tab of the project's settings: " + strings.Join(names, ", ")
+	return "pick one that has it in the row of the command in the settings of the module: " + strings.Join(names, ", ")
 }
 
 // Up reports whether a turn may start on a provider: not in a self-check, a broken adapter or a limit; a lost login or a

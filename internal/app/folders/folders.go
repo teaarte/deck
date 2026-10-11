@@ -167,10 +167,10 @@ func (s *Service) Folder(ctx context.Context, projectID int64, f manifest.Folder
 			}
 		}
 		if path == "" {
-			return "", registry.Invalid("deck: project %s has no folder %s; the owner adds it in the settings of the project, Access", p.Name, f.Name)
+			return "", registry.Invalid("deck: project %s has no folder %s; the owner adds it in the settings of the module, Access", p.Name, f.Name)
 		}
 	case len(fs) == 0:
-		return "", registry.Invalid("deck: project %s has no folder yet; the owner adds one in the settings of the project, Access", p.Name)
+		return "", registry.Invalid("deck: project %s has no folder yet; the owner adds one in the settings of the module, Access", p.Name)
 	case len(fs) > 1:
 		return "", registry.Invalid("deck: project %s has %d folders; the command has to name one in folder", p.Name, len(fs))
 	default:

@@ -328,7 +328,7 @@ func (ch *Service) Commands() []*registry.Command {
 			registry.OwnerOnly, ch.chatSend),
 		registry.Read("chat", "Chat",
 			"Gives the chat with the master as a chat block shows it: the topics, and of the topic picked its messages, the questions of its reply and the lines of the turn going on.",
-			registry.OwnerOnly, ch.chat).On("chat", "asks", "log", "processes", "feed", "collection", "health"),
+			registry.OwnerOnly, ch.chat).On("chat", "asks", "log", "processes", "feed", "collection", "health", "models", "assignments"),
 		registry.Def("chat_topic_archive", "Archive topic",
 			"Archives a chat topic or brings it back; a new message brings it back too.",
 			registry.OwnerOnly, ch.chatTopicArchive),

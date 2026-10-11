@@ -206,3 +206,34 @@ func TestTheCommandsOfAProjectOfferOnlyProvidersThatFit(t *testing.T) {
 	}
 	t.Fatalf("no notes.collect: %+v", rows)
 }
+
+// TestAPickedModelKeepsTheOneTheCommandRanOnAsItsFallback: a command with no assignment of its own runs on the model
+// deck picks; a model picked in its row goes first and that one stays after it.
+func TestAPickedModelKeepsTheOneTheCommandRanOnAsItsFallback(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, ok)
+	e.createProject("plain", plainManifest)
+	var list []struct{ Name, Model string }
+	e.must("deck.commands_list", map[string]any{"project": "plain"}, &list)
+	if len(list) != 1 || list[0].Model == "" || list[0].Model == "quiet" {
+		t.Fatalf("the command runs on a model deck picks: %+v", list)
+	}
+	ran := list[0].Model
+	e.must("deck.assignment_set", map[string]any{"role": "agent", "project": "plain", "command": "work", "model": "quiet"}, nil)
+	var m struct {
+		Assignments []struct {
+			Project, Command string
+			Models           []string
+		}
+	}
+	e.must("deck.models_list", nil, &m)
+	got := ""
+	for _, a := range m.Assignments {
+		if a.Project == "plain" && a.Command == "work" {
+			got = fmt.Sprint(a.Models)
+		}
+	}
+	if got != "[quiet "+ran+"]" {
+		t.Fatalf("the picked model goes first and the one it ran on stays its fallback: %+v", m.Assignments)
+	}
+}

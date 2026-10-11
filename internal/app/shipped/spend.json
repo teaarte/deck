@@ -117,7 +117,7 @@
               "columns": [
                 {
                   "label": "Module",
-                  "bind": "project != '' ? project : 'deck'",
+                  "bind": "(project ?? '') != '' ? project : 'deck'",
                   "format": "tag"
                 },
                 {
@@ -215,7 +215,7 @@
               "columns": [
                 {
                   "label": "Module",
-                  "bind": "project != '' ? project : 'deck'",
+                  "bind": "(project ?? '') != '' ? project : 'deck'",
                   "format": "tag"
                 },
                 {
@@ -313,7 +313,7 @@
               "columns": [
                 {
                   "label": "Module",
-                  "bind": "project != '' ? project : 'deck'",
+                  "bind": "(project ?? '') != '' ? project : 'deck'",
                   "format": "tag"
                 },
                 {

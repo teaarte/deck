@@ -93,19 +93,19 @@ func (s *Service) assignmentSet(ctx context.Context, act registry.Actor, in assi
 		}
 		project = p.ID
 	}
-	if in.Model != "" {
-		before, err := Assigned(ctx, s.St.Q, act.Workspace, project, in.Command, in.Role)
-		if err != nil {
-			return nil, err
-		}
-		in.Models = append([]string{in.Model}, slices.DeleteFunc(before, func(n string) bool { return n == in.Model })...)
-	}
 	var cmd *manifest.Command
 	if in.Role == RoleAgent && in.Command != "" {
 		var err error
 		if _, cmd, err = s.agentCommand(ctx, act.Workspace, in.Project+"."+in.Command); err != nil {
 			return nil, err
 		}
+	}
+	if in.Model != "" {
+		before, err := s.before(ctx, act.Workspace, project, in.Command, in.Role, cmd)
+		if err != nil {
+			return nil, err
+		}
+		in.Models = append([]string{in.Model}, slices.DeleteFunc(before, func(n string) bool { return n == in.Model })...)
 	}
 	for _, name := range in.Models {
 		if in.Role == RoleAgent {
@@ -142,6 +142,24 @@ func (s *Service) assignmentSet(ctx context.Context, act registry.Actor, in assi
 	return map[string]any{"role": in.Role, "project": in.Project, "command": in.Command, "models": in.Models}, nil
 }
 
+// before are the models a pick of one keeps after it: those in force at its place, else the model an agent command
+// runs on now; the ones that do not fit the command drop out.
+func (s *Service) before(ctx context.Context, workspace, project int64, command, role string, cmd *manifest.Command) ([]string, error) {
+	names, err := Assigned(ctx, s.St.Q, workspace, project, command, role)
+	if err != nil || cmd == nil {
+		return names, err
+	}
+	if len(names) == 0 {
+		if pv, err := s.For(ctx, project, cmd); err == nil {
+			names = []string{pv.Name()}
+		}
+	}
+	return slices.DeleteFunc(names, func(name string) bool {
+		pv, err := s.Provider(ctx, workspace, name)
+		return err != nil || len(pv.Caps().Missing(cmd.Needs())) > 0
+	}), nil
+}
+
 // Unassigned are the commands of a manifest that miss a model, by name, with what the owner does: an agent command no
 // provider fits or that lacks deck's web on an ACP agent, or a model command whose role has nothing assigned.
 func (s *Service) Unassigned(ctx context.Context, workspace, project int64, m *manifest.Manifest) map[string]string {
@@ -176,7 +194,7 @@ func (s *Service) Unassigned(ctx context.Context, workspace, project int64, m *m
 			continue
 		}
 		if names, err := Assigned(ctx, s.St.Q, workspace, project, c.Name, role); err == nil && len(names) == 0 {
-			out[c.Name] = fmt.Sprintf("it calls @%s, but no model is assigned to %s; assign one in Settings → Models → Assign models", role, role)
+			out[c.Name] = fmt.Sprintf("it calls @%s, but no model is assigned to %s; pick one in Settings → Models", role, role)
 		}
 	}
 	return out

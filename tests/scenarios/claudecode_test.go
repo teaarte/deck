@@ -307,7 +307,7 @@ func TestClaudeCodeShellRunsInItsSandboxOnlyWithoutNetwork(t *testing.T) {
 		{`"domains": {"read": ["*"]},`, false},
 		{`"no_network": true,`, true},
 	} {
-		p := e.createProject(fmt.Sprintf("ideas%d", i), strings.Replace(ideasManifest, `"version": 11,`, `"version": 11, `+tc.domains, 1))
+		p := e.createProject(fmt.Sprintf("ideas%d", i), strings.Replace(ideasManifest, `"version": 12,`, `"version": 12, `+tc.domains, 1))
 		e.waitState(e.run(p, "collect"), "done", "error")
 		var set struct {
 			Sandbox *struct {

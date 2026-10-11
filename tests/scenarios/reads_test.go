@@ -9,14 +9,14 @@ import (
 	"deck2/internal/provider"
 )
 
-const sourceManifest = `{"version": 11,
+const sourceManifest = `{"version": 12,
   "collections": [{"name": "items", "description": "An item.", "key": "name",
     "schema": {"type": "object", "properties": {"name": {"type": "string"}, "size": {"type": "integer"}}, "required": ["name"]}},
     {"name": "private", "description": "Not shared.", "key": "name",
     "schema": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}}]}`
 
 func readerManifest(reads string) string {
-	return `{"version": 11,
+	return `{"version": 12,
   "commands": [{"name": "look", "title": "Look", "description": "Looks at the other project.", "class": "internal",
     "result": {"type": "object"}, "executor": {"type": "agent", "prompt": "Look."}}]` + reads + `}`
 }
@@ -91,7 +91,7 @@ func TestATrialOfADraftReadsWhatItsReadsList(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, nil)
 	e.createProject("source", sourceManifest)
-	e.createProject("vault", strings.Replace(sourceManifest, `{"version": 11,`, `{"version": 11, "no_network": true,`, 1))
+	e.createProject("vault", strings.Replace(sourceManifest, `{"version": 12,`, `{"version": 12, "no_network": true,`, 1))
 	for _, p := range []string{"source", "vault"} {
 		e.must("deck.records_upsert", map[string]any{"project": p, "collection": "items", "records": `{"name": "a"}`}, nil)
 	}

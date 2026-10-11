@@ -53,7 +53,7 @@ func TestMenuShowsIconsAndWhatEachProjectIsBusyWith(t *testing.T) {
 		}
 	})
 	defer close(release)
-	manifest := strings.Replace(webNotes, `{"version": 11,`, `{"version": 11, "icon": "rocket",`, 1)
+	manifest := strings.Replace(webNotes, `{"version": 12,`, `{"version": 12, "icon": "rocket",`, 1)
 	manifest = strings.Replace(manifest, `{"name": "main", "title": "Web",`, `{"name": "main", "title": "Web", "icon": "chart-line",`, 1)
 	manifest = strings.Replace(manifest, `{"type": "table", "title": "Notes",`, `{"type": "table", "title": "Notes", "icon": "notes",`, 1)
 	manifest = strings.Replace(manifest, `{"label": "Open", "screen": "note"}`, `{"label": "Open", "icon": "arrow-right", "screen": "note"}`, 1)
@@ -106,7 +106,7 @@ func TestTheCockpitTheHeroAndTheMenuCountAlike(t *testing.T) {
 		}
 		return provider.Result{Text: "cut"}
 	})
-	e.createProject("clips", strings.Replace(cutModule, `{"version": 11,`, `{"version": 11, "tools": {"http": [
+	e.createProject("clips", strings.Replace(cutModule, `{"version": 12,`, `{"version": 12, "tools": {"http": [
     {"name": "photos", "description": "d", "method": "GET", "url": "https://example.com/p", "class": "internal", "headers": {"X-Key": "$secret.pexels"}}]},`, 1))
 	e.waitState(e.start("clips", "cut", map[string]any{"clip": "a"}), "running")
 	var m struct {

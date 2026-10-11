@@ -14,7 +14,7 @@ import (
 )
 
 // jobsModule renders an item of its collection by an agent command whose input names the record.
-const jobsModule = `{"version": 11,
+const jobsModule = `{"version": 12,
   "collections": [{"name": "videos", "description": "A video.", "key": "slug", "display": "title",
     "schema": {"type": "object", "properties": {"slug": {"type": "string"}, "title": {"type": "string"}}, "required": ["slug"]}}],
   "commands": [{"name": "voice", "title": "Voice", "description": "Voices a video.", "class": "internal",
@@ -189,7 +189,7 @@ func TestARunThatWaitsIsNotLongerThanUsual(t *testing.T) {
 }
 
 // cutModule cuts a clip by name; trim is a step the master calls, not the owner.
-const cutModule = `{"version": 11,
+const cutModule = `{"version": 12,
   "commands": [
     {"name": "cut", "title": "Cut", "description": "Cuts a clip.", "class": "internal",
       "input": {"type": "object", "properties": {"clip": {"type": "string"}}},

@@ -43,3 +43,14 @@
   border-radius: var(--mantine-radius-sm);
   border: 1px solid var(--mantine-color-default-border);
 }
+
+.media {
+  width: 100%;
+  max-height: 70vh;
+  border-radius: var(--mantine-radius-sm);
+  background: var(--mantine-color-black);
+}
+
+audio.media {
+  background: none;
+}

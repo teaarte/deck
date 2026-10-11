@@ -142,7 +142,6 @@
   "details": { "call": { "show": "Show the whole call", "hide": "Hide the call" }, "text": { "show": "Show in full", "hide": "Hide" } },
     "log": { "message": "Agent", "thought": "Thinking", "tool": "Tool", "rate_limit": "Limit", "stderr": "stderr", "more": "Show more", "less": "Show less", "owner": "You", "waiting": "not taken yet", "taken": "taken", "write": "Write to the agent", "running": "running" },
   "files": {"no_preview": "no preview", "cut": "Only the start of the file is shown", "previous": "Previous", "next": "Next", "grid": "Tiles", "list": "List"},
-  "player": { "back": "A frame back", "forward": "A frame forward" },
   "chat": {
     "delete": "Delete, the master has not taken it",
     "master": "Master",

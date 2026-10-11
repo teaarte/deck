@@ -69,9 +69,9 @@ func TestAgentsSearchAndReadPagesThroughDeck(t *testing.T) {
 	})
 	e.useSearch("searxng", search.URL)
 	e.must("deck.assignment_set", map[string]any{"role": "search", "models": []string{"searxng"}}, nil)
-	open := `{"version": 11, "domains": {"read": ["127.0.0.1"]}, "commands": [` + agentCommand("look", "") + `]}`
+	open := `{"version": 12, "domains": {"read": ["127.0.0.1"]}, "commands": [` + agentCommand("look", "") + `]}`
 	e.waitState(e.run(e.createProject("open", open), "look"), "done")
-	closed := `{"version": 11, "no_network": true, "commands": [` + agentCommand("hide", "") + `]}`
+	closed := `{"version": 12, "no_network": true, "commands": [` + agentCommand("hide", "") + `]}`
 	e.waitState(e.run(e.createProject("closed", closed), "hide"), "done")
 
 	mu.Lock()
@@ -127,7 +127,7 @@ func TestWithoutSearchAgentsOnlyReadPagesAndTheOwnerIsTold(t *testing.T) {
 func TestAModelInAnAgentTakesWorkThatNeedsTheWeb(t *testing.T) {
 	e := acpEnv(t, newACP(t), "goose", acpLLM(t))
 	scout := strings.Replace(agentCommand("scout", ""), `"class": "internal"`, `"class": "internal", "requires": ["web"]`, 1)
-	e.createProject("scout", `{"version": 11, "commands": [`+scout+`]}`)
+	e.createProject("scout", `{"version": 12, "commands": [`+scout+`]}`)
 	e.useModels("scout.scout", "acp")
 	warned := func() string {
 		var rows []struct{ Subject, Error string }
@@ -149,7 +149,7 @@ func TestAModelInAnAgentTakesWorkThatNeedsTheWeb(t *testing.T) {
 		t.Fatalf("with a search the command is healthy: %q", w)
 	}
 	listed := strings.Replace(scout, `"prompt": "Do scout."`, `"prompt": "Do scout.", "calls": ["deck.records_list"]`, 1)
-	e.must("deck.manifest_save", map[string]any{"project": "scout", "manifest": `{"version": 11, "commands": [` + listed + `]}`}, nil)
+	e.must("deck.manifest_save", map[string]any{"project": "scout", "manifest": `{"version": 12, "commands": [` + listed + `]}`}, nil)
 	if w := warned(); !strings.Contains(w, "neither deck.web_search nor deck.web_fetch") {
 		t.Fatalf("a command whose calls leave the web of deck out says so: %q", w)
 	}
@@ -169,7 +169,7 @@ func TestATrialSearchesOnlyThroughALocalOrFreeService(t *testing.T) {
 	e.must("deck.connection_set", map[string]any{"name": "paid", "api": "raw", "url": search.URL}, nil)
 	e.must("deck.model_set", map[string]any{"connection": "paid", "model": "paid", "name": "paid", "kind": "search", "call_usd": 0.01}, nil)
 	e.must("deck.assignment_set", map[string]any{"role": "search", "models": []string{"paid"}}, nil)
-	e.createProject("sketch", `{"version": 11, "commands": [`+agentCommand("look", "")+`]}`)
+	e.createProject("sketch", `{"version": 12, "commands": [`+agentCommand("look", "")+`]}`)
 	var try struct{ Process int64 }
 	e.must("deck.command_try", map[string]any{"live": true, "command": "sketch.look"}, &try)
 	e.waitState(try.Process, "done")

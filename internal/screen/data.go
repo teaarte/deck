@@ -34,53 +34,13 @@ func (r *renderer) file(b manifest.Block, it map[string]any) map[string]any {
 		return line
 	}
 	maps.Copy(line, f)
-	line["file"] = ref
-	if b.Item.Marks != "" {
-		if v, err := r.eval(b.Item.Marks, it); err == nil {
-			line["marks"] = marks(v)
-		}
-	}
 	if len(b.Actions) > 0 {
 		id, _ := it["_id"].(int64)
 		if acts, err := r.actions(b.Actions, id, it); err == nil {
 			line["actions"] = acts
 		}
 	}
-	if b.Mark != nil {
-		id, _ := it["_id"].(int64)
-		acts, err := r.actions([]manifest.Action{*b.Mark}, id, it)
-		if err != nil {
-			line["error"] = err.Error()
-		} else if len(acts) == 1 {
-			line["mark"] = acts[0]
-		}
-	}
 	return line
-}
-
-// marks are the marks of a player from a list of seconds or of objects with at and text, in order of time.
-func marks(v any) []map[string]any {
-	list, _ := v.([]any)
-	out := make([]map[string]any, 0, len(list))
-	for _, e := range list {
-		m := map[string]any{}
-		if o, ok := e.(map[string]any); ok {
-			m["at"], m["text"] = o["at"], o["text"]
-		} else {
-			m["at"] = e
-		}
-		at, ok := number(m["at"])
-		if !ok || at < 0 {
-			continue
-		}
-		m["at"] = at
-		if t, ok := m["text"].(string); !ok || t == "" {
-			delete(m, "text")
-		}
-		out = append(out, m)
-	}
-	slices.SortStableFunc(out, func(a, b map[string]any) int { return cmp.Compare(a["at"].(float64), b["at"].(float64)) })
-	return out
 }
 
 // ChartPoints is the most points a chart draws: the last ones of its source.

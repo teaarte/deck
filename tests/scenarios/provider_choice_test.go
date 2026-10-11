@@ -13,7 +13,7 @@ import (
 	"deck2/internal/provider"
 )
 
-const notesManifest = `{"version": 11,
+const notesManifest = `{"version": 12,
   "collections": [{"name": "notes", "description": "Notes", "key": "title", "display": "title",
     "schema": {"type": "object", "properties": {"title": {"type": "string"}}, "required": ["title"]}}],
   "tools": {"http": [{"name": "post", "description": "Posts a note", "method": "POST", "url": "https://example.invalid/post",
@@ -158,7 +158,7 @@ func TestProviderURLCarriesNoKey(t *testing.T) {
 	if strings.Contains(fmt.Sprint(list), "sk-stored") {
 		t.Fatalf("a provider stored with a key in its url is neither shown nor used: %v", list)
 	}
-	srv := `{"version": 11, "tools": {"mcp": {"servers": {"far": {"url": "https://mcp.example/mcp?key=sk-1"}}}}}`
+	srv := `{"version": 12, "tools": {"mcp": {"servers": {"far": {"url": "https://mcp.example/mcp?key=sk-1"}}}}}`
 	if code, out := e.call("deck.project_create", map[string]any{"name": "far", "manifest": srv}); code == 200 || !strings.Contains(string(out), "secret") {
 		t.Fatalf("an MCP server url with a key in it is refused: %d %s", code, out)
 	}

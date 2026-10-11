@@ -224,12 +224,9 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   id of a stored file of the project (a result file of its run, an attachment of its record; a result names the
   files it kept by that id, in `files[].file` and in place of a `file` field), its digits, or a path in its data
   folder (`"charts/today.png"`); a name is not a file; a picture is a thumbnail, a PDF shows in place, a video or a sound plays in
-  a player with frame steps and a timecode, anything else is a name with a download. The player shows
-  `item.marks` (a list of `{at, text}` or of seconds) on its timeline, and its `mark` button — an action such
-  as `{"label": "Note", "command": "note", "params": {"video": "=slug"}, "input": "note"}` — calls the
-  command with `file` (as `item.file` gives it) and `at` (the second it is paused at) beside its params, so a
-  note such as "scene 4, 0:12" reaches a rework; the command's input takes `file` and `at`. A screen opened
-  with `t` in seconds (declare it in `params`) starts its first player there; `timecode` formats seconds.
+  the browser's own player, anything else is a name with a download. A player with marks is a `custom` block
+  (MCP Apps) reading the file via `resources/read` of `deck://data/<path>`; its buttons send the second and a note
+  to a command of the module.
   A value in the manifest — action `params`, `screen`, `record`, form `values`, a source's `input` — is fixed
   text or `=<expression>` over the item it is on (a form and an input: the record of the page) and `param`:
   `=title` passes the field's value with its type (`=_id` is a number, so that input field is an `integer`), and

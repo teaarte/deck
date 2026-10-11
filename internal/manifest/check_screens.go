@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"encoding/json"
 	"fmt"
-	"maps"
 	"regexp"
 	"slices"
 	"strings"
@@ -224,7 +223,7 @@ func (c *screenCheck) block(where string, b Block) {
 		if b.Item != nil {
 			for _, p := range []struct{ name, e string }{{"title", b.Item.Title}, {"text", b.Item.Text}, {"meta", b.Item.Meta},
 				{"since", b.Item.Since}, {"icon", b.Item.Icon}, {"image", b.Item.Image}, {"details", b.Item.Details}, {"questions", b.Item.Questions},
-				{"tone", b.Item.Tone}, {"file", b.Item.File}, {"marks", b.Item.Marks}} {
+				{"tone", b.Item.Tone}, {"file", b.Item.File}} {
 				if _, err := compileField(p.e, fields); p.e != "" && err != nil {
 					c.fail("%s item %s: %v", where, p.name, err)
 				}
@@ -266,24 +265,6 @@ func (c *screenCheck) block(where string, b Block) {
 	for i, a := range b.Actions {
 		if err := c.action(b, a, fields); err != nil {
 			c.fail("%s/actions/%d %q: %v", where, i, cmp.Or(a.Label, a.Verb), err)
-		}
-	}
-	if b.Mark != nil {
-		mark := *b.Mark
-		mark.Params = maps.Clone(mark.Params)
-		if mark.Params == nil {
-			mark.Params = map[string]string{}
-		}
-		mark.Params["file"], mark.Params["at"] = "", ""
-		switch {
-		case b.Type != "media":
-			c.fail("%s mark: only the player of a media block marks a second", where)
-		case mark.Command == "":
-			c.fail("%s mark: a mark calls a command with file and at", where)
-		default:
-			if err := c.action(b, mark, fields); err != nil {
-				c.fail("%s mark: %v", where, err)
-			}
 		}
 	}
 }

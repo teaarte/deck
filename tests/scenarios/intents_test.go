@@ -46,7 +46,7 @@ func hangingService(t *testing.T, hang ...int) (*service, func(n int)) {
 }
 
 func generateManifest(url string) string {
-	return fmt.Sprintf(`{"version": 11,
+	return fmt.Sprintf(`{"version": 12,
   "commands": [
     {"name": "make", "title": "Make", "description": "Starts a paid generation.", "class": "external",
      "input": {"type": "object", "properties": {"topic": {"type": "string"}}},

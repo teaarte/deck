@@ -88,7 +88,7 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
   Projects, Models, Connections, Tokens, General, Interface, Health); `project` screens (Documents, the page of
   a document and Settings of the project in tabs Project (commands, schedule), Models (of its work, called), Access (folders, tools, secrets, tokens), Health) deck adds
   to every project
-- `internal/manifest` — project manifest (format 11: `upgrade.go` raises older ones): `types.go`, `parse.go`,
+- `internal/manifest` — project manifest (format 12: `upgrade.go` raises older ones): `types.go`, `parse.go`,
   `lookup.go`, `collection.go`, `nav.go` (`Nav` — a project in the menu, `Tr`), rights (`rights.go`: `Widens` and `Clip` over the same rights — what is in force widens nothing beyond the grant —, the hosts of agent shells), checks of screens by
   part (`check_*.go`), expressions; one `Resolve` of a value (fixed or `=<expression>` with
   `param` of the screen) and `FieldTypes`; the texts of a manifest and their translation `words.go`
@@ -139,10 +139,10 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
 - `web` — client: Vite + React + Mantine v9 + `@a2ui/react` (protocol v0.9, `/v0_9` imports), folders by owner in
   `src/`: `app/` the frame of islands (menu `Nav.tsx`, screen, chat panel `ChatPanel.tsx`, `Toolbar.tsx`, `PhoneBar.tsx`,
   the notifications `Bell.tsx`, the icon pattern `Backdrop.tsx`, the address and back button `router.ts`: tab and
-  dialog only the client reads, `t` a live parameter that reads the data again without drawing the screen anew); `screen/`
+  dialog only the client reads); `screen/`
   a screen (`ScreenView.tsx`, `useScreen.ts`, buttons through the `ScreenActions` context, the catalog `catalog.ts`; the
   top of the cockpit `Hero.tsx` and its one-by-one `Triage.tsx` over the first list of decisions, `decisions.ts`);
-  `blocks/` a file or folder per block registered through `blockImpl.tsx` (frame `Block.tsx`; `table/`, `form/`, `media/` (pictures, PDF, the player `Player.tsx` with marks), `chart/`,
+  `blocks/` a file or folder per block registered through `blockImpl.tsx` (frame `Block.tsx`; `table/`, `form/`, `media/` (pictures, PDF, audio and video in the browser's player, the lightbox), `chart/`,
   `custom/` the MCP Apps host — `@modelcontextprotocol/ext-apps` 1.7.5, 2.x needs zod 4); `chat/` the chat with the master around `chatStore.ts`; `ui/` the mascot `deki/Deki.tsx` (poses in `public/deki`, a switch of Interface), buttons in `actions/` (a failed press shows its error
   at the button, `Failed.tsx`; the undo toast `undo.tsx`; confirmation), icons by
   name, markdown (`@a2ui/markdown-it`), values; `hooks/`; `lib/` the API and live events (`events.ts`, `useLive`, one

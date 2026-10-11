@@ -7,7 +7,7 @@ import i18n from '../lib/i18n';
 import { notifyError } from '../lib/notify';
 import catalogSchema from '../lib/catalogSchema';
 import type { Action } from '../lib/catalog.gen';
-import { liveKey, screenKey, serverParams, type Route } from '../app/router';
+import { screenKey, serverParams, type Route } from '../app/router';
 import { act } from './act';
 import { catalog } from './catalog';
 import { Feed, type Message } from './feed';
@@ -28,11 +28,9 @@ export function useScreen(route: Route) {
   const [error, setError] = useState('');
   const proc = useRef<Processor>(undefined);
   const filterRef = useRef<ScreenActions['filter']>(() => undefined);
-  const liveRef = useRef<() => void>(() => undefined);
   const routeRef = useRef(route);
   routeRef.current = route;
   const key = screenKey(route);
-  const live = liveKey(route);
 
   useEffect(() => {
     let gone = false;
@@ -104,18 +102,6 @@ export function useScreen(route: Route) {
       }
     };
     filterRef.current = (block, field, value) => void filter(block, field, value);
-    // A live parameter changed in place: the data of the screen is read again, the screen stays drawn.
-    liveRef.current = async () => {
-      if (!proc.current) return;
-      const mine = generation;
-      const ticket = feed.ticket();
-      try {
-        const msgs = await call<Message[]>('deck.screen', input());
-        if (!gone && mine === generation) feed.feed(msgs.filter((m) => m.updateDataModel), ticket);
-      } catch (e) {
-        if (!gone) notifyError(e);
-      }
-    };
     const missed: LiveEvent[] = [];
     const pending = new Map<string, LiveEvent>();
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -156,8 +142,6 @@ export function useScreen(route: Route) {
       stop();
     };
   }, [key]);
-
-  useEffect(() => { liveRef.current(); }, [live]);
 
   const actions = useMemo<ScreenActions>(() => ({ run: act, filter: (block, field, value) => filterRef.current(block, field, value) }), []);
   // A surface of the screen before is not drawn again under the key of the next one.

@@ -52,6 +52,7 @@ var upgrades = map[int]func(m map[string]any){
 	// Format 11 sends the web of an MCP server through deck's proxy to the domains of its manifest; nothing in a
 	// manifest of before changes, so no right widens for its scripts or agents.
 	10: func(map[string]any) {},
+	11: func(m map[string]any) { dropPlayer(m["screens"]) },
 	6: func(m map[string]any) {
 		for _, c := range items(m["commands"]) {
 			r, ok := c["result"].(map[string]any)
@@ -64,6 +65,30 @@ var upgrades = map[int]func(m map[string]any){
 			}
 		}
 	},
+}
+
+// dropPlayer drops what format 12 has no more: the marks and the mark button of the player of a media block, and the
+// format timecode, which becomes duration.
+func dropPlayer(v any) {
+	switch v := v.(type) {
+	case map[string]any:
+		if v["type"] == "media" {
+			delete(v, "mark")
+			if item, ok := v["item"].(map[string]any); ok {
+				delete(item, "marks")
+			}
+		}
+		if v["format"] == "timecode" {
+			v["format"] = "duration"
+		}
+		for _, x := range v {
+			dropPlayer(x)
+		}
+	case []any:
+		for _, x := range v {
+			dropPlayer(x)
+		}
+	}
 }
 
 // dropSave drops the save of a form, which format 10 has no more: a command keeps its own records.

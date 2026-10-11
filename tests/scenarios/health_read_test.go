@@ -36,7 +36,7 @@ func TestAReadCheckIsOfItsProject(t *testing.T) {
 	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { jsonReply(w, `{}`) })
 	e := newEnv(t, nil)
 	for _, name := range []string{"stock", "photos"} {
-		e.createProject(name, fmt.Sprintf(`{"version": 11, "tools": {"http": [
+		e.createProject(name, fmt.Sprintf(`{"version": 12, "tools": {"http": [
     {"name": "get", "description": "d", "method": "GET", "url": "%s/p", "class": "internal", "headers": {"X-Key": "$secret.pexels"}}]}}`, svc.URL))
 	}
 	e.must("deck.health_seen", map[string]any{"subject": "secret:pexels", "project": "photos"}, nil)
@@ -54,9 +54,9 @@ func TestAReadCheckIsOfItsProject(t *testing.T) {
 func TestAModuleWhoseManifestDoesNotLoadIsReadLikeAnyCheck(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, nil)
-	pid := e.createProject("broken", `{"version": 11}`)
+	pid := e.createProject("broken", `{"version": 12}`)
 	before := e.pulseErrors()
-	if _, err := e.App.Store.DB.Exec(`UPDATE document_revision SET text = '{"version": 11, "nonsense": true}'
+	if _, err := e.App.Store.DB.Exec(`UPDATE document_revision SET text = '{"version": 12, "nonsense": true}'
 		WHERE document_id IN (SELECT id FROM document WHERE project_id = ? AND kind = 'manifest')`, pid); err != nil {
 		t.Fatal(err)
 	}

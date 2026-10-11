@@ -47,17 +47,6 @@ function duration(s: number): string {
   return kept.map(([n, unit]) => new Intl.NumberFormat(undefined, { style: 'unit', unit, unitDisplay: 'short' }).format(n)).join(' ');
 }
 
-// timecode is a time in seconds as a player shows it: h:mm:ss or m:ss, with hundredths when it has a fraction.
-export function timecode(s: number): string {
-  if (s < 0) return '−' + timecode(-s);
-  const cs = Math.round(s * 100);
-  const whole = Math.floor(cs / 100);
-  const [h, m, sec] = [Math.floor(whole / 3600), Math.floor(whole / 60) % 60, whole % 60];
-  const pad = (n: number) => String(n).padStart(2, '0');
-  const text = h ? `${h}:${pad(m)}:${pad(sec)}` : `${m}:${pad(sec)}`;
-  return cs % 100 ? `${text}.${pad(cs % 100)}` : text;
-}
-
 const BYTES = ['byte', 'kilobyte', 'megabyte', 'gigabyte', 'terabyte', 'petabyte'];
 
 function bytes(n: number): string {
@@ -92,9 +81,6 @@ export function formatted(v: unknown, s: Shown, now = Date.now()): string {
         break;
       case 'bytes':
         if (n !== undefined) return bytes(n);
-        break;
-      case 'timecode':
-        if (n !== undefined) return timecode(n);
         break;
       case 'date': {
         const d = when(v);

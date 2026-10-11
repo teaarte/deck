@@ -16,7 +16,7 @@ import (
 
 // postManifest has an agent command and an HTTP tool of the given extra fields that is not allowed yet.
 func postManifest(url, extra string) string {
-	return fmt.Sprintf(`{"version": 11,
+	return fmt.Sprintf(`{"version": 12,
   "commands": [{"name": "work", "title": "Work", "description": "Works with the service.", "class": "internal",
     "result": {"type": "object"}, "executor": {"type": "agent", "prompt": "Post the note."}}],
   "tools": {"http": [{"name": "post", "description": "Posts a note", "method": "POST", "url": "%s/items/{id}",
@@ -161,7 +161,7 @@ func TestTriggeredExternalCallWaitsWithoutTheAgentAndRunsAfterYes(t *testing.T) 
 	e := newClockEnv(t, func(ctx context.Context, c *Call) provider.Result {
 		return provider.Result{Structured: json.RawMessage(`{}`)}
 	})
-	p := e.createProject("feed", fmt.Sprintf(`{"version": 11,
+	p := e.createProject("feed", fmt.Sprintf(`{"version": 12,
   "commands": [
     {"name": "send", "title": "Send", "description": "Sends out.", "class": "external",
      "input": {"type": "object", "properties": {"process": {"type": "integer", "format": "process"}}},

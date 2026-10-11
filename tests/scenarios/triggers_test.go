@@ -584,7 +584,7 @@ func TestAHungToolIsSeenAndStopsAtItsCeiling(t *testing.T) {
 	t.Parallel()
 	slow := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { <-r.Context().Done() })
 	e := newClockEnv(t, nil)
-	e.createProject("feed", fmt.Sprintf(`{"version": 11, "commands": [{"name": "fetch", "title": "Fetch", "description": "Fetches the feed.",
+	e.createProject("feed", fmt.Sprintf(`{"version": 12, "commands": [{"name": "fetch", "title": "Fetch", "description": "Fetches the feed.",
 	  "class": "internal", "executor": {"type": "tool", "tool": "pull"}}],
 	  "tools": {"http": [{"name": "pull", "description": "Pulls the feed", "method": "GET", "url": "%s/feed", "class": "internal"}]},
 	  "triggers": [{"command": "fetch", "cron": "0 9 * * *"}]}`, slow.URL))

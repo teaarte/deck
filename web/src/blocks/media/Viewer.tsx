@@ -2,10 +2,10 @@ import { useEffect, useState } from 'react';
 import { Alert, Code, Image, Loader, Stack, Text } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
 import { Fallback } from './Fallback';
-import { fetchText, kindOf, PREVIEW, type Item } from './kinds';
+import { fetchText, kindOf, PREVIEW, streamed, type Item } from './kinds';
 import { Pdf } from './Pdf';
-import { Player } from './Player';
 import { useBlob } from './useBlob';
+import s from './files.module.css';
 
 // Picture is a picture in full, from a copy the page made of it.
 function Full({ it }: { it: Item }) {
@@ -45,15 +45,16 @@ function Texty({ it, framed }: { it: Item; framed: boolean }) {
 }
 
 // Viewer opens a file the way it can: the browser itself first, then deck's own, else its card with a download.
-export function Viewer({ it, first }: { it: Item; first?: boolean }) {
+export function Viewer({ it }: { it: Item }) {
   if (it.error) return <Alert color="red" p="xs">{it.error}</Alert>;
   const big = (it.size ?? 0) > PREVIEW;
   switch (kindOf(it)) {
     case 'image':
       return big ? <Fallback it={it} /> : <Full it={it} />;
     case 'video':
+      return <video src={streamed(it.url)} controls playsInline preload="metadata" className={s.media} data-player="video" />;
     case 'audio':
-      return <Player it={it} first={!!first} />;
+      return <audio src={streamed(it.url)} controls preload="metadata" className={s.media} data-player="audio" />;
     case 'pdf':
       if (big) return <Fallback it={it} />;
       return navigator.pdfViewerEnabled ? <Native it={it} /> : <Pdf it={it} />;

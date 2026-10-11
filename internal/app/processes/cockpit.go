@@ -107,14 +107,16 @@ func (s *Service) failed(ctx context.Context, act registry.Actor, id int64) (db.
 	if err != nil {
 		return p, err
 	}
-	ps, err := s.St.Q.ListFailedProcesses(ctx, s.failedParams(act, p.ProjectID, p.ID, 1))
-	if err != nil {
-		return p, err
+	return p, s.stillFailed(ctx, s.St.Q, act, p)
+}
+
+// stillFailed refuses a process no longer among those that did not work.
+func (s *Service) stillFailed(ctx context.Context, q *db.Queries, act registry.Actor, p db.Process) error {
+	ps, err := q.ListFailedProcesses(ctx, s.failedParams(act, p.ProjectID, p.ID, 1))
+	if err == nil && len(ps) == 0 {
+		err = registry.Invalid("deck: process %d is not among those that did not work", p.ID)
 	}
-	if len(ps) == 0 {
-		return p, registry.Invalid("deck: process %d is not among those that did not work", id)
-	}
-	return p, nil
+	return err
 }
 
 // failedParams read the processes that did not work in the last week; a project or id of zero is any.
@@ -128,10 +130,17 @@ type processDismissIn struct {
 
 // processDismiss takes a failed process off the cockpit.
 func (s *Service) processDismiss(ctx context.Context, act registry.Actor, in processDismissIn) (any, error) {
-	if _, err := s.failed(ctx, act, in.Process); err != nil {
+	p, err := s.ownProcess(ctx, act, in.Process)
+	if err != nil {
 		return nil, err
 	}
-	if err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error { return q.DismissProcess(ctx, in.Process) }); err != nil {
+	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		if err := s.stillFailed(ctx, q, act, p); err != nil {
+			return err
+		}
+		return q.DismissProcess(ctx, p.ID)
+	})
+	if err != nil {
 		return nil, err
 	}
 	return map[string]any{"ok": true}, nil

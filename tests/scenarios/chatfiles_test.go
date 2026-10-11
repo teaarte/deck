@@ -211,3 +211,35 @@ func TestTheOwnerDeletesAMessageTheMasterHasNotTaken(t *testing.T) {
 		t.Fatalf("the master never hears a deleted message:\n%s", p)
 	}
 }
+
+// TestAReplyThatCannotGiveItsFilesFailsOnce: a message whose file is not the master's any more fails one reply
+// with the error on the message, and the topic does not start reply after reply.
+func TestAReplyThatCannotGiveItsFilesFailsOnce(t *testing.T) {
+	t.Parallel()
+	fake := &Fake{script: func(ctx context.Context, c *Call) provider.Result { return provider.Result{Text: "Read it."} }}
+	e := newEnvWith(t, t.TempDir(), fake)
+	e.Fake = fake
+	e.createProject("web", webNotes)
+	id := e.upload("web", "plan.txt", "text/plain", "the plan")
+	topic := e.say(0, "hello")
+	e.masterSaid(topic, 1)
+	if _, err := e.App.Store.DB.Exec(`INSERT INTO chat_message (topic_id, role, text, context) VALUES (?, 'owner', 'old plan', ?)`,
+		topic, fmt.Sprintf(`{"files":[%d]}`, id)); err != nil {
+		t.Fatal(err)
+	}
+	e.say(topic, "and now")
+	e.waitFor("the message shows the failed reply", func() bool {
+		for _, m := range e.chatMessages(topic) {
+			if m.Text == "old plan" && m.Reply != nil && m.Reply.State == "error" && strings.Contains(m.Reply.Error, "no file") {
+				return true
+			}
+		}
+		return false
+	})
+	time.Sleep(300 * time.Millisecond)
+	var n int
+	_ = e.App.Store.DB.QueryRow(`SELECT COUNT(*) FROM process WHERE input LIKE '%"topic"%'`).Scan(&n)
+	if n != 2 {
+		t.Fatalf("one reply for the first message and one failed reply: %d", n)
+	}
+}

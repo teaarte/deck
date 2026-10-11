@@ -265,7 +265,7 @@ func (r *Runner) Start(ctx context.Context, projectID int64, m *manifest.Manifes
 		}
 		if err != nil {
 			r.finish(ctx, p.ID, StateError, "", false, "give files: "+err.Error())
-			return 0, err
+			return p.ID, err
 		}
 	}
 	resume := o.Resume && kind == KindAgent && o.Session != ""

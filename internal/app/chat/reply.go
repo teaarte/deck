@@ -213,6 +213,10 @@ func (ch *Service) reply(ctx context.Context, topicID int64) error {
 	o.Note = strings.TrimSpace(retell + "\n\n" + next.note + "\n\n" + news)
 	id, err := ch.Runner.Start(ctx, p.ID, m, reply, map[string]any{"topic": topicID}, o)
 	if err != nil {
+		if id != 0 {
+			// The failed reply takes the messages, so its error shows and the topic does not start again.
+			_ = ch.takeMessages(ctx, t, id, o.Session, sign, 0, last)
+		}
 		return err
 	}
 	return ch.takeMessages(ctx, t, id, o.Session, sign, told, last)

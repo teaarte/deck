@@ -21,8 +21,9 @@ import (
 	"deck2/internal/untrusted"
 )
 
-// SearXNGInstall is how the owner runs SearXNG on this machine with its JSON answers on, for the search of deck.
-const SearXNGInstall = `mkdir -p ~/searxng && printf 'use_default_settings: true\nserver:\n  secret_key: "%s"\nsearch:\n  formats: [html, json]\n' "$(openssl rand -hex 32)" > ~/searxng/settings.yml && ` +
+// SearXNGInstall is how the owner runs SearXNG on this machine with its JSON answers on and English results, for the
+// search of deck.
+const SearXNGInstall = `mkdir -p ~/searxng && printf 'use_default_settings: true\nserver:\n  secret_key: "%s"\nsearch:\n  formats: [html, json]\n  default_lang: "en"\n' "$(openssl rand -hex 32)" > ~/searxng/settings.yml && ` +
 	`docker run -d --name searxng --restart always -p 127.0.0.1:8888:8080 -v ~/searxng:/etc/searxng searxng/searxng`
 
 // noSearch is what the owner does when no search is assigned.

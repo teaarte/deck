@@ -186,7 +186,7 @@ func TestHealthSaysHowToSetUpSearch(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, nil)
 	row := e.waitHealth("search", "warning")
-	if !strings.Contains(row.Error, "docker run") || !strings.Contains(row.Error, "only read pages") {
+	if !strings.Contains(row.Error, "docker run") || !strings.Contains(row.Error, `default_lang: "en"`) || !strings.Contains(row.Error, "only read pages") {
 		t.Fatalf("the warning says how to set up search: %s", row.Error)
 	}
 	var failing atomic.Int32

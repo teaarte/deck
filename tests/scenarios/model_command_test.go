@@ -12,7 +12,9 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 )
 
 // modelManifest is a project with commands of type model: a fact check by a schema, a picture, speech and the
@@ -592,5 +594,44 @@ func TestAModelCommandNoModelTakesIsWarnedOfAndFailsAtOnce(t *testing.T) {
 	e.must("deck.manifest_save", map[string]any{"project": "shorts", "manifest": m.Manifest}, &saved)
 	if len(saved.Warnings) != 3 || slices.ContainsFunc(saved.Warnings, func(w string) bool { return strings.Contains(w, "factcheck") }) {
 		t.Fatalf("a save warns of the commands still without a model: %v", saved.Warnings)
+	}
+}
+
+// TestALocalServerOfPicturesTakesOneCallAtATime: calls of a local model of pictures wait in deck's queue rather
+// than at its server, and the first good answer of a model never called turns its health green.
+func TestALocalServerOfPicturesTakesOneCallAtATime(t *testing.T) {
+	t.Parallel()
+	var now, most atomic.Int64
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n := now.Add(1)
+		defer now.Add(-1)
+		for m := most.Load(); n > m && !most.CompareAndSwap(m, n); m = most.Load() {
+		}
+		time.Sleep(200 * time.Millisecond)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data": [{"b64_json": "iVBORw0KGgo="}]}`))
+	}))
+	t.Cleanup(srv.Close)
+	e := newEnv(t, nil)
+	e.must("deck.connection_set", map[string]any{"name": "media", "api": "openai", "url": srv.URL + "/v1", "local": true}, nil)
+	e.must("deck.model_set", map[string]any{"connection": "media", "model": "klein", "name": "local-image", "kind": "image", "free": true}, nil)
+	e.must("deck.assignment_set", map[string]any{"role": "image", "models": []string{"local-image"}}, nil)
+	e.createProject("shorts", modelManifest)
+	ids := []int64{}
+	for range 3 {
+		ids = append(ids, e.start("shorts", "picture", map[string]any{"scene": "a cube"}))
+	}
+	for _, id := range ids {
+		if got := e.waitState(id, "done", "error"); got.State != "done" {
+			t.Fatalf("every call is answered: %+v", got)
+		}
+	}
+	if most.Load() != 1 {
+		t.Fatalf("the server computes one call at a time, not %d", most.Load())
+	}
+	var status string
+	_ = e.App.Store.DB.QueryRow(`SELECT status FROM health WHERE subject = 'model:local-image' AND workspace_id IS NOT NULL`).Scan(&status)
+	if status != "ok" {
+		t.Fatalf("a model that answered is ok, not never called: %q", status)
 	}
 }

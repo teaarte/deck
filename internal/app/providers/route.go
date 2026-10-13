@@ -113,6 +113,9 @@ func (s *Service) Route(ctx context.Context, act registry.Actor, ask gateway.Mod
 	return hops, nil
 }
 
+// queuedKinds are the kinds a local server computes one call at a time, so deck holds the rest in its queue.
+var queuedKinds = []string{RoleImage, RoleVideo, RoleMusic, RoleTTS, RoleSTT}
+
 // hop is where a call of model m goes, with deck's key.
 func (s *Service) hop(workspace int64, m db.Model, c db.Connection) (gateway.ModelHop, error) {
 	key := ""
@@ -124,7 +127,7 @@ func (s *Service) hop(workspace int64, m db.Model, c db.Connection) (gateway.Mod
 		key = strings.TrimSpace(k)
 	}
 	h := gateway.ModelHop{Target: gateway.ModelTarget{URL: c.Url, API: c.Api, Key: key}, Connection: c.Name, Name: m.Name, Model: m.Model,
-		Local: c.Local != 0, Free: m.Free != 0}
+		Local: c.Local != 0, Free: m.Free != 0, Queue: c.Local != 0 && slices.Contains(queuedKinds, m.Kind)}
 	_ = json.Unmarshal([]byte(m.Options), &h.Options)
 	return h, nil
 }

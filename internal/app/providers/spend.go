@@ -2,6 +2,8 @@ package providers
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"log/slog"
 
@@ -41,7 +43,7 @@ func price(m db.Model, u provider.Usage) *float64 {
 }
 
 // answered keeps in the health of a model whether it answered its last call: one that did not is red with the model
-// that takes its work, its next good answer green; a model in an agent has the health of its self-check.
+// that takes its work, its first or next good answer green; a model in an agent has the health of its self-check.
 func (s *Service) answered(ctx context.Context, m db.Model, next string, status int) {
 	failed := status <= 0 || gateway.Fallible(status)
 	if m.ID == 0 || m.Agent != "" || !failed && status >= 400 {
@@ -67,7 +69,7 @@ func (s *Service) answered(ctx context.Context, m db.Model, next string, status 
 		switch {
 		case failed && (err != nil || h.Status != health.Error || h.Error != text):
 			return health.Set(ctx, q, of, subject, health.Error, text)
-		case !failed && err == nil && h.Status == health.Error:
+		case !failed && (errors.Is(err, sql.ErrNoRows) || err == nil && h.Status == health.Error):
 			return health.Set(ctx, q, of, subject, health.OK, "")
 		}
 		return nil

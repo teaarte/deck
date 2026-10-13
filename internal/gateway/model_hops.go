@@ -11,6 +11,8 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"deck2/internal/provider"
@@ -32,8 +34,9 @@ type ModelHop struct {
 	// replaces an @role the caller asked for.
 	Connection, Name string
 	Model            string
-	// Local is a connection on the owner's hardware; Free is a model that costs nothing.
-	Local, Free bool
+	// Local is a connection on the owner's hardware; Free is a model that costs nothing; Queue sends one call at a
+	// time to its server, such as a local server of pictures that would time out the calls it holds.
+	Local, Free, Queue bool
 	// Options are the fields a call of a kind adds to the request of this model, such as language.
 	Options map[string]any
 	// Done keeps the call: the status the API answered (0 when the request never reached it, -1 when it broke off
@@ -127,6 +130,11 @@ func SendHops(ctx context.Context, hops []ModelHop, build func(ModelHop) (ModelC
 		if err != nil {
 			return nil, h, err
 		}
+		release, waited, err := queued(ctx, h)
+		if err != nil {
+			h.Done(ctx, 0, nil)
+			return nil, h, err
+		}
 		start := time.Now()
 		resp, err := SendModel(ctx, h.Target, c)
 		if err == nil && c.Retry != nil && (resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusMethodNotAllowed) {
@@ -134,7 +142,12 @@ func SendHops(ctx context.Context, hops []ModelHop, build func(ModelHop) (ModelC
 			resp, err = SendModel(ctx, h.Target, *c.Retry)
 		}
 		if err != nil {
-			last = &registry.Error{Status: http.StatusBadGateway, Text: fmt.Sprintf("deck: %s: %v", h.Connection, err)}
+			release()
+			text := fmt.Sprintf("deck: %s: %v", h.Connection, err)
+			if h.Queue {
+				text = fmt.Sprintf("deck: the local model %s did not answer in %s (%d calls waited for it before): %v", h.Name, time.Since(start).Round(time.Second), waited, err)
+			}
+			last = &registry.Error{Status: http.StatusBadGateway, Text: text}
 			if Unsent(err) {
 				h.Done(ctx, 0, nil)
 				continue
@@ -145,16 +158,58 @@ func SendHops(ctx context.Context, hops []ModelHop, build func(ModelHop) (ModelC
 		if Fallible(resp.StatusCode) && i < len(hops)-1 {
 			raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<16))
 			_ = resp.Body.Close()
+			release()
 			h.Done(ctx, resp.StatusCode, nil)
 			last = &registry.Error{Status: http.StatusBadGateway,
 				Text: fmt.Sprintf("deck: %s answered %s: %s", h.Connection, resp.Status, untrusted.Cut(strings.TrimSpace(string(raw)), 500))}
 			continue
 		}
 		done, status := context.WithoutCancel(ctx), resp.StatusCode
-		resp.Body = metered(resp.Body, start, chars(c.Body), func(u *provider.Usage) { h.Done(done, status, u) })
+		resp.Body = &releasing{metered(resp.Body, start, chars(c.Body), func(u *provider.Usage) { h.Done(done, status, u) }), release}
 		return resp, h, nil
 	}
 	return nil, ModelHop{}, last
+}
+
+// queues hold the one call at a time of a queued hop, by the server of its connection.
+var queues sync.Map
+
+type queue struct {
+	slot    chan struct{}
+	waiting atomic.Int64
+}
+
+// queued waits for the turn of a queued hop at its server; release ends it, waited is how many calls were ahead.
+func queued(ctx context.Context, h ModelHop) (release func(), waited int64, err error) {
+	if !h.Queue {
+		return func() {}, 0, nil
+	}
+	server := h.Target.URL
+	if u, err := url.Parse(h.Target.URL); err == nil && u.Host != "" {
+		server = u.Host
+	}
+	v, _ := queues.LoadOrStore(server, &queue{slot: make(chan struct{}, 1)})
+	q := v.(*queue)
+	waited = q.waiting.Add(1) - 1 + int64(len(q.slot))
+	defer q.waiting.Add(-1)
+	select {
+	case q.slot <- struct{}{}:
+		return sync.OnceFunc(func() { <-q.slot }), waited, nil
+	case <-ctx.Done():
+		return nil, waited, fmt.Errorf("deck: the call waited for the local model %s behind %d others until it was cut: %w", h.Name, waited, context.Cause(ctx))
+	}
+}
+
+// releasing ends the turn of a queued hop when its answer closes.
+type releasing struct {
+	io.ReadCloser
+	release func()
+}
+
+func (r *releasing) Close() error {
+	err := r.ReadCloser.Close()
+	r.release()
+	return err
 }
 
 // Unsent reports whether a failed request never reached the other side: only a failed dial or name lookup proves

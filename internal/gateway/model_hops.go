@@ -132,7 +132,6 @@ func SendHops(ctx context.Context, hops []ModelHop, build func(ModelHop) (ModelC
 		}
 		release, waited, err := queued(ctx, h)
 		if err != nil {
-			h.Done(ctx, 0, nil)
 			return nil, h, err
 		}
 		start := time.Now()

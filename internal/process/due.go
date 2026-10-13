@@ -62,23 +62,38 @@ func (r *Runner) warnOfCeiling(ctx context.Context, now time.Time) {
 	}
 	r.mu.Lock()
 	for id, deadline := range r.warned {
-		if deadline <= now.UnixMilli() {
+		if deadline > 0 && deadline <= now.UnixMilli() {
 			delete(r.warned, id)
 		}
 	}
 	var due []db.ListCeilingNearRow
 	for _, p := range rows {
-		if r.warned[p.ID] != p.DeadlineMs {
-			r.warned[p.ID] = p.DeadlineMs
+		if r.warned[p.ID] != p.DeadlineMs && r.warned[p.ID] != -p.DeadlineMs {
+			r.warned[p.ID] = -p.DeadlineMs
 			due = append(due, p)
 		}
 	}
+	if r.stopped {
+		r.mu.Unlock()
+		return
+	}
+	r.wg.Add(len(due))
 	r.mu.Unlock()
 	for _, p := range due {
 		left := time.Duration(p.DeadlineMs-now.UnixMilli()) * time.Millisecond
 		text := fmt.Sprintf("deck: this process reaches its time ceiling in %d minutes and then stops. Save what you did "+
 			"to documents or data now, end any wait, and say in your result where you stopped and how to go on.", int(left.Round(time.Minute)/time.Minute))
-		r.wg.Go(func() { r.Say(r.ctx, p.ID, text) })
+		go func() {
+			defer r.wg.Done()
+			said := r.Say(r.ctx, p.ID, text)
+			r.mu.Lock()
+			defer r.mu.Unlock()
+			if said == Refused {
+				delete(r.warned, p.ID)
+			} else {
+				r.warned[p.ID] = p.DeadlineMs
+			}
+		}()
 	}
 }
 

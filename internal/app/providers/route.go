@@ -113,8 +113,9 @@ func (s *Service) Route(ctx context.Context, act registry.Actor, ask gateway.Mod
 	return hops, nil
 }
 
-// queuedKinds are the kinds a local server computes one call at a time, so deck holds the rest in its queue.
-var queuedKinds = []string{RoleImage, RoleVideo, RoleMusic, RoleTTS, RoleSTT}
+// queuedKinds are the kinds a local server computes one call at a time, so deck holds the rest in its queue; a
+// video is a job the server queues itself.
+var queuedKinds = []string{RoleImage, RoleMusic, RoleTTS, RoleSTT}
 
 // hop is where a call of model m goes, with deck's key.
 func (s *Service) hop(workspace int64, m db.Model, c db.Connection) (gateway.ModelHop, error) {

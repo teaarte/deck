@@ -102,7 +102,7 @@ type Runner struct {
 	of map[int64]events.Event
 	// hearing are the processes this deck closes and hears itself, which a drain of the outbox leaves alone.
 	hearing map[int64]bool
-	// warned is the deadline each agent process was told it nears.
+	// warned is the deadline each agent process was told it nears, negative while the telling is under way.
 	warned map[int64]int64
 }
 

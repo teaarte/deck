@@ -2,8 +2,10 @@ package process
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
+	"strings"
 	"time"
 
 	"deck2/internal/store"
@@ -15,12 +17,15 @@ const (
 	silentAfter = 30 * time.Minute
 	// emptyKept is how long a process with an empty result stays in the history.
 	emptyKept = 24 * time.Hour
+	// ceilingWarning is how long before its ceiling an agent is told to save its work.
+	ceilingWarning = 10 * time.Minute
 )
 
 // Due stops the processes at their ceiling, hears the closed ones not heard, wakes the held ones (the paused whose
 // next try came too), marks the silent ones and purges the empty results kept long enough.
 func (r *Runner) Due(ctx context.Context, now time.Time) {
 	r.stopAtCeiling(ctx, now)
+	r.warnOfCeiling(ctx, now)
 	r.DrainClosed(ctx)
 	r.Wake(ctx)
 	r.markSilent(ctx, now)
@@ -34,9 +39,46 @@ func (r *Runner) stopAtCeiling(ctx context.Context, now time.Time) {
 		return
 	}
 	for _, id := range ids {
-		if err := r.end(ctx, id, StateError, "deck: the process reached its time ceiling", false); err != nil {
+		text := "deck: the process reached its time ceiling"
+		if kids, err := r.st.Q.ListRunningChildren(ctx, store.ID(id)); err == nil && len(kids) > 0 {
+			names := make([]string, 0, len(kids))
+			for _, k := range kids {
+				names = append(names, fmt.Sprintf("#%d %s", k.ID, k.Command))
+			}
+			text += "; the processes it started still run: " + strings.Join(names, ", ")
+		}
+		if err := r.end(ctx, id, StateError, text, false); err != nil {
 			slog.Error("stop at ceiling", "process", id, "err", err)
 		}
+	}
+}
+
+// warnOfCeiling tells a running agent once that its ceiling nears, so it saves what it did and says where it stopped.
+func (r *Runner) warnOfCeiling(ctx context.Context, now time.Time) {
+	rows, err := r.st.Q.ListCeilingNear(ctx, db.ListCeilingNearParams{Now: now.UnixMilli(), Soon: now.Add(ceilingWarning).UnixMilli()})
+	if err != nil {
+		slog.Error("ceilings near", "err", err)
+		return
+	}
+	r.mu.Lock()
+	for id, deadline := range r.warned {
+		if deadline <= now.UnixMilli() {
+			delete(r.warned, id)
+		}
+	}
+	var due []db.ListCeilingNearRow
+	for _, p := range rows {
+		if r.warned[p.ID] != p.DeadlineMs {
+			r.warned[p.ID] = p.DeadlineMs
+			due = append(due, p)
+		}
+	}
+	r.mu.Unlock()
+	for _, p := range due {
+		left := time.Duration(p.DeadlineMs-now.UnixMilli()) * time.Millisecond
+		text := fmt.Sprintf("deck: this process reaches its time ceiling in %d minutes and then stops. Save what you did "+
+			"to documents or data now, end any wait, and say in your result where you stopped and how to go on.", int(left.Round(time.Minute)/time.Minute))
+		r.wg.Go(func() { r.Say(r.ctx, p.ID, text) })
 	}
 }
 

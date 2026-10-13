@@ -39,6 +39,45 @@
       }
     },
     {
+      "name": "work",
+      "title": "Long work",
+      "description": "Does a long task of the owner the master handed over from a chat topic, such as rebuilding a module with its renders and self-checks.",
+      "class": "internal",
+      "callers": [
+        "master"
+      ],
+      "requires": [
+        "tools"
+      ],
+      "provider": "claude-code",
+      "timeout_minutes": 240,
+      "input": {
+        "type": "object",
+        "properties": {
+          "task": {
+            "type": "string",
+            "description": "What to do, with everything the owner said that it needs"
+          },
+          "topic": {
+            "type": "integer",
+            "description": "The chat topic the task came from"
+          }
+        },
+        "required": [
+          "task"
+        ]
+      },
+      "executor": {
+        "type": "agent",
+        "prompt_file": "prompts/work.md",
+        "skills": [
+          "memory",
+          "module-builder",
+          "code-project"
+        ]
+      }
+    },
+    {
       "name": "memory",
       "title": "Clean up memory",
       "description": "Merges, shortens and deletes facts of the memory of the owner and of each project by the memory skill.",

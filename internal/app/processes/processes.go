@@ -190,10 +190,13 @@ func (s *Service) Open(ctx context.Context, act registry.Actor) (map[string]int6
 // maxWait is the longest process_get waits; an agent whose tool calls time out sooner waits a little less than that.
 const maxWait = 30 * time.Minute
 
+// ceilingMargin is how long before the ceiling of its own process a wait of an agent ends, for it to act on it.
+const ceilingMargin = 2 * time.Minute
+
 type processGetIn struct {
 	Process int64  `type:"process" desc:"Process id"`
 	Lang    string `opt:"" desc:"Language of the word of its state, such as ru; English without one"`
-	Wait    int64  `opt:"" desc:"Seconds to wait, at most 1800 and less for agents whose tool calls time out sooner, for the process to finish or to wait for the owner"`
+	Wait    int64  `opt:"" desc:"Seconds to wait, at most 1800 and less for agents whose tool calls time out sooner or whose own process nears its ceiling, for the process to finish or to wait for the owner"`
 }
 
 func (s *Service) processGet(ctx context.Context, act registry.Actor, in processGetIn) (processView, error) {
@@ -202,6 +205,12 @@ func (s *Service) processGet(ctx context.Context, act registry.Actor, in process
 		return processView{}, err
 	}
 	until := time.Now().Add(min(time.Duration(max(in.Wait, 0))*time.Second, waitLimit(act)))
+	if self, err := s.St.Q.GetProcess(ctx, act.ProcessID); act.ProcessID != 0 && err == nil && self.DeadlineMs.Valid {
+		left := time.UnixMilli(self.DeadlineMs.Int64).Sub(s.Now()) - ceilingMargin
+		if end := time.Now().Add(max(left, 0)); end.Before(until) {
+			until = end
+		}
+	}
 	for lent := false; !p.FinishedAt.Valid && p.State != process.StateWaitingAnswer && p.State != process.StateNeedsLogin && time.Now().Before(until); {
 		if !lent && act.ProcessID != 0 && act.ProcessID != p.ID {
 			lent = true

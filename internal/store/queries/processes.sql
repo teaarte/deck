@@ -85,6 +85,15 @@ RETURNING id;
 SELECT id FROM process WHERE state = 'running' AND deadline_ms IS NOT NULL AND deadline_ms <= CAST(sqlc.arg(now) AS INTEGER);
 
 
+-- name: ListCeilingNear :many
+SELECT id, CAST(deadline_ms AS INTEGER) AS deadline_ms FROM process
+WHERE state = 'running' AND kind = 'agent' AND deadline_ms > CAST(sqlc.arg(now) AS INTEGER) AND deadline_ms <= CAST(sqlc.arg(soon) AS INTEGER);
+
+
+-- name: ListRunningChildren :many
+SELECT id, command FROM process WHERE parent_id = ? AND finished_at IS NULL ORDER BY id;
+
+
 -- name: SetProcessGroup :exec
 UPDATE process SET pgid = ? WHERE id = ?;
 

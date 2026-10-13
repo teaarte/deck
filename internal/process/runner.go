@@ -102,6 +102,8 @@ type Runner struct {
 	of map[int64]events.Event
 	// hearing are the processes this deck closes and hears itself, which a drain of the outbox leaves alone.
 	hearing map[int64]bool
+	// warned is the deadline each agent process was told it nears.
+	warned map[int64]int64
 }
 
 // logged publishes that the log of a process grew, in its project: the log is a file, which no write of the base
@@ -166,7 +168,7 @@ type Deps struct {
 func NewRunner(st *store.Store, gw *gateway.Gateway, bus *events.Bus, scripts *script.Exec, cfg Config, deps Deps) *Runner {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Runner{st: st, gw: gw, bus: bus, scripts: scripts, cfg: cfg, deps: deps, ctx: ctx, cancel: cancel,
-		live: map[int64]*liveTurn{}, marked: map[int64]time.Time{},
+		live: map[int64]*liveTurn{}, marked: map[int64]time.Time{}, warned: map[int64]int64{},
 		slots: map[int64]int{}, of: map[int64]events.Event{}, hearing: map[int64]bool{}}
 }
 

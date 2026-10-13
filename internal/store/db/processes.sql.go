@@ -467,6 +467,44 @@ func (q *Queries) LeaveRunning(ctx context.Context, arg LeaveRunningParams) (int
 	return result.RowsAffected()
 }
 
+const listCeilingNear = `-- name: ListCeilingNear :many
+SELECT id, CAST(deadline_ms AS INTEGER) AS deadline_ms FROM process
+WHERE state = 'running' AND kind = 'agent' AND deadline_ms > CAST(?1 AS INTEGER) AND deadline_ms <= CAST(?2 AS INTEGER)
+`
+
+type ListCeilingNearParams struct {
+	Now  int64
+	Soon int64
+}
+
+type ListCeilingNearRow struct {
+	ID         int64
+	DeadlineMs int64
+}
+
+func (q *Queries) ListCeilingNear(ctx context.Context, arg ListCeilingNearParams) ([]ListCeilingNearRow, error) {
+	rows, err := q.db.QueryContext(ctx, listCeilingNear, arg.Now, arg.Soon)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListCeilingNearRow
+	for rows.Next() {
+		var i ListCeilingNearRow
+		if err := rows.Scan(&i.ID, &i.DeadlineMs); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listCeilingReached = `-- name: ListCeilingReached :many
 SELECT id FROM process WHERE state = 'running' AND deadline_ms IS NOT NULL AND deadline_ms <= CAST(?1 AS INTEGER)
 `
@@ -1052,6 +1090,38 @@ func (q *Queries) ListRecordProcesses(ctx context.Context, arg ListRecordProcess
 			&i.Dismissed,
 			&i.ReopenedAt,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listRunningChildren = `-- name: ListRunningChildren :many
+SELECT id, command FROM process WHERE parent_id = ? AND finished_at IS NULL ORDER BY id
+`
+
+type ListRunningChildrenRow struct {
+	ID      int64
+	Command string
+}
+
+func (q *Queries) ListRunningChildren(ctx context.Context, parentID sql.NullInt64) ([]ListRunningChildrenRow, error) {
+	rows, err := q.db.QueryContext(ctx, listRunningChildren, parentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListRunningChildrenRow
+	for rows.Next() {
+		var i ListRunningChildrenRow
+		if err := rows.Scan(&i.ID, &i.Command); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

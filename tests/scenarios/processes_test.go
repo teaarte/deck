@@ -717,3 +717,51 @@ func TestFilesATurnLeftPastTheLimitsAreToldOf(t *testing.T) {
 		t.Fatalf("the note says why: %+v", n)
 	}
 }
+
+// TestAnAgentHearsItsCeilingNearAndTheErrorNamesWhatStillRuns: an agent is told its ceiling nears, a wait ends
+// before it, and the error at the ceiling names the processes the agent started that still run.
+func TestAnAgentHearsItsCeilingNearAndTheErrorNamesWhatStillRuns(t *testing.T) {
+	t.Parallel()
+	told, proceed, waited := make(chan string, 1), make(chan struct{}), make(chan time.Duration, 1)
+	child := make(chan int64, 1)
+	fake := &Fake{live: true, script: func(ctx context.Context, c *Call) provider.Result {
+		if c.command() == "child" {
+			<-ctx.Done()
+			return provider.Result{}
+		}
+		out, _ := c.Tool(ctx, "long__child", map[string]any{})
+		var started struct{ Process int64 }
+		_ = json.Unmarshal([]byte(out), &started)
+		child <- started.Process
+		told <- heard(ctx, c)
+		<-proceed
+		at := time.Now()
+		c.Tool(ctx, "process_get", map[string]any{"process": started.Process, "wait": 1800})
+		waited <- time.Since(at)
+		<-ctx.Done()
+		return provider.Result{}
+	}}
+	clock := &Clock{now: t0}
+	e := newEnvWith(t, t.TempDir(), fake, withClock(clock))
+	e.Clock = clock
+	p := e.createProject("long", testManifest([]string{agentCommand("parent", ""), agentCommand("child", "")}, nil))
+	id := e.run(p, "parent")
+	kid := <-child
+	e.waitFor("the ceiling to run", func() bool { return e.full(id).Deadline != "" })
+	e.Clock.Add(51 * time.Minute)
+	e.sweep()
+	if got := <-told; !strings.Contains(got, "time ceiling in 9 minutes") {
+		t.Fatalf("the agent hears its ceiling near: %q", got)
+	}
+	e.Clock.Add(8 * time.Minute)
+	close(proceed)
+	if d := <-waited; d > 5*time.Second {
+		t.Fatalf("a wait ends before the ceiling of the process that waits, not after %s", d)
+	}
+	e.Clock.Add(2 * time.Minute)
+	e.sweep()
+	got := e.waitState(id, "error")
+	if want := fmt.Sprintf("the processes it started still run: #%d child", kid); !strings.Contains(got.Error, want) {
+		t.Fatalf("the error at the ceiling names what still runs: %q", got.Error)
+	}
+}

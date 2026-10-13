@@ -112,7 +112,7 @@ func (b *Browser) proxy() string {
 		}
 		b.proxyAt = ln.Addr().String()
 		srv := &http.Server{ReadHeaderTimeout: 10 * time.Second, Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			gateway.Egress(b.Ctx, w, r, openWeb)
+			_ = gateway.Egress(b.Ctx, w, r, openWeb)
 		})}
 		go func() { <-b.Ctx.Done(); _ = srv.Close() }()
 		go func() { _ = srv.Serve(ln) }()

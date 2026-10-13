@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"deck2/internal/provider"
 )
@@ -185,5 +186,21 @@ func TestAWokenClaudeCodeSessionMayWorkInSilence(t *testing.T) {
 	res, err := c.adapter(t.TempDir()).Run(context.Background(), provider.Request{Cwd: t.TempDir(), Prompt: "x", SessionID: "s"})
 	if err != nil || res.Text != "gamma" {
 		t.Fatalf("the woken session is not cut off while it works: %+v %v", res, err)
+	}
+}
+
+// TestASelfCheckCutByItsCeilingIsSlowNotABrokenAdapter: a CLI that gives no answer in time, as on a machine without
+// network, is slow, not broken.
+func TestASelfCheckCutByItsCeilingIsSlowNotABrokenAdapter(t *testing.T) {
+	t.Parallel()
+	c := newCLI(t)
+	if err := os.WriteFile(filepath.Join(c.dir, "before"), []byte("sleep 30\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	got := c.adapter(t.TempDir()).SelfCheck(ctx)
+	if !got.Slow || got.Err == nil || !strings.Contains(got.Err.Error(), "without network") {
+		t.Fatalf("a self-check cut by its ceiling is slow and says the network may be down: %+v", got)
 	}
 }

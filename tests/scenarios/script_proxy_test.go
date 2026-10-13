@@ -64,8 +64,9 @@ func TestScriptInstallsItsPackagesThroughTheProxyAndMissingProgramShowsInHealth(
 	mu.Lock()
 	clear(hits)
 	mu.Unlock()
-	if p := e.waitScript(e.start("closed", "use", nil), "done", "error"); p.State != "error" || !strings.Contains(p.Error, "403") {
-		t.Fatalf("an index outside domains.read is refused: %+v", p)
+	if p := e.waitScript(e.start("closed", "use", nil), "done", "error"); p.State != "error" || !strings.Contains(p.Error, "403") ||
+		!strings.Contains(p.Error, "deck: the proxy refused: ") || !strings.Contains(p.Error, "domains.read") {
+		t.Fatalf("an index outside domains.read is refused, and the error says which and where it is added: %+v", p)
 	}
 	mu.Lock()
 	defer mu.Unlock()
@@ -137,7 +138,7 @@ print(json.dumps({"named": fetch(inp["allowed"]), "local": fetch(inp["other"]), 
 }
 
 // TestADomainIsAHostThatResolvesOnceToWhereItMayGo: a domain is a bare host; "*.x" is x, a public suffix or a URL
-// is refused on save; a name that resolves to the owner's machine or does not resolve is not reached.
+// is refused on save; a name that resolves to the owner's machine is refused, one that does not resolve is not reached.
 func TestADomainIsAHostThatResolvesOnceToWhereItMayGo(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, nil)
@@ -163,8 +164,8 @@ print(json.dumps({"local": fetch(inp["allowed"]), "nowhere": fetch("http://nowhe
 	p := e.waitScript(e.start("tools", "collect", map[string]any{"allowed": "http://localhost:" + port + "/"}), "done", "error")
 	var got struct{ Local, Nowhere any }
 	_ = json.Unmarshal(p.Result, &got)
-	if got.Local != float64(403) || got.Nowhere != float64(403) || len(local.requests()) != 0 {
-		t.Fatalf("a name of the owner's machine and a name that does not resolve are refused: %s", p.Result)
+	if got.Local != float64(403) || got.Nowhere != float64(502) || len(local.requests()) != 0 {
+		t.Fatalf("a name of the owner's machine is refused, a name that does not resolve is a bad gateway: %s", p.Result)
 	}
 }
 

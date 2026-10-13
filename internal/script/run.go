@@ -113,6 +113,11 @@ func (x *Exec) Run(ctx context.Context, j Job) ([]byte, error) {
 		if sandbox.Refused(tail) {
 			tail += "\ndeck: " + sandbox.OpenHint
 		}
+		if j.Door != nil {
+			for _, why := range j.Door.Refused() {
+				tail += "\ndeck: the proxy refused: " + why
+			}
+		}
 		return nil, fmt.Errorf("script %s exited with code %d: %s", j.Script.Name, exit.ExitCode(), tail)
 	}
 	if err != nil {

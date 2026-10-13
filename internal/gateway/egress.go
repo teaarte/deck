@@ -53,7 +53,7 @@ func destination(ctx context.Context, domains []string, hostport string) ([]stri
 		return nil, err
 	}
 	if !listed(domains, hostport) && !wildcard(domains) {
-		return nil, fmt.Errorf("%s is not in the domains of this project", hostport)
+		return nil, fmt.Errorf("%s is not in the domains of this project; its manifest names it in domains.read and the owner grants it", hostport)
 	}
 	if ip, err := netip.ParseAddr(host); err == nil {
 		if !Public(ip) && !listed(domains, hostport) {
@@ -123,8 +123,8 @@ func Public(ip netip.Addr) bool {
 var shared = netip.MustParsePrefix("100.64.0.0/10")
 
 // Egress carries a proxy request of a confined program to a host in the domains, dialled at the addresses it
-// resolved to once; tunnels close when ctx ends.
-func Egress(ctx context.Context, w http.ResponseWriter, r *http.Request, domains []string) {
+// resolved to once; tunnels close when ctx ends. The error is why it refused: 502 for a name that does not resolve.
+func Egress(ctx context.Context, w http.ResponseWriter, r *http.Request, domains []string) error {
 	target := r.Host
 	if r.Method != http.MethodConnect {
 		port := r.URL.Port()
@@ -134,16 +134,22 @@ func Egress(ctx context.Context, w http.ResponseWriter, r *http.Request, domains
 		target = net.JoinHostPort(r.URL.Hostname(), port)
 	}
 	pinned, err := destination(r.Context(), domains, target)
+	if errors.Is(err, errUnresolved) {
+		err = fmt.Errorf("%w; the network or DNS of the machine may be down", err)
+		http.Error(w, "deck: "+err.Error(), http.StatusBadGateway)
+		return err
+	}
 	if err != nil {
 		http.Error(w, "deck: "+err.Error(), http.StatusForbidden)
-		return
+		return err
 	}
 	r = r.WithContext(context.WithValue(r.Context(), pinnedKey{}, pinned))
 	if r.Method == http.MethodConnect {
 		tunnel(ctx, w, r, target)
-		return
+		return nil
 	}
 	forward.ServeHTTP(w, r)
+	return nil
 }
 
 // pageClient gets one page at the addresses its request was pinned to, on a connection of its own, since a kept one

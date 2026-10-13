@@ -116,6 +116,9 @@ func (a *Adapter) SelfCheck(ctx context.Context) provider.Check {
 		var out struct{ Word, Answer string }
 		_ = json.Unmarshal(res.Structured, &out)
 		switch {
+		case ctx.Err() != nil && !res.RateLimited && !res.NeedsLogin:
+			c.Slow = true
+			c.Err = fmt.Errorf("%s: no answer within the ceiling: the machine may be slow or without network", what)
 		case err != nil:
 			c.Err = fmt.Errorf("%s: %w", what, err)
 		case res.RateLimited || res.NeedsLogin || res.IsError:
@@ -167,6 +170,9 @@ func (a *Adapter) SelfCheck(ctx context.Context) provider.Check {
 	var out struct{ Word string }
 	_ = json.Unmarshal(res.Structured, &out)
 	switch {
+	case ctx.Err() != nil && !res.RateLimited && !res.NeedsLogin:
+		c.Slow = true
+		c.Err = errors.New("turn without network: no answer within the ceiling: the machine may be slow or without network")
 	case err != nil:
 		c.Err = fmt.Errorf("turn without network: %w", err)
 	case res.RateLimited || res.NeedsLogin || res.IsError:

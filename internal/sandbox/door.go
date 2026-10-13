@@ -6,14 +6,16 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"slices"
 	"sync"
 	"time"
 
 	"deck2/internal/nonce"
 )
 
-// Web carries a proxy request of a confined program to a host in domains; its tunnels end when ctx ends.
-type Web func(ctx context.Context, w http.ResponseWriter, r *http.Request, domains []string)
+// Web carries a proxy request of a confined program to a host in domains, or says why it refused; its tunnels end
+// when ctx ends.
+type Web func(ctx context.Context, w http.ResponseWriter, r *http.Request, domains []string) error
 
 // Door is the one way out of a confined program: a proxy with a key of its own to its domains, and deck's own
 // handler at its address.
@@ -24,6 +26,8 @@ type Door struct {
 	srv       *http.Server
 	cut       context.CancelFunc
 	once      sync.Once
+	mu        sync.Mutex
+	refused   []string
 }
 
 // Open opens a door of sb: a request to another host that carries the key goes to web with domains, none goes
@@ -52,10 +56,13 @@ func Open(sb Sandbox, web Web, domains []string, deck http.Handler) (*Door, erro
 			return
 		}
 		if web == nil || len(domains) == 0 {
+			d.refuse(r.Host + " is not in the domains of this project; its manifest names it in domains.read and the owner grants it")
 			http.Error(w, "deck: "+r.Host+" is not reachable from this program", http.StatusForbidden)
 			return
 		}
-		web(life, w, r, domains)
+		if err := web(life, w, r, domains); err != nil {
+			d.refuse(err.Error())
+		}
 	})}
 	go func() { _ = d.srv.Serve(ln) }()
 	return d, nil
@@ -78,6 +85,22 @@ func (d *Door) Close() {
 		}
 		_ = os.RemoveAll(d.dir)
 	})
+}
+
+// refuse keeps a refusal once, the first few.
+func (d *Door) refuse(why string) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if len(d.refused) < 3 && !slices.Contains(d.refused, why) {
+		d.refused = append(d.refused, why)
+	}
+}
+
+// Refused are the reasons the door turned the program's requests away, the first few.
+func (d *Door) Refused() []string {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return slices.Clone(d.refused)
 }
 
 // authorized reports whether a proxy request carries the key as its password, and answers 407 when not.

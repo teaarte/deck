@@ -717,9 +717,14 @@ func TestTheSettingsOfAModuleShowTheModelsOfItsWork(t *testing.T) {
 	e.createProject("plain", plainManifest)
 	e.must("deck.assignment_set", map[string]any{"role": "image", "project": "shorts", "models": []string{"local-image", "cloud-image"}}, nil)
 	e.must("deck.assignment_set", map[string]any{"role": "image", "project": "plain", "models": []string{"cloud-image"}}, nil)
-	rows := blockData[[]screenRow](t, e.screenBlock("shorts", "settings", "Models of its scripts", nil)["rows"])
-	if len(rows) != 1 || fmt.Sprint(rows[0].Cells...) != "imagelocal-imagefree" {
-		t.Fatalf("the settings of a module show the models of its scripts and only its own: %+v", rows)
+	rows := blockData[[]screenRow](t, e.screenBlock("shorts", "settings", "Models", nil)["rows"])
+	if len(rows) != 2 || fmt.Sprint(rows[0].Cells[0], rows[0].Cells[2]) != "Publishdefault" || fmt.Sprint(rows[1].Cells...) != "imagelocal-imageherefree" {
+		t.Fatalf("the settings of a module show the models of its commands and scripts and only its own: %+v", rows)
+	}
+	rows = rows[1:]
+	plain := blockData[[]screenRow](t, e.screenBlock("plain", "settings", "Models", nil)["rows"])
+	if len(plain) != 1 || fmt.Sprint(plain[0].Cells[0], plain[0].Cells[2]) != "Workdefault" || plain[0].Cells[1] == "" {
+		t.Fatalf("a command runs on a model, the default one when the module picked none: %+v", plain)
 	}
 	pick := rows[0].Actions[slices.IndexFunc(rows[0].Actions, func(a map[string]any) bool { return a["verb"] == "model" })]
 	if fmt.Sprint(pick["options"]) != "[cloud-image local-image]" {
@@ -728,10 +733,10 @@ func TestTheSettingsOfAModuleShowTheModelsOfItsWork(t *testing.T) {
 	params := pick["params"].(map[string]any)
 	params["model"] = "cloud-image"
 	e.must(pick["command"].(string), params, nil)
-	rows = blockData[[]screenRow](t, e.screenBlock("shorts", "settings", "Models of its scripts", nil)["rows"])
+	rows = blockData[[]screenRow](t, e.screenBlock("shorts", "settings", "Models", nil)["rows"])[1:]
 	var list modelsOut
 	e.must("deck.models_list", map[string]any{"project": "shorts"}, &list)
-	if fmt.Sprint(rows[0].Cells...) != "imagecloud-image$0.03 a call" || fmt.Sprint(list.Assignments[0].Models) != "[cloud-image local-image]" {
+	if fmt.Sprint(rows[0].Cells...) != "imagecloud-imagehere$0.03 a call" || fmt.Sprint(list.Assignments[0].Models) != "[cloud-image local-image]" {
 		t.Fatalf("a picked model goes first and the one before stays its fallback: %v %+v", rows[0].Cells, list.Assignments)
 	}
 }

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"deck2/internal/app/access"
+	"deck2/internal/docs"
 	"deck2/internal/gateway"
 	"deck2/internal/health"
 	"deck2/internal/manifest"
@@ -85,10 +86,23 @@ type modelsOut struct {
 	// Uses are the kinds of work the projects call models for apart from their commands, such as the pictures of
 	// their scripts, with the model each goes to.
 	Uses []useView `json:"uses"`
+	// Work is every command of a project that runs on a model and every kind of work of its scripts, with the model
+	// each runs on; given only for one project.
+	Work []workView `json:"work"`
 }
 
 type useView struct {
 	Project string `json:"project"`
+	provider.Work
+}
+
+// workView is a command or a kind of work of scripts of a project with its model; Own says the project or the
+// command has an assignment of its own, else the model is the default.
+type workView struct {
+	Project string `json:"project"`
+	Command string `json:"command,omitempty"`
+	Title   string `json:"title"`
+	Own     bool   `json:"own"`
 	provider.Work
 }
 
@@ -105,7 +119,7 @@ type modelsListIn struct {
 }
 
 func (s *Service) modelsList(ctx context.Context, act registry.Actor, in modelsListIn) (modelsOut, error) {
-	out := modelsOut{Agents: s.agents(ctx), Connections: []connectionView{}, Models: []modelView{}, Assignments: []assignmentView{}, Uses: []useView{}}
+	out := modelsOut{Agents: s.agents(ctx), Connections: []connectionView{}, Models: []modelView{}, Assignments: []assignmentView{}, Uses: []useView{}, Work: []workView{}}
 	conns, err := s.St.Q.ListConnections(ctx, act.Workspace)
 	if err != nil {
 		return out, err
@@ -214,8 +228,25 @@ func (s *Service) uses(ctx context.Context, act registry.Actor, in modelsListIn,
 		if pid != 0 && p.ID != pid || act.Confined() && p.ID != act.ProjectID {
 			continue
 		}
-		for _, w := range s.rolesWork(ctx, b, p.ID) {
+		roles := s.rolesWork(ctx, b, p.ID)
+		for _, w := range roles {
 			out.Uses = append(out.Uses, useView{Project: p.Name, Work: w})
+		}
+		if pid == 0 && !act.Confined() {
+			continue
+		}
+		m, err := docs.For(ctx, s.St.Q, registry.Actor{}, p.ID)
+		if err != nil {
+			continue
+		}
+		for _, c := range m.Commands {
+			if c.Executor.Type == "agent" || c.Executor.Type == "model" {
+				w := s.commandWork(ctx, b, p.ID, c.Name)
+				out.Work = append(out.Work, workView{Project: p.Name, Command: c.Name, Title: c.Title, Own: len(w.Models) > 0, Work: w})
+			}
+		}
+		for _, w := range roles {
+			out.Work = append(out.Work, workView{Project: p.Name, Title: w.Role, Own: len(w.Models) > 0, Work: w})
 		}
 	}
 	for name := range s.Places(ctx, act.Workspace) {

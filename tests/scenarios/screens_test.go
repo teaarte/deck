@@ -998,7 +998,7 @@ func TestTheMasterSettingsShowWhatItDoesOnSchedule(t *testing.T) {
 	data := e.screenData("master", "settings", nil)
 	var sched []screenRow
 	for id, d := range data {
-		if strings.Contains(string(d["rows"]), `"review"`) && strings.Contains(string(d["rows"]), "30 10 * * *") {
+		if strings.Contains(string(d["rows"]), `review"`) && strings.Contains(string(d["rows"]), "30 10 * * *") {
 			sched = blockData[[]screenRow](t, data[id]["rows"])
 		}
 	}

@@ -21,30 +21,28 @@
               {"verb": "delete", "confirm": true, "command": "deck.project_delete", "params": {"project": "=name"}, "when": "!builtin"}
             ]},
           {"type": "table", "title": "Commands", "source": {"from": "deck.commands_list", "where": "tool == ''", "sort": "name"},
-            "description": "What the module can do: when it runs by itself, and the model that does its work; a model picked here replaces the one the manifest suggests.",
+            "description": "What the module can do and when it runs by itself.",
             "columns": [
               {"label": "Command", "bind": "title"},
-              {"label": "When", "bind": "cron ?? ''", "format": "cron"},
-              {"label": "Model", "bind": "model ?? ''", "pick": "model"},
-              {"label": "Price", "bind": "price ?? ''"}
+              {"label": "When", "bind": "cron ?? ''", "format": "cron"}
             ],
             "actions": [
-              {"verb": "model", "command": "deck.assignment_set", "params": {"role": "=role", "project": "=project", "command": "=trimPrefix(name, project + '.')"},
-                "input": "model", "options": "=choices", "when": "len(choices ?? []) > 0"},
               {"verb": "run_now", "command": "deck.trigger_run", "params": {"trigger": "=trigger"}, "when": "(trigger ?? 0) != 0"},
               {"verb": "resume", "command": "deck.trigger_pause", "params": {"trigger": "=trigger", "paused": "false"}, "when": "(trigger ?? 0) != 0 && (own_paused ?? false)"},
               {"verb": "pause", "command": "deck.trigger_pause", "params": {"trigger": "=trigger", "paused": "true"}, "when": "(trigger ?? 0) != 0 && !(own_paused ?? false)"},
               {"verb": "try", "screen": "settings", "params": {"dialog": "try-command", "command": "=name"}, "when": "executor != ''"}
             ]},
-          {"type": "table", "title": "Models of its scripts", "when": "len(rows) > 0", "source": {"from": "deck.models_list", "rows": "uses"},
-            "description": "The kinds of work its scripts call models for, and the model each goes to.",
+          {"type": "table", "title": "Models", "when": "len(rows) > 0", "source": {"from": "deck.models_list", "rows": "work"},
+            "description": "The model each command and each kind of work of its scripts runs on now: the default one of deck's settings or the manifest, or one picked here for this module.",
             "columns": [
-              {"label": "Kind of work", "bind": "role", "format": "tag"},
+              {"label": "What", "bind": "command != nil ? title : role"},
               {"label": "Model", "bind": "model ?? ''", "pick": "model"},
+              {"label": "Chosen", "bind": "own ? 'here' : 'default'", "format": "tag", "tone": "own ? 'ok' : 'muted'"},
               {"label": "Price", "bind": "price ?? ''"}
             ],
             "actions": [
-              {"verb": "model", "command": "deck.assignment_set", "params": {"role": "=role", "project": "=project"}, "input": "model", "options": "=choices", "when": "len(choices ?? []) > 0"}
+              {"verb": "model", "command": "deck.assignment_set", "params": {"role": "=role", "project": "=project", "command": "=command ?? ''"},
+                "input": "model", "options": "=choices", "when": "len(choices ?? []) > 0"}
             ]},
           {"type": "table", "title": "Model calls", "when": "len(rows) > 0", "source": {"from": "deck.spend_list", "sort": "-last_at"},
             "description": "Which model each command called, how often and what it cost; one paid by a subscription costs nothing apart from it.",

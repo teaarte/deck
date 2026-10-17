@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"slices"
 
 	"deck2/internal/nonce"
 	"deck2/internal/registry"
@@ -35,6 +36,13 @@ func (g *Gateway) ScriptHandler(tok string) http.Handler {
 		}
 		out, err := g.call(r.Context(), s.actor(), r.PathValue("name"), body)
 		if err != nil {
+			if registry.Status(err) == http.StatusForbidden {
+				g.mu.Lock()
+				if e := g.sessions[tok]; e != nil && len(e.refused) < 5 {
+					e.refused = append(e.refused, r.PathValue("name")+": "+err.Error())
+				}
+				g.mu.Unlock()
+			}
 			http.Error(w, err.Error(), registry.Status(err))
 			return
 		}
@@ -77,6 +85,16 @@ func ReadBody(w http.ResponseWriter, r *http.Request) ([]byte, error) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 	}
 	return body, err
+}
+
+// Refusals are the calls of the script of tok deck refused, oldest first.
+func (g *Gateway) Refusals(tok string) []string {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if e := g.sessions[tok]; e != nil {
+		return slices.Clone(e.refused)
+	}
+	return nil
 }
 
 func (g *Gateway) session(tok string) *Session {

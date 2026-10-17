@@ -1337,39 +1337,6 @@ func (q *Queries) ListRecordProcesses(ctx context.Context, arg ListRecordProcess
 	return items, nil
 }
 
-const listRefusedCalls = `-- name: ListRefusedCalls :many
-SELECT tool, error FROM tool_call WHERE process_id = ? AND outcome = 'rejected' ORDER BY id LIMIT 5
-`
-
-type ListRefusedCallsRow struct {
-	Tool  string
-	Error string
-}
-
-// The calls of a process deck refused, oldest first.
-func (q *Queries) ListRefusedCalls(ctx context.Context, processID sql.NullInt64) ([]ListRefusedCallsRow, error) {
-	rows, err := q.db.QueryContext(ctx, listRefusedCalls, processID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ListRefusedCallsRow
-	for rows.Next() {
-		var i ListRefusedCallsRow
-		if err := rows.Scan(&i.Tool, &i.Error); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listRunningChildren = `-- name: ListRunningChildren :many
 SELECT id, command FROM process WHERE parent_id = ? AND finished_at IS NULL ORDER BY id
 `

@@ -95,7 +95,7 @@ func (r *Runner) runScript(ctx context.Context, t turn, trial bool) {
 		return
 	}
 	if err != nil {
-		fail(r.refused(bg, id, fault.Of(err)))
+		fail(refused(r.gw.Refusals(tok), fault.Of(err)))
 		return
 	}
 	result := string(bytes.TrimSpace(out))
@@ -129,14 +129,13 @@ func (r *Runner) runScript(ctx context.Context, t turn, trial bool) {
 
 // refused adds to the failure of a script the calls deck refused it, which the script may not have printed; a failure
 // it did not name is then one of rights.
-func (r *Runner) refused(ctx context.Context, processID int64, f *fault.F) *fault.F {
-	calls, err := r.st.Q.ListRefusedCalls(ctx, store.ID(processID))
-	if err != nil || len(calls) == 0 {
+func refused(calls []string, f *fault.F) *fault.F {
+	if len(calls) == 0 {
 		return f
 	}
-	var lines []string
-	for _, c := range calls {
-		lines = append(lines, c.Tool+": "+untrusted.Line(c.Error, 300))
+	lines := make([]string, len(calls))
+	for i, c := range calls {
+		lines[i] = untrusted.Cut(c, 300)
 	}
 	out := *f
 	if out.Type == fault.ScriptFailed {

@@ -355,8 +355,3 @@ SELECT id, command, state, provider FROM process WHERE follows_id = ? ORDER BY i
 UPDATE process SET follows_id = sqlc.arg(follows) WHERE id = sqlc.arg(id) AND follows_id IS NULL;
 
 
-
-
--- name: ListRefusedCalls :many
--- The calls of a process deck refused, oldest first.
-SELECT tool, error FROM tool_call WHERE process_id = ? AND outcome = 'rejected' ORDER BY id LIMIT 5;

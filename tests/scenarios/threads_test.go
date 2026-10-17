@@ -540,7 +540,9 @@ func TestARunAfterThatDidNotStartLetsItsRecordGo(t *testing.T) {
 	gone := strings.Replace(clipsModule[:start]+clipsModule[end:], `, {"after": "revise", "command": "render"}`, ``, 1)
 	e.must("deck.manifest_save", map[string]any{"project": "clips", "manifest": gone}, nil)
 	e.waitScript(first, "done")
-	e.waitNote(fmt.Sprintf("did not run render again for the calls that came while process #%d ran", first))
+	if note := e.waitNote(fmt.Sprintf("did not run render again for the calls that came while process #%d ran", first)); !strings.Contains(note.Text, `no command "render"`) {
+		t.Fatalf("the note says why: %s", note.Text)
+	}
 	e.App.Runner.Wait()
 	e.must("deck.manifest_save", map[string]any{"project": "clips", "manifest": clipsModule}, nil)
 	next := e.start("clips", "render", map[string]any{"record": a, "n": 3})

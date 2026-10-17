@@ -88,12 +88,13 @@ func (r *Runner) again(ctx context.Context, processID int64) {
 			return
 		}
 		var n int64
-		_ = r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		dropErr := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+			var err error
 			n, err = q.DropAgain(ctx, db.DropAgainParams{ID: p.ID, Again: p.Again})
 			return err
 		})
 		r.warn(ctx, p.ID, fmt.Sprintf("deck did not run %s again for the calls that came while process #%d ran: %v", p.Command, p.ID, err))
-		if n == 1 {
+		if n == 1 || dropErr != nil {
 			return
 		}
 	}
@@ -113,15 +114,18 @@ func (r *Runner) startAgain(ctx context.Context, p db.Process) (int64, error) {
 	return r.Start(ctx, p.ProjectID, m, p.Command, input, Origin{Follows: p.ID, Parent: p.ParentID.Int64, Trial: p.Trial == 1, again: true})
 }
 
-// lastJoined is the newest call an agent did not hear, whose input the run after takes.
+// lastJoined is the call an agent did not hear whose input the run after takes: the newest call, when unheard.
 func (r *Runner) lastJoined(ctx context.Context, processID int64) []db.ProcessRemark {
-	waiting, err := r.st.Q.ListUndeliveredRemarks(ctx, processID)
+	all, err := r.st.Q.ListRemarks(ctx, processID)
 	if err != nil {
 		return nil
 	}
-	for i := len(waiting) - 1; i >= 0; i-- {
-		if waiting[i].Author == RemarkByDeck {
-			return waiting[i : i+1]
+	for i := len(all) - 1; i >= 0; i-- {
+		if all[i].Author == RemarkByDeck {
+			if all[i].DeliveredAt.Valid {
+				return nil
+			}
+			return all[i : i+1]
 		}
 	}
 	return nil

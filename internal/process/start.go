@@ -329,7 +329,7 @@ func (r *Runner) Start(ctx context.Context, projectID int64, m *manifest.Manifes
 // ancestor reports whether process id is of or one of the processes that started it, so a helper's call does not
 // join the run that waits for it.
 func ancestor(ctx context.Context, q *db.Queries, of, id int64) (bool, error) {
-	for range MaxDepth + 1 {
+	for range 2*MaxDepth + 2 {
 		if of == 0 {
 			return false, nil
 		}

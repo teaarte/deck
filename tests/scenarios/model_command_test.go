@@ -638,9 +638,8 @@ func TestALocalServerOfPicturesTakesOneCallAtATime(t *testing.T) {
 	}
 }
 
-// TestAnImageModelEditsThePictureInFile: a picture in the file field of a model command of kind image goes as a
-// form to images/edits with the prompt and the options as fields; an API without that path gets it in chat
-// completions as an image_url beside the prompt.
+// TestAnImageModelEditsThePictureInFile: the file of an image command goes as a form to images/edits with the prompt
+// and options; an API without that path gets it in chat completions as an image_url beside the prompt.
 func TestAnImageModelEditsThePictureInFile(t *testing.T) {
 	t.Parallel()
 	png := "\x89PNG\r\n\x1a\nsample"

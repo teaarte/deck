@@ -252,7 +252,8 @@
         "collection": {"type": "string"},
         "where": {"type": "string", "description": "Expression over the fields of an item; on a record page record is the record."},
         "sort": {"type": "string", "description": "Field, with - for descending."},
-        "limit": {"type": "integer", "minimum": 1}
+        "limit": {"type": "integer", "minimum": 1},
+        "fields": {"type": "array", "items": {"type": "string"}, "uniqueItems": true, "description": "Only for a custom block: the only fields of each item it gets, with _id; where and sort read all of them."}
       }
     },
     "filter": {"type": "array", "items": {"type": "string"}, "uniqueItems": true, "description": "Fields of an item the owner narrows the block by."},

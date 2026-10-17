@@ -273,7 +273,11 @@ func (r *renderer) custom(b manifest.Block) (map[string]any, error) {
 		}
 		out := make([]map[string]any, 0, len(items))
 		for _, it := range items {
-			out = append(out, plain(it))
+			it = plain(it)
+			if len(b.Source.Fields) > 0 {
+				it = only(it, b.Source.Fields)
+			}
+			out = append(out, it)
 		}
 		v["items"] = out
 	}
@@ -293,6 +297,17 @@ func (r *renderer) custom(b manifest.Block) (map[string]any, error) {
 		v["params"] = params
 	}
 	return map[string]any{"state": "ready", "value": v}, nil
+}
+
+// only is an item cut to the fields a custom block takes, with its id.
+func only(it map[string]any, fields []string) map[string]any {
+	out := map[string]any{}
+	for _, k := range append([]string{"_id"}, fields...) {
+		if v, ok := it[k]; ok {
+			out[k] = v
+		}
+	}
+	return out
 }
 
 // plain is an item without what deck adds for its own blocks, keeping its id.

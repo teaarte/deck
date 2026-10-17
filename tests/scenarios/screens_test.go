@@ -1056,3 +1056,24 @@ func TestAFormKeepsItsFixedFieldsFromTheOwner(t *testing.T) {
 	e.refused("deck.manifest_save", map[string]any{"project": "clips", "manifest": fmt.Sprintf(fixedClips, `"slug", "sid"`)}, 422,
 		`fixed "sid": a fixed field takes its value from values`)
 }
+
+// TestACustomBlockGetsOnlyTheFieldsItsSourceNames: source.fields cut each item of a custom block to them and its id,
+// after where and sort read the whole item; another block is refused them.
+func TestACustomBlockGetsOnlyTheFieldsItsSourceNames(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, nil)
+	chart := `"document": "custom/chart.html", "source": {"collection": "notes", "sort": "title"},`
+	cut := `"document": "custom/chart.html", "source": {"collection": "notes", "where": "score > 1", "sort": "-score", "fields": ["title"]},`
+	e.createProject("web", strings.Replace(webNotes, chart, cut, 1))
+	e.must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": "<p>chart</p>"}, nil)
+	e.must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": `{"title": "a", "score": 2}` + "\n" + `{"title": "b", "score": 3}` + "\n" + `{"title": "c", "score": 1}`}, nil)
+	v := blockData[struct {
+		Items []map[string]any `json:"items"`
+	}](t, e.screenData("web", "main", nil)["b2"]["value"])
+	if len(v.Items) != 2 || v.Items[0]["title"] != "b" || len(v.Items[0]) != 2 || v.Items[0]["_id"] == nil || v.Items[0]["score"] != nil {
+		t.Fatalf("each item has only the fields named and its id, picked and sorted by the whole item: %+v", v.Items)
+	}
+	e.refused("deck.manifest_save", map[string]any{"project": "web", "manifest": strings.Replace(webNotes, chart, `"document": "custom/chart.html", "source": {"collection": "notes", "fields": ["what"]},`, 1)}, 422, `unknown field "what"`)
+	table := strings.Replace(webNotes, `{"type": "form", "title": "Score a title", "command": "score"}`, `{"type": "table", "source": {"collection": "notes", "fields": ["title"]}, "columns": [{"label": "Title", "bind": "title"}]}`, 1)
+	e.refused("deck.manifest_save", map[string]any{"project": "web", "manifest": table}, 422, "fields are for a custom block")
+}

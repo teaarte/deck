@@ -69,5 +69,13 @@ func (c *screenCheck) source(where, typ string, src Source) ([]string, bool) {
 	if f := strings.TrimPrefix(src.Sort, "-"); f != "" && fields != nil && !slices.Contains(fields, f) {
 		c.fail("%s sort: unknown field %q; the fields are %s", where, f, strings.Join(slices.Sorted(slices.Values(fields)), ", "))
 	}
+	if len(src.Fields) > 0 && typ != "custom" {
+		c.fail("%s source: fields are for a custom block; another block shows what its columns bind", where)
+	}
+	for _, f := range src.Fields {
+		if fields != nil && !slices.Contains(fields, f) {
+			c.fail("%s source fields: unknown field %q; the fields are %s", where, f, strings.Join(slices.Sorted(slices.Values(fields)), ", "))
+		}
+	}
 	return fields, true
 }

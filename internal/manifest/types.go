@@ -406,6 +406,8 @@ type Source struct {
 	Where      string `json:"where,omitempty"`
 	Sort       string `json:"sort,omitempty"`
 	Limit      int    `json:"limit,omitempty"`
+	// Fields are the only fields of each item a custom block gets, with _id; where and sort read them all.
+	Fields []string `json:"fields,omitempty"`
 }
 
 type Column struct {

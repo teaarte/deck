@@ -10,10 +10,12 @@ import { hostContext } from './hostContext';
 type CustomButton = NonNullable<CustomValue['actions']>[number];
 export type Ask = { act: CustomButton; input: Record<string, unknown> };
 
-// button is the one of the block's buttons a call means: its command, and fixed params the call does not contradict.
+// button is the one of the block's buttons a call means: its command, fixed params the call does not contradict, and
+// no field but those params and the ones the block fills.
 function button(actions: CustomButton[], name: string, args: Record<string, unknown>): CustomButton | undefined {
   return actions.find((a) => a.command === name &&
-    Object.entries(a.params ?? {}).every(([k, v]) => args[k] === undefined || String(args[k]) === String(v)));
+    Object.entries(a.params ?? {}).every(([k, v]) => args[k] === undefined || String(args[k]) === String(v)) &&
+    Object.keys(args).every((k) => k in (a.params ?? {}) || (a.from_block ?? []).includes(k)));
 }
 
 const PROXY_READY = 'ui/notifications/sandbox-proxy-ready';
@@ -65,8 +67,9 @@ export function useAppBridge(value: CustomValue, ask: (q: Ask) => Promise<boolea
       const args = (p.arguments ?? {}) as Record<string, unknown>;
       const act = button(latest.current.actions ?? [], p.name, args);
       if (!act?.command) {
-        const allowed = (latest.current.actions ?? []).map((a) => a.command).filter(Boolean).join(', ') || 'none';
-        return { isError: true, content: text(`deck: this block may call only its buttons' commands: ${allowed}`) };
+        const allowed = (latest.current.actions ?? []).filter((a) => a.command)
+          .map((a) => `${a.command}(${[...Object.keys(a.params ?? {}), ...(a.from_block ?? [])].join(', ')})`).join(', ') || 'none';
+        return { isError: true, content: text(`deck: this block may call only its buttons' commands with their fields: ${allowed}`) };
       }
       const input = { ...args, ...(act.params ?? {}) };
       if (act.class !== 'internal') {

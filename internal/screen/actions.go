@@ -138,6 +138,9 @@ func (r *renderer) action(a manifest.Action, id int64, env map[string]any) (map[
 			ps["record"], act["confirm"], act["parts"] = id, true, manifest.RecordParts
 		}
 		act["command"], act["params"] = name, ps
+		if len(a.FromBlock) > 0 {
+			act["from_block"] = a.FromBlock
+		}
 		if a.Undo != nil {
 			u := *a.Undo
 			u.Verb = "undo"

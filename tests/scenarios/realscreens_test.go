@@ -74,7 +74,7 @@ func TestRealBrowserSettings(t *testing.T) {
 	})
 	e.App.Providers.Checks(t.Context(), time.Now())
 	e.waitHealth("agent:goose", "error")
-	e.createProject("web", webNotes)
+	e.createProject("web", webNotesMark)
 	e.must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": themeProbe}, nil)
 
 	b := newPlaywright(t)
@@ -362,7 +362,7 @@ func TestRealBrowserJournal(t *testing.T) {
 	}
 	checkBuiltClient(t)
 	e := newEnv(t, nil)
-	pid := e.createProject("web", webNotes)
+	pid := e.createProject("web", webNotesMark)
 	if err := os.MkdirAll(filepath.Join(e.App.Home.Data(pid), "sub"), 0o700); err != nil {
 		t.Fatal(err)
 	}
@@ -636,7 +636,7 @@ func TestRealBrowserCustomBlockShowsAPictureOfItsModule(t *testing.T) {
 // customPictureIn shows the picture block in a browser and checks that it reads its file without a refusal shown.
 func customPictureIn(t *testing.T, browser ...string) {
 	e := newEnv(t, webNotesAgent())
-	p := e.createProject("web", webNotes)
+	p := e.createProject("web", webNotesMark)
 	e.createProject("other", plainManifest)
 	theirs := e.upload("other", "theirs.png", "image/png", "theirs")
 	var pic bytes.Buffer
@@ -718,7 +718,7 @@ const T = (way) => "<" + F + " srcdoc='" + leaks(way).replace(/&/g, "&amp;").rep
 const frame = (way, f) => { f.srcdoc = leaks(way); return f; };
 `
 	e := newEnv(t, webNotesAgent())
-	e.createProject("web", webNotes)
+	e.createProject("web", webNotesMark)
 	e.must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": `<!doctype html><html><body><script>
 ` + lib + `
 try { const pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:" + at.window }] }); pc.createDataChannel("l"); pc.createOffer().then((o) => pc.setLocalDescription(o)); } catch (e) {}

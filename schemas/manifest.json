@@ -284,6 +284,7 @@
         "command": {"type": "string"},
         "screen": {"type": "string"},
         "params": {"type": "object", "additionalProperties": {"type": "string"}, "description": "Input of the command; on a move to a screen, the parameters of its address, read there as param.<name> (dialog=<name> opens a dialog)."},
+        "from_block": {"type": "array", "items": {"type": "string"}, "uniqueItems": true, "description": "On a custom block: the input fields of the command the block fills in its call, never record or id; the call takes no field but these and params."},
         "record": {"type": "string", "description": "The record a move to a screen opens; the item by default."},
         "project": {"type": "string", "description": "The project of the screen a button of a deck screen opens."},
         "when": {"type": "string", "description": "Expression over the item: the button shows only where it holds."},

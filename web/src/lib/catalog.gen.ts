@@ -65,6 +65,10 @@ export interface Action {
    */
   class?: string;
   /**
+   * The fields a custom block's call fills beside params; the host refuses any other.
+   */
+  from_block?: string[];
+  /**
    * The client asks the owner before the call: a button of deck that deletes or revokes.
    */
   confirm?: boolean;
@@ -118,6 +122,10 @@ export interface Action1 {
    * Class of the command of a custom block's button; the host asks the owner before one that is not internal.
    */
   class?: string;
+  /**
+   * The fields a custom block's call fills beside params; the host refuses any other.
+   */
+  from_block?: string[];
   /**
    * The client asks the owner before the call: a button of deck that deletes or revokes.
    */
@@ -354,6 +362,10 @@ export interface Action2 {
    */
   class?: string;
   /**
+   * The fields a custom block's call fills beside params; the host refuses any other.
+   */
+  from_block?: string[];
+  /**
    * The client asks the owner before the call: a button of deck that deletes or revokes.
    */
   confirm?: boolean;
@@ -407,6 +419,10 @@ export interface Action3 {
    * Class of the command of a custom block's button; the host asks the owner before one that is not internal.
    */
   class?: string;
+  /**
+   * The fields a custom block's call fills beside params; the host refuses any other.
+   */
+  from_block?: string[];
   /**
    * The client asks the owner before the call: a button of deck that deletes or revokes.
    */

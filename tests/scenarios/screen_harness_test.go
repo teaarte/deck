@@ -104,6 +104,9 @@ const webNotes = `{"version": 12,
       {"type": "form", "title": "Edit", "command": "deck.record_update"}]}],
   "menu": ["main"]}`
 
+// webNotesMark is webNotes whose custom block fills the text of Mark itself.
+var webNotesMark = strings.Replace(webNotes, `{"label": "Mark", "command": "mark"}`, `{"label": "Mark", "command": "mark", "from_block": ["text"]}`, 1)
+
 // webNotesAgent scores a title into two rows, and on tell notifies the owner with the note page and a button.
 func webNotesAgent() Script {
 	return func(ctx context.Context, c *Call) provider.Result {

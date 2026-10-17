@@ -1077,3 +1077,32 @@ func TestACustomBlockGetsOnlyTheFieldsItsSourceNames(t *testing.T) {
 	table := strings.Replace(webNotes, `{"type": "form", "title": "Score a title", "command": "score"}`, `{"type": "table", "source": {"collection": "notes", "fields": ["title"]}, "columns": [{"label": "Title", "bind": "title"}]}`, 1)
 	e.refused("deck.manifest_save", map[string]any{"project": "web", "manifest": table}, 422, "fields are for a custom block")
 }
+
+// TestACustomButtonNamesTheFieldsItsBlockFills: from_block names the input fields a custom block fills itself, so a
+// required one needs no fixed param; the block gets them with the button, never a record, and nowhere but on a custom block.
+func TestACustomButtonNamesTheFieldsItsBlockFills(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, nil)
+	mark := `{"label": "Mark", "command": "mark"}`
+	with := func(button string) string {
+		return strings.Replace(webNotes, mark, `{"label": "Mark", "command": "mark", "from_block": ["text"]}, `+button, 1)
+	}
+	e.createProject("web", with(`{"label": "Score", "command": "score", "from_block": ["title", "n"], "params": {"scan": "x"}}`))
+	e.refused("deck.manifest_save", map[string]any{"project": "web", "manifest": with(`{"label": "Score", "command": "score"}`)}, 422, `needs param "title"`)
+	e.must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": "<p>chart</p>"}, nil)
+	v := blockData[struct {
+		Actions []map[string]any `json:"actions"`
+	}](t, e.screenData("web", "main", nil)["b2"]["value"])
+	if fmt.Sprint(v.Actions[0]["from_block"]) != "[text]" || fmt.Sprint(v.Actions[1]["from_block"]) != "[title n]" || v.Actions[2]["from_block"] != nil {
+		t.Fatalf("a button gives its block the fields it may fill: %+v", v.Actions)
+	}
+	for button, want := range map[string]string{
+		`{"label": "Touch", "command": "touch", "from_block": ["note"]}`:                            "never names the record",
+		`{"label": "Score", "command": "score", "from_block": ["title", "what"]}`:                   `no input field "what"`,
+		`{"label": "Score", "command": "score", "from_block": ["title"], "params": {"title": "a"}}`: "is a param of the button already",
+	} {
+		e.refused("deck.manifest_save", map[string]any{"project": "web", "manifest": with(button)}, 422, want)
+	}
+	table := strings.Replace(webNotes, `"actions": [{"label": "Open", "screen": "note"}]`, `"actions": [{"label": "Mark", "command": "mark", "from_block": ["text"]}]`, 1)
+	e.refused("deck.manifest_save", map[string]any{"project": "web", "manifest": table}, 422, "from_block names the fields a custom block fills")
+}

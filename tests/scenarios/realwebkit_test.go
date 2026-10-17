@@ -22,7 +22,7 @@ func TestRealBrowserCustomBlockWorksInWebKit(t *testing.T) {
 	}
 	checkBuiltClient(t)
 	e := newEnv(t, webNotesAgent())
-	e.createProject("web", webNotes)
+	e.createProject("web", webNotesMark)
 	e.must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": jsonl(map[string]any{"title": "a"})}, nil)
 	e.must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": customData}, nil)
 	b := newPlaywright(t, "webkit")
@@ -45,7 +45,7 @@ func TestRealBrowserCustomBlockSaysWhatTheBrowserRefused(t *testing.T) {
 	}
 	checkBuiltClient(t)
 	e := newEnv(t, webNotesAgent())
-	e.createProject("web", webNotes)
+	e.createProject("web", webNotesMark)
 	e.must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom",
 		"text": `<!doctype html><html><body><script src="https://example.com/lib.js"></script></body></html>`}, nil)
 	b := newPlaywright(t)

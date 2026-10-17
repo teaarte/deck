@@ -248,7 +248,7 @@ func (m *Manifest) checkAction(a Action) error {
 	}
 	_ = json.Unmarshal(c.InputSchema(), &in)
 	for _, r := range in.Required {
-		if _, ok := a.Params[r]; !ok && r != a.Input {
+		if _, ok := a.Params[r]; !ok && r != a.Input && !slices.Contains(a.FromBlock, r) {
 			return fmt.Errorf("command %q needs param %q", a.Command, r)
 		}
 	}
@@ -258,6 +258,19 @@ func (m *Manifest) checkAction(a Action) error {
 	for k := range a.Params {
 		if _, ok := in.Properties[k]; !ok && k != RetryKey {
 			return fmt.Errorf("command %q has no input field %q", a.Command, k)
+		}
+	}
+	for _, k := range a.FromBlock {
+		_, fixed := a.Params[k]
+		var prop struct{ Format string }
+		_ = json.Unmarshal(in.Properties[k], &prop)
+		switch _, ok := in.Properties[k]; {
+		case k == "record" || k == "id" || prop.Format == "record":
+			return fmt.Errorf("from_block: a custom block never names the record a command takes (%s)", k)
+		case !ok:
+			return fmt.Errorf("command %q has no input field %q", a.Command, k)
+		case fixed:
+			return fmt.Errorf("from_block: %q is a param of the button already", k)
 		}
 	}
 	return nil

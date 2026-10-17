@@ -436,6 +436,8 @@ type Action struct {
 	Command string            `json:"command,omitempty"`
 	Screen  string            `json:"screen,omitempty"`
 	Params  map[string]string `json:"params,omitempty"`
+	// FromBlock are the fields of the command a custom block fills itself; the call takes no other but Params.
+	FromBlock []string `json:"from_block,omitempty"`
 	// Record is the record a move to a screen opens, the item by default; Project the project of that screen.
 	Record  string `json:"record,omitempty"`
 	Project string `json:"project,omitempty"`

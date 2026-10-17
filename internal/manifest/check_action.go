@@ -44,6 +44,9 @@ func (c *screenCheck) action(b Block, a Action, fields []string) error {
 	if (a.Label == "") == (a.Verb == "") {
 		return errors.New("a button has a label or a verb")
 	}
+	if len(a.FromBlock) > 0 && (b.Type != "custom" || a.Command == "") {
+		return errors.New("from_block names the fields a custom block fills in a call of the command of its button")
+	}
 	if a.When != "" {
 		if _, err := compileField(a.When, fields); err != nil {
 			return fmt.Errorf("when: %w", err)

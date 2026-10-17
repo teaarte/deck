@@ -285,7 +285,8 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   `values` of a form, so one HTML serves two screens with their own settings instead of two near copies; and
   `app.callServerTool({name: "<project>.<command>", arguments})` calls only the commands of its `actions` (the
   button whose fixed `params` the arguments do not contradict; any but an internal command waits for the owner's yes,
-  one at a time). A window opens on the host, not inside the frame: `app.openLink({url: "#/p/<project>/<screen>?dialog=<name>"})`
+  one at a time). The arguments are only the button's `params` and the fields its `"from_block": ["at", "note"]`
+  names, which the block fills itself (a required one too; never a field of a record): any other is refused. A window opens on the host, not inside the frame: `app.openLink({url: "#/p/<project>/<screen>?dialog=<name>"})`
   opens a dialog or page of deck (a page outside deck is refused), and `app.requestDisplayMode({mode: "fullscreen"})`
   gives the frame the whole screen before its own `<dialog>`.
   A picture, video or audio of the module comes by `app.readServerResource({uri})`: `deck://data/<path>` a file of

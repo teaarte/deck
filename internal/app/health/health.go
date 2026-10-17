@@ -53,7 +53,7 @@ type shownRow struct {
 // workspace, and a project whose manifest does not load; worst first.
 type healthListIn struct {
 	Project string `type:"project" opt:"" desc:"Only the commands, tools and servers of this project"`
-	Machine bool   `opt:"" desc:"Only what the machine runs: providers, the disk, the sandbox, the tailnet"`
+	Machine bool   `opt:"" desc:"Only what the machine runs: providers, the disk, the sandbox, the runtime of scripts, the tailnet"`
 	Lang    string `opt:"" desc:"Language of the prices of models, such as ru; English without one"`
 }
 

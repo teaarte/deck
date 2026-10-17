@@ -418,9 +418,12 @@ failure. A script runs in a sandbox:
   ```python
   #!/usr/bin/env -S uv run --script
   # /// script
+  # requires-python = ">=3.12"
   # dependencies = ["httpx==0.28.1"]
   # ///
   ```
+  Every script runs on the one python3 of 3.10 or newer deck picks at start, first on its `PATH` (health names it and
+  the node of scripts); a script that needs a newer one says so in `requires-python`, and uv finds or fetches it.
   Node: `npm install` into `$DECK_DATA`, output to stderr (stdout is the result), then `createRequire`:
   ```js
   const dir = process.env.DECK_DATA + "/node";

@@ -187,6 +187,8 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	if err := a.Projects.SeedMaster(a.ctx); err != nil {
 		return nil, err
 	}
+	status, text := script.Runtimes().Health()
+	health.Write(a.ctx, a.Store, health.Of{}, "scripts", status, text)
 	return a, nil
 }
 

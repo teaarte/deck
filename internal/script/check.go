@@ -27,6 +27,9 @@ func check(s manifest.Script) error {
 		progs = append([]manifest.Program{{Name: p}}, progs...)
 	}
 	for _, prog := range progs {
+		if prog.Name == "python3" && Runtimes().Python != "" {
+			continue
+		}
 		if _, err := exec.LookPath(prog.Name); err != nil {
 			if prog.Install != "" {
 				return fault.New(fault.ProgramMissing, fmt.Sprintf("program %q that script %s needs is not on this machine; the owner installs it: %s", prog.Name, s.Name, prog.Install))

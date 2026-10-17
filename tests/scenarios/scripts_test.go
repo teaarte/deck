@@ -693,3 +693,34 @@ os.replace(os.path.join(os.environ["DECK_DATA"], "items.json.tmp"), os.path.join
 		t.Fatalf("a missing file of its own folder is the script's error, without a hint of folders: %+v", p)
 	}
 }
+
+// TestScriptsRunOnOnePythonDeckPicksAndHealthNamesIt: every script runs on the python3 of 3.10 or newer deck picks,
+// its folder first on PATH, so uv and a shebang find it too; health names the python and node scripts see.
+func TestScriptsRunOnOnePythonDeckPicksAndHealthNamesIt(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, nil)
+	e.createProject("tools", scriptManifest("collect", "", ""))
+	e.saveScript("tools", "scripts/main.py", `import json, os, shutil, sys
+print(json.dumps({"version": list(sys.version_info[:2]), "first": os.environ["PATH"].split(":")[0], "which": shutil.which("python3")}))
+`)
+	p := e.waitScript(e.start("tools", "collect", nil), "done", "error")
+	var got struct {
+		Version      []int
+		First, Which string
+	}
+	if p.State != "done" || json.Unmarshal(p.Result, &got) != nil || len(got.Version) != 2 || got.Version[0] != 3 || got.Version[1] < 10 ||
+		filepath.Dir(got.Which) != got.First {
+		t.Fatalf("the script runs on python 3.10 or newer, the first python3 of its PATH: %+v %+v", p, got)
+	}
+	var rows []struct{ Subject, Status, Error string }
+	e.must("deck.health_list", map[string]any{}, &rows)
+	for _, r := range rows {
+		if r.Subject == "scripts" {
+			if r.Status != "ok" || !strings.Contains(r.Error, "python 3.") || !strings.Contains(r.Error, filepath.Join(got.First, "python3")) {
+				t.Fatalf("health names the python of scripts: %+v", r)
+			}
+			return
+		}
+	}
+	t.Fatalf("health has a row of the runtime of scripts: %+v", rows)
+}

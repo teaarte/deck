@@ -140,7 +140,7 @@ func (x *Exec) Run(ctx context.Context, j Job) ([]byte, error) {
 // environ is the whole environment of a script: the confined one, its folders, caches in the data of its project,
 // and deck with its door last.
 func environ(j Job, data, tmp string) []string {
-	env := append(sandbox.Env(j.Work(), tmp), "TERM=dumb",
+	env := append(pathFirst(sandbox.Env(j.Work(), tmp)), "TERM=dumb",
 		"DECK_RESULTS="+j.Results(), "DECK_DATA="+data, "XDG_CACHE_HOME="+filepath.Join(data, ".cache"),
 		"npm_config_cache="+filepath.Join(data, ".cache", "npm"), "PYTHONDONTWRITEBYTECODE=1", "PYTHONUNBUFFERED=1")
 	if j.Door == nil {
@@ -154,6 +154,9 @@ func argvOf(s *manifest.Script, file string) ([]string, error) {
 	argv := []string{file}
 	if p := interpreters[s.Runtime]; p != "" {
 		argv = []string{p, file}
+	}
+	if py, err := python(); err == nil && s.Runtime == "python" {
+		argv[0] = py
 	}
 	if !filepath.IsAbs(argv[0]) {
 		p, err := exec.LookPath(argv[0])

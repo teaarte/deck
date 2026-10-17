@@ -711,9 +711,8 @@ func TestAnImageModelEditsThePictureInFile(t *testing.T) {
 	}
 }
 
-// TestSpeechTakesItsVoiceFromTheOptionsOfItsModel: deck has no voice of its own: a tts model without voice in its
-// options is refused with what to do, with one it speaks mp3 unless the options say otherwise; the button of the
-// models table checks it with one phrase, and a tts price from the catalog counts characters.
+// TestSpeechTakesItsVoiceFromTheOptionsOfItsModel: a tts model without voice in its options is refused with what to
+// do, with one it speaks mp3, its check is one phrase, and a tts price from the catalog counts characters.
 func TestSpeechTakesItsVoiceFromTheOptionsOfItsModel(t *testing.T) {
 	t.Parallel()
 	api := newModels(t, map[string]func(int, map[string]any) (int, string, string){

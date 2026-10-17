@@ -126,3 +126,21 @@ func TestAModelAtItsLimitWithoutANextOneWaitsForTheReset(t *testing.T) {
 		t.Fatalf("without a next model the process waits for the reset: %+v", got)
 	}
 }
+
+// TestTheNextModelHearsWhatTheOwnerAnswered: an answer of the owner to the refused process goes on with its work.
+func TestTheNextModelHearsWhatTheOwnerAnswered(t *testing.T) {
+	t.Parallel()
+	e, backup, _ := twoModels(t, func(ctx context.Context, c *Call) provider.Result {
+		c.Approve(ctx, "AskUserQuestion", map[string]any{"questions": []any{map[string]any{"question": "Which account?",
+			"options": []any{map[string]any{"label": "first"}, map[string]any{"label": "second"}}}}})
+		return limited(t0)
+	}, func(ctx context.Context, c *Call) provider.Result {
+		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
+	})
+	id := e.startWork(1)
+	e.answer(e.waitAsk().ID, "second")
+	e.waitState(e.following(id), "done", "error")
+	if calls := backup.Calls(); len(calls) != 1 || !strings.Contains(calls[0].Prompt, "Which account?") || !strings.Contains(calls[0].Prompt, "second") {
+		t.Fatalf("the next model is told the owner's answer: %+v", calls)
+	}
+}

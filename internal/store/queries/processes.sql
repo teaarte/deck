@@ -320,3 +320,7 @@ SELECT id, command, state, provider FROM process WHERE follows_id = ? ORDER BY i
 
 -- name: SetFollows :exec
 UPDATE process SET follows_id = sqlc.arg(follows) WHERE id = sqlc.arg(id) AND follows_id IS NULL;
+
+
+-- name: SetRetryKey :exec
+UPDATE process SET retry_key = ? WHERE id = ?;

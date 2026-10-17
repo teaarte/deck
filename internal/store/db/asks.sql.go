@@ -484,6 +484,39 @@ func (q *Queries) LastAskOfProcess(ctx context.Context, processID sql.NullInt64)
 	return i, err
 }
 
+const listAnsweredAsksOfProcess = `-- name: ListAnsweredAsksOfProcess :many
+SELECT kind, text, answer FROM ask WHERE process_id = ? AND state IN ('answered', 'used') AND answer != '' ORDER BY id
+`
+
+type ListAnsweredAsksOfProcessRow struct {
+	Kind   string
+	Text   string
+	Answer string
+}
+
+func (q *Queries) ListAnsweredAsksOfProcess(ctx context.Context, processID sql.NullInt64) ([]ListAnsweredAsksOfProcessRow, error) {
+	rows, err := q.db.QueryContext(ctx, listAnsweredAsksOfProcess, processID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListAnsweredAsksOfProcessRow
+	for rows.Next() {
+		var i ListAnsweredAsksOfProcessRow
+		if err := rows.Scan(&i.Kind, &i.Text, &i.Answer); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listOpenAsksOfProcess = `-- name: ListOpenAsksOfProcess :many
 SELECT id, workspace_id, project_id, process_id, kind, text, payload, answer, state, created_at, answered_at, expires_at, delivered_at, unheard_at FROM ask a
 WHERE a.process_id = CAST(?1 AS INTEGER)

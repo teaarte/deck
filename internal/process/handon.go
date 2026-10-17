@@ -10,6 +10,8 @@ import (
 	"deck2/internal/fault"
 	"deck2/internal/manifest"
 	"deck2/internal/provider"
+	"deck2/internal/store"
+	"deck2/internal/store/db"
 	"deck2/internal/untrusted"
 )
 
@@ -34,22 +36,48 @@ func (r *Runner) handOn(ctx context.Context, t turn, pv provider.Provider, f *fa
 	_ = json.Unmarshal([]byte(p.Input), &input)
 	note := fmt.Sprintf("This continues process #%d of the same command with the same input; it ran on %s, which stopped: %s.\n"+
 		"What it did stays: files it changed, records it wrote, the processes it started. Check what is already done, "+
-		"do not redo it, and go on from where it stopped.\n\n%s", p.ID, pv.Name(), f.Text, r.retelling(p.ID))
-	r.finish(ctx, t.process, StateError, "", false, f)
-	if p, err = r.st.Q.GetProcess(ctx, t.process); err != nil || p.State != StateError || p.ErrorType != f.Type {
-		return true
+		"do not redo it, and go on from where it stopped.\n\n%s", p.ID, pv.Name(), f.Text, r.told(ctx, p))
+	if p.FinishedAt.Valid {
+		return false
 	}
+	// The continuation starts first, so a failed start leaves the process to pause or fail as with no next model;
+	// it takes the retry key once the process it follows is closed.
 	id, err := r.Start(ctx, t.project, t.m, t.cmd.Name, input, Origin{Provider: next, Follows: p.ID, Note: note,
-		Parent: p.ParentID.Int64, Key: p.RetryKey})
+		Parent: p.ParentID.Int64})
 	if err != nil {
 		slog.Error("hand a process on to the next model", "process", p.ID, "provider", next, "err", err)
-		r.warn(ctx, p.ID, fmt.Sprintf("%s stopped process #%d of %s (%s), and its next model %s did not start: %v",
-			pv.Name(), p.ID, t.cmd.Name, f.Text, next, err))
+		return false
+	}
+	r.finish(ctx, t.process, StateError, "", false, f)
+	if p, err = r.st.Q.GetProcess(ctx, t.process); err != nil || p.State != StateError || p.ErrorType != f.Type {
+		_ = r.Stop(ctx, id, "deck: the process it would continue was closed otherwise", false)
 		return true
+	}
+	if p.RetryKey != "" {
+		_ = r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+			return q.SetRetryKey(ctx, db.SetRetryKeyParams{RetryKey: p.RetryKey, ID: id})
+		})
 	}
 	r.warn(ctx, p.ID, fmt.Sprintf("%s stopped process #%d of %s: %s. Process #%d goes on with it on %s.",
 		pv.Name(), p.ID, t.cmd.Name, f.Text, id, next))
 	return true
+}
+
+// told is what a refused process knew beyond its input: what deck told it at its start (a remark of the owner, an
+// earlier hand-on), the owner's answers to it, and its log.
+func (r *Runner) told(ctx context.Context, p db.Process) string {
+	var parts []string
+	if note := strings.TrimSpace(p.StartNote); note != "" {
+		parts = append(parts, untrusted.Block("What deck told it when it started", untrusted.Cut(note, retellCap)))
+	}
+	if asks, err := r.st.Q.ListAnsweredAsksOfProcess(ctx, store.ID(p.ID)); err == nil && len(asks) > 0 {
+		lines := make([]string, 0, len(asks))
+		for _, a := range asks {
+			lines = append(lines, a.Kind+": "+untrusted.Flat(a.Text, 300)+"\n  the owner: "+untrusted.Flat(a.Answer, 600))
+		}
+		parts = append(parts, untrusted.Block("What it asked the owner and the answers", untrusted.Cut(strings.Join(lines, "\n"), retellCap)))
+	}
+	return strings.Join(append(parts, r.retelling(p.ID)), "\n\n")
 }
 
 // retelling is what a process did by its log: what the agent said and the tools it ran, the latest within retellCap.

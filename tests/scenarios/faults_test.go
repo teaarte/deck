@@ -65,6 +65,11 @@ sys.exit(2)
 		!strings.Contains(got.ErrorDetails, "Traceback") {
 		t.Fatalf("stderr: the last line is the text, the rest the details: %+v", got)
 	}
+	e.saveScript("work", "scripts/main.py", "print('loading the feed')\n")
+	got = e.fault(e.waitScript(e.start("work", "run", nil), "error").ID)
+	if got.ErrorType != "result.invalid" || got.Whose != "module" {
+		t.Fatalf("a script that prints a line, not JSON, fails as the module's: %+v", got)
+	}
 }
 
 // TestTheSameFailuresAreOneRowOfTheCockpit: failures of a command with the same type and text are one row with how

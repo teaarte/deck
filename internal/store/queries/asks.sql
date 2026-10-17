@@ -134,3 +134,7 @@ SELECT * FROM process_remark WHERE process_id = ? ORDER BY id;
 
 -- name: DeleteWaitingRemark :execrows
 DELETE FROM process_remark WHERE id = ? AND process_id = ? AND delivered_at IS NULL;
+
+
+-- name: ListAnsweredAsksOfProcess :many
+SELECT kind, text, answer FROM ask WHERE process_id = ? AND state IN ('answered', 'used') AND answer != '' ORDER BY id;

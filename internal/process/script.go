@@ -43,7 +43,7 @@ func (r *Runner) runScript(ctx context.Context, t turn, trial bool) {
 	}
 	src, err := r.scriptSource(bg, t.project, t.m, t.cmd)
 	if err != nil {
-		fail(err)
+		fail(fault.New(fault.ScriptFailed, err.Error()))
 		return
 	}
 	if err := os.MkdirAll(dir, 0o700); err != nil {
@@ -69,7 +69,7 @@ func (r *Runner) runScript(ctx context.Context, t turn, trial bool) {
 	_ = r.startCeiling(bg, id)
 	input, inDir, err := r.inputFiles(bg, t.cmd, t.project, id, t.input, false)
 	if err != nil {
-		fail(err)
+		fail(fault.New(fault.InputInvalid, err.Error()))
 		return
 	}
 	folders, err := r.st.Q.ListProjectFolders(bg, t.project)
@@ -100,11 +100,11 @@ func (r *Runner) runScript(ctx context.Context, t turn, trial bool) {
 	}
 	result := string(bytes.TrimSpace(out))
 	if result == "" && len(t.cmd.Result) > 0 {
-		fail(fmt.Errorf("script %s printed no result JSON", job.Script.Name))
+		fail(fault.New(fault.ResultInvalid, fmt.Sprintf("script %s printed no result JSON", job.Script.Name)))
 		return
 	}
 	if result != "" && !json.Valid([]byte(result)) {
-		fail(fmt.Errorf("script %s printed output that is not JSON: %s", job.Script.Name, untrusted.Cut(result, 300)))
+		fail(fault.New(fault.ResultInvalid, fmt.Sprintf("script %s printed output that is not JSON: %s", job.Script.Name, untrusted.Cut(result, 300))))
 		return
 	}
 	if verr := validate(t.cmd, json.RawMessage(result)); verr != nil {

@@ -1854,6 +1854,20 @@ func (q *Queries) SetProcessOutput(ctx context.Context, arg SetProcessOutputPara
 	return err
 }
 
+const setRetryKey = `-- name: SetRetryKey :exec
+UPDATE process SET retry_key = ? WHERE id = ?
+`
+
+type SetRetryKeyParams struct {
+	RetryKey string
+	ID       int64
+}
+
+func (q *Queries) SetRetryKey(ctx context.Context, arg SetRetryKeyParams) error {
+	_, err := q.db.ExecContext(ctx, setRetryKey, arg.RetryKey, arg.ID)
+	return err
+}
+
 const setStartNote = `-- name: SetStartNote :exec
 UPDATE process SET start_note = ? WHERE id = ?
 `

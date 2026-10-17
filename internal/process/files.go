@@ -3,6 +3,7 @@ package process
 import (
 	"context"
 	"database/sql"
+	"deck2/internal/fault"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -60,10 +61,10 @@ func (r *Runner) keepFiles(ctx context.Context, projectID, processID int64, resu
 		src, err := files.Inside(results, f.Path)
 		fi, lerr := os.Lstat(src)
 		if f.Path == "" || err != nil || lerr != nil {
-			return "", fmt.Errorf("result file %q is not a file in the results folder", f.Path)
+			return "", fault.New(fault.ResultInvalid, fmt.Sprintf("result file %q is not a file in the results folder", f.Path))
 		}
 		if seen[src] {
-			return "", fmt.Errorf("result file %q is named twice", f.Path)
+			return "", fault.New(fault.ResultInvalid, fmt.Sprintf("result file %q is named twice", f.Path))
 		}
 		seen[src], srcs[i], infos[i] = true, src, fi
 	}
@@ -71,7 +72,7 @@ func (r *Runner) keepFiles(ctx context.Context, projectID, processID int64, resu
 	err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		for i, f := range res.Files {
 			if _, _, err := fileOwner(ctx, q, projectID, processID, f); err != nil {
-				return err
+				return fault.New(fault.ResultInvalid, err.Error())
 			}
 			typ := mime.TypeByExtension(filepath.Ext(srcs[i]))
 			if typ == "" {

@@ -711,12 +711,17 @@ func TestAnImageModelEditsThePictureInFile(t *testing.T) {
 	}
 }
 
-// TestSpeechTakesItsVoiceFromTheOptionsOfItsModel: a tts model without voice in its options is refused with what to
-// do, with one it speaks mp3, its check is one phrase, and a tts price from the catalog counts characters.
+// TestSpeechTakesItsVoiceFromTheOptionsOfItsModel: deck sends no voice of its own, a refusal without one says where to
+// set it; with one it speaks mp3, its check is one phrase, and a tts price from the catalog counts characters.
 func TestSpeechTakesItsVoiceFromTheOptionsOfItsModel(t *testing.T) {
 	t.Parallel()
 	api := newModels(t, map[string]func(int, map[string]any) (int, string, string){
-		"/api/v1/audio/speech": func(int, map[string]any) (int, string, string) { return 200, "audio/mpeg", "ID3-voice" },
+		"/api/v1/audio/speech": func(_ int, body map[string]any) (int, string, string) {
+			if body["voice"] == nil {
+				return 400, "application/json", `{"error": {"message": "Unknown voice"}}`
+			}
+			return 200, "audio/mpeg", "ID3-voice"
+		},
 		"/api/v1/models": func(int, map[string]any) (int, string, string) {
 			return 200, "application/json", `{"data": [{"id": "elevenlabs/eleven-v4", "pricing": {"prompt": "0.0001"}, "architecture": {"output_modalities": ["audio"]}}]}`
 		},

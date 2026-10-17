@@ -90,8 +90,8 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
     `last_frame` when given (both optional; a clip takes minutes, and the command waits for it as an agent works);
     a picture, a track, speech or a clip is a file of the result. The model is the one the owner assigned to the kind (with
     fallbacks); `"model"` names another, `"options"` adds fields to the request (`voice`, `image_config`). Speech is
-    mp3 in the voice of the options of its model in deck's settings (deck has no voice of its own; the owner sets one
-    per model), unless the options of the command name another.
+    mp3 in the voice of the options of its model in deck's settings (deck sends no voice of its own; the owner sets one
+    per model when its service needs one), unless the options of the command name another.
   A script that cannot do something reliably becomes an agent, not a bigger script. `timeout_minutes` raises
   the ceiling of a slow command (agents 60, scripts 10 by default).
 - **HTTP tools** (`tools.http`) are how the module reaches a service's API: method, `url` with `{field}` from the

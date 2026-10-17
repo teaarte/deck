@@ -165,6 +165,9 @@ func (s *Service) modelCall(ctx context.Context, act registry.Actor, in modelCal
 	} else {
 		out, err = s.read(act, in, h, resp)
 	}
+	if err != nil && in.Kind == RoleTTS && merged(maps.Clone(h.Options), options)["voice"] == nil {
+		err = registry.Invalid("%v\ndeck: model %s got no voice; when its service needs one, set voice in the options of the model (Settings, Models, edit)", err, h.Name)
+	}
 	if file, ok := out.(map[string]any); ok && err == nil && file["file"] != nil {
 		file["model"] = h.Name
 		if spent != nil && spent.CostUSD != nil {
@@ -268,9 +271,6 @@ func build(in modelCallIn, h gateway.ModelHop, options map[string]any, att attac
 	case RoleTTS:
 		if strings.TrimSpace(in.Text) == "" {
 			return gateway.ModelCall{}, registry.Invalid("deck: tts needs the words in text")
-		}
-		if options["voice"] == nil {
-			return gateway.ModelCall{}, registry.Invalid("deck: model %s speaks with a voice of its service: set voice in the options of the model (Settings, Models, edit)", h.Name)
 		}
 		body := map[string]any{"model": h.Model, "input": in.Text, "response_format": "mp3"}
 		if p := strings.TrimSpace(in.Prompt); p != "" {

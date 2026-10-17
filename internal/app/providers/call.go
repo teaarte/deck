@@ -269,7 +269,10 @@ func build(in modelCallIn, h gateway.ModelHop, options map[string]any, att attac
 		if strings.TrimSpace(in.Text) == "" {
 			return gateway.ModelCall{}, registry.Invalid("deck: tts needs the words in text")
 		}
-		body := map[string]any{"model": h.Model, "input": in.Text, "voice": "alloy"}
+		if options["voice"] == nil {
+			return gateway.ModelCall{}, registry.Invalid("deck: model %s speaks with a voice of its service: set voice in the options of the model (Settings, Models, edit)", h.Name)
+		}
+		body := map[string]any{"model": h.Model, "input": in.Text, "response_format": "mp3"}
 		if p := strings.TrimSpace(in.Prompt); p != "" {
 			body["instructions"] = p
 		}
@@ -475,8 +478,13 @@ func (s *Service) keepBase64(act registry.Actor, ct, data string) (any, error) {
 	return s.keep(act, RoleImage, ct, bytes.NewReader(b))
 }
 
-// keep saves what a model made as a file in the results folder of the calling process.
+// keep saves what a model made as a file in the results folder of the calling process; a call without a process, as
+// the check of a model, gets only its type and size.
 func (s *Service) keep(act registry.Actor, kind, ct string, body io.Reader) (any, error) {
+	if act.ProcessID == 0 {
+		n, err := io.Copy(io.Discard, io.LimitReader(body, 1<<30))
+		return map[string]any{"type": ct, "size": n, "kept": false}, err
+	}
 	name, n, err := files.Save(s.Home, act.ProcessID, kind, ct, body, 1<<30)
 	if err != nil {
 		return nil, err

@@ -2,7 +2,7 @@
   "name": "settings",
   "icon": "settings",
   "title": "Settings",
-  "params": {"name": "string", "command": "string", "agent": "string", "url": "string", "model": "string", "key_secret": "string", "connection": "string", "kind": "string", "role": "string", "project": "string", "models": "string", "api": "string", "local": "boolean", "free": "boolean", "subscription": "boolean", "input_usd": "number", "output_usd": "number", "call_usd": "number", "unit": "string"},
+  "params": {"name": "string", "command": "string", "agent": "string", "url": "string", "model": "string", "key_secret": "string", "connection": "string", "kind": "string", "role": "string", "project": "string", "models": "string", "api": "string", "local": "boolean", "free": "boolean", "subscription": "boolean", "input_usd": "number", "output_usd": "number", "call_usd": "number", "unit": "string", "options": "string"},
   "blocks": [
     {"type": "tabs", "tabs": [
       {"title": "Modules", "icon": "folders", "blocks": [
@@ -27,7 +27,7 @@
         {"type": "dialog", "name": "model", "title": "Add a model", "icon": "plus", "primary": true, "blocks": [
           {"type": "form", "command": "deck.model_set", "description": "A model of a connection: its kind and price come from the catalog of the connection when left out. With an agent it runs agent commands, after a self-check.",
             "values": {"connection": "=param.connection", "model": "=param.model", "name": "=param.name", "kind": "=param.kind", "agent": "=param.agent", "free": "=param.free", "subscription": "=param.subscription",
-              "input_usd": "=param.input_usd", "output_usd": "=param.output_usd", "call_usd": "=param.call_usd", "unit": "=param.unit"},
+              "input_usd": "=param.input_usd", "output_usd": "=param.output_usd", "call_usd": "=param.call_usd", "unit": "=param.unit", "options": "=param.options"},
             "choices": {"connection": {"source": {"from": "deck.models_list", "rows": "connections"}, "value": "name"},
               "agent": {"source": {"from": "deck.models_list", "rows": "agents", "where": "status != 'missing' && name != 'claude-code' && name != 'codex'"}, "value": "name"}}}]},
         {"type": "dialog", "name": "assign", "title": "Fallbacks", "icon": "list-numbers", "blocks": [
@@ -88,8 +88,9 @@
           ],
           "actions": [
             {"verb": "check", "command": "deck.provider_check", "params": {"provider": "=name"}, "when": "(agent ?? '') != ''"},
+            {"verb": "check", "command": "deck.model_call", "params": {"kind": "tts", "model": "=name", "text": "This is a short check of the voice."}, "when": "kind == 'tts'"},
             {"verb": "edit", "screen": "settings", "params": {"tab": "Models", "dialog": "model", "name": "=name", "connection": "=connection", "model": "=model", "kind": "=kind", "agent": "=agent ?? ''", "free": "=free", "subscription": "=subscription",
-              "input_usd": "=input_usd", "output_usd": "=output_usd", "call_usd": "=call_usd", "unit": "=unit"}, "when": "!builtin"},
+              "input_usd": "=input_usd", "output_usd": "=output_usd", "call_usd": "=call_usd", "unit": "=unit", "options": "=options ?? ''"}, "when": "!builtin"},
             {"verb": "remove", "confirm": true, "command": "deck.model_remove", "params": {"name": "=name"}, "when": "!builtin"}
           ]}
       ]},

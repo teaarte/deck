@@ -38,6 +38,8 @@ type modelView struct {
 	Model      string   `json:"model"`
 	Kind       string   `json:"kind"`
 	Agent      string   `json:"agent,omitempty"`
+	// Options are the fields deck adds to every call of the model, as JSON.
+	Options string `json:"options,omitempty"`
 	InputUSD   *float64 `json:"input_usd,omitempty"`
 	OutputUSD  *float64 `json:"output_usd,omitempty"`
 	CallUSD    *float64 `json:"call_usd,omitempty"`
@@ -62,6 +64,14 @@ func (s *Service) lastCheck(ctx context.Context, workspace int64, v *modelView) 
 	if h, err := s.healthOf(ctx, workspace, v.Name); err == nil {
 		v.Status, v.Error, v.Verdict, v.Speed, v.Version = h.Status, h.Error, h.Verdict, h.Speed, h.Version
 	}
+}
+
+// optionsOf are the options of a model as its form shows them: none for an empty object.
+func optionsOf(o string) string {
+	if strings.TrimSpace(o) == "{}" {
+		return ""
+	}
+	return o
 }
 
 // ModelSubject is the health row of a model of a connection, in its workspace.
@@ -130,7 +140,7 @@ func (s *Service) modelsList(ctx context.Context, act registry.Actor, in modelsL
 	}
 	for _, r := range models {
 		m := r.Model
-		v := modelView{Name: m.Name, Connection: r.Connection.Name, Model: m.Model, Kind: m.Kind, Agent: m.Agent,
+		v := modelView{Name: m.Name, Connection: r.Connection.Name, Model: m.Model, Kind: m.Kind, Agent: m.Agent, Options: optionsOf(m.Options),
 			InputUSD: nullable(m.InputUsd), OutputUSD: nullable(m.OutputUsd), CallUSD: nullable(m.CallUsd), Unit: m.Unit, Free: m.Free != 0,
 			Subscription: m.Subscription != 0}
 		s.lastCheck(ctx, act.Workspace, &v)
@@ -268,6 +278,9 @@ func (s *Service) modelSet(ctx context.Context, act registry.Actor, in modelSetI
 		if got, ok := s.catalog(ctx, act.Workspace, c, in.Model); ok {
 			if unpriced {
 				m.InputUsd, m.OutputUsd, m.CallUsd, m.Free = got.InputUsd, got.OutputUsd, got.CallUsd, got.Free
+				if cmp.Or(m.Kind, got.Kind) == RoleTTS && in.Unit == "" && m.InputUsd.Valid && !m.OutputUsd.Valid {
+					m.Unit = UnitChar
+				}
 			}
 			m.Kind = cmp.Or(m.Kind, got.Kind)
 		}
@@ -313,7 +326,7 @@ func (s *Service) modelSet(ctx context.Context, act registry.Actor, in modelSetI
 	if in.Agent != "" {
 		s.startCheck(in.Name, true)
 	}
-	return modelView{Name: out.Name, Connection: c.Name, Model: out.Model, Kind: out.Kind, Agent: out.Agent, InputUSD: nullable(out.InputUsd),
+	return modelView{Name: out.Name, Connection: c.Name, Model: out.Model, Kind: out.Kind, Agent: out.Agent, Options: optionsOf(out.Options), InputUSD: nullable(out.InputUsd),
 		OutputUSD: nullable(out.OutputUsd), CallUSD: nullable(out.CallUsd), Unit: out.Unit, Free: out.Free != 0,
 		Subscription: out.Subscription != 0}, nil
 }

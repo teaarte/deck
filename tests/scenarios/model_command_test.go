@@ -710,3 +710,45 @@ func TestAnImageModelEditsThePictureInFile(t *testing.T) {
 		t.Fatalf("chat completions get the picture as an image_url beside the prompt: %+v", seen[1:])
 	}
 }
+
+// TestSpeechTakesItsVoiceFromTheOptionsOfItsModel: deck has no voice of its own: a tts model without voice in its
+// options is refused with what to do, with one it speaks mp3 unless the options say otherwise; the button of the
+// models table checks it with one phrase, and a tts price from the catalog counts characters.
+func TestSpeechTakesItsVoiceFromTheOptionsOfItsModel(t *testing.T) {
+	t.Parallel()
+	api := newModels(t, map[string]func(int, map[string]any) (int, string, string){
+		"/api/v1/audio/speech": func(int, map[string]any) (int, string, string) { return 200, "audio/mpeg", "ID3-voice" },
+		"/api/v1/models": func(int, map[string]any) (int, string, string) {
+			return 200, "application/json", `{"data": [{"id": "elevenlabs/eleven-v4", "pricing": {"prompt": "0.0001"}, "architecture": {"output_modalities": ["audio"]}}]}`
+		},
+	})
+	e := newEnv(t, nil)
+	e.must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": api.URL + "/api/v1", "key": "sk-or"}, nil)
+	var m struct {
+		Kind, Unit string
+		InputUSD   float64 `json:"input_usd"`
+	}
+	e.must("deck.model_set", map[string]any{"connection": "openrouter", "model": "elevenlabs/eleven-v4", "name": "eleven"}, &m)
+	if m.Kind != "tts" || m.Unit != "char" || math.Abs(m.InputUSD-100) > 1e-9 {
+		t.Fatalf("a tts price of the catalog counts characters: %+v", m)
+	}
+	check := map[string]any{"kind": "tts", "model": "eleven", "text": "This is a short check of the voice."}
+	e.refused("deck.model_call", check, 422, "set voice in the options of the model")
+	e.must("deck.model_set", map[string]any{"connection": "openrouter", "model": "elevenlabs/eleven-v4", "name": "eleven", "options": `{"voice": "21m00Tcm4TlvDq8ikWAM"}`}, nil)
+	var models struct {
+		Models []struct{ Name, Options string }
+	}
+	e.must("deck.models_list", map[string]any{}, &models)
+	if !slices.ContainsFunc(models.Models, func(x struct{ Name, Options string }) bool {
+		return x.Name == "eleven" && x.Options == `{"voice": "21m00Tcm4TlvDq8ikWAM"}`
+	}) {
+		t.Fatalf("the models list gives the options of a model to its form: %+v", models)
+	}
+	var out struct{ Type string }
+	e.must("deck.model_call", check, &out)
+	got := api.calls()
+	last := got[len(got)-1]
+	if out.Type != "audio/mpeg" || last.Body["voice"] != "21m00Tcm4TlvDq8ikWAM" || last.Body["response_format"] != "mp3" || last.Body["input"] != check["text"] {
+		t.Fatalf("speech goes with the voice of the options as mp3: %+v %+v", out, last)
+	}
+}

@@ -10,6 +10,7 @@ import (
 	"deck2/internal/manifest"
 	"deck2/internal/process"
 	"deck2/internal/registry"
+	"deck2/internal/store"
 	"deck2/internal/store/db"
 	"deck2/internal/trigger"
 )
@@ -51,7 +52,7 @@ func (h After) Closed(ctx context.Context, p db.Process) {
 	}
 }
 
-// after starts the commands that run when a command of the same project finishes.
+// after starts the commands that run when a command of the same project finishes, with its record when they take one.
 func (s *Service) after(ctx context.Context, done db.Process) {
 	p, err := s.St.Q.GetProject(ctx, done.ProjectID)
 	if err != nil || p.Paused == 1 {
@@ -74,8 +75,26 @@ func (s *Service) after(ctx context.Context, done db.Process) {
 		if !ok || row.Paused == 1 {
 			continue
 		}
-		if _, err := s.Start(ctx, row, manifest.TriggerInput(t, done.ID), done.ID); err != nil {
+		input := manifest.TriggerInput(t, done.ID)
+		if c := m.Command(t.Command); c != nil && c.Takes("record") && input["record"] == nil {
+			if record := s.recordOf(ctx, done); record != 0 {
+				input["record"] = record
+			}
+		}
+		if _, err := s.Start(ctx, row, input, done.ID); err != nil {
 			slog.Error("after trigger", "project", p.Name, "command", t.Command, "after", done.ID, "err", err)
 		}
 	}
+}
+
+// recordOf is the record a finished process worked on: the record of its input, else the one record it created.
+func (s *Service) recordOf(ctx context.Context, p db.Process) int64 {
+	if record := process.RecordOf(p.Input); record != 0 {
+		return record
+	}
+	ids, err := s.St.Q.CreatedRecords(ctx, db.CreatedRecordsParams{ProcessID: store.ID(p.ID), ProjectID: p.ProjectID})
+	if err != nil || len(ids) != 1 {
+		return 0
+	}
+	return ids[0]
 }

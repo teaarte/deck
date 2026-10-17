@@ -163,7 +163,7 @@ type Service struct {
 	Now func() time.Time
 	// DrainFiles removes the files and folders whose rows are gone.
 	DrainFiles func(ctx context.Context)
-	// Stop ends an open process with a reason; one the owner stops drops its frozen calls.
+	// Stop ends an open process of a deleted record as stopped by deck; one the owner stops drops its frozen calls.
 	Stop func(ctx context.Context, processID int64, reason string, owner bool) error
 }
 

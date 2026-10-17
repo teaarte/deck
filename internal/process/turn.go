@@ -215,6 +215,13 @@ func (r *Runner) prepare(ctx context.Context, t *turn, p db.Process, trial bool,
 	}
 	if err == nil && !t.resume {
 		a.req.Prompt, err = r.firstPrompt(ctx, proj, *t, a.tools, a.data)
+		// Messages that came before the first turn, such as another call for its record, go with it.
+		if u, uerr := r.untold(ctx, processID); err == nil && uerr == nil {
+			if ids := u.except(t.asks, "").ids().Remarks; len(ids) > 0 {
+				t.asks.Remarks = append(t.asks.Remarks, ids...)
+				a.req.Prompt += r.remarksText(ctx, processID, ids)
+			}
+		}
 	}
 	if err != nil {
 		a.cleanup()
@@ -449,6 +456,9 @@ func (r *Runner) firstPrompt(ctx context.Context, proj db.Project, t turn, tools
 	}
 	if mem != "" {
 		p += "\n" + mem + "\n"
+	}
+	if th := r.thread(ctx, proc); th != "" {
+		p += "\n" + th + "\n"
 	}
 	if proc.StartNote != "" {
 		p += "\n" + proc.StartNote + "\n"

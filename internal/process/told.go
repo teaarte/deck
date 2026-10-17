@@ -42,11 +42,22 @@ func (r *Runner) remarksText(ctx context.Context, processID int64, ids []int64) 
 	var b strings.Builder
 	for _, m := range remarks {
 		if slices.Contains(ids, m.ID) {
-			b.WriteString("\nThe owner wrote while you worked:\n" + strings.TrimSpace(m.Text) + "\n")
+			b.WriteString("\n" + remarkText(m) + "\n")
 		}
 	}
 	return b.String()
 }
+
+// remarkText is a message to a process as it reads it: the owner's, or deck's own, such as another call for its record.
+func remarkText(m db.ProcessRemark) string {
+	if m.Author == RemarkByDeck {
+		return strings.TrimSpace(m.Text)
+	}
+	return "The owner wrote while you worked:\n" + strings.TrimSpace(m.Text)
+}
+
+// RemarkByDeck is the author of a message deck gives a process itself.
+const RemarkByDeck = "deck"
 
 // untold is what a process has not been told yet: decisions with what deck made of a call, and remarks.
 type untold struct {
@@ -96,7 +107,7 @@ func (u untold) message() string {
 	var b strings.Builder
 	b.WriteString("deck: the owner has responded to what you were waiting for.\n")
 	for _, m := range u.remarks {
-		b.WriteString("- The owner wrote while you worked:\n" + strings.TrimSpace(m.Text) + "\n")
+		b.WriteString("- " + remarkText(m) + "\n")
 	}
 	for _, row := range u.asks {
 		a := row.Ask

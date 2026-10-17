@@ -138,6 +138,7 @@ type processesListIn struct {
 	Limit   int64  `opt:"" desc:"At most this many"`
 	Brief   bool   `opt:"" desc:"Leave the results out; process_get gives the result of one"`
 	Record  int64  `type:"record" opt:"" desc:"Only the processes whose input field record is the id of this record: how its pipeline goes"`
+	Topic   int64  `opt:"" desc:"Only the replies of the master in this chat topic and the processes they started, as master.work"`
 	Lang    string `opt:"" desc:"Language of the words of the states, such as ru; English without one"`
 	Failed  bool   `opt:"" desc:"Only the processes of the last week that failed or were cut by a restart, not trials, that the owner has not closed and no later run made good: one for the same record, or with the same input for a command without one; newest first, each with retry when the owner may run its command again"`
 }
@@ -154,8 +155,14 @@ func (s *Service) processesList(ctx context.Context, act registry.Actor, in proc
 	case in.Open:
 		ps, err = s.St.Q.ListOpenProcesses(ctx, db.ListOpenProcessesParams{WorkspaceID: act.Workspace, ProjectID: pid, Record: in.Record})
 	default:
+		var master db.Project
+		if in.Topic != 0 {
+			if master, err = access.Master(ctx, s.St.Q, act.Workspace); err != nil {
+				return nil, err
+			}
+		}
 		ps, err = s.St.Q.ListProcessesFiltered(ctx, db.ListProcessesFilteredParams{WorkspaceID: act.Workspace, ProjectID: pid, State: in.State,
-			Command: in.Command, Record: in.Record, Lim: registry.Limit(in.Limit, 50, 500)})
+			Command: in.Command, Record: in.Record, Topic: in.Topic, MasterID: master.ID, Lim: registry.Limit(in.Limit, 50, 500)})
 	}
 	if err != nil {
 		return nil, err

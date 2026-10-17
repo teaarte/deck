@@ -168,7 +168,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 		Words: phrases}
 	*a.Health = apphealth.Service{St: st, Providers: a.Providers.All, Secret: a.Secrets.Has, Unassigned: a.Providers.Unassigned, NoSearch: a.Providers.NoSearch,
 		Works: a.Providers.Works, Places: a.Providers.Places, Bus: a.Bus}
-	*a.Records = records.Service{St: st, Now: cfg.Now, DrainFiles: a.Files.Drain, Stop: a.Runner.Stop}
+	*a.Records = records.Service{St: st, Now: cfg.Now, DrainFiles: a.Files.Drain, Stop: a.Runner.Cancel}
 	*a.Tokens = tokens.Service{St: st, MCPBase: cfg.MCPBase, Journal: a.Gateway.Journal}
 	*a.Saver = project.Saver{St: st, Bus: a.Bus, Now: cfg.Now, Home: h, Registry: a.Registry,
 		Gateway: a.Gateway, Runner: a.Runner, Scheduler: a.Scheduler, Broker: a.Asks, Scripts: a.Scripts, Tools: a.Tools,

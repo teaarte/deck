@@ -159,7 +159,9 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
 - **Triggers**: `cron` for schedules, `after` when another command of the project finishes with a result that
   is not `null` (a poll with nothing new returns `null` and the chain stops). The command a trigger starts gets
   the trigger's fixed `params` plus `{"process": <id>}` of the finished one for `after`, so its input declares
-  that field as `integer`; a later step that needs an earlier result
+  that field as `integer`; a step whose input declares `record` also gets the record of the finished one (its
+  input `record`, else the one record it made), so the steps of a record show on its page and stop with it. A later
+  step that needs an earlier result
   reads it with `process_get`, so keep what the chain needs in records rather than passing it along. Cycles are refused. A chain runs at most five steps deep, counted from the call that started it (a button, a schedule or a trial): a sixth `after` step does not start, and a note of the feed says so. Keep chains short — two `after` triggers on the same step run side by side, so a step that only prepares something can run beside the next one instead of before it. After the Mac slept, each missed schedule runs once; `"skip_missed":
   true` drops the missed run instead (a morning digest that is stale by noon).
 - **Stages** the owner acts on are a `status` field of the record (an `enum`), shown as a board (`"board":
@@ -170,6 +172,11 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   clears at the end: the row shows it by `tone` or a `tag` cell, and the button hides by `"when": "status !=
   'applying'"`. A button whose second press must not start the work twice passes `"retry_key": "='apply:' +
   string(_id)"` in `params`: a call with the key of a running process of that command returns that process.
+- **One record, one run of a command**: a call with a `record` while a process of the same command works on that
+  record returns that process. An agent gets the call as a message in its run (a second edit of the owner, a step
+  after another finished step) and gives one result for both; a script, tool or model command runs once more
+  after it ends, with the input of the last such call. An agent started for a record is told the last processes of
+  that record, so it reads what was done before it rather than being told in the input.
 - **A last lane that keeps growing** (`done` of a board) is cut by the source of the board, `"where": "status !=
   'done' || date(_updated) > now() - duration('168h')"`, and the whole history is a separate table of that
   status; `limit` cuts every lane at once.

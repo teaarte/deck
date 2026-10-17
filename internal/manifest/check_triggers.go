@@ -72,7 +72,8 @@ func triggerSource(t Trigger) string {
 	}
 }
 
-// TriggerInput is the command input a trigger passes: its params, plus the finished process for after triggers.
+// TriggerInput is the command input a trigger passes: its params, plus the finished process for after triggers;
+// deck adds the record of that process when the command takes one.
 func TriggerInput(t Trigger, ref int64) map[string]any {
 	in := map[string]any{}
 	for k, v := range t.Params {

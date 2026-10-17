@@ -179,6 +179,29 @@ func (q *Queries) CreateAsk(ctx context.Context, arg CreateAskParams) (Ask, erro
 	return i, err
 }
 
+const createDeckRemark = `-- name: CreateDeckRemark :one
+INSERT INTO process_remark (process_id, text, created_at, delivered_at, author) VALUES (?, ?, ?, ?, 'deck') RETURNING id
+`
+
+type CreateDeckRemarkParams struct {
+	ProcessID   int64
+	Text        string
+	CreatedAt   string
+	DeliveredAt sql.NullString
+}
+
+func (q *Queries) CreateDeckRemark(ctx context.Context, arg CreateDeckRemarkParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, createDeckRemark,
+		arg.ProcessID,
+		arg.Text,
+		arg.CreatedAt,
+		arg.DeliveredAt,
+	)
+	var id int64
+	err := row.Scan(&id)
+	return id, err
+}
+
 const createProjectAsk = `-- name: CreateProjectAsk :one
 INSERT INTO ask (process_id, workspace_id, project_id, kind, text, payload, expires_at)
 VALUES (?1, ?2, ?3, ?4, ?5, ?6,
@@ -229,7 +252,7 @@ const createRemark = `-- name: CreateRemark :one
 INSERT INTO process_remark (process_id, text, created_at)
 SELECT p.id, CAST(?1 AS TEXT), CAST(?2 AS TEXT) FROM process p
 WHERE p.id = ?3 AND p.finished_at IS NULL
-RETURNING id, process_id, text, created_at, delivered_at
+RETURNING id, process_id, text, created_at, delivered_at, author
 `
 
 type CreateRemarkParams struct {
@@ -247,6 +270,7 @@ func (q *Queries) CreateRemark(ctx context.Context, arg CreateRemarkParams) (Pro
 		&i.Text,
 		&i.CreatedAt,
 		&i.DeliveredAt,
+		&i.Author,
 	)
 	return i, err
 }
@@ -563,7 +587,7 @@ func (q *Queries) ListOpenAsksOfProcess(ctx context.Context, processID int64) ([
 }
 
 const listRemarks = `-- name: ListRemarks :many
-SELECT id, process_id, text, created_at, delivered_at FROM process_remark WHERE process_id = ? ORDER BY id
+SELECT id, process_id, text, created_at, delivered_at, author FROM process_remark WHERE process_id = ? ORDER BY id
 `
 
 func (q *Queries) ListRemarks(ctx context.Context, processID int64) ([]ProcessRemark, error) {
@@ -581,6 +605,7 @@ func (q *Queries) ListRemarks(ctx context.Context, processID int64) ([]ProcessRe
 			&i.Text,
 			&i.CreatedAt,
 			&i.DeliveredAt,
+			&i.Author,
 		); err != nil {
 			return nil, err
 		}
@@ -649,7 +674,7 @@ func (q *Queries) ListUndeliveredAsks(ctx context.Context, processID int64) ([]L
 }
 
 const listUndeliveredRemarks = `-- name: ListUndeliveredRemarks :many
-SELECT id, process_id, text, created_at, delivered_at FROM process_remark WHERE process_id = ? AND delivered_at IS NULL ORDER BY id
+SELECT id, process_id, text, created_at, delivered_at, author FROM process_remark WHERE process_id = ? AND delivered_at IS NULL ORDER BY id
 `
 
 func (q *Queries) ListUndeliveredRemarks(ctx context.Context, processID int64) ([]ProcessRemark, error) {
@@ -667,6 +692,7 @@ func (q *Queries) ListUndeliveredRemarks(ctx context.Context, processID int64) (
 			&i.Text,
 			&i.CreatedAt,
 			&i.DeliveredAt,
+			&i.Author,
 		); err != nil {
 			return nil, err
 		}
@@ -788,6 +814,20 @@ UPDATE ask SET state = 'open', answer = '', answered_at = NULL WHERE id = ? AND 
 
 func (q *Queries) ReopenDecision(ctx context.Context, id int64) error {
 	_, err := q.db.ExecContext(ctx, reopenDecision, id)
+	return err
+}
+
+const setRemarkText = `-- name: SetRemarkText :exec
+UPDATE process_remark SET text = ? WHERE id = ?
+`
+
+type SetRemarkTextParams struct {
+	Text string
+	ID   int64
+}
+
+func (q *Queries) SetRemarkText(ctx context.Context, arg SetRemarkTextParams) error {
+	_, err := q.db.ExecContext(ctx, setRemarkText, arg.Text, arg.ID)
 	return err
 }
 

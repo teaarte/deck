@@ -33,6 +33,11 @@ func (r *Runner) Stop(ctx context.Context, processID int64, reason string, owner
 	return r.end(ctx, processID, StateStopped, fault.New(fault.Stopped, reason), owner)
 }
 
+// Cancel ends a process as stopped by deck itself, when what it worked for is gone or another took its work.
+func (r *Runner) Cancel(ctx context.Context, processID int64, reason string, owner bool) error {
+	return r.end(ctx, processID, StateStopped, fault.New(fault.DeckStopped, reason), owner)
+}
+
 // end closes a process that has not finished in state with failure f, as Stop does; drop closes its frozen calls too.
 func (r *Runner) end(ctx context.Context, processID int64, state string, f *fault.F, drop bool) error {
 	var n int64

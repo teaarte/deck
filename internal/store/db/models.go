@@ -265,6 +265,7 @@ type Process struct {
 	ErrorType        string
 	ErrorDetails     string
 	FollowsID        sql.NullInt64
+	Again            string
 }
 
 type ProcessRemark struct {
@@ -273,6 +274,7 @@ type ProcessRemark struct {
 	Text        string
 	CreatedAt   string
 	DeliveredAt sql.NullString
+	Author      string
 }
 
 type Project struct {

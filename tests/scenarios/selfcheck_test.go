@@ -458,6 +458,9 @@ fi`)
 	if runs := e.runsOf("master", "on_error"); len(runs) != 0 {
 		t.Fatalf("deck's failure is in health, not a run of the master that would fail the same way: %+v", runs)
 	}
+	if rows := e.failedRuns(); len(rows) != 0 {
+		t.Fatalf("a failure without deck's tools is one row of health, not rows of the cockpit: %+v", rows)
+	}
 }
 
 // lossyFake is the checked fake whose next turns start without deck's tools.

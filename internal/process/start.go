@@ -52,6 +52,8 @@ type Origin struct {
 	Provider string
 	// Follows is the failed process this one repeats or continues.
 	Follows int64
+	// again is the one run after Follows with the last call that came for its record while it ran.
+	again bool
 }
 
 // chainOf is the commands of the chain that ends in p, from its first: "a → b → c".
@@ -151,7 +153,7 @@ func (r *Runner) Start(ctx context.Context, projectID int64, m *manifest.Manifes
 	in, _ := json.Marshal(input)
 	var p db.Process
 	var refused error
-	reused := false
+	reused, joined, remark := false, "", int64(0)
 	trial := o.Trial
 	err = r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		pr, err := q.GetProject(ctx, projectID)
@@ -194,11 +196,49 @@ func (r *Runner) Start(ctx context.Context, projectID int64, m *manifest.Manifes
 		}
 		if o.Key != "" {
 			old, err := q.FindActiveProcess(ctx, db.FindActiveProcessParams{ProjectID: projectID, Command: command, RetryKey: o.Key, Trial: store.Bool(trial)})
-			if err == nil {
+			if err == nil && old.ID != o.Follows {
 				p, reused = old, true
 				return nil
 			}
-			if !errors.Is(err, sql.ErrNoRows) {
+			if err != nil && !errors.Is(err, sql.ErrNoRows) {
+				return err
+			}
+		}
+		if o.again {
+			// The run after takes the last call that came for its record, even one that came as it closed.
+			prev, err := q.GetProcess(ctx, o.Follows)
+			if err != nil {
+				return err
+			}
+			if fs, err := q.ListFollowers(ctx, store.ID(prev.ID)); err != nil || len(fs) > 0 || prev.Again == "" {
+				if err == nil && len(fs) > 0 {
+					p.ID = fs[0].ID
+				}
+				reused = true
+				return err
+			}
+			in = []byte(prev.Again)
+			input = map[string]any{}
+			if err := json.Unmarshal(in, &input); err != nil {
+				return err
+			}
+		}
+		// A call for a record whose process of the command is still going joins it instead of racing it.
+		if record := RecordOf(string(in)); record != 0 && o.Follows == 0 {
+			old, err := q.FindRecordProcess(ctx, db.FindRecordProcessParams{ProjectID: projectID, Command: command, Trial: store.Bool(trial), Record: record})
+			if err == nil && old.ID != o.Parent {
+				p, reused = old, true
+				if err := bindInput(ctx, q, cmd, projectID, old.ID, input); err != nil {
+					return err
+				}
+				if kind != KindAgent {
+					return q.SetAgain(ctx, db.SetAgainParams{Again: string(in), ID: old.ID})
+				}
+				joined = joinText(cmd, in, o)
+				remark, err = q.CreateDeckRemark(ctx, db.CreateDeckRemarkParams{ProcessID: old.ID, Text: joined, CreatedAt: r.stamp().String})
+				return err
+			}
+			if err != nil && !errors.Is(err, sql.ErrNoRows) {
 				return err
 			}
 		}
@@ -254,6 +294,9 @@ func (r *Runner) Start(ctx context.Context, projectID int64, m *manifest.Manifes
 	}
 	if refused != nil {
 		return 0, refused
+	}
+	if remark != 0 {
+		r.join(ctx, p.ID, remark, joined, cmd, input)
 	}
 	if reused {
 		return p.ID, nil

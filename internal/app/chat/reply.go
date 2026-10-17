@@ -369,10 +369,11 @@ func (ch *Service) retelling(ctx context.Context, t db.ChatTopic, before int64) 
 			after = append(after, m)
 		}
 	}
-	if strings.TrimSpace(text) == "" && len(after) == 0 {
+	procs := ch.topicProcesses(ctx, t)
+	if strings.TrimSpace(text) == "" && len(after) == 0 && procs == "" {
 		return "", nil
 	}
-	v := struct{ Summary, After string }{}
+	v := struct{ Summary, After, Processes string }{Processes: procs}
 	if strings.TrimSpace(text) != "" {
 		v.Summary = untrusted.Block("Summary of the topic", text)
 	}
@@ -380,6 +381,26 @@ func (ch *Service) retelling(ctx context.Context, t db.ChatTopic, before int64) 
 		v.After = untrusted.Block("Messages after the summary, word for word, oldest first", transcript(after))
 	}
 	return master.Text("retelling", v), nil
+}
+
+// topicLinks is how many processes the replies of a topic started a session that did not see them is told of.
+const topicLinks = 10
+
+// topicProcesses are the processes the replies of a topic started, newest first, one a line.
+func (ch *Service) topicProcesses(ctx context.Context, t db.ChatTopic) string {
+	m, err := access.Master(ctx, ch.St.Q, t.WorkspaceID)
+	if err != nil {
+		return ""
+	}
+	rows, err := ch.St.Q.ListTopicProcesses(ctx, db.ListTopicProcessesParams{MasterID: m.ID, Topic: t.ID, Lim: topicLinks})
+	if err != nil || len(rows) == 0 {
+		return ""
+	}
+	lines := make([]string, 0, len(rows))
+	for _, r := range rows {
+		lines = append(lines, process.Link(r.Process, r.Project+"."+r.Process.Command))
+	}
+	return untrusted.Block("Processes of the topic", strings.Join(lines, "\n"))
 }
 
 func transcript(ms []db.ChatMessage) string {

@@ -50,7 +50,11 @@ func (s *Service) processChat(ctx context.Context, act registry.Actor, in proces
 		return v, err
 	}
 	for _, m := range remarks {
-		l := map[string]any{"at": m.CreatedAt, "kind": "owner", "text": untrusted.Cut(m.Text, 4000), "status": "taken"}
+		kind := "owner"
+		if m.Author == process.RemarkByDeck {
+			kind = "deck"
+		}
+		l := map[string]any{"at": m.CreatedAt, "kind": kind, "text": untrusted.Cut(m.Text, 4000), "status": "taken"}
 		if !m.DeliveredAt.Valid {
 			l["status"] = "waiting"
 			l["delete"] = map[string]any{"verb": "delete", "command": registry.Builtin + ".process_message_delete",

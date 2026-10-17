@@ -301,6 +301,7 @@ func (r *Runner) closed(ctx context.Context, processID int64) {
 		slog.Error("hear a closed process", "process", processID, "err", err)
 		return
 	}
+	r.again(ctx, processID)
 	if err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error { return q.DeleteClosedOutbox(ctx, processID) }); err != nil {
 		slog.Error("outbox", "process", processID, "err", err)
 	}

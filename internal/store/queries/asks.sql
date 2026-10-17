@@ -128,6 +128,14 @@ UPDATE ask SET unheard_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ? A
 INSERT INTO process_remark (process_id, text, created_at, delivered_at) VALUES (?, ?, ?, ?);
 
 
+-- name: CreateDeckRemark :one
+INSERT INTO process_remark (process_id, text, created_at, delivered_at, author) VALUES (?, ?, ?, ?, 'deck') RETURNING id;
+
+
+-- name: SetRemarkText :exec
+UPDATE process_remark SET text = ? WHERE id = ?;
+
+
 -- name: ListRemarks :many
 SELECT * FROM process_remark WHERE process_id = ? ORDER BY id;
 

@@ -43,7 +43,7 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
   a connection (`model:`) and of pushes is of its workspace, `00033_reopened` — when a process was last sent back to
   work, the base of its duration and of its week in the cockpit, `00034_folder_outbox` — the folder of a deleted record
   and, by an SQL trigger, of a deleted project go through the outbox, `00035_chat_file_ids` — the files of a
-  chat message are stored file ids, `00036_retention_subject` — the health of retention is `retention:<project>`, `00037_file_process` — the process that made a file, `00038_no_dsh`, `00039_topic_model` — the model a chat topic answers on, `00040_fault` — the type and details of a failure of a process, the failed process one follows, the same unread note of deck counted), sqlc queries (`db/` is generated; a parameter compared with 0 or '' is CAST, the linter
+  chat message are stored file ids, `00036_retention_subject` — the health of retention is `retention:<project>`, `00037_file_process` — the process that made a file, `00038_no_dsh`, `00039_topic_model` — the model a chat topic answers on, `00040_fault` — the type and details of a failure of a process, the failed process one follows, the same unread note of deck counted), `00041_again` — the input of one more run of a script, tool or model command a call for its record left while it ran, deck's messages to a process, the stops deck makes `deck.stopped`, sqlc queries (`db/` is generated; a parameter compared with 0 or '' is CAST, the linter
   refuses `interface{}` there); `Store.Q` reads on connections of its own beside the one writer, `Tx` waits for the
   writer at most `Store.Wait`, `Backup` copies the base; `mark` keeps only cursors and throttles
 - `internal/registry` — command registry: every input (API, MCP, triggers) calls commands through it;
@@ -114,7 +114,9 @@ Stage 1 plan: `docs/plan-stage1.md`; next: `docs/plan-models.md` (audit fixes, c
   …), whose it is (model, deck, module, environment, owner), the text for the owner and the details apart; a script
   reports its own as `{"error", "type", "details"}` on stdout with a non-zero exit
 - `internal/process` — process runner: agent and script executors, start, resume, result schema check, result files;
-  agent turns take a slot of the workspace (`slots.go`), the rest wait in `waiting_slot`; a tool or model command is
+  agent turns take a slot of the workspace (`slots.go`), the rest wait in `waiting_slot`; a call for a record
+  whose process of the command runs joins it — a message to an agent, one more run after a script (`join.go`); an
+  agent of a record reads the last processes of it, a hand-on what the refused one did and heard (`thread.go`); a tool or model command is
   one gateway call (`tool.go`); what it takes from deck is
   `Deps` (functions), the deadlines of processes are `Due` (ceilings, pauses, silent, empty results); a turn its model refused (a limit, no answer) goes on as a
   new process on the next model of the assignment, told what the first did (`handon.go`), else a limit pauses

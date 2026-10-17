@@ -16,15 +16,17 @@ const (
 	DeckTools        = "deck.tools"
 	DeckRestart      = "deck.restart"
 	DeckInternal     = "deck.internal"
-	Timeout          = "timeout"
-	ScriptFailed     = "script.failed"
-	ResultInvalid    = "result.invalid"
-	TaskFailed       = "task.failed"
-	InputInvalid     = "input.invalid"
-	ProgramMissing   = "program.missing"
-	RightsDenied     = "rights.denied"
-	Network          = "network"
-	Stopped          = "stopped"
+	// DeckStopped is a process deck stopped itself: what it worked for is gone or another took its work.
+	DeckStopped    = "deck.stopped"
+	Timeout        = "timeout"
+	ScriptFailed   = "script.failed"
+	ResultInvalid  = "result.invalid"
+	TaskFailed     = "task.failed"
+	InputInvalid   = "input.invalid"
+	ProgramMissing = "program.missing"
+	RightsDenied   = "rights.denied"
+	Network        = "network"
+	Stopped        = "stopped"
 )
 
 // Whose a failure is.
@@ -38,7 +40,7 @@ const (
 
 var whose = map[string]string{
 	ModelLimit: OfModel, ModelUnavailable: OfModel, ModelLogin: OfModel,
-	DeckTools: OfDeck, DeckRestart: OfDeck, DeckInternal: OfDeck,
+	DeckTools: OfDeck, DeckRestart: OfDeck, DeckInternal: OfDeck, DeckStopped: OfDeck,
 	Timeout: OfModule, ScriptFailed: OfModule, ResultInvalid: OfModule, TaskFailed: OfModule, InputInvalid: OfModule,
 	ProgramMissing: OfEnvironment, Network: OfEnvironment,
 	RightsDenied: OfOwner, Stopped: OfOwner,
@@ -46,7 +48,7 @@ var whose = map[string]string{
 
 // Types lists the set in a fixed order.
 func Types() []string {
-	return []string{ModelLimit, ModelUnavailable, ModelLogin, DeckTools, DeckRestart, DeckInternal, Timeout, ScriptFailed,
+	return []string{ModelLimit, ModelUnavailable, ModelLogin, DeckTools, DeckRestart, DeckInternal, DeckStopped, Timeout, ScriptFailed,
 		ResultInvalid, TaskFailed, InputInvalid, ProgramMissing, RightsDenied, Network, Stopped}
 }
 

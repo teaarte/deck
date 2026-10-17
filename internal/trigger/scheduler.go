@@ -185,6 +185,16 @@ func (s *Scheduler) Tick(ctx context.Context) int {
 	return len(due)
 }
 
+// goesOn reports whether the process a fire gave is a run still going rather than one it started: its last run,
+// another run of the record it joined, or the run a refused one handed on to.
+func (s *Scheduler) goesOn(ctx context.Context, t db.Trigger, id int64) bool {
+	if t.LastProcessID.Valid && id == t.LastProcessID.Int64 {
+		return true
+	}
+	p, err := s.st.Q.GetProcess(ctx, id)
+	return err == nil && p.TriggerID.Int64 != t.ID
+}
+
 // fire starts the command of a trigger and moves it on; why it did not start, or the run still going that took its
 // slot, is in the health of its project until a run of it starts.
 func (s *Scheduler) fire(ctx context.Context, t db.Trigger, now time.Time) {
@@ -198,7 +208,7 @@ func (s *Scheduler) fire(ctx context.Context, t db.Trigger, now time.Time) {
 	}
 	p, perr := s.st.Q.GetProject(ctx, t.ProjectID)
 	subject := HealthSubject(p.Name, t.Command)
-	if err == nil && t.LastProcessID.Valid && id == t.LastProcessID.Int64 {
+	if err == nil && id != 0 && s.goesOn(ctx, t, id) {
 		s.after(ctx, t, now)
 		if perr == nil {
 			health.Write(ctx, s.st, health.Project(p), subject, health.Warning,

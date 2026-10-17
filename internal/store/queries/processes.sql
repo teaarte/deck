@@ -15,6 +15,9 @@ WHERE project_id IN (SELECT id FROM project WHERE workspace_id = sqlc.arg(worksp
   AND (CAST(sqlc.arg(state) AS TEXT) = '' OR state = CAST(sqlc.arg(state) AS TEXT))
   AND (CAST(sqlc.arg(command) AS TEXT) = '' OR command = CAST(sqlc.arg(command) AS TEXT))
   AND (CAST(sqlc.arg(record) AS INTEGER) = 0 OR json_extract(input, '$.record') = CAST(sqlc.arg(record) AS INTEGER))
+  AND (CAST(sqlc.arg(topic) AS INTEGER) = 0 OR id IN (SELECT t.id FROM process t WHERE t.project_id = CAST(sqlc.arg(master_id) AS INTEGER)
+    AND json_extract(t.input, '$.topic') = CAST(sqlc.arg(topic) AS INTEGER)) OR parent_id IN (SELECT t.id FROM process t
+    WHERE t.project_id = CAST(sqlc.arg(master_id) AS INTEGER) AND json_extract(t.input, '$.topic') = CAST(sqlc.arg(topic) AS INTEGER)))
 ORDER BY id DESC LIMIT sqlc.arg(lim);
 
 
@@ -31,7 +34,31 @@ SELECT * FROM process WHERE state = ? ORDER BY id;
 SELECT * FROM process
 WHERE project_id = ? AND command = ? AND retry_key = ? AND retry_key != '' AND trial = ?
   AND finished_at IS NULL
-ORDER BY id LIMIT 1;
+ORDER BY id DESC LIMIT 1;
+
+
+-- name: FindRecordProcess :one
+-- The newest process of a command for a record that is open, or closed with a run after it still to start.
+SELECT * FROM process p
+WHERE p.project_id = ? AND p.command = ? AND p.trial = ?
+  AND json_extract(p.input, '$.record') = CAST(sqlc.arg(record) AS INTEGER)
+  AND (p.finished_at IS NULL OR p.again != '' AND p.state != 'stopped' AND NOT EXISTS (SELECT 1 FROM process f WHERE f.follows_id = p.id))
+ORDER BY p.id DESC LIMIT 1;
+
+
+-- name: SetAgain :exec
+UPDATE process SET again = ? WHERE id = ?;
+
+
+-- name: CreatedRecords :many
+SELECT id FROM record WHERE process_id = ? AND project_id = ? ORDER BY id LIMIT 2;
+
+
+-- name: ListTopicProcesses :many
+-- The processes the replies of a topic started, newest first.
+SELECT sqlc.embed(p), j.name AS project FROM process p JOIN project j ON j.id = p.project_id
+WHERE p.parent_id IN (SELECT t.id FROM process t WHERE t.project_id = sqlc.arg(master_id) AND json_extract(t.input, '$.topic') = CAST(sqlc.arg(topic) AS INTEGER))
+ORDER BY p.id DESC LIMIT sqlc.arg(lim);
 
 
 -- name: ClaimProcess :execrows
@@ -284,12 +311,13 @@ WHERE p.parent_id = sqlc.arg(parent_id) ORDER BY p.id;
 -- name: ListFailedProcesses :many
 -- Failed processes of the last week the owner has not closed and no later run made good, newest first: a later run
 -- for the same record, or of a command without one with the same input, or one that follows it and has not failed;
--- trials are none of them.
+-- trials and failures for want of deck's tools, which a row of health shows, are none of them.
 SELECT p.* FROM process p
 WHERE p.project_id IN (SELECT id FROM project WHERE workspace_id = sqlc.arg(workspace_id))
   AND (CAST(sqlc.arg(project_id) AS INTEGER) = 0 OR p.project_id = CAST(sqlc.arg(project_id) AS INTEGER))
   AND (CAST(sqlc.arg(id) AS INTEGER) = 0 OR p.id = CAST(sqlc.arg(id) AS INTEGER))
   AND (p.state IN ('error', 'interrupted') OR (p.state = 'done' AND p.not_by_schema = 1)) AND p.trial = 0 AND p.dismissed = 0
+  AND p.error_type != 'deck.tools'
   AND coalesce(p.reopened_at, p.started_at) >= CAST(sqlc.arg(since) AS TEXT)
   AND NOT EXISTS (SELECT 1 FROM process q WHERE q.project_id = p.project_id AND q.command = p.command AND q.id > p.id
     AND q.state = 'done' AND q.not_by_schema = 0 AND q.trial = 0
@@ -322,5 +350,3 @@ SELECT id, command, state, provider FROM process WHERE follows_id = ? ORDER BY i
 UPDATE process SET follows_id = sqlc.arg(follows) WHERE id = sqlc.arg(id) AND follows_id IS NULL;
 
 
--- name: SetRetryKey :exec
-UPDATE process SET retry_key = ? WHERE id = ?;

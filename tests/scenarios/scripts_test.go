@@ -672,7 +672,7 @@ print(json.dumps({"status": st, "out": out}))
 }
 
 // TestAScriptThatFailsForItsOwnReasonGetsNoHintOfFolders: a script that fails for a reason of its own, such as a 422
-// of deck, has the end of its stderr, without a hint about folders the sandbox keeps closed.
+// of deck or a missing file, has the end of its stderr, without a hint about folders the sandbox keeps closed.
 func TestAScriptThatFailsForItsOwnReasonGetsNoHintOfFolders(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, nil)
@@ -684,5 +684,12 @@ sys.exit("deck answered %d: %s" % (st, out))
 	p := e.waitScript(e.start("tools", "collect", nil), "done", "error")
 	if p.State != "error" || !strings.Contains(p.Error, "deck answered 422") || strings.Contains(p.Error, "the settings of the module, Access") {
 		t.Fatalf("the error is the script's own, without a hint of folders: %+v", p)
+	}
+	e.saveScript("tools", "scripts/main.py", `import os
+os.replace(os.path.join(os.environ["DECK_DATA"], "items.json.tmp"), os.path.join(os.environ["DECK_DATA"], "items.json"))
+`)
+	p = e.waitScript(e.start("tools", "collect", nil), "done", "error")
+	if p.State != "error" || !strings.Contains(p.Error, "No such file or directory") || strings.Contains(p.Error, "the settings of the module, Access") {
+		t.Fatalf("a missing file of its own folder is the script's error, without a hint of folders: %+v", p)
 	}
 }

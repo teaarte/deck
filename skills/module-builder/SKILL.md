@@ -331,6 +331,10 @@ These live here, not in deck: deck stays small and you combine them.
   agrees to (the last two weeks, the current thread) and name it in the hand-over.
 - **Search over big data**: a script builds an index (SQLite, a vector file, anything) in `$DECK_DATA`, the
   project's own data folder that survives runs and goes into snapshots; a `search` command reads it.
+- **Files of `$DECK_DATA` written by more than one run**: runs of a project go side by side, the same command too.
+  A file rewritten whole goes through a temporary name of its own run (`f"{path}.{os.getpid()}.tmp"`, then
+  `os.replace`), and a read-modify-write of one file holds a lock for the whole of it (`fcntl.flock` on a
+  `.lock` file beside it); a shared `.tmp` name is two runs replacing each other's file.
 - **Reacting faster than a minute, or being always up**: deck sleeps with the owner's Mac. Such work belongs
   to an external service; deck starts it, polls it by a script, and keeps its state in records.
 - **External jobs** (generation in a paid service): one command starts the job and stores its id in a

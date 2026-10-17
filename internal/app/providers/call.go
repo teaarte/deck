@@ -11,6 +11,7 @@ import (
 	"mime"
 	"mime/multipart"
 	"net/http"
+	"net/textproto"
 	"path/filepath"
 	"strings"
 
@@ -31,7 +32,7 @@ type modelCallIn struct {
 	Input   string `type:"json" opt:"" desc:"Data for the prompt, as JSON"`
 	Schema  string `type:"json" opt:"" desc:"JSON schema of the text result"`
 	Text    string `type:"text" opt:"" desc:"The words tts speaks"`
-	File    string `type:"file" opt:"" desc:"The recording stt turns into text"`
+	File    string `type:"file" opt:"" desc:"The recording stt turns into text, or the picture an image model edits"`
 	First   string `json:"first_frame" type:"file" opt:"" desc:"The picture a video starts from"`
 	Last    string `json:"last_frame" type:"file" opt:"" desc:"The picture a video ends on"`
 	Options string `type:"json" opt:"" desc:"Fields deck adds to the request as they are, such as voice or image_config"`
@@ -135,6 +136,11 @@ func (s *Service) modelCall(ctx context.Context, act registry.Actor, in modelCal
 		}
 		att.audio = &f
 	}
+	if in.Kind == RoleImage && in.File != "" {
+		if att.image, err = s.picture(ctx, act, in.File, "the picture to edit"); err != nil {
+			return nil, err
+		}
+	}
 	if in.Kind == RoleVideo {
 		if strings.TrimSpace(in.Prompt) == "" {
 			return nil, registry.Invalid("deck: a video needs a prompt")
@@ -198,10 +204,29 @@ func merged(body map[string]any, options map[string]any) map[string]any {
 	return body
 }
 
-// attached are the files a call sends: the recording of stt, the frames of a video as pictures of a message.
+// attached are the files a call sends: the recording of stt, the picture an image model edits, the frames of a
+// video as pictures of a message.
 type attached struct {
 	audio  *files.Ref
+	image  []byte
 	frames []any
+}
+
+// picture reads a picture a call sends, at most 32 MB.
+func (s *Service) picture(ctx context.Context, act registry.Actor, file, what string) ([]byte, error) {
+	ref, err := s.Resolve(ctx, act.ProjectID, act.ProcessID, file)
+	if err != nil {
+		return nil, err
+	}
+	r, n, err := ref.Open()
+	if err != nil {
+		return nil, err
+	}
+	defer r.Close()
+	if n > 32<<20 {
+		return nil, registry.Invalid("deck: %s is %d MB; a picture is at most 32 MB", what, n>>20)
+	}
+	return io.ReadAll(io.LimitReader(r, n))
 }
 
 // build is the request of a call in the OpenAI-compatible protocol, the one deck asks models in.
@@ -221,9 +246,17 @@ func build(in modelCallIn, h gateway.ModelHop, options map[string]any, att attac
 		}
 		return jsonReq("chat/completions", merged(body, options)), nil
 	case RoleImage:
+		var content any = ask(in)
+		if att.image != nil {
+			url := "data:" + http.DetectContentType(att.image) + ";base64," + base64.StdEncoding.EncodeToString(att.image)
+			content = []any{map[string]any{"type": "text", "text": ask(in)}, map[string]any{"type": "image_url", "image_url": map[string]any{"url": url}}}
+		}
 		chat := jsonReq("chat/completions", merged(map[string]any{"model": h.Model, "modalities": []string{"image", "text"},
-			"messages": []any{map[string]any{"role": "user", "content": ask(in)}}}, options))
+			"messages": []any{map[string]any{"role": "user", "content": content}}}, options))
 		r := jsonReq("images/generations", merged(map[string]any{"model": h.Model, "prompt": ask(in), "n": 1, "response_format": "b64_json"}, options))
+		if att.image != nil {
+			r = edit(h, ask(in), options, att.image)
+		}
 		r.Retry = &chat
 		return r, nil
 	case RoleMusic:
@@ -251,6 +284,33 @@ func build(in modelCallIn, h gateway.ModelHop, options map[string]any, att attac
 		return jsonReq("videos", merged(body, options)), nil
 	}
 	return gateway.ModelCall{}, registry.Invalid("deck: no kind %q", in.Kind)
+}
+
+// edit is a picture with what to change in it, posted as a form the way OpenAI's images/edits takes it.
+func edit(h gateway.ModelHop, prompt string, options map[string]any, image []byte) gateway.ModelCall {
+	var b bytes.Buffer
+	w := multipart.NewWriter(&b)
+	ct := http.DetectContentType(image)
+	ext, _ := mime.ExtensionsByType(ct)
+	name := "image"
+	if len(ext) > 0 {
+		name += ext[len(ext)-1]
+	}
+	head := textproto.MIMEHeader{}
+	head.Set("Content-Disposition", fmt.Sprintf(`form-data; name="image"; filename=%q`, name))
+	head.Set("Content-Type", ct)
+	part, _ := w.CreatePart(head)
+	_, _ = part.Write(image)
+	for k, v := range merged(map[string]any{"model": h.Model, "prompt": prompt}, options) {
+		if s, ok := v.(string); ok {
+			_ = w.WriteField(k, s)
+		} else {
+			j, _ := json.Marshal(v)
+			_ = w.WriteField(k, string(j))
+		}
+	}
+	_ = w.Close()
+	return gateway.ModelCall{Path: "images/edits", Header: http.Header{"Content-Type": {w.FormDataContentType()}}, Body: b.Bytes()}
 }
 
 // transcription is a recording posted as a form the way OpenAI's transcriptions and whisper.cpp's server take it;
@@ -427,7 +487,7 @@ func (s *Service) keep(act registry.Actor, kind, ct string, body io.Reader) (any
 // modelCallCommand is a call of a model of a kind through deck; a script's call through the proxy goes by its rules.
 func (s *Service) modelCallCommand() *registry.Command {
 	c := registry.Def("model_call", "Ask a model",
-		"Asks the model assigned to a kind of work, or one named: text by a JSON schema, a picture, speech of text, text of a recording, music or a video from its first and last frames; pictures, sound and video come back as files.",
+		"Asks the model assigned to a kind of work, or one named: text by a JSON schema, a picture or an edit of the one in file, speech of text, text of a recording, music or a video from its first and last frames; pictures, sound and video come back as files.",
 		registry.Everyone, s.modelCall)
 	c.Class, c.Allowed, c.Free = registry.External, s.allowed, s.free
 	c.Fingerprint = func(context.Context, int64) string { return gateway.ModelCommand }

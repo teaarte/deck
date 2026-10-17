@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"math"
 	"net/http"
 	"net/http/httptest"
@@ -12,6 +13,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -633,5 +635,79 @@ func TestALocalServerOfPicturesTakesOneCallAtATime(t *testing.T) {
 	_ = e.App.Store.DB.QueryRow(`SELECT status FROM health WHERE subject = 'model:local-image' AND workspace_id IS NOT NULL`).Scan(&status)
 	if status != "ok" {
 		t.Fatalf("a model that answered is ok, not never called: %q", status)
+	}
+}
+
+// TestAnImageModelEditsThePictureInFile: a picture in the file field of a model command of kind image goes as a
+// form to images/edits with the prompt and the options as fields; an API without that path gets it in chat
+// completions as an image_url beside the prompt.
+func TestAnImageModelEditsThePictureInFile(t *testing.T) {
+	t.Parallel()
+	png := "\x89PNG\r\n\x1a\nsample"
+	type got struct{ path, ct, image, prompt, steps, model, chat string }
+	var mu sync.Mutex
+	var seen []got
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		g := got{path: r.URL.Path}
+		if strings.HasSuffix(r.URL.Path, "/models") {
+			http.NotFound(w, r)
+			return
+		}
+		if r.URL.Path == "/edit/v1/images/edits" && r.ParseMultipartForm(1<<20) == nil {
+			f, h, err := r.FormFile("image")
+			if err == nil {
+				b, _ := io.ReadAll(f)
+				g.image, g.ct = string(b), h.Header.Get("Content-Type")
+			}
+			g.prompt, g.steps, g.model = r.FormValue("prompt"), r.FormValue("steps"), r.FormValue("model")
+		}
+		if strings.HasSuffix(r.URL.Path, "/chat/completions") {
+			b, _ := io.ReadAll(r.Body)
+			g.chat = string(b)
+		}
+		mu.Lock()
+		seen = append(seen, g)
+		mu.Unlock()
+		switch r.URL.Path {
+		case "/edit/v1/images/edits":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = io.WriteString(w, `{"data": [{"b64_json": "iVBORw0KGgo="}]}`)
+		case "/chat/v1/chat/completions":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = io.WriteString(w, pictureAnswer(0.04))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(srv.Close)
+	e := newEnv(t, nil)
+	e.must("deck.connection_set", map[string]any{"name": "media", "api": "openai", "url": srv.URL + "/edit/v1"}, nil)
+	e.must("deck.connection_set", map[string]any{"name": "chat", "api": "openai", "url": srv.URL + "/chat/v1"}, nil)
+	e.must("deck.model_set", map[string]any{"connection": "media", "model": "flux-edit", "kind": "image"}, nil)
+	e.must("deck.model_set", map[string]any{"connection": "chat", "model": "gemini-image", "kind": "image"}, nil)
+	e.createProject("shorts", `{"version": 12, "commands": [
+	  {"name": "redraw", "title": "Redraw", "description": "Edits a picture.", "class": "internal",
+	   "input": {"type": "object", "properties": {"picture": {"type": "string", "format": "file"}}, "required": ["picture"]},
+	   "executor": {"type": "model", "kind": "image", "prompt": "Make the cube blue.", "options": {"steps": 4}}}]}`)
+	var f struct{ ID int64 }
+	e.must("deck.file_upload", map[string]any{"project": "shorts", "name": "cube.png", "content": base64.StdEncoding.EncodeToString([]byte(png))}, &f)
+	for _, model := range []string{"media/flux-edit", "chat/gemini-image"} {
+		e.must("deck.assignment_set", map[string]any{"role": "image", "models": []string{model}}, nil)
+		p := e.waitState(e.start("shorts", "redraw", map[string]any{"picture": fmt.Sprint(f.ID)}), "done", "error")
+		if p.State != "done" || !strings.Contains(string(p.Result), `"type":"image/png"`) {
+			t.Fatalf("%s: the edited picture is the file of the result: %+v", model, p)
+		}
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if len(seen) != 3 {
+		t.Fatalf("an edit goes to images/edits, the other connection falls back to chat completions: %+v", seen)
+	}
+	if e0 := seen[0]; e0.image != png || e0.ct != "image/png" || e0.prompt != "Make the cube blue." || e0.steps != "4" || e0.model != "flux-edit" {
+		t.Fatalf("the picture, the prompt, the model and the options are fields of the form: %+v", e0)
+	}
+	if seen[1].path != "/chat/v1/images/edits" || !strings.Contains(seen[2].chat, `"image_url":{"url":"data:image/png;base64,`+base64.StdEncoding.EncodeToString([]byte(png))) ||
+		!strings.Contains(seen[2].chat, `"text":"Make the cube blue."`) {
+		t.Fatalf("chat completions get the picture as an image_url beside the prompt: %+v", seen[1:])
 	}
 }

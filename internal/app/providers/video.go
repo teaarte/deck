@@ -23,20 +23,7 @@ func (s *Service) frames(ctx context.Context, act registry.Actor, in modelCallIn
 		if f.ref == "" {
 			continue
 		}
-		ref, err := s.Resolve(ctx, act.ProjectID, act.ProcessID, f.ref)
-		if err != nil {
-			return nil, err
-		}
-		r, n, err := ref.Open()
-		if err != nil {
-			return nil, err
-		}
-		if n > 32<<20 {
-			_ = r.Close()
-			return nil, registry.Invalid("deck: the %s of a video is %d MB; a frame is at most 32 MB", f.kind, n>>20)
-		}
-		b, err := io.ReadAll(io.LimitReader(r, n))
-		_ = r.Close()
+		b, err := s.picture(ctx, act, f.ref, "the "+f.kind+" of a video")
 		if err != nil {
 			return nil, err
 		}

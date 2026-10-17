@@ -308,7 +308,7 @@ func checkModel(c *Command, fail, warn func(string, ...any)) {
 	}
 	files := FieldsOf(c.Input, "file")
 	for _, f := range FileFields(c.Input) {
-		if (e.Kind == "video" || e.Kind == "stt") && !slices.Contains(files, f) {
+		if (e.Kind == "video" || e.Kind == "stt" || e.Kind == "image") && !slices.Contains(files, f) {
 			warn("command %q: a %s model takes one file a field; input field %s is a list of files", c.Name, e.Kind, f)
 		}
 	}
@@ -321,6 +321,9 @@ func checkModel(c *Command, fail, warn func(string, ...any)) {
 			if e.Kind == "video" && f != "first_frame" && f != "last_frame" {
 				fail("command %q: the file fields of a video model are first_frame and last_frame, not %s", c.Name, f)
 			}
+		}
+		if e.Kind == "image" && len(files) > 1 {
+			warn("command %q: an image model edits one picture, the one input field of format file; it has %d", c.Name, len(files))
 		}
 	case "tts":
 		if in.Properties["text"].Type != "string" || !slices.Contains(in.Required, "text") {

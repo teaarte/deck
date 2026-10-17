@@ -57,7 +57,7 @@ func (r *Runner) runModel(ctx context.Context, t turn, trial bool) {
 		case "tts":
 			call["text"] = input["text"]
 			delete(input, "text")
-		case "stt":
+		case "stt", "image":
 			for _, f := range manifest.FieldsOf(t.cmd.Input, "file") {
 				call["file"] = input[f]
 				delete(input, f)

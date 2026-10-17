@@ -84,7 +84,7 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   - `tool` for exactly one call of a tool: `{"type": "tool", "tool": "<http tool>"}`; the tool gets the
     command input as it is (declare the same input), and the process result is what the tool answered;
   - `model` for one call of a model without an agent: `{"type": "model", "kind": "text", "prompt_file": …}` —
-    `text` answers the prompt with the input by the result schema, `image` draws the prompt with the input, `tts`
+    `text` answers the prompt with the input by the result schema, `image` draws the prompt with the input (or edits the picture of its one input field of format file), `tts`
     speaks the input field `text` (the prompt says how), `stt` writes down the one input field of format file,
     `music` makes a track of the prompt, `video` a clip of it from the input file fields `first_frame` and
     `last_frame` when given (both optional; a clip takes minutes, and the command waits for it as an agent works);
@@ -427,7 +427,8 @@ failure. A script runs in a sandbox:
 ### Kinds of models, and APIs a kind does not cover
 
 `model` commands and `deck.model_call` know text, image, tts, stt, music and video, asked in the OpenAI-compatible
-protocol: a picture of `images/generations`, music of `audio/music` (`input`, `seconds`, like speech), each of chat
+protocol: a picture of `images/generations`, an edit of the picture in `file` of `images/edits` (a form: `image`,
+`prompt`, `model`, the options as fields; chat completions get it as an `image_url`), music of `audio/music` (`input`, `seconds`, like speech), each of chat
 completions with image or audio out when the API has no such path; a video is a job of `videos` (OpenRouter's
 shape: `first_frame`/`last_frame` go as `frame_images`, `options` such as `duration`, `resolution`, `aspect_ratio`,
 `generate_audio`) that deck polls until the clip is ready, at most 30 minutes, and a job a service took goes to no
@@ -436,7 +437,8 @@ other model; an agent that calls it hears progress meanwhile. A picture, a track
 and credits. Other results are as the API gave them; `deck.process_get` of the process names its `models` and their
 `cost_usd` (none while a model has no price), speech priced per character and recognition per second too. The models of a kind and their fallbacks are the owner's assignment; one that does not answer turns red in health while
 the next takes the work. A model on the owner's machine (a local server, as whisper.cpp) is a connection like any
-other. A connection of another API, such as Google's own, is reached only from a script.
+other. A model of edits is called by its name or its role; a model of edits answers 400 to a picture asked
+without one. A connection of another API, such as Google's own, is reached only from a script.
 
 Anything else — editing a picture by a sample (`images/edits`, a form), a service with its own API (fal,
 Replicate, ElevenLabs, Google Veo's own API) — is a script that calls the API through `$DECK_MODELS`, so the key stays with

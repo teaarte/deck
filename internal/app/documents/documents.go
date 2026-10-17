@@ -190,7 +190,7 @@ func (dc *Service) documentGet(ctx context.Context, act registry.Actor, in docum
 
 type documentSaveIn struct {
 	Name       string   `desc:"Document name (path), e.g. notes/criteria.md; memory/MEMORY.md and memory/<fact>.md for memory"`
-	Kind       string   `desc:"Document kind"`
+	Kind       string   `opt:"" desc:"Document kind; needed only to create a document"`
 	Text       string   `type:"text" opt:"" desc:"Full new text; leave it out to change parts of the current text with old and new"`
 	Old        []string `type:"text[]" opt:"" desc:"Parts of the current text to replace, each occurring in it exactly once"`
 	New        []string `type:"text[]" opt:"" desc:"The text that replaces each old part, in the same order"`
@@ -203,9 +203,6 @@ type documentSaveIn struct {
 func (dc *Service) documentSave(ctx context.Context, act registry.Actor, in documentSaveIn) (any, error) {
 	if in.Kind == docs.KindManifest {
 		return nil, registry.Invalid("deck: save manifests with deck.manifest_save")
-	}
-	if act.Kind == registry.Agent && in.Kind != docs.KindArtifact && in.Kind != docs.KindMemory {
-		return nil, registry.Refuse("deck: agents write only artifacts and the memory of their project")
 	}
 	s, err := dc.memoryScope(ctx, act, in.Project, in.Name)
 	if err != nil {
@@ -224,6 +221,22 @@ func (dc *Service) documentSave(ctx context.Context, act registry.Actor, in docu
 			}
 			ref.OwnerKind, ref.OwnerID = "record", rec.ID
 		}
+		if in.Kind == "" {
+			old, err := docs.Find(ctx, q, ref)
+			if errors.Is(err, sql.ErrNoRows) {
+				return registry.Invalid("deck: no document %q yet; give its kind to create it", in.Name)
+			}
+			if err != nil {
+				return err
+			}
+			in.Kind = old.Kind
+		}
+		if in.Kind == docs.KindManifest {
+			return registry.Invalid("deck: save manifests with deck.manifest_save")
+		}
+		if err := mayWrite(ctx, q, act, s, in.Kind, in.Name); err != nil {
+			return err
+		}
 		if err := editText(ctx, q, ref, &in); err != nil {
 			return err
 		}
@@ -232,7 +245,7 @@ func (dc *Service) documentSave(ctx context.Context, act registry.Actor, in docu
 		if d, n, changed, err = docs.Save(ctx, q, ref, in.Kind, in.Text, act.Author(), in.Reason); err != nil || !changed {
 			return err
 		}
-		return dc.scriptChanged(ctx, q, act, d, n, in.Reason)
+		return dc.docChanged(ctx, q, act, d, n, in.Reason)
 	})
 	if err != nil {
 		return nil, err
@@ -244,6 +257,24 @@ func (dc *Service) documentSave(ctx context.Context, act registry.Actor, in docu
 		}
 	}
 	return v, nil
+}
+
+// mayWrite refuses an agent or script a document of its project other than artifacts and memory unless writes in
+// the manifest in force names it.
+func mayWrite(ctx context.Context, q *db.Queries, act registry.Actor, s docs.Scope, kind, name string) error {
+	if act.Kind != registry.Agent || kind == docs.KindArtifact || kind == docs.KindMemory {
+		return nil
+	}
+	if s.Project != 0 {
+		m, err := docs.For(ctx, q, act, s.Project)
+		if err != nil {
+			return err
+		}
+		if m.MayWrite(name) {
+			return nil
+		}
+	}
+	return registry.Refuse("deck: this project does not write %s; its agents write artifacts, its memory and the documents writes in its manifest names (%q, or its folder with / at the end), and the owner grants it", name, name)
 }
 
 // editText checks if_revision and, for old and new parts, makes the text of the save from the current one.

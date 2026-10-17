@@ -31,6 +31,9 @@ type Manifest struct {
 	// Models are the connections, models and @roles the project calls models through, besides its commands of
 	// type model.
 	Models []string `json:"models,omitempty"`
+	// Writes are the documents of the project its agents and scripts write besides artifacts and memory: a name, or a
+	// folder ending in "/" for all under it.
+	Writes []string `json:"writes,omitempty"`
 
 	// Revision is the stored revision the manifest was read from; 0 when it was not read from the base.
 	Revision int64 `json:"-"`

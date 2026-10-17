@@ -3,7 +3,6 @@ package manifest
 import (
 	"deck2/internal/registry"
 	"encoding/json"
-	"slices"
 )
 
 // EventCommand is the command a trigger of the manifest runs on an event, or empty.
@@ -51,9 +50,6 @@ func (c *Command) InputSchema() json.RawMessage {
 	}
 	return c.Input
 }
-
-// Takes reports whether the input schema of the command has a field of this name.
-func (c *Command) Takes(field string) bool { return slices.Contains(schemaFields(c.Input), field) }
 
 // Callable reports who may call the command; everyone when it declares nothing.
 func (c *Command) Callable() []string {

@@ -16,6 +16,17 @@ import (
 // CODEX_HOME stays, since it is where the owner's shared login lives.
 func environ() []string { return sandbox.Kept("HOME", "TMPDIR", "CODEX_HOME", "XDG_") }
 
+// caches are the variables that put the caches of the programs of its shell in the data folder of the project, as
+// those of scripts; Codex sets them in its shell itself.
+func caches(data string) string {
+	if data == "" {
+		return "{}"
+	}
+	return "{" + strings.Join([]string{"XDG_CACHE_HOME=" + quote(filepath.Join(data, ".cache")),
+		"XDG_DATA_HOME=" + quote(filepath.Join(data, ".local", "share")),
+		"npm_config_cache=" + quote(filepath.Join(data, ".cache", "npm"))}, ",") + "}"
+}
+
 // codexHome is the owner's Codex folder: the agent's shell may not read it, the login and history live there.
 func codexHome() string {
 	if h := os.Getenv("CODEX_HOME"); h != "" {
@@ -39,11 +50,11 @@ var quiet = []string{"item/agentMessage/delta", "item/plan/delta", "item/reasoni
 // profile is the name of the permission profile a turn of deck runs under.
 const profile = "deck"
 
-// args start the app-server without the owner's plugins, hooks and the like, and with the profile of the turn:
-// the shell reads all but deck's and the owner's Codex folder and writes its own; the deepest path wins.
+// args start the app-server without the owner's plugins and hooks, with the profile of the turn: the shell reads all
+// but what deck shuts from agents and the owner's Codex folder, and writes its own; the deepest path wins.
 func (a *Adapter) args(req provider.Request, skills string) ([]string, error) {
 	fs := map[string]string{":root": "read", ":tmpdir": "write", ":slash_tmp": "write"}
-	for _, d := range append([]string{string(a.Home), codexHome()}, sandbox.Private()...) {
+	for _, d := range slices.Concat(sandbox.Shut(a.Home), []string{codexHome()}, sandbox.Private()) {
 		for _, p := range provider.Paths(d) {
 			fs[p] = "deny"
 		}
@@ -86,7 +97,8 @@ func (a *Adapter) args(req provider.Request, skills string) ([]string, error) {
 		"default_permissions="+quote(":read-only"),
 		"permissions."+profile+".description="+quote("deck session "+req.SessionID),
 		"permissions."+profile+".filesystem={"+strings.Join(table, ",")+"}",
-		fmt.Sprintf("permissions.%s.network.enabled=%t", profile, !req.NoNetwork)) {
+		fmt.Sprintf("permissions.%s.network.enabled=%t", profile, !req.NoNetwork),
+		"shell_environment_policy.set="+caches(req.Data)) {
 		args = append(args, "-c", kv)
 	}
 	return args, nil

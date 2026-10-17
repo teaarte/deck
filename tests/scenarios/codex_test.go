@@ -58,7 +58,12 @@ func TestCodexCommandAgentWorksThroughTheGateway(t *testing.T) {
 	work := filepath.Join(deckhome.Layout(home).Work(), "runs", itoa(id), "work")
 	fs, _ := cc.config("permissions.deck.filesystem")
 	user, _ := os.UserHomeDir()
-	for _, want := range []string{quoteTOML(home) + `="deny"`, quoteTOML(cc.env["CODEX_HOME"]) + `="deny"`, quoteTOML(work) + `="write"`,
+	data := filepath.Join(deckhome.Layout(home).Work(), "projects", itoa(p), "data")
+	shell, _ := cc.config("shell_environment_policy.set")
+	if strings.Contains(fs, quoteTOML(home)+`=`) || !strings.Contains(shell, "XDG_CACHE_HOME="+quoteTOML(filepath.Join(data, ".cache"))) {
+		t.Fatalf("deck's folder stays open above a run, so its paths resolve, and caches go to the data folder: %s %s", fs, shell)
+	}
+	for _, want := range []string{quoteTOML(deckhome.Layout(home).State()) + `="deny"`, quoteTOML(cc.env["CODEX_HOME"]) + `="deny"`, quoteTOML(work) + `="write"`,
 		quoteTOML(filepath.Join(user, ".ssh")) + `="deny"`, quoteTOML(filepath.Join(user, ".claude")) + `="deny"`,
 		quoteTOML(filepath.Join(deckhome.Layout(home).Work(), "projects", itoa(p), "data")) + `="write"`, quoteTOML(filepath.Join(deckhome.Layout(home).Work(), "runs", itoa(id), "results")) + `="write"`} {
 		if !strings.Contains(fs, want) {
@@ -600,5 +605,19 @@ func TestCodexShellHasTheNetworkOrNone(t *testing.T) {
 	e.waitState(e.run(closed, "work"), "done", "error")
 	if net, _ := c.call(2).config("permissions.deck.network.enabled"); net != "false" {
 		t.Fatalf("a project without network gives the shell none: %s", net)
+	}
+}
+
+// TestCodexIsNotOfferedACommandThatNeedsALocalBrowser: a command whose shell starts a local browser does not run on
+// Codex, whose sandbox cannot, and a project without network cannot require one.
+func TestCodexIsNotOfferedACommandThatNeedsALocalBrowser(t *testing.T) {
+	c := newCodex(t)
+	t.Setenv("CODEX_HOME", t.TempDir())
+	e, _ := codexEnv(t, c)
+	browser := strings.Replace(colorManifest, `"class": "internal",`, `"class": "internal", "requires": ["local_browser"],`, 1)
+	e.createProject("paint", browser)
+	e.refused("paint.work", map[string]any{}, 422, "local_browser")
+	if code, out := e.call("deck.project_create", map[string]any{"name": "quiet", "manifest": strings.Replace(browser, `"version": 12,`, `"version": 12, "no_network": true,`, 1)}); code != 422 || !strings.Contains(string(out), "requires local_browser") {
+		t.Fatalf("a project without network cannot require a local browser: %d %s", code, out)
 	}
 }

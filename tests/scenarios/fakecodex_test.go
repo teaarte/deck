@@ -25,7 +25,7 @@ type codexSchema struct {
 }
 
 // codexArgs are the config keys deck may set when it starts the app-server.
-var codexArgs = []string{"features.", "agents.enabled=", "notify=", "web_search=", "default_permissions=", "permissions.deck."}
+var codexArgs = []string{"features.", "agents.enabled=", "notify=", "web_search=", "default_permissions=", "permissions.deck.", "shell_environment_policy.set="}
 
 // codexThreadConfig are the keys deck may set in the config of a thread.
 var codexThreadConfig = []string{"mcp_servers", "skills"}

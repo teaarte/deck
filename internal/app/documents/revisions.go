@@ -69,7 +69,7 @@ func (dc *Service) documentRevert(ctx context.Context, act registry.Actor, in do
 		if _, n, changed, err = docs.Save(ctx, q, ref, d.Kind, r.Text, act.Author(), reason); err != nil || !changed {
 			return err
 		}
-		return dc.scriptChanged(ctx, q, act, d, n, reason)
+		return dc.docChanged(ctx, q, act, d, n, reason)
 	})
 	if err != nil {
 		return nil, err

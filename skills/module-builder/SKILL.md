@@ -189,8 +189,18 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   record with `deck.record_delete`: rebuild it from the records each time it is made, so a deleted record drops
   out at the next run, or delete through a command of the module (a status `deleted` its scripts honour) and
   give its screens that button instead.
-- **Documents** agents and scripts write are artifacts only: each belongs to one record. A daily digest or report is an artifact of a record made for it (one record a day); `prompt.md`,
-  `prompts/*.md` and other module documents are written by you, not by the module at run time.
+- **Deleting records**: an agent or script of the module deletes records of its own project with
+  `deck.record_delete` (with their files and folders, for good; the owner sees a line with an undo of the data).
+  Do not build a module on deleting: a record that is done or dropped keeps a `status` (`archived`, `deleted`) its
+  screens and scripts leave out, and only what must go for good (a mistake, a duplicate) is deleted;
+  `retention_days` clears old records by itself.
+- **Documents** agents and scripts write are artifacts, each of one record, and the memory of the project. A daily digest or report is an artifact of a record made for it (one record a day); `prompt.md`,
+  `prompts/*.md` and other module documents are written by you, not by the module at run time — unless a command's
+  work is to change them (its own code, a style it refines): then `"writes"` of the manifest names them, a
+  document (`"personas/style.md"`) or a folder with `/` at the end (`"remotion/"`), never the manifest. It is a
+  right the owner grants, so name only what that work changes; the agent is told what it may write before it
+  starts, and each change shows to the owner with an undo. A command that changes documents without `writes` is
+  refused at its first save. `document_save` of a document that exists needs no `kind`.
 - **Screens** are lists of blocks from the catalog (`schemas/catalog.json`; in `manifest_format` each block type
   has its exact fields and its rules in words in `description`, and a refusal names the JSON path and the
   schema rule, such as `missing property 'item'` or `additional properties 'source' not allowed`):
@@ -370,6 +380,9 @@ failure. A script runs in a sandbox:
   body with `"model": "@tts"` and the connection `@` takes the model the owner assigned, a fallback when it
   refuses. A draft or a trial reaches only free models and those of the owner's machine: a paid one answers 403
   and is not made; stop and say so, do not retry in a loop;
+- deck's API at `$DECK_URL` answers a refusal with its status and a text that says what is missing (`deck.X cannot
+  be called by agent (script); only owner, master call it`, a right of the manifest): print the body of an error
+  response, not the status alone; deck also adds the calls it refused to the error of a failed script;
 - no secrets and no keys of the owner; ask for an HTTP tool of the manifest instead. Never ask the owner to
   `export` a key for a module: on macOS a confined program reads the environment of the owner's processes, so
   keys live only in deck secrets;
@@ -460,12 +473,15 @@ hands it to another tool or a `file` field.
 
 The prompt says what to do with the input and what the result means; facts and criteria live in md
 documents it reads, and a skill carries a reusable way of working. The agent reaches deck only through the
-deck MCP server. A provider with a shell (Claude Code, Codex, an ACP agent) runs it in its auto mode: the agent works in its own
+deck MCP server and the commands of projects: deck tells every agent not to look for tokens or keys in the
+environment, files or logs and not to call deck's HTTP API around its tools. Where a tool is missing (a change of
+many records at once), give the module a script or command for it; scripts reach deck's API with `$DECK_URL`. A provider with a shell (Claude Code, Codex, an ACP agent) runs it in its auto mode: the agent works in its own
 folder and in the project's data folder (the prompt names it; indexes, caches and state live there between
 runs), runs shell commands, and searches and fetches the web without asking; the provider itself refuses
 what looks risky and asks the owner only about that. The shell of Claude Code renders, binds local ports, uses the
 GPU and keeps its caches like the owner's own shell; the shells of Claude Code and Codex reach the whole network,
-whatever `domains.read` names, and the project's settings say so to the owner; the shells of ACP agents reach only
+whatever `domains.read` names, and the project's settings say so to the owner; the shell of Codex reads deck's
+`work` folder, writes only its run, the data folder and its caches there (`.cache`), and starts no browser; the shells of ACP agents reach only
 package registries (PyPI, npm, the go proxy), GitHub, Hugging Face and the project's `domains.read` (`"*"` opens the
 whole network, a right the owner gives); a project with `no_network` closes every shell. Secrets and deck's own state stay closed to it; on
 Claude Code with network its shell is the owner's, so another project's data is not a wall. A deck tool of class `external` outside `allowed_external` still waits for the owner. Set
@@ -483,7 +499,9 @@ from deck.
 The owner picks the models of each agent command in settings (`assignment_set`); the manifest only says
 what the command needs and suggests one. `requires` lists capabilities, and usually only two matter:
 `no_cloud` for personal data (finance, health) that must stay on the owner's hardware, and `sandbox` when the
-agent must run shell commands or write files (a provider in auto mode, or a model the owner runs in an ACP agent
+agent must run shell commands or write files. `local_browser` is for a shell that starts a local browser or
+listens on a port (a Remotion still or render, a headless Chrome): only Claude Code in a project with network has
+it, so Codex and ACP agents are not offered for such a command; the sandbox of Codex refuses to start a browser (a provider in auto mode, or a model the owner runs in an ACP agent
 inside deck's sandbox). The two go together:
 a local model in an ACP agent has a shell and stays on the owner's hardware. `web` decides only which provider may run the command: an agent on Claude Code or Codex
 searches with its own web whether or not it is required; a model in an ACP agent (a free or local one) has deck's
@@ -584,7 +602,7 @@ Name each of these rights in the hand-over: the owner grants them with "enable".
 ## 9. Rights
 
 Ask only for what the module needs. `allowed_external`, domains, secrets, `models`, milder classes
-of tools, `reads` of other projects and removing `no_network` are rights: in a draft they are part of what the owner enables; in an
+of tools, `reads` of other projects, `writes` of its own documents and removing `no_network` are rights: in a draft they are part of what the owner enables; in an
 enabled project a change that widens them waits for the owner's button. Every other change you make to an
 enabled project is listed as "done without you" with an undo.
 

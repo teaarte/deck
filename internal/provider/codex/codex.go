@@ -23,7 +23,7 @@ import (
 // Adapter runs `codex app-server` for one turn on the owner's shared login. See docs/spikes/codex.md.
 type Adapter struct {
 	Binary string
-	// Home is deck's folder: the agent's shell may touch in it only the folders of its own turn.
+	// Home is deck's folder: the agent's shell reads in it only work and writes only the folders of its own turn.
 	Home deckhome.Layout
 	// Dir keeps the Codex thread of each deck session and the per-turn skill folders; it is inside Home.
 	Dir string

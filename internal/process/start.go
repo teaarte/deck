@@ -226,16 +226,23 @@ func (r *Runner) Start(ctx context.Context, projectID int64, m *manifest.Manifes
 		// A call for a record whose process of the command is still going joins it instead of racing it.
 		if record := RecordOf(string(in)); record != 0 && o.Follows == 0 {
 			old, err := q.FindRecordProcess(ctx, db.FindRecordProcessParams{ProjectID: projectID, Command: command, Trial: store.Bool(trial), Record: record})
-			if err == nil && old.ID != o.Parent {
+			mine := false
+			if err == nil {
+				mine, err = ancestor(ctx, q, o.Parent, old.ID)
+			}
+			if err == nil && !mine {
 				p, reused = old, true
 				if err := bindInput(ctx, q, cmd, projectID, old.ID, input); err != nil {
 					return err
 				}
-				if kind != KindAgent {
-					return q.SetAgain(ctx, db.SetAgainParams{Again: string(in), ID: old.ID})
+				if err := q.SetAgain(ctx, db.SetAgainParams{Again: string(in), ID: old.ID}); err != nil || kind != KindAgent {
+					return err
 				}
 				joined = joinText(cmd, in, o)
 				remark, err = q.CreateDeckRemark(ctx, db.CreateDeckRemarkParams{ProcessID: old.ID, Text: joined, CreatedAt: r.stamp().String})
+				if old.FinishedAt.Valid {
+					remark = 0
+				}
 				return err
 			}
 			if err != nil && !errors.Is(err, sql.ErrNoRows) {
@@ -317,6 +324,25 @@ func (r *Runner) Start(ctx context.Context, projectID int64, m *manifest.Manifes
 	resume := o.Resume && kind == KindAgent && o.Session != ""
 	r.spawn(turn{process: p.ID, project: projectID, m: m, cmd: cmd, input: string(in), session: session, resume: resume, message: o.Message})
 	return p.ID, nil
+}
+
+// ancestor reports whether process id is of or one of the processes that started it, so a helper's call does not
+// join the run that waits for it.
+func ancestor(ctx context.Context, q *db.Queries, of, id int64) (bool, error) {
+	for range MaxDepth + 1 {
+		if of == 0 {
+			return false, nil
+		}
+		if of == id {
+			return true, nil
+		}
+		p, err := q.GetProcess(ctx, of)
+		if err != nil {
+			return false, err
+		}
+		of = p.ParentID.Int64
+	}
+	return false, nil
 }
 
 // scriptSource is the current text of the script a command runs.

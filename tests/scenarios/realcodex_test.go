@@ -122,3 +122,38 @@ func TestRealCodexCommitsInTheFolder(t *testing.T) {
 		t.Fatalf("the agent committed hello.txt in the folder: head %s, result %s, log %s", head, res.Commit, git("log", "--oneline"))
 	}
 }
+
+// TestRealCodexResolvesItsRunAndKeepsCaches has an agent on the installed Codex, with deck's folder in the owner's
+// home as it lives, resolve the folders above its run, write a cache in the data folder and fail to read deck's state.
+func TestRealCodexResolvesItsRunAndKeepsCaches(t *testing.T) {
+	realCodex(t)
+	user, _ := os.UserHomeDir()
+	home, err := os.MkdirTemp(user, ".deck-codex-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(home) })
+	e := newEnvWith(t, home, codex.New(home), realWaits)
+	secret := filepath.Join(home, "state", "probe")
+	if err := os.WriteFile(secret, []byte("closed"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	p := e.createProject("probe", `{"version": 12,
+  "commands": [{"name": "work", "title": "Work", "description": "Probes the shell", "class": "internal",
+    "result": {"type": "object", "required": ["real", "cache", "state"], "properties": {"real": {"type": "string"}, "cache": {"type": "string"}, "state": {"type": "string"}}},
+    "executor": {"type": "agent", "prompt": "Run these shell commands once each, without asking for more rights, and report what each printed. 1. python3 -c \"import os; print(os.path.realpath('.'))\" as real. 2. mkdir -p \"$XDG_CACHE_HOME/probe\" 2>&1 && echo ok > \"$XDG_CACHE_HOME/probe/x\" 2>&1 && cat \"$XDG_CACHE_HOME/probe/x\" as cache, with all it printed. 3. cat `+secret+` as state (empty when it failed)."}}]}`)
+	id := e.run(p, "work")
+	deadline := time.Now().Add(5 * time.Minute)
+	for st := e.process(id).State; time.Now().Before(deadline) && st != "done" && st != "error"; st = e.process(id).State {
+		time.Sleep(time.Second)
+	}
+	got := e.process(id)
+	t.Logf("state %s, result %s, error %s", got.State, got.Result, got.Error)
+	var r struct{ Real, Cache, State string }
+	if got.State != "done" || json.Unmarshal(got.Result, &r) != nil {
+		t.Fatalf("the probe ends: %+v", got)
+	}
+	if !strings.Contains(r.Real, filepath.Join("runs", itoa(id))) || !strings.HasSuffix(strings.TrimSpace(r.Cache), "ok") || strings.Contains(r.State, "closed") {
+		t.Fatalf("the run resolves, the cache is written, the state stays closed: %+v", r)
+	}
+}

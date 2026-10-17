@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	deckhome "deck2/internal/home"
 	"deck2/internal/provider"
 )
 
@@ -265,7 +266,7 @@ func TestCodexAgentInTheProjectFolderMayWriteItsGit(t *testing.T) {
 	id = e.run(p, "work")
 	e.waitState(id, "done", "error")
 	fs, _ = c.call(2).config("permissions.deck.filesystem")
-	if !strings.Contains(fs, quoteTOML(tree)+`="write"`) || !strings.Contains(fs, quoteTOML(home)+`="deny"`) || strings.Contains(fs, quoteTOML(home)+`="write"`) {
+	if !strings.Contains(fs, quoteTOML(tree)+`="write"`) || !strings.Contains(fs, quoteTOML(deckhome.Layout(home).State())+`="deny"`) || strings.Contains(fs, quoteTOML(home)+`="write"`) {
 		t.Fatalf("a .git file grants nothing: %s", fs)
 	}
 }

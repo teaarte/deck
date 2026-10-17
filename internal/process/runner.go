@@ -253,6 +253,14 @@ func (r *Runner) finish(ctx context.Context, processID int64, state, result stri
 				return err
 			}
 		}
+		// An agent runs again after only for a call it did not hear.
+		if p, err := q.GetProcess(ctx, processID); err != nil {
+			return err
+		} else if p.Kind == KindAgent && p.Again != "" && !unheardCall(ctx, q, processID) {
+			if err := q.SetAgain(ctx, db.SetAgainParams{ID: processID}); err != nil {
+				return err
+			}
+		}
 		var err error
 		n, err = q.FinishProcess(ctx, db.FinishProcessParams{State: state, Result: result, NotBySchema: nbs, Error: f.Text,
 			ErrorType: f.Type, ErrorDetails: untrusted.Cut(f.Details, detailsCap), FinishedAt: r.stamp(), ID: processID})
@@ -288,6 +296,17 @@ func (r *Runner) finish(ctx context.Context, processID int64, state, result stri
 	r.mu.Unlock()
 	r.closed(ctx, processID)
 	r.disown(processID)
+}
+
+// unheardCall reports a call for its record deck gave a process that it did not take yet.
+func unheardCall(ctx context.Context, q *db.Queries, processID int64) bool {
+	waiting, _ := q.ListUndeliveredRemarks(ctx, processID)
+	for _, m := range waiting {
+		if m.Author == RemarkByDeck {
+			return true
+		}
+	}
+	return false
 }
 
 // closed announces a process that reached a final state, then takes it off the outbox; its log stays until deck

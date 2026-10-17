@@ -262,8 +262,8 @@ func (s *Service) settle(ctx context.Context, open []db.Process, caller int64, o
 	s.DrainFiles(ctx)
 }
 
-// deleteRecord deletes a record with what belongs to it for good; outside a draft a non-owner deletes only what the
-// master made, else is refused or waits for the owner, and leaves a line in the feed whose undo writes the data back.
+// deleteRecord deletes a record with what belongs to it for good; outside a draft the master deletes only what it made
+// or waits for the owner, an agent any record of its project, and either leaves a line whose undo writes the data back.
 func (s *Service) deleteRecord(ctx context.Context, act registry.Actor, p db.Project, id int64) (any, error) {
 	var pl plan
 	var waiting *gateway.Waiting
@@ -282,8 +282,8 @@ func (s *Service) deleteRecord(ctx context.Context, act registry.Actor, p db.Pro
 		if pl, err = s.plan(ctx, q, p, m, rec); err != nil {
 			return err
 		}
-		master := act.Kind != registry.Owner && cur.Status != store.ProjectDraft
-		if master {
+		other := act.Kind != registry.Owner && cur.Status != store.ProjectDraft
+		if other && act.Kind != registry.Agent {
 			others, err := mastersOnly(ctx, q, p, pl)
 			if err != nil {
 				return err
@@ -297,7 +297,7 @@ func (s *Service) deleteRecord(ctx context.Context, act registry.Actor, p db.Pro
 		if err := remove(ctx, q, p, pl); err != nil {
 			return err
 		}
-		if !master {
+		if !other {
 			return nil
 		}
 		params, _ := json.Marshal(map[string]any{"project": p.Name, "collection": rec.Collection, "records": rec.Data})

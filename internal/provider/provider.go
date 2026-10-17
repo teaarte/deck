@@ -24,6 +24,8 @@ type Request struct {
 	Hidden []string
 	// Dirs are folders outside Cwd the agent also writes to, such as the data folder of the project.
 	Dirs []string
+	// Data is the data folder of the project, where a confined shell keeps the caches of its programs.
+	Data string
 	// Read are folders the agent reads where its own sandbox closes the home folder: the folders of its project.
 	Read []string
 	// NoNetwork takes away the provider's own web and the network of its shell.
@@ -135,6 +137,8 @@ const (
 	Folder = "folder"
 	// LiveInput takes the owner's messages into a running turn.
 	LiveInput = "live"
+	// LocalBrowser is a shell that starts a local browser and listens on local ports.
+	LocalBrowser = "local_browser"
 )
 
 // Server is the name of the deck MCP server among the MCP servers of a provider session.

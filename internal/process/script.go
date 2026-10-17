@@ -95,7 +95,7 @@ func (r *Runner) runScript(ctx context.Context, t turn, trial bool) {
 		return
 	}
 	if err != nil {
-		fail(err)
+		fail(r.refused(bg, id, fault.Of(err)))
 		return
 	}
 	result := string(bytes.TrimSpace(out))
@@ -125,6 +125,26 @@ func (r *Runner) runScript(ctx context.Context, t turn, trial bool) {
 	}
 	r.clearRun(dir)
 	r.finish(bg, id, StateDone, result, false, nil)
+}
+
+// refused adds to the failure of a script the calls deck refused it, which the script may not have printed; a failure
+// it did not name is then one of rights.
+func (r *Runner) refused(ctx context.Context, processID int64, f *fault.F) *fault.F {
+	calls, err := r.st.Q.ListRefusedCalls(ctx, store.ID(processID))
+	if err != nil || len(calls) == 0 {
+		return f
+	}
+	var lines []string
+	for _, c := range calls {
+		lines = append(lines, c.Tool+": "+untrusted.Line(c.Error, 300))
+	}
+	out := *f
+	if out.Type == fault.ScriptFailed {
+		out.Type = fault.RightsDenied
+	}
+	out.Text += "; deck refused its calls: " + strings.Join(lines, "; ")
+	out.Details = "deck refused:\n" + strings.Join(lines, "\n") + "\n\n" + out.Details
+	return &out
 }
 
 // warn tells the owner in the feed about something of a process deck refused or gave up on.

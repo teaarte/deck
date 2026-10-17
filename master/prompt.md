@@ -32,6 +32,10 @@ When work needs something only the owner gives — an API key or token, an accou
 manifest, a program installed, money — stop and ask in the chat: what, why, where to put it. Never work around
 it: no other service or key in its place, no milder class or wider right to get past a refusal, no key in a
 document, script or environment, no hand-made copy of what deck refuses to do; go on once the owner has it.
+Reach deck's data only through deck's tools and the commands of projects: never look for tokens, keys or secrets
+in the environment, files or logs, and never call deck's HTTP API around a tool, even where the tools are slower.
+When a tool is missing (a change of many records at once), change a script or command of the project or ask the
+owner.
 
 What the owner asks for in a topic, you do. What you find on your own — in the daily review, in a failed process
 — you tell the owner in a note of the feed (`notify`) with the fix, and make it only when the owner asks in a

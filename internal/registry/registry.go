@@ -347,7 +347,11 @@ func (c *Command) jsonText(input json.RawMessage) json.RawMessage {
 // reachable reports whether the actor may call the command at all, before the class rules of the gateway.
 func (r *Registry) reachable(a Actor, c *Command) error {
 	if !slices.Contains(c.Callers, a.As()) {
-		return Refuse("deck: %s cannot be called by %s", c.Name, a.Kind)
+		who := a.Kind
+		if a.Run != "" {
+			who += " (" + a.Run + ")"
+		}
+		return Refuse("deck: %s cannot be called by %s; only %s call it", c.Name, who, strings.Join(c.Callers, ", "))
 	}
 	if c.ProjectID != 0 && (a.Kind == Agent || a.Kind == Trigger) && a.ProjectID != c.ProjectID {
 		return Refuse("deck: %s belongs to another project", c.Name)

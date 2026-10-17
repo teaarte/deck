@@ -183,7 +183,7 @@ func (r *Runner) prepare(ctx context.Context, t *turn, p db.Process, trial bool,
 	a.req = provider.Request{
 		Cwd: work, Repo: repo, Prompt: t.message, ResultSchema: t.cmd.Result,
 		MCPURL: r.cfg.MCPBase + "/mcp/" + tok, AllowedTools: r.gw.AllowedTools(tok), PermissionMCP: gateway.PermissionTool(),
-		SessionID: t.session, Resume: t.resume, Hidden: r.cfg.Hidden(), Dirs: []string{a.data, filepath.Join(a.dir, "results")}, Read: read, NoNetwork: noNetwork, Hosts: hosts,
+		SessionID: t.session, Resume: t.resume, Hidden: r.cfg.Hidden(), Dirs: []string{a.data, filepath.Join(a.dir, "results")}, Data: a.data, Read: read, NoNetwork: noNetwork, Hosts: hosts,
 		OnStart: func(pid int) { r.setGroup(ctx, processID, pid) },
 		OnEvent: func(e provider.Event) { r.event(ctx, processID, stream, e) },
 		OnUsage: func(u provider.Usage) { r.usage(ctx, proj.WorkspaceID, processID, pv, u) },
@@ -430,6 +430,24 @@ func (r *Runner) LogPath(processID int64) string {
 	return filepath.Join(r.runDir(processID), "stream")
 }
 
+// deckData is how every agent of deck reaches deck's data.
+const deckData = "Reach deck's data only through the tools of the deck MCP server and the commands of deck projects. Do not " +
+	"look for tokens, keys or secrets in the environment, in files or in logs, and do not call deck's HTTP API around the " +
+	"tools, even where the tools are slower. When a tool is missing, such as a change of many records at once, change a " +
+	"script or command of the project or ask the owner.\n"
+
+// writable tells an agent of a module which documents of its project it may save, so it stops before the work when
+// its task needs another.
+func writable(m *manifest.Manifest) string {
+	what := "artifacts and the memory of this project (memory/)"
+	if len(m.Writes) > 0 {
+		what += ", and these documents of the project: " + strings.Join(m.Writes, ", ")
+	}
+	return "\nWith document_save you may write " + what + ". If the task needs to change any other document of the " +
+		"project, do not start the work: end at once with an error that names the document; the owner adds it to " +
+		"writes in the manifest.\n"
+}
+
 func (r *Runner) firstPrompt(ctx context.Context, proj db.Project, t turn, tools []string, data string) (string, error) {
 	body, err := r.commandBody(ctx, t.project, t.cmd)
 	if err != nil {
@@ -444,6 +462,10 @@ func (r *Runner) firstPrompt(ctx context.Context, proj db.Project, t turn, tools
 		return "", err
 	}
 	p := buildPrompt(t.process, proj.Name, instructions, body, t.m, t.cmd, t.input, tools, t.pv.QuestionTool())
+	p += "\n" + deckData
+	if proj.Builtin == 0 && slices.Contains(tools, "document_save") {
+		p += writable(t.m)
+	}
 	if slices.Contains(t.pv.Caps(), provider.Sandbox) {
 		p += "\nThe data folder of this project keeps indexes, caches and state between runs: " + data + "\n"
 	}

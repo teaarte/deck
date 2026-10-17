@@ -16,13 +16,19 @@ import (
 	"deck2/internal/store/db"
 )
 
-// scriptChanged lists a script change made without the owner, undone by returning to the revision before n.
-func (dc *Service) scriptChanged(ctx context.Context, q *db.Queries, act registry.Actor, d db.Document, n int64, reason string) error {
-	if d.Kind != docs.KindScript || !d.ProjectID.Valid || d.RecordID.Valid {
+// docChanged lists a change made without the owner of a script, or of a document an agent writes by the writes of its
+// manifest, undone by returning to the revision before n.
+func (dc *Service) docChanged(ctx context.Context, q *db.Queries, act registry.Actor, d db.Document, n int64, reason string) error {
+	byWrites := act.Kind == registry.Agent && d.Kind != docs.KindArtifact && d.Kind != docs.KindMemory
+	if d.Kind != docs.KindScript && !byWrites || !d.ProjectID.Valid || d.RecordID.Valid {
 		return nil
 	}
 	prev := db.Document{ID: d.ID, Current: n - 1}
-	return dc.Changed(ctx, q, act, d.ProjectID.Int64, prev, n, fmt.Sprintf("%s changed script %s", act.Author(), d.Name), reason)
+	what := "document"
+	if d.Kind == docs.KindScript {
+		what = "script"
+	}
+	return dc.Changed(ctx, q, act, d.ProjectID.Int64, prev, n, fmt.Sprintf("%s changed %s %s", act.Author(), what, d.Name), reason)
 }
 
 const sandboxHealth = "sandbox"

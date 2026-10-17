@@ -8,7 +8,7 @@ import (
 )
 
 // TestTheOwnerDeletesARecordFromAButtonOfItsModule: a row of the module's own collection or its record page may carry
-// deck.record_delete, always asking first; elsewhere it is refused, and agents still may not delete.
+// deck.record_delete, always asking first; elsewhere it is refused.
 func TestTheOwnerDeletesARecordFromAButtonOfItsModule(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, webNotesAgent())

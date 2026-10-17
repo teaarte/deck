@@ -17,8 +17,8 @@ import (
 
 var secretRef = regexp.MustCompile(`\$secret\.([A-Za-z0-9_.-]+)`)
 
-// Widens lists what next grants that prev does not: allowed external actions, domains, secrets, models,
-// milder classes, dropped requirements, providers, callers, MCP servers, reads, network, HTTP tools that skip asking.
+// Widens lists what next grants that prev does not: allowed external actions, domains, secrets, models, milder classes,
+// dropped requirements, providers, callers, MCP servers, reads, writes, network, HTTP tools that skip asking.
 func Widens(prev, next *Manifest) []string {
 	var out []string
 	add := func(format string, a ...any) { out = append(out, fmt.Sprintf(format, a...)) }
@@ -133,7 +133,20 @@ func Widens(prev, next *Manifest) []string {
 			add("reads document %s/%s", r.Project, d)
 		}
 	}
+	for _, w := range next.Writes {
+		if !prev.MayWrite(w) {
+			add("writes document %s", w)
+		}
+	}
 	return out
+}
+
+// MayWrite reports whether the agents and scripts of the project may write the document of this name, or every
+// document of a folder named with "/" at its end.
+func (m *Manifest) MayWrite(name string) bool {
+	return slices.ContainsFunc(m.Writes, func(w string) bool {
+		return w == name || strings.HasSuffix(w, "/") && strings.HasPrefix(name, w)
+	})
 }
 
 // toolWidens lists what HTTP tool t of next grants beyond its namesake in prev: secrets, a milder class, a
@@ -245,14 +258,15 @@ func Clip(granted, m *Manifest) *Manifest {
 		r.Collections, r.Documents = kept(r.Collections, g.Collections), kept(r.Documents, g.Documents)
 		c.Reads = append(c.Reads, r)
 	}
+	c.Writes = slices.DeleteFunc(slices.Clone(m.Writes), func(w string) bool { return !granted.MayWrite(w) })
 	return &c
 }
 
-// Trial is the manifest in force of a trial of a draft: in, what the owner granted, with the reads and the models
+// Trial is the manifest in force of a trial of a draft: in, what the owner granted, with the reads, writes and models
 // of its current manifest m; each call of a model that is not free waits for the owner.
 func Trial(in, m *Manifest) *Manifest {
 	c := *in
-	c.Reads = slices.Clone(m.Reads)
+	c.Reads, c.Writes = slices.Clone(m.Reads), slices.Clone(m.Writes)
 	uses := m.Uses()
 	c.granted = &uses
 	return &c

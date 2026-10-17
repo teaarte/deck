@@ -256,6 +256,24 @@ func (q *Queries) DismissSameFailures(ctx context.Context, arg DismissSameFailur
 	return err
 }
 
+const dropAgain = `-- name: DropAgain :execrows
+UPDATE process SET again = '' WHERE id = ? AND again = ?
+`
+
+type DropAgainParams struct {
+	ID    int64
+	Again string
+}
+
+// Lets a record go of a run after that did not start, unless a newer call came meanwhile.
+func (q *Queries) DropAgain(ctx context.Context, arg DropAgainParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, dropAgain, arg.ID, arg.Again)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const findActiveProcess = `-- name: FindActiveProcess :one
 SELECT id, project_id, command, kind, state, provider, session_id, input, result, not_by_schema, error, start_note, parent_id, depth, trigger_id, retry_key, manifest_revision, trial, folder, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, pause_until_ms, wait_message, wait_fresh, started_at, finished_at, alone, dismissed, reopened_at, error_type, error_details, follows_id, again FROM process
 WHERE project_id = ? AND command = ? AND retry_key = ? AND retry_key != '' AND trial = ?
@@ -1306,6 +1324,39 @@ func (q *Queries) ListRecordProcesses(ctx context.Context, arg ListRecordProcess
 			&i.FollowsID,
 			&i.Again,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listRefusedCalls = `-- name: ListRefusedCalls :many
+SELECT tool, error FROM tool_call WHERE process_id = ? AND outcome = 'rejected' ORDER BY id LIMIT 5
+`
+
+type ListRefusedCallsRow struct {
+	Tool  string
+	Error string
+}
+
+// The calls of a process deck refused, oldest first.
+func (q *Queries) ListRefusedCalls(ctx context.Context, processID sql.NullInt64) ([]ListRefusedCallsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listRefusedCalls, processID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListRefusedCallsRow
+	for rows.Next() {
+		var i ListRefusedCallsRow
+		if err := rows.Scan(&i.Tool, &i.Error); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

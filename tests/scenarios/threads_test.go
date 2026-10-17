@@ -523,3 +523,135 @@ func TestAScheduleOfARecordJoinsItsRunOncePerSlot(t *testing.T) {
 	close(release)
 	e.waitState(first, "done")
 }
+
+// TestARunAfterThatDidNotStartLetsItsRecordGo: a run after a render that cannot start tells the owner and leaves the
+// clip free, so the next call renders it.
+func TestARunAfterThatDidNotStartLetsItsRecordGo(t *testing.T) {
+	t.Parallel()
+	e := clipsEnv(t, nil)
+	a := e.clip("a")
+	first := e.start("clips", "render", map[string]any{"record": a, "n": 1, "wait": 3})
+	if id := e.start("clips", "render", map[string]any{"record": a, "n": 2}); id != first {
+		t.Fatal("the call joins the running render")
+	}
+	start := strings.Index(clipsModule, `,
+    {"name": "render"`)
+	end := strings.Index(clipsModule, `"script": "render"}}]`) + len(`"script": "render"}}`)
+	gone := strings.Replace(clipsModule[:start]+clipsModule[end:], `, {"after": "revise", "command": "render"}`, ``, 1)
+	e.must("deck.manifest_save", map[string]any{"project": "clips", "manifest": gone}, nil)
+	e.waitScript(first, "done")
+	e.waitNote(fmt.Sprintf("did not run render again for the calls that came while process #%d ran", first))
+	e.App.Runner.Wait()
+	e.must("deck.manifest_save", map[string]any{"project": "clips", "manifest": clipsModule}, nil)
+	next := e.start("clips", "render", map[string]any{"record": a, "n": 3})
+	if next == first {
+		t.Fatal("a run after that did not start does not hold the clip")
+	}
+	if got := e.waitScript(next, "done", "error"); got.State != "done" || !strings.Contains(string(got.Result), `"n":3`) {
+		t.Fatalf("the next call renders the clip: %+v", got)
+	}
+}
+
+// TestACallAFailedAgentDidNotHearRunsOnceAfter: an edit joined to a revise that fails before hearing it runs once
+// more with its input; a revise that heard its edits runs nothing more.
+func TestACallAFailedAgentDidNotHearRunsOnceAfter(t *testing.T) {
+	t.Parallel()
+	started := make(chan struct{}, 4)
+	release := make(chan struct{})
+	var mu sync.Mutex
+	var prompts []string
+	e := clipsEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		mu.Lock()
+		prompts = append(prompts, c.Req.Prompt)
+		mu.Unlock()
+		if strings.Contains(c.Req.Prompt, "the crown") {
+			started <- struct{}{}
+			<-release
+			return provider.Result{IsError: true, Text: "the job broke"}
+		}
+		return provider.Result{Structured: json.RawMessage(`{}`)}
+	})
+	e.must("deck.manifest_save", map[string]any{"project": "clips", "manifest": strings.Replace(clipsModule,
+		`, {"after": "revise", "command": "render"}`, ``, 1)}, nil)
+	a := e.clip("a")
+	first := e.start("clips", "revise", map[string]any{"record": a, "note": "the crown"})
+	<-started
+	for _, note := range []string{"the sky", "the background"} {
+		if id := e.start("clips", "revise", map[string]any{"record": a, "note": note}); id != first {
+			t.Fatalf("an edit joins the running revise: %d, %d", id, first)
+		}
+	}
+	close(release)
+	e.waitState(first, "error")
+	next := e.following(first)
+	e.waitState(next, "done")
+	e.App.Runner.Wait()
+	mu.Lock()
+	after := strings.Join(prompts[1:], "\n")
+	mu.Unlock()
+	if m := inputOf.FindStringSubmatch(after); m == nil || !strings.Contains(m[1], "the background") {
+		t.Fatalf("the run after takes the last edit as its input: %s", after)
+	}
+	if !strings.Contains(after, "the sky") {
+		t.Fatal("the run after hears the other edit the failed revise missed")
+	}
+	if runs := e.runsOfCommand("revise"); len(runs) != 2 {
+		t.Fatalf("one run after for the missed edits: %+v", runs)
+	}
+}
+
+// TestAStepGetsOnlyAnIntegerRecordAndAFailedStepIsSeen: a step whose record field is not an integer gets no record,
+// and a step that does not start is a note of deck in the feed.
+func TestAStepGetsOnlyAnIntegerRecordAndAFailedStepIsSeen(t *testing.T) {
+	t.Parallel()
+	e := clipsEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		return provider.Result{Structured: json.RawMessage(`{}`)}
+	})
+	m := strings.Replace(clipsModule, `"input": {"type": "object", "properties": {"process": {"type": "integer", "format": "process"}}},
+     "result": {"type": "object"}, "executor": {"type": "agent", "prompt": "Count."}}`,
+		`"input": {"type": "object", "properties": {"process": {"type": "integer", "format": "process"}, "record": {"type": "string"}}},
+     "result": {"type": "object"}, "executor": {"type": "agent", "prompt": "Count."}},
+    {"name": "label", "title": "Label", "description": "Labels a clip.", "class": "internal",
+     "input": {"type": "object", "properties": {"record": {"type": "integer"}, "process": {"type": "integer", "format": "process"}}},
+     "result": {"type": "object"}, "executor": {"type": "script", "script": "label"}}`, 1)
+	m = strings.Replace(m, `{"after": "check", "command": "tally"}`, `{"after": "check", "command": "tally"}, {"after": "check", "command": "label"}`, 1)
+	m = strings.Replace(m, `"scripts": [`, `"scripts": [{"name": "label", "file": "scripts/label.py", "runtime": "python"}, `, 1)
+	e.must("deck.manifest_save", map[string]any{"project": "clips", "manifest": m}, nil)
+	a := e.clip("a")
+	check := e.start("clips", "check", map[string]any{"record": a})
+	e.waitState(check, "done")
+	var tally []procFull
+	e.waitFor("tally", func() bool { tally = e.runsOfCommand("tally"); return len(tally) == 1 })
+	if in := processInput(t, e, tally[0].ID); in["record"] != nil {
+		t.Fatalf("a record field that is not an integer is not filled: %v", in)
+	}
+	e.waitNote(fmt.Sprintf("deck did not start label after process #%d of check", check))
+}
+
+// TestAHelperCallingBackForTheRecordDoesNotJoinItsCaller: a revise that started a helper waits for it, so the helper's
+// call of revise for the same clip is a run of its own, not a message to the revise that waits.
+func TestAHelperCallingBackForTheRecordDoesNotJoinItsCaller(t *testing.T) {
+	t.Parallel()
+	helped := make(chan string, 1)
+	var a int64
+	e := clipsEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		switch {
+		case c.command() == "revise" && strings.Contains(c.Req.Prompt, "the crown"):
+			if out, bad := c.Tool(ctx, "clips__tally", map[string]any{}); bad {
+				return provider.Result{IsError: true, Text: out}
+			}
+			<-helped
+		case c.command() == "tally":
+			out, _ := c.Tool(ctx, "clips__revise", map[string]any{"record": a, "note": "by the helper"})
+			helped <- out
+		}
+		return provider.Result{Structured: json.RawMessage(`{}`)}
+	})
+	a = e.clip("a")
+	first := e.start("clips", "revise", map[string]any{"record": a, "note": "the crown"})
+	e.waitState(first, "done")
+	e.waitFor("the helper's revise", func() bool { return len(e.runsOfCommand("revise")) == 2 })
+	for _, r := range e.runsOfCommand("revise") {
+		e.waitState(r.ID, "done")
+	}
+}

@@ -342,7 +342,7 @@ func TestAgentStaysInsideItsProject(t *testing.T) {
 	if !strings.Contains(s.foreign, "another project") || !strings.Contains(s.other, "another project") {
 		t.Fatalf("foreign project must be refused: %q, %q", s.foreign, s.other)
 	}
-	if !strings.Contains(s.skill, "only artifacts") {
+	if !strings.Contains(s.skill, "does not write x/SKILL.md") {
 		t.Fatalf("agent writing a skill must be refused: %q", s.skill)
 	}
 	var d docView

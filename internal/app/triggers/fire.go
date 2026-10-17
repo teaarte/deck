@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"deck2/internal/docs"
 	"deck2/internal/manifest"
@@ -76,13 +77,17 @@ func (s *Service) after(ctx context.Context, done db.Process) {
 			continue
 		}
 		input := manifest.TriggerInput(t, done.ID)
-		if c := m.Command(t.Command); c != nil && c.Takes("record") && input["record"] == nil {
+		if c := m.Command(t.Command); c != nil && manifest.FieldTypes(c.Input)["record"] == "integer" && input["record"] == nil {
 			if record := s.recordOf(ctx, done); record != 0 {
 				input["record"] = record
 			}
 		}
 		if _, err := s.Start(ctx, row, input, done.ID); err != nil {
 			slog.Error("after trigger", "project", p.Name, "command", t.Command, "after", done.ID, "err", err)
+			text := fmt.Sprintf("deck did not start %s after process #%d of %s: %v", t.Command, done.ID, done.Command, err)
+			_ = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+				return q.AddDeckNote(ctx, db.AddDeckNoteParams{CreatedAt: store.Time(time.Now()), ProjectID: p.ID, Text: text})
+			})
 		}
 	}
 }

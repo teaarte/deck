@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 
+	"deck2/internal/fault"
 	"deck2/internal/store/db"
 )
 
@@ -26,7 +27,7 @@ func (r *Runner) holdFolder(ctx context.Context, t turn, folder string) bool {
 		return err
 	})
 	if err != nil {
-		r.finish(ctx, t.process, StateError, "", false, "take the folder: "+err.Error())
+		r.finish(ctx, t.process, StateError, "", false, fault.Wrap("take the folder", err))
 		return false
 	}
 	if held {

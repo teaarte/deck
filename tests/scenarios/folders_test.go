@@ -325,10 +325,11 @@ func TestAPauseTheOwnerStopsFreesTheFolder(t *testing.T) {
 	e := newEnvBuiltin(t, t.TempDir(), []provider.Provider{main, other}, withClock(clock))
 	e.Clock = clock
 	p := e.createProject("code", testManifest([]string{folderCommand("run", "true")}, nil))
-	e.useModels("code.run", "fake", "other")
+	e.useModels("code.run", "fake")
 	e.must("deck.folder_add", map[string]any{"project": "code", "path": repoFolder(t)}, nil)
 	a := e.run(p, "run")
 	e.waitState(a, "rate_limited")
+	e.useModels("code.run", "fake", "other")
 	b := e.run(p, "run")
 	e.waitState(b, "waiting_folder")
 	e.must("deck.process_stop", map[string]any{"process": a}, nil)

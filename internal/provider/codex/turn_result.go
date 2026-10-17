@@ -15,6 +15,10 @@ func (t *turn) finish() (provider.Result, error) {
 		return res, fmt.Errorf("codex reported %d completions of one turn", t.completed)
 	}
 	res.Text = t.final
+	if t.limitHit != "" && t.last.Status != "completed" {
+		res.RateLimited, res.ResetsAt, res.Text = true, t.resetsAt(), "codex: usage limit reached: "+t.limitHit
+		return res, nil
+	}
 	switch t.last.Status {
 	case "completed":
 		return res, nil
@@ -39,6 +43,8 @@ func (t *turn) finish() (provider.Result, error) {
 		res.RateLimited, res.ResetsAt = true, t.resetsAt()
 	case info == "unauthorized" || strings.Contains(string(e.CodexErrorInfo), `"httpStatusCode":401`) || strings.Contains(e.Message, "401 Unauthorized"):
 		res.NeedsLogin = true
+	case unavailable(info, e.CodexErrorInfo):
+		res.Unavailable = true
 	}
 	return res, nil
 }
@@ -52,4 +58,24 @@ func (t *turn) resetsAt() int64 {
 		}
 	}
 	return at
+}
+
+// unavailable reports an error of codex that says its model did not answer rather than that the task failed.
+func unavailable(info string, raw json.RawMessage) bool {
+	if info == "serverOverloaded" || info == "internalServerError" {
+		return true
+	}
+	var v map[string]struct {
+		HTTPStatusCode int64 `json:"httpStatusCode"`
+	}
+	if json.Unmarshal(raw, &v) != nil {
+		return false
+	}
+	for k, d := range v {
+		switch k {
+		case "responseStreamConnectionFailed", "responseStreamDisconnected", "responseTooManyFailedAttempts", "httpConnectionFailed":
+			return d.HTTPStatusCode == 0 || d.HTTPStatusCode >= 500 || d.HTTPStatusCode == 429
+		}
+	}
+	return false
 }

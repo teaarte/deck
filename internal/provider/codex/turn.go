@@ -29,6 +29,8 @@ type turn struct {
 	final     string
 	failure   *TurnError
 	limits    RateLimitSnapshot
+	// limitHit is a usage limit codex reported reached in the turn, which deck interrupted for it.
+	limitHit string
 
 	gwMu sync.Mutex
 	gw   *mcp.ClientSession

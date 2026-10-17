@@ -1,7 +1,7 @@
 -- name: CreateProcess :one
 INSERT INTO process (project_id, command, kind, state, provider, input, session_id, parent_id, depth, trigger_id, retry_key, ceiling_ms,
-    manifest_revision, trial, folder, start_note, alone, started_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *;
+    manifest_revision, trial, folder, start_note, alone, started_at, follows_id)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *;
 
 
 -- name: GetProcess :one
@@ -40,18 +40,19 @@ UPDATE process SET state = sqlc.arg(to_state) WHERE id = sqlc.arg(id) AND state 
 
 -- name: FinishProcess :execrows
 UPDATE process
-SET state = ?, result = ?, not_by_schema = ?, error = ?, finished_at = ?, deadline_ms = NULL, silent_since_ms = NULL
+SET state = ?, result = ?, not_by_schema = ?, error = ?, error_type = ?, error_details = ?, finished_at = ?, deadline_ms = NULL,
+    silent_since_ms = NULL
 WHERE id = ? AND state = 'running';
 
 
 -- name: StopParkedProcess :execrows
-UPDATE process SET state = ?, error = ?, finished_at = ?, deadline_ms = NULL, silent_since_ms = NULL
+UPDATE process SET state = ?, error = ?, error_type = ?, error_details = ?, finished_at = ?, deadline_ms = NULL, silent_since_ms = NULL
 WHERE id = ? AND finished_at IS NULL;
 
 
 -- name: ReopenProcess :execrows
 UPDATE process
-SET state = 'running', error = '', result = '', not_by_schema = 0, dismissed = 0, finished_at = NULL, ceiling_ms = ?,
+SET state = 'running', error = '', error_type = '', error_details = '', result = '', not_by_schema = 0, dismissed = 0, finished_at = NULL, ceiling_ms = ?,
     deadline_ms = NULL, silent_since_ms = NULL, start_note = ?, pause_until_ms = NULL, reopened_at = ?
 WHERE id = ? AND finished_at IS NOT NULL AND session_id != '';
 
@@ -282,7 +283,8 @@ WHERE p.parent_id = sqlc.arg(parent_id) ORDER BY p.id;
 
 -- name: ListFailedProcesses :many
 -- Failed processes of the last week the owner has not closed and no later run made good, newest first: a later run
--- for the same record, or of a command without one with the same input; trials are none of them.
+-- for the same record, or of a command without one with the same input, or one that follows it and has not failed;
+-- trials are none of them.
 SELECT p.* FROM process p
 WHERE p.project_id IN (SELECT id FROM project WHERE workspace_id = sqlc.arg(workspace_id))
   AND (CAST(sqlc.arg(project_id) AS INTEGER) = 0 OR p.project_id = CAST(sqlc.arg(project_id) AS INTEGER))
@@ -293,14 +295,28 @@ WHERE p.project_id IN (SELECT id FROM project WHERE workspace_id = sqlc.arg(work
     AND q.state = 'done' AND q.not_by_schema = 0 AND q.trial = 0
     AND CASE WHEN json_extract(p.input, '$.record') IS NULL THEN q.input = p.input
       ELSE json_extract(q.input, '$.record') = json_extract(p.input, '$.record') END)
+  AND NOT EXISTS (SELECT 1 FROM process f WHERE f.follows_id = p.id
+    AND (f.finished_at IS NULL OR f.state = 'done' AND f.not_by_schema = 0))
 ORDER BY p.id DESC LIMIT sqlc.arg(lim);
 
 
--- name: DismissProcess :exec
-UPDATE process SET dismissed = 1 WHERE id = ?;
+-- name: DismissSameFailures :exec
+-- Closes the failures a process stands for in the cockpit: the earlier ones of its command with the same type and text.
+UPDATE process SET dismissed = 1
+WHERE project_id = sqlc.arg(project_id) AND command = sqlc.arg(command) AND error_type = sqlc.arg(error_type)
+  AND error = sqlc.arg(error) AND id <= sqlc.arg(id) AND finished_at IS NOT NULL AND dismissed = 0 AND trial = 0;
 
 
 -- name: RecentDurations :many
 -- How long the last finished runs of a command took, in milliseconds.
 SELECT CAST((julianday(finished_at) - julianday(coalesce(reopened_at, started_at))) * 86400000 AS INTEGER) AS ms FROM process
 WHERE project_id = ? AND command = ? AND state = 'done' AND finished_at IS NOT NULL ORDER BY id DESC LIMIT 20;
+
+
+-- name: ListFollowers :many
+-- The processes that repeat, continue or fix a process, oldest first.
+SELECT id, command, state, provider FROM process WHERE follows_id = ? ORDER BY id;
+
+
+-- name: SetFollows :exec
+UPDATE process SET follows_id = sqlc.arg(follows) WHERE id = sqlc.arg(id) AND follows_id IS NULL;

@@ -169,6 +169,14 @@
           "error": {
             "type": "string",
             "description": "The block and its error"
+          },
+          "type": {
+            "type": "string",
+            "description": "The type of the failure of the process, such as script.failed or program.missing"
+          },
+          "whose": {
+            "type": "string",
+            "description": "Whose the failure is: module, environment or owner"
           }
         }
       },

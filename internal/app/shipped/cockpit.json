@@ -37,7 +37,8 @@
           "source": {"from": "deck.processes_list", "input": {"failed": true, "brief": true}, "limit": 20},
           "description": "Runs that failed and no later run made good; close one you will not repeat.",
           "item": {"title": "project + ' · ' + command + ((record_title ?? '') != '' ? ' · ' + record_title : '')", "tone": "'error'", "icon": "'alert-circle'",
-            "text": "(error ?? '') != '' ? error : word", "since": "finished_at ?? ''", "meta": "'#' + string(id)"},
+            "text": "(error ?? '') != '' ? error : word", "since": "finished_at ?? ''",
+            "meta": "'#' + string(id) + ((error_type ?? '') != '' ? ' · ' + error_type : '') + ((repeats ?? 0) > 1 ? ' · ×' + string(repeats) : '')"},
           "actions": [
             {"verb": "retry", "primary": true, "command": "deck.process_retry", "params": {"process": "=id"}, "when": "retry ?? false"},
             {"verb": "open", "screen": "process", "record": "=id"},
@@ -55,7 +56,7 @@
           ]},
         {"type": "list", "title": "Notes", "icon": "bell", "when": "len(rows) > 0",
           "source": {"from": "deck.feed_list", "input": {"kind": "note", "unread": true}, "limit": 10},
-          "item": {"title": "text", "icon": "'news'", "since": "created_at", "meta": "project + ' · ' + author"},
+          "item": {"title": "text", "icon": "'news'", "since": "created_at", "meta": "project + ' · ' + author + ((repeats ?? 1) > 1 ? ' · ×' + string(repeats) : '')"},
           "actions": [
             {"verb": "open", "screen": "=screen", "project": "=deck_screen ? '' : project", "record": "=record", "when": "screen != ''"},
             {"verb": "mark_read", "primary": true, "command": "deck.feed_read", "params": {"entry": "=id"}}

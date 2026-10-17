@@ -108,8 +108,8 @@ func (q *Queries) CountUnknownCalls(ctx context.Context, arg CountUnknownCallsPa
 
 const createProcess = `-- name: CreateProcess :one
 INSERT INTO process (project_id, command, kind, state, provider, input, session_id, parent_id, depth, trigger_id, retry_key, ceiling_ms,
-    manifest_revision, trial, folder, start_note, alone, started_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id, project_id, command, kind, state, provider, session_id, input, result, not_by_schema, error, start_note, parent_id, depth, trigger_id, retry_key, manifest_revision, trial, folder, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, pause_until_ms, wait_message, wait_fresh, started_at, finished_at, alone, dismissed, reopened_at
+    manifest_revision, trial, folder, start_note, alone, started_at, follows_id)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id, project_id, command, kind, state, provider, session_id, input, result, not_by_schema, error, start_note, parent_id, depth, trigger_id, retry_key, manifest_revision, trial, folder, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, pause_until_ms, wait_message, wait_fresh, started_at, finished_at, alone, dismissed, reopened_at, error_type, error_details, follows_id
 `
 
 type CreateProcessParams struct {
@@ -131,6 +131,7 @@ type CreateProcessParams struct {
 	StartNote        string
 	Alone            int64
 	StartedAt        string
+	FollowsID        sql.NullInt64
 }
 
 func (q *Queries) CreateProcess(ctx context.Context, arg CreateProcessParams) (Process, error) {
@@ -153,6 +154,7 @@ func (q *Queries) CreateProcess(ctx context.Context, arg CreateProcessParams) (P
 		arg.StartNote,
 		arg.Alone,
 		arg.StartedAt,
+		arg.FollowsID,
 	)
 	var i Process
 	err := row.Scan(
@@ -188,21 +190,41 @@ func (q *Queries) CreateProcess(ctx context.Context, arg CreateProcessParams) (P
 		&i.Alone,
 		&i.Dismissed,
 		&i.ReopenedAt,
+		&i.ErrorType,
+		&i.ErrorDetails,
+		&i.FollowsID,
 	)
 	return i, err
 }
 
-const dismissProcess = `-- name: DismissProcess :exec
-UPDATE process SET dismissed = 1 WHERE id = ?
+const dismissSameFailures = `-- name: DismissSameFailures :exec
+UPDATE process SET dismissed = 1
+WHERE project_id = ?1 AND command = ?2 AND error_type = ?3
+  AND error = ?4 AND id <= ?5 AND finished_at IS NOT NULL AND dismissed = 0 AND trial = 0
 `
 
-func (q *Queries) DismissProcess(ctx context.Context, id int64) error {
-	_, err := q.db.ExecContext(ctx, dismissProcess, id)
+type DismissSameFailuresParams struct {
+	ProjectID int64
+	Command   string
+	ErrorType string
+	Error     string
+	ID        int64
+}
+
+// Closes the failures a process stands for in the cockpit: the earlier ones of its command with the same type and text.
+func (q *Queries) DismissSameFailures(ctx context.Context, arg DismissSameFailuresParams) error {
+	_, err := q.db.ExecContext(ctx, dismissSameFailures,
+		arg.ProjectID,
+		arg.Command,
+		arg.ErrorType,
+		arg.Error,
+		arg.ID,
+	)
 	return err
 }
 
 const findActiveProcess = `-- name: FindActiveProcess :one
-SELECT id, project_id, command, kind, state, provider, session_id, input, result, not_by_schema, error, start_note, parent_id, depth, trigger_id, retry_key, manifest_revision, trial, folder, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, pause_until_ms, wait_message, wait_fresh, started_at, finished_at, alone, dismissed, reopened_at FROM process
+SELECT id, project_id, command, kind, state, provider, session_id, input, result, not_by_schema, error, start_note, parent_id, depth, trigger_id, retry_key, manifest_revision, trial, folder, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, pause_until_ms, wait_message, wait_fresh, started_at, finished_at, alone, dismissed, reopened_at, error_type, error_details, follows_id FROM process
 WHERE project_id = ? AND command = ? AND retry_key = ? AND retry_key != '' AND trial = ?
   AND finished_at IS NULL
 ORDER BY id LIMIT 1
@@ -256,12 +278,15 @@ func (q *Queries) FindActiveProcess(ctx context.Context, arg FindActiveProcessPa
 		&i.Alone,
 		&i.Dismissed,
 		&i.ReopenedAt,
+		&i.ErrorType,
+		&i.ErrorDetails,
+		&i.FollowsID,
 	)
 	return i, err
 }
 
 const findTriggeredChild = `-- name: FindTriggeredChild :one
-SELECT c.id, c.project_id, c.command, c.kind, c.state, c.provider, c.session_id, c.input, c.result, c.not_by_schema, c.error, c.start_note, c.parent_id, c.depth, c.trigger_id, c.retry_key, c.manifest_revision, c.trial, c.folder, c.pgid, c.ceiling_ms, c.deadline_ms, c.output_ms, c.silent_since_ms, c.pause_until_ms, c.wait_message, c.wait_fresh, c.started_at, c.finished_at, c.alone, c.dismissed, c.reopened_at FROM process c JOIN process p ON p.id = c.parent_id
+SELECT c.id, c.project_id, c.command, c.kind, c.state, c.provider, c.session_id, c.input, c.result, c.not_by_schema, c.error, c.start_note, c.parent_id, c.depth, c.trigger_id, c.retry_key, c.manifest_revision, c.trial, c.folder, c.pgid, c.ceiling_ms, c.deadline_ms, c.output_ms, c.silent_since_ms, c.pause_until_ms, c.wait_message, c.wait_fresh, c.started_at, c.finished_at, c.alone, c.dismissed, c.reopened_at, c.error_type, c.error_details, c.follows_id FROM process c JOIN process p ON p.id = c.parent_id
 WHERE c.parent_id = ? AND c.trigger_id = ? AND c.started_at >= p.finished_at ORDER BY c.id LIMIT 1
 `
 
@@ -306,23 +331,29 @@ func (q *Queries) FindTriggeredChild(ctx context.Context, arg FindTriggeredChild
 		&i.Alone,
 		&i.Dismissed,
 		&i.ReopenedAt,
+		&i.ErrorType,
+		&i.ErrorDetails,
+		&i.FollowsID,
 	)
 	return i, err
 }
 
 const finishProcess = `-- name: FinishProcess :execrows
 UPDATE process
-SET state = ?, result = ?, not_by_schema = ?, error = ?, finished_at = ?, deadline_ms = NULL, silent_since_ms = NULL
+SET state = ?, result = ?, not_by_schema = ?, error = ?, error_type = ?, error_details = ?, finished_at = ?, deadline_ms = NULL,
+    silent_since_ms = NULL
 WHERE id = ? AND state = 'running'
 `
 
 type FinishProcessParams struct {
-	State       string
-	Result      string
-	NotBySchema int64
-	Error       string
-	FinishedAt  sql.NullString
-	ID          int64
+	State        string
+	Result       string
+	NotBySchema  int64
+	Error        string
+	ErrorType    string
+	ErrorDetails string
+	FinishedAt   sql.NullString
+	ID           int64
 }
 
 func (q *Queries) FinishProcess(ctx context.Context, arg FinishProcessParams) (int64, error) {
@@ -331,6 +362,8 @@ func (q *Queries) FinishProcess(ctx context.Context, arg FinishProcessParams) (i
 		arg.Result,
 		arg.NotBySchema,
 		arg.Error,
+		arg.ErrorType,
+		arg.ErrorDetails,
 		arg.FinishedAt,
 		arg.ID,
 	)
@@ -365,7 +398,7 @@ func (q *Queries) FinishToolCall(ctx context.Context, arg FinishToolCallParams) 
 }
 
 const getProcess = `-- name: GetProcess :one
-SELECT id, project_id, command, kind, state, provider, session_id, input, result, not_by_schema, error, start_note, parent_id, depth, trigger_id, retry_key, manifest_revision, trial, folder, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, pause_until_ms, wait_message, wait_fresh, started_at, finished_at, alone, dismissed, reopened_at FROM process WHERE id = ?
+SELECT id, project_id, command, kind, state, provider, session_id, input, result, not_by_schema, error, start_note, parent_id, depth, trigger_id, retry_key, manifest_revision, trial, folder, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, pause_until_ms, wait_message, wait_fresh, started_at, finished_at, alone, dismissed, reopened_at, error_type, error_details, follows_id FROM process WHERE id = ?
 `
 
 func (q *Queries) GetProcess(ctx context.Context, id int64) (Process, error) {
@@ -404,6 +437,9 @@ func (q *Queries) GetProcess(ctx context.Context, id int64) (Process, error) {
 		&i.Alone,
 		&i.Dismissed,
 		&i.ReopenedAt,
+		&i.ErrorType,
+		&i.ErrorDetails,
+		&i.FollowsID,
 	)
 	return i, err
 }
@@ -533,7 +569,7 @@ func (q *Queries) ListCeilingReached(ctx context.Context, now int64) ([]int64, e
 }
 
 const listChildProcesses = `-- name: ListChildProcesses :many
-SELECT p.id, p.project_id, p.command, p.kind, p.state, p.provider, p.session_id, p.input, p.result, p.not_by_schema, p.error, p.start_note, p.parent_id, p.depth, p.trigger_id, p.retry_key, p.manifest_revision, p.trial, p.folder, p.pgid, p.ceiling_ms, p.deadline_ms, p.output_ms, p.silent_since_ms, p.pause_until_ms, p.wait_message, p.wait_fresh, p.started_at, p.finished_at, p.alone, p.dismissed, p.reopened_at, j.name AS project FROM process p JOIN project j ON j.id = p.project_id
+SELECT p.id, p.project_id, p.command, p.kind, p.state, p.provider, p.session_id, p.input, p.result, p.not_by_schema, p.error, p.start_note, p.parent_id, p.depth, p.trigger_id, p.retry_key, p.manifest_revision, p.trial, p.folder, p.pgid, p.ceiling_ms, p.deadline_ms, p.output_ms, p.silent_since_ms, p.pause_until_ms, p.wait_message, p.wait_fresh, p.started_at, p.finished_at, p.alone, p.dismissed, p.reopened_at, p.error_type, p.error_details, p.follows_id, j.name AS project FROM process p JOIN project j ON j.id = p.project_id
 WHERE p.parent_id = ?1 ORDER BY p.id
 `
 
@@ -584,6 +620,9 @@ func (q *Queries) ListChildProcesses(ctx context.Context, parentID sql.NullInt64
 			&i.Process.Alone,
 			&i.Process.Dismissed,
 			&i.Process.ReopenedAt,
+			&i.Process.ErrorType,
+			&i.Process.ErrorDetails,
+			&i.Process.FollowsID,
 			&i.Project,
 		); err != nil {
 			return nil, err
@@ -600,7 +639,7 @@ func (q *Queries) ListChildProcesses(ctx context.Context, parentID sql.NullInt64
 }
 
 const listFailedProcesses = `-- name: ListFailedProcesses :many
-SELECT p.id, p.project_id, p.command, p.kind, p.state, p.provider, p.session_id, p.input, p.result, p.not_by_schema, p.error, p.start_note, p.parent_id, p.depth, p.trigger_id, p.retry_key, p.manifest_revision, p.trial, p.folder, p.pgid, p.ceiling_ms, p.deadline_ms, p.output_ms, p.silent_since_ms, p.pause_until_ms, p.wait_message, p.wait_fresh, p.started_at, p.finished_at, p.alone, p.dismissed, p.reopened_at FROM process p
+SELECT p.id, p.project_id, p.command, p.kind, p.state, p.provider, p.session_id, p.input, p.result, p.not_by_schema, p.error, p.start_note, p.parent_id, p.depth, p.trigger_id, p.retry_key, p.manifest_revision, p.trial, p.folder, p.pgid, p.ceiling_ms, p.deadline_ms, p.output_ms, p.silent_since_ms, p.pause_until_ms, p.wait_message, p.wait_fresh, p.started_at, p.finished_at, p.alone, p.dismissed, p.reopened_at, p.error_type, p.error_details, p.follows_id FROM process p
 WHERE p.project_id IN (SELECT id FROM project WHERE workspace_id = ?1)
   AND (CAST(?2 AS INTEGER) = 0 OR p.project_id = CAST(?2 AS INTEGER))
   AND (CAST(?3 AS INTEGER) = 0 OR p.id = CAST(?3 AS INTEGER))
@@ -610,6 +649,8 @@ WHERE p.project_id IN (SELECT id FROM project WHERE workspace_id = ?1)
     AND q.state = 'done' AND q.not_by_schema = 0 AND q.trial = 0
     AND CASE WHEN json_extract(p.input, '$.record') IS NULL THEN q.input = p.input
       ELSE json_extract(q.input, '$.record') = json_extract(p.input, '$.record') END)
+  AND NOT EXISTS (SELECT 1 FROM process f WHERE f.follows_id = p.id
+    AND (f.finished_at IS NULL OR f.state = 'done' AND f.not_by_schema = 0))
 ORDER BY p.id DESC LIMIT ?5
 `
 
@@ -622,7 +663,8 @@ type ListFailedProcessesParams struct {
 }
 
 // Failed processes of the last week the owner has not closed and no later run made good, newest first: a later run
-// for the same record, or of a command without one with the same input; trials are none of them.
+// for the same record, or of a command without one with the same input, or one that follows it and has not failed;
+// trials are none of them.
 func (q *Queries) ListFailedProcesses(ctx context.Context, arg ListFailedProcessesParams) ([]Process, error) {
 	rows, err := q.db.QueryContext(ctx, listFailedProcesses,
 		arg.WorkspaceID,
@@ -671,6 +713,49 @@ func (q *Queries) ListFailedProcesses(ctx context.Context, arg ListFailedProcess
 			&i.Alone,
 			&i.Dismissed,
 			&i.ReopenedAt,
+			&i.ErrorType,
+			&i.ErrorDetails,
+			&i.FollowsID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listFollowers = `-- name: ListFollowers :many
+SELECT id, command, state, provider FROM process WHERE follows_id = ? ORDER BY id
+`
+
+type ListFollowersRow struct {
+	ID       int64
+	Command  string
+	State    string
+	Provider string
+}
+
+// The processes that repeat, continue or fix a process, oldest first.
+func (q *Queries) ListFollowers(ctx context.Context, followsID sql.NullInt64) ([]ListFollowersRow, error) {
+	rows, err := q.db.QueryContext(ctx, listFollowers, followsID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListFollowersRow
+	for rows.Next() {
+		var i ListFollowersRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Command,
+			&i.State,
+			&i.Provider,
 		); err != nil {
 			return nil, err
 		}
@@ -686,7 +771,7 @@ func (q *Queries) ListFailedProcesses(ctx context.Context, arg ListFailedProcess
 }
 
 const listHeld = `-- name: ListHeld :many
-SELECT p.id, p.project_id, p.command, p.kind, p.state, p.provider, p.session_id, p.input, p.result, p.not_by_schema, p.error, p.start_note, p.parent_id, p.depth, p.trigger_id, p.retry_key, p.manifest_revision, p.trial, p.folder, p.pgid, p.ceiling_ms, p.deadline_ms, p.output_ms, p.silent_since_ms, p.pause_until_ms, p.wait_message, p.wait_fresh, p.started_at, p.finished_at, p.alone, p.dismissed, p.reopened_at, j.workspace_id FROM process p JOIN project j ON j.id = p.project_id
+SELECT p.id, p.project_id, p.command, p.kind, p.state, p.provider, p.session_id, p.input, p.result, p.not_by_schema, p.error, p.start_note, p.parent_id, p.depth, p.trigger_id, p.retry_key, p.manifest_revision, p.trial, p.folder, p.pgid, p.ceiling_ms, p.deadline_ms, p.output_ms, p.silent_since_ms, p.pause_until_ms, p.wait_message, p.wait_fresh, p.started_at, p.finished_at, p.alone, p.dismissed, p.reopened_at, p.error_type, p.error_details, p.follows_id, j.workspace_id FROM process p JOIN project j ON j.id = p.project_id
 WHERE p.state IN ('waiting_provider', 'waiting_slot', 'waiting_folder')
    OR p.state = 'rate_limited' AND p.pause_until_ms <= CAST(?1 AS INTEGER)
 ORDER BY p.id
@@ -739,6 +824,9 @@ func (q *Queries) ListHeld(ctx context.Context, now int64) ([]ListHeldRow, error
 			&i.Process.Alone,
 			&i.Process.Dismissed,
 			&i.Process.ReopenedAt,
+			&i.Process.ErrorType,
+			&i.Process.ErrorDetails,
+			&i.Process.FollowsID,
 			&i.WorkspaceID,
 		); err != nil {
 			return nil, err
@@ -755,7 +843,7 @@ func (q *Queries) ListHeld(ctx context.Context, now int64) ([]ListHeldRow, error
 }
 
 const listOpenProcesses = `-- name: ListOpenProcesses :many
-SELECT id, project_id, command, kind, state, provider, session_id, input, result, not_by_schema, error, start_note, parent_id, depth, trigger_id, retry_key, manifest_revision, trial, folder, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, pause_until_ms, wait_message, wait_fresh, started_at, finished_at, alone, dismissed, reopened_at FROM process
+SELECT id, project_id, command, kind, state, provider, session_id, input, result, not_by_schema, error, start_note, parent_id, depth, trigger_id, retry_key, manifest_revision, trial, folder, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, pause_until_ms, wait_message, wait_fresh, started_at, finished_at, alone, dismissed, reopened_at, error_type, error_details, follows_id FROM process
 WHERE project_id IN (SELECT id FROM project WHERE workspace_id = ?1)
   AND (CAST(?2 AS INTEGER) = 0 OR project_id = CAST(?2 AS INTEGER))
   AND finished_at IS NULL
@@ -811,6 +899,9 @@ func (q *Queries) ListOpenProcesses(ctx context.Context, arg ListOpenProcessesPa
 			&i.Alone,
 			&i.Dismissed,
 			&i.ReopenedAt,
+			&i.ErrorType,
+			&i.ErrorDetails,
+			&i.FollowsID,
 		); err != nil {
 			return nil, err
 		}
@@ -869,7 +960,7 @@ func (q *Queries) ListProcessGroups(ctx context.Context) ([]ListProcessGroupsRow
 }
 
 const listProcessesByState = `-- name: ListProcessesByState :many
-SELECT id, project_id, command, kind, state, provider, session_id, input, result, not_by_schema, error, start_note, parent_id, depth, trigger_id, retry_key, manifest_revision, trial, folder, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, pause_until_ms, wait_message, wait_fresh, started_at, finished_at, alone, dismissed, reopened_at FROM process WHERE state = ? ORDER BY id
+SELECT id, project_id, command, kind, state, provider, session_id, input, result, not_by_schema, error, start_note, parent_id, depth, trigger_id, retry_key, manifest_revision, trial, folder, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, pause_until_ms, wait_message, wait_fresh, started_at, finished_at, alone, dismissed, reopened_at, error_type, error_details, follows_id FROM process WHERE state = ? ORDER BY id
 `
 
 func (q *Queries) ListProcessesByState(ctx context.Context, state string) ([]Process, error) {
@@ -914,6 +1005,9 @@ func (q *Queries) ListProcessesByState(ctx context.Context, state string) ([]Pro
 			&i.Alone,
 			&i.Dismissed,
 			&i.ReopenedAt,
+			&i.ErrorType,
+			&i.ErrorDetails,
+			&i.FollowsID,
 		); err != nil {
 			return nil, err
 		}
@@ -929,7 +1023,7 @@ func (q *Queries) ListProcessesByState(ctx context.Context, state string) ([]Pro
 }
 
 const listProcessesFiltered = `-- name: ListProcessesFiltered :many
-SELECT id, project_id, command, kind, state, provider, session_id, input, result, not_by_schema, error, start_note, parent_id, depth, trigger_id, retry_key, manifest_revision, trial, folder, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, pause_until_ms, wait_message, wait_fresh, started_at, finished_at, alone, dismissed, reopened_at FROM process
+SELECT id, project_id, command, kind, state, provider, session_id, input, result, not_by_schema, error, start_note, parent_id, depth, trigger_id, retry_key, manifest_revision, trial, folder, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, pause_until_ms, wait_message, wait_fresh, started_at, finished_at, alone, dismissed, reopened_at, error_type, error_details, follows_id FROM process
 WHERE project_id IN (SELECT id FROM project WHERE workspace_id = ?1)
   AND (CAST(?2 AS INTEGER) = 0 OR project_id = CAST(?2 AS INTEGER))
   AND (CAST(?3 AS TEXT) = '' OR state = CAST(?3 AS TEXT))
@@ -996,6 +1090,9 @@ func (q *Queries) ListProcessesFiltered(ctx context.Context, arg ListProcessesFi
 			&i.Alone,
 			&i.Dismissed,
 			&i.ReopenedAt,
+			&i.ErrorType,
+			&i.ErrorDetails,
+			&i.FollowsID,
 		); err != nil {
 			return nil, err
 		}
@@ -1038,7 +1135,7 @@ func (q *Queries) ListProjectProcessIDs(ctx context.Context, projectID int64) ([
 }
 
 const listRecordProcesses = `-- name: ListRecordProcesses :many
-SELECT id, project_id, command, kind, state, provider, session_id, input, result, not_by_schema, error, start_note, parent_id, depth, trigger_id, retry_key, manifest_revision, trial, folder, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, pause_until_ms, wait_message, wait_fresh, started_at, finished_at, alone, dismissed, reopened_at FROM process WHERE project_id = ? AND json_extract(input, '$.record') = CAST(?2 AS INTEGER) ORDER BY id
+SELECT id, project_id, command, kind, state, provider, session_id, input, result, not_by_schema, error, start_note, parent_id, depth, trigger_id, retry_key, manifest_revision, trial, folder, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, pause_until_ms, wait_message, wait_fresh, started_at, finished_at, alone, dismissed, reopened_at, error_type, error_details, follows_id FROM process WHERE project_id = ? AND json_extract(input, '$.record') = CAST(?2 AS INTEGER) ORDER BY id
 `
 
 type ListRecordProcessesParams struct {
@@ -1089,6 +1186,9 @@ func (q *Queries) ListRecordProcesses(ctx context.Context, arg ListRecordProcess
 			&i.Alone,
 			&i.Dismissed,
 			&i.ReopenedAt,
+			&i.ErrorType,
+			&i.ErrorDetails,
+			&i.FollowsID,
 		); err != nil {
 			return nil, err
 		}
@@ -1231,7 +1331,7 @@ WITH RECURSIVE tree(id) AS (
     UNION ALL
     SELECT p.id FROM process p JOIN tree ON p.parent_id = tree.id
 )
-SELECT id, workspace_id, project_id, kind, author, text, screen, record_id, actions, command, params, document_id, revision, undone_at, created_at, for_master, read_at, process_id FROM feed WHERE kind = 'change' AND process_id IN (SELECT id FROM tree) ORDER BY id
+SELECT id, workspace_id, project_id, kind, author, text, screen, record_id, actions, command, params, document_id, revision, undone_at, created_at, for_master, read_at, process_id, repeats FROM feed WHERE kind = 'change' AND process_id IN (SELECT id FROM tree) ORDER BY id
 `
 
 func (q *Queries) ListTreeChanges(ctx context.Context, id int64) ([]Feed, error) {
@@ -1262,6 +1362,7 @@ func (q *Queries) ListTreeChanges(ctx context.Context, id int64) ([]Feed, error)
 			&i.ForMaster,
 			&i.ReadAt,
 			&i.ProcessID,
+			&i.Repeats,
 		); err != nil {
 			return nil, err
 		}
@@ -1618,7 +1719,7 @@ func (q *Queries) RecentOutcomes(ctx context.Context, arg RecentOutcomesParams) 
 
 const reopenProcess = `-- name: ReopenProcess :execrows
 UPDATE process
-SET state = 'running', error = '', result = '', not_by_schema = 0, dismissed = 0, finished_at = NULL, ceiling_ms = ?,
+SET state = 'running', error = '', error_type = '', error_details = '', result = '', not_by_schema = 0, dismissed = 0, finished_at = NULL, ceiling_ms = ?,
     deadline_ms = NULL, silent_since_ms = NULL, start_note = ?, pause_until_ms = NULL, reopened_at = ?
 WHERE id = ? AND finished_at IS NOT NULL AND session_id != ''
 `
@@ -1709,6 +1810,20 @@ func (q *Queries) RunsSince(ctx context.Context, arg RunsSinceParams) ([]RunsSin
 		return nil, err
 	}
 	return items, nil
+}
+
+const setFollows = `-- name: SetFollows :exec
+UPDATE process SET follows_id = ?1 WHERE id = ?2 AND follows_id IS NULL
+`
+
+type SetFollowsParams struct {
+	Follows sql.NullInt64
+	ID      int64
+}
+
+func (q *Queries) SetFollows(ctx context.Context, arg SetFollowsParams) error {
+	_, err := q.db.ExecContext(ctx, setFollows, arg.Follows, arg.ID)
+	return err
 }
 
 const setProcessGroup = `-- name: SetProcessGroup :exec
@@ -1851,21 +1966,25 @@ func (q *Queries) StartedToolCalls(ctx context.Context) ([]ToolCall, error) {
 }
 
 const stopParkedProcess = `-- name: StopParkedProcess :execrows
-UPDATE process SET state = ?, error = ?, finished_at = ?, deadline_ms = NULL, silent_since_ms = NULL
+UPDATE process SET state = ?, error = ?, error_type = ?, error_details = ?, finished_at = ?, deadline_ms = NULL, silent_since_ms = NULL
 WHERE id = ? AND finished_at IS NULL
 `
 
 type StopParkedProcessParams struct {
-	State      string
-	Error      string
-	FinishedAt sql.NullString
-	ID         int64
+	State        string
+	Error        string
+	ErrorType    string
+	ErrorDetails string
+	FinishedAt   sql.NullString
+	ID           int64
 }
 
 func (q *Queries) StopParkedProcess(ctx context.Context, arg StopParkedProcessParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, stopParkedProcess,
 		arg.State,
 		arg.Error,
+		arg.ErrorType,
+		arg.ErrorDetails,
 		arg.FinishedAt,
 		arg.ID,
 	)

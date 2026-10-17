@@ -126,6 +126,7 @@ type Feed struct {
 	ForMaster   int64
 	ReadAt      sql.NullString
 	ProcessID   sql.NullInt64
+	Repeats     int64
 }
 
 type File struct {
@@ -261,6 +262,9 @@ type Process struct {
 	Alone            int64
 	Dismissed        int64
 	ReopenedAt       sql.NullString
+	ErrorType        string
+	ErrorDetails     string
+	FollowsID        sql.NullInt64
 }
 
 type ProcessRemark struct {

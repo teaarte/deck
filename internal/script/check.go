@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os/exec"
 
+	"deck2/internal/fault"
 	"deck2/internal/manifest"
 )
 
@@ -28,9 +29,9 @@ func check(s manifest.Script) error {
 	for _, prog := range progs {
 		if _, err := exec.LookPath(prog.Name); err != nil {
 			if prog.Install != "" {
-				return fmt.Errorf("program %q that script %s needs is not on this machine; the owner installs it: %s", prog.Name, s.Name, prog.Install)
+				return fault.New(fault.ProgramMissing, fmt.Sprintf("program %q that script %s needs is not on this machine; the owner installs it: %s", prog.Name, s.Name, prog.Install))
 			}
-			return fmt.Errorf("program %q that script %s needs is not on this machine", prog.Name, s.Name)
+			return fault.New(fault.ProgramMissing, fmt.Sprintf("program %q that script %s needs is not on this machine", prog.Name, s.Name))
 		}
 	}
 	return nil

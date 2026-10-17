@@ -19,6 +19,9 @@ func Cut(s string, n int) string {
 	return s[:n] + "…"
 }
 
+// Flat is s on one line of at most n bytes, unquoted.
+func Flat(s string, n int) string { return Cut(strings.Join(strings.Fields(s), " "), n) }
+
 // Line is s as one quoted line of at most n bytes, for a short value inside deck's own sentence.
 func Line(s string, n int) string {
 	return strconv.Quote(Cut(strings.Join(strings.Fields(s), " "), n))

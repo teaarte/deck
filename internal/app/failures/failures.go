@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"deck2/internal/app/access"
+	"deck2/internal/fault"
 
 	"deck2/internal/docs"
 	"deck2/internal/health"
@@ -42,14 +43,15 @@ type Hook struct {
 
 func (h Hook) Closed(ctx context.Context, p db.Process) { h.S.toMaster(ctx, p) }
 
-// toMaster hands a failed process of a project to the master: an error, a result not by its schema, or a
-// script failing the third time in a row; once a day per command, never for the master's own processes.
+// toMaster hands a failed process of a project to the master with the type of its failure, once a day per command
+// and type: a script only on its third failure in a row, never a process of the master.
 func (s *Service) toMaster(ctx context.Context, p db.Process) {
 	if p.Trial == 1 {
 		return
 	}
 	failed := p.State == process.StateError || p.State == process.StateDone && p.NotBySchema == 1
-	if !failed {
+	// A failure of deck or of a model is the owner's in health, and a model's goes on another model by itself.
+	if whose := fault.Whose(p.ErrorType); !failed || whose == fault.OfDeck || whose == fault.OfModel {
 		return
 	}
 	if p.Kind == process.KindScript && p.State == process.StateError {
@@ -62,9 +64,10 @@ func (s *Service) toMaster(ctx context.Context, p db.Process) {
 	if err != nil {
 		return
 	}
-	key := fmt.Sprintf("%s%d.%s", masterErrorPrefix, proj.ID, p.Command)
+	key := fmt.Sprintf("%s%d.%s.%s", masterErrorPrefix, proj.ID, p.Command, p.ErrorType)
+	input := map[string]any{"process": p.ID, "type": p.ErrorType, "whose": fault.Whose(p.ErrorType)}
 	// The master's own failure goes to the owner's feed instead.
-	s.handOver(ctx, proj, key, 24*time.Hour, map[string]any{"process": p.ID}, func(ctx context.Context, q *db.Queries) error {
+	s.handOver(ctx, proj, key, 24*time.Hour, input, func(ctx context.Context, q *db.Queries) error {
 		return q.AddDeckNote(ctx, db.AddDeckNoteParams{CreatedAt: store.Time(s.Now()), ProjectID: p.ProjectID,
 			Text: master.Text("master_failed", struct{ Command, Error string }{p.Command, untrusted.Cut(p.Error, 500)})})
 	})

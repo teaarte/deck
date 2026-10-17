@@ -269,11 +269,12 @@ func TestARunCutByARestartIsInTheCockpit(t *testing.T) {
 	}
 }
 
-// TestTheCockpitSaysHowManyFailuresItLeftOut: past its limit the list of what did not work says how many more there are.
+// TestTheCockpitSaysHowManyFailuresItLeftOut: past its limit the list of what did not work, of failures that differ,
+// says how many more there are.
 func TestTheCockpitSaysHowManyFailuresItLeftOut(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
-		return provider.Result{IsError: true, Text: "down"}
+		return provider.Result{IsError: true, Text: fmt.Sprintf("down %d", c.N)}
 	})
 	e.createProject("clips", cutModule)
 	for i := range 22 {

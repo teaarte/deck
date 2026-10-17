@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"deck2/internal/fault"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
 )
@@ -47,7 +48,7 @@ func (r *Runner) stopAtCeiling(ctx context.Context, now time.Time) {
 			}
 			text += "; the processes it started still run: " + strings.Join(names, ", ")
 		}
-		if err := r.end(ctx, id, StateError, text, false); err != nil {
+		if err := r.end(ctx, id, StateError, fault.New(fault.Timeout, text), false); err != nil {
 			slog.Error("stop at ceiling", "process", id, "err", err)
 		}
 	}

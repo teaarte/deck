@@ -5,6 +5,8 @@ import (
 	"bytes"
 	"context"
 	"deck2/internal/home"
+	"deck2/internal/untrusted"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -15,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	"deck2/internal/fault"
 	"deck2/internal/manifest"
 	"deck2/internal/sandbox"
 )
@@ -110,15 +113,23 @@ func (x *Exec) Run(ctx context.Context, j Job) ([]byte, error) {
 	var exit *exec.ExitError
 	if errors.As(err, &exit) {
 		tail := strings.Join(stderr.last, "\n")
+		kind, hints := fault.ScriptFailed, ""
 		if sandbox.Refused(tail) {
-			tail += "\ndeck: " + sandbox.OpenHint
+			kind = fault.RightsDenied
+			hints += "\ndeck: " + sandbox.OpenHint
 		}
 		if j.Door != nil {
 			for _, why := range j.Door.Refused() {
-				tail += "\ndeck: the proxy refused: " + why
+				kind = fault.RightsDenied
+				hints += "\ndeck: the proxy refused: " + why
 			}
 		}
-		return nil, fmt.Errorf("script %s exited with code %d: %s", j.Script.Name, exit.ExitCode(), tail)
+		if f := Reported(out.Bytes()); f != nil {
+			f.Text = "script " + j.Script.Name + ": " + f.Text + hints
+			f.Details = strings.TrimSpace(f.Details + "\n" + tail)
+			return nil, f
+		}
+		return nil, fault.With(kind, fmt.Sprintf("script %s exited with code %d: %s", j.Script.Name, exit.ExitCode(), lastLine(stderr.last))+hints, tail)
 	}
 	if err != nil {
 		return nil, err
@@ -147,7 +158,7 @@ func argvOf(s *manifest.Script, file string) ([]string, error) {
 	if !filepath.IsAbs(argv[0]) {
 		p, err := exec.LookPath(argv[0])
 		if err != nil {
-			return nil, fmt.Errorf("program %q of script %s is not on this machine", argv[0], s.Name)
+			return nil, fault.New(fault.ProgramMissing, fmt.Sprintf("program %q of script %s is not on this machine", argv[0], s.Name))
 		}
 		argv[0] = p
 	}
@@ -289,4 +300,35 @@ func (l *limited) Write(p []byte) (int, error) {
 	}
 	l.n -= len(p)
 	return l.w.Write(p)
+}
+
+// Reported is the failure a script printed to stdout as it exited non-zero: {"error": text, "type", "details"}.
+func Reported(out []byte) *fault.F {
+	var v struct {
+		Error   string          `json:"error"`
+		Type    string          `json:"type"`
+		Details json.RawMessage `json:"details"`
+	}
+	if json.Unmarshal(bytes.TrimSpace(out), &v) != nil || strings.TrimSpace(v.Error) == "" {
+		return nil
+	}
+	f := fault.New(fault.FromScript(v.Type), untrusted.Flat(v.Error, 300))
+	switch d := bytes.TrimSpace(v.Details); {
+	case len(d) == 0 || string(d) == "null":
+	case d[0] == '"':
+		_ = json.Unmarshal(d, &f.Details)
+	default:
+		f.Details = string(d)
+	}
+	return f
+}
+
+// lastLine is the last line of stderr that says something, most often the error itself.
+func lastLine(lines []string) string {
+	for i := len(lines) - 1; i >= 0; i-- {
+		if l := strings.TrimSpace(lines[i]); l != "" {
+			return untrusted.Flat(l, 200)
+		}
+	}
+	return "no output on stderr"
 }

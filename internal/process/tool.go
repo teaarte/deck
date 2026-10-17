@@ -4,12 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"deck2/internal/ask"
 	"deck2/internal/docs"
+	"deck2/internal/fault"
 	"deck2/internal/gateway"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
@@ -89,7 +91,7 @@ func (r *Runner) runCall(ctx context.Context, t turn, trial, tool bool, call fun
 	dir := r.runDir(id)
 	fail := func(err error) {
 		r.clearRun(dir)
-		r.finish(bg, id, StateError, "", false, err.Error())
+		r.finish(bg, id, StateError, "", false, fault.Of(err))
 	}
 	proj, err := r.st.Q.GetProject(bg, t.project)
 	if err != nil {
@@ -123,7 +125,8 @@ func (r *Runner) runCall(ctx context.Context, t turn, trial, tool bool, call fun
 		return
 	}
 	if err != nil {
-		fail(err)
+		r.clearRun(dir)
+		r.finish(bg, id, StateError, "", false, callFault(err, tool))
 		return
 	}
 	if _, ok := out.(gateway.Waiting); ok {
@@ -146,16 +149,16 @@ func (r *Runner) toolResult(ctx context.Context, projectID int64, cmd *manifest.
 		}
 	}
 	if verr := validate(cmd, res); verr != nil {
-		r.finish(ctx, id, StateDone, string(res), true, "")
+		r.finish(ctx, id, StateDone, string(res), true, nil)
 		r.warn(ctx, id, fmt.Sprintf("The result of tool command %s does not match its schema, so nothing acts on it: %v", cmd.Name, verr))
 		return
 	}
 	kept, err := r.keepFiles(ctx, projectID, id, filepath.Join(dir, "results"), string(res))
 	if err != nil {
-		r.finish(ctx, id, StateError, "", false, err.Error())
+		r.finish(ctx, id, StateError, "", false, fault.Of(err))
 		return
 	}
-	r.finish(ctx, id, StateDone, kept, false, "")
+	r.finish(ctx, id, StateDone, kept, false, nil)
 }
 
 // deliverTool closes a tool process that waited for the owner with what the frozen call gave.
@@ -178,16 +181,34 @@ func (r *Runner) deliverTool(ctx context.Context, p db.Process, pending untold) 
 		_ = json.Unmarshal([]byte(row.Result), &o)
 		switch {
 		case a.State == ask.StateExpired || a.State == ask.StateDismissed:
-			r.finish(ctx, p.ID, StateError, "", false, "deck: the owner did not confirm the call in time; it was not made")
+			r.finish(ctx, p.ID, StateError, "", false, fault.New(fault.RightsDenied, "deck: the owner did not confirm the call in time; it was not made"))
 		case row.Result == "":
-			r.finish(ctx, p.ID, StateError, "", false, gateway.RejectMessage(a.Answer))
+			r.finish(ctx, p.ID, StateError, "", false, fault.New(fault.RightsDenied, gateway.RejectMessage(a.Answer)))
 		case o.Error != "" || cmd == nil:
-			r.finish(ctx, p.ID, StateError, "", false, o.Error)
+			r.finish(ctx, p.ID, StateError, "", false, fault.New(fault.TaskFailed, o.Error))
 		default:
 			r.toolResult(ctx, p.ProjectID, cmd, p.ID, o.Result)
 		}
 		return nil
 	}
-	r.finish(ctx, p.ID, StateError, "", false, "deck: the tool call got no decision")
+	r.finish(ctx, p.ID, StateError, "", false, fault.New(fault.DeckInternal, "deck: the tool call got no decision"))
 	return nil
+}
+
+// callFault is the failure of a gateway call by the status it answered; a tool's upstream is the network, not a model.
+func callFault(err error, tool bool) *fault.F {
+	t := fault.DeckInternal
+	switch st := registry.Status(err); {
+	case tool && (st == http.StatusTooManyRequests || st > 500):
+		t = fault.Network
+	case st == http.StatusTooManyRequests:
+		t = fault.ModelLimit
+	case st > 500:
+		t = fault.ModelUnavailable
+	case st == http.StatusForbidden:
+		t = fault.RightsDenied
+	case st == http.StatusBadRequest || st == http.StatusUnprocessableEntity || st == http.StatusNotFound:
+		t = fault.InputInvalid
+	}
+	return fault.New(t, err.Error())
 }

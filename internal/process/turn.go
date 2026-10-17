@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"deck2/internal/docs"
+	"deck2/internal/fault"
 	"deck2/internal/gateway"
 	"deck2/internal/manifest"
 	"deck2/internal/provider"
@@ -76,7 +77,7 @@ type agentTurn struct {
 
 func (r *Runner) runAgent(ctx context.Context, t *turn, p db.Process, trial bool) {
 	bg := context.WithoutCancel(ctx)
-	fail := func(msg string) { r.finish(bg, t.process, StateError, "", false, msg) }
+	fail := func(f *fault.F) { r.finish(bg, t.process, StateError, "", false, f) }
 	a, ok := r.prepare(bg, t, p, trial, fail)
 	if !ok {
 		return
@@ -87,20 +88,20 @@ func (r *Runner) runAgent(ctx context.Context, t *turn, p db.Process, trial bool
 
 // prepare gets a turn its provider, folder and slot, or leaves it waiting for them, then its folders, gateway
 // session, log and request; false when the turn does not go on.
-func (r *Runner) prepare(ctx context.Context, t *turn, p db.Process, trial bool, fail func(string)) (*agentTurn, bool) {
+func (r *Runner) prepare(ctx context.Context, t *turn, p db.Process, trial bool, fail func(*fault.F)) (*agentTurn, bool) {
 	pv, err := r.deps.Named(ctx, t.project, p.Provider)
 	if err != nil {
-		fail(err.Error())
+		fail(fault.Of(err))
 		return nil, false
 	}
 	if missing := pv.Caps().Missing(t.cmd.Needs()); len(missing) > 0 {
-		fail(fmt.Sprintf("deck: provider %s no longer fits %s: it lacks %s", pv.Name(), t.cmd.Name, strings.Join(missing, ", ")))
+		fail(fault.New(fault.DeckInternal, fmt.Sprintf("deck: provider %s no longer fits %s: it lacks %s", pv.Name(), t.cmd.Name, strings.Join(missing, ", "))))
 		return nil, false
 	}
 	t.pv = pv
 	proj, err := r.st.Q.GetProject(ctx, t.project)
 	if err != nil {
-		fail(err.Error())
+		fail(fault.Of(err))
 		return nil, false
 	}
 	if !r.deps.Up(ctx, proj.WorkspaceID, pv.Name(), false) {
@@ -110,7 +111,7 @@ func (r *Runner) prepare(ctx context.Context, t *turn, p db.Process, trial bool,
 	t.folder = p.Folder
 	if t.folder != "" {
 		if real, err := filepath.EvalSymlinks(t.folder); err != nil || real != t.folder {
-			fail("deck: the project folder " + t.folder + " is gone or moved")
+			fail(fault.New(fault.ProgramMissing, "deck: the project folder "+t.folder+" is gone or moved"))
 			return nil, false
 		}
 		if !r.holdFolder(ctx, *t, t.folder) {
@@ -133,11 +134,11 @@ func (r *Runner) prepare(ctx context.Context, t *turn, p db.Process, trial bool,
 		_, err := os.Stat(filepath.Join(work, ".git"))
 		repo = err == nil
 	} else if err := os.MkdirAll(work, 0o700); err != nil {
-		fail(err.Error())
+		fail(fault.Of(err))
 		return nil, false
 	}
 	if err := errors.Join(os.MkdirAll(filepath.Join(a.dir, "results"), 0o700), os.MkdirAll(a.data, 0o700)); err != nil {
-		fail(err.Error())
+		fail(fault.Of(err))
 		return nil, false
 	}
 	r.deps.Servers(ctx, t.project)
@@ -147,20 +148,20 @@ func (r *Runner) prepare(ctx context.Context, t *turn, p db.Process, trial bool,
 	tok, err := r.gw.Register(ctx, &gateway.Session{ProcessID: t.process, ProjectID: t.project, Workspace: proj.WorkspaceID, Trial: trial, Submit: a.sub,
 		Question: pv.QuestionTool(), Wait: callLimit(pv), Master: proj.Builtin == 1, Commands: t.cmd.Executor.Calls})
 	if err != nil {
-		fail(err.Error())
+		fail(fault.Of(err))
 		return nil, false
 	}
 	a.tools = r.gw.Tools(tok)
 	stream, err := os.OpenFile(filepath.Join(a.dir, "stream"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 	if err != nil {
 		r.gw.Unregister(tok)
-		fail(err.Error())
+		fail(fault.Of(err))
 		return nil, false
 	}
 	a.cleanup = func() { stream.Close(); r.gw.Unregister(tok) }
 	if err := r.startCeiling(ctx, t.process); err != nil {
 		a.cleanup()
-		fail("start the ceiling: " + err.Error())
+		fail(fault.Wrap("start the ceiling", err))
 		return nil, false
 	}
 	noNetwork := t.m.NoNetwork
@@ -217,7 +218,7 @@ func (r *Runner) prepare(ctx context.Context, t *turn, p db.Process, trial bool,
 	}
 	if err != nil {
 		a.cleanup()
-		fail(err.Error())
+		fail(fault.Of(err))
 		return nil, false
 	}
 	return a, true
@@ -225,7 +226,7 @@ func (r *Runner) prepare(ctx context.Context, t *turn, p db.Process, trial bool,
 
 // converse runs the provider until the turn has an outcome: done by the schema, parked for the owner, paused on
 // a limit, a lost login or an error; a result off the schema is asked for once more.
-func (r *Runner) converse(ctx context.Context, t *turn, a *agentTurn, fail func(string)) {
+func (r *Runner) converse(ctx context.Context, t *turn, a *agentTurn, fail func(*fault.F)) {
 	bg := context.WithoutCancel(ctx)
 	processID, pv, req := t.process, t.pv, a.req
 	asks := t.asks
@@ -242,7 +243,7 @@ func (r *Runner) converse(ctx context.Context, t *turn, a *agentTurn, fail func(
 			asks = told{Remarks: asks.Remarks}
 			req.Resume = false
 			if req.Prompt, err = r.firstPrompt(bg, a.proj, *t, a.tools, a.data); err != nil {
-				fail(err.Error())
+				fail(fault.Of(err))
 				return
 			}
 			req.Prompt += r.remarksText(bg, processID, asks.Remarks)
@@ -259,12 +260,12 @@ func (r *Runner) converse(ctx context.Context, t *turn, a *agentTurn, fail func(
 		r.toolsFound(processID)
 		if a.sub != nil && err == nil && !res.IsError && submitted(a.sub) {
 			// A turn that ended on its own with its result in is done, whatever a later call of the model got.
-			res.RateLimited, res.NeedsLogin = false, false
+			res.RateLimited, res.NeedsLogin, res.Unavailable = false, false, false
 		}
 		_ = r.st.Tx(bg, func(ctx context.Context, q *db.Queries) error { return asks.mark(ctx, q) })
 		asks = told{}
 		r.providerHealth(bg, pv, res, err)
-		settled := err == nil && !res.NeedsLogin && !res.RateLimited && !res.IsError
+		settled := err == nil && !res.NeedsLogin && !res.RateLimited && !res.IsError && !res.Unavailable
 		if a.sub != nil && settled {
 			var spent bool
 			res.Structured, spent = a.sub.Result()
@@ -279,14 +280,24 @@ func (r *Runner) converse(ctx context.Context, t *turn, a *agentTurn, fail func(
 		case (err != nil || res.IsError) && r.questioned(bg, processID):
 			r.park(bg, processID)
 		case err != nil:
-			fail(err.Error())
+			fail(fault.Of(err))
+			r.deps.Broke(bg, pv.Name())
+		case res.Unavailable:
+			f := fault.With(fault.ModelUnavailable, pv.Name()+" did not answer: "+untrusted.Flat(res.Text, 200), res.Text)
+			if !r.handOn(bg, *t, pv, f) {
+				r.finish(bg, processID, StateError, res.Text, false, f)
+			}
 			r.deps.Broke(bg, pv.Name())
 		case res.RateLimited:
-			r.pause(bg, pv, processID, res.ResetsAt, res.Text)
+			if r.handOn(bg, *t, pv, fault.With(fault.ModelLimit, pv.Name()+" reached its usage limit", res.Text)) {
+				r.limited(bg, pv, res.ResetsAt, res.Text)
+			} else {
+				r.pause(bg, pv, processID, res.ResetsAt, res.Text)
+			}
 		case res.NeedsLogin:
 			r.needLogin(bg, pv, processID, res.Text)
 		case res.IsError:
-			r.finish(bg, processID, StateError, res.Text, false, "provider reported an error: "+res.Text)
+			r.finish(bg, processID, StateError, res.Text, false, fault.With(fault.TaskFailed, "the agent reported an error: "+untrusted.Flat(res.Text, 200), res.Text))
 			r.deps.Broke(bg, pv.Name())
 		case blocked:
 			r.turnText(bg, processID, res.Text)
@@ -297,20 +308,20 @@ func (r *Runner) converse(ctx context.Context, t *turn, a *agentTurn, fail func(
 			if len(t.cmd.Result) > 0 {
 				kept, err := r.keepFiles(bg, t.project, processID, results, string(res.Structured))
 				if err != nil {
-					r.finish(bg, processID, StateError, string(res.Structured), false, err.Error())
+					r.finish(bg, processID, StateError, string(res.Structured), false, fault.Of(err))
 					return
 				}
 				result = kept
 			} else if err := r.keepLeft(bg, t.project, processID, results); err != nil {
 				r.warn(bg, processID, "deck kept none of the files the turn left: "+err.Error())
 			}
-			r.finish(bg, processID, StateDone, result, false, "")
+			r.finish(bg, processID, StateDone, result, false, nil)
 		case retried:
 			raw := string(res.Structured)
 			if raw == "" {
 				raw = res.Text
 			}
-			r.finish(bg, processID, StateDone, raw, true, "")
+			r.finish(bg, processID, StateDone, raw, true, nil)
 		default:
 			retried = true
 			req.Resume = true

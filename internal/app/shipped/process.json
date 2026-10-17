@@ -10,6 +10,10 @@
       {"label": "Model", "bind": "provider", "format": "tag"},
       {"label": "Started", "bind": "started_at", "format": "relative"},
       {"label": "Error", "bind": "error"},
+      {"label": "Failure type", "bind": "(error_type ?? '') == '' ? nil : error_type + ' · ' + whose", "format": "tag", "tone": "'error'"},
+      {"label": "Details", "bind": "(error_details ?? '') == '' ? nil : error_details"},
+      {"label": "Continues", "bind": "(follows ?? 0) == 0 ? nil : '#' + string(follows)"},
+      {"label": "Continued by", "bind": "len(followed_by ?? []) == 0 ? nil : join(map(followed_by, '#' + string(#)), ', ')"},
       {"label": "Input", "bind": "input == nil ? nil : toJSON(input)"},
       {"label": "Result", "bind": "result == nil ? nil : toJSON(result)"}
     ],

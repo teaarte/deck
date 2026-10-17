@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"strings"
 
+	"deck2/internal/fault"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
 )
@@ -124,7 +125,7 @@ func (r *Runner) wake(ctx context.Context) {
 		t, err := r.heldTurn(ctx, p)
 		if err != nil {
 			s.release(ctx)
-			r.finish(ctx, p.ID, StateError, "", false, err.Error())
+			r.finish(ctx, p.ID, StateError, "", false, fault.Of(err))
 			continue
 		}
 		t.slot = s

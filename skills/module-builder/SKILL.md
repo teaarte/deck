@@ -323,7 +323,21 @@ These live here, not in deck: deck stays small and you combine them.
 
 ## 4. Scripts
 
-A script reads its input JSON from stdin and prints its result JSON to stdout. It runs in a sandbox:
+A script reads its input JSON from stdin and prints its result JSON to stdout. A script that fails exits non-zero
+and prints its failure to stdout in the one form deck keeps for every process:
+
+```json
+{"error": "the date field of the feed is not a date", "type": "input.invalid", "details": {"field": "date", "value": "soon"}}
+```
+
+`error` is one short line for the owner; `details` (any JSON, or a string) holds what explains it — deck adds the
+end of stderr after it. `type` says whose the failure is, and the master's `on_error` reads it to choose what to
+tell the owner: `script.failed` (the default: a bug of the script), `input.invalid` (the input or the data it read
+is not what the script takes), `program.missing`, `network` (a site is down or answers wrong), `rights.denied`
+(a folder or a domain the project has no right to), `model.limit` and `model.unavailable` (a model deck called
+refused). Any other type is `script.failed`. Without a non-zero exit stdout stays the result, so a result schema
+may have a field `error` of its own; nothing to do (nothing new, a record already done) is a result, not a
+failure. A script runs in a sandbox:
 
 - write access only to its run folder and `$DECK_DATA`; the project folders are read-only;
 - of the owner's home folder it reads only the runtimes deck finds on `PATH` (an nvm node, a pyenv python) and

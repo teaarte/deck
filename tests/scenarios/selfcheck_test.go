@@ -418,7 +418,7 @@ func TestASelfCheckIsRedWhenAgentsDoNotReachDecksMCP(t *testing.T) {
 }
 
 // TestAnAgentThatNeverGetsDecksToolsFails: a process whose turns keep starting without deck's tools, though the
-// self-check passes, fails after a few tries instead of waiting for good.
+// self-check passes, fails after a few tries as deck's failure, which the master does not get.
 func TestAnAgentThatNeverGetsDecksToolsFails(t *testing.T) {
 	t.Parallel()
 	c := newCLI(t)
@@ -433,6 +433,7 @@ if [ -f "$d/nomcp" ] && ! grep -q 'deck-check-' "$c/stdin" && ! grep -q -- --res
   exit 1
 fi`)
 	e := clockCLIEnv(t, c)
+	e.masterAwake()
 	ctx := context.Background()
 	e.App.Providers.Checks(ctx, e.Clock.Now())
 	e.waitHealth("provider:claude-code", "ok")
@@ -449,6 +450,13 @@ fi`)
 	}
 	if got := e.waitState(id, "done", "error"); got.State != "error" || !strings.Contains(got.Error, "without deck's tools 3 times") {
 		t.Fatalf("the process fails after its tries: %+v", got)
+	}
+	if got := e.fault(id); got.ErrorType != "deck.tools" || got.Whose != "deck" || !strings.Contains(got.ErrorDetails, "mcp__deck__approve") {
+		t.Fatalf("a turn without deck's tools is deck's failure: %+v", got)
+	}
+	e.App.Runner.Wait()
+	if runs := e.runsOf("master", "on_error"); len(runs) != 0 {
+		t.Fatalf("deck's failure is in health, not a run of the master that would fail the same way: %+v", runs)
 	}
 }
 
@@ -589,8 +597,8 @@ func TestAPausedOrLoggedOutProviderIsCheckedAgainWithoutItsProcess(t *testing.T)
 	}
 }
 
-// TestASessionWaitsForItsPausedProviderWhileANewStartTakesTheNext: a limit on the provider of a session holds the
-// session until the provider is up again, instead of running it into the limit; a new start goes to the next model.
+// TestASessionWaitsForItsPausedProviderWhileANewStartTakesTheNext: a turn at the limit goes on on the next model; a
+// session of the paused provider waits until it is up again instead of running into the limit.
 func TestASessionWaitsForItsPausedProviderWhileANewStartTakesTheNext(t *testing.T) {
 	t.Parallel()
 	var limited atomic.Bool
@@ -613,7 +621,9 @@ func TestASessionWaitsForItsPausedProviderWhileANewStartTakesTheNext(t *testing.
 	done := e.run(p, "work")
 	e.waitState(done, "done")
 	limited.Store(true)
-	e.waitState(e.run(p, "work"), "rate_limited")
+	refused := e.run(p, "work")
+	e.waitState(refused, "error")
+	e.waitState(e.following(refused), "done")
 	e.waitHealth("provider:fake", "paused")
 	var v struct{ Provider string }
 	fresh := e.run(p, "work")

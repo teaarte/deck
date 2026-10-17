@@ -61,6 +61,8 @@ type feedRow struct {
 	Read      bool   `json:"read"`
 	CanRead   bool   `json:"can_read"`
 	CreatedAt string `json:"created_at"`
+	// Repeats is how many times deck told the same unread note.
+	Repeats int64 `json:"repeats"`
 	// Open is the button that opens the screen of a note, MarkRead the one that marks it read.
 	Open     map[string]any `json:"open,omitempty"`
 	MarkRead map[string]any `json:"mark_read,omitempty"`
@@ -88,7 +90,7 @@ func (dv *Service) feedList(ctx context.Context, act registry.Actor, in feedList
 	for _, f := range rows {
 		r := feedRow{ID: f.ID, Kind: f.Kind, Project: names[f.ProjectID], Author: f.Author, Text: f.Text, Screen: f.Screen,
 			Record: f.RecordID.Int64, Buttons: []Button{}, CanUndo: f.Command != "" && !f.UndoneAt.Valid, Undone: f.UndoneAt.Valid,
-			Read: f.ReadAt.Valid, CanRead: f.Kind == FeedNote && !f.ReadAt.Valid, CreatedAt: f.CreatedAt}
+			Read: f.ReadAt.Valid, CanRead: f.Kind == FeedNote && !f.ReadAt.Valid, CreatedAt: f.CreatedAt, Repeats: f.Repeats}
 		r.Screen, r.DeckScreen = strings.CutPrefix(r.Screen, DeckPrefix)
 		if r.Screen != "" {
 			r.Open = map[string]any{"verb": "open", "screen": r.Screen}

@@ -11,6 +11,7 @@ import (
 
 	"deck2/internal/ask"
 	"deck2/internal/docs"
+	"deck2/internal/fault"
 	"deck2/internal/gateway"
 	"deck2/internal/sandbox"
 	"deck2/internal/store"
@@ -46,7 +47,7 @@ func (r *Runner) Deliver(ctx context.Context, processID int64) error {
 		return err
 	}
 	if err := r.resume(ctx, processID, pending.message()+r.stillWaiting(ctx, processID), pending.ids(), false); err != nil {
-		r.finish(ctx, processID, StateError, "", false, "resume after answer: "+err.Error())
+		r.finish(ctx, processID, StateError, "", false, fault.Wrap("resume after answer", err))
 		return err
 	}
 	return nil
@@ -99,7 +100,7 @@ func (r *Runner) relogin(ctx context.Context, processID int64, login db.Ask, pen
 		msg += "\n" + others.message()
 	}
 	if err := r.resume(ctx, processID, msg, others.ids(), fresh); err != nil {
-		r.finish(ctx, processID, StateError, "", false, "continue after login: "+err.Error())
+		r.finish(ctx, processID, StateError, "", false, fault.Wrap("continue after login", err))
 		return err
 	}
 	return nil
@@ -147,18 +148,18 @@ func (r *Runner) ResumeInterrupted(ctx context.Context) error {
 	var failed []error
 	for _, p := range ps {
 		if p.Kind == KindTool || p.Kind == KindModel {
-			r.finish(ctx, p.ID, StateInterrupted, "", false, "deck restarted while the "+p.Kind+" call ran")
+			r.finish(ctx, p.ID, StateInterrupted, "", false, fault.New(fault.DeckRestart, "deck restarted while the "+p.Kind+" call ran"))
 			_ = os.RemoveAll(r.runDir(p.ID))
 			continue
 		}
 		if p.Kind == KindScript {
-			r.finish(ctx, p.ID, StateInterrupted, "", false, "deck restarted while the script ran")
+			r.finish(ctx, p.ID, StateInterrupted, "", false, fault.New(fault.DeckRestart, "deck restarted while the script ran"))
 			r.warn(ctx, p.ID, fmt.Sprintf("Script command %s was interrupted by a restart of deck; run it again if it is still needed.", p.Command))
 			_ = os.RemoveAll(r.runDir(p.ID))
 			continue
 		}
 		if p.SessionID == "" {
-			r.finish(ctx, p.ID, StateInterrupted, "", false, "deck restarted before the session started")
+			r.finish(ctx, p.ID, StateInterrupted, "", false, fault.New(fault.DeckRestart, "deck restarted before the session started"))
 			continue
 		}
 		// The ceiling stood still while deck was down: it counts up to the last output seen.
@@ -177,7 +178,7 @@ func (r *Runner) ResumeInterrupted(ctx context.Context) error {
 			msg += "\n" + gateway.Unresolved(open)
 		}
 		if err := r.resumeHeld(ctx, p, msg, pending.ids()); err != nil {
-			r.finish(ctx, p.ID, StateInterrupted, "", false, err.Error())
+			r.finish(ctx, p.ID, StateInterrupted, "", false, fault.Of(err))
 		}
 	}
 	for _, state := range []string{StateWaitingAnswer, StateNeedsLogin} {

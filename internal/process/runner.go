@@ -1,6 +1,7 @@
 package process
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"log/slog"
@@ -9,6 +10,7 @@ import (
 
 	"deck2/internal/ask"
 	"deck2/internal/events"
+	"deck2/internal/fault"
 	"deck2/internal/gateway"
 	"deck2/internal/home"
 	"deck2/internal/manifest"
@@ -16,6 +18,7 @@ import (
 	"deck2/internal/script"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
+	"deck2/internal/untrusted"
 )
 
 const (
@@ -140,6 +143,8 @@ type liveTurn struct {
 type Deps struct {
 	// For picks the provider a command starts on.
 	For func(ctx context.Context, projectID int64, cmd *manifest.Command) (provider.Provider, error)
+	// Next is the provider of a command's assignment after the one that refused its turn; empty for none.
+	Next func(ctx context.Context, projectID int64, cmd *manifest.Command, after string) string
 	// Named is the provider a process started on; its session belongs to it.
 	Named func(ctx context.Context, projectID int64, name string) (provider.Provider, error)
 	// Up reports whether a turn of the workspace may start on the provider now; the runner never picks.
@@ -222,12 +227,17 @@ func (r *Runner) spawn(t turn) bool {
 	return true
 }
 
+// detailsCap is how much of the details of a failure a process keeps.
+const detailsCap = 16000
+
 // finish closes a running process; one that a stop has closed meanwhile stays as the stop left it.
-func (r *Runner) finish(ctx context.Context, processID int64, state, result string, notBySchema bool, errText string) {
+func (r *Runner) finish(ctx context.Context, processID int64, state, result string, notBySchema bool, f *fault.F) {
 	nbs := int64(0)
 	if notBySchema {
 		nbs = 1
+		f = cmp.Or(f, fault.New(fault.ResultInvalid, "the result did not match its schema"))
 	}
+	f = cmp.Or(f, &fault.F{})
 	var n int64
 	parked := false
 	if !r.own(processID) {
@@ -244,8 +254,8 @@ func (r *Runner) finish(ctx context.Context, processID int64, state, result stri
 			}
 		}
 		var err error
-		n, err = q.FinishProcess(ctx, db.FinishProcessParams{State: state, Result: result, NotBySchema: nbs, Error: errText,
-			FinishedAt: r.stamp(), ID: processID})
+		n, err = q.FinishProcess(ctx, db.FinishProcessParams{State: state, Result: result, NotBySchema: nbs, Error: f.Text,
+			ErrorType: f.Type, ErrorDetails: untrusted.Cut(f.Details, detailsCap), FinishedAt: r.stamp(), ID: processID})
 		if err != nil || n == 0 {
 			return err
 		}
@@ -264,7 +274,7 @@ func (r *Runner) finish(ctx context.Context, processID int64, state, result stri
 	}
 	if parked {
 		if err := r.Deliver(ctx, processID); err != nil {
-			r.finish(ctx, processID, StateError, "", false, "resume with a message: "+err.Error())
+			r.finish(ctx, processID, StateError, "", false, fault.Wrap("resume with a message", err))
 		}
 		return
 	}

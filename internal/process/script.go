@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"deck2/internal/fault"
 	"deck2/internal/untrusted"
 
 	"deck2/internal/docs"
@@ -27,7 +28,7 @@ func (r *Runner) runScript(ctx context.Context, t turn, trial bool) {
 	dir := r.runDir(id)
 	fail := func(err error) {
 		r.clearRun(dir)
-		r.finish(bg, id, StateError, "", false, err.Error())
+		r.finish(bg, id, StateError, "", false, fault.Of(err))
 		r.failedInARow(bg, t, err.Error())
 	}
 	proj, err := r.st.Q.GetProject(bg, t.project)
@@ -108,7 +109,7 @@ func (r *Runner) runScript(ctx context.Context, t turn, trial bool) {
 	}
 	if verr := validate(t.cmd, json.RawMessage(result)); verr != nil {
 		r.clearRun(dir)
-		r.finish(bg, id, StateDone, result, true, "")
+		r.finish(bg, id, StateDone, result, true, nil)
 		r.warn(bg, id, fmt.Sprintf("The result of %s.%s does not match its schema, so nothing acts on it: %v", proj.Name, t.cmd.Name, verr))
 		return
 	}
@@ -123,7 +124,7 @@ func (r *Runner) runScript(ctx context.Context, t turn, trial bool) {
 		return
 	}
 	r.clearRun(dir)
-	r.finish(bg, id, StateDone, result, false, "")
+	r.finish(bg, id, StateDone, result, false, nil)
 }
 
 // warn tells the owner in the feed about something of a process deck refused or gave up on.

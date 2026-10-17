@@ -3,6 +3,7 @@ package claudecode
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -58,7 +59,9 @@ type turn struct {
 	results    int
 	foreign    string
 	authFailed bool
-	model      string
+	// serverError is an answer of the API that failed on its side.
+	serverError bool
+	model       string
 	// tasks are the tasks of the session that started and have not reported yet.
 	tasks map[string]bool
 	// idle is set from a result until the session wakes again.
@@ -96,6 +99,9 @@ func (t *turn) line(raw []byte) {
 	case "assistant":
 		if l.Error == "authentication_failed" {
 			t.authFailed = true
+		}
+		if l.Error == "server_error" {
+			t.serverError = true
 		}
 		if l.Error == "" {
 			t.res.RateLimited = false
@@ -192,8 +198,12 @@ func (t *turn) finish(waitErr error, stderr string, promptErr error) (provider.R
 		return res, fmt.Errorf("the prompt did not reach claude in full: %v", promptErr)
 	}
 	res.NeedsLogin = res.IsError && t.authFailed
+	res.Unavailable = res.IsError && !res.NeedsLogin && (t.serverError || apiDown.MatchString(res.Text))
 	return res, nil
 }
+
+// apiDown is the error of claude whose model did not answer: the network, a 5xx, an overloaded model.
+var apiDown = regexp.MustCompile(`(?i)API Error: (5\d\d|529|Can't reach the API|Connection error|Request timed out|.*overloaded)`)
 
 // resultText is the text of a tool result: a string, or the text parts of a list of blocks.
 func resultText(raw json.RawMessage) string {

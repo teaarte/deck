@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"deck2/internal/docs"
+	"deck2/internal/fault"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store"
@@ -49,6 +50,8 @@ type Origin struct {
 	Files []int64
 	// Provider starts an agent on this provider rather than the one its assignment picks.
 	Provider string
+	// Follows is the failed process this one repeats or continues.
+	Follows int64
 }
 
 // chainOf is the commands of the chain that ends in p, from its first: "a → b → c".
@@ -225,7 +228,7 @@ func (r *Runner) Start(ctx context.Context, projectID int64, m *manifest.Manifes
 		p, err = q.CreateProcess(ctx, db.CreateProcessParams{Trial: store.Bool(trial), ProjectID: projectID, Command: command, Kind: kind, State: StateRunning,
 			Provider: providerName, Input: string(in), SessionID: session, ParentID: store.ID(o.Parent), Depth: depth,
 			TriggerID: store.ID(t.ID), RetryKey: o.Key, CeilingMs: r.ceilingOf(m, cmd).Milliseconds(), ManifestRevision: m.Revision, Folder: folder,
-			StartNote: o.Note, Alone: store.Bool(o.Alone && trial), StartedAt: store.Time(r.now())})
+			StartNote: o.Note, Alone: store.Bool(o.Alone && trial), StartedAt: store.Time(r.now()), FollowsID: store.ID(o.Follows)})
 		if err != nil {
 			return err
 		}
@@ -264,7 +267,7 @@ func (r *Runner) Start(ctx context.Context, projectID int64, m *manifest.Manifes
 			})
 		}
 		if err != nil {
-			r.finish(ctx, p.ID, StateError, "", false, "give files: "+err.Error())
+			r.finish(ctx, p.ID, StateError, "", false, fault.Wrap("give files", err))
 			return p.ID, err
 		}
 	}

@@ -98,7 +98,21 @@ func (s *Service) processRetry(ctx context.Context, act registry.Actor, in proce
 	if !json.Valid(input) {
 		input = json.RawMessage("{}")
 	}
-	return s.Invoke(ctx, act, fmt.Sprintf("%s.%s", proj.Name, p.Command), input)
+	before := store.Time(s.Now())
+	out, err := s.Invoke(ctx, act, fmt.Sprintf("%s.%s", proj.Name, p.Command), input)
+	if err != nil {
+		return out, err
+	}
+	var started struct{ Process int64 }
+	// A run already going under the same retry key is not one this retry started.
+	if b, err := json.Marshal(out); err == nil && json.Unmarshal(b, &started) == nil && started.Process != 0 && started.Process != p.ID &&
+		s.startedSince(ctx, started.Process, before) {
+		err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+			return q.SetFollows(ctx, db.SetFollowsParams{Follows: store.ID(p.ID), ID: started.Process})
+		})
+		return out, err
+	}
+	return out, nil
 }
 
 // failed is a process of the actor's workspace among those that did not work, as the cockpit lists them.
@@ -138,10 +152,17 @@ func (s *Service) processDismiss(ctx context.Context, act registry.Actor, in pro
 		if err := s.stillFailed(ctx, q, act, p); err != nil {
 			return err
 		}
-		return q.DismissProcess(ctx, p.ID)
+		return q.DismissSameFailures(ctx, db.DismissSameFailuresParams{ProjectID: p.ProjectID, Command: p.Command,
+			ErrorType: p.ErrorType, Error: p.Error, ID: p.ID})
 	})
 	if err != nil {
 		return nil, err
 	}
 	return map[string]any{"ok": true}, nil
+}
+
+// startedSince reports whether a process started at or after a time.
+func (s *Service) startedSince(ctx context.Context, id int64, at string) bool {
+	p, err := s.St.Q.GetProcess(ctx, id)
+	return err == nil && p.StartedAt >= at
 }

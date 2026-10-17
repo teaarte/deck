@@ -91,6 +91,8 @@ type Result struct {
 	// RateLimited is set when the provider refused on a subscription limit; ResetsAt is unix seconds.
 	RateLimited bool
 	ResetsAt    int64
+	// Unavailable is set when the model or its API did not answer: the network, a 5xx, an overloaded model.
+	Unavailable bool
 	// NoTools is set when the agent stopped before its first model call because deck's MCP tools did not reach it.
 	NoTools bool
 	// Denied are the tools the provider refused by its own rules or auto mode, one entry per refused call.
@@ -154,7 +156,7 @@ func (r Request) Emit(e Event) {
 }
 
 // Refused marks a result by the HTTP status of a model API: a usage limit (429) pauses until Retry-After, a
-// refused key needs a login; false for any other status.
+// refused key needs a login, a 5xx is a model that did not answer; false for any other status.
 func Refused(res *Result, status int, retryAfter string, now time.Time) bool {
 	switch status {
 	case http.StatusTooManyRequests:
@@ -167,6 +169,10 @@ func Refused(res *Result, status int, retryAfter string, now time.Time) bool {
 		return true
 	case http.StatusUnauthorized, http.StatusForbidden:
 		res.NeedsLogin = true
+		return true
+	}
+	if status >= 500 {
+		res.Unavailable = true
 		return true
 	}
 	return false

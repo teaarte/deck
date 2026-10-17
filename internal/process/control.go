@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"deck2/internal/docs"
+	"deck2/internal/fault"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
@@ -29,11 +30,11 @@ const stopGrace = 5 * time.Second
 // Stop ends a process as stopped, then cancels its turn; the folder, the hooks and a rework wait until that turn has
 // exited. A stop of the owner drops its frozen calls.
 func (r *Runner) Stop(ctx context.Context, processID int64, reason string, owner bool) error {
-	return r.end(ctx, processID, StateStopped, reason, owner)
+	return r.end(ctx, processID, StateStopped, fault.New(fault.Stopped, reason), owner)
 }
 
-// end closes a process that has not finished in state with reason, as Stop does; drop closes its frozen calls too.
-func (r *Runner) end(ctx context.Context, processID int64, state, reason string, drop bool) error {
+// end closes a process that has not finished in state with failure f, as Stop does; drop closes its frozen calls too.
+func (r *Runner) end(ctx context.Context, processID int64, state string, f *fault.F, drop bool) error {
 	var n int64
 	var closedCalls []db.Ask
 	if !r.own(processID) {
@@ -44,7 +45,8 @@ func (r *Runner) end(ctx context.Context, processID int64, state, reason string,
 	}
 	err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		var err error
-		if n, err = q.StopParkedProcess(ctx, db.StopParkedProcessParams{State: state, Error: reason, FinishedAt: r.stamp(), ID: processID}); err != nil || n == 0 {
+		if n, err = q.StopParkedProcess(ctx, db.StopParkedProcessParams{State: state, Error: f.Text, ErrorType: f.Type,
+			ErrorDetails: untrusted.Cut(f.Details, detailsCap), FinishedAt: r.stamp(), ID: processID}); err != nil || n == 0 {
 			return err
 		}
 		closedCalls, err = q.CloseOpenAsksOfProcess(ctx, db.CloseOpenAsksOfProcessParams{ProcessID: processID, CallsToo: store.Bool(drop)})
@@ -128,7 +130,7 @@ func (r *Runner) Rework(ctx context.Context, processID int64, remark string) err
 		return registry.Invalid("deck: only a finished process with an agent session can go back for rework")
 	}
 	if err := r.resume(ctx, processID, msg, told{}, false); err != nil {
-		r.finish(ctx, processID, StateError, "", false, "rework: "+err.Error())
+		r.finish(ctx, processID, StateError, "", false, fault.Wrap("rework", err))
 		return err
 	}
 	return nil

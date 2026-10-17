@@ -60,11 +60,17 @@ func (t *turn) until(ctx context.Context) error {
 				return t.c.ended("codex app-server exited without finishing the turn")
 			}
 			t.handle(ctx, m)
+			if t.limitHit != "" && giveUp == nil {
+				giveUp = time.After(15 * time.Second)
+			}
 		case <-cancelled:
 			cancelled = nil
 			_, _ = t.c.start("turn/interrupt", TurnInterruptParams{ThreadID: t.thread, TurnID: t.turnID})
 			giveUp = time.After(15 * time.Second)
 		case <-giveUp:
+			if t.limitHit != "" && ctx.Err() == nil {
+				return nil
+			}
 			return ctx.Err()
 		}
 	}
@@ -99,8 +105,13 @@ func (t *turn) handle(ctx context.Context, m message) {
 		var n AccountRateLimitsUpdatedNotification
 		if decode(m.Params, &n) {
 			t.limits = n.RateLimits
-			if n.RateLimits.RateLimitReachedType != "" {
-				t.emit(provider.Event{Kind: provider.EventRateLimit, Text: string(n.RateLimits.RateLimitReachedType)})
+			if reached := string(n.RateLimits.RateLimitReachedType); reached != "" {
+				t.emit(provider.Event{Kind: provider.EventRateLimit, Text: reached})
+				if t.limitHit == "" && t.turnID != "" && t.completed == 0 {
+					// codex waits on a reached limit without ending the turn; deck ends it to go on elsewhere.
+					t.limitHit = reached
+					_, _ = t.c.start("turn/interrupt", TurnInterruptParams{ThreadID: t.thread, TurnID: t.turnID})
+				}
 			}
 		}
 		return

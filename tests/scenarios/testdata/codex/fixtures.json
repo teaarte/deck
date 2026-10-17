@@ -160,5 +160,17 @@
   "date": "2026-10-01",
   "kind": "synthetic",
   "note": "ok.jsonl without result_submit; the final answer carries the text of the turn, as Codex 0.155.1 gave it to a reply of the master"
+ },
+ "credits.jsonl": {
+  "cli": "0.155.1",
+  "date": "2026-10-17",
+  "kind": "synthetic",
+  "note": "ratelimit.jsonl setup; the workspace credits run out mid-turn and codex waits without ending the turn until deck interrupts it, as process #2648 did"
+ },
+ "spent_after.jsonl": {
+  "cli": "0.155.1",
+  "date": "2026-10-17",
+  "kind": "synthetic",
+  "note": "hang.jsonl whose last call spent the window: the reached limit comes right after the turn completed"
  }
 }

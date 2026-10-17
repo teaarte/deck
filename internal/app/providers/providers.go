@@ -160,6 +160,24 @@ func (s *Service) For(ctx context.Context, projectID int64, cmd *manifest.Comman
 	return fits[0], nil
 }
 
+// Next is the provider of a command's assignment after the one that refused its turn, the first that fits and is up;
+// empty when the owner assigned the command no other.
+func (s *Service) Next(ctx context.Context, projectID int64, cmd *manifest.Command, after string) string {
+	ws, fits, assigned, err := s.fitting(ctx, projectID, cmd)
+	if err != nil || !assigned {
+		return ""
+	}
+	if i := slices.IndexFunc(fits, func(pv provider.Provider) bool { return pv.Name() == after }); i >= 0 {
+		fits = fits[i+1:]
+	}
+	for _, pv := range fits {
+		if pv.Name() != after && s.Up(ctx, ws, pv.Name(), true) {
+			return pv.Name()
+		}
+	}
+	return ""
+}
+
 // Able are the providers of a workspace that have what a command requires, whether it is assigned to them or not.
 func (s *Service) Able(ctx context.Context, workspace int64, cmd *manifest.Command) []string {
 	all, _ := s.All(ctx, workspace)

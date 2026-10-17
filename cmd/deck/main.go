@@ -15,6 +15,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -82,28 +83,22 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	if err := a.Saver.Reconcile(ctx); err != nil {
-		slog.Error("reconcile triggers", "err", err)
-	}
-	a.Providers.Checks(ctx, a.Cfg.Now())
-	if err := a.Runner.ResumeInterrupted(ctx); err != nil {
-		slog.Error("resume interrupted", "err", err)
-	}
-	a.Chats.PumpChats(ctx)
-	a.Start(30 * time.Second)
-
+	// deck's MCP server answers before any turn starts, a resumed one too; the rest waits until deck has started.
 	server := api.New(a, token, web.FS())
 	server.Pair(port, port+1)
-	if *tailnet != "" {
-		node, err := tsnet.Start(ctx, tsnet.Config{Hostname: *tailnet, Dir: deckhome.Layout(home).Tailscale(), Health: a.TailnetHealth}, server)
-		if err != nil {
-			return fmt.Errorf("tailscale: %w", err)
+	var started atomic.Bool
+	handler := server.Handler()
+	srv := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !started.Load() && !strings.HasPrefix(r.URL.Path, "/mcp/") {
+			http.Error(w, "deck is starting", http.StatusServiceUnavailable)
+			return
 		}
-		defer node.Close()
-	}
-	srv := &http.Server{Handler: server.Handler()}
+		handler.ServeHTTP(w, r)
+	})}
 	side := &http.Server{Handler: server.Sandbox()}
 	go func() { _ = side.Serve(sideLn) }()
+	served := make(chan error, 1)
+	go func() { served <- srv.Serve(ln) }()
 	stopped := make(chan struct{})
 	go func() {
 		defer close(stopped)
@@ -114,8 +109,27 @@ func run() error {
 		_ = side.Shutdown(sctx)
 		_ = srv.Shutdown(sctx)
 	}()
+
+	if err := a.Saver.Reconcile(ctx); err != nil {
+		slog.Error("reconcile triggers", "err", err)
+	}
+	a.Providers.Checks(ctx, a.Cfg.Now())
+	if err := a.Runner.ResumeInterrupted(ctx); err != nil {
+		slog.Error("resume interrupted", "err", err)
+	}
+	a.Chats.PumpChats(ctx)
+	a.Start(30 * time.Second)
+	started.Store(true)
+
+	if *tailnet != "" {
+		node, err := tsnet.Start(ctx, tsnet.Config{Hostname: *tailnet, Dir: deckhome.Layout(home).Tailscale(), Health: a.TailnetHealth}, server)
+		if err != nil {
+			return fmt.Errorf("tailscale: %w", err)
+		}
+		defer node.Close()
+	}
 	slog.Info("deck listening", "url", fmt.Sprintf("http://%s/?token=%s", ln.Addr(), token), "home", home)
-	if err := srv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
+	if err := <-served; err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
 	// Serve returns once Shutdown starts; the calls still running finish before deck closes.

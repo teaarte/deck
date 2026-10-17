@@ -240,6 +240,22 @@ func TestCodexLostLoginAndLimit(t *testing.T) {
 	}
 }
 
+// TestCodexOutOfCreditsEndsItsTurn: a limit codex reports reached mid-turn, while it waits without ending the turn,
+// ends the turn as the model's limit at once instead of leaving the process hanging.
+func TestCodexOutOfCreditsEndsItsTurn(t *testing.T) {
+	t.Parallel()
+	c := newCodex(t)
+	c.stream(1, "credits.jsonl")
+	e, _ := codexEnv(t, c)
+	id := e.run(e.createProject("paint", colorManifest), "work")
+	if got := e.waitState(id, "rate_limited", "error", "done"); got.State != "rate_limited" {
+		t.Fatalf("the process waits for the limit, its turn ended: %+v", got)
+	}
+	if h := e.waitHealth("provider:codex", "paused"); !strings.Contains(h.Error, "workspace_member_credits_depleted") {
+		t.Fatalf("health says which limit: %+v", h)
+	}
+}
+
 func TestCodexTurnSucceedsOnlyStrictly(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct{ fixture, want string }{
@@ -288,6 +304,18 @@ func TestCodexThatDoesNotExitAfterItsTurnIsKilled(t *testing.T) {
 	id := e.run(p, "work")
 	if got := e.waitState(id, "done", "error"); got.State != "done" || time.Since(start) > 8*time.Second {
 		t.Fatalf("an app-server that stays after its turn is killed and the turn counts: %+v in %s", got, time.Since(start))
+	}
+}
+
+// TestCodexLimitReachedAfterItsTurnLeavesTheResult: a limit the last call of a completed turn reached does not undo
+// the turn's result.
+func TestCodexLimitReachedAfterItsTurnLeavesTheResult(t *testing.T) {
+	t.Parallel()
+	c := newCodex(t)
+	c.stream(1, "spent_after.jsonl")
+	e, _ := codexEnv(t, c)
+	if got := e.waitState(e.run(e.createProject("paint", colorManifest), "work"), "done", "error", "rate_limited"); got.State != "done" {
+		t.Fatalf("the completed turn counts: %+v", got)
 	}
 }
 

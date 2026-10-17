@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"deck2/internal/app/access"
 	"deck2/internal/ask"
+	"deck2/internal/fault"
 	"deck2/internal/process"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
@@ -51,12 +52,22 @@ type processView struct {
 	NotBySchema bool            `json:"not_by_schema"`
 	Trial       bool            `json:"trial,omitempty"`
 	Error       string          `json:"error,omitempty"`
-	StartedAt   string          `json:"started_at"`
-	FinishedAt  string          `json:"finished_at,omitempty"`
-	Parent      int64           `json:"parent,omitempty"`
-	Depth       int64           `json:"depth"`
-	Trigger     int64           `json:"trigger,omitempty"`
-	RetryKey    string          `json:"retry_key,omitempty"`
+	// ErrorType is the type of a failure, of a closed set, and Whose whose it is: model, deck, module, environment,
+	// owner; only process_get gives ErrorDetails.
+	ErrorType    string `json:"error_type,omitempty"`
+	Whose        string `json:"whose,omitempty"`
+	ErrorDetails string `json:"error_details,omitempty"`
+	// Follows is the failed process this one repeats, continues or fixes; FollowedBy those that do so for this one.
+	Follows    int64   `json:"follows,omitempty"`
+	FollowedBy []int64 `json:"followed_by,omitempty"`
+	// Repeats is how many failures of the same command, type and text one row of the failed stands for.
+	Repeats    int64  `json:"repeats,omitempty"`
+	StartedAt  string `json:"started_at"`
+	FinishedAt string `json:"finished_at,omitempty"`
+	Parent     int64  `json:"parent,omitempty"`
+	Depth      int64  `json:"depth"`
+	Trigger    int64  `json:"trigger,omitempty"`
+	RetryKey   string `json:"retry_key,omitempty"`
 	// Empty marks a process that had nothing to do; it shows collapsed in the history.
 	Empty       bool   `json:"empty,omitempty"`
 	SilentSince string `json:"silent_since,omitempty"`
@@ -103,7 +114,7 @@ func msTime(v sql.NullInt64) string {
 
 func procView(p db.Process, project string) processView {
 	v := processView{ID: p.ID, Project: project, Command: p.Command, Kind: p.Kind, State: p.State, NotBySchema: p.NotBySchema == 1, Trial: p.Trial == 1,
-		Error: p.Error, StartedAt: p.StartedAt, FinishedAt: p.FinishedAt.String, Parent: p.ParentID.Int64, Depth: p.Depth,
+		Error: p.Error, ErrorType: p.ErrorType, Whose: fault.Whose(p.ErrorType), Follows: p.FollowsID.Int64, StartedAt: p.StartedAt, FinishedAt: p.FinishedAt.String, Parent: p.ParentID.Int64, Depth: p.Depth,
 		Trigger: p.TriggerID.Int64, RetryKey: p.RetryKey, Empty: p.State == process.StateDone && p.Result == process.Empty && p.NotBySchema == 0,
 		SilentSince: msTime(p.SilentSinceMs), SessionID: p.SessionID, Silent: p.SilentSinceMs.Valid, Folder: p.Folder, Deadline: msTime(p.DeadlineMs), Provider: p.Provider}
 	if p.State == process.StateRateLimited {
@@ -139,7 +150,7 @@ func (s *Service) processesList(ctx context.Context, act registry.Actor, in proc
 	var ps []db.Process
 	switch {
 	case in.Failed:
-		ps, err = s.St.Q.ListFailedProcesses(ctx, s.failedParams(act, pid, 0, registry.Limit(in.Limit, 50, 500)))
+		ps, err = s.St.Q.ListFailedProcesses(ctx, s.failedParams(act, pid, 0, 2000))
 	case in.Open:
 		ps, err = s.St.Q.ListOpenProcesses(ctx, db.ListOpenProcessesParams{WorkspaceID: act.Workspace, ProjectID: pid, Record: in.Record})
 	default:
@@ -152,6 +163,10 @@ func (s *Service) processesList(ctx context.Context, act registry.Actor, in proc
 	names, err := access.Names(ctx, s.St.Q, act.Workspace)
 	if err != nil {
 		return nil, err
+	}
+	var repeats map[int64]int64
+	if in.Failed {
+		ps, repeats = sameFailures(ps, int(registry.Limit(in.Limit, 50, 500)))
 	}
 	out := make([]processView, 0, len(ps))
 	for _, p := range ps {
@@ -166,6 +181,7 @@ func (s *Service) processesList(ctx context.Context, act registry.Actor, in proc
 		if in.Failed {
 			c, err := s.Lookup(ctx, act.Workspace, v.Project+"."+p.Command)
 			v.Retry = err == nil && slices.Contains(c.Callers, registry.Owner)
+			v.Repeats = repeats[p.ID]
 		}
 		s.shown(ctx, p, &v, in.Lang)
 		out = append(out, v)
@@ -211,7 +227,13 @@ func (s *Service) processGet(ctx context.Context, act registry.Actor, in process
 			until = end
 		}
 	}
-	for lent := false; !p.FinishedAt.Valid && p.State != process.StateWaitingAnswer && p.State != process.StateNeedsLogin && time.Now().Before(until); {
+	for lent := false; time.Now().Before(until); {
+		// A wait goes on through the process another model took the work over to.
+		if next, soon := s.handedOn(ctx, p); in.Wait > 0 && next != 0 {
+			in.Process = next
+		} else if !soon && (p.FinishedAt.Valid || p.State == process.StateWaitingAnswer || p.State == process.StateNeedsLogin) {
+			break
+		}
 		if !lent && act.ProcessID != 0 && act.ProcessID != p.ID {
 			lent = true
 			defer s.Runner.Lend(ctx, act.ProcessID)()
@@ -231,6 +253,12 @@ func (s *Service) processGet(ctx context.Context, act registry.Actor, in process
 	v := procView(p, project.Name)
 	if p.Input != "" && json.Valid([]byte(p.Input)) {
 		v.Input = json.RawMessage(p.Input)
+	}
+	v.ErrorDetails = p.ErrorDetails
+	if fs, err := s.St.Q.ListFollowers(ctx, store.ID(p.ID)); err == nil {
+		for _, f := range fs {
+			v.FollowedBy = append(v.FollowedBy, f.ID)
+		}
 	}
 	v.Terminal = s.terminal(ctx, p)
 	s.shown(ctx, p, &v, in.Lang)
@@ -344,4 +372,45 @@ func (s *Service) processCommands() []*registry.Command {
 // holds is an open ask its process cannot go on without: a question or a confirmation; a frozen call lets it work on.
 func holds(a db.Ask) bool {
 	return a.State == ask.StateOpen && (a.Kind == ask.KindQuestion || a.Kind == ask.KindConfirm)
+}
+
+// handedOn is the process that took over the work of p after its model refused it; soon while it is about to start.
+func (s *Service) handedOn(ctx context.Context, p db.Process) (int64, bool) {
+	if !p.FinishedAt.Valid || fault.Whose(p.ErrorType) != fault.OfModel {
+		return 0, false
+	}
+	if fs, err := s.St.Q.ListFollowers(ctx, store.ID(p.ID)); err == nil && len(fs) > 0 {
+		return fs[len(fs)-1].ID, false
+	}
+	at, err := time.Parse(store.TimeLayout, p.FinishedAt.String)
+	return 0, err == nil && s.Now().Sub(at) < handOnGrace
+}
+
+// handOnGrace is how long after a model refused a process a wait looks for the process that goes on with it.
+const handOnGrace = 3 * time.Second
+
+// sameFailures keeps the newest of the failures of one command with the same type and text, at most n of them, with
+// how many each stands for.
+func sameFailures(ps []db.Process, n int) ([]db.Process, map[int64]int64) {
+	type key struct {
+		project                int64
+		command, kind, message string
+	}
+	first := map[key]int64{}
+	repeats := map[int64]int64{}
+	var out []db.Process
+	for _, p := range ps {
+		k := key{p.ProjectID, p.Command, p.ErrorType, p.Error}
+		if id, ok := first[k]; ok {
+			repeats[id]++
+			continue
+		}
+		if len(out) == n {
+			continue
+		}
+		first[k] = p.ID
+		repeats[p.ID] = 1
+		out = append(out, p)
+	}
+	return out, repeats
 }

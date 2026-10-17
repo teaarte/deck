@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"deck2/internal/ask"
+	"deck2/internal/fault"
 	"deck2/internal/health"
 	"deck2/internal/provider"
 	"deck2/internal/store"
@@ -41,7 +42,7 @@ func (r *Runner) needLogin(ctx context.Context, pv provider.Provider, processID 
 		return setHealth(ctx, q, pv, health.NeedsLogin, text)
 	})
 	if err != nil {
-		r.finish(ctx, processID, StateError, "", false, "needs login: "+text)
+		r.finish(ctx, processID, StateError, "", false, fault.New(fault.ModelLogin, "needs login: "+text))
 		return
 	}
 	if n > 0 {
@@ -63,7 +64,7 @@ func (r *Runner) lostTools(ctx context.Context, t turn, pv provider.Provider, er
 	tries := r.lost[t.process]
 	r.mu.Unlock()
 	if tries >= lostTries {
-		r.finish(ctx, t.process, StateError, "", false, fmt.Sprintf("the agent started without deck's tools %d times: %v", tries, err))
+		r.finish(ctx, t.process, StateError, "", false, fault.With(fault.DeckTools, fmt.Sprintf("the agent started without deck's tools %d times", tries), err.Error()))
 		r.deps.Broke(ctx, pv.Name())
 		return
 	}
@@ -79,7 +80,7 @@ func (r *Runner) lostTools(ctx context.Context, t turn, pv provider.Provider, er
 		return err
 	})
 	if txErr != nil {
-		r.finish(ctx, t.process, StateError, "", false, err.Error())
+		r.finish(ctx, t.process, StateError, "", false, fault.Of(err))
 		return
 	}
 	r.deps.Broke(ctx, pv.Name())
@@ -200,7 +201,7 @@ func (r *Runner) park(ctx context.Context, processID int64) {
 		return
 	}
 	if err := r.Deliver(ctx, processID); err != nil {
-		r.finish(ctx, processID, StateError, "", false, "resume after answer: "+err.Error())
+		r.finish(ctx, processID, StateError, "", false, fault.Wrap("resume after answer", err))
 	}
 	_ = r.hear(ctx, processID, func(h Hook, p db.Process) { h.Parked(ctx, p) })
 }

@@ -130,7 +130,7 @@ func (q *Queries) ListAsksAfter(ctx context.Context, arg ListAsksAfterParams) ([
 }
 
 const listNotesAfter = `-- name: ListNotesAfter :many
-SELECT n.id, n.workspace_id, n.project_id, n.kind, n.author, n.text, n.screen, n.record_id, n.actions, n.command, n.params, n.document_id, n.revision, n.undone_at, n.created_at, n.for_master, n.read_at, n.process_id, j.name AS project_name FROM feed n JOIN project j ON j.id = n.project_id
+SELECT n.id, n.workspace_id, n.project_id, n.kind, n.author, n.text, n.screen, n.record_id, n.actions, n.command, n.params, n.document_id, n.revision, n.undone_at, n.created_at, n.for_master, n.read_at, n.process_id, n.repeats, j.name AS project_name FROM feed n JOIN project j ON j.id = n.project_id
 WHERE n.workspace_id = ? AND n.kind = 'note' AND n.for_master = 0 AND n.id > ? ORDER BY n.id
 `
 
@@ -172,6 +172,7 @@ func (q *Queries) ListNotesAfter(ctx context.Context, arg ListNotesAfterParams) 
 			&i.Feed.ForMaster,
 			&i.Feed.ReadAt,
 			&i.Feed.ProcessID,
+			&i.Feed.Repeats,
 			&i.ProjectName,
 		); err != nil {
 			return nil, err

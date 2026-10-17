@@ -134,7 +134,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	a.Runner = process.NewRunner(st, a.Gateway, a.Bus, a.Scripts,
 		process.Config{Home: h, MCPBase: cfg.MCPBase, Now: cfg.Now, FilesMu: &a.Files.Mu,
 			Hidden: func() []string { return sandbox.Agent(h) }, AgentSlots: a.Settings.AgentSlots},
-		process.Deps{For: a.Providers.For, Named: a.Providers.Named, Up: a.Providers.Up, Broke: a.Providers.Broke, Recheck: a.Providers.Recheck, Prompt: a.Saver.Prompt,
+		process.Deps{For: a.Providers.For, Next: a.Providers.Next, Named: a.Providers.Named, Up: a.Providers.Up, Broke: a.Providers.Broke, Recheck: a.Providers.Recheck, Prompt: a.Saver.Prompt,
 			Text: a.Saver.Text, Skills: a.Documents.Skills, Servers: a.Signins.Servers, Folder: a.Folders.Folder,
 			Memory: a.Chats.Memory, Programs: a.Documents.Programs, DrainFiles: a.Files.Drain})
 	a.Runner.Hooks = []process.Hook{a.Chats.NewHook(), failures.Hook{S: a.Failures}, triggers.After{S: a.Triggers}, asks.Unheard{S: a.Answers}}

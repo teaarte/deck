@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"net/http"
 	"testing"
+
+	"deck2/internal/health"
 )
 
 // healthSeen is whether the owner read the failing check of a subject in a project.
@@ -66,5 +68,23 @@ func TestAModuleWhoseManifestDoesNotLoadIsReadLikeAnyCheck(t *testing.T) {
 	e.must("deck.health_seen", map[string]any{"subject": "project:broken", "project": "broken"}, nil)
 	if seen, _ := e.healthSeen("broken", "project:broken"); !seen || e.pulseErrors() != before {
 		t.Fatalf("once read it counts no more: %d", e.pulseErrors())
+	}
+}
+
+// TestMarkReadOfACheckOfTheMachine: the button of a failing check of no project marks it read, its empty project left
+// out of the call.
+func TestMarkReadOfACheckOfTheMachine(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, nil)
+	health.Write(t.Context(), e.App.Store, health.Of{}, "tool:web.fetch", "error", "the server exited: 1")
+	a := e.rowAction("", "settings", "deck.health_seen", map[string]any{"subject": "tool:web.fetch"})
+	if _, ok := a["params"].(map[string]any)["project"]; ok {
+		t.Fatalf("a value an expression leaves empty is not a param of the call: %v", a["params"])
+	}
+	if code, out := e.press(a); code != 200 {
+		t.Fatalf("mark read: %d %s", code, out)
+	}
+	if seen, failing := e.healthSeen("", "tool:web.fetch"); !seen || !failing {
+		t.Fatal("the check of the machine is read")
 	}
 }

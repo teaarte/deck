@@ -67,12 +67,15 @@ func (r *renderer) action(a manifest.Action, id int64, env map[string]any) (map[
 		failed = cmp.Or(failed, err)
 		return out
 	}
+	// params leave out a value an expression leaves empty, such as the project of a row of the machine.
 	params := func(types map[string]string) map[string]any {
 		out := map[string]any{}
 		for k, v := range a.Params {
-			var err error
-			out[k], err = manifest.Resolve(v, types[k], env)
+			p, err := manifest.Resolve(v, types[k], env)
 			failed = cmp.Or(failed, err)
+			if p != nil {
+				out[k] = p
+			}
 		}
 		return out
 	}
@@ -80,9 +83,7 @@ func (r *renderer) action(a manifest.Action, id int64, env map[string]any) (map[
 	address := func() map[string]string {
 		ps := map[string]string{}
 		for k, v := range params(nil) {
-			if v != nil {
-				ps[k] = fmt.Sprint(v)
-			}
+			ps[k] = fmt.Sprint(v)
 		}
 		return ps
 	}

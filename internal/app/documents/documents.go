@@ -147,6 +147,21 @@ type documentGetIn struct {
 	History  bool   `opt:"" desc:"Also its revisions, newest first, with who wrote each and why"`
 }
 
+// withoutProject is the hint of a name missing in a project that the caller finds among the documents of the workspace.
+func (dc *Service) withoutProject(ctx context.Context, act registry.Actor, in documentGetIn) string {
+	if in.Project == "" || in.Record != 0 {
+		return ""
+	}
+	s, err := dc.memoryScope(ctx, act, "", in.Name)
+	if err != nil || s.Project != 0 {
+		return ""
+	}
+	if _, err := docs.Find(ctx, dc.St.Q, docs.Ref{Scope: s, Name: in.Name}); err != nil {
+		return ""
+	}
+	return fmt.Sprintf(" in project %s; it is a document of the workspace: leave out project", in.Project)
+}
+
 func (dc *Service) documentGet(ctx context.Context, act registry.Actor, in documentGetIn) (documentView, error) {
 	var d db.Document
 	var err error
@@ -167,7 +182,7 @@ func (dc *Service) documentGet(ctx context.Context, act registry.Actor, in docum
 		if err == nil {
 			d, err = docs.Find(ctx, dc.St.Q, ref)
 			if errors.Is(err, sql.ErrNoRows) {
-				err = registry.NotFound("deck: no document %q", in.Name)
+				err = registry.NotFound("deck: no document %q%s", in.Name, dc.withoutProject(ctx, act, in))
 			}
 		}
 	default:

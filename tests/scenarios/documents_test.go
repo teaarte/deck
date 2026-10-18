@@ -378,3 +378,21 @@ func TestSkillsAndPromptsNameOnlyCommandsDeckHas(t *testing.T) {
 		}
 	}
 }
+
+// TestABuiltInSkillAskedInAProjectSaysItIsOfTheWorkspace: a skill deck ships is a document of the workspace; asked for
+// in a project, the error says to leave out project.
+func TestABuiltInSkillAskedInAProjectSaysItIsOfTheWorkspace(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, nil)
+	_, tok := e.token("terminal", "deck.*")
+	code, out := e.callWith(tok, "deck.document_get", map[string]any{"project": "master", "name": "skills/module-builder/SKILL.md"})
+	if code != 404 || !strings.Contains(string(out), "document of the workspace: leave out project") {
+		t.Fatalf("the error says where the skill is: %d %s", code, out)
+	}
+	if code, out := e.callWith(tok, "deck.document_get", map[string]any{"project": "master", "name": "skills/none/SKILL.md"}); code != 404 || strings.Contains(string(out), "workspace") {
+		t.Fatalf("a name missing everywhere is only missing: %d %s", code, out)
+	}
+	if code, _ := e.callWith(tok, "deck.document_get", map[string]any{"name": "skills/module-builder/SKILL.md"}); code != 200 {
+		t.Fatalf("without project the skill reads: %d", code)
+	}
+}

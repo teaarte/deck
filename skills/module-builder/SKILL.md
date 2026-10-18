@@ -296,9 +296,10 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   (`URL.createObjectURL(new Blob([Uint8Array.from(atob(c.blob), (x) => x.charCodeAt(0))], {type: c.mimeType}))`);
   an `src` of `/api/files/…` or of the web never loads, and a file of another module is refused.
   Its colors, fonts and corners are the host's: `app.getHostContext()` and `app.onhostcontextchanged` give
-  `theme` (`light`/`dark`) and `styles.variables` by MCP Apps names (`--color-background-primary`,
-  `--color-text-primary`, `--color-text-secondary`, `--color-border-primary`, `--color-ring-primary` for the
-  accent, `--font-sans`, `--font-text-sm-size`, `--border-radius-md`); apply them with `applyDocumentTheme` and
+  `theme` (`light`/`dark`) and `styles.variables` by the standard MCP Apps names, no others (`--color-background-*`,
+  `--color-text-*`, `--color-border-*` and `--color-ring-*` by role — `primary`, `secondary`, `info`, `danger`,
+  `success`, `warning`…, `--color-ring-primary` the accent —, `--font-sans`, `--font-mono`, `--font-text-sm-size`,
+  `--font-heading-md-size` and their line heights, `--font-weight-bold`, `--border-radius-md`, `--shadow-sm`); apply them with `applyDocumentTheme` and
   `applyHostStyleVariables` from `/ext-apps.js`, again on each change, and write CSS only with `var(--…)` of
   them — a fixed color breaks in the owner's dark scheme. List screens in `menu`. A record page is a screen with
   `"record": "<collection>"`; a row's button `{"label", "screen": "<that page>"}` opens it with the row's record;

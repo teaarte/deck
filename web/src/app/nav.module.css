@@ -15,10 +15,42 @@
   gap: 1px;
 }
 
-.systemGroup + .systemGroup {
+.systemGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
   margin-top: 4px;
   padding-top: 4px;
   border-top: 1px solid var(--mantine-color-default-border);
+}
+
+.systemHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: calc(var(--deck-island-radius) - 8px);
+  color: var(--mantine-color-text);
+  background: var(--deck-fill, var(--mantine-color-default-hover));
+  font-size: var(--mantine-font-size-sm);
+  font-weight: 650;
+  transition: background-color 150ms ease;
+
+  & svg {
+    flex: none;
+  }
+
+  &:hover {
+    background: var(--deck-fill-hover, var(--mantine-color-default-hover));
+  }
+
+  &[data-active] {
+    background: var(--mantine-primary-color-filled);
+    color: var(--mantine-primary-color-contrast);
+    box-shadow: 0 6px 16px -6px color-mix(in srgb, var(--mantine-primary-color-filled) 75%, transparent),
+      inset 0 1px 0 rgb(255 255 255 / 0.2);
+  }
 }
 
 .footLink {

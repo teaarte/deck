@@ -52,11 +52,21 @@ func TestRealBrowserShell(t *testing.T) {
 		return [parseFloat(s.borderTopLeftRadius) > 0, s.boxShadow !== 'none', r.left > 0, r.top > 0].join(' ') })()`); got != "true true true true" {
 		t.Fatalf("the menu is an island: rounded, with a shadow, apart from the edges: %s", got)
 	}
-	b.until("the icons of the menu", `document.querySelector('[data-nav] [data-system] a[href="#/deck/schedule"] [data-icon]') && document.querySelector('[data-group="web"] [data-icon="rocket"]')`)
+	b.until("the icons of the menu", `document.querySelector('[data-nav] [data-system-head] [data-icon]') && document.querySelector('[data-group="web"] [data-icon="rocket"]')`)
 	if got := b.eval(`[...document.querySelectorAll('[data-nav] [data-group]:not([data-system] [data-group])')].map((x) => x.dataset.group).sort().join(' ')`); got != "solo web" {
 		t.Fatalf("the projects of the menu without deck and the master: %s", got)
 	}
-	b.until("deck's screens and the master's as links at the foot of the menu", `document.querySelector('[data-system] [data-group=""] a[href="#/deck/schedule"]') && document.querySelector('[data-system] [data-group="master"] a')`)
+	if got := b.eval(`(() => { const h = document.querySelector('[data-system-head]'), a = document.querySelector('[data-system] a[href="#/deck/schedule"]');
+		return [h.getAttribute('aria-expanded'), !a || a.getBoundingClientRect().height === 0].join(' ') })()`); got != "false true" {
+		t.Fatalf("the foot of the menu is one folded button until a tap: %s", got)
+	}
+	b.shot("shell-system-folded")
+	b.eval(`(document.querySelector('[data-system-head]').click(), '')`)
+	b.until("deck's screens and the master's unfold at the foot of the menu", `document.querySelector('[data-system-head]').getAttribute('aria-expanded') === 'true' &&
+		document.querySelector('[data-system] [data-group=""] a[href="#/deck/schedule"]')?.getBoundingClientRect().height > 0 && document.querySelector('[data-system] [data-group="settings"] a')`)
+	if got := b.eval(`String([...document.querySelectorAll('[data-system] a')].some((a) => a.getAttribute('href').startsWith('#/p/master/') && a.getAttribute('href').split('?')[0].endsWith('/settings')))`); got != "false" {
+		t.Fatalf("the settings of the master are not a quick link of the foot: %s", got)
+	}
 	b.shot("shell-system-menu")
 	b.eval(`(document.querySelector('[data-system] a[href="#/deck/schedule"]').click(), '')`)
 	b.until("the schedule from the foot of the menu", `location.hash === '#/deck/schedule'`)
@@ -240,6 +250,9 @@ func TestRealBrowserShell(t *testing.T) {
 	b.eval(`(document.querySelector('[data-nav-open]').click(), '')`)
 	b.until("the menu on a phone", `document.querySelector('[data-nav-phone] [data-system]')?.offsetParent`)
 	b.shot("shell-phone-menu")
+	b.eval(`(document.querySelector('[data-nav-phone] [data-system-head]').click(), '')`)
+	b.until("the foot folds on a tap on a phone", `document.querySelector('[data-nav-phone] [data-system-head]').getAttribute('aria-expanded') === 'false'`)
+	b.shot("shell-phone-menu-folded")
 
 	b.call("browser_resize", map[string]any{"width": 1440, "height": 900})
 	for _, look := range []string{"pixel vivid light", "neon tinted dark", "paper neutral light", "default vivid dark"} {

@@ -126,3 +126,30 @@ func TestTheCockpitTheHeroAndTheMenuCountAlike(t *testing.T) {
 		t.Fatalf("the pulse, the tiles and the menu count one run and one unset secret: %+v; tiles running %d, failing %d", m, stat("b0"), stat("b1"))
 	}
 }
+
+// TestThePulseSaysTalkingWhileOnlyTheMasterWorks: a reply of the master alone is talking, Deki's dots; a run of a
+// module beside it is running.
+func TestThePulseSaysTalkingWhileOnlyTheMasterWorks(t *testing.T) {
+	t.Parallel()
+	release := make(chan struct{})
+	defer close(release)
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		select {
+		case <-release:
+		case <-ctx.Done():
+		}
+		return provider.Result{Text: "done"}
+	})
+	state := func() string {
+		var m struct{ Pulse struct{ State string } }
+		e.must("deck.menu", nil, &m)
+		return m.Pulse.State
+	}
+	e.say(0, "plan my week")
+	e.waitFor("the master at work", func() bool { return state() == "talking" })
+	e.createProject("clips", cutModule)
+	e.waitState(e.start("clips", "cut", map[string]any{"clip": "a"}), "running")
+	if got := state(); got != "running" {
+		t.Fatalf("a run of a module beside the master is running: %s", got)
+	}
+}

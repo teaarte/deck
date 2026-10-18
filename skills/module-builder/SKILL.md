@@ -118,7 +118,8 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   agent, or an API path through `$DECK_MODELS` (below). Every call names a model of deck's settings or an
   `@<kind>`; another model is refused. A tool or MCP server of the manifest never gets the key of a connection
   (the save refuses it). The manifest names what it calls in `models`: a connection, a model by name or
-  `@text`/`@image`/`@tts`/`@stt`/`@music`/`@video` for the assigned ones; deck keeps each call with its cost in its journal,
+  `@text`/`@image`/`@tts`/`@stt`/`@music`/`@video` for the assigned ones (a script that calls
+  `$DECK_MODELS/<connection>/…` needs that connection itself in `models`, a model's name is not enough); deck keeps each call with its cost in its journal,
   and the settings of the module list the models it called. A model the module needs and deck lacks: propose it
   with `deck.model_set` (connection, model, kind; the price comes from the catalog of the connection) — the call
   waits for the owner's button. deck has no limits of money: the owner sets them at the provider, so a module never
@@ -143,7 +144,8 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
 - **Command input** is a flat object; a choice is `{"type": "string", "enum": [...]}` — an `enum` without
   `"type": "string"` is refused.
 - **Files of the input**: a command field with `"format": "file"` takes a file id (from a form upload, Share, or
-  `files_list` of a record); scripts and agents get the path of a read-only copy. For a trial, upload
+  `files_list` of a record); scripts and agents get the path of a read-only copy, named `<file id>-<original name>`
+  (cut the id to show the owner the name). For a trial, upload
   a sample with `file_upload` (the file in base64) and pass the id it returns. A result may give such
   a file to a record: `files: [{"file": <id>, "record": <id>}]`.
 - **Documents to PDF** (a CV in Typst, say): a script with `programs: ["typst"]` writes the `.typ` documents it
@@ -623,8 +625,11 @@ Name each of these rights in the hand-over: the owner grants them with "enable".
 
 Ask only for what the module needs. `allowed_external`, domains, secrets, `models`, milder classes
 of tools, `reads` of other projects, `writes` of its own documents and removing `no_network` are rights: in a draft they are part of what the owner enables; in an
-enabled project a change that widens them waits for the owner's button. Every other change you make to an
-enabled project is listed as "done without you" with an undo.
+enabled project a change that widens them waits for the owner's button, with only what it widens; check
+`projects_list` first, since a project you were told is a draft may be enabled. Go on with other changes
+meanwhile: an edit that widens nothing saves at once, and the owner's yes merges the waiting change into the
+manifest as it is then. An edit of the same lines closes the request with a note, so ask again after it. Every
+other change you make to an enabled project is listed as "done without you" with an undo.
 
 ## 10. Hand over
 
@@ -636,4 +641,6 @@ rights "enable" will grant. Do not enable it yourself.
 When the owner fixes by hand a module you built, or you had to guess because this skill was silent or wrong,
 fix the section that led you there: `document_save`, kind `skill`, name `skills/module-builder/SKILL.md`, no
 project. Change the rule itself, in the words of the section, and keep the skill general; no dated notes,
-examples of one module or history — deck keeps the revisions. Say in the hand-over what you changed.
+examples of one module or history — deck keeps the revisions. Say in the hand-over what you changed. A new deck
+merges your edit into the text it ships; where both changed the same lines its text stands, and you get a note
+with the diff to bring back what still holds.

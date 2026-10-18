@@ -6,6 +6,8 @@ import (
 	"io/fs"
 	"strings"
 
+	"github.com/epiclabs-io/diff3"
+
 	"deck2/internal/app/access"
 	"deck2/internal/docs"
 	"deck2/internal/registry"
@@ -54,8 +56,8 @@ func (dc *Service) Skills(ctx context.Context, projectID int64, names []string) 
 	return out, nil
 }
 
-// SeedSkills stores the skills built into deck as skills of every workspace; a skill the owner edited stays theirs, one
-// an agent edited takes the next text deck ships with the edit merged into it, or without it and a note to the master.
+// SeedSkills stores the skills built into deck as skills of every workspace; one the owner edited stays theirs, one an
+// agent edited takes the new text with the edit merged in, and the master gets the diff of each conflict.
 func (dc *Service) SeedSkills(ctx context.Context) error {
 	ws, err := dc.St.Q.ListWorkspaces(ctx)
 	if err != nil {
@@ -81,7 +83,7 @@ func (dc *Service) seedSkills(ctx context.Context, workspace int64) error {
 		return dc.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 			ref := docs.Ref{Scope: docs.Scope{Workspace: workspace}, Name: docs.SkillsDir + path}
 			d, err := q.FindDocument(ctx, ref.Find())
-			edited, editor, merged := int64(0), "", ""
+			edited, editor, merged, conflicts := int64(0), "", "", []string(nil)
 			if err == nil {
 				if d.DeletedAt.Valid {
 					return nil
@@ -99,18 +101,17 @@ func (dc *Service) seedSkills(ctx context.Context, workspace int64) error {
 						return err
 					}
 					edited, editor = cur.N, cur.Author
-					merged, _ = docs.Merge(cur.Text, shipped, string(b))
+					merged, conflicts = carry(cur.Text, shipped, string(b))
 				}
 			}
 			reason := "built-in skill"
 			if edited != 0 {
-				reason = fmt.Sprintf("built-in skill of a new deck; the edit of revision %d stays in the history", edited)
+				reason = fmt.Sprintf("built-in skill of a new deck; the edit of revision %d follows", edited)
 			}
 			if _, _, _, err = docs.Save(ctx, q, ref, docs.KindSkill, string(b), "deck", reason); err != nil || edited == 0 {
 				return err
 			}
-			if merged != "" {
-				_, _, _, err = docs.Save(ctx, q, ref, docs.KindSkill, merged, editor, fmt.Sprintf("the edit of revision %d carried over to the built-in skill of a new deck", edited))
+			if _, _, _, err = docs.Save(ctx, q, ref, docs.KindSkill, merged, editor, fmt.Sprintf("the edit of revision %d carried over to the built-in skill of a new deck", edited)); err != nil || len(conflicts) == 0 {
 				return err
 			}
 			mp, err := access.Master(ctx, q, workspace)
@@ -118,9 +119,33 @@ func (dc *Service) seedSkills(ctx context.Context, workspace int64) error {
 				return err
 			}
 			return q.AddMasterNote(ctx, db.AddMasterNoteParams{CreatedAt: store.Time(dc.Now()), WorkspaceID: workspace, ProjectID: mp.ID,
-				Text: fmt.Sprintf("deck shipped a new %s and it replaced the edit of revision %d, which stays in its history; bring back what of it still holds", ref.Name, edited)})
+				Text: fmt.Sprintf("deck shipped a new %s and merged your edit of revision %d into it, but for %d places where deck changed the same lines and its text stands; "+
+					"bring back what of your edit still holds:\n\n%s", ref.Name, edited, len(conflicts), strings.Join(conflicts, "\n\n"))})
 		})
 	})
+}
+
+// carry puts the change from base to edit into next, line by line; where both change the same lines next stands, and
+// each such place comes back as a diff.
+func carry(edit, base, next string) (string, []string) {
+	var out, conflicts []string
+	for _, r := range diff3.Diff3Merge(strings.Split(edit, "\n"), strings.Split(base, "\n"), strings.Split(next, "\n"), true) {
+		if c := r.Conflict; c != nil {
+			out = append(out, c.B...)
+			conflicts = append(conflicts, "your edit changed:\n"+prefixed("- ", c.O)+prefixed("+ ", c.A)+"deck's new text there:\n"+prefixed("  ", c.B))
+			continue
+		}
+		out = append(out, r.Ok...)
+	}
+	return strings.Join(out, "\n"), conflicts
+}
+
+func prefixed(p string, lines []string) string {
+	var b strings.Builder
+	for _, l := range lines {
+		b.WriteString(p + l + "\n")
+	}
+	return b.String()
 }
 
 // lastOfDeck is the text of the newest revision deck itself wrote of d.

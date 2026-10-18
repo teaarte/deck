@@ -236,7 +236,7 @@ func TestDocumentIDsAreNotReused(t *testing.T) {
 }
 
 // TestAShippedSkillEditedByTheMasterTakesTheNextVersionOfDeck: the master's edit of a built-in skill merges into the
-// next text deck ships, or on a conflict goes to the history with a note to the master; the owner's edit stays.
+// next text deck ships, and a conflict leaves deck's text with a note to the master; the owner's edit stays.
 func TestAShippedSkillEditedByTheMasterTakesTheNextVersionOfDeck(t *testing.T) {
 	t.Parallel()
 	home := t.TempDir()
@@ -299,6 +299,47 @@ func TestAShippedSkillEditedByTheMasterTakesTheNextVersionOfDeck(t *testing.T) {
 	e = newEnvWith(t, home, &Fake{})
 	if e.must("deck.document_get", map[string]any{"name": name}, &d); !strings.Contains(d.Text, "The owner's own line.") {
 		t.Fatalf("an edit of the owner stays through a new deck: %.80q", d.Text)
+	}
+}
+
+// TestAConflictOfAShippedSkillKeepsTheRestOfTheEditAndSendsTheDiff: where deck and the master changed the same lines of
+// a built-in skill, deck's new text stands and the master gets the diff; the rest of the edit carries over.
+func TestAConflictOfAShippedSkillKeepsTheRestOfTheEditAndSendsTheDiff(t *testing.T) {
+	t.Parallel()
+	home := t.TempDir()
+	e := newEnvWith(t, home, &Fake{})
+	const name = "skills/module-builder/SKILL.md"
+	var d struct {
+		ID   int64
+		Text string
+	}
+	e.must("deck.document_get", map[string]any{"name": name}, &d)
+	shipped := d.Text
+	first := regexp.MustCompile(`(?m)^# .*$`).FindString(shipped)
+	older := strings.Replace(shipped, first, "# An older title", 1)
+	edit := strings.Replace(older, "# An older title", "# The master's title", 1) + "\nThe master's own line.\n"
+	e.must("deck.document_save", map[string]any{"name": name, "kind": "skill", "text": edit}, nil)
+	if _, err := e.App.Store.DB.Exec(`UPDATE document_revision SET author = CASE author WHEN 'owner' THEN 'master' ELSE author END,
+		text = CASE author WHEN 'deck' THEN ? ELSE text END WHERE document_id = ?`, older, d.ID); err != nil {
+		t.Fatal(err)
+	}
+	_ = e.App.Close()
+	e = newEnvWith(t, home, &Fake{})
+	e.must("deck.document_get", map[string]any{"name": name}, &d)
+	if d.Text != shipped+"\nThe master's own line.\n" {
+		t.Fatalf("deck's text stands where both changed and the rest of the edit carries over: %.80q", d.Text)
+	}
+	var note string
+	if err := e.App.Store.DB.QueryRow(`SELECT text FROM feed WHERE for_master = 1 ORDER BY id DESC LIMIT 1`).Scan(&note); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{name, "- # An older title", "+ # The master's title", "  " + first} {
+		if !strings.Contains(note, want) {
+			t.Fatalf("the note to the master holds the diff, %q missing: %s", want, note)
+		}
+	}
+	if strings.Contains(note, "The master's own line.") {
+		t.Fatalf("what carried over is not in the diff: %s", note)
 	}
 }
 

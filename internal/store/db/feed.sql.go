@@ -114,6 +114,17 @@ func (q *Queries) AddMasterNote(ctx context.Context, arg AddMasterNoteParams) er
 	return err
 }
 
+const countUnreadNotes = `-- name: CountUnreadNotes :one
+SELECT CAST(count(*) AS INTEGER) FROM feed WHERE workspace_id = ?1 AND kind = 'note' AND for_master = 0 AND read_at IS NULL
+`
+
+func (q *Queries) CountUnreadNotes(ctx context.Context, workspaceID int64) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countUnreadNotes, workspaceID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const deleteMasterNotes = `-- name: DeleteMasterNotes :exec
 DELETE FROM feed WHERE workspace_id = ?1 AND for_master = 1 AND id <= ?2
 `
@@ -267,6 +278,19 @@ func (q *Queries) ListMasterNotes(ctx context.Context, workspaceID int64) ([]Fee
 		return nil, err
 	}
 	return items, nil
+}
+
+const markAllFeedRead = `-- name: MarkAllFeedRead :execrows
+UPDATE feed SET read_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+WHERE workspace_id = ?1 AND kind = 'note' AND for_master = 0 AND read_at IS NULL
+`
+
+func (q *Queries) MarkAllFeedRead(ctx context.Context, workspaceID int64) (int64, error) {
+	result, err := q.db.ExecContext(ctx, markAllFeedRead, workspaceID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const markFeedRead = `-- name: MarkFeedRead :execrows

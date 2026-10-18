@@ -6,8 +6,8 @@ import { useScreenRoute } from '../screen/ScreenActions';
 import { IconTitle } from '../ui/IconTitle';
 import { api, kids } from './blockImpl';
 
-// screen is the root of a screen: its title with the buttons of its dialogs, the top of the cockpit in place of its
-// title, and a grid of its blocks.
+// screen is the root of a screen: its title with the buttons of its dialogs, and a grid of its blocks; the cockpit has
+// its top in place of its title and the buttons of its dialogs under its blocks.
 export const screen = createComponentImplementation(api('screen'), ({ props, buildChild }) => {
   const p = props as { title?: string; icon?: string; children: unknown; dialogs?: unknown };
   const dialogs = Array.isArray(p.dialogs) && p.dialogs.length > 0;
@@ -15,7 +15,7 @@ export const screen = createComponentImplementation(api('screen'), ({ props, bui
   const cockpit = !!p.title && !!route && !route.project && route.screen === 'cockpit';
   return (
     <Stack gap="lg" data-screen data-span="full">
-      {((p.title && !cockpit) || dialogs) && (
+      {((p.title && !cockpit) || (dialogs && !cockpit)) && (
         <Group justify="space-between" align="center" gap="sm" data-screen-head>
           {p.title && !cockpit ? <IconTitle order={2} className={s.screenTitle} title={p.title} icon={p.icon} size={24} /> : <span />}
           {dialogs && <Group gap="xs">{kids(p.dialogs, buildChild)}</Group>}
@@ -23,6 +23,7 @@ export const screen = createComponentImplementation(api('screen'), ({ props, bui
       )}
       {cockpit && <Hero />}
       <div className={s.grid} data-grid>{kids(p.children, buildChild, s.cell)}</div>
+      {cockpit && dialogs && <Group gap="xs" data-screen-foot>{kids(p.dialogs, buildChild)}</Group>}
     </Stack>
   );
 });

@@ -18,8 +18,15 @@ export interface MenuEntry {
   errors?: number;
 }
 
-// Pulse is what waits for the owner, runs and fails in the workspace, and which of them the cockpit says first.
-export interface Pulse { asks: number; running: number; errors: number; state: 'asks' | 'errors' | 'running' | 'calm' }
+// HeroLine is a count of the top of the cockpit: its words, tone, the screen it opens and the button that clears it.
+export interface HeroLine { text: string; tone?: string; link?: string; action?: Record<string, unknown> }
+
+// Pulse is what waits for the owner, runs and fails in the workspace, which of them the cockpit says first, and the
+// words deck writes for the top of the cockpit.
+export interface Pulse {
+  asks: number; running: number; errors: number; failed?: number; notes?: number; state: 'asks' | 'errors' | 'talking' | 'running' | 'calm';
+  title?: string; text?: string; lines?: HeroLine[];
+}
 
 // MenuGroup is a group at the foot of the menu, its links each of a project or of deck.
 export interface MenuGroup { key: string; title?: string; links: (ScreenLink & { project?: string })[] }
@@ -28,7 +35,7 @@ export interface MenuGroup { key: string; title?: string; links: (ScreenLink & {
 // topics after which it is read again.
 export interface Menu { pulse: Pulse; deck: MenuEntry; projects: MenuEntry[]; master?: MenuEntry; system: MenuGroup[]; topics: string[] }
 
-const EMPTY: Menu = { pulse: { asks: 0, running: 0, errors: 0, state: 'calm' }, deck: { title: 'deck', screens: [] }, projects: [], system: [], topics: [] };
+const EMPTY: Menu = { pulse: { asks: 0, running: 0, errors: 0, state: 'calm', lines: [] }, deck: { title: 'deck', screens: [] }, projects: [], system: [], topics: [] };
 
 // entryOf is the entry of a project in the menu, deck's own without one.
 export const entryOf = (m: Menu, project?: string) =>

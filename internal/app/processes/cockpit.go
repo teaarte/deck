@@ -8,6 +8,7 @@ import (
 	"slices"
 	"time"
 
+	"deck2/internal/app/access"
 	"deck2/internal/app/records"
 	"deck2/internal/docs"
 	"deck2/internal/manifest"
@@ -139,11 +140,18 @@ func (s *Service) failedParams(act registry.Actor, project, id, lim int64) db.Li
 }
 
 type processDismissIn struct {
-	Process int64 `type:"process" desc:"Process id"`
+	Process int64 `type:"process" opt:"" desc:"Process id"`
+	All     bool  `opt:"" desc:"Every failed process the cockpit shows instead of one; each stays in the history"`
 }
 
-// processDismiss takes a failed process off the cockpit.
+// processDismiss takes a failed process off the cockpit, or every one it shows.
 func (s *Service) processDismiss(ctx context.Context, act registry.Actor, in processDismissIn) (any, error) {
+	if in.All == (in.Process != 0) {
+		return nil, registry.Invalid("deck: give one process, or all")
+	}
+	if in.All {
+		return s.dismissAll(ctx, act)
+	}
 	p, err := s.ownProcess(ctx, act, in.Process)
 	if err != nil {
 		return nil, err
@@ -159,6 +167,35 @@ func (s *Service) processDismiss(ctx context.Context, act registry.Actor, in pro
 		return nil, err
 	}
 	return map[string]any{"ok": true}, nil
+}
+
+// dismissAll takes every failed process the actor sees off the cockpit.
+func (s *Service) dismissAll(ctx context.Context, act registry.Actor) (any, error) {
+	pid, err := access.Filter(ctx, s.St.Q, act, "")
+	if err != nil {
+		return nil, err
+	}
+	n, err := store.TxGet(s.St, ctx, func(ctx context.Context, q *db.Queries) (int, error) {
+		ps, err := q.ListFailedProcesses(ctx, s.failedParams(act, pid, 0, 2000))
+		for _, p := range ps {
+			if err != nil {
+				break
+			}
+			err = q.DismissSameFailures(ctx, db.DismissSameFailuresParams{ProjectID: p.ProjectID, Command: p.Command,
+				ErrorType: p.ErrorType, Error: p.Error, ID: p.ID})
+		}
+		return len(ps), err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{"ok": true, "closed": n}, nil
+}
+
+// Failed is how many failed processes the cockpit shows.
+func (s *Service) Failed(ctx context.Context, act registry.Actor) (int64, error) {
+	ps, err := s.St.Q.ListFailedProcesses(ctx, s.failedParams(act, 0, 0, 2000))
+	return int64(len(ps)), err
 }
 
 // startedSince reports whether a process started at or after a time.

@@ -150,21 +150,33 @@ func (dv *Service) feedUndo(ctx context.Context, act registry.Actor, in feedUndo
 }
 
 type feedReadIn struct {
-	Entry int64 `desc:"Id of a note in the feed"`
+	Entry int64 `opt:"" desc:"Id of a note in the feed"`
+	All   bool  `opt:"" desc:"Every unread note instead of one; read notes stay in the feed"`
 }
 
-// feedRead marks a note of the feed read.
+// feedRead marks a note of the feed read, or every unread one.
 func (dv *Service) feedRead(ctx context.Context, act registry.Actor, in feedReadIn) (any, error) {
+	if in.All == (in.Entry != 0) {
+		return nil, registry.Invalid("deck: give the entry of one note, or all")
+	}
 	n, err := store.TxGet(dv.St, ctx, func(ctx context.Context, q *db.Queries) (int64, error) {
+		if in.All {
+			return q.MarkAllFeedRead(ctx, act.Workspace)
+		}
 		return q.MarkFeedRead(ctx, db.MarkFeedReadParams{ID: in.Entry, WorkspaceID: act.Workspace})
 	})
 	if err != nil {
 		return nil, err
 	}
-	if n == 0 {
+	if n == 0 && !in.All {
 		return nil, registry.NotFound("deck: no unread note %d", in.Entry)
 	}
-	return map[string]any{"ok": true}, nil
+	return map[string]any{"ok": true, "read": n}, nil
+}
+
+// Unread is how many notes of the feed the owner has not read.
+func (dv *Service) Unread(ctx context.Context, act registry.Actor) (int64, error) {
+	return dv.St.Q.CountUnreadNotes(ctx, act.Workspace)
 }
 
 // FeedCommands are the commands of the feed.
@@ -177,7 +189,7 @@ func (dv *Service) FeedCommands() []*registry.Command {
 			"Undoes a change made without the owner, unless the document changed since.",
 			registry.OwnerOnly, dv.feedUndo),
 		registry.Def("feed_read", "Mark read",
-			"Marks a note of the feed read.",
+			"Marks a note of the feed read, or with all every unread one.",
 			registry.OwnerOnly, dv.feedRead),
 	}
 }

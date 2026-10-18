@@ -127,7 +127,7 @@ func TestAScreenNamesTheTopicsItFollows(t *testing.T) {
 		}
 		return nil
 	}
-	if got := topics("", "cockpit"); !slices.Contains(got, "asks") || !slices.Contains(got, "health") || slices.Contains(got, "chat") {
+	if got := topics("", "cockpit"); !slices.Contains(got, "asks") || !slices.Contains(got, "feed") || slices.Contains(got, "chat") {
 		t.Fatalf("the cockpit follows what it shows: %v", got)
 	}
 	if got := topics("web", "main"); !slices.Contains(got, "collection") || !slices.Contains(got, "projects") || slices.Contains(got, "asks") {

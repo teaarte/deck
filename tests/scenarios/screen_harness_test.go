@@ -276,14 +276,14 @@ func merge(a, b map[string]any) map[string]any {
 func (e *Env) cockpitItems() []listItem {
 	e.T.Helper()
 	var items []listItem
-	_ = json.Unmarshal(e.screenData("", "cockpit", nil)["b2-0"]["items"], &items)
+	_ = json.Unmarshal(e.screenData("", "cockpit", nil)["b0"]["items"], &items)
 	return items
 }
 
 func (e *Env) cockpitRunning() []listItem {
 	e.T.Helper()
 	var items []listItem
-	_ = json.Unmarshal(e.screenData("", "cockpit", nil)["b2-1-1"]["items"], &items)
+	_ = json.Unmarshal(e.screenData("", "cockpit", nil)["b2"]["items"], &items)
 	return items
 }
 

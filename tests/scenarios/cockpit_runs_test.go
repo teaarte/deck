@@ -281,7 +281,7 @@ func TestTheCockpitSaysHowManyFailuresItLeftOut(t *testing.T) {
 		e.waitState(e.start("clips", "cut", map[string]any{"clip": fmt.Sprint(i)}), "error")
 	}
 	var more int
-	_ = json.Unmarshal(e.screenData("", "cockpit", nil)["b2-1-0"]["more"], &more)
+	_ = json.Unmarshal(e.screenData("", "cockpit", nil)["b1"]["more"], &more)
 	if more != 2 {
 		t.Fatalf("the cockpit shows 20 and says 2 more: %d", more)
 	}
@@ -309,7 +309,7 @@ func TestTheStateOfARunIsSaidInTheLanguageOfTheOwner(t *testing.T) {
 	id := e.start("clips", "cut", map[string]any{"clip": "b"})
 	e.waitState(id, "running")
 	var running []listItem
-	_ = json.Unmarshal(e.screenData("", "cockpit", map[string]any{"lang": "ru"})["b2-1-1"]["items"], &running)
+	_ = json.Unmarshal(e.screenData("", "cockpit", map[string]any{"lang": "ru"})["b2"]["items"], &running)
 	if len(running) != 1 || running[0].Text != "" || !strings.Contains(running[0].Details, "работает на") || running[0].Since == "" {
 		t.Fatalf("a running run says since when, and what it runs on in the owner's words under its details: %+v", running)
 	}
@@ -329,7 +329,7 @@ func TestALineOfTheCockpitSaysWhenItHappened(t *testing.T) {
 	e.createProject("clips", cutModule)
 	e.waitState(e.start("clips", "cut", map[string]any{"clip": "a"}), "error")
 	var failed []listItem
-	_ = json.Unmarshal(e.screenData("", "cockpit", nil)["b2-1-0"]["items"], &failed)
+	_ = json.Unmarshal(e.screenData("", "cockpit", nil)["b1"]["items"], &failed)
 	if len(failed) != 1 || failed[0].Since == "" {
 		t.Fatalf("a failure says when it happened: %+v", failed)
 	}
@@ -353,4 +353,98 @@ func TestFailedRunsAreAListOfTheirOwnInTheSchedule(t *testing.T) {
 	if len(failed) != 1 || failed[0].Cells[0] != "voice" || failed[0].Cells[4] != float64(id) || !strings.Contains(fmt.Sprint(failed[0].Cells[2]), "voice server is down") {
 		t.Fatalf("the failed run is in its own list with why, closed on the cockpit or not: %+v", failed)
 	}
+}
+
+type heroPulse struct {
+	State, Title, Text string
+	Failed, Notes      int64
+	Lines              []struct {
+		Text, Tone, Link string
+		Action           map[string]any
+	}
+}
+
+func (e *Env) hero(lang string) heroPulse {
+	e.T.Helper()
+	var m struct{ Pulse heroPulse }
+	e.must("deck.menu", map[string]any{"lang": lang}, &m)
+	return m.Pulse
+}
+
+// TestTheHeroTellsWhatFailedWaitsAndRuns: deck writes the top of the cockpit from what is so: a failed run and a
+// note not read, each with the screen that shows it and the button that clears it, in the owner's language.
+func TestTheHeroTellsWhatFailedWaitsAndRuns(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		return provider.Result{IsError: true, Text: "the voice server is down"}
+	})
+	if h := e.hero(""); h.State != "calm" || h.Title != "All is calm" || len(h.Lines) != 0 {
+		t.Fatalf("a quiet deck says it is calm and counts nothing: %+v", h)
+	}
+	e.createProject("shorts", jobsModule)
+	e.must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "videos", "records": jsonl(map[string]any{"slug": "knights", "title": "Knights"})}, nil)
+	var recs []struct{ ID int64 }
+	e.must("deck.records_list", map[string]any{"project": "shorts", "collection": "videos"}, &recs)
+	e.waitState(e.start("shorts", "voice", map[string]any{"record": recs[0].ID}), "error")
+	e.must("deck.notify", map[string]any{"project": "shorts", "text": "a new video is ready"}, nil)
+	h := e.hero("")
+	got := map[string]string{}
+	for _, l := range h.Lines {
+		got[l.Text] = fmt.Sprintf("%s %s %v %v", l.Tone, l.Link, l.Action["command"], l.Action["params"])
+	}
+	if h.State != "errors" || h.Title != "Something did not work" || h.Failed != 1 || h.Notes != 1 ||
+		got["Did not work: 1"] != "error #/deck/schedule?tab=Failed deck.process_dismiss map[all:true]" ||
+		got["Unread notes: 1"] != "  deck.feed_read map[all:true]" {
+		t.Fatalf("the hero names the failed run and the note with where they are and the button that clears them: %+v", h)
+	}
+	if ru := e.hero("ru"); ru.Title != "Что-то не получилось" || ru.Lines[0].Text != "Не получилось: 1" || ru.Lines[0].Action["label"] != "Закрыть всё" {
+		t.Fatalf("the hero speaks the language of the owner: %+v", ru)
+	}
+}
+
+// TestCloseAllAndReadAllKeepWhatTheyClearInTheHistory: one press closes every failed run and reads every note; the
+// cockpit has none of them, the failed runs of the schedule and the notes of the history keep them.
+func TestCloseAllAndReadAllKeepWhatTheyClearInTheHistory(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		return provider.Result{IsError: true, Text: "the voice server is down"}
+	})
+	e.createProject("shorts", jobsModule)
+	e.must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "videos", "records": jsonl(
+		map[string]any{"slug": "knights", "title": "Knights"}, map[string]any{"slug": "dragons", "title": "Dragons"})}, nil)
+	var recs []struct{ ID int64 }
+	e.must("deck.records_list", map[string]any{"project": "shorts", "collection": "videos"}, &recs)
+	for _, r := range recs {
+		e.waitState(e.start("shorts", "voice", map[string]any{"record": r.ID}), "error")
+	}
+	for _, text := range []string{"one", "two", "three"} {
+		e.must("deck.notify", map[string]any{"project": "shorts", "text": text}, nil)
+	}
+	h := e.hero("")
+	if h.Failed != 2 || h.Notes != 3 {
+		t.Fatalf("two failed runs and three notes wait: %+v", h)
+	}
+	for _, l := range h.Lines {
+		if l.Action != nil {
+			e.must(l.Action["command"].(string), l.Action["params"], nil)
+		}
+	}
+	if h := e.hero(""); h.Failed != 0 || h.Notes != 0 || h.State != "calm" {
+		t.Fatalf("one press each clears the cockpit: %+v", h)
+	}
+	var failed []cockpitRun
+	e.must("deck.processes_list", map[string]any{"failed": true}, &failed)
+	if len(failed) != 0 {
+		t.Fatalf("the cockpit lists no failed run: %+v", failed)
+	}
+	if runs := blockData[[]screenRow](t, e.screenData("", "schedule", nil)["b0-1-0"]["rows"]); len(runs) != 2 {
+		t.Fatalf("the failed runs of the schedule keep both: %+v", runs)
+	}
+	cockpit := e.screenData("", "cockpit", nil)
+	notes := blockData[[]screenRow](t, cockpit["b5-1"]["rows"])
+	if len(notes) != 3 || notes[0].Cells[2] != "read" {
+		t.Fatalf("the history keeps the notes, read: %+v", notes)
+	}
+	e.refused("deck.feed_read", map[string]any{}, 422, "give the entry of one note, or all")
+	e.refused("deck.process_dismiss", map[string]any{"all": true, "process": 1}, 422, "give one process, or all")
 }

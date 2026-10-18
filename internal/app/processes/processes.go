@@ -367,7 +367,7 @@ func (s *Service) processCommands() []*registry.Command {
 			"Starts the command of a failed process again with the same input, as the owner calls it.",
 			registry.OwnerOnly, s.processRetry),
 		registry.Def("process_dismiss", "Close a failed process",
-			"Takes a failed process off the cockpit; it stays in the history.",
+			"Takes a failed process, or with all every one, off the cockpit; each stays in the history.",
 			registry.OwnerOnly, s.processDismiss),
 		registry.Def("process_stop", "Stop process",
 			"Stops a process; a running agent is killed and what it did so far stays.",

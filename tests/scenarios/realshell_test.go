@@ -79,10 +79,14 @@ func TestRealBrowserShell(t *testing.T) {
 	}
 	b.eval(`(document.querySelector('[data-nav] [data-logo]').click(), '')`)
 	b.until("the logo opens the cockpit", `location.hash === '#/deck/cockpit' && !document.querySelector('[data-system] a[data-active]')`)
-	b.until("the counters of the cockpit", `document.querySelectorAll('[data-stat]').length === 1`)
-	if got := b.eval(`(() => { const bs = [...document.querySelectorAll('[data-stat]')].map((x) => x.closest('[data-block]').getBoundingClientRect());
-		return String(new Set(bs.map((r) => Math.round(r.top))).size === 1 && new Set(bs.map((r) => Math.round(r.height))).size === 1) })()`); got != "true" {
-		t.Fatalf("the counters of the cockpit stand in one row of one height: %s", got)
+	b.until("the counts of the cockpit in its top", `[...document.querySelectorAll('[data-hero-line]')].some((x) => x.innerText.includes('Running: 1'))`)
+	if got := b.eval(`String(document.querySelectorAll('[data-stat]').length)`); got != "0" {
+		t.Fatalf("the cockpit counts once, in its top, with no tiles that say it again: %s", got)
+	}
+	if got := b.eval(`(() => { const cells = [...document.querySelectorAll('[data-grid] > *')].map((x) => x.getBoundingClientRect()), grid = document.querySelector('[data-grid]').getBoundingClientRect();
+		const foot = document.querySelector('[data-screen-foot] [data-dialog-open="changes"]')?.getBoundingClientRect();
+		return [cells.length < 2 || new Set(cells.map((r) => Math.round(r.top))).size < cells.length, !!foot && foot.top >= grid.bottom].join(' ') })()`); got != "true true" {
+		t.Fatalf("the lists of the cockpit share rows and its history is under them: %s %s", got, b.eval(`JSON.stringify([...document.querySelectorAll('[data-grid] > *')].map((x) => { const r = x.getBoundingClientRect(); return [x.innerText.slice(0, 20), Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)] }))`))
 	}
 	if got := b.eval(`String([...document.querySelectorAll('[data-block]')].some((x) => x.innerText.includes('Nothing')))`); got != "false" {
 		t.Fatalf("the cockpit hides its empty lists: %s", got)
@@ -230,7 +234,7 @@ func TestRealBrowserShell(t *testing.T) {
 	b.shot("shell-glass-dark")
 	b.eval(`(document.querySelector('[data-chat-close]').click(), '')`)
 	b.open(e.URL + "/#/deck/cockpit")
-	b.until("the dark cockpit", `document.querySelector('[data-columns]')`)
+	b.until("the dark cockpit", `document.querySelector('[data-hero]') && document.querySelector('[data-grid] [data-block]')`)
 	b.shot("shell-glass-dark-cockpit")
 	b.open(e.URL + "/#/deck/settings")
 	b.until("the appearance tab", `document.querySelector('[data-look="scheme"]')`)
@@ -253,6 +257,12 @@ func TestRealBrowserShell(t *testing.T) {
 	b.eval(`(document.querySelector('[data-nav-phone] [data-system-head]').click(), '')`)
 	b.until("the foot folds on a tap on a phone", `document.querySelector('[data-nav-phone] [data-system-head]').getAttribute('aria-expanded') === 'false'`)
 	b.shot("shell-phone-menu-folded")
+	b.open(e.URL + "/#/deck/cockpit")
+	b.until("the cockpit on a phone", `document.querySelector('[data-hero="slim"] [data-hero-line]') && document.querySelector('[data-grid] [data-block]')`)
+	if got := b.eval(`String(document.documentElement.scrollWidth <= innerWidth + 1)`); got != "true" {
+		t.Fatalf("the cockpit fits the width of a phone: %s", got)
+	}
+	b.shot("shell-phone-cockpit")
 
 	b.call("browser_resize", map[string]any{"width": 1440, "height": 900})
 	for _, look := range []string{"pixel vivid light", "neon tinted dark", "paper neutral light", "default vivid dark"} {
@@ -291,4 +301,11 @@ func TestRealBrowserShell(t *testing.T) {
 	b.until("the address names the tab as written", `/tab=30(\+|%20| )days$/.test(location.hash)`)
 	b.open(e.URL + "/#/deck/settings?tab=Advanced")
 	b.until("the settings named in the language of the owner", `document.body.innerText.includes('Сколько агентских процессов')`)
+	e.must("deck.notify", map[string]any{"project": "web", "text": "one more note"}, nil)
+	b.open(e.URL + "/#/deck/cockpit")
+	b.until("the button that reads every note", `document.querySelector('[data-hero-line] [data-verb="read_all"]')`)
+	b.eval(`(document.querySelector('[data-hero-line] [data-verb="read_all"]').click(), '')`)
+	b.until("the owner asked before every note is read", `document.querySelector('[data-confirm-yes]')`)
+	b.eval(`(document.querySelector('[data-confirm-yes]').click(), '')`)
+	b.until("no note left to read", `!document.querySelector('[data-hero-line] [data-verb="read_all"]')`)
 }

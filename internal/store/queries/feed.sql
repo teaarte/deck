@@ -37,3 +37,10 @@ SELECT j.workspace_id, j.id, 'note', 'deck', sqlc.arg(text), sqlc.arg(created_at
 UPDATE feed SET read_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
 WHERE id = sqlc.arg(id) AND workspace_id = sqlc.arg(workspace_id) AND kind = 'note' AND for_master = 0 AND read_at IS NULL;
 
+
+-- name: MarkAllFeedRead :execrows
+UPDATE feed SET read_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+WHERE workspace_id = sqlc.arg(workspace_id) AND kind = 'note' AND for_master = 0 AND read_at IS NULL;
+
+-- name: CountUnreadNotes :one
+SELECT CAST(count(*) AS INTEGER) FROM feed WHERE workspace_id = sqlc.arg(workspace_id) AND kind = 'note' AND for_master = 0 AND read_at IS NULL;

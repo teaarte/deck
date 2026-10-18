@@ -205,6 +205,6 @@
     "off": "Stop pushes here",
     "unsupported": "This browser takes no pushes; on an iPhone, add deck to the home screen first"
   },
-  "hero": {"on_shift_one": "On shift · {{count}} running", "on_shift_other": "On shift · {{count}} running", "calm_eyebrow": "Everything runs by itself", "asks_one": "One decision waits for your yes", "asks_other": "{{count}} decisions wait for your yes", "asks_text": "The rest is done without you; much of it can be undone.", "errors_one": "{{count}} check is failing", "errors_other": "{{count}} checks are failing", "errors_text": "Settings → Health shows why.", "running_one": "{{count}} task is running", "running_other": "{{count}} tasks are running", "running_text": "Nothing waits for you.", "calm": "All is calm", "calm_text": "Nothing waits for you.", "triage": "Go through one by one", "talk": "Tell the master", "talk_deki": "Tell Deki", "fold": "Fold", "unfold": "Unfold", "talking_one": "Working on it", "talking_other": "Working on it", "talking_text": "Nothing waits for you; the answer comes in the chat.", "triage_short": "One by one"},
+  "hero": {"triage": "Go through one by one", "talk": "Tell the master", "talk_deki": "Tell Deki", "fold": "Fold", "unfold": "Unfold", "triage_short": "One by one"},
   "triage": {"title": "Triage", "count": "{{n}} of {{of}}", "close": "Close", "skip": "Skip", "done": "All done", "done_text": "The answers are on their way. If something goes wrong, the master will write in the chat.", "back": "Back to the cockpit"}
 }

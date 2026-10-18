@@ -95,7 +95,7 @@ sys.exit(1)
 		t.Fatalf("three of the same failure are one row, the newest, counted: %+v", rows)
 	}
 	var items []listItem
-	_ = json.Unmarshal(e.screenData("", "cockpit", nil)["b2-1-0"]["items"], &items)
+	_ = json.Unmarshal(e.screenData("", "cockpit", nil)["b1"]["items"], &items)
 	if len(items) != 1 || !strings.Contains(items[0].Meta, "×3") || !strings.Contains(items[0].Details, "network") {
 		t.Fatalf("the cockpit line says how many, its details the type: %+v", items)
 	}

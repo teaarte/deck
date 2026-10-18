@@ -419,7 +419,7 @@ func TestProcessPageShowsItsLogInTheWordsOfACP(t *testing.T) {
 		t.Fatalf("a message the agent did not take is deleted: %v", first)
 	}
 	running := e.cockpitRunning()
-	if len(running) != 1 || running[0].Title != "quiet · job" || running[0].Actions[0]["screen"] != "process" {
+	if len(running) != 1 || running[0].Title != "job" || running[0].Meta != "quiet" || running[0].Actions[0]["screen"] != "process" {
 		t.Fatalf("the cockpit lists the running process with a move to its page: %+v", running)
 	}
 	e.must("deck.process_stop", map[string]any{"process": id}, nil)
@@ -463,7 +463,7 @@ func TestConfirmationShowsWhereTheFrozenCallGoes(t *testing.T) {
 	moved := strings.Replace(webManifest(svc.URL), svc.URL+"/items/{id}", svc.URL+"/archive/{id}", 1)
 	e.must("deck.manifest_save", map[string]any{"project": "notes", "manifest": moved}, nil)
 	items := e.cockpitItems()
-	i := slices.IndexFunc(items, func(it listItem) bool { return strings.Contains(it.Title, "notes.post") })
+	i := slices.IndexFunc(items, func(it listItem) bool { return strings.Contains(it.Details, "notes.post") })
 	if i < 0 || items[i].Text != "POST "+svc.URL+"/items/n1" {
 		t.Fatalf("the confirmation shows where the frozen call goes, not the changed tool: %+v", items)
 	}

@@ -50,17 +50,19 @@ func TestFormFieldsOfferValuesFromASourceAndProjectFieldsTheProjects(t *testing.
 	}
 
 	var cmds []string
-	for _, r := range blockData[[]screenRow](t, e.screenBlock("web", "settings", "Commands", nil)["rows"]) {
+	for _, r := range blockData[[]screenRow](t, e.screenBlock("web", "settings", "Models", nil)["rows"]) {
 		if !hasVerb(r.Actions, "model") {
 			continue
 		}
 		pick := verb(t, r.Actions, "model")
-		if params, _ := pick["params"].(map[string]any); pick["command"] != "deck.assignment_set" || pick["pick"] != "model" || params["command"] != strings.TrimPrefix(r.ID.(string), "web.") {
+		params, _ := pick["params"].(map[string]any)
+		if pick["command"] != "deck.assignment_set" || pick["pick"] != "model" || params["role"] != "agent" {
 			t.Fatalf("the model of an agent command is picked in its row: %+v", pick)
 		}
-		cmds = append(cmds, r.ID.(string))
+		cmds = append(cmds, "web."+params["command"].(string))
 	}
-	if strings.Join(cmds, " ") != "web.hand web.mark web.publish web.score web.tag web.tell web.touch" {
+	slices.Sort(cmds)
+	if strings.Join(cmds, " ") != "web.hand web.ingest web.mark web.publish web.score web.tag web.tell web.touch" {
 		t.Fatalf("every agent command of the project has its model picker: %v", cmds)
 	}
 	e.must("deck.secret_set", map[string]any{"name": "or-key", "value": "x"}, nil)
@@ -72,7 +74,7 @@ func TestFormFieldsOfferValuesFromASourceAndProjectFieldsTheProjects(t *testing.
 	if a := e.rowAction("", "settings", "", map[string]any{"dialog": "connection", "name": "router"}); a["params"].(map[string]any)["key_secret"] != "or-key" {
 		t.Fatalf("the edit of a connection starts from the secret of its key: %+v", a)
 	}
-	rows := blockData[[]screenRow](t, e.screenBlock("web", "settings", "Commands", nil)["rows"])
+	rows := blockData[[]screenRow](t, e.screenBlock("web", "settings", "Models", nil)["rows"])
 	if opts, _ := json.Marshal(verb(t, rows[0].Actions, "model")["options"]); !strings.Contains(string(opts), "fake") || strings.Contains(string(opts), "whisper") {
 		t.Fatalf("the model of an agent command is picked from the models that run agents, not those of another kind: %s", opts)
 	}

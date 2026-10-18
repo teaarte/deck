@@ -46,12 +46,14 @@ type asksListIn struct {
 
 // askRow is what waits for the owner, with who asks, what and where in words.
 type askRow struct {
-	ID        int64           `json:"id"`
-	Kind      string          `json:"kind"`
-	Project   string          `json:"project"`
-	Process   int64           `json:"process,omitempty"`
-	Who       string          `json:"who"`
-	What      string          `json:"what"`
+	ID      int64  `json:"id"`
+	Kind    string `json:"kind"`
+	Project string `json:"project"`
+	Process int64  `json:"process,omitempty"`
+	Who     string `json:"who"`
+	What    string `json:"what"`
+	// Command is the command a call waits to make, for the details of a decision.
+	Command   string          `json:"command,omitempty"`
 	Where     string          `json:"where"`
 	Text      string          `json:"text"`
 	Payload   json.RawMessage `json:"payload"`
@@ -119,9 +121,9 @@ func (s *Service) askRow(ctx context.Context, q db.Ask, names map[int64]string) 
 	case ask.KindCall, ask.KindUnknown:
 		var f gateway.Frozen
 		_ = json.Unmarshal([]byte(q.Payload), &f)
-		r.Who, r.What, r.Where = s.callerName(ctx, f.Caller), f.Call.Command, f.Target
+		r.Who, r.What, r.Where, r.Command = s.callerName(ctx, f.Caller), f.Call.Command, f.Target, f.Call.Command
 		if c, err := s.Registry.Lookup(ctx, q.WorkspaceID, f.Call.Command); err == nil {
-			r.What = c.Title + " (" + f.Call.Command + ")"
+			r.What = c.Title
 			if f.Target == "" && c.Target != nil {
 				r.Where = c.Target(f.Tool, f.Call.Input)
 			}

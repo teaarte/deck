@@ -96,6 +96,8 @@ type processView struct {
 	// work and Long that it works more than twice as long as its command usually takes.
 	Record      int64  `json:"record,omitempty"`
 	RecordTitle string `json:"record_title,omitempty"`
+	// Title is the title of its command, the way the owner reads it.
+	Title string `json:"title,omitempty"`
 	Since       string `json:"since,omitempty"`
 	Long        bool   `json:"long,omitempty"`
 	process.Shown
@@ -185,8 +187,11 @@ func (s *Service) processesList(ctx context.Context, act registry.Actor, in proc
 			v.Result = nil
 		}
 		s.ofRecord(ctx, p, &v)
+		c, err := s.Lookup(ctx, act.Workspace, v.Project+"."+p.Command)
+		if err == nil {
+			v.Title = c.Title
+		}
 		if in.Failed {
-			c, err := s.Lookup(ctx, act.Workspace, v.Project+"."+p.Command)
 			v.Retry = err == nil && slices.Contains(c.Callers, registry.Owner)
 			v.Repeats = repeats[p.ID]
 		}

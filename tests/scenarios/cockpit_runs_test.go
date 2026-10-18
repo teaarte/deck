@@ -281,7 +281,7 @@ func TestTheCockpitSaysHowManyFailuresItLeftOut(t *testing.T) {
 		e.waitState(e.start("clips", "cut", map[string]any{"clip": fmt.Sprint(i)}), "error")
 	}
 	var more int
-	_ = json.Unmarshal(e.screenData("", "cockpit", nil)["b4-1-0"]["more"], &more)
+	_ = json.Unmarshal(e.screenData("", "cockpit", nil)["b2-1-0"]["more"], &more)
 	if more != 2 {
 		t.Fatalf("the cockpit shows 20 and says 2 more: %d", more)
 	}
@@ -309,9 +309,9 @@ func TestTheStateOfARunIsSaidInTheLanguageOfTheOwner(t *testing.T) {
 	id := e.start("clips", "cut", map[string]any{"clip": "b"})
 	e.waitState(id, "running")
 	var running []listItem
-	_ = json.Unmarshal(e.screenData("", "cockpit", map[string]any{"lang": "ru"})["b4-1-1"]["items"], &running)
-	if len(running) != 1 || !strings.HasPrefix(running[0].Text, "работает на") || running[0].Since == "" {
-		t.Fatalf("a running run says what it does in the owner's words and since when: %+v", running)
+	_ = json.Unmarshal(e.screenData("", "cockpit", map[string]any{"lang": "ru"})["b2-1-1"]["items"], &running)
+	if len(running) != 1 || running[0].Text != "" || !strings.Contains(running[0].Details, "работает на") || running[0].Since == "" {
+		t.Fatalf("a running run says since when, and what it runs on in the owner's words under its details: %+v", running)
 	}
 	page, _ := json.Marshal(e.screenData("", "process", map[string]any{"record": failed, "lang": "ru"}))
 	if !strings.Contains(string(page), `"value":"не получилось"`) || !strings.Contains(string(page), `"tone":"error"`) {
@@ -329,7 +329,7 @@ func TestALineOfTheCockpitSaysWhenItHappened(t *testing.T) {
 	e.createProject("clips", cutModule)
 	e.waitState(e.start("clips", "cut", map[string]any{"clip": "a"}), "error")
 	var failed []listItem
-	_ = json.Unmarshal(e.screenData("", "cockpit", nil)["b4-1-0"]["items"], &failed)
+	_ = json.Unmarshal(e.screenData("", "cockpit", nil)["b2-1-0"]["items"], &failed)
 	if len(failed) != 1 || failed[0].Since == "" {
 		t.Fatalf("a failure says when it happened: %+v", failed)
 	}

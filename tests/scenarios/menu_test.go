@@ -122,7 +122,7 @@ func TestTheCockpitTheHeroAndTheMenuCountAlike(t *testing.T) {
 		return n
 	}
 	if m.Pulse.Running != 1 || m.Pulse.Errors != 1 || m.Pulse.Asks != 0 || m.Pulse.State != "errors" ||
-		stat("b1") != 1 || stat("b2") != 1 || stat("b0") != 0 || len(m.Projects) != 1 || m.Projects[0].Running != 1 || m.Projects[0].Errors != 1 {
-		t.Fatalf("the pulse, the tiles and the menu count one run and one unset secret: %+v; tiles running %d, failing %d", m, stat("b1"), stat("b2"))
+		stat("b0") != 1 || stat("b1") != 1 || len(m.Projects) != 1 || m.Projects[0].Running != 1 || m.Projects[0].Errors != 1 {
+		t.Fatalf("the pulse, the tiles and the menu count one run and one unset secret: %+v; tiles running %d, failing %d", m, stat("b0"), stat("b1"))
 	}
 }

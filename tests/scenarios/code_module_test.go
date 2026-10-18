@@ -107,9 +107,11 @@ type gitlabIssue struct {
 func TestGitLabIssuesBecomeTasksOnce(t *testing.T) {
 	t.Parallel()
 	var mu sync.Mutex
+	// The first poll takes the last two weeks: the issues are of two days ago.
+	day := time.Now().UTC().AddDate(0, 0, -2).Format("2006-01-02")
 	issues := []gitlabIssue{
-		{IID: 1, Title: "Login button is off", Description: "It sits too low.", CreatedAt: "2026-09-28T10:00:00.000Z", Labels: []string{"ui"}},
-		{IID: 2, Title: "Crash on save", CreatedAt: "2026-09-28T11:00:00.000Z"},
+		{IID: 1, Title: "Login button is off", Description: "It sits too low.", CreatedAt: day + "T10:00:00.000Z", Labels: []string{"ui"}},
+		{IID: 2, Title: "Crash on save", CreatedAt: day + "T11:00:00.000Z"},
 	}
 	closeAfterFirstPage := 0
 	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) {
@@ -189,8 +191,8 @@ func TestGitLabIssuesBecomeTasksOnce(t *testing.T) {
 		t.Fatalf("a second poll takes nothing again: %s %v", got.Result, board())
 	}
 	mu.Lock()
-	issues = append(issues, gitlabIssue{IID: 3, Title: "Same second", CreatedAt: "2026-09-28T11:00:00.000Z"},
-		gitlabIssue{IID: 4, Title: "Later", CreatedAt: "2026-09-28T12:00:00.000Z"})
+	issues = append(issues, gitlabIssue{IID: 3, Title: "Same second", CreatedAt: day + "T11:00:00.000Z"},
+		gitlabIssue{IID: 4, Title: "Later", CreatedAt: day + "T12:00:00.000Z"})
 	mu.Unlock()
 	poll()
 	if cards := board(); len(cards) != 4 || !strings.Contains(cards[2], "#3 Same second") || !strings.Contains(cards[3], "#4 Later") {
@@ -201,7 +203,7 @@ func TestGitLabIssuesBecomeTasksOnce(t *testing.T) {
 	}
 	mu.Lock()
 	for n := 5; n < 70; n++ {
-		issues = append(issues, gitlabIssue{IID: n, Title: "Bulk " + itoa(int64(n)), CreatedAt: fmt.Sprintf("2026-09-28T%02d:%02d:00.000Z", 13+(n-5)/60, (n-5)%60)})
+		issues = append(issues, gitlabIssue{IID: n, Title: "Bulk " + itoa(int64(n)), CreatedAt: fmt.Sprintf("%sT%02d:%02d:00.000Z", day, 13+(n-5)/60, (n-5)%60)})
 	}
 	closeAfterFirstPage = 5
 	mu.Unlock()
@@ -216,7 +218,7 @@ func TestGitLabIssuesBecomeTasksOnce(t *testing.T) {
 	}
 	var recs []struct{ Data map[string]any }
 	e.must("deck.records_list", map[string]any{"project": "code", "collection": "intake"}, &recs)
-	if len(recs) != 1 || recs[0].Data["cursor"] != "2026-09-28T14:04:00.000Z" {
+	if len(recs) != 1 || recs[0].Data["cursor"] != day+"T14:04:00.000Z" {
 		t.Fatalf("the cursor is in the record: %+v", recs)
 	}
 	var leaked int

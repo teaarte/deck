@@ -248,8 +248,8 @@ func TestInvalidScreenIsRefusedWithItsReason(t *testing.T) {
 	}
 }
 
-// TestCockpitShowsWhatWaitsWithItsVerbs: each item says who, what and where, holds the whole frozen call and
-// offers the buttons of its kind; an expired confirmation keeps only deny, which clears it.
+// TestCockpitShowsWhatWaitsWithItsVerbs: each item says what and where, holds who and the whole frozen call in its
+// details and offers the buttons of its kind; an expired confirmation keeps only deny, which clears it.
 func TestCockpitShowsWhatWaitsWithItsVerbs(t *testing.T) {
 	t.Parallel()
 	svc := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { jsonReply(w, `{"ok": true}`) })
@@ -268,8 +268,8 @@ func TestCockpitShowsWhatWaitsWithItsVerbs(t *testing.T) {
 	e.waitFor("the question", func() bool { return len(e.cockpitItems()) == 3 })
 
 	check.messages(t, e.screenMessages("", "cockpit", nil))
-	if got := string(e.screenData("", "cockpit", nil)["b2"]["actions"]); !strings.Contains(got, `"screen":"settings"`) || !strings.Contains(got, `"tab":"Health"`) {
-		t.Fatalf("the counter of failing checks opens the health of settings: %s", got)
+	if got := string(e.screenData("", "cockpit", nil)["b1"]["state"]); got != "" {
+		t.Fatalf("no failing check, no counter of them: %s", got)
 	}
 	items := e.cockpitItems()
 	old, fresh, q := items[0], items[1], items[2]
@@ -281,8 +281,9 @@ func TestCockpitShowsWhatWaitsWithItsVerbs(t *testing.T) {
 		return out
 	}
 	who := fmt.Sprintf("#%d work", second)
-	if fresh.Title != "post (notes.post)" || fresh.Text != "POST "+svc.URL+"/items/n2" || !strings.Contains(fresh.Meta, who) {
-		t.Fatalf("a confirmation says what, where and who: %+v", fresh)
+	if fresh.Title != "post" || fresh.Text != "POST "+svc.URL+"/items/n2" || fresh.Meta != "notes" ||
+		!strings.HasPrefix(fresh.Details, who+"\nnotes.post\n") {
+		t.Fatalf("a confirmation says what by the title of its command, where and its module; who and the command under its details: %+v", fresh)
 	}
 	if !strings.Contains(fresh.Details, `"id": "n2"`) || !strings.Contains(fresh.Details, `"text": "hi"`) || !strings.Contains(fresh.Details, `"process": `) {
 		t.Fatalf("the whole frozen call is in the item: %s", fresh.Details)

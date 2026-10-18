@@ -194,7 +194,10 @@
     "no_mic_open": "Open deck on https: {{url}}",
     "no_mic_tailnet": "Start deck with -tailscale and open its https address, or upload a recording as a file.",
     "mic_failed": "The microphone did not start",
-    "voice_failed": "The recording was not turned into text"
+    "voice_failed": "The recording was not turned into text",
+    "voice_kept": "The recording is kept, not turned into text: {{error}}",
+    "voice_again": "Recognize again",
+    "voice_discard": "Discard"
   },
   "push": {
     "title": "Pushes on this device",

@@ -51,6 +51,13 @@ export function Composer({ text, setText, files, busy, onSend, onNewTopic, onEdi
           ))}
         </Group>
       )}
+      {voice.failed && !voice.hearing && (
+        <Group gap={6} px={6} pt={4} wrap="nowrap" data-voice-failed>
+          <Text size="xs" c="red" style={{ flex: 1 }} lineClamp={2}>{t('chat.voice_kept', { error: voice.failed })}</Text>
+          <Button size="compact-xs" variant="light" onClick={voice.again} data-voice-again>{t('chat.voice_again')}</Button>
+          <Button size="compact-xs" variant="subtle" color="gray" onClick={voice.discard} data-voice-discard>{t('chat.voice_discard')}</Button>
+        </Group>
+      )}
       <Textarea variant="unstyled" autosize minRows={1} maxRows={10} placeholder={t('chat.placeholder')} value={text} data-chat-input px={8}
         onChange={(e) => onEdit(e.currentTarget.value)}
         onKeyDown={(e) => {
@@ -88,7 +95,7 @@ export function Composer({ text, setText, files, busy, onSend, onNewTopic, onEdi
         </Modal>
         <Group gap={6}>
           {voice.recording ? (
-            <Button size="xs" color="red" radius="xl" leftSection={<IconPlayerStopFilled size={12} />} onClick={() => void voice.hear()} data-mic-stop>{t('chat.stop_recording', { s: voice.recording - 1 })}</Button>
+            <Button size="xs" color="red" radius="xl" leftSection={<IconPlayerStopFilled size={12} />} onClick={voice.hear} data-mic-stop>{t('chat.stop_recording', { s: voice.recording - 1 })}</Button>
           ) : (
             <Tooltip label={t('chat.mic')}>
               <ActionIcon variant="subtle" color="gray" radius="xl" size="lg" loading={voice.hearing} onClick={() => void voice.listen()} aria-label={t('chat.mic')} data-mic ref={mic}><IconMicrophone size={19} /></ActionIcon>

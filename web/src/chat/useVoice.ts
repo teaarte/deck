@@ -1,30 +1,28 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { call, upload } from '../lib/api';
+import { call } from '../lib/api';
 import { notifyError } from '../lib/notify';
-import { fromFile, MicMissing, record, type Recording } from './voice';
+import { MicMissing } from './voice';
+import * as voice from './voiceStore';
 
 // NoMic is why the microphone is not there, with the https address of deck on the tailnet when it has one.
 export interface NoMic { https?: string }
 
-// useVoice records the owner, or takes a recording as a file, and hands the transcribed text to heard; recording
-// counts the seconds from 1.
+// useVoice records the owner, or takes a recording as a file, and hands the transcribed text to heard; the
+// recording and its text outlive the composer, and one that failed stays to be turned into text again.
 export function useVoice(heard: (text: string) => void) {
   const { t } = useTranslation();
-  const rec = useRef<Recording | undefined>(undefined);
-  const [recording, setRecording] = useState(0);
-  const [hearing, setHearing] = useState(false);
+  const state = voice.useVoiceState();
   const [noMic, setNoMic] = useState<NoMic>();
+  const to = useRef(heard);
+  to.current = heard;
+  useEffect(() => voice.hearBy((text) => to.current(text)), []);
   useEffect(() => {
-    if (!recording) return;
-    const timer = setInterval(() => setRecording((n) => n + 1), 1000);
-    return () => clearInterval(timer);
-  }, [recording > 0]);
-  useEffect(() => () => rec.current?.cancel(), []);
+    if (state.failed) notifyError(new Error(state.failed), t('chat.voice_failed'));
+  }, [state.failed]);
   const listen = async () => {
     try {
-      rec.current = await record(() => void hear());
-      setRecording(1);
+      await voice.listen();
     } catch (e) {
       if (!(e instanceof MicMissing)) {
         notifyError(e, t('chat.mic_failed'));
@@ -35,27 +33,19 @@ export function useVoice(heard: (text: string) => void) {
       setNoMic({ https: at.https });
     }
   };
-  const transcribe = async (wav: () => Promise<Blob>) => {
-    setHearing(true);
+  const hear = () => {
     try {
-      const [f] = await upload('master', [new File([await wav()], 'voice.wav', { type: 'audio/wav' })]);
-      const out = await call<{ text: string }>('deck.transcribe', { file: String(f.id) });
-      heard(out.text);
+      voice.stop();
     } catch (e) {
       notifyError(e, t('chat.voice_failed'));
-    } finally {
-      setHearing(false);
     }
-  };
-  const hear = async () => {
-    const r = rec.current;
-    rec.current = undefined;
-    setRecording(0);
-    if (r) await transcribe(() => r.stop());
   };
   const take = async (file: File) => {
     setNoMic(undefined);
-    await transcribe(() => fromFile(file));
+    await voice.take(file).catch((e) => notifyError(e, t('chat.voice_failed')));
   };
-  return { recording, hearing, listen, hear, noMic, take, closeNoMic: () => setNoMic(undefined) };
+  return {
+    recording: state.seconds, hearing: state.hearing, failed: state.failed, listen, hear, noMic, take,
+    again: () => void voice.again(), discard: voice.discard, closeNoMic: () => setNoMic(undefined),
+  };
 }

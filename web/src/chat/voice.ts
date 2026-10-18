@@ -1,18 +1,54 @@
-// A recording of the microphone as 16 kHz mono WAV, which every speech-to-text model reads.
-export interface Recording {
-  stop: () => Promise<Blob>;
-  cancel: () => void;
-}
-
 const RATE = 16000;
-export const MAX_SECONDS = 120;
+// A piece of a recording is cut at the first pause after PIECE_SECONDS, or at MAX_PIECE_SECONDS without one, so a
+// long recording reaches speech to text in pieces it takes.
+const PIECE_SECONDS = 45;
+const MAX_PIECE_SECONDS = 60;
+const BLOCK = 4096;
 
 // MicMissing is a page the browser gives no microphone: it does only on https or on the machine itself.
 export class MicMissing extends Error {}
 
-// record starts the microphone; the recording stops by itself after MAX_SECONDS and calls onLimit. Call it right
-// in the tap: Safari starts audio only from a gesture.
-export async function record(onLimit: () => void): Promise<Recording> {
+// Pieces cuts samples at rate into pieces of WAV, each handed to piece once cut.
+class Pieces {
+  private blocks: Float32Array[] = [];
+  private length = 0;
+  private loud = 0;
+  constructor(private rate: number, private piece: (wav: Blob) => void) {}
+  push(data: Float32Array) {
+    let sum = 0;
+    for (const x of data) sum += x * x;
+    const rms = Math.sqrt(sum / Math.max(1, data.length));
+    this.blocks.push(new Float32Array(data));
+    this.length += data.length;
+    this.loud += rms;
+    const seconds = this.length / this.rate;
+    const quiet = rms < 0.25 * (this.loud / this.blocks.length);
+    if ((seconds >= PIECE_SECONDS && quiet) || seconds >= MAX_PIECE_SECONDS) this.flush();
+  }
+  // flush hands what is not cut yet as the last piece; whether anything was.
+  flush(): boolean {
+    if (!this.length) return false;
+    const all = new Float32Array(this.length);
+    let at = 0;
+    for (const b of this.blocks) { all.set(b, at); at += b.length; }
+    this.blocks = [];
+    this.length = 0;
+    this.loud = 0;
+    this.piece(wav(resample(all, this.rate, RATE), RATE));
+    return true;
+  }
+}
+
+// A recording of the microphone as pieces of 16 kHz mono WAV, which every speech-to-text model reads; stop hands
+// the last piece and throws when nothing was recorded.
+export interface Recording {
+  stop: () => void;
+  cancel: () => void;
+}
+
+// record starts the microphone and hands each piece of the recording to piece while it goes on. Call it right in
+// the tap: Safari starts audio only from a gesture.
+export async function record(piece: (wav: Blob) => void): Promise<Recording> {
   if (!navigator.mediaDevices?.getUserMedia) throw new MicMissing('the browser gives a microphone only on https');
   const ctx = new AudioContext();
   const resumed = ctx.resume();
@@ -25,39 +61,34 @@ export async function record(onLimit: () => void): Promise<Recording> {
     throw e;
   }
   const source = ctx.createMediaStreamSource(stream);
-  const node = ctx.createScriptProcessor(4096, 1, 1);
-  const chunks: Float32Array[] = [];
-  let length = 0;
+  const node = ctx.createScriptProcessor(BLOCK, 1, 1);
+  const pieces = new Pieces(ctx.sampleRate, piece);
+  let any = false;
   node.onaudioprocess = (e) => {
-    const data = e.inputBuffer.getChannelData(0);
-    chunks.push(new Float32Array(data));
-    length += data.length;
+    pieces.push(e.inputBuffer.getChannelData(0));
+    any = true;
   };
   source.connect(node);
   node.connect(ctx.destination);
-  const timer = setTimeout(onLimit, MAX_SECONDS * 1000);
   const close = () => {
-    clearTimeout(timer);
+    node.onaudioprocess = null;
     node.disconnect();
     source.disconnect();
     stream.getTracks().forEach((t) => t.stop());
     void ctx.close();
   };
   return {
-    stop: async () => {
+    stop: () => {
       close();
-      if (!length) throw new Error('nothing was recorded; check the microphone');
-      const all = new Float32Array(length);
-      let at = 0;
-      for (const c of chunks) { all.set(c, at); at += c.length; }
-      return wav(resample(all, ctx.sampleRate, RATE), RATE);
+      pieces.flush();
+      if (!any) throw new Error('nothing was recorded; check the microphone');
     },
     cancel: close,
   };
 }
 
-// fromFile is a recording of any format the browser plays, as the same 16 kHz mono WAV.
-export async function fromFile(file: File): Promise<Blob> {
+// fromFile is a recording of any format the browser plays, as the same pieces of 16 kHz mono WAV.
+export async function fromFile(file: File): Promise<Blob[]> {
   const ctx = new AudioContext();
   try {
     const audio = await ctx.decodeAudioData(await file.arrayBuffer());
@@ -66,7 +97,11 @@ export async function fromFile(file: File): Promise<Blob> {
       const data = audio.getChannelData(c);
       for (let i = 0; i < data.length; i++) mono[i] += data[i] / audio.numberOfChannels;
     }
-    return wav(resample(mono, audio.sampleRate, RATE), RATE);
+    const out: Blob[] = [];
+    const pieces = new Pieces(audio.sampleRate, (w) => out.push(w));
+    for (let at = 0; at < mono.length; at += BLOCK) pieces.push(mono.subarray(at, at + BLOCK));
+    pieces.flush();
+    return out;
   } finally {
     void ctx.close();
   }

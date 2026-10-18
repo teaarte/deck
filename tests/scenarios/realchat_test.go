@@ -1,6 +1,7 @@
 package scenarios
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -165,6 +167,92 @@ func TestRealBrowserVoice(t *testing.T) {
 	b.eval(`(document.querySelector('[data-chat-send]').click(), '')`)
 	b.until("the reply", `[...document.querySelectorAll('[data-message="master"]')].some((m) => m.innerText.includes('groceries'))`)
 	b.shot("chat-voice")
+}
+
+// fakeMic gives the page a microphone that plays a tone.
+const fakeMic = `(() => { navigator.mediaDevices.getUserMedia = async () => { const ctx = new AudioContext(); const o = ctx.createOscillator();
+	const dst = ctx.createMediaStreamDestination(); o.connect(dst); o.start(); return dst.stream; }; return '' })()`
+
+// voiceEnv is deck with whisper at a server that answers each recording with answer, and the chat open in the
+// real browser with a microphone.
+func voiceEnv(t *testing.T, answer func(n int, wav []byte) (int, string)) *playwright {
+	var mu sync.Mutex
+	n := 0
+	whisper := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		f, _, err := r.FormFile("file")
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		b, _ := io.ReadAll(f)
+		mu.Lock()
+		n++
+		code, body := answer(n, b)
+		mu.Unlock()
+		w.WriteHeader(code)
+		_, _ = w.Write([]byte(body))
+	}))
+	t.Cleanup(whisper.Close)
+	e := newEnv(t, nil)
+	e.must("deck.connection_set", map[string]any{"name": "whisper", "api": "raw", "url": whisper.URL + "/inference", "local": true}, nil)
+	b := newPlaywright(t)
+	b.call("browser_resize", map[string]any{"width": 1400, "height": 900})
+	b.open(e.URL + "/?token=" + token + "#/deck/cockpit")
+	b.until("the cockpit", `document.querySelector('[data-chat-toggle]')`)
+	b.eval(fakeMic)
+	b.eval(`(document.querySelector('[data-chat-toggle]').click(), '')`)
+	b.until("the mic", `document.querySelector('[data-mic]')`)
+	return b
+}
+
+// TestRealBrowserVoiceOfMinutes: a recording of more than three minutes reaches whisper in pieces of at most a
+// minute while it goes on, and after Stop its whole text lands in the input in order.
+func TestRealBrowserVoiceOfMinutes(t *testing.T) {
+	if os.Getenv("DECK_REAL_BROWSER") == "" {
+		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
+	}
+	checkBuiltClient(t)
+	var seconds []float64
+	b := voiceEnv(t, func(n int, wav []byte) (int, string) {
+		seconds = append(seconds, float64(len(wav)-44)/32000)
+		return 200, fmt.Sprintf(`{"text": "piece %d"}`, n)
+	})
+	b.eval(`(document.querySelector('[data-mic]').click(), '')`)
+	b.until("the recording", `document.querySelector('[data-mic-stop]')`)
+	time.Sleep(190 * time.Second)
+	b.until("the recording going on past two minutes", `document.querySelector('[data-mic-stop]')?.innerText.includes('19')`)
+	b.eval(`(document.querySelector('[data-mic-stop]').click(), '')`)
+	b.until("the whole text in the input", `document.querySelector('[data-chat-input]').value === 'piece 1 piece 2 piece 3 piece 4'`)
+	if len(seconds) != 4 || seconds[0] > 60.1 || seconds[0] < 44 || seconds[3] > 15 {
+		t.Fatalf("the recording reached whisper in pieces of at most a minute: %v", seconds)
+	}
+}
+
+// TestRealBrowserVoiceKeptOnFailure: a recording whisper did not turn into text stays with why, and Recognize again
+// sends the same recording once more, whose text lands in the input.
+func TestRealBrowserVoiceKeptOnFailure(t *testing.T) {
+	if os.Getenv("DECK_REAL_BROWSER") == "" {
+		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
+	}
+	checkBuiltClient(t)
+	var got [][]byte
+	b := voiceEnv(t, func(n int, wav []byte) (int, string) {
+		got = append(got, wav)
+		if n == 1 {
+			return 503, `{"error": "whisper is loading"}`
+		}
+		return 200, `{"text": "call the plumber"}`
+	})
+	b.eval(`(document.querySelector('[data-mic]').click(), '')`)
+	b.until("the recording", `document.querySelector('[data-mic-stop]')`)
+	time.Sleep(1500 * time.Millisecond)
+	b.eval(`(document.querySelector('[data-mic-stop]').click(), '')`)
+	b.until("the recording kept with why", `document.querySelector('[data-voice-failed]')?.innerText.includes('503')`)
+	b.eval(`(document.querySelector('[data-voice-again]').click(), '')`)
+	b.until("the text in the input", `document.querySelector('[data-chat-input]').value === 'call the plumber' && !document.querySelector('[data-voice-failed]')`)
+	if len(got) != 2 || !bytes.Equal(got[0], got[1]) {
+		t.Fatalf("the same recording went again: %d", len(got))
+	}
 }
 
 // TestRealBrowserVoiceWithoutAMicrophone: a page the browser gives no microphone, such as deck on http over the

@@ -57,17 +57,17 @@ func TestRealBrowserWebClient(t *testing.T) {
 	b.shot("cockpit")
 
 	items := b.eval(`JSON.stringify([...([...document.querySelectorAll('[data-block]')].filter((b) => b.querySelector('h3')?.innerText.trim() === 'Needs your decision').pop()?.querySelectorAll('[data-item]') ?? [])].map(el => [...el.querySelectorAll('button')].map(x => x.innerText.trim())))`)
-	if items != `[["Show the whole call","Deny"],["Show the whole call","Allow","Deny","Deny because…"],["Answer"]]` {
+	if items != `[["Details","Deny"],["Details","Allow","Deny","Deny because…"],["Details","Answer"]]` {
 		t.Fatalf("an expired confirmation shows only deny, a fresh one allow first and hides a button past its end, a question its answer: %s", items)
 	}
 	if got := b.eval(`document.querySelector('[data-unknown="hologram"]')?.innerText ?? ''`); !strings.Contains(got, "Open in web") {
 		t.Fatalf("a block the client does not know is drawn as open in web: %q", got)
 	}
-	if got := b.eval(`[...([...document.querySelectorAll('[data-block]')].filter((b) => b.querySelector('h3')?.innerText.trim() === 'Needs your decision').pop()?.querySelectorAll('[data-item]') ?? [])][1].innerText`); !strings.Contains(got, "post (notes.post)") ||
-		!strings.Contains(got, "POST "+svc.URL+"/items/n2") || !strings.Contains(got, "work") {
-		t.Fatalf("a confirmation says what, where and who: %q", got)
+	if got := b.eval(`[...([...document.querySelectorAll('[data-block]')].filter((b) => b.querySelector('h3')?.innerText.trim() === 'Needs your decision').pop()?.querySelectorAll('[data-item]') ?? [])][1].innerText`); !strings.Contains(got, "post") ||
+		!strings.Contains(got, "POST "+svc.URL+"/items/n2") || !strings.Contains(got, "notes") || strings.Contains(got, "notes.post") {
+		t.Fatalf("a confirmation says what by its title, where and its module, the command under its details: %q", got)
 	}
-	b.eval(`[...[...([...document.querySelectorAll('[data-block]')].filter((b) => b.querySelector('h3')?.innerText.trim() === 'Needs your decision').pop()?.querySelectorAll('[data-item]') ?? [])][1].querySelectorAll('button')].find(x => x.innerText.includes('Show the whole call')).click(), ''`)
+	b.eval(`[...[...([...document.querySelectorAll('[data-block]')].filter((b) => b.querySelector('h3')?.innerText.trim() === 'Needs your decision').pop()?.querySelectorAll('[data-item]') ?? [])][1].querySelectorAll('button')].find(x => x.innerText.includes('Details')).click(), ''`)
 	b.until("the frozen call", `[...([...document.querySelectorAll('[data-block]')].filter((b) => b.querySelector('h3')?.innerText.trim() === 'Needs your decision').pop()?.querySelectorAll('[data-item]') ?? [])][1].querySelector('pre')?.innerText.includes('"id": "n2"')`)
 
 	b.eval(`[...[...([...document.querySelectorAll('[data-block]')].filter((b) => b.querySelector('h3')?.innerText.trim() === 'Needs your decision').pop()?.querySelectorAll('[data-item]') ?? [])][1].querySelectorAll('button')].find(x => x.innerText === 'Deny because…').click(), ''`)

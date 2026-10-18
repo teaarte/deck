@@ -26,7 +26,8 @@ let top = "open";
 try { void window.top.location.href; } catch { top = "blocked"; }
 await data;
 const other = await app.callServerTool({ name: "web.score", arguments: { title: "sneaky" } });
-const report = { direct, self, top, items: got.items.map((i) => i.title), otherRefused: other.isError === true };
+const extra = await app.callServerTool({ name: "web.mark", arguments: { text: "x", note: "smuggled" } });
+const report = { direct, self, top, items: got.items.map((i) => i.title), otherRefused: other.isError === true, extraRefused: extra.isError === true };
 const res = await app.callServerTool({ name: "web.mark", arguments: { text: JSON.stringify(report) } });
 document.getElementById("out").textContent = JSON.stringify(res.structuredContent);
 await app.callServerTool({ name: "web.tag", arguments: { tag: "b" } });
@@ -47,7 +48,7 @@ func TestRealBrowserWebClientII(t *testing.T) {
 	checkBuiltClient(t)
 	evil := newService(t, func(w http.ResponseWriter, r *http.Request, n int) { w.Write([]byte("<p>out</p>")) })
 	e := newEnv(t, webNotesAgent())
-	e.createProject("web", webNotes)
+	e.createProject("web", webNotesMark)
 	e.must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom",
 		"text": fmt.Sprintf(customProbe, e.URL, token, evil.URL, evil.URL)}, nil)
 	e.must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes",
@@ -80,12 +81,13 @@ func TestRealBrowserWebClientII(t *testing.T) {
 		Direct, Self, Top string
 		Items             []string
 		OtherRefused      bool
+		ExtraRefused      bool
 	}
 	if err := json.Unmarshal([]byte(input.Seen), &report); err != nil {
 		t.Fatalf("the block reports through the bridge: %s %v", ms[0].Result, err)
 	}
 	if len(ms) != 1 || report.Direct != "blocked" || report.Self != "blocked" || report.Top != "blocked" ||
-		len(report.Items) != 1 || report.Items[0] != "gamma" || !report.OtherRefused {
+		len(report.Items) != 1 || report.Items[0] != "gamma" || !report.OtherRefused || !report.ExtraRefused {
 		t.Fatalf("a custom block gets its data and calls its command only through the bridge: %d marks, %+v", len(ms), report)
 	}
 	if e.countOf("score") != 0 {

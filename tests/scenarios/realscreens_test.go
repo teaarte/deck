@@ -555,7 +555,7 @@ func TestRealBrowserCustomBlockOpensWindowsOfDeck(t *testing.T) {
 	}
 	checkBuiltClient(t)
 	e := newEnv(t, webNotesAgent())
-	m := strings.Replace(webNotes, `{"type": "form", "title": "Score a title", "command": "score"},`,
+	m := strings.Replace(webNotesMark, `{"type": "form", "title": "Score a title", "command": "score"},`,
 		`{"type": "form", "title": "Score a title", "command": "score"}, {"type": "dialog", "name": "note-help", "title": "Help", "blocks": [{"type": "stat", "title": "Notes", "source": {"collection": "notes"}}]},`, 1)
 	e.createProject("web", m)
 	e.must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": customWindows}, nil)
@@ -592,7 +592,7 @@ func TestRealBrowserCustomBlockGetsItsParams(t *testing.T) {
 	e := newEnv(t, webNotesAgent())
 	chart := `"document": "custom/chart.html", "source": {"collection": "notes", "sort": "title"},`
 	e.createProject("web", strings.NewReplacer(`{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "params": {"kind": "string"}, "blocks": [`,
-		chart, chart+` "params": {"mode": "voice", "kind": "=param.kind"},`).Replace(webNotes))
+		chart, chart+` "params": {"mode": "voice", "kind": "=param.kind"},`).Replace(webNotesMark))
 	e.must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": customParams}, nil)
 	b := newPlaywright(t)
 	b.open(e.URL + "/?token=" + token + "#/p/web/main?kind=video")

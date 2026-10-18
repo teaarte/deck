@@ -44,7 +44,7 @@ func TestRealBrowserGlass(t *testing.T) {
 	}
 	checkBuiltClient(t)
 	e := newEnv(t, webNotesAgent())
-	e.createProject("web", webNotes)
+	e.createProject("web", webNotesMark)
 	e.must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": themeProbe}, nil)
 	e.must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes",
 		"records": jsonl(map[string]any{"title": "alpha", "source": "mail"}, map[string]any{"title": "beta", "source": "web"})}, nil)

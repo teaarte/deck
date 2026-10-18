@@ -44,7 +44,7 @@ func settings(req provider.Request) map[string]any {
 	for _, name := range apiVariables {
 		env[name] = ""
 	}
-	s := map[string]any{"apiKeyHelper": "", "env": env}
+	s := map[string]any{"apiKeyHelper": "", "env": env, "autoMode": autoMode(req)}
 	var deny []string
 	hidden := slices.Clone(req.Hidden)
 	for _, p := range sandbox.Private() {
@@ -94,6 +94,27 @@ func settings(req provider.Request) map[string]any {
 	s["claudeMdExcludes"] = excludes(req.Cwd)
 	s["permissions"] = map[string]any{"deny": deny}
 	return s
+}
+
+// autoMode tells the classifier of auto mode the folders of the agent, where reading and searching is its work; a
+// path outside them it judges as it would.
+func autoMode(req provider.Request) map[string]any {
+	var folders []string
+	for _, d := range append([]string{req.Cwd}, req.Dirs...) {
+		for _, p := range provider.Paths(d) {
+			if !slices.Contains(folders, p) {
+				folders = append(folders, p)
+			}
+		}
+	}
+	list := strings.Join(folders, ", ")
+	return map[string]any{
+		"environment": []string{"$defaults", "**Agent folders**: this session is an agent deck runs in its own folders: " + list +
+			". They are its working folders though they lie under deck's home; deck's secrets are closed to it by deny rules."},
+		"allow": []string{"$defaults", "Agent Folder Reads: reading, searching and comparing files with read-only commands " +
+			"(grep, rg, cat, head, tail, wc, diff, ls, sort, cut, find without -exec or -delete) when every path they read is inside " +
+			"the agent folders of Environment is the agent's work, not Credential Exploration or scope escalation; a path outside them is not covered."},
+	}
 }
 
 // writeFile writes a per-turn file into ConfigDir atomically with mode 600.

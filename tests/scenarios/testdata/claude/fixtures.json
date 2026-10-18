@@ -1,5 +1,6 @@
 {
   "ok.jsonl": {"cli": "2.1.281", "date": "2026-09-25", "kind": "real"},
+  "denied.jsonl": {"cli": "2.1.281", "date": "2026-10-18", "kind": "real", "note": "a deny rule on the file a Bash cat reads"},
   "nologin.jsonl": {"cli": "2.1.281", "date": "2026-09-25", "kind": "real", "note": "CLAUDE_CONFIG_DIR pointed at an empty folder"},
   "noconversation.jsonl": {"cli": "2.1.281", "date": "2026-09-25", "kind": "real", "note": "--resume of an unknown session id"},
   "subagent.jsonl": {"cli": "2.1.281", "date": "2026-09-25", "kind": "synthetic", "note": "real Agent tool stream plus one sub-agent assistant line"},

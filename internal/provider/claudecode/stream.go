@@ -71,6 +71,9 @@ type turn struct {
 }
 
 func (t *turn) line(raw []byte) {
+	if t.denied(raw) {
+		return
+	}
 	var l line
 	if json.Unmarshal(raw, &l) != nil {
 		return
@@ -165,6 +168,22 @@ func (t *turn) line(raw []byte) {
 			}
 		}
 	}
+}
+
+// denied reports a call the CLI refused by its rules or auto mode as a line of the log, with why; its message is a
+// text where that of other lines is an object.
+func (t *turn) denied(raw []byte) bool {
+	var d struct {
+		Type, Subtype string
+		ToolName      string `json:"tool_name"`
+		ToolUseID     string `json:"tool_use_id"`
+		Message       string `json:"message"`
+	}
+	if json.Unmarshal(raw, &d) != nil || d.Type != "system" || d.Subtype != "permission_denied" {
+		return false
+	}
+	t.req.Emit(provider.Event{Kind: provider.EventDenied, ID: d.ToolUseID, Title: d.ToolName, Text: d.Message})
+	return true
 }
 
 // usage reports the token counts of the turn from its result and the cost of the whole session so far; modelUsage

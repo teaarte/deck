@@ -144,7 +144,7 @@
   },
   "deadline": { "minutes": "{{m}} min", "hours": "{{h}} h {{m}} min" },
   "details": {"call": {"show": "Details", "hide": "Hide the details"}, "text": {"show": "Show in full", "hide": "Hide"}},
-    "log": { "message": "Agent", "thought": "Thinking", "tool": "Tool", "rate_limit": "Limit", "stderr": "stderr", "more": "Show more", "less": "Show less", "owner": "You", "deck": "deck", "waiting": "not taken yet", "taken": "taken", "write": "Write to the agent", "running": "running" },
+    "log": { "message": "Agent", "thought": "Thinking", "tool": "Tool", "rate_limit": "Limit", "stderr": "stderr", "denied": "Refused", "more": "Show more", "less": "Show less", "owner": "You", "deck": "deck", "waiting": "not taken yet", "taken": "taken", "write": "Write to the agent", "running": "running" },
   "files": {"no_preview": "no preview", "cut": "Only the start of the file is shown", "previous": "Previous", "next": "Next", "grid": "Tiles", "list": "List"},
   "chat": {
     "delete": "Delete, the master has not taken it",

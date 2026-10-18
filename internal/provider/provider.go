@@ -71,6 +71,8 @@ const (
 	EventToolUpdate = "tool_update"
 	EventRateLimit  = "rate_limit"
 	EventStderr     = "stderr"
+	// EventDenied is a call the agent's own permission rules or auto mode refused, with why.
+	EventDenied = "denied"
 )
 
 // ToolStatus maps the end state of a tool call to completed or failed.

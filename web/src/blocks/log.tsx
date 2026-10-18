@@ -112,7 +112,7 @@ function LogLines({ d }: { d: Data }) {
         return (
           <Stack key={i} gap={4} miw={0} data-line={l.kind}>
             <Group gap="xs" wrap="nowrap" miw={0}>
-              <Badge size="xs" variant="light" color={end?.status === 'failed' ? 'red' : 'gray'} style={{ flexShrink: 0 }}>{t('log.' + l.kind, { defaultValue: l.kind })}</Badge>
+              <Badge size="xs" variant="light" color={end?.status === 'failed' || l.kind === 'denied' ? 'red' : 'gray'} style={{ flexShrink: 0 }}>{t('log.' + l.kind, { defaultValue: l.kind })}</Badge>
               {l.title && <Text size="xs" ff="monospace" truncate>{l.title}</Text>}
               <At at={l.at} />
             </Group>

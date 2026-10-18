@@ -328,3 +328,43 @@ func TestClaudeCodeShellRunsInItsSandboxOnlyWithoutNetwork(t *testing.T) {
 		}
 	}
 }
+
+// TestClaudeCodeReadsInItsFoldersAndShowsWhatItRefused: auto mode is told the folders of the agent, and reading in
+// them only, keeping its own rules; a call the CLI refused is a line of the process log with why.
+func TestClaudeCodeReadsInItsFoldersAndShowsWhatItRefused(t *testing.T) {
+	t.Parallel()
+	c := newCLI(t)
+	c.stream(0, "denied.jsonl")
+	e, _ := cliEnv(t, c)
+	id := e.run(e.createProject("ideas", ideasManifest), "collect")
+	e.waitState(id, "done", "error")
+	call := c.call(c.calls())
+	var set struct {
+		AutoMode struct{ Environment, Allow []string } `json:"autoMode"`
+	}
+	if err := json.Unmarshal([]byte(call.settings), &set); err != nil {
+		t.Fatal(err)
+	}
+	folders := []string{call.cwd}
+	for i, a := range call.args {
+		if a == "--add-dir" {
+			folders = append(folders, call.args[i+1])
+		}
+	}
+	env, allow := strings.Join(set.AutoMode.Environment, "\n"), strings.Join(set.AutoMode.Allow, "\n")
+	if len(folders) < 2 || !slices.Contains(set.AutoMode.Environment, "$defaults") || !slices.Contains(set.AutoMode.Allow, "$defaults") ||
+		!strings.Contains(allow, "inside the agent folders") {
+		t.Fatalf("auto mode keeps its rules and allows reads in the folders of the agent: %d folders, %s", len(folders), call.settings)
+	}
+	for _, f := range folders {
+		if !strings.Contains(env, f) {
+			t.Fatalf("auto mode is told the folder %s: %s", f, env)
+		}
+	}
+	for _, l := range e.log(id) {
+		if l["kind"] == "denied" && l["title"] == "Bash" && strings.Contains(fmt.Sprint(l["text"]), "has been denied") {
+			return
+		}
+	}
+	t.Fatalf("the refused call is a line of the log: %+v", e.log(id))
+}

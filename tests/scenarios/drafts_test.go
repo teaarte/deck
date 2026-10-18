@@ -867,12 +867,17 @@ func TestAnEditThatWidensNothingKeepsTheRequestForRights(t *testing.T) {
 			t.Fatalf("the request is not outdated by an edit elsewhere: %+v", n)
 		}
 	}
+	if _, out := e.callWith(tok, "deck.manifest_save", map[string]any{"project": "notes", "old": []string{`"writes": []`},
+		"new": []string{`"writes": ["report.md"]`}}); !strings.Contains(string(out), "waiting") {
+		t.Fatalf("the same change asked again waits too: %s", out)
+	}
 	e.answer(w.Waiting, "allow")
 	m := e.inForce("notes")
 	if !m.MayWrite("report.md") || m.Command("work").Description != "Does the work" || m.Revision != 3 {
 		t.Fatalf("the yes merges the right into the current manifest, which keeps the edit: revision %d, writes %v, %q",
 			m.Revision, m.Writes, m.Command("work").Description)
 	}
+	e.waitNote("has this change already")
 }
 
 // TestAnEditOfTheRightARequestWaitsForOutdatesIt: an edit that changes the lines a request changes, without widening,

@@ -39,7 +39,8 @@ func (sv *Saver) widens(ctx context.Context, q *db.Queries, act registry.Actor, 
 func (sv *Saver) ask(ctx context.Context, q *db.Queries, act registry.Actor, p db.Project, cur db.Document, revertTo int64, widens []string, reason string, proposed []byte) (Saved, error) {
 	command, input := "manifest_save", map[string]any{"project": p.Name, "manifest": string(proposed), "reason": reason, "if_revision": cur.Current}
 	if revertTo > 0 {
-		command, input = "document_revert", map[string]any{"document": cur.ID, "revision": revertTo, "reason": reason, "if_revision": cur.Current}
+		own := strings.TrimPrefix(strings.TrimPrefix(reason, docs.RevertReason(revertTo, "")), ": ")
+		command, input = "document_revert", map[string]any{"document": cur.ID, "revision": revertTo, "reason": own, "if_revision": cur.Current}
 	}
 	raw, _ := json.Marshal(input)
 	f := gateway.Freeze(act, registry.Builtin+"."+command, raw)
@@ -84,6 +85,9 @@ func merged(ctx context.Context, q *db.Queries, p db.Project, a db.Ask) (string,
 		if text, ok = docs.Merge(in.Manifest, raised(base.Text), raised(cur.Text)); !ok {
 			return "", 0, errors.New("the manifest changed the same lines since")
 		}
+		if text == raised(cur.Text) {
+			return "", 0, errors.New("the manifest has this change already")
+		}
 	}
 	now, err := docs.ManifestAt(ctx, q, p.ID, d.Current)
 	if err != nil {
@@ -110,7 +114,8 @@ func (sv *Saver) AnswerGrant(ctx context.Context, act registry.Actor, q db.Ask, 
 		if err != nil {
 			return nil, err
 		}
-		switch text, rev, err := merged(ctx, sv.St.Q, p, q); {
+		text, rev, err := merged(ctx, sv.St.Q, p, q)
+		switch {
 		case errors.Is(err, errFrozen):
 		case err != nil:
 			return nil, registry.Conflict("deck: %v; deny this request and ask again", err)
@@ -123,6 +128,8 @@ func (sv *Saver) AnswerGrant(ctx context.Context, act registry.Actor, q db.Ask, 
 		switch {
 		case errors.Is(err, ask.ErrNotOpen):
 			return nil, err
+		case registry.Status(err) == 409 && rev != 0:
+			return nil, registry.Conflict("deck: the manifest changed while you answered; allow it again")
 		case registry.Status(err) == 409:
 			return nil, registry.Conflict("deck: the manifest changed after this request; deny it and ask again")
 		}

@@ -628,7 +628,8 @@ of tools, `reads` of other projects, `writes` of its own documents and removing 
 enabled project a change that widens them waits for the owner's button, with only what it widens; check
 `projects_list` first, since a project you were told is a draft may be enabled. Go on with other changes
 meanwhile: an edit that widens nothing saves at once, and the owner's yes merges the waiting change into the
-manifest as it is then. An edit of the same lines closes the request with a note, so ask again after it. Every
+manifest as it is then. An edit of the same lines, or one after which it would widen more, closes the request
+with a note, so ask again after it. Every
 other change you make to an enabled project is listed as "done without you" with an undo.
 
 ## 10. Hand over

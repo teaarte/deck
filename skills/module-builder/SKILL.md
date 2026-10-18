@@ -233,8 +233,8 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   `"primary": true` button opens a screen opens it on a click anywhere in the row. A history is a `chart`, one point
   per item in the order of `sort`: `{"type": "chart", "title": "Price", "kind": "line", "source": {"collection":
   "prices", "sort": "at"}, "x": "at", "series": [{"label": "Value", "y": "price"}, {"label": "Expected", "y":
-  "forecast"}], "format": "money", "currency": "USD", "empty": "No prices yet"}` — `kind` is `line`, `bar` or
-  `area`, a missing y is a gap, an ISO time x makes a time axis, and only the last 500 points by the sort are
+  "forecast"}], "format": "money", "currency": "USD", "empty": "No prices yet"}` — `kind` is `line` or
+  `bar`, a missing y is a gap, an ISO time x makes a time axis, and only the last 500 points by the sort are
   drawn — `limit` keeps the first items, so do not cut a history with it. Blocks draw items as they are and do
   not group them: a total over all items is a `stat` (`"value": "sum(rows, .amount)"`), and a sum by day or by
   category is a collection of totals a script writes after the records change (an `after` trigger), which a chart

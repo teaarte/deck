@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -394,5 +395,50 @@ func TestABuiltInSkillAskedInAProjectSaysItIsOfTheWorkspace(t *testing.T) {
 	}
 	if code, _ := e.callWith(tok, "deck.document_get", map[string]any{"name": "skills/module-builder/SKILL.md"}); code != 200 {
 		t.Fatalf("without project the skill reads: %d", code)
+	}
+}
+
+// TestTheSkillNamesOnlyBlocksAndChartsTheCatalogHas: an agent builds screens from module-builder; a block or a kind of
+// chart it names that the catalog lacks makes the save refuse what the skill taught.
+func TestTheSkillNamesOnlyBlocksAndChartsTheCatalogHas(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, nil)
+	var d struct{ Text string }
+	e.must("deck.document_get", map[string]any{"name": "skills/module-builder/SKILL.md"}, &d)
+	raw, err := os.ReadFile("../../schemas/catalog.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var catalog struct {
+		Components map[string]struct {
+			Description string
+			Block       struct {
+				Properties struct {
+					Kind struct{ Enum []string } `json:"kind"`
+				} `json:"properties"`
+			} `json:"block"`
+		} `json:"components"`
+	}
+	if err := json.Unmarshal(raw, &catalog); err != nil {
+		t.Fatal(err)
+	}
+	quoted := regexp.MustCompile("`([a-z_]+)`")
+	blocks := regexp.MustCompile("(?s)schema rule, such as .*?\\):(.*?)to lay them out").FindStringSubmatch(d.Text)
+	kinds := regexp.MustCompile("(?s)`kind` is (.*?), a missing y").FindStringSubmatch(d.Text)
+	if blocks == nil || kinds == nil {
+		t.Fatal("the skill lists the blocks and the kinds of chart")
+	}
+	for _, m := range quoted.FindAllStringSubmatch(blocks[1], -1) {
+		if _, ok := catalog.Components[m[1]]; !ok {
+			t.Errorf("the skill names block %q, which the catalog lacks", m[1])
+		}
+	}
+	if strings.Contains(catalog.Components["chart"].Description, "area") {
+		t.Errorf("the catalog describes a chart it does not draw: %s", catalog.Components["chart"].Description)
+	}
+	for _, m := range quoted.FindAllStringSubmatch(kinds[1], -1) {
+		if !slices.Contains(catalog.Components["chart"].Block.Properties.Kind.Enum, m[1]) {
+			t.Errorf("the skill names chart kind %q, which the catalog lacks", m[1])
+		}
 	}
 }

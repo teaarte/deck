@@ -128,7 +128,7 @@
       }
     },
     "chart": {
-      "description": "A line, bar or area chart of the items of a source: one point per item, in the order of the sort of the source.",
+      "description": "A line or bar chart of the items of a source: one point per item, in the order of the sort of the source.",
       "block": {"description": "Needs source, x and series; x and each y are expressions over an item, a null y is a gap in the line. At most the last 500 points by the sort of the source are drawn; limit keeps the first items of the sort, so a long history is cut by the chart, not by limit. format and currency show the y values; an x that is an ISO 8601 time makes a time axis.", "required": ["source", "x", "series"], "properties": {
         "source": {"$ref": "#/$defs/source"},
         "kind": {"enum": ["line", "bar"], "description": "line by default"},

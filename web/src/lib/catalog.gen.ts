@@ -69,6 +69,10 @@ export interface Action {
    */
   from_block?: string[];
   /**
+   * The fields of from_block that name a record: the host takes only the id of an item of the block or of the record of its page.
+   */
+  from_items?: string[];
+  /**
    * The client asks the owner before the call: a button of deck that deletes or revokes.
    */
   confirm?: boolean;
@@ -126,6 +130,10 @@ export interface Action1 {
    * The fields a custom block's call fills beside params; the host refuses any other.
    */
   from_block?: string[];
+  /**
+   * The fields of from_block that name a record: the host takes only the id of an item of the block or of the record of its page.
+   */
+  from_items?: string[];
   /**
    * The client asks the owner before the call: a button of deck that deletes or revokes.
    */
@@ -366,6 +374,10 @@ export interface Action2 {
    */
   from_block?: string[];
   /**
+   * The fields of from_block that name a record: the host takes only the id of an item of the block or of the record of its page.
+   */
+  from_items?: string[];
+  /**
    * The client asks the owner before the call: a button of deck that deletes or revokes.
    */
   confirm?: boolean;
@@ -423,6 +435,10 @@ export interface Action3 {
    * The fields a custom block's call fills beside params; the host refuses any other.
    */
   from_block?: string[];
+  /**
+   * The fields of from_block that name a record: the host takes only the id of an item of the block or of the record of its page.
+   */
+  from_items?: string[];
   /**
    * The client asks the owner before the call: a button of deck that deletes or revokes.
    */

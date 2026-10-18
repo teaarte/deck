@@ -262,11 +262,7 @@ func (m *Manifest) checkAction(a Action) error {
 	}
 	for _, k := range a.FromBlock {
 		_, fixed := a.Params[k]
-		var prop struct{ Format string }
-		_ = json.Unmarshal(in.Properties[k], &prop)
 		switch _, ok := in.Properties[k]; {
-		case k == "record" || k == "id" || prop.Format == "record":
-			return fmt.Errorf("from_block: a custom block never names the record a command takes (%s)", k)
 		case !ok:
 			return fmt.Errorf("command %q has no input field %q", a.Command, k)
 		case fixed:

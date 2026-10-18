@@ -11,11 +11,13 @@ type CustomButton = NonNullable<CustomValue['actions']>[number];
 export type Ask = { act: CustomButton; input: Record<string, unknown> };
 
 // button is the one of the block's buttons a call means: its command, fixed params the call does not contradict, and
-// no field but those params and the ones the block fills.
-function button(actions: CustomButton[], name: string, args: Record<string, unknown>): CustomButton | undefined {
-  return actions.find((a) => a.command === name &&
+// no field but those params and the ones the block fills, a record only one the block was given.
+function button(value: CustomValue, name: string, args: Record<string, unknown>): CustomButton | undefined {
+  const ids = new Set([...(value.items ?? []), ...(value.record ? [value.record] : [])].map((it) => String((it as { _id?: unknown })._id)));
+  return (value.actions ?? []).find((a) => a.command === name &&
     Object.entries(a.params ?? {}).every(([k, v]) => args[k] === undefined || String(args[k]) === String(v)) &&
-    Object.keys(args).every((k) => k in (a.params ?? {}) || (a.from_block ?? []).includes(k)));
+    Object.keys(args).every((k) => k in (a.params ?? {}) || (a.from_block ?? []).includes(k)) &&
+    (a.from_items ?? []).every((k) => args[k] === undefined || ids.has(String(args[k]))));
 }
 
 const PROXY_READY = 'ui/notifications/sandbox-proxy-ready';
@@ -65,7 +67,7 @@ export function useAppBridge(value: CustomValue, ask: (q: Ask) => Promise<boolea
     };
     b.oncalltool = async (p): Promise<CallToolResult> => {
       const args = (p.arguments ?? {}) as Record<string, unknown>;
-      const act = button(latest.current.actions ?? [], p.name, args);
+      const act = button(latest.current, p.name, args);
       if (!act?.command) {
         const allowed = (latest.current.actions ?? []).filter((a) => a.command)
           .map((a) => `${a.command}(${[...Object.keys(a.params ?? {}), ...(a.from_block ?? [])].join(', ')})`).join(', ') || 'none';

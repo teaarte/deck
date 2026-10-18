@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 
 	"deck2/internal/manifest"
@@ -140,6 +141,17 @@ func (r *renderer) action(a manifest.Action, id int64, env map[string]any) (map[
 		act["command"], act["params"] = name, ps
 		if len(a.FromBlock) > 0 {
 			act["from_block"] = a.FromBlock
+			if c := r.req.Manifest.Command(a.Command); c != nil && !r.deck() {
+				var recs []string
+				for _, f := range manifest.FieldsOf(c.InputSchema(), "record") {
+					if slices.Contains(a.FromBlock, f) {
+						recs = append(recs, f)
+					}
+				}
+				if len(recs) > 0 {
+					act["from_items"] = recs
+				}
+			}
 		}
 		if a.Undo != nil {
 			u := *a.Undo

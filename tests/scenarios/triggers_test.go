@@ -454,12 +454,12 @@ func TestScheduleShowsEveryTriggerRunsOneNowAndPausesAProject(t *testing.T) {
 	}
 	press(button(find(rows(), "alpha"), "resume"), nil)
 
-	history := e.screenData("", "schedule", map[string]any{"filter": `{"b0-1-0": {"project": "alpha"}}`})["b0-1-0"]
+	history := e.screenData("", "schedule", map[string]any{"filter": `{"b0-2-0": {"project": "alpha"}}`})["b0-2-0"]
 	hrows := blockData[[]screenRow](t, history["rows"])
 	if len(hrows) != 1 || hrows[0].Cells[1] != "alpha" || !strings.Contains(string(history["filters"]), `"value":"alpha"`) {
 		t.Fatalf("the history filters by project: %+v %s", hrows, history["filters"])
 	}
-	if states := blockData[[]screenRow](t, e.screenData("", "schedule", map[string]any{"filter": `{"b0-1-0": {"state": "error"}}`})["b0-1-0"]["rows"]); len(states) != 0 {
+	if states := blockData[[]screenRow](t, e.screenData("", "schedule", map[string]any{"filter": `{"b0-2-0": {"state": "error"}}`})["b0-2-0"]["rows"]); len(states) != 0 {
 		t.Fatalf("the history filters by state: %+v", states)
 	}
 	e.refused("deck.trigger_run", map[string]any{"trigger": 999}, 404, "no trigger")

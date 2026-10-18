@@ -194,7 +194,7 @@ func (s *Service) Unassigned(ctx context.Context, workspace, project int64, m *m
 			continue
 		}
 		if names, err := Assigned(ctx, s.St.Q, workspace, project, c.Name, role); err == nil && len(names) == 0 {
-			out[c.Name] = fmt.Sprintf("it calls @%s, but no model is assigned to %s; pick one in Settings → Models", role, role)
+			out[c.Name] = fmt.Sprintf("it calls @%s, but no model is assigned to %s; pick one in Settings → Commands", role, role)
 		}
 	}
 	return out

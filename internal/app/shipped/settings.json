@@ -9,7 +9,7 @@
         {"type": "dialog", "name": "create-project", "title": "Create module", "icon": "plus", "primary": true, "blocks": [
           {"type": "form", "command": "deck.project_create", "values": {"name": "=param.name"}}]},
         {"type": "dialog", "name": "import-project", "title": "Import module", "icon": "file-import", "blocks": [
-          {"type": "form", "command": "deck.project_import", "description": "A .zip a module was exported to, or a folder on this machine. Install modules only from authors you know: it comes as a draft, and before you enable it deck shows what it may do."}]},
+          {"type": "form", "command": "deck.project_import", "description": "A .zip of a module or a folder of this machine; it comes as a draft, and deck shows what it may do before you enable it."}]},
         {"type": "list", "title": "Modules", "cards": true, "source": {"from": "deck.projects_list", "sort": "name"}, "filter": ["status"],
           "item": {"title": "title", "icon": "icon != '' ? icon : 'box'", "text": "manifest_error != '' ? 'manifest: ' + manifest_error : description",
             "meta": "status + (paused ? ', paused' : '') + (len(folders) > 0 ? ' · folders: ' + join(map(folders, .name), ', ') : '') + (status == 'draft' && len(rights) > 0 ? ' · enabling grants: ' + join(rights, '; ') : '') + (status == 'draft' && len(asks) > 0 ? ' · asks you each time: ' + join(asks, ', ') : '')",
@@ -25,17 +25,34 @@
       ]},
       {"title": "Models", "icon": "cpu", "blocks": [
         {"type": "dialog", "name": "model", "title": "Add a model", "icon": "plus", "primary": true, "blocks": [
-          {"type": "form", "command": "deck.model_set", "description": "A model of a connection: its kind and price come from the catalog of the connection when left out. With an agent it runs agent commands, after a self-check.",
+          {"type": "form", "command": "deck.model_set", "description": "A model of a connection; its kind and price come from the connection's catalog when left out.",
             "values": {"connection": "=param.connection", "model": "=param.model", "name": "=param.name", "kind": "=param.kind", "agent": "=param.agent", "free": "=param.free", "subscription": "=param.subscription",
               "input_usd": "=param.input_usd", "output_usd": "=param.output_usd", "call_usd": "=param.call_usd", "unit": "=param.unit", "options": "=param.options"},
             "choices": {"connection": {"source": {"from": "deck.models_list", "rows": "connections"}, "value": "name"},
               "agent": {"source": {"from": "deck.models_list", "rows": "agents", "where": "status != 'missing' && name != 'claude-code' && name != 'codex'"}, "value": "name"}}}]},
+        {"type": "table", "title": "Models", "source": {"from": "deck.models_list", "rows": "models", "sort": "-used"}, "filter": ["kind", "connection", "status"],
+          "description": "Every model deck reaches, those that work goes to first; the others are dimmed.",
+          "columns": [
+            {"label": "Name", "bind": "name", "format": "copy", "tone": "used ? '' : 'muted'"},
+            {"label": "Kind", "bind": "agent != nil && agent != '' ? 'agent' : kind", "format": "tag"},
+            {"label": "Status", "bind": "status ?? 'unchecked'", "format": "tag", "details": "status == nil ? 'No work has gone to it yet' : error", "tone": "status == 'ok' ? 'ok' : status == 'error' ? 'error' : status == nil ? 'muted' : 'warn'"},
+            {"label": "Price", "bind": "price"}
+          ],
+          "actions": [
+            {"verb": "check", "command": "deck.provider_check", "params": {"provider": "=name"}, "when": "(agent ?? '') != ''"},
+            {"verb": "check", "command": "deck.model_call", "params": {"kind": "tts", "model": "=name", "text": "This is a short check of the voice."}, "when": "kind == 'tts'"},
+            {"verb": "edit", "screen": "settings", "params": {"tab": "Models", "dialog": "model", "name": "=name", "connection": "=connection", "model": "=model", "kind": "=kind", "agent": "=agent ?? ''", "free": "=free", "subscription": "=subscription",
+              "input_usd": "=input_usd", "output_usd": "=output_usd", "call_usd": "=call_usd", "unit": "=unit", "options": "=options ?? ''"}, "when": "!builtin"},
+            {"verb": "remove", "confirm": true, "command": "deck.model_remove", "params": {"name": "=name"}, "when": "!builtin"}
+          ]}
+      ]},
+      {"title": "Commands", "icon": "route", "blocks": [
         {"type": "dialog", "name": "assign", "title": "Fallbacks", "icon": "list-numbers", "blocks": [
           {"type": "form", "command": "deck.assignment_set", "description": "The first model does the work; the next ones take it while the first is down or refuses.",
             "values": {"role": "=param.role", "project": "=param.project", "command": "=param.command", "models": "=(param.models ?? '') != '' ? split(param.models, ',') : nil"},
             "choices": {"models": {"source": {"from": "deck.models_list", "rows": "models"}, "value": "name"}}}]},
         {"type": "table", "title": "Commands", "source": {"from": "deck.commands_list", "where": "(role ?? '') != ''", "sort": "name"}, "filter": ["project"],
-          "description": "The model each command of every module runs on; a model picked here replaces the one the manifest suggests, the one before stays its fallback.",
+          "description": "The model each command of a module runs on; the one picked here comes first.",
           "empty": "No command of a module calls a model",
           "columns": [
             {"label": "Module", "bind": "project", "format": "tag"},
@@ -47,10 +64,10 @@
           "actions": [
             {"verb": "model", "command": "deck.assignment_set", "params": {"role": "=role", "project": "=project", "command": "=trimPrefix(name, project + '.')"},
               "input": "model", "options": "=choices", "when": "len(choices ?? []) > 0"},
-            {"verb": "fallbacks", "screen": "settings", "params": {"tab": "Models", "dialog": "assign", "role": "=role", "project": "=project", "command": "=trimPrefix(name, project + '.')", "models": "=join(models ?? [], ',')"}, "when": "len(choices ?? []) > 0"}
+            {"verb": "fallbacks", "screen": "settings", "params": {"tab": "Commands", "dialog": "assign", "role": "=role", "project": "=project", "command": "=trimPrefix(name, project + '.')", "models": "=join(models ?? [], ',')"}, "when": "len(choices ?? []) > 0"}
           ]},
         {"type": "table", "title": "Models of scripts", "source": {"from": "deck.models_list", "rows": "uses"}, "filter": ["project"],
-          "description": "The kinds of work the scripts of each module call models for, and the model each goes to.",
+          "description": "The model each kind of work of the scripts of a module goes to.",
           "empty": "No script of a module calls a model",
           "columns": [
             {"label": "Module", "bind": "project", "format": "tag"},
@@ -62,7 +79,7 @@
             {"verb": "model", "command": "deck.assignment_set", "params": {"role": "=role", "project": "=project"}, "input": "model", "options": "=choices", "when": "len(choices ?? []) > 0"}
           ]},
         {"type": "table", "title": "Everywhere else", "source": {"from": "deck.models_list", "rows": "assignments", "where": "(project ?? '') == ''"},
-          "description": "The model of each kind of work wherever a module or a command has none of its own. search is the web search of agents in ACP agents, a SearXNG of this machine; without it they only read pages.",
+          "description": "The model of each kind of work where a module or command has none of its own.",
           "empty": "Nothing is assigned; agent commands run on the model their manifest suggests",
           "columns": [
             {"label": "Kind of work", "bind": "role", "format": "tag"},
@@ -73,24 +90,8 @@
           ],
           "actions": [
             {"verb": "model", "command": "deck.assignment_set", "params": {"role": "=role"}, "input": "model", "options": "=choices ?? []", "when": "len(choices ?? []) > 0"},
-            {"verb": "fallbacks", "screen": "settings", "params": {"tab": "Models", "dialog": "assign", "role": "=role", "project": "", "command": "", "models": "=join(models, ',')"}},
+            {"verb": "fallbacks", "screen": "settings", "params": {"tab": "Commands", "dialog": "assign", "role": "=role", "project": "", "command": "", "models": "=join(models, ',')"}},
             {"verb": "remove", "confirm": true, "command": "deck.assignment_set", "params": {"role": "=role"}}
-          ]},
-        {"type": "table", "title": "Models", "source": {"from": "deck.models_list", "rows": "models"}, "filter": ["kind", "connection", "status"],
-          "description": "Every model deck reaches, what it costs and whether any work goes to it. A model in an agent runs nothing until its self-check passes.",
-          "columns": [
-            {"label": "Name", "bind": "name", "format": "copy"},
-            {"label": "Kind", "bind": "agent != nil && agent != '' ? 'agent' : kind", "format": "tag"},
-            {"label": "Status", "bind": "status ?? 'unchecked'", "format": "tag", "details": "status == nil ? 'No work has gone to it yet' : error", "tone": "status == 'ok' ? 'ok' : status == 'error' ? 'error' : status == nil ? 'muted' : 'warn'"},
-            {"label": "Price", "bind": "price"},
-            {"label": "In use", "bind": "used ? '✓' : ''", "tone": "used ? 'ok' : 'muted'"}
-          ],
-          "actions": [
-            {"verb": "check", "command": "deck.provider_check", "params": {"provider": "=name"}, "when": "(agent ?? '') != ''"},
-            {"verb": "check", "command": "deck.model_call", "params": {"kind": "tts", "model": "=name", "text": "This is a short check of the voice."}, "when": "kind == 'tts'"},
-            {"verb": "edit", "screen": "settings", "params": {"tab": "Models", "dialog": "model", "name": "=name", "connection": "=connection", "model": "=model", "kind": "=kind", "agent": "=agent ?? ''", "free": "=free", "subscription": "=subscription",
-              "input_usd": "=input_usd", "output_usd": "=output_usd", "call_usd": "=call_usd", "unit": "=unit", "options": "=options ?? ''"}, "when": "!builtin"},
-            {"verb": "remove", "confirm": true, "command": "deck.model_remove", "params": {"name": "=name"}, "when": "!builtin"}
           ]}
       ]},
       {"title": "Connections", "icon": "plug", "blocks": [
@@ -98,13 +99,8 @@
           {"type": "form", "command": "deck.connection_set", "description": "Where models are reached: the API, its address and key; deck keeps the key in a secret.",
             "values": {"name": "=param.name", "api": "=param.api", "url": "=param.url", "key_secret": "=param.key_secret", "local": "=param.local"},
             "choices": {"key_secret": {"source": {"from": "deck.secrets_list"}, "value": "name"}}}]},
-        {"type": "dialog", "name": "secret", "title": "Add a secret", "icon": "key", "blocks": [
-          {"type": "form", "command": "deck.secret_set", "values": {"name": "=param.name"}}]},
-        {"type": "dialog", "name": "token", "title": "Create a token", "icon": "ticket", "blocks": [
-          {"type": "form", "command": "deck.token_create", "keep_open": true,
-            "choices": {"commands": {"source": {"from": "deck.commands_list", "sort": "name"}, "value": "name"}}}]},
         {"type": "table", "title": "Connections", "source": {"from": "deck.models_list", "rows": "connections"},
-          "description": "Where deck reaches models: an API such as OpenRouter or a server of this machine, with its address and key. Add a model of it on the Models tab.",
+          "description": "Where deck reaches models: an API or a server of this machine, with its address and key.",
           "empty": "No connections yet",
           "columns": [
             {"label": "Name", "bind": "name"},
@@ -116,26 +112,6 @@
           "actions": [
             {"verb": "edit", "screen": "settings", "params": {"tab": "Connections", "dialog": "connection", "name": "=name", "api": "=api", "url": "=url", "key_secret": "=key_secret ?? ''", "local": "=local"}},
             {"verb": "remove", "confirm": true, "command": "deck.connection_remove", "params": {"name": "=name"}, "when": "models == 0"}
-          ]},
-        {"type": "table", "title": "Secrets", "source": {"from": "deck.secrets_list"},
-          "description": "API keys and passwords that connections and the tools of modules name; deck keeps them as files only it reads, agents and scripts never see them.",
-          "empty": "No secrets yet",
-          "columns": [{"label": "Name", "bind": "name", "format": "copy"}],
-          "actions": [
-            {"verb": "replace", "screen": "settings", "params": {"tab": "Connections", "dialog": "secret", "name": "=name"}},
-            {"verb": "delete", "confirm": true, "command": "deck.secret_delete", "params": {"name": "=name"}}
-          ]},
-        {"type": "table", "title": "Automation tokens", "source": {"from": "deck.tokens_list", "sort": "-id"},
-          "description": "The way in for Shortcuts, a terminal agent or a script of yours: a token calls only the commands it lists, by POST /api/commands/<command> with the header Authorization: Bearer <token>. It shows once, when it is created.",
-          "empty": "No tokens yet",
-          "columns": [
-            {"label": "Name", "bind": "name"},
-            {"label": "State", "bind": "revoked ? 'revoked' : 'live'", "format": "tag", "tone": "revoked ? 'muted' : 'ok'"},
-            {"label": "Commands", "bind": "join(commands, ', ')"},
-            {"label": "Created", "bind": "created_at", "format": "relative"}
-          ],
-          "actions": [
-            {"verb": "revoke", "confirm": true, "command": "deck.token_revoke", "params": {"token": "=id"}, "when": "!revoked"}
           ]}
       ]},
       {"title": "Interface", "icon": "palette", "blocks": [{"type": "appearance", "title": "Appearance", "icon": "palette"},
@@ -145,7 +121,7 @@
           "actions": [{"verb": "reset_push", "confirm": true, "command": "deck.push_reset"}]}]},
       {"title": "Health", "icon": "heartbeat", "blocks": [
         {"type": "table", "title": "Failing checks", "empty": "No check fails", "source": {"from": "deck.health_list", "where": "status == 'error'"}, "filter": ["kind", "project"],
-          "description": "Every check of deck that fails now, of the machine and of the modules, with why; a command or a schedule shows its model, which you change here. One marked read stops counting on the cockpit until it changes.",
+          "description": "What fails now, with why; marked read, it stops counting on the cockpit until it changes.",
           "columns": [
             {"label": "What", "bind": "subject", "format": "tag", "tone": "seen ? 'muted' : 'error'"},
             {"label": "Why", "bind": "error", "details": "error", "format": "copy"},
@@ -157,29 +133,33 @@
             {"verb": "model", "command": "deck.assignment_set", "params": {"role": "=role", "project": "=project", "command": "=command"}, "input": "model", "options": "=choices", "when": "len(choices ?? []) > 0"},
             {"verb": "run_now", "command": "deck.trigger_run", "params": {"trigger": "=trigger"}, "when": "(trigger ?? 0) != 0"},
             {"verb": "check", "command": "deck.provider_check", "params": {"provider": "=trimPrefix(subject, 'provider:')"}, "when": "self_check"}
-          ]},
-        {"type": "table", "title": "Failed runs", "empty": "No schedule failed its last run", "source": {"from": "deck.triggers_list", "where": "(last_tone ?? '') == 'error'", "sort": "project"}, "filter": ["project"],
-          "description": "What runs by itself and failed its last run, with the model it ran on: change the model and run it again.",
+          ]}
+      ]},
+      {"title": "Advanced", "icon": "adjustments", "blocks": [
+        {"type": "dialog", "name": "secret", "title": "Add a secret", "icon": "key", "blocks": [
+          {"type": "form", "command": "deck.secret_set", "values": {"name": "=param.name"}}]},
+        {"type": "dialog", "name": "token", "title": "Create a token", "icon": "ticket", "blocks": [
+          {"type": "form", "command": "deck.token_create", "keep_open": true,
+            "choices": {"commands": {"source": {"from": "deck.commands_list", "sort": "name"}, "value": "name"}}}]},
+        {"type": "table", "title": "Limits", "source": {"from": "deck.settings_list", "where": "name != 'language'"},
+          "description": "How much deck runs at once and how long it waits for you.",
           "columns": [
-            {"label": "Command", "bind": "project + ' · ' + command"},
-            {"label": "Model", "bind": "model ?? ''", "pick": "model"},
-            {"label": "Price", "bind": "price ?? ''"},
-            {"label": "Last result", "bind": "last_word ?? ''", "format": "tag", "tone": "last_tone ?? ''"}
+            {"label": "Setting", "bind": "title"},
+            {"label": "Value", "bind": "string(value)", "pick": "edit"},
+            {"label": "Default", "bind": "default"}
           ],
           "actions": [
-            {"verb": "model", "command": "deck.assignment_set", "params": {"role": "=role", "project": "=project", "command": "=command"}, "input": "model", "options": "=choices", "when": "len(choices ?? []) > 0"},
-            {"verb": "run_now", "primary": true, "command": "deck.trigger_run", "params": {"trigger": "=id"}, "when": "kind == 'cron'"},
-            {"verb": "open", "screen": "process", "record": "=last_process", "when": "last_process != 0"}
+            {"verb": "edit", "command": "deck.settings_set", "params": {"name": "=name"}, "input": "value", "options": "=options"}
           ]},
         {"type": "table", "title": "Agents", "source": {"from": "deck.models_list", "rows": "agents"},
-          "description": "The programs agent commands run in, found on this machine with their version.",
+          "description": "The programs agent commands run in, with their version; change them only when an agent breaks.",
           "columns": [
             {"label": "Agent", "bind": "name"},
             {"label": "Version", "bind": "version"},
             {"label": "Status", "bind": "status == 'missing' ? 'not installed' : status", "format": "tag", "tone": "status == 'ok' ? 'ok' : status == 'error' ? 'error' : status == 'missing' ? 'muted' : 'warn'", "details": "error"}
           ]},
         {"type": "table", "title": "Everything deck checks", "source": {"from": "deck.health_list"}, "filter": ["kind", "status", "project"],
-          "description": "The models and agents deck runs on with the work each does, the commands, schedules, tools and servers of the modules, and the machine.",
+          "description": "Every check deck runs, the working ones too; what fails is on the Health tab.",
           "columns": [
             {"label": "What", "bind": "subject"},
             {"label": "Status", "bind": "status", "format": "tag", "details": "error", "tone": "status == 'ok' ? 'ok' : status == 'error' ? 'error' : 'warn'"},
@@ -190,15 +170,25 @@
             {"verb": "check", "command": "deck.provider_check", "params": {"provider": "=trimPrefix(subject, 'provider:')"}, "when": "self_check"},
             {"verb": "open", "screen": "settings", "params": {"tab": "Interface"}, "when": "subject == 'push' && status != 'ok'"}
           ]},
-        {"type": "table", "title": "Limits", "source": {"from": "deck.settings_list", "where": "name != 'language'"},
-          "description": "How much deck runs at once and how long it waits for you.",
+        {"type": "table", "title": "Secrets", "source": {"from": "deck.secrets_list"},
+          "description": "Keys and passwords of connections and tools; agents and scripts never see them.",
+          "empty": "No secrets yet",
+          "columns": [{"label": "Name", "bind": "name", "format": "copy"}],
+          "actions": [
+            {"verb": "replace", "screen": "settings", "params": {"tab": "Advanced", "dialog": "secret", "name": "=name"}},
+            {"verb": "delete", "confirm": true, "command": "deck.secret_delete", "params": {"name": "=name"}}
+          ]},
+        {"type": "table", "title": "Automation tokens", "source": {"from": "deck.tokens_list", "sort": "-id"},
+          "description": "A way in for Shortcuts or your scripts: POST /api/commands/<command> with Authorization: Bearer <token>, only the commands it lists.",
+          "empty": "No tokens yet",
           "columns": [
-            {"label": "Setting", "bind": "title"},
-            {"label": "Value", "bind": "string(value)", "pick": "edit"},
-            {"label": "Default", "bind": "default"}
+            {"label": "Name", "bind": "name"},
+            {"label": "State", "bind": "revoked ? 'revoked' : 'live'", "format": "tag", "tone": "revoked ? 'muted' : 'ok'"},
+            {"label": "Commands", "bind": "join(commands, ', ')"},
+            {"label": "Created", "bind": "created_at", "format": "relative"}
           ],
           "actions": [
-            {"verb": "edit", "command": "deck.settings_set", "params": {"name": "=name"}, "input": "value", "options": "=options"}
+            {"verb": "revoke", "confirm": true, "command": "deck.token_revoke", "params": {"token": "=id"}, "when": "!revoked"}
           ]}
       ]}
     ]}

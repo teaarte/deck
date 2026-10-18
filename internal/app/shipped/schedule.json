@@ -24,6 +24,33 @@
             {"verb": "open", "screen": "process", "record": "=last_process", "when": "last_process != 0"}
           ]}
       ]},
+      {"title": "Failed", "icon": "alert-triangle", "blocks": [
+        {"type": "table", "title": "Failed runs", "empty": "No run failed", "source": {"from": "deck.processes_list", "input": {"state": "error", "limit": 100}, "sort": "-id"}, "filter": ["project"],
+          "description": "Every run that ended in an error, the newest first; closed on the cockpit, it stays here.",
+          "columns": [
+            {"label": "Command", "bind": "command"},
+            {"label": "Module", "bind": "project", "format": "tag"},
+            {"label": "Why", "bind": "error ?? ''", "details": "(error_details ?? '') != '' ? error_details : nil"},
+            {"label": "Started", "bind": "started_at", "format": "relative"},
+            {"label": "#", "bind": "id"}
+          ],
+          "actions": [
+            {"verb": "open", "screen": "process", "record": "=id"}
+          ]},
+        {"type": "table", "title": "Schedules that failed", "empty": "No schedule failed its last run", "source": {"from": "deck.triggers_list", "where": "(last_tone ?? '') == 'error'", "sort": "project"}, "filter": ["project"],
+          "description": "What runs by itself and failed its last run; change its model and run it again.",
+          "columns": [
+            {"label": "Command", "bind": "project + ' · ' + command"},
+            {"label": "Model", "bind": "model ?? ''", "pick": "model"},
+            {"label": "Price", "bind": "price ?? ''"},
+            {"label": "Last result", "bind": "last_word ?? ''", "format": "tag", "tone": "last_tone ?? ''"}
+          ],
+          "actions": [
+            {"verb": "model", "command": "deck.assignment_set", "params": {"role": "=role", "project": "=project", "command": "=command"}, "input": "model", "options": "=choices", "when": "len(choices ?? []) > 0"},
+            {"verb": "run_now", "primary": true, "command": "deck.trigger_run", "params": {"trigger": "=id"}, "when": "kind == 'cron'"},
+            {"verb": "open", "screen": "process", "record": "=last_process", "when": "last_process != 0"}
+          ]}
+      ]},
       {"title": "Runs", "icon": "list", "blocks": [
         {"type": "table", "title": "History", "source": {"from": "deck.processes_list", "input": {"limit": 100}, "sort": "-id"}, "filter": ["project", "state"],
           "description": "Every run, by schedule, by a button or by the master; a run shows its log and the calls it made.",

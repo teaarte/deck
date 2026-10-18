@@ -289,6 +289,6 @@ func TestRealBrowserShell(t *testing.T) {
 	b.until("a link to a tab opens it in any language", `document.querySelector('[role="tab"][aria-selected="true"]')?.innerText.includes('7 дней')`)
 	b.eval(`([...document.querySelectorAll('[role="tab"]')].find((x) => x.innerText.includes('30 дней')).click(), '')`)
 	b.until("the address names the tab as written", `/tab=30(\+|%20| )days$/.test(location.hash)`)
-	b.open(e.URL + "/#/deck/settings?tab=Health")
+	b.open(e.URL + "/#/deck/settings?tab=Advanced")
 	b.until("the settings named in the language of the owner", `document.body.innerText.includes('Сколько агентских процессов')`)
 }

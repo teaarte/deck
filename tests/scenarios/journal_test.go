@@ -78,9 +78,9 @@ func TestJournalShowsTheCallsOfTheGatewayTheSpendFilesAndSnapshots(t *testing.T)
 
 	check.messages(t, e.screenMessages("", "spend", nil))
 	data := e.screenData("", "spend", nil)
-	spend := blockData[[]screenRow](t, data["b4-2-0"]["rows"])
+	spend := blockData[[]screenRow](t, data["b4-2-1"]["rows"])
 	if len(spend) != 1 || spend[0].Cells[0] != "web" || spend[0].Cells[2] != float64(2) || spend[0].Cells[3] != float64(2400) {
-		t.Fatalf("spend sums the calls and tokens of each model of each project: %+v", spend)
+		t.Fatalf("spend sums the calls and tokens of each project: %+v", spend)
 	}
 	var by []struct {
 		Provider string
@@ -102,7 +102,7 @@ func TestJournalShowsTheCallsOfTheGatewayTheSpendFilesAndSnapshots(t *testing.T)
 		t.Fatalf("spend by day has every day of the window, today last: %+v", days)
 	}
 	kept := e.screenData("", "files", nil)
-	files := blockData[[]map[string]any](t, kept["b0-0-0"]["files"])
+	files := blockData[[]map[string]any](t, kept["b0-0-1"]["files"])
 	if len(files) != 1 || files[0]["name"] != "scan.txt" || files[0]["title"] != "scan.txt" {
 		t.Fatalf("files lists the files of the workspace: %+v", files)
 	}

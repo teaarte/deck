@@ -149,6 +149,9 @@ func TestRealBrowserSettings(t *testing.T) {
 	b.shot("settings-projects")
 
 	tab("Health")
+	b.until("the failing checks alone on Health", `[...document.querySelectorAll('[data-block]')].some((x) => x.innerText.includes('Failing checks')) && ![...document.querySelectorAll('[data-block]')].some((x) => x.offsetParent && x.innerText.includes('Everything deck checks'))`)
+	b.shot("settings-health")
+	tab("Advanced")
 	agent := `[...document.querySelectorAll('tr')].find((r) => [...r.querySelectorAll('td')].some((d) => d.innerText.trim() === 'goose'))`
 	b.until("the agents with why one gives no version", agent)
 	if got := b.eval(`String(!` + agent + `.innerText.includes('exit status 1') && !!` + agent + `.querySelector('[data-format="tag"][data-hint]'))`); got != "true" {
@@ -156,9 +159,8 @@ func TestRealBrowserSettings(t *testing.T) {
 	}
 	b.eval(`(` + agent + `.querySelector('[data-row-toggle]').click(), '')`)
 	b.until("the whole error on demand", agent+`.nextElementSibling?.matches('[data-row-more]') && `+agent+`.nextElementSibling.innerText.includes('exit status 1')`)
-	b.shot("settings-health")
+	b.shot("settings-advanced")
 
-	tab("Connections")
 	b.until("the add secret button", `document.querySelector('[data-dialog-open="secret"]')`)
 	b.eval(`(document.querySelector('[data-dialog-open="secret"]').click(), '')`)
 	secret := `document.querySelector('[data-form="deck.secret_set"] input[data-field="value"]')`
@@ -174,7 +176,7 @@ func TestRealBrowserSettings(t *testing.T) {
 		t.Fatal("the value of a secret is not on the page after it is set")
 	}
 
-	b.until("the create token button beside the connections", `document.querySelector('[data-dialog-open="token"]')`)
+	b.until("the create token button beside the secrets", `document.querySelector('[data-dialog-open="token"]')`)
 	b.eval(`(document.querySelector('[data-dialog-open="token"]').click(), '')`)
 	b.until("the token form", `document.querySelector('[data-form="deck.token_create"]')`)
 	b.type_(`document.querySelector('[data-form="deck.token_create"] input[data-field="name"]')`, "shortcuts")
@@ -203,6 +205,16 @@ func TestRealBrowserSettings(t *testing.T) {
 	b.eval(`(document.querySelector('[data-confirm-yes]').click(), '')`)
 	b.until("the revoked token", `[...document.querySelectorAll('tr')].some((r) => r.innerText.includes('shortcuts') && r.innerText.toLowerCase().includes('revoked'))`)
 	b.shot("settings-tokens")
+	for _, name := range []string{"Models", "Commands", "Connections"} {
+		tab(name)
+		b.until("the tab "+name+" drawn", `document.querySelector('[role=tabpanel]:not([hidden]) [data-block]')`)
+		b.shot("settings-" + strings.ToLower(name))
+	}
+	for name, at := range map[string]string{"schedule-failed": "schedule?tab=Failed", "spend": "spend", "files": "files"} {
+		b.open(e.URL + "/#/deck/" + at)
+		b.until("the screen "+at, `document.querySelector('[data-block]')`)
+		b.shot(name)
+	}
 
 	b.open(e.URL + "/#/p/web/settings")
 	row := `[...document.querySelectorAll('tr')].find((r) => r.innerText.includes('Score') && r.querySelector('input[data-pick="model"]'))`

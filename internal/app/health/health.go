@@ -155,7 +155,7 @@ func (s *Service) list(ctx context.Context, act registry.Actor, in healthListIn)
 				continue
 			}
 			row := healthRow{Subject: "secret:" + name, Project: p.Name, Status: health.Error,
-				Error: "not set, so the tools that send it fail; set it in Settings → Connections → Secrets"}
+				Error: "not set, so the tools that send it fail; set it in Settings → Advanced → Secrets"}
 			row.Seen = s.read(ctx, act.Workspace, row)
 			out = append(out, row)
 		}

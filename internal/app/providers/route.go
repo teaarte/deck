@@ -61,7 +61,7 @@ func (s *Service) Route(ctx context.Context, act registry.Actor, ask gateway.Mod
 			if role == RoleSearch {
 				return nil, registry.Invalid("deck: %s", noSearch)
 			}
-			return nil, registry.Invalid("deck: no model is assigned to %s; the owner picks one in Settings → Models, or in the settings of the module", role)
+			return nil, registry.Invalid("deck: no model is assigned to %s; the owner picks one in Settings → Commands, or in the settings of the module", role)
 		}
 	} else {
 		c, err := s.St.Q.GetConnection(ctx, db.GetConnectionParams{WorkspaceID: act.Workspace, Name: connection})

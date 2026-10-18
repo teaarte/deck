@@ -569,10 +569,10 @@ func TestAModelCommandNoModelTakesIsWarnedOfAndFailsAtOnce(t *testing.T) {
 	var imported struct{ Warnings []string }
 	e.must("deck.project_import", map[string]any{"folder": dir, "name": "shorts"}, &imported)
 	if len(imported.Warnings) != 4 || !strings.Contains(imported.Warnings[0], "command factcheck: it calls @text, but no model is assigned to text") ||
-		!strings.Contains(imported.Warnings[0], "Settings → Models") {
+		!strings.Contains(imported.Warnings[0], "Settings → Commands") {
 		t.Fatalf("the import names each model command no model takes: %v", imported.Warnings)
 	}
-	if h := e.waitHealth("command:factcheck", "warning"); !strings.Contains(h.Error, "pick one in Settings → Models") {
+	if h := e.waitHealth("command:factcheck", "warning"); !strings.Contains(h.Error, "pick one in Settings → Commands") {
 		t.Fatalf("the draft's health shows it in yellow: %+v", h)
 	}
 	var m struct {
@@ -586,7 +586,7 @@ func TestAModelCommandNoModelTakesIsWarnedOfAndFailsAtOnce(t *testing.T) {
 	var tried struct{ Process int64 }
 	e.must("deck.command_try", map[string]any{"command": "shorts.factcheck", "input": map[string]any{"claim": "x"}}, &tried)
 	got := e.waitState(tried.Process, "done", "error", "waiting_answer")
-	if got.State != "error" || !strings.Contains(got.Error, "no model is assigned to text") || !strings.Contains(got.Error, "Settings → Models") {
+	if got.State != "error" || !strings.Contains(got.Error, "no model is assigned to text") || !strings.Contains(got.Error, "Settings → Commands") {
 		t.Fatalf("the trial fails at once with where to assign a model: %+v", got)
 	}
 	e.must("deck.connection_set", map[string]any{"name": "groq", "api": "openai", "url": "http://127.0.0.1:1/v1", "key": "gsk-1"}, nil)

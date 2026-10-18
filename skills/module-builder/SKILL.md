@@ -21,7 +21,7 @@ Projects → "Settings" on its row): "Enable" with the rights enabling grants, p
 each command, folders, the secrets its tools take. deck's Settings tabs: Projects (create, import, a trial run),
 Models (assignments, a model and its agent), Connections (where models are reached, and the other secrets: a
 name and a hidden value), Tokens, Health; sign-ins wait in the cockpit. So name
-the place and the value ("Settings → Connections → Secrets: `mail-key`, the API key of …"), never a `curl`; the fields of
+the place and the value ("Settings → Advanced → Secrets: `mail-key`, the API key of …"), never a `curl`; the fields of
 these forms are the input of their command, which `command_describe` gives; `commands_list` marks these commands
 `owner_only` with `form`, the address of the form to link to, and `form_params` that fill it.
 

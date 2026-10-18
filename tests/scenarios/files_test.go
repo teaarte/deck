@@ -267,19 +267,19 @@ func TestAFileDownloadsAsAnAttachmentForWhoMaySeeItsProject(t *testing.T) {
 			t.Fatalf("%s with a token of other rights: want %d, got %d %q", c.path, c.code, resp.StatusCode, body)
 		}
 	}
-	files := blockData[[]map[string]any](t, e.screenData("", "files", nil)["b0-0-0"]["files"])
+	files := blockData[[]map[string]any](t, e.screenData("", "files", nil)["b0-0-1"]["files"])
 	acts, _ := files[0]["actions"].([]any)
 	if len(files) != 1 || files[0]["url"] != fmt.Sprintf("/api/files/%d", id) || len(acts) != 1 {
 		t.Fatalf("a file of the files of deck opens from its address and has its delete: %+v", files)
 	}
 	del := acts[0].(map[string]any)
 	e.must(del["command"].(string), del["params"].(map[string]any), nil)
-	if left := blockData[[]map[string]any](t, e.screenData("", "files", nil)["b0-0-0"]["files"]); len(left) != 0 {
+	if left := blockData[[]map[string]any](t, e.screenData("", "files", nil)["b0-0-1"]["files"]); len(left) != 0 {
 		t.Fatalf("a deleted file leaves the list: %+v", left)
 	}
 	undo := del["undo"].(map[string]any)
 	e.must(undo["command"].(string), undo["params"].(map[string]any), nil)
-	if back := blockData[[]map[string]any](t, e.screenData("", "files", nil)["b0-0-0"]["files"]); len(back) != 1 {
+	if back := blockData[[]map[string]any](t, e.screenData("", "files", nil)["b0-0-1"]["files"]); len(back) != 1 {
 		t.Fatalf("the undo brings the file back: %+v", back)
 	}
 }

@@ -101,19 +101,17 @@
           "blocks": [
             {
               "type": "table",
-              "title": "By module and model",
-              "span": "full",
+              "title": "By module",
               "source": {
                 "from": "deck.spend_daily",
                 "input": {
                   "days": 1,
-                  "by": "project_provider"
-                }
+                  "by": "project"
+                },
+                "sort": "-cost_usd"
               },
-              "filter": [
-                "project"
-              ],
-              "empty": "No model was called",
+              "description": "What each module paid for models; work on a subscription costs nothing beyond it.",
+              "empty": "No model calls",
               "columns": [
                 {
                   "label": "Module",
@@ -121,9 +119,10 @@
                   "format": "tag"
                 },
                 {
-                  "label": "Model",
-                  "bind": "provider",
-                  "format": "tag"
+                  "label": "Paid",
+                  "bind": "cost_usd == 0 && subscription_usd > 0 ? nil : cost_usd",
+                  "format": "money",
+                  "currency": "USD"
                 },
                 {
                   "label": "Calls",
@@ -135,30 +134,25 @@
                   "format": "compact"
                 },
                 {
-                  "label": "Paid",
-                  "bind": "subscription ? nil : cost_usd",
+                  "label": "On subscription",
+                  "bind": "subscription_usd > 0 ? subscription_usd : nil",
                   "format": "money",
                   "currency": "USD"
-                },
-                {
-                  "label": "Subscription",
-                  "bind": "subscription ? '✓' : ''"
                 }
-              ],
-              "description": "What models cost: the money paid to them, and apart from it the work of models on a subscription, which costs nothing beyond it."
+              ]
             },
             {
               "type": "table",
               "title": "By model",
-              "span": "full",
               "source": {
                 "from": "deck.spend_daily",
                 "input": {
                   "days": 1,
                   "by": "provider"
-                }
+                },
+                "sort": "-cost_usd"
               },
-              "empty": "No model was called",
+              "empty": "No model calls",
               "columns": [
                 {
                   "label": "Model",
@@ -166,6 +160,17 @@
                   "format": "tag"
                 },
                 {
+                  "label": "Paid",
+                  "bind": "cost_usd == 0 && subscription_usd > 0 ? nil : cost_usd",
+                  "format": "money",
+                  "currency": "USD"
+                },
+                {
+                  "label": "Share",
+                  "bind": "share",
+                  "format": "percent"
+                },
+                {
                   "label": "Calls",
                   "bind": "calls"
                 },
@@ -175,19 +180,10 @@
                   "format": "compact"
                 },
                 {
-                  "label": "Share",
-                  "bind": "share",
-                  "format": "percent"
-                },
-                {
-                  "label": "Paid",
-                  "bind": "subscription ? nil : cost_usd",
+                  "label": "On subscription",
+                  "bind": "subscription_usd > 0 ? subscription_usd : nil",
                   "format": "money",
                   "currency": "USD"
-                },
-                {
-                  "label": "Subscription",
-                  "bind": "subscription ? '✓' : ''"
                 }
               ]
             }
@@ -199,19 +195,17 @@
           "blocks": [
             {
               "type": "table",
-              "title": "By module and model",
-              "span": "full",
+              "title": "By module",
               "source": {
                 "from": "deck.spend_daily",
                 "input": {
                   "days": 7,
-                  "by": "project_provider"
-                }
+                  "by": "project"
+                },
+                "sort": "-cost_usd"
               },
-              "filter": [
-                "project"
-              ],
-              "empty": "No model was called",
+              "description": "What each module paid for models; work on a subscription costs nothing beyond it.",
+              "empty": "No model calls",
               "columns": [
                 {
                   "label": "Module",
@@ -219,9 +213,10 @@
                   "format": "tag"
                 },
                 {
-                  "label": "Model",
-                  "bind": "provider",
-                  "format": "tag"
+                  "label": "Paid",
+                  "bind": "cost_usd == 0 && subscription_usd > 0 ? nil : cost_usd",
+                  "format": "money",
+                  "currency": "USD"
                 },
                 {
                   "label": "Calls",
@@ -233,30 +228,25 @@
                   "format": "compact"
                 },
                 {
-                  "label": "Paid",
-                  "bind": "subscription ? nil : cost_usd",
+                  "label": "On subscription",
+                  "bind": "subscription_usd > 0 ? subscription_usd : nil",
                   "format": "money",
                   "currency": "USD"
-                },
-                {
-                  "label": "Subscription",
-                  "bind": "subscription ? '✓' : ''"
                 }
-              ],
-              "description": "What models cost: the money paid to them, and apart from it the work of models on a subscription, which costs nothing beyond it."
+              ]
             },
             {
               "type": "table",
               "title": "By model",
-              "span": "full",
               "source": {
                 "from": "deck.spend_daily",
                 "input": {
                   "days": 7,
                   "by": "provider"
-                }
+                },
+                "sort": "-cost_usd"
               },
-              "empty": "No model was called",
+              "empty": "No model calls",
               "columns": [
                 {
                   "label": "Model",
@@ -264,6 +254,17 @@
                   "format": "tag"
                 },
                 {
+                  "label": "Paid",
+                  "bind": "cost_usd == 0 && subscription_usd > 0 ? nil : cost_usd",
+                  "format": "money",
+                  "currency": "USD"
+                },
+                {
+                  "label": "Share",
+                  "bind": "share",
+                  "format": "percent"
+                },
+                {
                   "label": "Calls",
                   "bind": "calls"
                 },
@@ -273,19 +274,10 @@
                   "format": "compact"
                 },
                 {
-                  "label": "Share",
-                  "bind": "share",
-                  "format": "percent"
-                },
-                {
-                  "label": "Paid",
-                  "bind": "subscription ? nil : cost_usd",
+                  "label": "On subscription",
+                  "bind": "subscription_usd > 0 ? subscription_usd : nil",
                   "format": "money",
                   "currency": "USD"
-                },
-                {
-                  "label": "Subscription",
-                  "bind": "subscription ? '✓' : ''"
                 }
               ]
             }
@@ -295,98 +287,6 @@
           "title": "30 days",
           "icon": "calendar-month",
           "blocks": [
-            {
-              "type": "table",
-              "title": "By module and model",
-              "span": "full",
-              "source": {
-                "from": "deck.spend_daily",
-                "input": {
-                  "days": 30,
-                  "by": "project_provider"
-                }
-              },
-              "filter": [
-                "project"
-              ],
-              "empty": "No model was called",
-              "columns": [
-                {
-                  "label": "Module",
-                  "bind": "(project ?? '') != '' ? project : 'deck'",
-                  "format": "tag"
-                },
-                {
-                  "label": "Model",
-                  "bind": "provider",
-                  "format": "tag"
-                },
-                {
-                  "label": "Calls",
-                  "bind": "calls"
-                },
-                {
-                  "label": "Tokens",
-                  "bind": "tokens",
-                  "format": "compact"
-                },
-                {
-                  "label": "Paid",
-                  "bind": "subscription ? nil : cost_usd",
-                  "format": "money",
-                  "currency": "USD"
-                },
-                {
-                  "label": "Subscription",
-                  "bind": "subscription ? '✓' : ''"
-                }
-              ],
-              "description": "What models cost: the money paid to them, and apart from it the work of models on a subscription, which costs nothing beyond it."
-            },
-            {
-              "type": "table",
-              "title": "By model",
-              "span": "full",
-              "source": {
-                "from": "deck.spend_daily",
-                "input": {
-                  "days": 30,
-                  "by": "provider"
-                }
-              },
-              "empty": "No model was called",
-              "columns": [
-                {
-                  "label": "Model",
-                  "bind": "provider",
-                  "format": "tag"
-                },
-                {
-                  "label": "Calls",
-                  "bind": "calls"
-                },
-                {
-                  "label": "Tokens",
-                  "bind": "tokens",
-                  "format": "compact"
-                },
-                {
-                  "label": "Share",
-                  "bind": "share",
-                  "format": "percent"
-                },
-                {
-                  "label": "Paid",
-                  "bind": "subscription ? nil : cost_usd",
-                  "format": "money",
-                  "currency": "USD"
-                },
-                {
-                  "label": "Subscription",
-                  "bind": "subscription ? '✓' : ''"
-                }
-              ]
-            },
             {
               "type": "chart",
               "title": "Paid by day",
@@ -410,20 +310,28 @@
             },
             {
               "type": "table",
-              "title": "By day",
-              "span": "full",
+              "title": "By module",
               "source": {
                 "from": "deck.spend_daily",
                 "input": {
-                  "days": 30
+                  "days": 30,
+                  "by": "project"
                 },
-                "sort": "-day"
+                "sort": "-cost_usd"
               },
+              "description": "What each module paid for models; work on a subscription costs nothing beyond it.",
+              "empty": "No model calls",
               "columns": [
                 {
-                  "label": "Day",
-                  "bind": "day",
-                  "format": "date"
+                  "label": "Module",
+                  "bind": "(project ?? '') != '' ? project : 'deck'",
+                  "format": "tag"
+                },
+                {
+                  "label": "Paid",
+                  "bind": "cost_usd == 0 && subscription_usd > 0 ? nil : cost_usd",
+                  "format": "money",
+                  "currency": "USD"
                 },
                 {
                   "label": "Calls",
@@ -435,8 +343,54 @@
                   "format": "compact"
                 },
                 {
+                  "label": "On subscription",
+                  "bind": "subscription_usd > 0 ? subscription_usd : nil",
+                  "format": "money",
+                  "currency": "USD"
+                }
+              ]
+            },
+            {
+              "type": "table",
+              "title": "By model",
+              "source": {
+                "from": "deck.spend_daily",
+                "input": {
+                  "days": 30,
+                  "by": "provider"
+                },
+                "sort": "-cost_usd"
+              },
+              "empty": "No model calls",
+              "columns": [
+                {
+                  "label": "Model",
+                  "bind": "provider",
+                  "format": "tag"
+                },
+                {
                   "label": "Paid",
-                  "bind": "cost_usd",
+                  "bind": "cost_usd == 0 && subscription_usd > 0 ? nil : cost_usd",
+                  "format": "money",
+                  "currency": "USD"
+                },
+                {
+                  "label": "Share",
+                  "bind": "share",
+                  "format": "percent"
+                },
+                {
+                  "label": "Calls",
+                  "bind": "calls"
+                },
+                {
+                  "label": "Tokens",
+                  "bind": "tokens",
+                  "format": "compact"
+                },
+                {
+                  "label": "On subscription",
+                  "bind": "subscription_usd > 0 ? subscription_usd : nil",
                   "format": "money",
                   "currency": "USD"
                 }

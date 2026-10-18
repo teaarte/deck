@@ -334,3 +334,23 @@ func TestALineOfTheCockpitSaysWhenItHappened(t *testing.T) {
 		t.Fatalf("a failure says when it happened: %+v", failed)
 	}
 }
+
+// TestFailedRunsAreAListOfTheirOwnInTheSchedule: the schedule has the failed runs apart from the history, with why;
+// a run closed on the cockpit stays there.
+func TestFailedRunsAreAListOfTheirOwnInTheSchedule(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		return provider.Result{IsError: true, Text: "the voice server is down"}
+	})
+	e.createProject("shorts", jobsModule)
+	e.must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "videos", "records": jsonl(map[string]any{"slug": "knights", "title": "Knights"})}, nil)
+	var recs []struct{ ID int64 }
+	e.must("deck.records_list", map[string]any{"project": "shorts", "collection": "videos"}, &recs)
+	id := e.start("shorts", "voice", map[string]any{"record": recs[0].ID})
+	e.waitState(id, "done", "error")
+	e.must("deck.process_dismiss", map[string]any{"process": id}, nil)
+	failed := blockData[[]screenRow](t, e.screenData("", "schedule", nil)["b0-1-0"]["rows"])
+	if len(failed) != 1 || failed[0].Cells[0] != "voice" || failed[0].Cells[4] != float64(id) || !strings.Contains(fmt.Sprint(failed[0].Cells[2]), "voice server is down") {
+		t.Fatalf("the failed run is in its own list with why, closed on the cockpit or not: %+v", failed)
+	}
+}

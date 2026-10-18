@@ -123,6 +123,8 @@ func (s ShellCheck) Check(ctx context.Context, start Check) (c Check) {
 			model(fmt.Errorf("%s: the model answered (%d tokens) but did not finish the steps within the ceiling: it is slow, such as a model that always reasons; commands with a long timeout_minutes may still run on it", what, counted))
 		case err != nil:
 			c.Err = fmt.Errorf("%s: %w", what, err)
+		case strings.Contains(string(raw)+res.Text, secret):
+			c.Err = fmt.Errorf("%s: the agent read a file deck hides", what)
 		case res.Refusal != "" && raw == nil && strings.HasPrefix(res.Refusal, "404 "):
 			c.Err = fmt.Errorf("%s: the model API does not know the model (%s): check the model id and the url of the connection", what, res.Refusal)
 		case res.Refusal != "" && raw == nil && strings.Contains(strings.ToLower(res.Refusal), "tool"):
@@ -131,8 +133,6 @@ func (s ShellCheck) Check(ctx context.Context, start Check) (c Check) {
 			c.Err = fmt.Errorf("%s: the model API refused what %s sent (%s): %s and this connection do not fit; pick another agent or connection for the model", what, s.Agent, res.Refusal, s.Agent)
 		case res.RateLimited || res.NeedsLogin || res.IsError:
 			c.Err = fmt.Errorf("%s: %s", what, res.Text)
-		case strings.Contains(string(raw)+res.Text, secret):
-			c.Err = fmt.Errorf("%s: the agent read a file deck hides", what)
 		case raw == nil && asked == 0 && !wrote(work, word):
 			model(fmt.Errorf("%s: the model made no tool call and answered in words: the API may not pass tools to it, or it does not use them (%s)", what, said(res.Text)))
 		case raw == nil:

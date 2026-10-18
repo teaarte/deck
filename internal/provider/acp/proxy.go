@@ -65,7 +65,7 @@ func (e *entry) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		h := &held{w: w, header: http.Header{}}
 		send(h, body)
-		if h.code == http.StatusBadRequest && !plain && refusesReasoning(h.buf.Bytes()) {
+		if badRequest(h.code) && !plain && refusesReasoning(h.buf.Bytes()) {
 			e.mu.Lock()
 			e.plain = true
 			e.mu.Unlock()
@@ -116,14 +116,13 @@ func (s *status) Flush() {
 }
 
 // refused tells a failed turn by the last answer of the model API: a usage limit (429) pauses, a refused key
-// needs a login, another refusal is an error of the turn with the words of the API.
+// needs a login, another refusal keeps the words of the API.
 func (e *entry) refused(res provider.Result) provider.Result {
 	e.mu.Lock()
 	status, after, words := e.last, e.retryAfter, e.refusal
 	e.mu.Unlock()
 	if !provider.Refused(&res, status, after, e.now()) && status >= 400 {
 		res.Refusal = fmt.Sprintf("%d %s", status, untrusted.Line(words, 500))
-		res.IsError, res.Text = true, "acp: the model API refused a call of the turn: "+res.Refusal
 	}
 	return res
 }
@@ -132,9 +131,17 @@ func (e *entry) refused(res provider.Result) provider.Result {
 // API needs and a strict one refuses.
 var echoed = []string{"reasoning_content", "reasoning", "reasoning_details"}
 
-// refusesReasoning reports whether the model API refused a call for a field of reasoning in its messages.
+// refusesReasoning reports whether the model API refused a call naming a field of reasoning, quoted as a field.
 func refusesReasoning(answer []byte) bool {
-	return slices.ContainsFunc(echoed, func(f string) bool { return bytes.Contains(answer, []byte(f)) })
+	text := strings.ReplaceAll(string(answer), `\"`, `"`)
+	return slices.ContainsFunc(echoed, func(f string) bool {
+		return slices.ContainsFunc([]string{"'", `"`, "`"}, func(q string) bool { return strings.Contains(text, q+f+q) })
+	})
+}
+
+// badRequest is an answer of the model API that refuses what the call holds.
+func badRequest(code int) bool {
+	return code == http.StatusBadRequest || code == http.StatusUnprocessableEntity
 }
 
 // withoutReasoning is a call of the model with no field of reasoning in its messages.
@@ -172,7 +179,7 @@ func (h *held) WriteHeader(code int) {
 		return
 	}
 	h.code = code
-	if code != http.StatusBadRequest {
+	if !badRequest(code) {
 		h.pass()
 	}
 }
@@ -181,14 +188,14 @@ func (h *held) Write(b []byte) (int, error) {
 	if h.code == 0 {
 		h.WriteHeader(http.StatusOK)
 	}
-	if h.code == http.StatusBadRequest {
+	if badRequest(h.code) {
 		return h.buf.Write(b)
 	}
 	return h.w.Write(b)
 }
 
 func (h *held) Flush() {
-	if f, ok := h.w.(http.Flusher); ok && h.code != http.StatusBadRequest {
+	if f, ok := h.w.(http.Flusher); ok && !badRequest(h.code) {
 		f.Flush()
 	}
 }
@@ -202,7 +209,7 @@ func (h *held) pass() {
 
 // release hands a kept bad request on to the agent.
 func (h *held) release() {
-	if h.code != http.StatusBadRequest {
+	if !badRequest(h.code) {
 		return
 	}
 	h.pass()

@@ -306,6 +306,12 @@ func (r *Runner) converse(ctx context.Context, t *turn, a *agentTurn, fail func(
 		case res.IsError:
 			r.finish(bg, processID, StateError, res.Text, false, fault.With(fault.TaskFailed, "the agent reported an error: "+untrusted.Flat(res.Text, 200), res.Text))
 			r.deps.Broke(bg, pv.Name())
+		case !blocked && verr != nil && res.Refusal != "":
+			f := fault.With(fault.ModelUnavailable, pv.Name()+" refused a call of the turn: "+untrusted.Flat(res.Refusal, 200), res.Refusal)
+			if !r.handOn(bg, *t, pv, f) {
+				r.finish(bg, processID, StateError, res.Refusal, false, f)
+			}
+			r.deps.Broke(bg, pv.Name())
 		case blocked:
 			r.turnText(bg, processID, res.Text)
 			r.park(bg, processID)

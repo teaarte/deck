@@ -7,13 +7,16 @@ import { fromFile, record, type Recording } from './voice';
 // and why the last ones were not.
 export interface VoiceState { seconds: number; hearing: boolean; failed?: string }
 
-// A piece of a recording is kept until it is text; the text of a take goes to a composer once every piece is.
-interface Piece { wav: Blob; text?: string; error?: string }
+// A piece of a recording is kept until it is text; the text of a recording goes to a composer once every piece is.
+interface Piece { wav: Blob; take: number; text?: string; error?: string }
 
 let state: VoiceState = { seconds: 0, hearing: false };
 let rec: Recording | undefined;
 let timer: ReturnType<typeof setInterval> | undefined;
 let pieces: Piece[] = [];
+let takes = 0;
+// current is the recording of the microphone going on.
+let current = 0;
 let waiting = '';
 const hearers: ((text: string) => void)[] = [];
 const subscribers = new Set<() => void>();
@@ -39,11 +42,25 @@ export function hearBy(f: (text: string) => void): () => void {
   };
 }
 
-// listen starts the microphone; each piece of the recording turns into text while it goes on.
+// listen starts the microphone, unless it is starting or on; each piece of the recording turns into text while it
+// goes on. A composer gone while it started stops it at once.
+let starting = false;
 export async function listen() {
-  rec = await record((wav) => { pieces.push({ wav }); void pump(); });
-  set({ seconds: 1, failed: undefined });
+  if (starting || rec) return;
+  starting = true;
+  try {
+    const n = ++takes;
+    rec = await record((wav) => { pieces.push({ wav, take: n }); void pump(); });
+    current = n;
+  } finally {
+    starting = false;
+  }
+  set({ seconds: 1 });
+  clearInterval(timer);
   timer = setInterval(() => set({ seconds: state.seconds + 1 }), 1000);
+  if (!hearers.length) {
+    try { stop(); } catch { /* nothing was recorded */ }
+  }
 }
 
 // stop ends the recording; its last piece turns into text with the rest.
@@ -61,8 +78,8 @@ export function stop() {
 
 // take turns a recording of a file into text, in pieces like one of the microphone.
 export async function take(file: File) {
-  pieces.push(...(await fromFile(file)).map((wav) => ({ wav })));
-  set({ failed: undefined });
+  const n = ++takes;
+  pieces.push(...(await fromFile(file)).map((wav) => ({ wav, take: n })));
   await pump();
 }
 
@@ -73,16 +90,17 @@ export async function again() {
   await pump();
 }
 
-// discard drops the pieces of a recording that did not turn into text.
+// discard drops the recordings that did not turn into text, every piece of each.
 export function discard() {
-  pieces = [];
+  const failed = new Set(pieces.filter((p) => p.error).map((p) => p.take));
+  pieces = pieces.filter((p) => !failed.has(p.take));
   set({ failed: undefined });
 }
 
 let pumping = false;
 
-// pump turns the pieces into text one by one, in order; once the recording ended and every piece is text, the text
-// goes to the composer.
+// pump turns the pieces into text one by one, in order; a recording that ended with every piece text goes to the
+// composer, one that failed stays with why.
 async function pump() {
   if (pumping) return;
   pumping = true;
@@ -100,15 +118,15 @@ async function pump() {
     pumping = false;
     set({ hearing: false });
   }
-  if (rec) return;
-  const failed = pieces.find((x) => x.error);
-  if (failed) {
-    set({ failed: failed.error });
-    return;
+  const going = rec ? current : 0;
+  for (const n of new Set(pieces.map((p) => p.take))) {
+    const of = pieces.filter((p) => p.take === n);
+    if (n === going || of.some((p) => p.text === undefined)) continue;
+    pieces = pieces.filter((p) => p.take !== n);
+    const text = of.map((x) => x.text?.trim()).filter(Boolean).join(' ');
+    if (!text) continue;
+    if (hearers.length) hearers[hearers.length - 1](text);
+    else waiting = waiting ? waiting + ' ' + text : text;
   }
-  const text = pieces.map((x) => x.text?.trim()).filter(Boolean).join(' ');
-  pieces = [];
-  if (!text) return;
-  if (hearers.length) hearers[hearers.length - 1](text);
-  else waiting = waiting ? waiting + ' ' + text : text;
+  set({ failed: pieces.find((x) => x.error)?.error });
 }

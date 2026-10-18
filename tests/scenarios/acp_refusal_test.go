@@ -112,3 +112,37 @@ func TestACPSelfCheckTellsWhyNoResultCame(t *testing.T) {
 		})
 	}
 }
+
+// TestACPRefusalOfTheModelAPIIsTheEndOfATurnWithoutItsResult: a call of the turn the API refused ends a turn that
+// handed in nothing with the words of the API, and does not undo one that handed in its result.
+func TestACPRefusalOfTheModelAPIIsTheEndOfATurnWithoutItsResult(t *testing.T) {
+	t.Parallel()
+	submit := `{"mcp": {"tool": "result_submit", "arguments": {"result": {"color": "blue"}}}}`
+	for _, tc := range []struct {
+		name  string
+		steps []string
+		state string
+		want  string
+	}{
+		{"no result", []string{acpModel}, "error", "refused a call of the turn: 413"},
+		{"result first", []string{submit, acpModel}, "done", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			f := newACP(t)
+			llm := newLLM(t, func(n int, _ chatRequest) chatReply {
+				if n <= 3 {
+					return textReply("ok")
+				}
+				return chatReply{status: 413, body: `{"error": {"message": "the request is too large for this model"}}`}
+			})
+			steps := append([]string{acpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`}, tc.steps...)
+			f.streamText(4, acpStream(append(steps, `{"end": "end_turn"}`)...))
+			e := acpEnv(t, f, "goose", llm)
+			got := e.waitState(e.run(e.acpProject("paint", colorManifest), "work"), "done", "error")
+			if got.State != tc.state || !strings.Contains(got.Error, tc.want) {
+				t.Fatalf("want %s with %q: %+v", tc.state, tc.want, got)
+			}
+		})
+	}
+}

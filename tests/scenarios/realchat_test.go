@@ -255,6 +255,37 @@ func TestRealBrowserVoiceKeptOnFailure(t *testing.T) {
 	}
 }
 
+// TestRealBrowserVoiceAfterAFailedOne: a second tap while the microphone starts records once; a recording made while
+// a failed one waits lands in the input, and Discard drops only the failed one.
+func TestRealBrowserVoiceAfterAFailedOne(t *testing.T) {
+	if os.Getenv("DECK_REAL_BROWSER") == "" {
+		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
+	}
+	checkBuiltClient(t)
+	b := voiceEnv(t, func(n int, wav []byte) (int, string) {
+		if n == 1 {
+			return 503, `{"error": "whisper is loading"}`
+		}
+		return 200, `{"text": "second thought"}`
+	})
+	record := func() {
+		b.eval(`(document.querySelector('[data-mic]').click(), document.querySelector('[data-mic]')?.click(), '')`)
+		b.until("the recording", `document.querySelector('[data-mic-stop]')`)
+		time.Sleep(1500 * time.Millisecond)
+		b.eval(`(document.querySelector('[data-mic-stop]').click(), '')`)
+	}
+	record()
+	b.until("the recording kept with why", `document.querySelector('[data-voice-failed]')`)
+	record()
+	b.until("the second recording in the input, the first still kept", `document.querySelector('[data-chat-input]').value === 'second thought' && document.querySelector('[data-voice-failed]') && !document.querySelector('[data-mic-stop]')`)
+	b.eval(`(document.querySelector('[data-voice-discard]').click(), '')`)
+	b.until("the failed one dropped, the text kept", `!document.querySelector('[data-voice-failed]') && document.querySelector('[data-chat-input]').value === 'second thought'`)
+	time.Sleep(1500 * time.Millisecond)
+	if v := b.eval(`document.querySelector('[data-mic-stop]') ? 'recording' : 'quiet'`); !strings.Contains(v, "quiet") {
+		t.Fatalf("the second tap started no recording of its own: %s", v)
+	}
+}
+
 // TestRealBrowserVoiceWithoutAMicrophone: a page the browser gives no microphone, such as deck on http over the
 // network, says why and takes a recording as a file, which reaches whisper as 16 kHz WAV.
 func TestRealBrowserVoiceWithoutAMicrophone(t *testing.T) {

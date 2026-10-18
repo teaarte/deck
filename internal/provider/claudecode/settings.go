@@ -110,7 +110,7 @@ func autoMode(req provider.Request) map[string]any {
 	list := strings.Join(folders, ", ")
 	return map[string]any{
 		"environment": []string{"$defaults", "**Agent folders**: this session is an agent deck runs in its own folders: " + list +
-			". They are its working folders though they lie under deck's home; deck's secrets are closed to it by deny rules."},
+			". They are its working folders though they lie under deck's home; every path outside them, deck's home among them, is not the agent's."},
 		"allow": []string{"$defaults", "Agent Folder Reads: reading, searching and comparing files with read-only commands " +
 			"(grep, rg, cat, head, tail, wc, diff, ls, sort, cut, find without -exec or -delete) when every path they read is inside " +
 			"the agent folders of Environment is the agent's work, not Credential Exploration or scope escalation; a path outside them is not covered."},

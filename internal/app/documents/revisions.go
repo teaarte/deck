@@ -50,8 +50,7 @@ func (dc *Service) documentRevert(ctx context.Context, act registry.Actor, in do
 		if err != nil {
 			return nil, err
 		}
-		return dc.SaveManifest(ctx, act, p, []byte(r.Text), reason, r.N, in.IfRevision,
-			registry.Builtin+".document_revert", map[string]any{"document": d.ID, "revision": r.N, "reason": in.Reason})
+		return dc.SaveManifest(ctx, act, p, []byte(r.Text), reason, r.N, in.IfRevision)
 	}
 	var n int64
 	err = dc.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {

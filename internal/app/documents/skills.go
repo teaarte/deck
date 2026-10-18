@@ -6,8 +6,6 @@ import (
 	"io/fs"
 	"strings"
 
-	"github.com/epiclabs-io/diff3"
-
 	"deck2/internal/app/access"
 	"deck2/internal/docs"
 	"deck2/internal/registry"
@@ -101,7 +99,7 @@ func (dc *Service) seedSkills(ctx context.Context, workspace int64) error {
 						return err
 					}
 					edited, editor = cur.N, cur.Author
-					merged, _ = merge3(cur.Text, shipped, string(b))
+					merged, _ = docs.Merge(cur.Text, shipped, string(b))
 				}
 			}
 			reason := "built-in skill"
@@ -138,16 +136,4 @@ func lastOfDeck(ctx context.Context, q *db.Queries, d db.Document) (string, erro
 		}
 	}
 	return "", nil
-}
-
-// merge3 puts the change from base to edit into next, line by line; false when they change the same lines.
-func merge3(edit, base, next string) (string, bool) {
-	var out []string
-	for _, r := range diff3.Diff3Merge(strings.Split(edit, "\n"), strings.Split(base, "\n"), strings.Split(next, "\n"), true) {
-		if r.Conflict != nil {
-			return "", false
-		}
-		out = append(out, r.Ok...)
-	}
-	return strings.Join(out, "\n"), true
 }

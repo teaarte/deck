@@ -36,8 +36,8 @@ type Service struct {
 	Deliver  func(ctx context.Context, process int64) error
 	// The answers of grants of rights are theirs.
 	AnswerGrant func(ctx context.Context, act registry.Actor, q db.Ask, answer string) (any, error)
-	// SaveManifest saves a manifest through its checks, with the call the owner allows when it widens rights.
-	SaveManifest func(ctx context.Context, act registry.Actor, p db.Project, raw []byte, reason string, revertTo, ifRevision int64, command string, input map[string]any) (any, error)
+	// SaveManifest saves a manifest through its checks; a change that widens rights waits for the owner.
+	SaveManifest func(ctx context.Context, act registry.Actor, p db.Project, raw []byte, reason string, revertTo, ifRevision int64) (any, error)
 }
 
 type asksListIn struct {
@@ -379,7 +379,7 @@ func (s *Service) addToList(ctx context.Context, act registry.Actor, p db.Projec
 	}
 	at[last] = append(list, value)
 	b := manifest.JSON(doc, "  ")
-	_, err = s.SaveManifest(ctx, act, p, b, "allow "+value+" always", 0, m.Revision, "", nil)
+	_, err = s.SaveManifest(ctx, act, p, b, "allow "+value+" always", 0, m.Revision)
 	return err
 }
 

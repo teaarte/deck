@@ -337,46 +337,16 @@ func (q *Queries) DismissExpiredAsk(ctx context.Context, id int64) (int64, error
 	return result.RowsAffected()
 }
 
-const expireGrantAsks = `-- name: ExpireGrantAsks :many
-UPDATE ask SET state = 'expired' WHERE project_id = ?1 AND kind = 'grant' AND state = 'open' RETURNING id, workspace_id, project_id, process_id, kind, text, payload, answer, state, created_at, answered_at, expires_at, delivered_at, unheard_at
+const expireAsk = `-- name: ExpireAsk :execrows
+UPDATE ask SET state = 'expired' WHERE id = ? AND state = 'open'
 `
 
-func (q *Queries) ExpireGrantAsks(ctx context.Context, projectID sql.NullInt64) ([]Ask, error) {
-	rows, err := q.db.QueryContext(ctx, expireGrantAsks, projectID)
+func (q *Queries) ExpireAsk(ctx context.Context, id int64) (int64, error) {
+	result, err := q.db.ExecContext(ctx, expireAsk, id)
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
-	defer rows.Close()
-	var items []Ask
-	for rows.Next() {
-		var i Ask
-		if err := rows.Scan(
-			&i.ID,
-			&i.WorkspaceID,
-			&i.ProjectID,
-			&i.ProcessID,
-			&i.Kind,
-			&i.Text,
-			&i.Payload,
-			&i.Answer,
-			&i.State,
-			&i.CreatedAt,
-			&i.AnsweredAt,
-			&i.ExpiresAt,
-			&i.DeliveredAt,
-			&i.UnheardAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
+	return result.RowsAffected()
 }
 
 const expireStaleConfirms = `-- name: ExpireStaleConfirms :many
@@ -550,6 +520,48 @@ ORDER BY a.id
 
 func (q *Queries) ListOpenAsksOfProcess(ctx context.Context, processID int64) ([]Ask, error) {
 	rows, err := q.db.QueryContext(ctx, listOpenAsksOfProcess, processID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Ask
+	for rows.Next() {
+		var i Ask
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.ProjectID,
+			&i.ProcessID,
+			&i.Kind,
+			&i.Text,
+			&i.Payload,
+			&i.Answer,
+			&i.State,
+			&i.CreatedAt,
+			&i.AnsweredAt,
+			&i.ExpiresAt,
+			&i.DeliveredAt,
+			&i.UnheardAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listOpenGrantAsks = `-- name: ListOpenGrantAsks :many
+SELECT id, workspace_id, project_id, process_id, kind, text, payload, answer, state, created_at, answered_at, expires_at, delivered_at, unheard_at FROM ask WHERE project_id = ?1 AND kind = 'grant' AND state = 'open' ORDER BY id
+`
+
+func (q *Queries) ListOpenGrantAsks(ctx context.Context, projectID sql.NullInt64) ([]Ask, error) {
+	rows, err := q.db.QueryContext(ctx, listOpenGrantAsks, projectID)
 	if err != nil {
 		return nil, err
 	}

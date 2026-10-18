@@ -147,7 +147,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 	*a.Settings = settings.Service{St: st, DefaultTTL: cfg.ConfirmTTL, Wake: a.Runner.Wake}
 	*a.Triggers = triggers.Service{St: st, Scheduler: a.Scheduler, Gateway: a.Gateway, Registry: a.Registry, Works: a.Providers.Works, Words: phrases}
 	*a.Documents = documents.Service{St: st, Now: cfg.Now, Sandbox: cfg.Sandbox, Ctx: a.ctx, Go: a.bg.Go,
-		SaveManifest: a.Saver.SaveCall, Changed: a.Devices.Changed}
+		SaveManifest: a.Saver.Save, Changed: a.Devices.Changed}
 	*a.Snapshots = snapshots.Service{St: st, Bus: a.Bus, Home: h, Now: cfg.Now, Budget: cfg.SnapshotBudget, LockFiles: a.Files.Mu.Lock, UnlockFiles: a.Files.Mu.Unlock,
 		DrainFiles: a.Files.Drain, Expire: a.Records.Expire}
 	*a.Providers = providers.Service{St: st, Words: phrases, Now: cfg.Now, Home: h, Sandbox: cfg.Sandbox, ACPBinaries: cfg.ACPBinaries,
@@ -157,7 +157,7 @@ func New(cfg Config, p provider.Provider, more ...provider.Provider) (*App, erro
 		Reach:   func(ctx context.Context) error { return a.Gateway.Reach(ctx, cfg.MCPBase) },
 		Builtin: append([]provider.Provider{p}, more...), Ctx: a.ctx, Go: a.bg.Go}
 	*a.Answers = asks.Service{St: st, Now: cfg.Now, Broker: a.Asks, Registry: a.Registry, Gateway: a.Gateway, Deliver: a.Runner.Deliver,
-		AnswerGrant: a.Saver.AnswerGrant, SaveManifest: a.Saver.SaveCall}
+		AnswerGrant: a.Saver.AnswerGrant, SaveManifest: a.Saver.Save}
 	*a.Signins = signins.Service{St: st, Ctx: a.ctx, Broker: a.Asks, OAuth: oauth, Browser: a.Browser, MCP: a.MCP}
 	*a.Chats = chat.Service{St: st, Bus: a.Bus, Now: cfg.Now, Asks: a.Asks, Runner: a.Runner, For: a.Providers.For,
 		Named: a.Providers.Named, Fits: a.Providers.Fits, Able: a.Providers.Able, DrainFiles: a.Files.Drain, Go: a.bg.Go, Words: phrases}

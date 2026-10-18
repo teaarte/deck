@@ -808,3 +808,113 @@ func TestTheScheduleShowsTheModelARunStartsOn(t *testing.T) {
 		t.Fatalf("the schedule shows the model the run starts on: %+v, %d on fake, %d on other", ts, len(main.Calls()), len(other.Calls()))
 	}
 }
+
+const grantManifest = `{
+  "version": 12,
+  "domains": {"read": ["a.example"]},
+  "writes": [],
+  "commands": [{
+    "name": "work", "title": "Work", "description": "Does work", "class": "internal",
+    "executor": {"type": "agent", "prompt": "Do the work."}
+  }]
+}`
+
+// inForce is the current manifest of a project with the rights the owner granted.
+func (e *Env) inForce(project string) *manifest.Manifest {
+	e.T.Helper()
+	ctx := context.Background()
+	p, err := e.App.Store.Q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: 1, Name: project})
+	if err != nil {
+		e.T.Fatal(err)
+	}
+	m, err := docs.Manifest(ctx, e.App.Store.Q, p)
+	if err != nil {
+		e.T.Fatal(err)
+	}
+	if m, err = docs.InForce(ctx, e.App.Store.Q, p, m); err != nil {
+		e.T.Fatal(err)
+	}
+	return m
+}
+
+// TestAnEditThatWidensNothingKeepsTheRequestForRights: a request holds only the change that widens rights; an edit
+// that widens nothing saves at once beside it, and the owner's yes merges the right into the manifest as it is then.
+func TestAnEditThatWidensNothingKeepsTheRequestForRights(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, ok)
+	e.createProject("notes", grantManifest)
+	_, tok := e.token("terminal", "deck.*")
+	var w struct {
+		Revision int64
+		Waiting  int64
+		Widens   []string
+	}
+	code, out := e.callWith(tok, "deck.manifest_save", map[string]any{"project": "notes", "old": []string{`"writes": []`},
+		"new": []string{`"writes": ["report.md"]`}, "reason": "keep the report"})
+	if code != 200 || json.Unmarshal(out, &w) != nil || w.Waiting == 0 || !slices.Equal(w.Widens, []string{"writes document report.md"}) {
+		t.Fatalf("a change that widens rights waits: %d %s", code, out)
+	}
+	code, out = e.callWith(tok, "deck.manifest_save", map[string]any{"project": "notes", "old": []string{`"Does work"`},
+		"new": []string{`"Does the work"`}})
+	if code != 200 || strings.Contains(string(out), "waiting") || e.manifestRevision("notes") != 2 {
+		t.Fatalf("an edit that widens nothing saves at once while a request waits: %d %s", code, out)
+	}
+	if a := e.waitAsk(); a.ID != w.Waiting {
+		t.Fatalf("the request stays open: %+v", a)
+	}
+	for _, n := range e.notes() {
+		if strings.Contains(n.Text, "outdated") {
+			t.Fatalf("the request is not outdated by an edit elsewhere: %+v", n)
+		}
+	}
+	e.answer(w.Waiting, "allow")
+	m := e.inForce("notes")
+	if !m.MayWrite("report.md") || m.Command("work").Description != "Does the work" || m.Revision != 3 {
+		t.Fatalf("the yes merges the right into the current manifest, which keeps the edit: revision %d, writes %v, %q",
+			m.Revision, m.Writes, m.Command("work").Description)
+	}
+}
+
+// TestAnEditOfTheRightARequestWaitsForOutdatesIt: an edit that changes the lines a request changes, without widening,
+// saves at once; the request no longer merges, so it closes with a note and its yes grants nothing.
+func TestAnEditOfTheRightARequestWaitsForOutdatesIt(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, ok)
+	e.createProject("notes", grantManifest)
+	_, tok := e.token("terminal", "deck.*")
+	var w struct{ Waiting int64 }
+	_, out := e.callWith(tok, "deck.manifest_save", map[string]any{"project": "notes", "old": []string{`"read": ["a.example"]`},
+		"new": []string{`"read": ["a.example", "b.example"]`}})
+	if json.Unmarshal(out, &w) != nil || w.Waiting == 0 {
+		t.Fatalf("a new domain waits: %s", out)
+	}
+	code, out := e.callWith(tok, "deck.manifest_save", map[string]any{"project": "notes", "old": []string{`"read": ["a.example"]`},
+		"new": []string{`"read": []`}})
+	if code != 200 || strings.Contains(string(out), "waiting") {
+		t.Fatalf("dropping a domain widens nothing and saves at once: %d %s", code, out)
+	}
+	if n := e.waitNote("outdated"); !strings.Contains(n.Text, "same lines") || !strings.Contains(n.Text, "b.example") {
+		t.Fatalf("the owner hears why the request closed: %+v", n)
+	}
+	if code, out := e.call("deck.ask_answer", map[string]any{"ask": w.Waiting, "answer": "allow"}); code == 200 {
+		t.Fatalf("an outdated request is closed: %d %s", code, out)
+	}
+	if m := e.inForce("notes"); len(m.Domains.Read) != 0 || m.Revision != 2 {
+		t.Fatalf("nothing of the outdated request is granted: %+v", m.Domains)
+	}
+
+	_, out = e.callWith(tok, "deck.manifest_save", map[string]any{"project": "notes", "old": []string{`"read": []`},
+		"new": []string{`"read": ["c.example"]`}})
+	if json.Unmarshal(out, &w) != nil || w.Waiting == 0 {
+		t.Fatalf("a new domain waits: %s", out)
+	}
+	if code, out := e.callWith(tok, "deck.manifest_save", map[string]any{"project": "notes", "old": []string{`"read": []`},
+		"new": []string{`"read": ["d.example"]`}}); code != 200 || !strings.Contains(string(out), "waiting") {
+		t.Fatalf("another request for the same right waits on its own: %d %s", code, out)
+	}
+	e.answer(w.Waiting, "allow")
+	if m := e.inForce("notes"); !slices.Equal(m.Domains.Read, []string{"c.example"}) {
+		t.Fatalf("the yes grants what that request named: %+v", m.Domains)
+	}
+	e.waitNote("A request for rights of notes is outdated at revision 3")
+}

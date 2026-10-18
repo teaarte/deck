@@ -9,6 +9,8 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/epiclabs-io/diff3"
+
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
@@ -170,6 +172,18 @@ func ownMemory(ctx context.Context, q *db.Queries, ref Ref, kind, author string)
 	}
 	p, err := q.GetProject(ctx, ref.Scope.Project)
 	return err == nil && p.Builtin == 1
+}
+
+// Merge puts the change from base to edit into next, line by line; false when they change the same lines.
+func Merge(edit, base, next string) (string, bool) {
+	var out []string
+	for _, r := range diff3.Diff3Merge(strings.Split(edit, "\n"), strings.Split(base, "\n"), strings.Split(next, "\n"), true) {
+		if r.Conflict != nil {
+			return "", false
+		}
+		out = append(out, r.Ok...)
+	}
+	return strings.Join(out, "\n"), true
 }
 
 // Edit replaces each old part of the text with its new one; each old part must occur in the text exactly once,

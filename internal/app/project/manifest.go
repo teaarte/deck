@@ -117,8 +117,7 @@ func (sv *Saver) manifestSave(ctx context.Context, act registry.Actor, in manife
 	if strings.TrimSpace(in.Manifest) == "" {
 		return nil, registry.Invalid("deck: give the whole manifest JSON, or old and new parts of the current one")
 	}
-	return sv.SaveManifest(ctx, act, p, []byte(in.Manifest), in.Reason, 0, in.IfRevision,
-		Call{Command: registry.Builtin + ".manifest_save", Input: map[string]any{"project": p.Name, "manifest": in.Manifest, "reason": in.Reason}})
+	return sv.SaveManifest(ctx, act, p, []byte(in.Manifest), in.Reason, 0, in.IfRevision)
 }
 
 // Commands are the commands of manifests.
@@ -239,12 +238,6 @@ func (sv *Saver) createProject(ctx context.Context, act registry.Actor, name str
 	return p, nil
 }
 
-// Call is a registry call frozen for the owner to allow later.
-type Call struct {
-	Command string         `json:"command"`
-	Input   map[string]any `json:"input"`
-}
-
 // Saved is a stored manifest revision, or the ask it waits on when the change widens the project's rights.
 type Saved struct {
 	Revision int64    `json:"revision,omitempty"`
@@ -259,8 +252,8 @@ type Saved struct {
 }
 
 // SaveManifest checks a manifest and saves it with its triggers and migrated records in one transaction; a
-// change that widens rights waits for the owner as call; nonzero ifRevision must still be current.
-func (sv *Saver) SaveManifest(ctx context.Context, act registry.Actor, p db.Project, raw []byte, reason string, revertTo, ifRevision int64, call Call) (Saved, error) {
+// change that widens rights waits for the owner; nonzero ifRevision must still be current.
+func (sv *Saver) SaveManifest(ctx context.Context, act registry.Actor, p db.Project, raw []byte, reason string, revertTo, ifRevision int64) (Saved, error) {
 	pm, err := parseManifest(raw, p.Builtin == 1)
 	if err != nil {
 		return Saved{}, err
@@ -309,7 +302,7 @@ func (sv *Saver) SaveManifest(ctx context.Context, act registry.Actor, p db.Proj
 		w, err := sv.widens(ctx, q, act, p.ID, pm.m)
 		if err != nil || len(w) > 0 {
 			if err == nil {
-				saved, err = sv.ask(ctx, q, act, p, cur.Current, w, reason, call)
+				saved, err = sv.ask(ctx, q, act, p, cur, revertTo, w, reason, pm.text)
 			}
 			return err
 		}
@@ -397,8 +390,7 @@ func (sv *Saver) Reconcile(ctx context.Context) error {
 	return nil
 }
 
-// SaveCall is SaveManifest for a service that names the call the owner allows by command and input.
-func (sv *Saver) SaveCall(ctx context.Context, act registry.Actor, p db.Project, raw []byte, reason string, revertTo, ifRevision int64,
-	command string, input map[string]any) (any, error) {
-	return sv.SaveManifest(ctx, act, p, raw, reason, revertTo, ifRevision, Call{Command: command, Input: input})
+// Save is SaveManifest for a service that takes any result.
+func (sv *Saver) Save(ctx context.Context, act registry.Actor, p db.Project, raw []byte, reason string, revertTo, ifRevision int64) (any, error) {
+	return sv.SaveManifest(ctx, act, p, raw, reason, revertTo, ifRevision)
 }

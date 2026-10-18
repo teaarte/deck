@@ -25,8 +25,8 @@ type Service struct {
 	Sandbox sandbox.Sandbox
 	// Changed lists a change made without the owner.
 	Changed func(ctx context.Context, q *db.Queries, act registry.Actor, projectID int64, prev db.Document, n int64, text, reason string) error
-	// SaveManifest saves a manifest through its checks, with the call the owner allows when it widens rights.
-	SaveManifest func(ctx context.Context, act registry.Actor, p db.Project, raw []byte, reason string, revertTo, ifRevision int64, command string, input map[string]any) (any, error)
+	// SaveManifest saves a manifest through its checks; a change that widens rights waits for the owner.
+	SaveManifest func(ctx context.Context, act registry.Actor, p db.Project, raw []byte, reason string, revertTo, ifRevision int64) (any, error)
 	Ctx          context.Context
 	// Go runs work beside the calls; false once deck stops.
 	Go func(func()) bool

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"sync/atomic"
 
 	"github.com/santhosh-tekuri/jsonschema/v6"
 )
@@ -99,5 +100,21 @@ func DeckScreens(raw []byte) (menu []string, screens, project []Screen, err erro
 			errs = append(errs, fmt.Errorf("menu: unknown screen %q", name))
 		}
 	}
+	deckScreens.Store(&screens)
 	return d.Menu, screens, project, errors.Join(errs...)
+}
+
+// deckScreens are the screens of deck its last DeckScreens parsed, which a button of a module may open.
+var deckScreens atomic.Pointer[[]Screen]
+
+// DeckScreen is the screen of deck by its name, nil when deck has none.
+func DeckScreen(name string) *Screen {
+	all := deckScreens.Load()
+	if all == nil {
+		return nil
+	}
+	if i := slices.IndexFunc(*all, func(s Screen) bool { return s.Name == name }); i >= 0 {
+		return &(*all)[i]
+	}
+	return nil
 }

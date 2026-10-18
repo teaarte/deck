@@ -1106,3 +1106,30 @@ func TestACustomButtonNamesTheFieldsItsBlockFills(t *testing.T) {
 	table := strings.Replace(webNotes, `"actions": [{"label": "Open", "screen": "note"}]`, `"actions": [{"label": "Mark", "command": "mark", "from_block": ["text"]}]`, 1)
 	e.refused("deck.manifest_save", map[string]any{"project": "web", "manifest": table}, 422, "from_block names the fields a custom block fills")
 }
+
+// TestAButtonOfAModuleOpensAScreenOfDeckFilled: screen deck/<name> opens a screen of deck with its params, a tab or a
+// dialog filled from the item, nothing called; an unknown screen or param of it is refused on save.
+func TestAButtonOfAModuleOpensAScreenOfDeckFilled(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, nil)
+	open := `"actions": [{"label": "Open", "screen": "note"}]`
+	add := func(button string) string {
+		return strings.Replace(webNotes, open, `"actions": [{"label": "Open", "screen": "note"}, `+button+`]`, 1)
+	}
+	e.createProject("web", add(`{"label": "Add", "screen": "deck/settings", "params": {"tab": "Models", "dialog": "model", "model": "=title", "connection": "openrouter"}, "when": "score == nil"}`))
+	e.must("deck.records_upsert", map[string]any{"project": "web", "collection": "notes", "records": `{"title": "qwen"}`}, nil)
+	rows := blockData[[]screenRow](t, e.screenBlock("web", "main", "Notes", nil)["rows"])
+	if len(rows) != 1 || len(rows[0].Actions) != 2 {
+		t.Fatalf("the row has both buttons: %+v", rows)
+	}
+	if b := rows[0].Actions[1]; b["screen"] != "settings" || b["project"] != nil || b["record"] != nil || b["command"] != nil ||
+		fmt.Sprint(b["params"]) != "map[connection:openrouter dialog:model model:qwen tab:Models]" {
+		t.Fatalf("the button opens the screen of deck with its form filled from the row: %+v", b)
+	}
+	for button, want := range map[string]string{
+		`{"label": "Add", "screen": "deck/nowhere"}`:                        `unknown screen of deck "nowhere"`,
+		`{"label": "Add", "screen": "deck/settings", "params": {"x": "1"}}`: `screen deck/settings takes params`,
+	} {
+		e.refused("deck.manifest_save", map[string]any{"project": "web", "manifest": add(button)}, 422, want)
+	}
+}

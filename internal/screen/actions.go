@@ -75,6 +75,16 @@ func (r *renderer) action(a manifest.Action, id int64, env map[string]any) (map[
 		}
 		return out
 	}
+	// address are the params of a move to a screen, as the text of its address.
+	address := func() map[string]string {
+		ps := map[string]string{}
+		for k, v := range params(nil) {
+			if v != nil {
+				ps[k] = fmt.Sprint(v)
+			}
+		}
+		return ps
+	}
 	act := map[string]any{}
 	for k, v := range map[string]string{"label": a.Label, "verb": a.Verb, "icon": a.Icon, "input": a.Input} {
 		if v != "" {
@@ -101,6 +111,11 @@ func (r *renderer) action(a manifest.Action, id int64, env map[string]any) (map[
 	}
 	switch {
 	case a.Command == "" && a.Chat:
+	case strings.HasPrefix(a.Screen, "deck/") && !r.deck():
+		act["screen"] = strings.TrimPrefix(a.Screen, "deck/")
+		if len(a.Params) > 0 {
+			act["params"] = address()
+		}
 	case a.Screen != "":
 		act["screen"] = value(a.Screen)
 		if p := value(a.Project); p != nil {
@@ -116,13 +131,7 @@ func (r *renderer) action(a manifest.Action, id int64, env map[string]any) (map[
 			}
 		}
 		if len(a.Params) > 0 {
-			ps := map[string]string{}
-			for k, v := range params(nil) {
-				if v != nil {
-					ps[k] = fmt.Sprint(v)
-				}
-			}
-			act["params"] = ps
+			act["params"] = address()
 		}
 	default:
 		name := a.Command

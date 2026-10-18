@@ -21,7 +21,7 @@ func gone(f string) error {
 }
 
 // deckLink tells where a screen of deck opens from.
-const deckLink = "a screen of deck opens from a link [text](#/deck/<screen>?<param>=<value>) in a text shown with markdown"
+const deckLink = "a screen of deck opens by a button to screen deck/<screen>, or from a link [text](#/deck/<screen>?<param>=<value>) in a text shown with markdown"
 
 // recordDelete checks a button that deletes a record: on a row of the module's own collection or on its record page,
 // with no params but the record of its row, and not on a custom block, whose frame could name any record.
@@ -102,6 +102,9 @@ func (c *screenCheck) action(b Block, a Action, fields []string) error {
 	case a.Project != "" || a.Record != "":
 		return errors.New("a move to a screen of the project takes no project or record; a record page gets the record of the row")
 	}
+	if name, ok := strings.CutPrefix(a.Screen, "deck/"); ok {
+		return deckScreen(name, a)
+	}
 	target := c.m.Screen(a.Screen)
 	if target == nil {
 		return fmt.Errorf("unknown screen %q: a button opens a screen of its module; %s", a.Screen, deckLink)
@@ -124,6 +127,21 @@ func (c *screenCheck) action(b Block, a Action, fields []string) error {
 	}
 	if own != target.Record {
 		return fmt.Errorf("screen %q shows a record of %s; open it from a row of %s", a.Screen, target.Record, target.Record)
+	}
+	return nil
+}
+
+// deckScreen checks a button of a module that opens a screen of deck: one deck has, with only its params, a tab or a
+// dialog; it opens it filled, and the owner does the rest.
+func deckScreen(name string, a Action) error {
+	target := DeckScreen(name)
+	if target == nil {
+		return fmt.Errorf("unknown screen of deck %q", name)
+	}
+	for k := range a.Params {
+		if _, ok := target.Params[k]; !ok && k != "tab" && k != "dialog" {
+			return fmt.Errorf("screen deck/%s takes params %s, not %q", name, strings.Join(append(slices.Sorted(maps.Keys(target.Params)), "tab", "dialog"), ", "), k)
+		}
 	}
 	return nil
 }

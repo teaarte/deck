@@ -85,6 +85,10 @@ export interface Action {
    */
   options?: string[];
   /**
+   * Each option in the owner's language, when one differs from its value.
+   */
+  labels?: string[];
+  /**
    * The table column with the same pick draws the button as a picker of its options in the cell.
    */
   pick?: string;
@@ -146,6 +150,10 @@ export interface Action1 {
    * Values the owner picks the input from.
    */
   options?: string[];
+  /**
+   * Each option in the owner's language, when one differs from its value.
+   */
+  labels?: string[];
   /**
    * The table column with the same pick draws the button as a picker of its options in the cell.
    */
@@ -390,6 +398,10 @@ export interface Action2 {
    */
   options?: string[];
   /**
+   * Each option in the owner's language, when one differs from its value.
+   */
+  labels?: string[];
+  /**
    * The table column with the same pick draws the button as a picker of its options in the cell.
    */
   pick?: string;
@@ -451,6 +463,10 @@ export interface Action3 {
    * Values the owner picks the input from.
    */
   options?: string[];
+  /**
+   * Each option in the owner's language, when one differs from its value.
+   */
+  labels?: string[];
   /**
    * The table column with the same pick draws the button as a picker of its options in the cell.
    */

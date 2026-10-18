@@ -312,7 +312,9 @@ Read `manifest_format` first: it is the JSON Schema deck checks every manifest a
   the project, a screen, a block or a button is a Tabler icon name; blocks flow in a grid, `span` (1, 2 or "full")
   widens one, `description` says under a title what a block is for. Write the texts in English and add `i18n`
   with a translation into the owner's language (`{"ru": {"Notes": "Заметки"}}`) for every title, label,
-  description and empty text, also when you change them later. A button to a screen takes `params`; the screen
+  description and empty text, also when you change them later; a value of an enum field is translated wherever it
+  shows, also as the result of an expression that reads only that field (`subtitles ?? 'off'`) and in the options of a
+  button's input or a picked cell. A button to a screen takes `params`; the screen
   declares them with their types (`"params": {"title": "string", "n": "integer"}`) and reads them in expressions
   as `param.<name>`: `"values": {"title": "=param.title"}` fills a form, `"input": {"days": "=param.n ?? 7"}` a
   source, `"when": "param.n > 1"` a block. An input that gives nothing or fails is an error on its block, not a read

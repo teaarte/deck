@@ -21,6 +21,7 @@ func (r *renderer) rowActions(b manifest.Block, it map[string]any) []map[string]
 			for _, c := range b.Columns {
 				if c.Pick != "" && (c.Pick == a.Verb || c.Pick == a.Label) && act["input"] != nil && act["options"] != nil {
 					act["pick"] = c.Pick
+					labeled(act, func(o string) string { return fmt.Sprint(r.word(b.Source.Collection, c.Bind, o)) })
 				}
 			}
 			out = append(out, act)
@@ -105,6 +106,19 @@ func (r *renderer) action(a manifest.Action, id int64, env map[string]any) (map[
 	}
 	if v := value(a.Options); v != nil {
 		act["options"] = v
+		if a.Command != "" && a.Input != "" {
+			name := a.Command
+			if !r.deck() && !strings.HasPrefix(name, "deck.") {
+				name = r.req.Project.Name + "." + a.Command
+			}
+			values := r.inputEnum(name, a.Input)
+			labeled(act, func(o string) string {
+				if slices.Contains(values, o) {
+					return r.tr(o)
+				}
+				return o
+			})
+		}
 	}
 	if v := value(a.Until); v != nil && v != "" {
 		act["until"] = v
@@ -176,6 +190,40 @@ func (r *renderer) action(a manifest.Action, id int64, env map[string]any) (map[
 }
 
 // inputTypes are the JSON types of the input fields of a command a button calls.
+// labeled gives the options of a button the labels the owner reads, when one differs from its value.
+func labeled(act map[string]any, label func(string) string) {
+	var opts []string
+	switch v := act["options"].(type) {
+	case []string:
+		opts = v
+	case []any:
+		for _, x := range v {
+			opts = append(opts, fmt.Sprint(x))
+		}
+	}
+	labels, named := make([]string, len(opts)), false
+	for i, o := range opts {
+		labels[i] = label(o)
+		named = named || labels[i] != o
+	}
+	if named {
+		act["labels"] = labels
+	}
+}
+
+// inputEnum are the values a field of the input of a command takes, when its schema lists them.
+func (r *renderer) inputEnum(name, field string) []string {
+	if r.deck() || strings.HasPrefix(name, "deck.") {
+		c, _ := r.src.Command(r.ctx, r.scope.Workspace, name)
+		in, _ := json.Marshal(c["input"])
+		return manifest.Enum(in, field)
+	}
+	if c := r.req.Manifest.Command(strings.TrimPrefix(name, r.req.Project.Name+".")); c != nil {
+		return manifest.Enum(c.InputSchema(), field)
+	}
+	return nil
+}
+
 func (r *renderer) inputTypes(name string) map[string]string {
 	if t, ok := r.types[name]; ok {
 		return t

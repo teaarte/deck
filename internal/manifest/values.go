@@ -114,6 +114,14 @@ func hasLet(src string) bool {
 	return len(v.lets) > 0
 }
 
+// OneField is the one field an expression reads, empty when it reads none or more than one.
+func OneField(src string) string {
+	if f := exprFields(src, nil); len(f) == 1 {
+		return f[0]
+	}
+	return ""
+}
+
 // exprFields lists the fields an expression reads, out of the given ones; any name when fields is nil.
 func exprFields(src string, fields []string) []string {
 	tree, err := parser.Parse(src)

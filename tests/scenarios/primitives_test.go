@@ -260,14 +260,14 @@ func TestATranslationOfAnEnumValueIsUsed(t *testing.T) {
 }
 
 // TestACellPicksTheInputOfAButtonOfItsRow: a table column with pick names a button of the row with an input and
-// options; the row says which button the cell is, and a pick presses it with the value.
+// options with their labels; the row says which button the cell is, and a pick presses it with the value.
 func TestACellPicksTheInputOfAButtonOfItsRow(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, nil)
 	table := strings.Replace(boardManifest, `{"type": "list", "title": "Tasks", "board": "status", "source": {"collection": "tasks"}, "item": {"title": "title"},
      "actions": [{"label": "Move", "command": "move", "params": {"id": "=_id"}, "input": "status"}]}`,
 		`{"type": "table", "title": "Tasks", "source": {"collection": "tasks"},
-     "columns": [{"label": "Task", "bind": "title"}, {"label": "Status", "bind": "status", "pick": "Move"}],
+     "columns": [{"label": "Task", "bind": "title"}, {"label": "Status", "bind": "status", "pick": "Move"}, {"label": "Next", "bind": "status == 'todo' ? 'doing' : status"}],
      "actions": [{"label": "Move", "command": "move", "params": {"id": "=_id"}, "input": "status", "options": "=['todo', 'doing', 'done']"}]}`, 1)
 	if table == boardManifest {
 		t.Fatal("fixture lacks the board list")
@@ -285,5 +285,9 @@ func TestACellPicksTheInputOfAButtonOfItsRow(t *testing.T) {
 	rows := blockData[[]screenRow](t, e.screenBlock("work", "board", "Tasks", nil)["rows"])
 	if len(rows) != 1 || len(rows[0].Actions) != 1 || rows[0].Actions[0]["pick"] != "Move" || fmt.Sprint(rows[0].Actions[0]["options"]) != "[todo doing done]" {
 		t.Fatalf("the button of the row is the one the cell picks with: %+v", rows)
+	}
+	rows = blockData[[]screenRow](t, e.screenBlock("work", "board", "Tasks", map[string]any{"lang": "ru"})["rows"])
+	if fmt.Sprint(rows[0].Cells...) != "atodoв работе" || fmt.Sprint(rows[0].Actions[0]["labels"]) != "[todo в работе done]" {
+		t.Fatalf("a picked cell keeps the value, its options say each in the owner's language, and an expression of one field is translated: %+v", rows)
 	}
 }

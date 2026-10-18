@@ -276,7 +276,10 @@ func (r *renderer) resolve(id string, b manifest.Block) (map[string]any, error) 
 				if err != nil {
 					return nil, fmt.Errorf("column %q: %w", c.Label, err)
 				}
-				cells = append(cells, r.word(b.Source.Collection, c.Bind, v))
+				if c.Pick == "" {
+					v = r.word(b.Source.Collection, c.Bind, v)
+				}
+				cells = append(cells, v)
 				cell := map[string]any{}
 				r.setTone(cell, c.Tone, it)
 				if t, ok := cell["tone"]; ok {
@@ -416,14 +419,18 @@ var bare = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
 // word is v in the owner's language when expr is a field of an enum of the module's collection, else v as it is.
 func (r *renderer) word(collection, expr string, v any) any {
-	if r.req.Manifest == nil || !bare.MatchString(expr) {
+	field := expr
+	if !bare.MatchString(expr) {
+		field = manifest.OneField(expr)
+	}
+	if r.req.Manifest == nil || field == "" {
 		return v
 	}
 	col := r.req.Manifest.Collection(collection)
 	if col == nil {
 		return v
 	}
-	values := manifest.Enum(col.Schema, expr)
+	values := manifest.Enum(col.Schema, field)
 	one := func(x any) any {
 		if s, ok := x.(string); ok && slices.Contains(values, s) {
 			return r.tr(s)

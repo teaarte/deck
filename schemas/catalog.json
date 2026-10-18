@@ -292,6 +292,7 @@
         "confirm": {"type": "boolean", "description": "The client asks the owner before the call: a button of deck that deletes or revokes."},
         "parts": {"type": "string", "description": "With confirm, a read command the client calls with params and lists before the yes: what the call deletes for good, as kind and name; the yes waits until the list came."},
         "options": {"type": "array", "items": {"type": "string"}, "description": "Values the owner picks the input from."},
+        "labels": {"type": "array", "items": {"type": "string"}, "description": "Each option in the owner's language, when one differs from its value."},
         "pick": {"type": "string", "description": "The table column with the same pick draws the button as a picker of its options in the cell."},
         "chat": {"type": "boolean", "description": "With a command, the result names a chat topic, which the client opens; alone, the button opens the chat of the master in a new topic."},
         "download": {"type": "boolean", "description": "With a command, the result names a stored file (file), which the client downloads."},

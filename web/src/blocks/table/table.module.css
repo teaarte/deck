@@ -2,10 +2,8 @@
   font-variant-numeric: tabular-nums;
 
   & th {
-    font-size: var(--mantine-font-size-xs);
-    font-weight: 650;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
+    font-size: var(--mantine-font-size-sm);
+    font-weight: 600;
     color: var(--mantine-color-dimmed);
     white-space: nowrap;
     vertical-align: bottom;

@@ -6,11 +6,14 @@ import type { MenuEntry } from '../hooks/useMenu';
 import { NamedIcon } from '../ui/NamedIcon';
 import s from './shell.module.css';
 import { Bell } from './Bell';
-import { back, useCanGoBack } from './router';
+import { back, useCanGoBack, useRoute } from './router';
 
+// BackButton goes back where there is a way back, never on the cockpit, the root of deck.
 export function BackButton() {
   const { t } = useTranslation();
-  if (!useCanGoBack()) return null;
+  const route = useRoute();
+  const root = !route.project && route.screen === 'cockpit' && !route.record;
+  if (!useCanGoBack() || root) return null;
   return (
     <Tooltip label={t('nav.back')}>
       <ActionIcon variant="default" radius="xl" size="lg" onClick={back} aria-label={t('nav.back')} data-back>

@@ -52,28 +52,27 @@ func TestRealBrowserShell(t *testing.T) {
 		return [parseFloat(s.borderTopLeftRadius) > 0, s.boxShadow !== 'none', r.left > 0, r.top > 0].join(' ') })()`); got != "true true true true" {
 		t.Fatalf("the menu is an island: rounded, with a shadow, apart from the edges: %s", got)
 	}
-	b.until("the icons of the menu", `document.querySelector('[data-nav] [data-system] [data-icon="layout-grid"]') && document.querySelector('[data-group="web"] [data-icon="rocket"]')`)
-	if got := b.eval(`[...document.querySelectorAll('[data-nav] [data-group]')].map((x) => x.dataset.group).sort().join(' ')`); got != "solo web" {
+	b.until("the icons of the menu", `document.querySelector('[data-nav] [data-system] a[href="#/deck/schedule"] [data-icon]') && document.querySelector('[data-group="web"] [data-icon="rocket"]')`)
+	if got := b.eval(`[...document.querySelectorAll('[data-nav] [data-group]:not([data-system] [data-group])')].map((x) => x.dataset.group).sort().join(' ')`); got != "solo web" {
 		t.Fatalf("the projects of the menu without deck and the master: %s", got)
 	}
-	b.eval(`(document.querySelector('[data-system]').click(), '')`)
-	b.until("deck's screens and the master's behind the system button", `document.querySelector('[data-system-menu] [data-group=""] a[href="#/deck/schedule"]') && document.querySelector('[data-system-menu] [data-group="master"] a')`)
+	b.until("deck's screens and the master's as links at the foot of the menu", `document.querySelector('[data-system] [data-group=""] a[href="#/deck/schedule"]') && document.querySelector('[data-system] [data-group="master"] a')`)
 	b.shot("shell-system-menu")
-	b.eval(`(document.querySelector('[data-system-menu] a[href="#/deck/schedule"]').click(), '')`)
-	b.until("the schedule from the system menu", `location.hash === '#/deck/schedule' && !document.querySelector('[data-system-menu]')`)
+	b.eval(`(document.querySelector('[data-system] a[href="#/deck/schedule"]').click(), '')`)
+	b.until("the schedule from the foot of the menu", `location.hash === '#/deck/schedule'`)
 	b.until("the tab named after its screen, with Deki for its icon", `/^(\(\d+\) )?Schedule · deck$/.test(document.title) && document.querySelector('link[rel=icon]').getAttribute('href') === '/favicon.png'`)
-	if got := b.eval(`(() => { const s = getComputedStyle(document.querySelector('[data-system][data-active]')), h = getComputedStyle(document.querySelector('[data-nav] [data-group-head]'));
+	if got := b.eval(`(() => { const s = getComputedStyle(document.querySelector('[data-system] a[data-active]')), h = getComputedStyle(document.querySelector('[data-nav] [data-group-head]'));
 		const accent = getComputedStyle(document.documentElement).getPropertyValue('--mantine-primary-color-filled').trim(), probe = document.createElement('i');
 		probe.style.color = accent; document.body.append(probe); const filled = getComputedStyle(probe).color; probe.remove();
 		return [s.borderTopLeftRadius === h.borderTopLeftRadius, s.backgroundColor === filled].join(' ') })()`); got != "true true" {
-		t.Fatalf("the system button on its screen has the corners and the accent of the menu: %s", got)
+		t.Fatalf("the link of the foot on its screen has the corners and the accent of the menu: %s", got)
 	}
 	b.eval(`(document.querySelector('[data-nav] [data-logo]').click(), '')`)
-	b.until("the logo opens the cockpit", `location.hash === '#/deck/cockpit' && document.querySelector('[data-nav] [data-system] [data-icon="layout-grid"]')`)
-	b.until("the counters of the cockpit", `document.querySelectorAll('[data-stat]').length === 4`)
+	b.until("the logo opens the cockpit", `location.hash === '#/deck/cockpit' && !document.querySelector('[data-system] a[data-active]')`)
+	b.until("the counters of the cockpit", `document.querySelectorAll('[data-stat]').length === 1`)
 	if got := b.eval(`(() => { const bs = [...document.querySelectorAll('[data-stat]')].map((x) => x.closest('[data-block]').getBoundingClientRect());
 		return String(new Set(bs.map((r) => Math.round(r.top))).size === 1 && new Set(bs.map((r) => Math.round(r.height))).size === 1) })()`); got != "true" {
-		t.Fatalf("the four counters of the cockpit stand in one row of one height: %s", got)
+		t.Fatalf("the counters of the cockpit stand in one row of one height: %s", got)
 	}
 	if got := b.eval(`String([...document.querySelectorAll('[data-block]')].some((x) => x.innerText.includes('Nothing')))`); got != "false" {
 		t.Fatalf("the cockpit hides its empty lists: %s", got)

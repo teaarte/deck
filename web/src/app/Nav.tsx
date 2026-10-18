@@ -1,7 +1,7 @@
 import { memo, useEffect } from 'react';
-import { Collapse, Menu, ScrollArea, Tooltip, UnstyledButton } from '@mantine/core';
+import { Collapse, ScrollArea, Tooltip, UnstyledButton } from '@mantine/core';
 import { useLocalStorage } from '@mantine/hooks';
-import { IconChevronRight, IconSelector } from '@tabler/icons-react';
+import { IconChevronRight } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { Menu as MenuData, MenuGroup } from '../hooks/useMenu';
 import { useMascot, useMasterName } from '../ui/deki/Deki';
@@ -12,43 +12,31 @@ import { href } from './router';
 
 type Link = MenuGroup['links'][number];
 
-// System is the groups at the foot of the menu, as deck gives them, behind one button: the work of deck, the
-// settings of the master and deck's settings. The master's group and its settings take the name of the look.
+// System is the groups at the foot of the menu, as deck gives them, as flat links: the work of deck, the screens
+// of the master and deck's settings. The master's group and its settings take the name of the look.
 function System({ menu, current, onPick }: { menu: MenuData; current: string; onPick?: () => void }) {
   const { t } = useTranslation();
   const mascot = useMascot();
   const name = useMasterName();
   const path = current.split('?')[0];
   const title = (l: Link) => (l.project && l.project === menu.master?.project && l.name === 'settings' ? t(mascot ? 'nav.deki_settings' : 'nav.master_settings') : l.title);
-  const here = menu.system.flatMap((g) => g.links).find((l) => href({ project: l.project, screen: l.name }) === path);
   return (
-    <Menu position="top-start" width="target" withinPortal shadow="md">
-      <Menu.Target>
-        <UnstyledButton className={s.system} data-active={here ? true : undefined} data-system>
-          <span className={s.groupIcon}><NamedIcon name={here?.icon ?? 'layout-grid'} fallback={here ? title(here) : t('nav.control')} size={16} /></span>
-          <span className={s.groupTitle}>{here ? title(here) : t('nav.control')}</span>
-          {menu.master && <NavStatus m={{ ...menu.master, running: 0 }} />}
-          <IconSelector size={14} className={s.chevron} />
-        </UnstyledButton>
-      </Menu.Target>
-      <Menu.Dropdown data-system-menu>
-        {menu.system.map((g, i) => (
-          <div key={g.key} data-group={g.key === 'work' ? '' : g.key}>
-            {i > 0 && <Menu.Divider />}
-            {g.title && <Menu.Label>{g.key === 'master' ? name : g.title}</Menu.Label>}
-            {g.links.map((l) => {
-              const to = href({ project: l.project, screen: l.name });
-              return (
-                <Menu.Item key={l.name} component="a" href={to} onClick={onPick} data-active={to === path || undefined}
-                  leftSection={<NamedIcon name={l.icon ?? 'point'} fallback={title(l)} size={16} />}>
-                  {title(l)}
-                </Menu.Item>
-              );
-            })}
-          </div>
-        ))}
-      </Menu.Dropdown>
-    </Menu>
+    <div className={s.system} data-system>
+      {menu.system.map((g) => (
+        <div key={g.key} className={s.systemGroup} data-group={g.key === 'work' ? '' : g.key} aria-label={g.key === 'master' ? name : g.title}>
+          {g.links.map((l, i) => {
+            const to = href({ project: l.project, screen: l.name });
+            return (
+              <a key={l.name} href={to} className={s.footLink} onClick={onPick} data-active={to === path || undefined}>
+                <NamedIcon name={l.icon ?? 'point'} fallback={title(l)} size={16} />
+                <span className={s.linkTitle}>{title(l)}</span>
+                {g.key === 'master' && i === 0 && menu.master && <NavStatus m={{ ...menu.master, running: 0 }} />}
+              </a>
+            );
+          })}
+        </div>
+      ))}
+    </div>
   );
 }
 

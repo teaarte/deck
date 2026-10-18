@@ -140,3 +140,16 @@
     display: none;
   }
 }
+
+.slimArt {
+  flex: none;
+  display: inline-flex;
+  align-items: flex-end;
+  height: 44px;
+  margin: -6px 0 -8px;
+  line-height: 0;
+}
+
+.slim[data-calm] {
+  background: url('/deki/clouds-right.webp') right 60% / auto 220% no-repeat, var(--deck-sky);
+}

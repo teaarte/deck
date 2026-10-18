@@ -11,39 +11,47 @@
 
 .system {
   display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.systemGroup + .systemGroup {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--mantine-color-default-border);
+}
+
+.footLink {
+  display: flex;
   align-items: center;
   gap: 10px;
-  width: 100%;
-  padding: 8px 10px;
+  padding: 6px 10px;
   border-radius: calc(var(--deck-island-radius) - 8px);
   color: var(--mantine-color-text);
-  background: var(--deck-fill, var(--mantine-color-default-hover));
   font-size: var(--mantine-font-size-sm);
-  font-weight: 650;
-  transition: background-color 150ms ease;
+  text-decoration: none;
+  transition: background-color 150ms ease, color 150ms ease;
 
-  &:hover,
-  &[data-expanded] {
-    background: var(--deck-fill-hover, var(--mantine-color-default-hover));
+  & svg {
+    flex: none;
+    color: var(--mantine-color-dimmed);
+  }
+
+  &:hover {
+    background: var(--mantine-color-default-hover);
   }
 
   &[data-active] {
     background: var(--mantine-primary-color-filled);
     color: var(--mantine-primary-color-contrast);
+    font-weight: 600;
     box-shadow: 0 6px 16px -6px color-mix(in srgb, var(--mantine-primary-color-filled) 75%, transparent),
       inset 0 1px 0 rgb(255 255 255 / 0.2);
 
-    & .groupIcon,
-    & .chevron {
+    & svg {
       color: currentColor;
-      background: transparent;
     }
   }
-}
-
-:global([data-system-menu]) a[data-active] {
-  color: var(--mantine-primary-color-filled);
-  font-weight: 600;
 }
 
 .group + .group {

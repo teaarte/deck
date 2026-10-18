@@ -10,6 +10,7 @@ import (
 	"deck2/internal/docs"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
+	"deck2/master"
 )
 
 type menuEntry struct {
@@ -29,7 +30,7 @@ type menuEntry struct {
 }
 
 // pulse is what waits for the owner, runs and fails in the whole workspace, and State which of them the cockpit
-// says first: asks, errors, running or calm.
+// says first: asks, errors, talking (only the master works), running or calm.
 type pulse struct {
 	Asks    int64  `json:"asks"`
 	Running int64  `json:"running"`
@@ -97,6 +98,8 @@ func (a *App) menu(ctx context.Context, act registry.Actor, in menuIn) (any, err
 		out.Pulse.State = "asks"
 	case out.Pulse.Errors > 0:
 		out.Pulse.State = "errors"
+	case out.Pulse.Running > 0 && running[master.Name] == out.Pulse.Running:
+		out.Pulse.State = "talking"
 	case out.Pulse.Running > 0:
 		out.Pulse.State = "running"
 	default:

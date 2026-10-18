@@ -9,7 +9,7 @@ import { Deadline } from '../ui/Deadline';
 import { Details } from '../ui/Details';
 import { NamedIcon } from '../ui/NamedIcon';
 import { QuestionPicker } from '../ui/QuestionPicker';
-import { rowOpen } from '../ui/rowOpen';
+import { opener, rowOpen } from '../ui/rowOpen';
 import type { Data } from '../lib/catalog.gen';
 import { useScreenActions } from '../screen/ScreenActions';
 import { dropList, keepList } from '../screen/decisions';
@@ -79,7 +79,9 @@ function Items({ items, context, cards }: { items: Item[]; context: ComponentCon
 export function Line({ it, big }: { it: Item; big?: boolean }) {
   const { run } = useScreenActions();
   const answer = it.questions ? it.actions?.find((a) => a.input) : undefined;
-  const rest = (it.actions ?? []).filter((a) => a !== answer);
+  const open = opener(it.actions);
+  // A plain open button goes: a click on the line opens it.
+  const rest = (it.actions ?? []).filter((a) => a !== answer && !(a === open && a.verb === 'open' && !a.primary));
   const opens = rowOpen(it.actions, run);
   const until = (it.actions ?? []).map((a) => a.until).filter(Boolean).sort()[0];
   const mark = it.icon ? <span className={s.itemIcon}><NamedIcon name={it.icon} fallback={it.title} size={17} /></span>

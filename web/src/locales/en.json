@@ -2,7 +2,7 @@
   "actions": { "more": "More", "copy": "Copy", "copied": "Copied" },
   "bell": { "title": "Notifications", "empty": "No notifications yet" },
   "table": { "search": "Search", "nothing": "Nothing matches", "range": "{{from}}–{{to}} of {{of}}", "size": "Rows on a page" },
-  "nav": { "control": "Control", "work": "Work", "master_settings": "Master settings", "deki_settings": "Deki settings", "cockpit": "Cockpit", "deck": "deck", "menu": "Menu", "back": "Back", "hide": "Hide the menu", "show": "Show the menu", "running": "Running: {{n}}", "asks": "Waiting for you: {{n}}", "errors": "Failing checks: {{n}}" },
+  "nav": { "master_settings": "Master settings", "deki_settings": "Deki settings", "cockpit": "Cockpit", "deck": "deck", "menu": "Menu", "back": "Back", "hide": "Hide the menu", "show": "Show the menu", "running": "Running: {{n}}", "asks": "Waiting for you: {{n}}", "errors": "Failing checks: {{n}}" },
   "state": {
     "loading": "Loading…",
     "empty": "Nothing here",
@@ -143,7 +143,7 @@
     "revert": "Back to this"
   },
   "deadline": { "minutes": "{{m}} min", "hours": "{{h}} h {{m}} min" },
-  "details": { "call": { "show": "Show the whole call", "hide": "Hide the call" }, "text": { "show": "Show in full", "hide": "Hide" } },
+  "details": {"call": {"show": "Details", "hide": "Hide the details"}, "text": {"show": "Show in full", "hide": "Hide"}},
     "log": { "message": "Agent", "thought": "Thinking", "tool": "Tool", "rate_limit": "Limit", "stderr": "stderr", "more": "Show more", "less": "Show less", "owner": "You", "deck": "deck", "waiting": "not taken yet", "taken": "taken", "write": "Write to the agent", "running": "running" },
   "files": {"no_preview": "no preview", "cut": "Only the start of the file is shown", "previous": "Previous", "next": "Next", "grid": "Tiles", "list": "List"},
   "chat": {
@@ -202,6 +202,6 @@
     "off": "Stop pushes here",
     "unsupported": "This browser takes no pushes; on an iPhone, add deck to the home screen first"
   },
-  "hero": {"on_shift_one": "On shift · {{count}} running", "on_shift_other": "On shift · {{count}} running", "calm_eyebrow": "Everything runs by itself", "asks_one": "One decision waits for your yes", "asks_other": "{{count}} decisions wait for your yes", "asks_text": "Decide right here or go through them one by one; the rest is done without you, and much of it can be undone.", "errors_one": "{{count}} check is failing", "errors_other": "{{count}} checks are failing", "errors_text": "Settings → Health shows why; the master can look into it.", "running_one": "{{count}} task is running", "running_other": "{{count}} tasks are running", "running_text": "Nothing waits for you; if a task needs you or fails, it shows up here.", "calm": "All is calm", "calm_text": "Nothing waits for you. If something goes wrong, the master will write.", "triage": "Go through one by one", "talk": "Tell the master", "talk_deki": "Tell Deki", "fold": "Fold", "unfold": "Unfold"},
+  "hero": {"on_shift_one": "On shift · {{count}} running", "on_shift_other": "On shift · {{count}} running", "calm_eyebrow": "Everything runs by itself", "asks_one": "One decision waits for your yes", "asks_other": "{{count}} decisions wait for your yes", "asks_text": "The rest is done without you; much of it can be undone.", "errors_one": "{{count}} check is failing", "errors_other": "{{count}} checks are failing", "errors_text": "Settings → Health shows why.", "running_one": "{{count}} task is running", "running_other": "{{count}} tasks are running", "running_text": "Nothing waits for you.", "calm": "All is calm", "calm_text": "Nothing waits for you.", "triage": "Go through one by one", "talk": "Tell the master", "talk_deki": "Tell Deki", "fold": "Fold", "unfold": "Unfold", "talking_one": "Working on it", "talking_other": "Working on it", "talking_text": "Nothing waits for you; the answer comes in the chat.", "triage_short": "One by one"},
   "triage": {"title": "Triage", "count": "{{n}} of {{of}}", "close": "Close", "skip": "Skip", "done": "All done", "done_text": "The answers are on their way. If something goes wrong, the master will write in the chat.", "back": "Back to the cockpit"}
 }

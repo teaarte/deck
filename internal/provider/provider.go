@@ -99,6 +99,8 @@ type Result struct {
 	NoTools bool
 	// Denied are the tools the provider refused by its own rules or auto mode, one entry per refused call.
 	Denied []string
+	// Refusal is the status and words of the model API when it refused the last call of the turn as a bad request.
+	Refusal string
 }
 
 // Usage is one model call; the counts come from the final event of a turn or call, not from summed messages.

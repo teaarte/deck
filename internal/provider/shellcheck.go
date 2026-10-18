@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	"deck2/internal/untrusted"
 )
 
 // ShellCheck is what the self-check of an adapter whose agent has a shell of its own differs in.
@@ -93,7 +95,10 @@ func (s ShellCheck) Check(ctx context.Context, start Check) (c Check) {
 			"\n3. Ask the owner with the ask tool of the deck MCP server: \"Which answer should the result carry?\" and wait for the answer." +
 			"\n4. Only after you have the answer, hand in {\"word\": \"" + word + "\", \"answer\": <the answer you got>} with the result_submit tool of the deck MCP server, then end your turn."}
 	type out struct{ Word, Answer string }
+	// missed is set when a turn ended in words without result_submit, which a real turn is reminded of once.
+	missed := false
 	step := func(what string, r Request) (out, []string, int, bool) {
+		missed = false
 		mu.Lock()
 		tokens = 0
 		mu.Unlock()
@@ -118,18 +123,38 @@ func (s ShellCheck) Check(ctx context.Context, start Check) (c Check) {
 			model(fmt.Errorf("%s: the model answered (%d tokens) but did not finish the steps within the ceiling: it is slow, such as a model that always reasons; commands with a long timeout_minutes may still run on it", what, counted))
 		case err != nil:
 			c.Err = fmt.Errorf("%s: %w", what, err)
+		case res.Refusal != "" && raw == nil && strings.HasPrefix(res.Refusal, "404 "):
+			c.Err = fmt.Errorf("%s: the model API does not know the model (%s): check the model id and the url of the connection", what, res.Refusal)
+		case res.Refusal != "" && raw == nil && strings.Contains(strings.ToLower(res.Refusal), "tool"):
+			c.Err = fmt.Errorf("%s: the model API refused a call with tools (%s): it may not take tool calls for this model; pick a model or a connection that does", what, res.Refusal)
+		case res.Refusal != "" && raw == nil:
+			c.Err = fmt.Errorf("%s: the model API refused what %s sent (%s): %s and this connection do not fit; pick another agent or connection for the model", what, s.Agent, res.Refusal, s.Agent)
 		case res.RateLimited || res.NeedsLogin || res.IsError:
 			c.Err = fmt.Errorf("%s: %s", what, res.Text)
 		case strings.Contains(string(raw)+res.Text, secret):
 			c.Err = fmt.Errorf("%s: the agent read a file deck hides", what)
+		case raw == nil && asked == 0 && !wrote(work, word):
+			model(fmt.Errorf("%s: the model made no tool call and answered in words: the API may not pass tools to it, or it does not use them (%s)", what, said(res.Text)))
 		case raw == nil:
-			model(fmt.Errorf("%s: no result came in with result_submit", what))
+			missed = true
+			model(fmt.Errorf("%s: the model ended its turn in words without calling result_submit (%s)", what, said(res.Text)))
 		case counted == 0:
 			c.Err = fmt.Errorf("%s: token counts: the turn reported no usage, so the model call journal would count zero", what)
 		}
 		return o, approved, asked, c.Err == nil
 	}
 	o, approved, asked, ok := step("first turn", req)
+	if !ok && missed {
+		c.Err, c.ModelFailed = nil, false
+		remind := req
+		remind.Resume = true
+		remind.Prompt = "You ended your turn without handing in the result with the result_submit tool of the deck MCP server. " +
+			"Do not redo the steps you did; do the ones left, then call result_submit."
+		var more []string
+		var n int
+		o, more, n, ok = step("first turn, reminded of result_submit", remind)
+		approved, asked = append(approved, more...), asked+n
+	}
 	if !ok {
 		return c
 	}
@@ -175,4 +200,18 @@ func (s ShellCheck) Check(ctx context.Context, start Check) (c Check) {
 		c.Err = fmt.Errorf("turn without network: curl in the sandbox of %s printed %q, want 000", s.Agent, string(got))
 	}
 	return c
+}
+
+// wrote reports whether the first step of the check wrote its word.
+func wrote(work, word string) bool {
+	got, _ := os.ReadFile(filepath.Join(work, "word.txt"))
+	return strings.TrimSpace(string(got)) == word
+}
+
+// said is the start of what the model said, for the text of a failed check.
+func said(text string) string {
+	if strings.TrimSpace(text) == "" {
+		return "it said nothing"
+	}
+	return "it said " + untrusted.Line(text, 200)
 }

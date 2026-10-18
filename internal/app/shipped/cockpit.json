@@ -45,7 +45,7 @@
         {"type": "list", "title": "Running now", "icon": "activity", "when": "len(rows) > 0",
           "source": {"from": "deck.processes_list", "input": {"open": true}},
           "item": {"title": "((topic ?? '') != '' ? topic : (title ?? '') != '' ? title : command) + ((record_title ?? '') != '' ? ' · ' + record_title : '')",
-            "tone": "tone ?? ''", "text": "state == 'running' ? '' : word", "since": "since ?? ''",
+            "tone": "tone ?? ''", "text": "state == 'running' && (ask ?? 0) == 0 ? '' : word", "since": "since ?? ''",
             "icon": "kind == 'script' ? 'code' : kind == 'tool' ? 'tool' : kind == 'model' ? 'sparkles' : 'robot'",
             "meta": "project + ((trigger ?? 0) != 0 ? ' · by schedule' : '')",
             "details": "'#' + string(id) + ((parent ?? 0) != 0 ? ' of #' + string(parent) : '') + ' · ' + project + '.' + command + ' · ' + word"},

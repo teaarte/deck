@@ -25,12 +25,12 @@
           ]}
       ]},
       {"title": "Failed", "icon": "alert-triangle", "blocks": [
-        {"type": "table", "title": "Failed runs", "empty": "No run failed", "source": {"from": "deck.processes_list", "input": {"state": "error", "limit": 100}, "sort": "-id"}, "filter": ["project"],
-          "description": "Every run that ended in an error, the newest first; closed on the cockpit, it stays here.",
+        {"type": "table", "title": "Failed runs", "empty": "No run failed", "source": {"from": "deck.processes_list", "input": {"limit": 300}, "where": "!(trial ?? false) && (state in ['error', 'interrupted'] || state == 'done' && not_by_schema)", "sort": "-id"}, "filter": ["project"],
+          "description": "Every run that failed or was cut, the newest first; closed on the cockpit, it stays here.",
           "columns": [
             {"label": "Command", "bind": "command"},
             {"label": "Module", "bind": "project", "format": "tag"},
-            {"label": "Why", "bind": "error ?? ''", "details": "(error_details ?? '') != '' ? error_details : nil"},
+            {"label": "Why", "bind": "(error ?? '') != '' ? error : word"},
             {"label": "Started", "bind": "started_at", "format": "relative"},
             {"label": "#", "bind": "id"}
           ],

@@ -192,9 +192,10 @@ func (s *Service) dismissAll(ctx context.Context, act registry.Actor) (any, erro
 	return map[string]any{"ok": true, "closed": n}, nil
 }
 
-// Failed is how many failed processes the cockpit shows.
+// Failed is how many lines of failed processes the cockpit shows, the same failures one line.
 func (s *Service) Failed(ctx context.Context, act registry.Actor) (int64, error) {
 	ps, err := s.St.Q.ListFailedProcesses(ctx, s.failedParams(act, 0, 0, 2000))
+	ps, _ = sameFailures(ps, len(ps))
 	return int64(len(ps)), err
 }
 

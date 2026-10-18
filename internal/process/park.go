@@ -24,7 +24,7 @@ import (
 // picks how to continue; the self-check of the provider sees when the login is back.
 func (r *Runner) needLogin(ctx context.Context, pv provider.Provider, processID int64, text string) {
 	payload, _ := json.Marshal(map[string]any{"answers": ask.LoginAnswers})
-	what, fix := "the model API refused the key of its connection", "Set a new key of the connection in Settings → Connections"
+	what, fix := "the model API refused the key of its connection", "Set a new value of the secret of its key in Settings → Advanced → Secrets"
 	if _, ok := pv.(provider.Subscribed); ok {
 		what, fix = "needs a login", "Log in again in a terminal"
 	}

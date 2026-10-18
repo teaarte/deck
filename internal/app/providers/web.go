@@ -28,7 +28,7 @@ const SearXNGInstall = `mkdir -p ~/searxng && printf 'use_default_settings: true
 
 // noSearch is what the owner does when no search is assigned.
 const noSearch = "no search is set up, so agents without their own web only read pages; run SearXNG (" + SearXNGInstall +
-	"), add it in Settings → Connections (api raw, url http://127.0.0.1:8888, local), as a model of kind search in Settings → Models, and assign it to search"
+	"), add it in Settings → Connections (api raw, url http://127.0.0.1:8888, local), as a model of kind search in Settings → Models, and assign it to search in Settings → Commands"
 
 const (
 	maxPage     = 4 << 20

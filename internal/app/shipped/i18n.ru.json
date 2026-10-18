@@ -27,7 +27,6 @@
   "Add a folder": "Добавить папку",
   "Add a secret": "Добавить секрет",
   "Agent": "Агент",
-  "All changes": "Все изменения",
   "Appearance": "Внешний вид",
   "Automation tokens": "Токены автоматизации",
   "Calls": "Вызовы",
@@ -102,7 +101,6 @@
   "Value": "Значение",
   "Version": "Версия",
   "Waiting for you": "Ждёт вас",
-  "Running": "Работает",
   "Failing checks": "Проверки с ошибкой",
   "Runs": "Запуски",
   "Needs your decision": "Нужно ваше решение",
@@ -189,12 +187,15 @@
   "All files": "Все файлы",
   "What runs by itself and failed its last run; change its model and run it again.": "Что идёт само и упало в последний раз; смените модель и запустите снова.",
   "Schedules that failed": "Расписания со сбоем",
-  "Every run that ended in an error, the newest first; closed on the cockpit, it stays here.": "Каждый прогон, закончившийся ошибкой, новые сверху; закрытый в кокпите остаётся здесь.",
   "The model each command and each kind of work of its scripts runs on; pick one here for this module.": "На какой модели идёт каждая команда и каждый вид работы скриптов; здесь можно выбрать модель для этого модуля.",
   "Keys and passwords its tools need; its agents and scripts never see them.": "Ключи и пароли для его инструментов; агенты и скрипты их не видят.",
   "What deck checks of the module, with why one fails.": "Что deck проверяет в модуле и почему проверка падает.",
   "Which model each command called, how often and what it cost.": "Какую модель звала каждая команда, сколько раз и за сколько.",
   "Automation tokens that may call its commands.": "Токены автоматизации, которые могут звать его команды.",
   "The web addresses, MCP servers and browser its manifest calls.": "Веб-адреса, MCP-серверы и браузер, которые зовёт его манифест.",
-  "Every model deck reaches, those that work goes to first; the others are dimmed.": "Все модели deck: сначала те, на которые идёт работа, остальные бледнее."
+  "Every model deck reaches, those that work goes to first; the others are dimmed.": "Все модели deck: сначала те, на которые идёт работа, остальные бледнее.",
+  "Every run that failed or was cut, the newest first; closed on the cockpit, it stays here.": "Каждый упавший или прерванный прогон, новые сверху; закрытый в кокпите остаётся здесь.",
+  "Read": "Прочитано",
+  "Note": "Заметка",
+  "Every note, those read or read all at once too.": "Все заметки, и прочитанные, в том числе разом."
 }

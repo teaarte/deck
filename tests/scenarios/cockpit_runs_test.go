@@ -402,8 +402,8 @@ func TestTheHeroTellsWhatFailedWaitsAndRuns(t *testing.T) {
 	}
 }
 
-// TestCloseAllAndReadAllKeepWhatTheyClearInTheHistory: one press closes every failed run and reads every note; the
-// cockpit has none of them, the failed runs of the schedule and the notes of the history keep them.
+// TestCloseAllAndReadAllKeepWhatTheyClearInTheHistory: the hero counts failed runs as the cockpit lists them; one press
+// closes every one and reads every note, and the failed runs of the schedule and the history keep them.
 func TestCloseAllAndReadAllKeepWhatTheyClearInTheHistory(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
@@ -421,8 +421,8 @@ func TestCloseAllAndReadAllKeepWhatTheyClearInTheHistory(t *testing.T) {
 		e.must("deck.notify", map[string]any{"project": "shorts", "text": text}, nil)
 	}
 	h := e.hero("")
-	if h.Failed != 2 || h.Notes != 3 {
-		t.Fatalf("two failed runs and three notes wait: %+v", h)
+	if h.Failed != 1 || h.Notes != 3 {
+		t.Fatalf("two runs that failed the same way are one line, as the cockpit lists them, beside three notes: %+v", h)
 	}
 	for _, l := range h.Lines {
 		if l.Action != nil {

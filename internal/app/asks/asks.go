@@ -61,7 +61,12 @@ type askRow struct {
 	ExpiresAt string          `json:"expires_at"`
 	// Expired is a confirmation that ran out; it stays until the owner clears it.
 	Expired bool `json:"expired"`
+	// Link is the address of the screen where the owner answers it.
+	Link string `json:"link"`
 }
+
+// answerLink is the screen where the owner answers what waits.
+const answerLink = "#/deck/cockpit"
 
 // asksList is what waits for the owner, oldest first: open asks and confirmations that expired.
 func (s *Service) asksList(ctx context.Context, act registry.Actor, in asksListIn) ([]askRow, error) {
@@ -106,7 +111,7 @@ func (s *Service) Waiting(ctx context.Context, act registry.Actor) (map[string]i
 
 func (s *Service) askRow(ctx context.Context, q db.Ask, names map[int64]string) askRow {
 	r := askRow{ID: q.ID, Kind: q.Kind, Project: names[q.ProjectID.Int64], Process: q.ProcessID.Int64, Text: q.Text, What: firstLine(q.Text),
-		Payload: json.RawMessage(cmp.Or(q.Payload, "null")), CreatedAt: q.CreatedAt, ExpiresAt: q.ExpiresAt.String, Expired: q.State == ask.StateExpired}
+		Payload: json.RawMessage(cmp.Or(q.Payload, "null")), CreatedAt: q.CreatedAt, ExpiresAt: q.ExpiresAt.String, Expired: q.State == ask.StateExpired, Link: answerLink}
 	if q.ProcessID.Valid {
 		r.Who = s.processName(ctx, q.ProcessID.Int64)
 	}
@@ -128,6 +133,12 @@ func (s *Service) askRow(ctx context.Context, q db.Ask, names map[int64]string) 
 				r.Where = c.Target(f.Tool, f.Call.Input)
 			}
 		}
+	case ask.KindGrant:
+		var f gateway.Frozen
+		_ = json.Unmarshal([]byte(q.Payload), &f)
+		r.Who, r.What, r.Where = s.callerName(ctx, f.Caller), "Widen the rights of "+r.Project, strings.Join(f.Widens, "; ")
+		r.Text = cmp.Or(f.Reason, "no reason given")
+		r.Payload, _ = json.Marshal(map[string]any{"widens": f.Widens, "reason": f.Reason})
 	case ask.KindConfirm:
 		var pl struct {
 			Tool  string         `json:"tool"`
@@ -260,7 +271,7 @@ func (s *Service) dismissExpired(ctx context.Context, q db.Ask, answer string) (
 func (s *Service) Commands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("asks_list", "Waiting for you",
-			"Lists what waits for the owner, oldest first: questions, confirmations and sign-ins, with who asks, what and where; confirmations that expired stay until the owner clears them.",
+			"Lists what waits for the owner, oldest first: questions, confirmations, requests for rights and sign-ins, with who asks, what and where, and the link of the screen that answers them; a request for rights gives what it widens and why. Confirmations that expired stay until the owner clears them.",
 			registry.OwnerSide, s.asksList).On("asks"),
 		registry.Def("ask_answer", "Answer",
 			"Answers what waits for the owner: a question with text; a confirmation with allow, allow_always, deny or deny:<reason>; a login with retry or new_session; an unknown outcome with retry or done. Deny on an expired confirmation clears it.",

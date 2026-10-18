@@ -234,7 +234,7 @@ func TestWideningChangeWaitsForTheOwnersButton(t *testing.T) {
 		t.Fatalf("if_revision guards a save: %d %s", code, out)
 	}
 	a := e.waitAsk()
-	if a.Kind != "grant" || !strings.Contains(a.Text, "go faster") || !strings.Contains(a.Text, "read domain: example.com") {
+	if a.Kind != "grant" || a.Text != "go faster" {
 		t.Fatalf("the owner sees what the change asks for: %+v", a)
 	}
 	if code, _ := e.callWith(tok, "deck.ask_answer", map[string]any{"ask": a.ID, "answer": "allow"}); code != 403 {
@@ -917,4 +917,31 @@ func TestAnEditOfTheRightARequestWaitsForOutdatesIt(t *testing.T) {
 		t.Fatalf("the yes grants what that request named: %+v", m.Domains)
 	}
 	e.waitNote("A request for rights of notes is outdated at revision 3")
+}
+
+// TestARequestForRightsListsWhatItWidens: asks_list gives a request for rights as who asks, what it widens and why,
+// once each, with the screen that answers it, and not the manifest it changes.
+func TestARequestForRightsListsWhatItWidens(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, ok)
+	e.createProject("notes", grantManifest)
+	tokID, tok := e.token("terminal", "deck.*")
+	e.callWith(tok, "deck.manifest_save", map[string]any{"project": "notes", "old": []string{`"writes": []`},
+		"new": []string{`"writes": ["report.md"]`}, "reason": "keep the weekly report"})
+	_, out := e.call("deck.asks_list", nil)
+	var rows []struct {
+		Kind, Who, What, Where, Text, Link string
+		Payload                            map[string]any
+	}
+	if err := json.Unmarshal(out, &rows); err != nil || len(rows) != 1 {
+		t.Fatalf("one request: %s", out)
+	}
+	r := rows[0]
+	if r.Kind != "grant" || r.Who != fmt.Sprintf("token #%d", tokID) || r.What != "Widen the rights of notes" ||
+		r.Where != "writes document report.md" || r.Text != "keep the weekly report" || r.Link != "#/deck/cockpit" {
+		t.Fatalf("who, what, where, why and the link: %+v", r)
+	}
+	if _, ok := r.Payload["widens"]; !ok || strings.Contains(string(out), "Do the work.") || strings.Count(string(out), "keep the weekly report") != 2 {
+		t.Fatalf("the payload names what widens, not the manifest, and the reason is not repeated: %s", out)
+	}
 }

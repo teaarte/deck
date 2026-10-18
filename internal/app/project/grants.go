@@ -44,8 +44,7 @@ func (sv *Saver) ask(ctx context.Context, q *db.Queries, act registry.Actor, p d
 	raw, _ := json.Marshal(input)
 	f := gateway.Freeze(act, registry.Builtin+"."+command, raw)
 	f.As, f.Reason, f.Widens = gateway.AsOwner, reason, widens
-	text := fmt.Sprintf("%s wants to change the manifest of %s (%s); it widens: %s", act.Author(), p.Name,
-		orText(reason, "no reason given"), strings.Join(widens, "; "))
+	text := fmt.Sprintf("%s asks to widen the rights of %s: %s", act.Author(), p.Name, strings.Join(widens, "; "))
 	row, err := gateway.Hold(ctx, q, act, p.ID, 0, ask.KindGrant, registry.Internal, text, f, time.Time{}, sv.Now())
 	return Saved{Waiting: row.ID, Widens: widens}, err
 }

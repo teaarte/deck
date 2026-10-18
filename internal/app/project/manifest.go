@@ -49,13 +49,9 @@ func (sv *Saver) manifestGet(ctx context.Context, act registry.Actor, in manifes
 		v.Warnings = append(v.Warnings, fmt.Sprintf("stored in format %d; this is it raised to format %d, which its next save stores",
 			format(r.Text), manifest.FormatVersion))
 	}
+	v.Warnings = append(v.Warnings, sv.problems(ctx, p)...)
 	if m, err := docs.ManifestAt(ctx, sv.St.Q, p.ID, d.Current); err == nil {
-		v.Warnings = append(v.Warnings, m.Warnings()...)
-		held, err := heldKeys(ctx, sv.St.Q, p.WorkspaceID, m)
-		if err != nil {
-			return manifestView{}, err
-		}
-		v.Warnings = append(append(v.Warnings, held...), sv.unassigned(ctx, p, m)...)
+		v.Warnings = append(v.Warnings, sv.unassigned(ctx, p, m)...)
 	}
 	return v, nil
 }

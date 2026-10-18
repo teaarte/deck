@@ -1,10 +1,14 @@
 package scenarios
 
 import (
+	"context"
 	"slices"
 	"strings"
 	"testing"
 	"time"
+
+	"deck2/internal/docs"
+	"deck2/internal/store/db"
 
 	_ "modernc.org/sqlite"
 )
@@ -328,5 +332,50 @@ func TestWhyAScheduleOfADraftDidNotStartGoesFromAnEnabledProjectOfABaseFromBefor
 	_ = rows.Close()
 	if !slices.Equal(left, []string{"trigger:work.remind"}) {
 		t.Fatalf("only the draft reason goes: %v", left)
+	}
+}
+
+// TestADeckThatRefusesASavedManifestSaysSoOnce: a manifest saved by an older deck that the checks of this one refuse
+// works on, and its project gets one note of what to fix; a clean project gets none, nor does a second start.
+func TestADeckThatRefusesASavedManifestSaysSoOnce(t *testing.T) {
+	t.Parallel()
+	home := t.TempDir()
+	e := newEnvWith(t, home, &Fake{})
+	e.createProject("clean", plainManifest)
+	p := e.createProject("old", plainManifest)
+	older := strings.Replace(plainManifest, `"screens": []`, `"screens": [], "domains": {"read": ["https://example.com/feed"]}`, 1)
+	err := e.App.Store.Tx(context.Background(), func(ctx context.Context, q *db.Queries) error {
+		_, _, _, err := docs.Save(ctx, q, docs.Ref{Scope: docs.Scope{Workspace: 1, Project: p}, Name: docs.ManifestName}, docs.KindManifest, older, "deck", "an older deck")
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	restart := func() {
+		_ = e.App.Close()
+		e = newEnvWith(t, home, &Fake{})
+	}
+	restart()
+	n := e.waitNote("The manifest of old")
+	if !strings.Contains(n.Text, "domains.read") || !strings.Contains(n.Text, "not a URL") {
+		t.Fatalf("the note says what to fix: %s", n.Text)
+	}
+	for _, f := range e.notes() {
+		if strings.Contains(f.Text, "clean") {
+			t.Fatalf("a manifest the checks pass gets no note: %s", f.Text)
+		}
+	}
+	if code, out := e.call("deck.screen", map[string]any{"project": "old", "screen": "documents"}); code != 200 {
+		t.Fatalf("the project works on: %d %s", code, out)
+	}
+	restart()
+	count := 0
+	for _, f := range e.notes() {
+		if strings.Contains(f.Text, "The manifest of old") {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Fatalf("the same problems are told once: %d notes", count)
 	}
 }

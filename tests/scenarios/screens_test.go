@@ -1079,6 +1079,47 @@ func TestACustomBlockGetsOnlyTheFieldsItsSourceNames(t *testing.T) {
 	e.refused("deck.manifest_save", map[string]any{"project": "web", "manifest": table}, 422, "fields are for a custom block")
 }
 
+const ocrManifest = `{
+  "version": 12,
+  "collections": [{"name": "docs", "description": "Recognized files", "key": "key", "display": "name", "schema": {"type": "object", "required": ["key", "name"],
+    "properties": {"key": {"type": "string"}, "name": {"type": "string"}, "status": {"type": "string"}, "text": {"type": "string"}, "private": {"type": "string"}}}}],
+  "screens": [{"name": "docs", "title": "OCR", "blocks": [
+    {"type": "table", "title": "Files", "source": {"collection": "docs", "sort": "name"},
+      "columns": [{"label": "File", "bind": "name"}, {"label": "Status", "bind": "status", "format": "tag"}, {"label": "Text", "bind": "(text ?? '')[:160]"}],
+      "actions": [{"label": "Open", "screen": "doc"}]},
+    {"type": "list", "title": "Recent", "source": {"collection": "docs"}, "item": {"title": "name", "meta": "status"}},
+    {"type": "media", "title": "Shelf", "source": {"collection": "docs"}, "item": {"title": "name", "icon": "'file-text'"}}
+  ]}, {"name": "doc", "title": "File", "record": "docs", "blocks": [{"type": "card", "fields": [{"label": "Text", "bind": "text"}]}]}],
+  "menu": ["docs"]
+}`
+
+// TestATableSendsOnlyWhatItsColumnsShow: a table, a list and a media block send the values their columns and items
+// show, never the record: a long recognized text goes only as far as its column cuts it, a field no block shows not at all.
+func TestATableSendsOnlyWhatItsColumnsShow(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, nil)
+	id := e.createProject("ocr", ocrManifest)
+	text := strings.Repeat("recognized ", 400) + "THE-TAIL"
+	e.must("deck.records_upsert", map[string]any{"project": "ocr", "collection": "docs", "records": jsonl(
+		map[string]any{"key": "a", "name": "scan.pdf", "status": "done", "text": text, "private": "NOT-SHOWN"})}, nil)
+	var raw []json.RawMessage
+	e.must("deck.screen", map[string]any{"project": "ocr", "screen": "docs"}, &raw)
+	all := ""
+	for _, m := range raw {
+		all += string(m)
+	}
+	if strings.Contains(all, "THE-TAIL") || strings.Contains(all, "NOT-SHOWN") || !strings.Contains(all, text[:160]) || strings.Contains(all, text[:161]) {
+		t.Fatalf("the screen sends what the blocks show and nothing more of the record: %d bytes", len(all))
+	}
+	rows := e.screenRows(id, "docs")
+	if len(rows) != 1 || len(rows[0].Cells) != 3 || len(rows[0].Actions) != 1 {
+		t.Fatalf("the table row is its three cells and its button: %+v", rows)
+	}
+	if rows[0].Actions[0]["record"] == nil {
+		t.Fatalf("the button keeps the record it opens: %+v", rows[0].Actions[0])
+	}
+}
+
 // TestACustomButtonNamesTheFieldsItsBlockFills: from_block names the input fields a custom block fills itself, a
 // required one too; a record of them is marked for the host to take only an item's, and only on a custom block.
 func TestACustomButtonNamesTheFieldsItsBlockFills(t *testing.T) {

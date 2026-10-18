@@ -643,7 +643,7 @@ func TestALocalServerOfPicturesTakesOneCallAtATime(t *testing.T) {
 func TestAnImageModelEditsThePictureInFile(t *testing.T) {
 	t.Parallel()
 	png := "\x89PNG\r\n\x1a\nsample"
-	type got struct{ path, ct, image, prompt, steps, model, chat string }
+	type got struct{ path, ct, image, prompt, steps, model, format, chat string }
 	var mu sync.Mutex
 	var seen []got
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -658,7 +658,7 @@ func TestAnImageModelEditsThePictureInFile(t *testing.T) {
 				b, _ := io.ReadAll(f)
 				g.image, g.ct = string(b), h.Header.Get("Content-Type")
 			}
-			g.prompt, g.steps, g.model = r.FormValue("prompt"), r.FormValue("steps"), r.FormValue("model")
+			g.prompt, g.steps, g.model, g.format = r.FormValue("prompt"), r.FormValue("steps"), r.FormValue("model"), r.FormValue("response_format")
 		}
 		if strings.HasSuffix(r.URL.Path, "/chat/completions") {
 			b, _ := io.ReadAll(r.Body)
@@ -702,7 +702,7 @@ func TestAnImageModelEditsThePictureInFile(t *testing.T) {
 	if len(seen) != 3 {
 		t.Fatalf("an edit goes to images/edits, the other connection falls back to chat completions: %+v", seen)
 	}
-	if e0 := seen[0]; e0.image != png || e0.ct != "image/png" || e0.prompt != "Make the cube blue." || e0.steps != "4" || e0.model != "flux-edit" {
+	if e0 := seen[0]; e0.image != png || e0.ct != "image/png" || e0.prompt != "Make the cube blue." || e0.steps != "4" || e0.model != "flux-edit" || e0.format != "b64_json" {
 		t.Fatalf("the picture, the prompt, the model and the options are fields of the form: %+v", e0)
 	}
 	if seen[1].path != "/chat/v1/images/edits" || !strings.Contains(seen[2].chat, `"image_url":{"url":"data:image/png;base64,`+base64.StdEncoding.EncodeToString([]byte(png))) ||

@@ -304,7 +304,9 @@ func edit(h gateway.ModelHop, prompt string, options map[string]any, image []byt
 	head.Set("Content-Type", ct)
 	part, _ := w.CreatePart(head)
 	_, _ = part.Write(image)
-	for k, v := range merged(map[string]any{"model": h.Model, "prompt": prompt}, options) {
+	fields := merged(map[string]any{"model": h.Model, "prompt": prompt, "response_format": "b64_json"}, options)
+	delete(fields, "image")
+	for k, v := range fields {
 		if s, ok := v.(string); ok {
 			_ = w.WriteField(k, s)
 		} else {
@@ -478,10 +480,10 @@ func (s *Service) keepBase64(act registry.Actor, ct, data string) (any, error) {
 	return s.keep(act, RoleImage, ct, bytes.NewReader(b))
 }
 
-// keep saves what a model made as a file in the results folder of the calling process; a call without a process, as
-// the check of a model, gets only its type and size.
+// keep saves what a model made as a file in the results folder of the calling process; the owner's call without a
+// process, as the check of a model, gets only its type and size.
 func (s *Service) keep(act registry.Actor, kind, ct string, body io.Reader) (any, error) {
-	if act.ProcessID == 0 {
+	if act.ProcessID == 0 && act.Kind == registry.Owner {
 		n, err := io.Copy(io.Discard, io.LimitReader(body, 1<<30))
 		return map[string]any{"type": ct, "size": n, "kept": false}, err
 	}

@@ -47,6 +47,9 @@ func (c *screenCheck) action(b Block, a Action, fields []string) error {
 	if len(a.FromBlock) > 0 && (b.Type != "custom" || a.Command == "") {
 		return errors.New("from_block names the fields a custom block fills in a call of the command of its button")
 	}
+	if err := c.fromItems(b, a); err != nil {
+		return err
+	}
 	if a.When != "" {
 		if _, err := compileField(a.When, fields); err != nil {
 			return fmt.Errorf("when: %w", err)
@@ -127,6 +130,22 @@ func (c *screenCheck) action(b Block, a Action, fields []string) error {
 	}
 	if own != target.Record {
 		return fmt.Errorf("screen %q shows a record of %s; open it from a row of %s", a.Screen, target.Record, target.Record)
+	}
+	return nil
+}
+
+// fromItems refuses a record a custom block fills when the block holds no records of the module to fill it with: it
+// reads its own collection, or nothing on a record page.
+func (c *screenCheck) fromItems(b Block, a Action) error {
+	cmd := c.m.commands[a.Command]
+	if cmd == nil || c.deck {
+		return nil
+	}
+	own := b.Source == nil && c.screen.Record != "" || b.Source != nil && (b.Source.From == "" || b.Source.From == "collection")
+	for _, f := range FieldsOf(cmd.InputSchema(), "record") {
+		if slices.Contains(a.FromBlock, f) && !own {
+			return fmt.Errorf("from_block: %s names a record, and the block holds no records of the module: it reads its own collection or sits on a record page", f)
+		}
 	}
 	return nil
 }

@@ -239,14 +239,19 @@ func (s *Service) uses(ctx context.Context, act registry.Actor, in modelsListIn,
 		if err != nil {
 			continue
 		}
+		own := func(command, role string) bool {
+			return slices.ContainsFunc(out.Assignments, func(a assignmentView) bool {
+				return a.Project == p.Name && a.Role == role && (a.Command == command || a.Command == "") && len(a.Models) > 0
+			})
+		}
 		for _, c := range m.Commands {
 			if c.Executor.Type == "agent" || c.Executor.Type == "model" {
 				w := s.commandWork(ctx, b, p.ID, c.Name)
-				out.Work = append(out.Work, workView{Project: p.Name, Command: c.Name, Title: c.Title, Own: len(w.Models) > 0, Work: w})
+				out.Work = append(out.Work, workView{Project: p.Name, Command: c.Name, Title: c.Title, Own: own(c.Name, w.Role), Work: w})
 			}
 		}
 		for _, w := range roles {
-			out.Work = append(out.Work, workView{Project: p.Name, Title: w.Role, Own: len(w.Models) > 0, Work: w})
+			out.Work = append(out.Work, workView{Project: p.Name, Title: w.Role, Own: own("", w.Role), Work: w})
 		}
 	}
 	for name := range s.Places(ctx, act.Workspace) {
@@ -266,7 +271,7 @@ type modelSetIn struct {
 	CallUSD      float64 `json:"call_usd" opt:"" desc:"USD per call, for a model priced per picture, clip or request"`
 	Subscription *bool   `opt:"" desc:"The owner pays the model by a subscription: deck shows what a call would cost as an estimate and leaves it out of the money spent; a model changed without it keeps its own"`
 	Free         *bool   `opt:"" desc:"The model costs nothing, so a trial or a draft calls it without the owner's yes; a model changed without it or a price keeps its own, a new one takes it from the catalog of the connection"`
-	Options      string  `type:"json" opt:"" desc:"Fields deck adds to every call of the model of a kind, such as {\"language\": \"ru\"} of speech to text; a model changed without them keeps its own"`
+	Options      string  `type:"json" opt:"" desc:"Fields deck adds to every call of the model of a kind, such as {\"language\": \"ru\"} of speech to text or {\"voice\": \"…\"} of tts; a model changed without them keeps its own, {} clears them"`
 	Agent        string  `opt:"" desc:"The ACP agent that runs a text model inside the sandbox of deck with a shell and files, for agent commands; the name is then the name of a provider. A model changed without it keeps its own"`
 	// CheckMinutes give a slow model more time for its self-check.
 	CheckMinutes int64 `json:"check_minutes" opt:"" desc:"Minutes the self-check of a model in an agent may take, for a slow one; deck's own ceiling when left out"`

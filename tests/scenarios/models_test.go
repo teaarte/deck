@@ -717,6 +717,12 @@ func TestTheSettingsOfAModuleShowTheModelsOfItsWork(t *testing.T) {
 	e.createProject("plain", plainManifest)
 	e.must("deck.assignment_set", map[string]any{"role": "image", "project": "shorts", "models": []string{"local-image", "cloud-image"}}, nil)
 	e.must("deck.assignment_set", map[string]any{"role": "image", "project": "plain", "models": []string{"cloud-image"}}, nil)
+	e.must("deck.assignment_set", map[string]any{"role": "image", "models": []string{"cloud-image"}}, nil)
+	e.createProject("pics", scriptManifest("media", "", `, "models": ["@image"]`))
+	pics := blockData[[]screenRow](t, e.screenBlock("pics", "settings", "Models", nil)["rows"])
+	if len(pics) != 2 || fmt.Sprint(pics[1].Cells[:3]...) != "imagecloud-imagedefault" {
+		t.Fatalf("a kind of work on the model deck's settings give everywhere is the default, not the module's own: %+v", pics)
+	}
 	rows := blockData[[]screenRow](t, e.screenBlock("shorts", "settings", "Models", nil)["rows"])
 	if len(rows) != 2 || fmt.Sprint(rows[0].Cells[0], rows[0].Cells[2]) != "Publishdefault" || fmt.Sprint(rows[1].Cells...) != "imagelocal-imageherefree" {
 		t.Fatalf("the settings of a module show the models of its commands and scripts and only its own: %+v", rows)

@@ -1106,6 +1106,8 @@ func TestACustomButtonNamesTheFieldsItsBlockFills(t *testing.T) {
 	}
 	table := strings.Replace(webNotes, `"actions": [{"label": "Open", "screen": "note"}]`, `"actions": [{"label": "Mark", "command": "mark", "from_block": ["text"]}]`, 1)
 	e.refused("deck.manifest_save", map[string]any{"project": "web", "manifest": table}, 422, "from_block names the fields a custom block fills")
+	deckRows := strings.Replace(with(`{"label": "Touch", "command": "touch", "from_block": ["note"]}`), `"source": {"collection": "notes", "sort": "title"},`, `"source": {"from": "deck.asks_list"},`, 1)
+	e.refused("deck.manifest_save", map[string]any{"project": "web", "manifest": deckRows}, 422, "the block holds no records of the module")
 }
 
 // TestAButtonOfAModuleOpensAScreenOfDeckFilled: screen deck/<name> opens a screen of deck with its params, a tab or a

@@ -16,7 +16,7 @@ function button(value: CustomValue, name: string, args: Record<string, unknown>)
   const ids = new Set([...(value.items ?? []), ...(value.record ? [value.record] : [])].map((it) => String((it as { _id?: unknown })._id)));
   return (value.actions ?? []).find((a) => a.command === name &&
     Object.entries(a.params ?? {}).every(([k, v]) => args[k] === undefined || String(args[k]) === String(v)) &&
-    Object.keys(args).every((k) => k in (a.params ?? {}) || (a.from_block ?? []).includes(k)) &&
+    Object.keys(args).every((k) => Object.hasOwn(a.params ?? {}, k) || (a.from_block ?? []).includes(k)) &&
     (a.from_items ?? []).every((k) => args[k] === undefined || ids.has(String(args[k]))));
 }
 

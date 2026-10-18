@@ -6,8 +6,6 @@ import (
 	"io/fs"
 	"strings"
 
-	"github.com/epiclabs-io/diff3"
-
 	"deck2/internal/app/access"
 	"deck2/internal/docs"
 	"deck2/internal/registry"
@@ -128,16 +126,12 @@ func (dc *Service) seedSkills(ctx context.Context, workspace int64) error {
 // carry puts the change from base to edit into next, line by line; where both change the same lines next stands, and
 // each such place comes back as a diff.
 func carry(edit, base, next string) (string, []string) {
-	var out, conflicts []string
-	for _, r := range diff3.Diff3Merge(strings.Split(edit, "\n"), strings.Split(base, "\n"), strings.Split(next, "\n"), true) {
-		if c := r.Conflict; c != nil {
-			out = append(out, c.B...)
-			conflicts = append(conflicts, "your edit changed:\n"+prefixed("- ", c.O)+prefixed("+ ", c.A)+"deck's new text there:\n"+prefixed("  ", c.B))
-			continue
-		}
-		out = append(out, r.Ok...)
+	text, cs := docs.Merge3(edit, base, next)
+	var conflicts []string
+	for _, c := range cs {
+		conflicts = append(conflicts, "your edit changed:\n"+prefixed("- ", c.Base)+prefixed("+ ", c.Edit)+"deck's new text there:\n"+prefixed("  ", c.Next))
 	}
-	return strings.Join(out, "\n"), conflicts
+	return text, conflicts
 }
 
 func prefixed(p string, lines []string) string {

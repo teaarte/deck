@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"deck2/internal/manifest"
 	"deck2/internal/provider"
 )
 
@@ -217,7 +218,7 @@ func TestSchemaChangesAreCheckedAgainstRecords(t *testing.T) {
 
 	var cur struct{ Manifest string }
 	e.must("deck.manifest_get", map[string]any{"project": "links"}, &cur)
-	if cur.Manifest != compatible {
+	if cur.Manifest != manifest.Canonical(compatible) {
 		t.Fatalf("refused revisions must leave the manifest unchanged")
 	}
 

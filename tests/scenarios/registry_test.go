@@ -11,6 +11,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"deck2/internal/manifest"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
@@ -157,7 +158,7 @@ func TestManifestRevisionsAndRevert(t *testing.T) {
 		Manifest           string
 	}
 	e.must("deck.manifest_get", map[string]any{"project": "ideas"}, &cur)
-	if cur.Revision != 2 || cur.Manifest != noTrigger {
+	if cur.Revision != 2 || cur.Manifest != manifest.Canonical(noTrigger) {
 		t.Fatalf("rejected manifest must leave revision 2, got %d", cur.Revision)
 	}
 
@@ -176,7 +177,7 @@ func TestManifestRevisionsAndRevert(t *testing.T) {
 	}
 	e.must("deck.document_revert", map[string]any{"document": cur.Document, "revision": 1}, &saved)
 	e.must("deck.manifest_get", map[string]any{"project": "ideas"}, &cur)
-	if saved.Revision != 3 || cur.Manifest != ideasManifest {
+	if saved.Revision != 3 || cur.Manifest != manifest.Canonical(ideasManifest) {
 		t.Fatalf("revert must bring revision 1 back as revision 3, got %d", saved.Revision)
 	}
 	if ts, _ := e.App.Store.Q.ListProjectTriggers(context.Background(), p); len(ts) != 1 {

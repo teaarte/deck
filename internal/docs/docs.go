@@ -174,16 +174,23 @@ func ownMemory(ctx context.Context, q *db.Queries, ref Ref, kind, author string)
 	return err == nil && p.Builtin == 1
 }
 
-// Merge puts the change from base to edit into next, line by line; false when they change the same lines.
-func Merge(edit, base, next string) (string, bool) {
+// Conflict is a place where edit and next both changed the same lines of base.
+type Conflict struct{ Base, Edit, Next []string }
+
+// Merge3 puts the change from base to edit into next, line by line; where both change the same lines next stands,
+// and each such place comes back as a conflict.
+func Merge3(edit, base, next string) (string, []Conflict) {
 	var out []string
+	var conflicts []Conflict
 	for _, r := range diff3.Diff3Merge(strings.Split(edit, "\n"), strings.Split(base, "\n"), strings.Split(next, "\n"), true) {
-		if r.Conflict != nil {
-			return "", false
+		if c := r.Conflict; c != nil {
+			out = append(out, c.B...)
+			conflicts = append(conflicts, Conflict{Base: c.O, Edit: c.A, Next: c.B})
+			continue
 		}
 		out = append(out, r.Ok...)
 	}
-	return strings.Join(out, "\n"), true
+	return strings.Join(out, "\n"), conflicts
 }
 
 // Edit replaces each old part of the text with its new one; each old part must occur in the text exactly once,

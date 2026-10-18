@@ -71,7 +71,7 @@ func merged(ctx context.Context, q *db.Queries, p db.Project, a db.Ask) (string,
 	if err != nil {
 		return "", 0, err
 	}
-	text := in.Manifest
+	text := manifest.Canonical(in.Manifest)
 	if d.Current != in.Base {
 		base, err := docs.Revision(ctx, q, d, in.Base)
 		if err != nil {
@@ -81,8 +81,8 @@ func merged(ctx context.Context, q *db.Queries, p db.Project, a db.Ask) (string,
 		if err != nil {
 			return "", 0, err
 		}
-		var ok bool
-		if text, ok = docs.Merge(in.Manifest, raised(base.Text), raised(cur.Text)); !ok {
+		var conflicts []docs.Conflict
+		if text, conflicts = docs.Merge3(text, raised(base.Text), raised(cur.Text)); len(conflicts) > 0 {
 			return "", 0, errors.New("the manifest changed the same lines since")
 		}
 		if text == raised(cur.Text) {

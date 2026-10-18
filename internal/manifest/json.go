@@ -18,6 +18,16 @@ func JSON(v any, indent string) []byte {
 	return bytes.TrimSuffix(buf.Bytes(), []byte("\n"))
 }
 
+// Canonical is a manifest text in the one form deck stores: indented by two spaces, keys in their order, &, < and >
+// as they are; as it is when it is not JSON.
+func Canonical(text string) string {
+	var buf bytes.Buffer
+	if err := json.Indent(&buf, []byte(strings.TrimSpace(text)), "", "  "); err != nil {
+		return text
+	}
+	return Unescaped(buf.String())
+}
+
 // htmlEscapes are the escapes json.Marshal writes for &, < and >.
 var htmlEscapes = map[string]byte{"0026": '&', "003c": '<', "003e": '>'}
 

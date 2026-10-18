@@ -1,6 +1,7 @@
 package scenarios
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -880,6 +881,54 @@ func TestAnEditThatWidensNothingKeepsTheRequestForRights(t *testing.T) {
 	e.waitNote("has this change already")
 }
 
+// TestAOneLineManifestTakesANeutralEditWhileARequestWaits: a manifest an older deck stored in one line merges with
+// a request as well as an indented one, since deck brings every text to one form; manifest_save stores it indented.
+func TestAOneLineManifestTakesANeutralEditWhileARequestWaits(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, ok)
+	p, err := e.App.Store.Q.GetProject(context.Background(), e.createProject("notes", grantManifest))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var line bytes.Buffer
+	if err := json.Compact(&line, []byte(grantManifest)); err != nil {
+		t.Fatal(err)
+	}
+	ref := docs.Ref{Scope: docs.ProjectScope(p), Name: docs.ManifestName}
+	if err := e.App.Store.Tx(context.Background(), func(ctx context.Context, q *db.Queries) error {
+		_, _, _, err := docs.Save(ctx, q, ref, docs.KindManifest, line.String(), "owner", "stored by an older deck")
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	_, tok := e.token("terminal", "deck.*")
+	var w struct{ Waiting int64 }
+	code, out := e.callWith(tok, "deck.manifest_save", map[string]any{"project": "notes", "old": []string{`"writes": []`},
+		"new": []string{`"writes": ["report.md"]`}})
+	if code != 200 || json.Unmarshal(out, &w) != nil || w.Waiting == 0 {
+		t.Fatalf("a change that widens rights waits: %d %s", code, out)
+	}
+	if code, out = e.callWith(tok, "deck.manifest_save", map[string]any{"project": "notes", "old": []string{`"Does work"`},
+		"new": []string{`"Does the work"`}}); code != 200 || strings.Contains(string(out), "waiting") {
+		t.Fatalf("an edit that widens nothing saves at once: %d %s", code, out)
+	}
+	var cur struct{ Manifest string }
+	e.must("deck.manifest_get", map[string]any{"project": "notes"}, &cur)
+	if !strings.Contains(cur.Manifest, "\n  \"writes\": [],\n") {
+		t.Fatalf("manifest_save stores the manifest indented: %s", cur.Manifest)
+	}
+	e.answer(w.Waiting, "allow")
+	m := e.inForce("notes")
+	if !m.MayWrite("report.md") || m.Command("work").Description != "Does the work" {
+		t.Fatalf("the yes keeps the edit and grants the right: writes %v, %q", m.Writes, m.Command("work").Description)
+	}
+	for _, n := range e.notes() {
+		if strings.Contains(n.Text, "outdated") {
+			t.Fatalf("the request is not outdated by an edit elsewhere: %+v", n)
+		}
+	}
+}
+
 // TestAnEditOfTheRightARequestWaitsForOutdatesIt: an edit that changes the lines a request changes, without widening,
 // saves at once; the request no longer merges, so it closes with a note and its yes grants nothing.
 func TestAnEditOfTheRightARequestWaitsForOutdatesIt(t *testing.T) {
@@ -888,13 +937,13 @@ func TestAnEditOfTheRightARequestWaitsForOutdatesIt(t *testing.T) {
 	e.createProject("notes", grantManifest)
 	_, tok := e.token("terminal", "deck.*")
 	var w struct{ Waiting int64 }
-	_, out := e.callWith(tok, "deck.manifest_save", map[string]any{"project": "notes", "old": []string{`"read": ["a.example"]`},
-		"new": []string{`"read": ["a.example", "b.example"]`}})
+	_, out := e.callWith(tok, "deck.manifest_save", map[string]any{"project": "notes", "old": []string{`"a.example"`},
+		"new": []string{`"a.example", "b.example"`}})
 	if json.Unmarshal(out, &w) != nil || w.Waiting == 0 {
 		t.Fatalf("a new domain waits: %s", out)
 	}
-	code, out := e.callWith(tok, "deck.manifest_save", map[string]any{"project": "notes", "old": []string{`"read": ["a.example"]`},
-		"new": []string{`"read": []`}})
+	code, out := e.callWith(tok, "deck.manifest_save", map[string]any{"project": "notes", "old": []string{"[\n      \"a.example\"\n    ]"},
+		"new": []string{`[]`}})
 	if code != 200 || strings.Contains(string(out), "waiting") {
 		t.Fatalf("dropping a domain widens nothing and saves at once: %d %s", code, out)
 	}

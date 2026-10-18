@@ -45,7 +45,7 @@ func (sv *Saver) manifestGet(ctx context.Context, act registry.Actor, in manifes
 		return manifestView{}, err
 	}
 	v := manifestView{Project: p.Name, Document: d.ID, Revision: d.Current, Manifest: raised(r.Text)}
-	if v.Manifest != r.Text {
+	if format(r.Text) != manifest.FormatVersion {
 		v.Warnings = append(v.Warnings, fmt.Sprintf("stored in format %d; this is it raised to format %d, which its next save stores",
 			format(r.Text), manifest.FormatVersion))
 	}
@@ -56,12 +56,12 @@ func (sv *Saver) manifestGet(ctx context.Context, act registry.Actor, in manifes
 	return v, nil
 }
 
-// raised is a stored manifest in the current format; as it is when it cannot be raised.
+// raised is a stored manifest in the current format and the one stored form; as it is when it cannot be raised.
 func raised(text string) string {
 	if up, changed, err := manifest.Upgrade([]byte(text)); err == nil && changed {
-		return string(up)
+		text = string(up)
 	}
-	return text
+	return manifest.Canonical(text)
 }
 
 // format is the version a manifest is written in.
@@ -100,13 +100,8 @@ func (sv *Saver) manifestSave(ctx context.Context, act registry.Actor, in manife
 		if err != nil {
 			return nil, err
 		}
-		text := raised(r.Text)
-		if in.Manifest, err = docs.Edit(text, in.Old, in.New); err != nil {
-			plain, perr := docs.Edit(manifest.Unescaped(text), in.Old, in.New)
-			if perr != nil {
-				return nil, err
-			}
-			in.Manifest = plain
+		if in.Manifest, err = docs.Edit(raised(r.Text), in.Old, in.New); err != nil {
+			return nil, err
 		}
 		in.IfRevision = d.Current
 	}
@@ -151,8 +146,8 @@ type parsed struct {
 	text []byte
 }
 
-// parseManifest validates a manifest and returns the text to store, upgraded to the current format with &, < and >
-// unescaped; only the built-in project answers events of deck.
+// parseManifest validates a manifest and returns the text to store, upgraded to the current format in the one stored
+// form (manifest.Canonical); only the built-in project answers events of deck.
 func parseManifest(raw []byte, builtin bool) (parsed, error) {
 	m, err := manifest.Parse(raw)
 	if err != nil {
@@ -166,7 +161,7 @@ func parseManifest(raw []byte, builtin bool) (parsed, error) {
 			return parsed{}, registry.Invalid("deck: a trigger on %s belongs to the built-in project %s", t.On, master.Name)
 		}
 	}
-	return parsed{m: m, text: []byte(manifest.Unescaped(string(m.Text())))}, nil
+	return parsed{m: m, text: []byte(manifest.Canonical(string(m.Text())))}, nil
 }
 
 // CreateProject validates the manifest, stores it and the prompt as first revisions and registers triggers.

@@ -5,6 +5,8 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"deck2/internal/manifest"
 )
 
 // TestPartsOfADocumentAndOfAManifestChangeWithoutSendingTheWholeText: old parts of the current text are replaced
@@ -63,11 +65,11 @@ func TestPartsOfADocumentAndOfAManifestChangeWithoutSendingTheWholeText(t *testi
 		"old": []string{`"title": "Notes"`}, "new": []string{`"title": "All notes"`}}, &saved)
 	var m struct{ Manifest string }
 	e.must("deck.manifest_get", map[string]any{"project": "web"}, &m)
-	if want := strings.Replace(webNotes, `"title": "Notes"`, `"title": "All notes"`, 1); saved.Revision != 2 || m.Manifest != want {
-		t.Fatalf("an old part changes and the text around it stays as written: %d\n%s", saved.Revision, m.Manifest)
+	if want := manifest.Canonical(strings.Replace(webNotes, `"title": "Notes"`, `"title": "All notes"`, 1)); saved.Revision != 2 || m.Manifest != want {
+		t.Fatalf("an old part changes and the manifest is stored in deck's one form: %d\n%s", saved.Revision, m.Manifest)
 	}
 	if code, body := e.call("deck.manifest_save", map[string]any{"project": "web",
-		"old": []string{`"menu": ["main"]`}, "new": []string{`"menu": ["none"]`}}); code != 422 {
+		"old": []string{"\"menu\": [\n    \"main\"\n  ]"}, "new": []string{`"menu": ["none"]`}}); code != 422 || !strings.Contains(string(body), "none") {
 		t.Fatalf("a manifest changed by parts is checked like a whole one: %d %s", code, body)
 	}
 	for _, c := range []struct {
@@ -99,9 +101,10 @@ func TestASavedManifestNamesTheBlocksThatFailOnTheRecordsThereAre(t *testing.T) 
 		var saved struct{ Screens []string }
 		b, _ := json.Marshal(bind)
 		column, edit := `"columns": [{"label": "Title", "bind": "title"}]`, `{"type": "form", "title": "Edit", "command": "deck.record_update"}`
-		e.must("deck.manifest_save", map[string]any{"project": "web", "old": []string{column, edit}, "new": []string{
-			`"columns": [{"label": "Title", "bind": "title"}, {"label": "Score", "bind": ` + string(b) + `}]`,
-			edit + `, {"type": "card", "fields": [{"label": "Score", "bind": ` + string(b) + `}]}`}}, &saved)
+		changed := strings.Replace(strings.Replace(webNotes, column,
+			`"columns": [{"label": "Title", "bind": "title"}, {"label": "Score", "bind": `+string(b)+`}]`, 1),
+			edit, edit+`, {"type": "card", "fields": [{"label": "Score", "bind": `+string(b)+`}]}`, 1)
+		e.must("deck.manifest_save", map[string]any{"project": "web", "manifest": changed}, &saved)
 		e.must("deck.manifest_save", map[string]any{"project": "web", "manifest": webNotes}, nil)
 		return saved.Screens
 	}
@@ -166,7 +169,7 @@ func TestAManifestStoredWithEscapedAmpersandsChangesByItsCharacters(t *testing.T
 		"old": []string{`"title": "Notes & links <old>"`}, "new": []string{`"title": "Notes & more"`}}, nil)
 	var m struct{ Manifest string }
 	e.must("deck.manifest_get", map[string]any{"project": "web"}, &m)
-	if !strings.Contains(m.Manifest, `"title": "Notes & more", "description": "a \\u0026 b"`) || strings.Contains(m.Manifest, `\u0026 more`) {
+	if !strings.Contains(m.Manifest, `"title": "Notes & more",`) || !strings.Contains(m.Manifest, `"description": "a \\u0026 b"`) || strings.Contains(m.Manifest, `\u0026 more`) {
 		t.Fatalf("the old part matches the escaped text, the escaped backslash stays, and the manifest is stored with &:\n%s", m.Manifest)
 	}
 }

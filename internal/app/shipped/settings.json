@@ -40,8 +40,8 @@
           "columns": [
             {"label": "Module", "bind": "project", "format": "tag"},
             {"label": "Command", "bind": "title"},
-            {"label": "When", "bind": "cron ?? ''", "format": "cron"},
             {"label": "Model", "bind": "model ?? ''", "pick": "model"},
+            {"label": "When", "bind": "cron ?? ''", "format": "cron"},
             {"label": "Price", "bind": "price ?? ''"}
           ],
           "actions": [
@@ -67,9 +67,9 @@
           "columns": [
             {"label": "Kind of work", "bind": "role", "format": "tag"},
             {"label": "Model", "bind": "len(models) > 0 ? models[0] : ''", "pick": "model"},
+            {"label": "Now", "bind": "using ?? 'none is up'", "format": "tag", "tone": "using == nil ? 'error' : using != models[0] ? 'warn' : 'ok'"},
             {"label": "Then", "bind": "join(models[1:], ' → ')"},
-            {"label": "Price", "bind": "price"},
-            {"label": "Now", "bind": "using ?? 'none is up'", "tone": "using == nil ? 'error' : using != models[0] ? 'warn' : 'ok'"}
+            {"label": "Price", "bind": "price"}
           ],
           "actions": [
             {"verb": "model", "command": "deck.assignment_set", "params": {"role": "=role"}, "input": "model", "options": "=choices ?? []", "when": "len(choices ?? []) > 0"},
@@ -81,10 +81,9 @@
           "columns": [
             {"label": "Name", "bind": "name", "format": "copy"},
             {"label": "Kind", "bind": "agent != nil && agent != '' ? 'agent' : kind", "format": "tag"},
+            {"label": "Status", "bind": "status ?? 'unchecked'", "format": "tag", "details": "status == nil ? 'No work has gone to it yet' : error", "tone": "status == 'ok' ? 'ok' : status == 'error' ? 'error' : status == nil ? 'muted' : 'warn'"},
             {"label": "Price", "bind": "price"},
-            {"label": "In use", "bind": "used ? '✓' : ''", "tone": "used ? 'ok' : 'muted'"},
-            {"label": "Status", "bind": "status ?? 'not called yet'", "format": "tag", "tone": "status == 'ok' ? 'ok' : status == 'error' ? 'error' : status == nil ? 'muted' : 'warn'"},
-            {"label": "Why", "bind": "error ?? ''", "details": "error"}
+            {"label": "In use", "bind": "used ? '✓' : ''", "tone": "used ? 'ok' : 'muted'"}
           ],
           "actions": [
             {"verb": "check", "command": "deck.provider_check", "params": {"provider": "=name"}, "when": "(agent ?? '') != ''"},
@@ -110,9 +109,9 @@
           "columns": [
             {"label": "Name", "bind": "name"},
             {"label": "API", "bind": "api", "format": "tag"},
+            {"label": "Models", "bind": "models"},
             {"label": "Address", "bind": "url", "format": "copy"},
-            {"label": "Key", "bind": "key"},
-            {"label": "Models", "bind": "models"}
+            {"label": "Key", "bind": "key"}
           ],
           "actions": [
             {"verb": "edit", "screen": "settings", "params": {"tab": "Connections", "dialog": "connection", "name": "=name", "api": "=api", "url": "=url", "key_secret": "=key_secret ?? ''", "local": "=local"}},
@@ -149,8 +148,8 @@
           "description": "Every check of deck that fails now, of the machine and of the modules, with why; a command or a schedule shows its model, which you change here. One marked read stops counting on the cockpit until it changes.",
           "columns": [
             {"label": "What", "bind": "subject", "format": "tag", "tone": "seen ? 'muted' : 'error'"},
-            {"label": "Model", "bind": "model ?? ''", "pick": "model"},
             {"label": "Why", "bind": "error", "details": "error", "format": "copy"},
+            {"label": "Model", "bind": "model ?? ''", "pick": "model"},
             {"label": "Since", "bind": "updated_at", "format": "relative"}
           ],
           "actions": [
@@ -177,17 +176,15 @@
           "columns": [
             {"label": "Agent", "bind": "name"},
             {"label": "Version", "bind": "version"},
-            {"label": "Status", "bind": "status == 'missing' ? 'not installed' : status", "format": "tag", "tone": "status == 'ok' ? 'ok' : status == 'error' ? 'error' : status == 'missing' ? 'muted' : 'warn'"},
-            {"label": "Why", "bind": "error", "details": "error"}
+            {"label": "Status", "bind": "status == 'missing' ? 'not installed' : status", "format": "tag", "tone": "status == 'ok' ? 'ok' : status == 'error' ? 'error' : status == 'missing' ? 'muted' : 'warn'", "details": "error"}
           ]},
         {"type": "table", "title": "Everything deck checks", "source": {"from": "deck.health_list"}, "filter": ["kind", "status", "project"],
           "description": "The models and agents deck runs on with the work each does, the commands, schedules, tools and servers of the modules, and the machine.",
           "columns": [
             {"label": "What", "bind": "subject"},
-            {"label": "Status", "bind": "status", "format": "tag", "tone": "status == 'ok' ? 'ok' : status == 'error' ? 'error' : 'warn'"},
-            {"label": "Does", "bind": "join(places ?? [], ', ')"},
-            {"label": "Why", "bind": "error", "details": "error", "format": "copy"},
-            {"label": "Since", "bind": "updated_at", "format": "relative"}
+            {"label": "Status", "bind": "status", "format": "tag", "details": "error", "tone": "status == 'ok' ? 'ok' : status == 'error' ? 'error' : 'warn'"},
+            {"label": "Since", "bind": "updated_at", "format": "relative"},
+            {"label": "Does", "bind": "join(places ?? [], ', ')"}
           ],
           "actions": [
             {"verb": "check", "command": "deck.provider_check", "params": {"provider": "=trimPrefix(subject, 'provider:')"}, "when": "self_check"},

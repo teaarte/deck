@@ -36,6 +36,8 @@ func TestRealBrowserCatalog(t *testing.T) {
 	b.call("browser_resize", map[string]any{"width": 1280, "height": 900})
 	b.open(e.URL + "/?token=" + token + "#/p/btc/main")
 	b.until("the forecast screen", `document.querySelector('[data-stat]') && document.querySelector('[data-format="relative"]')`)
+	b.until("the rows that open under their line", `document.querySelector('[data-row-toggle]')`)
+	b.eval(`(document.querySelectorAll('[data-row-toggle]').forEach((x) => x.click()), '')`)
 	for what, cond := range map[string]string{
 		"money in the locale of the browser":  `document.querySelector('[data-stat]').innerText === new Intl.NumberFormat(navigator.language, { style: 'currency', currency: 'USD' }).format(62340.25)`,
 		"a percent of a fraction":             `document.querySelector('[data-format="percent"]').innerText === new Intl.NumberFormat(navigator.language, { style: 'percent', maximumFractionDigits: 1 }).format(0.042)`,
@@ -62,6 +64,8 @@ func TestRealBrowserCatalog(t *testing.T) {
 	b.until("the forecast page opened by a click on its row", `location.hash.startsWith('#/p/btc/forecast/') && document.body.innerText.includes('Still open')`)
 	b.eval(`history.back(), ''`)
 	b.until("the screen again", `document.querySelector('[data-opens]')`)
+	b.eval(`(document.querySelectorAll('[data-row-toggle]').forEach((x) => x.click()), '')`)
+	b.until("the link in its opened row", `document.querySelector('a[href="https://example.com/a"]')`)
 	b.eval(`document.querySelector('a[href="https://example.com/a"]').addEventListener('click', (e) => e.preventDefault()), ''`)
 	b.eval(`document.querySelector('a[href="https://example.com/a"]').click(), ''`)
 	time.Sleep(500 * time.Millisecond)

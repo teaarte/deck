@@ -337,7 +337,7 @@ func TestSettingsHealthShowsWhatIsRedFirstWithWhy(t *testing.T) {
 	}
 	block := e.settingsBlock("Everything deck checks", nil)
 	rows := blockData[[]screenRow](t, block["rows"])
-	if len(rows) < 2 || rows[0].Cells[1] != "error" || rows[0].Cells[3] != "the server exited: 1" {
+	if len(rows) < 2 || rows[0].Cells[1] != "error" || rows[0].Details[1] != "the server exited: 1" {
 		t.Fatalf("what is red comes first with why: %+v", rows)
 	}
 	for _, r := range rows {
@@ -625,7 +625,7 @@ func TestHealthShowsTheModelOfAFailingScheduleAndTheWorkOfAModel(t *testing.T) {
 	}
 	rows := blockData[[]screenRow](t, e.settingsBlock("Failing checks", nil)["rows"])
 	i := slices.IndexFunc(rows, func(r screenRow) bool { return r.Cells[0] == "trigger:daily.work" })
-	if i < 0 || rows[i].Cells[1] != "fake" || !hasVerb(rows[i].Actions, "run_now") || verb(t, rows[i].Actions, "model")["pick"] != "model" {
+	if i < 0 || rows[i].Cells[2] != "fake" || !hasVerb(rows[i].Actions, "run_now") || verb(t, rows[i].Actions, "model")["pick"] != "model" {
 		t.Fatalf("a failing schedule shows its model to change and runs again: %+v", rows)
 	}
 	pick := verb(t, rows[i].Actions, "model")

@@ -149,13 +149,13 @@ func TestRealBrowserSettings(t *testing.T) {
 	b.shot("settings-projects")
 
 	tab("Health")
-	agent := `[...document.querySelectorAll('tr')].find((r) => r.innerText.includes('goose --version'))`
+	agent := `[...document.querySelectorAll('tr')].find((r) => [...r.querySelectorAll('td')].some((d) => d.innerText.trim() === 'goose'))`
 	b.until("the agents with why one gives no version", agent)
-	if got := b.eval(`String(!!` + agent + `.querySelector('[data-one]'))`); got != "true" {
-		t.Fatal("the error of an agent shows in one line")
+	if got := b.eval(`String(!` + agent + `.innerText.includes('exit status 1') && !!` + agent + `.querySelector('[data-format="tag"][data-hint]'))`); got != "true" {
+		t.Fatal("the line of an agent is its status with the error as its hint, the whole error in the row opened under it")
 	}
-	b.eval(`(` + agent + `.querySelector('[data-cell-details] button').click(), '')`)
-	b.until("the whole error on demand", agent+`.querySelector('[data-cell-details] pre')?.innerText.includes('exit status 1')`)
+	b.eval(`(` + agent + `.querySelector('[data-row-toggle]').click(), '')`)
+	b.until("the whole error on demand", agent+`.nextElementSibling?.matches('[data-row-more]') && `+agent+`.nextElementSibling.innerText.includes('exit status 1')`)
 	b.shot("settings-health")
 
 	tab("Connections")
@@ -804,4 +804,72 @@ try { const f = frame("root", document.createElement(F)); document.removeChild(d
 		b.until("the custom block again", `document.querySelector('iframe[data-custom]')`)
 		wait(c.name)
 	}
+}
+
+const readableManifest = `{
+  "version": 12,
+  "collections": [{"name": "jobs", "description": "Jobs", "key": "name", "display": "name", "schema": {"type": "object", "required": ["name"],
+    "properties": {"name": {"type": "string"}, "status": {"type": "string"}, "why": {"type": "string"}, "note": {"type": "string"},
+      "owner": {"type": "string"}, "host": {"type": "string"}, "region": {"type": "string"}, "started": {"type": "string"}}}}],
+  "screens": [{"name": "jobs", "title": "Jobs", "blocks": [
+    {"type": "table", "title": "Jobs", "source": {"collection": "jobs", "sort": "name"}, "columns": [
+      {"label": "Name", "bind": "name"},
+      {"label": "Status", "bind": "status", "format": "tag", "tone": "status == 'error' ? 'error' : 'ok'", "details": "why ?? ''"},
+      {"label": "Note", "bind": "note ?? ''"},
+      {"label": "Owner", "bind": "owner ?? ''"},
+      {"label": "Host", "bind": "host"},
+      {"label": "Region", "bind": "region ?? ''"},
+      {"label": "Started", "bind": "started", "format": "relative"}
+    ]}
+  ]}],
+  "menu": ["jobs"]
+}`
+
+// TestRealBrowserReadableTable: a line shows four columns (two on a phone) but an empty one, a long text in two lines,
+// a status as a badge with why as its hint; the rest opens under it without empty values.
+func TestRealBrowserReadableTable(t *testing.T) {
+	if os.Getenv("DECK_REAL_BROWSER") == "" {
+		t.Skip("set DECK_REAL_BROWSER=1 to run against Playwright MCP")
+	}
+	checkBuiltClient(t)
+	e := newEnv(t, nil)
+	e.createProject("ops", readableManifest)
+	now := time.Now().UTC().Format(time.RFC3339)
+	e.must("deck.records_upsert", map[string]any{"project": "ops", "collection": "jobs", "records": jsonl(
+		map[string]any{"name": "backup", "status": "error", "why": "the disk is full: 0 bytes left on /backup", "note": strings.Repeat("a long note that goes on and on ", 20),
+			"host": "nas", "region": "home", "started": now},
+		map[string]any{"name": "mail", "status": "ok", "host": "vps", "started": now})}, nil)
+
+	b := newPlaywright(t)
+	b.call("browser_resize", map[string]any{"width": 1440, "height": 900})
+	b.open(e.URL + "/?token=" + token + "#/p/ops/jobs")
+	b.until("the table", `document.querySelectorAll('[data-table] tbody tr').length === 2`)
+	heads := `[...document.querySelectorAll('[data-table] th')].map((x) => x.innerText.trim()).filter(Boolean).join('|')`
+	if got := b.eval(heads); got != "Name|Status|Note|Host" {
+		t.Fatalf("a line shows the first four columns with a value, never the empty one: %s", got)
+	}
+	if got := b.eval(`(() => { const c = [...document.querySelectorAll('[data-table] tbody tr')][0].querySelectorAll('td')[3].firstElementChild;
+		return String(c.scrollHeight > c.clientHeight && c.clientHeight < 60) })()`); got != "true" {
+		t.Fatalf("a long text is cut to two lines: %s", got)
+	}
+	if got := b.eval(`String(!!document.querySelector('[data-table] tbody tr [data-format="tag"][data-hint]') && !document.querySelector('[data-table] tbody tr').innerText.includes('disk is full'))`); got != "true" {
+		t.Fatalf("a status is a badge with why as its hint, not a text of the line: %s", got)
+	}
+	b.shot("readable-table")
+	b.eval(`(document.querySelector('[data-table] tbody tr [data-row-toggle]').click(), '')`)
+	b.until("the rest of the row under it", `document.querySelector('[data-row-more]')`)
+	if got := b.eval(`[...document.querySelectorAll('[data-row-more] dt')].map((x) => x.innerText.trim()).join('|')`); got != "Region|Started|Status" {
+		t.Fatalf("the row opened under a line has the rest of its columns and its details, without the empty ones: %s", got)
+	}
+	if got := b.eval(`String(document.querySelector('[data-row-more]').innerText.includes('disk is full'))`); got != "true" {
+		t.Fatal("the opened row shows why in full")
+	}
+	b.shot("readable-table-open")
+
+	b.call("browser_resize", map[string]any{"width": 390, "height": 844})
+	b.until("two columns on a phone", heads+` === 'Name|Status'`)
+	if got := b.eval(`String(document.documentElement.scrollWidth <= innerWidth + 1)`); got != "true" {
+		t.Fatalf("the table fits the width of a phone: %s", got)
+	}
+	b.shot("readable-table-phone")
 }

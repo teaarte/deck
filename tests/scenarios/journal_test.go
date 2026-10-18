@@ -72,7 +72,7 @@ func TestJournalShowsTheCallsOfTheGatewayTheSpendFilesAndSnapshots(t *testing.T)
 
 	check.messages(t, e.screenMessages("", "process", map[string]any{"record": tell}))
 	page := e.screenData("", "process", map[string]any{"record": tell})
-	if rows := blockData[[]screenRow](t, page["b2"]["rows"]); len(rows) != 2 || rows[1].Cells[1] != "web.publish" || rows[1].Cells[3] != "waiting" || rows[0].Cells[3] != "rejected" {
+	if rows := blockData[[]screenRow](t, page["b2"]["rows"]); len(rows) != 2 || rows[1].Cells[1] != "web.publish" || rows[1].Cells[2] != "waiting" || rows[0].Cells[2] != "rejected" || rows[0].Details[2] != "the owner said no" {
 		t.Fatalf("the page of a run lists the calls it made with their outcomes: %+v", rows)
 	}
 

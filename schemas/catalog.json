@@ -68,7 +68,7 @@
     },
     "table": {
       "description": "Rows of a source.",
-      "block": {"description": "Needs source and columns (each a label and bind, an expression over the row); filter and actions are optional.", "required": ["source", "columns"], "properties": {"source": {"$ref": "#/$defs/source"}, "columns": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/bind"}}, "filter": {"$ref": "#/$defs/filter"}, "actions": {"$ref": "#/$defs/actions"}, "empty": {"$ref": "#/$defs/empty"}}},
+      "block": {"description": "Needs source and columns (each a label and bind, an expression over the row); filter and actions are optional. The first columns are the main ones: a line shows four (two on a phone), the rest, and the details of a column, open in the row under it; a column every row leaves empty is not drawn; a tag column takes its details as the hint of its badge.", "required": ["source", "columns"], "properties": {"source": {"$ref": "#/$defs/source"}, "columns": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/bind"}}, "filter": {"$ref": "#/$defs/filter"}, "actions": {"$ref": "#/$defs/actions"}, "empty": {"$ref": "#/$defs/empty"}}},
       "type": "object",
       "additionalProperties": false,
       "required": ["columns", "data"],

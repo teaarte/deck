@@ -24,9 +24,9 @@ function Copied({ text }: { text: string }) {
   );
 }
 
-// Value shows a value by its format: a link opens, a tag is a badge colored by its tone or else by its text (one for
-// each value of a list), a relative time ages by the minute, a copy has a button that copies it.
-export function Value({ v, s, tone }: { v: unknown; s: Shown; tone?: string | null }): ReactNode {
+// Value shows a value by its format: a link opens, a tag is a badge by its tone or text with its hint on hover or a
+// tap, a relative time ages by the minute, a copy has a button that copies it.
+export function Value({ v, s, tone, hint }: { v: unknown; s: Shown; tone?: string | null; hint?: string | null }): ReactNode {
   useMinute(s.format === 'relative');
   const color = toneColor(tone);
   if (s.format === 'link' && typeof v === 'string' && /^https?:\/\//.test(v)) {
@@ -36,7 +36,9 @@ export function Value({ v, s, tone }: { v: unknown; s: Shown; tone?: string | nu
     return <>{v.map((x, i) => <Value key={i} v={x} s={s} tone={tone} />)}</>;
   }
   if (s.format === 'tag' && v !== null && v !== undefined && v !== '') {
-    return <Badge variant="light" color={color === 'dimmed' ? 'gray' : color ?? tagColor(v)} data-format="tag" data-tone={tone ?? undefined} miw="max-content">{show(v)}</Badge>;
+    const badge = <Badge variant="light" color={color === 'dimmed' ? 'gray' : color ?? tagColor(v)} data-format="tag" data-tone={tone ?? undefined} miw="max-content" data-hint={hint ? true : undefined}>{show(v)}</Badge>;
+    if (!hint) return badge;
+    return <Tooltip label={hint.length > 280 ? hint.slice(0, 280) + '…' : hint} multiline maw={360} withArrow events={{ hover: true, focus: true, touch: true }}>{badge}</Tooltip>;
   }
   const text = formatted(v, s);
   if (s.format === 'copy' && text !== '') return <Copied text={text} />;

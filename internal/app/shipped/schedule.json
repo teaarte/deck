@@ -28,12 +28,12 @@
         {"type": "table", "title": "History", "source": {"from": "deck.processes_list", "input": {"limit": 100}, "sort": "-id"}, "filter": ["project", "state"],
           "description": "Every run, by schedule, by a button or by the master; a run shows its log and the calls it made.",
           "columns": [
-            {"label": "#", "bind": "id"},
-            {"label": "Module", "bind": "project", "format": "tag"},
             {"label": "Command", "bind": "command"},
-            {"label": "By", "bind": "kind == 'script' ? 'script' : (provider ?? '') != '' ? provider : kind", "format": "tag"},
+            {"label": "Module", "bind": "project", "format": "tag"},
             {"label": "State", "bind": "word", "format": "tag", "tone": "tone ?? ''"},
-            {"label": "Started", "bind": "started_at", "format": "relative"}
+            {"label": "Started", "bind": "started_at", "format": "relative"},
+            {"label": "By", "bind": "kind == 'script' ? 'script' : (provider ?? '') != '' ? provider : kind", "format": "tag"},
+            {"label": "#", "bind": "id"}
           ],
           "actions": [
             {"verb": "open", "screen": "process", "record": "=id"},

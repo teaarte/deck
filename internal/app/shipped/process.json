@@ -29,9 +29,8 @@
       "columns": [
         {"label": "When", "bind": "created_at", "format": "relative"},
         {"label": "Tool", "bind": "tool"},
-        {"label": "Class", "bind": "class", "format": "tag"},
-        {"label": "Outcome", "bind": "outcome", "format": "tag", "tone": "outcome == 'done' ? 'ok' : outcome == 'rejected' || outcome == 'expired' ? 'error' : ''"},
-        {"label": "Error", "bind": "error", "details": "error"}
+        {"label": "Outcome", "bind": "outcome", "format": "tag", "details": "error", "tone": "outcome == 'done' ? 'ok' : outcome == 'rejected' || outcome == 'expired' ? 'error' : ''"},
+        {"label": "Class", "bind": "class", "format": "tag"}
       ]}
   ]
 }

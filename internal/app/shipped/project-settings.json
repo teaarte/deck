@@ -49,10 +49,10 @@
             "columns": [
               {"label": "Command", "bind": "command"},
               {"label": "Model", "bind": "provider", "format": "tag"},
-              {"label": "Calls", "bind": "calls"},
               {"label": "Paid", "bind": "subscription ? nil : cost_usd", "format": "money", "currency": "USD"},
-              {"label": "Subscription", "bind": "subscription ? '✓' : ''"},
-              {"label": "Last", "bind": "last_at", "format": "relative"}
+              {"label": "Calls", "bind": "calls"},
+              {"label": "Last", "bind": "last_at", "format": "relative"},
+              {"label": "Subscription", "bind": "subscription ? '✓' : ''"}
             ]}
       ]},
       {"title": "Access", "icon": "key", "blocks": [
@@ -99,9 +99,8 @@
             "description": "What of the module deck checks; a command or a schedule shows its model, which you change here.",
             "columns": [
               {"label": "What", "bind": "subject"},
-              {"label": "Status", "bind": "status", "format": "tag", "tone": "status == 'ok' ? 'ok' : status == 'error' ? 'error' : 'warn'"},
+              {"label": "Status", "bind": "status", "format": "tag", "details": "error", "tone": "status == 'ok' ? 'ok' : status == 'error' ? 'error' : 'warn'"},
               {"label": "Model", "bind": "model ?? ''", "pick": "model"},
-              {"label": "Why", "bind": "error", "details": "error", "format": "copy"},
               {"label": "Since", "bind": "updated_at", "format": "relative"}
             ],
             "actions": [

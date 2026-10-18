@@ -86,7 +86,7 @@ func TestTheModelsAndConnectionsTabsShowWhatRunsTheModels(t *testing.T) {
 
 	rows := blockData[[]screenRow](t, e.settingsBlock("Everywhere else", nil)["rows"])
 	i := slices.IndexFunc(rows, func(r screenRow) bool { return r.Cells[0] == "image" })
-	if i < 0 || fmt.Sprint(rows[i].Cells...) != "imagerouter/x/pic$0.04 a callrouter/x/pic" {
+	if i < 0 || fmt.Sprint(rows[i].Cells...) != "imagerouter/x/picrouter/x/pic$0.04 a call" {
 		t.Fatalf("the assignments show which models do which work and which one does it now: %+v", rows)
 	}
 	var acp *screenRow

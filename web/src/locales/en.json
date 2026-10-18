@@ -1,7 +1,7 @@
 {
   "actions": { "more": "More", "copy": "Copy", "copied": "Copied" },
   "bell": { "title": "Notifications", "empty": "No notifications yet" },
-  "table": { "search": "Search", "nothing": "Nothing matches", "range": "{{from}}–{{to}} of {{of}}", "size": "Rows on a page" },
+  "table": { "more": "More", "less": "Less", "search": "Search", "nothing": "Nothing matches", "range": "{{from}}–{{to}} of {{of}}", "size": "Rows on a page" },
   "nav": { "control": "Control", "cockpit": "Cockpit", "deck": "deck", "menu": "Menu", "back": "Back", "hide": "Hide the menu", "show": "Show the menu", "running": "Running: {{n}}", "asks": "Waiting for you: {{n}}", "errors": "Failing checks: {{n}}" },
   "state": {
     "loading": "Loading…",

@@ -448,3 +448,38 @@ func TestCloseAllAndReadAllKeepWhatTheyClearInTheHistory(t *testing.T) {
 	e.refused("deck.feed_read", map[string]any{}, 422, "give the entry of one note, or all")
 	e.refused("deck.process_dismiss", map[string]any{"all": true, "process": 1}, 422, "give one process, or all")
 }
+
+// TestRunsByDaySetTheOpenFailuresApart: runs_daily counts every failed run as the Failed tab of the Schedule lists
+// them and, apart, those still open as processes_list with failed gives them: not closed, not made good.
+func TestRunsByDaySetTheOpenFailuresApart(t *testing.T) {
+	t.Parallel()
+	var calls atomic.Int64
+	e := newEnv(t, func(ctx context.Context, c *Call) provider.Result {
+		if n := calls.Add(1); c.command() != "voice" || n <= 3 {
+			return provider.Result{IsError: true, Text: fmt.Sprintf("the voice server is down (%d)", n)}
+		}
+		return provider.Result{Text: "voiced"}
+	})
+	e.createProject("shorts", jobsModule)
+	e.must("deck.records_upsert", map[string]any{"project": "shorts", "collection": "videos", "records": jsonl(
+		map[string]any{"slug": "knights"}, map[string]any{"slug": "dragons"}, map[string]any{"slug": "castles"})}, nil)
+	var recs []struct{ ID int64 }
+	e.must("deck.records_list", map[string]any{"project": "shorts", "collection": "videos"}, &recs)
+	var ids []int64
+	for _, r := range recs {
+		id := e.start("shorts", "voice", map[string]any{"record": r.ID})
+		e.waitState(id, "error")
+		ids = append(ids, id)
+	}
+	e.must("deck.process_dismiss", map[string]any{"process": ids[1]}, nil)
+	e.waitState(e.start("shorts", "voice", map[string]any{"record": recs[2].ID}), "done")
+
+	var days []struct{ Runs, Failed, Open int64 }
+	e.must("deck.runs_daily", map[string]any{"days": 1}, &days)
+	var open []struct{ ID int64 }
+	e.must("deck.processes_list", map[string]any{"failed": true}, &open)
+	failed := blockData[[]screenRow](t, e.screenData("", "schedule", nil)["b0-1-0"]["rows"])
+	if len(days) != 1 || days[0].Runs != 4 || days[0].Failed != 3 || days[0].Open != 1 || len(open) != 1 || open[0].ID != ids[0] || len(failed) != 3 {
+		t.Fatalf("3 failed as the Failed tab lists them, 1 open as processes_list gives it: %+v, %+v, %d rows", days, open, len(failed))
+	}
+}

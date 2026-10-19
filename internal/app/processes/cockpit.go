@@ -194,9 +194,14 @@ func (s *Service) dismissAll(ctx context.Context, act registry.Actor) (any, erro
 
 // Failed is how many lines of failed processes the cockpit shows, the same failures one line.
 func (s *Service) Failed(ctx context.Context, act registry.Actor) (int64, error) {
-	ps, err := s.St.Q.ListFailedProcesses(ctx, s.failedParams(act, 0, 0, 2000))
+	ps, err := s.OpenFailures(ctx, act)
 	ps, _ = sameFailures(ps, len(ps))
 	return int64(len(ps)), err
+}
+
+// OpenFailures are the failed processes of the workspace still open, each one.
+func (s *Service) OpenFailures(ctx context.Context, act registry.Actor) ([]db.Process, error) {
+	return s.St.Q.ListFailedProcesses(ctx, s.failedParams(act, 0, 0, 2000))
 }
 
 // startedSince reports whether a process started at or after a time.

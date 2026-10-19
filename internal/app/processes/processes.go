@@ -145,7 +145,7 @@ type processesListIn struct {
 	Record  int64  `type:"record" opt:"" desc:"Only the processes whose input field record is the id of this record: how its pipeline goes"`
 	Topic   int64  `opt:"" desc:"Only the replies of the master in this chat topic and the processes they started, as master.work"`
 	Lang    string `opt:"" desc:"Language of the words of the states, such as ru; English without one"`
-	Failed  bool   `opt:"" desc:"Only the processes of the last week that failed or were cut by a restart, not trials, that the owner has not closed and no later run made good: one for the same record, or with the same input for a command without one; newest first, each with retry when the owner may run its command again"`
+	Failed  bool   `opt:"" desc:"Only the open failures, the open of runs_daily: the processes of the last week that failed or were cut by a restart, not trials, that the owner has not closed and no later run made good (one for the same record, or with the same input for a command without one); the same failure of a command one row with its repeats; newest first, each with retry when the owner may run its command again. Schedule → Failed lists every failed run, closed ones too"`
 }
 
 func (s *Service) processesList(ctx context.Context, act registry.Actor, in processesListIn) ([]processView, error) {

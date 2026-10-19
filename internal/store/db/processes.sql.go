@@ -1976,7 +1976,8 @@ func (q *Queries) RootProjectOf(ctx context.Context, id int64) (int64, error) {
 const runsSince = `-- name: RunsSince :many
 SELECT CAST(substr(p.started_at, 1, 16) AS TEXT) AS minute, p.provider,
     CAST(count(*) AS INTEGER) AS runs,
-    CAST(sum(CASE WHEN p.state IN ('error', 'interrupted') THEN 1 ELSE 0 END) AS INTEGER) AS failed,
+    CAST(sum(CASE WHEN p.trial = 0 AND (p.state IN ('error', 'interrupted') OR p.state = 'done' AND p.not_by_schema = 1)
+      THEN 1 ELSE 0 END) AS INTEGER) AS failed,
     CAST(sum(CASE WHEN p.trigger_id IS NOT NULL THEN 1 ELSE 0 END) AS INTEGER) AS scheduled
 FROM process p JOIN project j ON j.id = p.project_id
 WHERE j.workspace_id = ?1 AND p.started_at >= ?2
@@ -1996,6 +1997,7 @@ type RunsSinceRow struct {
 	Scheduled int64
 }
 
+// The runs of each minute: all, failed as the Failed tab of the Schedule lists them, and started by a schedule.
 func (q *Queries) RunsSince(ctx context.Context, arg RunsSinceParams) ([]RunsSinceRow, error) {
 	rows, err := q.db.QueryContext(ctx, runsSince, arg.WorkspaceID, arg.Since)
 	if err != nil {
